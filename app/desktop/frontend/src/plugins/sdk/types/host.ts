@@ -8,7 +8,7 @@ import type { ConfigValue } from "../config";
 import type { StateSlice } from "../stateSlice";
 import type { CoreEventHandler, CustomEventHandler } from "./agui";
 
-import type { CommandSpec, ShortcutSpec } from "./commands";
+import type { CommandSpec } from "./commands";
 import type { ExtensionContributionOptions, ExtensionPoint } from "./extensions";
 import type { BeforeUnloadHandler, Disposable, ReadyHandler } from "./common";
 import type { LocaleSpec } from "./i18n";
@@ -20,34 +20,18 @@ import type {
   TaskHandle,
   TaskStartOptions,
 } from "./infra";
-import type { ContentBlockRenderer, MessageRoleSpec } from "./message";
+import type { ContentBlockRenderer } from "./message";
 import type { LoadedPlugin, PluginSpec } from "./plugin";
-import type { SidebarRailItemSpec, SidebarSectionSpec } from "./sidebar";
-import type { ToolActionSpec, ToolPreviewComponent } from "./tool";
-import type { LayoutSlotSpec, SettingsPaneSpec, WorkspaceViewSpec } from "./workspace";
+import type { LayoutSlotSpec, WorkspaceViewSpec } from "./workspace";
 import type { ContentBlockKind } from "@/protocol/agui/viewState";
 
 export interface Host {
-  tool: {
-    /** Register a tool-call preview component (last-write-wins). */
-    registerPreview: (fn: string, component: ToolPreviewComponent) => Disposable;
-    /** Register a header action button shown on every ToolCard. */
-    registerAction: (spec: ToolActionSpec) => Disposable;
-    /**
-     * Register the icon glyph for a tool function name. The lookup is
-     * checked before any hardcoded fallback so plugins can swap icons
-     * (e.g. give `bash` a custom terminal glyph) without forking the kernel.
-     */
-    registerIcon: (fn: string, icon: string) => Disposable;
-  };
   message: {
     /** Register a renderer for a content-block kind. */
     registerContentBlock: <K extends ContentBlockKind>(
       kind: K,
       renderer: ContentBlockRenderer<K>,
     ) => Disposable;
-    /** Register a role identity (display name + avatar icon). */
-    registerRole: (spec: MessageRoleSpec) => Disposable;
   };
   agui: {
     /** Subscribe to an AG-UI CUSTOM event by name. */
@@ -74,16 +58,6 @@ export interface Host {
     openView: (id: string) => void;
     /** Close a registered view by id. */
     closeView: (id: string) => void;
-  };
-  sidebar: {
-    /** Contribute a section in the expanded sidebar. */
-    registerSection: (spec: SidebarSectionSpec) => Disposable;
-    /** Contribute an item to the collapsed (rail) sidebar. */
-    registerRailItem: (spec: SidebarRailItemSpec) => Disposable;
-  };
-  shortcuts: {
-    /** Register a global keyboard shortcut (e.g. "Mod+K", "Escape"). */
-    register: (spec: ShortcutSpec) => Disposable;
   };
   commands: {
     /** Contribute a command palette entry. */
@@ -132,10 +106,6 @@ export interface Host {
     has: (key: string) => boolean;
     /** Subscribe to changes for one key. Receives the new value (or undefined). */
     onChange: (key: string, fn: (value: ConfigValue | undefined) => void) => Disposable;
-  };
-  settings: {
-    /** Contribute a pane to the settings modal. */
-    registerPane: (spec: SettingsPaneSpec) => Disposable;
   };
   /** Namespaced key-value storage, persisted to localStorage. */
   storage: {

@@ -18,17 +18,10 @@ import type {
   LoadedPlugin,
   LogLevel,
   LogSubscriber,
-  MessageRoleSpec,
   PluginSpec,
   ReadyHandler,
   RpcAfterResponseHook,
   RpcBeforeRequestHook,
-  SettingsPaneSpec,
-  ShortcutSpec,
-  SidebarRailItemSpec,
-  SidebarSectionSpec,
-  ToolActionSpec,
-  ToolPreviewComponent,
   WorkspaceViewSpec,
 } from "./types";
 import type { ContentBlockKind } from "@/protocol/agui/viewState";
@@ -47,19 +40,11 @@ import {
   LAYOUT_SLOT,
   LOCALE,
   LOG_SUBSCRIBER,
-  MESSAGE_ROLE,
   PLUGIN_LOAD_LISTENER,
   PLUGIN_UNLOAD_LISTENER,
   READY_HANDLER,
   RPC_AFTER_RESPONSE,
   RPC_BEFORE_REQUEST,
-  SETTINGS_PANE,
-  SHORTCUT,
-  SIDEBAR_RAIL_ITEM,
-  SIDEBAR_SECTION,
-  TOOL_ACTION,
-  TOOL_ICON,
-  TOOL_PREVIEW,
   WORKSPACE_VIEW,
 } from "./kernelPoints";
 import { useNotificationStore } from "./notifications";
@@ -155,14 +140,6 @@ export function createHost(
   };
 
   const full = {
-    tool: {
-      registerPreview: (fn: string, component: ToolPreviewComponent): Disposable =>
-        contribute(TOOL_PREVIEW, component, { key: fn }),
-      registerAction: (spec: ToolActionSpec): Disposable => contribute(TOOL_ACTION, spec),
-      registerIcon: (fn: string, icon: string): Disposable =>
-        contribute(TOOL_ICON, icon, { key: fn }),
-    },
-
     message: {
       registerContentBlock<K extends ContentBlockKind>(
         kind: K,
@@ -174,7 +151,6 @@ export function createHost(
           key: kind,
         });
       },
-      registerRole: (spec: MessageRoleSpec): Disposable => contribute(MESSAGE_ROLE, spec),
     },
 
     agui: {
@@ -213,16 +189,6 @@ export function createHost(
       },
     },
 
-    sidebar: {
-      registerSection: (spec: SidebarSectionSpec): Disposable => contribute(SIDEBAR_SECTION, spec),
-      registerRailItem: (spec: SidebarRailItemSpec): Disposable =>
-        contribute(SIDEBAR_RAIL_ITEM, spec),
-    },
-
-    shortcuts: {
-      register: (spec: ShortcutSpec): Disposable => contribute(SHORTCUT, spec),
-    },
-
     commands: {
       register: (spec: CommandSpec): Disposable => contribute(COMMAND, spec),
     },
@@ -259,10 +225,6 @@ export function createHost(
       },
       onBeforeUnload: (fn: BeforeUnloadHandler): Disposable =>
         contribute(BEFORE_UNLOAD_HANDLER, fn),
-    },
-
-    settings: {
-      registerPane: (spec: SettingsPaneSpec): Disposable => contribute(SETTINGS_PANE, spec),
     },
 
     storage: createStorage(pluginName),

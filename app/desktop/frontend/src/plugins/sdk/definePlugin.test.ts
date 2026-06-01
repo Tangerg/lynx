@@ -32,7 +32,7 @@ describe("loadPlugin", () => {
         version: "1.0.0",
         setup: ({ host }) => {
           // Register first…
-          host.tool.registerPreview("bash", StubComponent);
+          host.extensions.contribute(TOOL_PREVIEW, StubComponent, { key: "bash" });
           // …then explode.
           throw new Error("kaboom");
         },
@@ -273,10 +273,8 @@ describe("lazy activation", () => {
         setup: ({ host }) => {
           host.commands.register({ id: "ok", label: "OK", run: () => {} });
           try {
-            // host.tool is not declared — must throw.
-            (
-              host as unknown as Record<string, { registerPreview: () => void }>
-            ).tool!.registerPreview();
+            // host.window is not declared — must throw.
+            (host as unknown as Record<string, { setTitle: () => void }>).window!.setTitle();
           } catch (err) {
             captured = err;
           }

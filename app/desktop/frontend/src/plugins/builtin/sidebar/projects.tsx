@@ -3,6 +3,7 @@ import { ProjectRow } from "@/components/sidebar/ProjectRow";
 import { useT } from "@/lib/i18n";
 import { useProjects } from "@/lib/data/queries";
 import { definePlugin } from "@/plugins/sdk";
+import { SIDEBAR_SECTION } from "@/plugins/sdk/kernelPoints";
 import { sideListClasses } from "./styles";
 
 function ProjectsSection() {
@@ -51,6 +52,10 @@ export const sidebarProjects = definePlugin({
   name: "lyra.builtin.sidebar-projects",
   version: "1.0.0",
   setup({ host }) {
-    host.sidebar.registerSection({ id: "projects", order: 0, component: ProjectsSection });
+    host.extensions.contribute(SIDEBAR_SECTION, {
+      id: "projects",
+      order: 0,
+      component: ProjectsSection,
+    });
   },
 });

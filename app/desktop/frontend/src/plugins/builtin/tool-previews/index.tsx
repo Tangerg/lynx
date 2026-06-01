@@ -9,6 +9,7 @@ import { PreviewFoot } from "@/components/tools/previews/PreviewFoot";
 import { useDiff, useFileHead, useGrep, useTerminal } from "@/lib/data/queries";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
+import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
 
 const MAX_TERM_LINES = 9;
 const MAX_DIFF_ROWS = 8;
@@ -135,7 +136,7 @@ export const bash = definePlugin({
   name: "lyra.builtin.bash",
   version: "1.0.0",
   setup({ host }) {
-    host.tool.registerPreview("bash", BashPreview);
+    host.extensions.contribute(TOOL_PREVIEW, BashPreview, { key: "bash" });
   },
 });
 
@@ -144,8 +145,8 @@ export const diff = definePlugin({
   name: "lyra.builtin.diff",
   version: "1.0.0",
   setup({ host }) {
-    host.tool.registerPreview("edit_file", DiffPreview);
-    host.tool.registerPreview("write_file", DiffPreview);
+    host.extensions.contribute(TOOL_PREVIEW, DiffPreview, { key: "edit_file" });
+    host.extensions.contribute(TOOL_PREVIEW, DiffPreview, { key: "write_file" });
   },
 });
 
@@ -153,7 +154,7 @@ export const file = definePlugin({
   name: "lyra.builtin.file",
   version: "1.0.0",
   setup({ host }) {
-    host.tool.registerPreview("read_file", FilePreview);
+    host.extensions.contribute(TOOL_PREVIEW, FilePreview, { key: "read_file" });
   },
 });
 
@@ -161,6 +162,6 @@ export const grep = definePlugin({
   name: "lyra.builtin.grep",
   version: "1.0.0",
   setup({ host }) {
-    host.tool.registerPreview("grep", GrepPreview);
+    host.extensions.contribute(TOOL_PREVIEW, GrepPreview, { key: "grep" });
   },
 });

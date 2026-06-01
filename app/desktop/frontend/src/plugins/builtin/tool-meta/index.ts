@@ -5,12 +5,13 @@
 // is the source of truth that third-party tools extend.
 
 import { definePlugin } from "@/plugins/sdk";
+import { TOOL_ACTION, TOOL_ICON } from "@/plugins/sdk/kernelPoints";
 
 export const toolActions = definePlugin({
   name: "lyra.builtin.tool-actions",
   version: "1.0.0",
   setup({ host }) {
-    host.tool.registerAction({
+    host.extensions.contribute(TOOL_ACTION, {
       id: "copy-args",
       icon: "copy",
       title: "Copy command",
@@ -33,11 +34,11 @@ export const toolIcons = definePlugin({
   name: "lyra.builtin.tool-icons",
   version: "1.0.0",
   setup({ host }) {
-    host.tool.registerIcon("read_file", "file");
-    host.tool.registerIcon("write_file", "file");
-    host.tool.registerIcon("edit_file", "file");
-    host.tool.registerIcon("grep", "search");
-    host.tool.registerIcon("bash", "terminal");
-    host.tool.registerIcon("web_search", "globe");
+    host.extensions.contribute(TOOL_ICON, "file", { key: "read_file" });
+    host.extensions.contribute(TOOL_ICON, "file", { key: "write_file" });
+    host.extensions.contribute(TOOL_ICON, "file", { key: "edit_file" });
+    host.extensions.contribute(TOOL_ICON, "search", { key: "grep" });
+    host.extensions.contribute(TOOL_ICON, "terminal", { key: "bash" });
+    host.extensions.contribute(TOOL_ICON, "globe", { key: "web_search" });
   },
 });
