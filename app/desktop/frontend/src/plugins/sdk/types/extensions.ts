@@ -8,6 +8,8 @@
 // others fill it, exactly like `host.agui.on(name, …)` fans an event out to
 // every registered handler.
 
+import type { HostCapability } from "./common";
+
 /** How a point keys its contributions. */
 export type ExtensionKeying =
   // Same key → overwrite the previous, warn on cross-plugin override.
@@ -42,11 +44,14 @@ export interface ExtensionPoint<T> {
    */
   readonly normalizeKey?: (key: string) => string;
   /**
-   * @internal Migration seam. Kernel points back onto an existing named
-   * registry field while the 40-map → 1-map collapse is staged (L2→L3);
-   * plugin-defined points omit this and live in the shared `extensions` map.
+   * Capability a plugin must declare to contribute to this point — the
+   * permission gate, enforced by `host.extensions.contribute` for hosts that
+   * declared `capabilities` (sideload). Kernel points carry their domain
+   * capability (THEME → "theme", RPC_BEFORE_REQUEST → "rpc"); plugin-defined
+   * points omit it (contributing to a plugin's own point needs no kernel
+   * permission). Full hosts (built-ins, no `capabilities`) skip the check.
    */
-  readonly field?: string;
+  readonly capability?: HostCapability;
   /** @internal phantom — carries `T` for inference; never read at runtime. */
   readonly __itemType?: T;
 }

@@ -3,7 +3,7 @@
 // and the capability whitelist.
 
 import type { ContributedCommand } from "./commands";
-import type { Disposable } from "./common";
+import type { Disposable, HostCapability } from "./common";
 import type { PluginContext } from "./host";
 import type { SettingsPaneSpec, WorkspaceViewSpec } from "./workspace";
 
@@ -33,41 +33,6 @@ export type ContributedView = Omit<WorkspaceViewSpec, "component">;
  * `SettingsPaneSpec` minus the body component.
  */
 export type ContributedSettingsPane = Omit<SettingsPaneSpec, "component">;
-
-/**
- * Names of the top-level groupings on `Host`. A plugin can voluntarily
- * narrow what it can see by listing only the namespaces it actually uses
- * in `PluginSpec.capabilities`. Anything not listed becomes a throwing
- * proxy on the bound host — useful as a self-imposed contract today and
- * a hook for future permission enforcement / marketplace audits.
- */
-export type HostCapability =
-  | "tool"
-  | "message"
-  | "agui"
-  | "layout"
-  | "workspace"
-  | "theme"
-  | "router"
-  | "composer"
-  | "sidebar"
-  | "shortcuts"
-  | "agent"
-  | "data"
-  | "commands"
-  | "extensions"
-  | "lifecycle"
-  | "state"
-  | "config"
-  | "settings"
-  | "storage"
-  | "rpc"
-  | "notify"
-  | "window"
-  | "plugins"
-  | "log"
-  | "i18n"
-  | "tasks";
 
 /**
  * Declarative ahead-of-activation contributions. Anything listed here is
@@ -106,9 +71,10 @@ export interface PluginSpec {
    */
   contributes?: PluginContributes;
   /**
-   * Voluntary capability declaration. When present, the bound host only
-   * exposes the listed namespaces — accessing any other throws a clear
-   * error at runtime. Omit to keep full access (the existing behaviour).
+   * Capability declaration. When present, the bound host only exposes the
+   * listed namespaces (others throw) and `host.extensions.contribute` only
+   * accepts points whose `capability` is listed. Omit for full access
+   * (built-ins). `extensions` itself is always reachable — gating is per-point.
    */
   capabilities?: HostCapability[];
   /**
