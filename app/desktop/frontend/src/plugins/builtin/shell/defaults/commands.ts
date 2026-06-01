@@ -151,14 +151,30 @@ export const defaultCommands = definePlugin({
       accents: lookupExtensionPoint(ACCENT),
     });
 
-    const initial = snapshot();
-    rebuild(initial.views, initial.accents);
+    // Content signature of just the inputs `rebuild` reads. `rebuild` itself
+    // writes COMMAND contributions to the same `extensions` map, so a raw
+    // `state.extensions !== prev.extensions` guard would re-fire on our own
+    // writes and recurse forever. Skipping when the signature is unchanged
+    // collapses command-only churn (incl. rebuild's own) to a no-op.
+    const signature = (s: ReturnType<typeof snapshot>) =>
+      [
+        ...s.views.map((v) => `v:${v.id}:${v.title}:${v.icon}:${v.order ?? ""}`),
+        ...s.accents.map((a) => `a:${a.id}:${a.label}:${a.order ?? ""}`),
+      ].join("|");
 
-    const unsubscribe = usePluginStore.subscribe((state, prev) => {
-      // Both workspace views and accents live on the shared `extensions` map.
-      if (state.extensions === prev.extensions) return;
+    let lastSignature = "";
+    const apply = () => {
       const next = snapshot();
+      const sig = signature(next);
+      if (sig === lastSignature) return;
+      lastSignature = sig;
       rebuild(next.views, next.accents);
+    };
+
+    apply();
+    const unsubscribe = usePluginStore.subscribe((state, prev) => {
+      if (state.extensions === prev.extensions) return;
+      apply();
     });
 
     return () => unsubscribe();
