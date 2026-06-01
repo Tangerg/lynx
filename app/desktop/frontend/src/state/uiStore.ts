@@ -35,6 +35,8 @@ const uiPersistSchema = z.object({
   radiusScale: z.number(),
   motionScale: z.number(),
   messageStyle: z.enum(["bubble", "plain"]),
+  // .default keeps older blobs (no streamRender field) parsing — no version bump.
+  streamRender: z.enum(["smooth", "typewriter"]).default("smooth"),
   sidebarRail: z.boolean(),
 });
 
@@ -94,6 +96,10 @@ interface UiState {
    *  rounded corners + surface-2 fill. "plain": user messages match the
    *  assistant's flat layout — left-aligned, no bubble. */
   messageStyle: "bubble" | "plain";
+  /** Streaming reveal style for assistant replies. "smooth" (default):
+   *  word-by-word reveal with a per-word fade-in. "typewriter": crisp
+   *  character-by-character reveal, no fade — a steady terminal cadence. */
+  streamRender: "smooth" | "typewriter";
   /** True = collapsed rail. False = expanded sidebar. */
   sidebarRail: boolean;
 }
@@ -118,6 +124,7 @@ interface UiActions {
   setRadiusScale: (scale: number) => void;
   setMotionScale: (scale: number) => void;
   setMessageStyle: (style: "bubble" | "plain") => void;
+  setStreamRender: (mode: "smooth" | "typewriter") => void;
   toggleSidebar: () => void;
 }
 
@@ -135,6 +142,7 @@ export const useUiStore = create<UiState & UiActions>()(
       radiusScale: 1,
       motionScale: 1,
       messageStyle: "bubble",
+      streamRender: "smooth",
       sidebarRail: true,
 
       setTheme: (theme) => set({ theme }),
@@ -159,6 +167,7 @@ export const useUiStore = create<UiState & UiActions>()(
       setRadiusScale: (radiusScale) => set({ radiusScale }),
       setMotionScale: (motionScale) => set({ motionScale }),
       setMessageStyle: (messageStyle) => set({ messageStyle }),
+      setStreamRender: (streamRender) => set({ streamRender }),
       toggleSidebar: () => set((s) => ({ sidebarRail: !s.sidebarRail })),
     }),
     {

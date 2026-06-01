@@ -3,7 +3,10 @@
 // with the message bubble style (moved out of Appearance). Future
 // personalization knobs land here too.
 
-import { MessageStyleSection } from "@/plugins/builtin/settings/appearance/PrefSections";
+import {
+  MessageStyleSection,
+  StreamRenderSection,
+} from "@/plugins/builtin/settings/appearance/PrefSections";
 import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
 
@@ -11,6 +14,7 @@ function PersonalizationPane() {
   return (
     <div>
       <MessageStyleSection />
+      <StreamRenderSection />
     </div>
   );
 }

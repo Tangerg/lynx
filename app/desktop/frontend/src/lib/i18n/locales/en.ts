@@ -76,6 +76,10 @@ export const en: Record<string, string> = {
   "settings.messageStyle.sub": "How your own messages render.",
   "settings.messageStyle.bubble": "Bubble",
   "settings.messageStyle.plain": "Plain",
+  "settings.streamRender": "Streaming style",
+  "settings.streamRender.sub": "How the assistant's replies appear as they stream in.",
+  "settings.streamRender.smooth": "Smooth",
+  "settings.streamRender.typewriter": "Typewriter",
   "settings.language.label": "Language",
   "settings.language.sub": "Interface language. More locales can be added via plugins.",
 

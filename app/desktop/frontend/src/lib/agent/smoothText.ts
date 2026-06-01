@@ -39,11 +39,13 @@ export function pickRate(backlog: number, streaming: boolean): number {
   return RATE_CRUISE;
 }
 
-// Reveals `rawText` whole-word at a time at the adaptive rate from
-// pickRate. `enabled` controls both the initial state (false → start
-// fully revealed) and the live rate (false → drain mode). The rAF
-// loop stays mounted so stream-end transitions drain gracefully.
-export function useSmoothText(rawText: string, enabled: boolean): string {
+// Reveals `rawText` at the adaptive rate from pickRate. `enabled` controls
+// both the initial state (false → start fully revealed) and the live rate
+// (false → drain mode). `typewriter` switches the reveal granularity from
+// whole-word + per-word fade (smooth, the default) to crisp character-by-
+// character with no sentence pauses (a steady terminal cadence). The rAF loop
+// stays mounted so stream-end transitions drain gracefully.
+export function useSmoothText(rawText: string, enabled: boolean, typewriter = false): string {
   const initialLen = enabled ? 0 : rawText.length;
   const [displayLen, setDisplayLen] = useState(initialLen);
 
@@ -62,6 +64,9 @@ export function useSmoothText(rawText: string, enabled: boolean): string {
   // latest value without re-subscribing.
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
+
+  const typewriterRef = useRef(typewriter);
+  typewriterRef.current = typewriter;
 
   // Sync rawText into refs on each render. Re-segment only when text
   // actually changed.
@@ -93,6 +98,31 @@ export function useSmoothText(rawText: string, enabled: boolean): string {
 
       const now = performance.now();
       if (now < st.pauseUntil) {
+        rafId = requestAnimationFrame(tick);
+        return;
+      }
+
+      // Typewriter cadence — reveal individual characters at the same
+      // backlog-adaptive rate, no word snapping, no sentence pauses. The
+      // crisp char-by-char appear IS the effect (the caller drops the
+      // per-word fade-in), so it reads as a steady terminal type-out.
+      if (typewriterRef.current) {
+        let reveal: number;
+        if (st.lastTickAt < 0) {
+          st.lastTickAt = now;
+          reveal = 1; // cold start: emit one char so it doesn't look hung
+        } else {
+          const elapsed = Math.min(now - st.lastTickAt, MAX_FRAME_STEP_MS);
+          st.lastTickAt = now;
+          st.charDebt += pickRate(backlog, enabledRef.current) * (elapsed / 1000);
+          reveal = Math.floor(st.charDebt);
+          st.charDebt = Math.max(0, Math.min(st.charDebt - reveal, MAX_DEBT));
+        }
+        const newLen = Math.min(st.displayLen + reveal, st.rawText.length);
+        if (newLen !== st.displayLen) {
+          st.displayLen = newLen;
+          setDisplayLen(newLen);
+        }
         rafId = requestAnimationFrame(tick);
         return;
       }

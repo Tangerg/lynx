@@ -63,6 +63,10 @@ export const de: Record<string, string> = {
   "settings.messageStyle.sub": "Wie deine eigenen Nachrichten dargestellt werden.",
   "settings.messageStyle.bubble": "Sprechblase",
   "settings.messageStyle.plain": "Flach",
+  "settings.streamRender": "Streaming-Stil",
+  "settings.streamRender.sub": "Wie Antworten beim Streamen erscheinen.",
+  "settings.streamRender.smooth": "Weich",
+  "settings.streamRender.typewriter": "Schreibmaschine",
   "settings.language.label": "Sprache",
   "settings.language.sub": "Sprache der Oberfläche. Weitere via Plugins hinzufügbar.",
 

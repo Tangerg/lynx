@@ -73,6 +73,10 @@ export const zh: Record<string, string> = {
   "settings.messageStyle.sub": "你自己消息的渲染方式。",
   "settings.messageStyle.bubble": "气泡",
   "settings.messageStyle.plain": "平铺",
+  "settings.streamRender": "流式样式",
+  "settings.streamRender.sub": "助手回复在流式输出时的呈现方式。",
+  "settings.streamRender.smooth": "平滑",
+  "settings.streamRender.typewriter": "打字机",
   "settings.language.label": "语言",
   "settings.language.sub": "界面语言。可以通过插件添加更多语言。",
 
