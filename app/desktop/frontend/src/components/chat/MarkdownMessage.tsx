@@ -15,6 +15,7 @@ import { ensureKatexCss } from "@/lib/markdown/katexCss";
 import { measureMarkdownRepair } from "@/lib/metrics";
 import { rehypeCitations } from "@/lib/markdown/rehypeCitations";
 import { rehypeFadeIn } from "@/lib/markdown/rehypeFadeIn";
+import { rehypeStreamCaret } from "@/lib/markdown/rehypeStreamCaret";
 import { useSmoothText } from "@/lib/agent/smoothText";
 import "remark-github-blockquote-alert/alert.css";
 
@@ -92,7 +93,7 @@ export function MarkdownMessage({ text, streaming, instant, typewriter }: Props)
 // on its content + flags. `streaming` is forwarded but doesn't gate
 // any visual yet — the per-word fade-in already conveys "currently
 // generating", so a tail caret would just double the signal.
-const MarkdownBlock = memo(function MarkdownBlock({ text, instant, typewriter }: Props) {
+const MarkdownBlock = memo(function MarkdownBlock({ text, instant, streaming, typewriter }: Props) {
   // Pull in the KaTeX stylesheet (~30KB) the first time a math-bearing
   // block mounts. Probe is just `$` — false positives (USD prices)
   // preload the CSS earlier than strictly needed, which is harmless;
@@ -108,14 +109,17 @@ const MarkdownBlock = memo(function MarkdownBlock({ text, instant, typewriter }:
   // settled blocks animate on first paint then stay inert) →
   // rehypeKatex. rehypeRaw must come first so later plugins see the
   // expanded tree. Typewriter mode drops rehypeFadeIn — the char-by-char
-  // reveal is the animation, a per-word fade on top would muddy it.
-  const rehypePlugins = useMemo(
-    () =>
-      instant || typewriter
-        ? [rehypeRaw, rehypeCitations, rehypeKatex]
-        : [rehypeRaw, rehypeCitations, rehypeFadeIn, rehypeKatex],
-    [instant, typewriter],
-  );
+  // reveal is the animation, a per-word fade on top would muddy it — and adds
+  // a blinking accent caret on the streaming tail block instead.
+  const rehypePlugins = useMemo(() => {
+    if (instant) return [rehypeRaw, rehypeCitations, rehypeKatex];
+    if (typewriter) {
+      return streaming
+        ? [rehypeRaw, rehypeCitations, rehypeKatex, rehypeStreamCaret]
+        : [rehypeRaw, rehypeCitations, rehypeKatex];
+    }
+    return [rehypeRaw, rehypeCitations, rehypeFadeIn, rehypeKatex];
+  }, [instant, typewriter, streaming]);
 
   return (
     <ReactMarkdown
