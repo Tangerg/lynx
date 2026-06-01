@@ -172,7 +172,7 @@ cd frontend && npm run check        # 一次跑完上面 4 个，全绿才往下
 - ✅ registry.ts 抽 `clearByPlugin` helper（Phase 3）
 - ✅ 主题系统：10 个主题 + `defineThemePlugin` helper + Settings picker UI
 - ✅ 所有 legacy 代码 / 注释 / 文档清除（dev phase 阶段）
-- ✅ **开放扩展点底座（L2+L3）**：40 个命名贡献 map → 单一 `extensions` 底座 + `defineExtensionPoint`/`contribute`；删掉 ~24 个纯 spec-register host facade，内置源码改直接 `contribute(POINT, …)`；保留少量薄 facade（agui / layout / contentBlock / lifecycle）。见 `docs/EXTENSION_POINTS.md`。下一步：capability-on-point（强权限下沉到点）。
+- ✅ **开放扩展点底座（L2+L3）**：40 个命名贡献 map → 单一 `extensions` 底座 + `defineExtensionPoint`/`contribute`；删掉 ~24 个纯 spec-register host facade，内置源码改直接 `contribute(POINT, …)`；保留少量薄 facade（agui / layout / contentBlock / lifecycle）。**capability-on-point 已做**：每个点带 `capability`，`contribute` 按点强制校验（受限 host 只能填声明了对应 capability 的点）。见 `docs/EXTENSION_POINTS.md`。下一步：§9.3 风险分级表 + sideload 默认 deny。
 
 下一波"值得做但要先决条件"的清单在 `frontend/ARCHITECTURE.md §12`。
 

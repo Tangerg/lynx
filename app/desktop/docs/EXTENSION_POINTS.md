@@ -21,7 +21,8 @@
   - `agui.on/onCore`、`rpc.beforeRequest/afterResponse`、`log.subscribe` —— handler/hook 订阅 API，具名表意 + 行为性，高调用密度删了纯增噪
 - **kernel 内部 firing 循环破环**：`markAppReady`/`registerLoaded`/`unload` 在 store 内迭代 substrate，靠 `pointIds.ts`（零依赖常量）按 `entry.point` 过滤，避免 `registry → kernelPoints` 成环。
 - **边界划定**：「注册一个 spec 到列表」→ 删 facade 走 `contribute`；「订阅 handler/hook」或「facade 算了去重 id / 保泛型 / 带行为」→ 留作薄 facade。
-- **下一步（未做）**：capability-on-point（给 `ExtensionPoint` 加 `capability` 字段，`contribute` 强制校验，把 per-namespace 强权限门禁下沉到点上 —— 见 §9）。Plugin Pack（`definePluginPack`，§5）仍未实现。
+- **capability-on-point（已做）**：`ExtensionPoint.capability` + `contribute` 强制校验，把 per-namespace 强权限门禁下沉到点上（受限 host 只能 contribute 到声明了对应 capability 的点；built-in 全权；插件自定义点无 capability、永远可填）。`host.extensions` 在受限 host 上恒可达,门禁在点上。见 §9。
+- **下一步（未做）**：§9.3 的两件便宜事——capability 风险分级表（safe/moderate/dangerous）+ sideload 默认 deny（origin=sideload 且未声明 capabilities → deny-all）。install-time 同意 UI / Plugins-pane 风险展示等 T3 触发。Plugin Pack（`definePluginPack`，§5）仍未实现。
 
 ---
 
@@ -291,10 +292,12 @@ Lyra 的 `capabilities` 本就是权限单元（gate 24 个 Host namespace）。
 
 ### 9.3 落地（分阶段，T3 触发才全做）
 
+> **✅ 已做（核心 capability-on-point）**：每个 kernel 点带 `capability`，`contribute` 按点强制校验；`host.extensions` 受限 host 恒可达，门禁在点上。built-in 全权不变。下表是其余分阶段项。
+
 | 子项                                                                                                   | 成本 | 何时做                                            |
 | ------------------------------------------------------------------------------------------------------ | ---- | ------------------------------------------------- |
-| 给每个 capability 标 risk（一张表 + 类型 `Record<HostCapability, Risk>`）                              | 便宜 | **可随底座做**                                    |
-| sideload 入口对 `origin=sideload` **强制** `restrictHost`（无 capabilities → deny-all；built-in 不变） | 便宜 | **可随底座做**（关掉一个真实风险口子）            |
+| 给每个 capability 标 risk（一张表 + 类型 `Record<HostCapability, Risk>`）                              | 便宜 | 下一个便宜项                                      |
+| sideload 入口对 `origin=sideload` **强制** `restrictHost`（无 capabilities → deny-all；built-in 不变） | 便宜 | 下一个便宜项（关掉一个真实风险口子）              |
 | Plugins pane 展示每个插件的 capabilities + 聚合风险（safe/moderate/dangerous），仿 AionUi UI           | 中   | 可随底座做                                        |
 | **install-time 同意**：加载请求 dangerous 权限的第三方插件时弹窗 + 记 `granted`                        | 重   | **等第一个真实第三方 sideload（T3），现在 YAGNI** |
 | 运行时按 `granted` 二次 gate（声明了 dangerous 但未授予 → 仍 deny）                                    | 中   | 同上，等触发                                      |
