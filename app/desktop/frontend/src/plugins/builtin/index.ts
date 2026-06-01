@@ -44,7 +44,6 @@ import {
 import bootstrap from "./agent/bootstrap";
 import conversationExport from "./workspace/conversation-export";
 import coreReducer from "./agent/core-reducer";
-import customTheme from "./theme/custom-theme";
 import {
   defaultAccents,
   defaultCommands,
@@ -88,7 +87,7 @@ import {
 import slashHints from "./chat/slash-hints";
 import { statusNotifications, statusPill } from "./shell/status";
 import { tasksPill } from "./workspace/tasks";
-import { builtinThemes } from "./theme/themes";
+import { themesPack } from "./theme/themes";
 import toaster from "./shell/toaster";
 import { toolActions, toolIcons } from "./chat/tool-meta";
 import { bash, diff, file, grep } from "./chat/tool-previews";
@@ -131,8 +130,7 @@ const infrastructure: PluginSpec[] = [
   rpcAgent,
   defaultTitle,
   defaultAccents,
-  ...builtinThemes,
-  customTheme,
+  themesPack,
   // Locale packs — each language is its own plugin so a third-party
   // can ship Vietnamese / Arabic / ... without touching the kernel.
   // English isn't strictly needed here (its bundle is bootstrapped by
