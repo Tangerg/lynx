@@ -24,7 +24,6 @@ import type {
   CustomEventHandler,
   DataProviderSpec,
   LayoutSlotSpec,
-  LocaleSpec,
   LogSubscriber,
   MessageRoleSpec,
   PluginErrorFallbackSpec,
@@ -37,8 +36,6 @@ import type {
   SidebarRailItemSpec,
   SidebarSectionSpec,
   SlashCommandSpec,
-  ThemeAccentSpec,
-  ThemeSpec,
   ToolActionSpec,
   ToolPreviewComponent,
   WorkspaceViewSpec,
@@ -134,9 +131,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
 
   const toolActions = ownedSpecSlot<ToolActionSpec>("toolActions", "tool action");
   const settingsPanes = ownedSpecSlot<SettingsPaneSpec>("settingsPanes", "settings pane");
-  const themes = ownedSpecSlot<ThemeSpec>("themes", "theme");
-  const accents = ownedSpecSlot<ThemeAccentSpec>("accents", "accent");
-  const locales = ownedSpecSlot<LocaleSpec>("locales", "locale");
   const routes = ownedSpecSlot<RouteSpec>("routes", "route");
   const composerStatus = ownedSpecSlot<ComposerStatusSpec>("composerStatus", "composer status");
   const composerModes = ownedSpecSlot<ComposerModeSpec>("composerModes", "composer mode");
@@ -245,15 +239,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     addLayoutSlot: (pluginName, slot, spec) =>
       layoutSlots.add(pluginName, `${slot}#${spec.id}`, { slot, spec }),
     removeLayoutSlot: (pluginName, slot, id) => layoutSlots.remove(pluginName, `${slot}#${id}`),
-
-    addTheme: themes.add,
-    removeTheme: themes.remove,
-
-    addAccent: accents.add,
-    removeAccent: accents.remove,
-
-    addLocale: locales.add,
-    removeLocale: locales.remove,
 
     addRoute: routes.add,
     removeRoute: routes.remove,

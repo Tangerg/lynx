@@ -22,7 +22,6 @@ import type {
   DataProviderSpec,
   LayoutSlotSpec,
   LoadedPlugin,
-  LocaleSpec,
   LogSubscriber,
   MessageRoleSpec,
   PluginErrorFallbackSpec,
@@ -36,8 +35,6 @@ import type {
   SidebarRailItemSpec,
   SidebarSectionSpec,
   SlashCommandSpec,
-  ThemeAccentSpec,
-  ThemeSpec,
   ToolActionSpec,
   ToolPreviewComponent,
   WorkspaceViewSpec,
@@ -82,9 +79,6 @@ export interface PluginStoreState {
   // Layout slot key is `${slot}|${pluginName}|${spec.id}` to allow the same
   // plugin to fill multiple slots and to keep insertion order deterministic.
   layoutSlots: Map<string, Owned<{ slot: string; spec: LayoutSlotSpec }>>;
-  themes: Map<string, Owned<ThemeSpec>>;
-  accents: Map<string, Owned<ThemeAccentSpec>>;
-  locales: Map<string, Owned<LocaleSpec>>;
   routes: Map<string, Owned<RouteSpec>>;
   shortcuts: Map<string, Owned<ShortcutSpec>>;
   composerStatus: Map<string, Owned<ComposerStatusSpec>>;
@@ -185,15 +179,6 @@ export interface PluginStoreActions {
 
   addLayoutSlot: (pluginName: string, slot: string, spec: LayoutSlotSpec) => void;
   removeLayoutSlot: (pluginName: string, slot: string, id: string) => void;
-
-  addTheme: (pluginName: string, spec: ThemeSpec) => void;
-  removeTheme: (pluginName: string, id: string) => void;
-
-  addAccent: (pluginName: string, spec: ThemeAccentSpec) => void;
-  removeAccent: (pluginName: string, id: string) => void;
-
-  addLocale: (pluginName: string, spec: LocaleSpec) => void;
-  removeLocale: (pluginName: string, id: string) => void;
 
   addRoute: (pluginName: string, spec: RouteSpec) => void;
   removeRoute: (pluginName: string, id: string) => void;
@@ -313,9 +298,6 @@ export function freshState(): PluginStoreState {
     slashCommands: new Map(),
     settingsPanes: new Map(),
     layoutSlots: new Map(),
-    themes: new Map(),
-    accents: new Map(),
-    locales: new Map(),
     routes: new Map(),
     shortcuts: new Map(),
     composerStatus: new Map(),

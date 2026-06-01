@@ -46,3 +46,15 @@ export function useExtensionPoint<T>(point: ExtensionPoint<T>): T[] {
   const extensions = usePluginStore((s) => s.extensions);
   return useMemo(() => resolve<T>(extensions, point.id), [extensions, point.id]);
 }
+
+/**
+ * O(1) lookup of a single contribution by its dedupe key — for `single`
+ * points where callers want "the X registered for this id/fn/combo" without
+ * scanning the list (themes by id, tool icons by fn, commands by id…).
+ * Applies the point's `normalizeKey` so lookups match how it was stored.
+ */
+export function lookupExtensionByKey<T>(point: ExtensionPoint<T>, key: string): T | undefined {
+  const k = point.normalizeKey ? point.normalizeKey(key) : key;
+  const entry = usePluginStore.getState().extensions.get(`${point.id}#${k}`);
+  return entry?.value.item as T | undefined;
+}
