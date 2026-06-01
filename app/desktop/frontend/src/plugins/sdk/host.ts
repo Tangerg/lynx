@@ -61,8 +61,11 @@ import {
   COMPOSER_PLACEHOLDER,
   COMPOSER_STATUS,
   CONTENT_BLOCK,
+  CORE_EVENT_HANDLER,
+  CUSTOM_EVENT_HANDLER,
   DATA_PROVIDER,
   ERROR_FALLBACK,
+  LAYOUT_SLOT,
   LOCALE,
   LOG_SUBSCRIBER,
   MESSAGE_ROLE,
@@ -94,11 +97,11 @@ import { createStorage } from "./storage";
  * `setup`'s caller (loadPlugin) collects them so it can dispose on failure
  * or on unload.
  */
-// Single monotonic id minter used by every composite-key register call
-// (onCore, rpc.before/afterResponse, log.subscribe, lifecycle.onReady /
-// onBeforeUnload, plugins.onLoad / onUnload, etc.). Uniqueness only needs
-// to hold within one plugin's composite map; a global counter is simpler
-// than per-scope ones and IDs aren't exposed to user code.
+// Monotonic id minter for `multi` extension-point contributions that don't
+// pass an explicit `opts.id` (custom/core event handlers, rpc + log hooks,
+// lifecycle observers). Uniqueness only needs to hold within one point's
+// keyspace; a global counter is simpler than per-point ones and the ids
+// aren't exposed to plugin code.
 let nextCompositeKeyId = 0;
 const mintId = (prefix: string) => `${prefix}#${++nextCompositeKeyId}`;
 
@@ -199,29 +202,24 @@ export function createHost(
     },
 
     agui: {
-      on<T = unknown>(name: string, handler: CustomEventHandler<T>): Disposable {
-        // Composite-key registration so multiple plugins (or the same
-        // plugin twice) can handle the same custom event name. The
-        // reducer fans the event out through every match.
-        const id = mintId(`custom:${name}`);
-        store().addCustomEventHandler(pluginName, name, id, handler as CustomEventHandler<unknown>);
-        return track({ dispose: () => store().removeCustomEventHandler(pluginName, id) });
-      },
-      onCore(eventType: string, handler: CoreEventHandler): Disposable {
-        // Composite-key registration in the registry allows multiple handlers
-        // per type; we mint a stable id per call so the same plugin can register
-        // more than once for the same type (each call gets its own disposable).
-        const id = mintId(eventType);
-        store().addCoreEventHandler(pluginName, eventType, id, handler);
-        return track({ dispose: () => store().removeCoreEventHandler(pluginName, eventType, id) });
-      },
+      // Both fan out to every matching handler; `multi` keying lets a plugin
+      // register more than once for the same name/type (each contribution
+      // coexists). The reducer chains StateUpdate returns across them.
+      on: <T = unknown>(name: string, handler: CustomEventHandler<T>): Disposable =>
+        contribute(CUSTOM_EVENT_HANDLER, {
+          name,
+          handler: handler as CustomEventHandler<unknown>,
+        }),
+      onCore: (eventType: string, handler: CoreEventHandler): Disposable =>
+        contribute(CORE_EVENT_HANDLER, { eventType, handler }),
     },
 
     layout: {
-      register(slot: string, spec: LayoutSlotSpec): Disposable {
-        store().addLayoutSlot(pluginName, slot, spec);
-        return track({ dispose: () => store().removeLayoutSlot(pluginName, slot, spec.id) });
-      },
+      // Stable id `${slot}#${spec.id}` so re-registering the same slot entry
+      // overwrites rather than stacking a duplicate (a dup would render the
+      // same component twice under one React key in <Slot>).
+      register: (slot: string, spec: LayoutSlotSpec): Disposable =>
+        contribute(LAYOUT_SLOT, { slot, spec }, { id: `${slot}#${spec.id}` }),
     },
 
     workspace: {

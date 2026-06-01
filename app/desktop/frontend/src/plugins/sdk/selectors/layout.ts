@@ -12,27 +12,35 @@ import type {
   SidebarSectionSpec,
   WorkspaceViewSpec,
 } from "../types";
-import { SETTINGS_PANE, SIDEBAR_RAIL_ITEM, SIDEBAR_SECTION, WORKSPACE_VIEW } from "../kernelPoints";
+import {
+  LAYOUT_SLOT,
+  SETTINGS_PANE,
+  SIDEBAR_RAIL_ITEM,
+  SIDEBAR_SECTION,
+  WORKSPACE_VIEW,
+} from "../kernelPoints";
 import { makeLazyActivator } from "../lazyActivator";
 import { usePluginStore } from "../registry";
-import { createIndex, runActivator, useDeclaredMerged } from "./_helpers";
-import { useExtensionPoint } from "./extensions";
+import { runActivator, useDeclaredMerged } from "./_helpers";
+import { createPointSubIndex, useExtensionPoint } from "./extensions";
 
 // ---------------------------------------------------------------------------
 // Layout slots
 // ---------------------------------------------------------------------------
 
-const layoutBySlot = createIndex<{ slot: string; spec: LayoutSlotSpec }, LayoutSlotSpec>((o) => ({
-  key: o.value.slot,
-  value: o.value.spec,
-}));
+const layoutBySlot = createPointSubIndex<{ slot: string; spec: LayoutSlotSpec }, LayoutSlotSpec>(
+  LAYOUT_SLOT.id,
+  (item) => ({ key: item.slot, value: item.spec }),
+);
 
 export function useLayoutSlot(slot: string): LayoutSlotSpec[] {
-  const map = usePluginStore((s) => s.layoutSlots);
+  const extensions = usePluginStore((s) => s.extensions);
   return useMemo(
     () =>
-      [...(layoutBySlot(map).get(slot) ?? [])].sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
-    [map, slot],
+      [...(layoutBySlot(extensions).get(slot) ?? [])].sort(
+        (a, b) => (a.order ?? 100) - (b.order ?? 100),
+      ),
+    [extensions, slot],
   );
 }
 

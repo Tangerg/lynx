@@ -1,22 +1,18 @@
-// Central Zustand store of every plugin contribution — React
-// components subscribe so registrations propagate live. The state shape
-// + map helpers live in registryState.ts; this file is the action
-// implementations only.
+// Central Zustand store. React components subscribe so registrations
+// propagate live. The state shape + map helpers live in registryState.ts /
+// registryHelpers.ts; this file is the action implementations only.
 //
-// Two local factories (ownedSpecSlot / multiSlot) generate the
-// `set({ ... })` bodies for the remaining bookkeeping maps (declared
-// placeholders + composite-key hooks). Each slot expands to ≤ 1 line per
-// action. Every user-facing register* surface lives on the `extensions`
-// substrate now (see kernelPoints.ts).
+// Every user-facing register* surface lives on the shared `extensions`
+// substrate now (see kernelPoints.ts + host.contribute). What remains here:
+// the open-extension-point add/remove, the declared-* placeholder maps (one
+// `ownedSpecSlot` factory), and plugin bookkeeping (loaded / pendingActivations
+// / window / appReady + the lifecycle-firing loops).
 
 import type { Owned, PluginStoreActions, PluginStoreState } from "./registryState";
 import type {
   ContributedCommand,
   ContributedSettingsPane,
   ContributedView,
-  CoreEventHandler,
-  CustomEventHandler,
-  LayoutSlotSpec,
   PluginSpec,
   ReadyHandler,
 } from "./types";
@@ -25,13 +21,11 @@ import { safeCall } from "./errors";
 import { LIFECYCLE_POINT_IDS } from "./pointIds";
 import {
   addOwned,
-  addOwnedMulti,
   clearByPlugin,
   mapDrop,
   mapSet,
   ownedContributionsTo,
   removeOwned,
-  removeOwnedMulti,
 } from "./registryHelpers";
 import { freshState } from "./registryState";
 
@@ -42,12 +36,11 @@ type OwnedMapKey = {
 }[keyof PluginStoreState];
 
 export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set, get) => {
-  // Slot factories. Each returns `{ add, remove }` closures that bake
-  // in the state-key, label, and helper choice (`addOwned` vs
-  // `addOwnedMulti`). The `as` casts narrow PluginStoreState[K] from
-  // its TS union back to the concrete `Map<string, Owned<T>>`.
-
-  // (pluginName, spec) — key is `spec.id`.
+  // The only contribution maps still kept by name are the "declared
+  // placeholder" surfaces (contributes.* awaiting activation). Every
+  // register* surface lives on the shared `extensions` substrate; one factory
+  // generates their id-keyed `{add,remove}`. The `as` casts narrow
+  // PluginStoreState[K] from its TS union back to `Map<string, Owned<T>>`.
   function ownedSpecSlot<T>(slot: OwnedMapKey, label: string) {
     const keyOf = (s: T) => (s as unknown as { id: string }).id;
     return {
@@ -68,24 +61,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     };
   }
 
-  // Composite-key multi-slot — same plugin may register many entries.
-  function multiSlot<T>(slot: OwnedMapKey) {
-    return {
-      add: (pluginName: string, id: string, value: T) =>
-        set({
-          [slot]: addOwnedMulti(get()[slot] as Map<string, Owned<T>>, pluginName, id, value),
-        } as Partial<PluginStoreState>),
-      remove: (pluginName: string, id: string) =>
-        set({
-          [slot]: removeOwnedMulti(get()[slot] as Map<string, Owned<T>>, pluginName, id),
-        } as Partial<PluginStoreState>),
-    };
-  }
-
-  // Instantiate one helper per slot — kept dense; the action map below
-  // wires them up to the public `addX` / `removeX` signatures. Only the
-  // "declared placeholder" maps remain here — every register* contribution
-  // surface now lives on the shared `extensions` substrate.
   const declaredCommands = ownedSpecSlot<ContributedCommand>(
     "declaredCommands",
     "declared command",
@@ -95,14 +70,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     "declaredSettingsPanes",
     "declared settings pane",
   );
-
-  const customEvents = multiSlot<{ name: string; handler: CustomEventHandler<unknown> }>(
-    "customEventHandlers",
-  );
-  const coreEvents = multiSlot<{ eventType: string; handler: CoreEventHandler }>(
-    "coreEventHandlers",
-  );
-  const layoutSlots = multiSlot<{ slot: string; spec: LayoutSlotSpec }>("layoutSlots");
 
   return {
     ...freshState(),
@@ -127,21 +94,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
         safeCall(() => fn(pluginName), `[plugin] ${o.pluginName} onUnload listener threw:`);
       }
     },
-
-    addCustomEventHandler: (pluginName, name, id, handler) =>
-      customEvents.add(pluginName, id, { name, handler }),
-    removeCustomEventHandler: customEvents.remove,
-
-    // eventType is baked into the composite key so the same plugin can
-    // register handlers for several event types in one go.
-    addCoreEventHandler: (pluginName, eventType, id, handler) =>
-      coreEvents.add(pluginName, `${eventType}#${id}`, { eventType, handler }),
-    removeCoreEventHandler: (pluginName, eventType, id) =>
-      coreEvents.remove(pluginName, `${eventType}#${id}`),
-
-    addLayoutSlot: (pluginName, slot, spec) =>
-      layoutSlots.add(pluginName, `${slot}#${spec.id}`, { slot, spec }),
-    removeLayoutSlot: (pluginName, slot, id) => layoutSlots.remove(pluginName, `${slot}#${id}`),
 
     addDeclaredCommand: declaredCommands.add,
     removeDeclaredCommand: declaredCommands.remove,
