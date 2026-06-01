@@ -13,14 +13,6 @@ import type { ExtensionContributionOptions, ExtensionPoint } from "./extensions"
 import type { BeforeUnloadHandler, Disposable, ReadyHandler } from "./common";
 import type { LocaleSpec } from "./i18n";
 import type {
-  ComposerAttachmentSourceSpec,
-  ComposerKeyBindingSpec,
-  ComposerModeSpec,
-  ComposerPlaceholderSpec,
-  ComposerStatusSpec,
-  SlashCommandSpec,
-} from "./composer";
-import type {
   LogSubscriber,
   NotificationLevel,
   RpcAfterResponseHook,
@@ -82,20 +74,6 @@ export interface Host {
     openView: (id: string) => void;
     /** Close a registered view by id. */
     closeView: (id: string) => void;
-  };
-  composer: {
-    /** Register a slash command (`/<cmd>`). */
-    registerCommand: (cmd: string, spec: SlashCommandSpec) => Disposable;
-    /** Contribute a status chip in the composer footer. */
-    registerStatus: (spec: ComposerStatusSpec) => Disposable;
-    /** Contribute a mode toggle (agent / ask / plan / etc.). */
-    registerMode: (spec: ComposerModeSpec) => Disposable;
-    /** Contribute a placeholder for the textarea. Random weighted pick. */
-    registerPlaceholder: (spec: ComposerPlaceholderSpec) => Disposable;
-    /** Contribute a source of attachment chips. */
-    registerAttachmentSource: (spec: ComposerAttachmentSourceSpec) => Disposable;
-    /** Bind a key combo on the textarea (Enter, Mod+Enter, etc.). */
-    registerKeyBinding: (spec: ComposerKeyBindingSpec) => Disposable;
   };
   sidebar: {
     /** Contribute a section in the expanded sidebar. */

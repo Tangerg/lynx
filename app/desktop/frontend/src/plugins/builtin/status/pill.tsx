@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon, StatusDot, Tooltip } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
+import { COMPOSER_STATUS } from "@/plugins/sdk/kernelPoints";
 import { useAgentAction, useAgentSlice } from "@/state/agentStore";
 
 // One slot in the status bar. All callers use the same shape:
@@ -213,14 +214,19 @@ export const statusPill = definePlugin({
   setup({ host }) {
     // align: "end" → right cluster of the composer footer, after the
     // session-context chips (exec mode / branch).
-    host.composer.registerStatus({ id: "run", order: 90, align: "end", component: RunState });
-    host.composer.registerStatus({
+    host.extensions.contribute(COMPOSER_STATUS, {
+      id: "run",
+      order: 90,
+      align: "end",
+      component: RunState,
+    });
+    host.extensions.contribute(COMPOSER_STATUS, {
       id: "token-rate",
       order: 91,
       align: "end",
       component: TokenRate,
     });
-    host.composer.registerStatus({
+    host.extensions.contribute(COMPOSER_STATUS, {
       id: "context",
       order: 92,
       align: "end",

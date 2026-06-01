@@ -3,7 +3,7 @@
 // right side holds run telemetry (tokens / cost / run state) pushed there
 // by `align: "end"`.
 //
-// Chips come from the plugin registry (`host.composer.registerStatus`);
+// Chips come from the plugin registry (the `lyra.composer.status` extension point);
 // the footer is a pure container — no per-chip props.
 
 import type { ComposerStatusSpec } from "@/plugins/sdk";

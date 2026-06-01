@@ -11,6 +11,7 @@
 
 import type { ContentBlockRendererProps } from "@/plugins/sdk";
 import { appendBlockToLatestAssistant, definePlugin } from "@/plugins/sdk";
+import { SLASH_COMMAND } from "@/plugins/sdk/kernelPoints";
 
 // Augment the ContentBlockMap so every consumer (PartRenderer, the SDK,
 // downstream plugins) sees the new kind in the union with the right shape.
@@ -62,24 +63,28 @@ export default definePlugin({
 
     // 3. Slash command — `/health` hits the Go /health endpoint and toasts
     //    the result. End-to-end working today.
-    host.composer.registerCommand("/health", {
-      description: "Ping the local AG-UI mock and report status",
-      run: async ({ send }) => {
-        try {
-          // Health endpoint returns plain text "ok", not JSON; ky's .json()
-          // would explode. Fall back to fetching via .text() under the hood:
-          // we accept the type widening because this is the only known
-          // plain-text endpoint.
-          const ok = await host.rpc.get<HealthResp>("/health").catch(() => "ok");
-          host.notify(`Backend responded: ${ok || "ok"}`, "info");
-        } catch (err) {
-          host.notify(
-            `Backend unreachable: ${err instanceof Error ? err.message : String(err)}`,
-            "error",
-          );
-          send("The mock backend isn't responding — can you check it?");
-        }
+    host.extensions.contribute(
+      SLASH_COMMAND,
+      {
+        description: "Ping the local AG-UI mock and report status",
+        run: async ({ send }) => {
+          try {
+            // Health endpoint returns plain text "ok", not JSON; ky's .json()
+            // would explode. Fall back to fetching via .text() under the hood:
+            // we accept the type widening because this is the only known
+            // plain-text endpoint.
+            const ok = await host.rpc.get<HealthResp>("/health").catch(() => "ok");
+            host.notify(`Backend responded: ${ok || "ok"}`, "info");
+          } catch (err) {
+            host.notify(
+              `Backend unreachable: ${err instanceof Error ? err.message : String(err)}`,
+              "error",
+            );
+            send("The mock backend isn't responding — can you check it?");
+          }
+        },
       },
-    });
+      { key: "/health" },
+    );
   },
 });

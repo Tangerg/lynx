@@ -6,11 +6,6 @@ import type { ConfigValue } from "./config";
 import type {
   BeforeUnloadHandler,
   CommandSpec,
-  ComposerAttachmentSourceSpec,
-  ComposerKeyBindingSpec,
-  ComposerModeSpec,
-  ComposerPlaceholderSpec,
-  ComposerStatusSpec,
   ContentBlockRenderer,
   CoreEventHandler,
   CustomEventHandler,
@@ -32,7 +27,6 @@ import type {
   ShortcutSpec,
   SidebarRailItemSpec,
   SidebarSectionSpec,
-  SlashCommandSpec,
   ToolActionSpec,
   ToolPreviewComponent,
   WorkspaceViewSpec,
@@ -47,11 +41,6 @@ import { safeCall } from "./errors";
 import {
   BEFORE_UNLOAD_HANDLER,
   COMMAND,
-  COMPOSER_ATTACHMENT_SOURCE,
-  COMPOSER_KEY_BINDING,
-  COMPOSER_MODE,
-  COMPOSER_PLACEHOLDER,
-  COMPOSER_STATUS,
   CONTENT_BLOCK,
   CORE_EVENT_HANDLER,
   CUSTOM_EVENT_HANDLER,
@@ -68,7 +57,6 @@ import {
   SHORTCUT,
   SIDEBAR_RAIL_ITEM,
   SIDEBAR_SECTION,
-  SLASH_COMMAND,
   TOOL_ACTION,
   TOOL_ICON,
   TOOL_PREVIEW,
@@ -223,22 +211,6 @@ export function createHost(
       closeView(id: string): void {
         useSessionStore.getState().closeMainView(id);
       },
-    },
-
-    composer: {
-      registerCommand(cmd: string, spec: SlashCommandSpec): Disposable {
-        // Normalize so callers can omit the leading slash.
-        const key = cmd.startsWith("/") ? cmd : `/${cmd}`;
-        return contribute(SLASH_COMMAND, spec, { key });
-      },
-      registerStatus: (spec: ComposerStatusSpec): Disposable => contribute(COMPOSER_STATUS, spec),
-      registerMode: (spec: ComposerModeSpec): Disposable => contribute(COMPOSER_MODE, spec),
-      registerPlaceholder: (spec: ComposerPlaceholderSpec): Disposable =>
-        contribute(COMPOSER_PLACEHOLDER, spec),
-      registerAttachmentSource: (spec: ComposerAttachmentSourceSpec): Disposable =>
-        contribute(COMPOSER_ATTACHMENT_SOURCE, spec),
-      registerKeyBinding: (spec: ComposerKeyBindingSpec): Disposable =>
-        contribute(COMPOSER_KEY_BINDING, spec),
     },
 
     sidebar: {
