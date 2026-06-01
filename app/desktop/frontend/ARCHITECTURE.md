@@ -15,19 +15,19 @@
 
 ## 2. 技术栈
 
-| 层 | 选型 |
-| --- | --- |
-| UI | React 19 + TypeScript 6 |
-| 状态 | Zustand（多 store，无 context 链） |
-| 路由 | TanStack Router（route tree 动态构建） |
-| 数据 | TanStack React Query |
-| 协议 | `@ag-ui/core` / `@ag-ui/client`（AbstractAgent 事件流） |
-| 动画 | motion/react |
-| 桌面壳 | Wails v2（Go 后端 + WebKit/Chromium 前端） |
-| 测试 | Vitest 4 + Testing Library + happy-dom |
-| 构建 | Vite 8（内置 Rolldown） |
-| Lint | OxLint 1.x（Rust-based） |
-| Node | >= 22.12（CI / dev 推荐 24 LTS） |
+| 层     | 选型                                                    |
+| ------ | ------------------------------------------------------- |
+| UI     | React 19 + TypeScript 6                                 |
+| 状态   | Zustand（多 store，无 context 链）                      |
+| 路由   | TanStack Router（route tree 动态构建）                  |
+| 数据   | TanStack React Query                                    |
+| 协议   | `@ag-ui/core` / `@ag-ui/client`（AbstractAgent 事件流） |
+| 动画   | motion/react                                            |
+| 桌面壳 | Wails v2（Go 后端 + WebKit/Chromium 前端）              |
+| 测试   | Vitest 4 + Testing Library + happy-dom                  |
+| 构建   | Vite 8（内置 Rolldown）                                 |
+| Lint   | OxLint 1.x（Rust-based）                                |
+| Node   | >= 22.12（CI / dev 推荐 24 LTS）                        |
 
 ---
 
@@ -66,11 +66,14 @@ src/
 │   │   │   ├── workspace.ts  WorkspaceView / Layout / Route / SettingsPane
 │   │   │   ├── infra.ts      RPC / Data / Agent / Notification / Log / ErrorFallback
 │   │   │   ├── i18n.ts       I18n resource / locale 贡献类型
-│   │   │   ├── host.ts       Host 接口（聚合 30+ register* 方法，分布在 24 个 namespace）
+│   │   │   ├── host.ts       Host 接口（extensions.contribute 写路径 + 少量薄 facade + 命令式动作）
 │   │   │   └── plugin.ts     PluginSpec / Contributed / HostCapability / LoadedPlugin
-│   │   ├── host.ts           createHost(pluginName) 返回绑定的 Host 实例
-│   │   ├── registry.ts       usePluginStore — 集中存放所有插件贡献的 Map
-│   │   ├── selectors.ts      所有 useXxx / lookupXxx 读端选择器
+│   │   ├── host.ts           createHost(pluginName) — extensions.contribute 写路径
+│   │   ├── defineExtensionPoint.ts  defineExtensionPoint<T>(def) — typed point handle
+│   │   ├── kernelPoints.ts   ~35 个内置 ExtensionPoint（THEME / COMMAND / LAYOUT_SLOT / …）
+│   │   ├── pointIds.ts       registry 内部 firing 循环用的 point id 常量（破环）
+│   │   ├── registry.ts       usePluginStore — 单一 extensions map + declared* + bookkeeping
+│   │   ├── selectors/        按面分组的 useXxx / lookupXxx + extensions.ts（底座读侧 + 缓存索引）
 │   │   ├── definePlugin.ts   loadPlugin / loadPlugins
 │   │   ├── state.ts          AG-UI state 更新组合子（appendBlock…/patchRun…）
 │   │   ├── storage.ts        每插件 namespaced localStorage
@@ -195,6 +198,7 @@ src/
 - UI / 状态 / 插件 / lib 全部通过 `getContainer().xxx.method(...)` 拿 gateway，**禁直接 import `@/infra/*`**
 
 **增加新 gateway 的步骤**：
+
 1. `domain/gateways/Foo.ts` 写接口 + 必要的 `domain/models/Foo.ts` 类型
 2. `infra/.../HttpFoo.ts` (或别的 transport) 实现接口
 3. `main/container.ts` 加字段 + `defaultContainer()` 里实例化
@@ -221,7 +225,6 @@ src/
 4. 任何一个 `packages/` 候选超过 ~200 文件且有 5+ 外部依赖
 
 在那之前，TypeScript path alias + `architecture.test.ts` 已经给到等价的边界约束。
-
 
 ---
 
@@ -279,10 +282,10 @@ App.tsx
 
 三个 Slot 就是 kernel 的全部肉（没有底部状态栏 —— run telemetry 在 composer footer，全局指示/通知在 sidebar footer 的 avatar 区）：
 
-| Slot | 典型贡献者 |
-| --- | --- |
-| `app.sidebar` | `kernel-sidebar` |
-| `app.main` | `kernel-chat`（ChatPanel） |
+| Slot          | 典型贡献者                                  |
+| ------------- | ------------------------------------------- |
+| `app.sidebar` | `kernel-sidebar`                            |
+| `app.main`    | `kernel-chat`（ChatPanel）                  |
 | `app.overlay` | `command-palette` / `toaster` / `shortcuts` |
 
 ---
@@ -296,7 +299,7 @@ App.tsx
 ```
 PluginSpec.setup({ host })
        │
-       │  host.<面>.register*(spec)
+       │  host.extensions.contribute(POINT, spec)
        ▼
    host.ts ── 通过 store() 调 registry actions
        │
@@ -338,44 +341,41 @@ export default definePlugin({
 
 `setup` 返回时所有注册都进了 registry；`Slot name="sidebar.footer"` 在 React 渲染时就能看见这个 component。
 
-#### Host 接口（命名分组）
+#### Host 接口（写路径 + 命令式动作）
 
-`Host` 接口 (`src/plugins/sdk/types.ts`) 是插件能调的"动词"集合。按面分组：
+`Host` 接口 (`src/plugins/sdk/types/host.ts`) 是插件能调的"动词"集合。**贡献统一走开放扩展点底座**——权威文档 `docs/EXTENSION_POINTS.md`。
 
-| Host 面 | 干什么 |
-| --- | --- |
-| `host.tool` | 注册工具预览组件 / 操作按钮 / 图标 |
-| `host.message` | 注册内容块渲染器、消息角色 |
-| `host.agui` | 订阅 AG-UI 协议事件（onCore / on） |
-| `host.layout` | 把 component 塞进命名 Slot |
-| `host.workspace` | 注册可作为主区域 tab 打开的 view |
-| `host.theme` | 注册主题 / 强调色 |
-| `host.router` | 贡献路由 |
-| `host.composer` | 撰写区扩展：slash 命令 / 模式 / 占位符 / 状态 chip / 附件源 / 键绑定 |
-| `host.sidebar` | 侧栏分区 / rail 项 |
-| `host.shortcuts` | 全局键盘快捷键 |
-| `host.agent` | 注册 AG-UI agent source（按优先级选） |
-| `host.data` | 注册 React Query fetcher |
-| `host.commands` | 注册 Cmd+K 命令 |
-| `host.settings` | 注册 Settings 内的左栏面板 |
-| `host.lifecycle` | onReady / onBeforeUnload |
-| `host.logger` | 结构化日志 |
-| `host.rpc` | 拦截 HTTP 调用（before / after） |
-| `host.storage` | 每插件 namespaced kv store |
-| `host.config` | 全局 config store 读写 |
-| `host.state` | 跨插件共享 state slice |
-| `host.notify` | 推一条通知到 feed + transient toast |
+**贡献写路径（绝大多数"注册一个 spec"）**：
 
-每个 `register*` 都返回一个 `Disposable`。`createHost` 把这些 disposable 收集到 `setup` 期间的 sink 数组里——一旦 plugin setup 抛错，会自动 dispose 已注册的部分，避免半成品挂在 registry 里。
+```ts
+host.extensions.contribute(POINT, spec, opts?)   // POINT 来自 kernelPoints.ts
+```
+
+内置点（`src/plugins/sdk/kernelPoints.ts`，~35 个）涵盖主题/强调色/路由/命令/设置面板/侧栏分区+rail/工具预览+操作+图标/内容块/消息角色/slash 命令/agent source/数据 provider/composer 状态+模式+附件源+占位符/快捷键+键绑定/locale/工作区 view/错误回退/rpc+log+生命周期 hook 等。第三方插件用 `defineExtensionPoint` 开自己的点，机制完全相同。
+
+**保留的薄 facade**（仍只是调 `contribute`，但各自带逻辑/泛型/防错，故保留具名）：
+
+| 面                                        | 为什么不退化成裸 contribute         |
+| ----------------------------------------- | ----------------------------------- |
+| `host.agui.on / onCore`                   | AG-UI 事件订阅 API，2-arg 具名表意  |
+| `host.layout.register(slot, spec)`        | 内部算去重 id `${slot}#${spec.id}`  |
+| `host.message.registerContentBlock<K>`    | per-kind 泛型类型安全               |
+| `host.lifecycle.onReady / onBeforeUnload` | onReady 带"已 ready 则立即触发"逻辑 |
+| `host.rpc.beforeRequest / afterResponse`  | HTTP 拦截 hook 订阅                 |
+| `host.log.subscribe`                      | 日志订阅 hook                       |
+
+**命令式动作（非贡献，本就该是方法）**：`host.workspace.openView/closeView` · `host.config` · `host.storage` · `host.state` · `host.notify` · `host.window` · `host.plugins.{list,load,unload,reload,onLoad,onUnload}` · `host.i18n.addBundle` · `host.tasks` · `host.rpc.get/post` · `host.log.{debug,info,warn,error}`。
+
+`contribute` 与每个 facade 都返回一个 `Disposable`。`createHost` 把这些 disposable 收集到 `setup` 期间的 sink 数组里——一旦 plugin setup 抛错，会自动 dispose 已注册的部分，避免半成品挂在 registry 里。
 
 #### Registry 内部结构
 
-`usePluginStore` (`src/plugins/sdk/registry.ts`) 是一堆 `Map<key, { pluginName, value }>` 的 Zustand store。两种 key 形式：
+`usePluginStore` (`src/plugins/sdk/registry.ts`) 是一个 Zustand store。所有贡献坐落在**单一** `extensions: Map<"${point.id}#${dedupe}", Owned<ContributionEntry>>`（key 格式收敛在 `composeExtensionKey`）。两种 keying（点定义里声明）：
 
-- **单 owner**：`toolPreviews: Map<fn, Owned<Component>>` — 同一个 fn 只能有一个 preview，重复注册会有 console 警告，**后来者覆盖**。
-- **复合键 / 多 owner**：`coreEventHandlers: Map<"${eventType}|${plugin}|${id}", Owned<Handler>>` — 多 handler 链式执行。
+- **single**：`dedupe` = 归一后的单键（主题 by id、工具预览 by fn、slash by trigger…）。同 key 后来者覆盖 + console 警告。
+- **multi**：`dedupe` = `${plugin}|${id}`（id 默认 mint），每条共存——事件 handler / layout slot / rpc+log hook 等链式执行。
 
-通过把 `pluginName` 嵌进 value，dispose 的时候只删本插件那条，不会误伤其他插件用同样 key 注册的条目（兜底，实际很少冲突）。
+`pluginName` 嵌在外层 `Owned`，dispose 只删本插件那条；selector 侧（`selectors/extensions.ts`）用缓存在 `extensions` map 引用上的二级索引保 O(1) 读。`registry.ts` 自身只剩 `addContribution`/`removeContribution` + declared-placeholder 的 `addOwned` + `loaded`/`pendingActivations`/window 等 bookkeeping。
 
 #### 加载与卸载
 
@@ -391,15 +391,16 @@ export default definePlugin({
 
 #### 内置 vs 外置（sideload）
 
-| | 内置 | 外置 |
-| --- | --- | --- |
-| 来源 | 同 bundle 静态 import | Go 后端 `/agui/plugins` + dynamic `import(url)` |
-| 加载时机 | 启动前同步串行 | 启动后异步 |
-| 阻塞首屏 | 是（设计如此） | 否 |
-| origin 标记 | `builtin` | `sideload`（PluginsPane 显示徽章） |
-| 共享 React | 同 bundle 自然共享 | 通过 `window.__LYRA__` 桥接（不需要自带 React） |
+|             | 内置                  | 外置                                            |
+| ----------- | --------------------- | ----------------------------------------------- |
+| 来源        | 同 bundle 静态 import | Go 后端 `/agui/plugins` + dynamic `import(url)` |
+| 加载时机    | 启动前同步串行        | 启动后异步                                      |
+| 阻塞首屏    | 是（设计如此）        | 否                                              |
+| origin 标记 | `builtin`             | `sideload`（PluginsPane 显示徽章）              |
+| 共享 React  | 同 bundle 自然共享    | 通过 `window.__LYRA__` 桥接（不需要自带 React） |
 
 `hostBridge.ts` 把这几个单例挂到 `window.__LYRA__`：
+
 - `React`、`react/jsx-runtime`
 - `motion/react`
 - `@/plugins/sdk`（整个 SDK 命名空间）
@@ -458,13 +459,13 @@ Settings → Plugins 面板每行有 Reload 按钮；插件开发期改了一个
 
 `CommandSpec.when?: string` 允许声明上下文表达式控制命令何时出现在面板。语法是 VS Code-when 的小子集：
 
-| 形式 | 含义 |
-| --- | --- |
-| `mainViewActive` | 标识符；context map 里查值，真值视为 true |
-| `!mainViewActive` | 取反 |
-| `mainView == "diff"` | 字符串等值 |
-| `a && b` / `a \|\| b` | 逻辑组合，`&&` 优先级高于 `\|\|` |
-| `(a \|\| b) && c` | 括号分组 |
+| 形式                  | 含义                                      |
+| --------------------- | ----------------------------------------- |
+| `mainViewActive`      | 标识符；context map 里查值，真值视为 true |
+| `!mainViewActive`     | 取反                                      |
+| `mainView == "diff"`  | 字符串等值                                |
+| `a && b` / `a \|\| b` | 逻辑组合，`&&` 优先级高于 `\|\|`          |
+| `(a \|\| b) && c`     | 括号分组                                  |
 
 上下文由 `useWhenContext()` 产生（state/useWhenContext.ts），默认携带 `mainViewActive` / `mainView` / `theme` / `sidebarRail`。比如 `default-commands` 给 "View: X" 加上 `when: 'mainView != "X"'`，这样当前在哪个 view 就不会再列出对应的"打开"命令。
 
@@ -531,23 +532,23 @@ unmount  → subscription.unsubscribe()
           → setStop/setSend(null)
 ```
 
-`makeAgent` 由 `useDefaultChatSession` 从 `host.agent.registerSource(...)` 注册的 agent source 里挑（priority 最高的）。内置 `http-agent` 走 HTTP；插件可以替换成 mock、IPC、本地模型等。
+`makeAgent` 由 `useDefaultChatSession` 从 `host.extensions.contribute(AGENT_SOURCE, …)` 注册的 agent source 里挑（priority 最高的）。内置 `http-agent` 走 HTTP；插件可以替换成 mock、IPC、本地模型等。
 
 ---
 
 ### 5.3 状态管理（除 agent 之外的 UI 状态）
 
-| Store | 内容 | 持久化 key |
-| --- | --- | --- |
-| `useAgentStore` | AgentViewState + 当前 agent 的 send/stop 引用 | ❌ 每次会话重置 |
-| `useThemeStore` | theme id + accent hex + applyTheme 副作用 | ✅ `lyra.theme` |
-| `useLayoutStore` | sidebarRail boolean | ✅ `lyra.layout` |
-| `useSessionStore` | activeSessionId / tabIds / mainViewTabs / activeMainView / activeFile / selectedToolId / expandedToolIds | ✅ `lyra.session`（仅 activeSessionId + tabIds 持久；其余 ephemeral） |
-| `useComposerStore` | textarea 文本 + 模式 + 附件 | ❌ |
-| `usePluginStore` | 整个插件 registry | ❌ |
-| `useConfigStore` | 插件可读写的全局 config（如 `api.baseUrl`） | ✅ |
-| `useNotificationStore` | host.notify 推过的持久 feed | ❌ |
-| `usePluginErrorStore` | 插件错误聚合 | ❌ |
+| Store                  | 内容                                                                                                     | 持久化 key                                                            |
+| ---------------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `useAgentStore`        | AgentViewState + 当前 agent 的 send/stop 引用                                                            | ❌ 每次会话重置                                                       |
+| `useThemeStore`        | theme id + accent hex + applyTheme 副作用                                                                | ✅ `lyra.theme`                                                       |
+| `useLayoutStore`       | sidebarRail boolean                                                                                      | ✅ `lyra.layout`                                                      |
+| `useSessionStore`      | activeSessionId / tabIds / mainViewTabs / activeMainView / activeFile / selectedToolId / expandedToolIds | ✅ `lyra.session`（仅 activeSessionId + tabIds 持久；其余 ephemeral） |
+| `useComposerStore`     | textarea 文本 + 模式 + 附件                                                                              | ❌                                                                    |
+| `usePluginStore`       | 整个插件 registry                                                                                        | ❌                                                                    |
+| `useConfigStore`       | 插件可读写的全局 config（如 `api.baseUrl`）                                                              | ✅                                                                    |
+| `useNotificationStore` | host.notify 推过的持久 feed                                                                              | ❌                                                                    |
+| `usePluginErrorStore`  | 插件错误聚合                                                                                             | ❌                                                                    |
 
 **为什么 UI store 拆成三块**：原来的 `useUIStore` 把主题 / 布局 / 会话 tab / 工具检查器五种 concern 揉一起，违反单一职责。拆分后每个组件只订阅自己关心的那一块。
 
@@ -563,12 +564,12 @@ unmount  → subscription.unsubscribe()
 
 ```ts
 type ThemeSpec = {
-  id: string;            // 持久化到 useThemeStore.theme（"dark" / "atom-one-dark" / ...）
-  label: string;         // 显示名
-  scheme: "dark" | "light";  // 决定 <html> 上的 theme-{scheme} class + shadow 策略
-  icon?: string;         // 选择器图标，默认按 scheme 给 moon / sun
-  order?: number;        // 排序提示
-  tokens?: Record<string, string>;  // CSS 变量名（无 -- 前缀）→ 值
+  id: string; // 持久化到 useThemeStore.theme（"dark" / "atom-one-dark" / ...）
+  label: string; // 显示名
+  scheme: "dark" | "light"; // 决定 <html> 上的 theme-{scheme} class + shadow 策略
+  icon?: string; // 选择器图标，默认按 scheme 给 moon / sun
+  order?: number; // 排序提示
+  tokens?: Record<string, string>; // CSS 变量名（无 -- 前缀）→ 值
 };
 ```
 
@@ -593,38 +594,39 @@ export default defineThemePlugin({
   scheme: "dark",
   order: 10,
   palette: {
-    "color-accent":       "#528bff",
-    "color-accent-border":"#4078e6",
-    "color-bg":           "#1c2026",
-    "color-surface":      "#282c34",
-    "color-text":         "#abb2bf",
+    "color-accent": "#528bff",
+    "color-accent-border": "#4078e6",
+    "color-bg": "#1c2026",
+    "color-surface": "#282c34",
+    "color-text": "#abb2bf",
     // ... 大概 25 行调色板
   },
 });
 ```
 
 helper 自动补：
+
 - Shadow ladder（dark scheme = inner none / overlay shadow-lg；light scheme = 完整堆叠 ladder）
 - CTA 默认指向 accent（除非传 `cta:` override，比如 Vercel 风格的 lyra-light 用 `#000`）
-- 注册仪式：`name`、`version`、`setup({ host }) { host.theme.registerTheme(...) }`
+- 注册仪式：`name`、`version`、`setup({ host }) { host.extensions.contribute(THEME, …) }`
 
 文件从原来的 ~95 行（含 shadow / CTA / setup 模板）缩到 ~30 行（**纯调色板**）。每个主题都靠它节省 ~60 行。
 
 #### 内置主题
 
-| order | id | series | accent |
-| --- | --- | --- | --- |
-| 0  | dark | Lyra | `#1ed760` green |
-| 1  | light | Lyra | `#15883e` green |
-| 10 | atom-one-dark | Atom | `#528bff` blue |
-| 11 | atom-one-light | Atom | `#526fff` blue |
-| 20 | tokyo-night-storm | Tokyo Night | `#7aa2f7` blue |
-| 21 | tokyo-night-light | Tokyo Night | `#34548a` blue |
-| 30 | solarized-dark | Solarized | `#268bd2` blue |
-| 31 | solarized-light | Solarized | `#268bd2` blue |
-| 40 | catppuccin-mocha | Catppuccin | `#cba6f7` mauve |
-| 41 | catppuccin-macchiato | Catppuccin | `#c6a0f6` mauve |
-| 42 | catppuccin-latte | Catppuccin | `#8839ef` mauve |
+| order | id                   | series      | accent          |
+| ----- | -------------------- | ----------- | --------------- |
+| 0     | dark                 | Lyra        | `#1ed760` green |
+| 1     | light                | Lyra        | `#15883e` green |
+| 10    | atom-one-dark        | Atom        | `#528bff` blue  |
+| 11    | atom-one-light       | Atom        | `#526fff` blue  |
+| 20    | tokyo-night-storm    | Tokyo Night | `#7aa2f7` blue  |
+| 21    | tokyo-night-light    | Tokyo Night | `#34548a` blue  |
+| 30    | solarized-dark       | Solarized   | `#268bd2` blue  |
+| 31    | solarized-light      | Solarized   | `#268bd2` blue  |
+| 40    | catppuccin-mocha     | Catppuccin  | `#cba6f7` mauve |
+| 41    | catppuccin-macchiato | Catppuccin  | `#c6a0f6` mauve |
+| 42    | catppuccin-latte     | Catppuccin  | `#8839ef` mauve |
 
 所有色值来自上游 canonical（`one-dark-syntax` / `enkia/tokyonight` / Ethan Schoonover Solarized / `catppuccin/catppuccin`），没有臆造。
 
@@ -662,6 +664,7 @@ return specs.map(spec => (
 ```
 
 特性：
+
 - 按 `order ?? 100` 升序渲染。
 - 每个 spec 包一层 `PluginBoundary`（React Error Boundary）—— 单个插件的 render 抛错只是它自己空白，kernel 不挂。
 - 默认透明（Fragment），不引入额外 DOM；传 `wrapper=true` 或 `className` 时才包 `<div data-slot=...>`。
@@ -670,19 +673,19 @@ return specs.map(spec => (
 
 `src/plugins/sdk/registry.ts` 里：
 
-| Hook / 函数 | 用途 |
-| --- | --- |
-| `useToolPreview(fn)` | 工具卡片找展开预览组件 |
-| `useToolActions()` | 工具卡片头部按钮 |
-| `useWorkspaceViews()` | ChatPanel 解析当前 main view tab 的渲染组件 |
-| `useSettingsPanes()` | SettingsPage 左栏 |
-| `useSidebarSections()` / `useSidebarRailItems()` | 侧栏内部 |
-| `useCommands()` | 命令面板列表 |
-| `useSlashCommands()` | composer slash 提示 |
-| `useComposerModes()` / `useComposerStatus()` / … | composer 工具栏 |
-| `useThemes()` / `useAccents()` | Appearance 面板 |
-| `useMessageRole(id)` | MessageBlock 头像 / 名字 |
-| `lookupCoreEventHandlers(type)` / `lookupCustomEventHandler(name)` | reducer 内部用，非 React 选择器 |
+| Hook / 函数                                                        | 用途                                        |
+| ------------------------------------------------------------------ | ------------------------------------------- |
+| `useToolPreview(fn)`                                               | 工具卡片找展开预览组件                      |
+| `useToolActions()`                                                 | 工具卡片头部按钮                            |
+| `useWorkspaceViews()`                                              | ChatPanel 解析当前 main view tab 的渲染组件 |
+| `useSettingsPanes()`                                               | SettingsPage 左栏                           |
+| `useSidebarSections()` / `useSidebarRailItems()`                   | 侧栏内部                                    |
+| `useCommands()`                                                    | 命令面板列表                                |
+| `useSlashCommands()`                                               | composer slash 提示                         |
+| `useComposerModes()` / `useComposerStatus()` / …                   | composer 工具栏                             |
+| `useThemes()` / `useAccents()`                                     | Appearance 面板                             |
+| `useMessageRole(id)`                                               | MessageBlock 头像 / 名字                    |
+| `lookupCoreEventHandlers(type)` / `lookupCustomEventHandler(name)` | reducer 内部用，非 React 选择器             |
 
 ---
 
@@ -753,16 +756,16 @@ agent.subscribe.onEvent → applyEvent → reducer.reduce
 
 ## 8. 错误隔离策略
 
-| 失败点 | 行为 |
-| --- | --- |
-| 插件 `setup` 抛错 | dispose 已注册的部分；其它插件继续；写错误到 PluginsPane |
-| 插件组件 render 抛错 | PluginBoundary 接住，画 fallback；其余 kernel 正常 |
-| `onCore` / CUSTOM handler 抛错 | 该 handler 跳过，state 保持进入时的版本；其余 handler 继续 |
-| 插件 tool action / command 抛错 | console.error + `reportPluginError`，UI 不挂 |
-| AG-UI runAgent 失败 | `onRunFailed` console.error；store 不动；其它会话仍可用 |
-| sideload 模块 import 失败 | 跳过这个，其它继续；console.warn |
-| sideload manifest 抓取失败 | 整批跳过，kernel 正常运行（只有内置） |
-| beforeunload handler 抛错 | console.error 但不阻塞卸载 |
+| 失败点                          | 行为                                                       |
+| ------------------------------- | ---------------------------------------------------------- |
+| 插件 `setup` 抛错               | dispose 已注册的部分；其它插件继续；写错误到 PluginsPane   |
+| 插件组件 render 抛错            | PluginBoundary 接住，画 fallback；其余 kernel 正常         |
+| `onCore` / CUSTOM handler 抛错  | 该 handler 跳过，state 保持进入时的版本；其余 handler 继续 |
+| 插件 tool action / command 抛错 | console.error + `reportPluginError`，UI 不挂               |
+| AG-UI runAgent 失败             | `onRunFailed` console.error；store 不动；其它会话仍可用    |
+| sideload 模块 import 失败       | 跳过这个，其它继续；console.warn                           |
+| sideload manifest 抓取失败      | 整批跳过，kernel 正常运行（只有内置）                      |
+| beforeunload handler 抛错       | console.error 但不阻塞卸载                                 |
 
 PluginsPane（Settings → Plugins）汇总所有 `reportPluginError` 的红 badge，方便定位是哪个插件的哪个面在出问题。
 
@@ -775,6 +778,7 @@ PluginsPane（Settings → Plugins）汇总所有 `reportPluginError` 的红 bad
 ```ts
 // my-plugin/index.ts
 import { definePlugin } from "@/plugins/sdk";
+import { COMMAND } from "@/plugins/sdk/kernelPoints";
 
 export default definePlugin({
   name: "lyra.example.hello",
@@ -796,7 +800,7 @@ export default definePlugin({
 
   setup({ host }) {
     // 1. 加一个 Cmd+K 命令
-    host.commands.register({
+    host.extensions.contribute(COMMAND, {
       id: "hello.world",
       label: "Hello, world!",
       group: "Examples",
@@ -818,7 +822,7 @@ export default definePlugin({
 
     // 4. 启动时通知一下
     host.lifecycle.onReady(() => {
-      host.logger.info("hello plugin ready");
+      host.log.info("hello plugin ready");
     });
 
     // 5. 可选：subscribe 等副作用通过 setup 返回 cleanup 函数处理
@@ -851,7 +855,7 @@ declare module "@/protocol/agui/viewState" {
 - **registry 是唯一真相**——不要直接 import 一个内置插件去用，永远走 `useXxx` / `lookupXxx`。
 - **store 是单 Zustand instance**——多个 selector 订阅，refresh 粒度由 React 自己处理；不要把 store 包到 context 里。
 - **AG-UI 事件单向流入 view state**——render 路径上不要回写 agent store；想"做事"就调 store 上的 send/stop。
-- **`setup` 同步注册，懒构建子组件**——`setup({ host })` 内不要做 `await fetch(...)`；要拉数据用 `host.data.registerProvider` + 让 React Query 在 render 时跑。
+- **`setup` 同步注册，懒构建子组件**——`setup({ host })` 内不要做 `await fetch(...)`；要拉数据用 `host.extensions.contribute(DATA_PROVIDER, …)` + 让 React Query 在 render 时跑。
 - **Disposable 一律由 Host 收集**——别手动调 `dispose()`，让 plugin 失败回滚机制管理。
 - **API breaking 改动要碰 `apiVersion.ts`**——任何破坏 Host 接口或 spec 形状的改动，应该 bump major；插件用 `apiVersion: "^X"` 自我保护。
 
@@ -859,20 +863,20 @@ declare module "@/protocol/agui/viewState" {
 
 ## 11. 进一步的阅读路径
 
-| 想了解 | 先看 |
-| --- | --- |
-| 视觉规范 / 颜色 / 排版 | `DESIGN.md` |
-| Host 全部接口 | `src/plugins/sdk/types/host.ts` |
-| 各类 Spec 类型 | `src/plugins/sdk/types/<domain>.ts`（按 domain 拆 13 个） |
-| Registry 形状 + composite key | `src/plugins/sdk/registry.ts` |
-| 插件能力上限 / 演进方向 / 横向对比 | `docs/PLUGINS_CEILING.md` |
-| 一个完整的内置插件 | `src/plugins/builtin/demo/index.tsx` |
-| 主题如何注册 | `src/plugins/builtin/themes/defineThemePlugin.ts` + 任意 `<theme>/index.ts` |
-| AG-UI 数据 fold | `src/protocol/agui/reducer.ts` + `src/plugins/builtin/core-reducer/index.ts` |
-| ChatPanel 怎么把一切串起来 | `src/components/chat/ChatPanel.tsx`（orchestrator）+ `PanelHeader` / `ChatStream` / `WorkspaceViewBody` |
-| Store 拆分 | `src/state/themeStore.ts` / `layoutStore.ts` / `sessionStore.ts` |
-| 路由动态构建 | `src/router.tsx` |
-| Sideload 入口 | `src/plugins/sideload.ts` + `src/plugins/hostBridge.ts` |
+| 想了解                             | 先看                                                                                                    |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| 视觉规范 / 颜色 / 排版             | `DESIGN.md`                                                                                             |
+| Host 全部接口                      | `src/plugins/sdk/types/host.ts`                                                                         |
+| 各类 Spec 类型                     | `src/plugins/sdk/types/<domain>.ts`（按 domain 拆 13 个）                                               |
+| Registry 形状 + composite key      | `src/plugins/sdk/registry.ts`                                                                           |
+| 插件能力上限 / 演进方向 / 横向对比 | `docs/PLUGINS_CEILING.md`                                                                               |
+| 一个完整的内置插件                 | `src/plugins/builtin/demo/index.tsx`                                                                    |
+| 主题如何注册                       | `src/plugins/builtin/themes/defineThemePlugin.ts` + 任意 `<theme>/index.ts`                             |
+| AG-UI 数据 fold                    | `src/protocol/agui/reducer.ts` + `src/plugins/builtin/core-reducer/index.ts`                            |
+| ChatPanel 怎么把一切串起来         | `src/components/chat/ChatPanel.tsx`（orchestrator）+ `PanelHeader` / `ChatStream` / `WorkspaceViewBody` |
+| Store 拆分                         | `src/state/themeStore.ts` / `layoutStore.ts` / `sessionStore.ts`                                        |
+| 路由动态构建                       | `src/router.tsx`                                                                                        |
+| Sideload 入口                      | `src/plugins/sideload.ts` + `src/plugins/hostBridge.ts`                                                 |
 
 ---
 
@@ -883,17 +887,20 @@ declare module "@/protocol/agui/viewState" {
 ### 12.1 值得做（有明确收益、风险可控）
 
 #### A. 给 `core-reducer` 补全各 handler 的语义集成测试
-**现状**：`plugins/builtin/core-reducer/index.ts` 已经是约 16 行薄壳，真正的逻辑拆进了 `core-reducer/handlers/` 子目录（activity / messages / reasoning / run / state / text / tool 等，合计约 620 行），按事件类型分文件，每个 handler 处理一类 AG-UI 内置事件（RUN_*、TEXT_MESSAGE_*、TOOL_CALL_*、REASONING_*、STEP_*、STATE_*、ACTIVITY_*）。文件级拆分已完成，剩下的缺口是**逐 handler 的语义测试覆盖**。
+
+**现状**：`plugins/builtin/core-reducer/index.ts` 已经是约 16 行薄壳，真正的逻辑拆进了 `core-reducer/handlers/` 子目录（activity / messages / reasoning / run / state / text / tool 等，合计约 620 行），按事件类型分文件，每个 handler 处理一类 AG-UI 内置事件（RUN*\*、TEXT_MESSAGE*_、TOOL*CALL*_、REASONING*\*、STEP*_、STATE\__、ACTIVITY\_\*）。文件级拆分已完成，剩下的缺口是**逐 handler 的语义测试覆盖**。
 
 **为什么没做全**：协议语义层。改错了流式渲染会挂，目前 `reducer.test.ts` 只覆盖 dispatcher 层（"事件路由到哪个 handler"），handler 子目录里只有 activity / reasoning / tool 有专项测试，messages / run / state / text 等的具体语义还没补齐。
 
 **怎么做**（先决条件）：
+
 1. 给每个内置事件类型写一组 input event → expected state delta 的快照测试（参考 redux-toolkit 的 reducer 测试模式），补齐尚未覆盖的 handler
 2. 有了全套语义测试后，再考虑后续重构（如查表派发）时可零回归验证
 
 **触发条件**：要加新的内置事件类型时（比如 `THINKING_*` / `MEMORY_*`）一并补上对应 handler 的测试。
 
 #### B. ChatPanel/MessageStream 的视觉回归测试
+
 **现状**：ChatPanel 已经拆成 4 个子组件（约 50 行 orchestrator + PanelHeader/ChatStream/WorkspaceViewBody），单文件没法继续小拆。但视觉回归（"切 tab 时 tab strip 是否正确"、"打开 workspace view 时 composer 是否消失"）目前靠手测。
 
 **为什么没做**：DOM 集成测试容易脆弱，Playwright/Storybook 是更大的引擎引入。
@@ -901,22 +908,27 @@ declare module "@/protocol/agui/viewState" {
 **触发条件**：tab 状态机改三次以上 / 引入第一次回归 bug。届时 ROI 翻正。
 
 #### C. plugin sideload 的端到端测试
+
 **现状**：sideload 路径（`sideload.ts` + `hostBridge.ts`）只有单元测试，没有"真的从 Go 后端下载 + dynamic import + 注册"的 e2e 覆盖。
 **为什么没做**：mocking dynamic import 比较奇技淫巧，工程量大。
 **触发条件**：sideload 路径出第一个真实 bug / 第一个外部 plugin 进入仓库。
 
 #### D. 给 `useSmoothText` hook 加最小行为测试
+
 **现状**：`pickRate` 纯函数有 8 个测试（`smoothText.test.ts`），但 hook 本身（rAF + 词分段 + 句末停顿 + drain mode）零测试。
 **为什么没做**：rAF 在 happy-dom 下需要 stub + fake timers，hook 行为随性能特征调，测试容易跟 vsync jitter 打架。
 **触发条件**：流式渲染速率出 bug / pickRate 重新设计时一起做。
 
 ### 12.2 想做但当前 KISS / YAGNI 不允许
 
-#### E. 把 `registry.ts` 的 30+ 对 `addX/removeX` action 抽成 factory
-**为什么不做**：现有 `addOwned` / `addOwnedMulti` 已经把 conflict-warning + immutable update 这些**真重复**的部分抽完了。剩下的 per-slot 2 行 wrapper 是 type safety 的成本 —— 强行抽 factory 必须用 string-keyed slot indexing 牺牲类型推断，clarity loss > LOC saving。**KISS / SOLID-O 都站在不抽这一边**。
+#### E. ✅【已做，方向反了】把 `registry.ts` 的 per-slot `addX/removeX` 收敛
+
+**结果**：不是抽 factory，而是**整体塌进开放扩展点底座**（L2+L3，2026-06）。40 个命名 owned-map → 单一 `extensions` map，贡献统一走 `host.extensions.contribute(POINT, …)`，~24 个纯 spec-register host facade 删除。`addOwnedMulti` 已删。当初"clarity loss > LOC saving"的判断在"加 factory"这条路上成立，但底座方案用 typed `ExtensionPoint<T>` handle 保住了类型推断、同时消除了 per-slot map/action/工厂三处样板。**权威文档见 `docs/EXTENSION_POINTS.md`。**
 
 #### F. 把 `html.theme-light .foo` 结构性 override 全部 token 化
+
 **为什么不做**：`styles/theme.css` 里剩下约 200 行 `html.theme-light .panel { border: none }` 这类规则 —— 改的是 CSS rule 而不是 token 值，没法用 inline style 表达。要全部 token 化需要：
+
 - 给每条 rule 找到对应的 "新 token"（`--panel-border`、`--panel-shadow-policy`、…）
 - 在 base CSS 里改成 `var(--token)`
 - 主题 plugin 写出这些新 token
@@ -924,26 +936,31 @@ declare module "@/protocol/agui/viewState" {
 **触发条件**：第三方主题作者需要修改这些"结构性"差异。在那之前 `theme-{scheme}` class 已经够用。
 
 #### G. 把 `domain/infra/main/` 拆成 monorepo packages
+
 **为什么不做**：见 §3.2 的现有 4 个触发条件，目前一个都没命中。TS path alias + `architecture.test.ts` 已经强制了同样的边界约束。
 
 #### H. plugin marketplace 元数据 / 签名
+
 **为什么不做**：`apiVersion` 闸已经在；marketplace 概念目前只是设想。等出现真的第三方 plugin 提交时再设计。**纯 YAGNI**。
 
 ### 12.3 可能值得做的"隔壁优化"（非重构）
 
 #### I. 国际化（i18n）
+
 **现状**：所有 UI 文案 hardcode 中英文混合（command label / empty state / 注释）。
 **判断**：单语言用户没有痛点；但 ChatPanel/Composer 这些核心 UI 的文案应该走 i18n 框架以便未来扩展。引入 `@lingui/macro` 或 `react-intl` 是几小时活，但**重构 200+ 字符串到字典是数天**。
 
 **触发条件**：第一个非中英文用户 / 第一个 PR 想加日文。
 
 #### J. 性能：MessageStream 虚拟化
+
 **现状**：消息流用普通 React 列表 + `use-stick-to-bottom`。
 **判断**：长会话（1000+ 消息）目前没人抱怨；流式刚开始的消息密度不高。
 
 **触发条件**：实际遇到 > 500 消息会话卡顿时，引入 `@tanstack/react-virtual`。
 
 #### K. 后端：把 mock SSE server 替换成可插拔的 agent provider
+
 **现状**：`internal/agui/` 全是 fixture demo 数据；真要接 LLM 还得改一遍。
 **判断**：当前定位是 UI 设计预览 + 协议验证；真接入 LLM 是一个**新阶段**，不属于"前端架构改进"。
 
@@ -952,10 +969,12 @@ declare module "@/protocol/agui/viewState" {
 ### 12.4 优先级建议
 
 **下一轮**：
+
 - 暂时**无明确的下一步**。§12.6 八条已落实/盘点完毕：A 已做、B/C/G YAGNI、D 已存在、E/F/H 都需要产品路线决策才能启动。
 - 当前架构通过所有审计原则，LOC 在合理范围，所有热路径有测试覆盖。**继续等触发条件出现**（详见 §12.6 各项的"触发条件"），不要做投机式重构。
 
 **再下一轮**（如果有 1 周）：
+
 1. §12.6 H（MetaEvent 反馈统一，~6h）—— RLHF 数据基础设施，看产品路线
 2. §12.1 A（core-reducer table-driven 重构，需要先补测试）
 
@@ -980,26 +999,26 @@ declare module "@/protocol/agui/viewState" {
 
 **5 大共识主题**：
 
-| # | 主题 | 共识源 | Lyra 现状 |
-|---|---|---|---|
-| 1 | **Block-level `status` 状态机**（`running \| complete \| incomplete \| requires-action`） | assistant-ui / cline | `blocks[]` 已 block-based，但只有 `streaming: boolean`，无法表达 `requires-action` |
-| 2 | **`<ToolPrimitive>` headless 组件**（props 方法注入：`onApprove` / `onReject` / `result`） | assistant-ui / cline | approval 走 hook + reducer dispatch，每个 block 自己 wire |
-| 3 | **Capability discovery + state compaction**（`/api/capabilities` + DELTA 周期合并 SNAPSHOT） | ag-ui 官方 | 前端硬假设 backend 支持所有 event；timeline 不 compact |
-| 4 | **History 元数据与消息体分离** | cline | sessionStore (meta) + agentStore (view) 已分层 ✓；messages 落盘待做 |
-| 5 | **Markdown 完整能力**（LaTeX + GFM 表格） | agent-chat-ui | shiki 高亮已有，缺 LaTeX 公式 + 表格 CSS |
+| #   | 主题                                                                                         | 共识源               | Lyra 现状                                                                          |
+| --- | -------------------------------------------------------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------- |
+| 1   | **Block-level `status` 状态机**（`running \| complete \| incomplete \| requires-action`）    | assistant-ui / cline | `blocks[]` 已 block-based，但只有 `streaming: boolean`，无法表达 `requires-action` |
+| 2   | **`<ToolPrimitive>` headless 组件**（props 方法注入：`onApprove` / `onReject` / `result`）   | assistant-ui / cline | approval 走 hook + reducer dispatch，每个 block 自己 wire                          |
+| 3   | **Capability discovery + state compaction**（`/api/capabilities` + DELTA 周期合并 SNAPSHOT） | ag-ui 官方           | 前端硬假设 backend 支持所有 event；timeline 不 compact                             |
+| 4   | **History 元数据与消息体分离**                                                               | cline                | sessionStore (meta) + agentStore (view) 已分层 ✓；messages 落盘待做                |
+| 5   | **Markdown 完整能力**（LaTeX + GFM 表格）                                                    | agent-chat-ui        | shiki 高亮已有，缺 LaTeX 公式 + 表格 CSS                                           |
 
 **8 个候选行动项**（按 ROI / 投入排序）：
 
-| # | 行动项 | 共识强度 | 投入 | 收益 | 状态 |
-|---|---|---|---|---|---|
-| A | Block-level `status` 字段 + approval 状态机 | ⭐⭐⭐ | 中 (~4h) | 高 | ✅ **已做**（2026-05-26） |
-| B | `<ToolPrimitive>` headless 组件 + button config map | ⭐⭐⭐ | 中 (~3h) | 高 | ⏸ **YAGNI 推迟** — 见下方"为什么 B 没做" |
-| C | `/api/capabilities` 端点 + 前端 UI gating | ⭐⭐ | 小 (~2h) | 中 | ⏸ **YAGNI 推迟** — 见下方"为什么 C 推迟" |
-| D | LaTeX (`remark-math + rehype-katex`) + GFM 表格 CSS | ⭐⭐ | 小 (~1h) | 中 | ✅ **已在做**（pre-existing）— 见下方"D 的发现" |
-| E | State compaction（DELTA chain 周期性合并为 SNAPSHOT） | ⭐⭐ | 中 (~3h) | 低（dev 期数据量小） | P2 |
-| F | Generative UI spec + allowlist（agent 返回 JSON 描述 UI） | ⭐ | 大 (~8h) | 中（看路线） | P2 |
-| G | 配置树 + workspace overrides（continue `mergeJson`） | ⭐ | 大 (~6h) | 低（单用户桌面） | × 暂不 |
-| H | MetaEvent 统一用户反馈（thumbs/note/bookmark） | ⭐⭐ | 大 (~6h) | 高（RLHF） | P1（看产品路线） |
+| #   | 行动项                                                    | 共识强度 | 投入     | 收益                 | 状态                                            |
+| --- | --------------------------------------------------------- | -------- | -------- | -------------------- | ----------------------------------------------- |
+| A   | Block-level `status` 字段 + approval 状态机               | ⭐⭐⭐   | 中 (~4h) | 高                   | ✅ **已做**（2026-05-26）                       |
+| B   | `<ToolPrimitive>` headless 组件 + button config map       | ⭐⭐⭐   | 中 (~3h) | 高                   | ⏸ **YAGNI 推迟** — 见下方"为什么 B 没做"        |
+| C   | `/api/capabilities` 端点 + 前端 UI gating                 | ⭐⭐     | 小 (~2h) | 中                   | ⏸ **YAGNI 推迟** — 见下方"为什么 C 推迟"        |
+| D   | LaTeX (`remark-math + rehype-katex`) + GFM 表格 CSS       | ⭐⭐     | 小 (~1h) | 中                   | ✅ **已在做**（pre-existing）— 见下方"D 的发现" |
+| E   | State compaction（DELTA chain 周期性合并为 SNAPSHOT）     | ⭐⭐     | 中 (~3h) | 低（dev 期数据量小） | P2                                              |
+| F   | Generative UI spec + allowlist（agent 返回 JSON 描述 UI） | ⭐       | 大 (~8h) | 中（看路线）         | P2                                              |
+| G   | 配置树 + workspace overrides（continue `mergeJson`）      | ⭐       | 大 (~6h) | 低（单用户桌面）     | × 暂不                                          |
+| H   | MetaEvent 统一用户反馈（thumbs/note/bookmark）            | ⭐⭐     | 大 (~6h) | 高（RLHF）           | P1（看产品路线）                                |
 
 **为什么 B 没做**：实施时 grep 了 `content-blocks/` 才发现 Lyra **只有 `approval` 一个真正 actionable 的 block**（tool 块是只读指针，code / search 是被动展示）。给单一消费者抽 `<ToolPrimitive>` 违反 CLAUDE.md "3+ 重复才抽象" 原则——属于 premature abstraction。`ApprovalCard` + `useApprovalSubmit` 已经把 HTTP / UI 分得很干净，下一个 actionable block 出现时再抽 primitive 也来得及。**触发条件**：第二个 actionable block 出现时（如 code-proposal 升级为 accept/reject、或 interrupt-block 落地）。
 
@@ -1010,6 +1029,7 @@ declare module "@/protocol/agui/viewState" {
 **触发条件**：A + B 同时命中两个共识源，且 P0 块状态信号在 approval / interrupt UX 升级时**必经**，应在下一波重构里执行（即 §12.4 优先级建议下一轮直接做 A + B）。C / D 是 quick win，可以搭车做。
 
 **5 个仓库都为 Lyra 现状盖章的设计**（"做对了别动"）：
+
 - ✅ **Plugin reducer 模式**：ag-ui 官方明确——协议层不规定 reducer 实现，应用自由组织
 - ✅ **`internal/agui/events.go` 嵌入 + ToJSON override**：ag-ui agent 评价为"不侵入 SDK 的优雅扩展法"
 - ✅ **Zustand 多 store 分层**：和 assistant-ui scope 树同思路，但更轻

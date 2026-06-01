@@ -1,12 +1,27 @@
-# 统一扩展点底座 + Plugin Pack —— 方向设计 v2（待 review，未实现）
+# 统一扩展点底座 + Plugin Pack —— 方向设计 v2
 
-> **状态**：设计提案，等 review 后再动代码。**一行代码都还没写。**
+> **状态：L2 + L3 已落地（substrate 全量迁移完成）。** 本文档前半是当初的方向设计，保留作背景；下面"落地状态"记录实际结果与偏差。
 >
 > **本版野心升级**：不再是"加一个增量原语 + dogfood 两个插件"，而是
 > **建一套足够通用的扩展点底座，让所有内置插件都跑在它上面** —— kernel 自己的每个"槽"也只是底座上一个保留的扩展点。
 > 这把插件系统从"VSCode 式（kernel 拥有所有点）"推到 **JetBrains 式（万物皆扩展点，kernel 与第三方对等）**。
 >
 > 对应 `PLUGINS_CEILING.md` 的 T1-a，但范围从"增量"扩到"**底座统一**"。
+
+---
+
+## ✅ 落地状态（2026-06，已完成）
+
+- **L2（底座塌缩，行为保持）完成**：40 个命名 owned-map 全部并入单一 `extensions: Map<string, Owned<ContributionEntry>>`（`registryState.ts`）。写路径统一为 `host.extensions.contribute(point, item, opts?)`（`host.ts`），读侧为 `useExtensionPoint` / `useExtensionEntries` / `lookupExtensionByKey` / `useExtensionByKey` / `lookupExtensionOwner` / `lookupExtensionOwnedEntries` / `createPointSubIndex`（`selectors/extensions.ts`）。复合键格式收敛到 `composeExtensionKey`。
+- **L3（删 facade，源码统一）完成**：~24 个**纯 spec-register** facade（theme / router / agent / data / errorFallback / composer×6 / tool×3 / sidebar×2 / shortcuts / settings / message.role / workspace.registerView / i18n.registerLocale / commands）删除，~60 个内置调用点 + 测试改直接 `contribute(POINT, …)`。
+- **有意保留的薄 facade（同一 `contribute` 机制，各有价值，非冗余转发）**：
+  - `layout.register` —— 内部算去重 id `${slot}#${spec.id}`，防 `<Slot>` 同 key 重复渲染
+  - `message.registerContentBlock<K>` —— 保 per-kind 泛型类型安全
+  - `lifecycle.onReady` —— "已 ready 则 microtask 立即触发"逻辑（`onBeforeUnload` 同 namespace 一起留）
+  - `agui.on/onCore`、`rpc.beforeRequest/afterResponse`、`log.subscribe` —— handler/hook 订阅 API，具名表意 + 行为性，高调用密度删了纯增噪
+- **kernel 内部 firing 循环破环**：`markAppReady`/`registerLoaded`/`unload` 在 store 内迭代 substrate，靠 `pointIds.ts`（零依赖常量）按 `entry.point` 过滤，避免 `registry → kernelPoints` 成环。
+- **边界划定**：「注册一个 spec 到列表」→ 删 facade 走 `contribute`；「订阅 handler/hook」或「facade 算了去重 id / 保泛型 / 带行为」→ 留作薄 facade。
+- **下一步（未做）**：capability-on-point（给 `ExtensionPoint` 加 `capability` 字段，`contribute` 强制校验，把 per-namespace 强权限门禁下沉到点上 —— 见 §9）。Plugin Pack（`definePluginPack`，§5）仍未实现。
 
 ---
 
@@ -20,7 +35,7 @@
 ## 1. 必须先讲清楚的张力（请 review 时确认你接受）
 
 > ⚠️ **这个方向直接推翻 CLAUDE.md 里的一条 ❌ 强反向不变量**：
-> *"把 `registry.ts` 30+ 对 `addX/removeX` 抽 factory —— 剩下的 per-slot wrapper 是 type-safety 成本"*，
+> _"把 `registry.ts` 30+ 对 `addX/removeX` 抽 factory —— 剩下的 per-slot wrapper 是 type-safety 成本"_，
 > 以及 `ARCHITECTURE.md §12.2-E`("强行抽 factory 必须牺牲类型推断，clarity loss > LOC saving")。
 
 当初那条不变量的**唯一论据是"会丢类型推断"**。本设计的核心结论是：
@@ -42,12 +57,13 @@
 
 扫完 `registryState.ts` 的全部 owned-map，它们只有两类写入策略（已经被 `registryHelpers.ts` 抽成两个 helper）：
 
-| 策略 | helper | 语义 | 现有用户（举例） |
-|---|---|---|---|
-| **single** | `addOwned` | 同 key 覆盖 + 跨插件冲突告警 | themes / commands / contentBlocks / toolPreviews / dataProviders / shortcuts … |
-| **multi** | `addOwnedMulti` | 复合键 `${plugin}|${id}` 共存 | layoutSlots / coreEventHandlers / customEventHandlers / rpcHooks / logSubscribers … |
+| 策略       | helper          | 语义                         | 现有用户（举例）                                                               |
+| ---------- | --------------- | ---------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| **single** | `addOwned`      | 同 key 覆盖 + 跨插件冲突告警 | themes / commands / contentBlocks / toolPreviews / dataProviders / shortcuts … |
+| **multi**  | `addOwnedMulti` | 复合键 `${plugin}            | ${id}` 共存                                                                    | layoutSlots / coreEventHandlers / customEventHandlers / rpcHooks / logSubscribers … |
 
 差异只在三处旋钮：
+
 - **key 怎么取**：多数 `item.id`；少数特殊（toolPreview/toolIcon=fn 名、dataProvider=`spec.key`、contentBlock=kind、shortcut/composerKeyBinding=`normalizeCombo(key)`）。
 - **single 还是 multi**。
 - **消费时按什么分发**：多数"全部列出按 order 排"；layout/events 是"按 slot 名 / 事件名分组"。
@@ -71,13 +87,16 @@ type Keying = "single" | "multi";
 interface ExtensionPoint<T> {
   readonly id: string;
   readonly keying: Keying;
-  readonly keyOf?: (item: T) => string;        // 默认 item.id；fn 名 / spec.key / kind / combo 用它
+  readonly keyOf?: (item: T) => string; // 默认 item.id；fn 名 / spec.key / kind / combo 用它
   readonly normalizeKey?: (k: string) => string; // 仅 shortcuts / composerKeyBinding 用（combo 归一化）
   // 仅类型用途的 phantom T，不持有状态
 }
 
 function defineExtensionPoint<T>(def: {
-  id: string; keying: Keying; keyOf?: (i: T) => string; normalizeKey?: (k: string) => string;
+  id: string;
+  keying: Keying;
+  keyOf?: (i: T) => string;
+  normalizeKey?: (k: string) => string;
 }): ExtensionPoint<T>;
 ```
 
@@ -98,11 +117,16 @@ lookupExtensionPoint<T>(point: ExtensionPoint<T>): T[];  // 命令/setup/reducer
 ### 3.3 存储
 
 `registryState` 的 ~40 个 owned-map **塌缩成 1 个**：
+
 ```ts
-extensions: Map<string, Owned<{ point: string; order?: number; item: unknown }>>;
+extensions: Map<
+  string,
+  Owned<{ point: string; order?: number; item: unknown }>
+>;
 // single: entryKey = `${point}#${normalizeKey?(keyOf(item)) ?? keyOf(item)}`  → 覆盖 + 跨插件告警
 // multi:  entryKey = `${point}#${pluginName}|${mintedId}`                      → 共存
 ```
+
 消费用现成 `createIndex`（WeakMap 缓存、随 Map 引用失效）按 point 聚合 + 按 order 排。**热路径性能与现状同级**。
 
 > **不迁移的东西**（它们不是"贡献"，是 kernel 簿记）：`loaded` / `pendingActivations` / `appReady` /
@@ -111,6 +135,7 @@ extensions: Map<string, Owned<{ point: string; order?: number; item: unknown }>>
 ### 3.4 kernel 点目录（typed 句柄集中定义）
 
 新增 `sdk/kernelPoints.ts`，把现在 40 个 map 对应的点全部声明成 typed 句柄，例如：
+
 ```ts
 export const THEME        = defineExtensionPoint<ThemeSpec>({ id: "lyra.theme", keying: "single" });
 export const COMMAND      = defineExtensionPoint<CommandSpec>({ id: "lyra.command", keying: "single" });
@@ -135,10 +160,12 @@ export const LAYOUT_SLOT  = (slot: string) => defineExtensionPoint<LayoutSlotSpe
 "跑在底座上"有三个侵入级别，下面 L2 / L3 是我们的两个阶段，L1 仅作对照排除：
 
 ### L1 —— 仅增量（不满足你的诉求）
+
 底座只给第三方/新点用，现有 40 map + 31 方法原样不动。
 → ❌ **不满足"所有内置都跑在上面"**，排除。
 
 ### L2 —— 底座塌缩 + 保留 typed facade（**推荐**）
+
 - registryState 的 40 map → 1 个 `extensions` map（**底座成为唯一实现**）。
 - 现有 `host.theme.registerTheme(spec)` 等 31 个方法**保留**，但实现塌成一行 facade：`contribute(THEME, spec)`。
 - 现有 `useThemes()` 等 selector 塌成一行：`useExtensionPoint(THEME)`。
@@ -147,6 +174,7 @@ export const LAYOUT_SLOT  = (slot: string) => defineExtensionPoint<LayoutSlotSpe
 - **代价**：SDK 表面仍有 31 个方法（但都是 1 行 facade）。有人会问"那不还是 31 个方法吗" —— 区别在于它们不再各自背一个 map/工厂，新增点不再是 4 文件改动，且第三方与 kernel 同底座。
 
 ### L3 —— 全量源码迁移 + 删除 typed facade（最纯，churn 最大）
+
 - 在 L2 基础上，**删掉 31 个 typed 方法**，把 ~69 个内置插件源码全改成 `host.extensions.contribute(KERNEL.theme, spec)`。
 - ✅ 真正"一种 API"，SDK 表面最小；kernel 与第三方零差别。
 - **代价**：69 文件机械改动；丢掉 `host.theme.registerTheme` 的**自解释性/autocomplete 可发现性**；
@@ -169,6 +197,7 @@ definePluginPack({
   setup?,                                    // 在子插件全部加载后跑 → 可消费它们填的点
 });
 ```
+
 语义：父 setup 里先按序 `await host.plugins.load(child)`，再跑 `setup`，cleanup 级联逆序 `unload`。
 kernel manifest 只见 1 条；子插件各自 host/capabilities/disposable/错误隔离。`host.plugins.load` 已存在，helper 只封装"加载 + 级联卸载"。
 
@@ -180,26 +209,29 @@ capabilities 须含 `"plugins"`；Plugins pane v1 平铺显示（父子树是 po
 ## 6. 落地面积（L2 路线）
 
 ### 底座（新增/改）
-| 文件 | 改动 |
-|---|---|
-| `sdk/types/extensions.ts` | **新增** `ExtensionPoint<T>` |
-| `sdk/defineExtensionPoint.ts` | **新增** `defineExtensionPoint` |
-| `sdk/kernelPoints.ts` | **新增** ~40 个 kernel 点的 typed 句柄 |
-| `sdk/registryState.ts` | 40 map → 1 `extensions` map（保留 4 个簿记字段） |
-| `sdk/registry.ts` | 用单一 `contribute/remove` 实现取代 ~40 对 add/remove；31 个 `addX` 变成调 contribute 的 facade |
-| `sdk/host.ts` | 加 `extensions.contribute`；31 个 `register*` 改为调 contribute（签名/行为不变） |
-| `sdk/selectors/*` | 各 `useXxx/lookupXxx` 改为 `useExtensionPoint(POINT)` 的薄封装（**对外签名不变**） |
-| `sdk/types/host.ts` / `plugin.ts` | Host 加 `extensions`；HostCapability 加 `"extensions"` |
-| `sdk/index.ts` | 导出底座 API（现有 selector 导出保持） |
-| `sdk/extensions.test.ts` | **新增** 底座单测（single 覆盖+告警 / multi 共存 / order / keyOf / normalizeKey / 跨 point 隔离） |
+
+| 文件                              | 改动                                                                                              |
+| --------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `sdk/types/extensions.ts`         | **新增** `ExtensionPoint<T>`                                                                      |
+| `sdk/defineExtensionPoint.ts`     | **新增** `defineExtensionPoint`                                                                   |
+| `sdk/kernelPoints.ts`             | **新增** ~40 个 kernel 点的 typed 句柄                                                            |
+| `sdk/registryState.ts`            | 40 map → 1 `extensions` map（保留 4 个簿记字段）                                                  |
+| `sdk/registry.ts`                 | 用单一 `contribute/remove` 实现取代 ~40 对 add/remove；31 个 `addX` 变成调 contribute 的 facade   |
+| `sdk/host.ts`                     | 加 `extensions.contribute`；31 个 `register*` 改为调 contribute（签名/行为不变）                  |
+| `sdk/selectors/*`                 | 各 `useXxx/lookupXxx` 改为 `useExtensionPoint(POINT)` 的薄封装（**对外签名不变**）                |
+| `sdk/types/host.ts` / `plugin.ts` | Host 加 `extensions`；HostCapability 加 `"extensions"`                                            |
+| `sdk/index.ts`                    | 导出底座 API（现有 selector 导出保持）                                                            |
+| `sdk/extensions.test.ts`          | **新增** 底座单测（single 覆盖+告警 / multi 共存 / order / keyOf / normalizeKey / 跨 point 隔离） |
 
 > **关键安全网**：L2 下**所有现有 selector/host 方法对外签名与行为不变** → `registry.test.ts` /
 > `reducer.test.ts` / 各 selector 测试 / 插件注册测试**全部不改、全部应保持绿**。这是"行为保持重构"的验证标准。
 
 ### Pack（新增）
+
 `sdk/definePluginPack.ts` + 导出 + `definePluginPack.test.ts`。
 
 ### Dogfood / 迁移（取决于 L2 vs L3）
+
 - **L2**：内置插件源码不改。可选做 1-2 个"示范性"pack（export / message-actions）证明 pack + 自定义点能力。
 - **L3**：69 文件迁移到 `contribute(KERNEL.x, ...)`，分批（每批一类：themes / composer / message / tool / sidebar / workspace / overlays …），每批跑全套 check。
 
@@ -248,24 +280,24 @@ Lyra 的 `capabilities` 本就是权限单元（gate 24 个 Host namespace）。
 
 ### 9.2 风险分级（映射 AionUi 的 safe / moderate / dangerous）
 
-| 等级 | Lyra namespace | 理由 |
-|---|---|---|
-| **safe** | notify / log / i18n / state / config / storage / theme | 自身数据 / 纯展示，无外溢 |
-| **moderate** | commands / layout / composer / sidebar / workspace / settings / message / tool / agui / window / tasks / **extensions** | 注册贡献 / 改 UI，影响面限本 app |
-| **dangerous** | **rpc**（打后端 / 网络） / **plugins**（加载卸载任意插件 = 提权） / 未来 **fs**（文件读写） | 越权 / 外溢 / 可被武器化 |
+| 等级          | Lyra namespace                                                                                                          | 理由                             |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| **safe**      | notify / log / i18n / state / config / storage / theme                                                                  | 自身数据 / 纯展示，无外溢        |
+| **moderate**  | commands / layout / composer / sidebar / workspace / settings / message / tool / agui / window / tasks / **extensions** | 注册贡献 / 改 UI，影响面限本 app |
+| **dangerous** | **rpc**（打后端 / 网络） / **plugins**（加载卸载任意插件 = 提权） / 未来 **fs**（文件读写）                             | 越权 / 外溢 / 可被武器化         |
 
 - `extensions.contribute` 本身是 **moderate**（贡献数据）；危险性在于**消费方**拿数据去干什么（由 rpc / plugins / fs 这些 dangerous 权限把关）。**定义一个点不需要特殊权限。**
 - ⚠️ **`definePluginPack` 的子插件加载靠 `plugins`（dangerous）** —— sideload 的 pack 想加载子插件必须显式声明 `plugins`，会被标红/需同意。built-in pack 不受影响。
 
 ### 9.3 落地（分阶段，T3 触发才全做）
 
-| 子项 | 成本 | 何时做 |
-|---|---|---|
-| 给每个 capability 标 risk（一张表 + 类型 `Record<HostCapability, Risk>`） | 便宜 | **可随底座做** |
-| sideload 入口对 `origin=sideload` **强制** `restrictHost`（无 capabilities → deny-all；built-in 不变） | 便宜 | **可随底座做**（关掉一个真实风险口子） |
-| Plugins pane 展示每个插件的 capabilities + 聚合风险（safe/moderate/dangerous），仿 AionUi UI | 中 | 可随底座做 |
-| **install-time 同意**：加载请求 dangerous 权限的第三方插件时弹窗 + 记 `granted` | 重 | **等第一个真实第三方 sideload（T3），现在 YAGNI** |
-| 运行时按 `granted` 二次 gate（声明了 dangerous 但未授予 → 仍 deny） | 中 | 同上，等触发 |
+| 子项                                                                                                   | 成本 | 何时做                                            |
+| ------------------------------------------------------------------------------------------------------ | ---- | ------------------------------------------------- |
+| 给每个 capability 标 risk（一张表 + 类型 `Record<HostCapability, Risk>`）                              | 便宜 | **可随底座做**                                    |
+| sideload 入口对 `origin=sideload` **强制** `restrictHost`（无 capabilities → deny-all；built-in 不变） | 便宜 | **可随底座做**（关掉一个真实风险口子）            |
+| Plugins pane 展示每个插件的 capabilities + 聚合风险（safe/moderate/dangerous），仿 AionUi UI           | 中   | 可随底座做                                        |
+| **install-time 同意**：加载请求 dangerous 权限的第三方插件时弹窗 + 记 `granted`                        | 重   | **等第一个真实第三方 sideload（T3），现在 YAGNI** |
+| 运行时按 `granted` 二次 gate（声明了 dangerous 但未授予 → 仍 deny）                                    | 中   | 同上，等触发                                      |
 
 ### 9.4 与扩展点底座的关系
 

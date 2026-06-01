@@ -4,7 +4,10 @@
 > 最后修订：2026-05-19
 > 配套：[`PLUGINS.md`](./PLUGINS.md) 是设计提案；本文档讲实际实现细节。
 
+> **写法已统一**：贡献走 `host.extensions.contribute(POINT, spec)`（POINT 见 `frontend/src/plugins/sdk/kernelPoints.ts`）；少数薄 facade（agui / layout / contentBlock / lifecycle / rpc hooks / log.subscribe）保留。详见 `docs/EXTENSION_POINTS.md`。
+
 阅读顺序建议：
+
 1. 先看 [§1 概览](#1-概览) 了解整体形状
 2. [§2 写一个插件](#2-写一个插件) 抄一个 hello world
 3. 按需翻 [§3 SDK 参考](#3-sdk-参考)
@@ -17,15 +20,15 @@
 
 ### 1.1 当前覆盖度
 
-| 接缝 | 内置插件数 | API |
-|---|---|---|
-| AG-UI CUSTOM 事件处理 | 5 | `host.agui.on` |
-| 消息内容块渲染 | 6 | `host.message.registerContentBlock` |
-| 工具调用预览 | 4 | `host.tool.registerPreview` |
-| Composer slash 命令 | 2 | `host.composer.registerCommand` |
-| 设置面板 pane | 2 | `host.settings.registerPane` |
-| Workspace 视图 | 8 | `host.workspace.registerView` |
-| HTTP / 通知 / 存储 | — | `host.rpc` / `host.notify` / `host.storage` |
+| 接缝                  | 内置插件数 | API                                                             |
+| --------------------- | ---------- | --------------------------------------------------------------- |
+| AG-UI CUSTOM 事件处理 | 5          | `host.agui.on`                                                  |
+| 消息内容块渲染        | 6          | `host.message.registerContentBlock`                             |
+| 工具调用预览          | 4          | `host.extensions.contribute(TOOL_PREVIEW, c, { key: fn })`      |
+| Composer slash 命令   | 2          | `host.extensions.contribute(SLASH_COMMAND, spec, { key: cmd })` |
+| 设置面板 pane         | 2          | `host.extensions.contribute(SETTINGS_PANE, spec)`               |
+| Workspace 视图        | 8          | `host.extensions.contribute(WORKSPACE_VIEW, spec)`              |
+| HTTP / 通知 / 存储    | —          | `host.rpc` / `host.notify` / `host.storage`                     |
 
 **所有内置插件**全部走标准 SDK 路径，跟未来第三方插件无差别。宿主代码（`reducer.ts` / `PartRenderer.tsx` / `WorkspaceViewBody.tsx`）里没有任何 "这是内置" 的特判。
 
@@ -69,14 +72,14 @@
 
 ### 1.3 关键设计取舍（实现层面）
 
-| 选择 | 理由 |
-|---|---|
-| Registry 用 **Zustand** 不用 Context | reducer、Composer.submit 等非 React 代码也要查表，`getState()` 同步访问 |
-| Agent state 也 **Zustand** 化 | 插件组件（如 PlanTab）直接 `useAgentStore((s) => s.plan)`，不用从 props 透传 5 层 |
-| 选择器派生数组用 **`useMemo`** 不用 `useShallow` | `useShallow` 用 `Object.is` 比较元素；`.map(() => ({...}))` 产生新对象，永远不等。坑见 §8.3 |
-| 类型扩展用 **TS declaration merging** | 跨插件类型安全，零运行时开销 |
-| 错误聚合到 **`usePluginErrorStore`** | "插件挂了"得有 UI 入口，console.error 找不到 |
-| Sideload 用 **`window.__LYRA__` 桥**而非 importmap | dev 模式下 importmap + Vite 时序脆弱，window 桥简单可靠 |
+| 选择                                               | 理由                                                                                        |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Registry 用 **Zustand** 不用 Context               | reducer、Composer.submit 等非 React 代码也要查表，`getState()` 同步访问                     |
+| Agent state 也 **Zustand** 化                      | 插件组件（如 PlanTab）直接 `useAgentStore((s) => s.plan)`，不用从 props 透传 5 层           |
+| 选择器派生数组用 **`useMemo`** 不用 `useShallow`   | `useShallow` 用 `Object.is` 比较元素；`.map(() => ({...}))` 产生新对象，永远不等。坑见 §8.3 |
+| 类型扩展用 **TS declaration merging**              | 跨插件类型安全，零运行时开销                                                                |
+| 错误聚合到 **`usePluginErrorStore`**               | "插件挂了"得有 UI 入口，console.error 找不到                                                |
+| Sideload 用 **`window.__LYRA__` 桥**而非 importmap | dev 模式下 importmap + Vite 时序脆弱，window 桥简单可靠                                     |
 
 ---
 
@@ -88,7 +91,7 @@
 
 ```js
 const { React, SDK } = window.__LYRA__;
-const { definePlugin } = SDK;
+const { definePlugin, SLASH_COMMAND } = SDK; // POINT consts re-exported from SDK
 const h = React.createElement;
 
 export default definePlugin({
@@ -96,10 +99,14 @@ export default definePlugin({
   version: "0.1.0",
   apiVersion: "^1.0.0",
   setup({ host }) {
-    host.composer.registerCommand("/hello", {
-      description: "Say hi via toast",
-      run: ({ args }) => host.notify(`Hello${args ? `, ${args}` : ""}!`),
-    });
+    host.extensions.contribute(
+      SLASH_COMMAND,
+      {
+        description: "Say hi via toast",
+        run: ({ args }) => host.notify(`Hello${args ? `, ${args}` : ""}!`),
+      },
+      { key: "/hello" },
+    );
   },
 });
 ```
@@ -125,14 +132,17 @@ esbuild src/index.tsx --bundle --format=esm --outfile=index.js \
 // frontend/src/plugins/builtin/workspace-views/files.tsx
 import { useFilesChanged } from "@/lib/data/queries";
 import { definePlugin } from "@/plugins/sdk";
+import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 
-function FilesView() { /* ... */ }
+function FilesView() {
+  /* ... */
+}
 
 export const filesView = definePlugin({
   name: "lyra.builtin.view-files",
   version: "1.0.0",
   setup({ host }) {
-    host.workspace.registerView({
+    host.extensions.contribute(WORKSPACE_VIEW, {
       id: "files",
       title: "Files",
       icon: "filetext",
@@ -152,14 +162,16 @@ export const filesView = definePlugin({
 
 完整类型见 `frontend/src/plugins/sdk/types.ts`；本节给最简调用示例。
 
-### 3.1 `host.tool.registerPreview(fn, Component)`
+### 3.1 `host.extensions.contribute(TOOL_PREVIEW, Component, { key: fn })`
 
-工具调用展开时渲染什么。第一个参数是 AG-UI `ToolCall.fn`（如 `"bash"`、`"kubectl"`）。组件签名 `({ tool, onOpenInspector }) => JSX`。
+工具调用展开时渲染什么。`key` 是 AG-UI `ToolCall.fn`（如 `"bash"`、`"kubectl"`）。组件签名 `({ tool, onOpenInspector }) => JSX`。
 
 ```ts
-host.tool.registerPreview("kubectl", ({ tool }) => (
+import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
+
+host.extensions.contribute(TOOL_PREVIEW, ({ tool }) => (
   <div>kubectl args: {tool.args}</div>
-));
+), { key: "kubectl" });
 ```
 
 冲突策略：**后注册覆盖**，console.warn 一条。
@@ -218,30 +230,38 @@ host.agui.on("multi", (v) => compose(setPlan(v.items), patchRun({ step: v.step }
 
 返回 `void` 表示纯副作用（如埋点），不改 state。
 
-### 3.4 `host.composer.registerCommand(cmd, spec)`
+### 3.4 `host.extensions.contribute(SLASH_COMMAND, spec, { key: cmd })`
 
 ```ts
-host.composer.registerCommand("/lint", {
-  description: "Run eslint --fix",
-  run: async ({ args, send }) => {
-    const result = await host.rpc.post("/lint", { args });
-    host.notify(`Fixed ${result.fixed} issues`);
-    // 可选：把消息也发给 agent
-    // send("Please review the eslint output");
+import { SLASH_COMMAND } from "@/plugins/sdk/kernelPoints";
+
+host.extensions.contribute(
+  SLASH_COMMAND,
+  {
+    description: "Run eslint --fix",
+    run: async ({ args, send }) => {
+      const result = await host.rpc.post("/lint", { args });
+      host.notify(`Fixed ${result.fixed} issues`);
+      // 可选：把消息也发给 agent
+      // send("Please review the eslint output");
+    },
   },
-});
+  { key: "/lint" },
+);
 ```
 
 `run` 缺省 → "hint only" 模式，dropdown 里显示描述，回车把整行原样作为用户消息发给 agent。
 
-### 3.5 `host.settings.registerPane(spec)`
+### 3.5 `host.extensions.contribute(SETTINGS_PANE, spec)`
 
 ```ts
-host.settings.registerPane({
+import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
+
+host.extensions.contribute(SETTINGS_PANE, {
   id: "k8s",
   label: "Kubernetes",
   icon: "tool",
-  order: 100,   // builtin 用 0-99，third-party ≥100
+  order: 100, // builtin 用 0-99，third-party ≥100
   component: K8sSettings,
 });
 ```
@@ -250,25 +270,32 @@ pane 组件可以用 `host.storage` 持久化自己的配置：
 
 ```tsx
 function K8sSettings() {
-  const [url, setUrl] = useState(host.storage.get<string>("apiServerUrl") ?? "");
+  const [url, setUrl] = useState(
+    host.storage.get<string>("apiServerUrl") ?? "",
+  );
   return (
-    <input value={url} onChange={e => {
-      setUrl(e.target.value);
-      host.storage.set("apiServerUrl", e.target.value);
-    }} />
+    <input
+      value={url}
+      onChange={(e) => {
+        setUrl(e.target.value);
+        host.storage.set("apiServerUrl", e.target.value);
+      }}
+    />
   );
 }
 ```
 
-### 3.6 `host.workspace.registerView(spec)`
+### 3.6 `host.extensions.contribute(WORKSPACE_VIEW, spec)`
 
 ```ts
-host.workspace.registerView({
+import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
+
+host.extensions.contribute(WORKSPACE_VIEW, {
   id: "k8s-resources",
   title: "K8s",
   icon: "list",
-  defaultLocation: "right",   // "left" | "right" | "main" | "bottom"，可选
-  openByDefault: false,       // 是否启动即打开，可选
+  defaultLocation: "right", // "left" | "right" | "main" | "bottom"，可选
+  openByDefault: false, // 是否启动即打开，可选
   order: 100,
   component: K8sView,
 });
@@ -304,9 +331,9 @@ const result = await host.rpc.post<{ ok: boolean }>("/lint", { files });
 
 ```ts
 host.storage.set("config", { x: 1 });
-host.storage.get<{ x: number }>("config");  // { x: 1 }
+host.storage.get<{ x: number }>("config"); // { x: 1 }
 host.storage.remove("config");
-host.storage.keys();   // 列当前插件的所有 key
+host.storage.keys(); // 列当前插件的所有 key
 ```
 
 JSON 自动序列化；非 JSON 字符串透传。
@@ -338,6 +365,7 @@ declare module "@/protocol/agui/viewState" {
 ```
 
 之后：
+
 - `ContentBlock` union 自动包含 `{ kind: "cpuChart"; series: Point[] }`
 - `host.message.registerContentBlock("cpuChart", ...)` 推断出正确的 `block` 类型
 - `appendBlockToMessage(msgId, { kind: "cpuChart", series: [...] })` 类型校验通过
@@ -348,8 +376,10 @@ declare module "@/protocol/agui/viewState" {
 `frontend/src/protocol/agui/viewState.ts`：
 
 ```ts
-export interface BuiltinContentBlockMap { /* 内置块 */ }
-export interface CustomContentBlockMap {}   // ← 插件 augment 这个
+export interface BuiltinContentBlockMap {
+  /* 内置块 */
+}
+export interface CustomContentBlockMap {} // ← 插件 augment 这个
 export type ContentBlockMap = BuiltinContentBlockMap & CustomContentBlockMap;
 export type ContentBlock = ContentBlockMap[keyof ContentBlockMap];
 ```
@@ -394,12 +424,12 @@ PluginProvider useEffect (一次性，empty deps):
 
 ### 5.1 阶段四 sideload 关键文件
 
-| 文件 | 作用 |
-|---|---|
-| `internal/agui/plugins.go` | Go: 扫 `~/.lyra/plugins/`，serve `/plugins/<id>/index.js` |
-| `internal/agui/server.go:registerREST` | 把 `/plugins` 路由挂到 mux |
-| `frontend/src/plugins/sideload.ts` | fetch + dynamic import + 走 loadPlugin |
-| `frontend/src/plugins/hostBridge.ts` | 静态 import 宿主依赖，挂到 `window.__LYRA__` |
+| 文件                                   | 作用                                                      |
+| -------------------------------------- | --------------------------------------------------------- |
+| `internal/agui/plugins.go`             | Go: 扫 `~/.lyra/plugins/`，serve `/plugins/<id>/index.js` |
+| `internal/agui/server.go:registerREST` | 把 `/plugins` 路由挂到 mux                                |
+| `frontend/src/plugins/sideload.ts`     | fetch + dynamic import + 走 loadPlugin                    |
+| `frontend/src/plugins/hostBridge.ts`   | 静态 import 宿主依赖，挂到 `window.__LYRA__`              |
 
 ### 5.2 apiVersion 门禁
 
@@ -454,7 +484,7 @@ function removeOwned<T>(map, pluginName, key) {
 
 `createHost(pluginName, sink)` 返回的 `Host` 对象：
 
-- 每个 `register*` 调用 `usePluginStore.getState().addXxx(pluginName, ...)`
+- `host.extensions.contribute(POINT, ...)`（及保留的 facade）调用 `usePluginStore.getState().addXxx(pluginName, ...)`
 - 返回 `Disposable` 同时塞进 `sink`（数组），让 `loadPlugin` 能在 setup 失败时统一回滚
 - `host.storage` 是 `createStorage(pluginName)`，自动加 `lyra.plugin.<name>.` 前缀
 - `host.rpc` 用 `lib/http.ts` 的 ky 实例
@@ -463,6 +493,7 @@ function removeOwned<T>(map, pluginName, key) {
 ### 6.3 Subscribers（React hooks）
 
 **单值选择器**（直接订阅，引用稳定）：
+
 ```ts
 export function useToolPreview(fn) {
   return usePluginStore((s) => s.toolPreviews.get(fn)?.value);
@@ -470,6 +501,7 @@ export function useToolPreview(fn) {
 ```
 
 **列表派生选择器**（关键模式，避免死循环）：
+
 ```ts
 export function useWorkspaceViews() {
   const map = usePluginStore((s) => s.workspaceViews);  // 只取 Map
@@ -492,7 +524,7 @@ export function PluginContentBlock({ block }) {
   if (!Renderer) return null;
   return (
     <PluginBoundary plugin={`content-block:${block.kind}`}>
-      <Renderer block={block as any} />   {/* 类型在 SDK 层已校验 */}
+      <Renderer block={block as any} /> {/* 类型在 SDK 层已校验 */}
     </PluginBoundary>
   );
 }
@@ -502,11 +534,11 @@ PartRenderer 的 `default:` case 用它。
 
 ### 6.5 Workspace view 无 context
 
-workspace view 之间没有 context 共享层。view 直接 `host.workspace.registerView` 注册，组件无 props；需要共享状态（如"当前激活文件"）就直接读写对应 store（`useSessionStore` 的 `activeFile` / `setActiveFile` / `openMainView`）。这样避免强制每个 view 接受统一 props 接口，也不需要把 view 包进 provider。
+workspace view 之间没有 context 共享层。view 直接 `host.extensions.contribute(WORKSPACE_VIEW, ...)` 贡献，组件无 props；需要共享状态（如"当前激活文件"）就直接读写对应 store（`useSessionStore` 的 `activeFile` / `setActiveFile` / `openMainView`）。这样避免强制每个 view 接受统一 props 接口，也不需要把 view 包进 provider。
 
 ---
 
-## 7. window.__LYRA__ 桥
+## 7. window.**LYRA** 桥
 
 `frontend/src/plugins/hostBridge.ts`：
 
@@ -519,12 +551,16 @@ import * as SDK from "@/plugins/sdk";
 export function installHostBridge() {
   window.__LYRA__ = {
     apiVersion: HOST_API_VERSION,
-    React, ReactJSXRuntime, Motion, SDK,
+    React,
+    ReactJSXRuntime,
+    Motion,
+    SDK,
   };
 }
 ```
 
 **关键点：**
+
 - **静态 import**，不能动态 `import()` —— dev 模式时序会出问题，React 可能被切到独立 chunk，出现两份实例（"dispatcher.useRef is null" 错误）
 - 在 builtin plugin 加载之前调用 —— 即使 builtin 不依赖 window 桥，sideload 模块的顶层代码 `const { React } = window.__LYRA__` 立即执行
 - SDK 也挂上去（不只是 React） —— sideload 插件需要 `definePlugin`、`appendBlockToLatestAssistant` 等 SDK 导出
@@ -539,12 +575,12 @@ sideload 插件不能 `import "react"` —— 浏览器没有 npm，dynamic impo
 
 ### 8.1 错误源 × 隔离方式
 
-| 源 | 位置 | 隔离 | 上报 |
-|---|---|---|---|
-| `setup` 抛错 | `loadPlugin` | 已注册 disposables 全 dispose；其他插件继续 | source: `"setup"` |
-| 渲染抛错 | `PluginBoundary` | 显示红色 fallback；主应用继续 | source: `"render"` + componentStack |
-| `host.agui.on` handler 抛错 | reducer 里 try/catch | state 不变 | source: `"agui"` + event name |
-| slash `run` handler 抛错 | Composer.submit catch | 命令调用结束 | source: `"command"` + cmd |
+| 源                          | 位置                  | 隔离                                        | 上报                                |
+| --------------------------- | --------------------- | ------------------------------------------- | ----------------------------------- |
+| `setup` 抛错                | `loadPlugin`          | 已注册 disposables 全 dispose；其他插件继续 | source: `"setup"`                   |
+| 渲染抛错                    | `PluginBoundary`      | 显示红色 fallback；主应用继续               | source: `"render"` + componentStack |
+| `host.agui.on` handler 抛错 | reducer 里 try/catch  | state 不变                                  | source: `"agui"` + event name       |
+| slash `run` handler 抛错    | Composer.submit catch | 命令调用结束                                | source: `"command"` + cmd           |
 
 ### 8.2 Plugins pane（设置 → Plugins）
 
@@ -558,9 +594,11 @@ sideload 插件不能 `import "react"` —— 浏览器没有 npm，dynamic impo
 
 ```ts
 // ❌ 死循环
-return usePluginStore(useShallow((s) =>
-  Array.from(s.x.entries()).map(([k, v]) => ({ key: k, val: v }))
-));
+return usePluginStore(
+  useShallow((s) =>
+    Array.from(s.x.entries()).map(([k, v]) => ({ key: k, val: v })),
+  ),
+);
 ```
 
 `useShallow` 用 `Object.is` 比较数组元素；`.map(() => ({...}))` 每次返回新对象引用 → 永远不等 → React `getSnapshot` 不稳定 → 死循环。
@@ -603,7 +641,7 @@ curl http://127.0.0.1:17171/plugins/foo/index.js  # → ESM 源码
 DevTools console：
 
 ```js
-window.__LYRA__.SDK.usePluginStore.getState()
+window.__LYRA__.SDK.usePluginStore.getState();
 // .toolPreviews / .contentBlocks / .workspaceViews / ...
 ```
 
@@ -621,35 +659,35 @@ window.__LYRA__.SDK.usePluginStore.subscribe(console.log);
 
 按加载顺序（见 `frontend/src/plugins/builtin/index.ts`）：
 
-| # | 名字 | 类型 | 干什么 |
-|---|---|---|---|
-| 1 | `plan-handler` | agui.on | `lyra.plan` → `setPlan(items)` |
-| 2 | `code-proposal-handler` | agui.on | `lyra.code-proposal` → append `code` block |
-| 3 | `search-results-handler` | agui.on | `lyra.search-results` → append `search` block |
-| 4 | `approval-handler` | agui.on | `lyra.approval` → append `approval` block |
-| 5 | `telemetry-handler` | agui.on | `lyra.telemetry` → `patchRun(...)` |
-| 6 | `plan-block` | content block | 渲染 `kind: "plan"` |
-| 7 | `code-block` | content block | 渲染 `kind: "code"` |
-| 8 | `search-block` | content block | 渲染 `kind: "search"` |
-| 9 | `approval-block` | content block | 渲染 `kind: "approval"` |
-| 10 | `checkpoint-block` | content block | 渲染 `kind: "checkpoint"` |
-| 11 | `reasoning-block` | content block | 渲染 `kind: "reasoning"`（折叠思考） |
-| 12 | `bash` | tool preview | `fn: "bash"` 终端输出 |
-| 13 | `diff` | tool preview | `fn: "edit_file" / "write_file"` mini-diff |
-| 14 | `file` | tool preview | `fn: "read_file"` 文件头预览 |
-| 15 | `grep` | tool preview | `fn: "grep"` 匹配列表 |
-| 16 | `slash-hints` | slash | 8 条 hint-only 命令 |
-| 17 | `demo` | 多接缝 | `/health` 命令 + `lyra.demo.banner` handler + `demoBanner` block |
-| 18 | `appearance` | settings pane | 主题 / accent 选择 |
-| 19 | `plugins-pane` | settings pane | 列出所有已加载插件 |
-| 20 | `diffView` | workspace view | Diff 视图 |
-| 21 | `filesView` | workspace view | Files 视图（带未提交数） |
-| 22 | `notificationsView` | workspace view | Notifications 视图 |
-| 23 | `planView` | workspace view | Plan 视图（带未完成数） |
-| 24 | `runSummaryView` | workspace view | Run summary 视图 |
-| 25 | `terminalView` | workspace view | Terminal 视图 |
-| 26 | `timelineView` | workspace view | Timeline 视图 |
-| 27 | `toolsView` | workspace view | Tools 视图（带 active MCP 数） |
+| #   | 名字                     | 类型           | 干什么                                                           |
+| --- | ------------------------ | -------------- | ---------------------------------------------------------------- |
+| 1   | `plan-handler`           | agui.on        | `lyra.plan` → `setPlan(items)`                                   |
+| 2   | `code-proposal-handler`  | agui.on        | `lyra.code-proposal` → append `code` block                       |
+| 3   | `search-results-handler` | agui.on        | `lyra.search-results` → append `search` block                    |
+| 4   | `approval-handler`       | agui.on        | `lyra.approval` → append `approval` block                        |
+| 5   | `telemetry-handler`      | agui.on        | `lyra.telemetry` → `patchRun(...)`                               |
+| 6   | `plan-block`             | content block  | 渲染 `kind: "plan"`                                              |
+| 7   | `code-block`             | content block  | 渲染 `kind: "code"`                                              |
+| 8   | `search-block`           | content block  | 渲染 `kind: "search"`                                            |
+| 9   | `approval-block`         | content block  | 渲染 `kind: "approval"`                                          |
+| 10  | `checkpoint-block`       | content block  | 渲染 `kind: "checkpoint"`                                        |
+| 11  | `reasoning-block`        | content block  | 渲染 `kind: "reasoning"`（折叠思考）                             |
+| 12  | `bash`                   | tool preview   | `fn: "bash"` 终端输出                                            |
+| 13  | `diff`                   | tool preview   | `fn: "edit_file" / "write_file"` mini-diff                       |
+| 14  | `file`                   | tool preview   | `fn: "read_file"` 文件头预览                                     |
+| 15  | `grep`                   | tool preview   | `fn: "grep"` 匹配列表                                            |
+| 16  | `slash-hints`            | slash          | 8 条 hint-only 命令                                              |
+| 17  | `demo`                   | 多接缝         | `/health` 命令 + `lyra.demo.banner` handler + `demoBanner` block |
+| 18  | `appearance`             | settings pane  | 主题 / accent 选择                                               |
+| 19  | `plugins-pane`           | settings pane  | 列出所有已加载插件                                               |
+| 20  | `diffView`               | workspace view | Diff 视图                                                        |
+| 21  | `filesView`              | workspace view | Files 视图（带未提交数）                                         |
+| 22  | `notificationsView`      | workspace view | Notifications 视图                                               |
+| 23  | `planView`               | workspace view | Plan 视图（带未完成数）                                          |
+| 24  | `runSummaryView`         | workspace view | Run summary 视图                                                 |
+| 25  | `terminalView`           | workspace view | Terminal 视图                                                    |
+| 26  | `timelineView`           | workspace view | Timeline 视图                                                    |
+| 27  | `toolsView`              | workspace view | Tools 视图（带 active MCP 数）                                   |
 
 （清单只列代表性接缝；完整插件集见 `frontend/src/plugins/builtin/index.ts`，会随主题 / 视图增减而变。）
 
@@ -667,14 +705,14 @@ npm run test:watch # 监听模式
 
 覆盖：
 
-| 文件 | 测试什么 |
-|---|---|
-| `storage.test.ts` | namespace 隔离 / clear 只清自己 / 非 JSON fallback |
-| `errors.test.ts` | id 单调 / clearFor / 非 Error 值序列化 |
-| `registry.test.ts` | 注册 / 冲突 warning / Disposable 回收 / stale dispose 不污染 / unload 异常隔离 |
-| `definePlugin.test.ts` | apiVersion gate / setup 抛错回滚 / loadPlugins 失败隔离 |
-| `state.test.ts` | 5 个 state helpers |
-| `reducer.test.ts` | 基本事件流 + 插件 handler 路由 + 抛错隔离 + 内置 CUSTOM 通过加载对应 plugin 后生效 |
+| 文件                   | 测试什么                                                                           |
+| ---------------------- | ---------------------------------------------------------------------------------- |
+| `storage.test.ts`      | namespace 隔离 / clear 只清自己 / 非 JSON fallback                                 |
+| `errors.test.ts`       | id 单调 / clearFor / 非 Error 值序列化                                             |
+| `registry.test.ts`     | 注册 / 冲突 warning / Disposable 回收 / stale dispose 不污染 / unload 异常隔离     |
+| `definePlugin.test.ts` | apiVersion gate / setup 抛错回滚 / loadPlugins 失败隔离                            |
+| `state.test.ts`        | 5 个 state helpers                                                                 |
+| `reducer.test.ts`      | 基本事件流 + 插件 handler 路由 + 抛错隔离 + 内置 CUSTOM 通过加载对应 plugin 后生效 |
 
 测试间隔离用全局 `beforeEach` 重置 registry + error store（`src/test/setup.ts`）。
 
@@ -746,7 +784,7 @@ internal/agui/
 按优先级排：
 
 1. **热重载** — chokidar 监听 `~/.lyra/plugins/`，文件改动后 dispose + 重新 import。dev 体验大幅提升。
-2. **`host.theme.register`** — 主题也走插件 API（当前 dark/light 是 CSS 切类名）。
+2. **`host.extensions.contribute(THEME, ...)`** — 主题也走插件 API（当前 dark/light 是 CSS 切类名）。
 3. **Pi Package 风格 npm/git 分发** — `lyra-pkg install npm:@foo/bar`，独立 CLI。
 4. **`host.session.send` / `host.useAgentState`** — 让 sideload 插件能调 agent 接口 / 读 agent state。
 5. **沙箱化** — 把 sideload JS 放到 web worker 跑，structured-clone 划边界。trust-on-install → 签名 + ACL。
