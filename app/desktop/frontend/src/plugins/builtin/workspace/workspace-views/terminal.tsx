@@ -2,8 +2,7 @@ import { DataView, Icon, IconButton, ScrollArea } from "@/components/common";
 import { Terminal } from "./views/Terminal";
 import { ViewHeader } from "./views/ViewHeader";
 import { useTerminal } from "@/lib/data/queries";
-import { definePlugin } from "@/plugins/sdk";
-import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
+import { defineWorkspaceView } from "./defineWorkspaceView";
 
 function TerminalTab() {
   const { data: lines, isLoading } = useTerminal();
@@ -65,17 +64,11 @@ function TerminalTab() {
   );
 }
 
-export const terminalView = definePlugin({
-  name: "lyra.builtin.view-terminal",
-  version: "1.0.0",
-  setup({ host }) {
-    host.extensions.contribute(WORKSPACE_VIEW, {
-      id: "terminal",
-      title: "Terminal",
-      icon: "terminal",
-      openByDefault: false,
-      order: 10,
-      component: TerminalTab,
-    });
-  },
+export const terminalView = defineWorkspaceView({
+  id: "terminal",
+  title: "Terminal",
+  icon: "terminal",
+  openByDefault: false,
+  order: 10,
+  component: TerminalTab,
 });

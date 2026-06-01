@@ -15,8 +15,7 @@ import type { TimelineEntry, TimelineEntryKind } from "@/protocol/agui/viewState
 import { EmptyState, Icon, IconButton, ScrollArea } from "@/components/common";
 import { ViewHeader } from "./views/ViewHeader";
 import { cn } from "@/lib/utils";
-import { definePlugin } from "@/plugins/sdk";
-import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
+import { defineWorkspaceView } from "./defineWorkspaceView";
 import { useAgentSlice } from "@/state/agentStore";
 import { useSessionStore } from "@/state/sessionStore";
 
@@ -144,19 +143,13 @@ function TimelineTab() {
   );
 }
 
-export const timelineView = definePlugin({
-  name: "lyra.builtin.view-timeline",
-  version: "1.0.0",
-  setup({ host }) {
-    host.extensions.contribute(WORKSPACE_VIEW, {
-      id: "timeline",
-      title: "Timeline",
-      icon: "history",
-      openByDefault: false,
-      // Sits between Diff (10) / Files (20) / Plan (30) and Tools (40).
-      // Timeline is "what happened" — closer to Plan than Tools.
-      order: 35,
-      component: TimelineTab,
-    });
-  },
+export const timelineView = defineWorkspaceView({
+  id: "timeline",
+  title: "Timeline",
+  icon: "history",
+  openByDefault: false,
+  // Sits between Diff (10) / Files (20) / Plan (30) and Tools (40).
+  // Timeline is "what happened" — closer to Plan than Tools.
+  order: 35,
+  component: TimelineTab,
 });

@@ -6,8 +6,7 @@ import { DataView, Icon, IconButton, ScrollArea } from "@/components/common";
 import { DiffView } from "./views/DiffView";
 import { ViewHeader } from "./views/ViewHeader";
 import { useDiff } from "@/lib/data/queries";
-import { definePlugin } from "@/plugins/sdk";
-import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
+import { defineWorkspaceView } from "./defineWorkspaceView";
 import { useSessionStore } from "@/state/sessionStore";
 
 interface DiffStats {
@@ -87,17 +86,11 @@ function DiffViewTab() {
   );
 }
 
-export const diffView = definePlugin({
-  name: "lyra.builtin.view-diff",
-  version: "1.0.0",
-  setup({ host }) {
-    host.extensions.contribute(WORKSPACE_VIEW, {
-      id: "diff",
-      title: "Diff",
-      icon: "diff",
-      openByDefault: false,
-      order: 0,
-      component: DiffViewTab,
-    });
-  },
+export const diffView = defineWorkspaceView({
+  id: "diff",
+  title: "Diff",
+  icon: "diff",
+  openByDefault: false,
+  order: 0,
+  component: DiffViewTab,
 });
