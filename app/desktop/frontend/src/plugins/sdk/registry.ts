@@ -9,12 +9,10 @@
 
 import type { Owned, PluginStoreActions, PluginStoreState } from "./registryState";
 import type {
-  AgentSourceSpec,
   BeforeUnloadHandler,
   CommandSpec,
   ComposerAttachmentSourceSpec,
   ComposerModeSpec,
-  ComposerPlaceholderSpec,
   ComposerStatusSpec,
   ContentBlockRenderer,
   ContributedCommand,
@@ -22,14 +20,11 @@ import type {
   ContributedView,
   CoreEventHandler,
   CustomEventHandler,
-  DataProviderSpec,
   LayoutSlotSpec,
   LogSubscriber,
   MessageRoleSpec,
-  PluginErrorFallbackSpec,
   PluginSpec,
   ReadyHandler,
-  RouteSpec,
   RpcAfterResponseHook,
   RpcBeforeRequestHook,
   SettingsPaneSpec,
@@ -131,19 +126,13 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
 
   const toolActions = ownedSpecSlot<ToolActionSpec>("toolActions", "tool action");
   const settingsPanes = ownedSpecSlot<SettingsPaneSpec>("settingsPanes", "settings pane");
-  const routes = ownedSpecSlot<RouteSpec>("routes", "route");
   const composerStatus = ownedSpecSlot<ComposerStatusSpec>("composerStatus", "composer status");
   const composerModes = ownedSpecSlot<ComposerModeSpec>("composerModes", "composer mode");
-  const composerPlaceholders = ownedSpecSlot<ComposerPlaceholderSpec>(
-    "composerPlaceholders",
-    "composer placeholder",
-  );
   const composerAttachmentSources = ownedSpecSlot<ComposerAttachmentSourceSpec>(
     "composerAttachmentSources",
     "composer attachment source",
   );
   const sidebarSections = ownedSpecSlot<SidebarSectionSpec>("sidebarSections", "sidebar section");
-  const agentSources = ownedSpecSlot<AgentSourceSpec>("agentSources", "agent source");
   const commands = ownedSpecSlot<CommandSpec>("commands", "command");
   const declaredCommands = ownedSpecSlot<ContributedCommand>(
     "declaredCommands",
@@ -154,20 +143,11 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     "declaredSettingsPanes",
     "declared settings pane",
   );
-  const dataProviders = ownedSpecSlot<DataProviderSpec>(
-    "dataProviders",
-    "data provider",
-    (s) => s.key,
-  );
   const sidebarRailItems = ownedSpecSlot<SidebarRailItemSpec>(
     "sidebarRailItems",
     "sidebar rail item",
   );
   const messageRoles = ownedSpecSlot<MessageRoleSpec>("messageRoles", "message role");
-  const pluginErrorFallbacks = ownedSpecSlot<PluginErrorFallbackSpec>(
-    "pluginErrorFallbacks",
-    "plugin error fallback",
-  );
   const workspaceViews = ownedSpecSlot<WorkspaceViewSpec>("workspaceViews", "workspace view");
 
   const customEvents = multiSlot<{ name: string; handler: CustomEventHandler<unknown> }>(
@@ -240,9 +220,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
       layoutSlots.add(pluginName, `${slot}#${spec.id}`, { slot, spec }),
     removeLayoutSlot: (pluginName, slot, id) => layoutSlots.remove(pluginName, `${slot}#${id}`),
 
-    addRoute: routes.add,
-    removeRoute: routes.remove,
-
     // Shortcuts + composer key bindings normalize on the way in/out so
     // "Cmd+K" and "mod+k" hit the same slot regardless of how they
     // were registered or looked up.
@@ -259,9 +236,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
 
     addComposerMode: composerModes.add,
     removeComposerMode: composerModes.remove,
-
-    addComposerPlaceholder: composerPlaceholders.add,
-    removeComposerPlaceholder: composerPlaceholders.remove,
 
     addComposerAttachmentSource: composerAttachmentSources.add,
     removeComposerAttachmentSource: composerAttachmentSources.remove,
@@ -291,9 +265,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     addSidebarSection: sidebarSections.add,
     removeSidebarSection: sidebarSections.remove,
 
-    addAgentSource: agentSources.add,
-    removeAgentSource: agentSources.remove,
-
     addCommand: commands.add,
     removeCommand: commands.remove,
 
@@ -319,9 +290,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     removePendingActivation(name) {
       set({ pendingActivations: mapDrop(get().pendingActivations, name) });
     },
-
-    addDataProvider: dataProviders.add,
-    removeDataProvider: dataProviders.remove,
 
     addSidebarRailItem: sidebarRailItems.add,
     removeSidebarRailItem: sidebarRailItems.remove,
@@ -355,9 +323,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     removePluginLoadListener: pluginLoadListeners.remove,
     addPluginUnloadListener: pluginUnloadListeners.add,
     removePluginUnloadListener: pluginUnloadListeners.remove,
-
-    addPluginErrorFallback: pluginErrorFallbacks.add,
-    removePluginErrorFallback: pluginErrorFallbacks.remove,
 
     setWindowTitle(text) {
       set({ windowTitle: text });
