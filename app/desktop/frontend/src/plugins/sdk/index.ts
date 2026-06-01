@@ -1,4 +1,9 @@
-// Public SDK surface — what plugin authors import.
+// Public SDK surface — the one door into the plugin system. Plugin authors AND
+// the kernel's own built-ins import from here; there is no privileged back door.
+// Contributions are written with `host.extensions.contribute(POINT, …)` (POINT
+// from kernelPoints, re-exported below) and read with the generic substrate
+// hooks (useExtensionPoint / lookupExtensionByKey / …). The named selectors are
+// only the few reads that add real logic on top of a plain read.
 
 // App-wide config store.
 export { getConfig, hasConfig, setConfig, useConfigStore } from "./config";

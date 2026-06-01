@@ -236,7 +236,7 @@ describe("lazy activation", () => {
     expect(setup).not.toHaveBeenCalled();
     expect(usePluginStore.getState().declaredCommands.has("lazy.do")).toBe(true);
     expect(usePluginStore.getState().pendingActivations.has("lazy.plugin")).toBe(true);
-    // lookupCommand only sees *registered* commands, so still undefined.
+    // lookupExtensionByKey(COMMAND) only sees *registered* commands, so still undefined.
     expect(lookupExtensionByKey(COMMAND, "lazy.do")).toBeUndefined();
   });
 
