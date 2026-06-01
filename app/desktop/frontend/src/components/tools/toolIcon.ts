@@ -12,10 +12,10 @@
 // plugin loads (initial paint).
 
 import type { IconName } from "@/components/common/Icon";
-import { lookupToolIcon } from "@/plugins/sdk";
+import { lookupExtensionByKey, TOOL_ICON } from "@/plugins/sdk";
 
 export function toolIconFor(fn: string): IconName {
-  const registered = lookupToolIcon(fn);
+  const registered = lookupExtensionByKey(TOOL_ICON, fn);
   if (registered) return registered as IconName;
 
   if (fn === "read_file" || fn === "write_file" || fn === "edit_file") return "file";

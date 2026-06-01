@@ -4,7 +4,7 @@
 // show up; nothing here knows about specific commands.
 
 import { useMemo, useState } from "react";
-import { useShortcuts } from "@/plugins/sdk";
+import { SHORTCUT, useExtensionPoint } from "@/plugins/sdk";
 
 // "Mod+Shift+K" → "⌘ ⇧ K" on Mac, "Ctrl Shift K" elsewhere. Keeps the
 // canonical form for matching but presents the platform-native glyphs.
@@ -58,7 +58,7 @@ function splitCombo(key: string): string[] {
 }
 
 export function ShortcutsPane() {
-  const shortcuts = useShortcuts();
+  const shortcuts = useExtensionPoint(SHORTCUT);
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => {

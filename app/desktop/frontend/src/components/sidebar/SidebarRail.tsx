@@ -15,7 +15,7 @@ import type { SidebarSession } from "@/lib/data/queries";
 import { DragStrip, Icon, IconButton, Panel } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { PluginBoundary } from "@/plugins/PluginBoundary";
-import { useSidebarRailItems } from "@/plugins/sdk";
+import { SIDEBAR_RAIL_ITEM, useExtensionPoint } from "@/plugins/sdk";
 
 interface Props {
   // Forwarded purely so the rail-sessions plugin doesn't have to refetch
@@ -29,7 +29,7 @@ interface Props {
 
 export function SidebarRail({ onToggleRail }: Props) {
   const t = useT();
-  const items = useSidebarRailItems();
+  const items = useExtensionPoint(SIDEBAR_RAIL_ITEM);
   return (
     // `sidebar` / `rail` classes are kept as DOM hooks for layout.css
     // (macOS titlebar padding + Wails drag region). All visual styling is

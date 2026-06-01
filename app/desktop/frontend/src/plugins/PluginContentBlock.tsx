@@ -6,10 +6,10 @@
 
 import type { ContentBlock } from "@/protocol/agui/viewState";
 import { PluginBoundary } from "./PluginBoundary";
-import { useContentBlockRenderer } from "./sdk";
+import { CONTENT_BLOCK, useExtensionByKey } from "./sdk";
 
 export function PluginContentBlock({ block }: { block: ContentBlock }) {
-  const Renderer = useContentBlockRenderer(block.kind);
+  const Renderer = useExtensionByKey(CONTENT_BLOCK, block.kind);
   if (!Renderer) return null;
   return (
     <PluginBoundary plugin={`content-block:${block.kind}`} label={`${block.kind} block`}>

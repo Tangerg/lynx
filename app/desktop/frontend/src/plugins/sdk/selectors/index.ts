@@ -1,60 +1,42 @@
-// Read side of the plugin registry — React hooks + imperative lookups
-// + lazy-activation helpers. Organized by domain in sibling files;
-// this barrel keeps the public API surface identical to the previous
-// single-file selectors.ts.
+// Read side of the plugin registry. Plain reads (a list / one item by key) use
+// the generic substrate below; this barrel only adds the selectors with real
+// logic on top of it (declared-merge, weighted-random, priority pick, cached
+// sub-index, owner attribution).
 
 export { setActivator } from "./_helpers";
 
-// Palette / slash / shortcuts (UI command surface)
+// Open extension points — the one read API for plain reads (kernel + plugins).
 export {
-  lookupCommand,
+  lookupExtensionByKey,
+  lookupExtensionPoint,
+  useExtensionByKey,
+  useExtensionPoint,
+} from "./extensions";
+
+// Palette commands (registered + declared merge) + slash-command pairing +
+// owner attribution.
+export {
   lookupCommandOwner,
-  lookupShortcut,
-  lookupSlashCommand,
   lookupSlashCommandOwner,
   useCommands,
-  useShortcuts,
   useSlashCommands,
 } from "./commands";
 
-// Composer
-export {
-  lookupComposerKeyBinding,
-  pickComposerPlaceholder,
-  useComposerAttachmentSources,
-  useComposerModes,
-  useComposerStatus,
-} from "./composer";
+// Composer placeholder weighted-random pick.
+export { pickComposerPlaceholder } from "./composer";
 
-// AG-UI event handler lookups
+// AG-UI event handler fan-out (cached sub-index, hit per event).
 export { lookupCoreEventHandlers, lookupCustomEventHandlers } from "./events";
 
-// Open extension points (the unified substrate)
-export { lookupExtensionPoint, useExtensionPoint } from "./extensions";
+// Layout slot (sub-keyed by slot) + workspace views / settings panes
+// (registered + declared merge).
+export { useLayoutSlot, useSettingsPanes, useWorkspaceViews } from "./layout";
 
-// Layout / sidebar / workspace views / settings panes
-export {
-  useLayoutSlot,
-  useSettingsPanes,
-  useSidebarRailItems,
-  useSidebarSections,
-  useWorkspaceViews,
-} from "./layout";
+// Tool-action owner attribution.
+export { lookupToolActionOwner } from "./messages";
 
-// Chat-message surface (content blocks + role + tool)
+// Runtime / data-layer: priority picks + data-provider fetcher + RPC hook lists.
 export {
-  lookupToolActionOwner,
-  lookupToolIcon,
-  useContentBlockRenderer,
-  useMessageRole,
-  useToolActions,
-  useToolPreview,
-} from "./messages";
-
-// Runtime / data-layer (routes / agents / data providers / RPC hooks /
-// plugin error fallback)
-export {
-  listRoutes,
   listRpcAfterHooks,
   listRpcBeforeHooks,
   lookupDataProvider,
@@ -62,12 +44,5 @@ export {
   pickPluginErrorFallback,
 } from "./runtime";
 
-// Theme + locale
-export {
-  lookupAccent,
-  lookupTheme,
-  resolveScheme,
-  useAccents,
-  useLocales,
-  useThemes,
-} from "./theme";
+// Theme scheme resolution.
+export { resolveScheme } from "./theme";

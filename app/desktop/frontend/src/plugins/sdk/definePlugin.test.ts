@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { definePlugin, loadPlugin, loadPlugins, reloadPlugin, unloadPlugin } from "./definePlugin";
 import { usePluginErrorStore } from "./errors";
-import { TOOL_PREVIEW } from "./kernelPoints";
+import { COMMAND, TOOL_PREVIEW } from "./kernelPoints";
 import { usePluginStore } from "./registry";
-import { lookupCommand, lookupExtensionPoint } from "./selectors";
+import { lookupExtensionByKey, lookupExtensionPoint } from "./selectors";
 
 describe("definePlugin", () => {
   it("is an identity function", () => {
@@ -237,7 +237,7 @@ describe("lazy activation", () => {
     expect(usePluginStore.getState().declaredCommands.has("lazy.do")).toBe(true);
     expect(usePluginStore.getState().pendingActivations.has("lazy.plugin")).toBe(true);
     // lookupCommand only sees *registered* commands, so still undefined.
-    expect(lookupCommand("lazy.do")).toBeUndefined();
+    expect(lookupExtensionByKey(COMMAND, "lazy.do")).toBeUndefined();
   });
 
   it("runs setup-returned cleanup when the plugin is unloaded", async () => {
@@ -253,14 +253,14 @@ describe("lazy activation", () => {
       }),
     );
     expect(usePluginStore.getState().loaded.has("with-cleanup")).toBe(true);
-    expect(lookupCommand("with-cleanup.cmd")).toBeDefined();
+    expect(lookupExtensionByKey(COMMAND, "with-cleanup.cmd")).toBeDefined();
 
     unloadPlugin("with-cleanup");
 
     expect(cleanup).toHaveBeenCalledOnce();
     expect(usePluginStore.getState().loaded.has("with-cleanup")).toBe(false);
     // host.commands.register's disposable also ran — its entry is gone.
-    expect(lookupCommand("with-cleanup.cmd")).toBeUndefined();
+    expect(lookupExtensionByKey(COMMAND, "with-cleanup.cmd")).toBeUndefined();
   });
 
   it("restricts host to declared capabilities and throws on disallowed namespaces", async () => {
@@ -282,7 +282,7 @@ describe("lazy activation", () => {
       }),
     );
     expect(result.kind).toBe("loaded");
-    expect(lookupCommand("ok")).toBeDefined();
+    expect(lookupExtensionByKey(COMMAND, "ok")).toBeDefined();
     expect(captured).toBeInstanceOf(Error);
     expect(String(captured)).toMatch(/not in this plugin's declared capabilities/);
   });
@@ -295,7 +295,7 @@ describe("lazy activation", () => {
     expect(setup).toHaveBeenCalledOnce();
     await reloadPlugin("reloadable");
     expect(setup).toHaveBeenCalledTimes(2);
-    expect(lookupCommand("reload.test")).toBeDefined();
+    expect(lookupExtensionByKey(COMMAND, "reload.test")).toBeDefined();
   });
 
   it("runs setup + dispatches the real handler when the placeholder fires", async () => {
@@ -321,7 +321,7 @@ describe("lazy activation", () => {
     store.removeDeclaredCommandsBy("lazy.greet");
 
     // After activation, the real command is registered and dispatchable.
-    const real = lookupCommand("greet");
+    const real = lookupExtensionByKey(COMMAND, "greet");
     expect(real).toBeDefined();
     await real!.run();
     expect(handler).toHaveBeenCalledOnce();

@@ -3,7 +3,7 @@
 
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { useAccents } from "@/plugins/sdk";
+import { ACCENT, useExtensionPoint } from "@/plugins/sdk";
 import { useUiStore } from "@/state/uiStore";
 import { SettingRow } from "./SettingRow";
 
@@ -48,7 +48,7 @@ function CustomAccentPicker({
 
 export function AccentSection() {
   const t = useT();
-  const accents = useAccents();
+  const accents = useExtensionPoint(ACCENT);
   const accent = useUiStore((s) => s.accent);
   const setAccent = useUiStore((s) => s.setAccent);
 
