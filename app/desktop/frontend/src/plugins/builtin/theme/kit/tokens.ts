@@ -25,9 +25,9 @@ export const DARK_SHADOWS: ThemeShadows = {
   dialog: "var(--shadow-lg)",
   pop: "var(--shadow-lg)",
   soft: "none",
-  glow: "0 0 12px color-mix(in srgb, var(--color-accent) 50%, transparent)",
+  glow: "0 0 12px color-mix(in oklab, var(--color-accent) 50%, transparent)",
   inputFocus:
-    "0 0 0 2px color-mix(in srgb, var(--color-accent) 30%, transparent), " +
+    "0 0 0 2px color-mix(in oklab, var(--color-accent) 30%, transparent), " +
     "inset 0 0 0 1px var(--color-border-soft)",
 };
 
@@ -40,9 +40,9 @@ export const LIGHT_SHADOWS: ThemeShadows = {
   dialog: "var(--shadow-lg)",
   pop: "var(--shadow-lg)",
   soft: "var(--shadow-xs)",
-  glow: "0 0 12px color-mix(in srgb, var(--color-accent) 40%, transparent)",
+  glow: "0 0 12px color-mix(in oklab, var(--color-accent) 40%, transparent)",
   inputFocus:
-    "0 0 0 3px color-mix(in srgb, var(--color-accent) 14%, transparent), " +
+    "0 0 0 3px color-mix(in oklab, var(--color-accent) 14%, transparent), " +
     "inset 0 0 0 1px var(--color-border-soft)",
 };
 

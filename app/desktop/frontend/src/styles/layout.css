@@ -43,7 +43,7 @@ html.theme-light {
 /* Light-mode glow tweak — slightly tighter than dark since light
    backgrounds make halos read more loudly. */
 html.theme-light {
-  --shadow-glow: 0 0 10px color-mix(in srgb, var(--color-accent) 35%, transparent);
+  --shadow-glow: 0 0 10px color-mix(in oklab, var(--color-accent) 35%, transparent);
 }
 
 /* Kernel grid — cards-on-canvas: .app paints the canvas, .app-main
