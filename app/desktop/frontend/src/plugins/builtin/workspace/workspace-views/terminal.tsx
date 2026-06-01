@@ -1,6 +1,6 @@
-import { DataView, Icon, IconButton, ScrollArea } from "@/components/common";
+import { DataView, Icon, IconButton } from "@/components/common";
 import { Terminal } from "./views/Terminal";
-import { ViewHeader } from "./views/ViewHeader";
+import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useTerminal } from "@/lib/data/queries";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 
@@ -30,37 +30,34 @@ function TerminalTab() {
   );
 
   return (
-    <>
-      <ViewHeader
-        icon="terminal"
-        title={title}
-        sub={sub}
-        actions={
-          <>
-            <IconButton title="Re-run">
-              <Icon name="loop" size={14} />
-            </IconButton>
-            <IconButton title="Stop">
-              <Icon name="stop" size={12} />
-            </IconButton>
-          </>
-        }
-      />
-      <ScrollArea>
-        <DataView
-          items={lines}
-          isLoading={isLoading}
-          skeletonCount={8}
-          empty={{
-            icon: "terminal",
-            title: "No output yet",
-            sub: "Run a command — terminal output will stream here.",
-          }}
-        >
-          {(rows) => <Terminal lines={rows} running={running} />}
-        </DataView>
-      </ScrollArea>
-    </>
+    <WorkspaceViewLayout
+      icon="terminal"
+      title={title}
+      sub={sub}
+      actions={
+        <>
+          <IconButton title="Re-run">
+            <Icon name="loop" size={14} />
+          </IconButton>
+          <IconButton title="Stop">
+            <Icon name="stop" size={12} />
+          </IconButton>
+        </>
+      }
+    >
+      <DataView
+        items={lines}
+        isLoading={isLoading}
+        skeletonCount={8}
+        empty={{
+          icon: "terminal",
+          title: "No output yet",
+          sub: "Run a command — terminal output will stream here.",
+        }}
+      >
+        {(rows) => <Terminal lines={rows} running={running} />}
+      </DataView>
+    </WorkspaceViewLayout>
   );
 }
 

@@ -5,7 +5,7 @@ import type { IconName } from "@/components/common";
 import { Icon } from "@/components/common";
 import { cn } from "@/lib/utils";
 
-interface Props {
+export interface ViewHeaderProps {
   icon: IconName;
   title: ReactNode;
   sub?: ReactNode;
@@ -18,7 +18,7 @@ interface Props {
   titleStrong?: boolean;
 }
 
-export function ViewHeader({ icon, title, sub, actions, titleStrong }: Props) {
+export function ViewHeader({ icon, title, sub, actions, titleStrong }: ViewHeaderProps) {
   return (
     <div className="grid grid-cols-[28px_1fr_auto] items-center gap-2.5 px-4 py-3.5">
       <div className="grid h-7 w-7 place-items-center rounded-md bg-surface-2 text-fg-muted">

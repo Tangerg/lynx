@@ -2,9 +2,9 @@
 // currently selected file (kept in useSessionStore.activeFile).
 
 import type { DiffRow } from "@/lib/data/queries";
-import { DataView, Icon, IconButton, ScrollArea } from "@/components/common";
+import { DataView, Icon, IconButton } from "@/components/common";
 import { DiffView } from "./views/DiffView";
-import { ViewHeader } from "./views/ViewHeader";
+import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useDiff } from "@/lib/data/queries";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { useSessionStore } from "@/state/sessionStore";
@@ -52,37 +52,34 @@ function DiffViewTab() {
   );
 
   return (
-    <>
-      <ViewHeader
-        icon="file"
-        title={activeFile || "src/api/auth.ts"}
-        sub={sub}
-        actions={
-          <>
-            <IconButton title="Revert">
-              <Icon name="loop" size={14} />
-            </IconButton>
-            <IconButton title="Accept">
-              <Icon name="check" size={14} />
-            </IconButton>
-          </>
-        }
-      />
-      <ScrollArea>
-        <DataView
-          items={rows}
-          isLoading={isLoading}
-          skeletonCount={10}
-          empty={{
-            icon: "diff",
-            title: "Nothing to compare",
-            sub: "Pick a file in the Files tab to see its diff.",
-          }}
-        >
-          {(diffRows) => <DiffView rows={diffRows} />}
-        </DataView>
-      </ScrollArea>
-    </>
+    <WorkspaceViewLayout
+      icon="file"
+      title={activeFile || "src/api/auth.ts"}
+      sub={sub}
+      actions={
+        <>
+          <IconButton title="Revert">
+            <Icon name="loop" size={14} />
+          </IconButton>
+          <IconButton title="Accept">
+            <Icon name="check" size={14} />
+          </IconButton>
+        </>
+      }
+    >
+      <DataView
+        items={rows}
+        isLoading={isLoading}
+        skeletonCount={10}
+        empty={{
+          icon: "diff",
+          title: "Nothing to compare",
+          sub: "Pick a file in the Files tab to see its diff.",
+        }}
+      >
+        {(diffRows) => <DiffView rows={diffRows} />}
+      </DataView>
+    </WorkspaceViewLayout>
   );
 }
 

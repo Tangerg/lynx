@@ -1,6 +1,6 @@
-import { EmptyState, Icon, IconButton, ScrollArea } from "@/components/common";
+import { EmptyState, Icon, IconButton } from "@/components/common";
 import { PlanList } from "./views/PlanList";
-import { ViewHeader } from "./views/ViewHeader";
+import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { useAgentSlice } from "@/state/agentStore";
 
@@ -14,30 +14,27 @@ function PlanTab() {
   const eta = "est. 2 min remaining";
 
   return (
-    <>
-      <ViewHeader
-        icon="list"
-        titleStrong
-        title={title}
-        sub={`${done} of ${plan.length} complete · ${eta}`}
-        actions={
-          <IconButton title="Edit plan">
-            <Icon name="edit" size={14} />
-          </IconButton>
-        }
-      />
-      <ScrollArea>
-        {plan.length === 0 ? (
-          <EmptyState
-            icon="list"
-            title="No plan yet"
-            sub="When the agent drafts a plan it shows up here."
-          />
-        ) : (
-          <PlanList plan={plan} />
-        )}
-      </ScrollArea>
-    </>
+    <WorkspaceViewLayout
+      icon="list"
+      titleStrong
+      title={title}
+      sub={`${done} of ${plan.length} complete · ${eta}`}
+      actions={
+        <IconButton title="Edit plan">
+          <Icon name="edit" size={14} />
+        </IconButton>
+      }
+    >
+      {plan.length === 0 ? (
+        <EmptyState
+          icon="list"
+          title="No plan yet"
+          sub="When the agent drafts a plan it shows up here."
+        />
+      ) : (
+        <PlanList plan={plan} />
+      )}
+    </WorkspaceViewLayout>
   );
 }
 

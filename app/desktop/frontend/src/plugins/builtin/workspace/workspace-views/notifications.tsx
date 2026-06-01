@@ -1,8 +1,8 @@
 // Built-in plugin: "Notifications" workspace view — the persistent feed
 // behind every `host.notify(...)` call.
 
-import { EmptyState, Icon, IconButton, ScrollArea } from "@/components/common";
-import { ViewHeader } from "./views/ViewHeader";
+import { EmptyState, Icon, IconButton } from "@/components/common";
+import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { cn } from "@/lib/utils";
 import { useNotificationStore } from "@/plugins/sdk";
 import { defineWorkspaceView } from "./defineWorkspaceView";
@@ -29,39 +29,37 @@ function NotificationsTab() {
   const visible = entries.filter((e) => !e.dismissed);
 
   return (
-    <>
-      <ViewHeader
-        icon="chat"
-        titleStrong
-        title="Notifications"
-        sub={`${visible.length} unread · ${entries.length} total`}
-        actions={
-          <IconButton title="Clear all" onClick={clearAll}>
-            <Icon name="x" size={14} />
-          </IconButton>
-        }
-      />
-      <ScrollArea className="py-1">
-        {entries.length === 0 && (
-          <EmptyState
-            icon="chat"
-            title="No notifications"
-            sub="Anything a plugin reports via host.notify() will appear here."
-          />
-        )}
-        {entries.map((e) => (
-          <NotificationRow
-            key={e.id}
-            level={e.level}
-            message={e.message}
-            plugin={e.plugin}
-            timestamp={e.timestamp}
-            dismissed={e.dismissed}
-            onDismiss={() => dismiss(e.id)}
-          />
-        ))}
-      </ScrollArea>
-    </>
+    <WorkspaceViewLayout
+      icon="chat"
+      titleStrong
+      title="Notifications"
+      sub={`${visible.length} unread · ${entries.length} total`}
+      scrollClassName="py-1"
+      actions={
+        <IconButton title="Clear all" onClick={clearAll}>
+          <Icon name="x" size={14} />
+        </IconButton>
+      }
+    >
+      {entries.length === 0 && (
+        <EmptyState
+          icon="chat"
+          title="No notifications"
+          sub="Anything a plugin reports via host.notify() will appear here."
+        />
+      )}
+      {entries.map((e) => (
+        <NotificationRow
+          key={e.id}
+          level={e.level}
+          message={e.message}
+          plugin={e.plugin}
+          timestamp={e.timestamp}
+          dismissed={e.dismissed}
+          onDismiss={() => dismiss(e.id)}
+        />
+      ))}
+    </WorkspaceViewLayout>
   );
 }
 
