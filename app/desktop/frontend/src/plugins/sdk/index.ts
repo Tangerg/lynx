@@ -7,6 +7,10 @@ export type { ConfigValue } from "./config";
 
 export { definePlugin, loadPlugin, loadPlugins, reloadPlugin, unloadPlugin } from "./definePlugin";
 
+// Open extension points — the JetBrains-style substrate: a plugin defines a
+// typed point, any plugin contributes, any plugin consumes.
+export { defineExtensionPoint } from "./defineExtensionPoint";
+
 // Plugin error aggregation.
 export {
   type PluginError,
@@ -40,6 +44,7 @@ export {
   lookupCoreEventHandlers,
   lookupCustomEventHandlers,
   lookupDataProvider,
+  lookupExtensionPoint,
   lookupShortcut,
   lookupSlashCommand,
   lookupTheme,
@@ -54,6 +59,7 @@ export {
   useComposerModes,
   useComposerStatus,
   useContentBlockRenderer,
+  useExtensionPoint,
   useLayoutSlot,
   useLocales,
   useMessageRole,
@@ -105,6 +111,9 @@ export type {
   DataProviderSpec,
   Disposable,
   DockLocation,
+  ExtensionContributionOptions,
+  ExtensionKeying,
+  ExtensionPoint,
   Host,
   LayoutSlotSpec,
   LoadedPlugin,

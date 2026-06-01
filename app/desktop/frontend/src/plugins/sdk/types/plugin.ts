@@ -55,6 +55,7 @@ export type HostCapability =
   | "agent"
   | "data"
   | "commands"
+  | "extensions"
   | "lifecycle"
   | "state"
   | "config"

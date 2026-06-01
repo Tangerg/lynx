@@ -9,6 +9,7 @@ import type { StateSlice } from "../stateSlice";
 import type { CoreEventHandler, CustomEventHandler } from "./agui";
 
 import type { CommandSpec, ShortcutSpec } from "./commands";
+import type { ExtensionContributionOptions, ExtensionPoint } from "./extensions";
 import type { BeforeUnloadHandler, Disposable, ReadyHandler } from "./common";
 import type { LocaleSpec } from "./i18n";
 import type {
@@ -131,6 +132,22 @@ export interface Host {
   commands: {
     /** Contribute a command palette entry. */
     register: (spec: CommandSpec) => Disposable;
+  };
+  extensions: {
+    /**
+     * Contribute a typed item to a plugin-defined extension point. The point
+     * is an `ExtensionPoint<T>` handle from `defineExtensionPoint` — no
+     * pre-declaration needed, mirroring `agui.on`. Multiple plugins (or the
+     * same plugin via distinct `opts.id` on a `multi` point) can contribute;
+     * consumers read the sorted list via `useExtensionPoint` /
+     * `lookupExtensionPoint`. This is the JetBrains-style "plugins open and
+     * fill each other's points" substrate.
+     */
+    contribute: <T>(
+      point: ExtensionPoint<T>,
+      item: T,
+      opts?: ExtensionContributionOptions,
+    ) => Disposable;
   };
   lifecycle: {
     /** Fires once after the built-in plugin set finishes loading. */

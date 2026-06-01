@@ -27,6 +27,9 @@ export {
 // AG-UI event handler lookups
 export { lookupCoreEventHandlers, lookupCustomEventHandlers } from "./events";
 
+// Open extension points (the unified substrate)
+export { lookupExtensionPoint, useExtensionPoint } from "./extensions";
+
 // Layout / sidebar / workspace views / settings panes
 export {
   useLayoutSlot,

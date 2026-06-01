@@ -11,6 +11,7 @@ export * from "./agui";
 export * from "./commands";
 export * from "./common";
 export * from "./composer";
+export * from "./extensions";
 export * from "./host";
 export * from "./i18n";
 export * from "./infra";
