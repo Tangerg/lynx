@@ -50,7 +50,7 @@ export function ChatStream({ onSend, resetKey }: Props) {
   // Global streaming-reveal preference. Read once here (stable string) and
   // threaded through ctx so MarkdownMessage stays prop-driven — no per-block
   // store subscription on the hot streaming path.
-  const typewriter = useUiStore((s) => s.streamRender) === "typewriter";
+  const typewriter = useUiStore((s) => s.streamReveal) === "typewriter";
 
   // Sticky-bottom auto-scroll lives inside MessageStream via
   // `use-stick-to-bottom`. This component only needs to know "is the

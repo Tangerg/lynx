@@ -29,21 +29,21 @@ export function MessageStyleSection() {
   );
 }
 
-export function StreamRenderSection() {
+export function StreamRevealSection() {
   const t = useT();
-  const streamRender = useUiStore((s) => s.streamRender);
-  const setStreamRender = useUiStore((s) => s.setStreamRender);
+  const streamReveal = useUiStore((s) => s.streamReveal);
+  const setStreamReveal = useUiStore((s) => s.setStreamReveal);
 
   return (
-    <SettingRow label={t("settings.streamRender")} sub={t("settings.streamRender.sub")}>
+    <SettingRow label={t("settings.streamReveal")} sub={t("settings.streamReveal.sub")}>
       <Segmented
-        value={streamRender}
+        value={streamReveal}
         options={[
-          { value: "smooth", label: t("settings.streamRender.smooth") },
-          { value: "typewriter", label: t("settings.streamRender.typewriter") },
+          { value: "smooth", label: t("settings.streamReveal.smooth") },
+          { value: "typewriter", label: t("settings.streamReveal.typewriter") },
         ]}
-        onChange={setStreamRender}
-        ariaLabel={t("settings.streamRender")}
+        onChange={setStreamReveal}
+        ariaLabel={t("settings.streamReveal")}
       />
     </SettingRow>
   );

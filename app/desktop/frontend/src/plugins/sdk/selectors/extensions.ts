@@ -53,7 +53,7 @@ const byPoint = createIndex<ContributionEntry, Resolved>((o) => ({
 // Sort hint precedence: the item's own `order` (the legacy spec field every
 // kernel slot already carries) wins, then the contribute-time `opts.order`,
 // then a stable default. Array#sort is stable so equal orders keep insertion
-// order — matching the previous per-slot `useSortedList` behaviour.
+// order.
 function sortKey(e: Resolved): number {
   const own = (e.item as { order?: number } | null)?.order;
   return own ?? e.order ?? 100;
@@ -133,7 +133,7 @@ export function lookupExtensionOwner<T>(point: ExtensionPoint<T>, key: string): 
  * derived from each item (event type, slot name…). Caches on the `extensions`
  * Map reference — rebuilt once per registry mutation, O(1) per lookup in
  * between (the reducer hits this per AG-UI event). Insertion order within a
- * bucket is preserved, matching the old per-slot index.
+ * bucket is preserved.
  */
 export function createPointSubIndex<I, V>(
   pointId: string,
