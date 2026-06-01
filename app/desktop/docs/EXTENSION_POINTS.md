@@ -22,7 +22,10 @@
 - **kernel 内部 firing 循环破环**：`markAppReady`/`registerLoaded`/`unload` 在 store 内迭代 substrate，靠 `pointIds.ts`（零依赖常量）按 `entry.point` 过滤，避免 `registry → kernelPoints` 成环。
 - **边界划定**：「注册一个 spec 到列表」→ 删 facade 走 `contribute`；「订阅 handler/hook」或「facade 算了去重 id / 保泛型 / 带行为」→ 留作薄 facade。
 - **capability-on-point（已做）**：`ExtensionPoint.capability` + `contribute` 强制校验，把 per-namespace 强权限门禁下沉到点上（受限 host 只能 contribute 到声明了对应 capability 的点；built-in 全权；插件自定义点无 capability、永远可填）。`host.extensions` 在受限 host 上恒可达,门禁在点上。见 §9。
-- **下一步（未做）**：§9.3 的两件便宜事——capability 风险分级表（safe/moderate/dangerous）+ sideload 默认 deny（origin=sideload 且未声明 capabilities → deny-all）。install-time 同意 UI / Plugins-pane 风险展示等 T3 触发。Plugin Pack（`definePluginPack`，§5）仍未实现。
+- **§9.3 权限收尾（已做）**：capability 风险分级表（`capabilities.ts`，safe/moderate/dangerous + `aggregateRisk`）+ **sideload 默认 deny**（`origin=sideload` 且未声明 capabilities → deny-all；origin 由 loader 记录在 `pluginOrigin.ts`，不可 spoof）。install-time 同意 UI / Plugins-pane 风险展示仍等 T3。
+- **`host.commands.execute(id, …args)`（已做，T1-b）**：插件间命令互调（VSCode parity），已注册直接跑、懒命令先激活;`CommandSpec.run` 加宽收 args。
+- **Plugin Pack `definePluginPack`（已做，§5）**：一个 manifest 条目含 N 个子插件，按序加载 + 级联卸载,子插件继承 pack origin（防提权）。
+- **下一步（未做）**：install-time 同意 UI + Plugins-pane 风险徽章（T3 触发）；fs / 文档 / editor 扩展点（T2，按 owner 计划后补）。
 
 ---
 
@@ -187,7 +190,7 @@ export const LAYOUT_SLOT  = (slot: string) => defineExtensionPoint<LayoutSlotSpe
 
 ---
 
-## 5. Plugin Pack（插件的插件）—— 与底座正交
+## 5. Plugin Pack（插件的插件）—— 与底座正交　✅ 已实现（`sdk/definePluginPack.ts`）
 
 无论 L2/L3，pack 都一样：
 
