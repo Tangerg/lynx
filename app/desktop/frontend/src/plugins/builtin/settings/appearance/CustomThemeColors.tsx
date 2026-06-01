@@ -5,7 +5,7 @@
 
 import { useT } from "@/lib/i18n";
 import { useUiStore } from "@/state/uiStore";
-import { SettingRow } from "./SettingRow";
+import { SettingRow } from "../SettingRow";
 
 function ColorRow({
   label,

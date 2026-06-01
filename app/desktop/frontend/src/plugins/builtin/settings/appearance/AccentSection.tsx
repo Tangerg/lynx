@@ -5,7 +5,7 @@ import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { ACCENT, useExtensionPoint } from "@/plugins/sdk";
 import { useUiStore } from "@/state/uiStore";
-import { SettingRow } from "./SettingRow";
+import { SettingRow } from "../SettingRow";
 
 // Conic gradient used when no custom color is active — communicates
 // "click me, you can pick anything" without committing to a default hue.

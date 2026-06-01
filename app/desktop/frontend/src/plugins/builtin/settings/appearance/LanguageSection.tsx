@@ -1,53 +1,12 @@
-// Small preference rows: message style + streaming style (binary →
-// segmented) and UI language (8+ options → dropdown). Bundled into one
-// file since each section is < 60 lines.
+// UI language picker — 8+ locales rendered as a dropdown (too many for a
+// segmented control). The binary preference rows (message / streaming style)
+// live with their only consumer, the Personalization pane.
 
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Icon, Segmented } from "@/components/common";
+import { Icon } from "@/components/common";
 import { setLocale, useLocale, useT } from "@/lib/i18n";
 import { LOCALE, useExtensionPoint } from "@/plugins/sdk";
-import { useUiStore } from "@/state/uiStore";
-import { SettingRow } from "./SettingRow";
-
-export function MessageStyleSection() {
-  const t = useT();
-  const messageStyle = useUiStore((s) => s.messageStyle);
-  const setMessageStyle = useUiStore((s) => s.setMessageStyle);
-
-  return (
-    <SettingRow label={t("settings.messageStyle")} sub={t("settings.messageStyle.sub")}>
-      <Segmented
-        value={messageStyle}
-        options={[
-          { value: "bubble", label: t("settings.messageStyle.bubble") },
-          { value: "plain", label: t("settings.messageStyle.plain") },
-        ]}
-        onChange={setMessageStyle}
-        ariaLabel={t("settings.messageStyle")}
-      />
-    </SettingRow>
-  );
-}
-
-export function StreamRevealSection() {
-  const t = useT();
-  const streamReveal = useUiStore((s) => s.streamReveal);
-  const setStreamReveal = useUiStore((s) => s.setStreamReveal);
-
-  return (
-    <SettingRow label={t("settings.streamReveal")} sub={t("settings.streamReveal.sub")}>
-      <Segmented
-        value={streamReveal}
-        options={[
-          { value: "smooth", label: t("settings.streamReveal.smooth") },
-          { value: "typewriter", label: t("settings.streamReveal.typewriter") },
-        ]}
-        onChange={setStreamReveal}
-        ariaLabel={t("settings.streamReveal")}
-      />
-    </SettingRow>
-  );
-}
+import { SettingRow } from "../SettingRow";
 
 export function LanguageSection() {
   const t = useT();
