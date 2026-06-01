@@ -92,54 +92,18 @@ function resolve<T>(key: string): () => Promise<T> {
   };
 }
 
-export function useSessions(): UseQueryResult<SidebarSession[]> {
-  return useQuery({
-    queryKey: ["sessions"],
-    queryFn: resolve<SidebarSession[]>("sessions"),
-    ...STATIC,
-  });
+// One hook per cached side-panel resource. The query key and the
+// data-provider key are the same string, passed once — no chance of the
+// two drifting apart (a real bug class with the old per-hook literals).
+function makeDataQuery<T>(key: string): () => UseQueryResult<T> {
+  return () => useQuery({ queryKey: [key], queryFn: resolve<T>(key), ...STATIC });
 }
 
-export function useProjects(): UseQueryResult<SidebarProject[]> {
-  return useQuery({
-    queryKey: ["projects"],
-    queryFn: resolve<SidebarProject[]>("projects"),
-    ...STATIC,
-  });
-}
-
-export function useFilesChanged(): UseQueryResult<FileChange[]> {
-  return useQuery({
-    queryKey: ["files-changed"],
-    queryFn: resolve<FileChange[]>("files-changed"),
-    ...STATIC,
-  });
-}
-
-export function useDiff(): UseQueryResult<DiffRow[]> {
-  return useQuery({ queryKey: ["diff"], queryFn: resolve<DiffRow[]>("diff"), ...STATIC });
-}
-
-export function useTerminal(): UseQueryResult<TermLine[]> {
-  return useQuery({ queryKey: ["terminal"], queryFn: resolve<TermLine[]>("terminal"), ...STATIC });
-}
-
-export function useGrep(): UseQueryResult<GrepResult> {
-  return useQuery({ queryKey: ["grep"], queryFn: resolve<GrepResult>("grep"), ...STATIC });
-}
-
-export function useFileHead(): UseQueryResult<FileLine[]> {
-  return useQuery({
-    queryKey: ["file-head"],
-    queryFn: resolve<FileLine[]>("file-head"),
-    ...STATIC,
-  });
-}
-
-export function useMCPServers(): UseQueryResult<MCPServer[]> {
-  return useQuery({
-    queryKey: ["mcp-servers"],
-    queryFn: resolve<MCPServer[]>("mcp-servers"),
-    ...STATIC,
-  });
-}
+export const useSessions = makeDataQuery<SidebarSession[]>("sessions");
+export const useProjects = makeDataQuery<SidebarProject[]>("projects");
+export const useFilesChanged = makeDataQuery<FileChange[]>("files-changed");
+export const useDiff = makeDataQuery<DiffRow[]>("diff");
+export const useTerminal = makeDataQuery<TermLine[]>("terminal");
+export const useGrep = makeDataQuery<GrepResult>("grep");
+export const useFileHead = makeDataQuery<FileLine[]>("file-head");
+export const useMCPServers = makeDataQuery<MCPServer[]>("mcp-servers");
