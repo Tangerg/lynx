@@ -15,6 +15,7 @@ import type {
   ComposerModeSpec,
   ComposerPlaceholderSpec,
   ComposerStatusSpec,
+  ContentBlockRenderer,
   DataProviderSpec,
   LocaleSpec,
   MessageRoleSpec,
@@ -25,7 +26,9 @@ import type {
   ThemeAccentSpec,
   ThemeSpec,
   ToolActionSpec,
+  ToolPreviewComponent,
 } from "./types";
+import type { ContentBlockKind } from "@/protocol/agui/viewState";
 import { defineExtensionPoint } from "./defineExtensionPoint";
 
 // ---- theme domain --------------------------------------------------------
@@ -87,5 +90,20 @@ export const MESSAGE_ROLE = defineExtensionPoint<MessageRoleSpec>({
 });
 export const TOOL_ACTION = defineExtensionPoint<ToolActionSpec>({
   id: "lyra.tool.action",
+  keying: "single",
+});
+// Keyed by an explicit arg (tool fn name / block kind), not a field on the
+// item — contributors pass `opts.key`. The item is the renderer/component
+// itself (or, for icons, the icon name string).
+export const TOOL_PREVIEW = defineExtensionPoint<ToolPreviewComponent>({
+  id: "lyra.tool.preview",
+  keying: "single",
+});
+export const TOOL_ICON = defineExtensionPoint<string>({
+  id: "lyra.tool.icon",
+  keying: "single",
+});
+export const CONTENT_BLOCK = defineExtensionPoint<ContentBlockRenderer<ContentBlockKind>>({
+  id: "lyra.message.contentBlock",
   keying: "single",
 });

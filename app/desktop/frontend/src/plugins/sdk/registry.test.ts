@@ -14,6 +14,7 @@ import {
   SIDEBAR_RAIL_ITEM,
   SIDEBAR_SECTION,
   TOOL_ACTION,
+  TOOL_PREVIEW,
 } from "./kernelPoints";
 import { normalizeCombo, usePluginStore } from "./registry";
 import {
@@ -47,9 +48,8 @@ describe("plugin registry", () => {
     const host = createHost("alpha", sink);
     host.tool.registerPreview("bash", StubPreview);
 
-    const entry = usePluginStore.getState().toolPreviews.get("bash");
-    expect(entry?.pluginName).toBe("alpha");
-    expect(entry?.value).toBe(StubPreview);
+    expect(lookupExtensionOwner(TOOL_PREVIEW, "bash")).toBe("alpha");
+    expect(lookupExtensionByKey(TOOL_PREVIEW, "bash")).toBe(StubPreview);
   });
 
   it("registering a second plugin for the same fn logs a warning and overrides", () => {
@@ -63,11 +63,10 @@ describe("plugin registry", () => {
       createHost("beta", sinkB).tool.registerPreview("bash", AnotherPreview);
 
       expect(warn).toHaveBeenCalledOnce();
-      expect(warn.mock.calls[0]![0]).toMatch(/beta overrides tool preview "bash"/);
+      expect(warn.mock.calls[0]![0]).toMatch(/beta overrides contribution "bash"/);
 
-      const entry = usePluginStore.getState().toolPreviews.get("bash");
-      expect(entry?.value).toBe(AnotherPreview);
-      expect(entry?.pluginName).toBe("beta");
+      expect(lookupExtensionByKey(TOOL_PREVIEW, "bash")).toBe(AnotherPreview);
+      expect(lookupExtensionOwner(TOOL_PREVIEW, "bash")).toBe("beta");
     } finally {
       warn.mockRestore();
     }
@@ -76,10 +75,10 @@ describe("plugin registry", () => {
   it("disposable.dispose removes the entry — but only if the owner matches", () => {
     const sink: Disposable[] = [];
     const d = createHost("alpha", sink).tool.registerPreview("bash", StubPreview);
-    expect(usePluginStore.getState().toolPreviews.has("bash")).toBe(true);
+    expect(lookupExtensionByKey(TOOL_PREVIEW, "bash")).toBeDefined();
 
     d.dispose();
-    expect(usePluginStore.getState().toolPreviews.has("bash")).toBe(false);
+    expect(lookupExtensionByKey(TOOL_PREVIEW, "bash")).toBeUndefined();
   });
 
   it("dispose owned by a different plugin is a no-op", () => {
@@ -101,10 +100,10 @@ describe("plugin registry", () => {
     aDispose();
 
     // beta still owns "bash"
-    expect(usePluginStore.getState().toolPreviews.get("bash")?.pluginName).toBe("beta");
+    expect(lookupExtensionOwner(TOOL_PREVIEW, "bash")).toBe("beta");
     // and beta's "grep" handle still works
     otherDispose();
-    expect(usePluginStore.getState().toolPreviews.has("grep")).toBe(false);
+    expect(lookupExtensionByKey(TOOL_PREVIEW, "grep")).toBeUndefined();
   });
 
   it("settings panes are queryable + ordered via the useSettingsPanes selector", () => {
@@ -705,7 +704,7 @@ describe("registry.unload", () => {
     usePluginStore.getState().unload("alpha");
 
     expect(usePluginStore.getState().loaded.has("alpha")).toBe(false);
-    expect(usePluginStore.getState().toolPreviews.size).toBe(0);
+    expect(lookupExtensionPoint(TOOL_PREVIEW).length).toBe(0);
   });
 
   it("dispose throwing in one handle doesn't abort the rest", () => {
@@ -729,7 +728,7 @@ describe("registry.unload", () => {
       usePluginStore.getState().unload("alpha");
 
       // The good disposer still ran — "bash" is gone.
-      expect(usePluginStore.getState().toolPreviews.size).toBe(0);
+      expect(lookupExtensionPoint(TOOL_PREVIEW).length).toBe(0);
       // The bad one was logged.
       expect(err).toHaveBeenCalled();
     } finally {

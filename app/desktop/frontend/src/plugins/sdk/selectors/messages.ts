@@ -8,9 +8,13 @@ import type {
   ToolActionSpec,
   ToolPreviewComponent,
 } from "../types";
-import { MESSAGE_ROLE, TOOL_ACTION } from "../kernelPoints";
-import { usePluginStore } from "../registry";
-import { lookupExtensionOwner, useExtensionByKey, useExtensionPoint } from "./extensions";
+import { CONTENT_BLOCK, MESSAGE_ROLE, TOOL_ACTION, TOOL_ICON, TOOL_PREVIEW } from "../kernelPoints";
+import {
+  lookupExtensionByKey,
+  lookupExtensionOwner,
+  useExtensionByKey,
+  useExtensionPoint,
+} from "./extensions";
 
 // ---------------------------------------------------------------------------
 // Content blocks + role specs
@@ -19,7 +23,7 @@ import { lookupExtensionOwner, useExtensionByKey, useExtensionPoint } from "./ex
 export function useContentBlockRenderer(
   kind: string,
 ): ContentBlockRenderer<ContentBlockKind> | undefined {
-  return usePluginStore((s) => s.contentBlocks.get(kind)?.value);
+  return useExtensionByKey(CONTENT_BLOCK, kind);
 }
 
 export function useMessageRole(id: string): MessageRoleSpec | undefined {
@@ -31,7 +35,7 @@ export function useMessageRole(id: string): MessageRoleSpec | undefined {
 // ---------------------------------------------------------------------------
 
 export function useToolPreview(fn: string): ToolPreviewComponent | undefined {
-  return usePluginStore((s) => s.toolPreviews.get(fn)?.value);
+  return useExtensionByKey(TOOL_PREVIEW, fn);
 }
 
 export function useToolActions(): ToolActionSpec[] {
@@ -45,5 +49,5 @@ export function lookupToolActionOwner(id: string): string | undefined {
 
 /** Look up the registered icon for a tool fn name. */
 export function lookupToolIcon(fn: string): string | undefined {
-  return usePluginStore.getState().toolIcons.get(fn)?.value;
+  return lookupExtensionByKey(TOOL_ICON, fn);
 }

@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { definePlugin, loadPlugin, loadPlugins, reloadPlugin, unloadPlugin } from "./definePlugin";
 import { usePluginErrorStore } from "./errors";
+import { TOOL_PREVIEW } from "./kernelPoints";
 import { usePluginStore } from "./registry";
-import { lookupCommand } from "./selectors";
+import { lookupCommand, lookupExtensionPoint } from "./selectors";
 
 describe("definePlugin", () => {
   it("is an identity function", () => {
@@ -40,7 +41,7 @@ describe("loadPlugin", () => {
 
     expect(result.kind).toBe("failed");
     // The registry must be empty — the bash entry was rolled back.
-    expect(usePluginStore.getState().toolPreviews.size).toBe(0);
+    expect(lookupExtensionPoint(TOOL_PREVIEW).length).toBe(0);
     expect(usePluginStore.getState().loaded.has("a")).toBe(false);
     // And the error landed in the log under source="setup".
     const log = usePluginErrorStore.getState().log;

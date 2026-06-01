@@ -59,6 +59,12 @@ export interface ExtensionContributionOptions {
    * stacking a duplicate. Ignored by `single` points (they key via `keyOf`).
    */
   id?: string;
+  /**
+   * Explicit dedupe key for `single` points whose key isn't carried on the
+   * item — a tool fn name, a content-block kind, a slash trigger. Takes
+   * precedence over the point's `keyOf`. Ignored by `multi` points.
+   */
+  key?: string;
   /** Sort hint — lower comes first. Falls back to the item's own `order`. */
   order?: number;
 }
