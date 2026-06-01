@@ -9,10 +9,10 @@ import {
   COMPOSER_KEY_BINDING,
   COMPOSER_MODE,
   lookupExtensionByKey,
-  normalizeCombo,
   pickComposerPlaceholder,
   useExtensionPoint,
 } from "@/plugins/sdk";
+import { normalizeCombo } from "@/plugins/sdk/registry";
 import { Slot } from "@/plugins/Slot";
 import { submitComposer } from "./submitComposer";
 

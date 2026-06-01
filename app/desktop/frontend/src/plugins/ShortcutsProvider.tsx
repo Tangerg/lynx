@@ -11,7 +11,8 @@
 //     registry only; the listener itself never re-binds.
 
 import { useEffect } from "react";
-import { lookupExtensionByKey, normalizeCombo, SHORTCUT, usePluginStore } from "@/plugins/sdk";
+import { lookupExtensionByKey, SHORTCUT, usePluginStore } from "@/plugins/sdk";
+import { normalizeCombo } from "@/plugins/sdk/registry";
 
 // Stuff we ignore in form fields by default. `allowInInputs: true` opts in.
 function isEditableTarget(target: EventTarget | null): boolean {

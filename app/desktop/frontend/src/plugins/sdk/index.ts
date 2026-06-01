@@ -30,12 +30,13 @@ export { evalWhen } from "./evalWhen";
 
 export type { WhenContext } from "./evalWhen";
 
-export { PLUGIN_TOAST_EVENT, type PluginToastDetail } from "./host";
-
 // Persistent notification feed.
 export { useNotificationStore } from "./notifications";
-// The Zustand store + write-side actions live in registry.ts.
-export { normalizeCombo, usePluginStore } from "./registry";
+// The registry store — imperative observation of contributions (subscribe /
+// getState). `normalizeCombo` + the toast-event contract stay internal to
+// `./registry` / `./host` (plugins don't need them — points normalize combos
+// on contribute, and toasts go through `host.notify`).
+export { usePluginStore } from "./registry";
 
 // Read side. Plain reads use the generic substrate (use/lookupExtensionPoint,
 // use/lookupExtensionByKey); the rest are selectors with real logic.
