@@ -56,7 +56,7 @@ import {
   lookupExtensionOwner,
 } from "./selectors/extensions";
 
-// A throwaway component used for `tool.registerPreview` calls. It doesn't get
+// A throwaway component used for `host.extensions.contribute(TOOL_PREVIEW, …)` calls. It doesn't get
 // mounted in these tests — we only care about identity.
 const StubPreview: ToolPreviewComponent = () => null;
 

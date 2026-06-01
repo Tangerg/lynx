@@ -1,13 +1,13 @@
-// Kernel extension points — the typed handles for every contribution
-// surface the kernel itself owns. Each `host.X.register*` facade and its
-// matching selector route through one of these onto the shared `extensions`
-// substrate, so built-in contributions and third-party ones use the exact
-// same mechanism (the JetBrains "kernel is just another extension consumer"
-// property).
+// Kernel extension points — the typed handles for every contribution surface
+// the kernel itself owns. Built-ins contribute via `host.extensions.contribute
+// (POINT, …)` (or one of the few retained thin facades), third parties the same
+// way, and the per-domain selectors read these — so kernel and third-party
+// contributions use the exact same mechanism (the JetBrains "kernel is just
+// another extension consumer" property).
 //
-// Points are migrated domain-by-domain (L3); this file grows one block per
-// migrated domain. `single` = one entry per `keyOf` (override + warn);
-// `multi` = every contribution coexists.
+// Adding a kernel point = one `defineExtensionPoint` block here + one selector.
+// `single` = one entry per `keyOf` (override + warn); `multi` = every
+// contribution coexists (composite `${plugin}|${id}` key).
 
 import type {
   AgentSourceSpec,

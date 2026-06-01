@@ -1,8 +1,10 @@
-// The Host facade — every register* surface a plugin can touch.
+// The Host facade — what a plugin can touch: the `extensions.contribute` write
+// path, a few retained thin facades (agui / layout / message.registerContentBlock
+// / lifecycle / rpc hooks / log.subscribe), and imperative actions.
 //
-// Each namespace groups by domain (matches the per-domain type files).
-// Adding a new extension point: drop a new spec type in its domain file,
-// surface it as a `register*` method here, wire it through registry.ts.
+// Adding a new contribution surface: define an `ExtensionPoint` in
+// `kernelPoints.ts` + a selector — NOT a new method here. This interface only
+// grows for genuinely new imperative capabilities or value-adding thin facades.
 
 import type { ConfigValue } from "../config";
 import type { StateSlice } from "../stateSlice";
