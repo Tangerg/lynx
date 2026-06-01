@@ -7,6 +7,7 @@ import { useConfigStore } from "./config";
 import { createHost } from "./host";
 import { useNotificationStore } from "./notifications";
 import {
+  ACCENT,
   BEFORE_UNLOAD_HANDLER,
   COMPOSER_ATTACHMENT_SOURCE,
   COMPOSER_MODE,
@@ -16,6 +17,7 @@ import {
   SETTINGS_PANE,
   SIDEBAR_RAIL_ITEM,
   SIDEBAR_SECTION,
+  THEME,
   TOOL_ACTION,
   TOOL_PREVIEW,
 } from "./kernelPoints";
@@ -209,7 +211,7 @@ describe("plugin registry", () => {
   it("theme.registerTheme + lookupTheme round-trip", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
-    const d = host.theme.registerTheme({ id: "dim", label: "Dim", scheme: "dark" });
+    const d = host.extensions.contribute(THEME, { id: "dim", label: "Dim", scheme: "dark" });
 
     expect(lookupTheme("dim")?.label).toBe("Dim");
     d.dispose();
@@ -219,7 +221,7 @@ describe("plugin registry", () => {
   it("theme.registerTheme retains the tokens map for applyTheme to consume", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
-    host.theme.registerTheme({
+    host.extensions.contribute(THEME, {
       id: "dim",
       label: "Dim",
       scheme: "dark",
@@ -239,7 +241,7 @@ describe("plugin registry", () => {
   it("theme.registerAccent + lookupAccent round-trip", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
-    host.theme.registerAccent({ id: "violet", label: "Violet", dark: "#7c3aed" });
+    host.extensions.contribute(ACCENT, { id: "violet", label: "Violet", dark: "#7c3aed" });
 
     expect(lookupAccent("violet")?.dark).toBe("#7c3aed");
   });

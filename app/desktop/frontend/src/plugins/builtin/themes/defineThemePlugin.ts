@@ -10,6 +10,7 @@
 
 import type { PluginSpec } from "@/plugins/sdk";
 import { definePlugin } from "@/plugins/sdk";
+import { THEME } from "@/plugins/sdk/kernelPoints";
 import { SCHEME_ICON, buildTokenMap } from "./tokens";
 import type { ThemePluginSpec } from "./types";
 
@@ -31,7 +32,7 @@ export function defineThemePlugin(spec: ThemePluginSpec): PluginSpec {
     name: `lyra.builtin.theme-${spec.id}`,
     version: "1.0.0",
     setup({ host }) {
-      host.theme.registerTheme({
+      host.extensions.contribute(THEME, {
         id: spec.id,
         label: spec.label,
         scheme: spec.scheme,
