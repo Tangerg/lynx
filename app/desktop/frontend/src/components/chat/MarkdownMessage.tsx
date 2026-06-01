@@ -16,7 +16,7 @@ import { measureMarkdownRepair } from "@/lib/metrics";
 import { rehypeCitations } from "@/lib/markdown/rehypeCitations";
 import { rehypeFadeIn } from "@/lib/markdown/rehypeFadeIn";
 import { rehypeStreamCaret } from "@/lib/markdown/rehypeStreamCaret";
-import { useSmoothText } from "@/lib/agent/smoothText";
+import { useStreamReveal } from "@/lib/agent/streamReveal";
 import "remark-github-blockquote-alert/alert.css";
 
 interface Props {
@@ -48,10 +48,10 @@ const allowElement = (el: { tagName: string }) => !DENIED_HTML_TAGS.has(el.tagNa
 // — Streamdown's <Streamdown> ships its own `<span data-streamdown=
 // "strong">` design system that bypasses `.md` CSS. Each block is its
 // own memoised <MarkdownBlock>; only the tail block re-parses on each
-// smooth-text tick.
+// stream-reveal tick.
 export function MarkdownMessage({ text, streaming, instant, typewriter }: Props) {
-  const smoothed = useSmoothText(text, !instant && !!streaming, typewriter);
-  const display = instant ? text : smoothed;
+  const revealed = useStreamReveal(text, !instant && !!streaming, typewriter);
+  const display = instant ? text : revealed;
 
   // remend (auto-close unterminated bold / inline code / fenced blocks)
   // runs on the *full* display before splitting — block boundaries read
@@ -90,9 +90,9 @@ export function MarkdownMessage({ text, streaming, instant, typewriter }: Props)
 }
 
 // Single markdown block — paragraph / fence / list / heading. Memoised
-// on its content + flags. `streaming` is forwarded but doesn't gate
-// any visual yet — the per-word fade-in already conveys "currently
-// generating", so a tail caret would just double the signal.
+// on its content + flags. In smooth mode the per-word fade-in conveys
+// "currently generating"; in typewriter mode `streaming` (true only for
+// the tail block) gates the blinking accent caret instead.
 const MarkdownBlock = memo(function MarkdownBlock({ text, instant, streaming, typewriter }: Props) {
   // Pull in the KaTeX stylesheet (~30KB) the first time a math-bearing
   // block mounts. Probe is just `$` — false positives (USD prices)

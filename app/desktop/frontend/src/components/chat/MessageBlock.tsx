@@ -76,7 +76,7 @@ function MessageBlockInner({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
     (b) => (b.kind === "text" || b.kind === "reasoning") && b.status === "running",
   );
 
-  // Skip the smooth-text + fade-in pipeline for user messages — they
+  // Skip the stream-reveal + fade-in pipeline for user messages — they
   // already saw what they typed; replaying it adds latency for no gain.
   const partCtx: PartCtx = isUser ? { ...ctx, instant: true } : ctx;
 

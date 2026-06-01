@@ -1,6 +1,6 @@
 // Word-granularity text segmentation: Latin runs as words, CJK as
 // individual codepoints, trailing punctuation glued to the preceding
-// token, whitespace separate. Shared by useSmoothText + rehypeFadeIn.
+// token, whitespace separate. Shared by useStreamReveal + rehypeFadeIn.
 //
 // Backed by Intl.Segmenter — standard since ES2022 (Chrome 87+, Safari
 // 14.1+, FF 125+). Wails 2 ships modern WebView2 / WebKit so it's

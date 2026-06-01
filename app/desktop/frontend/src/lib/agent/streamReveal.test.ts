@@ -1,11 +1,11 @@
 // Unit tests for the `pickRate` selector — the rate-picking heart of
-// useSmoothText. Hook-level behavior (rAF loop, debt accounting, word
-// segmentation, sentence pauses) stays untested here: it's a moving
-// target tied to perf characteristics, and the rate function is the
-// only piece that captures a clean contract worth pinning.
+// useStreamReveal. Hook-level behavior (rAF loop, debt accounting, word
+// segmentation, sentence pauses, typewriter char-reveal) stays untested
+// here: it's a moving target tied to perf characteristics, and the rate
+// function is the only piece that captures a clean contract worth pinning.
 
 import { describe, expect, it } from "vitest";
-import { pickRate } from "./smoothText";
+import { pickRate } from "./streamReveal";
 
 describe("pickRate — streaming mode (3-tier ladder)", () => {
   it("returns RATE_CRUISE (40 c/s) for small backlogs", () => {
