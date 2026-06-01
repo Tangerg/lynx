@@ -161,7 +161,7 @@ const ACTION_BTN =
 
 function ToolMeta({ tool }: { tool: ToolCall }) {
   return (
-    <div className="flex items-center gap-2.5 font-mono text-[10px] text-fg-faint tabular-nums tracking-normal normal-case">
+    <div className="flex items-center gap-2.5 font-mono text-[10px] text-fg-faint tracking-normal normal-case">
       {tool.added != null && <span className="text-accent">+{tool.added}</span>}
       {tool.removed != null && <span className="text-negative">−{tool.removed}</span>}
       {tool.hits != null && <span>{tool.hits} matches</span>}

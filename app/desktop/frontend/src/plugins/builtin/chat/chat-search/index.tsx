@@ -159,7 +159,7 @@ function ChatSearchOverlay() {
           }
         }}
       />
-      <span className="px-1.5 font-mono text-[11px] tabular-nums text-fg-faint">
+      <span className="px-1.5 font-mono text-[11px] text-fg-faint">
         {total > 0 ? `${active + 1} / ${total}` : query ? "0 / 0" : ""}
       </span>
       <Tooltip label="Previous match (⇧⏎)">

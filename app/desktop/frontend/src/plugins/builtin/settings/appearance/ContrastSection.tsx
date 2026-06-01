@@ -23,9 +23,7 @@ export function ContrastSection() {
           onValueChange={setContrast}
           ariaLabel={t("settings.contrast")}
         />
-        <span className="w-7 text-right font-mono text-[12px] tabular-nums text-fg-muted">
-          {contrast}
-        </span>
+        <span className="w-7 text-right font-mono text-[12px] text-fg-muted">{contrast}</span>
       </div>
     </SettingRow>
   );

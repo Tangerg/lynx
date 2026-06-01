@@ -86,7 +86,7 @@ export function IconGallery() {
             <section key={g} className="px-5 pt-4.5 pb-3">
               <header className="flex items-baseline justify-between pb-2.5 font-mono text-[11px] font-semibold text-fg-faint tracking-normal">
                 <span>{GROUP_TITLES[g]}</span>
-                <span className="font-mono text-fg-muted tabular-nums">{list.length}</span>
+                <span className="font-mono text-fg-muted">{list.length}</span>
               </header>
               <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(120px,1fr))]">
                 {list.map((entry) => (

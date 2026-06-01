@@ -122,7 +122,7 @@ export function IconShowcase() {
         <section key={sec.title} className="flex flex-col gap-2">
           <header className="flex items-baseline justify-between font-mono text-[11px] font-semibold text-fg-faint tracking-normal">
             <span>{sec.title}</span>
-            <span className="font-mono text-fg-muted tabular-nums">{sec.ids.length}</span>
+            <span className="font-mono text-fg-muted">{sec.ids.length}</span>
           </header>
           <div className="grid gap-1.5 [grid-template-columns:repeat(auto-fill,minmax(96px,1fr))]">
             {sec.ids.map((id) => (

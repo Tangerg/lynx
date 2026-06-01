@@ -32,7 +32,7 @@ function NotificationsBadge() {
       >
         <Icon name="chat" size={14} />
         {unread > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-accent px-0.5 font-mono text-[9px] font-semibold tabular-nums text-on-accent">
+          <span className="absolute -right-0.5 -top-0.5 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-accent px-0.5 font-mono text-[9px] font-semibold text-on-accent">
             {unread > 9 ? "9+" : unread}
           </span>
         )}
