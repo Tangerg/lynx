@@ -6,6 +6,7 @@
 import { IconGallery } from "@/components/icon-gallery/IconGallery";
 import { IconShowcase } from "@/components/icon-gallery/IconShowcase";
 import { definePlugin } from "@/plugins/sdk";
+import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
 
 export default definePlugin({
   name: "lyra.builtin.icon-gallery",
@@ -20,7 +21,7 @@ export default definePlugin({
       component: IconGallery,
     });
 
-    host.settings.registerPane({
+    host.extensions.contribute(SETTINGS_PANE, {
       id: "brand-icons",
       label: "Brand icons",
       icon: "spark",

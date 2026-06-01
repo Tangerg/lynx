@@ -4,6 +4,7 @@
 // late-loaded plugins show up automatically.
 
 import { definePlugin } from "@/plugins/sdk";
+import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
 import { ShortcutsProvider } from "@/plugins/ShortcutsProvider";
 import { ShortcutsPane } from "./ShortcutsPane";
 
@@ -20,7 +21,7 @@ export default definePlugin({
       component: ShortcutsProvider,
     });
 
-    host.settings.registerPane({
+    host.extensions.contribute(SETTINGS_PANE, {
       id: "shortcuts",
       label: "Shortcuts",
       icon: "command",

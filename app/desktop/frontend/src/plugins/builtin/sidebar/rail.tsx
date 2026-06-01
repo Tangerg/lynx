@@ -9,6 +9,7 @@ import { useT } from "@/lib/i18n";
 import { useSessions } from "@/lib/data/queries";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
+import { SIDEBAR_RAIL_ITEM } from "@/plugins/sdk/kernelPoints";
 import { useSessionStore } from "@/state/sessionStore";
 
 // ---- top actions --------------------------------------------------------
@@ -40,8 +41,16 @@ export const sidebarRailActions = definePlugin({
   name: "lyra.builtin.sidebar-rail-actions",
   version: "1.0.0",
   setup({ host }) {
-    host.sidebar.registerRailItem({ id: "new-session", order: 10, component: NewSessionBtn });
-    host.sidebar.registerRailItem({ id: "search", order: 20, component: SearchBtn });
+    host.extensions.contribute(SIDEBAR_RAIL_ITEM, {
+      id: "new-session",
+      order: 10,
+      component: NewSessionBtn,
+    });
+    host.extensions.contribute(SIDEBAR_RAIL_ITEM, {
+      id: "search",
+      order: 20,
+      component: SearchBtn,
+    });
   },
 });
 
@@ -97,7 +106,11 @@ export const sidebarRailSessions = definePlugin({
   name: "lyra.builtin.sidebar-rail-sessions",
   version: "1.0.0",
   setup({ host }) {
-    host.sidebar.registerRailItem({ id: "rail-sessions", order: 100, component: RailSessions });
+    host.extensions.contribute(SIDEBAR_RAIL_ITEM, {
+      id: "rail-sessions",
+      order: 100,
+      component: RailSessions,
+    });
   },
 });
 
@@ -142,9 +155,25 @@ export const sidebarRailBottom = definePlugin({
   name: "lyra.builtin.sidebar-rail-bottom",
   version: "1.0.0",
   setup({ host }) {
-    host.sidebar.registerRailItem({ id: "rail-spacer", order: 800, component: RailSpacer });
-    host.sidebar.registerRailItem({ id: "rail-tools", order: 900, component: RailTools });
-    host.sidebar.registerRailItem({ id: "rail-settings", order: 910, component: RailSettings });
-    host.sidebar.registerRailItem({ id: "rail-user", order: 920, component: RailUser });
+    host.extensions.contribute(SIDEBAR_RAIL_ITEM, {
+      id: "rail-spacer",
+      order: 800,
+      component: RailSpacer,
+    });
+    host.extensions.contribute(SIDEBAR_RAIL_ITEM, {
+      id: "rail-tools",
+      order: 900,
+      component: RailTools,
+    });
+    host.extensions.contribute(SIDEBAR_RAIL_ITEM, {
+      id: "rail-settings",
+      order: 910,
+      component: RailSettings,
+    });
+    host.extensions.contribute(SIDEBAR_RAIL_ITEM, {
+      id: "rail-user",
+      order: 920,
+      component: RailUser,
+    });
   },
 });

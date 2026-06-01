@@ -4,6 +4,7 @@ import { SessionRow } from "@/components/sidebar/SessionRow";
 import { useT } from "@/lib/i18n";
 import { useSessions } from "@/lib/data/queries";
 import { definePlugin } from "@/plugins/sdk";
+import { SIDEBAR_SECTION } from "@/plugins/sdk/kernelPoints";
 import { useSessionStore } from "@/state/sessionStore";
 import { sideListClasses } from "./styles";
 
@@ -63,6 +64,10 @@ export const sidebarSessions = definePlugin({
   name: "lyra.builtin.sidebar-sessions",
   version: "1.0.0",
   setup({ host }) {
-    host.sidebar.registerSection({ id: "sessions", order: 10, component: SessionsSection });
+    host.extensions.contribute(SIDEBAR_SECTION, {
+      id: "sessions",
+      order: 10,
+      component: SessionsSection,
+    });
   },
 });

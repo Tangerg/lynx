@@ -9,6 +9,7 @@
 
 import type { IconName } from "@/components/common";
 import type { CommandSpec } from "@/plugins/sdk";
+import { SHORTCUT } from "@/plugins/sdk/kernelPoints";
 import { Command } from "cmdk";
 import { useMemo } from "react";
 import { create } from "zustand";
@@ -127,7 +128,7 @@ export default definePlugin({
       component: CommandPalette,
     });
 
-    host.shortcuts.register({
+    host.extensions.contribute(SHORTCUT, {
       key: "Mod+K",
       description: "Open the command palette",
       // The palette swallows typing once open, so we want it to fire even

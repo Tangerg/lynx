@@ -4,6 +4,7 @@
 // 9 "switch to tab N" entries would drown the palette.
 
 import { definePlugin, lookupCommand } from "@/plugins/sdk";
+import { SHORTCUT } from "@/plugins/sdk/kernelPoints";
 import { useSessionStore } from "@/state/sessionStore";
 
 // Late binding: the handler resolves the command at trigger time, so
@@ -26,7 +27,7 @@ export default definePlugin({
   requires: ["lyra.builtin.default-commands", "lyra.builtin.shortcuts"],
   setup({ host }) {
     for (const { combo, commandId, description } of COMMAND_BINDINGS) {
-      host.shortcuts.register({
+      host.extensions.contribute(SHORTCUT, {
         key: combo,
         description,
         // Cmd+combos must fire from inside the composer too — otherwise
@@ -44,7 +45,7 @@ export default definePlugin({
     // silently so the user gets immediate feedback ("nothing happens")
     // without an error popup.
     for (let n = 1; n <= 9; n++) {
-      host.shortcuts.register({
+      host.extensions.contribute(SHORTCUT, {
         key: `Mod+${n}`,
         description: `Switch to tab ${n}`,
         allowInInputs: true,

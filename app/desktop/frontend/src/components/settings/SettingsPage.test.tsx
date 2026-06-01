@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { definePlugin, loadPlugin } from "@/plugins/sdk";
+import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
 import { SettingsPage } from "./SettingsPage";
 
 async function loadPanes() {
@@ -9,13 +10,13 @@ async function loadPanes() {
       name: "test.settings",
       version: "1.0.0",
       setup: ({ host }) => {
-        host.settings.registerPane({
+        host.extensions.contribute(SETTINGS_PANE, {
           id: "appearance",
           label: "Appearance",
           order: 0,
           component: () => <div data-testid="appearance-body">appearance body</div>,
         });
-        host.settings.registerPane({
+        host.extensions.contribute(SETTINGS_PANE, {
           id: "plugins",
           label: "Plugins",
           order: 10,

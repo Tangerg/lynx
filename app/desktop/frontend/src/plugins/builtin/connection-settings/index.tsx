@@ -11,6 +11,7 @@ import { AGUI_BASE } from "@/main/config";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { definePlugin, getConfig, setConfig } from "@/plugins/sdk";
+import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
 
 const CONFIG_KEY = "api.baseUrl";
 const STORAGE_KEY = "api.baseUrl";
@@ -132,7 +133,7 @@ export default definePlugin({
       if (typeof value === "string") host.storage.set(STORAGE_KEY, value);
     });
 
-    host.settings.registerPane({
+    host.extensions.contribute(SETTINGS_PANE, {
       id: "connection",
       label: "Connection",
       icon: "globe",

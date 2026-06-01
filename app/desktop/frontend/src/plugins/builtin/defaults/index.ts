@@ -11,7 +11,7 @@ import { api } from "@/lib/data/http";
 import { AGUI_BASE } from "@/main/config";
 import { getContainer } from "@/main/container";
 import { definePlugin } from "@/plugins/sdk";
-import { ACCENT, DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
+import { ACCENT, DATA_PROVIDER, MESSAGE_ROLE } from "@/plugins/sdk/kernelPoints";
 
 // Cutover mappers: several side-panel keys now ride the JSON-RPC stack
 // instead of REST GET. Where the protocol shape differs from the sidebar
@@ -114,19 +114,19 @@ export const defaultRoles = definePlugin({
   name: "lyra.builtin.default-roles",
   version: "1.0.0",
   setup({ host }) {
-    host.message.registerRole({
+    host.extensions.contribute(MESSAGE_ROLE, {
       id: "user",
       displayName: "You",
       icon: "user",
       avatarVariant: "msg-user",
     });
-    host.message.registerRole({
+    host.extensions.contribute(MESSAGE_ROLE, {
       id: "assistant",
       displayName: "Sonnet 4.5",
       icon: "spark",
       avatarVariant: "msg-agent",
     });
-    host.message.registerRole({
+    host.extensions.contribute(MESSAGE_ROLE, {
       id: "system",
       displayName: "System",
       icon: "shield",

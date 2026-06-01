@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { Icon, Tooltip } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
+import { SHORTCUT } from "@/plugins/sdk/kernelPoints";
 
 const OPEN_EVENT = "lyra.chat-search.open";
 
@@ -206,7 +207,7 @@ export default definePlugin({
       order: 50,
       component: ChatSearchOverlay,
     });
-    host.shortcuts.register({
+    host.extensions.contribute(SHORTCUT, {
       key: "Mod+F",
       description: "Find in chat",
       // The shortcut must work even when the composer textarea is

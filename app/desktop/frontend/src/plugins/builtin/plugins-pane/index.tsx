@@ -9,6 +9,7 @@ import { useState } from "react";
 import { Icon, IconButton, PillButton } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { definePlugin, reloadPlugin, usePluginErrorStore, usePluginStore } from "@/plugins/sdk";
+import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
 import { pluginOrigin } from "@/plugins/sideload";
 
 function PluginsPane() {
@@ -122,7 +123,7 @@ export default definePlugin({
   name: "lyra.builtin.plugins-pane",
   version: "1.0.0",
   setup({ host }) {
-    host.settings.registerPane({
+    host.extensions.contribute(SETTINGS_PANE, {
       id: "plugins",
       label: "Plugins",
       icon: "tool",

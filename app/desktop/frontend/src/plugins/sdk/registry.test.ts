@@ -21,11 +21,13 @@ import {
   MESSAGE_ROLE,
   ROUTE,
   SETTINGS_PANE,
+  SHORTCUT,
   SIDEBAR_RAIL_ITEM,
   SIDEBAR_SECTION,
   SLASH_COMMAND,
   THEME,
   TOOL_ACTION,
+  TOOL_ICON,
   TOOL_PREVIEW,
 } from "./kernelPoints";
 import { normalizeCombo, usePluginStore } from "./registry";
@@ -62,7 +64,7 @@ describe("plugin registry", () => {
   it("addToolPreview stores by fn name + tracks owner", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
-    host.tool.registerPreview("bash", StubPreview);
+    host.extensions.contribute(TOOL_PREVIEW, StubPreview, { key: "bash" });
 
     expect(lookupExtensionOwner(TOOL_PREVIEW, "bash")).toBe("alpha");
     expect(lookupExtensionByKey(TOOL_PREVIEW, "bash")).toBe(StubPreview);
@@ -75,8 +77,10 @@ describe("plugin registry", () => {
       const sinkB: Disposable[] = [];
       const AnotherPreview: ToolPreviewComponent = () => null;
 
-      createHost("alpha", sinkA).tool.registerPreview("bash", StubPreview);
-      createHost("beta", sinkB).tool.registerPreview("bash", AnotherPreview);
+      createHost("alpha", sinkA).extensions.contribute(TOOL_PREVIEW, StubPreview, { key: "bash" });
+      createHost("beta", sinkB).extensions.contribute(TOOL_PREVIEW, AnotherPreview, {
+        key: "bash",
+      });
 
       expect(warn).toHaveBeenCalledOnce();
       expect(warn.mock.calls[0]![0]).toMatch(/beta overrides contribution "bash"/);
@@ -90,7 +94,9 @@ describe("plugin registry", () => {
 
   it("disposable.dispose removes the entry — but only if the owner matches", () => {
     const sink: Disposable[] = [];
-    const d = createHost("alpha", sink).tool.registerPreview("bash", StubPreview);
+    const d = createHost("alpha", sink).extensions.contribute(TOOL_PREVIEW, StubPreview, {
+      key: "bash",
+    });
     expect(lookupExtensionByKey(TOOL_PREVIEW, "bash")).toBeDefined();
 
     d.dispose();
@@ -104,14 +110,16 @@ describe("plugin registry", () => {
     const hostA = createHost("alpha", a);
     const hostB = createHost("beta", b);
 
-    hostA.tool.registerPreview("bash", StubPreview);
+    hostA.extensions.contribute(TOOL_PREVIEW, StubPreview, { key: "bash" });
     // Beta hands back a Disposable that would remove its own entry — but
     // alpha owns the slot, so beta's dispose should not affect alpha.
-    const otherDispose = hostB.tool.registerPreview("grep", StubPreview).dispose;
+    const otherDispose = hostB.extensions.contribute(TOOL_PREVIEW, StubPreview, {
+      key: "grep",
+    }).dispose;
     // overriding the same fn replaces ownership:
     // simulate: after override, then disposing the "old" handle should not
     // touch the new owner's entry.
-    hostB.tool.registerPreview("bash", StubPreview);
+    hostB.extensions.contribute(TOOL_PREVIEW, StubPreview, { key: "bash" });
     const aDispose = a[a.length - 1]!.dispose; // alpha's "bash" disposer (stale)
     aDispose();
 
@@ -126,8 +134,18 @@ describe("plugin registry", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
 
-    host.settings.registerPane({ id: "z", label: "Z", order: 50, component: () => null });
-    host.settings.registerPane({ id: "a", label: "A", order: 10, component: () => null });
+    host.extensions.contribute(SETTINGS_PANE, {
+      id: "z",
+      label: "Z",
+      order: 50,
+      component: () => null,
+    });
+    host.extensions.contribute(SETTINGS_PANE, {
+      id: "a",
+      label: "A",
+      order: 10,
+      component: () => null,
+    });
 
     const panes = lookupExtensionPoint(SETTINGS_PANE);
 
@@ -275,7 +293,7 @@ describe("plugin registry", () => {
     const host = createHost("alpha", sink);
     const handler = vi.fn();
 
-    host.shortcuts.register({ key: "Cmd+K", handler });
+    host.extensions.contribute(SHORTCUT, { key: "Cmd+K", handler });
 
     // Both canonical and equivalent inputs resolve the same entry.
     expect(lookupShortcut("mod+k")).toBeDefined();
@@ -285,7 +303,7 @@ describe("plugin registry", () => {
   it("shortcuts.register disposable removes the entry", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
-    const d = host.shortcuts.register({ key: "Escape", handler: () => {} });
+    const d = host.extensions.contribute(SHORTCUT, { key: "Escape", handler: () => {} });
 
     expect(lookupShortcut("escape")).toBeDefined();
     d.dispose();
@@ -304,7 +322,11 @@ describe("plugin registry", () => {
   it("sidebar.registerSection stores a section", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
-    host.sidebar.registerSection({ id: "bookmarks", order: 20, component: () => null });
+    host.extensions.contribute(SIDEBAR_SECTION, {
+      id: "bookmarks",
+      order: 20,
+      component: () => null,
+    });
 
     expect(lookupExtensionPoint(SIDEBAR_SECTION).length).toBe(1);
     expect(lookupExtensionOwner(SIDEBAR_SECTION, "bookmarks")).toBe("alpha");
@@ -313,7 +335,7 @@ describe("plugin registry", () => {
   it("tool.registerIcon + lookupToolIcon round-trip", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
-    host.tool.registerIcon("bash", "terminal");
+    host.extensions.contribute(TOOL_ICON, "terminal", { key: "bash" });
 
     expect(lookupToolIcon("bash")).toBe("terminal");
     expect(lookupToolIcon("unknown")).toBeUndefined();
@@ -384,7 +406,7 @@ describe("plugin registry", () => {
   it("tool.registerAction stores an action spec", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
-    host.tool.registerAction({
+    host.extensions.contribute(TOOL_ACTION, {
       id: "copy",
       icon: "copy",
       title: "Copy",
@@ -561,7 +583,11 @@ describe("plugin registry", () => {
   it("sidebar.registerRailItem stores an item", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
-    host.sidebar.registerRailItem({ id: "tools", order: 900, component: () => null });
+    host.extensions.contribute(SIDEBAR_RAIL_ITEM, {
+      id: "tools",
+      order: 900,
+      component: () => null,
+    });
 
     expect(lookupExtensionPoint(SIDEBAR_RAIL_ITEM).length).toBe(1);
     expect(lookupExtensionByKey(SIDEBAR_RAIL_ITEM, "tools")?.order).toBe(900);
@@ -570,7 +596,7 @@ describe("plugin registry", () => {
   it("message.registerRole stores a role identity", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
-    host.message.registerRole({ id: "dev", displayName: "Dev", icon: "tool" });
+    host.extensions.contribute(MESSAGE_ROLE, { id: "dev", displayName: "Dev", icon: "tool" });
 
     expect(lookupExtensionPoint(MESSAGE_ROLE).length).toBe(1);
     expect(lookupExtensionByKey(MESSAGE_ROLE, "dev")?.displayName).toBe("Dev");
@@ -722,8 +748,8 @@ describe("registry.unload", () => {
   it("disposes every handle a plugin registered", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
-    host.tool.registerPreview("bash", StubPreview);
-    host.tool.registerPreview("grep", StubPreview);
+    host.extensions.contribute(TOOL_PREVIEW, StubPreview, { key: "bash" });
+    host.extensions.contribute(TOOL_PREVIEW, StubPreview, { key: "grep" });
 
     usePluginStore.getState().registerLoaded({
       spec: { name: "alpha", version: "1.0.0", setup: () => {} },
@@ -747,7 +773,7 @@ describe("registry.unload", () => {
         },
       ];
       const host = createHost("alpha", sink);
-      host.tool.registerPreview("bash", StubPreview);
+      host.extensions.contribute(TOOL_PREVIEW, StubPreview, { key: "bash" });
 
       usePluginStore.getState().registerLoaded({
         spec: { name: "alpha", version: "1.0.0", setup: () => {} },
