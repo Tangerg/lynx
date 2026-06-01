@@ -52,7 +52,6 @@ import {
   defaultRoles,
   defaultTitle,
 } from "./shell/defaults";
-import demo from "./samples/demo";
 import diagnostics from "./workspace/diagnostics";
 import globalKeymap from "./command/global-keymap";
 import httpAgent from "./agent/http-agent";
@@ -64,7 +63,6 @@ import mainRoute from "./shell/main-route";
 import { messageCopy, messageEdit, messageRegenerate } from "./chat/message-actions";
 import planProgress from "./chat/plan-progress";
 import pluginsPane from "./settings/plugins-pane";
-import sampleAttachments from "./samples/sample-attachments";
 import shortcuts from "./command/shortcuts";
 import {
   sidebarFooter,
@@ -153,12 +151,10 @@ const toolRendering: PluginSpec[] = [bash, diff, file, grep, toolActions, toolIc
 // ---------------------------------------------------------------------------
 const composer: PluginSpec[] = [
   slashHints,
-  demo,
   composerChips,
   composerModes,
   composerToolbar,
   composerPlaceholders,
-  sampleAttachments,
   composerKeymap,
   composerSend,
 ];
