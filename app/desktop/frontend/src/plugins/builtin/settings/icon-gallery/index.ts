@@ -3,8 +3,8 @@
 // application brand icons. Also registers a curated subset in the
 // Settings → "Brand icons" pane.
 
-import { IconGallery } from "@/components/icon-gallery/IconGallery";
-import { IconShowcase } from "@/components/icon-gallery/IconShowcase";
+import { IconGallery } from "./IconGallery";
+import { IconShowcase } from "./IconShowcase";
 import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE, WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 
