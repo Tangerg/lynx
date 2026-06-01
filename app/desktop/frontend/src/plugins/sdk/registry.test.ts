@@ -550,6 +550,23 @@ describe("plugin registry", () => {
     expect(run).toHaveBeenCalledOnce();
   });
 
+  it("commands.execute runs a registered command by id + forwards args", async () => {
+    const sink: Disposable[] = [];
+    const host = createHost("alpha", sink);
+    const run = vi.fn();
+    host.commands.register({ id: "echo", label: "Echo", run });
+
+    await host.commands.execute("echo", "a", 1);
+    expect(run).toHaveBeenCalledWith("a", 1);
+  });
+
+  it("commands.execute on an unknown id warns and no-ops", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const host = createHost("alpha", []);
+    await host.commands.execute("nope");
+    expect(warn.mock.calls[0]![0]).toMatch(/commands\.execute\("nope"\): no command/);
+  });
+
   it("data.registerProvider + lookupDataProvider round-trip", async () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);

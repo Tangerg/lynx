@@ -47,6 +47,7 @@ import {
 } from "./kernelPoints";
 import { useNotificationStore } from "./notifications";
 import { usePluginStore } from "./registry";
+import { executeCommand } from "./selectors/commands";
 import {
   composeExtensionKey,
   lookupExtensionByKey,
@@ -201,6 +202,10 @@ export function createHost(
 
     commands: {
       register: (spec: CommandSpec): Disposable => contribute(COMMAND, spec),
+      // Run another plugin's command by id (VSCode-style executeCommand) —
+      // activates it first if it's a lazy/declared command. Commands are the
+      // lightweight cross-plugin RPC.
+      execute: (id: string, ...args: unknown[]): Promise<void> => executeCommand(id, ...args),
     },
 
     extensions: { contribute },

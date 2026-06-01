@@ -61,6 +61,12 @@ export interface Host {
   commands: {
     /** Contribute a command palette entry. */
     register: (spec: CommandSpec) => Disposable;
+    /**
+     * Run a command by id — cross-plugin invocation (VSCode-style
+     * `executeCommand`). Activates a lazy command first; warns + no-ops if the
+     * id is unknown. Args forward to the command's `run`.
+     */
+    execute: (id: string, ...args: unknown[]) => Promise<void>;
   };
   extensions: {
     /**
