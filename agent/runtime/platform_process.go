@@ -7,8 +7,6 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/agent/planning"
-	"github.com/Tangerg/lynx/agent/planning/planner/goap"
-	"github.com/Tangerg/lynx/agent/planning/planner/reactive"
 )
 
 // createProcess assembles an AgentProcess and its dependencies
@@ -70,6 +68,16 @@ func (p *Platform) CreateChildProcess(
 	if options.Blackboard == nil {
 		options.Blackboard = parent.Blackboard().Spawn()
 	}
+	// A child shares its parent's event stream: process-scope
+	// EventListener extensions propagate down so the whole delegation
+	// subtree surfaces on the listener the parent registered (each event
+	// keeps its own ProcessID, so a consumer can tell parent from child).
+	// Listeners are the only capability inherited — blackboard / planner /
+	// tool extensions stay scoped to the process that declared them. No-op
+	// when the parent registered no listeners, so the historical "child
+	// events reach only the platform multicast" behavior is unchanged for
+	// callers that don't observe per-process.
+	options.Extensions = inheritEventListeners(options.Extensions, parent.options)
 
 	child, err := p.createProcess(agentDef, nil, options)
 	if err != nil {
@@ -80,10 +88,47 @@ func (p *Platform) CreateChildProcess(
 	return child, nil
 }
 
+// inheritEventListeners propagates a parent's process-scope
+// [EventListener] extensions onto a child's option set so the whole
+// delegation subtree feeds the listener the parent registered. Only
+// values implementing EventListener propagate — other capabilities
+// (Blackboard / Planner / ToolDecorator …) stay scoped to the process
+// that declared them. A child that already declares a listener of the
+// same Name wins (its own is not shadowed) and duplicates are skipped so
+// validateProcessExtensions' uniqueness check still holds. Returns the
+// child slice unchanged when the parent registered no extensions.
+func inheritEventListeners(childExts []core.Extension, parent *core.ProcessOptions) []core.Extension {
+	if parent == nil || len(parent.Extensions) == 0 {
+		return childExts
+	}
+	seen := make(map[string]struct{}, len(childExts))
+	for _, ext := range childExts {
+		if ext != nil {
+			seen[ext.Name()] = struct{}{}
+		}
+	}
+	for _, ext := range parent.Extensions {
+		if ext == nil {
+			continue
+		}
+		if _, ok := ext.(EventListener); !ok {
+			continue
+		}
+		if _, dup := seen[ext.Name()]; dup {
+			continue
+		}
+		childExts = append(childExts, ext)
+		seen[ext.Name()] = struct{}{}
+	}
+	return childExts
+}
+
 // resolvePlanner finds the [planning.Planner] for agentDef by matching
-// [core.AgentConfig.PlannerName] against registered Planner extensions
-// (process-scope extensions take priority over platform-scope, then
-// the framework default). An empty PlannerName resolves to "goap".
+// [core.AgentConfig.PlannerName] against registered Planner extensions:
+// process-scope extensions take priority over platform-scope. An empty
+// PlannerName resolves to "goap". The runtime intentionally knows no
+// concrete planner — the composition root registers them as extensions
+// (agent.NewPlatform registers goap + reactive by default).
 func (p *Platform) resolvePlanner(agentDef *core.Agent, processExts []core.Extension) (planning.Planner, error) {
 	name := agentDef.PlannerName
 	if name == "" {
@@ -96,15 +141,8 @@ func (p *Platform) resolvePlanner(agentDef *core.Agent, processExts []core.Exten
 	if planner := findPlannerByName(p.extensions.list, name); planner != nil {
 		return planner, nil
 	}
-	if planner := defaultPlanner(name); planner != nil {
-		return planner, nil
-	}
 
-	hint := ""
-	if name == "htn" {
-		hint = " — register an *htn.Planner extension built with your task library"
-	}
-	return nil, fmt.Errorf("runtime.Platform.resolvePlanner: agent %q requests planner %q which is not registered%s", agentDef.Name, name, hint)
+	return nil, fmt.Errorf("runtime.Platform.resolvePlanner: agent %q requests planner %q which is not registered — register a planning.Planner extension with that Name (agent.NewPlatform registers goap + reactive by default)", agentDef.Name, name)
 }
 
 // findPlannerByName walks extensions for a [planning.Planner] whose
@@ -118,19 +156,6 @@ func findPlannerByName(extensions []core.Extension, name string) planning.Planne
 		if planner.Name() == name {
 			return planner
 		}
-	}
-	return nil
-}
-
-// defaultPlanner returns the framework's built-in planner for name,
-// or nil if name does not match a framework default. "htn" is not
-// here because it needs a user-supplied task library.
-func defaultPlanner(name string) planning.Planner {
-	switch name {
-	case "goap":
-		return goap.NewPlanner()
-	case "reactive":
-		return reactive.NewPlanner()
 	}
 	return nil
 }
