@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"sync"
 
-	lyraruntime "github.com/Tangerg/lynx/lyra/internal/runtime"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
@@ -25,8 +24,10 @@ const ProtocolVersion = "2026-05-28"
 
 // Config bundles construction inputs.
 type Config struct {
-	// Runtime is the in-process runtime bundle. Required.
-	Runtime *lyraruntime.Runtime
+	// Runtime is the in-process runtime bundle. Required. Typed as the
+	// narrow RuntimeServices accessor surface (the concrete
+	// *internal/runtime.Runtime satisfies it).
+	Runtime RuntimeServices
 
 	// ServerInfo identifies this process on the wire. Defaults to
 	// {Name: "lyra-core", Version: "0.0.0-dev"} when zero.
@@ -37,7 +38,7 @@ type Config struct {
 // returned interface is protocol.Runtime — keeps callers from
 // reaching past the typed surface.
 type Server struct {
-	rt         *lyraruntime.Runtime
+	rt         RuntimeServices
 	serverInfo protocol.ServerInfo
 
 	// runRegistry tracks live runs so CancelRun can find them by id.
