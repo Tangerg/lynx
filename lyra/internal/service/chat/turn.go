@@ -116,6 +116,9 @@ func (s *inMemory) runTurn(ctx context.Context, st *turnState, req StartTurnRequ
 		Observer:      observer,
 		EventListener: lifecycle.listener(st.handle.TurnID),
 	})
+	// Record the root process id so the lifecycle gate keeps subtask
+	// terminals (which fire first) from being mistaken for the turn's end.
+	lifecycle.setRoot(proc.ID())
 	// Guarded by s.mu: Service.Cancel reads st.proc from another goroutine.
 	s.mu.Lock()
 	st.proc = proc
