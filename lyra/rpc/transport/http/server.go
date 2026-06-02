@@ -25,7 +25,18 @@ import (
 
 	"github.com/Tangerg/lynx/lyra/rpc/dispatch"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
+	"github.com/Tangerg/lynx/lyra/rpc/transport"
 )
+
+// messageHandler is the dispatch surface this transport needs: route
+// one inbound message, return the synchronous reply plus any stream.
+// Defined here (consumer side) so the transport depends on the single
+// method it calls rather than the concrete *dispatch.Dispatcher — the
+// dispatcher's per-conn state stays its own concern, and tests can
+// inject a fake without standing up a Runtime.
+type messageHandler interface {
+	Handle(ctx context.Context, msg transport.Message, expectedMethod string) dispatch.HandleResult
+}
 
 // Server is the HTTP transport. One instance per process — it owns
 // the dispatcher, the per-stream replay buffers, and the inbound
@@ -41,7 +52,7 @@ type Server struct {
 	healthProbes    []HealthProbe
 	agentDocsLister AgentDocsLister
 
-	dispatcher *dispatch.Dispatcher
+	dispatcher messageHandler
 	streams    *streamRegistry
 	clients    *clientRegistry
 
