@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/planning/planner/goap"
+	"github.com/Tangerg/lynx/agent/planning/planner/reactive"
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 
@@ -33,6 +35,36 @@ func GoalProducing[T any](g core.Goal) *core.Goal { return core.GoalProducing[T]
 
 // NewPlatform constructs a runtime Platform from config. The zero
 // value yields a default-configured platform.
+//
+// As the composition root, NewPlatform registers the framework's
+// built-in planners (goap, reactive) as platform extensions unless the
+// caller already supplied an extension of the same Name. This keeps the
+// runtime package free of any concrete planner dependency — runtime
+// resolves planners purely through the [planning.Planner] interface —
+// while agents requesting "goap" / "reactive" (or an empty PlannerName,
+// which defaults to "goap") still work out of the box. Other planners
+// (htn, utility) are opt-in via config.Extensions.
 func NewPlatform(config runtime.PlatformConfig) *runtime.Platform {
+	config.Extensions = withDefaultPlanners(config.Extensions)
 	return runtime.NewPlatform(config)
+}
+
+// withDefaultPlanners prepends the built-in goap + reactive planners to
+// extensions, skipping any whose Name a caller already registered so an
+// explicit override wins and the platform's duplicate-name guard never
+// trips.
+func withDefaultPlanners(extensions []core.Extension) []core.Extension {
+	taken := make(map[string]struct{}, len(extensions))
+	for _, ext := range extensions {
+		if ext != nil {
+			taken[ext.Name()] = struct{}{}
+		}
+	}
+	defaults := make([]core.Extension, 0, 2)
+	for _, planner := range []core.Extension{goap.NewPlanner(), reactive.NewPlanner()} {
+		if _, ok := taken[planner.Name()]; !ok {
+			defaults = append(defaults, planner)
+		}
+	}
+	return append(defaults, extensions...)
 }
