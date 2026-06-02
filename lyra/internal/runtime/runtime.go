@@ -149,12 +149,6 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	}, nil
 }
 
-// Engine exposes the underlying engine for service implementations
-// that need fine-grained control (most don't — prefer the typed
-// service accessors). M-future: may go away when MCP / tool
-// orchestration moves entirely behind chat.Service.
-func (r *Runtime) Engine() *engine.Engine { return r.engine }
-
 // Chat returns the ChatService — the one-turn dispatch surface
 // transport adapters call into for [chatsvc.Service.StartTurn] etc.
 func (r *Runtime) Chat() chatsvc.Service { return r.chat }

@@ -33,6 +33,10 @@ type FileMemoryService struct {
 	mu sync.Mutex // protects the per-scope file writes (project + user are separate paths but a single mutex is plenty for this volume)
 }
 
+// Compile-time tripwire: NewFileMemoryService returns the concrete type,
+// so nothing checks memory.Service conformance until this assertion.
+var _ memory.Service = (*FileMemoryService)(nil)
+
 // NewFileMemoryService captures the current working directory and
 // the storage home. cwd is used as-is; if the agent later
 // switches directories the project scope still points at the

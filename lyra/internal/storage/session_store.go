@@ -31,6 +31,12 @@ type FileSessionService struct {
 	path string
 }
 
+// Compile-time tripwire: FileSessionService is handed to callers as a
+// session.Service. NewFileSessionService returns the concrete type, so
+// the interface conformance isn't checked by a constructor return —
+// this assertion catches drift if either side's signature changes.
+var _ session.Service = (*FileSessionService)(nil)
+
 // NewFileSessionService opens (or creates) the sessions file
 // under the storage home directory. Returns an error when the
 // directory cannot be created or the existing file is unreadable
