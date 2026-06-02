@@ -32,11 +32,19 @@ import (
 	"github.com/Tangerg/lynx/lyra/rpc/transport"
 )
 
+// messageHandler is the dispatch surface this transport needs: route
+// one inbound message, return the synchronous reply plus any stream.
+// Defined here (consumer side) so the transport depends on the single
+// method it calls rather than the concrete *dispatch.Dispatcher.
+type messageHandler interface {
+	Handle(ctx context.Context, msg transport.Message, expectedMethod string) dispatch.HandleResult
+}
+
 // Transport is the in-process implementation of [transport.Transport].
 // Messages are routed through a dispatch.Dispatcher; responses /
 // notifications come back via the Recv channel.
 type Transport struct {
-	dispatcher *dispatch.Dispatcher
+	dispatcher messageHandler
 
 	in    chan transport.Message // outbound from Runtime's POV → inbound to client
 	once  sync.Once
