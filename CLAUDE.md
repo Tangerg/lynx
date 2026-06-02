@@ -54,6 +54,8 @@
 
 判断"这段代码该不该这么写 / 这个 PR 该不该 merge"的硬尺子。每条都配 lynx 真实命中的例子。
 
+> **本段是速查红线版。** 这些原则背后的**组织哲学 + 包设计规范 + 编码规范的"为什么"**(薄核 + 三形态变体 + 窄腰 + 一个扩展机制 + 库优于框架,经 embabel convergent design 与 Go 团队 MCP SDK 双重印证)见 [`DESIGN_PHILOSOPHY.md`](DESIGN_PHILOSOPHY.md)。设计新能力 / 新包 / 改公开 API 前,先用它的 §1 试金石与 §6 自检清单过一遍。
+
 ### 高内聚低耦合（High Cohesion / Low Coupling）
 
 - **高内聚** = 一个 package / struct 内的东西**为同一个目的服务**。`internal/service/session/` 全是会话生命周期、`agentdoc/` 全是 AGENTS.md 发现 —— 这就是高内聚
