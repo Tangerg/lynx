@@ -1,4 +1,4 @@
-import type { ContentBlock, PlanItem, ToolCall } from "@/protocol/agui/viewState";
+import type { ContentBlock, PlanItem, ToolCall } from "@/protocol/run/viewState";
 import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
 import { ToolCard } from "@/components/tools/ToolCard";
 import { PluginContentBlock } from "@/plugins/PluginContentBlock";

@@ -40,10 +40,10 @@ describe("usePluginErrorStore", () => {
 
 describe("reportPluginError", () => {
   it("captures Error.message", () => {
-    reportPluginError("p", "agui", new Error("boom"));
+    reportPluginError("p", "events", new Error("boom"));
     const e = usePluginErrorStore.getState().log[0]!;
     expect(e.plugin).toBe("p");
-    expect(e.source).toBe("agui");
+    expect(e.source).toBe("events");
     expect(e.message).toBe("boom");
   });
 

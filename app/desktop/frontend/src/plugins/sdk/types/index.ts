@@ -7,7 +7,7 @@
 // pick types from one entry point — domain boundaries matter for authors,
 // not consumers.
 
-export * from "./agui";
+export * from "./events";
 export * from "./commands";
 export * from "./common";
 export * from "./composer";

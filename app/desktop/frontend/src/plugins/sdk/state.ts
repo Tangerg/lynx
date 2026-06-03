@@ -4,7 +4,7 @@
 // authors touch the AgentViewState shape directly, they compose updates from
 // these helpers:
 //
-//   host.agui.on("monitoring.cpu", (value) =>
+//   host.events.onCustom("monitoring.cpu", (value) =>
 //     appendBlockToLatestAssistant({ kind: "cpuChart", series: value.series })
 //   );
 
@@ -17,7 +17,7 @@ import type {
   Message,
   PlanItem,
   TimelineEntry,
-} from "@/protocol/agui/viewState";
+} from "@/protocol/run/viewState";
 
 /** Append a content block to a specific message by id. No-op if not found. */
 export function appendBlockToMessage<K extends ContentBlockKind>(

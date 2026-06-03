@@ -1,26 +1,25 @@
 // Sidecar HTTP endpoints — flat JSON, **not** JSON-RPC envelope.
-// See docs/API.md §9. Used for liveness probes + version negotiation
+// See TRANSPORT.md §12. Used for liveness probes + version negotiation
 // before the JSON-RPC handshake. No Bearer token, no Last-Event-Id,
 // no envelope — curl-friendly metadata only.
 //
 // These are HTTP-transport-only — InProcess/Wails IPC don't have an
-// equivalent (in-process knows the version at compile time).
+// equivalent (those cover the same need via runtime.initialize /
+// runtime.ping). `/v2/info` content == the initialize response's flat
+// subset; `/v2/health` == runtime.ping (TRANSPORT.md §12).
 
 import { RpcTransportError } from "./errors";
-import type { ServerCapabilities } from "./shapes";
+import type { ServerCapabilities, ServerInfo } from "./shapes";
 
 /**
- * Response of `GET /v1/info` (and a structurally-compatible subset of
- * `runtime.initialize` result). Named `RuntimeInfo` rather than
- * `RuntimeInfo` because the *type* describes the whole handshake snapshot
- * — the *field* `serverInfo` inside it describes name+version, so
- * collapsing both into a single `RuntimeInfo` name was awkward
- * (`info.serverInfo.serverInfo.name`).
+ * Response of `GET /v2/info` — the flat subset of the `runtime.initialize`
+ * result, accessible pre-handshake. Backed by the same server state as
+ * `runtime.initialize` (TRANSPORT.md §12.2).
  */
 export interface RuntimeInfo {
-  serverInfo: { name: string; version: string };
   protocolVersion: string;
-  capabilities: Pick<ServerCapabilities, "events" | "features" | "providers">;
+  serverInfo: ServerInfo;
+  capabilities: ServerCapabilities;
 }
 
 export interface HealthStatus {
@@ -53,7 +52,7 @@ export function createSidecarClient(config: SidecarClientConfig): SidecarClient 
     } catch (err) {
       throw new RpcTransportError(`sidecar ${path}: ${(err as Error).message}`);
     }
-    // 503 from /v1/health is still valid JSON — let caller see `status` field.
+    // 503 from /v2/health is still valid JSON — let caller see `status` field.
     if (!res.ok && res.status !== 503) {
       throw new RpcTransportError(`sidecar ${path}: http ${res.status}`, res.status);
     }
@@ -66,7 +65,7 @@ export function createSidecarClient(config: SidecarClientConfig): SidecarClient 
   }
 
   return {
-    info: (signal) => getJson<RuntimeInfo>("/v1/info", signal),
-    health: (signal) => getJson<HealthStatus>("/v1/health", signal),
+    info: (signal) => getJson<RuntimeInfo>("/v2/info", signal),
+    health: (signal) => getJson<HealthStatus>("/v2/health", signal),
   };
 }

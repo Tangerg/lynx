@@ -168,7 +168,7 @@ describe("diagnostics store: ingest", () => {
       batch([
         () =>
           counterMetric({
-            name: "lyra.agui.event.count",
+            name: "lyra.run.event.count",
             attrs: { eventType: "TEXT_MESSAGE_CONTENT" },
             total: 42,
           }),

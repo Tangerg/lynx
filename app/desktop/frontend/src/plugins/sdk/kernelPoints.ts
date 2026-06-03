@@ -19,7 +19,7 @@ import type {
   ComposerPlaceholderSpec,
   ComposerStatusSpec,
   ContentBlockRenderer,
-  CoreEventHandler,
+  StreamEventHandler,
   CustomEventHandler,
   DataProviderSpec,
   LayoutSlotSpec,
@@ -43,7 +43,7 @@ import type {
   ToolPreviewComponent,
   WorkspaceViewSpec,
 } from "./types";
-import type { ContentBlockKind } from "@/protocol/agui/viewState";
+import type { ContentBlockKind } from "@/protocol/run/viewState";
 import { defineExtensionPoint } from "./defineExtensionPoint";
 import { LIFECYCLE_POINT_IDS } from "./pointIds";
 import { normalizeCombo } from "./registry";
@@ -199,18 +199,18 @@ export const PLUGIN_UNLOAD_LISTENER = defineExtensionPoint<(name: string) => voi
   keying: "multi",
 });
 
-// ---- AG-UI events + layout (multi, sub-keyed by name / type / slot) -------
+// ---- Run events + layout (multi, sub-keyed by name / type / slot) ---------
 // The item wraps its sub-key (name / eventType / slot) alongside the payload;
 // the events + layout selectors build a cached secondary index over it (see
-// `createPointSubIndex`). The reducer hits these per AG-UI event.
+// `createPointSubIndex`). The reducer hits these per StreamEvent.
 export const CUSTOM_EVENT_HANDLER = defineExtensionPoint<{
   name: string;
   handler: CustomEventHandler<unknown>;
-}>({ id: "lyra.agui.customEvent", capability: "agui", keying: "multi" });
-export const CORE_EVENT_HANDLER = defineExtensionPoint<{
+}>({ id: "lyra.events.custom", capability: "events", keying: "multi" });
+export const STREAM_EVENT_HANDLER = defineExtensionPoint<{
   eventType: string;
-  handler: CoreEventHandler;
-}>({ id: "lyra.agui.coreEvent", capability: "agui", keying: "multi" });
+  handler: StreamEventHandler;
+}>({ id: "lyra.events.stream", capability: "events", keying: "multi" });
 export const LAYOUT_SLOT = defineExtensionPoint<{ slot: string; spec: LayoutSlotSpec }>({
   id: "lyra.layoutSlot",
   capability: "layout",

@@ -50,8 +50,8 @@ export {
   listRpcAfterHooks,
   listRpcBeforeHooks,
   lookupCommandOwner,
-  lookupCoreEventHandlers,
-  lookupCustomEventHandlers,
+  lookupStreamHandlers,
+  lookupCustomHandlers,
   lookupDataProvider,
   lookupExtensionByKey,
   lookupExtensionPoint,
@@ -90,6 +90,7 @@ export type { StateSlice } from "./stateSlice";
 export type { KeyValueStore, StorageMigration } from "./storage";
 
 export type {
+  AgentDriver,
   AgentSourceSpec,
   BeforeUnloadHandler,
   CommandSpec,
@@ -102,7 +103,7 @@ export type {
   ComposerStatusSpec,
   ContentBlockRenderer,
   ContentBlockRendererProps,
-  CoreEventHandler,
+  StreamEventHandler,
   CustomEventHandler,
   DataProviderSpec,
   Disposable,

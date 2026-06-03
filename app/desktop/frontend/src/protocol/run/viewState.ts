@@ -1,28 +1,32 @@
-// Plain view-state shapes derived from AG-UI events. These are what the UI
-// components consume — they have no protocol-level concepts in them.
+// Plain view-state shapes the UI consumes. This is a *presentation
+// projection*: the reducer folds the v2 wire model (Session → Run → Item,
+// API.md §0) into message bubbles + content blocks the chat UI renders.
+// Items are the wire primitive; this grouping (one assistant turn = one
+// bubble with many blocks) is purely a UI concern.
 
-// Narrow view-side roles. We collapse AG-UI's developer/tool/reasoning roles
-// into one of three display variants — components only render these three.
+import type { OpenInterrupt } from "@/rpc";
+
+// Narrow view-side roles. userMessage → "user", everything the agent
+// produces → "assistant", protocol notes → "system".
 export type MessageRole = "user" | "assistant" | "system";
 
-// Tool-call state, derived from TOOL_CALL_START / TOOL_CALL_END events.
+// Tool-call display state, derived from toolCall Item status + error.
 export type ToolCallStatus = "running" | "ok" | "err";
 
-// Block lifecycle status — mirrors the cross-source consensus (assistant-ui's
-// MessagePartStatus, cline's ClineMessage ask/say split) so any block with
-// a non-trivial lifecycle expresses the same four states:
-//   - "running"          → streaming / still being produced
-//   - "complete"         → settled successfully
-//   - "incomplete"       → settled but interrupted / errored
-//   - "requires-action"  → awaiting human decision (approval, interrupt)
+// Block lifecycle status — any block with a non-trivial lifecycle expresses
+// the same four states:
+//   - "running"          → streaming / still being produced (Item inProgress)
+//   - "complete"         → settled successfully (Item completed)
+//   - "incomplete"       → settled but interrupted / errored (Item incomplete)
+//   - "requires-action"  → awaiting human decision (open interrupt)
 // Blocks without a lifecycle (plan / code / search / checkpoint / tool
-// pointer) don't carry this field — adding "complete" everywhere is noise.
+// pointer) don't carry this field.
 export type BlockStatus = "running" | "complete" | "incomplete" | "requires-action";
 
 export interface ToolCall {
   id: string;
-  fn: string; // toolCallName
-  args: string; // accumulated arg text
+  fn: string; // tool display name / command
+  args: string; // accumulated arg text (toolArguments deltas, pre-parse)
   status: ToolCallStatus;
   duration: string; // pre-formatted (e.g. "12ms", "LIVE")
   added?: number;
@@ -52,8 +56,9 @@ export interface QuestionOption {
   preview?: string;
 }
 
-// One clarifying question (API.md §6.9 Question). The card renders these
-// as single/multi-select cards with an optional free-text fallback.
+// One clarifying field projected from a v2 Question (API.md §4.3). The card
+// renders these as single/multi-select cards with an optional free-text
+// fallback. `id` = the QuestionField.name (answers keyed by it).
 export interface QuestionItem {
   id: string;
   question: string;
@@ -65,7 +70,7 @@ export interface QuestionItem {
 
 // ContentBlock — discriminated union extended via TypeScript declaration
 // merging on `CustomContentBlockMap`. A plugin adds:
-//   declare module "@/protocol/agui/viewState" {
+//   declare module "@/protocol/run/viewState" {
 //     interface CustomContentBlockMap {
 //       cpuChart: { kind: "cpuChart"; series: ChartPoint[] };
 //     }
@@ -73,7 +78,9 @@ export interface QuestionItem {
 // and its registered renderer is then type-checked against the union.
 
 export interface BuiltinContentBlockMap {
-  text: { kind: "text"; text: string; status: BlockStatus };
+  // `itemId` ties a streaming text block back to its agentMessage Item so
+  // `item.delta{content}` events route to the right block.
+  text: { kind: "text"; text: string; status: BlockStatus; itemId?: string };
   reasoning: { kind: "reasoning"; reasoningId: string; text: string; status: BlockStatus };
   plan: { kind: "plan" };
   tool: { kind: "tool"; toolCallId: string };
@@ -85,12 +92,16 @@ export interface BuiltinContentBlockMap {
     text: string;
     command: string;
     reason: string;
-    requestId?: string;
+    /** The interrupt's Item id + the Run to resume — the HITL response is
+     *  `runs.resume{ parentRunId, responses:[{ itemId, … }] }` (API.md §6).
+     *  Absent ⇒ decorative preview with no buttons. */
+    itemId?: string;
+    parentRunId?: string;
     decision?: "approved" | "declined";
     /** Tool args about to run — the editable baseline for approve-with-
-     *  modified-args (§4.3). Absent ⇒ the card shows no edit affordance. */
+     *  modified-args (§6.1 ApprovalResponse.editedArgs). */
     args?: Record<string, unknown>;
-    /** Risk metadata. All optional — older backends omit them. */
+    /** Risk metadata. All optional. */
     risk?: "low" | "medium" | "high";
     scope?: string[];
     target?: string;
@@ -99,10 +110,11 @@ export interface BuiltinContentBlockMap {
   question: {
     kind: "question";
     status: BlockStatus;
-    requestId?: string;
+    /** The question Item id + the Run to resume (see approval). */
+    itemId?: string;
+    parentRunId?: string;
     questions: QuestionItem[];
-    /** Stamped true once lyra.question-result confirms the answer landed —
-     *  flips the card to its settled state. */
+    /** Stamped true once the answer is submitted — flips to settled state. */
     answered?: boolean;
   };
   checkpoint: { kind: "checkpoint"; text: string };
@@ -122,18 +134,11 @@ export interface Message {
   who: string; // display name
   time: string; // formatted timestamp
   blocks: ContentBlock[];
-  /**
-   * AG-UI ACTIVITY_* events stash arbitrary per-activity-type content
-   * here. Backends typically use it for streaming structured side-data
-   * (e.g. "draft" → { outline: [...] }, "tool_thinking" → { ... }).
-   * Renderers pick the activity types they understand and ignore the rest.
-   */
-  activities?: Record<string, unknown>;
 }
 
 export interface RunState {
   running: boolean;
-  threadId: string | null;
+  threadId: string | null; // = sessionId
   runId: string | null;
   step: number;
   totalSteps: number;
@@ -143,20 +148,18 @@ export interface RunState {
   cost: string;
 }
 
-/** Last error reported by the agent — RUN_ERROR event payload. UI shows
- *  this as a dismissible banner above the message stream. Cleared the
- *  next time RUN_STARTED fires. */
+/** Last error reported by the run — RunOutcome.type="error" (or a tool-level
+ *  failure surfaced to the banner). UI shows it as a dismissible banner;
+ *  cleared the next time a run starts. */
 export interface RunError {
   message: string;
   code?: string;
 }
 
-/** One entry on the per-thread event timeline. Drives the Run Timeline
- *  workspace view (UX review §2.2: "工具调用缺少统一 timeline").
- *
- *  Kept structural rather than message-shaped on purpose — the message
- *  stream is for *reading*, the timeline is for *auditing* what the
- *  agent did. Renderers may collapse / filter / group by `runId`. */
+/** One entry on the per-session event timeline. Drives the Run Timeline
+ *  workspace view — the message stream is for *reading*, the timeline is for
+ *  *auditing* what the agent did. Renderers may collapse / filter / group by
+ *  `runId`. */
 export type TimelineEntryKind =
   | "run-start"
   | "run-end"
@@ -177,7 +180,7 @@ export interface TimelineEntry {
   runId: string | null;
   /** Optional short label — tool fn name, approval command, error msg. */
   summary?: string;
-  /** ToolCallId / requestId / reasoningId — used to deeplink + dedupe. */
+  /** ItemId / reasoningId — used to deeplink + dedupe. */
   refId?: string;
   /** Settled status for tool-end / approval-result / run-end / run-error. */
   status?: "ok" | "err" | "approved" | "declined";
@@ -189,13 +192,20 @@ export interface AgentViewState {
   plan: PlanItem[];
   run: RunState;
   error: RunError | null;
+  /** The open assistant-turn message id — contiguous assistant-side Items
+   *  (agentMessage / reasoning / toolCall) fold into one bubble until the
+   *  next userMessage / run boundary. Reset on run.started + userMessage. */
+  turnMessageId: string | null;
   /** Append-only audit log of run-significant events. See TimelineEntry. */
   timeline: TimelineEntry[];
+  /** Pending HITL interrupts for this session — discovered from
+   *  run.finished{interrupt} / runs.listOpenInterrupts. The cards resume via
+   *  `parentRunId` + the interrupt `itemId` (API.md §6). */
+  openInterrupts: OpenInterrupt[];
   /**
-   * Backend-owned shared state — AG-UI STATE_SNAPSHOT / STATE_DELTA.
-   * Free-form JSON the agent maintains and the UI observes; plugins use
-   * `useSharedState(path)` to subscribe to specific subtrees. Empty by
-   * default; not all backends populate it.
+   * Backend-owned shared state — v2 state.snapshot / state.delta. Free-form
+   * JSON the agent maintains and the UI observes; plugins subscribe to
+   * subtrees via `useSharedState(path)`. Empty by default.
    */
   shared: Record<string, unknown>;
 }
@@ -216,6 +226,8 @@ export const INITIAL_VIEW_STATE: AgentViewState = {
     cost: "0.00",
   },
   error: null,
+  turnMessageId: null,
   timeline: [],
+  openInterrupts: [],
   shared: {},
 };

@@ -1,8 +1,7 @@
-import type { BaseEvent } from "@ag-ui/core";
+import type { StreamEvent } from "@/rpc";
 import type { Disposable, ToolPreviewComponent } from "./types";
-import { EventType } from "@ag-ui/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { INITIAL_VIEW_STATE } from "@/protocol/agui/viewState";
+import { INITIAL_VIEW_STATE } from "@/protocol/run/viewState";
 import { useConfigStore } from "./config";
 import { createHost } from "./host";
 import { useNotificationStore } from "./notifications";
@@ -35,8 +34,8 @@ import { normalizeCombo, usePluginStore } from "./registry";
 import {
   listRpcAfterHooks,
   listRpcBeforeHooks,
-  lookupCoreEventHandlers,
-  lookupCustomEventHandlers,
+  lookupStreamHandlers,
+  lookupCustomHandlers,
   lookupDataProvider,
   lookupExtensionPoint,
   pickAgentSource,
@@ -145,15 +144,15 @@ describe("plugin registry", () => {
     expect(panes.map((p) => p.id)).toEqual(["a", "z"]);
   });
 
-  it("lookupCustomEventHandlers returns every registered handler in order", () => {
+  it("lookupCustomHandlers returns every registered handler in order", () => {
     const sinkA: Disposable[] = [];
     const sinkB: Disposable[] = [];
     const handlerA = vi.fn();
     const handlerB = vi.fn();
-    createHost("alpha", sinkA).agui.on("custom.thing", handlerA);
-    createHost("beta", sinkB).agui.on("custom.thing", handlerB);
+    createHost("alpha", sinkA).events.onCustom("custom.thing", handlerA);
+    createHost("beta", sinkB).events.onCustom("custom.thing", handlerB);
 
-    const found = lookupCustomEventHandlers("custom.thing");
+    const found = lookupCustomHandlers("custom.thing");
     expect(found.map((h) => h.handler)).toEqual([handlerA, handlerB]);
     expect(found.map((h) => h.pluginName)).toEqual(["alpha", "beta"]);
   });
@@ -172,22 +171,25 @@ describe("plugin registry", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
 
-    host.agui.onCore(EventType.RUN_STARTED, (s) => ({
+    host.events.onStream("run.started", (s) => ({
       ...s,
       run: { ...s.run, threadId: "a" },
     }));
-    host.agui.onCore(EventType.RUN_STARTED, (s) => ({
+    host.events.onStream("run.started", (s) => ({
       ...s,
       run: { ...s.run, threadId: `${s.run.threadId}b` },
     }));
 
-    const handlers = lookupCoreEventHandlers(EventType.RUN_STARTED);
+    const handlers = lookupStreamHandlers("run.started");
     expect(handlers).toHaveLength(2);
 
     // Apply by hand to verify ordering.
     let state = INITIAL_VIEW_STATE;
     for (const { handler } of handlers) {
-      state = handler(state, { type: EventType.RUN_STARTED } as BaseEvent);
+      state = handler(state, {
+        type: "run.started",
+        run: { id: "r", sessionId: "a" },
+      } as StreamEvent);
     }
     expect(state.run.threadId).toBe("ab");
   });
@@ -196,11 +198,11 @@ describe("plugin registry", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
 
-    const d = host.agui.onCore(EventType.RUN_STARTED, (s) => s);
-    expect(lookupCoreEventHandlers(EventType.RUN_STARTED)).toHaveLength(1);
+    const d = host.events.onStream("run.started", (s) => s);
+    expect(lookupStreamHandlers("run.started")).toHaveLength(1);
 
     d.dispose();
-    expect(lookupCoreEventHandlers(EventType.RUN_STARTED)).toHaveLength(0);
+    expect(lookupStreamHandlers("run.started")).toHaveLength(0);
   });
 
   it("layout.register stores the spec under (slot, plugin, id)", () => {

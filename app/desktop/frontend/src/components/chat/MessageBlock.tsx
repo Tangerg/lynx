@@ -9,7 +9,7 @@
 import type { Citation } from "./CitationContext";
 import type { PartCtx } from "./PartRenderer";
 import type { IconName } from "@/components/common";
-import type { Message } from "@/protocol/agui/viewState";
+import type { Message } from "@/protocol/run/viewState";
 import { memo, useMemo, useRef } from "react";
 import { Icon } from "@/components/common";
 import { Avatar } from "@/components/common/Avatar";

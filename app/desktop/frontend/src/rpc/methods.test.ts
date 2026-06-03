@@ -1,14 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { createRpcClient } from "./client";
-import { asSessionId } from "./ids";
+import { asRunId, asSessionId } from "./ids";
 import { createMethods } from "./methods";
+import type { RunEvent, StreamEvent } from "./shapes";
+import { RUN_EVENT_METHOD } from "./stream";
 import { createMemoryTransport } from "./transports/memory";
 import { waitForRequest } from "./transports/memory.testkit";
 import type { RpcMessage } from "./types";
 import { JSONRPC_VERSION } from "./types";
 
+function runEvent(runId: string, eventId: string, event: StreamEvent): RunEvent {
+  return { runId, eventId, timestamp: "2026-06-03T00:00:00Z", durable: true, event } as RunEvent;
+}
+
 describe("methods factory", () => {
-  it("sessions.list sends sessions.list method with optional query", async () => {
+  it("sessions.list sends sessions.list with optional query and returns a Page", async () => {
     const t = createMemoryTransport();
     const client = createRpcClient(t);
     const methods = createMethods(client);
@@ -18,12 +24,8 @@ describe("methods factory", () => {
     expect(req.method).toBe("sessions.list");
     expect(req.params).toEqual({ limit: 10 });
 
-    t.inject({
-      jsonrpc: JSONRPC_VERSION,
-      id: req.id,
-      result: { items: [], hasMore: false },
-    } as RpcMessage);
-    await expect(promise).resolves.toEqual({ items: [], hasMore: false });
+    t.inject({ jsonrpc: JSONRPC_VERSION, id: req.id, result: { data: [] } } as RpcMessage);
+    await expect(promise).resolves.toEqual({ data: [] });
     await client.close();
   });
 
@@ -38,96 +40,86 @@ describe("methods factory", () => {
     await client.close();
   });
 
-  it("runs.start returns streaming result + AG-UI events iterator", async () => {
+  it("runs.start returns a streaming result that ends on root run.finished", async () => {
     const t = createMemoryTransport();
     const client = createRpcClient(t);
     const methods = createMethods(client);
 
     const startPromise = methods.runs.start({
-      sessionId: asSessionId("s1"),
-      messages: [],
+      sessionId: asSessionId("ses_1"),
+      input: [{ type: "text", text: "hi" }],
     });
     const req = await waitForRequest(t, "runs.start");
+    expect(req.params).toMatchObject({ sessionId: "ses_1" });
 
-    t.inject({
-      jsonrpc: JSONRPC_VERSION,
-      id: req.id,
-      result: { runId: "r1" },
-    } as RpcMessage);
-
+    t.inject({ jsonrpc: JSONRPC_VERSION, id: req.id, result: { runId: "run_1" } } as RpcMessage);
     const { result, events } = await startPromise;
-    expect(result.runId).toBe("r1");
+    expect(result.runId).toBe("run_1");
 
-    // Push two events on the right run, then close.
     t.inject({
       jsonrpc: JSONRPC_VERSION,
-      method: "notifications/run/event",
-      params: {
-        runId: "r1",
-        eventId: "1",
-        ts: "2025-01-01T00:00:00Z",
-        event: { type: "TEXT_MESSAGE_START", messageId: "m1" },
-      },
+      method: RUN_EVENT_METHOD,
+      params: runEvent("run_1", "evt_1", {
+        type: "item.started",
+        item: { id: asRunId("item_1"), type: "agentMessage" } as never,
+      }),
     });
     t.inject({
       jsonrpc: JSONRPC_VERSION,
-      method: "notifications/run/event",
-      params: {
-        runId: "r1",
-        eventId: "2",
-        ts: "2025-01-01T00:00:00Z",
-        event: { type: "TEXT_MESSAGE_END", messageId: "m1" },
-      },
-    });
-    t.inject({
-      jsonrpc: JSONRPC_VERSION,
-      method: "notifications/run/closed",
-      params: { runId: "r1" },
+      method: RUN_EVENT_METHOD,
+      params: runEvent("run_1", "evt_2", {
+        type: "run.finished",
+        outcome: { type: "completed", result: {} },
+      }),
     });
 
-    const collected: unknown[] = [];
+    const collected: RunEvent[] = [];
     for await (const ev of events) collected.push(ev);
-    expect(collected).toHaveLength(2);
-
+    expect(collected.map((e) => e.event.type)).toEqual(["item.started", "run.finished"]);
     await client.close();
   });
 
-  it("filters events by runId (ignores other runs)", async () => {
+  it("ignores events for foreign runs", async () => {
     const t = createMemoryTransport();
     const client = createRpcClient(t);
     const methods = createMethods(client);
 
-    const startPromise = methods.runs.start({ sessionId: asSessionId("s1"), messages: [] });
+    const startPromise = methods.runs.start({
+      sessionId: asSessionId("ses_1"),
+      input: [{ type: "text", text: "hi" }],
+    });
     const req = await waitForRequest(t, "runs.start");
-    t.inject({
-      jsonrpc: JSONRPC_VERSION,
-      id: req.id,
-      result: { runId: "r1" },
-    } as RpcMessage);
+    t.inject({ jsonrpc: JSONRPC_VERSION, id: req.id, result: { runId: "run_1" } } as RpcMessage);
     const { events } = await startPromise;
 
-    // Foreign run — must be ignored.
     t.inject({
       jsonrpc: JSONRPC_VERSION,
-      method: "notifications/run/event",
-      params: { runId: "OTHER", eventId: "x", ts: "2025-01-01T00:00:00Z", event: { type: "X" } },
-    });
-    // Our run + close.
-    t.inject({
-      jsonrpc: JSONRPC_VERSION,
-      method: "notifications/run/event",
-      params: { runId: "r1", eventId: "1", ts: "2025-01-01T00:00:00Z", event: { type: "MINE" } },
+      method: RUN_EVENT_METHOD,
+      params: runEvent("run_OTHER", "evt_x", {
+        type: "item.started",
+        item: { id: asRunId("item_x"), type: "agentMessage" } as never,
+      }),
     });
     t.inject({
       jsonrpc: JSONRPC_VERSION,
-      method: "notifications/run/closed",
-      params: { runId: "r1" },
+      method: RUN_EVENT_METHOD,
+      params: runEvent("run_1", "evt_1", {
+        type: "item.completed",
+        item: { id: asRunId("item_1"), type: "agentMessage" } as never,
+      }),
+    });
+    t.inject({
+      jsonrpc: JSONRPC_VERSION,
+      method: RUN_EVENT_METHOD,
+      params: runEvent("run_1", "evt_2", {
+        type: "run.finished",
+        outcome: { type: "completed", result: {} },
+      }),
     });
 
-    const collected: Array<{ type?: string }> = [];
-    for await (const ev of events) collected.push(ev as { type?: string });
-    expect(collected).toHaveLength(1);
-    expect(collected[0]!.type).toBe("MINE");
+    const collected: RunEvent[] = [];
+    for await (const ev of events) collected.push(ev);
+    expect(collected.map((e) => e.event.type)).toEqual(["item.completed", "run.finished"]);
     await client.close();
   });
 });

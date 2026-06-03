@@ -55,8 +55,14 @@ export interface RpcErrorPayload {
 }
 
 // ---------------------------------------------------------------------------
-// Error codes (see docs/API.md §7.1 + §7.2).
+// Error codes (docs/API.md §8.2).
 // ---------------------------------------------------------------------------
+//
+// IMPORTANT: codes are v2-fresh and NOT guaranteed to match any prior
+// baseline. client + server judge errors by `error.data.type` (the
+// symbolic name in `ProblemData.type`), NOT by the numeric code — the
+// number is only a coarse classification. `errorType(err)` below reads
+// the name; prefer it over comparing codes.
 
 // JSON-RPC 2.0 standard codes.
 export const RPC_PARSE_ERROR = -32700;
@@ -65,19 +71,33 @@ export const RPC_METHOD_NOT_FOUND = -32601;
 export const RPC_INVALID_PARAMS = -32602;
 export const RPC_INTERNAL_ERROR = -32603;
 
-// Lyra business codes in the -32000..-32099 range. Numbers are stable —
-// adding a new code requires bumping protocolVersion.
+// Lyra business codes (§8.2).
 export const RPC_PROVIDER_ERROR = -32001;
-export const RPC_PROVIDER_RATE_LIMITED = -32002;
-export const RPC_TOOL_FAILED = -32003;
-export const RPC_APPROVAL_REQUIRED = -32004;
-export const RPC_SESSION_NOT_FOUND = -32005;
-export const RPC_MESSAGE_NOT_FOUND = -32006;
-export const RPC_RUN_NOT_FOUND = -32007;
-export const RPC_ATTACHMENT_TOO_LARGE = -32008;
-export const RPC_CAPABILITY_NOT_NEGOTIATED = -32009;
-export const RPC_INVALID_PROTOCOL_VERSION = -32010;
-export const RPC_PROTOCOL_VIOLATION = -32011;
+export const RPC_SESSION_NOT_FOUND = -32002;
+export const RPC_RUN_NOT_FOUND = -32003;
+export const RPC_ITEM_NOT_FOUND = -32004;
+export const RPC_CWD_UNAVAILABLE = -32005;
+export const RPC_CAPABILITY_NOT_NEGOTIATED = -32006;
+export const RPC_RUN_NOT_RUNNING = -32007;
+export const RPC_RUN_ALREADY_FINISHED = -32008;
+export const RPC_CHECKPOINT_UNAVAILABLE = -32009;
+export const RPC_ATTACHMENT_TOO_LARGE = -32010;
+export const RPC_UNSUPPORTED_MIME = -32011;
+export const RPC_TOOL_DENIED = -32012;
+export const RPC_PATH_OUTSIDE_ROOT = -32013;
+export const RPC_INTERRUPT_NOT_OPEN = -32014;
+export const RPC_IDEMPOTENCY_CONFLICT = -32015;
+export const RPC_INVALID_PROTOCOL_VERSION = -32016;
+
+// Read the stable symbolic error name from an RPCError.data.type (§8.2).
+// This is the canonical way to branch on errors — never compare codes.
+export function errorType(data: unknown): string | undefined {
+  if (data && typeof data === "object" && "type" in data) {
+    const t = (data as { type: unknown }).type;
+    return typeof t === "string" ? t : undefined;
+  }
+  return undefined;
+}
 
 // Discriminators — used by transport layer to route inbound messages.
 export function isRequest(msg: RpcMessage): msg is RpcRequest {

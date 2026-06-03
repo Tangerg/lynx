@@ -5,8 +5,18 @@
 // `defaultCommands` lives in a sibling file because it's substantially
 // bigger than the rest (~100 lines for the reactive command rebuild).
 
-import type { MCPServer as SidebarMCPServer, SidebarSession } from "@/lib/data/queries";
-import type { MCPServer as RpcMCPServer, Session } from "@/rpc";
+import type {
+  FileChange as SidebarFileChange,
+  MCPServer as SidebarMCPServer,
+  SidebarProject,
+  SidebarSession,
+} from "@/lib/data/queries";
+import type {
+  FileChange as RpcFileChange,
+  McpServer as RpcMCPServer,
+  Project as RpcProject,
+  Session,
+} from "@/rpc";
 import { api } from "@/lib/data/http";
 import { AGUI_BASE } from "@/main/config";
 import { getContainer } from "@/main/container";
@@ -41,15 +51,38 @@ const MCP_ICON: Record<string, string> = {
   Postgres: "tool",
   Slack: "chat",
 };
+const MCP_STATUS: Record<RpcMCPServer["status"], SidebarMCPServer["status"]> = {
+  connected: "active",
+  disconnected: "idle",
+  error: "error",
+};
 function toSidebarMCPServer(s: RpcMCPServer): SidebarMCPServer {
   return {
     id: s.name,
     name: s.name,
-    desc: s.desc,
-    tools: s.toolCount,
-    status: s.status,
+    desc: s.description ?? "",
+    tools: 0, // tool count comes from workspace.mcp.listTools, not the list row
+    status: MCP_STATUS[s.status],
     icon: MCP_ICON[s.name] ?? "tool",
   };
+}
+
+// `projects` — v2 Project keys identity on cwd (no opaque id, no active flag).
+function toSidebarProject(p: RpcProject): SidebarProject {
+  return { id: p.cwd, name: p.name, branch: p.branch ?? "" };
+}
+
+// `files-changed` — v2 FileChange carries the status only; the sidebar row
+// wants a short code + line counts (counts come from getDiff, not the list).
+const FILE_CHANGE: Record<RpcFileChange["status"], SidebarFileChange["change"]> = {
+  added: "add",
+  untracked: "add",
+  modified: "mod",
+  renamed: "mod",
+  deleted: "del",
+};
+function toSidebarFileChange(f: RpcFileChange): SidebarFileChange {
+  return { path: f.path, change: FILE_CHANGE[f.status], added: 0, removed: 0 };
 }
 
 export { defaultCommands } from "./commands";
@@ -151,19 +184,19 @@ export const defaultData = definePlugin({
 
     host.extensions.contribute(DATA_PROVIDER, {
       key: "sessions",
-      fetcher: async () => (await methods().sessions.list()).items.map(toSidebarSession),
+      fetcher: async () => (await methods().sessions.list()).data.map(toSidebarSession),
     });
     host.extensions.contribute(DATA_PROVIDER, {
       key: "projects",
-      fetcher: () => methods().workspace.projects(),
+      fetcher: async () => (await methods().workspace.listProjects()).map(toSidebarProject),
     });
     host.extensions.contribute(DATA_PROVIDER, {
       key: "files-changed",
-      fetcher: () => methods().workspace.filesChanged(),
+      fetcher: async () => (await methods().workspace.listFileChanges()).map(toSidebarFileChange),
     });
     host.extensions.contribute(DATA_PROVIDER, {
       key: "mcp-servers",
-      fetcher: async () => (await methods().workspace.mcp.list()).map(toSidebarMCPServer),
+      fetcher: async () => (await methods().workspace.mcp.listServers()).map(toSidebarMCPServer),
     });
 
     for (const key of HTTP_KEYS) {

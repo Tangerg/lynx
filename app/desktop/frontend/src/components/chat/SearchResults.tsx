@@ -1,4 +1,4 @@
-import type { SearchResult } from "@/protocol/agui/viewState";
+import type { SearchResult } from "@/protocol/run/viewState";
 
 // Search-results content block — grid of source cards. Each card shows
 // favicon + domain + timestamp + title (2-line clamp) + snippet (3-line

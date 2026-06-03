@@ -6,7 +6,7 @@
 // it — the underscore-prefixed plugin-internal location was the wrong
 // home.
 
-import type { Message } from "@/protocol/agui/viewState";
+import type { Message } from "@/protocol/run/viewState";
 
 /**
  * Best-effort plaintext extraction from a Message's content blocks. Only

@@ -7,7 +7,7 @@ import type {
   BeforeUnloadHandler,
   CommandSpec,
   ContentBlockRenderer,
-  CoreEventHandler,
+  StreamEventHandler,
   CustomEventHandler,
   Disposable,
   ExtensionContributionOptions,
@@ -23,7 +23,7 @@ import type {
   RpcAfterResponseHook,
   RpcBeforeRequestHook,
 } from "./types";
-import type { ContentBlockKind } from "@/protocol/agui/viewState";
+import type { ContentBlockKind } from "@/protocol/run/viewState";
 import { api } from "@/lib/data/http";
 import { addLocaleBundle } from "@/lib/i18n";
 import { useSessionStore } from "@/state/sessionStore";
@@ -34,7 +34,7 @@ import {
   BEFORE_UNLOAD_HANDLER,
   COMMAND,
   CONTENT_BLOCK,
-  CORE_EVENT_HANDLER,
+  STREAM_EVENT_HANDLER,
   CUSTOM_EVENT_HANDLER,
   LAYOUT_SLOT,
   LOG_SUBSCRIBER,
@@ -165,17 +165,17 @@ export function createHost(
       },
     },
 
-    agui: {
+    events: {
       // Both fan out to every matching handler; `multi` keying lets a plugin
       // register more than once for the same name/type (each contribution
       // coexists). The reducer chains StateUpdate returns across them.
-      on: <T = unknown>(name: string, handler: CustomEventHandler<T>): Disposable =>
+      onCustom: <T = unknown>(name: string, handler: CustomEventHandler<T>): Disposable =>
         contribute(CUSTOM_EVENT_HANDLER, {
           name,
           handler: handler as CustomEventHandler<unknown>,
         }),
-      onCore: (eventType: string, handler: CoreEventHandler): Disposable =>
-        contribute(CORE_EVENT_HANDLER, { eventType, handler }),
+      onStream: (eventType: string, handler: StreamEventHandler): Disposable =>
+        contribute(STREAM_EVENT_HANDLER, { eventType, handler }),
     },
 
     layout: {

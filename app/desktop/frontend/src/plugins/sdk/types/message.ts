@@ -1,7 +1,7 @@
 // Message + content-block plugin surface.
 
 import type { ComponentType } from "react";
-import type { ContentBlockKind, ContentBlockMap } from "@/protocol/agui/viewState";
+import type { ContentBlockKind, ContentBlockMap } from "@/protocol/run/viewState";
 
 /**
  * Renderer props for a specific content-block kind. The `block` prop is

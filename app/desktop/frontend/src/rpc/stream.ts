@@ -1,83 +1,55 @@
-// Server-side notification stream → typed AsyncIterable<T> bridge.
+// Server-notification stream → typed AsyncIterable bridge (API.md §5 / §10,
+// TRANSPORT.md §7-§9).
 //
-// Every Runtime Protocol streaming method (runs.start /
-// workspace.terminal.subscribe / background.subscribe) follows the same
-// shape: an immediate Response carrying a resource id (runId / taskId),
-// followed by `notifications/<topic>` notifications keyed by that id.
+// v2 collapses run streaming onto ONE notification method:
+// `notifications.run.event`, params = RunEvent. There is no separate
+// "run closed" method — the terminal signal is a `run.finished`
+// StreamEvent for the ROOT run, delivered inside the same stream.
 //
-// This module gives one `makeFilteredStream<T, P>()` helper + 3 typed
-// wrappers (streamRunEvents / streamTerminalOutput / streamBackgroundUpdates)
-// that the methods factory consumes. The underlying push→pull async
-// channel comes from `channel.ts`. Per-notification-method Zod parsers
-// (`parseRunEventParams` / etc.) give callers typed params in their
-// `extract` callbacks — no `as unknown as Foo` double-casts.
+// A single root run stream carries the WHOLE run tree (root + every
+// descendant subagent run, §5.4). We track tree membership by runId:
+// seed with the root, then admit a child run when its `run.started`
+// carries a `spawnedByItemId` whose owning item we've already seen on
+// this tree. The stream ends when the ROOT run's `run.finished` arrives.
 //
-// Stream close detection has two forms:
-//   - via-method: a separate `closedMethod` notification means EOS
-//                 (runs.start uses `notifications/run/closed`)
-//   - via-predicate: inspect each payload for a terminal state
-//                 (background updates carry `status: "succeeded" | ...`)
+// Background tasks stream on `notifications.background.update`, params =
+// BackgroundTask, terminal when status leaves "running".
 
-import type { BaseEvent } from "@ag-ui/core";
 import { z } from "zod";
 import { createPushPullChannel } from "./channel";
 import type { RpcClient } from "./client";
-import type { BackgroundUpdate, TermLine } from "./shapes";
+import type { BackgroundTask, RunEvent, StreamEvent } from "./shapes";
+
+export const RUN_EVENT_METHOD = "notifications.run.event";
+export const BACKGROUND_UPDATE_METHOD = "notifications.background.update";
 
 // ---------------------------------------------------------------------------
-// Notification param schemas + typed parsers
+// Trust-boundary validation (CLAUDE.md "边界校验用 Zod")
 // ---------------------------------------------------------------------------
 //
-// Per CLAUDE.md "边界校验用 Zod": the JSON-RPC notification payload is
-// a trust boundary. We validate WRAPPER shape (`{ runId | taskId,
-// eventId, ... }`) here. Inner `event` payload (for run events) stays
-// `z.unknown()` — AG-UI CUSTOM event payloads have their own Zod
-// schemas in `frontend/src/protocol/agui/schemas.ts` at the handler
-// boundary.
-//
-// On validation failure: log warning, return null. makeFilteredStream
-// drops the notification — one malformed event shouldn't kill an
-// ongoing run.
+// We validate the RunEvent ENVELOPE shape + the StreamEvent discriminator
+// here. The inner `event` payload (Item / ItemDelta / RunOutcome) is the
+// Go runtime's codegen-typed output — we cast it to StreamEvent rather
+// than re-deriving the full union in Zod (that would duplicate the whole
+// §4 catalog at the boundary for no added safety the discriminator check
+// doesn't already give). On wrapper-validation failure: warn + drop the
+// one notification; a single malformed event must not kill a run.
 
-const RunEventParamsSchema = z.object({
+const RunEventEnvelopeSchema = z.object({
   runId: z.string(),
   eventId: z.string(),
-  ts: z.string(), // §3.1: 服务端权威时间戳，每条必带
-  parentToolUseId: z.string().optional(), // 子 agent 归属（缺省=主 agent）
-  event: z.unknown(),
+  timestamp: z.string(),
+  durable: z.boolean(),
+  event: z.looseObject({ type: z.string() }),
 });
-type RunEventParams = z.infer<typeof RunEventParamsSchema>;
 
-// run/closed 现在携带 RunResult（§3.1 step 4）。流层只用 runId 判终止；
-// result 的完整形状（stopReason/usage/cost）由消费侧按 shapes.RunResult 解读。
-const RunClosedParamsSchema = z.object({
-  runId: z.string(),
-  result: z.unknown().optional(),
+const BackgroundTaskSchema = z.object({
+  id: z.string(),
+  kind: z.string(),
+  status: z.enum(["running", "completed", "failed", "canceled"]),
+  createdAt: z.string(),
 });
-type RunClosedParams = z.infer<typeof RunClosedParamsSchema>;
 
-const TerminalOutputParamsSchema = z.object({
-  runId: z.string(),
-  eventId: z.string(),
-  line: z.object({
-    kind: z.string(),
-    text: z.string(),
-  }),
-});
-type TerminalOutputParams = z.infer<typeof TerminalOutputParamsSchema>;
-
-const BackgroundUpdateParamsSchema = z.object({
-  taskId: z.string(),
-  eventId: z.string(),
-  status: z.enum(["running", "stopped", "succeeded", "failed"]),
-  progress: z.number().optional(),
-  outputDelta: z.string().optional(),
-});
-type BackgroundUpdateParams = z.infer<typeof BackgroundUpdateParamsSchema>;
-
-// Generic factory: take a schema + method name, return a parser that
-// validates + warns + returns typed result OR null. Avoids per-method
-// duplicated try/catch boilerplate.
 function makeParser<S extends z.ZodTypeAny>(method: string, schema: S) {
   return (raw: unknown): z.infer<S> | null => {
     const result = schema.safeParse(raw);
@@ -92,101 +64,70 @@ function makeParser<S extends z.ZodTypeAny>(method: string, schema: S) {
   };
 }
 
-const parseRunEventParams = makeParser("notifications/run/event", RunEventParamsSchema);
-const parseRunClosedParams = makeParser("notifications/run/closed", RunClosedParamsSchema);
-const parseTerminalOutputParams = makeParser(
-  "notifications/terminal/output",
-  TerminalOutputParamsSchema,
-);
-const parseBackgroundUpdateParams = makeParser(
-  "notifications/background/update",
-  BackgroundUpdateParamsSchema,
-);
+const parseRunEvent = makeParser(RUN_EVENT_METHOD, RunEventEnvelopeSchema);
+const parseBackgroundTask = makeParser(BACKGROUND_UPDATE_METHOD, BackgroundTaskSchema);
 
 // ---------------------------------------------------------------------------
-// makeFilteredStream — generic, typed helper
+// Run-tree membership tracker
 // ---------------------------------------------------------------------------
+//
+// Decides, for a given root run stream, whether an inbound RunEvent
+// belongs to this tree, and whether it's the terminal root finish.
 
-export interface FilteredStreamSpec<T, P> {
-  /** Field in parsed params to match against (e.g. "runId"). */
-  idField: keyof P & string;
-  /** Value to match. */
-  idValue: string;
-  /** Notification method that carries stream payloads. */
-  notificationMethod: string;
-  /**
-   * Parse + validate notification.params. Returns typed `P` on success,
-   * null on validation failure (caller drops the notification).
-   */
-  parseParams: (raw: unknown) => P | null;
-  /** Project a typed param record to the downstream value type. */
-  extract: (params: P) => T;
-  /**
-   * Close detection — exactly one of:
-   *   - `closedMethod`: subscribe to a separate notification method;
-   *     its arrival (with matching idField/idValue) closes the stream.
-   *   - `isTerminal`: predicate applied to each event params; if true
-   *     after pushing the value, close the stream.
-   * `closedMethod` ships with its own parser (the close payload may
-   * have a different shape).
-   */
-  closedMethod?: {
-    method: string;
-    parseParams: (raw: unknown) => Record<string, unknown> | null;
-  };
-  isTerminal?: (params: P) => boolean;
-  /** Client-side AbortSignal — fires close on abort. */
-  signal?: AbortSignal;
-}
+class RunTree {
+  private readonly runs: Set<string>;
+  private readonly itemOwner = new Map<string, string>(); // itemId → owning runId
 
-export function makeFilteredStream<T, P>(
-  client: RpcClient,
-  spec: FilteredStreamSpec<T, P>,
-): AsyncIterable<T> {
-  const channel = createPushPullChannel<T>();
-
-  const unsubEvent = client.subscribe(spec.notificationMethod, (msg) => {
-    if (channel.closed) return;
-    const params = spec.parseParams(msg.params);
-    if (!params) return;
-    if ((params as Record<string, unknown>)[spec.idField] !== spec.idValue) return;
-    channel.push(spec.extract(params));
-    if (spec.isTerminal?.(params)) channel.close();
-  });
-
-  const unsubClosed = spec.closedMethod
-    ? client.subscribe(spec.closedMethod.method, (msg) => {
-        const params = spec.closedMethod!.parseParams(msg.params);
-        if (!params) return;
-        if (params[spec.idField] !== spec.idValue) return;
-        channel.close();
-      })
-    : () => undefined;
-
-  const onAbort = () => channel.close();
-  if (spec.signal) {
-    if (spec.signal.aborted) channel.close();
-    else spec.signal.addEventListener("abort", onAbort, { once: true });
+  constructor(private readonly rootRunId: string) {
+    this.runs = new Set([rootRunId]);
   }
 
-  // Drop the client subscriptions + abort listener. Idempotent so it's
-  // safe to call from both exit paths below.
-  let cleanedUp = false;
-  const cleanup = (): void => {
-    if (cleanedUp) return;
-    cleanedUp = true;
-    unsubEvent();
-    unsubClosed();
-    if (spec.signal) spec.signal.removeEventListener("abort", onAbort);
-  };
+  /** Update tree membership from an event; return true if it belongs here. */
+  admit(ev: RunEvent): boolean {
+    const e = ev.event;
+    if (e.type === "run.started") {
+      const spawnedBy = e.run.spawnedByItemId;
+      if (spawnedBy && this.itemOwner.has(spawnedBy)) this.runs.add(e.run.id);
+    } else if (e.type === "item.started" || e.type === "item.completed") {
+      if (this.runs.has(ev.runId)) this.itemOwner.set(e.item.id, ev.runId);
+    }
+    return this.runs.has(ev.runId);
+  }
 
-  // Wrap the channel iterator so cleanup runs on BOTH consumer exit paths:
-  //   - early break / throw   → `for await` calls return()
-  //   - natural completion     → channel closes (isTerminal / closedMethod /
-  //                              abort), next() resolves done=true, and the
-  //                              loop ends WITHOUT calling return().
-  // Only handling return() leaked the run-event / run-closed subscribers in
-  // the client's map for every run that finished normally (the common case).
+  /** True once the ROOT run has finished — ends the stream. */
+  isRootFinish(ev: RunEvent): boolean {
+    return ev.runId === this.rootRunId && ev.event.type === "run.finished";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Run-event streams
+// ---------------------------------------------------------------------------
+
+function pump(
+  client: RpcClient,
+  tree: RunTree,
+  channel: ReturnType<typeof createPushPullChannel<RunEvent>>,
+  preFiltered: RunEvent[],
+): () => void {
+  for (const ev of preFiltered) {
+    if (tree.admit(ev)) channel.push(ev);
+    if (tree.isRootFinish(ev)) channel.close();
+  }
+  return client.subscribe(RUN_EVENT_METHOD, (msg) => {
+    if (channel.closed) return;
+    const parsed = parseRunEvent(msg.params);
+    if (!parsed) return;
+    const ev = { ...parsed, event: parsed.event as StreamEvent } as RunEvent;
+    if (tree.admit(ev)) channel.push(ev);
+    if (tree.isRootFinish(ev)) channel.close();
+  });
+}
+
+function makeIterable(
+  channel: ReturnType<typeof createPushPullChannel<RunEvent>>,
+  cleanup: () => void,
+): AsyncIterable<RunEvent> {
   return {
     [Symbol.asyncIterator]() {
       const inner = channel.iterator();
@@ -194,12 +135,12 @@ export function makeFilteredStream<T, P>(
         [Symbol.asyncIterator]() {
           return this;
         },
-        next: async (): Promise<IteratorResult<T>> => {
+        next: async (): Promise<IteratorResult<RunEvent>> => {
           const result = await inner.next();
           if (result.done) cleanup();
           return result;
         },
-        return: async (): Promise<IteratorResult<T>> => {
+        return: async (): Promise<IteratorResult<RunEvent>> => {
           channel.close();
           cleanup();
           return { value: undefined as never, done: true };
@@ -209,52 +150,56 @@ export function makeFilteredStream<T, P>(
   };
 }
 
-// ---------------------------------------------------------------------------
-// Typed wrappers — one per streaming method in the protocol
-// ---------------------------------------------------------------------------
-
-// Cast a typed parser to the generic "Record<string, unknown> | null"
-// shape that `closedMethod.parseParams` expects. Safe because every
-// Zod-parsed object IS a Record<string, unknown>.
-const asGenericParser =
-  <P extends object>(p: (raw: unknown) => P | null) =>
-  (raw: unknown) =>
-    p(raw) as Record<string, unknown> | null;
+/** Subscribe to a known root run's event stream (runs.subscribe). */
+export function streamRunEvents(
+  client: RpcClient,
+  rootRunId: string,
+  signal?: AbortSignal,
+): AsyncIterable<RunEvent> {
+  const channel = createPushPullChannel<RunEvent>();
+  const unsub = pump(client, new RunTree(rootRunId), channel, []);
+  const onAbort = () => channel.close();
+  if (signal) {
+    if (signal.aborted) channel.close();
+    else signal.addEventListener("abort", onAbort, { once: true });
+  }
+  let cleaned = false;
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
+    unsub();
+    if (signal) signal.removeEventListener("abort", onAbort);
+  };
+  return makeIterable(channel, cleanup);
+}
 
 /**
- * Subscribe to run events BEFORE the runId is known, then bind to it once
- * `runs.start` returns. A fast runtime emits — and broadcasts — the WHOLE run
- * the instant it handles the POST; subscribing only after the response races
- * and drops everything. So we subscribe immediately, buffer events until
- * `bind(runId)` supplies the runtime-assigned id (a client-supplied runId may
- * be ignored by the runtime — §6.3), then flush the buffer + filter ongoing.
- *
- * Returns the event iterable plus `bind`; the caller invokes `bind(result.runId)`
- * with the runs.start response's runId.
+ * Subscribe to run events BEFORE the runId is known, then bind once
+ * `runs.start` / `runs.resume` returns. A fast runtime emits + broadcasts
+ * the whole run the instant it handles the POST; subscribing only after
+ * the response races and drops the head events. So we subscribe
+ * immediately, buffer raw events until `bind(rootRunId)` supplies the
+ * runtime-assigned id, then replay the buffer through the tree filter.
  */
 export function streamRunEventsDeferred(
   client: RpcClient,
   signal?: AbortSignal,
-): { events: AsyncIterable<BaseEvent>; bind: (runId: string) => void } {
-  const channel = createPushPullChannel<BaseEvent>();
-  let runId: string | null = null;
-  const pendingEvents: RunEventParams[] = [];
-  const closedRunIds = new Set<string>();
+): { events: AsyncIterable<RunEvent>; bind: (rootRunId: string) => void } {
+  const channel = createPushPullChannel<RunEvent>();
+  const buffer: RunEvent[] = [];
+  let tree: RunTree | null = null;
 
-  const unsubEvent = client.subscribe("notifications/run/event", (msg) => {
+  const unsub = client.subscribe(RUN_EVENT_METHOD, (msg) => {
     if (channel.closed) return;
-    const p = parseRunEventParams(msg.params);
-    if (!p) return;
-    if (runId === null)
-      pendingEvents.push(p); // not bound yet — buffer until we learn our runId
-    else if (p.runId === runId) channel.push(p.event as BaseEvent);
-  });
-
-  const unsubClosed = client.subscribe("notifications/run/closed", (msg) => {
-    const p = parseRunClosedParams(msg.params);
-    if (!p) return;
-    if (runId === null) closedRunIds.add(p.runId);
-    else if (p.runId === runId) channel.close();
+    const parsed = parseRunEvent(msg.params);
+    if (!parsed) return;
+    const ev = { ...parsed, event: parsed.event as StreamEvent } as RunEvent;
+    if (tree === null) {
+      buffer.push(ev); // not bound yet — keep raw until we learn our root id
+      return;
+    }
+    if (tree.admit(ev)) channel.push(ev);
+    if (tree.isRootFinish(ev)) channel.close();
   });
 
   const onAbort = () => channel.close();
@@ -263,28 +208,70 @@ export function streamRunEventsDeferred(
     else signal.addEventListener("abort", onAbort, { once: true });
   }
 
-  let cleanedUp = false;
-  const cleanup = (): void => {
-    if (cleanedUp) return;
-    cleanedUp = true;
-    unsubEvent();
-    unsubClosed();
+  let cleaned = false;
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
+    unsub();
     if (signal) signal.removeEventListener("abort", onAbort);
   };
 
-  const events: AsyncIterable<BaseEvent> = {
+  const bind = (rootRunId: string): void => {
+    if (tree !== null) return;
+    tree = new RunTree(rootRunId);
+    for (const ev of buffer) {
+      if (tree.admit(ev)) channel.push(ev);
+      if (tree.isRootFinish(ev)) channel.close();
+    }
+    buffer.length = 0;
+  };
+
+  return { events: makeIterable(channel, cleanup), bind };
+}
+
+/** Subscribe to a background task's updates (background.subscribe). */
+export function streamBackgroundUpdates(
+  client: RpcClient,
+  taskId: string,
+  signal?: AbortSignal,
+): AsyncIterable<BackgroundTask> {
+  const channel = createPushPullChannel<BackgroundTask>();
+
+  const unsub = client.subscribe(BACKGROUND_UPDATE_METHOD, (msg) => {
+    if (channel.closed) return;
+    const task = parseBackgroundTask(msg.params);
+    if (!task || task.id !== taskId) return;
+    channel.push(task as BackgroundTask);
+    if (task.status !== "running") channel.close();
+  });
+
+  const onAbort = () => channel.close();
+  if (signal) {
+    if (signal.aborted) channel.close();
+    else signal.addEventListener("abort", onAbort, { once: true });
+  }
+
+  let cleaned = false;
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
+    unsub();
+    if (signal) signal.removeEventListener("abort", onAbort);
+  };
+
+  return {
     [Symbol.asyncIterator]() {
       const inner = channel.iterator();
       return {
         [Symbol.asyncIterator]() {
           return this;
         },
-        next: async (): Promise<IteratorResult<BaseEvent>> => {
+        next: async (): Promise<IteratorResult<BackgroundTask>> => {
           const result = await inner.next();
           if (result.done) cleanup();
           return result;
         },
-        return: async (): Promise<IteratorResult<BaseEvent>> => {
+        return: async (): Promise<IteratorResult<BackgroundTask>> => {
           channel.close();
           cleanup();
           return { value: undefined as never, done: true };
@@ -292,73 +279,4 @@ export function streamRunEventsDeferred(
       };
     },
   };
-
-  const bind = (id: string): void => {
-    if (runId !== null) return;
-    runId = id;
-    for (const p of pendingEvents) if (p.runId === id) channel.push(p.event as BaseEvent);
-    pendingEvents.length = 0;
-    if (closedRunIds.has(id)) channel.close();
-  };
-
-  return { events, bind };
-}
-
-/** Subscribe to AG-UI events from a single `runs.start` invocation. */
-export function streamRunEvents(
-  client: RpcClient,
-  runId: string,
-  signal?: AbortSignal,
-): AsyncIterable<BaseEvent> {
-  return makeFilteredStream<BaseEvent, RunEventParams>(client, {
-    idField: "runId",
-    idValue: runId,
-    notificationMethod: "notifications/run/event",
-    parseParams: parseRunEventParams,
-    extract: (p) => p.event as BaseEvent,
-    closedMethod: {
-      method: "notifications/run/closed",
-      parseParams: asGenericParser<RunClosedParams>(parseRunClosedParams),
-    },
-    signal,
-  });
-}
-
-/** Subscribe to pty output for a tool's terminal session. */
-export function streamTerminalOutput(
-  client: RpcClient,
-  runId: string,
-  signal?: AbortSignal,
-): AsyncIterable<TermLine> {
-  return makeFilteredStream<TermLine, TerminalOutputParams>(client, {
-    idField: "runId",
-    idValue: runId,
-    notificationMethod: "notifications/terminal/output",
-    parseParams: parseTerminalOutputParams,
-    extract: (p) => p.line as TermLine,
-    // Terminal streams close when the parent run closes.
-    closedMethod: {
-      method: "notifications/run/closed",
-      parseParams: asGenericParser<RunClosedParams>(parseRunClosedParams),
-    },
-    signal,
-  });
-}
-
-/** Subscribe to a long-running background task's updates. */
-export function streamBackgroundUpdates(
-  client: RpcClient,
-  taskId: string,
-  signal?: AbortSignal,
-): AsyncIterable<BackgroundUpdate> {
-  return makeFilteredStream<BackgroundUpdate, BackgroundUpdateParams>(client, {
-    idField: "taskId",
-    idValue: taskId,
-    notificationMethod: "notifications/background/update",
-    parseParams: parseBackgroundUpdateParams,
-    // No separate close notification — terminal state is in `status`.
-    isTerminal: (p) => p.status === "succeeded" || p.status === "failed" || p.status === "stopped",
-    extract: (p) => p as unknown as BackgroundUpdate,
-    signal,
-  });
 }

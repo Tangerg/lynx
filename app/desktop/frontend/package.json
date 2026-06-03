@@ -33,8 +33,6 @@
     "*.{json,md,js,cjs,ts}": "prettier --write"
   },
   "dependencies": {
-    "@ag-ui/client": "^0.0.53",
-    "@ag-ui/core": "^0.0.53",
     "@lobehub/icons": "^5.8.0",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/sdk-metrics": "^2.7.1",
@@ -76,7 +74,6 @@
     "remark-github-blockquote-alert": "^2.1.0",
     "remark-math": "^6.0.0",
     "remend": "^1.3.0",
-    "rxjs": "^7.8.1",
     "shiki": "^4.1.0",
     "sonner": "^2.0.7",
     "streamdown": "^2.5.0",

@@ -27,7 +27,7 @@ export {
 export { pickComposerPlaceholder } from "./composer";
 
 // AG-UI event handler fan-out (cached sub-index, hit per event).
-export { lookupCoreEventHandlers, lookupCustomEventHandlers } from "./events";
+export { lookupStreamHandlers, lookupCustomHandlers } from "./events";
 
 // Layout slot (sub-keyed by slot) + workspace views / settings panes
 // (registered + declared merge).

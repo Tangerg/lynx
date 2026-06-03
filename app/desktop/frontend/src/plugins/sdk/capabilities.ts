@@ -20,7 +20,7 @@ export const CAPABILITY_RISK: Record<HostCapability, CapabilityRisk> = {
   theme: "safe",
   tool: "moderate",
   message: "moderate",
-  agui: "moderate",
+  events: "moderate",
   layout: "moderate",
   workspace: "moderate",
   router: "moderate",

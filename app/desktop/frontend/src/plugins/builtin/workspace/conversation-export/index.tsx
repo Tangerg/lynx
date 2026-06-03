@@ -9,7 +9,7 @@
 // this somewhere else" workflows: human-readable Markdown for paste-
 // into-docs, and structured JSON for replay / re-import / archive.
 
-import type { Message } from "@/protocol/agui/viewState";
+import type { Message } from "@/protocol/run/viewState";
 import { definePlugin } from "@/plugins/sdk";
 import { getCurrentSessionView } from "@/state/agentStore";
 import { useSessionStore } from "@/state/sessionStore";

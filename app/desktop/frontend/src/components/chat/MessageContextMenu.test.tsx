@@ -13,7 +13,7 @@
 // helper's `send` lookup is covered indirectly by the agentStore
 // suite.
 
-import type { Message } from "@/protocol/agui/viewState";
+import type { Message } from "@/protocol/run/viewState";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { useComposerStore } from "@/state/composerStore";
