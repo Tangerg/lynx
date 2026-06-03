@@ -37,7 +37,7 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 
 	sw, err := sse.NewHTTPWriter(w)
 	if err != nil {
-		writeTransportError(w, r, http.StatusInternalServerError, "streaming unsupported")
+		writeFlatError(w, r, http.StatusInternalServerError, "streaming unsupported", false)
 		return
 	}
 	ctx := r.Context()

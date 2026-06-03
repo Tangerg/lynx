@@ -41,7 +41,7 @@ func (s *Server) observability(next http.Handler) http.Handler {
 					attribute.String("http.target", r.URL.Path),
 					attribute.String("http.method", r.Method),
 				)
-				writeTransportError(w, r, http.StatusInternalServerError, "internal error")
+				writeFlatError(w, r, http.StatusInternalServerError, "internal error", false)
 			}
 		}()
 

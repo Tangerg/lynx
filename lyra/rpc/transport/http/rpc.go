@@ -29,8 +29,8 @@ const maxRPCBodyBytes = 4 << 20
 func (s *Server) handleRPCWithMethod(w http.ResponseWriter, r *http.Request) {
 	urlMethod := r.PathValue("method")
 	if urlMethod == "" {
-		writeTransportError(w, r, http.StatusNotFound,
-			"POST /v2/rpc requires a method suffix (use /v2/rpc/{method})")
+		writeFlatError(w, r, http.StatusNotFound,
+			"POST /v2/rpc requires a method suffix (use /v2/rpc/{method})", false)
 		return
 	}
 	s.serveRPC(w, r, urlMethod)
@@ -43,7 +43,7 @@ func (s *Server) handleRPCWithMethod(w http.ResponseWriter, r *http.Request) {
 func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod string) {
 	body, err := io.ReadAll(io.LimitReader(r.Body, maxRPCBodyBytes))
 	if err != nil {
-		writeTransportError(w, r, http.StatusBadRequest, "read body: "+err.Error())
+		writeFlatError(w, r, http.StatusBadRequest, "read body: "+err.Error(), false)
 		return
 	}
 
@@ -179,7 +179,6 @@ func statusForRPC(resp *transport.Response, urlMethod, bodyMethod string) int {
 		if urlMethod != "" {
 			return http.StatusNotFound
 		}
-		return http.StatusOK
 	}
 	return http.StatusOK
 }
@@ -194,15 +193,17 @@ func chooseMethodLabel(urlMethod, bodyMethod string) string {
 	return bodyMethod
 }
 
-// writeTransportError serves 4xx/5xx responses that originated below
-// the JSON-RPC layer (request body could not be read, etc.). Per
-// API.md §7.3, these use a flat JSON envelope — NOT the JSON-RPC
-// envelope, since we may not have a valid request id.
-//
-// X-Trace-Id is echoed into the body as `traceId` so the FE's
-// RpcTransportError.traceId field gets populated for ops correlation.
-func writeTransportError(w http.ResponseWriter, r *http.Request, status int, msg string) {
+// writeFlatError serves 4xx/5xx responses that originate BELOW the
+// JSON-RPC layer (bad path, unread body, failed auth, dead stream) — a
+// flat JSON envelope `{"error", "traceId"?}` (API.md §7.3), NOT the
+// JSON-RPC envelope, since there may be no valid request id. X-Trace-Id
+// is echoed into the body's `traceId` for ops correlation. noCache adds
+// Cache-Control: no-store (auth failures must not be cached).
+func writeFlatError(w http.ResponseWriter, r *http.Request, status int, msg string, noCache bool) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if noCache {
+		w.Header().Set("Cache-Control", "no-store")
+	}
 	w.WriteHeader(status)
 	body := struct {
 		Error   string `json:"error"`
