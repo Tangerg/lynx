@@ -2,121 +2,110 @@ package protocol
 
 import "context"
 
-// Workspace is the workspace.* method group — the surface backing
-// the "what's the project doing" sidebar UI (files-changed, diff,
-// grep, terminal output, MCP status). Most of these are stubbed
-// until the wider Lyra workspace integration lands.
+// Workspace is the workspace.* method group (API.md §7.5). All read
+// methods take an optional cwd (default = serve directory); MCP methods
+// are runtime-global and take no cwd.
 type Workspace interface {
-	WorkspaceFilesChanged(ctx context.Context) ([]FileChange, error)
-	WorkspaceDiff(ctx context.Context, path string) ([]DiffRow, error)
-	WorkspaceFileHead(ctx context.Context, path string) ([]FileLine, error)
-	WorkspaceGrep(ctx context.Context, query string) (*GrepResult, error)
-
-	// WorkspaceTerminalSubscribe streams pty output for a given run's
-	// tool terminal. Returns a channel that closes when the run ends
-	// or the caller's context cancels.
-	WorkspaceTerminalSubscribe(ctx context.Context, runID string) (<-chan TermLine, error)
-
-	WorkspaceProjects(ctx context.Context) ([]Project, error)
-	WorkspaceMCPList(ctx context.Context) ([]MCPServer, error)
-	WorkspaceMCPReconnect(ctx context.Context, name string) error
-	WorkspaceSkills(ctx context.Context) ([]Skill, error)
+	WorkspaceListFileChanges(ctx context.Context, in WorkspaceQuery) ([]FileChange, error)
+	WorkspaceGetDiff(ctx context.Context, in GetDiffRequest) ([]DiffRow, error)
+	WorkspaceGetFileHead(ctx context.Context, in GetFileHeadRequest) (*FileHead, error)
+	WorkspaceGrep(ctx context.Context, in GrepRequest) (*GrepResult, error)
+	WorkspaceListProjects(ctx context.Context) ([]Project, error)
+	WorkspaceListSkills(ctx context.Context, in WorkspaceQuery) ([]Skill, error)
+	WorkspaceListAgentDocs(ctx context.Context, in WorkspaceQuery) ([]AgentDoc, error)
+	WorkspaceMCPListServers(ctx context.Context) ([]McpServer, error)
+	WorkspaceMCPListTools(ctx context.Context, in MCPListToolsRequest) ([]McpTool, error)
+	WorkspaceMCPReconnect(ctx context.Context, server string) error
 }
 
-// FileChange is one entry in workspace.filesChanged (API.md §6.5).
-type FileChange struct {
-	Path    string `json:"path"`
-	Change  string `json:"change"` // "add" | "mod" | "del"
-	Added   int    `json:"added"`
-	Removed int    `json:"removed"`
+// WorkspaceQuery is the common cwd input for workspace reads (API.md §7.5).
+type WorkspaceQuery struct {
+	Cwd string `json:"cwd,omitempty"`
 }
 
-// DiffRow is one structured row of a unified diff. Server-side parser
-// turns `git diff` output into rows so the client doesn't regex on
-// every render (API.md §6.5).
-//
-// Discriminator: Type
-//
-//	"hunk"  → Text   (the `@@ -1,3 +1,3 @@` header)
-//	"ctx"   → L, R, Code   (unchanged line, both line numbers)
-//	"add"   → R, Code      (added line, new line number)
-//	"del"   → L, Code      (removed line, old line number)
-type DiffRow struct {
-	Type string `json:"type"`
-	Text string `json:"text,omitempty"`
-	L    int    `json:"l,omitempty"`
-	R    int    `json:"r,omitempty"`
-	Code string `json:"code,omitempty"`
+// GetDiffRequest — workspace.getDiff body.
+type GetDiffRequest struct {
+	Cwd  string `json:"cwd,omitempty"`
+	Path string `json:"path,omitempty"`
 }
 
-// FileLine is one row of a structured file preview (API.md §6.5).
-type FileLine struct {
-	Ln    string `json:"ln"`   // line number or marker (e.g. "···")
-	Code  string `json:"code"` // pre-rendered HTML / highlighted text
-	Muted bool   `json:"muted,omitempty"`
-}
-
-// GrepMatch is one entry inside GrepResult.Matches.
-type GrepMatch struct {
+// GetFileHeadRequest — workspace.getFileHead body.
+type GetFileHeadRequest struct {
+	Cwd   string `json:"cwd,omitempty"`
 	Path  string `json:"path"`
-	Match string `json:"match"`
+	Lines int    `json:"lines,omitempty"`
 }
 
-// GrepResult is the workspace.grep result — a single object (NOT
-// Page<T>). Total may exceed len(Matches); a future nextCursor field
-// would be additive (API.md §6.5).
+// GrepRequest — workspace.grep body.
+type GrepRequest struct {
+	Cwd   string `json:"cwd,omitempty"`
+	Query string `json:"query"`
+	Path  string `json:"path,omitempty"`
+	Limit int    `json:"limit,omitempty"`
+}
+
+// MCPListToolsRequest — workspace.mcp.listTools body.
+type MCPListToolsRequest struct {
+	Server string `json:"server,omitempty"`
+}
+
+// FileChange is one entry in workspace.listFileChanges (API.md §4.5).
+type FileChange struct {
+	Path   string `json:"path"`
+	Status string `json:"status"` // "added"|"modified"|"deleted"|"renamed"|"untracked"
+}
+
+// FileHead is a file preview (API.md §4.5).
+type FileHead struct {
+	Path  string     `json:"path"`
+	Lines []FileLine `json:"lines"`
+}
+
+// FileLine is one preview line — plain text, client highlights (API.md §4.5).
+type FileLine struct {
+	LineNumber int    `json:"lineNumber"`
+	Text       string `json:"text"`
+}
+
+// GrepResult is the workspace.grep result (API.md §4.5). Total may
+// exceed len(Matches) when limited.
 type GrepResult struct {
 	Matches []GrepMatch `json:"matches"`
 	Total   int         `json:"total"`
 }
 
-// TermLineKind enumerates how a terminal line should be styled.
-type TermLineKind string
-
-const (
-	TermLineKindPrompt TermLineKind = "prompt"
-	TermLineKindCmd    TermLineKind = "cmd"
-	TermLineKindOut    TermLineKind = "out"
-	TermLineKindErr    TermLineKind = "err"
-	TermLineKindWarn   TermLineKind = "warn"
-	TermLineKindMute   TermLineKind = "mute"
-	TermLineKindOK     TermLineKind = "ok"
-)
-
-// TermLine is one line of pty output streamed over
-// workspace.terminal.subscribe / notifications/terminal/output
-// (API.md §6.5).
-type TermLine struct {
-	Kind TermLineKind `json:"kind"`
-	Text string       `json:"text"`
+// GrepMatch is one grep hit — plain text (API.md §4.5).
+type GrepMatch struct {
+	Path       string `json:"path"`
+	LineNumber int    `json:"lineNumber"`
+	Text       string `json:"text"`
 }
 
-// Project is one entry in workspace.projects (API.md §6.5).
-type Project struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
-	Branch string `json:"branch"`
-	Active bool   `json:"active,omitempty"`
-}
-
-// MCPServer is one configured MCP server (API.md v4 §6.5).
-//
-// v4 greenfield cut: this shape used to have `id`, `displayName`, and
-// `icon`. All three were dropped:
-//   - `id` redundant with MCP-native `name`
-//   - `displayName` redundant because MCP server names ("filesystem",
-//     "github", "browser") are already human-readable
-//   - `icon` is UI presentation that doesn't belong on the wire
-type MCPServer struct {
-	Name      string `json:"name"` // MCP-native server identifier
-	Desc      string `json:"desc"`
-	ToolCount int    `json:"toolCount"` // tool count; per-tool detail via workspace.mcp.tools
-	Status    string `json:"status"`    // "active" | "idle" | "error"
-}
-
-// Skill is one entry in workspace.skills (API.md §6.5).
+// Skill is one entry in workspace.listSkills (API.md §4.10).
 type Skill struct {
-	ID          string `json:"id"`
 	Name        string `json:"name"`
-	Description string `json:"description"`
+	Description string `json:"description,omitempty"`
+	Source      string `json:"source,omitempty"`
+}
+
+// AgentDoc is one AGENTS.md discovered from cwd upward (API.md §4.10).
+type AgentDoc struct {
+	Path  string `json:"path"`
+	Title string `json:"title,omitempty"`
+	Scope string `json:"scope"` // "cwd" | "projectRoot" | "home"
+}
+
+// McpServer is one configured MCP server (API.md §4.10).
+type McpServer struct {
+	Name        string `json:"name"`
+	Status      string `json:"status"` // "connected" | "disconnected" | "error"
+	Description string `json:"description,omitempty"`
+}
+
+// McpTool is one tool exposed by an MCP server (API.md §4.10).
+type McpTool struct {
+	Server      string         `json:"server"`
+	Name        string         `json:"name"`
+	Description string         `json:"description,omitempty"`
+	InputSchema map[string]any `json:"inputSchema,omitempty"`
 }

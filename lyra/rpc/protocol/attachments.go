@@ -5,30 +5,34 @@ import (
 	"time"
 )
 
-// Attachments is the attachments.* method group. The actual
-// binary upload is the protocol's ONE carve-out from JSON-RPC — it
-// goes through transport-specific binary channels (HTTP PUT, Wails
-// native binding, in-process []byte). See API.md §5.4.
+// Attachments is the attachments.* method group (API.md §7.7). Binary
+// upload is the protocol's one carve-out from JSON-RPC — it goes
+// through transport-specific binary channels. Gated on features.attachments.
 type Attachments interface {
-	// CreateUploadURL hands the client back a transport-specific
-	// upload target. For HTTP it's a presigned URL; for InProcess
-	// it's a no-op URL (data is passed via a sibling Go binding).
 	CreateUploadURL(ctx context.Context, in CreateUploadURLRequest) (*CreateUploadURLResponse, error)
-
-	// DeleteAttachment removes one by id.
-	DeleteAttachment(ctx context.Context, id string) error
+	GetAttachment(ctx context.Context, attachmentID string) (*Attachment, error)
+	DeleteAttachment(ctx context.Context, attachmentID string) error
 }
 
-// CreateUploadURLRequest is the attachments.createUploadUrl request.
+// Attachment is one stored attachment (API.md §4.10).
+type Attachment struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Mime      string    `json:"mime"`
+	SizeBytes int64     `json:"sizeBytes"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// CreateUploadURLRequest — attachments.createUploadUrl body.
 type CreateUploadURLRequest struct {
-	Filename string `json:"filename"`
-	Mime     string `json:"mime"`
-	Size     int64  `json:"size"`
+	Name      string `json:"name"`
+	Mime      string `json:"mime"`
+	SizeBytes int64  `json:"sizeBytes"`
 }
 
-// CreateUploadURLResponse is the result.
+// CreateUploadURLResponse — attachments.createUploadUrl result.
 type CreateUploadURLResponse struct {
-	UploadURL    string    `json:"uploadUrl"`
 	AttachmentID string    `json:"attachmentId"`
+	UploadURL    string    `json:"uploadUrl"`
 	ExpiresAt    time.Time `json:"expiresAt"`
 }

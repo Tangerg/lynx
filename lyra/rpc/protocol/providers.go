@@ -2,14 +2,11 @@ package protocol
 
 import "context"
 
-// Providers is the providers.* method group.
+// Providers is the providers.* method group (API.md §7.6).
 type Providers interface {
 	ListProviders(ctx context.Context) ([]Provider, error)
-	TestProvider(ctx context.Context, id string) (*ProviderTestResult, error)
-	// ConfigureProvider sets credentials / endpoint for a provider and
-	// returns the updated entry (HasAPIKey reflects the result). This is
-	// provider management, NOT user auth.
 	ConfigureProvider(ctx context.Context, in ConfigureProviderRequest) (*Provider, error)
+	TestProvider(ctx context.Context, providerID string) (*ProviderTestResult, error)
 }
 
 // Models is the models.* method group.
@@ -19,61 +16,62 @@ type Models interface {
 
 // Tools is the tools.* method group.
 type Tools interface {
-	ListTools(ctx context.Context) ([]Tool, error)
-	// InvokeTool runs one tool directly, outside a chat turn (diagnostics
-	// / client-driven workflows without the LLM in the loop).
-	InvokeTool(ctx context.Context, in InvokeToolRequest) (*InvokeToolResponse, error)
+	ListTools(ctx context.Context) ([]ToolSpec, error)
+	// InvokeTool runs one tool directly, outside a run (diagnostics /
+	// client-driven workflows without the LLM in the loop).
+	InvokeTool(ctx context.Context, in InvokeToolRequest) (any, error)
 }
 
-// Provider is one configured LLM provider entry (API.md §6.6).
+// Provider is one configured LLM provider (API.md §4.9). The key is
+// returned masked, never reconstructable.
 type Provider struct {
-	ID        string `json:"id"`
-	Type      string `json:"type"`              // "openai" | "anthropic" | ...
-	BaseURL   string `json:"baseUrl,omitempty"` // override for self-hosted / proxy
-	HasAPIKey bool   `json:"hasApiKey"`         // true iff credentials configured
+	ID           string `json:"id"`
+	Type         string `json:"type"` // "openai" | "anthropic" | ...
+	BaseURL      string `json:"baseUrl,omitempty"`
+	APIKeyMasked string `json:"apiKeyMasked"` // "" = unconfigured; e.g. "sk-…fc78"
 }
 
-// ProviderTestResult is the providers.test outcome.
-type ProviderTestResult struct {
-	OK     bool   `json:"ok"`
-	Detail string `json:"detail,omitempty"`
-}
-
-// Model is one entry in models.list (API.md §6.6).
-type Model struct {
-	ID            string `json:"id"`
-	Provider      string `json:"provider"` // Provider.id
-	ContextWindow int    `json:"contextWindow,omitempty"`
-	Description   string `json:"description,omitempty"`
-}
-
-// Tool is one entry in tools.list — the JSON-Schema parameters are
-// what gets shown to the model. SafetyClass is a server-side optional
-// field (front end ignores unknown keys).
-type Tool struct {
-	Name        string     `json:"name"`
-	Description string     `json:"description,omitempty"`
-	Parameters  JsonSchema `json:"parameters"`
-	Origin      string     `json:"origin"`                // "server" | "client" | "mcp"
-	SafetyClass string     `json:"safetyClass,omitempty"` // "safe" | "write" | "exec" | "network"
-}
-
-// ConfigureProviderRequest — providers.configure params (API.md §6.6).
-// Configures credentials / endpoint; returns the updated Provider.
+// ConfigureProviderRequest — providers.configure body.
 type ConfigureProviderRequest struct {
-	ID      string `json:"id"`
-	APIKey  string `json:"apiKey,omitempty"`
-	BaseURL string `json:"baseUrl,omitempty"`
+	ProviderID string `json:"providerId"`
+	Type       string `json:"type,omitempty"`
+	BaseURL    string `json:"baseUrl,omitempty"`
+	APIKey     string `json:"apiKey,omitempty"`
 }
 
-// InvokeToolRequest — tools.invoke params (API.md §6.12). Arguments is
-// a JSON-encoded string, same shape as ToolCall.arguments.
+// ProviderTestResult — providers.test result.
+type ProviderTestResult struct {
+	OK    bool         `json:"ok"`
+	Error *ProblemData `json:"error,omitempty"`
+}
+
+// Model is one entry in models.list (API.md §4.9).
+type Model struct {
+	ID              string             `json:"id"`
+	Provider        string             `json:"provider"`
+	DisplayName     string             `json:"displayName,omitempty"`
+	ContextWindow   int                `json:"contextWindow,omitempty"`
+	MaxOutputTokens int                `json:"maxOutputTokens,omitempty"`
+	Capabilities    *ModelCapabilities `json:"capabilities,omitempty"`
+	Pricing         *ModelPricing      `json:"pricing,omitempty"`
+}
+
+// ModelCapabilities — per-model feature flags (API.md §4.9).
+type ModelCapabilities struct {
+	Reasoning  bool `json:"reasoning,omitempty"`
+	Multimodal bool `json:"multimodal,omitempty"`
+	ToolUse    bool `json:"toolUse,omitempty"`
+}
+
+// ModelPricing — per-million-token pricing (API.md §4.9).
+type ModelPricing struct {
+	InputUsdPerMillionTokens  float64 `json:"inputUsdPerMillionTokens,omitempty"`
+	OutputUsdPerMillionTokens float64 `json:"outputUsdPerMillionTokens,omitempty"`
+}
+
+// InvokeToolRequest — tools.invoke body (API.md §7.6).
 type InvokeToolRequest struct {
-	Name      string `json:"name"`
-	Arguments string `json:"arguments"`
-}
-
-// InvokeToolResponse — tools.invoke result; the tool's raw output.
-type InvokeToolResponse struct {
-	Output string `json:"output"`
+	Name      string         `json:"name"`
+	Arguments map[string]any `json:"arguments"`
+	Cwd       string         `json:"cwd,omitempty"`
 }

@@ -2,57 +2,45 @@ package protocol
 
 import "context"
 
-// Memory is the memory.* method group — read/write the LYRA.md
-// long-term memory the engine injects into runs (API.md §5.2 / §6.12).
-// Backed by the runtime's memory service (internal/service/memory).
+// Memory is the memory.* method group — LYRA.md long-term memory
+// (API.md §7.7). Gated on features.memory.
 type Memory interface {
-	// ListMemory enumerates every memory entry across scopes. Empty is
-	// valid (no LYRA.md yet, or no memory service configured).
-	ListMemory(ctx context.Context) ([]MemoryEntry, error)
-
-	// GetMemory returns the full LYRA.md content for one scope.
-	GetMemory(ctx context.Context, scope MemoryScope) (*GetMemoryResponse, error)
-
-	// UpdateMemory overwrites the LYRA.md for one scope.
+	ListMemory(ctx context.Context, in WorkspaceQuery) ([]MemoryEntry, error)
+	GetMemory(ctx context.Context, in GetMemoryRequest) (*MemoryEntry, error)
 	UpdateMemory(ctx context.Context, in UpdateMemoryRequest) error
 }
 
-// MemoryScope selects which LYRA.md a memory op targets (API.md §6.12).
+// MemoryScope selects which LYRA.md a memory op targets (API.md §4.10).
 type MemoryScope string
 
 const (
-	// MemoryScopeProject — `<cwd>/LYRA.md`, project-specific knowledge.
-	MemoryScopeProject MemoryScope = "project"
-	// MemoryScopeUser — `~/.lyra/LYRA.md`, cross-project preferences.
-	MemoryScopeUser MemoryScope = "user"
+	MemoryScopeCwd         MemoryScope = "cwd"
+	MemoryScopeProjectRoot MemoryScope = "projectRoot"
+	MemoryScopeHome        MemoryScope = "home"
 )
 
-// Valid reports whether s is a known scope — callers validate at the
-// dispatch boundary and return -32602 invalid_params on false.
+// Valid reports whether s is a known scope.
 func (s MemoryScope) Valid() bool {
-	return s == MemoryScopeProject || s == MemoryScopeUser
+	return s == MemoryScopeCwd || s == MemoryScopeProjectRoot || s == MemoryScopeHome
 }
 
-// MemoryEntry is one memory record (API.md §6.12).
+// MemoryEntry is one memory record (API.md §4.10).
 type MemoryEntry struct {
-	Scope      MemoryScope `json:"scope"`
-	Content    string      `json:"content"`
-	CapturedAt string      `json:"capturedAt,omitempty"` // RFC3339
+	Scope     MemoryScope `json:"scope"`
+	Path      string      `json:"path"`
+	Content   string      `json:"content"`
+	UpdatedAt string      `json:"updatedAt,omitempty"`
 }
 
-// GetMemoryRequest — memory.get params.
+// GetMemoryRequest — memory.get body.
 type GetMemoryRequest struct {
 	Scope MemoryScope `json:"scope"`
+	Cwd   string      `json:"cwd,omitempty"`
 }
 
-// GetMemoryResponse — memory.get result.
-type GetMemoryResponse struct {
-	Scope   MemoryScope `json:"scope"`
-	Content string      `json:"content"`
-}
-
-// UpdateMemoryRequest — memory.update params.
+// UpdateMemoryRequest — memory.update body.
 type UpdateMemoryRequest struct {
 	Scope   MemoryScope `json:"scope"`
+	Cwd     string      `json:"cwd,omitempty"`
 	Content string      `json:"content"`
 }
