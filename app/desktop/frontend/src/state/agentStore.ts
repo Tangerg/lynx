@@ -9,6 +9,7 @@ import type { InterruptResponse, RunId, StreamEvent } from "@/rpc";
 import type { AgentViewState } from "@/protocol/run/viewState";
 import { create } from "zustand";
 import { disposeOnHmr } from "@/lib/hmr";
+import { appendTimelineEntry } from "@/plugins/sdk";
 import { reduce } from "@/protocol/run/reducer";
 import { INITIAL_VIEW_STATE } from "@/protocol/run/viewState";
 import { useSessionStore } from "./sessionStore";
@@ -139,9 +140,18 @@ export const useAgentStore = create<AgentStore>((set) => ({
       const openInterrupts = view.openInterrupts.filter(
         (oi) => !oi.interrupts.some((i) => i.itemId === itemId),
       );
-      return {
-        sessions: patch(s.sessions, sessionId, { view: { ...view, messages, openInterrupts } }),
-      };
+      let next: AgentViewState = { ...view, messages, openInterrupts };
+      // Stamp the human decision on the audit timeline so the run digest +
+      // Timeline view can pair it with the originating approval-request
+      // (questions have no timeline counterpart — only approvals are paired).
+      if (settled.decision) {
+        next = appendTimelineEntry({
+          kind: "approval-result",
+          refId: itemId,
+          status: settled.decision,
+        })(next);
+      }
+      return { sessions: patch(s.sessions, sessionId, { view: next }) };
     }),
 }));
 

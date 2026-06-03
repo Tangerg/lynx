@@ -1,4 +1,4 @@
-// State update helpers for AG-UI CUSTOM event handlers.
+// State update helpers for `custom` StreamEvent handlers.
 //
 // Handlers return a `StateUpdate` (state → state). Rather than make plugin
 // authors touch the AgentViewState shape directly, they compose updates from
