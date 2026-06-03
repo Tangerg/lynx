@@ -22,9 +22,11 @@ export interface RuntimeInfo {
   capabilities: ServerCapabilities;
 }
 
+// Body of `GET /v2/health` (TRANSPORT.md §12.1): a flat liveness ack.
+// Health is conveyed by HTTP status — 200 = ok, 503 = degraded/unhealthy
+// — so the body is just `{ ok: boolean }`; no tri-state, no per-check map.
 export interface HealthStatus {
-  status: "ok" | "degraded" | "unhealthy";
-  checks?: Record<string, "ok" | "degraded" | "unhealthy">;
+  ok: boolean;
 }
 
 export interface SidecarClientConfig {
@@ -52,7 +54,7 @@ export function createSidecarClient(config: SidecarClientConfig): SidecarClient 
     } catch (err) {
       throw new RpcTransportError(`sidecar ${path}: ${(err as Error).message}`);
     }
-    // 503 from /v2/health is still valid JSON — let caller see `status` field.
+    // 503 from /v2/health is still valid JSON — let caller see `ok: false`.
     if (!res.ok && res.status !== 503) {
       throw new RpcTransportError(`sidecar ${path}: http ${res.status}`, res.status);
     }

@@ -13,21 +13,20 @@ describe("SidecarClient", () => {
   it("info() returns flat JSON shape", async () => {
     const fetchStub = makeFetch(200, {
       serverInfo: { name: "lyra-core", version: "0.8.1" },
-      protocolVersion: "2026-05-28",
-      capabilities: { events: { standard: [], custom: [] }, features: {}, providers: [] },
+      protocolVersion: "2026-06-03",
+      capabilities: { events: [], features: {}, providers: [] },
     });
     const client = createSidecarClient({ baseUrl: "http://x", fetch: fetchStub });
     const info = await client.info();
     expect(info.serverInfo.name).toBe("lyra-core");
-    expect(info.protocolVersion).toBe("2026-05-28");
+    expect(info.protocolVersion).toBe("2026-06-03");
   });
 
   it("health() accepts 503 with body (unhealthy state)", async () => {
-    const fetchStub = makeFetch(503, { status: "unhealthy", checks: { storage: "unhealthy" } });
+    const fetchStub = makeFetch(503, { ok: false });
     const client = createSidecarClient({ baseUrl: "http://x", fetch: fetchStub });
     const health = await client.health();
-    expect(health.status).toBe("unhealthy");
-    expect(health.checks?.storage).toBe("unhealthy");
+    expect(health.ok).toBe(false);
   });
 
   it("info() throws RpcTransportError on non-2xx (except 503)", async () => {
@@ -46,7 +45,7 @@ describe("SidecarClient", () => {
     const seen: string[] = [];
     const stub = vi.fn(async (url: string) => {
       seen.push(url);
-      return new Response(JSON.stringify({ status: "ok" }), { status: 200 });
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
     });
     const client = createSidecarClient({
       baseUrl: "http://x/",

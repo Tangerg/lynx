@@ -19,7 +19,7 @@ interface RuntimeState {
   /** Server name + version (`{name, version}` from initialize result). */
   serverName: string | null;
   serverVersion: string | null;
-  /** Negotiated protocol version (e.g. "2026-05-28"). */
+  /** Negotiated protocol version (e.g. "2026-06-03"). */
   protocolVersion: string | null;
   /** What the server can do. Null before handshake. */
   capabilities: ServerCapabilities | null;

@@ -13,10 +13,11 @@ export const RUNTIME_BASE = "http://127.0.0.1:17171";
 
 /**
  * Runtime Protocol version this client negotiates at handshake. Date
- * string per API.md §8.2 ("2026-MM-DD"); bumped when the wire contract
- * changes incompatibly.
+ * string per API.md §11 ("2026-MM-DD"); bumped when the wire contract
+ * changes incompatibly. Matches the frozen v2 baseline + the Go runtime's
+ * `ProtocolVersion` const.
  */
-export const PROTOCOL_VERSION = "2026-05-28";
+export const PROTOCOL_VERSION = "2026-06-03";
 
 /** Identifies this client to the runtime at handshake (API.md §6.1). */
 export const CLIENT_INFO = { name: "lyra-desktop", version: "0.0.0" } as const;

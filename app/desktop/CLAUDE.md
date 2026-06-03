@@ -148,14 +148,14 @@ perf 排查沉淀的硬规则，几个"看似没事其实在累积"的坑：
 
 ### 6.2 协议 / 后端边界
 
-- ❌ **后端做用户鉴权 / 账号 / 订阅 / 多租户**。Lyra Runtime 是无状态纯计算单元，**协议层零 user 概念**。需要时由更外层（OS 信任、本地进程门禁 token、未来 facade）解决。详见 `docs/API.md` §0 + 附录 B。
+- ❌ **后端做用户鉴权 / 账号 / 订阅 / 多租户**。Lyra Runtime 是无状态纯计算单元，**协议层零 user 概念**。需要时由更外层（OS 信任、本地进程门禁 token、未来 facade）解决。详见 `docs/API.md` §0 + §13。
 - ❌ **给 LLM provider 加 OAuth / token refresh / subscription 检测**。第一刀只走 kimi-code 模式：用户填 API key、存 keychain、provider 401 就让 UI 提示重填。OAuth 是 Claude Code 路线的复杂度，暂不要。
 - ❌ **把"远程后端 / 团队 server / 云端订阅"当部署形态**。这些是**未来 facade 层**的事，Runtime 协议永不感知 facade。Runtime 同一份代码跑桌面也跑服务器；facade 在外面包一层做 billing / 用户管理 / 授权。
-- ❌ **协议 envelope 装 transport 元数据**（session id / auth token / trace id / idempotency key）。走 Go `context.Context` 或 HTTP header，**永不进 JSON-RPC message body**。详见 `docs/API.md` §1.2。
+- ❌ **协议 envelope 装 transport 元数据**（session id / auth token / trace id / idempotency key）。走 Go `context.Context` 或 HTTP header，**永不进 JSON-RPC message body**。详见 `docs/TRANSPORT.md` §2。
 - ❌ **协议 wire 用 REST + 各种 verb / 状态码**。Lyra Runtime Protocol 是 **JSON-RPC 2.0** envelope（参考 MCP）。HTTP 只是其中一种 transport；InProcess / Wails IPC 用同样 envelope 形状。
-- ❌ **把 method 名斜杠化成 `/v1/rpc/runs/start`**。HTTP transport 上 method 名照搬 method 表字符串，点保留（`/v1/rpc/runs.start`）。斜杠化会跟 REST shadow 混淆。详见 `docs/API.md` §5.1。
-- ❌ **加业务方法的 RESTy read-only shadow**（如 `GET /v1/sessions/{id}`）。业务调用一律走 JSON-RPC `POST /v1/rpc[/{method}]`。Sidecar 只限 `/v1/info` + `/v1/health` 两个 metadata 端点，永不扩展。详见 `docs/API.md` §9.3。
-- ❌ **把业务 error 映射到 HTTP status code**（如 `session_not_found` 返 404）。HTTP status 仅反映 transport 层；业务 error 一律走 JSON-RPC `error.code`。详见 `docs/API.md` §7.3 + §10.6。
+- ❌ **把 method 名斜杠化成 `/v2/rpc/runs/start`**。HTTP transport 上 method 名照搬 method 表字符串，点保留（`/v2/rpc/runs.start`）。斜杠化会跟 REST shadow 混淆。详见 `docs/TRANSPORT.md` §6.1 + `docs/API.md` §2.4。
+- ❌ **加业务方法的 RESTy read-only shadow**（如 `GET /v2/sessions/{id}`）。业务调用一律走 JSON-RPC `POST /v2/rpc/{method}`。Sidecar 只限 `/v2/info` + `/v2/health` 两个 metadata 端点，永不扩展。详见 `docs/TRANSPORT.md` §12。
+- ❌ **把业务 error 映射到 HTTP status code**（如 `session_not_found` 返 404）。HTTP status 仅反映 transport 层；业务 error 一律走 JSON-RPC `error.code`。详见 `docs/API.md` §8.2 + `docs/TRANSPORT.md` §6.3。
 
 ---
 
