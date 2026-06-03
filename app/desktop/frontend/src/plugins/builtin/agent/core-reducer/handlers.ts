@@ -23,18 +23,17 @@ import type { StreamEventHandler } from "@/plugins/sdk";
 import type { AgentViewState, ContentBlock } from "@/protocol/run/viewState";
 import { applyPatch, deepClone } from "fast-json-patch";
 import { appendTimelineEntry, patchRun, setPlan } from "@/plugins/sdk";
+import { blockStatus, mapPlan } from "./projections";
 import {
   appendToTurn,
   appendUserMessage,
-  blockStatus,
   foldQuestion,
   foldReasoning,
   foldText,
-  mapPlan,
   patchBlock,
   updateTool,
   writeToolCall,
-} from "./helpers";
+} from "./fold";
 
 const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
 
