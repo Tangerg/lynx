@@ -12,13 +12,11 @@ import { useAgentSlice } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
 import { useSessionStore } from "@/state/sessionStore";
 import { useUiStore } from "@/state/uiStore";
+import { Composer, ComposerFooter, SlashSuggestions } from "../composer";
 import { ChatErrorBoundary } from "./ChatErrorBoundary";
-import { Composer } from "../Composer";
-import { ComposerFooter } from "../ComposerFooter";
 import { JumpToBottomButton } from "./JumpToBottomButton";
 import { MessageStream } from "./MessageStream";
 import { RunErrorBanner } from "./RunErrorBanner";
-import { SlashSuggestions } from "../SlashSuggestions";
 
 interface Props {
   /** Send a plain user message through the live AG-UI agent. */
