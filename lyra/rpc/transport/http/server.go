@@ -224,14 +224,3 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	s.clients.closeAll()
 	return srv.Shutdown(ctx)
 }
-
-// Addr returns the actual listen address (useful in tests where
-// Addr was given as ":0"). Empty if Start has not been called.
-func (s *Server) Addr() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.httpServer == nil {
-		return s.addr
-	}
-	return s.httpServer.Addr
-}
