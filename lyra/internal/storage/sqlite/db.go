@@ -76,6 +76,7 @@ func migrate(db *sql.DB) error {
 			parent_run_id TEXT    PRIMARY KEY,
 			session_id    TEXT    NOT NULL DEFAULT '',
 			turn_id       TEXT    NOT NULL DEFAULT '',
+			process_id    TEXT    NOT NULL DEFAULT '',
 			interrupts    TEXT    NOT NULL DEFAULT '',
 			created_at    INTEGER NOT NULL
 		)`,

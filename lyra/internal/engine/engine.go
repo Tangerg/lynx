@@ -495,6 +495,62 @@ func (e *Engine) StartChat(ctx context.Context, req RunChatRequest) ChatProcess 
 	return &chatProcess{proc: proc, done: done, platform: e.platform}
 }
 
+// RestoreChatRequest carries the per-process wiring to re-attach to a
+// turn rebuilt from a snapshot — the same Observer + Session a fresh turn
+// gets from [Engine.StartChat], so the resumed continuation streams and
+// keys chat-memory to the right conversation.
+type RestoreChatRequest struct {
+	// SessionID rebinds the restored process to its chat-memory
+	// conversation (so the continuation's LLM round loads + saves the
+	// right history). Empty runs unattached.
+	SessionID string
+
+	// Observer receives the continuation's streaming tool-call + text
+	// deltas, exactly as on a fresh turn. May be nil.
+	Observer ToolObserver
+
+	// EventListener captures the restored process's terminal event so the
+	// resumed turn can map it onto a TurnEnd reason. May be nil.
+	EventListener core.Extension
+}
+
+// RestoreChat rebuilds the agent process identified by processID from the
+// configured ProcessStore snapshot and re-parks it, ready for Resume. It
+// performs the first two steps of the restore-resume protocol (see
+// [runtime.RestoreProcess]): RestoreProcess with the supplied wiring, then
+// one ContinueProcess re-tick so the idempotent awaiting action re-issues
+// AwaitInput against the restored blackboard (the handler closure does not
+// round-trip). The returned [ChatProcess] is StatusWaiting with
+// PendingAwaitable populated; the caller drives Resume(approved) to deliver
+// the decision and run the continuation to terminal.
+//
+// Errors when no ProcessStore is configured, the snapshot is missing, the
+// agent is not deployed under the snapshot's name, or the re-tick fails.
+func (e *Engine) RestoreChat(ctx context.Context, processID string, req RestoreChatRequest) (ChatProcess, error) {
+	opts := core.ProcessOptions{}
+	if req.SessionID != "" {
+		opts.Session = &core.Session{ID: req.SessionID}
+	}
+	if req.Observer != nil {
+		opts.Extensions = append(opts.Extensions, &toolObserverDecorator{observer: req.Observer})
+	}
+	if req.EventListener != nil {
+		opts.Extensions = append(opts.Extensions, req.EventListener)
+	}
+
+	proc, err := e.platform.RestoreProcess(ctx, processID, opts)
+	if err != nil {
+		return nil, fmt.Errorf("engine: restore chat: %w", err)
+	}
+	// Re-tick: the awaitable handler closure didn't survive the snapshot,
+	// so the idempotent gate action re-parks against the restored
+	// blackboard, repopulating PendingAwaitable for the upcoming Resume.
+	if err := e.platform.ContinueProcess(ctx, proc.ID()); err != nil {
+		return nil, fmt.Errorf("engine: restore chat re-tick: %w", err)
+	}
+	return &chatProcess{proc: proc, platform: e.platform}, nil
+}
+
 // RunChat is the synchronous wrapper kept for callers that don't
 // need the [ChatProcess] handle (engine tests, CLI smoke runs).
 // Newer call sites should use [Engine.StartChat] directly.
