@@ -14,10 +14,3 @@ import (
 func EncodeRunEvent(ev protocol.RunEvent) (transport.Message, error) {
 	return transport.NewNotification(NotificationRunEvent, ev)
 }
-
-// EncodeBackgroundUpdate wraps a BackgroundTask into a
-// notifications.background.update notification (API.md §7.7, gated on
-// features.background).
-func EncodeBackgroundUpdate(task protocol.BackgroundTask) (transport.Message, error) {
-	return transport.NewNotification(NotificationBackgroundUpdate, task)
-}
