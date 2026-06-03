@@ -9,61 +9,68 @@ import (
 )
 
 // ListProviders — provider registry isn't part of the engine yet
-// (chat.Client is a single configured provider). Return an empty
-// list rather than not-implemented so frontends can render an empty
-// state instead of an error banner.
+// (chat.Client is a single configured provider via env / config.yaml).
+// Empty list so the frontend renders an empty state, not an error.
 func (i *Server) ListProviders(_ context.Context) ([]protocol.Provider, error) {
 	return []protocol.Provider{}, nil
 }
 
-func (i *Server) TestProvider(_ context.Context, _ string) (*protocol.ProviderTestResult, error) {
-	return nil, notImpl("providers.test")
-}
-
-// ConfigureProvider — provider registry isn't part of the engine yet
-// (chat.Client is a single configured provider via env). Not implemented
-// until the registry lands; dispatch maps this to -32601 so the client
-// sees an honest "not supported on this build".
+// ConfigureProvider — no provider registry to write into yet.
 func (i *Server) ConfigureProvider(_ context.Context, _ protocol.ConfigureProviderRequest) (*protocol.Provider, error) {
 	return nil, notImpl("providers.configure")
 }
 
+// TestProvider — no provider registry to probe yet.
+func (i *Server) TestProvider(_ context.Context, _ string) (*protocol.ProviderTestResult, error) {
+	return nil, notImpl("providers.test")
+}
+
+// ListModels — model catalog isn't enumerated from the engine yet.
 func (i *Server) ListModels(_ context.Context, _ string) ([]protocol.Model, error) {
 	return []protocol.Model{}, nil
 }
 
-// ListTools surfaces every tool the engine registered — built-in
-// coding tools plus any MCP-server tools dialed at boot.
-func (i *Server) ListTools(ctx context.Context) ([]protocol.Tool, error) {
+// ListTools surfaces every tool the engine registered — built-in coding
+// tools plus any MCP-server tools dialed at boot (API.md §7.6).
+func (i *Server) ListTools(ctx context.Context) ([]protocol.ToolSpec, error) {
 	internal, err := i.rt.Tool().List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]protocol.Tool, 0, len(internal))
+	out := make([]protocol.ToolSpec, 0, len(internal))
 	for _, t := range internal {
-		schema := json.RawMessage(t.Schema)
-		if len(schema) == 0 {
-			schema = json.RawMessage(`{}`)
-		}
-		out = append(out, protocol.Tool{
+		out = append(out, protocol.ToolSpec{
 			Name:        t.Name,
 			Description: t.Description,
-			Parameters:  schema,
+			Parameters:  parseSchema(t.Schema),
 			SafetyClass: safetyClassToString(t.SafetyClass),
-			Origin:      "server",
 		})
 	}
 	return out, nil
 }
 
-// InvokeTool runs one tool directly, outside a chat turn (diagnostics /
-// client-driven workflows). Backed by tool.Service.Invoke.
-func (i *Server) InvokeTool(ctx context.Context, in protocol.InvokeToolRequest) (*protocol.InvokeToolResponse, error) {
-	out, err := i.rt.Tool().Invoke(ctx, in.Name, in.Arguments)
+// InvokeTool runs one tool directly, outside a run (diagnostics /
+// client-driven workflows, API.md §7.6). Backed by tool.Service.Invoke,
+// whose result is the tool's raw string output.
+func (i *Server) InvokeTool(ctx context.Context, in protocol.InvokeToolRequest) (any, error) {
+	args, err := json.Marshal(in.Arguments)
 	if err != nil {
 		return nil, err
 	}
-	return &protocol.InvokeToolResponse{Output: out}, nil
+	return i.rt.Tool().Invoke(ctx, in.Name, string(args))
+}
+
+// parseSchema decodes a tool's JSON Schema string into a structured
+// object; an empty / unparseable schema becomes an empty object.
+func parseSchema(raw string) map[string]any {
+	if raw == "" {
+		return map[string]any{}
+	}
+	var m map[string]any
+	if json.Unmarshal([]byte(raw), &m) != nil {
+		return map[string]any{}
+	}
+	return m
 }
 
 func safetyClassToString(c tool.SafetyClass) string {

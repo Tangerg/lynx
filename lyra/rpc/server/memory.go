@@ -7,10 +7,10 @@ import (
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
-// ListMemory enumerates LYRA.md entries across scopes. When no memory
-// service is configured it returns empty (not an error) so the UI
+// ListMemory enumerates LYRA.md entries across scopes (API.md §7.7).
+// Empty (not an error) when no memory service is configured, so the UI
 // renders an empty state rather than a banner.
-func (i *Server) ListMemory(ctx context.Context) ([]protocol.MemoryEntry, error) {
+func (i *Server) ListMemory(ctx context.Context, _ protocol.WorkspaceQuery) ([]protocol.MemoryEntry, error) {
 	mem := i.rt.Memory()
 	if mem == nil {
 		return []protocol.MemoryEntry{}, nil
@@ -22,26 +22,26 @@ func (i *Server) ListMemory(ctx context.Context) ([]protocol.MemoryEntry, error)
 	out := make([]protocol.MemoryEntry, 0, len(entries))
 	for _, e := range entries {
 		out = append(out, protocol.MemoryEntry{
-			Scope:      memScopeToWire(e.Scope),
-			Content:    e.Content,
-			CapturedAt: e.CapturedAt,
+			Scope:     memScopeToWire(e.Scope),
+			Content:   e.Content,
+			UpdatedAt: e.CapturedAt,
 		})
 	}
 	return out, nil
 }
 
-// GetMemory returns the LYRA.md content for one scope. Dispatch has
-// already validated the scope (MemoryScope.Valid) before this runs.
-func (i *Server) GetMemory(ctx context.Context, scope protocol.MemoryScope) (*protocol.GetMemoryResponse, error) {
+// GetMemory returns one scope's LYRA.md content. Dispatch has already
+// validated the scope (MemoryScope.Valid).
+func (i *Server) GetMemory(ctx context.Context, in protocol.GetMemoryRequest) (*protocol.MemoryEntry, error) {
 	mem := i.rt.Memory()
 	if mem == nil {
 		return nil, notImpl("memory.get")
 	}
-	content, err := mem.Get(ctx, memScopeFromWire(scope))
+	content, err := mem.Get(ctx, memScopeFromWire(in.Scope))
 	if err != nil {
 		return nil, err
 	}
-	return &protocol.GetMemoryResponse{Scope: scope, Content: content}, nil
+	return &protocol.MemoryEntry{Scope: in.Scope, Content: content}, nil
 }
 
 func (i *Server) UpdateMemory(ctx context.Context, in protocol.UpdateMemoryRequest) error {
@@ -53,16 +53,18 @@ func (i *Server) UpdateMemory(ctx context.Context, in protocol.UpdateMemoryReque
 }
 
 // memScopeToWire / memScopeFromWire bridge the protocol string enum and
-// the memory service's int Scope.
+// the memory service's int Scope. The service has two backing files —
+// project (<cwd>/LYRA.md) and user (~/.lyra/LYRA.md); the wire's
+// projectRoot folds into project until per-root memory exists.
 func memScopeToWire(s memsvc.Scope) protocol.MemoryScope {
 	if s == memsvc.ScopeUser {
-		return protocol.MemoryScopeUser
+		return protocol.MemoryScopeHome
 	}
-	return protocol.MemoryScopeProject
+	return protocol.MemoryScopeCwd
 }
 
 func memScopeFromWire(s protocol.MemoryScope) memsvc.Scope {
-	if s == protocol.MemoryScopeUser {
+	if s == protocol.MemoryScopeHome {
 		return memsvc.ScopeUser
 	}
 	return memsvc.ScopeProject

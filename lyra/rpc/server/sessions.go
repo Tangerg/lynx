@@ -3,20 +3,18 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
-// ListSessions paginates over the in-process session.Service.
-// The current backing store doesn't expose cursor pagination yet —
-// we treat the full list as one page when no cursor is supplied,
-// and return ErrNotImplemented when a cursor is passed (forces an
-// honest signal to the client until the store grows real pagination).
+// ListSessions paginates over the in-process session.Service. The
+// backing store has no cursor pagination yet — the full list comes back
+// as one page when no cursor is supplied; a cursor returns
+// capability_not_negotiated until the store grows real pagination.
 func (i *Server) ListSessions(ctx context.Context, q protocol.PageQuery) (*protocol.Page[protocol.Session], error) {
 	if q.Cursor != "" {
-		return nil, protocol.ErrNotImplemented
+		return nil, notImpl("sessions.list (cursor)")
 	}
 	sessions, err := i.rt.Session().List(ctx)
 	if err != nil {
@@ -29,14 +27,13 @@ func (i *Server) ListSessions(ctx context.Context, q protocol.PageQuery) (*proto
 	if limit > len(sessions) {
 		limit = len(sessions)
 	}
-	items := make([]protocol.Session, 0, limit)
+	data := make([]protocol.Session, 0, limit)
 	for _, s := range sessions[:limit] {
-		items = append(items, sessionToWire(s))
+		data = append(data, sessionToWire(s))
 	}
-	return &protocol.Page[protocol.Session]{
-		Items:   items,
-		HasMore: len(sessions) > limit,
-	}, nil
+	// No NextCursor: the store returns a single page (cursor paging is
+	// gated off above). Emitting a cursor would point at an erroring call.
+	return &protocol.Page[protocol.Session]{Data: data}, nil
 }
 
 func (i *Server) GetSession(ctx context.Context, id string) (*protocol.Session, error) {
@@ -60,14 +57,9 @@ func (i *Server) CreateSession(ctx context.Context, in protocol.CreateSessionReq
 	return &out, nil
 }
 
-// UpdateSession — session.Service has no update verb yet. Stub.
-func (i *Server) UpdateSession(_ context.Context, _ protocol.UpdateSessionRequest) (*protocol.Session, error) {
-	return nil, notImpl("sessions.update")
-}
-
 func (i *Server) DeleteSession(ctx context.Context, id string) error {
 	if id == "" {
-		return errors.New("sessions.delete: id is required")
+		return protocol.ErrSessionNotFound
 	}
 	if err := i.rt.Session().Delete(ctx, id); err != nil {
 		if errors.Is(err, session.ErrNotFound) {
@@ -78,50 +70,28 @@ func (i *Server) DeleteSession(ctx context.Context, id string) error {
 	return nil
 }
 
-func (i *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest) (*protocol.Session, error) {
-	if in.ParentID == "" || in.AtMessageID == "" {
-		return nil, errors.New("sessions.fork: parentId + atMessageId required")
-	}
-	// Read the parent's history before creating the child so a bad
-	// parent id fails fast (no orphan child) and we have the prefix to
-	// seed.
-	parentHistory, err := i.rt.ReadHistory(ctx, in.ParentID)
-	if err != nil {
-		return nil, err
-	}
-	s, err := i.rt.Session().Fork(ctx, in.ParentID, in.AtMessageID)
-	if err != nil {
-		if errors.Is(err, session.ErrNotFound) {
-			return nil, protocol.ErrSessionNotFound
-		}
-		return nil, err
-	}
-	// Seed the fresh child with the parent's history up to the fork
-	// point so its next turn continues from there rather than starting
-	// blank. Lineage is already recorded by Session().Fork.
-	if prefix := historyPrefix(parentHistory, in.AtMessageID); len(prefix) > 0 {
-		if err := i.rt.SeedHistory(ctx, s.ID, prefix); err != nil {
-			// Don't leave a half-initialized child (created but no
-			// history) for sessions.list to show — roll it back.
-			_ = i.rt.Session().Delete(ctx, s.ID)
-			return nil, fmt.Errorf("sessions.fork: seed child history: %w", err)
-		}
-	}
-	out := sessionToWire(s)
-	return &out, nil
+// UpdateSession — session.Service has no update verb yet; title /
+// model / relocate edits aren't wired. Gated off (features.relocate).
+func (i *Server) UpdateSession(_ context.Context, _ protocol.UpdateSessionRequest) (*protocol.Session, error) {
+	return nil, notImpl("sessions.update")
 }
 
-// ExportSession — no file-serving endpoint backed yet. Once a
-// downloadable artifact endpoint exists, return its URL here.
+// ForkSession — fork at an item boundary depends on the checkpoint /
+// item-id model, which isn't reconciled with the engine's history yet.
+// Gated off (features.checkpoints).
+func (i *Server) ForkSession(_ context.Context, _ protocol.ForkSessionRequest) (*protocol.Session, error) {
+	return nil, notImpl("sessions.fork")
+}
+
+// ExportSession — needs a transport file channel to serve the artifact.
+// Gated off (features.sessionExport).
 func (i *Server) ExportSession(_ context.Context, _ protocol.ExportSessionRequest) (*protocol.ExportSessionResponse, error) {
 	return nil, notImpl("sessions.export")
 }
 
-// sessionToWire converts the internal session shape into the wire
-// shape. Status is synthesized — internal Sessions don't track an
-// explicit "running/waiting/idle" flag yet, so we default to idle.
-// Metadata widens map[string]string → map[string]any at the boundary;
-// internal store stays string-only.
+// sessionToWire converts the internal session shape into the wire shape.
+// Status is synthesized (internal sessions don't track running/waiting/
+// idle yet → idle). Metadata widens map[string]string → map[string]any.
 func sessionToWire(s session.Session) protocol.Session {
 	var meta map[string]any
 	if len(s.Metadata) > 0 {
@@ -134,7 +104,6 @@ func sessionToWire(s session.Session) protocol.Session {
 		ID:        s.ID,
 		Title:     s.Title,
 		Status:    protocol.SessionStatusIdle,
-		Model:     "", // future: snapshot the model used for the last turn
 		CreatedAt: s.StartedAt,
 		UpdatedAt: s.UpdatedAt,
 		Metadata:  meta,

@@ -6,38 +6,43 @@ import (
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
-// attachments.* — no upload backend yet. The protocol's binary
-// carve-out (API.md §5.4) needs a PUT target, which only makes
-// sense once the HTTP transport grows a real binary endpoint.
+// Attachments / Background / Feedback (API.md §7.7) — surfaces with no
+// engine backing yet. List endpoints return empty (valid "nothing here"
+// answers); the rest are honestly gated off via notImpl, matching the
+// capability flags advertised at initialize.
+
+// ─── Attachments ────────────────────────────────────────────────────
 
 func (i *Server) CreateUploadURL(_ context.Context, _ protocol.CreateUploadURLRequest) (*protocol.CreateUploadURLResponse, error) {
 	return nil, notImpl("attachments.createUploadUrl")
+}
+
+func (i *Server) GetAttachment(_ context.Context, _ string) (*protocol.Attachment, error) {
+	return nil, notImpl("attachments.get")
 }
 
 func (i *Server) DeleteAttachment(_ context.Context, _ string) error {
 	return notImpl("attachments.delete")
 }
 
-// background.* — long-running task surface; nothing in the engine
-// emits BackgroundTask state today.
+// ─── Background ─────────────────────────────────────────────────────
 
 func (i *Server) ListBackground(_ context.Context) ([]protocol.BackgroundTask, error) {
 	return []protocol.BackgroundTask{}, nil
 }
 
-func (i *Server) StopBackground(_ context.Context, _ string) error {
-	return notImpl("background.stop")
-}
-
-func (i *Server) SubscribeBackground(_ context.Context, _ string) (<-chan protocol.BackgroundUpdate, error) {
+func (i *Server) SubscribeBackground(_ context.Context, _ string) (<-chan protocol.BackgroundTask, error) {
 	return nil, notImpl("background.subscribe")
 }
 
-// feedback.* — RLHF data collection. The Runtime doesn't persist
-// feedback yet; accept and drop until storage is settled (rather
-// than returning a hard not-implemented), so the frontend's UX flow
-// can be tested end-to-end.
+func (i *Server) CancelBackground(_ context.Context, _ string) error {
+	return notImpl("background.cancel")
+}
 
-func (i *Server) SubmitFeedback(_ context.Context, _ protocol.FeedbackRequest) error {
+// ─── Feedback ───────────────────────────────────────────────────────
+//
+// The Runtime doesn't persist feedback yet; accept and drop so the
+// frontend's UX flow can be exercised end-to-end (rather than erroring).
+func (i *Server) CreateFeedback(_ context.Context, _ protocol.FeedbackRequest) error {
 	return nil
 }
