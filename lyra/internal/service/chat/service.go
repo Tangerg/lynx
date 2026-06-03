@@ -47,6 +47,17 @@ type TurnHandle struct {
 	TurnID    string
 }
 
+// RehydrateRequest carries the inputs to rebuild a turn from a persisted
+// process snapshot and resume it after a restart. ProcessID is the
+// agent-process snapshot key (recorded on the open interrupt); SessionID
+// rebinds chat-memory; Approved is the human decision delivered to the
+// re-parked process.
+type RehydrateRequest struct {
+	SessionID string
+	ProcessID string
+	Approved  bool
+}
+
 // Service is the ChatService contract.
 //
 // A typical interaction:
@@ -101,6 +112,21 @@ type Service interface {
 	// turn's event channel — call [Events] again after Resume to drain
 	// it. Returns [ErrTurnNotFound] when the turn isn't parked.
 	Resume(ctx context.Context, handle TurnHandle, approved bool) error
+
+	// ProcessID returns the agent-process id backing a live (parked) turn
+	// — the snapshot key the runtime records so a restart can rebuild the
+	// process via [Rehydrate]. Returns [ErrTurnNotFound] when the turn
+	// isn't live, or an error when it hasn't dispatched a process yet.
+	ProcessID(ctx context.Context, handle TurnHandle) (string, error)
+
+	// Rehydrate rebuilds a turn whose live in-memory state was lost (the
+	// backend restarted) from the persisted process snapshot identified by
+	// req.ProcessID, then resumes it with req.Approved. It registers a
+	// fresh turn and returns its handle; the continuation streams on that
+	// handle's channel (subscribe via [Events]). This is the cross-restart
+	// counterpart to [Resume], used when [Resume] would return
+	// [ErrTurnNotFound]. Errors when the snapshot is missing / unrestorable.
+	Rehydrate(ctx context.Context, req RehydrateRequest) (TurnHandle, error)
 
 	// Cancel stops the turn immediately, drains pending tool calls
 	// safely, and emits a final [TurnEnd] event with Reason=Canceled.

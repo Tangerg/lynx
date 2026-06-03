@@ -32,14 +32,15 @@ func (s *InterruptStore) Put(ctx context.Context, p interrupts.Pending) error {
 		return errors.New("sqlite: interrupt parentRunId is required")
 	}
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO interrupts(parent_run_id, session_id, turn_id, interrupts, created_at)
-		 VALUES (?, ?, ?, ?, ?)
+		`INSERT INTO interrupts(parent_run_id, session_id, turn_id, process_id, interrupts, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(parent_run_id) DO UPDATE SET
 		   session_id = excluded.session_id,
 		   turn_id    = excluded.turn_id,
+		   process_id = excluded.process_id,
 		   interrupts = excluded.interrupts,
 		   created_at = excluded.created_at`,
-		p.ParentRunID, p.SessionID, p.TurnID, string(p.Interrupts), p.CreatedAt.UnixNano(),
+		p.ParentRunID, p.SessionID, p.TurnID, p.ProcessID, string(p.Interrupts), p.CreatedAt.UnixNano(),
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: put interrupt: %w", err)
@@ -48,7 +49,7 @@ func (s *InterruptStore) Put(ctx context.Context, p interrupts.Pending) error {
 }
 
 func (s *InterruptStore) List(ctx context.Context, sessionID string) ([]interrupts.Pending, error) {
-	query := `SELECT parent_run_id, session_id, turn_id, interrupts, created_at FROM interrupts`
+	query := `SELECT parent_run_id, session_id, turn_id, process_id, interrupts, created_at FROM interrupts`
 	args := []any{}
 	if sessionID != "" {
 		query += ` WHERE session_id = ?`
@@ -78,7 +79,7 @@ func (s *InterruptStore) List(ctx context.Context, sessionID string) ([]interrup
 
 func (s *InterruptStore) Get(ctx context.Context, parentRunID string) (interrupts.Pending, bool, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT parent_run_id, session_id, turn_id, interrupts, created_at
+		`SELECT parent_run_id, session_id, turn_id, process_id, interrupts, created_at
 		 FROM interrupts WHERE parent_run_id = ?`, parentRunID)
 	p, err := scanPending(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -111,7 +112,7 @@ func scanPending(row scanRow) (interrupts.Pending, error) {
 		payload   string
 		createdNs int64
 	)
-	if err := row.Scan(&p.ParentRunID, &p.SessionID, &p.TurnID, &payload, &createdNs); err != nil {
+	if err := row.Scan(&p.ParentRunID, &p.SessionID, &p.TurnID, &p.ProcessID, &payload, &createdNs); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return interrupts.Pending{}, err
 		}

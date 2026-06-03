@@ -22,14 +22,16 @@ import (
 
 // Pending is one parked run awaiting a human decision. ParentRunID is
 // the interrupted run the client passes to runs.resume; TurnID is the
-// runtime's internal handle for the live (or restorable) process the
-// resume drives. Interrupts is the wire payload (one entry per pending
-// awaitable), stored opaquely as JSON so this package stays free of a
-// protocol-type dependency.
+// runtime's internal handle for the live process the resume drives;
+// ProcessID is the agent-process snapshot key used to REBUILD that
+// process after a restart (the live TurnID is gone then). Interrupts is
+// the wire payload (one entry per pending awaitable), stored opaquely as
+// JSON so this package stays free of a protocol-type dependency.
 type Pending struct {
 	ParentRunID string
 	SessionID   string
 	TurnID      string
+	ProcessID   string
 	Interrupts  json.RawMessage
 	CreatedAt   time.Time
 }

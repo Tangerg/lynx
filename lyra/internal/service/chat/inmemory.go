@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
 )
 
@@ -215,6 +216,73 @@ func (s *inMemory) Resume(_ context.Context, handle TurnHandle, approved bool) e
 	}
 	go s.drive(state, resumed)
 	return nil
+}
+
+// ProcessID returns the agent-process id backing a live turn — the
+// snapshot key the runtime persists so a restart can rebuild the process
+// via [Rehydrate]. Returns [ErrTurnNotFound] when the turn isn't live.
+func (s *inMemory) ProcessID(_ context.Context, handle TurnHandle) (string, error) {
+	state, err := s.findTurn(handle.TurnID)
+	if err != nil {
+		return "", err
+	}
+	s.mu.Lock()
+	proc := state.proc
+	s.mu.Unlock()
+	if proc == nil {
+		return "", errors.New("chat: turn has not dispatched a process yet")
+	}
+	return proc.ID(), nil
+}
+
+// Rehydrate rebuilds a turn from a persisted process snapshot and resumes
+// it — the cross-restart counterpart to [Resume]. It registers a fresh
+// turn (new handle), restores + re-parks the agent process via
+// [engine.RestoreChat] with a fresh observer + lifecycle listener, then
+// delivers the decision and drives the continuation onto the new turn's
+// event channel. The caller subscribes via [Events] on the returned handle.
+func (s *inMemory) Rehydrate(_ context.Context, req RehydrateRequest) (TurnHandle, error) {
+	if req.ProcessID == "" {
+		return TurnHandle{}, errors.New("chat: ProcessID is required")
+	}
+	handle := TurnHandle{SessionID: req.SessionID, TurnID: uuid.NewString()}
+	turnCtx, cancel := context.WithCancel(context.Background())
+	state := &turnState{
+		handle:    handle,
+		events:    make(chan Event, 32),
+		cancel:    cancel,
+		ctx:       turnCtx,
+		startedAt: time.Now(),
+	}
+	observer := &turnObserver{svc: s, st: state}
+	state.lifecycle = &turnLifecycle{}
+
+	proc, err := s.engine.RestoreChat(turnCtx, req.ProcessID, engine.RestoreChatRequest{
+		SessionID:     req.SessionID,
+		Observer:      observer,
+		EventListener: state.lifecycle.listener(handle.TurnID),
+	})
+	if err != nil {
+		cancel()
+		return TurnHandle{}, err
+	}
+	state.lifecycle.setRoot(proc.ID())
+	state.proc = proc
+
+	s.mu.Lock()
+	s.turns[handle.TurnID] = state
+	s.mu.Unlock()
+
+	// The restored process is re-parked (RestoreChat re-ticked it). Deliver
+	// the decision and drive the continuation. Mirrors Resume's error path.
+	resumed, rErr := proc.Resume(turnCtx, req.Approved)
+	if rErr != nil {
+		s.emit(state, ErrorEvent{Message: rErr.Error(), Code: "ENGINE_ERROR"})
+		s.finishTurn(state, TurnEndErrored)
+		return handle, nil
+	}
+	go s.drive(state, resumed)
+	return handle, nil
 }
 
 // emit stamps the event with the next sequence number and timestamp

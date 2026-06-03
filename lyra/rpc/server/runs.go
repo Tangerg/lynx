@@ -64,33 +64,57 @@ func (i *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	if !ok {
 		return nil, nil, protocol.ErrInterruptNotOpen
 	}
-	handle := chat.TurnHandle{SessionID: pending.SessionID, TurnID: pending.TurnID}
-
 	approved, err := resolveDecision(in.Responses)
 	if err != nil {
 		return nil, nil, err
 	}
+
+	handle := chat.TurnHandle{SessionID: pending.SessionID, TurnID: pending.TurnID}
 	if err := i.rt.Chat().Resume(ctx, handle, approved); err != nil {
-		if errors.Is(err, chat.ErrTurnNotFound) {
-			// The live turn is gone (e.g. process restarted) — the parked
-			// interrupt can't be resumed in this build. Clear it so it
-			// stops surfacing as resumable (API.md §6.2 anti-dangling).
+		if !errors.Is(err, chat.ErrTurnNotFound) {
+			return nil, nil, err
+		}
+		// The live turn is gone (the backend restarted). Rebuild the parked
+		// process from its persisted snapshot and resume the continuation on
+		// a fresh turn. Needs a recorded ProcessID + a configured durable
+		// ProcessStore; if either is missing the interrupt is genuinely
+		// unresumable, so drop it (API.md §6.2 anti-dangling).
+		rebuilt, rerr := i.rehydrate(ctx, pending, approved)
+		if rerr != nil {
 			_ = i.rt.Interrupts().Delete(ctx, in.ParentRunID)
 			return nil, nil, protocol.ErrRunNotFound
 		}
-		return nil, nil, err
+		handle = rebuilt
 	}
 	// The interrupt is now answered — drop the open-interrupt record
 	// before streaming the continuation.
 	_ = i.rt.Interrupts().Delete(ctx, in.ParentRunID)
 
-	// Continuation gets a fresh wire runId linked to the parent.
-	contRunID := protocol.IDPrefixRun + pending.TurnID + "_" + strconv.FormatInt(time.Now().UnixNano(), 36)
+	// Continuation gets a fresh wire runId linked to the parent. handle.TurnID
+	// is the original turn for a same-process resume, or the freshly rebuilt
+	// turn for a cross-restart one.
+	contRunID := protocol.IDPrefixRun + handle.TurnID + "_" + strconv.FormatInt(time.Now().UnixNano(), 36)
 	out, events, err := i.resumeSegment(contRunID, in.ParentRunID, handle, pending.SessionID)
 	if err != nil {
 		return nil, nil, err
 	}
 	return out, events, nil
+}
+
+// rehydrate rebuilds a parked turn whose live state was lost on restart,
+// from its persisted process snapshot, and resumes it with the decision.
+// Returns the fresh turn handle the continuation streams on, or an error
+// when the interrupt can't be rebuilt (no recorded ProcessID, no
+// ProcessStore, or a missing / non-deployable snapshot).
+func (i *Server) rehydrate(ctx context.Context, pending interrupts.Pending, approved bool) (chat.TurnHandle, error) {
+	if pending.ProcessID == "" {
+		return chat.TurnHandle{}, errors.New("server: interrupt has no recorded process id")
+	}
+	return i.rt.Chat().Rehydrate(ctx, chat.RehydrateRequest{
+		SessionID: pending.SessionID,
+		ProcessID: pending.ProcessID,
+		Approved:  approved,
+	})
 }
 
 // openSegment subscribes to the turn's event stream and starts the
@@ -213,10 +237,15 @@ func (i *Server) recordInterrupt(ctx context.Context, runID string, handle chat.
 	if err != nil {
 		return
 	}
+	// Capture the parked process's snapshot key so a restart can rebuild
+	// it (cross-restart resume). Best-effort: an empty id just means resume
+	// stays same-process-only for this interrupt.
+	processID, _ := i.rt.Chat().ProcessID(ctx, handle)
 	_ = i.rt.Interrupts().Put(ctx, interrupts.Pending{
 		ParentRunID: runID,
 		SessionID:   handle.SessionID,
 		TurnID:      handle.TurnID,
+		ProcessID:   processID,
 		Interrupts:  raw,
 		CreatedAt:   time.Now().UTC(),
 	})

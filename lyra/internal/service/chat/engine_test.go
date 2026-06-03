@@ -75,6 +75,7 @@ func (cp *stubChatProcess) PendingAwaitable() core.Awaitable { return nil }
 // the narrow interface.
 type stubEngine struct {
 	runChatCalls atomic.Int32
+	restoreCalls atomic.Int32
 	runReply     string
 	stopOnBudget bool // when true the produced ChatOutput sets StoppedOnBudget
 }
@@ -88,6 +89,17 @@ func (s *stubEngine) StartChat(_ context.Context, req engine.RunChatRequest) eng
 		Reply:           s.runReply,
 		StoppedOnBudget: s.stopOnBudget,
 	})
+}
+
+// RestoreChat simulates rebuilding a parked turn from a snapshot: it
+// streams the continuation reply through the observer and returns a
+// completed process, so Rehydrate's Resume → drive reaches TurnEnd.
+func (s *stubEngine) RestoreChat(_ context.Context, processID string, req engine.RestoreChatRequest) (engine.ChatProcess, error) {
+	s.restoreCalls.Add(1)
+	if req.Observer != nil {
+		req.Observer.OnMessageDelta(s.runReply)
+	}
+	return newStubChatProcess(processID, engine.ChatOutput{Reply: s.runReply}), nil
 }
 
 func (s *stubEngine) InjectUserMessage(_ context.Context, _, _ string) error { return nil }
@@ -201,6 +213,54 @@ func TestStubEngineCancelsCleanly(t *testing.T) {
 	// channel closed on turn done. Reaching here only on the 2s ctx timeout.
 	if ctx.Err() != nil {
 		t.Fatalf("turn did not cancel within 2s")
+	}
+}
+
+// TestRehydrateResumesRestoredTurn covers the cross-restart path: a
+// rehydrated turn restores its process via the engine, resumes it, and
+// streams the continuation (delta + TurnEnd) on a fresh handle.
+func TestRehydrateResumesRestoredTurn(t *testing.T) {
+	stub := &stubEngine{runReply: "continuation reply"}
+	svc := chat.New(stub, nil)
+
+	handle, err := svc.Rehydrate(context.Background(), chat.RehydrateRequest{
+		SessionID: "sess-restored",
+		ProcessID: "proc-42",
+		Approved:  true,
+	})
+	if err != nil {
+		t.Fatalf("Rehydrate: %v", err)
+	}
+	if handle.TurnID == "" {
+		t.Fatal("Rehydrate returned empty handle")
+	}
+	if got := stub.restoreCalls.Load(); got != 1 {
+		t.Fatalf("RestoreChat calls = %d, want 1", got)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	events, err := svc.Events(ctx, handle)
+	if err != nil {
+		t.Fatalf("Events: %v", err)
+	}
+	var sawDelta, sawEnd bool
+	for ev := range events {
+		switch e := ev.(type) {
+		case chat.MessageDelta:
+			sawDelta = true
+		case chat.TurnEnd:
+			sawEnd = true
+			if e.Reason != chat.TurnEndCompleted {
+				t.Errorf("TurnEnd reason = %s, want completed", e.Reason)
+			}
+		}
+	}
+	if !sawDelta {
+		t.Error("rehydrated continuation produced no MessageDelta")
+	}
+	if !sawEnd {
+		t.Error("rehydrated turn never reached TurnEnd")
 	}
 }
 

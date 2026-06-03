@@ -30,6 +30,11 @@ import (
 // not the other way).
 type Engine interface {
 	StartChat(ctx context.Context, req engine.RunChatRequest) engine.ChatProcess
+	// RestoreChat rebuilds a turn's agent process from a persisted
+	// snapshot and re-parks it for Resume — the cross-restart resume seam
+	// (the live process is gone after a backend restart). Returns a
+	// re-parked [engine.ChatProcess] ready for Resume(approved).
+	RestoreChat(ctx context.Context, processID string, req engine.RestoreChatRequest) (engine.ChatProcess, error)
 	InjectUserMessage(ctx context.Context, sessionID, text string) error
 	MaybeCompact(ctx context.Context, sessionID string) (engine.CompactionResult, error)
 	MaybeExtract(ctx context.Context, sessionID string) (engine.ExtractionResult, error)
