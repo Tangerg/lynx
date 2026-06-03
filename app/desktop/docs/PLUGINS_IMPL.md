@@ -2,7 +2,7 @@
 
 > 状态：**已实现 v1**，跟代码对齐。
 > 最后修订：2026-05-19
-> 配套：[`PLUGINS.md`](./PLUGINS.md) 是设计提案；本文档讲实际实现细节。
+> 配套：[`EXTENSION_POINTS.md`](./EXTENSION_POINTS.md) 是扩展点底座设计 + 落地状态；本文档讲实际实现细节。
 
 > **写法已统一**：贡献走 `host.extensions.contribute(POINT, spec)`（POINT 见 `frontend/src/plugins/sdk/kernelPoints.ts`）；少数薄 facade（agui / layout / contentBlock / lifecycle / rpc hooks / log.subscribe）保留。详见 `docs/EXTENSION_POINTS.md`。
 
@@ -721,7 +721,7 @@ npm run test:watch # 监听模式
 
 ```
 docs/
-├── PLUGINS.md          # 设计提案 v2（RFC）
+├── EXTENSION_POINTS.md # 扩展点底座设计 + 落地状态
 └── PLUGINS_IMPL.md     # 本文档
 
 frontend/src/plugins/

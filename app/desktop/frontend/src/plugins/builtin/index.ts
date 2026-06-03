@@ -112,7 +112,7 @@ const protocol: PluginSpec[] = [
 const infrastructure: PluginSpec[] = [
   defaultConfig,
   // bootstrap after defaultConfig so api.localToken is set before the
-  // handshake builds the RpcClient (INTEGRATION.md §2).
+  // handshake builds the RpcClient (API.md §2 Lifecycle).
   bootstrap,
   defaultData,
   httpAgent,
