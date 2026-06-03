@@ -40,7 +40,7 @@
 | `slices.*` | 12 | 边界安全 / 分块 / 迭代 |
 | `ptr.To / ptr.From` | 8 | 指针字面量 / 安全 deref |
 
-其余（`maps.Map` / `result.Result` / `stream.Stream` / `sets.Set` / `sync.Future` / `retry.Retrier` / `safe.Go`）< 5 调用方 / 个。
+其余（`maps.Map` / `result.Result` / `stream.Stream` / `sets.Set` / `sync.Future` / `retry.Retrier` / `safe.Go`）调用方数均 < 5。
 
 ## 强约定
 
