@@ -10,8 +10,8 @@
 // regressions we care about (UI/plugin upward deps, domain/infra/rpc
 // purity) without policing every legitimate inward dependency.
 //
-// NOT enforced here (intentional, see CLAUDE.md): protocol/agui → plugins/sdk
-// is the reducer's dispatcher seam (events route to host.agui.onCore
+// NOT enforced here (intentional, see CLAUDE.md): protocol → plugins/sdk is
+// the reducer's dispatcher seam (StreamEvents route to host.events.onStream
 // handlers) — that's the core "kernel doesn't grow" design, not a leak.
 
 import { execFileSync } from "node:child_process";
@@ -88,7 +88,7 @@ const FORBIDDEN = {
     "components",
     "pages",
   ],
-  // AG-UI reducer/viewState. MAY reach sdk (dispatcher seam) + lib + rpc;
+  // Protocol reducer/viewState. MAY reach sdk (dispatcher seam) + lib + rpc;
   // must not reach UI, stores, or wiring.
   protocol: [...UI, "state", "infra", "main"],
   // The plugin SDK is a platform layer — it must not depend on the UI it
@@ -98,6 +98,13 @@ const FORBIDDEN = {
   state: [...UI],
   // Utility layer — no UI, no concrete plugins.
   lib: [...UI],
+  // The view layer reaches the backend only through hooks / stores (state,
+  // lib/data query hooks, plugin SDK selectors) — never the composition root
+  // (`main/container`) or the raw protocol client (`rpc`) directly. Keeps
+  // components a thin presentation + store-wiring layer; business access stays
+  // behind a minimal hook/selector seam.
+  components: ["main", "rpc"],
+  pages: ["main", "rpc"],
 };
 
 // Documented exceptions: "importer↦importee" file pairs (src-relative)
@@ -106,10 +113,14 @@ const ALLOWED_EDGES = new Set([]);
 
 let raw;
 try {
-  raw = execFileSync("npx", ["madge", "--extensions", "ts,tsx", "--json", "src/"], {
-    encoding: "utf8",
-    maxBuffer: 32 * 1024 * 1024,
-  });
+  raw = execFileSync(
+    "npx",
+    ["madge", "--extensions", "ts,tsx", "--ts-config", "tsconfig.json", "--json", "src/"],
+    {
+      encoding: "utf8",
+      maxBuffer: 32 * 1024 * 1024,
+    },
+  );
 } catch (err) {
   raw = err.stdout?.toString() ?? "";
 }
@@ -125,6 +136,10 @@ try {
 
 const violations = [];
 for (const [file, deps] of Object.entries(graph)) {
+  // Tests may import across layers to wire fixtures (e.g. loading a plugin to
+  // exercise the reducer). The layering invariant is about production
+  // dependency direction, so skip test files as importers.
+  if (/\.(test|spec)\.[tj]sx?$/.test(file)) continue;
   const from = layerOf(file);
   const forbidden = FORBIDDEN[from];
   if (!forbidden) continue;

@@ -20,15 +20,43 @@ const ALLOWED = [
   // at compile time, no runtime cycle. Restructuring would require
   // weakening type safety on the host's plugin namespace.
   ["plugins/sdk/types/host.ts", "plugins/sdk/types/plugin.ts"],
+  // SDK barrel ↔ state, closed through the reducer's dispatcher seam:
+  //   sdk/index (re-exports useSharedState)
+  //     → sharedState (reads the agent view via useAgentSlice)
+  //       → agentStore (folds events via reduce)
+  //         → reducer (routes StreamEvents to host.events.* handlers — the
+  //            intended "kernel doesn't grow" seam, see check-layers.mjs)
+  //         → sdk/index
+  // Every edge is used inside a hook/function body, never at module-init
+  // top level, so there is no initialization hazard. Breaking it would mean
+  // either dropping useSharedState from the public SDK barrel or severing the
+  // reducer→SDK dispatcher seam — both worse than this benign cycle.
+  [
+    "plugins/sdk/index.ts",
+    "plugins/sdk/sharedState.ts",
+    "protocol/run/reducer.ts",
+    "state/agentStore.ts",
+  ],
 ];
 
 const allowedKeys = new Set(ALLOWED.map((cycle) => [...cycle].sort().join("|")));
 
 let raw;
 try {
-  raw = execFileSync("npx", ["madge", "--circular", "--extensions", "ts,tsx", "--json", "src/"], {
-    encoding: "utf8",
-  });
+  raw = execFileSync(
+    "npx",
+    [
+      "madge",
+      "--circular",
+      "--extensions",
+      "ts,tsx",
+      "--ts-config",
+      "tsconfig.json",
+      "--json",
+      "src/",
+    ],
+    { encoding: "utf8" },
+  );
 } catch (err) {
   // madge exits non-zero when it finds any cycle. We still want the
   // JSON, which it prints on stdout regardless.
