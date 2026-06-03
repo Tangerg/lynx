@@ -67,19 +67,7 @@ func (s *inMemory) StartTurn(_ context.Context, req StartTurnRequest) (TurnHandl
 		SessionID: req.SessionID,
 		TurnID:    uuid.NewString(),
 	}
-
-	// Cancellation is per-turn — derive from a background ctx so the
-	// caller's ctx ending (e.g. the StartTurn RPC returning) doesn't
-	// kill the in-flight turn. The same ctx bounds resume continuations.
-	turnCtx, cancel := context.WithCancel(context.Background())
-
-	state := &turnState{
-		handle:    handle,
-		events:    make(chan Event, 32),
-		cancel:    cancel,
-		ctx:       turnCtx,
-		startedAt: time.Now(),
-	}
+	state := newTurnState(handle)
 
 	s.mu.Lock()
 	s.turns[handle.TurnID] = state
@@ -88,6 +76,22 @@ func (s *inMemory) StartTurn(_ context.Context, req StartTurnRequest) (TurnHandl
 	go s.runTurn(req, state)
 
 	return handle, nil
+}
+
+// newTurnState builds a fresh per-turn state. Cancellation derives from a
+// background ctx so the caller's ctx ending (e.g. the StartTurn RPC
+// returning) doesn't kill the in-flight turn; the same ctx bounds the run
+// and any resume continuation. Shared by StartTurn and Rehydrate so both
+// entry points produce an identically-initialized turn.
+func newTurnState(handle TurnHandle) *turnState {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &turnState{
+		handle:    handle,
+		events:    make(chan Event, 32),
+		cancel:    cancel,
+		ctx:       ctx,
+		startedAt: time.Now(),
+	}
 }
 
 // findTurn looks up the per-turn state by id under the impl's
@@ -205,14 +209,23 @@ func (s *inMemory) Resume(_ context.Context, handle TurnHandle, approved bool) e
 		return ErrTurnNotFound
 	}
 	state.parked = false
-	proc := state.proc
 	s.mu.Unlock()
 
-	resumed, rErr := proc.Resume(state.ctx, approved)
-	if rErr != nil {
-		s.emit(state, ErrorEvent{Message: rErr.Error(), Code: "ENGINE_ERROR"})
+	return s.resumeAndDrive(state, approved)
+}
+
+// resumeAndDrive delivers the decision to the turn's (write-once-stable)
+// parked process and launches the continuation drive. On a resume error it
+// streams the terminal (ErrorEvent + TurnEnd) and returns the error;
+// otherwise it starts drive and returns nil. Shared by [Resume]
+// (same-process) and [Rehydrate] (cross-restart) so the resume tail —
+// deliver, on-error-finish, else-drive — stays identical.
+func (s *inMemory) resumeAndDrive(state *turnState, approved bool) error {
+	resumed, err := state.proc.Resume(state.ctx, approved)
+	if err != nil {
+		s.emit(state, ErrorEvent{Message: err.Error(), Code: "ENGINE_ERROR"})
 		s.finishTurn(state, TurnEndErrored)
-		return rErr
+		return err
 	}
 	go s.drive(state, resumed)
 	return nil
@@ -246,24 +259,17 @@ func (s *inMemory) Rehydrate(_ context.Context, req RehydrateRequest) (TurnHandl
 		return TurnHandle{}, errors.New("chat: ProcessID is required")
 	}
 	handle := TurnHandle{SessionID: req.SessionID, TurnID: uuid.NewString()}
-	turnCtx, cancel := context.WithCancel(context.Background())
-	state := &turnState{
-		handle:    handle,
-		events:    make(chan Event, 32),
-		cancel:    cancel,
-		ctx:       turnCtx,
-		startedAt: time.Now(),
-	}
+	state := newTurnState(handle)
 	observer := &turnObserver{svc: s, st: state}
 	state.lifecycle = &turnLifecycle{}
 
-	proc, err := s.engine.RestoreChat(turnCtx, req.ProcessID, engine.RestoreChatRequest{
+	proc, err := s.engine.RestoreChat(state.ctx, req.ProcessID, engine.RestoreChatRequest{
 		SessionID:     req.SessionID,
 		Observer:      observer,
 		EventListener: state.lifecycle.listener(handle.TurnID),
 	})
 	if err != nil {
-		cancel()
+		state.cancel()
 		return TurnHandle{}, err
 	}
 	state.lifecycle.setRoot(proc.ID())
@@ -274,14 +280,10 @@ func (s *inMemory) Rehydrate(_ context.Context, req RehydrateRequest) (TurnHandl
 	s.mu.Unlock()
 
 	// The restored process is re-parked (RestoreChat re-ticked it). Deliver
-	// the decision and drive the continuation. Mirrors Resume's error path.
-	resumed, rErr := proc.Resume(turnCtx, req.Approved)
-	if rErr != nil {
-		s.emit(state, ErrorEvent{Message: rErr.Error(), Code: "ENGINE_ERROR"})
-		s.finishTurn(state, TurnEndErrored)
-		return handle, nil
-	}
-	go s.drive(state, resumed)
+	// the decision and drive the continuation; on a resume error the
+	// terminal is already streamed, so the handle is still returned for the
+	// caller to drain.
+	_ = s.resumeAndDrive(state, req.Approved)
 	return handle, nil
 }
 
