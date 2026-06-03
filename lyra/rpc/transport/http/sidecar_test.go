@@ -79,11 +79,15 @@ func TestHealthNoProbes(t *testing.T) {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
 	var body struct {
+		OK     bool           `json:"ok"`
 		Status string         `json:"status"`
 		Checks map[string]any `json:"checks"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatalf("decode: %v", err)
+	}
+	if !body.OK {
+		t.Fatalf("ok = false, want true")
 	}
 	if body.Status != "ok" {
 		t.Fatalf("status = %q, want ok", body.Status)
@@ -163,11 +167,15 @@ func TestHealthDegraded(t *testing.T) {
 		t.Fatalf("status = %d, want 503", resp.StatusCode)
 	}
 	var body struct {
+		OK     bool              `json:"ok"`
 		Status string            `json:"status"`
 		Checks map[string]string `json:"checks"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatalf("decode: %v", err)
+	}
+	if body.OK {
+		t.Fatalf("ok = true, want false for degraded")
 	}
 	if body.Status != "degraded" {
 		t.Fatalf("status = %q, want degraded", body.Status)

@@ -7,7 +7,7 @@ import (
 
 // infoEndpoints is the operational route table surfaced under
 // /v2/info.endpoints. Pure server-level metadata — no business data
-// here (API.md §9.3 反向不变量).
+// here (TRANSPORT §16 反向不变量).
 var infoEndpoints = map[string]string{
 	"rpc":    "/v2/rpc/{method}",
 	"stream": "/v2/rpc/stream",
@@ -21,7 +21,7 @@ var infoEndpoints = map[string]string{
 // AGENTS.md files) so oncall has a single place to look during
 // integration.
 //
-// API.md §9.2: this endpoint deliberately does NOT use the JSON-RPC
+// TRANSPORT §12.2: this endpoint deliberately does NOT use the JSON-RPC
 // envelope so oncall can curl it and read the result.
 func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -45,9 +45,10 @@ func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
 
 // handleHealth serves GET /v2/health — k8s/nginx liveness probe.
 // Runs configured HealthProbes in parallel under a shared timeout
-// (API.md §9.2). Status mapping: "ok" → 200, "degraded" /
-// "unhealthy" → 503. With no probes configured the response is
-// `{"status":"ok"}` (current default behavior preserved).
+// (TRANSPORT §12.1). Status mapping: "ok" → 200, "degraded" /
+// "unhealthy" → 503. The contract body is `{ "ok": true }`; `status`
+// (worst-of keyword) and `checks` (per-probe detail) are additive ops
+// fields the FE ignores.
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	overall, checks := runHealthProbes(r.Context(), s.healthProbes)
 
@@ -62,9 +63,11 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(status)
 
 	body := struct {
+		OK     bool                    `json:"ok"`
 		Status string                  `json:"status"`
 		Checks map[string]HealthStatus `json:"checks,omitempty"`
 	}{
+		OK:     overall == HealthOK,
 		Status: string(overall),
 		Checks: checks,
 	}

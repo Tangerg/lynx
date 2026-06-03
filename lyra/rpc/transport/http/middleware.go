@@ -11,7 +11,7 @@ import (
 )
 
 // observability wraps the mux with a single middleware layer that
-// implements the API.md §10 contract:
+// implements the TRANSPORT §16 contract:
 //
 //   - one OTel span per 4xx/5xx response with path / http_method /
 //     status / duration_ms / bytes_out / trace_id attributes —

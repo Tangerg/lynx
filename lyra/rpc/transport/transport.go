@@ -53,13 +53,13 @@ type Request = jsonrpc.Request
 type Response = jsonrpc.Response
 
 // ID is an opaque JSON-RPC id (nil, int64, or string per spec).
-// Lyra's API.md v4 §1.1 narrows this to int64 only — the dispatcher
-// rejects non-number ids at the boundary.
+// Lyra's API.md §1 narrows this to string only — the dispatcher
+// rejects non-string ids at the boundary.
 type ID = jsonrpc.ID
 
 // Error is the JSON-RPC error envelope. The wire shape carries
 // Code (int64), Message (string), Data (raw JSON — typically
-// [ProblemData] per API.md §7.2).
+// [ProblemData] per API.md §8).
 type Error = jsonrpc.Error
 
 // EncodeMessage serializes a Message to wire bytes (no trailing

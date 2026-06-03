@@ -10,8 +10,11 @@ import (
 	"github.com/Tangerg/lynx/lyra/rpc/transport"
 )
 
-// replayWindow is how long an event stays in the per-stream ring
-// buffer for Last-Event-Id resume (API.md §3.3 — "重放窗口：30s").
+// replayWindow is how long an event stays in the per-stream ring buffer
+// for Last-Event-Id resume. TRANSPORT §9.2 leaves the window length to
+// the server ("保留 durable 事件足够久"); 30s comfortably covers a normal
+// reconnect, and correctness never depends on it (durable terminal state
+// is always re-derivable via items.list).
 const replayWindow = 30 * time.Second
 
 // streamRecord is one buffered notification waiting for replay.
@@ -24,8 +27,8 @@ type streamRecord struct {
 // streamBuffer is a per-runId ring buffer keyed by eventId. Entries
 // older than replayWindow drop on each append.
 //
-// API.md v4 §3.1: stream identifier is the resource id (runId /
-// taskId), not a separate streamHandle.
+// TRANSPORT §9.1: the stream is identified by the resource id (root
+// runId), not a separate stream handle.
 type streamBuffer struct {
 	mu    sync.Mutex
 	items []streamRecord
@@ -70,7 +73,7 @@ func (b *streamBuffer) since(lastID string) []streamRecord {
 }
 
 // streamRegistry tracks every active run's replay buffer, keyed by
-// runId (API.md v4 §3.1).
+// root runId (TRANSPORT §9.1).
 type streamRegistry struct {
 	mu      sync.Mutex
 	streams map[string]*streamBuffer
