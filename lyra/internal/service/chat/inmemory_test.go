@@ -195,6 +195,42 @@ func TestService_PlanMode_RejectPath(t *testing.T) {
 	}
 }
 
+// TestService_PlanMode_GatedWhenClientCannotHandle covers the anti-deadlock
+// gate: a client that declared only "approval" interrupts can't answer a
+// "plan" interrupt, so a plan-mode turn must auto-deny (reject the plan)
+// instead of surfacing a TurnInterrupted no one can resolve (API.md §6.2).
+func TestService_PlanMode_GatedWhenClientCannotHandle(t *testing.T) {
+	svc, _ := buildPlanService(t, "1. step")
+	svc.SetInterruptKinds([]string{"approval"}) // no "plan"
+
+	handle, err := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+		SessionID: "sess-gated",
+		Message:   "do",
+		PlanMode:  true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, _ := svc.Events(context.Background(), handle)
+
+	var sawInterrupt bool
+	var endReason chat.TurnEndReason
+	for ev := range events {
+		switch e := ev.(type) {
+		case chat.TurnInterrupted:
+			sawInterrupt = true
+		case chat.TurnEnd:
+			endReason = e.Reason
+		}
+	}
+	if sawInterrupt {
+		t.Error("plan interrupt should have been gated (auto-denied), not surfaced")
+	}
+	if endReason != chat.TurnEndCancelled {
+		t.Errorf("gated plan should end Cancelled (rejected), got %s", endReason)
+	}
+}
+
 // TestService_PlanMode_NoPlanFallthrough verifies a NO_PLAN reply
 // from the LLM skips the approval prompt entirely — the turn
 // runs through to a normal completion without emitting any
