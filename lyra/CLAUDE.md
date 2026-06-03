@@ -57,7 +57,7 @@
 跨模块共用规则见 [`../CLAUDE.md`](../CLAUDE.md)。下面是 lyra 协议层独有的：
 
 - **协议形态写死 JSON-RPC 2.0**：所有 message envelope 走 MCP SDK 的 `jsonrpc` 类型，**不重新定义 envelope**。HTTP transport 上 method 名照搬协议表（`POST /v2/rpc/runtime.initialize`，点保留不斜杠化）
-- **业务 error → JSON-RPC `error.code`**（`-32001..-32016` 是扩展段，客户端按 `error.data.type` 的 symbolic name 分支、不按数字码），**不映射 HTTP status**。HTTP status 仅反映 transport 层（TRANSPORT §6.3：200 / 202 通知 / 400 / 401 / 404 / 405 / 409 / 413 / 415 / 500 / 503）
+- **业务 error → JSON-RPC `error.code`**（`-32001..-32016` 是扩展段，客户端按 `error.data.type` 的 symbolic name 分支、不按数字码），**不映射 HTTP status**。HTTP status 仅反映 transport 层（TRANSPORT §6.3：200 / 204 通知 / 400 含 method 不一致 / 401 带 `WWW-Authenticate` / 404 / 405 带 `Allow` / 413 / 415 / 500 / 503；**无 409** —— 自相矛盾请求归 400 而非资源冲突）
 - **Sidecar 端点只 `/v2/info` + `/v2/health` 两个**，flat JSON 不走 envelope，no-auth。**永远不加业务 read shadow**（如 `GET /v2/sessions/{id}`）
 - **Transport 元数据走 header，不进 envelope**：trace id 用 `X-Trace-Id`（已去品牌前缀）、本地 token 用 `Authorization: Bearer`、SSE 续连用 `Last-Event-Id`、协议版本 `X-Protocol-Version`、连接 id `X-Conn-Id`、幂等键 `X-Idempotency-Key`
 
@@ -152,7 +152,7 @@ curl -H "Authorization: Bearer $(cat ~/.lyra/local-token)" \
 - ✅ JSON-RPC envelope 切到 MCP SDK 的 `jsonrpc` 包（不自维护）
 - ✅ HTTP transport：local-token gate + CORS + 4xx access log + `/v2/info` ops 字段 + `/v2/health` 探针
 - ✅ HTTP transport 路由从 stdlib `ServeMux` 换 `go-chi/chi` v5 + CORS 换 `go-chi/cors`：删手写 `cors.go`（106→40 行），`r.Use(observability, cors, authGate)` 比内嵌包裹更可读；chi 用标准 handler 故 SSE 不受影响。**预检状态从 204→200**（go-chi/cors 行为，契约对 2xx 不挑）。gin/echo/fiber 仍禁（破坏 SSE）
-- ✅ HTTP transport 对齐冻结 v2 契约（TRANSPORT §6.3/§8/§12）：通知 ack `204→202`、超限 body 返 `413`（原静默截断）、非 JSON content-type 返 `415`、`/v2/health` body 补 `{"ok":true}`；SSE 从"广播给所有连接"改为**按 conn/run 路由**（`clientRegistry` 以 connId 为键 + `runId→connId` 订阅，`?conn=` / `X-Conn-Id` 实际生效），`Last-Event-Id` 重放收窄到该 conn 订阅的 run；顺带更正一批过期的 `API.md §x` 注释引用（实际在 TRANSPORT）
+- ✅ HTTP transport 对齐冻结 v2 契约（TRANSPORT §6.2/§6.3/§8/§12 + API.md §8.3）：超限 body 返 `413`（原静默截断）、非 JSON content-type 返 `415`、method 不一致从 `409`→`400`（自相矛盾请求非资源冲突）、通知 ack 保持 `204`（契约明确弃 202）、401 带 `WWW-Authenticate: Bearer`、405 带 `Allow`（chi 自动）、`/v2/health` body 补 `{"ok":true}`、`ProblemData` 补 `retryAfterSeconds`/`errors[]`（RFC 9457 裁剪）；SSE 从"广播给所有连接"改为**按 conn/run 路由**（`clientRegistry` 以 connId 为键 + `runId→connId` 订阅，`?conn=` / `X-Conn-Id` 实际生效），`Last-Event-Id` 重放收窄到该 conn 订阅的 run
 - ✅ SSE 写端切到 `github.com/Tangerg/sse`
 - ✅ SQLite 持久化（session / memory），`LYRA_STORAGE` env 切换
 - ✅ AGENTS.md walk-from-cwd 级联发现（mirror kimi-code 设计）+ `lyra agents` CLI + `/v2/info.agentDocs`

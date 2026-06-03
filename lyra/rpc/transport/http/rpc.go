@@ -23,7 +23,7 @@ const maxRPCBodyBytes = 4 << 20
 
 // handleRPCWithMethod is the single JSON-RPC entry point —
 // `POST /v2/rpc/{method}` per TRANSPORT §3. The URL method is
-// cross-checked against the body's method (mismatch ⇒ invalid_request / 409).
+// cross-checked against the body's method (mismatch ⇒ invalid_request / 400).
 func (s *Server) handleRPCWithMethod(w http.ResponseWriter, r *http.Request) {
 	// chi only routes /v2/rpc/{method} with a non-empty single segment;
 	// bare /v2/rpc has no matching route and 404s before reaching here.
@@ -79,8 +79,9 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 		bodyMethod = req.Method
 	}
 
-	// Client notifications are acknowledged with 202 Accepted and no
-	// JSON-RPC response body (TRANSPORT §6.3).
+	// Client notifications are dispatched synchronously and acknowledged
+	// with 204 No Content — no body (TRANSPORT §6.3 explicitly picks 204
+	// over 202, since processing is already complete, not pending).
 	if res.Response == nil {
 		w.Header().Set("X-Server", s.serverID)
 		if urlMethod != "" {
@@ -94,7 +95,7 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 			// lifetime, not r.Context() (which cancels on return).
 			s.attachStream(s.baseCtx, res.RunID, connID, res.EventStream)
 		}
-		w.WriteHeader(http.StatusAccepted)
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
@@ -105,9 +106,9 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 	}
 
 	// Compute HTTP status (TRANSPORT §6.3): 200 by default, 404 on
-	// method-not-found, 409 on URL/body method mismatch, 400 on
-	// invalid request / parse error.
-	status := statusForRPC(res.Response, urlMethod, bodyMethod)
+	// method-not-found, 400 on invalid request / parse error / URL-body
+	// method mismatch.
+	status := statusForRPC(res.Response, urlMethod)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("X-Server", s.serverID)
 	methodLabel := chooseMethodLabel(urlMethod, bodyMethod)
@@ -171,7 +172,7 @@ func (s *Server) attachStream(ctx context.Context, runID, connID string, events 
 
 // statusForRPC translates a dispatcher response into an HTTP status
 // (TRANSPORT §6.3).
-func statusForRPC(resp *transport.Response, urlMethod, bodyMethod string) int {
+func statusForRPC(resp *transport.Response, urlMethod string) int {
 	if resp == nil || resp.Error == nil {
 		return http.StatusOK
 	}
@@ -185,12 +186,9 @@ func statusForRPC(resp *transport.Response, urlMethod, bodyMethod string) int {
 	case transport.CodeParseError:
 		return http.StatusBadRequest
 	case transport.CodeInvalidRequest:
-		// A URL/body method mismatch is the one invalid_request that maps
-		// to 409 Conflict (TRANSPORT §6.3); other malformed
-		// envelopes are 400.
-		if urlMethod != "" && bodyMethod != "" && urlMethod != bodyMethod {
-			return http.StatusConflict
-		}
+		// Any malformed envelope — including a URL/body method mismatch
+		// (a self-contradictory request, not a resource conflict) — is
+		// 400, not 409 (TRANSPORT §6.3).
 		return http.StatusBadRequest
 	case transport.CodeMethodNotFound:
 		// URL-form is the only path, so unknown methods always come in
