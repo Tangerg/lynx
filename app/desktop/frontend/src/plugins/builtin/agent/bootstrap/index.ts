@@ -1,4 +1,4 @@
-// Boot handshake (INTEGRATION.md §2). On load: probe liveness via the
+// Boot handshake (API.md §2 Lifecycle). On load: probe liveness via the
 // sidecar, negotiate protocol version + capabilities via runtime.initialize,
 // and stash the result in runtimeStore so feature/event gating works.
 //

@@ -1,367 +1,425 @@
-# Lyra 传输层
+# Lyra Runtime Transport（正式定稿 v2）
 
-> `API.md` 定义 **Lyra Runtime Protocol**（JSON-RPC 2.0）的 wire 语义。
-> 本文档描述该协议在表现层 ↔ Runtime 之间**物理上**怎么传输。协议在所有
-> 传输上完全一致；**传输层**只负责把 JSON-RPC message（Go-to-Go 时直接把
-> struct 指针）从一边搬到另一边。
->
-> 读者：要做新表现层、把 Runtime 嵌入新外壳、或为特定部署写适配器的人。
-> 错误码 / HTTP status / observability / sidecar 的细节都在 `API.md`，本文
-> 不重复，只引用。
+> **状态：正式契约（canonical）。** 本文定义 [`API.md`](./API.md)（Lyra Runtime Protocol v2）如何在具体
+> transport 上承载。`protocolVersion`: **`2026-06-03`**。
 
----
+## 0. 目的
 
-## 1. 部署矩阵
+API 定义 JSON-RPC 方法、资源、事件语义；transport 定义 message 如何在 client 与 runtime 之间搬运。
 
-Runtime 永远是**单一形态**（本地或同进程；远程留给未来 facade，见
-`API.md` 附录 B）。表现层 3 种形态，各挑能跨过自己进程/网络边界的最便宜
-传输：
+**transport 层不得解读业务 params**（如 `cwd` / `sessionId` / `runId`），除非显式用于流路由。
 
-| 表现层 | Runtime 在哪 | 传输 | 备注 |
-| --- | --- | --- | --- |
-| **TUI（Go，如 Bubble Tea）** | 同一 Go 二进制 | **InProcess** | 直接持有 Runtime 对象，函数调用，零序列化 |
-| **套壳客户端（Wails / Tauri / Electron）** | 宿主进程 | **Wails IPC** | WebView ↔ 宿主进程 IPC bridge |
-| **Web（浏览器）** | 同机独立进程 | **HTTP loopback** | 浏览器无法嵌后端，必走 HTTP；本地 token 做进程门禁 |
+## 1. Transport 矩阵
 
-三种传输共享**同一个 Go interface**，handler 代码跟传输选哪个无关。
+| 客户端形态 | runtime 位置 | transport |
+| --- | --- | --- |
+| Go TUI | 同进程 | InProcess |
+| 桌面 web 外壳 | 宿主进程 | IPC |
+| 浏览器 UI | 本地 runtime 进程 | HTTP loopback |
+| 未来远程 facade | facade 之后 | HTTP |
 
----
+所有 transport 暴露相同协议语义：request/response JSON-RPC；server→client 通知；显式取消；尽量用 event id
+做流重连。
 
-## 2. 唯一抽象 —— `Transport`
+## 2. 元数据划分 —— 业务进 params，非业务才走带外
 
-两端对接同一个 interface。`Transport` 就是 JSON-RPC message 的双向管道
-—— HTTP framing、SSE 解析、Wails IPC bridge 全藏在接口背后。
+**原则**：JSON-RPC `params` 承载**业务 / 语义载荷**（这次操作"是关于什么"的数据）；**只有非业务**的
+传输 / 连接 / 观测 / 可靠性元数据才走带外通道（HTTP header、`context.Context`、IPC metadata）。
 
-```go
-// pkg/transport/transport.go
-package transport
+**判定一个字段放哪**：问"它是这次操作语义的一部分，还是只是承载这次操作的传输上下文？"
 
-import (
-    "context"
-    "encoding/json"
-)
+- **是语义的一部分 → params**（如 `cwd` 决定 session 属于哪个项目、`sessionId` / `runId` 指明操作对象）。
+- **只是传输上下文 → 带外**（连接 id、trace、协议版本、幂等键、门禁 token、流游标）。
 
-// Message 是一个 JSON-RPC 2.0 envelope —— Request / Response / Notification。
-// 按 spec 只填对应字段：
-//   Request:      jsonrpc + id + method + params?
-//   Response:     jsonrpc + id + (result XOR error)
-//   Notification: jsonrpc + method + params?  (no id)
-type Message struct {
-    JSONRPC string          `json:"jsonrpc"`
-    ID      json.RawMessage `json:"id,omitempty"`
-    Method  string          `json:"method,omitempty"`
-    Params  json.RawMessage `json:"params,omitempty"`
-    Result  json.RawMessage `json:"result,omitempty"`
-    Error   *RPCError       `json:"error,omitempty"`
-}
+走带外的（**非业务**）：
 
-type RPCError struct {
-    Code    int             `json:"code"`
-    Message string          `json:"message"`
-    Data    json.RawMessage `json:"data,omitempty"`
-}
-
-// Transport 是双向 message pipe。三种实现在范围内：InProcess / Wails / HTTP。
-type Transport interface {
-    // Send 把出站 message 交给底层传输即返回（不等对端处理完）。
-    Send(ctx context.Context, msg *Message) error
-    // Recv 返回入站 message 的 channel；传输断开时 close，消费方须 drain。
-    Recv() <-chan *Message
-    // Close 终止传输；pending Send 以 context.Canceled 失败，Recv channel close。
-    Close() error
-}
-```
-
-`Transport` 是**纯 message pipe**：不区分 Request/Response 配对（按 `id`
-match 是上层 `RPCClient` 的事），不需要专门的 "Stream" 字段（streaming
-就是 `Recv()` 持续吐 Notification）。前端永远见不到 `*http.Request` /
-`net.Conn`；后端 router 签名是 `func(ctx, *Message) *Message`，同一份代码
-跑在所有传输背后。
-
----
-
-## 3. 服务契约 —— 后端 `rpc/protocol`
-
-> **实现已 ship**（lynx 仓 `lyra/`），非"待建"。下文的 `pkg/coreapi` /
-> `pkg/coreimpl` / `pkg/rpcadapter` / `pkg/transport` 是早期抽象示意名；
-> 实际已落地并改名：`rpc/protocol`（interface，`CoreAPI`→`Runtime`）/
-> `rpc/server`（impl）/ `rpc/dispatch`（adapter）/ `rpc/transport`。见
-> lyra `CLAUDE.md` 与本文 §8 的实际布局。
-
-`Transport` 搬运不透明 envelope；**类型化的 Go interface**（两端真正同意
-的契约）在其上一层 `rpc/protocol`：
-
-```go
-// pkg/coreapi/coreapi.go
-package coreapi
-
-import "context"
-
-type CoreAPI interface {
-    Initialize(ctx context.Context, in InitializeIn) (*InitializeOut, error)
-    Shutdown(ctx context.Context, in ShutdownIn) error
-
-    ListSessions(ctx context.Context, q ListSessionsQuery) (*Page[Session], error)
-    GetSession(ctx context.Context, id string) (*Session, error)
-    CreateSession(ctx context.Context, in CreateSessionIn) (*Session, error)
-    // …
-
-    ListMessages(ctx context.Context, sessionID string, q ListMessagesQuery) (*Page[Message], error)
-
-    // 流式 surface
-    StartRun(ctx context.Context, in StartRunIn) (*StartRunOut, <-chan AgUiEvent, error)
-    CancelRun(ctx context.Context, runID string) error
-    SubmitApproval(ctx context.Context, in ApprovalIn) error
-
-    // …完整 surface 镜像 API.md §5.2 方法表
-}
-```
-
-这个 interface 是**行为的 SSOT**。从它衍生两份产物：JSON-RPC method 表
-+ AsyncAPI 事件 schema（`schemas/`，给非 Go 客户端 codegen）；以及
-JSON-RPC 适配器（`pkg/rpcadapter`，把 inbound `Message` 路由到 `CoreAPI`
-方法、把结果编码回 `Message`）。
-
-```
-              ┌────────────────────┐    Transport.Send(msg)
-   Frontend ──│  RPCClient(typed)  │─────────────────────────► wire
-              │  + CoreAPI mirror  │◄──── Transport.Recv() ────
-              └────────────────────┘
-                                                                ↓
-              ┌────────────────────┐    Router.Handle(msg)
-   Backend  ──│  CoreAPI impl      │◄────────────────────────── wire
-              │  + RPC adapter     │─── Transport.Send(reply) ─►
-              └────────────────────┘
-```
-
-适配器形态因传输而异：InProcess 时前端 `Client` 直接持有 `CoreAPI` 引用，
-**完全跳过 JSON-RPC 序列化**；Wails / HTTP 时适配器解码 `Message` → method
-+ params struct，调 `CoreAPI`，把返回值打回 `Message`。
-
----
-
-## 4. 三种传输实现
-
-### 4.1 InProcessTransport —— Go ↔ Go，同一二进制
-
-**适用**：链接 `pkg/coreimpl/` 的 Bubble Tea TUI（或任何 Go 表现层）。
-
-实战中 Go 表现层**直接持有 `CoreAPI` 对象就够了** —— 根本不需要 `Message`
-往返：
-
-```go
-// pkg/coreclient/inproc.go
-func NewInProcClient(api coreapi.CoreAPI) coreapi.CoreAPI {
-    return api // 同一 interface，原样返回
-}
-```
-
-`Transport` 接口此时只为统一注入 logging / tracing middleware，业务路径完
-全跳过序列化。`StartRun` 的 `<-chan AgUiEvent` 直接 stream 到 TUI 的 update
-loop（让 `AgUiEvent` 实现 `tea.Msg`）。
-
-成本：~50 ns/调用（Go interface dispatch）。流式吞吐只受 channel buffer 限制。
-
-### 4.2 WailsTransport —— 套壳外壳 ↔ 嵌入式 Go Runtime
-
-**适用**：Wails / Tauri / Electron，Runtime 在宿主进程、前端在 WebView。
-
-前端是 TS 薄壳，对外暴露同样的 `Transport` 形状：Request/Notification 经
-Wails IPC POST 给宿主的 JSON-RPC 适配器；流式 notification 经
-`EventsEmit` 推回，JS 侧重组成 `Recv()` 的 AsyncIterator。连接关联隐式
-（单 WebView ↔ 宿主连接，见 API.md §3.2）。
-
-成本：~30 µs/调用（Wails IPC + structured-clone）。避开 HTTP framing + TCP，
-又不动 WebView。
-
-### 4.3 HTTPTransport —— 浏览器 + 未来 facade
-
-**适用**：浏览器表现层（必走网络），以及未来经云端 facade 连远程 Runtime。
-
-线协议（wire 细节全在 API.md，此处只列端点）：
-
-| Endpoint | 用途 |
+| 元数据 | Header / 字段 |
 | --- | --- |
-| `POST /v1/rpc/{method}` | **唯一 JSON-RPC entry**。method 名在 URL（点保留、禁止斜杠化），body 里仍含 `method` 做 cross-check（不匹配 `409`）。不接受无后缀 `POST /v1/rpc`（返 `404`）。详见 API.md §10.1。 |
-| `GET /v1/rpc/stream?conn=<id>` | SSE 流，server → client notification。`conn` query 把这条流关联到客户端连接（详见**下方连接关联**）。每个 SSE event 的 `data:` 是一条 JSON-RPC Notification。重连带 `Last-Event-Id` 续传。 |
-| `GET /v1/info` / `GET /v1/health` | **Sidecar**。扁平 JSON、不走 envelope、无鉴权。详见 API.md §9。 |
+| 连接 id | `X-Conn-Id` |
+| Trace id | `X-Trace-Id` |
+| 协议版本 | `X-Protocol-Version` |
+| 幂等键 | `X-Idempotency-Key` |
+| 响应 method 标签 | `X-Method` |
+| 响应 server 标签 | `X-Server` |
+| 本地门禁 token | `Authorization: Bearer <token>` |
+| SSE 重放游标 | `Last-Event-Id` |
 
-HTTP status 仅反映 transport 层，业务 error 走 `error.code`（不映射 status）
-—— 完整映射表见 API.md §7.3。Observability 强制要求（`X-Lyra-Method` 等
-header + 结构化日志 + Prometheus）见 API.md §10。
+规则与两个易错点：
 
-**连接关联**（API.md §3.2 的 HTTP 落地）：浏览器 `EventSource` API **无法
-设自定义 header**，所以连接身份不能像 POST 那样走 `Lyra-Connection-Id`
-header，而走 SSE URL 的 `?conn=<id>` query —— 仍在 transport URL 层，不进
-JSON-RPC envelope。服务端把该 `conn` 启动的 run 的 notification 路由到匹配
-的 SSE 流。
+- `cwd` 是**会话身份**（业务）→ **进 params**，**永不**走带外 directory header（它像目录、其实是身份）。
+- `sessionId` / `runId` = 业务 → 进 params。
+- 幂等键像业务、其实是**重试可靠性控制**（非业务）→ 走 header（对标 Stripe `Idempotency-Key`）。
+- 连接 id / trace / 协议版本 / 门禁 token / `Last-Event-Id` = 非业务 → 带外。
+- 连接 id 标识一个**传输连接**，不是 session、不是 project。
+
+## 3. 抽象形态
+
+transport 是一条双向 message 管道。
 
 ```ts
-// frontend/src/transport/http.ts（要点）
-export const httpTransport = (baseUrl: string, opts: {
-  connId: string;          // 客户端生成的连接 id（UUIDv7）
-  localToken?: string;     // 本地进程门禁 token，仅 loopback 场景
-}): Transport => {
-  // 下行：SSE 用 ?conn= 关联（EventSource 不能设 header）
-  const sse = new EventSource(`${baseUrl}/v1/rpc/stream?conn=${opts.connId}`, {
-    withCredentials: false,
-  });
-  sse.onmessage = (e) => { /* JSON.parse(e.data) → Recv channel */ };
-
-  return {
-    async send(msg) {
-      if (!msg.method) throw new Error("HTTP transport 只发 Request / Notification");
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        "Lyra-Connection-Id": opts.connId,       // 上行：header 带连接 id
-      };
-      if (opts.localToken) headers["Authorization"] = `Bearer ${opts.localToken}`;
-      // 单一形态：POST /v1/rpc/{method}（无后缀返 404，greenfield 无 fallback）
-      await fetch(`${baseUrl}/v1/rpc/${msg.method}`, {
-        method: "POST", headers, body: JSON.stringify(msg),
-      });
-    },
-    recv() { /* 由 sse 喂的 AsyncIterator */ },
-    close() { sse.close(); },
-  };
-};
+interface Transport {
+  send(message: Message): Promise<void>;
+  receive(): AsyncIterable<Message>;
+  close(): Promise<void>;
+}
 ```
 
-`localToken` 仅本地进程门禁场景用（Web 前端连同机 Runtime），读自
-`~/.lyra/local-token`。未来 facade 场景由 facade 层处理鉴权再转发，Runtime
-看到的 HTTP 仍是同一个 `/v1/rpc/{method}` 入口。
+transport **不**配对 request/response id —— 那是上层 RPC client 的事。
 
-成本：本地 ~200 µs/调用，WAN ~20–200 ms。
+## 4. InProcess Transport
 
-### 4.4 按场景挑选
+InProcess 用于与 runtime 链接在同一二进制里的 Go 客户端。
 
-| 场景 | 传输 | 理由 |
+推荐实现：
+
+- 直接暴露类型化 runtime interface；
+- 跳过 JSON 序列化；
+- 保持相同的方法名、params、result 类型、流式语义；
+- 通知走 Go channel 或 callback。
+
+InProcess 没有 HTTP header，元数据走 `context.Context`。
+
+| 元数据 | InProcess 来源 |
+| --- | --- |
+| 连接 id | context value |
+| Trace id | context value |
+| 协议版本 | 编译期或 context value |
+| 幂等键 | context value |
+
+## 5. IPC Transport
+
+IPC 用于桌面外壳（Wails / Tauri / Electron + 宿主 runtime）。
+
+要求：
+
+- request/response 带 JSON-RPC envelope；
+- 通知从宿主推到 webview；
+- 元数据走 IPC message metadata（若有），否则走 JSON-RPC body 之外、宿主自有的小 wrapper；
+- IPC 必须保证每连接的 message 顺序。
+
+IPC 适配器应把宿主框架细节藏在与 HTTP 相同的 `Transport` 形态背后。
+
+## 6. HTTP Transport
+
+HTTP 用于浏览器与未来 facade 部署。
+
+### 6.1 端点
+
+| 端点 | 用途 |
+| --- | --- |
+| `POST /v2/rpc/{method}` | JSON-RPC request 或 client 通知。 |
+| `GET /v2/rpc/stream?conn=<connectionId>` | SSE 通知流。 |
+| `GET /v2/info` | sidecar runtime 信息。 |
+| `GET /v2/health` | sidecar 健康检查。 |
+
+> **路径里的 `/v2/` 与 `protocolVersion`（日期串）是两个层级**：`/v2/` 是 wire major epoch（只有大破坏
+> 才换路径前缀）；日期 `protocolVersion` 是该 epoch 内经 `initialize` 协商的版本。两者不重复。
+
+`{method}` 保留点。例如：
+
+```text
+POST /v2/rpc/runs.start
+POST /v2/rpc/workspace.getDiff
+POST /v2/rpc/workspace.mcp.listServers
+```
+
+无 method 后缀的 `POST /v2/rpc` 非法。
+
+### 6.2 POST 契约
+
+请求：
+
+```http
+POST /v2/rpc/runs.start
+Content-Type: application/json
+X-Conn-Id: conn_...
+X-Trace-Id: trace_...
+X-Protocol-Version: 2026-06-03
+X-Idempotency-Key: 018f...
+Authorization: Bearer <local-token>
+```
+
+body：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "1",
+  "method": "runs.start",
+  "params": {
+    "sessionId": "ses_...",
+    "input": [{ "type": "text", "text": "hello" }]
+  }
+}
+```
+
+URL 里的 method 与 body 里的 method 必须一致；不一致返 transport 层 `409 Conflict`。
+
+成功的 JSON-RPC 响应：
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+X-Method: runs.start
+X-Server: lyra-runtime
+X-Trace-Id: trace_...
+```
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "1",
+  "result": { "runId": "run_..." }
+}
+```
+
+业务错误同样返 HTTP `200` + JSON-RPC `error`。
+
+### 6.3 HTTP status
+
+HTTP status 只描述传输层失败。
+
+| status | 含义 |
+| --- | --- |
+| `200` | JSON-RPC 响应已接受（body 里仍可能含业务 error）。 |
+| `202` | client 通知已接受；无 JSON-RPC 响应 body。 |
+| `400` | HTTP 请求畸形或 JSON 非法。 |
+| `401` | 本地门禁 token 缺失或错误。 |
+| `404` | 未知 transport 端点。 |
+| `405` | HTTP 方法错误。 |
+| `409` | URL method 与 body method 不一致。 |
+| `413` | HTTP body 超传输上限。 |
+| `415` | content-type 不支持。 |
+| `500` | JSON-RPC dispatch 前的适配器失败。 |
+
+**不要**把 `session_not_found` / `path_outside_root` 等业务错误映射成 HTTP status（业务错误走 JSON-RPC
+`error`，见 API.md §8）。
+
+## 7. SSE 流
+
+HTTP 客户端经 SSE 收 server 通知。
+
+```http
+GET /v2/rpc/stream?conn=conn_...
+Accept: text/event-stream
+Last-Event-Id: evt_...
+Authorization: Bearer <local-token>
+```
+
+每个 SSE event 的 `data` 是一条 JSON-RPC 通知。
+
+```text
+id: evt_00000000042
+event: message
+data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{"runId":"run_...","eventId":"evt_00000000042","timestamp":"2026-06-03T10:00:00Z","durable":true,"event":{"type":"run.started","run":{"id":"run_...","sessionId":"ses_..."}}}}
+```
+
+规则：
+
+- run 事件的 SSE `id` 必须等于 `RunEvent.eventId`。
+- 一条 SSE 流关联一个 `X-Conn-Id` / `conn` 值。
+- 浏览器 `EventSource` 不能设自定义 header，故 `conn` 走 query string。
+- 心跳可用 SSE comment 发。
+
+> **SSE 的本地门禁与 CSRF 面**：`EventSource` 不能设 header，故 token 不能像 POST 那样走
+> `Authorization`。可选做法：(a) 宿主侧 EventSource 包装器注入 token；(b) loopback 用其他获批的本地
+> 门禁机制。**慎用 cookie 承载 token** —— cookie 会让同机任意本地网页都能打开这条只读通知流（CSRF
+> 面）。注意：所有**变更**走 POST + `Authorization: Bearer`，不受 SSE 门禁方式影响；SSE 只读，风险面是
+> "通知流被同机恶意页读取"，仍应按需收紧。
+
+## 8. 流路由
+
+runtime 把通知路由到"启动或订阅了相关流"的那条连接。
+
+`runs.start` / `runs.resume` / `runs.subscribe` 把调用方连接登记为所返回 root run 流的接收方。
+
+对一条 root run 流：
+
+- 通知含 root run 事件；
+- 通知含子孙 subagent run 事件；
+- 每条通知仍带自己的 `runId`；
+- 客户端用 `RunRef.spawnedByItemId` 还原树（见 API.md §5.4 / §10.3）。
+
+## 9. 重放与重连
+
+### 9.1 Event id
+
+`eventId` 由 server 生成，**在单个 root run stream 内单调有序**（不是 per-Run —— 一条 root 流复用了根 +
+所有子孙 Run 的事件，单调性必须在流级别，`Last-Event-Id` 才能线性重放）。它是重放与去重的锚。
+
+server 应保留 durable 事件足够久以支撑普通重连，但**正确性不得依赖 ephemeral delta 的重放**。
+
+### 9.2 重连流程
+
+HTTP 重连：
+
+1. 重开 `GET /v2/rpc/stream?conn=<尽量同一 conn>`。
+2. 浏览器在可用时自动带 `Last-Event-Id`。
+3. 对仍在显示的每个 root run 调 `runs.subscribe { runId }`。
+4. 调 `items.list` 补 durable 缺口。
+5. 按 `eventId` 与 `itemId` 去重。
+
+若原连接 id 不可用，新连接 id 也有效；客户端必须重新订阅活跃的 root run。
+
+### 9.3 Delta 重放
+
+server **不需要**重放：`item.delta` / `state.delta` / 任何 `durable=false` 事件。
+
+server **必须**通过 durable 的 `item.completed` / `state.snapshot` 以及 `items.list` 让最终态可得
+（API.md §5.2 不变量）。
+
+## 10. 幂等
+
+幂等适用于 run 创建，以及未来任何 opt-in 的非幂等 mutating 方法。
+
+client 发：
+
+```http
+X-Idempotency-Key: <client 生成的稳定 key>
+```
+
+server 行为：
+
+- 首次请求创建资源。
+- 同 key 的精确重试 → 返回 / 重新接上既有结果。
+- 同 key + 不同 params → JSON-RPC 错误 `idempotency_conflict`。
+- 资源 id 仍由 server 生成。
+
+HTTP `runs.start` 上，重试的幂等键返回既有 `runId` 并把当前连接关联到既有 run 流。
+
+## 11. 本地门禁 token
+
+loopback HTTP 必须防止任意本地网页 / 本地进程访问 runtime。
+
+推荐：
+
+- 运行时初始化时生成随机 token；
+- 存到 owner-only 权限的用户私有文件；
+- `/v2/rpc/*` 要求 `Authorization: Bearer <token>`；
+- `/v2/health` 免 token；
+- `/v2/info` 仅在不含 secret 时免 token。
+
+token 是本地进程门禁，**不是用户鉴权**（协议层零 user 概念，见 API.md §13）。
+
+## 12. Sidecar 端点（HTTP 专属）
+
+sidecar 端点不走 JSON-RPC（扁平 JSON、握手前可访问、无鉴权）。
+
+**它们只在 HTTP transport 存在**，因为只有 HTTP 才有这种运维场景：`curl` / oncall 探活、k8s
+liveness/readiness、反代 upstream 健康检查 —— 这些要的是"握手前、不套 envelope、无鉴权"的端点。
+InProcess / IPC 没有这种场景（无网络探针、客户端直接持有 runtime 对象），**同样的需求由协议内方法覆盖**：
+
+| 需求 | HTTP | InProcess / IPC |
 | --- | --- | --- |
-| Bubble Tea TUI + Go Runtime（同二进制） | **InProcess** | 同进程两端都是 Go，函数调用比 IPC 快 ~600× |
-| Wails / Tauri / Electron + Go Runtime | **Wails IPC** | 已付过这笔成本，不占额外端口，macOS 不弹防火墙 |
-| 浏览器 | **HTTP** | 浏览器唯一选项。本地走 loopback + 门禁 token；云端走 facade |
+| 运行信息（serverInfo / version / capabilities） | sidecar `GET /v2/info` | `runtime.initialize` 响应（本就携带同样内容） |
+| 存活探测 | sidecar `GET /v2/health` | `runtime.ping`（API.md §7.1：仅 InProcess/IPC） |
 
-口诀：**能不序列化就不序列化**。In-process 免费，IPC 便宜，HTTP 是天花板。
+即：`/v2/info` 内容 = `runtime.initialize` 响应的扁平子集；`/v2/health` 等价于 `runtime.ping`。
+HTTP 额外开 sidecar，纯为 ops 工具能在握手前、不走 envelope 地访问。
 
-非 Go TUI / Unix socket / WebSocket 本轮**不实现** —— 本地 Lyra 不需要跨
-语言进程间通讯，远程访问等 facade 时再加。
+> **同理另一个非 JSON-RPC 通道：附件二进制上传。** `attachments.createUploadUrl` 返回的 `uploadUrl`
+> 在 HTTP 上是 `PUT` 二进制端点，在 InProcess/IPC 上是 `file://` / native binding / `[]byte` 句柄。
+> 规律：**非 JSON-RPC 的旁路通道各 transport 用自己的原生形态实现；场景不适用的 transport 由协议内
+> 方法替代。**
 
----
+### 12.1 `GET /v2/health`
 
-## 5. 流式 —— 所有传输统一语义
+```json
+{ "ok": true }
+```
 
-每个传输都通过 `Recv()` 吐出**同一种 Notification 流**（主要是
-`notifications/run/event`，带 `eventId` + AG-UI `event`）。这意味着
-**resume / replay 在协议层只实现一次**，不是每个传输各搞一份。
+仅用于传输层 liveness。`200`=ok；`503`=degraded/unhealthy。
 
-| 传输 | 底层机制 |
+### 12.2 `GET /v2/info`
+
+```json
+{
+  "protocolVersion": "2026-06-03",
+  "serverInfo": {
+    "name": "lyra-runtime",
+    "version": "0.0.0",
+    "cwd": "/path/to/serve/cwd",
+    "home": "/Users/example"
+  },
+  "capabilities": {
+    "protocolVersion": "2026-06-03",
+    "events": ["run.started", "run.finished", "item.started", "item.delta", "item.completed", "state.snapshot", "state.delta"],
+    "features": {
+      "reasoning": true,
+      "mcp": true,
+      "multimodal": false,
+      "checkpoints": false,
+      "background": false,
+      "subagents": false,
+      "skills": false,
+      "sessionExport": false,
+      "memory": false,
+      "relocate": true,
+      "clientTools": false,
+      "attachments": { "enabled": false }
+    },
+    "providers": [],
+    "limits": { "maxConcurrentRuns": 8 }
+  }
+}
+```
+
+`/v2/info` 与 `runtime.initialize` 必须由同一份 server 状态支撑。
+
+## 13. CORS
+
+loopback HTTP 应限制 origin。
+
+推荐默认：
+
+- 放行内置客户端 origin；
+- 放行显式配置的开发 origin；
+- 启用本地门禁 token 时拒绝通配 origin；
+- 允许 header：`Content-Type`、`Authorization`、`X-Conn-Id`、`X-Trace-Id`、`X-Protocol-Version`、`X-Idempotency-Key`；
+- expose header：`X-Method`、`X-Server`、`X-Trace-Id`。
+
+## 14. 压缩与 buffering
+
+POST 响应可用普通 HTTP 压缩。
+
+SSE 流应避免反代 buffering、每条通知及时 flush。推荐 header：
+
+```http
+Cache-Control: no-cache
+Connection: keep-alive
+X-Accel-Buffering: no
+```
+
+## 15. 背压
+
+server 可在高负载下**合并 ephemeral delta**，只要 durable/ephemeral 不变量仍成立（API.md §5.2）。
+
+server **不得**在不可经历史 API 恢复的前提下丢弃 durable 事件。
+
+## 16. Observability
+
+每个 transport 适配器应记录：method、envelope id、连接 id、trace id、协议版本、时长、JSON-RPC error code
+（若有）、传输 status。HTTP 响应在可用时应带 `X-Method` / `X-Server` / `X-Trace-Id`。
+
+> **反向不变量**：`cwd` / 路径不进高 cardinality metric label（路径无界会爆 Prometheus，需要时只在结构化
+> 日志记 hash / basename）；PII（消息 / prompt 内容）不进 access log / metric。
+
+## 17. 安全边界
+
+| 层 | 负责 |
 | --- | --- |
-| InProcess | Notification 的 Go channel |
-| Wails IPC | `EventsEmit` + JS 侧重组 AsyncIterator |
-| HTTP | SSE，每个 event 的 `data:` 是一条 Notification |
+| transport 层 | 本地门禁 token 校验、origin 检查、body 大小限制、content-type 检查、流连接归属 |
+| API / runtime 层 | `cwd` 下的 path containment、URL fetch egress 策略、工具审批策略、能力协商、provider secret 处理 |
 
-续传逻辑（重连、带 `Last-Event-Id`、Runtime 从该资源 id 内 `eventId >
-lastEventId` 处 replay）在每个传输上用同一份代码，因为它们都暴露同一个
-`eventId` 序列（详见 API.md §3.3）。对 in-process，"resume" 退化（channel
-随进程一起死），客户端检查 `<-chan` 是否被 close 然后重启 —— 同一份代码
-路径，不同物理。
+## 18. v2 不支持
 
----
-
-## 6. 鉴权 & 边界
-
-| 传输 | 鉴权模型 |
-| --- | --- |
-| InProcess | 无 —— 同进程互信，运行环境的信任 = OS 用户的信任 |
-| Wails IPC | 线上无（IPC 是 window-scoped）；同进程内等价信任 |
-| HTTP（本地 loopback） | **本地进程门禁 token**（非用户鉴权）。启动随机生成、写 `~/.lyra/local-token`（chmod 600）。仅阻止同机其他进程乱调 |
-| HTTP sidecar | **永远无鉴权** —— curl-friendly read-only metadata（API.md §9） |
-| HTTP（未来 facade） | 由 facade 层处理用户鉴权 + 转发；Runtime 看到的请求仍是同样形态 |
-
-**核心不变量**：`CoreAPI` impl **永远不做用户鉴权 / 授权** —— 协议层根本
-没有 user / account / owner 概念。需要时由外层（OS、本地 token 门禁、未来
-facade）解决。
+- WebSocket transport。
+- stdio transport。
+- JSON-RPC batch。
+- server→client JSON-RPC request。
+- 客户端自选的业务资源 id。
+- 连接级 active project 状态。
 
 ---
 
-## 7. Schema 流 —— 一份契约，多个发射器
-
-行为 SSOT 是后端 `rpc/protocol` 的 Go interface（路径见 §8、命名规则见
-`API.md` §8.1）：
-
-```
-  lyra/rpc/protocol/*.go  (Go interface + structs)
-        ├── (codegen) → schemas/methods.yaml  → TS  → frontend/src/rpc/ 类型
-        └── (codegen) → schemas/events.yaml   → TS  → frontend/src/protocol/agui/ 类型
-```
-
-Go ↔ Go（in-process / Wails）两端直接 import `rpc/protocol`，**不需要 codegen**。
-其他场景 schema 才是契约，TS / Rust / Python 客户端从它生成（codegen 管线待接，
-当前前端类型手写以 Go interface 为准）。
-
----
-
-## 8. 实际文件布局（已 ship）
-
-后端在 lynx 仓 `lyra/`（本仓 `internal/agui/` 是 dev mock）：
-
-```
-lyra/                     # lynx 仓的 Runtime 后端
-├── rpc/
-│   ├── protocol/         # Go interface（Runtime + 11 domain 子接口）—— 行为 SSOT
-│   ├── server/           # in-process Runtime impl（wire internal/* → protocol）
-│   ├── dispatch/         # JSON-RPC Message ↔ Runtime 方法 dispatch + 路由
-│   └── transport/
-│       ├── http/         # HTTP + SSE（CORS / auth / tracing）
-│       └── inprocess/    # Go chan transport（TUI）
-├── internal/
-│   ├── engine/           # chat loop（agent / turn / usage / compaction）
-│   ├── service/          # session / chat / approval(Console·Gate) / tool / memory
-│   └── storage/          # file-backed + sqlite
-└── cmd/lyra/             # CLI 入口
-
-frontend/src/rpc/         # TS 客户端镜像：client / methods / transports/{http,inprocess} / stream
-frontend/src/rpc/transports/   # transport 实现（http.ts / memory.ts）
-```
-
-> `schemas/` codegen 产物（methods.yaml / events.yaml）+ 多语言 client 生成
-> 是计划态；当前前端类型手写、以 `rpc/protocol` 的 Go interface 为准对齐。
-
----
-
-## 9. 这套切分为什么干净
-
-- **加传输不动 handler**：新形态（如未来 facade 内部走 gRPC）只需实现
-  `Transport` + 注册一个调 `CoreAPI` 的适配器。
-- **加前端不分裂后端**：新外壳（如 Tauri 重写）挑合适传输、实现 TS 侧
-  `Transport`，其余复用。
-- **Go-to-Go 不是特例**：用同一个 `Transport` 形状，只是实现是空壳（客户端
-  直接持有 `CoreAPI` 值）。
-- **HTTP 不享特权**：`rpc/transport/http/` 只是三个传输之一。`Runtime` 接口里
-  没有 HTTP-isms（无 `*http.Request` 参数、无 `http.ResponseWriter` 返回）。
-  测试用 in-process，生产挑部署合适的。
-
----
-
-## 10. 未决问题
-
-- **gRPC？** 能干净装进 `Transport`，但会多一份 proto schema 作 SSOT。等真
-  有非 MVP 场景再做（最可能是未来 facade ↔ Runtime pool 内部互联）。
-- **HTTP 流式用 WebSocket 还是 SSE？** 今天 SSE。只有当 HITL 需要 run 进行
-  中 client → server 推送才换 WS（当前不需要 —— approval 走普通
-  `runs.approval.submit` Request）。
-- **运行时热切换传输？** 可行（`Transport` 就是个接口），但还没 UI 入口。
-
----
-
-## 11. 速查表
-
-```
-同一 Go 二进制、两端都是 Go            →  InProcessTransport       (无 codegen, ~50ns)
-Wails / Tauri / Electron + Go Runtime  →  WailsTransport           (~30µs)
-浏览器、本地 Runtime                   →  HTTPTransport + 本地 token 门禁 (~200µs)
-浏览器、未来云端 facade                →  HTTPTransport + facade 处理鉴权
-```
-
-一个 `Transport` 接口、三种实现。挑能跨过你的边界的最便宜那个盒子，剩下
-的协议层零代码改动。
+> 正式契约。配套 [`API.md`](./API.md)。
