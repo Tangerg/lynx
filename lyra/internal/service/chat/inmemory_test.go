@@ -114,7 +114,7 @@ func TestService_SeqMonotone(t *testing.T) {
 
 // TestService_PlanMode_ApprovePath runs the canonical plan-mode flow:
 // the LLM produces a plan → service emits PlanGenerated → test
-// calls ContinuePlan(Approve) → execution proceeds → TurnEnd(Completed).
+// calls Resume(true) → execution proceeds → TurnEnd(Completed).
 func TestService_PlanMode_ApprovePath(t *testing.T) {
 	svc, _ := buildPlanService(t, "1. read file\n2. edit it")
 	handle, err := svc.StartTurn(context.Background(), chat.StartTurnRequest{
@@ -139,8 +139,8 @@ func TestService_PlanMode_ApprovePath(t *testing.T) {
 		case chat.TurnInterrupted:
 			// The turn parked on plan approval (R model). Approve it —
 			// the continuation streams onto the same event channel.
-			if err := svc.ContinuePlan(context.Background(), handle, chat.PlanApprove); err != nil {
-				t.Errorf("ContinuePlan: %v", err)
+			if err := svc.Resume(context.Background(), handle, true); err != nil {
+				t.Errorf("Resume: %v", err)
 			}
 		case chat.MessageDelta:
 			messageDelta = true
@@ -180,7 +180,7 @@ func TestService_PlanMode_RejectPath(t *testing.T) {
 	for ev := range events {
 		switch e := ev.(type) {
 		case chat.TurnInterrupted:
-			_ = svc.ContinuePlan(context.Background(), handle, chat.PlanReject)
+			_ = svc.Resume(context.Background(), handle, false)
 		case chat.TurnEnd:
 			endReason = e.Reason
 		}

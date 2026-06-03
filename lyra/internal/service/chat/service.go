@@ -63,8 +63,8 @@ type TurnHandle struct {
 //	    }
 //	}
 //
-// In plan mode the turn pauses after [PlanGenerated]; call
-// [ContinuePlan] with the user's decision to resume.
+// In plan mode the turn pauses after [PlanGenerated]; call [Resume]
+// with the user's decision — approved=true continues, false rejects.
 //
 // A turn outlives the ctx that started it: StartTurn derives the turn's
 // own context from a background root so the caller's ctx ending (e.g. the
@@ -102,36 +102,9 @@ type Service interface {
 	// it. Returns [ErrTurnNotFound] when the turn isn't parked.
 	Resume(ctx context.Context, handle TurnHandle, approved bool) error
 
-	// ContinuePlan is the plan-mode spelling of [Resume]: Approve →
-	// Resume(true), Reject → Resume(false). Kept as a convenience for
-	// the CLI's plan-review flow.
-	ContinuePlan(ctx context.Context, handle TurnHandle, decision PlanDecision) error
-
 	// Cancel stops the turn immediately, drains pending tool calls
 	// safely, and emits a final [TurnEnd] event with Reason=Canceled.
 	Cancel(ctx context.Context, handle TurnHandle) error
-}
-
-// PlanDecision is the client's response to a paused plan-mode turn.
-type PlanDecision int
-
-const (
-	// PlanApprove tells the runtime to execute the proposed plan.
-	PlanApprove PlanDecision = iota
-	// PlanReject aborts the turn — Lyra emits TurnEnd(Canceled)
-	// without running any tools.
-	PlanReject
-)
-
-func (d PlanDecision) String() string {
-	switch d {
-	case PlanApprove:
-		return "approve"
-	case PlanReject:
-		return "reject"
-	default:
-		return "unknown"
-	}
 }
 
 // ------------------------------------------------------------------
@@ -207,7 +180,7 @@ type ToolCallStart struct {
 // PlanGenerated fires once during a plan-mode turn, after the LLM
 // produces the step-list but before any tool calls run. The turn
 // is paused at this point — the client inspects the plan, then
-// calls [Service.ContinuePlan] with an Approve / Reject decision.
+// calls [Service.Resume] with approve (true) / reject (false).
 //
 // Plan is the LLM's raw markdown — typically a numbered list. The
 // runtime makes no attempt to parse it into structured steps;

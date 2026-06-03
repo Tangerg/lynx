@@ -13,10 +13,10 @@ import (
 )
 
 // turnState holds the per-turn bookkeeping the implementation needs:
-// the event channel subscribers read from, the cancel func that
-// fires when [Service.Cancel] is called, a monotone sequence number
-// stamped onto every emitted event, and the plan-decision channel
-// runTurn blocks on when the turn is in plan-pending state.
+// the event channel subscribers read from, the cancel func that fires
+// when [Service.Cancel] is called, a monotone sequence number stamped
+// onto every emitted event, and the parked flag that marks a turn
+// suspended on a HITL interrupt awaiting [Service.Resume].
 //
 // Once the chat agent dispatches, proc holds the running
 // [engine.ChatProcess]; [Service.Cancel] routes through it so the
@@ -37,9 +37,11 @@ type turnState struct {
 	// duration that spans any interrupt/resume cycles.
 	startedAt time.Time
 
-	// proc is the agent process backing this turn. Written by runTurn
-	// and read by [Service.Cancel] / [Service.Resume] on other
-	// goroutines, so all access is guarded by the impl mutex.
+	// proc is the agent process backing this turn. runTurn writes it once
+	// (under the impl mutex); [Service.Cancel] / [Service.Resume] read it
+	// under the same mutex from other goroutines. The value is stable
+	// after that single write, so callers may invoke proc's methods after
+	// releasing the lock.
 	proc engine.ChatProcess
 
 	// lifecycle captures the process's authoritative terminal event;
@@ -171,6 +173,16 @@ func (s *inMemory) endTurn(st *turnState) {
 	s.mu.Lock()
 	delete(s.turns, st.handle.TurnID)
 	s.mu.Unlock()
+}
+
+// finishTurn emits the terminal [TurnEnd] (stamping the elapsed duration)
+// and tears the turn down. It serves the emergency-teardown paths —
+// [Service.Cancel] and a failed [Service.Resume] — where no drive
+// goroutine will run [emitTurnEnd]. The clean path goes through
+// emitTurnEnd (which carries usage) followed by endTurn in [drive].
+func (s *inMemory) finishTurn(st *turnState, reason TurnEndReason) {
+	s.emit(st, TurnEnd{Reason: reason, Duration: time.Since(st.startedAt)})
+	s.endTurn(st)
 }
 
 // emitTurnEnd maps the captured agent runtime terminal event onto a
