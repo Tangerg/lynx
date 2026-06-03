@@ -182,7 +182,11 @@ func (p *Platform) SaveProcess(ctx context.Context, processID string) error {
 // Errors propagate from the store and from agent re-binding (the
 // agent must be deployed under the same name as recorded in the
 // snapshot).
-func (p *Platform) RestoreProcess(ctx context.Context, processID string) (*AgentProcess, error) {
+//
+// options re-attaches the per-process wiring (Extensions + Session) the
+// continuation needs — see [RestoreProcess]. Pass the zero value for a
+// read-only restore.
+func (p *Platform) RestoreProcess(ctx context.Context, processID string, options core.ProcessOptions) (*AgentProcess, error) {
 	if p.processStore == nil {
 		return nil, errors.New("restore process: no ProcessStore configured")
 	}
@@ -190,7 +194,7 @@ func (p *Platform) RestoreProcess(ctx context.Context, processID string) (*Agent
 	if err != nil {
 		return nil, fmt.Errorf("restore process: %w", err)
 	}
-	return RestoreProcess(p, snap)
+	return RestoreProcess(p, snap, options)
 }
 
 // publish is the runtime's event entry point. Used by AgentProcess
