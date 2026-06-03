@@ -14,8 +14,8 @@
 //
 // HTTP status mapping (docs/TRANSPORT.md §6.3):
 //   200         → JSON-RPC Response in body (may carry business error)
-//   202         → client Notification accepted; no body
-//   400/404/409 → transport-layer failure
+//   204         → client Notification accepted; no body (202 also tolerated)
+//   400/404     → transport-layer failure (400 covers url/body method mismatch)
 //   401/500/503 → flat JSON — surfaced as RpcTransportError
 
 import { createPushPullChannel } from "../channel";
@@ -155,9 +155,9 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
       throw new RpcTransportError(`fetch failed: ${(err as Error).message}`);
     }
 
-    // 202 = client Notification accepted; no body (TRANSPORT.md §6.3).
-    // 204 tolerated for backends that use it for the same ack.
-    if (res.status === 202 || res.status === 204) return;
+    // 204 = client Notification accepted; no body (TRANSPORT.md §6.3).
+    // 202 tolerated for backends that ack notifications as async-pending.
+    if (res.status === 204 || res.status === 202) return;
 
     // 401/500/503 are flat JSON, not envelope (docs/API.md §7.3).
     if (res.status === 401 || res.status === 500 || res.status === 503) {
@@ -165,9 +165,12 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
       throw new RpcTransportError(`http ${res.status}: ${text}`, res.status);
     }
 
-    // 200/400/404/409 carry a JSON-RPC envelope. Feed the response into
-    // the channel so RpcClient correlates by id.
-    if (res.status === 200 || res.status === 400 || res.status === 404 || res.status === 409) {
+    // 200 carries a JSON-RPC envelope. Feed it into the channel so
+    // RpcClient correlates by id. 400/404 are transport-layer failures
+    // (e.g. malformed request, url/body method mismatch, unknown
+    // endpoint) — their body is flat text, not an envelope, so a parse
+    // failure below surfaces as RpcTransportError.
+    if (res.status === 200 || res.status === 400 || res.status === 404) {
       const text = await res.text();
       if (!text) return; // empty body is acceptable for some Notifications
       try {

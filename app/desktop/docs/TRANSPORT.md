@@ -153,7 +153,8 @@ body：
 }
 ```
 
-URL 里的 method 与 body 里的 method 必须一致；不一致返 transport 层 `409 Conflict`。
+URL 里的 method 与 body 里的 method 必须一致；不一致是**自相矛盾的畸形请求**（不是资源状态冲突），返
+`400 Bad Request`，与其它畸形请求同类。
 
 成功的 JSON-RPC 响应：
 
@@ -182,15 +183,17 @@ HTTP status 只描述传输层失败。
 | status | 含义 |
 | --- | --- |
 | `200` | JSON-RPC 响应已接受（body 里仍可能含业务 error）。 |
-| `202` | client 通知已接受；无 JSON-RPC 响应 body。 |
-| `400` | HTTP 请求畸形或 JSON 非法。 |
-| `401` | 本地门禁 token 缺失或错误。 |
+| `204` | client 通知已接受、同步 dispatch 完毕；无 body。 |
+| `400` | HTTP 请求畸形、JSON 非法、或 URL method 与 body method 不一致。 |
+| `401` | 本地门禁 token 缺失或错误。响应**必带** `WWW-Authenticate: Bearer`（RFC 9110 §15.5.2）。 |
 | `404` | 未知 transport 端点。 |
-| `405` | HTTP 方法错误。 |
-| `409` | URL method 与 body method 不一致。 |
+| `405` | HTTP 方法错误。响应**必带** `Allow`（列出该端点支持的方法，RFC 9110 §15.5.6）。 |
 | `413` | HTTP body 超传输上限。 |
 | `415` | content-type 不支持。 |
 | `500` | JSON-RPC dispatch 前的适配器失败。 |
+
+> 状态码只描述传输层（RFC 9110）。**通知**同步处理完且无 body 用 `204`（非 `202` —— 后者语义是"已收下、
+> 处理未决"）；自相矛盾的请求（method 不一致）归 `400`，**不**用 `409`（409 专表与资源当前状态的冲突）。
 
 **不要**把 `session_not_found` / `path_outside_root` 等业务错误映射成 HTTP status（业务错误走 JSON-RPC
 `error`，见 API.md §8）。
@@ -295,7 +298,7 @@ loopback HTTP 必须防止任意本地网页 / 本地进程访问 runtime。
 
 - 运行时初始化时生成随机 token；
 - 存到 owner-only 权限的用户私有文件；
-- `/v2/rpc/*` 要求 `Authorization: Bearer <token>`；
+- `/v2/rpc/*` 要求 `Authorization: Bearer <token>`；token 缺失/错误返 `401` + `WWW-Authenticate: Bearer`（RFC 9110 §15.5.2）；
 - `/v2/health` 免 token；
 - `/v2/info` 仅在不含 secret 时免 token。
 

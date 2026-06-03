@@ -18,6 +18,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -99,13 +100,16 @@ func (s *Server) handler() http.Handler {
 // ---------------------------------------------------------------------------
 
 // handleRPC dispatches POST /v2/rpc/{method}. A request gets a JSON-RPC
-// response (200); a notification gets a bare 202 (TRANSPORT.md §6.3).
+// response (200); a notification, dispatched synchronously, gets a bare
+// 204 (TRANSPORT.md §6.3). Transport-layer status codes only.
 func (s *Server) handleRPC(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	if r.Method != http.MethodPost {
+		// RFC 9110 §15.5.6: a 405 MUST carry Allow.
+		w.Header().Set("Allow", "POST, OPTIONS")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -114,12 +118,20 @@ func (s *Server) handleRPC(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid body: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	// URL method and body method must agree; a mismatch is a self-
+	// inconsistent (malformed) request → 400, not 409 (TRANSPORT.md §6.2).
+	urlMethod := strings.TrimPrefix(r.URL.Path, "/v2/rpc/")
+	if urlMethod != req.Method {
+		http.Error(w, "url/body method mismatch", http.StatusBadRequest)
+		return
+	}
 	connID := r.Header.Get("X-Conn-Id")
 
-	// Notifications (no id) — ack with 202, no body.
+	// Notifications (no id) — synchronous dispatch, then 204, no body.
 	if req.ID == "" {
 		s.rt.dispatchNotification(req.Method, req.Params)
-		w.WriteHeader(http.StatusAccepted)
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
