@@ -477,22 +477,31 @@ func (cp *chatProcess) Output() (ChatOutput, error) {
 func (e *Engine) StartChat(ctx context.Context, req RunChatRequest) ChatProcess {
 	in := ChatInput{Message: req.Message, MaxBudget: req.MaxBudget, MaxCostUSD: req.MaxCostUSD, PlanMode: req.PlanMode}
 
-	opts := core.ProcessOptions{}
-	if req.SessionID != "" {
-		opts.Session = &core.Session{ID: req.SessionID}
-	}
-	if req.Observer != nil {
-		opts.Extensions = append(opts.Extensions, &toolObserverDecorator{observer: req.Observer})
-	}
-	if req.EventListener != nil {
-		opts.Extensions = append(opts.Extensions, req.EventListener)
-	}
-
 	proc, done := e.platform.StartAgent(ctx, e.agent,
 		map[string]any{core.DefaultBindingName: in},
-		opts,
+		chatProcessOptions(req.SessionID, req.Observer, req.EventListener),
 	)
 	return &chatProcess{proc: proc, done: done, platform: e.platform}
+}
+
+// chatProcessOptions assembles the per-process wiring a chat turn runs
+// with — its chat-memory Session binding plus the session-scoped
+// extensions (the tool observer decorator + the lifecycle event listener).
+// StartChat and RestoreChat share it so a resumed turn is wired exactly
+// like a fresh one; if they diverged, the continuation would observe /
+// persist differently than the original turn.
+func chatProcessOptions(sessionID string, observer ToolObserver, listener core.Extension) core.ProcessOptions {
+	opts := core.ProcessOptions{}
+	if sessionID != "" {
+		opts.Session = &core.Session{ID: sessionID}
+	}
+	if observer != nil {
+		opts.Extensions = append(opts.Extensions, &toolObserverDecorator{observer: observer})
+	}
+	if listener != nil {
+		opts.Extensions = append(opts.Extensions, listener)
+	}
+	return opts
 }
 
 // RestoreChatRequest carries the per-process wiring to re-attach to a
@@ -527,17 +536,7 @@ type RestoreChatRequest struct {
 // Errors when no ProcessStore is configured, the snapshot is missing, the
 // agent is not deployed under the snapshot's name, or the re-tick fails.
 func (e *Engine) RestoreChat(ctx context.Context, processID string, req RestoreChatRequest) (ChatProcess, error) {
-	opts := core.ProcessOptions{}
-	if req.SessionID != "" {
-		opts.Session = &core.Session{ID: req.SessionID}
-	}
-	if req.Observer != nil {
-		opts.Extensions = append(opts.Extensions, &toolObserverDecorator{observer: req.Observer})
-	}
-	if req.EventListener != nil {
-		opts.Extensions = append(opts.Extensions, req.EventListener)
-	}
-
+	opts := chatProcessOptions(req.SessionID, req.Observer, req.EventListener)
 	proc, err := e.platform.RestoreProcess(ctx, processID, opts)
 	if err != nil {
 		return nil, fmt.Errorf("engine: restore chat: %w", err)
