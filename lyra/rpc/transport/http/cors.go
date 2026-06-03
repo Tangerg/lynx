@@ -2,7 +2,8 @@ package http
 
 import (
 	"net/http"
-	"strings"
+
+	"github.com/go-chi/cors"
 )
 
 // DefaultCORSOrigins is the allowlist baked in for `lyra serve` when
@@ -16,91 +17,24 @@ var DefaultCORSOrigins = []string{
 	"http://localhost:3000", // Next.js / CRA
 }
 
-// corsConfig is an immutable view of the per-server CORS policy.
-// An empty Origins list means "no CORS" — pure same-origin only.
-type corsConfig struct {
-	origins []string
-}
-
-// allows is exact-match; "*" anywhere in the list short-circuits to
-// "wildcard". We only echo the wildcard back when credentials are
-// not in play (which they are, here — Authorization), so "*" is
-// mostly a dev-mode escape hatch.
-func (c corsConfig) allows(origin string) (matched bool, wildcard bool) {
-	for _, o := range c.origins {
-		if o == "*" {
-			return true, true
-		}
-		if o == origin {
-			return true, false
-		}
+// corsMiddleware builds the CORS layer from the origin allowlist. An empty
+// list means "no CORS" (same-origin only) — a pass-through. go-chi/cors
+// owns the spec mechanics (origin match incl. "*", preflight, Vary,
+// credentials); we only declare the policy. Exposed headers are the three
+// observability headers the FE reads (API.md §10); allowed headers are the
+// transport-metadata set the FE sends (TRANSPORT §2). go-chi/cors answers
+// preflight with 200 (the contract is silent on the exact 2xx — browsers
+// accept either; the prior hand-rolled layer used 204).
+func corsMiddleware(origins []string) func(http.Handler) http.Handler {
+	if len(origins) == 0 {
+		return func(next http.Handler) http.Handler { return next }
 	}
-	return false, false
-}
-
-// cors wraps next with CORS headers + OPTIONS preflight handling.
-// Same-origin requests (no Origin header) pass through untouched —
-// curl / loopback ops use cases stay flat.
-//
-// Headers exposed to the browser are the three observability headers
-// the FE needs to surface (X-Method / X-Trace-Id /
-// X-Server) — see API.md §10.
-func (s *Server) cors(next http.Handler) http.Handler {
-	cfg := s.corsCfg
-	if len(cfg.origins) == 0 {
-		return next
-	}
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get("Origin")
-		if origin == "" {
-			next.ServeHTTP(w, r)
-			return
-		}
-		matched, wildcard := cfg.allows(origin)
-		if !matched {
-			// Disallowed origin — browser will block the response.
-			// Still forward so the request itself can be observed.
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		h := w.Header()
-		if wildcard {
-			h.Set("Access-Control-Allow-Origin", "*")
-		} else {
-			h.Set("Access-Control-Allow-Origin", origin)
-			h.Set("Vary", "Origin")
-			h.Set("Access-Control-Allow-Credentials", "true")
-		}
-		h.Set("Access-Control-Expose-Headers", corsExposedHeaders)
-
-		if r.Method == http.MethodOptions {
-			h.Set("Access-Control-Allow-Headers", corsAllowedHeaders)
-			h.Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-			h.Set("Access-Control-Max-Age", "600")
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		next.ServeHTTP(w, r)
+	return cors.Handler(cors.Options{
+		AllowedOrigins:   origins,
+		AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodOptions},
+		AllowedHeaders:   []string{"Authorization", "Content-Type", "Last-Event-Id", "X-Conn-Id", "X-Protocol-Version", "X-Idempotency-Key", "X-Trace-Id"},
+		ExposedHeaders:   []string{"X-Server", "X-Method", "X-Trace-Id"},
+		AllowCredentials: true,
+		MaxAge:           600,
 	})
 }
-
-// Headers we let the browser send / read. Kept as joined strings to
-// avoid per-request allocation in the hot path.
-var (
-	corsAllowedHeaders = strings.Join([]string{
-		"Authorization",
-		"Content-Type",
-		"Last-Event-Id",
-		"X-Conn-Id",          // TRANSPORT §2 — connection id, sent on POST + SSE
-		"X-Protocol-Version", // TRANSPORT §2 — negotiated version echo
-		"X-Idempotency-Key",  // TRANSPORT §2 — retry-safety key
-		"X-Trace-Id",
-	}, ", ")
-
-	corsExposedHeaders = strings.Join([]string{
-		"X-Server",
-		"X-Method",
-		"X-Trace-Id",
-	}, ", ")
-)
