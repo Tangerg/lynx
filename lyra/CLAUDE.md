@@ -16,7 +16,7 @@
 - Go 1.26.3
 - **CLI**: `spf13/cobra`（每个子命令是 `App` 的方法 —— `ServeCmd()` / `ChatCmd()` / `AgentsCmd()` / …）
 - **协议 envelope**: `modelcontextprotocol/go-sdk/jsonrpc`（wire 类型借用，不自己重新定义）
-- **HTTP transport**: stdlib `net/http` + Go 1.22 `ServeMux` 的 `POST /v1/rpc/{method...}` pattern
+- **HTTP transport**: stdlib `net/http` + Go 1.22 `ServeMux` 的 `POST /v2/rpc/{method...}` pattern
 - **SSE 写端**: `github.com/Tangerg/sse`（WHATWG §9.2 合规，auto-flush）—— 自家库
 - **MCP 客户端**: `modelcontextprotocol/go-sdk/mcp`
 - **AG-UI 事件**: `core/model/chat` + 自家 `internal/agui` 编码层
@@ -27,7 +27,7 @@
 ## 三大支柱
 
 1. **`rpc/` —— 协议契约**
-   - `rpc/protocol/` 接口（`Runtime` + 10 个子接口）+ wire 数据类型
+   - `rpc/protocol/` 接口（`Runtime` + 12 个子接口）+ wire 数据类型 + v2 协议错误码 / Item / RunEvent 形状
    - `rpc/server/` in-process `Runtime` 实现
    - `rpc/dispatch/` JSON-RPC 方法路由
    - `rpc/transport/` envelope I/O：`http/`（HTTP + SSE）/ `inprocess/`
@@ -56,10 +56,10 @@
 
 跨模块共用规则见 [`../CLAUDE.md`](../CLAUDE.md)。下面是 lyra 协议层独有的：
 
-- **协议形态写死 JSON-RPC 2.0**：所有 message envelope 走 MCP SDK 的 `jsonrpc` 类型，**不重新定义 envelope**。HTTP transport 上 method 名照搬协议表（`POST /v1/rpc/runtime.initialize`，点保留不斜杠化）
-- **业务 error → JSON-RPC `error.code`**（-32001..-32011 是扩展段），**不映射 HTTP status**。HTTP status 仅反映 transport 层（200 / 204 / 400 / 401 / 404 / 409 / 500 / 503）
-- **Sidecar 端点只 `/v1/info` + `/v1/health` 两个**，flat JSON 不走 envelope，no-auth。**永远不加业务 read shadow**（如 `GET /v1/sessions/{id}`）
-- **Transport 元数据走 header，不进 envelope**：trace id 用 `X-Lyra-Trace-Id`、本地 token 用 `Authorization: Bearer`、SSE 续连用 `Last-Event-Id`
+- **协议形态写死 JSON-RPC 2.0**：所有 message envelope 走 MCP SDK 的 `jsonrpc` 类型，**不重新定义 envelope**。HTTP transport 上 method 名照搬协议表（`POST /v2/rpc/runtime.initialize`，点保留不斜杠化）
+- **业务 error → JSON-RPC `error.code`**（`-32001..-32016` 是扩展段，客户端按 `error.data.type` 的 symbolic name 分支、不按数字码），**不映射 HTTP status**。HTTP status 仅反映 transport 层（200 / 204 / 400 / 401 / 404 / 409 / 500 / 503）
+- **Sidecar 端点只 `/v2/info` + `/v2/health` 两个**，flat JSON 不走 envelope，no-auth。**永远不加业务 read shadow**（如 `GET /v2/sessions/{id}`）
+- **Transport 元数据走 header，不进 envelope**：trace id 用 `X-Trace-Id`（已去品牌前缀）、本地 token 用 `Authorization: Bearer`、SSE 续连用 `Last-Event-Id`、协议版本 `X-Protocol-Version`、连接 id `X-Conn-Id`、幂等键 `X-Idempotency-Key`
 
 ## Lyra-specific 强反向不变量
 
@@ -67,10 +67,10 @@
 
 - ❌ **Stdio transport**（CLI 给 LLM 用那种）：协议层有意不实现（前端 docs/API.md §1.1）。Web 走 HTTP loopback、TUI 走 inprocess
 - ❌ **后端做用户鉴权 / 账号 / 订阅 / 多租户**：Runtime 协议层零 user 概念，鉴权由更外层（OS 信任、本地进程门禁 token、未来 facade）解决
-- ❌ **业务方法的 RESTy read-only shadow**：业务调用一律 `POST /v1/rpc/{method}`。详见前端 docs/API.md §9.3
+- ❌ **业务方法的 RESTy read-only shadow**：业务调用一律 `POST /v2/rpc/{method}`。详见前端 docs/API.md §9.3
 - ❌ **HTTP transport 换 chi / gin / echo / fiber**：4 个 endpoint + 3 个 middleware 用不上路由框架；fiber/echo 把 SSE 的 buffer/flush 搞砸过。stdlib `ServeMux` 1.22+ `{method...}` 已足
 - ❌ **SSE 写自己的 frame 编码**：用 `github.com/Tangerg/sse`（auto-flush + spec compliance）。手写 `fmt.Fprintf(w, "data: %s\n\n", body)` 在 body 含 `\n` 时会破坏帧
-- ❌ **`/v1/rpc` 不带 method**（裸路径）：v4 协议 greenfield 决议，单一形态 `POST /v1/rpc/{method}`，裸路径 404
+- ❌ **`/v2/rpc` 不带 method**（裸路径）：v2 协议 greenfield 决议，单一形态 `POST /v2/rpc/{method}`，裸路径 404
 - ❌ **协议 envelope 装 transport 元数据**（session id / auth token / trace id / idempotency key）：走 Go `context.Context` 或 HTTP header，永不进 message body
 
 ## 关键目录
@@ -102,7 +102,7 @@ lyra/
 │   │   ├── session/                interface + inmemory + Repo（共享数据层）
 │   │   ├── memory/                 LYRA.md 长期记忆
 │   │   ├── chat/                   单 turn 状态机（engine 通过窄接口注入）
-│   │   ├── approval/               Console / Gate / Service 三层 ISP
+│   │   ├── approval/               运行态审批 stance（`Mode` + GetMode/SetMode）—— R 模型工具审批查它决定 pass/deny/prompt
 │   │   ├── tool/                   工具注册 + 直接调用
 │   │   └── agentdoc/               AGENTS.md 级联发现 + render
 │   ├── storage/                    File-backed 实现
@@ -128,11 +128,11 @@ LYRA_STORAGE=sqlite ANTHROPIC_API_KEY=xxx ./lyra serve   # 切 SQLite
 ./lyra agents --show
 
 # 烟测某个 endpoint
-curl http://127.0.0.1:17171/v1/info | jq                 # sidecar（no-auth）
+curl http://127.0.0.1:17171/v2/info | jq                 # sidecar（no-auth）
 curl -H "Authorization: Bearer $(cat ~/.lyra/local-token)" \
   -X POST -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"runtime.initialize","params":{}}' \
-  http://127.0.0.1:17171/v1/rpc/runtime.initialize
+  -d '{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{}}' \
+  http://127.0.0.1:17171/v2/rpc/runtime.initialize
 ```
 
 ## 修改任何东西之前
@@ -150,16 +150,18 @@ curl -H "Authorization: Bearer $(cat ~/.lyra/local-token)" \
 - ✅ `pkg/` → `rpc/`（前后端通讯层）+ 子包重命名（coreapi → protocol / coreimpl → server / rpcadapter → dispatch）
 - ✅ 接口去 Java 味：`xxxAPI` → 干名 / `In/Out` → `Request/Response` / `Impl` → `Server`
 - ✅ JSON-RPC envelope 切到 MCP SDK 的 `jsonrpc` 包（不自维护）
-- ✅ HTTP transport：local-token gate + CORS + 4xx access log + `/v1/info` ops 字段 + `/v1/health` 探针
+- ✅ HTTP transport：local-token gate + CORS + 4xx access log + `/v2/info` ops 字段 + `/v2/health` 探针
 - ✅ SSE 写端切到 `github.com/Tangerg/sse`
 - ✅ SQLite 持久化（session / memory），`LYRA_STORAGE` env 切换
-- ✅ AGENTS.md walk-from-cwd 级联发现（mirror kimi-code 设计）+ `lyra agents` CLI + `/v1/info.agentDocs`
+- ✅ AGENTS.md walk-from-cwd 级联发现（mirror kimi-code 设计）+ `lyra agents` CLI + `/v2/info.agentDocs`
 - ✅ 删 speculative `trace` service stub
 - ✅ chat 解耦 `*engine.Engine` —— 改用 `chat.Engine` 窄接口
-- ✅ approval ISP split：`Console`（client）/ `Gate`（producer）/ `Service`（union）
 - ✅ `impl.go` 全清：approval / chat → `inmemory.go`，tool → `engine.go`
 - ✅ `atomicMode` wrapper → `atomic.Int32`
 - ✅ `ProcessContextConfig` / `ProcessContext` 字段按 concern 分区
 - ✅ MCP enum 在 config 和 engine 双份 → 合一份
 - ✅ `fmt.Errorf("constant")` 全部改 `errors.New`
 - ✅ autonomy 解耦 `*runtime.Platform` —— 改用包内 `platform` 窄接口 + compile-time tripwire
+- ✅ **v2 协议迁移**（前端 docs/API.md `protocolVersion 2026-06-03`）：`rpc/protocol` 全面重写成 Session→Run→**Item** 模型（Item 是唯一 history+streaming primitive，无 Message 类型）；`/v1/`→`/v2/` 路径；X- header 去品牌前缀（`X-Trace-Id` 等）；单一 `notifications.run.event` 事件流；错误码按 `error.data.type` symbolic 分支
+- ✅ **HITL P→R 模型**：工具审批 / plan-review 从阻塞式 gate 改成 **park-on-interrupt + 续连 resume** —— run 以 `run.finished{outcome:interrupt}` 收尾，客户端经 `runs.resume`(parentRunId 链) 应答；engine 经 `hitl.PauseError` seam 中途挂起、`Platform.ResumeProcess` 把 verdict 写回 blackboard（keyed by tool name+args）让 re-run 观察到；中断存储 `interrupts.Store` 做成可插拔接口（默认 in-memory，跨重启重建是 documented residual）；`approval` 从 Console/Gate/Service 三层 collapse 成运行态 `Mode`（GetMode/SetMode）—— 不再阻塞，故三层 ISP 不再需要
+- ✅ **重构 R1-R3**：dispatch 42 handler 样板 → `reply.go` 泛型尾部 helper（`decode`/`reply`/`replyDone`/`replyStream`）；chat 删零调用 `ContinuePlan`/`PlanDecision` + 抽 `finishTurn`；`translator.interrupt()` 拆 `approvalInterrupt`/`planInterrupt`（并修了 plan interrupt 在 wire 上误标 `Kind:"approval"` 的 bug）
