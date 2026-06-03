@@ -86,7 +86,7 @@ func TestPlatform_SaveAndRestore_RoundTrip(t *testing.T) {
 	platform2 := agent.NewPlatform(runtime.PlatformConfig{ProcessStore: store})
 	mustDeploy(t, platform2, buildSnapshotAgent())
 
-	restored, err := platform2.RestoreProcess(context.Background(), proc.ID())
+	restored, err := platform2.RestoreProcess(context.Background(), proc.ID(), core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("restore: %v", err)
 	}
@@ -167,7 +167,7 @@ func TestPlatform_RestoreWaitingProcess_ResumesToCompletion(t *testing.T) {
 	platform2 := agent.NewPlatform(runtime.PlatformConfig{ProcessStore: store})
 	mustDeploy(t, platform2, buildGate())
 
-	restored, err := platform2.RestoreProcess(ctx, proc.ID())
+	restored, err := platform2.RestoreProcess(ctx, proc.ID(), core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("restore: %v", err)
 	}
@@ -217,7 +217,7 @@ func TestPlatform_RestoreProcess_AgentNotDeployed(t *testing.T) {
 		Status:    core.StatusCompleted,
 	})
 
-	if _, err := platform.RestoreProcess(context.Background(), "orphan"); err == nil {
+	if _, err := platform.RestoreProcess(context.Background(), "orphan", core.ProcessOptions{}); err == nil {
 		t.Error("expected error when agent not deployed")
 	}
 }

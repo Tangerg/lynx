@@ -101,7 +101,15 @@ func SnapshotProcess(p *AgentProcess) core.ProcessSnapshot {
 // This works only when the awaiting action is idempotent: it must
 // re-park when its decision condition is unset and proceed when it's
 // set. The framework cannot reconstruct the closure for it.
-func RestoreProcess(platform *Platform, snap core.ProcessSnapshot) (*AgentProcess, error) {
+//
+// options carries the per-process wiring the snapshot can't hold — the
+// session-scoped [core.ProcessOptions.Extensions] (observer / event
+// listener / tool decorators) and the [core.ProcessOptions.Session]
+// binding. A restored process re-enters the tick loop with the same
+// observability + session context a fresh one gets from
+// [Platform.StartAgent], so the continuation streams and keys chat-memory
+// correctly. Pass the zero value to restore read-only (audit / inspect).
+func RestoreProcess(platform *Platform, snap core.ProcessSnapshot, options core.ProcessOptions) (*AgentProcess, error) {
 	if platform == nil {
 		return nil, errors.New("restore process: nil platform")
 	}
@@ -117,9 +125,11 @@ func RestoreProcess(platform *Platform, snap core.ProcessSnapshot) (*AgentProces
 		return nil, fmt.Errorf("restore process: agent %q not deployed", snap.AgentName)
 	}
 
-	options := core.ProcessOptions{}
+	if err := validateProcessExtensions(options.Extensions); err != nil {
+		return nil, fmt.Errorf("restore process: %w", err)
+	}
 	options.ApplyDefaults()
-	blackboard := platform.NewBlackboard()
+	blackboard := platform.resolveBlackboard(options.Blackboard)
 	plannerInst, err := platform.resolvePlanner(agentDef, options.Extensions)
 	if err != nil {
 		return nil, fmt.Errorf("restore process: %w", err)
@@ -129,7 +139,8 @@ func RestoreProcess(platform *Platform, snap core.ProcessSnapshot) (*AgentProces
 	p := newAgentProcess(snap.ID, agentDef, &options, blackboard, plannerInst, system, platform)
 	// Wire the determiner + event multicast the same way createProcess
 	// does — without it a resumable snapshot panics on its first
-	// post-restore tick (nil determiner in observe).
+	// post-restore tick (nil determiner in observe). The caller's
+	// Extensions (observer / listener) attach here too.
 	p.wireRuntimeDeps(options.Extensions)
 	p.parentID = snap.ParentID
 	p.startedAt = snap.StartedAt
