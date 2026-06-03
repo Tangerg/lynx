@@ -9,7 +9,10 @@ import type { InterruptResponse, RunId, StreamEvent } from "@/rpc";
 import type { AgentViewState } from "@/protocol/run/viewState";
 import { create } from "zustand";
 import { disposeOnHmr } from "@/lib/hmr";
-import { appendTimelineEntry } from "@/plugins/sdk";
+// Import from the specific SDK module, not the barrel — the barrel re-exports
+// useSharedState (which reads this store), so a barrel import here would close
+// a state → sdk → state module cycle.
+import { appendTimelineEntry } from "@/plugins/sdk/state";
 import { reduce } from "@/protocol/run/reducer";
 import { INITIAL_VIEW_STATE } from "@/protocol/run/viewState";
 import { useSessionStore } from "./sessionStore";
