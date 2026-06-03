@@ -7,7 +7,8 @@ import "errors"
 // RPCError.data, RunResult.error, and toolCall.error. Type is the stable
 // symbolic name — clients judge errors by Type, never by numeric code
 // (API.md §8.2). First-party types are bare snake_case; third-party
-// plugins namespace as `plugin:<name>/<symbol>` (API.md §8.4).
+// plugins namespace as `plugin:<name>/<symbol>` — one instance of the
+// unified extension-namespace convention (API.md §2.5, error case §8.4).
 type ProblemData struct {
 	Type   string `json:"type"`
 	Detail string `json:"detail,omitempty"` // per-occurrence human-readable note
