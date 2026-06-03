@@ -2,9 +2,11 @@ package http
 
 import (
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 	"github.com/Tangerg/lynx/lyra/rpc/transport"
 )
 
@@ -90,13 +92,15 @@ func (r *streamRegistry) open(runID string) *streamBuffer {
 	return b
 }
 
-// compareEventID compares two decimal-encoded eventIds numerically.
-// Both inputs are produced by `strconv.FormatUint`, so a successful
-// parse is the common case; we only fall back to string compare for
-// defensive handling of malformed input.
+// compareEventID compares two eventIds numerically. Both are
+// evt_<zero-padded-decimal> (TRANSPORT.md §9.1) from the server's global
+// counter, so we strip the prefix and parse the decimal; a successful
+// parse is the common case, with a defensive lexical fallback for
+// malformed input (the fixed-width padding makes lexical order agree with
+// numeric anyway).
 func compareEventID(a, b string) int {
-	an, aerr := strconv.ParseUint(a, 10, 64)
-	bn, berr := strconv.ParseUint(b, 10, 64)
+	an, aerr := strconv.ParseUint(strings.TrimPrefix(a, protocol.IDPrefixEvent), 10, 64)
+	bn, berr := strconv.ParseUint(strings.TrimPrefix(b, protocol.IDPrefixEvent), 10, 64)
 	if aerr == nil && berr == nil {
 		switch {
 		case an < bn:
