@@ -16,8 +16,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/lyra/internal/config"
 	lyraruntime "github.com/Tangerg/lynx/lyra/internal/runtime"
+	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 	memorysvc "github.com/Tangerg/lynx/lyra/internal/service/memory"
 	sessionsvc "github.com/Tangerg/lynx/lyra/internal/service/session"
 	"github.com/Tangerg/lynx/lyra/internal/storage"
@@ -99,7 +101,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		return err
 	}
 
-	sessionSvc, memSvc, err := buildSessionAndMemory(cfg.Storage)
+	sessionSvc, memSvc, procStore, interruptStore, err := buildStores(cfg.Storage)
 	if err != nil {
 		return err
 	}
@@ -118,6 +120,12 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		MemoryStore:    msgStore,
 		MemoryService:  memSvc,
 		SessionService: sessionSvc,
+		// Durable stores enable cross-restart HITL resume: ProcessStore
+		// auto-snapshots every agent process (so a parked turn survives a
+		// restart); InterruptStore persists the open-interrupt registry
+		// that runs.resume looks up. Both follow LYRA_STORAGE.
+		ProcessStore:   procStore,
+		InterruptStore: interruptStore,
 		// ApprovalMode defaults to YOLO — operators flip the mode at
 		// runtime via /v1/approvals/mode (HTTP) or a future
 		// --approval-mode flag.
@@ -138,38 +146,51 @@ func (a *App) runtime() *lyraruntime.Runtime { return a.rt }
 // config returns the loaded config; valid after ensureRuntime.
 func (a *App) config() config.Config { return a.cfg }
 
-// buildSessionAndMemory picks the session + memory backend based on
-// the storage kind. SQLite shares one *sql.DB across both services
-// at $LYRA_HOME/lyra.db; the file backend keeps the per-LYRA.md /
-// sessions.json layout that lets users `cat` or `jq` the state
-// directly.
+// buildStores picks the persistence backends based on the storage kind:
+// session + memory + the agent-process snapshot store + the open-interrupt
+// registry. SQLite shares one *sql.DB across all four at $LYRA_HOME/lyra.db;
+// the file backend keeps the per-LYRA.md / sessions.json / per-process-JSON
+// layout that lets users `cat` or `jq` the state directly.
+//
+// The process + interrupt stores are what make HITL resume survive a
+// restart — they're wired the same way as session/memory so a single
+// LYRA_STORAGE switch governs all durable state.
 //
 // The *sql.DB is intentionally leaked — process lifetime equals DB
 // lifetime, and modernc.org/sqlite cleans up its WAL on close at
 // exit. Add explicit teardown when the runtime grows a Shutdown
 // path.
-func buildSessionAndMemory(kind config.StorageKind) (sessionsvc.Service, memorysvc.Service, error) {
+func buildStores(kind config.StorageKind) (sessionsvc.Service, memorysvc.Service, core.ProcessStore, interrupts.Store, error) {
 	switch kind {
 	case config.StorageSQLite:
 		home, err := storage.Home()
 		if err != nil {
-			return nil, nil, fmt.Errorf("sqlite storage: %w", err)
+			return nil, nil, nil, nil, fmt.Errorf("sqlite storage: %w", err)
 		}
 		db, err := sqlitestore.Open(filepath.Join(home, "lyra.db"))
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, nil, err
 		}
-		return sqlitestore.NewSessionService(db), sqlitestore.NewMemoryService(db), nil
+		return sqlitestore.NewSessionService(db), sqlitestore.NewMemoryService(db),
+			sqlitestore.NewProcessStore(db), sqlitestore.NewInterruptStore(db), nil
 	default:
 		sess, err := storage.NewFileSessionService()
 		if err != nil {
-			return nil, nil, fmt.Errorf("session storage: %w", err)
+			return nil, nil, nil, nil, fmt.Errorf("session storage: %w", err)
 		}
 		mem, err := storage.NewFileMemoryService()
 		if err != nil {
-			return nil, nil, fmt.Errorf("memory storage: %w", err)
+			return nil, nil, nil, nil, fmt.Errorf("memory storage: %w", err)
 		}
-		return sess, mem, nil
+		procStore, err := storage.NewFileProcessStore()
+		if err != nil {
+			return nil, nil, nil, nil, fmt.Errorf("process storage: %w", err)
+		}
+		interruptStore, err := storage.NewFileInterruptStore()
+		if err != nil {
+			return nil, nil, nil, nil, fmt.Errorf("interrupt storage: %w", err)
+		}
+		return sess, mem, procStore, interruptStore, nil
 	}
 }
 
