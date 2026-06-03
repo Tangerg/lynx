@@ -43,11 +43,11 @@ describe("RpcClient", () => {
   it("notify() sends a Notification with no id", async () => {
     const t = createMemoryTransport();
     const client = createRpcClient(t);
-    await client.notify("notifications/canceled", { id: "5" });
+    await client.notify("notifications.canceled", { id: "5" });
     const sent = t.outbox()[0];
     expect(sent).toBeDefined();
     expect("id" in (sent as object)).toBe(false);
-    expect((sent as { method: string }).method).toBe("notifications/canceled");
+    expect((sent as { method: string }).method).toBe("notifications.canceled");
     await client.close();
   });
 
@@ -101,7 +101,7 @@ describe("RpcClient", () => {
     await expect(promise).rejects.toBeInstanceOf(RpcTransportError);
   });
 
-  it("AbortSignal cancels in-flight call and emits notifications/canceled", async () => {
+  it("AbortSignal cancels in-flight call and emits notifications.canceled", async () => {
     const t = createMemoryTransport();
     const client = createRpcClient(t);
     const ctrl = new AbortController();
@@ -112,7 +112,7 @@ describe("RpcClient", () => {
     // Last sent message should be the cancel notification.
     const sent = t.outbox();
     const cancelMsg = sent[sent.length - 1] as { method: string; params: { id: string } };
-    expect(cancelMsg.method).toBe("notifications/canceled");
+    expect(cancelMsg.method).toBe("notifications.canceled");
     // Cancel targets the in-flight Request by its envelope `id` (a string).
     expect(typeof cancelMsg.params.id).toBe("string");
     await client.close();

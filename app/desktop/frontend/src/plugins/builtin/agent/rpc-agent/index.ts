@@ -12,15 +12,15 @@ import { asSessionId } from "@/rpc";
 import { useSessionStore } from "@/state/sessionStore";
 
 function makeDriver(sessionId: string): AgentDriver {
-  const methods = () => getContainer().methods();
+  const client = () => getContainer().client();
   return {
     start: (text, signal) =>
-      methods().runs.start(
+      client().runs.start(
         { sessionId: asSessionId(sessionId), input: [{ type: "text", text }], mode: "agent" },
         signal,
       ),
     resume: (parentRunId, responses, signal) =>
-      methods().runs.resume({ parentRunId, responses }, signal),
+      client().runs.resume({ parentRunId, responses }, signal),
   };
 }
 

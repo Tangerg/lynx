@@ -180,23 +180,23 @@ export const defaultData = definePlugin({
   name: "lyra.builtin.default-data",
   version: "1.0.0",
   setup({ host }) {
-    const methods = () => getContainer().methods();
+    const client = () => getContainer().client();
 
     host.extensions.contribute(DATA_PROVIDER, {
       key: "sessions",
-      fetcher: async () => (await methods().sessions.list()).data.map(toSidebarSession),
+      fetcher: async () => (await client().sessions.list()).data.map(toSidebarSession),
     });
     host.extensions.contribute(DATA_PROVIDER, {
       key: "projects",
-      fetcher: async () => (await methods().workspace.listProjects()).map(toSidebarProject),
+      fetcher: async () => (await client().workspace.listProjects()).map(toSidebarProject),
     });
     host.extensions.contribute(DATA_PROVIDER, {
       key: "files-changed",
-      fetcher: async () => (await methods().workspace.listFileChanges()).map(toSidebarFileChange),
+      fetcher: async () => (await client().workspace.listFileChanges()).map(toSidebarFileChange),
     });
     host.extensions.contribute(DATA_PROVIDER, {
       key: "mcp-servers",
-      fetcher: async () => (await methods().workspace.mcp.listServers()).map(toSidebarMCPServer),
+      fetcher: async () => (await client().workspace.mcp.listServers()).map(toSidebarMCPServer),
     });
 
     for (const key of HTTP_KEYS) {

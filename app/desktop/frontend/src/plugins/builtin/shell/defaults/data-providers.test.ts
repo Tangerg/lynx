@@ -14,7 +14,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { lookupDataProvider } from "@/plugins/sdk/selectors";
-import { createMethods, createRpcClient } from "@/rpc";
+import { createLyraClient } from "@/rpc";
 import { createMemoryTransport } from "@/rpc/transports/memory";
 import { respondSuccess, waitForRequest } from "@/rpc/transports/memory.testkit";
 import { defaultData } from "./index";
@@ -23,7 +23,8 @@ afterEach(resetContainer);
 
 async function runProvider<T>(key: string, method: string, result: unknown): Promise<T> {
   const t = createMemoryTransport();
-  setContainer({ methods: () => createMethods(createRpcClient(t)) });
+  const client = createLyraClient(t);
+  setContainer({ client: () => client });
   await loadPlugin(defaultData);
 
   const fetcher = lookupDataProvider<T>(key);

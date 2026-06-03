@@ -1,18 +1,17 @@
 // Public surface of the Lyra Runtime Protocol v2 client. See docs/API.md.
 //
-// Typical wiring (composition root, main/container.ts):
+// The SDK is transport-agnostic: inject a `Transport`, get a typed client.
 //
-//   const transport = createHttpTransport({ baseUrl, localToken });
-//   const client    = createRpcClient(transport);
-//   const methods   = createMethods(client);
-//   const sidecar   = createSidecarClient({ baseUrl });
+//   const client = createLyraClient(createHttpTransport({ baseUrl, localToken }));
+//   await client.runtime.initialize({ ... });   // handshake
+//   const sessions = await client.sessions.list();
+//   const { result, events } = await client.runs.start({ ... });
+//   await client.close();
 //
-// Then:
-//   await sidecar.info();                     // pre-handshake liveness
-//   await methods.runtime.initialize({...});  // handshake
-//   const sessions = await methods.sessions.list();
-//
-// In tests, swap createHttpTransport with createMemoryTransport.
+// In tests, swap createHttpTransport with createMemoryTransport. The lower-
+// level building blocks (createRpcClient + createMethods) stay exported for
+// advanced use; `createLyraClient` just composes them. Sidecar metadata
+// (/v2/info, /v2/health) is HTTP-only — see createSidecarClient.
 
 export { createPushPullChannel } from "./channel";
 export type { PushPullChannel } from "./channel";
@@ -23,6 +22,8 @@ export { asAttachmentId, asEventId, asItemId, asRunId, asSessionId, asTaskId } f
 export type { AttachmentId, EventId, ItemId, RunId, SessionId, TaskId } from "./ids";
 export { createMethods } from "./methods";
 export type { Methods, StreamingResult } from "./methods";
+export { createLyraClient } from "./sdk";
+export type { LyraClient } from "./sdk";
 export type {
   // Lifecycle / capabilities
   ClientCapabilities,

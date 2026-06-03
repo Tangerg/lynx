@@ -7,7 +7,7 @@ import { renderHook } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
-import type { Methods } from "@/rpc";
+import type { LyraClient, Methods } from "@/rpc";
 import { asSessionId } from "@/rpc";
 import { useSessionStore } from "@/state/sessionStore";
 import { useCreateSession } from "./useCreateSession";
@@ -18,7 +18,7 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 function stubCreate(create: Methods["sessions"]["create"]) {
-  setContainer({ methods: () => ({ sessions: { create } }) as unknown as Methods });
+  setContainer({ client: () => ({ sessions: { create } }) as unknown as LyraClient });
 }
 
 afterEach(() => {

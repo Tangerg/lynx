@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { Methods } from "@/rpc";
+import type { LyraClient } from "@/rpc";
 import { getContainer, resetContainer, setContainer } from "./container";
 
 describe("main/container", () => {
@@ -7,30 +7,29 @@ describe("main/container", () => {
 
   it("exposes the Runtime Protocol entry points out of the box", () => {
     const c = getContainer();
-    expect(typeof c.createRpc).toBe("function");
-    expect(typeof c.methods).toBe("function");
+    expect(typeof c.client).toBe("function");
     expect(c.sidecar).toBeDefined();
   });
 
   it("setContainer() swaps a single slot, leaving others intact", () => {
-    const fakeMethods = {} as Methods;
+    const fake = {} as LyraClient;
     const before = getContainer().sidecar;
-    setContainer({ methods: () => fakeMethods });
-    expect(getContainer().methods()).toBe(fakeMethods);
+    setContainer({ client: () => fake });
+    expect(getContainer().client()).toBe(fake);
     expect(getContainer().sidecar).toBe(before);
   });
 
   it("resetContainer() restores defaults", () => {
-    const fakeMethods = {} as Methods;
-    setContainer({ methods: () => fakeMethods });
+    const fake = {} as LyraClient;
+    setContainer({ client: () => fake });
     resetContainer();
-    expect(getContainer().methods()).not.toBe(fakeMethods);
+    expect(getContainer().client()).not.toBe(fake);
   });
 
-  it("methods() returns a cached singleton (one client for the container's life)", () => {
-    const first = getContainer().methods();
-    expect(getContainer().methods()).toBe(first);
+  it("client() returns a cached singleton (one SDK client for the container's life)", () => {
+    const first = getContainer().client();
+    expect(getContainer().client()).toBe(first);
     resetContainer();
-    expect(getContainer().methods()).not.toBe(first);
+    expect(getContainer().client()).not.toBe(first);
   });
 });

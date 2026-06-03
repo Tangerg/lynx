@@ -33,10 +33,10 @@ const CLIENT_CAPABILITIES: ClientCapabilities = {
 };
 
 async function handshake(): Promise<void> {
-  const { sidecar, methods } = getContainer();
+  const { sidecar, client } = getContainer();
   // Best-effort liveness probe; ignored if the sidecar isn't implemented.
   await sidecar.info().catch(() => undefined);
-  const result = await methods().runtime.initialize({
+  const result = await client().runtime.initialize({
     protocolVersion: PROTOCOL_VERSION,
     clientInfo: CLIENT_INFO,
     capabilities: CLIENT_CAPABILITIES,

@@ -87,7 +87,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       abort?.abort();
       if (currentRunId)
         void getContainer()
-          .methods()
+          .client()
           .runs.cancel(currentRunId)
           .catch(() => undefined);
     };

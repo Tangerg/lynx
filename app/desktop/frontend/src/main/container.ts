@@ -1,62 +1,49 @@
-// Composition root — owns the app's Runtime Protocol entry points (the
-// JSON-RPC client + typed methods + sidecar probe). Singleton instead of
-// Context because non-component code (zustand effects, plugin setup) calls
-// these too; tests inject fakes via `setContainer()`.
+// Composition root — owns the app's Runtime Protocol entry points: the SDK
+// client (createLyraClient over an HTTP transport) + the sidecar probe.
+// Singleton instead of Context because non-component code (zustand effects,
+// plugin setup) calls these too; tests inject fakes via `setContainer()`.
 
 import { AGUI_BASE } from "@/main/config";
 import { getConfig } from "@/plugins/sdk/config";
-import type { Methods, RpcClient, SidecarClient } from "@/rpc";
-import { createHttpTransport, createMethods, createRpcClient, createSidecarClient } from "@/rpc";
+import type { LyraClient, SidecarClient } from "@/rpc";
+import { createHttpTransport, createLyraClient, createSidecarClient } from "@/rpc";
 
 export interface Container {
   /**
-   * Factory for a fresh Lyra Runtime Protocol client (JSON-RPC over
-   * HTTP). Constructing it opens an SSE connection to `/v1/rpc/stream`,
-   * so most callers want the cached `methods()` below rather than a new
-   * client per use. Kept exposed for tests + one-off clients.
+   * Shared, lazily-constructed Lyra Runtime Protocol SDK client for app use.
+   * Builds the transport (one SSE connection) on first call and caches it for
+   * the life of the container — the single entry point so callers don't each
+   * spin up their own. Tests get a fresh cache via `resetContainer()` (and can
+   * override with `setContainer({ client })`).
    */
-  createRpc: () => RpcClient;
-  /** Typed method wrappers — bound to the RpcClient passed in. */
-  createMethods: (rpc: RpcClient) => Methods;
-  /**
-   * Shared, lazily-constructed Methods for app runtime use. Builds the
-   * RpcClient (one SSE connection) on first call and caches it for the
-   * life of the container — the cutover's single entry point so callers
-   * don't each spin up their own client. Tests get a fresh cache via
-   * `resetContainer()` (and can override with `setContainer({ methods })`).
-   */
-  methods: () => Methods;
+  client: () => LyraClient;
   /**
    * Sidecar HTTP probe — pre-instantiated because it doesn't open a
-   * persistent connection (each call is a one-shot fetch). Safe to
-   * call against a backend that doesn't implement it yet (caller
-   * handles the RpcTransportError).
+   * persistent connection (each call is a one-shot fetch). HTTP-transport
+   * only; safe to call against a backend that doesn't implement it yet (the
+   * caller handles the RpcTransportError).
    */
   sidecar: SidecarClient;
 }
 
 function defaultContainer(): Container {
   const baseUrl = AGUI_BASE;
-  let sharedMethods: Methods | null = null;
-  const container: Container = {
-    createRpc: () =>
-      // Read `api.localToken` at factory-call time so plugins (e.g. a
-      // Wails-side bootstrap reading `~/.lyra/local-token`) can set it
-      // via `host.config.set("api.localToken", ...)` before the first
-      // RpcClient is instantiated. Web frontend hitting a same-machine
-      // lyra-server needs this for the local process gate (docs/API.md
-      // §1.2). For dev mock backend that doesn't validate, leave unset.
-      createRpcClient(
+  let shared: LyraClient | null = null;
+  return {
+    // Read `api.localToken` at build time so plugins (e.g. a Wails-side
+    // bootstrap reading `~/.lyra/local-token`) can set it via
+    // `host.config.set("api.localToken", ...)` before the first client is
+    // built. Local-loopback process gate (TRANSPORT.md §11); dev mock leaves
+    // it unset.
+    client: () =>
+      (shared ??= createLyraClient(
         createHttpTransport({
           baseUrl,
           localToken: getConfig<string>("api.localToken") ?? undefined,
         }),
-      ),
-    createMethods,
-    methods: () => (sharedMethods ??= createMethods(container.createRpc())),
+      )),
     sidecar: createSidecarClient({ baseUrl }),
   };
-  return container;
 }
 
 let instance: Container = defaultContainer();

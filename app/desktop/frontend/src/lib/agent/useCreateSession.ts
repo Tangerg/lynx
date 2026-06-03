@@ -19,7 +19,7 @@ export function useCreateSession(): (firstMessage?: string) => Promise<string | 
   return useCallback(
     async (firstMessage) => {
       try {
-        const session = await getContainer().methods().sessions.create({});
+        const session = await getContainer().client().sessions.create({});
         const store = useSessionStore.getState();
         // Mark draft + queue the message BEFORE selecting, so the remount
         // useAgentSession triggers sees both already in place.
