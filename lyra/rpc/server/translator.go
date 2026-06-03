@@ -115,50 +115,69 @@ func (t *translator) interrupt(e chat.TurnInterrupted) []protocol.StreamEvent {
 
 	wire := make([]protocol.Interrupt, 0, len(e.Interrupts))
 	for _, in := range e.Interrupts {
+		var ev protocol.StreamEvent
+		var entry protocol.Interrupt
 		switch in.Kind {
 		case "approval":
-			p, _ := in.Payload.(chat.ApprovalPrompt)
-			id := t.nextItemID()
-			out = append(out, protocol.StreamEvent{
-				Type: protocol.StreamItemStarted,
-				Item: &protocol.Item{
-					ID:     id,
-					RunID:  t.runID,
-					Status: protocol.ItemStatusInProgress,
-					Type:   protocol.ItemTypeToolCall,
-					Tool:   &protocol.ToolInvocation{Kind: toolKind(p.ToolName), Name: p.ToolName},
-				},
-			})
-			wire = append(wire, protocol.Interrupt{
-				ItemID:  id,
-				Kind:    "approval",
-				Payload: map[string]any{"tool": p.ToolName, "arguments": p.Arguments},
-			})
+			ev, entry = t.approvalInterrupt(in)
 		default: // plan
-			plan, _ := in.Payload.(string)
-			id := t.nextItemID()
-			out = append(out, protocol.StreamEvent{
-				Type: protocol.StreamItemCompleted,
-				Item: &protocol.Item{
-					ID:      id,
-					RunID:   t.runID,
-					Status:  protocol.ItemStatusCompleted,
-					Type:    protocol.ItemTypeAgentMessage,
-					Content: []protocol.ContentBlock{{Type: "text", Text: plan}},
-				},
-			})
-			wire = append(wire, protocol.Interrupt{
-				ItemID:  id,
-				Kind:    "approval",
-				Payload: map[string]any{"plan": plan},
-			})
+			ev, entry = t.planInterrupt(in)
 		}
+		out = append(out, ev)
+		wire = append(wire, entry)
 	}
 
 	return append(out, protocol.StreamEvent{
 		Type:    protocol.StreamRunFinished,
 		Outcome: &protocol.RunOutcome{Type: protocol.OutcomeInterrupt, Interrupts: wire},
 	})
+}
+
+// approvalInterrupt renders a gated tool call awaiting approval as an
+// inProgress toolCall Item plus the protocol.Interrupt keyed to it.
+func (t *translator) approvalInterrupt(in chat.Interrupt) (protocol.StreamEvent, protocol.Interrupt) {
+	p, _ := in.Payload.(chat.ApprovalPrompt)
+	id := t.nextItemID()
+	ev := protocol.StreamEvent{
+		Type: protocol.StreamItemStarted,
+		Item: &protocol.Item{
+			ID:     id,
+			RunID:  t.runID,
+			Status: protocol.ItemStatusInProgress,
+			Type:   protocol.ItemTypeToolCall,
+			Tool:   &protocol.ToolInvocation{Kind: toolKind(p.ToolName), Name: p.ToolName},
+		},
+	}
+	entry := protocol.Interrupt{
+		ItemID:  id,
+		Kind:    "approval",
+		Payload: map[string]any{"tool": p.ToolName, "arguments": p.Arguments},
+	}
+	return ev, entry
+}
+
+// planInterrupt renders a plan awaiting review as a completed agentMessage
+// Item (the plan markdown) plus the protocol.Interrupt keyed to it. The
+// plan stays prose until the planner emits structured steps.
+func (t *translator) planInterrupt(in chat.Interrupt) (protocol.StreamEvent, protocol.Interrupt) {
+	plan, _ := in.Payload.(string)
+	id := t.nextItemID()
+	ev := protocol.StreamEvent{
+		Type: protocol.StreamItemCompleted,
+		Item: &protocol.Item{
+			ID:      id,
+			RunID:   t.runID,
+			Status:  protocol.ItemStatusCompleted,
+			Type:    protocol.ItemTypeAgentMessage,
+			Content: []protocol.ContentBlock{{Type: "text", Text: plan}},
+		},
+	}
+	entry := protocol.Interrupt{
+		ItemID:  id,
+		Kind:    "plan",
+		Payload: map[string]any{"plan": plan},
+	}
+	return ev, entry
 }
 
 func (t *translator) appendText(text string) []protocol.StreamEvent {
