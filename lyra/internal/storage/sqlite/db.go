@@ -72,6 +72,15 @@ func migrate(db *sql.DB) error {
 			snapshot     TEXT    NOT NULL,
 			captured_at  INTEGER NOT NULL
 		)`,
+		`CREATE TABLE IF NOT EXISTS interrupts (
+			parent_run_id TEXT    PRIMARY KEY,
+			session_id    TEXT    NOT NULL DEFAULT '',
+			turn_id       TEXT    NOT NULL DEFAULT '',
+			interrupts    TEXT    NOT NULL DEFAULT '',
+			created_at    INTEGER NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_interrupts_session
+			ON interrupts(session_id)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {
