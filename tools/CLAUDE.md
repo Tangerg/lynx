@@ -52,6 +52,25 @@
   - `websearch` / `webfetch` / `httpreq` 的 `NewTool(nil)` **返错**（无本地 fallback，必须显式配置）
 - **输出上限**：bash 默认 30 KiB/stream，httpreq 默认 256 KiB response，**超限截断不报错**（`RunOutput.Killed` / `Response.Truncated` 标记）
 
+## 强反向不变量
+
+- ❌ **全局 tool registry**：当前显式注册有意为之，多 agent / 多 process 各自管自己的 toolset
+- ❌ **Tool 层做业务逻辑**：所有业务在 Executor，Tool 只是 JSON ↔ Go 转换 + schema
+- ❌ **`bash` 加 root 限制**：信任调用方，要 jail 在外层（ProcessContext / 容器）
+- ❌ **httpreq 默认 allowlist**：必须显式 —— LLM 调用任意 URL 是安全敞口，"忘记配 allowlist 也能跑"是反 pattern
+- ❌ **超限抛错而不是截断**：截断 + 标记的设计更友好；LLM 可以根据 truncated 决定下一步
+
+## 特殊点
+
+- **沙箱 / 路径隔离**：
+  - `fs.LocalExecutor.Root` —— path jail
+  - `httpreq.Client.AllowedHosts` —— 强制 allowlist（无默认值）
+  - `bash.LocalExecutor` —— **无 root 限制**（信任调用方，lyra 通过 `ProcessContext.Workdir` 在外层管）
+- **Glob/Grep 在 SPI 层**：远程 backend 不能每次都往返整个文件系统，所以这两个 bulk 查询直接进 Executor，一次 RPC 而不是多轮 list+read
+- **Provider 多租户**：websearch / webfetch 各家 Provider 实现同接口，Tool 不关心是 Tavily 还是 Brave —— `NewTool(provider)` 就行
+- **Response shape 一致**：所有 Provider 返回统一 Response（URL + title + snippet + ...），LLM 不用适配各家 API
+- **JSON Schema 自动生成**：通过 `pkg/json.StringDefSchemaOf` 从 Input struct 推 schema，写工具不用手动维护 schema 字符串
+
 ## 关键目录
 
 ```
@@ -70,17 +89,6 @@ tools/
 └── docs/                架构文档（待补）
 ```
 
-## 特殊点
-
-- **沙箱 / 路径隔离**：
-  - `fs.LocalExecutor.Root` —— path jail
-  - `httpreq.Client.AllowedHosts` —— 强制 allowlist（无默认值）
-  - `bash.LocalExecutor` —— **无 root 限制**（信任调用方，lyra 通过 `ProcessContext.Workdir` 在外层管）
-- **Glob/Grep 在 SPI 层**：远程 backend 不能每次都往返整个文件系统，所以这两个 bulk 查询直接进 Executor，一次 RPC 而不是多轮 list+read
-- **Provider 多租户**：websearch / webfetch 各家 Provider 实现同接口，Tool 不关心是 Tavily 还是 Brave —— `NewTool(provider)` 就行
-- **Response shape 一致**：所有 Provider 返回统一 Response（URL + title + snippet + ...），LLM 不用适配各家 API
-- **JSON Schema 自动生成**：通过 `pkg/json.StringDefSchemaOf` 从 Input struct 推 schema，写工具不用手动维护 schema 字符串
-
 ## 常用命令
 
 ```bash
@@ -95,11 +103,3 @@ go test ./bash/... -v        # 单工具调试
 - **加新 Executor 后端**（远程沙箱 / 容器化）：实现 SPI 接口（如 `bash.Executor`），在 caller 处 `NewBashTool(yourExecutor)` 注入
 - **加新 websearch / webfetch Provider**：放 `websearch/<provider>/`，实现 `Provider` 接口；不要改 Tool 层
 - **改 `chat.ToolDefinition`**：是 `core/model/chat` 的契约 —— 改了所有 tools/* + models/* 工具调用都受影响
-
-## 强反向不变量
-
-- ❌ **全局 tool registry**：当前显式注册有意为之，多 agent / 多 process 各自管自己的 toolset
-- ❌ **Tool 层做业务逻辑**：所有业务在 Executor，Tool 只是 JSON ↔ Go 转换 + schema
-- ❌ **`bash` 加 root 限制**：信任调用方，要 jail 在外层（ProcessContext / 容器）
-- ❌ **httpreq 默认 allowlist**：必须显式 —— LLM 调用任意 URL 是安全敞口，"忘记配 allowlist 也能跑"是反 pattern
-- ❌ **超限抛错而不是截断**：截断 + 标记的设计更友好；LLM 可以根据 truncated 决定下一步

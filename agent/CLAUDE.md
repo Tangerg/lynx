@@ -60,6 +60,13 @@
 - **Event JSON 单向**：lifecycle event 的 marshal 会把 Action / WorldState 这种接口字段降级成 lossy summary；要 round-trip 在内存里直接 type-assert
 - **依赖窄接口（已经踩过坑）**：`autonomy.platform` 接口就是这个 pattern —— 上层别 import `*runtime.Platform` 整体，定义自己的窄 interface
 
+## 强反向不变量
+
+- ❌ **绕过 Blackboard 让 action 之间直接传值**：违反 planner 可见性，调度会坏
+- ❌ **Extension 用 string-key 注册（非类型分发）**：`collectExtensions[T]` 现在的 pattern 更好，加新能力时不改 dispatch loop
+- ❌ **新模块直接拿 `*runtime.Platform` 整体**：定义自己的窄接口（参考 `runtime/autonomy/platform.go` interface）
+- ❌ **examples/ 里的代码当 reference**：那是 demo，约定不一定跟主线一致
+
 ## 关键目录
 
 ```
@@ -92,13 +99,6 @@ go test ./runtime/... -race    # 并发 + child spawn 必跑 race
 - **改 `Blackboard` 的 name+type 协议**：框架的自动绑入参靠它
 - **加新 planner**：放 `planning/planner/<name>/`，实现 Planner 接口；不要改 runtime
 - **加新 workflow builder**：放 `workflow/<name>.go`，输出普通 GOAP agent
-
-## 强反向不变量
-
-- ❌ **绕过 Blackboard 让 action 之间直接传值**：违反 planner 可见性，调度会坏
-- ❌ **Extension 用 string-key 注册（非类型分发）**：`collectExtensions[T]` 现在的 pattern 更好，加新能力时不改 dispatch loop
-- ❌ **新模块直接拿 `*runtime.Platform` 整体**：定义自己的窄接口（参考 `runtime/autonomy/platform.go` interface）
-- ❌ **examples/ 里的代码当 reference**：那是 demo，约定不一定跟主线一致
 
 ## 已经做过的大重构（lyra 重构 session 期）
 

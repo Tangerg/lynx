@@ -49,6 +49,21 @@
 - **错误透传**：网络 / SDK error 直接 wrap 上浮；业务级错误（"max_tokens required" 等）包成有意义 message
 - **Reasoning signature**：Anthropic / Google 有签名（续流必需），OpenAI o-series 无；适配层用 `[]byte` 兼容，按 provider 填空
 
+## 强反向不变量
+
+- ❌ **provider 间共享 helpers**：每 provider 自己写 requestHelper / responseHelper，别强行抽公共基类（不同 SDK shape 差异大于相似度）
+- ❌ **加 retry layer**：SDK 自己有重试，框架不再加（见 `../CLAUDE.md` 共用反向不变量）
+- ❌ **加 OAuth / token refresh**：用户填 API key + 401 重填，OAuth 是 Claude Code 复杂度
+- ❌ **DefaultOptions 返指针**：`*Options` 会破坏 immutability 保证，必须返值
+
+## 特殊点
+
+- **chunkAccumulator**：每 provider 的 stream loop 用自己的 accumulator 把 SSE delta 拼成 Response chunk；上层 `chat.ResponseAccumulator` 再 stitch 完整消息
+- **Prompt Caching**（Anthropic 独有）：API 返 `CacheReadInputTokens` / `CacheWriteInputTokens` → 映射到 lynx `Usage` 同名字段
+- **Vision / Audio 多部分消息**：OpenAI `ChatCompletionContentPartImageParam` / `InputAudioParam` / `FileParam` 一条消息混合 text + media
+- **内部 `options` 包**：`options.GetParams[T](opts, OptionsKey)` 通用提取器，避免每 provider 手动 type-assert `opts.Extra`
+- **测试**：`internal/testutil` 有 SSE mock stream / embedding 数据生成 / 契约测试 fixtures
+
 ## 关键目录 / 成熟度
 
 | 类别 | provider | 模式 | 状态 |
@@ -64,14 +79,6 @@
 | 图像专用 | stability / prodia / blackforestlabs / luma / midjourney / replicate | text-to-image | ⚙️ stable |
 | 实验性 | hume / xai | 协议或能力不稳定 | 🔬 experimental |
 
-## 特殊点
-
-- **chunkAccumulator**：每 provider 的 stream loop 用自己的 accumulator 把 SSE delta 拼成 Response chunk；上层 `chat.ResponseAccumulator` 再 stitch 完整消息
-- **Prompt Caching**（Anthropic 独有）：API 返 `CacheReadInputTokens` / `CacheWriteInputTokens` → 映射到 lynx `Usage` 同名字段
-- **Vision / Audio 多部分消息**：OpenAI `ChatCompletionContentPartImageParam` / `InputAudioParam` / `FileParam` 一条消息混合 text + media
-- **内部 `options` 包**：`options.GetParams[T](opts, OptionsKey)` 通用提取器，避免每 provider 手动 type-assert `opts.Extra`
-- **测试**：`internal/testutil` 有 SSE mock stream / embedding 数据生成 / 契约测试 fixtures
-
 ## 常用命令
 
 ```bash
@@ -85,10 +92,3 @@ go test ./openai/... -run TestStream  # 单 provider 流式
 - **加新 provider**：先看 `openai/` 当 reference（最全），复制结构，改 SDK 调用。Config / helpers / Model 三件套不要变形状
 - **改 `core/model/chat` 接口**：所有 provider 都受影响；改之前先评估 38 处适配成本
 - **改 chunkAccumulator 逻辑**：每 provider 一份，跑各 provider 的 stream 测试
-
-## 强反向不变量
-
-- ❌ **provider 间共享 helpers**：每 provider 自己写 requestHelper / responseHelper，别强行抽公共基类（不同 SDK shape 差异大于相似度）
-- ❌ **加 retry layer**：SDK 自己有重试，框架不再加（见 `../CLAUDE.md` 共用反向不变量）
-- ❌ **加 OAuth / token refresh**：用户填 API key + 401 重填，OAuth 是 Claude Code 复杂度
-- ❌ **DefaultOptions 返指针**：`*Options` 会破坏 immutability 保证，必须返值

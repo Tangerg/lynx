@@ -54,6 +54,21 @@
 - **Visitor 错误**：`Result()` / `Error()` 对，AST 遍历累积到 `visitor.err`，最后一并返
 - **Distance metric 归一化**：pgvector cosine `[0, 2]` 内部转 `[0, 1]`；ES / Chroma 原生 `[0, 1]`；统一靠 `pkg/math`
 
+## 强反向不变量
+
+- ❌ **跨 backend 数据迁移工具**：不是 SDK 职责，给调用方 / ops
+- ❌ **filter AST 加业务概念节点**（如 "session_id"）：AST 是通用 filter，业务字段走 metadata
+- ❌ **vector 维度自适应**：维度协商靠 Config / EmbeddingModel，**不在 store 端 reshape**
+- ❌ **改后端 schema 不告 caller**：`InitializeSchema` 关掉时 store 假设 schema 已有；不要静默 ALTER TABLE
+
+## 特殊点
+
+- **Filter mini-language**：`author == "Alice"` / `year >= 2020` / `tag IN ("a", "b")` / `NOT (x)` / `AND` / `OR` —— 类 SQL WHERE，编译成 AST，每后端 visitor 转方言（pgvector jsonb 路径 / Chroma 字典 / Redis 自定义 query 等）
+- **Batch upsert 策略**：调用方注入 `DocumentBatcher`，store 分批调 `EmbeddingModel.Embed()` 避免 token 溢出；backend 根据 API 限制再做切分（Pinecone 1000 / Weaviate 128 等）
+- **向量维度协商**：`StoreConfig.Dimensions` 优先 → `EmbeddingModel.Dimensions()` → `DefaultDimensions = 1536`
+- **Schema 初始化开关**：`InitializeSchema=true` 创建表 / 索引；`false` 假设已 provisioned；Bedrock / Azure AI Search 不支持 Create，返 `Unsupported`
+- **Visitor 符合性套件**：`internal/storetest.VisitorConformance()` 覆盖所有过滤形状（string / number / bool / IN / LIKE / 嵌套），新 backend 在 `visitor_test.go` 注册一次免费拿到覆盖（验证遍历不报错，不验证输出相等）
+
 ## 关键目录 / 成熟度
 
 | Backend | DB | 状态 | 备注 |
@@ -71,14 +86,6 @@
 | **bedrockkb** / **s3vectors** | AWS 托管 | 🔬 experimental | Bedrock KB 不支持 Create/Delete |
 | **vectara** / **typesense** / **vespa** / **clickhouse** / **supabase** | 各家服务 | 🔬 experimental | API 不稳定 |
 
-## 特殊点
-
-- **Filter mini-language**：`author == "Alice"` / `year >= 2020` / `tag IN ("a", "b")` / `NOT (x)` / `AND` / `OR` —— 类 SQL WHERE，编译成 AST，每后端 visitor 转方言（pgvector jsonb 路径 / Chroma 字典 / Redis 自定义 query 等）
-- **Batch upsert 策略**：调用方注入 `DocumentBatcher`，store 分批调 `EmbeddingModel.Embed()` 避免 token 溢出；backend 根据 API 限制再做切分（Pinecone 1000 / Weaviate 128 等）
-- **向量维度协商**：`StoreConfig.Dimensions` 优先 → `EmbeddingModel.Dimensions()` → `DefaultDimensions = 1536`
-- **Schema 初始化开关**：`InitializeSchema=true` 创建表 / 索引；`false` 假设已 provisioned；Bedrock / Azure AI Search 不支持 Create，返 `Unsupported`
-- **Visitor 符合性套件**：`internal/storetest.VisitorConformance()` 覆盖所有过滤形状（string / number / bool / IN / LIKE / 嵌套），新 backend 在 `visitor_test.go` 注册一次免费拿到覆盖（验证遍历不报错，不验证输出相等）
-
 ## 常用命令
 
 ```bash
@@ -93,10 +100,3 @@ go test ./pgvector/...   # 通常需要 docker-compose
 - **改 `Store` 接口**：core/vectorstore 的契约 —— 改了所有 backend + 所有调用方（如 rag）受影响
 - **加新 backend**：复制 `inmemory/` 当模板，实现 `Store` + `Visitor`，注册到 `storetest.VisitorConformance()`
 - **改向量编码 / metric**：单 backend 内部细节，但要更新 `Validate()` 拒收无效输入
-
-## 强反向不变量
-
-- ❌ **跨 backend 数据迁移工具**：不是 SDK 职责，给调用方 / ops
-- ❌ **filter AST 加业务概念节点**（如 "session_id"）：AST 是通用 filter，业务字段走 metadata
-- ❌ **vector 维度自适应**：维度协商靠 Config / EmbeddingModel，**不在 store 端 reshape**
-- ❌ **改后端 schema 不告 caller**：`InitializeSchema` 关掉时 store 假设 schema 已有；不要静默 ALTER TABLE
