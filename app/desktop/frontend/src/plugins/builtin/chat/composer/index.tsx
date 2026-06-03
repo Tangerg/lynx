@@ -8,7 +8,7 @@
 
 import type { IconName } from "@/components/common";
 import type { ReactNode } from "react";
-import { submitComposer } from "@/components/chat/submitComposer";
+import { submitComposer } from "@/components/chat/composer";
 import { Icon, Tooltip } from "@/components/common";
 import { useChatSend } from "@/lib/agent/useChatSend";
 import { useSessions } from "@/lib/data/queries";
