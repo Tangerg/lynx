@@ -27,19 +27,30 @@ type turnState struct {
 	cancel context.CancelFunc
 	seq    atomic.Uint64
 
-	// proc is the agent process backing this turn. Populated once
-	// runTurn calls engine.StartChat (after plan approval in
-	// plan-mode), nil before that. Written by runTurn and read by
-	// [Service.Cancel] on another goroutine, so both sides guard it
-	// with the impl mutex; runTurn's own status loop uses its local
-	// proc handle, not this field.
+	// ctx is the turn's own lifetime context (background-derived so it
+	// outlives the StartTurn caller's ctx). It bounds the run, the
+	// resume continuation, and post-turn maintenance; canceled by
+	// [Service.Cancel]. Set once in StartTurn.
+	ctx context.Context
+
+	// startedAt stamps the turn's wall-clock start so TurnEnd carries a
+	// duration that spans any interrupt/resume cycles.
+	startedAt time.Time
+
+	// proc is the agent process backing this turn. Written by runTurn
+	// and read by [Service.Cancel] / [Service.Resume] on other
+	// goroutines, so all access is guarded by the impl mutex.
 	proc engine.ChatProcess
 
-	// planDecision is non-nil only while the turn is paused
-	// waiting for [Service.ContinuePlan]. Buffered (cap 1) so a
-	// ContinuePlan call never blocks regardless of runTurn's
-	// progress. nil for non-plan-mode turns.
-	planDecision chan PlanDecision
+	// lifecycle captures the process's authoritative terminal event;
+	// retained across interrupt→resume so the eventual TurnEnd reads it.
+	lifecycle *turnLifecycle
+
+	// parked is true while the turn is suspended on a HITL interrupt
+	// (StatusWaiting) awaiting [Service.Resume]. Guarded by the impl
+	// mutex. A parked turn stays registered (events channel open) until
+	// resumed to a terminal state or canceled.
+	parked bool
 
 	// steerMu guards steering — the queue of mid-turn user
 	// messages injected via [Service.InjectSteering]. The runtime
@@ -71,95 +82,95 @@ func (st *turnState) drainSteering() []string {
 	return out
 }
 
-// waitDecision blocks until the client calls ContinuePlan or the
-// turn context is canceled. Returns the second value as false on
-// cancellation so the caller emits TurnEndCancelled cleanly.
-//
-// Lives on *turnState (not as a free function) because the state
-// owns the planDecision channel — keeping the method here matches
-// the rest of the file's "behavior lives on the type that holds
-// the data" convention.
-func (st *turnState) waitDecision(ctx context.Context) (PlanDecision, bool) {
-	select {
-	case d := <-st.planDecision:
-		return d, true
-	case <-ctx.Done():
-		return PlanReject, false
-	}
-}
-
-// runTurn drives one turn from start to finish, emitting events as
-// it goes. It always closes the event channel and clears the turn
-// from the in-memory map so subsequent [Events] / [Cancel] return
-// ErrTurnNotFound.
-func (s *inMemory) runTurn(ctx context.Context, st *turnState, req StartTurnRequest) {
-	defer func() {
-		close(st.events)
-		s.mu.Lock()
-		delete(s.turns, st.handle.TurnID)
-		s.mu.Unlock()
-	}()
-
-	startedAt := time.Now()
+// runTurn starts the turn's agent process and drives its first run
+// segment to a suspension point — a HITL interrupt (park) or a terminal
+// state. Later segments are driven by [inMemory.Resume] through the
+// shared [drive] loop. st.ctx (the turn's own lifetime) bounds the run.
+func (s *inMemory) runTurn(req StartTurnRequest, st *turnState) {
 	s.emit(st, TurnStart{
 		Model: "default", // M1 — engine exposes model name in M2+
 	})
 
 	observer := &turnObserver{svc: s, st: st}
-	lifecycle := &turnLifecycle{}
-	proc := s.engine.StartChat(ctx, engine.RunChatRequest{
+	st.lifecycle = &turnLifecycle{}
+	proc := s.engine.StartChat(st.ctx, engine.RunChatRequest{
 		SessionID:     req.SessionID,
 		Message:       req.Message,
 		MaxBudget:     req.MaxBudget,
 		MaxCostUSD:    req.MaxCostUSD,
 		PlanMode:      req.PlanMode,
 		Observer:      observer,
-		EventListener: lifecycle.listener(st.handle.TurnID),
+		EventListener: st.lifecycle.listener(st.handle.TurnID),
 	})
 	// Record the root process id so the lifecycle gate keeps subtask
 	// terminals (which fire first) from being mistaken for the turn's end.
-	lifecycle.setRoot(proc.ID())
-	// Guarded by s.mu: Service.Cancel reads st.proc from another goroutine.
+	st.lifecycle.setRoot(proc.ID())
+	// Guarded by s.mu: Cancel / Resume read st.proc from other goroutines.
 	s.mu.Lock()
 	st.proc = proc
 	s.mu.Unlock()
 
-	// Drive the process to a terminal state, pausing at each plan-mode
-	// approval: in plan mode the action drafts a plan, emits it (via the
-	// observer → PlanGenerated), and parks on AwaitInput (StatusWaiting).
-	// We wait for the client's ContinuePlan, resume the SAME process
-	// (approve → execute, reject → PlanRejected output), and loop until
-	// it ends. Plain turns never park, so the loop runs once.
-	runErr := <-proc.Done()
-	for proc.Status() == core.StatusWaiting {
-		decision, ok := st.waitDecision(ctx)
-		if !ok {
-			_ = proc.Cancel("plan approval canceled")
-			s.emit(st, TurnEnd{Reason: TurnEndCancelled, Duration: time.Since(startedAt)})
-			return
-		}
-		resumed, err := proc.Resume(ctx, decision == PlanApprove)
-		if err != nil {
-			s.emit(st, ErrorEvent{Message: err.Error(), Code: "ENGINE_ERROR"})
-			s.emit(st, TurnEnd{Reason: TurnEndErrored, Duration: time.Since(startedAt)})
-			return
-		}
-		runErr = <-resumed
+	s.drive(st, proc.Done())
+}
+
+// drive consumes one run segment's completion. When the process parks
+// on a HITL interrupt (StatusWaiting) it surfaces a [TurnInterrupted]
+// and leaves the turn registered (events channel open) for
+// [inMemory.Resume]. On a terminal state it drains steering, runs
+// post-turn maintenance on a clean finish, emits [TurnEnd], and tears
+// the turn down. doneCh is the segment's Done channel — the process's
+// for the first segment, the resume continuation's thereafter.
+func (s *inMemory) drive(st *turnState, doneCh <-chan error) {
+	runErr := <-doneCh
+	s.mu.Lock()
+	proc := st.proc
+	s.mu.Unlock()
+
+	if proc.Status() == core.StatusWaiting {
+		s.emitInterrupt(st, proc)
+		return
 	}
 
-	// Drain any steering the client injected during the turn so it
-	// lands in conversation history BEFORE post-turn maintenance —
-	// the compactor / extractor then see steering as part of the
-	// conversation they summarize.
-	s.flushSteering(ctx, st, req.SessionID)
-
-	if runErr == nil && req.SessionID != "" {
-		s.postTurnMaintenance(ctx, st, req.SessionID)
+	// Drain steering into history BEFORE maintenance so the compactor /
+	// extractor see it as part of the conversation they summarize.
+	s.flushSteering(st.ctx, st, st.handle.SessionID)
+	if runErr == nil && st.handle.SessionID != "" {
+		s.postTurnMaintenance(st.ctx, st, st.handle.SessionID)
 	}
+	// MessageDelta events already streamed through the observer — no
+	// need to re-emit the assembled reply here.
+	s.emitTurnEnd(st, proc, st.lifecycle.get(), runErr, time.Since(st.startedAt), st.ctx.Err())
+	s.endTurn(st)
+}
 
-	// MessageDelta events already flowed through the observer during
-	// the stream — no need to re-emit the assembled reply here.
-	s.emitTurnEnd(st, proc, lifecycle.get(), runErr, time.Since(startedAt), ctx.Err())
+// emitInterrupt marks the turn parked and surfaces the pending HITL
+// request as a [TurnInterrupted] event. The turn stays registered with
+// its events channel open; [inMemory.Resume] drives the next segment.
+func (s *inMemory) emitInterrupt(st *turnState, proc engine.ChatProcess) {
+	aw := proc.PendingAwaitable()
+	s.mu.Lock()
+	st.parked = true
+	s.mu.Unlock()
+	if aw == nil {
+		// Defensive: Waiting without a parked awaitable shouldn't happen;
+		// surface an empty interrupt rather than silently dropping it.
+		s.emit(st, TurnInterrupted{})
+		return
+	}
+	kind := "plan"
+	if _, ok := aw.PromptAny().(ApprovalPrompt); ok {
+		kind = "approval"
+	}
+	s.emit(st, TurnInterrupted{Interrupts: []Interrupt{{Kind: kind, Payload: aw.PromptAny()}}})
+}
+
+// endTurn closes the turn's event channel and removes it from the live
+// registry — subsequent Events / Cancel / Resume return ErrTurnNotFound.
+func (s *inMemory) endTurn(st *turnState) {
+	close(st.events)
+	s.mu.Lock()
+	delete(s.turns, st.handle.TurnID)
+	s.mu.Unlock()
 }
 
 // emitTurnEnd maps the captured agent runtime terminal event onto a

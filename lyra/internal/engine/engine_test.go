@@ -559,8 +559,8 @@ type recordingObserver struct {
 	planList  []string
 }
 
-func (r *recordingObserver) OnToolCallApprove(_ context.Context, _, _, _ string) error {
-	return nil
+func (r *recordingObserver) ApproveToolCall(_ context.Context, _, _, _ string) ToolApprovalVerdict {
+	return ToolApprovalVerdict{} // auto-run; tests don't exercise the approval gate
 }
 
 func (r *recordingObserver) OnToolCallStart(callID, toolName, arguments string) {

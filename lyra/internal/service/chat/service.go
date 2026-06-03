@@ -94,11 +94,18 @@ type Service interface {
 	// (M-future; signature reserved to stabilize the surface.)
 	InjectSteering(ctx context.Context, handle TurnHandle, message string) error
 
-	// ContinuePlan resumes a plan-mode turn that paused after emitting
-	// a [PlanGenerated] event. Decision = Approve runs the plan
-	// through the regular tool-loop path; Reject ends the turn with
-	// Reason=Canceled. Returns [ErrTurnNotFound] when the turn is
-	// not in the plan-pending state.
+	// Resume answers a turn parked on a HITL interrupt (a gated tool
+	// call awaiting approval, or a plan awaiting review — both surface
+	// as a [TurnInterrupted] event). approved=true continues execution;
+	// false denies (the tool short-circuits to a recoverable result, or
+	// the plan is rejected). The continuation streams onto the SAME
+	// turn's event channel — call [Events] again after Resume to drain
+	// it. Returns [ErrTurnNotFound] when the turn isn't parked.
+	Resume(ctx context.Context, handle TurnHandle, approved bool) error
+
+	// ContinuePlan is the plan-mode spelling of [Resume]: Approve →
+	// Resume(true), Reject → Resume(false). Kept as a convenience for
+	// the CLI's plan-review flow.
 	ContinuePlan(ctx context.Context, handle TurnHandle, decision PlanDecision) error
 
 	// Cancel stops the turn immediately, drains pending tool calls
@@ -260,6 +267,25 @@ type MemoryUpdated struct {
 	Facts string
 }
 
+// TurnInterrupted fires when the turn parks for human input (HITL R
+// model): a gated tool call needs approval, or a plan needs review. The
+// turn does NOT end — it suspends at [core.StatusWaiting]; the client
+// answers via [Service.Resume], which continues the same turn (its
+// events resume on the same channel). Carries the pending interrupt(s).
+type TurnInterrupted struct {
+	BaseEvent
+	Interrupts []Interrupt
+}
+
+// Interrupt is one pending HITL request surfaced by [TurnInterrupted].
+// Kind discriminates how the client renders + answers it; Payload is
+// the awaitable's prompt (an [ApprovalPrompt] for a tool call, the plan
+// markdown string for a plan).
+type Interrupt struct {
+	Kind    string // "approval" | "plan"
+	Payload any
+}
+
 // TurnEnd fires once at the end of a turn. Reason explains why the
 // turn ended; TokenUsage / CostUSD are the rolled-up totals for the
 // turn (sum across every LLM call inside it).
@@ -298,6 +324,7 @@ func (e ToolCallApproval) stamp(b BaseEvent) Event { e.BaseEvent = b; return e }
 func (e PlanGenerated) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
 func (e CompactBoundary) stamp(b BaseEvent) Event  { e.BaseEvent = b; return e }
 func (e MemoryUpdated) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
+func (e TurnInterrupted) stamp(b BaseEvent) Event  { e.BaseEvent = b; return e }
 func (e TurnEnd) stamp(b BaseEvent) Event          { e.BaseEvent = b; return e }
 func (e ErrorEvent) stamp(b BaseEvent) Event       { e.BaseEvent = b; return e }
 
