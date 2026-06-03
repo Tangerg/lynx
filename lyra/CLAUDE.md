@@ -3,7 +3,7 @@
 > **Lyra Runtime** — Go agent runtime backend. 实现 Lyra Runtime Protocol
 > （JSON-RPC 2.0, MCP-inspired）给 Wails / Web frontend 用（前端在 `/Users/tangerg/Desktop/lyra/`）。协议规范在前端仓 `docs/API.md` / `docs/TRANSPORT.md`。
 >
-> **项目级约定（设计原则 / 重构策略 / Go idiom / 共用反向不变量 / 沟通约定）见根级 [`../CLAUDE.md`](../CLAUDE.md)**。本文件只放 lyra 模块特有内容。
+> 项目级约定（设计原则 / 重构策略 / Go idiom / 共用反向不变量 / 沟通约定）见 `../CLAUDE.md`。本文件只放 lyra 模块特有内容。
 
 ---
 
