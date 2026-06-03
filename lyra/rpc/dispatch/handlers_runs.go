@@ -29,25 +29,52 @@ func (d *Dispatcher) handlePing(ctx context.Context, msg *transport.Request) Han
 	return responseResult(msg.ID, struct{}{})
 }
 
-// ─── Runs ───────────────────────────────────────────────────────────
+// ─── Runs (API.md §7.3) ─────────────────────────────────────────────
 
 func (d *Dispatcher) handleRunsStart(ctx context.Context, msg *transport.Request) HandleResult {
 	var in protocol.StartRunRequest
 	if err := unmarshal(msg.Params, &in); err != nil {
 		return responseError(msg.ID, invalidParams(err.Error()))
 	}
-	out, events, results, err := d.api.StartRun(ctx, in)
+	out, events, err := d.api.StartRun(ctx, in)
 	if err != nil {
 		return responseError(msg.ID, errorToRPC(err))
 	}
-	return streamingResult(msg.ID, out, out.RunID, events, results)
+	return streamingResult(msg.ID, out, out.RunID, events)
+}
+
+// handleRunsResume answers open interrupts by starting a continuation
+// run (R model, API.md §6). The continuation is a fresh root stream.
+func (d *Dispatcher) handleRunsResume(ctx context.Context, msg *transport.Request) HandleResult {
+	var in protocol.ResumeRunRequest
+	if err := unmarshal(msg.Params, &in); err != nil {
+		return responseError(msg.ID, invalidParams(err.Error()))
+	}
+	if in.ParentRunID == "" {
+		return responseError(msg.ID, invalidParams("parentRunId is required"))
+	}
+	out, events, err := d.api.ResumeRun(ctx, in)
+	if err != nil {
+		return responseError(msg.ID, errorToRPC(err))
+	}
+	return streamingResult(msg.ID, out, out.RunID, events)
+}
+
+// handleRunsSubscribe rebinds an existing root run's stream to the
+// caller (reconnect / crash recovery; subscribes the whole run tree).
+func (d *Dispatcher) handleRunsSubscribe(ctx context.Context, msg *transport.Request) HandleResult {
+	runID, err := decodeStringParam(msg.Params, "runId")
+	if err != nil {
+		return responseError(msg.ID, invalidParams(err.Error()))
+	}
+	out, events, err := d.api.SubscribeRun(ctx, runID)
+	if err != nil {
+		return responseError(msg.ID, errorToRPC(err))
+	}
+	return streamingResult(msg.ID, out, out.RunID, events)
 }
 
 func (d *Dispatcher) handleRunsCancel(ctx context.Context, msg *transport.Request) HandleResult {
-	// API.md v4 §3.5: runs.cancel is a Request (not a notification).
-	// It stops an in-flight run identified by runId. Decoupled from
-	// notifications/canceled (which aborts an in-flight JSON-RPC
-	// Request — different semantic).
 	var in protocol.CancelRunRequest
 	if err := unmarshal(msg.Params, &in); err != nil {
 		return responseError(msg.ID, invalidParams(err.Error()))
@@ -55,30 +82,28 @@ func (d *Dispatcher) handleRunsCancel(ctx context.Context, msg *transport.Reques
 	if in.RunID == "" {
 		return responseError(msg.ID, invalidParams("runId is required"))
 	}
-	if err := d.api.CancelRun(ctx, in.RunID); err != nil {
+	if err := d.api.CancelRun(ctx, in); err != nil {
 		return responseError(msg.ID, errorToRPC(err))
 	}
 	return responseResult(msg.ID, struct{}{})
 }
 
-func (d *Dispatcher) handleRunsApprovalSubmit(ctx context.Context, msg *transport.Request) HandleResult {
-	var in protocol.SubmitApprovalRequest
-	if err := unmarshal(msg.Params, &in); err != nil {
-		return responseError(msg.ID, invalidParams(err.Error()))
-	}
-	if err := d.api.SubmitApproval(ctx, in); err != nil {
+func (d *Dispatcher) handleRunsList(ctx context.Context, msg *transport.Request) HandleResult {
+	var in protocol.ListRunsRequest
+	_ = unmarshal(msg.Params, &in) // empty params is valid
+	runs, err := d.api.ListRuns(ctx, in)
+	if err != nil {
 		return responseError(msg.ID, errorToRPC(err))
 	}
-	return responseResult(msg.ID, struct{}{})
+	return responseResult(msg.ID, runs)
 }
 
-func (d *Dispatcher) handleRunsQuestionAnswer(ctx context.Context, msg *transport.Request) HandleResult {
-	var in protocol.AnswerQuestionRequest
-	if err := unmarshal(msg.Params, &in); err != nil {
-		return responseError(msg.ID, invalidParams(err.Error()))
-	}
-	if err := d.api.AnswerQuestion(ctx, in); err != nil {
+func (d *Dispatcher) handleRunsListOpenInterrupts(ctx context.Context, msg *transport.Request) HandleResult {
+	var in protocol.ListOpenInterruptsRequest
+	_ = unmarshal(msg.Params, &in)
+	open, err := d.api.ListOpenInterrupts(ctx, in)
+	if err != nil {
 		return responseError(msg.ID, errorToRPC(err))
 	}
-	return responseResult(msg.ID, struct{}{})
+	return responseResult(msg.ID, open)
 }
