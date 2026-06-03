@@ -24,15 +24,8 @@ import {
   composerToolbar,
 } from "./chat/composer";
 import connectionSettings from "./settings/connection-settings";
-import {
-  approvalBlock,
-  checkpointBlock,
-  codeBlock,
-  planBlock,
-  questionBlock,
-  reasoningBlock,
-  searchBlock,
-} from "./chat/content-blocks";
+import { approvalBlock, planBlock, questionBlock, reasoningBlock } from "./chat/content-blocks";
+import previewBlocks from "./chat/preview-blocks";
 import bootstrap from "./agent/bootstrap";
 import conversationExport from "./workspace/conversation-export";
 import coreReducer from "./agent/core-reducer";
@@ -118,12 +111,10 @@ const messageRendering: PluginSpec[] = [
   messageEdit,
   messageRegenerate,
   planBlock,
-  codeBlock,
-  searchBlock,
   approvalBlock,
   questionBlock,
-  checkpointBlock,
   reasoningBlock,
+  previewBlocks,
 ];
 
 // ---------------------------------------------------------------------------

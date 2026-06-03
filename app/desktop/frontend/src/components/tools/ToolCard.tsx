@@ -165,9 +165,6 @@ function ToolMeta({ tool }: { tool: ToolCall }) {
       {tool.added != null && <span className="text-accent">+{tool.added}</span>}
       {tool.removed != null && <span className="text-negative">−{tool.removed}</span>}
       {tool.hits != null && <span>{tool.hits} matches</span>}
-      {tool.lines != null && tool.lines > 0 && tool.added == null && tool.hits == null && (
-        <span>{tool.lines} lines</span>
-      )}
       <span>·</span>
       <span>{tool.duration}</span>
     </div>

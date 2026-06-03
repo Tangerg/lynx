@@ -25,6 +25,7 @@ import type {
   LayoutSlotSpec,
   LocaleSpec,
   LogSubscriber,
+  CitationSource,
   MessageRoleSpec,
   PluginErrorFallbackSpec,
   PluginSpec,
@@ -257,4 +258,13 @@ export const CONTENT_BLOCK = defineExtensionPoint<ContentBlockRenderer<ContentBl
   id: "lyra.message.contentBlock",
   capability: "message",
   keying: "single",
+});
+// Per-message citation sources — each maps the message's blocks to the
+// citations they imply (multi: every contribution's output is concatenated).
+// Keeps the kernel ignorant of which block kind carries sources, so a
+// citation-producing feature (e.g. the search block) stays fully removable.
+export const MESSAGE_CITATION_SOURCE = defineExtensionPoint<CitationSource>({
+  id: "lyra.message.citationSource",
+  capability: "message",
+  keying: "multi",
 });

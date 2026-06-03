@@ -32,7 +32,6 @@ export interface ToolCall {
   added?: number;
   removed?: number;
   hits?: number;
-  lines?: number;
   result?: string;
 }
 
@@ -41,13 +40,6 @@ export interface PlanItem {
   pid: string;
   status: "done" | "doing" | "todo";
   text: string;
-}
-
-export interface SearchResult {
-  domain: string;
-  title: string;
-  time: string;
-  snippet: string;
 }
 
 export interface QuestionOption {
@@ -84,8 +76,6 @@ export interface BuiltinContentBlockMap {
   reasoning: { kind: "reasoning"; reasoningId: string; text: string; status: BlockStatus };
   plan: { kind: "plan" };
   tool: { kind: "tool"; toolCallId: string };
-  code: { kind: "code"; lang: string; file: string; text: string };
-  search: { kind: "search"; results: SearchResult[] };
   approval: {
     kind: "approval";
     status: BlockStatus;
@@ -117,7 +107,6 @@ export interface BuiltinContentBlockMap {
     /** Stamped true once the answer is submitted — flips to settled state. */
     answered?: boolean;
   };
-  checkpoint: { kind: "checkpoint"; text: string };
 }
 
 // Empty by design — plugins augment this via `declare module`.
@@ -164,12 +153,8 @@ export type TimelineEntryKind =
   | "run-start"
   | "run-end"
   | "run-error"
-  | "step-start"
-  | "step-end"
   | "tool-start"
   | "tool-end"
-  | "reasoning-start"
-  | "reasoning-end"
   | "approval-request"
   | "approval-result";
 

@@ -14,7 +14,7 @@ import { memo, useMemo, useRef } from "react";
 import { Icon } from "@/components/common";
 import { Avatar } from "@/components/common/Avatar";
 import { cn } from "@/lib/utils";
-import { MESSAGE_ROLE, useExtensionByKey } from "@/plugins/sdk";
+import { MESSAGE_ROLE, useCitationSources, useExtensionByKey } from "@/plugins/sdk";
 import { Slot } from "@/plugins/Slot";
 import { useUiStore } from "@/state/uiStore";
 import { MessageContext } from "@/plugins/sdk/messageContext";
@@ -35,28 +35,19 @@ function MessageBlockInner({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
   // messages are short and don't need a TOC.
   const contentRef = useRef<HTMLDivElement>(null);
 
-  // Citation registry — flatten every `search` block on this message
-  // into a 1-indexed list keyed by `[n]` markers in the prose. The
-  // CitationBadge component reads this via context. Memoised on
-  // msg.blocks so the array identity stays stable across re-renders
-  // that don't touch the search content — keeps `<CitationContext.
-  // Provider value={citations}>` from churning every render and
-  // re-triggering all CitationBadge consumers downstream.
-  const citations = useMemo<Citation[]>(() => {
-    const out: Citation[] = [];
-    for (const b of msg.blocks) {
-      if (b.kind !== "search") continue;
-      for (const r of b.results) {
-        out.push({
-          index: out.length + 1,
-          domain: r.domain,
-          title: r.title,
-          snippet: r.snippet,
-        });
-      }
-    }
-    return out;
-  }, [msg.blocks]);
+  // Citation registry — gathered from the MESSAGE_CITATION_SOURCE
+  // contributions (the search-block plugin maps its results in; with no such
+  // plugin the list is empty and `[n]` markers render as plain text). The
+  // kernel owns the 1-indexed continuity across sources. CitationBadge reads
+  // this via context. Memoised on msg.blocks + sources so the array identity
+  // stays stable across re-renders that don't touch citation content — keeps
+  // `<CitationContext.Provider value={citations}>` from churning every render
+  // and re-triggering all CitationBadge consumers downstream.
+  const sources = useCitationSources();
+  const citations = useMemo<Citation[]>(
+    () => sources.flatMap((s) => s(msg.blocks)).map((c, i) => ({ ...c, index: i + 1 })),
+    [msg.blocks, sources],
+  );
 
   const displayName = role?.displayName ?? msg.who;
   const avatarVariant = (role?.avatarVariant ?? (isUser ? "msg-user" : "msg-agent")) as

@@ -25,12 +25,8 @@ const KIND_META: Record<TimelineEntryKind, { icon: IconName; label: string }> = 
   "run-start": { icon: "play", label: "Run started" },
   "run-end": { icon: "check", label: "Run finished" },
   "run-error": { icon: "bug", label: "Run error" },
-  "step-start": { icon: "skip-fwd", label: "Step started" },
-  "step-end": { icon: "skip-back", label: "Step finished" },
   "tool-start": { icon: "tool", label: "Tool" },
   "tool-end": { icon: "tool", label: "Tool finished" },
-  "reasoning-start": { icon: "spark", label: "Thinking" },
-  "reasoning-end": { icon: "spark", label: "Thought" },
   "approval-request": { icon: "shield", label: "Approval requested" },
   "approval-result": { icon: "shield", label: "Approval" },
 };
