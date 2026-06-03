@@ -67,6 +67,11 @@ func migrate(db *sql.DB) error {
 			content      TEXT    NOT NULL,
 			captured_at  TEXT    NOT NULL
 		)`,
+		`CREATE TABLE IF NOT EXISTS process_snapshots (
+			id           TEXT    PRIMARY KEY,
+			snapshot     TEXT    NOT NULL,
+			captured_at  INTEGER NOT NULL
+		)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {
