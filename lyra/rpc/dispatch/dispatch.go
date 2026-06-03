@@ -12,91 +12,71 @@ import (
 
 // Dispatcher routes inbound JSON-RPC messages to typed Runtime
 // methods. One instance per connection — it carries the per-conn
-// handshake state (initialized + negotiated capabilities) which the
-// HTTP transport keys by request affinity (cookie / sticky token) or
-// the InProcess transport sees as a single long-lived value.
+// handshake state (initialized) which the HTTP transport keys by
+// request affinity and the InProcess transport sees as a single
+// long-lived value.
 type Dispatcher struct {
 	api protocol.Runtime
 
 	// initialized flips once runtime.initialize succeeds. Until then
-	// every business method returns -32011 protocol_violation. atomic
+	// every business method returns capability_not_negotiated. atomic
 	// so concurrent dispatch goroutines see a consistent view.
 	initialized atomic.Bool
 }
 
-// New builds a Dispatcher bound to the given Runtime. Concurrency:
-// the returned Dispatcher is safe for parallel Handle calls; per-conn
-// state lives on it, so use one Dispatcher per logical session.
+// New builds a Dispatcher bound to the given Runtime. The returned
+// Dispatcher is safe for parallel Handle calls; per-conn state lives on
+// it, so use one Dispatcher per logical connection.
 func New(api protocol.Runtime) *Dispatcher {
 	return &Dispatcher{api: api}
 }
 
-// HandleResult holds what the dispatcher returns after processing
-// one inbound message. Response is non-nil for Request inputs;
-// EventStream / RunID are populated for streaming methods (runs.start,
-// workspace.terminal.subscribe, background.subscribe) so the transport
-// can pipe events as notifications.
+// HandleResult holds what the dispatcher returns after processing one
+// inbound message.
 type HandleResult struct {
 	// Response is the synchronous JSON-RPC reply. nil when the input
 	// was a notification (no id, no response on the wire).
 	Response *transport.Response
 
-	// RunID is set when the dispatched method initiated a stream — the
-	// transport uses it as the routing key for notifications/run/event
-	// (API.md v4 §3.1: the resource id IS the stream identifier; no
-	// separate streamHandle).
+	// RunID is set when the dispatched method opened a run stream
+	// (runs.start / runs.resume / runs.subscribe). The transport uses
+	// it as the routing key for notifications.run.event — the run id IS
+	// the stream identifier (API.md §5).
 	RunID string
 
-	// EventStream is the channel of AG-UI events for streaming
-	// methods. Closed when the underlying run ends.
-	EventStream <-chan protocol.AgUiEvent
-
-	// ResultStream yields one RunResult when a run ends, then closes.
-	// Transports read it after EventStream closes to build
-	// notifications/run/closed (API.md §3.1 / §6.3). nil for streaming
-	// methods that have no terminal RunResult (terminal/background).
-	ResultStream <-chan protocol.RunResult
+	// EventStream is the channel of RunEvents for a streaming method,
+	// closed when the run tree ends. The terminal run.finished event
+	// rides this same channel (no separate close notification).
+	EventStream <-chan protocol.RunEvent
 }
 
 // Handle is the entry point — every inbound transport.Message goes
-// through here. The transport layer handles framing and observability
-// before calling Handle.
-//
-// ExpectedMethod, when non-empty, is the method name the transport
-// extracted from the URL path (HTTP /v1/rpc/{method}); the dispatcher
-// cross-checks it against the body method and returns -32011 on
-// mismatch.
+// through here. ExpectedMethod, when non-empty, is the method the
+// transport extracted from the URL path (POST /v2/rpc/{method}); the
+// dispatcher cross-checks it against the body method.
 func (d *Dispatcher) Handle(ctx context.Context, msg transport.Message, expectedMethod string) HandleResult {
-	// Discriminate Request vs Response. Responses arriving at the
-	// dispatcher are invalid (we don't issue outbound requests today)
-	// and get rejected as a malformed envelope. Nil msg also falls
-	// through here.
 	req, ok := msg.(*transport.Request)
 	if !ok || req == nil {
-		return responseError(transport.ID{}, transport.NewError(transport.CodeInvalidRequest, nil))
+		return responseError(transport.ID{}, badEnvelope("expected a JSON-RPC request"))
 	}
 
 	if expectedMethod != "" && expectedMethod != req.Method {
-		return responseError(req.ID, protocolViolation(fmt.Sprintf(
+		return responseError(req.ID, badEnvelope(fmt.Sprintf(
 			"url method %q does not match body method %q", expectedMethod, req.Method,
 		)))
 	}
 
-	// API.md §1.1: envelope id is a STRING (UUID or stringified
-	// counter) — protocol-wide, all ids are strings. Reject non-string
-	// ids at the dispatcher boundary. IDs come from MakeID — nil, int64,
-	// or string; we only allow string (or absent, for Notifications).
+	// API.md §2.2: all ids are strings. Reject non-string ids at the
+	// boundary. (Absent ids — Notifications — are fine.)
 	if req.ID.IsValid() {
 		if _, ok := req.ID.Raw().(string); !ok {
-			return responseError(req.ID, transport.NewError(transport.CodeInvalidRequest, problemDataFrom(
-				fmt.Errorf("id must be a JSON string, got %T", req.ID.Raw()),
-			)))
+			return responseError(req.ID, badEnvelope(
+				fmt.Sprintf("id must be a JSON string, got %T", req.ID.Raw())))
 		}
 	}
 
 	// Notifications: no response. We still dispatch so cancel-style
-	// notifications take effect; errors are dropped silently per
-	// JSON-RPC spec (logged elsewhere).
+	// notifications take effect.
 	if !req.IsCall() {
 		d.handleNotification(ctx, req)
 		return HandleResult{}
@@ -104,36 +84,25 @@ func (d *Dispatcher) Handle(ctx context.Context, msg transport.Message, expected
 
 	// Gate business methods behind initialize.
 	if !d.initialized.Load() && req.Method != MethodInitialize && req.Method != MethodPing {
-		return responseError(req.ID, protocolViolation(
-			"runtime.initialize must succeed before any business method",
-		))
+		return responseError(req.ID, notInitialized(
+			"runtime.initialize must succeed before any business method"))
 	}
 
 	return d.dispatchRequest(ctx, req)
 }
 
 // methodHandler decodes one request, calls the typed Runtime method,
-// and encodes the result. Every business method has the same shape,
-// so they share one signature and route through [methodTable] instead
-// of a long switch (CLAUDE.md: 查表法替代条件链).
+// and encodes the result. Every business method shares this signature
+// and routes through [methodTable] (CLAUDE.md: 查表法替代条件链).
 type methodHandler = func(*Dispatcher, context.Context, *transport.Request) HandleResult
 
 // methodTable maps each JSON-RPC method name to its handler. Handlers
-// live in domain-grouped files (handlers_runs.go / handlers_sessions.go
-// / handlers_workspace.go / handlers_catalog.go); adding a method means
-// writing one handler + one table row — nothing in dispatchRequest
-// changes. Notifications (shutdown / canceled) are NOT here; they have
-// no response and route through [Dispatcher.handleNotification].
+// live in domain-grouped files; adding a method = one handler + one
+// row. Notifications route through [Dispatcher.handleNotification].
 var methodTable = map[string]methodHandler{
 	// Lifecycle.
 	MethodInitialize: (*Dispatcher).handleInitialize,
 	MethodPing:       (*Dispatcher).handlePing,
-
-	// Runs.
-	MethodRunsStart:          (*Dispatcher).handleRunsStart,
-	MethodRunsCancel:         (*Dispatcher).handleRunsCancel,
-	MethodRunsApprovalSubmit: (*Dispatcher).handleRunsApprovalSubmit,
-	MethodRunsQuestionAnswer: (*Dispatcher).handleRunsQuestionAnswer,
 
 	// Sessions.
 	MethodSessionsList:   (*Dispatcher).handleSessionsList,
@@ -144,24 +113,34 @@ var methodTable = map[string]methodHandler{
 	MethodSessionsFork:   (*Dispatcher).handleSessionsFork,
 	MethodSessionsExport: (*Dispatcher).handleSessionsExport,
 
-	// Messages.
-	MethodMessagesList: (*Dispatcher).handleMessagesList,
-	MethodMessagesEdit: (*Dispatcher).handleMessagesEdit,
+	// Runs.
+	MethodRunsStart:              (*Dispatcher).handleRunsStart,
+	MethodRunsResume:             (*Dispatcher).handleRunsResume,
+	MethodRunsSubscribe:          (*Dispatcher).handleRunsSubscribe,
+	MethodRunsCancel:             (*Dispatcher).handleRunsCancel,
+	MethodRunsList:               (*Dispatcher).handleRunsList,
+	MethodRunsListOpenInterrupts: (*Dispatcher).handleRunsListOpenInterrupts,
+
+	// Items.
+	MethodItemsList: (*Dispatcher).handleItemsList,
+	MethodItemsEdit: (*Dispatcher).handleItemsEdit,
 
 	// Workspace.
-	MethodWorkspaceFilesChanged: (*Dispatcher).handleWorkspaceFilesChanged,
-	MethodWorkspaceDiff:         (*Dispatcher).handleWorkspaceDiff,
-	MethodWorkspaceFileHead:     (*Dispatcher).handleWorkspaceFileHead,
-	MethodWorkspaceGrep:         (*Dispatcher).handleWorkspaceGrep,
-	MethodWorkspaceProjects:     (*Dispatcher).handleWorkspaceProjects,
-	MethodWorkspaceMCPList:      (*Dispatcher).handleWorkspaceMCPList,
-	MethodWorkspaceMCPReconnect: (*Dispatcher).handleWorkspaceMCPReconnect,
-	MethodWorkspaceSkills:       (*Dispatcher).handleWorkspaceSkills,
+	MethodWorkspaceListFileChanges: (*Dispatcher).handleWorkspaceListFileChanges,
+	MethodWorkspaceGetDiff:         (*Dispatcher).handleWorkspaceGetDiff,
+	MethodWorkspaceGetFileHead:     (*Dispatcher).handleWorkspaceGetFileHead,
+	MethodWorkspaceGrep:            (*Dispatcher).handleWorkspaceGrep,
+	MethodWorkspaceListProjects:    (*Dispatcher).handleWorkspaceListProjects,
+	MethodWorkspaceListSkills:      (*Dispatcher).handleWorkspaceListSkills,
+	MethodWorkspaceListAgentDocs:   (*Dispatcher).handleWorkspaceListAgentDocs,
+	MethodWorkspaceMCPListServers:  (*Dispatcher).handleWorkspaceMCPListServers,
+	MethodWorkspaceMCPListTools:    (*Dispatcher).handleWorkspaceMCPListTools,
+	MethodWorkspaceMCPReconnect:    (*Dispatcher).handleWorkspaceMCPReconnect,
 
 	// Providers / Models / Tools.
 	MethodProvidersList:      (*Dispatcher).handleProvidersList,
-	MethodProvidersTest:      (*Dispatcher).handleProvidersTest,
 	MethodProvidersConfigure: (*Dispatcher).handleProvidersConfigure,
+	MethodProvidersTest:      (*Dispatcher).handleProvidersTest,
 	MethodModelsList:         (*Dispatcher).handleModelsList,
 	MethodToolsList:          (*Dispatcher).handleToolsList,
 	MethodToolsInvoke:        (*Dispatcher).handleToolsInvoke,
@@ -172,19 +151,20 @@ var methodTable = map[string]methodHandler{
 	MethodMemoryUpdate: (*Dispatcher).handleMemoryUpdate,
 
 	// Attachments.
-	MethodAttachmentsCreateUploadURL: (*Dispatcher).handleAttachmentsCreateUploadURL,
-	MethodAttachmentsDelete:          (*Dispatcher).handleAttachmentsDelete,
+	MethodAttachmentsCreateUpload: (*Dispatcher).handleAttachmentsCreateUpload,
+	MethodAttachmentsGet:          (*Dispatcher).handleAttachmentsGet,
+	MethodAttachmentsDelete:       (*Dispatcher).handleAttachmentsDelete,
 
 	// Background.
-	MethodBackgroundList: (*Dispatcher).handleBackgroundList,
-	MethodBackgroundStop: (*Dispatcher).handleBackgroundStop,
+	MethodBackgroundList:   (*Dispatcher).handleBackgroundList,
+	MethodBackgroundCancel: (*Dispatcher).handleBackgroundCancel,
 
 	// Feedback.
-	MethodFeedbackSubmit: (*Dispatcher).handleFeedbackSubmit,
+	MethodFeedbackCreate: (*Dispatcher).handleFeedbackCreate,
 }
 
 // dispatchRequest routes the request to its handler via [methodTable].
-// Unknown methods get -32601 method-not-found.
+// Unknown methods get method_not_found.
 func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Request) HandleResult {
 	handle, ok := methodTable[msg.Method]
 	if !ok {
@@ -193,25 +173,20 @@ func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Request
 	return handle(d, ctx, msg)
 }
 
-// handleNotification dispatches the no-response methods. Errors are
-// not surfaced over the wire (JSON-RPC notifications are fire-and-
-// forget); the transport may log them.
+// handleNotification dispatches the no-response methods. Errors are not
+// surfaced over the wire (JSON-RPC notifications are fire-and-forget).
 //
-// API.md v4 §2.4 / §3.5: notifications/canceled aborts an in-flight
-// JSON-RPC Request (matched by requestId == Message.id). The
-// dispatcher itself has no per-id ctx registry — the transport layer
-// owns request lifecycle and must intercept this notification
-// upstream of Handle. We accept the message here for protocol
-// completeness; a future intercepting hook can plug in without
-// changing the wire shape.
+// notifications.canceled aborts an in-flight JSON-RPC request (matched
+// by the carried envelope id); the transport layer owns request
+// lifecycle and intercepts it upstream of Handle. We accept it here for
+// protocol completeness.
 func (d *Dispatcher) handleNotification(ctx context.Context, msg *transport.Request) {
 	switch msg.Method {
 	case MethodShutdown:
 		var in protocol.ShutdownRequest
 		_ = unmarshal(msg.Params, &in)
 		_ = d.api.Shutdown(ctx, in)
-
-	case NotificationCancelled:
+	case NotificationCanceled:
 		// no-op at this layer (see method doc)
 	}
 }
@@ -221,7 +196,7 @@ func (d *Dispatcher) handleNotification(ctx context.Context, msg *transport.Requ
 func responseResult(id transport.ID, result any) HandleResult {
 	resp, err := transport.NewResponseResult(id, result)
 	if err != nil {
-		return responseError(id, transport.NewError(transport.CodeInternalError, problemDataFrom(err)))
+		return responseError(id, problemError(protocol.CodeInternalError, "internal_error", err.Error()))
 	}
 	return HandleResult{Response: resp}
 }
@@ -230,14 +205,12 @@ func responseError(id transport.ID, rpcErr *transport.Error) HandleResult {
 	return HandleResult{Response: transport.NewResponseError(id, rpcErr)}
 }
 
-// streamingResult is the same as [responseResult] but also attaches
-// the run/task id + event channel so the transport's notification
-// pump can fan events out under the resource id.
-func streamingResult(id transport.ID, result any, runID string, events <-chan protocol.AgUiEvent, results <-chan protocol.RunResult) HandleResult {
+// streamingResult attaches the run id + event channel so the
+// transport's notification pump can fan RunEvents out under the run id.
+func streamingResult(id transport.ID, result any, runID string, events <-chan protocol.RunEvent) HandleResult {
 	res := responseResult(id, result)
 	res.RunID = runID
 	res.EventStream = events
-	res.ResultStream = results
 	return res
 }
 
@@ -248,15 +221,17 @@ func unmarshal(raw json.RawMessage, dst any) error {
 	return json.Unmarshal(raw, dst)
 }
 
-// decodeIDParam pulls a single id-shaped string out of a method's
-// params object. key parameterises which JSON field to look at so
-// methods that name their id field differently (e.g. background.stop
-// uses "taskId") share one decoder.
-func decodeIDParam(raw json.RawMessage, key string) (string, error) {
-	var obj map[string]string
+// decodeStringParam pulls a single named string field out of a method's
+// params object. key parameterises which JSON field to read so methods
+// that name their id field differently share one decoder.
+func decodeStringParam(raw json.RawMessage, key string) (string, error) {
+	var obj map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &obj); err == nil {
-		if v := obj[key]; v != "" {
-			return v, nil
+		if v, ok := obj[key]; ok {
+			var s string
+			if json.Unmarshal(v, &s) == nil && s != "" {
+				return s, nil
+			}
 		}
 	}
 	return "", fmt.Errorf("missing %s", key)

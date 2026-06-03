@@ -7,28 +7,14 @@ import (
 	"github.com/Tangerg/lynx/lyra/rpc/transport"
 )
 
-// ─── Providers / Models / Tools ─────────────────────────────────────
+// ─── Providers / Models / Tools (API.md §7.6) ───────────────────────
 
 func (d *Dispatcher) handleProvidersList(ctx context.Context, msg *transport.Request) HandleResult {
-	providers, err := d.api.ListProviders(ctx)
+	out, err := d.api.ListProviders(ctx)
 	if err != nil {
 		return responseError(msg.ID, errorToRPC(err))
 	}
-	return responseResult(msg.ID, providers)
-}
-
-func (d *Dispatcher) handleProvidersTest(ctx context.Context, msg *transport.Request) HandleResult {
-	var in struct {
-		ID string `json:"id"`
-	}
-	if err := unmarshal(msg.Params, &in); err != nil {
-		return responseError(msg.ID, invalidParams(err.Error()))
-	}
-	res, err := d.api.TestProvider(ctx, in.ID)
-	if err != nil {
-		return responseError(msg.ID, errorToRPC(err))
-	}
-	return responseResult(msg.ID, res)
+	return responseResult(msg.ID, out)
 }
 
 func (d *Dispatcher) handleProvidersConfigure(ctx context.Context, msg *transport.Request) HandleResult {
@@ -36,8 +22,8 @@ func (d *Dispatcher) handleProvidersConfigure(ctx context.Context, msg *transpor
 	if err := unmarshal(msg.Params, &in); err != nil {
 		return responseError(msg.ID, invalidParams(err.Error()))
 	}
-	if in.ID == "" {
-		return responseError(msg.ID, invalidParams("id is required"))
+	if in.ProviderID == "" {
+		return responseError(msg.ID, invalidParams("providerId is required"))
 	}
 	out, err := d.api.ConfigureProvider(ctx, in)
 	if err != nil {
@@ -46,26 +32,33 @@ func (d *Dispatcher) handleProvidersConfigure(ctx context.Context, msg *transpor
 	return responseResult(msg.ID, out)
 }
 
-func (d *Dispatcher) handleModelsList(ctx context.Context, msg *transport.Request) HandleResult {
-	var in struct {
-		Provider string `json:"provider"`
-	}
-	if err := unmarshal(msg.Params, &in); err != nil {
+func (d *Dispatcher) handleProvidersTest(ctx context.Context, msg *transport.Request) HandleResult {
+	id, err := decodeStringParam(msg.Params, "providerId")
+	if err != nil {
 		return responseError(msg.ID, invalidParams(err.Error()))
 	}
-	models, err := d.api.ListModels(ctx, in.Provider)
+	out, err := d.api.TestProvider(ctx, id)
 	if err != nil {
 		return responseError(msg.ID, errorToRPC(err))
 	}
-	return responseResult(msg.ID, models)
+	return responseResult(msg.ID, out)
+}
+
+func (d *Dispatcher) handleModelsList(ctx context.Context, msg *transport.Request) HandleResult {
+	providerID, _ := decodeStringParam(msg.Params, "providerId") // optional
+	out, err := d.api.ListModels(ctx, providerID)
+	if err != nil {
+		return responseError(msg.ID, errorToRPC(err))
+	}
+	return responseResult(msg.ID, out)
 }
 
 func (d *Dispatcher) handleToolsList(ctx context.Context, msg *transport.Request) HandleResult {
-	tools, err := d.api.ListTools(ctx)
+	out, err := d.api.ListTools(ctx)
 	if err != nil {
 		return responseError(msg.ID, errorToRPC(err))
 	}
-	return responseResult(msg.ID, tools)
+	return responseResult(msg.ID, out)
 }
 
 func (d *Dispatcher) handleToolsInvoke(ctx context.Context, msg *transport.Request) HandleResult {
@@ -83,9 +76,9 @@ func (d *Dispatcher) handleToolsInvoke(ctx context.Context, msg *transport.Reque
 	return responseResult(msg.ID, out)
 }
 
-// ─── Attachments ────────────────────────────────────────────────────
+// ─── Attachments (API.md §7.7) ──────────────────────────────────────
 
-func (d *Dispatcher) handleAttachmentsCreateUploadURL(ctx context.Context, msg *transport.Request) HandleResult {
+func (d *Dispatcher) handleAttachmentsCreateUpload(ctx context.Context, msg *transport.Request) HandleResult {
 	var in protocol.CreateUploadURLRequest
 	if err := unmarshal(msg.Params, &in); err != nil {
 		return responseError(msg.ID, invalidParams(err.Error()))
@@ -97,8 +90,20 @@ func (d *Dispatcher) handleAttachmentsCreateUploadURL(ctx context.Context, msg *
 	return responseResult(msg.ID, out)
 }
 
+func (d *Dispatcher) handleAttachmentsGet(ctx context.Context, msg *transport.Request) HandleResult {
+	id, err := decodeStringParam(msg.Params, "attachmentId")
+	if err != nil {
+		return responseError(msg.ID, invalidParams(err.Error()))
+	}
+	out, err := d.api.GetAttachment(ctx, id)
+	if err != nil {
+		return responseError(msg.ID, errorToRPC(err))
+	}
+	return responseResult(msg.ID, out)
+}
+
 func (d *Dispatcher) handleAttachmentsDelete(ctx context.Context, msg *transport.Request) HandleResult {
-	id, err := decodeIDParam(msg.Params, "id")
+	id, err := decodeStringParam(msg.Params, "attachmentId")
 	if err != nil {
 		return responseError(msg.ID, invalidParams(err.Error()))
 	}
@@ -108,36 +113,35 @@ func (d *Dispatcher) handleAttachmentsDelete(ctx context.Context, msg *transport
 	return responseResult(msg.ID, struct{}{})
 }
 
-// ─── Background ─────────────────────────────────────────────────────
+// ─── Background (API.md §7.7) ───────────────────────────────────────
 
 func (d *Dispatcher) handleBackgroundList(ctx context.Context, msg *transport.Request) HandleResult {
-	tasks, err := d.api.ListBackground(ctx)
+	out, err := d.api.ListBackground(ctx)
 	if err != nil {
 		return responseError(msg.ID, errorToRPC(err))
 	}
-	return responseResult(msg.ID, tasks)
+	return responseResult(msg.ID, out)
 }
 
-func (d *Dispatcher) handleBackgroundStop(ctx context.Context, msg *transport.Request) HandleResult {
-	// API.md v3 §4.1: param key is `taskId`, not generic `id`.
-	taskID, err := decodeIDParam(msg.Params, "taskId")
+func (d *Dispatcher) handleBackgroundCancel(ctx context.Context, msg *transport.Request) HandleResult {
+	id, err := decodeStringParam(msg.Params, "taskId")
 	if err != nil {
 		return responseError(msg.ID, invalidParams(err.Error()))
 	}
-	if err := d.api.StopBackground(ctx, taskID); err != nil {
+	if err := d.api.CancelBackground(ctx, id); err != nil {
 		return responseError(msg.ID, errorToRPC(err))
 	}
 	return responseResult(msg.ID, struct{}{})
 }
 
-// ─── Feedback ───────────────────────────────────────────────────────
+// ─── Feedback (API.md §7.7) ─────────────────────────────────────────
 
-func (d *Dispatcher) handleFeedbackSubmit(ctx context.Context, msg *transport.Request) HandleResult {
+func (d *Dispatcher) handleFeedbackCreate(ctx context.Context, msg *transport.Request) HandleResult {
 	var in protocol.FeedbackRequest
 	if err := unmarshal(msg.Params, &in); err != nil {
 		return responseError(msg.ID, invalidParams(err.Error()))
 	}
-	if err := d.api.SubmitFeedback(ctx, in); err != nil {
+	if err := d.api.CreateFeedback(ctx, in); err != nil {
 		return responseError(msg.ID, errorToRPC(err))
 	}
 	return responseResult(msg.ID, struct{}{})

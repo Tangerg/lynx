@@ -7,7 +7,7 @@ import (
 	"github.com/Tangerg/lynx/lyra/rpc/transport"
 )
 
-// ─── Sessions ───────────────────────────────────────────────────────
+// ─── Sessions (API.md §7.2) ─────────────────────────────────────────
 
 func (d *Dispatcher) handleSessionsList(ctx context.Context, msg *transport.Request) HandleResult {
 	var q protocol.PageQuery
@@ -20,7 +20,7 @@ func (d *Dispatcher) handleSessionsList(ctx context.Context, msg *transport.Requ
 }
 
 func (d *Dispatcher) handleSessionsGet(ctx context.Context, msg *transport.Request) HandleResult {
-	id, err := decodeIDParam(msg.Params, "id")
+	id, err := decodeStringParam(msg.Params, "sessionId")
 	if err != nil {
 		return responseError(msg.ID, invalidParams(err.Error()))
 	}
@@ -33,7 +33,7 @@ func (d *Dispatcher) handleSessionsGet(ctx context.Context, msg *transport.Reque
 
 func (d *Dispatcher) handleSessionsCreate(ctx context.Context, msg *transport.Request) HandleResult {
 	var in protocol.CreateSessionRequest
-	_ = unmarshal(msg.Params, &in)
+	_ = unmarshal(msg.Params, &in) // empty body defaults cwd to serve dir
 	sess, err := d.api.CreateSession(ctx, in)
 	if err != nil {
 		return responseError(msg.ID, errorToRPC(err))
@@ -42,15 +42,12 @@ func (d *Dispatcher) handleSessionsCreate(ctx context.Context, msg *transport.Re
 }
 
 func (d *Dispatcher) handleSessionsUpdate(ctx context.Context, msg *transport.Request) HandleResult {
-	// UpdateSessionRequest is flat — `id` lives alongside the patch
-	// fields. One unmarshal pass covers everything (no inline-tag
-	// hack).
 	var in protocol.UpdateSessionRequest
 	if err := unmarshal(msg.Params, &in); err != nil {
 		return responseError(msg.ID, invalidParams(err.Error()))
 	}
-	if in.ID == "" {
-		return responseError(msg.ID, invalidParams("id is required"))
+	if in.SessionID == "" {
+		return responseError(msg.ID, invalidParams("sessionId is required"))
 	}
 	sess, err := d.api.UpdateSession(ctx, in)
 	if err != nil {
@@ -60,7 +57,7 @@ func (d *Dispatcher) handleSessionsUpdate(ctx context.Context, msg *transport.Re
 }
 
 func (d *Dispatcher) handleSessionsDelete(ctx context.Context, msg *transport.Request) HandleResult {
-	id, err := decodeIDParam(msg.Params, "id")
+	id, err := decodeStringParam(msg.Params, "sessionId")
 	if err != nil {
 		return responseError(msg.ID, invalidParams(err.Error()))
 	}
@@ -75,6 +72,9 @@ func (d *Dispatcher) handleSessionsFork(ctx context.Context, msg *transport.Requ
 	if err := unmarshal(msg.Params, &in); err != nil {
 		return responseError(msg.ID, invalidParams(err.Error()))
 	}
+	if in.SessionID == "" {
+		return responseError(msg.ID, invalidParams("sessionId is required"))
+	}
 	sess, err := d.api.ForkSession(ctx, in)
 	if err != nil {
 		return responseError(msg.ID, errorToRPC(err))
@@ -87,6 +87,9 @@ func (d *Dispatcher) handleSessionsExport(ctx context.Context, msg *transport.Re
 	if err := unmarshal(msg.Params, &in); err != nil {
 		return responseError(msg.ID, invalidParams(err.Error()))
 	}
+	if in.SessionID == "" {
+		return responseError(msg.ID, invalidParams("sessionId is required"))
+	}
 	out, err := d.api.ExportSession(ctx, in)
 	if err != nil {
 		return responseError(msg.ID, errorToRPC(err))
@@ -94,30 +97,32 @@ func (d *Dispatcher) handleSessionsExport(ctx context.Context, msg *transport.Re
 	return responseResult(msg.ID, out)
 }
 
-// ─── Messages ───────────────────────────────────────────────────────
+// ─── Items (API.md §7.4) ────────────────────────────────────────────
 
-func (d *Dispatcher) handleMessagesList(ctx context.Context, msg *transport.Request) HandleResult {
-	// Flat shape: sessionId + limit + cursor at the same level.
-	var in protocol.ListMessagesRequest
+func (d *Dispatcher) handleItemsList(ctx context.Context, msg *transport.Request) HandleResult {
+	var in protocol.ListItemsRequest
 	if err := unmarshal(msg.Params, &in); err != nil {
 		return responseError(msg.ID, invalidParams(err.Error()))
 	}
 	if in.SessionID == "" {
 		return responseError(msg.ID, invalidParams("sessionId is required"))
 	}
-	page, err := d.api.ListMessages(ctx, in)
+	out, err := d.api.ListItems(ctx, in)
 	if err != nil {
 		return responseError(msg.ID, errorToRPC(err))
 	}
-	return responseResult(msg.ID, page)
+	return responseResult(msg.ID, out)
 }
 
-func (d *Dispatcher) handleMessagesEdit(ctx context.Context, msg *transport.Request) HandleResult {
-	var in protocol.EditMessageRequest
+func (d *Dispatcher) handleItemsEdit(ctx context.Context, msg *transport.Request) HandleResult {
+	var in protocol.EditItemRequest
 	if err := unmarshal(msg.Params, &in); err != nil {
 		return responseError(msg.ID, invalidParams(err.Error()))
 	}
-	out, err := d.api.EditMessage(ctx, in)
+	if in.ItemID == "" {
+		return responseError(msg.ID, invalidParams("itemId is required"))
+	}
+	out, err := d.api.EditItem(ctx, in)
 	if err != nil {
 		return responseError(msg.ID, errorToRPC(err))
 	}
