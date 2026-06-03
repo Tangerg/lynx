@@ -7,16 +7,16 @@
 // Failures are isolated per plugin: a broken module logs + is skipped,
 // remaining plugins still load.
 
-import type { LoadResult } from "./sdk/definePlugin";
-import type { PluginSpec } from "./sdk/types";
+import type { LoadResult } from "../sdk/definePlugin";
+import type { PluginSpec } from "../sdk/types";
 import { z } from "zod";
 import { AGUI_BASE } from "@/main/config";
-import { loadPlugin } from "./sdk/definePlugin";
-import { reportPluginError } from "./sdk/errors";
-import { pluginOrigin, setPluginOrigin } from "./sdk/pluginOrigin";
-import { usePluginStore } from "./sdk/registry";
+import { loadPlugin } from "../sdk/definePlugin";
+import { reportPluginError } from "../sdk/errors";
+import { pluginOrigin, setPluginOrigin } from "../sdk/pluginOrigin";
+import { usePluginStore } from "../sdk/registry";
 
-// Re-export so existing importers (PluginsPane) keep `@/plugins/sideload`.
+// Re-export so existing importers (PluginsPane) keep `@/plugins/host/sideload`.
 export { pluginOrigin };
 
 // Sideloaded modules cross the trust boundary — we can't trust their

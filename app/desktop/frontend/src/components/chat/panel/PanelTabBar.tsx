@@ -17,7 +17,7 @@ import * as ContextMenu from "@radix-ui/react-context-menu";
 import { useCallback, useRef } from "react";
 import { dragClasses, Icon, noDragClasses, StatusDot, Tooltip } from "@/components/common";
 import { cn } from "@/lib/utils";
-import { Slot } from "@/plugins/Slot";
+import { Slot } from "@/plugins/host/Slot";
 
 export interface ChatTab {
   id: string;

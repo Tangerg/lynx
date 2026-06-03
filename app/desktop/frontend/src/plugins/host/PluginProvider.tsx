@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 import * as RadixTooltip from "@radix-ui/react-tooltip";
 import { useEffect, useState } from "react";
-import { builtinPlugins } from "./builtin";
+import { builtinPlugins } from "../builtin";
 import { installHostBridge } from "./hostBridge";
-import { loadPlugins, usePluginStore } from "./sdk";
+import { loadPlugins, usePluginStore } from "../sdk";
 import { loadSideloadedPlugins, tagAllAsBuiltin } from "./sideload";
 
 interface Props {

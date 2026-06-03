@@ -15,7 +15,7 @@ import { Icon } from "@/components/common";
 import { Avatar } from "@/components/common/Avatar";
 import { cn } from "@/lib/utils";
 import { MESSAGE_ROLE, useCitationSources, useExtensionByKey } from "@/plugins/sdk";
-import { Slot } from "@/plugins/Slot";
+import { Slot } from "@/plugins/host/Slot";
 import { useUiStore } from "@/state/uiStore";
 import { MessageContext } from "@/plugins/sdk/messageContext";
 import { CitationContext } from "./CitationContext";

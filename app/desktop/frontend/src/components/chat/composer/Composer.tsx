@@ -13,7 +13,7 @@ import {
   useExtensionPoint,
 } from "@/plugins/sdk";
 import { normalizeCombo } from "@/plugins/sdk/registry";
-import { Slot } from "@/plugins/Slot";
+import { Slot } from "@/plugins/host/Slot";
 import { submitComposer } from "./submitComposer";
 
 interface Props {

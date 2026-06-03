@@ -1,6 +1,6 @@
 import { Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
-import { Slot } from "@/plugins/Slot";
+import { Slot } from "@/plugins/host/Slot";
 import { definePlugin } from "@/plugins/sdk";
 import { useSessionStore } from "@/state/sessionStore";
 

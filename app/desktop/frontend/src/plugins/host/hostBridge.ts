@@ -14,10 +14,10 @@ import * as React from "react";
 import * as ReactJSXRuntime from "react/jsx-runtime";
 import * as SDK from "@/plugins/sdk";
 import { disposeOnHmr } from "@/lib/hmr";
-import { HOST_API_VERSION } from "./sdk/apiVersion";
-import { safeCall } from "./sdk/errors";
-import { BEFORE_UNLOAD_HANDLER } from "./sdk/kernelPoints";
-import { lookupExtensionOwnedEntries } from "./sdk/selectors/extensions";
+import { HOST_API_VERSION } from "../sdk/apiVersion";
+import { safeCall } from "../sdk/errors";
+import { BEFORE_UNLOAD_HANDLER } from "../sdk/kernelPoints";
+import { lookupExtensionOwnedEntries } from "../sdk/selectors/extensions";
 
 declare global {
   interface Window {

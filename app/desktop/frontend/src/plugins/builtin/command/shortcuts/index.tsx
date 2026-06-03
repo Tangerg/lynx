@@ -5,7 +5,7 @@
 
 import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
-import { ShortcutsProvider } from "@/plugins/ShortcutsProvider";
+import { ShortcutsProvider } from "@/plugins/host/ShortcutsProvider";
 import { ShortcutsPane } from "./ShortcutsPane";
 
 export default definePlugin({

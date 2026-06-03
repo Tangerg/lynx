@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect } from "react";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import { enterUp } from "@/lib/motion";
-import { Slot } from "@/plugins/Slot";
+import { Slot } from "@/plugins/host/Slot";
 import { MessageBlock } from "../message";
 
 // Chat scroll surface, backed by use-stick-to-bottom. `resetKey`
