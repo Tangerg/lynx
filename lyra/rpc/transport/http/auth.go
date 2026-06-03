@@ -12,7 +12,7 @@ import (
 )
 
 // LocalToken is the per-process gate token described in
-// docs/TRANSPORT.md §安全 + docs/API.md §鉴权. It only protects
+// docs/TRANSPORT.md §11 (本地门禁 token). It only protects
 // against other processes on the same machine — it is NOT user
 // auth. The Web frontend reads the token from Path and sends
 //
@@ -54,12 +54,12 @@ func IssueLocalToken(path string) (*LocalToken, error) {
 
 // authGate enforces the local-token check on POST /v2/rpc/*. Three
 // paths bypass: sidecars (/v2/info, /v2/health), the SSE stream
-// (EventSource can't set Authorization — withCredentials:false per
-// TRANSPORT.md §4.3), and CORS preflights.
+// (EventSource can't set Authorization — TRANSPORT §7/§11), and CORS
+// preflights.
 //
 // On failure, the response is a flat-JSON 401 ({"error":
 // "missing_local_token"}) — NOT the JSON-RPC envelope, since this
-// fires below the protocol layer (API.md §7.3).
+// fires below the protocol layer (TRANSPORT §6.3).
 func (s *Server) authGate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if s.localToken == "" {

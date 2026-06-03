@@ -21,8 +21,8 @@ var DefaultCORSOrigins = []string{
 // list means "no CORS" (same-origin only) — a pass-through. go-chi/cors
 // owns the spec mechanics (origin match incl. "*", preflight, Vary,
 // credentials); we only declare the policy. Exposed headers are the three
-// observability headers the FE reads (API.md §10); allowed headers are the
-// transport-metadata set the FE sends (TRANSPORT §2). go-chi/cors answers
+// observability headers the FE reads (TRANSPORT §13); allowed headers are
+// the transport-metadata set the FE sends (TRANSPORT §2). go-chi/cors answers
 // preflight with 200 (the contract is silent on the exact 2xx — browsers
 // accept either; the prior hand-rolled layer used 204).
 func corsMiddleware(origins []string) func(http.Handler) http.Handler {

@@ -189,7 +189,7 @@ func (s *Server) Handler() http.Handler {
 	// Streaming notifications (SSE).
 	r.Get("/v2/rpc/stream", s.handleStream)
 
-	// JSON-RPC body endpoint. Single form per API.md §10.1: method MUST
+	// JSON-RPC body endpoint. Single form per TRANSPORT §6.1: method MUST
 	// appear in the URL path (dotted, single segment). Bare `/v2/rpc` has
 	// no matching route ⇒ chi 404 — greenfield, no fallback registered.
 	r.Post("/v2/rpc/{method}", s.handleRPCWithMethod)

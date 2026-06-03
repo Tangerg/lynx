@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"mime"
 	"net/http"
 	"strings"
 
@@ -34,9 +35,30 @@ func (s *Server) handleRPCWithMethod(w http.ResponseWriter, r *http.Request) {
 // EncodeMessage — those wrap the MCP SDK's jsonrpc package, which
 // owns the conformant JSON-RPC 2.0 implementation.
 func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod string) {
-	body, err := io.ReadAll(io.LimitReader(r.Body, maxRPCBodyBytes))
+	// Transport-layer preconditions (TRANSPORT §6.3): unsupported media
+	// type ⇒ 415, oversized body ⇒ 413 — both rejected before we spend
+	// effort decoding. Content-Type is only enforced when present (a
+	// minimal client may omit it); when set it must be application/json.
+	if ct := strings.TrimSpace(r.Header.Get("Content-Type")); ct != "" && !isJSONMediaType(ct) {
+		writeFlatError(w, r, http.StatusUnsupportedMediaType, "content-type must be application/json", false)
+		return
+	}
+	if r.ContentLength > maxRPCBodyBytes {
+		writeFlatError(w, r, http.StatusRequestEntityTooLarge, "request body exceeds limit", false)
+		return
+	}
+
+	connID := strings.TrimSpace(r.Header.Get("X-Conn-Id"))
+
+	// Read one byte past the cap so a chunked / uncounted body that
+	// overflows surfaces as 413 rather than silently truncating.
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxRPCBodyBytes+1))
 	if err != nil {
 		writeFlatError(w, r, http.StatusBadRequest, "read body: "+err.Error(), false)
+		return
+	}
+	if len(body) > maxRPCBodyBytes {
+		writeFlatError(w, r, http.StatusRequestEntityTooLarge, "request body exceeds limit", false)
 		return
 	}
 
@@ -57,7 +79,8 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 		bodyMethod = req.Method
 	}
 
-	// Notifications get 204 No Content per API.md §7.3.
+	// Client notifications are acknowledged with 202 Accepted and no
+	// JSON-RPC response body (TRANSPORT §6.3).
 	if res.Response == nil {
 		w.Header().Set("X-Server", s.serverID)
 		if urlMethod != "" {
@@ -69,19 +92,19 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 		if res.EventStream != nil {
 			// The pump outlives this request — bind it to the server
 			// lifetime, not r.Context() (which cancels on return).
-			s.attachStream(s.baseCtx, res.RunID, res.EventStream)
+			s.attachStream(s.baseCtx, res.RunID, connID, res.EventStream)
 		}
-		w.WriteHeader(http.StatusNoContent)
+		w.WriteHeader(http.StatusAccepted)
 		return
 	}
 
 	// Streaming response: kick off the event pump in the background,
 	// bound to the server lifetime (not this request's ctx).
 	if res.EventStream != nil {
-		s.attachStream(s.baseCtx, res.RunID, res.EventStream)
+		s.attachStream(s.baseCtx, res.RunID, connID, res.EventStream)
 	}
 
-	// Compute HTTP status (API.md §7.3): 200 by default, 404 on
+	// Compute HTTP status (TRANSPORT §6.3): 200 by default, 404 on
 	// method-not-found, 409 on URL/body method mismatch, 400 on
 	// invalid request / parse error.
 	status := statusForRPC(res.Response, urlMethod, bodyMethod)
@@ -108,15 +131,18 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 }
 
 // attachStream registers the run's RunEvent stream with the per-stream
-// replay buffer (keyed by runId, API.md §5) and the client broadcast
-// registry. Each RunEvent already carries its monotonic eventId; the
-// terminal run.finished rides this same channel, so channel close is
-// just "stream done" — there is no separate close notification.
-func (s *Server) attachStream(ctx context.Context, runID string, events <-chan protocol.RunEvent) {
+// replay buffer (keyed by runId, TRANSPORT §9.1) and routes each event
+// to the conns subscribed to this root run (connID = the X-Conn-Id of
+// the runs.start/resume/subscribe call, TRANSPORT §8). Each RunEvent
+// already carries its monotonic eventId; the terminal run.finished rides
+// this same channel, so channel close is just "stream done" — there is
+// no separate close notification.
+func (s *Server) attachStream(ctx context.Context, runID, connID string, events <-chan protocol.RunEvent) {
 	if runID == "" || events == nil {
 		return
 	}
 	buf := s.streams.open(runID)
+	s.clients.subscribe(runID, connID)
 	go func() {
 		for {
 			select {
@@ -135,7 +161,7 @@ func (s *Server) attachStream(ctx context.Context, runID string, events <-chan p
 					continue
 				}
 				buf.append(streamRecord{eventID: ev.EventID, msg: notif, at: nowFn()})
-				s.clients.broadcast(notif)
+				s.clients.routeToRun(runID, notif)
 			case <-ctx.Done():
 				return
 			}
@@ -144,7 +170,7 @@ func (s *Server) attachStream(ctx context.Context, runID string, events <-chan p
 }
 
 // statusForRPC translates a dispatcher response into an HTTP status
-// (API.md §7.3).
+// (TRANSPORT §6.3).
 func statusForRPC(resp *transport.Response, urlMethod, bodyMethod string) int {
 	if resp == nil || resp.Error == nil {
 		return http.StatusOK
@@ -160,7 +186,7 @@ func statusForRPC(resp *transport.Response, urlMethod, bodyMethod string) int {
 		return http.StatusBadRequest
 	case transport.CodeInvalidRequest:
 		// A URL/body method mismatch is the one invalid_request that maps
-		// to 409 Conflict (API.md TRANSPORT §6.3); other malformed
+		// to 409 Conflict (TRANSPORT §6.3); other malformed
 		// envelopes are 400.
 		if urlMethod != "" && bodyMethod != "" && urlMethod != bodyMethod {
 			return http.StatusConflict
@@ -188,7 +214,7 @@ func chooseMethodLabel(urlMethod, bodyMethod string) string {
 
 // writeFlatError serves 4xx/5xx responses that originate BELOW the
 // JSON-RPC layer (bad path, unread body, failed auth, dead stream) — a
-// flat JSON envelope `{"error", "traceId"?}` (API.md §7.3), NOT the
+// flat JSON envelope `{"error", "traceId"?}` (TRANSPORT §6.3), NOT the
 // JSON-RPC envelope, since there may be no valid request id. X-Trace-Id
 // is echoed into the body's `traceId` for ops correlation. noCache adds
 // Cache-Control: no-store (auth failures must not be cached).
@@ -221,13 +247,24 @@ func writeRPCError(w http.ResponseWriter, status int, id transport.ID, rpcErr *t
 }
 
 // echoTraceID copies the client-supplied X-Trace-Id into the
-// response's X-Trace-Id header (API.md §10.5).
+// response's X-Trace-Id header (TRANSPORT §16).
 func echoTraceID(w http.ResponseWriter, r *http.Request) {
 	traceID := strings.TrimSpace(r.Header.Get("X-Trace-Id"))
 	if traceID == "" {
 		return
 	}
 	w.Header().Set("X-Trace-Id", traceID)
+}
+
+// isJSONMediaType reports whether a Content-Type header denotes JSON.
+// It tolerates parameters (e.g. "application/json; charset=utf-8") by
+// parsing off the media type before comparing (TRANSPORT §6.3 / §6.2).
+func isJSONMediaType(ct string) bool {
+	mt, _, err := mime.ParseMediaType(ct)
+	if err != nil {
+		return false
+	}
+	return mt == "application/json"
 }
 
 // marshalProblem wraps detail in a protocol.ProblemData JSON blob

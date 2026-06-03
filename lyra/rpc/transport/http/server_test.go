@@ -80,8 +80,8 @@ func TestSidecarInfo(t *testing.T) {
 	}
 }
 
-// TestSidecarHealth confirms /v2/health returns 200 + {"status":"ok"}
-// and never enforces auth.
+// TestSidecarHealth confirms /v2/health returns 200 + the contract body
+// `{"ok":true}` (TRANSPORT §12.1) and never enforces auth.
 func TestSidecarHealth(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
@@ -95,10 +95,14 @@ func TestSidecarHealth(t *testing.T) {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
 	var body struct {
+		OK     bool   `json:"ok"`
 		Status string `json:"status"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatalf("decode: %v", err)
+	}
+	if !body.OK {
+		t.Fatalf("ok = false, want true")
 	}
 	if body.Status != "ok" {
 		t.Fatalf("status = %q", body.Status)
@@ -314,6 +318,66 @@ func TestRunsCancelIsRequest(t *testing.T) {
 	}
 	if len(api.cancelledRuns) != 1 || api.cancelledRuns[0] != "run_123" {
 		t.Fatalf("api.cancelledRuns = %v, want [run_123]", api.cancelledRuns)
+	}
+}
+
+// TestNotificationReturns202 confirms a client→server notification (no
+// envelope id) is acknowledged with 202 Accepted and no response body
+// (TRANSPORT §6.3) — not 200, not 204.
+func TestNotificationReturns202(t *testing.T) {
+	ts, _ := newTestServer(t)
+	defer ts.Close()
+
+	initBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{}}`)
+	r1, _ := netHTTP.Post(ts.URL+"/v2/rpc/runtime.initialize", "application/json", bytes.NewReader(initBody))
+	r1.Body.Close()
+
+	// notifications.canceled has no id ⇒ it's a Notification; JSON-RPC
+	// never sends a response for one, so the transport acks with 202.
+	body := []byte(`{"jsonrpc":"2.0","method":"notifications.canceled","params":{"id":"1"}}`)
+	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/notifications.canceled", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 202 {
+		raw := readBody(resp)
+		t.Fatalf("status = %d, want 202; body = %s", resp.StatusCode, raw)
+	}
+}
+
+// TestBodyTooLargeReturns413 confirms an oversized POST body is rejected
+// with 413 (TRANSPORT §6.3) rather than silently truncated into a parse
+// error.
+func TestBodyTooLargeReturns413(t *testing.T) {
+	ts, _ := newTestServer(t)
+	defer ts.Close()
+
+	big := bytes.Repeat([]byte("a"), (4<<20)+1)
+	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.initialize", "application/json", bytes.NewReader(big))
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 413 {
+		t.Fatalf("status = %d, want 413", resp.StatusCode)
+	}
+}
+
+// TestUnsupportedMediaTypeReturns415 confirms a non-JSON Content-Type is
+// rejected with 415 (TRANSPORT §6.3).
+func TestUnsupportedMediaTypeReturns415(t *testing.T) {
+	ts, _ := newTestServer(t)
+	defer ts.Close()
+
+	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{}}`)
+	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.initialize", "text/plain", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 415 {
+		t.Fatalf("status = %d, want 415", resp.StatusCode)
 	}
 }
 
