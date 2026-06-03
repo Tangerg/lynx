@@ -2,10 +2,13 @@ package chat
 
 import (
 	"context"
-	"errors"
-	"time"
+	"hash/fnv"
+	"strconv"
 
-	"github.com/Tangerg/lynx/lyra/internal/service/approval"
+	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/hitl"
+
+	"github.com/Tangerg/lynx/lyra/internal/engine"
 )
 
 // turnObserver bridges engine.ToolObserver to the turn's event
@@ -17,62 +20,82 @@ type turnObserver struct {
 	st  *turnState
 }
 
-// OnToolCallApprove is the gate the engine fires BEFORE every tool
-// call. When the configured [approval.Service] mode + the tool's
-// safety class agree to auto-pass the call, the gate returns nil
-// immediately and the tool runs. Otherwise the gate registers the
-// pending request, emits a [ToolCallApproval] event onto the turn
-// channel, and blocks on the decision channel until the client
-// posts a verdict via [approval.Service.Decide].
+// ApprovalPrompt is the awaitable payload surfaced to the client when a
+// gated tool call needs approval (HITL R model). It rides the run's
+// interrupt outcome; the client answers via a continuation run.
+type ApprovalPrompt struct {
+	CallID    string `json:"callId"`
+	ToolName  string `json:"toolName"`
+	Arguments string `json:"arguments"`
+}
+
+// ApproveToolCall is the non-blocking gate the engine consults BEFORE
+// every tool call (HITL R model). It maps the runtime approval mode +
+// the tool's safety class to a verdict:
 //
-// Returns nil to proceed, an error to short-circuit. The engine
-// surfaces the error back to the model as the tool's "output"
-// (engine.observedTool collapses Deny into a non-fatal tool
-// result) so the model can recover without aborting the turn.
-func (t *turnObserver) OnToolCallApprove(ctx context.Context, callID, toolName, arguments string) error {
+//   - auto-pass mode → run the tool.
+//   - deny stance (read-only) → recoverable denial, the model adapts.
+//   - prompt stance → consult the per-call ledger on the process
+//     blackboard (keyed by the stable tool name + arguments so the
+//     verdict survives the LLM round re-running on resume). Undecided →
+//     park on a confirmation awaitable; the run suspends at
+//     StatusWaiting and the client answers via runs.resume.
+//
+// Unlike the old blocking gate, this never waits on a channel — the
+// decision is delivered out of band by [runtime.Platform.ResumeProcess],
+// which runs the awaitable's handler to record the verdict before the
+// action re-runs.
+func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, arguments string) engine.ToolApprovalVerdict {
 	if t.svc.approval == nil {
-		return nil
+		return engine.ToolApprovalVerdict{} // run
 	}
 	mode, err := t.svc.approval.GetMode(ctx)
 	if err != nil {
-		return err
+		return engine.ToolApprovalVerdict{Denied: true, DenyReason: "approval mode unavailable: " + err.Error()}
 	}
 	switch gateFor(toolName, mode) {
 	case gatePass:
-		return nil
+		return engine.ToolApprovalVerdict{}
 	case gateDeny:
-		// ModeReadOnly (or any future deny stance): refuse without
-		// prompting. The engine surfaces this back to the model as a
-		// tool error so it adapts instead of aborting the turn.
-		return errors.New("read-only mode: " + toolName + " is not permitted")
+		return engine.ToolApprovalVerdict{Denied: true, DenyReason: "read-only mode: " + toolName + " is not permitted"}
 	}
-	// gatePrompt: register, emit the event, wait for the verdict.
 
-	req := approval.Request{
-		ID:          callID,
-		SessionID:   t.st.handle.SessionID,
-		TurnID:      t.st.handle.TurnID,
-		ToolName:    toolName,
-		Arguments:   arguments,
-		RequestedAt: time.Now(),
+	// gatePrompt: read the per-call ledger off the process blackboard.
+	proc := core.ProcessFrom(ctx)
+	if proc == nil {
+		// No process on ctx (defensive — the agent runtime always wires
+		// one). Fail closed rather than run an ungated call.
+		return engine.ToolApprovalVerdict{Denied: true, DenyReason: "approval unavailable: no process context"}
 	}
-	// Register BEFORE emit so a Decide that arrives the instant
-	// the client sees the event has a pending entry to resolve.
-	decisionCh, cleanup := t.svc.approval.Register(req)
-	defer cleanup()
-
-	t.svc.emit(t.st, ToolCallApproval{Request: req})
-
-	select {
-	case d := <-decisionCh:
-		if d == approval.DecisionDeny {
-			return errors.New("tool call denied by user")
+	bb := proc.Blackboard()
+	key := approvalKey(toolName, arguments)
+	if approved, decided := bb.Condition(key); decided {
+		if approved {
+			return engine.ToolApprovalVerdict{}
 		}
-		return nil // DecisionApprove
-	case <-ctx.Done():
-		// Fail-closed on turn cancellation.
-		return ctx.Err()
+		return engine.ToolApprovalVerdict{Denied: true, DenyReason: "tool call denied by user"}
 	}
+
+	// Undecided → park on a confirmation. The handler records the verdict
+	// on the blackboard at ResumeProcess time, so the re-run observes it.
+	prompt := ApprovalPrompt{CallID: callID, ToolName: toolName, Arguments: arguments}
+	awaitable := hitl.NewConfirmation(prompt, func(approved bool) core.ResponseImpact {
+		bb.SetCondition(key, approved)
+		return core.ImpactUpdated
+	})
+	return engine.ToolApprovalVerdict{Pause: awaitable}
+}
+
+// approvalKey is the blackboard condition key for one gated tool call.
+// Keyed by tool name + arguments (NOT the per-invocation callID, which
+// is regenerated each LLM round): the same frozen context produces the
+// same tool call on resume, so the recorded verdict matches.
+func approvalKey(toolName, arguments string) string {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(toolName))
+	_, _ = h.Write([]byte{0})
+	_, _ = h.Write([]byte(arguments))
+	return "lyra.approval." + strconv.FormatUint(h.Sum64(), 16)
 }
 
 func (t *turnObserver) OnToolCallStart(callID, toolName, arguments string) {

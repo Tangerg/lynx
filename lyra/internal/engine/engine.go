@@ -413,13 +413,18 @@ type ChatProcess interface {
 	// and the run loop exits, delivering its error on Done().
 	Cancel(reason string) error
 
-	// Resume answers a plan-mode approval the process is parked on
-	// (StatusWaiting): it delivers the decision and continues the
-	// process, returning a fresh Done channel for the resumed run
-	// (which executes the plan when approved, or produces a
-	// PlanRejected output when not). Only valid while Status is
+	// Resume answers an approval the process is parked on
+	// (StatusWaiting) — a plan-mode plan or a gated tool call. It
+	// delivers the bool decision and continues the process, returning a
+	// fresh Done channel for the resumed run. Only valid while Status is
 	// [core.StatusWaiting].
 	Resume(ctx context.Context, approved bool) (<-chan error, error)
+
+	// PendingAwaitable returns the HITL request the process is parked
+	// on while StatusWaiting (plan confirmation or tool-approval
+	// confirmation), or nil when nothing is parked. Its PromptAny()
+	// payload is what the client renders to make the decision.
+	PendingAwaitable() core.Awaitable
 }
 
 // chatProcess is the canonical [ChatProcess] backed by a real
@@ -447,6 +452,8 @@ func (cp *chatProcess) Resume(ctx context.Context, approved bool) (<-chan error,
 	}
 	return cp.platform.ContinueProcessAsync(ctx, cp.proc.ID()), nil
 }
+
+func (cp *chatProcess) PendingAwaitable() core.Awaitable { return cp.proc.PendingAwaitable() }
 
 func (cp *chatProcess) Output() (ChatOutput, error) {
 	out, ok := core.ResultOfType[ChatOutput](cp.proc)

@@ -96,7 +96,20 @@ func (e *Engine) buildChatAgent() *core.Agent {
 						return out, err
 					}
 				}
-				return e.runChatTurn(ctx, pc, in.Message, turnBudget{MaxTokens: in.MaxBudget, MaxCostUSD: in.MaxCostUSD})
+				out, err := e.runChatTurn(ctx, pc, in.Message, turnBudget{MaxTokens: in.MaxBudget, MaxCostUSD: in.MaxCostUSD})
+				if err != nil {
+					// A gated tool may have requested approval (HITL R): the
+					// tool returned a hitl.PauseError that bubbled up through
+					// the chat tool middleware. Park the process on the
+					// carried awaitable (→ StatusWaiting) so the run suspends;
+					// the client answers via a continuation run. On resume
+					// the action re-runs and the decider observes the verdict.
+					if _, paused := hitl.HandlePause(pc, err); paused {
+						return ChatOutput{}, nil
+					}
+					return out, err
+				}
+				return out, nil
 			},
 			core.ActionConfig{
 				ToolGroups: core.ToolRolesFor(ToolRoleCoding),

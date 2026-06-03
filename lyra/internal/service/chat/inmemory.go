@@ -70,23 +70,22 @@ func (s *inMemory) StartTurn(_ context.Context, req StartTurnRequest) (TurnHandl
 
 	// Cancellation is per-turn — derive from a background ctx so the
 	// caller's ctx ending (e.g. the StartTurn RPC returning) doesn't
-	// kill the in-flight turn.
+	// kill the in-flight turn. The same ctx bounds resume continuations.
 	turnCtx, cancel := context.WithCancel(context.Background())
 
 	state := &turnState{
-		handle: handle,
-		events: make(chan Event, 32),
-		cancel: cancel,
-	}
-	if req.PlanMode {
-		state.planDecision = make(chan PlanDecision, 1)
+		handle:    handle,
+		events:    make(chan Event, 32),
+		cancel:    cancel,
+		ctx:       turnCtx,
+		startedAt: time.Now(),
 	}
 
 	s.mu.Lock()
 	s.turns[handle.TurnID] = state
 	s.mu.Unlock()
 
-	go s.runTurn(turnCtx, state, req)
+	go s.runTurn(req, state)
 
 	return handle, nil
 }
@@ -170,41 +169,60 @@ func (s *inMemory) Cancel(_ context.Context, handle TurnHandle) error {
 		return err
 	}
 	state.cancel()
-	// proc is written by runTurn on another goroutine; read it under the
-	// impl lock to avoid racing that write.
+	// proc/parked are written by runTurn/drive on other goroutines; read
+	// under the lock. Claim the parked flag so a racing Resume can't also
+	// act on the same suspended turn (whoever flips it false wins).
 	s.mu.Lock()
 	proc := state.proc
+	claimed := state.parked
+	state.parked = false
 	s.mu.Unlock()
 	if proc != nil {
-		// Cancel returns an error only on unknown id, which can't
-		// happen here — proc is the live process. Ignore.
 		_ = proc.Cancel("user cancel")
+	}
+	if claimed {
+		// The turn was parked on an interrupt — no drive goroutine is
+		// waiting on it, so emit the terminal + tear down here.
+		s.emit(state, TurnEnd{Reason: TurnEndCancelled, Duration: time.Since(state.startedAt)})
+		s.endTurn(state)
 	}
 	return nil
 }
 
-// ContinuePlan resumes a paused plan-mode turn. The decision is
-// pushed to the buffered channel runTurn is waiting on; a closed
-// channel (turn already over) returns [ErrTurnNotFound]. Plain
-// chat turns (no PlanMode) have no planDecision channel and so
-// also return ErrTurnNotFound — the wrong-mode case is folded in
-// rather than introducing a separate sentinel.
-func (s *inMemory) ContinuePlan(_ context.Context, handle TurnHandle, decision PlanDecision) error {
+// Resume answers a turn parked on a HITL interrupt (tool approval or
+// plan review). It claims the parked flag (so a racing Cancel can't
+// double-act), delivers the bool decision to the agent process, and
+// drives the continuation segment onto the same event channel. Returns
+// [ErrTurnNotFound] when the turn isn't parked (unknown / already
+// resumed / terminal).
+func (s *inMemory) Resume(_ context.Context, handle TurnHandle, approved bool) error {
 	state, err := s.findTurn(handle.TurnID)
 	if err != nil {
 		return err
 	}
-	if state.planDecision == nil {
+	s.mu.Lock()
+	if !state.parked {
+		s.mu.Unlock()
 		return ErrTurnNotFound
 	}
-	select {
-	case state.planDecision <- decision:
-		return nil
-	default:
-		// Decision already received — second ContinuePlan call is a no-op
-		// rather than an error so transport retries are safe.
-		return nil
+	state.parked = false
+	proc := state.proc
+	s.mu.Unlock()
+
+	resumed, rErr := proc.Resume(state.ctx, approved)
+	if rErr != nil {
+		s.emit(state, ErrorEvent{Message: rErr.Error(), Code: "ENGINE_ERROR"})
+		s.emit(state, TurnEnd{Reason: TurnEndErrored, Duration: time.Since(state.startedAt)})
+		s.endTurn(state)
+		return rErr
 	}
+	go s.drive(state, resumed)
+	return nil
+}
+
+// ContinuePlan is the plan-mode spelling of [Resume].
+func (s *inMemory) ContinuePlan(ctx context.Context, handle TurnHandle, decision PlanDecision) error {
+	return s.Resume(ctx, handle, decision == PlanApprove)
 }
 
 // emit stamps the event with the next sequence number and timestamp

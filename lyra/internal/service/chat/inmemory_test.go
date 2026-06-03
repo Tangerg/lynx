@@ -136,7 +136,9 @@ func TestService_PlanMode_ApprovePath(t *testing.T) {
 		switch e := ev.(type) {
 		case chat.PlanGenerated:
 			gotPlan = &e
-			// Mid-stream callback — issue Approve.
+		case chat.TurnInterrupted:
+			// The turn parked on plan approval (R model). Approve it —
+			// the continuation streams onto the same event channel.
 			if err := svc.ContinuePlan(context.Background(), handle, chat.PlanApprove); err != nil {
 				t.Errorf("ContinuePlan: %v", err)
 			}
@@ -177,7 +179,7 @@ func TestService_PlanMode_RejectPath(t *testing.T) {
 	var endReason chat.TurnEndReason
 	for ev := range events {
 		switch e := ev.(type) {
-		case chat.PlanGenerated:
+		case chat.TurnInterrupted:
 			_ = svc.ContinuePlan(context.Background(), handle, chat.PlanReject)
 		case chat.TurnEnd:
 			endReason = e.Reason
@@ -274,16 +276,15 @@ func TestService_InjectSteering_UnknownTurn(t *testing.T) {
 	}
 }
 
-// TestService_ApprovalGate_AllowOnce verifies the gate emits a
-// ToolCallApproval event when the configured mode requires
-// consent and lets the tool proceed after the test pushes
-// AllowOnce through the approval service. Turn must complete
-// normally (TurnEndCompleted).
+// TestService_ApprovalGate_AllowOnce verifies the gate parks the turn
+// on a TurnInterrupted{approval} when the configured mode requires
+// consent (R model), and that approving via Resume lets the tool
+// proceed — the continuation streams on the same channel and the turn
+// completes normally.
 func TestService_ApprovalGate_AllowOnce(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
 	eng, _ := engine.New(context.Background(), engine.Config{ChatClient: client})
-	approvalSvc := approval.New(approval.ModeBalanced) // bash → gate
-	svc := chat.New(eng, approvalSvc)
+	svc := chat.New(eng, approval.New(approval.ModeBalanced)) // bash → gate
 
 	handle, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
 		SessionID: "sess-approve",
@@ -292,40 +293,41 @@ func TestService_ApprovalGate_AllowOnce(t *testing.T) {
 	events, _ := svc.Events(context.Background(), handle)
 
 	var (
-		sawApproval bool
-		endReason   chat.TurnEndReason
+		sawInterrupt bool
+		endReason    chat.TurnEndReason
 	)
 	for ev := range events {
 		switch e := ev.(type) {
-		case chat.ToolCallApproval:
-			sawApproval = true
-			if e.Request.ToolName != "bash" {
-				t.Errorf("ToolCallApproval.ToolName = %q, want bash", e.Request.ToolName)
+		case chat.TurnInterrupted:
+			sawInterrupt = true
+			if len(e.Interrupts) != 1 || e.Interrupts[0].Kind != "approval" {
+				t.Errorf("interrupts = %+v, want one approval", e.Interrupts)
+			} else if p, ok := e.Interrupts[0].Payload.(chat.ApprovalPrompt); !ok || p.ToolName != "bash" {
+				t.Errorf("approval payload = %+v, want bash ApprovalPrompt", e.Interrupts[0].Payload)
 			}
-			if err := approvalSvc.Decide(context.Background(), e.Request.ID, approval.DecisionApprove); err != nil {
-				t.Errorf("Decide: %v", err)
+			if err := svc.Resume(context.Background(), handle, true); err != nil {
+				t.Errorf("Resume: %v", err)
 			}
 		case chat.TurnEnd:
 			endReason = e.Reason
 		}
 	}
-	if !sawApproval {
-		t.Error("ToolCallApproval never fired in balanced mode")
+	if !sawInterrupt {
+		t.Error("TurnInterrupted never fired in balanced mode")
 	}
 	if endReason != chat.TurnEndCompleted {
 		t.Errorf("turn end = %s, want completed", endReason)
 	}
 }
 
-// TestService_ApprovalGate_Deny — when the client denies the
-// approval, the tool short-circuits with the denial error fed
-// back to the model. The model sees the error as a tool result
-// and emits its final text reply; turn still completes.
+// TestService_ApprovalGate_Deny — denying via Resume(false) makes the
+// tool short-circuit with the denial fed back to the model as a
+// recoverable result; the model emits its final reply and the turn
+// still completes.
 func TestService_ApprovalGate_Deny(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
 	eng, _ := engine.New(context.Background(), engine.Config{ChatClient: client})
-	approvalSvc := approval.New(approval.ModeBalanced)
-	svc := chat.New(eng, approvalSvc)
+	svc := chat.New(eng, approval.New(approval.ModeBalanced))
 
 	handle, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
 		SessionID: "sess-deny",
@@ -333,20 +335,26 @@ func TestService_ApprovalGate_Deny(t *testing.T) {
 	})
 	events, _ := svc.Events(context.Background(), handle)
 
-	var endReason chat.TurnEndReason
+	var (
+		sawDenial bool
+		endReason chat.TurnEndReason
+	)
 	for ev := range events {
 		switch e := ev.(type) {
-		case chat.ToolCallApproval:
-			_ = approvalSvc.Decide(context.Background(), e.Request.ID, approval.DecisionDeny)
+		case chat.TurnInterrupted:
+			_ = svc.Resume(context.Background(), handle, false)
 		case chat.ToolCallEnd:
 			// Denial flows back as a tool *result* so the model can
-			// recover — Err stays empty, Output contains the reason.
-			if !strings.Contains(e.Output, "denied") {
-				t.Errorf("ToolCallEnd.Output = %q, want a denial message", e.Output)
+			// recover — Err stays empty, Output carries the reason.
+			if strings.Contains(e.Output, "denied") {
+				sawDenial = true
 			}
 		case chat.TurnEnd:
 			endReason = e.Reason
 		}
+	}
+	if !sawDenial {
+		t.Error("expected a denied tool result after Resume(false)")
 	}
 	if endReason != chat.TurnEndCompleted {
 		t.Errorf("turn end = %s, want completed (model recovered after denial)", endReason)
@@ -354,8 +362,8 @@ func TestService_ApprovalGate_Deny(t *testing.T) {
 }
 
 // TestService_ApprovalGate_YoloSkipsEvent makes sure the gate is
-// invisible under ModeYolo — no ToolCallApproval ever fires, the
-// tool runs as if no gate were wired.
+// invisible under ModeYolo — the turn never parks (no TurnInterrupted),
+// the tool runs as if no gate were wired.
 func TestService_ApprovalGate_YoloSkipsEvent(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
 	eng, _ := engine.New(context.Background(), engine.Config{ChatClient: client})
@@ -368,8 +376,8 @@ func TestService_ApprovalGate_YoloSkipsEvent(t *testing.T) {
 	events, _ := svc.Events(context.Background(), handle)
 
 	for ev := range events {
-		if _, ok := ev.(chat.ToolCallApproval); ok {
-			t.Error("ToolCallApproval should NOT fire in yolo mode")
+		if _, ok := ev.(chat.TurnInterrupted); ok {
+			t.Error("TurnInterrupted should NOT fire in yolo mode")
 		}
 	}
 }

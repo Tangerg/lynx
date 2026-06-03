@@ -106,7 +106,9 @@ func (r *TurnRunner) dispatch(ctx context.Context, handle chat.TurnHandle, ev ch
 	case chat.TurnStart:
 		fmt.Fprintf(r.app.Err, "[lyra] turn %s started (model=%s)\n", e.TurnID[:8], e.Model)
 	case chat.PlanGenerated:
-		r.renderPlanGenerated(ctx, handle, e)
+		r.renderPlan(e)
+	case chat.TurnInterrupted:
+		r.handleInterrupt(ctx, handle, e)
 	case chat.MessageDelta:
 		fmt.Fprint(r.app.Out, e.Text)
 	case chat.ReasoningDelta:
@@ -132,19 +134,34 @@ func (r *TurnRunner) dispatch(ctx context.Context, handle chat.TurnHandle, ev ch
 	}
 }
 
-// renderPlanGenerated prints the proposed plan and prompts the
-// user for approval (or auto-approves on --auto-approve), then
-// forwards the decision to chat.Service.ContinuePlan.
-func (r *TurnRunner) renderPlanGenerated(ctx context.Context, handle chat.TurnHandle, e chat.PlanGenerated) {
+// renderPlan prints the proposed plan. The approval prompt itself fires
+// later, on the [chat.TurnInterrupted] that follows once the turn has
+// actually parked (R model) — see [TurnRunner.handleInterrupt].
+func (r *TurnRunner) renderPlan(e chat.PlanGenerated) {
 	fmt.Fprintln(r.app.Out, "\n---- proposed plan ----")
 	fmt.Fprintln(r.app.Out, e.Plan)
 	fmt.Fprintln(r.app.Out, "-----------------------")
-	decision := r.decidePlan()
-	if err := r.app.rt.Chat().ContinuePlan(ctx, handle, decision); err != nil {
-		fmt.Fprintf(r.app.Err, "[lyra] continue plan: %s\n", err)
+}
+
+// handleInterrupt answers a parked turn (HITL R model): it describes the
+// pending request — a gated tool call (prints tool + args) or a plan
+// (already printed by renderPlan) — prompts for approval, and forwards
+// the decision via [chat.Service.Resume]. The continuation streams onto
+// the same event channel the caller is still draining.
+func (r *TurnRunner) handleInterrupt(ctx context.Context, handle chat.TurnHandle, e chat.TurnInterrupted) {
+	for _, in := range e.Interrupts {
+		if in.Kind == "approval" {
+			if p, ok := in.Payload.(chat.ApprovalPrompt); ok {
+				fmt.Fprintf(r.app.Out, "\n---- approve tool: %s ----\n%s\n-----------------------\n", p.ToolName, p.Arguments)
+			}
+		}
 	}
-	if decision == chat.PlanReject {
-		fmt.Fprintln(r.app.Err, "[lyra] plan rejected")
+	approved := r.decide()
+	if err := r.app.rt.Chat().Resume(ctx, handle, approved); err != nil {
+		fmt.Fprintf(r.app.Err, "[lyra] resume: %s\n", err)
+	}
+	if !approved {
+		fmt.Fprintln(r.app.Err, "[lyra] declined")
 	}
 }
 
@@ -183,21 +200,21 @@ func (r *TurnRunner) renderToolEnd(e chat.ToolCallEnd) {
 	fmt.Fprintf(r.app.Err, "[lyra] tool end:\n%s\n", truncateOutput(e.Output, toolOutputMaxLines))
 }
 
-// decidePlan prompts the user for y/N (default: reject). With
-// AutoApprove the prompt is skipped — convenient for unattended
-// pipelines like `lyra chat --plan --auto-approve "..."`.
-func (r *TurnRunner) decidePlan() chat.PlanDecision {
+// decide prompts the user for y/N (default: deny). With AutoApprove the
+// prompt is skipped — convenient for unattended pipelines like
+// `lyra chat --plan --auto-approve "..."`. Returns true on approval.
+func (r *TurnRunner) decide() bool {
 	if r.opts.AutoApprove {
-		fmt.Fprintln(r.app.Err, "[lyra] auto-approving plan")
-		return chat.PlanApprove
+		fmt.Fprintln(r.app.Err, "[lyra] auto-approving")
+		return true
 	}
 	fmt.Fprint(r.app.Out, "Proceed? [y/N] ")
 	answer := readLine(r.app.In)
 	switch strings.ToLower(strings.TrimSpace(answer)) {
 	case "y", "yes":
-		return chat.PlanApprove
+		return true
 	}
-	return chat.PlanReject
+	return false
 }
 
 // readLine reads a single line of input, swallowing the trailing

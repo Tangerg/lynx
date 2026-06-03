@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
@@ -19,16 +20,22 @@ import (
 // may dispatch multiple tools simultaneously when the model emits
 // parallel tool_calls.
 type ToolObserver interface {
-	// OnToolCallApprove is the gate fired BEFORE every tool call —
-	// implementations decide whether the call may proceed. Returning
-	// a non-nil error short-circuits the tool: the engine reports
-	// the error back to the model so it can recover. nil means
-	// "go ahead". Implementations that don't gate should return nil
-	// unconditionally (the engine's default observer behavior).
+	// ApproveToolCall is the gate consulted BEFORE every tool call.
+	// It returns a verdict telling the decorator whether the call runs,
+	// is denied (short-circuited to a recoverable result), or must pause
+	// the process for user approval (HITL R model, API.md §6): a non-nil
+	// Verdict.Pause makes the call return a [hitl.PauseError], which
+	// suspends the run at [core.StatusWaiting]; the client answers via a
+	// continuation run.
 	//
-	// Receives the same callID it will later get on Start / End so
-	// the implementation can pair the gate with the lifecycle.
-	OnToolCallApprove(ctx context.Context, callID, toolName, arguments string) error
+	// The decider MUST be non-blocking — it records pending / decided
+	// state out of band (typically the process blackboard, keyed by the
+	// stable tool name + arguments so the verdict survives the LLM round
+	// re-running on resume) rather than waiting on a channel.
+	//
+	// Receives the same callID it will later get on Start / End so the
+	// implementation can pair the gate with the lifecycle.
+	ApproveToolCall(ctx context.Context, callID, toolName, arguments string) ToolApprovalVerdict
 
 	OnToolCallStart(callID, toolName, arguments string)
 	OnToolCallEnd(callID, toolName, output string, err error)
@@ -49,6 +56,20 @@ type ToolObserver interface {
 	// Implementations surface it so the client can render the plan and
 	// later resume the turn via the approval path.
 	OnPlanGenerated(plan string)
+}
+
+// ToolApprovalVerdict is the decorator's instruction for one gated tool
+// call (API.md §6 HITL). Exactly one outcome applies:
+//
+//   - Pause != nil → suspend the run for user approval (R model); the
+//     call returns a [hitl.PauseError] carrying this awaitable.
+//   - Denied       → short-circuit with DenyReason as a recoverable
+//     tool result (the model adapts), no execution.
+//   - zero value   → run the tool normally.
+type ToolApprovalVerdict struct {
+	Pause      core.Awaitable
+	Denied     bool
+	DenyReason string
 }
 
 // ObserverFrom extracts the [ToolObserver] the engine attached to
@@ -107,17 +128,21 @@ func (o *observedTool) Call(ctx context.Context, arguments string) (string, erro
 	callID := uuid.NewString()
 	name := o.inner.Definition().Name
 
-	if err := o.observer.OnToolCallApprove(ctx, callID, name, arguments); err != nil {
-		// Surface the gate refusal as a recoverable tool *result*
-		// (text the model can read), not a Go error. Returning an
-		// error would propagate up the chat tool middleware and
-		// abort the turn — denying the model a chance to back off
-		// and try a different path. Observers still see a
-		// (start, end) pair so UI counts stay matched.
-		denial := "tool execution denied by user: " + err.Error()
+	switch v := o.observer.ApproveToolCall(ctx, callID, name, arguments); {
+	case v.Pause != nil:
+		// Suspend the run for approval (HITL R). The PauseError bubbles
+		// through the chat tool middleware up to the action body, which
+		// parks the process on AwaitInput (StatusWaiting). No Start/End
+		// fires — the call hasn't begun; on resume the LLM round re-runs
+		// and the decider, seeing the recorded verdict, runs or denies.
+		return "", &hitl.PauseError{Request: v.Pause}
+	case v.Denied:
+		// Recoverable denial: the model sees DenyReason as the tool
+		// result and adapts instead of aborting. Start/End still fire so
+		// UI counts stay matched.
 		o.observer.OnToolCallStart(callID, name, arguments)
-		o.observer.OnToolCallEnd(callID, name, denial, nil)
-		return denial, nil
+		o.observer.OnToolCallEnd(callID, name, v.DenyReason, nil)
+		return v.DenyReason, nil
 	}
 
 	o.observer.OnToolCallStart(callID, name, arguments)

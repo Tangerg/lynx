@@ -65,6 +65,10 @@ func (cp *stubChatProcess) Resume(_ context.Context, _ bool) (<-chan error, erro
 	return ch, nil
 }
 
+// PendingAwaitable satisfies engine.ChatProcess. Stubs never park, so
+// nothing is ever pending.
+func (cp *stubChatProcess) PendingAwaitable() core.Awaitable { return nil }
+
 // stubEngine satisfies chat.Engine without touching the real
 // platform / chat-memory / MCP wiring. Existence proves the chat
 // service does not depend on *engine.Engine directly — only on
