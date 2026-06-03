@@ -46,6 +46,7 @@ import {
   WORKSPACE_VIEW,
 } from "./kernelPoints";
 import { useNotificationStore } from "./notifications";
+import { pluginOrigin } from "./pluginOrigin";
 import { usePluginStore } from "./registry";
 import { executeCommand } from "./selectors/commands";
 import {
@@ -151,12 +152,30 @@ export function createHost(
     return track({ dispose: () => store().removeContribution(pluginName, outerKey) });
   };
 
+  // Third-party (sideloaded) plugins must namespace the enumerable
+  // identifiers they introduce — custom event names + content-block kinds —
+  // as `plugin:<name>/<symbol>` (API.md §2.5), so two third-party bundles
+  // can't collide on a bare name. First-party built-ins use bare symbols and
+  // are exempt. Warn (don't throw) — a bad name is a dev-time authoring slip,
+  // not a reason to tear down a registration.
+  const assertNamespaced = (what: string, value: string): void => {
+    if (pluginOrigin(pluginName) !== "sideload") return;
+    const prefix = `plugin:${pluginName}/`;
+    if (!value.startsWith(prefix)) {
+      console.warn(
+        `[plugin:${pluginName}] ${what} "${value}" is not namespaced; ` +
+          `third-party ${what}s must be "${prefix}<symbol>" (API.md §2.5)`,
+      );
+    }
+  };
+
   const full = {
     message: {
       registerContentBlock<K extends ContentBlockKind>(
         kind: K,
         renderer: ContentBlockRenderer<K>,
       ): Disposable {
+        assertNamespaced("content-block kind", kind);
         // The substrate holds renderers as the union root type; the public
         // method is typed per-kind for plugin author ergonomics.
         return contribute(CONTENT_BLOCK, renderer as ContentBlockRenderer<ContentBlockKind>, {
@@ -169,11 +188,13 @@ export function createHost(
       // Both fan out to every matching handler; `multi` keying lets a plugin
       // register more than once for the same name/type (each contribution
       // coexists). The reducer chains StateUpdate returns across them.
-      onCustom: <T = unknown>(name: string, handler: CustomEventHandler<T>): Disposable =>
-        contribute(CUSTOM_EVENT_HANDLER, {
+      onCustom: <T = unknown>(name: string, handler: CustomEventHandler<T>): Disposable => {
+        assertNamespaced("custom event name", name);
+        return contribute(CUSTOM_EVENT_HANDLER, {
           name,
           handler: handler as CustomEventHandler<unknown>,
-        }),
+        });
+      },
       onStream: (eventType: string, handler: StreamEventHandler): Disposable =>
         contribute(STREAM_EVENT_HANDLER, { eventType, handler }),
     },
