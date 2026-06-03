@@ -1,12 +1,13 @@
-// Package server realizes protocol.Runtime on top of Lyra's
-// internal engine + service layer. It's the single place where the
-// JSON-RPC method table (rpc/dispatch) and the runtime's existing
-// chat / session / approval / tool services meet.
+// Package server realizes protocol.Runtime on top of Lyra's internal
+// engine + service layer (API.md §0 model: Session → Run → Item). It's
+// the single place where the JSON-RPC method table (rpc/dispatch) and
+// the runtime's chat / session / tool / memory services meet.
 //
-// Methods with an in-process equivalent (sessions, runs, approvals,
-// some tool reads) are wired through; the rest return protocol.ErrNotImplemented,
-// which the dispatch maps to JSON-RPC -32601 method not found so
-// the client sees an honest "not supported on this build" signal.
+// Methods with an in-process equivalent (sessions, runs, items, tools,
+// memory) are wired through; the rest return protocol.ErrCapabilityNotNeg,
+// which the dispatch maps to capability_not_negotiated so the client
+// sees an honest "off on this build" signal consistent with the
+// capability flags advertised at initialize.
 package server
 
 import (
@@ -17,10 +18,6 @@ import (
 
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
-
-// ProtocolVersion is the wire version this build implements (API.md
-// §8.1: date string).
-const ProtocolVersion = "2026-05-28"
 
 // Config bundles construction inputs.
 type Config struct {
@@ -34,21 +31,21 @@ type Config struct {
 	ServerInfo protocol.ServerInfo
 }
 
-// Server is the Runtime implementation. Exposed via [New] but the
-// returned interface is protocol.Runtime — keeps callers from
-// reaching past the typed surface.
+// Server is the Runtime implementation. Exposed via [New]; the returned
+// interface is protocol.Runtime so callers can't reach past the typed
+// surface.
 type Server struct {
 	rt         RuntimeServices
 	serverInfo protocol.ServerInfo
 
-	// runRegistry tracks live runs so CancelRun can find them by id.
-	// Wired through chat.Service.Cancel on the in-process path.
+	// runRegistry tracks live runs so CancelRun / ListRuns can find them
+	// by id. Wired through chat.Service on the in-process path.
 	runMu sync.Mutex
 	runs  map[string]*runEntry
 }
 
-// runEntry holds the bookkeeping for one in-flight run — used by
-// CancelRun + the event pump in runs.go.
+// runEntry holds bookkeeping for one in-flight run — used by CancelRun,
+// ListRuns, and the event pump in runs.go.
 type runEntry struct {
 	runID     string
 	sessionID string
@@ -56,7 +53,7 @@ type runEntry struct {
 	cancel    context.CancelFunc
 }
 
-// New builds an Server. Returns an error when Runtime is nil.
+// New builds a Server. Returns an error when Runtime is nil.
 func New(cfg Config) (protocol.Runtime, error) {
 	if cfg.Runtime == nil {
 		return nil, errors.New("server: Runtime is required")
@@ -74,52 +71,53 @@ func New(cfg Config) (protocol.Runtime, error) {
 	}, nil
 }
 
-// ServerCapabilities returns the static capability snapshot this
-// build advertises. Pure function so the HTTP /v1/info sidecar can
-// reach it without needing a Runtime instance.
-func Capabilities() protocol.ServerCapabilities {
+// Capabilities returns this Server's capability snapshot (API.md §9),
+// delegating to the package-level [Capabilities] so the /v2/info
+// sidecar can build the same snapshot without a constructed Server.
+func (i *Server) Capabilities() protocol.ServerCapabilities {
+	return Capabilities(i.rt)
+}
+
+// Capabilities builds the capability snapshot a Runtime advertises
+// (API.md §9). It reflects actual wiring — features whose methods would
+// return notImpl are advertised false, so the client never calls a
+// method this build silently rejects.
+func Capabilities(rt RuntimeServices) protocol.ServerCapabilities {
+	memory := rt != nil && rt.Memory() != nil
 	return protocol.ServerCapabilities{
-		Events: protocol.EventCapabilities{
-			Standard: []string{
-				"RUN_STARTED", "RUN_FINISHED", "RUN_ERROR",
-				"STEP_STARTED", "STEP_FINISHED",
-				"TEXT_MESSAGE_START", "TEXT_MESSAGE_CONTENT", "TEXT_MESSAGE_END",
-				"TOOL_CALL_START", "TOOL_CALL_ARGS", "TOOL_CALL_END", "TOOL_CALL_RESULT",
-				"REASONING_MESSAGE_START", "REASONING_MESSAGE_CONTENT", "REASONING_MESSAGE_END",
-				"CUSTOM", "RAW",
-			},
-			Custom: []string{
-				"lyra.approval",
-				"lyra.approval-result",
-				// TODO §4.2: align the rest to lyra.* once their payloads
-				// match the protocol (plan needs items[], etc.).
-				"plan_generated",
-				"compact_boundary",
-				"memory_updated",
-			},
+		ProtocolVersion: protocol.ProtocolVersion,
+		Events: []string{
+			string(protocol.StreamRunStarted),
+			string(protocol.StreamRunFinished),
+			string(protocol.StreamItemStarted),
+			string(protocol.StreamItemDelta),
+			string(protocol.StreamItemCompleted),
 		},
-		Features: protocol.ServerFeatureCapabilities{
-			Reasoning:     true,
-			MCP:           true,
+		Features: protocol.ServerFeatures{
+			Reasoning: true,
+			MCP:       true,
+			Memory:    memory,
+			// Off until the corresponding engine support lands:
 			Multimodal:    false,
 			Checkpoints:   false,
-			Interrupts:    false,
 			Background:    false,
 			Subagents:     false,
 			Skills:        false,
 			SessionExport: false,
-			Attachments: protocol.AttachmentLimits{
-				Enabled: false,
-			},
+			Relocate:      false,
+			ClientTools:   false,
+			Attachments:   protocol.AttachmentLimits{Enabled: false},
 		},
-		Providers: []string{}, // future: derive from chat.Client metadata
-		Limits:    protocol.Limits{MaxConcurrentRuns: 8},
+		Providers: []string{},
+		Limits:    protocol.RuntimeLimits{MaxConcurrentRuns: 8},
 	}
 }
 
 // ─── helpers ────────────────────────────────────────────────────────
 
-// notImpl is a tiny helper so each stubbed method reads as one line.
+// notImpl marks a protocol method that exists in the contract but isn't
+// backed on this build. Maps to capability_not_negotiated (API.md §8.2)
+// — consistent with the feature flag advertised at initialize.
 func notImpl(method string) error {
-	return fmt.Errorf("%w: %s", protocol.ErrNotImplemented, method)
+	return fmt.Errorf("%w: %s", protocol.ErrCapabilityNotNeg, method)
 }

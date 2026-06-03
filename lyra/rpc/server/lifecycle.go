@@ -15,9 +15,9 @@ func (i *Server) Initialize(_ context.Context, _ protocol.InitializeRequest) (*p
 	// against a minimum-supported constant and return
 	// protocol.ErrInvalidProtocolVersion when too old.
 	return &protocol.InitializeResponse{
-		ProtocolVersion: ProtocolVersion, // server's truth — client falls back if needed
+		ProtocolVersion: protocol.ProtocolVersion, // server's truth — client falls back if needed
 		ServerInfo:      i.serverInfo,
-		Capabilities:    Capabilities(),
+		Capabilities:    i.Capabilities(),
 	}, nil
 }
 

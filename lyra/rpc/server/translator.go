@@ -1,0 +1,336 @@
+package server
+
+import (
+	"strconv"
+	"strings"
+
+	"github.com/Tangerg/lynx/lyra/internal/service/chat"
+	"github.com/Tangerg/lynx/lyra/rpc/protocol"
+)
+
+// translator converts Lyra's internal [chat.Event] delta stream into
+// the v2 [protocol.StreamEvent] / Item model (API.md §5). One
+// translator per run — it carries the in-flight Item state (open
+// agentMessage / reasoning / toolCall items) so the output is
+// well-formed regardless of how the underlying deltas interleave.
+//
+// State machine:
+//
+//	chat.TurnStart      → run.started
+//	chat.MessageDelta   → close reasoning + item.started(agentMessage,lazy) + item.delta(content)
+//	chat.ReasoningDelta → close text + item.started(reasoning,lazy) + item.delta(reasoning)
+//	chat.ToolCallStart  → close text+reasoning + item.started(toolCall) + item.delta(toolArguments)
+//	chat.ToolCallEnd    → item.completed(toolCall)
+//	chat.TurnEnd        → close open items + run.finished(outcome)
+//	chat.ErrorEvent     → captured, surfaced in run.finished(outcome:error)
+//
+// PlanGenerated / ToolCallApproval / CompactBoundary / MemoryUpdated are
+// not surfaced here: plan + approval become R-model interrupts (a later
+// milestone), and compaction / memory are internal housekeeping outside
+// the durable Item history.
+type translator struct {
+	runID     string
+	sessionID string
+	itemSeq   int
+
+	text      *openText
+	reasoning *openText
+	tools     map[string]*openTool // callID → in-flight toolCall item
+
+	errMsg string
+}
+
+type openText struct {
+	id  string
+	buf strings.Builder
+}
+
+type openTool struct {
+	id   string
+	name string
+	kind protocol.ToolInvocationKind
+}
+
+func newTranslator(sessionID, runID string) *translator {
+	return &translator{
+		runID:     runID,
+		sessionID: sessionID,
+		tools:     map[string]*openTool{},
+	}
+}
+
+func (t *translator) nextItemID() string {
+	t.itemSeq++
+	return protocol.IDPrefixItem + t.runID + "_" + strconv.Itoa(t.itemSeq)
+}
+
+// translate maps one Lyra chat event to zero or more StreamEvents.
+func (t *translator) translate(ev chat.Event) []protocol.StreamEvent {
+	switch e := ev.(type) {
+	case chat.TurnStart:
+		return []protocol.StreamEvent{{
+			Type: protocol.StreamRunStarted,
+			Run: &protocol.RunRef{
+				ID:        t.runID,
+				SessionID: t.sessionID,
+				Status:    protocol.RunStatusRunning,
+			},
+		}}
+	case chat.MessageDelta:
+		out := t.closeReasoning()
+		return append(out, t.appendText(e.Text)...)
+	case chat.ReasoningDelta:
+		out := t.closeText()
+		return append(out, t.appendReasoning(e.Text)...)
+	case chat.ToolCallStart:
+		return t.toolStart(e)
+	case chat.ToolCallEnd:
+		return t.toolEnd(e)
+	case chat.ErrorEvent:
+		t.errMsg = e.Message
+		return nil
+	case chat.TurnEnd:
+		return t.turnEnd(e)
+	}
+	return nil
+}
+
+func (t *translator) appendText(text string) []protocol.StreamEvent {
+	var out []protocol.StreamEvent
+	if t.text == nil {
+		t.text = &openText{id: t.nextItemID()}
+		out = append(out, protocol.StreamEvent{
+			Type: protocol.StreamItemStarted,
+			Item: &protocol.Item{
+				ID:     t.text.id,
+				RunID:  t.runID,
+				Status: protocol.ItemStatusInProgress,
+				Type:   protocol.ItemTypeAgentMessage,
+			},
+		})
+	}
+	t.text.buf.WriteString(text)
+	idx := 0
+	return append(out, protocol.StreamEvent{
+		Type:   protocol.StreamItemDelta,
+		ItemID: t.text.id,
+		Delta:  &protocol.ItemDelta{Type: protocol.DeltaContent, Index: &idx, Text: text},
+	})
+}
+
+func (t *translator) appendReasoning(text string) []protocol.StreamEvent {
+	var out []protocol.StreamEvent
+	if t.reasoning == nil {
+		t.reasoning = &openText{id: t.nextItemID()}
+		out = append(out, protocol.StreamEvent{
+			Type: protocol.StreamItemStarted,
+			Item: &protocol.Item{
+				ID:     t.reasoning.id,
+				RunID:  t.runID,
+				Status: protocol.ItemStatusInProgress,
+				Type:   protocol.ItemTypeReasoning,
+			},
+		})
+	}
+	t.reasoning.buf.WriteString(text)
+	return append(out, protocol.StreamEvent{
+		Type:   protocol.StreamItemDelta,
+		ItemID: t.reasoning.id,
+		Delta:  &protocol.ItemDelta{Type: protocol.DeltaReasoning, Text: text},
+	})
+}
+
+func (t *translator) closeText() []protocol.StreamEvent {
+	if t.text == nil {
+		return nil
+	}
+	item := &protocol.Item{
+		ID:      t.text.id,
+		RunID:   t.runID,
+		Status:  protocol.ItemStatusCompleted,
+		Type:    protocol.ItemTypeAgentMessage,
+		Content: []protocol.ContentBlock{{Type: "text", Text: t.text.buf.String()}},
+	}
+	t.text = nil
+	return []protocol.StreamEvent{{Type: protocol.StreamItemCompleted, Item: item}}
+}
+
+func (t *translator) closeReasoning() []protocol.StreamEvent {
+	if t.reasoning == nil {
+		return nil
+	}
+	item := &protocol.Item{
+		ID:     t.reasoning.id,
+		RunID:  t.runID,
+		Status: protocol.ItemStatusCompleted,
+		Type:   protocol.ItemTypeReasoning,
+		Text:   t.reasoning.buf.String(),
+	}
+	t.reasoning = nil
+	return []protocol.StreamEvent{{Type: protocol.StreamItemCompleted, Item: item}}
+}
+
+func (t *translator) toolStart(e chat.ToolCallStart) []protocol.StreamEvent {
+	out := t.closeReasoning()
+	out = append(out, t.closeText()...)
+
+	ref := &openTool{id: t.nextItemID(), name: e.ToolName, kind: toolKind(e.ToolName)}
+	t.tools[e.CallID] = ref
+	out = append(out, protocol.StreamEvent{
+		Type: protocol.StreamItemStarted,
+		Item: &protocol.Item{
+			ID:     ref.id,
+			RunID:  t.runID,
+			Status: protocol.ItemStatusInProgress,
+			Type:   protocol.ItemTypeToolCall,
+			Tool:   &protocol.ToolInvocation{Kind: ref.kind, Name: ref.name},
+		},
+	})
+	if e.Arguments != "" {
+		out = append(out, protocol.StreamEvent{
+			Type:   protocol.StreamItemDelta,
+			ItemID: ref.id,
+			Delta:  &protocol.ItemDelta{Type: protocol.DeltaToolArguments, ArgumentsTextDelta: e.Arguments},
+		})
+	}
+	return out
+}
+
+func (t *translator) toolEnd(e chat.ToolCallEnd) []protocol.StreamEvent {
+	ref, ok := t.tools[e.CallID]
+	if !ok {
+		return nil
+	}
+	delete(t.tools, e.CallID)
+	item := &protocol.Item{
+		ID:     ref.id,
+		RunID:  t.runID,
+		Status: protocol.ItemStatusCompleted,
+		Type:   protocol.ItemTypeToolCall,
+		Tool:   &protocol.ToolInvocation{Kind: ref.kind, Name: ref.name, Output: e.Output},
+	}
+	if e.Err != "" {
+		item.Status = protocol.ItemStatusIncomplete
+		item.Error = &protocol.ProblemData{Type: "tool_failed", Detail: e.Err}
+	}
+	return []protocol.StreamEvent{{Type: protocol.StreamItemCompleted, Item: item}}
+}
+
+// turnEnd closes any open items (so the wire ends balanced) then emits
+// the terminal run.finished with its discriminated outcome.
+func (t *translator) turnEnd(e chat.TurnEnd) []protocol.StreamEvent {
+	out := t.closeReasoning()
+	out = append(out, t.closeText()...)
+	out = append(out, t.drainTools()...)
+	return append(out, protocol.StreamEvent{
+		Type:    protocol.StreamRunFinished,
+		Outcome: t.outcome(e),
+	})
+}
+
+// finish builds a terminal run.finished for paths that never observe a
+// chat.TurnEnd (e.g. run cancellation drained the iterator). Closes
+// open items, then emits run.finished with the given outcome type.
+func (t *translator) finish(outcomeType protocol.RunOutcomeType) []protocol.StreamEvent {
+	out := t.closeReasoning()
+	out = append(out, t.closeText()...)
+	out = append(out, t.drainTools()...)
+	res := &protocol.RunResult{}
+	if outcomeType == protocol.OutcomeError && t.errMsg != "" {
+		res.Error = &protocol.ProblemData{Type: "internal_error", Detail: t.errMsg}
+	}
+	return append(out, protocol.StreamEvent{
+		Type:    protocol.StreamRunFinished,
+		Outcome: &protocol.RunOutcome{Type: outcomeType, Result: res},
+	})
+}
+
+func (t *translator) drainTools() []protocol.StreamEvent {
+	if len(t.tools) == 0 {
+		return nil
+	}
+	out := make([]protocol.StreamEvent, 0, len(t.tools))
+	for callID, ref := range t.tools {
+		out = append(out, protocol.StreamEvent{
+			Type: protocol.StreamItemCompleted,
+			Item: &protocol.Item{
+				ID:     ref.id,
+				RunID:  t.runID,
+				Status: protocol.ItemStatusIncomplete,
+				Type:   protocol.ItemTypeToolCall,
+				Tool:   &protocol.ToolInvocation{Kind: ref.kind, Name: ref.name},
+			},
+		})
+		delete(t.tools, callID)
+	}
+	return out
+}
+
+func (t *translator) outcome(e chat.TurnEnd) *protocol.RunOutcome {
+	res := &protocol.RunResult{
+		Usage:   turnUsage(e),
+		CostUSD: optCostUSD(e.CostUSD),
+	}
+	switch e.Reason {
+	case chat.TurnEndCancelled:
+		return &protocol.RunOutcome{Type: protocol.OutcomeCanceled, Result: res}
+	case chat.TurnEndBudgetExceeded:
+		return &protocol.RunOutcome{Type: protocol.OutcomeMaxBudget, Result: res}
+	case chat.TurnEndErrored:
+		detail := t.errMsg
+		if detail == "" {
+			detail = "turn errored"
+		}
+		res.Error = &protocol.ProblemData{Type: "internal_error", Detail: detail}
+		return &protocol.RunOutcome{Type: protocol.OutcomeError, Result: res}
+	default:
+		return &protocol.RunOutcome{Type: protocol.OutcomeCompleted, Result: res}
+	}
+}
+
+// turnUsage maps the engine's per-turn token roll-up onto wire Usage.
+func turnUsage(e chat.TurnEnd) *protocol.Usage {
+	u := &protocol.Usage{
+		InputTokens:     e.TokenUsage.PromptTokens,
+		OutputTokens:    e.TokenUsage.CompletionTokens,
+		ReasoningTokens: e.TokenUsage.ReasoningTokens,
+	}
+	if len(e.UsageByModel) > 0 {
+		u.ByModel = make(map[string]protocol.ModelUsage, len(e.UsageByModel))
+		for _, m := range e.UsageByModel {
+			u.ByModel[m.Model] = protocol.ModelUsage{
+				InputTokens:  m.PromptTokens,
+				OutputTokens: m.CompletionTokens,
+				CostUSD:      optCostUSD(m.CostUSD),
+			}
+		}
+	}
+	return u
+}
+
+// optCostUSD returns &c only when a pricing hook produced a real figure
+// (c > 0), else nil — API.md §4.2 omits cost rather than faking 0.
+func optCostUSD(c float64) *float64 {
+	if c > 0 {
+		return &c
+	}
+	return nil
+}
+
+// toolKind maps a tool name onto the wire ToolInvocation kind for
+// rendering (API.md §4.4). Best-effort by name; unknown tools render as
+// command.
+func toolKind(name string) protocol.ToolInvocationKind {
+	n := strings.ToLower(name)
+	switch {
+	case strings.Contains(n, "mcp"):
+		return protocol.ToolKindMCP
+	case strings.Contains(n, "edit"), strings.Contains(n, "write"), strings.Contains(n, "patch"):
+		return protocol.ToolKindFileEdit
+	case strings.Contains(n, "search"), strings.Contains(n, "grep"), strings.Contains(n, "glob"),
+		strings.Contains(n, "find"), strings.Contains(n, "web"):
+		return protocol.ToolKindSearch
+	default:
+		return protocol.ToolKindCommand
+	}
+}
