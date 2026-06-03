@@ -16,7 +16,7 @@
 - Go 1.26.3
 - **CLI**: `spf13/cobra`（每个子命令是 `App` 的方法 —— `ServeCmd()` / `ChatCmd()` / `AgentsCmd()` / …）
 - **协议 envelope**: `modelcontextprotocol/go-sdk/jsonrpc`（wire 类型借用，不自己重新定义）
-- **HTTP transport**: stdlib `net/http` + Go 1.22 `ServeMux` 的 `POST /v2/rpc/{method...}` pattern
+- **HTTP transport**: stdlib `net/http` + `go-chi/chi` v5 路由（`r.Use` 中间件链 + `POST /v2/rpc/{method}`）+ `go-chi/cors`（CORS 中间件，替掉手写 cors）
 - **SSE 写端**: `github.com/Tangerg/sse`（WHATWG §9.2 合规，auto-flush）—— 自家库
 - **MCP 客户端**: `modelcontextprotocol/go-sdk/mcp`
 - **AG-UI 事件**: `core/model/chat` + 自家 `internal/agui` 编码层
@@ -68,7 +68,7 @@
 - ❌ **Stdio transport**（CLI 给 LLM 用那种）：协议层有意不实现（前端 docs/API.md §1.1）。Web 走 HTTP loopback、TUI 走 inprocess
 - ❌ **后端做用户鉴权 / 账号 / 订阅 / 多租户**：Runtime 协议层零 user 概念，鉴权由更外层（OS 信任、本地进程门禁 token、未来 facade）解决
 - ❌ **业务方法的 RESTy read-only shadow**：业务调用一律 `POST /v2/rpc/{method}`。详见前端 docs/API.md §9.3
-- ❌ **HTTP transport 换 chi / gin / echo / fiber**：4 个 endpoint + 3 个 middleware 用不上路由框架；fiber/echo 把 SSE 的 buffer/flush 搞砸过。stdlib `ServeMux` 1.22+ `{method...}` 已足
+- ❌ **HTTP transport 换 gin / echo / fiber**：它们用自家 ctx / ResponseWriter，把 SSE 的 buffer/flush 搞砸过。**chi 是例外、已采用**：它就是标准 `net/http` handler（SSE flush 与 stdlib 一致），且 `go-chi/cors` 直接替掉了手写 CORS（见 §技术栈 + §已做过的大重构）。所以"换 router"≠"换 chi"
 - ❌ **SSE 写自己的 frame 编码**：用 `github.com/Tangerg/sse`（auto-flush + spec compliance）。手写 `fmt.Fprintf(w, "data: %s\n\n", body)` 在 body 含 `\n` 时会破坏帧
 - ❌ **`/v2/rpc` 不带 method**（裸路径）：v2 协议 greenfield 决议，单一形态 `POST /v2/rpc/{method}`，裸路径 404
 - ❌ **协议 envelope 装 transport 元数据**（session id / auth token / trace id / idempotency key）：走 Go `context.Context` 或 HTTP header，永不进 message body
@@ -151,6 +151,7 @@ curl -H "Authorization: Bearer $(cat ~/.lyra/local-token)" \
 - ✅ 接口去 Java 味：`xxxAPI` → 干名 / `In/Out` → `Request/Response` / `Impl` → `Server`
 - ✅ JSON-RPC envelope 切到 MCP SDK 的 `jsonrpc` 包（不自维护）
 - ✅ HTTP transport：local-token gate + CORS + 4xx access log + `/v2/info` ops 字段 + `/v2/health` 探针
+- ✅ HTTP transport 路由从 stdlib `ServeMux` 换 `go-chi/chi` v5 + CORS 换 `go-chi/cors`：删手写 `cors.go`（106→40 行），`r.Use(observability, cors, authGate)` 比内嵌包裹更可读；chi 用标准 handler 故 SSE 不受影响。**预检状态从 204→200**（go-chi/cors 行为，契约对 2xx 不挑）。gin/echo/fiber 仍禁（破坏 SSE）
 - ✅ SSE 写端切到 `github.com/Tangerg/sse`
 - ✅ SQLite 持久化（session / memory），`LYRA_STORAGE` env 切换
 - ✅ AGENTS.md walk-from-cwd 级联发现（mirror kimi-code 设计）+ `lyra agents` CLI + `/v2/info.agentDocs`

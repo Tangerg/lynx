@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/Tangerg/lynx/lyra/rpc/dispatch"
@@ -22,18 +23,10 @@ const maxRPCBodyBytes = 4 << 20
 // handleRPCWithMethod is the single JSON-RPC entry point —
 // `POST /v2/rpc/{method}` per TRANSPORT §3. The URL method is
 // cross-checked against the body's method (mismatch ⇒ invalid_request / 409).
-//
-// Go's `{method...}` wildcard matches the bare `/v2/rpc` path too
-// (zero-or-more trailing segments), so we explicitly 404 on the
-// empty-method case to honor the "no fallback" rule.
 func (s *Server) handleRPCWithMethod(w http.ResponseWriter, r *http.Request) {
-	urlMethod := r.PathValue("method")
-	if urlMethod == "" {
-		writeFlatError(w, r, http.StatusNotFound,
-			"POST /v2/rpc requires a method suffix (use /v2/rpc/{method})", false)
-		return
-	}
-	s.serveRPC(w, r, urlMethod)
+	// chi only routes /v2/rpc/{method} with a non-empty single segment;
+	// bare /v2/rpc has no matching route and 404s before reaching here.
+	s.serveRPC(w, r, chi.URLParam(r, "method"))
 }
 
 // serveRPC reads, dispatches, and serializes one JSON-RPC message.

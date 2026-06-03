@@ -23,6 +23,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/Tangerg/lynx/lyra/rpc/dispatch"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 	"github.com/Tangerg/lynx/lyra/rpc/transport"
@@ -48,7 +50,7 @@ type Server struct {
 	serverID string
 
 	localToken      string
-	corsCfg         corsConfig
+	corsOrigins     []string
 	healthProbes    []HealthProbe
 	agentDocsLister AgentDocsLister
 
@@ -148,7 +150,7 @@ func NewServer(cfg Config) (*Server, error) {
 		addr:            cfg.Addr,
 		serverID:        serverID,
 		localToken:      cfg.LocalToken,
-		corsCfg:         corsConfig{origins: cfg.CORSOrigins},
+		corsOrigins:     cfg.CORSOrigins,
 		healthProbes:    cfg.HealthProbes,
 		agentDocsLister: cfg.AgentDocsLister,
 		dispatcher:      dispatch.New(cfg.Runtime),
@@ -177,22 +179,22 @@ func NewServer(cfg Config) (*Server, error) {
 // resolve without a token; authGate before mux so unauth requests
 // never touch handlers.
 func (s *Server) Handler() http.Handler {
-	mux := http.NewServeMux()
+	r := chi.NewRouter()
+	r.Use(s.observability, corsMiddleware(s.corsOrigins), s.authGate)
 
-	// Sidecar — must NOT go through JSON-RPC envelope.
-	mux.HandleFunc("GET /v2/info", s.handleInfo)
-	mux.HandleFunc("GET /v2/health", s.handleHealth)
-
-	// JSON-RPC body endpoint. Single form per API.md v4 §10.1: method
-	// MUST appear in the URL path. Requests to `/v2/rpc` (no method
-	// suffix) fall through the mux to 404 — greenfield, no fallback
-	// route registered.
-	mux.HandleFunc("POST /v2/rpc/{method...}", s.handleRPCWithMethod)
+	// Sidecars — flat JSON, must NOT go through the JSON-RPC envelope.
+	r.Get("/v2/info", s.handleInfo)
+	r.Get("/v2/health", s.handleHealth)
 
 	// Streaming notifications (SSE).
-	mux.HandleFunc("GET /v2/rpc/stream", s.handleStream)
+	r.Get("/v2/rpc/stream", s.handleStream)
 
-	return s.observability(s.cors(s.authGate(mux)))
+	// JSON-RPC body endpoint. Single form per API.md §10.1: method MUST
+	// appear in the URL path (dotted, single segment). Bare `/v2/rpc` has
+	// no matching route ⇒ chi 404 — greenfield, no fallback registered.
+	r.Post("/v2/rpc/{method}", s.handleRPCWithMethod)
+
+	return r
 }
 
 // Start binds the listen address and serves until Shutdown is called.
