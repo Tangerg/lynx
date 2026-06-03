@@ -185,10 +185,13 @@ func (s *inMemory) emitInterrupt(st *turnState, proc engine.ChatProcess) {
 }
 
 // interruptKind classifies the pending awaitable into the wire interrupt
-// kind: an [ApprovalPrompt] payload is a gated tool call ("approval"),
-// anything else is a plan awaiting review ("plan"). Returns "" for a nil
-// awaitable (treated as surfaceable so the defensive empty-interrupt path
-// in emitInterrupt still fires).
+// kind (API.md §6: "approval" | "question" | "toolResult"). An
+// [ApprovalPrompt] payload is a gated tool call ("approval"); anything
+// else is a plan awaiting review, which surfaces as a "question" (the
+// contract has no "plan" interrupt kind — plan-review uses the generic
+// question mechanism). Returns "" for a nil awaitable (treated as
+// surfaceable so the defensive empty-interrupt path in emitInterrupt
+// still fires).
 func interruptKind(aw core.Awaitable) string {
 	if aw == nil {
 		return ""
@@ -196,7 +199,7 @@ func interruptKind(aw core.Awaitable) string {
 	if _, ok := aw.PromptAny().(ApprovalPrompt); ok {
 		return "approval"
 	}
-	return "plan"
+	return "question"
 }
 
 // endTurn closes the turn's event channel and removes it from the live

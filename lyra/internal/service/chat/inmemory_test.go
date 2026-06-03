@@ -196,9 +196,10 @@ func TestService_PlanMode_RejectPath(t *testing.T) {
 }
 
 // TestService_PlanMode_GatedWhenClientCannotHandle covers the anti-deadlock
-// gate: a client that declared only "approval" interrupts can't answer a
-// "plan" interrupt, so a plan-mode turn must auto-deny (reject the plan)
-// instead of surfacing a TurnInterrupted no one can resolve (API.md §6.2).
+// gate: plan-review surfaces as a "question" interrupt, so a client that
+// declared only "approval" can't answer it — the plan-mode turn must
+// auto-deny (reject the plan) instead of surfacing a TurnInterrupted no one
+// can resolve (API.md §6.2).
 func TestService_PlanMode_GatedWhenClientCannotHandle(t *testing.T) {
 	svc, _ := buildPlanService(t, "1. step")
 	svc.SetInterruptKinds([]string{"approval"}) // no "plan"

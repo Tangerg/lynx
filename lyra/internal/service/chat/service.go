@@ -269,11 +269,13 @@ type TurnInterrupted struct {
 }
 
 // Interrupt is one pending HITL request surfaced by [TurnInterrupted].
-// Kind discriminates how the client renders + answers it; Payload is
-// the awaitable's prompt (an [ApprovalPrompt] for a tool call, the plan
-// markdown string for a plan).
+// Kind is the wire interrupt kind (API.md §6: "approval" | "question" |
+// "toolResult") so it lines up with what the client negotiates in
+// ClientCapabilities.InterruptKinds. Payload is the awaitable's prompt —
+// an [ApprovalPrompt] for a gated tool call ("approval"), or the plan
+// markdown string for a plan awaiting review ("question").
 type Interrupt struct {
-	Kind    string // "approval" | "plan"
+	Kind    string // "approval" | "question"
 	Payload any
 }
 
