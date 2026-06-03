@@ -35,7 +35,7 @@ import {
   defaultData,
   defaultRoles,
   defaultTitle,
-} from "./shell/defaults";
+} from "./defaults";
 import diagnostics from "./workspace/diagnostics";
 import globalKeymap from "./command/global-keymap";
 import iconGallery from "./settings/icon-gallery";
@@ -55,14 +55,14 @@ import {
   sidebarRailSessions,
   sidebarSearch,
   sidebarSessions,
-} from "./shell/sidebar";
+} from "./sidebar";
 import slashHints from "./chat/slash-hints";
 import { statusNotifications, statusPill } from "./shell/status";
 import { tasksPill } from "./workspace/tasks";
 import { themesPack } from "./theme";
 import toaster from "./shell/toaster";
-import { toolActions, toolIcons } from "./chat/tool-meta";
-import { bash, diff, file, grep } from "./chat/tool-previews";
+import { toolActions, toolIcons } from "./chat/tools/meta";
+import { bash, diff, file, grep } from "./chat/tools/previews";
 import topbarNewTab from "./shell/topbar-new-tab";
 import welcomeScreen from "./shell/welcome-screen";
 import {
