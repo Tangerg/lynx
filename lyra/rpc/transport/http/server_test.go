@@ -177,7 +177,8 @@ func TestURLPathMethodForm(t *testing.T) {
 }
 
 // TestURLBodyMethodMismatch confirms the URL/body method-mismatch guard
-// returns 409 + invalid_request (-32600).
+// returns 400 + invalid_request (-32600) — a self-contradictory malformed
+// request, NOT a 409 resource conflict (TRANSPORT §6.2/§6.3).
 func TestURLBodyMethodMismatch(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
@@ -188,9 +189,9 @@ func TestURLBodyMethodMismatch(t *testing.T) {
 		t.Fatalf("post: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 409 {
+	if resp.StatusCode != 400 {
 		raw := readBody(resp)
-		t.Fatalf("status = %d, body = %s", resp.StatusCode, raw)
+		t.Fatalf("status = %d, want 400; body = %s", resp.StatusCode, raw)
 	}
 	if code := decodeErrorCode(t, resp); code != -32600 {
 		t.Fatalf("expected -32600, got %d", code)
@@ -321,10 +322,10 @@ func TestRunsCancelIsRequest(t *testing.T) {
 	}
 }
 
-// TestNotificationReturns202 confirms a client→server notification (no
-// envelope id) is acknowledged with 202 Accepted and no response body
-// (TRANSPORT §6.3) — not 200, not 204.
-func TestNotificationReturns202(t *testing.T) {
+// TestNotificationReturns204 confirms a client→server notification (no
+// envelope id) is acknowledged with 204 No Content and no response body
+// (TRANSPORT §6.3 picks 204 over 202 — dispatch is already complete).
+func TestNotificationReturns204(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
 
@@ -333,16 +334,16 @@ func TestNotificationReturns202(t *testing.T) {
 	r1.Body.Close()
 
 	// notifications.canceled has no id ⇒ it's a Notification; JSON-RPC
-	// never sends a response for one, so the transport acks with 202.
+	// never sends a response for one, so the transport acks with 204.
 	body := []byte(`{"jsonrpc":"2.0","method":"notifications.canceled","params":{"id":"1"}}`)
 	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/notifications.canceled", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 202 {
+	if resp.StatusCode != 204 {
 		raw := readBody(resp)
-		t.Fatalf("status = %d, want 202; body = %s", resp.StatusCode, raw)
+		t.Fatalf("status = %d, want 204; body = %s", resp.StatusCode, raw)
 	}
 }
 
@@ -378,6 +379,28 @@ func TestUnsupportedMediaTypeReturns415(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != 415 {
 		t.Fatalf("status = %d, want 415", resp.StatusCode)
+	}
+}
+
+// TestMethodNotAllowedHasAllow confirms a wrong HTTP method on a known
+// endpoint returns 405 with an Allow header listing the supported methods
+// (RFC 9110 §15.5.6 / TRANSPORT §6.3). chi populates Allow from the route.
+func TestMethodNotAllowedHasAllow(t *testing.T) {
+	ts, _ := newTestServer(t)
+	defer ts.Close()
+
+	// /v2/rpc/{method} is POST-only; a GET to it is 405, not 404.
+	req, _ := netHTTP.NewRequest("GET", ts.URL+"/v2/rpc/runtime.ping", nil)
+	resp, err := netHTTP.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 405 {
+		t.Fatalf("status = %d, want 405", resp.StatusCode)
+	}
+	if allow := resp.Header.Get("Allow"); !strings.Contains(allow, "POST") {
+		t.Fatalf("Allow = %q, must list POST", allow)
 	}
 }
 

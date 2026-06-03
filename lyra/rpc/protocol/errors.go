@@ -2,17 +2,34 @@ package protocol
 
 import "errors"
 
-// ProblemData is the structured error payload (API.md §4.6 / §8). It
-// rides RPCError.data, RunResult.error, and toolCall.error. Type is the
-// stable symbolic name — clients judge errors by Type, never by numeric
-// code (API.md §8.2).
+// ProblemData is the structured error payload (API.md §4.6 / §8) — a
+// transport-agnostic trim of RFC 9457 Problem Details. It rides
+// RPCError.data, RunResult.error, and toolCall.error. Type is the stable
+// symbolic name — clients judge errors by Type, never by numeric code
+// (API.md §8.2). First-party types are bare snake_case; third-party
+// plugins namespace as `plugin:<name>/<symbol>` (API.md §8.4).
 type ProblemData struct {
-	Type      string `json:"type"`
-	Detail    string `json:"detail,omitempty"`
-	Retryable bool   `json:"retryable,omitempty"`
+	Type   string `json:"type"`
+	Detail string `json:"detail,omitempty"` // per-occurrence human-readable note
+	// Retryable marks transient failures; RetryAfterSeconds, when given,
+	// is the earliest sensible retry (e.g. a provider rate-limit backoff)
+	// the client should honor before falling back to its own (API.md §8.3).
+	Retryable         bool `json:"retryable,omitempty"`
+	RetryAfterSeconds int  `json:"retryAfterSeconds,omitempty"`
+	// Errors carries field-level validation failures (typically
+	// invalid_params / form validation), addressable by field so the UI
+	// can flag each one (API.md §8.3).
+	Errors []FieldError `json:"errors,omitempty"`
 	// Extra carries any additional, error-specific fields. Marshaled
 	// flat alongside the named fields by the dispatch layer.
 	Extra map[string]any `json:"-"`
+}
+
+// FieldError is one field-level validation failure inside ProblemData
+// (API.md §4.6 / §8.3). Field is the offending params key.
+type FieldError struct {
+	Field  string `json:"field"`
+	Detail string `json:"detail"`
 }
 
 // Error code <-> symbolic name table (API.md §8.2). Numeric codes are

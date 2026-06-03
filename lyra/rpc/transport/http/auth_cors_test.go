@@ -57,6 +57,26 @@ func TestAuthGateMissingToken(t *testing.T) {
 	}
 }
 
+// TestAuthGate401HasChallenge — a 401 carries WWW-Authenticate: Bearer
+// (RFC 9110 §15.5.2 / TRANSPORT §6.3 + §11).
+func TestAuthGate401HasChallenge(t *testing.T) {
+	ts := newGatedServer(t)
+	defer ts.Close()
+
+	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.ping"}`)
+	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.ping", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("status = %d, want 401", resp.StatusCode)
+	}
+	if got := resp.Header.Get("WWW-Authenticate"); !strings.Contains(got, "Bearer") {
+		t.Fatalf("WWW-Authenticate = %q, must contain Bearer", got)
+	}
+}
+
 // TestAuthGateEchoesTraceID — 401 body carries `traceId` echoed
 // from the request's X-Trace-Id header (FE
 // RpcTransportError.traceId contract).
