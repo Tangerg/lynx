@@ -58,7 +58,7 @@ export default definePlugin({
     host.tool.registerPreview("my-tool", MyToolPreview);
     host.composer.registerCommand("/cmd", { description: "...", run: ... });
     host.message.registerContentBlock("myBlock", MyBlockRenderer);
-    host.agui.on("my.event", (value) => /* StateUpdate */);
+    host.events.onCustom("my.event", (value) => /* StateUpdate */);
     host.settings.registerPane({ id: "my-pane", label: "...", component: ... });
   },
 });
