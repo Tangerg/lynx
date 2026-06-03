@@ -141,6 +141,18 @@ func (rt *runtime) dispatch(connID, method string, params json.RawMessage) (any,
 			Input     []contentBlock `json:"input"`
 		}
 		_ = json.Unmarshal(params, &p)
+		// Field-level validation → invalid_params + errors[] (API.md §8.3).
+		var fieldErrs []map[string]any
+		if p.SessionID == "" {
+			fieldErrs = append(fieldErrs, map[string]any{"field": "sessionId", "detail": "required"})
+		}
+		if len(p.Input) == 0 {
+			fieldErrs = append(fieldErrs, map[string]any{"field": "input", "detail": "must not be empty"})
+		}
+		if len(fieldErrs) > 0 {
+			return nil, &rpcError{Code: -32602, Message: "invalid params",
+				Data: map[string]any{"type": "invalid_params", "errors": fieldErrs}}
+		}
 		runID := rt.nextID("run")
 		go rt.scriptRun(connID, p.SessionID, runID, inputText(p.Input))
 		return map[string]any{"runId": runID}, nil

@@ -150,6 +150,36 @@ func TestV2MockTransportStatusCodes(t *testing.T) {
 	}
 }
 
+// TestV2MockInvalidParamsFieldErrors checks the ProblemData field-level
+// error shape (API.md §8.3): runs.start with empty sessionId + input
+// returns invalid_params carrying errors:[{field, detail}].
+func TestV2MockInvalidParamsFieldErrors(t *testing.T) {
+	srv := httptest.NewServer(New("").handler())
+	defer srv.Close()
+
+	r := post(t, srv.URL, "c1", "runs.start",
+		`{"jsonrpc":"2.0","id":"1","method":"runs.start","params":{"input":[]}}`)
+	if r.Error == nil {
+		t.Fatal("expected an error response")
+	}
+	if r.Error.Data["type"] != "invalid_params" {
+		t.Fatalf("type = %v, want invalid_params", r.Error.Data["type"])
+	}
+	errs, ok := r.Error.Data["errors"].([]any)
+	if !ok || len(errs) != 2 {
+		t.Fatalf("errors = %v, want 2 field errors", r.Error.Data["errors"])
+	}
+	fields := map[string]bool{}
+	for _, e := range errs {
+		if m, ok := e.(map[string]any); ok {
+			fields[m["field"].(string)] = true
+		}
+	}
+	if !fields["sessionId"] || !fields["input"] {
+		t.Fatalf("missing field errors; got %v", fields)
+	}
+}
+
 // collectFrames reads RunEvent payloads from an SSE body until one whose
 // event.type == stopType arrives (or a timeout).
 func collectFrames(t *testing.T, res *http.Response, stopType string) []map[string]any {

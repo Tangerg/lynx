@@ -306,12 +306,24 @@ export interface Usage {
   >;
 }
 
-// Used for RPCError.data, RunResult.error, toolCall.error.
+// Field-level error inside ProblemData.errors (§8.3) — `field` is the
+// offending params key, so a form can flag it inline.
+export interface FieldError {
+  field: string;
+  detail: string;
+}
+
+// Used for RPCError.data, RunResult.error, toolCall.error. A transport-
+// agnostic trim of RFC 9457 Problem Details (no HTTP-only status/instance;
+// `type` is a stable symbol, not a resolvable URI). Judge errors by `type`
+// (§8.3); plugins namespace it as `plugin:<name>/<symbol>` (§8.4).
 export interface ProblemData {
-  type: string; // stable symbolic name (judge errors by this, §8)
-  detail?: string;
+  type: string; // stable symbolic name (the discriminator)
+  detail?: string; // per-occurrence human explanation
   retryable?: boolean;
-  [key: string]: unknown; // extensible
+  retryAfterSeconds?: number; // earliest retry (e.g. provider rate-limit backoff)
+  errors?: FieldError[]; // field-level validation errors (invalid_params / forms)
+  [key: string]: unknown; // still open for type-specific extension members
 }
 
 // ---------------------------------------------------------------------------
