@@ -11,25 +11,19 @@ import (
 
 func (d *Dispatcher) handleProvidersList(ctx context.Context, msg *transport.Request) HandleResult {
 	out, err := d.api.ListProviders(ctx)
-	if err != nil {
-		return responseError(msg.ID, errorToRPC(err))
-	}
-	return responseResult(msg.ID, out)
+	return reply(msg, out, err)
 }
 
 func (d *Dispatcher) handleProvidersConfigure(ctx context.Context, msg *transport.Request) HandleResult {
-	var in protocol.ConfigureProviderRequest
-	if err := unmarshal(msg.Params, &in); err != nil {
-		return responseError(msg.ID, invalidParams(err.Error()))
+	in, bad := decode[protocol.ConfigureProviderRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
 	}
 	if in.ProviderID == "" {
 		return responseError(msg.ID, invalidParams("providerId is required"))
 	}
 	out, err := d.api.ConfigureProvider(ctx, in)
-	if err != nil {
-		return responseError(msg.ID, errorToRPC(err))
-	}
-	return responseResult(msg.ID, out)
+	return reply(msg, out, err)
 }
 
 func (d *Dispatcher) handleProvidersTest(ctx context.Context, msg *transport.Request) HandleResult {
@@ -37,57 +31,42 @@ func (d *Dispatcher) handleProvidersTest(ctx context.Context, msg *transport.Req
 	if err != nil {
 		return responseError(msg.ID, invalidParams(err.Error()))
 	}
-	out, err := d.api.TestProvider(ctx, id)
-	if err != nil {
-		return responseError(msg.ID, errorToRPC(err))
-	}
-	return responseResult(msg.ID, out)
+	out, tErr := d.api.TestProvider(ctx, id)
+	return reply(msg, out, tErr)
 }
 
 func (d *Dispatcher) handleModelsList(ctx context.Context, msg *transport.Request) HandleResult {
 	providerID, _ := decodeStringParam(msg.Params, "providerId") // optional
 	out, err := d.api.ListModels(ctx, providerID)
-	if err != nil {
-		return responseError(msg.ID, errorToRPC(err))
-	}
-	return responseResult(msg.ID, out)
+	return reply(msg, out, err)
 }
 
 func (d *Dispatcher) handleToolsList(ctx context.Context, msg *transport.Request) HandleResult {
 	out, err := d.api.ListTools(ctx)
-	if err != nil {
-		return responseError(msg.ID, errorToRPC(err))
-	}
-	return responseResult(msg.ID, out)
+	return reply(msg, out, err)
 }
 
 func (d *Dispatcher) handleToolsInvoke(ctx context.Context, msg *transport.Request) HandleResult {
-	var in protocol.InvokeToolRequest
-	if err := unmarshal(msg.Params, &in); err != nil {
-		return responseError(msg.ID, invalidParams(err.Error()))
+	in, bad := decode[protocol.InvokeToolRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
 	}
 	if in.Name == "" {
 		return responseError(msg.ID, invalidParams("name is required"))
 	}
 	out, err := d.api.InvokeTool(ctx, in)
-	if err != nil {
-		return responseError(msg.ID, errorToRPC(err))
-	}
-	return responseResult(msg.ID, out)
+	return reply(msg, out, err)
 }
 
 // ─── Attachments (API.md §7.7) ──────────────────────────────────────
 
 func (d *Dispatcher) handleAttachmentsCreateUpload(ctx context.Context, msg *transport.Request) HandleResult {
-	var in protocol.CreateUploadURLRequest
-	if err := unmarshal(msg.Params, &in); err != nil {
-		return responseError(msg.ID, invalidParams(err.Error()))
+	in, bad := decode[protocol.CreateUploadURLRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
 	}
 	out, err := d.api.CreateUploadURL(ctx, in)
-	if err != nil {
-		return responseError(msg.ID, errorToRPC(err))
-	}
-	return responseResult(msg.ID, out)
+	return reply(msg, out, err)
 }
 
 func (d *Dispatcher) handleAttachmentsGet(ctx context.Context, msg *transport.Request) HandleResult {
@@ -95,11 +74,8 @@ func (d *Dispatcher) handleAttachmentsGet(ctx context.Context, msg *transport.Re
 	if err != nil {
 		return responseError(msg.ID, invalidParams(err.Error()))
 	}
-	out, err := d.api.GetAttachment(ctx, id)
-	if err != nil {
-		return responseError(msg.ID, errorToRPC(err))
-	}
-	return responseResult(msg.ID, out)
+	out, gErr := d.api.GetAttachment(ctx, id)
+	return reply(msg, out, gErr)
 }
 
 func (d *Dispatcher) handleAttachmentsDelete(ctx context.Context, msg *transport.Request) HandleResult {
@@ -107,20 +83,14 @@ func (d *Dispatcher) handleAttachmentsDelete(ctx context.Context, msg *transport
 	if err != nil {
 		return responseError(msg.ID, invalidParams(err.Error()))
 	}
-	if err := d.api.DeleteAttachment(ctx, id); err != nil {
-		return responseError(msg.ID, errorToRPC(err))
-	}
-	return responseResult(msg.ID, struct{}{})
+	return replyDone(msg, d.api.DeleteAttachment(ctx, id))
 }
 
 // ─── Background (API.md §7.7) ───────────────────────────────────────
 
 func (d *Dispatcher) handleBackgroundList(ctx context.Context, msg *transport.Request) HandleResult {
 	out, err := d.api.ListBackground(ctx)
-	if err != nil {
-		return responseError(msg.ID, errorToRPC(err))
-	}
-	return responseResult(msg.ID, out)
+	return reply(msg, out, err)
 }
 
 func (d *Dispatcher) handleBackgroundCancel(ctx context.Context, msg *transport.Request) HandleResult {
@@ -128,21 +98,15 @@ func (d *Dispatcher) handleBackgroundCancel(ctx context.Context, msg *transport.
 	if err != nil {
 		return responseError(msg.ID, invalidParams(err.Error()))
 	}
-	if err := d.api.CancelBackground(ctx, id); err != nil {
-		return responseError(msg.ID, errorToRPC(err))
-	}
-	return responseResult(msg.ID, struct{}{})
+	return replyDone(msg, d.api.CancelBackground(ctx, id))
 }
 
 // ─── Feedback (API.md §7.7) ─────────────────────────────────────────
 
 func (d *Dispatcher) handleFeedbackCreate(ctx context.Context, msg *transport.Request) HandleResult {
-	var in protocol.FeedbackRequest
-	if err := unmarshal(msg.Params, &in); err != nil {
-		return responseError(msg.ID, invalidParams(err.Error()))
+	in, bad := decode[protocol.FeedbackRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
 	}
-	if err := d.api.CreateFeedback(ctx, in); err != nil {
-		return responseError(msg.ID, errorToRPC(err))
-	}
-	return responseResult(msg.ID, struct{}{})
+	return replyDone(msg, d.api.CreateFeedback(ctx, in))
 }

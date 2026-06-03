@@ -13,37 +13,28 @@ func (d *Dispatcher) handleMemoryList(ctx context.Context, msg *transport.Reques
 	var in protocol.WorkspaceQuery
 	_ = unmarshal(msg.Params, &in)
 	entries, err := d.api.ListMemory(ctx, in)
-	if err != nil {
-		return responseError(msg.ID, errorToRPC(err))
-	}
-	return responseResult(msg.ID, entries)
+	return reply(msg, entries, err)
 }
 
 func (d *Dispatcher) handleMemoryGet(ctx context.Context, msg *transport.Request) HandleResult {
-	var in protocol.GetMemoryRequest
-	if err := unmarshal(msg.Params, &in); err != nil {
-		return responseError(msg.ID, invalidParams(err.Error()))
+	in, bad := decode[protocol.GetMemoryRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
 	}
 	if !in.Scope.Valid() {
 		return responseError(msg.ID, invalidParams(`scope must be "cwd" | "projectRoot" | "home"`))
 	}
 	out, err := d.api.GetMemory(ctx, in)
-	if err != nil {
-		return responseError(msg.ID, errorToRPC(err))
-	}
-	return responseResult(msg.ID, out)
+	return reply(msg, out, err)
 }
 
 func (d *Dispatcher) handleMemoryUpdate(ctx context.Context, msg *transport.Request) HandleResult {
-	var in protocol.UpdateMemoryRequest
-	if err := unmarshal(msg.Params, &in); err != nil {
-		return responseError(msg.ID, invalidParams(err.Error()))
+	in, bad := decode[protocol.UpdateMemoryRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
 	}
 	if !in.Scope.Valid() {
 		return responseError(msg.ID, invalidParams(`scope must be "cwd" | "projectRoot" | "home"`))
 	}
-	if err := d.api.UpdateMemory(ctx, in); err != nil {
-		return responseError(msg.ID, errorToRPC(err))
-	}
-	return responseResult(msg.ID, struct{}{})
+	return replyDone(msg, d.api.UpdateMemory(ctx, in))
 }

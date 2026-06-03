@@ -10,9 +10,9 @@ import (
 // ─── Lifecycle ──────────────────────────────────────────────────────
 
 func (d *Dispatcher) handleInitialize(ctx context.Context, msg *transport.Request) HandleResult {
-	var in protocol.InitializeRequest
-	if err := unmarshal(msg.Params, &in); err != nil {
-		return responseError(msg.ID, invalidParams(err.Error()))
+	in, bad := decode[protocol.InitializeRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
 	}
 	out, err := d.api.Initialize(ctx, in)
 	if err != nil {
@@ -23,41 +23,32 @@ func (d *Dispatcher) handleInitialize(ctx context.Context, msg *transport.Reques
 }
 
 func (d *Dispatcher) handlePing(ctx context.Context, msg *transport.Request) HandleResult {
-	if err := d.api.Ping(ctx); err != nil {
-		return responseError(msg.ID, errorToRPC(err))
-	}
-	return responseResult(msg.ID, struct{}{})
+	return replyDone(msg, d.api.Ping(ctx))
 }
 
 // ─── Runs (API.md §7.3) ─────────────────────────────────────────────
 
 func (d *Dispatcher) handleRunsStart(ctx context.Context, msg *transport.Request) HandleResult {
-	var in protocol.StartRunRequest
-	if err := unmarshal(msg.Params, &in); err != nil {
-		return responseError(msg.ID, invalidParams(err.Error()))
+	in, bad := decode[protocol.StartRunRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
 	}
 	out, events, err := d.api.StartRun(ctx, in)
-	if err != nil {
-		return responseError(msg.ID, errorToRPC(err))
-	}
-	return streamingResult(msg.ID, out, out.RunID, events)
+	return replyStream(msg, out, out.RunID, events, err)
 }
 
 // handleRunsResume answers open interrupts by starting a continuation
 // run (R model, API.md §6). The continuation is a fresh root stream.
 func (d *Dispatcher) handleRunsResume(ctx context.Context, msg *transport.Request) HandleResult {
-	var in protocol.ResumeRunRequest
-	if err := unmarshal(msg.Params, &in); err != nil {
-		return responseError(msg.ID, invalidParams(err.Error()))
+	in, bad := decode[protocol.ResumeRunRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
 	}
 	if in.ParentRunID == "" {
 		return responseError(msg.ID, invalidParams("parentRunId is required"))
 	}
 	out, events, err := d.api.ResumeRun(ctx, in)
-	if err != nil {
-		return responseError(msg.ID, errorToRPC(err))
-	}
-	return streamingResult(msg.ID, out, out.RunID, events)
+	return replyStream(msg, out, out.RunID, events, err)
 }
 
 // handleRunsSubscribe rebinds an existing root run's stream to the
@@ -67,43 +58,31 @@ func (d *Dispatcher) handleRunsSubscribe(ctx context.Context, msg *transport.Req
 	if err != nil {
 		return responseError(msg.ID, invalidParams(err.Error()))
 	}
-	out, events, err := d.api.SubscribeRun(ctx, runID)
-	if err != nil {
-		return responseError(msg.ID, errorToRPC(err))
-	}
-	return streamingResult(msg.ID, out, out.RunID, events)
+	out, events, sErr := d.api.SubscribeRun(ctx, runID)
+	return replyStream(msg, out, out.RunID, events, sErr)
 }
 
 func (d *Dispatcher) handleRunsCancel(ctx context.Context, msg *transport.Request) HandleResult {
-	var in protocol.CancelRunRequest
-	if err := unmarshal(msg.Params, &in); err != nil {
-		return responseError(msg.ID, invalidParams(err.Error()))
+	in, bad := decode[protocol.CancelRunRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
 	}
 	if in.RunID == "" {
 		return responseError(msg.ID, invalidParams("runId is required"))
 	}
-	if err := d.api.CancelRun(ctx, in); err != nil {
-		return responseError(msg.ID, errorToRPC(err))
-	}
-	return responseResult(msg.ID, struct{}{})
+	return replyDone(msg, d.api.CancelRun(ctx, in))
 }
 
 func (d *Dispatcher) handleRunsList(ctx context.Context, msg *transport.Request) HandleResult {
 	var in protocol.ListRunsRequest
 	_ = unmarshal(msg.Params, &in) // empty params is valid
 	runs, err := d.api.ListRuns(ctx, in)
-	if err != nil {
-		return responseError(msg.ID, errorToRPC(err))
-	}
-	return responseResult(msg.ID, runs)
+	return reply(msg, runs, err)
 }
 
 func (d *Dispatcher) handleRunsListOpenInterrupts(ctx context.Context, msg *transport.Request) HandleResult {
 	var in protocol.ListOpenInterruptsRequest
 	_ = unmarshal(msg.Params, &in)
 	open, err := d.api.ListOpenInterrupts(ctx, in)
-	if err != nil {
-		return responseError(msg.ID, errorToRPC(err))
-	}
-	return responseResult(msg.ID, open)
+	return reply(msg, open, err)
 }
