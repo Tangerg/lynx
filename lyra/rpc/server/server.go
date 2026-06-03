@@ -47,10 +47,11 @@ type Server struct {
 // runEntry holds bookkeeping for one in-flight run — used by CancelRun,
 // ListRuns, and the event pump in runs.go.
 type runEntry struct {
-	runID     string
-	sessionID string
-	turnID    string
-	cancel    context.CancelFunc
+	runID       string
+	sessionID   string
+	turnID      string
+	parentRunID string // set for continuation runs (runs.resume)
+	cancel      context.CancelFunc
 }
 
 // New builds a Server. Returns an error when Runtime is nil.

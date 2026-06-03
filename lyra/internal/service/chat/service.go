@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/lyra/internal/engine"
-	"github.com/Tangerg/lynx/lyra/internal/service/approval"
 )
 
 // StartTurnRequest is the input to [Service.StartTurn]. SessionID
@@ -218,21 +217,6 @@ type PlanGenerated struct {
 	Plan string
 }
 
-// ToolCallApproval fires when a destructive tool wants to run and
-// the configured approval mode requires user consent. The turn
-// blocks until the client resolves the matching [approval.Request]
-// via [approval.Service.Decide]; on Deny the engine surfaces the
-// refusal back to the model so it can recover or abandon the
-// approach.
-//
-// Emitted only when the runtime is wired with a non-yolo
-// [approval.Service]; transports gate on this event to render
-// the consent prompt.
-type ToolCallApproval struct {
-	BaseEvent
-	Request approval.Request
-}
-
 // ToolCallEnd fires when the tool finishes. Output is the tool's
 // returned text; Err is non-empty when the tool failed.
 //
@@ -320,7 +304,6 @@ func (e MessageDelta) stamp(b BaseEvent) Event     { e.BaseEvent = b; return e }
 func (e ReasoningDelta) stamp(b BaseEvent) Event   { e.BaseEvent = b; return e }
 func (e ToolCallStart) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
 func (e ToolCallEnd) stamp(b BaseEvent) Event      { e.BaseEvent = b; return e }
-func (e ToolCallApproval) stamp(b BaseEvent) Event { e.BaseEvent = b; return e }
 func (e PlanGenerated) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
 func (e CompactBoundary) stamp(b BaseEvent) Event  { e.BaseEvent = b; return e }
 func (e MemoryUpdated) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
