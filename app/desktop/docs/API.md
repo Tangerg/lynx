@@ -324,11 +324,14 @@ interface Usage {
 }
 
 interface ProblemData {                // 用于 RPCError.data、RunResult.error、toolCall.error
-  type: string;                        // 稳定符号名（判错用，§8）
-  detail?: string;
-  retryable?: boolean;
-  [key: string]: unknown;              // 可扩展
+  type: string;                        // 稳定符号名（判错用，§8.3）；插件用命名空间（§8.4）
+  detail?: string;                     // 本次发生的人读说明（per-occurrence，非每类不变）
+  retryable?: boolean;                 // 是否可重试
+  retryAfterSeconds?: number;          // 可重试时的最早重试时机（如 provider 限流回传的退避）
+  errors?: FieldError[];               // 字段级错误（invalid_params / 表单校验，按 field 寻址）
+  [key: string]: unknown;              // 仍可附加 type-specific 扩展成员
 }
+interface FieldError { field: string; detail: string }   // field = 出错字段名（params 里的 key）
 ```
 
 ### 4.7 上下文 / 工具规格
@@ -846,6 +849,26 @@ server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` 
 | `-32016` | `invalid_protocol_version` | 版本协商失败（`initialize` 硬断开） |
 
 `error.data` 为 `ProblemData`，**必须含 `type`（= 上表 name）**。
+
+> 业务码 `-32001..-32016` 落在 JSON-RPC 2.0 的 `-32000..-32099`「implementation-defined server-error」保留段；
+> `-326xx` / `-32700` 为 spec 预定义码。数字码合规即可，**判别一律走 `type`**。
+
+### 8.3 错误细节（ProblemData，对标 RFC 9457）
+
+`error.data` 是 `ProblemData`（§4.6）—— **RFC 9457 *Problem Details* 数据模型的传输无关裁剪**：去掉 HTTP 专属的
+`status`（与 JSON-RPC `code` 冗余）和 `instance`；`type` 是稳定符号名、**不要求是可解析 URI**（命名空间见 §8.4）。
+单个 `type` 即机器判别键，不引入第二套分类。两个**约定好的扩展成员**（替代各产出方自创 shape）：
+
+- **`retryAfterSeconds`** —— 可重试错误（典型 `provider_error` 限流）回传的最早重试时机；client 退避以此为准，缺省回落自有退避。
+- **`errors: FieldError[]`** —— 字段级校验错误（典型 `invalid_params`、provider 配置 / `question` 答案表单）；
+  `field` = 出错的 params key，UI 可逐字段标红。
+
+### 8.4 `type` 命名空间（防撞名）
+
+- **first-party**（runtime 自身，§8.2 上表）用裸 `snake_case` 符号。
+- **第三方插件**产出的错误（工具执行失败落在 `toolCall.error`，§4.3）用 `plugin:<pluginName>/<symbol>`
+  （如 `plugin:acme/quota_exceeded`），避免与 first-party 及彼此撞名。
+- client 判错：裸符号按 first-party 集匹配；`plugin:` 前缀的按插件路由。
 
 ---
 

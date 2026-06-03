@@ -93,6 +93,7 @@ export type {
   // Usage / error / context / tools
   Usage,
   ProblemData,
+  FieldError,
   ContextItem,
   JsonSchema,
   ToolSpec,
