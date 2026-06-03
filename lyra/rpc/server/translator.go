@@ -106,9 +106,10 @@ func (t *translator) translate(ev chat.Event) []protocol.StreamEvent {
 // that item's id:
 //
 //	approval → a toolCall Item (inProgress) for the gated call
-//	plan     → an agentMessage Item carrying the plan markdown
+//	question → a question Item (inProgress) for a plan awaiting review
 //
-// (The plan stays prose until the planner emits structured steps.)
+// (The contract has no "plan" interrupt kind — plan-review rides the
+// generic question mechanism; see questionInterrupt.)
 func (t *translator) interrupt(e chat.TurnInterrupted) []protocol.StreamEvent {
 	out := t.closeReasoning()
 	out = append(out, t.closeText()...)
@@ -120,8 +121,8 @@ func (t *translator) interrupt(e chat.TurnInterrupted) []protocol.StreamEvent {
 		switch in.Kind {
 		case "approval":
 			ev, entry = t.approvalInterrupt(in)
-		default: // plan
-			ev, entry = t.planInterrupt(in)
+		default: // question (plan-review)
+			ev, entry = t.questionInterrupt(in)
 		}
 		out = append(out, ev)
 		wire = append(wire, entry)
@@ -156,26 +157,53 @@ func (t *translator) approvalInterrupt(in chat.Interrupt) (protocol.StreamEvent,
 	return ev, entry
 }
 
-// planInterrupt renders a plan awaiting review as a completed agentMessage
-// Item (the plan markdown) plus the protocol.Interrupt keyed to it. The
-// plan stays prose until the planner emits structured steps.
-func (t *translator) planInterrupt(in chat.Interrupt) (protocol.StreamEvent, protocol.Interrupt) {
+// Plan-review interrupt shape. The contract has no "plan" interrupt kind
+// (API.md §6: approval | question | toolResult), so a plan awaiting review
+// surfaces through the generic question mechanism: an inProgress question
+// Item whose prompt is the plan markdown and whose single choice field
+// decides approve / reject. These constants are the single source the
+// resume path (resolveDecision) reads the answer back against.
+const (
+	planDecisionField   = "decision"
+	planDecisionApprove = "Approve"
+	planDecisionReject  = "Reject"
+)
+
+// questionInterrupt renders a plan awaiting review as an inProgress
+// question Item (the plan markdown as the prompt, an Approve/Reject choice)
+// plus the protocol.Interrupt keyed to it. The client answers via
+// runs.resume with an "answer" response carrying the chosen label.
+func (t *translator) questionInterrupt(in chat.Interrupt) (protocol.StreamEvent, protocol.Interrupt) {
 	plan, _ := in.Payload.(string)
 	id := t.nextItemID()
+	question := &protocol.Question{
+		Prompt: plan,
+		Fields: []protocol.QuestionField{{
+			Name:     planDecisionField,
+			Label:    "Proceed with this plan?",
+			Header:   "Plan",
+			Required: true,
+			Type:     "choice",
+			Options: []protocol.QuestionOption{
+				{Label: planDecisionApprove},
+				{Label: planDecisionReject},
+			},
+		}},
+	}
 	ev := protocol.StreamEvent{
-		Type: protocol.StreamItemCompleted,
+		Type: protocol.StreamItemStarted,
 		Item: &protocol.Item{
-			ID:      id,
-			RunID:   t.runID,
-			Status:  protocol.ItemStatusCompleted,
-			Type:    protocol.ItemTypeAgentMessage,
-			Content: []protocol.ContentBlock{{Type: "text", Text: plan}},
+			ID:       id,
+			RunID:    t.runID,
+			Status:   protocol.ItemStatusInProgress,
+			Type:     protocol.ItemTypeQuestion,
+			Question: question,
 		},
 	}
 	entry := protocol.Interrupt{
 		ItemID:  id,
-		Kind:    "plan",
-		Payload: map[string]any{"plan": plan},
+		Kind:    "question",
+		Payload: map[string]any{"question": question},
 	}
 	return ev, entry
 }

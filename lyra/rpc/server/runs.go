@@ -355,7 +355,8 @@ func (i *Server) SubscribeRun(_ context.Context, _ string) (*protocol.StartRunRe
 // continues with whatever the response staged).
 func resolveDecision(responses []protocol.InterruptResponse) (bool, error) {
 	for _, r := range responses {
-		if r.Response.Kind == "approval" {
+		switch r.Response.Kind {
+		case "approval":
 			switch r.Response.Decision {
 			case "approve":
 				return true, nil
@@ -364,9 +365,19 @@ func resolveDecision(responses []protocol.InterruptResponse) (bool, error) {
 			default:
 				return false, errors.New(`runs.resume: approval decision must be "approve" | "deny"`)
 			}
+		case "answer":
+			// Plan-review question (see translator.questionInterrupt): the
+			// decision field carries the chosen label. Anything other than an
+			// explicit reject proceeds.
+			if v, ok := r.Response.Answers[planDecisionField]; ok {
+				if s, _ := v.(string); s == planDecisionReject {
+					return false, nil
+				}
+			}
+			return true, nil
 		}
 	}
-	// No approval response → treat as continue (answer/toolResult kinds).
+	// No actionable response → treat as continue (e.g. toolResult kinds).
 	return true, nil
 }
 
