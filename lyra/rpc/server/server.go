@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
@@ -42,6 +43,20 @@ type Server struct {
 	// by id. Wired through chat.Service on the in-process path.
 	runMu sync.Mutex
 	runs  map[string]*runEntry
+
+	// eventSeq is the server-wide monotonic source for RunEvent ids
+	// (TRANSPORT.md §9.1). A single counter across all runs is strictly
+	// stronger than the contract's per-root-stream requirement and lets
+	// Last-Event-Id linearly resume / dedup even when the single SSE
+	// connection interleaves events from more than one run.
+	eventSeq atomic.Uint64
+}
+
+// nextEventID returns the next globally-monotonic RunEvent id, formatted
+// evt_<zero-padded-decimal> (TRANSPORT.md §9.1, e.g. evt_00000000042).
+// The fixed width keeps lexical and numeric ordering in agreement.
+func (i *Server) nextEventID() string {
+	return protocol.IDPrefixEvent + fmt.Sprintf("%011d", i.eventSeq.Add(1))
 }
 
 // runEntry holds bookkeeping for one in-flight run — used by CancelRun,

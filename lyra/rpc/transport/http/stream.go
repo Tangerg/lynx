@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -100,11 +101,19 @@ func (s *Server) replay(ctx context.Context, sw *sse.Writer, lastEventID string)
 	}
 	s.streams.mu.Unlock()
 
+	// eventIds are globally monotonic, so merge every per-run buffer's
+	// tail and replay in global order — a single Last-Event-Id resumes the
+	// whole connection linearly even when runs interleaved.
+	var recs []streamRecord
 	for _, buf := range bufs {
-		for _, rec := range buf.since(lastEventID) {
-			if err := writeSSEMessage(ctx, sw, rec.eventID, rec.msg); err != nil {
-				return
-			}
+		recs = append(recs, buf.since(lastEventID)...)
+	}
+	slices.SortFunc(recs, func(a, b streamRecord) int {
+		return compareEventID(a.eventID, b.eventID)
+	})
+	for _, rec := range recs {
+		if err := writeSSEMessage(ctx, sw, rec.eventID, rec.msg); err != nil {
+			return
 		}
 	}
 }

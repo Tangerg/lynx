@@ -163,16 +163,14 @@ func (i *Server) resumeSegment(runID, parentRunID string, handle chat.TurnHandle
 // channel before it closes.
 func (i *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle chat.TurnHandle, inner iter.Seq[chat.Event], out chan<- protocol.RunEvent) {
 	tr := newTranslator(handle.SessionID, runID, parentRunID)
-	var evtSeq int
 	finished := false
 	parked := false
 
 	send := func(events []protocol.StreamEvent) bool {
 		for _, se := range events {
-			evtSeq++
 			re := protocol.RunEvent{
 				RunID:     runID,
-				EventID:   protocol.IDPrefixEvent + runID + "_" + strconv.Itoa(evtSeq),
+				EventID:   i.nextEventID(),
 				Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
 				Durable:   durableFor(se.Type),
 				Event:     se,
@@ -199,7 +197,7 @@ func (i *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 			if tr.errMsg != "" {
 				outcome = protocol.OutcomeError
 			}
-			_ = sendTerminal(out, runID, &evtSeq, tr.finish(outcome))
+			_ = i.sendTerminal(out, runID, tr.finish(outcome))
 		}
 		close(out)
 		i.runMu.Lock()
@@ -252,13 +250,14 @@ func (i *Server) recordInterrupt(ctx context.Context, runID string, handle chat.
 }
 
 // sendTerminal pushes the deferred terminal events without the ctx
-// guard so the stream always ends with run.finished. Best-effort.
-func sendTerminal(out chan<- protocol.RunEvent, runID string, evtSeq *int, events []protocol.StreamEvent) error {
+// guard so the stream always ends with run.finished. Best-effort. Event
+// ids come from the same server-global counter as the live pump so the
+// terminal stays monotonic with what preceded it.
+func (i *Server) sendTerminal(out chan<- protocol.RunEvent, runID string, events []protocol.StreamEvent) error {
 	for _, se := range events {
-		*evtSeq++
 		re := protocol.RunEvent{
 			RunID:     runID,
-			EventID:   protocol.IDPrefixEvent + runID + "_" + strconv.Itoa(*evtSeq),
+			EventID:   i.nextEventID(),
 			Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
 			Durable:   durableFor(se.Type),
 			Event:     se,
