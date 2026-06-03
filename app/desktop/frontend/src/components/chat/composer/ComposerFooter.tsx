@@ -7,7 +7,7 @@
 // the footer is a pure container — no per-chip props.
 
 import type { ComposerStatusSpec } from "@/plugins/sdk";
-import { PluginBoundary } from "@/plugins/PluginBoundary";
+import { PluginBoundary } from "@/plugins/host/PluginBoundary";
 import { COMPOSER_STATUS, useExtensionPoint } from "@/plugins/sdk";
 
 function Chip({ it }: { it: ComposerStatusSpec }) {

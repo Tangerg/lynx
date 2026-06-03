@@ -2,7 +2,7 @@ import type { ContentBlock, PlanItem, ToolCall } from "@/protocol/run/viewState"
 import { MarkdownMessage } from "./markdown/MarkdownMessage";
 import { ApprovalCard, PlanBlock, QuestionCard, ReasoningBlock } from "./cards";
 import { ToolCard } from "@/components/tools/ToolCard";
-import { PluginContentBlock } from "@/plugins/PluginContentBlock";
+import { PluginContentBlock } from "@/plugins/host/PluginContentBlock";
 import { openViewForTool } from "@/state/toolRouting";
 
 /**

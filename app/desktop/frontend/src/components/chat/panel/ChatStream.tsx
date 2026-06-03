@@ -7,7 +7,7 @@
 
 import type { StreamControls } from "./MessageStream";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Slot } from "@/plugins/Slot";
+import { Slot } from "@/plugins/host/Slot";
 import { useAgentSlice } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
 import { useSessionStore } from "@/state/sessionStore";

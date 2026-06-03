@@ -4,7 +4,7 @@
 // the listening component. Pulling it out of PluginProvider means the
 // provider has zero JSX of its own — pure orchestration.
 
-import { PluginToaster } from "@/plugins/PluginToaster";
+import { PluginToaster } from "@/plugins/host/PluginToaster";
 import { definePlugin } from "@/plugins/sdk";
 
 export default definePlugin({

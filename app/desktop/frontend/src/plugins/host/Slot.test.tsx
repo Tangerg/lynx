@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { definePlugin, loadPlugin } from "./sdk";
+import { definePlugin, loadPlugin } from "../sdk";
 import { Slot } from "./Slot";
 
 describe("slot", () => {

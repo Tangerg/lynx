@@ -14,7 +14,7 @@
 import type { SidebarSession } from "@/lib/data/queries";
 import { DragStrip, Icon, IconButton, Panel } from "@/components/common";
 import { useT } from "@/lib/i18n";
-import { PluginBoundary } from "@/plugins/PluginBoundary";
+import { PluginBoundary } from "@/plugins/host/PluginBoundary";
 import { SIDEBAR_RAIL_ITEM, useExtensionPoint } from "@/plugins/sdk";
 
 interface Props {

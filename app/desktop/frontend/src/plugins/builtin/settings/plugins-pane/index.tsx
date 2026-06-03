@@ -10,7 +10,7 @@ import { Icon, IconButton, PillButton } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { definePlugin, reloadPlugin, usePluginErrorStore, usePluginStore } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
-import { pluginOrigin } from "@/plugins/sideload";
+import { pluginOrigin } from "@/plugins/host/sideload";
 
 function PluginsPane() {
   const loaded = usePluginStore((s) => s.loaded);

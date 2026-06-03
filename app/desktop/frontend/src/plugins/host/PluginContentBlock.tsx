@@ -6,7 +6,7 @@
 
 import type { ContentBlock } from "@/protocol/run/viewState";
 import { PluginBoundary } from "./PluginBoundary";
-import { CONTENT_BLOCK, useExtensionByKey } from "./sdk";
+import { CONTENT_BLOCK, useExtensionByKey } from "../sdk";
 
 export function PluginContentBlock({ block }: { block: ContentBlock }) {
   const Renderer = useExtensionByKey(CONTENT_BLOCK, block.kind);

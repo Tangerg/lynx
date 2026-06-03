@@ -4,9 +4,9 @@
 import { DragStrip, Icon, noDragClasses, Panel, ScrollArea } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { PluginBoundary } from "@/plugins/PluginBoundary";
+import { PluginBoundary } from "@/plugins/host/PluginBoundary";
 import { SIDEBAR_SECTION, useExtensionPoint } from "@/plugins/sdk";
-import { Slot } from "@/plugins/Slot";
+import { Slot } from "@/plugins/host/Slot";
 
 interface Props {
   onToggleRail: () => void;

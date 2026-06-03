@@ -1,6 +1,6 @@
 import type { ErrorInfo, ReactNode } from "react";
 import { Component } from "react";
-import { pickPluginErrorFallback, reportPluginError } from "./sdk";
+import { pickPluginErrorFallback, reportPluginError } from "../sdk";
 
 interface Props {
   /** Plugin name — used for the fallback label and the console log. */

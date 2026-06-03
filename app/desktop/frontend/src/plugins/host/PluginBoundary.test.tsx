@@ -2,7 +2,7 @@ import type React from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { PluginBoundary } from "./PluginBoundary";
-import { usePluginErrorStore } from "./sdk";
+import { usePluginErrorStore } from "../sdk";
 
 function Boom(): React.ReactNode {
   throw new Error("kaboom");

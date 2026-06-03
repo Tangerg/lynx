@@ -6,7 +6,7 @@
 // (Run telemetry lives in the composer footer, global indicators in the
 // sidebar footer — there is no bottom status bar.)
 
-import { Slot } from "@/plugins/Slot";
+import { Slot } from "@/plugins/host/Slot";
 import { useUiStore } from "@/state/uiStore";
 
 export function AgentClientPage() {

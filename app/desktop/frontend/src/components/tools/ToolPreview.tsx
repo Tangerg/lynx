@@ -8,7 +8,7 @@
 // useful instead of an empty card.
 
 import type { ToolCall } from "@/protocol/run/viewState";
-import { PluginBoundary } from "@/plugins/PluginBoundary";
+import { PluginBoundary } from "@/plugins/host/PluginBoundary";
 import { TOOL_PREVIEW, useExtensionByKey } from "@/plugins/sdk";
 import { ToolInspector } from "./ToolInspector";
 

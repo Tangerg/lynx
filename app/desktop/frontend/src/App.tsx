@@ -1,6 +1,6 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/data/queryClient";
-import { PluginProvider } from "@/plugins/PluginProvider";
+import { PluginProvider } from "@/plugins/host/PluginProvider";
 import { AppRouter } from "@/router";
 
 // Top-level providers. Order matters:
