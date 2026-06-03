@@ -44,7 +44,7 @@ func (i *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 
 	// runId on the wire == the turn id for the root run.
 	runID := handle.TurnID
-	out, events, err := i.openSegment(runID, handle, sessionID)
+	out, events, err := i.openSegment(runID, "", handle, sessionID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -94,7 +94,7 @@ func (i *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	// is the original turn for a same-process resume, or the freshly rebuilt
 	// turn for a cross-restart one.
 	contRunID := protocol.IDPrefixRun + handle.TurnID + "_" + strconv.FormatInt(time.Now().UnixNano(), 36)
-	out, events, err := i.resumeSegment(contRunID, in.ParentRunID, handle, pending.SessionID)
+	out, events, err := i.openSegment(contRunID, in.ParentRunID, handle, pending.SessionID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -117,26 +117,11 @@ func (i *Server) rehydrate(ctx context.Context, pending interrupts.Pending, appr
 	})
 }
 
-// openSegment subscribes to the turn's event stream and starts the
-// wire pump for the root run.
-func (i *Server) openSegment(runID string, handle chat.TurnHandle, sessionID string) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
-	runCtx, cancel := context.WithCancel(context.Background())
-	inner, err := i.rt.Chat().Events(runCtx, handle)
-	if err != nil {
-		cancel()
-		return nil, nil, err
-	}
-	events := make(chan protocol.RunEvent, 32)
-	i.runMu.Lock()
-	i.runs[runID] = &runEntry{runID: runID, sessionID: sessionID, turnID: handle.TurnID, cancel: cancel}
-	i.runMu.Unlock()
-	go i.pumpRun(runCtx, runID, "", handle, inner, events)
-	return &protocol.StartRunResponse{RunID: runID}, events, nil
-}
-
-// resumeSegment is openSegment for a continuation run — same wiring but
-// the RunRef carries parentRunID.
-func (i *Server) resumeSegment(runID, parentRunID string, handle chat.TurnHandle, sessionID string) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
+// openSegment subscribes to the turn's event stream and starts the wire
+// pump for one run segment. parentRunID is empty for a root run
+// (runs.start) and set for a continuation (runs.resume) — it rides onto
+// the RunRef and the runEntry so the continuation links back to its parent.
+func (i *Server) openSegment(runID, parentRunID string, handle chat.TurnHandle, sessionID string) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
 	runCtx, cancel := context.WithCancel(context.Background())
 	inner, err := i.rt.Chat().Events(runCtx, handle)
 	if err != nil {
