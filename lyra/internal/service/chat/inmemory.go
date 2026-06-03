@@ -49,6 +49,15 @@ type inMemory struct {
 
 	mu    sync.Mutex
 	turns map[string]*turnState // turn_id → state
+
+	// interruptKinds is the allowlist of HITL kinds the connected client
+	// declared it can answer (ClientCapabilities.InterruptKinds). nil means
+	// unconfigured → surface every kind (the permissive default for
+	// in-process / CLI callers that don't negotiate). A non-nil set gates
+	// strictly: a turn about to park on a kind absent here is auto-denied
+	// rather than left as an unanswerable interrupt (API.md §6.2). Guarded
+	// by mu.
+	interruptKinds map[string]bool
 }
 
 // ------------------------------------------------------------------
@@ -229,6 +238,34 @@ func (s *inMemory) resumeAndDrive(state *turnState, approved bool) error {
 	}
 	go s.drive(state, resumed)
 	return nil
+}
+
+// SetInterruptKinds records the HITL kinds the connected client can
+// answer (from ClientCapabilities.InterruptKinds, negotiated at
+// runtime.initialize). Passing an empty slice gates every kind; never
+// calling it leaves the permissive default (surface all). Single-tenant:
+// one client's negotiation applies process-wide.
+func (s *inMemory) SetInterruptKinds(kinds []string) {
+	set := make(map[string]bool, len(kinds))
+	for _, k := range kinds {
+		set[k] = true
+	}
+	s.mu.Lock()
+	s.interruptKinds = set
+	s.mu.Unlock()
+}
+
+// canSurface reports whether a turn may park on an interrupt of kind —
+// true when no allowlist is configured (permissive default) or kind is in
+// it. A false result means the client can't answer this kind, so the turn
+// auto-denies instead of deadlocking.
+func (s *inMemory) canSurface(kind string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.interruptKinds == nil {
+		return true
+	}
+	return s.interruptKinds[kind]
 }
 
 // ProcessID returns the agent-process id backing a live turn — the

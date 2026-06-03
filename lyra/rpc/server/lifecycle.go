@@ -10,10 +10,19 @@ import (
 // follows the MCP rules (API.md §2.2): when the client's requested
 // version differs from ours, we return the version WE support and
 // let the client decide whether to fall back / disconnect.
-func (i *Server) Initialize(_ context.Context, _ protocol.InitializeRequest) (*protocol.InitializeResponse, error) {
+func (i *Server) Initialize(_ context.Context, in protocol.InitializeRequest) (*protocol.InitializeResponse, error) {
 	// We accept any client version today — future builds may compare
 	// against a minimum-supported constant and return
 	// protocol.ErrInvalidProtocolVersion when too old.
+	//
+	// Record the HITL kinds the client declared it can answer so the chat
+	// service auto-denies any interrupt the client couldn't resolve rather
+	// than parking into a deadlock (API.md §6.2). An empty / absent list is
+	// treated permissively (surface all) so CLI / in-process callers that
+	// don't negotiate keep working.
+	if len(in.Capabilities.InterruptKinds) > 0 {
+		i.rt.Chat().SetInterruptKinds(in.Capabilities.InterruptKinds)
+	}
 	return &protocol.InitializeResponse{
 		ProtocolVersion: protocol.ProtocolVersion, // server's truth — client falls back if needed
 		ServerInfo:      i.serverInfo,

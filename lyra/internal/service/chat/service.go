@@ -131,6 +131,14 @@ type Service interface {
 	// Cancel stops the turn immediately, drains pending tool calls
 	// safely, and emits a final [TurnEnd] event with Reason=Canceled.
 	Cancel(ctx context.Context, handle TurnHandle) error
+
+	// SetInterruptKinds records the HITL interrupt kinds the connected
+	// client can answer (negotiated at runtime.initialize via
+	// ClientCapabilities.InterruptKinds). A turn about to park on a kind
+	// not in this set is auto-denied instead of left unanswerable
+	// (API.md §6.2 anti-deadlock). An empty set gates every kind; never
+	// calling it leaves the permissive default (surface all kinds).
+	SetInterruptKinds(kinds []string)
 }
 
 // ------------------------------------------------------------------

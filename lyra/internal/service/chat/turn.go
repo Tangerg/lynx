@@ -129,7 +129,7 @@ func (s *inMemory) drive(st *turnState, doneCh <-chan error) {
 	s.mu.Unlock()
 
 	if proc.Status() == core.StatusWaiting {
-		s.emitInterrupt(st, proc)
+		s.handleWaiting(st, proc)
 		return
 	}
 
@@ -143,6 +143,28 @@ func (s *inMemory) drive(st *turnState, doneCh <-chan error) {
 	// need to re-emit the assembled reply here.
 	s.emitTurnEnd(st, proc, st.lifecycle.get(), runErr, time.Since(st.startedAt), st.ctx.Err())
 	s.endTurn(st)
+}
+
+// handleWaiting decides what to do when the process parks at
+// StatusWaiting. If the pending interrupt's kind is one the client can
+// answer (see [inMemory.canSurface]) it surfaces it via
+// [inMemory.emitInterrupt] and the turn waits for [inMemory.Resume].
+// Otherwise the client could never answer it, so rather than leave a
+// deadlocked interrupt (API.md §6.2) the turn auto-denies and drives the
+// continuation on this same goroutine.
+func (s *inMemory) handleWaiting(st *turnState, proc engine.ChatProcess) {
+	aw := proc.PendingAwaitable()
+	if aw == nil || s.canSurface(interruptKind(aw)) {
+		s.emitInterrupt(st, proc)
+		return
+	}
+	resumed, err := proc.Resume(st.ctx, false)
+	if err != nil {
+		s.emit(st, ErrorEvent{Message: err.Error(), Code: "ENGINE_ERROR"})
+		s.finishTurn(st, TurnEndErrored)
+		return
+	}
+	s.drive(st, resumed)
 }
 
 // emitInterrupt marks the turn parked and surfaces the pending HITL
@@ -159,11 +181,22 @@ func (s *inMemory) emitInterrupt(st *turnState, proc engine.ChatProcess) {
 		s.emit(st, TurnInterrupted{})
 		return
 	}
-	kind := "plan"
-	if _, ok := aw.PromptAny().(ApprovalPrompt); ok {
-		kind = "approval"
+	s.emit(st, TurnInterrupted{Interrupts: []Interrupt{{Kind: interruptKind(aw), Payload: aw.PromptAny()}}})
+}
+
+// interruptKind classifies the pending awaitable into the wire interrupt
+// kind: an [ApprovalPrompt] payload is a gated tool call ("approval"),
+// anything else is a plan awaiting review ("plan"). Returns "" for a nil
+// awaitable (treated as surfaceable so the defensive empty-interrupt path
+// in emitInterrupt still fires).
+func interruptKind(aw core.Awaitable) string {
+	if aw == nil {
+		return ""
 	}
-	s.emit(st, TurnInterrupted{Interrupts: []Interrupt{{Kind: kind, Payload: aw.PromptAny()}}})
+	if _, ok := aw.PromptAny().(ApprovalPrompt); ok {
+		return "approval"
+	}
+	return "plan"
 }
 
 // endTurn closes the turn's event channel and removes it from the live
