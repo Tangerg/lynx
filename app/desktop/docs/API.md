@@ -123,12 +123,31 @@ interface RPCError { code: number; message: string; data?: ProblemData; }
 ### 2.3 事件名
 
 小写 `domain.action`：`run.started` / `run.finished` / `item.started` / `item.delta` / `item.completed` /
-`state.snapshot` / `state.delta` / `custom`。运行时自有行为**必须**用一等事件/Item 类型；`custom` 只留第三方扩展。
+`state.snapshot` / `state.delta` / `custom`。运行时自有行为**必须**用一等事件/Item 类型；`custom` 只留第三方扩展，
+其 `name` 遵 §2.5 命名空间。
 
 ### 2.4 方法名
 
 `<domain>.<verb>`，HTTP URL 保留点（不斜杠化）。例：`runs.start` / `items.list` / `workspace.getDiff` /
 `workspace.mcp.listServers`。
+
+### 2.5 第三方扩展命名空间（防撞名）
+
+**唯一**的可枚举标识命名约定，统一适用于所有"first-party 与第三方共用一个 keyspace"的扩展缝：
+
+- **first-party**（runtime 自身 / 内置）用**裸符号**（`session_not_found` / `progress`）。
+- **第三方插件**产出的同类标识一律加前缀 `plugin:<pluginName>/<symbol>`（如 `plugin:acme/progress`），
+  避免与 first-party 及彼此撞名。
+
+适用面（**全部沿用此一条**，不各自再定）：
+
+| 缝 | 标识 | 见 |
+| --- | --- | --- |
+| `custom` 事件 | `name` | §5 / §9 |
+| 共享 `state` | 顶层 key | §5 |
+| error | `type` | §8.4 |
+
+client 路由：裸符号按 first-party 集匹配；`plugin:` 前缀按 `<pluginName>` 分发。
 
 ---
 
@@ -437,9 +456,9 @@ type StreamEvent =
   | { type: "item.started";   item: Item }                       // item 壳（status=inProgress）
   | { type: "item.delta";     itemId: string; delta: ItemDelta }
   | { type: "item.completed"; item: Item }                       // 权威终态，durable
-  | { type: "state.snapshot"; state: Record<string, unknown> }
+  | { type: "state.snapshot"; state: Record<string, unknown> }  // 第三方顶层 key 遵 §2.5
   | { type: "state.delta";    patch: JsonPatch }
-  | { type: "custom";         name: string; payload: unknown };
+  | { type: "custom";         name: string; payload: unknown }; // 第三方 name 遵 §2.5
 
 type JsonPatch = Array<{ op: "add"|"remove"|"replace"|"move"|"copy"|"test"; path: string; value?: unknown; from?: string }>;
 ```
@@ -865,10 +884,8 @@ server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` 
 
 ### 8.4 `type` 命名空间（防撞名）
 
-- **first-party**（runtime 自身，§8.2 上表）用裸 `snake_case` 符号。
-- **第三方插件**产出的错误（工具执行失败落在 `toolCall.error`，§4.3）用 `plugin:<pluginName>/<symbol>`
-  （如 `plugin:acme/quota_exceeded`），避免与 first-party 及彼此撞名。
-- client 判错：裸符号按 first-party 集匹配；`plugin:` 前缀的按插件路由。
+error `type` 是 §2.5 命名空间的一个实例：first-party（§8.2 上表）用裸 `snake_case`；**第三方插件**产出的错误
+（工具执行失败落在 `toolCall.error`，§4.3）用 `plugin:<pluginName>/<symbol>`（如 `plugin:acme/quota_exceeded`）。
 
 ---
 
@@ -877,7 +894,7 @@ server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` 
 ```ts
 interface ServerCapabilities {
   protocolVersion: string;
-  events: string[];                    // 发出的事件 type（run.* / item.* / state.* / custom 名）
+  events: string[];                    // 发出的事件 type（run.* / item.* / state.* / custom 名；第三方 custom 名遵 §2.5）
   features: {                          // 未声明默认 false
     reasoning: boolean; mcp: boolean; multimodal: boolean; checkpoints: boolean;
     background: boolean; subagents: boolean; skills: boolean; sessionExport: boolean;
