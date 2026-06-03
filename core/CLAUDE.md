@@ -51,6 +51,12 @@
 - **Options 字段 = pointer**：`chat.Options.Temperature *float32` —— nil 表示"用 provider 默认值"
 - **`MiddlewareManager.UseMiddlewares(...any)`**：接 any，运行时 type-assert 到 `CallMiddleware` / `StreamMiddleware`，允许一个 fn 同时实现两条链
 
+## 强反向不变量
+
+- ❌ **`chat.Message` 加新子类型**：sealed 接口的设计意图，会破坏所有 type switch（`message()` 方法封口故意的）
+- ❌ **stream 用 channel 不用 `iter.Seq2`**：Go 1.23+ 标准
+- ❌ **业务逻辑放 core**：core 是协议层，具体实现在外圈
+
 ## 关键目录
 
 ```
@@ -86,9 +92,3 @@ go test -race ./model/...
 - **改 `vectorstore` filter AST**：所有 vectorstores/* 后端有 visitor 转方言，AST 节点变了全部 visitor 都要跟
 - **改 `CallHandler` / `StreamHandler` 签名**：整个生态都依赖；不要改
 - **加新模态**：复用 `CallHandler[Req, Resp]` 泛型骨架，新建 `model/<modality>/`，写自己的 Request / Response / Options
-
-## 强反向不变量
-
-- ❌ **`chat.Message` 加新子类型**：sealed 接口的设计意图，会破坏所有 type switch（`message()` 方法封口故意的）
-- ❌ **stream 用 channel 不用 `iter.Seq2`**：Go 1.23+ 标准
-- ❌ **业务逻辑放 core**：core 是协议层，具体实现在外圈
