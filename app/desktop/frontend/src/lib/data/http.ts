@@ -1,6 +1,6 @@
 import type { KyInstance } from "ky";
 import ky from "ky";
-import { AGUI_BASE } from "@/main/config";
+import { RUNTIME_BASE } from "@/main/config";
 import { getConfig } from "@/plugins/sdk/config";
 import { listRpcAfterHooks, listRpcBeforeHooks } from "@/plugins/sdk/selectors";
 
@@ -10,7 +10,7 @@ import { listRpcAfterHooks, listRpcBeforeHooks } from "@/plugins/sdk/selectors";
 // every request so a runtime change takes effect immediately.
 
 function activeBase(): string {
-  return getConfig<string>("api.baseUrl") ?? AGUI_BASE;
+  return getConfig<string>("api.baseUrl") ?? RUNTIME_BASE;
 }
 
 // Thread the request through every before-hook: each may return a
@@ -61,7 +61,7 @@ const rewriteBase = (state: { request: Request }) => anchorOn(state.request, act
 // `retry: 0` because react-query already handles retries — letting ky
 // retry would double-retry on transient failures.
 export const api: KyInstance = ky.create({
-  baseUrl: AGUI_BASE,
+  baseUrl: RUNTIME_BASE,
   retry: 0,
   timeout: 30_000,
   headers: { Accept: "application/json" },

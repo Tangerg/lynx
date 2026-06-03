@@ -16,7 +16,7 @@ interface Props {
 // Elapsed time is captured client-side: we snapshot the wall clock at first
 // render (≈ first reasoning delta) and freeze it the tick streaming flips
 // false. Server-authoritative duration would be cleaner, but reasoning
-// timestamps aren't in the AG-UI events today and a 50ms render skew on a
+// timestamps aren't in the protocol events today and a 50ms render skew on a
 // label that always reads "thought for Xs" is not worth a protocol change.
 export function ReasoningBlock({ text, status }: Props) {
   const streaming = status === "running";

@@ -9,7 +9,7 @@
 import { metrics as otelApi } from "@opentelemetry/api";
 
 // Roughly twice a second — fast enough to feel live in the table, slow
-// enough to avoid React commit churn under heavy AG-UI traffic.
+// enough to avoid React commit churn under heavy event traffic.
 const METRIC_EXPORT_INTERVAL_MS = 500;
 
 let installPromise: Promise<void> | null = null;

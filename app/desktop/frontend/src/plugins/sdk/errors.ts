@@ -8,7 +8,7 @@
 // Sources we feed in:
 //   - PluginBoundary  (render errors)
 //   - loadPlugin      (setup errors)
-//   - reducer         (agui handler errors)
+//   - reducer         (event handler errors)
 //   - Composer.submit (slash command run errors)
 
 import { create } from "zustand";

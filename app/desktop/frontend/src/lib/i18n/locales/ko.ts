@@ -70,7 +70,7 @@ export const ko: Record<string, string> = {
 
   "settings.pane.connection": "연결",
   "settings.connection.title": "백엔드",
-  "settings.connection.sub": "AG-UI 런타임 주소. 다음 요청부터 적용.",
+  "settings.connection.sub": "Lyra Runtime 런타임 주소. 다음 요청부터 적용.",
   "settings.connection.url": "URL",
   "settings.connection.reset": "기본값 복원",
 

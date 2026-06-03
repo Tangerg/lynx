@@ -8,8 +8,8 @@
 // Plugin config (`host.config.set("api.baseUrl", "...")`) can override
 // this at runtime; this file just supplies the first-paint default.
 
-/** Default base URL for the local Go AG-UI mock backend. */
-export const AGUI_BASE = "http://127.0.0.1:17171";
+/** Default base URL for the local Go Lyra Runtime mock backend. */
+export const RUNTIME_BASE = "http://127.0.0.1:17171";
 
 /**
  * Runtime Protocol version this client negotiates at handshake. Date

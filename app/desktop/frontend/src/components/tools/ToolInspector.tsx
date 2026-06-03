@@ -1,6 +1,6 @@
 // Generic tool inspector — fallback when a tool fn has no
 // plugin-registered preview. Surfaces the raw `args` + `result` from
-// the AG-UI event so the user can see exactly what the agent passed
+// the StreamEvent so the user can see exactly what the agent passed
 // in and got back, even for tools we've never seen before.
 //
 // Portai's ToolInvocationCard does the same: it pretty-prints JSON,

@@ -7,7 +7,7 @@
 //
 // Props are limited to one truly external input:
 //   onSend — supplied by kernel-chat (knows how to forward into the
-//            live AG-UI agent). Kept as a prop so ChatPanel itself
+//            live agent). Kept as a prop so ChatPanel itself
 //            has no opinion about *how* messages get to the agent.
 
 import type { ComposerMode } from "@/state/composerStore";
@@ -19,7 +19,7 @@ import { PanelHeader } from "./PanelHeader";
 import { WorkspaceViewBody } from "./WorkspaceViewBody";
 
 interface Props {
-  /** Send a plain user message through the live AG-UI agent. Supplied by
+  /** Send a plain user message through the live agent. Supplied by
    *  kernel-chat (or whatever container owns the agent session). */
   onSend: (text: string) => void;
 }

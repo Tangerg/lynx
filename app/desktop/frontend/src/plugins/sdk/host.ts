@@ -110,7 +110,7 @@ export function createHost(
 
   // Shared write path for the open-extension-point substrate. Both the
   // public `host.extensions.contribute` and the few retained thin facades
-  // (`layout.register`, `agui.onCore`, …) route through here, so built-in and
+  // (`layout.register`, `events.onStream`, …) route through here, so built-in and
   // third-party contributions hit the exact same code. Keying policy lives
   // on the point: `single` dedupes by `keyOf(item)` (warns on cross-plugin
   // override); `multi` mints a per-(plugin,id) key so contributions coexist.

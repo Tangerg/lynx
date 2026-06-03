@@ -31,7 +31,7 @@ interface Props {
 
 // Replay the most recent user prompt before the given assistant message.
 // Same algorithm as the RegenerateButton in message-actions/index.tsx —
-// AG-UI has no "fork-from-here" verb so we resend the last user text.
+// the protocol has no "fork-from-here" verb so we resend the last user text.
 function regenerate(msg: Message): void {
   const sid = useSessionStore.getState().activeSessionId;
   const send = useAgentStore.getState().sessions[sid]?.send;

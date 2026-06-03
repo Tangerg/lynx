@@ -18,7 +18,7 @@ import type {
   Session,
 } from "@/rpc";
 import { api } from "@/lib/data/http";
-import { AGUI_BASE } from "@/main/config";
+import { RUNTIME_BASE } from "@/main/config";
 import { getContainer } from "@/main/container";
 import { definePlugin } from "@/plugins/sdk";
 import { ACCENT, DATA_PROVIDER, MESSAGE_ROLE } from "@/plugins/sdk/kernelPoints";
@@ -91,7 +91,7 @@ export const defaultConfig = definePlugin({
   name: "lyra.builtin.default-config",
   version: "1.0.0",
   setup({ host }) {
-    host.config.set("api.baseUrl", AGUI_BASE);
+    host.config.set("api.baseUrl", RUNTIME_BASE);
   },
 });
 

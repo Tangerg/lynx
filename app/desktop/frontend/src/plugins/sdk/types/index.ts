@@ -2,7 +2,7 @@
 // `from "@/plugins/sdk/types"` import working after the per-domain split.
 //
 // The single 1045-line types.ts has been broken into thirteen domain
-// files (common, tool, message, agui, theme, composer, sidebar, commands,
+// files (common, tool, message, events, theme, composer, sidebar, commands,
 // workspace, infra, host, plugin). Re-export everything here so callers
 // pick types from one entry point — domain boundaries matter for authors,
 // not consumers.

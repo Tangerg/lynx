@@ -147,7 +147,7 @@ export const messageEdit = definePlugin({
 });
 
 // ---- Regenerate (assistant messages only): find the preceding user
-// prompt and re-send it. AG-UI doesn't have a "fork-from-here" verb, so
+// prompt and re-send it. the protocol has no a "fork-from-here" verb, so
 // the closest thing we can do is replay that prompt — backend treats it
 // as a fresh request and produces a new response. ----
 

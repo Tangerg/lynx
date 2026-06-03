@@ -46,8 +46,8 @@ export function useDeclaredMerged<D extends { id: string }, R extends { id: stri
  * lookups against the same epoch are O(1).
  *
  * Used to flip three hot-path scans (lookupStreamHandlers,
- * lookupCustomHandlers, useLayoutSlot) from O(n) per AG-UI
- * event / Slot render into O(n) once per registry mutation.
+ * lookupCustomHandlers, useLayoutSlot) from O(n) per StreamEvent
+ * / Slot render into O(n) once per registry mutation.
  */
 export function createIndex<S, V>(extract: (owned: Owned<S>) => { key: string; value: V }) {
   const cache = new WeakMap<Map<string, Owned<S>>, Map<string, V[]>>();

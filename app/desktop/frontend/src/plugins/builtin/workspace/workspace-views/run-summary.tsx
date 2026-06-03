@@ -2,7 +2,7 @@
 // surface for the most recent run (UX review §2.4 P0.3).
 //
 // Pure renderer. The "what did the agent just do" derivation lives in
-// `protocol/agui/runDigest.ts` (testable in isolation); this file only
+// `protocol/run/runDigest.ts` (testable in isolation); this file only
 // owns the React surface that displays the buckets + the "Copy
 // summary" affordance.
 

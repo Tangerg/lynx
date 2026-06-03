@@ -26,7 +26,7 @@ export {
 // Composer placeholder weighted-random pick.
 export { pickComposerPlaceholder } from "./composer";
 
-// AG-UI event handler fan-out (cached sub-index, hit per event).
+// StreamEvent handler fan-out (cached sub-index, hit per event).
 export { lookupStreamHandlers, lookupCustomHandlers } from "./events";
 
 // Layout slot (sub-keyed by slot) + workspace views / settings panes
