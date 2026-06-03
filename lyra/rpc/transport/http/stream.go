@@ -15,7 +15,7 @@ import (
 // frame to keep the connection alive through proxies (API.md §2.1).
 const heartbeatInterval = 15 * time.Second
 
-// handleStream serves GET /v1/rpc/stream — the SSE notification
+// handleStream serves GET /v2/rpc/stream — the SSE notification
 // fan-out. Every active client receives every server-emitted
 // notification (per the current single-tenant model); the
 // Last-Event-Id header drives replay of recently buffered events.
@@ -30,8 +30,8 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 	// no-cache when the header is unset).
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	w.Header().Set("X-Accel-Buffering", "no")
-	w.Header().Set("X-Lyra-Server", s.serverID)
-	w.Header().Set("X-Lyra-Method", "stream") // §10.2 — fixed label for long-lived stream
+	w.Header().Set("X-Server", s.serverID)
+	w.Header().Set("X-Method", "stream") // §10.2 — fixed label for long-lived stream
 	echoTraceID(w, r)
 
 	sw, err := sse.NewHTTPWriter(w)

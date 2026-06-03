@@ -6,9 +6,9 @@
 //
 //   - rpc/transport/inprocess — Go ↔ Go in the same binary, business
 //     path bypasses JSON serialization entirely.
-//   - rpc/transport/http      — JSON-RPC over HTTP (POST /v1/rpc/{method})
-//   - SSE notifications (GET /v1/rpc/stream) + sidecar /v1/info,
-//     /v1/health.
+//   - rpc/transport/http      — JSON-RPC over HTTP (POST /v2/rpc/{method})
+//   - SSE notifications (GET /v2/rpc/stream) + sidecar /v2/info,
+//     /v2/health.
 //   - rpc/transport/wails     — Wails IPC (WebView ↔ host) — deferred.
 //
 // Wire envelope types and encode/decode are re-exported from the MCP

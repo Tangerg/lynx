@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -21,17 +20,17 @@ import (
 const maxRPCBodyBytes = 4 << 20
 
 // handleRPCWithMethod is the single JSON-RPC entry point —
-// `POST /v1/rpc/{method}` per API.md v4 §10.1. The URL method is
-// cross-checked against the body's method (mismatch ⇒ -32011 / 409).
+// `POST /v2/rpc/{method}` per TRANSPORT §3. The URL method is
+// cross-checked against the body's method (mismatch ⇒ invalid_request / 409).
 //
-// Go's `{method...}` wildcard matches the bare `/v1/rpc` path too
+// Go's `{method...}` wildcard matches the bare `/v2/rpc` path too
 // (zero-or-more trailing segments), so we explicitly 404 on the
-// empty-method case to honor the v4 "no fallback" rule.
+// empty-method case to honor the "no fallback" rule.
 func (s *Server) handleRPCWithMethod(w http.ResponseWriter, r *http.Request) {
 	urlMethod := r.PathValue("method")
 	if urlMethod == "" {
 		writeTransportError(w, r, http.StatusNotFound,
-			"POST /v1/rpc requires a method suffix (use /v1/rpc/{method})")
+			"POST /v2/rpc requires a method suffix (use /v2/rpc/{method})")
 		return
 	}
 	s.serveRPC(w, r, urlMethod)
@@ -58,7 +57,7 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 
 	res := s.dispatcher.Handle(r.Context(), msg, urlMethod)
 
-	// Surface the body's method (if any) for the X-Lyra-Method header.
+	// Surface the body's method (if any) for the X-Method header.
 	// Only Request envelopes carry Method; Responses don't.
 	bodyMethod := ""
 	if req, ok := msg.(*transport.Request); ok {
@@ -67,17 +66,17 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 
 	// Notifications get 204 No Content per API.md §7.3.
 	if res.Response == nil {
-		w.Header().Set("X-Lyra-Server", s.serverID)
+		w.Header().Set("X-Server", s.serverID)
 		if urlMethod != "" {
-			w.Header().Set("X-Lyra-Method", urlMethod)
+			w.Header().Set("X-Method", urlMethod)
 		} else if bodyMethod != "" {
-			w.Header().Set("X-Lyra-Method", bodyMethod)
+			w.Header().Set("X-Method", bodyMethod)
 		}
 		echoTraceID(w, r)
 		if res.EventStream != nil {
 			// The pump outlives this request — bind it to the server
 			// lifetime, not r.Context() (which cancels on return).
-			s.attachStream(s.baseCtx, res.RunID, res.EventStream, res.ResultStream)
+			s.attachStream(s.baseCtx, res.RunID, res.EventStream)
 		}
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -86,7 +85,7 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 	// Streaming response: kick off the event pump in the background,
 	// bound to the server lifetime (not this request's ctx).
 	if res.EventStream != nil {
-		s.attachStream(s.baseCtx, res.RunID, res.EventStream, res.ResultStream)
+		s.attachStream(s.baseCtx, res.RunID, res.EventStream)
 	}
 
 	// Compute HTTP status (API.md §7.3): 200 by default, 404 on
@@ -94,10 +93,10 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 	// invalid request / parse error.
 	status := statusForRPC(res.Response, urlMethod, bodyMethod)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Set("X-Lyra-Server", s.serverID)
+	w.Header().Set("X-Server", s.serverID)
 	methodLabel := chooseMethodLabel(urlMethod, bodyMethod)
 	if methodLabel != "" {
-		w.Header().Set("X-Lyra-Method", methodLabel)
+		w.Header().Set("X-Method", methodLabel)
 	}
 	echoTraceID(w, r)
 	w.WriteHeader(status)
@@ -115,43 +114,34 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 	}
 }
 
-// attachStream registers the AG-UI event stream with the per-stream
-// replay buffer (keyed by runId, API.md v4 §3.1) and the client
-// broadcast registry. Events arrive through dispatch.EncodeRunEvent.
-func (s *Server) attachStream(ctx context.Context, runID string, events <-chan protocol.AgUiEvent, results <-chan protocol.RunResult) {
+// attachStream registers the run's RunEvent stream with the per-stream
+// replay buffer (keyed by runId, API.md §5) and the client broadcast
+// registry. Each RunEvent already carries its monotonic eventId; the
+// terminal run.finished rides this same channel, so channel close is
+// just "stream done" — there is no separate close notification.
+func (s *Server) attachStream(ctx context.Context, runID string, events <-chan protocol.RunEvent) {
 	if runID == "" || events == nil {
 		return
 	}
 	buf := s.streams.open(runID)
 	go func() {
-		var seq uint64
 		for {
 			select {
 			case ev, ok := <-events:
 				if !ok {
-					closed, err := dispatch.EncodeRunClosedFrom(runID, results)
-					if err != nil {
-						recordError(ctx, "rpc.encode-run-closed", err,
-							attribute.String("lynx.lyra.run_id", runID),
-						)
-					} else {
-						s.clients.broadcast(closed)
-					}
 					// Keep the buffer alive for the replay window;
 					// streamBuffer.append GC's by age.
 					return
 				}
-				seq++
-				eventID := strconv.FormatUint(seq, 10)
-				notif, err := dispatch.EncodeRunEvent(runID, eventID, ev)
+				notif, err := dispatch.EncodeRunEvent(ev)
 				if err != nil {
 					recordError(ctx, "rpc.encode-run-event", err,
 						attribute.String("lynx.lyra.run_id", runID),
-						attribute.String("lynx.lyra.event_id", eventID),
+						attribute.String("lynx.lyra.event_id", ev.EventID),
 					)
 					continue
 				}
-				buf.append(streamRecord{eventID: eventID, msg: notif, at: nowFn()})
+				buf.append(streamRecord{eventID: ev.EventID, msg: notif, at: nowFn()})
 				s.clients.broadcast(notif)
 			case <-ctx.Done():
 				return
@@ -173,7 +163,15 @@ func statusForRPC(resp *transport.Response, urlMethod, bodyMethod string) int {
 		return http.StatusInternalServerError
 	}
 	switch rpcErr.Code {
-	case transport.CodeParseError, transport.CodeInvalidRequest:
+	case transport.CodeParseError:
+		return http.StatusBadRequest
+	case transport.CodeInvalidRequest:
+		// A URL/body method mismatch is the one invalid_request that maps
+		// to 409 Conflict (API.md TRANSPORT §6.3); other malformed
+		// envelopes are 400.
+		if urlMethod != "" && bodyMethod != "" && urlMethod != bodyMethod {
+			return http.StatusConflict
+		}
 		return http.StatusBadRequest
 	case transport.CodeMethodNotFound:
 		// URL-form is the only path, so unknown methods always come in
@@ -182,17 +180,12 @@ func statusForRPC(resp *transport.Response, urlMethod, bodyMethod string) int {
 			return http.StatusNotFound
 		}
 		return http.StatusOK
-	case transport.CodeProtocolViolation:
-		if urlMethod != "" && bodyMethod != "" && urlMethod != bodyMethod {
-			return http.StatusConflict
-		}
-		return http.StatusOK
 	}
 	return http.StatusOK
 }
 
 // chooseMethodLabel returns the method name to surface in the
-// X-Lyra-Method response header. URL form wins when present; body
+// X-Method response header. URL form wins when present; body
 // method is the fallback (defensive — should always be set today).
 func chooseMethodLabel(urlMethod, bodyMethod string) string {
 	if urlMethod != "" {
@@ -206,7 +199,7 @@ func chooseMethodLabel(urlMethod, bodyMethod string) string {
 // API.md §7.3, these use a flat JSON envelope — NOT the JSON-RPC
 // envelope, since we may not have a valid request id.
 //
-// X-Lyra-Trace-Id is echoed into the body as `traceId` so the FE's
+// X-Trace-Id is echoed into the body as `traceId` so the FE's
 // RpcTransportError.traceId field gets populated for ops correlation.
 func writeTransportError(w http.ResponseWriter, r *http.Request, status int, msg string) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -216,7 +209,7 @@ func writeTransportError(w http.ResponseWriter, r *http.Request, status int, msg
 		TraceID string `json:"traceId,omitempty"`
 	}{Error: msg}
 	if r != nil {
-		body.TraceID = strings.TrimSpace(r.Header.Get("X-Lyra-Trace-Id"))
+		body.TraceID = strings.TrimSpace(r.Header.Get("X-Trace-Id"))
 	}
 	_ = json.NewEncoder(w).Encode(body)
 }
@@ -233,18 +226,20 @@ func writeRPCError(w http.ResponseWriter, status int, id transport.ID, rpcErr *t
 	}
 }
 
-// echoTraceID copies the client-supplied X-Lyra-Trace-Id into the
-// response's X-Lyra-Request-Id header (API.md §10.5).
+// echoTraceID copies the client-supplied X-Trace-Id into the
+// response's X-Trace-Id header (API.md §10.5).
 func echoTraceID(w http.ResponseWriter, r *http.Request) {
-	traceID := strings.TrimSpace(r.Header.Get("X-Lyra-Trace-Id"))
+	traceID := strings.TrimSpace(r.Header.Get("X-Trace-Id"))
 	if traceID == "" {
 		return
 	}
-	w.Header().Set("X-Lyra-Request-Id", traceID)
+	w.Header().Set("X-Trace-Id", traceID)
 }
 
-// marshalProblem wraps detail in a transport.ProblemData JSON blob.
+// marshalProblem wraps detail in a protocol.ProblemData JSON blob
+// (API.md §8). Used for transport-level parse errors where there's no
+// runtime sentinel to classify.
 func marshalProblem(detail string) json.RawMessage {
-	body, _ := json.Marshal(transport.ProblemData{Detail: detail})
+	body, _ := json.Marshal(protocol.ProblemData{Type: "parse_error", Detail: detail})
 	return body
 }

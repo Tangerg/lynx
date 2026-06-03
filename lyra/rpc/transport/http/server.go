@@ -1,17 +1,17 @@
 // Package http implements the Lyra Runtime Protocol's HTTP
 // transport. Two endpoints carry JSON-RPC:
 //
-//	POST /v1/rpc[/{method}]   Request/Notification (recommended path
+//	POST /v2/rpc[/{method}]   Request/Notification (recommended path
 //	                          includes method for ops-friendliness)
-//	GET  /v1/rpc/stream       SSE — server → client notifications
+//	GET  /v2/rpc/stream       SSE — server → client notifications
 //
 // Two sidecars (flat JSON, no envelope, no auth):
 //
-//	GET /v1/info              ServerInfo + protocolVersion + capabilities
-//	GET /v1/health            liveness probe
+//	GET /v2/info              ServerInfo + protocolVersion + capabilities
+//	GET /v2/health            liveness probe
 //
 // See docs/{API,TRANSPORT}.md for the wire details. Most of the
-// observability discipline (X-Lyra-Method header, structured log,
+// observability discipline (X-Method header, structured log,
 // metric labels) is enforced here in middleware — the dispatcher
 // itself stays transport-agnostic.
 package http
@@ -81,16 +81,16 @@ type Config struct {
 	Addr string
 
 	// ServerInfo + ProtocolVersion + Capabilities populate the
-	// /v1/info sidecar response. Required.
+	// /v2/info sidecar response. Required.
 	ServerInfo      protocol.ServerInfo
 	ProtocolVersion string
 	Capabilities    protocol.ServerCapabilities
 
-	// ServerID identifies this process in X-Lyra-Server response
+	// ServerID identifies this process in X-Server response
 	// header. Defaults to ServerInfo.Name + "/" + ServerInfo.Version.
 	ServerID string
 
-	// LocalToken, when non-empty, gates every POST /v1/rpc/* with
+	// LocalToken, when non-empty, gates every POST /v2/rpc/* with
 	// `Authorization: Bearer <LocalToken>`. Sidecars and the SSE
 	// stream bypass (TRANSPORT.md §4.3 mirrors FE's withCredentials:
 	// false EventSource). Empty disables the gate — tests + same-
@@ -102,11 +102,11 @@ type Config struct {
 	CORSOrigins []string
 
 	// HealthProbes are the labeled liveness checks invoked on every
-	// GET /v1/health. Empty list ⇒ the endpoint always returns ok.
+	// GET /v2/health. Empty list ⇒ the endpoint always returns ok.
 	// Probes run in parallel under a shared 2s budget.
 	HealthProbes []HealthProbe
 
-	// AgentDocsLister, when non-nil, is called on every GET /v1/info
+	// AgentDocsLister, when non-nil, is called on every GET /v2/info
 	// to surface the AGENTS.md files the engine would inject into
 	// the system prompt for the server's working directory. Listed
 	// under the `agentDocs` field (path + size only — content stays
@@ -118,10 +118,10 @@ type Config struct {
 // AgentDocsLister returns the AGENTS.md files currently visible to
 // the runtime. Paths are absolute; Bytes is the on-disk size of
 // the file's trimmed content. Implementations should be cheap —
-// the function fires on every /v1/info hit.
+// the function fires on every /v2/info hit.
 type AgentDocsLister func(ctx context.Context) []AgentDocInfo
 
-// AgentDocInfo is one entry in the /v1/info.agentDocs array.
+// AgentDocInfo is one entry in the /v2/info.agentDocs array.
 type AgentDocInfo struct {
 	Path  string `json:"path"`
 	Bytes int    `json:"bytes"`
@@ -180,17 +180,17 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
 	// Sidecar — must NOT go through JSON-RPC envelope.
-	mux.HandleFunc("GET /v1/info", s.handleInfo)
-	mux.HandleFunc("GET /v1/health", s.handleHealth)
+	mux.HandleFunc("GET /v2/info", s.handleInfo)
+	mux.HandleFunc("GET /v2/health", s.handleHealth)
 
 	// JSON-RPC body endpoint. Single form per API.md v4 §10.1: method
-	// MUST appear in the URL path. Requests to `/v1/rpc` (no method
+	// MUST appear in the URL path. Requests to `/v2/rpc` (no method
 	// suffix) fall through the mux to 404 — greenfield, no fallback
 	// route registered.
-	mux.HandleFunc("POST /v1/rpc/{method...}", s.handleRPCWithMethod)
+	mux.HandleFunc("POST /v2/rpc/{method...}", s.handleRPCWithMethod)
 
 	// Streaming notifications (SSE).
-	mux.HandleFunc("GET /v1/rpc/stream", s.handleStream)
+	mux.HandleFunc("GET /v2/rpc/stream", s.handleStream)
 
 	return s.observability(s.cors(s.authGate(mux)))
 }

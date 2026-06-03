@@ -23,7 +23,6 @@ package inprocess
 import (
 	"context"
 	"errors"
-	"strconv"
 	"sync"
 	"sync/atomic"
 
@@ -99,27 +98,24 @@ func (t *Transport) Send(ctx context.Context, msg transport.Message) error {
 		}
 	}
 	if res.EventStream != nil {
-		go t.pumpStream(ctx, res.RunID, res.EventStream, res.ResultStream)
+		go t.pumpStream(ctx, res.EventStream)
 	}
 	return nil
 }
 
-// pumpStream drains an event channel from a streaming method and
-// encodes each event as a notifications/run/event message. Exits
-// when the channel closes (run ended) or the transport closes.
-// runID is the resource id used for stream filtering (API.md v4 §3.1).
-func (t *Transport) pumpStream(ctx context.Context, runID string, events <-chan protocol.AgUiEvent, results <-chan protocol.RunResult) {
-	var seq uint64
+// pumpStream drains a run's RunEvent channel and encodes each event as
+// a notifications.run.event message. Each RunEvent already carries its
+// eventId; the terminal run.finished rides this same channel, so
+// channel close just means "stream done". Exits when the channel closes
+// (run ended) or the transport closes.
+func (t *Transport) pumpStream(ctx context.Context, events <-chan protocol.RunEvent) {
 	for {
 		select {
 		case ev, ok := <-events:
 			if !ok {
-				closedMsg, _ := dispatch.EncodeRunClosedFrom(runID, results)
-				t.tryEmit(closedMsg)
 				return
 			}
-			seq++
-			notif, err := dispatch.EncodeRunEvent(runID, strconv.FormatUint(seq, 10), ev)
+			notif, err := dispatch.EncodeRunEvent(ev)
 			if err != nil {
 				continue
 			}
