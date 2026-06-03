@@ -150,21 +150,19 @@ func (s *inMemory) drive(st *turnState, doneCh <-chan error) {
 // answer (see [inMemory.canSurface]) it surfaces it via
 // [inMemory.emitInterrupt] and the turn waits for [inMemory.Resume].
 // Otherwise the client could never answer it, so rather than leave a
-// deadlocked interrupt (API.md §6.2) the turn auto-denies and drives the
-// continuation on this same goroutine.
+// deadlocked interrupt (API.md §6.2) the turn auto-denies (via the shared
+// [inMemory.resumeAndDrive]) and the continuation runs to a real terminal.
 func (s *inMemory) handleWaiting(st *turnState, proc engine.ChatProcess) {
 	aw := proc.PendingAwaitable()
 	if aw == nil || s.canSurface(interruptKind(aw)) {
 		s.emitInterrupt(st, proc)
 		return
 	}
-	resumed, err := proc.Resume(st.ctx, false)
-	if err != nil {
-		s.emit(st, ErrorEvent{Message: err.Error(), Code: "ENGINE_ERROR"})
-		s.finishTurn(st, TurnEndErrored)
-		return
-	}
-	s.drive(st, resumed)
+	// Client can't answer this kind — deliver a deny and drive the
+	// continuation (resumeAndDrive streams the terminal on a resume error
+	// and launches drive otherwise; the returned error is already surfaced
+	// on the channel, so it's safe to drop here).
+	_ = s.resumeAndDrive(st, false)
 }
 
 // emitInterrupt marks the turn parked and surfaces the pending HITL
@@ -263,15 +261,15 @@ type turnEndPlan struct {
 // fallback for stub tests where no listener fired and the race where
 // Done() returned before the platform multicast delivered the event.
 func terminalPlan(terminal event.Event, out engine.ChatOutput, runErr, ctxErr error, status core.AgentProcessStatus) turnEndPlan {
-	switch terminal.(type) {
+	switch t := terminal.(type) {
 	case event.ProcessCompleted:
 		return completedPlan(out)
 	case event.ProcessKilled, event.ProcessTerminated:
 		return turnEndPlan{reason: TurnEndCancelled}
 	case event.ProcessFailed:
 		msg := "engine error"
-		if failed, ok := terminal.(event.ProcessFailed); ok && failed.Err != nil {
-			msg = failed.Err.Error()
+		if t.Err != nil {
+			msg = t.Err.Error()
 		}
 		return turnEndPlan{reason: TurnEndErrored, errMsg: msg, errCode: "ENGINE_ERROR"}
 	case event.ProcessStuck:
