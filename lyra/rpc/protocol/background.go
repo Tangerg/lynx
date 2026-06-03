@@ -1,39 +1,37 @@
 package protocol
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
-// Background is the background.* method group — long-running
-// tasks the agent spawned that outlive a single run.
+// Background is the background.* method group — long-running tasks that
+// outlive a single run (API.md §7.7). Gated on features.background.
+// Subscribe output flows via notifications.background.update.
 type Background interface {
 	ListBackground(ctx context.Context) ([]BackgroundTask, error)
-	StopBackground(ctx context.Context, taskID string) error
-	SubscribeBackground(ctx context.Context, taskID string) (<-chan BackgroundUpdate, error)
+	SubscribeBackground(ctx context.Context, taskID string) (<-chan BackgroundTask, error)
+	CancelBackground(ctx context.Context, taskID string) error
 }
 
-// BackgroundStatus enumerates the wire states.
+// BackgroundStatus enumerates the wire states (API.md §4.10).
 type BackgroundStatus string
 
 const (
 	BackgroundStatusRunning   BackgroundStatus = "running"
-	BackgroundStatusStopped   BackgroundStatus = "stopped"
-	BackgroundStatusSucceeded BackgroundStatus = "succeeded"
+	BackgroundStatusCompleted BackgroundStatus = "completed"
 	BackgroundStatusFailed    BackgroundStatus = "failed"
+	BackgroundStatusCanceled  BackgroundStatus = "canceled"
 )
 
-// BackgroundTask is one entry in background.list (API.md §6.7).
+// BackgroundTask is one entry in background.list + the
+// notifications.background.update payload (API.md §4.10).
 type BackgroundTask struct {
-	TaskID    string           `json:"taskId"`
-	Label     string           `json:"label"`
+	ID        string           `json:"id"`
+	Kind      string           `json:"kind"`
 	Status    BackgroundStatus `json:"status"`
-	StartedAt string           `json:"startedAt"`          // ISO-8601
-	Progress  *float64         `json:"progress,omitempty"` // 0..1
-}
-
-// BackgroundUpdate is the notifications/background/update payload
-// (API.md §6.7).
-type BackgroundUpdate struct {
-	TaskID      string           `json:"taskId"`
-	Status      BackgroundStatus `json:"status"`
-	Progress    *float64         `json:"progress,omitempty"`
-	OutputDelta string           `json:"outputDelta,omitempty"`
+	CreatedAt time.Time        `json:"createdAt"`
+	UpdatedAt *time.Time       `json:"updatedAt,omitempty"`
+	Result    any              `json:"result,omitempty"`
+	Error     *ProblemData     `json:"error,omitempty"`
 }

@@ -1,47 +1,46 @@
 package protocol
 
-// ClientCapabilities is what the client tells Runtime at initialize
-// time (API.md §6.1). Server MUST NOT emit events / use features the
-// client didn't declare.
+// ClientCapabilities is what the client declares at initialize (API.md §9).
+// Server MUST NOT emit events the client can't render, nor produce an
+// open interrupt whose kind the client didn't declare in InterruptKinds.
 type ClientCapabilities struct {
-	Events   EventCapabilities         `json:"events"`
-	Features ClientFeatureCapabilities `json:"features"`
+	// Events is the set of stream event types the client can render
+	// (run.* / item.* / state.* / custom names).
+	Events []string `json:"events"`
+	// Features is free-form client feature declaration.
+	Features map[string]any `json:"features,omitempty"`
+	// InterruptKinds are the HITL kinds the client can handle
+	// ("approval" | "question" | "toolResult"). Anti-deadlock (API.md §6.2).
+	InterruptKinds []string `json:"interruptKinds,omitempty"`
+	// OptOutNotificationMethods lets the client suppress high-frequency
+	// notifications per connection, e.g. ["item.delta"] (API.md §9).
+	OptOutNotificationMethods []string `json:"optOutNotificationMethods,omitempty"`
 }
 
-// ServerCapabilities is what Runtime advertises in initialize result.
+// ServerCapabilities is what Runtime advertises in the initialize result
+// and the /v2/info sidecar (API.md §9).
 type ServerCapabilities struct {
-	Events    EventCapabilities         `json:"events"`
-	Features  ServerFeatureCapabilities `json:"features"`
-	Providers []string                  `json:"providers"`
-	Limits    Limits                    `json:"limits"`
+	ProtocolVersion string         `json:"protocolVersion"`
+	Events          []string       `json:"events"`
+	Features        ServerFeatures `json:"features"`
+	Providers       []string       `json:"providers"`
+	Limits          RuntimeLimits  `json:"limits"`
 }
 
-// EventCapabilities — names of AG-UI standard events + Lyra CUSTOM
-// events the holder supports.
-type EventCapabilities struct {
-	Standard []string `json:"standard"`
-	Custom   []string `json:"custom"`
-}
-
-// ClientFeatureCapabilities — feature toggles the client declares.
-// Server consults these before emitting events it might fall back on.
-type ClientFeatureCapabilities struct {
-	Multimodal *bool `json:"multimodal,omitempty"`
-	Markdown   *bool `json:"markdown,omitempty"`
-}
-
-// ServerFeatureCapabilities — feature toggles Runtime advertises.
-// Unset fields default to false on the client side.
-type ServerFeatureCapabilities struct {
-	Multimodal    bool             `json:"multimodal"`
+// ServerFeatures are the feature toggles Runtime advertises. Unset
+// (false) means the corresponding methods/events are unavailable.
+type ServerFeatures struct {
 	Reasoning     bool             `json:"reasoning"`
+	MCP           bool             `json:"mcp"`
+	Multimodal    bool             `json:"multimodal"`
 	Checkpoints   bool             `json:"checkpoints"`
-	Interrupts    bool             `json:"interrupts"`
 	Background    bool             `json:"background"`
 	Subagents     bool             `json:"subagents"`
 	Skills        bool             `json:"skills"`
-	MCP           bool             `json:"mcp"`
 	SessionExport bool             `json:"sessionExport"`
+	Memory        bool             `json:"memory"`
+	Relocate      bool             `json:"relocate"`
+	ClientTools   bool             `json:"clientTools"`
 	Attachments   AttachmentLimits `json:"attachments"`
 }
 
@@ -52,8 +51,8 @@ type AttachmentLimits struct {
 	MimeTypes    []string `json:"mimeTypes,omitempty"`
 }
 
-// Limits — server-side hard caps surfaced to the client.
-type Limits struct {
-	MaxMessagesPerSession int `json:"maxMessagesPerSession,omitempty"`
-	MaxConcurrentRuns     int `json:"maxConcurrentRuns,omitempty"`
+// RuntimeLimits — server-side hard caps surfaced to the client.
+type RuntimeLimits struct {
+	MaxConcurrentRuns  int `json:"maxConcurrentRuns,omitempty"`
+	MaxItemsPerSession int `json:"maxItemsPerSession,omitempty"`
 }

@@ -1,38 +1,31 @@
 // Package protocol is the single source of truth for the Lyra Runtime
-// Protocol — the typed Go interface every transport and every
-// implementation agrees on. The wire formats (JSON-RPC over HTTP /
-// Wails IPC / InProcess) are derived from this surface; the runtime
-// implementation in rpc/server realizes it on top of Lyra's
-// internal engine + service layer.
+// Protocol v2 — the typed Go interface every transport and every
+// implementation agrees on. Wire formats (JSON-RPC over HTTP / IPC /
+// InProcess) are derived from this surface; rpc/server realizes it on
+// top of Lyra's internal engine + service layer.
 //
-// The docs at docs/{API,TRANSPORT}.md describe the wire protocol;
-// every method on [Runtime] corresponds to one row in API.md §5.2.
+// docs/API.md describes the wire contract; every method on [Runtime]
+// maps to one row in API.md §7. The model is Session → Run → Item
+// (API.md §0): Item is the single history+streaming primitive, runs
+// finish with a discriminated RunOutcome, and human-in-the-loop uses
+// the R model (finish with interrupt outcome, resume via a
+// continuation run).
 //
-// Design notes:
-//
-//   - The interface is composed from per-domain sub-interfaces
-//     (Lifecycle, Sessions, Messages, Runs, ...). Mocks in tests can
-//     stub one slice without re-implementing the universe.
-//   - Methods that have no backing yet return [ErrNotImplemented].
-//     The dispatch translates that to JSON-RPC -32601 method_not_found
-//     so the wire stays honest.
-//   - Streaming methods (runs.start, workspace.terminal.subscribe,
-//     background.subscribe) return a Go channel of events together with
-//     a sync result. Transports translate the channel into transport-
-//     specific notification streams (SSE / Wails EventsEmit / Go chan).
+// Discriminated unions (StreamEvent / Item / ToolInvocation /
+// RunOutcome / ItemDelta / ContextItem) are modeled as flat
+// tag-discriminated structs: a Type/Kind field plus the optional
+// fields that tag declares. The wire JSON is exactly {type, ...},
+// matching API.md.
 package protocol
 
-// Runtime is the runtime's public surface — the union of every
-// method group exposed over the wire. See sub-interfaces for the
-// per-domain method signatures.
-//
-// Construct one via pkg/server.New(...) and pass to any transport
-// adapter (rpc/transport/inprocess, rpc/transport/http).
+// Runtime is the runtime's public surface — the union of every method
+// group exposed over the wire. Construct via rpc/server.New(...) and
+// pass to any transport adapter.
 type Runtime interface {
 	Lifecycle
 	Sessions
-	Messages
 	Runs
+	Items
 	Workspace
 	Providers
 	Models
@@ -42,3 +35,17 @@ type Runtime interface {
 	Background
 	Feedback
 }
+
+// ProtocolVersion is the wire version this build implements (API.md
+// §11: date string).
+const ProtocolVersion = "2026-06-03"
+
+// Resource id prefixes (API.md §2.2). Server-generated, type-tagged.
+const (
+	IDPrefixSession    = "ses_"
+	IDPrefixRun        = "run_"
+	IDPrefixItem       = "item_"
+	IDPrefixAttachment = "att_"
+	IDPrefixTask       = "tsk_"
+	IDPrefixEvent      = "evt_"
+)

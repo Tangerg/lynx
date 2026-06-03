@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// SessionStatus mirrors the wire enum (API.md §6.2).
+// SessionStatus mirrors the wire enum (API.md §4.1).
 type SessionStatus string
 
 const (
@@ -14,58 +14,69 @@ const (
 	SessionStatusIdle    SessionStatus = "idle"
 )
 
-// Session is the wire shape of one conversation. Metadata is
-// `Record<string, unknown>` on the wire (any JSON value), the internal
-// store may be narrower — server bridges the type at the boundary.
+// Session is one conversation, bound to a working directory (API.md §4.1).
 type Session struct {
-	ID            string         `json:"id"`
-	Title         string         `json:"title"`
-	Status        SessionStatus  `json:"status"`
-	Model         string         `json:"model"`
-	CreatedAt     time.Time      `json:"createdAt"`
-	UpdatedAt     time.Time      `json:"updatedAt"`
-	LastMessageAt *time.Time     `json:"lastMessageAt,omitempty"`
-	Metadata      map[string]any `json:"metadata"`
-	Pinned        bool           `json:"pinned,omitempty"`
-	Archived      bool           `json:"archived,omitempty"`
+	ID          string         `json:"id"`
+	Title       string         `json:"title"`
+	Status      SessionStatus  `json:"status"`
+	Model       string         `json:"model"`
+	Cwd         string         `json:"cwd"`                   // abs path, server-resolved (symlinks)
+	ProjectRoot string         `json:"projectRoot,omitempty"` // derived: nearest .git ancestor, else = cwd
+	CwdMissing  bool           `json:"cwdMissing,omitempty"`  // cwd lost on disk → degrade to chat + relocate
+	CreatedAt   time.Time      `json:"createdAt"`
+	UpdatedAt   time.Time      `json:"updatedAt"`
+	Usage       *Usage         `json:"usage,omitempty"`
+	Metadata    map[string]any `json:"metadata"`
 }
 
-// Sessions is the sessions.* method group.
+// Project is the distinct-Session.cwd derived view (API.md §4.1). No
+// opaque id, no active flag — identity is the cwd itself.
+type Project struct {
+	Cwd          string     `json:"cwd"`
+	Name         string     `json:"name"`
+	ProjectRoot  string     `json:"projectRoot,omitempty"`
+	Branch       string     `json:"branch,omitempty"`
+	SessionCount int        `json:"sessionCount"`
+	LastActiveAt *time.Time `json:"lastActiveAt,omitempty"`
+	CwdMissing   bool       `json:"cwdMissing,omitempty"`
+}
+
+// Sessions is the sessions.* method group (API.md §7.2).
 type Sessions interface {
 	ListSessions(ctx context.Context, q PageQuery) (*Page[Session], error)
-	GetSession(ctx context.Context, id string) (*Session, error)
+	GetSession(ctx context.Context, sessionID string) (*Session, error)
 	CreateSession(ctx context.Context, in CreateSessionRequest) (*Session, error)
 	UpdateSession(ctx context.Context, in UpdateSessionRequest) (*Session, error)
-	DeleteSession(ctx context.Context, id string) error
+	DeleteSession(ctx context.Context, sessionID string) error
 	ForkSession(ctx context.Context, in ForkSessionRequest) (*Session, error)
 	ExportSession(ctx context.Context, in ExportSessionRequest) (*ExportSessionResponse, error)
 }
 
-// CreateSessionRequest — sessions.create body.
+// CreateSessionRequest — sessions.create body. Cwd is optional; empty
+// defaults to ServerInfo.cwd (cold-start zero friction, API.md §7.2).
 type CreateSessionRequest struct {
+	Cwd      string         `json:"cwd,omitempty"`
 	Title    string         `json:"title,omitempty"`
 	Model    string         `json:"model,omitempty"`
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
-// UpdateSessionRequest — sessions.update body. Carries the target ID
-// plus optional patch fields (flat wire shape, no nested envelope).
-// Nil pointers mean "leave alone"; non-nil applies the value. Metadata
-// is full replacement.
+// UpdateSessionRequest — sessions.update body. Nil pointers mean
+// "leave alone". Setting Cwd is a relocate (gated on features.relocate).
 type UpdateSessionRequest struct {
-	ID       string          `json:"id"`
-	Title    *string         `json:"title,omitempty"`
-	Pinned   *bool           `json:"pinned,omitempty"`
-	Archived *bool           `json:"archived,omitempty"`
-	Metadata *map[string]any `json:"metadata,omitempty"`
+	SessionID string          `json:"sessionId"`
+	Title     *string         `json:"title,omitempty"`
+	Cwd       *string         `json:"cwd,omitempty"`
+	Model     *string         `json:"model,omitempty"`
+	Metadata  *map[string]any `json:"metadata,omitempty"`
 }
 
-// ForkSessionRequest — sessions.fork body. ParentID is the source session
-// being forked from (not the new id). See BACKEND_REVIEW §5.1 for the
-// naming rationale.
+// ForkSessionRequest — sessions.fork body. Forks at an item boundary,
+// inheriting the source cwd.
 type ForkSessionRequest struct {
-	ParentID    string `json:"parentId"`
-	AtMessageID string `json:"atMessageId"`
+	SessionID  string `json:"sessionId"`
+	FromItemID string `json:"fromItemId,omitempty"`
+	Title      string `json:"title,omitempty"`
 }
 
 // ExportFormat enumerates sessions.export output formats.
@@ -78,13 +89,13 @@ const (
 
 // ExportSessionRequest — sessions.export body.
 type ExportSessionRequest struct {
-	ID     string       `json:"id"`
-	Format ExportFormat `json:"format"`
+	SessionID string       `json:"sessionId"`
+	Format    ExportFormat `json:"format,omitempty"`
 }
 
 // ExportSessionResponse — sessions.export result. URL points at a
-// transport-specific download endpoint; the caller fetches the bytes
-// through that URL out of band (API.md §5.2).
+// transport file channel; bytes are fetched out of band (API.md §7.2).
 type ExportSessionResponse struct {
-	URL string `json:"url"`
+	URL       string    `json:"url"`
+	ExpiresAt time.Time `json:"expiresAt"`
 }

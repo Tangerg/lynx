@@ -2,18 +2,16 @@ package protocol
 
 import "context"
 
-// Feedback is the feedback.* method group — RLHF / quality
-// signals. The same data flows can also arrive as a lyra.meta
-// CUSTOM event during a run; this REST-shaped path is the
-// out-of-band channel.
+// Feedback is the feedback.* method group — quality signals (API.md §7.7).
 type Feedback interface {
-	SubmitFeedback(ctx context.Context, in FeedbackRequest) error
+	CreateFeedback(ctx context.Context, in FeedbackRequest) error
 }
 
-// FeedbackRequest — feedback.submit body.
+// FeedbackRequest — feedback.create body (API.md §7.7).
 type FeedbackRequest struct {
-	Kind  string `json:"kind"`            // "thumbs-up" | "thumbs-down" | "note" | "bookmark"
-	RefID string `json:"refId"`           // message id / run id this feedback attaches to
-	Value any    `json:"value,omitempty"` // free-form per kind
-	Note  string `json:"note,omitempty"`
+	SessionID string `json:"sessionId,omitempty"`
+	RunID     string `json:"runId,omitempty"`
+	ItemID    string `json:"itemId,omitempty"`
+	Rating    string `json:"rating,omitempty"` // "positive" | "negative"
+	Text      string `json:"text,omitempty"`
 }
