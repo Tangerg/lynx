@@ -101,6 +101,55 @@ func TestV2MockApprovalInterrupt(t *testing.T) {
 	}
 }
 
+// TestV2MockTransportStatusCodes locks the transport-layer status code
+// contract (TRANSPORT.md §6.3): notifications ack with 204, a wrong HTTP
+// method returns 405 + Allow, and a url/body method mismatch is a 400
+// (not 409).
+func TestV2MockTransportStatusCodes(t *testing.T) {
+	srv := httptest.NewServer(New("").handler())
+	defer srv.Close()
+
+	// Notification (no id) → 204, no body.
+	notif, _ := http.NewRequest(http.MethodPost, srv.URL+"/v2/rpc/runtime.shutdown",
+		strings.NewReader(`{"jsonrpc":"2.0","method":"runtime.shutdown","params":{}}`))
+	notif.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(notif)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		t.Fatalf("notification status = %d, want 204", res.StatusCode)
+	}
+
+	// Wrong HTTP method → 405 + Allow (RFC 9110 §15.5.6).
+	get, _ := http.NewRequest(http.MethodGet, srv.URL+"/v2/rpc/runs.start", nil)
+	res, err = http.DefaultClient.Do(get)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("GET status = %d, want 405", res.StatusCode)
+	}
+	if allow := res.Header.Get("Allow"); !strings.Contains(allow, "POST") {
+		t.Fatalf("405 Allow = %q, want it to list POST", allow)
+	}
+
+	// URL method ≠ body method → 400 (self-inconsistent request, not 409).
+	bad, _ := http.NewRequest(http.MethodPost, srv.URL+"/v2/rpc/runs.start",
+		strings.NewReader(`{"jsonrpc":"2.0","id":"1","method":"runs.cancel","params":{}}`))
+	bad.Header.Set("Content-Type", "application/json")
+	res, err = http.DefaultClient.Do(bad)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("method-mismatch status = %d, want 400", res.StatusCode)
+	}
+}
+
 // collectFrames reads RunEvent payloads from an SSE body until one whose
 // event.type == stopType arrives (or a timeout).
 func collectFrames(t *testing.T, res *http.Response, stopType string) []map[string]any {
