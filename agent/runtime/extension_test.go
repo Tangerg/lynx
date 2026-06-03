@@ -66,7 +66,7 @@ func TestPlatformExtensionDedupPanic(t *testing.T) {
 	}()
 
 	rec := &orderRecorder{}
-	agent.NewPlatform(&runtime.PlatformConfig{
+	agent.NewPlatform(runtime.PlatformConfig{
 		Extensions: []core.Extension{
 			orderedInterceptor{name: "dup", recorder: rec},
 			orderedInterceptor{name: "dup", recorder: rec},
@@ -83,14 +83,14 @@ func TestPlatformExtensionEmptyNamePanic(t *testing.T) {
 		}
 	}()
 
-	agent.NewPlatform(&runtime.PlatformConfig{
+	agent.NewPlatform(runtime.PlatformConfig{
 		Extensions: []core.Extension{orderedInterceptor{name: "", recorder: &orderRecorder{}}},
 	})
 }
 
-// TestActionInterceptorOnionOrdering verifies platform interceptors form
+// TestActionMiddlewareOnionOrdering verifies platform interceptors form
 // the outer onion and process interceptors sit inside.
-func TestActionInterceptorOnionOrdering(t *testing.T) {
+func TestActionMiddlewareOnionOrdering(t *testing.T) {
 	type runIn struct{ V int }
 	type runOut struct{ V int }
 
@@ -106,7 +106,7 @@ func TestActionInterceptorOnionOrdering(t *testing.T) {
 		Goals(agent.GoalProducing[runOut](core.Goal{Description: "out"})).
 		Build()
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{
+	platform := agent.NewPlatform(runtime.PlatformConfig{
 		Extensions: []core.Extension{
 			orderedInterceptor{name: "platform-A", recorder: rec},
 			orderedInterceptor{name: "platform-B", recorder: rec},
@@ -178,7 +178,7 @@ func TestAgentValidatorRejectsDeploy(t *testing.T) {
 		Goals(agent.GoalProducing[vOut](core.Goal{Description: "done"})).
 		Build()
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{
+	platform := agent.NewPlatform(runtime.PlatformConfig{
 		Extensions: []core.Extension{
 			failingValidator{name: "policy", err: errors.New("missing SLA tag")},
 		},
@@ -189,6 +189,41 @@ func TestAgentValidatorRejectsDeploy(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), `validator "policy"`) || !strings.Contains(err.Error(), "missing SLA tag") {
 		t.Fatalf("error = %v, want validator name and message", err)
+	}
+}
+
+// TestDeploy_ReportsAllProblems confirms the multi-layer validation
+// aggregates every problem (two unreachable goal conditions + a failing
+// validator) into one error rather than failing on the first.
+func TestDeploy_ReportsAllProblems(t *testing.T) {
+	type pIn struct{}
+	type pOut struct{}
+	a := agent.New("multi-problem").
+		Actions(agent.NewAction("step",
+			func(_ context.Context, _ *core.ProcessContext, _ pIn) (pOut, error) { return pOut{}, nil },
+			core.ActionConfig{},
+		)).
+		Goals(agent.GoalProducing[pOut](core.Goal{
+			Description: "needs missing conditions",
+			Pre:         []string{"never_a", "never_b"}, // no action produces these
+		})).
+		Build()
+
+	platform := agent.NewPlatform(runtime.PlatformConfig{
+		Extensions: []core.Extension{
+			failingValidator{name: "policy", err: errors.New("missing SLA tag")},
+		},
+	})
+
+	err := platform.Deploy(a)
+	if err == nil {
+		t.Fatal("expected deploy to fail")
+	}
+	msg := err.Error()
+	for _, want := range []string{"never_a", "never_b", `validator "policy"`, "missing SLA tag"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error missing %q; full error:\n%s", want, msg)
+		}
 	}
 }
 
@@ -211,7 +246,7 @@ func TestGoalApproverVetoesPlan(t *testing.T) {
 		Goals(agent.GoalProducing[vetoOut](core.Goal{Description: "done"})).
 		Build()
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{
+	platform := agent.NewPlatform(runtime.PlatformConfig{
 		Extensions: []core.Extension{vetoApprover{name: "veto"}},
 	})
 	if err := platform.Deploy(a); err != nil {
@@ -240,7 +275,7 @@ func TestProcessExtensionDedupErrors(t *testing.T) {
 		Goals(agent.GoalProducing[dOut](core.Goal{Description: "done"})).
 		Build()
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if err := platform.Deploy(a); err != nil {
 		t.Fatal(err)
 	}
@@ -289,7 +324,7 @@ func TestProcessScopedListenerFires(t *testing.T) {
 		Goals(agent.GoalProducing[pOut](core.Goal{Description: "done"})).
 		Build()
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if err := platform.Deploy(a); err != nil {
 		t.Fatal(err)
 	}

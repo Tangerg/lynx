@@ -30,8 +30,8 @@ func TestEmbeddingModel(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewOptions: %v", err)
 			}
-			m, err := mistral.NewEmbeddingModel(&mistral.EmbeddingModelConfig{
-				ApiKey:         model.NewApiKey("test-key"),
+			m, err := mistral.NewEmbeddingModel(mistral.EmbeddingModelConfig{
+				APIKey:         model.NewAPIKey("test-key"),
 				DefaultOptions: opts,
 				BaseURL:        baseURL,
 			})

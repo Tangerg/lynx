@@ -22,8 +22,8 @@ func TestImageModel_Call_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := openai.NewImageModel(&openai.ImageModelConfig{
-		ApiKey:         model.NewApiKey(key),
+	m, err := openai.NewImageModel(openai.ImageModelConfig{
+		APIKey:         model.NewAPIKey(key),
 		DefaultOptions: opts,
 	})
 	if err != nil {

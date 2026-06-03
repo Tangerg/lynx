@@ -43,7 +43,7 @@ func scopeAgentB() *core.Agent {
 // each carry one action and (in B's case) the goal. RunInScope unions
 // them and the planner picks the path A:tokenize → B:double.
 func TestRunInScope_CrossAgentPlanning(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 
 	proc, err := platform.RunInScope(
 		context.Background(),
@@ -76,7 +76,7 @@ func TestRunInScope_CrossAgentPlanning(t *testing.T) {
 // the same Name and verifies the synthetic agent is deployed exactly
 // once (look-up returns the existing entry on the second call).
 func TestRunInScope_ReusesSyntheticAgent(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 
 	cfg := runtime.ScopeRun{
 		Name:   "scope:reuse",
@@ -106,7 +106,7 @@ func TestRunInScope_ReusesSyntheticAgent(t *testing.T) {
 }
 
 func TestRunInScope_EmptyName(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	_, err := platform.RunInScope(
 		context.Background(),
 		runtime.ScopeRun{Agents: []*core.Agent{scopeAgentA()}},
@@ -118,7 +118,7 @@ func TestRunInScope_EmptyName(t *testing.T) {
 }
 
 func TestRunInScope_EmptyAgents(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	_, err := platform.RunInScope(
 		context.Background(),
 		runtime.ScopeRun{Name: "empty"},
@@ -130,7 +130,7 @@ func TestRunInScope_EmptyAgents(t *testing.T) {
 }
 
 func TestRunInScope_NilAgentEntry(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	_, err := platform.RunInScope(
 		context.Background(),
 		runtime.ScopeRun{
@@ -161,7 +161,7 @@ func TestRunInScope_DuplicateActionNameAcrossAgents(t *testing.T) {
 			Build()
 	}
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	_, err := platform.RunInScope(
 		context.Background(),
 		runtime.ScopeRun{

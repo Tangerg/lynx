@@ -36,7 +36,7 @@ var _ Formatter = (*SimpleFormatter)(nil)
 //
 // Example:
 //
-//	f := document.NewSimpleFormatter(&document.SimpleFormatterConfig{
+//	f := document.NewSimpleFormatter(document.SimpleFormatterConfig{
 //	    ExcludedEmbedMetadataKeys: []string{"row_id", "internal"},
 //	})
 type SimpleFormatter struct {
@@ -46,10 +46,7 @@ type SimpleFormatter struct {
 
 // NewSimpleFormatter builds a [SimpleFormatter]. nil config produces an
 // unrestricted formatter that emits every metadata key in every mode.
-func NewSimpleFormatter(config *SimpleFormatterConfig) *SimpleFormatter {
-	if config == nil {
-		config = &SimpleFormatterConfig{}
-	}
+func NewSimpleFormatter(config SimpleFormatterConfig) *SimpleFormatter {
 	return &SimpleFormatter{
 		excludedInferenceMetadataKeys: config.ExcludedInferenceMetadataKeys,
 		excludedEmbedMetadataKeys:     config.ExcludedEmbedMetadataKeys,

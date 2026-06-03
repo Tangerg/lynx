@@ -26,15 +26,15 @@ type StoreConfig struct {
 	Similarity Similarity
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return ErrNilConfig
-	}
-	if c.EmbeddingClient == nil {
-		return ErrMissingEmbeddingClient
-	}
+func (c *StoreConfig) ApplyDefaults() {
 	if c.Similarity == nil {
 		c.Similarity = CosineSimilarity
+	}
+}
+
+func (c *StoreConfig) Validate() error {
+	if c.EmbeddingClient == nil {
+		return ErrMissingEmbeddingClient
 	}
 	return nil
 }
@@ -47,7 +47,10 @@ type record struct {
 	embedding []float64
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 // Store is the in-memory [vectorstore.Store] implementation.
 // Construct with [NewStore].
@@ -59,9 +62,9 @@ type Store struct {
 	records map[string]record
 }
 
-
-func NewStore(cfg *StoreConfig) (*Store, error) {
-	if err := cfg.validate(); err != nil {
+func NewStore(cfg StoreConfig) (*Store, error) {
+	cfg.ApplyDefaults()
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	return &Store{
@@ -70,7 +73,6 @@ func NewStore(cfg *StoreConfig) (*Store, error) {
 		records:    map[string]record{},
 	}, nil
 }
-
 
 func (s *Store) Metadata() vectorstore.StoreMetadata {
 	return vectorstore.StoreMetadata{
@@ -216,6 +218,28 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 		if match {
 			delete(s.records, id)
 		}
+	}
+	return nil
+}
+
+// DeleteByIDs removes the records with the given ids. An empty slice is
+// a no-op; unknown ids are ignored (idempotent). Implements
+// [vectorstore.IDDeleter].
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if err = ctx.Err(); err != nil {
+		return fmt.Errorf("inmemory.Store.DeleteByIDs: %w", err)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+
+	_, span := tracing.StartDelete(ctx, "inmemory")
+	defer func() { tracing.Finish(span, err) }()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, id := range ids {
+		delete(s.records, id)
 	}
 	return nil
 }

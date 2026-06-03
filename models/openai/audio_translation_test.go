@@ -24,8 +24,8 @@ func TestAudioTranslationModel_Call_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := openai.NewAudioTranslationModel(&openai.AudioTranslationModelConfig{
-		ApiKey:         model.NewApiKey("test-key"),
+	m, err := openai.NewAudioTranslationModel(openai.AudioTranslationModelConfig{
+		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		RequestOptions: []option.RequestOption{option.WithBaseURL(srv.URL)},
 	})

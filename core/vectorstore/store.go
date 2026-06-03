@@ -225,6 +225,22 @@ type Deleter interface {
 	Delete(ctx context.Context, request *DeleteRequest) error
 }
 
+// IDDeleter removes documents by their ids — the direct counterpart to
+// the metadata-filter [Deleter]. It is an optional capability kept OUT
+// of [Store]: not every backend can address documents by id (some only
+// expose filter deletes), and where it exists it is usually a distinct,
+// cheaper API path than a filter scan. Consumers reach for it via a type
+// assertion, so a backend that lacks it still satisfies [Store]:
+//
+//	if d, ok := store.(vectorstore.IDDeleter); ok {
+//	    err := d.DeleteByIDs(ctx, []string{"a", "b"})
+//	}
+type IDDeleter interface {
+	// DeleteByIDs removes the documents with the given ids. Unknown ids
+	// are ignored (idempotent); an empty slice is a no-op.
+	DeleteByIDs(ctx context.Context, ids []string) error
+}
+
 // Store is the union of [Creator], [Retriever], and [Deleter]
 // plus a [Store.Metadata] accessor for provider identity. Concrete
 // providers live in /vectorstores/<provider>.

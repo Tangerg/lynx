@@ -53,10 +53,7 @@ type StoreConfig struct {
 	StoreDocumentContent bool
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return ErrNilConfig
-	}
+func (c StoreConfig) Validate() error {
 	if c.Client == nil {
 		return ErrMissingClient
 	}
@@ -72,7 +69,10 @@ func (c *StoreConfig) validate() error {
 	return nil
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 type Store struct {
 	index                *pinecone.IndexConnection
@@ -81,8 +81,8 @@ type Store struct {
 	storeDocumentContent bool
 }
 
-func NewStore(cfg *StoreConfig) (*Store, error) {
-	if err := cfg.validate(); err != nil {
+func NewStore(cfg StoreConfig) (*Store, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -118,7 +118,7 @@ func (v *Store) buildVectors(docs []*document.Document, vectors [][]float64) ([]
 			Values: &values,
 		}
 
-		metaMap := make(map[string]interface{}, len(doc.Metadata)+1)
+		metaMap := make(map[string]any, len(doc.Metadata)+1)
 		for k, val := range doc.Metadata {
 			metaMap[k] = val
 		}
@@ -273,6 +273,24 @@ func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 
 	if err = v.index.DeleteVectorsByFilter(ctx, filter); err != nil {
 		return fmt.Errorf("pinecone: failed to delete vectors: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteByIDs removes vectors by their string ids. An empty slice is a
+// no-op; unknown ids are silently ignored (idempotent). Implements
+// [vectorstore.IDDeleter].
+func (v *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "pinecone")
+	defer func() { tracing.Finish(span, err) }()
+
+	if err = v.index.DeleteVectorsById(ctx, ids); err != nil {
+		return fmt.Errorf("pinecone: failed to delete vectors by ids: %w", err)
 	}
 
 	return nil

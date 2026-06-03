@@ -2,8 +2,8 @@ package vespa
 
 import (
 	"bytes"
-	"context"
 	"cmp"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -84,13 +84,7 @@ type StoreConfig struct {
 	HTTPClient *http.Client
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return errors.New("vespa: config must not be nil")
-	}
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+func (c *StoreConfig) Validate() error {
 	if c.Endpoint == "" {
 		return errors.New("vespa: Endpoint is required")
 	}
@@ -102,15 +96,6 @@ func (c *StoreConfig) validate() error {
 	}
 	if c.DocumentBatcher == nil {
 		return errors.New("vespa: DocumentBatcher is required")
-	}
-	if c.Namespace == "" {
-		c.Namespace = c.SchemaName
-	}
-	c.EmbeddingField = cmp.Or(c.EmbeddingField, DefaultEmbeddingField)
-	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
-	c.IDField = cmp.Or(c.IDField, DefaultIDField)
-	if c.HTTPClient == nil {
-		c.HTTPClient = http.DefaultClient
 	}
 	if err := ident.CheckWithDash("vespa", map[string]string{
 		"SchemaName":     c.SchemaName,
@@ -125,6 +110,22 @@ func (c *StoreConfig) validate() error {
 		return fmt.Errorf("vespa: ContentCluster=%q must be a safe identifier", c.ContentCluster)
 	}
 	return nil
+}
+
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
+	if c.Namespace == "" {
+		c.Namespace = c.SchemaName
+	}
+	c.EmbeddingField = cmp.Or(c.EmbeddingField, DefaultEmbeddingField)
+	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
+	c.IDField = cmp.Or(c.IDField, DefaultIDField)
+	if c.HTTPClient == nil {
+		c.HTTPClient = http.DefaultClient
+	}
 }
 
 var _ vectorstore.Store = (*Store)(nil)
@@ -145,9 +146,9 @@ type Store struct {
 	httpClient      *http.Client
 }
 
-
-func NewStore(config *StoreConfig) (*Store, error) {
-	if err := config.validate(); err != nil {
+func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	embeddingClient, err := embedding.NewClient(config.EmbeddingModel)
@@ -248,10 +249,10 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	}
 
 	body := map[string]any{
-		"yql":       yql,
-		"hits":      req.TopK,
+		"yql":            yql,
+		"hits":           req.TopK,
 		"input.query(q)": map[string]any{"values": queryVec},
-		"ranking":   "default",
+		"ranking":        "default",
 	}
 
 	raw, err := s.do(ctx, http.MethodPost, "/search/", body)
@@ -262,9 +263,9 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	var parsed struct {
 		Root struct {
 			Children []struct {
-				ID       string         `json:"id"`
-				Relevance float64       `json:"relevance"`
-				Fields   map[string]any `json:"fields"`
+				ID        string         `json:"id"`
+				Relevance float64        `json:"relevance"`
+				Fields    map[string]any `json:"fields"`
 			} `json:"children"`
 		} `json:"root"`
 	}
@@ -436,6 +437,5 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 		Provider:     Provider,
 	}
 }
-
 
 func (s *Store) Close() error { return nil }

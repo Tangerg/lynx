@@ -13,7 +13,7 @@
 // the same [google.ChatModel] / [google.EmbeddingModel] / etc — so
 // downstream code works identically across the two backends.
 //
-// Auth note: ApiKey is not used here. Vertex authenticates via ADC
+// Auth note: APIKey is not used here. Vertex authenticates via ADC
 // (https://cloud.google.com/docs/authentication/application-default-credentials).
 // Run "gcloud auth application-default login" locally, or attach a
 // service account in production.

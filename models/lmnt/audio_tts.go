@@ -12,18 +12,15 @@ import (
 )
 
 type AudioTTSModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *tts.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 }
 
-func (c *AudioTTSModelConfig) validate() error {
-	if c == nil {
-		return errors.New("lmnt: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("lmnt: ApiKey is required")
+func (c AudioTTSModelConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("lmnt: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("lmnt: DefaultOptions is required")
@@ -42,22 +39,22 @@ var _ tts.Model = (*AudioTTSModel)(nil)
 // SPI shape and not surfaced here. Stream() returns the full audio as a
 // single chunk for shape compatibility.
 type AudioTTSModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *tts.Options
 }
 
-func NewAudioTTSModel(cfg *AudioTTSModelConfig) (*AudioTTSModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewApi(&ApiConfig{ApiKey: cfg.ApiKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
+	api, err := NewAPI(APIConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
 	if err != nil {
 		return nil, err
 	}
 	return &AudioTTSModel{api: api, defaultOptions: cfg.DefaultOptions}, nil
 }
 
-func (a *AudioTTSModel) buildApiRequest(req *tts.Request) (*SynthesizeRequest, error) {
+func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (*SynthesizeRequest, error) {
 	mergedOpts, err := tts.MergeOptions(a.defaultOptions, req.Options)
 	if err != nil {
 		return nil, err
@@ -82,7 +79,7 @@ func (a *AudioTTSModel) buildApiRequest(req *tts.Request) (*SynthesizeRequest, e
 }
 
 func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {
-	body, err := a.buildApiRequest(req)
+	body, err := a.buildAPIRequest(req)
 	if err != nil {
 		return nil, err
 	}
@@ -120,4 +117,4 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 }
 
 func (a *AudioTTSModel) DefaultOptions() tts.Options { return *a.defaultOptions }
-func (a *AudioTTSModel) Metadata() tts.ModelMetadata         { return tts.ModelMetadata{Provider: Provider} }
+func (a *AudioTTSModel) Metadata() tts.ModelMetadata { return tts.ModelMetadata{Provider: Provider} }

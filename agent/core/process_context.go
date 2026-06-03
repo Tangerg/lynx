@@ -28,25 +28,31 @@ type ToolResolver func(ctx context.Context, roles []string) ([]AgentTool, error)
 // custom events through the multicast listener.
 type EventPublisher func(event any)
 
-// ToolCallCanceller is the runtime's hook for [ProcessContext.ToolCallContext].
+// ToolCallCancelFunc is the runtime's hook for [ProcessContext.ToolCallContext].
 // It hands the runtime a cancel func tied to the in-flight tool call (so
 // [Process.TerminateToolCall] can fire it) and returns a release closure
 // the caller MUST defer to detach the registration once the tool call
 // returns. nil disables tool-call cancellation: ToolCallContext returns
 // the parent ctx unchanged.
-type ToolCallCanceller func(cancel context.CancelFunc) (release func())
+type ToolCallCancelFunc func(cancel context.CancelFunc) (release func())
 
-// ProcessContextConfig is the runtime-internal input bundle for
-// [NewProcessContext]. The runtime fills it once per tick and calls
-// NewProcessContext — keeping the field-injection plumbing inside one
-// constructor instead of scattered setter methods on the public surface.
-type ProcessContextConfig struct {
+// ProcessState bundles the per-process fields — constant across
+// every tick of the same process. The runtime carries one of these
+// per AgentProcess and threads it into the ProcessContext built at
+// each tick.
+type ProcessState struct {
 	Process       Process
 	Blackboard    Blackboard
 	Options       *ProcessOptions
 	OutputChannel OutputChannel
 	Services      *ServiceProvider
+}
 
+// PlatformHooks bundles the platform-wired callbacks — installed
+// once at Platform construction time and reused across every tick
+// of every process. nil-safe at the ProcessContext methods that
+// consume them (e.g. Publish becomes a no-op when nil).
+type PlatformHooks struct {
 	// ChatClient is the shared LLM client surfaced to action bodies
 	// via [ProcessContext.Chat] and [ProcessContext.ChatWithActionTools].
 	// nil when the platform was constructed without one — pc.Chat()
@@ -57,13 +63,6 @@ type ProcessContextConfig struct {
 	// safeguard / quota etc.) that wrap every Chat request action
 	// bodies make. nil or empty means "no global middleware".
 	Guardrails *Guardrails
-
-	// ActionToolGroups carries the currently-executing action's declared
-	// [ToolGroupRequirement]s, so [ProcessContext.ActionTools] can
-	// resolve them without the action body having to re-state role
-	// names. Mirrors embabel's OperationContext.toolGroups, which reads
-	// action.toolGroups for the LLM ops layer.
-	ActionToolGroups []ToolGroupRequirement
 
 	// Publish is invoked by [ProcessContext.Publish]; nil makes Publish
 	// a no-op. The runtime supplies a closure that fans the event out
@@ -78,30 +77,77 @@ type ProcessContextConfig struct {
 	// ToolCallCancel registers a cancel func and returns a release
 	// closure — single function rather than a register/clear pair so
 	// callers can't mismatch them.
-	ToolCallCancel ToolCallCanceller
+	ToolCallCancel ToolCallCancelFunc
+}
+
+// ProcessContextConfig is the runtime-internal input bundle for
+// [NewProcessContext]. The runtime fills it once per tick — keeping
+// the field-injection plumbing inside one constructor instead of
+// scattered setter methods on the public surface.
+//
+// Three concerns physically split via embedded sub-structs:
+//
+//   - [ProcessState]   — constant across a process's lifetime
+//   - [PlatformHooks]  — constant across the Platform's lifetime
+//   - ActionToolGroups — refreshed every tick from the
+//     currently-executing action's declared requirements
+type ProcessContextConfig struct {
+	ProcessState
+	PlatformHooks
+
+	// ActionToolGroups carries the currently-executing action's declared
+	// [ToolGroupRequirement]s, so [ProcessContext.ActionTools] can
+	// resolve them without the action body having to re-state role
+	// names. Mirrors embabel's ConditionEnv.toolGroups, which reads
+	// action.toolGroups for the LLM ops layer.
+	ActionToolGroups []ToolGroupRequirement
+
+	// ActionToolLoop carries the currently-executing action's
+	// [chat.ToolLoopConfig] so [ProcessContext.ChatWithActionTools]
+	// builds the tool middleware with the action's chosen recovery
+	// policies / iteration cap. Refreshed every tick alongside
+	// ActionToolGroups.
+	ActionToolLoop chat.ToolLoopConfig
 }
 
 // ProcessContext is the only thing handed to an [Action.Execute] call.
-// Every service the action might need lives behind a method here so future
-// refactors don't ripple through every action body.
+// Every service the action might need lives behind a method here so
+// future refactors don't ripple through every action body.
+//
+// Field grouping mirrors [ProcessContextConfig]: public state up top,
+// platform-wired hooks in the middle (held privately so callers go
+// through the typed methods), per-action state + per-tick scratch at
+// the bottom.
 type ProcessContext struct {
+	// --- Public per-process state. ---
 	Process       Process
 	Blackboard    Blackboard
 	Options       *ProcessOptions
 	OutputChannel OutputChannel
 	Services      *ServiceProvider
 
-	chatClient       *chat.Client
-	guardrails       *Guardrails
+	// --- Platform-wired hooks. Private so action bodies go through
+	// the typed methods (Chat / Publish / ResolveTools / ...) instead
+	// of touching the underlying client / closure directly.
+	chatClient     *chat.Client
+	guardrails     *Guardrails
+	publishEvent   EventPublisher
+	resolveTools   ToolResolver
+	toolCallCancel ToolCallCancelFunc
+
+	// --- Per-action state + per-tick scratch. ---
 	actionToolGroups []ToolGroupRequirement
-	publishEvent     EventPublisher
-	resolveTools     ToolResolver
-	toolCallCancel   ToolCallCanceller
+	actionToolLoop   chat.ToolLoopConfig
+
+	// inputAwaited flips when the action calls [AwaitInput]; the
+	// typed-action wrapper reads it to return ActionWaiting. Per-tick
+	// (fresh ProcessContext each invocation), so no reset needed.
+	inputAwaited bool
 
 	// lastErr captures the most recent error from a typed-action body so
 	// the runtime can extract a ReplanRequest. ProcessContext is built
 	// fresh per tick (see runtime.buildProcessContext) and never shared
-	// across goroutines, so no synchronisation is needed.
+	// across goroutines, so no synchronization is needed.
 	lastErr error
 }
 
@@ -117,6 +163,7 @@ func NewProcessContext(config ProcessContextConfig) *ProcessContext {
 		chatClient:       config.ChatClient,
 		guardrails:       config.Guardrails,
 		actionToolGroups: config.ActionToolGroups,
+		actionToolLoop:   config.ActionToolLoop,
 		publishEvent:     config.Publish,
 		resolveTools:     config.ResolveTools,
 		toolCallCancel:   config.ToolCallCancel,
@@ -200,7 +247,7 @@ func (pc *ProcessContext) buildChatRequest(tools []AgentTool) *chat.ClientReques
 
 	mws := pc.guardrails.MiddlewareValues()
 	if len(tools) > 0 {
-		callMW, streamMW := chat.NewToolMiddleware()
+		callMW, streamMW := chat.NewToolMiddleware(pc.actionToolLoop)
 		mws = append(mws, callMW, streamMW)
 	}
 	if len(mws) > 0 {
@@ -254,7 +301,7 @@ func (pc *ProcessContext) ActionTools(ctx context.Context) ([]AgentTool, error) 
 // [Process.TerminateToolCall]. The returned cancel func MUST be
 // deferred — it both cancels the ctx and detaches the runtime's
 // pointer so a later TerminateToolCall doesn't fire on a stale ctx.
-// Without a registered canceller, behaviour falls back to plain
+// Without a registered canceller, behavior falls back to plain
 // [context.WithCancel] (TerminateToolCall becomes a no-op).
 func (pc *ProcessContext) ToolCallContext(parent context.Context) (context.Context, context.CancelFunc) {
 	ctx, cancel := context.WithCancel(parent)
@@ -272,12 +319,29 @@ func (pc *ProcessContext) ToolCallContext(parent context.Context) (context.Conte
 
 // AwaitInput delegates to [Process.AwaitInput] — convenience because
 // action code already has pc.
+//
+// It also records that this action invocation parked an awaitable, so a
+// TYPED action (whose fn returns (Out, error) and can't return
+// ActionWaiting directly) still suspends correctly: the typed-action
+// wrapper checks [ProcessContext.InputAwaited] after the fn returns and
+// reports ActionWaiting instead of writing the (unproduced) output.
+// Untyped actions return this status directly and don't need the flag.
 func (pc *ProcessContext) AwaitInput(req Awaitable) ActionStatus {
 	if pc.Process == nil {
 		return ActionFailed
 	}
-	return pc.Process.AwaitInput(req)
+	status := pc.Process.AwaitInput(req)
+	if status == ActionWaiting {
+		pc.inputAwaited = true
+	}
+	return status
 }
+
+// InputAwaited reports whether this action invocation parked an
+// awaitable via [ProcessContext.AwaitInput]. The typed-action wrapper
+// uses it to translate "fn called AwaitInput" into ActionWaiting; the
+// flag is per-invocation (ProcessContext is built fresh each tick).
+func (pc *ProcessContext) InputAwaited() bool { return pc.inputAwaited }
 
 // RecordUsage attributes an LLM call's cost / tokens to the running
 // process. No-op when no Process is wired.

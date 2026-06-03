@@ -11,10 +11,6 @@ type ProcessCreated struct {
 
 func (ProcessCreated) EventName() string { return "process_created" }
 
-func (e ProcessCreated) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"bindings": e.Bindings})
-}
-
 // ProcessCompleted fires when the process reaches its goal
 // successfully.
 type ProcessCompleted struct {
@@ -24,10 +20,6 @@ type ProcessCompleted struct {
 
 func (ProcessCompleted) EventName() string { return "process_completed" }
 
-func (e ProcessCompleted) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"goal": summarizeGoal(e.Goal)})
-}
-
 // ProcessFailed fires when the process terminates with an error.
 type ProcessFailed struct {
 	BaseEvent
@@ -36,22 +28,14 @@ type ProcessFailed struct {
 
 func (ProcessFailed) EventName() string { return "process_failed" }
 
-func (e ProcessFailed) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"error": errString(e.Err)})
-}
-
 // ProcessStuck fires when the planner returns no plan and no
-// StuckHandler resolves it.
+// StuckPolicy resolves it.
 type ProcessStuck struct {
 	BaseEvent
 	LastWorld core.WorldState `json:"-"`
 }
 
 func (ProcessStuck) EventName() string { return "process_stuck" }
-
-func (e ProcessStuck) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"world": snapshotWorld(e.LastWorld)})
-}
 
 // ProcessWaiting fires when a typed action calls AwaitInput and the
 // process suspends pending external input.
@@ -62,22 +46,14 @@ type ProcessWaiting struct {
 
 func (ProcessWaiting) EventName() string { return "process_waiting" }
 
-func (e ProcessWaiting) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"awaitable": summarizeAwaitable(e.Awaitable)})
-}
-
 // ProcessKilled fires from Platform.KillProcess or when ctx is
-// cancelled mid-run.
+// canceled mid-run.
 type ProcessKilled struct {
 	BaseEvent
 	Reason string `json:"reason,omitempty"`
 }
 
 func (ProcessKilled) EventName() string { return "process_killed" }
-
-func (e ProcessKilled) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"reason": e.Reason})
-}
 
 // ProcessTerminated fires when an EarlyTerminationPolicy or a
 // queued [core.TerminationScopeAgent] signal stops the process.
@@ -88,7 +64,3 @@ type ProcessTerminated struct {
 }
 
 func (ProcessTerminated) EventName() string { return "process_terminated" }
-
-func (e ProcessTerminated) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"reason": e.Reason, "scope": e.Scope.String()})
-}

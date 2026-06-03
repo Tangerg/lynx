@@ -49,24 +49,30 @@ type MultiQueryExpanderConfig struct {
 	PromptTemplate *chat.PromptTemplate
 }
 
-// validate fills defaults and rejects invalid configs.
-func (c *MultiQueryExpanderConfig) validate() error {
-	if c == nil {
-		return errors.New("rag.MultiQueryExpanderConfig: config must not be nil")
-	}
+// Validate rejects invalid configs.
+func (c *MultiQueryExpanderConfig) Validate() error {
 	if c.ChatModel == nil {
 		return errors.New("rag.MultiQueryExpanderConfig: ChatModel is required")
 	}
 	if c.NumberOfQueries < 0 {
 		return errors.New("rag.MultiQueryExpanderConfig: NumberOfQueries must be ≥ 0")
 	}
+	if c.PromptTemplate != nil {
+		return c.PromptTemplate.RequireVariables("Number", "Query")
+	}
+	return nil
+}
+
+// ApplyDefaults fills zero fields. NumberOfQueries defaults to
+// [defaultMultiQueryCount] and PromptTemplate defaults to
+// [multiExpanderDefaultTemplate].
+func (c *MultiQueryExpanderConfig) ApplyDefaults() {
 	if c.NumberOfQueries == 0 {
 		c.NumberOfQueries = defaultMultiQueryCount
 	}
 	if c.PromptTemplate == nil {
 		c.PromptTemplate = chat.NewPromptTemplate(multiExpanderDefaultTemplate)
 	}
-	return c.PromptTemplate.RequireVariables("Number", "Query")
 }
 
 var _ QueryExpander = (*MultiQueryExpander)(nil)
@@ -78,7 +84,7 @@ var _ QueryExpander = (*MultiQueryExpander)(nil)
 //
 // Example:
 //
-//	exp, err := rag.NewMultiQueryExpander(&rag.MultiQueryExpanderConfig{
+//	exp, err := rag.NewMultiQueryExpander(rag.MultiQueryExpanderConfig{
 //	    ChatModel: model, NumberOfQueries: 5,
 //	})
 //	queries, err := exp.Expand(ctx, q)
@@ -92,8 +98,9 @@ type MultiQueryExpander struct {
 // NewMultiQueryExpander builds a [MultiQueryExpander]. Returns an error
 // when the configuration fails validation or the chat client cannot be
 // constructed.
-func NewMultiQueryExpander(cfg *MultiQueryExpanderConfig) (*MultiQueryExpander, error) {
-	if err := cfg.validate(); err != nil {
+func NewMultiQueryExpander(cfg MultiQueryExpanderConfig) (*MultiQueryExpander, error) {
+	cfg.ApplyDefaults()
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 

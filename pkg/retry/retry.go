@@ -64,7 +64,7 @@ func defaultStrategy() *Strategy {
 // Option configures a [Strategy].
 type Option func(*Strategy)
 
-// WithContext sets the context that bounds the entire retry. Cancelling
+// WithContext sets the context that bounds the entire retry. Canceling
 // it terminates retries with a wrapped context error. A nil context is
 // ignored.
 func WithContext(ctx context.Context) Option {
@@ -312,7 +312,7 @@ func calculateMaxBackoffStep(baseDelay time.Duration) int {
 func doRetry[T any](op OperationWithResult[T], s *Strategy) (T, error) {
 	var zero T
 	if err := s.context.Err(); err != nil {
-		return zero, fmt.Errorf("context cancelled before first attempt: %w", err)
+		return zero, fmt.Errorf("context canceled before first attempt: %w", err)
 	}
 	for attempt := 1; ; attempt++ {
 		v, err := op()
@@ -332,10 +332,10 @@ func doRetry[T any](op OperationWithResult[T], s *Strategy) (T, error) {
 		case <-s.context.Done():
 			ctxErr := s.context.Err()
 			if s.maxAttempts == 0 {
-				return zero, fmt.Errorf("operation cancelled after %d attempts (unlimited retry mode): %w (last error: %v)",
+				return zero, fmt.Errorf("operation canceled after %d attempts (unlimited retry mode): %w (last error: %v)",
 					attempt, ctxErr, err)
 			}
-			return zero, fmt.Errorf("operation cancelled after %d attempts: %w (last error: %v)",
+			return zero, fmt.Errorf("operation canceled after %d attempts: %w (last error: %v)",
 				attempt, ctxErr, err)
 		}
 	}

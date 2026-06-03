@@ -10,11 +10,8 @@ import (
 )
 
 func TestNewClient_RequiresAllowlist(t *testing.T) {
-	if _, err := NewClient(&Config{}); !errors.Is(err, ErrMissingHosts) {
+	if _, err := NewClient(Config{}); !errors.Is(err, ErrMissingHosts) {
 		t.Fatalf("want ErrMissingHosts, got %v", err)
-	}
-	if _, err := NewClient(nil); !errors.Is(err, ErrMissingConfig) {
-		t.Fatalf("want ErrMissingConfig, got %v", err)
 	}
 }
 
@@ -28,7 +25,7 @@ func TestDo_HostAllowlist(t *testing.T) {
 	host := strings.TrimPrefix(strings.TrimPrefix(srvURL, "http://"), "https://")
 	hostOnly := strings.Split(host, ":")[0]
 
-	client, err := NewClient(&Config{AllowedHosts: []string{hostOnly}})
+	client, err := NewClient(Config{AllowedHosts: []string{hostOnly}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +44,7 @@ func TestDo_HostAllowlist(t *testing.T) {
 }
 
 func TestDo_WildcardHost(t *testing.T) {
-	client, err := NewClient(&Config{AllowedHosts: []string{"*.example.com"}})
+	client, err := NewClient(Config{AllowedHosts: []string{"*.example.com"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +71,7 @@ func TestDo_MethodAllowlist(t *testing.T) {
 
 	hostOnly := strings.Split(strings.TrimPrefix(srv.URL, "http://"), ":")[0]
 
-	client, err := NewClient(&Config{AllowedHosts: []string{hostOnly}})
+	client, err := NewClient(Config{AllowedHosts: []string{hostOnly}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +80,7 @@ func TestDo_MethodAllowlist(t *testing.T) {
 		t.Fatalf("default methods should block POST, got %v", err)
 	}
 
-	writeClient, err := NewClient(&Config{
+	writeClient, err := NewClient(Config{
 		AllowedHosts:   []string{hostOnly},
 		AllowedMethods: []string{"GET", "POST"},
 	})
@@ -108,7 +105,7 @@ func TestDo_ResponseTruncation(t *testing.T) {
 
 	hostOnly := strings.Split(strings.TrimPrefix(srv.URL, "http://"), ":")[0]
 
-	client, err := NewClient(&Config{
+	client, err := NewClient(Config{
 		AllowedHosts:     []string{hostOnly},
 		MaxResponseBytes: 100,
 	})
@@ -129,7 +126,7 @@ func TestDo_ResponseTruncation(t *testing.T) {
 }
 
 func TestDo_InvalidURL(t *testing.T) {
-	client, err := NewClient(&Config{AllowedHosts: []string{"example.com"}})
+	client, err := NewClient(Config{AllowedHosts: []string{"example.com"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +147,7 @@ func TestDo_DefaultHeadersAndQuery(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	hostOnly := strings.Split(strings.TrimPrefix(srv.URL, "http://"), ":")[0]
-	client, err := NewClient(&Config{
+	client, err := NewClient(Config{
 		AllowedHosts:   []string{hostOnly},
 		DefaultHeaders: map[string]string{"Authorization": "Bearer secret"},
 	})

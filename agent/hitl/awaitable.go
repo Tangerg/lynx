@@ -3,15 +3,16 @@ package hitl
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/google/uuid"
+
+	"github.com/Tangerg/lynx/agent/core"
 )
 
 // Request is the typed surface every HITL prompt implements. Generic
 // methods Prompt/OnResponse mirror embabel 0.4's Awaitable<P, R> contract.
 // Named Request rather than Awaitable to avoid the same-name collision
 // with [core.Awaitable] — the latter is the non-generic root the
-// runtime uses; this one is the typed flavour user code talks to.
+// runtime uses; this one is the typed flavor user code talks to.
 type Request[P any, R any] interface {
 	core.Awaitable
 	Prompt() P
@@ -48,7 +49,7 @@ func (r *TypedRequest[P, R]) Prompt() P      { return r.Payload }
 
 func (r *TypedRequest[P, R]) OnResponse(response R) core.ResponseImpact {
 	if r.Handler == nil {
-		return core.ResponseImpactUnchanged
+		return core.ImpactUnchanged
 	}
 	return r.Handler(response)
 }
@@ -60,7 +61,7 @@ func (r *TypedRequest[P, R]) OnResponseAny(response any) (core.ResponseImpact, e
 	typed, ok := response.(R)
 	if !ok {
 		var zero R
-		return core.ResponseImpactUnchanged,
+		return core.ImpactUnchanged,
 			fmt.Errorf("deliver response: expected %T, got %T", zero, response)
 	}
 	return r.OnResponse(typed), nil

@@ -86,7 +86,7 @@ func TestSimpleToolGroupMetadata_Permissions(t *testing.T) {
 		t.Errorf("Permissions() = %v, want [internet_access]", got)
 	}
 
-	empty := core.SimpleToolGroupMetadata{RoleText: "noop"}
+	empty := core.SimpleToolGroupMetadata{RoleText: "nop"}
 	if got := empty.Permissions(); len(got) != 0 {
 		t.Errorf("empty metadata Permissions() = %v, want []", got)
 	}

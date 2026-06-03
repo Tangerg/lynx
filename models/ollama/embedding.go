@@ -20,10 +20,7 @@ type EmbeddingModelConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (c *EmbeddingModelConfig) validate() error {
-	if c == nil {
-		return errors.New("ollama: config must not be nil")
-	}
+func (c EmbeddingModelConfig) Validate() error {
 	if c.DefaultOptions == nil {
 		return errors.New("ollama: DefaultOptions is required")
 	}
@@ -36,16 +33,16 @@ var _ embedding.Model = (*EmbeddingModel)(nil)
 // embedding model the daemon has pulled: nomic-embed-text, mxbai-embed-large,
 // snowflake-arctic-embed, etc. Use `ollama pull <model>` ahead of time.
 type EmbeddingModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *embedding.Options
 }
 
-func NewEmbeddingModel(cfg *EmbeddingModelConfig) (*EmbeddingModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	api, err := NewApi(&ApiConfig{
+	api, err := NewAPI(APIConfig{
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,
 	})
@@ -59,7 +56,7 @@ func NewEmbeddingModel(cfg *EmbeddingModelConfig) (*EmbeddingModel, error) {
 	}, nil
 }
 
-func (e *EmbeddingModel) buildApiRequest(req *embedding.Request) (*ollamaapi.EmbedRequest, error) {
+func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*ollamaapi.EmbedRequest, error) {
 	mergedOpts, err := embedding.MergeOptions(e.defaultOptions, req.Options)
 	if err != nil {
 		return nil, err
@@ -110,7 +107,7 @@ func (e *EmbeddingModel) buildResponse(apiResp *ollamaapi.EmbedResponse) (*embed
 }
 
 func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {
-	apiReq, err := e.buildApiRequest(req)
+	apiReq, err := e.buildAPIRequest(req)
 	if err != nil {
 		return nil, err
 	}

@@ -12,7 +12,7 @@ import (
 )
 
 type OpenAIChatModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *chat.Options
 	BaseURL        string
 
@@ -21,12 +21,9 @@ type OpenAIChatModelConfig struct {
 	RequestOptions []option.RequestOption
 }
 
-func (c *OpenAIChatModelConfig) validate() error {
-	if c == nil {
-		return errors.New("huggingface: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("huggingface: ApiKey is required")
+func (c OpenAIChatModelConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("huggingface: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("huggingface: DefaultOptions is required")
@@ -39,16 +36,16 @@ func (c *OpenAIChatModelConfig) validate() error {
 // "provider/model-name" format (e.g.
 // "meta-llama/Llama-3.1-8B-Instruct:fireworks-ai") which the caller
 // supplies through [chat.Options].Model.
-func NewOpenAIChatModel(cfg *OpenAIChatModelConfig) (*openai.ChatModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewOpenAIChatModel(cfg OpenAIChatModelConfig) (*openai.ChatModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
 	baseURL := cmp.Or(cfg.BaseURL, DefaultBaseURL)
 	reqOpts := append([]option.RequestOption{option.WithBaseURL(baseURL)}, cfg.RequestOptions...)
 
-	return openai.NewChatModel(&openai.ChatModelConfig{
-		ApiKey:         cfg.ApiKey,
+	return openai.NewChatModel(openai.ChatModelConfig{
+		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
 		Metadata:       &chat.ModelMetadata{Provider: Provider},

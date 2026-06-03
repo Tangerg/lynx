@@ -21,14 +21,14 @@ func TestProcessBudget_RecordLLMInvocation_AggregatesCostAndTokens(t *testing.T)
 	b.recordLLMInvocation(core.LLMInvocation{
 		Model:            "claude-sonnet-4-5",
 		Provider:         "anthropic",
-		Cost:             0.012,
+		CostUSD:          0.012,
 		PromptTokens:     1000,
 		CompletionTokens: 500,
 	})
 	b.recordLLMInvocation(core.LLMInvocation{
 		Model:            "gpt-4o",
 		Provider:         "openai",
-		Cost:             0.008,
+		CostUSD:          0.008,
 		PromptTokens:     400,
 		CompletionTokens: 200,
 	})
@@ -64,14 +64,14 @@ func TestProcessBudget_RecordEmbeddingInvocation(t *testing.T) {
 	b.recordEmbeddingInvocation(core.EmbeddingInvocation{
 		Model:       "voyage-3",
 		Provider:    "voyage",
-		Cost:        0.001,
+		CostUSD:     0.001,
 		InputTokens: 800,
 		InputCount:  10,
 	})
 	b.recordEmbeddingInvocation(core.EmbeddingInvocation{
 		Model:       "text-embedding-3-small",
 		Provider:    "openai",
-		Cost:        0.0005,
+		CostUSD:     0.0005,
 		InputTokens: 400,
 		InputCount:  5,
 	})
@@ -91,17 +91,18 @@ func TestProcessBudget_RecordEmbeddingInvocation(t *testing.T) {
 }
 
 func TestProcessBudget_RecordUsage_AppendsToLLMHistory(t *testing.T) {
-	// The legacy RecordUsage(cost, tokens) shape now appends a
-	// stub LLMInvocation so per-call audit code sees a record even
-	// when the integration layer doesn't know model / provider.
+	// The flat RecordUsage(cost, tokens) shape (now routed through
+	// AgentProcess.RecordUsage → recordLLMInvocation) appends a stub
+	// LLMInvocation so per-call audit code sees a record even when the
+	// integration layer doesn't know model / provider.
 	b := newBudgetForTest()
-	b.recordUsage(0.005, 250)
+	b.recordLLMInvocation(core.LLMInvocation{CostUSD: 0.005, PromptTokens: 250})
 
 	history := b.llmHistory()
 	if len(history) != 1 {
 		t.Fatalf("history len = %d, want 1", len(history))
 	}
-	if history[0].Cost != 0.005 || history[0].PromptTokens != 250 {
+	if history[0].CostUSD != 0.005 || history[0].PromptTokens != 250 {
 		t.Errorf("stub invocation: got %#v", history[0])
 	}
 	if history[0].Model != "" || history[0].Provider != "" {
@@ -113,8 +114,8 @@ func TestProcessBudget_LLMInvocation_TimestampDefaulting(t *testing.T) {
 	b := newBudgetForTest()
 
 	explicit := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
-	b.recordLLMInvocation(core.LLMInvocation{Timestamp: explicit, Cost: 0.001})
-	b.recordLLMInvocation(core.LLMInvocation{Cost: 0.002}) // zero timestamp
+	b.recordLLMInvocation(core.LLMInvocation{Timestamp: explicit, CostUSD: 0.001})
+	b.recordLLMInvocation(core.LLMInvocation{CostUSD: 0.002}) // zero timestamp
 
 	history := b.llmHistory()
 	if !history[0].Timestamp.Equal(explicit) {

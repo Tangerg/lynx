@@ -53,9 +53,9 @@ func TestNotifyHelpers_ProgressAndLog(t *testing.T) {
 
 	// Capture progress notifications + log messages observed by the client.
 	var (
-		mu        sync.Mutex
-		progress  []sdkmcp.ProgressNotificationParams
-		logLines  []sdkmcp.LoggingMessageParams
+		mu       sync.Mutex
+		progress []sdkmcp.ProgressNotificationParams
+		logLines []sdkmcp.LoggingMessageParams
 	)
 
 	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-srv", Version: "v0.1.0"}, nil)

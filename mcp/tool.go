@@ -53,10 +53,7 @@ type ToolConfig struct {
 	MetaFunc MetaFunc
 }
 
-func (c *ToolConfig) validate() error {
-	if c == nil {
-		return ErrNilConfig
-	}
+func (c *ToolConfig) Validate() error {
 	if c.Session == nil {
 		return ErrNilSession
 	}
@@ -66,17 +63,24 @@ func (c *ToolConfig) validate() error {
 	if c.Descriptor.Name == "" {
 		return errors.New("mcp.ToolConfig: descriptor has empty name")
 	}
-	if c.PrefixedName == "" {
+	return nil
+}
+
+// ApplyDefaults fills zero fields. PrefixedName defaults to the
+// descriptor's name. Nil Descriptor is left alone — Validate surfaces
+// it as an error.
+func (c *ToolConfig) ApplyDefaults() {
+	if c.PrefixedName == "" && c.Descriptor != nil {
 		c.PrefixedName = c.Descriptor.Name
 	}
-	return nil
 }
 
 // NewTool builds a [chat.Tool] from cfg. cfg.Session must be
 // initialized (returned from (*sdkmcp.Client).Connect) and must outlive
 // the returned Tool.
-func NewTool(cfg *ToolConfig) (*Tool, error) {
-	if err := cfg.validate(); err != nil {
+func NewTool(cfg ToolConfig) (*Tool, error) {
+	cfg.ApplyDefaults()
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -112,7 +116,7 @@ func (t *Tool) Descriptor() *sdkmcp.Tool { return t.descriptor }
 //
 // One `mcp.tool.call <name>` span per call (kind=Client), carrying
 // `lynx.tool.name` and (on failure) `lynx.mcp.tool.is_error=true`.
-// Noop overhead when no TracerProvider is configured.
+// No-op overhead when no TracerProvider is configured.
 func (t *Tool) Call(ctx context.Context, arguments string) (out string, err error) {
 	ctx, span := mcpTracer.Start(ctx, "mcp.tool.call "+t.descriptor.Name,
 		trace.WithSpanKind(trace.SpanKindClient),

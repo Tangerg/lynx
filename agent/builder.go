@@ -25,11 +25,11 @@ func (b *Builder) Version(version string) *Builder {
 	return b
 }
 
-// StuckHandler installs the recovery hook fired when the planner
+// StuckPolicy installs the recovery hook fired when the planner
 // returns no plan; nil leaves the default ("transition to
 // [core.StatusStuck]").
-func (b *Builder) StuckHandler(handler core.StuckHandler) *Builder {
-	b.config.StuckHandler = handler
+func (b *Builder) StuckPolicy(handler core.StuckPolicy) *Builder {
+	b.config.StuckPolicy = handler
 	return b
 }
 
@@ -48,7 +48,7 @@ func (b *Builder) Conditions(conditions ...core.Condition) *Builder {
 	return b
 }
 
-// PlannerName selects which [plan.Planner] the runtime will use for
+// PlannerName selects which [planning.Planner] the runtime will use for
 // this agent — must match the [core.Extension.Name] of a planner
 // registered on the platform (or via process-scope extensions). An
 // empty / unset value resolves to "goap". Built-in names: "goap",
@@ -64,5 +64,5 @@ func (b *Builder) PlannerName(name string) *Builder {
 // (e.g. Version) doesn't leak back into the builder.
 func (b *Builder) Build() *core.Agent {
 	cfg := b.config
-	return core.NewAgent(&cfg)
+	return core.NewAgent(cfg)
 }

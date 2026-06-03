@@ -24,8 +24,8 @@ func TestChatModel_Integration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m, err := moonshot.NewOpenAIChatModel(&moonshot.OpenAIChatModelConfig{
-				ApiKey:         model.NewApiKey(key),
+			m, err := moonshot.NewOpenAIChatModel(moonshot.OpenAIChatModelConfig{
+				APIKey:         model.NewAPIKey(key),
 				DefaultOptions: opts,
 			})
 			if err != nil {

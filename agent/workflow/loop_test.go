@@ -40,7 +40,7 @@ func makeIncrementingBody() (*core.Agent, *int32) {
 }
 
 func TestLoop_LoopsUntilUntilTrue(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	body, iterCount := makeIncrementingBody()
 	if err := platform.Deploy(body); err != nil {
 		t.Fatalf("deploy body: %v", err)
@@ -48,7 +48,7 @@ func TestLoop_LoopsUntilUntilTrue(t *testing.T) {
 
 	wf, err := workflow.Loop[loopIn, loopOut](
 		platform,
-		workflow.LoopSpec[loopIn, loopOut]{
+		workflow.LoopConfig[loopIn, loopOut]{
 			Name:          "incr-loop",
 			MaxIterations: 10,
 			Body:          body,
@@ -87,13 +87,13 @@ func TestLoop_LoopsUntilUntilTrue(t *testing.T) {
 }
 
 func TestLoop_MaxIterationsCapsTheLoop(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	body, iterCount := makeIncrementingBody()
 	mustDeploy(t, platform, body)
 
 	wf, err := workflow.Loop[loopIn, loopOut](
 		platform,
-		workflow.LoopSpec[loopIn, loopOut]{
+		workflow.LoopConfig[loopIn, loopOut]{
 			Name:          "capped-loop",
 			MaxIterations: 3, // cap kicks in before Target=100
 			Body:          body,
@@ -128,7 +128,7 @@ func TestLoop_BranchIsolation(t *testing.T) {
 	// iteration: it should NOT see prior iterations' loopOut bindings
 	// from the Loop's own blackboard. We check this by having the
 	// body assert the absence of any prior loopOut on its blackboard.
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 
 	var sawPriorOut atomic.Bool
 	body := agent.New("isolation-body").
@@ -147,7 +147,7 @@ func TestLoop_BranchIsolation(t *testing.T) {
 
 	wf, err := workflow.Loop[loopIn, loopOut](
 		platform,
-		workflow.LoopSpec[loopIn, loopOut]{
+		workflow.LoopConfig[loopIn, loopOut]{
 			Name:          "isolation-loop",
 			MaxIterations: 3,
 			Body:          body,
@@ -169,8 +169,8 @@ func TestLoop_BranchIsolation(t *testing.T) {
 }
 
 func TestLoop_RejectsNilBody(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
-	if _, err := workflow.Loop[loopIn, loopOut](platform, workflow.LoopSpec[loopIn, loopOut]{
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	if _, err := workflow.Loop[loopIn, loopOut](platform, workflow.LoopConfig[loopIn, loopOut]{
 		Name:  "no-body",
 		Until: func(_ context.Context, _ loopIn, _ loopOut) bool { return true },
 	}); err == nil {
@@ -179,9 +179,9 @@ func TestLoop_RejectsNilBody(t *testing.T) {
 }
 
 func TestLoop_RejectsNilUntil(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	body, _ := makeIncrementingBody()
-	if _, err := workflow.Loop[loopIn, loopOut](platform, workflow.LoopSpec[loopIn, loopOut]{
+	if _, err := workflow.Loop[loopIn, loopOut](platform, workflow.LoopConfig[loopIn, loopOut]{
 		Name: "no-until",
 		Body: body,
 	}); err == nil {

@@ -15,10 +15,7 @@ type EmbeddingModelConfig struct {
 	DefaultOptions *embedding.Options
 }
 
-func (c *EmbeddingModelConfig) validate() error {
-	if c == nil {
-		return errors.New("vertexai: config must not be nil")
-	}
+func (c EmbeddingModelConfig) Validate() error {
 	if c.Project == "" {
 		return errors.New("vertexai: Project is required")
 	}
@@ -34,11 +31,11 @@ func (c *EmbeddingModelConfig) validate() error {
 // NewEmbeddingModel returns a [google.EmbeddingModel] backed by
 // Vertex AI. Supported models: text-embedding-005,
 // text-multilingual-embedding-002, gemini-embedding-001.
-func NewEmbeddingModel(cfg *EmbeddingModelConfig) (*google.EmbeddingModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewEmbeddingModel(cfg EmbeddingModelConfig) (*google.EmbeddingModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	return google.NewEmbeddingModel(&google.EmbeddingModelConfig{
+	return google.NewEmbeddingModel(google.EmbeddingModelConfig{
 		Backend:        genai.BackendVertexAI,
 		Project:        cfg.Project,
 		Location:       cfg.Location,

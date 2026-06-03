@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/Tangerg/lynx/core/document/id"
 	"github.com/Tangerg/lynx/core/tokenizer"
 )
 
@@ -48,17 +49,23 @@ type TokenSplitterConfig struct {
 	// CopyFormatter copies the source document's [Formatter] to each
 	// chunk. Defaults to false.
 	CopyFormatter bool
+
+	// IDGenerator, when set, assigns an id to every emitted chunk.
+	// nil leaves chunk IDs empty. See [SplitterConfig.IDGenerator].
+	IDGenerator id.Generator
 }
 
-// validate fills in defaults for non-positive numeric fields and
-// returns an error when required fields are missing.
-func (c *TokenSplitterConfig) validate() error {
-	if c == nil {
-		return errors.New("document.TokenSplitterConfig: config must not be nil")
-	}
+// Validate returns an error when required fields are missing.
+func (c *TokenSplitterConfig) Validate() error {
 	if c.Tokenizer == nil {
 		return errors.New("document.TokenSplitterConfig: Tokenizer is required")
 	}
+	return nil
+}
+
+// ApplyDefaults fills zero or non-positive fields with package
+// defaults.
+func (c *TokenSplitterConfig) ApplyDefaults() {
 	if c.ChunkSize <= 0 {
 		c.ChunkSize = defaultTokenChunkSize
 	}
@@ -71,7 +78,6 @@ func (c *TokenSplitterConfig) validate() error {
 	if c.MaxChunkCount <= 0 {
 		c.MaxChunkCount = defaultTokenMaxChunkCount
 	}
-	return nil
 }
 
 var _ Transformer = (*TokenSplitter)(nil)
@@ -93,8 +99,9 @@ type TokenSplitter struct {
 
 // NewTokenSplitter builds a [TokenSplitter]. Returns an error when
 // config is nil or invalid.
-func NewTokenSplitter(config *TokenSplitterConfig) (*TokenSplitter, error) {
-	if err := config.validate(); err != nil {
+func NewTokenSplitter(config TokenSplitterConfig) (*TokenSplitter, error) {
+	config.ApplyDefaults()
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -107,9 +114,10 @@ func NewTokenSplitter(config *TokenSplitterConfig) (*TokenSplitter, error) {
 		keepSeparator:  config.KeepSeparator,
 		copyFormatter:  config.CopyFormatter,
 	}
-	ts.splitter, _ = NewSplitter(&SplitterConfig{
+	ts.splitter, _ = NewSplitter(SplitterConfig{
 		CopyFormatter: config.CopyFormatter,
 		SplitFunc:     ts.splitByTokens,
+		IDGenerator:   config.IDGenerator,
 	})
 	return ts, nil
 }

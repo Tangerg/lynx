@@ -22,8 +22,8 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 		t.Fatal(err)
 	}
 	opts.Voice = "lily"
-	m, err := lmnt.NewAudioTTSModel(&lmnt.AudioTTSModelConfig{
-		ApiKey:         model.NewApiKey("test-key"),
+	m, err := lmnt.NewAudioTTSModel(lmnt.AudioTTSModelConfig{
+		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		BaseURL:        srv.URL,
 	})

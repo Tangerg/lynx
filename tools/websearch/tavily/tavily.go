@@ -34,7 +34,7 @@ func (c *Config) Validate() error {
 
 // Client implements [websearch.Provider] against Tavily.
 // Use [Client.SearchNative] for full parameter access; [Client.Search]
-// is the slimmer lynx-SPI flavour.
+// is the slimmer lynx-SPI flavor.
 type Client struct {
 	http *resty.Client
 }
@@ -85,7 +85,7 @@ type Request struct {
 	ExcludeDomains []string `json:"exclude_domains,omitempty"`
 
 	// Country (e.g. "United States" or "us") biases by region.
-	// Only honoured when Topic == "general".
+	// Only honored when Topic == "general".
 	Country string `json:"country,omitempty"`
 
 	// IncludeFavicon returns favicon URLs on each result.

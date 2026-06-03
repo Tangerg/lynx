@@ -82,7 +82,7 @@ func main() {
 		Goals(agent.GoalProducing[Brief](core.Goal{Description: "topic brief produced"})).
 		Build()
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{
+	platform := agent.NewPlatform(runtime.PlatformConfig{
 		ChatClient: chatClient,
 		Extensions: []core.Extension{resolver, &eventLogger{}},
 	})
@@ -125,7 +125,7 @@ func newStubModel() *stubModel {
 }
 
 func (m *stubModel) DefaultOptions() chat.Options { return *m.defaults }
-func (m *stubModel) Metadata() chat.ModelMetadata          { return chat.ModelMetadata{Provider: "stub"} }
+func (m *stubModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
 
 // Call walks the conversation and decides:
 //

@@ -12,7 +12,7 @@ import (
 )
 
 type EmbeddingModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *embedding.Options
 	BaseURL        string
 
@@ -21,12 +21,9 @@ type EmbeddingModelConfig struct {
 	RequestOptions []option.RequestOption
 }
 
-func (c *EmbeddingModelConfig) validate() error {
-	if c == nil {
-		return errors.New("mistral: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("mistral: ApiKey is required")
+func (c EmbeddingModelConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("mistral: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("mistral: DefaultOptions is required")
@@ -37,14 +34,14 @@ func (c *EmbeddingModelConfig) validate() error {
 // NewEmbeddingModel returns an openai-backed [embedding.Model] pointed
 // at Mistral's /embeddings endpoint (OpenAI-compatible shape). Models:
 // "mistral-embed", "codestral-embed".
-func NewEmbeddingModel(cfg *EmbeddingModelConfig) (*openai.EmbeddingModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewEmbeddingModel(cfg EmbeddingModelConfig) (*openai.EmbeddingModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	baseURL := cmp.Or(cfg.BaseURL, DefaultBaseURL)
 	reqOpts := append([]option.RequestOption{option.WithBaseURL(baseURL)}, cfg.RequestOptions...)
-	return openai.NewEmbeddingModel(&openai.EmbeddingModelConfig{
-		ApiKey:         cfg.ApiKey,
+	return openai.NewEmbeddingModel(openai.EmbeddingModelConfig{
+		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
 		Metadata:       &embedding.ModelMetadata{Provider: Provider},

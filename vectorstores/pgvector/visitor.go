@@ -72,6 +72,9 @@ func (v *Visitor) visit(expr ast.Expr) error {
 
 	switch node := expr.(type) {
 	case *ast.BinaryExpr:
+		if node.Op.Kind.IsNullOperator() {
+			return v.visitNullTestExpr(node)
+		}
 		return filterhelp.DispatchBinaryErr(node,
 			v.visitLogicalExpr,
 			v.visitComparisonExpr,
@@ -192,6 +195,22 @@ func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 	v.sql.WriteString(" ILIKE $")
 	v.sql.WriteString(strconv.Itoa(len(v.args)))
 	v.sql.WriteString(")")
+	return nil
+}
+
+// visitNullTestExpr emits `(metadata->>'key' IS NULL)`. Postgres `->>`
+// yields SQL NULL both when the key is absent and when the stored value
+// is JSON null, matching the inmemory reference semantics. The negated
+// `IS NOT NULL` arrives as NOT(… IS NULL) and is rendered by
+// visitNotExpr, so no separate handling is needed here.
+func (v *Visitor) visitNullTestExpr(expr *ast.BinaryExpr) error {
+	jsonPath, err := buildJSONPath(expr.Left, v.metadataCol, castNone)
+	if err != nil {
+		return fmt.Errorf("pgvector: %w (at %s)", err, expr.Start().String())
+	}
+	v.sql.WriteString("(")
+	v.sql.WriteString(jsonPath)
+	v.sql.WriteString(" IS NULL)")
 	return nil
 }
 

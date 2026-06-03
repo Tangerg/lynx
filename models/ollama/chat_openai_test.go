@@ -29,8 +29,8 @@ func TestOpenAIChatModel(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewOptions: %v", err)
 			}
-			m, err := ollama.NewOpenAIChatModel(&ollama.OpenAIChatModelConfig{
-				ApiKey:         model.NewApiKey("test-key"),
+			m, err := ollama.NewOpenAIChatModel(ollama.OpenAIChatModelConfig{
+				APIKey:         model.NewAPIKey("test-key"),
 				DefaultOptions: opts,
 				BaseURL:        base,
 			})

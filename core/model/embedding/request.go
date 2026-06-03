@@ -114,13 +114,13 @@ func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
 		if override == nil {
 			continue
 		}
-		applyOverride(merged, override)
+		merged.applyOverride(override)
 	}
 	return merged, nil
 }
 
-// applyOverride mutates dst in place with the non-zero fields of src.
-func applyOverride(dst, src *Options) {
+// applyOverride mutates the receiver in place with the non-zero fields of src.
+func (dst *Options) applyOverride(src *Options) {
 	if src.Model != "" {
 		dst.Model = src.Model
 	}

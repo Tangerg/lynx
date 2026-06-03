@@ -1,0 +1,41 @@
+// Package codec hosts the shared chat.Message JSON envelope used by every
+// chatmemory backend. Each backend stores the canonical MessageParams
+// shape (emitted by the concrete Message types' MarshalJSON) so a
+// conversation written by one backend can be re-read by another.
+//
+// Centralizing the encoder here removes the per-backend duplication
+// that previously had six near-identical type-switches drifting in
+// sync.
+package codec
+
+import (
+	"errors"
+	"fmt"
+
+	"github.com/Tangerg/lynx/core/model/chat"
+)
+
+// EncodeMessage marshals msg into the canonical wire JSON every
+// chatmemory backend uses. Each concrete chat.Message type implements
+// MarshalJSON to emit the MessageParams shape with a Type discriminator;
+// chat.UnmarshalMessage decodes the same shape back.
+//
+// Returns an error on nil or unsupported types so the backend's Write
+// surface can refuse malformed input early.
+func EncodeMessage(msg chat.Message) ([]byte, error) {
+	if msg == nil {
+		return nil, errors.New("message must not be nil")
+	}
+	switch m := msg.(type) {
+	case *chat.SystemMessage:
+		return m.MarshalJSON()
+	case *chat.UserMessage:
+		return m.MarshalJSON()
+	case *chat.AssistantMessage:
+		return m.MarshalJSON()
+	case *chat.ToolMessage:
+		return m.MarshalJSON()
+	default:
+		return nil, fmt.Errorf("unsupported message type %T", msg)
+	}
+}

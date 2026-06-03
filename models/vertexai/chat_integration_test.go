@@ -31,7 +31,7 @@ func TestChatModel_Integration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m, err := vertexai.NewChatModel(&vertexai.ChatModelConfig{
+			m, err := vertexai.NewChatModel(vertexai.ChatModelConfig{
 				Project:        project,
 				Location:       location,
 				DefaultOptions: opts,

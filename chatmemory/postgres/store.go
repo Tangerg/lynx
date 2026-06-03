@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/Tangerg/lynx/chatmemory/internal/codec"
 	"github.com/Tangerg/lynx/chatmemory/internal/tracing"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/memory"
@@ -63,20 +64,10 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return errors.New("postgres: config must not be nil")
-	}
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+func (c *StoreConfig) Validate() error {
 	if c.Pool == nil {
 		return errors.New("postgres: Pool is required")
 	}
-
-	c.SchemaName = cmpOr(c.SchemaName, DefaultSchemaName)
-	c.TableName = cmpOr(c.TableName, DefaultTableName)
-	c.IndexName = cmpOr(c.IndexName, c.TableName+DefaultIndexSuffix)
 
 	idents := map[string]string{
 		"SchemaName": c.SchemaName,
@@ -92,6 +83,18 @@ func (c *StoreConfig) validate() error {
 	return nil
 }
 
+// ApplyDefaults fills zero fields. Context defaults to
+// [context.Background]; SchemaName, TableName, and IndexName fall back
+// to the documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
+	c.SchemaName = cmpOr(c.SchemaName, DefaultSchemaName)
+	c.TableName = cmpOr(c.TableName, DefaultTableName)
+	c.IndexName = cmpOr(c.IndexName, c.TableName+DefaultIndexSuffix)
+}
+
 // cmpOr is a local stand-in for cmp.Or — first non-zero string wins.
 func cmpOr(values ...string) string {
 	for _, v := range values {
@@ -102,7 +105,10 @@ func cmpOr(values ...string) string {
 	return ""
 }
 
-var _ memory.Store = (*Store)(nil)
+var (
+	_ memory.Store  = (*Store)(nil)
+	_ memory.Lister = (*Store)(nil)
+)
 
 // Store is a PostgreSQL-backed [memory.Store]. Construct via
 // [NewStore].
@@ -129,14 +135,16 @@ type Store struct {
 	readSQL   string
 	writeSQL  string
 	clearSQL  string
+	listSQL   string
 	createSQL []string
 }
 
 // NewStore builds a [Store] from cfg. When
 // [StoreConfig.InitializeSchema] is true the table and index are
 // created if they don't already exist using [StoreConfig.Context].
-func NewStore(cfg *StoreConfig) (*Store, error) {
-	if err := cfg.validate(); err != nil {
+func NewStore(cfg StoreConfig) (*Store, error) {
+	cfg.ApplyDefaults()
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -153,6 +161,10 @@ func NewStore(cfg *StoreConfig) (*Store, error) {
 		),
 		clearSQL: fmt.Sprintf(
 			"DELETE FROM %s WHERE conversation_id = $1",
+			qualified,
+		),
+		listSQL: fmt.Sprintf(
+			"SELECT DISTINCT conversation_id FROM %s",
 			qualified,
 		),
 		createSQL: []string{
@@ -206,7 +218,7 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 
 	batch := &pgx.Batch{}
 	for _, msg := range messages {
-		raw, err := encodeMessage(msg)
+		raw, err := codec.EncodeMessage(msg)
 		if err != nil {
 			return fmt.Errorf("postgres.Store.Write: encode message: %w", err)
 		}
@@ -273,26 +285,33 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 	return nil
 }
 
-// encodeMessage marshals msg to JSON via the message type's
-// MarshalJSON. nil-message safe (returns an error rather than
-// inserting "null").
-func encodeMessage(msg chat.Message) ([]byte, error) {
-	if msg == nil {
-		return nil, errors.New("message must not be nil")
+// Conversations returns the ids of every stored conversation as a
+// point-in-time snapshot. An empty slice is returned when the store
+// holds no messages.
+func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
+	if err = ctx.Err(); err != nil {
+		return nil, err
 	}
-	// Each concrete chat.Message type implements MarshalJSON to emit
-	// the canonical MessageParams wire shape with a Type discriminator;
-	// chat.UnmarshalMessage decodes the same shape back.
-	switch m := msg.(type) {
-	case *chat.SystemMessage:
-		return m.MarshalJSON()
-	case *chat.UserMessage:
-		return m.MarshalJSON()
-	case *chat.AssistantMessage:
-		return m.MarshalJSON()
-	case *chat.ToolMessage:
-		return m.MarshalJSON()
-	default:
-		return nil, fmt.Errorf("unsupported message type %T", msg)
+
+	ctx, span := tracing.StartList(ctx, "postgres")
+	defer func() { tracing.RecordListResult(span, err, len(ids)) }()
+
+	rows, err := s.pool.Query(ctx, s.listSQL)
+	if err != nil {
+		return nil, fmt.Errorf("postgres.Store.Conversations: %w", err)
 	}
+	defer rows.Close()
+
+	ids = []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("postgres.Store.Conversations: scan: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("postgres.Store.Conversations: %w", err)
+	}
+	return ids, nil
 }

@@ -23,7 +23,7 @@ type WorldState interface {
 
 	// Apply produces a new state with the supplied effects layered on top. The
 	// receiver MUST NOT mutate; planners rely on snapshots being immutable.
-	Apply(effects EffectSpec) WorldState
+	Apply(effects Effects) WorldState
 }
 
 // CostFunc computes a dynamic cost or value from the current world state. The
@@ -58,7 +58,7 @@ type DomainType struct {
 // declaring sealed-interface families up front so the planner has the parent
 // information it needs.
 func DomainTypeOf[T any](description string) DomainType {
-	rt := reflect.TypeOf((*T)(nil)).Elem()
+	rt := reflect.TypeFor[T]()
 	return DomainType{
 		Name:        TypeFullName(rt),
 		Description: description,

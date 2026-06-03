@@ -133,15 +133,15 @@ func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
 		if override == nil {
 			continue
 		}
-		applyOverride(merged, override)
+		merged.applyOverride(override)
 	}
 	return merged, nil
 }
 
-// applyOverride mutates dst in place with the non-zero fields of src.
-// Extracted from MergeOptions to keep the merge body free of repeated
+// applyOverride mutates the receiver in place with the non-zero fields of
+// src. Extracted from MergeOptions to keep the merge body free of repeated
 // "if-not-zero overwrite" boilerplate.
-func applyOverride(dst, src *Options) {
+func (dst *Options) applyOverride(src *Options) {
 	if src.Model != "" {
 		dst.Model = src.Model
 	}
@@ -187,7 +187,7 @@ type Request struct {
 	// to keep the wire format provider-agnostic — serialization is the
 	// provider's job. Sits at the Request level (not inside Options)
 	// because tools are capability, not sampling configuration.
-	Tools []Tool `json:"-,omitzero"`
+	Tools []Tool `json:"-"`
 
 	// Options carries model-specific parameters.
 	Options *Options `json:"options,omitempty"`
@@ -273,6 +273,22 @@ func (r *Request) SystemMessage() *SystemMessage {
 		return NewSystemMessage("")
 	}
 	return last.(*SystemMessage)
+}
+
+// continueWith derives the next request in a tool / feedback loop: this
+// request's messages plus the supplied extras, carrying over its options,
+// tools, and params. Used by the tool-loop middleware to re-prompt
+// without mutating the original request.
+func (r *Request) continueWith(extra ...Message) (*Request, error) {
+	msgs := append(slices.Clone(r.Messages), extra...)
+	next, err := NewRequest(msgs)
+	if err != nil {
+		return nil, err
+	}
+	next.Options = r.Options.Clone()
+	next.Tools = slices.Clone(r.Tools)
+	next.Params = maps.Clone(r.Params)
+	return next, nil
 }
 
 // UnmarshalJSON decodes a Request, dispatching each entry in the

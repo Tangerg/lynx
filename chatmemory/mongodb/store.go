@@ -10,6 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
+	"github.com/Tangerg/lynx/chatmemory/internal/codec"
 	"github.com/Tangerg/lynx/chatmemory/internal/tracing"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/memory"
@@ -41,20 +42,25 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return errors.New("mongodb: config must not be nil")
-	}
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+func (c *StoreConfig) Validate() error {
 	if c.Collection == nil {
 		return errors.New("mongodb: Collection is required")
 	}
 	return nil
 }
 
-var _ memory.Store = (*Store)(nil)
+// ApplyDefaults fills zero fields. Context defaults to
+// [context.Background].
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
+}
+
+var (
+	_ memory.Store  = (*Store)(nil)
+	_ memory.Lister = (*Store)(nil)
+)
 
 // Store is a MongoDB-backed [memory.Store]. Construct via [NewStore].
 type Store struct {
@@ -62,8 +68,9 @@ type Store struct {
 }
 
 // NewStore builds a [Store] from cfg.
-func NewStore(cfg *StoreConfig) (*Store, error) {
-	if err := cfg.validate(); err != nil {
+func NewStore(cfg StoreConfig) (*Store, error) {
+	cfg.ApplyDefaults()
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	s := &Store{collection: cfg.Collection}
@@ -105,7 +112,7 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 	now := time.Now().UTC()
 	docs := make([]any, 0, len(messages))
 	for _, msg := range messages {
-		raw, err := encodeMessage(msg)
+		raw, err := codec.EncodeMessage(msg)
 		if err != nil {
 			return fmt.Errorf("mongodb.Store.Write: encode message: %w", err)
 		}
@@ -178,21 +185,20 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 	return nil
 }
 
-// encodeMessage marshals msg via its MarshalJSON.
-func encodeMessage(msg chat.Message) ([]byte, error) {
-	if msg == nil {
-		return nil, errors.New("message must not be nil")
+// Conversations returns the distinct conversation ids stored in the
+// collection — a point-in-time snapshot in no guaranteed order. It is a
+// deliberate cross-conversation scan for ops tasks (listing, bulk
+// cleanup, GC), distinct from the per-conversation hot path.
+func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
+	if err = ctx.Err(); err != nil {
+		return nil, err
 	}
-	switch m := msg.(type) {
-	case *chat.SystemMessage:
-		return m.MarshalJSON()
-	case *chat.UserMessage:
-		return m.MarshalJSON()
-	case *chat.AssistantMessage:
-		return m.MarshalJSON()
-	case *chat.ToolMessage:
-		return m.MarshalJSON()
-	default:
-		return nil, fmt.Errorf("unsupported message type %T", msg)
+
+	ctx, span := tracing.StartList(ctx, "mongodb")
+	defer func() { tracing.RecordListResult(span, err, len(ids)) }()
+
+	if err = s.collection.Distinct(ctx, fieldConversationID, bson.D{}).Decode(&ids); err != nil {
+		return nil, fmt.Errorf("mongodb.Store.Conversations: %w", err)
 	}
+	return ids, nil
 }

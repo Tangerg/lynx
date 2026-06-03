@@ -12,6 +12,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/models/internal/catalog"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
 
@@ -177,7 +178,7 @@ func (r *requestHelper) buildMsgs(msgs []chat.Message) ([]*genai.Content, error)
 	return contents, nil
 }
 
-func (r *requestHelper) buildApiChatRequest(req *chat.Request) (string, []*genai.Content, *genai.GenerateContentConfig, error) {
+func (r *requestHelper) buildAPIChatRequest(req *chat.Request) (string, []*genai.Content, *genai.GenerateContentConfig, error) {
 	mergedOpts, err := chat.MergeOptions(r.defaultOptions, req.Options)
 	if err != nil {
 		return "", nil, nil, err
@@ -317,11 +318,11 @@ func (r *responseHelper) buildChatResponse(modelName string, resp *genai.Generat
 }
 
 type ChatModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *chat.Options
 
 	// Backend selects the genai backend. Zero value defaults to
-	// [genai.BackendGeminiAPI] — the public Gemini API where ApiKey
+	// [genai.BackendGeminiAPI] — the public Gemini API where APIKey
 	// is required. Set to [genai.BackendVertexAI] for GCP-hosted
 	// inference; Project / Location become required and auth flows
 	// through Application Default Credentials.
@@ -345,12 +346,9 @@ type ChatModelConfig struct {
 	Metadata *chat.ModelMetadata
 }
 
-func (c *ChatModelConfig) validate() error {
-	if c == nil {
-		return errors.New("google: config must not be nil")
-	}
-	if c.Backend != genai.BackendVertexAI && c.ApiKey == nil {
-		return errors.New("google: ApiKey is required")
+func (c ChatModelConfig) Validate() error {
+	if c.Backend != genai.BackendVertexAI && c.APIKey == nil {
+		return errors.New("google: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("google: DefaultOptions is required")
@@ -361,20 +359,20 @@ func (c *ChatModelConfig) validate() error {
 var _ chat.Model = (*ChatModel)(nil)
 
 type ChatModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *chat.Options
 	reqHelper      requestHelper
 	respHelper     responseHelper
 	metadata       chat.ModelMetadata
 }
 
-func NewChatModel(cfg *ChatModelConfig) (*ChatModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewChatModel(cfg ChatModelConfig) (*ChatModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	api, err := NewApi(&ApiConfig{
-		ApiKey:   cfg.ApiKey,
+	api, err := NewAPI(APIConfig{
+		APIKey:   cfg.APIKey,
 		Backend:  cfg.Backend,
 		Project:  cfg.Project,
 		Location: cfg.Location,
@@ -384,20 +382,17 @@ func NewChatModel(cfg *ChatModelConfig) (*ChatModel, error) {
 		return nil, err
 	}
 
-	info := chat.ModelMetadata{Provider: Provider}
-	if cfg.Metadata != nil {
-		info = *cfg.Metadata
-	}
+	info := catalog.Resolve(Provider, cfg.DefaultOptions, cfg.Metadata)
 	return &ChatModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,
 		reqHelper:      requestHelper{cfg.DefaultOptions},
-		metadata:           info,
+		metadata:       info,
 	}, nil
 }
 
 func (c *ChatModel) Call(ctx context.Context, req *chat.Request) (*chat.Response, error) {
-	modelName, contents, cfg, err := c.reqHelper.buildApiChatRequest(req)
+	modelName, contents, cfg, err := c.reqHelper.buildAPIChatRequest(req)
 	if err != nil {
 		return nil, err
 	}
@@ -412,7 +407,7 @@ func (c *ChatModel) Call(ctx context.Context, req *chat.Request) (*chat.Response
 
 func (c *ChatModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
-		modelName, contents, cfg, err := c.reqHelper.buildApiChatRequest(req)
+		modelName, contents, cfg, err := c.reqHelper.buildAPIChatRequest(req)
 		if err != nil {
 			yield(nil, err)
 			return

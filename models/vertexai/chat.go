@@ -19,10 +19,7 @@ type ChatModelConfig struct {
 	DefaultOptions *chat.Options
 }
 
-func (c *ChatModelConfig) validate() error {
-	if c == nil {
-		return errors.New("vertexai: config must not be nil")
-	}
+func (c ChatModelConfig) Validate() error {
 	if c.Project == "" {
 		return errors.New("vertexai: Project is required")
 	}
@@ -37,11 +34,11 @@ func (c *ChatModelConfig) validate() error {
 
 // NewChatModel returns a [google.ChatModel] backed by Vertex AI.
 // Authentication flows through Application Default Credentials.
-func NewChatModel(cfg *ChatModelConfig) (*google.ChatModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewChatModel(cfg ChatModelConfig) (*google.ChatModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	return google.NewChatModel(&google.ChatModelConfig{
+	return google.NewChatModel(google.ChatModelConfig{
 		Backend:        genai.BackendVertexAI,
 		Project:        cfg.Project,
 		Location:       cfg.Location,

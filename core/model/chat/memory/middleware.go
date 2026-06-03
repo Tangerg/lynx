@@ -243,7 +243,7 @@ func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next 
 			}
 			acc.AddChunk(chunk)
 			if !yield(chunk, nil) {
-				return // consumer cancelled — skip persistence
+				return // consumer canceled — skip persistence
 			}
 		}
 

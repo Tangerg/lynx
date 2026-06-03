@@ -19,8 +19,8 @@ func newResponsesModel(t *testing.T, baseURL, modelID string) *openai.ResponsesC
 	if err != nil {
 		t.Fatalf("NewOptions: %v", err)
 	}
-	m, err := openai.NewResponsesChatModel(&openai.ChatModelConfig{
-		ApiKey:         model.NewApiKey("test-key"),
+	m, err := openai.NewResponsesChatModel(openai.ChatModelConfig{
+		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		RequestOptions: []option.RequestOption{option.WithBaseURL(baseURL)},
 	})
@@ -220,4 +220,3 @@ func TestResponsesChatModel_Metadata(t *testing.T) {
 		t.Errorf("provider = %q; want %q", m.Metadata().Provider, openai.Provider)
 	}
 }
-

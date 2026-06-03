@@ -21,7 +21,7 @@ import (
 //	fmt.Println(resp.Result.AssistantMessage.JoinedText())
 type CallHandler[Request any, Response any] interface {
 	// Call sends req to the underlying model and returns the complete
-	// response. The call blocks until the model finishes or ctx is cancelled.
+	// response. The call blocks until the model finishes or ctx is canceled.
 	Call(ctx context.Context, req Request) (Response, error)
 }
 
@@ -38,7 +38,7 @@ func (f CallHandlerFunc[Request, Response]) Call(ctx context.Context, req Reques
 // response chunks delivered as the model produces them. The iterator yields
 // (chunk, nil) for each successful chunk and (zero, err) on the first error;
 // callers terminate the stream by breaking out of the for-range loop or by
-// cancelling ctx.
+// canceling ctx.
 //
 // Use StreamHandler for real-time chat, long-form generation, live
 // transcription, or any case where reducing time-to-first-byte matters.

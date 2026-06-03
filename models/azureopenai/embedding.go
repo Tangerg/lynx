@@ -11,17 +11,14 @@ import (
 )
 
 type EmbeddingModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	Endpoint       string
 	APIVersion     string
 	DefaultOptions *embedding.Options
 	RequestOptions []option.RequestOption
 }
 
-func (c *EmbeddingModelConfig) validate() error {
-	if c == nil {
-		return errors.New("azureopenai: config must not be nil")
-	}
+func (c EmbeddingModelConfig) Validate() error {
 	if c.Endpoint == "" {
 		return errors.New("azureopenai: Endpoint is required")
 	}
@@ -33,13 +30,13 @@ func (c *EmbeddingModelConfig) validate() error {
 
 // NewEmbeddingModel returns an [openai.EmbeddingModel] pointed at
 // Azure OpenAI. [embedding.Options].Model is the Azure deployment id.
-func NewEmbeddingModel(cfg *EmbeddingModelConfig) (*openai.EmbeddingModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewEmbeddingModel(cfg EmbeddingModelConfig) (*openai.EmbeddingModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	apiKey, reqOpts := buildAzureRequestOptions(cfg.ApiKey, cfg.Endpoint, cfg.APIVersion, cfg.RequestOptions)
-	return openai.NewEmbeddingModel(&openai.EmbeddingModelConfig{
-		ApiKey:         apiKey,
+	apiKey, reqOpts := buildAzureRequestOptions(cfg.APIKey, cfg.Endpoint, cfg.APIVersion, cfg.RequestOptions)
+	return openai.NewEmbeddingModel(openai.EmbeddingModelConfig{
+		APIKey:         apiKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
 		Metadata:       &embedding.ModelMetadata{Provider: Provider},

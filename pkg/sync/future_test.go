@@ -169,7 +169,7 @@ func TestFutureTaskRun(t *testing.T) {
 		}
 	})
 
-	t.Run("run after cancelled", func(t *testing.T) {
+	t.Run("run after canceled", func(t *testing.T) {
 		executed := false
 		task := func(interrupt <-chan struct{}) (int, error) {
 			executed = true
@@ -192,13 +192,13 @@ func TestFutureTaskCancel(t *testing.T) {
 			return 42, nil
 		}
 		future := NewFutureTask(task)
-		cancelled := future.Cancel(false)
+		canceled := future.Cancel(false)
 
-		if !cancelled {
+		if !canceled {
 			t.Error("Cancel should return true")
 		}
 		if !future.IsCancelled() {
-			t.Error("Future should be cancelled")
+			t.Error("Future should be canceled")
 		}
 
 		result, err := future.Get()
@@ -226,9 +226,9 @@ func TestFutureTaskCancel(t *testing.T) {
 
 		<-started // Wait for task to start
 		time.Sleep(10 * time.Millisecond)
-		cancelled := future.Cancel(true)
+		canceled := future.Cancel(true)
 
-		if !cancelled {
+		if !canceled {
 			t.Error("Cancel should return true during execution")
 		}
 
@@ -246,12 +246,12 @@ func TestFutureTaskCancel(t *testing.T) {
 		future.Run()
 		future.Get() // Wait for completion
 
-		cancelled := future.Cancel(true)
-		if cancelled {
+		canceled := future.Cancel(true)
+		if canceled {
 			t.Error("Cancel should return false after completion")
 		}
 		if future.IsCancelled() {
-			t.Error("Future should not be cancelled after completion")
+			t.Error("Future should not be canceled after completion")
 		}
 	})
 
@@ -312,7 +312,7 @@ func TestFutureTaskGet(t *testing.T) {
 		}
 	})
 
-	t.Run("get cancelled result", func(t *testing.T) {
+	t.Run("get canceled result", func(t *testing.T) {
 		task := func(interrupt <-chan struct{}) (int, error) {
 			<-time.After(10 * time.Second)
 			return 42, nil
@@ -388,7 +388,7 @@ func TestFutureTaskGetWithTimeout(t *testing.T) {
 			t.Errorf("Expected 0, got %d", result)
 		}
 		if !future.IsCancelled() {
-			t.Error("Future should be cancelled after timeout")
+			t.Error("Future should be canceled after timeout")
 		}
 	})
 
@@ -534,7 +534,7 @@ func TestFutureTaskGetWithContext(t *testing.T) {
 		}
 	})
 
-	t.Run("already cancelled context", func(t *testing.T) {
+	t.Run("already canceled context", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel() // Cancel immediately
 
@@ -620,7 +620,7 @@ func TestFutureTaskTryGet(t *testing.T) {
 		}
 	})
 
-	t.Run("cancelled", func(t *testing.T) {
+	t.Run("canceled", func(t *testing.T) {
 		task := func(interrupt <-chan struct{}) (int, error) {
 			return 42, nil
 		}
@@ -629,7 +629,7 @@ func TestFutureTaskTryGet(t *testing.T) {
 
 		result, err, ok := future.TryGet()
 		if !ok {
-			t.Error("TryGet should return true when cancelled")
+			t.Error("TryGet should return true when canceled")
 		}
 		if result != 0 {
 			t.Errorf("Expected 0, got %d", result)
@@ -683,7 +683,7 @@ func TestFutureTaskIsDone(t *testing.T) {
 		}
 	})
 
-	t.Run("cancelled", func(t *testing.T) {
+	t.Run("canceled", func(t *testing.T) {
 		task := func(interrupt <-chan struct{}) (int, error) {
 			return 42, nil
 		}
@@ -691,7 +691,7 @@ func TestFutureTaskIsDone(t *testing.T) {
 		future.Cancel(false)
 
 		if !future.IsDone() {
-			t.Error("IsDone should return true when cancelled")
+			t.Error("IsDone should return true when canceled")
 		}
 	})
 }
@@ -753,7 +753,7 @@ func TestFutureTaskState(t *testing.T) {
 		}
 	})
 
-	t.Run("cancelled state", func(t *testing.T) {
+	t.Run("canceled state", func(t *testing.T) {
 		task := func(interrupt <-chan struct{}) (int, error) {
 			return 42, nil
 		}
@@ -761,7 +761,7 @@ func TestFutureTaskState(t *testing.T) {
 		future.Cancel(false)
 
 		if !future.State().IsCancelled() {
-			t.Error("Future should be in Cancelled state after cancellation")
+			t.Error("Future should be in Canceled state after cancellation")
 		}
 	})
 }
@@ -984,7 +984,7 @@ func BenchmarkFutureTaskCreate(b *testing.B) {
 		return 42, nil
 	}
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = NewFutureTask(task)
 	}
 }
@@ -994,7 +994,7 @@ func BenchmarkFutureTaskRunAndGet(b *testing.B) {
 		return 42, nil
 	}
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		future := NewFutureTask(task)
 		future.Run()
 		future.Get()
@@ -1025,7 +1025,7 @@ func BenchmarkFutureTaskState(b *testing.B) {
 	future.Run()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = future.State()
 	}
 }
@@ -1039,7 +1039,7 @@ func BenchmarkFutureTaskTryGet(b *testing.B) {
 	future.Get()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		future.TryGet()
 	}
 }

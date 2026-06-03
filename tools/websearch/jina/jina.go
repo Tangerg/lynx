@@ -88,7 +88,7 @@ type Request struct {
 	// Nfpr enables Google's "no filter for personalised results".
 	Nfpr bool `json:"nfpr,omitempty"`
 
-	// Search operators — exact behaviour matches Google's site:/intitle:.
+	// Search operators — exact behavior matches Google's site:/intitle:.
 	Ext      []string `json:"ext,omitempty"`
 	Filetype []string `json:"filetype,omitempty"`
 	Intitle  []string `json:"intitle,omitempty"`
@@ -166,7 +166,7 @@ func (c *Client) SearchNative(ctx context.Context, req *Request) (*Response, err
 	return &raw, nil
 }
 
-// toQueryParams serialises a [Request] into the flat string map resty
+// toQueryParams serializes a [Request] into the flat string map resty
 // expects. Empty / zero fields are omitted.
 func toQueryParams(r *Request) map[string]string {
 	p := map[string]string{}

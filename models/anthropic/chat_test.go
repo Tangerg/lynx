@@ -22,8 +22,8 @@ func newChatModel(t *testing.T, baseURL, modelID string) *anthropic.ChatModel {
 	if err != nil {
 		t.Fatalf("NewOptions: %v", err)
 	}
-	m, err := anthropic.NewChatModel(&anthropic.ChatModelConfig{
-		ApiKey:         model.NewApiKey("test-key"),
+	m, err := anthropic.NewChatModel(anthropic.ChatModelConfig{
+		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		RequestOptions: []option.RequestOption{option.WithBaseURL(baseURL)},
 	})
@@ -117,12 +117,12 @@ func TestChatModel_Stream_Mock(t *testing.T) {
 // canonical Claude "thinking → text → tool_use → text → tool_use →
 // text" interleaving — the headline use case the Parts data model
 // exists for. Verifies:
-//   1. Parts arrive in emission order (no flattening)
-//   2. ReasoningPart carries Signature
-//   3. Two ToolCallParts are distinct (different IDs)
-//   4. tool_use arguments accumulate across input_json_delta chunks
-//   5. FinishReason reflects stop_reason=tool_use
-//   6. Usage metadata bubbles through
+//  1. Parts arrive in emission order (no flattening)
+//  2. ReasoningPart carries Signature
+//  3. Two ToolCallParts are distinct (different IDs)
+//  4. tool_use arguments accumulate across input_json_delta chunks
+//  5. FinishReason reflects stop_reason=tool_use
+//  6. Usage metadata bubbles through
 func TestChatModel_Stream_InterleavedThinkingTextToolUse(t *testing.T) {
 	events := []testutil.AnthropicEvent{
 		{Event: "message_start", Data: `{"type":"message_start","message":{"id":"msg_x","type":"message","role":"assistant","model":"claude-sonnet-4-5","content":[],"stop_reason":null,"usage":{"input_tokens":12,"output_tokens":0}}}`},

@@ -13,6 +13,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/models/internal/catalog"
 	"github.com/Tangerg/lynx/models/internal/options"
 	"github.com/Tangerg/lynx/pkg/mime"
 )
@@ -192,7 +193,7 @@ func (r *requestHelper) buildToolMsg(msg *chat.ToolMessage) []anthropicsdk.Messa
 }
 
 func (r *requestHelper) buildMsg(msg chat.Message) anthropicsdk.MessageParam {
-	if msg.Type().IsUser() {
+	if msg.Type() == chat.MessageTypeUser {
 		return r.buildUserMsg(msg.(*chat.UserMessage))
 	}
 	return r.buildAssistantMsg(msg.(*chat.AssistantMessage))
@@ -204,7 +205,7 @@ func (r *requestHelper) buildMsgs(msgs []chat.Message) []anthropicsdk.MessagePar
 
 	result := make([]anthropicsdk.MessageParam, 0, len(nonSystem))
 	for _, msg := range nonSystem {
-		if msg.Type().IsTool() {
+		if msg.Type() == chat.MessageTypeTool {
 			result = append(result, r.buildToolMsg(msg.(*chat.ToolMessage))...)
 		} else {
 			result = append(result, r.buildMsg(msg))
@@ -213,7 +214,7 @@ func (r *requestHelper) buildMsgs(msgs []chat.Message) []anthropicsdk.MessagePar
 	return result
 }
 
-func (r *requestHelper) buildApiChatRequest(req *chat.Request) (*anthropicsdk.MessageNewParams, error) {
+func (r *requestHelper) buildAPIChatRequest(req *chat.Request) (*anthropicsdk.MessageNewParams, error) {
 	params, err := r.buildParams(req.Options, req.Tools)
 	if err != nil {
 		return nil, err
@@ -485,7 +486,7 @@ func (a *chunkAccumulator) AddChunk(event anthropicsdk.MessageStreamEventUnion) 
 }
 
 type ChatModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *chat.Options
 	RequestOptions []option.RequestOption
 
@@ -496,12 +497,9 @@ type ChatModelConfig struct {
 	Metadata *chat.ModelMetadata
 }
 
-func (c *ChatModelConfig) validate() error {
-	if c == nil {
-		return errors.New("anthropic: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("anthropic: ApiKey is required")
+func (c ChatModelConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("anthropic: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("anthropic: DefaultOptions is required")
@@ -512,30 +510,27 @@ func (c *ChatModelConfig) validate() error {
 var _ chat.Model = (*ChatModel)(nil)
 
 type ChatModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *chat.Options
 	reqHelper      requestHelper
 	respHelper     responseHelper
 	metadata       chat.ModelMetadata
 }
 
-func NewChatModel(cfg *ChatModelConfig) (*ChatModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewChatModel(cfg ChatModelConfig) (*ChatModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	api, err := NewApi(&ApiConfig{
-		ApiKey:         cfg.ApiKey,
+	api, err := NewAPI(APIConfig{
+		APIKey:         cfg.APIKey,
 		RequestOptions: cfg.RequestOptions,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	info := chat.ModelMetadata{Provider: Provider}
-	if cfg.Metadata != nil {
-		info = *cfg.Metadata
-	}
+	info := catalog.Resolve(Provider, cfg.DefaultOptions, cfg.Metadata)
 	return &ChatModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,
@@ -547,7 +542,7 @@ func NewChatModel(cfg *ChatModelConfig) (*ChatModel, error) {
 }
 
 func (c *ChatModel) Call(ctx context.Context, req *chat.Request) (*chat.Response, error) {
-	apiReq, err := c.reqHelper.buildApiChatRequest(req)
+	apiReq, err := c.reqHelper.buildAPIChatRequest(req)
 	if err != nil {
 		return nil, err
 	}
@@ -562,7 +557,7 @@ func (c *ChatModel) Call(ctx context.Context, req *chat.Request) (*chat.Response
 
 func (c *ChatModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
-		apiReq, err := c.reqHelper.buildApiChatRequest(req)
+		apiReq, err := c.reqHelper.buildAPIChatRequest(req)
 		if err != nil {
 			yield(nil, err)
 			return

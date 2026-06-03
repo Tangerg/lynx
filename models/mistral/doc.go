@@ -8,7 +8,7 @@
 //     (returns an [openai.EmbeddingModel]);
 //   - /moderations — Mistral-native shape that doesn't match OpenAI's
 //     moderation response; [NewModerationModel] handles it directly
-//     against [Api] from this package.
+//     against [API] from this package.
 //
 // Mistral-specific surfaces not exposed here:
 //   - /agents (stateful agent runs);

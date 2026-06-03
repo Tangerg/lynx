@@ -1,12 +1,13 @@
 package mariadb
 
 import (
-	"context"
 	"cmp"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -95,13 +96,7 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return errors.New("mariadb: config must not be nil")
-	}
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+func (c *StoreConfig) Validate() error {
 	if c.DB == nil {
 		return errors.New("mariadb: DB is required")
 	}
@@ -111,14 +106,6 @@ func (c *StoreConfig) validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("mariadb: DocumentBatcher is required")
 	}
-
-	c.TableName = cmp.Or(c.TableName, DefaultTableName)
-	c.IDColumn = cmp.Or(c.IDColumn, DefaultIDColumn)
-	c.ContentColumn = cmp.Or(c.ContentColumn, DefaultContentColumn)
-	c.MetadataColumn = cmp.Or(c.MetadataColumn, DefaultMetadataColumn)
-	c.EmbeddingColumn = cmp.Or(c.EmbeddingColumn, DefaultEmbeddingColumn)
-	c.DistanceMetric = cmp.Or(c.DistanceMetric, DefaultDistanceMetric)
-
 	checks := map[string]string{
 		"TableName":       c.TableName,
 		"IDColumn":        c.IDColumn,
@@ -132,7 +119,23 @@ func (c *StoreConfig) validate() error {
 	return ident.Check("mariadb", checks)
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
+	c.TableName = cmp.Or(c.TableName, DefaultTableName)
+	c.IDColumn = cmp.Or(c.IDColumn, DefaultIDColumn)
+	c.ContentColumn = cmp.Or(c.ContentColumn, DefaultContentColumn)
+	c.MetadataColumn = cmp.Or(c.MetadataColumn, DefaultMetadataColumn)
+	c.EmbeddingColumn = cmp.Or(c.EmbeddingColumn, DefaultEmbeddingColumn)
+	c.DistanceMetric = cmp.Or(c.DistanceMetric, DefaultDistanceMetric)
+}
+
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 // Store is a MariaDB-backed [vectorstore.Store] implementation using
 // the VECTOR column type and vec_distance_* functions introduced in
@@ -153,9 +156,9 @@ type Store struct {
 	distanceMetric  DistanceMetric
 }
 
-
-func NewStore(config *StoreConfig) (*Store, error) {
-	if err := config.validate(); err != nil {
+func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -411,6 +414,32 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	return nil
 }
 
+// DeleteByIDs removes rows by primary key. MariaDB has no array type,
+// so it emits one `?` placeholder per id —
+// `DELETE FROM <table> WHERE <id> IN (?, ?, ...)` — binding the ids as
+// query args. An empty slice is a no-op; unknown ids are silently
+// ignored (idempotent). Implements [vectorstore.IDDeleter].
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "mariadb")
+	defer func() { tracing.Finish(span, err) }()
+
+	placeholders := strings.Repeat("?, ", len(ids)-1) + "?"
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+
+	stmt := fmt.Sprintf("DELETE FROM %s WHERE %s IN (%s)", s.fullTable, s.idColumn, placeholders)
+	if _, err = s.db.ExecContext(ctx, stmt, args...); err != nil {
+		return fmt.Errorf("mariadb: delete by ids from %s: %w", s.fullTable, err)
+	}
+	return nil
+}
+
 // buildFilter wraps the visitor.
 func (s *Store) buildFilter(filter ast.Expr) (string, []any, error) {
 	if filter == nil {
@@ -431,7 +460,6 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 		Provider:     Provider,
 	}
 }
-
 
 func (s *Store) Close() error { return nil }
 
@@ -457,7 +485,6 @@ func distanceToScore(metric DistanceMetric, distance float64) float64 {
 		}
 	}
 }
-
 
 func marshalMetadata(m map[string]any) ([]byte, error) {
 	if m == nil {

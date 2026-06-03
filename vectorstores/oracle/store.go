@@ -1,8 +1,8 @@
 package oracle
 
 import (
-	"context"
 	"cmp"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -104,13 +104,7 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return errors.New("oracle: config must not be nil")
-	}
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+func (c *StoreConfig) Validate() error {
 	if c.DB == nil {
 		return errors.New("oracle: DB is required")
 	}
@@ -120,14 +114,6 @@ func (c *StoreConfig) validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("oracle: DocumentBatcher is required")
 	}
-
-	c.TableName = cmp.Or(c.TableName, DefaultTableName)
-	c.IDColumn = cmp.Or(c.IDColumn, DefaultIDColumn)
-	c.ContentColumn = cmp.Or(c.ContentColumn, DefaultContentColumn)
-	c.MetadataColumn = cmp.Or(c.MetadataColumn, DefaultMetadataColumn)
-	c.EmbeddingColumn = cmp.Or(c.EmbeddingColumn, DefaultEmbeddingColumn)
-	c.DistanceMetric = cmp.Or(c.DistanceMetric, DefaultDistanceMetric)
-
 	checks := map[string]string{
 		"TableName":       c.TableName,
 		"IDColumn":        c.IDColumn,
@@ -141,7 +127,23 @@ func (c *StoreConfig) validate() error {
 	return ident.Check("oracle", checks)
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
+	c.TableName = cmp.Or(c.TableName, DefaultTableName)
+	c.IDColumn = cmp.Or(c.IDColumn, DefaultIDColumn)
+	c.ContentColumn = cmp.Or(c.ContentColumn, DefaultContentColumn)
+	c.MetadataColumn = cmp.Or(c.MetadataColumn, DefaultMetadataColumn)
+	c.EmbeddingColumn = cmp.Or(c.EmbeddingColumn, DefaultEmbeddingColumn)
+	c.DistanceMetric = cmp.Or(c.DistanceMetric, DefaultDistanceMetric)
+}
+
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 // Store is an Oracle 23ai-backed [vectorstore.Store] implementation.
 type Store struct {
@@ -160,9 +162,9 @@ type Store struct {
 	distanceMetric  DistanceMetric
 }
 
-
-func NewStore(config *StoreConfig) (*Store, error) {
-	if err := config.validate(); err != nil {
+func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -418,6 +420,33 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	return nil
 }
 
+// DeleteByIDs removes rows by primary key — `DELETE ... WHERE <id> IN
+// (:1, :2, …)` with one positional bind per id. An empty slice is a
+// no-op; unknown ids are silently ignored (idempotent). Implements
+// [vectorstore.IDDeleter].
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "oracle")
+	defer func() { tracing.Finish(span, err) }()
+
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = ":" + strconv.Itoa(i+1)
+		args[i] = id
+	}
+
+	stmt := fmt.Sprintf("DELETE FROM %s WHERE %s IN (%s)",
+		s.fullTable, s.idColumn, strings.Join(placeholders, ", "))
+	if _, err = s.db.ExecContext(ctx, stmt, args...); err != nil {
+		return fmt.Errorf("oracle: delete by ids from %s: %w", s.fullTable, err)
+	}
+	return nil
+}
+
 // buildFilter wraps the visitor and renumbers placeholders so they
 // continue from startIdx — Oracle uses positional `:N` bindings, so
 // the search path that prepends the query-vector parameter at `:1`
@@ -471,7 +500,6 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 	}
 }
 
-
 func (s *Store) Close() error { return nil }
 
 // distanceToScore maps a VECTOR_DISTANCE result onto a [0, 1]
@@ -507,7 +535,6 @@ func distanceToScore(metric DistanceMetric, distance float64) float64 {
 		}
 	}
 }
-
 
 func marshalMetadata(m map[string]any) ([]byte, error) {
 	if m == nil {

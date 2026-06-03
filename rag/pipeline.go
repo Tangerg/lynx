@@ -38,23 +38,23 @@ type PipelineConfig struct {
 	QueryAugmenter QueryAugmenter
 }
 
-// validate fills in defaults and rejects configurations missing the
-// required pieces.
-func (c *PipelineConfig) validate() error {
-	if c == nil {
-		return errors.New("rag.PipelineConfig: config must not be nil")
-	}
+// Validate rejects configurations missing the required pieces.
+func (c *PipelineConfig) Validate() error {
 	if len(c.DocumentRetrievers) == 0 {
 		return errors.New("rag.PipelineConfig: at least one DocumentRetriever is required")
 	}
+	return nil
+}
 
+// ApplyDefaults fills zero fields. QueryExpander and QueryAugmenter
+// default to [NewNop] passthroughs.
+func (c *PipelineConfig) ApplyDefaults() {
 	if c.QueryExpander == nil {
 		c.QueryExpander = NewNop()
 	}
 	if c.QueryAugmenter == nil {
 		c.QueryAugmenter = NewNop()
 	}
-	return nil
 }
 
 // Pipeline runs a query through the full RAG flow: transform → expand
@@ -62,7 +62,7 @@ func (c *PipelineConfig) validate() error {
 //
 // Example:
 //
-//	pipe, err := rag.NewPipeline(&rag.PipelineConfig{
+//	pipe, err := rag.NewPipeline(rag.PipelineConfig{
 //	    DocumentRetrievers: []rag.DocumentRetriever{retriever},
 //	    QueryAugmenter:     contextual,
 //	})
@@ -78,8 +78,9 @@ type Pipeline struct {
 
 // NewPipeline builds a [Pipeline] from config. Returns an error when
 // the configuration fails validation.
-func NewPipeline(config *PipelineConfig) (*Pipeline, error) {
-	if err := config.validate(); err != nil {
+func NewPipeline(config PipelineConfig) (*Pipeline, error) {
+	config.ApplyDefaults()
+	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("rag.NewPipeline: %w", err)
 	}
 

@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/plan"
+	"github.com/Tangerg/lynx/agent/planning"
 )
 
 // goalSummary is the wire shape for a *core.Goal — lossy on the
@@ -48,14 +48,14 @@ func actionNames(actions []core.Action) []string {
 	return out
 }
 
-// planSummary is the wire shape for *plan.Plan — actions reduce to the
+// planSummary is the wire shape for *planning.Plan — actions reduce to the
 // ordered list of their names, goal becomes a goalSummary.
 type planSummary struct {
 	Actions []string     `json:"actions,omitempty"`
 	Goal    *goalSummary `json:"goal,omitempty"`
 }
 
-func summarizePlan(p *plan.Plan) *planSummary {
+func summarizePlan(p *planning.Plan) *planSummary {
 	if p == nil {
 		return nil
 	}
@@ -69,7 +69,7 @@ func summarizePlan(p *plan.Plan) *planSummary {
 // the condition map and the snapshot timestamp.
 type worldSnapshot struct {
 	State     map[string]core.Determination `json:"state,omitempty"`
-	Timestamp time.Time                     `json:"timestamp,omitempty"`
+	Timestamp time.Time                     `json:"timestamp,omitzero"`
 }
 
 func snapshotWorld(ws core.WorldState) *worldSnapshot {

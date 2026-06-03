@@ -21,8 +21,8 @@ func newImageModel(t *testing.T, baseURL, modelID string) *openai.ImageModel {
 	if err != nil {
 		t.Fatalf("NewOptions: %v", err)
 	}
-	m, err := openai.NewImageModel(&openai.ImageModelConfig{
-		ApiKey:         model.NewApiKey("test-key"),
+	m, err := openai.NewImageModel(openai.ImageModelConfig{
+		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		RequestOptions: []option.RequestOption{option.WithBaseURL(baseURL)},
 	})

@@ -12,7 +12,7 @@ import (
 )
 
 type AnthropicChatModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *chat.Options
 
 	// BaseURL selects the region. Defaults to [BaseURLAnthropic]
@@ -25,12 +25,9 @@ type AnthropicChatModelConfig struct {
 	RequestOptions []option.RequestOption
 }
 
-func (c *AnthropicChatModelConfig) validate() error {
-	if c == nil {
-		return errors.New("moonshot: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("moonshot: ApiKey is required")
+func (c AnthropicChatModelConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("moonshot: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("moonshot: DefaultOptions is required")
@@ -42,14 +39,14 @@ func (c *AnthropicChatModelConfig) validate() error {
 // Moonshot's Anthropic-compatible endpoint. Lets callers using
 // Claude Code / Anthropic SDK swap base URL to keep their integration
 // while targeting Kimi-K2.
-func NewAnthropicChatModel(cfg *AnthropicChatModelConfig) (*anthropic.ChatModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewAnthropicChatModel(cfg AnthropicChatModelConfig) (*anthropic.ChatModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	baseURL := cmp.Or(cfg.BaseURL, BaseURLAnthropic)
 	reqOpts := append([]option.RequestOption{option.WithBaseURL(baseURL)}, cfg.RequestOptions...)
-	return anthropic.NewChatModel(&anthropic.ChatModelConfig{
-		ApiKey:         cfg.ApiKey,
+	return anthropic.NewChatModel(anthropic.ChatModelConfig{
+		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
 		Metadata:       &chat.ModelMetadata{Provider: Provider},

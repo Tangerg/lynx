@@ -20,10 +20,7 @@ type NativeChatModelConfig struct {
 	HTTPClient     *http.Client
 }
 
-func (c *NativeChatModelConfig) validate() error {
-	if c == nil {
-		return errors.New("ollama: config must not be nil")
-	}
+func (c NativeChatModelConfig) Validate() error {
 	if c.DefaultOptions == nil {
 		return errors.New("ollama: DefaultOptions is required")
 	}
@@ -42,16 +39,16 @@ var _ chat.Model = (*NativeChatModel)(nil)
 // surface (KeepAlive, Format, Think) reach the wire through the
 // Extra-threaded ollamaapi.ChatRequest.
 type NativeChatModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *chat.Options
 }
 
-func NewNativeChatModel(cfg *NativeChatModelConfig) (*NativeChatModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewNativeChatModel(cfg NativeChatModelConfig) (*NativeChatModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	api, err := NewApi(&ApiConfig{
+	api, err := NewAPI(APIConfig{
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,
 	})
@@ -65,7 +62,7 @@ func NewNativeChatModel(cfg *NativeChatModelConfig) (*NativeChatModel, error) {
 	}, nil
 }
 
-func (c *NativeChatModel) buildApiRequest(req *chat.Request, stream bool) (*ollamaapi.ChatRequest, error) {
+func (c *NativeChatModel) buildAPIRequest(req *chat.Request, stream bool) (*ollamaapi.ChatRequest, error) {
 	mergedOpts, err := chat.MergeOptions(c.defaultOptions, req.Options)
 	if err != nil {
 		return nil, err
@@ -272,7 +269,7 @@ func mapDoneReason(reason string) chat.FinishReason {
 }
 
 func (c *NativeChatModel) Call(ctx context.Context, req *chat.Request) (*chat.Response, error) {
-	apiReq, err := c.buildApiRequest(req, false)
+	apiReq, err := c.buildAPIRequest(req, false)
 	if err != nil {
 		return nil, err
 	}
@@ -293,7 +290,7 @@ func (c *NativeChatModel) Call(ctx context.Context, req *chat.Request) (*chat.Re
 
 func (c *NativeChatModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
-		apiReq, err := c.buildApiRequest(req, true)
+		apiReq, err := c.buildAPIRequest(req, true)
 		if err != nil {
 			yield(nil, err)
 			return

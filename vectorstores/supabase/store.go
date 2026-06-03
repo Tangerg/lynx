@@ -29,7 +29,6 @@ type StoreConfig = pgvector.StoreConfig
 // identical to [pgvector.Store] at runtime.
 type Store = pgvector.Store
 
-
-func NewStore(cfg *StoreConfig) (*Store, error) {
+func NewStore(cfg StoreConfig) (*Store, error) {
 	return pgvector.NewStore(cfg)
 }

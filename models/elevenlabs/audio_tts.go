@@ -13,18 +13,15 @@ import (
 )
 
 type AudioTTSModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *tts.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 }
 
-func (c *AudioTTSModelConfig) validate() error {
-	if c == nil {
-		return errors.New("elevenlabs: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("elevenlabs: ApiKey is required")
+func (c AudioTTSModelConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("elevenlabs: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("elevenlabs: DefaultOptions is required")
@@ -42,17 +39,17 @@ var _ tts.Model = (*AudioTTSModel)(nil)
 // "eleven_v3", "eleven_multilingual_v2") which selects the synthesis
 // engine.
 type AudioTTSModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *tts.Options
 }
 
-func NewAudioTTSModel(cfg *AudioTTSModelConfig) (*AudioTTSModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	api, err := NewApi(&ApiConfig{
-		ApiKey:     cfg.ApiKey,
+	api, err := NewAPI(APIConfig{
+		APIKey:     cfg.APIKey,
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,
 	})
@@ -66,7 +63,7 @@ func NewAudioTTSModel(cfg *AudioTTSModelConfig) (*AudioTTSModel, error) {
 	}, nil
 }
 
-func (a *AudioTTSModel) buildApiRequest(req *tts.Request) (voiceID, outputFormat string, body *TTSRequest, err error) {
+func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (voiceID, outputFormat string, body *TTSRequest, err error) {
 	mergedOpts, mergeErr := tts.MergeOptions(a.defaultOptions, req.Options)
 	if mergeErr != nil {
 		return "", "", nil, mergeErr
@@ -111,7 +108,7 @@ func (a *AudioTTSModel) buildResponse(audio []byte, hdr http.Header) (*tts.Respo
 }
 
 func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {
-	voiceID, outputFormat, body, err := a.buildApiRequest(req)
+	voiceID, outputFormat, body, err := a.buildAPIRequest(req)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +123,7 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 
 func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[*tts.Response, error] {
 	return func(yield func(*tts.Response, error) bool) {
-		voiceID, outputFormat, body, err := a.buildApiRequest(req)
+		voiceID, outputFormat, body, err := a.buildAPIRequest(req)
 		if err != nil {
 			yield(nil, err)
 			return

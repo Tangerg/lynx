@@ -2,12 +2,12 @@ package azureaisearch
 
 import (
 	"fmt"
-	"strings"
 	"strconv"
+	"strings"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 )
 
 var _ ast.Visitor = (*Visitor)(nil)
@@ -29,9 +29,7 @@ type Visitor struct {
 	sql strings.Builder
 }
 
-
 func NewVisitor() *Visitor { return &Visitor{} }
-
 
 func (v *Visitor) Result() string {
 	if v.err != nil {
@@ -221,7 +219,6 @@ func fieldName(expr ast.Expr) (string, error) {
 		return "", fmt.Errorf("unsupported left operand %T", node)
 	}
 }
-
 
 func odataOpFor(kind token.Kind) (string, error) {
 	switch kind {

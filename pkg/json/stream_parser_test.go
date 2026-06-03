@@ -18,19 +18,13 @@ import (
 func TestStreamParserConfig_Validate(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  *StreamParserConfig
+		config  StreamParserConfig
 		wantErr bool
 		errMsg  string
 	}{
 		{
-			name:    "nil_config",
-			config:  nil,
-			wantErr: true,
-			errMsg:  "nil config",
-		},
-		{
 			name: "nil_reader",
-			config: &StreamParserConfig{
+			config: StreamParserConfig{
 				Reader: nil,
 			},
 			wantErr: true,
@@ -38,7 +32,7 @@ func TestStreamParserConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "valid_config_with_buffer_size",
-			config: &StreamParserConfig{
+			config: StreamParserConfig{
 				Reader:     strings.NewReader("{}"),
 				BufferSize: 1024,
 			},
@@ -46,7 +40,7 @@ func TestStreamParserConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "zero_buffer_size_sets_default",
-			config: &StreamParserConfig{
+			config: StreamParserConfig{
 				Reader:     strings.NewReader("{}"),
 				BufferSize: 0,
 			},
@@ -54,7 +48,7 @@ func TestStreamParserConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "negative_buffer_size_sets_default",
-			config: &StreamParserConfig{
+			config: StreamParserConfig{
 				Reader:     strings.NewReader("{}"),
 				BufferSize: -1,
 			},
@@ -64,17 +58,21 @@ func TestStreamParserConfig_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.config.validate()
+			err := tt.config.Validate()
 			if tt.wantErr {
 				require.Error(t, err)
 				if tt.errMsg != "" {
 					assert.Contains(t, err.Error(), tt.errMsg)
 				}
-			} else {
-				require.NoError(t, err)
-				if tt.config.BufferSize <= 0 {
-					assert.Equal(t, 4096, tt.config.BufferSize, "Should set default buffer size")
-				}
+				return
+			}
+			require.NoError(t, err)
+			// ApplyDefaults is the path that mutates — verify
+			// zero/negative buffer sizes get filled in.
+			cfg := tt.config
+			cfg.ApplyDefaults()
+			if tt.config.BufferSize <= 0 {
+				assert.Equal(t, 4096, cfg.BufferSize, "Should set default buffer size")
 			}
 		})
 	}
@@ -84,25 +82,20 @@ func TestStreamParserConfig_Validate(t *testing.T) {
 func TestNewStreamParser(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  *StreamParserConfig
+		config  StreamParserConfig
 		wantErr bool
 	}{
 		{
 			name: "valid_config",
-			config: &StreamParserConfig{
+			config: StreamParserConfig{
 				Reader:     strings.NewReader("{}"),
 				BufferSize: 1024,
 			},
 			wantErr: false,
 		},
 		{
-			name:    "nil_config",
-			config:  nil,
-			wantErr: true,
-		},
-		{
 			name: "invalid_config",
-			config: &StreamParserConfig{
+			config: StreamParserConfig{
 				Reader: nil,
 			},
 			wantErr: true,
@@ -198,7 +191,7 @@ func TestStreamParser_ParseObject(t *testing.T) {
 			var results []map[string]any
 			var parseErrors []error
 
-			config := &StreamParserConfig{
+			config := StreamParserConfig{
 				Reader:     strings.NewReader(tt.input),
 				BufferSize: 64,
 				OnObject: func(obj map[string]any) error {
@@ -291,7 +284,7 @@ func TestStreamParser_ParseArray(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var results [][]any
 
-			config := &StreamParserConfig{
+			config := StreamParserConfig{
 				Reader:     strings.NewReader(tt.input),
 				BufferSize: 64,
 				OnArray: func(arr []any) error {
@@ -385,7 +378,7 @@ func TestStreamParser_ParsePrimitives(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var results []any
 
-			config := &StreamParserConfig{
+			config := StreamParserConfig{
 				Reader:     strings.NewReader(tt.input),
 				BufferSize: 64,
 				OnValue: func(v any) error {
@@ -427,7 +420,7 @@ func TestStreamParser_MixedContent(t *testing.T) {
 	var arrays [][]any
 	var values []any
 
-	config := &StreamParserConfig{
+	config := StreamParserConfig{
 		Reader:     strings.NewReader(input),
 		BufferSize: 64,
 		OnObject: func(obj map[string]any) error {
@@ -500,7 +493,7 @@ func TestStreamParser_WithWhitespace(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			count := 0
 
-			config := &StreamParserConfig{
+			config := StreamParserConfig{
 				Reader:     strings.NewReader(tt.input),
 				BufferSize: 64,
 				OnObject: func(obj map[string]any) error {
@@ -561,7 +554,7 @@ func TestStreamParser_StringEscaping(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var result map[string]any
 
-			config := &StreamParserConfig{
+			config := StreamParserConfig{
 				Reader:     strings.NewReader(tt.input),
 				BufferSize: 64,
 				OnObject: func(obj map[string]any) error {
@@ -627,7 +620,7 @@ func TestStreamParser_ErrorHandling(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var parseError error
 
-			config := &StreamParserConfig{
+			config := StreamParserConfig{
 				Reader:     strings.NewReader(tt.input),
 				BufferSize: 64,
 				OnObject: func(obj map[string]any) error {
@@ -699,7 +692,7 @@ func TestStreamParser_CallbackErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config := &StreamParserConfig{
+			config := StreamParserConfig{
 				Reader:     strings.NewReader(tt.input),
 				BufferSize: 64,
 				OnObject:   tt.onObject,
@@ -741,7 +734,7 @@ func TestStreamParser_LargeInput(t *testing.T) {
 
 	var count int
 
-	config := &StreamParserConfig{
+	config := StreamParserConfig{
 		Reader:     &buf,
 		BufferSize: 1024,
 		OnArray: func(arr []any) error {
@@ -764,7 +757,7 @@ func TestStreamParser_SmallBufferSize(t *testing.T) {
 
 	var result map[string]any
 
-	config := &StreamParserConfig{
+	config := StreamParserConfig{
 		Reader:     strings.NewReader(input),
 		BufferSize: 4, // Very small buffer
 		OnObject: func(obj map[string]any) error {
@@ -785,7 +778,7 @@ func TestStreamParser_SmallBufferSize(t *testing.T) {
 
 // TestStreamParser_EmptyInput tests parsing empty input.
 func TestStreamParser_EmptyInput(t *testing.T) {
-	config := &StreamParserConfig{
+	config := StreamParserConfig{
 		Reader:     strings.NewReader(""),
 		BufferSize: 64,
 	}
@@ -805,7 +798,7 @@ func TestStreamParser_JSONLines(t *testing.T) {
 
 	var results []map[string]any
 
-	config := &StreamParserConfig{
+	config := StreamParserConfig{
 		Reader:     strings.NewReader(input),
 		BufferSize: 64,
 		OnObject: func(obj map[string]any) error {
@@ -829,7 +822,7 @@ func TestStreamParser_JSONLines(t *testing.T) {
 func TestStreamParser_ReadError(t *testing.T) {
 	readErr := errors.New("read error")
 
-	config := &StreamParserConfig{
+	config := StreamParserConfig{
 		Reader:     &errorReader{err: readErr},
 		BufferSize: 64,
 	}
@@ -858,8 +851,8 @@ func BenchmarkStreamParser_Objects(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
-		config := &StreamParserConfig{
+	for b.Loop() {
+		config := StreamParserConfig{
 			Reader:     strings.NewReader(input),
 			BufferSize: 64,
 			OnObject:   func(obj map[string]any) error { return nil },
@@ -877,8 +870,8 @@ func BenchmarkStreamParser_Arrays(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
-		config := &StreamParserConfig{
+	for b.Loop() {
+		config := StreamParserConfig{
 			Reader:     strings.NewReader(input),
 			BufferSize: 64,
 			OnArray:    func(arr []any) error { return nil },
@@ -896,8 +889,8 @@ func BenchmarkStreamParser_Mixed(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
-		config := &StreamParserConfig{
+	for b.Loop() {
+		config := StreamParserConfig{
 			Reader:     strings.NewReader(input),
 			BufferSize: 64,
 			OnObject:   func(obj map[string]any) error { return nil },
@@ -929,8 +922,8 @@ func BenchmarkStreamParser_LargeDocument(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
-		config := &StreamParserConfig{
+	for b.Loop() {
+		config := StreamParserConfig{
 			Reader:     strings.NewReader(input),
 			BufferSize: 4096,
 			OnArray:    func(arr []any) error { return nil },

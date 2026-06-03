@@ -3,11 +3,14 @@ package chat
 import (
 	"context"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/Tangerg/lynx/core/model"
 )
 
 // chatTracer is the package-level tracer for chat client span
@@ -15,7 +18,7 @@ import (
 // later `otel.SetTracerProvider` calls in the user's program take
 // effect on spans started here without re-wiring. When no provider is
 // configured (the default), Start / End / SetAttributes compile down
-// to noop — see doc/OBSERVABILITY.md §5.
+// to no-op — see doc/OBSERVABILITY.md §5.
 //
 // Tracer name follows the convention from the OTel GenAI spec:
 // instrumentation libraries SHOULD name their tracer after the
@@ -42,7 +45,7 @@ const (
 // https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/
 // so downstream collectors (Tempo, Jaeger, Honeycomb, …) and any
 // auto-instrumentation hook (go.opentelemetry.io/auto/sdk) can
-// recognise them without lynx-specific wiring.
+// recognize them without lynx-specific wiring.
 const (
 	attrGenAISystem                = "gen_ai.system"
 	attrGenAIOperationName         = "gen_ai.operation.name"
@@ -159,4 +162,25 @@ func finishChatSpan(span trace.Span, resp *Response, err error) {
 		}
 	}
 	span.End()
+}
+
+// recordChatMetrics emits the GenAI client metrics (token usage +
+// operation duration) for one chat operation. It is the metric companion
+// to [finishChatSpan]: call it once per call/stream, passing the start
+// time captured before [startChatSpan]. No-op until a MeterProvider is
+// configured.
+func recordChatMetrics(ctx context.Context, m Model, req *Request, resp *Response, err error, start time.Time) {
+	dims := model.OperationMetrics{Operation: "chat"}
+	if m != nil {
+		dims.System = strings.ToLower(m.Metadata().Provider)
+	}
+	if req != nil && req.Options != nil {
+		dims.RequestModel = req.Options.Model
+	}
+	var usage *model.Usage
+	if resp != nil && resp.Metadata != nil {
+		dims.ResponseModel = resp.Metadata.Model
+		usage = resp.Metadata.Usage
+	}
+	model.RecordOperationMetrics(ctx, dims, usage, time.Since(start), err)
 }

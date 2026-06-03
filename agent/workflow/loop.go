@@ -2,13 +2,14 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 
-// LoopSpec configures a "run a sub-agent body repeatedly until
+// LoopConfig configures a "run a sub-agent body repeatedly until
 // Until returns true (or MaxIterations expires)" workflow. Each
 // iteration runs Body via [runtime.SpawnChildFresh] — a child process
 // with a CLEAN blackboard seeded only with the typed input. This
@@ -18,7 +19,7 @@ import (
 // (so the body would short-circuit without doing work).
 //
 // Because each iteration starts clean, the body sub-agent **cannot
-// read its own prior outputs**. If iteration-aware behaviour is
+// read its own prior outputs**. If iteration-aware behavior is
 // needed, encode it externally — closure state, an injected service,
 // or fold the previous Out into the typed In type so the
 // orchestrator's typed wrapper feeds it back in (the next iteration's
@@ -26,12 +27,12 @@ import (
 // where every iteration's Out has been bound by the typed action
 // wrapper).
 //
-// Compare to [RepeatUntilSpec]: that one's Task is an inline closure
-// (action level); LoopSpec.Body is a full sub-agent (agent
+// Compare to [RepeatUntilConfig]: that one's Task is an inline closure
+// (action level); LoopConfig.Body is a full sub-agent (agent
 // level), so Body can have its own LLM tool loop, sub-actions, etc.
-// Use [RepeatUntilSpec] for "loop a single function"; use Loop
+// Use [RepeatUntilConfig] for "loop a single function"; use Loop
 // for "loop a whole agent".
-type LoopSpec[In, Out any] struct {
+type LoopConfig[In, Out any] struct {
 	// Name names the produced agent + its goal + the iteration's
 	// computed condition. Required.
 	Name string
@@ -69,19 +70,19 @@ type LoopSpec[In, Out any] struct {
 // Returns an error on missing Name, nil Body, or nil Until.
 func Loop[In, Out any](
 	platform *runtime.Platform,
-	spec LoopSpec[In, Out],
+	spec LoopConfig[In, Out],
 ) (*core.Agent, error) {
 	if platform == nil {
-		return nil, fmt.Errorf("workflow.Loop: platform must not be nil")
+		return nil, errors.New("workflow.Loop: platform must not be nil")
 	}
 	if spec.Name == "" {
-		return nil, fmt.Errorf("workflow.Loop: Name must not be empty")
+		return nil, errors.New("workflow.Loop: Name must not be empty")
 	}
 	if spec.Body == nil {
-		return nil, fmt.Errorf("workflow.Loop: Body must not be nil")
+		return nil, errors.New("workflow.Loop: Body must not be nil")
 	}
 	if spec.Until == nil {
-		return nil, fmt.Errorf("workflow.Loop: Until must not be nil")
+		return nil, errors.New("workflow.Loop: Until must not be nil")
 	}
 	maxIter := spec.MaxIterations
 	if maxIter <= 0 {
@@ -92,7 +93,7 @@ func Loop[In, Out any](
 	// that for type-binding keys. Use '_' as the separator.
 	doneKey := spec.Name + "_done"
 
-	doneCondition := core.NewCondition(doneKey, func(ctx context.Context, oc *core.OperationContext) core.Determination {
+	doneCondition := core.NewCondition(doneKey, func(ctx context.Context, oc *core.ConditionEnv) core.Determination {
 		history, ok := core.Last[*History[Out]](oc.Blackboard)
 		if !ok {
 			return core.False
@@ -145,14 +146,14 @@ func Loop[In, Out any](
 		},
 	)
 
-	return core.NewAgent(&core.AgentConfig{
+	return core.NewAgent(core.AgentConfig{
 		Name:        spec.Name,
 		Description: spec.Description,
 		Actions:     []core.Action{iter},
 		Conditions:  []core.Condition{doneCondition},
 		Goals: []*core.Goal{core.GoalProducing[Out](core.Goal{
 			Name:        spec.Name,
-			Description: "produce acceptable " + core.TypeFullNameOf[Out](),
+			Description: "produce acceptable " + core.TypeName[Out](),
 			Pre:         []string{doneKey},
 		})},
 	}), nil

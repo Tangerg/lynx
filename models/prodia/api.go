@@ -12,37 +12,34 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 )
 
-type ApiConfig struct {
-	ApiKey     model.ApiKey
+type APIConfig struct {
+	APIKey     model.APIKey
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func (c *ApiConfig) validate() error {
-	if c == nil {
-		return errors.New("prodia: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("prodia: ApiKey is required")
+func (c APIConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("prodia: APIKey is required")
 	}
 	return nil
 }
 
-type Api struct {
+type API struct {
 	http *resty.Client
 }
 
-func NewApi(cfg *ApiConfig) (*Api, error) {
-	if err := cfg.validate(); err != nil {
+func NewAPI(cfg APIConfig) (*API, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	client := resty.New().
 		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
-		SetHeader("Authorization", "Bearer "+cfg.ApiKey.Get())
+		SetHeader("Authorization", "Bearer "+cfg.APIKey.Get())
 	if cfg.HTTPClient != nil {
 		client.SetTransport(cfg.HTTPClient.Transport)
 	}
-	return &Api{http: client}, nil
+	return &API{http: client}, nil
 }
 
 // JobRequest mirrors POST /job. Prodia routes via a "type" discriminator
@@ -57,7 +54,7 @@ type JobRequest struct {
 // Prodia's v2 endpoint is sync — it blocks until the image is ready
 // (typically 1-5s) and returns the binary directly with content-type
 // image/jpeg or image/png.
-func (a *Api) Job(ctx context.Context, req *JobRequest, accept string) ([]byte, http.Header, error) {
+func (a *API) Job(ctx context.Context, req *JobRequest, accept string) ([]byte, http.Header, error) {
 	if req == nil {
 		return nil, nil, errors.New("prodia: request must not be nil")
 	}

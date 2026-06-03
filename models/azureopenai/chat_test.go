@@ -30,8 +30,8 @@ func TestChatModel_Call_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := azureopenai.NewChatModel(&azureopenai.ChatModelConfig{
-		ApiKey:         model.NewApiKey("test-key"),
+	m, err := azureopenai.NewChatModel(azureopenai.ChatModelConfig{
+		APIKey:         model.NewAPIKey("test-key"),
 		Endpoint:       srv.URL,
 		DefaultOptions: opts,
 	})

@@ -65,7 +65,7 @@ func TestAlignCenter(t *testing.T) {
 	got := AlignCenter("Hello\nWorld", 10)
 	want := "  Hello   \n  World   \n" // 10 cols per line, even-pad to right
 	// Allow flexibility on exact padding split, just check width and content.
-	for _, line := range strings.Split(strings.TrimSuffix(got, "\n"), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSuffix(got, "\n"), "\n") {
 		if len([]rune(line)) != 10 {
 			t.Errorf("line %q width = %d, want 10", line, len([]rune(line)))
 		}
@@ -78,7 +78,7 @@ func TestAlignCenter(t *testing.T) {
 
 func TestAlignCenter_AutoWidth(t *testing.T) {
 	got := AlignCenter("hi\nlonger", 0)
-	for _, line := range strings.Split(strings.TrimSuffix(got, "\n"), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSuffix(got, "\n"), "\n") {
 		if len([]rune(line)) != 6 {
 			t.Errorf("line %q width = %d, want 6", line, len([]rune(line)))
 		}

@@ -45,7 +45,6 @@ type Visitor struct {
 	currentFieldKey   string         // Temporary storage for field keys during extraction
 }
 
-
 func NewVisitor() *Visitor {
 	return &Visitor{
 		filter: &qdrant.Filter{},
@@ -124,6 +123,9 @@ func (c *Visitor) visit(expr ast.Expr) error {
 //   - Membership operator: IN (handled by visitInExpr)
 //   - Pattern matching operator: LIKE (handled by visitLikeExpr)
 func (c *Visitor) visitBinaryExpr(expr *ast.BinaryExpr) error {
+	if expr.Op.Kind.IsNullOperator() {
+		return c.visitNullTestExpr(expr)
+	}
 	return filterhelp.DispatchBinaryErr(expr,
 		c.visitLogicalExpr,
 		c.visitComparisonExpr,
@@ -139,6 +141,22 @@ func (c *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
 		return c.visitEqualityExpr(expr)
 	}
 	return c.visitOrderingExpr(expr)
+}
+
+// visitNullTestExpr emits Qdrant's IS NULL condition (NewIsNull) on the
+// field's payload key, added to filter.Must so "field is null" matches.
+// The negated "field is not null" arrives as NOT(field IS NULL) and is
+// rendered by visitNotExpr (MustNot wrap), so no separate handling is
+// needed here.
+func (c *Visitor) visitNullTestExpr(expr *ast.BinaryExpr) error {
+	fieldKey, err := c.extractFieldKey(expr.Left)
+	if err != nil {
+		return fmt.Errorf("failed to extract field key from left operand of 'IS NULL' at %s: %w",
+			expr.Start().String(), err)
+	}
+
+	c.filter.Must = append(c.filter.Must, qdrant.NewIsNull(fieldKey))
+	return nil
 }
 
 // visitUnaryExpr handles unary expressions — only NOT today.

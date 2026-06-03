@@ -102,6 +102,10 @@ func (l *Literal) IsBool() bool {
 	return l.Token.Kind.Is(token.TRUE) || l.Token.Kind.Is(token.FALSE)
 }
 
+// IsNull reports whether this literal is the NULL keyword — the only
+// operand a null test ([token.IS]) accepts on its right side.
+func (l *Literal) IsNull() bool { return l.Token.Kind.Is(token.NULL) }
+
 // AsBool returns the boolean value. Errors when the literal is not a
 // boolean.
 func (l *Literal) AsBool() (bool, error) {

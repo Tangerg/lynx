@@ -15,7 +15,7 @@ import (
 )
 
 type AudioTranscriptionModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *transcription.Options
 	RequestOptions []option.RequestOption
 
@@ -24,12 +24,9 @@ type AudioTranscriptionModelConfig struct {
 	Metadata *transcription.ModelMetadata
 }
 
-func (c *AudioTranscriptionModelConfig) validate() error {
-	if c == nil {
-		return errors.New("openai: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("openai: ApiKey is required")
+func (c AudioTranscriptionModelConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("openai: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("openai: DefaultOptions is required")
@@ -40,18 +37,18 @@ func (c *AudioTranscriptionModelConfig) validate() error {
 var _ transcription.Model = (*AudioTranscriptionModel)(nil)
 
 type AudioTranscriptionModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *transcription.Options
 	metadata       transcription.ModelMetadata
 }
 
-func NewAudioTranscriptionModel(cfg *AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	api, err := NewApi(&ApiConfig{
-		ApiKey:         cfg.ApiKey,
+	api, err := NewAPI(APIConfig{
+		APIKey:         cfg.APIKey,
 		RequestOptions: cfg.RequestOptions,
 	})
 	if err != nil {
@@ -65,11 +62,11 @@ func NewAudioTranscriptionModel(cfg *AudioTranscriptionModelConfig) (*AudioTrans
 	return &AudioTranscriptionModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,
-		metadata:           info,
+		metadata:       info,
 	}, nil
 }
 
-func (a *AudioTranscriptionModel) buildApiTranscriptionRequest(req *transcription.Request) (*openai.AudioTranscriptionNewParams, error) {
+func (a *AudioTranscriptionModel) buildAPITranscriptionRequest(req *transcription.Request) (*openai.AudioTranscriptionNewParams, error) {
 	mergedOpts, err := transcription.MergeOptions(a.defaultOptions, req.Options)
 	if err != nil {
 		return nil, err
@@ -113,7 +110,7 @@ func (a *AudioTranscriptionModel) buildTranscriptionResponse(resp *openai.AudioT
 }
 
 func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.Request) (*transcription.Response, error) {
-	apiReq, err := a.buildApiTranscriptionRequest(req)
+	apiReq, err := a.buildAPITranscriptionRequest(req)
 	if err != nil {
 		return nil, err
 	}

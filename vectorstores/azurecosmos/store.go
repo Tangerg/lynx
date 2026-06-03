@@ -1,8 +1,8 @@
 package azurecosmos
 
 import (
-	"context"
 	"cmp"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -79,13 +79,7 @@ type StoreConfig struct {
 	DistanceFunction DistanceFunction
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return errors.New("azurecosmos: config must not be nil")
-	}
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+func (c *StoreConfig) Validate() error {
 	if c.Container == nil {
 		return errors.New("azurecosmos: Container is required")
 	}
@@ -95,20 +89,25 @@ func (c *StoreConfig) validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("azurecosmos: DocumentBatcher is required")
 	}
-
-	c.IDField = cmp.Or(c.IDField, DefaultIDField)
-	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
-	c.MetadataField = cmp.Or(c.MetadataField, DefaultMetadataField)
-	c.EmbeddingField = cmp.Or(c.EmbeddingField, DefaultEmbeddingField)
-	c.PartitionKeyPath = cmp.Or(c.PartitionKeyPath, DefaultPartitionKey)
-	c.DistanceFunction = cmp.Or(c.DistanceFunction, DistanceCosine)
-
 	return ident.Check("azurecosmos", map[string]string{
 		"IDField":        c.IDField,
 		"ContentField":   c.ContentField,
 		"MetadataField":  c.MetadataField,
 		"EmbeddingField": c.EmbeddingField,
 	})
+}
+
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
+	c.IDField = cmp.Or(c.IDField, DefaultIDField)
+	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
+	c.MetadataField = cmp.Or(c.MetadataField, DefaultMetadataField)
+	c.EmbeddingField = cmp.Or(c.EmbeddingField, DefaultEmbeddingField)
+	c.PartitionKeyPath = cmp.Or(c.PartitionKeyPath, DefaultPartitionKey)
+	c.DistanceFunction = cmp.Or(c.DistanceFunction, DistanceCosine)
 }
 
 var _ vectorstore.Store = (*Store)(nil)
@@ -130,9 +129,9 @@ type Store struct {
 	distanceFunc     DistanceFunction
 }
 
-
-func NewStore(config *StoreConfig) (*Store, error) {
-	if err := config.validate(); err != nil {
+func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -393,7 +392,6 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 		Provider:     Provider,
 	}
 }
-
 
 func (s *Store) Close() error { return nil }
 

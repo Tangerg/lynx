@@ -15,40 +15,37 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 )
 
-type ApiConfig struct {
-	ApiKey     model.ApiKey
+type APIConfig struct {
+	APIKey     model.APIKey
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func (c *ApiConfig) validate() error {
-	if c == nil {
-		return errors.New("elevenlabs: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("elevenlabs: ApiKey is required")
+func (c APIConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("elevenlabs: APIKey is required")
 	}
 	return nil
 }
 
-type Api struct {
+type API struct {
 	http *resty.Client
 }
 
-func NewApi(cfg *ApiConfig) (*Api, error) {
-	if err := cfg.validate(); err != nil {
+func NewAPI(cfg APIConfig) (*API, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
 	client := resty.New().
 		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
-		SetHeader("xi-api-key", cfg.ApiKey.Get()).
+		SetHeader("xi-api-key", cfg.APIKey.Get()).
 		SetHeader("Accept", "audio/*")
 	if cfg.HTTPClient != nil {
 		client.SetTransport(cfg.HTTPClient.Transport)
 	}
 
-	return &Api{http: client}, nil
+	return &API{http: client}, nil
 }
 
 type TTSRequest struct {
@@ -76,7 +73,7 @@ type VoiceSettings struct {
 // TextToSpeech buffers the entire audio body into memory and returns it
 // alongside the response headers (used by callers to surface mime type
 // and request id).
-func (a *Api) TextToSpeech(ctx context.Context, voiceID, outputFormat string, body *TTSRequest) ([]byte, http.Header, error) {
+func (a *API) TextToSpeech(ctx context.Context, voiceID, outputFormat string, body *TTSRequest) ([]byte, http.Header, error) {
 	resp, err := a.buildAudioRequest(ctx, outputFormat, body).Post("/text-to-speech/" + voiceID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("elevenlabs: request failed: %w", err)
@@ -90,7 +87,7 @@ func (a *Api) TextToSpeech(ctx context.Context, voiceID, outputFormat string, bo
 // TextToSpeechStream opts out of resty's response parsing so callers can
 // stream audio chunks directly off the wire. The returned ReadCloser
 // MUST be closed by the caller.
-func (a *Api) TextToSpeechStream(ctx context.Context, voiceID, outputFormat string, body *TTSRequest) (io.ReadCloser, http.Header, error) {
+func (a *API) TextToSpeechStream(ctx context.Context, voiceID, outputFormat string, body *TTSRequest) (io.ReadCloser, http.Header, error) {
 	req := a.buildAudioRequest(ctx, outputFormat, body).SetDoNotParseResponse(true)
 	resp, err := req.Post("/text-to-speech/" + voiceID + "/stream")
 	if err != nil {
@@ -106,7 +103,7 @@ func (a *Api) TextToSpeechStream(ctx context.Context, voiceID, outputFormat stri
 	return resp.RawBody(), resp.Header(), nil
 }
 
-func (a *Api) buildAudioRequest(ctx context.Context, outputFormat string, body *TTSRequest) *resty.Request {
+func (a *API) buildAudioRequest(ctx context.Context, outputFormat string, body *TTSRequest) *resty.Request {
 	req := a.http.R().
 		SetContext(ctx).
 		SetHeader("Content-Type", "application/json").
@@ -145,7 +142,7 @@ type TranscriptionResponse struct {
 	} `json:"words"`
 }
 
-func (a *Api) Transcription(ctx context.Context, audio []byte, mimeType string, req *TranscriptionRequest) (*TranscriptionResponse, error) {
+func (a *API) Transcription(ctx context.Context, audio []byte, mimeType string, req *TranscriptionRequest) (*TranscriptionResponse, error) {
 	if len(audio) == 0 {
 		return nil, errors.New("elevenlabs: request must not be nil")
 	}

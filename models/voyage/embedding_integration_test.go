@@ -24,8 +24,8 @@ func TestEmbeddingModel_Integration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m, err := voyage.NewEmbeddingModel(&voyage.EmbeddingModelConfig{
-				ApiKey:         model.NewApiKey(key),
+			m, err := voyage.NewEmbeddingModel(voyage.EmbeddingModelConfig{
+				APIKey:         model.NewAPIKey(key),
 				DefaultOptions: opts,
 			})
 			if err != nil {

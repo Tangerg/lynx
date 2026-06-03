@@ -56,17 +56,20 @@ type ProviderConfig struct {
 	MetaFunc MetaFunc
 }
 
-func (c *ProviderConfig) validate() error {
-	if c == nil {
-		return ErrNilConfig
+// ApplyDefaults fills the naming function when nil.
+func (c *ProviderConfig) ApplyDefaults() {
+	if c.Naming == nil {
+		c.Naming = DefaultNaming
 	}
+}
+
+// Validate checks required fields. Pure check — pair with
+// [ProviderConfig.ApplyDefaults].
+func (c *ProviderConfig) Validate() error {
 	for i, src := range c.Sources {
 		if src.Session == nil {
 			return fmt.Errorf("mcp.ProviderConfig: source[%d] %q: %w", i, src.Name, ErrNilSession)
 		}
-	}
-	if c.Naming == nil {
-		c.Naming = DefaultNaming
 	}
 	return nil
 }
@@ -90,8 +93,9 @@ type Provider struct {
 
 // NewProvider creates a Provider from cfg. cfg.Sources may be empty;
 // the returned Provider then exposes an empty tool list.
-func NewProvider(cfg *ProviderConfig) (*Provider, error) {
-	if err := cfg.validate(); err != nil {
+func NewProvider(cfg ProviderConfig) (*Provider, error) {
+	cfg.ApplyDefaults()
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	// Defensive copy so post-construction mutation by the caller cannot
@@ -152,7 +156,7 @@ func (p *Provider) refresh(ctx context.Context) ([]chat.Tool, error) {
 				return nil, fmt.Errorf("mcp.Provider.refresh: list tools from source %q: %w", src.Name, err)
 			}
 
-			tool, err := NewTool(&ToolConfig{
+			tool, err := NewTool(ToolConfig{
 				Session:      src.Session,
 				Descriptor:   descriptor,
 				PrefixedName: p.cfg.Naming(src.Name, descriptor),

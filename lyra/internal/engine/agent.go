@@ -1,0 +1,230 @@
+package engine
+
+import (
+	"context"
+
+	"github.com/Tangerg/lynx/agent"
+	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/hitl"
+	"github.com/Tangerg/lynx/core/model/chat"
+)
+
+// ChatInput is the typed input to the M1 single-turn chat agent. It
+// carries the user's message verbatim; future milestones extend with
+// session context, tool selection hints, etc.
+type ChatInput struct {
+	Message string
+
+	// MaxBudget caps the total tokens (prompt + completion) the turn
+	// may spend across its tool-loop rounds. 0 means unlimited. When
+	// exceeded the action stops cleanly after the current round —
+	// before paying for the next LLM call — and reports the partial
+	// reply with [ChatOutput.StoppedOnBudget] set.
+	MaxBudget int64
+
+	// MaxCostUSD caps the turn's dollar cost the same way MaxBudget caps
+	// tokens (the lynx analog of the SDK's maxBudgetUsd). 0 means no cost
+	// cap. Requires a [Config.Pricing] hook — without one cost stays 0
+	// and this never trips. Either ceiling stops the turn.
+	MaxCostUSD float64
+
+	// PlanMode runs the turn behind plan approval: the action drafts a
+	// plan, parks on [core.ProcessContext.AwaitInput] (→ StatusWaiting,
+	// persisted), and only executes once the process is resumed with an
+	// approval. A rejected plan returns [ChatOutput.PlanRejected]; a
+	// trivial request (planner returns NO_PLAN) executes without parking.
+	PlanMode bool
+}
+
+// ChatOutput is the typed output of one turn. Reply is the assistant's
+// final text. Usage / UsageByModel / CostUSD are read back from the
+// process budget — the agent framework's invocation ledger — rather
+// than a hand-rolled tally: the action records each LLM round via
+// [core.ProcessContext.RecordLLMInvocation], and these fields are the
+// rolled-up view.
+type ChatOutput struct {
+	Reply string
+	Usage TokenUsage
+
+	// UsageByModel breaks Usage down per served model — the lynx analog
+	// of the SDK's modelUsage. One entry for a plain single-model turn;
+	// several once a turn spans models (tool rounds routed elsewhere,
+	// sub-agents).
+	UsageByModel []ModelUsage
+
+	// CostUSD is the turn's total dollar cost, summed from the recorded
+	// invocations. Zero unless a [Pricing] func is configured (providers
+	// don't return a dollar figure on the chat path); see [Config.Pricing].
+	CostUSD float64
+
+	// StoppedOnBudget is true when the turn ended because it hit
+	// [ChatInput.MaxBudget] rather than the model finishing. Reply
+	// holds whatever text accumulated up to the stop.
+	StoppedOnBudget bool
+
+	// PlanRejected is true when a plan-mode turn ended because the user
+	// rejected the proposed plan (no execution happened). Reply is empty.
+	PlanRejected bool
+}
+
+// buildChatAgent constructs the chat agent owned by this Engine.
+// The Action's closure captures `e` so it can reach the engine's
+// memory service for system-prompt composition without an extra
+// parameter passed through every turn.
+//
+// The Action declares [ToolRoleCoding] so the runtime resolves the
+// coding tool group at dispatch time; the body calls
+// [core.ProcessContext.ChatWithActionTools] which composes the
+// chat.NewToolMiddleware tool-loop on top of platform guardrails.
+// The model can therefore call read / write / edit / glob / grep /
+// bash freely within one turn.
+//
+// The body uses Stream rather than Call so each text chunk surfaces
+// to [ToolObserver.OnMessageDelta] as it arrives — transport
+// adapters get a real streaming experience instead of one
+// pre-buffered MessageDelta. Tool-call rounds still go through the
+// same ToolMiddleware loop; tool events surface via the
+// ToolDecorator path independently of the text-delta path.
+func (e *Engine) buildChatAgent() *core.Agent {
+	return agent.New("chat-agent").
+		Description("single-turn LLM chat with the default coding tool set").
+		Actions(agent.NewAction("chat",
+			func(ctx context.Context, pc *core.ProcessContext, in ChatInput) (ChatOutput, error) {
+				if in.PlanMode {
+					out, done, err := e.planGate(ctx, pc, in.Message)
+					if err != nil || done {
+						return out, err
+					}
+				}
+				out, err := e.runChatTurn(ctx, pc, in.Message, turnBudget{MaxTokens: in.MaxBudget, MaxCostUSD: in.MaxCostUSD})
+				if err != nil {
+					// A gated tool may have requested approval (HITL R): the
+					// tool returned a hitl.PauseError that bubbled up through
+					// the chat tool middleware. Park the process on the
+					// carried awaitable (→ StatusWaiting) so the run suspends;
+					// the client answers via a continuation run. On resume
+					// the action re-runs and the decider observes the verdict.
+					if _, paused := hitl.HandlePause(pc, err); paused {
+						return ChatOutput{}, nil
+					}
+					return out, err
+				}
+				return out, nil
+			},
+			core.ActionConfig{
+				ToolGroups: core.ToolRolesFor(ToolRoleCoding),
+				ToolLoop:   recoverToolLoop(),
+				// MaxAttempts:1 — don't let the runtime retry an LLM action.
+				// Transient errors are already retried inside the model SDK;
+				// permanent ones (no-access model, bad key, invalid request)
+				// and ctx timeouts won't improve on retry. The default 5
+				// attempts × llmCallTimeout is exactly what made a failed run
+				// hang for minutes instead of surfacing run/closed{error}.
+				QoS: core.ActionQoS{MaxAttempts: 1},
+			},
+		)).
+		Goals(agent.GoalProducing[ChatOutput](core.Goal{
+			Description: "single-turn reply produced",
+		})).
+		Build()
+}
+
+// TaskInput is the argument schema the model fills to call the `task`
+// tool: one self-contained subtask description. lyra runs it in a fresh
+// sub-agent (isolated context, the coding tools minus `task`) and hands
+// back the sub-agent's final reply.
+type TaskInput struct {
+	Prompt string `json:"prompt"`
+}
+
+// buildSubtaskAgent constructs the agent behind the `task` delegation
+// tool. Same chat body as the main agent, but: (1) named "task" so the
+// derived tool is `task`; (2) declares [ToolRoleSubtask] — the coding
+// tools WITHOUT `task`, so a subtask can't recurse into another
+// delegation; (3) its goal produces just the reply string, so the tool
+// result handed to the parent model is the answer text, not a ChatOutput
+// blob. Its LLM rounds still record into the process budget, which
+// aggregates up the subtree into the parent turn's usage roll-up.
+func (e *Engine) buildSubtaskAgent() *core.Agent {
+	return agent.New("task").
+		Description("Delegate a self-contained subtask to a fresh sub-agent that has the coding " +
+			"tools. Use for focused, separable work (investigate a question, draft a file) so the " +
+			"main conversation stays uncluttered. Returns the sub-agent's final answer.").
+		Actions(agent.NewAction("subtask",
+			func(ctx context.Context, pc *core.ProcessContext, in TaskInput) (string, error) {
+				// maxBudget=0: a subtask runs without its own token cap.
+				// It isn't unbounded at the turn level, though — its
+				// usage records into the child budget, which aggregates
+				// into the parent's subtree, so the parent turn's next
+				// round-boundary budget check (which reads the subtree
+				// total) stops further work once the subtask pushes the
+				// parent over its budget.
+				out, err := e.runChatTurn(ctx, pc, in.Prompt, turnBudget{})
+				if err != nil {
+					return "", err
+				}
+				return out.Reply, nil
+			},
+			core.ActionConfig{
+				ToolGroups: core.ToolRolesFor(ToolRoleSubtask),
+				ToolLoop:   recoverToolLoop(),
+				QoS:        core.ActionQoS{MaxAttempts: 1}, // same rationale as the chat action
+			},
+		)).
+		Goals(agent.GoalProducing[string](core.Goal{
+			Description: "subtask answer produced",
+		})).
+		Build()
+}
+
+// recoverToolLoop is the tool-loop policy both the chat agent and the
+// task sub-agent use: recover from a hallucinated tool name (feed back
+// the real tool list so the model re-picks) or an empty reply (one
+// nudge) instead of aborting. No-op on a well-behaved turn.
+func recoverToolLoop() chat.ToolLoopConfig {
+	return chat.ToolLoopConfig{FeedbackOnUnknownTool: true, FeedbackOnEmptyResponse: true}
+}
+
+// planApprovedKey is the blackboard condition the plan-mode approval
+// writes (true = approved, false = rejected). Its presence is also the
+// "already decided" signal — see planGate.
+const planApprovedKey = "plan.approved"
+
+// planGate is the plan-mode pre-flight, run INSIDE the agent process so
+// the pause is a real [core.StatusWaiting] the runtime can persist /
+// resume (vs. an out-of-process channel). It returns:
+//
+//   - done=false: proceed to execute (the plan was approved on a prior
+//     tick, or the request is trivial — planner returned NO_PLAN).
+//   - done=true, zero output: the process just parked on AwaitInput; the
+//     typed-action wrapper turns the unproduced output into ActionWaiting.
+//   - done=true, PlanRejected output: the user rejected the plan.
+//
+// On the first tick the blackboard carries no decision, so it drafts a
+// plan, emits it to the observer, and parks. ResumeProcess(approved)
+// writes the decision and re-runs the action, which now sees it.
+func (e *Engine) planGate(ctx context.Context, pc *core.ProcessContext, message string) (ChatOutput, bool, error) {
+	if approved, decided := pc.Blackboard.Condition(planApprovedKey); decided {
+		if !approved {
+			return ChatOutput{PlanRejected: true}, true, nil
+		}
+		return ChatOutput{}, false, nil // approved → execute
+	}
+
+	plan, err := e.planner.Plan(ctx, e.SystemPrompt(ctx), message)
+	if err != nil {
+		return ChatOutput{}, false, err
+	}
+	if plan == "" {
+		return ChatOutput{}, false, nil // NO_PLAN → execute directly, no approval
+	}
+
+	if obs := ObserverFrom(pc.Options); obs != nil {
+		obs.OnPlanGenerated(plan)
+	}
+	pc.AwaitInput(hitl.NewConfirmation(plan, func(approved bool) core.ResponseImpact {
+		pc.Blackboard.SetCondition(planApprovedKey, approved)
+		return core.ImpactUpdated
+	}))
+	return ChatOutput{}, true, nil // suspends; typed wrapper → ActionWaiting
+}

@@ -40,12 +40,11 @@ var _ ast.Visitor = (*Visitor)(nil)
 //	    log.Fatal(err)
 //	}
 type Visitor struct {
-	err               error                  // Last error encountered during conversion
-	result            map[string]interface{} // The Pinecone filter condition being constructed
-	currentFieldKey   string                 // Temporary storage for field paths during extraction
-	currentFieldValue interface{}            // Temporary storage for field values during extraction
+	err               error          // Last error encountered during conversion
+	result            map[string]any // The Pinecone filter condition being constructed
+	currentFieldKey   string         // Temporary storage for field paths during extraction
+	currentFieldValue any            // Temporary storage for field values during extraction
 }
-
 
 func NewVisitor() *Visitor {
 	return &Visitor{}
@@ -157,7 +156,7 @@ func (c *Visitor) visitLiteral(lit *ast.Literal) error {
 
 // visitListLiteral converts a list of literals into a Go slice and stores it.
 func (c *Visitor) visitListLiteral(list *ast.ListLiteral) error {
-	values := make([]interface{}, 0, len(list.Values))
+	values := make([]any, 0, len(list.Values))
 
 	for i, lit := range list.Values {
 		value, err := c.literalToValue(lit)
@@ -203,9 +202,9 @@ func (c *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
 
 	switch expr.Op.Kind {
 	case token.AND:
-		c.result = map[string]interface{}{"$and": []interface{}{left, right}}
+		c.result = map[string]any{"$and": []any{left, right}}
 	case token.OR:
-		c.result = map[string]interface{}{"$or": []interface{}{left, right}}
+		c.result = map[string]any{"$or": []any{left, right}}
 	default:
 		return fmt.Errorf("pinecone: unexpected logical operator '%s' at %s",
 			expr.Op.Literal, expr.Start().String())
@@ -224,7 +223,7 @@ func (c *Visitor) visitNotExpr(expr *ast.UnaryExpr) error {
 			expr.Start().String(), err)
 	}
 
-	c.result = map[string]interface{}{"$nor": []interface{}{cond}}
+	c.result = map[string]any{"$nor": []any{cond}}
 	return nil
 }
 
@@ -247,9 +246,9 @@ func (c *Visitor) visitEqualityExpr(expr *ast.BinaryExpr) error {
 
 	switch expr.Op.Kind {
 	case token.EQ:
-		c.result = map[string]interface{}{fieldKey: map[string]interface{}{"$eq": fieldValue}}
+		c.result = map[string]any{fieldKey: map[string]any{"$eq": fieldValue}}
 	case token.NE:
-		c.result = map[string]interface{}{fieldKey: map[string]interface{}{"$ne": fieldValue}}
+		c.result = map[string]any{fieldKey: map[string]any{"$ne": fieldValue}}
 	default:
 		return fmt.Errorf("pinecone: unexpected equality operator '%s' at %s",
 			expr.Op.Literal, expr.Start().String())
@@ -277,13 +276,13 @@ func (c *Visitor) visitOrderingExpr(expr *ast.BinaryExpr) error {
 
 	switch expr.Op.Kind {
 	case token.LT:
-		c.result = map[string]interface{}{fieldKey: map[string]interface{}{"$lt": fieldValue}}
+		c.result = map[string]any{fieldKey: map[string]any{"$lt": fieldValue}}
 	case token.LE:
-		c.result = map[string]interface{}{fieldKey: map[string]interface{}{"$lte": fieldValue}}
+		c.result = map[string]any{fieldKey: map[string]any{"$lte": fieldValue}}
 	case token.GT:
-		c.result = map[string]interface{}{fieldKey: map[string]interface{}{"$gt": fieldValue}}
+		c.result = map[string]any{fieldKey: map[string]any{"$gt": fieldValue}}
 	case token.GE:
-		c.result = map[string]interface{}{fieldKey: map[string]interface{}{"$gte": fieldValue}}
+		c.result = map[string]any{fieldKey: map[string]any{"$gte": fieldValue}}
 	default:
 		return fmt.Errorf("pinecone: unexpected ordering operator '%s' at %s",
 			expr.Op.Literal, expr.Start().String())
@@ -311,13 +310,13 @@ func (c *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 		return err
 	}
 
-	c.result = map[string]interface{}{fieldKey: map[string]interface{}{"$in": c.currentFieldValue}}
+	c.result = map[string]any{fieldKey: map[string]any{"$in": c.currentFieldValue}}
 	return nil
 }
 
 // buildNestedExpr converts a sub-expression to a filter map using an isolated visitor instance.
 // This ensures that nested logical expressions maintain proper scoping.
-func (c *Visitor) buildNestedExpr(expr ast.Expr) (map[string]interface{}, error) {
+func (c *Visitor) buildNestedExpr(expr ast.Expr) (map[string]any, error) {
 	nested := NewVisitor()
 	if err := nested.visit(expr); err != nil {
 		return nil, err
@@ -351,7 +350,7 @@ func (c *Visitor) extractFieldKey(expr ast.Expr) (string, error) {
 
 // extractFieldValue extracts a value (literal or list) from an expression.
 // The visitor's currentFieldValue state is preserved during extraction.
-func (c *Visitor) extractFieldValue(expr ast.Expr) (interface{}, error) {
+func (c *Visitor) extractFieldValue(expr ast.Expr) (any, error) {
 	savedValue := c.currentFieldValue
 	c.currentFieldValue = nil
 
@@ -409,7 +408,7 @@ func (c *Visitor) buildIndexedFieldKey(expr *ast.IndexExpr) (string, error) {
 
 // literalToValue converts an AST literal node to its corresponding Go value.
 // Supported conversions: string → string, number → float64, boolean → bool.
-func (c *Visitor) literalToValue(lit *ast.Literal) (interface{}, error) {
+func (c *Visitor) literalToValue(lit *ast.Literal) (any, error) {
 	if lit.IsString() {
 		return lit.AsString()
 	}

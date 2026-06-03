@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 	"sync"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -61,6 +62,34 @@ type Tool interface {
 	Call(ctx context.Context, arguments string) (string, error)
 }
 
+// ToolResult is the richer return of an [ArtifactTool]: the Content string
+// is fed to the LLM exactly like [Tool.Call]'s result, while Artifact is an
+// optional typed value carried out-of-band for non-LLM consumers (sinked
+// onto the tool message, never shown to the model). Use it for tools that
+// produce a binary or structured artifact — an image, a parsed document, a
+// domain object — alongside a textual summary.
+type ToolResult struct {
+	// Content is the LLM-visible text (same role as [Tool.Call]'s string).
+	Content string
+
+	// Artifact is the out-of-band typed value, or nil. It lands on the
+	// resulting [ToolReturn.Artifact].
+	Artifact any
+}
+
+// ArtifactTool is an optional capability a [Tool] may also implement to
+// return a typed artifact alongside its text. The tool-calling machinery
+// detects it via type assertion (no change to the base [Tool] contract):
+// when present, [ArtifactTool.CallArtifact] is used instead of
+// [Tool.Call], and the artifact is attached to [ToolReturn.Artifact].
+type ArtifactTool interface {
+	Tool
+
+	// CallArtifact runs the tool, returning the LLM-visible content plus an
+	// optional artifact.
+	CallArtifact(ctx context.Context, arguments string) (ToolResult, error)
+}
+
 // tool is the concrete backing for tools built via [NewTool].
 type tool struct {
 	definition ToolDefinition
@@ -104,6 +133,50 @@ func NewTool(definition ToolDefinition, metadata ToolMetadata, execFunc func(ctx
 	}
 
 	return &tool{
+		definition: definition,
+		metadata:   metadata,
+		execFunc:   execFunc,
+	}, nil
+}
+
+// artifactTool is the concrete backing for [NewArtifactTool].
+type artifactTool struct {
+	definition ToolDefinition
+	metadata   ToolMetadata
+	execFunc   func(ctx context.Context, arguments string) (ToolResult, error)
+}
+
+func (t *artifactTool) Definition() ToolDefinition { return t.definition }
+func (t *artifactTool) Metadata() ToolMetadata     { return t.metadata }
+
+// Call satisfies [Tool] by returning only the text content, so an
+// artifactTool works anywhere a plain Tool is expected.
+func (t *artifactTool) Call(ctx context.Context, arguments string) (string, error) {
+	res, err := t.execFunc(ctx, arguments)
+	return res.Content, err
+}
+
+// CallArtifact satisfies [ArtifactTool], returning content + artifact.
+func (t *artifactTool) CallArtifact(ctx context.Context, arguments string) (ToolResult, error) {
+	return t.execFunc(ctx, arguments)
+}
+
+// NewArtifactTool builds an [ArtifactTool] — a tool that returns a typed
+// artifact alongside its LLM-visible text. Same required components as
+// [NewTool]. The artifact lands on [ToolReturn.Artifact] and is never sent
+// to the model.
+func NewArtifactTool(definition ToolDefinition, metadata ToolMetadata, execFunc func(ctx context.Context, arguments string) (ToolResult, error)) (ArtifactTool, error) {
+	if definition.Name == "" {
+		return nil, errors.New("chat.NewArtifactTool: definition.Name must not be empty")
+	}
+	if definition.InputSchema == "" {
+		return nil, errors.New("chat.NewArtifactTool: definition.InputSchema must not be empty")
+	}
+	if execFunc == nil {
+		return nil, errors.New("chat.NewArtifactTool: execFunc must not be nil")
+	}
+
+	return &artifactTool{
 		definition: definition,
 		metadata:   metadata,
 		execFunc:   execFunc,
@@ -326,6 +399,11 @@ func (r *ToolInvocationResult) validate() error {
 // [*ToolInvocationResult].
 type toolCallInvoker struct {
 	registry *ToolRegistry
+
+	// feedbackOnUnknown, when set, makes a call to an unregistered tool
+	// produce an error result fed back to the model (so it can pick a real
+	// tool) instead of aborting the whole request.
+	feedbackOnUnknown bool
 }
 
 // newToolCallInvoker pairs an invoker with its registry.
@@ -335,10 +413,16 @@ func newToolCallInvoker(registry *ToolRegistry) *toolCallInvoker {
 
 // canInvokeToolCalls verifies every requested tool name is registered.
 // Returns (false, nil) when the response contains no tool calls at all.
-// Returns (false, err) when an unknown tool is requested.
+// Returns (false, err) when an unknown tool is requested — unless
+// feedbackOnUnknown is set, in which case unknown tools are tolerated and
+// turned into error results by invokeToolCalls.
 func (i *toolCallInvoker) canInvokeToolCalls(resp *Response) (bool, error) {
 	if resp.Result == nil || !resp.Result.AssistantMessage.HasToolCalls() {
 		return false, nil
+	}
+
+	if i.feedbackOnUnknown {
+		return true, nil
 	}
 
 	for call := range resp.Result.AssistantMessage.ToolCalls() {
@@ -347,6 +431,18 @@ func (i *toolCallInvoker) canInvokeToolCalls(resp *Response) (bool, error) {
 		}
 	}
 	return true, nil
+}
+
+// unknownToolResult is the synthetic tool result fed back to the model when
+// it calls a tool that isn't registered (feedbackOnUnknown path). It names
+// the missing tool and lists the available ones so the model can recover.
+func unknownToolResult(name string, available []string) string {
+	sorted := slices.Clone(available)
+	slices.Sort(sorted)
+	if len(sorted) == 0 {
+		return fmt.Sprintf("error: tool %q is not available, and no tools are registered", name)
+	}
+	return fmt.Sprintf("error: tool %q is not available. Available tools: %s", name, strings.Join(sorted, ", "))
 }
 
 // invokeToolCalls runs every requested tool in order and collects the
@@ -358,8 +454,20 @@ func (i *toolCallInvoker) invokeToolCalls(ctx context.Context, calls []*ToolCall
 	returns := make([]*ToolReturn, 0, len(calls))
 
 	for _, call := range calls {
-		// Existence is guaranteed by the canInvokeToolCalls precheck.
-		t, _ := i.registry.Find(call.Name)
+		t, exists := i.registry.Find(call.Name)
+		if !exists {
+			// Reachable only with feedbackOnUnknown set (otherwise
+			// canInvokeToolCalls already aborted). Answer the tool call
+			// with an error result so the model can self-correct, and
+			// force a follow-up round.
+			allReturnDirect = false
+			returns = append(returns, &ToolReturn{
+				ID:     call.ID,
+				Name:   call.Name,
+				Result: unknownToolResult(call.Name, i.registry.Names()),
+			})
+			continue
+		}
 
 		result, err := i.invokeOne(ctx, t, call)
 		if err != nil {
@@ -368,9 +476,10 @@ func (i *toolCallInvoker) invokeToolCalls(ctx context.Context, calls []*ToolCall
 
 		allReturnDirect = allReturnDirect && t.Metadata().ReturnDirect
 		returns = append(returns, &ToolReturn{
-			ID:     call.ID,
-			Name:   call.Name,
-			Result: result,
+			ID:       call.ID,
+			Name:     call.Name,
+			Result:   result.Content,
+			Artifact: result.Artifact,
 		})
 	}
 
@@ -388,9 +497,9 @@ func (i *toolCallInvoker) invokeToolCalls(ctx context.Context, calls []*ToolCall
 // invokeOne dispatches a single tool call under its own OTel span.
 // The span emits `lynx.tool.name` / `lynx.tool.call_id`; an error
 // adds `lynx.tool.is_error=true` and sets span status before
-// re-throwing the underlying error to the caller. Noop overhead
+// re-throwing the underlying error to the caller. No-op overhead
 // when no TracerProvider is configured.
-func (i *toolCallInvoker) invokeOne(ctx context.Context, t Tool, call *ToolCallPart) (string, error) {
+func (i *toolCallInvoker) invokeOne(ctx context.Context, t Tool, call *ToolCallPart) (ToolResult, error) {
 	ctx, span := toolTracer.Start(ctx, "tool.invoke "+call.Name,
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -400,7 +509,19 @@ func (i *toolCallInvoker) invokeOne(ctx context.Context, t Tool, call *ToolCallP
 	)
 	defer span.End()
 
-	result, err := t.Call(ctx, call.Arguments)
+	var (
+		result ToolResult
+		err    error
+	)
+	if at, ok := t.(ArtifactTool); ok {
+		// Artifact-bearing tools return content + an out-of-band value.
+		result, err = at.CallArtifact(ctx, call.Arguments)
+	} else {
+		var content string
+		content, err = t.Call(ctx, call.Arguments)
+		result = ToolResult{Content: content}
+	}
+
 	if err != nil {
 		span.SetAttributes(attribute.Bool(attrLynxToolIsError, true))
 		span.RecordError(err)
@@ -449,6 +570,14 @@ func NewToolSupport(capacityHint ...int) *ToolSupport {
 
 // Registry exposes the underlying [ToolRegistry] for direct access.
 func (s *ToolSupport) Registry() *ToolRegistry { return s.registry }
+
+// SetFeedbackOnUnknownTool toggles unknown-tool tolerance. When enabled, a
+// call to an unregistered tool yields an error result fed back to the model
+// (so it can pick a real tool) instead of aborting the whole request. The
+// default is off, preserving the strict "unknown tool is an error" behavior.
+func (s *ToolSupport) SetFeedbackOnUnknownTool(enabled bool) {
+	s.invoker.feedbackOnUnknown = enabled
+}
 
 // Register is a shorthand for [ToolRegistry.Register].
 func (s *ToolSupport) Register(tools ...Tool) {
@@ -515,7 +644,7 @@ func (s *ToolSupport) BuildReturnDirectResponse(msgs []Message) (*Response, erro
 }
 
 // ShouldInvokeToolCalls reports whether the response contains tool
-// calls that the registry can fulfil.
+// calls that the registry can fulfill.
 func (s *ToolSupport) ShouldInvokeToolCalls(resp *Response) (bool, error) {
 	return s.invoker.canInvokeToolCalls(resp)
 }

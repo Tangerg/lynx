@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 
@@ -23,9 +24,9 @@ type AgentConfig struct {
 	// Version is the semver tag. Nil → 1.0.0.
 	Version *semver.Version
 
-	// StuckHandler is the recovery hook fired when the planner
+	// StuckPolicy is the recovery hook fired when the planner
 	// returns no plan. Nil → transition to StatusStuck.
-	StuckHandler StuckHandler
+	StuckPolicy StuckPolicy
 
 	// Actions are the planner-visible actions. ≥1 required.
 	Actions []Action
@@ -59,7 +60,7 @@ type Agent struct {
 	AgentConfig
 
 	// knownConditions is the lazily-computed condition-key cache.
-	// Initialised by [NewAgent] via [sync.OnceValue]; subsequent
+	// Initialized by [NewAgent] via [sync.OnceValue]; subsequent
 	// [Agent.KnownConditions] calls are a single function call.
 	knownConditions func() map[string]struct{}
 }
@@ -67,14 +68,11 @@ type Agent struct {
 // NewAgent assembles a fresh agent from config. Slice fields are
 // stored by reference; callers shouldn't mutate them afterwards.
 // nil config is treated as a zero-value config (no actions / goals).
-func NewAgent(config *AgentConfig) *Agent {
-	if config == nil {
-		config = &AgentConfig{}
-	}
+func NewAgent(config AgentConfig) *Agent {
 	if config.Version == nil {
 		config.Version = defaultVersion
 	}
-	a := &Agent{AgentConfig: *config}
+	a := &Agent{AgentConfig: config}
 	a.knownConditions = sync.OnceValue(func() map[string]struct{} {
 		return KnownConditions(a.Actions, a.Goals, a.Conditions)
 	})
@@ -102,10 +100,10 @@ func (a *Agent) KnownConditions() map[string]struct{} {
 // The intent is fail-fast at deploy time rather than at first tick.
 func ValidateAgent(a *Agent) error {
 	if a == nil {
-		return fmt.Errorf("invalid agent: agent is nil")
+		return errors.New("invalid agent: agent is nil")
 	}
 	if a.Name == "" {
-		return fmt.Errorf("invalid agent: name is empty")
+		return errors.New("invalid agent: name is empty")
 	}
 
 	type item struct {
@@ -172,7 +170,7 @@ func validateUniqueNamed(
 }
 
 // KnownConditions is the pure builder reused by Agent and
-// plan.PlanningSystem caches: union of action precondition / effect keys,
+// planning.System caches: union of action precondition / effect keys,
 // goal precondition keys, and named-Condition names.
 func KnownConditions(actions []Action, goals []*Goal, conditions []Condition) map[string]struct{} {
 	out := map[string]struct{}{}

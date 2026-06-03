@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main, lyra]
+  pull_request:
+    branches: [main, lyra]
+
+# Cancel in-progress runs when a new push lands on the same ref —
+# saves CI minutes when developers push quickly.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Matrix per module so failures localise. Each module runs build /
+  # vet / test (-race) / golangci-lint / govulncheck.
+  check:
+    name: ${{ matrix.module }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - pkg
+          - core
+          - agent
+          - chatmemory
+          - documentreaders
+          - documentreaders/html
+          - documentreaders/markdown
+          - documentreaders/pdf
+          - mcp
+          - models
+          - otel
+          - rag
+          - tools
+          - vectorstores
+          - lyra
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.3"
+          cache: true
+          cache-dependency-path: ${{ matrix.module }}/go.sum
+
+      - name: go build
+        working-directory: ${{ matrix.module }}
+        run: go build ./...
+
+      - name: go vet
+        working-directory: ${{ matrix.module }}
+        run: go vet ./...
+
+      - name: go test (race)
+        working-directory: ${{ matrix.module }}
+        run: go test -race -count=1 ./...
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: ${{ matrix.module }}
+          args: --config=${{ github.workspace }}/.golangci.yml
+
+      - name: govulncheck
+        working-directory: ${{ matrix.module }}
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...

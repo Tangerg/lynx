@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -82,7 +83,7 @@ func collectExportedTools(platform *Platform, remoteOnly bool, start processStar
 	return out
 }
 
-// newDynamicAgentTool builds the dynamic flavour of [agentTool]:
+// newDynamicAgentTool builds the dynamic flavor of [agentTool]:
 // input schema derived from [core.GoalExport.InputSample] at
 // construction; decode uses [reflect.New] on that sample's runtime
 // type so the agent receives a properly-typed binding rather than
@@ -120,9 +121,9 @@ func newDynamicAgentTool(
 			return start(ctx, platform, agentDef, in)
 		},
 		extract: func(child *AgentProcess) (any, error) {
-			out, ok := child.Blackboard().GetValue(core.LastResultBindingName, "")
+			out, ok := child.Blackboard().Lookup(core.LastResultBindingName, "")
 			if !ok {
-				return nil, fmt.Errorf("completed but blackboard has no result")
+				return nil, errors.New("completed but blackboard has no result")
 			}
 			return out, nil
 		},

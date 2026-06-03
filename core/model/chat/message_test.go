@@ -8,28 +8,6 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-func TestMessageType_Predicates(t *testing.T) {
-	cases := []struct {
-		name string
-		t    chat.MessageType
-		fn   func() bool
-		want bool
-	}{
-		{"system", chat.MessageTypeSystem, chat.MessageTypeSystem.IsSystem, true},
-		{"user not system", chat.MessageTypeUser, chat.MessageTypeUser.IsSystem, false},
-		{"user", chat.MessageTypeUser, chat.MessageTypeUser.IsUser, true},
-		{"assistant", chat.MessageTypeAssistant, chat.MessageTypeAssistant.IsAssistant, true},
-		{"tool", chat.MessageTypeTool, chat.MessageTypeTool.IsTool, true},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := tc.fn(); got != tc.want {
-				t.Fatalf("got %v, want %v", got, tc.want)
-			}
-		})
-	}
-}
-
 func TestNewMessage_Dispatch(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -106,7 +84,7 @@ func TestNewAssistantMessage_Generic(t *testing.T) {
 	t.Run("metadata", func(t *testing.T) {
 		md := map[string]any{"k": 1}
 		m := chat.NewAssistantMessage(md)
-		if v, _ := m.Meta()["k"]; v != 1 {
+		if v := m.Meta()["k"]; v != 1 {
 			t.Fatalf("Meta()[k] = %v, want 1", v)
 		}
 	})

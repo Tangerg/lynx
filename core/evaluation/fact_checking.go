@@ -47,18 +47,22 @@ type FactCheckingEvaluatorConfig struct {
 	Threshold float64
 }
 
-// validate fills the default prompt template and returns an error when
-// required fields are missing or the template lacks the expected
-// variables.
-func (c *FactCheckingEvaluatorConfig) validate() error {
-	if c == nil {
-		return errors.New("evaluation.FactCheckingEvaluatorConfig: config must not be nil")
+// ApplyDefaults fills PromptTemplate when nil.
+func (c *FactCheckingEvaluatorConfig) ApplyDefaults() {
+	if c.PromptTemplate == nil {
+		c.PromptTemplate = chat.NewPromptTemplate(factCheckingDefaultTemplate)
 	}
+}
+
+// Validate returns an error when required fields are missing or the
+// template lacks the expected variables. Pure check — pair with
+// [FactCheckingEvaluatorConfig.ApplyDefaults].
+func (c *FactCheckingEvaluatorConfig) Validate() error {
 	if c.ChatModel == nil {
 		return errors.New("evaluation.FactCheckingEvaluatorConfig: ChatModel is required")
 	}
 	if c.PromptTemplate == nil {
-		c.PromptTemplate = chat.NewPromptTemplate(factCheckingDefaultTemplate)
+		return nil
 	}
 	return c.PromptTemplate.RequireVariables("Document", "Claim")
 }
@@ -78,8 +82,9 @@ type FactCheckingEvaluator struct {
 // NewFactCheckingEvaluator builds a [FactCheckingEvaluator] from
 // config. Returns an error when the configuration fails validation or
 // the chat client can't be constructed.
-func NewFactCheckingEvaluator(config *FactCheckingEvaluatorConfig) (*FactCheckingEvaluator, error) {
-	if err := config.validate(); err != nil {
+func NewFactCheckingEvaluator(config FactCheckingEvaluatorConfig) (*FactCheckingEvaluator, error) {
+	config.ApplyDefaults()
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	base, err := newLLMEvaluator(

@@ -36,21 +36,26 @@ type TranslationTransformerConfig struct {
 	PromptTemplate *chat.PromptTemplate
 }
 
-// validate fills defaults and rejects invalid configs.
-func (c *TranslationTransformerConfig) validate() error {
-	if c == nil {
-		return errors.New("rag.TranslationTransformerConfig: config must not be nil")
-	}
+// Validate rejects invalid configs.
+func (c *TranslationTransformerConfig) Validate() error {
 	if c.ChatModel == nil {
 		return errors.New("rag.TranslationTransformerConfig: ChatModel is required")
 	}
 	if c.TargetLanguage == "" {
 		return errors.New("rag.TranslationTransformerConfig: TargetLanguage is required")
 	}
+	if c.PromptTemplate != nil {
+		return c.PromptTemplate.RequireVariables("Target", "Query")
+	}
+	return nil
+}
+
+// ApplyDefaults fills zero fields. PromptTemplate defaults to
+// [translationDefaultTemplate].
+func (c *TranslationTransformerConfig) ApplyDefaults() {
 	if c.PromptTemplate == nil {
 		c.PromptTemplate = chat.NewPromptTemplate(translationDefaultTemplate)
 	}
-	return c.PromptTemplate.RequireVariables("Target", "Query")
 }
 
 var _ QueryTransformer = (*TranslationTransformer)(nil)
@@ -70,8 +75,9 @@ type TranslationTransformer struct {
 // [TranslationTransformer]. Returns an error when the
 // configuration fails validation or the chat client cannot be
 // constructed.
-func NewTranslationTransformer(cfg *TranslationTransformerConfig) (*TranslationTransformer, error) {
-	if err := cfg.validate(); err != nil {
+func NewTranslationTransformer(cfg TranslationTransformerConfig) (*TranslationTransformer, error) {
+	cfg.ApplyDefaults()
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 

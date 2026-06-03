@@ -15,7 +15,7 @@ import (
 )
 
 type EmbeddingModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *embedding.Options
 
 	// Backend / Project / Location enable Vertex AI access — see
@@ -32,12 +32,9 @@ type EmbeddingModelConfig struct {
 	Metadata *embedding.ModelMetadata
 }
 
-func (c *EmbeddingModelConfig) validate() error {
-	if c == nil {
-		return errors.New("google: config must not be nil")
-	}
-	if c.Backend != genai.BackendVertexAI && c.ApiKey == nil {
-		return errors.New("google: ApiKey is required")
+func (c EmbeddingModelConfig) Validate() error {
+	if c.Backend != genai.BackendVertexAI && c.APIKey == nil {
+		return errors.New("google: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("google: DefaultOptions is required")
@@ -52,18 +49,18 @@ var _ embedding.Model = (*EmbeddingModel)(nil)
 //     truncation to 128/256/...);
 //   - "text-embedding-004" (768 dims; legacy, no OutputDimensionality).
 type EmbeddingModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *embedding.Options
 	metadata       embedding.ModelMetadata
 }
 
-func NewEmbeddingModel(cfg *EmbeddingModelConfig) (*EmbeddingModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	api, err := NewApi(&ApiConfig{
-		ApiKey:   cfg.ApiKey,
+	api, err := NewAPI(APIConfig{
+		APIKey:   cfg.APIKey,
 		Backend:  cfg.Backend,
 		Project:  cfg.Project,
 		Location: cfg.Location,
@@ -80,11 +77,11 @@ func NewEmbeddingModel(cfg *EmbeddingModelConfig) (*EmbeddingModel, error) {
 	return &EmbeddingModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,
-		metadata:           info,
+		metadata:       info,
 	}, nil
 }
 
-func (e *EmbeddingModel) buildApiRequest(req *embedding.Request) (string, []*genai.Content, *genai.EmbedContentConfig, error) {
+func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (string, []*genai.Content, *genai.EmbedContentConfig, error) {
 	mergedOpts, err := embedding.MergeOptions(e.defaultOptions, req.Options)
 	if err != nil {
 		return "", nil, nil, err
@@ -145,7 +142,7 @@ func (e *EmbeddingModel) buildResponse(modelName string, apiResp *genai.EmbedCon
 }
 
 func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {
-	modelName, contents, cfg, err := e.buildApiRequest(req)
+	modelName, contents, cfg, err := e.buildAPIRequest(req)
 	if err != nil {
 		return nil, err
 	}

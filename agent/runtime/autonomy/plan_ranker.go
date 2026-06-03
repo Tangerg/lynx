@@ -3,21 +3,22 @@ package autonomy
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/plan"
+	"github.com/Tangerg/lynx/agent/planning"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// PlanRanker reorders a slice of [*plan.Plan] by an arbitrary
+// PlanRanker reorders a slice of [*planning.Plan] by an arbitrary
 // criterion. The default planner ranks by [plan.SortByNetValueDesc]
 // (cost-vs-value math); a PlanRanker lets callers plug in
 // LLM-driven, domain-aware, or hybrid ranking instead.
 type PlanRanker interface {
-	Rank(ctx context.Context, plans []*plan.Plan, ws core.WorldState) ([]*plan.Plan, error)
+	Rank(ctx context.Context, plans []*planning.Plan, ws core.WorldState) ([]*planning.Plan, error)
 }
 
 // LLMPlanRanker is a [PlanRanker] backed by [chat.Client]. The model
@@ -44,7 +45,7 @@ type LLMPlanRankerConfig struct {
 // error on a nil client — caller decides whether to surface or panic.
 func NewLLMPlanRanker(client *chat.Client, cfg LLMPlanRankerConfig) (*LLMPlanRanker, error) {
 	if client == nil {
-		return nil, fmt.Errorf("autonomy.NewLLMPlanRanker: chat.Client must not be nil")
+		return nil, errors.New("autonomy.NewLLMPlanRanker: chat.Client must not be nil")
 	}
 	return &LLMPlanRanker{client: client, cfg: cfg}, nil
 }
@@ -53,7 +54,7 @@ func NewLLMPlanRanker(client *chat.Client, cfg LLMPlanRankerConfig) (*LLMPlanRan
 // their original relative position (stable below the scored ones).
 // Out-of-range / missing scores fall back to 0 so a botched reply
 // fails closed.
-func (r *LLMPlanRanker) Rank(ctx context.Context, plans []*plan.Plan, ws core.WorldState) ([]*plan.Plan, error) {
+func (r *LLMPlanRanker) Rank(ctx context.Context, plans []*planning.Plan, ws core.WorldState) ([]*planning.Plan, error) {
 	if len(plans) < 2 {
 		return plans, nil
 	}
@@ -80,7 +81,7 @@ func (r *LLMPlanRanker) Rank(ctx context.Context, plans []*plan.Plan, ws core.Wo
 	}
 
 	type ranked struct {
-		plan  *plan.Plan
+		plan  *planning.Plan
 		score float64
 	}
 	scoredPlans := make([]ranked, len(plans))
@@ -96,7 +97,7 @@ func (r *LLMPlanRanker) Rank(ctx context.Context, plans []*plan.Plan, ws core.Wo
 		return cmp.Compare(b.score, a.score) // desc
 	})
 
-	out := make([]*plan.Plan, len(scoredPlans))
+	out := make([]*planning.Plan, len(scoredPlans))
 	for i, sp := range scoredPlans {
 		out[i] = sp.plan
 	}
@@ -106,7 +107,7 @@ func (r *LLMPlanRanker) Rank(ctx context.Context, plans []*plan.Plan, ws core.Wo
 // buildUserPrompt renders the per-plan listing the LLM sees. The
 // "id" we ask the model to echo back is "plan_<index>" so a duplicate
 // goal name across plans doesn't collide.
-func (r *LLMPlanRanker) buildUserPrompt(plans []*plan.Plan, ws core.WorldState) string {
+func (r *LLMPlanRanker) buildUserPrompt(plans []*planning.Plan, ws core.WorldState) string {
 	var b strings.Builder
 	if header := r.cfg.PromptHeader; header != "" {
 		b.WriteString(header)
@@ -137,16 +138,16 @@ Include every plan exactly once.
 	return b.String()
 }
 
-func planID(i int, _ *plan.Plan) string { return fmt.Sprintf("plan_%d", i) }
+func planID(i int, _ *planning.Plan) string { return fmt.Sprintf("plan_%d", i) }
 
-func planGoalName(p *plan.Plan) string {
+func planGoalName(p *planning.Plan) string {
 	if p == nil || p.Goal == nil {
 		return ""
 	}
 	return p.Goal.Name
 }
 
-func planActionList(p *plan.Plan) string {
+func planActionList(p *planning.Plan) string {
 	if p == nil || len(p.Actions) == 0 {
 		return ""
 	}
@@ -167,7 +168,7 @@ outcome.
 
 Consider whether the goal looks aligned with prior context, whether
 the actions cover the work needed, and whether the value/cost ratio
-is favourable. Be strict: only mark 0.8+ when you would confidently
+is favorable. Be strict: only mark 0.8+ when you would confidently
 pick this plan as the best path forward.
 
 Always reply with ONLY the JSON shape requested by the user message,

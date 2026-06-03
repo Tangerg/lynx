@@ -2,8 +2,8 @@ package azureaisearch
 
 import (
 	"bytes"
-	"context"
 	"cmp"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -88,13 +88,7 @@ type StoreConfig struct {
 	HTTPClient *http.Client
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return errors.New("azureaisearch: config must not be nil")
-	}
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+func (c *StoreConfig) Validate() error {
 	if c.Endpoint == "" {
 		return errors.New("azureaisearch: Endpoint is required")
 	}
@@ -110,6 +104,14 @@ func (c *StoreConfig) validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("azureaisearch: DocumentBatcher is required")
 	}
+	return nil
+}
+
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
 	c.APIVersion = cmp.Or(c.APIVersion, DefaultAPIVersion)
 	c.IDField = cmp.Or(c.IDField, DefaultIDField)
 	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
@@ -117,7 +119,6 @@ func (c *StoreConfig) validate() error {
 	if c.HTTPClient == nil {
 		c.HTTPClient = http.DefaultClient
 	}
-	return nil
 }
 
 var _ vectorstore.Store = (*Store)(nil)
@@ -139,9 +140,9 @@ type Store struct {
 	httpClient      *http.Client
 }
 
-
-func NewStore(config *StoreConfig) (*Store, error) {
-	if err := config.validate(); err != nil {
+func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -455,6 +456,5 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 		Provider:     Provider,
 	}
 }
-
 
 func (s *Store) Close() error { return nil }

@@ -230,4 +230,3 @@ func mustNewTool(t *testing.T, name string) chat.Tool {
 	}
 	return tool
 }
-

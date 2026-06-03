@@ -13,37 +13,34 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 )
 
-type ApiConfig struct {
-	ApiKey     model.ApiKey
+type APIConfig struct {
+	APIKey     model.APIKey
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func (c *ApiConfig) validate() error {
-	if c == nil {
-		return errors.New("gladia: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("gladia: ApiKey is required")
+func (c APIConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("gladia: APIKey is required")
 	}
 	return nil
 }
 
-type Api struct {
+type API struct {
 	http *resty.Client
 }
 
-func NewApi(cfg *ApiConfig) (*Api, error) {
-	if err := cfg.validate(); err != nil {
+func NewAPI(cfg APIConfig) (*API, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	client := resty.New().
 		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
-		SetHeader("x-gladia-key", cfg.ApiKey.Get())
+		SetHeader("x-gladia-key", cfg.APIKey.Get())
 	if cfg.HTTPClient != nil {
 		client.SetTransport(cfg.HTTPClient.Transport)
 	}
-	return &Api{http: client}, nil
+	return &API{http: client}, nil
 }
 
 type UploadResponse struct {
@@ -97,7 +94,7 @@ type TranscriptionResult struct {
 
 // Upload posts raw audio bytes to /upload, returning a Gladia-hosted
 // URL the caller passes to /pre-recorded.
-func (a *Api) Upload(ctx context.Context, audio []byte, mimeType string) (*UploadResponse, error) {
+func (a *API) Upload(ctx context.Context, audio []byte, mimeType string) (*UploadResponse, error) {
 	if len(audio) == 0 {
 		return nil, errors.New("gladia: request must not be nil")
 	}
@@ -116,7 +113,7 @@ func (a *Api) Upload(ctx context.Context, audio []byte, mimeType string) (*Uploa
 	return &out, nil
 }
 
-func (a *Api) CreateTranscription(ctx context.Context, req *TranscriptionRequest) (*TranscriptionCreateResponse, error) {
+func (a *API) CreateTranscription(ctx context.Context, req *TranscriptionRequest) (*TranscriptionCreateResponse, error) {
 	if req == nil {
 		return nil, errors.New("gladia: request must not be nil")
 	}
@@ -136,7 +133,7 @@ func (a *Api) CreateTranscription(ctx context.Context, req *TranscriptionRequest
 	return &out, nil
 }
 
-func (a *Api) GetTranscription(ctx context.Context, id string) (*TranscriptionResult, error) {
+func (a *API) GetTranscription(ctx context.Context, id string) (*TranscriptionResult, error) {
 	var out TranscriptionResult
 	resp, err := a.http.R().SetContext(ctx).SetResult(&out).Get("/pre-recorded/" + id)
 	if err != nil {

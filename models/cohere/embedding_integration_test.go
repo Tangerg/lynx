@@ -24,8 +24,8 @@ func TestEmbeddingModel_Integration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m, err := cohere.NewEmbeddingModel(&cohere.EmbeddingModelConfig{
-				ApiKey:         model.NewApiKey(key),
+			m, err := cohere.NewEmbeddingModel(cohere.EmbeddingModelConfig{
+				APIKey:         model.NewAPIKey(key),
 				DefaultOptions: opts,
 			})
 			if err != nil {

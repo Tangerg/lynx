@@ -14,7 +14,7 @@ import (
 )
 
 type ImageModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *image.Options
 
 	// Backend / Project / Location enable Vertex AI access — see
@@ -31,12 +31,9 @@ type ImageModelConfig struct {
 	Metadata *image.ModelMetadata
 }
 
-func (c *ImageModelConfig) validate() error {
-	if c == nil {
-		return errors.New("google: config must not be nil")
-	}
-	if c.Backend != genai.BackendVertexAI && c.ApiKey == nil {
-		return errors.New("google: ApiKey is required")
+func (c ImageModelConfig) Validate() error {
+	if c.Backend != genai.BackendVertexAI && c.APIKey == nil {
+		return errors.New("google: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("google: DefaultOptions is required")
@@ -54,18 +51,18 @@ var _ image.Model = (*ImageModel)(nil)
 // guess. Callers needing precise aspect control set AspectRatio on the
 // Extra-threaded [genai.GenerateImagesConfig].
 type ImageModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *image.Options
 	metadata       image.ModelMetadata
 }
 
-func NewImageModel(cfg *ImageModelConfig) (*ImageModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	api, err := NewApi(&ApiConfig{
-		ApiKey:   cfg.ApiKey,
+	api, err := NewAPI(APIConfig{
+		APIKey:   cfg.APIKey,
 		Backend:  cfg.Backend,
 		Project:  cfg.Project,
 		Location: cfg.Location,
@@ -82,11 +79,11 @@ func NewImageModel(cfg *ImageModelConfig) (*ImageModel, error) {
 	return &ImageModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,
-		metadata:           info,
+		metadata:       info,
 	}, nil
 }
 
-func (i *ImageModel) buildApiRequest(req *image.Request) (string, string, *genai.GenerateImagesConfig, error) {
+func (i *ImageModel) buildAPIRequest(req *image.Request) (string, string, *genai.GenerateImagesConfig, error) {
 	mergedOpts, err := image.MergeOptions(i.defaultOptions, req.Options)
 	if err != nil {
 		return "", "", nil, err
@@ -164,7 +161,7 @@ func (i *ImageModel) buildResponse(apiResp *genai.GenerateImagesResponse) (*imag
 }
 
 func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
-	modelName, prompt, cfg, err := i.buildApiRequest(req)
+	modelName, prompt, cfg, err := i.buildAPIRequest(req)
 	if err != nil {
 		return nil, err
 	}

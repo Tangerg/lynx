@@ -24,8 +24,8 @@ func TestChatModel_Integration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m, err := groq.NewOpenAIChatModel(&groq.OpenAIChatModelConfig{
-				ApiKey:         model.NewApiKey(key),
+			m, err := groq.NewOpenAIChatModel(groq.OpenAIChatModelConfig{
+				APIKey:         model.NewAPIKey(key),
 				DefaultOptions: opts,
 			})
 			if err != nil {

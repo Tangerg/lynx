@@ -3,12 +3,13 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
-	"github.com/Tangerg/lynx/agent/plan"
+	"github.com/Tangerg/lynx/agent/planning"
 )
 
 // run drives the OODA loop until the process terminates. Internal — the
@@ -32,6 +33,8 @@ func (p *AgentProcess) run(ctx context.Context) error {
 		}
 
 		if p.checkEarlyTermination() {
+			p.maybeAutoSnapshot(ctx)
+			p.recordRunExitMetric(ctx)
 			return nil
 		}
 
@@ -39,14 +42,37 @@ func (p *AgentProcess) run(ctx context.Context) error {
 			return err
 		}
 
+		// Persist the post-tick state when auto-snapshot is on. Placed
+		// after Tick so it captures whatever status the tick produced —
+		// including the terminal / waiting one on the loop's last pass.
+		p.maybeAutoSnapshot(ctx)
+
 		// Mirror embabel's AbstractAgentProcess.run loop: keep ticking
 		// only while Running. Waiting / Paused / Stuck / terminal all
 		// release the loop so the host (HITL resume, stuck-handler,
 		// terminal cleanup) can drive next.
 		if p.Status() != core.StatusRunning {
 			p.publishTerminalEvent()
+			p.recordRunExitMetric(ctx)
 			return nil
 		}
+	}
+}
+
+// maybeAutoSnapshot persists the current process state when the platform
+// has auto-snapshot enabled and a store configured. Best-effort: a
+// persistence failure is recorded on a span but never aborts the running
+// process — losing a snapshot is recoverable, killing a live agent is not.
+func (p *AgentProcess) maybeAutoSnapshot(ctx context.Context) {
+	if p.platform == nil || !p.platform.autoSnapshot || p.platform.processStore == nil {
+		return
+	}
+
+	if err := p.platform.processStore.Save(ctx, SnapshotProcess(p)); err != nil {
+		_, span := core.AgentTracer().Start(ctx, "agent.auto_snapshot")
+		span.SetAttributes(attribute.String(attrProcessID, p.id))
+		finishSpanWithError(span, err)
+		span.End()
 	}
 }
 
@@ -144,6 +170,7 @@ func (p *AgentProcess) Tick(ctx context.Context) error {
 
 	ctx, span := p.startTickSpan(ctx, spanTick)
 	defer span.End()
+	p.recordTickMetric(ctx)
 
 	worldState := p.observe(ctx, span)
 
@@ -230,8 +257,10 @@ func (p *AgentProcess) tickSimple(ctx context.Context, worldState core.WorldStat
 //     transitioned via failProcess / handleStuck / completeForGoal)
 //   - nil,        true,  err  — Tick should propagate err (handleStuck
 //     can't currently produce one but the contract leaves room)
-func (p *AgentProcess) planForTick(ctx context.Context, worldState core.WorldState) (*plan.Plan, bool, error) {
+func (p *AgentProcess) planForTick(ctx context.Context, worldState core.WorldState) (*planning.Plan, bool, error) {
+	planStart := core.Now()
 	planResult, err := p.formulatePlan(ctx, worldState)
+	p.recordPlanMetric(ctx, time.Since(planStart))
 	if err != nil {
 		p.failProcess(err)
 		return nil, true, nil
@@ -253,15 +282,15 @@ func (p *AgentProcess) planForTick(ctx context.Context, worldState core.WorldSta
 }
 
 // formulatePlan runs the configured planner against the current world
-// state, honoring the running exclusion list. The PlanningSystem is
+// state, honoring the running exclusion list. The planning.System is
 // allocated once per process at createProcess time so its KnownConditions
 // cache survives across ticks.
 //
 // Registered [core.GoalApprover] extensions filter the goal set before
 // the planner sees it — an unanimous "yes" is required for a goal to
 // remain plannable for this tick. With no approvers registered the
-// fast path reuses the cached PlanningSystem.
-func (p *AgentProcess) formulatePlan(ctx context.Context, worldState core.WorldState) (*plan.Plan, error) {
+// fast path reuses the cached planning.System.
+func (p *AgentProcess) formulatePlan(ctx context.Context, worldState core.WorldState) (*planning.Plan, error) {
 	system := p.system
 
 	approvers := collectExtensions[core.GoalApprover](p.combinedExtensions())
@@ -273,13 +302,13 @@ func (p *AgentProcess) formulatePlan(ctx context.Context, worldState core.WorldS
 			}
 		}
 		if len(approved) != len(system.Goals) {
-			system = plan.NewPlanningSystem(system.Actions, approved, system.Conditions)
+			system = planning.NewSystem(system.Actions, approved, system.Conditions)
 		}
 	}
 
-	return plan.BestValuePlan(
+	return planning.BestValuePlan(
 		ctx, p.planner, worldState, system,
-		plan.PlanOptions{ExcludedActions: p.state.snapshotExclusions()},
+		planning.Options{ExcludedActions: p.state.snapshotExclusions()},
 	)
 }
 
@@ -336,11 +365,11 @@ func actionFailureError(name string) error {
 }
 
 // handleStuck is invoked when the planner returned no plan. If the agent
-// supplied a StuckHandler that resolves the situation we re-loop;
+// supplied a StuckPolicy that resolves the situation we re-loop;
 // otherwise we transition to Stuck.
 func (p *AgentProcess) handleStuck(ctx context.Context, worldState core.WorldState) error {
-	if handler := p.agent.StuckHandler; handler != nil {
-		if result := handler.HandleStuck(ctx, p); result.Code == core.StuckReplan {
+	if handler := p.agent.StuckPolicy; handler != nil {
+		if result := handler.Recover(ctx, p); result.Code == core.StuckReplan {
 			p.state.clearExclusions()
 			return nil
 		}

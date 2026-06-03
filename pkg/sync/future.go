@@ -11,15 +11,15 @@ import (
 // Sentinel errors returned by Future operations.
 var (
 	// ErrFutureCancelled is returned by Get-style methods when the
-	// future was cancelled.
-	ErrFutureCancelled = errors.New("future cancelled")
+	// future was canceled.
+	ErrFutureCancelled = errors.New("future canceled")
 	// ErrFutureTimedOut is returned by GetWithTimeout when the deadline
 	// elapsed before completion.
 	ErrFutureTimedOut = errors.New("future timed out")
 )
 
 // FutureState identifies the lifecycle stage of a Future. The
-// transitions are: Created → Running → (Succeeded | Failed | Cancelled).
+// transitions are: Created → Running → (Succeeded | Failed | Canceled).
 type FutureState int32
 
 const (
@@ -27,7 +27,7 @@ const (
 	FutureStateRunning                      // currently executing
 	FutureStateSucceeded                    // completed without error
 	FutureStateFailed                       // completed with error
-	FutureStateCancelled                    // cancelled before completion
+	FutureStateCancelled                    // canceled before completion
 )
 
 // IsCreated reports whether the future is in the Created state.
@@ -42,7 +42,7 @@ func (s FutureState) IsSucceeded() bool { return s == FutureStateSucceeded }
 // IsFailed reports whether the future completed with an error.
 func (s FutureState) IsFailed() bool { return s == FutureStateFailed }
 
-// IsCancelled reports whether the future was cancelled.
+// IsCancelled reports whether the future was canceled.
 func (s FutureState) IsCancelled() bool { return s == FutureStateCancelled }
 
 // int32 returns the underlying value for atomic storage.
@@ -56,7 +56,7 @@ type Future[V any] interface {
 	// Returns true if this call performed the cancellation.
 	Cancel(mayInterruptIfRunning bool) bool
 
-	// IsCancelled reports whether the future was cancelled.
+	// IsCancelled reports whether the future was canceled.
 	IsCancelled() bool
 
 	// IsDone reports whether the future has completed for any reason.
@@ -66,12 +66,12 @@ type Future[V any] interface {
 	Get() (V, error)
 
 	// GetWithTimeout blocks for at most timeout. If the timeout
-	// elapses, the task is cancelled and [ErrFutureTimedOut] is
+	// elapses, the task is canceled and [ErrFutureTimedOut] is
 	// returned. A non-positive timeout returns immediately.
 	GetWithTimeout(timeout time.Duration) (V, error)
 
 	// GetWithContext blocks until ctx is done. On cancellation the
-	// task is cancelled and the context error is joined with any
+	// task is canceled and the context error is joined with any
 	// existing task error.
 	GetWithContext(ctx context.Context) (V, error)
 
@@ -98,7 +98,7 @@ type FutureTask[V any] struct {
 
 // NewFutureTask returns a FutureTask that will run task when [FutureTask.Run]
 // is called. The interrupt channel passed to task is closed if the
-// future is cancelled. Panics if task is nil.
+// future is canceled. Panics if task is nil.
 //
 // Example:
 //
@@ -177,7 +177,7 @@ func (f *FutureTask[V]) Run() {
 
 // Cancel implements [Future.Cancel].
 func (f *FutureTask[V]) Cancel(mayInterruptIfRunning bool) bool {
-	cancelled := false
+	canceled := false
 	f.doneOnce.Do(func() {
 		f.state.Store(FutureStateCancelled.int32())
 		f.error = ErrFutureCancelled
@@ -185,12 +185,12 @@ func (f *FutureTask[V]) Cancel(mayInterruptIfRunning bool) bool {
 			close(f.interrupt)
 		}
 		close(f.done)
-		cancelled = true
+		canceled = true
 	})
-	return cancelled
+	return canceled
 }
 
-// IsCancelled reports whether the future was cancelled.
+// IsCancelled reports whether the future was canceled.
 func (f *FutureTask[V]) IsCancelled() bool { return f.State().IsCancelled() }
 
 // IsDone reports whether the future has completed.
@@ -210,7 +210,7 @@ func (f *FutureTask[V]) Get() (V, error) {
 }
 
 // GetWithTimeout blocks until completion or until timeout elapses.
-// On timeout the task is cancelled and [ErrFutureTimedOut] returned.
+// On timeout the task is canceled and [ErrFutureTimedOut] returned.
 func (f *FutureTask[V]) GetWithTimeout(timeout time.Duration) (V, error) {
 	if timeout <= 0 {
 		return f.tryGetOrTimeout()

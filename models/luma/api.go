@@ -12,38 +12,35 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 )
 
-type ApiConfig struct {
-	ApiKey     model.ApiKey
+type APIConfig struct {
+	APIKey     model.APIKey
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func (c *ApiConfig) validate() error {
-	if c == nil {
-		return errors.New("luma: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("luma: ApiKey is required")
+func (c APIConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("luma: APIKey is required")
 	}
 	return nil
 }
 
-type Api struct {
+type API struct {
 	http *resty.Client
 }
 
-func NewApi(cfg *ApiConfig) (*Api, error) {
-	if err := cfg.validate(); err != nil {
+func NewAPI(cfg APIConfig) (*API, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	client := resty.New().
 		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
-		SetAuthToken(cfg.ApiKey.Get()).
+		SetAuthToken(cfg.APIKey.Get()).
 		SetHeader("Content-Type", "application/json")
 	if cfg.HTTPClient != nil {
 		client.SetTransport(cfg.HTTPClient.Transport)
 	}
-	return &Api{http: client}, nil
+	return &API{http: client}, nil
 }
 
 // ImageGenerateRequest mirrors POST /generations/image. Luma uses
@@ -73,7 +70,7 @@ type Generation struct {
 	} `json:"assets"`
 }
 
-func (a *Api) GenerateImage(ctx context.Context, req *ImageGenerateRequest) (*Generation, error) {
+func (a *API) GenerateImage(ctx context.Context, req *ImageGenerateRequest) (*Generation, error) {
 	if req == nil {
 		return nil, errors.New("luma: request must not be nil")
 	}
@@ -88,7 +85,7 @@ func (a *Api) GenerateImage(ctx context.Context, req *ImageGenerateRequest) (*Ge
 	return &out, nil
 }
 
-func (a *Api) GetGeneration(ctx context.Context, id string) (*Generation, error) {
+func (a *API) GetGeneration(ctx context.Context, id string) (*Generation, error) {
 	var out Generation
 	resp, err := a.http.R().SetContext(ctx).SetResult(&out).Get("/generations/" + id)
 	if err != nil {

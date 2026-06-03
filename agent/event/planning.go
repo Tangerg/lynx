@@ -2,7 +2,7 @@ package event
 
 import (
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/plan"
+	"github.com/Tangerg/lynx/agent/planning"
 )
 
 // ReadyToPlan fires at the start of every tick after the
@@ -15,21 +15,13 @@ type ReadyToPlan struct {
 
 func (ReadyToPlan) EventName() string { return "ready_to_plan" }
 
-func (e ReadyToPlan) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"world": snapshotWorld(e.World)})
-}
-
 // PlanFormulated fires when the planner returns a non-nil plan.
 type PlanFormulated struct {
 	BaseEvent
-	Plan *plan.Plan `json:"-"`
+	Plan *planning.Plan `json:"-"`
 }
 
 func (PlanFormulated) EventName() string { return "plan_formulated" }
-
-func (e PlanFormulated) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"plan": summarizePlan(e.Plan)})
-}
 
 // ReplanRequested fires when an action returns a [core.ReplanRequest]
 // or a [core.TerminationScopeAction] signal is queued — both ask the
@@ -41,7 +33,3 @@ type ReplanRequested struct {
 }
 
 func (ReplanRequested) EventName() string { return "replan_requested" }
-
-func (e ReplanRequested) MarshalJSON() ([]byte, error) {
-	return emit(e, map[string]any{"action": e.Action, "reason": e.Reason})
-}

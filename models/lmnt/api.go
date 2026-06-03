@@ -13,38 +13,35 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 )
 
-type ApiConfig struct {
-	ApiKey     model.ApiKey
+type APIConfig struct {
+	APIKey     model.APIKey
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func (c *ApiConfig) validate() error {
-	if c == nil {
-		return errors.New("lmnt: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("lmnt: ApiKey is required")
+func (c APIConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("lmnt: APIKey is required")
 	}
 	return nil
 }
 
-type Api struct {
+type API struct {
 	http *resty.Client
 }
 
-func NewApi(cfg *ApiConfig) (*Api, error) {
-	if err := cfg.validate(); err != nil {
+func NewAPI(cfg APIConfig) (*API, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	client := resty.New().
 		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
-		SetHeader("X-API-Key", cfg.ApiKey.Get()).
+		SetHeader("X-API-Key", cfg.APIKey.Get()).
 		SetHeader("Content-Type", "application/json")
 	if cfg.HTTPClient != nil {
 		client.SetTransport(cfg.HTTPClient.Transport)
 	}
-	return &Api{http: client}, nil
+	return &API{http: client}, nil
 }
 
 // SynthesizeRequest mirrors POST /ai/speech/bytes. LMNT returns JSON
@@ -77,7 +74,7 @@ func (s *SynthesizeResponse) Decode() ([]byte, error) {
 	return base64.StdEncoding.DecodeString(s.Audio)
 }
 
-func (a *Api) Synthesize(ctx context.Context, req *SynthesizeRequest) (*SynthesizeResponse, error) {
+func (a *API) Synthesize(ctx context.Context, req *SynthesizeRequest) (*SynthesizeResponse, error) {
 	if req == nil {
 		return nil, errors.New("lmnt: request must not be nil")
 	}

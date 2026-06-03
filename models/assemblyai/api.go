@@ -12,39 +12,36 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 )
 
-type ApiConfig struct {
-	ApiKey     model.ApiKey
+type APIConfig struct {
+	APIKey     model.APIKey
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func (c *ApiConfig) validate() error {
-	if c == nil {
-		return errors.New("assemblyai: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("assemblyai: ApiKey is required")
+func (c APIConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("assemblyai: APIKey is required")
 	}
 	return nil
 }
 
-type Api struct {
+type API struct {
 	http *resty.Client
 }
 
-func NewApi(cfg *ApiConfig) (*Api, error) {
-	if err := cfg.validate(); err != nil {
+func NewAPI(cfg APIConfig) (*API, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
 	client := resty.New().
 		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
-		SetHeader("Authorization", cfg.ApiKey.Get())
+		SetHeader("Authorization", cfg.APIKey.Get())
 	if cfg.HTTPClient != nil {
 		client.SetTransport(cfg.HTTPClient.Transport)
 	}
 
-	return &Api{http: client}, nil
+	return &API{http: client}, nil
 }
 
 type UploadResponse struct {
@@ -108,7 +105,7 @@ type TranscriptResponse struct {
 	} `json:"words"`
 }
 
-func (a *Api) Upload(ctx context.Context, audio []byte) (*UploadResponse, error) {
+func (a *API) Upload(ctx context.Context, audio []byte) (*UploadResponse, error) {
 	if len(audio) == 0 {
 		return nil, errors.New("assemblyai: request must not be nil")
 	}
@@ -129,7 +126,7 @@ func (a *Api) Upload(ctx context.Context, audio []byte) (*UploadResponse, error)
 	return &out, nil
 }
 
-func (a *Api) CreateTranscript(ctx context.Context, req *TranscriptRequest) (*TranscriptResponse, error) {
+func (a *API) CreateTranscript(ctx context.Context, req *TranscriptRequest) (*TranscriptResponse, error) {
 	if req == nil {
 		return nil, errors.New("assemblyai: request must not be nil")
 	}
@@ -150,7 +147,7 @@ func (a *Api) CreateTranscript(ctx context.Context, req *TranscriptRequest) (*Tr
 	return &out, nil
 }
 
-func (a *Api) Get(ctx context.Context, id string) (*TranscriptResponse, error) {
+func (a *API) Get(ctx context.Context, id string) (*TranscriptResponse, error) {
 	var out TranscriptResponse
 	resp, err := a.http.R().
 		SetContext(ctx).

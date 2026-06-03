@@ -15,10 +15,7 @@ type AudioTranscriptionModelConfig struct {
 	DefaultOptions *transcription.Options
 }
 
-func (c *AudioTranscriptionModelConfig) validate() error {
-	if c == nil {
-		return errors.New("vertexai: config must not be nil")
-	}
+func (c AudioTranscriptionModelConfig) Validate() error {
 	if c.Project == "" {
 		return errors.New("vertexai: Project is required")
 	}
@@ -34,11 +31,11 @@ func (c *AudioTranscriptionModelConfig) validate() error {
 // NewAudioTranscriptionModel returns a [google.AudioTranscriptionModel]
 // backed by Vertex AI — Gemini's multimodal chat used through the
 // transcription interface.
-func NewAudioTranscriptionModel(cfg *AudioTranscriptionModelConfig) (*google.AudioTranscriptionModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*google.AudioTranscriptionModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	return google.NewAudioTranscriptionModel(&google.AudioTranscriptionModelConfig{
+	return google.NewAudioTranscriptionModel(google.AudioTranscriptionModelConfig{
 		Backend:        genai.BackendVertexAI,
 		Project:        cfg.Project,
 		Location:       cfg.Location,

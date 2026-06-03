@@ -30,7 +30,7 @@ func newFakeChatModel(t *testing.T, reply string) *fakeChatModel {
 }
 
 func (m *fakeChatModel) DefaultOptions() chat.Options { return *m.defaults }
-func (m *fakeChatModel) Metadata() chat.ModelMetadata          { return chat.ModelMetadata{Provider: "fake"} }
+func (m *fakeChatModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "fake"} }
 
 func (m *fakeChatModel) Call(_ context.Context, _ *chat.Request) (*chat.Response, error) {
 	if m.err != nil {
@@ -103,21 +103,15 @@ func TestCompositeEvaluator_PropagatesError(t *testing.T) {
 
 // --- Relevancy ------------------------------------------------------------
 
-func TestRelevancyEvaluator_RejectsNilConfig(t *testing.T) {
-	if _, err := evaluation.NewRelevancyEvaluator(nil); err == nil {
-		t.Fatal("nil config must error")
-	}
-}
-
 func TestRelevancyEvaluator_RejectsMissingChatModel(t *testing.T) {
-	if _, err := evaluation.NewRelevancyEvaluator(&evaluation.RelevancyEvaluatorConfig{}); err == nil {
+	if _, err := evaluation.NewRelevancyEvaluator(evaluation.RelevancyEvaluatorConfig{}); err == nil {
 		t.Fatal("missing ChatModel must error")
 	}
 }
 
 func TestRelevancyEvaluator_PassOnHighScore(t *testing.T) {
 	model := newFakeChatModel(t, "0.92\nThe response cites every fact from the context.")
-	eval, err := evaluation.NewRelevancyEvaluator(&evaluation.RelevancyEvaluatorConfig{ChatModel: model})
+	eval, err := evaluation.NewRelevancyEvaluator(evaluation.RelevancyEvaluatorConfig{ChatModel: model})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +138,7 @@ func TestRelevancyEvaluator_PassOnHighScore(t *testing.T) {
 
 func TestRelevancyEvaluator_FailOnLowScore(t *testing.T) {
 	model := newFakeChatModel(t, "0.1\nMostly hallucinated.")
-	eval, _ := evaluation.NewRelevancyEvaluator(&evaluation.RelevancyEvaluatorConfig{ChatModel: model})
+	eval, _ := evaluation.NewRelevancyEvaluator(evaluation.RelevancyEvaluatorConfig{ChatModel: model})
 
 	got, err := eval.Evaluate(context.Background(), &evaluation.Request{Prompt: "q", Generation: "g"})
 	if err != nil {
@@ -163,7 +157,7 @@ func TestRelevancyEvaluator_FailOnLowScore(t *testing.T) {
 // at threshold=0.8 even though it would pass the default 0.5.
 func TestRelevancyEvaluator_CustomThreshold(t *testing.T) {
 	model := newFakeChatModel(t, "0.6")
-	eval, _ := evaluation.NewRelevancyEvaluator(&evaluation.RelevancyEvaluatorConfig{
+	eval, _ := evaluation.NewRelevancyEvaluator(evaluation.RelevancyEvaluatorConfig{
 		ChatModel: model,
 		Threshold: 0.8,
 	})
@@ -186,7 +180,7 @@ func TestRelevancyEvaluator_CustomThreshold(t *testing.T) {
 // silent default would hide prompt-engineering regressions.
 func TestRelevancyEvaluator_UnparseableReplyErrors(t *testing.T) {
 	model := newFakeChatModel(t, "YES, very relevant")
-	eval, _ := evaluation.NewRelevancyEvaluator(&evaluation.RelevancyEvaluatorConfig{ChatModel: model})
+	eval, _ := evaluation.NewRelevancyEvaluator(evaluation.RelevancyEvaluatorConfig{ChatModel: model})
 
 	if _, err := eval.Evaluate(context.Background(), &evaluation.Request{Prompt: "q"}); err == nil {
 		t.Fatal("reply without a [0,1] score must error")
@@ -195,7 +189,7 @@ func TestRelevancyEvaluator_UnparseableReplyErrors(t *testing.T) {
 
 func TestRelevancyEvaluator_RejectsNilRequest(t *testing.T) {
 	model := newFakeChatModel(t, "YES")
-	eval, _ := evaluation.NewRelevancyEvaluator(&evaluation.RelevancyEvaluatorConfig{ChatModel: model})
+	eval, _ := evaluation.NewRelevancyEvaluator(evaluation.RelevancyEvaluatorConfig{ChatModel: model})
 
 	if _, err := eval.Evaluate(context.Background(), nil); err == nil {
 		t.Fatal("nil request must error")
@@ -205,14 +199,14 @@ func TestRelevancyEvaluator_RejectsNilRequest(t *testing.T) {
 // --- Fact-checking --------------------------------------------------------
 
 func TestFactCheckingEvaluator_RejectsMissingChatModel(t *testing.T) {
-	if _, err := evaluation.NewFactCheckingEvaluator(&evaluation.FactCheckingEvaluatorConfig{}); err == nil {
+	if _, err := evaluation.NewFactCheckingEvaluator(evaluation.FactCheckingEvaluatorConfig{}); err == nil {
 		t.Fatal("missing ChatModel must error")
 	}
 }
 
 func TestFactCheckingEvaluator_PassOnHighScore(t *testing.T) {
 	model := newFakeChatModel(t, "SCORE: 0.95\nFully supported by every line in the document.")
-	eval, err := evaluation.NewFactCheckingEvaluator(&evaluation.FactCheckingEvaluatorConfig{ChatModel: model})
+	eval, err := evaluation.NewFactCheckingEvaluator(evaluation.FactCheckingEvaluatorConfig{ChatModel: model})
 	if err != nil {
 		t.Fatal(err)
 	}

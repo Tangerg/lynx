@@ -125,7 +125,7 @@ func BuildScopeAgent(cfg ScopeRun) *core.Agent {
 		description = fmt.Sprintf("synthetic scope across %d agent(s)", len(cfg.Agents))
 	}
 
-	return core.NewAgent(&core.AgentConfig{
+	return core.NewAgent(core.AgentConfig{
 		Name:        cfg.Name,
 		Description: description,
 		Actions:     actions,

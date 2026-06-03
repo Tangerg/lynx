@@ -17,11 +17,11 @@ func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
 	var polls testutil.PollCounter
 
 	srv := testutil.MuxServer(
-		testutil.Route{Method: "POST", Contains:"/upload", Handle: func(w http.ResponseWriter, r *http.Request) {
+		testutil.Route{Method: "POST", Contains: "/upload", Handle: func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"upload_url":"https://cdn.test/audio.bin"}`))
 		}},
-		testutil.Route{Method: "POST", Contains:"/transcript", Handle: func(w http.ResponseWriter, r *http.Request) {
+		testutil.Route{Method: "POST", Contains: "/transcript", Handle: func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"id":"job-1","status":"queued","audio_duration":0}`))
 		}},
@@ -43,8 +43,8 @@ func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := assemblyai.NewAudioTranscriptionModel(&assemblyai.AudioTranscriptionModelConfig{
-		ApiKey:         model.NewApiKey("test-key"),
+	m, err := assemblyai.NewAudioTranscriptionModel(assemblyai.AudioTranscriptionModelConfig{
+		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		BaseURL:        srv.URL,
 		PollInterval:   10 * time.Millisecond,

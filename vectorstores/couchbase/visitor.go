@@ -5,9 +5,10 @@ import (
 	"strings"
 
 	"encoding/json"
+
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 )
 
 var _ ast.Visitor = (*Visitor)(nil)
@@ -33,11 +34,9 @@ type Visitor struct {
 	metadataPrefix string // typically "metadata"
 }
 
-
 func NewVisitor(metadataPrefix string) *Visitor {
 	return &Visitor{metadataPrefix: metadataPrefix}
 }
-
 
 func (v *Visitor) Result() string {
 	if v.err != nil {
@@ -63,6 +62,9 @@ func (v *Visitor) visit(expr ast.Expr) error {
 
 	switch node := expr.(type) {
 	case *ast.BinaryExpr:
+		if node.Op.Kind.IsNullOperator() {
+			return v.visitNullTestExpr(node)
+		}
 		return v.visitBinaryExpr(node)
 	case *ast.UnaryExpr:
 		return v.visitUnaryExpr(node)
@@ -193,6 +195,23 @@ func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 	return nil
 }
 
+// visitNullTestExpr emits `(<path> IS NULL)`. In SQL++ a path that
+// resolves to JSON null is IS NULL; an absent key resolves to MISSING,
+// which IS NULL also matches in the FTS/N1QL evaluation used here,
+// mirroring the inmemory reference semantics. The negated IS NOT NULL
+// arrives as NOT(<path> IS NULL) and is rendered by visitUnaryExpr, so
+// no separate handling is needed here. No bound parameter is required.
+func (v *Visitor) visitNullTestExpr(expr *ast.BinaryExpr) error {
+	field, err := v.fieldPath(expr.Left)
+	if err != nil {
+		return fmt.Errorf("couchbase: %w (at %s)", err, expr.Start().String())
+	}
+	v.sql.WriteString("(")
+	v.sql.WriteString(field)
+	v.sql.WriteString(" IS NULL)")
+	return nil
+}
+
 // fieldPath builds the dotted SQL++ path for the left operand, with
 // each segment backtick-quoted to allow special characters.
 func (v *Visitor) fieldPath(expr ast.Expr) (string, error) {
@@ -213,7 +232,6 @@ func (v *Visitor) fieldPath(expr ast.Expr) (string, error) {
 	}
 	return v.metadataPrefix + "." + joined, nil
 }
-
 
 func sqlOpFor(kind token.Kind) (string, error) {
 	switch kind {

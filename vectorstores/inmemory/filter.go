@@ -146,8 +146,23 @@ func evalBinary(b *ast.BinaryExpr, metadata map[string]any) (any, error) {
 		return evalIn(b, metadata)
 	case token.LIKE:
 		return evalLike(b, metadata)
+	case token.IS:
+		return evalNullTest(b, metadata)
 	}
 	return nil, fmt.Errorf("inmemory.evalBinary: unsupported binary operator %s", b.Op.Kind)
+}
+
+// evalNullTest evaluates `<field> IS NULL`: true when the field is
+// absent or stored as nil. A missing key already evaluates to nil
+// (lookupField / evalIndex return nil), so this collapses to a nil
+// check. `IS NOT NULL` is the NOT wrapper around this, handled by
+// evalUnary.
+func evalNullTest(b *ast.BinaryExpr, metadata map[string]any) (any, error) {
+	left, err := evalExpr(b.Left, metadata)
+	if err != nil {
+		return nil, err
+	}
+	return left == nil, nil
 }
 
 func evalLogical(b *ast.BinaryExpr, metadata map[string]any) (any, error) {

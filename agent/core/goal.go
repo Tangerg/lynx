@@ -35,7 +35,7 @@ type Goal struct {
 	// `runtime.PublishAll`); leaving Export non-nil without those
 	// callers wired is harmless but also means nothing happens — the
 	// field exists to drive user-facing fan-out, not to gate planner
-	// behaviour.
+	// behavior.
 	Export *GoalExport
 }
 
@@ -52,7 +52,7 @@ type GoalExport struct {
 
 	// Description overrides Goal.Description when surfacing the goal
 	// as an externally-facing tool. Useful when the internal
-	// description is too implementation-flavoured for an LLM caller.
+	// description is too implementation-flavored for an LLM caller.
 	// Empty falls back to Goal.Description.
 	Description string
 
@@ -91,14 +91,14 @@ func GoalExportFor[In any](remote bool) *GoalExport {
 	}
 }
 
-// Preconditions merges Pre + Inputs into a single [EffectSpec]: each
+// Preconditions merges Pre + Inputs into a single [Effects]: each
 // listed precondition + each typed input contributes a True
 // condition the planner targets.
-func (g *Goal) Preconditions() EffectSpec {
+func (g *Goal) Preconditions() Effects {
 	if g == nil {
 		return nil
 	}
-	out := EffectSpec{}
+	out := Effects{}
 	for _, p := range g.Pre {
 		out[p] = True
 	}
@@ -130,7 +130,7 @@ func (g *Goal) IsSatisfiedBy(ws WorldState) bool {
 //
 //	core.GoalProducing[BlogPost](core.Goal{Description: "blog post produced"})
 func GoalProducing[T any](g Goal) *Goal {
-	rt := reflect.TypeOf((*T)(nil)).Elem()
+	rt := reflect.TypeFor[T]()
 	typeName := TypeFullName(rt)
 
 	if g.Name == "" {

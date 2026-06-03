@@ -5,6 +5,10 @@ use (
 	./chatmemory
 	./core
 	./documentreaders
+	./documentreaders/html
+	./documentreaders/markdown
+	./documentreaders/pdf
+	./lyra
 	./mcp
 	./models
 	./otel

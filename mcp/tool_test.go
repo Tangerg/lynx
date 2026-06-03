@@ -11,7 +11,6 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Tangerg/lynx/core/model/chat"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
 )
 
@@ -48,7 +47,7 @@ func TestTool_IsErrorBecomesToolCallError(t *testing.T) {
 	cs, cleanup := startServerWithFailing(t, ctx)
 	defer cleanup()
 
-	p, err := lynxmcp.NewProvider(&lynxmcp.ProviderConfig{
+	p, err := lynxmcp.NewProvider(lynxmcp.ProviderConfig{
 		Sources: []lynxmcp.Source{{Name: "s", Session: cs}},
 	})
 	require.NoError(t, err)
@@ -56,7 +55,7 @@ func TestTool_IsErrorBecomesToolCallError(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, tools, 1)
 
-	callable := tools[0].(chat.Tool)
+	callable := tools[0]
 	out, err := callable.Call(ctx, "{}")
 	require.Error(t, err)
 	assert.Empty(t, out)
@@ -75,7 +74,7 @@ func TestTool_RPCErrorIsNotToolCallError(t *testing.T) {
 	cs, cleanup := startServerWithFailing(t, ctx)
 	cleanup() // close immediately
 
-	tool, err := lynxmcp.NewTool(&lynxmcp.ToolConfig{
+	tool, err := lynxmcp.NewTool(lynxmcp.ToolConfig{
 		Session:    cs,
 		Descriptor: &sdkmcp.Tool{Name: "boom", InputSchema: json.RawMessage(`{"type":"object"}`)},
 	})
@@ -92,14 +91,14 @@ func TestTool_EmptyArgumentsTreatedAsEmptyObject(t *testing.T) {
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
-	p, err := lynxmcp.NewProvider(&lynxmcp.ProviderConfig{
+	p, err := lynxmcp.NewProvider(lynxmcp.ProviderConfig{
 		Sources: []lynxmcp.Source{{Name: "s", Session: cs}},
 	})
 	require.NoError(t, err)
 	tools, err := p.Tools(ctx)
 	require.NoError(t, err)
 
-	callable := tools[0].(chat.Tool)
+	callable := tools[0]
 
 	// echo without arguments — server returns empty string, no protocol error.
 	out, err := callable.Call(ctx, "")
@@ -129,7 +128,7 @@ func TestTool_MetaForwardedToServer(t *testing.T) {
 	require.NoError(t, err)
 	defer cs.Close()
 
-	p, err := lynxmcp.NewProvider(&lynxmcp.ProviderConfig{
+	p, err := lynxmcp.NewProvider(lynxmcp.ProviderConfig{
 		Sources:  []lynxmcp.Source{{Name: "src", Session: cs}},
 		MetaFunc: lynxmcp.MetaFromContext,
 	})
@@ -138,7 +137,7 @@ func TestTool_MetaForwardedToServer(t *testing.T) {
 	require.NoError(t, err)
 
 	callCtx := lynxmcp.WithMeta(ctx, sdkmcp.Meta{"userId": "u-42", "trace": "tx-99"})
-	out, err := tools[0].(chat.Tool).Call(callCtx, "{}")
+	out, err := tools[0].Call(callCtx, "{}")
 	require.NoError(t, err)
 	assert.Equal(t, "ok", out)
 
@@ -150,22 +149,22 @@ func TestTool_MetaForwardedToServer(t *testing.T) {
 func TestNewTool_RejectsBadInputs(t *testing.T) {
 	cases := []struct {
 		name string
-		cfg  *lynxmcp.ToolConfig
+		cfg  lynxmcp.ToolConfig
 		want string
 	}{
 		{
 			name: "nil session",
-			cfg:  &lynxmcp.ToolConfig{Descriptor: &sdkmcp.Tool{Name: "x"}},
+			cfg:  lynxmcp.ToolConfig{Descriptor: &sdkmcp.Tool{Name: "x"}},
 			want: "session must not be nil",
 		},
 		{
 			name: "nil descriptor",
-			cfg:  &lynxmcp.ToolConfig{Session: &sdkmcp.ClientSession{}},
+			cfg:  lynxmcp.ToolConfig{Session: &sdkmcp.ClientSession{}},
 			want: "descriptor must not be nil",
 		},
 		{
 			name: "empty name",
-			cfg:  &lynxmcp.ToolConfig{Session: &sdkmcp.ClientSession{}, Descriptor: &sdkmcp.Tool{}},
+			cfg:  lynxmcp.ToolConfig{Session: &sdkmcp.ClientSession{}, Descriptor: &sdkmcp.Tool{}},
 			want: "empty name",
 		},
 	}
@@ -179,7 +178,7 @@ func TestNewTool_RejectsBadInputs(t *testing.T) {
 }
 
 func TestNewTool_DefaultsPrefixedNameToDescriptorName(t *testing.T) {
-	tool, err := lynxmcp.NewTool(&lynxmcp.ToolConfig{
+	tool, err := lynxmcp.NewTool(lynxmcp.ToolConfig{
 		Session:    &sdkmcp.ClientSession{},
 		Descriptor: &sdkmcp.Tool{Name: "calc"},
 	})

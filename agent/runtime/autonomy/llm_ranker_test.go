@@ -28,7 +28,7 @@ func newStubModel(reply string) *stubModel {
 }
 
 func (m *stubModel) DefaultOptions() chat.Options { return *m.defaults }
-func (m *stubModel) Metadata() chat.ModelMetadata          { return chat.ModelMetadata{Provider: "stub"} }
+func (m *stubModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
 
 func (m *stubModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
 	// Capture the user prompt so tests can assert on what reached the model.
@@ -55,7 +55,7 @@ func (m *stubModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*ch
 }
 
 func TestLLMRanker_ParsesScoresAndRoutesToTopAgent(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	for _, name := range []string{"alpha", "beta"} {
 		if err := platform.Deploy(newAgent(name)); err != nil {
 			t.Fatalf("deploy %s: %v", name, err)
@@ -124,7 +124,7 @@ trailing prose ignored.`
 }
 
 func TestLLMRanker_ClampsConfidence(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	mustDeploy(t, platform, newAgent("alpha"))
 
 	_aut, _ := autonomy.New(platform, &stubRanker{}, autonomy.Config{})
@@ -144,7 +144,7 @@ func TestLLMRanker_ClampsConfidence(t *testing.T) {
 }
 
 func TestLLMRanker_MissingScoreDefaultsToZero(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	mustDeploy(t, platform, newAgent("alpha"), newAgent("beta"))
 
 	_aut, _ := autonomy.New(platform, &stubRanker{}, autonomy.Config{})
@@ -165,7 +165,7 @@ func TestLLMRanker_MissingScoreDefaultsToZero(t *testing.T) {
 }
 
 func TestLLMRanker_RejectsNonJSONReply(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	mustDeploy(t, platform, newAgent("alpha"))
 	_aut, _ := autonomy.New(platform, &stubRanker{}, autonomy.Config{})
 	candidates := _aut.Candidates()
@@ -181,7 +181,7 @@ func TestLLMRanker_RejectsNonJSONReply(t *testing.T) {
 }
 
 func TestLLMRanker_PromptIncludesGoalTagsAndExamples(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 
 	// Build an agent whose goal carries Tags + Examples.
 	taggedAgent := agent.New("tagged").
@@ -193,7 +193,7 @@ func TestLLMRanker_PromptIncludesGoalTagsAndExamples(t *testing.T) {
 			core.ActionConfig{},
 		)).
 		Goals(agent.GoalProducing[chooseOut](core.Goal{
-			Description: "categorise sentiment",
+			Description: "categorize sentiment",
 			Tags:        []string{"sentiment", "classifier"},
 			Examples:    []string{"how do I feel about this?", "rate this review"},
 		})).

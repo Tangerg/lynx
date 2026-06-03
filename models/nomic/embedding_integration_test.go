@@ -24,8 +24,8 @@ func TestEmbeddingModel_Integration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m, err := nomic.NewEmbeddingModel(&nomic.EmbeddingModelConfig{
-				ApiKey:         model.NewApiKey(key),
+			m, err := nomic.NewEmbeddingModel(nomic.EmbeddingModelConfig{
+				APIKey:         model.NewAPIKey(key),
 				DefaultOptions: opts,
 			})
 			if err != nil {

@@ -1,2 +1,8 @@
 .idea
 .vscode
+
+# Lyra local config (holds API keys) — keep config.example.yaml only.
+lyra/config/config.yaml
+
+# Lyra dev binary (built via `go build -o lyra ./cmd/lyra`).
+lyra/lyra

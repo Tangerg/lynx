@@ -123,7 +123,7 @@ func TestGo_RunsFn(t *testing.T) {
 	}
 }
 
-func TestGo_NilFnIsNoop(t *testing.T) {
+func TestGo_NilFnIsNop(t *testing.T) {
 	Go(nil) // must not panic
 }
 

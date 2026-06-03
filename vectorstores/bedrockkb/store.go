@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"errors"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime/types"
@@ -38,10 +39,7 @@ type StoreConfig struct {
 	VectorSearchOverrides *types.KnowledgeBaseVectorSearchConfiguration
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return errors.New("bedrockkb: config must not be nil")
-	}
+func (c StoreConfig) Validate() error {
 	if c.Client == nil {
 		return errors.New("bedrockkb: Client is required")
 	}
@@ -61,9 +59,8 @@ type Store struct {
 	vectorOverrides *types.KnowledgeBaseVectorSearchConfiguration
 }
 
-
-func NewStore(config *StoreConfig) (*Store, error) {
-	if err := config.validate(); err != nil {
+func NewStore(config StoreConfig) (*Store, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	return &Store{
@@ -195,6 +192,5 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 		Provider:     Provider,
 	}
 }
-
 
 func (s *Store) Close() error { return nil }

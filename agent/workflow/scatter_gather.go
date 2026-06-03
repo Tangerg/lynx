@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"golang.org/x/sync/errgroup"
@@ -9,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 )
 
-// ScatterGatherSpec configures a scatter-gather workflow: every
+// ScatterGatherConfig configures a scatter-gather workflow: every
 // Generator runs in parallel against the workflow input, then a
 // single Joiner consolidates the per-generator outputs into the
 // final Result.
@@ -22,7 +23,7 @@ import (
 // Each generator runs in its own goroutine; Joiner sees the slice of
 // Elements (in generator order) only after every generator has
 // completed (or any has errored).
-type ScatterGatherSpec[In, Element, Result any] struct {
+type ScatterGatherConfig[In, Element, Result any] struct {
 	// Name names the produced agent + its goal + the action names.
 	// Required.
 	Name string
@@ -55,15 +56,15 @@ type ScatterGatherSpec[In, Element, Result any] struct {
 // when Joiner has bound it.
 //
 // Returns an error on missing Name, empty Generators, or nil Joiner.
-func ScatterGather[In, Element, Result any](spec ScatterGatherSpec[In, Element, Result]) (*core.Agent, error) {
+func ScatterGather[In, Element, Result any](spec ScatterGatherConfig[In, Element, Result]) (*core.Agent, error) {
 	if spec.Name == "" {
-		return nil, fmt.Errorf("workflow.ScatterGather: Name must not be empty")
+		return nil, errors.New("workflow.ScatterGather: Name must not be empty")
 	}
 	if len(spec.Generators) == 0 {
-		return nil, fmt.Errorf("workflow.ScatterGather: Generators must not be empty")
+		return nil, errors.New("workflow.ScatterGather: Generators must not be empty")
 	}
 	if spec.Joiner == nil {
-		return nil, fmt.Errorf("workflow.ScatterGather: Joiner must not be nil")
+		return nil, errors.New("workflow.ScatterGather: Joiner must not be nil")
 	}
 
 	scatter := core.NewAction[In, ResultList[Element]](
@@ -106,13 +107,13 @@ func ScatterGather[In, Element, Result any](spec ScatterGatherSpec[In, Element, 
 		},
 	)
 
-	return core.NewAgent(&core.AgentConfig{
+	return core.NewAgent(core.AgentConfig{
 		Name:        spec.Name,
 		Description: spec.Description,
 		Actions:     []core.Action{scatter, gather},
 		Goals: []*core.Goal{core.GoalProducing[Result](core.Goal{
 			Name:        spec.Name,
-			Description: "produce " + core.TypeFullNameOf[Result](),
+			Description: "produce " + core.TypeName[Result](),
 		})},
 	}), nil
 }

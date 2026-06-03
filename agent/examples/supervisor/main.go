@@ -32,7 +32,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{ChatClient: chatClient})
+	platform := agent.NewPlatform(runtime.PlatformConfig{ChatClient: chatClient})
 
 	// ---- sub-agents ---------------------------------------------------
 	research := agent.New("research-agent").
@@ -155,7 +155,7 @@ func newStubModel() *stubModel {
 }
 
 func (m *stubModel) DefaultOptions() chat.Options { return *m.defaults }
-func (m *stubModel) Metadata() chat.ModelMetadata          { return chat.ModelMetadata{Provider: "stub"} }
+func (m *stubModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
 
 // Call walks the conversation:
 //

@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 )
 
 var _ ast.Visitor = (*Visitor)(nil)
@@ -30,9 +30,7 @@ type Visitor struct {
 	args []any
 }
 
-
 func NewVisitor() *Visitor { return &Visitor{} }
-
 
 func (v *Visitor) Result() (string, []any) {
 	if v.err != nil {
@@ -209,7 +207,6 @@ func listToTypedSlice(list *ast.ListLiteral) (any, error) {
 		return nil, fmt.Errorf("unsupported list element kind %s", first.Token.Kind.Name())
 	}
 }
-
 
 func cqlOpFor(kind token.Kind) (string, error) {
 	switch kind {

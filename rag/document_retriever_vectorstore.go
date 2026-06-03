@@ -37,25 +37,27 @@ type VectorStoreRetrieverConfig struct {
 	FilterFunc func(ctx context.Context, params map[string]any) (ast.Expr, error)
 }
 
-// validate fills defaults and rejects invalid configurations.
-func (c *VectorStoreRetrieverConfig) validate() error {
-	if c == nil {
-		return errors.New("rag.VectorStoreRetrieverConfig: config must not be nil")
-	}
+// Validate rejects invalid configurations.
+func (c *VectorStoreRetrieverConfig) Validate() error {
 	if c.VectorStore == nil {
 		return errors.New("rag.VectorStoreRetrieverConfig: VectorStore is required")
 	}
 	if c.TopK < 0 {
 		return errors.New("rag.VectorStoreRetrieverConfig: TopK must be ≥ 0")
 	}
-	if c.TopK == 0 {
-		c.TopK = vectorstore.DefaultTopK
-	}
 	if c.MinScore < vectorstore.MinSimilarityScore || c.MinScore > vectorstore.MaxSimilarityScore {
 		return fmt.Errorf("rag.VectorStoreRetrieverConfig: MinScore must be in [%.1f, %.1f]",
 			vectorstore.MinSimilarityScore, vectorstore.MaxSimilarityScore)
 	}
 	return nil
+}
+
+// ApplyDefaults fills zero fields. TopK defaults to
+// [vectorstore.DefaultTopK].
+func (c *VectorStoreRetrieverConfig) ApplyDefaults() {
+	if c.TopK == 0 {
+		c.TopK = vectorstore.DefaultTopK
+	}
 }
 
 var _ DocumentRetriever = (*VectorStoreRetriever)(nil)
@@ -68,7 +70,7 @@ var _ DocumentRetriever = (*VectorStoreRetriever)(nil)
 //
 // Example:
 //
-//	r, err := rag.NewVectorStoreRetriever(&rag.VectorStoreRetrieverConfig{
+//	r, err := rag.NewVectorStoreRetriever(rag.VectorStoreRetrieverConfig{
 //	    VectorStore: store,
 //	    TopK:        10,
 //	    MinScore:    0.7,
@@ -83,8 +85,9 @@ type VectorStoreRetriever struct {
 // NewVectorStoreRetriever builds a
 // [VectorStoreRetriever]. Returns an error when the
 // configuration fails [VectorStoreRetrieverConfig.validate].
-func NewVectorStoreRetriever(cfg *VectorStoreRetrieverConfig) (*VectorStoreRetriever, error) {
-	if err := cfg.validate(); err != nil {
+func NewVectorStoreRetriever(cfg VectorStoreRetrieverConfig) (*VectorStoreRetriever, error) {
+	cfg.ApplyDefaults()
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	return &VectorStoreRetriever{

@@ -49,7 +49,6 @@ type Visitor struct {
 	currentFieldValue any                   // Temporary storage for field values
 }
 
-
 func NewVisitor() *Visitor {
 	return &Visitor{}
 }
@@ -107,6 +106,9 @@ func (c *Visitor) visit(expr ast.Expr) error {
 
 // visitBinaryExpr routes binary expressions to appropriate handlers based on operator type.
 func (c *Visitor) visitBinaryExpr(expr *ast.BinaryExpr) error {
+	if expr.Op.Kind.IsNullOperator() {
+		return c.visitNullTestExpr(expr)
+	}
 	return filterhelp.DispatchBinaryErr(expr,
 		c.visitLogicalExpr,
 		c.visitComparisonExpr,
@@ -438,6 +440,33 @@ func (c *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 	return nil
 }
 
+// visitNullTestExpr handles the IS NULL operator by emitting Weaviate's
+// IsNull filter. Weaviate models nullability as a boolean on the property
+// path: IsNull with ValueBoolean(true) matches documents where the property
+// is null or absent.
+//
+// Example:
+//   - author IS NULL → path:["author"], IsNull, boolean:true
+//
+// The negated form `author IS NOT NULL` arrives as NOT(author IS NULL) — the
+// parser wraps the IS-NULL binary expression in a UnaryExpr(NOT), which is
+// rendered by visitNotExpr as a filters.Not around this IsNull condition. No
+// separate handling is needed here.
+func (c *Visitor) visitNullTestExpr(expr *ast.BinaryExpr) error {
+	fieldPath, err := c.extractFieldPath(expr.Left)
+	if err != nil {
+		return fmt.Errorf("weaviate: failed to extract field path from 'IS NULL' at %s: %w",
+			expr.Start().String(), err)
+	}
+
+	c.result = filters.Where().
+		WithPath(fieldPath).
+		WithOperator(filters.IsNull).
+		WithValueBoolean(true)
+
+	return nil
+}
+
 // buildNestedFilter converts a sub-expression to a WhereBuilder using an isolated visitor.
 // This ensures that nested logical expressions maintain proper scoping.
 func (c *Visitor) buildNestedFilter(expr ast.Expr) (*filters.WhereBuilder, error) {
@@ -586,6 +615,7 @@ func (c *Visitor) literalToValue(lit *ast.Literal) (any, error) {
 //   - Ordering:         <, <=, >, >=
 //   - Membership:       IN  (mapped to ContainsAny)
 //   - Pattern matching: LIKE
+//   - Null test:        IS NULL / IS NOT NULL (mapped to IsNull, the latter via NOT)
 //
 // Field access:
 //   - Simple field:     age               → path: ["age"]

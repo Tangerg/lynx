@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	goredis "github.com/redis/go-redis/v9"
 
+	"github.com/Tangerg/lynx/chatmemory/internal/codec"
 	"github.com/Tangerg/lynx/chatmemory/internal/tracing"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/memory"
@@ -34,15 +36,9 @@ type StoreConfig struct {
 	TTL time.Duration
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return errors.New("redis: config must not be nil")
-	}
+func (c *StoreConfig) Validate() error {
 	if c.Client == nil {
 		return errors.New("redis: Client is required")
-	}
-	if c.KeyPrefix == "" {
-		c.KeyPrefix = DefaultKeyPrefix
 	}
 	if c.TTL < 0 {
 		return errors.New("redis: TTL must not be negative")
@@ -50,7 +46,18 @@ func (c *StoreConfig) validate() error {
 	return nil
 }
 
-var _ memory.Store = (*Store)(nil)
+// ApplyDefaults fills zero fields. KeyPrefix defaults to
+// [DefaultKeyPrefix].
+func (c *StoreConfig) ApplyDefaults() {
+	if c.KeyPrefix == "" {
+		c.KeyPrefix = DefaultKeyPrefix
+	}
+}
+
+var (
+	_ memory.Store  = (*Store)(nil)
+	_ memory.Lister = (*Store)(nil)
+)
 
 // Store is a Redis-backed [memory.Store]. Construct via [NewStore].
 type Store struct {
@@ -60,8 +67,9 @@ type Store struct {
 }
 
 // NewStore builds a [Store] from cfg.
-func NewStore(cfg *StoreConfig) (*Store, error) {
-	if err := cfg.validate(); err != nil {
+func NewStore(cfg StoreConfig) (*Store, error) {
+	cfg.ApplyDefaults()
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	return &Store{
@@ -92,7 +100,7 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 
 	payloads := make([]any, 0, len(messages))
 	for _, msg := range messages {
-		raw, err := encodeMessage(msg)
+		raw, err := codec.EncodeMessage(msg)
 		if err != nil {
 			return fmt.Errorf("redis.Store.Write: encode message: %w", err)
 		}
@@ -154,22 +162,51 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 	return nil
 }
 
-// encodeMessage marshals msg via its MarshalJSON. See the postgres
-// provider for the rationale on the per-type switch.
-func encodeMessage(msg chat.Message) ([]byte, error) {
-	if msg == nil {
-		return nil, errors.New("message must not be nil")
+// Conversations enumerates the ids of every stored conversation via a
+// non-blocking SCAN over the keyPrefix namespace. The returned slice is
+// a point-in-time snapshot in no guaranteed order; SCAN may surface a
+// given key more than once across cursor iterations, so ids are
+// de-duplicated. Honors ctx cancellation.
+func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
+	if err = ctx.Err(); err != nil {
+		return nil, err
 	}
-	switch m := msg.(type) {
-	case *chat.SystemMessage:
-		return m.MarshalJSON()
-	case *chat.UserMessage:
-		return m.MarshalJSON()
-	case *chat.AssistantMessage:
-		return m.MarshalJSON()
-	case *chat.ToolMessage:
-		return m.MarshalJSON()
-	default:
-		return nil, fmt.Errorf("unsupported message type %T", msg)
+
+	ctx, span := tracing.StartList(ctx, "redis")
+	defer func() { tracing.RecordListResult(span, err, len(ids)) }()
+
+	match := s.keyPrefix + "*"
+	seen := make(map[string]struct{})
+
+	var cursor uint64
+	for {
+		if err = ctx.Err(); err != nil {
+			return nil, err
+		}
+
+		var keys []string
+		keys, cursor, err = s.client.Scan(ctx, cursor, match, 0).Result()
+		if err != nil {
+			return nil, fmt.Errorf("redis.Store.Conversations: %w", err)
+		}
+
+		for _, k := range keys {
+			id, ok := strings.CutPrefix(k, s.keyPrefix)
+			if !ok {
+				// MATCH should preclude this, but guard against the
+				// prefix incidentally matching unintended keys.
+				continue
+			}
+			if _, dup := seen[id]; dup {
+				continue
+			}
+			seen[id] = struct{}{}
+			ids = append(ids, id)
+		}
+
+		if cursor == 0 {
+			break
+		}
 	}
+	return ids, nil
 }

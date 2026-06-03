@@ -12,7 +12,7 @@ import (
 )
 
 type OpenAIChatModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *chat.Options
 
 	// BaseURL defaults to [BaseURL]. Override only when routing
@@ -25,12 +25,9 @@ type OpenAIChatModelConfig struct {
 	RequestOptions []option.RequestOption
 }
 
-func (c *OpenAIChatModelConfig) validate() error {
-	if c == nil {
-		return errors.New("xiaomi: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("xiaomi: ApiKey is required")
+func (c OpenAIChatModelConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("xiaomi: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("xiaomi: DefaultOptions is required")
@@ -43,14 +40,14 @@ func (c *OpenAIChatModelConfig) validate() error {
 // calling, streaming, reasoning_content (thinking mode on V2-pro /
 // V2.5-pro) all behave OpenAI-compatibly. For the Anthropic-shaped
 // /v1/messages endpoint use [NewAnthropicChatModel] instead.
-func NewOpenAIChatModel(cfg *OpenAIChatModelConfig) (*openai.ChatModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewOpenAIChatModel(cfg OpenAIChatModelConfig) (*openai.ChatModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	baseURL := cmp.Or(cfg.BaseURL, BaseURL)
 	reqOpts := append([]option.RequestOption{option.WithBaseURL(baseURL)}, cfg.RequestOptions...)
-	return openai.NewChatModel(&openai.ChatModelConfig{
-		ApiKey:         cfg.ApiKey,
+	return openai.NewChatModel(openai.ChatModelConfig{
+		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
 		Metadata:       &chat.ModelMetadata{Provider: Provider},
