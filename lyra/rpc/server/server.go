@@ -28,7 +28,9 @@ type Config struct {
 	Runtime RuntimeServices
 
 	// ServerInfo identifies this process on the wire. Defaults to
-	// {Name: "lyra-core", Version: "0.0.0-dev"} when zero.
+	// {Name: "runtime", Version: "0.0.0-dev"} when zero — a vendor-neutral
+	// name, since the protocol is consumed by arbitrary clients and the
+	// rpc/protocol package is the codegen SSOT for other languages.
 	ServerInfo protocol.ServerInfo
 }
 
@@ -75,7 +77,7 @@ func New(cfg Config) (protocol.Runtime, error) {
 		return nil, errors.New("server: Runtime is required")
 	}
 	if cfg.ServerInfo.Name == "" {
-		cfg.ServerInfo.Name = "lyra-core"
+		cfg.ServerInfo.Name = "runtime"
 	}
 	if cfg.ServerInfo.Version == "" {
 		cfg.ServerInfo.Version = "0.0.0-dev"

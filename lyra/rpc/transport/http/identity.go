@@ -22,7 +22,7 @@ var (
 )
 
 func loadServerInfo() {
-	loaded = protocol.ServerInfo{Name: "lyra-core", Version: "dev"}
+	loaded = protocol.ServerInfo{Name: "runtime", Version: "dev"}
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
 		return

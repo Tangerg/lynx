@@ -26,7 +26,7 @@ func TestFileProcessStore_SaveLoadRoundTrip(t *testing.T) {
 		Status:     core.StatusWaiting,
 		CapturedAt: time.Unix(0, 0).UTC(),
 		Blackboard: map[string]any{"plan": "1. do the thing"},
-		Conditions: map[string]bool{"lyra.approval.abc": true},
+		Conditions: map[string]bool{"approval.abc": true},
 	}
 	if err := store.Save(ctx, snap); err != nil {
 		t.Fatalf("Save: %v", err)
@@ -39,7 +39,7 @@ func TestFileProcessStore_SaveLoadRoundTrip(t *testing.T) {
 	if got.ID != "proc-1" || got.AgentName != "chat" || got.Status != core.StatusWaiting {
 		t.Fatalf("Load returned %+v", got)
 	}
-	if got.Conditions["lyra.approval.abc"] != true {
+	if got.Conditions["approval.abc"] != true {
 		t.Errorf("condition not round-tripped: %+v", got.Conditions)
 	}
 }
