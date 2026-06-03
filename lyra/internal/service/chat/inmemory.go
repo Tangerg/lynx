@@ -182,8 +182,7 @@ func (s *inMemory) Cancel(_ context.Context, handle TurnHandle) error {
 	if claimed {
 		// The turn was parked on an interrupt — no drive goroutine is
 		// waiting on it, so emit the terminal + tear down here.
-		s.emit(state, TurnEnd{Reason: TurnEndCancelled, Duration: time.Since(state.startedAt)})
-		s.endTurn(state)
+		s.finishTurn(state, TurnEndCancelled)
 	}
 	return nil
 }
@@ -211,17 +210,11 @@ func (s *inMemory) Resume(_ context.Context, handle TurnHandle, approved bool) e
 	resumed, rErr := proc.Resume(state.ctx, approved)
 	if rErr != nil {
 		s.emit(state, ErrorEvent{Message: rErr.Error(), Code: "ENGINE_ERROR"})
-		s.emit(state, TurnEnd{Reason: TurnEndErrored, Duration: time.Since(state.startedAt)})
-		s.endTurn(state)
+		s.finishTurn(state, TurnEndErrored)
 		return rErr
 	}
 	go s.drive(state, resumed)
 	return nil
-}
-
-// ContinuePlan is the plan-mode spelling of [Resume].
-func (s *inMemory) ContinuePlan(ctx context.Context, handle TurnHandle, decision PlanDecision) error {
-	return s.Resume(ctx, handle, decision == PlanApprove)
 }
 
 // emit stamps the event with the next sequence number and timestamp
