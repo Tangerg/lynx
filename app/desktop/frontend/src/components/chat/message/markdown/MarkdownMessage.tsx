@@ -10,7 +10,7 @@ import remarkAlert from "remark-github-blockquote-alert";
 import remarkMath from "remark-math";
 import remend from "remend";
 import { parseMarkdownIntoBlocks } from "streamdown";
-import { markdownComponents } from "@/components/chat/markdownComponents";
+import { markdownComponents } from "./markdownComponents";
 import { ensureKatexCss } from "@/lib/markdown/katexCss";
 import { measureMarkdownRepair } from "@/lib/metrics";
 import { rehypeCitations } from "@/lib/markdown/rehypeCitations";

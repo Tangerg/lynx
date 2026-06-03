@@ -2,7 +2,7 @@ import type { ApprovalDecision } from "@/lib/agent/useApprovalSubmit";
 import type { BlockStatus } from "@/protocol/run/viewState";
 import { useState } from "react";
 import { Divider, Icon, PillButton } from "@/components/common";
-import { HitlCardShell, HitlSettledRow } from "@/components/chat/HitlCard";
+import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
 import { useApprovalSubmit } from "@/lib/agent/useApprovalSubmit";
 import { cn } from "@/lib/utils";

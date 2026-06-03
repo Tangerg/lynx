@@ -1,7 +1,7 @@
 import type { BlockStatus } from "@/protocol/run/viewState";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
-import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
+import { MarkdownMessage } from "../markdown/MarkdownMessage";
 import { Icon } from "@/components/common";
 import { swift } from "@/lib/motion";
 

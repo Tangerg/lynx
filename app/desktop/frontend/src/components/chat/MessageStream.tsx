@@ -1,11 +1,11 @@
-import type { PartCtx } from "./PartRenderer";
+import type { PartCtx } from "./message";
 import type { Message } from "@/protocol/run/viewState";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect } from "react";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import { enterUp } from "@/lib/motion";
 import { Slot } from "@/plugins/Slot";
-import { MessageBlock } from "./MessageBlock";
+import { MessageBlock } from "./message";
 
 // Chat scroll surface, backed by use-stick-to-bottom. `resetKey`
 // re-keys the subtree on session switch so a new thread lands at the
