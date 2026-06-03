@@ -5,7 +5,7 @@
 // rest.
 
 import { useMemo } from "react";
-import { ChatPanel } from "@/components/chat/ChatPanel";
+import { ChatPanel } from "@/components/chat/panel";
 import { SettingsPage } from "./SettingsPage";
 import { SidebarPanel } from "@/components/sidebar/SidebarPanel";
 import { useChatSend } from "@/lib/agent/useChatSend";
