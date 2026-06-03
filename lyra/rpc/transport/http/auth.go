@@ -19,7 +19,7 @@ import (
 //
 //	Authorization: Bearer <Value>
 //
-// on every POST /v1/rpc/{method}. The sidecars and the SSE stream
+// on every POST /v2/rpc/{method}. The sidecars and the SSE stream
 // stay open per the frontend's `httpTransport` contract.
 type LocalToken struct {
 	Value string
@@ -53,8 +53,8 @@ func IssueLocalToken(path string) (*LocalToken, error) {
 	return &LocalToken{Value: value, Path: path}, nil
 }
 
-// authGate enforces the local-token check on POST /v1/rpc/*. Three
-// paths bypass: sidecars (/v1/info, /v1/health), the SSE stream
+// authGate enforces the local-token check on POST /v2/rpc/*. Three
+// paths bypass: sidecars (/v2/info, /v2/health), the SSE stream
 // (EventSource can't set Authorization — withCredentials:false per
 // TRANSPORT.md §4.3), and CORS preflights.
 //
@@ -84,7 +84,7 @@ func (s *Server) authGate(next http.Handler) http.Handler {
 // (browser EventSource can't send Authorization).
 func isAuthBypassPath(p string) bool {
 	switch p {
-	case "/v1/info", "/v1/health", "/v1/rpc/stream":
+	case "/v2/info", "/v2/health", "/v2/rpc/stream":
 		return true
 	}
 	return false
@@ -107,7 +107,7 @@ func validBearer(header, expected string) bool {
 
 // writeUnauthorized emits the exact body shape FE checks for (per
 // API.md §7.3): flat `{"error":"missing_local_token","traceId"?:...}`.
-// X-Lyra-Trace-Id from the request is echoed into `traceId` so
+// X-Trace-Id from the request is echoed into `traceId` so
 // RpcTransportError on the FE side carries it through.
 func writeUnauthorized(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -118,7 +118,7 @@ func writeUnauthorized(w http.ResponseWriter, r *http.Request) {
 		TraceID string `json:"traceId,omitempty"`
 	}{Error: "missing_local_token"}
 	if r != nil {
-		body.TraceID = strings.TrimSpace(r.Header.Get("X-Lyra-Trace-Id"))
+		body.TraceID = strings.TrimSpace(r.Header.Get("X-Trace-Id"))
 	}
 	_ = json.NewEncoder(w).Encode(body)
 }

@@ -8,7 +8,7 @@ import (
 
 // clientRegistry tracks every connected SSE consumer so the HTTP
 // transport can fan a single outbound notification out to every
-// active /v1/rpc/stream listener. Today's MVP runs as a single-
+// active /v2/rpc/stream listener. Today's MVP runs as a single-
 // tenant in-process Runtime — broadcasting to every client is the
 // right semantics (everyone sees the same world).
 //

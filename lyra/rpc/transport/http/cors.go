@@ -43,8 +43,8 @@ func (c corsConfig) allows(origin string) (matched bool, wildcard bool) {
 // curl / loopback ops use cases stay flat.
 //
 // Headers exposed to the browser are the three observability headers
-// the FE needs to surface (X-Lyra-Method / X-Lyra-Request-Id /
-// X-Lyra-Server) — see API.md §10.
+// the FE needs to surface (X-Method / X-Trace-Id /
+// X-Server) — see API.md §10.
 func (s *Server) cors(next http.Handler) http.Handler {
 	cfg := s.corsCfg
 	if len(cfg.origins) == 0 {
@@ -92,14 +92,15 @@ var (
 		"Authorization",
 		"Content-Type",
 		"Last-Event-Id",
-		"Lyra-Connection-Id",    // §1.2 — sent on every POST; preflight must allow it
-		"Lyra-Protocol-Version", // §1.2 out-of-band metadata
-		"X-Lyra-Trace-Id",
+		"X-Conn-Id",          // TRANSPORT §2 — connection id, sent on POST + SSE
+		"X-Protocol-Version", // TRANSPORT §2 — negotiated version echo
+		"X-Idempotency-Key",  // TRANSPORT §2 — retry-safety key
+		"X-Trace-Id",
 	}, ", ")
 
 	corsExposedHeaders = strings.Join([]string{
-		"X-Lyra-Server",
-		"X-Lyra-Method",
-		"X-Lyra-Request-Id",
+		"X-Server",
+		"X-Method",
+		"X-Trace-Id",
 	}, ", ")
 )

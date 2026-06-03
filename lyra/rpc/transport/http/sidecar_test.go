@@ -20,7 +20,7 @@ func newProbeServer(t *testing.T, probes ...lyrahttp.HealthProbe) *httptest.Serv
 		Runtime:         &fakeRuntime{},
 		Addr:            ":0",
 		ServerInfo:      protocol.ServerInfo{Name: "lyra-test", Version: "0.0.0"},
-		ProtocolVersion: "2026-05-28",
+		ProtocolVersion: testProtocolVersion,
 		Capabilities:    protocol.ServerCapabilities{},
 		HealthProbes:    probes,
 	})
@@ -30,14 +30,14 @@ func newProbeServer(t *testing.T, probes ...lyrahttp.HealthProbe) *httptest.Serv
 	return httptest.NewServer(srv.Handler())
 }
 
-// TestInfoExposesOpsMetadata confirms /v1/info includes serverID,
+// TestInfoExposesOpsMetadata confirms /v2/info includes serverID,
 // transport, and the endpoint route table — the bits oncall reaches
 // for first when wiring up a new client.
 func TestInfoExposesOpsMetadata(t *testing.T) {
 	ts := newProbeServer(t)
 	defer ts.Close()
 
-	resp, err := netHTTP.Get(ts.URL + "/v1/info")
+	resp, err := netHTTP.Get(ts.URL + "/v2/info")
 	if err != nil {
 		t.Fatalf("get info: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestHealthNoProbes(t *testing.T) {
 	ts := newProbeServer(t)
 	defer ts.Close()
 
-	resp, err := netHTTP.Get(ts.URL + "/v1/health")
+	resp, err := netHTTP.Get(ts.URL + "/v2/health")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestHealthAllOK(t *testing.T) {
 	)
 	defer ts.Close()
 
-	resp, err := netHTTP.Get(ts.URL + "/v1/health")
+	resp, err := netHTTP.Get(ts.URL + "/v2/health")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestHealthDegraded(t *testing.T) {
 	)
 	defer ts.Close()
 
-	resp, err := netHTTP.Get(ts.URL + "/v1/health")
+	resp, err := netHTTP.Get(ts.URL + "/v2/health")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -199,7 +199,7 @@ func TestHealthWorstWins(t *testing.T) {
 	)
 	defer ts.Close()
 
-	resp, err := netHTTP.Get(ts.URL + "/v1/health")
+	resp, err := netHTTP.Get(ts.URL + "/v2/health")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -218,14 +218,14 @@ func TestHealthWorstWins(t *testing.T) {
 	}
 }
 
-// TestInfoExposesAgentDocs confirms /v1/info surfaces the
+// TestInfoExposesAgentDocs confirms /v2/info surfaces the
 // AgentDocsLister's output under the `agentDocs` field.
 func TestInfoExposesAgentDocs(t *testing.T) {
 	srv, err := lyrahttp.NewServer(lyrahttp.Config{
 		Runtime:         &fakeRuntime{},
 		Addr:            ":0",
 		ServerInfo:      protocol.ServerInfo{Name: "lyra-test", Version: "0.0.0"},
-		ProtocolVersion: "2026-05-28",
+		ProtocolVersion: testProtocolVersion,
 		Capabilities:    protocol.ServerCapabilities{},
 		AgentDocsLister: func(_ context.Context) []lyrahttp.AgentDocInfo {
 			return []lyrahttp.AgentDocInfo{
@@ -240,7 +240,7 @@ func TestInfoExposesAgentDocs(t *testing.T) {
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
-	resp, err := netHTTP.Get(ts.URL + "/v1/info")
+	resp, err := netHTTP.Get(ts.URL + "/v2/info")
 	if err != nil {
 		t.Fatalf("get info: %v", err)
 	}
@@ -272,7 +272,7 @@ func TestInfoOmitsAgentDocsWhenListerNil(t *testing.T) {
 	ts := newProbeServer(t)
 	defer ts.Close()
 
-	resp, err := netHTTP.Get(ts.URL + "/v1/info")
+	resp, err := netHTTP.Get(ts.URL + "/v2/info")
 	if err != nil {
 		t.Fatalf("get info: %v", err)
 	}
@@ -288,7 +288,7 @@ func TestInfoOmitsAgentDocsWhenListerNil(t *testing.T) {
 }
 
 // TestHealthProbePanicIsContained confirms a panicking probe maps
-// to unhealthy instead of crashing the whole /v1/health handler.
+// to unhealthy instead of crashing the whole /v2/health handler.
 func TestHealthProbePanicIsContained(t *testing.T) {
 	ts := newProbeServer(t,
 		lyrahttp.HealthProbe{
@@ -300,7 +300,7 @@ func TestHealthProbePanicIsContained(t *testing.T) {
 	)
 	defer ts.Close()
 
-	resp, err := netHTTP.Get(ts.URL + "/v1/health")
+	resp, err := netHTTP.Get(ts.URL + "/v2/health")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}

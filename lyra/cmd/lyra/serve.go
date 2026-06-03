@@ -22,10 +22,10 @@ import (
 //
 // Wire endpoints:
 //
-//	POST /v1/rpc[/{method}]   JSON-RPC Request / Notification
-//	GET  /v1/rpc/stream       SSE — server-pushed notifications
-//	GET  /v1/info             Flat-JSON server metadata (no auth)
-//	GET  /v1/health           Liveness probe
+//	POST /v2/rpc[/{method}]   JSON-RPC Request / Notification
+//	GET  /v2/rpc/stream       SSE — server-pushed notifications
+//	GET  /v2/info             Flat-JSON server metadata (no auth)
+//	GET  /v2/health           Liveness probe
 //
 // See docs/{API,TRANSPORT}.md for the full protocol.
 func (a *App) ServeCmd() *cobra.Command {
@@ -39,9 +39,9 @@ func (a *App) ServeCmd() *cobra.Command {
 		Use:   "serve",
 		Short: "Run Lyra as a JSON-RPC over HTTP server.",
 		Long: `Boot Lyra as a server. The HTTP transport surfaces the Lyra
-Runtime Protocol on a single ` + "`/v1/rpc`" + ` endpoint plus an
-` + "`/v1/rpc/stream`" + ` SSE channel, with ` + "`/v1/info`" + ` and
-` + "`/v1/health`" + ` sidecars for operations.
+Runtime Protocol on a single ` + "`/v2/rpc`" + ` endpoint plus an
+` + "`/v2/rpc/stream`" + ` SSE channel, with ` + "`/v2/info`" + ` and
+` + "`/v2/health`" + ` sidecars for operations.
 
 Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -91,12 +91,13 @@ Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 			if token != nil {
 				tokenValue = token.Value
 			}
+			caps := server.Capabilities(a.runtime())
 			httpServer, err := lyrahttp.NewServer(lyrahttp.Config{
 				Runtime:         api,
 				Addr:            srv.Listen,
 				ServerInfo:      lyrahttp.ServerInfoOrDefault(),
-				ProtocolVersion: server.ProtocolVersion,
-				Capabilities:    server.Capabilities(),
+				ProtocolVersion: caps.ProtocolVersion,
+				Capabilities:    caps,
 				LocalToken:      tokenValue,
 				CORSOrigins:     srv.CORSOrigins,
 				HealthProbes: []lyrahttp.HealthProbe{
@@ -133,7 +134,7 @@ Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 // agentDocsLister returns an AgentDocsLister wired to the server's
 // working directory (process cwd at construction time, locked once
 // so a later `chdir` doesn't shift discovery to a different tree).
-// Discovery walks the same paths the engine uses, so /v1/info's
+// Discovery walks the same paths the engine uses, so /v2/info's
 // agentDocs field reflects exactly what the model will see.
 func agentDocsLister() lyrahttp.AgentDocsLister {
 	cwd, err := os.Getwd()
@@ -168,10 +169,10 @@ func (a *App) runServer(ctx context.Context, server *lyrahttp.Server, addr strin
 	errs := make(chan error, 1)
 	go func() {
 		fmt.Fprintf(a.Err, "[lyra] http listening on %s\n", addr)
-		fmt.Fprintf(a.Err, "[lyra]   POST /v1/rpc[/{method}]   JSON-RPC\n")
-		fmt.Fprintf(a.Err, "[lyra]   GET  /v1/rpc/stream       SSE notifications\n")
-		fmt.Fprintf(a.Err, "[lyra]   GET  /v1/info             metadata (no auth)\n")
-		fmt.Fprintf(a.Err, "[lyra]   GET  /v1/health           liveness\n")
+		fmt.Fprintf(a.Err, "[lyra]   POST /v2/rpc[/{method}]   JSON-RPC\n")
+		fmt.Fprintf(a.Err, "[lyra]   GET  /v2/rpc/stream       SSE notifications\n")
+		fmt.Fprintf(a.Err, "[lyra]   GET  /v2/info             metadata (no auth)\n")
+		fmt.Fprintf(a.Err, "[lyra]   GET  /v2/health           liveness\n")
 		if token != nil {
 			fmt.Fprintf(a.Err, "[lyra] local-token gate active; token at %s\n", token.Path)
 		} else {

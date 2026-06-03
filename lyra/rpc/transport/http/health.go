@@ -32,14 +32,14 @@ type HealthProbe struct {
 	Probe func(ctx context.Context) HealthCheck
 }
 
-// healthBudget caps how long /v1/health waits for probes. Probes
+// healthBudget caps how long /v2/health waits for probes. Probes
 // share the budget — a slow downstream doesn't penalize the others.
 // 2s matches the typical k8s liveness probe timeout default.
 const healthBudget = 2 * time.Second
 
 // runHealthProbes runs every probe in parallel under a shared
 // timeout and aggregates worst-of. Panics inside a probe map to
-// unhealthy so a misbehaving probe can't crash /v1/health.
+// unhealthy so a misbehaving probe can't crash /v2/health.
 func runHealthProbes(ctx context.Context, probes []HealthProbe) (HealthStatus, map[string]HealthStatus) {
 	if len(probes) == 0 {
 		return HealthOK, nil

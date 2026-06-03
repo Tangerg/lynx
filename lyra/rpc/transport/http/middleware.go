@@ -61,7 +61,7 @@ func recordResponse(r *http.Request, status int, duration time.Duration, bytes i
 			attribute.Int("http.status_code", status),
 			attribute.Int64("duration_ms", duration.Milliseconds()),
 			attribute.Int("http.response.body.size", bytes),
-			attribute.String("lynx.lyra.trace_id", r.Header.Get("X-Lyra-Trace-Id")),
+			attribute.String("lynx.lyra.trace_id", r.Header.Get("X-Trace-Id")),
 		),
 	)
 	if status >= 500 {
