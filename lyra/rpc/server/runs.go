@@ -340,10 +340,25 @@ func (i *Server) ListOpenInterrupts(ctx context.Context, in protocol.ListOpenInt
 	return out, nil
 }
 
-// SubscribeRun rebinds an existing run's stream to the caller. Stream
-// fan-out / replay isn't wired yet (single-consumer in-process streams).
-func (i *Server) SubscribeRun(_ context.Context, _ string) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
-	return nil, nil, notImpl("runs.subscribe")
+// SubscribeRun re-affirms a client's binding to an actively-streaming root
+// run after a reconnect (API.md §5.4 / §7.3). Lyra is single-tenant: the
+// one SSE connection already receives every run's events via the global
+// fan-out, and Last-Event-Id replays the buffer on reconnect — so there is
+// no per-subscriber channel to hand back. subscribe just acks the runId
+// (delivery rides the shared stream); a run that isn't actively streaming
+// (finished / parked / unknown) returns run_not_found, since its tail is
+// recovered through the stream's Last-Event-Id replay, not here.
+func (i *Server) SubscribeRun(_ context.Context, runID string) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
+	if runID == "" {
+		return nil, nil, protocol.ErrRunNotFound
+	}
+	i.runMu.Lock()
+	_, live := i.runs[runID]
+	i.runMu.Unlock()
+	if !live {
+		return nil, nil, protocol.ErrRunNotFound
+	}
+	return &protocol.StartRunResponse{RunID: runID}, nil, nil
 }
 
 // ─── helpers ────────────────────────────────────────────────────────
