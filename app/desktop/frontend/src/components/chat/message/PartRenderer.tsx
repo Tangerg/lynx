@@ -1,5 +1,5 @@
 import type { ContentBlock, PlanItem, ToolCall } from "@/protocol/run/viewState";
-import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
+import { MarkdownMessage } from "./markdown/MarkdownMessage";
 import { ToolCard } from "@/components/tools/ToolCard";
 import { PluginContentBlock } from "@/plugins/PluginContentBlock";
 import { openViewForTool } from "@/state/toolRouting";

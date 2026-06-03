@@ -1,7 +1,7 @@
 import type { BlockStatus, QuestionItem } from "@/protocol/run/viewState";
 import { useMemo, useState } from "react";
 import { PillButton } from "@/components/common";
-import { HitlCardShell, HitlSettledRow } from "@/components/chat/HitlCard";
+import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
 import { useQuestionAnswer, type QuestionAnswers } from "@/lib/agent/useQuestionAnswer";
 import { cn } from "@/lib/utils";

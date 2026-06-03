@@ -1,5 +1,5 @@
 import type { PlanItem } from "@/protocol/run/viewState";
-import { PlanCheck, planItemRow } from "@/components/chat/PlanCheck";
+import { PlanCheck, planItemRow } from "@/components/chat/message";
 import { Icon, PillButton } from "@/components/common";
 
 // Plan view workspace tab. Same per-item visual as the inline PlanBlock

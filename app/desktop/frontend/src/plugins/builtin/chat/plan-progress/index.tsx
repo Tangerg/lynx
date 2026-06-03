@@ -24,7 +24,7 @@ import type { PlanItem } from "@/protocol/run/viewState";
 import type { MouseEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
-import { PlanCheck } from "@/components/chat/PlanCheck";
+import { PlanCheck } from "@/components/chat/message";
 import { Icon, Tooltip } from "@/components/common";
 import { swift } from "@/lib/motion";
 import { cn } from "@/lib/utils";

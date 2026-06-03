@@ -10,7 +10,7 @@
 // too — delete the folder and citations cleanly disappear.
 
 import type { CitationSource, ContentBlockRendererProps } from "@/plugins/sdk";
-import { ShikiCodeBlock } from "@/components/chat/ShikiCodeBlock";
+import { ShikiCodeBlock } from "@/components/chat/message";
 import { definePlugin, MESSAGE_CITATION_SOURCE } from "@/plugins/sdk";
 import { Checkpoint } from "./Checkpoint";
 import { SearchResults } from "./SearchResults";

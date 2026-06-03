@@ -7,10 +7,7 @@
 // `preview-blocks/` plugin, quarantined for clean removal.
 
 import type { ContentBlockRendererProps } from "@/plugins/sdk";
-import { ApprovalCard } from "@/components/chat/ApprovalCard";
-import { PlanBlock } from "@/components/chat/PlanBlock";
-import { QuestionCard } from "@/components/chat/QuestionCard";
-import { ReasoningBlock } from "@/components/chat/ReasoningBlock";
+import { ApprovalCard, PlanBlock, QuestionCard, ReasoningBlock } from "@/components/chat/message";
 import { definePlugin } from "@/plugins/sdk";
 import { useAgentSlice } from "@/state/agentStore";
 
