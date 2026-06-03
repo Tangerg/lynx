@@ -1,4 +1,4 @@
-// Subscribe to AG-UI shared state (STATE_SNAPSHOT / STATE_DELTA) on
+// Subscribe to agent shared state (state.snapshot / state.delta) on
 // the current session. `useSharedState()` returns the whole document;
 // `useSharedState("a.b.c")` traverses dot-segments.
 

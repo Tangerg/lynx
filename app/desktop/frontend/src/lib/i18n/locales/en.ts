@@ -86,7 +86,7 @@ export const en: Record<string, string> = {
   "settings.pane.connection": "Connection",
   "settings.connection.title": "Backend",
   "settings.connection.sub":
-    "Where the AG-UI runtime is reachable. Changes apply on the next request.",
+    "Where the Lyra runtime is reachable. Changes apply on the next request.",
   "settings.connection.url": "URL",
   "settings.connection.reset": "Reset to default",
 

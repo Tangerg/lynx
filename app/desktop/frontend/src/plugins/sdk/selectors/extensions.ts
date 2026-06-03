@@ -132,7 +132,7 @@ export function lookupExtensionOwner<T>(point: ExtensionPoint<T>, key: string): 
  * Cached secondary index over one point's contributions, bucketed by a sub-key
  * derived from each item (event type, slot name…). Caches on the `extensions`
  * Map reference — rebuilt once per registry mutation, O(1) per lookup in
- * between (the reducer hits this per AG-UI event). Insertion order within a
+ * between (the reducer hits this per StreamEvent). Insertion order within a
  * bucket is preserved.
  */
 export function createPointSubIndex<I, V>(

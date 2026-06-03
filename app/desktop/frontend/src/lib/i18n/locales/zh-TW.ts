@@ -70,7 +70,7 @@ export const zhTW: Record<string, string> = {
 
   "settings.pane.connection": "連線",
   "settings.connection.title": "後端",
-  "settings.connection.sub": "AG-UI runtime 的位址。下次請求生效。",
+  "settings.connection.sub": "Lyra runtime 的位址。下次請求生效。",
   "settings.connection.url": "URL",
   "settings.connection.reset": "恢復預設",
 

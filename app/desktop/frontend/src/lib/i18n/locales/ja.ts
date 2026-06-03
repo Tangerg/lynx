@@ -71,7 +71,7 @@ export const ja: Record<string, string> = {
 
   "settings.pane.connection": "接続",
   "settings.connection.title": "バックエンド",
-  "settings.connection.sub": "AG-UI ランタイムのアドレス。次のリクエストから有効。",
+  "settings.connection.sub": "Lyra Runtime ランタイムのアドレス。次のリクエストから有効。",
   "settings.connection.url": "URL",
   "settings.connection.reset": "デフォルトに戻す",
 

@@ -19,7 +19,7 @@ import { MessageStream } from "./MessageStream";
 import { RunErrorBanner } from "./RunErrorBanner";
 
 interface Props {
-  /** Send a plain user message through the live AG-UI agent. */
+  /** Send a plain user message through the live agent. */
   onSend: (text: string) => void;
   /** Active session id — used to reset the error boundary + stream. */
   resetKey: string;

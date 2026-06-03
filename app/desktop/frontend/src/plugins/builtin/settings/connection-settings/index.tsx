@@ -7,7 +7,7 @@
 
 import { useState } from "react";
 import { z } from "zod";
-import { AGUI_BASE } from "@/main/config";
+import { RUNTIME_BASE } from "@/main/config";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { definePlugin, getConfig, setConfig } from "@/plugins/sdk";
@@ -25,20 +25,20 @@ const UrlSchema = z.url().refine((v) => v.startsWith("http://") || v.startsWith(
 
 function ConnectionPane() {
   const t = useT();
-  const initial = (getConfig<string>(CONFIG_KEY) ?? AGUI_BASE) || AGUI_BASE;
+  const initial = (getConfig<string>(CONFIG_KEY) ?? RUNTIME_BASE) || RUNTIME_BASE;
   const [url, setUrl] = useState(initial);
   const [error, setError] = useState<string | null>(null);
 
   const trimmed = url.trim();
   const dirty = trimmed !== initial.trim();
-  const isDefault = trimmed === AGUI_BASE;
+  const isDefault = trimmed === RUNTIME_BASE;
 
   const apply = () => {
     // Empty input → silently fall back to the default. Anything else
     // must parse as a real http(s) URL.
     if (!trimmed) {
-      setConfig(CONFIG_KEY, AGUI_BASE);
-      setUrl(AGUI_BASE);
+      setConfig(CONFIG_KEY, RUNTIME_BASE);
+      setUrl(RUNTIME_BASE);
       setError(null);
       return;
     }
@@ -53,8 +53,8 @@ function ConnectionPane() {
   };
 
   const reset = () => {
-    setUrl(AGUI_BASE);
-    setConfig(CONFIG_KEY, AGUI_BASE);
+    setUrl(RUNTIME_BASE);
+    setConfig(CONFIG_KEY, RUNTIME_BASE);
     setError(null);
   };
 
@@ -66,12 +66,12 @@ function ConnectionPane() {
           <div className="mt-0.5 text-[13px] text-fg-muted">{t("settings.connection.sub")}</div>
         </div>
         <div className="grid gap-2">
-          <label htmlFor="agui-base-url" className="text-[12px] font-semibold text-fg-faint">
+          <label htmlFor="runtime-base-url" className="text-[12px] font-semibold text-fg-faint">
             {t("settings.connection.url")}
           </label>
           <div className="flex items-center gap-2">
             <input
-              id="agui-base-url"
+              id="runtime-base-url"
               type="text"
               aria-label={t("settings.connection.url")}
               value={url}
@@ -84,7 +84,7 @@ function ConnectionPane() {
                   (e.target as HTMLInputElement).blur();
                 }
               }}
-              placeholder={AGUI_BASE}
+              placeholder={RUNTIME_BASE}
               className={cn(
                 "flex-1 h-9 rounded-md border bg-surface px-3 font-mono text-[13px] text-fg outline-none",
                 error

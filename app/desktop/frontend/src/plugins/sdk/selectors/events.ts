@@ -1,4 +1,4 @@
-// AG-UI event handler lookups — used imperatively by the reducer at
+// StreamEvent handler lookups — used imperatively by the reducer at
 // dispatch time. Both surfaces are O(1) per lookup thanks to the cached
 // secondary index in _helpers (invalidates on registry mutation).
 
@@ -35,7 +35,7 @@ export function lookupCustomHandlers(
 }
 
 /**
- * Look up all *core* handlers registered for an AG-UI built-in event type.
+ * Look up all *core* handlers registered for an built-in StreamEvent type.
  * Returned in insertion order; the reducer chains them through the state.
  */
 export function lookupStreamHandlers(

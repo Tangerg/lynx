@@ -3,7 +3,7 @@
 // Singleton instead of Context because non-component code (zustand effects,
 // plugin setup) calls these too; tests inject fakes via `setContainer()`.
 
-import { AGUI_BASE } from "@/main/config";
+import { RUNTIME_BASE } from "@/main/config";
 import { getConfig } from "@/plugins/sdk/config";
 import type { LyraClient, SidecarClient } from "@/rpc";
 import { createHttpTransport, createLyraClient, createSidecarClient } from "@/rpc";
@@ -27,7 +27,7 @@ export interface Container {
 }
 
 function defaultContainer(): Container {
-  const baseUrl = AGUI_BASE;
+  const baseUrl = RUNTIME_BASE;
   let shared: LyraClient | null = null;
   return {
     // Read `api.localToken` at build time so plugins (e.g. a Wails-side

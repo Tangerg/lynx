@@ -70,7 +70,7 @@ export {
   useSlashCommands,
   useWorkspaceViews,
 } from "./selectors";
-// Backend-driven shared state — AG-UI STATE_SNAPSHOT / STATE_DELTA.
+// Backend-driven shared state — agent state.snapshot / state.delta.
 export { useSharedState } from "./sharedState";
 
 export {

@@ -10,7 +10,7 @@
 import type { LoadResult } from "../sdk/definePlugin";
 import type { PluginSpec } from "../sdk/types";
 import { z } from "zod";
-import { AGUI_BASE } from "@/main/config";
+import { RUNTIME_BASE } from "@/main/config";
 import { loadPlugin } from "../sdk/definePlugin";
 import { reportPluginError } from "../sdk/errors";
 import { pluginOrigin, setPluginOrigin } from "../sdk/pluginOrigin";
@@ -41,7 +41,7 @@ interface SideloadInfo {
 }
 
 async function fetchSideloadList(): Promise<SideloadInfo[]> {
-  const res = await fetch(`${AGUI_BASE}/plugins`);
+  const res = await fetch(`${RUNTIME_BASE}/plugins`);
   if (!res.ok) throw new Error(`GET /plugins → ${res.status}`);
   return (await res.json()) as SideloadInfo[];
 }
@@ -64,7 +64,7 @@ export async function loadSideloadedPlugins(): Promise<LoadResult[]> {
   const results: LoadResult[] = [];
 
   for (const info of infos) {
-    const url = `${AGUI_BASE}${info.url}`;
+    const url = `${RUNTIME_BASE}${info.url}`;
     let spec: PluginSpec;
 
     try {

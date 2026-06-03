@@ -1,5 +1,5 @@
 // The Host facade — what a plugin can touch: the `extensions.contribute` write
-// path, a few retained thin facades (agui / layout / message.registerContentBlock
+// path, a few retained thin facades (events / layout / message.registerContentBlock
 // / lifecycle / rpc hooks / log.subscribe), and imperative actions.
 //
 // Adding a new contribution surface: define an `ExtensionPoint` in
@@ -73,7 +73,7 @@ export interface Host {
     /**
      * Contribute a typed item to a plugin-defined extension point. The point
      * is an `ExtensionPoint<T>` handle from `defineExtensionPoint` — no
-     * pre-declaration needed, mirroring `agui.on`. Multiple plugins (or the
+     * pre-declaration needed, mirroring `events.onCustom`. Multiple plugins (or the
      * same plugin via distinct `opts.id` on a `multi` point) can contribute;
      * consumers read the sorted list via `useExtensionPoint` /
      * `lookupExtensionPoint`. This is the JetBrains-style "plugins open and

@@ -29,7 +29,7 @@ function findLastUserText(): string {
   return "";
 }
 
-// RunErrorBanner — surfaces an AG-UI RUN_ERROR event.
+// RunErrorBanner — surfaces an run error.
 //
 // The reducer parks the error message on `state.error` until the next
 // RUN_STARTED clears it, or until the user dismisses it explicitly.

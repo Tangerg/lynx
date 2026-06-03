@@ -1,5 +1,5 @@
 // Built-in plugin: "Timeline" workspace view — the per-thread audit log
-// of run-significant events accumulated by the AG-UI reducer.
+// of run-significant events accumulated by the protocol reducer.
 //
 // UX review §2.2 / §4.1: users need a single surface that answers
 // "what did the agent actually do this run". Tool cards live inline in
@@ -7,7 +7,7 @@
 // error boundaries so the answer reads chronologically.
 //
 // Pure renderer — the data lives on agentStore (`view.timeline`) and is
-// populated by core-reducer + agui-handlers. See viewState.TimelineEntry
+// populated by the core-reducer handlers. See viewState.TimelineEntry
 // for the entry shape.
 
 import type { IconName } from "@/components/common";

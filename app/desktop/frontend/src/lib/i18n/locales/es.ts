@@ -72,7 +72,8 @@ export const es: Record<string, string> = {
 
   "settings.pane.connection": "Conexión",
   "settings.connection.title": "Backend",
-  "settings.connection.sub": "Dirección del runtime AG-UI. Se aplica en la siguiente petición.",
+  "settings.connection.sub":
+    "Dirección del runtime Lyra Runtime. Se aplica en la siguiente petición.",
   "settings.connection.url": "URL",
   "settings.connection.reset": "Restaurar predeterminado",
 

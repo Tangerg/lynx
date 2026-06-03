@@ -82,7 +82,7 @@ export const zh: Record<string, string> = {
 
   "settings.pane.connection": "连接",
   "settings.connection.title": "后端",
-  "settings.connection.sub": "AG-UI 运行时的地址。下一次请求生效。",
+  "settings.connection.sub": "Lyra Runtime 运行时的地址。下一次请求生效。",
   "settings.connection.url": "URL",
   "settings.connection.reset": "恢复默认",
 

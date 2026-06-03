@@ -16,7 +16,7 @@ import { metrics } from "@opentelemetry/api";
 const meter = metrics.getMeter("lyra");
 
 const reducerHistogram = meter.createHistogram("lyra.reducer.duration", {
-  description: "Time spent reducing one AG-UI event",
+  description: "Time spent reducing one StreamEvent",
   unit: "ms",
 });
 
