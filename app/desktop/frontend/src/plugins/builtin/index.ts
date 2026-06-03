@@ -24,7 +24,6 @@ import {
   composerToolbar,
 } from "./chat/composer";
 import connectionSettings from "./settings/connection-settings";
-import { approvalBlock, planBlock, questionBlock, reasoningBlock } from "./chat/content-blocks";
 import previewBlocks from "./chat/preview-blocks";
 import bootstrap from "./agent/bootstrap";
 import conversationExport from "./workspace/conversation-export";
@@ -105,15 +104,14 @@ const infrastructure: PluginSpec[] = [
 // ---------------------------------------------------------------------------
 // Message rendering — roles, content blocks, per-message decorations.
 // ---------------------------------------------------------------------------
+// Built-in content blocks (text / tool / reasoning / plan / approval /
+// question) render directly in the message module — no plugin here. This
+// group is roles + per-message actions + the extension-only preview blocks.
 const messageRendering: PluginSpec[] = [
   defaultRoles,
   messageCopy,
   messageEdit,
   messageRegenerate,
-  planBlock,
-  approvalBlock,
-  questionBlock,
-  reasoningBlock,
   previewBlocks,
 ];
 

@@ -1,5 +1,6 @@
 import type { ContentBlock, PlanItem, ToolCall } from "@/protocol/run/viewState";
 import { MarkdownMessage } from "./markdown/MarkdownMessage";
+import { ApprovalCard, PlanBlock, QuestionCard, ReasoningBlock } from "./cards";
 import { ToolCard } from "@/components/tools/ToolCard";
 import { PluginContentBlock } from "@/plugins/PluginContentBlock";
 import { openViewForTool } from "@/state/toolRouting";
@@ -34,14 +35,13 @@ export interface PartCtx {
 /**
  * Render one content block.
  *
- * Only `text` and `tool` are handled in core. `text` is the primary message
- * stream and `tool` is a registry indirection (the ToolCard itself routes
- * the inline preview through the plugin tool-preview registry). Everything
- * else — plan / code / search / approval / checkpoint / reasoning — is
- * rendered by plugin-contributed components via PluginContentBlock.
- *
- * Plugin-contributed kinds use the exact same path, since they're declared
- * via `CustomContentBlockMap` and their renderers go in the same registry.
+ * Every `BuiltinContentBlockMap` kind — the enumerable, protocol-first-class
+ * blocks (text / tool / reasoning / plan / approval / question) — is rendered
+ * directly by this module from its own `cards/` + `markdown/` sub-modules. No
+ * registry hop: the message module owns the rendering of the blocks the fold
+ * produces. `CONTENT_BLOCK` registry / `PluginContentBlock` is reserved for
+ * `CustomContentBlockMap` kinds — third-party plugins + the quarantined
+ * preview-blocks (search / code / checkpoint) — which fall through to default.
  */
 export function renderPart(block: ContentBlock, key: number, ctx: PartCtx) {
   switch (block.kind) {
@@ -84,6 +84,46 @@ export function renderPart(block: ContentBlock, key: number, ctx: PartCtx) {
       );
     }
 
+    case "reasoning":
+      return <ReasoningBlock key={key} text={block.text} status={block.status} />;
+
+    case "plan":
+      // The plan block is a "render the current plan here" marker; the data
+      // rides view.plan (threaded through ctx), updated by the fold in place.
+      return <PlanBlock key={key} plan={ctx.plan} />;
+
+    case "approval":
+      return (
+        <ApprovalCard
+          key={key}
+          status={block.status}
+          what={block.text}
+          cmd={block.command}
+          reason={block.reason}
+          parentRunId={block.parentRunId}
+          itemId={block.itemId}
+          decision={block.decision}
+          args={block.args}
+          risk={block.risk}
+          scope={block.scope}
+          target={block.target}
+          reversible={block.reversible}
+        />
+      );
+
+    case "question":
+      return (
+        <QuestionCard
+          key={key}
+          status={block.status}
+          parentRunId={block.parentRunId}
+          itemId={block.itemId}
+          questions={block.questions}
+          answered={block.answered}
+        />
+      );
+
+    // CustomContentBlockMap kinds (third-party + preview-blocks) only.
     default:
       return <PluginContentBlock key={key} block={block} />;
   }
