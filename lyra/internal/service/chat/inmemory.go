@@ -16,10 +16,9 @@ import (
 // single-process — it holds in-memory state about live turns and
 // fans events out to subscribers via per-turn channels.
 //
-// approvalSvc is optional. When non-nil the chat impl threads
-// every tool call through it for permission gating; on nil the
-// gate is a no-op and every call passes (legacy YOLO behavior
-// useful for tests / smoke runs).
+// approvalSvc is optional. When non-nil the chat impl reads its mode
+// at each tool call to decide run / deny / pause-for-approval; on nil
+// every call passes (auto-approve, useful for tests / smoke runs).
 //
 // The implementation is split across files by concern:
 //   - inmemory.go  — Service surface + live-turn registry (this file)
@@ -29,13 +28,13 @@ import (
 //
 // The Service interface is stable, so transport adapters don't care
 // which impl they talk to.
-func New(eng Engine, approvalGate approval.Gate) Service {
+func New(eng Engine, approvalSvc approval.Service) Service {
 	if eng == nil {
 		panic("chat: engine is required")
 	}
 	return &inMemory{
 		engine:   eng,
-		approval: approvalGate,
+		approval: approvalSvc,
 		turns:    map[string]*turnState{},
 	}
 }
@@ -45,7 +44,7 @@ func New(eng Engine, approvalGate approval.Gate) Service {
 // process memory and does not survive restart.
 type inMemory struct {
 	engine   Engine
-	approval approval.Gate // optional — nil = auto-approve every tool
+	approval approval.Service // optional — nil = auto-approve every tool
 
 	mu    sync.Mutex
 	turns map[string]*turnState // turn_id → state

@@ -34,6 +34,7 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
 	chatsvc "github.com/Tangerg/lynx/lyra/internal/service/chat"
+	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 	memsvc "github.com/Tangerg/lynx/lyra/internal/service/memory"
 	sessionsvc "github.com/Tangerg/lynx/lyra/internal/service/session"
 	toolsvc "github.com/Tangerg/lynx/lyra/internal/service/tool"
@@ -79,6 +80,11 @@ type Config struct {
 	// [sessionsvc.NewInMemoryService] — same restart caveat.
 	SessionService sessionsvc.Service
 
+	// InterruptStore records open HITL interrupts (R-model resume
+	// discovery). nil falls back to [interrupts.NewInMemory]. Swap in a
+	// persistent backend once cross-restart resume lands.
+	InterruptStore interrupts.Store
+
 	// ApprovalMode sets the initial runtime approval stance. The
 	// service is always constructed; mode defaults to [approval.ModeYolo]
 	// when this field is the zero value.
@@ -102,12 +108,13 @@ type Config struct {
 // are safe for concurrent use. Runtime itself holds no mutable
 // state after construction.
 type Runtime struct {
-	engine   *engine.Engine
-	chat     chatsvc.Service
-	session  sessionsvc.Service
-	tool     toolsvc.Service
-	memory   memsvc.Service
-	approval approval.Service
+	engine     *engine.Engine
+	chat       chatsvc.Service
+	session    sessionsvc.Service
+	tool       toolsvc.Service
+	memory     memsvc.Service
+	approval   approval.Service
+	interrupts interrupts.Store
 }
 
 // New assembles a Runtime from cfg. Returns an error when a required
@@ -138,14 +145,19 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	if sessionSvc == nil {
 		sessionSvc = sessionsvc.NewInMemoryService()
 	}
+	interruptStore := cfg.InterruptStore
+	if interruptStore == nil {
+		interruptStore = interrupts.NewInMemory()
+	}
 
 	return &Runtime{
-		engine:   eng,
-		chat:     chatsvc.New(eng, approvalSvc),
-		session:  sessionSvc,
-		tool:     toolsvc.New(eng),
-		memory:   cfg.MemoryService,
-		approval: approvalSvc,
+		engine:     eng,
+		chat:       chatsvc.New(eng, approvalSvc),
+		session:    sessionSvc,
+		tool:       toolsvc.New(eng),
+		memory:     cfg.MemoryService,
+		approval:   approvalSvc,
+		interrupts: interruptStore,
 	}, nil
 }
 
@@ -166,6 +178,10 @@ func (r *Runtime) Memory() memsvc.Service { return r.memory }
 // Approval returns the ApprovalService. Always non-nil — the runtime
 // constructs one regardless of cfg.ApprovalMode (defaults to YOLO).
 func (r *Runtime) Approval() approval.Service { return r.approval }
+
+// Interrupts returns the open-interrupt registry (R-model HITL resume
+// discovery). Always non-nil.
+func (r *Runtime) Interrupts() interrupts.Store { return r.interrupts }
 
 // ReadHistory returns sessionID's persisted chat history — the
 // messages.list transport surface converts these to wire messages,

@@ -22,16 +22,17 @@ import (
 //	chat.ToolCallStart  → close text+reasoning + item.started(toolCall) + item.delta(toolArguments)
 //	chat.ToolCallEnd    → item.completed(toolCall)
 //	chat.TurnEnd        → close open items + run.finished(outcome)
+//	chat.TurnInterrupted → close open items + interrupt Item(s) + run.finished(outcome:interrupt)
 //	chat.ErrorEvent     → captured, surfaced in run.finished(outcome:error)
 //
-// PlanGenerated / ToolCallApproval / CompactBoundary / MemoryUpdated are
-// not surfaced here: plan + approval become R-model interrupts (a later
-// milestone), and compaction / memory are internal housekeeping outside
-// the durable Item history.
+// PlanGenerated / CompactBoundary / MemoryUpdated are not surfaced here:
+// the plan rides the interrupt outcome (TurnInterrupted), and compaction
+// / memory are internal housekeeping outside the durable Item history.
 type translator struct {
-	runID     string
-	sessionID string
-	itemSeq   int
+	runID       string
+	sessionID   string
+	parentRunID string // non-empty for continuation runs (runs.resume)
+	itemSeq     int
 
 	text      *openText
 	reasoning *openText
@@ -51,11 +52,12 @@ type openTool struct {
 	kind protocol.ToolInvocationKind
 }
 
-func newTranslator(sessionID, runID string) *translator {
+func newTranslator(sessionID, runID, parentRunID string) *translator {
 	return &translator{
-		runID:     runID,
-		sessionID: sessionID,
-		tools:     map[string]*openTool{},
+		runID:       runID,
+		sessionID:   sessionID,
+		parentRunID: parentRunID,
+		tools:       map[string]*openTool{},
 	}
 }
 
@@ -71,9 +73,10 @@ func (t *translator) translate(ev chat.Event) []protocol.StreamEvent {
 		return []protocol.StreamEvent{{
 			Type: protocol.StreamRunStarted,
 			Run: &protocol.RunRef{
-				ID:        t.runID,
-				SessionID: t.sessionID,
-				Status:    protocol.RunStatusRunning,
+				ID:          t.runID,
+				SessionID:   t.sessionID,
+				ParentRunID: t.parentRunID,
+				Status:      protocol.RunStatusRunning,
 			},
 		}}
 	case chat.MessageDelta:
@@ -89,10 +92,73 @@ func (t *translator) translate(ev chat.Event) []protocol.StreamEvent {
 	case chat.ErrorEvent:
 		t.errMsg = e.Message
 		return nil
+	case chat.TurnInterrupted:
+		return t.interrupt(e)
 	case chat.TurnEnd:
 		return t.turnEnd(e)
 	}
 	return nil
+}
+
+// interrupt maps a parked turn (HITL) onto its Item(s) + a terminal
+// run.finished{outcome:interrupt}. Each pending awaitable becomes a
+// durable Item the client renders plus a protocol.Interrupt keyed by
+// that item's id:
+//
+//	approval → a toolCall Item (inProgress) for the gated call
+//	plan     → an agentMessage Item carrying the plan markdown
+//
+// (The plan stays prose until the planner emits structured steps.)
+func (t *translator) interrupt(e chat.TurnInterrupted) []protocol.StreamEvent {
+	out := t.closeReasoning()
+	out = append(out, t.closeText()...)
+
+	wire := make([]protocol.Interrupt, 0, len(e.Interrupts))
+	for _, in := range e.Interrupts {
+		switch in.Kind {
+		case "approval":
+			p, _ := in.Payload.(chat.ApprovalPrompt)
+			id := t.nextItemID()
+			out = append(out, protocol.StreamEvent{
+				Type: protocol.StreamItemStarted,
+				Item: &protocol.Item{
+					ID:     id,
+					RunID:  t.runID,
+					Status: protocol.ItemStatusInProgress,
+					Type:   protocol.ItemTypeToolCall,
+					Tool:   &protocol.ToolInvocation{Kind: toolKind(p.ToolName), Name: p.ToolName},
+				},
+			})
+			wire = append(wire, protocol.Interrupt{
+				ItemID:  id,
+				Kind:    "approval",
+				Payload: map[string]any{"tool": p.ToolName, "arguments": p.Arguments},
+			})
+		default: // plan
+			plan, _ := in.Payload.(string)
+			id := t.nextItemID()
+			out = append(out, protocol.StreamEvent{
+				Type: protocol.StreamItemCompleted,
+				Item: &protocol.Item{
+					ID:      id,
+					RunID:   t.runID,
+					Status:  protocol.ItemStatusCompleted,
+					Type:    protocol.ItemTypeAgentMessage,
+					Content: []protocol.ContentBlock{{Type: "text", Text: plan}},
+				},
+			})
+			wire = append(wire, protocol.Interrupt{
+				ItemID:  id,
+				Kind:    "approval",
+				Payload: map[string]any{"plan": plan},
+			})
+		}
+	}
+
+	return append(out, protocol.StreamEvent{
+		Type:    protocol.StreamRunFinished,
+		Outcome: &protocol.RunOutcome{Type: protocol.OutcomeInterrupt, Interrupts: wire},
+	})
 }
 
 func (t *translator) appendText(text string) []protocol.StreamEvent {
