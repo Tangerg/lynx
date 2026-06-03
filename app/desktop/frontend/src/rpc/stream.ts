@@ -16,7 +16,7 @@
 // BackgroundTask, terminal when status leaves "running".
 
 import { z } from "zod";
-import { createPushPullChannel } from "./channel";
+import { createPushPullChannel, type PushPullChannel } from "./channel";
 import type { RpcClient } from "./client";
 import type { BackgroundTask, RunEvent, StreamEvent } from "./shapes";
 
@@ -101,33 +101,12 @@ class RunTree {
 }
 
 // ---------------------------------------------------------------------------
-// Run-event streams
+// Channel → AsyncIterable plumbing (shared by every stream below)
 // ---------------------------------------------------------------------------
 
-function pump(
-  client: RpcClient,
-  tree: RunTree,
-  channel: ReturnType<typeof createPushPullChannel<RunEvent>>,
-  preFiltered: RunEvent[],
-): () => void {
-  for (const ev of preFiltered) {
-    if (tree.admit(ev)) channel.push(ev);
-    if (tree.isRootFinish(ev)) channel.close();
-  }
-  return client.subscribe(RUN_EVENT_METHOD, (msg) => {
-    if (channel.closed) return;
-    const parsed = parseRunEvent(msg.params);
-    if (!parsed) return;
-    const ev = { ...parsed, event: parsed.event as StreamEvent } as RunEvent;
-    if (tree.admit(ev)) channel.push(ev);
-    if (tree.isRootFinish(ev)) channel.close();
-  });
-}
-
-function makeIterable(
-  channel: ReturnType<typeof createPushPullChannel<RunEvent>>,
-  cleanup: () => void,
-): AsyncIterable<RunEvent> {
+/** Wrap a push-pull channel as a self-cleaning AsyncIterable: `cleanup` runs
+ *  once when the iterator drains (done) or the consumer breaks early. */
+function iterableOf<T>(channel: PushPullChannel<T>, cleanup: () => void): AsyncIterable<T> {
   return {
     [Symbol.asyncIterator]() {
       const inner = channel.iterator();
@@ -135,12 +114,12 @@ function makeIterable(
         [Symbol.asyncIterator]() {
           return this;
         },
-        next: async (): Promise<IteratorResult<RunEvent>> => {
+        next: async (): Promise<IteratorResult<T>> => {
           const result = await inner.next();
           if (result.done) cleanup();
           return result;
         },
-        return: async (): Promise<IteratorResult<RunEvent>> => {
+        return: async (): Promise<IteratorResult<T>> => {
           channel.close();
           cleanup();
           return { value: undefined as never, done: true };
@@ -150,6 +129,44 @@ function makeIterable(
   };
 }
 
+/** Tie a channel's lifetime to a subscription + an optional AbortSignal.
+ *  Returns an idempotent cleanup that unsubscribes + detaches the listener. */
+function bindLifecycle<T>(
+  channel: PushPullChannel<T>,
+  unsub: () => void,
+  signal?: AbortSignal,
+): () => void {
+  const onAbort = () => channel.close();
+  if (signal) {
+    if (signal.aborted) channel.close();
+    else signal.addEventListener("abort", onAbort, { once: true });
+  }
+  let cleaned = false;
+  return () => {
+    if (cleaned) return;
+    cleaned = true;
+    unsub();
+    if (signal) signal.removeEventListener("abort", onAbort);
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Run-event streams
+// ---------------------------------------------------------------------------
+
+/** Parse + cast a raw notification payload into a RunEvent (null if malformed). */
+function toRunEvent(params: unknown): RunEvent | null {
+  const parsed = parseRunEvent(params);
+  if (!parsed) return null;
+  return { ...parsed, event: parsed.event as StreamEvent } as RunEvent;
+}
+
+/** Push an event into the stream if it belongs to the tree; close on root finish. */
+function feedRunEvent(tree: RunTree, channel: PushPullChannel<RunEvent>, ev: RunEvent): void {
+  if (tree.admit(ev)) channel.push(ev);
+  if (tree.isRootFinish(ev)) channel.close();
+}
+
 /** Subscribe to a known root run's event stream (runs.subscribe). */
 export function streamRunEvents(
   client: RpcClient,
@@ -157,20 +174,13 @@ export function streamRunEvents(
   signal?: AbortSignal,
 ): AsyncIterable<RunEvent> {
   const channel = createPushPullChannel<RunEvent>();
-  const unsub = pump(client, new RunTree(rootRunId), channel, []);
-  const onAbort = () => channel.close();
-  if (signal) {
-    if (signal.aborted) channel.close();
-    else signal.addEventListener("abort", onAbort, { once: true });
-  }
-  let cleaned = false;
-  const cleanup = () => {
-    if (cleaned) return;
-    cleaned = true;
-    unsub();
-    if (signal) signal.removeEventListener("abort", onAbort);
-  };
-  return makeIterable(channel, cleanup);
+  const tree = new RunTree(rootRunId);
+  const unsub = client.subscribe(RUN_EVENT_METHOD, (msg) => {
+    if (channel.closed) return;
+    const ev = toRunEvent(msg.params);
+    if (ev) feedRunEvent(tree, channel, ev);
+  });
+  return iterableOf(channel, bindLifecycle(channel, unsub, signal));
 }
 
 /**
@@ -191,42 +201,21 @@ export function streamRunEventsDeferred(
 
   const unsub = client.subscribe(RUN_EVENT_METHOD, (msg) => {
     if (channel.closed) return;
-    const parsed = parseRunEvent(msg.params);
-    if (!parsed) return;
-    const ev = { ...parsed, event: parsed.event as StreamEvent } as RunEvent;
-    if (tree === null) {
-      buffer.push(ev); // not bound yet — keep raw until we learn our root id
-      return;
-    }
-    if (tree.admit(ev)) channel.push(ev);
-    if (tree.isRootFinish(ev)) channel.close();
+    const ev = toRunEvent(msg.params);
+    if (!ev) return;
+    // Not bound yet — keep raw until bind() supplies our root run id.
+    if (tree === null) buffer.push(ev);
+    else feedRunEvent(tree, channel, ev);
   });
-
-  const onAbort = () => channel.close();
-  if (signal) {
-    if (signal.aborted) channel.close();
-    else signal.addEventListener("abort", onAbort, { once: true });
-  }
-
-  let cleaned = false;
-  const cleanup = () => {
-    if (cleaned) return;
-    cleaned = true;
-    unsub();
-    if (signal) signal.removeEventListener("abort", onAbort);
-  };
 
   const bind = (rootRunId: string): void => {
     if (tree !== null) return;
     tree = new RunTree(rootRunId);
-    for (const ev of buffer) {
-      if (tree.admit(ev)) channel.push(ev);
-      if (tree.isRootFinish(ev)) channel.close();
-    }
+    for (const ev of buffer) feedRunEvent(tree, channel, ev);
     buffer.length = 0;
   };
 
-  return { events: makeIterable(channel, cleanup), bind };
+  return { events: iterableOf(channel, bindLifecycle(channel, unsub, signal)), bind };
 }
 
 /** Subscribe to a background task's updates (background.subscribe). */
@@ -236,7 +225,6 @@ export function streamBackgroundUpdates(
   signal?: AbortSignal,
 ): AsyncIterable<BackgroundTask> {
   const channel = createPushPullChannel<BackgroundTask>();
-
   const unsub = client.subscribe(BACKGROUND_UPDATE_METHOD, (msg) => {
     if (channel.closed) return;
     const task = parseBackgroundTask(msg.params);
@@ -244,39 +232,5 @@ export function streamBackgroundUpdates(
     channel.push(task as BackgroundTask);
     if (task.status !== "running") channel.close();
   });
-
-  const onAbort = () => channel.close();
-  if (signal) {
-    if (signal.aborted) channel.close();
-    else signal.addEventListener("abort", onAbort, { once: true });
-  }
-
-  let cleaned = false;
-  const cleanup = () => {
-    if (cleaned) return;
-    cleaned = true;
-    unsub();
-    if (signal) signal.removeEventListener("abort", onAbort);
-  };
-
-  return {
-    [Symbol.asyncIterator]() {
-      const inner = channel.iterator();
-      return {
-        [Symbol.asyncIterator]() {
-          return this;
-        },
-        next: async (): Promise<IteratorResult<BackgroundTask>> => {
-          const result = await inner.next();
-          if (result.done) cleanup();
-          return result;
-        },
-        return: async (): Promise<IteratorResult<BackgroundTask>> => {
-          channel.close();
-          cleanup();
-          return { value: undefined as never, done: true };
-        },
-      };
-    },
-  };
+  return iterableOf(channel, bindLifecycle(channel, unsub, signal));
 }

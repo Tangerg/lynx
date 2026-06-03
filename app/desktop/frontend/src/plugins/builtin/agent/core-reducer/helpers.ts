@@ -26,7 +26,7 @@ import type {
 // Formatting / naming
 // ---------------------------------------------------------------------------
 
-export function formatTime(iso?: string): string {
+function formatTime(iso?: string): string {
   const d = iso ? new Date(iso) : new Date();
   const safe = Number.isNaN(d.getTime()) ? new Date() : d;
   const h = safe.getHours() % 12 || 12;
@@ -39,7 +39,7 @@ const ROLE_DISPLAY_NAME: Record<MessageRole, string> = {
   assistant: "Assistant",
   system: "System",
 };
-export function nameForRole(role: MessageRole): string {
+function nameForRole(role: MessageRole): string {
   return ROLE_DISPLAY_NAME[role];
 }
 
@@ -53,7 +53,7 @@ export function blockStatus(status: ItemStatus): BlockStatus {
 // Wire Item → view projections
 // ---------------------------------------------------------------------------
 
-export function contentText(blocks: WireContentBlock[]): string {
+function contentText(blocks: WireContentBlock[]): string {
   return blocks
     .filter((b): b is Extract<WireContentBlock, { type: "text" }> => b.type === "text")
     .map((b) => b.text)
@@ -75,7 +75,7 @@ export function mapPlan(steps: PlanStep[]): PlanItem[] {
   }));
 }
 
-export function mapQuestion(q: Question): QuestionItem[] {
+function mapQuestion(q: Question): QuestionItem[] {
   return q.fields.map((f) =>
     f.type === "choice"
       ? {
@@ -102,7 +102,7 @@ export function mapQuestion(q: Question): QuestionItem[] {
 }
 
 /** Human-readable label for a tool invocation (the toolCall row title). */
-export function toolLabel(tool: ToolInvocation): string {
+function toolLabel(tool: ToolInvocation): string {
   switch (tool.kind) {
     case "command":
       return tool.command;
@@ -118,7 +118,7 @@ export function toolLabel(tool: ToolInvocation): string {
 }
 
 /** Derive view ToolCall fields from a (possibly completed) toolCall Item. */
-export function toolFields(tool: ToolInvocation): Partial<ToolCall> {
+function toolFields(tool: ToolInvocation): Partial<ToolCall> {
   switch (tool.kind) {
     case "command":
       return { result: tool.output };
@@ -138,7 +138,7 @@ export function toolFields(tool: ToolInvocation): Partial<ToolCall> {
   }
 }
 
-export function toolStatus(item: Extract<Item, { type: "toolCall" }>): ToolCallStatus {
+function toolStatus(item: Extract<Item, { type: "toolCall" }>): ToolCallStatus {
   if (item.error || item.status === "incomplete") return "err";
   if (item.status === "inProgress") return "running";
   return "ok";
@@ -157,10 +157,7 @@ function mutateMessage(
 }
 
 /** Ensure an open assistant-turn message exists; return its id + next state. */
-export function ensureTurn(
-  state: AgentViewState,
-  itemId: string,
-): { state: AgentViewState; id: string } {
+function ensureTurn(state: AgentViewState, itemId: string): { state: AgentViewState; id: string } {
   const open =
     state.turnMessageId && state.messages.some((m) => m.id === state.turnMessageId)
       ? state.turnMessageId
@@ -207,7 +204,7 @@ export function patchBlock(
 /** Upsert: patch the matching block if present, else append a fresh one to
  *  the turn. Used by item.completed handlers (item.started may have been
  *  missed on durable replay / history hydration). */
-export function upsertBlock(
+function upsertBlock(
   state: AgentViewState,
   itemId: string,
   match: (b: ContentBlock) => boolean,
@@ -226,4 +223,101 @@ export function updateTool(
   const existing = state.toolCalls[id];
   if (!existing) return state;
   return { ...state, toolCalls: { ...state.toolCalls, [id]: fn(existing) } };
+}
+
+// ---------------------------------------------------------------------------
+// Per-item folds — shared by item.started (append) and item.completed
+// (upsert). started/completed differ only in the block status they stamp,
+// so both call through here; the upsert keeps durable replay / history
+// hydration idempotent (a re-seen item patches in place, never duplicates).
+// ---------------------------------------------------------------------------
+
+type ItemOf<T extends Item["type"]> = Extract<Item, { type: T }>;
+
+/** Append a user-message bubble (opens a fresh assistant turn). Idempotent —
+ *  a re-seen id is a no-op, dodging React's duplicate-key warning. */
+export function appendUserMessage(
+  state: AgentViewState,
+  item: ItemOf<"userMessage">,
+  status: BlockStatus,
+): AgentViewState {
+  if (state.messages.some((m) => m.id === item.id)) return state;
+  const msg: Message = {
+    id: item.id,
+    role: "user",
+    who: nameForRole("user"),
+    time: formatTime(item.createdAt),
+    blocks: [{ kind: "text", text: contentText(item.content), status }],
+  };
+  return { ...state, messages: [...state.messages, msg], turnMessageId: null };
+}
+
+/** Upsert the agentMessage text block for an item. */
+export function foldText(
+  state: AgentViewState,
+  item: ItemOf<"agentMessage">,
+  status: BlockStatus,
+): AgentViewState {
+  const text = contentText(item.content);
+  return upsertBlock(
+    state,
+    item.id,
+    (b) => b.kind === "text" && b.itemId === item.id,
+    () => ({ kind: "text", itemId: item.id, text, status }),
+    (b) => (b.kind === "text" ? { ...b, text, status } : b),
+  );
+}
+
+/** Upsert the reasoning block for an item. */
+export function foldReasoning(
+  state: AgentViewState,
+  item: ItemOf<"reasoning">,
+  status: BlockStatus,
+): AgentViewState {
+  return upsertBlock(
+    state,
+    item.id,
+    (b) => b.kind === "reasoning" && b.reasoningId === item.id,
+    () => ({ kind: "reasoning", reasoningId: item.id, text: item.text, status }),
+    (b) => (b.kind === "reasoning" ? { ...b, text: item.text, status } : b),
+  );
+}
+
+/** Upsert the question block for an item (only `status` changes once shown). */
+export function foldQuestion(
+  state: AgentViewState,
+  item: ItemOf<"question">,
+  status: BlockStatus,
+): AgentViewState {
+  return upsertBlock(
+    state,
+    item.id,
+    (b) => b.kind === "question" && b.itemId === item.id,
+    () => ({ kind: "question", status, itemId: item.id, questions: mapQuestion(item.question) }),
+    (b) => (b.kind === "question" ? { ...b, status } : b),
+  );
+}
+
+/** Ensure the tool block + write its toolCalls entry; preserves any
+ *  accumulated arg text. Returns the next state + the resolved ToolCall (the
+ *  caller stamps the matching tool-start / tool-end timeline entry). */
+export function writeToolCall(
+  state: AgentViewState,
+  item: ItemOf<"toolCall">,
+  duration: string,
+): { state: AgentViewState; tool: ToolCall } {
+  const withBlock =
+    state.toolCalls[item.id] === undefined
+      ? appendToTurn(state, item.id, { kind: "tool", toolCallId: item.id })
+      : state;
+  const prev = withBlock.toolCalls[item.id];
+  const tool: ToolCall = {
+    id: item.id,
+    fn: toolLabel(item.tool),
+    args: prev?.args ?? "",
+    status: toolStatus(item),
+    duration,
+    ...toolFields(item.tool),
+  };
+  return { state: { ...withBlock, toolCalls: { ...withBlock.toolCalls, [item.id]: tool } }, tool };
 }

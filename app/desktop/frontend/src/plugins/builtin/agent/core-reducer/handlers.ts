@@ -20,23 +20,20 @@ import type {
   StreamEvent,
 } from "@/rpc";
 import type { StreamEventHandler } from "@/plugins/sdk";
-import type { AgentViewState, ContentBlock, ToolCall } from "@/protocol/run/viewState";
+import type { AgentViewState, ContentBlock } from "@/protocol/run/viewState";
 import { applyPatch, deepClone } from "fast-json-patch";
 import { appendTimelineEntry, patchRun, setPlan } from "@/plugins/sdk";
 import {
   appendToTurn,
+  appendUserMessage,
   blockStatus,
-  contentText,
-  formatTime,
+  foldQuestion,
+  foldReasoning,
+  foldText,
   mapPlan,
-  mapQuestion,
-  nameForRole,
   patchBlock,
-  toolFields,
-  toolLabel,
-  toolStatus,
   updateTool,
-  upsertBlock,
+  writeToolCall,
 } from "./helpers";
 
 const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
@@ -147,62 +144,18 @@ function onRunFinished(state: AgentViewState, outcome: RunOutcome): AgentViewSta
 
 function onItemStarted(state: AgentViewState, item: Item): AgentViewState {
   switch (item.type) {
-    case "userMessage": {
-      const msg = {
-        id: item.id,
-        role: "user" as const,
-        who: nameForRole("user"),
-        time: formatTime(item.createdAt),
-        blocks: [
-          {
-            kind: "text" as const,
-            text: contentText(item.content),
-            status: blockStatus(item.status),
-          },
-        ],
-      };
-      // A user message opens a fresh assistant turn.
-      return { ...state, messages: [...state.messages, msg], turnMessageId: null };
-    }
+    case "userMessage":
+      return appendUserMessage(state, item, blockStatus(item.status));
     case "agentMessage":
-      return appendToTurn(state, item.id, {
-        kind: "text",
-        itemId: item.id,
-        text: contentText(item.content),
-        status: blockStatus(item.status),
-      });
+      return foldText(state, item, blockStatus(item.status));
     case "reasoning":
-      return appendToTurn(state, item.id, {
-        kind: "reasoning",
-        reasoningId: item.id,
-        text: item.text,
-        status: blockStatus(item.status),
-      });
+      return foldReasoning(state, item, blockStatus(item.status));
     case "toolCall": {
-      const withBlock = appendToTurn(state, item.id, { kind: "tool", toolCallId: item.id });
-      const tool: ToolCall = {
-        id: item.id,
-        fn: toolLabel(item.tool),
-        args: "",
-        status: toolStatus(item),
-        duration: "LIVE",
-        ...toolFields(item.tool),
-      };
-      const withTool: AgentViewState = {
-        ...withBlock,
-        toolCalls: { ...withBlock.toolCalls, [item.id]: tool },
-      };
-      return appendTimelineEntry({ kind: "tool-start", refId: item.id, summary: tool.fn })(
-        withTool,
-      );
+      const { state: next, tool } = writeToolCall(state, item, "LIVE");
+      return appendTimelineEntry({ kind: "tool-start", refId: item.id, summary: tool.fn })(next);
     }
     case "question":
-      return appendToTurn(state, item.id, {
-        kind: "question",
-        status: blockStatus(item.status),
-        itemId: item.id,
-        questions: mapQuestion(item.question),
-      });
+      return foldQuestion(state, item, blockStatus(item.status));
     case "plan":
       return setPlan(mapPlan(item.steps))(state);
   }
@@ -241,75 +194,23 @@ function onItemDelta(state: AgentViewState, itemId: string, delta: ItemDelta): A
 
 function onItemCompleted(state: AgentViewState, item: Item): AgentViewState {
   switch (item.type) {
-    case "userMessage": {
-      if (state.messages.some((m) => m.id === item.id)) return state;
-      const msg = {
-        id: item.id,
-        role: "user" as const,
-        who: nameForRole("user"),
-        time: formatTime(item.createdAt),
-        blocks: [
-          { kind: "text" as const, text: contentText(item.content), status: "complete" as const },
-        ],
-      };
-      return { ...state, messages: [...state.messages, msg], turnMessageId: null };
-    }
+    case "userMessage":
+      return appendUserMessage(state, item, "complete");
     case "agentMessage":
-      return upsertBlock(
-        state,
-        item.id,
-        (b) => b.kind === "text" && b.itemId === item.id,
-        () => ({
-          kind: "text",
-          itemId: item.id,
-          text: contentText(item.content),
-          status: "complete",
-        }),
-        (b) =>
-          b.kind === "text" ? { ...b, text: contentText(item.content), status: "complete" } : b,
-      );
+      return foldText(state, item, "complete");
     case "reasoning":
-      return upsertBlock(
-        state,
-        item.id,
-        (b) => b.kind === "reasoning" && b.reasoningId === item.id,
-        () => ({ kind: "reasoning", reasoningId: item.id, text: item.text, status: "complete" }),
-        (b) => (b.kind === "reasoning" ? { ...b, text: item.text, status: "complete" } : b),
-      );
+      return foldReasoning(state, item, "complete");
     case "toolCall": {
-      const fields = toolFields(item.tool);
-      const status = toolStatus(item);
-      const withBlock =
-        state.toolCalls[item.id] === undefined
-          ? appendToTurn(state, item.id, { kind: "tool", toolCallId: item.id })
-          : state;
-      const prev: ToolCall = withBlock.toolCalls[item.id] ?? {
-        id: item.id,
-        fn: toolLabel(item.tool),
-        args: "",
-        status,
-        duration: "",
-      };
-      const next: AgentViewState = {
-        ...withBlock,
-        toolCalls: {
-          ...withBlock.toolCalls,
-          [item.id]: { ...prev, fn: toolLabel(item.tool), status, duration: "", ...fields },
-        },
-      };
+      const { state: next, tool } = writeToolCall(state, item, "");
       return appendTimelineEntry({
         kind: "tool-end",
         refId: item.id,
-        status: status === "err" ? "err" : "ok",
-        summary: next.toolCalls[item.id]?.fn,
+        status: tool.status === "err" ? "err" : "ok",
+        summary: tool.fn,
       })(next);
     }
     case "question":
-      return patchBlock(
-        state,
-        (b) => b.kind === "question" && b.itemId === item.id,
-        (b) => (b.kind === "question" ? { ...b, status: blockStatus(item.status) } : b),
-      );
+      return foldQuestion(state, item, blockStatus(item.status));
     case "plan":
       return setPlan(mapPlan(item.steps))(state);
   }
