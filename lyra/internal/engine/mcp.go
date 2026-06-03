@@ -29,7 +29,7 @@ func dialMCPServers(ctx context.Context, servers []mcp.ServerConfig) ([]chat.Too
 	// One client identity for every server — none of lyra's MCP
 	// connections need per-server client handlers (sampling /
 	// list-changed), so they share it.
-	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "lyra", Version: "v0.1.0"}, nil)
+	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "runtime", Version: "v0.1.0"}, nil)
 
 	seenNames := make(map[string]struct{}, len(servers))
 	sources := make([]mcp.Source, 0, len(servers))

@@ -86,7 +86,7 @@ type ChatOutput struct {
 // same ToolMiddleware loop; tool events surface via the
 // ToolDecorator path independently of the text-delta path.
 func (e *Engine) buildChatAgent() *core.Agent {
-	return agent.New("lyra-chat").
+	return agent.New("chat-agent").
 		Description("single-turn LLM chat with the default coding tool set").
 		Actions(agent.NewAction("chat",
 			func(ctx context.Context, pc *core.ProcessContext, in ChatInput) (ChatOutput, error) {
@@ -188,7 +188,7 @@ func recoverToolLoop() chat.ToolLoopConfig {
 // planApprovedKey is the blackboard condition the plan-mode approval
 // writes (true = approved, false = rejected). Its presence is also the
 // "already decided" signal — see planGate.
-const planApprovedKey = "lyra.plan.approved"
+const planApprovedKey = "plan.approved"
 
 // planGate is the plan-mode pre-flight, run INSIDE the agent process so
 // the pause is a real [core.StatusWaiting] the runtime can persist /

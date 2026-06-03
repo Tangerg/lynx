@@ -42,7 +42,7 @@ func (l *turnLifecycle) setRoot(id string) {
 }
 
 func (l *turnLifecycle) listener(turnID string) *event.NamedListener {
-	return event.NewNamedListener("lyra-chat-lifecycle-"+turnID, func(e event.Event) {
+	return event.NewNamedListener("chat-lifecycle-"+turnID, func(e event.Event) {
 		switch e.(type) {
 		case event.ProcessCompleted,
 			event.ProcessKilled,

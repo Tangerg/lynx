@@ -103,7 +103,7 @@ type toolObserverDecorator struct {
 // Name implements [core.Extension]. The constant string is fine —
 // process-scope extensions allow name collisions with platform
 // scope, and this decorator is process-scoped.
-func (d *toolObserverDecorator) Name() string { return "lyra-tool-observer" }
+func (d *toolObserverDecorator) Name() string { return "tool-observer" }
 
 // DecorateTool wraps tool with [observedTool], threading the
 // observer into every Call so start / end notifications fire.

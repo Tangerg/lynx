@@ -81,7 +81,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// exactly those (registered now); ToolRoleCoding gets them plus the
 	// `task` delegation tool, registered below once that tool exists
 	// (it needs the platform). Register is last-write-wins.
-	resolver := core.NewStaticToolGroupResolver("lyra-tools")
+	resolver := core.NewStaticToolGroupResolver("coding-tools")
 	resolver.Register(ToolRoleSubtask, newToolGroup(ToolRoleSubtask, leafTools))
 
 	memStore := cfg.MemoryStore

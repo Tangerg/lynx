@@ -95,7 +95,7 @@ func approvalKey(toolName, arguments string) string {
 	_, _ = h.Write([]byte(toolName))
 	_, _ = h.Write([]byte{0})
 	_, _ = h.Write([]byte(arguments))
-	return "lyra.approval." + strconv.FormatUint(h.Sum64(), 16)
+	return "approval." + strconv.FormatUint(h.Sum64(), 16)
 }
 
 func (t *turnObserver) OnToolCallStart(callID, toolName, arguments string) {
