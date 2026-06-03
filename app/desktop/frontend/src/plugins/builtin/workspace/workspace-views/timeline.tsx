@@ -11,7 +11,7 @@
 // for the entry shape.
 
 import type { IconName } from "@/components/common";
-import type { TimelineEntry, TimelineEntryKind } from "@/protocol/agui/viewState";
+import type { TimelineEntry, TimelineEntryKind } from "@/protocol/run/viewState";
 import { EmptyState, Icon, IconButton } from "@/components/common";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { cn } from "@/lib/utils";

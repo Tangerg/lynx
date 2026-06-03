@@ -1,4 +1,4 @@
-import type { BlockStatus, QuestionItem } from "@/protocol/agui/viewState";
+import type { BlockStatus, QuestionItem } from "@/protocol/run/viewState";
 import { useMemo, useState } from "react";
 import { PillButton } from "@/components/common";
 import { HitlCardShell, HitlSettledRow } from "@/components/chat/HitlCard";
@@ -10,11 +10,12 @@ interface Props {
   /** Block lifecycle. `"requires-action"` shows the interactive card;
    *  `"complete"` (or `answered`) collapses to a settled row. */
   status: BlockStatus;
-  /** Backend id used to POST the answer back. Absent ⇒ decorative preview
-   *  with no submit button (pre-HITL). */
-  requestId?: string;
+  /** The interrupted Run + the question Item — the HITL resume target
+   *  (API.md §6). Absent ⇒ decorative preview with no submit button. */
+  parentRunId?: string;
+  itemId?: string;
   questions: QuestionItem[];
-  /** Set by the agui-handlers reducer once lyra.question-result lands. */
+  /** Set once the answer is submitted (optimistic) / the run resolves. */
   answered?: boolean;
 }
 
@@ -54,15 +55,14 @@ function toAnswers(questions: QuestionItem[], draft: Draft): QuestionAnswers {
 // Clarifying-question card — pure presentation. Submitting state lives in
 // useQuestionAnswer; this component owns the local selection draft.
 //
-// HITL flow (parallels ApprovalCard):
-//   1. Backend raises lyra.question { requestId, questions }
-//   2. Reducer materialises a question block (status="requires-action")
-//   3. User selects / types → useQuestionAnswer POSTs runs.question.answer
-//   4. Backend continues the run + emits lyra.question-result
-//   5. Reducer stamps `answered` + flips status → card settles
-export function QuestionCard({ status, requestId, questions, answered }: Props) {
+// HITL flow (R-model, API.md §6; parallels ApprovalCard):
+//   1. Run ends with a question Interrupt → reducer materialises a question
+//      block (status="requires-action") bound to { parentRunId, itemId }
+//   2. User selects / types → useQuestionAnswer starts a continuation Run
+//      via runs.resume + optimistically settles the card (resolveInterrupt)
+export function QuestionCard({ status, parentRunId, itemId, questions, answered }: Props) {
   const t = useT();
-  const { submit, pending } = useQuestionAnswer(requestId);
+  const { submit, pending } = useQuestionAnswer(parentRunId, itemId);
   const [draft, setDraft] = useState<Draft>(() => emptyDraft(questions));
 
   const settled = status === "complete" || answered;
@@ -97,7 +97,7 @@ export function QuestionCard({ status, requestId, questions, answered }: Props) 
     });
   };
 
-  const disabled = !requestId || !allAnswered;
+  const disabled = !parentRunId || !itemId || !allAnswered;
 
   return (
     <HitlCardShell tone="accent" icon="chat" label={t("question.required")}>

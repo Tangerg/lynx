@@ -2,8 +2,8 @@
 // observability, or background service rather than a user-facing
 // component contribution.
 
-import type { AbstractAgent } from "@ag-ui/client";
 import type { ComponentType } from "react";
+import type { InterruptResponse, RunEvent, RunId, StreamingResult } from "@/rpc";
 
 // ---------------------------------------------------------------------------
 // Notifications — persistent feed surfaced by host.notify().
@@ -98,21 +98,44 @@ export interface DataProviderSpec<T = unknown> {
 // ---------------------------------------------------------------------------
 
 /**
- * A provider for the AG-UI agent that drives the chat. The default ships an
- * HttpAgent against the local Go backend; alternative sources can implement
- * a WebSocket variant, mock streamer, etc.
+ * Drives one chat session over the Lyra Runtime Protocol: starts runs and
+ * resumes interrupted ones, returning the RunEvent stream for each. The
+ * orchestration (pumping events into agentStore, abort/cancel) lives in
+ * `useAgentSession`; the driver is just the session-bound RPC surface.
+ */
+export interface AgentDriver {
+  /** Start a new run from user text; resolves with the run's event stream. */
+  start: (
+    text: string,
+    signal?: AbortSignal,
+  ) => Promise<StreamingResult<{ runId: RunId }, RunEvent>>;
+  /**
+   * Resume the interrupted run `parentRunId` with HITL responses — starts a
+   * continuation Run and returns its event stream (API.md §6).
+   */
+  resume: (
+    parentRunId: RunId,
+    responses: InterruptResponse[],
+    signal?: AbortSignal,
+  ) => Promise<StreamingResult<{ runId: RunId }, RunEvent>>;
+}
+
+/**
+ * A provider for the agent driver that powers the chat. The default drives
+ * the local Lyra Runtime over JSON-RPC; alternative sources can implement a
+ * recorded-fixture replayer, a mock streamer, etc.
  *
- * Only one source is active at a time — kernel-chat resolves to the
- * first spec sorted by `priority`. Higher priority wins; a user plugin
- * can override the built-in by registering at priority > 0.
+ * Only one source is active at a time — kernel-chat resolves to the first
+ * spec sorted by `priority`. Higher priority wins; a user plugin can
+ * override the built-in by registering at priority > 0.
  */
 export interface AgentSourceSpec {
   id: string;
   label: string;
   /** Higher wins. Built-in defaults use 0. */
   priority?: number;
-  /** Build a fresh agent for each session. */
-  factory: () => AbstractAgent;
+  /** Build a fresh driver for each session. */
+  factory: () => AgentDriver;
 }
 
 // ---------------------------------------------------------------------------

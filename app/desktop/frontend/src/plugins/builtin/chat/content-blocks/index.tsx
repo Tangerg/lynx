@@ -28,7 +28,8 @@ export const approvalBlock = definePlugin({
           what={block.text}
           cmd={block.command}
           reason={block.reason}
-          requestId={block.requestId}
+          parentRunId={block.parentRunId}
+          itemId={block.itemId}
           decision={block.decision}
           args={block.args}
           risk={block.risk}
@@ -50,7 +51,8 @@ export const questionBlock = definePlugin({
       ({ block }: ContentBlockRendererProps<"question">) => (
         <QuestionCard
           status={block.status}
-          requestId={block.requestId}
+          parentRunId={block.parentRunId}
+          itemId={block.itemId}
           questions={block.questions}
           answered={block.answered}
         />

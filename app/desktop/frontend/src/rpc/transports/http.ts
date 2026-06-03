@@ -1,22 +1,22 @@
 // HTTPTransport — JSON-RPC over HTTP for the Web frontend (and any
-// future remote/facade scenarios). See docs/TRANSPORT.md §4.3 +
-// docs/API.md §10.
+// future remote/facade scenarios). See docs/TRANSPORT.md §6-§9.
 //
 // Wire endpoints:
-//   - POST /v1/rpc/{method}   — single form, no bare /v1/rpc fallback
-//   - GET  /v1/rpc/stream     — SSE stream of inbound notifications
+//   - POST /v2/rpc/{method}   — single form, no bare /v2/rpc fallback
+//   - GET  /v2/rpc/stream     — SSE stream of inbound notifications
 //
 // The notification stream is consumed via `fetch` + a ReadableStream reader,
 // NOT the native `EventSource`. EventSource is GET-only and can't set request
 // headers, which forced the connection id into a `?conn=` query and left the
-// reconnect behaviour opaque. The fetch reader sends `Lyra-Connection-Id`
+// reconnect behaviour opaque. The fetch reader sends `X-Conn-Id`
 // (+ Authorization + Last-Event-Id) as real headers — identical to the POST
 // path — and gives full control over parsing + reconnect.
 //
-// HTTP status mapping (docs/API.md §7.3):
-//   200/204     → ack received, JSON-RPC Response (if any) in body
-//   400/404/409 → JSON-RPC error envelope in body
-//   401/500/503 → flat JSON {error, traceId?} — surfaced as RpcTransportError
+// HTTP status mapping (docs/TRANSPORT.md §6.3):
+//   200         → JSON-RPC Response in body (may carry business error)
+//   202         → client Notification accepted; no body
+//   400/404/409 → transport-layer failure
+//   401/500/503 → flat JSON — surfaced as RpcTransportError
 
 import { createPushPullChannel } from "../channel";
 import { RpcTransportError } from "../errors";
@@ -46,15 +46,15 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
   let lastEventId: string | null = null;
 
   // Connection id ties this client's POSTs to its notification stream
-  // (API.md §3.2). Sent as the `Lyra-Connection-Id` header on BOTH the POSTs
-  // and the SSE GET (plus a `?conn=` query for backends that read the query).
+  // (TRANSPORT.md §2 / §8). Sent as the `X-Conn-Id` header on BOTH the POSTs
+  // and the SSE GET (plus a `?conn=` query — EventSource-style backends).
   const connId = crypto.randomUUID();
 
   let sseAbort: AbortController | null = null;
   let sseStarted = false;
 
   function authHeaders(extra: Record<string, string>): Record<string, string> {
-    const headers: Record<string, string> = { "Lyra-Connection-Id": connId, ...extra };
+    const headers: Record<string, string> = { "X-Conn-Id": connId, ...extra };
     if (config.localToken) headers.Authorization = `Bearer ${config.localToken}`;
     if (lastEventId) headers["Last-Event-Id"] = lastEventId;
     return headers;
@@ -73,7 +73,7 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
   async function pumpSse(): Promise<void> {
     while (!channel.closed && !sseAbort?.signal.aborted) {
       try {
-        const res = await fetchImpl(`${baseUrl}/v1/rpc/stream?conn=${connId}`, {
+        const res = await fetchImpl(`${baseUrl}/v2/rpc/stream?conn=${connId}`, {
           method: "GET",
           headers: authHeaders({ Accept: "text/event-stream" }),
           signal: sseAbort?.signal,
@@ -132,8 +132,8 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
   async function send(msg: RpcMessage, signal?: AbortSignal): Promise<void> {
     if (channel.closed) throw new RpcTransportError("transport closed");
 
-    // Single URL form: POST /v1/rpc/{method}. Greenfield — no fallback
-    // to bare /v1/rpc. Response messages don't carry method and
+    // Single URL form: POST /v2/rpc/{method}. Greenfield — no fallback
+    // to bare /v2/rpc. Response messages don't carry method and
     // HTTPTransport never sends them (server issues Responses via SSE).
     const method = "method" in msg ? msg.method : undefined;
     if (!method) {
@@ -141,7 +141,7 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
         "HTTP transport only sends Request / Notification messages (which carry a `method`)",
       );
     }
-    const url = `${baseUrl}/v1/rpc/${method}`;
+    const url = `${baseUrl}/v2/rpc/${method}`;
 
     let res: Response;
     try {
@@ -155,8 +155,9 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
       throw new RpcTransportError(`fetch failed: ${(err as Error).message}`);
     }
 
-    // 204 = Notification ack; nothing in body.
-    if (res.status === 204) return;
+    // 202 = client Notification accepted; no body (TRANSPORT.md §6.3).
+    // 204 tolerated for backends that use it for the same ack.
+    if (res.status === 202 || res.status === 204) return;
 
     // 401/500/503 are flat JSON, not envelope (docs/API.md §7.3).
     if (res.status === 401 || res.status === 500 || res.status === 503) {

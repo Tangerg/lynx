@@ -7,14 +7,14 @@
 // summary" affordance.
 
 import type { ReactNode } from "react";
-import type { RunDigest } from "@/protocol/agui/runDigest";
+import type { RunDigest } from "@/protocol/run/runDigest";
 import { useMemo, useState } from "react";
 import { EmptyState, Icon, IconButton } from "@/components/common";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { cn } from "@/lib/utils";
 import { defineWorkspaceView } from "./defineWorkspaceView";
-import { buildPlaintext, deriveLatestRun, durationText } from "@/protocol/agui/runDigest";
-import { INITIAL_VIEW_STATE } from "@/protocol/agui/viewState";
+import { buildPlaintext, deriveLatestRun, durationText } from "@/protocol/run/runDigest";
+import { INITIAL_VIEW_STATE } from "@/protocol/run/viewState";
 import { useAgentSlice } from "@/state/agentStore";
 
 const STATUS_LABEL: Record<RunDigest["status"], { label: string; cls: string }> = {

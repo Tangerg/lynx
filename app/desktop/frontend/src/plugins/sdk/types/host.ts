@@ -8,7 +8,7 @@
 
 import type { ConfigValue } from "../config";
 import type { StateSlice } from "../stateSlice";
-import type { CoreEventHandler, CustomEventHandler } from "./agui";
+import type { StreamEventHandler, CustomEventHandler } from "./events";
 
 import type { CommandSpec } from "./commands";
 import type { ExtensionContributionOptions, ExtensionPoint } from "./extensions";
@@ -24,7 +24,7 @@ import type {
 import type { ContentBlockRenderer } from "./message";
 import type { LoadedPlugin, PluginSpec } from "./plugin";
 import type { LayoutSlotSpec } from "./workspace";
-import type { ContentBlockKind } from "@/protocol/agui/viewState";
+import type { ContentBlockKind } from "@/protocol/run/viewState";
 
 export interface Host {
   message: {
@@ -34,18 +34,19 @@ export interface Host {
       renderer: ContentBlockRenderer<K>,
     ) => Disposable;
   };
-  agui: {
-    /** Subscribe to an AG-UI CUSTOM event by name. */
-    on: <T = unknown>(name: string, handler: CustomEventHandler<T>) => Disposable;
+  events: {
+    /** Subscribe to a `custom` StreamEvent by name (third-party extension). */
+    onCustom: <T = unknown>(name: string, handler: CustomEventHandler<T>) => Disposable;
     /**
-     * Subscribe to an AG-UI *built-in* event type (RUN_STARTED, etc.).
+     * Subscribe to a first-class StreamEvent type (run.started / item.started
+     * / item.delta / item.completed / state.snapshot / …).
      *
      * Handlers chain: the reducer dispatches one event through every plugin
      * registered for its type, in registration order, threading state from
      * one to the next. Throwing isolates to the offending plugin and falls
-     * back to the input state (same isolation policy as `on`).
+     * back to the input state (same isolation policy as `onCustom`).
      */
-    onCore: (eventType: string, handler: CoreEventHandler) => Disposable;
+    onStream: (eventType: string, handler: StreamEventHandler) => Disposable;
   };
   layout: {
     /** Contribute a component to a named kernel region. */

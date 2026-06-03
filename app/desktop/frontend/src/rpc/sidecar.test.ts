@@ -53,6 +53,6 @@ describe("SidecarClient", () => {
       fetch: stub as unknown as typeof fetch,
     });
     await client.health();
-    expect(seen[0]).toBe("http://x/v1/health");
+    expect(seen[0]).toBe("http://x/v2/health");
   });
 });

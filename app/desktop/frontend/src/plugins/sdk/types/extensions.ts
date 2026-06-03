@@ -5,7 +5,7 @@
 // extension point carries arbitrary typed DATA / behaviour, consumed
 // programmatically (a command list, a set of serializers, formatters…). The
 // kernel owns none of these points — a plugin opens one with a string id and
-// others fill it, exactly like `host.agui.on(name, …)` fans an event out to
+// others fill it, exactly like `host.events.onCustom(name, …)` fans an event out to
 // every registered handler.
 
 import type { HostCapability } from "./common";

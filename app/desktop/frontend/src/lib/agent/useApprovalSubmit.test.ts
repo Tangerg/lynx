@@ -1,65 +1,73 @@
-// useApprovalSubmit now drives the JSON-RPC `runs.approval.submit` method
-// (the old HttpPermissionGateway is gone). The one thing worth locking is
-// the decision mapping: the UI vocabulary is "approved" | "declined" but
-// the wire takes the protocol's "approve" | "deny" (API.md §4.3).
+// useApprovalSubmit answers a HITL approval interrupt by starting a
+// continuation Run via the active session's `resume` action (API.md §6,
+// R-model) and optimistically settling the card. The decision maps from the
+// UI vocabulary ("approved"|"declined") to the wire pair ("approve"|"deny",
+// §6.1 ApprovalResponse).
 
 import { act, renderHook } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { resetContainer, setContainer } from "@/main/container";
-import type { Methods } from "@/rpc";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useAgentStore } from "@/state/agentStore";
+import { useSessionStore } from "@/state/sessionStore";
 import { useApprovalSubmit } from "./useApprovalSubmit";
 
-afterEach(resetContainer);
+const SID = "ses_1";
 
-function stubSubmit() {
-  const submit = vi.fn().mockResolvedValue(undefined);
-  setContainer({ methods: () => ({ runs: { approval: { submit } } }) as unknown as Methods });
-  return submit;
+function bindResume() {
+  const resume = vi.fn();
+  useSessionStore.setState({ activeSessionId: SID });
+  useAgentStore.getState().setResume(SID, resume);
+  return resume;
 }
 
+afterEach(() => {
+  useAgentStore.getState().dropSession(SID);
+});
+beforeEach(() => {
+  useAgentStore.getState().dropSession(SID);
+});
+
 describe("useApprovalSubmit", () => {
-  it("maps approved → approve and reflects pending", () => {
-    const submit = stubSubmit();
-    const { result } = renderHook(() => useApprovalSubmit("req-1"));
+  it("maps approved → approve and latches pending", () => {
+    const resume = bindResume();
+    const { result } = renderHook(() => useApprovalSubmit("run_1", "item_1"));
     act(() => result.current.submit("approved"));
-    expect(submit).toHaveBeenCalledWith({ requestId: "req-1", decision: "approve" });
+    expect(resume).toHaveBeenCalledWith("run_1", [
+      { itemId: "item_1", response: { kind: "approval", decision: "approve" } },
+    ]);
     expect(result.current.pending).toBe("approved");
   });
 
   it("maps declined → deny", () => {
-    const submit = stubSubmit();
-    const { result } = renderHook(() => useApprovalSubmit("req-2"));
+    const resume = bindResume();
+    const { result } = renderHook(() => useApprovalSubmit("run_1", "item_2"));
     act(() => result.current.submit("declined"));
-    expect(submit).toHaveBeenCalledWith({ requestId: "req-2", decision: "deny" });
+    expect(resume).toHaveBeenCalledWith("run_1", [
+      { itemId: "item_2", response: { kind: "approval", decision: "deny" } },
+    ]);
   });
 
   it("forwards editedArgs only when provided (approve-with-modified-args)", () => {
-    const submit = stubSubmit();
-    const { result } = renderHook(() => useApprovalSubmit("req-e"));
+    const resume = bindResume();
+    const { result } = renderHook(() => useApprovalSubmit("run_1", "item_e"));
     act(() => result.current.submit("approved", { path: "/safe" }));
-    expect(submit).toHaveBeenCalledWith({
-      requestId: "req-e",
-      decision: "approve",
-      editedArgs: { path: "/safe" },
-    });
-
-    // Without editedArgs the key is omitted entirely (execute original args).
-    const submit2 = stubSubmit();
-    const { result: r2 } = renderHook(() => useApprovalSubmit("req-f"));
-    act(() => r2.current.submit("approved"));
-    expect(submit2).toHaveBeenCalledWith({ requestId: "req-f", decision: "approve" });
+    expect(resume).toHaveBeenCalledWith("run_1", [
+      {
+        itemId: "item_e",
+        response: { kind: "approval", decision: "approve", editedArgs: { path: "/safe" } },
+      },
+    ]);
   });
 
-  it("no-ops without a requestId, and never double-submits", () => {
-    const submit = stubSubmit();
-    const { result } = renderHook(() => useApprovalSubmit(undefined));
+  it("no-ops without a parentRunId/itemId, and never double-submits", () => {
+    const resume = bindResume();
+    const { result } = renderHook(() => useApprovalSubmit(undefined, undefined));
     act(() => result.current.submit("approved"));
-    expect(submit).not.toHaveBeenCalled();
+    expect(resume).not.toHaveBeenCalled();
 
-    const { result: r2 } = renderHook(() => useApprovalSubmit("req-3"));
-    stubSubmit(); // fresh spy on the same container slot
+    const { result: r2 } = renderHook(() => useApprovalSubmit("run_1", "item_3"));
     act(() => r2.current.submit("approved"));
     act(() => r2.current.submit("declined")); // ignored — already pending
     expect(r2.current.pending).toBe("approved");
+    expect(resume).toHaveBeenCalledTimes(1);
   });
 });

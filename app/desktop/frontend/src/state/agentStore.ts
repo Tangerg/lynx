@@ -5,36 +5,37 @@
 // below; they do the active-session lookup + INITIAL_VIEW_STATE
 // fallback that every callsite needs.
 
-import type { BaseEvent } from "@ag-ui/core";
-import type { AgentViewState } from "@/protocol/agui/viewState";
+import type { InterruptResponse, RunId, StreamEvent } from "@/rpc";
+import type { AgentViewState } from "@/protocol/run/viewState";
 import { create } from "zustand";
 import { disposeOnHmr } from "@/lib/hmr";
-import { reduce } from "@/protocol/agui/reducer";
-import { INITIAL_VIEW_STATE } from "@/protocol/agui/viewState";
+import { reduce } from "@/protocol/run/reducer";
+import { INITIAL_VIEW_STATE } from "@/protocol/run/viewState";
 import { useSessionStore } from "./sessionStore";
 
 type StopFn = (() => void) | null;
 type SendFn = ((text: string) => void) | null;
+type ResumeFn = ((parentRunId: RunId, responses: InterruptResponse[]) => void) | null;
 
 interface SessionEntry {
   view: AgentViewState;
   stop: StopFn;
   send: SendFn;
+  resume: ResumeFn;
 }
 
 interface AgentStore {
   sessions: Record<string, SessionEntry>;
 
-  /** Fold one AG-UI event into the named session's view state. */
-  applyEvent: (sessionId: string, event: BaseEvent) => void;
+  /** Fold one StreamEvent into the named session's view state. */
+  applyEvent: (sessionId: string, event: StreamEvent) => void;
   /**
-   * Fold a batch of events into the named session's view state with
-   * a single `set()` — used by the per-frame batcher in
-   * useAgentSession so a burst of streaming TEXT/REASONING/TOOL_ARGS
-   * deltas produces one React commit per frame instead of one per
-   * delta.
+   * Fold a batch of StreamEvents into the named session's view state with
+   * a single `set()` — used by the per-frame batcher in useAgentSession so
+   * a burst of streaming item.delta events produces one React commit per
+   * frame instead of one per delta.
    */
-  applyEvents: (sessionId: string, events: BaseEvent[]) => void;
+  applyEvents: (sessionId: string, events: StreamEvent[]) => void;
   /** Discard a session's state and start clean (e.g. on agent re-mount). */
   resetSession: (sessionId: string) => void;
   /** Remove a session entry entirely (closing the tab — frees view state). */
@@ -43,14 +44,28 @@ interface AgentStore {
   setStop: (sessionId: string, fn: StopFn) => void;
   /** Bind / unbind the imperative send action for a session. */
   setSend: (sessionId: string, fn: SendFn) => void;
+  /** Bind / unbind the imperative HITL resume action for a session. */
+  setResume: (sessionId: string, fn: ResumeFn) => void;
   /** Dismiss the error banner for a session without resetting the rest. */
   clearError: (sessionId: string) => void;
+  /**
+   * Optimistically settle a HITL block after its `runs.resume` is sent:
+   * stamp the approval/question block (by interrupt itemId) + drop the
+   * matching open interrupt. The continuation Run streams the real
+   * follow-up; this just flips the card out of its requires-action state.
+   */
+  resolveInterrupt: (
+    sessionId: string,
+    itemId: string,
+    settled: { decision?: "approved" | "declined"; answered?: boolean },
+  ) => void;
 }
 
 const emptyEntry = (): SessionEntry => ({
   view: INITIAL_VIEW_STATE,
   stop: null,
   send: null,
+  resume: null,
 });
 
 function patch(
@@ -90,6 +105,8 @@ export const useAgentStore = create<AgentStore>((set) => ({
     set((s) => ({ sessions: patch(s.sessions, sessionId, { stop: fn }) })),
   setSend: (sessionId, fn) =>
     set((s) => ({ sessions: patch(s.sessions, sessionId, { send: fn }) })),
+  setResume: (sessionId, fn) =>
+    set((s) => ({ sessions: patch(s.sessions, sessionId, { resume: fn }) })),
   clearError: (sessionId) =>
     set((s) => {
       const prev = s.sessions[sessionId];
@@ -98,6 +115,32 @@ export const useAgentStore = create<AgentStore>((set) => ({
         sessions: patch(s.sessions, sessionId, {
           view: { ...prev.view, error: null },
         }),
+      };
+    }),
+  resolveInterrupt: (sessionId, itemId, settled) =>
+    set((s) => {
+      const prev = s.sessions[sessionId];
+      if (!prev) return s;
+      const view = prev.view;
+      const messages = view.messages.map((m) => {
+        if (!m.blocks.some((b) => "itemId" in b && b.itemId === itemId)) return m;
+        return {
+          ...m,
+          blocks: m.blocks.map((b) => {
+            if (!("itemId" in b) || b.itemId !== itemId) return b;
+            if (b.kind === "approval")
+              return { ...b, status: "complete" as const, decision: settled.decision };
+            if (b.kind === "question")
+              return { ...b, status: "complete" as const, answered: settled.answered ?? true };
+            return b;
+          }),
+        };
+      });
+      const openInterrupts = view.openInterrupts.filter(
+        (oi) => !oi.interrupts.some((i) => i.itemId === itemId),
+      );
+      return {
+        sessions: patch(s.sessions, sessionId, { view: { ...view, messages, openInterrupts } }),
       };
     }),
 }));

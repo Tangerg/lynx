@@ -11,14 +11,6 @@
 // overrides later in the manifest.
 
 import type { PluginSpec } from "../sdk";
-import {
-  approvalHandler,
-  codeProposalHandler,
-  planHandler,
-  questionHandler,
-  searchResultsHandler,
-  telemetryHandler,
-} from "./chat/agui-handlers";
 import appearance from "./settings/appearance";
 import personalization from "./settings/personalization";
 import chatSearch from "./chat/chat-search";
@@ -54,7 +46,6 @@ import {
 } from "./shell/defaults";
 import diagnostics from "./workspace/diagnostics";
 import globalKeymap from "./command/global-keymap";
-import httpAgent from "./agent/http-agent";
 import iconGallery from "./settings/icon-gallery";
 import rpcAgent from "./agent/rpc-agent";
 import { kernelChat, kernelSettings, kernelSidebar } from "./shell/kernel";
@@ -94,17 +85,12 @@ import {
 } from "./workspace/workspace-views";
 
 // ---------------------------------------------------------------------------
-// Protocol — fold AG-UI events into view state.
+// Protocol — fold v2 RunEvents (run.* / item.* / state.*) into view state.
+// All semantics (messages, reasoning, tools, plan, questions, HITL) are
+// first-class Items now, so the single core-reducer owns the whole fold;
+// `custom` StreamEvents are reserved for third-party plugins.
 // ---------------------------------------------------------------------------
-const protocol: PluginSpec[] = [
-  coreReducer, // RUN_* / TEXT_* / TOOL_* / REASONING_*
-  planHandler, // CUSTOM "lyra.plan" / "lyra.plan-block"
-  codeProposalHandler,
-  searchResultsHandler,
-  approvalHandler,
-  questionHandler, // CUSTOM "lyra.question" / "lyra.question-result"
-  telemetryHandler,
-];
+const protocol: PluginSpec[] = [coreReducer];
 
 // ---------------------------------------------------------------------------
 // Configuration & infrastructure.
@@ -115,7 +101,6 @@ const infrastructure: PluginSpec[] = [
   // handshake builds the RpcClient (API.md §2 Lifecycle).
   bootstrap,
   defaultData,
-  httpAgent,
   rpcAgent,
   defaultTitle,
   defaultAccents,

@@ -13,7 +13,7 @@
 
 import { create } from "zustand";
 
-export type PluginErrorSource = "setup" | "render" | "agui" | "command" | "other";
+export type PluginErrorSource = "setup" | "render" | "events" | "command" | "other";
 
 export interface PluginError {
   id: number;

@@ -1,4 +1,4 @@
-import type { PlanItem } from "@/protocol/agui/viewState";
+import type { PlanItem } from "@/protocol/run/viewState";
 import { PlanCheck, planItemRow } from "@/components/chat/PlanCheck";
 import { Icon, PillButton } from "@/components/common";
 

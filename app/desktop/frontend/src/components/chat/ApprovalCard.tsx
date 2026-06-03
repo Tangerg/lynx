@@ -1,5 +1,5 @@
 import type { ApprovalDecision } from "@/lib/agent/useApprovalSubmit";
-import type { BlockStatus } from "@/protocol/agui/viewState";
+import type { BlockStatus } from "@/protocol/run/viewState";
 import { useState } from "react";
 import { Divider, Icon, PillButton } from "@/components/common";
 import { HitlCardShell, HitlSettledRow } from "@/components/chat/HitlCard";
@@ -17,11 +17,12 @@ interface Props {
   what: string;
   cmd: string;
   reason: string;
-  /** Backend-generated id used to POST the decision back. When absent the
-   *  card renders as a decorative pre-HITL preview with no buttons. */
-  requestId?: string;
-  /** Set by the agui-handlers reducer once the backend has confirmed
-   *  receipt of the decision via the lyra.approval-result event. */
+  /** The interrupted Run + the toolCall Item awaiting approval — the HITL
+   *  resume target (API.md §6). When either is absent the card is a
+   *  decorative pre-HITL preview with no buttons. */
+  parentRunId?: string;
+  itemId?: string;
+  /** Set once the decision is submitted (optimistic) / the run resolves. */
   decision?: ApprovalDecision;
   /** Tool arguments about to be executed. When present, the card lets the
    *  user edit them before approving (approve-with-modified-args, §4.3). */
@@ -70,18 +71,19 @@ const SCOPE_CHIP_DEFAULT = "border-line bg-surface-2 text-fg-muted";
 //                           or optimistic checkpoint while a submit is in
 //                           flight (pending mirrors the user's last click)
 //
-// HITL flow:
-//   1. Backend Approval(...) step → emit lyra.approval { requestId }
-//   2. Reducer materialises an approval content block with status="requires-action"
-//   3. User clicks → useApprovalSubmit POSTs /permission
-//   4. Backend resolves the chan, script emits lyra.approval-result
-//   5. Reducer stamps `decision` + flips status to "complete" → card swaps
+// HITL flow (R-model, API.md §6):
+//   1. Run ends with outcome.type="interrupt" carrying an approval Interrupt
+//   2. Reducer materialises an approval block (status="requires-action")
+//      bound to { parentRunId, itemId }
+//   3. User clicks → useApprovalSubmit starts a continuation Run via
+//      runs.resume + optimistically settles the card (resolveInterrupt)
 export function ApprovalCard({
   status,
   what,
   cmd,
   reason,
-  requestId,
+  parentRunId,
+  itemId,
   decision,
   args,
   risk,
@@ -90,7 +92,7 @@ export function ApprovalCard({
   reversible,
 }: Props) {
   const t = useT();
-  const { submit, pending } = useApprovalSubmit(requestId);
+  const { submit, pending } = useApprovalSubmit(parentRunId, itemId);
 
   // Editable-args state. The textarea seeds from the original args; on
   // approve we re-parse it and forward `editedArgs` only when it changed.
@@ -126,9 +128,9 @@ export function ApprovalCard({
     return <Divider icon={<Icon name="x" size={11} />}>{t("approval.settled.declined")}</Divider>;
   }
 
-  // Pre-decision card. Buttons disabled when no requestId (decorative
+  // Pre-decision card. Buttons disabled when not resumable (decorative
   // preview) or while a request is in flight.
-  const disabled = !requestId || pending !== null;
+  const disabled = !parentRunId || !itemId || pending !== null;
   const effectiveRisk: Risk = risk ?? "medium";
   return (
     <HitlCardShell

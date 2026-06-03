@@ -40,13 +40,13 @@ const pluginLoadHistogram = meter.createHistogram("lyra.plugin.load.duration", {
   unit: "ms",
 });
 
-const eventCounter = meter.createCounter("lyra.agui.event.count", {
-  description: "Number of AG-UI events processed",
+const eventCounter = meter.createCounter("lyra.run.event.count", {
+  description: "Number of run StreamEvents processed",
 });
 
 /**
  * Wrap one synchronous reducer call. Records duration + bumps the
- * AG-UI event counter, both tagged with `eventType`. Re-throws on
+ * StreamEvent counter, both tagged with `eventType`. Re-throws on
  * error so the reducer's existing error path keeps working.
  */
 export function measureReduce<T>(eventType: string, fn: () => T): T {

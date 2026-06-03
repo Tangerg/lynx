@@ -1,4 +1,4 @@
-import type { BlockStatus } from "@/protocol/agui/viewState";
+import type { BlockStatus } from "@/protocol/run/viewState";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { MarkdownMessage } from "@/components/chat/MarkdownMessage";

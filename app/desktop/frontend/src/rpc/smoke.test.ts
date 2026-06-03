@@ -1,40 +1,45 @@
-// End-to-end smoke test — exercises the full happy path of the Lyra
-// Runtime Protocol (docs/API.md). Uses MemoryTransport to simulate the
-// server, so this test runs in CI without any backend dependency.
+// End-to-end smoke test — exercises the happy path of the Lyra Runtime
+// Protocol v2 (docs/API.md). Uses MemoryTransport to simulate the server,
+// so this runs in CI without any backend dependency.
 //
-// Once the real backend is up, the same scenario validates wire
-// compatibility by swapping MemoryTransport for HTTPTransport (just
-// change the `createMemoryTransport()` call). The interleavings of
-// requests / responses / notifications encoded here ARE the protocol
-// contract the frontend depends on.
+// Swapping MemoryTransport for HTTPTransport validates wire compatibility
+// against the real backend. The request / response / notification
+// interleavings encoded here ARE the protocol contract.
 //
 // Coverage:
-//   1. runtime.initialize     (handshake + capability negotiation)
-//   2. sessions.create        (Session shape)
-//   3. runs.start             (immediate Response with runId, then event stream)
-//   4. notifications/run/event stream consumption (AG-UI events)
-//   5. lyra.approval HITL pause → runs.approval.submit → run continues
-//   6. notifications/run/closed terminates the events iterator
-//   7. Final event sequence assertion
+//   1. runtime.initialize          (handshake + capability negotiation)
+//   2. sessions.create             (Session shape, default cwd)
+//   3. runs.start                  (immediate {runId}, then RunEvent stream)
+//   4. item.* + run.* StreamEvents (the v2 Item model)
+//   5. run.finished{interrupt}     (R-model HITL — Run ends, resources freed)
+//   6. runs.resume                 (continuation Run answering the interrupt)
+//   7. run.finished{completed}     (terminates the stream)
 
 import { afterEach, describe, expect, it } from "vitest";
 import { createMemoryTransport, type MemoryTransport } from "./transports/memory";
 import {
-  injectRunClosed,
   injectRunEvent,
+  injectRunFinished,
   respondSuccess,
   waitForRequest,
 } from "./transports/memory.testkit";
 import { createRpcClient, type RpcClient } from "./client";
-import { asApprovalRequestId, asMessageId, asSessionId } from "./ids";
+import { asItemId, asRunId, asSessionId } from "./ids";
 import { createMethods, type Methods } from "./methods";
-import { JSONRPC_VERSION } from "./types";
+import type { Item, RunEvent } from "./shapes";
 
-// ---------------------------------------------------------------------------
-// Scenario
-// ---------------------------------------------------------------------------
+function agentMessageItem(id: string, runId: string, text: string, status: Item["status"]): Item {
+  return {
+    id: asItemId(id),
+    runId: asRunId(runId),
+    status,
+    createdAt: "2026-06-03T00:00:00Z",
+    type: "agentMessage",
+    content: [{ type: "text", text }],
+  };
+}
 
-describe("smoke: end-to-end happy path", () => {
+describe("smoke: v2 end-to-end happy path", () => {
   let transport: MemoryTransport;
   let client: RpcClient;
   let methods: Methods;
@@ -43,184 +48,160 @@ describe("smoke: end-to-end happy path", () => {
     await client.close();
   });
 
-  it("initialize → create session → start run → events with HITL pause → close", async () => {
+  it("initialize → create → start → interrupt → resume → completed", async () => {
     transport = createMemoryTransport();
     client = createRpcClient(transport);
     methods = createMethods(client);
 
     // ---- Step 1: runtime.initialize ---------------------------------------
     const initPromise = methods.runtime.initialize({
-      protocolVersion: "2026-05-28",
+      protocolVersion: "2026-06-03",
       clientInfo: { name: "smoke-test", version: "0.1" },
       capabilities: {
-        events: { standard: ["TEXT_MESSAGE_START", "RUN_FINISHED"], custom: ["lyra.approval"] },
-        features: { multimodal: false, markdown: true },
+        events: ["run.started", "run.finished", "item.started", "item.delta", "item.completed"],
+        features: {},
+        interruptKinds: ["approval", "question"],
       },
     });
     const initReq = await waitForRequest(transport, "runtime.initialize");
-    expect(initReq.params).toMatchObject({
-      protocolVersion: "2026-05-28",
-      clientInfo: { name: "smoke-test" },
-    });
+    expect(initReq.params).toMatchObject({ protocolVersion: "2026-06-03" });
     respondSuccess(transport, initReq.id, {
-      protocolVersion: "2026-05-28",
-      serverInfo: { name: "lyra-core", version: "0.8.1" },
+      protocolVersion: "2026-06-03",
+      serverInfo: { name: "lyra-runtime", version: "0.0.0", cwd: "/work", home: "/home/u" },
       capabilities: {
-        events: {
-          standard: [
-            "TEXT_MESSAGE_START",
-            "TEXT_MESSAGE_CONTENT",
-            "TEXT_MESSAGE_END",
-            "RUN_STARTED",
-            "RUN_FINISHED",
-            "STEP_STARTED",
-            "STEP_FINISHED",
-          ],
-          custom: ["lyra.approval", "lyra.approval-result"],
-        },
-        features: {
-          multimodal: false,
-          reasoning: false,
-          checkpoints: false,
-          interrupts: false,
-          background: false,
-          subagents: false,
-          skills: false,
-          mcp: true,
-          sessionExport: false,
-          attachments: { enabled: false },
-        },
-        providers: ["openai", "anthropic"],
-        limits: {},
+        protocolVersion: "2026-06-03",
+        events: ["run.started", "run.finished", "item.started", "item.delta", "item.completed"],
+        features: { reasoning: true, mcp: true, relocate: true, attachments: { enabled: false } },
+        providers: ["anthropic"],
+        limits: { maxConcurrentRuns: 8 },
       },
     });
     const init = await initPromise;
-    expect(init.serverInfo.name).toBe("lyra-core");
-    expect(init.protocolVersion).toBe("2026-05-28");
-    expect(init.capabilities.providers).toEqual(["openai", "anthropic"]);
+    expect(init.serverInfo.cwd).toBe("/work");
+    expect(init.capabilities.providers).toEqual(["anthropic"]);
 
     // ---- Step 2: sessions.create ------------------------------------------
     const createPromise = methods.sessions.create({ title: "smoke" });
     const createReq = await waitForRequest(transport, "sessions.create");
     expect(createReq.params).toEqual({ title: "smoke" });
     respondSuccess(transport, createReq.id, {
-      id: "s1",
+      id: "ses_1",
       title: "smoke",
       status: "idle",
-      model: "gpt-4",
-      createdAt: "2026-05-28T00:00:00Z",
-      updatedAt: "2026-05-28T00:00:00Z",
+      model: "claude",
+      cwd: "/work",
+      createdAt: "2026-06-03T00:00:00Z",
+      updatedAt: "2026-06-03T00:00:00Z",
       metadata: {},
     });
     const session = await createPromise;
-    expect(session.id).toBe("s1");
-    expect(session.status).toBe("idle");
+    expect(session.id).toBe("ses_1");
+    expect(session.cwd).toBe("/work");
 
-    // ---- Step 3: runs.start (immediate Response + event stream) -----------
+    // ---- Step 3: runs.start -----------------------------------------------
     const startPromise = methods.runs.start({
-      sessionId: asSessionId("s1"),
-      messages: [
-        {
-          id: asMessageId("u1"),
-          sessionId: asSessionId("s1"),
-          role: "user",
-          content: "list files in cwd",
-          createdAt: "2026-05-28T00:00:01Z",
-        },
-      ],
+      sessionId: asSessionId("ses_1"),
+      input: [{ type: "text", text: "list files" }],
+      mode: "agent",
     });
     const startReq = await waitForRequest(transport, "runs.start");
-    expect(startReq.params).toMatchObject({ sessionId: "s1" });
-    respondSuccess(transport, startReq.id, { runId: "r1" });
-    const { result: runResult, events } = await startPromise;
-    expect(runResult.runId).toBe("r1");
+    expect(startReq.params).toMatchObject({ sessionId: "ses_1" });
+    respondSuccess(transport, startReq.id, { runId: "run_1" });
+    const { result: started, events } = await startPromise;
+    expect(started.runId).toBe("run_1");
 
-    // ---- Step 4 + 5: drive events until HITL pause ------------------------
-    // Inject the first batch: RUN_STARTED → STEP_STARTED → TEXT_MESSAGE_START
-    // → TEXT_MESSAGE_CONTENT (partial) → CUSTOM lyra.approval
+    // ---- Step 4 + 5: drive items until the interrupt ----------------------
     setTimeout(() => {
-      injectRunEvent(transport, "r1", "1", { type: "RUN_STARTED", runId: "r1" });
-      injectRunEvent(transport, "r1", "2", { type: "STEP_STARTED", stepName: "deciding" });
-      injectRunEvent(transport, "r1", "3", { type: "TEXT_MESSAGE_START", messageId: "m1" });
-      injectRunEvent(transport, "r1", "4", {
-        type: "TEXT_MESSAGE_CONTENT",
-        messageId: "m1",
-        delta: "I need to run `ls`. ",
+      injectRunEvent(transport, "run_1", "evt_1", {
+        type: "run.started",
+        run: { id: asRunId("run_1"), sessionId: asSessionId("ses_1") },
       });
-      injectRunEvent(transport, "r1", "5", {
-        type: "CUSTOM",
-        name: "lyra.approval",
-        value: {
-          requestId: "approval-1",
-          parentMessageId: "m1",
-          text: "Run shell command?",
-          command: "ls",
-          reason: "list files in cwd",
+      injectRunEvent(transport, "run_1", "evt_2", {
+        type: "item.started",
+        item: agentMessageItem("item_1", "run_1", "", "inProgress"),
+      });
+      injectRunEvent(
+        transport,
+        "run_1",
+        "evt_3",
+        {
+          type: "item.delta",
+          itemId: asItemId("item_1"),
+          delta: { type: "content", text: "Running ls…" },
+        },
+        false,
+      );
+      injectRunEvent(transport, "run_1", "evt_4", {
+        type: "item.started",
+        item: {
+          id: asItemId("item_tool"),
+          runId: asRunId("run_1"),
+          status: "inProgress",
+          createdAt: "2026-06-03T00:00:00Z",
+          type: "toolCall",
+          tool: { kind: "command", command: "ls" },
         },
       });
+      // R-model HITL: the run ENDS with an interrupt for the tool approval.
+      injectRunFinished(transport, "run_1", "evt_5", {
+        type: "interrupt",
+        interrupts: [
+          { itemId: asItemId("item_tool"), kind: "approval", payload: { command: "ls" } },
+        ],
+      });
     }, 0);
 
-    // Consume events manually so we can pause mid-stream without
-    // calling `iterator.return()` (which would close the channel).
-    const collected: Array<Record<string, unknown>> = [];
-    const iter = events[Symbol.asyncIterator]();
-    let approvalRequestId: string | null = null;
+    const firstRun: RunEvent[] = [];
+    for await (const ev of events) firstRun.push(ev);
+    const finish = firstRun.at(-1)!;
+    expect(finish.event.type).toBe("run.finished");
+    expect(finish.event.type === "run.finished" && finish.event.outcome.type).toBe("interrupt");
+    const interrupt =
+      finish.event.type === "run.finished" && finish.event.outcome.type === "interrupt"
+        ? finish.event.outcome.interrupts[0]!
+        : null;
+    expect(interrupt?.itemId).toBe("item_tool");
 
-    for (let i = 0; i < 5; i++) {
-      const next = await iter.next();
-      if (next.done) throw new Error("stream ended before approval");
-      collected.push(next.value as Record<string, unknown>);
-      const ev = next.value as { type: string; name?: string; value?: { requestId: string } };
-      if (ev.type === "CUSTOM" && ev.name === "lyra.approval") {
-        approvalRequestId = ev.value?.requestId ?? null;
-        break;
-      }
-    }
-    expect(approvalRequestId).toBe("approval-1");
-
-    // ---- Step 6: runs.approval.submit (user approves) ---------------------
-    const approvePromise = methods.runs.approval.submit({
-      requestId: asApprovalRequestId("approval-1"),
-      decision: "approve",
+    // ---- Step 6: runs.resume (approve) ------------------------------------
+    const resumePromise = methods.runs.resume({
+      parentRunId: asRunId("run_1"),
+      responses: [
+        { itemId: asItemId("item_tool"), response: { kind: "approval", decision: "approve" } },
+      ],
     });
-    const approveReq = await waitForRequest(transport, "runs.approval.submit");
-    expect(approveReq.params).toEqual({
-      requestId: "approval-1",
-      decision: "approve",
-    });
-    respondSuccess(transport, approveReq.id, null);
-    await approvePromise;
+    const resumeReq = await waitForRequest(transport, "runs.resume");
+    expect(resumeReq.params).toMatchObject({ parentRunId: "run_1" });
+    respondSuccess(transport, resumeReq.id, { runId: "run_2" });
+    const { result: resumed, events: resumeEvents } = await resumePromise;
+    expect(resumed.runId).toBe("run_2");
 
-    // ---- Step 7: continue events through to RUN_FINISHED + run/closed -----
+    // ---- Step 7: continuation run completes -------------------------------
     setTimeout(() => {
-      injectRunEvent(transport, "r1", "6", {
-        type: "CUSTOM",
-        name: "lyra.approval-result",
-        value: { requestId: "approval-1", decision: "approve" },
+      injectRunEvent(transport, "run_2", "evt_1", {
+        type: "run.started",
+        run: {
+          id: asRunId("run_2"),
+          sessionId: asSessionId("ses_1"),
+          parentRunId: asRunId("run_1"),
+        },
       });
-      injectRunEvent(transport, "r1", "7", {
-        type: "TEXT_MESSAGE_CONTENT",
-        messageId: "m1",
-        delta: "Done. Found 5 files.",
+      injectRunEvent(transport, "run_2", "evt_2", {
+        type: "item.completed",
+        item: agentMessageItem("item_2", "run_2", "Found 5 files.", "completed"),
       });
-      injectRunEvent(transport, "r1", "8", { type: "TEXT_MESSAGE_END", messageId: "m1" });
-      injectRunEvent(transport, "r1", "9", { type: "STEP_FINISHED", stepName: "deciding" });
-      injectRunEvent(transport, "r1", "10", { type: "RUN_FINISHED", runId: "r1" });
-      injectRunClosed(transport, "r1");
+      injectRunFinished(transport, "run_2", "evt_3", {
+        type: "completed",
+        result: { usage: { inputTokens: 100, outputTokens: 20 }, steps: 2 },
+      });
     }, 0);
 
-    while (true) {
-      const next = await iter.next();
-      if (next.done) break;
-      collected.push(next.value as Record<string, unknown>);
-    }
-
-    // ---- Final assertions -------------------------------------------------
-    expect(collected).toHaveLength(10);
-    expect(collected[0]).toMatchObject({ type: "RUN_STARTED" });
-    expect(collected[4]).toMatchObject({ type: "CUSTOM", name: "lyra.approval" });
-    expect(collected[5]).toMatchObject({ type: "CUSTOM", name: "lyra.approval-result" });
-    expect(collected[9]).toMatchObject({ type: "RUN_FINISHED" });
+    const secondRun: RunEvent[] = [];
+    for await (const ev of resumeEvents) secondRun.push(ev);
+    expect(secondRun.map((e) => e.event.type)).toEqual([
+      "run.started",
+      "item.completed",
+      "run.finished",
+    ]);
   });
 
   it("foreign-run events are filtered out (cross-run isolation)", async () => {
@@ -228,28 +209,29 @@ describe("smoke: end-to-end happy path", () => {
     client = createRpcClient(transport);
     methods = createMethods(client);
 
-    // Skip the handshake — capability gating is asserted in the main
-    // scenario; here we focus on the per-runId filter contract.
     const startPromise = methods.runs.start({
-      sessionId: asSessionId("s1"),
-      messages: [],
+      sessionId: asSessionId("ses_1"),
+      input: [{ type: "text", text: "hi" }],
     });
     const req = await waitForRequest(transport, "runs.start");
-    respondSuccess(transport, req.id, { runId: "ours" });
+    respondSuccess(transport, req.id, { runId: "run_ours" });
     const { events } = await startPromise;
 
     setTimeout(() => {
-      // Foreign run — must not leak in.
-      injectRunEvent(transport, "other", "1", { type: "STOLEN_EVENT" });
-      // Our run.
-      injectRunEvent(transport, "ours", "1", { type: "OK_EVENT" });
-      injectRunClosed(transport, "ours");
+      injectRunEvent(transport, "run_other", "evt_1", {
+        type: "item.completed",
+        item: agentMessageItem("item_x", "run_other", "stolen", "completed"),
+      });
+      injectRunEvent(transport, "run_ours", "evt_1", {
+        type: "item.completed",
+        item: agentMessageItem("item_ok", "run_ours", "ok", "completed"),
+      });
+      injectRunFinished(transport, "run_ours", "evt_2");
     }, 0);
 
-    const collected: Array<{ type?: string }> = [];
-    for await (const ev of events) collected.push(ev as { type?: string });
-    expect(collected).toHaveLength(1);
-    expect(collected[0]!.type).toBe("OK_EVENT");
+    const collected: RunEvent[] = [];
+    for await (const ev of events) collected.push(ev);
+    expect(collected.map((e) => e.runId)).toEqual(["run_ours", "run_ours"]);
   });
 
   it("malformed notification params are dropped (Zod boundary)", async () => {
@@ -258,28 +240,29 @@ describe("smoke: end-to-end happy path", () => {
     methods = createMethods(client);
 
     const startPromise = methods.runs.start({
-      sessionId: asSessionId("s1"),
-      messages: [],
+      sessionId: asSessionId("ses_1"),
+      input: [{ type: "text", text: "hi" }],
     });
     const req = await waitForRequest(transport, "runs.start");
-    respondSuccess(transport, req.id, { runId: "r1" });
+    respondSuccess(transport, req.id, { runId: "run_1" });
     const { events } = await startPromise;
 
     setTimeout(() => {
-      // Malformed: missing eventId (required by RunEventParamsSchema).
+      // Malformed: missing eventId/timestamp/durable (required by envelope schema).
       transport.inject({
-        jsonrpc: JSONRPC_VERSION,
-        method: "notifications/run/event",
-        params: { runId: "r1", event: { type: "GARBAGE" } },
+        jsonrpc: "2.0",
+        method: "notifications.run.event",
+        params: { runId: "run_1", event: { type: "item.started" } },
       });
-      // Well-formed follow-up — must still arrive.
-      injectRunEvent(transport, "r1", "1", { type: "OK_EVENT" });
-      injectRunClosed(transport, "r1");
+      injectRunEvent(transport, "run_1", "evt_1", {
+        type: "item.completed",
+        item: agentMessageItem("item_ok", "run_1", "ok", "completed"),
+      });
+      injectRunFinished(transport, "run_1", "evt_2");
     }, 0);
 
-    const collected: Array<{ type?: string }> = [];
-    for await (const ev of events) collected.push(ev as { type?: string });
-    expect(collected).toHaveLength(1);
-    expect(collected[0]!.type).toBe("OK_EVENT");
+    const collected: RunEvent[] = [];
+    for await (const ev of events) collected.push(ev);
+    expect(collected.map((e) => e.event.type)).toEqual(["item.completed", "run.finished"]);
   });
 });

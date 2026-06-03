@@ -8,7 +8,7 @@
 // inline preview is for "I want a quick visual"; this is for "I want
 // the truth".
 
-import type { ToolCall } from "@/protocol/agui/viewState";
+import type { ToolCall } from "@/protocol/run/viewState";
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 

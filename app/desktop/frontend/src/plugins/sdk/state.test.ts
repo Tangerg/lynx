@@ -1,6 +1,6 @@
-import type { AgentViewState, Message } from "@/protocol/agui/viewState";
+import type { AgentViewState, Message } from "@/protocol/run/viewState";
 import { describe, expect, it } from "vitest";
-import { INITIAL_VIEW_STATE } from "@/protocol/agui/viewState";
+import { INITIAL_VIEW_STATE } from "@/protocol/run/viewState";
 import {
   appendBlockToLatestAssistant,
   appendBlockToMessage,

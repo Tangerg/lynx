@@ -1,5 +1,5 @@
 import type { IconName } from "@/components/common";
-import type { ToolCall } from "@/protocol/agui/viewState";
+import type { ToolCall } from "@/protocol/run/viewState";
 import { AnimatePresence, motion } from "motion/react";
 import { Icon } from "@/components/common";
 import { swift } from "@/lib/motion";

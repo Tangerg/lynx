@@ -10,7 +10,7 @@ import type { Methods, ServerCapabilities } from "@/rpc";
 import { useRuntimeStore } from "@/state/runtimeStore";
 import bootstrap from "./index";
 
-const fakeCapabilities = { features: {}, providers: [], events: { standard: [], custom: [] } };
+const fakeCapabilities = { protocolVersion: "2026-06-03", features: {}, providers: [], events: [] };
 
 function stubContainer(initialize: Methods["runtime"]["initialize"]) {
   setContainer({
@@ -28,8 +28,8 @@ afterEach(() => {
 describe("bootstrap handshake", () => {
   it("negotiates runtime.initialize and stores the result", async () => {
     const initialize = vi.fn().mockResolvedValue({
-      protocolVersion: "2026-05-28",
-      serverInfo: { name: "lyra-runtime", version: "1.2.3" },
+      protocolVersion: "2026-06-03",
+      serverInfo: { name: "lyra-runtime", version: "1.2.3", cwd: "/w", home: "/h" },
       capabilities: fakeCapabilities as unknown as ServerCapabilities,
     });
     stubContainer(initialize);
@@ -37,13 +37,13 @@ describe("bootstrap handshake", () => {
     await loadPlugin(bootstrap);
 
     await vi.waitFor(() => {
-      expect(useRuntimeStore.getState().protocolVersion).toBe("2026-05-28");
+      expect(useRuntimeStore.getState().protocolVersion).toBe("2026-06-03");
     });
-    // The declared capabilities reached the runtime — custom events carry
-    // the HITL switches.
-    const sent = initialize.mock.calls[0]![0] as { capabilities: { events: { custom: string[] } } };
-    expect(sent.capabilities.events.custom).toContain("lyra.approval");
-    expect(sent.capabilities.events.custom).toContain("lyra.question");
+    // The declared capabilities reached the runtime — interruptKinds carry
+    // the HITL switches (API.md §6.2).
+    const sent = initialize.mock.calls[0]![0] as { capabilities: { interruptKinds: string[] } };
+    expect(sent.capabilities.interruptKinds).toContain("approval");
+    expect(sent.capabilities.interruptKinds).toContain("question");
     expect(useRuntimeStore.getState().serverName).toBe("lyra-runtime");
   });
 

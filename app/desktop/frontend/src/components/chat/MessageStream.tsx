@@ -1,5 +1,5 @@
 import type { PartCtx } from "./PartRenderer";
-import type { Message } from "@/protocol/agui/viewState";
+import type { Message } from "@/protocol/run/viewState";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect } from "react";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";

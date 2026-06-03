@@ -11,7 +11,8 @@
 // this module.
 
 import type { MemoryTransport } from "./memory";
-import type { RunResult } from "../shapes";
+import type { RunOutcome, StreamEvent } from "../shapes";
+import { RUN_EVENT_METHOD } from "../stream";
 import {
   JSONRPC_VERSION,
   isRequest,
@@ -62,26 +63,31 @@ export function injectNotification(t: MemoryTransport, method: string, params: u
   t.inject({ jsonrpc: JSONRPC_VERSION, method, params });
 }
 
-/** Inject a `notifications/run/event` carrying an AG-UI event payload. */
+/** Inject a `notifications.run.event` carrying a v2 StreamEvent (§5). A
+ *  fixed timestamp keeps fixtures stable; `durable` defaults to true. */
 export function injectRunEvent(
   t: MemoryTransport,
   runId: string,
   eventId: string,
-  event: Record<string, unknown>,
+  event: StreamEvent,
+  durable = true,
 ): void {
-  // `ts` is required by RunEventParamsSchema (§3.1 — every event carries a
-  // server-authoritative timestamp). A fixed stamp keeps fixtures stable.
-  injectNotification(t, "notifications/run/event", {
+  injectNotification(t, RUN_EVENT_METHOD, {
     runId,
     eventId,
-    ts: "2025-01-01T00:00:00Z",
+    timestamp: "2026-06-03T00:00:00Z",
+    durable,
     event,
   });
 }
 
-/** Inject `notifications/run/closed` — terminates a run's event stream.
- *  Per §3.1 it carries a RunResult; the stream only needs `runId` to close,
- *  so `result` is optional for fixtures that don't assert on it. */
-export function injectRunClosed(t: MemoryTransport, runId: string, result?: RunResult): void {
-  injectNotification(t, "notifications/run/closed", result ? { runId, result } : { runId });
+/** Inject a `run.finished` StreamEvent for the root run — terminates the
+ *  stream (v2 has no separate "closed" method, §5). */
+export function injectRunFinished(
+  t: MemoryTransport,
+  runId: string,
+  eventId: string,
+  outcome: RunOutcome = { type: "completed", result: {} },
+): void {
+  injectRunEvent(t, runId, eventId, { type: "run.finished", outcome });
 }

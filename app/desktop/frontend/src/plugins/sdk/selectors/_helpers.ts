@@ -45,8 +45,8 @@ export function useDeclaredMerged<D extends { id: string }, R extends { id: stri
  * the source Map reference auto-invalidates on mutation. Subsequent
  * lookups against the same epoch are O(1).
  *
- * Used to flip three hot-path scans (lookupCoreEventHandlers,
- * lookupCustomEventHandlers, useLayoutSlot) from O(n) per AG-UI
+ * Used to flip three hot-path scans (lookupStreamHandlers,
+ * lookupCustomHandlers, useLayoutSlot) from O(n) per AG-UI
  * event / Slot render into O(n) once per registry mutation.
  */
 export function createIndex<S, V>(extract: (owned: Owned<S>) => { key: string; value: V }) {

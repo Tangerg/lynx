@@ -37,7 +37,7 @@ export type BeforeUnloadHandler = () => void;
 export type HostCapability =
   | "tool"
   | "message"
-  | "agui"
+  | "events"
   | "layout"
   | "workspace"
   | "theme"

@@ -1,4 +1,4 @@
-// Public surface of the Lyra Runtime Protocol client. See docs/API.md.
+// Public surface of the Lyra Runtime Protocol v2 client. See docs/API.md.
 //
 // Typical wiring (composition root, main/container.ts):
 //
@@ -7,9 +7,9 @@
 //   const methods   = createMethods(client);
 //   const sidecar   = createSidecarClient({ baseUrl });
 //
-// Then call:
-//   await sidecar.info();                  // pre-handshake liveness
-//   await methods.runtime.initialize({...}); // handshake
+// Then:
+//   await sidecar.info();                     // pre-handshake liveness
+//   await methods.runtime.initialize({...});  // handshake
 //   const sessions = await methods.sessions.list();
 //
 // In tests, swap createHttpTransport with createMemoryTransport.
@@ -19,113 +19,114 @@ export type { PushPullChannel } from "./channel";
 export { createRpcClient } from "./client";
 export type { NotificationHandler, RpcClient } from "./client";
 export { RpcError, RpcTransportError } from "./errors";
-export {
-  asApprovalRequestId,
-  asAttachmentId,
-  asMessageId,
-  asRunId,
-  asSessionId,
-  asTaskId,
-  asToolCallId,
-} from "./ids";
-export type {
-  ApprovalRequestId,
-  AttachmentId,
-  MessageId,
-  RunId,
-  SessionId,
-  TaskId,
-  ToolCallId,
-} from "./ids";
+export { asAttachmentId, asEventId, asItemId, asRunId, asSessionId, asTaskId } from "./ids";
+export type { AttachmentId, EventId, ItemId, RunId, SessionId, TaskId } from "./ids";
 export { createMethods } from "./methods";
 export type { Methods, StreamingResult } from "./methods";
 export type {
-  // Capabilities / lifecycle
+  // Lifecycle / capabilities
   ClientCapabilities,
   ServerCapabilities,
+  ServerFeatures,
+  ServerInfo,
+  InterruptKind,
   InitializeRequest,
   InitializeResponse,
   ShutdownRequest,
-  // Sessions / messages
+  CanceledNotification,
+  // Sessions / projects
   Session,
   SessionStatus,
+  Project,
   CreateSessionRequest,
   UpdateSessionRequest,
-  Message,
-  MessageRole,
-  EditMessageResponse,
-  // Context / tools
-  ContextItem,
-  JsonSchema,
-  ToolSpec,
-  ToolCall,
+  ForkSessionRequest,
+  ExportSessionRequest,
+  ExportSessionResponse,
   // Runs
+  RunRef,
+  RunOutcome,
+  RunResult,
   StartRunRequest,
   StartRunResponse,
-  GenerationParams,
-  RunResult,
-  RunSummary,
-  Usage,
-  // HITL approval / questions
-  ApprovalDecision,
-  OnTimeout,
-  ApprovalRequest,
-  SubmitApprovalRequest,
-  ApprovalResult,
+  ResumeRunRequest,
+  ResumeRunResponse,
+  // Items
+  Item,
+  ItemBase,
+  ItemStatus,
+  ItemType,
+  ContentBlock,
+  PlanStep,
   Question,
-  QuestionRequest,
-  AnswerQuestionRequest,
-  QuestionResult,
-  // Workspace
+  QuestionField,
+  QuestionFieldBase,
+  QuestionOption,
+  ToolInvocation,
+  ToolKind,
+  ListItemsRequest,
+  ListItemsResponse,
+  EditItemRequest,
+  EditItemResponse,
+  // Streaming
+  RunEvent,
+  StreamEvent,
+  StreamEventType,
+  ItemDelta,
+  JsonPatch,
+  // HITL
+  Interrupt,
+  OpenInterrupt,
+  InterruptResponse,
+  ApprovalResponse,
+  AnswerResponse,
+  ToolResultResponse,
+  // Diff / search / files
   DiffRow,
+  SearchResult,
   FileChange,
+  FileHead,
   FileLine,
   GrepMatch,
   GrepResult,
-  Project,
-  MCPServer,
-  Skill,
-  AgentDoc,
-  TermLine,
-  TermLineKind,
+  // Usage / error / context / tools
+  Usage,
+  ProblemData,
+  ContextItem,
+  JsonSchema,
+  ToolSpec,
+  GenerationParams,
+  InvokeToolRequest,
   // Providers / models
   Provider,
   ProviderTestResult,
   ConfigureProviderRequest,
   Model,
-  // Attachments / feedback
-  CreateUploadURLRequest,
-  CreateUploadURLResponse,
-  ExportSessionResponse,
-  FeedbackRequest,
-  FeedbackKind,
-  // Background
-  BackgroundStatus,
-  BackgroundTask,
-  BackgroundUpdate,
-  // Memory / direct tool invocation
+  // Workspace optional domains
+  Skill,
+  AgentDoc,
+  McpServer,
+  McpTool,
   MemoryScope,
   MemoryEntry,
-  GetMemoryRequest,
-  GetMemoryResponse,
-  UpdateMemoryRequest,
-  InvokeToolRequest,
-  InvokeToolResponse,
+  WorkspaceQuery,
+  // Attachments / background / feedback
+  Attachment,
+  CreateUploadUrlRequest,
+  CreateUploadUrlResponse,
+  BackgroundTask,
+  FeedbackRequest,
   // Pagination
   Page,
   PageQuery,
-  // Notification params (server → client streaming)
-  RunEvent,
-  RunClosed,
-  TerminalOutput,
 } from "./shapes";
 export {
-  makeFilteredStream,
   streamBackgroundUpdates,
   streamRunEvents,
-  streamTerminalOutput,
+  streamRunEventsDeferred,
+  RUN_EVENT_METHOD,
+  BACKGROUND_UPDATE_METHOD,
 } from "./stream";
-export type { FilteredStreamSpec } from "./stream";
 export { createSidecarClient } from "./sidecar";
 export type { HealthStatus, RuntimeInfo, SidecarClient, SidecarClientConfig } from "./sidecar";
 export { createHttpTransport } from "./transports/http";
@@ -135,22 +136,28 @@ export type { MemoryTransport } from "./transports/memory";
 export type { Transport } from "./transport";
 export {
   JSONRPC_VERSION,
-  RPC_APPROVAL_REQUIRED,
   RPC_ATTACHMENT_TOO_LARGE,
   RPC_CAPABILITY_NOT_NEGOTIATED,
+  RPC_CHECKPOINT_UNAVAILABLE,
+  RPC_CWD_UNAVAILABLE,
+  RPC_IDEMPOTENCY_CONFLICT,
   RPC_INTERNAL_ERROR,
+  RPC_INTERRUPT_NOT_OPEN,
   RPC_INVALID_PARAMS,
   RPC_INVALID_PROTOCOL_VERSION,
   RPC_INVALID_REQUEST,
-  RPC_MESSAGE_NOT_FOUND,
+  RPC_ITEM_NOT_FOUND,
   RPC_METHOD_NOT_FOUND,
   RPC_PARSE_ERROR,
-  RPC_PROTOCOL_VIOLATION,
+  RPC_PATH_OUTSIDE_ROOT,
   RPC_PROVIDER_ERROR,
-  RPC_PROVIDER_RATE_LIMITED,
+  RPC_RUN_ALREADY_FINISHED,
   RPC_RUN_NOT_FOUND,
+  RPC_RUN_NOT_RUNNING,
   RPC_SESSION_NOT_FOUND,
-  RPC_TOOL_FAILED,
+  RPC_TOOL_DENIED,
+  RPC_UNSUPPORTED_MIME,
+  errorType,
 } from "./types";
 export type {
   RpcErrorPayload,

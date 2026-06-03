@@ -10,7 +10,7 @@
 // re-evaluating on every streaming token delta — a real perf cliff
 // once history grows past a handful of turns.
 
-import type { Message } from "@/protocol/agui/viewState";
+import type { Message } from "@/protocol/run/viewState";
 import type { ReactNode } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { Icon } from "@/components/common";

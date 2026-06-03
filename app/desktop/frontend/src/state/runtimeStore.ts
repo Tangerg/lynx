@@ -13,7 +13,7 @@
 // reconnect.
 
 import { create } from "zustand";
-import type { ServerCapabilities } from "@/rpc";
+import type { ServerCapabilities, ServerInfo } from "@/rpc";
 
 interface RuntimeState {
   /** Server name + version (`{name, version}` from initialize result). */
@@ -29,7 +29,7 @@ interface RuntimeState {
    */
   setHandshake: (result: {
     protocolVersion: string;
-    serverInfo: { name: string; version: string };
+    serverInfo: ServerInfo;
     capabilities: ServerCapabilities;
   }) => void;
   /** Drop the handshake (on disconnect / reconnect / shutdown). */
@@ -64,16 +64,21 @@ export const useRuntimeStore = create<RuntimeState>((set) => ({
 // Feature flags the server can advertise via `capabilities.features.*`.
 // Keeping this as a string-literal union (rather than `string`) means
 // typos at the callsite are compile-time errors.
+// Boolean feature flags the server advertises via `capabilities.features.*`
+// (API.md §9). `attachments` is an object, not a boolean, so it's excluded
+// here — read `capabilities.features.attachments` directly when needed.
 export type ServerFeature =
   | "multimodal"
   | "reasoning"
   | "checkpoints"
-  | "interrupts"
   | "background"
   | "subagents"
   | "skills"
   | "mcp"
-  | "sessionExport";
+  | "sessionExport"
+  | "memory"
+  | "relocate"
+  | "clientTools";
 
 /**
  * Returns true iff the server has advertised this feature as enabled.
@@ -84,14 +89,9 @@ export function useServerFeature(feature: ServerFeature): boolean {
   return useRuntimeStore((s) => s.capabilities?.features[feature] === true);
 }
 
-/** Returns true if the server emits a specific AG-UI standard event. */
-export function useServerEmitsStandard(eventType: string): boolean {
-  return useRuntimeStore((s) => s.capabilities?.events.standard.includes(eventType) === true);
-}
-
-/** Returns true if the server emits a specific Lyra CUSTOM event. */
-export function useServerEmitsCustom(eventName: string): boolean {
-  return useRuntimeStore((s) => s.capabilities?.events.custom.includes(eventName) === true);
+/** Returns true if the server emits a specific StreamEvent type (§9). */
+export function useServerEmitsEvent(eventType: string): boolean {
+  return useRuntimeStore((s) => s.capabilities?.events.includes(eventType) === true);
 }
 
 /** Returns true if the named provider is registered server-side. */

@@ -1,75 +1,221 @@
-// Pure (state, ...) → state helpers shared by every handler. No I/O,
-// no protocol-specific shapes — just immutable updates over AgentViewState.
+// Pure (state, …) → state helpers shared by the v2 Item-fold handlers.
+// No I/O — just immutable updates over AgentViewState + small wire→view
+// projections (Item → message bubble + content blocks).
 
-import type { BaseEvent } from "@ag-ui/core";
-import type { CoreEventHandler } from "@/plugins/sdk";
+import type {
+  ContentBlock as WireContentBlock,
+  Item,
+  ItemStatus,
+  PlanStep,
+  Question,
+  ToolInvocation,
+} from "@/rpc";
 import type {
   AgentViewState,
+  BlockStatus,
   ContentBlock,
   Message,
-  TimelineEntry,
+  MessageRole,
+  PlanItem,
+  QuestionItem,
   ToolCall,
-} from "@/protocol/agui/viewState";
-import { appendTimelineEntry } from "@/plugins/sdk";
+  ToolCallStatus,
+} from "@/protocol/run/viewState";
 
-// Erases each handler's specific event variant down to BaseEvent so a
-// uniform `[EventType, CoreEventHandler]` table can carry them all. The
-// per-handler signature still type-checks the event payload it
-// destructures; the cast is only for the table's homogeneous shape.
-export function bind<E extends BaseEvent>(
-  fn: (state: AgentViewState, ev: E) => AgentViewState,
-): CoreEventHandler {
-  return fn as CoreEventHandler;
+// ---------------------------------------------------------------------------
+// Formatting / naming
+// ---------------------------------------------------------------------------
+
+export function formatTime(iso?: string): string {
+  const d = iso ? new Date(iso) : new Date();
+  const safe = Number.isNaN(d.getTime()) ? new Date() : d;
+  const h = safe.getHours() % 12 || 12;
+  const m = String(safe.getMinutes()).padStart(2, "0");
+  return `${h}:${m} ${safe.getHours() >= 12 ? "PM" : "AM"}`;
 }
 
-export function nowTime(): string {
-  const d = new Date();
-  const h = d.getHours() % 12 || 12;
-  const m = String(d.getMinutes()).padStart(2, "0");
-  const meridiem = d.getHours() >= 12 ? "PM" : "AM";
-  return `${h}:${m} ${meridiem}`;
-}
-
-// Display name shown under the avatar. A real backend should drive the
-// assistant name via STATE_SNAPSHOT or a session-level field — pinning
-// "Sonnet 4.5" here is a placeholder until that lands.
-const ROLE_DISPLAY_NAME: Record<Message["role"], string> = {
+const ROLE_DISPLAY_NAME: Record<MessageRole, string> = {
   user: "You",
-  assistant: "Sonnet 4.5",
+  assistant: "Assistant",
   system: "System",
 };
-
-export function nameForRole(role: Message["role"]): string {
+export function nameForRole(role: MessageRole): string {
   return ROLE_DISPLAY_NAME[role];
 }
 
-// Normalize TextMessage* role field — backends sometimes omit it or send
-// "developer" / other variants. We collapse anything non-user/non-system
-// to "assistant" (the common streaming case).
-export function roleFromTextEvent(role: string | undefined): Message["role"] {
-  if (role === "user") return "user";
-  if (role === "system") return "system";
-  return "assistant";
+export function blockStatus(status: ItemStatus): BlockStatus {
+  if (status === "inProgress") return "running";
+  if (status === "incomplete") return "incomplete";
+  return "complete";
 }
 
-// Same idea for MESSAGES_SNAPSHOT — but the default lands on "system"
-// (developer / unknown roles fold there) because snapshot includes both
-// chat turns and protocol noise.
-export function roleFromSnapshotMessage(role: string): Message["role"] {
-  if (role === "user") return "user";
-  if (role === "assistant") return "assistant";
-  return "system";
+// ---------------------------------------------------------------------------
+// Wire Item → view projections
+// ---------------------------------------------------------------------------
+
+export function contentText(blocks: WireContentBlock[]): string {
+  return blocks
+    .filter((b): b is Extract<WireContentBlock, { type: "text" }> => b.type === "text")
+    .map((b) => b.text)
+    .join("");
 }
 
-export function updateMessage(
+const PLAN_STATUS: Record<PlanStep["status"], PlanItem["status"]> = {
+  completed: "done",
+  inProgress: "doing",
+  pending: "todo",
+  failed: "todo",
+};
+export function mapPlan(steps: PlanStep[]): PlanItem[] {
+  return steps.map((s, i) => ({
+    id: i + 1,
+    pid: s.id,
+    status: PLAN_STATUS[s.status],
+    text: s.title,
+  }));
+}
+
+export function mapQuestion(q: Question): QuestionItem[] {
+  return q.fields.map((f) =>
+    f.type === "choice"
+      ? {
+          id: f.name,
+          question: f.label || q.prompt,
+          header: f.header ?? "",
+          options: f.options.map((o) => ({
+            label: o.label,
+            description: o.description ?? "",
+            preview: o.preview,
+          })),
+          multiSelect: !!f.multiple,
+          allowFreeText: false,
+        }
+      : {
+          id: f.name,
+          question: f.label || q.prompt,
+          header: f.header ?? "",
+          options: [],
+          multiSelect: false,
+          allowFreeText: true,
+        },
+  );
+}
+
+/** Human-readable label for a tool invocation (the toolCall row title). */
+export function toolLabel(tool: ToolInvocation): string {
+  switch (tool.kind) {
+    case "command":
+      return tool.command;
+    case "fileEdit":
+      return tool.path;
+    case "mcp":
+      return `${tool.server}.${tool.name}`;
+    case "search":
+      return tool.query;
+    case "subagent":
+      return tool.name ?? "subagent";
+  }
+}
+
+/** Derive view ToolCall fields from a (possibly completed) toolCall Item. */
+export function toolFields(tool: ToolInvocation): Partial<ToolCall> {
+  switch (tool.kind) {
+    case "command":
+      return { result: tool.output };
+    case "fileEdit": {
+      const rows = tool.diff ?? [];
+      return {
+        added: rows.filter((r) => r.type === "added").length,
+        removed: rows.filter((r) => r.type === "deleted").length,
+      };
+    }
+    case "mcp":
+      return { result: tool.result === undefined ? undefined : JSON.stringify(tool.result) };
+    case "search":
+      return { hits: tool.results?.length };
+    case "subagent":
+      return { result: tool.result };
+  }
+}
+
+export function toolStatus(item: Extract<Item, { type: "toolCall" }>): ToolCallStatus {
+  if (item.error || item.status === "incomplete") return "err";
+  if (item.status === "inProgress") return "running";
+  return "ok";
+}
+
+// ---------------------------------------------------------------------------
+// Message / block mutations
+// ---------------------------------------------------------------------------
+
+function mutateMessage(
   state: AgentViewState,
   id: string,
   fn: (m: Message) => Message,
 ): AgentViewState {
+  return { ...state, messages: state.messages.map((m) => (m.id === id ? fn(m) : m)) };
+}
+
+/** Ensure an open assistant-turn message exists; return its id + next state. */
+export function ensureTurn(
+  state: AgentViewState,
+  itemId: string,
+): { state: AgentViewState; id: string } {
+  const open =
+    state.turnMessageId && state.messages.some((m) => m.id === state.turnMessageId)
+      ? state.turnMessageId
+      : null;
+  if (open) return { state, id: open };
+  const id = `turn:${itemId}`;
+  const msg: Message = {
+    id,
+    role: "assistant",
+    who: nameForRole("assistant"),
+    time: formatTime(),
+    blocks: [],
+  };
+  return { state: { ...state, messages: [...state.messages, msg], turnMessageId: id }, id };
+}
+
+/** Append a block to the current assistant turn (creating the turn if needed). */
+export function appendToTurn(
+  state: AgentViewState,
+  itemId: string,
+  block: ContentBlock,
+): AgentViewState {
+  const { state: s, id } = ensureTurn(state, itemId);
+  return mutateMessage(s, id, (m) => ({ ...m, blocks: [...m.blocks, block] }));
+}
+
+/** Patch the first content block matching `match`, across all messages. */
+export function patchBlock(
+  state: AgentViewState,
+  match: (b: ContentBlock) => boolean,
+  patch: (b: ContentBlock) => ContentBlock,
+): AgentViewState {
+  let done = false;
   return {
     ...state,
-    messages: state.messages.map((m) => (m.id === id ? fn(m) : m)),
+    messages: state.messages.map((m) => {
+      if (done || !m.blocks.some(match)) return m;
+      done = true;
+      return { ...m, blocks: m.blocks.map((b) => (match(b) ? patch(b) : b)) };
+    }),
   };
+}
+
+/** Upsert: patch the matching block if present, else append a fresh one to
+ *  the turn. Used by item.completed handlers (item.started may have been
+ *  missed on durable replay / history hydration). */
+export function upsertBlock(
+  state: AgentViewState,
+  itemId: string,
+  match: (b: ContentBlock) => boolean,
+  make: () => ContentBlock,
+  patch: (b: ContentBlock) => ContentBlock,
+): AgentViewState {
+  if (state.messages.some((m) => m.blocks.some(match))) return patchBlock(state, match, patch);
+  return appendToTurn(state, itemId, make());
 }
 
 export function updateTool(
@@ -80,97 +226,4 @@ export function updateTool(
   const existing = state.toolCalls[id];
   if (!existing) return state;
   return { ...state, toolCalls: { ...state.toolCalls, [id]: fn(existing) } };
-}
-
-export function appendBlock(m: Message, block: ContentBlock): Message {
-  return { ...m, blocks: [...m.blocks, block] };
-}
-
-export function appendTextDelta(m: Message, delta: string): Message {
-  const blocks = m.blocks.slice();
-  const last = blocks[blocks.length - 1];
-  if (last && last.kind === "text" && last.status === "running") {
-    blocks[blocks.length - 1] = { ...last, text: last.text + delta };
-    return { ...m, blocks };
-  }
-  blocks.push({ kind: "text", text: delta, status: "running" });
-  return { ...m, blocks };
-}
-
-export function mapReasoning(
-  state: AgentViewState,
-  reasoningId: string,
-  fn: (b: Extract<ContentBlock, { kind: "reasoning" }>) => ContentBlock,
-): AgentViewState {
-  return {
-    ...state,
-    messages: state.messages.map((m) => {
-      let touched = false;
-      const blocks = m.blocks.map((b) => {
-        if (b.kind !== "reasoning" || b.reasoningId !== reasoningId) return b;
-        touched = true;
-        return fn(b);
-      });
-      return touched ? { ...m, blocks } : m;
-    }),
-  };
-}
-
-export function findLastAssistantMessageId(state: AgentViewState): string | null {
-  return state.messages.findLast((m) => m.role === "assistant")?.id ?? null;
-}
-
-export function findMessageById(state: AgentViewState, id: string): Message | undefined {
-  return state.messages.find((m) => m.id === id);
-}
-
-// Walk messages backwards for the most recent still-streaming reasoning
-// block. That's the "currently open" thinking block we should write to.
-export function findActiveThinkingId(state: AgentViewState): string | null {
-  for (let i = state.messages.length - 1; i >= 0; i--) {
-    const m = state.messages[i]!;
-    for (let j = m.blocks.length - 1; j >= 0; j--) {
-      const b = m.blocks[j]!;
-      if (b.kind === "reasoning" && b.status === "running") return b.reasoningId;
-    }
-  }
-  return null;
-}
-
-let thinkingBlockSeq = 0;
-export function nextThinkingId(): string {
-  thinkingBlockSeq += 1;
-  return `thinking:${Date.now()}:${thinkingBlockSeq}`;
-}
-
-// Thin sync wrapper around the SDK's `appendTimelineEntry` so core
-// handlers can use the natural `(state, entry) => state` signature
-// while still sharing the SDK's id-counter — important because both
-// core and custom-event handlers append to the same timeline and
-// owning two counters risked colliding entry ids.
-export function appendTimeline(
-  state: AgentViewState,
-  entry: Omit<TimelineEntry, "id" | "ts" | "runId"> & { runId?: string | null },
-): AgentViewState {
-  return appendTimelineEntry(entry)(state);
-}
-
-export function updateActivity(
-  state: AgentViewState,
-  messageId: string,
-  activityType: string,
-  fn: (prev: unknown) => unknown,
-): AgentViewState {
-  return {
-    ...state,
-    messages: state.messages.map((m) => {
-      if (m.id !== messageId) return m;
-      const prev = m.activities?.[activityType];
-      const next = fn(prev);
-      return {
-        ...m,
-        activities: { ...m.activities, [activityType]: next },
-      };
-    }),
-  };
 }
