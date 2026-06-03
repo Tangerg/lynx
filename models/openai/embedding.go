@@ -17,7 +17,7 @@ import (
 )
 
 type EmbeddingModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *embedding.Options
 	RequestOptions []option.RequestOption
 
@@ -28,12 +28,9 @@ type EmbeddingModelConfig struct {
 	Metadata *embedding.ModelMetadata
 }
 
-func (c *EmbeddingModelConfig) validate() error {
-	if c == nil {
-		return errors.New("openai: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("openai: ApiKey is required")
+func (c EmbeddingModelConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("openai: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("openai: DefaultOptions is required")
@@ -44,18 +41,18 @@ func (c *EmbeddingModelConfig) validate() error {
 var _ embedding.Model = (*EmbeddingModel)(nil)
 
 type EmbeddingModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *embedding.Options
 	metadata       embedding.ModelMetadata
 }
 
-func NewEmbeddingModel(cfg *EmbeddingModelConfig) (*EmbeddingModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	api, err := NewApi(&ApiConfig{
-		ApiKey:         cfg.ApiKey,
+	api, err := NewAPI(APIConfig{
+		APIKey:         cfg.APIKey,
 		RequestOptions: cfg.RequestOptions,
 	})
 	if err != nil {
@@ -69,11 +66,11 @@ func NewEmbeddingModel(cfg *EmbeddingModelConfig) (*EmbeddingModel, error) {
 	return &EmbeddingModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,
-		metadata:           info,
+		metadata:       info,
 	}, nil
 }
 
-func (e *EmbeddingModel) buildApiEmbeddingRequest(req *embedding.Request) (*openai.EmbeddingNewParams, error) {
+func (e *EmbeddingModel) buildAPIEmbeddingRequest(req *embedding.Request) (*openai.EmbeddingNewParams, error) {
 	mergedOpts, err := embedding.MergeOptions(e.defaultOptions, req.Options)
 	if err != nil {
 		return nil, err
@@ -126,7 +123,7 @@ func (e *EmbeddingModel) buildEmbeddingResponse(apiResp *openai.CreateEmbeddingR
 }
 
 func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*embedding.Response, error) {
-	apiReq, err := e.buildApiEmbeddingRequest(req)
+	apiReq, err := e.buildAPIEmbeddingRequest(req)
 	if err != nil {
 		return nil, err
 	}

@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 )
 
 var _ ast.Visitor = (*Visitor)(nil)
@@ -35,7 +35,6 @@ type Visitor struct {
 	metadataPrefix string
 }
 
-
 func NewVisitor(nodeAlias, metadataPrefix string) *Visitor {
 	if nodeAlias == "" {
 		nodeAlias = "node"
@@ -46,7 +45,6 @@ func NewVisitor(nodeAlias, metadataPrefix string) *Visitor {
 		params:         make(map[string]any),
 	}
 }
-
 
 func (v *Visitor) Result() (string, map[string]any) {
 	if v.err != nil {
@@ -82,6 +80,8 @@ func (v *Visitor) visit(expr ast.Expr) error {
 
 func (v *Visitor) visitBinaryExpr(expr *ast.BinaryExpr) error {
 	switch {
+	case expr.Op.Kind.IsNullOperator():
+		return v.visitNullTestExpr(expr)
 	case expr.Op.Kind.IsLogicalOperator():
 		return v.visitLogicalExpr(expr)
 	case expr.Op.Kind.Is(token.IN):
@@ -221,8 +221,26 @@ func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 	return nil
 }
 
+// visitNullTestExpr emits `(node.`+"`metadata.key`"+` IS NULL)`. Cypher's
+// IS NULL is true both when the property is absent and when it is
+// explicitly null, matching the inmemory reference semantics. The
+// negated `IS NOT NULL` arrives as NOT(… IS NULL) and is rendered by
+// visitUnaryExpr as `NOT (… IS NULL)`, which Cypher treats as
+// equivalent, so no separate handling is needed here. No bound
+// parameter — `IS NULL` is inline in Cypher.
+func (v *Visitor) visitNullTestExpr(expr *ast.BinaryExpr) error {
+	prop, err := v.propertyAccess(expr.Left)
+	if err != nil {
+		return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
+	}
+	v.sql.WriteString("(")
+	v.sql.WriteString(prop)
+	v.sql.WriteString(" IS NULL)")
+	return nil
+}
+
 // propertyAccess assembles the Cypher property accessor for the left
-// side of a comparison, e.g. ``node.`metadata.foo` ``.
+// side of a comparison, e.g. “node.`metadata.foo` “.
 func (v *Visitor) propertyAccess(expr ast.Expr) (string, error) {
 	keys, err := filterhelp.CollectKeyPath(expr)
 	if err != nil {
@@ -241,7 +259,6 @@ func (v *Visitor) propertyAccess(expr ast.Expr) (string, error) {
 	escaped := strings.ReplaceAll(propName, "`", "``")
 	return v.nodeAlias + ".`" + escaped + "`", nil
 }
-
 
 func cypherOpFor(kind token.Kind) (string, error) {
 	switch kind {

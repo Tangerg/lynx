@@ -1,8 +1,8 @@
 package redis
 
 import (
-	"context"
 	"cmp"
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -170,13 +170,7 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return errors.New("redis: config must not be nil")
-	}
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+func (c *StoreConfig) Validate() error {
 	if c.Client == nil {
 		return errors.New("redis: Client is required")
 	}
@@ -186,7 +180,14 @@ func (c *StoreConfig) validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("redis: DocumentBatcher is required")
 	}
+	return nil
+}
 
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
 	c.IndexName = cmp.Or(c.IndexName, DefaultIndexName)
 	c.KeyPrefix = cmp.Or(c.KeyPrefix, DefaultKeyPrefix)
 	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
@@ -204,10 +205,12 @@ func (c *StoreConfig) validate() error {
 			c.HNSWEFRuntime = DefaultHNSWEFRuntime
 		}
 	}
-	return nil
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 // Store is a Redis-backed implementation of [vectorstore.Store]. It
 // stores documents as Redis HASHes and queries them through RediSearch
@@ -231,9 +234,9 @@ type Store struct {
 	hnswEFRuntime   int
 }
 
-
-func NewStore(config *StoreConfig) (*Store, error) {
-	if err := config.validate(); err != nil {
+func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -577,6 +580,28 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	}
 }
 
+// DeleteByIDs removes documents by id, resolving each to its HASH key
+// `<KeyPrefix><id>` and issuing a single DEL. An empty slice is a
+// no-op; unknown ids are silently ignored (idempotent). Implements
+// [vectorstore.IDDeleter].
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "redis")
+	defer func() { tracing.Finish(span, err) }()
+
+	keys := make([]string, len(ids))
+	for i, id := range ids {
+		keys[i] = s.keyPrefix + id
+	}
+	if _, err = s.client.Del(ctx, keys...).Result(); err != nil {
+		return fmt.Errorf("redis: DEL: %w", err)
+	}
+	return nil
+}
+
 // buildFilterQuery turns the optional ast.Expr filter into a
 // RediSearch query string. Returns "*" (match-all) when filter is nil,
 // matching the syntax FT.SEARCH expects in front of the KNN tail.
@@ -678,6 +703,5 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 		Provider:     Provider,
 	}
 }
-
 
 func (s *Store) Close() error { return nil }

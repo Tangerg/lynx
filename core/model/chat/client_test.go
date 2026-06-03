@@ -40,7 +40,9 @@ func newFakeChatModel(t *testing.T) *fakeChatModel {
 }
 
 func (m *fakeChatModel) DefaultOptions() chat.Options { return *m.defaultOpts }
-func (m *fakeChatModel) Metadata() chat.ModelMetadata          { return chat.ModelMetadata{Provider: m.provider} }
+func (m *fakeChatModel) Metadata() chat.ModelMetadata {
+	return chat.ModelMetadata{Provider: m.provider}
+}
 
 func (m *fakeChatModel) Call(ctx context.Context, req *chat.Request) (*chat.Response, error) {
 	m.lastReq = req

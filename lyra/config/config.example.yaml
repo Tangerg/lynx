@@ -1,0 +1,35 @@
+# Lyra runtime configuration (viper).
+#
+# Copy this file to config.yaml and fill in your API key:
+#   cp config/config.example.yaml config/config.yaml
+#
+# config.yaml is gitignored (it holds your key). Precedence, later wins:
+#   built-in defaults  <  this file  <  env vars (LYRA_* / {PROVIDER}_API_KEY)  <  CLI flags
+
+# LLM provider: anthropic | openai
+provider: anthropic
+
+# Model id. Empty = provider default
+# (anthropic → claude-3-5-haiku-20241022, openai → gpt-4o-mini).
+model: ""
+
+# Provider API key. Overridden by ANTHROPIC_API_KEY / OPENAI_API_KEY env if set.
+apiKey: ""
+
+# Persistence backend: file | sqlite
+storage: file
+
+# `lyra serve` HTTP transport settings. Each is overridable by the
+# matching serve flag (--listen / --no-local-token / --cors-origin / ...).
+server:
+  listen: 127.0.0.1:17171   # matches the frontend's AGUI_BASE
+  noLocalToken: false       # true = disable the local-process gate (dev / same-origin)
+  localTokenPath: ""        # default: $HOME/.lyra/local-token
+  corsOrigins:              # empty = built-in dev allowlist (tauri / localhost ports)
+    - "*"                   # dev: allow any origin (e.g. the Wails webview)
+
+# Optional provider-backed tool credentials (leave blank to disable).
+online:
+  jinaApiKey: ""
+  tavilyApiKey: ""
+  httpAllowedHosts: []

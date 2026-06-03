@@ -72,10 +72,10 @@ type AwaitDecider func(ctx context.Context, arguments string) core.Awaitable
 // or decider is nil — caller decides whether to surface or panic.
 func RequireAwait(tool chat.Tool, decider AwaitDecider) (chat.Tool, error) {
 	if tool == nil {
-		return nil, fmt.Errorf("hitl.RequireAwait: tool must not be nil")
+		return nil, errors.New("hitl.RequireAwait: tool must not be nil")
 	}
 	if decider == nil {
-		return nil, fmt.Errorf("hitl.RequireAwait: decider must not be nil")
+		return nil, errors.New("hitl.RequireAwait: decider must not be nil")
 	}
 	return &awaitingTool{delegate: tool, decider: decider}, nil
 }
@@ -103,7 +103,7 @@ type ConfirmationPrompter func(arguments string) string
 // before each invocation. prompter renders the confirmation message
 // from the call arguments; onResponse receives the user's bool reply
 // and returns the resulting [core.ResponseImpact] (typically
-// [core.ResponseImpactUpdated] when the handler writes the decision
+// [core.ImpactUpdated] when the handler writes the decision
 // to the blackboard so the next tick observes it).
 //
 // onResponse may be nil when the action body itself stages state via
@@ -117,14 +117,14 @@ func RequireConfirmation(
 	onResponse func(approved bool) core.ResponseImpact,
 ) (chat.Tool, error) {
 	if tool == nil {
-		return nil, fmt.Errorf("hitl.RequireConfirmation: tool must not be nil")
+		return nil, errors.New("hitl.RequireConfirmation: tool must not be nil")
 	}
 	if prompter == nil {
-		return nil, fmt.Errorf("hitl.RequireConfirmation: prompter must not be nil")
+		return nil, errors.New("hitl.RequireConfirmation: prompter must not be nil")
 	}
 	handler := onResponse
 	if handler == nil {
-		handler = func(bool) core.ResponseImpact { return core.ResponseImpactUnchanged }
+		handler = func(bool) core.ResponseImpact { return core.ImpactUnchanged }
 	}
 	return RequireAwait(tool, func(_ context.Context, arguments string) core.Awaitable {
 		return NewConfirmation(prompter(arguments), handler)
@@ -145,14 +145,14 @@ func RequireType[T any](
 	onResponse func(value T) core.ResponseImpact,
 ) (chat.Tool, error) {
 	if tool == nil {
-		return nil, fmt.Errorf("hitl.RequireType: tool must not be nil")
+		return nil, errors.New("hitl.RequireType: tool must not be nil")
 	}
 	if prompter == nil {
-		return nil, fmt.Errorf("hitl.RequireType: prompter must not be nil")
+		return nil, errors.New("hitl.RequireType: prompter must not be nil")
 	}
 	handler := onResponse
 	if handler == nil {
-		handler = func(T) core.ResponseImpact { return core.ResponseImpactUnchanged }
+		handler = func(T) core.ResponseImpact { return core.ImpactUnchanged }
 	}
 	return RequireAwait(tool, func(_ context.Context, arguments string) core.Awaitable {
 		return NewTypedRequest[string, T](prompter(arguments), handler)

@@ -22,8 +22,8 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 		t.Fatal(err)
 	}
 	opts.Voice = "alloy"
-	m, err := openai.NewAudioTTSModel(&openai.AudioTTSModelConfig{
-		ApiKey:         model.NewApiKey("test-key"),
+	m, err := openai.NewAudioTTSModel(openai.AudioTTSModelConfig{
+		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		RequestOptions: []option.RequestOption{option.WithBaseURL(srv.URL)},
 	})
@@ -46,8 +46,8 @@ func TestAudioTTSModel_Metadata(t *testing.T) {
 	t.Cleanup(srv.Close)
 	opts, _ := tts.NewOptions("tts-1")
 	opts.Voice = "alloy"
-	m, _ := openai.NewAudioTTSModel(&openai.AudioTTSModelConfig{
-		ApiKey:         model.NewApiKey("test-key"),
+	m, _ := openai.NewAudioTTSModel(openai.AudioTTSModelConfig{
+		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		RequestOptions: []option.RequestOption{option.WithBaseURL(srv.URL)},
 	})

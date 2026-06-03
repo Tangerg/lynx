@@ -47,8 +47,8 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 		t.Fatal(err)
 	}
 	opts.Voice = "voice-1"
-	m, err := replicate.NewAudioTTSModel(&replicate.AudioTTSModelConfig{
-		ApiKey:         model.NewApiKey("test-key"),
+	m, err := replicate.NewAudioTTSModel(replicate.AudioTTSModelConfig{
+		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		BaseURL:        srv.URL,
 		PollInterval:   10 * time.Millisecond,

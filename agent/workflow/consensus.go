@@ -2,13 +2,13 @@ package workflow
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"sort"
 
 	"github.com/Tangerg/lynx/agent/core"
 )
 
-// ConsensusSpec is a [ScatterGatherSpec] specialization where every
+// ConsensusConfig is a [ScatterGatherConfig] specialization where every
 // generator returns the same Element type and a tally function picks
 // the consensus winner. Use for "ask 3 LLMs, take the answer ≥ 2
 // agree on" or "ensemble vote among models".
@@ -20,7 +20,7 @@ import (
 // Mirrors embabel's `multimodel/ConsensusBuilder.kt` without the
 // Spring multi-model wiring — voters are plain functions; users
 // inject different chat.Clients via closure.
-type ConsensusSpec[In, Element any] struct {
+type ConsensusConfig[In, Element any] struct {
 	// Name names the produced agent + its goal. Required.
 	Name string
 
@@ -48,18 +48,18 @@ type ConsensusSpec[In, Element any] struct {
 // Key tied for the lead wins).
 //
 // Returns an error on missing Name / empty Voters / nil Key.
-func Consensus[In, Element any](spec ConsensusSpec[In, Element]) (*core.Agent, error) {
+func Consensus[In, Element any](spec ConsensusConfig[In, Element]) (*core.Agent, error) {
 	if spec.Name == "" {
-		return nil, fmt.Errorf("workflow.Consensus: Name must not be empty")
+		return nil, errors.New("workflow.Consensus: Name must not be empty")
 	}
 	if len(spec.Voters) == 0 {
-		return nil, fmt.Errorf("workflow.Consensus: Voters must not be empty")
+		return nil, errors.New("workflow.Consensus: Voters must not be empty")
 	}
 	if spec.Key == nil {
-		return nil, fmt.Errorf("workflow.Consensus: Key must not be nil")
+		return nil, errors.New("workflow.Consensus: Key must not be nil")
 	}
 
-	return ScatterGather(ScatterGatherSpec[In, Element, Element]{
+	return ScatterGather(ScatterGatherConfig[In, Element, Element]{
 		Name:           spec.Name,
 		Description:    spec.Description,
 		MaxConcurrency: spec.MaxConcurrency,
@@ -72,7 +72,7 @@ func Consensus[In, Element any](spec ConsensusSpec[In, Element]) (*core.Agent, e
 
 // DefaultKey is a Key projector for Element types whose own string
 // representation is the right tally key (typically string Elements).
-// Use for `ConsensusSpec[..., string]{Key: workflow.DefaultKey[string]}`.
+// Use for `ConsensusConfig[..., string]{Key: workflow.DefaultKey[string]}`.
 func DefaultKey[Element ~string](e Element) string { return string(e) }
 
 // pickConsensus tallies votes by key and returns the Element whose

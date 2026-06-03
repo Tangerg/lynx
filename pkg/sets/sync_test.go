@@ -15,7 +15,7 @@ func TestNewSyncSet(t *testing.T) {
 	t.Run("create with default HashSet", func(t *testing.T) {
 		set := NewSyncSet[int]()
 		if set == nil {
-			t.Error("NewSyncSet() returned nil")
+			t.Fatal("NewSyncSet() returned nil")
 		}
 		if set.inner == nil {
 			t.Error("inner set should not be nil")
@@ -1331,7 +1331,7 @@ func BenchmarkSyncSet_Iter(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		for range set.Iter() {
 			// Full iteration
 		}
@@ -1345,7 +1345,7 @@ func BenchmarkSyncSet_Clone(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = set.Clone()
 	}
 }
@@ -1357,7 +1357,7 @@ func BenchmarkSyncSet_ToSlice(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = set.ToSlice()
 	}
 }

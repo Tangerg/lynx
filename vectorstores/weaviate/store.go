@@ -3,11 +3,14 @@ package weaviate
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/go-openapi/strfmt"
 	"github.com/google/uuid"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
+	"github.com/weaviate/weaviate-go-client/v5/weaviate/fault"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate/filters"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate/graphql"
 	"github.com/weaviate/weaviate/entities/models"
@@ -71,13 +74,7 @@ type StoreConfig struct {
 	DistanceMetric string
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return ErrNilConfig
-	}
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+func (c *StoreConfig) Validate() error {
 	if c.Client == nil {
 		return ErrMissingClient
 	}
@@ -90,13 +87,23 @@ func (c *StoreConfig) validate() error {
 	if c.DocumentBatcher == nil {
 		return ErrMissingDocumentBatcher
 	}
-	if c.DistanceMetric == "" {
-		c.DistanceMetric = "cosine"
-	}
 	return nil
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
+	if c.DistanceMetric == "" {
+		c.DistanceMetric = "cosine"
+	}
+}
+
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 type Store struct {
 	client               *weaviate.Client
@@ -108,8 +115,9 @@ type Store struct {
 	storeDocumentContent bool
 }
 
-func NewStore(config *StoreConfig) (*Store, error) {
-	if err := config.validate(); err != nil {
+func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -154,7 +162,7 @@ func (v *Store) initialize(ctx context.Context) error {
 		Class:           v.className,
 		Vectorizer:      "none",
 		VectorIndexType: "hnsw",
-		VectorIndexConfig: map[string]interface{}{
+		VectorIndexConfig: map[string]any{
 			"distance": v.distanceMetric,
 		},
 		Properties: []*models.Property{
@@ -194,7 +202,7 @@ func (v *Store) buildObjects(docs []*document.Document, vectors [][]float64) ([]
 			Class:  v.className,
 			ID:     strfmt.UUID(uuid.NewString()),
 			Vector: models.C11yVector(math.ConvertSlice[float64, float32](vectors[i])),
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				fieldContent:  content,
 				fieldMetadata: string(metaBytes),
 			},
@@ -332,7 +340,7 @@ func (v *Store) buildDocumentsFromResult(result *models.GraphQLResponse) ([]*doc
 		return nil, nil
 	}
 
-	getMap, ok := getData.(map[string]interface{})
+	getMap, ok := getData.(map[string]any)
 	if !ok {
 		return nil, nil
 	}
@@ -342,7 +350,7 @@ func (v *Store) buildDocumentsFromResult(result *models.GraphQLResponse) ([]*doc
 		return nil, nil
 	}
 
-	items, ok := classData.([]interface{})
+	items, ok := classData.([]any)
 	if !ok {
 		return nil, nil
 	}
@@ -350,14 +358,14 @@ func (v *Store) buildDocumentsFromResult(result *models.GraphQLResponse) ([]*doc
 	docs := make([]*document.Document, 0, len(items))
 
 	for _, item := range items {
-		objMap, ok := item.(map[string]interface{})
+		objMap, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
 
 		doc := &document.Document{}
 
-		if additional, ok := objMap["_additional"].(map[string]interface{}); ok {
+		if additional, ok := objMap["_additional"].(map[string]any); ok {
 			if id, ok := additional[additionalID].(string); ok {
 				doc.ID = id
 			}
@@ -408,6 +416,41 @@ func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 		Do(ctx)
 	if err != nil {
 		return fmt.Errorf("weaviate: failed to delete from class %s: %w", v.className, err)
+	}
+
+	return nil
+}
+
+// DeleteByIDs removes objects by their Weaviate object UUID. The ids are
+// the same identifiers surfaced as document.ID by Retrieve (the object's
+// `_additional.id`), since Create assigns each object a UUID that becomes
+// its primary key. An empty slice is a no-op; unknown ids are silently
+// ignored (Weaviate's per-object Deleter is idempotent). Implements
+// [vectorstore.IDDeleter].
+//
+// One `db.vector.delete weaviate` span per call.
+func (v *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "weaviate")
+	defer func() { tracing.Finish(span, err) }()
+
+	for _, id := range ids {
+		if delErr := v.client.Data().Deleter().
+			WithClassName(v.className).
+			WithID(id).
+			Do(ctx); delErr != nil {
+			// A missing object yields a 404; treat unknown ids as a no-op
+			// so the operation stays idempotent.
+			if clientErr, ok := errors.AsType[*fault.WeaviateClientError](delErr); ok && clientErr.StatusCode == http.StatusNotFound {
+				continue
+			}
+			err = fmt.Errorf("weaviate: failed to delete object %s from class %s: %w",
+				id, v.className, delErr)
+			return err
+		}
 	}
 
 	return nil

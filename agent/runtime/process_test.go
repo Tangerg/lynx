@@ -40,7 +40,7 @@ func TestRunSingleAction(t *testing.T) {
 		Goals(agent.GoalProducing[wordCount](core.Goal{Description: "word counted"})).
 		Build()
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if err := platform.Deploy(a); err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestRunMultiStepPlanning(t *testing.T) {
 		Goals(agent.GoalProducing[stage3](core.Goal{Description: "stage3 produced"})).
 		Build()
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if err := platform.Deploy(a); err != nil {
 		t.Fatal(err)
 	}
@@ -116,13 +116,13 @@ func TestRunMultiStepPlanning(t *testing.T) {
 }
 
 func TestRunAgentValidatesBeforeCreatingProcess(t *testing.T) {
-	a := core.NewAgent(&core.AgentConfig{
+	a := core.NewAgent(core.AgentConfig{
 		Name:    "bad",
 		Actions: []core.Action{nil},
 		Goals:   []*core.Goal{{Name: "goal"}},
 	})
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	proc, err := platform.RunAgent(context.Background(), a, nil, core.ProcessOptions{})
 	if err == nil {
 		t.Fatal("RunAgent should reject invalid agent")
@@ -147,7 +147,7 @@ func TestRunAgentRejectsUnknownPlannerName(t *testing.T) {
 		Goals(agent.GoalProducing[wordCount](core.Goal{Description: "word counted"})).
 		Build()
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 
 	proc, err := platform.RunAgent(
 		context.Background(), a,
@@ -169,7 +169,7 @@ func TestRunAgentPublishesSingleStuckEvent(t *testing.T) {
 	type unusedIn struct{}
 	type unusedOut struct{}
 
-	a := core.NewAgent(&core.AgentConfig{
+	a := core.NewAgent(core.AgentConfig{
 		Name: "stuck",
 		Actions: []core.Action{
 			core.NewAction("unused",
@@ -183,7 +183,7 @@ func TestRunAgentPublishesSingleStuckEvent(t *testing.T) {
 	})
 
 	stuckEvents := 0
-	platform := agent.NewPlatform(&runtime.PlatformConfig{
+	platform := agent.NewPlatform(runtime.PlatformConfig{
 		Extensions: []core.Extension{
 			stuckCounter{count: &stuckEvents},
 		},
@@ -214,10 +214,10 @@ func TestRunAgentMarksCancelledDuringActionAsKilled(t *testing.T) {
 			},
 			core.ActionConfig{},
 		)).
-		Goals(agent.GoalProducing[out](core.Goal{Description: "cancelled"})).
+		Goals(agent.GoalProducing[out](core.Goal{Description: "canceled"})).
 		Build()
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	proc, err := platform.RunAgent(
 		ctx, a,
 		map[string]any{core.DefaultBindingName: word{Text: "lynx"}},

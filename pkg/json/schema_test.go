@@ -267,7 +267,7 @@ func TestSchemaConsistency(t *testing.T) {
 // BenchmarkStringDefSchemaOf benchmarks string schema generation.
 func BenchmarkStringDefSchemaOf(b *testing.B) {
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = StringDefSchemaOf(TestUser{})
 	}
 }
@@ -275,7 +275,7 @@ func BenchmarkStringDefSchemaOf(b *testing.B) {
 // BenchmarkMapDefSchemaOf benchmarks map schema generation.
 func BenchmarkMapDefSchemaOf(b *testing.B) {
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, _ = MapDefSchemaOf(TestUser{})
 	}
 }

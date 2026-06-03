@@ -8,6 +8,7 @@ import (
 
 	"github.com/gocql/gocql"
 
+	"github.com/Tangerg/lynx/chatmemory/internal/codec"
 	"github.com/Tangerg/lynx/chatmemory/internal/tracing"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/memory"
@@ -49,21 +50,9 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return errors.New("cassandra: config must not be nil")
-	}
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+func (c *StoreConfig) Validate() error {
 	if c.Session == nil {
 		return errors.New("cassandra: Session is required")
-	}
-	if c.Keyspace == "" {
-		c.Keyspace = DefaultKeyspace
-	}
-	if c.TableName == "" {
-		c.TableName = DefaultTableName
 	}
 	for name, value := range map[string]string{"Keyspace": c.Keyspace, "TableName": c.TableName} {
 		if !identPattern.MatchString(value) {
@@ -73,21 +62,41 @@ func (c *StoreConfig) validate() error {
 	return nil
 }
 
-var _ memory.Store = (*Store)(nil)
+// ApplyDefaults fills zero fields. Context defaults to
+// [context.Background]; Keyspace defaults to [DefaultKeyspace];
+// TableName defaults to [DefaultTableName].
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
+	if c.Keyspace == "" {
+		c.Keyspace = DefaultKeyspace
+	}
+	if c.TableName == "" {
+		c.TableName = DefaultTableName
+	}
+}
+
+var (
+	_ memory.Store  = (*Store)(nil)
+	_ memory.Lister = (*Store)(nil)
+)
 
 // Store is a Cassandra-backed [memory.Store]. Construct via [NewStore].
 type Store struct {
 	session *gocql.Session
 
-	writeCQL string
-	readCQL  string
-	clearCQL string
+	writeCQL  string
+	readCQL   string
+	clearCQL  string
+	listCQL   string
 	createCQL string
 }
 
 // NewStore builds a [Store] from cfg.
-func NewStore(cfg *StoreConfig) (*Store, error) {
-	if err := cfg.validate(); err != nil {
+func NewStore(cfg StoreConfig) (*Store, error) {
+	cfg.ApplyDefaults()
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -103,6 +112,7 @@ func NewStore(cfg *StoreConfig) (*Store, error) {
 			qualified,
 		),
 		clearCQL: fmt.Sprintf("DELETE FROM %s WHERE conversation_id = ?", qualified),
+		listCQL:  fmt.Sprintf("SELECT DISTINCT conversation_id FROM %s", qualified),
 		createCQL: fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			conversation_id TEXT,
 			seq             TIMEUUID,
@@ -135,7 +145,7 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 	defer func() { tracing.Finish(span, err) }()
 
 	for _, msg := range messages {
-		raw, encErr := encodeMessage(msg)
+		raw, encErr := codec.EncodeMessage(msg)
 		if encErr != nil {
 			err = fmt.Errorf("cassandra.Store.Write: encode message: %w", encErr)
 			return err
@@ -191,20 +201,30 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 	return nil
 }
 
-func encodeMessage(msg chat.Message) ([]byte, error) {
-	if msg == nil {
-		return nil, errors.New("message must not be nil")
+// Conversations returns the ids of every stored conversation as a
+// point-in-time snapshot. An empty slice is returned when the store
+// holds no messages.
+//
+// SELECT DISTINCT on the partition key reads only partition metadata,
+// so no ALLOW FILTERING is needed.
+func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
+	if err = ctx.Err(); err != nil {
+		return nil, err
 	}
-	switch m := msg.(type) {
-	case *chat.SystemMessage:
-		return m.MarshalJSON()
-	case *chat.UserMessage:
-		return m.MarshalJSON()
-	case *chat.AssistantMessage:
-		return m.MarshalJSON()
-	case *chat.ToolMessage:
-		return m.MarshalJSON()
-	default:
-		return nil, fmt.Errorf("unsupported message type %T", msg)
+
+	ctx, span := tracing.StartList(ctx, "cassandra")
+	defer func() { tracing.RecordListResult(span, err, len(ids)) }()
+
+	iter := s.session.Query(s.listCQL).WithContext(ctx).Iter()
+	defer iter.Close()
+
+	ids = []string{}
+	var id string
+	for iter.Scan(&id) {
+		ids = append(ids, id)
 	}
+	if err = iter.Close(); err != nil {
+		return nil, fmt.Errorf("cassandra.Store.Conversations: %w", err)
+	}
+	return ids, nil
 }

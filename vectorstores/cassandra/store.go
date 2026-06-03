@@ -1,8 +1,8 @@
 package cassandra
 
 import (
-	"context"
 	"cmp"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -50,7 +50,6 @@ const (
 	// similarity score by Cassandra itself.
 	SimilarityEuclidean SimilarityFunction = "euclidean"
 )
-
 
 // MetadataColumn declares a custom metadata column that the store
 // indexes for filtering. Cassandra has no JSON-path operator, so each
@@ -121,13 +120,7 @@ type StoreConfig struct {
 	KeyspaceReplication string
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return errors.New("cassandra: config must not be nil")
-	}
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+func (c *StoreConfig) Validate() error {
 	if c.Session == nil {
 		return errors.New("cassandra: Session is required")
 	}
@@ -136,16 +129,6 @@ func (c *StoreConfig) validate() error {
 	}
 	if c.DocumentBatcher == nil {
 		return errors.New("cassandra: DocumentBatcher is required")
-	}
-
-	c.KeyspaceName = cmp.Or(c.KeyspaceName, DefaultKeyspaceName)
-	c.TableName = cmp.Or(c.TableName, DefaultTableName)
-	c.IDColumn = cmp.Or(c.IDColumn, DefaultIDColumn)
-	c.ContentColumn = cmp.Or(c.ContentColumn, DefaultContentColumn)
-	c.EmbeddingColumn = cmp.Or(c.EmbeddingColumn, DefaultEmbeddingColumn)
-	c.Similarity = cmp.Or(c.Similarity, DefaultSimilarity)
-	if c.KeyspaceReplication == "" {
-		c.KeyspaceReplication = "{'class': 'SimpleStrategy', 'replication_factor': 1}"
 	}
 
 	checks := map[string]string{
@@ -167,7 +150,26 @@ func (c *StoreConfig) validate() error {
 	return ident.Check("cassandra", checks)
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
+
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
+	c.KeyspaceName = cmp.Or(c.KeyspaceName, DefaultKeyspaceName)
+	c.TableName = cmp.Or(c.TableName, DefaultTableName)
+	c.IDColumn = cmp.Or(c.IDColumn, DefaultIDColumn)
+	c.ContentColumn = cmp.Or(c.ContentColumn, DefaultContentColumn)
+	c.EmbeddingColumn = cmp.Or(c.EmbeddingColumn, DefaultEmbeddingColumn)
+	c.Similarity = cmp.Or(c.Similarity, DefaultSimilarity)
+	if c.KeyspaceReplication == "" {
+		c.KeyspaceReplication = "{'class': 'SimpleStrategy', 'replication_factor': 1}"
+	}
+}
 
 // Store is a Cassandra 5.0+ backed [vectorstore.Store] implementation.
 // It relies on the VECTOR column type and SAI indexes.
@@ -187,9 +189,9 @@ type Store struct {
 	similarity      SimilarityFunction
 }
 
-
-func NewStore(config *StoreConfig) (*Store, error) {
-	if err := config.validate(); err != nil {
+func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -505,6 +507,36 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	return nil
 }
 
+// DeleteByIDs removes rows by primary key. Because the id column is the
+// partition key, CQL allows a single DELETE with an IN list over it:
+// `DELETE FROM <table> WHERE <idCol> IN (?, ?, ...)`. An empty slice is a
+// no-op; unknown ids are silently ignored (idempotent). Implements
+// [vectorstore.IDDeleter].
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "cassandra")
+	defer func() { tracing.Finish(span, err) }()
+
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	stmt := fmt.Sprintf(
+		"DELETE FROM %s WHERE %s IN (%s)",
+		s.fullTable, s.idColumn, strings.Join(placeholders, ", "),
+	)
+	if err = s.session.Query(stmt, args...).WithContext(ctx).Exec(); err != nil {
+		return fmt.Errorf("cassandra: delete by ids from %s: %w", s.fullTable, err)
+	}
+	return nil
+}
+
 func (s *Store) buildFilter(filter ast.Expr) (string, []any, error) {
 	if filter == nil {
 		return "", nil, nil
@@ -525,9 +557,7 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 	}
 }
 
-
 func (s *Store) Close() error { return nil }
-
 
 // marshalMetadata / unmarshalMetadata are unused right now but kept
 // for future compatibility with stores that switch metadata storage

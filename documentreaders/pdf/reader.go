@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"strings"
 
 	ledongthuc "github.com/ledongthuc/pdf"
@@ -39,19 +40,32 @@ func WithPassword(pw string) Option {
 	return func(r *Reader) { r.password = pw }
 }
 
+// WithMetadata adds caller-supplied metadata to every emitted document
+// (source URI, tenant, doc type, ...). The map is cloned, so later
+// caller mutations don't leak in. Reader-derived `pdf.*` keys take
+// precedence on conflict.
+func WithMetadata(md map[string]any) Option {
+	return func(r *Reader) {
+		if len(md) > 0 {
+			r.extraMetadata = maps.Clone(md)
+		}
+	}
+}
+
 var _ document.Reader = (*Reader)(nil)
 
 // Reader is a PDF-aware [document.Reader].
 type Reader struct {
-	src        io.ReaderAt
-	size       int64
-	perPage    bool
-	sourceName string
-	password   string
+	src           io.ReaderAt
+	size          int64
+	perPage       bool
+	sourceName    string
+	password      string
+	extraMetadata map[string]any
 }
 
 // NewReader builds a PDF reader. The underlying source must implement
-// io.ReaderAt because pdfcpu parses PDF objects via random access.
+// io.ReaderAt because ledongthuc/pdf parses PDF objects via random access.
 // size is the total byte length of the PDF — pass file.Size() (from
 // os.File.Stat) or len(buf) for in-memory data.
 func NewReader(src io.ReaderAt, size int64, opts ...Option) (*Reader, error) {
@@ -69,8 +83,11 @@ func NewReader(src io.ReaderAt, size int64, opts ...Option) (*Reader, error) {
 }
 
 // Read parses the source and emits documents according to the
-// configured mode.
-func (r *Reader) Read(_ context.Context) ([]*document.Document, error) {
+// configured mode. ctx cancellation is honored between pages.
+func (r *Reader) Read(ctx context.Context) ([]*document.Document, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	pdfReader, err := r.openReader()
 	if err != nil {
 		return nil, err
@@ -78,9 +95,9 @@ func (r *Reader) Read(_ context.Context) ([]*document.Document, error) {
 
 	total := pdfReader.NumPage()
 	if r.perPage {
-		return r.readPages(pdfReader, total)
+		return r.readPages(ctx, pdfReader, total)
 	}
-	return r.readWhole(pdfReader, total)
+	return r.readWhole(ctx, pdfReader, total)
 }
 
 func (r *Reader) openReader() (*ledongthuc.Reader, error) {
@@ -98,8 +115,8 @@ func (r *Reader) openReader() (*ledongthuc.Reader, error) {
 	return pdfReader, nil
 }
 
-func (r *Reader) readWhole(pdfReader *ledongthuc.Reader, total int) ([]*document.Document, error) {
-	body, err := readAllText(pdfReader)
+func (r *Reader) readWhole(ctx context.Context, pdfReader *ledongthuc.Reader, total int) ([]*document.Document, error) {
+	body, err := readAllText(ctx, pdfReader)
 	if err != nil {
 		return nil, err
 	}
@@ -115,9 +132,12 @@ func (r *Reader) readWhole(pdfReader *ledongthuc.Reader, total int) ([]*document
 	return []*document.Document{doc}, nil
 }
 
-func (r *Reader) readPages(pdfReader *ledongthuc.Reader, total int) ([]*document.Document, error) {
+func (r *Reader) readPages(ctx context.Context, pdfReader *ledongthuc.Reader, total int) ([]*document.Document, error) {
 	docs := make([]*document.Document, 0, total)
 	for i := 1; i <= total; i++ {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		page := pdfReader.Page(i)
 		if page.V.IsNull() {
 			continue
@@ -143,9 +163,11 @@ func (r *Reader) readPages(pdfReader *ledongthuc.Reader, total int) ([]*document
 }
 
 func (r *Reader) baseMetadata(total int) map[string]any {
-	md := map[string]any{
-		MetadataPagesTotal: total,
+	md := maps.Clone(r.extraMetadata)
+	if md == nil {
+		md = map[string]any{}
 	}
+	md[MetadataPagesTotal] = total
 	if r.sourceName != "" {
 		md[MetadataSourceName] = r.sourceName
 	}
@@ -155,11 +177,14 @@ func (r *Reader) baseMetadata(total int) map[string]any {
 // readAllText streams every page through GetPlainText and concatenates
 // the result. Using the per-page API instead of Reader.GetPlainText so
 // we can recover from a single bad page without aborting the whole
-// document.
-func readAllText(pdfReader *ledongthuc.Reader) (string, error) {
+// document. ctx cancellation is honored between pages.
+func readAllText(ctx context.Context, pdfReader *ledongthuc.Reader) (string, error) {
 	var b strings.Builder
 	total := pdfReader.NumPage()
 	for i := 1; i <= total; i++ {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
 		page := pdfReader.Page(i)
 		if page.V.IsNull() {
 			continue

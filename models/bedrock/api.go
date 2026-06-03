@@ -9,12 +9,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 )
 
-// ApiConfig configures the Bedrock Runtime client. Unlike single-provider
+// APIConfig configures the Bedrock Runtime client. Unlike single-provider
 // SDKs, Bedrock authenticates via the standard AWS credential chain
 // (env vars, ~/.aws/config, IRSA, IAM role) — so the typical config
 // supplies just the region. Pass [AWSConfig] when callers want to use
 // a pre-built aws.Config from their own SDK setup.
-type ApiConfig struct {
+type APIConfig struct {
 	// Region overrides the AWS_REGION env var.
 	Region string
 
@@ -24,19 +24,16 @@ type ApiConfig struct {
 	AWSConfig *aws.Config
 }
 
-func (c *ApiConfig) validate() error {
-	if c == nil {
-		return errors.New("bedrock: config must not be nil")
-	}
+func (c APIConfig) Validate() error {
 	return nil
 }
 
-type Api struct {
+type API struct {
 	client *bedrockruntime.Client
 }
 
-func NewApi(ctx context.Context, cfg *ApiConfig) (*Api, error) {
-	if err := cfg.validate(); err != nil {
+func NewAPI(ctx context.Context, cfg APIConfig) (*API, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -54,12 +51,12 @@ func NewApi(ctx context.Context, cfg *ApiConfig) (*Api, error) {
 		awsCfg.Region = cfg.Region
 	}
 
-	return &Api{client: bedrockruntime.NewFromConfig(awsCfg)}, nil
+	return &API{client: bedrockruntime.NewFromConfig(awsCfg)}, nil
 }
 
 // Converse runs the unified inference API across every Bedrock-hosted
 // model family (Claude / Llama / Titan / Mistral / Cohere / DeepSeek).
-func (a *Api) Converse(ctx context.Context, params *bedrockruntime.ConverseInput, opts ...func(*bedrockruntime.Options)) (*bedrockruntime.ConverseOutput, error) {
+func (a *API) Converse(ctx context.Context, params *bedrockruntime.ConverseInput, opts ...func(*bedrockruntime.Options)) (*bedrockruntime.ConverseOutput, error) {
 	if params == nil {
 		return nil, errors.New("bedrock: request must not be nil")
 	}
@@ -69,7 +66,7 @@ func (a *Api) Converse(ctx context.Context, params *bedrockruntime.ConverseInput
 // ConverseStream is the streaming variant. The event channel is on the
 // returned EventStream — callers iterate via stream.Events() then
 // stream.Close().
-func (a *Api) ConverseStream(ctx context.Context, params *bedrockruntime.ConverseStreamInput, opts ...func(*bedrockruntime.Options)) (*bedrockruntime.ConverseStreamOutput, error) {
+func (a *API) ConverseStream(ctx context.Context, params *bedrockruntime.ConverseStreamInput, opts ...func(*bedrockruntime.Options)) (*bedrockruntime.ConverseStreamOutput, error) {
 	if params == nil {
 		return nil, errors.New("bedrock: request must not be nil")
 	}
@@ -80,7 +77,7 @@ func (a *Api) ConverseStream(ctx context.Context, params *bedrockruntime.Convers
 // Embed v2, Cohere Embed v3, ...) only go through this — each family
 // expects its own JSON body shape, so the lynx [EmbeddingModel] below
 // branches by model family.
-func (a *Api) InvokeModel(ctx context.Context, params *bedrockruntime.InvokeModelInput, opts ...func(*bedrockruntime.Options)) (*bedrockruntime.InvokeModelOutput, error) {
+func (a *API) InvokeModel(ctx context.Context, params *bedrockruntime.InvokeModelInput, opts ...func(*bedrockruntime.Options)) (*bedrockruntime.InvokeModelOutput, error) {
 	if params == nil {
 		return nil, errors.New("bedrock: request must not be nil")
 	}

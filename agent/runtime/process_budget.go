@@ -32,17 +32,6 @@ type processBudget struct {
 	embeddingInvocations []core.EmbeddingInvocation
 }
 
-// recordUsage adds a single flat (cost, tokens) pair without per-call
-// detail. Thin shim over [recordLLMInvocation] — kept as a convenience
-// for integration code that doesn't track per-model rates yet still
-// wants the rolled-up totals to flow.
-func (b *processBudget) recordUsage(cost float64, tokens int) {
-	b.recordLLMInvocation(core.LLMInvocation{
-		Cost:         cost,
-		PromptTokens: int64(tokens),
-	})
-}
-
 // recordLLMInvocation appends a fully-attributed LLM call to history
 // and rolls its cost/tokens into the budget. Timestamp defaults to
 // time.Now() when unset by the caller.
@@ -52,7 +41,7 @@ func (b *processBudget) recordLLMInvocation(inv core.LLMInvocation) {
 	}
 	b.lock.Lock()
 	defer b.lock.Unlock()
-	b.ownCost += inv.Cost
+	b.ownCost += inv.CostUSD
 	b.ownTokens += int(inv.PromptTokens + inv.CompletionTokens)
 	b.llmInvocations = append(b.llmInvocations, inv)
 }
@@ -65,7 +54,7 @@ func (b *processBudget) recordEmbeddingInvocation(inv core.EmbeddingInvocation) 
 	}
 	b.lock.Lock()
 	defer b.lock.Unlock()
-	b.ownCost += inv.Cost
+	b.ownCost += inv.CostUSD
 	b.ownTokens += int(inv.InputTokens)
 	b.embeddingInvocations = append(b.embeddingInvocations, inv)
 }

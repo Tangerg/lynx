@@ -6,8 +6,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	chatmem "github.com/Tangerg/lynx/core/model/chat/memory"
 	"github.com/Tangerg/lynx/chatmemory/postgres"
+	chatmem "github.com/Tangerg/lynx/core/model/chat/memory"
 )
 
 // stubPool is a sentinel non-nil *pgxpool.Pool used to exercise the
@@ -21,7 +21,7 @@ import (
 func stubPool() *pgxpool.Pool { return new(pgxpool.Pool) }
 
 func TestStoreConfig_PoolRequired(t *testing.T) {
-	_, err := postgres.NewStore(&postgres.StoreConfig{})
+	_, err := postgres.NewStore(postgres.StoreConfig{})
 	if err == nil {
 		t.Fatal("expected error when Pool is nil")
 	}
@@ -31,7 +31,7 @@ func TestStoreConfig_PoolRequired(t *testing.T) {
 }
 
 func TestStoreConfig_NilConfig(t *testing.T) {
-	_, err := postgres.NewStore(nil)
+	_, err := postgres.NewStore(postgres.StoreConfig{})
 	if err == nil {
 		t.Fatal("expected error when config is nil")
 	}
@@ -40,23 +40,23 @@ func TestStoreConfig_NilConfig(t *testing.T) {
 func TestStoreConfig_RejectsBadIdentifier(t *testing.T) {
 	cases := []struct {
 		name string
-		cfg  *postgres.StoreConfig
+		cfg  postgres.StoreConfig
 	}{
 		{
 			name: "schema with semicolon",
-			cfg:  &postgres.StoreConfig{Pool: stubPool(), SchemaName: "public; DROP TABLE x"},
+			cfg:  postgres.StoreConfig{Pool: stubPool(), SchemaName: "public; DROP TABLE x"},
 		},
 		{
 			name: "table with hyphen",
-			cfg:  &postgres.StoreConfig{Pool: stubPool(), TableName: "chat-memory"},
+			cfg:  postgres.StoreConfig{Pool: stubPool(), TableName: "chat-memory"},
 		},
 		{
 			name: "index starting with digit",
-			cfg:  &postgres.StoreConfig{Pool: stubPool(), IndexName: "1bad"},
+			cfg:  postgres.StoreConfig{Pool: stubPool(), IndexName: "1bad"},
 		},
 		{
 			name: "table with space",
-			cfg:  &postgres.StoreConfig{Pool: stubPool(), TableName: "chat memory"},
+			cfg:  postgres.StoreConfig{Pool: stubPool(), TableName: "chat memory"},
 		},
 	}
 	for _, tc := range cases {
@@ -75,7 +75,7 @@ func TestStoreConfig_RejectsBadIdentifier(t *testing.T) {
 func TestStoreConfig_AcceptsValidIdentifiers(t *testing.T) {
 	// InitializeSchema=false so we don't issue SQL — only validation
 	// runs. The stub pool would crash any real query.
-	_, err := postgres.NewStore(&postgres.StoreConfig{
+	_, err := postgres.NewStore(postgres.StoreConfig{
 		Pool:       stubPool(),
 		SchemaName: "my_schema",
 		TableName:  "chat_history",

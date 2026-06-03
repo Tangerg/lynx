@@ -30,8 +30,8 @@ func TestEmbeddingModel(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewOptions: %v", err)
 			}
-			m, err := alibaba.NewEmbeddingModel(&alibaba.EmbeddingModelConfig{
-				ApiKey:         model.NewApiKey("test-key"),
+			m, err := alibaba.NewEmbeddingModel(alibaba.EmbeddingModelConfig{
+				APIKey:         model.NewAPIKey("test-key"),
 				DefaultOptions: opts,
 				BaseURL:        baseURL,
 			})

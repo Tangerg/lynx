@@ -11,17 +11,14 @@ import (
 )
 
 type ImageModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	Endpoint       string
 	APIVersion     string
 	DefaultOptions *image.Options
 	RequestOptions []option.RequestOption
 }
 
-func (c *ImageModelConfig) validate() error {
-	if c == nil {
-		return errors.New("azureopenai: config must not be nil")
-	}
+func (c ImageModelConfig) Validate() error {
 	if c.Endpoint == "" {
 		return errors.New("azureopenai: Endpoint is required")
 	}
@@ -35,13 +32,13 @@ func (c *ImageModelConfig) validate() error {
 // OpenAI's /images/generations endpoint. [image.Options].Model is
 // the Azure deployment id (typically pointing at "dall-e-3" or
 // "gpt-image-1").
-func NewImageModel(cfg *ImageModelConfig) (*openai.ImageModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewImageModel(cfg ImageModelConfig) (*openai.ImageModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	apiKey, reqOpts := buildAzureRequestOptions(cfg.ApiKey, cfg.Endpoint, cfg.APIVersion, cfg.RequestOptions)
-	return openai.NewImageModel(&openai.ImageModelConfig{
-		ApiKey:         apiKey,
+	apiKey, reqOpts := buildAzureRequestOptions(cfg.APIKey, cfg.Endpoint, cfg.APIVersion, cfg.RequestOptions)
+	return openai.NewImageModel(openai.ImageModelConfig{
+		APIKey:         apiKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
 		Metadata:       &image.ModelMetadata{Provider: Provider},

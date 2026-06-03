@@ -19,15 +19,3 @@ func mustDeploy(t *testing.T, p *runtime.Platform, agents ...*core.Agent) {
 		}
 	}
 }
-
-// mustOK is a tiny helper for "the constructor returned (T, error); fail
-// the test on a non-nil error and return the T". Used in workflow tests
-// to keep the happy-path call shape compact after the workflow.X
-// constructors gained their error return.
-func mustOK[T any](t *testing.T, v T, err error) T {
-	t.Helper()
-	if err != nil {
-		t.Fatalf("workflow constructor: %v", err)
-	}
-	return v
-}

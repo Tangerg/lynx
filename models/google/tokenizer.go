@@ -15,19 +15,16 @@ import (
 // you intend to send chat requests under so the count matches the real
 // billing.
 type TextEstimatorConfig struct {
-	ApiKey   model.ApiKey
+	APIKey   model.APIKey
 	Model    string
 	Backend  genai.Backend
 	Project  string
 	Location string
 }
 
-func (c *TextEstimatorConfig) validate() error {
-	if c == nil {
-		return errors.New("google: config must not be nil")
-	}
-	if c.Backend != genai.BackendVertexAI && c.ApiKey == nil {
-		return errors.New("google: ApiKey is required")
+func (c TextEstimatorConfig) Validate() error {
+	if c.Backend != genai.BackendVertexAI && c.APIKey == nil {
+		return errors.New("google: APIKey is required")
 	}
 	if c.Model == "" {
 		return errors.New("google: DefaultOptions is required")
@@ -41,17 +38,17 @@ var _ tokenizer.TextEstimator = (*TextEstimator)(nil)
 // endpoint. Implements [tokenizer.TextEstimator] so it drops into code
 // paths gating on token budgets (RAG chunking, prompt-window checks).
 type TextEstimator struct {
-	api   *Api
+	api   *API
 	model string
 }
 
-func NewTextEstimator(cfg *TextEstimatorConfig) (*TextEstimator, error) {
-	if err := cfg.validate(); err != nil {
+func NewTextEstimator(cfg TextEstimatorConfig) (*TextEstimator, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	api, err := NewApi(&ApiConfig{
-		ApiKey:   cfg.ApiKey,
+	api, err := NewAPI(APIConfig{
+		APIKey:   cfg.APIKey,
 		Backend:  cfg.Backend,
 		Project:  cfg.Project,
 		Location: cfg.Location,

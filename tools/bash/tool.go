@@ -11,7 +11,7 @@ import (
 )
 
 // Request is the LLM-facing argument shape. It is a strict subset of
-// [RunInput] — environment, working directory, and streaming are
+// [Input] — environment, working directory, and streaming are
 // executor-side concerns, not LLM knobs.
 type Request struct {
 	Command string `json:"command" jsonschema:"required" jsonschema_description:"Shell command line. Run by /bin/sh -c."`
@@ -64,7 +64,7 @@ func (t *Tool) Call(ctx context.Context, arguments string) (string, error) {
 	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
 		return "", fmt.Errorf("bash.tool: parse arguments: %w", err)
 	}
-	res, err := t.executor.Run(ctx, RunInput{
+	res, err := t.executor.Run(ctx, Input{
 		Cmd:     req.Command,
 		Timeout: time.Duration(req.Timeout) * time.Millisecond,
 	})

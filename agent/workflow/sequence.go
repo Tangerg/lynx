@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -45,10 +46,10 @@ func Sequence[In, Out any](
 	agents ...*core.Agent,
 ) (*core.Agent, error) {
 	if platform == nil {
-		return nil, fmt.Errorf("workflow.Sequence: platform must not be nil")
+		return nil, errors.New("workflow.Sequence: platform must not be nil")
 	}
 	if name == "" {
-		return nil, fmt.Errorf("workflow.Sequence: name must not be empty")
+		return nil, errors.New("workflow.Sequence: name must not be empty")
 	}
 	if len(agents) < 2 {
 		return nil, fmt.Errorf("workflow.Sequence: at least 2 agents required, got %d", len(agents))
@@ -80,7 +81,7 @@ func Sequence[In, Out any](
 				// then makes it discoverable by type on the next child's
 				// blackboard.
 				if i < len(agents)-1 {
-					next, ok := child.Blackboard().GetValue(core.LastResultBindingName, "")
+					next, ok := child.Blackboard().Lookup(core.LastResultBindingName, "")
 					if !ok {
 						return zero, fmt.Errorf("step %d (%s) produced no output to chain forward", i, sub.Name)
 					}
@@ -101,12 +102,12 @@ func Sequence[In, Out any](
 		},
 	)
 
-	return core.NewAgent(&core.AgentConfig{
+	return core.NewAgent(core.AgentConfig{
 		Name:    name,
 		Actions: []core.Action{pipeline},
 		Goals: []*core.Goal{core.GoalProducing[Out](core.Goal{
 			Name:        name,
-			Description: "produce " + core.TypeFullNameOf[Out](),
+			Description: "produce " + core.TypeName[Out](),
 		})},
 	}), nil
 }

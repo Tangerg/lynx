@@ -28,8 +28,8 @@ func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := google.NewAudioTranscriptionModel(&google.AudioTranscriptionModelConfig{
-		ApiKey:         model.NewApiKey("test-key"),
+	m, err := google.NewAudioTranscriptionModel(google.AudioTranscriptionModelConfig{
+		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		BaseURL:        srv.URL,
 	})

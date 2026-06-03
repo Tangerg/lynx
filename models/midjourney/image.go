@@ -14,7 +14,7 @@ import (
 )
 
 type ImageModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *image.Options
 	BaseURL        string // required: pick your proxy provider
 	HTTPClient     *http.Client
@@ -26,12 +26,9 @@ type ImageModelConfig struct {
 	PollTimeout    time.Duration
 }
 
-func (c *ImageModelConfig) validate() error {
-	if c == nil {
-		return errors.New("midjourney: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("midjourney: ApiKey is required")
+func (c ImageModelConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("midjourney: APIKey is required")
 	}
 	if c.BaseURL == "" {
 		return errors.New("midjourney: BaseURL is required")
@@ -44,7 +41,7 @@ func (c *ImageModelConfig) validate() error {
 
 var _ image.Model = (*ImageModel)(nil)
 
-// ImageModel wraps any Midjourney-compatible proxy (ApiFrame /
+// ImageModel wraps any Midjourney-compatible proxy (APIFrame /
 // ImaginePro / TTAPI / GoAPI / UseAPI / ...). Configure the
 // proxy-specific paths and auth scheme via [ImageModelConfig].
 //
@@ -53,18 +50,18 @@ var _ image.Model = (*ImageModel)(nil)
 // sanctioned by Midjourney and may violate their ToS. Account-ban risk
 // is on the caller.
 type ImageModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *image.Options
 	pollInterval   time.Duration
 	pollTimeout    time.Duration
 }
 
-func NewImageModel(cfg *ImageModelConfig) (*ImageModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewApi(&ApiConfig{
-		ApiKey:     cfg.ApiKey,
+	api, err := NewAPI(APIConfig{
+		APIKey:     cfg.APIKey,
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,
 		SubmitPath: cfg.SubmitPath,
@@ -151,7 +148,7 @@ func isTerminalSuccess(status string) bool {
 
 func isTerminalFailure(status string) bool {
 	s := strings.ToUpper(status)
-	return strings.Contains(s, "FAIL") || s == "ERROR" || s == "CANCELLED" || s == "CANCELED"
+	return strings.Contains(s, "FAIL") || s == "ERROR" || s == "CANCELED"
 }
 
 func (i *ImageModel) pollUntilDone(ctx context.Context, id string) (*FetchResponse, error) {
@@ -179,4 +176,4 @@ func (i *ImageModel) pollUntilDone(ctx context.Context, id string) (*FetchRespon
 }
 
 func (i *ImageModel) DefaultOptions() image.Options { return *i.defaultOptions }
-func (i *ImageModel) Metadata() image.ModelMetadata         { return image.ModelMetadata{Provider: Provider} }
+func (i *ImageModel) Metadata() image.ModelMetadata { return image.ModelMetadata{Provider: Provider} }

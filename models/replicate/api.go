@@ -13,38 +13,35 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 )
 
-type ApiConfig struct {
-	ApiKey     model.ApiKey
+type APIConfig struct {
+	APIKey     model.APIKey
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func (c *ApiConfig) validate() error {
-	if c == nil {
-		return errors.New("replicate: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("replicate: ApiKey is required")
+func (c APIConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("replicate: APIKey is required")
 	}
 	return nil
 }
 
-type Api struct {
+type API struct {
 	http *resty.Client
 }
 
-func NewApi(cfg *ApiConfig) (*Api, error) {
-	if err := cfg.validate(); err != nil {
+func NewAPI(cfg APIConfig) (*API, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	client := resty.New().
 		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
-		SetAuthToken(cfg.ApiKey.Get()).
+		SetAuthToken(cfg.APIKey.Get()).
 		SetHeader("Content-Type", "application/json")
 	if cfg.HTTPClient != nil {
 		client.SetTransport(cfg.HTTPClient.Transport)
 	}
-	return &Api{http: client}, nil
+	return &API{http: client}, nil
 }
 
 // PredictionRequest is the JSON body for both prediction endpoints.
@@ -92,7 +89,7 @@ type PredictionResponse struct {
 // or "owner/name:version_hash" (community model — routes to
 // /v1/predictions with version in body). The hash form lets callers
 // pin to a specific community-uploaded snapshot.
-func (a *Api) CreatePrediction(ctx context.Context, modelID string, req *PredictionRequest) (*PredictionResponse, error) {
+func (a *API) CreatePrediction(ctx context.Context, modelID string, req *PredictionRequest) (*PredictionResponse, error) {
 	if req == nil {
 		return nil, errors.New("replicate: request must not be nil")
 	}
@@ -128,7 +125,7 @@ func (a *Api) CreatePrediction(ctx context.Context, modelID string, req *Predict
 }
 
 // GetPrediction polls a prediction's current state.
-func (a *Api) GetPrediction(ctx context.Context, id string) (*PredictionResponse, error) {
+func (a *API) GetPrediction(ctx context.Context, id string) (*PredictionResponse, error) {
 	if id == "" {
 		return nil, errors.New("replicate: prediction id must not be empty")
 	}
@@ -144,7 +141,7 @@ func (a *Api) GetPrediction(ctx context.Context, id string) (*PredictionResponse
 }
 
 // CancelPrediction aborts a still-running prediction.
-func (a *Api) CancelPrediction(ctx context.Context, id string) (*PredictionResponse, error) {
+func (a *API) CancelPrediction(ctx context.Context, id string) (*PredictionResponse, error) {
 	if id == "" {
 		return nil, errors.New("replicate: prediction id must not be empty")
 	}

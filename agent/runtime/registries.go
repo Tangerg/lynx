@@ -68,7 +68,7 @@ func (r *agentRegistry) find(name string) (*core.Agent, bool) {
 
 // processRegistry tracks the AgentProcesses the Platform has created.
 // Used as a named field on Platform; methods are lowercase since the
-// public API lives on Platform (Platform.GetProcess / ActiveProcesses
+// public API lives on Platform (Platform.ProcessByID / ActiveProcesses
 // forward to get / list here).
 //
 // Concurrency: a single RWMutex protects the map; registration is

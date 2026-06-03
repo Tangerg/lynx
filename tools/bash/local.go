@@ -39,9 +39,9 @@ func (l *LocalExecutor) maxOutput() int {
 }
 
 // Run implements [Executor].
-func (l *LocalExecutor) Run(ctx context.Context, in RunInput) (RunOutput, error) {
+func (l *LocalExecutor) Run(ctx context.Context, in Input) (Output, error) {
 	if in.Cmd == "" {
-		return RunOutput{}, ErrEmptyCommand
+		return Output{}, ErrEmptyCommand
 	}
 
 	runCtx := ctx
@@ -62,7 +62,7 @@ func (l *LocalExecutor) Run(ctx context.Context, in RunInput) (RunOutput, error)
 	err := cmd.Run()
 	duration := time.Since(start)
 
-	out := RunOutput{
+	out := Output{
 		Stdout:   stdout.finalize(),
 		Stderr:   stderr.finalize(),
 		Duration: duration,

@@ -14,39 +14,36 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 )
 
-type ApiConfig struct {
-	ApiKey     model.ApiKey
+type APIConfig struct {
+	APIKey     model.APIKey
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func (c *ApiConfig) validate() error {
-	if c == nil {
-		return errors.New("stability: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("stability: ApiKey is required")
+func (c APIConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("stability: APIKey is required")
 	}
 	return nil
 }
 
-type Api struct {
+type API struct {
 	http *resty.Client
 }
 
-func NewApi(cfg *ApiConfig) (*Api, error) {
-	if err := cfg.validate(); err != nil {
+func NewAPI(cfg APIConfig) (*API, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
 	client := resty.New().
 		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
-		SetAuthToken(cfg.ApiKey.Get())
+		SetAuthToken(cfg.APIKey.Get())
 	if cfg.HTTPClient != nil {
 		client.SetTransport(cfg.HTTPClient.Transport)
 	}
 
-	return &Api{http: client}, nil
+	return &API{http: client}, nil
 }
 
 // GenerateRequest models the union of fields each v2beta image endpoint
@@ -70,7 +67,7 @@ type JSONResponse struct {
 	Seed         int64  `json:"seed"`
 }
 
-func (a *Api) Generate(ctx context.Context, path string, req *GenerateRequest) ([]byte, http.Header, error) {
+func (a *API) Generate(ctx context.Context, path string, req *GenerateRequest) ([]byte, http.Header, error) {
 	if req == nil {
 		return nil, nil, errors.New("stability: request must not be nil")
 	}

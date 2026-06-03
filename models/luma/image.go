@@ -13,7 +13,7 @@ import (
 )
 
 type ImageModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *image.Options
 	BaseURL        string
 	HTTPClient     *http.Client
@@ -21,12 +21,9 @@ type ImageModelConfig struct {
 	PollTimeout    time.Duration
 }
 
-func (c *ImageModelConfig) validate() error {
-	if c == nil {
-		return errors.New("luma: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("luma: ApiKey is required")
+func (c ImageModelConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("luma: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("luma: DefaultOptions is required")
@@ -40,17 +37,17 @@ var _ image.Model = (*ImageModel)(nil)
 // (/dream-machine/v1/generations/image). Luma is async — Call submits
 // then polls until the asset is ready.
 type ImageModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *image.Options
 	pollInterval   time.Duration
 	pollTimeout    time.Duration
 }
 
-func NewImageModel(cfg *ImageModelConfig) (*ImageModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewApi(&ApiConfig{ApiKey: cfg.ApiKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
+	api, err := NewAPI(APIConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
 	if err != nil {
 		return nil, err
 	}
@@ -127,4 +124,4 @@ func (i *ImageModel) pollUntilDone(ctx context.Context, id string) (*Generation,
 }
 
 func (i *ImageModel) DefaultOptions() image.Options { return *i.defaultOptions }
-func (i *ImageModel) Metadata() image.ModelMetadata         { return image.ModelMetadata{Provider: Provider} }
+func (i *ImageModel) Metadata() image.ModelMetadata { return image.ModelMetadata{Provider: Provider} }

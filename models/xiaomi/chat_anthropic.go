@@ -12,7 +12,7 @@ import (
 )
 
 type AnthropicChatModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *chat.Options
 
 	// BaseURL defaults to [BaseURLAnthropic]. Override only when
@@ -24,12 +24,9 @@ type AnthropicChatModelConfig struct {
 	RequestOptions []option.RequestOption
 }
 
-func (c *AnthropicChatModelConfig) validate() error {
-	if c == nil {
-		return errors.New("xiaomi: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("xiaomi: ApiKey is required")
+func (c AnthropicChatModelConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("xiaomi: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("xiaomi: DefaultOptions is required")
@@ -45,14 +42,14 @@ func (c *AnthropicChatModelConfig) validate() error {
 // Lets Claude Code / Anthropic-SDK callers swap base URL and keep
 // their existing integration while targeting mimo-v2.5-pro /
 // mimo-v2-pro.
-func NewAnthropicChatModel(cfg *AnthropicChatModelConfig) (*anthropic.ChatModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewAnthropicChatModel(cfg AnthropicChatModelConfig) (*anthropic.ChatModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	baseURL := cmp.Or(cfg.BaseURL, BaseURLAnthropic)
 	reqOpts := append([]option.RequestOption{option.WithBaseURL(baseURL)}, cfg.RequestOptions...)
-	return anthropic.NewChatModel(&anthropic.ChatModelConfig{
-		ApiKey:         cfg.ApiKey,
+	return anthropic.NewChatModel(anthropic.ChatModelConfig{
+		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
 		Metadata:       &chat.ModelMetadata{Provider: Provider},

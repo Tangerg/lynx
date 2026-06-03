@@ -61,10 +61,7 @@ type Config struct {
 	HTTPClient *http.Client
 }
 
-func (c *Config) validate() error {
-	if c == nil {
-		return ErrMissingConfig
-	}
+func (c Config) Validate() error {
 	if len(c.AllowedHosts) == 0 {
 		return ErrMissingHosts
 	}
@@ -80,8 +77,8 @@ type Client struct {
 	defaultTimeout   time.Duration
 }
 
-func NewClient(cfg *Config) (*Client, error) {
-	if err := cfg.validate(); err != nil {
+func NewClient(cfg Config) (*Client, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 

@@ -1241,7 +1241,7 @@ func BenchmarkMap(b *testing.B) {
 	ctx := context.Background()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		mapped.Read(ctx)
 	}
 }
@@ -1252,7 +1252,7 @@ func BenchmarkFilter(b *testing.B) {
 	ctx := context.Background()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		filtered.Read(ctx)
 	}
 }
@@ -1267,7 +1267,7 @@ func BenchmarkDistinct(b *testing.B) {
 	ctx := context.Background()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		distinct.Read(ctx)
 	}
 }

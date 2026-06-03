@@ -1,8 +1,8 @@
 package couchbase
 
 import (
-	"context"
 	"cmp"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,16 +22,16 @@ import (
 const Provider = "Couchbase"
 
 const (
-	DefaultScopeName       = "_default"
-	DefaultCollectionName  = "_default"
-	DefaultIndexName       = "lynx-vector-index"
-	DefaultDimensions      = 1536
-	DefaultSimilarity      = SimilarityDotProduct
-	DefaultIndexOptimize   = OptimizeRecall
-	contentField           = "content"
-	embeddingField         = "embedding"
-	metadataField          = "metadata"
-	idField                = "id"
+	DefaultScopeName      = "_default"
+	DefaultCollectionName = "_default"
+	DefaultIndexName      = "lynx-vector-index"
+	DefaultDimensions     = 1536
+	DefaultSimilarity     = SimilarityDotProduct
+	DefaultIndexOptimize  = OptimizeRecall
+	contentField          = "content"
+	embeddingField        = "embedding"
+	metadataField         = "metadata"
+	idField               = "id"
 )
 
 // Similarity selects the vector similarity function written into the
@@ -113,13 +113,7 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return errors.New("couchbase: config must not be nil")
-	}
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+func (c *StoreConfig) Validate() error {
 	if c.Cluster == nil {
 		return errors.New("couchbase: Cluster is required")
 	}
@@ -132,13 +126,6 @@ func (c *StoreConfig) validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("couchbase: DocumentBatcher is required")
 	}
-
-	c.ScopeName = cmp.Or(c.ScopeName, DefaultScopeName)
-	c.CollectionName = cmp.Or(c.CollectionName, DefaultCollectionName)
-	c.VectorIndexName = cmp.Or(c.VectorIndexName, DefaultIndexName)
-	c.Similarity = cmp.Or(c.Similarity, DefaultSimilarity)
-	c.IndexOptimization = cmp.Or(c.IndexOptimization, DefaultIndexOptimize)
-
 	return ident.CheckWithDash("couchbase", map[string]string{
 		"BucketName":      c.BucketName,
 		"ScopeName":       c.ScopeName,
@@ -147,7 +134,22 @@ func (c *StoreConfig) validate() error {
 	})
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
+	c.ScopeName = cmp.Or(c.ScopeName, DefaultScopeName)
+	c.CollectionName = cmp.Or(c.CollectionName, DefaultCollectionName)
+	c.VectorIndexName = cmp.Or(c.VectorIndexName, DefaultIndexName)
+	c.Similarity = cmp.Or(c.Similarity, DefaultSimilarity)
+	c.IndexOptimization = cmp.Or(c.IndexOptimization, DefaultIndexOptimize)
+}
+
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 // Store is a Couchbase Search Service backed [vectorstore.Store].
 type Store struct {
@@ -167,9 +169,9 @@ type Store struct {
 	indexOptimization IndexOptimization
 }
 
-
-func NewStore(config *StoreConfig) (*Store, error) {
-	if err := config.validate(); err != nil {
+func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -265,11 +267,11 @@ func (s *Store) upsertSearchIndex() error {
 							"enabled": true,
 							"fields": []any{
 								map[string]any{
-									"dims":                      s.dimensions,
-									"index":                     true,
-									"name":                      embeddingField,
-									"similarity":                string(s.similarity),
-									"type":                      "vector",
+									"dims":                       s.dimensions,
+									"index":                      true,
+									"name":                       embeddingField,
+									"similarity":                 string(s.similarity),
+									"type":                       "vector",
 									"vector_index_optimized_for": string(s.indexOptimization),
 								},
 							},
@@ -451,6 +453,30 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	return nil
 }
 
+// DeleteByIDs removes documents by their KV key. Create upserts each
+// document under its id as the document key (see [Store.Create]), so the
+// id is the KV key here too. An empty slice is a no-op; a per-key
+// "document not found" error is treated as success so repeated deletes
+// stay idempotent. Implements [vectorstore.IDDeleter].
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "couchbase")
+	defer func() { tracing.Finish(span, err) }()
+
+	for _, id := range ids {
+		if _, removeErr := s.collection.Remove(id, &gocb.RemoveOptions{Context: ctx}); removeErr != nil {
+			if errors.Is(removeErr, gocb.ErrDocumentNotFound) {
+				continue
+			}
+			return fmt.Errorf("couchbase: remove %s: %w", id, removeErr)
+		}
+	}
+	return nil
+}
+
 // buildFilter wraps the visitor.
 func (s *Store) buildFilter(expr ast.Expr) (string, error) {
 	if expr == nil {
@@ -493,6 +519,5 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 		Provider:     Provider,
 	}
 }
-
 
 func (s *Store) Close() error { return nil }

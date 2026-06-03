@@ -10,6 +10,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
+	"github.com/Tangerg/lynx/chatmemory/internal/codec"
 	"github.com/Tangerg/lynx/chatmemory/internal/tracing"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/memory"
@@ -25,17 +26,17 @@ type StoreConfig struct {
 	Container *azcosmos.ContainerClient
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return errors.New("cosmosdb: config must not be nil")
-	}
+func (c StoreConfig) Validate() error {
 	if c.Container == nil {
 		return errors.New("cosmosdb: Container is required")
 	}
 	return nil
 }
 
-var _ memory.Store = (*Store)(nil)
+var (
+	_ memory.Store  = (*Store)(nil)
+	_ memory.Lister = (*Store)(nil)
+)
 
 // Store is a Cosmos DB-backed [memory.Store]. Construct via
 // [NewStore].
@@ -44,8 +45,8 @@ type Store struct {
 }
 
 // NewStore builds a [Store] from cfg.
-func NewStore(cfg *StoreConfig) (*Store, error) {
-	if err := cfg.validate(); err != nil {
+func NewStore(cfg StoreConfig) (*Store, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	return &Store{container: cfg.Container}, nil
@@ -81,7 +82,7 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 	createdAt := now.Format(time.RFC3339Nano)
 
 	for i, msg := range messages {
-		raw, encErr := encodeMessage(msg)
+		raw, encErr := codec.EncodeMessage(msg)
 		if encErr != nil {
 			err = fmt.Errorf("cosmosdb.Store.Write: encode message: %w", encErr)
 			return err
@@ -148,6 +149,39 @@ func (s *Store) Read(ctx context.Context, conversationID string) (out []chat.Mes
 	return out, nil
 }
 
+// Conversations returns the id of every conversation that currently
+// has at least one stored message — a point-in-time snapshot. The
+// distinct ids are gathered with a cross-partition projection query.
+func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
+	if err = ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	ctx, span := tracing.StartList(ctx, "cosmosdb")
+	defer func() { tracing.RecordListResult(span, err, len(ids)) }()
+
+	// Empty partition key + a WHERE-less projection runs cross-partition;
+	// SELECT DISTINCT VALUE is a simple projection the gateway can serve.
+	query := "SELECT DISTINCT VALUE c.conversation_id FROM c"
+
+	ids = []string{}
+	pager := s.container.NewQueryItemsPager(query, azcosmos.NewPartitionKey(), nil)
+	for pager.More() {
+		resp, pageErr := pager.NextPage(ctx)
+		if pageErr != nil {
+			return nil, fmt.Errorf("cosmosdb.Store.Conversations: %w", pageErr)
+		}
+		for _, item := range resp.Items {
+			var id string
+			if err = json.Unmarshal(item, &id); err != nil {
+				return nil, fmt.Errorf("cosmosdb.Store.Conversations: unmarshal id: %w", err)
+			}
+			ids = append(ids, id)
+		}
+	}
+	return ids, nil
+}
+
 // Clear deletes every document for conversationID. Cosmos has no
 // bulk-delete for a partition, so we enumerate ids and issue
 // individual DeleteItem calls — fine for chat-memory sizes.
@@ -186,22 +220,4 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 		}
 	}
 	return nil
-}
-
-func encodeMessage(msg chat.Message) ([]byte, error) {
-	if msg == nil {
-		return nil, errors.New("message must not be nil")
-	}
-	switch m := msg.(type) {
-	case *chat.SystemMessage:
-		return m.MarshalJSON()
-	case *chat.UserMessage:
-		return m.MarshalJSON()
-	case *chat.AssistantMessage:
-		return m.MarshalJSON()
-	case *chat.ToolMessage:
-		return m.MarshalJSON()
-	default:
-		return nil, fmt.Errorf("unsupported message type %T", msg)
-	}
 }

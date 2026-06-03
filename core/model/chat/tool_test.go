@@ -10,14 +10,14 @@ import (
 )
 
 func TestNewTool_RequiresNameSchemaAndExec(t *testing.T) {
-	noop := func(context.Context, string) (string, error) { return "", nil }
+	nop := func(context.Context, string) (string, error) { return "", nil }
 
-	_, err := chat.NewTool(chat.ToolDefinition{}, chat.ToolMetadata{}, noop)
+	_, err := chat.NewTool(chat.ToolDefinition{}, chat.ToolMetadata{}, nop)
 	if err == nil {
 		t.Fatal("missing name must error")
 	}
 
-	_, err = chat.NewTool(chat.ToolDefinition{Name: "search"}, chat.ToolMetadata{}, noop)
+	_, err = chat.NewTool(chat.ToolDefinition{Name: "search"}, chat.ToolMetadata{}, nop)
 	if err == nil {
 		t.Fatal("missing schema must error")
 	}

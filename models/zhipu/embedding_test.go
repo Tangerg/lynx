@@ -30,8 +30,8 @@ func TestEmbeddingModel(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewOptions: %v", err)
 			}
-			m, err := zhipu.NewEmbeddingModel(&zhipu.EmbeddingModelConfig{
-				ApiKey:         model.NewApiKey("test-key"),
+			m, err := zhipu.NewEmbeddingModel(zhipu.EmbeddingModelConfig{
+				APIKey:         model.NewAPIKey("test-key"),
 				DefaultOptions: opts,
 				BaseURL:        baseURL,
 			})

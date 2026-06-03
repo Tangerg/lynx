@@ -22,7 +22,7 @@
 //	sess, _ := cluster.CreateSession()
 //	defer sess.Close()
 //
-//	store, _ := cassandra.NewStore(&cassandra.StoreConfig{
+//	store, _ := cassandra.NewStore(cassandra.StoreConfig{
 //	    Session:          sess,
 //	    Keyspace:         "lynx",
 //	    InitializeSchema: true,

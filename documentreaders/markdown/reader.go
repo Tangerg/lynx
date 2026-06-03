@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"strings"
 
 	"github.com/yuin/goldmark"
@@ -17,10 +18,10 @@ import (
 
 // Metadata keys written onto emitted documents.
 const (
-	MetadataHeading       = "markdown.heading"
-	MetadataHeadingLevel  = "markdown.heading.level"
-	MetadataHeadingPath   = "markdown.heading.path"
-	MetadataSourceName    = "markdown.source"
+	MetadataHeading      = "markdown.heading"
+	MetadataHeadingLevel = "markdown.heading.level"
+	MetadataHeadingPath  = "markdown.heading.path"
+	MetadataSourceName   = "markdown.source"
 )
 
 // Option configures a [Reader].
@@ -47,6 +48,18 @@ func WithSourceName(name string) Option {
 	return func(r *Reader) { r.sourceName = name }
 }
 
+// WithMetadata adds caller-supplied metadata to every emitted document
+// (source URI, tenant, doc type, ...). The map is cloned, so later
+// caller mutations don't leak in. Reader-derived `markdown.*` keys take
+// precedence on conflict.
+func WithMetadata(md map[string]any) Option {
+	return func(r *Reader) {
+		if len(md) > 0 {
+			r.extraMetadata = maps.Clone(md)
+		}
+	}
+}
+
 var _ document.Reader = (*Reader)(nil)
 
 // Reader is a markdown-aware [document.Reader].
@@ -55,6 +68,7 @@ type Reader struct {
 	parser            goldmark.Markdown
 	headingSplitLevel int
 	sourceName        string
+	extraMetadata     map[string]any
 }
 
 // NewReader builds a markdown reader over src.
@@ -73,8 +87,12 @@ func NewReader(src io.Reader, opts ...Option) (*Reader, error) {
 }
 
 // Read consumes the underlying reader and emits documents according to
-// the configured mode.
-func (r *Reader) Read(_ context.Context) ([]*document.Document, error) {
+// the configured mode. ctx cancellation is honored before parsing and
+// between emitted sections.
+func (r *Reader) Read(ctx context.Context) ([]*document.Document, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	raw, err := io.ReadAll(r.reader)
 	if err != nil {
 		return nil, fmt.Errorf("markdown: read source: %w", err)
@@ -83,7 +101,7 @@ func (r *Reader) Read(_ context.Context) ([]*document.Document, error) {
 	if r.headingSplitLevel == 0 {
 		return r.readWhole(raw)
 	}
-	return r.readSplit(raw)
+	return r.readSplit(ctx, raw)
 }
 
 // readWhole returns one document containing the entire markdown body.
@@ -99,7 +117,7 @@ func (r *Reader) readWhole(raw []byte) ([]*document.Document, error) {
 }
 
 // readSplit walks the markdown AST and emits a document per section.
-func (r *Reader) readSplit(raw []byte) ([]*document.Document, error) {
+func (r *Reader) readSplit(ctx context.Context, raw []byte) ([]*document.Document, error) {
 	root := r.parser.Parser().Parse(text.NewReader(raw))
 
 	var (
@@ -116,7 +134,7 @@ func (r *Reader) readSplit(raw []byte) ([]*document.Document, error) {
 			if len(sections) == 0 {
 				sections = append(sections, &section{})
 			}
-			appendNodeSource(sections[len(sections)-1], raw, n)
+			sections[len(sections)-1].appendNodeSource(raw, n)
 			continue
 		}
 
@@ -132,11 +150,14 @@ func (r *Reader) readSplit(raw []byte) ([]*document.Document, error) {
 			level:   heading.Level,
 			path:    pathFromStack(stack),
 		}
-		appendNodeSource(sec, raw, n)
+		sec.appendNodeSource(raw, n)
 		sections = append(sections, sec)
 	}
 
 	for _, sec := range sections {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		body := strings.TrimSpace(sec.builder.String())
 		if body == "" {
 			continue
@@ -173,7 +194,10 @@ func extractHeadingText(h *ast.Heading, raw []byte) string {
 }
 
 func (r *Reader) baseMetadata() map[string]any {
-	md := map[string]any{}
+	md := maps.Clone(r.extraMetadata)
+	if md == nil {
+		md = map[string]any{}
+	}
 	if r.sourceName != "" {
 		md[MetadataSourceName] = r.sourceName
 	}
@@ -202,10 +226,10 @@ func pathFromStack(stack []sectionRef) string {
 	return strings.Join(titles, " > ")
 }
 
-// appendNodeSource copies the raw markdown bytes backing n into the
-// section body. goldmark preserves byte offsets via Segments, which we
+// appendNodeSource copies the raw markdown bytes backing n into this
+// section's body. goldmark preserves byte offsets via Segments, which we
 // can stitch together.
-func appendNodeSource(s *section, raw []byte, n ast.Node) {
+func (s *section) appendNodeSource(raw []byte, n ast.Node) {
 	var buf bytes.Buffer
 	collectSegments(&buf, raw, n)
 	if buf.Len() == 0 {

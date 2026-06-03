@@ -1,0 +1,659 @@
+{
+  "provider": "groq",
+  "models": [
+    {
+      "id": "allam-2-7b",
+      "display_name": "ALLaM-2-7b",
+      "knowledge_cutoff": "2024-09-01T00:00:00Z",
+      "release_date": "2024-09-01T00:00:00Z",
+      "last_updated": "2024-09-01T00:00:00Z",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "limits": {
+        "context_window": 4096,
+        "max_output_tokens": 4096
+      }
+    },
+    {
+      "id": "deepseek-r1-distill-llama-70b",
+      "display_name": "DeepSeek R1 Distill Llama 70B",
+      "knowledge_cutoff": "2024-07-01T00:00:00Z",
+      "release_date": "2025-01-20T00:00:00Z",
+      "last_updated": "2025-01-20T00:00:00Z",
+      "deprecated": true,
+      "pricing": [
+        {
+          "input_per_1m": 0.75,
+          "output_per_1m": 0.99
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 8192
+      }
+    },
+    {
+      "id": "gemma2-9b-it",
+      "display_name": "Gemma 2 9B",
+      "knowledge_cutoff": "2024-06-01T00:00:00Z",
+      "release_date": "2024-06-27T00:00:00Z",
+      "last_updated": "2024-06-27T00:00:00Z",
+      "deprecated": true,
+      "pricing": [
+        {
+          "input_per_1m": 0.2,
+          "output_per_1m": 0.2
+        }
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 8192,
+        "max_output_tokens": 8192
+      }
+    },
+    {
+      "id": "groq/compound",
+      "display_name": "Compound",
+      "knowledge_cutoff": "2025-09-04T00:00:00Z",
+      "release_date": "2025-09-04T00:00:00Z",
+      "last_updated": "2025-09-04T00:00:00Z",
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 8192
+      }
+    },
+    {
+      "id": "groq/compound-mini",
+      "display_name": "Compound Mini",
+      "knowledge_cutoff": "2025-09-04T00:00:00Z",
+      "release_date": "2025-09-04T00:00:00Z",
+      "last_updated": "2025-09-04T00:00:00Z",
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 8192
+      }
+    },
+    {
+      "id": "llama-3.1-8b-instant",
+      "display_name": "Llama 3.1 8B Instant",
+      "knowledge_cutoff": "2023-12-01T00:00:00Z",
+      "release_date": "2024-07-23T00:00:00Z",
+      "last_updated": "2024-07-23T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.05,
+          "output_per_1m": 0.08
+        }
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 131072
+      }
+    },
+    {
+      "id": "llama-3.3-70b-versatile",
+      "display_name": "Llama 3.3 70B Versatile",
+      "knowledge_cutoff": "2023-12-01T00:00:00Z",
+      "release_date": "2024-12-06T00:00:00Z",
+      "last_updated": "2024-12-06T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.59,
+          "output_per_1m": 0.79
+        }
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 32768
+      }
+    },
+    {
+      "id": "llama-guard-3-8b",
+      "display_name": "Llama Guard 3 8B",
+      "release_date": "2024-07-23T00:00:00Z",
+      "last_updated": "2024-07-23T00:00:00Z",
+      "deprecated": true,
+      "pricing": [
+        {
+          "input_per_1m": 0.2,
+          "output_per_1m": 0.2
+        }
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "limits": {
+        "context_window": 8192,
+        "max_output_tokens": 8192
+      }
+    },
+    {
+      "id": "llama3-70b-8192",
+      "display_name": "Llama 3 70B",
+      "knowledge_cutoff": "2023-03-01T00:00:00Z",
+      "release_date": "2024-04-18T00:00:00Z",
+      "last_updated": "2024-04-18T00:00:00Z",
+      "deprecated": true,
+      "pricing": [
+        {
+          "input_per_1m": 0.59,
+          "output_per_1m": 0.79
+        }
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 8192,
+        "max_output_tokens": 8192
+      }
+    },
+    {
+      "id": "llama3-8b-8192",
+      "display_name": "Llama 3 8B",
+      "knowledge_cutoff": "2023-03-01T00:00:00Z",
+      "release_date": "2024-04-18T00:00:00Z",
+      "last_updated": "2024-04-18T00:00:00Z",
+      "deprecated": true,
+      "pricing": [
+        {
+          "input_per_1m": 0.05,
+          "output_per_1m": 0.08
+        }
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 8192,
+        "max_output_tokens": 8192
+      }
+    },
+    {
+      "id": "meta-llama/llama-4-maverick-17b-128e-instruct",
+      "display_name": "Llama 4 Maverick 17B",
+      "knowledge_cutoff": "2024-08-01T00:00:00Z",
+      "release_date": "2025-04-05T00:00:00Z",
+      "last_updated": "2025-04-05T00:00:00Z",
+      "deprecated": true,
+      "pricing": [
+        {
+          "input_per_1m": 0.2,
+          "output_per_1m": 0.6
+        }
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 8192
+      }
+    },
+    {
+      "id": "meta-llama/llama-4-scout-17b-16e-instruct",
+      "display_name": "Llama 4 Scout 17B",
+      "knowledge_cutoff": "2024-08-01T00:00:00Z",
+      "release_date": "2025-04-05T00:00:00Z",
+      "last_updated": "2025-04-05T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.11,
+          "output_per_1m": 0.34
+        }
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 8192
+      }
+    },
+    {
+      "id": "meta-llama/llama-guard-4-12b",
+      "display_name": "Llama Guard 4 12B",
+      "release_date": "2025-04-05T00:00:00Z",
+      "last_updated": "2025-04-05T00:00:00Z",
+      "deprecated": true,
+      "pricing": [
+        {
+          "input_per_1m": 0.2,
+          "output_per_1m": 0.2
+        }
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 1024
+      }
+    },
+    {
+      "id": "meta-llama/llama-prompt-guard-2-22m",
+      "display_name": "Llama Prompt Guard 2 22M",
+      "knowledge_cutoff": "2024-10-01T00:00:00Z",
+      "release_date": "2024-10-01T00:00:00Z",
+      "last_updated": "2024-10-01T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.03,
+          "output_per_1m": 0.03
+        }
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "limits": {
+        "context_window": 512,
+        "max_output_tokens": 512
+      }
+    },
+    {
+      "id": "meta-llama/llama-prompt-guard-2-86m",
+      "display_name": "Llama Prompt Guard 2 86M",
+      "knowledge_cutoff": "2024-10-01T00:00:00Z",
+      "release_date": "2024-10-01T00:00:00Z",
+      "last_updated": "2024-10-01T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.04,
+          "output_per_1m": 0.04
+        }
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "limits": {
+        "context_window": 512,
+        "max_output_tokens": 512
+      }
+    },
+    {
+      "id": "mistral-saba-24b",
+      "display_name": "Mistral Saba 24B",
+      "knowledge_cutoff": "2024-08-01T00:00:00Z",
+      "release_date": "2025-02-06T00:00:00Z",
+      "last_updated": "2025-02-06T00:00:00Z",
+      "deprecated": true,
+      "pricing": [
+        {
+          "input_per_1m": 0.79,
+          "output_per_1m": 0.79
+        }
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 32768,
+        "max_output_tokens": 32768
+      }
+    },
+    {
+      "id": "moonshotai/kimi-k2-instruct",
+      "display_name": "Kimi K2 Instruct",
+      "knowledge_cutoff": "2024-10-01T00:00:00Z",
+      "release_date": "2025-07-14T00:00:00Z",
+      "last_updated": "2025-07-14T00:00:00Z",
+      "deprecated": true,
+      "pricing": [
+        {
+          "input_per_1m": 1,
+          "output_per_1m": 3
+        }
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 16384
+      }
+    },
+    {
+      "id": "moonshotai/kimi-k2-instruct-0905",
+      "display_name": "Kimi K2 Instruct 0905",
+      "knowledge_cutoff": "2024-10-01T00:00:00Z",
+      "release_date": "2025-09-05T00:00:00Z",
+      "last_updated": "2026-05-27T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 1,
+          "output_per_1m": 3,
+          "cache_read_per_1m": 0.5
+        }
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 262144,
+        "max_output_tokens": 16384
+      }
+    },
+    {
+      "id": "openai/gpt-oss-120b",
+      "display_name": "GPT OSS 120B",
+      "release_date": "2025-08-05T00:00:00Z",
+      "last_updated": "2026-05-27T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.15,
+          "output_per_1m": 0.6,
+          "cache_read_per_1m": 0.075
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 65536
+      }
+    },
+    {
+      "id": "openai/gpt-oss-20b",
+      "display_name": "GPT OSS 20B",
+      "release_date": "2025-08-05T00:00:00Z",
+      "last_updated": "2026-05-27T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.075,
+          "output_per_1m": 0.3,
+          "cache_read_per_1m": 0.0375
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "structured_output": true,
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 65536
+      }
+    },
+    {
+      "id": "openai/gpt-oss-safeguard-20b",
+      "display_name": "Safety GPT OSS 20B",
+      "release_date": "2025-03-05T00:00:00Z",
+      "last_updated": "2025-03-05T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.075,
+          "output_per_1m": 0.3,
+          "cache_read_per_1m": 0.037
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 65536
+      }
+    },
+    {
+      "id": "qwen-qwq-32b",
+      "display_name": "Qwen QwQ 32B",
+      "knowledge_cutoff": "2024-09-01T00:00:00Z",
+      "release_date": "2024-11-27T00:00:00Z",
+      "last_updated": "2024-11-27T00:00:00Z",
+      "deprecated": true,
+      "pricing": [
+        {
+          "input_per_1m": 0.29,
+          "output_per_1m": 0.39
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 16384
+      }
+    },
+    {
+      "id": "qwen/qwen3-32b",
+      "display_name": "Qwen3 32B",
+      "knowledge_cutoff": "2024-11-08T00:00:00Z",
+      "release_date": "2024-12-23T00:00:00Z",
+      "last_updated": "2024-12-23T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.29,
+          "output_per_1m": 0.59
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 131072,
+        "max_output_tokens": 40960
+      }
+    },
+    {
+      "id": "whisper-large-v3",
+      "display_name": "Whisper Large V3",
+      "knowledge_cutoff": "2023-09-01T00:00:00Z",
+      "release_date": "2023-09-01T00:00:00Z",
+      "last_updated": "2025-09-05T00:00:00Z",
+      "modalities": {
+        "input": [
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "limits": {
+        "context_window": 448,
+        "max_output_tokens": 448
+      }
+    },
+    {
+      "id": "whisper-large-v3-turbo",
+      "display_name": "Whisper Large v3 Turbo",
+      "knowledge_cutoff": "2024-10-01T00:00:00Z",
+      "release_date": "2024-10-01T00:00:00Z",
+      "last_updated": "2024-10-01T00:00:00Z",
+      "modalities": {
+        "input": [
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "limits": {
+        "context_window": 448,
+        "max_output_tokens": 448
+      }
+    }
+  ]
+}

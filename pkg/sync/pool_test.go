@@ -710,7 +710,7 @@ func BenchmarkPools(b *testing.B) {
 	b.Run("NoPool", func(b *testing.B) {
 		pool := PoolOfNoPool()
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			var wg sync.WaitGroup
 			wg.Add(1)
 			_ = pool.Submit(func() {
@@ -724,7 +724,7 @@ func BenchmarkPools(b *testing.B) {
 		concPool := conc.New().WithMaxGoroutines(10)
 		pool := PoolOfConc(concPool)
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_ = pool.Submit(func() {})
 		}
 		concPool.Wait()
@@ -735,7 +735,7 @@ func BenchmarkPools(b *testing.B) {
 		defer antsPool.Release()
 		pool := PoolOfAnts(antsPool)
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			var wg sync.WaitGroup
 			wg.Add(1)
 			_ = pool.Submit(func() {
@@ -750,7 +750,7 @@ func BenchmarkPools(b *testing.B) {
 		defer wp.StopWait()
 		pool := PoolOfWorkerpool(wp)
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			var wg sync.WaitGroup
 			wg.Add(1)
 			_ = pool.Submit(func() {

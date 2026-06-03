@@ -1,11 +1,12 @@
 package clickhouse
 
 import (
-	"context"
 	"cmp"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/google/uuid"
@@ -71,18 +72,12 @@ type StoreConfig struct {
 	EmbeddingModel  embedding.Model
 	DocumentBatcher document.Batcher
 
-	Dimensions          int
-	DistanceMetric      DistanceMetric
-	InitializeSchema    bool
+	Dimensions       int
+	DistanceMetric   DistanceMetric
+	InitializeSchema bool
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return errors.New("clickhouse: config must not be nil")
-	}
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+func (c *StoreConfig) Validate() error {
 	if c.Conn == nil {
 		return errors.New("clickhouse: Conn is required")
 	}
@@ -92,13 +87,6 @@ func (c *StoreConfig) validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("clickhouse: DocumentBatcher is required")
 	}
-	c.TableName = cmp.Or(c.TableName, DefaultTableName)
-	c.IDColumn = cmp.Or(c.IDColumn, DefaultIDColumn)
-	c.ContentColumn = cmp.Or(c.ContentColumn, DefaultContentColumn)
-	c.MetadataColumn = cmp.Or(c.MetadataColumn, DefaultMetadataColumn)
-	c.EmbeddingColumn = cmp.Or(c.EmbeddingColumn, DefaultEmbeddingColumn)
-	c.DistanceMetric = cmp.Or(c.DistanceMetric, DefaultDistanceMetric)
-
 	checks := map[string]string{
 		"TableName":       c.TableName,
 		"IDColumn":        c.IDColumn,
@@ -112,7 +100,23 @@ func (c *StoreConfig) validate() error {
 	return ident.Check("clickhouse", checks)
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
+	c.TableName = cmp.Or(c.TableName, DefaultTableName)
+	c.IDColumn = cmp.Or(c.IDColumn, DefaultIDColumn)
+	c.ContentColumn = cmp.Or(c.ContentColumn, DefaultContentColumn)
+	c.MetadataColumn = cmp.Or(c.MetadataColumn, DefaultMetadataColumn)
+	c.EmbeddingColumn = cmp.Or(c.EmbeddingColumn, DefaultEmbeddingColumn)
+	c.DistanceMetric = cmp.Or(c.DistanceMetric, DefaultDistanceMetric)
+}
+
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 // Store is a ClickHouse-backed [vectorstore.Store] implementation.
 type Store struct {
@@ -131,9 +135,9 @@ type Store struct {
 	distanceMetric  DistanceMetric
 }
 
-
-func NewStore(config *StoreConfig) (*Store, error) {
-	if err := config.validate(); err != nil {
+func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	embeddingClient, err := embedding.NewClient(config.EmbeddingModel)
@@ -361,7 +365,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 // Delete removes rows matching the filter expression.
 //
 // ClickHouse mutations are asynchronous — callers should consider
-// MutationOptions for synchronous behaviour in their environment.
+// MutationOptions for synchronous behavior in their environment.
 func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
 	if err = req.Validate(); err != nil {
 		return fmt.Errorf("clickhouse: invalid delete request: %w", err)
@@ -388,6 +392,34 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	return nil
 }
 
+// DeleteByIDs removes rows by primary key via an `ALTER TABLE ...
+// DELETE WHERE <id> IN (?, ...)` mutation, matching the form Delete
+// uses. An empty slice is a no-op; unknown ids are silently ignored.
+// Implements [vectorstore.IDDeleter].
+//
+// ClickHouse mutations are asynchronous — callers should consider
+// MutationOptions for synchronous behavior in their environment.
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "clickhouse")
+	defer func() { tracing.Finish(span, err) }()
+
+	placeholders := strings.Repeat("?, ", len(ids)-1) + "?"
+	stmt := fmt.Sprintf("ALTER TABLE %s DELETE WHERE %s IN (%s)", s.fullTable, s.idColumn, placeholders)
+
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	if err = s.conn.Exec(ctx, stmt, args...); err != nil {
+		return fmt.Errorf("clickhouse: delete by ids from %s: %w", s.fullTable, err)
+	}
+	return nil
+}
+
 func (s *Store) buildFilter(filter ast.Expr) (string, []any, error) {
 	if filter == nil {
 		return "", nil, nil
@@ -407,7 +439,6 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 		Provider:     Provider,
 	}
 }
-
 
 func (s *Store) Close() error { return nil }
 

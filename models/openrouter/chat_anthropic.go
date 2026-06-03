@@ -12,7 +12,7 @@ import (
 )
 
 type AnthropicChatModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *chat.Options
 	BaseURL        string
 
@@ -27,12 +27,9 @@ type AnthropicChatModelConfig struct {
 	RequestOptions []option.RequestOption
 }
 
-func (c *AnthropicChatModelConfig) validate() error {
-	if c == nil {
-		return errors.New("openrouter: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("openrouter: ApiKey is required")
+func (c AnthropicChatModelConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("openrouter: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("openrouter: DefaultOptions is required")
@@ -51,8 +48,8 @@ func (c *AnthropicChatModelConfig) validate() error {
 // MiniMax-M2, GLM-4.6, Kimi-K2, etc.). For other models OpenRouter
 // transparently translates Messages → Chat Completions, but unique
 // fields (thinking blocks, tool_use signatures) may not round-trip.
-func NewAnthropicChatModel(cfg *AnthropicChatModelConfig) (*anthropic.ChatModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewAnthropicChatModel(cfg AnthropicChatModelConfig) (*anthropic.ChatModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	baseURL := cmp.Or(cfg.BaseURL, BaseURL)
@@ -64,8 +61,8 @@ func NewAnthropicChatModel(cfg *AnthropicChatModelConfig) (*anthropic.ChatModel,
 		reqOpts = append(reqOpts, option.WithHeader(HeaderAppTitle, cfg.AppTitle))
 	}
 	reqOpts = append(reqOpts, cfg.RequestOptions...)
-	return anthropic.NewChatModel(&anthropic.ChatModelConfig{
-		ApiKey:         cfg.ApiKey,
+	return anthropic.NewChatModel(anthropic.ChatModelConfig{
+		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
 		Metadata:       &chat.ModelMetadata{Provider: Provider},

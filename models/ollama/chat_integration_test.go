@@ -24,7 +24,7 @@ func TestNativeChatModel_Integration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m, err := ollama.NewNativeChatModel(&ollama.NativeChatModelConfig{
+			m, err := ollama.NewNativeChatModel(ollama.NativeChatModelConfig{
 				DefaultOptions: opts,
 				BaseURL:        baseURL,
 			})

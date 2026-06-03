@@ -29,7 +29,7 @@ const (
 // The retry loop respects ActionQoS: ActionFailed retries up to MaxAttempts
 // with back-off; ActionWaiting/Paused/Succeeded short-circuit immediately.
 // The full retry loop (not each attempt) is wrapped by every registered
-// [core.ActionInterceptor] — interceptors fire once per action, not per
+// [core.ActionMiddleware] — interceptors fire once per action, not per
 // retry, matching embabel's AgentProcessCallback semantics.
 func (p *AgentProcess) executeAction(ctx context.Context, action core.Action) (core.ActionStatus, *core.ReplanRequest) {
 	meta := action.Metadata()
@@ -56,14 +56,15 @@ func (p *AgentProcess) executeAction(ctx context.Context, action core.Action) (c
 		attempts int
 		lastErr  error
 	)
-	interceptors := collectExtensions[core.ActionInterceptor](p.combinedExtensions())
-	status = runActionInterceptors(interceptors, ctx, p, action, func() core.ActionStatus {
+	interceptors := collectExtensions[core.ActionMiddleware](p.combinedExtensions())
+	status = runActionMiddleware(interceptors, ctx, p, action, func() core.ActionStatus {
 		s, r, a, err := p.runWithRetry(ctx, action, processContext, meta.QoS)
 		replan, attempts, lastErr = r, a, err
 		return s
 	})
 
 	duration := time.Since(startedAt)
+	p.recordActionMetric(ctx, status, duration)
 
 	p.state.recordInvocation(ActionInvocation{
 		ActionName: meta.Name,
@@ -76,7 +77,7 @@ func (p *AgentProcess) executeAction(ctx context.Context, action core.Action) (c
 	if status == core.ActionSucceeded {
 		// hasRun gates non-rerunnable actions; we set it only on success so
 		// retrying after a future re-plan remains possible.
-		p.blackboard.SetCondition(meta.HasRunKey(), true)
+		p.blackboard.SetCondition(meta.EffectiveRunKey(), true)
 	}
 
 	span.SetAttributes(
@@ -121,8 +122,22 @@ func (p *AgentProcess) runWithRetry(
 	processContext *core.ProcessContext,
 	qos core.ActionQoS,
 ) (status core.ActionStatus, replan *core.ReplanRequest, attempts int, lastErr error) {
+	effects := action.Metadata().Effects
 	op := func() error {
 		attempts++
+
+		// On a retry (any attempt after the first), clear this action's
+		// declared effect conditions so a half-applied effect from the
+		// failed attempt doesn't poison the next one. Mirrors embabel's
+		// AbstractAgentProcess retry (effects.forEach { setCondition(it,
+		// false) } when retryCount > 0). The hasRun key is only promoted on
+		// success after the loop, so clearing it here is a harmless no-op.
+		if attempts > 1 {
+			for key := range effects {
+				p.blackboard.SetCondition(key, false)
+			}
+		}
+
 		processContext.ResetError()
 
 		status = processContext.ExecuteSafely(ctx, action)
@@ -203,17 +218,22 @@ func (p *AgentProcess) recordActionFailure(actionName string, err error) {
 // without exposing those types to ProcessContext consumers.
 func (p *AgentProcess) buildProcessContext(actionToolGroups []core.ToolGroupRequirement, action core.Action) *core.ProcessContext {
 	config := core.ProcessContextConfig{
-		Process:          p,
-		Blackboard:       p.blackboard,
-		Options:          p.options,
-		OutputChannel:    p.options.OutputChannel,
-		Services:         p.platformServices(),
-		ChatClient:       p.platformChatClient(),
-		Guardrails:       p.platformGuardrails(),
+		ProcessState: core.ProcessState{
+			Process:       p,
+			Blackboard:    p.blackboard,
+			Options:       p.options,
+			OutputChannel: p.options.OutputChannel,
+			Services:      p.platformServices(),
+		},
+		PlatformHooks: core.PlatformHooks{
+			ChatClient:     p.platformChatClient(),
+			Guardrails:     p.platformGuardrails(),
+			Publish:        p.publishAny,
+			ResolveTools:   p.toolResolverFor(action),
+			ToolCallCancel: p.signals.registerToolCallCancel,
+		},
 		ActionToolGroups: actionToolGroups,
-		Publish:          p.publishAny,
-		ToolCallCancel:   p.signals.registerToolCallCancel,
-		ResolveTools:     p.toolResolverFor(action),
+		ActionToolLoop:   action.Metadata().ToolLoop,
 	}
 	return core.NewProcessContext(config)
 }

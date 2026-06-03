@@ -74,7 +74,7 @@ func main() {
 
 	// Provider aggregates one or more sessions. MetaFunc=MetaFromContext
 	// pulls per-request metadata installed via mcp.WithMeta.
-	provider, err = lynxmcp.NewProvider(&lynxmcp.ProviderConfig{
+	provider, err = lynxmcp.NewProvider(lynxmcp.ProviderConfig{
 		Sources:  []lynxmcp.Source{{Name: "research", Session: cliSession}},
 		MetaFunc: lynxmcp.MetaFromContext,
 	})
@@ -140,11 +140,11 @@ func main() {
 		Goals(agent.GoalProducing[Brief](core.Goal{Description: "topic brief produced"})).
 		Build()
 
-	resolver, err := runtime.NewMCPToolGroupResolver("research", provider)
+	resolver, err := runtime.NewMCPResolver("research", provider)
 	if err != nil {
 		log.Fatal(err)
 	}
-	platform := agent.NewPlatform(&runtime.PlatformConfig{
+	platform := agent.NewPlatform(runtime.PlatformConfig{
 		ChatClient: chatClient,
 		Extensions: []core.Extension{resolver},
 	})
@@ -242,7 +242,7 @@ func newStubModel() *stubModel {
 }
 
 func (m *stubModel) DefaultOptions() chat.Options { return *m.defaults }
-func (m *stubModel) Metadata() chat.ModelMetadata          { return chat.ModelMetadata{Provider: "stub"} }
+func (m *stubModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
 
 func (m *stubModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
 	if !hasToolMessage(req.Messages) {

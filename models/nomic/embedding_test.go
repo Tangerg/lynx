@@ -30,8 +30,8 @@ func TestEmbeddingModel(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewOptions: %v", err)
 			}
-			m, err := nomic.NewEmbeddingModel(&nomic.EmbeddingModelConfig{
-				ApiKey:         model.NewApiKey("test-key"),
+			m, err := nomic.NewEmbeddingModel(nomic.EmbeddingModelConfig{
+				APIKey:         model.NewAPIKey("test-key"),
 				DefaultOptions: opts,
 				BaseURL:        baseURL,
 			})

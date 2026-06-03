@@ -40,28 +40,17 @@ type TokenCountBatcherConfig struct {
 	MetadataMode MetadataMode
 }
 
-// validate fills defaults and returns an error when required fields
-// are missing or numerically out of range.
-func (c *TokenCountBatcherConfig) validate() error {
-	if c == nil {
-		return errors.New("document.TokenCountBatcherConfig: config must not be nil")
-	}
+// Validate returns an error when required fields are missing or
+// numerically out of range.
+func (c *TokenCountBatcherConfig) Validate() error {
 	if c.TokenCountEstimator == nil {
 		return errors.New("document.TokenCountBatcherConfig: TokenCountEstimator is required")
 	}
 	if c.Formatter == nil {
 		return errors.New("document.TokenCountBatcherConfig: Formatter is required")
 	}
-
-	if c.MaxInputTokenCount == 0 {
-		c.MaxInputTokenCount = defaultBatcherMaxInputTokenCount
-	}
 	if c.MaxInputTokenCount <= 0 {
 		return errors.New("document.TokenCountBatcherConfig: MaxInputTokenCount must be > 0")
-	}
-
-	if c.ReservePercentage == 0 {
-		c.ReservePercentage = defaultBatcherReservePercentage
 	}
 	if c.ReservePercentage < 0 || c.ReservePercentage >= 1 {
 		return errors.New("document.TokenCountBatcherConfig: ReservePercentage must be in [0, 1)")
@@ -74,6 +63,18 @@ func (c *TokenCountBatcherConfig) validate() error {
 		return fmt.Errorf("document.TokenCountBatcherConfig: invalid MetadataMode %q", c.MetadataMode)
 	}
 	return nil
+}
+
+// ApplyDefaults fills zero fields. MaxInputTokenCount defaults to
+// [defaultBatcherMaxInputTokenCount]; ReservePercentage defaults to
+// [defaultBatcherReservePercentage].
+func (c *TokenCountBatcherConfig) ApplyDefaults() {
+	if c.MaxInputTokenCount == 0 {
+		c.MaxInputTokenCount = defaultBatcherMaxInputTokenCount
+	}
+	if c.ReservePercentage == 0 {
+		c.ReservePercentage = defaultBatcherReservePercentage
+	}
 }
 
 var _ Batcher = (*TokenCountBatcher)(nil)
@@ -95,8 +96,9 @@ type TokenCountBatcher struct {
 
 // NewTokenCountBatcher builds a [TokenCountBatcher]. The effective
 // per-batch budget is MaxInputTokenCount * (1 - ReservePercentage).
-func NewTokenCountBatcher(config *TokenCountBatcherConfig) (*TokenCountBatcher, error) {
-	if err := config.validate(); err != nil {
+func NewTokenCountBatcher(config TokenCountBatcherConfig) (*TokenCountBatcher, error) {
+	config.ApplyDefaults()
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 

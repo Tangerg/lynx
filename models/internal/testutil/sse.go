@@ -93,7 +93,7 @@ func JSONServer(status int, body string, inspect ...func(r *http.Request)) *http
 	return srv
 }
 
-// BinaryServer is the analogue of JSONServer for non-JSON payloads
+// BinaryServer is the analog of JSONServer for non-JSON payloads
 // (TTS audio, image bytes, etc.). The body is written as-is with the
 // supplied Content-Type.
 func BinaryServer(status int, contentType string, body []byte, inspect ...func(r *http.Request)) *httptest.Server {
@@ -103,7 +103,7 @@ func BinaryServer(status int, contentType string, body []byte, inspect ...func(r
 		}
 		w.Header().Set("Content-Type", contentType)
 		w.WriteHeader(status)
-		w.Write(body)
+		_, _ = w.Write(body)
 	}))
 	return srv
 }

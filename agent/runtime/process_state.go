@@ -69,7 +69,7 @@ func (s *processState) getHistory() []ActionInvocation {
 }
 
 // historyLen reports the action-history length without copying. Used by
-// AgentProcess.Usage to avoid materialising the slice when only the
+// AgentProcess.Usage to avoid materializing the slice when only the
 // count is needed.
 func (s *processState) historyLen() int {
 	s.mu.RLock()

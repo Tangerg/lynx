@@ -53,7 +53,7 @@ func TestSimpleFormatter_AllAndNone(t *testing.T) {
 	doc, _ := document.NewDocument("body", nil)
 	doc.Metadata["k"] = "v"
 
-	f := document.NewSimpleFormatter(nil)
+	f := document.NewSimpleFormatter(document.SimpleFormatterConfig{})
 
 	all := f.Format(doc, document.MetadataModeAll)
 	if !strings.Contains(all, "k: v") || !strings.Contains(all, "body") {
@@ -71,7 +71,7 @@ func TestSimpleFormatter_ExcludeKeys(t *testing.T) {
 	doc.Metadata["public"] = "yes"
 	doc.Metadata["secret"] = "hidden"
 
-	f := document.NewSimpleFormatter(&document.SimpleFormatterConfig{
+	f := document.NewSimpleFormatter(document.SimpleFormatterConfig{
 		ExcludedEmbedMetadataKeys: []string{"secret"},
 	})
 
@@ -85,7 +85,7 @@ func TestSimpleFormatter_ExcludeKeys(t *testing.T) {
 }
 
 func TestTextSplitter_DefaultSeparatorIsNewline(t *testing.T) {
-	s := document.NewTextSplitter(nil)
+	s := document.NewTextSplitter(document.TextSplitterConfig{})
 
 	doc, _ := document.NewDocument("a\nb\nc", nil)
 	got, err := s.Transform(context.Background(), []*document.Document{doc})
@@ -98,7 +98,7 @@ func TestTextSplitter_DefaultSeparatorIsNewline(t *testing.T) {
 }
 
 func TestTextSplitter_PreservesMetadata(t *testing.T) {
-	s := document.NewTextSplitter(&document.TextSplitterConfig{Separator: "|"})
+	s := document.NewTextSplitter(document.TextSplitterConfig{Separator: "|"})
 
 	doc, _ := document.NewDocument("a|b", nil)
 	doc.Metadata["src"] = "manual"
@@ -112,14 +112,14 @@ func TestTextSplitter_PreservesMetadata(t *testing.T) {
 }
 
 func TestSplitter_RejectsMissingSplitFunc(t *testing.T) {
-	if _, err := document.NewSplitter(&document.SplitterConfig{}); err == nil {
+	if _, err := document.NewSplitter(document.SplitterConfig{}); err == nil {
 		t.Fatal("missing SplitFunc must error")
 	}
 }
 
 func TestSplitter_PropagatesError(t *testing.T) {
 	want := errors.New("split failed")
-	s, _ := document.NewSplitter(&document.SplitterConfig{
+	s, _ := document.NewSplitter(document.SplitterConfig{
 		SplitFunc: func(context.Context, string) ([]string, error) { return nil, want },
 	})
 
@@ -130,7 +130,7 @@ func TestSplitter_PropagatesError(t *testing.T) {
 }
 
 func TestSplitter_DropsEmptyChunks(t *testing.T) {
-	s, _ := document.NewSplitter(&document.SplitterConfig{
+	s, _ := document.NewSplitter(document.SplitterConfig{
 		SplitFunc: func(context.Context, string) ([]string, error) {
 			return []string{"a", "", "b"}, nil
 		},

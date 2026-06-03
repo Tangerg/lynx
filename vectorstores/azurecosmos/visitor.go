@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
-	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 )
 
 var _ ast.Visitor = (*Visitor)(nil)
@@ -37,14 +37,12 @@ type NamedParam struct {
 	Value any
 }
 
-
 func NewVisitor(alias, metadataPrefix string) *Visitor {
 	if alias == "" {
 		alias = "c"
 	}
 	return &Visitor{alias: alias, metadataPrefix: metadataPrefix}
 }
-
 
 func (v *Visitor) Result() (string, []NamedParam) {
 	if v.err != nil {
@@ -215,7 +213,6 @@ func (v *Visitor) fieldPath(expr ast.Expr) (string, error) {
 	parts = append(parts, keys...)
 	return strings.Join(parts, "."), nil
 }
-
 
 func sqlOpFor(kind token.Kind) (string, error) {
 	switch kind {

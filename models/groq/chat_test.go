@@ -19,8 +19,8 @@ func TestChatModel(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewOptions: %v", err)
 			}
-			m, err := groq.NewOpenAIChatModel(&groq.OpenAIChatModelConfig{
-				ApiKey:         model.NewApiKey("test-key"),
+			m, err := groq.NewOpenAIChatModel(groq.OpenAIChatModelConfig{
+				APIKey:         model.NewAPIKey("test-key"),
 				DefaultOptions: opts,
 				BaseURL:        baseURL,
 			})

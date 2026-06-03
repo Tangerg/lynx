@@ -12,7 +12,7 @@ import (
 )
 
 type OpenAIChatModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *chat.Options
 
 	// BaseURL defaults to [BaseURL] (production). Set to [BaseURLBeta]
@@ -24,12 +24,9 @@ type OpenAIChatModelConfig struct {
 	RequestOptions []option.RequestOption
 }
 
-func (c *OpenAIChatModelConfig) validate() error {
-	if c == nil {
-		return errors.New("deepseek: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("deepseek: ApiKey is required")
+func (c OpenAIChatModelConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("deepseek: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("deepseek: DefaultOptions is required")
@@ -41,14 +38,14 @@ func (c *OpenAIChatModelConfig) validate() error {
 // pointed at DeepSeek. DeepSeek's /chat/completions is OpenAI-
 // compatible — tool calling, streaming, response_format,
 // reasoning_content all work out of the box.
-func NewOpenAIChatModel(cfg *OpenAIChatModelConfig) (*openai.ChatModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewOpenAIChatModel(cfg OpenAIChatModelConfig) (*openai.ChatModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	baseURL := cmp.Or(cfg.BaseURL, BaseURL)
 	reqOpts := append([]option.RequestOption{option.WithBaseURL(baseURL)}, cfg.RequestOptions...)
-	return openai.NewChatModel(&openai.ChatModelConfig{
-		ApiKey:         cfg.ApiKey,
+	return openai.NewChatModel(openai.ChatModelConfig{
+		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
 		Metadata:       &chat.ModelMetadata{Provider: Provider},

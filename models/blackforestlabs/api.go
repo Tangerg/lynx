@@ -12,38 +12,35 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 )
 
-type ApiConfig struct {
-	ApiKey     model.ApiKey
+type APIConfig struct {
+	APIKey     model.APIKey
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func (c *ApiConfig) validate() error {
-	if c == nil {
-		return errors.New("blackforestlabs: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("blackforestlabs: ApiKey is required")
+func (c APIConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("blackforestlabs: APIKey is required")
 	}
 	return nil
 }
 
-type Api struct {
+type API struct {
 	http *resty.Client
 }
 
-func NewApi(cfg *ApiConfig) (*Api, error) {
-	if err := cfg.validate(); err != nil {
+func NewAPI(cfg APIConfig) (*API, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	client := resty.New().
 		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
-		SetHeader("x-key", cfg.ApiKey.Get()).
+		SetHeader("x-key", cfg.APIKey.Get()).
 		SetHeader("Content-Type", "application/json")
 	if cfg.HTTPClient != nil {
 		client.SetTransport(cfg.HTTPClient.Transport)
 	}
-	return &Api{http: client}, nil
+	return &API{http: client}, nil
 }
 
 // GenerateRequest is the union of fields the various Flux endpoints
@@ -84,7 +81,7 @@ type PollResult struct {
 }
 
 // Generate posts to /<model> (e.g. "flux-pro-1.1", "flux-kontext-pro").
-func (a *Api) Generate(ctx context.Context, model string, req *GenerateRequest) (*AsyncResponse, error) {
+func (a *API) Generate(ctx context.Context, model string, req *GenerateRequest) (*AsyncResponse, error) {
 	if req == nil {
 		return nil, errors.New("blackforestlabs: request must not be nil")
 	}
@@ -102,7 +99,7 @@ func (a *Api) Generate(ctx context.Context, model string, req *GenerateRequest) 
 // GetResult fetches the current task state. Status is what the caller
 // polls on; Result.Sample is a signed URL to the generated PNG/JPEG
 // (valid for ~10 minutes).
-func (a *Api) GetResult(ctx context.Context, id string) (*PollResult, error) {
+func (a *API) GetResult(ctx context.Context, id string) (*PollResult, error) {
 	var out PollResult
 	resp, err := a.http.R().SetContext(ctx).SetQueryParam("id", id).SetResult(&out).Get("/get_result")
 	if err != nil {

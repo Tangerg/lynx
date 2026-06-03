@@ -41,7 +41,7 @@ type ProcessOptions struct {
 	// this single process. They merge with platform-scoped extensions at
 	// dispatch time — process extensions take inner / higher priority
 	// (e.g. a process-scope IDGenerator overrides the platform default;
-	// a process-scope ActionInterceptor sits inside any platform-scope
+	// a process-scope ActionMiddleware sits inside any platform-scope
 	// interceptor in the onion chain). Within Extensions, each
 	// [Extension.Name] must be unique; the runtime returns an error
 	// from RunAgent / StartAgent / ContinueProcess when this constraint

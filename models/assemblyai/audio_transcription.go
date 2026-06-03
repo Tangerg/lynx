@@ -13,7 +13,7 @@ import (
 )
 
 type AudioTranscriptionModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *transcription.Options
 	BaseURL        string
 	HTTPClient     *http.Client
@@ -25,12 +25,9 @@ type AudioTranscriptionModelConfig struct {
 	PollTimeout  time.Duration
 }
 
-func (c *AudioTranscriptionModelConfig) validate() error {
-	if c == nil {
-		return errors.New("assemblyai: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("assemblyai: ApiKey is required")
+func (c AudioTranscriptionModelConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("assemblyai: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("assemblyai: DefaultOptions is required")
@@ -57,19 +54,19 @@ var _ transcription.Model = (*AudioTranscriptionModel)(nil)
 // Extra-threaded TranscriptRequest and the model will skip the
 // /upload roundtrip.
 type AudioTranscriptionModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *transcription.Options
 	pollInterval   time.Duration
 	pollTimeout    time.Duration
 }
 
-func NewAudioTranscriptionModel(cfg *AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	api, err := NewApi(&ApiConfig{
-		ApiKey:     cfg.ApiKey,
+	api, err := NewAPI(APIConfig{
+		APIKey:     cfg.APIKey,
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,
 	})

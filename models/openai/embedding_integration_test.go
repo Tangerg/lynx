@@ -23,8 +23,8 @@ func integrationEmbeddingModel(t *testing.T) *openai.EmbeddingModel {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := openai.NewEmbeddingModel(&openai.EmbeddingModelConfig{
-		ApiKey:         model.NewApiKey(key),
+	m, err := openai.NewEmbeddingModel(openai.EmbeddingModelConfig{
+		APIKey:         model.NewAPIKey(key),
 		DefaultOptions: opts,
 	})
 	if err != nil {

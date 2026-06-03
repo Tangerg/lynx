@@ -1052,7 +1052,7 @@ func BenchmarkUnion(b *testing.B) {
 	s2 := Of(6, 7, 8, 9, 10, 11, 12, 13, 14, 15)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = Union(s1, s2)
 	}
 }
@@ -1062,7 +1062,7 @@ func BenchmarkIntersection(b *testing.B) {
 	s2 := Of(6, 7, 8, 9, 10, 11, 12, 13, 14, 15)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = Intersection(s1, s2)
 	}
 }
@@ -1072,7 +1072,7 @@ func BenchmarkDifference(b *testing.B) {
 	s2 := Of(6, 7, 8, 9, 10, 11, 12, 13, 14, 15)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = Difference(s1, s2)
 	}
 }
@@ -1082,7 +1082,7 @@ func BenchmarkSymmetricDifference(b *testing.B) {
 	s2 := Of(6, 7, 8, 9, 10, 11, 12, 13, 14, 15)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = SymmetricDifference(s1, s2)
 	}
 }
@@ -1092,7 +1092,7 @@ func BenchmarkEqual(b *testing.B) {
 	s2 := Of(10, 9, 8, 7, 6, 5, 4, 3, 2, 1)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = Equal(s1, s2)
 	}
 }
@@ -1102,7 +1102,7 @@ func BenchmarkIsSubset(b *testing.B) {
 	s2 := Of(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = IsSubset(s1, s2)
 	}
 }
@@ -1112,7 +1112,7 @@ func BenchmarkIsDisjoint(b *testing.B) {
 	s2 := Of(6, 7, 8, 9, 10)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = IsDisjoint(s1, s2)
 	}
 }
@@ -1122,14 +1122,14 @@ func BenchmarkCartesianProduct(b *testing.B) {
 	s2 := Of("a", "b", "c", "d", "e")
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = CartesianProduct(s1, s2)
 	}
 }
 
 func BenchmarkOf(b *testing.B) {
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = Of(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 	}
 }

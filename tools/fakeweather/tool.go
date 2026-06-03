@@ -46,7 +46,7 @@ type Response struct {
 	LastUpdated    int64            `json:"last_updated"` // Unix seconds, equal to start of target date (deterministic)
 }
 
-// Coordinates is the location's geographic anchor. Elevation in metres.
+// Coordinates is the location's geographic anchor. Elevation in meters.
 type Coordinates struct {
 	Latitude  float64 `json:"latitude"`
 	Longitude float64 `json:"longitude"`

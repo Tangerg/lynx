@@ -11,7 +11,6 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Tangerg/lynx/core/model/chat"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
 )
 
@@ -67,7 +66,7 @@ func TestProvider_DiscoversAndCallsTool(t *testing.T) {
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
-	p, err := lynxmcp.NewProvider(&lynxmcp.ProviderConfig{
+	p, err := lynxmcp.NewProvider(lynxmcp.ProviderConfig{
 		Sources: []lynxmcp.Source{{Name: "primary", Session: cs}},
 	})
 	require.NoError(t, err)
@@ -81,9 +80,7 @@ func TestProvider_DiscoversAndCallsTool(t *testing.T) {
 	assert.Equal(t, "echo the input", def.Description)
 	assert.NotEmpty(t, def.InputSchema)
 
-	callable, ok := tools[0].(chat.Tool)
-	require.True(t, ok, "wrapped tool must implement chat.Tool")
-
+	callable := tools[0]
 	out, err := callable.Call(ctx, `{"text":"hello world"}`)
 	require.NoError(t, err)
 	assert.Equal(t, "hello world", out)
@@ -96,7 +93,7 @@ func TestProvider_TwoSourcesAreNamespaced(t *testing.T) {
 	cs2, _, c2 := startServerWithEcho(t, ctx)
 	defer c2()
 
-	p, err := lynxmcp.NewProvider(&lynxmcp.ProviderConfig{
+	p, err := lynxmcp.NewProvider(lynxmcp.ProviderConfig{
 		Sources: []lynxmcp.Source{
 			{Name: "alpha", Session: cs1},
 			{Name: "beta", Session: cs2},
@@ -120,7 +117,7 @@ func TestProvider_FailsOnDuplicateNames(t *testing.T) {
 	defer c2()
 
 	// Same source name => same prefix => duplicate "samename_echo"
-	p, err := lynxmcp.NewProvider(&lynxmcp.ProviderConfig{
+	p, err := lynxmcp.NewProvider(lynxmcp.ProviderConfig{
 		Sources: []lynxmcp.Source{
 			{Name: "samename", Session: cs1},
 			{Name: "samename", Session: cs2},
@@ -138,7 +135,7 @@ func TestProvider_CustomNaming(t *testing.T) {
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
-	p, err := lynxmcp.NewProvider(&lynxmcp.ProviderConfig{
+	p, err := lynxmcp.NewProvider(lynxmcp.ProviderConfig{
 		Sources: []lynxmcp.Source{{Name: "src", Session: cs}},
 		Naming: func(_ string, t *sdkmcp.Tool) string {
 			return "mcp__" + t.Name
@@ -157,7 +154,7 @@ func TestProvider_CacheAndInvalidate(t *testing.T) {
 	cs, srv, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
-	p, err := lynxmcp.NewProvider(&lynxmcp.ProviderConfig{
+	p, err := lynxmcp.NewProvider(lynxmcp.ProviderConfig{
 		Sources: []lynxmcp.Source{{Name: "p", Session: cs}},
 	})
 	require.NoError(t, err)
@@ -233,7 +230,7 @@ func TestProvider_OnToolListChangedInvalidates(t *testing.T) {
 	require.NoError(t, err)
 	defer cs.Close()
 
-	provider, err = lynxmcp.NewProvider(&lynxmcp.ProviderConfig{
+	provider, err = lynxmcp.NewProvider(lynxmcp.ProviderConfig{
 		Sources: []lynxmcp.Source{{Name: "p", Session: cs}},
 	})
 	require.NoError(t, err)
@@ -262,7 +259,7 @@ func TestProvider_OnToolListChangedInvalidates(t *testing.T) {
 }
 
 func TestProvider_RejectsNilSession(t *testing.T) {
-	_, err := lynxmcp.NewProvider(&lynxmcp.ProviderConfig{
+	_, err := lynxmcp.NewProvider(lynxmcp.ProviderConfig{
 		Sources: []lynxmcp.Source{{Name: "x", Session: nil}},
 	})
 	require.Error(t, err)
@@ -273,7 +270,7 @@ func TestProvider_ZeroConfigUsesDefaults(t *testing.T) {
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
 
-	p, err := lynxmcp.NewProvider(&lynxmcp.ProviderConfig{
+	p, err := lynxmcp.NewProvider(lynxmcp.ProviderConfig{
 		Sources: []lynxmcp.Source{{Name: "primary", Session: cs}},
 	})
 	require.NoError(t, err)

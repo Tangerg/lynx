@@ -1740,7 +1740,7 @@ func BenchmarkLinkedMap_Iter(b *testing.B) {
 	}
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		for range m.Iter() {
 		}
 	}
@@ -1753,7 +1753,7 @@ func BenchmarkLinkedMap_First(b *testing.B) {
 	}
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		m.First()
 	}
 }

@@ -27,11 +27,11 @@ const (
 // filesystem.
 //
 //   - Glob shells out to find (portable across BSD and GNU; bash 3.2
-//     on macOS doesn't honour globstar, so a bash-based impl wouldn't
+//     on macOS doesn't honor globstar, so a bash-based impl wouldn't
 //     work everywhere).
 //   - Grep prefers ripgrep when it's on PATH; falls back to GNU grep
 //     otherwise (FileType / Multiline only work on the ripgrep path).
-//   - Write and Edit serialise per file via [LocalExecutor.lockPath]
+//   - Write and Edit serialize per file via [LocalExecutor.lockPath]
 //     so concurrent tool calls on the same path can't tear.
 //   - Read normalises CRLF→LF and strips UTF-8 BOM; Write and Edit
 //     restore both when the existing file uses them.
@@ -240,7 +240,7 @@ func (l *LocalExecutor) Edit(_ context.Context, in EditInput) (EditOutput, error
 
 // Glob shells out to find for portability. We don't use bash's
 // `shopt -s globstar` because macOS still ships bash 3.2, which
-// doesn't honour it; find is universally available and supports
+// doesn't honor it; find is universally available and supports
 // -maxdepth on both BSD and GNU variants.
 //
 // Supported pattern shapes:

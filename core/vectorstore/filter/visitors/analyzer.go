@@ -160,10 +160,25 @@ func (a *Analyzer) visitBinaryExpr(binary *ast.BinaryExpr) error {
 		return a.visitInOperation(binary)
 	case binary.Op.Kind.Is(token.LIKE):
 		return a.visitLikeOperation(binary)
+	case binary.Op.Kind.IsNullOperator():
+		return a.visitNullTest(binary)
 	}
 
 	return fmt.Errorf("visitors.Analyzer: unsupported binary operator %s(%s) at %s",
 		binary.Op.Literal, binary.Op.Kind.Name(), binary.Start().String())
+}
+
+// visitNullTest validates `<field> IS NULL`. The left side is already
+// constrained to an identifier or index expression by visitBinaryExpr;
+// the right side must be the NULL literal (the parser guarantees this,
+// but the analyzer re-checks so a hand-built AST can't slip through).
+func (a *Analyzer) visitNullTest(binary *ast.BinaryExpr) error {
+	lit, ok := binary.Right.(*ast.Literal)
+	if !ok || !lit.IsNull() {
+		return fmt.Errorf("visitors.Analyzer: %s expects NULL on the right, got %T at %s",
+			binary.Op.Literal, binary.Right, binary.Start().String())
+	}
+	return nil
 }
 
 // visitLogicalOperation validates AND/OR — both operands must be

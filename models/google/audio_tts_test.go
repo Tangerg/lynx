@@ -29,8 +29,8 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := google.NewAudioTTSModel(&google.AudioTTSModelConfig{
-		ApiKey:         model.NewApiKey("test-key"),
+	m, err := google.NewAudioTTSModel(google.AudioTTSModelConfig{
+		APIKey:         model.NewAPIKey("test-key"),
 		DefaultOptions: opts,
 		BaseURL:        srv.URL,
 	})

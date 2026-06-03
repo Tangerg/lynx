@@ -11,7 +11,7 @@ import (
 
 // ragTracer is the package-level tracer for RAG pipeline span
 // emission. Tracer name follows the `lynx/<subsystem>` convention.
-// Noop overhead when no TracerProvider is installed — see
+// No-op overhead when no TracerProvider is installed — see
 // doc/OBSERVABILITY.md §5.
 var ragTracer = otel.Tracer("lynx/rag")
 

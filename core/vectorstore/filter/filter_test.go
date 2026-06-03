@@ -5,7 +5,23 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 )
+
+func TestParseAndAnalyze_Optimizes(t *testing.T) {
+	// ParseAndAnalyze folds dead logic: not(not(x)) collapses to x, so
+	// the result is the comparison itself, not a UnaryExpr.
+	expr, err := filter.ParseAndAnalyze(`not (not (year >= 2020))`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, isUnary := expr.(*ast.UnaryExpr); isUnary {
+		t.Fatalf("expected double-NOT to be folded away, got %T", expr)
+	}
+	if _, isBinary := expr.(*ast.BinaryExpr); !isBinary {
+		t.Fatalf("expected the bare comparison BinaryExpr, got %T", expr)
+	}
+}
 
 func TestParse_ValidExpression(t *testing.T) {
 	expr, err := filter.Parse(`category == 'tech'`)
@@ -73,5 +89,57 @@ func TestParse_ErrorMessageNonempty(t *testing.T) {
 	}
 	if strings.TrimSpace(err.Error()) == "" {
 		t.Fatal("error message should be non-empty")
+	}
+}
+
+func TestParseAndAnalyze_IsNull(t *testing.T) {
+	for _, src := range []string{
+		`owner is null`,
+		`owner is not null`,
+		`metadata['k'] is null`,
+		`a is null and b == 1`,
+	} {
+		if _, err := filter.ParseAndAnalyze(src); err != nil {
+			t.Fatalf("ParseAndAnalyze(%q): unexpected error %v", src, err)
+		}
+	}
+}
+
+func TestParseAndAnalyze_IsNullRejectsNonNull(t *testing.T) {
+	// IS must be followed by NULL (optionally NOT NULL); other right
+	// sides are rejected at parse time.
+	for _, src := range []string{
+		`owner is 5`,
+		`owner is 'x'`,
+		`owner is`,
+	} {
+		if _, err := filter.ParseAndAnalyze(src); err == nil {
+			t.Fatalf("ParseAndAnalyze(%q): expected error, got nil", src)
+		}
+	}
+}
+
+func TestParseAndAnalyze_NotIn(t *testing.T) {
+	// `NOT IN` reuses the NOT + IN tokens: it parses to a NOT wrapping an
+	// IN, not a dedicated node.
+	expr, err := filter.ParseAndAnalyze(`tags not in ('a', 'b', 'c')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unary, ok := expr.(*ast.UnaryExpr)
+	if !ok {
+		t.Fatalf("NOT IN should be a UnaryExpr(NOT, ...), got %T", expr)
+	}
+	if _, ok := unary.Right.(*ast.BinaryExpr); !ok {
+		t.Fatalf("NOT IN inner should be a BinaryExpr(IN), got %T", unary.Right)
+	}
+}
+
+func TestParseAndAnalyze_NotInRejectsNonIn(t *testing.T) {
+	// Infix NOT only accepts IN after it.
+	for _, src := range []string{`a not == 1`, `a not 5`} {
+		if _, err := filter.ParseAndAnalyze(src); err == nil {
+			t.Fatalf("ParseAndAnalyze(%q): expected error, got nil", src)
+		}
 	}
 }

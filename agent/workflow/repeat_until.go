@@ -2,12 +2,12 @@ package workflow
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/Tangerg/lynx/agent/core"
 )
 
-// RepeatUntilSpec configures a "loop a task until the result is
+// RepeatUntilConfig configures a "loop a task until the result is
 // acceptable" workflow. Each iteration runs Task to produce a fresh
 // Out; Accept then inspects the latest attempt (with full History)
 // to decide whether the workflow should stop.
@@ -15,7 +15,7 @@ import (
 // The MaxIterations cap forces termination after that many attempts
 // even when Accept never returns true — the workflow then yields the
 // last attempt as the final result.
-type RepeatUntilSpec[In, Out any] struct {
+type RepeatUntilConfig[In, Out any] struct {
 	// Name names the produced agent + its goal + the iteration's
 	// computed condition. Required.
 	Name string
@@ -55,15 +55,15 @@ type RepeatUntilSpec[In, Out any] struct {
 // Task / Accept callbacks always see the running record.
 //
 // Returns an error on missing Name, nil Task, or nil Accept.
-func RepeatUntil[In, Out any](spec RepeatUntilSpec[In, Out]) (*core.Agent, error) {
+func RepeatUntil[In, Out any](spec RepeatUntilConfig[In, Out]) (*core.Agent, error) {
 	if spec.Name == "" {
-		return nil, fmt.Errorf("workflow.RepeatUntil: Name must not be empty")
+		return nil, errors.New("workflow.RepeatUntil: Name must not be empty")
 	}
 	if spec.Task == nil {
-		return nil, fmt.Errorf("workflow.RepeatUntil: Task must not be nil")
+		return nil, errors.New("workflow.RepeatUntil: Task must not be nil")
 	}
 	if spec.Accept == nil {
-		return nil, fmt.Errorf("workflow.RepeatUntil: Accept must not be nil")
+		return nil, errors.New("workflow.RepeatUntil: Accept must not be nil")
 	}
 	maxIter := spec.MaxIterations
 	if maxIter <= 0 {
@@ -74,7 +74,7 @@ func RepeatUntil[In, Out any](spec RepeatUntilSpec[In, Out]) (*core.Agent, error
 	// that for type-binding keys. Use '_' as the separator.
 	acceptKey := spec.Name + "_acceptable"
 
-	acceptCondition := core.NewCondition(acceptKey, func(ctx context.Context, oc *core.OperationContext) core.Determination {
+	acceptCondition := core.NewCondition(acceptKey, func(ctx context.Context, oc *core.ConditionEnv) core.Determination {
 		history, ok := core.Last[*History[Out]](oc.Blackboard)
 		if !ok {
 			return core.False
@@ -117,14 +117,14 @@ func RepeatUntil[In, Out any](spec RepeatUntilSpec[In, Out]) (*core.Agent, error
 		},
 	)
 
-	return core.NewAgent(&core.AgentConfig{
+	return core.NewAgent(core.AgentConfig{
 		Name:        spec.Name,
 		Description: spec.Description,
 		Actions:     []core.Action{task},
 		Conditions:  []core.Condition{acceptCondition},
 		Goals: []*core.Goal{core.GoalProducing[Out](core.Goal{
 			Name:        spec.Name,
-			Description: "produce acceptable " + core.TypeFullNameOf[Out](),
+			Description: "produce acceptable " + core.TypeName[Out](),
 			Pre:         []string{acceptKey},
 		})},
 	}), nil

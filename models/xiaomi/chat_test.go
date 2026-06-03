@@ -19,8 +19,8 @@ func TestChatModel(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewOptions: %v", err)
 			}
-			m, err := xiaomi.NewOpenAIChatModel(&xiaomi.OpenAIChatModelConfig{
-				ApiKey:         model.NewApiKey("test-key"),
+			m, err := xiaomi.NewOpenAIChatModel(xiaomi.OpenAIChatModelConfig{
+				APIKey:         model.NewAPIKey("test-key"),
 				DefaultOptions: opts,
 				BaseURL:        baseURL,
 			})

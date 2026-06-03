@@ -24,8 +24,8 @@ func TestEmbeddingModel_Integration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m, err := jina.NewEmbeddingModel(&jina.EmbeddingModelConfig{
-				ApiKey:         model.NewApiKey(key),
+			m, err := jina.NewEmbeddingModel(jina.EmbeddingModelConfig{
+				APIKey:         model.NewAPIKey(key),
 				DefaultOptions: opts,
 			})
 			if err != nil {

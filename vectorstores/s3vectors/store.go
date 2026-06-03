@@ -1,8 +1,8 @@
 package s3vectors
 
 import (
-	"context"
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 
@@ -66,13 +66,7 @@ const (
 	DistanceEuclidean DistanceMetric = "euclidean"
 )
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return errors.New("s3vectors: config must not be nil")
-	}
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+func (c *StoreConfig) Validate() error {
 	if c.Client == nil {
 		return errors.New("s3vectors: Client is required")
 	}
@@ -88,8 +82,15 @@ func (c *StoreConfig) validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("s3vectors: DocumentBatcher is required")
 	}
-	c.DistanceMetric = cmp.Or(c.DistanceMetric, DistanceCosine)
 	return nil
+}
+
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
+	c.DistanceMetric = cmp.Or(c.DistanceMetric, DistanceCosine)
 }
 
 var _ vectorstore.Store = (*Store)(nil)
@@ -106,9 +107,9 @@ type Store struct {
 	distanceMetric   DistanceMetric
 }
 
-
-func NewStore(config *StoreConfig) (*Store, error) {
-	if err := config.validate(); err != nil {
+func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -367,6 +368,5 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 		Provider:     Provider,
 	}
 }
-
 
 func (s *Store) Close() error { return nil }

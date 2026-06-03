@@ -10,7 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
-	"github.com/Tangerg/lynx/agent/plan"
+	"github.com/Tangerg/lynx/agent/planning"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
@@ -27,7 +27,7 @@ import (
 //     a pointer.
 //   - budget   subtree cost / token / action aggregation; lock pointer
 //     points at state.mu.
-//   - signals  channel + atomic-based signalling primitives
+//   - signals  channel + atomic-based signaling primitives
 //     (terminate / awaitable slot / toolCallCancel) — no
 //     shared lock, all built on lock-free primitives.
 //
@@ -47,15 +47,14 @@ type AgentProcess struct {
 
 	blackboard core.Blackboard
 	determiner *blackboardDeterminer
-	planner    plan.Planner
-	system     *plan.PlanningSystem
+	planner    planning.Planner
+	system     *planning.System
 	platform   *Platform
 
 	// processEvents is the per-process multicast populated from
-	// EventListener extensions on ProcessOptions.Extensions. Created at
-	// createProcess time; nil for processes that don't go through the
-	// regular factory path (e.g. test fixtures that build AgentProcess
-	// directly, though no such path exists today).
+	// EventListener extensions on ProcessOptions.Extensions. Wired by
+	// wireRuntimeDeps on every construction path (createProcess +
+	// RestoreProcess); publishEvent still nil-guards it for safety.
 	processEvents *event.Multicast
 }
 
@@ -79,8 +78,8 @@ func newAgentProcess(
 	agentDef *core.Agent,
 	options *core.ProcessOptions,
 	blackboard core.Blackboard,
-	planner plan.Planner,
-	system *plan.PlanningSystem,
+	planner planning.Planner,
+	system *planning.System,
 	platform *Platform,
 ) *AgentProcess {
 	p := &AgentProcess{
@@ -97,6 +96,21 @@ func newAgentProcess(
 	}
 	p.budget.lock = &p.state.mu // budget shares state's mutex
 	return p
+}
+
+// wireRuntimeDeps finishes the parts of construction that need the
+// *AgentProcess pointer itself: the determiner (which wires the process
+// as the [core.Process] user-defined conditions evaluate against) and
+// the per-process event multicast (subscribing process-scope
+// EventListener extensions). Split out of newAgentProcess because both
+// fields close over the assembled pointer, and shared by every path
+// that builds a process — createProcess for fresh runs, RestoreProcess
+// for snapshots re-entering the tick loop. A restored process that
+// skips this panics on its first observe (nil determiner).
+func (p *AgentProcess) wireRuntimeDeps(extensions []core.Extension) {
+	p.determiner = newBlackboardDeterminer(p.system, p.blackboard, p)
+	p.processEvents = event.NewMulticast()
+	addEventListenerExtensions(p.processEvents, extensions)
 }
 
 // --- core.Process read surface --------------------------------------------
@@ -131,20 +145,37 @@ func (p *AgentProcess) Usage() (cost float64, tokens int, actions int) {
 // LLM-client adapter that knows the per-model rate. The framework
 // itself never invents numbers here.
 func (p *AgentProcess) RecordUsage(cost float64, tokens int) {
-	p.budget.recordUsage(cost, tokens)
+	p.RecordLLMInvocation(core.LLMInvocation{CostUSD: cost, PromptTokens: int64(tokens)})
 }
 
 // RecordLLMInvocation appends a fully-attributed LLM call to this
 // process's history. Integration code calls this once per LLM
 // response with the model id, provider, cost, and token breakdown.
+// It also publishes an [event.LLMInvocationRecorded] so listeners can
+// audit per-call cost/tokens off the event stream.
 func (p *AgentProcess) RecordLLMInvocation(inv core.LLMInvocation) {
+	if inv.Timestamp.IsZero() {
+		inv.Timestamp = core.Now()
+	}
 	p.budget.recordLLMInvocation(inv)
+	p.publishEvent(event.LLMInvocationRecorded{
+		BaseEvent:  p.baseEvent(),
+		Invocation: inv,
+	})
 }
 
 // RecordEmbeddingInvocation appends a fully-attributed embedding
-// call. Mirrors RecordLLMInvocation for the embeddings path.
+// call. Mirrors RecordLLMInvocation for the embeddings path, including
+// the [event.EmbeddingInvocationRecorded] publish.
 func (p *AgentProcess) RecordEmbeddingInvocation(inv core.EmbeddingInvocation) {
+	if inv.Timestamp.IsZero() {
+		inv.Timestamp = core.Now()
+	}
 	p.budget.recordEmbeddingInvocation(inv)
+	p.publishEvent(event.EmbeddingInvocationRecorded{
+		BaseEvent:  p.baseEvent(),
+		Invocation: inv,
+	})
 }
 
 // LLMInvocations returns the subtree-aggregated LLM invocation
@@ -239,7 +270,7 @@ func (p *AgentProcess) publishAny(e any) {
 // --- tracing helpers ------------------------------------------------------
 
 // Tracing attribute keys shared between process- and action-level
-// spans. Centralised at the AgentProcess scope (where they originate)
+// spans. Centralized at the AgentProcess scope (where they originate)
 // because external listeners — dashboards, exporters — key off the
 // stable string values. Treat as schema; renaming breaks consumers.
 const (

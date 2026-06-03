@@ -14,7 +14,7 @@ import (
 )
 
 type ModerationModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *moderation.Options
 	RequestOptions []option.RequestOption
 
@@ -23,12 +23,9 @@ type ModerationModelConfig struct {
 	Metadata *moderation.ModelMetadata
 }
 
-func (c *ModerationModelConfig) validate() error {
-	if c == nil {
-		return errors.New("openai: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("openai: ApiKey is required")
+func (c ModerationModelConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("openai: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("openai: DefaultOptions is required")
@@ -39,18 +36,18 @@ func (c *ModerationModelConfig) validate() error {
 var _ moderation.Model = (*ModerationModel)(nil)
 
 type ModerationModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *moderation.Options
 	metadata       moderation.ModelMetadata
 }
 
-func NewModerationModel(cfg *ModerationModelConfig) (*ModerationModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewModerationModel(cfg ModerationModelConfig) (*ModerationModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	api, err := NewApi(&ApiConfig{
-		ApiKey:         cfg.ApiKey,
+	api, err := NewAPI(APIConfig{
+		APIKey:         cfg.APIKey,
 		RequestOptions: cfg.RequestOptions,
 	})
 	if err != nil {
@@ -64,11 +61,11 @@ func NewModerationModel(cfg *ModerationModelConfig) (*ModerationModel, error) {
 	return &ModerationModel{
 		api:            api,
 		defaultOptions: cfg.DefaultOptions,
-		metadata:           info,
+		metadata:       info,
 	}, nil
 }
 
-func (m *ModerationModel) buildApiModerationRequest(req *moderation.Request) (*openai.ModerationNewParams, error) {
+func (m *ModerationModel) buildAPIModerationRequest(req *moderation.Request) (*openai.ModerationNewParams, error) {
 	mergedOpts, err := moderation.MergeOptions(m.defaultOptions, req.Options)
 	if err != nil {
 		return nil, err
@@ -161,7 +158,7 @@ func (m *ModerationModel) buildModerationResponse(resp *openai.ModerationNewResp
 }
 
 func (m *ModerationModel) Call(ctx context.Context, req *moderation.Request) (*moderation.Response, error) {
-	apiReq, err := m.buildApiModerationRequest(req)
+	apiReq, err := m.buildAPIModerationRequest(req)
 	if err != nil {
 		return nil, err
 	}

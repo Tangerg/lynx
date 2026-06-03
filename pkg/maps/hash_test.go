@@ -1366,7 +1366,7 @@ func BenchmarkHashMap_ContainsValue(b *testing.B) {
 	}
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		m.ContainsValue(500)
 	}
 }
@@ -1378,7 +1378,7 @@ func BenchmarkHashMap_Iter(b *testing.B) {
 	}
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		for range m.Iter() {
 		}
 	}
@@ -1391,7 +1391,7 @@ func BenchmarkHashMap_Clone(b *testing.B) {
 	}
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		m.Clone()
 	}
 }
@@ -1414,7 +1414,7 @@ func BenchmarkHashMap_ReplaceAll(b *testing.B) {
 	}
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		m.ReplaceAll(func(k int, v int) int {
 			return v * 2
 		})

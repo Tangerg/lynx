@@ -232,3 +232,41 @@ func TestVisitor_NilExpression(t *testing.T) {
 		t.Fatal("nil expression must produce an error")
 	}
 }
+
+func TestVisitor_IsNull(t *testing.T) {
+	sql, args, err := build(t, `author is null`)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	if !strings.Contains(sql, "metadata->>'author'") || !strings.Contains(sql, "IS NULL") {
+		t.Fatalf("sql=%q must contain metadata->>'author' IS NULL", sql)
+	}
+	if len(args) != 0 {
+		t.Fatalf("IS NULL takes no bound args, got %v", args)
+	}
+}
+
+func TestVisitor_IsNotNull(t *testing.T) {
+	sql, _, err := build(t, `author is not null`)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	// NOT(field IS NULL) — semantically IS NOT NULL.
+	if !strings.Contains(sql, "NOT") || !strings.Contains(sql, "IS NULL") {
+		t.Fatalf("sql=%q must wrap IS NULL in NOT", sql)
+	}
+}
+
+func TestVisitor_NotIn(t *testing.T) {
+	sql, args, err := build(t, `tags not in ('a', 'b')`)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	// NOT(tags IN (...)) — the existing NOT wrapper around = ANY.
+	if !strings.Contains(sql, "NOT") || !strings.Contains(sql, "ANY") {
+		t.Fatalf("sql=%q must wrap an = ANY(...) in NOT", sql)
+	}
+	if len(args) != 1 {
+		t.Fatalf("expected one array arg, got %v", args)
+	}
+}

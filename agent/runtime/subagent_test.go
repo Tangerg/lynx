@@ -34,7 +34,7 @@ func childAgent() *core.Agent {
 // parent action body invokes the subagent tool directly, child agent
 // runs, output marshals back as JSON.
 func TestAsChatTool_RunsChildAndReturnsResult(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if err := platform.Deploy(childAgent()); err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestAsChatTool_RunsChildAndReturnsResult(t *testing.T) {
 // TestAsChatTool_NoParentProcessInCtx verifies the helper rejects
 // callers without core.WithProcess in ctx.
 func TestAsChatTool_NoParentProcessInCtx(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if err := platform.Deploy(childAgent()); err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
@@ -105,12 +105,12 @@ func TestAsChatTool_NoParentProcessInCtx(t *testing.T) {
 // the pending request as the tool result (rather than erroring) so
 // the parent's LLM can decide to switch plans.
 func TestAsChatTool_WaitingChildSurfacesPendingAwaitableAsToolResult(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 
 	// Child agent's only action immediately requests HITL confirmation.
-	// We use a raw core.Action (not the typed NewAction wrapper) so the
-	// action can return ActionWaiting after AwaitInput parks the
-	// request — typed actions return only Succeeded/Failed.
+	// A raw core.Action keeps this fixture minimal; typed NewAction
+	// bodies can suspend on AwaitInput too (see
+	// TestTypedActionAwaitInputSuspendsAndResumes).
 	awaitingChild := agent.New("awaiting-child").
 		Description("asks for confirmation immediately").
 		Actions(&awaitForConfirmAction{}).
@@ -176,7 +176,7 @@ func TestAsChatTool_WaitingChildSurfacesPendingAwaitableAsToolResult(t *testing.
 // MCP-host invocation: no parent process in ctx, AsMCPTool spins up
 // a fresh process per call, returns the JSON-encoded result.
 func TestAsMCPTool_RunsAgentWithoutParentProcess(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if err := platform.Deploy(childAgent()); err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
@@ -199,7 +199,7 @@ func TestAsMCPTool_RunsAgentWithoutParentProcess(t *testing.T) {
 // equivalent so MCP hosts get the same agent name + description and
 // a JSON schema derived from In.
 func TestAsMCPTool_DefinitionUsesAgentMetadata(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if err := platform.Deploy(childAgent()); err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
@@ -221,7 +221,7 @@ func TestAsMCPTool_DefinitionUsesAgentMetadata(t *testing.T) {
 // no platform.FindAgent lookup. Useful when the caller has the
 // agent struct in hand but hasn't deployed it.
 func TestAsChatToolFromAgent_AcceptsAgentDirectly(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	child := childAgent()
 	if err := platform.Deploy(child); err != nil {
 		t.Fatalf("deploy: %v", err)
@@ -263,7 +263,7 @@ func TestAsChatToolFromAgent_AcceptsAgentDirectly(t *testing.T) {
 }
 
 func TestAsChatToolFromAgent_RejectsNilArgs(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	for _, tc := range []struct {
 		name string
 		fn   func() error
@@ -286,9 +286,9 @@ func TestAsChatToolFromAgent_RejectsNilArgs(t *testing.T) {
 }
 
 // TestAsMCPTool_RejectsUnknownAgent matches AsChatTool's fail-fast
-// boot-time behaviour, surfaced as an error.
+// boot-time behavior, surfaced as an error.
 func TestAsMCPTool_RejectsUnknownAgent(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if _, err := runtime.AsMCPTool[subInput, subOutput](platform, "missing"); err == nil {
 		t.Fatal("expected error on unknown agent name")
 	}
@@ -298,7 +298,7 @@ func TestAsMCPTool_RejectsUnknownAgent(t *testing.T) {
 // when the named agent isn't registered — programming errors should
 // surface at boot, not on the first LLM tool call.
 func TestAsChatTool_RejectsUnknownAgent(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if _, err := runtime.AsChatTool[subInput, subOutput](platform, "missing"); err == nil {
 		t.Fatal("expected error on unknown agent name")
 	}
@@ -308,7 +308,7 @@ func TestAsChatTool_RejectsUnknownAgent(t *testing.T) {
 // reflects the wrapped agent's name + description and a JSON schema
 // derived from In.
 func TestAsChatTool_DefinitionUsesAgentMetadata(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if err := platform.Deploy(childAgent()); err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
@@ -338,7 +338,7 @@ func (awaitForConfirmAction) Metadata() core.ActionMetadata {
 	return core.ActionMetadata{
 		Name:    "confirm",
 		Outputs: []core.IOBinding{binding},
-		Effects: core.EffectSpec{binding.String(): core.True},
+		Effects: core.Effects{binding.String(): core.True},
 		Cost:    core.Static(1),
 		Value:   core.Static(0),
 	}
@@ -346,7 +346,7 @@ func (awaitForConfirmAction) Metadata() core.ActionMetadata {
 
 func (awaitForConfirmAction) Execute(_ context.Context, pc *core.ProcessContext) core.ActionStatus {
 	req := hitl.NewConfirmation("approve doubling?", func(bool) core.ResponseImpact {
-		return core.ResponseImpactUnchanged
+		return core.ImpactUnchanged
 	})
 	return pc.AwaitInput(req)
 }

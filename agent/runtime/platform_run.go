@@ -145,7 +145,7 @@ func (p *Platform) StartAgent(
 // underlying makeRunning rejects when the process is already running
 // so only one call drives the loop.
 func (p *Platform) ContinueProcess(ctx context.Context, id string) error {
-	proc, ok := p.GetProcess(id)
+	proc, ok := p.ProcessByID(id)
 	if !ok {
 		return processNotFoundError("continue process", id)
 	}
@@ -159,7 +159,7 @@ func (p *Platform) ContinueProcess(ctx context.Context, id string) error {
 func (p *Platform) ContinueProcessAsync(ctx context.Context, id string) <-chan error {
 	done := make(chan error, 1)
 
-	proc, ok := p.GetProcess(id)
+	proc, ok := p.ProcessByID(id)
 	if !ok {
 		done <- processNotFoundError("continue process asynchronously", id)
 		close(done)
@@ -185,13 +185,13 @@ func (p *Platform) ContinueProcessAsync(ctx context.Context, id string) <-chan e
 // control the continuation (sync vs background, fresh ctx vs the
 // original).
 func (p *Platform) ResumeProcess(id string, response any) (core.ResponseImpact, error) {
-	proc, ok := p.GetProcess(id)
+	proc, ok := p.ProcessByID(id)
 	if !ok {
-		return core.ResponseImpactUnchanged, processNotFoundError("resume process", id)
+		return core.ImpactUnchanged, processNotFoundError("resume process", id)
 	}
 	impact, err := proc.signals.deliverResponse(response)
 	if err != nil {
-		return core.ResponseImpactUnchanged, fmt.Errorf("resume process %q: %w", id, err)
+		return core.ImpactUnchanged, fmt.Errorf("resume process %q: %w", id, err)
 	}
 	return impact, nil
 }
@@ -199,7 +199,7 @@ func (p *Platform) ResumeProcess(id string, response any) (core.ResponseImpact, 
 // KillProcess terminates a running process. Returns an error when
 // the id is unknown.
 func (p *Platform) KillProcess(id string) error {
-	proc, ok := p.GetProcess(id)
+	proc, ok := p.ProcessByID(id)
 	if !ok {
 		return processNotFoundError("kill process", id)
 	}
@@ -209,6 +209,26 @@ func (p *Platform) KillProcess(id string) error {
 		Reason:    "kill requested",
 	})
 	return nil
+}
+
+// KillChildren terminates every non-terminal process whose ParentID
+// matches parentID and returns the killed ids (order unspecified).
+// Orchestrators call it on turn exit to sweep background children
+// spawned via [SpawnChildAsync] that are still running, so background
+// work can't outlive the parent that launched it. Already-terminal
+// children are skipped — there's nothing to kill and overwriting their
+// status would corrupt a clean Completed into Killed.
+func (p *Platform) KillChildren(parentID string) []string {
+	var killed []string
+	for _, proc := range p.procs.list() {
+		if proc.ParentID() != parentID || proc.Status().IsTerminal() {
+			continue
+		}
+		if err := p.KillProcess(proc.ID()); err == nil {
+			killed = append(killed, proc.ID())
+		}
+	}
+	return killed
 }
 
 // RemoveProcess deletes a process from the registry. Mirrors

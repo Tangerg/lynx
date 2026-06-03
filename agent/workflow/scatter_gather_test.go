@@ -31,7 +31,7 @@ func TestScatterGather_RunsAllGeneratorsAndJoins(t *testing.T) {
 		}
 	}
 
-	a, err := workflow.ScatterGather(workflow.ScatterGatherSpec[sgIn, sgElement, sgResult]{
+	a, err := workflow.ScatterGather(workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
 		Name:        "fanout",
 		Description: "score-fanout test",
 		Generators: []func(context.Context, *core.ProcessContext, sgIn) (sgElement, error){
@@ -49,7 +49,7 @@ func TestScatterGather_RunsAllGeneratorsAndJoins(t *testing.T) {
 		t.Fatalf("ScatterGather: %v", err)
 	}
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if err := platform.Deploy(a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestScatterGather_RunsAllGeneratorsAndJoins(t *testing.T) {
 }
 
 func TestScatterGather_GeneratorErrorPropagates(t *testing.T) {
-	a, err := workflow.ScatterGather(workflow.ScatterGatherSpec[sgIn, sgElement, sgResult]{
+	a, err := workflow.ScatterGather(workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
 		Name: "fanout-err",
 		Generators: []func(context.Context, *core.ProcessContext, sgIn) (sgElement, error){
 			func(context.Context, *core.ProcessContext, sgIn) (sgElement, error) {
@@ -90,7 +90,7 @@ func TestScatterGather_GeneratorErrorPropagates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ScatterGather: %v", err)
 	}
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	if err := platform.Deploy(a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
@@ -109,19 +109,19 @@ func TestScatterGather_GeneratorErrorPropagates(t *testing.T) {
 func TestScatterGather_RejectsInvalidSpec(t *testing.T) {
 	cases := []struct {
 		name string
-		spec workflow.ScatterGatherSpec[sgIn, sgElement, sgResult]
+		spec workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]
 	}{
-		{"empty name", workflow.ScatterGatherSpec[sgIn, sgElement, sgResult]{
+		{"empty name", workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
 			Generators: []func(context.Context, *core.ProcessContext, sgIn) (sgElement, error){
 				func(context.Context, *core.ProcessContext, sgIn) (sgElement, error) { return sgElement{}, nil },
 			},
 			Joiner: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) { return sgResult{}, nil },
 		}},
-		{"empty generators", workflow.ScatterGatherSpec[sgIn, sgElement, sgResult]{
+		{"empty generators", workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
 			Name:   "x",
 			Joiner: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) { return sgResult{}, nil },
 		}},
-		{"nil joiner", workflow.ScatterGatherSpec[sgIn, sgElement, sgResult]{
+		{"nil joiner", workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
 			Name: "x",
 			Generators: []func(context.Context, *core.ProcessContext, sgIn) (sgElement, error){
 				func(context.Context, *core.ProcessContext, sgIn) (sgElement, error) { return sgElement{}, nil },

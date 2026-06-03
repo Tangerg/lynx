@@ -1,8 +1,8 @@
 package neo4j
 
 import (
-	"context"
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -109,13 +109,7 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return errors.New("neo4j: config must not be nil")
-	}
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+func (c *StoreConfig) Validate() error {
 	if c.Driver == nil {
 		return errors.New("neo4j: Driver is required")
 	}
@@ -125,15 +119,6 @@ func (c *StoreConfig) validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("neo4j: DocumentBatcher is required")
 	}
-
-	c.Label = cmp.Or(c.Label, DefaultLabel)
-	c.IndexName = cmp.Or(c.IndexName, DefaultIndexName)
-	c.EmbeddingProperty = cmp.Or(c.EmbeddingProperty, DefaultEmbeddingProperty)
-	c.IDProperty = cmp.Or(c.IDProperty, DefaultIDProperty)
-	c.TextProperty = cmp.Or(c.TextProperty, DefaultTextProperty)
-	c.MetadataPrefix = cmp.Or(c.MetadataPrefix, DefaultMetadataPrefix)
-	c.Similarity = cmp.Or(c.Similarity, SimilarityCosine)
-
 	return ident.Check("neo4j", map[string]string{
 		"Label":             c.Label,
 		"EmbeddingProperty": c.EmbeddingProperty,
@@ -142,7 +127,24 @@ func (c *StoreConfig) validate() error {
 	})
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
+	c.Label = cmp.Or(c.Label, DefaultLabel)
+	c.IndexName = cmp.Or(c.IndexName, DefaultIndexName)
+	c.EmbeddingProperty = cmp.Or(c.EmbeddingProperty, DefaultEmbeddingProperty)
+	c.IDProperty = cmp.Or(c.IDProperty, DefaultIDProperty)
+	c.TextProperty = cmp.Or(c.TextProperty, DefaultTextProperty)
+	c.MetadataPrefix = cmp.Or(c.MetadataPrefix, DefaultMetadataPrefix)
+	c.Similarity = cmp.Or(c.Similarity, SimilarityCosine)
+}
+
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 // Store is a Neo4j-backed [vectorstore.Store] implementation. Each
 // document maps onto a node carrying the configured label and a flat
@@ -163,9 +165,9 @@ type Store struct {
 	similarity        SimilarityFunction
 }
 
-
-func NewStore(config *StoreConfig) (*Store, error) {
-	if err := config.validate(); err != nil {
+func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -487,6 +489,31 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	})
 }
 
+// DeleteByIDs removes nodes by document id — `MATCH ... WHERE n.<id> IN
+// $ids DETACH DELETE n`. An empty slice is a no-op; unknown ids are
+// silently ignored (idempotent). Implements [vectorstore.IDDeleter].
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "neo4j")
+	defer func() { tracing.Finish(span, err) }()
+
+	cypher := fmt.Sprintf(
+		"MATCH (n:`%s`) WHERE n.`%s` IN $ids DETACH DELETE n",
+		s.label, s.idProperty,
+	)
+
+	if err = s.write(ctx, func(tx neo4j.ManagedTransaction) (any, error) {
+		_, runErr := tx.Run(ctx, cypher, map[string]any{"ids": ids})
+		return nil, runErr
+	}); err != nil {
+		return fmt.Errorf("neo4j: delete by ids: %w", err)
+	}
+	return nil
+}
+
 // buildPredicate converts the optional filter into a Cypher WHERE
 // fragment plus its parameter bindings. Returns ("", nil, nil) when
 // filter is nil.
@@ -509,6 +536,5 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 		Provider:     Provider,
 	}
 }
-
 
 func (s *Store) Close() error { return nil }

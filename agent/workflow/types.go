@@ -15,7 +15,7 @@ var singleAttempt = core.ActionQoS{MaxAttempts: 1}
 // Feedback is a numeric + textual acceptance signal — the canonical
 // shape for "did this output meet the bar?". Score is in [0, 1] (0
 // worst, 1 best); Text gives a human-readable explanation. Use as
-// the return value of an [RepeatUntilSpec.Accept] callback that wants
+// the return value of an [RepeatUntilConfig.Accept] callback that wants
 // to attach an LLM-supplied verdict, or as a regular blackboard
 // artifact.
 type Feedback struct {
@@ -24,10 +24,10 @@ type Feedback struct {
 }
 
 // Acceptable reports Score ≥ threshold. Convenience for the common
-// "accept when score ≥ 0.7" check inside an [RepeatUntilSpec.Accept].
+// "accept when score ≥ 0.7" check inside an [RepeatUntilConfig.Accept].
 func (f Feedback) Acceptable(threshold float64) bool { return f.Score >= threshold }
 
-// History tracks every attempt produced by a [RepeatUntilSpec.Task]
+// History tracks every attempt produced by a [RepeatUntilConfig.Task]
 // in the order they ran. The Accept callback receives a *History so
 // it can inspect prior attempts (e.g., compute "is the score still
 // improving?").
@@ -64,7 +64,78 @@ func (h *History[T]) record(attempt T) {
 	h.Attempts = append(h.Attempts, attempt)
 }
 
-// ResultList is the typed wrapper [ScatterGatherSpec] binds when its
+// Attempt pairs one task output with the [Feedback] it earned. It is the
+// element of an [AttemptHistory], so [RepeatUntilAcceptable] can return the
+// highest-scoring attempt rather than merely the last one.
+type Attempt[Out any] struct {
+	Output   Out
+	Feedback Feedback
+}
+
+// AttemptHistory records every (output, feedback) pair an evaluator-driven
+// loop produced, in order. It backs [RepeatUntilAcceptable]'s best-of-N
+// behavior and is bound on the process blackboard so callers can inspect
+// the full record (e.g. core.Last[*AttemptHistory[Out]]).
+type AttemptHistory[Out any] struct {
+	Attempts []Attempt[Out]
+}
+
+// record appends an (output, feedback) pair; private — only the workflow
+// builder pushes into it.
+func (h *AttemptHistory[Out]) record(out Out, fb Feedback) {
+	if h == nil {
+		return
+	}
+	h.Attempts = append(h.Attempts, Attempt[Out]{Output: out, Feedback: fb})
+}
+
+// Count is the number of attempts recorded, nil-safe.
+func (h *AttemptHistory[Out]) Count() int {
+	if h == nil {
+		return 0
+	}
+	return len(h.Attempts)
+}
+
+// Last returns the most recent attempt, or false when none recorded.
+func (h *AttemptHistory[Out]) Last() (Attempt[Out], bool) {
+	if h == nil || len(h.Attempts) == 0 {
+		var zero Attempt[Out]
+		return zero, false
+	}
+	return h.Attempts[len(h.Attempts)-1], true
+}
+
+// Best returns the attempt with the highest [Feedback.Score], or false when
+// none recorded. Ties resolve to the earliest attempt (stable).
+func (h *AttemptHistory[Out]) Best() (Attempt[Out], bool) {
+	if h == nil || len(h.Attempts) == 0 {
+		var zero Attempt[Out]
+		return zero, false
+	}
+	best := h.Attempts[0]
+	for _, a := range h.Attempts[1:] {
+		if a.Feedback.Score > best.Feedback.Score {
+			best = a
+		}
+	}
+	return best, true
+}
+
+// outputs returns just the produced outputs, in order — used to present a
+// [History] view to the task callback for revision.
+func (h *AttemptHistory[Out]) outputs() []Out {
+	if h == nil {
+		return nil
+	}
+	out := make([]Out, len(h.Attempts))
+	for i, a := range h.Attempts {
+		out[i] = a.Output
+	}
+	return out
+}
+
+// ResultList is the typed wrapper [ScatterGatherConfig] binds when its
 // generators all complete, so the join action picks it up via a
 // single-typed input binding.
 type ResultList[Element any] struct {

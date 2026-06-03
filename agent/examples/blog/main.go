@@ -66,13 +66,13 @@ func main() {
 				}, nil
 			},
 			core.ActionConfig{
-				Pre: []string{"it:" + core.TypeFullNameOf[Research]()},
+				Pre: []string{"it:" + core.TypeName[Research]()},
 			},
 		)).
 		Goals(agent.GoalProducing[BlogPost](core.Goal{Description: "blog post produced"})).
 		Build()
 
-	platform := agent.NewPlatform(&runtime.PlatformConfig{
+	platform := agent.NewPlatform(runtime.PlatformConfig{
 		Extensions: []core.Extension{stubLogger{}},
 	})
 	if err := platform.Deploy(a); err != nil {

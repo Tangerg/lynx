@@ -64,16 +64,6 @@ func (s *elementScope) appendElement(element Element) {
 	s.element.Contents = append(s.element.Contents, element)
 }
 
-// appendContent adds content (either CharData or Element) to the current scope.
-func (s *elementScope) appendContent(content Content) {
-	switch typed := content.(type) {
-	case CharData:
-		s.appendCharData(typed)
-	case Element:
-		s.appendElement(typed)
-	}
-}
-
 // elementStack manages nested element scopes using a stack structure.
 // Each scope has an associated buffer for accumulating the element's string representation.
 type elementStack struct {
@@ -195,24 +185,27 @@ type StreamScannerConfig struct {
 	OnError         func(error)        // Optional error logging callback (called in non-strict mode)
 }
 
-// validate checks and normalizes the configuration.
-func (c *StreamScannerConfig) validate() error {
-	if c == nil {
-		return errors.New("config must not be nil")
-	}
-	if len(c.Listeners) == 0 {
-		return errors.New("at least one listener is required")
-	}
-
-	// Set default values
+// ApplyDefaults fills zero / negative fields with package defaults.
+func (c *StreamScannerConfig) ApplyDefaults() {
 	if c.MaxNestingLevel <= 0 {
 		c.MaxNestingLevel = 256
 	}
 	if c.BufferSize <= 0 {
 		c.BufferSize = 4096
 	}
+	for i := range c.Listeners {
+		if c.Listeners[i].MaxBufferSize <= 0 {
+			c.Listeners[i].MaxBufferSize = 1024
+		}
+	}
+}
 
-	// Validate listeners
+// Validate checks the configuration. Pure check — pair with
+// [StreamScannerConfig.ApplyDefaults].
+func (c *StreamScannerConfig) Validate() error {
+	if len(c.Listeners) == 0 {
+		return errors.New("at least one listener is required")
+	}
 	eleNames := make(map[Name]bool)
 	for _, listener := range c.Listeners {
 		if listener.Name.String() == "" {
@@ -222,10 +215,6 @@ func (c *StreamScannerConfig) validate() error {
 			return fmt.Errorf("duplicate listener for element %q", listener.Name)
 		}
 		eleNames[listener.Name] = true
-
-		if listener.MaxBufferSize <= 0 {
-			listener.MaxBufferSize = 1024
-		}
 	}
 	return nil
 }
@@ -245,8 +234,9 @@ type StreamScanner struct {
 }
 
 // NewStreamScanner creates a new stream scanner with the given configuration.
-func NewStreamScanner(config *StreamScannerConfig) (*StreamScanner, error) {
-	if err := config.validate(); err != nil {
+func NewStreamScanner(config StreamScannerConfig) (*StreamScanner, error) {
+	config.ApplyDefaults()
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 

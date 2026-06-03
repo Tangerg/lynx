@@ -33,8 +33,15 @@ func Analyze(expr ast.Expr) error {
 	return analyzer.Error()
 }
 
-// ParseAndAnalyze chains [Parse] and [Analyze]. Returns the AST plus
-// the first error from either stage.
+// ParseAndAnalyze chains [Parse], [Analyze], and [Optimize]: it parses
+// the input, validates it (errors carry the user's original shape), then
+// returns the simplified, semantically-equivalent AST ready for a
+// backend visitor. Returns the first error from the parse or analyze
+// stage.
+//
+// Optimization is folded in here because this is the canonical
+// "give me a ready-to-use filter" entry point; callers that need the
+// unoptimized tree can call [Parse] + [Analyze] directly.
 //
 // Example:
 //
@@ -44,5 +51,22 @@ func ParseAndAnalyze(input string) (ast.Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	return expr, Analyze(expr)
+	if err := Analyze(expr); err != nil {
+		return nil, err
+	}
+	return Optimize(expr), nil
+}
+
+// Optimize returns a simplified, semantically-equivalent form of expr,
+// folding dead logic (multiple NOTs, idempotent and absorption laws)
+// before a backend visitor translates it. It is optional and pure: a
+// valid analyzed tree stays valid and the matching record set is
+// unchanged. See [visitors.Optimizer] for the exact rewrites.
+//
+// Example:
+//
+//	expr, _ := filter.ParseAndAnalyze(`not (not (year >= 2020))`)
+//	expr = filter.Optimize(expr) // → year >= 2020
+func Optimize(expr ast.Expr) ast.Expr {
+	return visitors.NewOptimizer().Optimize(expr)
 }

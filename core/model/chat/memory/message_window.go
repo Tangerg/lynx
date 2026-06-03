@@ -18,7 +18,14 @@ const (
 	maxMessageWindowLimit     = 100
 )
 
-var _ Store = (*MessageWindowStore)(nil)
+// ErrListingUnsupported is returned by [MessageWindowStore.Conversations]
+// when the wrapped store cannot enumerate conversations.
+var ErrListingUnsupported = errors.New("memory: underlying store does not support conversation listing")
+
+var (
+	_ Store  = (*MessageWindowStore)(nil)
+	_ Lister = (*MessageWindowStore)(nil)
+)
 
 // MessageWindowStore wraps another [Store] with a sliding-window
 // retention strategy: every Read merges all system messages and keeps
@@ -90,6 +97,19 @@ func (m *MessageWindowStore) applySlidingWindow(all []chat.Message) []chat.Messa
 		out = append(out, nonSys[start:]...)
 	}
 	return out
+}
+
+// Conversations forwards to the underlying store when it supports
+// listing. The sliding window only affects how a conversation is read
+// back, not which conversations exist, so enumeration passes straight
+// through. Returns [ErrListingUnsupported] when the wrapped store is not
+// a [Lister].
+func (m *MessageWindowStore) Conversations(ctx context.Context) ([]string, error) {
+	lister, ok := m.store.(Lister)
+	if !ok {
+		return nil, ErrListingUnsupported
+	}
+	return lister.Conversations(ctx)
 }
 
 // Clear delegates to the underlying store.

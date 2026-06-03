@@ -2,8 +2,8 @@ package vectara
 
 import (
 	"bytes"
-	"context"
 	"cmp"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -61,13 +61,7 @@ type StoreConfig struct {
 	HTTPClient *http.Client
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return errors.New("vectara: config must not be nil")
-	}
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+func (c *StoreConfig) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("vectara: APIKey is required")
 	}
@@ -77,6 +71,14 @@ func (c *StoreConfig) validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("vectara: DocumentBatcher is required")
 	}
+	return nil
+}
+
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
 	c.Endpoint = cmp.Or(c.Endpoint, DefaultEndpoint)
 	if c.MetadataPrefix == "" {
 		c.MetadataPrefix = "doc"
@@ -84,7 +86,6 @@ func (c *StoreConfig) validate() error {
 	if c.HTTPClient == nil {
 		c.HTTPClient = http.DefaultClient
 	}
-	return nil
 }
 
 var _ vectorstore.Store = (*Store)(nil)
@@ -102,9 +103,9 @@ type Store struct {
 	httpClient      *http.Client
 }
 
-
-func NewStore(config *StoreConfig) (*Store, error) {
-	if err := config.validate(); err != nil {
+func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	return &Store{
@@ -144,9 +145,9 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 				id = uuid.NewString()
 			}
 			payload := map[string]any{
-				"id":           id,
-				"type":         "core",
-				"metadata":     metaOrEmpty(doc.Metadata),
+				"id":       id,
+				"type":     "core",
+				"metadata": metaOrEmpty(doc.Metadata),
 				"document_parts": []any{
 					map[string]any{"text": doc.Text},
 				},
@@ -327,7 +328,6 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 		Provider:     Provider,
 	}
 }
-
 
 func (s *Store) Close() error { return nil }
 

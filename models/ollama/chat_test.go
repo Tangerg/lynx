@@ -25,7 +25,7 @@ func TestNativeChatModel_Call_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := ollama.NewNativeChatModel(&ollama.NativeChatModelConfig{
+	m, err := ollama.NewNativeChatModel(ollama.NativeChatModelConfig{
 		DefaultOptions: opts,
 		BaseURL:        srv.URL,
 	})
@@ -68,7 +68,7 @@ func TestNativeChatModel_Stream_Mock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := ollama.NewNativeChatModel(&ollama.NativeChatModelConfig{
+	m, err := ollama.NewNativeChatModel(ollama.NativeChatModelConfig{
 		DefaultOptions: opts,
 		BaseURL:        srv.URL,
 	})

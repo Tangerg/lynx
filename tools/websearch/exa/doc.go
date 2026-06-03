@@ -18,7 +18,7 @@
 //     time.Now() − the recency window)
 //
 // Hardcoded: type="fast" (cheaper than the default "auto"),
-// contents.summary.query=<query> (asks Exa to summarise each result
+// contents.summary.query=<query> (asks Exa to summarize each result
 // against the query). Highlights and full text are not requested.
 //
 // Not used: category (lynx's SearchType was removed from the SPI for

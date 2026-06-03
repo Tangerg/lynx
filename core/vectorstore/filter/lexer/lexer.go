@@ -149,7 +149,7 @@ func (l *Lexer) skipWhitespace() error {
 
 // resolveEscape turns the rune following a backslash into its actual
 // value. Unknown sequences pass through unchanged — same as Go's
-// strconv behaviour for an unrecognised escape inside a quoted
+// strconv behavior for an unrecognized escape inside a quoted
 // string.
 func (l *Lexer) resolveEscape(char rune) rune {
 	switch char {
@@ -170,7 +170,7 @@ func (l *Lexer) resolveEscape(char rune) rune {
 
 // scanString tokenizes a single-quoted string. The opening quote is
 // the current char; the closing quote is consumed but not buffered.
-// Backslash escapes are honoured.
+// Backslash escapes are honored.
 func (l *Lexer) scanString() token.Token {
 	defer l.valueBuffer.Reset()
 

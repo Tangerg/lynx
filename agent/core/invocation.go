@@ -9,7 +9,7 @@ import "time"
 // onto the process via [Process.RecordLLMInvocation]. Subtree
 // aggregation then rolls them up through [Process.LLMInvocations].
 //
-// Cost is in USD by convention but the unit is opaque to the
+// CostUSD is in USD by convention but the unit is opaque to the
 // framework — callers reporting in other currencies or arbitrary
 // budget units are free to do so as long as they stay consistent
 // across the process tree.
@@ -26,10 +26,10 @@ type LLMInvocation struct {
 	// Empty when unknown.
 	Provider string
 
-	// Cost is the dollar amount the provider charged. Zero means
+	// CostUSD is the dollar amount the provider charged. Zero means
 	// either "no cost reported" or "explicitly free" — disambiguate
 	// at the integration layer when needed.
-	Cost float64
+	CostUSD float64
 
 	// PromptTokens / CompletionTokens / ReasoningTokens mirror the
 	// shape of [chat.Usage]. ReasoningTokens is the chain-of-thought
@@ -62,7 +62,7 @@ type EmbeddingInvocation struct {
 	Timestamp time.Time
 	Model     string
 	Provider  string
-	Cost      float64
+	CostUSD   float64
 
 	// InputTokens is the prompt-side token count (embeddings don't
 	// produce completion tokens).

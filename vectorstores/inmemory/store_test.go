@@ -64,7 +64,7 @@ func newStore(t *testing.T) *inmemory.Store {
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}
-	store, err := inmemory.NewStore(&inmemory.StoreConfig{EmbeddingClient: client})
+	store, err := inmemory.NewStore(inmemory.StoreConfig{EmbeddingClient: client})
 	if err != nil {
 		t.Fatalf("NewStore: %v", err)
 	}
@@ -291,10 +291,10 @@ func TestStore_RetrieveMinScoreFilters(t *testing.T) {
 }
 
 func TestStore_RejectsBadConfig(t *testing.T) {
-	if _, err := inmemory.NewStore(nil); err == nil {
+	if _, err := inmemory.NewStore(inmemory.StoreConfig{}); err == nil {
 		t.Fatal("nil cfg must error")
 	}
-	if _, err := inmemory.NewStore(&inmemory.StoreConfig{}); err == nil {
+	if _, err := inmemory.NewStore(inmemory.StoreConfig{}); err == nil {
 		t.Fatal("missing embedding client must error")
 	}
 }
@@ -341,5 +341,118 @@ func TestSimilarity_EuclideanSelfIsOne(t *testing.T) {
 	v := []float64{1, 2, 3}
 	if got := inmemory.EuclideanSimilarity(v, v); got < 0.999 {
 		t.Fatalf("EuclideanSimilarity(v, v) = %v, want 1", got)
+	}
+}
+
+func TestStore_RetrieveIsNull(t *testing.T) {
+	store := newStore(t)
+	ctx := t.Context()
+	docs := []*document.Document{
+		mustDoc(t, "1", "alpha", map[string]any{"category": "a"}),   // no "owner"
+		mustDoc(t, "2", "bravo", map[string]any{"owner": "alice"}),  // has "owner"
+		mustDoc(t, "3", "charlie", map[string]any{"category": "c"}), // no "owner"
+	}
+	createReq, _ := vectorstore.NewCreateRequest(docs)
+	if err := store.Create(ctx, createReq); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	// IS NULL: matches docs missing "owner".
+	expr, err := filter.ParseAndAnalyze(`owner is null`)
+	if err != nil {
+		t.Fatalf("ParseAndAnalyze(is null): %v", err)
+	}
+	req, _ := vectorstore.NewRetrievalRequest("x")
+	req.WithFilter(expr).WithTopK(10)
+	got, err := store.Retrieve(ctx, req)
+	if err != nil {
+		t.Fatalf("Retrieve(is null): %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("is null matched %d docs, want 2 (ids 1,3)", len(got))
+	}
+
+	// IS NOT NULL: matches the doc that has "owner".
+	expr2, err := filter.ParseAndAnalyze(`owner is not null`)
+	if err != nil {
+		t.Fatalf("ParseAndAnalyze(is not null): %v", err)
+	}
+	req2, _ := vectorstore.NewRetrievalRequest("x")
+	req2.WithFilter(expr2).WithTopK(10)
+	got2, err := store.Retrieve(ctx, req2)
+	if err != nil {
+		t.Fatalf("Retrieve(is not null): %v", err)
+	}
+	if len(got2) != 1 || got2[0].ID != "2" {
+		t.Fatalf("is not null = %+v, want [id 2]", got2)
+	}
+}
+
+func TestStore_RetrieveNotIn(t *testing.T) {
+	store := newStore(t)
+	ctx := t.Context()
+	docs := []*document.Document{
+		mustDoc(t, "1", "alpha", map[string]any{"category": "a"}),
+		mustDoc(t, "2", "bravo", map[string]any{"category": "b"}),
+		mustDoc(t, "3", "charlie", map[string]any{"category": "c"}),
+	}
+	createReq, _ := vectorstore.NewCreateRequest(docs)
+	if err := store.Create(ctx, createReq); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	expr, err := filter.ParseAndAnalyze(`category not in ('a', 'b')`)
+	if err != nil {
+		t.Fatalf("ParseAndAnalyze: %v", err)
+	}
+	req, _ := vectorstore.NewRetrievalRequest("x")
+	req.WithFilter(expr).WithTopK(10)
+	got, err := store.Retrieve(ctx, req)
+	if err != nil {
+		t.Fatalf("Retrieve: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "3" {
+		ids := make([]string, 0, len(got))
+		for _, d := range got {
+			ids = append(ids, d.ID)
+		}
+		t.Fatalf("not in ('a','b') matched %v, want [3]", ids)
+	}
+}
+
+func TestStore_DeleteByIDs(t *testing.T) {
+	store := newStore(t)
+	ctx := t.Context()
+	docs := []*document.Document{
+		mustDoc(t, "1", "a", map[string]any{"k": "v"}),
+		mustDoc(t, "2", "b", map[string]any{"k": "v"}),
+		mustDoc(t, "3", "c", map[string]any{"k": "v"}),
+	}
+	createReq, _ := vectorstore.NewCreateRequest(docs)
+	if err := store.Create(ctx, createReq); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	// Empty slice is a no-op; an unknown id is ignored.
+	if err := store.DeleteByIDs(ctx, nil); err != nil {
+		t.Fatalf("DeleteByIDs(nil): %v", err)
+	}
+	if err := store.DeleteByIDs(ctx, []string{"1", "missing"}); err != nil {
+		t.Fatalf("DeleteByIDs: %v", err)
+	}
+
+	req, _ := vectorstore.NewRetrievalRequest("x")
+	req.WithTopK(10)
+	got, err := store.Retrieve(ctx, req)
+	if err != nil {
+		t.Fatalf("Retrieve: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("after DeleteByIDs([1]), have %d docs, want 2 (2,3)", len(got))
+	}
+	for _, d := range got {
+		if d.ID == "1" {
+			t.Fatal("id 1 should have been deleted")
+		}
 	}
 }

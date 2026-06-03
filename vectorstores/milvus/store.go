@@ -35,6 +35,12 @@ const (
 
 // StoreConfig contains configuration options for Milvus vector store.
 type StoreConfig struct {
+	// Context is the bootstrap context used during NewStore (schema /
+	// index creation when InitializeSchema is true). Per-call operations
+	// (Create / Retrieve / Delete) use their own caller-supplied ctx and
+	// ignore this field. Optional: defaults to context.Background().
+	Context context.Context
+
 	// Client is the Milvus client instance.
 	// Required: must be provided, otherwise initialization will fail.
 	Client *milvusclient.Client
@@ -66,10 +72,7 @@ type StoreConfig struct {
 	MetricType entity.MetricType
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return ErrNilConfig
-	}
+func (c *StoreConfig) Validate() error {
 	if c.Client == nil {
 		return ErrMissingClient
 	}
@@ -82,13 +85,24 @@ func (c *StoreConfig) validate() error {
 	if c.DocumentBatcher == nil {
 		return ErrMissingDocumentBatcher
 	}
-	if c.MetricType == "" {
-		c.MetricType = entity.COSINE
-	}
 	return nil
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+// ApplyDefaults fills zero fields. MetricType defaults to
+// [entity.COSINE]; Context defaults to context.Background().
+func (c *StoreConfig) ApplyDefaults() {
+	if c.MetricType == "" {
+		c.MetricType = entity.COSINE
+	}
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
+}
+
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 type Store struct {
 	client               *milvusclient.Client
@@ -101,8 +115,9 @@ type Store struct {
 	storeDocumentContent bool
 }
 
-func NewStore(cfg *StoreConfig) (*Store, error) {
-	if err := cfg.validate(); err != nil {
+func NewStore(cfg StoreConfig) (*Store, error) {
+	cfg.ApplyDefaults()
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -122,7 +137,7 @@ func NewStore(cfg *StoreConfig) (*Store, error) {
 		storeDocumentContent: cfg.StoreDocumentContent,
 	}
 
-	if err = store.initialize(context.Background()); err != nil {
+	if err = store.initialize(cfg.Context); err != nil {
 		return nil, fmt.Errorf("milvus: failed to initialize vector store: %w", err)
 	}
 
@@ -374,6 +389,25 @@ func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	_, err = v.client.Delete(ctx, milvusclient.NewDeleteOption(v.collectionName).WithExpr(filterExpr))
 	if err != nil {
 		return fmt.Errorf("milvus: failed to delete from collection %s: %w", v.collectionName, err)
+	}
+
+	return nil
+}
+
+// DeleteByIDs removes rows by primary key. WithStringIDs compiles to the
+// expr `id in ["a","b"]`, so unknown ids are silently ignored (idempotent).
+// An empty slice is a no-op. Implements [vectorstore.IDDeleter].
+func (v *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "milvus")
+	defer func() { tracing.Finish(span, err) }()
+
+	_, err = v.client.Delete(ctx, milvusclient.NewDeleteOption(v.collectionName).WithStringIDs(fieldID, ids))
+	if err != nil {
+		return fmt.Errorf("milvus: failed to delete by ids from collection %s: %w", v.collectionName, err)
 	}
 
 	return nil

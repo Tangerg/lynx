@@ -35,11 +35,7 @@ const (
 	MessageTypeTool MessageType = "tool"
 )
 
-func (t MessageType) String() string    { return string(t) }
-func (t MessageType) IsSystem() bool    { return t == MessageTypeSystem }
-func (t MessageType) IsUser() bool      { return t == MessageTypeUser }
-func (t MessageType) IsAssistant() bool { return t == MessageTypeAssistant }
-func (t MessageType) IsTool() bool      { return t == MessageTypeTool }
+func (t MessageType) String() string { return string(t) }
 
 // Message is the sealed interface implemented by [SystemMessage],
 // [UserMessage], [AssistantMessage], and [ToolMessage]. Concrete types
@@ -69,6 +65,13 @@ type ToolReturn struct {
 
 	// Result is the tool's textual output.
 	Result string `json:"result"`
+
+	// Artifact is an optional typed value a tool can attach alongside its
+	// textual Result (see [ArtifactTool]). It is NEVER sent to the model or
+	// serialized into chat history (json:"-") — it rides the tool message
+	// for non-LLM consumers (e.g. an agent action sinking it onto the
+	// blackboard). Nil for ordinary tools.
+	Artifact any `json:"-"`
 }
 
 // MessageParams is the universal constructor input — the message-type
@@ -557,12 +560,12 @@ func MergeToolMessages(messages []Message) (*ToolMessage, error) {
 // MergeMessages dispatches to the right per-type merge helper. Assistant
 // messages cannot be merged — each represents a distinct model turn.
 func MergeMessages(messages []Message, messageType MessageType) (Message, error) {
-	switch {
-	case messageType.IsSystem():
+	switch messageType {
+	case MessageTypeSystem:
 		return MergeSystemMessages(messages), nil
-	case messageType.IsUser():
+	case MessageTypeUser:
 		return MergeUserMessages(messages), nil
-	case messageType.IsTool():
+	case MessageTypeTool:
 		return MergeToolMessages(messages)
 	default:
 		return nil, fmt.Errorf("chat.MergeMessages: cannot merge type %q", messageType)

@@ -1,0 +1,181 @@
+{
+  "provider": "minimax",
+  "models": [
+    {
+      "id": "MiniMax-M2",
+      "display_name": "MiniMax-M2",
+      "release_date": "2025-10-27T00:00:00Z",
+      "last_updated": "2025-10-27T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.3,
+          "output_per_1m": 1.2
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 196608,
+        "max_output_tokens": 128000
+      }
+    },
+    {
+      "id": "MiniMax-M2.1",
+      "display_name": "MiniMax-M2.1",
+      "release_date": "2025-12-23T00:00:00Z",
+      "last_updated": "2025-12-23T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.3,
+          "output_per_1m": 1.2
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 204800,
+        "max_output_tokens": 131072
+      }
+    },
+    {
+      "id": "MiniMax-M2.5",
+      "display_name": "MiniMax-M2.5",
+      "release_date": "2026-02-12T00:00:00Z",
+      "last_updated": "2026-02-12T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.3,
+          "output_per_1m": 1.2,
+          "cache_read_per_1m": 0.03,
+          "cache_write_per_1m": 0.375
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 204800,
+        "max_output_tokens": 131072
+      }
+    },
+    {
+      "id": "MiniMax-M2.5-highspeed",
+      "display_name": "MiniMax-M2.5-highspeed",
+      "release_date": "2026-02-13T00:00:00Z",
+      "last_updated": "2026-02-13T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.6,
+          "output_per_1m": 2.4,
+          "cache_read_per_1m": 0.06,
+          "cache_write_per_1m": 0.375
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 204800,
+        "max_output_tokens": 131072
+      }
+    },
+    {
+      "id": "MiniMax-M2.7",
+      "display_name": "MiniMax-M2.7",
+      "release_date": "2026-03-18T00:00:00Z",
+      "last_updated": "2026-03-18T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.3,
+          "output_per_1m": 1.2,
+          "cache_read_per_1m": 0.06,
+          "cache_write_per_1m": 0.375
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 204800,
+        "max_output_tokens": 131072
+      }
+    },
+    {
+      "id": "MiniMax-M2.7-highspeed",
+      "display_name": "MiniMax-M2.7-highspeed",
+      "release_date": "2026-03-18T00:00:00Z",
+      "last_updated": "2026-03-18T00:00:00Z",
+      "pricing": [
+        {
+          "input_per_1m": 0.6,
+          "output_per_1m": 2.4,
+          "cache_read_per_1m": 0.06,
+          "cache_write_per_1m": 0.375
+        }
+      ],
+      "reasoning": {
+        "supported": true
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "tool_call": true,
+      "limits": {
+        "context_window": 204800,
+        "max_output_tokens": 131072
+      }
+    }
+  ]
+}

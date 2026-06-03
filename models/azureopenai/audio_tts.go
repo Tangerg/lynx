@@ -11,17 +11,14 @@ import (
 )
 
 type AudioTTSModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	Endpoint       string
 	APIVersion     string
 	DefaultOptions *tts.Options
 	RequestOptions []option.RequestOption
 }
 
-func (c *AudioTTSModelConfig) validate() error {
-	if c == nil {
-		return errors.New("azureopenai: config must not be nil")
-	}
+func (c AudioTTSModelConfig) Validate() error {
 	if c.Endpoint == "" {
 		return errors.New("azureopenai: Endpoint is required")
 	}
@@ -35,13 +32,13 @@ func (c *AudioTTSModelConfig) validate() error {
 // OpenAI's /audio/speech endpoint. [tts.Options].Model is the Azure
 // deployment id (typically pointing at "tts-1" / "tts-1-hd" /
 // "gpt-4o-mini-tts").
-func NewAudioTTSModel(cfg *AudioTTSModelConfig) (*openai.AudioTTSModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewAudioTTSModel(cfg AudioTTSModelConfig) (*openai.AudioTTSModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	apiKey, reqOpts := buildAzureRequestOptions(cfg.ApiKey, cfg.Endpoint, cfg.APIVersion, cfg.RequestOptions)
-	return openai.NewAudioTTSModel(&openai.AudioTTSModelConfig{
-		ApiKey:         apiKey,
+	apiKey, reqOpts := buildAzureRequestOptions(cfg.APIKey, cfg.Endpoint, cfg.APIVersion, cfg.RequestOptions)
+	return openai.NewAudioTTSModel(openai.AudioTTSModelConfig{
+		APIKey:         apiKey,
 		DefaultOptions: cfg.DefaultOptions,
 		RequestOptions: reqOpts,
 		Metadata:       &tts.ModelMetadata{Provider: Provider},

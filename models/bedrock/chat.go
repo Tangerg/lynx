@@ -14,6 +14,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/models/internal/catalog"
 	"github.com/Tangerg/lynx/models/internal/options"
 )
 
@@ -23,10 +24,7 @@ type ChatModelConfig struct {
 	AWSConfig      *aws.Config
 }
 
-func (c *ChatModelConfig) validate() error {
-	if c == nil {
-		return errors.New("bedrock: config must not be nil")
-	}
+func (c ChatModelConfig) Validate() error {
 	if c.DefaultOptions == nil {
 		return errors.New("bedrock: DefaultOptions is required")
 	}
@@ -47,19 +45,23 @@ var _ chat.Model = (*ChatModel)(nil)
 // [bedrockruntime.ConverseInput] and reach the wire through the
 // Extra-threaded SDK params.
 type ChatModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *chat.Options
+	info           chat.ModelMetadata
 }
 
-func NewChatModel(ctx context.Context, cfg *ChatModelConfig) (*ChatModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewChatModel(ctx context.Context, cfg ChatModelConfig) (*ChatModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewApi(ctx, &ApiConfig{Region: cfg.Region, AWSConfig: cfg.AWSConfig})
+	api, err := NewAPI(ctx, APIConfig{Region: cfg.Region, AWSConfig: cfg.AWSConfig})
 	if err != nil {
 		return nil, err
 	}
-	return &ChatModel{api: api, defaultOptions: cfg.DefaultOptions}, nil
+	// Bedrock has no Metadata config; resolve straight from the catalog by
+	// the configured model id (e.g. "eu.anthropic.claude-haiku-4-5-...").
+	info := catalog.Resolve(Provider, cfg.DefaultOptions, nil)
+	return &ChatModel{api: api, defaultOptions: cfg.DefaultOptions, info: info}, nil
 }
 
 func (c *ChatModel) buildConverseInput(req *chat.Request) (*bedrockruntime.ConverseInput, error) {
@@ -213,7 +215,7 @@ func toDocument(v any) document.Interface {
 // mediaToBlock maps a [*media.Media] payload onto the appropriate
 // Bedrock content-block variant. Only image media is fully supported
 // today — Bedrock Converse expects png / jpeg / gif / webp inline
-// bytes. Unrecognised media types are silently dropped (the assistant
+// bytes. Unrecognized media types are silently dropped (the assistant
 // gets the text portion of the message and the caller learns of the
 // gap by inspecting the prompt that round-tripped).
 func mediaToBlock(m *media.Media) types.ContentBlock {
@@ -543,4 +545,4 @@ func (c *ChatModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*ch
 }
 
 func (c *ChatModel) DefaultOptions() chat.Options { return *c.defaultOptions }
-func (c *ChatModel) Metadata() chat.ModelMetadata         { return chat.ModelMetadata{Provider: Provider} }
+func (c *ChatModel) Metadata() chat.ModelMetadata { return c.info }

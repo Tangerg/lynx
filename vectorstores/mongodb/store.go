@@ -1,8 +1,8 @@
 package mongodb
 
 import (
-	"context"
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 
@@ -110,13 +110,7 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return errors.New("mongodb: config must not be nil")
-	}
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+func (c *StoreConfig) Validate() error {
 	if c.Collection == nil {
 		return errors.New("mongodb: Collection is required")
 	}
@@ -126,7 +120,14 @@ func (c *StoreConfig) validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("mongodb: DocumentBatcher is required")
 	}
+	return nil
+}
 
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
 	c.VectorIndexName = cmp.Or(c.VectorIndexName, DefaultVectorIndexName)
 	c.EmbeddingPath = cmp.Or(c.EmbeddingPath, DefaultEmbeddingPath)
 	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
@@ -135,10 +136,12 @@ func (c *StoreConfig) validate() error {
 		c.NumCandidates = DefaultNumCandidates
 	}
 	c.Similarity = cmp.Or(c.Similarity, SimilarityCosine)
-	return nil
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 // Store is a MongoDB Atlas Vector Search backed [vectorstore.Store].
 type Store struct {
@@ -156,9 +159,9 @@ type Store struct {
 	numCandidates          int
 }
 
-
-func NewStore(config *StoreConfig) (*Store, error) {
-	if err := config.validate(); err != nil {
+func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -279,9 +282,9 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 			}
 
 			payload := bson.M{
-				defaultIDField:    id,
-				s.contentField:    doc.Text,
-				s.embeddingPath:   math.ConvertSlice[float64, float32](vectors[i]),
+				defaultIDField:  id,
+				s.contentField:  doc.Text,
+				s.embeddingPath: math.ConvertSlice[float64, float32](vectors[i]),
 			}
 			if s.metadataField != "" {
 				meta := doc.Metadata
@@ -402,6 +405,23 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	return nil
 }
 
+// DeleteByIDs removes documents by their _id — `DeleteMany({_id: {$in: ids}})`.
+// An empty slice is a no-op; unknown ids are silently ignored (idempotent).
+// Implements [vectorstore.IDDeleter].
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "mongodb")
+	defer func() { tracing.Finish(span, err) }()
+
+	if _, err = s.collection.DeleteMany(ctx, bson.M{defaultIDField: bson.M{"$in": ids}}); err != nil {
+		return fmt.Errorf("mongodb: DeleteMany by ids: %w", err)
+	}
+	return nil
+}
+
 // buildFilter runs the AST through the visitor and returns the
 // MongoDB filter document.
 func (s *Store) buildFilter(expr ast.Expr) (bson.M, error) {
@@ -464,6 +484,5 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 		Provider:     Provider,
 	}
 }
-
 
 func (s *Store) Close() error { return nil }

@@ -71,13 +71,7 @@ type StoreConfig struct {
 	StoreDocumentContent bool
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return ErrNilConfig
-	}
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+func (c *StoreConfig) Validate() error {
 	if c.Client == nil {
 		return ErrMissingClient
 	}
@@ -90,13 +84,24 @@ func (c *StoreConfig) validate() error {
 	if c.DocumentBatcher == nil {
 		return ErrMissingDocumentBatcher
 	}
-	if c.DistanceMetric == "" {
-		c.DistanceMetric = DistanceCosine
-	}
 	return nil
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+// ApplyDefaults fills zero fields. Context defaults to
+// [context.Background]; DistanceMetric defaults to [DistanceCosine].
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
+	if c.DistanceMetric == "" {
+		c.DistanceMetric = DistanceCosine
+	}
+}
+
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 // Store is a Chroma-backed implementation of vectorstore.Store.
 type Store struct {
@@ -109,9 +114,9 @@ type Store struct {
 	storeDocumentContent bool
 }
 
-
-func NewStore(config *StoreConfig) (*Store, error) {
-	if err := config.validate(); err != nil {
+func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -436,6 +441,30 @@ func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 
 	if err = v.collection.Delete(ctx, opts...); err != nil {
 		return fmt.Errorf("chroma: failed to delete documents from collection %s: %w",
+			v.collectionName, err)
+	}
+
+	return nil
+}
+
+// DeleteByIDs removes documents from the collection by their Chroma IDs.
+// An empty slice is a no-op; unknown ids are silently ignored. Implements
+// [vectorstore.IDDeleter].
+func (v *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "chroma")
+	defer func() { tracing.Finish(span, err) }()
+
+	docIDs := make([]v2.DocumentID, len(ids))
+	for i, id := range ids {
+		docIDs[i] = v2.DocumentID(id)
+	}
+
+	if err = v.collection.Delete(ctx, v2.WithIDs(docIDs...)); err != nil {
+		return fmt.Errorf("chroma: failed to delete documents by ids from collection %s: %w",
 			v.collectionName, err)
 	}
 

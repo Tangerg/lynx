@@ -2,8 +2,8 @@ package opensearch
 
 import (
 	"bytes"
-	"context"
 	"cmp"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,7 +33,7 @@ const (
 	DefaultMethodName     = "hnsw"
 )
 
-// SpaceType selects the vector similarity space recognised by
+// SpaceType selects the vector similarity space recognized by
 // OpenSearch's knn_vector field. The chosen value is baked into the
 // index mapping; changing it after the index is created has no effect.
 type SpaceType string
@@ -134,13 +134,7 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return errors.New("opensearch: config must not be nil")
-	}
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+func (c *StoreConfig) Validate() error {
 	if c.Client == nil {
 		return errors.New("opensearch: Client is required")
 	}
@@ -150,7 +144,14 @@ func (c *StoreConfig) validate() error {
 	if c.DocumentBatcher == nil {
 		return errors.New("opensearch: DocumentBatcher is required")
 	}
+	return nil
+}
 
+// ApplyDefaults fills zero fields with documented defaults.
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
 	c.IndexName = cmp.Or(c.IndexName, DefaultIndexName)
 	c.EmbeddingField = cmp.Or(c.EmbeddingField, DefaultEmbeddingField)
 	c.ContentField = cmp.Or(c.ContentField, DefaultContentField)
@@ -158,10 +159,12 @@ func (c *StoreConfig) validate() error {
 	c.SpaceType = cmp.Or(c.SpaceType, DefaultSpaceType)
 	c.Engine = cmp.Or(c.Engine, DefaultEngine)
 	c.MethodName = cmp.Or(c.MethodName, DefaultMethodName)
-	return nil
 }
 
-var _ vectorstore.Store = (*Store)(nil)
+var (
+	_ vectorstore.Store     = (*Store)(nil)
+	_ vectorstore.IDDeleter = (*Store)(nil)
+)
 
 // Store is an OpenSearch-backed [vectorstore.Store] implementation.
 type Store struct {
@@ -179,9 +182,9 @@ type Store struct {
 	methodName      string
 }
 
-
-func NewStore(config *StoreConfig) (*Store, error) {
-	if err := config.validate(); err != nil {
+func NewStore(config StoreConfig) (*Store, error) {
+	config.ApplyDefaults()
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -496,6 +499,45 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	return nil
 }
 
+// DeleteByIDs removes documents by their OpenSearch _id via a single
+// Bulk request carrying one delete action per id (NDJSON
+// `{"delete":{"_index":idx,"_id":id}}`). An empty slice is a no-op;
+// unknown ids are silently ignored (Bulk reports them as not_found, not
+// an error). Implements [vectorstore.IDDeleter].
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, span := tracing.StartDelete(ctx, "opensearch")
+	defer func() { tracing.Finish(span, err) }()
+
+	var body bytes.Buffer
+	for _, id := range ids {
+		var actionLine []byte
+		actionLine, err = json.Marshal(map[string]any{
+			"delete": map[string]any{"_index": s.indexName, "_id": id},
+		})
+		if err != nil {
+			return fmt.Errorf("opensearch: encode bulk delete action: %w", err)
+		}
+		body.Write(actionLine)
+		body.WriteByte('\n')
+	}
+
+	resp, err := s.client.Bulk(ctx, opensearchapi.BulkReq{
+		Index: s.indexName,
+		Body:  bytes.NewReader(body.Bytes()),
+	})
+	if err != nil {
+		return fmt.Errorf("opensearch: bulk delete: %w", err)
+	}
+	if resp != nil && resp.Errors {
+		return s.bulkErrorReason(resp)
+	}
+	return nil
+}
+
 // buildFilterQuery wraps the visitor and returns the Lucene query
 // string suitable for the knn filter.
 func (s *Store) buildFilterQuery(filter ast.Expr) (string, error) {
@@ -555,7 +597,6 @@ func (s *Store) Metadata() vectorstore.StoreMetadata {
 		Provider:     Provider,
 	}
 }
-
 
 func (s *Store) Close() error { return nil }
 

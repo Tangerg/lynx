@@ -15,7 +15,7 @@ type Factory func(apiKey string) (websearch.Provider, error)
 // provider:
 //   - RequiresAPIKey: NewClient with an empty key must error
 //   - Search: skip when envKey is unset; otherwise hit the live API
-//     and log the marshalled response
+//     and log the marshaled response
 //
 // envKey is the OS environment variable holding the provider's API
 // key (e.g., "TAVILY_KEY", "BRAVE_KEY").

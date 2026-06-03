@@ -36,7 +36,7 @@ func TestDeduplicationRefiner_HonorsContextCancel(t *testing.T) {
 	cancel()
 
 	if _, err := r.Refine(ctx, nil, nil); err == nil {
-		t.Fatal("cancelled ctx must error")
+		t.Fatal("canceled ctx must error")
 	}
 }
 

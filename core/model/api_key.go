@@ -6,17 +6,17 @@ import (
 	"strings"
 )
 
-// ApiKey hides the credential a model client uses to authenticate.
+// APIKey hides the credential a model client uses to authenticate.
 // It exists so static keys (OpenAI, Anthropic) and dynamic short-lived
-// tokens (GCP Vertex AI) share one call site: clients invoke [ApiKey.Get]
+// tokens (GCP Vertex AI) share one call site: clients invoke [APIKey.Get]
 // before each request and let the implementation handle caching, refresh,
 // or "no auth needed".
 //
 // Implementations must:
-//   - return a currently valid key from [ApiKey.Get] (never expired);
+//   - return a currently valid key from [APIKey.Get] (never expired);
 //   - be safe for concurrent use;
 //   - return "" when no authentication is required.
-type ApiKey interface {
+type APIKey interface {
 	// Get returns a currently valid API key. Callers MUST NOT cache the
 	// result — call this before each request so dynamic implementations
 	// can refresh transparently. Returns "" when no authentication is
@@ -24,41 +24,41 @@ type ApiKey interface {
 	Get() string
 }
 
-var _ ApiKey = (*staticApiKey)(nil)
+var _ APIKey = (*staticAPIKey)(nil)
 
-// staticApiKey holds an immutable key value and a pre-computed masked form
+// staticAPIKey holds an immutable key value and a pre-computed masked form
 // for safe logging. All fields are set at construction; nothing mutates,
 // so the value is trivially safe for concurrent reads.
-type staticApiKey struct {
+type staticAPIKey struct {
 	value      string
 	maskedView string
 }
 
-// NewApiKey wraps a fixed credential as an [ApiKey]. Pass "" for endpoints
+// NewAPIKey wraps a fixed credential as an [APIKey]. Pass "" for endpoints
 // that do not require authentication.
 //
 // Example:
 //
-//	key := NewApiKey("sk-1234567890abcdef")  // OpenAI-style key
-//	key := NewApiKey("")                      // local model, no auth
+//	key := NewAPIKey("sk-1234567890abcdef")  // OpenAI-style key
+//	key := NewAPIKey("")                      // local model, no auth
 //
 //	// In a request:
 //	req.Header.Set("Authorization", "Bearer "+key.Get())
-func NewApiKey(value string) ApiKey {
-	k := &staticApiKey{value: value}
-	k.maskedView = maskApiKey(value)
+func NewAPIKey(value string) APIKey {
+	k := &staticAPIKey{value: value}
+	k.maskedView = maskAPIKey(value)
 	return k
 }
 
 // Get returns the immutable key supplied at construction.
-func (k *staticApiKey) Get() string {
+func (k *staticAPIKey) Get() string {
 	return k.value
 }
 
 // String returns the masked representation, suitable for logs.
 // Implements [fmt.Stringer] so the value never leaks accidentally via
 // "%v" or "%s" formatting.
-func (k *staticApiKey) String() string {
+func (k *staticAPIKey) String() string {
 	return k.maskedView
 }
 
@@ -66,17 +66,17 @@ func (k *staticApiKey) String() string {
 // leak through a structured logger / config dumper that JSON-encodes
 // a containing struct. Stringer alone is bypassed by json.Marshal,
 // which inspects unexported fields directly.
-func (k *staticApiKey) MarshalJSON() ([]byte, error) {
+func (k *staticAPIKey) MarshalJSON() ([]byte, error) {
 	return json.Marshal(k.maskedView)
 }
 
-// maskApiKey renders a credential as "api_key=<masked>" without revealing
+// maskAPIKey renders a credential as "api_key=<masked>" without revealing
 // the secret. It chooses one of three shapes by length:
 //
 //	""              -> "api_key=<empty>"
 //	len ≤ 10        -> "api_key=" + asterisks
 //	len > 10        -> "api_key=ab****yz" (first 2, last 2)
-func maskApiKey(value string) string {
+func maskAPIKey(value string) string {
 	if value == "" {
 		return "api_key=<empty>"
 	}

@@ -18,8 +18,8 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 		t.Fatal(err)
 	}
 	opts.Voice = "alloy"
-	m, err := azureopenai.NewAudioTTSModel(&azureopenai.AudioTTSModelConfig{
-		ApiKey:         model.NewApiKey("test-key"),
+	m, err := azureopenai.NewAudioTTSModel(azureopenai.AudioTTSModelConfig{
+		APIKey:         model.NewAPIKey("test-key"),
 		Endpoint:       srv.URL,
 		DefaultOptions: opts,
 	})

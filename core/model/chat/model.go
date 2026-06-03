@@ -32,11 +32,3 @@ type Model interface {
 	// observability layer that needs to tag a span by provider.
 	Metadata() ModelMetadata
 }
-
-// ModelMetadata holds identity metadata for a [Model] instance. Provider names
-// are conventionally lowercase (e.g. "openai", "anthropic", "google") so
-// downstream filters can match without case folding.
-type ModelMetadata struct {
-	// Provider names the LLM vendor — "openai", "anthropic", "google", etc.
-	Provider string `json:"provider"`
-}

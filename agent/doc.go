@@ -6,7 +6,7 @@
 // Sub-package map:
 //
 //	github.com/Tangerg/lynx/agent/core        — primitives (Action / Goal / Condition / Agent / Blackboard / status enums)
-//	github.com/Tangerg/lynx/agent/plan        — Plan / Planner interface / PlanningSystem / concrete planners (goap, …)
+//	github.com/Tangerg/lynx/agent/planning        — Plan / Planner interface / planning.System / concrete planners (goap, …)
 //	github.com/Tangerg/lynx/agent/runtime     — Platform / AgentProcess
 //	github.com/Tangerg/lynx/agent/event       — event types + listener
 //	github.com/Tangerg/lynx/agent/workflow    — scatter-gather / repeat-until agent builders

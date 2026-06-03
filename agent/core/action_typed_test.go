@@ -11,9 +11,11 @@ import (
 func TestTypedActionRejectsNilFunction(t *testing.T) {
 	action := core.NewAction[string, int]("nil-fn", nil, core.ActionConfig{})
 	processContext := core.NewProcessContext(core.ProcessContextConfig{
-		Blackboard: fakeBlackboard{
-			value: "hello",
-			ok:    true,
+		ProcessState: core.ProcessState{
+			Blackboard: fakeBlackboard{
+				value: "hello",
+				ok:    true,
+			},
 		},
 	})
 
@@ -31,7 +33,9 @@ func TestTypedActionReportsMissingInput(t *testing.T) {
 		core.ActionConfig{},
 	)
 	processContext := core.NewProcessContext(core.ProcessContextConfig{
-		Blackboard: fakeBlackboard{},
+		ProcessState: core.ProcessState{
+			Blackboard: fakeBlackboard{},
+		},
 	})
 
 	if got := action.Execute(t.Context(), processContext); got != core.ActionFailed {
@@ -48,9 +52,11 @@ func TestTypedActionReportsInputTypeMismatch(t *testing.T) {
 		core.ActionConfig{},
 	)
 	processContext := core.NewProcessContext(core.ProcessContextConfig{
-		Blackboard: fakeBlackboard{
-			value: 42,
-			ok:    true,
+		ProcessState: core.ProcessState{
+			Blackboard: fakeBlackboard{
+				value: 42,
+				ok:    true,
+			},
 		},
 	})
 
@@ -83,7 +89,7 @@ func (f fakeBlackboard) ID() string   { return "fake" }
 func (f fakeBlackboard) Get(string) (any, bool) {
 	return f.value, f.ok
 }
-func (f fakeBlackboard) GetValue(string, string) (any, bool) {
+func (f fakeBlackboard) Lookup(string, string) (any, bool) {
 	return f.value, f.ok
 }
 func (f fakeBlackboard) HasValue(string, string) bool { return f.ok }
@@ -93,14 +99,14 @@ func (f fakeBlackboard) Objects() []any {
 	}
 	return []any{f.value}
 }
-func (f fakeBlackboard) GetCondition(string) (bool, bool) { return false, false }
-func (f fakeBlackboard) InfoString(bool) string           { return "fake" }
-func (f fakeBlackboard) Set(string, any)                  {}
-func (f fakeBlackboard) AddObject(any)                    {}
-func (f fakeBlackboard) Bind(any)                         {}
-func (f fakeBlackboard) BindAll(map[string]any)           {}
-func (f fakeBlackboard) BindProtected(string, any)        {}
-func (f fakeBlackboard) Hide(any)                         {}
-func (f fakeBlackboard) SetCondition(string, bool)        {}
-func (f fakeBlackboard) Spawn() core.Blackboard           { return f }
-func (f fakeBlackboard) Clear()                           {}
+func (f fakeBlackboard) Condition(string) (bool, bool) { return false, false }
+func (f fakeBlackboard) Inspect(bool) string           { return "fake" }
+func (f fakeBlackboard) Set(string, any)               {}
+func (f fakeBlackboard) AddObject(any)                 {}
+func (f fakeBlackboard) Bind(any)                      {}
+func (f fakeBlackboard) BindAll(map[string]any)        {}
+func (f fakeBlackboard) BindProtected(string, any)     {}
+func (f fakeBlackboard) Hide(any)                      {}
+func (f fakeBlackboard) SetCondition(string, bool)     {}
+func (f fakeBlackboard) Spawn() core.Blackboard        { return f }
+func (f fakeBlackboard) Clear()                        {}

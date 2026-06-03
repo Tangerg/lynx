@@ -12,28 +12,25 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 )
 
-type ApiConfig struct {
-	ApiKey     model.ApiKey
+type APIConfig struct {
+	APIKey     model.APIKey
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func (c *ApiConfig) validate() error {
-	if c == nil {
-		return errors.New("nomic: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("nomic: ApiKey is required")
+func (c APIConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("nomic: APIKey is required")
 	}
 	return nil
 }
 
-type Api struct {
+type API struct {
 	http *resty.Client
 }
 
-func NewApi(cfg *ApiConfig) (*Api, error) {
-	if err := cfg.validate(); err != nil {
+func NewAPI(cfg APIConfig) (*API, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -45,11 +42,11 @@ func NewApi(cfg *ApiConfig) (*Api, error) {
 	}
 	client.
 		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
-		SetAuthToken(cfg.ApiKey.Get()).
+		SetAuthToken(cfg.APIKey.Get()).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Accept", "application/json")
 
-	return &Api{http: client}, nil
+	return &API{http: client}, nil
 }
 
 type EmbeddingRequest struct {
@@ -69,7 +66,7 @@ type EmbeddingResponse struct {
 	} `json:"usage"`
 }
 
-func (a *Api) Embedding(ctx context.Context, req *EmbeddingRequest) (*EmbeddingResponse, error) {
+func (a *API) Embedding(ctx context.Context, req *EmbeddingRequest) (*EmbeddingResponse, error) {
 	if req == nil {
 		return nil, errors.New("nomic: request must not be nil")
 	}

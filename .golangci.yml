@@ -1,0 +1,77 @@
+# Project-wide lint config. Applied to every Go module in the
+# workspace; scripts/check.sh + .github/workflows/ci.yml iterate
+# modules and run `golangci-lint run` per module.
+#
+# Why these linters:
+#   errcheck / govet / staticcheck / unused / ineffassign / gosimple
+#     — the "you actually have a bug" core set; staticcheck alone
+#     covers most of what the bug audit would find by hand
+#   gofmt / goimports — formatting + import order consistency
+#   misspell — catches typos in comments / strings
+#
+# Why NOT some popular linters:
+#   revive — too opinionated about doc comments; would flood with
+#     "exported X should have comment" for every internal interface
+#   gocyclo — complexity metric is noisy without a meaningful
+#     threshold; we use SRP audits instead
+#   lll (line length) — Go style doesn't enforce one
+#   gomnd (magic numbers) — too many false positives in protocol /
+#     parser code where literals have semantic meaning
+
+run:
+  timeout: 5m
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - ineffassign
+    - gosimple
+    - gofmt
+    - goimports
+    - misspell
+
+linters-settings:
+  errcheck:
+    # Stdlib functions whose error returns are commonly ignored on
+    # purpose (response.Body.Close in defer, etc). Allowed via
+    # explicit `_ = ...` discards.
+    check-blank: false
+    check-type-assertions: false
+  govet:
+    enable-all: true
+    disable:
+      # fieldalignment forces struct field reordering for tiny memory
+      # wins; readability loses. Re-enable if memory profiling shows
+      # struct layout is hot.
+      - fieldalignment
+      # shadow occasionally flags intentional `if err := ...; err != nil`
+      # patterns. Off by default.
+      - shadow
+  misspell:
+    # US locale (initialize / behavior / labeled). Linter blocks any
+    # UK regressions sliding back in via PR.
+    locale: US
+  goimports:
+    local-prefixes: github.com/Tangerg/lynx
+
+issues:
+  exclude-dirs:
+    - "examples"
+    - "agent/examples"
+    - "lyra/doc"
+    - "lyra/docs"
+  exclude-rules:
+    # Generated files & vendored deps are ignored implicitly by the
+    # tool — no rule needed.
+    #
+    # Test files often have intentional patterns the linters
+    # misjudge (e.g. errcheck on cleanup defers).
+    - path: _test\.go
+      linters:
+        - errcheck
+  max-issues-per-linter: 0
+  max-same-issues: 0

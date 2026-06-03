@@ -113,9 +113,9 @@ func (m *loggerMiddleware) wrapStream(next chat.StreamHandler) chat.StreamHandle
 // nopLogger is the safe fallback used when callers pass nil.
 type nopLogger struct{}
 
-func (nopLogger) LogRequest(context.Context, *chat.Request)                                  {}
-func (nopLogger) LogResponse(context.Context, *chat.Request, *chat.Response, time.Duration)  {}
-func (nopLogger) LogError(context.Context, *chat.Request, error, time.Duration)              {}
+func (nopLogger) LogRequest(context.Context, *chat.Request)                                 {}
+func (nopLogger) LogResponse(context.Context, *chat.Request, *chat.Response, time.Duration) {}
+func (nopLogger) LogError(context.Context, *chat.Request, error, time.Duration)             {}
 
 // SlogLoggerOption configures [NewSlogLogger].
 type SlogLoggerOption func(*slogLogger)

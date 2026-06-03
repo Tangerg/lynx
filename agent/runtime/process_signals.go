@@ -27,7 +27,7 @@ import (
 //     observes ctx.Done() and aborts.
 //
 // The struct intentionally has no methods that need an outer lock —
-// everything is built on channel + atomic primitives so signalling can
+// everything is built on channel + atomic primitives so signaling can
 // race with state-machine reads without contending the main mutex.
 type processSignals struct {
 	terminate        chan core.TerminationSignal
@@ -132,7 +132,7 @@ func (s *processSignals) peekAwaitable() core.Awaitable {
 func (s *processSignals) deliverResponse(response any) (core.ResponseImpact, error) {
 	slot := s.pendingAwaitable.Swap(nil)
 	if slot == nil {
-		return core.ResponseImpactUnchanged, errors.New("no awaitable response is pending")
+		return core.ImpactUnchanged, errors.New("no awaitable response is pending")
 	}
 	return slot.awaitable.OnResponseAny(response)
 }

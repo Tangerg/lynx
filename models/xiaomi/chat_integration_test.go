@@ -24,8 +24,8 @@ func TestChatModel_Integration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m, err := xiaomi.NewOpenAIChatModel(&xiaomi.OpenAIChatModelConfig{
-				ApiKey:         model.NewApiKey(key),
+			m, err := xiaomi.NewOpenAIChatModel(xiaomi.OpenAIChatModelConfig{
+				APIKey:         model.NewAPIKey(key),
 				DefaultOptions: opts,
 			})
 			if err != nil {

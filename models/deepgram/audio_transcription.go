@@ -11,18 +11,15 @@ import (
 )
 
 type AudioTranscriptionModelConfig struct {
-	ApiKey         model.ApiKey
+	APIKey         model.APIKey
 	DefaultOptions *transcription.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 }
 
-func (c *AudioTranscriptionModelConfig) validate() error {
-	if c == nil {
-		return errors.New("deepgram: config must not be nil")
-	}
-	if c.ApiKey == nil {
-		return errors.New("deepgram: ApiKey is required")
+func (c AudioTranscriptionModelConfig) Validate() error {
+	if c.APIKey == nil {
+		return errors.New("deepgram: APIKey is required")
 	}
 	if c.DefaultOptions == nil {
 		return errors.New("deepgram: DefaultOptions is required")
@@ -43,17 +40,17 @@ var _ transcription.Model = (*AudioTranscriptionModel)(nil)
 // stashed on the result metadata so callers needing diarization or
 // timestamps can dig in.
 type AudioTranscriptionModel struct {
-	api            *Api
+	api            *API
 	defaultOptions *transcription.Options
 }
 
-func NewAudioTranscriptionModel(cfg *AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
-	if err := cfg.validate(); err != nil {
+func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	api, err := NewApi(&ApiConfig{
-		ApiKey:     cfg.ApiKey,
+	api, err := NewAPI(APIConfig{
+		APIKey:     cfg.APIKey,
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,
 	})

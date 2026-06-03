@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
@@ -42,6 +43,18 @@ func WithStripWhitespace(strip bool) Option {
 	return func(r *Reader) { r.stripWhitespace = strip }
 }
 
+// WithMetadata adds caller-supplied metadata to every emitted document
+// (source URI, tenant, doc type, ...). The map is cloned, so later
+// caller mutations don't leak in. Reader-derived `html.*` keys take
+// precedence on conflict.
+func WithMetadata(md map[string]any) Option {
+	return func(r *Reader) {
+		if len(md) > 0 {
+			r.extraMetadata = maps.Clone(md)
+		}
+	}
+}
+
 var _ document.Reader = (*Reader)(nil)
 
 // Reader is an HTML-aware [document.Reader].
@@ -50,6 +63,7 @@ type Reader struct {
 	selector        string
 	sourceName      string
 	stripWhitespace bool
+	extraMetadata   map[string]any
 }
 
 // NewReader builds an HTML reader over src.
@@ -65,8 +79,12 @@ func NewReader(src io.Reader, opts ...Option) (*Reader, error) {
 }
 
 // Read parses the source and emits documents according to the
-// configured mode.
-func (r *Reader) Read(_ context.Context) ([]*document.Document, error) {
+// configured mode. ctx cancellation is honored before parsing and
+// between matched elements.
+func (r *Reader) Read(ctx context.Context) ([]*document.Document, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	doc, err := goquery.NewDocumentFromReader(r.reader)
 	if err != nil {
 		return nil, fmt.Errorf("html: parse: %w", err)
@@ -77,7 +95,7 @@ func (r *Reader) Read(_ context.Context) ([]*document.Document, error) {
 	if r.selector == "" {
 		return r.readWhole(doc, page)
 	}
-	return r.readSelector(doc, page)
+	return r.readSelector(ctx, doc, page)
 }
 
 func (r *Reader) readWhole(doc *goquery.Document, page pageInfo) ([]*document.Document, error) {
@@ -93,33 +111,42 @@ func (r *Reader) readWhole(doc *goquery.Document, page pageInfo) ([]*document.Do
 	return []*document.Document{d}, nil
 }
 
-func (r *Reader) readSelector(doc *goquery.Document, page pageInfo) ([]*document.Document, error) {
+func (r *Reader) readSelector(ctx context.Context, doc *goquery.Document, page pageInfo) ([]*document.Document, error) {
 	var (
-		docs []*document.Document
-		errs []error
+		docs     []*document.Document
+		buildErr error
 	)
 	doc.Find(r.selector).EachWithBreak(func(_ int, sel *goquery.Selection) bool {
+		if ctx.Err() != nil {
+			return false // cancellation is reported after the loop
+		}
 		body := r.extractText(sel)
 		if body == "" {
 			return true
 		}
 		d, err := document.NewDocument(body, nil)
 		if err != nil {
-			errs = append(errs, err)
+			buildErr = err
 			return false
 		}
 		d.Metadata = r.buildMetadata(page, r.selector)
 		docs = append(docs, d)
 		return true
 	})
-	if len(errs) > 0 {
-		return nil, fmt.Errorf("html: build selector document: %w", errs[0])
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if buildErr != nil {
+		return nil, fmt.Errorf("html: build selector document: %w", buildErr)
 	}
 	return docs, nil
 }
 
 func (r *Reader) buildMetadata(page pageInfo, selector string) map[string]any {
-	md := map[string]any{}
+	md := maps.Clone(r.extraMetadata)
+	if md == nil {
+		md = map[string]any{}
+	}
 	if page.title != "" {
 		md[MetadataTitle] = page.title
 	}

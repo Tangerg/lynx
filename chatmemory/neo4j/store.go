@@ -9,6 +9,7 @@ import (
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
+	"github.com/Tangerg/lynx/chatmemory/internal/codec"
 	"github.com/Tangerg/lynx/chatmemory/internal/tracing"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/memory"
@@ -49,21 +50,9 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c *StoreConfig) validate() error {
-	if c == nil {
-		return errors.New("neo4j: config must not be nil")
-	}
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
+func (c *StoreConfig) Validate() error {
 	if c.Driver == nil {
 		return errors.New("neo4j: Driver is required")
-	}
-	if c.Database == "" {
-		c.Database = DefaultDatabase
-	}
-	if c.Label == "" {
-		c.Label = DefaultLabel
 	}
 	if !identPattern.MatchString(c.Label) {
 		return fmt.Errorf("neo4j: Label=%q must match %s", c.Label, identPattern)
@@ -71,7 +60,25 @@ func (c *StoreConfig) validate() error {
 	return nil
 }
 
-var _ memory.Store = (*Store)(nil)
+// ApplyDefaults fills zero fields. Context defaults to
+// [context.Background]; Database defaults to [DefaultDatabase];
+// Label defaults to [DefaultLabel].
+func (c *StoreConfig) ApplyDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
+	}
+	if c.Database == "" {
+		c.Database = DefaultDatabase
+	}
+	if c.Label == "" {
+		c.Label = DefaultLabel
+	}
+}
+
+var (
+	_ memory.Store  = (*Store)(nil)
+	_ memory.Lister = (*Store)(nil)
+)
 
 // Store is a Neo4j-backed [memory.Store]. Construct via [NewStore].
 type Store struct {
@@ -81,8 +88,9 @@ type Store struct {
 }
 
 // NewStore builds a [Store] from cfg.
-func NewStore(cfg *StoreConfig) (*Store, error) {
-	if err := cfg.validate(); err != nil {
+func NewStore(cfg StoreConfig) (*Store, error) {
+	cfg.ApplyDefaults()
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	s := &Store{
@@ -130,7 +138,7 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 	now := time.Now().UnixNano()
 	rows := make([]map[string]any, 0, len(messages))
 	for i, msg := range messages {
-		raw, encErr := encodeMessage(msg)
+		raw, encErr := codec.EncodeMessage(msg)
 		if encErr != nil {
 			err = fmt.Errorf("neo4j.Store.Write: encode message: %w", encErr)
 			return err
@@ -230,20 +238,41 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 	return nil
 }
 
-func encodeMessage(msg chat.Message) ([]byte, error) {
-	if msg == nil {
-		return nil, errors.New("message must not be nil")
+// Conversations returns the ids of every stored conversation as a
+// point-in-time snapshot. An empty slice is returned when the store
+// holds no messages.
+func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
+	if err = ctx.Err(); err != nil {
+		return nil, err
 	}
-	switch m := msg.(type) {
-	case *chat.SystemMessage:
-		return m.MarshalJSON()
-	case *chat.UserMessage:
-		return m.MarshalJSON()
-	case *chat.AssistantMessage:
-		return m.MarshalJSON()
-	case *chat.ToolMessage:
-		return m.MarshalJSON()
-	default:
-		return nil, fmt.Errorf("unsupported message type %T", msg)
+
+	ctx, span := tracing.StartList(ctx, "neo4j")
+	defer func() { tracing.RecordListResult(span, err, len(ids)) }()
+
+	cypher := fmt.Sprintf(
+		"MATCH (m:%s) RETURN DISTINCT m.conversation_id AS id",
+		s.label,
+	)
+	var result *neo4j.EagerResult
+	result, err = neo4j.ExecuteQuery(ctx, s.driver, cypher, nil,
+		neo4j.EagerResultTransformer,
+		neo4j.ExecuteQueryWithDatabase(s.database),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("neo4j.Store.Conversations: %w", err)
 	}
+
+	ids = make([]string, 0, len(result.Records))
+	for _, rec := range result.Records {
+		raw, ok := rec.Get("id")
+		if !ok {
+			continue
+		}
+		id, ok := raw.(string)
+		if !ok {
+			return nil, fmt.Errorf("neo4j.Store.Conversations: id column type %T, want string", raw)
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }

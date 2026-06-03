@@ -3,6 +3,7 @@ package autonomy
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -26,7 +27,7 @@ type LLMRanker struct {
 type LLMRankerConfig struct {
 	// SystemPrompt overrides the default "you are a routing
 	// classifier" preamble. Use for domain-specific guidance ("score
-	// strictly; favour exact-match keyword overlap").
+	// strictly; favor exact-match keyword overlap").
 	SystemPrompt string
 
 	// PromptHeader prefixes the per-candidate listing in the user
@@ -39,7 +40,7 @@ type LLMRankerConfig struct {
 // on a nil client — caller decides whether to surface or panic.
 func NewLLMRanker(client *chat.Client, cfg LLMRankerConfig) (*LLMRanker, error) {
 	if client == nil {
-		return nil, fmt.Errorf("autonomy.NewLLMRanker: chat.Client must not be nil")
+		return nil, errors.New("autonomy.NewLLMRanker: chat.Client must not be nil")
 	}
 	return &LLMRanker{client: client, cfg: cfg}, nil
 }
@@ -99,7 +100,7 @@ func (r *LLMRanker) buildUserPrompt(userInput string, candidates []Candidate) st
 	b.WriteString(strconv.Quote(userInput))
 	b.WriteString("\n\nCandidates:\n")
 	for _, cand := range candidates {
-		fmt.Fprintf(&b, "- %s — %s\n", cand.String(), goalDescription(cand))
+		fmt.Fprintf(&b, "- %s — %s\n", cand.String(), cand.goalDescription())
 		writeGoalHints(&b, cand)
 	}
 	b.WriteString(`
@@ -138,15 +139,15 @@ func writeGoalHints(b *strings.Builder, cand Candidate) {
 // goalDescription returns the goal's Description, falling back to
 // the agent's when the goal didn't supply one. Empty as a last
 // resort — the LLM still sees the name.
-func goalDescription(cand Candidate) string {
-	if cand.Goal == nil {
+func (c Candidate) goalDescription() string {
+	if c.Goal == nil {
 		return ""
 	}
-	if cand.Goal.Description != "" {
-		return cand.Goal.Description
+	if c.Goal.Description != "" {
+		return c.Goal.Description
 	}
-	if cand.Agent != nil {
-		return cand.Agent.Description
+	if c.Agent != nil {
+		return c.Agent.Description
 	}
 	return ""
 }
@@ -169,7 +170,7 @@ type rankerReply struct {
 func parseRankerReply(text string) (map[string]rankerEntry, error) {
 	jsonStr := extractJSON(text)
 	if jsonStr == "" {
-		return nil, fmt.Errorf("autonomy.parseRankerReply: no JSON object in reply")
+		return nil, errors.New("autonomy.parseRankerReply: no JSON object in reply")
 	}
 	var reply rankerReply
 	if err := json.Unmarshal([]byte(jsonStr), &reply); err != nil {

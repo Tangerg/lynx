@@ -62,7 +62,7 @@ func makeInternalAgent() *core.Agent {
 }
 
 func TestPublishAll_ReturnsTypedSchemaForRemoteGoals(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	mustDeploy(t, platform, makeBriefingAgent(true), makeInternalAgent())
 
 	tools := runtime.PublishAll(platform)
@@ -82,7 +82,7 @@ func TestPublishAll_ReturnsTypedSchemaForRemoteGoals(t *testing.T) {
 }
 
 func TestPublishAll_RunsAgentEndToEnd(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	mustDeploy(t, platform, makeBriefingAgent(true))
 
 	tools := runtime.PublishAll(platform)
@@ -109,7 +109,7 @@ func TestPublishAll_RunsAgentEndToEnd(t *testing.T) {
 }
 
 func TestPublishAll_ExcludesNonRemoteGoals(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	mustDeploy(t, platform,
 		makeBriefingAgent(false), // Remote=false
 		makeInternalAgent(),      // no Export
@@ -122,7 +122,7 @@ func TestPublishAll_ExcludesNonRemoteGoals(t *testing.T) {
 }
 
 func TestAllAchievableTools_IncludesAllExportedRegardlessOfRemote(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	mustDeploy(t, platform,
 		makeBriefingAgent(false), // Export.Remote=false but Export!=nil
 		makeInternalAgent(),      // Export=nil
@@ -138,7 +138,7 @@ func TestAllAchievableTools_IncludesAllExportedRegardlessOfRemote(t *testing.T) 
 }
 
 func TestAllAchievableTools_RequiresParentInCtx(t *testing.T) {
-	platform := agent.NewPlatform(&runtime.PlatformConfig{})
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	mustDeploy(t, platform, makeBriefingAgent(true))
 
 	tools := runtime.AllAchievableTools(platform)
