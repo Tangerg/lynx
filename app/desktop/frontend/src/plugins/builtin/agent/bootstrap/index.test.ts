@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
 import type { Container } from "@/main/container";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
-import type { Methods, ServerCapabilities } from "@/rpc";
+import type { LyraClient, Methods, ServerCapabilities } from "@/rpc";
 import { useRuntimeStore } from "@/state/runtimeStore";
 import bootstrap from "./index";
 
@@ -15,7 +15,7 @@ const fakeCapabilities = { protocolVersion: "2026-06-03", features: {}, provider
 function stubContainer(initialize: Methods["runtime"]["initialize"]) {
   setContainer({
     sidecar: { info: vi.fn().mockResolvedValue({}) } as unknown as Container["sidecar"],
-    methods: () => ({ runtime: { initialize } }) as unknown as Methods,
+    client: () => ({ runtime: { initialize } }) as unknown as LyraClient,
   });
 }
 
