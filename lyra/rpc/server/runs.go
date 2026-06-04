@@ -159,8 +159,12 @@ func resumeBindingFrom(pending interrupts.Pending) *resumeBinding {
 		}
 		switch in.Kind {
 		case "approval":
-			tool, _ := in.Payload["tool"].(string)
-			args, _ := in.Payload["arguments"].(string)
+			// Re-bind via the backend-internal _resume tuple (raw name +
+			// arguments) the translator stashed — payload.tool is the display
+			// ToolInvocation and drops the name on strongly-typed variants.
+			rm, _ := in.Payload["_resume"].(map[string]any)
+			tool, _ := rm["name"].(string)
+			args, _ := rm["args"].(string)
 			if tool != "" {
 				items[resumeKey(tool, args)] = in.ItemID
 			}

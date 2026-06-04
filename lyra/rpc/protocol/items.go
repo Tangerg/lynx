@@ -136,43 +136,63 @@ type QuestionOption struct {
 }
 
 // ToolInvocationKind discriminates the ToolInvocation union (API.md §4.4).
+// Strongly-typed closed-set variants (kind IS the identity, no redundant
+// name) + one generic envelope for the open set.
 type ToolInvocationKind string
 
 const (
-	ToolKindCommand  ToolInvocationKind = "command"
-	ToolKindFileEdit ToolInvocationKind = "fileEdit"
-	ToolKindMCP      ToolInvocationKind = "mcp"
-	ToolKindSearch   ToolInvocationKind = "search"
-	ToolKindSubagent ToolInvocationKind = "subagent"
+	ToolKindCommandExecution ToolInvocationKind = "commandExecution" // bash → argv + exit/duration
+	ToolKindFileChange       ToolInvocationKind = "fileChange"       // write / edit → changed files
+	ToolKindSearch           ToolInvocationKind = "search"           // local grep / glob → SearchResult hits
+	ToolKindWebSearch        ToolInvocationKind = "webSearch"        // web search → SearchResult web hits
+	ToolKindTool             ToolInvocationKind = "tool"             // generic: MCP / read / fetch / subagent / custom
 )
 
-// ToolInvocation is a tag-discriminated union over tool kinds (API.md §4.4).
-// Completed-item Arguments is the parsed structured value; streaming
-// partial args arrive via ItemDelta.argumentsTextDelta (API.md §5.1).
+// ToolInvocation is a tag-discriminated union (API.md §4.4): closed-set
+// strongly-typed variants carry their fields directly; the open set rides
+// the generic `tool` envelope (name + parsed arguments object + best-effort
+// JSON result). No variant carries both a kind-implied field set AND a
+// redundant name. Completed-item fields (exitCode / results / result) land
+// at item.completed; streaming partial args arrive via
+// ItemDelta.argumentsTextDelta and command stdout via ItemDelta.text
+// (toolOutput) — API.md §5.1.
 //
-//	command  → Command, Cwd, Output, ExitCode
-//	fileEdit → Path, Diff
-//	mcp      → Server, Name, Arguments, Result
-//	search   → Query, Results
-//	subagent → Name, Prompt, ChildRunID, Result
+//	commandExecution → Command (argv), Cwd?, ExitCode?, DurationMs?
+//	fileChange       → Changes[]
+//	search           → Query, Results[] (path / lineNumber / snippet)
+//	webSearch        → Query, Results[] (title / url / snippet / faviconUrl)
+//	tool             → Name, Arguments (object), Result? (JSON)
 type ToolInvocation struct {
 	Kind ToolInvocationKind `json:"kind"`
 
-	Command   string         `json:"command,omitempty"`
-	Cwd       string         `json:"cwd,omitempty"`
-	Output    string         `json:"output,omitempty"`
-	ExitCode  *int           `json:"exitCode,omitempty"`
-	Path      string         `json:"path,omitempty"`
-	Diff      []DiffRow      `json:"diff,omitempty"`
-	Server    string         `json:"server,omitempty"`
+	// commandExecution
+	Command    []string `json:"command,omitempty"`
+	Cwd        string   `json:"cwd,omitempty"`
+	ExitCode   *int     `json:"exitCode,omitempty"`
+	DurationMs *int64   `json:"durationMs,omitempty"`
+
+	// fileChange
+	Changes []FileChangeEntry `json:"changes,omitempty"`
+
+	// search / webSearch (one Results field; omitempty yields each variant's
+	// shape — SearchHit{path,lineNumber,snippet} vs WebSearchResult{title,url,
+	// snippet,faviconUrl} — without a tag collision)
+	Query   string         `json:"query,omitempty"`
+	Results []SearchResult `json:"results,omitempty"`
+
+	// tool (generic)
 	Name      string         `json:"name,omitempty"`
 	Arguments map[string]any `json:"arguments,omitempty"`
 	Result    any            `json:"result,omitempty"`
-	Query     string         `json:"query,omitempty"`
-	Results   []SearchResult `json:"results,omitempty"`
-	// subagent
-	Prompt     []ContentBlock `json:"prompt,omitempty"`
-	ChildRunID string         `json:"childRunId,omitempty"`
+}
+
+// FileChangeEntry is one changed file in a fileChange invocation (API.md
+// §4.4). Diff is optional (progressive enhancement; omitted when the tool
+// doesn't surface structured diff rows).
+type FileChangeEntry struct {
+	Path string    `json:"path"`
+	Kind string    `json:"kind"` // add | modify | delete | rename
+	Diff []DiffRow `json:"diff,omitempty"`
 }
 
 // DiffRow is one structured row of a unified diff (API.md §4.5). Code
@@ -190,12 +210,20 @@ type DiffRow struct {
 	Code      string `json:"code,omitempty"`
 }
 
-// SearchResult is one search hit (API.md §4.5).
+// SearchResult is one hit for a search / webSearch invocation (API.md §4.5).
+// One struct covers both wire shapes: a local SearchHit populates
+// Path/LineNumber/Snippet; a WebSearchResult populates Title/URL/Snippet/
+// FaviconURL. omitempty drops the irrelevant half so the wire matches the
+// contract's two distinct types without a Go tag collision.
 type SearchResult struct {
-	Title   string `json:"title,omitempty"`
-	URL     string `json:"url,omitempty"`
-	Path    string `json:"path,omitempty"`
-	Snippet string `json:"snippet,omitempty"`
+	// local search hit (grep / glob)
+	Path       string `json:"path,omitempty"`
+	LineNumber int    `json:"lineNumber,omitempty"`
+	Snippet    string `json:"snippet,omitempty"`
+	// web search result
+	Title      string `json:"title,omitempty"`
+	URL        string `json:"url,omitempty"`
+	FaviconURL string `json:"faviconUrl,omitempty"`
 }
 
 // Usage is cumulative token usage (API.md §4.6).

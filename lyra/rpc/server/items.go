@@ -135,7 +135,13 @@ func (i *Server) EditItem(_ context.Context, _ protocol.EditItemRequest) (*proto
 // dropped — the system prompt is not part of the Item history.
 func historyToItems(sessionID string, msgs []chat.Message) []protocol.Item {
 	out := make([]protocol.Item, 0, len(msgs))
-	byCallID := map[string]int{} // toolCallID → index into out
+	// toolCallID → where its item lives + the raw name/args, so the matching
+	// ToolMessage can rebuild the full ToolInvocation from the output.
+	type toolRef struct {
+		idx        int
+		name, args string
+	}
+	byCallID := map[string]toolRef{}
 	seq := 0
 	nextID := func() string {
 		seq++
@@ -161,26 +167,23 @@ func historyToItems(sessionID string, msgs []chat.Message) []protocol.Item {
 				})
 			}
 			for _, call := range m.CollectToolCalls() {
-				item := protocol.Item{
+				byCallID[call.ID] = toolRef{idx: len(out), name: call.Name, args: call.Arguments}
+				out = append(out, protocol.Item{
 					ID:     nextID(),
 					Status: protocol.ItemStatusCompleted,
 					Type:   protocol.ItemTypeToolCall,
-					Tool: &protocol.ToolInvocation{
-						Kind:      toolKind(call.Name),
-						Name:      call.Name,
-						Arguments: parseArgs(call.Arguments),
-					},
-				}
-				byCallID[call.ID] = len(out)
-				out = append(out, item)
+					Tool:   toolInvocation(call.Name, call.Arguments, ""),
+				})
 			}
 		case *chat.ToolMessage:
 			for _, ret := range m.ToolReturns {
 				if ret == nil {
 					continue
 				}
-				if idx, ok := byCallID[ret.ID]; ok {
-					out[idx].Tool.Output = ret.Result
+				if r, ok := byCallID[ret.ID]; ok {
+					// Rebuild the full invocation now the output is known
+					// (search hits / exit code / generic result land here).
+					out[r.idx].Tool = toolInvocation(r.name, r.args, ret.Result)
 				}
 			}
 		}

@@ -170,20 +170,24 @@ type ResumeRunRequest struct {
 //
 //	approval   → Decision, EditedArgs, Reason
 //	answer     → Answers
-//	toolResult → Output
+//	toolResult → Result, Error
 type InterruptResponse struct {
 	ItemID   string                 `json:"itemId"`
 	Response InterruptResponseValue `json:"response"`
 }
 
-// InterruptResponseValue is the discriminated response payload.
+// InterruptResponseValue is the discriminated response payload. toolResult
+// carries the client-side tool's outcome the same shape as
+// ToolInvocation.result (API.md §6.1): a best-effort JSON Result, or an
+// Error when the client tool failed.
 type InterruptResponseValue struct {
 	Kind       string         `json:"kind"`                 // "approval" | "answer" | "toolResult"
 	Decision   string         `json:"decision,omitempty"`   // approval: "approve" | "deny"
 	EditedArgs map[string]any `json:"editedArgs,omitempty"` // approval
 	Reason     string         `json:"reason,omitempty"`     // approval (deny rationale)
 	Answers    map[string]any `json:"answers,omitempty"`    // answer: field name → label(s) / free text
-	Output     string         `json:"output,omitempty"`     // toolResult
+	Result     any            `json:"result,omitempty"`     // toolResult: best-effort JSON
+	Error      *ProblemData   `json:"error,omitempty"`      // toolResult: client tool failure
 }
 
 // Interrupt is one pending HITL item (API.md §4.8). itemId is the
