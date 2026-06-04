@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 // RunChatRequest carries the per-turn parameters for [Engine.StartChat] /
@@ -35,6 +36,13 @@ type RunChatRequest struct {
 	// [ChatInput.PlanMode]. The process parks on AwaitInput after
 	// drafting a plan; drive it back with [ChatProcess.Resume].
 	PlanMode bool
+
+	// ChatClient, when non-nil, overrides the model this turn runs against
+	// — registered as a [core.ChatClientProvider] on the process so the
+	// agent runtime uses it instead of the platform's default client. This
+	// is how a per-run model selection reaches the turn (the caller resolves
+	// the right provider+model client). nil uses the platform default.
+	ChatClient *chat.Client
 
 	// Observer receives streaming tool-call + text-delta
 	// notifications. May be nil — the turn still runs.
@@ -69,7 +77,7 @@ func (e *Engine) StartChat(ctx context.Context, req RunChatRequest) ChatProcess 
 
 	proc, done := e.platform.StartAgent(ctx, e.agent,
 		map[string]any{core.DefaultBindingName: in},
-		chatProcessOptions(req.SessionID, req.Observer, req.EventListener),
+		chatProcessOptions(req.SessionID, req.Observer, req.EventListener, req.ChatClient),
 	)
 	return &chatProcess{proc: proc, done: done, platform: e.platform}
 }
@@ -80,7 +88,7 @@ func (e *Engine) StartChat(ctx context.Context, req RunChatRequest) ChatProcess 
 // StartChat and RestoreChat share it so a resumed turn is wired exactly
 // like a fresh one; if they diverged, the continuation would observe /
 // persist differently than the original turn.
-func chatProcessOptions(sessionID string, observer ToolObserver, listener core.Extension) core.ProcessOptions {
+func chatProcessOptions(sessionID string, observer ToolObserver, listener core.Extension, client *chat.Client) core.ProcessOptions {
 	opts := core.ProcessOptions{}
 	if sessionID != "" {
 		opts.Session = &core.Session{ID: sessionID}
@@ -91,8 +99,21 @@ func chatProcessOptions(sessionID string, observer ToolObserver, listener core.E
 	if listener != nil {
 		opts.Extensions = append(opts.Extensions, listener)
 	}
+	if client != nil {
+		// Per-run model override: the agent runtime resolves this client
+		// (process scope) ahead of the platform default (see
+		// core.ChatClientProvider).
+		opts.Extensions = append(opts.Extensions, perRunChatClient{client: client})
+	}
 	return opts
 }
+
+// perRunChatClient is a [core.ChatClientProvider] carrying one resolved
+// client for a single turn — the seam that lets a run pick its model.
+type perRunChatClient struct{ client *chat.Client }
+
+func (perRunChatClient) Name() string                              { return "lyra:per-run-chat-client" }
+func (p perRunChatClient) ChatClientFor(core.Process) *chat.Client { return p.client }
 
 // RestoreChatRequest carries the per-process wiring to re-attach to a
 // turn rebuilt from a snapshot — the same Observer + Session a fresh turn
@@ -126,7 +147,10 @@ type RestoreChatRequest struct {
 // Errors when no ProcessStore is configured, the snapshot is missing, the
 // agent is not deployed under the snapshot's name, or the re-tick fails.
 func (e *Engine) RestoreChat(ctx context.Context, processID string, req RestoreChatRequest) (ChatProcess, error) {
-	opts := chatProcessOptions(req.SessionID, req.Observer, req.EventListener)
+	// A restored continuation runs on the platform's default client. Per-run
+	// model fidelity across a restart would need the model persisted with the
+	// interrupt — a follow-up; resume is rare and uses the default model.
+	opts := chatProcessOptions(req.SessionID, req.Observer, req.EventListener, nil)
 	proc, err := e.platform.RestoreProcess(ctx, processID, opts)
 	if err != nil {
 		return nil, fmt.Errorf("engine: restore chat: %w", err)

@@ -9,6 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
+	corechat "github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 )
 
@@ -89,9 +90,24 @@ func (st *turnState) drainSteering() []string {
 // state. Later segments are driven by [inMemory.Resume] through the
 // shared [drive] loop. st.ctx (the turn's own lifetime) bounds the run.
 func (s *inMemory) runTurn(req StartTurnRequest, st *turnState) {
-	s.emit(st, TurnStart{
-		Model: "default", // M1 — engine exposes model name in M2+
-	})
+	model := req.Model
+	if model == "" {
+		model = "default"
+	}
+	s.emit(st, TurnStart{Model: model})
+
+	// Resolve a per-turn client when the run picked a model and a resolver is
+	// wired; empty model / no resolver runs on the platform's default client.
+	var client *corechat.Client
+	if req.Model != "" && s.resolver != nil {
+		c, err := s.resolver.ResolveClient(st.ctx, req.Model)
+		if err != nil {
+			s.emit(st, ErrorEvent{Message: err.Error(), Code: "MODEL_UNAVAILABLE"})
+			s.finishTurn(st, TurnEndErrored)
+			return
+		}
+		client = c
+	}
 
 	observer := &turnObserver{svc: s, st: st}
 	st.lifecycle = &turnLifecycle{}
@@ -101,6 +117,7 @@ func (s *inMemory) runTurn(req StartTurnRequest, st *turnState) {
 		MaxBudget:     req.MaxBudget,
 		MaxCostUSD:    req.MaxCostUSD,
 		PlanMode:      req.PlanMode,
+		ChatClient:    client,
 		Observer:      observer,
 		EventListener: st.lifecycle.listener(st.handle.TurnID),
 	})

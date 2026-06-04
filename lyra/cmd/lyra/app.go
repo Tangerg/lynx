@@ -22,6 +22,7 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/service/history"
 	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 	memorysvc "github.com/Tangerg/lynx/lyra/internal/service/memory"
+	providersvc "github.com/Tangerg/lynx/lyra/internal/service/provider"
 	sessionsvc "github.com/Tangerg/lynx/lyra/internal/service/session"
 	"github.com/Tangerg/lynx/lyra/internal/storage"
 	sqlitestore "github.com/Tangerg/lynx/lyra/internal/storage/sqlite"
@@ -97,13 +98,23 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	client, pricing, err := config.BuildChatClient(cfg)
+	// The default client is the configured provider+model — the one a turn
+	// runs against when it doesn't pick a model. Per-run model selection
+	// builds other clients on demand from the provider registry.
+	client, _, err := config.BuildChatClient(cfg)
 	if err != nil {
 		return err
 	}
 
-	sessionSvc, memSvc, procStore, interruptStore, historyStore, err := buildStores(cfg.Storage)
+	sessionSvc, memSvc, procStore, interruptStore, historyStore, providerSvc, err := buildStores(cfg.Storage)
 	if err != nil {
+		return err
+	}
+	// Seed the registry with the configured provider's credentials (if not
+	// already persisted from a prior providers.configure), so the default
+	// provider is enabled out of the box. Other supported providers stay
+	// unconfigured until the user sets their keys.
+	if err := seedConfiguredProvider(ctx, providerSvc, cfg); err != nil {
 		return err
 	}
 	// Message history stays file-backed for now (JSONL append-only
@@ -114,8 +125,10 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 	}
 
 	rt, err := lyraruntime.New(ctx, lyraruntime.Config{
-		ChatClient:     client,
-		Pricing:        pricing,
+		ChatClient: client,
+		// Catalog-driven cost: price each round by its served model across
+		// every provider, so turns on any provider+model report CostUSD.
+		Pricing:        config.CatalogPricing(),
 		Online:         cfg.Online,
 		MCPServers:     cfg.MCPServers,
 		MemoryStore:    msgStore,
@@ -125,11 +138,11 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		// auto-snapshots every agent process (so a parked turn survives a
 		// restart); InterruptStore persists the open-interrupt registry
 		// that runs.resume looks up. Both follow LYRA_STORAGE.
-		ProcessStore:   procStore,
-		InterruptStore: interruptStore,
-		HistoryStore:   historyStore,
-		// providers.list / models.list surface the single configured
-		// provider; the raw key is masked here so it never enters the runtime.
+		ProcessStore:    procStore,
+		InterruptStore:  interruptStore,
+		HistoryStore:    historyStore,
+		ProviderService: providerSvc,
+		// Default provider+model a turn runs against when it picks no model.
 		Provider:     string(cfg.Provider),
 		Model:        cfg.Model,
 		APIKeyMasked: config.MaskKey(cfg.APIKey),
@@ -167,43 +180,65 @@ func (a *App) config() config.Config { return a.cfg }
 // lifetime, and modernc.org/sqlite cleans up its WAL on close at
 // exit. Add explicit teardown when the runtime grows a Shutdown
 // path.
-func buildStores(kind config.StorageKind) (sessionsvc.Service, memorysvc.Service, core.ProcessStore, interrupts.Store, history.Store, error) {
+func buildStores(kind config.StorageKind) (sessionsvc.Service, memorysvc.Service, core.ProcessStore, interrupts.Store, history.Store, providersvc.Service, error) {
 	switch kind {
 	case config.StorageSQLite:
 		home, err := storage.Home()
 		if err != nil {
-			return nil, nil, nil, nil, nil, fmt.Errorf("sqlite storage: %w", err)
+			return nil, nil, nil, nil, nil, nil, fmt.Errorf("sqlite storage: %w", err)
 		}
 		db, err := sqlitestore.Open(filepath.Join(home, "lyra.db"))
 		if err != nil {
-			return nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, err
 		}
 		return sqlitestore.NewSessionService(db), sqlitestore.NewMemoryService(db),
 			sqlitestore.NewProcessStore(db), sqlitestore.NewInterruptStore(db),
-			sqlitestore.NewHistoryStore(db), nil
+			sqlitestore.NewHistoryStore(db), sqlitestore.NewProviderService(db), nil
 	default:
 		sess, err := storage.NewFileSessionService()
 		if err != nil {
-			return nil, nil, nil, nil, nil, fmt.Errorf("session storage: %w", err)
+			return nil, nil, nil, nil, nil, nil, fmt.Errorf("session storage: %w", err)
 		}
 		mem, err := storage.NewFileMemoryService()
 		if err != nil {
-			return nil, nil, nil, nil, nil, fmt.Errorf("memory storage: %w", err)
+			return nil, nil, nil, nil, nil, nil, fmt.Errorf("memory storage: %w", err)
 		}
 		procStore, err := storage.NewFileProcessStore()
 		if err != nil {
-			return nil, nil, nil, nil, nil, fmt.Errorf("process storage: %w", err)
+			return nil, nil, nil, nil, nil, nil, fmt.Errorf("process storage: %w", err)
 		}
 		interruptStore, err := storage.NewFileInterruptStore()
 		if err != nil {
-			return nil, nil, nil, nil, nil, fmt.Errorf("interrupt storage: %w", err)
+			return nil, nil, nil, nil, nil, nil, fmt.Errorf("interrupt storage: %w", err)
 		}
 		historyStore, err := storage.NewFileHistoryStore()
 		if err != nil {
-			return nil, nil, nil, nil, nil, fmt.Errorf("history storage: %w", err)
+			return nil, nil, nil, nil, nil, nil, fmt.Errorf("history storage: %w", err)
 		}
-		return sess, mem, procStore, interruptStore, historyStore, nil
+		providerStore, err := storage.NewFileProviderService()
+		if err != nil {
+			return nil, nil, nil, nil, nil, nil, fmt.Errorf("provider storage: %w", err)
+		}
+		return sess, mem, procStore, interruptStore, historyStore, providerStore, nil
 	}
+}
+
+// seedConfiguredProvider ensures the config-file provider is present in the
+// registry with its key, so the default provider is enabled on first run. A
+// provider already enabled in the registry (a persisted providers.configure)
+// is left untouched — runtime edits win over the config file.
+func seedConfiguredProvider(ctx context.Context, svc providersvc.Service, cfg config.Config) error {
+	id := string(cfg.Provider)
+	if existing, ok, err := svc.Get(ctx, id); err != nil {
+		return err
+	} else if ok && existing.Enabled() {
+		return nil
+	}
+	return svc.Configure(ctx, providersvc.Provider{
+		ID:      id,
+		APIKey:  cfg.APIKey,
+		BaseURL: cfg.BaseURL,
+	})
 }
 
 // fatalErr writes "lyra: <err>" to Err and returns a cobra-friendly

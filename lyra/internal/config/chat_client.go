@@ -2,11 +2,13 @@ package config
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/models/anthropic"
+	"github.com/Tangerg/lynx/models/catalog"
 	"github.com/Tangerg/lynx/models/deepseek"
 	"github.com/Tangerg/lynx/models/moonshot"
 	"github.com/Tangerg/lynx/models/openai"
@@ -122,5 +124,41 @@ func pricingFromMetadata(meta chat.ModelMetadata) engine.Pricing {
 	bands := meta.Model.Pricing
 	return func(_ string, u *chat.Usage) float64 {
 		return chat.CostOf(bands, u)
+	}
+}
+
+// SupportedProviders lists the providers Lyra has an adapter for — the
+// static set providers.list reports, regardless of which are configured.
+// Sorted for a stable wire / CLI order.
+func SupportedProviders() []Provider {
+	out := make([]Provider, 0, len(providerInfo))
+	for p := range providerInfo {
+		out = append(out, p)
+	}
+	slices.Sort(out)
+	return out
+}
+
+// DefaultModel returns a provider's catalog default model id (the one used
+// when the caller doesn't pick one). Empty for an unknown provider.
+func DefaultModel(p Provider) string {
+	return providerInfo[p].defaultModel
+}
+
+// CatalogPricing is the runtime's per-round cost hook once one runtime serves
+// many models: it prices the SERVED model (the id the round reported) from
+// the models catalog, scanning the supported providers for that model. This
+// replaces the single-model pricingFromMetadata so a turn on any
+// provider+model reports CostUSD, not just the default one. Unknown models
+// price at zero (cost omitted rather than guessed).
+func CatalogPricing() engine.Pricing {
+	providers := SupportedProviders()
+	return func(servedModel string, u *chat.Usage) float64 {
+		for _, p := range providers {
+			if info, ok := catalog.Lookup(string(p), servedModel); ok {
+				return chat.CostOf(info.Pricing, u)
+			}
+		}
+		return 0
 	}
 }

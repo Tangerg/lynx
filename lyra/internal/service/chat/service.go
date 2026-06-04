@@ -9,8 +9,18 @@ import (
 	"iter"
 	"time"
 
+	corechat "github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 )
+
+// ClientResolver resolves a per-turn chat client for a selected model — the
+// seam the multi-provider runtime plugs in so a turn can run against a model
+// other than the default. Defined here (consumer side); the runtime
+// implements it against its provider registry + the models catalog. Returns
+// an error when the model's provider isn't configured / enabled.
+type ClientResolver interface {
+	ResolveClient(ctx context.Context, model string) (*corechat.Client, error)
+}
 
 // StartTurnRequest is the input to [Service.StartTurn]. SessionID
 // binds the turn to its conversation; Message is the user's input;
@@ -18,6 +28,12 @@ import (
 type StartTurnRequest struct {
 	SessionID string
 	Message   string
+
+	// Model optionally selects the model this turn runs against (the wire
+	// runs.start{model}). Empty uses the runtime's default model. When set,
+	// the service resolves the matching provider+model client via its
+	// [ClientResolver] and runs the turn against it.
+	Model string
 
 	// PlanMode requests a plan preview before execution. When true
 	// the runtime emits a [PlanGenerated] event and pauses until
