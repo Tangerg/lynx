@@ -8,7 +8,10 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
-// Exporter writes finished OpenTelemetry spans to a log/slog logger.
+// SpanExporter writes finished OpenTelemetry spans to a log/slog logger —
+// the Traces leg of the dev observability triad, a sibling of
+// [MetricExporter] and [LogExporter] so all three OTel signals share one
+// slog stream keyed by trace_id.
 //
 // It implements sdktrace.SpanExporter and is intended to be installed on a
 // TracerProvider via sdktrace.WithSyncer (for dev/debug, synchronous output)
@@ -29,24 +32,24 @@ import (
 // All span attributes and event names are attached as additional slog
 // attributes, preserving their OTel key names (e.g. "gen_ai.system",
 // "gen_ai.agent.name").
-type Exporter struct {
+type SpanExporter struct {
 	logger *stdslog.Logger
 }
 
-// NewExporter returns a new slog exporter.
+// NewSpanExporter returns a new slog span exporter.
 // If logger is nil, stdslog.Default() is used.
-func NewExporter(logger *stdslog.Logger) *Exporter {
+func NewSpanExporter(logger *stdslog.Logger) *SpanExporter {
 	if logger == nil {
 		logger = stdslog.Default()
 	}
-	return &Exporter{logger: logger}
+	return &SpanExporter{logger: logger}
 }
 
 // ExportSpans writes each provided span as a single slog record.
 // Always returns nil; slog errors (if any) are ignored because they would
 // only propagate into the tracer provider's error handler and typically
 // indicate a misconfigured handler rather than a recoverable condition.
-func (e *Exporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnlySpan) error {
+func (e *SpanExporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnlySpan) error {
 	for _, span := range spans {
 		attrs := make([]stdslog.Attr, 0, 6+len(span.Attributes()))
 
@@ -92,4 +95,4 @@ func (e *Exporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnlySpa
 
 // Shutdown releases any resources held by the exporter.
 // This implementation is stateless and always returns nil.
-func (e *Exporter) Shutdown(ctx context.Context) error { return nil }
+func (e *SpanExporter) Shutdown(ctx context.Context) error { return nil }

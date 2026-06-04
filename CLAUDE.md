@@ -47,13 +47,13 @@
 - **`errors.New` 优先于 `fmt.Errorf("constant")`**。`fmt.Errorf` 只在真要格式化时用，包装其他错误必须 `%w` 才能 `errors.Is/As`
 - **没有 Java 味**：禁 `impl.go` 文件 / `Impl` / `Service` / `Manager` / `Helper` / `Handler` 这种空白后缀 / `GetX/SetX` getter / `NewBuilder().With().Build()` 链。文件名描述内容（`inmemory.go` / `engine.go` / `sqlite/session.go`），struct 名描述本质
 - **现代 Go**：`atomic.Int32` / `atomic.Pointer[T]` / `sync.Map` 优先于自家 atomic wrapper；`slices.*` / `maps.*` 替代手写 loop；`iter.Seq2` 替代 channel-based 流
-- **可观测性三驾马车统一 sink 到 `log/slog`（2026-06 起，反转旧规则）**：全局 OTel provider 在 app startup（`lyra/cmd/lyra/observability.go::setupObservability`）一次性绑到 `otel/slog` 三件套——`TracerProvider`(span→slog) + `MeterProvider`(metric→slog) + `slog.SetDefault` 包 `otel/slog.NewHandler`（从 ctx 活跃 span 盖 `trace_id`/`span_id`）+ W3C propagator。之后：
-  - **库代码（core / agent / rag / vectorstores / mcp / chatmemory）**：发 **Traces（span）+ Metrics（instrument）**，用全局 `otel.Tracer("lynx/...")` / `otel.Meter("lynx/...")`，零 DI。它们的"Logs"那一驾由 sink 渲染 span/metric 达成，**不在库热路径里撒 `slog`**（KISS + 库/应用边界）。错误走 `span.RecordError` + `SetStatus(codes.Error)`。
-  - **应用 / 后端代码（lyra）**：业务生命周期事件直接 `slog.InfoContext(ctx, ...)`（包静态调用），handler 自动关联活跃 span。
+- **可观测性走 OTel 三驾马车，全部 sink 到 `log/slog`（2026-06，vendor-neutral）**：观测 = **Traces（span）+ Metrics（instrument）**,用全局 `otel.Tracer("lynx/...")` / `otel.Meter("lynx/...")`,零 DI。全局 provider 在 app startup（`lyra/cmd/lyra/observability.go::setupObservability`）一次绑到 `otel/slog` 的三个 exporter（`NewSpanExporter` / `NewMetricExporter` / `NewLogExporter`）+ W3C propagator。规约：
+  - **不在业务代码里撒 `slog`**——一个事件该被观测,就开 span（带 attr）/ 记 metric,**不是**加一行 `slog.InfoContext`。Span 经 sink 渲染成日志行,已覆盖"Logs"那一驾。错误走 `span.RecordError` + `SetStatus(codes.Error)`。这条对**库和应用一视同仁**（lyra 也不撒）。
+  - **Logs 仍是一等 OTel 信号**：`slog.Default` 经 contrib `otelslog` bridge → `LoggerProvider` → `NewLogExporter`。意义是**可替换性**——生产把 exporter 换 OTLP（→ Datadog 等）即把 span/metric/log 全导到云,业务零改;同时兜住 stdlib `log` 重定向与第三方 slog。**不是**邀请你到处 `slog.InfoContext`。
   - **attr key 去品牌**：semconv 优先（`gen_ai.*` / `db.*` / `rpc.method`），否则裸 domain（`run.*` / `agent.*` / `rag.*`），无 `lynx.*` / `lyra.*` 前缀。instrumentation scope 名（`otel.Tracer("lynx/lyra/...")`）保留 `lynx/` 路径——那是库标识不是数据。
   - **全链路**：trace_id 在入口（HTTP transport）生成（提 W3C traceparent → 开 server span），脱钩后台 goroutine 用 `context.WithoutCancel` 保住 span（不是 `context.Background()`）。
-  - **例外**：(a) `otel/log/` 和 `otel/slog/` 子包本身是 OTel→stdlib 的 bridge；(b) 公开 API 接受 `slog.Level` 等 stdlib 类型作入参（如 `mcp.LogToClient`）；(c) `core/model/chat/middleware.NewSlogLogger` 是给用户的 optional convenience provider。
-  - 详见 [`doc/OBSERVABILITY.md`](doc/OBSERVABILITY.md) + [`otel/CLAUDE.md`](otel/CLAUDE.md)。**旧规则"禁 `slog.Default()`、logging 一律走 OTel span"已废，勿再套用。**
+  - **例外**：(a) `otel/slog/` 子包本身是 OTel→slog 的 bridge;(b) 公开 API 接受 `slog.Level` 等 stdlib 类型作入参（如 `mcp.LogToClient`）;(c) `core/model/chat/middleware.NewSlogLogger` 是给用户的 optional convenience provider。
+  - 详见 [`doc/OBSERVABILITY.md`](doc/OBSERVABILITY.md) + [`otel/CLAUDE.md`](otel/CLAUDE.md)。**旧规则"禁 `slog.Default()`"已废（slog 是 sink,blessed）;但"观测优先用 span 而非 slog 行"这条仍然成立。**
 - **设计原则**（高内聚低耦合 / KISS / DRY / SOLID / YAGNI）—— 是判断标准，详见下方"## 设计原则"段
 - **目前开发阶段，公开 API 可以调整**：不写 legacy 兼容代码、不写 migration、schema / exported type / 函数签名变了直接换；注释里不提"Legacy …"。**但任何破坏性公开 API 改动必须先咨询用户**（不只是大重构 —— 改一个 exported 函数签名 / 删一个 exported 类型 / 改 struct field 也算），列清楚 scope + 影响面 + 备选方案，等用户确认再动手。这条规则适用于**所有 sub-module**
 - **加文档？先问** —— 每个 sub-module 已有 `CLAUDE.md`，本根级也已有。其他默认不写

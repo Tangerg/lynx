@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"iter"
-	"log/slog"
 	"sync"
 	"time"
 
@@ -212,7 +211,6 @@ func (s *inMemory) Cancel(_ context.Context, handle TurnHandle) error {
 	if err != nil {
 		return err
 	}
-	slog.InfoContext(state.ctx, "chat turn cancel requested", attrRunID, handle.TurnID)
 	state.cancel()
 	// proc/parked are written by runTurn/drive on other goroutines; read
 	// under the lock. Claim the parked flag so a racing Resume can't also
@@ -252,7 +250,6 @@ func (s *inMemory) Resume(_ context.Context, handle TurnHandle, approved bool) e
 	state.parked = false
 	s.mu.Unlock()
 
-	slog.InfoContext(state.ctx, "chat turn resumed", attrRunID, handle.TurnID, "approved", approved)
 	return s.resumeAndDrive(state, approved)
 }
 

@@ -1,10 +1,19 @@
-// Package slog provides an OpenTelemetry trace SpanExporter that writes
-// spans to a log/slog logger.
+// Package slog sinks all three OpenTelemetry signals — Traces, Metrics,
+// and Logs — into a log/slog logger, so every span, metric, and log line
+// from any Lynx module lands in one structured stream correlated by
+// trace_id / span_id.
 //
-// This is primarily useful for local development and debugging, where
-// forwarding spans to a full tracing backend (Jaeger, Tempo, Datadog, ...)
-// would be overkill. It lets every Lynx span appear in the same structured
-// log stream as business logs, correlated via trace_id / span_id / parent_span_id.
+// Three exporters, one per signal:
+//
+//   - [SpanExporter]   (sdktrace.SpanExporter)  — install via WithSyncer / WithBatcher
+//   - [MetricExporter] (sdkmetric.Exporter)     — install via a PeriodicReader
+//   - [LogExporter]    (sdklog.Exporter)         — install via a LoggerProvider processor
+//
+// This is for local development and debugging, where forwarding to a full
+// backend (Jaeger, Tempo, Datadog, ...) would be overkill. Routing logs
+// through OTel (rather than writing slog directly) is deliberate: it makes
+// logs as backend-swappable as traces/metrics — a production build swaps
+// each exporter to OTLP with zero business-code change.
 //
 // # Usage
 //
@@ -16,21 +25,20 @@
 //	)
 //
 //	tp := sdktrace.NewTracerProvider(
-//	    sdktrace.WithSyncer(slog.NewExporter(stdslog.Default())),
+//	    sdktrace.WithSyncer(slog.NewSpanExporter(stdslog.Default())),
 //	)
 //	otel.SetTracerProvider(tp)
 //	defer tp.Shutdown(context.Background())
+//
+// See lyra/cmd/lyra/observability.go for the full triad wiring (the log
+// path goes through the contrib otelslog bridge → a LoggerProvider →
+// [LogExporter]).
 //
 // Note: this package is named `slog` to match the otel/<backend>
 // convention. Callers that also import the standard library's `log/slog`
 // must alias one of them (commonly `stdslog "log/slog"`) to avoid the
 // name collision.
 //
-// After wiring up the exporter, every span produced by Lynx (chat.Call,
-// rag.Pipeline, vectorstore operations, agent ticks, tool invocations, ...)
-// is emitted as an slog record with level Info (or Error if the span status
-// is Error).
-//
-// For production use, prefer an OTLP exporter to a real tracing backend;
-// this exporter is intended for local visibility, not long-term storage.
+// For production use, prefer OTLP exporters to a real backend; these
+// exporters are intended for local visibility, not long-term storage.
 package slog

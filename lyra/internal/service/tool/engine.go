@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -74,7 +73,6 @@ func (s *engineBacked) Invoke(ctx context.Context, name string, arguments string
 
 	for _, t := range s.src.Tools() {
 		if t.Definition().Name == name {
-			slog.InfoContext(ctx, "tool invoked directly", attrGenAIToolName, name)
 			out, err := t.Call(ctx, arguments)
 			if err != nil {
 				span.RecordError(err)
