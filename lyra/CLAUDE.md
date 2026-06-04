@@ -9,7 +9,7 @@
 
 ## 一句话定位
 
-**协议层薄、业务层厚、传输层可换。** `rpc/` 是 wire 形态契约（JSON-RPC 2.0 / AG-UI events），`internal/engine` 是真正的"跑 chat turn + 工具循环"，`internal/service/*` 把业务能力按 domain 切片。Transport（HTTP+SSE / inprocess）只是 envelope I/O，对业务零感知。
+**协议层薄、业务层厚、传输层可换。** `rpc/` 是 wire 形态契约（JSON-RPC 2.0，Lyra Runtime Protocol 自有事件/Item 模型），`internal/engine` 是真正的"跑 chat turn + 工具循环"，`internal/service/*` 把业务能力按 domain 切片。Transport（HTTP+SSE / inprocess）只是 envelope I/O，对业务零感知。
 
 ## 技术栈
 
@@ -19,7 +19,7 @@
 - **HTTP transport**: stdlib `net/http` + `go-chi/chi` v5 路由（`r.Use` 中间件链 + `POST /v2/rpc/{method}`）+ `go-chi/cors`（CORS 中间件，替掉手写 cors）。**streamable HTTP**：流式方法（`runs.start/resume/subscribe`、`background.subscribe`）的 POST 响应体本身就是 `text/event-stream` 事件流（首帧=JSON-RPC 响应，无 SSE id；其后 `notifications.run.event` 帧带 SSE id=eventId）；**无独立 `/v2/rpc/stream` 端点、无 `X-Conn-Id` 连接路由**。事件源是 server 侧的 per-run hub（`rpc/server/hub.go`），transport 只是把 hub 订阅抽成 SSE
 - **SSE 写端**: `github.com/Tangerg/sse`（WHATWG §9.2 合规，auto-flush）—— 自家库
 - **MCP 客户端**: `modelcontextprotocol/go-sdk/mcp`
-- **AG-UI 事件**: `core/model/chat` + 自家 `internal/agui` 编码层
+- **事件/Item 编码**: `chat.Event`（业务层）→ `rpc/server/translator.go` 翻译成 wire `StreamEvent`/`Item`（Lyra Runtime Protocol 自有模型，**非 AG-UI**——该名词已弃用）
 - **持久化**: 单一 SQLite 后端（`modernc.org/sqlite` 纯 Go 无 CGO，`$LYRA_HOME/lyra.db`）；唯一例外是用户可编辑的 LYRA.md memory 文件（详见 §持久化后端）
 - **LLM provider**: 多 provider × 多 model。`internal/service/provider` 是运行态可变注册表（每 provider 的 key+baseURL，file/sqlite 持久化）；`config.BuildClient(ClientSpec)` 按 provider id 建 client（anthropic/openai/moonshot/deepseek，后两者走 OpenAI 兼容端点，全部支持 baseURL 覆盖）。**per-run model**：`runs.start{provider, model}`(显式配对,缺一即 `invalid_params`、都缺用默认 —— provider **不从 model 推断**)→ `clientResolver` 取该 provider 的注册表凭证建/缓存 client → 经 agent `core.ChatClientProvider` 扩展点让该 turn 用它。model 元数据/定价/能力全来自公开的 `models/catalog`（models.list 直读，无需 key）。`config.yaml` 的 `provider`/`apiKey`/`baseURL` 是默认 provider 的种子
 - **测试**: stdlib `testing` + `httptest`
@@ -105,9 +105,8 @@ lyra/
 │   │   ├── approval/               运行态审批 stance（`Mode` + GetMode/SetMode）—— R 模型工具审批查它决定 pass/deny/prompt
 │   │   ├── tool/                   工具注册 + 直接调用
 │   │   └── agentdoc/               AGENTS.md 级联发现 + render
-│   ├── storage/                    File-backed 实现
-│   │   └── sqlite/                 SQLite-backed 实现（modernc 纯 Go）
-│   └── agui/                       AG-UI 事件编码
+│   └── storage/                    持久化实现
+│       └── sqlite/                 SQLite-backed 实现（modernc 纯 Go）
 │
 └── doc/                            ARCHITECTURE.md / ROADMAP.md / NAMING_REVIEW.md / REVIEW.md
 ```
@@ -121,7 +120,7 @@ go vet ./...             # 静态检查
 go test ./...            # 全套测试
 
 # 启动 server（dev）
-ANTHROPIC_API_KEY=xxx ./lyra serve                       # 默认 127.0.0.1:17171（匹配 FE AGUI_BASE），SQLite at $LYRA_HOME/lyra.db
+ANTHROPIC_API_KEY=xxx ./lyra serve                       # 默认 127.0.0.1:17171（匹配前端默认 base），SQLite at $LYRA_HOME/lyra.db
 
 # 看本会话能读到哪些 AGENTS.md
 ./lyra agents --show
