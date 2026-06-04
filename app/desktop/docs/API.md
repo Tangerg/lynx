@@ -15,7 +15,7 @@
 - §0 模型与概念
 - §1 Wire 格式（JSON-RPC 2.0）
 - §2 命名规范
-- §3 Lifecycle（握手 / 关闭 / 取消）
+- §3 Lifecycle（握手 / 取消 / §3.1 一次 run 的端到端走查）
 - §4 数据类型目录（schemas）
 - §5 流式（事件信封 / Item·Run·State 事件 / 不变量）
 - §6 Human-in-the-Loop（R 模型）
@@ -169,6 +169,27 @@ connect → runtime.initialize → operate → runtime.shutdown → disconnect
 
 网络断开**不**取消 run。
 
+### 3.1 一次 run 的端到端走查（先建立心智，再看 §4 类型）
+
+下面这条主线把后续各节串起来——类型在 §4、流式细节在 §5、HITL 在 §6、恢复在 §10：
+
+```text
+runs.start ──▶ run.started ──▶ (item.started → item.delta* → item.completed)*  ──▶ run.finished{outcome}
+                                  └ assistant message / reasoning / toolCall 逐个流式落地        │
+                                                                                                ├─ completed / error / … → 结束
+                                                                                                └─ interrupt → 待人介入（见下）
+```
+
+1. **起 run**：客户端 `runs.start{ sessionId, input }`，**立即**返 `{ runId }`，同一条流随即推 `RunEvent`（§5）。
+2. **流式产出**：先 `run.started`，然后每个 Item 走 `item.started`（壳）→ `item.delta*`（文本 / 工具入参 / 输出增量，§5.1）→
+   `item.completed`（权威终态）。assistant 的 message / reasoning / toolCall（§4.3 / §4.4）就这样逐个落地。
+3. **需要人介入**（HITL，§0.3 / §6）：run 以 `run.finished{ outcome: interrupt }` **结束**、资源释放；待解项作 `OpenInterrupt`
+   持久化（跨重启可发现）。
+4. **延续**：客户端 `runs.resume{ parentRunId, responses }` 起一个**新 run**（新 `runId`，`parentRunId` 串联），又一段
+   `run.started → items → …`。**所以一个"对话回合"= 一条 run 链**（初始 run + 若干延续 run），不是单个 run。
+5. **收尾**：某个 run 以 `run.finished{ outcome: completed | error | maxSteps | maxBudget | canceled }` 终结该链。
+6. **历史 vs 实时**：重开会话用 `items.list` 按持久 seq 重建（§10）；实时流内按 `eventId` 排序（§5）。两套各自权威，靠 item id 关联。
+
 ---
 
 ## 4. 数据类型目录（schemas）
@@ -222,7 +243,7 @@ interface RunRef {
 type RunOutcome =
   | { type: "completed"; result: RunResult }
   | { type: "error";     result: RunResult }
-  | { type: "maxSteps";  result: RunResult }   // agent 步数上限（Run 即一次 turn，故不叫 maxTurns）
+  | { type: "maxSteps";  result: RunResult }   // 单个 Run 内的 agent 步数（LLM/工具循环）上限——按 step 计，非 turn
   | { type: "maxBudget"; result: RunResult }   // 成本上限（含子 agent 子树）
   | { type: "canceled";  result: RunResult }
   | { type: "interrupt"; interrupts: Interrupt[] };   // ★可恢复；Run 已结束、资源释放
