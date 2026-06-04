@@ -3,11 +3,14 @@ package chat_test
 import (
 	"context"
 	"errors"
+	"iter"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
+	corechat "github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/service/chat"
 )
@@ -78,10 +81,16 @@ type stubEngine struct {
 	restoreCalls atomic.Int32
 	runReply     string
 	stopOnBudget bool // when true the produced ChatOutput sets StoppedOnBudget
+
+	mu         sync.Mutex
+	lastClient *corechat.Client // captures RunChatRequest.ChatClient
 }
 
 func (s *stubEngine) StartChat(_ context.Context, req engine.RunChatRequest) engine.ChatProcess {
 	s.runChatCalls.Add(1)
+	s.mu.Lock()
+	s.lastClient = req.ChatClient
+	s.mu.Unlock()
 	if req.Observer != nil {
 		req.Observer.OnMessageDelta(s.runReply)
 	}
@@ -290,4 +299,76 @@ func (s *slowStubEngine) StartChat(ctx context.Context, _ engine.RunChatRequest)
 		}
 	}()
 	return cp
+}
+
+// fakeResolver returns a preset client for any non-empty model, recording
+// the model it was asked to resolve.
+type fakeResolver struct {
+	client     *corechat.Client
+	gotModel   string
+	resolveErr error
+}
+
+func (r *fakeResolver) ResolveClient(_ context.Context, model string) (*corechat.Client, error) {
+	r.gotModel = model
+	if r.resolveErr != nil {
+		return nil, r.resolveErr
+	}
+	return r.client, nil
+}
+
+// TestStartTurn_ResolvesPerRunClient verifies a turn carrying a Model passes
+// the resolver's client through to the engine's RunChatRequest.ChatClient —
+// the chat-service half of per-run model selection.
+func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
+	stub := &stubEngine{runReply: "ok"}
+	sentinel, _ := corechat.NewClient(newCapturingModel())
+	resolver := &fakeResolver{client: sentinel}
+
+	svc := chat.New(stub, nil, resolver)
+	handle, err := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+		SessionID: "s",
+		Message:   "hi",
+		Model:     "some-model",
+	})
+	if err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	events, _ := svc.Events(ctx, handle)
+	for range events { // drain to TurnEnd
+	}
+
+	if resolver.gotModel != "some-model" {
+		t.Errorf("resolver asked for %q, want some-model", resolver.gotModel)
+	}
+	stub.mu.Lock()
+	got := stub.lastClient
+	stub.mu.Unlock()
+	if got != sentinel {
+		t.Errorf("engine received ChatClient %p, want the resolver's client %p", got, sentinel)
+	}
+}
+
+// capturingModel is a minimal chat.Model for building a sentinel client.
+type capturingModel struct{ defaults *corechat.Options }
+
+func newCapturingModel() *capturingModel {
+	opts, _ := corechat.NewOptions("sentinel-model")
+	return &capturingModel{defaults: opts}
+}
+func (m *capturingModel) DefaultOptions() corechat.Options { return *m.defaults }
+func (m *capturingModel) Metadata() corechat.ModelMetadata {
+	return corechat.ModelMetadata{Provider: "stub"}
+}
+func (m *capturingModel) Call(_ context.Context, _ *corechat.Request) (*corechat.Response, error) {
+	return corechat.NewResponse(&corechat.Result{
+		AssistantMessage: corechat.NewAssistantMessage("ok"),
+		Metadata:         &corechat.ResultMetadata{FinishReason: corechat.FinishReasonStop},
+	}, &corechat.ResponseMetadata{})
+}
+func (m *capturingModel) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.Response, error] {
+	resp, err := m.Call(ctx, req)
+	return func(yield func(*corechat.Response, error) bool) { yield(resp, err) }
 }
