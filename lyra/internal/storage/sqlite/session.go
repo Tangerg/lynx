@@ -43,7 +43,7 @@ func rowToSession(scanner interface {
 	)
 	if err := scanner.Scan(
 		&s.ID, &s.Title, &s.Cwd, &s.ParentID,
-		&startedAtNanos, &updatedAtNanos, &s.TurnCount, &metaJSON,
+		&startedAtNanos, &updatedAtNanos, &s.TurnCount, &metaJSON, &s.Model,
 	); err != nil {
 		return session.Session{}, err
 	}
@@ -70,7 +70,7 @@ func encodeMetadata(m map[string]string) (string, error) {
 	return string(data), nil
 }
 
-const sessionColumns = `id, title, cwd, parent_id, started_at, updated_at, turn_count, metadata`
+const sessionColumns = `id, title, cwd, parent_id, started_at, updated_at, turn_count, metadata, model`
 
 // ------------------------------------------------------------------
 // session.Service
@@ -201,6 +201,26 @@ func (s *SessionService) Touch(ctx context.Context, id string) error {
 	return nil
 }
 
+// SetModel records the session's current model + refreshes UpdatedAt in a
+// single UPDATE (see [session.Service.SetModel]). ErrNotFound for unknown id.
+func (s *SessionService) SetModel(ctx context.Context, id, model string) error {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE sessions SET model = ?, updated_at = ? WHERE id = ?`,
+		model, time.Now().UTC().UnixNano(), id,
+	)
+	if err != nil {
+		return fmt.Errorf("sqlite: set session model: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("sqlite: set session model: %w", err)
+	}
+	if n == 0 {
+		return session.ErrNotFound
+	}
+	return nil
+}
+
 // insert is the one-shot path used by Create. Fork goes through
 // execInsert so it can run inside its own transaction.
 func (s *SessionService) insert(ctx context.Context, sess session.Session) error {
@@ -220,10 +240,10 @@ func (s *SessionService) execInsert(ctx context.Context, ex execer, sess session
 	}
 	_, err = ex.ExecContext(ctx,
 		`INSERT INTO sessions(`+sessionColumns+`)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		sess.ID, sess.Title, sess.Cwd, sess.ParentID,
 		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
-		sess.TurnCount, metaJSON,
+		sess.TurnCount, metaJSON, sess.Model,
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: insert session: %w", err)

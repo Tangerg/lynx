@@ -1,7 +1,9 @@
-// Package sqlite hosts the SQLite-backed implementations of the
-// service interfaces in lyra/internal/service/*. One SQLite file holds
-// both sessions + memory under separate tables — callers share a
-// single *sql.DB across the two services.
+// Package sqlite hosts the SQLite-backed implementations of the service
+// interfaces in lyra/internal/service/*. One SQLite file is the single
+// durable backend — sessions / process snapshots / interrupts / history /
+// providers each live in their own table, sharing one *sql.DB. (Memory is
+// the deliberate exception: it stays a user-editable LYRA.md file cascade,
+// so it isn't stored here.)
 //
 // Driver: modernc.org/sqlite (pure Go). No CGO, cross-compilation
 // works out of the box.
@@ -59,15 +61,11 @@ func migrate(db *sql.DB) error {
 			started_at  INTEGER NOT NULL,
 			updated_at  INTEGER NOT NULL,
 			turn_count  INTEGER NOT NULL DEFAULT 0,
-			metadata    TEXT    NOT NULL DEFAULT '{}'
+			metadata    TEXT    NOT NULL DEFAULT '{}',
+			model       TEXT    NOT NULL DEFAULT ''
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_sessions_updated_at
 			ON sessions(updated_at DESC)`,
-		`CREATE TABLE IF NOT EXISTS memory (
-			scope        INTEGER PRIMARY KEY,
-			content      TEXT    NOT NULL,
-			captured_at  INTEGER NOT NULL
-		)`,
 		`CREATE TABLE IF NOT EXISTS process_snapshots (
 			id           TEXT    PRIMARY KEY,
 			snapshot     TEXT    NOT NULL,

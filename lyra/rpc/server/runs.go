@@ -61,6 +61,13 @@ func (i *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		return nil, nil, err
 	}
 
+	// Record the model the run explicitly selected so sessions.list / get
+	// surface the session's current model (Session.model). An unset model
+	// runs the default — sessionToWire fills that from the runtime default.
+	if in.Model != "" {
+		_ = i.rt.Session().SetModel(ctx, sessionID, in.Model)
+	}
+
 	// runId on the wire == the turn id for the root run. The user's input
 	// rides the stream as the run's opening userMessage Item (translator
 	// emits it after run.started) — streamed live and persisted through the

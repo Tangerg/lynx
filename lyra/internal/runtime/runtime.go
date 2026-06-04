@@ -78,13 +78,12 @@ type Config struct {
 	// the cascade — the base system prompt is used verbatim.
 	MemoryService memsvc.Service
 
-	// SessionService persists Lyra sessions. nil falls back to
-	// [sessionsvc.NewInMemoryService] — same restart caveat.
+	// SessionService persists Lyra sessions. Required — the composition
+	// root injects the sqlite-backed service (tests use a sqlite :memory: DB).
 	SessionService sessionsvc.Service
 
 	// InterruptStore records open HITL interrupts (R-model resume
-	// discovery). nil falls back to [interrupts.NewInMemory]. Swap in a
-	// persistent backend once cross-restart resume lands.
+	// discovery). Required — injected sqlite-backed, same as SessionService.
 	InterruptStore interrupts.Store
 
 	// ApprovalMode sets the initial runtime approval stance. The
@@ -113,9 +112,8 @@ type Config struct {
 	Model    string
 
 	// ProviderService is the runtime-mutable provider registry (per-provider
-	// credentials, persisted). The caller seeds it with the configured
-	// provider before construction. nil falls back to an in-memory registry —
-	// per-run model selection then resolves only the default provider.
+	// credentials, persisted). Required — the composition root injects the
+	// sqlite-backed registry and seeds the configured provider into it.
 	ProviderService provider.Service
 }
 
@@ -138,6 +136,7 @@ type Runtime struct {
 
 	providers      provider.Service
 	mcpServerNames []string
+	defaultModel   string
 }
 
 // New assembles a Runtime from cfg. Returns an error when a required
@@ -163,19 +162,14 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		return nil, fmt.Errorf("runtime: engine: %w", err)
 	}
 
+	// session / interrupt / provider are required and injected by the
+	// composition root (cmd/lyra wires sqlite-backed services; tests wire a
+	// sqlite :memory: DB). The runtime keeps no in-memory fallback — there's
+	// a single storage backend now.
 	approvalSvc := approval.New(cfg.ApprovalMode)
 	sessionSvc := cfg.SessionService
-	if sessionSvc == nil {
-		sessionSvc = sessionsvc.NewInMemoryService()
-	}
 	interruptStore := cfg.InterruptStore
-	if interruptStore == nil {
-		interruptStore = interrupts.NewInMemory()
-	}
 	providerSvc := cfg.ProviderService
-	if providerSvc == nil {
-		providerSvc = provider.NewInMemory()
-	}
 
 	// The resolver lets a turn pick its model: given an explicit
 	// (provider, model) it builds the client from that provider's registry
@@ -193,6 +187,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		history:        cfg.HistoryStore,
 		providers:      providerSvc,
 		mcpServerNames: mcpNamesFrom(cfg.MCPServers),
+		defaultModel:   cfg.Model,
 	}, nil
 }
 
@@ -242,6 +237,12 @@ func (r *Runtime) MCPServerNames() []string { return r.mcpServerNames }
 // providers + credentials that providers.list / configure / test operate on.
 // Always non-nil.
 func (r *Runtime) Providers() provider.Service { return r.providers }
+
+// DefaultModel is the model a turn runs against when it doesn't pick one
+// (the configured Config.Model seed). The session layer uses it to fill
+// Session.model for sessions that never explicitly selected a model, so the
+// wire always carries a real model name. May be empty if unconfigured.
+func (r *Runtime) DefaultModel() string { return r.defaultModel }
 
 // ReadHistory returns sessionID's persisted chat history — the
 // messages.list transport surface converts these to wire messages,

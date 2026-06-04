@@ -9,12 +9,11 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/lyra/internal/service/history"
-	"github.com/Tangerg/lynx/lyra/internal/service/memory"
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
 	"github.com/Tangerg/lynx/lyra/internal/storage/sqlite"
 )
 
-func newTempDB(t *testing.T) (*sqlite.SessionService, *sqlite.MemoryService) {
+func newTempDB(t *testing.T) *sqlite.SessionService {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "lyra.db")
 	db, err := sqlite.Open(path)
@@ -22,14 +21,14 @@ func newTempDB(t *testing.T) (*sqlite.SessionService, *sqlite.MemoryService) {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return sqlite.NewSessionService(db), sqlite.NewMemoryService(db)
+	return sqlite.NewSessionService(db)
 }
 
 // TestSessionCRUD exercises the full mutate / read cycle of session.Service
 // against the SQLite backend.
 func TestSessionCRUD(t *testing.T) {
 	ctx := context.Background()
-	svc, _ := newTempDB(t)
+	svc := newTempDB(t)
 
 	// empty list at startup
 	list, err := svc.List(ctx)
@@ -90,7 +89,7 @@ func TestSessionCRUD(t *testing.T) {
 // metadata records the fork-at-message-id.
 func TestSessionFork(t *testing.T) {
 	ctx := context.Background()
-	svc, _ := newTempDB(t)
+	svc := newTempDB(t)
 
 	parent, _ := svc.Create(ctx, "parent", "")
 
@@ -127,7 +126,7 @@ func TestSessionFork(t *testing.T) {
 // returns ErrNotFound for unknown ids.
 func TestSessionTouch(t *testing.T) {
 	ctx := context.Background()
-	svc, _ := newTempDB(t)
+	svc := newTempDB(t)
 
 	created, _ := svc.Create(ctx, "touchy", "")
 
@@ -179,62 +178,6 @@ func TestSessionPersistAcrossReopen(t *testing.T) {
 	}
 	if got.Title != "persistent" {
 		t.Fatalf("title = %q", got.Title)
-	}
-}
-
-// TestMemoryUpsert confirms Update inserts on first write, overwrites
-// on second, and List skips empty scopes.
-func TestMemoryUpsert(t *testing.T) {
-	ctx := context.Background()
-	_, mem := newTempDB(t)
-
-	// Get on empty DB returns "" not an error
-	got, err := mem.Get(ctx, memory.ScopeProject)
-	if err != nil {
-		t.Fatalf("Get empty: %v", err)
-	}
-	if got != "" {
-		t.Fatalf("Get empty = %q", got)
-	}
-
-	if err := mem.Update(ctx, memory.ScopeProject, "# project notes"); err != nil {
-		t.Fatalf("Update: %v", err)
-	}
-	got, _ = mem.Get(ctx, memory.ScopeProject)
-	if got != "# project notes" {
-		t.Fatalf("Get after Update = %q", got)
-	}
-
-	// upsert
-	if err := mem.Update(ctx, memory.ScopeProject, "# updated"); err != nil {
-		t.Fatalf("Update 2: %v", err)
-	}
-	got, _ = mem.Get(ctx, memory.ScopeProject)
-	if got != "# updated" {
-		t.Fatalf("Get after upsert = %q", got)
-	}
-
-	// User scope independent
-	if err := mem.Update(ctx, memory.ScopeUser, "# user notes"); err != nil {
-		t.Fatalf("Update user: %v", err)
-	}
-
-	list, err := mem.List(ctx)
-	if err != nil {
-		t.Fatalf("List: %v", err)
-	}
-	if len(list) != 2 {
-		t.Fatalf("List len = %d, want 2", len(list))
-	}
-	// Ordered by scope (project=0 first)
-	if list[0].Scope != memory.ScopeProject || list[0].Content != "# updated" {
-		t.Fatalf("list[0] = %+v", list[0])
-	}
-	if list[1].Scope != memory.ScopeUser || list[1].Content != "# user notes" {
-		t.Fatalf("list[1] = %+v", list[1])
-	}
-	if list[0].CapturedAt.IsZero() {
-		t.Fatalf("CapturedAt not set")
 	}
 }
 

@@ -49,14 +49,6 @@ var providerInfo = map[Provider]struct {
 	ProviderDeepSeek:  {"deepseek-v4-flash", "DEEPSEEK_API_KEY"},
 }
 
-// StorageKind selects the backend for session + memory state.
-type StorageKind string
-
-const (
-	StorageFile   StorageKind = "file"
-	StorageSQLite StorageKind = "sqlite"
-)
-
 // ServerConfig holds the `lyra serve` HTTP transport settings. CLI
 // flags override these (serve resolves flag-vs-config per field).
 type ServerConfig struct {
@@ -87,9 +79,6 @@ type Config struct {
 	// support is a later addition).
 	MCPServers []mcp.ServerConfig
 
-	// Storage selects the persistence backend.
-	Storage StorageKind
-
 	// Server holds the HTTP serve settings.
 	Server ServerConfig
 }
@@ -106,7 +95,6 @@ func Load() (Config, error) {
 
 	// No default provider — it must be set explicitly in config/config.yaml
 	// or via LYRA_PROVIDER. (No vendor is privileged as the implicit default.)
-	v.SetDefault("storage", string(StorageFile))
 	v.SetDefault("server.listen", "127.0.0.1:17171")
 	v.SetDefault("server.noLocalToken", false)
 
@@ -147,13 +135,6 @@ func Load() (Config, error) {
 		return Config{}, errors.New("config: apiKey is empty — set it in config/config.yaml or " + info.apiKeyEnv)
 	}
 
-	storage := StorageKind(v.GetString("storage"))
-	switch storage {
-	case StorageFile, StorageSQLite:
-	default:
-		return Config{}, errors.New("config: unknown storage (want file|sqlite)")
-	}
-
 	servers, err := parseMCPServers(os.Getenv("LYRA_MCP_SERVERS"))
 	if err != nil {
 		return Config{}, fmt.Errorf("config: LYRA_MCP_SERVERS: %w", err)
@@ -166,7 +147,6 @@ func Load() (Config, error) {
 		BaseURL:    v.GetString("baseURL"),
 		Online:     loadOnline(v),
 		MCPServers: servers,
-		Storage:    storage,
 		Server: ServerConfig{
 			Listen:         v.GetString("server.listen"),
 			NoLocalToken:   v.GetBool("server.noLocalToken"),

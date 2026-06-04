@@ -9,6 +9,12 @@ import (
 	"time"
 )
 
+// IDPrefix is the type prefix every session id carries (API.md §2.2 —
+// server-generated business ids are prefixed; mirrors the wire-side
+// protocol.IDPrefixSession). Applied at generation so the id shape is
+// identical regardless of backend.
+const IDPrefix = "ses_"
+
 // Session is the persistent identity of a conversation. Lyra tracks
 // every turn (chat exchange) against one Session id; restarting the
 // runtime restores the Session from storage and lets a turn continue
@@ -22,6 +28,7 @@ type Session struct {
 	ID        string
 	Title     string // human-readable; auto-generated from first user message
 	Cwd       string // working-directory identity (API.md §0.2); defaults to the serve cwd
+	Model     string // the model the session last explicitly ran against; empty ⇒ runtime default
 	ParentID  string // empty for root sessions; non-empty for forks
 	StartedAt time.Time
 	UpdatedAt time.Time
@@ -56,4 +63,10 @@ type Service interface {
 
 	// Delete drops the session and its persisted turns. Idempotent.
 	Delete(ctx context.Context, id string) error
+
+	// SetModel records the model a turn ran against, so sessions.list /
+	// sessions.get surface the session's current model (the wire
+	// Session.model). Called when a run explicitly selects a provider+model.
+	// Returns ErrNotFound for an unknown id.
+	SetModel(ctx context.Context, id, model string) error
 }

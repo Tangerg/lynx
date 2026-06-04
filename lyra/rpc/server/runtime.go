@@ -39,6 +39,9 @@ type RuntimeServices interface {
 	Providers() providersvc.Service
 	// MCPServerNames lists the connected MCP servers (workspace.mcp.listServers).
 	MCPServerNames() []string
+	// DefaultModel is the runtime's configured default model — used to fill
+	// Session.model for sessions that never explicitly selected one.
+	DefaultModel() string
 	ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error)
 	SeedHistory(ctx context.Context, sessionID string, msgs []chat.Message) error
 }

@@ -106,7 +106,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		return err
 	}
 
-	sessionSvc, memSvc, procStore, interruptStore, historyStore, providerSvc, err := buildStores(cfg.Storage)
+	sessionSvc, memSvc, procStore, interruptStore, historyStore, providerSvc, err := buildStores()
 	if err != nil {
 		return err
 	}
@@ -137,7 +137,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		// Durable stores enable cross-restart HITL resume: ProcessStore
 		// auto-snapshots every agent process (so a parked turn survives a
 		// restart); InterruptStore persists the open-interrupt registry
-		// that runs.resume looks up. Both follow LYRA_STORAGE.
+		// that runs.resume looks up. Both are sqlite-backed (buildStores).
 		ProcessStore:    procStore,
 		InterruptStore:  interruptStore,
 		HistoryStore:    historyStore,
@@ -165,61 +165,32 @@ func (a *App) runtime() *lyraruntime.Runtime { return a.rt }
 // config returns the loaded config; valid after ensureRuntime.
 func (a *App) config() config.Config { return a.cfg }
 
-// buildStores picks the persistence backends based on the storage kind:
-// session + memory + the agent-process snapshot store + the open-interrupt
-// registry. SQLite shares one *sql.DB across all four at $LYRA_HOME/lyra.db;
-// the file backend keeps the per-LYRA.md / sessions.json / per-process-JSON
-// layout that lets users `cat` or `jq` the state directly.
+// buildStores wires the persistence backends. Everything durable —
+// session / process-snapshot / interrupt / history / provider — shares one
+// SQLite *sql.DB at $LYRA_HOME/lyra.db. The one exception is memory: it
+// stays a user-editable LYRA.md file cascade (the whole point of memory is
+// that the user can `cat` / edit it), so it doesn't live in SQLite.
 //
 // The process + interrupt stores are what make HITL resume survive a
-// restart — they're wired the same way as session/memory so a single
-// LYRA_STORAGE switch governs all durable state.
-//
-// The *sql.DB is intentionally leaked — process lifetime equals DB
-// lifetime, and modernc.org/sqlite cleans up its WAL on close at
-// exit. Add explicit teardown when the runtime grows a Shutdown
-// path.
-func buildStores(kind config.StorageKind) (sessionsvc.Service, memorysvc.Service, core.ProcessStore, interrupts.Store, history.Store, providersvc.Service, error) {
-	switch kind {
-	case config.StorageSQLite:
-		home, err := storage.Home()
-		if err != nil {
-			return nil, nil, nil, nil, nil, nil, fmt.Errorf("sqlite storage: %w", err)
-		}
-		db, err := sqlitestore.Open(filepath.Join(home, "lyra.db"))
-		if err != nil {
-			return nil, nil, nil, nil, nil, nil, err
-		}
-		return sqlitestore.NewSessionService(db), sqlitestore.NewMemoryService(db),
-			sqlitestore.NewProcessStore(db), sqlitestore.NewInterruptStore(db),
-			sqlitestore.NewHistoryStore(db), sqlitestore.NewProviderService(db), nil
-	default:
-		sess, err := storage.NewFileSessionService()
-		if err != nil {
-			return nil, nil, nil, nil, nil, nil, fmt.Errorf("session storage: %w", err)
-		}
-		mem, err := storage.NewFileMemoryService()
-		if err != nil {
-			return nil, nil, nil, nil, nil, nil, fmt.Errorf("memory storage: %w", err)
-		}
-		procStore, err := storage.NewFileProcessStore()
-		if err != nil {
-			return nil, nil, nil, nil, nil, nil, fmt.Errorf("process storage: %w", err)
-		}
-		interruptStore, err := storage.NewFileInterruptStore()
-		if err != nil {
-			return nil, nil, nil, nil, nil, nil, fmt.Errorf("interrupt storage: %w", err)
-		}
-		historyStore, err := storage.NewFileHistoryStore()
-		if err != nil {
-			return nil, nil, nil, nil, nil, nil, fmt.Errorf("history storage: %w", err)
-		}
-		providerStore, err := storage.NewFileProviderService()
-		if err != nil {
-			return nil, nil, nil, nil, nil, nil, fmt.Errorf("provider storage: %w", err)
-		}
-		return sess, mem, procStore, interruptStore, historyStore, providerStore, nil
+// restart. The *sql.DB is intentionally process-lifetime (no teardown);
+// modernc.org/sqlite cleans up its WAL on exit. Add explicit teardown when
+// the runtime grows a Shutdown path.
+func buildStores() (sessionsvc.Service, memorysvc.Service, core.ProcessStore, interrupts.Store, history.Store, providersvc.Service, error) {
+	home, err := storage.Home()
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, fmt.Errorf("storage home: %w", err)
 	}
+	db, err := sqlitestore.Open(filepath.Join(home, "lyra.db"))
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, err
+	}
+	mem, err := storage.NewFileMemoryService()
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, fmt.Errorf("memory storage: %w", err)
+	}
+	return sqlitestore.NewSessionService(db), mem,
+		sqlitestore.NewProcessStore(db), sqlitestore.NewInterruptStore(db),
+		sqlitestore.NewHistoryStore(db), sqlitestore.NewProviderService(db), nil
 }
 
 // seedConfiguredProvider ensures the config-file provider is present in the
