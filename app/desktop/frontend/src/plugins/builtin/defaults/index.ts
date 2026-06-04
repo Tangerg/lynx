@@ -198,6 +198,24 @@ export const defaultData = definePlugin({
       key: "mcp-servers",
       fetcher: async () => (await client().workspace.mcp.listServers()).map(toSidebarMCPServer),
     });
+    host.extensions.contribute(DATA_PROVIDER, {
+      key: "skills",
+      fetcher: async () =>
+        (await client().workspace.listSkills()).map((s) => ({
+          name: s.name,
+          description: s.description ?? "",
+          source: s.source ?? "",
+        })),
+    });
+    host.extensions.contribute(DATA_PROVIDER, {
+      key: "agent-docs",
+      fetcher: async () =>
+        (await client().workspace.listAgentDocs()).map((d) => ({
+          path: d.path,
+          title: d.title ?? "",
+          scope: d.scope,
+        })),
+    });
 
     for (const key of HTTP_KEYS) {
       host.extensions.contribute(DATA_PROVIDER, {
