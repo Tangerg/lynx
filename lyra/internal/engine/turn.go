@@ -6,6 +6,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/model/chat/memory"
 )
 
 // runChatTurn drives one streaming chat turn end-to-end: compose the
@@ -22,6 +23,21 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 	// stream error here rather than blocking the run forever.
 	ctx, cancel := context.WithTimeout(ctx, llmCallTimeout)
 	defer cancel()
+
+	// HITL R-model: route the tool loop's suspend/resume through a
+	// checkpoint on the process blackboard. On a gated tool's approval
+	// pause the loop checkpoints the in-flight round; the continuation run
+	// resumes from the just-approved call instead of re-running completed
+	// rounds (re-invoking the model, re-executing approved tools).
+	store := &blackboardToolLoopStore{bb: pc.Blackboard}
+	ctx = chat.WithToolLoopStore(ctx, store)
+	if _, resuming := store.Load(ctx); resuming {
+		// The turn's input was persisted on the first segment and the loop
+		// resumes from its checkpoint (ignoring the request messages), so
+		// tell the memory middleware to skip re-loading / re-persisting the
+		// request — otherwise each resume duplicates the user message.
+		ctx = memory.WithResumedTurn(ctx)
+	}
 
 	req, err := pc.ChatWithActionTools(ctx)
 	if err != nil {

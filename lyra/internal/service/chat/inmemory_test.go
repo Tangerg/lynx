@@ -5,6 +5,7 @@ import (
 	"iter"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	chatmodel "github.com/Tangerg/lynx/core/model/chat"
@@ -357,6 +358,47 @@ func TestService_ApprovalGate_AllowOnce(t *testing.T) {
 	}
 }
 
+// TestService_ApprovalGate_ResumeDoesNotReinvokeModel is the R-model
+// regression: approving a gated tool must RESUME the turn from the
+// just-approved call — NOT re-run the turn from scratch (re-invoking the
+// model for the already-completed round). The counting model proves it:
+// round 1 (the bash tool call) + round 2 (the final reply) = exactly 2
+// model invocations across the whole suspend/resume cycle. The old
+// re-run behavior invoked the model 3 times (round 1 twice).
+func TestService_ApprovalGate_ResumeDoesNotReinvokeModel(t *testing.T) {
+	model := &countingStubModel{}
+	model.defaults, _ = chatmodel.NewOptions("stub-counting")
+	client, _ := chatmodel.NewClient(model)
+	eng, _ := engine.New(context.Background(), engine.Config{ChatClient: client})
+	svc := chat.New(eng, approval.New(approval.ModeBalanced), nil) // bash → gate
+
+	handle, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+		SessionID: "sess-rmodel",
+		Message:   "echo lyra",
+	})
+	events, _ := svc.Events(context.Background(), handle)
+
+	var endReason chat.TurnEndReason
+	for ev := range events {
+		switch e := ev.(type) {
+		case chat.TurnInterrupted:
+			if err := svc.Resume(context.Background(), handle, true); err != nil {
+				t.Errorf("Resume: %v", err)
+			}
+		case chat.TurnEnd:
+			endReason = e.Reason
+		}
+	}
+
+	if endReason != chat.TurnEndCompleted {
+		t.Errorf("turn end = %s, want completed", endReason)
+	}
+	if got := model.calls.Load(); got != 2 {
+		t.Fatalf("model invoked %d times across resume, want 2 "+
+			"(round 1 must NOT be re-invoked — that was the HITL re-run bug)", got)
+	}
+}
+
 // TestService_ApprovalGate_Deny — denying via Resume(false) makes the
 // tool short-circuit with the denial fed back to the model as a
 // recoverable result; the model emits its final reply and the turn
@@ -553,6 +595,33 @@ func (m *stubChatModel) Call(_ context.Context, req *chatmodel.Request) (*chatmo
 }
 
 func (m *stubChatModel) Stream(ctx context.Context, req *chatmodel.Request) iter.Seq2[*chatmodel.Response, error] {
+	resp, err := m.Call(ctx, req)
+	return func(yield func(*chatmodel.Response, error) bool) { yield(resp, err) }
+}
+
+// countingStubModel runs the same two-round bash dance as stubChatModel
+// (round 1 → bash tool call, round 2 → final text) but counts model
+// invocations so a test can assert a HITL resume continues the turn
+// rather than re-running it from the first round.
+type countingStubModel struct {
+	defaults *chatmodel.Options
+	calls    atomic.Int32
+}
+
+func (m *countingStubModel) DefaultOptions() chatmodel.Options { return *m.defaults }
+func (m *countingStubModel) Metadata() chatmodel.ModelMetadata {
+	return chatmodel.ModelMetadata{Provider: "stub"}
+}
+
+func (m *countingStubModel) Call(_ context.Context, req *chatmodel.Request) (*chatmodel.Response, error) {
+	m.calls.Add(1)
+	if hasToolMsg(req.Messages) {
+		return makeText("I ran echo and got lyra.")
+	}
+	return makeToolCall("bash", `{"command":"echo lyra"}`)
+}
+
+func (m *countingStubModel) Stream(ctx context.Context, req *chatmodel.Request) iter.Seq2[*chatmodel.Response, error] {
 	resp, err := m.Call(ctx, req)
 	return func(yield func(*chatmodel.Response, error) bool) { yield(resp, err) }
 }
