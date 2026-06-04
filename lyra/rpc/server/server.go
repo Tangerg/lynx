@@ -17,6 +17,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/Tangerg/lynx/lyra/internal/config"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
@@ -127,9 +128,22 @@ func Capabilities(rt RuntimeServices) protocol.ServerCapabilities {
 			ClientTools:   false,
 			Attachments:   protocol.AttachmentLimits{Enabled: false},
 		},
-		Providers: []string{},
+		Providers: supportedProviderIDs(),
 		Limits:    protocol.RuntimeLimits{MaxConcurrentRuns: 8},
 	}
+}
+
+// supportedProviderIDs is the provider set this build can serve (E4 fix —
+// was hardcoded empty, misreading as "no providers"). These are the
+// provider TYPES the runtime supports; per-provider configured/key status
+// is providers.list's job (apiKeyMasked), not the capability snapshot.
+func supportedProviderIDs() []string {
+	supported := config.SupportedProviders()
+	out := make([]string, 0, len(supported))
+	for _, p := range supported {
+		out = append(out, string(p))
+	}
+	return out
 }
 
 // ─── helpers ────────────────────────────────────────────────────────

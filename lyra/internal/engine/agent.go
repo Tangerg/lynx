@@ -190,11 +190,19 @@ func (e *Engine) buildSubtaskAgent() *core.Agent {
 }
 
 // recoverToolLoop is the tool-loop policy both the chat agent and the
-// task sub-agent use: recover from a hallucinated tool name (feed back
-// the real tool list so the model re-picks) or an empty reply (one
-// nudge) instead of aborting. No-op on a well-behaved turn.
+// task sub-agent use: recover from a hallucinated tool name (feed back the
+// real tool list so the model re-picks), an empty reply (one nudge), or a
+// tool execution failure (feed the error back so the model adjusts) instead
+// of aborting the whole run. A tool failure is recorded on its toolCall item
+// (status:incomplete + error:tool_failed, via the tool observer) AND fed
+// back to the model — the run continues (API.md §8.1: tool-level failure
+// doesn't terminate the run). No-op on a well-behaved turn.
 func recoverToolLoop() chat.ToolLoopConfig {
-	return chat.ToolLoopConfig{FeedbackOnUnknownTool: true, FeedbackOnEmptyResponse: true}
+	return chat.ToolLoopConfig{
+		FeedbackOnUnknownTool:   true,
+		FeedbackOnEmptyResponse: true,
+		FeedbackOnToolError:     true,
+	}
 }
 
 // planApprovedKey is the blackboard condition the plan-mode approval

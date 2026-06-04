@@ -36,6 +36,13 @@ type ToolLoopConfig struct {
 	// text and no tool calls) with a nudge and re-prompts the model once
 	// instead of returning the empty reply. Default off.
 	FeedbackOnEmptyResponse bool
+
+	// FeedbackOnToolError, when true, turns a tool execution failure into an
+	// error result fed back to the model (so it can adjust and continue)
+	// instead of aborting the whole request. The sibling of
+	// FeedbackOnUnknownTool for execution errors. Default off preserves the
+	// strict behavior (a tool error aborts the loop).
+	FeedbackOnToolError bool
 }
 
 // MaxToolIterationsError is returned when the tool-calling loop exceeds its
@@ -68,6 +75,7 @@ type ToolMiddleware struct {
 	maxIterations   int
 	feedbackUnknown bool
 	feedbackEmpty   bool
+	feedbackError   bool
 }
 
 // NewToolMiddleware constructs the tool-calling middleware pair. Pass an
@@ -87,6 +95,7 @@ func NewToolMiddleware(config ...ToolLoopConfig) (CallMiddleware, StreamMiddlewa
 		maxIterations:   maxIterations,
 		feedbackUnknown: cfg.FeedbackOnUnknownTool,
 		feedbackEmpty:   cfg.FeedbackOnEmptyResponse,
+		feedbackError:   cfg.FeedbackOnToolError,
 	}
 	return mw.wrapCallHandler, mw.wrapStreamHandler
 }
@@ -124,6 +133,7 @@ func (m *ToolMiddleware) wrapStreamHandler(next StreamHandler) StreamHandler {
 func (m *ToolMiddleware) newToolSupport(toolCount int) *ToolSupport {
 	support := NewToolSupport(toolCount)
 	support.SetFeedbackOnUnknownTool(m.feedbackUnknown)
+	support.SetFeedbackOnToolError(m.feedbackError)
 	return support
 }
 
