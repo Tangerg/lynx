@@ -37,6 +37,22 @@ import {
 
 const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
 
+// Tool args in an approval payload arrive either as an object or — matching
+// the streaming `toolArguments` model — as a JSON *string*. Normalize to an
+// object so the card renders/edit them cleanly (not a double-escaped blob).
+const parseArgs = (v: unknown): Record<string, unknown> | undefined => {
+  if (v && typeof v === "object") return v as Record<string, unknown>;
+  if (typeof v === "string" && v.trim()) {
+    try {
+      const p: unknown = JSON.parse(v);
+      return p && typeof p === "object" ? (p as Record<string, unknown>) : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+};
+
 // ---------------------------------------------------------------------------
 // run.*
 // ---------------------------------------------------------------------------
@@ -62,15 +78,18 @@ function materializeInterrupt(
   parentRunId: string,
 ): AgentViewState {
   if (it.kind === "approval") {
+    // The command lives inside the tool args (e.g. bash → `{command}`); there
+    // is no top-level `payload.command`. Parse args first, then derive it.
+    const args = parseArgs(it.payload.arguments ?? it.payload.args);
     const block: ContentBlock = {
       kind: "approval",
       status: "requires-action",
       itemId: it.itemId,
       parentRunId,
       text: str(it.payload.text) ?? "Approve this action?",
-      command: str(it.payload.command) ?? "",
+      command: str(it.payload.command) ?? str(args?.command) ?? "",
       reason: str(it.payload.reason) ?? "",
-      args: (it.payload.arguments ?? it.payload.args) as Record<string, unknown> | undefined,
+      args,
     };
     const withBlock = appendToTurn(state, it.itemId, block);
     return appendTimelineEntry({
