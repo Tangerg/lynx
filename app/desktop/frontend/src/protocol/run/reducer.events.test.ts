@@ -134,6 +134,64 @@ describe("reducer — item fold", () => {
     expect(s.messages).toHaveLength(2);
     expect(s.messages[1]!.role).toBe("user");
   });
+
+  it("a streamed userMessage reconciles the optimistic placeholder (no duplicate)", () => {
+    let s: AgentViewState = INITIAL_VIEW_STATE;
+    // send() renders the user's bubble optimistically with a local-* id.
+    s = reduce(
+      s,
+      completed(
+        item({
+          id: "local-1",
+          type: "userMessage",
+          status: "completed",
+          content: [{ type: "text", text: "hi" }],
+        }),
+      ),
+    );
+    expect(s.messages).toHaveLength(1);
+    // The runtime then streams the real userMessage Item with its own server
+    // id (started + completed). It must upgrade the placeholder in place, not
+    // append a second bubble.
+    s = reduce(
+      s,
+      started(
+        item({ id: "item_real", type: "userMessage", content: [{ type: "text", text: "hi" }] }),
+      ),
+    );
+    s = reduce(
+      s,
+      completed(
+        item({
+          id: "item_real",
+          type: "userMessage",
+          status: "completed",
+          content: [{ type: "text", text: "hi" }],
+        }),
+      ),
+    );
+    expect(s.messages).toHaveLength(1);
+    expect(s.messages[0]!.id).toBe("item_real");
+    expect(s.messages[0]!.role).toBe("user");
+  });
+
+  it("body-less item.started shells fold without crashing (tool / question / plan)", () => {
+    // The runtime's started shell may carry only ItemBase fields — the body
+    // (tool / question / steps) streams in later or lands whole on completed.
+    // Each must fold to an empty block, not throw (which the reducer's
+    // try/catch would swallow, silently dropping the block forever).
+    let s: AgentViewState = INITIAL_VIEW_STATE;
+    s = reduce(s, started(item({ id: "t1", type: "toolCall" }))); // no `tool`
+    expect(s.toolCalls.t1).toMatchObject({ fn: "tool", status: "running" });
+    s = reduce(s, started(item({ id: "q1", type: "question" }))); // no `question`
+    expect(s.messages.flatMap((m) => m.blocks).find((b) => b.kind === "question")).toMatchObject({
+      kind: "question",
+      itemId: "q1",
+      questions: [],
+    });
+    s = reduce(s, started(item({ id: "p1", type: "plan" }))); // no `steps`
+    expect(s.plan).toEqual([]);
+  });
 });
 
 describe("reducer — HITL interrupt", () => {

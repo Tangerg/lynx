@@ -111,19 +111,38 @@ export function updateTool(
 type ItemOf<T extends Item["type"]> = Extract<Item, { type: T }>;
 
 /** Append a user-message bubble (opens a fresh assistant turn). Idempotent —
- *  a re-seen id is a no-op, dodging React's duplicate-key warning. */
+ *  a re-seen id is a no-op, dodging React's duplicate-key warning — and it
+ *  reconciles the optimistic placeholder so the streamed item doesn't double. */
 export function appendUserMessage(
   state: AgentViewState,
   item: ItemOf<"userMessage">,
   status: BlockStatus,
 ): AgentViewState {
+  // Already have this exact item (started→completed re-seen, or durable
+  // replay / history hydration) → no-op.
   if (state.messages.some((m) => m.id === item.id)) return state;
+  const text = contentText(item.content);
+  // Reconcile the optimistic placeholder: send() renders the user's bubble
+  // immediately with a local-* id, a round-trip before the runtime streams
+  // the real userMessage Item (with its own server id). Upgrade the oldest
+  // matching placeholder's id in place rather than appending a duplicate.
+  const placeholder = state.messages.findIndex(
+    (m) =>
+      m.role === "user" &&
+      m.id.startsWith("local-") &&
+      m.blocks.find((b): b is Extract<ContentBlock, { kind: "text" }> => b.kind === "text")
+        ?.text === text,
+  );
+  if (placeholder !== -1) {
+    const messages = state.messages.map((m, i) => (i === placeholder ? { ...m, id: item.id } : m));
+    return { ...state, messages, turnMessageId: null };
+  }
   const msg: Message = {
     id: item.id,
     role: "user",
     who: nameForRole("user"),
     time: formatTime(item.createdAt),
-    blocks: [{ kind: "text", text: contentText(item.content), status }],
+    blocks: [{ kind: "text", text, status }],
   };
   return { ...state, messages: [...state.messages, msg], turnMessageId: null };
 }
