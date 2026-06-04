@@ -1,7 +1,7 @@
 ---
 version: 1.0
 name: lyra-design-analysis
-description: "Lyra is an agent client — a desktop chat shell that streams AG-UI events from a Go runtime. The design is dark-first, dense, keyboard-driven; built for engineers reading streaming markdown, inspecting tool calls, and approving actions. Visually a synthesis of Linear (canvas / surface ladder / hairline-defined regions / single accent) and Vercel (Geist typography / mono-as-eyebrow / stacked subtle elevation / sentence-case headlines). The system replaces the previous Spotify-inspired vocabulary (pill geometry / ALL-CAPS labels / 700+ display weight / heavy dark shadows) which read as a consumer media app and clashed with the engineering posture of an agent runtime."
+description: "Lyra is an agent client — a desktop chat shell that streams Lyra Runtime Protocol events from a Go runtime. The design is dark-first, dense, keyboard-driven; built for engineers reading streaming markdown, inspecting tool calls, and approving actions. Visually a synthesis of Linear (canvas / surface ladder / hairline-defined regions / single accent) and Vercel (Geist typography / mono-as-eyebrow / stacked subtle elevation / sentence-case headlines). The system replaces the previous Spotify-inspired vocabulary (pill geometry / ALL-CAPS labels / 700+ display weight / heavy dark shadows) which read as a consumer media app and clashed with the engineering posture of an agent runtime."
 
 colors:
   # ---- Brand / accent ----
@@ -357,12 +357,12 @@ components:
     titleTypography: "{typography.caption-mono}"
     titleColor: "{colors.negative}"
     bodyTypography: "{typography.body-sm}"
-    description: AG-UI RUN_ERROR surface. Lives above MessageStream, dismissible. Cleared automatically on next RUN_STARTED.
+    description: Run-error surface. Lives above the message stream, dismissible. Cleared automatically when the next run starts.
 ---
 
 ## 1. Overview
 
-Lyra is an agent client — a desktop application (Wails / React) that streams AG-UI protocol events from a Go runtime and renders them as a chat surface with inline tool calls, code, diagrams, and approval flows. The frontend is a **view onto a runtime**, not the runtime itself; the visual language reflects that posture: dense, observable, keyboard-driven.
+Lyra is an agent client — a desktop application (Wails / React) that streams Lyra Runtime Protocol events from a Go runtime and renders them as a chat surface with inline tool calls, code, diagrams, and approval flows. The frontend is a **view onto a runtime**, not the runtime itself; the visual language reflects that posture: dense, observable, keyboard-driven.
 
 The system is dark-first by deliberate choice — agent users spend long sessions in front of the surface, and dark reduces eye fatigue. Light mode is supported with full parity (no second-class treatment).
 
@@ -655,7 +655,7 @@ Accent stays the same green in light mode (no need to dim — `#1ed760` reads we
 
 - `frontend/linear.md` — source for canvas / surface ladder / hairline ladder / accent policy.
 - `frontend/vercel.md` — source for typography (Geist), mono-as-eyebrow, stacked elevation, light palette.
-- AG-UI protocol — `frontend/src/protocol/agui/` — drives the shape of the data this UI renders.
+- Lyra Runtime Protocol — `frontend/src/protocol/run/` + `frontend/src/rpc/` — drives the shape of the data this UI renders.
 
 ## 13. Iteration guide
 
