@@ -97,7 +97,8 @@ func Load() (Config, error) {
 	v.AddConfigPath("config")      // ./config/config.yaml (run from the lyra dir)
 	v.AddConfigPath("$HOME/.lyra") // ~/.lyra/config.yaml
 
-	v.SetDefault("provider", string(ProviderAnthropic))
+	// No default provider — it must be set explicitly in config/config.yaml
+	// or via LYRA_PROVIDER. (No vendor is privileged as the implicit default.)
 	v.SetDefault("storage", string(StorageFile))
 	v.SetDefault("server.listen", "127.0.0.1:17171")
 	v.SetDefault("server.noLocalToken", false)
@@ -115,6 +116,9 @@ func Load() (Config, error) {
 	}
 
 	provider := Provider(v.GetString("provider"))
+	if provider == "" {
+		return Config{}, errors.New("config: provider is required — set `provider:` in config/config.yaml or LYRA_PROVIDER (anthropic|openai|moonshot|deepseek)")
+	}
 	info, ok := providerInfo[provider]
 	if !ok {
 		return Config{}, errors.New("config: unknown provider (want anthropic|openai|moonshot|deepseek)")

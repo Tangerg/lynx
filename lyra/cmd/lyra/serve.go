@@ -79,9 +79,19 @@ Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 				token = t
 			}
 
+			// serverInfo carries the serve-process directory context the
+			// frontend reads on initialize (API.md §7.1): cwd seeds a new
+			// session's default working dir, home anchors ~-scoped lookups.
+			// Both default to the user's home folder.
+			info := lyrahttp.ServerInfoOrDefault()
+			if home, err := os.UserHomeDir(); err == nil {
+				info.Cwd = home
+				info.Home = home
+			}
+
 			api, err := server.New(server.Config{
 				Runtime:    a.runtime(),
-				ServerInfo: lyrahttp.ServerInfoOrDefault(),
+				ServerInfo: info,
 			})
 			if err != nil {
 				return a.fatalErr(err)
@@ -95,7 +105,7 @@ Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 			httpServer, err := lyrahttp.NewServer(lyrahttp.Config{
 				Runtime:         api,
 				Addr:            srv.Listen,
-				ServerInfo:      lyrahttp.ServerInfoOrDefault(),
+				ServerInfo:      info,
 				ProtocolVersion: caps.ProtocolVersion,
 				Capabilities:    caps,
 				LocalToken:      tokenValue,
