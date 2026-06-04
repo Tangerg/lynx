@@ -1,9 +1,11 @@
 package runtime
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/Tangerg/lynx/lyra/internal/service/provider"
+	sqlitestore "github.com/Tangerg/lynx/lyra/internal/storage/sqlite"
 )
 
 // TestClientResolver_RejectsUnconfigured verifies an explicit provider that
@@ -11,7 +13,11 @@ import (
 // resolves to a cached client. The provider is taken as given — never
 // inferred from the model.
 func TestClientResolver_RejectsUnconfigured(t *testing.T) {
-	ps := provider.NewInMemory() // empty: deepseek not configured
+	db, err := sqlitestore.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ps := sqlitestore.NewProviderService(db) // empty: deepseek not configured
 	r := newClientResolver(ps)
 
 	if _, err := r.ResolveClient(t.Context(), "deepseek", "deepseek-v4-pro"); err == nil {

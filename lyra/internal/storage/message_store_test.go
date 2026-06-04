@@ -9,6 +9,13 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/storage"
 )
 
+// withTempHome points LYRA_HOME at a throwaway dir so file-backed stores
+// (memory / message) write under a clean per-test root.
+func withTempHome(t *testing.T) {
+	t.Helper()
+	t.Setenv("LYRA_HOME", t.TempDir())
+}
+
 func TestFileMessageStore_WriteReadRoundTrip(t *testing.T) {
 	withTempHome(t)
 

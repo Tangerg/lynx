@@ -29,7 +29,7 @@ func (i *Server) ListSessions(ctx context.Context, q protocol.PageQuery) (*proto
 	}
 	data := make([]protocol.Session, 0, limit)
 	for _, s := range sessions[:limit] {
-		data = append(data, sessionToWire(s))
+		data = append(data, i.sessionToWire(s))
 	}
 	// No NextCursor: the store returns a single page (cursor paging is
 	// gated off above). Emitting a cursor would point at an erroring call.
@@ -44,7 +44,7 @@ func (i *Server) GetSession(ctx context.Context, id string) (*protocol.Session, 
 		}
 		return nil, err
 	}
-	out := sessionToWire(s)
+	out := i.sessionToWire(s)
 	return &out, nil
 }
 
@@ -59,7 +59,7 @@ func (i *Server) CreateSession(ctx context.Context, in protocol.CreateSessionReq
 	if err != nil {
 		return nil, err
 	}
-	out := sessionToWire(s)
+	out := i.sessionToWire(s)
 	return &out, nil
 }
 
@@ -98,7 +98,10 @@ func (i *Server) ExportSession(_ context.Context, _ protocol.ExportSessionReques
 // sessionToWire converts the internal session shape into the wire shape.
 // Status is synthesized (internal sessions don't track running/waiting/
 // idle yet → idle). Metadata widens map[string]string → map[string]any.
-func sessionToWire(s session.Session) protocol.Session {
+// Model falls back to the runtime default when the session never explicitly
+// selected one, so the wire always carries a real model name (the frontend
+// resolves the assistant's displayName from it).
+func (i *Server) sessionToWire(s session.Session) protocol.Session {
 	var meta map[string]any
 	if len(s.Metadata) > 0 {
 		meta = make(map[string]any, len(s.Metadata))
@@ -109,10 +112,15 @@ func sessionToWire(s session.Session) protocol.Session {
 	if meta == nil {
 		meta = map[string]any{} // Session.metadata is an object, never null (API.md §4.1)
 	}
+	model := s.Model
+	if model == "" {
+		model = i.rt.DefaultModel()
+	}
 	return protocol.Session{
 		ID:        s.ID,
 		Title:     s.Title,
 		Cwd:       s.Cwd,
+		Model:     model,
 		Status:    protocol.SessionStatusIdle,
 		CreatedAt: s.StartedAt,
 		UpdatedAt: s.UpdatedAt,
