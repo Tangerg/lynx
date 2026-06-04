@@ -16,7 +16,7 @@ import (
 )
 
 // ToolRoleCoding is the role the main chat agent declares: the full
-// coding tool set ([BuildToolSet]) PLUS the `task` delegation tool.
+// coding tool set PLUS the `task` delegation tool.
 //
 // ToolRoleSubtask is the role the sub-agent behind `task` declares: the
 // SAME coding tools but WITHOUT `task` itself, so a delegated subtask
@@ -27,28 +27,25 @@ const (
 	ToolRoleSubtask = "subtask"
 )
 
-// BuildToolSet returns the runtime's complete tool list — six
-// always-on coding tools plus zero or more provider-backed online
-// tools enabled by online. The six baseline tools (read / write /
-// edit / glob / grep / bash) need only a filesystem root; online
-// tools require explicit credentials so a misconfigured deployment
-// silently runs offline rather than exposing arbitrary network
-// access to the LLM.
-func BuildToolSet(workdir string, online OnlineConfig) ([]chat.Tool, error) {
-	tools := buildOfflineTools(workdir)
+// cwdBindingKey is the blackboard key the chat action binds (protected)
+// with the turn's working directory — see the [ChatInput.Cwd] handling in
+// buildChatAgent. [cwdToolResolver] reads it back at tool-resolution time
+// so the filesystem + bash tools operate in the session's project
+// directory. Binding it protected is what carries it to `task` sub-agents:
+// [core.Blackboard.Spawn] copies protected entries onto the child and the
+// typed-action ClearBlackboard preserves them, so a plain Set would be lost
+// when the sub-agent's action clears its inherited blackboard.
+const cwdBindingKey = "lyra:cwd"
 
-	onlineTools, err := buildOnlineTools(online)
-	if err != nil {
-		return nil, err
-	}
-	return append(tools, onlineTools...), nil
-}
-
-// buildOfflineTools instantiates the always-on coding tool set. No
-// credentials needed; safe to register unconditionally.
-func buildOfflineTools(workdir string) []chat.Tool {
+// buildWorkdirTools instantiates the working-directory-bound coding tools —
+// the five filesystem tools and bash, all anchored at workdir. These are the
+// only tools whose behavior depends on the working directory, so they are
+// rebuilt per resolution (cheap structs) rather than captured once. No
+// credentials needed; safe to build unconditionally.
+func buildWorkdirTools(workdir string) []chat.Tool {
 	fsExec := fs.NewLocalExecutor(workdir)
 	bashExec := bash.NewLocalExecutor()
+	bashExec.Dir = workdir
 	return []chat.Tool{
 		fs.NewReadTool(fsExec),
 		fs.NewWriteTool(fsExec),
@@ -60,10 +57,11 @@ func buildOfflineTools(workdir string) []chat.Tool {
 }
 
 // buildOnlineTools instantiates each network-reaching tool whose
-// credentials are present in online. Missing credentials silently
-// skip the corresponding tool — explicit opt-in is the safety
-// model. Returns an error only when a configured provider fails
-// to build (e.g. invalid HTTP allowlist).
+// credentials are present in online. These are working-directory
+// independent, so they are built once and shared across all resolutions.
+// Missing credentials silently skip the corresponding tool — explicit
+// opt-in is the safety model. Returns an error only when a configured
+// provider fails to build (e.g. invalid HTTP allowlist).
 func buildOnlineTools(online OnlineConfig) ([]chat.Tool, error) {
 	var (
 		out []chat.Tool
@@ -123,24 +121,68 @@ func appendIfBuilt(tools []chat.Tool, cond bool, label string, build func() (cha
 	return append(tools, tool), nil
 }
 
-// toolGroup is the minimal [core.ToolGroup] wrapping a tool slice for a
-// named role. It declares no permissions — the runtime accepts the group
-// against any requirement (a [core.ToolGroupRequirement] with empty
-// Permissions). M4 will refine this with HostAccess / InternetAccess
-// labels once sandbox + permission land.
-type toolGroup struct {
-	role  string
-	tools []chat.Tool
+// cwdToolResolver is the platform-scope [core.ToolGroupResolver] for the
+// coding + subtask roles. The working-directory-independent tools (online
+// providers, MCP servers, the `task` delegation tool) are built once at
+// engine construction and captured here; the filesystem + bash tools are
+// rebuilt per resolution against the working directory the resolving
+// process carries on its blackboard ([cwdBindingKey]), falling back to
+// defaultWorkdir. That is what lets a single engine serve many sessions —
+// each running its tools in its own project directory — without a
+// per-session engine.
+type cwdToolResolver struct {
+	defaultWorkdir string
+	online         []chat.Tool // working-directory-independent network tools
+	mcp            []chat.Tool // working-directory-independent MCP tools
+	task           chat.Tool   // delegation tool; coding role only, nil until set
 }
 
-func newToolGroup(role string, tools []chat.Tool) *toolGroup {
-	return &toolGroup{role: role, tools: tools}
+func (*cwdToolResolver) Name() string { return "coding-tools" }
+
+func (r *cwdToolResolver) Resolve(_ context.Context, req core.ToolGroupRequirement) (core.ToolGroup, error) {
+	switch req.Role {
+	case ToolRoleCoding, ToolRoleSubtask:
+		return &cwdToolGroup{resolver: r, role: req.Role}, nil
+	default:
+		return nil, nil // unknown role — the runtime skips to the next resolver
+	}
 }
 
-func (g *toolGroup) Metadata() core.ToolGroupMetadata {
+// workdirFor reads the working directory the resolving process seeded on its
+// blackboard, falling back to the engine default when the turn carried none
+// (a sessionless smoke run, or a restored continuation whose snapshot
+// predates cwd seeding).
+func (r *cwdToolResolver) workdirFor(ctx context.Context) string {
+	p := core.ProcessFrom(ctx)
+	if p == nil {
+		return r.defaultWorkdir
+	}
+	if v, ok := p.Blackboard().Get(cwdBindingKey); ok {
+		if cwd, ok := v.(string); ok && cwd != "" {
+			return cwd
+		}
+	}
+	return r.defaultWorkdir
+}
+
+// cwdToolGroup resolves its tool slice lazily at Tools() time so it can read
+// the per-process working directory. ToolRoleSubtask omits the `task` tool so
+// a delegated subtask can't recurse into another delegation.
+type cwdToolGroup struct {
+	resolver *cwdToolResolver
+	role     string
+}
+
+func (g *cwdToolGroup) Metadata() core.ToolGroupMetadata {
 	return core.SimpleToolGroupMetadata{RoleText: g.role}
 }
 
-func (g *toolGroup) Tools(_ context.Context) ([]core.AgentTool, error) {
-	return g.tools, nil
+func (g *cwdToolGroup) Tools(ctx context.Context) ([]core.AgentTool, error) {
+	tools := buildWorkdirTools(g.resolver.workdirFor(ctx))
+	tools = append(tools, g.resolver.online...)
+	tools = append(tools, g.resolver.mcp...)
+	if g.role == ToolRoleCoding && g.resolver.task != nil {
+		tools = append(tools, g.resolver.task)
+	}
+	return tools, nil
 }

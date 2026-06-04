@@ -15,6 +15,12 @@ import (
 type ChatInput struct {
 	Message string
 
+	// Cwd is the working directory the turn's filesystem + bash tools run
+	// in. The chat action binds it protected on the blackboard so
+	// cwdToolResolver anchors the tools there and `task` sub-agents inherit
+	// it. Empty falls back to the engine's default workdir.
+	Cwd string
+
 	// MaxBudget caps the total tokens (prompt + completion) the turn
 	// may spend across its tool-loop rounds. 0 means unlimited. When
 	// exceeded the action stops cleanly after the current round —
@@ -90,6 +96,12 @@ func (e *Engine) buildChatAgent() *core.Agent {
 		Description("single-turn LLM chat with the default coding tool set").
 		Actions(agent.NewAction("chat",
 			func(ctx context.Context, pc *core.ProcessContext, in ChatInput) (ChatOutput, error) {
+				if in.Cwd != "" {
+					// Protected so it rides Blackboard.Spawn down to `task`
+					// sub-agents and survives the typed-action
+					// ClearBlackboard — see cwdToolResolver / cwdBindingKey.
+					pc.Blackboard.BindProtected(cwdBindingKey, in.Cwd)
+				}
 				if in.PlanMode {
 					out, done, err := e.planGate(ctx, pc, in.Message)
 					if err != nil || done {

@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"iter"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -147,6 +149,41 @@ func TestEngine_RunChat_TaskDelegation(t *testing.T) {
 	// the sub-agent spawned, ran, and produced an answer.
 	if out.Reply != "main: subtask done" {
 		t.Errorf("reply = %q, want the post-delegation answer", out.Reply)
+	}
+}
+
+// TestEngine_RunChat_ToolsRunInCwd proves the per-run working directory
+// reaches the filesystem + bash tools: a turn started with Cwd=dir runs
+// `ls` and must see a file that only exists in dir. Without the cwd seam
+// the tools would run in the engine's default workdir (the test process
+// cwd) and the file wouldn't appear.
+func TestEngine_RunChat_ToolsRunInCwd(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "sentinel.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatalf("seed sentinel: %v", err)
+	}
+	stub := newStubModel("bash", `{"command":"ls"}`, "done")
+	client, _ := chat.NewClient(stub)
+	eng, err := New(context.Background(), Config{ChatClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := &recordingObserver{}
+	if _, err := eng.RunChat(context.Background(), RunChatRequest{
+		Message:  "list the dir",
+		Cwd:      dir,
+		Observer: rec,
+	}); err != nil {
+		t.Fatalf("RunChat: %v", err)
+	}
+
+	ends := rec.ends()
+	if len(ends) != 1 {
+		t.Fatalf("tool end count = %d, want 1", len(ends))
+	}
+	if !strings.Contains(ends[0].output, "sentinel.txt") {
+		t.Errorf("bash `ls` output %q does not list the file in Cwd %q — tools didn't run in the per-run cwd", ends[0].output, dir)
 	}
 }
 
