@@ -296,8 +296,8 @@ interface QuestionOption {
 ### 4.4 ToolInvocation
 
 > **通用 + 特殊（混合契约）**：工具调用按"变体集合是闭还是开"分两类——
-> - **闭集 + 结构丰富 + 集中渲染**（命令执行、文件改动、搜索）→ **强类型变体**：`kind` 即身份，字段直接给（`exitCode` / `diff` /
->   `results` 等），客户端拿到编译期形状、专门渲染。
+> - **闭集 + 结构丰富 + 集中渲染**（命令执行、文件改动、本地搜索、网络检索）→ **强类型变体**：`kind` 即身份，字段直接给
+>   （`exitCode` / `diff` / `results` 等），客户端拿到编译期形状、专门渲染。
 > - **开集 / 不可枚举**（MCP、动态、子 agent、第三方自定义）→ **一个通用信封** `{ kind:"tool", name, arguments, result }`：
 >   `name` 是身份，入参是已解析 JSON 对象，输出是 best-effort JSON，客户端按 `name` 自取值 + 展开渲染。
 >
@@ -309,7 +309,8 @@ type ToolInvocation =
   // 特殊：闭集 + 结构丰富 → 强类型（kind 即身份，无 name）
   | { kind: "commandExecution"; command: string[]; cwd?: string; exitCode?: number; durationMs?: number }
   | { kind: "fileChange";       changes: FileChangeEntry[] }
-  | { kind: "search";           query: string; results?: SearchResult[] }   // grep / glob / web —— query→命中列表
+  | { kind: "search";           query: string; results?: SearchHit[] }         // 本地：grep / glob
+  | { kind: "webSearch";        query: string; results?: WebSearchResult[] }    // 网络检索
   // 通用：开集 / 不可枚举 → 一个信封兜底
   | { kind: "tool";             name: string; arguments: Record<string, unknown>; result?: unknown };
 
@@ -323,8 +324,10 @@ interface FileChangeEntry {
 - **`commandExecution`**：`command` 是 **argv 数组**（无 shell 引号歧义）；stdout/stderr 走 `item.delta{ type:"toolOutput", text }`
   流式累积预览，`exitCode` / `durationMs` 在 `item.completed` 落定。无独立 `output` 字段。
 - **`fileChange`**：多文件改动列表，每项带 `path` / `kind`（增改删移）/ `diff`。
-- **`search`**：`query` 是检索词 / 模式（用于展示），`results` 是结构化命中列表（`SearchResult` §4.5——`path`/`url`/`title`/
-  `snippet`/`lineNumber`，兼容 grep 行命中、glob 路径、web 结果）。覆盖 grep / glob / web search 一族。
+- **`search`（本地）**：grep / glob 一族。`query` 是模式（展示用），`results` 是 `SearchHit[]`（§4.5——grep = `path`+`lineNumber`+
+  `snippet`，glob = 仅 `path`）。
+- **`webSearch`（网络）**：`query` 是检索词，`results` 是 `WebSearchResult[]`（§4.5——`title`/`url`/`snippet`）。与本地搜索结果形状
+  不同（url vs 文件行），故各为一等变体。
 - **`tool`（通用）**：
   - **入参 `arguments` 永远是 JSON 对象，绝不回传 JSON 字符串。** 流式部分入参走 `item.delta{ type:"toolArguments", argumentsTextDelta }`
     （JSON 文本增量，§5.1）累积；server 在 `item.completed`（及审批 payload，§4.8）处 `unmarshal` 成对象再发——消除"双重转义"。
@@ -342,7 +345,7 @@ interface FileChangeEntry {
 | `<server>.<tool>`（MCP） | 工具自定义 | 工具自定义 |
 | `subagent` | `prompt` / `task` | `summary`, `childRunId?` |
 
-> 注：检索类（`grep` / `glob` / `web_search`）不在此表——它们走**强类型** `kind:"search"` 变体（上）。
+> 注：检索类不在此表——本地 `grep` / `glob` 走 `kind:"search"`，网络检索走 `kind:"webSearch"`（均强类型，见上）。
 
 > 新增**通用**工具只需在此表登记一行、按 `name` 对齐，不动 wire；新增**强类型**工具（极少）才加一个 `ToolInvocation` 变体。
 > 客户端的"按 name 取值 + 渲染"集中在一处工具展示注册表（可插件扩展）。
@@ -356,7 +359,8 @@ type DiffRow =
   | { type: "added";   rightLine: number; code: string }
   | { type: "deleted"; leftLine: number; code: string };
 
-interface SearchResult { title?: string; url?: string; path?: string; lineNumber?: number; snippet?: string }  // path+lineNumber = grep 命中；url+title = web 命中；path 单独 = glob
+interface SearchHit       { path: string; lineNumber?: number; snippet?: string }   // 本地搜索命中：grep=path+line+snippet；glob=仅 path
+interface WebSearchResult { title?: string; url: string; snippet?: string }         // 网络检索结果
 
 interface FileChange { path: string; status: "added" | "modified" | "deleted" | "renamed" | "untracked" }
 interface FileHead   { path: string; lines: FileLine[] }
