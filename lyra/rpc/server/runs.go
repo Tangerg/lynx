@@ -34,9 +34,17 @@ func (i *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		return nil, nil, errors.New("runs.start: input must contain a user text block")
 	}
 
+	// providerId + model are paired: both to pick a model, neither for the
+	// default. One without the other is a self-contradictory request — the
+	// provider is explicit, never inferred (API.md §7.3).
+	if (in.Model == "") != (in.ProviderID == "") {
+		return nil, nil, protocol.ErrInvalidParams
+	}
+
 	handle, err := i.rt.Chat().StartTurn(ctx, chat.StartTurnRequest{
 		SessionID:  sessionID,
 		Message:    userMsg,
+		Provider:   in.ProviderID,
 		Model:      in.Model,
 		MaxCostUSD: in.MaxBudgetUSD,
 	})

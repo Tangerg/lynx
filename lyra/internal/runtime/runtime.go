@@ -31,7 +31,6 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	chatmem "github.com/Tangerg/lynx/core/model/chat/memory"
 
-	"github.com/Tangerg/lynx/lyra/internal/config"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
 	chatsvc "github.com/Tangerg/lynx/lyra/internal/service/chat"
@@ -178,10 +177,10 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		providerSvc = provider.NewInMemory()
 	}
 
-	// The resolver lets a turn pick its model: it maps a model id to its
-	// provider's registry credentials and builds the client. Empty model
-	// runs the engine's default client (the platform's).
-	resolver := newClientResolver(providerSvc, config.Provider(cfg.Provider), cfg.Model)
+	// The resolver lets a turn pick its model: given an explicit
+	// (provider, model) it builds the client from that provider's registry
+	// credentials. A turn with no selection runs the engine's default client.
+	resolver := newClientResolver(providerSvc)
 
 	return &Runtime{
 		engine:     eng,

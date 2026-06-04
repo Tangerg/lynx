@@ -109,6 +109,11 @@ type StartRunRequest struct {
 	Tools        []ToolSpec        `json:"tools,omitempty"`
 	State        map[string]any    `json:"state,omitempty"`
 	Attachments  []string          `json:"attachments,omitempty"`
+	// ProviderID + Model select the model for this run. They are paired:
+	// send both to pick a model, or neither to use the runtime's default.
+	// Sending one without the other is invalid_params — the provider is
+	// explicit, never inferred from the model id.
+	ProviderID   string            `json:"providerId,omitempty"`
 	Model        string            `json:"model,omitempty"`
 	Mode         RunMode           `json:"mode,omitempty"`
 	MaxSteps     int               `json:"maxSteps,omitempty"`
