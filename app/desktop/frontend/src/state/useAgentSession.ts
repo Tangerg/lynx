@@ -16,6 +16,10 @@ export interface AgentSession {
   stop: () => void;
 }
 
+// Monotonic suffix for optimistic (client-only) user-message item ids, so each
+// keeps a unique React key + dodges the fold's dedupe-by-id.
+let localSeq = 0;
+
 export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string): AgentSession {
   const factoryRef = useRef(makeDriver);
   factoryRef.current = makeDriver;
@@ -95,6 +99,24 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     };
 
     const send = (text: string): void => {
+      // Optimistically render the user's own bubble. The runtime streams back
+      // only the agent's items — not the user's — so without this the message
+      // wouldn't appear until a history reload (items.list does carry it). A
+      // local id keeps it idempotent; a reopen replaces it with the persisted
+      // item via items.list, so there's no duplicate.
+      store().applyEvents(sessionId, [
+        {
+          type: "item.completed",
+          item: {
+            id: `local-${++localSeq}`,
+            runId: "",
+            status: "completed",
+            createdAt: new Date().toISOString(),
+            type: "userMessage",
+            content: [{ type: "text", text }],
+          },
+        } as RunEvent["event"],
+      ]);
       begin((signal) => driver.start(text, signal));
       // First message graduates a draft session into the sidebar.
       useSessionStore.getState().graduateDraft(sessionId);
