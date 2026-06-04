@@ -61,8 +61,14 @@ const PLAN_STATUS: Record<PlanStep["status"], PlanItem["status"]> = {
   pending: "todo",
   failed: "todo",
 };
-export function mapPlan(steps: PlanStep[]): PlanItem[] {
-  return steps.map((s, i) => ({
+// Like `contentText`, tolerate a body-less started shell: the `steps` /
+// `question` / `tool` fields are absent on the `item.started` shell of a
+// plan / question / toolCall and arrive whole on item.completed (plan/tool
+// also stream via item.delta). Default the missing field so the shell folds
+// to an empty block that later events patch — not a throw the reducer's
+// try/catch swallows, leaving the block permanently unrendered.
+export function mapPlan(steps: PlanStep[] | undefined): PlanItem[] {
+  return (steps ?? []).map((s, i) => ({
     id: i + 1,
     pid: s.id,
     status: PLAN_STATUS[s.status],
@@ -70,12 +76,13 @@ export function mapPlan(steps: PlanStep[]): PlanItem[] {
   }));
 }
 
-export function mapQuestion(q: Question): QuestionItem[] {
-  return q.fields.map((f) =>
+export function mapQuestion(q: Question | undefined): QuestionItem[] {
+  const prompt = q?.prompt ?? "";
+  return (q?.fields ?? []).map((f) =>
     f.type === "choice"
       ? {
           id: f.name,
-          question: f.label || q.prompt,
+          question: f.label || prompt,
           header: f.header ?? "",
           options: f.options.map((o) => ({
             label: o.label,
@@ -87,7 +94,7 @@ export function mapQuestion(q: Question): QuestionItem[] {
         }
       : {
           id: f.name,
-          question: f.label || q.prompt,
+          question: f.label || prompt,
           header: f.header ?? "",
           options: [],
           multiSelect: false,
@@ -96,8 +103,10 @@ export function mapQuestion(q: Question): QuestionItem[] {
   );
 }
 
-/** Human-readable label for a tool invocation (the toolCall row title). */
-export function toolLabel(tool: ToolInvocation): string {
+/** Human-readable label for a tool invocation (the toolCall row title).
+ *  `undefined` on a body-less toolCall started shell (see `mapPlan`). */
+export function toolLabel(tool: ToolInvocation | undefined): string {
+  if (!tool) return "tool";
   switch (tool.kind) {
     case "command":
       return tool.command;
@@ -112,8 +121,10 @@ export function toolLabel(tool: ToolInvocation): string {
   }
 }
 
-/** Derive view ToolCall fields from a (possibly completed) toolCall Item. */
-export function toolFields(tool: ToolInvocation): Partial<ToolCall> {
+/** Derive view ToolCall fields from a (possibly completed) toolCall Item.
+ *  `undefined` on a body-less toolCall started shell (see `mapPlan`). */
+export function toolFields(tool: ToolInvocation | undefined): Partial<ToolCall> {
+  if (!tool) return {};
   switch (tool.kind) {
     case "command":
       return { result: tool.output };

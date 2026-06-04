@@ -3,6 +3,7 @@
 // PluginBoundary. Used when the user has promoted a workspace view
 // (Settings, Diff, Files, …) into the chat-area tab strip.
 
+import { EmptyState } from "@/components/common";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
 import { useWorkspaceViews } from "@/plugins/sdk";
 
@@ -12,8 +13,19 @@ interface Props {
 
 export function WorkspaceViewBody({ viewId }: Props) {
   const workspaceViews = useWorkspaceViews();
-  const Body = workspaceViews.find((v) => v.id === viewId)?.component ?? null;
-  if (!Body) return null;
+  const Body = workspaceViews.find((v) => v.id === viewId)?.component;
+  if (!Body) {
+    // The header tab strip mirrors the store 1:1, so a view whose plugin
+    // unloaded while its tab was active still shows a tab. Render a fallback
+    // instead of a blank pane (a returned null here reads as a dead tab).
+    return (
+      <EmptyState
+        icon="alert"
+        title="View unavailable"
+        sub={`The "${viewId}" view isn't registered. Close this tab or re-enable its plugin.`}
+      />
+    );
+  }
   return (
     <PluginBoundary plugin={`workspace:${viewId}`} label="main view">
       <Body />

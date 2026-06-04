@@ -11,6 +11,7 @@
 import { z } from "zod";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { disposeOnHmr } from "@/lib/hmr";
 
 // localStorage payload schema. Mirrors `partialize` below — only the
 // two continuity fields. Anything else in storage is dropped on
@@ -146,10 +147,17 @@ export const useSessionStore = create<SessionState & SessionActions>()(
       expandedToolIds: new Set<string>(),
 
       selectTab: (id) => {
-        const { tabIds } = get();
+        const { tabIds, activeSessionId } = get();
         set({
           activeSessionId: id,
           tabIds: tabIds.includes(id) ? tabIds : [...tabIds, id],
+          // Tool-inspector + file focus are session-scoped. Switching to a
+          // different session must not carry A's selection/expansion into B
+          // (the ids wouldn't match B's items, and expandedToolIds would
+          // otherwise accrete every session's ids forever).
+          ...(id === activeSessionId
+            ? {}
+            : { activeFile: "", selectedToolId: "", expandedToolIds: new Set<string>() }),
         });
       },
       closeTab: (id) => {
@@ -306,6 +314,29 @@ export const useSessionStore = create<SessionState & SessionActions>()(
     },
   ),
 );
+
+// Prune draft + pending-message refs for sessions whose tab has closed.
+// Both maps are keyed by session id; without this they grow unbounded (one
+// stale entry per draft tab abandoned before its first message), and a
+// leftover draft id would make useAgentSession wrongly skip history hydration
+// if that id were ever reopened. A live draft id is always present in tabIds
+// (markDraft is paired with selectTab), so "not in tabIds" ⇒ dead. One
+// subscription catches every removal path (closeTab, close-* helpers,
+// useDeleteSession → closeTab).
+const unsubPruneSessionRefs = useSessionStore.subscribe((state, prev) => {
+  if (state.tabIds === prev.tabIds) return;
+  const live = new Set(state.tabIds);
+  const draftStale = [...state.draftSessionIds].some((id) => !live.has(id));
+  const pendingStale = Object.keys(state.pendingMessages).some((id) => !live.has(id));
+  if (!draftStale && !pendingStale) return;
+  useSessionStore.setState({
+    draftSessionIds: new Set([...state.draftSessionIds].filter((id) => live.has(id))),
+    pendingMessages: Object.fromEntries(
+      Object.entries(state.pendingMessages).filter(([id]) => live.has(id)),
+    ),
+  });
+});
+disposeOnHmr(unsubPruneSessionRefs);
 
 /**
  * Compose a tab kind + id into close-action closures with unified-

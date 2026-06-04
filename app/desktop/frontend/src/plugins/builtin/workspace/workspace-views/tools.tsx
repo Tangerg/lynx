@@ -7,7 +7,7 @@ import { defineWorkspaceView } from "./defineWorkspaceView";
 const CONFIG_PATH = "~/.lyra/mcp.json";
 
 function ToolsTab() {
-  const { data, isLoading } = useMCPServers();
+  const { data, isLoading, isError } = useMCPServers();
   const servers = data ?? [];
   const active = servers.filter((s) => s.status === "active").length;
 
@@ -27,6 +27,7 @@ function ToolsTab() {
       <DataView
         items={servers}
         isLoading={isLoading}
+        isError={isError}
         skeletonCount={4}
         empty={{
           icon: "tool",

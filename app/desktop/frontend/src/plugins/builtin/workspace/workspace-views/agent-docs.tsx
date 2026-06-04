@@ -13,7 +13,7 @@ const SCOPE_LABEL: Record<string, string> = {
 };
 
 function AgentDocsTab() {
-  const { data, isLoading } = useAgentDocs();
+  const { data, isLoading, isError } = useAgentDocs();
   const docs = data ?? [];
 
   return (
@@ -27,6 +27,7 @@ function AgentDocsTab() {
       <DataView
         items={docs}
         isLoading={isLoading}
+        isError={isError}
         skeletonCount={3}
         empty={{
           icon: "book",

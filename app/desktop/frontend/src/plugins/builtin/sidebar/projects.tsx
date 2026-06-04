@@ -8,7 +8,7 @@ import { sideListClasses } from "./styles";
 
 function ProjectsSection() {
   const t = useT();
-  const { data: projects, isLoading } = useProjects();
+  const { data: projects, isLoading, isError } = useProjects();
   return (
     <>
       <SectionLabel
@@ -28,6 +28,7 @@ function ProjectsSection() {
       <DataView
         items={projects}
         isLoading={isLoading}
+        isError={isError}
         skeletonCount={3}
         empty={{
           icon: "folder",

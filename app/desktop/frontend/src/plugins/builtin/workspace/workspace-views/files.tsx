@@ -15,7 +15,7 @@ function FilesView() {
   const activeFile = useSessionStore((s) => s.activeFile);
   const setActiveFile = useSessionStore((s) => s.setActiveFile);
   const openMainView = useSessionStore((s) => s.openMainView);
-  const { data: files, isLoading } = useFilesChanged();
+  const { data: files, isLoading, isError } = useFilesChanged();
   const items = files ?? [];
 
   return (
@@ -38,6 +38,7 @@ function FilesView() {
       <DataView
         items={items}
         isLoading={isLoading}
+        isError={isError}
         skeletonCount={6}
         empty={{
           icon: "check",
