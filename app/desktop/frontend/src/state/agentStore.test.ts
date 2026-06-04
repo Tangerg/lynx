@@ -108,6 +108,17 @@ describe("agentStore.resolveInterrupt", () => {
   });
 });
 
+describe("agentStore.setError", () => {
+  it("surfaces a channel-a failure on the banner; clearError dismisses it", () => {
+    const store = useAgentStore.getState();
+    store.resetSession(SID);
+    store.setError(SID, { message: "session not found", code: "session_not_found" });
+    expect(view().error).toMatchObject({ message: "session not found", code: "session_not_found" });
+    useAgentStore.getState().clearError(SID);
+    expect(view().error).toBeNull();
+  });
+});
+
 describe("agentStore.relabelMessage", () => {
   const userMsg = (id: string): StreamEvent =>
     ({

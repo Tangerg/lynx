@@ -137,6 +137,13 @@ export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView 
           <Icon name={expanded ? "minimize" : "more"} size={12} />
         </button>
       </div>
+      {/* Tool-level failure reason (toolCall.error, §8.1 channel b) — shown
+          inline so an "err" tool says *why*, not just goes red. */}
+      {tool.status === "err" && tool.error && (
+        <div className="px-3 pb-2 pl-[40px] font-mono text-[11px] leading-snug text-negative">
+          {tool.error}
+        </div>
+      )}
       <AnimatePresence initial={false}>
         {expanded && (
           <motion.div

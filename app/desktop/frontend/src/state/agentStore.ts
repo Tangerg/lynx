@@ -6,7 +6,7 @@
 // fallback that every callsite needs.
 
 import type { InterruptResponse, RunId, StreamEvent } from "@/rpc";
-import type { AgentViewState } from "@/protocol/run/viewState";
+import type { AgentViewState, RunError } from "@/protocol/run/viewState";
 import { create } from "zustand";
 import { disposeOnHmr } from "@/lib/hmr";
 // Import from the specific SDK module, not the barrel — the barrel re-exports
@@ -60,6 +60,10 @@ interface AgentStore {
   setResume: (sessionId: string, fn: ResumeFn) => void;
   /** Dismiss the error banner for a session without resetting the rest. */
   clearError: (sessionId: string) => void;
+  /** Surface a channel-a failure (a rejected runs.start / runs.resume, API.md
+   *  §8.1) on the run-error banner — the stream never opened, so no
+   *  run.finished{error} will arrive to carry it. */
+  setError: (sessionId: string, error: RunError | null) => void;
   /**
    * Optimistically settle a HITL block after its `runs.resume` is sent:
    * stamp the approval/question block (by interrupt itemId) + drop the
@@ -140,6 +144,12 @@ export const useAgentStore = create<AgentStore>((set) => ({
         }),
       };
     }),
+  setError: (sessionId, error) =>
+    set((s) => ({
+      sessions: patch(s.sessions, sessionId, {
+        view: { ...(s.sessions[sessionId]?.view ?? INITIAL_VIEW_STATE), error },
+      }),
+    })),
   resolveInterrupt: (sessionId, itemId, settled) =>
     set((s) => {
       const prev = s.sessions[sessionId];

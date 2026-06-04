@@ -27,6 +27,11 @@ const CLIENT_CAPABILITIES: ClientCapabilities = {
     "item.completed",
     "state.snapshot",
     "state.delta",
+    // The reducer routes `custom` StreamEvents to host.events.onCustom
+    // handlers (third-party content blocks / preview-blocks). Declare it so a
+    // spec-strict server (§9: "won't emit event types outside the negotiated
+    // set") actually sends them.
+    "custom",
   ],
   features: { multimodal: true },
   interruptKinds: ["approval", "question"],

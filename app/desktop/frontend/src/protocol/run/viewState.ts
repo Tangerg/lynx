@@ -33,6 +33,9 @@ export interface ToolCall {
   removed?: number;
   hits?: number;
   result?: string;
+  /** Human-readable failure reason from the toolCall Item's `error`
+   *  (ProblemData.detail ?? type, API.md §8.1 channel b). Set when status="err". */
+  error?: string;
 }
 
 export interface PlanItem {

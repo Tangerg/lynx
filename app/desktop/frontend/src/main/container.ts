@@ -3,7 +3,7 @@
 // Singleton instead of Context because non-component code (zustand effects,
 // plugin setup) calls these too; tests inject fakes via `setContainer()`.
 
-import { RUNTIME_BASE } from "@/main/config";
+import { PROTOCOL_VERSION, RUNTIME_BASE } from "@/main/config";
 import { getConfig } from "@/plugins/sdk/config";
 import type { LyraClient, SidecarClient } from "@/rpc";
 import { createHttpTransport, createLyraClient, createSidecarClient } from "@/rpc";
@@ -40,6 +40,7 @@ function defaultContainer(): Container {
         createHttpTransport({
           baseUrl,
           localToken: getConfig<string>("api.localToken") ?? undefined,
+          protocolVersion: PROTOCOL_VERSION,
         }),
       )),
     sidecar: createSidecarClient({ baseUrl }),
