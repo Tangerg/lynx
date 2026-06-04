@@ -365,6 +365,174 @@ func TestToolMiddleware_ArtifactRidesToolMessage(t *testing.T) {
 	}
 }
 
+// --- HITL resumable tool loop (R-model) ------------------------------------
+
+// suspendErr is a tool error that suspends the loop (HITL), the way
+// agent/hitl.PauseError does — structurally, with no import.
+type suspendErr struct{}
+
+func (suspendErr) Error() string         { return "suspend: awaiting approval" }
+func (suspendErr) ToolLoopSuspend() bool { return true }
+
+// memToolLoopStore is an in-memory [chat.ToolLoopStore] for tests.
+type memToolLoopStore struct{ cp *chat.ToolLoopCheckpoint }
+
+func (s *memToolLoopStore) Load(context.Context) (*chat.ToolLoopCheckpoint, bool) {
+	return s.cp, s.cp != nil
+}
+func (s *memToolLoopStore) Save(_ context.Context, cp *chat.ToolLoopCheckpoint) error {
+	s.cp = cp
+	return nil
+}
+func (s *memToolLoopStore) Clear(context.Context) error { s.cp = nil; return nil }
+
+// twoToolCallResponse is a model reply requesting two tool calls in order.
+func twoToolCallResponse(first, second string) *chat.Response {
+	resp, _ := chat.NewResponse(
+		&chat.Result{
+			AssistantMessage: chat.NewAssistantMessage(chat.MessageParams{
+				Parts: []chat.OutputPart{
+					&chat.ToolCallPart{ID: "c1", Name: first, Arguments: "{}"},
+					&chat.ToolCallPart{ID: "c2", Name: second, Arguments: "{}"},
+				},
+			}),
+			Metadata: &chat.ResultMetadata{FinishReason: chat.FinishReasonToolCalls},
+		},
+		&chat.ResponseMetadata{},
+	)
+	return resp
+}
+
+// TestToolMiddleware_ResumeFromCheckpoint is the headline R-model test:
+// a gated tool suspends mid-round, the loop checkpoints, and on resume it
+// executes ONLY the pending (now-approved) call — never re-invoking the
+// model for the completed round and never re-executing the tool that
+// already ran in that round.
+func TestToolMiddleware_ResumeFromCheckpoint(t *testing.T) {
+	model := newFakeChatModel(t)
+
+	modelCalls := 0
+	model.streamRespond = func(*chat.Request) []*chat.Response {
+		modelCalls++
+		if modelCalls == 1 {
+			// Round 1: a free tool then a gated tool.
+			return []*chat.Response{twoToolCallResponse("free", "gated")}
+		}
+		// Round 2 (only reached via resume): the final reply.
+		return []*chat.Response{responseWithText("done")}
+	}
+
+	var freeRuns, gatedRuns int
+	approved := false
+
+	freeTool := mustNewCallable(t, "free", false, func(context.Context, string) (string, error) {
+		freeRuns++
+		return "free-ok", nil
+	})
+	gatedTool := mustNewCallable(t, "gated", false, func(context.Context, string) (string, error) {
+		if !approved {
+			return "", suspendErr{} // suspend until approved
+		}
+		gatedRuns++
+		return "gated-ok", nil
+	})
+
+	store := &memToolLoopStore{}
+	_, streamMW := chat.NewToolMiddleware()
+
+	build := func() *chat.ClientRequest {
+		req, _ := chat.NewClientRequest(model)
+		return req.
+			WithMiddlewares(streamMW).
+			WithMessages(chat.NewUserMessage("seed")).
+			WithTools(freeTool, gatedTool)
+	}
+
+	// --- First run: free runs, gated suspends. ---
+	ctx := chat.WithToolLoopStore(context.Background(), store)
+	var firstErr error
+	for _, err := range build().Stream().Response(ctx) {
+		if err != nil {
+			firstErr = err
+			break
+		}
+	}
+	if !errors.As(firstErr, new(suspendErr)) {
+		t.Fatalf("first run error = %v, want suspendErr", firstErr)
+	}
+	if modelCalls != 1 {
+		t.Fatalf("after suspend: model called %d times, want 1", modelCalls)
+	}
+	if freeRuns != 1 {
+		t.Fatalf("after suspend: free ran %d times, want 1", freeRuns)
+	}
+	if gatedRuns != 0 {
+		t.Fatalf("after suspend: gated ran %d times, want 0 (it suspended)", gatedRuns)
+	}
+	if _, ok := store.Load(ctx); !ok {
+		t.Fatal("expected a checkpoint to be saved on suspend")
+	}
+
+	// --- Resume: approve, re-enter the loop. ---
+	approved = true
+	var finalText string
+	for resp, err := range build().Stream().Response(ctx) {
+		if err != nil {
+			t.Fatalf("resume run error: %v", err)
+		}
+		if resp != nil && resp.Result != nil && resp.Result.AssistantMessage != nil {
+			if txt := resp.Result.AssistantMessage.JoinedText(); txt != "" {
+				finalText = txt
+			}
+		}
+	}
+
+	if modelCalls != 2 {
+		t.Fatalf("total model calls = %d, want 2 (round 1 NOT re-invoked on resume)", modelCalls)
+	}
+	if freeRuns != 1 {
+		t.Fatalf("free ran %d times total, want 1 (completed call NOT re-executed)", freeRuns)
+	}
+	if gatedRuns != 1 {
+		t.Fatalf("gated ran %d times, want 1 (executed once, on resume)", gatedRuns)
+	}
+	if finalText != "done" {
+		t.Fatalf("final text = %q, want \"done\"", finalText)
+	}
+	if _, ok := store.Load(ctx); ok {
+		t.Fatal("checkpoint should be cleared after a completed resume")
+	}
+}
+
+// TestToolMiddleware_SuspendWithoutStorePropagates confirms the legacy
+// fallback: with no store on the context, a suspend error simply
+// propagates (the caller is expected to re-run the whole request) — the
+// loop's behavior is unchanged from before checkpointing existed.
+func TestToolMiddleware_SuspendWithoutStorePropagates(t *testing.T) {
+	model := newFakeChatModel(t)
+	model.streamRespond = func(*chat.Request) []*chat.Response {
+		return []*chat.Response{responseWithToolCall(t, "gated", `{}`)}
+	}
+	gatedTool := mustNewCallable(t, "gated", false, func(context.Context, string) (string, error) {
+		return "", suspendErr{}
+	})
+
+	_, streamMW := chat.NewToolMiddleware()
+	req, _ := chat.NewClientRequest(model)
+	req.WithMiddlewares(streamMW).WithMessages(chat.NewUserMessage("seed")).WithTools(gatedTool)
+
+	var gotErr error
+	for _, err := range req.Stream().Response(context.Background()) {
+		if err != nil {
+			gotErr = err
+			break
+		}
+	}
+	if !errors.As(gotErr, new(suspendErr)) {
+		t.Fatalf("error = %v, want suspendErr to propagate", gotErr)
+	}
+}
+
 // TestToolMiddleware_PassthroughWithoutToolCalls verifies the middleware
 // is invisible when the LLM doesn't request any tools.
 func TestToolMiddleware_PassthroughWithoutToolCalls(t *testing.T) {

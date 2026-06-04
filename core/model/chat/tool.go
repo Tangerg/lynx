@@ -301,7 +301,17 @@ type ToolInvocationResult struct {
 	response        *Response
 	toolMessage     *ToolMessage
 	allReturnDirect bool
+
+	// suspension is set when a tool call suspended the loop pending
+	// external input (HITL R). It carries the partial round (results
+	// produced, calls still pending, suspend cause) so the middleware can
+	// checkpoint and propagate the suspend. When set, toolMessage is nil
+	// and the normal continue/return path is bypassed.
+	suspension *toolRoundSuspension
 }
+
+// Suspended reports whether the round suspended pending external input.
+func (r *ToolInvocationResult) Suspended() bool { return r.suspension != nil }
 
 // ShouldContinue reports whether the runtime should re-prompt the LLM
 // with the tool results. It is true when at least one internal tool
@@ -483,7 +493,8 @@ func (i *toolCallInvoker) invokeToolCalls(ctx context.Context, calls []*ToolCall
 	allReturnDirect := true
 	returns := make([]*ToolReturn, 0, len(calls))
 
-	for _, call := range calls {
+	for idx := range len(calls) {
+		call := calls[idx]
 		t, exists := i.registry.Find(call.Name)
 		if !exists {
 			// Reachable only with feedbackOnUnknown set (otherwise
@@ -501,6 +512,21 @@ func (i *toolCallInvoker) invokeToolCalls(ctx context.Context, calls []*ToolCall
 
 		result, err := i.invokeOne(ctx, t, call)
 		if err != nil {
+			if suspendsToolLoop(err) {
+				// HITL: this call suspends the loop pending external input.
+				// Stop the round here and report the partial round so the
+				// middleware can checkpoint and propagate the suspend. The
+				// already-produced results (returns) are preserved; the
+				// suspending call + the rest stay pending. Checked before
+				// the abort / feedback carve-outs below so suspension wins.
+				return &ToolInvocationResult{
+					suspension: &toolRoundSuspension{
+						done:    returns,
+						pending: slices.Clone(calls[idx:]),
+						cause:   err,
+					},
+				}, nil
+			}
 			if !i.feedbackOnError || abortsToolLoop(err) {
 				return nil, fmt.Errorf("chat.toolCallInvoker.invokeToolCalls: tool %q failed: %w", call.Name, err)
 			}
@@ -590,6 +616,11 @@ func (i *toolCallInvoker) invoke(ctx context.Context, req *Request, resp *Respon
 	result.request = req
 	result.response = resp
 
+	if result.suspension != nil {
+		// Suspended round: toolMessage is intentionally nil. Skip validate
+		// (which requires it) — the middleware checkpoints + propagates.
+		return result, nil
+	}
 	return result, result.validate()
 }
 
