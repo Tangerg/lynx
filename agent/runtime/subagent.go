@@ -39,7 +39,7 @@ func SubagentTools(platform *Platform, names ...string) ([]chat.Tool, error) {
 			if goal == nil || goal.Export == nil {
 				continue
 			}
-			out = append(out, newDynamicAgentTool(platform, agentDef, goal, SpawnChildFreshProtected))
+			out = append(out, newDynamicAgentTool(platform, agentDef, goal, SpawnChildProtectedOnly))
 		}
 		if len(out) == before {
 			return nil, fmt.Errorf("runtime.SubagentTools: agent %q exposes no exported goal (set Goal.Export)", name)
@@ -63,7 +63,7 @@ func SubagentTools(platform *Platform, names ...string) ([]chat.Tool, error) {
 // [core.ResultOfType] and JSON-encodes it as the tool result.
 //
 // The child runs on a FRESH blackboard that keeps only the parent's
-// protected/ambient entries (via [SpawnChildFreshProtected]) — so the
+// protected/ambient entries (via [SpawnChildProtectedOnly]) — so the
 // sub-agent starts clean and does real work, rather than short-circuiting
 // on an output the parent already staged, while still seeing session
 // context like the working directory. Budget aggregation is automatic —
@@ -86,7 +86,7 @@ func AsChatTool[In, Out any](platform *Platform, agentName string) (chat.Tool, e
 	if err != nil {
 		return nil, err
 	}
-	return newTypedAgentTool[In, Out]("subagent", platform, agentDef, SpawnChildFreshProtected), nil
+	return newTypedAgentTool[In, Out]("subagent", platform, agentDef, SpawnChildProtectedOnly), nil
 }
 
 // AsChatToolFromAgent is the [AsChatTool] sibling that takes a
@@ -103,7 +103,7 @@ func AsChatToolFromAgent[In, Out any](platform *Platform, agentDef *core.Agent) 
 	if err := validateAgent("AsChatToolFromAgent", platform, agentDef); err != nil {
 		return nil, err
 	}
-	return newTypedAgentTool[In, Out]("subagent", platform, agentDef, SpawnChildFreshProtected), nil
+	return newTypedAgentTool[In, Out]("subagent", platform, agentDef, SpawnChildProtectedOnly), nil
 }
 
 // AsMCPTool is the top-level companion to [AsChatTool]: it wraps a
@@ -133,7 +133,7 @@ func AsMCPTool[In, Out any](platform *Platform, agentName string) (chat.Tool, er
 	return newTypedAgentTool[In, Out]("publish agent", platform, agentDef, RunFresh), nil
 }
 
-// processStarter is the shape [SpawnChildFreshProtected], [SpawnChildFresh]
+// processStarter is the shape [SpawnChildProtectedOnly], [SpawnChildFresh]
 // and [RunFresh] all implement: ctx + platform + agent + in → terminal
 // *AgentProcess. Used by [newTypedAgentTool] / [newDynamicAgentTool]
 // to swap supervisor vs top-level start strategies without

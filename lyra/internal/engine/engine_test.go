@@ -191,7 +191,7 @@ func TestEngine_RunChat_ToolsRunInCwd(t *testing.T) {
 // `task` sub-agents: the main turn delegates, the sub-agent's bash creates a
 // marker with a RELATIVE path, and it must land in the turn's Cwd. The
 // sub-agent runs on a fresh blackboard that keeps the parent's protected
-// entries (SpawnChildFreshProtected) — so it both does real work (its goal
+// entries (SpawnChildProtectedOnly) — so it both does real work (its goal
 // isn't pre-satisfied by inherited state) and inherits the cwd binding.
 func TestEngine_RunChat_SubtaskInheritsCwd(t *testing.T) {
 	dir := t.TempDir()

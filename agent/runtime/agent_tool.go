@@ -18,7 +18,7 @@ import (
 //   - decode: how to turn the LLM's JSON arguments into a value to
 //     bind onto the child blackboard (typed json.Unmarshal vs
 //     reflection-driven typed-via-sample).
-//   - run: how to start the agent process (SpawnChildFreshProtected for
+//   - run: how to start the agent process (SpawnChildProtectedOnly for
 //     supervisor flow, RunFresh for top-level / MCP-publish).
 //   - extract: how to pull the result from the completed child
 //     blackboard (typed [core.ResultOfType] vs untyped

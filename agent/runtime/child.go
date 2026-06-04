@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 )
 
-// SpawnChildFreshProtected creates and runs a child sub-agent process under
+// SpawnChildProtectedOnly creates and runs a child sub-agent process under
 // the parent attached to ctx via [core.WithProcess]. The child gets a FRESH
 // blackboard that retains ONLY the parent's protected entries — those bound
 // via [core.BlackboardWriter.BindProtected]: session id, working directory,
@@ -26,7 +26,7 @@ import (
 // Steps:
 //
 //  1. Resolve the parent [core.Process] from ctx; error if not present.
-//  2. Derive the child blackboard via [freshProtectedBlackboard]: Spawn the
+//  2. Derive the child blackboard via [protectedOnlyBlackboard]: Spawn the
 //     parent's, then Clear it — Clear keeps protected entries and drops
 //     everything else.
 //  3. CreateChildProcess with that blackboard (joins the parent's budget
@@ -42,7 +42,7 @@ import (
 // nil platform / nil agentDef / missing parent in ctx return errors rather
 // than panic — callers fan in user data and a runtime error is the right
 // response.
-func SpawnChildFreshProtected(
+func SpawnChildProtectedOnly(
 	ctx context.Context,
 	platform *Platform,
 	agentDef *core.Agent,
@@ -56,16 +56,16 @@ func SpawnChildFreshProtected(
 		return nil, errors.New("spawn child fresh protected: no parent process in ctx (use core.WithProcess to inject one)")
 	}
 	return spawnChildOptions(ctx, platform, agentDef, in, core.ProcessOptions{
-		Blackboard: freshProtectedBlackboard(parent.Blackboard()),
+		Blackboard: protectedOnlyBlackboard(parent.Blackboard()),
 	})
 }
 
-// freshProtectedBlackboard returns a child blackboard that keeps only the
+// protectedOnlyBlackboard returns a child blackboard that keeps only the
 // parent's protected entries: [core.Blackboard.Spawn] copies all state, then
 // [core.Blackboard.Clear] drops everything except entries bound via
 // BindProtected. The result is a clean working surface that still carries
 // the parent's ambient / session context.
-func freshProtectedBlackboard(parent core.Blackboard) core.Blackboard {
+func protectedOnlyBlackboard(parent core.Blackboard) core.Blackboard {
 	bb := parent.Spawn()
 	bb.Clear()
 	return bb
@@ -76,7 +76,7 @@ func freshProtectedBlackboard(parent core.Blackboard) core.Blackboard {
 // only with the typed input. Parent state — including any Out values the
 // calling action may have returned in prior ticks, AND the parent's
 // protected entries — is NOT inherited. (For delegation that should keep
-// ambient/session context, use [SpawnChildFreshProtected].)
+// ambient/session context, use [SpawnChildProtectedOnly].)
 //
 // Use for:
 //
@@ -89,7 +89,7 @@ func freshProtectedBlackboard(parent core.Blackboard) core.Blackboard {
 //     stage's typed output (passed as in), not the original orchestrator
 //     input or peer-step artifacts.
 //
-// Same error contract and budget aggregation as [SpawnChildFreshProtected];
+// Same error contract and budget aggregation as [SpawnChildProtectedOnly];
 // the only difference is the blackboard seed (nothing vs. protected-only).
 func SpawnChildFresh(
 	ctx context.Context,
@@ -201,7 +201,7 @@ func ChildError(child *AgentProcess) error {
 // creates the child (joining the parent's budget tree, with the given
 // blackboard options), and binds the typed input — returning a child
 // ready to be driven. The caller picks how: synchronously via
-// [Platform.ContinueProcess] ([SpawnChildFreshProtected] /
+// [Platform.ContinueProcess] ([SpawnChildProtectedOnly] /
 // [SpawnChildFresh]) or in the background via
 // [Platform.ContinueProcessAsync] ([SpawnChildAsync]).
 // Centralizing the prefix keeps validation and error messages identical
@@ -239,7 +239,7 @@ func prepareChild(
 }
 
 // spawnChildOptions is the synchronous shared core of
-// [SpawnChildFreshProtected] and [SpawnChildFresh] — prepare the child,
+// [SpawnChildProtectedOnly] and [SpawnChildFresh] — prepare the child,
 // then drive it to a terminal state in-line. They differ only in the
 // ProcessOptions.Blackboard slot they pass through.
 func spawnChildOptions(
