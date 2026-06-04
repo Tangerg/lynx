@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"iter"
 	"strings"
 	"sync"
 	"testing"
@@ -616,4 +617,58 @@ func (r *recordingObserver) deltas() []string {
 	out := make([]string, len(r.deltaList))
 	copy(out, r.deltaList)
 	return out
+}
+
+// namedUsageStub reports a configurable served-model name (and 1/1 usage) in
+// a single round — used to detect which client a turn actually ran against.
+type namedUsageStub struct {
+	model    string
+	defaults *chat.Options
+}
+
+func newNamedStub(model string) *namedUsageStub {
+	opts, _ := chat.NewOptions(model)
+	return &namedUsageStub{model: model, defaults: opts}
+}
+
+func (m *namedUsageStub) DefaultOptions() chat.Options { return *m.defaults }
+func (m *namedUsageStub) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
+
+func (m *namedUsageStub) Call(_ context.Context, _ *chat.Request) (*chat.Response, error) {
+	u := chat.Usage{PromptTokens: 1, CompletionTokens: 1}
+	resp, err := chat.NewResponse(
+		&chat.Result{
+			AssistantMessage: chat.NewAssistantMessage("ok"),
+			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonStop},
+		},
+		&chat.ResponseMetadata{Usage: &u},
+	)
+	if resp != nil && resp.Metadata != nil {
+		resp.Metadata.Model = m.model
+	}
+	return resp, err
+}
+
+func (m *namedUsageStub) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
+	resp, err := m.Call(ctx, req)
+	return func(yield func(*chat.Response, error) bool) { yield(resp, err) }
+}
+
+// TestEngine_RunChat_PerRunClientOverride verifies RunChatRequest.ChatClient
+// actually drives the turn's LLM call (via the ChatClientProvider seam),
+// not the platform's default client.
+func TestEngine_RunChat_PerRunClientOverride(t *testing.T) {
+	defClient, _ := chat.NewClient(newNamedStub("default-model"))
+	ovrClient, _ := chat.NewClient(newNamedStub("override-model"))
+	eng, err := New(context.Background(), Config{ChatClient: defClient})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := eng.RunChat(context.Background(), RunChatRequest{Message: "go", ChatClient: ovrClient})
+	if err != nil {
+		t.Fatalf("RunChat: %v", err)
+	}
+	if len(out.UsageByModel) != 1 || out.UsageByModel[0].Model != "override-model" {
+		t.Fatalf("UsageByModel = %+v, want served model override-model", out.UsageByModel)
+	}
 }
