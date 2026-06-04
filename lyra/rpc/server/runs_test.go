@@ -8,12 +8,17 @@ import (
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
-// TestSubscribeRun_AcksLiveRunOnly verifies the single-tenant subscribe
-// semantics: an actively-streaming run is acked (nil EventStream —
-// delivery rides the shared SSE stream); anything else is run_not_found.
-func TestSubscribeRun_AcksLiveRunOnly(t *testing.T) {
-	s := &Server{runs: map[string]*runEntry{"run_live": {runID: "run_live"}}}
+// TestSubscribeRun_StreamsLiveRunFromHub verifies the streamable-HTTP
+// subscribe semantics: an actively-streaming run hands back a fresh hub
+// subscription that replays the durable backlog (after Last-Event-Id when
+// supplied) then tails live; anything else is run_not_found.
+func TestSubscribeRun_StreamsLiveRunFromHub(t *testing.T) {
+	h := newRunHub()
+	h.Append(ev(1, true))
+	h.Append(ev(2, true))
+	s := &Server{runs: map[string]*runEntry{"run_live": {runID: "run_live", hub: h}}}
 
+	// From the start: replay the whole durable backlog.
 	out, events, err := s.SubscribeRun(context.Background(), "run_live")
 	if err != nil {
 		t.Fatalf("subscribe live: %v", err)
@@ -21,8 +26,21 @@ func TestSubscribeRun_AcksLiveRunOnly(t *testing.T) {
 	if out == nil || out.RunID != "run_live" {
 		t.Fatalf("subscribe live: out = %+v, want RunID run_live", out)
 	}
-	if events != nil {
-		t.Fatal("subscribe should not return a per-subscriber stream (single-tenant)")
+	if events == nil {
+		t.Fatal("subscribe must return a per-run stream")
+	}
+	if (<-events).EventID != ev(1, true).EventID || (<-events).EventID != ev(2, true).EventID {
+		t.Fatal("subscribe must replay the durable backlog in order")
+	}
+
+	// With Last-Event-Id (via ctx): replay only what's after it.
+	ctx := WithLastEventID(context.Background(), ev(1, true).EventID)
+	_, resumed, err := s.SubscribeRun(ctx, "run_live")
+	if err != nil {
+		t.Fatalf("subscribe resume: %v", err)
+	}
+	if (<-resumed).EventID != ev(2, true).EventID {
+		t.Fatal("resume must replay only events after Last-Event-Id")
 	}
 
 	if _, _, err := s.SubscribeRun(context.Background(), "ghost"); !errors.Is(err, protocol.ErrRunNotFound) {

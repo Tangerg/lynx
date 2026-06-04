@@ -132,11 +132,16 @@ func (i *Server) openSegment(runID, parentRunID string, handle chat.TurnHandle, 
 		cancel()
 		return nil, nil, err
 	}
-	events := make(chan protocol.RunEvent, 32)
+	// The hub owns the run's event stream for its whole lifetime,
+	// independent of any client connection (streamable HTTP, TRANSPORT
+	// §6.4/§9.2). The pump appends to it; this caller streams from a
+	// fresh subscription; a later runs.subscribe attaches another.
+	hub := newRunHub()
 	i.runMu.Lock()
-	i.runs[runID] = &runEntry{runID: runID, sessionID: sessionID, turnID: handle.TurnID, parentRunID: parentRunID, cancel: cancel}
+	i.runs[runID] = &runEntry{runID: runID, sessionID: sessionID, turnID: handle.TurnID, parentRunID: parentRunID, cancel: cancel, hub: hub}
 	i.runMu.Unlock()
-	go i.pumpRun(runCtx, runID, parentRunID, handle, inner, events)
+	events, _ := hub.Subscribe("")
+	go i.pumpRun(runCtx, runID, parentRunID, handle, inner, hub)
 	return &protocol.StartRunResponse{RunID: runID}, events, nil
 }
 
@@ -150,12 +155,17 @@ func (i *Server) openSegment(runID, parentRunID string, handle chat.TurnHandle, 
 //
 // Either way the wire run.finished event is the last thing on the
 // channel before it closes.
-func (i *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle chat.TurnHandle, inner iter.Seq[chat.Event], out chan<- protocol.RunEvent) {
+func (i *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle chat.TurnHandle, inner iter.Seq[chat.Event], hub *runHub) {
 	tr := newTranslator(handle.SessionID, runID, parentRunID)
 	finished := false
 	parked := false
 
-	send := func(events []protocol.StreamEvent) bool {
+	// emit assigns each StreamEvent its eventId, persists the durable
+	// side to history, and appends to the hub. hub.Append is non-blocking
+	// (it drops on a slow subscriber, never stalls the run), so unlike the
+	// old per-connection channel there is no client-disconnect backpressure
+	// here — the run streams to the hub regardless of who is listening.
+	emit := func(events []protocol.StreamEvent) {
 		for _, se := range events {
 			re := protocol.RunEvent{
 				RunID:     runID,
@@ -171,25 +181,26 @@ func (i *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 					i.recordInterrupt(ctx, runID, handle, se.Outcome.Interrupts)
 				}
 			}
-			i.persistStreamEvent(ctx, runID, handle.SessionID, parentRunID, se)
-			select {
-			case out <- re:
-			case <-ctx.Done():
-				return false
-			}
+			// Persist with a background ctx so the durable history (incl.
+			// the terminal run.finished synthesized on a canceled run) lands
+			// regardless of run-ctx cancellation.
+			i.persistStreamEvent(context.Background(), runID, handle.SessionID, parentRunID, se)
+			hub.Append(re)
 		}
-		return true
 	}
 
 	defer func() {
 		if !finished {
+			// The turn ended without a run.finished (canceled mid-flight /
+			// drained iterator) — synthesize the terminal so the stream ends
+			// balanced.
 			outcome := protocol.OutcomeCanceled
 			if tr.errMsg != "" {
 				outcome = protocol.OutcomeError
 			}
-			_ = i.sendTerminal(out, runID, handle.SessionID, parentRunID, tr.finish(outcome))
+			emit(tr.finish(outcome))
 		}
-		close(out)
+		hub.Close()
 		i.runMu.Lock()
 		if e, ok := i.runs[runID]; ok {
 			// A parked run keeps its live turn alive for resume — only
@@ -203,18 +214,11 @@ func (i *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 	}()
 
 	for ev := range inner {
-		batch := tr.translate(ev)
-		if !send(batch) {
-			_ = i.rt.Chat().Cancel(context.Background(), handle)
-			return
-		}
+		emit(tr.translate(ev))
 		if parked {
 			// Interrupt segment done; leave the turn parked for resume.
 			return
 		}
-	}
-	if ctx.Err() != nil {
-		_ = i.rt.Chat().Cancel(context.Background(), handle)
 	}
 }
 
@@ -237,31 +241,6 @@ func (i *Server) recordInterrupt(ctx context.Context, runID string, handle chat.
 		Interrupts:  raw,
 		CreatedAt:   time.Now().UTC(),
 	})
-}
-
-// sendTerminal pushes the deferred terminal events without the ctx
-// guard so the stream always ends with run.finished. Best-effort. Event
-// ids come from the same server-global counter as the live pump so the
-// terminal stays monotonic with what preceded it.
-func (i *Server) sendTerminal(out chan<- protocol.RunEvent, runID, sessionID, parentRunID string, events []protocol.StreamEvent) error {
-	for _, se := range events {
-		re := protocol.RunEvent{
-			RunID:     runID,
-			EventID:   i.nextEventID(),
-			Timestamp: time.Now().UTC(),
-			Durable:   durableFor(se.Type),
-			Event:     se,
-		}
-		// Persist with a background ctx: the run ctx is canceled on this
-		// terminal path, but the final items + outcome must still land.
-		i.persistStreamEvent(context.Background(), runID, sessionID, parentRunID, se)
-		select {
-		case out <- re:
-		default:
-			return errors.New("run event buffer full")
-		}
-	}
-	return nil
 }
 
 // durableFor classifies a stream event's durability (API.md §5.3).
@@ -333,25 +312,25 @@ func (i *Server) ListOpenInterrupts(ctx context.Context, in protocol.ListOpenInt
 	return out, nil
 }
 
-// SubscribeRun re-affirms a client's binding to an actively-streaming root
-// run after a reconnect (API.md §5.4 / §7.3). Lyra is single-tenant: the
-// one SSE connection already receives every run's events via the global
-// fan-out, and Last-Event-Id replays the buffer on reconnect — so there is
-// no per-subscriber channel to hand back. subscribe just acks the runId
-// (delivery rides the shared stream); a run that isn't actively streaming
-// (finished / parked / unknown) returns run_not_found, since its tail is
-// recovered through the stream's Last-Event-Id replay, not here.
-func (i *Server) SubscribeRun(_ context.Context, runID string) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
+// SubscribeRun opens a fresh event stream onto an actively-streaming root
+// run (reconnect / crash recovery; subscribes the whole run tree, API.md
+// §5.4 / §7.3). It attaches a new subscriber to the run's hub, replaying
+// the durable backlog after the caller's Last-Event-Id (carried out-of-band
+// via ctx, TRANSPORT §9.2) then tailing live. A run that isn't actively
+// streaming (finished / parked / unknown) returns run_not_found — its tail
+// is recovered through items.list, not here.
+func (i *Server) SubscribeRun(ctx context.Context, runID string) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
 	if runID == "" {
 		return nil, nil, protocol.ErrRunNotFound
 	}
 	i.runMu.Lock()
-	_, live := i.runs[runID]
+	e, live := i.runs[runID]
 	i.runMu.Unlock()
-	if !live {
+	if !live || e.hub == nil {
 		return nil, nil, protocol.ErrRunNotFound
 	}
-	return &protocol.StartRunResponse{RunID: runID}, nil, nil
+	events, _ := e.hub.Subscribe(lastEventIDFrom(ctx))
+	return &protocol.StartRunResponse{RunID: runID}, events, nil
 }
 
 // ─── helpers ────────────────────────────────────────────────────────
