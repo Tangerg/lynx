@@ -141,6 +141,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	e.tools = append(buildWorkdirTools(cfg.Workdir), online...)
 	e.tools = append(e.tools, mcpTools...)
 	e.tools = append(e.tools, taskTool)
+	e.tools = append(e.tools, newAskUserTool())
 
 	e.agent = e.buildChatAgent()
 	if err := platform.Deploy(e.agent); err != nil {

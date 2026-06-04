@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
@@ -110,12 +111,22 @@ func (e *Engine) buildChatAgent() *core.Agent {
 				}
 				out, err := e.runChatTurn(ctx, pc, in.Message, turnBudget{MaxTokens: in.MaxBudget, MaxCostUSD: in.MaxCostUSD})
 				if err != nil {
-					// A gated tool may have requested approval (HITL R): the
-					// tool returned a hitl.PauseError that bubbled up through
-					// the chat tool middleware. Park the process on the
-					// carried awaitable (→ StatusWaiting) so the run suspends;
-					// the client answers via a continuation run. On resume
-					// the action re-runs and the decider observes the verdict.
+					// HITL interrupt (R model): a gated tool returned an
+					// agent/hitl.InterruptError that the chat tool loop exited
+					// on, wrapping the resumable conversation in a
+					// *chat.ToolLoopInterrupted. Save that conversation so the
+					// continuation run resumes from the pending tool calls
+					// (no model re-call for completed rounds), then park on the
+					// carried awaitable (→ StatusWaiting). The client answers
+					// via a continuation run; on resume hitl.Interrupt returns
+					// the resolution at the gate.
+					if interrupted := new(chat.ToolLoopInterrupted); errors.As(err, &interrupted) {
+						saveInflightConversation(pc.Blackboard, interrupted.Conversation)
+					}
+					if _, parked := hitl.HandleInterrupt(pc, err); parked {
+						return ChatOutput{}, nil
+					}
+					// Plan-mode parks via AwaitInput directly (HandlePause).
 					if _, paused := hitl.HandlePause(pc, err); paused {
 						return ChatOutput{}, nil
 					}
@@ -242,8 +253,11 @@ func (e *Engine) planGate(ctx context.Context, pc *core.ProcessContext, message 
 	if obs := ObserverFrom(pc.Options); obs != nil {
 		obs.OnPlanGenerated(plan)
 	}
-	pc.AwaitInput(hitl.NewConfirmation(plan, func(approved bool) core.ResponseImpact {
-		pc.Blackboard.SetCondition(planApprovedKey, approved)
+	// Plan review rides the same interrupt resolution as tool approval —
+	// one HITL mental model. The handler records the approve/deny decision;
+	// the idempotent gate above reads it back on the resuming re-tick.
+	pc.AwaitInput(hitl.NewTypedRequest[string, InterruptResolution](plan, func(r InterruptResolution) core.ResponseImpact {
+		pc.Blackboard.SetCondition(planApprovedKey, r.Approved)
 		return core.ImpactUpdated
 	}))
 	return ChatOutput{}, true, nil // suspends; typed wrapper → ActionWaiting

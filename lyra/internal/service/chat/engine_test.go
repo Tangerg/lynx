@@ -61,7 +61,7 @@ func (cp *stubChatProcess) Cancel(reason string) error {
 // approval (Status stays Completed), so runTurn's resume loop doesn't
 // call this — the real plan-mode path is covered by buildPlanService's
 // real-engine tests. Returns an already-fired done for safety.
-func (cp *stubChatProcess) Resume(_ context.Context, _ bool) (<-chan error, error) {
+func (cp *stubChatProcess) Resume(_ context.Context, _ engine.InterruptResolution) (<-chan error, error) {
 	ch := make(chan error, 1)
 	ch <- nil
 	close(ch)

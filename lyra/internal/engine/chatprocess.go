@@ -45,12 +45,13 @@ type ChatProcess interface {
 	// and the run loop exits, delivering its error on Done().
 	Cancel(reason string) error
 
-	// Resume answers an approval the process is parked on
-	// (StatusWaiting) — a plan-mode plan or a gated tool call. It
-	// delivers the bool decision and continues the process, returning a
-	// fresh Done channel for the resumed run. Only valid while Status is
+	// Resume answers a HITL interrupt the process is parked on
+	// (StatusWaiting) — a plan-mode plan, a gated tool call, or an
+	// ask_user question. It delivers the structured [InterruptResolution]
+	// to the parked awaitable and continues the process, returning a fresh
+	// Done channel for the resumed run. Only valid while Status is
 	// [core.StatusWaiting].
-	Resume(ctx context.Context, approved bool) (<-chan error, error)
+	Resume(ctx context.Context, resolution InterruptResolution) (<-chan error, error)
 
 	// PendingAwaitable returns the HITL request the process is parked
 	// on while StatusWaiting (plan confirmation or tool-approval
@@ -78,8 +79,8 @@ func (cp *chatProcess) Cancel(reason string) error {
 	return cp.platform.KillProcess(cp.proc.ID())
 }
 
-func (cp *chatProcess) Resume(ctx context.Context, approved bool) (<-chan error, error) {
-	if _, err := cp.platform.ResumeProcess(cp.proc.ID(), approved); err != nil {
+func (cp *chatProcess) Resume(ctx context.Context, resolution InterruptResolution) (<-chan error, error) {
+	if _, err := cp.platform.ResumeProcess(cp.proc.ID(), resolution); err != nil {
 		return nil, err
 	}
 	return cp.platform.ContinueProcessAsync(ctx, cp.proc.ID()), nil

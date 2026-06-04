@@ -6,7 +6,6 @@ import (
 	"hash/fnv"
 	"strconv"
 
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/hitl"
 
 	"github.com/Tangerg/lynx/lyra/internal/engine"
@@ -36,16 +35,16 @@ type ApprovalPrompt struct {
 //
 //   - auto-pass mode → run the tool.
 //   - deny stance (read-only) → recoverable denial, the model adapts.
-//   - prompt stance → consult the per-call ledger on the process
-//     blackboard (keyed by the stable tool name + arguments so the
-//     verdict survives the LLM round re-running on resume). Undecided →
-//     park on a confirmation awaitable; the run suspends at
-//     StatusWaiting and the client answers via runs.resume.
+//   - prompt stance → [hitl.Interrupt]: the first pass returns an
+//     InterruptError (the tool loop exits, the action parks at
+//     StatusWaiting, the client answers via runs.resume); on the resuming
+//     re-run Interrupt returns the human's [engine.InterruptResolution]
+//     and the gate runs / denies / runs-with-edited-args accordingly.
 //
-// Unlike the old blocking gate, this never waits on a channel — the
-// decision is delivered out of band by [runtime.Platform.ResumeProcess],
-// which runs the awaitable's handler to record the verdict before the
-// action re-runs.
+// The interrupt key is the stable tool name + arguments (NOT the
+// per-invocation callID, which is regenerated each round) so the recorded
+// resolution matches the same call site across the resuming re-run. This
+// is the one interrupt mental model shared by every HITL flavor.
 func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, arguments string) engine.ToolApprovalVerdict {
 	if t.svc.approval == nil {
 		return engine.ToolApprovalVerdict{} // run
@@ -61,36 +60,25 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 		return engine.ToolApprovalVerdict{Denied: true, DenyReason: "read-only mode: " + toolName + " is not permitted"}
 	}
 
-	// gatePrompt: read the per-call ledger off the process blackboard.
-	proc := core.ProcessFrom(ctx)
-	if proc == nil {
-		// No process on ctx (defensive — the agent runtime always wires
-		// one). Fail closed rather than run an ungated call.
-		return engine.ToolApprovalVerdict{Denied: true, DenyReason: "approval unavailable: no process context"}
+	// gatePrompt: interrupt for human approval (R model). First pass bubbles
+	// the InterruptError up to park; resume delivers the resolution here.
+	res, _, err := hitl.Interrupt[engine.InterruptResolution](ctx,
+		approvalKey(toolName, arguments),
+		ApprovalPrompt{CallID: callID, ToolName: toolName, Arguments: arguments},
+	)
+	if err != nil {
+		return engine.ToolApprovalVerdict{Interrupt: err}
 	}
-	bb := proc.Blackboard()
-	key := approvalKey(toolName, arguments)
-	if approved, decided := bb.Condition(key); decided {
-		if approved {
-			return engine.ToolApprovalVerdict{}
-		}
+	if !res.Approved {
 		return engine.ToolApprovalVerdict{Denied: true, DenyReason: "tool call denied by user"}
 	}
-
-	// Undecided → park on a confirmation. The handler records the verdict
-	// on the blackboard at ResumeProcess time, so the re-run observes it.
-	prompt := ApprovalPrompt{CallID: callID, ToolName: toolName, Arguments: arguments}
-	awaitable := hitl.NewConfirmation(prompt, func(approved bool) core.ResponseImpact {
-		bb.SetCondition(key, approved)
-		return core.ImpactUpdated
-	})
-	return engine.ToolApprovalVerdict{Pause: awaitable}
+	return engine.ToolApprovalVerdict{Arguments: res.Arguments}
 }
 
-// approvalKey is the blackboard condition key for one gated tool call.
-// Keyed by tool name + arguments (NOT the per-invocation callID, which
-// is regenerated each LLM round): the same frozen context produces the
-// same tool call on resume, so the recorded verdict matches.
+// approvalKey is the interrupt key for one gated tool call. Keyed by tool
+// name + arguments (NOT the per-invocation callID, which is regenerated
+// each round): the same frozen context produces the same tool call on
+// resume, so the recorded resolution matches.
 func approvalKey(toolName, arguments string) string {
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(toolName))

@@ -181,8 +181,14 @@ func (g *cwdToolGroup) Tools(ctx context.Context) ([]core.AgentTool, error) {
 	tools := buildWorkdirTools(g.resolver.workdirFor(ctx))
 	tools = append(tools, g.resolver.online...)
 	tools = append(tools, g.resolver.mcp...)
-	if g.role == ToolRoleCoding && g.resolver.task != nil {
-		tools = append(tools, g.resolver.task)
+	if g.role == ToolRoleCoding {
+		// Coding role only: the `task` delegation tool (no recursion) and
+		// ask_user (HITL question). Sub-agents (ToolRoleSubtask) get neither —
+		// no nested delegation, and no sub-process interrupts to supervise.
+		if g.resolver.task != nil {
+			tools = append(tools, g.resolver.task)
+		}
+		tools = append(tools, newAskUserTool())
 	}
 	return tools, nil
 }

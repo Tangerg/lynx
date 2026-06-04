@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
@@ -68,15 +67,19 @@ type ToolObserver interface {
 // ToolApprovalVerdict is the decorator's instruction for one gated tool
 // call (API.md §6 HITL). Exactly one outcome applies:
 //
-//   - Pause != nil → suspend the run for user approval (R model); the
-//     call returns a [hitl.PauseError] carrying this awaitable.
-//   - Denied       → short-circuit with DenyReason as a recoverable
+//   - Interrupt != nil → suspend the run for human input (R model); the
+//     call returns this error (an agent/hitl.InterruptError), which the
+//     chat tool loop exits on and propagates so the action parks. On resume
+//     the gate is consulted again and returns one of the outcomes below.
+//   - Denied           → short-circuit with DenyReason as a recoverable
 //     tool result (the model adapts), no execution.
-//   - zero value   → run the tool normally.
+//   - zero value       → run the tool. Arguments, when non-empty, overrides
+//     the call's arguments (the "approve with edits" affordance).
 type ToolApprovalVerdict struct {
-	Pause      core.Awaitable
+	Interrupt  error
 	Denied     bool
 	DenyReason string
+	Arguments  string
 }
 
 // ObserverFrom extracts the [ToolObserver] the engine attached to
@@ -135,14 +138,16 @@ func (o *observedTool) Call(ctx context.Context, arguments string) (string, erro
 	callID := uuid.NewString()
 	name := o.inner.Definition().Name
 
-	switch v := o.observer.ApproveToolCall(ctx, callID, name, arguments); {
-	case v.Pause != nil:
-		// Suspend the run for approval (HITL R). The PauseError bubbles
-		// through the chat tool middleware up to the action body, which
+	v := o.observer.ApproveToolCall(ctx, callID, name, arguments)
+	switch {
+	case v.Interrupt != nil:
+		// Interrupt the run for human input (HITL R). The InterruptError
+		// bubbles through the chat tool loop (which exits immediately and
+		// carries the resumable conversation) up to the action body, which
 		// parks the process on AwaitInput (StatusWaiting). No Start/End
-		// fires — the call hasn't begun; on resume the LLM round re-runs
-		// and the decider, seeing the recorded verdict, runs or denies.
-		return "", &hitl.PauseError{Request: v.Pause}
+		// fires — the call hasn't begun; on resume the gate is consulted
+		// again, sees the recorded resolution, and runs or denies.
+		return "", v.Interrupt
 	case v.Denied:
 		// Recoverable denial: the model sees DenyReason as the tool
 		// result and adapts instead of aborting. Start/End still fire so
@@ -153,6 +158,11 @@ func (o *observedTool) Call(ctx context.Context, arguments string) (string, erro
 		return v.DenyReason, nil
 	}
 
+	// Approved. v.Arguments overrides the call's arguments when the human
+	// edited them before approving (the "approve with edits" affordance).
+	if v.Arguments != "" {
+		arguments = v.Arguments
+	}
 	o.observer.OnToolCallStart(callID, name, arguments)
 	output, err := o.inner.Call(ctx, arguments)
 	o.observer.OnToolCallEnd(callID, name, output, err)
