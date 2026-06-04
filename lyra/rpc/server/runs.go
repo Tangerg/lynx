@@ -286,6 +286,12 @@ func (i *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 		}
 	}
 
+	// run.started leads every segment (root + continuation), independent of
+	// any chat-level TurnStart — continuation runs (runs.resume) carry none,
+	// so emitting here is what gives them a run boundary + parentRunId, and
+	// closes any plan-review question the parked run left open.
+	emit(tr.open())
+
 	defer func() {
 		if !finished {
 			// The turn ended without a run.finished (canceled mid-flight /

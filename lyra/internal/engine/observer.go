@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 
@@ -9,6 +10,12 @@ import (
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
+
+// ErrToolDenied is the sentinel the gate hands the observer's OnToolCallEnd
+// when a tool call is denied by the approval verdict (vs. failing during
+// execution). Lets the wire layer render a "denied" terminal distinct from a
+// generic tool failure (and from a green success). errors.Is-matchable.
+var ErrToolDenied = errors.New("tool call denied by user")
 
 // ToolObserver receives both tool-call lifecycle notifications and
 // streaming assistant text deltas as a turn unfolds. Each tool call
@@ -139,9 +146,10 @@ func (o *observedTool) Call(ctx context.Context, arguments string) (string, erro
 	case v.Denied:
 		// Recoverable denial: the model sees DenyReason as the tool
 		// result and adapts instead of aborting. Start/End still fire so
-		// UI counts stay matched.
+		// UI counts stay matched; End carries ErrToolDenied so the wire
+		// renders a distinct "denied" terminal (not a green success).
 		o.observer.OnToolCallStart(callID, name, arguments)
-		o.observer.OnToolCallEnd(callID, name, v.DenyReason, nil)
+		o.observer.OnToolCallEnd(callID, name, v.DenyReason, ErrToolDenied)
 		return v.DenyReason, nil
 	}
 

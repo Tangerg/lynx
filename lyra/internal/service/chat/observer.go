@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"errors"
 	"hash/fnv"
 	"strconv"
 
@@ -107,15 +108,14 @@ func (t *turnObserver) OnToolCallStart(callID, toolName, arguments string) {
 }
 
 func (t *turnObserver) OnToolCallEnd(callID, _ string, output string, err error) {
-	errStr := ""
-	if err != nil {
-		errStr = err.Error()
+	end := ToolCallEnd{CallID: callID, Output: output}
+	switch {
+	case errors.Is(err, engine.ErrToolDenied):
+		end.Denied = true // a verdict denial, not an execution failure
+	case err != nil:
+		end.Err = err.Error()
 	}
-	t.svc.emit(t.st, ToolCallEnd{
-		CallID: callID,
-		Output: output,
-		Err:    errStr,
-	})
+	t.svc.emit(t.st, end)
 }
 
 func (t *turnObserver) OnMessageDelta(text string) {
