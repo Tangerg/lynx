@@ -139,5 +139,18 @@ export default definePlugin({
         usePaletteStore.getState().toggle();
       },
     });
+
+    // A command id for "open the palette" so other surfaces can trigger it
+    // through the registry (e.g. the collapsed-rail Search button) instead of
+    // reaching into this plugin's private open-state store.
+    host.commands.register({
+      id: "command.open",
+      label: "Open command palette",
+      icon: "command",
+      group: "General",
+      keywords: ["palette", "search", "command"],
+      shortcut: "⌘K",
+      run: () => usePaletteStore.getState().setOpen(true),
+    });
   },
 });
