@@ -226,7 +226,7 @@ func (p *AgentProcess) buildProcessContext(actionToolGroups []core.ToolGroupRequ
 			Services:      p.platformServices(),
 		},
 		PlatformHooks: core.PlatformHooks{
-			ChatClient:     p.platformChatClient(),
+			ChatClient:     p.effectiveChatClient(),
 			Guardrails:     p.platformGuardrails(),
 			Publish:        p.publishAny,
 			ResolveTools:   p.toolResolverFor(action),
