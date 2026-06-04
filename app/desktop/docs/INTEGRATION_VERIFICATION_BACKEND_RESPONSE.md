@@ -9,6 +9,26 @@
 
 ---
 
+## 🆕 对最新一轮 §4 的回应（后端已推进到 `6d26db7`）
+
+> ⚠️ 你们这轮测的是 `a27c1ab`。之后后端已推进多个版本 —— **§4 里有几项其实已经做了**，请对**最新构建**重测：
+
+| §4 项 | 状态 | 说明 |
+| --- | --- | --- |
+| **#1 `StartRunResponse` 带 `userItemId`** | ✅ **已做** | `runs.start` 响应现在回 `userItemId`（= 流上 / `items.list` 的同一个 userMessage Item id，`item_<runId>_u`）。可按**精确 id** 对账,弃用内容文本启发式。已实测响应 id == 流上 id。 |
+| **#3 `providers.configure` / `providers.test`** | ✅ **已做** | 见下方「多 provider × 多 model」段。`configure` 真写持久化注册表;`test` 真实探活(`max_tokens=1`,401 内联)。providers 面板可从只读升级为可配。 |
+| 多 provider × 多 model + per-run 选 model | ✅ **已做** | `providers.list` 返回全部支持的 provider(`apiKeyMasked==""` 即未启用);`models.list{provider}` 直读 catalog(带 displayName/contextWindow/maxOutput/capabilities/pricing,**无需 key**);`runs.start{ provider, model }` per-run 选用。 |
+| **命名变更** ⚠️ | 需前端跟进 | 引用 provider 的 wire 参数统一为裸名 **`provider`**(非 `providerId`),与 `model`、`Model.provider` 一致。涉及 `runs.start` / `providers.configure` / `providers.test` / `models.list`。**`models.list` 尤其注意**:旧实现解码 `providerId`、文档写 `provider`,现已统一为 `provider` —— 前端发 `provider` 即可。 |
+| #2 getDiff/grep/getFileHead | ⏳ 仍延后 | 随 agent 工具一起落地。 |
+| #4 `sessions.update` / `fork` | ⏳ 待定 | `update` 需在 `session.Service` 加动词(破坏性公开 API,需先确认);`fork` 需对齐 checkpoint/item-id 模型。 |
+| #5 `listSkills` | ⏳ 待 engine | skill 发现未实现。 |
+
+**§5 assistant 名字**:`models.list` 已带 `displayName`,前端可据此渲染真实模型名(你们 §6.2 也已列入"现在就能做")。
+
+下面是首轮(`a27c1ab`)的逐项回应,保留作历史。
+
+---
+
 ## ✅ 已修：§4 #1 —— run 流投递 userMessage Item
 
 前端 bug #5 的**正确解**。此前后端 run 流不回传用户自己的消息，live 视图无事件来源，前端只能本地乐观渲染、无法与 `items.list` 对账。
@@ -42,12 +62,26 @@ id: evt_…7  run.finished   completed (usage/cost)
 
 ---
 
+## ✅ 新增：多 provider × 多 model（providers/models 面板可对接）
+
+后端已支持**多 provider，每 provider 多 model，per-run 选 model**：
+
+- **`providers.list`** → 返回**全部支持的 provider**（anthropic / openai / moonshot / deepseek），每个带 `apiKeyMasked`（空=未配置）+ `baseUrl`。前端据此渲染 provider 列表 + 启用态。
+- **`providers.configure`** `{providerId, apiKey, baseUrl}` → 写入运行态注册表（持久化），返回 masked 结果。
+- **`providers.test`** `{providerId}` → 真实探活（`max_tokens=1` 极小请求），返回 `{ok:true}` 或 `{ok:false, error:{detail}}`（401 等原因内联，不报 RPC 错）。
+- **`models.list`** `{providerId}` → 该 provider 的**全部 model + 元数据**（`displayName` / `contextWindow` / `maxOutputTokens` / `capabilities` / `pricing`），直读静态 catalog，**不需要 key**（解决「不填 key 拿不到 model 列表」）。
+- **`runs.start{ providerId, model }`** → 该 run 用所选 provider+model 跑。**显式配对**:`providerId` 与 `model` 要么都传(选模型)、要么都不传(用服务端默认);**只传一个 → `invalid_params`**。provider **不从 model 推断**(显式大于隐式,且避免同名 model 跨 provider 撞车)。所选 provider 未配 key 时,run 以 `outcome:error`("set its API key first")干净收尾。同一会话连续两 run 可切不同 provider/model(已实测 v4-flash↔v4-pro)。
+- **baseURL** 现在是 provider 配置项（代理 / 网关 / 自建 OpenAI 兼容端点）。
+
+> **流程**：`providers.list`（看支持哪些）→ 用户填 key（`providers.configure`）→ `providers.test` 验 → `models.list` 解锁该 provider 的 model（`{id, provider}`）→ `runs.start{ providerId, model }` 选用（两者一起回传）。
+
+---
+
 ## 🔜 未处理项 + 原因
 
 | # | 项 | 状态 / 原因 |
 | --- | --- | --- |
 | §4 #2 | `workspace.getDiff` / `grep` / `getFileHead` | **后续随 agent 工具一起做**。这些 workspace 文件/git 读取能力会与 bash / file write·edit·read / grep / glob 工具 + git 指导 prompt 一并落地，届时再接 JSON-RPC（前端可同时删掉遗留的 REST 影子端点）。 |
-| §4 #3 | `providers.configure` / `providers.test` | **需先定设计**。Lyra 当前只对接**一个 config 配置的 provider**（`config/config.yaml` 的 `provider`/`apiKey`），没有 provider registry 可写入。要支持运行时改 provider/key 需要新的配置可变层，属设计决策。providers 面板暂保持只读。 |
 | §4 #4 | `sessions.update`（改名 / 换 cwd） | **待定**。`session.Service` 目前无 `update` 动词，新增需改 interface 并在 file + sqlite 两个后端各补实现 —— 属破坏性公开 API 变更，按项目约定需先确认再动。 |
 | §4 #4 | `sessions.fork`（复制） | **需先对齐模型**。`session.Service` 已有 `Fork`，但「在 item 边界 fork」要先把 checkpoint / item-id 模型与 engine 的 history 对齐（非纯接线，属设计活）。 |
 | §4 #5 | `workspace.listSkills` | **需 engine 支持**。skill 发现尚未在 engine 实现，故 `features.skills:false` 门控。 |
