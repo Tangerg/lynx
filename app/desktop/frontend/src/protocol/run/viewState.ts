@@ -11,7 +11,9 @@ import type { OpenInterrupt } from "@/rpc";
 export type MessageRole = "user" | "assistant" | "system";
 
 // Tool-call display state, derived from toolCall Item status + error.
-export type ToolCallStatus = "running" | "ok" | "err";
+// `denied` is a user decision (HITL decline → error.type "denied_by_user"),
+// NOT a failure — it gets a neutral treatment, not the alarming "err" red.
+export type ToolCallStatus = "running" | "ok" | "err" | "denied";
 
 // Block lifecycle status — any block with a non-trivial lifecycle expresses
 // the same four states:

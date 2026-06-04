@@ -21,21 +21,23 @@ interface Props {
   onOpenView: () => void;
 }
 
-// Status → text colour. Three states map to three semantic tokens; the
-// `run` state also gets a pulsing accent dot in the status pill.
+// Status → text colour. Each state maps to a semantic token; the `run`
+// state also gets a pulsing accent dot in the status pill. `denied` (HITL
+// decline) is neutral — it's a user choice, not a failure.
 const STATUS_TONE = {
   ok: "text-success",
   err: "text-negative",
   run: "text-accent",
+  denied: "text-fg-muted",
 } as const;
+// Glyph instead of word — "Running / Done / Failed / Denied" → "● / ✓ / ✗ / ⊘"
+// — gives the row an RPC-log voice (see DESIGN.md §8 "RPC log rule"). The
+// pulsing dot for `run` is set up via the `before:` pseudo-element below.
+const STATUS_GLYPH = { ok: "✓", err: "✗", run: "", denied: "⊘" } as const;
 
 export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView }: Props) {
-  const status: keyof typeof STATUS_TONE =
-    tool.status === "running" ? "run" : tool.status === "ok" ? "ok" : "err";
-  // Glyph instead of word — "Running / Done / Failed" → "● / ✓ / ✗" — gives the
-  // row an RPC-log voice (see DESIGN.md §8 "RPC log rule"). The pulsing dot
-  // for `running` is set up via the `before:` pseudo-element below.
-  const statusGlyph = tool.status === "running" ? "" : tool.status === "ok" ? "✓" : "✗";
+  const status: keyof typeof STATUS_TONE = tool.status === "running" ? "run" : tool.status;
+  const statusGlyph = STATUS_GLYPH[status];
   const actions = useExtensionPoint(TOOL_ACTION).filter((a) => !a.predicate || a.predicate(tool));
   const running = tool.status === "running";
 
@@ -72,13 +74,7 @@ export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView 
         <div
           className={cn(
             "grid h-5 w-5 shrink-0 place-items-center rounded-xs bg-transparent transition-colors",
-            status === "ok"
-              ? "text-success"
-              : status === "err"
-                ? "text-negative"
-                : status === "run"
-                  ? "text-accent"
-                  : "text-fg-faint group-hover:text-fg-muted",
+            STATUS_TONE[status],
           )}
         >
           <Icon name={toolIconFor(tool.fn)} size={14} />

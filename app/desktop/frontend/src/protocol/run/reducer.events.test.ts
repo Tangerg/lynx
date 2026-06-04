@@ -233,6 +233,32 @@ describe("reducer — item fold", () => {
     );
     expect(s.toolCalls.t1).toMatchObject({ status: "err", error: "boom" });
   });
+
+  it("a HITL-denied toolCall projects `denied`, not `err`", () => {
+    // Backend settles a declined tool as incomplete + error.type
+    // "denied_by_user" (API.md §8.1). That's a user decision — the fold maps
+    // it to a neutral `denied` state, distinct from a real failure.
+    let s: AgentViewState = INITIAL_VIEW_STATE;
+    s = reduce(
+      s,
+      started(item({ id: "t1", type: "toolCall", tool: { kind: "command", name: "bash" } })),
+    );
+    s = reduce(
+      s,
+      completed(
+        item({
+          id: "t1",
+          type: "toolCall",
+          status: "incomplete",
+          tool: { kind: "command", name: "bash" },
+          error: { type: "denied_by_user", detail: "tool call denied by user" },
+        }),
+      ),
+    );
+    expect(s.toolCalls.t1).toMatchObject({ status: "denied" });
+    // And the tool-end timeline entry records the decision, not "ok"/"err".
+    expect(s.timeline.findLast((e) => e.kind === "tool-end")).toMatchObject({ status: "declined" });
+  });
 });
 
 describe("reducer — HITL interrupt", () => {
