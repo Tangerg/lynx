@@ -450,7 +450,7 @@ func TestEngine_RunChat_MultiTurnMemory(t *testing.T) {
 
 // TestEngine_RunChat_PersistentMemoryStoreRoundTrip verifies that a
 // caller-supplied [memory.Store] survives engine reconstruction —
-// the use case for storage.FileMessageStore + cross-process
+// the use case for the sqlite MessageStore + cross-process
 // session resume. Two engines built on the same store + same
 // SessionID must see history accumulate across instances.
 func TestEngine_RunChat_PersistentMemoryStoreRoundTrip(t *testing.T) {

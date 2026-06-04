@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/service/history"
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
 	"github.com/Tangerg/lynx/lyra/internal/storage/sqlite"
@@ -178,6 +179,61 @@ func TestSessionPersistAcrossReopen(t *testing.T) {
 	}
 	if got.Title != "persistent" {
 		t.Fatalf("title = %q", got.Title)
+	}
+}
+
+// TestMessageStore_RoundTrip exercises the chat-memory store: append-order
+// reads, per-conversation scoping, and Clear. Empty conversation reads as
+// an empty slice; Clear is idempotent.
+func TestMessageStore_RoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lyra.db")
+	db, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	store := sqlite.NewMessageStore(db)
+	ctx := context.Background()
+
+	if got, err := store.Read(ctx, "conv-a"); err != nil || len(got) != 0 {
+		t.Fatalf("Read empty = %v (err %v), want empty", got, err)
+	}
+
+	if err := store.Write(ctx, "conv-a", chat.NewUserMessage("hello"), chat.NewAssistantMessage("hi")); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	if err := store.Write(ctx, "conv-a", chat.NewUserMessage("again")); err != nil {
+		t.Fatalf("Write 2: %v", err)
+	}
+	if err := store.Write(ctx, "conv-b", chat.NewUserMessage("other")); err != nil {
+		t.Fatalf("Write conv-b: %v", err)
+	}
+
+	got, err := store.Read(ctx, "conv-a")
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("conv-a len = %d, want 3 (append order across writes)", len(got))
+	}
+	if u, ok := got[0].(*chat.UserMessage); !ok || u.Text != "hello" {
+		t.Fatalf("got[0] = %#v, want user 'hello'", got[0])
+	}
+	if got2, _ := store.Read(ctx, "conv-b"); len(got2) != 1 {
+		t.Fatalf("conv-b len = %d, want 1 (per-conversation scoping)", len(got2))
+	}
+
+	if err := store.Clear(ctx, "conv-a"); err != nil {
+		t.Fatalf("Clear: %v", err)
+	}
+	if got, _ := store.Read(ctx, "conv-a"); len(got) != 0 {
+		t.Fatalf("after Clear conv-a len = %d, want 0", len(got))
+	}
+	if got2, _ := store.Read(ctx, "conv-b"); len(got2) != 1 {
+		t.Fatalf("Clear leaked into conv-b: len = %d, want 1", len(got2))
+	}
+	if err := store.Clear(ctx, "conv-a"); err != nil {
+		t.Fatalf("Clear idempotent: %v", err)
 	}
 }
 
