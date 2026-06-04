@@ -6,8 +6,10 @@ github.com/Tangerg/lynx/core v0.0.0-20260521101326-c68784dc9f99 h1:dgvNPhVkh11Ba
 github.com/Tangerg/lynx/core v0.0.0-20260521101326-c68784dc9f99/go.mod h1:93m+bNk+nEdGZwTQH//002hJPtfKrtIf25RVekwTNdY=
 github.com/Tangerg/lynx/mcp v0.0.0-20260511081009-fbf46737de3d h1:rk7e/VxTYxotTpiqijGpM/pSUYwiUsH+k8P+u48e5GE=
 github.com/Tangerg/lynx/mcp v0.0.0-20260511081009-fbf46737de3d/go.mod h1:vYoV6KxNfSahxAEv5KErj6WFH2MaZP9KgV+aVBIoytc=
-github.com/Tangerg/lynx/models v0.0.0-20260521101326-c68784dc9f99 h1:yMqKFtRkjeTIoHFvoMiJHL0MMHmCSP2AYATJlskpHm8=
-github.com/Tangerg/lynx/models v0.0.0-20260521101326-c68784dc9f99/go.mod h1:V6M4qWY5IoPOplQMPV7Q0FizRmDojiSE7iHXBiYh/zQ=
+github.com/Tangerg/lynx/models v0.0.0-20260604172808-5d1a7cd57b63 h1:PmogDcDqmiwIjV42VI9D7GdI6VwbaLw+du8c3Ob8PBo=
+github.com/Tangerg/lynx/models v0.0.0-20260604172808-5d1a7cd57b63/go.mod h1:zneBSDingyizMdiWO2+nt6mTiBYG64pjhd1JVLiKJIM=
+github.com/Tangerg/lynx/otel v0.0.0-20260604172808-5d1a7cd57b63 h1:PdauL8Awe14AJy6EkAF2S9mrN0n3/oyaQZ3RHYvmTCQ=
+github.com/Tangerg/lynx/otel v0.0.0-20260604172808-5d1a7cd57b63/go.mod h1:h/eaLgP9QdAYvE9AbVkje1mTdAchDecEataqODAxmnE=
 github.com/Tangerg/lynx/pkg v0.0.0-20260511081009-fbf46737de3d h1:gjCbC1D3FfBMdGbGfNl0Y52EE3xoqOfe0Q0LhcudUhc=
 github.com/Tangerg/lynx/pkg v0.0.0-20260511081009-fbf46737de3d/go.mod h1:irOX9IMBJ1Oms4KWfCne/0FWPdh3Uk0vpQJ88KKpv8I=
 github.com/Tangerg/lynx/tools v0.0.0-20260521101326-c68784dc9f99 h1:E/LrZby3/cm76kjtK46ubcXnZkOkZdw3p6SQRGxSUkY=
@@ -141,8 +143,12 @@ go.opentelemetry.io/otel/metric v1.43.0 h1:d7638QeInOnuwOONPp4JAOGfbCEpYb+K6DVWv
 go.opentelemetry.io/otel/metric v1.43.0/go.mod h1:RDnPtIxvqlgO8GRW18W6Z/4P462ldprJtfxHxyKd2PY=
 go.opentelemetry.io/otel/sdk v1.43.0 h1:pi5mE86i5rTeLXqoF/hhiBtUNcrAGHLKQdhg4h4V9Dg=
 go.opentelemetry.io/otel/sdk v1.43.0/go.mod h1:P+IkVU3iWukmiit/Yf9AWvpyRDlUeBaRg6Y+C58QHzg=
+go.opentelemetry.io/otel/sdk/metric v1.43.0 h1:S88dyqXjJkuBNLeMcVPRFXpRw2fuwdvfCGLEo89fDkw=
+go.opentelemetry.io/otel/sdk/metric v1.43.0/go.mod h1:C/RJtwSEJ5hzTiUz5pXF1kILHStzb9zFlIEe85bhj6A=
 go.opentelemetry.io/otel/trace v1.43.0 h1:BkNrHpup+4k4w+ZZ86CZoHHEkohws8AY+WTX09nk+3A=
 go.opentelemetry.io/otel/trace v1.43.0/go.mod h1:/QJhyVBUUswCphDVxq+8mld+AvhXZLhe+8WVFxiFff0=
+go.uber.org/goleak v1.3.0 h1:2K3zAYmnTNqV73imy9J1T3WC+gmCePx2hEGkimedGto=
+go.uber.org/goleak v1.3.0/go.mod h1:CoHD4mav9JJNrW/WLlf7HGZPjdw8EucARQHekz1X6bE=
 go.yaml.in/yaml/v3 v3.0.4 h1:tfq32ie2Jv2UxXFdLJdh3jXuOzWiL1fo0bu/FbuKpbc=
 go.yaml.in/yaml/v3 v3.0.4/go.mod h1:DhzuOOF2ATzADvBadXxruRBLzYTpT36CKvDb3+aBEFg=
 golang.org/x/mod v0.36.0 h1:JJjpVx6myfUsUdAzZuOSTTmRE0PfZeNWzzvKrP7amb4=

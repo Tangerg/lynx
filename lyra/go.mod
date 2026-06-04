@@ -6,7 +6,8 @@ require (
 	github.com/Tangerg/lynx/agent v0.0.0-20260521101326-c68784dc9f99
 	github.com/Tangerg/lynx/core v0.0.0-20260521101326-c68784dc9f99
 	github.com/Tangerg/lynx/mcp v0.0.0-20260511081009-fbf46737de3d
-	github.com/Tangerg/lynx/models v0.0.0-20260521101326-c68784dc9f99
+	github.com/Tangerg/lynx/models v0.0.0-20260604172808-5d1a7cd57b63
+	github.com/Tangerg/lynx/otel v0.0.0-20260604172808-5d1a7cd57b63
 	github.com/Tangerg/lynx/tools v0.0.0-20260521101326-c68784dc9f99
 	github.com/Tangerg/sse v0.0.1
 	github.com/anthropics/anthropic-sdk-go v1.43.0
@@ -18,6 +19,8 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	go.opentelemetry.io/otel v1.43.0
+	go.opentelemetry.io/otel/sdk v1.43.0
+	go.opentelemetry.io/otel/sdk/metric v1.43.0
 	go.opentelemetry.io/otel/trace v1.43.0
 	modernc.org/sqlite v1.50.1
 )
