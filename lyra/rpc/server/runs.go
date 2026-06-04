@@ -92,8 +92,9 @@ func (i *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 
 	// Continuation gets a fresh wire runId linked to the parent. handle.TurnID
 	// is the original turn for a same-process resume, or the freshly rebuilt
-	// turn for a cross-restart one.
-	contRunID := protocol.IDPrefixRun + handle.TurnID + "_" + strconv.FormatInt(time.Now().UnixNano(), 36)
+	// turn for a cross-restart one — and already carries the run_ prefix, so
+	// we suffix it (not re-prefix) to derive a distinct continuation id.
+	contRunID := handle.TurnID + "_" + strconv.FormatInt(time.Now().UnixNano(), 36)
 	out, events, err := i.openSegment(contRunID, in.ParentRunID, handle, pending.SessionID)
 	if err != nil {
 		return nil, nil, err
@@ -385,7 +386,7 @@ func resolveDecision(responses []protocol.InterruptResponse) (bool, error) {
 // when empty (zero-friction cold start for in-process callers).
 func (i *Server) resolveSession(ctx context.Context, sessionID string) (string, error) {
 	if sessionID == "" {
-		sess, err := i.rt.Session().Create(ctx, "")
+		sess, err := i.rt.Session().Create(ctx, "", i.serverInfo.Cwd)
 		if err != nil {
 			return "", err
 		}

@@ -54,6 +54,7 @@ func migrate(db *sql.DB) error {
 		`CREATE TABLE IF NOT EXISTS sessions (
 			id          TEXT    PRIMARY KEY,
 			title       TEXT    NOT NULL,
+			cwd         TEXT    NOT NULL DEFAULT '',
 			parent_id   TEXT    NOT NULL DEFAULT '',
 			started_at  INTEGER NOT NULL,
 			updated_at  INTEGER NOT NULL,

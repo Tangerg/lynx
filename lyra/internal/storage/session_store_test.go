@@ -26,8 +26,8 @@ func TestFileSessionService_CreateGetList(t *testing.T) {
 	}
 	ctx := context.Background()
 
-	a, _ := svc.Create(ctx, "first")
-	b, _ := svc.Create(ctx, "second")
+	a, _ := svc.Create(ctx, "first", "")
+	b, _ := svc.Create(ctx, "second", "")
 
 	list, _ := svc.List(ctx)
 	if len(list) != 2 {
@@ -53,7 +53,7 @@ func TestFileSessionService_PersistsAcrossInstances(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	created, _ := first.Create(ctx, "remember me")
+	created, _ := first.Create(ctx, "remember me", "")
 
 	// Simulate a fresh process restart.
 	second, err := storage.NewFileSessionService()
@@ -74,7 +74,7 @@ func TestFileSessionService_ForkRecordsParent(t *testing.T) {
 	ctx := context.Background()
 	svc, _ := storage.NewFileSessionService()
 
-	parent, _ := svc.Create(ctx, "main")
+	parent, _ := svc.Create(ctx, "main", "")
 	child, err := svc.Fork(ctx, parent.ID, "msg-3")
 	if err != nil {
 		t.Fatalf("Fork: %v", err)
@@ -92,7 +92,7 @@ func TestFileSessionService_DeletePersists(t *testing.T) {
 	ctx := context.Background()
 
 	svc, _ := storage.NewFileSessionService()
-	sess, _ := svc.Create(ctx, "to-delete")
+	sess, _ := svc.Create(ctx, "to-delete", "")
 	if err := svc.Delete(ctx, sess.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestFileSessionService_TouchBumpsTurnCount(t *testing.T) {
 	ctx := context.Background()
 
 	svc, _ := storage.NewFileSessionService()
-	sess, _ := svc.Create(ctx, "")
+	sess, _ := svc.Create(ctx, "", "")
 	for i := 0; i < 3; i++ {
 		if err := svc.Touch(sess.ID); err != nil {
 			t.Fatalf("Touch %d: %v", i, err)

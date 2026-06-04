@@ -21,6 +21,7 @@ import (
 type Session struct {
 	ID        string
 	Title     string // human-readable; auto-generated from first user message
+	Cwd       string // working-directory identity (API.md §0.2); defaults to the serve cwd
 	ParentID  string // empty for root sessions; non-empty for forks
 	StartedAt time.Time
 	UpdatedAt time.Time
@@ -43,8 +44,10 @@ type Service interface {
 	Get(ctx context.Context, id string) (Session, error)
 
 	// Create starts a fresh session; title is optional (auto-generated
-	// from the first turn when empty).
-	Create(ctx context.Context, title string) (Session, error)
+	// from the first turn when empty). cwd is the session's working-
+	// directory identity (API.md §0.2) — callers pass the serve cwd as
+	// the default when the client omits it.
+	Create(ctx context.Context, title, cwd string) (Session, error)
 
 	// Fork creates a new session whose history equals the parent's
 	// up to atMessageID, then diverges. The new session's ParentID

@@ -13,6 +13,14 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
 )
 
+// turnIDPrefix tags every turn id. A turn id doubles as the root run's
+// wire id (runs.start returns it as runId), so it carries the run_ type
+// prefix (API.md §2.2; mirrors protocol.IDPrefixRun).
+const turnIDPrefix = "run_"
+
+// newTurnID mints a fresh prefixed turn id.
+func newTurnID() string { return turnIDPrefix + uuid.NewString() }
+
 // New returns the [Service] implementation. The implementation is
 // single-process — it holds in-memory state about live turns and
 // fans events out to subscribers via per-turn channels.
@@ -74,7 +82,7 @@ func (s *inMemory) StartTurn(_ context.Context, req StartTurnRequest) (TurnHandl
 
 	handle := TurnHandle{
 		SessionID: req.SessionID,
-		TurnID:    uuid.NewString(),
+		TurnID:    newTurnID(),
 	}
 	state := newTurnState(handle)
 
@@ -295,7 +303,7 @@ func (s *inMemory) Rehydrate(_ context.Context, req RehydrateRequest) (TurnHandl
 	if req.ProcessID == "" {
 		return TurnHandle{}, errors.New("chat: ProcessID is required")
 	}
-	handle := TurnHandle{SessionID: req.SessionID, TurnID: uuid.NewString()}
+	handle := TurnHandle{SessionID: req.SessionID, TurnID: newTurnID()}
 	state := newTurnState(handle)
 	observer := &turnObserver{svc: s, st: state}
 	state.lifecycle = &turnLifecycle{}

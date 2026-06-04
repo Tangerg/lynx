@@ -38,7 +38,7 @@ func TestSessionCRUD(t *testing.T) {
 	}
 
 	// create
-	created, err := svc.Create(ctx, "first session")
+	created, err := svc.Create(ctx, "first session", "")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestSessionFork(t *testing.T) {
 	ctx := context.Background()
 	svc, _ := newTempDB(t)
 
-	parent, _ := svc.Create(ctx, "parent")
+	parent, _ := svc.Create(ctx, "parent", "")
 
 	child, err := svc.Fork(ctx, parent.ID, "msg-7")
 	if err != nil {
@@ -126,7 +126,7 @@ func TestSessionTouch(t *testing.T) {
 	ctx := context.Background()
 	svc, _ := newTempDB(t)
 
-	created, _ := svc.Create(ctx, "touchy")
+	created, _ := svc.Create(ctx, "touchy", "")
 
 	if err := svc.Touch(ctx, created.ID); err != nil {
 		t.Fatalf("Touch: %v", err)
@@ -160,7 +160,7 @@ func TestSessionPersistAcrossReopen(t *testing.T) {
 		t.Fatalf("Open 1: %v", err)
 	}
 	svc1 := sqlite.NewSessionService(db1)
-	created, _ := svc1.Create(ctx, "persistent")
+	created, _ := svc1.Create(ctx, "persistent", "")
 	_ = db1.Close()
 
 	db2, err := sqlite.Open(path)

@@ -42,7 +42,7 @@ func rowToSession(scanner interface {
 		metaJSON       string
 	)
 	if err := scanner.Scan(
-		&s.ID, &s.Title, &s.ParentID,
+		&s.ID, &s.Title, &s.Cwd, &s.ParentID,
 		&startedAtNanos, &updatedAtNanos, &s.TurnCount, &metaJSON,
 	); err != nil {
 		return session.Session{}, err
@@ -70,7 +70,7 @@ func encodeMetadata(m map[string]string) (string, error) {
 	return string(data), nil
 }
 
-const sessionColumns = `id, title, parent_id, started_at, updated_at, turn_count, metadata`
+const sessionColumns = `id, title, cwd, parent_id, started_at, updated_at, turn_count, metadata`
 
 // ------------------------------------------------------------------
 // session.Service
@@ -111,11 +111,12 @@ func (s *SessionService) Get(ctx context.Context, id string) (session.Session, e
 	return sess, nil
 }
 
-func (s *SessionService) Create(ctx context.Context, title string) (session.Session, error) {
+func (s *SessionService) Create(ctx context.Context, title, cwd string) (session.Session, error) {
 	now := time.Now().UTC()
 	sess := session.Session{
-		ID:        uuid.NewString(),
+		ID:        session.IDPrefix + uuid.NewString(),
 		Title:     title,
+		Cwd:       cwd,
 		StartedAt: now,
 		UpdatedAt: now,
 	}
@@ -135,10 +136,10 @@ func (s *SessionService) Fork(ctx context.Context, parentID, atMessageID string)
 	}
 	defer tx.Rollback() //nolint:errcheck // commit overrides; rollback on early return
 
-	var parentTitle string
+	var parentTitle, parentCwd string
 	err = tx.QueryRowContext(ctx,
-		`SELECT title FROM sessions WHERE id = ?`, parentID,
-	).Scan(&parentTitle)
+		`SELECT title, cwd FROM sessions WHERE id = ?`, parentID,
+	).Scan(&parentTitle, &parentCwd)
 	if errors.Is(err, sql.ErrNoRows) {
 		return session.Session{}, session.ErrNotFound
 	}
@@ -148,8 +149,9 @@ func (s *SessionService) Fork(ctx context.Context, parentID, atMessageID string)
 
 	now := time.Now().UTC()
 	child := session.Session{
-		ID:        uuid.NewString(),
+		ID:        session.IDPrefix + uuid.NewString(),
 		Title:     parentTitle + " (fork)",
+		Cwd:       parentCwd, // inherit the source's cwd (API.md §7.2)
 		ParentID:  parentID,
 		StartedAt: now,
 		UpdatedAt: now,
@@ -218,8 +220,8 @@ func (s *SessionService) execInsert(ctx context.Context, ex execer, sess session
 	}
 	_, err = ex.ExecContext(ctx,
 		`INSERT INTO sessions(`+sessionColumns+`)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		sess.ID, sess.Title, sess.ParentID,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		sess.ID, sess.Title, sess.Cwd, sess.ParentID,
 		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
 		sess.TurnCount, metaJSON,
 	)
