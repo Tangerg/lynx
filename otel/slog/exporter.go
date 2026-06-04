@@ -28,7 +28,7 @@ import (
 //
 // All span attributes and event names are attached as additional slog
 // attributes, preserving their OTel key names (e.g. "gen_ai.system",
-// "lynx.agent.action.name").
+// "gen_ai.agent.name").
 type Exporter struct {
 	logger *stdslog.Logger
 }
