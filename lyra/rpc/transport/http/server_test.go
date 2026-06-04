@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
+	lyratransport "github.com/Tangerg/lynx/lyra/rpc/transport"
 	lyrahttp "github.com/Tangerg/lynx/lyra/rpc/transport/http"
 )
 
@@ -22,6 +23,7 @@ const testProtocolVersion = "2026-06-03"
 type fakeRuntime struct {
 	protocol.Runtime
 	cancelledRuns []string
+	gotLastEventID string
 }
 
 func (f *fakeRuntime) Initialize(_ context.Context, _ protocol.InitializeRequest) (*protocol.InitializeResponse, error) {
@@ -508,5 +510,42 @@ func TestStreamableRunStart(t *testing.T) {
 	}
 	if frames[2].id != "evt_00000000002" || !strings.Contains(frames[2].data, "run.finished") {
 		t.Fatalf("frame[2] = %+v, want run.finished @ evt 2", frames[2])
+	}
+}
+
+// gotLastEventID records the reconnect cursor SubscribeRun observed, so
+// the test below can assert the transport plumbed the Last-Event-Id
+// header onto the dispatch ctx (TRANSPORT §9.2).
+func (f *fakeRuntime) SubscribeRun(ctx context.Context, runID string) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
+	f.gotLastEventID = lyratransport.LastEventIDFrom(ctx)
+	ch := make(chan protocol.RunEvent)
+	close(ch) // immediate end-of-stream; the test only checks the cursor
+	return &protocol.StartRunResponse{RunID: runID}, ch, nil
+}
+
+// TestSubscribeCarriesLastEventID confirms the transport lifts the
+// Last-Event-Id request header onto the ctx so runs.subscribe resumes
+// from it instead of full-replaying (TRANSPORT §9.2).
+func TestSubscribeCarriesLastEventID(t *testing.T) {
+	ts, api := newTestServer(t)
+	defer ts.Close()
+
+	initBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{}}`)
+	r0, _ := netHTTP.Post(ts.URL+"/v2/rpc/runtime.initialize", "application/json", bytes.NewReader(initBody))
+	r0.Body.Close()
+
+	body := []byte(`{"jsonrpc":"2.0","id":"2","method":"runs.subscribe","params":{"runId":"run_1"}}`)
+	req, _ := netHTTP.NewRequest("POST", ts.URL+"/v2/rpc/runs.subscribe", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "text/event-stream")
+	req.Header.Set("Last-Event-Id", "evt_00000000042")
+	resp, err := netHTTP.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do: %v", err)
+	}
+	resp.Body.Close()
+
+	if api.gotLastEventID != "evt_00000000042" {
+		t.Fatalf("SubscribeRun saw Last-Event-Id %q, want evt_00000000042", api.gotLastEventID)
 	}
 }

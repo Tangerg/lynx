@@ -1,33 +1,12 @@
 package server
 
 import (
-	"context"
 	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
-
-// lastEventIDKey carries a streaming reconnect cursor (the SSE
-// Last-Event-Id) on the context. It's transport metadata, not a business
-// param (TRANSPORT §2/§9.2): the HTTP transport reads the header and sets
-// it with WithLastEventID; SubscribeRun reads it via lastEventIDFrom to
-// replay a run's durable backlog from that point. Other transports
-// (InProcess/IPC) set it from their own out-of-band channel or leave it
-// empty (full replay).
-type lastEventIDKey struct{}
-
-// WithLastEventID returns ctx carrying the streaming reconnect cursor.
-func WithLastEventID(ctx context.Context, id string) context.Context {
-	return context.WithValue(ctx, lastEventIDKey{}, id)
-}
-
-// lastEventIDFrom reads the reconnect cursor, "" when unset (full replay).
-func lastEventIDFrom(ctx context.Context) string {
-	id, _ := ctx.Value(lastEventIDKey{}).(string)
-	return id
-}
 
 // liveHeadroom is the spare capacity a subscriber channel keeps beyond
 // its initial replay backlog, to absorb live events while the consumer

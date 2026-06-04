@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
+	"github.com/Tangerg/lynx/lyra/rpc/transport"
 )
 
 // StartRun translates runs.start into the in-process chat.StartTurn
@@ -334,7 +335,7 @@ func (i *Server) SubscribeRun(ctx context.Context, runID string) (*protocol.Star
 	if !live || e.hub == nil {
 		return nil, nil, protocol.ErrRunNotFound
 	}
-	events, unsubscribe := e.hub.Subscribe(lastEventIDFrom(ctx))
+	events, unsubscribe := e.hub.Subscribe(transport.LastEventIDFrom(ctx))
 	// Drop the subscription when this request ends; the run continues.
 	context.AfterFunc(ctx, unsubscribe)
 	return &protocol.StartRunResponse{RunID: runID}, events, nil

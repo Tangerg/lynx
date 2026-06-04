@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
+	"github.com/Tangerg/lynx/lyra/rpc/transport"
 )
 
 // TestSubscribeRun_StreamsLiveRunFromHub verifies the streamable-HTTP
@@ -34,7 +35,7 @@ func TestSubscribeRun_StreamsLiveRunFromHub(t *testing.T) {
 	}
 
 	// With Last-Event-Id (via ctx): replay only what's after it.
-	ctx := WithLastEventID(context.Background(), ev(1, true).EventID)
+	ctx := transport.WithLastEventID(context.Background(), ev(1, true).EventID)
 	_, resumed, err := s.SubscribeRun(ctx, "run_live")
 	if err != nil {
 		t.Fatalf("subscribe resume: %v", err)

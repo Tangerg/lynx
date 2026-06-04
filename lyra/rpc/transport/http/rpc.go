@@ -66,7 +66,12 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 		return
 	}
 
-	res := s.dispatcher.Handle(r.Context(), msg, urlMethod)
+	// Carry the streaming reconnect cursor (Last-Event-Id) out-of-band on
+	// the ctx so runs.subscribe replays a run's durable backlog from that
+	// point rather than re-sending it whole (TRANSPORT §9.2). Harmless for
+	// non-streaming methods (they don't read it).
+	ctx := transport.WithLastEventID(r.Context(), strings.TrimSpace(r.Header.Get("Last-Event-Id")))
+	res := s.dispatcher.Handle(ctx, msg, urlMethod)
 
 	// Surface the body's method (if any) for the X-Method header.
 	// Only Request envelopes carry Method; Responses don't.
