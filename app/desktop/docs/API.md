@@ -663,7 +663,7 @@ server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` 
   作首帧、与事件同走一条流，见 TRANSPORT §6.4。）
   - `userItemId`：本 run 开场的 `userMessage` Item 的 id —— **与流上 `item.started/completed` 及 `items.list` 里的同一个 id**。客户端用它把**乐观气泡按精确 id 对账**（不必再按内容文本启发式匹配）。是 result 里的业务字段、非 transport 元数据。`runs.resume` 无开场 user 回合，故为空。
 - 幂等：经 `X-Idempotency-Key` 头（见 TRANSPORT §10），重复键重新接上既有 run、不新建。
-- 错误（通道 a，§8.1）：`session_not_found` / `cwd_unavailable` / `invalid_params`（含 `providerId`/`model` 只给其一）。
+- 错误（通道 a，§8.1）：`session_not_found` / `cwd_unavailable` / `invalid_params`（含 `provider`/`model` 只给其一）。
   执行期错误（通道 b）：`run.finished{outcome:error}` / 工具级 `toolCall.error`。
 
 - **示例**：
