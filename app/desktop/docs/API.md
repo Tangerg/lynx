@@ -295,46 +295,55 @@ interface QuestionOption {
 
 ### 4.4 ToolInvocation
 
-> **统一形状（单一契约）**：所有工具调用走**同一个 shape**，不再按 kind 分叉。身份是 `name`；入参 `arguments` 是一个**已解析的
-> JSON 对象**；输出 `result` 是**已解析的 best-effort JSON**（最好是对象）。客户端按 `name` 自行从 `arguments` / `result` 取值、
-> 并展开渲染。新增工具 = 约定一个 `name` + 它的 `arguments`/`result` 键，**不动 wire 形状**——从根上消除 per-kind 形状漂移
-> （上轮 W1 一类的对不齐）。
+> **通用 + 特殊（混合契约）**：工具调用按"变体集合是闭还是开"分两类——
+> - **闭集 + 结构丰富 + 集中渲染**（命令执行、文件改动）→ **强类型变体**：`kind` 即身份，字段直接给（`exitCode` / `diff` 等），
+>   客户端拿到编译期形状、专门渲染。
+> - **开集 / 不可枚举**（MCP、动态、子 agent、搜索、第三方自定义）→ **一个通用信封** `{ kind:"tool", name, arguments, result }`：
+>   `name` 是身份，入参是已解析 JSON 对象，输出是 best-effort JSON，客户端按 `name` 自取值 + 展开渲染。
+>
+> 关键：**没有任何工具同时带 kind 隐含字段 + 冗余 `name`**（命令用 `command` argv、通用用 `name`）——从根上消除 `kind`↔`name`
+> 双重身份的漂移（上轮 W1 一类的对不齐）。
 
 ```ts
-interface ToolInvocation {
-  name: string;                          // 工具/函数名 = 唯一身份。bash | read | edit | glob | grep | <server>.<tool> | …
-  arguments: Record<string, unknown>;    // 入参 = 永远是 JSON 对象（权威表示）。started 壳上可为 {}，随流式补全
-  result?: unknown;                      // 输出 = best-effort JSON：最好是对象，也可是任意 JSON 值；完成前 undefined。仅承载成功结果
+type ToolInvocation =
+  // 特殊：闭集 + 结构丰富 → 强类型（kind 即身份，无 name）
+  | { kind: "commandExecution"; command: string[]; cwd?: string; exitCode?: number; durationMs?: number }
+  | { kind: "fileChange";       changes: FileChangeEntry[] }
+  // 通用：开集 / 不可枚举 → 一个信封兜底
+  | { kind: "tool";             name: string; arguments: Record<string, unknown>; result?: unknown };
+
+interface FileChangeEntry {
+  path: string;
+  kind: "add" | "modify" | "delete" | "rename";
+  diff?: DiffRow[];                      // §4.5
 }
 ```
 
-- **入参 `arguments` 永远是 JSON 对象，绝不回传 JSON 字符串。** 流式阶段部分入参走
-  `item.delta{ type:"toolArguments", argumentsTextDelta }`（JSON 文本增量，§5.1）累积；server 在 `item.completed`（及审批
-  interrupt 的 payload，§4.8）处把它 `unmarshal` 成对象再发——消除"双重转义"。
-- **输出 `result` 是 best-effort JSON**：**首选 JSON 对象**（结构化、可按上表取键）；但也允许任意 JSON 值（数组 / 标量 / 字符串
-  ——有些工具输出就是奇形怪状的）。两条硬约束：① **绝不双重编码**（不得把对象序列化成 JSON 字符串塞进来——`{x:1}` 不是 `"{\"x\":1}"`）；
-  ② 一个真正的纯文本结果用 JSON string 值即可（如 `result: "ok"`），但**能结构化就尽量给对象**。工具有流式输出时走
-  `item.delta{ type:"toolOutput", text }` 累积预览文本，结构化 `result` 在 `item.completed` 落定。
-- **客户端按 JSON 展开渲染输入与输出**：`arguments` 必为对象 → 直接 JSON 树展开；`result` 是 JSON（对象/数组/标量）→ 美化 JSON
-  展开，非 JSON / 无法解析 → 兜底为原始文本。所以 server 越倾向给规整 JSON，UI 展示越好。
-- **工具级失败不进 `result`**：错误走 `toolCall.error`（ProblemData）+ `status:"incomplete"`（§4.3 / §8），`result` 缺省。
-- 子 agent 的子 Run 经 `子 RunRef.spawnedByItemId == 本 toolCall.id` 关联（也可在 `result.childRunId` 给便利值）。
+- **`commandExecution`**：`command` 是 **argv 数组**（无 shell 引号歧义）；stdout/stderr 走 `item.delta{ type:"toolOutput", text }`
+  流式累积预览，`exitCode` / `durationMs` 在 `item.completed` 落定。无独立 `output` 字段。
+- **`fileChange`**：多文件改动列表，每项带 `path` / `kind`（增改删移）/ `diff`。
+- **`tool`（通用）**：
+  - **入参 `arguments` 永远是 JSON 对象，绝不回传 JSON 字符串。** 流式部分入参走 `item.delta{ type:"toolArguments", argumentsTextDelta }`
+    （JSON 文本增量，§5.1）累积；server 在 `item.completed`（及审批 payload，§4.8）处 `unmarshal` 成对象再发——消除"双重转义"。
+  - **输出 `result` 是 best-effort JSON**：首选对象（可按下表取键），也允许任意 JSON 值（数组/标量/字符串——有些工具输出奇形怪状）。
+    硬约束：**绝不双重编码**（`{x:1}` 不是 `"{\"x\":1}"`）；纯文本用 JSON string 值即可（`result:"ok"`），能结构化就尽量给对象。
+  - **客户端按 JSON 展开渲染入/出**：`arguments` 必为对象 → JSON 树；`result` 是 JSON → 美化展开，非 JSON → 兜底原始文本。
+- **工具级失败不进 `result` / 不改 wire 形状**：错误一律走 `toolCall.error`（ProblemData）+ `status:"incomplete"`（§4.3 / §8），三种 kind 通用。
+- 子 agent 的子 Run 经 `子 RunRef.spawnedByItemId == 本 toolCall.id` 关联（通用 `tool` 也可在 `result.childRunId` 给便利值）。
 
-**`arguments` / `result` 的键按工具名约定**（这是前后端**共识约定表**，不是 wire 强制的判别联合；客户端按 `name` 取值，未知工具走通用兜底渲染）：
+**通用 `tool` 的 `arguments` / `result` 键按 `name` 约定**（共识约定表，非 wire 强制；客户端按 `name` 取值，未知 `name` 走 JSON 兜底）：
 
 | name | arguments（取值键） | result（取值键） |
 | --- | --- | --- |
-| `bash` | `command`, `cwd?` | `stdout`, `stderr`, `exitCode`, `durationMs?` |
 | `read` | `path`, `range?` | `content` |
-| `edit` / `write` | `path` | `diff: DiffRow[]`（§4.5）, `added?`, `removed?` |
 | `glob` | `pattern`, `cwd?` | `matches: string[]`, `total` |
 | `grep` | `pattern`, `path?` | `matches: GrepMatch[]`（§4.5）, `total` |
+| `web_search` | `query` | `results: SearchResult[]`（§4.5） |
 | `<server>.<tool>`（MCP） | 工具自定义 | 工具自定义 |
 | `subagent` | `prompt` / `task` | `summary`, `childRunId?` |
 
-> wire 上每个工具都是 `{ name, arguments, result }`，键不齐 / 多出键**不破协议**。新增工具只需在此表登记一行，前后端按 `name`
-> 对齐。客户端的"按 name 取值 + 渲染"集中在一处工具展示注册表（可插件扩展），未知 `name` 显示 `name` + `arguments`/`result`
-> 的通用 JSON 兜底。
+> 新增**通用**工具只需在此表登记一行、按 `name` 对齐，不动 wire；新增**强类型**工具（极少）才加一个 `ToolInvocation` 变体。
+> 客户端的"按 name 取值 + 渲染"集中在一处工具展示注册表（可插件扩展）。
 
 ### 4.5 Diff / Search / 文件
 
@@ -408,18 +417,21 @@ interface GenerationParams { temperature?: number; maxTokens?: number; topP?: nu
 ### 4.8 HITL 类型
 
 ```ts
-interface Interrupt {
-  itemId: string;                      // 待解的那个 Item 的 id（toolCall 待批 / question 待答）
-  kind: "approval" | "question" | "toolResult";
-  payload: ApprovalPayload | Record<string, unknown>;  // kind 相关，见下
-}
+// 通用（itemId）+ 特殊（按 kind 的 payload）。approval / toolResult 复用 ToolInvocation（§4.4）——
+// 客户端读 payload.tool 即可，不再猜 command 在哪 / 处理字符串转义。question 的内容在 question Item 上（item.question），
+// 故不带冗余 payload。
+type Interrupt =
+  | { kind: "approval";   itemId: string; payload: ApprovalPayload }
+  | { kind: "question";   itemId: string }                          // 内容见 question Item，无 payload
+  | { kind: "toolResult"; itemId: string; payload: ToolResultPayload };
 
-// kind="approval" 时 payload 的具体形状——复用统一的 ToolInvocation（§4.4），
-// 客户端读 payload.tool.name + payload.tool.arguments，不再猜 command 在哪 / 处理字符串转义。
 interface ApprovalPayload {
-  tool: ToolInvocation;                // 待批工具，统一形状（此时 result 尚无）
+  tool: ToolInvocation;                // 待批工具（此时 result 尚无）
   risk?: "low" | "medium" | "high";    // 可选；后端暂无风险引擎时留空
   reason?: string;                     // 可选；为何需要批准
+}
+interface ToolResultPayload {
+  tool: ToolInvocation;                // 要客户端执行的工具（client-side tools）；结果经 runs.resume 回传
 }
 interface OpenInterrupt {
   parentRunId: string;                 // 待 resume 的 Run（其 outcome.type=interrupt）
@@ -572,7 +584,7 @@ interface InterruptResponse {
 }
 interface ApprovalResponse  { kind: "approval"; decision: "approve" | "deny"; editedArgs?: Record<string, unknown>; reason?: string }
 interface AnswerResponse    { kind: "answer"; answers: Record<string, string | string[]> }   // key = QuestionField.name
-interface ToolResultResponse{ kind: "toolResult"; output: string }                           // client-side 工具结果
+interface ToolResultResponse{ kind: "toolResult"; result?: unknown; error?: ProblemData }      // client 工具结果，与 ToolInvocation.result 同形（best-effort JSON）；失败给 error
 ```
 
 ### 6.2 防挂死（协议级硬约束）
