@@ -8,7 +8,7 @@ import { useSkills } from "@/lib/data/queries";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 
 function SkillsTab() {
-  const { data, isLoading } = useSkills();
+  const { data, isLoading, isError } = useSkills();
   const skills = data ?? [];
 
   return (
@@ -22,6 +22,7 @@ function SkillsTab() {
       <DataView
         items={skills}
         isLoading={isLoading}
+        isError={isError}
         skeletonCount={4}
         empty={{
           icon: "sparkle",

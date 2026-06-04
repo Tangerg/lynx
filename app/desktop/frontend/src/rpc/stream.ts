@@ -84,11 +84,21 @@ class RunTree {
 
   /** Update tree membership from an event; return true if it belongs here. */
   admit(ev: RunEvent): boolean {
-    const e = ev.event;
-    if (e.type === "run.started") {
+    // The Zod envelope only guarantees `event.type` is a string — the inner
+    // payload is cast, not validated (see top-of-file note). So treat
+    // run/item as possibly-absent here: a malformed event must update nothing
+    // and be dropped, never throw. This runs inside the `client.subscribe`
+    // callback, which has no try/catch — an unguarded deref would kill the
+    // whole run stream, not just drop one event.
+    const e = ev.event as {
+      type: string;
+      run?: { id: string; spawnedByItemId?: string };
+      item?: { id: string };
+    };
+    if (e.type === "run.started" && e.run) {
       const spawnedBy = e.run.spawnedByItemId;
       if (spawnedBy && this.itemOwner.has(spawnedBy)) this.runs.add(e.run.id);
-    } else if (e.type === "item.started" || e.type === "item.completed") {
+    } else if ((e.type === "item.started" || e.type === "item.completed") && e.item) {
       if (this.runs.has(ev.runId)) this.itemOwner.set(e.item.id, ev.runId);
     }
     return this.runs.has(ev.runId);

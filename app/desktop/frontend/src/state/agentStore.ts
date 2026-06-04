@@ -140,9 +140,14 @@ export const useAgentStore = create<AgentStore>((set) => ({
           }),
         };
       });
-      const openInterrupts = view.openInterrupts.filter(
-        (oi) => !oi.interrupts.some((i) => i.itemId === itemId),
-      );
+      // Drop only the resolved interrupt — a single run.finished{interrupt}
+      // can carry several (multiple approvals/questions at once). Removing the
+      // whole envelope would strand its sibling interrupts: their cards stay
+      // in requires-action with no backing open-interrupt to resume. Keep the
+      // envelope until its last interrupt is resolved.
+      const openInterrupts = view.openInterrupts
+        .map((oi) => ({ ...oi, interrupts: oi.interrupts.filter((i) => i.itemId !== itemId) }))
+        .filter((oi) => oi.interrupts.length > 0);
       let next: AgentViewState = { ...view, messages, openInterrupts };
       // Stamp the human decision on the audit timeline so the run digest +
       // Timeline view can pair it with the originating approval-request

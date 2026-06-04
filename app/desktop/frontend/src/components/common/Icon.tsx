@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import type { CSSProperties } from "react";
 import {
+  AlertTriangle,
   ArrowDown,
   Book,
   Bug,
@@ -115,7 +116,8 @@ export type IconName =
   | "chevron-down"
   | "panel-r"
   | "arrow-down"
-  | "trash";
+  | "trash"
+  | "alert";
 
 // Mapping from our project's icon vocabulary to lucide components.
 // Names on the left are the project's IconName tokens used at every
@@ -174,6 +176,7 @@ const ICON_MAP: Record<IconName, LucideIcon> = {
   "chevron-down": ChevronDown,
   "arrow-down": ArrowDown,
   trash: Trash2,
+  alert: AlertTriangle,
   // Intentionally unused alias kept for forward-compat: "maximize" can
   // map to Maximize2 if a callsite is added later.
 };

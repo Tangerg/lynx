@@ -5,7 +5,7 @@ import { useTerminal } from "@/lib/data/queries";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 
 function TerminalTab() {
-  const { data: lines, isLoading } = useTerminal();
+  const { data: lines, isLoading, isError } = useTerminal();
 
   // TODO: surface real process metadata once the terminal data layer
   // exposes it. Mocked for the design preview today.
@@ -48,6 +48,7 @@ function TerminalTab() {
       <DataView
         items={lines}
         isLoading={isLoading}
+        isError={isError}
         skeletonCount={8}
         empty={{
           icon: "terminal",

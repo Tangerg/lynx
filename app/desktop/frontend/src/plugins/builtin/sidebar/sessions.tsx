@@ -11,7 +11,7 @@ import { sideListClasses } from "./styles";
 
 function SessionsSection() {
   const t = useT();
-  const { data, isLoading } = useSessions();
+  const { data, isLoading, isError } = useSessions();
   const activeSessionId = useSessionStore((s) => s.activeSessionId);
   const draftIds = useSessionStore((s) => s.draftSessionIds);
   const selectTab = useSessionStore((s) => s.selectTab);
@@ -27,9 +27,13 @@ function SessionsSection() {
     <>
       <SectionLabel
         trailing={
-          <span className="ml-auto rounded-full bg-surface-2 px-1.5 py-px text-[10px] text-fg-muted">
-            {sessions?.length ?? 0}
-          </span>
+          // No count pill until the first fetch settles — otherwise it flashes
+          // "0" next to the loading skeletons.
+          isLoading ? undefined : (
+            <span className="ml-auto rounded-full bg-surface-2 px-1.5 py-px text-[10px] text-fg-muted">
+              {sessions?.length ?? 0}
+            </span>
+          )
         }
       >
         {t("sidebar.section.sessions")}
@@ -37,6 +41,7 @@ function SessionsSection() {
       <DataView
         items={sessions}
         isLoading={isLoading}
+        isError={isError}
         skeletonCount={4}
         empty={{
           icon: "chat",

@@ -10,7 +10,7 @@ import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
 
 function ProvidersPane() {
-  const { data, isLoading } = useProviders();
+  const { data, isLoading, isError } = useProviders();
   const providers = data ?? [];
 
   return (
@@ -18,6 +18,7 @@ function ProvidersPane() {
       <DataView
         items={providers}
         isLoading={isLoading}
+        isError={isError}
         skeletonCount={3}
         empty={{
           icon: "spark",

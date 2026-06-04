@@ -38,7 +38,7 @@ function summarize(rows: DiffRow[] | undefined): DiffStats {
 
 function DiffViewTab() {
   const activeFile = useSessionStore((s) => s.activeFile);
-  const { data: rows, isLoading } = useDiff();
+  const { data: rows, isLoading, isError } = useDiff();
   const { added, removed, lineCount } = summarize(rows);
 
   const sub = (
@@ -70,6 +70,7 @@ function DiffViewTab() {
       <DataView
         items={rows}
         isLoading={isLoading}
+        isError={isError}
         skeletonCount={10}
         empty={{
           icon: "diff",
