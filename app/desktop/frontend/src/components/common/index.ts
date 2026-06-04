@@ -9,6 +9,7 @@ export type { IconName } from "./Icon";
 export { IconButton } from "./IconButton";
 export { Panel } from "./Panel";
 export { PillButton } from "./PillButton";
+export { ProviderIcon } from "./ProviderIcon";
 export { ScrollArea } from "./ScrollArea";
 export { SectionLabel } from "./SectionLabel";
 export { Segmented } from "./Segmented";
