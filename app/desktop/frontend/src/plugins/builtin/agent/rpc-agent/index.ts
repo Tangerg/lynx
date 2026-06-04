@@ -15,17 +15,21 @@ import { useSessionStore } from "@/state/sessionStore";
 function makeDriver(sessionId: string): AgentDriver {
   const client = () => getContainer().client();
   return {
-    start: (text, signal) =>
-      client().runs.start(
+    start: (text, signal) => {
+      // provider + model are a pair (API §7.3): send BOTH or NEITHER. Only one
+      // → invalid_params. Both null (no enabled provider picked) = runtime
+      // default provider+model.
+      const { provider, model } = useComposerStore.getState();
+      return client().runs.start(
         {
           sessionId: asSessionId(sessionId),
           input: [{ type: "text", text }],
           mode: "agent",
-          // Selected model from the composer picker; undefined = runtime default.
-          model: useComposerStore.getState().model ?? undefined,
+          ...(provider && model ? { provider, model } : {}),
         },
         signal,
-      ),
+      );
+    },
     resume: (parentRunId, responses, signal) =>
       client().runs.resume({ parentRunId, responses }, signal),
   };

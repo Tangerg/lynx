@@ -82,4 +82,62 @@ describe("agentStore.resolveInterrupt", () => {
     expect(view().openInterrupts).toHaveLength(0);
     expect(view().timeline.some((e) => e.kind === "approval-result")).toBe(false);
   });
+
+  it("resolving one of several interrupts in an envelope keeps the siblings", () => {
+    const store = useAgentStore.getState();
+    store.resetSession(SID);
+    store.applyEvents(SID, [
+      runStarted("run_1", SID),
+      started(item({ id: "t1", type: "toolCall", tool: { kind: "command", command: "rm a" } })),
+      started(item({ id: "t2", type: "toolCall", tool: { kind: "command", command: "rm b" } })),
+      runFinished({
+        type: "interrupt",
+        interrupts: [
+          { itemId: "t1" as never, kind: "approval", payload: { command: "rm a" } },
+          { itemId: "t2" as never, kind: "approval", payload: { command: "rm b" } },
+        ],
+      }),
+    ]);
+    expect(view().openInterrupts[0]!.interrupts).toHaveLength(2);
+
+    useAgentStore.getState().resolveInterrupt(SID, "t1", { decision: "approved" });
+
+    // Envelope survives with only the unresolved sibling — not dropped whole.
+    expect(view().openInterrupts).toHaveLength(1);
+    expect(view().openInterrupts[0]!.interrupts.map((i) => i.itemId)).toEqual(["t2"]);
+  });
+});
+
+describe("agentStore.relabelMessage", () => {
+  const userMsg = (id: string): StreamEvent =>
+    ({
+      type: "item.completed",
+      item: item({
+        id,
+        status: "completed",
+        type: "userMessage",
+        content: [{ type: "text", text: "hi" }],
+      }),
+    }) as never;
+
+  it("renames an optimistic placeholder to the server id", () => {
+    const store = useAgentStore.getState();
+    store.resetSession(SID);
+    store.applyEvents(SID, [userMsg("local-1")]);
+    expect(view().messages.map((m) => m.id)).toEqual(["local-1"]);
+
+    useAgentStore.getState().relabelMessage(SID, "local-1", "item_real");
+    expect(view().messages.map((m) => m.id)).toEqual(["item_real"]);
+  });
+
+  it("is a no-op when the target id already exists (streamed item won the race)", () => {
+    const store = useAgentStore.getState();
+    store.resetSession(SID);
+    store.applyEvents(SID, [userMsg("item_real"), userMsg("local-1")]);
+    expect(view().messages).toHaveLength(2);
+
+    useAgentStore.getState().relabelMessage(SID, "local-1", "item_real");
+    // local-1 left as-is rather than collapsed into a duplicate-key clash.
+    expect(view().messages.map((m) => m.id)).toEqual(["item_real", "local-1"]);
+  });
 });

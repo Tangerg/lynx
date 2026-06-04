@@ -3,7 +3,7 @@
 // component contribution.
 
 import type { ComponentType } from "react";
-import type { InterruptResponse, RunEvent, RunId, StreamingResult } from "@/rpc";
+import type { InterruptResponse, ItemId, RunEvent, RunId, StreamingResult } from "@/rpc";
 
 // ---------------------------------------------------------------------------
 // Notifications — persistent feed surfaced by host.notify().
@@ -104,11 +104,13 @@ export interface DataProviderSpec<T = unknown> {
  * `useAgentSession`; the driver is just the session-bound RPC surface.
  */
 export interface AgentDriver {
-  /** Start a new run from user text; resolves with the run's event stream. */
+  /** Start a new run from user text; resolves with the run's event stream.
+   *  `userItemId` is the opening userMessage Item's id — used to reconcile the
+   *  optimistic bubble by exact id (see useAgentSession). */
   start: (
     text: string,
     signal?: AbortSignal,
-  ) => Promise<StreamingResult<{ runId: RunId }, RunEvent>>;
+  ) => Promise<StreamingResult<{ runId: RunId; userItemId?: ItemId }, RunEvent>>;
   /**
    * Resume the interrupted run `parentRunId` with HITL responses — starts a
    * continuation Run and returns its event stream (API.md §6).

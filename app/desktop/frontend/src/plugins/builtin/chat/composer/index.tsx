@@ -170,21 +170,24 @@ export const composerChips = definePlugin({
 
 // ---- toolbar (start) -----------------------------------------------------
 
-// Model selector — lists models.list with brand icons; selection drives the
-// next run's `model` (read by the rpc-agent driver from composerStore).
+// Model selector — lists the models of every enabled provider (brand-iconed);
+// selection drives the next run's `provider` + `model` PAIR (read by the
+// rpc-agent driver from composerStore). Models are identified by provider+id
+// since the same model id can appear under more than one provider.
 function ModelPicker() {
   const { data: models = [] } = useModels();
+  const provider = useComposerStore((s) => s.provider);
   const model = useComposerStore((s) => s.model);
   const setModel = useComposerStore((s) => s.setModel);
 
   // Default to the first model once the list loads, so what's shown is what
   // the run actually sends (null only lingers while models are still loading).
   useEffect(() => {
-    if (!model && models.length > 0) setModel(models[0]!.id);
+    if (!model && models.length > 0) setModel(models[0]!.provider, models[0]!.id);
   }, [model, models, setModel]);
 
-  if (models.length === 0) return null; // nothing to pick yet
-  const selected = models.find((m) => m.id === model) ?? models[0]!;
+  if (models.length === 0) return null; // no enabled provider yet — nothing to pick
+  const selected = models.find((m) => m.provider === provider && m.id === model) ?? models[0]!;
 
   return (
     <DropdownMenu.Root>
@@ -209,13 +212,15 @@ function ModelPicker() {
         >
           {models.map((m) => (
             <DropdownMenu.Item
-              key={m.id}
-              onSelect={() => setModel(m.id)}
+              key={`${m.provider}:${m.id}`}
+              onSelect={() => setModel(m.provider, m.id)}
               className="grid cursor-pointer grid-cols-[16px_minmax(0,1fr)_14px] items-center gap-2 rounded-sm px-2 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
             >
               <ProviderIcon provider={m.provider} size={16} />
               <span className="truncate">{m.label}</span>
-              {m.id === selected.id && <Icon name="check" size={12} className="text-accent" />}
+              {m.provider === selected.provider && m.id === selected.id && (
+                <Icon name="check" size={12} className="text-accent" />
+              )}
             </DropdownMenu.Item>
           ))}
         </DropdownMenu.Content>

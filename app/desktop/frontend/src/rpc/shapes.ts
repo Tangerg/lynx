@@ -411,9 +411,9 @@ export interface Model {
 }
 
 export interface ConfigureProviderRequest {
-  providerId: string;
+  provider: string; // Provider.id / slug — must be a backend-supported provider
   type?: string;
-  baseUrl?: string;
+  baseUrl?: string; // override default endpoint (proxy / gateway / self-hosted)
   apiKey?: string;
 }
 
@@ -537,6 +537,10 @@ export interface StartRunRequest {
   tools?: ToolSpec[]; // override this run's tool set
   state?: Record<string, unknown>; // initial shared state
   attachments?: AttachmentId[];
+  // provider + model are a PAIR (API §7.3): send both or neither. Only one →
+  // invalid_params. provider is NOT inferred from model (same model id can
+  // span providers). Both come straight from models.list's Model.{provider,id}.
+  provider?: string;
   model?: string;
   mode?: "agent" | "chat" | "plan";
   maxSteps?: number; // ceiling → outcome.maxSteps
@@ -551,6 +555,11 @@ export interface ResumeRunRequest {
 
 export interface StartRunResponse {
   runId: RunId;
+  // The opening userMessage Item's id — same id as on the stream's
+  // item.started/completed and in items.list. The client reconciles its
+  // optimistic bubble by this exact id (no content-text heuristic). Absent on
+  // runs.resume (no opening user turn). A business field, not transport meta.
+  userItemId?: ItemId;
 }
 
 export interface ResumeRunResponse {
