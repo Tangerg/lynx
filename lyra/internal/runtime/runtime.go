@@ -34,6 +34,7 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
 	chatsvc "github.com/Tangerg/lynx/lyra/internal/service/chat"
+	"github.com/Tangerg/lynx/lyra/internal/service/history"
 	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 	memsvc "github.com/Tangerg/lynx/lyra/internal/service/memory"
 	sessionsvc "github.com/Tangerg/lynx/lyra/internal/service/session"
@@ -98,6 +99,11 @@ type Config struct {
 	// (audit + restart durability). nil = no persistence. See
 	// [engine.Config.ProcessStore].
 	ProcessStore core.ProcessStore
+
+	// HistoryStore, when non-nil, persists the durable Item history that
+	// items.list is served from (authoritative completed Items + their
+	// RunRefs). nil falls back to deriving items from chat-memory messages.
+	HistoryStore history.Store
 }
 
 // Runtime is the bundle. Construct once via [New]; share the
@@ -115,6 +121,7 @@ type Runtime struct {
 	memory     memsvc.Service
 	approval   approval.Service
 	interrupts interrupts.Store
+	history    history.Store
 }
 
 // New assembles a Runtime from cfg. Returns an error when a required
@@ -158,6 +165,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		memory:     cfg.MemoryService,
 		approval:   approvalSvc,
 		interrupts: interruptStore,
+		history:    cfg.HistoryStore,
 	}, nil
 }
 
@@ -182,6 +190,11 @@ func (r *Runtime) Approval() approval.Service { return r.approval }
 // Interrupts returns the open-interrupt registry (R-model HITL resume
 // discovery). Always non-nil.
 func (r *Runtime) Interrupts() interrupts.Store { return r.interrupts }
+
+// History returns the durable Item-history store, or nil when none was
+// configured (the RPC server then derives items.list from chat-memory
+// messages instead).
+func (r *Runtime) History() history.Store { return r.history }
 
 // ReadHistory returns sessionID's persisted chat history — the
 // messages.list transport surface converts these to wire messages,

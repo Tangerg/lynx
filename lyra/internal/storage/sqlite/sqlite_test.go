@@ -2,10 +2,13 @@ package sqlite_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/Tangerg/lynx/lyra/internal/service/history"
 	"github.com/Tangerg/lynx/lyra/internal/service/memory"
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
 	"github.com/Tangerg/lynx/lyra/internal/storage/sqlite"
@@ -232,5 +235,46 @@ func TestMemoryUpsert(t *testing.T) {
 	}
 	if list[0].CapturedAt.IsZero() {
 		t.Fatalf("CapturedAt not set")
+	}
+}
+
+// TestHistoryStore_RoundTrip mirrors the file backend: items in append
+// order (ORDER BY seq), RunRef upsert by run_id, per-session scoping.
+func TestHistoryStore_RoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lyra.db")
+	db, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	store := sqlite.NewHistoryStore(db)
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	for _, it := range []history.Item{
+		{SessionID: "ses_a", RunID: "run_1", ItemID: "i1", CreatedAt: now, Blob: json.RawMessage(`{"id":"i1"}`)},
+		{SessionID: "ses_a", RunID: "run_1", ItemID: "i2", CreatedAt: now, Blob: json.RawMessage(`{"id":"i2"}`)},
+		{SessionID: "ses_b", RunID: "run_9", ItemID: "i9", CreatedAt: now, Blob: json.RawMessage(`{"id":"i9"}`)},
+	} {
+		if err := store.AppendItem(ctx, it); err != nil {
+			t.Fatalf("append %s: %v", it.ItemID, err)
+		}
+	}
+	if err := store.PutRun(ctx, history.Run{SessionID: "ses_a", RunID: "run_1", UpdatedAt: now, Blob: json.RawMessage(`{"status":"running"}`)}); err != nil {
+		t.Fatalf("put run running: %v", err)
+	}
+	if err := store.PutRun(ctx, history.Run{SessionID: "ses_a", RunID: "run_1", UpdatedAt: now, Blob: json.RawMessage(`{"status":"finished"}`)}); err != nil {
+		t.Fatalf("put run finished: %v", err)
+	}
+
+	items, runs, err := store.List(ctx, "ses_a")
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(items) != 2 || items[0].ItemID != "i1" || items[1].ItemID != "i2" {
+		t.Fatalf("items = %+v, want [i1 i2]", items)
+	}
+	if len(runs) != 1 || string(runs[0].Blob) != `{"status":"finished"}` {
+		t.Fatalf("runs = %+v, want one finished run", runs)
 	}
 }

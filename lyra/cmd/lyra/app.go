@@ -19,6 +19,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/lyra/internal/config"
 	lyraruntime "github.com/Tangerg/lynx/lyra/internal/runtime"
+	"github.com/Tangerg/lynx/lyra/internal/service/history"
 	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 	memorysvc "github.com/Tangerg/lynx/lyra/internal/service/memory"
 	sessionsvc "github.com/Tangerg/lynx/lyra/internal/service/session"
@@ -101,7 +102,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		return err
 	}
 
-	sessionSvc, memSvc, procStore, interruptStore, err := buildStores(cfg.Storage)
+	sessionSvc, memSvc, procStore, interruptStore, historyStore, err := buildStores(cfg.Storage)
 	if err != nil {
 		return err
 	}
@@ -126,6 +127,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		// that runs.resume looks up. Both follow LYRA_STORAGE.
 		ProcessStore:   procStore,
 		InterruptStore: interruptStore,
+		HistoryStore:   historyStore,
 		// ApprovalMode defaults to YOLO — operators flip the mode at
 		// runtime via /v1/approvals/mode (HTTP) or a future
 		// --approval-mode flag.
@@ -160,37 +162,42 @@ func (a *App) config() config.Config { return a.cfg }
 // lifetime, and modernc.org/sqlite cleans up its WAL on close at
 // exit. Add explicit teardown when the runtime grows a Shutdown
 // path.
-func buildStores(kind config.StorageKind) (sessionsvc.Service, memorysvc.Service, core.ProcessStore, interrupts.Store, error) {
+func buildStores(kind config.StorageKind) (sessionsvc.Service, memorysvc.Service, core.ProcessStore, interrupts.Store, history.Store, error) {
 	switch kind {
 	case config.StorageSQLite:
 		home, err := storage.Home()
 		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("sqlite storage: %w", err)
+			return nil, nil, nil, nil, nil, fmt.Errorf("sqlite storage: %w", err)
 		}
 		db, err := sqlitestore.Open(filepath.Join(home, "lyra.db"))
 		if err != nil {
-			return nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, err
 		}
 		return sqlitestore.NewSessionService(db), sqlitestore.NewMemoryService(db),
-			sqlitestore.NewProcessStore(db), sqlitestore.NewInterruptStore(db), nil
+			sqlitestore.NewProcessStore(db), sqlitestore.NewInterruptStore(db),
+			sqlitestore.NewHistoryStore(db), nil
 	default:
 		sess, err := storage.NewFileSessionService()
 		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("session storage: %w", err)
+			return nil, nil, nil, nil, nil, fmt.Errorf("session storage: %w", err)
 		}
 		mem, err := storage.NewFileMemoryService()
 		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("memory storage: %w", err)
+			return nil, nil, nil, nil, nil, fmt.Errorf("memory storage: %w", err)
 		}
 		procStore, err := storage.NewFileProcessStore()
 		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("process storage: %w", err)
+			return nil, nil, nil, nil, nil, fmt.Errorf("process storage: %w", err)
 		}
 		interruptStore, err := storage.NewFileInterruptStore()
 		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("interrupt storage: %w", err)
+			return nil, nil, nil, nil, nil, fmt.Errorf("interrupt storage: %w", err)
 		}
-		return sess, mem, procStore, interruptStore, nil
+		historyStore, err := storage.NewFileHistoryStore()
+		if err != nil {
+			return nil, nil, nil, nil, nil, fmt.Errorf("history storage: %w", err)
+		}
+		return sess, mem, procStore, interruptStore, historyStore, nil
 	}
 }
 

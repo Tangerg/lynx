@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
 	chatsvc "github.com/Tangerg/lynx/lyra/internal/service/chat"
+	"github.com/Tangerg/lynx/lyra/internal/service/history"
 	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 	memsvc "github.com/Tangerg/lynx/lyra/internal/service/memory"
 	sessionsvc "github.com/Tangerg/lynx/lyra/internal/service/session"
@@ -30,6 +31,7 @@ type RuntimeServices interface {
 	Memory() memsvc.Service
 	Approval() approval.Service
 	Interrupts() interrupts.Store
+	History() history.Store
 	ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error)
 	SeedHistory(ctx context.Context, sessionID string, msgs []chat.Message) error
 }

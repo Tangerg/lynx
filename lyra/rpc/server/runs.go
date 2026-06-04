@@ -44,6 +44,9 @@ func (i *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 
 	// runId on the wire == the turn id for the root run.
 	runID := handle.TurnID
+	// Record the user's input as the run's opening userMessage Item — the
+	// translator emits no userMessage, but durable history needs it.
+	i.persistUserItem(ctx, sessionID, runID, in.Input)
 	out, events, err := i.openSegment(runID, "", handle, sessionID)
 	if err != nil {
 		return nil, nil, err
@@ -168,6 +171,7 @@ func (i *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 					i.recordInterrupt(ctx, runID, handle, se.Outcome.Interrupts)
 				}
 			}
+			i.persistStreamEvent(ctx, runID, handle.SessionID, parentRunID, se)
 			select {
 			case out <- re:
 			case <-ctx.Done():
@@ -183,7 +187,7 @@ func (i *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 			if tr.errMsg != "" {
 				outcome = protocol.OutcomeError
 			}
-			_ = i.sendTerminal(out, runID, tr.finish(outcome))
+			_ = i.sendTerminal(out, runID, handle.SessionID, parentRunID, tr.finish(outcome))
 		}
 		close(out)
 		i.runMu.Lock()
@@ -239,7 +243,7 @@ func (i *Server) recordInterrupt(ctx context.Context, runID string, handle chat.
 // guard so the stream always ends with run.finished. Best-effort. Event
 // ids come from the same server-global counter as the live pump so the
 // terminal stays monotonic with what preceded it.
-func (i *Server) sendTerminal(out chan<- protocol.RunEvent, runID string, events []protocol.StreamEvent) error {
+func (i *Server) sendTerminal(out chan<- protocol.RunEvent, runID, sessionID, parentRunID string, events []protocol.StreamEvent) error {
 	for _, se := range events {
 		re := protocol.RunEvent{
 			RunID:     runID,
@@ -248,6 +252,9 @@ func (i *Server) sendTerminal(out chan<- protocol.RunEvent, runID string, events
 			Durable:   durableFor(se.Type),
 			Event:     se,
 		}
+		// Persist with a background ctx: the run ctx is canceled on this
+		// terminal path, but the final items + outcome must still land.
+		i.persistStreamEvent(context.Background(), runID, sessionID, parentRunID, se)
 		select {
 		case out <- re:
 		default:

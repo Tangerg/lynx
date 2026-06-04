@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/lyra/internal/service/history"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
@@ -15,17 +16,63 @@ import (
 // cursor the whole history comes back as one page; a cursor returns
 // capability_not_negotiated.
 //
-// Run reconstruction (the runs[] field) isn't tracked in the history
-// store yet, so Runs is empty — clients render a flat item list.
+// The authoritative source is the durable Item-history store: the exact
+// Items the runtime streamed (same ids, runId, text, createdAt) plus the
+// RunRefs needed to rebuild the run tree (§10.3). When no history store
+// is configured it falls back to reconstructing items from chat-memory
+// messages — a flat list with no runId/run tree.
 func (i *Server) ListItems(ctx context.Context, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
 	if in.Cursor != "" {
 		return nil, notImpl("items.list (cursor)")
 	}
-	history, err := i.rt.ReadHistory(ctx, in.SessionID)
+	if store := i.rt.History(); store != nil {
+		return listItemsFromHistory(ctx, store, in)
+	}
+	return i.listItemsFromMessages(ctx, in)
+}
+
+// listItemsFromHistory serves items.list from the durable Item store.
+func listItemsFromHistory(ctx context.Context, store history.Store, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
+	hItems, hRuns, err := store.List(ctx, in.SessionID)
 	if err != nil {
 		return nil, err
 	}
-	items := historyToItems(in.SessionID, history)
+	items := make([]protocol.Item, 0, len(hItems))
+	for _, hi := range hItems {
+		var it protocol.Item
+		if err := json.Unmarshal(hi.Blob, &it); err != nil {
+			continue // skip a corrupt row rather than failing the whole list
+		}
+		items = append(items, it)
+	}
+	runs := make([]protocol.RunRef, 0, len(hRuns))
+	for _, hr := range hRuns {
+		var r protocol.RunRef
+		if err := json.Unmarshal(hr.Blob, &r); err != nil {
+			continue
+		}
+		runs = append(runs, r)
+	}
+
+	limit := in.Limit
+	if limit <= 0 || limit > 200 {
+		limit = 200
+	}
+	if limit < len(items) {
+		items = items[:limit]
+	}
+	return &protocol.ListItemsResponse{Items: items, Runs: runs}, nil
+}
+
+// listItemsFromMessages is the fallback when no Item-history store is
+// configured: reconstruct items from chat-memory messages. No runId / no
+// run tree (Runs is empty) — clients render a flat item list.
+func (i *Server) listItemsFromMessages(ctx context.Context, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
+	msgs, err := i.rt.ReadHistory(ctx, in.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	items := historyToItems(in.SessionID, msgs)
 
 	limit := in.Limit
 	if limit <= 0 || limit > 200 {

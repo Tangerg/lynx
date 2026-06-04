@@ -83,6 +83,24 @@ func migrate(db *sql.DB) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_interrupts_session
 			ON interrupts(session_id)`,
+		`CREATE TABLE IF NOT EXISTS history_items (
+			seq         INTEGER PRIMARY KEY AUTOINCREMENT,
+			session_id  TEXT    NOT NULL,
+			run_id      TEXT    NOT NULL DEFAULT '',
+			item_id     TEXT    NOT NULL DEFAULT '',
+			created_at  INTEGER NOT NULL,
+			item        TEXT    NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_history_items_session
+			ON history_items(session_id, seq)`,
+		`CREATE TABLE IF NOT EXISTS history_runs (
+			run_id      TEXT    PRIMARY KEY,
+			session_id  TEXT    NOT NULL,
+			updated_at  INTEGER NOT NULL,
+			run         TEXT    NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_history_runs_session
+			ON history_runs(session_id)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {
