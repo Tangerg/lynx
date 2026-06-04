@@ -53,7 +53,7 @@ func (m *MemoryService) Update(ctx context.Context, scope memory.Scope, content 
 		 ON CONFLICT(scope) DO UPDATE SET
 		   content     = excluded.content,
 		   captured_at = excluded.captured_at`,
-		int(scope), content, time.Now().UTC().Format(time.RFC3339),
+		int(scope), content, time.Now().UTC().UnixNano(),
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: update memory: %w", err)
@@ -76,13 +76,15 @@ func (m *MemoryService) List(ctx context.Context) ([]memory.Entry, error) {
 	out := make([]memory.Entry, 0)
 	for rows.Next() {
 		var (
-			scope int
-			entry memory.Entry
+			scope          int
+			entry          memory.Entry
+			capturedAtNano int64
 		)
-		if err := rows.Scan(&scope, &entry.Content, &entry.CapturedAt); err != nil {
+		if err := rows.Scan(&scope, &entry.Content, &capturedAtNano); err != nil {
 			return nil, fmt.Errorf("sqlite: scan memory: %w", err)
 		}
 		entry.Scope = memory.Scope(scope)
+		entry.CapturedAt = time.Unix(0, capturedAtNano).UTC()
 		out = append(out, entry)
 	}
 	if err := rows.Err(); err != nil {

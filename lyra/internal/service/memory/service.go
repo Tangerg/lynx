@@ -3,7 +3,10 @@
 // scopes) that get auto-injected into every session's system prompt.
 package memory
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Scope selects which LYRA.md the operation targets. The runtime
 // composes both at session start (project overrides user).
@@ -23,7 +26,7 @@ const (
 type Entry struct {
 	Scope      Scope
 	Content    string
-	CapturedAt string // RFC3339; kept as string so simple transports don't need to marshal time
+	CapturedAt time.Time // when this entry last landed in LYRA.md
 }
 
 // Service is the MemoryService contract. File-backed and SQLite-

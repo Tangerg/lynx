@@ -157,7 +157,7 @@ func (i *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 			re := protocol.RunEvent{
 				RunID:     runID,
 				EventID:   i.nextEventID(),
-				Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
+				Timestamp: time.Now().UTC(),
 				Durable:   durableFor(se.Type),
 				Event:     se,
 			}
@@ -244,7 +244,7 @@ func (i *Server) sendTerminal(out chan<- protocol.RunEvent, runID string, events
 		re := protocol.RunEvent{
 			RunID:     runID,
 			EventID:   i.nextEventID(),
-			Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
+			Timestamp: time.Now().UTC(),
 			Durable:   durableFor(se.Type),
 			Event:     se,
 		}
@@ -320,7 +320,7 @@ func (i *Server) ListOpenInterrupts(ctx context.Context, in protocol.ListOpenInt
 			ParentRunID: p.ParentRunID,
 			SessionID:   p.SessionID,
 			Interrupts:  ints,
-			CreatedAt:   p.CreatedAt.Format(time.RFC3339Nano),
+			CreatedAt:   p.CreatedAt,
 		})
 	}
 	return out, nil

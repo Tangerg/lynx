@@ -1,6 +1,9 @@
 package protocol
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Runs is the runs.* method group (API.md §7.3). HITL uses the R model:
 // a run finishes with an interrupt outcome; the client resumes via a
@@ -53,8 +56,8 @@ type RunRef struct {
 	ParentRunID     string      `json:"parentRunId,omitempty"`
 	Status          RunStatus   `json:"status,omitempty"`
 	Outcome         *RunOutcome `json:"outcome,omitempty"`
-	CreatedAt       string      `json:"createdAt,omitempty"`
-	FinishedAt      string      `json:"finishedAt,omitempty"`
+	CreatedAt       time.Time   `json:"createdAt,omitzero"`
+	FinishedAt      time.Time   `json:"finishedAt,omitzero"`
 }
 
 // RunOutcomeType discriminates the RunOutcome union (API.md §4.2).
@@ -183,7 +186,7 @@ type OpenInterrupt struct {
 	ParentRunID string      `json:"parentRunId"`
 	SessionID   string      `json:"sessionId"`
 	Interrupts  []Interrupt `json:"interrupts"`
-	CreatedAt   string      `json:"createdAt"`
+	CreatedAt   time.Time   `json:"createdAt"`
 }
 
 // ContextItem is one piece of side-channel context attached to a run

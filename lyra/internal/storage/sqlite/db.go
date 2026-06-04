@@ -66,7 +66,7 @@ func migrate(db *sql.DB) error {
 		`CREATE TABLE IF NOT EXISTS memory (
 			scope        INTEGER PRIMARY KEY,
 			content      TEXT    NOT NULL,
-			captured_at  TEXT    NOT NULL
+			captured_at  INTEGER NOT NULL
 		)`,
 		`CREATE TABLE IF NOT EXISTS process_snapshots (
 			id           TEXT    PRIMARY KEY,
