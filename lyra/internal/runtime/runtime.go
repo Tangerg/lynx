@@ -104,6 +104,15 @@ type Config struct {
 	// items.list is served from (authoritative completed Items + their
 	// RunRefs). nil falls back to deriving items from chat-memory messages.
 	HistoryStore history.Store
+
+	// Provider / Model / APIKeyMasked describe the single configured LLM
+	// provider, surfaced by providers.list / models.list (there is no
+	// provider registry — Lyra talks to one configured provider). The raw
+	// key never enters the runtime: APIKeyMasked is already display-safe
+	// (config.MaskKey, API.md §4.9).
+	Provider     string
+	Model        string
+	APIKeyMasked string
 }
 
 // Runtime is the bundle. Construct once via [New]; share the
@@ -122,6 +131,11 @@ type Runtime struct {
 	approval   approval.Service
 	interrupts interrupts.Store
 	history    history.Store
+
+	provider       string
+	model          string
+	apiKeyMasked   string
+	mcpServerNames []string
 }
 
 // New assembles a Runtime from cfg. Returns an error when a required
@@ -162,11 +176,26 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		chat:       chatsvc.New(eng, approvalSvc),
 		session:    sessionSvc,
 		tool:       toolsvc.New(eng),
-		memory:     cfg.MemoryService,
-		approval:   approvalSvc,
-		interrupts: interruptStore,
-		history:    cfg.HistoryStore,
+		memory:         cfg.MemoryService,
+		approval:       approvalSvc,
+		interrupts:     interruptStore,
+		history:        cfg.HistoryStore,
+		provider:       cfg.Provider,
+		model:          cfg.Model,
+		apiKeyMasked:   cfg.APIKeyMasked,
+		mcpServerNames: mcpServerNames(cfg.MCPServers),
 	}, nil
+}
+
+// mcpServerNames lifts the configured MCP server names. The runtime only
+// starts when every server dialed successfully (engine construction fails
+// otherwise), so a name present here is a connected server.
+func mcpServerNames(servers []mcp.ServerConfig) []string {
+	out := make([]string, 0, len(servers))
+	for _, s := range servers {
+		out = append(out, s.Name)
+	}
+	return out
 }
 
 // Chat returns the ChatService — the one-turn dispatch surface
@@ -195,6 +224,18 @@ func (r *Runtime) Interrupts() interrupts.Store { return r.interrupts }
 // configured (the RPC server then derives items.list from chat-memory
 // messages instead).
 func (r *Runtime) History() history.Store { return r.history }
+
+// ProviderInfo returns the configured LLM provider id, model id, and a
+// display-masked API key (API.md §4.9) — what providers.list /
+// models.list surface. Lyra talks to one configured provider; there is
+// no registry, so this is a single tuple, not a list.
+func (r *Runtime) ProviderInfo() (provider, model, apiKeyMasked string) {
+	return r.provider, r.model, r.apiKeyMasked
+}
+
+// MCPServerNames returns the names of the MCP servers dialed at startup
+// (all connected — see mcpServerNames).
+func (r *Runtime) MCPServerNames() []string { return r.mcpServerNames }
 
 // ReadHistory returns sessionID's persisted chat history — the
 // messages.list transport surface converts these to wire messages,

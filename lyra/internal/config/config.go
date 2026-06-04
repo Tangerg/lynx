@@ -275,3 +275,17 @@ func firstNonEmpty(a, b string) string {
 	}
 	return b
 }
+
+// MaskKey renders an API key for display per API.md §4.9: "" stays empty
+// (unconfigured); short keys are fully masked; longer keys reveal only a
+// trailing fragment so the value is never reversible.
+func MaskKey(k string) string {
+	switch {
+	case k == "":
+		return ""
+	case len(k) <= 8:
+		return "••••"
+	default:
+		return "…" + k[len(k)-4:]
+	}
+}

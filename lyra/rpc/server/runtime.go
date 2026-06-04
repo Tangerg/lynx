@@ -32,6 +32,11 @@ type RuntimeServices interface {
 	Approval() approval.Service
 	Interrupts() interrupts.Store
 	History() history.Store
+	// ProviderInfo is the single configured provider id, model id, and
+	// display-masked key (providers.list / models.list).
+	ProviderInfo() (provider, model, apiKeyMasked string)
+	// MCPServerNames lists the connected MCP servers (workspace.mcp.listServers).
+	MCPServerNames() []string
 	ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error)
 	SeedHistory(ctx context.Context, sessionID string, msgs []chat.Message) error
 }
