@@ -89,6 +89,10 @@ export function Composer({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {
+          // Ignore keystrokes while an IME composition is active — pressing
+          // Enter to commit a CJK candidate must confirm the candidate, not
+          // trigger Enter→submit (which double-committed / sent mid-compose).
+          if (e.nativeEvent.isComposing) return;
           // Resolve the pressed combo to its canonical form and ask the
           // plugin registry for a binding. The built-in "composer-keymap"
           // plugin registers Enter→submit; user plugins can add more
