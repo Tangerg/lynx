@@ -28,7 +28,7 @@ type Config struct {
 	Online OnlineConfig
 
 	// MemoryStore optionally supplies a persistent chat-memory
-	// backend (FileMessageStore, redis-backed, ...). When nil the
+	// backend (the sqlite MessageStore, redis-backed, ...). When nil the
 	// engine falls back to lynx's in-process [memory.InMemoryStore]
 	// — fine for tests but loses history on restart.
 	MemoryStore memory.Store

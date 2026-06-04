@@ -104,6 +104,13 @@ func migrate(db *sql.DB) error {
 			api_key   TEXT NOT NULL DEFAULT '',
 			base_url  TEXT NOT NULL DEFAULT ''
 		)`,
+		`CREATE TABLE IF NOT EXISTS messages (
+			seq             INTEGER PRIMARY KEY AUTOINCREMENT,
+			conversation_id TEXT    NOT NULL,
+			message         TEXT    NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_messages_conversation
+			ON messages(conversation_id, seq)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {

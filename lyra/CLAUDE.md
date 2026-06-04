@@ -20,7 +20,7 @@
 - **SSE 写端**: `github.com/Tangerg/sse`（WHATWG §9.2 合规，auto-flush）—— 自家库
 - **MCP 客户端**: `modelcontextprotocol/go-sdk/mcp`
 - **AG-UI 事件**: `core/model/chat` + 自家 `internal/agui` 编码层
-- **持久化**: 单一 SQLite 后端（`modernc.org/sqlite` 纯 Go 无 CGO，`$LYRA_HOME/lyra.db`）；唯二例外是用户可编辑文件 —— memory 的 LYRA.md、chat-memory 的 per-conversation JSONL（详见 §持久化后端）
+- **持久化**: 单一 SQLite 后端（`modernc.org/sqlite` 纯 Go 无 CGO，`$LYRA_HOME/lyra.db`）；唯一例外是用户可编辑的 LYRA.md memory 文件（详见 §持久化后端）
 - **LLM provider**: 多 provider × 多 model。`internal/service/provider` 是运行态可变注册表（每 provider 的 key+baseURL，file/sqlite 持久化）；`config.BuildClient(ClientSpec)` 按 provider id 建 client（anthropic/openai/moonshot/deepseek，后两者走 OpenAI 兼容端点，全部支持 baseURL 覆盖）。**per-run model**：`runs.start{provider, model}`(显式配对,缺一即 `invalid_params`、都缺用默认 —— provider **不从 model 推断**)→ `clientResolver` 取该 provider 的注册表凭证建/缓存 client → 经 agent `core.ChatClientProvider` 扩展点让该 turn 用它。model 元数据/定价/能力全来自公开的 `models/catalog`（models.list 直读，无需 key）。`config.yaml` 的 `provider`/`apiKey`/`baseURL` 是默认 provider 的种子
 - **测试**: stdlib `testing` + `httptest`
 
@@ -43,14 +43,13 @@
 
 ## 持久化后端
 
-**dev 阶段单一后端：SQLite**（`modernc.org/sqlite` 纯 Go 无 CGO），`$LYRA_HOME/lyra.db` 一个 *sql.DB 跨表持久化 **session / process-snapshot / interrupt / history / provider**。没有 `LYRA_STORAGE` 开关、没有 file/in-memory 并行实现（已删）。
+**dev 阶段单一后端：SQLite**（`modernc.org/sqlite` 纯 Go 无 CGO），`$LYRA_HOME/lyra.db` 一个 *sql.DB 跨表持久化 **session / process-snapshot / interrupt / history / provider / message（chat-memory）**。没有 `LYRA_STORAGE` 开关、没有 file/in-memory 并行实现（已删）。
 
-**两个例外仍是文件**（"用户可编辑" 是它们存在的意义）：
+**唯一例外仍是文件**（"用户可编辑" 是它存在的意义）：
 - **memory**：`internal/storage/FileMemoryService`（`<cwd>/LYRA.md` + `~/.lyra/LYRA.md`，用户可 `cat`/编辑）。
-- **message**（chat-memory）：`FileMessageStore`（per-conversation JSONL append-only，单实现、无 sqlite 孪生）。
 - （AGENTS.md 是发现，不是 storage。）
 
-装配在 `cmd/lyra/app.go:buildStores()`（恒 sqlite + file memory）。runtime **不再有 in-memory 回退** —— session/interrupt/provider 由 composition root 注入;测试 + 回退用 `sqlite.Open(":memory:" 或 temp file)`。
+装配在 `cmd/lyra/app.go:buildStores()`（恒 sqlite + file LYRA.md memory）。runtime **不再有 in-memory 回退** —— session/interrupt/provider 由 composition root 注入;测试 + 回退用 `sqlite.Open(":memory:" 或 temp file)`。
 
 ## Lyra-specific 强约定
 
@@ -173,5 +172,5 @@ curl -H "Authorization: Bearer $(cat ~/.lyra/local-token)" \
 - ✅ **多 provider × 多 model**（跨 models/agent/lyra）：①`models/catalog` 公开包暴露 provider→models 枚举（internal/catalog 不动）；②agent 加 `core.ChatClientProvider` 扩展点（`collectExtensions[T]` 范式，process-scope 优先于 platform 默认 client）让一个 Platform 按 turn 换 model；③lyra `internal/service/provider` 运行态注册表（file/sqlite 持久化）+ `clientResolver`（**显式** (provider,model)→建/缓存 client，provider 不推断）+ `chat.StartTurnRequest.{Provider,Model}` 透传 + per-model `CatalogPricing`；④`providers.list/configure/test`（真实探活 max_tokens=1）+ `models.list`（catalog 直读，不门控）+ `runs.start{provider,model}` 配对必传接线；⑤baseURL 作为 provider 配置项（原生 WithBaseURL / 兼容 BaseURL 字段）。退役 `ProviderInfo` 单 provider 假设
 - ✅ **per-session 工具工作目录**（跨 tools/lyra，不动 agent）：原本 engine 单一 `Workdir`，fs/bash 永远跑 serve cwd、无视 `Session.cwd`（多 project 在数据模型成立、工具层是假的）。①`tools/bash.LocalExecutor` 加 `Dir` 字段（fs 的 `Root` 类比；空=继承宿主 cwd）；②engine 工具集拆「cwd 无关（online/MCP/task，构造一次）」vs「cwd 相关（fs/bash，按解析重建）」；③`cwdToolResolver` 取代 static resolver —— `Tools(ctx)` 时从 `core.ProcessFrom(ctx).Blackboard()` 读 `cwdBindingKey`（缺则回退默认 workdir），同时服务 coding/subtask 两 role；④`RunChatRequest.Cwd`/`ChatInput.Cwd` 透传，chat action 用 **`BindProtected`** 种 cwd（过 typed-action `ClearBlackboard` + 随 `Blackboard.Spawn` 下传子进程）；⑤`chat.StartTurnRequest.Cwd` + `runs.start` 从 `Session.cwd` 解析透传。**复用** per-run model 的同款 seam（`ProcessFrom`/平台级 `ToolGroupResolver`），一个 engine 服务所有 session。subtask 的 cwd 继承已端到端验证（见下条 agent 修复）
 - ✅ **agent 委派 spawn 语义修复**（用 lyra 倒逼出的 agent bug）：agent-as-tool（`AsChatTool`/`AsChatToolFromAgent`/`SubagentTools`/`AllAchievableTools`）原经 `SpawnChild` **全继承**父 blackboard → `GoalProducing[T]` 子 agent 被继承状态预满足、planner 不产 action → 子任务**静默不干活**（lyra `task` 命中）。新增 `runtime.SpawnChildProtectedOnly`（白板但保留 `BindProtected` 的 ambient/session 项，经 `Spawn()`+`Clear()`），是"全继承（SpawnChild）"与"全空白（SpawnChildFresh）"之间缺失的中间档,作委派默认。四个委派构造器全部改用它;`SpawnChild`(全继承)保留为公开 primitive,保住完整继承梯度。async 路径（`SpawnChildAsync`/`AsBackgroundChatTool`）仍全继承，无 lyra 消费方,未动。lyra `task` 子任务现在真跑且经 protected 继承 cwd（`TestEngine_RunChat_SubtaskInheritsCwd` 验证）
-- ✅ **storage 统一 SQLite**（dev 减负）：删掉 session/interrupt/provider 的 in-memory + file 实现、history/process 的 file 实现、冗余的 sqlite memory 表 —— 单一 SQLite 后端（`buildStores` 恒 sqlite）。去掉 `LYRA_STORAGE` 开关 + `config.StorageKind`。runtime 不再有 in-memory 回退（session/interrupt/provider 必须注入,测试用 `sqlite.Open(temp/:memory:)`）。**保留为可编辑文件**:memory(LYRA.md)、message(per-conversation JSONL)。顺带落地前端 B1 —— `Session.model`：domain 加 `Model` 字段 + sqlite `model` 列 + `Service.SetModel`;`runs.start{model}` 显式选则写回,`sessionToWire` 对未选过的会话回退 `Runtime.DefaultModel()`,wire 永远带真实 model 名
+- ✅ **storage 统一 SQLite**（dev 减负）：删掉 session/interrupt/provider 的 in-memory + file 实现、history/process 的 file 实现、message 的 JSONL file 实现（新写 `sqlite.MessageStore` 替代）、冗余的 sqlite memory 表 —— 单一 SQLite 后端（`buildStores` 恒 sqlite，session/process/interrupt/history/provider/message 同一个 db）。去掉 `LYRA_STORAGE` 开关 + `config.StorageKind`。runtime 不再有 in-memory 回退（session/interrupt/provider 必须注入,测试用 `sqlite.Open(temp/:memory:)`）。**唯一保留为可编辑文件**:memory(LYRA.md)。顺带落地前端 B1 —— `Session.model`：domain 加 `Model` 字段 + sqlite `model` 列 + `Service.SetModel`;`runs.start{model}` 显式选则写回,`sessionToWire` 对未选过的会话回退 `Runtime.DefaultModel()`,wire 永远带真实 model 名
 - ✅ **前端对接 B1 修复**：`Session.model` 恒空 → assistant 气泡名退化 "Assistant"。见上条 storage 统一（model 随 session 持久化 + 默认兜底）

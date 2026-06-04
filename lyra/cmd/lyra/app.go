@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 
 	"github.com/Tangerg/lynx/agent/core"
+	chatmem "github.com/Tangerg/lynx/core/model/chat/memory"
 	"github.com/Tangerg/lynx/lyra/internal/config"
 	lyraruntime "github.com/Tangerg/lynx/lyra/internal/runtime"
 	"github.com/Tangerg/lynx/lyra/internal/service/history"
@@ -106,7 +107,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		return err
 	}
 
-	sessionSvc, memSvc, procStore, interruptStore, historyStore, providerSvc, err := buildStores()
+	sessionSvc, memSvc, procStore, interruptStore, historyStore, providerSvc, msgStore, err := buildStores()
 	if err != nil {
 		return err
 	}
@@ -116,12 +117,6 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 	// unconfigured until the user sets their keys.
 	if err := seedConfiguredProvider(ctx, providerSvc, cfg); err != nil {
 		return err
-	}
-	// Message history stays file-backed for now (JSONL append-only
-	// pattern doesn't map cleanly to SQLite rows yet).
-	msgStore, err := storage.NewFileMessageStore()
-	if err != nil {
-		return fmt.Errorf("message storage: %w", err)
 	}
 
 	rt, err := lyraruntime.New(ctx, lyraruntime.Config{
@@ -166,31 +161,33 @@ func (a *App) runtime() *lyraruntime.Runtime { return a.rt }
 func (a *App) config() config.Config { return a.cfg }
 
 // buildStores wires the persistence backends. Everything durable —
-// session / process-snapshot / interrupt / history / provider — shares one
-// SQLite *sql.DB at $LYRA_HOME/lyra.db. The one exception is memory: it
-// stays a user-editable LYRA.md file cascade (the whole point of memory is
-// that the user can `cat` / edit it), so it doesn't live in SQLite.
+// session / process-snapshot / interrupt / history / provider / chat-memory
+// messages — shares one SQLite *sql.DB at $LYRA_HOME/lyra.db. The one
+// exception is the LYRA.md memory cascade: it stays a user-editable file
+// (the whole point of it is that the user can `cat` / edit it), so it
+// doesn't live in SQLite.
 //
 // The process + interrupt stores are what make HITL resume survive a
 // restart. The *sql.DB is intentionally process-lifetime (no teardown);
 // modernc.org/sqlite cleans up its WAL on exit. Add explicit teardown when
 // the runtime grows a Shutdown path.
-func buildStores() (sessionsvc.Service, memorysvc.Service, core.ProcessStore, interrupts.Store, history.Store, providersvc.Service, error) {
+func buildStores() (sessionsvc.Service, memorysvc.Service, core.ProcessStore, interrupts.Store, history.Store, providersvc.Service, chatmem.Store, error) {
 	home, err := storage.Home()
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, fmt.Errorf("storage home: %w", err)
+		return nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("storage home: %w", err)
 	}
 	db, err := sqlitestore.Open(filepath.Join(home, "lyra.db"))
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, err
 	}
 	mem, err := storage.NewFileMemoryService()
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, fmt.Errorf("memory storage: %w", err)
+		return nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("memory storage: %w", err)
 	}
 	return sqlitestore.NewSessionService(db), mem,
 		sqlitestore.NewProcessStore(db), sqlitestore.NewInterruptStore(db),
-		sqlitestore.NewHistoryStore(db), sqlitestore.NewProviderService(db), nil
+		sqlitestore.NewHistoryStore(db), sqlitestore.NewProviderService(db),
+		sqlitestore.NewMessageStore(db), nil
 }
 
 // seedConfiguredProvider ensures the config-file provider is present in the
