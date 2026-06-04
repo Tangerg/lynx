@@ -73,22 +73,3 @@ func (i *Server) persistRun(ctx context.Context, sessionID string, run *protocol
 		Blob:      blob,
 	})
 }
-
-// persistUserItem records the user's input as a completed userMessage
-// Item at run start. The translator never emits one (the client already
-// holds the input it sent), but durable history must include the user
-// turn (API.md §0.1 / §7.4). The id is derived from the runId so it stays
-// stable and distinct from the run's streamed items.
-func (i *Server) persistUserItem(ctx context.Context, sessionID, runID string, input []protocol.ContentBlock) {
-	if i.rt.History() == nil || len(input) == 0 {
-		return
-	}
-	i.persistItem(ctx, sessionID, &protocol.Item{
-		ID:        protocol.IDPrefixItem + runID + "_u",
-		RunID:     runID,
-		Status:    protocol.ItemStatusCompleted,
-		Type:      protocol.ItemTypeUserMessage,
-		CreatedAt: time.Now().UTC(),
-		Content:   input,
-	})
-}
