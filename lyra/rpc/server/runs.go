@@ -43,12 +43,12 @@ func (i *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		return nil, nil, err
 	}
 
-	// runId on the wire == the turn id for the root run.
+	// runId on the wire == the turn id for the root run. The user's input
+	// rides the stream as the run's opening userMessage Item (translator
+	// emits it after run.started) — streamed live and persisted through the
+	// same path, so the wire id and the items.list id are one and the same.
 	runID := handle.TurnID
-	// Record the user's input as the run's opening userMessage Item — the
-	// translator emits no userMessage, but durable history needs it.
-	i.persistUserItem(ctx, sessionID, runID, in.Input)
-	out, events, err := i.openSegment(ctx, runID, "", handle, sessionID)
+	out, events, err := i.openSegment(ctx, runID, "", handle, sessionID, in.Input)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -99,7 +99,9 @@ func (i *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	// turn for a cross-restart one — and already carries the run_ prefix, so
 	// we suffix it (not re-prefix) to derive a distinct continuation id.
 	contRunID := handle.TurnID + "_" + strconv.FormatInt(time.Now().UnixNano(), 36)
-	out, events, err := i.openSegment(ctx, contRunID, in.ParentRunID, handle, pending.SessionID)
+	// A continuation carries no new user turn — the decision is delivered
+	// out-of-band via runs.resume, so no opening userMessage Item.
+	out, events, err := i.openSegment(ctx, contRunID, in.ParentRunID, handle, pending.SessionID, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -126,7 +128,7 @@ func (i *Server) rehydrate(ctx context.Context, pending interrupts.Pending, appr
 // pump for one run segment. parentRunID is empty for a root run
 // (runs.start) and set for a continuation (runs.resume) — it rides onto
 // the RunRef and the runEntry so the continuation links back to its parent.
-func (i *Server) openSegment(reqCtx context.Context, runID, parentRunID string, handle chat.TurnHandle, sessionID string) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
+func (i *Server) openSegment(reqCtx context.Context, runID, parentRunID string, handle chat.TurnHandle, sessionID string, userInput []protocol.ContentBlock) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
 	runCtx, cancel := context.WithCancel(context.Background())
 	inner, err := i.rt.Chat().Events(runCtx, handle)
 	if err != nil {
@@ -147,7 +149,7 @@ func (i *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 	// and stays resumable via runs.subscribe. runCtx is Background-rooted
 	// on purpose: the run must outlive the request that started it.
 	context.AfterFunc(reqCtx, unsubscribe)
-	go i.pumpRun(runCtx, runID, parentRunID, handle, inner, hub)
+	go i.pumpRun(runCtx, runID, parentRunID, handle, inner, hub, userInput)
 	return &protocol.StartRunResponse{RunID: runID}, events, nil
 }
 
@@ -161,8 +163,8 @@ func (i *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 //
 // Either way the wire run.finished event is the last thing on the
 // channel before it closes.
-func (i *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle chat.TurnHandle, inner iter.Seq[chat.Event], hub *runHub) {
-	tr := newTranslator(handle.SessionID, runID, parentRunID)
+func (i *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle chat.TurnHandle, inner iter.Seq[chat.Event], hub *runHub, userInput []protocol.ContentBlock) {
+	tr := newTranslator(handle.SessionID, runID, parentRunID, userInput)
 	finished := false
 	parked := false
 

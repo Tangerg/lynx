@@ -35,6 +35,12 @@ type translator struct {
 	parentRunID string // non-empty for continuation runs (runs.resume)
 	itemSeq     int
 
+	// userInput is the run's opening user message, emitted as the first
+	// Item (userMessage) right after run.started. Set only for root runs
+	// (runs.start); empty for continuations (runs.resume carry no new
+	// user turn).
+	userInput []protocol.ContentBlock
+
 	text      *openText
 	reasoning *openText
 	tools     map[string]*openTool // callID → in-flight toolCall item
@@ -55,11 +61,12 @@ type openTool struct {
 	kind      protocol.ToolInvocationKind
 }
 
-func newTranslator(sessionID, runID, parentRunID string) *translator {
+func newTranslator(sessionID, runID, parentRunID string, userInput []protocol.ContentBlock) *translator {
 	return &translator{
 		runID:       runID,
 		sessionID:   sessionID,
 		parentRunID: parentRunID,
+		userInput:   userInput,
 		tools:       map[string]*openTool{},
 	}
 }
@@ -73,7 +80,7 @@ func (t *translator) nextItemID() string {
 func (t *translator) translate(ev chat.Event) []protocol.StreamEvent {
 	switch e := ev.(type) {
 	case chat.TurnStart:
-		return []protocol.StreamEvent{{
+		out := []protocol.StreamEvent{{
 			Type: protocol.StreamRunStarted,
 			Run: &protocol.RunRef{
 				ID:          t.runID,
@@ -83,6 +90,7 @@ func (t *translator) translate(ev chat.Event) []protocol.StreamEvent {
 				CreatedAt:   time.Now().UTC(),
 			},
 		}}
+		return append(out, t.openUserMessage()...)
 	case chat.MessageDelta:
 		out := t.closeReasoning()
 		return append(out, t.appendText(e.Text)...)
@@ -102,6 +110,35 @@ func (t *translator) translate(ev chat.Event) []protocol.StreamEvent {
 		return t.turnEnd(e)
 	}
 	return nil
+}
+
+// openUserMessage emits the run's opening user turn as a userMessage Item
+// (item.started + item.completed) so the live stream carries it — the
+// client renders the user bubble straight from the event flow and learns
+// its durable item id (matching items.list on reload). Emitted once: it
+// consumes t.userInput. Empty for continuation runs.
+func (t *translator) openUserMessage() []protocol.StreamEvent {
+	if len(t.userInput) == 0 {
+		return nil
+	}
+	input := t.userInput
+	t.userInput = nil
+	id := t.nextItemID()
+	now := time.Now().UTC()
+	item := func(status protocol.ItemStatus) *protocol.Item {
+		return &protocol.Item{
+			ID:        id,
+			RunID:     t.runID,
+			Status:    status,
+			Type:      protocol.ItemTypeUserMessage,
+			CreatedAt: now,
+			Content:   input,
+		}
+	}
+	return []protocol.StreamEvent{
+		{Type: protocol.StreamItemStarted, Item: item(protocol.ItemStatusInProgress)},
+		{Type: protocol.StreamItemCompleted, Item: item(protocol.ItemStatusCompleted)},
+	}
 }
 
 // interrupt maps a parked turn (HITL) onto its Item(s) + a terminal
