@@ -6,3 +6,6 @@ lyra/config/config.yaml
 
 # Lyra dev binary (built via `go build -o lyra ./cmd/lyra`).
 lyra/lyra
+
+# Lyra runtime-generated memory (written to cwd when serving from lyra/).
+lyra/LYRA.md
