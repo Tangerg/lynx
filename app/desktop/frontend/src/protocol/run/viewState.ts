@@ -137,7 +137,7 @@ export interface Message {
 
 export interface RunState {
   running: boolean;
-  threadId: string | null; // = sessionId
+  sessionId: string | null;
   runId: string | null;
   step: number;
   totalSteps: number;
@@ -211,7 +211,7 @@ export const INITIAL_VIEW_STATE: AgentViewState = {
   plan: [],
   run: {
     running: false,
-    threadId: null,
+    sessionId: null,
     runId: null,
     step: 0,
     totalSteps: 0,

@@ -173,11 +173,11 @@ describe("plugin registry", () => {
 
     host.events.onStream("run.started", (s) => ({
       ...s,
-      run: { ...s.run, threadId: "a" },
+      run: { ...s.run, sessionId: "a" },
     }));
     host.events.onStream("run.started", (s) => ({
       ...s,
-      run: { ...s.run, threadId: `${s.run.threadId}b` },
+      run: { ...s.run, sessionId: `${s.run.sessionId}b` },
     }));
 
     const handlers = lookupStreamHandlers("run.started");
@@ -191,7 +191,7 @@ describe("plugin registry", () => {
         run: { id: "r", sessionId: "a" },
       } as StreamEvent);
     }
-    expect(state.run.threadId).toBe("ab");
+    expect(state.run.sessionId).toBe("ab");
   });
 
   it("onCore disposable removes the handler", () => {
