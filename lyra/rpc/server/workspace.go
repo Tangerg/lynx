@@ -74,8 +74,11 @@ func projectsFromSessions(sessions []session.Session) []protocol.Project {
 	return out
 }
 
+// WorkspaceListSkills is gated off (features.skills=false) — return
+// capability_not_negotiated rather than a misleading empty list, until
+// the engine grows skill discovery.
 func (i *Server) WorkspaceListSkills(_ context.Context, _ protocol.WorkspaceQuery) ([]protocol.Skill, error) {
-	return []protocol.Skill{}, nil
+	return nil, notImpl("workspace.listSkills")
 }
 
 // WorkspaceListAgentDocs lists the AGENTS.md files discovered from cwd
