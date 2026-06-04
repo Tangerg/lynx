@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/otel"
@@ -76,7 +75,6 @@ func dialMCPServers(ctx context.Context, servers []mcp.ServerConfig) (tools []ch
 		}
 		sessions = append(sessions, session)
 		sources = append(sources, mcp.Source{Name: srv.Name, Session: session})
-		slog.InfoContext(ctx, "mcp server connected", "mcp.server.name", srv.Name)
 	}
 
 	provider, perr := mcp.NewProvider(mcp.ProviderConfig{Sources: sources})

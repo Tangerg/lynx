@@ -55,7 +55,7 @@ func newTestProvider(exporter sdktrace.SpanExporter) *sdktrace.TracerProvider {
 func TestExporter_SuccessSpan(t *testing.T) {
 	handler := &captureHandler{}
 	logger := stdslog.New(handler)
-	exp := slog.NewExporter(logger)
+	exp := slog.NewSpanExporter(logger)
 
 	tp := newTestProvider(exp)
 	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
@@ -108,7 +108,7 @@ func TestExporter_SuccessSpan(t *testing.T) {
 
 func TestExporter_ErrorSpan(t *testing.T) {
 	handler := &captureHandler{}
-	exp := slog.NewExporter(stdslog.New(handler))
+	exp := slog.NewSpanExporter(stdslog.New(handler))
 
 	tp := newTestProvider(exp)
 	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
@@ -133,7 +133,7 @@ func TestExporter_ErrorSpan(t *testing.T) {
 
 func TestExporter_ChildSpan_RecordsParent(t *testing.T) {
 	handler := &captureHandler{}
-	exp := slog.NewExporter(stdslog.New(handler))
+	exp := slog.NewSpanExporter(stdslog.New(handler))
 
 	tp := newTestProvider(exp)
 	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
@@ -168,7 +168,7 @@ func TestExporter_ChildSpan_RecordsParent(t *testing.T) {
 func TestExporter_NilLogger_UsesDefault(t *testing.T) {
 	// We don't assert on slog.Default()'s output, only that construction
 	// does not panic and export runs without error.
-	exp := slog.NewExporter(nil)
+	exp := slog.NewSpanExporter(nil)
 
 	tp := newTestProvider(exp)
 	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
@@ -178,7 +178,7 @@ func TestExporter_NilLogger_UsesDefault(t *testing.T) {
 }
 
 func TestExporter_Shutdown_ReturnsNil(t *testing.T) {
-	exp := slog.NewExporter(stdslog.Default())
+	exp := slog.NewSpanExporter(stdslog.Default())
 	if err := exp.Shutdown(context.Background()); err != nil {
 		t.Errorf("Shutdown: %v", err)
 	}

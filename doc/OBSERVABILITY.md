@@ -2,7 +2,7 @@
 
 > Lynx **直接使用 OpenTelemetry API**，不自造观测抽象。OTel 本身就是厂商中立层，再加一层是重复建设。
 >
-> **当前状态（2026-06-05 更新）**：可观测性三驾马车（**Traces / Metrics / Logs**）统一 sink 到 `log/slog`。`otel/slog` 现含三件套——`NewExporter`(span→slog) + `NewMetricExporter`(metric→slog) + `NewHandler`(上下文关联 log handler，盖 `trace_id`/`span_id`)；`otel/log` 是 `*log.Logger` 版 span exporter。lyra startup（`cmd/lyra/observability.go::setupObservability`）一次性绑全局 provider + slog。**全模块埋点已落地**——chat client（`Call`+`Stream`）、embedding、tool、RAG 五阶段、MCP client+server、agent runtime（tick/action/plan metrics + planner span）、24 个 vectorstore、6 个 chatmemory provider，全部按 GenAI / DB semconv 挂上；lyra 业务层（chat turn span+metrics、run/session/interrupt/MCP 生命周期 slog）补齐。**所有 attr key 已去品牌**（`lynx.*`/`lyra.*` → semconv 或裸 domain，见 §3）。
+> **当前状态（2026-06-05 更新）**：可观测性三驾马车（**Traces / Metrics / Logs**）都是 OTel 信号，dev 统一 sink 到 `log/slog`、生产换 OTLP（vendor-neutral）。`otel/slog` 含三个 exporter——`NewSpanExporter`(span) + `NewMetricExporter`(metric) + `NewLogExporter`(OTel log record→slog)；log 的 `slog.Handler` 用 contrib `otelslog` bridge（→ LoggerProvider → LogExporter）。lyra startup（`cmd/lyra/observability.go::setupObservability`）一次性绑全局 provider。**埋点原则：观测靠 span + metric,不在业务代码撒 `slog`**——span 经 sink 渲染即"日志"。**全模块埋点已落地**——chat（`Call`+`Stream`）、embedding、tool、RAG 五阶段、MCP client+server、agent runtime（tick/action/plan metrics + planner span）、24 个 vectorstore、6 个 chatmemory provider 按 GenAI/DB semconv;lyra 业务层 chat turn `invoke_agent` span + `run.*` metrics + 各层 span（session/tool/mcp 经 RPC/dial span 覆盖）。**所有 attr key 已去品牌**（见 §3）。
 
 ---
 
@@ -29,14 +29,14 @@
 | P3 | **Context 传播 + 全链路**：span 通过 `context.Context` 自动串联；trace_id 在入口生成，脱钩 goroutine 用 `context.WithoutCancel` 保 span |
 | P4 | **零配置即 noop**：默认 provider 不输出，无开销 |
 | P5 | **观测是读路径**：不 mutate 业务数据 |
-| P6 | **三驾马车统一 sink 到 slog**：app startup 把 span / metric / log 全绑到 `otel/slog`，库发信号、应用业务事件 `slog.InfoContext` |
+| P6 | **观测靠 span + metric,不撒 slog**：一个事件该被观测就开 span / 记 metric,不加 `slog.InfoContext` 行;span 经 sink 渲染即"日志"。Logs 管线（bridge → LoggerProvider → LogExporter）仍在,作 vendor-neutral sink + 兜 stdlib log,不是邀请到处写 slog |
 
 ### 1.3 非目标
 
 - ❌ 不做 APM 平台（交给后端厂商）
 - ❌ 不内置 OTel SDK（用户在 app 层引入；lyra 这个具体 app 才装 SDK）
 - ❌ 不自造观测抽象（`Registry` / `Convention` / `Adapter` 一概不写——OTel 就是那层）
-- ✅ **但**：库发 metric instrument（不只是 span）、应用日志经 `NewHandler` 关联到 span——三驾马车都要齐（旧版"不做 metrics 聚合 / 不做日志框架"的措辞已废：我们不写聚合/框架，但**发信号 + sink 到 slog** 是做的）
+- ✅ **但**：发 metric instrument（不只是 span）、Logs 经 `otelslog` bridge → `NewLogExporter` 成一等 OTel 信号——三驾马车都要齐且都可一键换 OTLP（旧版"不做 metrics 聚合 / 不做日志框架"的措辞已废：我们不写聚合/框架，但**三个信号都发 + sink 到 slog**）
 
 ---
 
@@ -311,7 +311,7 @@ import (
 
 func main() {
     tp := sdktrace.NewTracerProvider(
-        sdktrace.WithSyncer(slog.NewExporter(stdslog.Default())),
+        sdktrace.WithSyncer(slog.NewSpanExporter(stdslog.Default())),
     )
     otel.SetTracerProvider(tp)
     defer tp.Shutdown(context.Background())
@@ -340,50 +340,53 @@ time=... level=ERROR msg="span (error): timeout after 30s" trace_id=...
 
 ### 6.1a 三驾马车一次性绑全（后端 startup 范式）
 
-单进程后端（lyra）要的不止"看 span"，而是 **Traces + Metrics + Logs 全 sink 到 slog、且应用日志和 span 串到同一 trace**。`otel/slog` 为此给了三件套，startup 一次绑好后业务侧零 DI（直接 `otel.Tracer` / `otel.Meter` / `slog.InfoContext`）：
+单进程后端（lyra）要的是 **Traces + Metrics + Logs 三个 OTel 信号全 sink 到 slog**，startup 一次绑好后业务侧零 DI（`otel.Tracer` / `otel.Meter`,日志经 bridge）。Logs 走 OTel `LoggerProvider`（不直接写 slog）正是为了可替换性——生产把这三个 exporter 换成 OTLP 即全导到云,本代码不动：
 
 ```go
 import (
     stdslog "log/slog"
+    slogbridge "go.opentelemetry.io/contrib/bridges/otelslog"
     "go.opentelemetry.io/otel"
     "go.opentelemetry.io/otel/propagation"
+    sdklog "go.opentelemetry.io/otel/sdk/log"
     sdkmetric "go.opentelemetry.io/otel/sdk/metric"
     sdktrace "go.opentelemetry.io/otel/sdk/trace"
     otelslog "github.com/Tangerg/lynx/otel/slog"
 )
 
 func setupObservability() func(context.Context) {
-    logger := stdslog.Default()
+    base := stdslog.Default() // 实际 stderr sink；三个 exporter 都写它
 
     // 1) Traces → slog
     tp := sdktrace.NewTracerProvider(
         sdktrace.WithSampler(sdktrace.AlwaysSample()),
-        sdktrace.WithSyncer(otelslog.NewExporter(logger)),
+        sdktrace.WithSyncer(otelslog.NewSpanExporter(base)),
     )
     otel.SetTracerProvider(tp)
 
     // 2) Metrics → slog（PeriodicReader 周期吐）
     mp := sdkmetric.NewMeterProvider(
-        sdkmetric.WithReader(sdkmetric.NewPeriodicReader(otelslog.NewMetricExporter(logger))),
+        sdkmetric.WithReader(sdkmetric.NewPeriodicReader(otelslog.NewMetricExporter(base))),
     )
     otel.SetMeterProvider(mp)
 
-    // 3) Logs：默认 slog 包一层关联 handler（从 ctx 活跃 span 盖 trace_id/span_id）
-    stdslog.SetDefault(stdslog.New(otelslog.NewHandler(logger.Handler())))
+    // 3) Logs：LoggerProvider → LogExporter；slog.Default 用 contrib bridge 喂它
+    //    （trace_id/span_id 由 OTel log record 原生带，不用手动盖）
+    lp := sdklog.NewLoggerProvider(
+        sdklog.WithProcessor(sdklog.NewSimpleProcessor(otelslog.NewLogExporter(base))))
+    stdslog.SetDefault(stdslog.New(slogbridge.NewHandler("lyra", slogbridge.WithLoggerProvider(lp))))
 
     // 4) 全链路：W3C traceparent 传播
     otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
         propagation.TraceContext{}, propagation.Baggage{}))
 
-    return func(ctx context.Context) { _ = tp.Shutdown(ctx); _ = mp.Shutdown(ctx) }
+    return func(ctx context.Context) { _ = tp.Shutdown(ctx); _ = mp.Shutdown(ctx); _ = lp.Shutdown(ctx) }
 }
 ```
 
+（生产版：把 `NewSpanExporter`/`NewMetricExporter`/`NewLogExporter` 换成对应的 OTLP exporter,endpoint 指向 collector/Datadog,业务零改。）
+
 **全链路要点**：HTTP transport 入口 `otel.GetTextMapPropagator().Extract` 提客户端 traceparent + 开 server span（trace_id 从入口生成）；脱钩后台 goroutine（run 必须 outlive 请求）用 `context.WithoutCancel(reqCtx)`——保住 span 让子 span 同 trace，只断 cancel，**不要 `context.Background()`**（那会另起一棵 trace）。
-
-### 6.2 `otel/log`：stdlib log 版
-
-logfmt 风格单行输出，依赖更少（不需要 slog）。
 
 ### 6.3 用法选择
 
@@ -432,11 +435,10 @@ otel.SetTracerProvider(tp)
 
 ### 8.1 已就绪（接收侧 / sink）
 
-- [x] `otel/slog/NewExporter`：span → slog（单测）
+- [x] `otel/slog/NewSpanExporter`：span → slog（单测）
 - [x] `otel/slog/NewMetricExporter`：metric → slog（单测）
-- [x] `otel/slog/NewHandler`：上下文关联 log handler，盖 `trace_id`/`span_id`（单测）
-- [x] `otel/log/`：`*log.Logger` 版 span exporter（logfmt 风格）
-- [x] `lyra/cmd/lyra/observability.go::setupObservability`：startup 一次性绑全局 TracerProvider + MeterProvider + slog handler + W3C propagator
+- [x] `otel/slog/NewLogExporter`：OTel log record → slog（单测）；log 的 `slog.Handler` 用 contrib `otelslog` bridge
+- [x] `lyra/cmd/lyra/observability.go::setupObservability`：startup 一次性绑全局 TracerProvider + MeterProvider + LoggerProvider + W3C propagator
 
 ### 8.2 已就绪（发射侧）
 
@@ -448,7 +450,7 @@ otel.SetTracerProvider(tp)
 - [x] `mcp/tool.go::Tool.Call` + `mcp/server.go::makeServerHandler` 加 `mcp.tool.call` / `mcp.tool.serve` span
 - [x] `agent/runtime/` tick / action / plan 全套埋点：span（含 HTN / Reactive / GOAP planner）+ metrics（`agent.ticks` / `agent.action.executions` / `agent.action.duration` / `agent.plan.duration` / `agent.process.exits`）
 - [x] `chatmemory/{postgres,redis,mongodb,cassandra,neo4j,cosmosdb}` 6 个 provider Read/Write/Clear 加 DB-semconv span
-- [x] **lyra 业务层**：chat turn `invoke_agent <model>` span（全链路父 span）+ `run.duration` / `run.interrupts` metrics + 生命周期 slog（turn started/ended/interrupted/resumed/canceled、session created/forked/deleted、mcp.dial_servers、execute_tool 直调）
+- [x] **lyra 业务层**：chat turn `invoke_agent <model>` span（全链路父 span）+ `run.duration` / `run.interrupts` metrics；MCP dial（`mcp.dial_servers`）、直调 tool（`execute_tool`）span；session/run 生命周期由 RPC server span + turn span 覆盖（**不撒 slog**——见 §1.2 P6）
 
 ### 8.3 待动工
 

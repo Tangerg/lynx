@@ -3,7 +3,6 @@ package chat
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -104,10 +103,6 @@ func (st *turnState) drainSteering() []string {
 // state. Later segments are driven by [inMemory.Resume] through the
 // shared [drive] loop. st.ctx (the turn's own lifetime) bounds the run.
 func (s *inMemory) runTurn(req StartTurnRequest, st *turnState) {
-	slog.InfoContext(st.ctx, "chat turn started",
-		attrRunID, st.handle.TurnID,
-		attrGenAIConversationID, st.handle.SessionID,
-		attrGenAIRequestModel, st.model)
 	s.emit(st, TurnStart{Model: st.model})
 
 	// Resolve a per-turn client when the run picked a provider+model and a
@@ -214,8 +209,6 @@ func (s *inMemory) emitInterrupt(st *turnState, proc engine.ChatProcess) {
 	}
 	kind := interruptKind(aw)
 	recordInterruptMetric(st.ctx, kind)
-	slog.InfoContext(st.ctx, "chat turn interrupted",
-		attrRunID, st.handle.TurnID, attrRunInterruptKind, kind)
 	s.emit(st, TurnInterrupted{Interrupts: []Interrupt{{Kind: kind, Payload: aw.PromptAny()}}})
 }
 
@@ -261,8 +254,6 @@ func (s *inMemory) finishTurn(st *turnState, reason TurnEndReason) {
 	dur := time.Since(st.startedAt)
 	finishTurnSpan(st.span, reason, TokenUsage{}, false, "")
 	recordTurnDuration(st.ctx, reason, st.model, dur)
-	slog.InfoContext(st.ctx, "chat turn ended",
-		attrRunID, st.handle.TurnID, attrRunOutcome, reason.String())
 	s.emit(st, TurnEnd{Reason: reason, Duration: dur})
 	s.endTurn(st)
 }
@@ -283,13 +274,6 @@ func (s *inMemory) emitTurnEnd(st *turnState, proc engine.ChatProcess, terminal 
 	recordTurnDuration(st.ctx, plan.reason, st.model, duration)
 	if plan.errMsg != "" {
 		s.emit(st, ErrorEvent{Message: plan.errMsg, Code: plan.errCode})
-		slog.ErrorContext(st.ctx, "chat turn ended",
-			attrRunID, st.handle.TurnID, attrRunOutcome, plan.reason.String(),
-			"error.message", plan.errMsg, "error.code", plan.errCode)
-	} else {
-		slog.InfoContext(st.ctx, "chat turn ended",
-			attrRunID, st.handle.TurnID, attrRunOutcome, plan.reason.String(),
-			attrGenAIUsageInput, out.Usage.PromptTokens, attrGenAIUsageOutput, out.Usage.CompletionTokens)
 	}
 	end := TurnEnd{Reason: plan.reason, Duration: duration}
 	if plan.withUsage {
