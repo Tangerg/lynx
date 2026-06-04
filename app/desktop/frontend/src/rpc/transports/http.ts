@@ -37,6 +37,9 @@ export interface HttpTransportConfig {
    * user-auth credential — see docs/TRANSPORT.md §11.
    */
   localToken?: string;
+  /** Negotiated protocol version, sent as `X-Protocol-Version` on every
+   *  request (TRANSPORT.md §2 / §6.2 canonical request shape). */
+  protocolVersion?: string;
   /** Custom fetch impl (tests inject one). Defaults to globalThis.fetch. */
   fetch?: typeof fetch;
 }
@@ -52,6 +55,7 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
   function requestHeaders(extra: Record<string, string>): Record<string, string> {
     const headers: Record<string, string> = { ...extra };
     if (config.localToken) headers.Authorization = `Bearer ${config.localToken}`;
+    if (config.protocolVersion) headers["X-Protocol-Version"] = config.protocolVersion;
     return headers;
   }
 

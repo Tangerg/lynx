@@ -216,6 +216,9 @@ export function writeToolCall(
     args: prev?.args ?? "",
     status: toolStatus(item),
     duration,
+    // Surface the tool-level failure reason (§8.1 channel b) so an "err" tool
+    // tells the user *why*, not just that it went red.
+    error: item.error ? (item.error.detail ?? item.error.type) : undefined,
     ...toolFields(item.tool),
   };
   return { state: { ...withBlock, toolCalls: { ...withBlock.toolCalls, [item.id]: tool } }, tool };

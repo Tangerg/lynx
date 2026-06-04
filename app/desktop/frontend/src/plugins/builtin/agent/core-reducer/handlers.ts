@@ -195,10 +195,13 @@ function onItemCompleted(state: AgentViewState, item: Item): AgentViewState {
   switch (item.type) {
     case "userMessage":
       return appendUserMessage(state, item, "complete");
+    // Honor the terminal status: a canceled/interrupted run settles its
+    // agentMessage/reasoning as `incomplete` (API.md §4.3), not "complete" —
+    // blockStatus maps it so the UI can show the truncated affordance.
     case "agentMessage":
-      return foldText(state, item, "complete");
+      return foldText(state, item, blockStatus(item.status));
     case "reasoning":
-      return foldReasoning(state, item, "complete");
+      return foldReasoning(state, item, blockStatus(item.status));
     case "toolCall": {
       const { state: next, tool } = writeToolCall(state, item, "");
       return appendTimelineEntry({

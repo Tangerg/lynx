@@ -192,6 +192,47 @@ describe("reducer — item fold", () => {
     s = reduce(s, started(item({ id: "p1", type: "plan" }))); // no `steps`
     expect(s.plan).toEqual([]);
   });
+
+  it("item.completed{status:incomplete} settles the block as incomplete, not complete", () => {
+    // A canceled/interrupted run settles its agentMessage as `incomplete`
+    // (API.md §4.3); the fold must preserve that, not stamp "complete".
+    let s: AgentViewState = INITIAL_VIEW_STATE;
+    s = reduce(s, started(item({ id: "a1", type: "agentMessage", content: [] })));
+    s = reduce(s, delta("a1", { type: "content", text: "partial" }));
+    s = reduce(
+      s,
+      completed(
+        item({
+          id: "a1",
+          type: "agentMessage",
+          status: "incomplete",
+          content: [{ type: "text", text: "partial" }],
+        }),
+      ),
+    );
+    expect(s.messages[0]!.blocks[0]).toMatchObject({ status: "incomplete", text: "partial" });
+  });
+
+  it("a failed toolCall projects its error detail", () => {
+    let s: AgentViewState = INITIAL_VIEW_STATE;
+    s = reduce(
+      s,
+      started(item({ id: "t1", type: "toolCall", tool: { kind: "command", command: "bad" } })),
+    );
+    s = reduce(
+      s,
+      completed(
+        item({
+          id: "t1",
+          type: "toolCall",
+          status: "incomplete",
+          tool: { kind: "command", command: "bad" },
+          error: { type: "tool_failed", detail: "boom" },
+        }),
+      ),
+    );
+    expect(s.toolCalls.t1).toMatchObject({ status: "err", error: "boom" });
+  });
 });
 
 describe("reducer — HITL interrupt", () => {

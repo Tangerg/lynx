@@ -1,7 +1,7 @@
 import type { AgentDriver } from "@/plugins/sdk";
 import type { InterruptResponse, RunEvent, RunId, StreamingResult } from "@/rpc";
 import { useEffect, useRef } from "react";
-import { asSessionId } from "@/rpc";
+import { asSessionId, errorDetail, errorType, RpcError } from "@/rpc";
 import { getContainer } from "@/main/container";
 import { useAgentStore } from "./agentStore";
 import { useSessionStore } from "./sessionStore";
@@ -103,7 +103,16 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
           return pump(stream);
         })
         .catch((err: unknown) => {
-          if (!cancelled) console.error("[agent] run failed to start:", sessionId, err);
+          if (cancelled) return;
+          console.error("[agent] run failed to start:", sessionId, err);
+          // Channel-a failure (API.md §8.1): the call rejected, so no stream
+          // and no run.finished{error} will arrive — surface it on the banner
+          // ourselves instead of failing silently.
+          if (err instanceof RpcError)
+            store().setError(sessionId, {
+              message: errorDetail(err.data) ?? err.message,
+              code: errorType(err.data),
+            });
         });
     };
 
