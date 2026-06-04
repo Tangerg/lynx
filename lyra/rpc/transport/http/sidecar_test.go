@@ -57,7 +57,7 @@ func TestInfoExposesOpsMetadata(t *testing.T) {
 	if body.Transport != "http" {
 		t.Fatalf("transport = %q, want http", body.Transport)
 	}
-	for _, key := range []string{"rpc", "stream", "info", "health"} {
+	for _, key := range []string{"rpc", "info", "health"} {
 		if body.Endpoints[key] == "" {
 			t.Fatalf("endpoints[%q] missing; got %+v", key, body.Endpoints)
 		}

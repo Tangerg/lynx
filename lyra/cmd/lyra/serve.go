@@ -20,10 +20,10 @@ import (
 // ServeCmd is `lyra serve` — boot the JSON-RPC over HTTP transport
 // that the frontend's Lyra Runtime Protocol talks to.
 //
-// Wire endpoints:
+// Wire endpoints (streamable HTTP — a streaming method's events ride its
+// own POST response as text/event-stream; no separate stream endpoint):
 //
-//	POST /v2/rpc[/{method}]   JSON-RPC Request / Notification
-//	GET  /v2/rpc/stream       SSE — server-pushed notifications
+//	POST /v2/rpc/{method}     JSON-RPC; streaming methods reply text/event-stream
 //	GET  /v2/info             Flat-JSON server metadata (no auth)
 //	GET  /v2/health           Liveness probe
 //
@@ -39,9 +39,10 @@ func (a *App) ServeCmd() *cobra.Command {
 		Use:   "serve",
 		Short: "Run Lyra as a JSON-RPC over HTTP server.",
 		Long: `Boot Lyra as a server. The HTTP transport surfaces the Lyra
-Runtime Protocol on a single ` + "`/v2/rpc`" + ` endpoint plus an
-` + "`/v2/rpc/stream`" + ` SSE channel, with ` + "`/v2/info`" + ` and
-` + "`/v2/health`" + ` sidecars for operations.
+Runtime Protocol on a single ` + "`POST /v2/rpc/{method}`" + ` endpoint
+(streamable HTTP: a streaming method's events ride its own response as
+text/event-stream), with ` + "`/v2/info`" + ` and ` + "`/v2/health`" + `
+sidecars for operations.
 
 Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -179,8 +180,7 @@ func (a *App) runServer(ctx context.Context, server *lyrahttp.Server, addr strin
 	errs := make(chan error, 1)
 	go func() {
 		fmt.Fprintf(a.Err, "[lyra] http listening on %s\n", addr)
-		fmt.Fprintf(a.Err, "[lyra]   POST /v2/rpc[/{method}]   JSON-RPC\n")
-		fmt.Fprintf(a.Err, "[lyra]   GET  /v2/rpc/stream       SSE notifications\n")
+		fmt.Fprintf(a.Err, "[lyra]   POST /v2/rpc/{method}     JSON-RPC (streaming methods → text/event-stream)\n")
 		fmt.Fprintf(a.Err, "[lyra]   GET  /v2/info             metadata (no auth)\n")
 		fmt.Fprintf(a.Err, "[lyra]   GET  /v2/health           liveness\n")
 		if token != nil {

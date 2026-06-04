@@ -1,9 +1,11 @@
-// Package http implements the Lyra Runtime Protocol's HTTP
-// transport. Two endpoints carry JSON-RPC:
+// Package http implements the Lyra Runtime Protocol's streamable-HTTP
+// transport. One endpoint carries JSON-RPC:
 //
-//	POST /v2/rpc[/{method}]   Request/Notification (recommended path
-//	                          includes method for ops-friendliness)
-//	GET  /v2/rpc/stream       SSE — server → client notifications
+//	POST /v2/rpc/{method}   Request / Notification. A streaming method
+//	                        (runs.start/resume/subscribe, background.subscribe)
+//	                        replies text/event-stream — the response body
+//	                        IS the call's event stream (TRANSPORT §6.4);
+//	                        everything else replies application/json.
 //
 // Two sidecars (flat JSON, no envelope, no auth):
 //

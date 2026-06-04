@@ -10,7 +10,6 @@ import (
 // here (TRANSPORT §16 反向不变量).
 var infoEndpoints = map[string]string{
 	"rpc":    "/v2/rpc/{method}",
-	"stream": "/v2/rpc/stream",
 	"info":   "/v2/info",
 	"health": "/v2/health",
 }
