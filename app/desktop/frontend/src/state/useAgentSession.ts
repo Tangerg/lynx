@@ -1,6 +1,7 @@
 import type { AgentDriver } from "@/plugins/sdk";
 import type { InterruptResponse, RunEvent, RunId, StreamingResult } from "@/rpc";
 import { useEffect, useRef } from "react";
+import { asSessionId } from "@/rpc";
 import { getContainer } from "@/main/container";
 import { useAgentStore } from "./agentStore";
 import { useSessionStore } from "./sessionStore";
@@ -30,6 +31,26 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     let abort: AbortController | null = null;
     let currentRunId: RunId | null = null;
     let cancelled = false;
+
+    // Hydrate history for an existing (non-draft) session: replay its
+    // completed Items as `item.completed` events through the SAME fold the
+    // live stream uses, so past turns render identically. Drafts have no
+    // history (just created) — their queued first message is flushed below.
+    if (!useSessionStore.getState().draftSessionIds.has(sessionId)) {
+      void getContainer()
+        .client()
+        .items.list({ sessionId: asSessionId(sessionId) })
+        .then((resp) => {
+          if (cancelled || resp.items.length === 0) return;
+          store().applyEvents(
+            sessionId,
+            resp.items.map((item): RunEvent["event"] => ({ type: "item.completed", item })),
+          );
+        })
+        .catch((err: unknown) => {
+          if (!cancelled) console.error("[agent] history load failed:", sessionId, err);
+        });
+    }
 
     // Per-session rAF batcher. A run streams many item.delta events per
     // second; without batching each one triggers a store.set + React
