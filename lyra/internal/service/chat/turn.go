@@ -96,11 +96,12 @@ func (s *inMemory) runTurn(req StartTurnRequest, st *turnState) {
 	}
 	s.emit(st, TurnStart{Model: model})
 
-	// Resolve a per-turn client when the run picked a model and a resolver is
-	// wired; empty model / no resolver runs on the platform's default client.
+	// Resolve a per-turn client when the run picked a provider+model and a
+	// resolver is wired; no selection / no resolver runs on the platform's
+	// default client.
 	var client *corechat.Client
-	if req.Model != "" && s.resolver != nil {
-		c, err := s.resolver.ResolveClient(st.ctx, req.Model)
+	if req.Provider != "" && req.Model != "" && s.resolver != nil {
+		c, err := s.resolver.ResolveClient(st.ctx, req.Provider, req.Model)
 		if err != nil {
 			s.emit(st, ErrorEvent{Message: err.Error(), Code: "MODEL_UNAVAILABLE"})
 			s.finishTurn(st, TurnEndErrored)

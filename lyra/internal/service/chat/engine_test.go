@@ -301,16 +301,17 @@ func (s *slowStubEngine) StartChat(ctx context.Context, _ engine.RunChatRequest)
 	return cp
 }
 
-// fakeResolver returns a preset client for any non-empty model, recording
-// the model it was asked to resolve.
+// fakeResolver returns a preset client, recording the (provider, model) it
+// was asked to resolve.
 type fakeResolver struct {
-	client     *corechat.Client
-	gotModel   string
-	resolveErr error
+	client      *corechat.Client
+	gotProvider string
+	gotModel    string
+	resolveErr  error
 }
 
-func (r *fakeResolver) ResolveClient(_ context.Context, model string) (*corechat.Client, error) {
-	r.gotModel = model
+func (r *fakeResolver) ResolveClient(_ context.Context, provider, model string) (*corechat.Client, error) {
+	r.gotProvider, r.gotModel = provider, model
 	if r.resolveErr != nil {
 		return nil, r.resolveErr
 	}
@@ -329,6 +330,7 @@ func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 	handle, err := svc.StartTurn(context.Background(), chat.StartTurnRequest{
 		SessionID: "s",
 		Message:   "hi",
+		Provider:  "some-provider",
 		Model:     "some-model",
 	})
 	if err != nil {
@@ -340,8 +342,8 @@ func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 	for range events { // drain to TurnEnd
 	}
 
-	if resolver.gotModel != "some-model" {
-		t.Errorf("resolver asked for %q, want some-model", resolver.gotModel)
+	if resolver.gotProvider != "some-provider" || resolver.gotModel != "some-model" {
+		t.Errorf("resolver asked for (%q,%q), want (some-provider, some-model)", resolver.gotProvider, resolver.gotModel)
 	}
 	stub.mu.Lock()
 	got := stub.lastClient
