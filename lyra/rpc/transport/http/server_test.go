@@ -428,3 +428,85 @@ func readBody(r *netHTTP.Response) string {
 	_, _ = buf.ReadFrom(r.Body)
 	return buf.String()
 }
+
+// StartRun lets the fake drive the streamable path: it returns a runId
+// ack plus a pre-baked, pre-closed RunEvent channel (run.started →
+// run.finished) so a POST runs.start exercises serveStream end-to-end.
+func (f *fakeRuntime) StartRun(_ context.Context, in protocol.StartRunRequest) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
+	ch := make(chan protocol.RunEvent, 2)
+	ch <- protocol.RunEvent{RunID: "run_x", EventID: "evt_00000000001", Durable: true,
+		Event: protocol.StreamEvent{Type: protocol.StreamRunStarted, Run: &protocol.RunRef{ID: "run_x", SessionID: in.SessionID}}}
+	ch <- protocol.RunEvent{RunID: "run_x", EventID: "evt_00000000002", Durable: true,
+		Event: protocol.StreamEvent{Type: protocol.StreamRunFinished, Outcome: &protocol.RunOutcome{Type: protocol.OutcomeCompleted, Result: &protocol.RunResult{}}}}
+	close(ch)
+	return &protocol.StartRunResponse{RunID: "run_x"}, ch, nil
+}
+
+type sseFrame struct{ id, data string }
+
+// parseSSE splits a text/event-stream body into frames, lifting the id:
+// and data: lines and skipping comments / blanks.
+func parseSSE(raw string) []sseFrame {
+	var out []sseFrame
+	for _, block := range strings.Split(strings.TrimSpace(raw), "\n\n") {
+		var f sseFrame
+		hasData := false
+		for _, line := range strings.Split(block, "\n") {
+			switch {
+			case strings.HasPrefix(line, "id:"):
+				f.id = strings.TrimSpace(line[len("id:"):])
+			case strings.HasPrefix(line, "data:"):
+				f.data += strings.TrimSpace(line[len("data:"):])
+				hasData = true
+			}
+		}
+		if hasData {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+// TestStreamableRunStart confirms a streaming method's POST response is
+// itself the event stream (TRANSPORT §6.4): 200 text/event-stream, first
+// frame = the JSON-RPC ack (runId, no SSE id), then run-event frames each
+// carrying SSE id: = eventId.
+func TestStreamableRunStart(t *testing.T) {
+	ts, _ := newTestServer(t)
+	defer ts.Close()
+
+	initBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{}}`)
+	r0, _ := netHTTP.Post(ts.URL+"/v2/rpc/runtime.initialize", "application/json", bytes.NewReader(initBody))
+	r0.Body.Close()
+
+	body := []byte(`{"jsonrpc":"2.0","id":"2","method":"runs.start","params":{"sessionId":"ses_1","input":[{"type":"text","text":"hi"}]}}`)
+	req, _ := netHTTP.NewRequest("POST", ts.URL+"/v2/rpc/runs.start", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	resp, err := netHTTP.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/event-stream") {
+		t.Fatalf("Content-Type = %q, want text/event-stream", ct)
+	}
+
+	frames := parseSSE(readBody(resp))
+	if len(frames) != 3 {
+		t.Fatalf("frames = %d, want 3 (ack + started + finished)", len(frames))
+	}
+	if frames[0].id != "" || !strings.Contains(frames[0].data, `"runId":"run_x"`) {
+		t.Fatalf("ack frame = %+v, want runId result with no SSE id", frames[0])
+	}
+	if frames[1].id != "evt_00000000001" || !strings.Contains(frames[1].data, "run.started") {
+		t.Fatalf("frame[1] = %+v, want run.started @ evt 1", frames[1])
+	}
+	if frames[2].id != "evt_00000000002" || !strings.Contains(frames[2].data, "run.finished") {
+		t.Fatalf("frame[2] = %+v, want run.finished @ evt 2", frames[2])
+	}
+}

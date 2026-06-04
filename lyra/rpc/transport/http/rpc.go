@@ -1,7 +1,6 @@
 package http
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"mime"
@@ -11,7 +10,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/Tangerg/lynx/lyra/rpc/dispatch"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 	"github.com/Tangerg/lynx/lyra/rpc/transport"
 )
@@ -48,8 +46,6 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 		return
 	}
 
-	connID := strings.TrimSpace(r.Header.Get("X-Conn-Id"))
-
 	// Read one byte past the cap so a chunked / uncounted body that
 	// overflows surfaces as 413 rather than silently truncating.
 	body, err := io.ReadAll(io.LimitReader(r.Body, maxRPCBodyBytes+1))
@@ -79,39 +75,36 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 		bodyMethod = req.Method
 	}
 
+	methodLabel := chooseMethodLabel(urlMethod, bodyMethod)
+
 	// Client notifications are dispatched synchronously and acknowledged
 	// with 204 No Content — no body (TRANSPORT §6.3 explicitly picks 204
 	// over 202, since processing is already complete, not pending).
 	if res.Response == nil {
 		w.Header().Set("X-Server", s.serverID)
-		if urlMethod != "" {
-			w.Header().Set("X-Method", urlMethod)
-		} else if bodyMethod != "" {
-			w.Header().Set("X-Method", bodyMethod)
+		if methodLabel != "" {
+			w.Header().Set("X-Method", methodLabel)
 		}
 		echoTraceID(w, r)
-		if res.EventStream != nil {
-			// The pump outlives this request — bind it to the server
-			// lifetime, not r.Context() (which cancels on return).
-			s.attachStream(s.baseCtx, res.RunID, connID, res.EventStream)
-		}
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
-	// Streaming response: kick off the event pump in the background,
-	// bound to the server lifetime (not this request's ctx).
+	// Streaming method (stream opened) → the POST response body IS the
+	// event stream (streamable HTTP, TRANSPORT §6.4). A pre-stream failure
+	// (session_not_found / invalid_params …) leaves EventStream nil and
+	// falls through to the single-shot application/json reply below — §6.2.
 	if res.EventStream != nil {
-		s.attachStream(s.baseCtx, res.RunID, connID, res.EventStream)
+		s.serveStream(w, r, res.Response, res.EventStream, methodLabel)
+		return
 	}
 
-	// Compute HTTP status (TRANSPORT §6.3): 200 by default, 404 on
-	// method-not-found, 400 on invalid request / parse error / URL-body
-	// method mismatch.
+	// Non-streaming → one application/json JSON-RPC response. HTTP status
+	// per TRANSPORT §6.3: 200 by default, 404 on method-not-found, 400 on
+	// invalid request / parse error / URL-body method mismatch.
 	status := statusForRPC(res.Response, urlMethod)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("X-Server", s.serverID)
-	methodLabel := chooseMethodLabel(urlMethod, bodyMethod)
 	if methodLabel != "" {
 		w.Header().Set("X-Method", methodLabel)
 	}
@@ -129,45 +122,6 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 			attribute.String("lynx.lyra.method", methodLabel),
 		)
 	}
-}
-
-// attachStream registers the run's RunEvent stream with the per-stream
-// replay buffer (keyed by runId, TRANSPORT §9.1) and routes each event
-// to the conns subscribed to this root run (connID = the X-Conn-Id of
-// the runs.start/resume/subscribe call, TRANSPORT §8). Each RunEvent
-// already carries its monotonic eventId; the terminal run.finished rides
-// this same channel, so channel close is just "stream done" — there is
-// no separate close notification.
-func (s *Server) attachStream(ctx context.Context, runID, connID string, events <-chan protocol.RunEvent) {
-	if runID == "" || events == nil {
-		return
-	}
-	buf := s.streams.open(runID)
-	s.clients.subscribe(runID, connID)
-	go func() {
-		for {
-			select {
-			case ev, ok := <-events:
-				if !ok {
-					// Keep the buffer alive for the replay window;
-					// streamBuffer.append GC's by age.
-					return
-				}
-				notif, err := dispatch.EncodeRunEvent(ev)
-				if err != nil {
-					recordError(ctx, "rpc.encode-run-event", err,
-						attribute.String("lynx.lyra.run_id", runID),
-						attribute.String("lynx.lyra.event_id", ev.EventID),
-					)
-					continue
-				}
-				buf.append(streamRecord{eventID: ev.EventID, msg: notif, at: nowFn()})
-				s.clients.routeToRun(runID, notif)
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
 }
 
 // statusForRPC translates a dispatcher response into an HTTP status

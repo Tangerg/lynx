@@ -40,11 +40,12 @@ type messageHandler interface {
 	Handle(ctx context.Context, msg transport.Message, expectedMethod string) dispatch.HandleResult
 }
 
-// Server is the HTTP transport. One instance per process — it owns
-// the dispatcher, the per-stream replay buffers, and the inbound
-// connection registry for the SSE channel.
+// Server is the HTTP transport. One instance per process — a thin
+// adapter over the dispatcher: it decodes a POST, dispatches, and either
+// writes one application/json reply or (for streaming methods) streams
+// the call's event channel as text/event-stream (TRANSPORT §6.4). It
+// holds no per-run state — the event hubs + replay live in the runtime.
 type Server struct {
-	api      protocol.Runtime
 	addr     string
 	info     protocol.InitializeResponse
 	serverID string
@@ -55,19 +56,6 @@ type Server struct {
 	agentDocsLister AgentDocsLister
 
 	dispatcher messageHandler
-	streams    *streamRegistry
-	clients    *clientRegistry
-
-	// baseCtx bounds detached background work (the SSE event-pump
-	// goroutines started by attachStream) to the server's lifetime: it
-	// outlives any single request — so a pump keeps broadcasting after
-	// the triggering request returns — yet is canceled by Shutdown so
-	// pumps don't leak. A server owns its own lifetime, so Background is
-	// the correct root here; request handlers must NOT hand their
-	// per-request ctx to a pump (it would cancel the stream the moment
-	// the response is written).
-	baseCtx    context.Context
-	baseCancel context.CancelFunc
 
 	httpServer *http.Server
 
@@ -93,10 +81,10 @@ type Config struct {
 	ServerID string
 
 	// LocalToken, when non-empty, gates every POST /v2/rpc/* with
-	// `Authorization: Bearer <LocalToken>`. Sidecars and the SSE
-	// stream bypass (TRANSPORT.md §4.3 mirrors FE's withCredentials:
-	// false EventSource). Empty disables the gate — tests + same-
-	// origin TUI scenarios.
+	// `Authorization: Bearer <LocalToken>` — streaming POSTs included
+	// (no header-less EventSource to exempt under streamable HTTP). Only
+	// the sidecars bypass. Empty disables the gate — tests + same-origin
+	// TUI scenarios.
 	LocalToken string
 
 	// CORSOrigins is the exact-match origin allowlist; "*" is honored
@@ -144,9 +132,7 @@ func NewServer(cfg Config) (*Server, error) {
 	if serverID == "" {
 		serverID = cfg.ServerInfo.Name + "/" + cfg.ServerInfo.Version
 	}
-	baseCtx, baseCancel := context.WithCancel(context.Background())
 	return &Server{
-		api:             cfg.Runtime,
 		addr:            cfg.Addr,
 		serverID:        serverID,
 		localToken:      cfg.LocalToken,
@@ -154,10 +140,6 @@ func NewServer(cfg Config) (*Server, error) {
 		healthProbes:    cfg.HealthProbes,
 		agentDocsLister: cfg.AgentDocsLister,
 		dispatcher:      dispatch.New(cfg.Runtime),
-		streams:         newStreamRegistry(),
-		clients:         newClientRegistry(),
-		baseCtx:         baseCtx,
-		baseCancel:      baseCancel,
 		info: protocol.InitializeResponse{
 			ProtocolVersion: cfg.ProtocolVersion,
 			ServerInfo:      cfg.ServerInfo,
@@ -186,12 +168,11 @@ func (s *Server) Handler() http.Handler {
 	r.Get("/v2/info", s.handleInfo)
 	r.Get("/v2/health", s.handleHealth)
 
-	// Streaming notifications (SSE).
-	r.Get("/v2/rpc/stream", s.handleStream)
-
-	// JSON-RPC body endpoint. Single form per TRANSPORT §6.1: method MUST
-	// appear in the URL path (dotted, single segment). Bare `/v2/rpc` has
-	// no matching route ⇒ chi 404 — greenfield, no fallback registered.
+	// JSON-RPC body endpoint — the only RPC entry (streamable HTTP,
+	// TRANSPORT §6.1): a streaming method's events ride its own POST
+	// response (text/event-stream), so there is no separate stream
+	// endpoint. Single form: method MUST appear in the URL path (dotted,
+	// single segment); bare `/v2/rpc` has no matching route ⇒ chi 404.
 	r.Post("/v2/rpc/{method}", s.handleRPCWithMethod)
 
 	return r
@@ -212,17 +193,15 @@ func (s *Server) Start() error {
 	return srv.ListenAndServe()
 }
 
-// Shutdown gracefully closes the server. Idempotent. Cancels baseCtx so
-// every detached SSE event pump stops, then closes inbound clients and
-// the HTTP server.
+// Shutdown gracefully closes the server. Idempotent. Each in-flight
+// streaming POST ends when its request context is canceled by the
+// http.Server shutdown; the per-run hubs live in the runtime, not here.
 func (s *Server) Shutdown(ctx context.Context) error {
-	s.baseCancel()
 	s.mu.Lock()
 	srv := s.httpServer
 	s.mu.Unlock()
 	if srv == nil {
 		return nil
 	}
-	s.clients.closeAll()
 	return srv.Shutdown(ctx)
 }
