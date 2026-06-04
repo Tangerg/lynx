@@ -122,6 +122,7 @@ src/
 │   ├── data/             ky 包装（http）+ React Query（queries / queryClient）
 │   ├── i18n/             i18next 接线 + 分词 + 相对时间
 │   ├── markdown/         rehype 插件 + shiki + KaTeX（纯 infra）
+│   ├── observability/    OTel 三信号（setup/sink/stores/tracing/logBridge）—— 见 §5.5
 │   └── utils.ts / motion.ts / metrics.ts / hmr.ts / systemFonts.ts
 │
 ├── rpc/                  Runtime Protocol boundary —— 唯一 outbound 副作用层
@@ -470,6 +471,17 @@ defineThemePlugin({
 helper 自动补 shadow ladder + CTA defaults + 注册仪式（`host.extensions.contribute(THEME, …)`）。切主题时 `uiStore` 副作用：替换 `<html>` 的 `theme-{scheme}` class + 把 `palette` 全部 inline 写到 `:root.style`（内联永远胜过 stylesheet，插件完全拥有调色板）+ 最后写一次用户选的 `--color-accent`。
 
 加新主题 = 新文件（调 `defineThemePlugin`）+ `theme/themes/index.ts` 加一行；Settings → Appearance 的 picker 从 registry 自动读列表。首屏防闪烁靠 `index.html` 内嵌一段同步 JS 在 CSS 解析前贴 `theme-{scheme}` class。
+
+---
+
+### 5.5 可观测性（OpenTelemetry 三信号）
+
+`lib/observability/` 是后端 `setupObservability` 的前端镜像：**一处**装好三个全局 OTel provider（Tracer / Meter / Logger）+ 共享 Resource（`service.name=lyra-frontend`）+ W3C TraceContext+Baggage propagator，其余代码只用 `trace.getTracer` / `metrics.getMeter` / `logs.getLogger` 这些静态访问器（无注入）。
+
+- **安装时机**：`bootstrap` 插件**动态导入** `setup.ts` 并 always-on 安装——重 SDK 进懒 chunk、不碰首屏；trace context 传播又始终在线。
+- **可切换 exporter**（同后端）：本地有界内存 sink（dev 可见，`stores.ts`）始终在；配了 `otel.endpoint` config 才追加 OTLP（prod 切换，懒导入 + 批处理）。
+- **三信号**：①Traces——`tracing.ts` 给每个 run 开 span（`useAgentSession`），`rpc/transports/http.ts` 给每个 RPC 开 CLIENT span 并把 `traceparent` 注入 header（接上后端已有 trace，§6.2：trace 元数据走 header 不进 body）。**粗粒度**——绝不按 StreamEvent/token 开 span。②Metrics——`lib/metrics.ts` 的 histogram/counter。③Logs——`logBridge.ts` 把 `host.log.*` 也发成 OTel LogRecord（按 active span 关联）。
+- **性能/存储**：本地 sink 是**内存有界环形缓冲**（最新 N，非 localStorage/IndexedDB——高频遥测不该落前端，持久化交给 OTLP→collector），sink 批量刷新（一波一次 store commit）；Diagnostics view 三页（traces/metrics/logs）的 traces/logs 用 `@tanstack/react-virtual` 虚拟滚动。
 
 ---
 
