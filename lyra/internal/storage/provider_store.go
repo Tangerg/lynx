@@ -1,29 +1,26 @@
 package storage
 
 import (
-	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
-	"sync"
 
 	"github.com/Tangerg/lynx/lyra/internal/service/provider"
 )
 
 // FileProviderService persists the [provider.Service] registry to one JSON
 // file under the storage home — the provider analog of [FileSessionService].
-// The set is tiny (a handful of providers) so the whole file is rewritten
-// atomically on every Configure.
+// The in-memory shape (map + lock + CRUD) is owned by [provider.Repo]; this
+// type composes it with a persist-on-Configure hook. The set is tiny (a
+// handful of providers) so the whole file is rewritten atomically each time.
 //
 // The file holds API keys in plaintext, same as config.yaml; it lives under
 // $HOME/.lyra (not the repo) and is the user's local state.
 type FileProviderService struct {
-	mu        sync.RWMutex
-	providers map[string]provider.Provider
-	path      string
+	repo *provider.Repo
+	path string
 }
 
 var _ provider.Service = (*FileProviderService)(nil)
@@ -36,8 +33,8 @@ func NewFileProviderService() (*FileProviderService, error) {
 		return nil, err
 	}
 	svc := &FileProviderService{
-		providers: map[string]provider.Provider{},
-		path:      filepath.Join(dir, "providers.json"),
+		repo: provider.NewRepo(),
+		path: filepath.Join(dir, "providers.json"),
 	}
 	if err := svc.load(); err != nil {
 		return nil, err
@@ -57,20 +54,13 @@ func (s *FileProviderService) load() error {
 	if err := json.Unmarshal(raw, &list); err != nil {
 		return fmt.Errorf("provider storage: parse %s: %w", s.path, err)
 	}
-	for _, p := range list {
-		s.providers[p.ID] = p
-	}
+	s.repo.Restore(list)
 	return nil
 }
 
-// persist rewrites the whole file atomically (write temp + rename). Caller
-// holds the write lock.
+// persist rewrites the whole file atomically (write temp + rename).
 func (s *FileProviderService) persist() error {
-	list := make([]provider.Provider, 0, len(s.providers))
-	for _, p := range s.providers {
-		list = append(list, p)
-	}
-	raw, err := json.MarshalIndent(list, "", "  ")
+	raw, err := json.MarshalIndent(s.repo.List(), "", "  ")
 	if err != nil {
 		return fmt.Errorf("provider storage: marshal: %w", err)
 	}
@@ -85,26 +75,15 @@ func (s *FileProviderService) persist() error {
 }
 
 func (s *FileProviderService) List(_ context.Context) ([]provider.Provider, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	out := make([]provider.Provider, 0, len(s.providers))
-	for _, p := range s.providers {
-		out = append(out, p)
-	}
-	slices.SortFunc(out, func(a, b provider.Provider) int { return cmp.Compare(a.ID, b.ID) })
-	return out, nil
+	return s.repo.List(), nil
 }
 
 func (s *FileProviderService) Get(_ context.Context, id string) (provider.Provider, bool, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	p, ok := s.providers[id]
+	p, ok := s.repo.Get(id)
 	return p, ok, nil
 }
 
 func (s *FileProviderService) Configure(_ context.Context, p provider.Provider) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.providers[p.ID] = p
+	s.repo.Set(p)
 	return s.persist()
 }

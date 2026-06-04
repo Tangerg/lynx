@@ -30,15 +30,20 @@ func (i *Server) ListProviders(ctx context.Context) ([]protocol.Provider, error)
 	out := make([]protocol.Provider, 0, len(supported))
 	for _, sp := range supported {
 		id := string(sp)
-		entry := byID[id] // zero value when unconfigured
-		out = append(out, protocol.Provider{
-			ID:           id,
-			Type:         id,
-			BaseURL:      entry.BaseURL,
-			APIKeyMasked: config.MaskKey(entry.APIKey),
-		})
+		out = append(out, providerToWire(id, byID[id])) // zero entry when unconfigured
 	}
 	return out, nil
+}
+
+// providerToWire maps a registry entry onto the wire Provider shape: id
+// doubles as type; the key is masked ("" = unconfigured, the enabled signal).
+func providerToWire(id string, entry provider.Provider) protocol.Provider {
+	return protocol.Provider{
+		ID:           id,
+		Type:         id,
+		BaseURL:      entry.BaseURL,
+		APIKeyMasked: config.MaskKey(entry.APIKey),
+	}
 }
 
 // ConfigureProvider upserts a provider's credentials (key + base URL) into
@@ -59,12 +64,8 @@ func (i *Server) ConfigureProvider(ctx context.Context, in protocol.ConfigurePro
 	if err != nil {
 		return nil, err
 	}
-	return &protocol.Provider{
-		ID:           entry.ID,
-		Type:         entry.ID,
-		BaseURL:      entry.BaseURL,
-		APIKeyMasked: config.MaskKey(entry.APIKey),
-	}, nil
+	out := providerToWire(entry.ID, entry)
+	return &out, nil
 }
 
 // TestProvider probes a configured provider with a minimal (max_tokens=1)
