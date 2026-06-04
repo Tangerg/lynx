@@ -19,11 +19,15 @@ interface ComposerState {
   value: string;
   mode: ComposerMode;
   attachments: Attachment[];
+  /** Selected model id for the next run; null = let the runtime pick its
+   *  default. Set by the composer's model selector (models.list). */
+  model: string | null;
 }
 
 interface ComposerActions {
   setValue: (v: string) => void;
   setMode: (m: ComposerMode) => void;
+  setModel: (m: string | null) => void;
   clear: () => void;
   removeAttachment: (i: number) => void;
   addAttachment: (a: Omit<Attachment, "id"> & Partial<Pick<Attachment, "id">>) => void;
@@ -33,8 +37,10 @@ export const useComposerStore = create<ComposerState & ComposerActions>((set) =>
   value: "",
   mode: "agent",
   attachments: [],
+  model: null,
   setValue: (value) => set({ value }),
   setMode: (mode) => set({ mode }),
+  setModel: (model) => set({ model }),
   clear: () => set({ value: "" }),
   removeAttachment: (i) =>
     set((s) => ({ attachments: s.attachments.filter((_, idx) => idx !== i) })),

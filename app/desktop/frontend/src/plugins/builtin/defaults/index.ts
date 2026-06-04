@@ -225,6 +225,15 @@ export const defaultData = definePlugin({
           scope: d.scope,
         })),
     });
+    host.extensions.contribute(DATA_PROVIDER, {
+      key: "models",
+      fetcher: async () =>
+        (await client().models.list()).map((m) => ({
+          id: m.id,
+          provider: m.provider,
+          label: m.displayName ?? m.id,
+        })),
+    });
 
     for (const key of HTTP_KEYS) {
       host.extensions.contribute(DATA_PROVIDER, {

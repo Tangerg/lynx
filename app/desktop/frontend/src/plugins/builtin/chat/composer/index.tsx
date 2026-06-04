@@ -8,10 +8,12 @@
 
 import type { IconName } from "@/components/common";
 import type { ReactNode } from "react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { useEffect } from "react";
 import { submitComposer } from "@/components/chat/composer";
-import { Icon, Tooltip } from "@/components/common";
+import { Icon, ProviderIcon, Tooltip } from "@/components/common";
 import { useChatSend } from "@/lib/agent/useChatSend";
-import { useSessions } from "@/lib/data/queries";
+import { useModels } from "@/lib/data/queries";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import {
@@ -22,7 +24,6 @@ import {
 } from "@/plugins/sdk/kernelPoints";
 import { useAgentAction, useAgentSlice } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
-import { useSessionStore } from "@/state/sessionStore";
 
 // ---- modes ---------------------------------------------------------------
 
@@ -169,26 +170,57 @@ export const composerChips = definePlugin({
 
 // ---- toolbar (start) -----------------------------------------------------
 
+// Model selector — lists models.list with brand icons; selection drives the
+// next run's `model` (read by the rpc-agent driver from composerStore).
 function ModelPicker() {
-  const { data: sessions = [] } = useSessions();
-  const activeId = useSessionStore((s) => s.activeSessionId);
-  const active = sessions.find((s) => s.id === activeId) ?? sessions[0];
-  const model = active?.model ?? "Sonnet";
+  const { data: models = [] } = useModels();
+  const model = useComposerStore((s) => s.model);
+  const setModel = useComposerStore((s) => s.setModel);
+
+  // Default to the first model once the list loads, so what's shown is what
+  // the run actually sends (null only lingers while models are still loading).
+  useEffect(() => {
+    if (!model && models.length > 0) setModel(models[0]!.id);
+  }, [model, models, setModel]);
+
+  if (models.length === 0) return null; // nothing to pick yet
+  const selected = models.find((m) => m.id === model) ?? models[0]!;
 
   return (
-    <Tooltip label="Switch model">
-      <button
-        type="button"
-        aria-label="Switch model"
-        className="mr-1 inline-flex h-6.5 shrink-0 items-center gap-1.5 rounded-full border border-transparent bg-transparent pl-1 pr-2.5 font-sans text-[12px] font-semibold text-fg whitespace-nowrap cursor-pointer transition-colors hover:bg-surface-2 hover:border-line"
-      >
-        <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,var(--color-accent)_0%,color-mix(in_oklab,var(--color-accent)_40%,#000)_100%)] text-on-accent font-semibold text-[11px]">
-          {model.slice(0, 1)}
-        </span>
-        <span className="font-mono text-[11.5px] font-semibold tracking-[0.01em]">{model}</span>
-        <Icon name="more" size={10} className="text-fg-faint opacity-70" />
-      </button>
-    </Tooltip>
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button
+          type="button"
+          aria-label="Switch model"
+          className="mr-1 inline-flex h-6.5 shrink-0 items-center gap-1.5 rounded-full border border-transparent bg-transparent pl-1.5 pr-2.5 font-sans text-[12px] font-semibold text-fg whitespace-nowrap cursor-pointer transition-colors hover:bg-surface-2 hover:border-line data-[state=open]:bg-surface-2 data-[state=open]:border-line"
+        >
+          <ProviderIcon provider={selected.provider} size={16} />
+          <span className="font-mono text-[11.5px] font-semibold tracking-[0.01em]">
+            {selected.label}
+          </span>
+          <Icon name="chevron-down" size={10} className="text-fg-faint opacity-70" />
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          align="start"
+          sideOffset={6}
+          className="z-50 min-w-[200px] overflow-hidden rounded-md border border-line-soft bg-surface p-1 shadow-lg animate-rise-in"
+        >
+          {models.map((m) => (
+            <DropdownMenu.Item
+              key={m.id}
+              onSelect={() => setModel(m.id)}
+              className="grid cursor-pointer grid-cols-[16px_minmax(0,1fr)_14px] items-center gap-2 rounded-sm px-2 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
+            >
+              <ProviderIcon provider={m.provider} size={16} />
+              <span className="truncate">{m.label}</span>
+              {m.id === selected.id && <Icon name="check" size={12} className="text-accent" />}
+            </DropdownMenu.Item>
+          ))}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
   );
 }
 

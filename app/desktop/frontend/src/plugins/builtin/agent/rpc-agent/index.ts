@@ -9,6 +9,7 @@ import { definePlugin } from "@/plugins/sdk";
 import { AGENT_SOURCE } from "@/plugins/sdk/kernelPoints";
 import { getContainer } from "@/main/container";
 import { asSessionId } from "@/rpc";
+import { useComposerStore } from "@/state/composerStore";
 import { useSessionStore } from "@/state/sessionStore";
 
 function makeDriver(sessionId: string): AgentDriver {
@@ -16,7 +17,13 @@ function makeDriver(sessionId: string): AgentDriver {
   return {
     start: (text, signal) =>
       client().runs.start(
-        { sessionId: asSessionId(sessionId), input: [{ type: "text", text }], mode: "agent" },
+        {
+          sessionId: asSessionId(sessionId),
+          input: [{ type: "text", text }],
+          mode: "agent",
+          // Selected model from the composer picker; undefined = runtime default.
+          model: useComposerStore.getState().model ?? undefined,
+        },
         signal,
       ),
     resume: (parentRunId, responses, signal) =>

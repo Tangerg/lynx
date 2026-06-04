@@ -59,6 +59,12 @@ export interface WorkspaceAgentDoc {
   scope: "cwd" | "projectRoot" | "home";
 }
 
+export interface SelectableModel {
+  id: string;
+  provider: string;
+  label: string;
+}
+
 export interface TermLine {
   kind: "prompt" | "cmd" | "out" | "err" | "warn" | "mute" | "ok";
   text: string;
@@ -121,3 +127,4 @@ export const useFileHead = makeDataQuery<FileLine[]>("file-head");
 export const useMCPServers = makeDataQuery<MCPServer[]>("mcp-servers");
 export const useSkills = makeDataQuery<WorkspaceSkill[]>("skills");
 export const useAgentDocs = makeDataQuery<WorkspaceAgentDoc[]>("agent-docs");
+export const useModels = makeDataQuery<SelectableModel[]>("models");
