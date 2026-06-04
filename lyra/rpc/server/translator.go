@@ -3,6 +3,7 @@ package server
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Tangerg/lynx/lyra/internal/service/chat"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
@@ -42,14 +43,16 @@ type translator struct {
 }
 
 type openText struct {
-	id  string
-	buf strings.Builder
+	id        string
+	createdAt time.Time
+	buf       strings.Builder
 }
 
 type openTool struct {
-	id   string
-	name string
-	kind protocol.ToolInvocationKind
+	id        string
+	createdAt time.Time
+	name      string
+	kind      protocol.ToolInvocationKind
 }
 
 func newTranslator(sessionID, runID, parentRunID string) *translator {
@@ -77,6 +80,7 @@ func (t *translator) translate(ev chat.Event) []protocol.StreamEvent {
 				SessionID:   t.sessionID,
 				ParentRunID: t.parentRunID,
 				Status:      protocol.RunStatusRunning,
+				CreatedAt:   time.Now().UTC(),
 			},
 		}}
 	case chat.MessageDelta:
@@ -142,11 +146,12 @@ func (t *translator) approvalInterrupt(in chat.Interrupt) (protocol.StreamEvent,
 	ev := protocol.StreamEvent{
 		Type: protocol.StreamItemStarted,
 		Item: &protocol.Item{
-			ID:     id,
-			RunID:  t.runID,
-			Status: protocol.ItemStatusInProgress,
-			Type:   protocol.ItemTypeToolCall,
-			Tool:   &protocol.ToolInvocation{Kind: toolKind(p.ToolName), Name: p.ToolName},
+			ID:        id,
+			RunID:     t.runID,
+			Status:    protocol.ItemStatusInProgress,
+			Type:      protocol.ItemTypeToolCall,
+			CreatedAt: time.Now().UTC(),
+			Tool:      &protocol.ToolInvocation{Kind: toolKind(p.ToolName), Name: p.ToolName},
 		},
 	}
 	entry := protocol.Interrupt{
@@ -193,11 +198,12 @@ func (t *translator) questionInterrupt(in chat.Interrupt) (protocol.StreamEvent,
 	ev := protocol.StreamEvent{
 		Type: protocol.StreamItemStarted,
 		Item: &protocol.Item{
-			ID:       id,
-			RunID:    t.runID,
-			Status:   protocol.ItemStatusInProgress,
-			Type:     protocol.ItemTypeQuestion,
-			Question: question,
+			ID:        id,
+			RunID:     t.runID,
+			Status:    protocol.ItemStatusInProgress,
+			Type:      protocol.ItemTypeQuestion,
+			CreatedAt: time.Now().UTC(),
+			Question:  question,
 		},
 	}
 	entry := protocol.Interrupt{
@@ -211,14 +217,15 @@ func (t *translator) questionInterrupt(in chat.Interrupt) (protocol.StreamEvent,
 func (t *translator) appendText(text string) []protocol.StreamEvent {
 	var out []protocol.StreamEvent
 	if t.text == nil {
-		t.text = &openText{id: t.nextItemID()}
+		t.text = &openText{id: t.nextItemID(), createdAt: time.Now().UTC()}
 		out = append(out, protocol.StreamEvent{
 			Type: protocol.StreamItemStarted,
 			Item: &protocol.Item{
-				ID:     t.text.id,
-				RunID:  t.runID,
-				Status: protocol.ItemStatusInProgress,
-				Type:   protocol.ItemTypeAgentMessage,
+				ID:        t.text.id,
+				RunID:     t.runID,
+				Status:    protocol.ItemStatusInProgress,
+				Type:      protocol.ItemTypeAgentMessage,
+				CreatedAt: t.text.createdAt,
 			},
 		})
 	}
@@ -234,14 +241,15 @@ func (t *translator) appendText(text string) []protocol.StreamEvent {
 func (t *translator) appendReasoning(text string) []protocol.StreamEvent {
 	var out []protocol.StreamEvent
 	if t.reasoning == nil {
-		t.reasoning = &openText{id: t.nextItemID()}
+		t.reasoning = &openText{id: t.nextItemID(), createdAt: time.Now().UTC()}
 		out = append(out, protocol.StreamEvent{
 			Type: protocol.StreamItemStarted,
 			Item: &protocol.Item{
-				ID:     t.reasoning.id,
-				RunID:  t.runID,
-				Status: protocol.ItemStatusInProgress,
-				Type:   protocol.ItemTypeReasoning,
+				ID:        t.reasoning.id,
+				RunID:     t.runID,
+				Status:    protocol.ItemStatusInProgress,
+				Type:      protocol.ItemTypeReasoning,
+				CreatedAt: t.reasoning.createdAt,
 			},
 		})
 	}
@@ -258,11 +266,12 @@ func (t *translator) closeText() []protocol.StreamEvent {
 		return nil
 	}
 	item := &protocol.Item{
-		ID:      t.text.id,
-		RunID:   t.runID,
-		Status:  protocol.ItemStatusCompleted,
-		Type:    protocol.ItemTypeAgentMessage,
-		Content: []protocol.ContentBlock{{Type: "text", Text: t.text.buf.String()}},
+		ID:        t.text.id,
+		RunID:     t.runID,
+		Status:    protocol.ItemStatusCompleted,
+		Type:      protocol.ItemTypeAgentMessage,
+		CreatedAt: t.text.createdAt,
+		Content:   []protocol.ContentBlock{{Type: "text", Text: t.text.buf.String()}},
 	}
 	t.text = nil
 	return []protocol.StreamEvent{{Type: protocol.StreamItemCompleted, Item: item}}
@@ -273,11 +282,12 @@ func (t *translator) closeReasoning() []protocol.StreamEvent {
 		return nil
 	}
 	item := &protocol.Item{
-		ID:     t.reasoning.id,
-		RunID:  t.runID,
-		Status: protocol.ItemStatusCompleted,
-		Type:   protocol.ItemTypeReasoning,
-		Text:   t.reasoning.buf.String(),
+		ID:        t.reasoning.id,
+		RunID:     t.runID,
+		Status:    protocol.ItemStatusCompleted,
+		Type:      protocol.ItemTypeReasoning,
+		CreatedAt: t.reasoning.createdAt,
+		Text:      t.reasoning.buf.String(),
 	}
 	t.reasoning = nil
 	return []protocol.StreamEvent{{Type: protocol.StreamItemCompleted, Item: item}}
@@ -287,16 +297,17 @@ func (t *translator) toolStart(e chat.ToolCallStart) []protocol.StreamEvent {
 	out := t.closeReasoning()
 	out = append(out, t.closeText()...)
 
-	ref := &openTool{id: t.nextItemID(), name: e.ToolName, kind: toolKind(e.ToolName)}
+	ref := &openTool{id: t.nextItemID(), createdAt: time.Now().UTC(), name: e.ToolName, kind: toolKind(e.ToolName)}
 	t.tools[e.CallID] = ref
 	out = append(out, protocol.StreamEvent{
 		Type: protocol.StreamItemStarted,
 		Item: &protocol.Item{
-			ID:     ref.id,
-			RunID:  t.runID,
-			Status: protocol.ItemStatusInProgress,
-			Type:   protocol.ItemTypeToolCall,
-			Tool:   &protocol.ToolInvocation{Kind: ref.kind, Name: ref.name},
+			ID:        ref.id,
+			RunID:     t.runID,
+			Status:    protocol.ItemStatusInProgress,
+			Type:      protocol.ItemTypeToolCall,
+			CreatedAt: ref.createdAt,
+			Tool:      &protocol.ToolInvocation{Kind: ref.kind, Name: ref.name},
 		},
 	})
 	if e.Arguments != "" {
@@ -316,11 +327,12 @@ func (t *translator) toolEnd(e chat.ToolCallEnd) []protocol.StreamEvent {
 	}
 	delete(t.tools, e.CallID)
 	item := &protocol.Item{
-		ID:     ref.id,
-		RunID:  t.runID,
-		Status: protocol.ItemStatusCompleted,
-		Type:   protocol.ItemTypeToolCall,
-		Tool:   &protocol.ToolInvocation{Kind: ref.kind, Name: ref.name, Output: e.Output},
+		ID:        ref.id,
+		RunID:     t.runID,
+		Status:    protocol.ItemStatusCompleted,
+		Type:      protocol.ItemTypeToolCall,
+		CreatedAt: ref.createdAt,
+		Tool:      &protocol.ToolInvocation{Kind: ref.kind, Name: ref.name, Output: e.Output},
 	}
 	if e.Err != "" {
 		item.Status = protocol.ItemStatusIncomplete
@@ -367,11 +379,12 @@ func (t *translator) drainTools() []protocol.StreamEvent {
 		out = append(out, protocol.StreamEvent{
 			Type: protocol.StreamItemCompleted,
 			Item: &protocol.Item{
-				ID:     ref.id,
-				RunID:  t.runID,
-				Status: protocol.ItemStatusIncomplete,
-				Type:   protocol.ItemTypeToolCall,
-				Tool:   &protocol.ToolInvocation{Kind: ref.kind, Name: ref.name},
+				ID:        ref.id,
+				RunID:     t.runID,
+				Status:    protocol.ItemStatusIncomplete,
+				Type:      protocol.ItemTypeToolCall,
+				CreatedAt: ref.createdAt,
+				Tool:      &protocol.ToolInvocation{Kind: ref.kind, Name: ref.name},
 			},
 		})
 		delete(t.tools, callID)
