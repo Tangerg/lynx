@@ -29,6 +29,14 @@ func (i *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		return nil, nil, err
 	}
 
+	// The turn's filesystem + bash tools run in the session's project cwd
+	// (API.md §0.2). Resolve it here so the engine anchors them per session
+	// rather than at the single serve-time workdir.
+	sess, err := i.rt.Session().Get(ctx, sessionID)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	userMsg := lastUserText(in.Input)
 	if userMsg == "" {
 		return nil, nil, errors.New("runs.start: input must contain a user text block")
@@ -44,6 +52,7 @@ func (i *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	handle, err := i.rt.Chat().StartTurn(ctx, chat.StartTurnRequest{
 		SessionID:  sessionID,
 		Message:    userMsg,
+		Cwd:        sess.Cwd,
 		Provider:   in.Provider,
 		Model:      in.Model,
 		MaxCostUSD: in.MaxBudgetUSD,

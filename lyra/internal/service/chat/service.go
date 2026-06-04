@@ -29,6 +29,11 @@ type StartTurnRequest struct {
 	SessionID string
 	Message   string
 
+	// Cwd is the session's working directory — the project root the turn's
+	// filesystem + bash tools run in. Resolved from Session.cwd by the
+	// caller (runs.start). Empty falls back to the engine's default workdir.
+	Cwd string
+
 	// Provider + Model select the model this turn runs against (the wire
 	// runs.start{providerId, model}). Both empty uses the runtime's default;
 	// both set resolves that provider+model client via [ClientResolver] and

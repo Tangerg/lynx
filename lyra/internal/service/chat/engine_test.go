@@ -84,12 +84,14 @@ type stubEngine struct {
 
 	mu         sync.Mutex
 	lastClient *corechat.Client // captures RunChatRequest.ChatClient
+	lastCwd    string           // captures RunChatRequest.Cwd
 }
 
 func (s *stubEngine) StartChat(_ context.Context, req engine.RunChatRequest) engine.ChatProcess {
 	s.runChatCalls.Add(1)
 	s.mu.Lock()
 	s.lastClient = req.ChatClient
+	s.lastCwd = req.Cwd
 	s.mu.Unlock()
 	if req.Observer != nil {
 		req.Observer.OnMessageDelta(s.runReply)
@@ -350,6 +352,35 @@ func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 	stub.mu.Unlock()
 	if got != sentinel {
 		t.Errorf("engine received ChatClient %p, want the resolver's client %p", got, sentinel)
+	}
+}
+
+// TestStartTurn_PassesCwd verifies the session's working directory flows
+// from StartTurnRequest.Cwd through to the engine's RunChatRequest.Cwd —
+// the chat-service half of per-session tool working directories.
+func TestStartTurn_PassesCwd(t *testing.T) {
+	stub := &stubEngine{runReply: "ok"}
+
+	svc := chat.New(stub, nil, nil)
+	handle, err := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+		SessionID: "s",
+		Message:   "hi",
+		Cwd:       "/work/project-a",
+	})
+	if err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	events, _ := svc.Events(ctx, handle)
+	for range events { // drain to TurnEnd
+	}
+
+	stub.mu.Lock()
+	got := stub.lastCwd
+	stub.mu.Unlock()
+	if got != "/work/project-a" {
+		t.Errorf("engine received Cwd %q, want %q", got, "/work/project-a")
 	}
 }
 
