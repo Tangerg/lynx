@@ -267,4 +267,33 @@ describe("reducer — HITL interrupt", () => {
     expect(s.openInterrupts).toHaveLength(1);
     expect(s.openInterrupts[0]!.parentRunId).toBe("run_1");
   });
+
+  it("approval payload: stringified `arguments` → parsed args + command derived from them", () => {
+    // Real bash payload: no top-level `command`; args are a JSON *string*.
+    let s = reduce(INITIAL_VIEW_STATE, runStarted("run_1", "ses_1"));
+    s = reduce(
+      s,
+      started(item({ id: "t1", type: "toolCall", tool: { kind: "command", name: "bash" } })),
+    );
+    s = reduce(
+      s,
+      runFinished({
+        type: "interrupt",
+        interrupts: [
+          {
+            itemId: "t1" as never,
+            kind: "approval",
+            payload: { tool: "bash", arguments: '{"command": "ls -la"}' },
+          },
+        ],
+      }),
+    );
+    const block = s.messages.flatMap((m) => m.blocks).find((b) => b.kind === "approval");
+    // args normalized to an object (not the raw escaped string), command lifted out.
+    expect(block).toMatchObject({
+      kind: "approval",
+      command: "ls -la",
+      args: { command: "ls -la" },
+    });
+  });
 });

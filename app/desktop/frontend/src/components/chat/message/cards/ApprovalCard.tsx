@@ -149,9 +149,14 @@ export function ApprovalCard({
       }
     >
       <div className="mb-1.5 text-[15px] font-semibold leading-[1.4] text-fg">{what}</div>
-      <code className="my-2 block whitespace-pre-wrap break-all rounded-sm bg-warning/14 px-3 py-2 font-mono text-[13px] text-fg">
-        $ {cmd}
-      </code>
+      {/* Shell-prompt command line — only for command-style approvals. Other
+          tools have no `cmd` (their payload is just args), so skip the box
+          instead of rendering a lonely "$". */}
+      {cmd.trim() && (
+        <code className="my-2 block whitespace-pre-wrap break-all rounded-sm bg-warning/14 px-3 py-2 font-mono text-[13px] text-fg">
+          $ {cmd}
+        </code>
+      )}
       {hasArgs && (
         <div className="mb-2">
           <div className="mb-1 flex items-center gap-2">
