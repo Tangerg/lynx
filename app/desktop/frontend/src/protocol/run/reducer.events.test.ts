@@ -39,7 +39,7 @@ beforeEach(async () => {
 describe("reducer — run lifecycle", () => {
   it("run.started flips running + records ids; run.finished flips off", () => {
     let s = reduce(INITIAL_VIEW_STATE, runStarted("run_1", "ses_1"));
-    expect(s.run).toMatchObject({ running: true, runId: "run_1", threadId: "ses_1" });
+    expect(s.run).toMatchObject({ running: true, runId: "run_1", sessionId: "ses_1" });
     s = reduce(s, runFinished({ type: "completed", result: { steps: 2 } }));
     expect(s.run.running).toBe(false);
     expect(s.run.step).toBe(2);

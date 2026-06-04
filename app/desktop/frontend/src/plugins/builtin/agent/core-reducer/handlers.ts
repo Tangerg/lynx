@@ -66,7 +66,7 @@ function onRunStarted(state: AgentViewState, run: RunRef): AgentViewState {
     ...state,
     error: null,
     turnMessageId: null,
-    run: { ...state.run, running: true, runId: run.id, threadId: run.sessionId },
+    run: { ...state.run, running: true, runId: run.id, sessionId: run.sessionId },
   };
   return appendTimelineEntry({ kind: "run-start", runId: run.id })(next);
 }
@@ -119,7 +119,7 @@ function onRunFinished(state: AgentViewState, outcome: RunOutcome): AgentViewSta
   if (outcome.type === "interrupt") {
     const open: OpenInterrupt = {
       parentRunId: (state.run.runId ?? "") as OpenInterrupt["parentRunId"],
-      sessionId: (state.run.threadId ?? "") as OpenInterrupt["sessionId"],
+      sessionId: (state.run.sessionId ?? "") as OpenInterrupt["sessionId"],
       interrupts: outcome.interrupts,
       createdAt: new Date().toISOString(),
     };
