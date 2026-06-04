@@ -16,7 +16,7 @@
 - Go 1.26.3
 - **CLI**: `spf13/cobra`（每个子命令是 `App` 的方法 —— `ServeCmd()` / `ChatCmd()` / `AgentsCmd()` / …）
 - **协议 envelope**: `modelcontextprotocol/go-sdk/jsonrpc`（wire 类型借用，不自己重新定义）
-- **HTTP transport**: stdlib `net/http` + `go-chi/chi` v5 路由（`r.Use` 中间件链 + `POST /v2/rpc/{method}`）+ `go-chi/cors`（CORS 中间件，替掉手写 cors）
+- **HTTP transport**: stdlib `net/http` + `go-chi/chi` v5 路由（`r.Use` 中间件链 + `POST /v2/rpc/{method}`）+ `go-chi/cors`（CORS 中间件，替掉手写 cors）。**streamable HTTP**：流式方法（`runs.start/resume/subscribe`、`background.subscribe`）的 POST 响应体本身就是 `text/event-stream` 事件流（首帧=JSON-RPC 响应，无 SSE id；其后 `notifications.run.event` 帧带 SSE id=eventId）；**无独立 `/v2/rpc/stream` 端点、无 `X-Conn-Id` 连接路由**。事件源是 server 侧的 per-run hub（`rpc/server/hub.go`），transport 只是把 hub 订阅抽成 SSE
 - **SSE 写端**: `github.com/Tangerg/sse`（WHATWG §9.2 合规，auto-flush）—— 自家库
 - **MCP 客户端**: `modelcontextprotocol/go-sdk/mcp`
 - **AG-UI 事件**: `core/model/chat` + 自家 `internal/agui` 编码层
@@ -72,6 +72,7 @@
 - ❌ **SSE 写自己的 frame 编码**：用 `github.com/Tangerg/sse`（auto-flush + spec compliance）。手写 `fmt.Fprintf(w, "data: %s\n\n", body)` 在 body 含 `\n` 时会破坏帧
 - ❌ **`/v2/rpc` 不带 method**（裸路径）：v2 协议 greenfield 决议，单一形态 `POST /v2/rpc/{method}`，裸路径 404
 - ❌ **协议 envelope 装 transport 元数据**（session id / auth token / trace id / idempotency key）：走 Go `context.Context` 或 HTTP header，永不进 message body
+- ❌ **退回"常开的 server→client 通知通道"**（独立 `GET /v2/rpc/stream` + `X-Conn-Id` 连接路由 + 全局/广播 fan-out）：已被 streamable HTTP 取代 —— 每个流式调用的事件走它**自己那条 POST 响应流**，事件源是 per-run hub（`rpc/server/hub.go`），无连接身份簿记。重连是 per-run（`runs.subscribe{runId}` + `Last-Event-Id`），不是"重连那条共享流"。真要 server 主动推送（多客户端同步等，API.md §12 当前不做），按前端 docs/TRANSPORT §6.1 的退路**增量**加一条可选 GET 流，别把旧模型整套搬回来
 
 ## 关键目录
 
@@ -152,7 +153,9 @@ curl -H "Authorization: Bearer $(cat ~/.lyra/local-token)" \
 - ✅ JSON-RPC envelope 切到 MCP SDK 的 `jsonrpc` 包（不自维护）
 - ✅ HTTP transport：local-token gate + CORS + 4xx access log + `/v2/info` ops 字段 + `/v2/health` 探针
 - ✅ HTTP transport 路由从 stdlib `ServeMux` 换 `go-chi/chi` v5 + CORS 换 `go-chi/cors`：删手写 `cors.go`（106→40 行），`r.Use(observability, cors, authGate)` 比内嵌包裹更可读；chi 用标准 handler 故 SSE 不受影响。**预检状态从 204→200**（go-chi/cors 行为，契约对 2xx 不挑）。gin/echo/fiber 仍禁（破坏 SSE）
-- ✅ HTTP transport 对齐冻结 v2 契约（TRANSPORT §6.2/§6.3/§8/§12 + API.md §8.3）：超限 body 返 `413`（原静默截断）、非 JSON content-type 返 `415`、method 不一致从 `409`→`400`（自相矛盾请求非资源冲突）、通知 ack 保持 `204`（契约明确弃 202）、401 带 `WWW-Authenticate: Bearer`、405 带 `Allow`（chi 自动）、`/v2/health` body 补 `{"ok":true}`、`ProblemData` 补 `retryAfterSeconds`/`errors[]`（RFC 9457 裁剪）；SSE 从"广播给所有连接"改为**按 conn/run 路由**（`clientRegistry` 以 connId 为键 + `runId→connId` 订阅，`?conn=` / `X-Conn-Id` 实际生效），`Last-Event-Id` 重放收窄到该 conn 订阅的 run
+- ✅ HTTP transport 对齐冻结 v2 契约（TRANSPORT §6.2/§6.3/§8/§12 + API.md §8.3）：超限 body 返 `413`（原静默截断）、非 JSON content-type 返 `415`、method 不一致从 `409`→`400`（自相矛盾请求非资源冲突）、通知 ack 保持 `204`（契约明确弃 202）、401 带 `WWW-Authenticate: Bearer`、405 带 `Allow`（chi 自动）、`/v2/health` body 补 `{"ok":true}`、`ProblemData` 补 `retryAfterSeconds`/`errors[]`（RFC 9457 裁剪）
+- ✅ **streamable HTTP 改造**（取代上一条的"按 conn/run 路由"+ 独立 SSE 流，与前端并行落地，TRANSPORT §6.4）：每个流式调用的事件走它自己那条 `POST` 响应流（首帧=JSON-RPC ack 无 SSE id，其后 run 事件帧带 SSE id=eventId）。**A** per-run hub（`rpc/server/hub.go`：durable 重放 buffer + N 订阅 fan-out，只存 durable，§9.3）；**B** `pumpRun` 喂 hub、`StartRun/Resume/SubscribeRun` 返回 hub 订阅、`Last-Event-Id` 走 ctx（`WithLastEventID`）；**C** transport 翻转 —— streaming POST 直接驱 SSE，**删** `GET /v2/rpc/stream` + `clientRegistry`(conn 路由) + transport 侧 buffer + `X-Conn-Id` + 死 `api` 字段；**D** 文档 + CORS 去 `X-Conn-Id`。重连是 per-run（`runs.subscribe`+`Last-Event-Id`）。连接预算：前端只对**活跃 run** 开流（HTTP/1.1 ~6 连接/origin；h2c 对浏览器无效，需多 live 才上 loopback TLS）
+- ✅ items.list 权威 Item 存储（`internal/service/history`，file+sqlite）：事件流落库，runId/runs/createdAt/item-id 与 live 一致；replaces 从 chat.Message 反推
 - ✅ SSE 写端切到 `github.com/Tangerg/sse`
 - ✅ SQLite 持久化（session / memory），`LYRA_STORAGE` env 切换
 - ✅ AGENTS.md walk-from-cwd 级联发现（mirror kimi-code 设计）+ `lyra agents` CLI + `/v2/info.agentDocs`
