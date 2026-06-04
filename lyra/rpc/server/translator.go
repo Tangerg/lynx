@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"strconv"
 	"strings"
 	"time"
@@ -84,6 +85,7 @@ type openTool struct {
 	runID     string // the run the item belongs to (origin run for a resumed tool)
 	createdAt time.Time
 	name      string
+	args      string // raw JSON arguments, replayed to rebuild the variant at completion
 	kind      protocol.ToolInvocationKind
 }
 
@@ -286,6 +288,11 @@ func (t *translator) interrupt(e chat.TurnInterrupted) []protocol.StreamEvent {
 func (t *translator) approvalInterrupt(in chat.Interrupt) (protocol.StreamEvent, protocol.Interrupt) {
 	p, _ := in.Payload.(chat.ApprovalPrompt)
 	id := t.nextItemID()
+	// The gated tool as a full ToolInvocation (arguments parsed, no result
+	// yet). The approval Interrupt's payload reuses it (API.md §4.8:
+	// ApprovalPayload.tool), so the client reads payload.tool directly
+	// instead of guessing where the command / args live.
+	inv := toolInvocation(p.ToolName, p.Arguments, "")
 	ev := protocol.StreamEvent{
 		Type: protocol.StreamItemStarted,
 		Item: &protocol.Item{
@@ -294,13 +301,22 @@ func (t *translator) approvalInterrupt(in chat.Interrupt) (protocol.StreamEvent,
 			Status:    protocol.ItemStatusInProgress,
 			Type:      protocol.ItemTypeToolCall,
 			CreatedAt: time.Now().UTC(),
-			Tool:      &protocol.ToolInvocation{Kind: toolKind(p.ToolName), Name: p.ToolName},
+			Tool:      inv,
 		},
 	}
 	entry := protocol.Interrupt{
-		ItemID:  id,
-		Kind:    "approval",
-		Payload: map[string]any{"tool": p.ToolName, "arguments": p.Arguments},
+		ItemID: id,
+		Kind:   "approval",
+		// payload.tool is the contract display payload (API.md §4.8). _resume
+		// carries the raw (name, arguments) the server needs to re-bind the
+		// re-fired approved tool to THIS proposal item across the resume
+		// boundary (resumeKey) — strongly-typed variants drop the name from
+		// the wire, so it can't be recovered from `tool`. Backend-internal;
+		// clients ignore unknown fields (API.md §11).
+		Payload: map[string]any{
+			"tool":    inv,
+			"_resume": map[string]any{"name": p.ToolName, "args": p.Arguments},
+		},
 	}
 	return ev, entry
 }
@@ -441,7 +457,7 @@ func (t *translator) toolStart(e chat.ToolCallStart) []protocol.StreamEvent {
 	out = append(out, t.closeText()...)
 
 	id, runID := t.reuseOrNextItemID(e.ToolName, e.Arguments)
-	ref := &openTool{id: id, runID: runID, createdAt: time.Now().UTC(), name: e.ToolName, kind: toolKind(e.ToolName)}
+	ref := &openTool{id: id, runID: runID, createdAt: time.Now().UTC(), name: e.ToolName, args: e.Arguments, kind: toolKind(e.ToolName)}
 	t.tools[e.CallID] = ref
 	out = append(out, protocol.StreamEvent{
 		Type: protocol.StreamItemStarted,
@@ -451,7 +467,7 @@ func (t *translator) toolStart(e chat.ToolCallStart) []protocol.StreamEvent {
 			Status:    protocol.ItemStatusInProgress,
 			Type:      protocol.ItemTypeToolCall,
 			CreatedAt: ref.createdAt,
-			Tool:      &protocol.ToolInvocation{Kind: ref.kind, Name: ref.name},
+			Tool:      toolInvocation(e.ToolName, e.Arguments, ""),
 		},
 	})
 	if e.Arguments != "" {
@@ -470,13 +486,27 @@ func (t *translator) toolEnd(e chat.ToolCallEnd) []protocol.StreamEvent {
 		return nil
 	}
 	delete(t.tools, e.CallID)
+
+	var out []protocol.StreamEvent
+	// commandExecution carries no output field on the completed item — its
+	// stdout preview rides a toolOutput delta (API.md §4.4).
+	if ref.kind == protocol.ToolKindCommandExecution && e.Output != "" {
+		if stdout := commandStdout(e.Output); stdout != "" {
+			out = append(out, protocol.StreamEvent{
+				Type:   protocol.StreamItemDelta,
+				ItemID: ref.id,
+				Delta:  &protocol.ItemDelta{Type: protocol.DeltaToolOutput, Text: stdout},
+			})
+		}
+	}
+
 	item := &protocol.Item{
 		ID:        ref.id,
 		RunID:     ref.runID,
 		Status:    protocol.ItemStatusCompleted,
 		Type:      protocol.ItemTypeToolCall,
 		CreatedAt: ref.createdAt,
-		Tool:      &protocol.ToolInvocation{Kind: ref.kind, Name: ref.name, Output: e.Output},
+		Tool:      toolInvocation(ref.name, ref.args, e.Output),
 	}
 	switch {
 	case e.Denied:
@@ -488,7 +518,7 @@ func (t *translator) toolEnd(e chat.ToolCallEnd) []protocol.StreamEvent {
 		item.Status = protocol.ItemStatusIncomplete
 		item.Error = &protocol.ProblemData{Type: "tool_failed", Detail: e.Err}
 	}
-	return []protocol.StreamEvent{{Type: protocol.StreamItemCompleted, Item: item}}
+	return append(out, protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: item})
 }
 
 // turnEnd closes any open items (so the wire ends balanced) then emits
@@ -544,7 +574,7 @@ func (t *translator) drainTools() []protocol.StreamEvent {
 				Status:    protocol.ItemStatusIncomplete,
 				Type:      protocol.ItemTypeToolCall,
 				CreatedAt: ref.createdAt,
-				Tool:      &protocol.ToolInvocation{Kind: ref.kind, Name: ref.name},
+				Tool:      toolInvocation(ref.name, ref.args, ""),
 			},
 		})
 		delete(t.tools, callID)
@@ -599,20 +629,165 @@ func optCostUSD(c float64) *float64 {
 	return nil
 }
 
-// toolKind maps a tool name onto the wire ToolInvocation kind for
-// rendering (API.md §4.4). Best-effort by name; unknown tools render as
-// command.
+// toolKind maps a built-in tool name onto its wire ToolInvocation kind
+// (API.md §4.4). Strongly-typed variants are exact-name matched; everything
+// else (read / webfetch / httpreq / MCP `<server>.<tool>` / subagent /
+// unknown) rides the generic `tool` envelope.
 func toolKind(name string) protocol.ToolInvocationKind {
-	n := strings.ToLower(name)
-	switch {
-	case strings.Contains(n, "mcp"):
-		return protocol.ToolKindMCP
-	case strings.Contains(n, "edit"), strings.Contains(n, "write"), strings.Contains(n, "patch"):
-		return protocol.ToolKindFileEdit
-	case strings.Contains(n, "search"), strings.Contains(n, "grep"), strings.Contains(n, "glob"),
-		strings.Contains(n, "find"), strings.Contains(n, "web"):
+	switch strings.ToLower(name) {
+	case "bash":
+		return protocol.ToolKindCommandExecution
+	case "glob", "grep":
 		return protocol.ToolKindSearch
+	case "websearch":
+		return protocol.ToolKindWebSearch
+	case "write", "edit":
+		return protocol.ToolKindFileChange
 	default:
-		return protocol.ToolKindCommand
+		return protocol.ToolKindTool
 	}
+}
+
+// toolInvocation builds the wire ToolInvocation for a tool call. argsJSON is
+// the model's raw JSON arguments; outputJSON is the tool's JSON result
+// ("" before completion). Strongly-typed variants pull their fields from the
+// parsed args (command argv / query / changed path) and, at completion, from
+// the parsed output (exit/duration, search hits); the generic `tool` carries
+// the parsed args object + best-effort JSON result. Failure / streaming is
+// handled by the caller (toolEnd error mapping, toolOutput delta).
+func toolInvocation(name, argsJSON, outputJSON string) *protocol.ToolInvocation {
+	inv := &protocol.ToolInvocation{Kind: toolKind(name)}
+	args := parseArgs(argsJSON)
+	switch inv.Kind {
+	case protocol.ToolKindCommandExecution:
+		if cmd := argString(args, "command"); cmd != "" {
+			inv.Command = []string{cmd}
+		}
+		if outputJSON != "" {
+			fillCommandResult(inv, outputJSON)
+		}
+	case protocol.ToolKindSearch:
+		inv.Query = argString(args, "pattern")
+		if outputJSON != "" {
+			inv.Results = parseLocalSearchHits(outputJSON)
+		}
+	case protocol.ToolKindWebSearch:
+		inv.Query = argString(args, "query")
+		if outputJSON != "" {
+			inv.Results = parseWebSearchHits(outputJSON)
+		}
+	case protocol.ToolKindFileChange:
+		if path := argString(args, "path"); path != "" {
+			inv.Changes = []protocol.FileChangeEntry{{Path: path, Kind: "modify"}}
+		}
+	default: // generic tool
+		inv.Name = name
+		inv.Arguments = args
+		if outputJSON != "" {
+			inv.Result = bestEffortJSON(outputJSON)
+		}
+	}
+	return inv
+}
+
+// argString reads a string field from the parsed arguments, "" when absent.
+func argString(args map[string]any, key string) string {
+	s, _ := args[key].(string)
+	return s
+}
+
+// bestEffortJSON decodes raw as JSON (object / array / scalar) for a generic
+// tool's result; when raw isn't valid JSON it's surfaced verbatim as a string
+// (API.md §4.4: result is best-effort JSON, never double-encoded).
+func bestEffortJSON(raw string) any {
+	if raw == "" {
+		return nil
+	}
+	var v any
+	if err := json.Unmarshal([]byte(raw), &v); err != nil {
+		return raw
+	}
+	return v
+}
+
+// fillCommandResult populates exitCode / durationMs from a bash tool's JSON
+// output ({stdout, stderr, exit_code, duration}); stdout rides a toolOutput
+// delta, not the completed item (API.md §4.4).
+func fillCommandResult(inv *protocol.ToolInvocation, outputJSON string) {
+	var out struct {
+		ExitCode int    `json:"exit_code"`
+		Duration string `json:"duration"`
+	}
+	if err := json.Unmarshal([]byte(outputJSON), &out); err != nil {
+		return
+	}
+	ec := out.ExitCode
+	inv.ExitCode = &ec
+	if d, err := time.ParseDuration(out.Duration); err == nil {
+		ms := d.Milliseconds()
+		inv.DurationMs = &ms
+	}
+}
+
+// commandStdout extracts the stdout preview from a bash tool's JSON output.
+func commandStdout(outputJSON string) string {
+	var out struct {
+		Stdout string `json:"stdout"`
+	}
+	_ = json.Unmarshal([]byte(outputJSON), &out)
+	return out.Stdout
+}
+
+// parseLocalSearchHits maps grep / glob JSON output onto SearchResult hits.
+// grep "content" mode → {matches:[{path,line,text}]}; grep
+// "files_with_matches" / glob → {files|paths:[…]}; counts mode → {counts}.
+func parseLocalSearchHits(outputJSON string) []protocol.SearchResult {
+	var out struct {
+		Matches []struct {
+			Path string `json:"path"`
+			Line int    `json:"line"`
+			Text string `json:"text"`
+		} `json:"matches"`
+		Files  []string `json:"files"`
+		Paths  []string `json:"paths"`
+		Counts []struct {
+			Path  string `json:"path"`
+			Count int    `json:"count"`
+		} `json:"counts"`
+	}
+	if err := json.Unmarshal([]byte(outputJSON), &out); err != nil {
+		return nil
+	}
+	var hits []protocol.SearchResult
+	for _, m := range out.Matches {
+		hits = append(hits, protocol.SearchResult{Path: m.Path, LineNumber: m.Line, Snippet: m.Text})
+	}
+	for _, p := range append(out.Files, out.Paths...) {
+		hits = append(hits, protocol.SearchResult{Path: p})
+	}
+	for _, c := range out.Counts {
+		hits = append(hits, protocol.SearchResult{Path: c.Path, Snippet: strconv.Itoa(c.Count) + " matches"})
+	}
+	return hits
+}
+
+// parseWebSearchHits maps websearch JSON output ({results:[{title,url,
+// snippet,favicon_url}]}) onto web SearchResult hits.
+func parseWebSearchHits(outputJSON string) []protocol.SearchResult {
+	var out struct {
+		Results []struct {
+			Title      string `json:"title"`
+			URL        string `json:"url"`
+			Snippet    string `json:"snippet"`
+			FaviconURL string `json:"favicon_url"`
+		} `json:"results"`
+	}
+	if err := json.Unmarshal([]byte(outputJSON), &out); err != nil {
+		return nil
+	}
+	hits := make([]protocol.SearchResult, 0, len(out.Results))
+	for _, r := range out.Results {
+		hits = append(hits, protocol.SearchResult{Title: r.Title, URL: r.URL, Snippet: r.Snippet, FaviconURL: r.FaviconURL})
+	}
+	return hits
 }
