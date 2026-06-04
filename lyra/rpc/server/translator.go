@@ -29,10 +29,23 @@ import (
 // PlanGenerated / CompactBoundary / MemoryUpdated are not surfaced here:
 // the plan rides the interrupt outcome (TurnInterrupted), and compaction
 // / memory are internal housekeeping outside the durable Item history.
+// resumeBinding carries a parked run's pending toolCall item ids into its
+// continuation translator. When a continuation resumes an approved tool, the
+// tool re-fires and the translator reuses its ORIGINAL proposal item id (and
+// the run it was created in) instead of minting a fresh one — so one item
+// flows proposal → approval → execution → completion, and the proposal item
+// gets its mandatory terminal item.completed (API.md §5.2 / §6: the itemId is
+// the correlation key across the interrupt boundary). nil for root runs.
+type resumeBinding struct {
+	originRunID string            // the interrupted run the items were created in
+	toolItems   map[string]string // resumeKey(toolName, arguments) → original item id
+}
+
 type translator struct {
 	runID       string
 	sessionID   string
 	parentRunID string // non-empty for continuation runs (runs.resume)
+	resume      *resumeBinding
 	itemSeq     int
 
 	// userInput is the run's opening user message, emitted as the first
@@ -56,19 +69,43 @@ type openText struct {
 
 type openTool struct {
 	id        string
+	runID     string // the run the item belongs to (origin run for a resumed tool)
 	createdAt time.Time
 	name      string
 	kind      protocol.ToolInvocationKind
 }
 
-func newTranslator(sessionID, runID, parentRunID string, userInput []protocol.ContentBlock) *translator {
+func newTranslator(sessionID, runID, parentRunID string, userInput []protocol.ContentBlock, resume *resumeBinding) *translator {
 	return &translator{
 		runID:       runID,
 		sessionID:   sessionID,
 		parentRunID: parentRunID,
+		resume:      resume,
 		userInput:   userInput,
 		tools:       map[string]*openTool{},
 	}
+}
+
+// resumeKey identifies a gated tool call by (name, arguments) — the same pair
+// the approval gate keys its verdict on, so a re-fired approved call matches
+// the pending item recorded at interrupt time.
+func resumeKey(toolName, arguments string) string {
+	return toolName + "\x00" + arguments
+}
+
+// reuseOrNextItemID returns the original proposal item id + its origin run for
+// a re-fired approved tool (so the continuation completes the SAME item), or a
+// freshly minted id under the current run otherwise. Matching is by
+// (name, arguments); an edited-args approval won't match and cleanly falls
+// back to a new item.
+func (t *translator) reuseOrNextItemID(toolName, arguments string) (id, runID string) {
+	if t.resume != nil {
+		if orig, ok := t.resume.toolItems[resumeKey(toolName, arguments)]; ok {
+			delete(t.resume.toolItems, resumeKey(toolName, arguments))
+			return orig, t.resume.originRunID
+		}
+	}
+	return t.nextItemID(), t.runID
 }
 
 func (t *translator) nextItemID() string {
@@ -343,13 +380,14 @@ func (t *translator) toolStart(e chat.ToolCallStart) []protocol.StreamEvent {
 	out := t.closeReasoning()
 	out = append(out, t.closeText()...)
 
-	ref := &openTool{id: t.nextItemID(), createdAt: time.Now().UTC(), name: e.ToolName, kind: toolKind(e.ToolName)}
+	id, runID := t.reuseOrNextItemID(e.ToolName, e.Arguments)
+	ref := &openTool{id: id, runID: runID, createdAt: time.Now().UTC(), name: e.ToolName, kind: toolKind(e.ToolName)}
 	t.tools[e.CallID] = ref
 	out = append(out, protocol.StreamEvent{
 		Type: protocol.StreamItemStarted,
 		Item: &protocol.Item{
 			ID:        ref.id,
-			RunID:     t.runID,
+			RunID:     ref.runID,
 			Status:    protocol.ItemStatusInProgress,
 			Type:      protocol.ItemTypeToolCall,
 			CreatedAt: ref.createdAt,
@@ -374,7 +412,7 @@ func (t *translator) toolEnd(e chat.ToolCallEnd) []protocol.StreamEvent {
 	delete(t.tools, e.CallID)
 	item := &protocol.Item{
 		ID:        ref.id,
-		RunID:     t.runID,
+		RunID:     ref.runID,
 		Status:    protocol.ItemStatusCompleted,
 		Type:      protocol.ItemTypeToolCall,
 		CreatedAt: ref.createdAt,
@@ -426,7 +464,7 @@ func (t *translator) drainTools() []protocol.StreamEvent {
 			Type: protocol.StreamItemCompleted,
 			Item: &protocol.Item{
 				ID:        ref.id,
-				RunID:     t.runID,
+				RunID:     ref.runID,
 				Status:    protocol.ItemStatusIncomplete,
 				Type:      protocol.ItemTypeToolCall,
 				CreatedAt: ref.createdAt,
