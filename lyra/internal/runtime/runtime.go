@@ -183,14 +183,14 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		provider:       cfg.Provider,
 		model:          cfg.Model,
 		apiKeyMasked:   cfg.APIKeyMasked,
-		mcpServerNames: mcpServerNames(cfg.MCPServers),
+		mcpServerNames: mcpNamesFrom(cfg.MCPServers),
 	}, nil
 }
 
-// mcpServerNames lifts the configured MCP server names. The runtime only
+// mcpNamesFrom lifts the configured MCP server names. The runtime only
 // starts when every server dialed successfully (engine construction fails
 // otherwise), so a name present here is a connected server.
-func mcpServerNames(servers []mcp.ServerConfig) []string {
+func mcpNamesFrom(servers []mcp.ServerConfig) []string {
 	out := make([]string, 0, len(servers))
 	for _, s := range servers {
 		out = append(out, s.Name)
@@ -234,7 +234,7 @@ func (r *Runtime) ProviderInfo() (provider, model, apiKeyMasked string) {
 }
 
 // MCPServerNames returns the names of the MCP servers dialed at startup
-// (all connected — see mcpServerNames).
+// (all connected — see mcpNamesFrom).
 func (r *Runtime) MCPServerNames() []string { return r.mcpServerNames }
 
 // ReadHistory returns sessionID's persisted chat history — the
