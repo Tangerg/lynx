@@ -1,82 +1,83 @@
-# Lyra 前端 → 后端反馈（本轮）
+# Lyra 前端 → 后端反馈（本轮 · e2e）
 
 > **日期**：2026-06-05
-> **被测后端**：Lyra Runtime（`d01c5ad`，运行中），`http://127.0.0.1:17171`，streamable HTTP，`protocolVersion 2026-06-03`。
+> **被测后端**：Lyra Runtime（`23ef1a0`，运行中），`http://127.0.0.1:17171`，streamable HTTP，`protocolVersion 2026-06-03`。
 > **前端**：本仓库 frontend（HEAD）。
-> 上一轮的 B1（`Session.model` 恒空）、B2（HITL 沿用原 item id）已修并活体验证通过；providers 配置/探活、多 provider×model、userItemId 对账均已打通。本文只记**本轮新发现**的后端问题 + 一个**工具参数约定提案**（解决反复对不齐）。
-> 契约以 [`API.md`](./API.md) / [`TRANSPORT.md`](./TRANSPORT.md) 为准；累积版历史见 git `3d90a10`。
+> 本文记：① 上轮问题的活体闭环；② 本轮 e2e 探针**新发现**的后端坑；③ 工具参数约定的状态。
+> 契约以 [`API.md`](./API.md) / [`TRANSPORT.md`](./TRANSPORT.md) 为准。
 
 ---
 
-## 1. 本轮后端问题
+## 0. 上轮问题闭环（活体验证 PASS）
 
-### B3 — 多步 HITL 后「实时流」消息乱序（后端实时排序）
+针对 `23ef1a0` 实跑 HITL deny 探针（start → 审批 → `deny` resume）：
 
-**现象**：连续审批/执行多个工具后，气泡顺序看着前后颠倒（"已删除"出现在"我先删除"之上）。
+- **B3-1** 续延 run 发 `run.started`：✅ 续延流**第一帧**即 `run.started`，`parentRunId` 指向被中断 run。
+- **deny 终态**：✅ 被拒 toolCall = `status:"incomplete"` + `error.type:"denied_by_user"`。前端已据此渲染中性「拒绝」态（非绿 ✓、非失败红）。
+- **eventId 流内单调**：✅ 单条流内 `evt_…` 零填充、字典序 == 到达序。
 
-**探针实测（多步 approve 流）**：
+对后端「进程重启专项」两坑的前端处理：
 
-1. **resume / continuation run 不发 `run.started`**。续延 run 直接从 `item.started` 开始 → 前端没有 run 边界可用来分隔 turn / 设 running 态。
-2. **被批准的工具在续延流里「迟发」**：approve 了 item A，续延流却先跑了别的 item，再回头补发 A 的 `item.started/completed` → **到达顺序非时间序**。
-3. **但 `items.list`（durable，按 `createdAt`）顺序是对的** → 纯实时流问题，**重开会话顺序正常**。
-
-**归属**：后端实时流排序 + 缺 `run.started`。前端按到达顺序如实 append（块层面配对已自查正确）。
-
-**建议修法（择一）**：
-- 续延 run 也发 `run.started`（带 `parentRunId`），且**实时流按时间序投递**（被批准工具的 start/complete 紧接其逻辑位置，不迟发）；或
-- 给每个 `RunEvent` 加**单调 `seq`**（root run 内单调），前端据此重排 + 去重 + 断线重放（前端这边的 seq 重排是已排期项）。
-
-### W1 — 命令工具 wire 形状与契约不符（详见 §2，这里只点名）
-
-`API.md §4.4` 写命令工具是 `{kind:"command"; command; cwd?; output?; exitCode?}`，但实际发的是 `{kind:"command"; name:"bash"; output:"<json串>"}`，命令在流式 `arguments` 里。前端已容错（`name` 回退 + 解析 args），但这是反复对不齐的典型——见 §2 提案。
-
-### 轻微 — deny 显示绿 ✓
-
-deny 一个工具后，终态是 `status="completed"` + `tool.output="tool call denied by user"` → 前端工具卡显示绿 ✓（成功色）。审批卡本身已正确标"declined"。**建议**：被拒工具用一个可区分的终态（如 `incomplete`/`canceled`）或在结果里带 `denied:true`，让 UI 能显示"拒绝"色。非阻塞。
+- **坑 A（eventId 重启归零）**：前端**零改动**。历史重建本就按 `items.list` 返回序渲染、`createdAt` 只做显示不当排序键（符合更正后指导）；原排期的「eventId 实时重排」**重新定范围为：只在单流内去重、且仅当实现 Last-Event-Id 重连时才需要**，不做跨 run 全局重排。
+- **坑 B（幽灵 running run）**：后端在 **RunRef 层**对账（`outcome.error.type:"run_lost"`），但**前端当前不读 `runs.list`/`RunRef`**，该对账到不了 UI。前端真正的幽灵在 **item 层**——`items.list` 把崩溃 run 的末个 item 仍以 `status:"inProgress"` 返回，hydration 折成永久转圈块。已在 fold 加不变量修掉（`item.completed` ⟹ 已 settle ⟹ `inProgress→incomplete`）。**无需后端动作**，记录以同步认知。
 
 ---
 
-## 2. 工具参数约定提案（消除反复对不齐）
+## 1. 本轮 e2e 新发现
 
-**问题根因**：工具的「身份 / 参数 / 结果」在 wire 上没有统一契约，同一份数据在不同地方形状不同，前端只能逐处猜+容错。本轮实测到的漂移：
+探针：plan 模式跑一个会触发文件工具的 prompt（`mode:"plan"`，`deepseek` provider）。
 
-| 位置 | 实际形状 | 问题 |
-| --- | --- | --- |
-| `ToolInvocation`（command） | `{kind:"command", name:"bash", output:"<json串>"}` | 契约写的是 `command`/`exitCode` 等，实际是 `name` + 无 `command`；命令藏在 args 里 |
-| 流式参数 `item.delta{toolArguments}` | `argumentsTextDelta`（JSON **文本**增量） | 参数是「文本流」 |
-| 审批 interrupt `payload` | `{tool, arguments:"<json串>"}`（JSON **字符串**） | 又变成字符串；且 payload 形状未进契约 |
-| 完成项结果 | command `output:"<json串>"`；mcp `result:unknown`；subagent `result:string` | 结构化结果（stdout/exit_code…）被塞进**字符串**，前端要二次 parse；各 kind 不一致 |
+### E1 — 工具级失败被升级成致命 run error（与 API.md §8.1 矛盾）⭐
 
-→ 同一个「参数对象」在三处分别是 **文本增量 / JSON 字符串 / 对象**；结果在四处各不相同。这就是"老对不齐"的来源。
+**现象**：模型调用 `glob` 工具失败，**整个 run** 以 `run.finished{ type:"error" }` 收场：
 
-**提案（建议写进 `API.md §4.4` + §6，作为唯一真相）**：
+```
+item.completed(toolCall) status=incomplete
+  tool  = {"kind":"search","name":"glob"}
+  error = {"type":"tool_failed","detail":"fs.glob: fs.LocalExecutor.Glob: exit status 1"}
+run.finished
+  outcome = {"type":"error","result":{"error":{
+    "type":"internal_error",
+    "detail":"chat.toolCallInvoker.invokeToolCalls: tool \"glob\" failed: fs.glob: fs.LocalExecutor.Glob: exit status 1"
+  }}}
+```
 
-- **A. 工具身份统一为 `{ kind, name }`**。`name` = 工具/函数名（`bash` / `read` / `grep` / mcp `server.tool`…）。命令工具的 shell 命令是**参数** `arguments.command`，不再设顶层 `command`。前端工具卡标题 = `name`，参数展开显示 `arguments`。
+**契约**：`API.md §8.1`（投递通道表，行 b）+ §4（`toolCall.error` 是"工具级失败的统一结构化落点……工具失败通常不终止 run"）明确——**工具级失败落在对应 `toolCall` item 的 `error` + `status:"incomplete"`，run 多半继续**（让模型看到错误、自行调整）。这里 toolCall item 的 `error` 已经正确落了（`tool_failed`），但 invoker **又把同一个工具失败包成 `internal_error` 把整条 run 打死**了。
 
-- **B. 参数权威表示 = 对象 `arguments: Record<string, unknown>`**。
-  - 流式阶段：保留 `item.delta{toolArguments, argumentsTextDelta}`（本就是 JSON 文本流，前端累积+`item.completed` 时解析）。
-  - **完成项 / 审批 payload：一律给已解析的对象**，**绝不回传 JSON 字符串**（消除 `"{\"command\":\"...\"}"` 这种双重转义）。
+**归属**：后端 `toolCallInvoker.invokeToolCalls` 把单个工具的 `tool_failed` 当致命错误向上抛，而非"记在 item 上、让 run 继续"。
 
-- **C. 结果结构化（不塞字符串）**。每个 kind 的 result 形状在 §4.4 显式定义，例如：
-  - command → `result: { stdout: string; stderr: string; exitCode: number; durationMs: number }`（而非 `output: "<json串>"`）。
-  - mcp / search / subagent 各自定义具体 result 形状，不用 `unknown`。
+**建议**：工具调用失败只体现在 toolCall item（`status:incomplete` + `error.type:tool_failed`），把错误回灌给模型继续下一步；**不要**升级成 `run.finished{error}`。只有真正的引擎/基础设施故障才配 `internal_error` + 终止 run。
 
-- **D. 审批 interrupt `payload` 进契约（§6）**：
-  ```
-  Interrupt.payload (kind="approval") = {
-    tool: string;                       // 工具名
-    arguments: Record<string, unknown>; // 已解析的对象（同 B）
-    command?: string;                   // 便利字段：命令工具的 shell 命令
-    risk?: "low"|"medium"|"high";
-    scope?: string[]; target?: string; reversible?: boolean; reason?: string;
-  }
-  ```
-  这样审批卡不必猜 command 在哪、不必处理字符串转义。
+### E2 — `internal_error.detail` 泄漏内部调用栈
 
-- **E. 单一真相 + 流程**：`ToolInvocation` 的 per-kind shape（身份 / args schema / result schema）是前后端**唯一契约**。新增工具：先在 `API.md §4.4` 登记 `kind` 定义，再实现；前端按它解析，后端按它发。任何"前端要二次 parse / 容错猜形状"的地方，都说明契约缺了一条，应回到 §4.4 补齐而不是各自打补丁。
+E1 里的 `detail` 是 `chat.toolCallInvoker.invokeToolCalls: tool "glob" failed: fs.glob: fs.LocalExecutor.Glob: exit status 1`——把 Go 包/方法路径直接抛给了客户端。
 
-> 收益：消除 §1 W1 这类反复出现的"形状漂移"，前端可去掉一圈防御性解析/容错，双方对着 §4.4 的 kind 表即可。
+**契约**：`API.md §8.2` 业务 error 走结构化 `type` + `detail`，`detail` 应是面向用户/agent 的可读说明，不该带实现内部的调用路径。**建议**：`detail` 收敛成干净文案（如 `glob failed: exit status 1`），内部栈走服务端日志，别上 wire。
+
+### E3 —（观察，需后端确认）plan 模式执行了工具
+
+`mode:"plan"` 下，agent 没有"只产出计划 + 等批准"，而是直接发起了 `glob` 工具调用（随后撞上 E1）。
+
+**问题**：plan 模式的语义是什么？是否应禁止/门控副作用工具、只产出计划？若 plan 模式允许只读工具（glob/read），那也不该因一次只读工具失败而 E1 式炸 run。需要后端明确 plan 模式的工具策略。**非阻塞，先记为问题。**
+
+### E4 —（轻微）`/v2/info` 的 `capabilities.providers` 为空，与 `providers.list` 不一致
+
+`GET /v2/info` 返回 `capabilities.providers: []`，但 `providers.list` 返回 4 个（anthropic/deepseek/moonshot/openai，deepseek 已配 key）。
+
+**问题**：`capabilities.providers` 语义是什么？若意指"可用/已配置 provider"则为空是错的；若是别的含义则需在 `API.md` 写清，避免客户端误判"无 provider"。**非阻塞。**
+
+### E5 —（nit）JSON-RPC `id` 必须是字符串，但未在 TRANSPORT.md 写明
+
+整数 `id` 被拒：`{"code":-32600,"message":"invalid_request","detail":"id must be a JSON string, got int64"}`。JSON-RPC 2.0 本身允许 number id；`TRANSPORT.md` 所有示例用字符串但未声明这是**硬约束**。前端 client 一直发字符串、不受影响，但其他客户端会踩。**建议**：`TRANSPORT.md §2` 显式写明"`id` 必须为 string"，或放宽接受 number。
 
 ---
 
-> 后端处理 §1（尤以 B3）后请告知，前端复测实时顺序；§2 的约定确定后我同步更新前端的 `ToolInvocation` 类型 + 解析逻辑，并删除现有的容错猜测。
+## 2. 工具参数约定（§2）状态：不变，等契约入 API.md
+
+上轮的 A/B/C/D/E 提案后端已**逐条同意**，按 lockstep 流程：**下一步是把 per-kind `ToolInvocation`（身份/args/result）+ approval payload 钉进 `API.md §4.4/§6`**，再前后端同步改 wire、前端删容错解析。本轮**无新进展**，按上轮约定 park 在此步。
+
+> 注：本轮 E1 的 toolCall 形状 `{"kind":"search","name":"glob"}` 再次印证 §2A（身份 = `{kind,name}`）方向正确。
+
+---
+
+> 优先级建议：**E1 最高**（违反 §8.1、且会让任何一次工具失败直接终结对话），E2 次之（同处一改），E3 需语义确认，E4/E5 轻微。
