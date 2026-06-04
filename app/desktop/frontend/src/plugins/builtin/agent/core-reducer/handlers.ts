@@ -226,7 +226,7 @@ function onItemCompleted(state: AgentViewState, item: Item): AgentViewState {
       return appendTimelineEntry({
         kind: "tool-end",
         refId: item.id,
-        status: tool.status === "err" ? "err" : "ok",
+        status: tool.status === "err" ? "err" : tool.status === "denied" ? "declined" : "ok",
         summary: tool.fn,
       })(next);
     }

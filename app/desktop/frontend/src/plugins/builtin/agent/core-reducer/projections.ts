@@ -147,6 +147,9 @@ export function toolFields(tool: ToolInvocation | undefined): Partial<ToolCall> 
 }
 
 export function toolStatus(item: Extract<Item, { type: "toolCall" }>): ToolCallStatus {
+  // A HITL-declined tool settles as incomplete + error.type "denied_by_user"
+  // (API.md §8.1) — that's a user decision, render it neutral, not failure-red.
+  if (item.error?.type === "denied_by_user") return "denied";
   if (item.error || item.status === "incomplete") return "err";
   if (item.status === "inProgress") return "running";
   return "ok";

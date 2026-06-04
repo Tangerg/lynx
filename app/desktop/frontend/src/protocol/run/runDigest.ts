@@ -122,7 +122,9 @@ export function deriveLatestRun(view: AgentViewState): RunDigest | null {
     } else if (SHELL_RUN.has(tool.fn)) {
       digest.commands.push({
         cmd: tool.args || tool.fn,
-        status: tool.status === "err" ? "err" : "ok",
+        // Only a successfully-run command is "ok"; err / denied did not run
+        // to a clean result.
+        status: tool.status === "ok" ? "ok" : "err",
       });
     }
   }
