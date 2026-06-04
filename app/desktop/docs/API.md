@@ -532,8 +532,8 @@ type ItemDelta =
 ```
 
 > **`toolArguments` 是文本增量**：流式工具入参是逐片到达的不完整 JSON 文本，无法在中途构成合法对象；客户端累积
-> `argumentsTextDelta`、用 `untruncate-json` 修复成可解析片段做预览；**已解析结构化 `arguments` 只在 completed
-> `toolCall` item**（§4.4）。
+> `argumentsTextDelta`、用 `untruncate-json` 修复成可解析片段做预览；**已解析结构化字段只在 completed `toolCall` item**
+> 落定（§4.4——通用 `tool` 的 `arguments`、`commandExecution` 的 `command`、`search`/`webSearch` 的 `results` 等）。
 
 ### 5.2 Durable / Ephemeral 不变量（协议级保证）
 
@@ -949,8 +949,14 @@ server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` 
 
 ### 8.4 `type` 命名空间（防撞名）
 
-error `type` 是 §2.5 命名空间的一个实例：first-party（§8.2 上表）用裸 `snake_case`；**第三方插件**产出的错误
+error `type` 是 §2.5 命名空间的一个实例：first-party 用裸 `snake_case`；**第三方插件**产出的错误
 （工具执行失败落在 `toolCall.error`，§4.3）用 `plugin:<pluginName>/<symbol>`（如 `plugin:acme/quota_exceeded`）。
+
+**first-party `type` 分两类**：
+- **RPC 级**（同步 method 失败，通道 a）：§8.2 数字码表里的那些（带 `error.code`）。
+- **工具级 / 执行期**（落在 `toolCall.error` 或 `RunResult.error`，通道 b，**无数字码**，仅 `ProblemData.type`）：`tool_failed`
+  （工具执行失败）、`denied_by_user`（HITL 用户拒绝该工具，§6）、`timeout` 等。**注意与 §8.2 的 `tool_denied` 区分**——后者是
+  **策略**拒绝 `tools.invoke`（RPC 级，带码 `-32012`），前者 `denied_by_user` 是**用户**在 HITL 里拒绝（item 级，无码）。
 
 ---
 
