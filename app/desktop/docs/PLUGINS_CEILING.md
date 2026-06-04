@@ -38,7 +38,7 @@
 | 卸载/热重载 | disposable sink 由 Host 收集，`host.plugins.{unload,reload}`                                                                      | `definePlugin.ts`          |
 | 错误隔离    | `PluginBoundary`(React) + `safeCall` + 按插件归因 + 可注册 errorFallback                                                          | `PluginBoundary.tsx`       |
 | 跨插件通信  | `host.state.slice(name, initial)`（约定名共享 ephemeral state）                                                                   | `sdk/stateSlice.ts`        |
-| 后端通信    | `host.rpc.{get,post}`(JSON-RPC) / `host.agui.on`(CUSTOM 事件) / `host.extensions.contribute(DATA_PROVIDER, …)`                    | `host.ts`, `docs/API.md`   |
+| 后端通信    | `host.rpc.{get,post}`(JSON-RPC) / `host.events.onCustom`(custom 事件) / `host.extensions.contribute(DATA_PROVIDER, …)`            | `host.ts`, `docs/API.md`   |
 | `when` 子句 | 上下文表达式求值（命令/菜单可见性）                                                                                               | `sdk/evalWhen.ts`          |
 
 **一句话**：内核不长肉，所有面都是插件贡献；Host 是插件能看到的**唯一**世界。

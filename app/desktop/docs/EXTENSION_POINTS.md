@@ -18,7 +18,7 @@
   - `layout.register` —— 内部算去重 id `${slot}#${spec.id}`，防 `<Slot>` 同 key 重复渲染
   - `message.registerContentBlock<K>` —— 保 per-kind 泛型类型安全
   - `lifecycle.onReady` —— "已 ready 则 microtask 立即触发"逻辑（`onBeforeUnload` 同 namespace 一起留）
-  - `agui.on/onCore`、`rpc.beforeRequest/afterResponse`、`log.subscribe` —— handler/hook 订阅 API，具名表意 + 行为性，高调用密度删了纯增噪
+  - `events.onStream/onCustom`、`rpc.beforeRequest/afterResponse`、`log.subscribe` —— handler/hook 订阅 API，具名表意 + 行为性，高调用密度删了纯增噪
 - **kernel 内部 firing 循环破环**：`markAppReady`/`registerLoaded`/`unload` 在 store 内迭代 substrate，靠 `pointIds.ts`（零依赖常量）按 `entry.point` 过滤，避免 `registry → kernelPoints` 成环。
 - **边界划定**：「注册一个 spec 到列表」→ 删 facade 走 `contribute`；「订阅 handler/hook」或「facade 算了去重 id / 保泛型 / 带行为」→ 留作薄 facade。
 - **capability-on-point（已做）**：`ExtensionPoint.capability` + `contribute` 强制校验，把 per-namespace 强权限门禁下沉到点上（受限 host 只能 contribute 到声明了对应 capability 的点；built-in 全权；插件自定义点无 capability、永远可填）。`host.extensions` 在受限 host 上恒可达,门禁在点上。见 §9。
@@ -49,7 +49,7 @@
 
 但**代价是真实的**，必须接受：
 
-- **这是 registry 核心重写**，不是加 feature。registry 是全应用最热的代码（每个 AG-UI 事件 30/s、每次渲染都读它）。
+- **这是 registry 核心重写**，不是加 feature。registry 是全应用最热的代码（每个 StreamEvent 30/s、每次渲染都读它）。
 - **爆炸半径 = 整个 app**。缓解：先做**行为保持的重构**（底座替换在现有 typed API 背后，321+ 测试不改照样绿），再谈是否迁移调用点。
 - 需要**同步更新** CLAUDE.md 那条不变量 + `ARCHITECTURE.md §12.2-E` + §12.5 反向不变量（把"别抽 factory"改成"已统一到扩展点底座"）。
 
@@ -287,7 +287,7 @@ Lyra 的 `capabilities` 本就是权限单元（gate 24 个 Host namespace）。
 | 等级          | Lyra namespace                                                                                                          | 理由                             |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
 | **safe**      | notify / log / i18n / state / config / storage / theme                                                                  | 自身数据 / 纯展示，无外溢        |
-| **moderate**  | commands / layout / composer / sidebar / workspace / settings / message / tool / agui / window / tasks / **extensions** | 注册贡献 / 改 UI，影响面限本 app |
+| **moderate**  | commands / layout / composer / sidebar / workspace / settings / message / tool / events / window / tasks / **extensions** | 注册贡献 / 改 UI，影响面限本 app |
 | **dangerous** | **rpc**（打后端 / 网络） / **plugins**（加载卸载任意插件 = 提权） / 未来 **fs**（文件读写）                             | 越权 / 外溢 / 可被武器化         |
 
 - `extensions.contribute` 本身是 **moderate**（贡献数据）；危险性在于**消费方**拿数据去干什么（由 rpc / plugins / fs 这些 dangerous 权限把关）。**定义一个点不需要特殊权限。**
