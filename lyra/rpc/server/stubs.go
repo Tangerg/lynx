@@ -27,8 +27,11 @@ func (i *Server) DeleteAttachment(_ context.Context, _ string) error {
 
 // ─── Background ─────────────────────────────────────────────────────
 
+// ListBackground is gated off (features.background=false) — return
+// capability_not_negotiated rather than a misleading empty list, matching
+// background.subscribe / cancel (API.md §7.7).
 func (i *Server) ListBackground(_ context.Context) ([]protocol.BackgroundTask, error) {
-	return []protocol.BackgroundTask{}, nil
+	return nil, notImpl("background.list")
 }
 
 func (i *Server) SubscribeBackground(_ context.Context, _ string) (<-chan protocol.BackgroundTask, error) {
@@ -41,8 +44,11 @@ func (i *Server) CancelBackground(_ context.Context, _ string) error {
 
 // ─── Feedback ───────────────────────────────────────────────────────
 //
-// The Runtime doesn't persist feedback yet; accept and drop so the
-// frontend's UX flow can be exercised end-to-end (rather than erroring).
+// feedback.create is ungated (API.md §7.7) and has no readback method, so
+// "accepted" is a truthful ack — the contract never promises durable
+// storage. The Runtime doesn't retain feedback yet (write-only-never-read
+// data isn't worth a store); accept it. Add a sink (OTel / store) when a
+// real consumer exists.
 func (i *Server) CreateFeedback(_ context.Context, _ protocol.FeedbackRequest) error {
 	return nil
 }
