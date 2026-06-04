@@ -23,6 +23,15 @@ type RunChatRequest struct {
 	// Message is the user's input for this turn.
 	Message string
 
+	// Cwd is the working directory the turn's filesystem + bash tools run
+	// in — the session's project directory. The chat action binds it onto
+	// the process blackboard ([cwdBindingKey]) as a protected entry so
+	// [cwdToolResolver] anchors the tools there, and so `task` sub-agents
+	// inherit it: Blackboard.Spawn copies protected entries to children and
+	// the typed-action ClearBlackboard preserves them. Empty falls back to
+	// the engine's default workdir.
+	Cwd string
+
 	// MaxBudget caps the total tokens (prompt + completion) the turn
 	// may spend across its tool-loop rounds. 0 means unlimited. See
 	// [ChatInput.MaxBudget] for the stop semantics.
@@ -73,7 +82,7 @@ type RunChatRequest struct {
 // attaches a process-scope [core.ToolDecorator]; SessionID binds the
 // turn to the chat-memory middleware's keyed conversation.
 func (e *Engine) StartChat(ctx context.Context, req RunChatRequest) ChatProcess {
-	in := ChatInput{Message: req.Message, MaxBudget: req.MaxBudget, MaxCostUSD: req.MaxCostUSD, PlanMode: req.PlanMode}
+	in := ChatInput{Message: req.Message, Cwd: req.Cwd, MaxBudget: req.MaxBudget, MaxCostUSD: req.MaxCostUSD, PlanMode: req.PlanMode}
 
 	proc, done := e.platform.StartAgent(ctx, e.agent,
 		map[string]any{core.DefaultBindingName: in},

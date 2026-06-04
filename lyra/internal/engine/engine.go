@@ -61,28 +61,34 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		return nil, errors.New("engine: ChatClient is required")
 	}
 
-	tools, err := BuildToolSet(cfg.Workdir, cfg.Online)
+	// The online (network) and MCP tools are working-directory
+	// independent, so they're built once and captured by the resolver.
+	// The filesystem + bash tools are rebuilt per resolution against the
+	// turn's working directory — see cwdToolResolver.
+	online, err := buildOnlineTools(cfg.Online)
 	if err != nil {
-		return nil, fmt.Errorf("engine: build tool set: %w", err)
+		return nil, fmt.Errorf("engine: build online tools: %w", err)
 	}
 
-	// Dial MCP servers and merge their tools alongside the built-in
-	// coding tools so the model can call them transparently. The
-	// dial happens before resolver wiring so the resolver sees the
-	// merged set in one place. ctx flows from the caller so a slow /
-	// unreachable MCP server can be canceled during startup.
+	// Dial MCP servers so the model can call them transparently. The dial
+	// happens before resolver wiring so the resolver captures the set in
+	// one place. ctx flows from the caller so a slow / unreachable MCP
+	// server can be canceled during startup.
 	mcpTools, mcpSessions, err := dialMCPServers(ctx, cfg.MCPServers)
 	if err != nil {
 		return nil, err
 	}
-	leafTools := append(tools, mcpTools...)
 
-	// Two tool roles share the leaf coding set. ToolRoleSubtask gets
-	// exactly those (registered now); ToolRoleCoding gets them plus the
-	// `task` delegation tool, registered below once that tool exists
-	// (it needs the platform). Register is last-write-wins.
-	resolver := core.NewStaticToolGroupResolver("coding-tools")
-	resolver.Register(ToolRoleSubtask, newToolGroup(ToolRoleSubtask, leafTools))
+	// One platform-scope resolver serves both roles. ToolRoleSubtask
+	// resolves the cwd-bound coding tools + online + MCP; ToolRoleCoding
+	// adds the `task` delegation tool, wired below once it exists (it
+	// needs the platform). The resolver reads each turn's working
+	// directory off the process blackboard at resolution time.
+	resolver := &cwdToolResolver{
+		defaultWorkdir: cfg.Workdir,
+		online:         online,
+		mcp:            mcpTools,
+	}
 
 	memStore := cfg.MemoryStore
 	if memStore == nil {
@@ -118,18 +124,23 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	}
 
 	// The `task` tool delegates to a fresh sub-agent (declares
-	// ToolRoleSubtask → leaf tools, no `task` → no recursion). Fold it
-	// into the main coding role. AsChatToolFromAgent needs no separate
-	// deploy — child processes land on the platform when spawned.
+	// ToolRoleSubtask → no `task` → no recursion). Hand it to the
+	// resolver, which folds it into the ToolRoleCoding set only.
+	// AsChatToolFromAgent needs no separate deploy — child processes land
+	// on the platform when spawned.
 	taskTool, err := runtime.AsChatToolFromAgent[TaskInput, string](platform, e.buildSubtaskAgent())
 	if err != nil {
 		return nil, fmt.Errorf("engine: build task tool: %w", err)
 	}
-	// Full-slice expression caps leafTools so this append allocates a
-	// fresh array — the ToolRoleSubtask group keeps its leaf-only view.
-	codingTools := append(leafTools[:len(leafTools):len(leafTools)], taskTool)
-	resolver.Register(ToolRoleCoding, newToolGroup(ToolRoleCoding, codingTools))
-	e.tools = codingTools
+	resolver.task = taskTool
+
+	// e.tools is the canonical coding tool set for ToolService.List —
+	// tool metadata (name / schema) is working-directory independent, so
+	// the default-workdir build is a faithful representative of what any
+	// turn resolves.
+	e.tools = append(buildWorkdirTools(cfg.Workdir), online...)
+	e.tools = append(e.tools, mcpTools...)
+	e.tools = append(e.tools, taskTool)
 
 	e.agent = e.buildChatAgent()
 	if err := platform.Deploy(e.agent); err != nil {
