@@ -300,8 +300,8 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         activeSessionId: s.activeSessionId,
         tabIds: s.tabIds,
       }),
-      // v2: dropped the demo-fixture defaults (s1/s2/s3). Bump discards any
-      // persisted ghost tabs from older builds (no migration in dev phase).
+      // Persisted shape is dev-phase only; bump to discard stale payloads
+      // rather than migrate (the merge below Zod-validates what survives).
       version: 2,
       merge: (persisted, current) => {
         const parsed = sessionPersistSchema.safeParse(persisted);

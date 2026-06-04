@@ -3,10 +3,9 @@
 // the StreamEvent so the user can see exactly what the agent passed
 // in and got back, even for tools we've never seen before.
 //
-// Portai's ToolInvocationCard does the same: it pretty-prints JSON,
-// keeps non-JSON text as-is, and clearly labels the two halves. The
-// inline preview is for "I want a quick visual"; this is for "I want
-// the truth".
+// It pretty-prints JSON, keeps non-JSON text as-is, and clearly labels
+// the two halves: the inline preview is for "I want a quick visual",
+// this is for "I want the truth".
 
 import type { ToolCall } from "@/protocol/run/viewState";
 import { useMemo } from "react";
