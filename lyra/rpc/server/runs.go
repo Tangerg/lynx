@@ -218,7 +218,12 @@ func (i *Server) rehydrate(ctx context.Context, pending interrupts.Pending, appr
 // (runs.start) and set for a continuation (runs.resume) — it rides onto
 // the RunRef and the runEntry so the continuation links back to its parent.
 func (i *Server) openSegment(reqCtx context.Context, runID, parentRunID string, handle chat.TurnHandle, sessionID string, userInput []protocol.ContentBlock, resume *resumeBinding) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
-	runCtx, cancel := context.WithCancel(context.Background())
+	// Detach the run from the request's cancellation (it must outlive the
+	// request) WITHOUT losing the request's trace context: WithoutCancel
+	// keeps ctx values — including the entry span — so the run's spans are
+	// children of the same trace (full-link), while our own cancel drives
+	// CancelRun. Rooting on context.Background() here would sever the trace.
+	runCtx, cancel := context.WithCancel(context.WithoutCancel(reqCtx))
 	inner, err := i.rt.Chat().Events(runCtx, handle)
 	if err != nil {
 		cancel()

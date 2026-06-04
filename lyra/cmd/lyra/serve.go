@@ -46,6 +46,12 @@ sidecars for operations.
 
 Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Wire the dev observability triad (traces + metrics + logs →
+			// one slog stream) before anything else, so startup itself is
+			// traced and every module's spans/logs are correlated.
+			shutdownObs := setupObservability(version)
+			defer shutdownObs(context.Background())
+
 			if err := a.ensureRuntime(cmd.Context()); err != nil {
 				return a.fatalErr(err)
 			}
