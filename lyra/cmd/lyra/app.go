@@ -20,6 +20,7 @@ import (
 	chatmem "github.com/Tangerg/lynx/core/model/chat/memory"
 	"github.com/Tangerg/lynx/lyra/internal/config"
 	lyraruntime "github.com/Tangerg/lynx/lyra/internal/runtime"
+	"github.com/Tangerg/lynx/lyra/internal/service/approval"
 	"github.com/Tangerg/lynx/lyra/internal/service/history"
 	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 	memorysvc "github.com/Tangerg/lynx/lyra/internal/service/memory"
@@ -140,9 +141,13 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		// Default provider+model a turn runs against when it picks no model.
 		Provider: string(cfg.Provider),
 		Model:    cfg.Model,
-		// ApprovalMode defaults to YOLO — operators flip the mode at
-		// runtime via /v1/approvals/mode (HTTP) or a future
-		// --approval-mode flag.
+		// Default approval stance: Balanced — auto-allow file writes /
+		// network (the agent's normal work; the user sees the diffs), prompt
+		// only on shell exec (bash), the genuinely dangerous class. Must be
+		// set explicitly: approval.Mode's zero value is ModeSafe (prompts on
+		// EVERY write + exec), which floods a coding session with approvals.
+		// Operators flip the mode at runtime; safe/readonly/yolo are opt-in.
+		ApprovalMode: approval.ModeBalanced,
 	})
 	if err != nil {
 		return err
