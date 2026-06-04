@@ -11,6 +11,7 @@ import type {
   ToolCall,
 } from "@/protocol/run/viewState";
 import {
+  argsText,
   contentText,
   formatTime,
   mapQuestion,
@@ -214,7 +215,9 @@ export function writeToolCall(
     id: item.id,
     kind: item.tool?.kind ?? "tool",
     fn: toolLabel(item.tool),
-    args: prev?.args ?? "",
+    // Accumulated stream text wins; fall back to the parsed arguments object
+    // when a generic tool delivered no toolArguments deltas (object-on-complete).
+    args: (prev?.args ?? "") || argsText(item.tool),
     status: toolStatus(item),
     duration,
     // Keep the accumulated stream output (commandExecution stdout streams via

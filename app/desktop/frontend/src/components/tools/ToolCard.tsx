@@ -10,7 +10,7 @@ import {
   TOOL_ACTION,
   useExtensionPoint,
 } from "@/plugins/sdk";
-import { toolIconFor } from "./toolIcon";
+import { toolIconFor, toolRoutingKey } from "./toolIcon";
 import { ToolPreview } from "./ToolPreview";
 
 interface Props {
@@ -35,20 +35,12 @@ const STATUS_TONE = {
 // pulsing dot for `run` is set up via the `before:` pseudo-element below.
 const STATUS_GLYPH = { ok: "✓", err: "✗", run: "", denied: "⊘" } as const;
 
-// Typed tool variants route their icon by kind (their `fn` is a display label —
-// a command string / query — not a routable name). The generic `tool` kind
-// routes by `fn` (the tool name) through the plugin/fallback registry.
-const ICON_BY_KIND: Record<string, IconName> = {
-  commandExecution: "terminal",
-  fileChange: "file",
-  search: "search",
-  webSearch: "globe",
-};
-
 export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView }: Props) {
   const status: keyof typeof STATUS_TONE = tool.status === "running" ? "run" : tool.status;
   const statusGlyph = STATUS_GLYPH[status];
-  const toolIcon = ICON_BY_KIND[tool.kind] ?? toolIconFor(tool.fn);
+  // Icon routes by the same key as the preview (kind for typed variants, tool
+  // name for the generic envelope) — see toolRoutingKey.
+  const toolIcon = toolIconFor(toolRoutingKey(tool));
   const actions = useExtensionPoint(TOOL_ACTION).filter((a) => !a.predicate || a.predicate(tool));
   const running = tool.status === "running";
 

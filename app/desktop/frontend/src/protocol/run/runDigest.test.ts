@@ -85,8 +85,8 @@ describe("deriveLatestRun", () => {
         "t-write": {
           id: "t-write",
           kind: "fileChange",
-          fn: "write_file",
-          args: "src/auth.ts",
+          fn: "src/auth.ts", // toolLabel(fileChange) = the changed path
+          args: "",
           status: "ok",
           duration: "12ms",
           added: 5,
@@ -103,8 +103,8 @@ describe("deriveLatestRun", () => {
         "t-bash": {
           id: "t-bash",
           kind: "commandExecution",
-          fn: "bash",
-          args: "pnpm test",
+          fn: "pnpm test", // toolLabel(commandExecution) = the joined argv
+          args: "",
           status: "err",
           duration: "1.4s",
         },
