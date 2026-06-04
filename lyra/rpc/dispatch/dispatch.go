@@ -38,15 +38,11 @@ type HandleResult struct {
 	// was a notification (no id, no response on the wire).
 	Response *transport.Response
 
-	// RunID is set when the dispatched method opened a run stream
-	// (runs.start / runs.resume / runs.subscribe). The transport uses
-	// it as the routing key for notifications.run.event — the run id IS
-	// the stream identifier (API.md §5).
-	RunID string
-
 	// EventStream is the channel of RunEvents for a streaming method,
 	// closed when the run tree ends. The terminal run.finished event
-	// rides this same channel (no separate close notification).
+	// rides this same channel (no separate close notification). Under
+	// streamable HTTP the transport drains it straight into the call's
+	// own text/event-stream response — there is no separate routing key.
 	EventStream <-chan protocol.RunEvent
 }
 
@@ -205,11 +201,10 @@ func responseError(id transport.ID, rpcErr *transport.Error) HandleResult {
 	return HandleResult{Response: transport.NewResponseError(id, rpcErr)}
 }
 
-// streamingResult attaches the run id + event channel so the
-// transport's notification pump can fan RunEvents out under the run id.
-func streamingResult(id transport.ID, result any, runID string, events <-chan protocol.RunEvent) HandleResult {
+// streamingResult attaches the event channel onto the synchronous reply;
+// the transport streams it as the call's own response (streamable HTTP).
+func streamingResult(id transport.ID, result any, events <-chan protocol.RunEvent) HandleResult {
 	res := responseResult(id, result)
-	res.RunID = runID
 	res.EventStream = events
 	return res
 }

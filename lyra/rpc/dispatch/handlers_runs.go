@@ -34,7 +34,7 @@ func (d *Dispatcher) handleRunsStart(ctx context.Context, msg *transport.Request
 		return responseError(msg.ID, bad)
 	}
 	out, events, err := d.api.StartRun(ctx, in)
-	return replyStream(msg, out, out.RunID, events, err)
+	return replyStream(msg, out, events, err)
 }
 
 // handleRunsResume answers open interrupts by starting a continuation
@@ -48,7 +48,7 @@ func (d *Dispatcher) handleRunsResume(ctx context.Context, msg *transport.Reques
 		return responseError(msg.ID, invalidParams("parentRunId is required"))
 	}
 	out, events, err := d.api.ResumeRun(ctx, in)
-	return replyStream(msg, out, out.RunID, events, err)
+	return replyStream(msg, out, events, err)
 }
 
 // handleRunsSubscribe rebinds an existing root run's stream to the
@@ -59,7 +59,7 @@ func (d *Dispatcher) handleRunsSubscribe(ctx context.Context, msg *transport.Req
 		return responseError(msg.ID, invalidParams(err.Error()))
 	}
 	out, events, sErr := d.api.SubscribeRun(ctx, runID)
-	return replyStream(msg, out, out.RunID, events, sErr)
+	return replyStream(msg, out, events, sErr)
 }
 
 func (d *Dispatcher) handleRunsCancel(ctx context.Context, msg *transport.Request) HandleResult {
