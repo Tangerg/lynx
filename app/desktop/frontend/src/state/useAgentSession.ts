@@ -87,28 +87,38 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     };
 
     const begin = (
-      run: (signal: AbortSignal) => Promise<StreamingResult<{ runId: RunId }, RunEvent>>,
+      run: (
+        signal: AbortSignal,
+      ) => Promise<StreamingResult<{ runId: RunId; userItemId?: string }, RunEvent>>,
+      onResult?: (result: { runId: RunId; userItemId?: string }) => void,
     ): void => {
       abort?.abort(); // a new run supersedes any in-flight one
       abort = new AbortController();
       void run(abort.signal)
-        .then(pump)
+        .then((stream) => {
+          // Runs before pump() iterates events (the response resolves ahead of
+          // the buffered stream frames), so a userItemId relabel lands before
+          // the streamed userMessage Item is folded.
+          if (!cancelled) onResult?.(stream.result);
+          return pump(stream);
+        })
         .catch((err: unknown) => {
           if (!cancelled) console.error("[agent] run failed to start:", sessionId, err);
         });
     };
 
     const send = (text: string): void => {
-      // Optimistically render the user's own bubble. The runtime streams back
-      // only the agent's items — not the user's — so without this the message
-      // wouldn't appear until a history reload (items.list does carry it). A
-      // local id keeps it idempotent; a reopen replaces it with the persisted
-      // item via items.list, so there's no duplicate.
+      // Optimistically render the user's own bubble with a local id. The
+      // runtime DOES stream the userMessage Item back (with its own server id),
+      // a round-trip later — so when runs.start resolves we relabel this
+      // placeholder to the returned `userItemId`, and the streamed Item then
+      // dedupes by exact id (no duplicate, no content-text heuristic).
+      const localId = `local-${++localSeq}`;
       store().applyEvents(sessionId, [
         {
           type: "item.completed",
           item: {
-            id: `local-${++localSeq}`,
+            id: localId,
             runId: "",
             status: "completed",
             createdAt: new Date().toISOString(),
@@ -117,7 +127,12 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
           },
         } as RunEvent["event"],
       ]);
-      begin((signal) => driver.start(text, signal));
+      begin(
+        (signal) => driver.start(text, signal),
+        (result) => {
+          if (result.userItemId) store().relabelMessage(sessionId, localId, result.userItemId);
+        },
+      );
       // First message graduates a draft session into the sidebar.
       useSessionStore.getState().graduateDraft(sessionId);
     };

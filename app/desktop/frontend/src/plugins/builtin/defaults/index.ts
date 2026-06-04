@@ -227,12 +227,26 @@ export const defaultData = definePlugin({
     });
     host.extensions.contribute(DATA_PROVIDER, {
       key: "models",
-      fetcher: async () =>
-        (await client().models.list()).map((m) => ({
+      // models.list is now per-provider (an empty `provider` returns []), so
+      // aggregate across the ENABLED providers (apiKeyMasked != "" ⇔ key set).
+      // Unconfigured providers are catalog-only and can't run, so they'd just
+      // litter the picker with dead options — configure one in Settings →
+      // Providers to surface its models here.
+      fetcher: async () => {
+        const enabled = (await client().providers.list()).filter((p) => p.apiKeyMasked !== "");
+        const lists = await Promise.all(
+          enabled.map((p) =>
+            client()
+              .models.list(p.id)
+              .catch(() => []),
+          ),
+        );
+        return lists.flat().map((m) => ({
           id: m.id,
           provider: m.provider,
           label: m.displayName ?? m.id,
-        })),
+        }));
+      },
     });
     host.extensions.contribute(DATA_PROVIDER, {
       key: "providers",

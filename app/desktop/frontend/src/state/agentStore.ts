@@ -42,6 +42,14 @@ interface AgentStore {
   applyEvents: (sessionId: string, events: StreamEvent[]) => void;
   /** Discard a session's state and start clean (e.g. on agent re-mount). */
   resetSession: (sessionId: string) => void;
+  /**
+   * Rename a message id (optimistic placeholder → server id). Used to
+   * reconcile the optimistic user bubble with the run's `userItemId` the
+   * moment runs.start resolves, so the streamed userMessage Item dedupes by
+   * exact id. No-op if `fromId` is gone or `toId` already exists (the streamed
+   * item won).
+   */
+  relabelMessage: (sessionId: string, fromId: string, toId: string) => void;
   /** Remove a session entry entirely (closing the tab — frees view state). */
   dropSession: (sessionId: string) => void;
   /** Bind / unbind the imperative stop action for a session. */
@@ -98,6 +106,17 @@ export const useAgentStore = create<AgentStore>((set) => ({
     }),
   resetSession: (sessionId) =>
     set((s) => ({ sessions: { ...s.sessions, [sessionId]: emptyEntry() } })),
+  relabelMessage: (sessionId, fromId, toId) =>
+    set((s) => {
+      const prev = s.sessions[sessionId];
+      if (!prev || fromId === toId) return s;
+      const msgs = prev.view.messages;
+      const has = (id: string) => msgs.some((m) => m.id === id);
+      // Nothing to rename, or the streamed item already landed under `toId`.
+      if (!has(fromId) || has(toId)) return s;
+      const messages = msgs.map((m) => (m.id === fromId ? { ...m, id: toId } : m));
+      return { sessions: patch(s.sessions, sessionId, { view: { ...prev.view, messages } }) };
+    }),
   dropSession: (sessionId) =>
     set((s) => {
       if (!(sessionId in s.sessions)) return s;

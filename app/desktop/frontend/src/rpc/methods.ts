@@ -128,7 +128,7 @@ export interface Methods {
   providers: {
     list: () => Promise<Provider[]>;
     configure: (params: ConfigureProviderRequest) => Promise<Provider>;
-    test: (providerId: string) => Promise<ProviderTestResult>;
+    test: (provider: string) => Promise<ProviderTestResult>;
   };
   models: {
     list: (provider?: string) => Promise<Model[]>;
@@ -229,7 +229,7 @@ export function createMethods(client: RpcClient): Methods {
     providers: {
       list: () => client.call<Provider[]>("providers.list"),
       configure: (params) => client.call<Provider>("providers.configure", params),
-      test: (providerId) => client.call<ProviderTestResult>("providers.test", { providerId }),
+      test: (provider) => client.call<ProviderTestResult>("providers.test", { provider }),
     },
     models: {
       list: (provider) => client.call<Model[]>("models.list", provider ? { provider } : {}),
