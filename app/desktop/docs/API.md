@@ -650,16 +650,20 @@ server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` 
   | `tools` | `ToolSpec[]` | 否 | 覆盖该 run 的默认工具集 |
   | `state` | object | 否 | 初始共享状态 |
   | `attachments` | `string[]` | 否 | attachmentId（来自 `attachments.createUploadUrl`） |
-  | `model` | string | 否 | |
+  | `provider` | string | 否¹ | 选用的 provider（`Provider.id`，来自 `providers.list`）。与 `model` **配对** |
+  | `model` | string | 否¹ | 选用的 model（`Model.id`，来自 `models.list`）。与 `provider` **配对** |
   | `mode` | `"agent"\|"chat"\|"plan"` | 否 | |
   | `maxSteps` | number | 否 | 触顶 → `outcome.maxSteps` |
   | `maxBudgetUsd` | number | 否 | 含子 agent 子树；触顶 → `outcome.maxBudget` |
   | `params` | `GenerationParams` | 否 | |
 
-- 返回 `{ runId: string }`；随后流式 `RunEvent`（§5），以 `run.finished{outcome}` 收尾。（HTTP 上 `runId`
+  ¹ **`provider` + `model` 配对、显式**：要么**都给**（选定 provider+model），要么**都不给**（用服务端默认 provider+model）。**只给其一 → `invalid_params`**。provider **不从 model 反推**（显式 > 隐式：同名 model 可能跨多个 provider；自定义 model 可能不在 catalog 里）。所选 provider 未配置 key（`apiKeyMasked == ""`）时，run 以 `run.finished{outcome:error}`（"set its API key first"）收尾。两个字段都是有意义的 slug（无 `Id` 后缀，与 `model`、`Model.provider` 一致），直接取自 `models.list` 的 `Model.{provider, id}`。
+
+- 返回 `{ runId: string; userItemId?: string }`；随后流式 `RunEvent`（§5），以 `run.finished{outcome}` 收尾。（HTTP 上响应
   作首帧、与事件同走一条流，见 TRANSPORT §6.4。）
+  - `userItemId`：本 run 开场的 `userMessage` Item 的 id —— **与流上 `item.started/completed` 及 `items.list` 里的同一个 id**。客户端用它把**乐观气泡按精确 id 对账**（不必再按内容文本启发式匹配）。是 result 里的业务字段、非 transport 元数据。`runs.resume` 无开场 user 回合，故为空。
 - 幂等：经 `X-Idempotency-Key` 头（见 TRANSPORT §10），重复键重新接上既有 run、不新建。
-- 错误（通道 a，§8.1）：`session_not_found` / `cwd_unavailable` / `invalid_params`。
+- 错误（通道 a，§8.1）：`session_not_found` / `cwd_unavailable` / `invalid_params`（含 `providerId`/`model` 只给其一）。
   执行期错误（通道 b）：`run.finished{outcome:error}` / 工具级 `toolCall.error`。
 
 - **示例**：
@@ -772,17 +776,21 @@ server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` 
 
 ### 7.6 providers.* / models.* / tools.*
 
+> **多 provider × 多 model**。装配流程：`providers.list`（看支持哪些）→ 用户填 key（`providers.configure`）→ `providers.test`（验）→ `models.list`（解锁该 provider 的 model）→ `runs.start{ provider, model }`（选用，§7.3）。
+>
+> 命名：引用 provider / model 的参数一律用裸名 **`provider`** / **`model`**（有意义的 slug，无 `Id` 后缀），与 `Model.{provider, id}` 字段一致。对象自身的身份字段仍是 `Provider.id` / `Model.id`。
+
 #### `providers.list`
-- 入参无；返回 `Provider[]`（`apiKeyMasked`，§4.9）。
+- 入参无；返回 `Provider[]`（§4.9）—— **后端支持的全部 provider**（有 adapter 的那些），无论是否已配置。每条按注册表标注：`apiKeyMasked == ""` 即**未启用**（启用 ⇔ 已配 key），并带已配的 `baseUrl`。
 
 #### `providers.configure`
-- 入参 `{ providerId: string; type?: string; baseUrl?: string; apiKey?: string }`；返回更新后的 `Provider`。
+- 入参 `{ provider: string; type?: string; baseUrl?: string; apiKey?: string }`；upsert 进**运行态注册表**（持久化），返回 masked `Provider`。`provider` 必须是支持的 provider，否则 `invalid_params`。`baseUrl` 可覆盖默认端点（代理 / 网关 / 自建 OpenAI 兼容端点）。
 
 #### `providers.test`
-- 入参 `{ providerId: string }`；返回 `{ ok: boolean; error?: ProblemData }`。
+- 入参 `{ provider: string }`；返回 `{ ok: boolean; error?: ProblemData }`。**真实探活**：用该 provider 默认 model 发一次极小（`max_tokens=1`）请求验证 key + 端点。失败回 `{ ok:false, error }`（**不**报 RPC 错），UI 可内联显示原因（如 401）。
 
 #### `models.list`
-- 入参 `{ provider?: string }`（可空）；返回 `Model[]`。
+- 入参 `{ provider?: string }`；返回该 provider 的 `Model[]`（§4.9，带 `displayName` / `contextWindow` / `maxOutputTokens` / `capabilities` / `pricing`）。直读后端内置 model catalog —— **不需要 key、不受启用门控**（这解决了"没填 key 就拿不到 model 列表"的死结）。`provider` 省略时返回空数组（model 按 provider 组织）。
 
 #### `tools.list`
 - 入参无；返回 `ToolSpec[]`。
