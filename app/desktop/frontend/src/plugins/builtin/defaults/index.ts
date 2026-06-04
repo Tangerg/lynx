@@ -234,6 +234,16 @@ export const defaultData = definePlugin({
           label: m.displayName ?? m.id,
         })),
     });
+    host.extensions.contribute(DATA_PROVIDER, {
+      key: "providers",
+      fetcher: async () =>
+        (await client().providers.list()).map((p) => ({
+          id: p.id,
+          type: p.type,
+          baseUrl: p.baseUrl ?? "",
+          apiKeyMasked: p.apiKeyMasked,
+        })),
+    });
 
     for (const key of HTTP_KEYS) {
       host.extensions.contribute(DATA_PROVIDER, {

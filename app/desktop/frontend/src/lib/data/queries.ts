@@ -65,6 +65,13 @@ export interface SelectableModel {
   label: string;
 }
 
+export interface ProviderInfo {
+  id: string;
+  type: string;
+  baseUrl: string;
+  apiKeyMasked: string;
+}
+
 export interface TermLine {
   kind: "prompt" | "cmd" | "out" | "err" | "warn" | "mute" | "ok";
   text: string;
@@ -128,3 +135,4 @@ export const useMCPServers = makeDataQuery<MCPServer[]>("mcp-servers");
 export const useSkills = makeDataQuery<WorkspaceSkill[]>("skills");
 export const useAgentDocs = makeDataQuery<WorkspaceAgentDoc[]>("agent-docs");
 export const useModels = makeDataQuery<SelectableModel[]>("models");
+export const useProviders = makeDataQuery<ProviderInfo[]>("providers");
