@@ -104,14 +104,15 @@
 2. **`sessions.update` / `sessions.fork`** —— 会话重命名 / 复制。
 3. **开 `features.skills`**（或实现 `listSkills`）—— Skills 视图填数据。
 
-### 4.1 后端 bug（已实现方法的行为违反 spec）—— 一致性审计发现
+### 4.1 后端 bug（已实现方法的行为违反 spec）—— ✅ 后端 `d01c5ad` 已修，前端活体复测通过
 
-| #   | 现象                                                                                              | 违反                                                                                                                   | 前端表现（如实渲染，未掩盖）                                                                                                                      |
-| --- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| B1  | `Session.model` 恒为 `""`（`sessions.list` / `sessions.create` 实测均空）                         | Session 应携带其 model                                                                                                 | assistant 气泡名退化为中性 "Assistant"（前端正确读 `Session.model` → 解析 displayName，后端一填即点亮，无需改前端）                               |
-| B2  | HITL 审批后，工具在 continuation run 以**新 item id** 重发，**原 toolCall item 永不收到终态事件** | §4.3（每个 item 仅 inProgress/completed/incomplete 三态）+ §5.2（每个 started item 的终态必现于后续 `item.completed`） | 原始工具卡按协议如实停在 inProgress → 永久 "LIVE"；且执行结果落在另一个 item 上，形成"提案卡 + 执行卡"重复。前端不扫尾掩盖（那是为后端 bug 妥协） |
+| #   | 现象（修复前）                                                                                    | 违反                                                                                                                   | 状态 |
+| --- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | --- |
+| B1  | `Session.model` 恒为 `""`                                                                         | Session 应携带其 model                                                                                                 | ✅ **已修+已验证**：`sessions.create`/`list` 返 `deepseek-v4-flash`；前端 assistant 气泡名自动点亮，无需改前端 |
+| B2  | HITL 审批后工具以**新 item id** 重发、**原 toolCall item 永不终态** → 卡永久 "LIVE" + 重复卡       | §4.3 + §5.2（每个 started item 的终态必现于后续 `item.completed`） | ✅ **已修+已验证**：后端按我们 §7.3 建议**沿用原 item id**；approve 与 deny 路径都在原 id 上发 `item.completed`、`items.list` 干净单条。前端 fold 收到原 id 的 completed 即翻出 LIVE，无需改前端 |
 
-> **理想修法（后端）**：已批准工具在 continuation 里**沿用原 item id** 续跑（`item.delta`/`item.completed` 打在原 id 上），一个 item 走完 提案→批准→执行→完成，无悬挂、无重复。
+> 后端另自查补了两处同源 §5.2 孤儿（中断时在飞的 tool drain、plan-review `question` 终态）——以后端自审计为准，plan 模式触发条件特殊，未独立复跑。
+> deny 路径细节：终态为 `completed`、`tool.output="tool call denied by user"`（前端工具卡显示 ✓ + 该 output；审批卡本身已标"declined"）。轻微：被拒工具显示绿 ✓ 而非"拒绝"色，非阻塞。
 
 ---
 
@@ -127,7 +128,7 @@
 
 | 缺口                     | 现状                                                                                                                        | 要做的                                          |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| ~~assistant 名字真实化~~ | ✅ 前端已做（读 `Session.model` → displayName，中性兜底）；**被后端 bug B1 阻塞**（Session.model 恒空）→ 现显示 "Assistant" | 后端填 `Session.model` 即自动点亮，前端无需再动 |
+| ~~assistant 名字真实化~~ | ✅ **完成+验证**：前端读 `Session.model`→displayName；后端 B1 修复后 `Session.model="deepseek-v4-flash"`，气泡名已点亮 | — 已了结 |
 | **memory 面板**          | `memory.*` 已实现 + `features.memory:true`，但无任何 UI                                                                     | 建 memory 设置面板 / 视图                       |
 | **feedback 入口**        | `feedback.create` 已就绪、未门控，但无任何 UI                                                                               | 消息级 👍/👎 或反馈表单                         |
 | plan 头部 goal/ETA       | hardcoded（`plan.tsx` TODO）                                                                                                | 接 agentStore 真实 run 派生                     |
