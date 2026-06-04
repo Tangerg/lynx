@@ -79,7 +79,7 @@ export const ja: Record<string, string> = {
   "iconGallery.filterPlaceholder": "名前で絞り込み…",
   "iconGallery.empty": '"{{q}}" に一致するアイコンはありません。',
 
-  "approval.settled.approved": "承認済 · 実行中",
+  "approval.settled.approved": "承認済",
   "approval.settled.declined": "拒否",
   "approval.required": "承認が必要",
   "approval.action.approve": "承認",

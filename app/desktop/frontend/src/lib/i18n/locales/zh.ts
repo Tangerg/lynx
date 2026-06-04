@@ -90,7 +90,7 @@ export const zh: Record<string, string> = {
   "iconGallery.filterPlaceholder": "按名称筛选…",
   "iconGallery.empty": '没有匹配 "{{q}}" 的图标。',
 
-  "approval.settled.approved": "已批准 · 正在执行",
+  "approval.settled.approved": "已批准",
   "approval.settled.declined": "已拒绝",
   "approval.required": "需要审批",
   "approval.action.approve": "批准",

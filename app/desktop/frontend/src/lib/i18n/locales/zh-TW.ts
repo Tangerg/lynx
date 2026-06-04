@@ -78,7 +78,7 @@ export const zhTW: Record<string, string> = {
   "iconGallery.filterPlaceholder": "依名稱篩選…",
   "iconGallery.empty": '沒有符合 "{{q}}" 的圖示。',
 
-  "approval.settled.approved": "已核可 · 執行中",
+  "approval.settled.approved": "已核可",
   "approval.settled.declined": "已拒絕",
   "approval.required": "需要核可",
   "approval.action.approve": "核可",

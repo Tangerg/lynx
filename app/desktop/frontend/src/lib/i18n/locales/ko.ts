@@ -78,7 +78,7 @@ export const ko: Record<string, string> = {
   "iconGallery.filterPlaceholder": "이름으로 필터…",
   "iconGallery.empty": '"{{q}}" 에 일치하는 아이콘이 없습니다.',
 
-  "approval.settled.approved": "승인됨 · 실행 중",
+  "approval.settled.approved": "승인됨",
   "approval.settled.declined": "거부됨",
   "approval.required": "승인 필요",
   "approval.action.approve": "승인",
