@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/service/chat"
 	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
@@ -96,13 +97,13 @@ func (i *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	if !ok {
 		return nil, nil, protocol.ErrInterruptNotOpen
 	}
-	approved, err := resolveDecision(in.Responses)
+	resolution, err := resolveResolution(in.Responses)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	handle := chat.TurnHandle{SessionID: pending.SessionID, TurnID: pending.TurnID}
-	if err := i.rt.Chat().Resume(ctx, handle, approved); err != nil {
+	if err := i.rt.Chat().Resume(ctx, handle, resolution); err != nil {
 		if !errors.Is(err, chat.ErrTurnNotFound) {
 			return nil, nil, err
 		}
@@ -111,7 +112,7 @@ func (i *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 		// a fresh turn. Needs a recorded ProcessID + a configured durable
 		// ProcessStore; if either is missing the interrupt is genuinely
 		// unresumable, so drop it (API.md §6.2 anti-dangling).
-		rebuilt, rerr := i.rehydrate(ctx, pending, approved)
+		rebuilt, rerr := i.rehydrate(ctx, pending, resolution.Approved)
 		if rerr != nil {
 			_ = i.rt.Interrupts().Delete(ctx, in.ParentRunID)
 			return nil, nil, protocol.ErrRunNotFound
@@ -449,37 +450,41 @@ func (i *Server) SubscribeRun(ctx context.Context, runID string) (*protocol.Star
 
 // ─── helpers ────────────────────────────────────────────────────────
 
-// resolveDecision maps the wire interrupt responses onto the bool the
-// chat service's Resume expects. The agent runtime parks one awaitable
-// at a time, so a single approval/deny drives the continuation; an
-// empty/answer/toolResult response defaults to approve (the run
-// continues with whatever the response staged).
-func resolveDecision(responses []protocol.InterruptResponse) (bool, error) {
+// resolveResolution maps the wire interrupt responses onto the structured
+// [engine.InterruptResolution] the chat service's Resume expects. The agent
+// runtime parks one awaitable at a time, so a single response drives the
+// continuation. approval → approve/deny; answer → the answers map (and
+// approve unless the plan-review label is reject); toolResult / empty →
+// continue.
+func resolveResolution(responses []protocol.InterruptResponse) (engine.InterruptResolution, error) {
 	for _, r := range responses {
 		switch r.Response.Kind {
 		case "approval":
 			switch r.Response.Decision {
 			case "approve":
-				return true, nil
+				return engine.InterruptResolution{Approved: true}, nil
 			case "deny":
-				return false, nil
+				return engine.InterruptResolution{Approved: false}, nil
 			default:
-				return false, errors.New(`runs.resume: approval decision must be "approve" | "deny"`)
+				return engine.InterruptResolution{}, errors.New(`runs.resume: approval decision must be "approve" | "deny"`)
 			}
 		case "answer":
 			// Plan-review question (see translator.questionInterrupt): the
 			// decision field carries the chosen label. Anything other than an
-			// explicit reject proceeds.
+			// explicit reject proceeds. ask_user answers ride the same map.
+			approved := true
 			if v, ok := r.Response.Answers[planDecisionField]; ok {
 				if s, _ := v.(string); s == planDecisionReject {
-					return false, nil
+					approved = false
 				}
 			}
-			return true, nil
+			return engine.InterruptResolution{Approved: approved, Answer: r.Response.Answers}, nil
+		case "toolResult":
+			return engine.InterruptResolution{Approved: true}, nil
 		}
 	}
-	// No actionable response → treat as continue (e.g. toolResult kinds).
-	return true, nil
+	// No actionable response → treat as continue.
+	return engine.InterruptResolution{Approved: true}, nil
 }
 
 // resolveSession verifies sessionID exists, or creates a fresh session

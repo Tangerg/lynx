@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"strings"
 
+	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/service/chat"
 )
 
@@ -157,7 +158,7 @@ func (r *TurnRunner) handleInterrupt(ctx context.Context, handle chat.TurnHandle
 		}
 	}
 	approved := r.decide()
-	if err := r.app.rt.Chat().Resume(ctx, handle, approved); err != nil {
+	if err := r.app.rt.Chat().Resume(ctx, handle, engine.InterruptResolution{Approved: approved}); err != nil {
 		fmt.Fprintf(r.app.Err, "[lyra] resume: %s\n", err)
 	}
 	if !approved {

@@ -190,7 +190,7 @@ func (s *inMemory) handleWaiting(st *turnState, proc engine.ChatProcess) {
 	// continuation (resumeAndDrive streams the terminal on a resume error
 	// and launches drive otherwise; the returned error is already surfaced
 	// on the channel, so it's safe to drop here).
-	_ = s.resumeAndDrive(st, false)
+	_ = s.resumeAndDrive(st, engine.InterruptResolution{Approved: false})
 }
 
 // emitInterrupt marks the turn parked and surfaces the pending HITL

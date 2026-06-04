@@ -525,13 +525,14 @@ func TestEngine_Tools_OfflineOnly(t *testing.T) {
 	}
 
 	tools := eng.Tools()
-	// 6 offline coding tools + the always-present `task` delegation tool.
-	if len(tools) != 7 {
-		t.Fatalf("tool count = %d, want 7 (6 offline + task)", len(tools))
+	// 6 offline coding tools + the always-present `task` delegation tool +
+	// the ask_user HITL tool.
+	if len(tools) != 8 {
+		t.Fatalf("tool count = %d, want 8 (6 offline + task + ask_user)", len(tools))
 	}
 
 	names := toolNames(tools)
-	for _, want := range []string{"read", "write", "edit", "glob", "grep", "bash", "task"} {
+	for _, want := range []string{"read", "write", "edit", "glob", "grep", "bash", "task", "ask_user"} {
 		if !names[want] {
 			t.Errorf("missing tool %q in %v", want, names)
 		}
@@ -561,8 +562,8 @@ func TestEngine_Tools_OnlineEnabled(t *testing.T) {
 	}
 
 	tools := eng.Tools()
-	if len(tools) != 10 {
-		t.Fatalf("tool count = %d, want 10 (6 offline + 3 online + task)", len(tools))
+	if len(tools) != 11 {
+		t.Fatalf("tool count = %d, want 11 (6 offline + 3 online + task + ask_user)", len(tools))
 	}
 	names := toolNames(tools)
 	for _, want := range []string{"web_fetch", "web_search", "http_request"} {
@@ -585,8 +586,8 @@ func TestEngine_Tools_PartialOnline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(eng.Tools()) != 8 {
-		t.Fatalf("tool count = %d, want 8 (6 offline + jina + task)", len(eng.Tools()))
+	if len(eng.Tools()) != 9 {
+		t.Fatalf("tool count = %d, want 9 (6 offline + jina + task + ask_user)", len(eng.Tools()))
 	}
 }
 

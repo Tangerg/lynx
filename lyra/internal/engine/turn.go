@@ -24,31 +24,31 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 	ctx, cancel := context.WithTimeout(ctx, llmCallTimeout)
 	defer cancel()
 
-	// HITL R-model: route the tool loop's suspend/resume through a
-	// checkpoint on the process blackboard. On a gated tool's approval
-	// pause the loop checkpoints the in-flight round; the continuation run
-	// resumes from the just-approved call instead of re-running completed
-	// rounds (re-invoking the model, re-executing approved tools).
-	store := &blackboardToolLoopStore{bb: pc.Blackboard}
-	ctx = chat.WithToolLoopStore(ctx, store)
-	if _, resuming := store.Load(ctx); resuming {
-		// The turn's input was persisted on the first segment and the loop
-		// resumes from its checkpoint (ignoring the request messages), so
-		// tell the memory middleware to skip re-loading / re-persisting the
-		// request — otherwise each resume duplicates the user message.
-		ctx = memory.WithResumedTurn(ctx)
-	}
-
 	req, err := pc.ChatWithActionTools(ctx)
 	if err != nil {
 		return ChatOutput{}, err
 	}
 
 	observer := ObserverFrom(pc.Options)
-	stream := req.
-		WithSystemPrompt(e.SystemPrompt(ctx)).
-		WithUserPrompt(message).
-		Stream()
+
+	// HITL R-model resume: a prior segment interrupted for human input and
+	// saved the in-flight conversation (its tail is the assistant tool-call
+	// message + the results already produced). Continue from it — the chat
+	// tool loop resumes by executing the still-pending (now-resolved) calls,
+	// never re-invoking the model for completed rounds. The memory
+	// middleware skips its input load/persist (done on the first segment;
+	// the conversation is fed back here) but still saves the final result.
+	var stream *chat.ClientStreamer
+	if saved, ok := loadInflightConversation(pc.Blackboard); ok {
+		clearInflightConversation(pc.Blackboard) // consume the checkpoint
+		ctx = memory.WithResumedTurn(ctx)
+		stream = req.WithMessages(saved...).Stream()
+	} else {
+		stream = req.
+			WithSystemPrompt(e.SystemPrompt(ctx)).
+			WithUserPrompt(message).
+			Stream()
+	}
 
 	var (
 		accumulated strings.Builder

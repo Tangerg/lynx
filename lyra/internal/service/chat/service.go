@@ -127,13 +127,14 @@ type Service interface {
 	InjectSteering(ctx context.Context, handle TurnHandle, message string) error
 
 	// Resume answers a turn parked on a HITL interrupt (a gated tool
-	// call awaiting approval, or a plan awaiting review — both surface
-	// as a [TurnInterrupted] event). approved=true continues execution;
-	// false denies (the tool short-circuits to a recoverable result, or
-	// the plan is rejected). The continuation streams onto the SAME
-	// turn's event channel — call [Events] again after Resume to drain
-	// it. Returns [ErrTurnNotFound] when the turn isn't parked.
-	Resume(ctx context.Context, handle TurnHandle, approved bool) error
+	// call awaiting approval, a plan awaiting review, or an ask_user
+	// question — all surface as a [TurnInterrupted] event). The structured
+	// [engine.InterruptResolution] carries the decision (approve/deny, with
+	// optionally edited tool arguments) or the question's answer. The
+	// continuation streams onto the SAME turn's event channel — call
+	// [Events] again after Resume to drain it. Returns [ErrTurnNotFound]
+	// when the turn isn't parked.
+	Resume(ctx context.Context, handle TurnHandle, resolution engine.InterruptResolution) error
 
 	// ProcessID returns the agent-process id backing a live (parked) turn
 	// — the snapshot key the runtime records so a restart can rebuild the
