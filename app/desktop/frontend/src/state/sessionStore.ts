@@ -157,7 +157,10 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         const next = tabIds.filter((x) => x !== id);
         set({
           tabIds: next,
-          activeSessionId: id === activeSessionId && next.length > 0 ? next[0] : activeSessionId,
+          // Closing the active tab reselects its neighbour, or falls back to
+          // "" (welcome screen) when nothing remains — never leave
+          // activeSessionId pointing at a closed/deleted session.
+          activeSessionId: id === activeSessionId ? (next[0] ?? "") : activeSessionId,
         });
       },
       openTab: (id) => {

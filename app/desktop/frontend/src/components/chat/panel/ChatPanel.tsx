@@ -27,11 +27,15 @@ interface Props {
 export function ChatPanel({ onSend }: Props) {
   const activeMainView = useSessionStore((s) => s.activeMainView);
   const activeSessionId = useSessionStore((s) => s.activeSessionId);
-  const { data: sessions = [] } = useSessions();
+  const { isLoading } = useSessions();
 
-  // Render nothing while sessions are still loading and there's no
-  // workspace view to fall back to — avoids a blank-but-bordered panel.
-  if (sessions.length === 0 && !activeMainView) return null;
+  // Suppress the panel only while the FIRST sessions fetch is in flight (and
+  // no workspace view is promoted) — avoids a blank-but-bordered flash. Once
+  // loaded, render even with ZERO sessions: ChatStream shows the welcome
+  // screen + composer, which is the empty-state entry point (sending there
+  // spins up a session via useChatSend). Returning null on empty stranded
+  // the user with a blank main area and no way to start.
+  if (isLoading && !activeMainView) return null;
 
   return (
     // No `container-type: inline-size` here — it implicitly enables
