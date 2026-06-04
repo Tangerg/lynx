@@ -1,233 +1,82 @@
-# Lyra 前后端对接验证报告（UI 层）
+# Lyra 前端 → 后端反馈（本轮）
 
-> **日期**：2026-06-04
-> **被测后端**：Lyra Runtime（`serverInfo.name = "runtime"`），构建 `6d26db7`，监听 `http://127.0.0.1:17171`，**streamable HTTP** transport，`protocolVersion 2026-06-03`。
-> **被测前端**：本仓库 frontend（Vite dev，HTTP transport 直连 :17171），对接批 `560b9f4` · `fb860b4` · `cb78953` · `25d3424`。
-> **范围**：把 UI 各功能接到真实后端（会话生命周期、历史、流式、多 provider/model、providers 配置…），记录对接暴露的前端 bug + 仍存的后端缺口。
->
-> 本文是**对当前后端构建**的对接快照，不是契约。契约以 [`API.md`](./API.md) / [`TRANSPORT.md`](./TRANSPORT.md) 为准；后端缺口补齐后请重测并更新。后端逐项回应见 [`INTEGRATION_VERIFICATION_BACKEND_RESPONSE.md`](./INTEGRATION_VERIFICATION_BACKEND_RESPONSE.md)。
-
----
-
-## 0. 结论
-
-**核心链路 + provider/model 装配链路均端到端打通**，全部用真实前端 transport 对真实后端验证：握手 → 多 provider/model 选择 → 流式对话（真实模型）→ userItemId 精确对账 → 历史 → 删会话；providers 配置/探活已实测。
-
-对接共发现并修复 **14 个纯前端 bug**（§3，按层分组）。后端这轮补齐了上版反馈里 3 项最关键的（userItemId、providers.configure/test、多 provider×model），前端已对齐并验证。剩 **3 类后端方法**未实现（§4）。
-
-> **命名定调**：引用 provider 的 wire 参数统一为裸名 **`provider`**（非 `providerId`），与 `model` / `Model.provider` 一致——这是 `API.md §7` 与**运行中后端**的实际口径（后端回应文档正文有两处仍写 `providerId`，是笔误；前端按 `provider` 实现并实测通过）。
->
-> **贯穿性教训**：后端覆盖面随构建变动，前端必须对 `capability_not_negotiated` 优雅降级，UI shell 必须区分 loading / empty / **error** 三态。
+> **日期**：2026-06-05
+> **被测后端**：Lyra Runtime（`d01c5ad`，运行中），`http://127.0.0.1:17171`，streamable HTTP，`protocolVersion 2026-06-03`。
+> **前端**：本仓库 frontend（HEAD）。
+> 上一轮的 B1（`Session.model` 恒空）、B2（HITL 沿用原 item id）已修并活体验证通过；providers 配置/探活、多 provider×model、userItemId 对账均已打通。本文只记**本轮新发现**的后端问题 + 一个**工具参数约定提案**（解决反复对不齐）。
+> 契约以 [`API.md`](./API.md) / [`TRANSPORT.md`](./TRANSPORT.md) 为准；累积版历史见 git `3d90a10`。
 
 ---
 
-## 1. 已验证通过（真实前端代码 + 真实后端 E2E）
+## 1. 本轮后端问题
 
-| 流程                  | 方法                                  | 结果                                                                                                                                  |
-| --------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| 握手                  | `runtime.initialize`                  | ✅ `runtime` / `2026-06-03`                                                                                                           |
-| 会话 建/列/删         | `sessions.create` / `list` / `delete` | ✅ `ses_…`、`cwd=/Users/tangerg`；删后列表减少、侧栏右键可删                                                                          |
-| **provider 列表**     | `providers.list`                      | ✅ 4 个（anthropic / deepseek / moonshot / openai），`apiKeyMasked==""` 即未启用（deepseek 已启用）                                   |
-| **per-provider 模型** | `models.list{provider}`               | ✅ deepseek 返 4 个模型（带 displayName）；**`models.list({})` → `[]`**（per-provider 契约）                                          |
-| **provider 探活**     | `providers.test{provider}`            | ✅ `deepseek` → `ok=true`（真实 `max_tokens=1` 探活）                                                                                 |
-| **流式 + 选模型**     | `runs.start{provider,model}`          | ✅ 配对生效，`run.started → item.started(userMessage) → item.completed(userMessage) → agentMessage delta×N → run.finished{completed}` |
-| **userItemId 对账**   | `runs.start` 响应                     | ✅ 响应带 `userItemId`，且 **== 流上 `item.started(userMessage)` 的 id**（精确对账成立）                                              |
-| 历史                  | `items.list` → reduce 重建            | ✅ 重建出 `user[text]                                                                                                                 | assistant[text]` |
+### B3 — 多步 HITL 后「实时流」消息乱序（后端实时排序）
 
----
+**现象**：连续审批/执行多个工具后，气泡顺序看着前后颠倒（"已删除"出现在"我先删除"之上）。
 
-## 2. 后端覆盖矩阵
+**探针实测（多步 approve 流）**：
 
-### ✅ 已实现可用
+1. **resume / continuation run 不发 `run.started`**。续延 run 直接从 `item.started` 开始 → 前端没有 run 边界可用来分隔 turn / 设 running 态。
+2. **被批准的工具在续延流里「迟发」**：approve 了 item A，续延流却先跑了别的 item，再回头补发 A 的 `item.started/completed` → **到达顺序非时间序**。
+3. **但 `items.list`（durable，按 `createdAt`）顺序是对的** → 纯实时流问题，**重开会话顺序正常**。
 
-`runtime.initialize` · `sessions.create/list/delete` · `runs.start`（**provider+model 配对**、返回 **userItemId**）/ `resume` / `cancel` · `items.list`（含 run 流回显 userMessage Item）· `workspace.listProjects/listFileChanges/listAgentDocs/mcp.listServers` · **`providers.list/configure/test`** · **`models.list{provider}`**
+**归属**：后端实时流排序 + 缺 `run.started`。前端按到达顺序如实 append（块层面配对已自查正确）。
 
-### ❌ `capability_not_negotiated`（未实现 / 能力关闭）—— 阻塞对应 UI
+**建议修法（择一）**：
+- 续延 run 也发 `run.started`（带 `parentRunId`），且**实时流按时间序投递**（被批准工具的 start/complete 紧接其逻辑位置，不迟发）；或
+- 给每个 `RunEvent` 加**单调 `seq`**（root run 内单调），前端据此重排 + 去重 + 断线重放（前端这边的 seq 重排是已排期项）。
 
-| 方法                                         | 阻塞的 UI              | 后端给出的原因                                                                                                    |
-| -------------------------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `workspace.getDiff` / `grep` / `getFileHead` | Diff / 搜索 / 文件预览 | 随 agent 工具（bash / file r·w·edit / grep / glob + git prompt）一并落地，届时接 JSON-RPC（前端同时删 REST 影子） |
-| `sessions.update`（改名 / 换 cwd）           | 会话重命名 / relocate  | `session.Service` 无 `update` 动词；新增属破坏性公开 API，需先确认                                                |
-| `sessions.fork`（复制）                      | 会话复制               | 已有 `Fork`，但"按 item 边界 fork"需先对齐 checkpoint / item-id 模型与 engine history                             |
-| `workspace.listSkills`                       | Skills 视图            | engine 尚未实现 skill 发现，故 `features.skills:false`                                                            |
+### W1 — 命令工具 wire 形状与契约不符（详见 §2，这里只点名）
 
-### 未接（按 `features` 关闭，低优先）
+`API.md §4.4` 写命令工具是 `{kind:"command"; command; cwd?; output?; exitCode?}`，但实际发的是 `{kind:"command"; name:"bash"; output:"<json串>"}`，命令在流式 `arguments` 里。前端已容错（`name` 回退 + 解析 args），但这是反复对不齐的典型——见 §2 提案。
 
-`attachments`（`enabled:false`）· `background`（`false`）· `items.edit`（`checkpoints:false`，重试）· `memory`（`true`，可接但暂无 UI）· `feedback`（未门控）
+### 轻微 — deny 显示绿 ✓
+
+deny 一个工具后，终态是 `status="completed"` + `tool.output="tool call denied by user"` → 前端工具卡显示绿 ✓（成功色）。审批卡本身已正确标"declined"。**建议**：被拒工具用一个可区分的终态（如 `incomplete`/`canceled`）或在结果里带 `denied:true`，让 UI 能显示"拒绝"色。非阻塞。
 
 ---
 
-## 3. 对接中发现并修复的前端 bug（14 个，按层分组）
+## 2. 工具参数约定提案（消除反复对不齐）
 
-### 协议 fold 层（`protocol/run/` · `builtin/agent/core-reducer/`）
+**问题根因**：工具的「身份 / 参数 / 结果」在 wire 上没有统一契约，同一份数据在不同地方形状不同，前端只能逐处猜+容错。本轮实测到的漂移：
 
-| 现象                              | 根因                                                                                                                                                                 | 修复                                                                                                                                 |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| 内容区不流式，只在最后一次性出现  | `item.started` 壳只带 `ItemBase`，body（content/text/steps/question/tool）走 delta；`contentText(undefined).filter` 等崩溃，被 reducer try/catch 吞掉 → 整块永不渲染 | 全部 6 类 item 容忍 body-less 壳（seed 空串 / `?? []` / 占位 label），started 折叠成空块由 delta 填                                  |
-| 流偶发整条挂掉（malformed event） | `RunTree.admit` 在无 try/catch 的 subscribe 回调里裸解引用 `event.run` / `event.item`（Zod 只校验了 `type`）                                                         | 边界把 run/item 当可缺失：脏数据更新无效并丢弃，绝不抛                                                                               |
-| 发消息后自己的气泡重复            | 后端流式真实 id 的 userMessage 与本地 `local-*` 乐观气泡共存；`appendUserMessage` 仅按 id 去重                                                                       | **乐观 + userItemId 精确对账**：runs.start 一解析就把占位气泡 id 升级为 `userItemId`，流上 Item 按 id 去重；并保留内容文本对账作兜底 |
+| 位置 | 实际形状 | 问题 |
+| --- | --- | --- |
+| `ToolInvocation`（command） | `{kind:"command", name:"bash", output:"<json串>"}` | 契约写的是 `command`/`exitCode` 等，实际是 `name` + 无 `command`；命令藏在 args 里 |
+| 流式参数 `item.delta{toolArguments}` | `argumentsTextDelta`（JSON **文本**增量） | 参数是「文本流」 |
+| 审批 interrupt `payload` | `{tool, arguments:"<json串>"}`（JSON **字符串**） | 又变成字符串；且 payload 形状未进契约 |
+| 完成项结果 | command `output:"<json串>"`；mcp `result:unknown`；subagent `result:string` | 结构化结果（stdout/exit_code…）被塞进**字符串**，前端要二次 parse；各 kind 不一致 |
 
-### 状态层（`state/`）
+→ 同一个「参数对象」在三处分别是 **文本增量 / JSON 字符串 / 对象**；结果在四处各不相同。这就是"老对不齐"的来源。
 
-| 现象                                                | 根因                                                                                               | 修复                                                   |
-| --------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| 删最后一个会话后状态悬挂                            | `closeTab` 在无 tab 剩余时不清 `activeSessionId`                                                   | 回退邻居或 `""`（欢迎页）                              |
-| 草稿引用无限增长 + 重开错跳历史                     | `draftSessionIds` / `pendingMessages` 关/删会话时从不清                                            | 一个 `tabIds`-diff 订阅兜住所有关闭路径，剔除已离场 id |
-| A 会话的工具选择/展开/文件焦点串进 B                | `selectedToolId` / `expandedToolIds` / `activeFile` 注释称"session-scoped"实为全局单值，切会话不清 | `selectTab` 在会话真正切换时清掉三者                   |
-| HITL：解决一个审批，同批未解决的兄弟 interrupt 消失 | `resolveInterrupt` 用 `some` 把整个 OpenInterrupt 信封删掉                                         | 粒度过滤：只删命中的 interrupt，信封空了才删           |
+**提案（建议写进 `API.md §4.4` + §6，作为唯一真相）**：
 
-### UI 壳（`components/` · 各 view 插件）
+- **A. 工具身份统一为 `{ kind, name }`**。`name` = 工具/函数名（`bash` / `read` / `grep` / mcp `server.tool`…）。命令工具的 shell 命令是**参数** `arguments.command`，不再设顶层 `command`。前端工具卡标题 = `name`，参数展开显示 `arguments`。
 
-| 现象                           | 根因                                                               | 修复                                                         |
-| ------------------------------ | ------------------------------------------------------------------ | ------------------------------------------------------------ |
-| 主区全空白、无从开聊           | 0 会话时 `ChatPanel` 直接 `return null`（后端重启清空会话踩中）    | 仅"首次加载中"返 null；加载完即使 0 会话也渲染欢迎页         |
-| 后端查询失败被伪装成"暂无数据" | `DataView` 只有 loading/empty 两态，rejected query 落入 empty 分支 | 加 `isError` 错误态 + `alert` 图标；9 个消费方透传 `isError` |
-| 插件 view 卸载后留下空白死 tab | `WorkspaceViewBody` 对未注册 view id 返 `null`                     | 渲染 "View unavailable" fallback                             |
-| 侧栏会话计数闪 `0`             | 计数 pill 在首帧 `data===undefined` 时显示 0                       | 首次 fetch 落定前隐藏 pill                                   |
+- **B. 参数权威表示 = 对象 `arguments: Record<string, unknown>`**。
+  - 流式阶段：保留 `item.delta{toolArguments, argumentsTextDelta}`（本就是 JSON 文本流，前端累积+`item.completed` 时解析）。
+  - **完成项 / 审批 payload：一律给已解析的对象**，**绝不回传 JSON 字符串**（消除 `"{\"command\":\"...\"}"` 这种双重转义）。
 
-### 输入 / 边界容错
+- **C. 结果结构化（不塞字符串）**。每个 kind 的 result 形状在 §4.4 显式定义，例如：
+  - command → `result: { stdout: string; stderr: string; exitCode: number; durationMs: number }`（而非 `output: "<json串>"`）。
+  - mcp / search / subagent 各自定义具体 result 形状，不用 `unknown`。
 
-| 现象                    | 根因                                         | 修复                                                             |
-| ----------------------- | -------------------------------------------- | ---------------------------------------------------------------- |
-| 中文输入法回车重复/误发 | `onKeyDown` 未拦 IME 合成期 Enter            | `e.nativeEvent.isComposing` 时直接 return                        |
-| Skills 视图报错         | 后端把 `listSkills` 改成 gated，前端直接抛错 | 数据 provider 捕获 `capability_not_negotiated` → 返 `[]`（空态） |
+- **D. 审批 interrupt `payload` 进契约（§6）**：
+  ```
+  Interrupt.payload (kind="approval") = {
+    tool: string;                       // 工具名
+    arguments: Record<string, unknown>; // 已解析的对象（同 B）
+    command?: string;                   // 便利字段：命令工具的 shell 命令
+    risk?: "low"|"medium"|"high";
+    scope?: string[]; target?: string; reversible?: boolean; reason?: string;
+  }
+  ```
+  这样审批卡不必猜 command 在哪、不必处理字符串转义。
 
-> 另：`models.list` 改为 per-provider 后，旧的 `models.list()`（无 provider）会返空、清空模型选择器——已把 `models` data provider 改成跨**已启用** provider 聚合（`cb78953`）。
+- **E. 单一真相 + 流程**：`ToolInvocation` 的 per-kind shape（身份 / args schema / result schema）是前后端**唯一契约**。新增工具：先在 `API.md §4.4` 登记 `kind` 定义，再实现；前端按它解析，后端按它发。任何"前端要二次 parse / 容错猜形状"的地方，都说明契约缺了一条，应回到 §4.4 补齐而不是各自打补丁。
 
----
-
-## 4. 给后端的待办（做了 UI 立刻能用）
-
-> 上版的 #1 userItemId、#2 providers.configure/test、多 provider×model 已全部完成并验证（§1）。剩余：
-
-1. **`workspace.getDiff` / `grep` / `getFileHead`** —— 解锁 Diff / 搜索 / 文件预览，并删掉前端遗留的 REST 影子。
-2. **`sessions.update` / `sessions.fork`** —— 会话重命名 / 复制。
-3. **开 `features.skills`**（或实现 `listSkills`）—— Skills 视图填数据。
-
-### 4.1 后端 bug（已实现方法的行为违反 spec）—— ✅ 后端 `d01c5ad` 已修，前端活体复测通过
-
-| #   | 现象（修复前）                                                                                    | 违反                                                                                                                   | 状态 |
-| --- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | --- |
-| B1  | `Session.model` 恒为 `""`                                                                         | Session 应携带其 model                                                                                                 | ✅ **已修+已验证**：`sessions.create`/`list` 返 `deepseek-v4-flash`；前端 assistant 气泡名自动点亮，无需改前端 |
-| B2  | HITL 审批后工具以**新 item id** 重发、**原 toolCall item 永不终态** → 卡永久 "LIVE" + 重复卡       | §4.3 + §5.2（每个 started item 的终态必现于后续 `item.completed`） | ✅ **已修+已验证**：后端按我们 §7.3 建议**沿用原 item id**；approve 与 deny 路径都在原 id 上发 `item.completed`、`items.list` 干净单条。前端 fold 收到原 id 的 completed 即翻出 LIVE，无需改前端 |
-
-> 后端另自查补了两处同源 §5.2 孤儿（中断时在飞的 tool drain、plan-review `question` 终态）——以后端自审计为准，plan 模式触发条件特殊，未独立复跑。
-> deny 路径细节：终态为 `completed`、`tool.output="tool call denied by user"`（前端工具卡显示 ✓ + 该 output；审批卡本身已标"declined"）。轻微：被拒工具显示绿 ✓ 而非"拒绝"色，非阻塞。
-
-### 4.2 新发现的后端问题（探针实测，待后端处理）
-
-| # | 现象 | 实测证据 | 归属 |
-| --- | --- | --- | --- |
-| **B3** 多步 HITL 后**实时**消息乱序 | 连续审批后气泡看着前后颠倒 | ① resume/continuation run **不发 `run.started`**（前端据此分隔 turn / 设 running，缺了就乱）；② 被批准的工具在续延流里**迟发**（先跑别的 item，再回头补发被批准的那个）→ **到达顺序非时间序**。**但 `items.list` 按 `createdAt` 是对的** → 仅实时流问题，重开会话顺序正确 | **后端**（实时流排序 + 缺 run.started）。前端按到达顺序如实 append；要前端兜底须按 seq/createdAt 重排，属 §7.2 deferred 的 seq 工作 |
-| **W1** 命令工具 wire 形状不符契约 | 工具卡曾显示空 `()`、审批参数双重转义 | 实际 `ToolInvocation` 命令是 `{kind:"command", name:"bash", output}`，命令在流式 `arguments`（JSON 串）里，**无顶层 `command`**；审批 payload 是 `{tool, arguments:"<json串>"}` | **契约/后端**：与 `API.md §4.4`（`{command, cwd?, output?, exitCode?}`）不符。前端已容错（`name` 回退 + 解析 args），但建议把 §4.4 对齐成 `name` + args-borne command |
-
-> B3 前端侧：已确认 fold 在**块层面**配对正确（§7.2 自查）；乱序源于实时到达顺序。彻底修复需后端发 `run.started`（续延）+ 实时流按时间序，或前端引入 seq 重排（§7.2）。
+> 收益：消除 §1 W1 这类反复出现的"形状漂移"，前端可去掉一圈防御性解析/容错，双方对着 §4.4 的 kind 表即可。
 
 ---
 
-## 5. 前端缺口全清单（按可做性分类）
-
-状态记号：**E** 端到端可用 / **A** UI 在但未接后端 / **B** UI 在、调后端但方法未实现 / **C** mock / 简化占位 / **D** 未建 UI。
-
-### 5.1 ✅ 已端到端可用（E）
-
-握手 · 会话 建/列/删 · 流式对话（含 userMessage 回显 + **userItemId 精确对账**）· **多 provider/model 选择**（composer 选择器跨已启用 provider 聚合）· **providers 配置/探活**（Providers 面板 key/baseUrl 输入 + Save/Test）· 停止（`runs.cancel`）· HITL 审批/提问（`runs.resume`）· 消息复制 · `listProjects/listFileChanges/mcp.listServers/listSkills/listAgentDocs`。
-
-### 5.2 🟢 现在就能做（后端已就绪 / 纯前端）
-
-| 缺口                     | 现状                                                                                                                        | 要做的                                          |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| ~~assistant 名字真实化~~ | ✅ **完成+验证**：前端读 `Session.model`→displayName；后端 B1 修复后 `Session.model="deepseek-v4-flash"`，气泡名已点亮 | — 已了结 |
-| **memory 面板**          | `memory.*` 已实现 + `features.memory:true`，但无任何 UI                                                                     | 建 memory 设置面板 / 视图                       |
-| **feedback 入口**        | `feedback.create` 已就绪、未门控，但无任何 UI                                                                               | 消息级 👍/👎 或反馈表单                         |
-| plan 头部 goal/ETA       | hardcoded（`plan.tsx` TODO）                                                                                                | 接 agentStore 真实 run 派生                     |
-
-### 5.3 🟡 等后端方法 / 能力（B / 受 feature 门控）
-
-| 缺口                        | 阻塞于                                                                      | 前端现状                                                                              |
-| --------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| 会话 **重命名 / 复制**      | `sessions.update` / `sessions.fork`                                         | **UI 未建**（SessionRow 右键菜单只有 Delete）                                         |
-| **Diff / 搜索 / 文件预览**  | `workspace.getDiff` / `grep` / `getFileHead`                                | 视图在，但走坏的 REST 影子 → 对真后端不可用                                           |
-| **附件 选择/上传**          | `features.attachments`（现 `enabled:false`）+ `attachments.createUploadUrl` | composer 有 📎 按钮但无 onClick / 无文件选择器（A）                                   |
-| **terminal 真实数据**       | 协议无 terminal 方法                                                        | 纯 mock（C），保留作设计占位                                                          |
-| **background tasks 真实流** | `features.background`（现 `false`）                                         | tasksStore + pill 在，只服务本地插件任务，未接 `notifications.background.update`（C） |
-| **Skills 数据**             | engine 未实现（`features.skills:false`）                                    | 视图在，gated 返空                                                                    |
-
-### 5.4 🔵 功能在但是简化实现（C，非阻塞、可改进）
-
-| 项                     | 当前实现                 | 说明                                                                                    |
-| ---------------------- | ------------------------ | --------------------------------------------------------------------------------------- |
-| 消息 **编辑 / 重生成** | 文本回填 composer + 重发 | 非协议级 `items.edit`（从 item 边界分支续跑）；`items.edit` 受 `checkpoints:false` 门控 |
-
----
-
-## 6. 其它观察（非阻塞）
-
-- **terminal / plan 视图头部是 mock**（各带 `// TODO`），body 走真实 provider，头部元数据无来源。
-- **diff/grep/file-head 仍走 REST 影子**（`defaults` 的 `HTTP_KEYS`），真后端无此路由（API.md §9.3 禁业务 read shadow）→ 等 §4 #1 的 JSON-RPC 方法就绪后迁移并删影子。
-- **后端回应文档笔误**：`INTEGRATION_VERIFICATION_BACKEND_RESPONSE.md` 新增段落正文有两处把参数写成 `providerId`，与其自身的命名变更表 + `API.md` 不一致；正确为 `provider`（前端已按此实现并实测）。
-
----
-
-## 7. 协议一致性审计（前端 ↔ API.md / TRANSPORT.md）
-
-四路静态审计（方法表·wire 类型 / transport / 流式 fold / 错误·能力）。原则：**前端违背 spec → 我们修；后端违背 spec → 报告（§4.1）；spec 缺口 → 标注**。方法表 + wire 类型与 spec **零偏差**（确认 provider/model 命名对齐正确）。
-
-### 7.1 ✅ 已修（前端违背 spec，本轮修复 `e892179`）
-
-| 项                                                                          | 违背                                                                         | 修复                                |
-| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ----------------------------------- |
-| 握手 `events` 漏 `custom`                                                   | §9（不在协商集内的事件 server 不发）→ custom block / preview-blocks 形同虚设 | 声明 `custom`                       |
-| `onItemCompleted` 把 agentMessage/reasoning 的 `incomplete` 写成 `complete` | §4.3 终态                                                                    | 用 `blockStatus(item.status)`       |
-| `toolCall.error.detail` 未投影                                              | §8.1 通道 b                                                                  | `ToolCall.error` + 卡片内联显示原因 |
-| channel-a 错误（runs.start/resume 拒绝）被 `console.error` 吞               | §8.1 通道 a                                                                  | `agentStore.setError` → 运行错误条  |
-| 每请求未发 `X-Protocol-Version`                                             | §2 / §6.2                                                                    | transport 统一发送                  |
-| `ids.ts` 谎称 client 生成幂等键                                             | —                                                                            | 修正注释                            |
-
-### 7.2 🕒 前端一致性债（已知，待排期；happy path 不受影响）
-
-| 项                                                                  | spec             | 现状 / 为何暂缓                                                                                                                                                      |
-| ------------------------------------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 断线重连：`runs.subscribe` + `Last-Event-Id` + **eventId 去重**     | §9.1-9.2 / §10.1 | 未实现；故 eventId 去重也未触发（无重放路径）。durable 事件 + `items.list` 兜底使 happy path 正确。重连与去重需一并做                                                |
-| `X-Idempotency-Key`（runs.start 重试安全）                          | §10              | 仅重试才有意义，前端目前不自动重试 runs.start；与重连/重试一并做（稳定 key 需从发送动作下传）                                                                        |
-| `runs.listOpenInterrupts` 重开恢复待决 HITL                         | §10.2            | 方法已定义但无调用方 → 重开带待决审批的会话无法 resume。需后端支持 + 中等前端改动                                                                                    |
-| `run.finished{interrupt}` 子 agent 的 `parentRunId`                 | §5.4 / §6        | 现用 root runId；子 agent 独立中断时应为 `ev.runId`。但 fold 只收内层 StreamEvent（信封 runId 已剥离）→ 需 reducer 签名级透传，非快修。子 agent 独立中断目前未必发生 |
-| protocolVersion 协商守卫                                            | §3               | 未校验 server 返回版本 / 未处理 `invalid_protocol_version`。单版本期低危                                                                                             |
-| `ProblemData.retryable/retryAfterSeconds/errors[]` 已类型化但未消费 | §8.3             | 特性债：retry backoff / 字段级表单错误未接                                                                                                                           |
-| **timeline 条目去重**（块去重、timeline 不去重）                    | —（前端自查）    | 块走 upsert 幂等，但 `appendTimelineEntry` 纯 append → 同一 `item.completed` 被重折叠（重连重放 / history-load 竞态）会**重复 timeline 条目**；happy path 不触发，随 eventId 去重一并做。另：`items.list` 只回放 `item.completed`，故重开会话 timeline 只有 end、缺 start（cosmetic）              |
-
-### 7.3 ⚠️ spec 缺口（建议澄清）
-
-- **API.md §7.3 正文残留 `providerId`**：与同文档命名变更表 + 参数表（`provider`）矛盾 → 统一为 `provider`。
-- **已批准工具的执行如何回链审批 item**（§6 / §4.4 未规定）：是同 item id 续跑，还是新 item？这正是 B2 可争议的根源 —— 建议钉死"沿用原 item id"。
-
----
-
-## 8. 死 / 错行为 affordance 扫描
-
-全 UI 扫了一遍"看着能点、点了没反应 / 做错事"的元素。
-
-### 8.1 ✅ 已修（`ff554cb`）
-
-| affordance                                | 病因                                                                                       | 修复                                              |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------- |
-| topbar **"+"**（新会话）+ `chat.new` / ⌘N | 逻辑是"找一个不在 tab 的已有会话打开"，标着"New session"却从不建会话，且无候选时静默无反应 | 改为 `createSession()` 建草稿（与 rail "+" 一致） |
-| 折叠 rail **Search**                      | 无 onClick                                                                                 | 经注册表执行新命令 `command.open` 开面板          |
-| 折叠 rail **Tools / Settings**            | 无 onClick                                                                                 | `openMainView`（同展开态 footer 齿轮）            |
-
-### 8.2 🕒 仍死 / 待办（后端阻塞 / 需未建特性 → 不打桩掩盖）
-
-| affordance                                                                         | 现状                                                          | 阻塞                                                             |
-| ---------------------------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------- |
-| composer **📎 附件**                                                               | `<button>` 无 onClick                                         | `features.attachments:false` + 上传 RPC（§5.3）                  |
-| 侧栏 **"项目 +"**                                                                  | 无 onClick                                                    | 无 `projects.create` 方法                                        |
-| **ProjectRow** 点击                                                                | 行 `cursor-pointer` 但无选中回调                              | 需"项目作用域"概念（可能含后端）                                 |
-| footer **"…"** / rail 头像                                                         | 无 onClick（用户/账户菜单）                                   | 菜单内容未定义；且协议无 user 概念（§0）——纯本地菜单可做但低优先 |
-| composer exec-mode 盾牌 / git 分支 chip                                            | 假数据（"Workspace·Auto" / `feat/result-type`）、盾牌是死按钮 | 状态 chip 待接真实数据（git 分支 / 执行模式概念）                |
-| 各 workspace view 头部按钮（Revert/Accept/Stage all/Add server/Re-run/Edit plan…） | mock 占位，无 onClick                                         | 对应后端能力（git / MCP 配置 / 进程控制）均未实现                |
-
-> 已逐一核对：HITL 卡、消息 复制/编辑/重生成、发送/停止、模型选择器、tab 选择/关闭/右键、SessionRow 选中+删除、设置各面板、命令面板、chat-search、tasks pill 等**主交互面均已正确接线**。
-
----
-
-> 后端补齐第 4 节（含 4.1 两个 bug）后请重跑对应方法复核，并更新本文。
+> 后端处理 §1（尤以 B3）后请告知，前端复测实时顺序；§2 的约定确定后我同步更新前端的 `ToolInvocation` 类型 + 解析逻辑，并删除现有的容错猜测。
