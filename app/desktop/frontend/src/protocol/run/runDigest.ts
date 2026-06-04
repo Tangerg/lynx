@@ -43,11 +43,11 @@ function firstToken(args: string): string {
   return m ? (m[1] ?? "") : "";
 }
 
-// Tool categorisation. Lookup sets (not switch) so adding a new tool
-// kind is one row. Unknown tool fns are ignored from the bucket-y
-// digests but still counted in the timeline view itself.
-// Generic read-tool names (commandExecution / fileChange / search are typed
-// kinds now, categorized by kind — not by name).
+// File-read detection for the generic `tool` kind — its fn-name tells us
+// it read a file. The typed kinds (commandExecution / fileChange / search)
+// are bucketed by `kind` in the loop below, not by name. A Set keeps
+// "add a read alias" to one row; unknown generic fns are skipped from the
+// digest buckets but still appear in the raw timeline view.
 const FILE_READ = new Set(["read", "read_file", "cat"]);
 
 // A read tool's path lives in its args object (JSON) — pull `path`/`file`,

@@ -1,8 +1,8 @@
 // Built-in plugin: Plan Progress banner pinned at the top of the
-// message stream. Inspired by Portai's plan-progress-bar — single-row
-// header that morphs between "current task" (collapsed) and "N tasks
-// · pct% complete" (expanded), so the user always sees the same
-// vertical rhythm whether the body is open or shut.
+// message stream. A single-row header that morphs between "current
+// task" (collapsed) and "N tasks · pct% complete" (expanded), so the
+// user always sees the same vertical rhythm whether the body is open
+// or shut.
 //
 // Layout rhythm (single shared grid template across header + body
 // rows so icons line up vertically — the previous design had a
