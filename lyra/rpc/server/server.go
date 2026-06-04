@@ -69,6 +69,7 @@ type runEntry struct {
 	turnID      string
 	parentRunID string // set for continuation runs (runs.resume)
 	cancel      context.CancelFunc
+	hub         *runHub // per-run event fan-out + durable replay (streamable HTTP)
 }
 
 // New builds a Server. Returns an error when Runtime is nil.
