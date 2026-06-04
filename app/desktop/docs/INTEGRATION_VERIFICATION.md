@@ -104,6 +104,15 @@
 2. **`sessions.update` / `sessions.fork`** —— 会话重命名 / 复制。
 3. **开 `features.skills`**（或实现 `listSkills`）—— Skills 视图填数据。
 
+### 4.1 后端 bug（已实现方法的行为违反 spec）—— 一致性审计发现
+
+| #   | 现象                                                                                              | 违反                                                                                                                   | 前端表现（如实渲染，未掩盖）                                                                                                                      |
+| --- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1  | `Session.model` 恒为 `""`（`sessions.list` / `sessions.create` 实测均空）                         | Session 应携带其 model                                                                                                 | assistant 气泡名退化为中性 "Assistant"（前端正确读 `Session.model` → 解析 displayName，后端一填即点亮，无需改前端）                               |
+| B2  | HITL 审批后，工具在 continuation run 以**新 item id** 重发，**原 toolCall item 永不收到终态事件** | §4.3（每个 item 仅 inProgress/completed/incomplete 三态）+ §5.2（每个 started item 的终态必现于后续 `item.completed`） | 原始工具卡按协议如实停在 inProgress → 永久 "LIVE"；且执行结果落在另一个 item 上，形成"提案卡 + 执行卡"重复。前端不扫尾掩盖（那是为后端 bug 妥协） |
+
+> **理想修法（后端）**：已批准工具在 continuation 里**沿用原 item id** 续跑（`item.delta`/`item.completed` 打在原 id 上），一个 item 走完 提案→批准→执行→完成，无悬挂、无重复。
+
 ---
 
 ## 5. 前端缺口全清单（按可做性分类）
@@ -116,12 +125,12 @@
 
 ### 5.2 🟢 现在就能做（后端已就绪 / 纯前端）
 
-| 缺口                 | 现状                                                    | 要做的                                                            |
-| -------------------- | ------------------------------------------------------- | ----------------------------------------------------------------- |
-| assistant 名字真实化 | 硬编码 "Sonnet 4.5"                                     | 读 `models.list.displayName` / run `usage.byModel` 渲染真实模型名 |
-| **memory 面板**      | `memory.*` 已实现 + `features.memory:true`，但无任何 UI | 建 memory 设置面板 / 视图                                         |
-| **feedback 入口**    | `feedback.create` 已就绪、未门控，但无任何 UI           | 消息级 👍/👎 或反馈表单                                           |
-| plan 头部 goal/ETA   | hardcoded（`plan.tsx` TODO）                            | 接 agentStore 真实 run 派生                                       |
+| 缺口                     | 现状                                                                                                                        | 要做的                                          |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| ~~assistant 名字真实化~~ | ✅ 前端已做（读 `Session.model` → displayName，中性兜底）；**被后端 bug B1 阻塞**（Session.model 恒空）→ 现显示 "Assistant" | 后端填 `Session.model` 即自动点亮，前端无需再动 |
+| **memory 面板**          | `memory.*` 已实现 + `features.memory:true`，但无任何 UI                                                                     | 建 memory 设置面板 / 视图                       |
+| **feedback 入口**        | `feedback.create` 已就绪、未门控，但无任何 UI                                                                               | 消息级 👍/👎 或反馈表单                         |
+| plan 头部 goal/ETA       | hardcoded（`plan.tsx` TODO）                                                                                                | 接 agentStore 真实 run 派生                     |
 
 ### 5.3 🟡 等后端方法 / 能力（B / 受 feature 门控）
 
@@ -150,4 +159,37 @@
 
 ---
 
-> 后端补齐第 4 节后请重跑对应方法复核，并更新本文。
+## 7. 协议一致性审计（前端 ↔ API.md / TRANSPORT.md）
+
+四路静态审计（方法表·wire 类型 / transport / 流式 fold / 错误·能力）。原则：**前端违背 spec → 我们修；后端违背 spec → 报告（§4.1）；spec 缺口 → 标注**。方法表 + wire 类型与 spec **零偏差**（确认 provider/model 命名对齐正确）。
+
+### 7.1 ✅ 已修（前端违背 spec，本轮修复 `e892179`）
+
+| 项                                                                          | 违背                                                                         | 修复                                |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ----------------------------------- |
+| 握手 `events` 漏 `custom`                                                   | §9（不在协商集内的事件 server 不发）→ custom block / preview-blocks 形同虚设 | 声明 `custom`                       |
+| `onItemCompleted` 把 agentMessage/reasoning 的 `incomplete` 写成 `complete` | §4.3 终态                                                                    | 用 `blockStatus(item.status)`       |
+| `toolCall.error.detail` 未投影                                              | §8.1 通道 b                                                                  | `ToolCall.error` + 卡片内联显示原因 |
+| channel-a 错误（runs.start/resume 拒绝）被 `console.error` 吞               | §8.1 通道 a                                                                  | `agentStore.setError` → 运行错误条  |
+| 每请求未发 `X-Protocol-Version`                                             | §2 / §6.2                                                                    | transport 统一发送                  |
+| `ids.ts` 谎称 client 生成幂等键                                             | —                                                                            | 修正注释                            |
+
+### 7.2 🕒 前端一致性债（已知，待排期；happy path 不受影响）
+
+| 项                                                                  | spec             | 现状 / 为何暂缓                                                                                                                                                      |
+| ------------------------------------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 断线重连：`runs.subscribe` + `Last-Event-Id` + **eventId 去重**     | §9.1-9.2 / §10.1 | 未实现；故 eventId 去重也未触发（无重放路径）。durable 事件 + `items.list` 兜底使 happy path 正确。重连与去重需一并做                                                |
+| `X-Idempotency-Key`（runs.start 重试安全）                          | §10              | 仅重试才有意义，前端目前不自动重试 runs.start；与重连/重试一并做（稳定 key 需从发送动作下传）                                                                        |
+| `runs.listOpenInterrupts` 重开恢复待决 HITL                         | §10.2            | 方法已定义但无调用方 → 重开带待决审批的会话无法 resume。需后端支持 + 中等前端改动                                                                                    |
+| `run.finished{interrupt}` 子 agent 的 `parentRunId`                 | §5.4 / §6        | 现用 root runId；子 agent 独立中断时应为 `ev.runId`。但 fold 只收内层 StreamEvent（信封 runId 已剥离）→ 需 reducer 签名级透传，非快修。子 agent 独立中断目前未必发生 |
+| protocolVersion 协商守卫                                            | §3               | 未校验 server 返回版本 / 未处理 `invalid_protocol_version`。单版本期低危                                                                                             |
+| `ProblemData.retryable/retryAfterSeconds/errors[]` 已类型化但未消费 | §8.3             | 特性债：retry backoff / 字段级表单错误未接                                                                                                                           |
+
+### 7.3 ⚠️ spec 缺口（建议澄清）
+
+- **API.md §7.3 正文残留 `providerId`**：与同文档命名变更表 + 参数表（`provider`）矛盾 → 统一为 `provider`。
+- **已批准工具的执行如何回链审批 item**（§6 / §4.4 未规定）：是同 item id 续跑，还是新 item？这正是 B2 可争议的根源 —— 建议钉死"沿用原 item id"。
+
+---
+
+> 后端补齐第 4 节（含 4.1 两个 bug）后请重跑对应方法复核，并更新本文。
