@@ -35,6 +35,10 @@ export interface ToolCall {
   added?: number;
   removed?: number;
   hits?: number;
+  /** commandExecution exit code. Surfaced for visibility; a non-zero exit is
+   *  shown but does NOT force the status red (exit≠0 isn't always failure —
+   *  e.g. grep "no match"). Real failures set the toolCall Item's `error`. */
+  exitCode?: number;
   result?: string;
   /** Human-readable failure reason from the toolCall Item's `error`
    *  (ProblemData.detail ?? type, API.md §8.1 channel b). Set when status="err". */

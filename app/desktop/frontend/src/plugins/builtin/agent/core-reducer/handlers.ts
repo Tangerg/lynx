@@ -42,7 +42,7 @@ function approvalText(tool: ToolInvocation): string {
     case "commandExecution":
       return "Run command";
     case "fileChange":
-      return tool.changes.length === 1 ? "Apply file change" : "Apply file changes";
+      return (tool.changes ?? []).length === 1 ? "Apply file change" : "Apply file changes";
     case "search":
       return "Run search";
     case "webSearch":
@@ -79,18 +79,20 @@ function materializeInterrupt(
   if (it.kind === "approval") {
     // payload.tool is the uniform ToolInvocation (API.md §4.8) — read it
     // directly, no guessing where the command lives / unescaping strings.
-    const tool = it.payload.tool;
+    // Tolerate a missing tool (malformed payload) so a buggy backend can't
+    // crash the fold and leave an un-actionable interrupt.
+    const tool = it.payload.tool as ToolInvocation | undefined;
     const block: ContentBlock = {
       kind: "approval",
       status: "requires-action",
       itemId: it.itemId,
       parentRunId,
-      text: approvalText(tool),
-      command: tool.kind === "commandExecution" ? tool.command.join(" ") : "",
+      text: tool ? approvalText(tool) : "Approve this action?",
+      command: tool?.kind === "commandExecution" ? (tool.command ?? []).join(" ") : "",
       reason: it.payload.reason ?? "",
       // Editable args only make sense for the generic `tool` (its arguments are
       // a free-form object); typed variants carry no editable arg bag.
-      args: tool.kind === "tool" ? tool.arguments : undefined,
+      args: tool?.kind === "tool" ? tool.arguments : undefined,
       risk: it.payload.risk,
     };
     const withBlock = appendToTurn(state, it.itemId, block);

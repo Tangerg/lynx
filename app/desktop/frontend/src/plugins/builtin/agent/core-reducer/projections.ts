@@ -107,18 +107,22 @@ export function mapQuestion(q: Question | undefined): QuestionItem[] {
  *  `undefined` on a body-less toolCall started shell (see `mapPlan`). */
 export function toolLabel(tool: ToolInvocation | undefined): string {
   if (!tool) return "tool";
+  // `?? []` / `|| …` guard the partial typed-variant case: a started shell may
+  // carry `kind` but not its body yet. Without it `.join` / `.length` on an
+  // absent field throws — the reducer's try/catch then silently drops the block
+  // (or, for an approval payload, breaks the HITL the user can no longer act on).
   switch (tool.kind) {
     case "commandExecution":
-      return tool.command.join(" ") || "command";
-    case "fileChange":
-      return tool.changes.length === 1
-        ? (tool.changes[0]?.path ?? "file")
-        : `${tool.changes.length} files`;
+      return (tool.command ?? []).join(" ") || "command";
+    case "fileChange": {
+      const changes = tool.changes ?? [];
+      return changes.length === 1 ? (changes[0]?.path ?? "file") : `${changes.length} files`;
+    }
     case "search":
     case "webSearch":
       return tool.query || "search";
     case "tool":
-      return tool.name;
+      return tool.name || "tool";
   }
 }
 
@@ -129,10 +133,10 @@ export function toolFields(tool: ToolInvocation | undefined): Partial<ToolCall> 
   switch (tool.kind) {
     case "commandExecution":
       // stdout streams via item.delta{toolOutput} and accumulates into the
-      // view `result`; nothing structured to override here.
-      return {};
+      // view `result`; surface the exit code (shown when non-zero).
+      return { exitCode: tool.exitCode };
     case "fileChange": {
-      const rows = tool.changes.flatMap((c) => c.diff ?? []);
+      const rows = (tool.changes ?? []).flatMap((c) => c.diff ?? []);
       return {
         added: rows.filter((r) => r.type === "added").length,
         removed: rows.filter((r) => r.type === "deleted").length,
