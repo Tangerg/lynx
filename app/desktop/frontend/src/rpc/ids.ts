@@ -5,8 +5,8 @@
 //
 // Business resource ids are ALWAYS server-generated and carry a type
 // prefix on the wire: ses_ / run_ / item_ / att_ / tsk_ / evt_. The
-// client never mints business ids (§2.2) — only JSON-RPC envelope ids,
-// the transport connection id, and the idempotency key.
+// client never mints business ids (§2.2) — only JSON-RPC envelope ids and
+// the idempotency key.
 //
 // Adopt these at boundaries that get ids from the server (RPC method
 // returns + notification params). At the wire boundary plain strings

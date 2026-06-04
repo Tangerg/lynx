@@ -39,7 +39,7 @@ interface Pending {
 export function createRpcClient(transport: Transport): RpcClient {
   // Monotonic integer counter, stringified at allocation — the wire id is
   // always a string (RpcId, §1.1), but an integer counter is the cheapest
-  // way to guarantee per-connection uniqueness (§6.10).
+  // way to keep every in-flight request's id unique so responses correlate.
   let nextId = 1;
   const pending = new Map<RpcId, Pending>();
   // method → handlers. We allow multiple subscribers per method so multiple
