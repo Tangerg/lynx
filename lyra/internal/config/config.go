@@ -72,6 +72,13 @@ type Config struct {
 	Model    string
 	APIKey   string
 
+	// BaseURL optionally overrides the provider's default API endpoint —
+	// every adapter accepts one (native openai/anthropic via a request
+	// option, the OpenAI-compatible delegators via their BaseURL field).
+	// Empty uses the adapter's built-in default. Useful for proxies,
+	// gateways, regional endpoints, and self-hosted OpenAI-compatible servers.
+	BaseURL string
+
 	// Online optionally enables provider-backed tools.
 	Online engine.OnlineConfig
 
@@ -156,6 +163,7 @@ func Load() (Config, error) {
 		Provider:   provider,
 		Model:      model,
 		APIKey:     apiKey,
+		BaseURL:    v.GetString("baseURL"),
 		Online:     loadOnline(v),
 		MCPServers: servers,
 		Storage:    storage,
