@@ -2,18 +2,22 @@ package server
 
 import (
 	"context"
+	"path/filepath"
+	"slices"
+	"strings"
 
+	"github.com/Tangerg/lynx/lyra/internal/service/agentdoc"
+	"github.com/Tangerg/lynx/lyra/internal/service/session"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
-// workspace.* (API.md §7.5) — no git / ripgrep probes wired into the
-// engine yet. List endpoints return an EMPTY slice so frontend panels
-// render an empty state instead of an error; the specific-resource
-// reads (diff / fileHead / grep / mcp.reconnect) stay notImpl until the
-// engine grows the corresponding probe.
+// workspace.* (API.md §7.5). listProjects + listAgentDocs are real
+// (derived from sessions / AGENTS.md discovery); the git/ripgrep-backed
+// reads (listFileChanges / getDiff / getFileHead / grep / mcp.reconnect)
+// stay notImpl until the engine grows the corresponding probe.
 
 func (i *Server) WorkspaceListFileChanges(_ context.Context, _ protocol.WorkspaceQuery) ([]protocol.FileChange, error) {
-	return []protocol.FileChange{}, nil
+	return nil, notImpl("workspace.listFileChanges")
 }
 
 func (i *Server) WorkspaceGetDiff(_ context.Context, _ protocol.GetDiffRequest) ([]protocol.DiffRow, error) {
@@ -28,16 +32,85 @@ func (i *Server) WorkspaceGrep(_ context.Context, _ protocol.GrepRequest) (*prot
 	return nil, notImpl("workspace.grep")
 }
 
-func (i *Server) WorkspaceListProjects(_ context.Context) ([]protocol.Project, error) {
-	return []protocol.Project{}, nil
+// WorkspaceListProjects derives the Project view from sessions: one
+// entry per distinct Session.cwd (API.md §0.2 / §7.5), newest-active
+// first. projectRoot / branch are best-effort decorations left empty
+// until the engine grows a git probe.
+func (i *Server) WorkspaceListProjects(ctx context.Context) ([]protocol.Project, error) {
+	sessions, err := i.rt.Session().List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return projectsFromSessions(sessions), nil
+}
+
+// projectsFromSessions collapses sessions into the distinct-cwd Project
+// view: one entry per non-empty Session.cwd, session-counted, newest-
+// active first. Pure (no I/O) so it's unit-testable on its own.
+func projectsFromSessions(sessions []session.Session) []protocol.Project {
+	byCwd := map[string]*protocol.Project{}
+	for _, s := range sessions {
+		if s.Cwd == "" {
+			continue // no cwd ⇒ no project identity
+		}
+		p := byCwd[s.Cwd]
+		if p == nil {
+			p = &protocol.Project{Cwd: s.Cwd, Name: filepath.Base(s.Cwd)}
+			byCwd[s.Cwd] = p
+		}
+		p.SessionCount++
+		if p.LastActiveAt == nil || s.UpdatedAt.After(*p.LastActiveAt) {
+			t := s.UpdatedAt
+			p.LastActiveAt = &t
+		}
+	}
+	out := make([]protocol.Project, 0, len(byCwd))
+	for _, p := range byCwd {
+		out = append(out, *p)
+	}
+	slices.SortFunc(out, func(a, b protocol.Project) int {
+		return b.LastActiveAt.Compare(*a.LastActiveAt) // most-recently-active first
+	})
+	return out
 }
 
 func (i *Server) WorkspaceListSkills(_ context.Context, _ protocol.WorkspaceQuery) ([]protocol.Skill, error) {
 	return []protocol.Skill{}, nil
 }
 
-func (i *Server) WorkspaceListAgentDocs(_ context.Context, _ protocol.WorkspaceQuery) ([]protocol.AgentDoc, error) {
-	return []protocol.AgentDoc{}, nil
+// WorkspaceListAgentDocs lists the AGENTS.md files discovered from cwd
+// (or the serve cwd) up to home — the same cascade the engine injects
+// into the system prompt (API.md §7.5).
+func (i *Server) WorkspaceListAgentDocs(ctx context.Context, q protocol.WorkspaceQuery) ([]protocol.AgentDoc, error) {
+	cwd := q.Cwd
+	if cwd == "" {
+		cwd = i.serverInfo.Cwd
+	}
+	home := i.serverInfo.Home
+	files, err := agentdoc.Discover(ctx, cwd, home)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]protocol.AgentDoc, 0, len(files))
+	for _, f := range files {
+		out = append(out, protocol.AgentDoc{Path: f.Path, Scope: agentDocScope(f.Path, cwd, home)})
+	}
+	return out, nil
+}
+
+// agentDocScope classifies a discovered AGENTS.md by where it sits in the
+// cwd→home cascade: the home dir → "home", anything under cwd → "cwd",
+// else an ancestor in between → "projectRoot" (API.md §4.10 scope).
+func agentDocScope(path, cwd, home string) string {
+	dir := filepath.Dir(path)
+	switch {
+	case home != "" && dir == home:
+		return "home"
+	case cwd != "" && (dir == cwd || strings.HasPrefix(path, cwd+string(filepath.Separator))):
+		return "cwd"
+	default:
+		return "projectRoot"
+	}
 }
 
 func (i *Server) WorkspaceMCPListServers(_ context.Context) ([]protocol.McpServer, error) {
