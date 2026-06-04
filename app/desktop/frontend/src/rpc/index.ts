@@ -77,6 +77,8 @@ export type {
   JsonPatch,
   // HITL
   Interrupt,
+  ApprovalPayload,
+  ToolResultPayload,
   OpenInterrupt,
   InterruptResponse,
   ApprovalResponse,
@@ -84,7 +86,9 @@ export type {
   ToolResultResponse,
   // Diff / search / files
   DiffRow,
-  SearchResult,
+  SearchHit,
+  WebSearchResult,
+  FileChangeEntry,
   FileChange,
   FileHead,
   FileLine,

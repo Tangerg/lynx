@@ -95,16 +95,22 @@ describe("reducer — item fold", () => {
     expect(s.messages[0]!.blocks[0]).toMatchObject({ text: "streamed", status: "running" });
   });
 
-  it("toolCall folds into a tool block + toolCalls entry; toolArguments accumulate", () => {
+  it("toolCall folds into a tool block + toolCalls entry; args + stdout accumulate", () => {
     let s: AgentViewState = INITIAL_VIEW_STATE;
     s = reduce(
       s,
       started(
-        item({ id: "t1", type: "toolCall", tool: { kind: "command", command: "pnpm test" } }),
+        item({
+          id: "t1",
+          type: "toolCall",
+          tool: { kind: "commandExecution", command: ["pnpm", "test"] },
+        }),
       ),
     );
     s = reduce(s, delta("t1", { type: "toolArguments", argumentsTextDelta: '{"x":' }));
     s = reduce(s, delta("t1", { type: "toolArguments", argumentsTextDelta: "1}" }));
+    // commandExecution stdout streams via toolOutput (no item.output field).
+    s = reduce(s, delta("t1", { type: "toolOutput", text: "ok" }));
     expect(s.messages[0]!.blocks).toEqual([{ kind: "tool", toolCallId: "t1" }]);
     expect(s.toolCalls.t1).toMatchObject({ fn: "pnpm test", args: '{"x":1}', status: "running" });
     s = reduce(
@@ -114,10 +120,11 @@ describe("reducer — item fold", () => {
           id: "t1",
           type: "toolCall",
           status: "completed",
-          tool: { kind: "command", command: "pnpm test", output: "ok" },
+          tool: { kind: "commandExecution", command: ["pnpm", "test"], exitCode: 0 },
         }),
       ),
     );
+    // The streamed stdout survives completion (writeToolCall keeps prev.result).
     expect(s.toolCalls.t1).toMatchObject({ status: "ok", result: "ok" });
   });
 
@@ -237,7 +244,9 @@ describe("reducer — item fold", () => {
     let s: AgentViewState = INITIAL_VIEW_STATE;
     s = reduce(
       s,
-      started(item({ id: "t1", type: "toolCall", tool: { kind: "command", command: "bad" } })),
+      started(
+        item({ id: "t1", type: "toolCall", tool: { kind: "commandExecution", command: ["bad"] } }),
+      ),
     );
     s = reduce(
       s,
@@ -246,7 +255,7 @@ describe("reducer — item fold", () => {
           id: "t1",
           type: "toolCall",
           status: "incomplete",
-          tool: { kind: "command", command: "bad" },
+          tool: { kind: "commandExecution", command: ["bad"] },
           error: { type: "tool_failed", detail: "boom" },
         }),
       ),
@@ -261,7 +270,9 @@ describe("reducer — item fold", () => {
     let s: AgentViewState = INITIAL_VIEW_STATE;
     s = reduce(
       s,
-      started(item({ id: "t1", type: "toolCall", tool: { kind: "command", name: "bash" } })),
+      started(
+        item({ id: "t1", type: "toolCall", tool: { kind: "commandExecution", command: ["bash"] } }),
+      ),
     );
     s = reduce(
       s,
@@ -270,7 +281,7 @@ describe("reducer — item fold", () => {
           id: "t1",
           type: "toolCall",
           status: "incomplete",
-          tool: { kind: "command", name: "bash" },
+          tool: { kind: "commandExecution", command: ["bash"] },
           error: { type: "denied_by_user", detail: "tool call denied by user" },
         }),
       ),
@@ -287,7 +298,11 @@ describe("reducer — HITL interrupt", () => {
     s = reduce(
       s,
       started(
-        item({ id: "tool_1", type: "toolCall", tool: { kind: "command", command: "rm -rf x" } }),
+        item({
+          id: "tool_1",
+          type: "toolCall",
+          tool: { kind: "commandExecution", command: ["rm", "-rf", "x"] },
+        }),
       ),
     );
     s = reduce(
@@ -298,7 +313,7 @@ describe("reducer — HITL interrupt", () => {
           {
             itemId: "tool_1" as never,
             kind: "approval",
-            payload: { command: "rm -rf x", text: "Run?" },
+            payload: { tool: { kind: "commandExecution", command: ["rm", "-rf", "x"] } },
           },
         ],
       }),
@@ -309,17 +324,23 @@ describe("reducer — HITL interrupt", () => {
       status: "requires-action",
       itemId: "tool_1",
       parentRunId: "run_1",
+      command: "rm -rf x", // derived from payload.tool (commandExecution)
     });
     expect(s.openInterrupts).toHaveLength(1);
     expect(s.openInterrupts[0]!.parentRunId).toBe("run_1");
   });
 
-  it("approval payload: stringified `arguments` → parsed args + command derived from them", () => {
-    // Real bash payload: no top-level `command`; args are a JSON *string*.
+  it("approval payload carries a ToolInvocation: command → cmd line, generic tool → editable args", () => {
     let s = reduce(INITIAL_VIEW_STATE, runStarted("run_1", "ses_1"));
     s = reduce(
       s,
-      started(item({ id: "t1", type: "toolCall", tool: { kind: "command", name: "bash" } })),
+      started(
+        item({
+          id: "t1",
+          type: "toolCall",
+          tool: { kind: "tool", name: "fs.write", arguments: {} },
+        }),
+      ),
     );
     s = reduce(
       s,
@@ -329,17 +350,21 @@ describe("reducer — HITL interrupt", () => {
           {
             itemId: "t1" as never,
             kind: "approval",
-            payload: { tool: "bash", arguments: '{"command": "ls -la"}' },
+            payload: {
+              tool: { kind: "tool", name: "fs.write", arguments: { path: "/etc/hosts" } },
+              risk: "high",
+            },
           },
         ],
       }),
     );
     const block = s.messages.flatMap((m) => m.blocks).find((b) => b.kind === "approval");
-    // args normalized to an object (not the raw escaped string), command lifted out.
+    // Generic tool: arguments object becomes the editable `args`; no cmd line.
     expect(block).toMatchObject({
       kind: "approval",
-      command: "ls -la",
-      args: { command: "ls -la" },
+      command: "",
+      args: { path: "/etc/hosts" },
+      risk: "high",
     });
   });
 });

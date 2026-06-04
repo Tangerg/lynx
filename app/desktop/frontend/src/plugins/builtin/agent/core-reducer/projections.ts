@@ -108,18 +108,17 @@ export function mapQuestion(q: Question | undefined): QuestionItem[] {
 export function toolLabel(tool: ToolInvocation | undefined): string {
   if (!tool) return "tool";
   switch (tool.kind) {
-    case "command":
-      // The runtime puts the command in the streamed args, not `command`; use
-      // the tool name ("bash") so the row isn't a nameless "()".
-      return tool.command ?? tool.name ?? "command";
-    case "fileEdit":
-      return tool.path;
-    case "mcp":
-      return `${tool.server}.${tool.name}`;
+    case "commandExecution":
+      return tool.command.join(" ") || "command";
+    case "fileChange":
+      return tool.changes.length === 1
+        ? (tool.changes[0]?.path ?? "file")
+        : `${tool.changes.length} files`;
     case "search":
-      return tool.query;
-    case "subagent":
-      return tool.name ?? "subagent";
+    case "webSearch":
+      return tool.query || "search";
+    case "tool":
+      return tool.name;
   }
 }
 
@@ -128,21 +127,31 @@ export function toolLabel(tool: ToolInvocation | undefined): string {
 export function toolFields(tool: ToolInvocation | undefined): Partial<ToolCall> {
   if (!tool) return {};
   switch (tool.kind) {
-    case "command":
-      return { result: tool.output };
-    case "fileEdit": {
-      const rows = tool.diff ?? [];
+    case "commandExecution":
+      // stdout streams via item.delta{toolOutput} and accumulates into the
+      // view `result`; nothing structured to override here.
+      return {};
+    case "fileChange": {
+      const rows = tool.changes.flatMap((c) => c.diff ?? []);
       return {
         added: rows.filter((r) => r.type === "added").length,
         removed: rows.filter((r) => r.type === "deleted").length,
       };
     }
-    case "mcp":
-      return { result: tool.result === undefined ? undefined : JSON.stringify(tool.result) };
     case "search":
+    case "webSearch":
       return { hits: tool.results?.length };
-    case "subagent":
-      return { result: tool.result };
+    case "tool":
+      // Best-effort JSON result → a pretty string the inspector renders as a
+      // JSON tree (formatBody re-parses); plain strings pass through.
+      return {
+        result:
+          tool.result === undefined
+            ? undefined
+            : typeof tool.result === "string"
+              ? tool.result
+              : JSON.stringify(tool.result, null, 2),
+      };
   }
 }
 

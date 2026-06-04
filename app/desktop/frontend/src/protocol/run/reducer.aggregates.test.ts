@@ -32,7 +32,9 @@ describe("reducer — timeline accumulator", () => {
     s = reduce(s, { type: "run.started", run: { id: "r1", sessionId: "s" } as never });
     s = reduce(
       s,
-      started(item({ id: "tc1", type: "toolCall", tool: { kind: "command", command: "ls" } })),
+      started(
+        item({ id: "tc1", type: "toolCall", tool: { kind: "commandExecution", command: ["ls"] } }),
+      ),
     );
     s = reduce(
       s,
@@ -41,7 +43,7 @@ describe("reducer — timeline accumulator", () => {
           id: "tc1",
           type: "toolCall",
           status: "completed",
-          tool: { kind: "command", command: "ls", output: "" },
+          tool: { kind: "commandExecution", command: ["ls"] },
         }),
       ),
     );
@@ -63,13 +65,25 @@ describe("reducer — timeline accumulator", () => {
     s = reduce(s, { type: "run.started", run: { id: "r1", sessionId: "s" } as never });
     s = reduce(
       s,
-      started(item({ id: "tc1", type: "toolCall", tool: { kind: "command", command: "psql" } })),
+      started(
+        item({
+          id: "tc1",
+          type: "toolCall",
+          tool: { kind: "commandExecution", command: ["psql"] },
+        }),
+      ),
     );
     s = reduce(s, {
       type: "run.finished",
       outcome: {
         type: "interrupt",
-        interrupts: [{ itemId: "tc1" as never, kind: "approval", payload: { command: "psql" } }],
+        interrupts: [
+          {
+            itemId: "tc1" as never,
+            kind: "approval",
+            payload: { tool: { kind: "commandExecution", command: ["psql"] } },
+          },
+        ],
       },
     });
     const approval = s.timeline.filter((t) => t.kind.startsWith("approval"));

@@ -84,6 +84,7 @@ describe("deriveLatestRun", () => {
       toolCalls: {
         "t-write": {
           id: "t-write",
+          kind: "fileChange",
           fn: "write_file",
           args: "src/auth.ts",
           status: "ok",
@@ -93,6 +94,7 @@ describe("deriveLatestRun", () => {
         },
         "t-read": {
           id: "t-read",
+          kind: "tool",
           fn: "read_file",
           args: "src/types.ts",
           status: "ok",
@@ -100,6 +102,7 @@ describe("deriveLatestRun", () => {
         },
         "t-bash": {
           id: "t-bash",
+          kind: "commandExecution",
           fn: "bash",
           args: "pnpm test",
           status: "err",
