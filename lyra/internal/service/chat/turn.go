@@ -3,9 +3,12 @@ package chat
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
@@ -28,11 +31,22 @@ type turnState struct {
 	cancel context.CancelFunc
 	seq    atomic.Uint64
 
-	// ctx is the turn's own lifetime context (background-derived so it
-	// outlives the StartTurn caller's ctx). It bounds the run, the
-	// resume continuation, and post-turn maintenance; canceled by
-	// [Service.Cancel]. Set once in StartTurn.
+	// ctx is the turn's own lifetime context — derived via
+	// context.WithoutCancel from the entry ctx so it outlives the
+	// StartTurn caller's cancellation yet KEEPS the entry trace span, then
+	// wrapped with the turn span so the engine's LLM / tool / agent spans
+	// nest under one trace (full-link). It bounds the run, the resume
+	// continuation, and post-turn maintenance; canceled by [Service.Cancel].
+	// Set once at the entry point (StartTurn / Rehydrate).
 	ctx context.Context
+
+	// span is the business-level turn span (started at the entry point,
+	// ended once in endTurn). Carried on ctx so child spans attach to it.
+	span trace.Span
+
+	// model is the resolved model name this turn runs against — stamped on
+	// the span + metrics + logs. "default" when the turn didn't pick one.
+	model string
 
 	// startedAt stamps the turn's wall-clock start so TurnEnd carries a
 	// duration that spans any interrupt/resume cycles.
@@ -90,11 +104,11 @@ func (st *turnState) drainSteering() []string {
 // state. Later segments are driven by [inMemory.Resume] through the
 // shared [drive] loop. st.ctx (the turn's own lifetime) bounds the run.
 func (s *inMemory) runTurn(req StartTurnRequest, st *turnState) {
-	model := req.Model
-	if model == "" {
-		model = "default"
-	}
-	s.emit(st, TurnStart{Model: model})
+	slog.InfoContext(st.ctx, "chat turn started",
+		attrRunID, st.handle.TurnID,
+		attrGenAIConversationID, st.handle.SessionID,
+		attrGenAIRequestModel, st.model)
+	s.emit(st, TurnStart{Model: st.model})
 
 	// Resolve a per-turn client when the run picked a provider+model and a
 	// resolver is wired; no selection / no resolver runs on the platform's
@@ -198,7 +212,11 @@ func (s *inMemory) emitInterrupt(st *turnState, proc engine.ChatProcess) {
 		s.emit(st, TurnInterrupted{})
 		return
 	}
-	s.emit(st, TurnInterrupted{Interrupts: []Interrupt{{Kind: interruptKind(aw), Payload: aw.PromptAny()}}})
+	kind := interruptKind(aw)
+	recordInterruptMetric(st.ctx, kind)
+	slog.InfoContext(st.ctx, "chat turn interrupted",
+		attrRunID, st.handle.TurnID, attrRunInterruptKind, kind)
+	s.emit(st, TurnInterrupted{Interrupts: []Interrupt{{Kind: kind, Payload: aw.PromptAny()}}})
 }
 
 // interruptKind classifies the pending awaitable into the wire interrupt
@@ -221,7 +239,13 @@ func interruptKind(aw core.Awaitable) string {
 
 // endTurn closes the turn's event channel and removes it from the live
 // registry — subsequent Events / Cancel / Resume return ErrTurnNotFound.
+// It also ends the turn span: the single teardown point, so the span
+// closes exactly once no matter which terminal path (drive / finishTurn)
+// reached it. finishTurnSpan has already stamped the outcome.
 func (s *inMemory) endTurn(st *turnState) {
+	if st.span != nil {
+		st.span.End()
+	}
 	close(st.events)
 	s.mu.Lock()
 	delete(s.turns, st.handle.TurnID)
@@ -234,7 +258,12 @@ func (s *inMemory) endTurn(st *turnState) {
 // goroutine will run [emitTurnEnd]. The clean path goes through
 // emitTurnEnd (which carries usage) followed by endTurn in [drive].
 func (s *inMemory) finishTurn(st *turnState, reason TurnEndReason) {
-	s.emit(st, TurnEnd{Reason: reason, Duration: time.Since(st.startedAt)})
+	dur := time.Since(st.startedAt)
+	finishTurnSpan(st.span, reason, TokenUsage{}, false, "")
+	recordTurnDuration(st.ctx, reason, st.model, dur)
+	slog.InfoContext(st.ctx, "chat turn ended",
+		attrRunID, st.handle.TurnID, attrRunOutcome, reason.String())
+	s.emit(st, TurnEnd{Reason: reason, Duration: dur})
 	s.endTurn(st)
 }
 
@@ -250,8 +279,17 @@ func (s *inMemory) emitTurnEnd(st *turnState, proc engine.ChatProcess, terminal 
 	out, _ := proc.Output()
 	plan := terminalPlan(terminal, out, runErr, ctxErr, proc.Status())
 
+	finishTurnSpan(st.span, plan.reason, out.Usage, plan.withUsage, plan.errMsg)
+	recordTurnDuration(st.ctx, plan.reason, st.model, duration)
 	if plan.errMsg != "" {
 		s.emit(st, ErrorEvent{Message: plan.errMsg, Code: plan.errCode})
+		slog.ErrorContext(st.ctx, "chat turn ended",
+			attrRunID, st.handle.TurnID, attrRunOutcome, plan.reason.String(),
+			"error.message", plan.errMsg, "error.code", plan.errCode)
+	} else {
+		slog.InfoContext(st.ctx, "chat turn ended",
+			attrRunID, st.handle.TurnID, attrRunOutcome, plan.reason.String(),
+			attrGenAIUsageInput, out.Usage.PromptTokens, attrGenAIUsageOutput, out.Usage.CompletionTokens)
 	}
 	end := TurnEnd{Reason: plan.reason, Duration: duration}
 	if plan.withUsage {

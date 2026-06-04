@@ -85,13 +85,15 @@ type stubEngine struct {
 	mu         sync.Mutex
 	lastClient *corechat.Client // captures RunChatRequest.ChatClient
 	lastCwd    string           // captures RunChatRequest.Cwd
+	lastCtx    context.Context  // captures the ctx the engine runs under
 }
 
-func (s *stubEngine) StartChat(_ context.Context, req engine.RunChatRequest) engine.ChatProcess {
+func (s *stubEngine) StartChat(ctx context.Context, req engine.RunChatRequest) engine.ChatProcess {
 	s.runChatCalls.Add(1)
 	s.mu.Lock()
 	s.lastClient = req.ChatClient
 	s.lastCwd = req.Cwd
+	s.lastCtx = ctx
 	s.mu.Unlock()
 	if req.Observer != nil {
 		req.Observer.OnMessageDelta(s.runReply)

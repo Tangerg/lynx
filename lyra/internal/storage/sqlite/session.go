@@ -6,12 +6,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
 )
+
+// attrConversationID is the gen_ai semconv key for a session id — a Lyra
+// session IS the conversation a turn keys its chat-memory against, so the
+// lifecycle logs use the same key the chat turn span carries.
+const attrConversationID = "gen_ai.conversation.id"
 
 // SessionService implements session.Service against a SQLite database.
 // Mutations are single-row INSERT / UPDATE / DELETE — no rollback gymnastics
@@ -123,6 +129,7 @@ func (s *SessionService) Create(ctx context.Context, title, cwd string) (session
 	if err := s.insert(ctx, sess); err != nil {
 		return session.Session{}, err
 	}
+	slog.InfoContext(ctx, "session created", attrConversationID, sess.ID, "session.cwd", cwd)
 	return sess, nil
 }
 
@@ -163,6 +170,8 @@ func (s *SessionService) Fork(ctx context.Context, parentID, atMessageID string)
 	if err := tx.Commit(); err != nil {
 		return session.Session{}, fmt.Errorf("sqlite: commit fork: %w", err)
 	}
+	slog.InfoContext(ctx, "session forked",
+		attrConversationID, child.ID, "session.parent_id", parentID)
 	return child, nil
 }
 
@@ -174,6 +183,7 @@ func (s *SessionService) Delete(ctx context.Context, id string) error {
 	); err != nil {
 		return fmt.Errorf("sqlite: delete session: %w", err)
 	}
+	slog.InfoContext(ctx, "session deleted", attrConversationID, id)
 	return nil
 }
 

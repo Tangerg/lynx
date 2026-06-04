@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"iter"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -77,7 +78,7 @@ type inMemory struct {
 // Service implementation
 // ------------------------------------------------------------------
 
-func (s *inMemory) StartTurn(_ context.Context, req StartTurnRequest) (TurnHandle, error) {
+func (s *inMemory) StartTurn(ctx context.Context, req StartTurnRequest) (TurnHandle, error) {
 	if req.SessionID == "" {
 		return TurnHandle{}, errors.New("chat: SessionID is required")
 	}
@@ -89,7 +90,13 @@ func (s *inMemory) StartTurn(_ context.Context, req StartTurnRequest) (TurnHandl
 		SessionID: req.SessionID,
 		TurnID:    newTurnID(),
 	}
-	state := newTurnState(handle)
+	state := newTurnState(ctx, handle)
+	state.model = modelOr(req.Model)
+	// Open the turn span synchronously (before the goroutine launches and
+	// before the handle is returned) so st.ctx carries it for every later
+	// reader — runTurn, drive, resume, Cancel. The entry trace rode in via
+	// newTurnState's WithoutCancel, so this span is its child.
+	state.ctx, state.span = startTurnSpan(state.ctx, handle.SessionID, handle.TurnID, state.model)
 
 	s.mu.Lock()
 	s.turns[handle.TurnID] = state
@@ -100,18 +107,29 @@ func (s *inMemory) StartTurn(_ context.Context, req StartTurnRequest) (TurnHandl
 	return handle, nil
 }
 
-// newTurnState builds a fresh per-turn state. Cancellation derives from a
-// background ctx so the caller's ctx ending (e.g. the StartTurn RPC
-// returning) doesn't kill the in-flight turn; the same ctx bounds the run
-// and any resume continuation. Shared by StartTurn and Rehydrate so both
-// entry points produce an identically-initialized turn.
-func newTurnState(handle TurnHandle) *turnState {
-	ctx, cancel := context.WithCancel(context.Background())
+// modelOr returns the model name for display / observability, falling
+// back to "default" when the turn didn't pick one.
+func modelOr(model string) string {
+	if model == "" {
+		return "default"
+	}
+	return model
+}
+
+// newTurnState builds a fresh per-turn state. Its lifetime ctx derives
+// from the entry ctx via context.WithoutCancel: the caller's ctx ending
+// (e.g. the StartTurn RPC returning) doesn't kill the in-flight turn —
+// only [Service.Cancel] (st.cancel) does — yet the entry trace span is
+// preserved, so the engine's spans chain onto the same trace. The turn
+// span is layered on in StartTurn / Rehydrate. Shared by both entry
+// points so they produce an identically-initialized turn.
+func newTurnState(ctx context.Context, handle TurnHandle) *turnState {
+	lifeCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	return &turnState{
 		handle:    handle,
 		events:    make(chan Event, 32),
 		cancel:    cancel,
-		ctx:       ctx,
+		ctx:       lifeCtx,
 		startedAt: time.Now(),
 	}
 }
@@ -194,6 +212,7 @@ func (s *inMemory) Cancel(_ context.Context, handle TurnHandle) error {
 	if err != nil {
 		return err
 	}
+	slog.InfoContext(state.ctx, "chat turn cancel requested", attrRunID, handle.TurnID)
 	state.cancel()
 	// proc/parked are written by runTurn/drive on other goroutines; read
 	// under the lock. Claim the parked flag so a racing Resume can't also
@@ -233,6 +252,7 @@ func (s *inMemory) Resume(_ context.Context, handle TurnHandle, approved bool) e
 	state.parked = false
 	s.mu.Unlock()
 
+	slog.InfoContext(state.ctx, "chat turn resumed", attrRunID, handle.TurnID, "approved", approved)
 	return s.resumeAndDrive(state, approved)
 }
 
@@ -304,12 +324,17 @@ func (s *inMemory) ProcessID(_ context.Context, handle TurnHandle) (string, erro
 // [engine.RestoreChat] with a fresh observer + lifecycle listener, then
 // delivers the decision and drives the continuation onto the new turn's
 // event channel. The caller subscribes via [Events] on the returned handle.
-func (s *inMemory) Rehydrate(_ context.Context, req RehydrateRequest) (TurnHandle, error) {
+func (s *inMemory) Rehydrate(ctx context.Context, req RehydrateRequest) (TurnHandle, error) {
 	if req.ProcessID == "" {
 		return TurnHandle{}, errors.New("chat: ProcessID is required")
 	}
 	handle := TurnHandle{SessionID: req.SessionID, TurnID: newTurnID()}
-	state := newTurnState(handle)
+	state := newTurnState(ctx, handle)
+	// A rehydrated turn didn't carry its original model selection (the
+	// continuation runs on the default client — see RestoreChat), so the
+	// span/metrics record the default.
+	state.model = modelOr("")
+	state.ctx, state.span = startTurnSpan(state.ctx, handle.SessionID, handle.TurnID, state.model)
 	observer := &turnObserver{svc: s, st: state}
 	state.lifecycle = &turnLifecycle{}
 

@@ -3,12 +3,22 @@ package engine
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/mcp"
 )
+
+// engineTracer emits the lyra-runtime startup / orchestration spans the
+// lower layers don't (MCP dial). Per-call MCP tool spans come from the
+// mcp module itself. No-op until a TracerProvider is installed.
+var engineTracer = otel.Tracer("lynx/lyra/engine")
 
 // dialMCPServers connects to each configured MCP server, lists tools,
 // and returns the merged tool list alongside the open sessions so the
@@ -21,10 +31,22 @@ import (
 // so the operator sees the problem at startup rather than discovering a
 // tool went missing silently. Already-dialed sessions are closed before
 // returning the error so we don't leak subprocesses or HTTP connections.
-func dialMCPServers(ctx context.Context, servers []mcp.ServerConfig) ([]chat.Tool, []*sdkmcp.ClientSession, error) {
+func dialMCPServers(ctx context.Context, servers []mcp.ServerConfig) (tools []chat.Tool, sessions []*sdkmcp.ClientSession, err error) {
 	if len(servers) == 0 {
 		return nil, nil, nil
 	}
+
+	ctx, span := engineTracer.Start(ctx, "mcp.dial_servers",
+		trace.WithAttributes(attribute.Int("mcp.server.count", len(servers))))
+	// Record on whichever error path returns — startup MCP failures are the
+	// kind an operator most needs to see correlated to the boot trace.
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}()
 
 	// One client identity for every server — none of lyra's MCP
 	// connections need per-server client handlers (sampling /
@@ -33,7 +55,7 @@ func dialMCPServers(ctx context.Context, servers []mcp.ServerConfig) ([]chat.Too
 
 	seenNames := make(map[string]struct{}, len(servers))
 	sources := make([]mcp.Source, 0, len(servers))
-	sessions := make([]*sdkmcp.ClientSession, 0, len(servers))
+	sessions = make([]*sdkmcp.ClientSession, 0, len(servers))
 	closeAll := func() {
 		for _, sess := range sessions {
 			_ = sess.Close()
@@ -47,26 +69,28 @@ func dialMCPServers(ctx context.Context, servers []mcp.ServerConfig) ([]chat.Too
 		}
 		seenNames[srv.Name] = struct{}{}
 
-		session, err := mcp.Dial(ctx, client, srv)
-		if err != nil {
+		session, derr := mcp.Dial(ctx, client, srv)
+		if derr != nil {
 			closeAll()
-			return nil, nil, fmt.Errorf("engine: dial MCP server %q: %w", srv.Name, err)
+			return nil, nil, fmt.Errorf("engine: dial MCP server %q: %w", srv.Name, derr)
 		}
 		sessions = append(sessions, session)
 		sources = append(sources, mcp.Source{Name: srv.Name, Session: session})
+		slog.InfoContext(ctx, "mcp server connected", "mcp.server.name", srv.Name)
 	}
 
-	provider, err := mcp.NewProvider(mcp.ProviderConfig{Sources: sources})
-	if err != nil {
+	provider, perr := mcp.NewProvider(mcp.ProviderConfig{Sources: sources})
+	if perr != nil {
 		closeAll()
-		return nil, nil, fmt.Errorf("engine: build MCP provider: %w", err)
+		return nil, nil, fmt.Errorf("engine: build MCP provider: %w", perr)
 	}
 
-	tools, err := provider.Tools(ctx)
-	if err != nil {
+	tools, terr := provider.Tools(ctx)
+	if terr != nil {
 		closeAll()
-		return nil, nil, fmt.Errorf("engine: list MCP tools: %w", err)
+		return nil, nil, fmt.Errorf("engine: list MCP tools: %w", terr)
 	}
 
+	span.SetAttributes(attribute.Int("mcp.tool.count", len(tools)))
 	return tools, sessions, nil
 }
