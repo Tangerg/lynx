@@ -184,6 +184,7 @@
 | `run.finished{interrupt}` 子 agent 的 `parentRunId`                 | §5.4 / §6        | 现用 root runId；子 agent 独立中断时应为 `ev.runId`。但 fold 只收内层 StreamEvent（信封 runId 已剥离）→ 需 reducer 签名级透传，非快修。子 agent 独立中断目前未必发生 |
 | protocolVersion 协商守卫                                            | §3               | 未校验 server 返回版本 / 未处理 `invalid_protocol_version`。单版本期低危                                                                                             |
 | `ProblemData.retryable/retryAfterSeconds/errors[]` 已类型化但未消费 | §8.3             | 特性债：retry backoff / 字段级表单错误未接                                                                                                                           |
+| **timeline 条目去重**（块去重、timeline 不去重）                    | —（前端自查）    | 块走 upsert 幂等，但 `appendTimelineEntry` 纯 append → 同一 `item.completed` 被重折叠（重连重放 / history-load 竞态）会**重复 timeline 条目**；happy path 不触发，随 eventId 去重一并做。另：`items.list` 只回放 `item.completed`，故重开会话 timeline 只有 end、缺 start（cosmetic）              |
 
 ### 7.3 ⚠️ spec 缺口（建议澄清）
 
