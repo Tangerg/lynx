@@ -47,6 +47,18 @@ export interface MCPServer {
   icon: string;
 }
 
+export interface WorkspaceSkill {
+  name: string;
+  description: string;
+  source: string;
+}
+
+export interface WorkspaceAgentDoc {
+  path: string;
+  title: string;
+  scope: "cwd" | "projectRoot" | "home";
+}
+
 export interface TermLine {
   kind: "prompt" | "cmd" | "out" | "err" | "warn" | "mute" | "ok";
   text: string;
@@ -107,3 +119,5 @@ export const useTerminal = makeDataQuery<TermLine[]>("terminal");
 export const useGrep = makeDataQuery<GrepResult>("grep");
 export const useFileHead = makeDataQuery<FileLine[]>("file-head");
 export const useMCPServers = makeDataQuery<MCPServer[]>("mcp-servers");
+export const useSkills = makeDataQuery<WorkspaceSkill[]>("skills");
+export const useAgentDocs = makeDataQuery<WorkspaceAgentDoc[]>("agent-docs");

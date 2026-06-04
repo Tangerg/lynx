@@ -4,8 +4,10 @@
 // re-exports the plugin specs so the manifest doesn't have to know about
 // the per-view files.
 
+export { agentDocsView } from "./agent-docs";
 export { diffView } from "./diff";
 export { filesView } from "./files";
+export { skillsView } from "./skills";
 export { notificationsView } from "./notifications";
 export { planView } from "./plan";
 export { runSummaryView } from "./run-summary";

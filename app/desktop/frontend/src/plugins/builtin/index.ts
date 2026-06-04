@@ -66,11 +66,13 @@ import { bash, diff, file, grep } from "./chat/tools/previews";
 import topbarNewTab from "./shell/topbar-new-tab";
 import welcomeScreen from "./shell/welcome-screen";
 import {
+  agentDocsView,
   diffView,
   filesView,
   notificationsView,
   planView,
   runSummaryView,
+  skillsView,
   terminalView,
   timelineView,
   toolsView,
@@ -148,6 +150,8 @@ const panes: PluginSpec[] = [
   timelineView,
   runSummaryView,
   toolsView,
+  skillsView,
+  agentDocsView,
   notificationsView,
   diagnostics,
 ];
