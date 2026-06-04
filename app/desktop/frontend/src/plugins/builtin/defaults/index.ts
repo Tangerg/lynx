@@ -20,6 +20,7 @@ import type {
 import { api } from "@/lib/data/http";
 import { RUNTIME_BASE } from "@/main/config";
 import { getContainer } from "@/main/container";
+import { errorType, RpcError } from "@/rpc";
 import { definePlugin } from "@/plugins/sdk";
 import { ACCENT, DATA_PROVIDER, MESSAGE_ROLE } from "@/plugins/sdk/kernelPoints";
 
@@ -83,6 +84,14 @@ const FILE_CHANGE: Record<RpcFileChange["status"], SidebarFileChange["change"]> 
 };
 function toSidebarFileChange(f: RpcFileChange): SidebarFileChange {
   return { path: f.path, change: FILE_CHANGE[f.status], added: 0, removed: 0 };
+}
+
+// Capability-gated workspace reads (skills / agent docs) return
+// capability_not_negotiated when the runtime has the feature off (§9). Treat
+// that as "none" so the view shows its empty state instead of an error toast.
+function emptyIfUngated(err: unknown): never[] {
+  if (err instanceof RpcError && errorType(err.data) === "capability_not_negotiated") return [];
+  throw err;
 }
 
 export { defaultCommands } from "./commands";
@@ -201,7 +210,7 @@ export const defaultData = definePlugin({
     host.extensions.contribute(DATA_PROVIDER, {
       key: "skills",
       fetcher: async () =>
-        (await client().workspace.listSkills()).map((s) => ({
+        (await client().workspace.listSkills().catch(emptyIfUngated)).map((s) => ({
           name: s.name,
           description: s.description ?? "",
           source: s.source ?? "",
@@ -210,7 +219,7 @@ export const defaultData = definePlugin({
     host.extensions.contribute(DATA_PROVIDER, {
       key: "agent-docs",
       fetcher: async () =>
-        (await client().workspace.listAgentDocs()).map((d) => ({
+        (await client().workspace.listAgentDocs().catch(emptyIfUngated)).map((d) => ({
           path: d.path,
           title: d.title ?? "",
           scope: d.scope,
