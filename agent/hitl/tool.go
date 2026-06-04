@@ -28,6 +28,13 @@ func (e *PauseError) Error() string {
 	return fmt.Sprintf("hitl.PauseError: tool requested pause (awaitable %q)", e.Request.ID())
 }
 
+// ToolLoopAbort marks PauseError as a control-flow error the chat tool loop
+// must PROPAGATE (so the action body can park the process), never feed back
+// to the model as a recoverable tool result — even when the loop runs with
+// FeedbackOnToolError enabled. Structurally satisfies the carve-out the
+// [chat] tool invoker checks; see core/model/chat tool loop.
+func (e *PauseError) ToolLoopAbort() bool { return true }
+
 // HandlePause inspects err for a *PauseError. When found, it parks
 // the carried Awaitable on the process via pc.AwaitInput and returns
 // (ActionWaiting, true) — the action body should return that status

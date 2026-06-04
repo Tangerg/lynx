@@ -512,12 +512,22 @@ func (t *translator) finish(outcomeType protocol.RunOutcomeType) []protocol.Stre
 	out = append(out, t.drainTools()...)
 	res := &protocol.RunResult{}
 	if outcomeType == protocol.OutcomeError && t.errMsg != "" {
-		res.Error = &protocol.ProblemData{Type: "internal_error", Detail: t.errMsg}
+		res.Error = internalErrorProblem()
 	}
 	return append(out, protocol.StreamEvent{
 		Type:    protocol.StreamRunFinished,
 		Outcome: &protocol.RunOutcome{Type: outcomeType, Result: res},
 	})
+}
+
+// internalErrorProblem builds the wire ProblemData for a run that failed
+// with an internal error. The detail is a clean, generic message — the full
+// error (with any wrapped Go context) rides the server-side turn span, never
+// the wire (API.md §8.2: detail is a user/agent-readable note, not an
+// implementation call path). After tool failures stopped escalating to run
+// errors (FeedbackOnToolError), this path is genuine engine/infra failure.
+func internalErrorProblem() *protocol.ProblemData {
+	return &protocol.ProblemData{Type: "internal_error", Detail: "the run failed due to an internal error"}
 }
 
 func (t *translator) drainTools() []protocol.StreamEvent {
@@ -553,11 +563,7 @@ func (t *translator) outcome(e chat.TurnEnd) *protocol.RunOutcome {
 	case chat.TurnEndBudgetExceeded:
 		return &protocol.RunOutcome{Type: protocol.OutcomeMaxBudget, Result: res}
 	case chat.TurnEndErrored:
-		detail := t.errMsg
-		if detail == "" {
-			detail = "turn errored"
-		}
-		res.Error = &protocol.ProblemData{Type: "internal_error", Detail: detail}
+		res.Error = internalErrorProblem()
 		return &protocol.RunOutcome{Type: protocol.OutcomeError, Result: res}
 	default:
 		return &protocol.RunOutcome{Type: protocol.OutcomeCompleted, Result: res}

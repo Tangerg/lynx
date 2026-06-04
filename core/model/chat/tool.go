@@ -404,6 +404,12 @@ type toolCallInvoker struct {
 	// produce an error result fed back to the model (so it can pick a real
 	// tool) instead of aborting the whole request.
 	feedbackOnUnknown bool
+
+	// feedbackOnError, when set, turns a tool execution failure into an
+	// error result fed back to the model (so it can adjust and continue)
+	// instead of aborting the whole request. Sibling of feedbackOnUnknown
+	// for execution errors.
+	feedbackOnError bool
 }
 
 // newToolCallInvoker pairs an invoker with its registry.
@@ -445,6 +451,30 @@ func unknownToolResult(name string, available []string) string {
 	return fmt.Sprintf("error: tool %q is not available. Available tools: %s", name, strings.Join(sorted, ", "))
 }
 
+// toolErrorResult is the synthetic tool result fed back to the model when a
+// tool execution fails (feedbackOnError path), so the model sees the failure
+// and can adjust instead of the whole request aborting. The error string is
+// the tool's own (already wrapped by the tool); the invoker does not add its
+// internal call path.
+func toolErrorResult(name string, err error) string {
+	return fmt.Sprintf("error: tool %q failed: %s", name, err.Error())
+}
+
+// abortsToolLoop reports whether a tool error must PROPAGATE (abort the
+// loop) even under FeedbackOnToolError, instead of being fed back to the
+// model as a recoverable result. Two carve-outs from "feed back": context
+// cancellation (the run is being torn down) and control-flow errors that
+// implement ToolLoopAbort() bool returning true — HITL suspension
+// (agent/hitl.PauseError) rides this so a parked tool reaches the caller
+// intact rather than being masked as a failed tool result.
+func abortsToolLoop(err error) bool {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var ab interface{ ToolLoopAbort() bool }
+	return errors.As(err, &ab) && ab.ToolLoopAbort()
+}
+
 // invokeToolCalls runs every requested tool in order and collects the
 // results into a single [*ToolMessage]. One child span per tool call
 // is emitted under the parent chat span, tagged with `lynx.tool.*`
@@ -471,7 +501,21 @@ func (i *toolCallInvoker) invokeToolCalls(ctx context.Context, calls []*ToolCall
 
 		result, err := i.invokeOne(ctx, t, call)
 		if err != nil {
-			return nil, fmt.Errorf("chat.toolCallInvoker.invokeToolCalls: tool %q failed: %w", call.Name, err)
+			if !i.feedbackOnError || abortsToolLoop(err) {
+				return nil, fmt.Errorf("chat.toolCallInvoker.invokeToolCalls: tool %q failed: %w", call.Name, err)
+			}
+			// Feed the failure back to the model as the tool's result so it
+			// can adjust and continue, rather than aborting the run. The
+			// failure is already recorded out-of-band on the tool-call item
+			// (via the tool observer) — see lyra engine. Control-flow errors
+			// (HITL pause, cancellation) take the propagate path above.
+			allReturnDirect = false
+			returns = append(returns, &ToolReturn{
+				ID:     call.ID,
+				Name:   call.Name,
+				Result: toolErrorResult(call.Name, err),
+			})
+			continue
 		}
 
 		allReturnDirect = allReturnDirect && t.Metadata().ReturnDirect
@@ -576,6 +620,15 @@ func (s *ToolSupport) Registry() *ToolRegistry { return s.registry }
 // default is off, preserving the strict "unknown tool is an error" behavior.
 func (s *ToolSupport) SetFeedbackOnUnknownTool(enabled bool) {
 	s.invoker.feedbackOnUnknown = enabled
+}
+
+// SetFeedbackOnToolError toggles tool-execution-error tolerance. When
+// enabled, a tool whose Call returns an error yields an error result fed
+// back to the model (so it can adjust and continue) instead of aborting the
+// whole request. The default is off, preserving the strict "tool error
+// aborts" behavior.
+func (s *ToolSupport) SetFeedbackOnToolError(enabled bool) {
+	s.invoker.feedbackOnError = enabled
 }
 
 // Register is a shorthand for [ToolRegistry.Register].
