@@ -76,8 +76,8 @@
 `ownedKeySlot / ownedSpecSlot / multiSlot` 三个工厂，改成**按 point 动态实例化**。
 
 > 一个额外简化：layout/events 的"按 slot 名/事件名分发"**不需要单独的 indexed 概念** ——
-> 让 **slot 名/事件名本身就是 point id** 即可：`contribute("layout:app.sidebar", c)` / `lookup("agui:core:RUN_STARTED")`。
-> 于是 `<Slot name>` = `useExtensionPoint("layout:"+name)`，reducer = `lookup("agui:core:"+type)`。机制收敛为「单 map + single|multi + 排序」。
+> 让 **slot 名/事件名本身就是 point id** 即可：`contribute("layout:app.sidebar", c)` / `lookup("events:run.started")`。
+> 于是 `<Slot name>` = `useExtensionPoint("layout:"+name)`，reducer = `lookup("events:"+type)`。机制收敛为「单 map + single|multi + 排序」。
 
 ---
 
@@ -146,7 +146,7 @@ export const COMMAND      = defineExtensionPoint<CommandSpec>({ id: "lyra.comman
 export const WORKSPACE_VIEW = defineExtensionPoint<WorkspaceViewSpec>({ id: "lyra.workspace.view", keying: "single" });
 export const TOOL_PREVIEW = defineExtensionPoint<...>({ id: "lyra.tool.preview", keying: "single", keyOf: x => x.fn });
 export const SHORTCUT     = defineExtensionPoint<ShortcutSpec>({ id: "lyra.shortcut", keying: "single", keyOf: s => s.key, normalizeKey: normalizeCombo });
-export const CORE_EVENT   = (type: string) => defineExtensionPoint<...>({ id: `agui:core:${type}`, keying: "multi" });
+export const STREAM_EVENT = (type: string) => defineExtensionPoint<...>({ id: `events:${type}`, keying: "multi" });
 export const LAYOUT_SLOT  = (slot: string) => defineExtensionPoint<LayoutSlotSpec>({ id: `layout:${slot}`, keying: "multi" });
 // …其余 ~35 个
 ```
