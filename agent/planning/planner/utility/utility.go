@@ -110,19 +110,19 @@ func planUtility(
 	}
 	_, span := plannerTracer.Start(ctx, name+".plan",
 		trace.WithAttributes(
-			attribute.String("lynx.agent.planner", name),
-			attribute.String("lynx.agent.goal.name", goal.Name),
+			attribute.String("agent.planner", name),
+			attribute.String("agent.goal.name", goal.Name),
 		),
 	)
 	defer func() {
 		if result != nil {
-			span.SetAttributes(attribute.Int("lynx.agent.plan.length", len(result.Actions)))
+			span.SetAttributes(attribute.Int("agent.plan.length", len(result.Actions)))
 		}
 		span.End()
 	}()
 
 	first := topApplicable(start, system.Actions, options.ExcludedActions)
-	span.SetAttributes(attribute.Bool("lynx.agent.actions.any_applicable", first != nil))
+	span.SetAttributes(attribute.Bool("agent.actions.any_applicable", first != nil))
 
 	if IsNirvana(goal) {
 		if first == nil {

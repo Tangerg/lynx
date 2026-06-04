@@ -15,10 +15,10 @@ import (
 
 // Tracing attribute / span keys local to action execution.
 const (
-	spanAction         = "lynx.agent.action"
-	attrActionName     = "lynx.agent.action.name"
-	attrActionStatus   = "lynx.agent.action.status"
-	attrActionAttempts = "lynx.agent.action.attempts"
+	spanAction         = "agent.action"
+	attrActionName     = "agent.action.name"
+	attrActionStatus   = "agent.action.status"
+	attrActionAttempts = "agent.action.attempts"
 )
 
 // executeAction runs a single Action with retry, panic recovery, and

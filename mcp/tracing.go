@@ -9,8 +9,6 @@ import (
 // see doc/OBSERVABILITY.md §5.
 var mcpTracer = otel.Tracer("lynx/mcp")
 
-// Lynx MCP attribute keys per doc/OBSERVABILITY.md §3.3.
-const (
-	attrLynxMCPTool    = "lynx.tool.name"
-	attrLynxMCPIsError = "lynx.mcp.tool.is_error"
-)
+// MCP tool attribute key (GenAI semconv). Tool failures surface through
+// the span status (Error) + RecordError, not a separate bool attribute.
+const attrLynxMCPTool = "gen_ai.tool.name"

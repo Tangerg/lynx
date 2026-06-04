@@ -19,12 +19,12 @@ import (
 const (
 	meterName = "lynx/agent"
 
-	metricTicks      = "lynx.agent.ticks"
-	metricActions    = "lynx.agent.action.executions"
-	metricActionDur  = "lynx.agent.action.duration"
-	metricPlanDur    = "lynx.agent.plan.duration"
-	metricRunExits   = "lynx.agent.process.exits"
-	attrProcessState = "lynx.agent.process.status"
+	metricTicks      = "agent.ticks"
+	metricActions    = "agent.action.executions"
+	metricActionDur  = "agent.action.duration"
+	metricPlanDur    = "agent.plan.duration"
+	metricRunExits   = "agent.process.exits"
+	attrProcessState = "agent.process.status"
 )
 
 // agentMetrics holds the lazily-created instruments. Built once via

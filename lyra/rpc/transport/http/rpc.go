@@ -118,13 +118,13 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 	data, err := transport.EncodeMessage(res.Response)
 	if err != nil {
 		recordError(r.Context(), "rpc.encode-response", err,
-			attribute.String("lynx.lyra.method", methodLabel),
+			attribute.String("rpc.method", methodLabel),
 		)
 		return
 	}
 	if _, err := w.Write(data); err != nil {
 		recordError(r.Context(), "rpc.write-response", err,
-			attribute.String("lynx.lyra.method", methodLabel),
+			attribute.String("rpc.method", methodLabel),
 		)
 	}
 }

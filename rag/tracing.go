@@ -19,9 +19,9 @@ var ragTracer = otel.Tracer("lynx/rag")
 // registry today, so these live under `lynx.rag.*` per
 // doc/OBSERVABILITY.md §3.3.
 const (
-	attrLynxRAGStage      = "lynx.rag.stage"
-	attrLynxRAGQueryCount = "lynx.rag.query_count"
-	attrLynxRAGDocCount   = "lynx.rag.doc_count"
+	attrLynxRAGStage      = "rag.stage"
+	attrLynxRAGQueryCount = "rag.query_count"
+	attrLynxRAGDocCount   = "rag.doc_count"
 )
 
 // startStageSpan opens a child span for one RAG pipeline stage. The

@@ -34,7 +34,7 @@ const (
 	// lynx.embeddings.input.count is the lynx-specific extension that
 	// records the batch size (number of texts). No GenAI attribute
 	// covers this today.
-	attrEmbedInputCount = "lynx.embeddings.input.count"
+	attrEmbedInputCount = "embeddings.input.count"
 )
 
 // startEmbeddingSpan opens one span for an embedding call following

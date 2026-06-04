@@ -50,10 +50,10 @@ func TestMetrics_RecordedDuringRun(t *testing.T) {
 
 	seen := collectedMetricNames(rm)
 	for _, want := range []string{
-		"lynx.agent.ticks",
-		"lynx.agent.action.executions",
-		"lynx.agent.plan.duration",
-		"lynx.agent.process.exits",
+		"agent.ticks",
+		"agent.action.executions",
+		"agent.plan.duration",
+		"agent.process.exits",
 	} {
 		if !seen[want] {
 			t.Errorf("metric %q not recorded; saw %v", want, seen)

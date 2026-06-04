@@ -19,7 +19,7 @@ const (
 	attrDBOperationName           = "db.operation.name"
 	attrDBVectorTopK              = "db.vector.query.top_k"
 	attrDBVectorSimilarityMinimum = "db.vector.query.similarity_threshold"
-	attrLynxRAGDocCount           = "lynx.rag.doc_count"
+	attrLynxRAGDocCount           = "rag.doc_count"
 )
 
 // tracerFor returns the per-provider tracer. Tracer names follow
