@@ -11,6 +11,7 @@
 import { CLIENT_INFO, PROTOCOL_VERSION } from "@/main/config";
 import { getContainer } from "@/main/container";
 import { definePlugin } from "@/plugins/sdk";
+import { getConfig } from "@/plugins/sdk/config";
 import type { ClientCapabilities } from "@/rpc";
 import { useRuntimeStore } from "@/state/runtimeStore";
 
@@ -49,12 +50,38 @@ async function handshake(): Promise<void> {
   useRuntimeStore.getState().setHandshake(result);
 }
 
+// Install the OTel triad once, early + always-on (mirror of the backend's
+// setupObservability at process start). Heavy SDK is behind the dynamic
+// import so it stays off the first-paint path; setup degrades to no-op
+// providers if it fails. OTLP export is opt-in via the `otel.endpoint`
+// config key (the production swap); unset → local Diagnostics sink only.
+async function initObservability(): Promise<() => Promise<void>> {
+  const { setupObservability, teardownObservability } = await import("@/lib/observability/setup");
+  await setupObservability({
+    serviceName: "lyra-frontend",
+    serviceVersion: CLIENT_INFO.version,
+    otlpEndpoint: getConfig<string>("otel.endpoint") ?? undefined,
+  });
+  return teardownObservability;
+}
+
 export default definePlugin({
   name: "lyra.builtin.bootstrap",
   version: "1.0.0",
   setup() {
+    let teardown: (() => Promise<void>) | null = null;
+    void initObservability()
+      .then((fn) => {
+        teardown = fn;
+      })
+      .catch((err: unknown) => {
+        console.warn("[bootstrap] observability init failed; running without telemetry:", err);
+      });
     void handshake().catch((err: unknown) => {
       console.warn("[bootstrap] runtime.initialize failed; running degraded:", err);
     });
+    return () => {
+      void teardown?.();
+    };
   },
 });

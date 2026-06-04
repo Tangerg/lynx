@@ -2,6 +2,7 @@ import type { AgentDriver } from "@/plugins/sdk";
 import type { InterruptResponse, RunEvent, RunId, StreamingResult } from "@/rpc";
 import { useEffect, useRef } from "react";
 import { asSessionId, errorDetail, errorType, RpcError } from "@/rpc";
+import { endSpan, startRunSpan, withSpan } from "@/lib/observability/tracing";
 import { getContainer } from "@/main/container";
 import { useAgentStore } from "./agentStore";
 import { useSessionStore } from "./sessionStore";
@@ -93,16 +94,25 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       onResult?: (result: { runId: RunId; userItemId?: string }) => void,
     ): void => {
       abort?.abort(); // a new run supersedes any in-flight one
-      abort = new AbortController();
-      void run(abort.signal)
+      const ctrl = new AbortController();
+      abort = ctrl;
+      // One coarse span for the whole run. `withSpan` makes it the active
+      // context for the SYNCHRONOUS dispatch into transport.send, so the rpc
+      // CLIENT span nests under it and the injected traceparent links the
+      // backend trace to this run.
+      const span = startRunSpan({ "lyra.session_id": sessionId });
+      let failure: unknown;
+      void withSpan(span, () => run(ctrl.signal))
         .then((stream) => {
           // Runs before pump() iterates events (the response resolves ahead of
           // the buffered stream frames), so a userItemId relabel lands before
           // the streamed userMessage Item is folded.
           if (!cancelled) onResult?.(stream.result);
+          span.setAttribute("lyra.run_id", stream.result.runId);
           return pump(stream);
         })
         .catch((err: unknown) => {
+          failure = err;
           if (cancelled) return;
           console.error("[agent] run failed to start:", sessionId, err);
           // Channel-a failure (API.md §8.1): the call rejected, so no stream
@@ -113,7 +123,8 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
               message: errorDetail(err.data) ?? err.message,
               code: errorType(err.data),
             });
-        });
+        })
+        .finally(() => endSpan(span, failure));
     };
 
     const send = (text: string): void => {
