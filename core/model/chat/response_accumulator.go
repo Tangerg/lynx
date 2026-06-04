@@ -110,6 +110,14 @@ type partAccumulator struct {
 }
 
 // add applies one part delta. Nil deltas are ignored.
+//
+// A new logical part is adopted as a clone, never the caller's delta:
+// later same-type deltas merge in-place into the running part, and we
+// must not mutate a part the caller still holds. This is load-bearing
+// when one chunk stream feeds two accumulators (e.g. the tool-loop and
+// memory stream middlewares) — without the clone the inner accumulator's
+// in-place merge would corrupt the part the outer one accumulates,
+// double-counting every delta.
 func (a *partAccumulator) add(delta OutputPart) {
 	if delta == nil {
 		return
@@ -117,7 +125,7 @@ func (a *partAccumulator) add(delta OutputPart) {
 	if n := len(a.parts); n > 0 && a.parts[n-1].appendDelta(delta) {
 		return
 	}
-	a.parts = append(a.parts, delta)
+	a.parts = append(a.parts, delta.clone())
 }
 
 // addAll is the batch form of [partAccumulator.add].
