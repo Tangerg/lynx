@@ -65,7 +65,11 @@ const (
 // mapping for ListTools metadata; keep the shared rows in sync.
 func safetyClassFor(name string) safetyClass {
 	switch name {
-	case "read", "grep", "glob":
+	case "read", "grep", "glob", "ask_user":
+		// ask_user has no side effect — it IS a HITL interrupt itself (the
+		// model asking the user a question), so it must never be approval-
+		// gated on top: that would double-prompt. Its own interrupt handles
+		// the human interaction.
 		return safetyClassSafe
 	case "write", "edit":
 		return safetyClassWrite
