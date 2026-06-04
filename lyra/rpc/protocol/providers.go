@@ -31,12 +31,15 @@ type Provider struct {
 	APIKeyMasked string `json:"apiKeyMasked"` // "" = unconfigured; e.g. "sk-…fc78"
 }
 
-// ConfigureProviderRequest — providers.configure body.
+// ConfigureProviderRequest — providers.configure body. Provider is the
+// provider id (Provider.id), e.g. "deepseek" — a meaningful slug, named to
+// match the `provider` reference field elsewhere (Model.provider,
+// runs.start), not "providerId".
 type ConfigureProviderRequest struct {
-	ProviderID string `json:"providerId"`
-	Type       string `json:"type,omitempty"`
-	BaseURL    string `json:"baseUrl,omitempty"`
-	APIKey     string `json:"apiKey,omitempty"`
+	Provider string `json:"provider"`
+	Type     string `json:"type,omitempty"`
+	BaseURL  string `json:"baseUrl,omitempty"`
+	APIKey   string `json:"apiKey,omitempty"`
 }
 
 // ProviderTestResult — providers.test result.

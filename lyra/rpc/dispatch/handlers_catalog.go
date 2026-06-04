@@ -19,15 +19,15 @@ func (d *Dispatcher) handleProvidersConfigure(ctx context.Context, msg *transpor
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	if in.ProviderID == "" {
-		return responseError(msg.ID, invalidParams("providerId is required"))
+	if in.Provider == "" {
+		return responseError(msg.ID, invalidParams("provider is required"))
 	}
 	out, err := d.api.ConfigureProvider(ctx, in)
 	return reply(msg, out, err)
 }
 
 func (d *Dispatcher) handleProvidersTest(ctx context.Context, msg *transport.Request) HandleResult {
-	id, err := decodeStringParam(msg.Params, "providerId")
+	id, err := decodeStringParam(msg.Params, "provider")
 	if err != nil {
 		return responseError(msg.ID, invalidParams(err.Error()))
 	}
@@ -36,8 +36,8 @@ func (d *Dispatcher) handleProvidersTest(ctx context.Context, msg *transport.Req
 }
 
 func (d *Dispatcher) handleModelsList(ctx context.Context, msg *transport.Request) HandleResult {
-	providerID, _ := decodeStringParam(msg.Params, "providerId") // optional
-	out, err := d.api.ListModels(ctx, providerID)
+	provider, _ := decodeStringParam(msg.Params, "provider") // optional
+	out, err := d.api.ListModels(ctx, provider)
 	return reply(msg, out, err)
 }
 

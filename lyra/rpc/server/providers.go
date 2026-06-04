@@ -50,17 +50,17 @@ func providerToWire(id string, entry provider.Provider) protocol.Provider {
 // the registry and returns the masked result (API.md §7.6). The provider
 // must be one Lyra supports.
 func (i *Server) ConfigureProvider(ctx context.Context, in protocol.ConfigureProviderRequest) (*protocol.Provider, error) {
-	if !isSupportedProvider(in.ProviderID) {
+	if !isSupportedProvider(in.Provider) {
 		return nil, protocol.ErrInvalidParams
 	}
 	if err := i.rt.Providers().Configure(ctx, provider.Provider{
-		ID:      in.ProviderID,
+		ID:      in.Provider,
 		APIKey:  in.APIKey,
 		BaseURL: in.BaseURL,
 	}); err != nil {
 		return nil, err
 	}
-	entry, _, err := i.rt.Providers().Get(ctx, in.ProviderID)
+	entry, _, err := i.rt.Providers().Get(ctx, in.Provider)
 	if err != nil {
 		return nil, err
 	}
