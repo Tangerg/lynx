@@ -8,6 +8,30 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 )
 
+// SpawnChild creates and runs a child sub-agent under the parent process
+// attached to ctx via [core.WithProcess]. The child inherits the FULL
+// parent blackboard via [core.Blackboard.Spawn] (CreateChildProcess's
+// default), so every artifact the parent has staged is visible to it.
+//
+// This is the widest-inheritance spawn — the top of the gradient
+// [SpawnChild] (everything) → [SpawnChildProtectedOnly] (ambient only) →
+// [SpawnChildFresh] (nothing). Use it for supervisor flows where the
+// sub-agent genuinely needs to read the parent's accumulated state. Beware
+// the trade-off: a sub-agent with a [GoalProducing] goal whose type the
+// parent already staged finds its goal pre-satisfied and runs no action —
+// for self-contained delegation prefer [SpawnChildProtectedOnly].
+//
+// Same steps / error contract / budget aggregation as
+// [SpawnChildProtectedOnly]; only the inherited blackboard state differs.
+func SpawnChild(
+	ctx context.Context,
+	platform *Platform,
+	agentDef *core.Agent,
+	in any,
+) (*AgentProcess, error) {
+	return spawnChildOptions(ctx, platform, agentDef, in, core.ProcessOptions{})
+}
+
 // SpawnChildProtectedOnly creates and runs a child sub-agent process under
 // the parent attached to ctx via [core.WithProcess]. The child gets a FRESH
 // blackboard that retains ONLY the parent's protected entries — those bound
@@ -201,7 +225,7 @@ func ChildError(child *AgentProcess) error {
 // creates the child (joining the parent's budget tree, with the given
 // blackboard options), and binds the typed input — returning a child
 // ready to be driven. The caller picks how: synchronously via
-// [Platform.ContinueProcess] ([SpawnChildProtectedOnly] /
+// [Platform.ContinueProcess] ([SpawnChild] / [SpawnChildProtectedOnly] /
 // [SpawnChildFresh]) or in the background via
 // [Platform.ContinueProcessAsync] ([SpawnChildAsync]).
 // Centralizing the prefix keeps validation and error messages identical
@@ -238,7 +262,7 @@ func prepareChild(
 	return child, nil
 }
 
-// spawnChildOptions is the synchronous shared core of
+// spawnChildOptions is the synchronous shared core of [SpawnChild],
 // [SpawnChildProtectedOnly] and [SpawnChildFresh] — prepare the child,
 // then drive it to a terminal state in-line. They differ only in the
 // ProcessOptions.Blackboard slot they pass through.
