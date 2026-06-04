@@ -71,7 +71,11 @@ export function reportPluginError(
   detail?: string,
 ): void {
   const message = err instanceof Error ? err.message : String(err);
-  usePluginErrorStore.getState().push({ plugin, source, message, detail });
+  // Default `detail` to the error's stack so setup / event / command
+  // failures are inspectable in the settings UI — not just render errors,
+  // which pass a component stack as `detail` explicitly.
+  const trace = detail ?? (err instanceof Error ? err.stack : undefined);
+  usePluginErrorStore.getState().push({ plugin, source, message, detail: trace });
 }
 
 // Run `fn` in a try/catch and log to console with a tag on failure. Used
