@@ -3,7 +3,7 @@
 > **日期**：2026-06-05
 > **被测后端**：Lyra Runtime（`23ef1a0`，运行中），`http://127.0.0.1:17171`，streamable HTTP，`protocolVersion 2026-06-03`。
 > **前端**：本仓库 frontend（HEAD）。
-> 本文记：① 上轮问题的活体闭环；② 本轮 e2e 探针**新发现**的后端坑；③ 工具参数约定的状态。
+> 本文记：① 上轮问题的活体闭环；② 本轮 e2e 探针**新发现**的后端坑；③ **新工具调用契约已定稿**（API.md）+ lockstep 实施清单。
 > 契约以 [`API.md`](./API.md) / [`TRANSPORT.md`](./TRANSPORT.md) 为准。
 
 ---
@@ -72,12 +72,42 @@ E1 里的 `detail` 是 `chat.toolCallInvoker.invokeToolCalls: tool "glob" failed
 
 ---
 
-## 2. 工具参数约定（§2）状态：不变，等契约入 API.md
+## 2. 工具调用契约：已钉进 API.md（lockstep 实施清单）
 
-上轮的 A/B/C/D/E 提案后端已**逐条同意**，按 lockstep 流程：**下一步是把 per-kind `ToolInvocation`（身份/args/result）+ approval payload 钉进 `API.md §4.4/§6`**，再前后端同步改 wire、前端删容错解析。本轮**无新进展**，按上轮约定 park 在此步。
+约定不再 park——**新的工具调用契约已定稿写进 `API.md`**（§4.4 / §4.5 / §4.8 / §6.1），请后端按它改 wire，前端同步切换并删容错解析。设计原则是**通用 + 特殊**（按"变体集合开 / 闭"取舍，参考 OpenAI Codex app-server），不是一刀切统一。
 
-> 注：本轮 E1 的 toolCall 形状 `{"kind":"search","name":"glob"}` 再次印证 §2A（身份 = `{kind,name}`）方向正确。
+### 2.1 `ToolInvocation`（§4.4）——五个变体
+
+```ts
+type ToolInvocation =
+  // 特殊：闭集 + 结构丰富 → 强类型（kind 即身份，无冗余 name）
+  | { kind: "commandExecution"; command: string[]; cwd?; exitCode?; durationMs? }
+  | { kind: "fileChange";       changes: FileChangeEntry[] }            // {path, kind:add|modify|delete|rename, diff?}
+  | { kind: "search";           query: string; results?: SearchHit[] }        // 本地 grep/glob：{path, lineNumber?, snippet?}
+  | { kind: "webSearch";        query: string; results?: WebSearchResult[] }  // 网络：{title?, url, snippet?, faviconUrl?}
+  // 通用：开集 / 不可枚举 → 一个信封兜底（MCP / 动态 / 子 agent / 自定义）
+  | { kind: "tool";             name: string; arguments: Record<string, unknown>; result?: unknown };
+```
+
+后端实施要点：
+- **不再有 `kind`↔`name` 双重身份**：命令用 `command` argv、通用用 `name`，没有工具同时带两者（这是上轮 W1 漂移的根）。
+- **`arguments` 永远是已解析 JSON 对象**，完成项 / 审批 payload **绝不回传 JSON 字符串**（消除双重转义）；流式仍走 `toolArguments` 文本增量。
+- **`result` 是 best-effort JSON**：首选对象，允许任意 JSON 值，**绝不双重编码**；命令 stdout 走 `toolOutput` 流式，`exitCode`/`durationMs` 完成时落定。
+- **bash → `commandExecution`、grep/glob → `search`、web → `webSearch`、MCP/子agent → `tool`**（不再发 `{kind:"command",name:"bash"}` / `{kind:"search",name:"glob"}` 这类）。
+
+### 2.2 HITL payload（§4.8 / §6.1）
+
+- `Interrupt` 改为按 kind 的判别联合；**approval / toolResult 的 payload 复用 `ToolInvocation`**（`payload.tool`）——审批不再猜 command 在哪 / 处理字符串转义。question 无 payload（内容在 question Item 上）。
+- `ToolResultResponse` 由 `output: string` 改为 `result?: unknown + error?`，与 `ToolInvocation.result` 同形。
+
+### 2.3 工具级 error type（§8.4，澄清）
+
+`toolCall.error.type` 的 first-party 取值（通道 b、无数字码）已在 §8.4 明确：`tool_failed` / `denied_by_user` / `timeout` 等；
+注意与 §8.2 的 `tool_denied`（**策略**拒绝 `tools.invoke`，RPC 级 `-32012`）区分——`denied_by_user` 是**用户** HITL 拒绝（item 级，无码）。
+
+> 落地节奏建议：**后端先按 §4.4 发新 wire**（先 `commandExecution` + `tool` 覆盖最常见路径，再 fileChange/search/webSearch），前端随后 lockstep 切 `switch(kind)` + 删 `parseArgs` 容错。中间态别混用新旧。
 
 ---
 
-> 优先级建议：**E1 最高**（违反 §8.1、且会让任何一次工具失败直接终结对话），E2 次之（同处一改），E3 需语义确认，E4/E5 轻微。
+> 本轮 e2e 坑优先级：**E1 最高**（违反 §8.1、任何工具失败都会终结对话），E2 次之（同处一改），E3 需语义确认，E4/E5 轻微。
+> 工具契约见上 §2 + `API.md`（§3.1 新增「一次 run 端到端走查」可作总览入口）。
