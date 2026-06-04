@@ -74,6 +74,34 @@ func TestLocalExecutor_Run_Timeout(t *testing.T) {
 	}
 }
 
+func TestLocalExecutor_Run_Dir(t *testing.T) {
+	skipWithoutShell(t)
+	dir := t.TempDir()
+	exec := NewLocalExecutor()
+	exec.Dir = dir
+	out, err := exec.Run(t.Context(), Input{Cmd: "pwd"})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	// macOS symlinks /var → /private/var, so compare resolved suffixes.
+	got := strings.TrimSpace(string(out.Stdout))
+	if !strings.HasSuffix(got, strings.TrimPrefix(dir, "/private")) && got != dir {
+		t.Errorf("pwd = %q, want it to run in Dir %q", got, dir)
+	}
+}
+
+func TestLocalExecutor_Run_EmptyDirInheritsCwd(t *testing.T) {
+	skipWithoutShell(t)
+	// Dir left empty: command runs in the test process's cwd, not panic.
+	out, err := NewLocalExecutor().Run(t.Context(), Input{Cmd: "pwd"})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if strings.TrimSpace(string(out.Stdout)) == "" {
+		t.Error("pwd produced no output with empty Dir")
+	}
+}
+
 func TestLocalExecutor_Run_EmptyCommand(t *testing.T) {
 	_, err := NewLocalExecutor().Run(t.Context(), Input{Cmd: ""})
 	if !errors.Is(err, ErrEmptyCommand) {

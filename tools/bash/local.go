@@ -22,6 +22,14 @@ type LocalExecutor struct {
 	// Shell is the interpreter; defaults to "/bin/sh".
 	Shell string
 
+	// Dir is the working directory commands run in. "" inherits the
+	// host process's cwd (os/exec's default). Set it to confine a
+	// command's relative-path resolution to a project root — the bash
+	// analog of [fs.LocalExecutor.Root]. It does NOT jail the command
+	// (a command can still cd / touch absolute paths); jailing is the
+	// caller's job via OS sandbox / container.
+	Dir string
+
 	// MaxOutputBytes caps the captured size of each stream (stdout
 	// and stderr independently). 0 = use [defaultMaxOutputBytes].
 	// Bytes beyond the cap are dropped and a "[N bytes truncated]"
@@ -52,6 +60,7 @@ func (l *LocalExecutor) Run(ctx context.Context, in Input) (Output, error) {
 	}
 
 	cmd := exec.CommandContext(runCtx, cmp.Or(l.Shell, "/bin/sh"), "-c", in.Cmd)
+	cmd.Dir = l.Dir // "" leaves exec to inherit the host process cwd
 
 	stdout := newBoundedBuffer(l.maxOutput())
 	stderr := newBoundedBuffer(l.maxOutput())
