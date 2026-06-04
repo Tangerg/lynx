@@ -360,7 +360,7 @@ type DiffRow =
   | { type: "deleted"; leftLine: number; code: string };
 
 interface SearchHit       { path: string; lineNumber?: number; snippet?: string }   // 本地搜索命中：grep=path+line+snippet；glob=仅 path
-interface WebSearchResult { title?: string; url: string; snippet?: string }         // 网络检索结果
+interface WebSearchResult { title?: string; url: string; snippet?: string; faviconUrl?: string }   // 网络检索结果；faviconUrl = 站点图标（可选）
 
 interface FileChange { path: string; status: "added" | "modified" | "deleted" | "renamed" | "untracked" }
 interface FileHead   { path: string; lines: FileLine[] }
