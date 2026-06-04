@@ -113,12 +113,23 @@ func agentDocScope(path, cwd, home string) string {
 	}
 }
 
+// WorkspaceMCPListServers lists the MCP servers dialed at startup. They
+// are all "connected" — a dial failure fails runtime construction, so a
+// running server only knows connected ones (API.md §7.5).
 func (i *Server) WorkspaceMCPListServers(_ context.Context) ([]protocol.McpServer, error) {
-	return []protocol.McpServer{}, nil
+	names := i.rt.MCPServerNames()
+	out := make([]protocol.McpServer, 0, len(names))
+	for _, n := range names {
+		out = append(out, protocol.McpServer{Name: n, Status: "connected"})
+	}
+	return out, nil
 }
 
+// WorkspaceMCPListTools — per-server MCP tool enumeration isn't wired
+// yet (MCP tools merge into the engine's flat tool set, surfaced via
+// tools.list; segmenting them by server needs an engine accessor).
 func (i *Server) WorkspaceMCPListTools(_ context.Context, _ protocol.MCPListToolsRequest) ([]protocol.McpTool, error) {
-	return []protocol.McpTool{}, nil
+	return nil, notImpl("workspace.mcp.listTools")
 }
 
 func (i *Server) WorkspaceMCPReconnect(_ context.Context, _ string) error {

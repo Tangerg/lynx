@@ -8,11 +8,20 @@ import (
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
-// ListProviders — provider registry isn't part of the engine yet
-// (chat.Client is a single configured provider via env / config.yaml).
-// Empty list so the frontend renders an empty state, not an error.
+// ListProviders surfaces the single configured LLM provider (Lyra talks
+// to one provider via config.yaml / env — there is no registry to add to
+// yet, hence providers.configure stays notImpl). apiKeyMasked is
+// display-safe (API.md §4.9 / §7.6).
 func (i *Server) ListProviders(_ context.Context) ([]protocol.Provider, error) {
-	return []protocol.Provider{}, nil
+	provider, _, masked := i.rt.ProviderInfo()
+	if provider == "" {
+		return []protocol.Provider{}, nil
+	}
+	return []protocol.Provider{{
+		ID:           provider,
+		Type:         provider,
+		APIKeyMasked: masked,
+	}}, nil
 }
 
 // ConfigureProvider — no provider registry to write into yet.
@@ -25,9 +34,14 @@ func (i *Server) TestProvider(_ context.Context, _ string) (*protocol.ProviderTe
 	return nil, notImpl("providers.test")
 }
 
-// ListModels — model catalog isn't enumerated from the engine yet.
+// ListModels surfaces the configured default model (no provider model
+// catalog is enumerated yet; the provider filter is ignored). API.md §7.6.
 func (i *Server) ListModels(_ context.Context, _ string) ([]protocol.Model, error) {
-	return []protocol.Model{}, nil
+	provider, model, _ := i.rt.ProviderInfo()
+	if model == "" {
+		return []protocol.Model{}, nil
+	}
+	return []protocol.Model{{ID: model, Provider: provider}}, nil
 }
 
 // ListTools surfaces every tool the engine registered — built-in coding
