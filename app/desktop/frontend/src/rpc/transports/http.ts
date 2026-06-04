@@ -9,8 +9,10 @@
 // NOT the native `EventSource`. EventSource is GET-only and can't set request
 // headers, which forced the connection id into a `?conn=` query and left the
 // reconnect behaviour opaque. The fetch reader sends `X-Conn-Id`
-// (+ Authorization + Last-Event-Id) as real headers — identical to the POST
-// path — and gives full control over parsing + reconnect.
+// (+ Authorization) as real headers — identical to the POST path — and gives
+// full control over reconnect. SSE wire framing (chunk-boundary buffering,
+// multi-line `data:`, `id:`/comments) is delegated to `eventsource-parser`,
+// the de-facto standard parser.
 //
 // HTTP status mapping (docs/TRANSPORT.md §6.3):
 //   200         → JSON-RPC Response in body (may carry business error)
@@ -18,6 +20,7 @@
 //   400/404     → transport-layer failure (400 covers url/body method mismatch)
 //   401/500/503 → flat JSON — surfaced as RpcTransportError
 
+import { createParser } from "eventsource-parser";
 import { createPushPullChannel } from "../channel";
 import { RpcTransportError } from "../errors";
 import type { Transport } from "../transport";
@@ -53,10 +56,13 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
   let sseAbort: AbortController | null = null;
   let sseStarted = false;
 
-  function authHeaders(extra: Record<string, string>): Record<string, string> {
+  // Headers common to POSTs and the SSE GET. `Last-Event-Id` is NOT here —
+  // it's an SSE-resume concern, meaningful only on the stream GET, so the
+  // SSE path appends it itself (a POST carrying it is meaningless and would
+  // widen the CORS preflight header set for no reason).
+  function baseHeaders(extra: Record<string, string>): Record<string, string> {
     const headers: Record<string, string> = { "X-Conn-Id": connId, ...extra };
     if (config.localToken) headers.Authorization = `Bearer ${config.localToken}`;
-    if (lastEventId) headers["Last-Event-Id"] = lastEventId;
     return headers;
   }
 
@@ -73,9 +79,11 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
   async function pumpSse(): Promise<void> {
     while (!channel.closed && !sseAbort?.signal.aborted) {
       try {
+        const headers = baseHeaders({ Accept: "text/event-stream" });
+        if (lastEventId) headers["Last-Event-Id"] = lastEventId; // resume cursor
         const res = await fetchImpl(`${baseUrl}/v2/rpc/stream?conn=${connId}`, {
           method: "GET",
-          headers: authHeaders({ Accept: "text/event-stream" }),
+          headers,
           signal: sseAbort?.signal,
         });
         if (!res.ok || !res.body) {
@@ -91,41 +99,28 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
     }
   }
 
-  // Read an SSE response body, splitting on frame boundaries (a blank line)
-  // and buffering across chunks so a frame split mid-stream is reassembled.
+  // Decode the SSE body chunk-by-chunk and let `eventsource-parser` do the
+  // framing (chunk-boundary buffering, multi-line `data:`, `id:`, comments).
+  // Each parsed event's JSON payload is pushed into the channel; `id:`
+  // updates the resume cursor; malformed `data:` is skipped, not fatal.
   async function readSse(body: ReadableStream<Uint8Array>): Promise<void> {
+    const parser = createParser({
+      onEvent(event) {
+        if (event.id) lastEventId = event.id;
+        if (!event.data) return;
+        try {
+          channel.push(JSON.parse(event.data) as RpcMessage);
+        } catch {
+          // Malformed frame — skip rather than tearing down the stream.
+        }
+      },
+    });
     const reader = body.getReader();
     const decoder = new TextDecoder();
-    let buf = "";
     for (;;) {
       const { done, value } = await reader.read();
       if (done) return;
-      buf += decoder.decode(value, { stream: true });
-      const frames = buf.split(/\r\n\r\n|\n\n|\r\r/);
-      buf = frames.pop() ?? ""; // trailing partial frame stays buffered
-      for (const frame of frames) handleFrame(frame);
-    }
-  }
-
-  // Parse one SSE frame: concatenate `data:` lines, track `id:`; push the
-  // assembled JSON into the channel. `event:` / `retry:` are ignored — our
-  // notifications are unnamed `data:` frames.
-  function handleFrame(frame: string): void {
-    let data = "";
-    for (const raw of frame.split(/\r\n|\n|\r/)) {
-      if (!raw || raw.startsWith(":")) continue; // blank / comment (keepalive)
-      const colon = raw.indexOf(":");
-      const field = colon === -1 ? raw : raw.slice(0, colon);
-      let val = colon === -1 ? "" : raw.slice(colon + 1);
-      if (val.startsWith(" ")) val = val.slice(1);
-      if (field === "data") data += data ? `\n${val}` : val;
-      else if (field === "id") lastEventId = val;
-    }
-    if (!data) return;
-    try {
-      channel.push(JSON.parse(data) as RpcMessage);
-    } catch {
-      // Malformed frame — skip rather than tearing down the stream.
+      parser.feed(decoder.decode(value, { stream: true }));
     }
   }
 
@@ -147,7 +142,7 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
     try {
       res = await fetchImpl(url, {
         method: "POST",
-        headers: authHeaders({ "Content-Type": "application/json" }),
+        headers: baseHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(msg),
         signal,
       });
