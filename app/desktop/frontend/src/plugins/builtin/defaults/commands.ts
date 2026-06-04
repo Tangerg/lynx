@@ -9,9 +9,8 @@
 // it doesn't matter whether contributors load before or after — the
 // subscription catches up either way.
 
-import type { SidebarSession } from "@/lib/data/queries";
 import type { Disposable, ThemeAccentSpec, WorkspaceViewSpec } from "@/plugins/sdk";
-import { queryClient } from "@/lib/data/queryClient";
+import { createSession } from "@/lib/agent/useCreateSession";
 import { definePlugin, lookupExtensionPoint, usePluginStore } from "@/plugins/sdk";
 import { ACCENT, WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { useSessionStore } from "@/state/sessionStore";
@@ -29,14 +28,12 @@ function closeFocusedTab(): void {
   }
 }
 
-// "Open a new chat tab" — pick the next session that isn't already in
-// the tab strip (mirrors topbar-new-tab's behavior). Returns silently
-// when every available session is already open.
+// "Open a new chat tab" — create a fresh draft session and open it (same as
+// the topbar "+" and the rail "+"). It used to just re-open an existing
+// untabbed session and no-op when none was free, so ⌘N never actually made
+// a new chat.
 function openNewChatTab(): void {
-  const sessions = queryClient.getQueryData<SidebarSession[]>(["sessions"]) ?? [];
-  const tabIds = useSessionStore.getState().tabIds;
-  const candidate = sessions.find((s) => !tabIds.includes(s.id));
-  if (candidate) useSessionStore.getState().selectTab(candidate.id);
+  void createSession();
 }
 
 // "Focus the composer" — the composer textarea has a stable class name

@@ -8,9 +8,14 @@ import { useCreateSession } from "@/lib/agent/useCreateSession";
 import { useT } from "@/lib/i18n";
 import { useSessions } from "@/lib/data/queries";
 import { cn } from "@/lib/utils";
-import { definePlugin } from "@/plugins/sdk";
+import { COMMAND, definePlugin, lookupExtensionByKey } from "@/plugins/sdk";
 import { SIDEBAR_RAIL_ITEM } from "@/plugins/sdk/kernelPoints";
 import { useSessionStore } from "@/state/sessionStore";
+
+// Open a workspace view in the main pane (mirrors the expanded sidebar's
+// footer gear / Tools entry). getState() in the handler — no subscription.
+const openView = (id: string, title: string, icon: string) =>
+  useSessionStore.getState().openMainView({ id, title, icon });
 
 // ---- top actions --------------------------------------------------------
 
@@ -31,7 +36,11 @@ function NewSessionBtn() {
 function SearchBtn() {
   const t = useT();
   return (
-    <IconButton variant="rail" title={t("sidebar.action.searchHint")}>
+    <IconButton
+      variant="rail"
+      title={t("sidebar.action.searchHint")}
+      onClick={() => void lookupExtensionByKey(COMMAND, "command.open")?.run()}
+    >
       <Icon name="search" size={16} />
     </IconButton>
   );
@@ -123,7 +132,11 @@ function RailSpacer() {
 function RailTools() {
   const t = useT();
   return (
-    <IconButton variant="rail" title={t("sidebar.action.tools")}>
+    <IconButton
+      variant="rail"
+      title={t("sidebar.action.tools")}
+      onClick={() => openView("tools", t("sidebar.action.tools"), "tool")}
+    >
       <Icon name="tool" size={16} />
     </IconButton>
   );
@@ -132,7 +145,11 @@ function RailTools() {
 function RailSettings() {
   const t = useT();
   return (
-    <IconButton variant="rail" title={t("sidebar.action.settings")}>
+    <IconButton
+      variant="rail"
+      title={t("sidebar.action.settings")}
+      onClick={() => openView("settings", t("settings.title"), "settings")}
+    >
       <Icon name="settings" size={16} />
     </IconButton>
   );

@@ -1,5 +1,5 @@
 // Built-in plugin: the "+" button on the right side of the chat top bar.
-// Picks the next session not already in the tabbar and switches to it.
+// Creates a fresh draft session and opens it (same as ⌘N / the rail "+").
 //
 // Used to live as a hardcoded `<button class="tab-new">` inside PanelTabBar;
 // pluginifying it means a fork that doesn't want this button can simply
@@ -7,26 +7,21 @@
 // actions alongside).
 
 import { Icon, noDragClasses, Tooltip } from "@/components/common";
-import { useSessions } from "@/lib/data/queries";
+import { useCreateSession } from "@/lib/agent/useCreateSession";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
-import { useSessionStore } from "@/state/sessionStore";
 
 function NewTabButton() {
-  const { data: sessions = [] } = useSessions();
-  const tabIds = useSessionStore((s) => s.tabIds);
-  const selectTab = useSessionStore((s) => s.selectTab);
-
-  const onClick = () => {
-    const candidate = sessions.find((s) => !tabIds.includes(s.id));
-    if (candidate) selectTab(candidate.id);
-  };
+  // "New session" must CREATE one (a hidden draft, opened active) — it used to
+  // just open an existing untabbed session and silently no-op when none was
+  // free, which read as a dead button.
+  const createSession = useCreateSession();
 
   return (
     <Tooltip label="New session (⌘N)">
       <button
         type="button"
-        onClick={onClick}
+        onClick={() => void createSession()}
         aria-label="New session"
         className={cn(
           "ml-1 mr-0.5 mb-1 grid h-6.5 w-6.5 shrink-0 place-items-center rounded-md border-0 bg-transparent text-fg-muted cursor-pointer hover:bg-surface hover:text-fg",
