@@ -126,6 +126,13 @@ type StartRunRequest struct {
 // subscribe.
 type StartRunResponse struct {
 	RunID string `json:"runId"`
+	// UserItemID is the id of the userMessage Item this run opens with — the
+	// same id that rides the stream (item.started/completed) and lands in
+	// items.list. Returned so a client can reconcile its optimistic user
+	// bubble by exact id instead of matching on content. Empty for runs that
+	// open no user turn (runs.resume). It's a business field, not transport
+	// metadata.
+	UserItemID string `json:"userItemId,omitempty"`
 }
 
 // GenerationParams is optional LLM generation tuning (API.md §7.1).
