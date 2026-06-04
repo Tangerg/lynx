@@ -1,12 +1,14 @@
 package protocol
 
+import "time"
+
 // RunEvent is the params of the notifications.run.event notification —
 // the single downstream stream carrying run / item / state events
 // (API.md §5). eventId is monotonic within one root run stream.
 type RunEvent struct {
 	RunID     string      `json:"runId"`
 	EventID   string      `json:"eventId"`   // evt_…
-	Timestamp string      `json:"timestamp"` // ISO-8601
+	Timestamp time.Time   `json:"timestamp"` // ISO-8601 (time.Time marshals to RFC3339)
 	Durable   bool        `json:"durable"`   // true=authoritative/listable; false=ephemeral delta
 	Event     StreamEvent `json:"event"`
 }

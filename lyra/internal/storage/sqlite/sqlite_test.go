@@ -230,7 +230,7 @@ func TestMemoryUpsert(t *testing.T) {
 	if list[1].Scope != memory.ScopeUser || list[1].Content != "# user notes" {
 		t.Fatalf("list[1] = %+v", list[1])
 	}
-	if list[0].CapturedAt == "" {
+	if list[0].CapturedAt.IsZero() {
 		t.Fatalf("CapturedAt not set")
 	}
 }

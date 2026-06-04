@@ -1,6 +1,9 @@
 package protocol
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Memory is the memory.* method group — LYRA.md long-term memory
 // (API.md §7.7). Gated on features.memory.
@@ -29,7 +32,7 @@ type MemoryEntry struct {
 	Scope     MemoryScope `json:"scope"`
 	Path      string      `json:"path"`
 	Content   string      `json:"content"`
-	UpdatedAt string      `json:"updatedAt,omitempty"`
+	UpdatedAt time.Time   `json:"updatedAt,omitzero"`
 }
 
 // GetMemoryRequest — memory.get body.
