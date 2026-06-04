@@ -11,7 +11,7 @@ import (
 
 // Sequence compiles a deterministic chain a₁ → a₂ → ... → aₙ as a
 // single deployable agent. Each sub-agent runs as a child process via
-// [runtime.SpawnChild] in declared order; the typed output of step i
+// [runtime.SpawnChildFresh] in declared order; the typed output of step i
 // flows onto step (i+1)'s child blackboard via [core.Blackboard.Bind],
 // so adjacent sub-agents resolve each other's outputs through the
 // standard dual-binding mechanism.

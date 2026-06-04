@@ -37,7 +37,7 @@ func AllAchievableTools(platform *Platform) []chat.Tool {
 	if platform == nil {
 		return nil
 	}
-	return collectExportedTools(platform, false /*remoteOnly*/, SpawnChild)
+	return collectExportedTools(platform, false /*remoteOnly*/, SpawnChildFreshProtected)
 }
 
 // PublishAll is [AllAchievableTools]'s top-level companion: returns

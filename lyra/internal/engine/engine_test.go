@@ -187,6 +187,36 @@ func TestEngine_RunChat_ToolsRunInCwd(t *testing.T) {
 	}
 }
 
+// TestEngine_RunChat_SubtaskInheritsCwd proves the working directory reaches
+// `task` sub-agents: the main turn delegates, the sub-agent's bash creates a
+// marker with a RELATIVE path, and it must land in the turn's Cwd. The
+// sub-agent runs on a fresh blackboard that keeps the parent's protected
+// entries (SpawnChildFreshProtected) — so it both does real work (its goal
+// isn't pre-satisfied by inherited state) and inherits the cwd binding.
+func TestEngine_RunChat_SubtaskInheritsCwd(t *testing.T) {
+	dir := t.TempDir()
+	stub := newCwdDelegatingStubModel()
+	client, _ := chat.NewClient(stub)
+	eng, err := New(context.Background(), Config{ChatClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := eng.RunChat(context.Background(), RunChatRequest{
+		Message: "delegate this",
+		Cwd:     dir,
+	})
+	if err != nil {
+		t.Fatalf("RunChat: %v", err)
+	}
+	if out.Reply != "main: subtask done" {
+		t.Fatalf("reply = %q, want the post-delegation answer", out.Reply)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "subtask_was_here.txt")); err != nil {
+		t.Errorf("subtask's bash did not create the marker in Cwd %q — the sub-agent didn't run or didn't inherit the working dir: %v", dir, err)
+	}
+}
+
 // TestEngine_RunChat_TokenUsageAccumulates verifies the per-turn
 // usage roll-up sums across both LLM rounds (tool-call + final
 // reply). ReasoningTokens come from a pointer field on chat.Usage —

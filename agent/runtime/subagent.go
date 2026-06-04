@@ -17,11 +17,11 @@ import (
 // typed argument shape). Use it to assemble the tool set a supervisor
 // hands its LLM; see [github.com/Tangerg/lynx/agent/workflow.Supervisor].
 //
-// Each tool runs its agent as a child process (inheriting the parent
-// blackboard, like [AsChatTool]) and returns the child's most-recent
-// blackboard object as JSON. Errors when a name isn't deployed or exposes
-// no exported goal — a supervisor over an un-callable agent is a
-// configuration bug worth catching at build time.
+// Each tool runs its agent as a child process (fresh blackboard keeping
+// only the parent's protected/ambient entries, like [AsChatTool]) and
+// returns the child's most-recent blackboard object as JSON. Errors when a
+// name isn't deployed or exposes no exported goal — a supervisor over an
+// un-callable agent is a configuration bug worth catching at build time.
 func SubagentTools(platform *Platform, names ...string) ([]chat.Tool, error) {
 	if platform == nil {
 		return nil, errors.New("runtime.SubagentTools: platform is nil")
@@ -39,7 +39,7 @@ func SubagentTools(platform *Platform, names ...string) ([]chat.Tool, error) {
 			if goal == nil || goal.Export == nil {
 				continue
 			}
-			out = append(out, newDynamicAgentTool(platform, agentDef, goal, SpawnChild))
+			out = append(out, newDynamicAgentTool(platform, agentDef, goal, SpawnChildFreshProtected))
 		}
 		if len(out) == before {
 			return nil, fmt.Errorf("runtime.SubagentTools: agent %q exposes no exported goal (set Goal.Export)", name)
@@ -62,10 +62,12 @@ func SubagentTools(platform *Platform, names ...string) ([]chat.Tool, error) {
 // Out is the type the sub-agent produces; AsChatTool extracts it via
 // [core.ResultOfType] and JSON-encodes it as the tool result.
 //
-// The child process inherits the parent's blackboard via
-// [Platform.CreateChildProcess], so artifacts the parent has staged
-// are visible to the child. Budget aggregation is automatic — the
-// parent's [core.Process.Usage] sums the entire delegation tree.
+// The child runs on a FRESH blackboard that keeps only the parent's
+// protected/ambient entries (via [SpawnChildFreshProtected]) — so the
+// sub-agent starts clean and does real work, rather than short-circuiting
+// on an output the parent already staged, while still seeing session
+// context like the working directory. Budget aggregation is automatic —
+// the parent's [core.Process.Usage] sums the entire delegation tree.
 //
 // Panics on construction when platform is nil or agentName isn't
 // registered: programming errors should fail at boot, not on the
@@ -84,7 +86,7 @@ func AsChatTool[In, Out any](platform *Platform, agentName string) (chat.Tool, e
 	if err != nil {
 		return nil, err
 	}
-	return newTypedAgentTool[In, Out]("subagent", platform, agentDef, SpawnChild), nil
+	return newTypedAgentTool[In, Out]("subagent", platform, agentDef, SpawnChildFreshProtected), nil
 }
 
 // AsChatToolFromAgent is the [AsChatTool] sibling that takes a
@@ -101,7 +103,7 @@ func AsChatToolFromAgent[In, Out any](platform *Platform, agentDef *core.Agent) 
 	if err := validateAgent("AsChatToolFromAgent", platform, agentDef); err != nil {
 		return nil, err
 	}
-	return newTypedAgentTool[In, Out]("subagent", platform, agentDef, SpawnChild), nil
+	return newTypedAgentTool[In, Out]("subagent", platform, agentDef, SpawnChildFreshProtected), nil
 }
 
 // AsMCPTool is the top-level companion to [AsChatTool]: it wraps a
@@ -131,8 +133,8 @@ func AsMCPTool[In, Out any](platform *Platform, agentName string) (chat.Tool, er
 	return newTypedAgentTool[In, Out]("publish agent", platform, agentDef, RunFresh), nil
 }
 
-// processStarter is the shape both [SpawnChild] and [RunFresh]
-// already implement: ctx + platform + agent + in → terminal
+// processStarter is the shape [SpawnChildFreshProtected], [SpawnChildFresh]
+// and [RunFresh] all implement: ctx + platform + agent + in → terminal
 // *AgentProcess. Used by [newTypedAgentTool] / [newDynamicAgentTool]
 // to swap supervisor vs top-level start strategies without
 // duplicating wiring.
