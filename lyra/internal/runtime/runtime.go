@@ -31,12 +31,14 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	chatmem "github.com/Tangerg/lynx/core/model/chat/memory"
 
+	"github.com/Tangerg/lynx/lyra/internal/config"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
 	chatsvc "github.com/Tangerg/lynx/lyra/internal/service/chat"
 	"github.com/Tangerg/lynx/lyra/internal/service/history"
 	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 	memsvc "github.com/Tangerg/lynx/lyra/internal/service/memory"
+	"github.com/Tangerg/lynx/lyra/internal/service/provider"
 	sessionsvc "github.com/Tangerg/lynx/lyra/internal/service/session"
 	toolsvc "github.com/Tangerg/lynx/lyra/internal/service/tool"
 	"github.com/Tangerg/lynx/mcp"
@@ -105,14 +107,18 @@ type Config struct {
 	// RunRefs). nil falls back to deriving items from chat-memory messages.
 	HistoryStore history.Store
 
-	// Provider / Model / APIKeyMasked describe the single configured LLM
-	// provider, surfaced by providers.list / models.list (there is no
-	// provider registry — Lyra talks to one configured provider). The raw
-	// key never enters the runtime: APIKeyMasked is already display-safe
-	// (config.MaskKey, API.md §4.9).
+	// Provider / Model name the runtime's DEFAULT provider+model — the one a
+	// turn runs against when it doesn't pick a model. APIKeyMasked is the
+	// default provider's display-safe key (config.MaskKey, API.md §4.9).
 	Provider     string
 	Model        string
 	APIKeyMasked string
+
+	// ProviderService is the runtime-mutable provider registry (per-provider
+	// credentials, persisted). The caller seeds it with the configured
+	// provider before construction. nil falls back to an in-memory registry —
+	// per-run model selection then resolves only the default provider.
+	ProviderService provider.Service
 }
 
 // Runtime is the bundle. Construct once via [New]; share the
@@ -132,6 +138,7 @@ type Runtime struct {
 	interrupts interrupts.Store
 	history    history.Store
 
+	providers      provider.Service
 	provider       string
 	model          string
 	apiKeyMasked   string
@@ -170,16 +177,26 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	if interruptStore == nil {
 		interruptStore = interrupts.NewInMemory()
 	}
+	providerSvc := cfg.ProviderService
+	if providerSvc == nil {
+		providerSvc = provider.NewInMemory()
+	}
+
+	// The resolver lets a turn pick its model: it maps a model id to its
+	// provider's registry credentials and builds the client. Empty model
+	// runs the engine's default client (the platform's).
+	resolver := newClientResolver(providerSvc, config.Provider(cfg.Provider), cfg.Model)
 
 	return &Runtime{
 		engine:     eng,
-		chat:       chatsvc.New(eng, approvalSvc),
+		chat:       chatsvc.New(eng, approvalSvc, resolver),
 		session:    sessionSvc,
 		tool:       toolsvc.New(eng),
 		memory:         cfg.MemoryService,
 		approval:       approvalSvc,
 		interrupts:     interruptStore,
 		history:        cfg.HistoryStore,
+		providers:      providerSvc,
 		provider:       cfg.Provider,
 		model:          cfg.Model,
 		apiKeyMasked:   cfg.APIKeyMasked,
@@ -236,6 +253,11 @@ func (r *Runtime) ProviderInfo() (provider, model, apiKeyMasked string) {
 // MCPServerNames returns the names of the MCP servers dialed at startup
 // (all connected — see mcpNamesFrom).
 func (r *Runtime) MCPServerNames() []string { return r.mcpServerNames }
+
+// Providers returns the provider registry — the runtime-mutable set of
+// providers + credentials that providers.list / configure / test operate on.
+// Always non-nil.
+func (r *Runtime) Providers() provider.Service { return r.providers }
 
 // ReadHistory returns sessionID's persisted chat history — the
 // messages.list transport surface converts these to wire messages,

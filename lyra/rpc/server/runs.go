@@ -37,6 +37,7 @@ func (i *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	handle, err := i.rt.Chat().StartTurn(ctx, chat.StartTurnRequest{
 		SessionID:  sessionID,
 		Message:    userMsg,
+		Model:      in.Model,
 		MaxCostUSD: in.MaxBudgetUSD,
 	})
 	if err != nil {

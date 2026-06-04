@@ -119,7 +119,7 @@ func (s *stubEngine) MaybeExtract(_ context.Context, _ string) (engine.Extractio
 func TestStubEngineDrivesTurn(t *testing.T) {
 	stub := &stubEngine{runReply: "hello from stub"}
 
-	svc := chat.New(stub, nil)
+	svc := chat.New(stub, nil, nil)
 	handle, err := svc.StartTurn(context.Background(), chat.StartTurnRequest{
 		SessionID: "sess-1",
 		Message:   "hi",
@@ -162,7 +162,7 @@ func TestStubEngineDrivesTurn(t *testing.T) {
 // "model finished".
 func TestStubEngineBudgetStop(t *testing.T) {
 	stub := &stubEngine{runReply: "partial answer", stopOnBudget: true}
-	svc := chat.New(stub, nil)
+	svc := chat.New(stub, nil, nil)
 
 	handle, err := svc.StartTurn(context.Background(), chat.StartTurnRequest{
 		SessionID: "s",
@@ -191,7 +191,7 @@ func TestStubEngineBudgetStop(t *testing.T) {
 // turn without needing a real engine.
 func TestStubEngineCancelsCleanly(t *testing.T) {
 	stub := &slowStubEngine{}
-	svc := chat.New(stub, nil)
+	svc := chat.New(stub, nil, nil)
 
 	handle, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
 		SessionID: "s",
@@ -221,7 +221,7 @@ func TestStubEngineCancelsCleanly(t *testing.T) {
 // streams the continuation (delta + TurnEnd) on a fresh handle.
 func TestRehydrateResumesRestoredTurn(t *testing.T) {
 	stub := &stubEngine{runReply: "continuation reply"}
-	svc := chat.New(stub, nil)
+	svc := chat.New(stub, nil, nil)
 
 	handle, err := svc.Rehydrate(context.Background(), chat.RehydrateRequest{
 		SessionID: "sess-restored",

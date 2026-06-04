@@ -37,13 +37,17 @@ func newTurnID() string { return turnIDPrefix + uuid.NewString() }
 //
 // The Service interface is stable, so transport adapters don't care
 // which impl they talk to.
-func New(eng Engine, approvalSvc approval.Service) Service {
+// resolver is optional. When non-nil and a turn carries a Model, the impl
+// resolves a per-turn client for that model; nil (or an empty Model) runs
+// every turn on the platform's default client.
+func New(eng Engine, approvalSvc approval.Service, resolver ClientResolver) Service {
 	if eng == nil {
 		panic("chat: engine is required")
 	}
 	return &inMemory{
 		engine:   eng,
 		approval: approvalSvc,
+		resolver: resolver,
 		turns:    map[string]*turnState{},
 	}
 }
@@ -54,6 +58,7 @@ func New(eng Engine, approvalSvc approval.Service) Service {
 type inMemory struct {
 	engine   Engine
 	approval approval.Service // optional — nil = auto-approve every tool
+	resolver ClientResolver   // optional — nil = always use the default model
 
 	mu    sync.Mutex
 	turns map[string]*turnState // turn_id → state

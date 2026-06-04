@@ -101,6 +101,11 @@ func migrate(db *sql.DB) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_history_runs_session
 			ON history_runs(session_id)`,
+		`CREATE TABLE IF NOT EXISTS providers (
+			id        TEXT PRIMARY KEY,
+			api_key   TEXT NOT NULL DEFAULT '',
+			base_url  TEXT NOT NULL DEFAULT ''
+		)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {
