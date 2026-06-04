@@ -19,6 +19,8 @@ export interface StreamControls {
 interface Props {
   messages: Message[];
   ctx: PartCtx;
+  /** Live model name for assistant turns (resolved in ChatStream). */
+  assistantName?: string;
   /** Re-key on change to reset scroll position + follow state. */
   resetKey: string;
   /** Receives the latest controls; called on any change. ChatPanel
@@ -45,7 +47,7 @@ function ControlsRelay({ onChange }: { onChange?: (c: StreamControls) => void })
   return null;
 }
 
-export function MessageStream({ messages, ctx, resetKey, onControlsChange }: Props) {
+export function MessageStream({ messages, ctx, assistantName, resetKey, onControlsChange }: Props) {
   if (messages.length === 0) {
     return (
       <StickToBottom key={resetKey} className="msg-scroll-frame" initial="smooth" resize="smooth">
@@ -79,7 +81,7 @@ export function MessageStream({ messages, ctx, resetKey, onControlsChange }: Pro
             // enough: first paint slides in, then the block grows
             // naturally with the DOM.
             <motion.div key={m.id} {...enterUp}>
-              <MessageBlock msg={m} ctx={ctx} />
+              <MessageBlock msg={m} ctx={ctx} assistantName={assistantName} />
             </motion.div>
           ))}
         </AnimatePresence>

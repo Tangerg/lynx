@@ -23,7 +23,17 @@ import { MessageContextMenu } from "./MessageContextMenu";
 import { MessageOutline } from "./MessageOutline";
 import { renderPart } from "./PartRenderer";
 
-function MessageBlockInner({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
+function MessageBlockInner({
+  msg,
+  ctx,
+  assistantName,
+}: {
+  msg: Message;
+  ctx: PartCtx;
+  /** Live model name for assistant turns (resolved once in ChatStream from the
+   *  session's model). Falls back to the role's neutral displayName. */
+  assistantName?: string;
+}) {
   const role = useExtensionByKey(MESSAGE_ROLE, msg.role);
   const isUser = msg.role === "user";
   const isAgent = msg.role === "assistant";
@@ -49,7 +59,7 @@ function MessageBlockInner({ msg, ctx }: { msg: Message; ctx: PartCtx }) {
     [msg.blocks, sources],
   );
 
-  const displayName = role?.displayName ?? msg.who;
+  const displayName = (isAgent && assistantName) || role?.displayName || msg.who;
   const avatarVariant = (role?.avatarVariant ?? (isUser ? "msg-user" : "msg-agent")) as
     | "msg-user"
     | "msg-agent";
