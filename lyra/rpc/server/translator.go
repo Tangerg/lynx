@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/service/chat"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
@@ -38,9 +39,9 @@ import (
 // gets its mandatory terminal item.completed (API.md §5.2 / §6: the itemId is
 // the correlation key across the interrupt boundary). nil for root runs.
 type resumeBinding struct {
-	originRunID string             // the interrupted run the items were created in
-	toolItems   map[string]string  // resumeKey(toolName, arguments) → original item id
-	questions   []resumedQuestion  // plan-review question items awaiting their terminal
+	originRunID string            // the interrupted run the items were created in
+	toolItems   map[string]string // resumeKey(toolName, arguments) → original item id
+	questions   []resumedQuestion // plan-review question items awaiting their terminal
 }
 
 // resumedQuestion is a plan-review question item from the interrupted run.
@@ -270,8 +271,12 @@ func (t *translator) interrupt(e chat.TurnInterrupted) []protocol.StreamEvent {
 		switch in.Kind {
 		case "approval":
 			ev, entry = t.approvalInterrupt(in)
-		default: // question (plan-review)
-			ev, entry = t.questionInterrupt(in)
+		default: // question — ask_user (free text) or plan review (choice)
+			if _, ok := in.Payload.(engine.QuestionPrompt); ok {
+				ev, entry = t.askUserInterrupt(in)
+			} else {
+				ev, entry = t.questionInterrupt(in)
+			}
 		}
 		out = append(out, ev)
 		wire = append(wire, entry)
@@ -352,6 +357,46 @@ func (t *translator) questionInterrupt(in chat.Interrupt) (protocol.StreamEvent,
 				{Label: planDecisionApprove},
 				{Label: planDecisionReject},
 			},
+		}},
+	}
+	ev := protocol.StreamEvent{
+		Type: protocol.StreamItemStarted,
+		Item: &protocol.Item{
+			ID:        id,
+			RunID:     t.runID,
+			Status:    protocol.ItemStatusInProgress,
+			Type:      protocol.ItemTypeQuestion,
+			CreatedAt: time.Now().UTC(),
+			Question:  question,
+		},
+	}
+	entry := protocol.Interrupt{
+		ItemID:  id,
+		Kind:    "question",
+		Payload: map[string]any{"question": question},
+	}
+	return ev, entry
+}
+
+// askUserQuestionField is the free-text answer field name the ask_user
+// tool reads back (engine.answerText keys on "text"); the resume "answer"
+// response carries answers["text"].
+const askUserQuestionField = "text"
+
+// askUserInterrupt renders the model's ask_user call as an inProgress
+// question Item carrying the actual question + a single free-text answer
+// field (vs. questionInterrupt's plan Approve/Reject choice). The client
+// answers via runs.resume with an "answer" response carrying the text.
+func (t *translator) askUserInterrupt(in chat.Interrupt) (protocol.StreamEvent, protocol.Interrupt) {
+	q, _ := in.Payload.(engine.QuestionPrompt)
+	id := t.nextItemID()
+	question := &protocol.Question{
+		Prompt: q.Question,
+		Fields: []protocol.QuestionField{{
+			Name:     askUserQuestionField,
+			Label:    q.Question,
+			Required: true,
+			Type:     "text",
 		}},
 	}
 	ev := protocol.StreamEvent{
