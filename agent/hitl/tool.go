@@ -35,6 +35,17 @@ func (e *PauseError) Error() string {
 // [chat] tool invoker checks; see core/model/chat tool loop.
 func (e *PauseError) ToolLoopAbort() bool { return true }
 
+// ToolLoopSuspend marks PauseError as a SUSPEND (not a plain abort): the
+// chat tool loop captures a [chat.ToolLoopCheckpoint] of the partial round
+// — the conversation, the assistant tool-call message, the results already
+// produced, and the calls still pending — before propagating, so a later
+// resume executes only the pending calls instead of re-running completed
+// rounds (re-invoking the model, re-executing approved tools). Checked
+// before the abort / feedback carve-outs, so suspension wins. Structurally
+// satisfies the duck-typed marker the [chat] tool invoker probes — no core
+// → agent import, preserving the one-way dependency.
+func (e *PauseError) ToolLoopSuspend() bool { return true }
+
 // HandlePause inspects err for a *PauseError. When found, it parks
 // the carried Awaitable on the process via pc.AwaitInput and returns
 // (ActionWaiting, true) — the action body should return that status
