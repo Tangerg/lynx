@@ -180,9 +180,11 @@ export function createMethods(client: RpcClient): Methods {
     },
     runs: {
       start: async (params, signal) => {
-        // Subscribe BEFORE the POST, then bind to the runtime-assigned
-        // runId — a fast runtime broadcasts the whole run on POST handle,
-        // so subscribe-after-response would drop the head (§5 / §8.1).
+        // Subscribe BEFORE the POST, then bind to the runtime-assigned runId.
+        // Under streamable HTTP the response + its event frames arrive on the
+        // same ordered stream, so the first events follow the response
+        // immediately; binding only after `call` resolves could drop the head
+        // (see streamRunEventsDeferred).
         const stream = streamRunEventsDeferred(client, signal);
         const result = await client.call<StartRunResponse>("runs.start", params, signal);
         stream.bind(result.runId);

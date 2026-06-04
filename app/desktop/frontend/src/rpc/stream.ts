@@ -185,9 +185,10 @@ export function streamRunEvents(
 
 /**
  * Subscribe to run events BEFORE the runId is known, then bind once
- * `runs.start` / `runs.resume` returns. A fast runtime emits + broadcasts
- * the whole run the instant it handles the POST; subscribing only after
- * the response races and drops the head events. So we subscribe
+ * `runs.start` / `runs.resume` returns. Under streamable HTTP the call's
+ * response and its event frames arrive on one ordered stream (TRANSPORT.md
+ * §6.4), so the head events land right after the response — subscribing only
+ * after the response resolves races and drops them. So we subscribe
  * immediately, buffer raw events until `bind(rootRunId)` supplies the
  * runtime-assigned id, then replay the buffer through the tree filter.
  */
