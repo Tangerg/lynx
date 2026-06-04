@@ -3,6 +3,7 @@ package chat
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 )
 
 // PartKind tags every [OutputPart] so consumers can do type-switch
@@ -48,6 +49,16 @@ type OutputPart interface {
 	// Unexported by design: doubles as the sealed-union mechanism so
 	// only types defined in this package can satisfy OutputPart.
 	appendDelta(delta OutputPart) bool
+
+	// clone returns a deep copy. The part-level accumulator adopts a
+	// clone (never the input delta itself) when starting a new running
+	// part, so its later in-place appendDelta merges never mutate the
+	// caller's chunk. This matters when the same chunk stream feeds more
+	// than one accumulator (e.g. the tool-loop and memory stream
+	// middlewares both accumulating): without the clone, the inner
+	// accumulator's merge would mutate a part the outer one still holds,
+	// double-counting the delta. Unexported — part of the sealed union.
+	clone() OutputPart
 }
 
 // TextPart is plain assistant-emitted text. Same-type deltas
@@ -67,6 +78,8 @@ func (p *TextPart) appendDelta(d OutputPart) bool {
 	p.Text += o.Text
 	return true
 }
+
+func (p *TextPart) clone() OutputPart { return &TextPart{Text: p.Text} }
 
 // ReasoningPart carries visible chain-of-thought. Signature preserves
 // the vendor-opaque continuation token (Anthropic thought_signature,
@@ -94,6 +107,10 @@ func (p *ReasoningPart) appendDelta(d OutputPart) bool {
 		p.Signature = o.Signature
 	}
 	return true
+}
+
+func (p *ReasoningPart) clone() OutputPart {
+	return &ReasoningPart{Text: p.Text, Signature: slices.Clone(p.Signature)}
 }
 
 // ToolCallPart is one tool invocation request. The ID flows through
@@ -134,6 +151,10 @@ func (p *ToolCallPart) appendDelta(d OutputPart) bool {
 	}
 	p.Arguments += o.Arguments
 	return true
+}
+
+func (p *ToolCallPart) clone() OutputPart {
+	return &ToolCallPart{ID: p.ID, Name: p.Name, Arguments: p.Arguments}
 }
 
 // marshalOutputPart renders an [OutputPart] as a kind-tagged JSON

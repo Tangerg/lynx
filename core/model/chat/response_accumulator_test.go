@@ -111,6 +111,34 @@ func TestResponseAccumulator_NilChunkSafe(t *testing.T) {
 	}
 }
 
+// TestResponseAccumulator_SharedChunksNoAliasing pins the bug where two
+// accumulators fed the SAME chunk objects (as happens when the tool-loop
+// and memory stream middlewares both accumulate one provider stream)
+// double-counted every delta: the inner accumulator's in-place merge
+// mutated the delta part the outer accumulator still held, so a "pong"
+// reply persisted as "pongong". add() must adopt a clone, never the
+// caller's part, so both accumulators stay independent.
+func TestResponseAccumulator_SharedChunksNoAliasing(t *testing.T) {
+	chunks := []*chat.Response{
+		textChunk("p", chat.FinishReasonNull),
+		textChunk("ong", chat.FinishReasonStop),
+	}
+
+	inner := chat.NewResponseAccumulator()
+	outer := chat.NewResponseAccumulator()
+	for _, c := range chunks {
+		inner.AddChunk(c) // mimics the inner (tool-loop) middleware
+		outer.AddChunk(c) // mimics the outer (memory) middleware on the same objects
+	}
+
+	if got := inner.Result.AssistantMessage.JoinedText(); got != "pong" {
+		t.Fatalf("inner text = %q, want %q", got, "pong")
+	}
+	if got := outer.Result.AssistantMessage.JoinedText(); got != "pong" {
+		t.Fatalf("outer text = %q, want %q (delta double-counted via shared part)", got, "pong")
+	}
+}
+
 // --- helpers --------------------------------------------------------------
 
 func textChunk(text string, fr chat.FinishReason) *chat.Response {
