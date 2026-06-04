@@ -255,6 +255,10 @@ type ToolCallEnd struct {
 	CallID string
 	Output string
 	Err    string
+	// Denied is true when the call ended because the approval verdict
+	// denied it (not an execution failure). The wire layer renders a
+	// distinct "denied" terminal — see [engine.ErrToolDenied].
+	Denied bool
 }
 
 // CompactBoundary fires when the runtime auto-compacts the

@@ -134,22 +134,36 @@ func userMessageItemID(runID string) string {
 	return protocol.IDPrefixItem + runID + "_u"
 }
 
+// open is the first thing emitted on EVERY run segment — root and
+// continuation alike. It guarantees run.started leads the stream (the
+// client's run boundary; continuation runs carry parentRunId), then the
+// root's opening userMessage Item and, for a resumed run, the terminal
+// item.completed for any plan-review question the parked run left open.
+// Driven by pumpRun before any chat event, so it never depends on a
+// chat-level TurnStart (which continuations don't emit).
+func (t *translator) open() []protocol.StreamEvent {
+	out := []protocol.StreamEvent{{
+		Type: protocol.StreamRunStarted,
+		Run: &protocol.RunRef{
+			ID:          t.runID,
+			SessionID:   t.sessionID,
+			ParentRunID: t.parentRunID,
+			Status:      protocol.RunStatusRunning,
+			CreatedAt:   time.Now().UTC(),
+		},
+	}}
+	out = append(out, t.openUserMessage()...)
+	return append(out, t.resumeQuestionCompletions()...)
+}
+
 // translate maps one Lyra chat event to zero or more StreamEvents.
 func (t *translator) translate(ev chat.Event) []protocol.StreamEvent {
 	switch e := ev.(type) {
 	case chat.TurnStart:
-		out := []protocol.StreamEvent{{
-			Type: protocol.StreamRunStarted,
-			Run: &protocol.RunRef{
-				ID:          t.runID,
-				SessionID:   t.sessionID,
-				ParentRunID: t.parentRunID,
-				Status:      protocol.RunStatusRunning,
-				CreatedAt:   time.Now().UTC(),
-			},
-		}}
-		out = append(out, t.openUserMessage()...)
-		return append(out, t.resumeQuestionCompletions()...)
+		// run.started is emitted by open() at the start of every run segment
+		// (so continuation runs get it too — they carry no chat.TurnStart),
+		// not here. Nothing to do for the chat-level TurnStart.
+		return nil
 	case chat.MessageDelta:
 		out := t.closeReasoning()
 		return append(out, t.appendText(e.Text)...)
@@ -464,7 +478,13 @@ func (t *translator) toolEnd(e chat.ToolCallEnd) []protocol.StreamEvent {
 		CreatedAt: ref.createdAt,
 		Tool:      &protocol.ToolInvocation{Kind: ref.kind, Name: ref.name, Output: e.Output},
 	}
-	if e.Err != "" {
+	switch {
+	case e.Denied:
+		// Denied by the approval verdict — a distinct terminal from a green
+		// success or a generic failure, so the UI can render "denied".
+		item.Status = protocol.ItemStatusIncomplete
+		item.Error = &protocol.ProblemData{Type: "denied_by_user", Detail: "tool call denied by user"}
+	case e.Err != "":
 		item.Status = protocol.ItemStatusIncomplete
 		item.Error = &protocol.ProblemData{Type: "tool_failed", Detail: e.Err}
 	}

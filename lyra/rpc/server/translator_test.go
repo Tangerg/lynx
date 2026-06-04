@@ -15,9 +15,9 @@ func TestTranslator_OpensUserMessageOnRootRun(t *testing.T) {
 	input := []protocol.ContentBlock{{Type: "text", Text: "hello"}}
 	tr := newTranslator("ses_1", "run_1", "", input, nil)
 
-	out := tr.translate(chat.TurnStart{Model: "deepseek-v4-flash"})
+	out := tr.open()
 	if len(out) != 3 {
-		t.Fatalf("TurnStart on a root run: got %d events, want 3 (run.started + userMessage started/completed)", len(out))
+		t.Fatalf("open() on a root run: got %d events, want 3 (run.started + userMessage started/completed)", len(out))
 	}
 	if out[0].Type != protocol.StreamRunStarted {
 		t.Fatalf("event[0] = %s, want run.started", out[0].Type)
@@ -45,20 +45,28 @@ func TestTranslator_OpensUserMessageOnRootRun(t *testing.T) {
 		t.Fatalf("statuses = (%s, %s), want (inProgress, completed)", started.Item.Status, completed.Item.Status)
 	}
 
-	// The opening user turn is emitted once — a second TurnStart (defensive)
-	// must not re-emit it.
-	if again := tr.translate(chat.TurnStart{}); len(again) != 1 || again[0].Type != protocol.StreamRunStarted {
-		t.Fatalf("second TurnStart re-emitted the user message: %+v", again)
+	// The opening user turn is emitted once — open() consumed userInput, so a
+	// second open() yields run.started alone (defensive; pumpRun calls once).
+	if again := tr.open(); len(again) != 1 || again[0].Type != protocol.StreamRunStarted {
+		t.Fatalf("second open() re-emitted the user message: %+v", again)
+	}
+	// The chat-level TurnStart is a no-op (run.started comes from open()).
+	if ts := tr.translate(chat.TurnStart{Model: "deepseek-v4-flash"}); ts != nil {
+		t.Fatalf("chat TurnStart should be a no-op, got %+v", ts)
 	}
 }
 
 // TestTranslator_NoUserMessageOnContinuation verifies a continuation run
-// (runs.resume, nil input) emits run.started alone — no synthetic user turn.
+// (runs.resume, nil input) opens with run.started alone — no synthetic user
+// turn, and no chat TurnStart needed (continuations emit none).
 func TestTranslator_NoUserMessageOnContinuation(t *testing.T) {
 	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, nil)
-	out := tr.translate(chat.TurnStart{})
+	out := tr.open()
 	if len(out) != 1 || out[0].Type != protocol.StreamRunStarted {
-		t.Fatalf("continuation TurnStart = %+v, want run.started only", out)
+		t.Fatalf("continuation open() = %+v, want run.started only", out)
+	}
+	if out[0].Run == nil || out[0].Run.ParentRunID != "run_1" {
+		t.Fatalf("continuation run.started must carry parentRunId run_1: %+v", out[0].Run)
 	}
 }
 
@@ -115,6 +123,25 @@ func TestTranslator_ResumedToolReusesOriginalItemID(t *testing.T) {
 	}
 }
 
+// TestTranslator_DeniedToolIsDistinct verifies a denied tool ends as a
+// distinct terminal (incomplete + denied_by_user error), not a green success
+// — so the UI can render "denied" rather than ✓.
+func TestTranslator_DeniedToolIsDistinct(t *testing.T) {
+	tr := newTranslator("ses_1", "run_1", "", nil, nil)
+	tr.translate(chat.ToolCallStart{CallID: "c1", ToolName: "bash", Arguments: `{"command":"rm -rf /"}`})
+	end := tr.translate(chat.ToolCallEnd{CallID: "c1", Output: "tool call denied by user", Denied: true})
+	if len(end) != 1 || end[0].Item == nil {
+		t.Fatalf("toolEnd = %+v, want one item.completed", end)
+	}
+	it := end[0].Item
+	if it.Status != protocol.ItemStatusIncomplete {
+		t.Fatalf("denied tool status = %s, want incomplete (not green completed)", it.Status)
+	}
+	if it.Error == nil || it.Error.Type != "denied_by_user" {
+		t.Fatalf("denied tool error = %+v, want type denied_by_user", it.Error)
+	}
+}
+
 // TestTranslator_ResumedQuestionCompletes verifies a plan-review question
 // item left inProgress at interrupt gets its terminal item.completed in the
 // continuation (right after run.started) — it's resolved by the resume
@@ -129,10 +156,10 @@ func TestTranslator_ResumedQuestionCompletes(t *testing.T) {
 	}
 	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, resume)
 
-	out := tr.translate(chat.TurnStart{})
+	out := tr.open()
 	// run.started first, then the question's terminal completion.
 	if len(out) != 2 {
-		t.Fatalf("continuation TurnStart = %d events, want 2 (run.started + question item.completed)", len(out))
+		t.Fatalf("continuation open() = %d events, want 2 (run.started + question item.completed)", len(out))
 	}
 	if out[0].Type != protocol.StreamRunStarted {
 		t.Fatalf("event[0] = %s, want run.started", out[0].Type)
@@ -151,8 +178,8 @@ func TestTranslator_ResumedQuestionCompletes(t *testing.T) {
 		t.Fatalf("question terminal lost its content: %+v", c.Item.Question)
 	}
 
-	// Emitted once — a second TurnStart must not re-complete it.
-	if again := tr.translate(chat.TurnStart{}); len(again) != 1 {
-		t.Fatalf("second TurnStart re-emitted the question completion: %+v", again)
+	// Emitted once — a second open() yields run.started alone.
+	if again := tr.open(); len(again) != 1 {
+		t.Fatalf("second open() re-emitted the question completion: %+v", again)
 	}
 }
