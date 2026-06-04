@@ -44,12 +44,12 @@ func replyDone(msg *transport.Request, err error) HandleResult {
 	return responseResult(msg.ID, struct{}{})
 }
 
-// replyStream maps a streaming method's (result, events, error) tail onto a
-// HandleResult carrying the run id + event channel for the transport's
-// notification pump. runID is read from the result only on success.
-func replyStream[Out any](msg *transport.Request, out Out, runID string, events <-chan protocol.RunEvent, err error) HandleResult {
+// replyStream maps a streaming method's (result, events, error) tail onto
+// a HandleResult carrying the synchronous reply + its event channel (the
+// transport streams the channel as the call's own response).
+func replyStream[Out any](msg *transport.Request, out Out, events <-chan protocol.RunEvent, err error) HandleResult {
 	if err != nil {
 		return responseError(msg.ID, errorToRPC(err))
 	}
-	return streamingResult(msg.ID, out, runID, events)
+	return streamingResult(msg.ID, out, events)
 }
