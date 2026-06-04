@@ -82,6 +82,19 @@ describe("reducer — item fold", () => {
     expect(s.messages[0]!.blocks[0]).toMatchObject({ status: "complete", text: "hi there" });
   });
 
+  it("agentMessage start with no content shell still streams (content arrives via deltas)", () => {
+    // The real runtime's item.started shell carries NO `content` field — it
+    // streams in via item.delta and only lands whole on item.completed. The
+    // fold must fold that to an empty running text block, not crash.
+    let s: AgentViewState = INITIAL_VIEW_STATE;
+    s = reduce(s, started(item({ id: "item_1", type: "agentMessage" }))); // no `content`
+    expect(s.messages[0]!.blocks).toEqual([
+      { kind: "text", itemId: "item_1", text: "", status: "running" },
+    ]);
+    s = reduce(s, delta("item_1", { type: "content", text: "streamed" }));
+    expect(s.messages[0]!.blocks[0]).toMatchObject({ text: "streamed", status: "running" });
+  });
+
   it("toolCall folds into a tool block + toolCalls entry; toolArguments accumulate", () => {
     let s: AgentViewState = INITIAL_VIEW_STATE;
     s = reduce(

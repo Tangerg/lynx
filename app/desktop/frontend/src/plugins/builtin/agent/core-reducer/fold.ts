@@ -150,12 +150,16 @@ export function foldReasoning(
   item: ItemOf<"reasoning">,
   status: BlockStatus,
 ): AgentViewState {
+  // `text` is absent on the item.started shell — it streams via item.delta
+  // (same as agentMessage content). Seed "" so deltas accumulate cleanly
+  // instead of onto `undefined`.
+  const text = item.text ?? "";
   return upsertBlock(
     state,
     item.id,
     (b) => b.kind === "reasoning" && b.reasoningId === item.id,
-    () => ({ kind: "reasoning", reasoningId: item.id, text: item.text, status }),
-    (b) => (b.kind === "reasoning" ? { ...b, text: item.text, status } : b),
+    () => ({ kind: "reasoning", reasoningId: item.id, text, status }),
+    (b) => (b.kind === "reasoning" ? { ...b, text, status } : b),
   );
 }
 
