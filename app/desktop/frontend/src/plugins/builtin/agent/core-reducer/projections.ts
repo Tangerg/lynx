@@ -109,7 +109,9 @@ export function toolLabel(tool: ToolInvocation | undefined): string {
   if (!tool) return "tool";
   switch (tool.kind) {
     case "command":
-      return tool.command;
+      // The runtime puts the command in the streamed args, not `command`; use
+      // the tool name ("bash") so the row isn't a nameless "()".
+      return tool.command ?? tool.name ?? "command";
     case "fileEdit":
       return tool.path;
     case "mcp":

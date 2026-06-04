@@ -231,7 +231,17 @@ export type ItemType = Item["type"];
 // ---------------------------------------------------------------------------
 
 export type ToolInvocation =
-  | { kind: "command"; command: string; cwd?: string; output?: string; exitCode?: number }
+  // The runtime sends `name` (the tool, e.g. "bash") + the shell command in the
+  // streamed `arguments` (not a top-level `command`). `command` stays optional
+  // for sources that do inline it. `output` is the result (often a JSON string).
+  | {
+      kind: "command";
+      name?: string;
+      command?: string;
+      cwd?: string;
+      output?: string;
+      exitCode?: number;
+    }
   | { kind: "fileEdit"; path: string; diff?: DiffRow[] }
   | {
       kind: "mcp";
