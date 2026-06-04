@@ -8,53 +8,75 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 )
 
-// SpawnChild creates and runs a child sub-agent process under the parent
-// process attached to ctx via [core.WithProcess]. It is the public
-// helper that ties together [Platform.CreateChildProcess] +
-// [Platform.ContinueProcess] + initial Bind for the typed input — the
-// same plumbing [AsChatTool] uses, exposed for deterministic
-// agent-level orchestration.
+// SpawnChildFreshProtected creates and runs a child sub-agent process under
+// the parent attached to ctx via [core.WithProcess]. The child gets a FRESH
+// blackboard that retains ONLY the parent's protected entries — those bound
+// via [core.BlackboardWriter.BindProtected]: session id, working directory,
+// and other ambient context. The parent's ordinary working state (named
+// bindings, conditions, accumulated objects) is NOT inherited.
 //
-// The child blackboard inherits the parent's via
-// [core.Blackboard.Spawn] (default behavior of CreateChildProcess) so
-// staged artifacts on the parent are visible to the child. Use this
-// for **supervisor-style** flows where the sub-agent should see what
-// the parent already knows. For **orchestration** flows (loop / fan-out
-// where each child should run cleanly without seeing the orchestrator's
-// accumulated outputs), use [SpawnChildFresh] instead.
+// This is the right default for delegating a self-contained subtask: the
+// sub-agent starts clean — so its produce-Out goal isn't accidentally
+// pre-satisfied by an object the parent already staged (the no-op failure
+// mode [SpawnChildFresh]'s doc warns about) — yet still sees the ambient
+// context the session needs (e.g. which project directory the tools run
+// in). It backs the agent-as-tool constructors ([AsChatTool] /
+// [AsChatToolFromAgent] / [SubagentTools] / [AllAchievableTools]).
 //
 // Steps:
 //
 //  1. Resolve the parent [core.Process] from ctx; error if not present.
-//  2. Look the parent up by id in platform.procs; error if not registered.
-//  3. CreateChildProcess (inherits parent blackboard via Spawn, joins
-//     parent's budget tree).
-//  4. Bind in onto the child blackboard (typed dual-binding so the
-//     child's first action's planner can resolve its In by type).
-//  5. ContinueProcess to drive the child's OODA loop.
+//  2. Derive the child blackboard via [freshProtectedBlackboard]: Spawn the
+//     parent's, then Clear it — Clear keeps protected entries and drops
+//     everything else.
+//  3. CreateChildProcess with that blackboard (joins the parent's budget
+//     tree) and Bind in (typed dual-binding so the child's first action's
+//     planner resolves its In by type).
+//  4. ContinueProcess to drive the child's OODA loop.
 //
-// Returns the child *AgentProcess in a terminal state (Completed /
-// Failed / Waiting / Stuck / Terminated / Killed). Callers inspect
-// Status() and either extract output via [core.ResultOfType] or
-// classify the failure via [ChildError].
+// Returns the child *AgentProcess in a terminal state (Completed / Failed /
+// Waiting / Stuck / Terminated / Killed). Callers inspect Status() and
+// either extract output via [core.ResultOfType] or classify the failure via
+// [ChildError].
 //
-// nil platform / nil agentDef / missing parent in ctx return errors
-// rather than panic — callers fan in user data and a runtime error is
-// the right response.
-func SpawnChild(
+// nil platform / nil agentDef / missing parent in ctx return errors rather
+// than panic — callers fan in user data and a runtime error is the right
+// response.
+func SpawnChildFreshProtected(
 	ctx context.Context,
 	platform *Platform,
 	agentDef *core.Agent,
 	in any,
 ) (*AgentProcess, error) {
-	return spawnChildOptions(ctx, platform, agentDef, in, core.ProcessOptions{})
+	if platform == nil {
+		return nil, errors.New("spawn child fresh protected: platform is nil")
+	}
+	parent := core.ProcessFrom(ctx)
+	if parent == nil {
+		return nil, errors.New("spawn child fresh protected: no parent process in ctx (use core.WithProcess to inject one)")
+	}
+	return spawnChildOptions(ctx, platform, agentDef, in, core.ProcessOptions{
+		Blackboard: freshProtectedBlackboard(parent.Blackboard()),
+	})
 }
 
-// SpawnChildFresh is the orchestration-flow variant of [SpawnChild]:
-// the child receives a **fresh** blackboard (constructed via
-// [Platform.NewBlackboard]) seeded only with the typed input. Parent
-// state — including any Out values the calling action may have
-// returned in prior ticks — is NOT inherited.
+// freshProtectedBlackboard returns a child blackboard that keeps only the
+// parent's protected entries: [core.Blackboard.Spawn] copies all state, then
+// [core.Blackboard.Clear] drops everything except entries bound via
+// BindProtected. The result is a clean working surface that still carries
+// the parent's ambient / session context.
+func freshProtectedBlackboard(parent core.Blackboard) core.Blackboard {
+	bb := parent.Spawn()
+	bb.Clear()
+	return bb
+}
+
+// SpawnChildFresh is the fully-isolated spawn: the child receives a
+// **fresh** blackboard (constructed via [Platform.NewBlackboard]) seeded
+// only with the typed input. Parent state — including any Out values the
+// calling action may have returned in prior ticks, AND the parent's
+// protected entries — is NOT inherited. (For delegation that should keep
+// ambient/session context, use [SpawnChildFreshProtected].)
 //
 // Use for:
 //
@@ -67,8 +89,8 @@ func SpawnChild(
 //     stage's typed output (passed as in), not the original orchestrator
 //     input or peer-step artifacts.
 //
-// Same error contract and budget aggregation as [SpawnChild]; the only
-// difference is the blackboard seed.
+// Same error contract and budget aggregation as [SpawnChildFreshProtected];
+// the only difference is the blackboard seed (nothing vs. protected-only).
 func SpawnChildFresh(
 	ctx context.Context,
 	platform *Platform,
@@ -82,20 +104,18 @@ func SpawnChildFresh(
 	return spawnChildOptions(ctx, platform, agentDef, in, options)
 }
 
-// SpawnChildAsync is the non-blocking sibling of [SpawnChild]: it
-// creates the child, binds the typed input, and drives its OODA loop in
-// the background via [Platform.ContinueProcessAsync] — returning the
-// child's process id (use it as a task handle) and a done channel that
-// fires the run's terminal error (nil on clean exit) the moment the
-// background loop exits.
+// SpawnChildAsync is the non-blocking spawn: it creates the child, binds
+// the typed input, and drives its OODA loop in the background via
+// [Platform.ContinueProcessAsync] — returning the child's process id (use
+// it as a task handle) and a done channel that fires the run's terminal
+// error (nil on clean exit) the moment the background loop exits.
 //
-// Unlike SpawnChild the caller's tick is NOT blocked: the spawning
-// action returns while the child keeps running, and the result is
-// collected later via [Platform.ProcessByID] + [core.ResultOfType], or
-// the child is cancelled via [Platform.KillProcess] (= SDK stopTask).
-// The child joins the parent's budget tree (subtree usage still counts
-// against the parent's BudgetPolicy) and inherits the parent blackboard
-// via Spawn, exactly like SpawnChild.
+// The caller's tick is NOT blocked: the spawning action returns while the
+// child keeps running, and the result is collected later via
+// [Platform.ProcessByID] + [core.ResultOfType], or the child is cancelled
+// via [Platform.KillProcess] (= SDK stopTask). The child joins the parent's
+// budget tree (subtree usage still counts against the parent's
+// BudgetPolicy) and inherits the FULL parent blackboard via Spawn.
 //
 // The background run uses [context.WithoutCancel] so the child survives
 // the spawning action's ctx ending — a background task whose parent
@@ -120,8 +140,8 @@ func SpawnChildAsync(
 	return child.ID(), done, nil
 }
 
-// RunFresh is the top-level companion to [SpawnChild]: starts a fresh
-// process via [Platform.RunAgent] (no parent process required in ctx)
+// RunFresh is the top-level spawn: starts a fresh process via
+// [Platform.RunAgent] (no parent process required in ctx)
 // and binds in under [core.DefaultBindingName]. Used by MCP-publish
 // style flows where each call is its own root process rather than a
 // child of the calling LLM's parent.
@@ -181,8 +201,9 @@ func ChildError(child *AgentProcess) error {
 // creates the child (joining the parent's budget tree, with the given
 // blackboard options), and binds the typed input — returning a child
 // ready to be driven. The caller picks how: synchronously via
-// [Platform.ContinueProcess] ([SpawnChild] / [SpawnChildFresh]) or in
-// the background via [Platform.ContinueProcessAsync] ([SpawnChildAsync]).
+// [Platform.ContinueProcess] ([SpawnChildFreshProtected] /
+// [SpawnChildFresh]) or in the background via
+// [Platform.ContinueProcessAsync] ([SpawnChildAsync]).
 // Centralizing the prefix keeps validation and error messages identical
 // across the three.
 func prepareChild(
@@ -217,10 +238,10 @@ func prepareChild(
 	return child, nil
 }
 
-// spawnChildOptions is the synchronous shared core of [SpawnChild] and
-// [SpawnChildFresh] — prepare the child, then drive it to a terminal
-// state in-line. The two differ only in the ProcessOptions.Blackboard
-// slot they pass through.
+// spawnChildOptions is the synchronous shared core of
+// [SpawnChildFreshProtected] and [SpawnChildFresh] — prepare the child,
+// then drive it to a terminal state in-line. They differ only in the
+// ProcessOptions.Blackboard slot they pass through.
 func spawnChildOptions(
 	ctx context.Context,
 	platform *Platform,

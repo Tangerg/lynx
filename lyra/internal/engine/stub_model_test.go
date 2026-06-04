@@ -41,6 +41,47 @@ func (m *delegatingStubModel) Stream(ctx context.Context, req *chat.Request) ite
 	return func(yield func(*chat.Response, error) bool) { yield(resp, err) }
 }
 
+// cwdDelegatingStubModel is delegatingStubModel's cwd-aware cousin: the main
+// turn delegates via `task`, and the sub-agent (instead of replying text)
+// asks bash to create a marker file with a RELATIVE path. The marker lands in
+// whatever working directory the sub-agent's tools run in — so a test can
+// assert the sub-agent inherited the turn's Cwd by checking where the file
+// appeared.
+type cwdDelegatingStubModel struct{ defaults *chat.Options }
+
+func newCwdDelegatingStubModel() *cwdDelegatingStubModel {
+	opts, _ := chat.NewOptions("stub-cwd-delegating")
+	return &cwdDelegatingStubModel{defaults: opts}
+}
+
+func (m *cwdDelegatingStubModel) DefaultOptions() chat.Options { return *m.defaults }
+func (m *cwdDelegatingStubModel) Metadata() chat.ModelMetadata {
+	return chat.ModelMetadata{Provider: "stub"}
+}
+
+func (m *cwdDelegatingStubModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
+	switch {
+	case hasToolMessage(req.Messages):
+		// Round 2 — distinguish the main turn (delegated) from the
+		// sub-agent turn (ran bash) by the user message.
+		if mentionsDelegate(req.Messages) {
+			return responseWithText("main: subtask done")
+		}
+		return responseWithText("subtask done")
+	case mentionsDelegate(req.Messages):
+		return responseWithToolCall("task", `{"prompt":"create the marker"}`)
+	default:
+		// Sub-agent's first round: write a marker via a relative path so
+		// where it lands reflects the inherited working directory.
+		return responseWithToolCall("bash", `{"command":"touch subtask_was_here.txt"}`)
+	}
+}
+
+func (m *cwdDelegatingStubModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
+	resp, err := m.Call(ctx, req)
+	return func(yield func(*chat.Response, error) bool) { yield(resp, err) }
+}
+
 func mentionsDelegate(msgs []chat.Message) bool {
 	for _, msg := range msgs {
 		if u, ok := msg.(*chat.UserMessage); ok && strings.Contains(u.Text, "delegate") {
