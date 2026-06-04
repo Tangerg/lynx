@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/service/history"
 	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 	memsvc "github.com/Tangerg/lynx/lyra/internal/service/memory"
+	providersvc "github.com/Tangerg/lynx/lyra/internal/service/provider"
 	sessionsvc "github.com/Tangerg/lynx/lyra/internal/service/session"
 	toolsvc "github.com/Tangerg/lynx/lyra/internal/service/tool"
 )
@@ -32,9 +33,10 @@ type RuntimeServices interface {
 	Approval() approval.Service
 	Interrupts() interrupts.Store
 	History() history.Store
-	// ProviderInfo is the single configured provider id, model id, and
-	// display-masked key (providers.list / models.list).
-	ProviderInfo() (provider, model, apiKeyMasked string)
+	// Providers is the provider registry — credentials + enablement that
+	// providers.list / configure / test operate on (models.list reads the
+	// catalog, not this).
+	Providers() providersvc.Service
 	// MCPServerNames lists the connected MCP servers (workspace.mcp.listServers).
 	MCPServerNames() []string
 	ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error)

@@ -108,11 +108,10 @@ type Config struct {
 	HistoryStore history.Store
 
 	// Provider / Model name the runtime's DEFAULT provider+model — the one a
-	// turn runs against when it doesn't pick a model. APIKeyMasked is the
-	// default provider's display-safe key (config.MaskKey, API.md §4.9).
-	Provider     string
-	Model        string
-	APIKeyMasked string
+	// turn runs against when it doesn't pick a model. providers.list /
+	// models.list are served from the registry + catalog, not these.
+	Provider string
+	Model    string
 
 	// ProviderService is the runtime-mutable provider registry (per-provider
 	// credentials, persisted). The caller seeds it with the configured
@@ -139,9 +138,6 @@ type Runtime struct {
 	history    history.Store
 
 	providers      provider.Service
-	provider       string
-	model          string
-	apiKeyMasked   string
 	mcpServerNames []string
 }
 
@@ -197,9 +193,6 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		interrupts:     interruptStore,
 		history:        cfg.HistoryStore,
 		providers:      providerSvc,
-		provider:       cfg.Provider,
-		model:          cfg.Model,
-		apiKeyMasked:   cfg.APIKeyMasked,
 		mcpServerNames: mcpNamesFrom(cfg.MCPServers),
 	}, nil
 }
@@ -241,14 +234,6 @@ func (r *Runtime) Interrupts() interrupts.Store { return r.interrupts }
 // configured (the RPC server then derives items.list from chat-memory
 // messages instead).
 func (r *Runtime) History() history.Store { return r.history }
-
-// ProviderInfo returns the configured LLM provider id, model id, and a
-// display-masked API key (API.md §4.9) — what providers.list /
-// models.list surface. Lyra talks to one configured provider; there is
-// no registry, so this is a single tuple, not a list.
-func (r *Runtime) ProviderInfo() (provider, model, apiKeyMasked string) {
-	return r.provider, r.model, r.apiKeyMasked
-}
 
 // MCPServerNames returns the names of the MCP servers dialed at startup
 // (all connected — see mcpNamesFrom).
