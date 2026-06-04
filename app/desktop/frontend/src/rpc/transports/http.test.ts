@@ -1,7 +1,9 @@
 import type { RpcMessage } from "../types";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { RpcTransportError } from "../errors";
 import { createHttpTransport } from "./http";
+
+afterEach(() => vi.restoreAllMocks());
 
 // A 200 text/event-stream POST response whose body emits the given chunks.
 function sseResponse(chunks: string[]): Response {
@@ -10,6 +12,24 @@ function sseResponse(chunks: string[]): Response {
     start(controller) {
       for (const c of chunks) controller.enqueue(enc.encode(c));
       controller.close();
+    },
+  });
+  return new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } });
+}
+
+// A stream that emits one chunk, then errors with an AbortError on next read —
+// models the fetch being aborted (stop / switch session / unmount).
+function abortingSseResponse(firstChunk: string): Response {
+  const enc = new TextEncoder();
+  let sent = false;
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (!sent) {
+        sent = true;
+        controller.enqueue(enc.encode(firstChunk));
+      } else {
+        controller.error(Object.assign(new Error("aborted"), { name: "AbortError" }));
+      }
     },
   });
   return new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } });
@@ -100,6 +120,21 @@ describe("HTTPTransport — streamable HTTP", () => {
     const transport = createHttpTransport({ baseUrl: "http://x", fetch: fetchStub });
     await expect(transport.send(req("3", "runs.start"))).rejects.toBeInstanceOf(RpcTransportError);
     await transport.close();
+  });
+
+  it("stays quiet when the stream is aborted (expected teardown, not an error)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const responseFrame = frame({ jsonrpc: "2.0", id: "1", result: { runId: "run_01" } });
+    const fetchStub = (async () => abortingSseResponse(responseFrame)) as unknown as typeof fetch;
+    const transport = createHttpTransport({ baseUrl: "http://x", fetch: fetchStub });
+    const it = transport.recv()[Symbol.asyncIterator]();
+
+    await transport.send(req("1", "runs.start"));
+    await it.next(); // the response frame arrives; the next read aborts in the background
+    await new Promise((resolve) => setTimeout(resolve, 0)); // let the aborted read settle
+    await transport.close();
+
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it("skips a malformed frame without tearing down the stream", async () => {

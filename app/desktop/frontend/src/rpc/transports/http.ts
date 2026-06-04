@@ -80,7 +80,12 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
         parser.feed(decoder.decode(value, { stream: true }));
       }
     } catch (err) {
-      if (!channel.closed) console.warn("[rpc] stream read error:", (err as Error).message);
+      // Aborts (stop / switch session / superseded run / transport close) are
+      // expected teardown via the fetch signal — not failures, stay quiet.
+      const aborted = err instanceof Error && err.name === "AbortError";
+      if (!aborted && !channel.closed) {
+        console.warn("[rpc] stream read error:", (err as Error).message);
+      }
     } finally {
       readers.delete(reader);
     }
