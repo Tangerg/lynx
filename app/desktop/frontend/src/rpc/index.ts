@@ -160,6 +160,7 @@ export {
   RPC_TOOL_DENIED,
   RPC_UNSUPPORTED_MIME,
   errorType,
+  errorDetail,
 } from "./types";
 export type {
   RpcErrorPayload,

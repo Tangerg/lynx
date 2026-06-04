@@ -1,72 +1,160 @@
-// Built-in plugin: "Providers" settings pane. Lists the LLM providers the
-// runtime has configured (providers.list) with their brand icon, type,
-// base URL, and masked API key. Read-only for now — providers.configure /
-// providers.test aren't served by the runtime yet (capability_not_negotiated),
-// so the edit / test affordances land once those methods exist.
+// Built-in plugin: "Providers" settings pane. Lists every provider the
+// runtime supports (providers.list — configured or not) and lets the user set
+// each one's API key / base URL (providers.configure) and live-probe it
+// (providers.test). `apiKeyMasked != ""` ⇔ enabled; enabling a provider
+// surfaces its models in the composer picker (models.list is per-provider).
 
-import { DataView, ProviderIcon } from "@/components/common";
+import type { ProviderInfo } from "@/lib/data/queries";
+import { useState } from "react";
+import { DataView, Icon, ProviderIcon } from "@/components/common";
 import { useProviders } from "@/lib/data/queries";
+import { useConfigureProvider, useTestProvider } from "@/lib/agent/useProviderConfig";
+import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
 
-function ProvidersPane() {
-  const { data, isLoading, isError } = useProviders();
-  const providers = data ?? [];
+type Probe = { state: "idle" | "busy" } | { state: "ok" } | { state: "error"; reason: string };
+
+function ProviderRow({ p }: { p: ProviderInfo }) {
+  const configure = useConfigureProvider();
+  const test = useTestProvider();
+  const [apiKey, setApiKey] = useState("");
+  const [baseUrl, setBaseUrl] = useState(p.baseUrl);
+  const [saving, setSaving] = useState(false);
+  const [probe, setProbe] = useState<Probe>({ state: "idle" });
+
+  const enabled = p.apiKeyMasked !== "";
+  const dirty = apiKey.trim() !== "" || baseUrl !== p.baseUrl;
+
+  const onSave = async () => {
+    setSaving(true);
+    setProbe({ state: "idle" });
+    try {
+      await configure({ provider: p.id, apiKey: apiKey.trim() || undefined, baseUrl });
+      setApiKey(""); // cleared from the field once persisted (it's masked server-side)
+    } catch (err) {
+      setProbe({ state: "error", reason: err instanceof Error ? err.message : "Save failed" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onTest = async () => {
+    setProbe({ state: "busy" });
+    try {
+      const r = await test(p.id);
+      setProbe(r.ok ? { state: "ok" } : { state: "error", reason: r.error ?? "Test failed" });
+    } catch (err) {
+      setProbe({ state: "error", reason: err instanceof Error ? err.message : "Test failed" });
+    }
+  };
 
   return (
-    <div>
-      <DataView
-        items={providers}
-        isLoading={isLoading}
-        isError={isError}
-        skeletonCount={3}
-        empty={{
-          icon: "spark",
-          title: "No providers",
-          sub: "Configure an LLM provider so the agent has a model to run.",
-        }}
-      >
-        {(rows) => (
-          <div className="flex flex-col gap-2">
-            {rows.map((p) => (
-              <div
-                key={p.id}
-                className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-line-soft bg-canvas px-3 py-2.5"
-              >
-                <ProviderIcon provider={p.type} size={20} />
-                <div className="min-w-0">
-                  <div className="text-[14px] font-semibold capitalize text-fg">{p.type}</div>
-                  <div className="truncate font-mono text-[12px] text-fg-faint">
-                    {p.baseUrl || p.id}
-                  </div>
-                </div>
-                <span
-                  className={
-                    p.apiKeyMasked
-                      ? "font-mono text-[12px] text-fg-muted"
-                      : "text-[12px] text-fg-faint"
-                  }
-                >
-                  {p.apiKeyMasked ? `key ${p.apiKeyMasked}` : "no key"}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </DataView>
+    <div className="rounded-lg border border-line-soft bg-canvas px-3 py-2.5">
+      <div className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-3">
+        <ProviderIcon provider={p.type} size={20} />
+        <div className="min-w-0">
+          <div className="text-[14px] font-semibold capitalize text-fg">{p.type}</div>
+          <div className="truncate font-mono text-[12px] text-fg-faint">{p.id}</div>
+        </div>
+        <span
+          className={cn(
+            "rounded-full px-2 py-0.5 text-[11px] font-medium",
+            enabled ? "bg-accent/15 text-accent" : "bg-surface-2 text-fg-faint",
+          )}
+        >
+          {enabled ? `key ${p.apiKeyMasked}` : "not configured"}
+        </span>
+      </div>
 
-      <div className="mt-4 text-[13px] leading-[1.55] text-fg-muted">
-        Editing providers and testing connections will land once the runtime exposes{" "}
-        <code className="rounded-[3px] bg-surface-2 px-1.5 py-px font-mono text-fg">
-          providers.configure
-        </code>{" "}
-        /{" "}
-        <code className="rounded-[3px] bg-surface-2 px-1.5 py-px font-mono text-fg">
-          providers.test
-        </code>
-        .
+      <div className="mt-2.5 grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-2">
+        <input
+          type="password"
+          aria-label={`${p.type} API key`}
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          placeholder={enabled ? "Replace API key…" : "API key"}
+          className="h-8 rounded-md border border-line-soft bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint focus:border-accent"
+        />
+        <input
+          type="text"
+          aria-label={`${p.type} base URL`}
+          value={baseUrl}
+          onChange={(e) => setBaseUrl(e.target.value)}
+          placeholder="Base URL (optional override)"
+          className="h-8 rounded-md border border-line-soft bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint focus:border-accent"
+        />
+      </div>
+
+      <div className="mt-2 flex items-center gap-2">
+        <button
+          type="button"
+          disabled={!dirty || saving}
+          onClick={onSave}
+          className={cn(
+            "h-7 rounded-md px-3 text-[12px] font-semibold transition-colors",
+            !dirty || saving
+              ? "cursor-not-allowed bg-surface-2 text-fg-faint"
+              : "cursor-pointer bg-accent text-on-accent hover:opacity-90",
+          )}
+        >
+          {saving ? "Saving…" : "Save"}
+        </button>
+        <button
+          type="button"
+          disabled={!enabled || probe.state === "busy"}
+          onClick={onTest}
+          className={cn(
+            "h-7 rounded-md border px-3 text-[12px] font-semibold transition-colors",
+            !enabled || probe.state === "busy"
+              ? "cursor-not-allowed border-line-soft text-fg-faint"
+              : "cursor-pointer border-line text-fg-muted hover:bg-surface-2 hover:text-fg",
+          )}
+        >
+          {probe.state === "busy" ? "Testing…" : "Test"}
+        </button>
+
+        {probe.state === "ok" && (
+          <span className="inline-flex items-center gap-1 text-[12px] text-accent">
+            <Icon name="check" size={13} /> Connection OK
+          </span>
+        )}
+        {probe.state === "error" && (
+          <span className="inline-flex min-w-0 items-center gap-1 text-[12px] text-negative">
+            <Icon name="alert" size={13} />
+            <span className="truncate" title={probe.reason}>
+              {probe.reason}
+            </span>
+          </span>
+        )}
       </div>
     </div>
+  );
+}
+
+function ProvidersPane() {
+  const { data, isLoading, isError } = useProviders();
+
+  return (
+    <DataView
+      items={data}
+      isLoading={isLoading}
+      isError={isError}
+      skeletonCount={3}
+      empty={{
+        icon: "spark",
+        title: "No providers",
+        sub: "The runtime reports no supported LLM providers.",
+      }}
+    >
+      {(rows) => (
+        <div className="flex flex-col gap-2">
+          {rows.map((p) => (
+            <ProviderRow key={p.id} p={p} />
+          ))}
+        </div>
+      )}
+    </DataView>
   );
 }
 
