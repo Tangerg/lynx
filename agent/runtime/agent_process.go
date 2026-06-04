@@ -325,6 +325,22 @@ func (p *AgentProcess) platformChatClient() *chat.Client {
 	return p.platform.chatClient
 }
 
+// effectiveChatClient returns the chat client this process's actions use:
+// the first non-nil client from a registered [core.ChatClientProvider]
+// (process scope first, so a per-process override beats a platform default),
+// else the platform's shared client. This is what lets one Platform serve
+// turns against different models without a Platform per model. Mirrors the
+// resolver-first ordering used for tool group resolution.
+func (p *AgentProcess) effectiveChatClient() *chat.Client {
+	providers := collectExtensions[core.ChatClientProvider](p.combinedExtensionsResolverFirst())
+	for _, prov := range providers {
+		if c := prov.ChatClientFor(p); c != nil {
+			return c
+		}
+	}
+	return p.platformChatClient()
+}
+
 // platformGuardrails returns the platform-level chat guardrails, or
 // nil when none are configured (or no platform attached). Threaded
 // into ProcessContext so [ProcessContext.Chat] can pre-install the
