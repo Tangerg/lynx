@@ -7,6 +7,7 @@
 
 import type { StreamControls } from "./MessageStream";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useModels, useSessions } from "@/lib/data/queries";
 import { Slot } from "@/plugins/host/Slot";
 import { useAgentSlice } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
@@ -44,6 +45,20 @@ export function ChatStream({ onSend, resetKey }: Props) {
   const setComposerValue = useComposerStore((s) => s.setValue);
   const setComposerMode = useComposerStore((s) => s.setMode);
   const removeAttachment = useComposerStore((s) => s.removeAttachment);
+
+  // Assistant header name = this session's model, resolved to its friendly
+  // displayName. Resolved ONCE here (both lists are stable react-query data,
+  // not per-token state) and threaded down — never per-message subscriptions
+  // (CLAUDE.md §5). Falls back to the raw model id, then the role's neutral
+  // "Assistant" in MessageBlock.
+  const activeSessionId = useSessionStore((s) => s.activeSessionId);
+  const { data: sessions } = useSessions();
+  const { data: models } = useModels();
+  const sessionModelId = sessions?.find((s) => s.id === activeSessionId)?.model ?? "";
+  const assistantName = useMemo(() => {
+    if (!sessionModelId) return undefined;
+    return models?.find((m) => m.id === sessionModelId)?.label ?? sessionModelId;
+  }, [sessionModelId, models]);
 
   // Global streaming-reveal preference. Read once here (stable string) and
   // threaded through ctx so MarkdownMessage stays prop-driven — no per-block
@@ -116,6 +131,7 @@ export function ChatStream({ onSend, resetKey }: Props) {
         <MessageStream
           messages={messages}
           ctx={ctx}
+          assistantName={assistantName}
           resetKey={resetKey}
           onControlsChange={handleControls}
         />

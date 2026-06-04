@@ -163,8 +163,11 @@ export const defaultRoles = definePlugin({
       avatarVariant: "msg-user",
     });
     host.extensions.contribute(MESSAGE_ROLE, {
+      // Neutral fallback only — the live model name (from the session's model
+      // via models.list) is resolved in ChatStream and passed to MessageBlock.
+      // This shows when no model resolves (e.g. before the lists load).
       id: "assistant",
-      displayName: "Sonnet 4.5",
+      displayName: "Assistant",
       icon: "spark",
       avatarVariant: "msg-agent",
     });
