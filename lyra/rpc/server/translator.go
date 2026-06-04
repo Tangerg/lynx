@@ -76,6 +76,15 @@ func (t *translator) nextItemID() string {
 	return protocol.IDPrefixItem + t.runID + "_" + strconv.Itoa(t.itemSeq)
 }
 
+// userMessageItemID is the deterministic id of a run's opening userMessage
+// Item — derived from the runId so [StartRun] can return it in the response
+// (for optimistic-bubble reconciliation) and the translator stamps the same
+// one onto the streamed + persisted Item. The "_u" suffix keeps it clear of
+// the translator's numbered items (_1, _2, …).
+func userMessageItemID(runID string) string {
+	return protocol.IDPrefixItem + runID + "_u"
+}
+
 // translate maps one Lyra chat event to zero or more StreamEvents.
 func (t *translator) translate(ev chat.Event) []protocol.StreamEvent {
 	switch e := ev.(type) {
@@ -123,7 +132,7 @@ func (t *translator) openUserMessage() []protocol.StreamEvent {
 	}
 	input := t.userInput
 	t.userInput = nil
-	id := t.nextItemID()
+	id := userMessageItemID(t.runID)
 	now := time.Now().UTC()
 	item := func(status protocol.ItemStatus) *protocol.Item {
 		return &protocol.Item{

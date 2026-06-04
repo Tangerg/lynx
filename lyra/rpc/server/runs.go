@@ -61,6 +61,9 @@ func (i *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	if err != nil {
 		return nil, nil, err
 	}
+	// Return the opening userMessage Item id so the client reconciles its
+	// optimistic bubble by exact id (same id the stream + items.list carry).
+	out.UserItemID = userMessageItemID(runID)
 	return out, events, nil
 }
 
