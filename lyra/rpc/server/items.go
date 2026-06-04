@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
+	"time"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/service/history"
@@ -26,13 +27,13 @@ func (i *Server) ListItems(ctx context.Context, in protocol.ListItemsRequest) (*
 		return nil, notImpl("items.list (cursor)")
 	}
 	if store := i.rt.History(); store != nil {
-		return listItemsFromHistory(ctx, store, in)
+		return i.listItemsFromHistory(ctx, store, in)
 	}
 	return i.listItemsFromMessages(ctx, in)
 }
 
 // listItemsFromHistory serves items.list from the durable Item store.
-func listItemsFromHistory(ctx context.Context, store history.Store, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
+func (i *Server) listItemsFromHistory(ctx context.Context, store history.Store, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
 	hItems, hRuns, err := store.List(ctx, in.SessionID)
 	if err != nil {
 		return nil, err
@@ -51,6 +52,7 @@ func listItemsFromHistory(ctx context.Context, store history.Store, in protocol.
 		if err := json.Unmarshal(hr.Blob, &r); err != nil {
 			continue
 		}
+		i.reconcileLostRun(&r)
 		runs = append(runs, r)
 	}
 
@@ -62,6 +64,41 @@ func listItemsFromHistory(ctx context.Context, store history.Store, in protocol.
 		items = items[:limit]
 	}
 	return &protocol.ListItemsResponse{Items: items, Runs: runs}, nil
+}
+
+// reconcileLostRun heals a RunRef the durable history left at status:running
+// when no live pump is driving it: such a run was lost to a restart/crash
+// between run.started and its terminal run.finished. Nothing is advancing it
+// and it isn't resumable (no interrupt was recorded — a parked run finishes
+// with outcome:interrupt, which IS terminal in history), so without this the
+// client renders a perpetual spinner. We present it as a terminal
+// error(run_lost) (API.md §6.2 anti-dangling, applied to non-parked runs).
+//
+// Reconciliation is in-memory on the read path, not a write-back: it re-judges
+// liveness from the run table on every items.list, so a run is never wrongly
+// terminalized (the table entry is set before the first persist and cleared
+// only after the terminal one — a genuinely live run is always present). No-op
+// for already-terminal runs.
+func (i *Server) reconcileLostRun(r *protocol.RunRef) {
+	if r.Status != protocol.RunStatusRunning || i.isRunLive(r.ID) {
+		return
+	}
+	r.Status = protocol.RunStatusFinished
+	r.Outcome = &protocol.RunOutcome{
+		Type:   protocol.OutcomeError,
+		Result: &protocol.RunResult{Error: &protocol.ProblemData{Type: "run_lost", Detail: "run lost on restart"}},
+	}
+	if r.FinishedAt.IsZero() {
+		r.FinishedAt = time.Now().UTC()
+	}
+}
+
+// isRunLive reports whether a run is currently being pumped in this process.
+func (i *Server) isRunLive(runID string) bool {
+	i.runMu.Lock()
+	defer i.runMu.Unlock()
+	_, ok := i.runs[runID]
+	return ok
 }
 
 // listItemsFromMessages is the fallback when no Item-history store is
