@@ -149,14 +149,12 @@ func (m *ToolMiddleware) executeCall(ctx context.Context, req *Request, next Cal
 
 	support.Register(req.Tools...)
 
-	// HITL resume: a prior call suspended this turn mid-round. Pick up from
-	// the checkpoint — execute only the calls that were pending — instead of
-	// re-running completed rounds (which would re-invoke the model).
-	if store := toolLoopStoreFrom(ctx); store != nil {
-		if cp, ok := store.Load(ctx); ok {
-			_ = store.Clear(ctx)
-			return m.resumeCall(ctx, cp, next, support, req)
-		}
+	// HITL resume: when the conversation tail is an assistant turn whose tool
+	// calls aren't fully answered (a prior segment interrupted for human
+	// input and its conversation was fed back), execute the still-pending
+	// calls and continue — without re-invoking the model for completed work.
+	if assistant, done, pending := trailingPendingToolCalls(req.Messages); assistant != nil {
+		return m.resumeCallRound(ctx, req, assistant, done, pending, next, support, toolLoopState{iteration: priorModelRounds(req.Messages)})
 	}
 
 	return m.executeCallRecursively(ctx, req, next, support, toolLoopState{iteration: 1})
@@ -197,12 +195,12 @@ func (m *ToolMiddleware) executeCallRecursively(ctx context.Context, req *Reques
 		return nil, err
 	}
 
-	if result.suspension != nil {
-		// HITL: a tool call suspended the round. Checkpoint the partial
-		// round (when a store is present) and propagate the suspend so the
-		// caller can park; with no store the error simply propagates and
-		// the caller re-runs the whole request on resume.
-		return nil, saveSuspendCheckpoint(ctx, req, resp, result.suspension, state.iteration)
+	if result.interrupt != nil {
+		// HITL: a tool call interrupted the round. Propagate a
+		// *ToolLoopInterrupted carrying the resumable conversation (prior
+		// turns + this round's assistant tool-call message + the results
+		// already produced) so the caller can save it, park, and resume.
+		return nil, m.wrapInterrupt(req.Messages, resp.Result.AssistantMessage, result.interrupt.done, result.interrupt.cause)
 	}
 
 	if result.ShouldReturn() {
@@ -231,14 +229,12 @@ func (m *ToolMiddleware) executeStream(ctx context.Context, req *Request, next S
 
 		support.Register(req.Tools...)
 
-		// HITL resume: pick up from the checkpoint a prior segment left —
+		// HITL resume: continue from the conversation tail's unanswered tool
+		// calls (a prior segment interrupted, its conversation fed back) —
 		// execute only the pending calls, no model re-call. See executeCall.
-		if store := toolLoopStoreFrom(ctx); store != nil {
-			if cp, ok := store.Load(ctx); ok {
-				_ = store.Clear(ctx)
-				m.resumeStream(ctx, cp, next, support, yield, req)
-				return
-			}
+		if assistant, done, pending := trailingPendingToolCalls(req.Messages); assistant != nil {
+			m.resumeStreamRound(ctx, req, assistant, done, pending, next, support, yield, toolLoopState{iteration: priorModelRounds(req.Messages)})
+			return
 		}
 
 		m.executeStreamRecursively(ctx, req, next, support, yield, toolLoopState{iteration: 1})
@@ -299,12 +295,13 @@ func (m *ToolMiddleware) executeStreamRecursively(ctx context.Context, req *Requ
 		return
 	}
 
-	if result.suspension != nil {
-		// HITL: checkpoint the partial round (when a store is present) and
-		// propagate the suspend so the caller can park. The round's
-		// assistant deltas were already streamed above; on resume the loop
-		// re-enters at the pending tool calls, not the model.
-		yield(nil, saveSuspendCheckpoint(ctx, req, resp, result.suspension, state.iteration))
+	if result.interrupt != nil {
+		// HITL: a tool call interrupted the round. Propagate a
+		// *ToolLoopInterrupted carrying the resumable conversation so the
+		// caller can save it, park, and resume. The round's assistant deltas
+		// were already streamed above; on resume the loop re-enters at the
+		// pending tool calls, not the model.
+		yield(nil, m.wrapInterrupt(req.Messages, resp.Result.AssistantMessage, result.interrupt.done, result.interrupt.cause))
 		return
 	}
 

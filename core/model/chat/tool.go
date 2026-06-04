@@ -302,16 +302,16 @@ type ToolInvocationResult struct {
 	toolMessage     *ToolMessage
 	allReturnDirect bool
 
-	// suspension is set when a tool call suspended the loop pending
-	// external input (HITL R). It carries the partial round (results
-	// produced, calls still pending, suspend cause) so the middleware can
-	// checkpoint and propagate the suspend. When set, toolMessage is nil
-	// and the normal continue/return path is bypassed.
-	suspension *toolRoundSuspension
+	// interrupt is set when a tool call interrupted the loop pending human
+	// input (HITL). It carries the results produced so far this round plus
+	// the interrupt cause so the middleware can assemble the resumable
+	// conversation and propagate. When set, toolMessage is nil and the
+	// normal continue/return path is bypassed.
+	interrupt *toolRoundInterrupt
 }
 
-// Suspended reports whether the round suspended pending external input.
-func (r *ToolInvocationResult) Suspended() bool { return r.suspension != nil }
+// Interrupted reports whether the round interrupted pending human input.
+func (r *ToolInvocationResult) Interrupted() bool { return r.interrupt != nil }
 
 // ShouldContinue reports whether the runtime should re-prompt the LLM
 // with the tool results. It is true when at least one internal tool
@@ -512,19 +512,14 @@ func (i *toolCallInvoker) invokeToolCalls(ctx context.Context, calls []*ToolCall
 
 		result, err := i.invokeOne(ctx, t, call)
 		if err != nil {
-			if suspendsToolLoop(err) {
-				// HITL: this call suspends the loop pending external input.
-				// Stop the round here and report the partial round so the
-				// middleware can checkpoint and propagate the suspend. The
-				// already-produced results (returns) are preserved; the
-				// suspending call + the rest stay pending. Checked before
-				// the abort / feedback carve-outs below so suspension wins.
+			if interruptsToolLoop(err) {
+				// HITL: this call interrupts the loop pending human input.
+				// Stop the round here and report the results produced so far
+				// plus the interrupt cause; the middleware assembles the
+				// resumable conversation and propagates. Checked before the
+				// abort / feedback carve-outs below so interrupt wins.
 				return &ToolInvocationResult{
-					suspension: &toolRoundSuspension{
-						done:    returns,
-						pending: slices.Clone(calls[idx:]),
-						cause:   err,
-					},
+					interrupt: &toolRoundInterrupt{done: returns, cause: err},
 				}, nil
 			}
 			if !i.feedbackOnError || abortsToolLoop(err) {
@@ -616,9 +611,10 @@ func (i *toolCallInvoker) invoke(ctx context.Context, req *Request, resp *Respon
 	result.request = req
 	result.response = resp
 
-	if result.suspension != nil {
-		// Suspended round: toolMessage is intentionally nil. Skip validate
-		// (which requires it) — the middleware checkpoints + propagates.
+	if result.interrupt != nil {
+		// Interrupted round: toolMessage is intentionally nil. Skip validate
+		// (which requires it) — the middleware assembles the resumable
+		// conversation and propagates the interrupt.
 		return result, nil
 	}
 	return result, result.validate()
