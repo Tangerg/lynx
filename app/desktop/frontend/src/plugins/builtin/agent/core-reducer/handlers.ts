@@ -210,7 +210,17 @@ function onItemDelta(state: AgentViewState, itemId: string, delta: ItemDelta): A
 // item.completed
 // ---------------------------------------------------------------------------
 
-function onItemCompleted(state: AgentViewState, item: Item): AgentViewState {
+function onItemCompleted(state: AgentViewState, rawItem: Item): AgentViewState {
+  // item.completed ⟹ the item has settled, so its status is terminal
+  // (completed | incomplete) — never inProgress. A non-terminal status here
+  // means the item was never cleanly finished: history hydration (items.list)
+  // of a run lost to a crash/restart still returns its last item as
+  // inProgress (backend 坑 B is reconciled at the RunRef level, which this
+  // item-based fold never reads). Coerce it to incomplete so it renders as a
+  // truncated block, not a block that spins forever waiting for a live stream
+  // that will never come.
+  const item: Item =
+    rawItem.status === "inProgress" ? { ...rawItem, status: "incomplete" } : rawItem;
   switch (item.type) {
     case "userMessage":
       return appendUserMessage(state, item, "complete");

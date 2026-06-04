@@ -193,6 +193,26 @@ describe("reducer — item fold", () => {
     expect(s.plan).toEqual([]);
   });
 
+  it("item.completed{status:inProgress} is a lost item — settles incomplete, not a forever spinner", () => {
+    // History hydration (items.list) of a run lost to a crash/restart replays
+    // its last item as item.completed but with status still inProgress (backend
+    // 坑 B). The fold must coerce that to incomplete — a "running" block here
+    // would spin forever (no live stream will ever complete it).
+    let s: AgentViewState = INITIAL_VIEW_STATE;
+    s = reduce(
+      s,
+      completed(
+        item({
+          id: "a1",
+          type: "agentMessage",
+          status: "inProgress", // contradictory on a completed event — coerced
+          content: [{ type: "text", text: "half a thoug" }],
+        }),
+      ),
+    );
+    expect(s.messages[0]!.blocks[0]).toMatchObject({ status: "incomplete", text: "half a thoug" });
+  });
+
   it("item.completed{status:incomplete} settles the block as incomplete, not complete", () => {
     // A canceled/interrupted run settles its agentMessage as `incomplete`
     // (API.md §4.3); the fold must preserve that, not stamp "complete".

@@ -1,7 +1,7 @@
 # Lyra 后端对 INTEGRATION_VERIFICATION（本轮）的回应
 
 > **日期**：2026-06-05
-> **后端构建**：`23ef1a0`（已推 origin/main，运行中 `127.0.0.1:17171`，已重启）
+> **后端构建**：`91ec6f9`（已推 origin/main，运行中 `127.0.0.1:17171`，已重启）
 > **回应对象**：[`INTEGRATION_VERIFICATION.md`](./INTEGRATION_VERIFICATION.md) §1（B3 / W1 / deny）+ §2（工具参数约定提案）
 > 契约以 [`API.md`](./API.md) / [`TRANSPORT.md`](./TRANSPORT.md) 为准。
 
@@ -12,7 +12,9 @@
 | 项 | 状态 |
 | --- | --- |
 | **B3-1** 续延 run 不发 `run.started` | ✅ 已修（每段都发，带 `parentRunId`） |
-| **B3-2** 实时流顺序 / 需要单调 seq | ✅ **`RunEvent.eventId` 本就全局单调可排**（见下），用它重排即可；run.started 缺口已补 |
+| **B3-2** 实时流顺序 / 需要单调 seq | ⚠️ **上轮指导需更正**：`eventId` 只是**单条流内**的实时游标，**不是跨 run/跨重启的全局时钟**。跨 run 时间线请用 `items.list` 的 seq 顺序（见下） |
+| 🆕 重启坑 A | `eventId` 进程重启后归零（内存计数器）→ 不能当全局排序键；正确排序见 B3-2 |
+| 🆕 重启坑 B | 崩溃/Ctrl-C 打断的非中断 run 残留 `status:"running"` 幽灵；✅ 已修（`items.list` 惰性对账成 `error(run_lost)`） |
 | 🆕 副作用：plan-review `question` 终态此前其实没生效 | ✅ 同 B3-1 一起救活（原来挂在续延不发的 TurnStart 上） |
 | **deny 显示绿 ✓** | ✅ 已修（被拒工具 → `status:"incomplete"` + `error.type:"denied_by_user"`） |
 | **W1 / §2** 工具 wire 形状不统一 | 🤝 **同意方向**，逐条回应见下；属**协议改动 → 建议先把契约钉进 API.md，再前后端 lockstep 实现** |
@@ -27,15 +29,43 @@
 
 > 🆕 **副作用修复**：我上一轮加的"plan-review question 在续延补 `item.completed`"其实**从没生效**——它也挂在续延不发的 TurnStart 上，是死代码。这次一并救活：批准/拒绝 plan 后,plan 卡现在会在续延开头收到终态。
 
-## ✅ B3-2 —— 实时流顺序 / 单调 seq
+## ⚠️ B3-2 —— 实时流顺序（上轮指导更正）
 
-**后端早已提供单调序：** 每个 `RunEvent.eventId` 是 **server 全局单调、零填充（`evt_00000000123`）、字典序可排** 的 id，跨所有 run（含续延）单调。这就是你们要的"root run 内单调 seq"——而且是**全局**单调,跨续延也成立。**前端按 `eventId` 排序 + 去重 + 断线重放即可**(你们已排期的 seq 重排直接用它,不需要后端再加字段)。
+**先纠正我上轮的说法。** 我上轮写"`eventId` 全局单调、跨续延也成立，前端按它排序"——这只在**单进程生命周期内**成立，**跨重启就是错的**（`eventId` 由内存计数器生成，重启归零，见下方"重启坑 A"）。`eventId` 的正确定位是**单条流内的实时游标**，不是跨 run 的全局时钟。
 
-关于"被批准工具迟发":续延是**重跑该 LLM 轮**,工具在模型重新产出它的位置执行——这是 R 模型的固有时序,后端无法把它"提前"到某个逻辑位置(它就是那时才真跑)。但:① `run.started` 边界现在有了;② `eventId` 给了可排序键;③ `items.list`(durable, createdAt 正确)重开即正常。所以实时态用 eventId 排,持久态用 items.list,两者都自洽。
+**正确的排序模型（三个场景各用各的键）：**
+
+1. **持久态（刷新/重连后用 `items.list` 重建历史）**：后端 `history_items` 已按插入 `seq` 返回 → **前端直接按返回数组顺序渲染，不要再排**。run 树用 `parentRunId` 拼父子；`createdAt` **只用于显示时间，不做主排序键**（wall-clock，重启/时钟回拨会乱）。这个 seq 顺序**跨 run、跨续延、跨重启都对**——它是权威时间线。
+2. **实时态（单个 run 的 SSE 流）**：在**这一条流内**按 `eventId` 排序 + 去重（`Last-Event-Id` 重连也是它）。单 run 内 `eventSeq` 只增不退，流内永远正确；hub 是内存的、一条 live 流不可能跨重启，所以"重启归零"对流内排序**无影响**。
+3. **实时 ⊕ 历史 合并**：按 **item id** 关联（同一 item 的 `started`/`delta`/`completed` 都带同一 id）。历史 item 保持 `items.list` 位置，新来的 live item 追加到尾部。**全程不需要跨 run 的全局数字时钟。**
+
+> 所以你们排期的"seq 重排"：**单 run 内**用 `eventId`，**跨 run/历史**用 `items.list` 顺序——后端不需要再加全局序字段。
+
+关于"被批准工具迟发"：续延是**重跑该 LLM 轮**，工具在模型重新产出它的位置执行——这是 R 模型固有时序，后端无法把它"提前"。但：① `run.started` 边界现在每段都有了；② 单 run 内 `eventId` 给了流内排序键；③ `items.list`（durable, seq 序）重开即正常。实时态用流内 eventId，持久态用 items.list seq，两者自洽。
 
 ## ✅ deny 显示绿 ✓
 
 **已修。** 被拒工具此前终态 `status:"completed"` + `output` → 前端渲染成绿 ✓。现在拒绝走 `engine.ErrToolDenied` → toolCall item 终态 = **`status:"incomplete"` + `error:{type:"denied_by_user", detail:"tool call denied by user"}`**,与"绿色成功"和"普通失败(`tool_failed`)"都可区分。前端按 `error.type==="denied_by_user"`(或 `status==="incomplete"`)渲染"拒绝"色即可。
+
+---
+
+## 🔁 进程重启 / 时序专项排查（本轮新增）
+
+按"还有没有时序坑 + 考虑重启"做了一轮专项审计。**单进程内时序是干净的**（单 pump 顺序消费、`recordInterrupt`/落库都在事件上 wire 之前、`items.list` 按插入 seq 稳定排序）。重启相关挖到两个，结论如下：
+
+### 坑 A —— `eventId` 重启归零（已更正指导，不改代码）
+
+`eventId` 由 server 内存计数器生成，**进程重启从 0 重新开始**。所以重启后续延 run 的 `eventId` 会比被中断 run 留下的更小 → 撞号/逆序。**这只影响"把 eventId 当跨重启全局时钟"的用法**——即我上轮的错误指导。修正后（见 B3-2）：跨 run/历史一律靠 `items.list` 的 seq，`eventId` 只在单流内用。`Last-Event-Id` 重放是 per-hub、hub 内存、不跨重启，所以重放/去重不受影响。**故不硬修 eventId 格式**（它本就是 ephemeral 游标，强行兜底全局时钟属过度设计）。
+
+### 坑 B —— 崩溃后残留 `running` 幽灵 run（✅ 已修）
+
+非中断 run 在 `run.started` 与 `run.finished` 之间进程死掉（崩溃，或 dev 里 Ctrl-C 打断一个正在跑的 turn），终态永不落库。重启后该 run 不在活表、无 interrupt 记录（不可 resume），但 `items.list` 仍把它当 `running` 返回 → 前端永远转圈。
+
+**修复**：`items.list` 惰性对账——`status:"running"` 但不在活跃运行表里的 RunRef，呈现为终态 `outcome:{type:"error", result:{error:{type:"run_lost", detail:"run lost on restart"}}}`。纯读路径对账（每次 list 重判 liveness，不写回），所以真正在跑的 run 绝不会被误判终结。
+
+> **前端动作**：遇到 `RunRef.outcome.type==="error"` 且 `error.type==="run_lost"`，渲染为"运行已丢失（重启）"的终态卡，而不是继续 spinner。
+>
+> 注：**park 后重启再 resume 是干净的**——被中断 run 的 `run.finished{interrupt}` 已是落库终态，续延另起 run，不受此坑影响。
 
 ---
 
