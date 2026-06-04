@@ -212,10 +212,15 @@ export function writeToolCall(
   const prev = withBlock.toolCalls[item.id];
   const tool: ToolCall = {
     id: item.id,
+    kind: item.tool?.kind ?? "tool",
     fn: toolLabel(item.tool),
     args: prev?.args ?? "",
     status: toolStatus(item),
     duration,
+    // Keep the accumulated stream output (commandExecution stdout streams via
+    // toolOutput) — toolFields only overrides `result` for kinds that carry a
+    // structured one (generic `tool`).
+    result: prev?.result,
     // Surface the tool-level failure reason (§8.1 channel b) so an "err" tool
     // tells the user *why*, not just that it went red.
     error: item.error ? (item.error.detail ?? item.error.type) : undefined,

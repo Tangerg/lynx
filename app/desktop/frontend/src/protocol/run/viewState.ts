@@ -4,7 +4,7 @@
 // Items are the wire primitive; this grouping (one assistant turn = one
 // bubble with many blocks) is purely a UI concern.
 
-import type { OpenInterrupt } from "@/rpc";
+import type { OpenInterrupt, ToolKind } from "@/rpc";
 
 // Narrow view-side roles. userMessage → "user", everything the agent
 // produces → "assistant", protocol notes → "system".
@@ -27,6 +27,7 @@ export type BlockStatus = "running" | "complete" | "incomplete" | "requires-acti
 
 export interface ToolCall {
   id: string;
+  kind: ToolKind; // wire variant — drives icon routing (display label is `fn`)
   fn: string; // tool display name / command
   args: string; // accumulated arg text (toolArguments deltas, pre-parse)
   status: ToolCallStatus;

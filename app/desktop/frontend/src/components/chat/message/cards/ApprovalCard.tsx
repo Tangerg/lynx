@@ -98,13 +98,10 @@ export function ApprovalCard({
   // approve we re-parse it and forward `editedArgs` only when it changed.
   const hasArgs = args !== undefined;
   const originalArgs = hasArgs ? JSON.stringify(args, null, 2) : "";
-  // For a command tool the only arg is `command`, already shown verbatim in the
-  // `$ cmd` line above — re-showing it as JSON just duplicates it as an ugly
-  // escaped blob (`"...\"x\"..."`). Hide the args block in that case.
-  const argKeys = hasArgs ? Object.keys(args) : [];
-  const showArgs =
-    hasArgs &&
-    !(cmd.trim() !== "" && argKeys.length <= 1 && (argKeys[0] ?? "command") === "command");
+  // `args` is set only for the generic `tool` kind (free-form object); command
+  // approvals show their command in the `$ cmd` line instead. So whenever args
+  // are present, they're worth showing.
+  const showArgs = hasArgs;
   const [editing, setEditing] = useState(false);
   const [argsText, setArgsText] = useState(originalArgs);
   const [argsInvalid, setArgsInvalid] = useState(false);

@@ -26,7 +26,13 @@ function seedInterrupt(kind: "approval" | "question", itemId: string): void {
   store.applyEvents(SID, [
     runStarted("run_1", SID),
     kind === "approval"
-      ? started(item({ id: itemId, type: "toolCall", tool: { kind: "command", command: "rm x" } }))
+      ? started(
+          item({
+            id: itemId,
+            type: "toolCall",
+            tool: { kind: "commandExecution", command: ["rm", "x"] },
+          }),
+        )
       : started(
           item({
             id: itemId,
@@ -38,8 +44,12 @@ function seedInterrupt(kind: "approval" | "question", itemId: string): void {
       type: "interrupt",
       interrupts: [
         kind === "approval"
-          ? { itemId: itemId as never, kind: "approval", payload: { command: "rm x" } }
-          : { itemId: itemId as never, kind: "question", payload: {} },
+          ? {
+              itemId: itemId as never,
+              kind: "approval",
+              payload: { tool: { kind: "commandExecution", command: ["rm", "x"] } },
+            }
+          : { itemId: itemId as never, kind: "question" },
       ],
     }),
   ]);
@@ -88,13 +98,33 @@ describe("agentStore.resolveInterrupt", () => {
     store.resetSession(SID);
     store.applyEvents(SID, [
       runStarted("run_1", SID),
-      started(item({ id: "t1", type: "toolCall", tool: { kind: "command", command: "rm a" } })),
-      started(item({ id: "t2", type: "toolCall", tool: { kind: "command", command: "rm b" } })),
+      started(
+        item({
+          id: "t1",
+          type: "toolCall",
+          tool: { kind: "commandExecution", command: ["rm", "a"] },
+        }),
+      ),
+      started(
+        item({
+          id: "t2",
+          type: "toolCall",
+          tool: { kind: "commandExecution", command: ["rm", "b"] },
+        }),
+      ),
       runFinished({
         type: "interrupt",
         interrupts: [
-          { itemId: "t1" as never, kind: "approval", payload: { command: "rm a" } },
-          { itemId: "t2" as never, kind: "approval", payload: { command: "rm b" } },
+          {
+            itemId: "t1" as never,
+            kind: "approval",
+            payload: { tool: { kind: "commandExecution", command: ["rm", "a"] } },
+          },
+          {
+            itemId: "t2" as never,
+            kind: "approval",
+            payload: { tool: { kind: "commandExecution", command: ["rm", "b"] } },
+          },
         ],
       }),
     ]);

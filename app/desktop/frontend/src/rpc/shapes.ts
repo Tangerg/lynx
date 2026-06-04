@@ -230,36 +230,31 @@ export type ItemType = Item["type"];
 // §4.4 — ToolInvocation
 // ---------------------------------------------------------------------------
 
+// Uniform "general + special" tool shape (API.md §4.4). Closed, structurally
+// rich tools (command / file change / search) are typed variants — `kind` IS
+// the identity, no redundant `name`. The open set (MCP / dynamic / subagent /
+// custom) rides one generic envelope keyed by `name`, with a parsed-object
+// `arguments` and a best-effort-JSON `result`.
 export type ToolInvocation =
-  // The runtime sends `name` (the tool, e.g. "bash") + the shell command in the
-  // streamed `arguments` (not a top-level `command`). `command` stays optional
-  // for sources that do inline it. `output` is the result (often a JSON string).
   | {
-      kind: "command";
-      name?: string;
-      command?: string;
+      kind: "commandExecution";
+      command: string[];
       cwd?: string;
-      output?: string;
       exitCode?: number;
+      durationMs?: number;
     }
-  | { kind: "fileEdit"; path: string; diff?: DiffRow[] }
-  | {
-      kind: "mcp";
-      server: string;
-      name: string;
-      arguments: Record<string, unknown>;
-      result?: unknown;
-    }
-  | { kind: "search"; query: string; results?: SearchResult[] }
-  | {
-      kind: "subagent";
-      name?: string;
-      prompt: ContentBlock[];
-      childRunId?: RunId;
-      result?: string;
-    };
+  | { kind: "fileChange"; changes: FileChangeEntry[] }
+  | { kind: "search"; query: string; results?: SearchHit[] } // local grep / glob
+  | { kind: "webSearch"; query: string; results?: WebSearchResult[] }
+  | { kind: "tool"; name: string; arguments: Record<string, unknown>; result?: unknown };
 
 export type ToolKind = ToolInvocation["kind"];
+
+export interface FileChangeEntry {
+  path: string;
+  kind: "add" | "modify" | "delete" | "rename";
+  diff?: DiffRow[];
+}
 
 // ---------------------------------------------------------------------------
 // §4.5 — Diff / Search / files
@@ -271,11 +266,18 @@ export type DiffRow =
   | { type: "added"; rightLine: number; code: string }
   | { type: "deleted"; leftLine: number; code: string };
 
-export interface SearchResult {
-  title?: string;
-  url?: string;
-  path?: string;
+// Local search hit (grep = path+line+snippet; glob = path only).
+export interface SearchHit {
+  path: string;
+  lineNumber?: number;
   snippet?: string;
+}
+// Web search result.
+export interface WebSearchResult {
+  title?: string;
+  url: string;
+  snippet?: string;
+  faviconUrl?: string;
 }
 
 export interface FileChange {
@@ -366,10 +368,21 @@ export interface GenerationParams {
 // §4.8 — HITL types
 // ---------------------------------------------------------------------------
 
-export interface Interrupt {
-  itemId: ItemId; // the unresolved Item (toolCall awaiting approval / question awaiting answer)
-  kind: InterruptKind;
-  payload: Record<string, unknown>; // kind-specific
+// General (itemId) + special (per-kind payload), API.md §4.8. approval /
+// toolResult reuse ToolInvocation (read payload.tool — no guessing where the
+// command lives). question carries no payload (its content is on the Item).
+export type Interrupt =
+  | { kind: "approval"; itemId: ItemId; payload: ApprovalPayload }
+  | { kind: "question"; itemId: ItemId }
+  | { kind: "toolResult"; itemId: ItemId; payload: ToolResultPayload };
+
+export interface ApprovalPayload {
+  tool: ToolInvocation; // the tool awaiting approval (result not yet present)
+  risk?: "low" | "medium" | "high";
+  reason?: string;
+}
+export interface ToolResultPayload {
+  tool: ToolInvocation; // a client-side tool to execute; result returned via runs.resume
 }
 
 export interface OpenInterrupt {
@@ -392,7 +405,8 @@ export interface AnswerResponse {
 }
 export interface ToolResultResponse {
   kind: "toolResult";
-  output: string;
+  result?: unknown; // best-effort JSON, same shape as ToolInvocation.result
+  error?: ProblemData; // when the client tool failed
 }
 export interface InterruptResponse {
   itemId: ItemId; // matches Interrupt.itemId

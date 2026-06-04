@@ -18,12 +18,13 @@ import type {
   RunOutcome,
   RunRef,
   StreamEvent,
+  ToolInvocation,
 } from "@/rpc";
 import type { StreamEventHandler } from "@/plugins/sdk";
 import type { AgentViewState, ContentBlock } from "@/protocol/run/viewState";
 import { applyPatch, deepClone } from "fast-json-patch";
 import { appendTimelineEntry, patchRun, setPlan } from "@/plugins/sdk";
-import { blockStatus, mapPlan } from "./projections";
+import { blockStatus, mapPlan, toolLabel } from "./projections";
 import {
   appendToTurn,
   appendUserMessage,
@@ -35,23 +36,21 @@ import {
   writeToolCall,
 } from "./fold";
 
-const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
-
-// Tool args in an approval payload arrive either as an object or — matching
-// the streaming `toolArguments` model — as a JSON *string*. Normalize to an
-// object so the card renders/edit them cleanly (not a double-escaped blob).
-const parseArgs = (v: unknown): Record<string, unknown> | undefined => {
-  if (v && typeof v === "object") return v as Record<string, unknown>;
-  if (typeof v === "string" && v.trim()) {
-    try {
-      const p: unknown = JSON.parse(v);
-      return p && typeof p === "object" ? (p as Record<string, unknown>) : undefined;
-    } catch {
-      return undefined;
-    }
+// Short verb phrase for an approval card title, derived from the tool kind.
+function approvalText(tool: ToolInvocation): string {
+  switch (tool.kind) {
+    case "commandExecution":
+      return "Run command";
+    case "fileChange":
+      return tool.changes.length === 1 ? "Apply file change" : "Apply file changes";
+    case "search":
+      return "Run search";
+    case "webSearch":
+      return "Run web search";
+    case "tool":
+      return `Run ${tool.name}`;
   }
-  return undefined;
-};
+}
 
 // ---------------------------------------------------------------------------
 // run.*
@@ -78,24 +77,27 @@ function materializeInterrupt(
   parentRunId: string,
 ): AgentViewState {
   if (it.kind === "approval") {
-    // The command lives inside the tool args (e.g. bash → `{command}`); there
-    // is no top-level `payload.command`. Parse args first, then derive it.
-    const args = parseArgs(it.payload.arguments ?? it.payload.args);
+    // payload.tool is the uniform ToolInvocation (API.md §4.8) — read it
+    // directly, no guessing where the command lives / unescaping strings.
+    const tool = it.payload.tool;
     const block: ContentBlock = {
       kind: "approval",
       status: "requires-action",
       itemId: it.itemId,
       parentRunId,
-      text: str(it.payload.text) ?? "Approve this action?",
-      command: str(it.payload.command) ?? str(args?.command) ?? "",
-      reason: str(it.payload.reason) ?? "",
-      args,
+      text: approvalText(tool),
+      command: tool.kind === "commandExecution" ? tool.command.join(" ") : "",
+      reason: it.payload.reason ?? "",
+      // Editable args only make sense for the generic `tool` (its arguments are
+      // a free-form object); typed variants carry no editable arg bag.
+      args: tool.kind === "tool" ? tool.arguments : undefined,
+      risk: it.payload.risk,
     };
     const withBlock = appendToTurn(state, it.itemId, block);
     return appendTimelineEntry({
       kind: "approval-request",
       refId: it.itemId,
-      summary: block.command,
+      summary: block.command || toolLabel(tool),
     })(withBlock);
   }
   if (it.kind === "question") {

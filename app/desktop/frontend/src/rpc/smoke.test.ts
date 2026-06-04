@@ -139,14 +139,18 @@ describe("smoke: v2 end-to-end happy path", () => {
           status: "inProgress",
           createdAt: "2026-06-03T00:00:00Z",
           type: "toolCall",
-          tool: { kind: "command", command: "ls" },
+          tool: { kind: "commandExecution", command: ["ls"] },
         },
       });
       // R-model HITL: the run ENDS with an interrupt for the tool approval.
       injectRunFinished(transport, "run_1", "evt_5", {
         type: "interrupt",
         interrupts: [
-          { itemId: asItemId("item_tool"), kind: "approval", payload: { command: "ls" } },
+          {
+            itemId: asItemId("item_tool"),
+            kind: "approval",
+            payload: { tool: { kind: "commandExecution", command: ["ls"] } },
+          },
         ],
       });
     }, 0);

@@ -35,9 +35,20 @@ const STATUS_TONE = {
 // pulsing dot for `run` is set up via the `before:` pseudo-element below.
 const STATUS_GLYPH = { ok: "✓", err: "✗", run: "", denied: "⊘" } as const;
 
+// Typed tool variants route their icon by kind (their `fn` is a display label —
+// a command string / query — not a routable name). The generic `tool` kind
+// routes by `fn` (the tool name) through the plugin/fallback registry.
+const ICON_BY_KIND: Record<string, IconName> = {
+  commandExecution: "terminal",
+  fileChange: "file",
+  search: "search",
+  webSearch: "globe",
+};
+
 export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView }: Props) {
   const status: keyof typeof STATUS_TONE = tool.status === "running" ? "run" : tool.status;
   const statusGlyph = STATUS_GLYPH[status];
+  const toolIcon = ICON_BY_KIND[tool.kind] ?? toolIconFor(tool.fn);
   const actions = useExtensionPoint(TOOL_ACTION).filter((a) => !a.predicate || a.predicate(tool));
   const running = tool.status === "running";
 
@@ -77,7 +88,7 @@ export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView 
             STATUS_TONE[status],
           )}
         >
-          <Icon name={toolIconFor(tool.fn)} size={14} />
+          <Icon name={toolIcon} size={14} />
         </div>
         <div className="flex items-baseline gap-2 min-w-0">
           <span className="font-mono text-[12px] font-semibold text-fg tracking-[-0.005em]">
