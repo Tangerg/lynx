@@ -21,7 +21,7 @@
 - **MCP 客户端**: `modelcontextprotocol/go-sdk/mcp`
 - **AG-UI 事件**: `core/model/chat` + 自家 `internal/agui` 编码层
 - **持久化**: 文件（默认 JSON / JSONL）或 SQLite（`modernc.org/sqlite` 纯 Go 无 CGO，`LYRA_STORAGE=sqlite`）
-- **LLM provider**: `models/anthropic` / `models/openai`，按 `LYRA_PROVIDER` 分发
+- **LLM provider**: 多 provider × 多 model。`internal/service/provider` 是运行态可变注册表（每 provider 的 key+baseURL，file/sqlite 持久化）；`config.BuildClient(ClientSpec)` 按 provider id 建 client（anthropic/openai/moonshot/deepseek，后两者走 OpenAI 兼容端点，全部支持 baseURL 覆盖）。**per-run model**：`runs.start{model}` → `clientResolver` 按 model 查 `models/catalog` 定位 provider → 取注册表凭证建/缓存 client → 经 agent `core.ChatClientProvider` 扩展点让该 turn 用它。model 元数据/定价/能力全来自公开的 `models/catalog`（models.list 直读，无需 key）。`config.yaml` 的 `provider`/`apiKey`/`baseURL` 是默认 provider 的种子
 - **测试**: stdlib `testing` + `httptest`
 
 ## 三大支柱
@@ -170,3 +170,5 @@ curl -H "Authorization: Bearer $(cat ~/.lyra/local-token)" \
 - ✅ **v2 协议迁移**（前端 docs/API.md `protocolVersion 2026-06-03`）：`rpc/protocol` 全面重写成 Session→Run→**Item** 模型（Item 是唯一 history+streaming primitive，无 Message 类型）；`/v1/`→`/v2/` 路径；X- header 去品牌前缀（`X-Trace-Id` 等）；单一 `notifications.run.event` 事件流；错误码按 `error.data.type` symbolic 分支
 - ✅ **HITL P→R 模型**：工具审批 / plan-review 从阻塞式 gate 改成 **park-on-interrupt + 续连 resume** —— run 以 `run.finished{outcome:interrupt}` 收尾，客户端经 `runs.resume`(parentRunId 链) 应答；engine 经 `hitl.PauseError` seam 中途挂起、`Platform.ResumeProcess` 把 verdict 写回 blackboard（keyed by tool name+args）让 re-run 观察到；中断存储 `interrupts.Store` 做成可插拔接口（默认 in-memory，跨重启重建是 documented residual）；`approval` 从 Console/Gate/Service 三层 collapse 成运行态 `Mode`（GetMode/SetMode）—— 不再阻塞，故三层 ISP 不再需要
 - ✅ **重构 R1-R3**：dispatch 42 handler 样板 → `reply.go` 泛型尾部 helper（`decode`/`reply`/`replyDone`/`replyStream`）；chat 删零调用 `ContinuePlan`/`PlanDecision` + 抽 `finishTurn`；`translator.interrupt()` 拆 `approvalInterrupt`/`planInterrupt`（并修了 plan interrupt 在 wire 上误标 `Kind:"approval"` 的 bug）
+- ✅ **run 流投递 userMessage Item**：用户输入作为 run 首个 Item（`item.started`+`item.completed`）随流走（前 wire id == items.list id），前端从「纯乐观渲染」升级为「乐观+按 id 去重」；删静默旁写的 `persistUserItem`
+- ✅ **多 provider × 多 model**（跨 models/agent/lyra）：①`models/catalog` 公开包暴露 provider→models 枚举（internal/catalog 不动）；②agent 加 `core.ChatClientProvider` 扩展点（`collectExtensions[T]` 范式，process-scope 优先于 platform 默认 client）让一个 Platform 按 turn 换 model；③lyra `internal/service/provider` 运行态注册表（file/sqlite 持久化）+ `clientResolver`（model→provider 经 catalog 推断→建/缓存 client）+ `chat.StartTurnRequest.Model` 透传 + per-model `CatalogPricing`；④`providers.list/configure/test`（真实探活 max_tokens=1）+ `models.list`（catalog 直读，不门控）接线；⑤baseURL 作为 provider 配置项（原生 WithBaseURL / 兼容 BaseURL 字段）。退役 `ProviderInfo` 单 provider 假设
