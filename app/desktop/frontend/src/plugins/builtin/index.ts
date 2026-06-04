@@ -46,6 +46,7 @@ import mainRoute from "./shell/main-route";
 import { messageCopy, messageEdit, messageRegenerate } from "./chat/message-actions";
 import planProgress from "./chat/plan-progress";
 import pluginsPane from "./settings/plugins-pane";
+import providersPane from "./settings/providers";
 import shortcuts from "./command/shortcuts";
 import {
   sidebarFooter,
@@ -143,6 +144,7 @@ const panes: PluginSpec[] = [
   personalization,
   connectionSettings,
   pluginsPane,
+  providersPane,
   diffView,
   terminalView,
   filesView,
