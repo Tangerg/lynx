@@ -155,6 +155,19 @@ export function toolFields(tool: ToolInvocation | undefined): Partial<ToolCall> 
   }
 }
 
+/** Fallback args text when no `toolArguments` deltas streamed: the generic
+ *  `tool`'s parsed `arguments`, pretty-printed (the inspector re-renders it as
+ *  a JSON tree). "" for typed variants (their data shows via fn / added / hits)
+ *  and for an empty object — so a started shell still seeds "" for delta
+ *  accrual rather than "{}". Guards the case where a tool delivers its args
+ *  only as an object on item.completed (no streaming). */
+export function argsText(tool: ToolInvocation | undefined): string {
+  if (tool?.kind === "tool" && Object.keys(tool.arguments).length > 0) {
+    return JSON.stringify(tool.arguments, null, 2);
+  }
+  return "";
+}
+
 export function toolStatus(item: Extract<Item, { type: "toolCall" }>): ToolCallStatus {
   // A HITL-declined tool settles as incomplete + error.type "denied_by_user"
   // (API.md §8.1) — that's a user decision, render it neutral, not failure-red.

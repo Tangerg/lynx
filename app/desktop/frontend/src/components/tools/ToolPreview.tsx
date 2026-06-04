@@ -11,6 +11,7 @@ import type { ToolCall } from "@/protocol/run/viewState";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
 import { TOOL_PREVIEW, useExtensionByKey } from "@/plugins/sdk";
 import { ToolInspector } from "./ToolInspector";
+import { toolRoutingKey } from "./toolIcon";
 
 interface Props {
   tool: ToolCall;
@@ -18,12 +19,13 @@ interface Props {
 }
 
 export function ToolPreview({ tool, onOpenView }: Props) {
-  const Preview = useExtensionByKey(TOOL_PREVIEW, tool.fn);
+  const key = toolRoutingKey(tool);
+  const Preview = useExtensionByKey(TOOL_PREVIEW, key);
   if (!Preview) {
     return <ToolInspector tool={tool} />;
   }
   return (
-    <PluginBoundary plugin={tool.fn} label={`${tool.fn} preview`}>
+    <PluginBoundary plugin={key} label={`${tool.fn} preview`}>
       <Preview tool={tool} onOpenView={onOpenView} />
     </PluginBoundary>
   );

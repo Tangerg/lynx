@@ -46,9 +46,25 @@ function firstToken(args: string): string {
 // Tool categorisation. Lookup sets (not switch) so adding a new tool
 // kind is one row. Unknown tool fns are ignored from the bucket-y
 // digests but still counted in the timeline view itself.
-const FILE_WRITE = new Set(["write_file", "edit_file", "create_file"]);
-const FILE_READ = new Set(["read_file", "cat"]);
-const SHELL_RUN = new Set(["bash", "shell", "run", "sh"]);
+// Generic read-tool names (commandExecution / fileChange / search are typed
+// kinds now, categorized by kind — not by name).
+const FILE_READ = new Set(["read", "read_file", "cat"]);
+
+// A read tool's path lives in its args object (JSON) — pull `path`/`file`,
+// else fall back to the first token (a bare path string).
+function argPath(args: string): string {
+  const t = args.trim();
+  if (t[0] === "{") {
+    try {
+      const o = JSON.parse(t) as Record<string, unknown>;
+      const p = o.path ?? o.file ?? o.filename;
+      if (typeof p === "string") return p;
+    } catch {
+      /* not JSON — fall through */
+    }
+  }
+  return firstToken(args);
+}
 
 export function deriveLatestRun(view: AgentViewState): RunDigest | null {
   // Walk timeline backwards for the last run-start. If none, no digest.
@@ -107,25 +123,20 @@ export function deriveLatestRun(view: AgentViewState): RunDigest | null {
   for (const id of startedTools) {
     const tool = view.toolCalls[id];
     if (!tool) continue;
-    if (FILE_WRITE.has(tool.fn)) {
-      const path = firstToken(tool.args);
-      if (path) {
-        digest.changedFiles.push({
-          path,
-          added: tool.added,
-          removed: tool.removed,
-        });
-      }
-    } else if (FILE_READ.has(tool.fn)) {
-      const path = firstToken(tool.args);
-      if (path) digest.readFiles.push(path);
-    } else if (SHELL_RUN.has(tool.fn)) {
+    if (tool.kind === "commandExecution") {
       digest.commands.push({
-        cmd: tool.args || tool.fn,
+        // fn IS the command string (toolLabel joins the argv).
+        cmd: tool.fn,
         // Only a successfully-run command is "ok"; err / denied did not run
         // to a clean result.
         status: tool.status === "ok" ? "ok" : "err",
       });
+    } else if (tool.kind === "fileChange") {
+      // fn is the changed path (single) or "N files" (multi).
+      digest.changedFiles.push({ path: tool.fn, added: tool.added, removed: tool.removed });
+    } else if (tool.kind === "tool" && FILE_READ.has(tool.fn)) {
+      const path = argPath(tool.args);
+      if (path) digest.readFiles.push(path);
     }
   }
 

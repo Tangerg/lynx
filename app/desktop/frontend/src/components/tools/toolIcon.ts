@@ -1,26 +1,42 @@
-// Resolve a tool fn name to the icon glyph rendered inside ToolCard.
+// Resolve a tool to its icon glyph + the registry key used for icon/preview
+// lookup.
 //
-// Lookup order:
-//   1. Plugin registry — `host.extensions.contribute(TOOL_ICON, "terminal", { key: "bash" })`. Lets
-//      a plugin add an icon for a custom tool, or swap the built-in one.
-//   2. Hardcoded fallback — kept inline so the kernel still renders sensibly
-//      even with zero plugins loaded (and so the built-in mapping plugin
-//      is a thin convenience, not the source of truth).
+// Routing key (the SAME key drives TOOL_ICON and TOOL_PREVIEW):
+//   - typed variants (commandExecution / fileChange / search / webSearch) →
+//     the `kind` IS the identity (their `fn` is a display label — a command
+//     string / query / path — not a stable name).
+//   - the generic `tool` envelope → the tool `name` (= `fn`).
 //
-// The fallback list mirrors `lyra.builtin.tool-icons` exactly — keeping
-// the two in sync is the trade-off for being able to render before the
-// plugin loads (initial paint).
+// Icon lookup order:
+//   1. Plugin registry — `host.extensions.contribute(TOOL_ICON, "terminal", { key: "commandExecution" })`.
+//   2. Hardcoded fallback — kept inline so the kernel renders sensibly with
+//      zero plugins loaded (the built-in mapping plugin is a thin convenience,
+//      not the source of truth). Mirrors `lyra.builtin.tool-icons` exactly.
 
 import type { IconName } from "@/components/common/Icon";
+import type { ToolCall } from "@/protocol/run/viewState";
 import { lookupExtensionByKey, TOOL_ICON } from "@/plugins/sdk";
 
-export function toolIconFor(fn: string): IconName {
-  const registered = lookupExtensionByKey(TOOL_ICON, fn);
+/** The icon/preview registry key for a tool: kind for typed variants, the
+ *  tool name (`fn`) for the generic `tool` envelope. */
+export function toolRoutingKey(tool: ToolCall): string {
+  return tool.kind === "tool" ? tool.fn : tool.kind;
+}
+
+export function toolIconFor(key: string): IconName {
+  const registered = lookupExtensionByKey(TOOL_ICON, key);
   if (registered) return registered as IconName;
 
-  if (fn === "read_file" || fn === "write_file" || fn === "edit_file") return "file";
-  if (fn === "grep") return "search";
-  if (fn === "bash") return "terminal";
-  if (fn === "web_search") return "globe";
+  // Typed variants — keyed by kind.
+  if (key === "commandExecution") return "terminal";
+  if (key === "fileChange") return "file";
+  if (key === "search") return "search";
+  if (key === "webSearch") return "globe";
+  // Generic-tool names.
+  if (key === "read" || key === "read_file" || key === "write_file" || key === "edit_file")
+    return "file";
+  if (key === "grep") return "search";
+  if (key === "bash") return "terminal";
+  if (key === "web_search") return "globe";
   return "tool";
 }
