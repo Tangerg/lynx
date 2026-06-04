@@ -31,13 +31,12 @@ var chatTracer = otel.Tracer("lynx/gen_ai/chat")
 // child span tagged with `lynx.tool.*` attributes.
 var toolTracer = otel.Tracer("lynx/tool")
 
-// lynx-specific tool-call attribute keys. The OTel GenAI semconv does
-// not yet standardize tool-execution attributes, so these live under
-// the `lynx.tool.*` namespace per doc/OBSERVABILITY.md §3.3.
+// Tool-call attribute keys from the OTel GenAI semconv. Tool failures
+// surface through the span status (Error) + RecordError, not a separate
+// is_error bool attribute.
 const (
-	attrLynxToolName    = "lynx.tool.name"
-	attrLynxToolCallID  = "lynx.tool.call_id"
-	attrLynxToolIsError = "lynx.tool.is_error"
+	attrLynxToolName   = "gen_ai.tool.name"
+	attrLynxToolCallID = "gen_ai.tool.call.id"
 )
 
 // OpenTelemetry GenAI semantic-convention attribute keys. The values

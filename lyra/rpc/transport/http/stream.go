@@ -62,8 +62,8 @@ func (s *Server) serveStream(w http.ResponseWriter, r *http.Request, resp *trans
 			notif, err := dispatch.EncodeRunEvent(ev)
 			if err != nil {
 				recordError(ctx, "rpc.encode-run-event", err,
-					attribute.String("lynx.lyra.run_id", ev.RunID),
-					attribute.String("lynx.lyra.event_id", ev.EventID),
+					attribute.String("run.id", ev.RunID),
+					attribute.String("run.event.id", ev.EventID),
 				)
 				continue
 			}

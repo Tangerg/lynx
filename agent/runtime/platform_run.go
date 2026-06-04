@@ -31,11 +31,11 @@ func (p *Platform) RunAgent(
 		return nil, err
 	}
 
-	ctx, span := core.AgentTracer().Start(normalizeContext(ctx), "lynx.agent.run",
+	ctx, span := core.AgentTracer().Start(normalizeContext(ctx), "agent.run",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
-			attribute.String("lynx.agent.name", agentDef.Name),
-			attribute.String("lynx.agent.process_id", proc.id),
+			attribute.String("gen_ai.agent.name", agentDef.Name),
+			attribute.String("agent.process.id", proc.id),
 		),
 	)
 	defer span.End()
@@ -45,7 +45,7 @@ func (p *Platform) RunAgent(
 		span.SetStatus(codes.Error, err.Error())
 		return proc, err
 	}
-	span.SetAttributes(attribute.String("lynx.agent.status", proc.Status().String()))
+	span.SetAttributes(attribute.String("agent.status", proc.Status().String()))
 	return proc, nil
 }
 

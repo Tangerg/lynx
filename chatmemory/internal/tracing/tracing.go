@@ -12,9 +12,9 @@ import (
 const (
 	attrDBSystem        = "db.system"
 	attrDBOperationName = "db.operation.name"
-	attrLynxConvID      = "lynx.chat_memory.conv_id"
-	attrLynxMsgCount    = "lynx.chat_memory.msg_count"
-	attrLynxConvCount   = "lynx.chat_memory.conv_count"
+	attrLynxConvID      = "gen_ai.conversation.id"
+	attrLynxMsgCount    = "chat_memory.msg_count"
+	attrLynxConvCount   = "chat_memory.conv_count"
 )
 
 // tracerFor returns the per-provider tracer. Names follow

@@ -274,8 +274,8 @@ func (p *AgentProcess) publishAny(e any) {
 // because external listeners — dashboards, exporters — key off the
 // stable string values. Treat as schema; renaming breaks consumers.
 const (
-	attrAgentName = "lynx.agent.name"
-	attrProcessID = "lynx.agent.process_id"
+	attrAgentName = "gen_ai.agent.name"
+	attrProcessID = "agent.process.id"
 )
 
 // startTickSpan creates a span scoped to one tick.

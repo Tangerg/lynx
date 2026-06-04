@@ -20,16 +20,16 @@ const defaultMaxIterations = 10_000
 // typo at one call site is impossible and listeners have one schema to
 // key off; treat as stable across releases.
 const (
-	spanAstar = "lynx.agent.planner.astar"
+	spanAstar = "agent.planner.astar"
 
-	attrGoalName           = "lynx.agent.goal.name"
-	attrActionsCount       = "lynx.agent.actions.count"
-	attrAstarAlreadySat    = "lynx.agent.astar.already_satisfied"
-	attrAstarReachable     = "lynx.agent.astar.reachable"
-	attrAstarIterations    = "lynx.agent.astar.iterations"
-	attrAstarFound         = "lynx.agent.astar.found"
-	attrAstarPlanLength    = "lynx.agent.astar.plan_length"
-	attrAstarPlanLengthRaw = "lynx.agent.astar.plan_length_raw"
+	attrGoalName           = "agent.goal.name"
+	attrActionsCount       = "agent.actions.count"
+	attrAstarAlreadySat    = "agent.astar.already_satisfied"
+	attrAstarReachable     = "agent.astar.reachable"
+	attrAstarIterations    = "agent.astar.iterations"
+	attrAstarFound         = "agent.astar.found"
+	attrAstarPlanLength    = "agent.astar.plan_length"
+	attrAstarPlanLengthRaw = "agent.astar.plan_length_raw"
 )
 
 var plannerTracer = otel.Tracer("lynx/agent/planner")

@@ -150,8 +150,8 @@ func (p *Planner) PlanToGoal(
 
 	ctx, span := plannerTracer.Start(ctx, "htn.plan",
 		trace.WithAttributes(
-			attribute.String("lynx.agent.planner", "htn"),
-			attribute.String("lynx.agent.goal.name", goal.Name),
+			attribute.String("agent.planner", "htn"),
+			attribute.String("agent.goal.name", goal.Name),
 		),
 	)
 	defer func() {
@@ -159,7 +159,7 @@ func (p *Planner) PlanToGoal(
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 		} else if result != nil {
-			span.SetAttributes(attribute.Int("lynx.agent.plan.length", len(result.Actions)))
+			span.SetAttributes(attribute.Int("agent.plan.length", len(result.Actions)))
 		}
 		span.End()
 	}()

@@ -124,7 +124,6 @@ func (t *Tool) Call(ctx context.Context, arguments string) (out string, err erro
 	)
 	defer func() {
 		if err != nil {
-			span.SetAttributes(attribute.Bool(attrLynxMCPIsError, true))
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 		}

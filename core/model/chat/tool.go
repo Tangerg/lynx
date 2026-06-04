@@ -523,7 +523,6 @@ func (i *toolCallInvoker) invokeOne(ctx context.Context, t Tool, call *ToolCallP
 	}
 
 	if err != nil {
-		span.SetAttributes(attribute.Bool(attrLynxToolIsError, true))
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 	}

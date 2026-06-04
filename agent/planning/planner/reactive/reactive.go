@@ -54,13 +54,13 @@ func (p *Planner) PlanToGoal(
 
 	_, span := plannerTracer.Start(ctx, "reactive.plan",
 		trace.WithAttributes(
-			attribute.String("lynx.agent.planner", "reactive"),
-			attribute.String("lynx.agent.goal.name", goal.Name),
+			attribute.String("agent.planner", "reactive"),
+			attribute.String("agent.goal.name", goal.Name),
 		),
 	)
 	defer func() {
 		if result != nil {
-			span.SetAttributes(attribute.Int("lynx.agent.plan.length", len(result.Actions)))
+			span.SetAttributes(attribute.Int("agent.plan.length", len(result.Actions)))
 		}
 		span.End()
 	}()

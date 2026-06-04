@@ -84,7 +84,6 @@ func serverHandler(tool chat.Tool) sdkmcp.ToolHandler {
 		args := cmp.Or(string(req.Params.Arguments), "{}")
 		out, err := tool.Call(ctx, args)
 		if err != nil {
-			span.SetAttributes(attribute.Bool(attrLynxMCPIsError, true))
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 			return &sdkmcp.CallToolResult{
