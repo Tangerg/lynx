@@ -9,10 +9,12 @@ require (
 	github.com/Tangerg/lynx/models v0.0.0-20260521101326-c68784dc9f99
 	github.com/Tangerg/lynx/tools v0.0.0-20260521101326-c68784dc9f99
 	github.com/Tangerg/sse v0.0.1
+	github.com/anthropics/anthropic-sdk-go v1.43.0
 	github.com/go-chi/chi/v5 v5.3.0
 	github.com/go-chi/cors v1.2.2
 	github.com/google/uuid v1.6.0
 	github.com/modelcontextprotocol/go-sdk v1.6.0
+	github.com/openai/openai-go/v3 v3.35.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	go.opentelemetry.io/otel v1.43.0
@@ -23,7 +25,6 @@ require (
 require (
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/Tangerg/lynx/pkg v0.0.0-20260511081009-fbf46737de3d // indirect
-	github.com/anthropics/anthropic-sdk-go v1.43.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/bits-and-blooms/bitset v1.24.4 // indirect
 	github.com/buger/jsonparser v1.2.0 // indirect
@@ -42,7 +43,6 @@ require (
 	github.com/mailru/easyjson v0.9.2 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
-	github.com/openai/openai-go/v3 v3.35.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pkoukk/tiktoken-go v0.1.8 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect

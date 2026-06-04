@@ -6,15 +6,21 @@
 # config.yaml is gitignored (it holds your key). Precedence, later wins:
 #   built-in defaults  <  this file  <  env vars (LYRA_* / {PROVIDER}_API_KEY)  <  CLI flags
 
-# LLM provider: anthropic | openai
+# LLM provider: anthropic | openai | moonshot | deepseek
 provider: anthropic
 
 # Model id. Empty = provider default
 # (anthropic → claude-3-5-haiku-20241022, openai → gpt-4o-mini).
 model: ""
 
-# Provider API key. Overridden by ANTHROPIC_API_KEY / OPENAI_API_KEY env if set.
+# Provider API key. Overridden by ANTHROPIC_API_KEY / OPENAI_API_KEY /
+# MOONSHOT_API_KEY / DEEPSEEK_API_KEY env if set.
 apiKey: ""
+
+# Optional API endpoint override. Empty = the adapter's built-in default.
+# Point this at a proxy, gateway, regional endpoint, or a self-hosted
+# OpenAI-compatible server. Overridden by LYRA_BASEURL env.
+baseURL: ""
 
 # Persistence backend: file | sqlite
 storage: file

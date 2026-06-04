@@ -10,56 +10,97 @@ import (
 	"github.com/Tangerg/lynx/models/deepseek"
 	"github.com/Tangerg/lynx/models/moonshot"
 	"github.com/Tangerg/lynx/models/openai"
+	anthropicopt "github.com/anthropics/anthropic-sdk-go/option"
+	openaiopt "github.com/openai/openai-go/v3/option"
 )
 
-// BuildChatClient wires a *chat.Client from the loaded config — picks
-// the right lynx model adapter, plugs in the model id and api key. It
-// also returns the [engine.Pricing] cost hook derived from the model's
-// metadata (nil when the model isn't in the pricing catalog), so turns
-// can report CostUSD. Both are handed to engine.New via runtime.Config.
-//
-// Supports anthropic / openai / moonshot / deepseek (the last two via
-// their OpenAI-compatible endpoints). Adding a provider = one case in the
-// switch + one import + a row in providerInfo; the rest of Lyra doesn't
-// care which model is behind the client.
+// ClientSpec is everything needed to build one chat client: which provider
+// (the adapter to use), which model, the api key, and an optional endpoint
+// override. It's the unit a multi-provider registry resolves a turn to —
+// [BuildChatClient] builds the single configured one, and the runtime
+// builds one per (provider, model) on demand.
+type ClientSpec struct {
+	Provider Provider
+	Model    string
+	APIKey   string
+	BaseURL  string // empty uses the adapter's default endpoint
+}
+
+// BuildChatClient wires the single configured provider into a *chat.Client
+// (plus its cost hook), from the loaded config. Thin wrapper over
+// [BuildClient] — the runtime uses BuildClient directly to build other
+// (provider, model) pairs once a provider registry lands.
 func BuildChatClient(cfg Config) (*chat.Client, engine.Pricing, error) {
-	opts, err := chat.NewOptions(cfg.Model)
+	return BuildClient(ClientSpec{
+		Provider: cfg.Provider,
+		Model:    cfg.Model,
+		APIKey:   cfg.APIKey,
+		BaseURL:  cfg.BaseURL,
+	})
+}
+
+// BuildClient wires a *chat.Client for one provider+model — picks the right
+// lynx model adapter, plugs in the model id, api key, and optional base URL.
+// It also returns the [engine.Pricing] cost hook derived from the model's
+// metadata (nil when the model isn't in the pricing catalog), so turns can
+// report CostUSD.
+//
+// Supports anthropic / openai / moonshot / deepseek (the last two via their
+// OpenAI-compatible endpoints). Adding a provider = one case here + one
+// import + a row in providerInfo; the rest of Lyra doesn't care which model
+// is behind the client. Every case threads spec.BaseURL through — native
+// openai/anthropic via a request option, the delegators via their BaseURL
+// field.
+func BuildClient(spec ClientSpec) (*chat.Client, engine.Pricing, error) {
+	opts, err := chat.NewOptions(spec.Model)
 	if err != nil {
-		return nil, nil, fmt.Errorf("config: chat options for %q: %w", cfg.Model, err)
+		return nil, nil, fmt.Errorf("config: chat options for %q: %w", spec.Model, err)
 	}
-	apiKey := model.NewAPIKey(cfg.APIKey)
+	apiKey := model.NewAPIKey(spec.APIKey)
 
 	var llm chat.Model
-	switch cfg.Provider {
+	switch spec.Provider {
 	case ProviderAnthropic:
+		var reqOpts []anthropicopt.RequestOption
+		if spec.BaseURL != "" {
+			reqOpts = append(reqOpts, anthropicopt.WithBaseURL(spec.BaseURL))
+		}
 		llm, err = anthropic.NewChatModel(anthropic.ChatModelConfig{
 			APIKey:         apiKey,
 			DefaultOptions: opts,
+			RequestOptions: reqOpts,
 		})
 	case ProviderOpenAI:
+		var reqOpts []openaiopt.RequestOption
+		if spec.BaseURL != "" {
+			reqOpts = append(reqOpts, openaiopt.WithBaseURL(spec.BaseURL))
+		}
 		llm, err = openai.NewChatModel(openai.ChatModelConfig{
 			APIKey:         apiKey,
 			DefaultOptions: opts,
+			RequestOptions: reqOpts,
 		})
 	case ProviderMoonshot:
 		// Kimi via Moonshot's OpenAI-compatible endpoint (domestic
-		// api.moonshot.cn by default; BaseURL is internal to the adapter).
+		// api.moonshot.cn by default; BaseURL overrides for the intl region).
 		llm, err = moonshot.NewOpenAIChatModel(moonshot.OpenAIChatModelConfig{
 			APIKey:         apiKey,
 			DefaultOptions: opts,
+			BaseURL:        spec.BaseURL,
 		})
 	case ProviderDeepSeek:
-		// DeepSeek via its OpenAI-compatible endpoint (api.deepseek.com,
-		// baked into the adapter). Models: deepseek-v4-flash / -pro.
+		// DeepSeek via its OpenAI-compatible endpoint (api.deepseek.com by
+		// default). Models: deepseek-v4-flash / -pro.
 		llm, err = deepseek.NewOpenAIChatModel(deepseek.OpenAIChatModelConfig{
 			APIKey:         apiKey,
 			DefaultOptions: opts,
+			BaseURL:        spec.BaseURL,
 		})
 	default:
-		return nil, nil, fmt.Errorf("config: unsupported provider %q", cfg.Provider)
+		return nil, nil, fmt.Errorf("config: unsupported provider %q", spec.Provider)
 	}
 	if err != nil {
-		return nil, nil, fmt.Errorf("config: build %s model: %w", cfg.Provider, err)
+		return nil, nil, fmt.Errorf("config: build %s model: %w", spec.Provider, err)
 	}
 
 	client, err := chat.NewClient(llm)
@@ -72,8 +113,8 @@ func BuildChatClient(cfg Config) (*chat.Client, engine.Pricing, error) {
 // pricingFromMetadata turns a model's rate card (set by the adapter from
 // the model catalog) into the engine's per-round cost hook. Returns nil
 // when pricing is unknown — the engine then leaves CostUSD at zero rather
-// than guessing. The served-model arg is ignored: lyra runs one
-// configured model per client, so its rate card applies to every round.
+// than guessing. The served-model arg is ignored: one client carries one
+// model, so its rate card applies to every round.
 func pricingFromMetadata(meta chat.ModelMetadata) engine.Pricing {
 	if len(meta.Model.Pricing) == 0 {
 		return nil
