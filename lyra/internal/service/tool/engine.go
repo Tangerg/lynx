@@ -4,9 +4,23 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 )
+
+// toolTracer spans direct (out-of-turn) tool invocations. Tool calls the
+// model makes during a chat turn are already traced by core/model/chat
+// + the mcp module; this covers only the diagnostic Invoke path. Tool
+// name key follows the gen_ai semconv. No-op until a provider is set.
+var toolTracer = otel.Tracer("lynx/lyra/tool")
+
+const attrGenAIToolName = "gen_ai.tool.name"
 
 // Source is the narrow surface tool.Service consumes: just a
 // snapshot of the currently-registered chat tools. *engine.Engine
@@ -53,12 +67,26 @@ func (s *engineBacked) Invoke(ctx context.Context, name string, arguments string
 	if name == "" {
 		return "", errors.New("tool: name must not be empty")
 	}
+	ctx, span := toolTracer.Start(ctx, "execute_tool "+name,
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(attribute.String(attrGenAIToolName, name)))
+	defer span.End()
+
 	for _, t := range s.src.Tools() {
 		if t.Definition().Name == name {
-			return t.Call(ctx, arguments)
+			slog.InfoContext(ctx, "tool invoked directly", attrGenAIToolName, name)
+			out, err := t.Call(ctx, arguments)
+			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
+			}
+			return out, err
 		}
 	}
-	return "", fmt.Errorf("tool: %q not registered", name)
+	err := fmt.Errorf("tool: %q not registered", name)
+	span.RecordError(err)
+	span.SetStatus(codes.Error, err.Error())
+	return "", err
 }
 
 // defaultSafetyClass maps a tool name to its built-in default safety
