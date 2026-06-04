@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { DataView, SectionLabel } from "@/components/common";
 import { SessionRow } from "@/components/sidebar/SessionRow";
 import { useT } from "@/lib/i18n";
+import { useDeleteSession } from "@/lib/agent/useDeleteSession";
 import { useSessions } from "@/lib/data/queries";
 import { definePlugin } from "@/plugins/sdk";
 import { SIDEBAR_SECTION } from "@/plugins/sdk/kernelPoints";
@@ -14,6 +15,7 @@ function SessionsSection() {
   const activeSessionId = useSessionStore((s) => s.activeSessionId);
   const draftIds = useSessionStore((s) => s.draftSessionIds);
   const selectTab = useSessionStore((s) => s.selectTab);
+  const deleteSession = useDeleteSession();
   // Hide draft sessions (created but not yet sent to) — they graduate into
   // the list on first message.
   const sessions = useMemo(
@@ -51,6 +53,7 @@ function SessionsSection() {
                 session={s}
                 active={s.id === activeSessionId}
                 onSelect={selectTab}
+                onDelete={deleteSession}
               />
             ))}
           </div>
