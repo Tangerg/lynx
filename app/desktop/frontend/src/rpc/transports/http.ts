@@ -1,24 +1,26 @@
-// HTTPTransport — JSON-RPC over HTTP for the Web frontend (and any
-// future remote/facade scenarios). See docs/TRANSPORT.md §6-§9.
+// HTTPTransport — JSON-RPC over HTTP for the web frontend, using
+// **streamable HTTP** (docs/TRANSPORT.md §6): a streaming method's POST
+// response body IS its event stream. There is no separate notification
+// connection — every server→client message rides the POST response it
+// belongs to.
 //
-// Wire endpoints:
-//   - POST /v2/rpc/{method}   — single form, no bare /v2/rpc fallback
-//   - GET  /v2/rpc/stream     — SSE stream of inbound notifications
+// send():  POST /v2/rpc/{method}, then branch on the response Content-Type
+//   - application/json   → one JSON-RPC message, pushed to the channel
+//   - text/event-stream  → the call's response (first frame) + its
+//                          notifications, drained frame-by-frame into the
+//                          channel by a background reader (send() returns
+//                          once headers are in, NOT at stream end)
+// recv():  the merged inbound channel RpcClient consumes — responses
+//   correlate by JSON-RPC id, notifications route by method. Fed entirely by
+//   the POST responses above; there is no GET stream.
 //
-// The notification stream is consumed via `fetch` + a ReadableStream reader,
-// NOT the native `EventSource`. EventSource is GET-only and can't set request
-// headers, which forced the connection id into a `?conn=` query and left the
-// reconnect behaviour opaque. The fetch reader sends `X-Conn-Id`
-// (+ Authorization) as real headers — identical to the POST path — and gives
-// full control over reconnect. SSE wire framing (chunk-boundary buffering,
-// multi-line `data:`, `id:`/comments) is delegated to `eventsource-parser`,
-// the de-facto standard parser.
+// SSE wire framing is delegated to eventsource-parser. Reconnection is a
+// per-run concern (runs.subscribe + Last-Event-Id, TRANSPORT.md §9.2) handled
+// above the transport — there is no standing-connection reconnect loop here.
 //
-// HTTP status mapping (docs/TRANSPORT.md §6.3):
-//   200         → JSON-RPC Response in body (may carry business error)
-//   204         → client Notification accepted; no body (202 also tolerated)
-//   400/404     → transport-layer failure (400 covers url/body method mismatch)
-//   401/500/503 → flat JSON — surfaced as RpcTransportError
+// HTTP status (docs/TRANSPORT.md §6.3): 200 = JSON-RPC response (json) or
+// stream opened (event-stream); 204/202 = notification ack; any other status
+// = transport-layer failure → RpcTransportError.
 
 import { createParser } from "eventsource-parser";
 import { createPushPullChannel } from "../channel";
@@ -26,15 +28,13 @@ import { RpcTransportError } from "../errors";
 import type { Transport } from "../transport";
 import type { RpcMessage } from "../types";
 
-const SSE_RECONNECT_MS = 1000;
-
 export interface HttpTransportConfig {
   /** Runtime base URL, e.g. "http://127.0.0.1:17171". No trailing slash. */
   baseUrl: string;
   /**
-   * Local-loopback process gate token (read from `~/.lyra/local-token` by
-   * the host shell, passed in here). Sent as Authorization: Bearer.
-   * Not a user-auth credential — see docs/API.md §1.2.
+   * Local-loopback process gate token (read from `~/.lyra/local-token` by the
+   * host shell, passed in here). Sent as `Authorization: Bearer`. Not a
+   * user-auth credential — see docs/TRANSPORT.md §11.
    */
   localToken?: string;
   /** Custom fetch impl (tests inject one). Defaults to globalThis.fetch. */
@@ -46,67 +46,22 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
   const fetchImpl = config.fetch ?? globalThis.fetch.bind(globalThis);
 
   const channel = createPushPullChannel<RpcMessage>();
-  let lastEventId: string | null = null;
+  // Active SSE body readers — close() cancels in-flight streams through these.
+  const readers = new Set<ReadableStreamDefaultReader<Uint8Array>>();
 
-  // Connection id ties this client's POSTs to its notification stream
-  // (TRANSPORT.md §2 / §8). Sent as the `X-Conn-Id` header on BOTH the POSTs
-  // and the SSE GET (plus a `?conn=` query — EventSource-style backends).
-  const connId = crypto.randomUUID();
-
-  let sseAbort: AbortController | null = null;
-  let sseStarted = false;
-
-  // Headers common to POSTs and the SSE GET. `Last-Event-Id` is NOT here —
-  // it's an SSE-resume concern, meaningful only on the stream GET, so the
-  // SSE path appends it itself (a POST carrying it is meaningless and would
-  // widen the CORS preflight header set for no reason).
-  function baseHeaders(extra: Record<string, string>): Record<string, string> {
-    const headers: Record<string, string> = { "X-Conn-Id": connId, ...extra };
+  function requestHeaders(extra: Record<string, string>): Record<string, string> {
+    const headers: Record<string, string> = { ...extra };
     if (config.localToken) headers.Authorization = `Bearer ${config.localToken}`;
     return headers;
   }
 
-  function openSse(): void {
-    if (sseStarted || channel.closed) return;
-    sseStarted = true;
-    sseAbort = new AbortController();
-    void pumpSse();
-  }
-
-  // Connect the notification stream and keep it alive across drops until the
-  // transport closes. Each connection streams `notifications/*` frames; a
-  // clean end or a network error reconnects (with Last-Event-Id resume).
-  async function pumpSse(): Promise<void> {
-    while (!channel.closed && !sseAbort?.signal.aborted) {
-      try {
-        const headers = baseHeaders({ Accept: "text/event-stream" });
-        if (lastEventId) headers["Last-Event-Id"] = lastEventId; // resume cursor
-        const res = await fetchImpl(`${baseUrl}/v2/rpc/stream?conn=${connId}`, {
-          method: "GET",
-          headers,
-          signal: sseAbort?.signal,
-        });
-        if (!res.ok || !res.body) {
-          throw new RpcTransportError(`SSE connect failed: http ${res.status}`, res.status);
-        }
-        await readSse(res.body);
-      } catch (err) {
-        if (channel.closed || sseAbort?.signal.aborted) return;
-        console.warn("[rpc] SSE dropped, reconnecting:", (err as Error).message);
-      }
-      if (channel.closed || sseAbort?.signal.aborted) return;
-      await delay(SSE_RECONNECT_MS);
-    }
-  }
-
-  // Decode the SSE body chunk-by-chunk and let `eventsource-parser` do the
-  // framing (chunk-boundary buffering, multi-line `data:`, `id:`, comments).
-  // Each parsed event's JSON payload is pushed into the channel; `id:`
-  // updates the resume cursor; malformed `data:` is skipped, not fatal.
-  async function readSse(body: ReadableStream<Uint8Array>): Promise<void> {
+  // Drain a text/event-stream POST response into the channel. Runs detached
+  // (a run may stream for minutes); not awaited by send(). The first frame is
+  // the call's JSON-RPC response (correlated by id upstream), the rest are
+  // `notifications.run.event` frames. SSE framing → eventsource-parser.
+  async function drainStream(body: ReadableStream<Uint8Array>): Promise<void> {
     const parser = createParser({
       onEvent(event) {
-        if (event.id) lastEventId = event.id;
         if (!event.data) return;
         try {
           channel.push(JSON.parse(event.data) as RpcMessage);
@@ -116,20 +71,27 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
       },
     });
     const reader = body.getReader();
+    readers.add(reader);
     const decoder = new TextDecoder();
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) return;
-      parser.feed(decoder.decode(value, { stream: true }));
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) return;
+        parser.feed(decoder.decode(value, { stream: true }));
+      }
+    } catch (err) {
+      if (!channel.closed) console.warn("[rpc] stream read error:", (err as Error).message);
+    } finally {
+      readers.delete(reader);
     }
   }
 
   async function send(msg: RpcMessage, signal?: AbortSignal): Promise<void> {
     if (channel.closed) throw new RpcTransportError("transport closed");
 
-    // Single URL form: POST /v2/rpc/{method}. Greenfield — no fallback
-    // to bare /v2/rpc. Response messages don't carry method and
-    // HTTPTransport never sends them (server issues Responses via SSE).
+    // Single URL form: POST /v2/rpc/{method}. Response messages don't carry a
+    // method and HTTPTransport never sends them (the server issues responses
+    // as the first frame of the method's own stream).
     const method = "method" in msg ? msg.method : undefined;
     if (!method) {
       throw new RpcTransportError(
@@ -142,7 +104,10 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
     try {
       res = await fetchImpl(url, {
         method: "POST",
-        headers: baseHeaders({ "Content-Type": "application/json" }),
+        headers: requestHeaders({
+          "Content-Type": "application/json",
+          Accept: "application/json, text/event-stream",
+        }),
         body: JSON.stringify(msg),
         signal,
       });
@@ -150,53 +115,45 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
       throw new RpcTransportError(`fetch failed: ${(err as Error).message}`);
     }
 
-    // 204 = client Notification accepted; no body (TRANSPORT.md §6.3).
-    // 202 tolerated for backends that ack notifications as async-pending.
+    // 204/202 = notification accepted; no body (TRANSPORT.md §6.3).
     if (res.status === 204 || res.status === 202) return;
 
-    // 401/500/503 are flat JSON, not envelope (docs/API.md §7.3).
-    if (res.status === 401 || res.status === 500 || res.status === 503) {
+    // Any non-2xx is a transport-layer failure (flat text, not an envelope).
+    if (!res.ok) {
       const text = await res.text().catch(() => "");
       throw new RpcTransportError(`http ${res.status}: ${text}`, res.status);
     }
 
-    // 200 carries a JSON-RPC envelope. Feed it into the channel so
-    // RpcClient correlates by id. 400/404 are transport-layer failures
-    // (e.g. malformed request, url/body method mismatch, unknown
-    // endpoint) — their body is flat text, not an envelope, so a parse
-    // failure below surfaces as RpcTransportError.
-    if (res.status === 200 || res.status === 400 || res.status === 404) {
-      const text = await res.text();
-      if (!text) return; // empty body is acceptable for some Notifications
-      try {
-        channel.push(JSON.parse(text) as RpcMessage);
-      } catch (err) {
-        throw new RpcTransportError(`invalid JSON in response body: ${(err as Error).message}`);
-      }
+    // Streaming method (TRANSPORT.md §6.4): the body is this call's event
+    // stream (response frame + notifications). Drain it in the background so
+    // send() returns once headers are in, not at stream end.
+    if ((res.headers.get("Content-Type") ?? "").includes("text/event-stream")) {
+      if (!res.body) throw new RpcTransportError("event-stream response has no body");
+      void drainStream(res.body);
       return;
     }
 
-    // Anything else is unexpected — surface so the caller can react.
-    const text = await res.text().catch(() => "");
-    throw new RpcTransportError(`unexpected http ${res.status}: ${text}`, res.status);
+    // Non-streaming: a single JSON-RPC message in the body.
+    const text = await res.text();
+    if (!text) return; // empty body is acceptable for some acks
+    try {
+      channel.push(JSON.parse(text) as RpcMessage);
+    } catch (err) {
+      throw new RpcTransportError(`invalid JSON in response body: ${(err as Error).message}`);
+    }
   }
 
   function recv(): AsyncIterable<RpcMessage> {
-    // Lazy SSE open: first recv() call starts the notification stream.
-    // RpcClient calls recv() once and keeps the iterator forever.
-    openSse();
+    // RpcClient calls recv() once and consumes the iterator for the transport's
+    // life; every inbound message arrives via a POST response (see send()).
     return channel.iterator();
   }
 
   async function close(): Promise<void> {
     channel.close();
-    sseAbort?.abort();
-    sseAbort = null;
+    for (const reader of readers) void reader.cancel().catch(() => {});
+    readers.clear();
   }
 
   return { send, recv, close };
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
