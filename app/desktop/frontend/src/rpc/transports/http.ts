@@ -22,11 +22,35 @@
 // stream opened (event-stream); 204/202 = notification ack; any other status
 // = transport-layer failure → RpcTransportError.
 
+import {
+  context,
+  propagation,
+  type Span,
+  SpanKind,
+  SpanStatusCode,
+  trace,
+} from "@opentelemetry/api";
 import { createParser } from "eventsource-parser";
 import { createPushPullChannel } from "../channel";
 import { RpcTransportError } from "../errors";
 import type { Transport } from "../transport";
 import type { RpcMessage } from "../types";
+
+// Delegating tracer — resolves to the global provider once observability is
+// installed (no-op spans before then). One CLIENT span per RPC call; the
+// W3C `traceparent` it injects extends the backend's existing OTel trace
+// (TRANSPORT.md §2: trace context rides headers, never the JSON-RPC body).
+const tracer = trace.getTracer("lyra-frontend");
+
+function endSpan(span: Span, err?: unknown): void {
+  if (err !== undefined) {
+    span.setStatus({
+      code: SpanStatusCode.ERROR,
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+  span.end();
+}
 
 export interface HttpTransportConfig {
   /** Runtime base URL, e.g. "http://127.0.0.1:17171". No trailing slash. */
@@ -109,29 +133,47 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
     }
     const url = `${baseUrl}/v2/rpc/${method}`;
 
+    // CLIENT span for this call. Created synchronously before the first await
+    // so its parent is whatever context is active at the call site (the run
+    // span, when useAgentSession wrapped the dispatch) — see lib/observability.
+    const span = tracer.startSpan(`rpc ${method}`, {
+      kind: SpanKind.CLIENT,
+      attributes: { "rpc.system": "jsonrpc", "rpc.method": method },
+    });
+    const headers = requestHeaders({
+      "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream",
+    });
+    // Write `traceparent` (+ baggage) for THIS span into the request headers.
+    propagation.inject(trace.setSpan(context.active(), span), headers);
+
     let res: Response;
     try {
-      res = await fetchImpl(url, {
-        method: "POST",
-        headers: requestHeaders({
-          "Content-Type": "application/json",
-          Accept: "application/json, text/event-stream",
-        }),
-        body: JSON.stringify(msg),
-        signal,
-      });
+      res = await fetchImpl(url, { method: "POST", headers, body: JSON.stringify(msg), signal });
     } catch (err) {
+      endSpan(span, err);
       throw new RpcTransportError(`fetch failed: ${(err as Error).message}`);
     }
+    span.setAttribute("rpc.http.status_code", res.status);
 
     // 204/202 = notification accepted; no body (TRANSPORT.md §6.3).
-    if (res.status === 204 || res.status === 202) return;
+    if (res.status === 204 || res.status === 202) {
+      endSpan(span);
+      return;
+    }
 
     // Any non-2xx is a transport-layer failure (flat text, not an envelope).
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      throw new RpcTransportError(`http ${res.status}: ${text}`, res.status);
+      const err = new RpcTransportError(`http ${res.status}: ${text}`, res.status);
+      endSpan(span, err);
+      throw err;
     }
+
+    // The call succeeded. End the CLIENT span here — a streaming method's body
+    // may drain for minutes, but that wall-clock belongs to the run span, not
+    // to this request span.
+    endSpan(span);
 
     // Streaming method (TRANSPORT.md §6.4): the body is this call's event
     // stream (response frame + notifications). Drain it in the background so

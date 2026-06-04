@@ -1,58 +1,170 @@
-// Workspace-view body for the Diagnostics plugin. Reads the local
-// ingest store, groups rows by instrument name, and renders one
-// section per name. Attribute combinations are listed as sub-rows
-// (sorted by count desc so the busiest groups bubble up).
+// Diagnostics view — renders the local telemetry sink (lib/observability):
+// the OTel triad as three tabs. Dev-time triage, not a dashboard.
 //
-// No chart libs — this is dev-time triage, not a dashboard. If the
-// numbers ever need a real time-series view, a follow-up plugin can
-// register a fancier component for the same instrument set.
+// Perf: telemetry volume is high, so spans/logs are bounded ring buffers in
+// the store and rendered with @tanstack/react-virtual (only on-screen rows
+// mount). Each panel subscribes to ONLY its signal's slice, so switching
+// tabs / a metrics flush never re-renders the trace or log list.
 
-import type { MetricRow } from "./store";
-import { useEffect, useMemo } from "react";
-import { ensureProvider } from "./provider";
-import { useDiagnosticsStore } from "./store";
+import type { MetricRow, SpanRow } from "@/lib/observability/stores";
+import { useTelemetryStore } from "@/lib/observability/stores";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { useMemo, useRef, useState } from "react";
+import { Segmented } from "@/components/common";
+
+type Signal = "traces" | "metrics" | "logs";
+
+const SIGNALS = [
+  { value: "traces" as const, label: "Traces" },
+  { value: "metrics" as const, label: "Metrics" },
+  { value: "logs" as const, label: "Logs" },
+];
 
 export function DiagnosticsView() {
-  // First mount triggers the otel SDK load + MeterProvider install.
-  // Cached at module scope, so re-mounting (tab close/reopen) is a
-  // no-op and history persists. Until this runs, measure points are
-  // no-op proxies and the table is empty.
-  useEffect(() => {
-    void ensureProvider();
-  }, []);
-
-  const rows = useDiagnosticsStore((s) => s.rows);
-  const clear = useDiagnosticsStore((s) => s.clear);
-
-  const grouped = useMemo(() => groupByName(Object.values(rows)), [rows]);
+  const [signal, setSignal] = useState<Signal>("traces");
+  const clear = useTelemetryStore((s) => s.clear);
 
   return (
-    <div className="grid h-full gap-4 overflow-y-auto p-6">
+    <div className="flex h-full flex-col gap-3 p-6">
       <div className="flex items-center justify-between">
         <div>
           <div className="text-[15px] font-semibold text-fg">Diagnostics</div>
           <div className="mt-0.5 text-[12px] text-fg-muted">
-            Live measurements from kernel + plugins. CUMULATIVE since this view was mounted; "Clear"
-            resets the in-memory aggregates.
+            Live OpenTelemetry — traces / metrics / logs. In-memory only (bounded); the durable
+            record leaves via OTLP. "Clear" resets the buffers.
           </div>
         </div>
-        <button
-          type="button"
-          onClick={clear}
-          className="rounded-md border border-line bg-surface px-2.5 py-1 text-[12px] text-fg-muted cursor-pointer hover:bg-surface-2 hover:text-fg"
-        >
-          Clear
-        </button>
+        <div className="flex items-center gap-2">
+          <Segmented
+            value={signal}
+            options={SIGNALS}
+            onChange={setSignal}
+            ariaLabel="Telemetry signal"
+          />
+          <button
+            type="button"
+            onClick={clear}
+            className="rounded-md border border-line bg-surface px-2.5 py-1 text-[12px] text-fg-muted cursor-pointer hover:bg-surface-2 hover:text-fg"
+          >
+            Clear
+          </button>
+        </div>
       </div>
 
-      {grouped.length === 0 ? (
-        <div className="text-[13px] text-fg-faint">
-          No measurements yet — interact with the chat (send a message, open a code block, etc.) and
-          they will appear here.
-        </div>
-      ) : (
-        grouped.map((g) => <InstrumentSection key={g.name} group={g} />)
-      )}
+      {signal === "traces" && <TracesPanel />}
+      {signal === "metrics" && <MetricsPanel />}
+      {signal === "logs" && <LogsPanel />}
+    </div>
+  );
+}
+
+// ── Traces ──────────────────────────────────────────────────────────────
+function TracesPanel() {
+  const spans = useTelemetryStore((s) => s.spans);
+  // Newest first. spans changes only once per flush (~500ms) so the reverse
+  // copy is cheap and memoized on the (stable-between-flushes) array ref.
+  const ordered = useMemo(() => spans.slice().reverse(), [spans]);
+
+  if (ordered.length === 0) return <Empty hint="Send a message — run + RPC spans appear here." />;
+
+  return (
+    <VirtualList
+      count={ordered.length}
+      rowHeight={32}
+      header={
+        <Row head>
+          <Cell className="grow">span</Cell>
+          <Cell className="w-16 text-right">dur</Cell>
+          <Cell className="w-16">status</Cell>
+          <Cell className="w-28">trace</Cell>
+        </Row>
+      }
+      renderRow={(i) => {
+        const s = ordered[i]!;
+        return (
+          <Row>
+            <Cell className="grow">
+              <span className="truncate">{s.name}</span>
+            </Cell>
+            <Cell className="w-16 text-right tabular-nums">{s.durationMs.toFixed(1)}ms</Cell>
+            <Cell className="w-16">
+              <StatusTag status={s.status} />
+            </Cell>
+            <Cell className="w-28">
+              <span className="text-fg-faint">{s.traceId.slice(0, 12)}</span>
+            </Cell>
+          </Row>
+        );
+      }}
+    />
+  );
+}
+
+function StatusTag({ status }: { status: SpanRow["status"] }) {
+  const tone =
+    status === "error" ? "text-negative" : status === "ok" ? "text-positive" : "text-fg-faint";
+  return <span className={tone}>{status}</span>;
+}
+
+// ── Logs ────────────────────────────────────────────────────────────────
+function LogsPanel() {
+  const logs = useTelemetryStore((s) => s.logs);
+  const ordered = useMemo(() => logs.slice().reverse(), [logs]);
+
+  if (ordered.length === 0)
+    return <Empty hint="host.log.* output streams here, span-correlated." />;
+
+  return (
+    <VirtualList
+      count={ordered.length}
+      rowHeight={28}
+      header={
+        <Row head>
+          <Cell className="w-12">lvl</Cell>
+          <Cell className="grow">message</Cell>
+          <Cell className="w-24">span</Cell>
+        </Row>
+      }
+      renderRow={(i) => {
+        const l = ordered[i]!;
+        return (
+          <Row>
+            <Cell className="w-12">
+              <span className={severityTone(l.severity)}>{l.severity}</span>
+            </Cell>
+            <Cell className="grow">
+              <span className="truncate">{l.body}</span>
+            </Cell>
+            <Cell className="w-24">
+              <span className="text-fg-faint">{l.spanId ? l.spanId.slice(0, 8) : "—"}</span>
+            </Cell>
+          </Row>
+        );
+      }}
+    />
+  );
+}
+
+function severityTone(sev: string): string {
+  if (sev === "ERROR") return "text-negative";
+  if (sev === "WARN") return "text-warning";
+  if (sev === "DEBUG") return "text-fg-faint";
+  return "text-fg-muted";
+}
+
+// ── Metrics ─────────────────────────────────────────────────────────────
+function MetricsPanel() {
+  const metrics = useTelemetryStore((s) => s.metrics);
+  const grouped = useMemo(() => groupByName(Object.values(metrics)), [metrics]);
+
+  if (grouped.length === 0)
+    return <Empty hint="Interact with the chat — reducer / render timings appear here." />;
+
+  return (
+    <div className="flex-1 min-h-0 overflow-y-auto grid gap-4 content-start">
+      {grouped.map((g) => (
+        <InstrumentSection key={g.name} group={g} />
+      ))}
     </div>
   );
 }
@@ -69,9 +181,8 @@ function groupByName(rows: MetricRow[]): NameGroup[] {
   const by: Record<string, NameGroup> = {};
   for (const r of rows) {
     const g = by[r.name];
-    if (g) {
-      g.rows.push(r);
-    } else {
+    if (g) g.rows.push(r);
+    else
       by[r.name] = {
         name: r.name,
         unit: r.unit,
@@ -79,7 +190,6 @@ function groupByName(rows: MetricRow[]): NameGroup[] {
         kind: r.kind,
         rows: [r],
       };
-    }
   }
   return Object.values(by)
     .map((g) => ({ ...g, rows: g.rows.slice().sort((a, b) => b.count - a.count) }))
@@ -154,4 +264,68 @@ function fmt(n: number | undefined, unit: string): string {
   if (n === undefined) return "—";
   const rounded = n < 10 ? n.toFixed(1) : Math.round(n).toString();
   return unit ? `${rounded} ${unit}` : rounded;
+}
+
+// ── Shared list primitives ────────────────────────────────────────────────
+function Empty({ hint }: { hint: string }) {
+  return <div className="text-[13px] text-fg-faint">No data yet — {hint}</div>;
+}
+
+function Row({ children, head }: { children: React.ReactNode; head?: boolean }) {
+  return (
+    <div
+      className={
+        "flex items-center gap-3 px-1 font-mono text-[12px] " +
+        (head ? "text-[10px] uppercase tracking-wider text-fg-faint" : "text-fg hover:bg-surface-2")
+      }
+    >
+      {children}
+    </div>
+  );
+}
+
+function Cell({ className, children }: { className: string; children?: React.ReactNode }) {
+  return <div className={`min-w-0 ${className}`}>{children}</div>;
+}
+
+// Virtualized fixed-height list — only on-screen rows mount, so a 500-row
+// span buffer renders a dozen DOM nodes. `position: absolute` per row is the
+// standard react-virtual pattern (allowed by the no-absolute rule for this).
+function VirtualList({
+  count,
+  rowHeight,
+  header,
+  renderRow,
+}: {
+  count: number;
+  rowHeight: number;
+  header: React.ReactNode;
+  renderRow: (index: number) => React.ReactNode;
+}) {
+  const parentRef = useRef<HTMLDivElement>(null);
+  const virt = useVirtualizer({
+    count,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => rowHeight,
+    overscan: 12,
+  });
+
+  return (
+    <div className="flex flex-1 min-h-0 flex-col">
+      {header}
+      <div ref={parentRef} className="flex-1 min-h-0 overflow-y-auto">
+        <div className="relative w-full" style={{ height: virt.getTotalSize() }}>
+          {virt.getVirtualItems().map((vi) => (
+            <div
+              key={vi.key}
+              className="absolute left-0 top-0 w-full"
+              style={{ height: vi.size, transform: `translateY(${vi.start}px)` }}
+            >
+              {renderRow(vi.index)}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }

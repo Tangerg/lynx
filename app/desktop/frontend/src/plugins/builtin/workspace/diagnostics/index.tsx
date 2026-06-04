@@ -1,21 +1,15 @@
-// Diagnostics plugin — registers the "Diagnostics" workspace view and
-// the lazy MeterProvider installer that view uses on first open.
+// Diagnostics plugin — registers the "Diagnostics" workspace view that
+// renders the local telemetry sink (traces / metrics / logs).
 //
-// Why opt-in by view rather than always-on instrumentation:
-//   - No MeterProvider registered (plugin loaded but view never
-//     opened) → every `measure*` call in lib/metrics is a JS-level
-//     no-op (otel-api returns proxy meters that swallow records).
-//   - View first mounted → ensureProvider() runs once; subsequent
-//     mounts hit the cached promise. Provider stays installed for
-//     the rest of the session so history persists across tab
-//     close/reopen.
-//   - Plugin unloaded → teardownProvider() shuts the SDK down and
-//     otel-api falls back to no-op proxies again.
+// The OTel providers are installed always-on by the bootstrap plugin
+// (lib/observability, mirroring the backend's setup-at-start), NOT lazily by
+// this view — traces + trace-context propagation must work whether or not
+// anyone opened Diagnostics. This plugin is now a pure consumer of the
+// in-memory stores.
 
 import { definePlugin } from "@/plugins/sdk";
 import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { DiagnosticsView } from "./DiagnosticsView";
-import { teardownProvider } from "./provider";
 
 export default definePlugin({
   name: "lyra.builtin.diagnostics",
@@ -29,8 +23,5 @@ export default definePlugin({
       order: 90,
       component: DiagnosticsView,
     });
-    return async () => {
-      await teardownProvider();
-    };
   },
 });

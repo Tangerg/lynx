@@ -30,6 +30,7 @@ import { useSessionStore } from "@/state/sessionStore";
 import { startTask } from "@/state/tasksStore";
 import { getConfig, hasConfig, setConfig, useConfigStore } from "./config";
 import { safeCall } from "./errors";
+import { emitLog as emitOtelLog } from "@/lib/observability/logBridge";
 import {
   BEFORE_UNLOAD_HANDLER,
   COMMAND,
@@ -409,6 +410,9 @@ function logToConsole(plugin: string, level: LogLevel, args: unknown[]): void {
 // every registered subscriber. Subscriber failures are isolated.
 function emitLog(plugin: string, level: LogLevel, args: unknown[]): void {
   logToConsole(plugin, level, args);
+  // Third pillar: mirror the line into OTel logs (no-op until a LoggerProvider
+  // is installed). Correlated with the active span by the SDK.
+  emitOtelLog(plugin, level, args);
   const event = { plugin, level, args, timestamp: Date.now() };
   for (const fn of lookupExtensionPoint(LOG_SUBSCRIBER)) {
     safeCall(() => fn(event), "[plugin] log subscriber threw:");
