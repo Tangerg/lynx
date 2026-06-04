@@ -7,6 +7,12 @@ import (
 	"github.com/google/uuid"
 )
 
+// IDPrefix is the type prefix every session id carries (API.md §2.2 —
+// server-generated business ids are prefixed; mirrors the wire-side
+// protocol.IDPrefixSession). Applied at generation so every backend
+// (in-memory + sqlite) produces the same id shape.
+const IDPrefix = "ses_"
+
 // Repo is the in-memory data layer that every concrete
 // [Service] implementation builds on. It owns the session map +
 // the lock; the mutate / read methods are pure (no persistence,
@@ -57,12 +63,14 @@ func (r *Repo) Get(id string) (Session, bool) {
 }
 
 // Create inserts a fresh session and returns it. The new session
-// has a generated UUID id; StartedAt + UpdatedAt are set to now.
-func (r *Repo) Create(title string) Session {
+// has a generated prefixed id ([IDPrefix]+UUID); StartedAt + UpdatedAt
+// are set to now.
+func (r *Repo) Create(title, cwd string) Session {
 	now := time.Now().UTC()
 	sess := &Session{
-		ID:        uuid.NewString(),
+		ID:        IDPrefix + uuid.NewString(),
 		Title:     title,
+		Cwd:       cwd,
 		StartedAt: now,
 		UpdatedAt: now,
 	}
@@ -86,8 +94,9 @@ func (r *Repo) Fork(parentID, atMessageID string) (Session, bool) {
 	}
 	now := time.Now().UTC()
 	child := &Session{
-		ID:        uuid.NewString(),
+		ID:        IDPrefix + uuid.NewString(),
 		Title:     parent.Title + " (fork)",
+		Cwd:       parent.Cwd, // a fork inherits the source's cwd (API.md §7.2)
 		ParentID:  parentID,
 		StartedAt: now,
 		UpdatedAt: now,

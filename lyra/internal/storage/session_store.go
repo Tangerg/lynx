@@ -117,8 +117,8 @@ func (s *FileSessionService) Get(_ context.Context, id string) (session.Session,
 // to persist, undo the repo change on persist failure so the
 // in-memory state stays consistent with disk.
 
-func (s *FileSessionService) Create(_ context.Context, title string) (session.Session, error) {
-	sess := s.repo.Create(title)
+func (s *FileSessionService) Create(_ context.Context, title, cwd string) (session.Session, error) {
+	sess := s.repo.Create(title, cwd)
 	if err := s.persist(); err != nil {
 		s.repo.Delete(sess.ID)
 		return session.Session{}, err

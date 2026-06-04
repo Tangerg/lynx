@@ -12,7 +12,7 @@ func TestInMemoryService_CreateGetList(t *testing.T) {
 	svc := session.NewInMemoryService()
 	ctx := context.Background()
 
-	created, err := svc.Create(ctx, "first")
+	created, err := svc.Create(ctx, "first", "")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestInMemoryService_Fork(t *testing.T) {
 	svc := session.NewInMemoryService()
 	ctx := context.Background()
 
-	parent, _ := svc.Create(ctx, "main")
+	parent, _ := svc.Create(ctx, "main", "")
 	child, err := svc.Fork(ctx, parent.ID, "msg-7")
 	if err != nil {
 		t.Fatalf("Fork: %v", err)
@@ -77,7 +77,7 @@ func TestInMemoryService_DeleteIdempotent(t *testing.T) {
 	svc := session.NewInMemoryService()
 	ctx := context.Background()
 
-	sess, _ := svc.Create(ctx, "to-delete")
+	sess, _ := svc.Create(ctx, "to-delete", "")
 	if err := svc.Delete(ctx, sess.ID); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}

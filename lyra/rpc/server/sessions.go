@@ -49,7 +49,13 @@ func (i *Server) GetSession(ctx context.Context, id string) (*protocol.Session, 
 }
 
 func (i *Server) CreateSession(ctx context.Context, in protocol.CreateSessionRequest) (*protocol.Session, error) {
-	s, err := i.rt.Session().Create(ctx, in.Title)
+	// cwd defaults to the serve directory (ServerInfo.cwd) when the
+	// client omits it — cold-start zero friction (API.md §7.2 / §0.2).
+	cwd := in.Cwd
+	if cwd == "" {
+		cwd = i.serverInfo.Cwd
+	}
+	s, err := i.rt.Session().Create(ctx, in.Title, cwd)
 	if err != nil {
 		return nil, err
 	}
@@ -100,9 +106,13 @@ func sessionToWire(s session.Session) protocol.Session {
 			meta[k] = v
 		}
 	}
+	if meta == nil {
+		meta = map[string]any{} // Session.metadata is an object, never null (API.md §4.1)
+	}
 	return protocol.Session{
 		ID:        s.ID,
 		Title:     s.Title,
+		Cwd:       s.Cwd,
 		Status:    protocol.SessionStatusIdle,
 		CreatedAt: s.StartedAt,
 		UpdatedAt: s.UpdatedAt,

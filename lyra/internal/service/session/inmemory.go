@@ -30,8 +30,8 @@ func (s *inMemoryService) Get(_ context.Context, id string) (Session, error) {
 	return sess, nil
 }
 
-func (s *inMemoryService) Create(_ context.Context, title string) (Session, error) {
-	return s.repo.Create(title), nil
+func (s *inMemoryService) Create(_ context.Context, title, cwd string) (Session, error) {
+	return s.repo.Create(title, cwd), nil
 }
 
 // Fork mirrors [Repo.Fork] but adapts the "missing parent" signal

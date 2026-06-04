@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -61,7 +62,8 @@ func NewReplRunner(app *App, requestedSession string) (*ReplRunner, error) {
 		}
 		sessID = sess.ID
 	} else {
-		sess, err := app.rt.Session().Create(ctx, "")
+		cwd, _ := os.Getwd()
+		sess, err := app.rt.Session().Create(ctx, "", cwd)
 		if err != nil {
 			return nil, fmt.Errorf("create session: %w", err)
 		}
@@ -127,7 +129,8 @@ func (r *ReplRunner) handleSlash(ctx context.Context, line string) (done bool) {
 	case "/help":
 		fmt.Fprintln(r.app.Err, "[lyra] commands: /exit  /help  /new  /plan <msg>  /session")
 	case "/new":
-		sess, err := r.app.rt.Session().Create(ctx, "")
+		cwd, _ := os.Getwd()
+		sess, err := r.app.rt.Session().Create(ctx, "", cwd)
 		if err != nil {
 			fmt.Fprintf(r.app.Err, "[lyra] create session: %s\n", err)
 			return false
