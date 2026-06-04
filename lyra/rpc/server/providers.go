@@ -3,45 +3,152 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"slices"
 
+	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/lyra/internal/config"
+	"github.com/Tangerg/lynx/lyra/internal/service/provider"
 	"github.com/Tangerg/lynx/lyra/internal/service/tool"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
+	"github.com/Tangerg/lynx/models/catalog"
 )
 
-// ListProviders surfaces the single configured LLM provider (Lyra talks
-// to one provider via config.yaml / env — there is no registry to add to
-// yet, hence providers.configure stays notImpl). apiKeyMasked is
-// display-safe (API.md §4.9 / §7.6).
-func (i *Server) ListProviders(_ context.Context) ([]protocol.Provider, error) {
-	provider, _, masked := i.rt.ProviderInfo()
-	if provider == "" {
-		return []protocol.Provider{}, nil
+// ListProviders reports the full supported-provider set (the providers Lyra
+// has an adapter for), each annotated from the registry: enabled ⇔ a masked
+// key is present (API.md §4.9 / §7.6). The per-provider model list isn't
+// here — it unlocks via models.list.
+func (i *Server) ListProviders(ctx context.Context) ([]protocol.Provider, error) {
+	configured, err := i.rt.Providers().List(ctx)
+	if err != nil {
+		return nil, err
 	}
-	return []protocol.Provider{{
-		ID:           provider,
-		Type:         provider,
-		APIKeyMasked: masked,
-	}}, nil
-}
-
-// ConfigureProvider — no provider registry to write into yet.
-func (i *Server) ConfigureProvider(_ context.Context, _ protocol.ConfigureProviderRequest) (*protocol.Provider, error) {
-	return nil, notImpl("providers.configure")
-}
-
-// TestProvider — no provider registry to probe yet.
-func (i *Server) TestProvider(_ context.Context, _ string) (*protocol.ProviderTestResult, error) {
-	return nil, notImpl("providers.test")
-}
-
-// ListModels surfaces the configured default model (no provider model
-// catalog is enumerated yet; the provider filter is ignored). API.md §7.6.
-func (i *Server) ListModels(_ context.Context, _ string) ([]protocol.Model, error) {
-	provider, model, _ := i.rt.ProviderInfo()
-	if model == "" {
-		return []protocol.Model{}, nil
+	byID := make(map[string]provider.Provider, len(configured))
+	for _, p := range configured {
+		byID[p.ID] = p
 	}
-	return []protocol.Model{{ID: model, Provider: provider}}, nil
+	supported := config.SupportedProviders()
+	out := make([]protocol.Provider, 0, len(supported))
+	for _, sp := range supported {
+		id := string(sp)
+		entry := byID[id] // zero value when unconfigured
+		out = append(out, protocol.Provider{
+			ID:           id,
+			Type:         id,
+			BaseURL:      entry.BaseURL,
+			APIKeyMasked: config.MaskKey(entry.APIKey),
+		})
+	}
+	return out, nil
+}
+
+// ConfigureProvider upserts a provider's credentials (key + base URL) into
+// the registry and returns the masked result (API.md §7.6). The provider
+// must be one Lyra supports.
+func (i *Server) ConfigureProvider(ctx context.Context, in protocol.ConfigureProviderRequest) (*protocol.Provider, error) {
+	if !isSupportedProvider(in.ProviderID) {
+		return nil, protocol.ErrInvalidParams
+	}
+	if err := i.rt.Providers().Configure(ctx, provider.Provider{
+		ID:      in.ProviderID,
+		APIKey:  in.APIKey,
+		BaseURL: in.BaseURL,
+	}); err != nil {
+		return nil, err
+	}
+	entry, _, err := i.rt.Providers().Get(ctx, in.ProviderID)
+	if err != nil {
+		return nil, err
+	}
+	return &protocol.Provider{
+		ID:           entry.ID,
+		Type:         entry.ID,
+		BaseURL:      entry.BaseURL,
+		APIKeyMasked: config.MaskKey(entry.APIKey),
+	}, nil
+}
+
+// TestProvider probes a configured provider with a minimal (max_tokens=1)
+// completion to validate its key + endpoint (API.md §7.6). Returns
+// {ok:false, error} on failure rather than erroring the RPC, so the UI can
+// show "test failed: <reason>" inline.
+func (i *Server) TestProvider(ctx context.Context, providerID string) (*protocol.ProviderTestResult, error) {
+	entry, ok, err := i.rt.Providers().Get(ctx, providerID)
+	if err != nil {
+		return nil, err
+	}
+	if !ok || !entry.Enabled() {
+		return &protocol.ProviderTestResult{OK: false, Error: &protocol.ProblemData{
+			Type: "provider_not_configured", Detail: "set the API key first",
+		}}, nil
+	}
+	if err := probeProvider(ctx, entry); err != nil {
+		return &protocol.ProviderTestResult{OK: false, Error: &protocol.ProblemData{
+			Type: "provider_test_failed", Detail: err.Error(),
+		}}, nil
+	}
+	return &protocol.ProviderTestResult{OK: true}, nil
+}
+
+// probeProvider builds the provider's default-model client and issues one
+// tiny request — the cheapest call that proves the key + endpoint work.
+func probeProvider(ctx context.Context, entry provider.Provider) error {
+	client, _, err := config.BuildClient(config.ClientSpec{
+		Provider: config.Provider(entry.ID),
+		Model:    config.DefaultModel(config.Provider(entry.ID)),
+		APIKey:   entry.APIKey,
+		BaseURL:  entry.BaseURL,
+	})
+	if err != nil {
+		return err
+	}
+	maxTokens := int64(1)
+	_, err = client.Chat().
+		WithOptions(&chat.Options{MaxTokens: &maxTokens}).
+		WithUserPrompt("ping").
+		Call().
+		Response(ctx)
+	return err
+}
+
+// ListModels enumerates the models a provider offers, from the embedded
+// catalog with full metadata (context window, capabilities, pricing). Served
+// straight from the static catalog — no key required (API.md §7.6).
+func (i *Server) ListModels(_ context.Context, providerID string) ([]protocol.Model, error) {
+	models := catalog.Models(providerID)
+	out := make([]protocol.Model, 0, len(models))
+	for _, m := range models {
+		out = append(out, modelToWire(providerID, m))
+	}
+	return out, nil
+}
+
+// modelToWire maps a catalog model onto the wire Model shape (API.md §4.9).
+func modelToWire(providerID string, m chat.ModelInfo) protocol.Model {
+	out := protocol.Model{
+		ID:              m.ID,
+		Provider:        providerID,
+		DisplayName:     m.DisplayName,
+		ContextWindow:   int(m.Limits.ContextWindow),
+		MaxOutputTokens: int(m.Limits.MaxOutputTokens),
+		Capabilities: &protocol.ModelCapabilities{
+			Reasoning:  m.Reasoning.Supported,
+			Multimodal: len(m.Modalities.Input) > 1,
+			ToolUse:    m.ToolCall,
+		},
+	}
+	if len(m.Pricing) > 0 {
+		out.Pricing = &protocol.ModelPricing{
+			InputUsdPerMillionTokens:  m.Pricing[0].InputPer1M,
+			OutputUsdPerMillionTokens: m.Pricing[0].OutputPer1M,
+		}
+	}
+	return out
+}
+
+// isSupportedProvider reports whether id names a provider Lyra has an adapter
+// for — the guard providers.configure uses to reject unknown providers.
+func isSupportedProvider(id string) bool {
+	return slices.Contains(config.SupportedProviders(), config.Provider(id))
 }
 
 // ListTools surfaces every tool the engine registered — built-in coding

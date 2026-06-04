@@ -143,9 +143,8 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		HistoryStore:    historyStore,
 		ProviderService: providerSvc,
 		// Default provider+model a turn runs against when it picks no model.
-		Provider:     string(cfg.Provider),
-		Model:        cfg.Model,
-		APIKeyMasked: config.MaskKey(cfg.APIKey),
+		Provider: string(cfg.Provider),
+		Model:    cfg.Model,
 		// ApprovalMode defaults to YOLO — operators flip the mode at
 		// runtime via /v1/approvals/mode (HTTP) or a future
 		// --approval-mode flag.
