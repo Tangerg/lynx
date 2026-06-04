@@ -151,22 +151,50 @@ func resumeBindingFrom(pending interrupts.Pending) *resumeBinding {
 	if err := json.Unmarshal(pending.Interrupts, &ints); err != nil || len(ints) == 0 {
 		return nil
 	}
-	items := make(map[string]string, len(ints))
+	items := map[string]string{}
+	var questions []resumedQuestion
 	for _, in := range ints {
-		if in.Kind != "approval" || in.ItemID == "" {
+		if in.ItemID == "" {
 			continue
 		}
-		tool, _ := in.Payload["tool"].(string)
-		args, _ := in.Payload["arguments"].(string)
-		if tool == "" {
-			continue
+		switch in.Kind {
+		case "approval":
+			tool, _ := in.Payload["tool"].(string)
+			args, _ := in.Payload["arguments"].(string)
+			if tool != "" {
+				items[resumeKey(tool, args)] = in.ItemID
+			}
+		case "question":
+			// A plan-review question is resolved by the resume answer (no
+			// re-fired event), so the continuation must complete its item.
+			questions = append(questions, resumedQuestion{itemID: in.ItemID, question: questionFromPayload(in.Payload)})
 		}
-		items[resumeKey(tool, args)] = in.ItemID
 	}
-	if len(items) == 0 {
+	if len(items) == 0 && len(questions) == 0 {
 		return nil
 	}
-	return &resumeBinding{originRunID: pending.ParentRunID, toolItems: items}
+	return &resumeBinding{originRunID: pending.ParentRunID, toolItems: items, questions: questions}
+}
+
+// questionFromPayload reconstructs the wire Question from an interrupt's
+// payload map (round-tripped through JSON in the interrupt store) so the
+// continuation's terminal item.completed carries the same content the
+// proposal did. Returns nil when absent / malformed (the item still
+// completes — just without re-stated content; the client already has it).
+func questionFromPayload(payload map[string]any) *protocol.Question {
+	raw, ok := payload["question"]
+	if !ok {
+		return nil
+	}
+	b, err := json.Marshal(raw)
+	if err != nil {
+		return nil
+	}
+	var q protocol.Question
+	if err := json.Unmarshal(b, &q); err != nil {
+		return nil
+	}
+	return &q
 }
 
 // rehydrate rebuilds a parked turn whose live state was lost on restart,

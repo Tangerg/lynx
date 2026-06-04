@@ -114,3 +114,45 @@ func TestTranslator_ResumedToolReusesOriginalItemID(t *testing.T) {
 		t.Fatalf("fresh tool runId = %q, want continuation run_1_cont", other.RunID)
 	}
 }
+
+// TestTranslator_ResumedQuestionCompletes verifies a plan-review question
+// item left inProgress at interrupt gets its terminal item.completed in the
+// continuation (right after run.started) — it's resolved by the resume
+// answer, not a re-fired event, so without this the proposal card stays
+// "LIVE" forever (API.md §5.2). Same id + origin runId, content preserved.
+func TestTranslator_ResumedQuestionCompletes(t *testing.T) {
+	const qItemID = "item_run_1_1"
+	q := &protocol.Question{Prompt: "the plan", Fields: []protocol.QuestionField{{Name: "decision", Type: "choice"}}}
+	resume := &resumeBinding{
+		originRunID: "run_1",
+		questions:   []resumedQuestion{{itemID: qItemID, question: q}},
+	}
+	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, resume)
+
+	out := tr.translate(chat.TurnStart{})
+	// run.started first, then the question's terminal completion.
+	if len(out) != 2 {
+		t.Fatalf("continuation TurnStart = %d events, want 2 (run.started + question item.completed)", len(out))
+	}
+	if out[0].Type != protocol.StreamRunStarted {
+		t.Fatalf("event[0] = %s, want run.started", out[0].Type)
+	}
+	c := out[1]
+	if c.Type != protocol.StreamItemCompleted || c.Item == nil {
+		t.Fatalf("event[1] = %s, want item.completed", c.Type)
+	}
+	if c.Item.ID != qItemID || c.Item.RunID != "run_1" {
+		t.Fatalf("question terminal id/runId = %q/%q, want %q/run_1", c.Item.ID, c.Item.RunID, qItemID)
+	}
+	if c.Item.Type != protocol.ItemTypeQuestion || c.Item.Status != protocol.ItemStatusCompleted {
+		t.Fatalf("question terminal type/status = %s/%s, want question/completed", c.Item.Type, c.Item.Status)
+	}
+	if c.Item.Question == nil || c.Item.Question.Prompt != "the plan" {
+		t.Fatalf("question terminal lost its content: %+v", c.Item.Question)
+	}
+
+	// Emitted once — a second TurnStart must not re-complete it.
+	if again := tr.translate(chat.TurnStart{}); len(again) != 1 {
+		t.Fatalf("second TurnStart re-emitted the question completion: %+v", again)
+	}
+}

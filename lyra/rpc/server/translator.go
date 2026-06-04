@@ -37,8 +37,20 @@ import (
 // gets its mandatory terminal item.completed (API.md §5.2 / §6: the itemId is
 // the correlation key across the interrupt boundary). nil for root runs.
 type resumeBinding struct {
-	originRunID string            // the interrupted run the items were created in
-	toolItems   map[string]string // resumeKey(toolName, arguments) → original item id
+	originRunID string             // the interrupted run the items were created in
+	toolItems   map[string]string  // resumeKey(toolName, arguments) → original item id
+	questions   []resumedQuestion  // plan-review question items awaiting their terminal
+}
+
+// resumedQuestion is a plan-review question item from the interrupted run.
+// Unlike a toolCall (which re-fires and completes on execution), a question
+// is resolved by the resume answer itself — no event re-fires — so the
+// continuation must emit its terminal item.completed explicitly (API.md §5.2)
+// to close the proposal card. The Question payload is carried so the
+// persisted completed item (items.list) keeps its content.
+type resumedQuestion struct {
+	itemID   string
+	question *protocol.Question
 }
 
 type translator struct {
@@ -136,7 +148,8 @@ func (t *translator) translate(ev chat.Event) []protocol.StreamEvent {
 				CreatedAt:   time.Now().UTC(),
 			},
 		}}
-		return append(out, t.openUserMessage()...)
+		out = append(out, t.openUserMessage()...)
+		return append(out, t.resumeQuestionCompletions()...)
 	case chat.MessageDelta:
 		out := t.closeReasoning()
 		return append(out, t.appendText(e.Text)...)
@@ -187,6 +200,35 @@ func (t *translator) openUserMessage() []protocol.StreamEvent {
 	}
 }
 
+// resumeQuestionCompletions terminalizes the plan-review question items the
+// interrupted run left inProgress. A question is resolved by the resume
+// answer (no event re-fires), so the continuation must emit its
+// item.completed itself — otherwise the proposal card stays "LIVE" forever
+// (API.md §5.2). Emitted once, right after run.started; the completed item
+// keeps the original id + origin runId and carries the Question payload so
+// items.list stays well-formed. No-op for root runs / tool-only resumes.
+func (t *translator) resumeQuestionCompletions() []protocol.StreamEvent {
+	if t.resume == nil || len(t.resume.questions) == 0 {
+		return nil
+	}
+	out := make([]protocol.StreamEvent, 0, len(t.resume.questions))
+	for _, q := range t.resume.questions {
+		out = append(out, protocol.StreamEvent{
+			Type: protocol.StreamItemCompleted,
+			Item: &protocol.Item{
+				ID:        q.itemID,
+				RunID:     t.resume.originRunID,
+				Status:    protocol.ItemStatusCompleted,
+				Type:      protocol.ItemTypeQuestion,
+				CreatedAt: time.Now().UTC(),
+				Question:  q.question,
+			},
+		})
+	}
+	t.resume.questions = nil // emit once
+	return out
+}
+
 // interrupt maps a parked turn (HITL) onto its Item(s) + a terminal
 // run.finished{outcome:interrupt}. Each pending awaitable becomes a
 // durable Item the client renders plus a protocol.Interrupt keyed by
@@ -200,6 +242,10 @@ func (t *translator) openUserMessage() []protocol.StreamEvent {
 func (t *translator) interrupt(e chat.TurnInterrupted) []protocol.StreamEvent {
 	out := t.closeReasoning()
 	out = append(out, t.closeText()...)
+	// Close any tool item still open when the turn parks (defensive: the
+	// gated call itself paused before item.started, but a sibling tool could
+	// be mid-flight) so no started item is left without a terminal (§5.2).
+	out = append(out, t.drainTools()...)
 
 	wire := make([]protocol.Interrupt, 0, len(e.Interrupts))
 	for _, in := range e.Interrupts {
