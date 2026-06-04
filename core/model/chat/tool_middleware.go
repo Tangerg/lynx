@@ -148,6 +148,17 @@ func (m *ToolMiddleware) executeCall(ctx context.Context, req *Request, next Cal
 	}
 
 	support.Register(req.Tools...)
+
+	// HITL resume: a prior call suspended this turn mid-round. Pick up from
+	// the checkpoint — execute only the calls that were pending — instead of
+	// re-running completed rounds (which would re-invoke the model).
+	if store := toolLoopStoreFrom(ctx); store != nil {
+		if cp, ok := store.Load(ctx); ok {
+			_ = store.Clear(ctx)
+			return m.resumeCall(ctx, cp, next, support, req)
+		}
+	}
+
 	return m.executeCallRecursively(ctx, req, next, support, toolLoopState{iteration: 1})
 }
 
@@ -186,6 +197,14 @@ func (m *ToolMiddleware) executeCallRecursively(ctx context.Context, req *Reques
 		return nil, err
 	}
 
+	if result.suspension != nil {
+		// HITL: a tool call suspended the round. Checkpoint the partial
+		// round (when a store is present) and propagate the suspend so the
+		// caller can park; with no store the error simply propagates and
+		// the caller re-runs the whole request on resume.
+		return nil, saveSuspendCheckpoint(ctx, req, resp, result.suspension, state.iteration)
+	}
+
 	if result.ShouldReturn() {
 		return result.BuildReturnResponse()
 	}
@@ -211,6 +230,17 @@ func (m *ToolMiddleware) executeStream(ctx context.Context, req *Request, next S
 		}
 
 		support.Register(req.Tools...)
+
+		// HITL resume: pick up from the checkpoint a prior segment left —
+		// execute only the pending calls, no model re-call. See executeCall.
+		if store := toolLoopStoreFrom(ctx); store != nil {
+			if cp, ok := store.Load(ctx); ok {
+				_ = store.Clear(ctx)
+				m.resumeStream(ctx, cp, next, support, yield, req)
+				return
+			}
+		}
+
 		m.executeStreamRecursively(ctx, req, next, support, yield, toolLoopState{iteration: 1})
 	}
 }
@@ -266,6 +296,15 @@ func (m *ToolMiddleware) executeStreamRecursively(ctx context.Context, req *Requ
 	result, err := support.InvokeToolCalls(ctx, req, resp)
 	if err != nil {
 		yield(nil, err)
+		return
+	}
+
+	if result.suspension != nil {
+		// HITL: checkpoint the partial round (when a store is present) and
+		// propagate the suspend so the caller can park. The round's
+		// assistant deltas were already streamed above; on resume the loop
+		// re-enters at the pending tool calls, not the model.
+		yield(nil, saveSuspendCheckpoint(ctx, req, resp, result.suspension, state.iteration))
 		return
 	}
 

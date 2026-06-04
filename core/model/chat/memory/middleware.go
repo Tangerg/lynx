@@ -31,6 +31,27 @@ const (
 // [SavedMarkerKey]. Using an empty struct keeps memory overhead at zero.
 type savedMarker struct{}
 
+// resumedTurnCtxKey marks a chat call as a continuation segment of a turn
+// suspended mid-flight (HITL resume).
+type resumedTurnCtxKey struct{}
+
+// WithResumedTurn marks ctx as a continuation segment of a suspended turn.
+// The middleware then SKIPS its input-side work — loading history and
+// persisting the request messages — because the first segment already did
+// both, and the tool loop resumes from its own checkpoint (ignoring these
+// request messages). The final result is still saved. Without this, every
+// resume re-persists the system/user messages, duplicating them in the
+// stored conversation. Set by the agent layer when it resumes a turn whose
+// tool loop has a saved checkpoint.
+func WithResumedTurn(ctx context.Context) context.Context {
+	return context.WithValue(ctx, resumedTurnCtxKey{}, struct{}{})
+}
+
+// isResumedTurn reports whether ctx was marked by [WithResumedTurn].
+func isResumedTurn(ctx context.Context) bool {
+	return ctx != nil && ctx.Value(resumedTurnCtxKey{}) != nil
+}
+
 // middleware loads conversation history before each request
 // and saves new messages afterwards. It deduplicates via [SavedMarkerKey]
 // metadata so callers who pass history explicitly never trigger
@@ -202,6 +223,21 @@ func (m *middleware) saveResponseMessages(ctx context.Context, req *chat.Request
 
 // executeCall is the synchronous flow: prepare → call → save.
 func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next chat.CallHandler) (*chat.Response, error) {
+	if isResumedTurn(ctx) {
+		// Continuation of a suspended turn: input was persisted on the first
+		// segment and the tool loop resumes from its checkpoint, so pass the
+		// request straight through (no load, no re-persist) — but still save
+		// the segment's final result.
+		resp, err := next.Call(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		if err := m.saveResponseMessages(ctx, req, resp); err != nil {
+			return nil, err
+		}
+		return resp, nil
+	}
+
 	prepared, err := m.prepareRequest(ctx, req)
 	if err != nil {
 		return nil, err
@@ -228,10 +264,18 @@ func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next ch
 // would lie to the next turn about what the model actually said.
 func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next chat.StreamHandler) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
-		prepared, err := m.prepareRequest(ctx, req)
-		if err != nil {
-			yield(nil, err)
-			return
+		// Continuation of a suspended turn (HITL resume): skip the input
+		// side (already persisted; the tool loop resumes from its
+		// checkpoint and ignores these request messages) but still
+		// accumulate + save the segment's final result. See [executeCall].
+		prepared := req
+		if !isResumedTurn(ctx) {
+			var err error
+			prepared, err = m.prepareRequest(ctx, req)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
 		}
 
 		acc := chat.NewResponseAccumulator()
