@@ -44,8 +44,12 @@ export function blockStatus(status: ItemStatus): BlockStatus {
 // Wire Item → view projections
 // ---------------------------------------------------------------------------
 
-export function contentText(blocks: WireContentBlock[]): string {
-  return blocks
+// `blocks` is absent on the `item.started` shell of a message item — its
+// content streams in via item.delta and only lands whole on item.completed.
+// Treat a missing/empty content as "" so the started shell folds to an empty
+// text block that deltas then patch (not a crash that skips streaming).
+export function contentText(blocks: WireContentBlock[] | undefined): string {
+  return (blocks ?? [])
     .filter((b): b is Extract<WireContentBlock, { type: "text" }> => b.type === "text")
     .map((b) => b.text)
     .join("");
