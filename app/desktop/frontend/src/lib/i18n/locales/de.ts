@@ -80,7 +80,7 @@ export const de: Record<string, string> = {
   "iconGallery.filterPlaceholder": "Nach Name filtern…",
   "iconGallery.empty": 'Keine Symbole passen zu "{{q}}".',
 
-  "approval.settled.approved": "Genehmigt · läuft",
+  "approval.settled.approved": "Genehmigt",
   "approval.settled.declined": "Abgelehnt",
   "approval.required": "Freigabe erforderlich",
   "approval.action.approve": "Genehmigen",

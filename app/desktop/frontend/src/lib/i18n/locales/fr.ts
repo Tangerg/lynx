@@ -81,7 +81,7 @@ export const fr: Record<string, string> = {
   "iconGallery.filterPlaceholder": "Filtrer par nom…",
   "iconGallery.empty": 'Aucune icône ne correspond à "{{q}}".',
 
-  "approval.settled.approved": "Approuvé · exécution",
+  "approval.settled.approved": "Approuvé",
   "approval.settled.declined": "Refusé",
   "approval.required": "Approbation requise",
   "approval.action.approve": "Approuver",

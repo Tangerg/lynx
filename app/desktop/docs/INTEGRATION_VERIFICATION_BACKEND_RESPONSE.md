@@ -41,20 +41,37 @@
 
 ---
 
-## 2. §2 ToolInvocation 新契约 — 已接受，分阶段实施
+## 2. §2 ToolInvocation 新契约 — ✅ 已全部实现 + 活体验证（`commit 后续`）
 
-新的五变体判别联合（`commandExecution` / `fileChange` / `search` / `webSearch` / `tool`）+ 去 kind↔name 双身份 + `arguments` 恒对象 / `result` best-effort JSON / 绝不双重编码 + HITL `Interrupt` 判别联合（approval/toolResult 复用 `ToolInvocation`）+ `ToolResultResponse` `output`→`result+error` —— **全部接受**，按你建议的节奏分阶段落地。
+原以为要分两阶段（observer 只透字符串），但发现**后端工具的 output 本就是结构化 JSON**（bash→`{stdout,exit_code,duration}`、grep→`{matches:[{path,line,text}]}`、glob→`{paths}`、websearch→`{results:[{title,url,snippet,favicon_url}]}`），translator 解析即得全部富字段，**无需动 engine/observer/tools**。所以**五变体一次做到位**。
 
-**一个实现约束（影响分期）**：当前后端 engine 的工具观测层（`ToolObserver`）只透出**字符串**（`OnToolCallStart(…, arguments string)` / `OnToolCallEnd(…, output string, err)`），**没有结构化数据**（argv 数组 / 解析后的参数对象 / 搜索结果 / diff）。所以：
+**§4.4 ToolInvocation** — 已切判别联合，去 kind↔name 双身份，`arguments` 恒解析对象、`result` best-effort JSON、绝不双重编码。后端按工具名映射：
 
-- **阶段 1（即将做，覆盖最常见路径）**：
-  - `commandExecution`（bash）：从入参解出 `command` argv；stdout 走 `toolOutput` 流、`exitCode`/`durationMs` 完成时落定。
-  - 通用 `tool`（read / MCP / subagent / 其余）：`arguments` 由后端 `unmarshal` 成对象再发（完成项 + 审批 payload 绝不回 JSON 字符串）；`result` best-effort JSON、绝不双重编码。
-  - 一并完成：HITL `Interrupt` 判别联合 + `payload.tool` 复用 `ToolInvocation`；`ToolResultResponse` 改 `result?+error?`；§8 把 provider 错误分出 `provider_error`（接 E2 遗留）。
-  - 完成阶段 1 即消除「kind↔name 双身份」与「双重转义」两个根问题——你方可先切 `switch(kind)` 覆盖 command + tool。
-- **阶段 2（随后）**：`fileChange`（diff）、`search`/`webSearch`（结构化 `results`）。这几个需要让 engine 的 observer / 工具层透出结构化数据（动 engine + tools 层，较深），故后置。
+| 工具 | wire `kind` | 字段来源 |
+| --- | --- | --- |
+| bash | `commandExecution` | `command`=argv(单元素 shell 串)；`exitCode`/`durationMs` 解析自 output；**stdout 走 `item.delta{toolOutput}`，不在完成项上** |
+| grep / glob | `search` | `query`=pattern；`results[]`={path,lineNumber?,snippet?} 解析自 output |
+| websearch | `webSearch` | `query`；`results[]`={title,url,snippet,faviconUrl} |
+| write / edit | `fileChange` | `changes[]`={path, kind:"modify"}（**diff 暂缺**，见下） |
+| read / webfetch / httpreq / MCP `<server>.<tool>` / subagent / 其余 | `tool` | `name` + `arguments`(对象) + `result`(best-effort JSON) |
 
-**中间态约定**：阶段 1 落地前 wire 维持现状；落地时一次性切换（不混用新旧 kind）。我会在阶段 1 改完后再发一份 wire 对照，请你方 lockstep 切换并删 `parseArgs` 容错。
+**§4.8 Interrupt** — approval payload 改为 `{tool: ToolInvocation}`（复用 §4.4，你方读 `payload.tool` 即可，不再猜 command/转义）。question 无 payload。
+> 注：approval payload 里另有一个 `_resume` 字段（`{name,args}`）是**后端内部**用来把"恢复后重发的工具"重新绑定到原 proposal item（强类型变体 wire 上没 name，无法从 `tool` 反推）。**前端按 §11 忽略未知字段即可**，不要消费它。
+
+**§6.1 ToolResultResponse** — `output:string` → `result?:unknown + error?:ProblemData`，与 `ToolInvocation.result` 同形。
+
+**§8.4 工具级 error type** — `toolCall.error.type` 的 `tool_failed` / `denied_by_user` 早已正确落在 item 上（你方 E1/deny 验证已确认），无需改。
+
+**活体验证**（bash `echo hello-lyra`，过审批）：
+- 提案 + 审批 payload.tool = `{kind:"commandExecution", command:["echo hello-lyra"]}` ✓
+- approve resume 后：`toolOutput` delta `text:"hello-lyra\n"` → 完成项 `{kind:"commandExecution", exitCode:0, durationMs:17}` ✓
+- 完成项**复用原 proposal item id**（一个 item 走 提案→审批→执行→完成）✓
+
+**中间态**：wire 已一次性切到新形态（不混用旧 kind）。请你方 lockstep 切 `switch(kind)` + 删 `parseArgs`/容错解析。
+
+**仍有两处后续（非阻塞，下一批）**：
+1. **`fileChange.diff`**：write/edit 工具当前只回 `{replacements}`/`{bytes_written}`，拿不到 diff 行；需让 fs 工具透出结构化 diff（动 tools 层）。当前 `fileChange` 只给 `{path, kind:"modify"}`（diff 可选，契约允许）。`kind` 暂统一 "modify"（无法可靠区分 add/modify，需 stat）。
+2. **`provider_error`（接 E2 遗留）**：provider 类错误（401/限流）目前仍归 `internal_error`；应分类成 `provider_error`（§8.2，码 `-32001`）带干净 detail。
 
 ---
 
@@ -67,6 +84,11 @@
 | E3 plan 工具策略 | ✅ 维持现状（E1 兜底） | — |
 | E4 /v2/info providers | ✅ 已修 `c5a03e8` | `lyra server.Capabilities` |
 | E5 id 必须 string | ✅ 已写文档 | `TRANSPORT.md §2` |
-| §2 ToolInvocation 契约 | ⏳ 接受，分阶段 | 阶段1（command+tool+HITL+provider_error）即将做 |
+| §4.4 ToolInvocation 五变体 | ✅ 已实现 + 活体验证 | `rpc/protocol` + `rpc/server/translator.go` |
+| §4.8 Interrupt（payload.tool） | ✅ 已实现 | `rpc/server/translator.go` |
+| §6.1 ToolResultResponse（result+error） | ✅ 已实现 | `rpc/protocol/runs.go` |
+| §8.4 tool error type | ✅ 早已正确 | `rpc/server/translator.go` |
+| fileChange diff / add-vs-modify | ⏳ 下一批 | 需 fs 工具透出结构化 diff |
+| provider_error 分类（E2 遗留） | ⏳ 下一批 | §8.2 错误分类 |
 
-> E1/E2/E4 已 push + 重启验证。§2 契约阶段 1 是下一批，改完发 wire 对照。
+> 全部已 push + 重启验证。**请你方 lockstep 切 `switch(kind)` + 删 `parseArgs`/容错**——wire 已一次性切到新形态。剩 fileChange diff + provider_error 两处后续（非阻塞）。

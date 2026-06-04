@@ -94,7 +94,7 @@ export const en: Record<string, string> = {
   "iconGallery.filterPlaceholder": "Filter by name…",
   "iconGallery.empty": 'No icons match "{{q}}".',
 
-  "approval.settled.approved": "Approved · executing",
+  "approval.settled.approved": "Approved",
   "approval.settled.declined": "Declined",
   "approval.required": "Approval required",
   "approval.action.approve": "Approve",
