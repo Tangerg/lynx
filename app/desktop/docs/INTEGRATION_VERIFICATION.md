@@ -114,6 +114,15 @@
 > 后端另自查补了两处同源 §5.2 孤儿（中断时在飞的 tool drain、plan-review `question` 终态）——以后端自审计为准，plan 模式触发条件特殊，未独立复跑。
 > deny 路径细节：终态为 `completed`、`tool.output="tool call denied by user"`（前端工具卡显示 ✓ + 该 output；审批卡本身已标"declined"）。轻微：被拒工具显示绿 ✓ 而非"拒绝"色，非阻塞。
 
+### 4.2 新发现的后端问题（探针实测，待后端处理）
+
+| # | 现象 | 实测证据 | 归属 |
+| --- | --- | --- | --- |
+| **B3** 多步 HITL 后**实时**消息乱序 | 连续审批后气泡看着前后颠倒 | ① resume/continuation run **不发 `run.started`**（前端据此分隔 turn / 设 running，缺了就乱）；② 被批准的工具在续延流里**迟发**（先跑别的 item，再回头补发被批准的那个）→ **到达顺序非时间序**。**但 `items.list` 按 `createdAt` 是对的** → 仅实时流问题，重开会话顺序正确 | **后端**（实时流排序 + 缺 run.started）。前端按到达顺序如实 append；要前端兜底须按 seq/createdAt 重排，属 §7.2 deferred 的 seq 工作 |
+| **W1** 命令工具 wire 形状不符契约 | 工具卡曾显示空 `()`、审批参数双重转义 | 实际 `ToolInvocation` 命令是 `{kind:"command", name:"bash", output}`，命令在流式 `arguments`（JSON 串）里，**无顶层 `command`**；审批 payload 是 `{tool, arguments:"<json串>"}` | **契约/后端**：与 `API.md §4.4`（`{command, cwd?, output?, exitCode?}`）不符。前端已容错（`name` 回退 + 解析 args），但建议把 §4.4 对齐成 `name` + args-borne command |
+
+> B3 前端侧：已确认 fold 在**块层面**配对正确（§7.2 自查）；乱序源于实时到达顺序。彻底修复需后端发 `run.started`（续延）+ 实时流按时间序，或前端引入 seq 重排（§7.2）。
+
 ---
 
 ## 5. 前端缺口全清单（按可做性分类）
