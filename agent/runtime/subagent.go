@@ -133,8 +133,8 @@ func AsMCPTool[In, Out any](platform *Platform, agentName string) (chat.Tool, er
 	return newTypedAgentTool[In, Out]("publish agent", platform, agentDef, RunFresh), nil
 }
 
-// processStarter is the shape [SpawnChildProtectedOnly], [SpawnChildFresh]
-// and [RunFresh] all implement: ctx + platform + agent + in → terminal
+// processStarter is the shape [SpawnChild], [SpawnChildProtectedOnly],
+// [SpawnChildFresh] and [RunFresh] all implement: ctx + platform + agent + in → terminal
 // *AgentProcess. Used by [newTypedAgentTool] / [newDynamicAgentTool]
 // to swap supervisor vs top-level start strategies without
 // duplicating wiring.
