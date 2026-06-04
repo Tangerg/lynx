@@ -52,10 +52,11 @@ func IssueLocalToken(path string) (*LocalToken, error) {
 	return &LocalToken{Value: value, Path: path}, nil
 }
 
-// authGate enforces the local-token check on POST /v2/rpc/*. Three
-// paths bypass: sidecars (/v2/info, /v2/health), the SSE stream
-// (EventSource can't set Authorization — TRANSPORT §7/§11), and CORS
-// preflights.
+// authGate enforces the local-token check on POST /v2/rpc/*. Two paths
+// bypass: the sidecars (/v2/info, /v2/health) and CORS preflights. Under
+// streamable HTTP every stream is a POST, so the gate covers streaming
+// too — there is no header-less EventSource to special-case (TRANSPORT
+// §7/§11).
 //
 // On failure, the response is a flat-JSON 401 ({"error":
 // "missing_local_token"}) — NOT the JSON-RPC envelope, since this
@@ -81,12 +82,12 @@ func (s *Server) authGate(next http.Handler) http.Handler {
 	})
 }
 
-// isAuthBypassPath flags requests that intentionally skip the gate:
-// the two sidecars (no-auth ops endpoints) and the SSE stream
-// (browser EventSource can't send Authorization).
+// isAuthBypassPath flags requests that intentionally skip the gate: the
+// two sidecars (no-auth ops endpoints). Everything under /v2/rpc/* —
+// including streaming POSTs — is gated.
 func isAuthBypassPath(p string) bool {
 	switch p {
-	case "/v2/info", "/v2/health", "/v2/rpc/stream":
+	case "/v2/info", "/v2/health":
 		return true
 	}
 	return false
