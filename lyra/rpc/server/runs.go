@@ -73,7 +73,7 @@ func (i *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	// emits it after run.started) — streamed live and persisted through the
 	// same path, so the wire id and the items.list id are one and the same.
 	runID := handle.TurnID
-	out, events, err := i.openSegment(ctx, runID, "", handle, sessionID, in.Input)
+	out, events, err := i.openSegment(ctx, runID, "", handle, sessionID, in.Input, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -128,12 +128,45 @@ func (i *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	// we suffix it (not re-prefix) to derive a distinct continuation id.
 	contRunID := handle.TurnID + "_" + strconv.FormatInt(time.Now().UnixNano(), 36)
 	// A continuation carries no new user turn — the decision is delivered
-	// out-of-band via runs.resume, so no opening userMessage Item.
-	out, events, err := i.openSegment(ctx, contRunID, in.ParentRunID, handle, pending.SessionID, nil)
+	// out-of-band via runs.resume, so no opening userMessage Item. It DOES
+	// carry the resume binding: an approved tool re-fires in this run and
+	// must complete its ORIGINAL proposal item (API.md §5.2 / §6), not a
+	// fresh one.
+	out, events, err := i.openSegment(ctx, contRunID, in.ParentRunID, handle, pending.SessionID, nil, resumeBindingFrom(pending))
 	if err != nil {
 		return nil, nil, err
 	}
 	return out, events, nil
+}
+
+// resumeBindingFrom extracts the pending approval items' ids (keyed by tool
+// name + arguments) from a parked run so the continuation translator can
+// reuse them when the approved tools re-fire. Returns nil when there are no
+// approval interrupts (e.g. a plan-review question, which resolves without a
+// re-fired tool). originRunID is the interrupted run the items were created
+// in — the continuation re-emits them under that run so the item's id + runId
+// stay stable across the boundary.
+func resumeBindingFrom(pending interrupts.Pending) *resumeBinding {
+	var ints []protocol.Interrupt
+	if err := json.Unmarshal(pending.Interrupts, &ints); err != nil || len(ints) == 0 {
+		return nil
+	}
+	items := make(map[string]string, len(ints))
+	for _, in := range ints {
+		if in.Kind != "approval" || in.ItemID == "" {
+			continue
+		}
+		tool, _ := in.Payload["tool"].(string)
+		args, _ := in.Payload["arguments"].(string)
+		if tool == "" {
+			continue
+		}
+		items[resumeKey(tool, args)] = in.ItemID
+	}
+	if len(items) == 0 {
+		return nil
+	}
+	return &resumeBinding{originRunID: pending.ParentRunID, toolItems: items}
 }
 
 // rehydrate rebuilds a parked turn whose live state was lost on restart,
@@ -156,7 +189,7 @@ func (i *Server) rehydrate(ctx context.Context, pending interrupts.Pending, appr
 // pump for one run segment. parentRunID is empty for a root run
 // (runs.start) and set for a continuation (runs.resume) — it rides onto
 // the RunRef and the runEntry so the continuation links back to its parent.
-func (i *Server) openSegment(reqCtx context.Context, runID, parentRunID string, handle chat.TurnHandle, sessionID string, userInput []protocol.ContentBlock) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
+func (i *Server) openSegment(reqCtx context.Context, runID, parentRunID string, handle chat.TurnHandle, sessionID string, userInput []protocol.ContentBlock, resume *resumeBinding) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
 	runCtx, cancel := context.WithCancel(context.Background())
 	inner, err := i.rt.Chat().Events(runCtx, handle)
 	if err != nil {
@@ -177,7 +210,7 @@ func (i *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 	// and stays resumable via runs.subscribe. runCtx is Background-rooted
 	// on purpose: the run must outlive the request that started it.
 	context.AfterFunc(reqCtx, unsubscribe)
-	go i.pumpRun(runCtx, runID, parentRunID, handle, inner, hub, userInput)
+	go i.pumpRun(runCtx, runID, parentRunID, handle, inner, hub, userInput, resume)
 	return &protocol.StartRunResponse{RunID: runID}, events, nil
 }
 
@@ -191,8 +224,8 @@ func (i *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 //
 // Either way the wire run.finished event is the last thing on the
 // channel before it closes.
-func (i *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle chat.TurnHandle, inner iter.Seq[chat.Event], hub *runHub, userInput []protocol.ContentBlock) {
-	tr := newTranslator(handle.SessionID, runID, parentRunID, userInput)
+func (i *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle chat.TurnHandle, inner iter.Seq[chat.Event], hub *runHub, userInput []protocol.ContentBlock, resume *resumeBinding) {
+	tr := newTranslator(handle.SessionID, runID, parentRunID, userInput, resume)
 	finished := false
 	parked := false
 
