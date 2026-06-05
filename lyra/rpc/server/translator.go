@@ -587,7 +587,7 @@ func (t *translator) finish(outcomeType protocol.RunOutcomeType) []protocol.Stre
 	out = append(out, t.drainTools()...)
 	res := &protocol.RunResult{}
 	if outcomeType == protocol.OutcomeError && t.errMsg != "" {
-		res.Error = internalErrorProblem()
+		res.Error = classifyRunError(t.errMsg)
 	}
 	return append(out, protocol.StreamEvent{
 		Type:    protocol.StreamRunFinished,
@@ -603,6 +603,45 @@ func (t *translator) finish(outcomeType protocol.RunOutcomeType) []protocol.Stre
 // errors (FeedbackOnToolError), this path is genuine engine/infra failure.
 func internalErrorProblem() *protocol.ProblemData {
 	return &protocol.ProblemData{Type: "internal_error", Detail: "the run failed due to an internal error"}
+}
+
+// classifyRunError maps a failed run's (server-side, full) error message
+// onto a wire ProblemData. Errors that originate at the model provider —
+// rate limits, provider 5xx, auth/bad-request, timeouts/network — surface
+// as a distinct provider_error (API.md §8.2, code -32001) with an
+// actionable but NON-leaking detail (a fixed per-class string, never the
+// raw message / URL / Go call path), so the client can react (back off on a
+// rate limit, prompt for a key on auth) instead of treating every transient
+// blip as an opaque internal_error and hammer-retrying. Anything
+// unrecognized stays internal_error. The raw message still rides only the
+// server-side span.
+func classifyRunError(msg string) *protocol.ProblemData {
+	m := strings.ToLower(msg)
+	contains := func(subs ...string) bool {
+		for _, s := range subs {
+			if strings.Contains(m, s) {
+				return true
+			}
+		}
+		return false
+	}
+	provider := func(detail string) *protocol.ProblemData {
+		return &protocol.ProblemData{Type: "provider_error", Detail: detail}
+	}
+	switch {
+	case contains("429", "too many requests", "rate limit", "overloaded", "quota"):
+		return provider("the model provider rate-limited the request; retry shortly")
+	case contains(" 401", " 403", "unauthorized", "forbidden", "invalid_api_key", "api key"):
+		return provider("the model provider rejected the credentials; check the provider API key")
+	case contains(" 500", " 502", " 503", " 504", "bad gateway", "service unavailable", "internal server error"):
+		return provider("the model provider is temporarily unavailable; retry shortly")
+	case contains("deadline exceeded", "timeout", "timed out", "client.timeout", "connection refused", "no such host", "i/o timeout", "eof", "connection reset"):
+		return provider("the model provider request timed out or the connection failed; retry shortly")
+	case contains(" 400", "invalid_request_error", "bad request"):
+		return provider("the model provider rejected the request as invalid")
+	default:
+		return internalErrorProblem()
+	}
 }
 
 func (t *translator) drainTools() []protocol.StreamEvent {
@@ -638,7 +677,7 @@ func (t *translator) outcome(e chat.TurnEnd) *protocol.RunOutcome {
 	case chat.TurnEndBudgetExceeded:
 		return &protocol.RunOutcome{Type: protocol.OutcomeMaxBudget, Result: res}
 	case chat.TurnEndErrored:
-		res.Error = internalErrorProblem()
+		res.Error = classifyRunError(t.errMsg)
 		return &protocol.RunOutcome{Type: protocol.OutcomeError, Result: res}
 	default:
 		return &protocol.RunOutcome{Type: protocol.OutcomeCompleted, Result: res}
