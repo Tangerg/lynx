@@ -3,9 +3,11 @@ package chat_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/model/chat/memory"
 )
 
 // TestToolMiddleware_RecursiveLoop checks the headline behavior:
@@ -499,6 +501,131 @@ func TestToolMiddleware_InterruptThenResume(t *testing.T) {
 	if finalText != "done" {
 		t.Fatalf("final text = %q, want \"done\"", finalText)
 	}
+}
+
+// --- persisted-history validity across multi-round / HITL turns -----------
+
+// toolCallResponseID builds a tool-call response with an explicit call id,
+// so a multi-round turn uses distinct ids (call_1, call_2, …) and the
+// tool_call ↔ result correlation can be checked.
+func toolCallResponseID(t *testing.T, id, name string) *chat.Response {
+	t.Helper()
+	resp, err := chat.NewResponse(&chat.Result{
+		AssistantMessage: chat.NewAssistantMessage(chat.MessageParams{
+			Parts: []chat.OutputPart{&chat.ToolCallPart{ID: id, Name: name, Arguments: "{}"}},
+		}),
+		Metadata: &chat.ResultMetadata{FinishReason: chat.FinishReasonToolCalls},
+	}, &chat.ResponseMetadata{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp
+}
+
+func countToolMsgs(msgs []chat.Message) int {
+	n := 0
+	for _, m := range msgs {
+		if m.Type() == chat.MessageTypeTool {
+			n++
+		}
+	}
+	return n
+}
+
+// assertValidToolHistory enforces the provider invariants on a stored
+// conversation: every tool message immediately follows an assistant message
+// with tool calls (the rule deepseek 400s on), every tool_call id has a
+// matching tool return, and every tool return matches a tool_call id.
+func assertValidToolHistory(t *testing.T, msgs []chat.Message) {
+	t.Helper()
+	calls := map[string]bool{}  // tool_call ids seen on assistant messages
+	answered := map[string]bool{}
+	for i, m := range msgs {
+		switch msg := m.(type) {
+		case *chat.AssistantMessage:
+			for _, c := range msg.CollectToolCalls() {
+				calls[c.ID] = true
+			}
+		case *chat.ToolMessage:
+			prev, ok := msgs[i-1].(*chat.AssistantMessage)
+			if i == 0 || !ok || !prev.HasToolCalls() {
+				t.Fatalf("tool message at %d not preceded by assistant(tool_calls): history=%s", i, historyShape(msgs))
+			}
+			for _, ret := range msg.ToolReturns {
+				answered[ret.ID] = true
+				if !calls[ret.ID] {
+					t.Fatalf("tool return id %q has no matching tool_call: history=%s", ret.ID, historyShape(msgs))
+				}
+			}
+		}
+	}
+	for id := range calls {
+		if !answered[id] {
+			t.Fatalf("tool_call id %q has no tool response (provider rejects unanswered calls): history=%s", id, historyShape(msgs))
+		}
+	}
+}
+
+func historyShape(msgs []chat.Message) string {
+	parts := make([]string, 0, len(msgs))
+	for _, m := range msgs {
+		switch msg := m.(type) {
+		case *chat.AssistantMessage:
+			if msg.HasToolCalls() {
+				parts = append(parts, "assistant(tool_calls)")
+			} else {
+				parts = append(parts, "assistant(text)")
+			}
+		default:
+			parts = append(parts, string(m.Type()))
+		}
+	}
+	return strings.Join(parts, " → ")
+}
+
+// TestMemory_SequentialMultiRoundTurn_ValidHistory drives a turn that calls
+// a DIFFERENT tool each round (alpha, then beta, then answers) through the
+// real memory + tool middlewares, then checks the persisted conversation is
+// a valid provider sequence. Guards the deep pitfall where the accumulator
+// merges all rounds into one assistant + keeps only the last round's tool
+// results, orphaning earlier tool_calls.
+func TestMemory_SequentialMultiRoundTurn_ValidHistory(t *testing.T) {
+	model := newFakeChatModel(t)
+	model.streamRespond = func(req *chat.Request) []*chat.Response {
+		switch countToolMsgs(req.Messages) {
+		case 0:
+			return []*chat.Response{toolCallResponseID(t, "call_1", "alpha")}
+		case 1:
+			return []*chat.Response{toolCallResponseID(t, "call_2", "beta")}
+		default:
+			return []*chat.Response{responseWithText("done")}
+		}
+	}
+	alpha := mustNewCallable(t, "alpha", false, func(context.Context, string) (string, error) { return "a-ok", nil })
+	beta := mustNewCallable(t, "beta", false, func(context.Context, string) (string, error) { return "b-ok", nil })
+
+	store := memory.NewInMemoryStore()
+	memCallMW, memStreamMW, err := memory.NewMiddleware(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, toolStreamMW := chat.NewToolMiddleware()
+
+	req, _ := chat.NewClientRequest(model)
+	req.WithMiddlewares(memCallMW, memStreamMW, toolStreamMW).
+		WithParams(map[string]any{memory.ConversationIDKey: "c1"}).
+		WithSystemPrompt("sys").
+		WithUserPrompt("go").
+		WithTools(alpha, beta)
+
+	for _, e := range req.Stream().Response(context.Background()) {
+		if e != nil {
+			t.Fatalf("stream error: %v", e)
+		}
+	}
+
+	stored, _ := store.Read(context.Background(), "c1")
+	assertValidToolHistory(t, stored)
 }
 
 // TestToolMiddleware_PassthroughWithoutToolCalls verifies the middleware
