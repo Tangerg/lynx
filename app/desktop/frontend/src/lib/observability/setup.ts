@@ -31,9 +31,9 @@ import { bindMetricInstruments } from "@/lib/metrics";
 import type { IMetricReader } from "@opentelemetry/sdk-metrics";
 import { MeterProvider, PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
 import type { LogRecordProcessor } from "@opentelemetry/sdk-logs";
-import { LoggerProvider } from "@opentelemetry/sdk-logs";
+import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs";
 import type { SpanProcessor } from "@opentelemetry/sdk-trace-web";
-import { WebTracerProvider } from "@opentelemetry/sdk-trace-web";
+import { BatchSpanProcessor, WebTracerProvider } from "@opentelemetry/sdk-trace-web";
 import { LocalLogProcessor, LocalMetricExporter, LocalSpanProcessor } from "./sink";
 
 export interface ObservabilityOptions {
@@ -118,22 +118,24 @@ interface OtlpBundle {
 // one network call per span/log.
 async function loadOtlp(endpoint: string): Promise<OtlpBundle> {
   const base = endpoint.replace(/\/$/, "");
-  const [traceExp, metricExp, logExp, traceBase, logSdk] = await Promise.all([
+  // Only the OTLP exporter packages are dynamic — they're the part that never
+  // loads unless an endpoint is configured. The Batch*Processor wrappers come
+  // from sdk-trace-web / sdk-logs, already in this chunk via the static imports
+  // above, so re-importing them dynamically would be a no-op chunk split.
+  const [traceExp, metricExp, logExp] = await Promise.all([
     import("@opentelemetry/exporter-trace-otlp-http"),
     import("@opentelemetry/exporter-metrics-otlp-http"),
     import("@opentelemetry/exporter-logs-otlp-http"),
-    import("@opentelemetry/sdk-trace-web"),
-    import("@opentelemetry/sdk-logs"),
   ]);
   return {
-    spanProcessor: new traceBase.BatchSpanProcessor(
+    spanProcessor: new BatchSpanProcessor(
       new traceExp.OTLPTraceExporter({ url: `${base}/v1/traces` }),
     ),
     metricReader: new PeriodicExportingMetricReader({
       exporter: new metricExp.OTLPMetricExporter({ url: `${base}/v1/metrics` }),
       exportIntervalMillis: 10_000,
     }),
-    logProcessor: new logSdk.BatchLogRecordProcessor(
+    logProcessor: new BatchLogRecordProcessor(
       new logExp.OTLPLogExporter({ url: `${base}/v1/logs` }),
     ),
   };
