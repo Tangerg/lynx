@@ -29,6 +29,7 @@ export const zh: Record<string, string> = {
 
   "chat.error.title": "渲染出错",
   "chat.error.retry": "重试",
+  "chat.jumpToBottom": "跳到底部",
 
   "welcome.eyebrow": "agent 就绪",
   "welcome.title": "今天想构建点什么？",

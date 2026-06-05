@@ -30,6 +30,7 @@ export const ja: Record<string, string> = {
 
   "chat.error.title": "レンダリングエラー",
   "chat.error.retry": "再試行",
+  "chat.jumpToBottom": "最下部へ移動",
 
   "welcome.eyebrow": "agent 準備完了",
   "welcome.title": "今日は何を作りましょうか？",

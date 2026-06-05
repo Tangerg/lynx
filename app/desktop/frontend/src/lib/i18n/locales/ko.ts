@@ -29,6 +29,7 @@ export const ko: Record<string, string> = {
 
   "chat.error.title": "렌더링 오류",
   "chat.error.retry": "재시도",
+  "chat.jumpToBottom": "맨 아래로 이동",
 
   "welcome.eyebrow": "agent 준비됨",
   "welcome.title": "오늘은 무엇을 만들까요?",
