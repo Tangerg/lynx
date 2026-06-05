@@ -1,9 +1,3 @@
-// Package rag implements the standard Retrieval-Augmented Generation
-// pipeline: take a user query, transform it, expand it, retrieve
-// relevant documents, refine them, and augment the original query with
-// the retrieved context. The interfaces in this file are the building
-// blocks; concrete implementations live alongside (query_*.go,
-// document_*.go) and the [Pipeline] glue is in pipeline.go.
 package rag
 
 import (
@@ -12,13 +6,10 @@ import (
 	"github.com/Tangerg/lynx/core/document"
 )
 
-// QueryExpander turns one query into many — useful for poorly formed
-// inputs (alternative phrasings) or complex problems (decompose into
-// sub-queries the retriever can answer in parallel).
-type QueryExpander interface {
-	// Expand returns one or more queries derived from the input.
-	Expand(ctx context.Context, query *Query) ([]*Query, error)
-}
+// The five stage interfaces below are declared in pipeline order
+// (transform → expand → retrieve → refine → augment). The [Pipeline]
+// glue lives in pipeline.go, concrete implementations alongside
+// (query_*.go, document_*.go); the package overview is in doc.go.
 
 // QueryTransformer rewrites a query to be more retrieval-friendly —
 // translation, compression, ambiguity resolution, vocabulary
@@ -28,11 +19,12 @@ type QueryTransformer interface {
 	Transform(ctx context.Context, query *Query) (*Query, error)
 }
 
-// QueryAugmenter folds retrieved documents into the query so the LLM
-// has the right context to answer.
-type QueryAugmenter interface {
-	// Augment returns a new query enriched with documents.
-	Augment(ctx context.Context, query *Query, documents []*document.Document) (*Query, error)
+// QueryExpander turns one query into many — useful for poorly formed
+// inputs (alternative phrasings) or complex problems (decompose into
+// sub-queries the retriever can answer in parallel).
+type QueryExpander interface {
+	// Expand returns one or more queries derived from the input.
+	Expand(ctx context.Context, query *Query) ([]*Query, error)
 }
 
 // DocumentRetriever pulls candidate documents from a knowledge source
@@ -49,4 +41,11 @@ type DocumentRetriever interface {
 type DocumentRefiner interface {
 	// Refine returns the trimmed/re-ranked document list.
 	Refine(ctx context.Context, query *Query, documents []*document.Document) ([]*document.Document, error)
+}
+
+// QueryAugmenter folds retrieved documents into the query so the LLM
+// has the right context to answer.
+type QueryAugmenter interface {
+	// Augment returns a new query enriched with documents.
+	Augment(ctx context.Context, query *Query, documents []*document.Document) (*Query, error)
 }
