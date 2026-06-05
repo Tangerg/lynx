@@ -118,10 +118,18 @@ func (r *Reader) readWhole(raw []byte) ([]*document.Document, error) {
 
 // readSplit walks the markdown AST and emits a document per section.
 func (r *Reader) readSplit(ctx context.Context, raw []byte) ([]*document.Document, error) {
+	return r.sectionsToDocuments(ctx, r.collectSections(raw))
+}
+
+// collectSections walks the top-level AST nodes and groups them into
+// sections: a new section opens at every heading of level
+// <= headingSplitLevel, while the heading-path stack tracks ancestry.
+// Body content before the first heading lands in an unnamed lead-in
+// section.
+func (r *Reader) collectSections(raw []byte) []*section {
 	root := r.parser.Parser().Parse(text.NewReader(raw))
 
 	var (
-		docs     []*document.Document
 		sections []*section
 		stack    []sectionRef
 	)
@@ -153,7 +161,14 @@ func (r *Reader) readSplit(ctx context.Context, raw []byte) ([]*document.Documen
 		sec.appendNodeSource(raw, n)
 		sections = append(sections, sec)
 	}
+	return sections
+}
 
+// sectionsToDocuments materializes each non-empty section into a
+// [document.Document], stamping heading metadata when present. ctx
+// cancellation is honored between sections.
+func (r *Reader) sectionsToDocuments(ctx context.Context, sections []*section) ([]*document.Document, error) {
+	var docs []*document.Document
 	for _, sec := range sections {
 		if err := ctx.Err(); err != nil {
 			return nil, err
