@@ -82,17 +82,20 @@ func finishEmbeddingSpan(span trace.Span, resp *Response, err error) {
 		span.End()
 		return
 	}
-	if resp != nil && resp.Metadata != nil {
-		attrs := make([]attribute.KeyValue, 0, 2)
-		if resp.Metadata.Model != "" {
-			attrs = append(attrs, attribute.String(attrEmbedGenAIResponseModel, resp.Metadata.Model))
-		}
-		if resp.Metadata.Usage != nil {
-			attrs = append(attrs, attribute.Int64(attrEmbedGenAIUsageInputTokens, resp.Metadata.Usage.PromptTokens))
-		}
-		if len(attrs) > 0 {
-			span.SetAttributes(attrs...)
-		}
+	if resp == nil || resp.Metadata == nil {
+		span.End()
+		return
+	}
+
+	attrs := make([]attribute.KeyValue, 0, 2)
+	if resp.Metadata.Model != "" {
+		attrs = append(attrs, attribute.String(attrEmbedGenAIResponseModel, resp.Metadata.Model))
+	}
+	if resp.Metadata.Usage != nil {
+		attrs = append(attrs, attribute.Int64(attrEmbedGenAIUsageInputTokens, resp.Metadata.Usage.PromptTokens))
+	}
+	if len(attrs) > 0 {
+		span.SetAttributes(attrs...)
 	}
 	span.End()
 }

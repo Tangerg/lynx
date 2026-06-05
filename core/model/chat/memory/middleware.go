@@ -301,10 +301,8 @@ func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next 
 		var seq []chat.Message
 		round := chat.NewResponseAccumulator()
 		flushRound := func() {
-			if round.Response.Result != nil {
-				if am := round.Response.Result.AssistantMessage; !blankAssistant(am) {
-					seq = append(seq, am)
-				}
+			if r := round.Response.Result; r != nil && !blankAssistant(r.AssistantMessage) {
+				seq = append(seq, r.AssistantMessage)
 			}
 			round = chat.NewResponseAccumulator()
 		}

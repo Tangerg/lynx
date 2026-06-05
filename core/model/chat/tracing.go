@@ -144,30 +144,33 @@ func finishChatSpan(span trace.Span, resp *Response, err error) {
 		span.End()
 		return
 	}
-	if resp != nil {
-		attrs := make([]attribute.KeyValue, 0, 5)
-		if meta := resp.Metadata; meta != nil {
-			if meta.ID != "" {
-				attrs = append(attrs, attribute.String(attrGenAIResponseID, meta.ID))
-			}
-			if meta.Model != "" {
-				attrs = append(attrs, attribute.String(attrGenAIResponseModel, meta.Model))
-			}
-			if meta.Usage != nil {
-				attrs = append(attrs,
-					attribute.Int64(attrGenAIUsageInputTokens, meta.Usage.PromptTokens),
-					attribute.Int64(attrGenAIUsageOutputTokens, meta.Usage.CompletionTokens),
-				)
-			}
+	if resp == nil {
+		span.End()
+		return
+	}
+
+	attrs := make([]attribute.KeyValue, 0, 5)
+	if meta := resp.Metadata; meta != nil {
+		if meta.ID != "" {
+			attrs = append(attrs, attribute.String(attrGenAIResponseID, meta.ID))
 		}
-		if r := resp.Result; r != nil && r.Metadata != nil && r.Metadata.FinishReason != "" {
+		if meta.Model != "" {
+			attrs = append(attrs, attribute.String(attrGenAIResponseModel, meta.Model))
+		}
+		if meta.Usage != nil {
 			attrs = append(attrs,
-				attribute.StringSlice(attrGenAIResponseFinishReasons, []string{string(r.Metadata.FinishReason)}),
+				attribute.Int64(attrGenAIUsageInputTokens, meta.Usage.PromptTokens),
+				attribute.Int64(attrGenAIUsageOutputTokens, meta.Usage.CompletionTokens),
 			)
 		}
-		if len(attrs) > 0 {
-			span.SetAttributes(attrs...)
-		}
+	}
+	if r := resp.Result; r != nil && r.Metadata != nil && r.Metadata.FinishReason != "" {
+		attrs = append(attrs,
+			attribute.StringSlice(attrGenAIResponseFinishReasons, []string{string(r.Metadata.FinishReason)}),
+		)
+	}
+	if len(attrs) > 0 {
+		span.SetAttributes(attrs...)
 	}
 	span.End()
 }
