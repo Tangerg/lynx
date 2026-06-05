@@ -77,30 +77,6 @@ func TestAuthGate401HasChallenge(t *testing.T) {
 	}
 }
 
-// TestAuthGateEchoesTraceID — 401 body carries `traceId` echoed
-// from the request's X-Trace-Id header (FE
-// RpcTransportError.traceId contract).
-func TestAuthGateEchoesTraceID(t *testing.T) {
-	ts := newGatedServer(t)
-	defer ts.Close()
-
-	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.ping"}`)
-	req, _ := netHTTP.NewRequest("POST", ts.URL+"/v2/rpc/runtime.ping", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Trace-Id", "trace-42")
-	resp, err := netHTTP.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatalf("do: %v", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 401 {
-		t.Fatalf("status = %d", resp.StatusCode)
-	}
-	raw := readBody(resp)
-	if !strings.Contains(raw, `"traceId":"trace-42"`) {
-		t.Fatalf("body = %s, must echo traceId", raw)
-	}
-}
 
 // TestAuthGateWrongToken — wrong bearer also 401.
 func TestAuthGateWrongToken(t *testing.T) {

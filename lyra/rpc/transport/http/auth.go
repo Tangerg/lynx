@@ -75,7 +75,7 @@ func (s *Server) authGate(next http.Handler) http.Handler {
 			// RFC 9110 §15.5.2 — a 401 MUST carry a challenge (TRANSPORT
 			// §6.3/§11). The gate is a single bare Bearer scheme.
 			w.Header().Set("WWW-Authenticate", "Bearer")
-			writeFlatError(w, r, http.StatusUnauthorized, "missing_local_token", true)
+			writeFlatError(w, http.StatusUnauthorized, "missing_local_token", true)
 			return
 		}
 		next.ServeHTTP(w, r)

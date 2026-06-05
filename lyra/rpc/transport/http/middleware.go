@@ -61,7 +61,7 @@ func (s *Server) observability(next http.Handler) http.Handler {
 				err := fmt.Errorf("%v", rcv)
 				span.RecordError(err)
 				span.SetStatus(codes.Error, err.Error())
-				writeFlatError(w, r, http.StatusInternalServerError, "internal error", false)
+				writeFlatError(w, http.StatusInternalServerError, "internal error", false)
 			}
 		}()
 

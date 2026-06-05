@@ -36,11 +36,10 @@ func (s *Server) serveStream(w http.ResponseWriter, r *http.Request, resp *trans
 	if methodLabel != "" {
 		w.Header().Set("X-Method", methodLabel)
 	}
-	echoTraceID(w, r)
 
 	sw, err := sse.NewHTTPWriter(w)
 	if err != nil {
-		writeFlatError(w, r, http.StatusInternalServerError, "streaming unsupported", false)
+		writeFlatError(w, http.StatusInternalServerError, "streaming unsupported", false)
 		return
 	}
 	ctx := r.Context()
