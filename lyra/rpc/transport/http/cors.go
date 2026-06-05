@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"slices"
 
 	"github.com/go-chi/cors"
 )
@@ -29,12 +30,24 @@ func corsMiddleware(origins []string) func(http.Handler) http.Handler {
 	if len(origins) == 0 {
 		return func(next http.Handler) http.Handler { return next }
 	}
-	return cors.Handler(cors.Options{
-		AllowedOrigins:   origins,
+	opts := cors.Options{
 		AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodOptions},
 		AllowedHeaders:   []string{"Authorization", "Content-Type", "Last-Event-Id", "X-Protocol-Version", "X-Idempotency-Key", "X-Trace-Id"},
 		ExposedHeaders:   []string{"X-Server", "X-Method", "X-Trace-Id"},
 		AllowCredentials: true,
 		MaxAge:           600,
-	})
+	}
+	// "*" means allow every origin. With AllowCredentials the CORS spec
+	// forbids a literal "*" in Access-Control-Allow-Origin (browsers reject
+	// it on a credentialed request), so REFLECT the request origin instead —
+	// a credentials-compatible allow-all — rather than emitting "*". This is
+	// what makes the Wails webview origin (wails://wails.localhost) work
+	// while the config keeps the simple "*" dev default. An explicit
+	// allowlist passes through unchanged.
+	if slices.Contains(origins, "*") {
+		opts.AllowOriginFunc = func(*http.Request, string) bool { return true }
+	} else {
+		opts.AllowedOrigins = origins
+	}
+	return cors.Handler(opts)
 }
