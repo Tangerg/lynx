@@ -21,6 +21,29 @@ const MAX_GREP_MATCHES = 4;
 const PREVIEW_WRAP =
   "max-h-60 overflow-y-auto bg-canvas px-3.5 pt-2.5 pb-2 font-mono text-[12px] leading-[1.55] text-fg-muted";
 
+// Per-line presentation keyed by row type — one lookup beats four parallel
+// ternary chains switching on the same field. (The full DiffView in the
+// workspace plugin keeps its own narrower table: it highlights code via shiki
+// instead of carrying a flat `codeTone`, so the two don't share a module.)
+const ROW_STYLE: Record<
+  "add" | "del" | "ctx",
+  { tone: string; meta: string; codeTone: string; sign: string }
+> = {
+  add: {
+    tone: "bg-[rgba(30,215,96,0.07)]",
+    meta: "text-[rgba(95,227,154,0.7)]",
+    codeTone: "text-[#c8f5d8]",
+    sign: "+",
+  },
+  del: {
+    tone: "bg-[rgba(243,114,127,0.07)]",
+    meta: "text-[rgba(243,114,127,0.7)]",
+    codeTone: "text-[#f5cdd2]",
+    sign: "−",
+  },
+  ctx: { tone: "", meta: "text-fg-faint", codeTone: "text-fg-soft", sign: " " },
+};
+
 function BashPreview({ onOpenView }: ToolPreviewProps) {
   const { data: lines } = useTerminal();
   return (
@@ -48,29 +71,13 @@ function DiffPreview({ onOpenView }: ToolPreviewProps) {
               </div>
             );
           }
-          const tone =
-            row.type === "add"
-              ? "bg-[rgba(30,215,96,0.07)]"
-              : row.type === "del"
-                ? "bg-[rgba(243,114,127,0.07)]"
-                : "";
-          const meta =
-            row.type === "add"
-              ? "text-[rgba(95,227,154,0.7)]"
-              : row.type === "del"
-                ? "text-[rgba(243,114,127,0.7)]"
-                : "text-fg-faint";
-          const codeTone =
-            row.type === "add"
-              ? "text-[#c8f5d8]"
-              : row.type === "del"
-                ? "text-[#f5cdd2]"
-                : "text-fg-soft";
-          const sign = row.type === "add" ? "+" : row.type === "del" ? "−" : " ";
+          const style = ROW_STYLE[row.type];
           return (
-            <div key={i} className={cn("grid grid-cols-[18px_1fr] px-0.5", tone)}>
-              <span className={cn("text-center text-[11px] select-none", meta)}>{sign}</span>
-              <span className={cn("whitespace-pre", codeTone)}>{row.code}</span>
+            <div key={i} className={cn("grid grid-cols-[18px_1fr] px-0.5", style.tone)}>
+              <span className={cn("text-center text-[11px] select-none", style.meta)}>
+                {style.sign}
+              </span>
+              <span className={cn("whitespace-pre", style.codeTone)}>{row.code}</span>
             </div>
           );
         })}
