@@ -58,11 +58,10 @@ func (a *IDAssigner) Transform(ctx context.Context, docs []*Document) ([]*Docume
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if doc.ID != "" && !a.overwrite {
-			continue
-		}
 		if a.overwrite {
 			doc.ID = ""
+		} else if doc.ID != "" {
+			continue
 		}
 		if err := doc.EnsureID(ctx, a.generator); err != nil {
 			return nil, err

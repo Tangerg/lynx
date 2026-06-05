@@ -47,7 +47,7 @@ func NewIdent[T identType](value T) *ast.Ident {
 	ident, err := newIdent(value)
 	if err != nil {
 		// Unreachable while the generic constraint is honored.
-		panic(fmt.Sprintf("filter.NewIdent: %v", err))
+		panic(fmt.Errorf("filter.NewIdent: %w", err))
 	}
 	return ident
 }
@@ -104,7 +104,7 @@ func NewLiteral[T literalType](value T) *ast.Literal {
 	lit, err := newLiteral(value)
 	if err != nil {
 		// Unreachable while the generic constraint is honored.
-		panic(fmt.Sprintf("filter.NewLiteral: %v", err))
+		panic(fmt.Errorf("filter.NewLiteral: %w", err))
 	}
 	return lit
 }
@@ -187,7 +187,7 @@ func NewListLiteral[T listLiteralType](value T) *ast.ListLiteral {
 	list, err := newListLiteral(value)
 	if err != nil {
 		// Unreachable while the generic constraint is honored.
-		panic(fmt.Sprintf("filter.NewListLiteral: %v", err))
+		panic(fmt.Errorf("filter.NewListLiteral: %w", err))
 	}
 	return list
 }

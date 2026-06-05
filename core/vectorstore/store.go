@@ -83,7 +83,10 @@ func NewRetrievalRequest(text string) (*RetrievalRequest, error) {
 		TopK:     DefaultTopK,
 		MinScore: AcceptAllScores,
 	}
-	return req, req.Validate()
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
+	return req, nil
 }
 
 // WithTopK sets the result cap. Non-positive values are ignored.
@@ -161,7 +164,10 @@ type CreateRequest struct {
 // validation fails.
 func NewCreateRequest(docs []*document.Document) (*CreateRequest, error) {
 	req := &CreateRequest{Documents: docs}
-	return req, req.Validate()
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
+	return req, nil
 }
 
 // Validate enforces the request invariants.
@@ -199,7 +205,10 @@ type DeleteRequest struct {
 // validation fails.
 func NewDeleteRequest(filter ast.Expr) (*DeleteRequest, error) {
 	req := &DeleteRequest{Filter: filter}
-	return req, req.Validate()
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
+	return req, nil
 }
 
 // Validate enforces the request invariants and runs static analysis on
