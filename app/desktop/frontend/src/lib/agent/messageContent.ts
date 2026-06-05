@@ -6,6 +6,7 @@
 // it — the underscore-prefixed plugin-internal location was the wrong
 // home.
 
+import { toast } from "sonner";
 import type { Message } from "@/protocol/run/viewState";
 
 /**
@@ -73,13 +74,10 @@ export async function writeToClipboard(
   if (!text || typeof navigator === "undefined" || !navigator.clipboard) return false;
   try {
     await navigator.clipboard.writeText(text);
-    if (options?.successLabel) {
-      // Late import keeps tree-shaking happy when a caller never opts
-      // into the toast path. sonner is already mounted by PluginToaster
-      // so this just dispatches into the existing instance.
-      const { toast } = await import("sonner");
-      toast.success(options.successLabel);
-    }
+    // sonner is already in the main chunk (PluginToaster mounts it), so a
+    // dynamic import here buys no code-splitting — just dispatch into the
+    // existing instance.
+    if (options?.successLabel) toast.success(options.successLabel);
     return true;
   } catch {
     return false;
