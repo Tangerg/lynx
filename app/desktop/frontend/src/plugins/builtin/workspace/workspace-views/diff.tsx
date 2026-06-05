@@ -54,7 +54,7 @@ function DiffViewTab() {
   return (
     <WorkspaceViewLayout
       icon="file"
-      title={activeFile || "src/api/auth.ts"}
+      title={activeFile || "No file selected"}
       sub={sub}
       actions={
         <>
