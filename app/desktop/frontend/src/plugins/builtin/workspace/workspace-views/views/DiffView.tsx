@@ -15,6 +15,14 @@ function keyFor(row: DiffRow, i: number): string {
   return `=:${row.l}-${row.r}`;
 }
 
+// Per-line presentation keyed by row type — one lookup beats three parallel
+// `add ? … : del ? … : …` ternary chains switching on the same field.
+const ROW_STYLE: Record<"add" | "del" | "ctx", { tone: string; meta: string; sign: string }> = {
+  add: { tone: "bg-[rgba(30,215,96,0.07)]", meta: "text-[rgba(95,227,154,0.7)]", sign: "+" },
+  del: { tone: "bg-[rgba(243,114,127,0.07)]", meta: "text-[rgba(243,114,127,0.7)]", sign: "−" },
+  ctx: { tone: "", meta: "text-fg-faint", sign: " " },
+};
+
 // Strip Shiki's <pre><code>…</code></pre> wrapper so the inner token spans
 // can be injected inline into our grid row.
 function highlightInline(h: Highlighter, code: string, theme: string): string {
@@ -61,25 +69,15 @@ export function DiffView({ rows }: { rows: DiffRow[] }) {
             </div>
           );
         }
-        const tone =
-          row.type === "add"
-            ? "bg-[rgba(30,215,96,0.07)]"
-            : row.type === "del"
-              ? "bg-[rgba(243,114,127,0.07)]"
-              : "";
-        const meta =
-          row.type === "add"
-            ? "text-[rgba(95,227,154,0.7)]"
-            : row.type === "del"
-              ? "text-[rgba(243,114,127,0.7)]"
-              : "text-fg-faint";
-        const sign = row.type === "add" ? "+" : row.type === "del" ? "−" : " ";
+        const style = ROW_STYLE[row.type];
         const lnum = row.type === "del" ? row.l : row.r;
         const inner = highlighted?.get(row.code);
         return (
-          <div key={k} className={cn("grid grid-cols-[36px_36px_1fr] gap-1.5 px-3", tone)}>
-            <span className={cn("text-right text-[11px] select-none", meta)}>{lnum}</span>
-            <span className={cn("text-center text-[11px] select-none", meta)}>{sign}</span>
+          <div key={k} className={cn("grid grid-cols-[36px_36px_1fr] gap-1.5 px-3", style.tone)}>
+            <span className={cn("text-right text-[11px] select-none", style.meta)}>{lnum}</span>
+            <span className={cn("text-center text-[11px] select-none", style.meta)}>
+              {style.sign}
+            </span>
             {inner ? (
               <span className="whitespace-pre" dangerouslySetInnerHTML={{ __html: inner }} />
             ) : (
