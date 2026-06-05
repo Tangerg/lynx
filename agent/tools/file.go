@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -112,7 +112,7 @@ func FileTools(dir string) ([]chat.Tool, error) {
 				}
 				rels = append(rels, rel)
 			}
-			sort.Strings(rels)
+			slices.Sort(rels)
 			return strings.Join(rels, "\n"), nil
 		},
 	)
