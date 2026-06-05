@@ -34,17 +34,3 @@ func Home() (string, error) {
 	}
 	return root, nil
 }
-
-// SubDir returns Home()/name and ensures it exists. Convenience for
-// the per-concern subdirectories ("sessions", "messages", ...).
-func SubDir(name string) (string, error) {
-	root, err := Home()
-	if err != nil {
-		return "", err
-	}
-	dir := filepath.Join(root, name)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", fmt.Errorf("storage: create %q: %w", dir, err)
-	}
-	return dir, nil
-}

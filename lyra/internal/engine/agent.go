@@ -10,10 +10,10 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// ChatInput is the typed input to the M1 single-turn chat agent. It
+// chatInput is the typed input to the M1 single-turn chat agent. It
 // carries the user's message verbatim; future milestones extend with
 // session context, tool selection hints, etc.
-type ChatInput struct {
+type chatInput struct {
 	Message string
 
 	// Cwd is the working directory the turn's filesystem + bash tools run
@@ -65,7 +65,7 @@ type ChatOutput struct {
 	CostUSD float64
 
 	// StoppedOnBudget is true when the turn ended because it hit
-	// [ChatInput.MaxBudget] rather than the model finishing. Reply
+	// [chatInput.MaxBudget] rather than the model finishing. Reply
 	// holds whatever text accumulated up to the stop.
 	StoppedOnBudget bool
 
@@ -96,7 +96,7 @@ func (e *Engine) buildChatAgent() *core.Agent {
 	return agent.New("chat-agent").
 		Description("single-turn LLM chat with the default coding tool set").
 		Actions(agent.NewAction("chat",
-			func(ctx context.Context, pc *core.ProcessContext, in ChatInput) (ChatOutput, error) {
+			func(ctx context.Context, pc *core.ProcessContext, in chatInput) (ChatOutput, error) {
 				if in.Cwd != "" {
 					// Protected so it rides Blackboard.Spawn down to `task`
 					// sub-agents and survives the typed-action
@@ -152,11 +152,11 @@ func (e *Engine) buildChatAgent() *core.Agent {
 		Build()
 }
 
-// TaskInput is the argument schema the model fills to call the `task`
+// taskInput is the argument schema the model fills to call the `task`
 // tool: one self-contained subtask description. lyra runs it in a fresh
 // sub-agent (isolated context, the coding tools minus `task`) and hands
 // back the sub-agent's final reply.
-type TaskInput struct {
+type taskInput struct {
 	Prompt string `json:"prompt"`
 }
 
@@ -174,7 +174,7 @@ func (e *Engine) buildSubtaskAgent() *core.Agent {
 			"tools. Use for focused, separable work (investigate a question, draft a file) so the " +
 			"main conversation stays uncluttered. Returns the sub-agent's final answer.").
 		Actions(agent.NewAction("subtask",
-			func(ctx context.Context, pc *core.ProcessContext, in TaskInput) (string, error) {
+			func(ctx context.Context, pc *core.ProcessContext, in taskInput) (string, error) {
 				// maxBudget=0: a subtask runs without its own token cap.
 				// It isn't unbounded at the turn level, though — its
 				// usage records into the child budget, which aggregates

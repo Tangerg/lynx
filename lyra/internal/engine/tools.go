@@ -28,7 +28,7 @@ const (
 )
 
 // cwdBindingKey is the blackboard key the chat action binds (protected)
-// with the turn's working directory — see the [ChatInput.Cwd] handling in
+// with the turn's working directory — see the [chatInput.Cwd] handling in
 // buildChatAgent. [cwdToolResolver] reads it back at tool-resolution time
 // so the filesystem + bash tools operate in the session's project
 // directory. Binding it protected is what carries it to `task` sub-agents:
