@@ -52,7 +52,7 @@ func (r *ResultMetadata) ensureExtra() {
 // Get returns the Extra value for key plus an existence flag. See
 // [chat.Options.Get] for the concurrency contract.
 func (r *ResultMetadata) Get(key string) (any, bool) {
-	if r.Extra == nil {
+	if r == nil || r.Extra == nil {
 		return nil, false
 	}
 	value, exists := r.Extra[key]
@@ -115,7 +115,7 @@ func (r *ResponseMetadata) ensureExtra() {
 // Get returns the Extra value for key plus an existence flag. See
 // [chat.Options.Get] for the concurrency contract.
 func (r *ResponseMetadata) Get(key string) (any, bool) {
-	if r.Extra == nil {
+	if r == nil || r.Extra == nil {
 		return nil, false
 	}
 	value, exists := r.Extra[key]
@@ -153,7 +153,7 @@ func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, erro
 // Result returns the first generation alternative — the common
 // "give me the embedding" shortcut. Returns nil when Results is empty.
 func (r *Response) Result() *Result {
-	if len(r.Results) == 0 {
+	if r == nil || len(r.Results) == 0 {
 		return nil
 	}
 	return r.Results[0]

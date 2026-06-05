@@ -41,7 +41,7 @@ func (o *Options) ensureExtra() {
 // Get returns the Extra value for key plus an existence flag. See
 // [chat.Options.Get] for the concurrency contract.
 func (o *Options) Get(key string) (any, bool) {
-	if o.Extra == nil {
+	if o == nil || o.Extra == nil {
 		return nil, false
 	}
 	value, exists := o.Extra[key]
