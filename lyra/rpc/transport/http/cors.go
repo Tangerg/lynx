@@ -32,7 +32,12 @@ func corsMiddleware(origins []string) func(http.Handler) http.Handler {
 	}
 	opts := cors.Options{
 		AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodOptions},
-		AllowedHeaders:   []string{"Authorization", "Content-Type", "Last-Event-Id", "X-Protocol-Version", "X-Idempotency-Key", "X-Trace-Id"},
+		// Transport-metadata headers the FE sends (TRANSPORT §2) + the W3C
+		// trace-context headers its OTel layer injects on every request
+		// (traceparent / tracestate / baggage) so the FE span extends the
+		// backend trace. Omitting the trace headers fails the preflight for
+		// EVERY method, since the FE injects traceparent unconditionally.
+		AllowedHeaders:   []string{"Authorization", "Content-Type", "Last-Event-Id", "X-Protocol-Version", "X-Idempotency-Key", "X-Trace-Id", "traceparent", "tracestate", "baggage"},
 		ExposedHeaders:   []string{"X-Server", "X-Method", "X-Trace-Id"},
 		AllowCredentials: true,
 		MaxAge:           600,
