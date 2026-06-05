@@ -49,7 +49,7 @@ func (r *Response) ensureMetadata() {
 // Safe to call concurrently with other Get calls; concurrent with
 // Set is not.
 func (r *Response) Get(key string) (any, bool) {
-	if r.Metadata == nil {
+	if r == nil || r.Metadata == nil {
 		return nil, false
 	}
 	v, ok := r.Metadata[key]

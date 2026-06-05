@@ -61,7 +61,7 @@ func (m *ResultMetadata) ensureExtra() {
 // Get returns the Extra value for key plus an existence flag. Safe
 // to call concurrently with other Get calls; concurrent with Set is not.
 func (m *ResultMetadata) Get(key string) (any, bool) {
-	if m.Extra == nil {
+	if m == nil || m.Extra == nil {
 		return nil, false
 	}
 	value, exists := m.Extra[key]
@@ -147,7 +147,7 @@ func (m *ResponseMetadata) ensureExtra() {
 // Get returns the Extra value for key plus an existence flag. Safe
 // to call concurrently with other Get calls; concurrent with Set is not.
 func (m *ResponseMetadata) Get(key string) (any, bool) {
-	if m.Extra == nil {
+	if m == nil || m.Extra == nil {
 		return nil, false
 	}
 	value, exists := m.Extra[key]
