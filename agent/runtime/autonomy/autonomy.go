@@ -107,7 +107,7 @@ func New(p *runtime.Platform, ranker Ranker, cfg Config) (*Autonomy, error) {
 // so callers can inspect what the Ranker will see, e.g. for
 // debugging or UI.
 func (a *Autonomy) Candidates() []Candidate {
-	out := make([]Candidate, 0)
+	var out []Candidate
 	for _, agent := range a.platform.Agents() {
 		if agent == nil {
 			continue

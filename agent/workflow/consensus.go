@@ -1,9 +1,10 @@
 package workflow
 
 import (
+	"cmp"
 	"context"
 	"errors"
-	"sort"
+	"slices"
 
 	"github.com/Tangerg/lynx/agent/core"
 )
@@ -104,11 +105,11 @@ func pickConsensus[Element any](votes []Element, key func(Element) string) Eleme
 	for _, b := range buckets {
 		all = append(all, b)
 	}
-	sort.SliceStable(all, func(i, j int) bool {
-		if all[i].count != all[j].count {
-			return all[i].count > all[j].count
+	slices.SortStableFunc(all, func(a, b *bucket) int {
+		if a.count != b.count {
+			return cmp.Compare(b.count, a.count) // higher count first
 		}
-		return all[i].firstIdx < all[j].firstIdx
+		return cmp.Compare(a.firstIdx, b.firstIdx) // ties broken by first appearance
 	})
 	return all[0].sample
 }
