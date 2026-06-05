@@ -1,6 +1,7 @@
 package redis
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -56,7 +57,7 @@ func (v *Visitor) Visit(expr ast.Expr) ast.Visitor {
 
 func (v *Visitor) visit(expr ast.Expr) error {
 	if expr == nil {
-		return fmt.Errorf("redis: cannot process nil expression")
+		return errors.New("redis: cannot process nil expression")
 	}
 	if v.err != nil {
 		return v.err
