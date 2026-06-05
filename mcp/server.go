@@ -74,7 +74,7 @@ func serverHandler(tool chat.Tool) sdkmcp.ToolHandler {
 		toolName := tool.Definition().Name
 		ctx, span := mcpTracer.Start(ctx, "mcp.tool.serve "+toolName,
 			trace.WithSpanKind(trace.SpanKindServer),
-			trace.WithAttributes(attribute.String(attrLynxMCPTool, toolName)),
+			trace.WithAttributes(attribute.String(attrToolName, toolName)),
 		)
 		defer span.End()
 

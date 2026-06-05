@@ -9,7 +9,7 @@
 // the lynx ToolMiddleware can therefore drive an MCP tool exactly like any
 // local tool. The cache is invalidated automatically when a server delivers
 // a tools/list_changed notification, provided the caller wires
-// (*Provider).OnToolListChanged into mcp.ClientOptions.
+// (*Provider).OnToolListChanged into sdkmcp.ClientOptions.
 //
 // # Server side
 //
