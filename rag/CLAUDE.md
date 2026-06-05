@@ -18,7 +18,7 @@
 
 ## 核心架构
 
-5 个阶段接口（`interface.go`）顺序串成 pipeline：
+5 个阶段接口（`stages.go`）顺序串成 pipeline：
 
 1. **QueryTransformer** —— rewrite / compression / translation（链式按 config 顺序跑）
 2. **QueryExpander** —— 多 query（一个变多个），下游 fan-out
@@ -30,7 +30,7 @@
 
 ## 关键接口/类型
 
-- 5 个阶段接口（在 `interface.go`），各有 `Nop` 空实现（`nop.go`）方便部分使用
+- 5 个阶段接口（在 `stages.go`），各有 `Nop` 空实现（`nop.go`）方便部分使用
 - `Query{Text, Extra map[string]any}` —— Extra 元数据跟着流过所有阶段
 - `PipelineConfig` —— validators + `ApplyDefaults`；`At least one DocumentRetriever required`
 - `Pipeline.Execute(ctx, query)` → `(augmentedQuery, refinedDocs, error)`
@@ -49,7 +49,7 @@
 
 ```
 rag/
-├── interface.go                       5 个阶段接口
+├── stages.go                          5 个阶段接口
 ├── pipeline.go                        装配 + 顺序 / 并行 + 错误处理
 ├── pipeline_middleware.go             pipeline → chat.Middleware
 ├── query.go                           Query{Text, Extra}
