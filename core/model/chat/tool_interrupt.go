@@ -162,10 +162,10 @@ func mergeRoundReturns(calls []*ToolCallPart, done, fresh []*ToolReturn) []*Tool
 	return out
 }
 
-// allReturnDirectForReturns reports whether every tool referenced in
-// returns is registered AND return-direct — the resume-path analog of the
+// allReturnDirect reports whether every tool referenced in returns is
+// registered AND return-direct — the resume-path analog of the
 // allReturnDirect bit [toolCallInvoker.invokeToolCalls] computes inline.
-func allReturnDirectForReturns(support *ToolSupport, returns []*ToolReturn) bool {
+func (support *ToolSupport) allReturnDirect(returns []*ToolReturn) bool {
 	for _, ret := range returns {
 		t, exists := support.registry.Find(ret.Name)
 		if !exists || !t.Metadata().ReturnDirect {
@@ -241,7 +241,7 @@ func (m *ToolMiddleware) resumeCallRound(ctx context.Context, req *Request, assi
 	if err != nil {
 		return nil, err
 	}
-	if allReturnDirectForReturns(support, full) {
+	if support.allReturnDirect(full) {
 		return buildResumedReturnResponse(assistant, toolMsg)
 	}
 	nextReq, err := buildResumedContinueRequest(req, assistant, toolMsg)
@@ -275,7 +275,7 @@ func (m *ToolMiddleware) resumeStreamRound(ctx context.Context, req *Request, as
 	if toolResp, e := newToolMessageResponse(toolMsg); e == nil && !yield(toolResp, nil) {
 		return
 	}
-	if allReturnDirectForReturns(support, full) {
+	if support.allReturnDirect(full) {
 		yield(buildResumedReturnResponse(assistant, toolMsg))
 		return
 	}

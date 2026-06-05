@@ -334,7 +334,7 @@ func (m *ToolMiddleware) executeStreamRecursively(ctx context.Context, req *Requ
 // enabled, hasn't been spent yet, and the response is genuinely empty;
 // (nil, false, nil) otherwise.
 func (m *ToolMiddleware) maybeNudgeEmpty(req *Request, resp *Response, state toolLoopState) (*Request, bool, error) {
-	if !m.feedbackEmpty || state.emptyRetried || !isEmptyResponse(resp) {
+	if !m.feedbackEmpty || state.emptyRetried || !resp.isEmpty() {
 		return nil, false, nil
 	}
 	next, err := req.continueWith(resp.Result.AssistantMessage, NewUserMessage(emptyResponseNudge))
@@ -344,11 +344,11 @@ func (m *ToolMiddleware) maybeNudgeEmpty(req *Request, resp *Response, state too
 	return next, true, nil
 }
 
-// isEmptyResponse reports whether resp carries a real assistant turn with
+// isEmpty reports whether resp carries a real assistant turn with
 // neither tool calls nor non-whitespace text. A nil result is treated as
 // "not nudgeable" (there is no assistant message to append), so the loop
 // returns it unchanged.
-func isEmptyResponse(resp *Response) bool {
+func (resp *Response) isEmpty() bool {
 	if resp == nil || resp.Result == nil {
 		return false
 	}
