@@ -26,12 +26,11 @@ type APIKey interface {
 
 var _ APIKey = (*staticAPIKey)(nil)
 
-// staticAPIKey holds an immutable key value and a pre-computed masked form
-// for safe logging. All fields are set at construction; nothing mutates,
-// so the value is trivially safe for concurrent reads.
+// staticAPIKey holds an immutable key value. The value is set at
+// construction and never mutates, so it is trivially safe for concurrent
+// reads; the masked form for logging is derived on demand by [staticAPIKey.masked].
 type staticAPIKey struct {
-	value      string
-	maskedView string
+	value string
 }
 
 // NewAPIKey wraps a fixed credential as an [APIKey]. Pass "" for endpoints
@@ -45,9 +44,7 @@ type staticAPIKey struct {
 //	// In a request:
 //	req.Header.Set("Authorization", "Bearer "+key.Get())
 func NewAPIKey(value string) APIKey {
-	k := &staticAPIKey{value: value}
-	k.maskedView = maskAPIKey(value)
-	return k
+	return &staticAPIKey{value: value}
 }
 
 // Get returns the immutable key supplied at construction.
@@ -59,7 +56,7 @@ func (k *staticAPIKey) Get() string {
 // Implements [fmt.Stringer] so the value never leaks accidentally via
 // "%v" or "%s" formatting.
 func (k *staticAPIKey) String() string {
-	return k.maskedView
+	return k.masked()
 }
 
 // MarshalJSON emits the masked representation so the secret cannot
@@ -67,16 +64,17 @@ func (k *staticAPIKey) String() string {
 // a containing struct. Stringer alone is bypassed by json.Marshal,
 // which inspects unexported fields directly.
 func (k *staticAPIKey) MarshalJSON() ([]byte, error) {
-	return json.Marshal(k.maskedView)
+	return json.Marshal(k.masked())
 }
 
-// maskAPIKey renders a credential as "api_key=<masked>" without revealing
-// the secret. It chooses one of three shapes by length:
+// masked renders the key as "api_key=<masked>" without revealing the
+// secret. It chooses one of three shapes by length:
 //
 //	""              -> "api_key=<empty>"
 //	len ≤ 10        -> "api_key=" + asterisks
 //	len > 10        -> "api_key=ab****yz" (first 2, last 2)
-func maskAPIKey(value string) string {
+func (k *staticAPIKey) masked() string {
+	value := k.value
 	if value == "" {
 		return "api_key=<empty>"
 	}
