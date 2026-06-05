@@ -24,16 +24,16 @@ type Request[P any, R any] interface {
 // both the "show payload, wait for boolean confirmation" case (use
 // [NewConfirmation]) and richer typed flows (use [NewTypedRequest]).
 type TypedRequest[P any, R any] struct {
-	IDStr   string
-	Payload P
-	Handler func(response R) core.ResponseImpact
+	id      string
+	payload P
+	handler func(response R) core.ResponseImpact
 }
 
 // NewTypedRequest mints a fresh UUID for the caller — most use sites
 // don't care what the ID is, only that it's stable for the duration of
 // the wait.
 func NewTypedRequest[P any, R any](payload P, handler func(R) core.ResponseImpact) *TypedRequest[P, R] {
-	return &TypedRequest[P, R]{IDStr: uuid.NewString(), Payload: payload, Handler: handler}
+	return &TypedRequest[P, R]{id: uuid.NewString(), payload: payload, handler: handler}
 }
 
 // NewConfirmation is the boolean-response specialisation of
@@ -43,15 +43,15 @@ func NewConfirmation[P any](payload P, handler func(approved bool) core.Response
 	return NewTypedRequest[P, bool](payload, handler)
 }
 
-func (r *TypedRequest[P, R]) ID() string     { return r.IDStr }
-func (r *TypedRequest[P, R]) PromptAny() any { return r.Payload }
-func (r *TypedRequest[P, R]) Prompt() P      { return r.Payload }
+func (r *TypedRequest[P, R]) ID() string     { return r.id }
+func (r *TypedRequest[P, R]) PromptAny() any { return r.payload }
+func (r *TypedRequest[P, R]) Prompt() P      { return r.payload }
 
 func (r *TypedRequest[P, R]) OnResponse(response R) core.ResponseImpact {
-	if r.Handler == nil {
+	if r.handler == nil {
 		return core.ImpactUnchanged
 	}
-	return r.Handler(response)
+	return r.handler(response)
 }
 
 // OnResponseAny implements [core.Awaitable] by type-asserting response
