@@ -37,7 +37,7 @@ func AllAchievableTools(platform *Platform) []chat.Tool {
 	if platform == nil {
 		return nil
 	}
-	return collectExportedTools(platform, false /*remoteOnly*/, SpawnChildProtectedOnly)
+	return platform.collectExportedTools(false /*remoteOnly*/, SpawnChildProtectedOnly)
 }
 
 // PublishAll is [AllAchievableTools]'s top-level companion: returns
@@ -57,14 +57,14 @@ func PublishAll(platform *Platform) []chat.Tool {
 	if platform == nil {
 		return nil
 	}
-	return collectExportedTools(platform, true /*remoteOnly*/, RunFresh)
+	return platform.collectExportedTools(true /*remoteOnly*/, RunFresh)
 }
 
 // collectExportedTools is the shared core of [AllAchievableTools] and
 // [PublishAll]. For each deployed agent it walks goals, filters by
 // Export presence (and Export.Remote when remoteOnly), and packages
 // each into a [newDynamicAgentTool].
-func collectExportedTools(platform *Platform, remoteOnly bool, start processStarter) []chat.Tool {
+func (platform *Platform) collectExportedTools(remoteOnly bool, start processStarter) []chat.Tool {
 	var out []chat.Tool
 	for _, agentDef := range platform.Agents() {
 		if agentDef == nil {

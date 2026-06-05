@@ -61,7 +61,7 @@ func SpawnChild(
 // Returns the child *AgentProcess in a terminal state (Completed / Failed /
 // Waiting / Stuck / Terminated / Killed). Callers inspect Status() and
 // either extract output via [core.ResultOfType] or classify the failure via
-// [ChildError].
+// [TerminalError].
 //
 // nil platform / nil agentDef / missing parent in ctx return errors rather
 // than panic — callers fan in user data and a runtime error is the right
@@ -196,25 +196,25 @@ func RunFresh(
 	return proc, nil
 }
 
-// ChildError formats a non-Completed terminal status as an error.
-// Returns nil when child completed cleanly. Used by workflow builders
-// and agent-as-tool wrappers to bubble up a uniform "ended in X /
-// ended in X: failure" message; call sites add their own prefix
+// TerminalError formats a non-Completed terminal status as an error.
+// Returns nil when the process completed cleanly. Used by workflow
+// builders and agent-as-tool wrappers to bubble up a uniform "ended in
+// X / ended in X: failure" message; call sites add their own prefix
 // context (step number / agent name / iteration index).
 //
 // Waiting is treated as a non-terminal failure here. Agent-as-tool
 // wrappers that want to surface a structured "waiting" tool-result
 // (instead of bubbling the error) should branch on
-// [core.AgentProcessStatus] before calling ChildError.
-func ChildError(child *AgentProcess) error {
-	if child == nil {
-		return errors.New("child process is nil")
+// [core.AgentProcessStatus] before calling TerminalError.
+func (p *AgentProcess) TerminalError() error {
+	if p == nil {
+		return errors.New("process is nil")
 	}
-	status := child.Status()
+	status := p.Status()
 	if status == core.StatusCompleted {
 		return nil
 	}
-	if failure := child.Failure(); failure != nil {
+	if failure := p.Failure(); failure != nil {
 		return fmt.Errorf("ended in %s: %w", status, failure)
 	}
 	return fmt.Errorf("ended in %s", status)

@@ -102,7 +102,7 @@ func (p *Platform) resolveScopeAgent(cfg ScopeRun) (*core.Agent, error) {
 // builder directly.
 //
 // Action / goal / condition slices come straight from the input agents
-// in input order; the resulting agent must pass [core.ValidateAgent]
+// in input order; the resulting agent must pass [core.Agent.Validate]
 // for [Platform.Deploy] to accept it (so unique names across the union
 // is a hard requirement at deploy time).
 func BuildScopeAgent(cfg ScopeRun) *core.Agent {

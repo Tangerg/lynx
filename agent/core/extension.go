@@ -53,7 +53,7 @@ type ToolDecorator interface {
 }
 
 // AgentValidator runs as the last [Platform.Deploy] step (after
-// [ValidateAgent] and the goal-reachability scan). A non-nil return
+// [Agent.Validate] and the goal-reachability scan). A non-nil return
 // rejects the deployment, attributed to the validator's Name.
 type AgentValidator interface {
 	Extension

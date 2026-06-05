@@ -136,7 +136,7 @@ func collectResult[Out any](agentName string, child *AgentProcess) (string, erro
 		return marshalTaskResult(taskResult{TaskID: child.ID(), Status: taskStatusDone, Result: out})
 	default:
 		reason := ""
-		if err := ChildError(child); err != nil {
+		if err := child.TerminalError(); err != nil {
 			reason = err.Error()
 		}
 		return marshalTaskResult(taskResult{TaskID: child.ID(), Status: taskStatusFailed, Error: reason})

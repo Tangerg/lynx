@@ -89,16 +89,20 @@ func (a *Agent) KnownConditions() map[string]struct{} {
 	return a.knownConditions()
 }
 
-// ValidateAgent checks structural invariants that must hold for any
+// Validate checks structural invariants that must hold for any
 // runnable agent: a non-empty name, at least one action, at least one
 // goal, and unique action / goal names within the agent. It does NOT
 // verify goal reachability — that requires the planner and lives on
 // [github.com/Tangerg/lynx/agent/runtime.Platform.Deploy], which can
 // reach the configured planner factory.
 //
+// Distinct from the [AgentValidator] extension SPI: this is the
+// framework's built-in structural check on the entity itself; an
+// AgentValidator adds caller-defined deploy-time rules on top.
+//
 // Returns the first violation found; nil when the agent is well-formed.
 // The intent is fail-fast at deploy time rather than at first tick.
-func ValidateAgent(a *Agent) error {
+func (a *Agent) Validate() error {
 	if a == nil {
 		return errors.New("invalid agent: agent is nil")
 	}

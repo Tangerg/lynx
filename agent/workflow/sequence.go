@@ -72,7 +72,7 @@ func Sequence[In, Out any](
 				if err != nil {
 					return zero, fmt.Errorf("step %d (%s): %w", i, sub.Name, err)
 				}
-				if err := runtime.ChildError(child); err != nil {
+				if err := child.TerminalError(); err != nil {
 					return zero, fmt.Errorf("step %d (%s): %w", i, sub.Name, err)
 				}
 

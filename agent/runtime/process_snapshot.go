@@ -9,7 +9,7 @@ import (
 	"github.com/Tangerg/lynx/agent/planning"
 )
 
-// SnapshotProcess captures the state of process into a portable
+// Snapshot captures the process's state into a portable
 // [core.ProcessSnapshot] suitable for handing to a [core.ProcessStore].
 // Acquires only the process's own read locks — no external state is
 // mutated.
@@ -19,7 +19,7 @@ import (
 // rich state; everything else falls back to a shallow read of the
 // named-key view via [core.BlackboardReader.Get] over recorded
 // objects.
-func SnapshotProcess(p *AgentProcess) core.ProcessSnapshot {
+func (p *AgentProcess) Snapshot() core.ProcessSnapshot {
 	if p == nil {
 		return core.ProcessSnapshot{}
 	}
@@ -73,10 +73,12 @@ func SnapshotProcess(p *AgentProcess) core.ProcessSnapshot {
 	return snap
 }
 
-// RestoreProcess rebuilds an [AgentProcess] from a snapshot. The
-// process is added to platform's registry under the snapshot's id;
-// the agent definition is looked up by [core.ProcessSnapshot.AgentName]
-// and must already be deployed.
+// RestoreFromSnapshot rebuilds an [AgentProcess] from a snapshot the
+// caller already holds — the pure-rebuild primitive, no store I/O.
+// ([Platform.RestoreProcess] is the store-backed sibling: it loads the
+// snapshot by id, then calls this.) The process is added to platform's
+// registry under the snapshot's id; the agent definition is looked up by
+// [core.ProcessSnapshot.AgentName] and must already be deployed.
 //
 // Resumable statuses (Running / Waiting / Paused) leave the process
 // ready for re-entry into the tick loop. Terminal statuses
@@ -88,7 +90,7 @@ func SnapshotProcess(p *AgentProcess) core.ProcessSnapshot {
 // the pending awaitable's handler closure does not round-trip (see
 // [core.ProcessSnapshot]):
 //
-//  1. RestoreProcess — status is Waiting, but nothing is parked yet
+//  1. RestoreFromSnapshot — status is Waiting, but nothing is parked yet
 //     (PendingAwaitable returns nil).
 //  2. ContinueProcess — re-ticks once; the awaiting action re-issues
 //     AwaitInput against the restored blackboard and the process parks
@@ -109,7 +111,7 @@ func SnapshotProcess(p *AgentProcess) core.ProcessSnapshot {
 // observability + session context a fresh one gets from
 // [Platform.StartAgent], so the continuation streams and keys chat-memory
 // correctly. Pass the zero value to restore read-only (audit / inspect).
-func RestoreProcess(platform *Platform, snap core.ProcessSnapshot, options core.ProcessOptions) (*AgentProcess, error) {
+func (platform *Platform) RestoreFromSnapshot(snap core.ProcessSnapshot, options core.ProcessOptions) (*AgentProcess, error) {
 	if platform == nil {
 		return nil, errors.New("restore process: nil platform")
 	}
@@ -183,7 +185,7 @@ func RestoreProcess(platform *Platform, snap core.ProcessSnapshot, options core.
 }
 
 // BlackboardSnapshotter is the optional capture surface a custom
-// [core.Blackboard] implementation exposes so [SnapshotProcess] can
+// [core.Blackboard] implementation exposes so [AgentProcess.Snapshot] can
 // persist its full state. The three returned values mirror
 // [core.ProcessSnapshot]'s Blackboard / Conditions / Objects fields.
 // Implementations are free to return nil for any value.

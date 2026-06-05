@@ -68,8 +68,8 @@ type PlatformConfig struct {
 	// can survive runtime restart, be migrated across nodes, or
 	// audited after termination. Optional — nil means "no
 	// persistence" (lynx's historical in-memory-only behavior).
-	// See [SnapshotProcess] / [RestoreProcess] / [Platform.Save] /
-	// [Platform.Restore] for the surface.
+	// See [AgentProcess.Snapshot] / [Platform.RestoreProcess] /
+	// [Platform.RestoreFromSnapshot] for the surface.
 	ProcessStore core.ProcessStore
 
 	// AutoSnapshot, when true and a ProcessStore is configured, makes the
@@ -169,7 +169,7 @@ func (p *Platform) SaveProcess(ctx context.Context, processID string) error {
 	if !ok {
 		return fmt.Errorf("save process: id %q not registered", processID)
 	}
-	return p.processStore.Save(ctx, SnapshotProcess(proc))
+	return p.processStore.Save(ctx, proc.Snapshot())
 }
 
 // RestoreProcess loads a snapshot from the configured store and
@@ -184,8 +184,8 @@ func (p *Platform) SaveProcess(ctx context.Context, processID string) error {
 // snapshot).
 //
 // options re-attaches the per-process wiring (Extensions + Session) the
-// continuation needs — see [RestoreProcess]. Pass the zero value for a
-// read-only restore.
+// continuation needs — see [Platform.RestoreFromSnapshot]. Pass the zero
+// value for a read-only restore.
 func (p *Platform) RestoreProcess(ctx context.Context, processID string, options core.ProcessOptions) (*AgentProcess, error) {
 	if p.processStore == nil {
 		return nil, errors.New("restore process: no ProcessStore configured")
@@ -194,7 +194,7 @@ func (p *Platform) RestoreProcess(ctx context.Context, processID string, options
 	if err != nil {
 		return nil, fmt.Errorf("restore process: %w", err)
 	}
-	return RestoreProcess(p, snap, options)
+	return p.RestoreFromSnapshot(snap, options)
 }
 
 // publish is the runtime's event entry point. Used by AgentProcess
