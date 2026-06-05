@@ -11,6 +11,6 @@
 //	resp, err := client.Chat().
 //	    WithParams(map[string]any{memory.ConversationIDKey: "session-123"}).
 //	    WithMiddlewares(mw).
-//	    WithText("hi").
+//	    WithUserPrompt("hi").
 //	    Call().Response(ctx)
 package memory

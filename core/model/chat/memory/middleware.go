@@ -73,7 +73,7 @@ type middleware struct {
 //	resp, err := client.Chat().
 //	    WithParams(map[string]any{memory.ConversationIDKey: "user-1"}).
 //	    WithMiddlewares(callMW, streamMW).
-//	    WithText("hi").
+//	    WithUserPrompt("hi").
 //	    Call().Response(ctx)
 func NewMiddleware(store Store) (chat.CallMiddleware, chat.StreamMiddleware, error) {
 	if store == nil {

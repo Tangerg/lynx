@@ -250,7 +250,7 @@ func (r *ClientRequest) buildRequest() (*Request, error) {
 //
 // Example:
 //
-//	resp, err := client.Chat().WithText("hi").Call().Response(ctx)
+//	resp, err := client.Chat().WithUserPrompt("hi").Call().Response(ctx)
 func (r *ClientRequest) Call() *ClientCaller {
 	return &ClientCaller{request: r}
 }
@@ -259,7 +259,7 @@ func (r *ClientRequest) Call() *ClientCaller {
 //
 // Example:
 //
-//	for chunk, err := range client.Chat().WithText("hi").Stream().Text(ctx) {
+//	for chunk, err := range client.Chat().WithUserPrompt("hi").Stream().Text(ctx) {
 //	    if err != nil { return err }
 //	    fmt.Print(chunk)
 //	}
@@ -428,7 +428,7 @@ func (c *ClientCaller) Text(ctx context.Context) (string, *Response, error) {
 // Example:
 //
 //	parser := chat.NewJSONParser[Recipe]()
-//	any, _, err := client.Chat().WithText("...").Call().Structured(ctx, chat.WrapParserAsAny(parser))
+//	any, _, err := client.Chat().WithUserPrompt("...").Call().Structured(ctx, chat.WrapParserAsAny(parser))
 func (c *ClientCaller) Structured(ctx context.Context, parser StructuredParser[any]) (any, *Response, error) {
 	resp, err := c.runCall(ctx, parser)
 	if err != nil {
@@ -447,7 +447,7 @@ func (c *ClientCaller) Structured(ctx context.Context, parser StructuredParser[a
 // Example:
 //
 //	client, err := chat.NewClient(model)
-//	resp, err := client.Chat().WithText("hi").Call().Response(ctx)
+//	resp, err := client.Chat().WithUserPrompt("hi").Call().Response(ctx)
 type Client struct {
 	defaultRequest *ClientRequest
 }
