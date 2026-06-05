@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/Tangerg/lynx/lyra/internal/config"
 	"github.com/Tangerg/lynx/lyra/internal/service/agentdoc"
 	"github.com/Tangerg/lynx/lyra/rpc/server"
 	lyrahttp "github.com/Tangerg/lynx/lyra/rpc/transport/http"
@@ -86,54 +87,14 @@ Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 				token = t
 			}
 
-			// serverInfo carries the serve-process directory context the
-			// frontend reads on initialize (API.md §7.1): cwd seeds a new
-			// session's default working dir, home anchors ~-scoped lookups.
-			// Both default to the user's home folder.
-			info := lyrahttp.ServerInfoOrDefault()
-			if home, err := os.UserHomeDir(); err == nil {
-				info.Cwd = home
-				info.Home = home
-			}
-
-			api, err := server.New(server.Config{
-				Runtime:    a.runtime(),
-				ServerInfo: info,
-			})
-			if err != nil {
-				return a.fatalErr(err)
-			}
-
 			tokenValue := ""
 			if token != nil {
 				tokenValue = token.Value
 			}
-			caps := server.Capabilities(a.runtime())
-			httpServer, err := lyrahttp.NewServer(lyrahttp.Config{
-				Runtime:         api,
-				Addr:            srv.Listen,
-				ServerInfo:      info,
-				ProtocolVersion: caps.ProtocolVersion,
-				Capabilities:    caps,
-				LocalToken:      tokenValue,
-				CORSOrigins:     srv.CORSOrigins,
-				HealthProbes: []lyrahttp.HealthProbe{
-					{
-						Name: "runtime",
-						Probe: func(ctx context.Context) lyrahttp.HealthCheck {
-							if err := api.Ping(ctx); err != nil {
-								return lyrahttp.HealthCheck{Status: lyrahttp.HealthUnhealthy, Detail: err.Error()}
-							}
-							return lyrahttp.HealthCheck{Status: lyrahttp.HealthOK}
-						},
-					},
-				},
-				AgentDocsLister: agentDocsLister(),
-			})
+			httpServer, err := a.buildHTTPServer(srv, tokenValue)
 			if err != nil {
 				return a.fatalErr(err)
 			}
-
 			return a.runServer(cmd.Context(), httpServer, srv.Listen, token)
 		},
 	}
@@ -146,6 +107,51 @@ Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 	cmd.Flags().StringSliceVar(&corsOrigins, "cors-origin", nil,
 		"CORS-allowed origin (repeatable); overrides config server.corsOrigins")
 	return cmd
+}
+
+// buildHTTPServer assembles the HTTP+SSE server from the resolved serve
+// settings: the in-process protocol Runtime, the serve-process directory
+// context the frontend reads on initialize (API.md §7.1 — cwd seeds a new
+// session's default working dir, home anchors ~-scoped lookups; both
+// default to the user's home), and a runtime health probe. tokenValue is
+// the local-process gate token ("" when the gate is disabled).
+func (a *App) buildHTTPServer(srv config.ServerConfig, tokenValue string) (*lyrahttp.Server, error) {
+	info := lyrahttp.ServerInfoOrDefault()
+	if home, err := os.UserHomeDir(); err == nil {
+		info.Cwd = home
+		info.Home = home
+	}
+
+	api, err := server.New(server.Config{
+		Runtime:    a.runtime(),
+		ServerInfo: info,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	caps := server.Capabilities(a.runtime())
+	return lyrahttp.NewServer(lyrahttp.Config{
+		Runtime:         api,
+		Addr:            srv.Listen,
+		ServerInfo:      info,
+		ProtocolVersion: caps.ProtocolVersion,
+		Capabilities:    caps,
+		LocalToken:      tokenValue,
+		CORSOrigins:     srv.CORSOrigins,
+		HealthProbes: []lyrahttp.HealthProbe{
+			{
+				Name: "runtime",
+				Probe: func(ctx context.Context) lyrahttp.HealthCheck {
+					if err := api.Ping(ctx); err != nil {
+						return lyrahttp.HealthCheck{Status: lyrahttp.HealthUnhealthy, Detail: err.Error()}
+					}
+					return lyrahttp.HealthCheck{Status: lyrahttp.HealthOK}
+				},
+			},
+		},
+		AgentDocsLister: agentDocsLister(),
+	})
 }
 
 // agentDocsLister returns an AgentDocsLister wired to the server's
