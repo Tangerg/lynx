@@ -17,7 +17,7 @@ import (
 // resulting process (whether completed or terminal-failed). Pass a
 // zero [core.ProcessOptions]{} for defaults.
 //
-// One `lynx.agent.run` span wraps the full invocation, parenting the
+// One `agent.run` span wraps the full invocation, parenting the
 // per-tick / per-action / per-plan child spans the runtime emits
 // during execution. See doc/OBSERVABILITY.md §3.3 / §4.7.
 func (p *Platform) RunAgent(

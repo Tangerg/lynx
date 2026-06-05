@@ -94,8 +94,8 @@ func Interrupt[R any](ctx context.Context, key string, value any) (resp R, resum
 // action body returns that status immediately. Otherwise returns (_, false)
 // and the caller still handles err.
 func HandleInterrupt(pc *core.ProcessContext, err error) (core.ActionStatus, bool) {
-	ie := &InterruptError{}
-	if !errors.As(err, &ie) {
+	ie, ok := errors.AsType[*InterruptError](err)
+	if !ok {
 		return 0, false
 	}
 	return pc.AwaitInput(ie.awaitable), true
