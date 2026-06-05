@@ -134,7 +134,7 @@ export function Composer({
 // Icon-only mode toggle — one glyph, no label. Click cycles to the next
 // registered mode; the tooltip names the current mode + what it does. A
 // universal-icon + weak-hint affordance that keeps the toolbar light
-// (DESIGN: "通用图标 + 弱提示"). With three modes, cycling beats a
+// (DESIGN: "universal icon + weak hint"). With three modes, cycling beats a
 // dropdown for click economy.
 type Mode = ComposerModeSpec;
 
