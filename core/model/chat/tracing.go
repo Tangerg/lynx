@@ -130,6 +130,15 @@ func startChatSpan(ctx context.Context, model Model, req *Request, operation str
 // RecordError event before ending.
 func finishChatSpan(span trace.Span, resp *Response, err error) {
 	if err != nil {
+		if interruptsToolLoop(err) {
+			// A HITL interrupt is normal control flow (the run paused for
+			// human input), NOT a failure — record it as an event but leave
+			// the span status unset so production error-rate alerts don't
+			// fire on every approval.
+			span.AddEvent("tool_loop.interrupted")
+			span.End()
+			return
+		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		span.End()

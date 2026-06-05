@@ -588,8 +588,15 @@ func (i *toolCallInvoker) invokeOne(ctx context.Context, t Tool, call *ToolCallP
 	}
 
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		if interruptsToolLoop(err) {
+			// HITL interrupt: the tool asked to pause for human input — normal
+			// control flow, not a failure. Record it as an event but leave the
+			// span status unset (no false error-rate alerts on every approval).
+			span.AddEvent("tool_loop.interrupted")
+		} else {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
 	}
 	return result, err
 }
