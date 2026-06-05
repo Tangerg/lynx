@@ -4,14 +4,17 @@
 // lives in the inmemory.go / engine.go files under each sub-package, the
 // wire formats live elsewhere.
 //
-// Each sub-package declares one service:
+// Each sub-package declares one domain service:
 //
-//   - session/   — session lifecycle (list/create/fork/delete/resume)
-//   - chat/      — one-turn dispatch + event stream
-//   - tool/      — tool registry inspection and (optional) direct invocation
-//   - approval/  — permission decisions for tool calls
-//   - memory/    — long-term memory (LYRA.md cascade)
-//   - agentdoc/  — AGENTS.md cascade discovery + render
+//   - session/    — session lifecycle (list/create/fork/delete/resume)
+//   - chat/       — one-turn dispatch + event stream
+//   - tool/       — tool registry inspection and (optional) direct invocation
+//   - approval/   — runtime tool-approval stance (Mode: pass/deny/prompt)
+//   - memory/     — long-term memory (LYRA.md cascade)
+//   - agentdoc/   — AGENTS.md cascade discovery + render
+//   - history/    — authoritative Item store backing items.list
+//   - interrupts/ — HITL interrupt store (park on interrupt, resume)
+//   - provider/   — runtime LLM-provider registry (per-provider key + baseURL)
 //
 // Design constraints:
 //
@@ -22,7 +25,6 @@
 //     impls, engine.go where the impl is engine-backed), built on lynx-agent
 //     and lynx-core.
 //
-// Transport layer (M8+) wraps these interfaces; the interfaces themselves
-// never change between Phase 1 (in-process Go API) and Phase 2 (multi-
-// transport). See lyra/doc/ARCHITECTURE.md §2.1.
+// The transport layer wraps these interfaces; the interfaces stay
+// transport-agnostic. See lyra/doc/ARCHITECTURE.md §2.1.
 package service
