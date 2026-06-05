@@ -33,7 +33,7 @@ var _ moderation.Model = (*ModerationModel)(nil)
 // reports a custom category set (sexual / hate_and_discrimination /
 // violence_and_threats / dangerous_and_criminal_content / selfharm /
 // health / financial / law / pii); we map them onto lynx's typed
-// [moderation.Moderation] slots so callers writing provider-agnostic
+// [moderation.Categories] slots so callers writing provider-agnostic
 // policy code still see flags / scores in the standard fields.
 type ModerationModel struct {
 	api            *API
@@ -67,8 +67,8 @@ func (m *ModerationModel) Call(ctx context.Context, req *moderation.Request) (*m
 
 	results := make([]*moderation.Result, 0, len(apiResp.Results))
 	for _, item := range apiResp.Results {
-		mod := mapMistralCategories(item.Categories, item.CategoryScores)
-		res, err := moderation.NewResult(mod, &moderation.ResultMetadata{})
+		cats := mapMistralCategories(item.Categories, item.CategoryScores)
+		res, err := moderation.NewResult(cats, &moderation.ResultMetadata{})
 		if err != nil {
 			return nil, err
 		}
@@ -84,14 +84,14 @@ func (m *ModerationModel) Call(ctx context.Context, req *moderation.Request) (*m
 }
 
 // mapMistralCategories maps Mistral's category names onto lynx's
-// typed Moderation slots. Mistral has a few categories OpenAI's set
-// doesn't (health, financial, law) — those map directly. Categories
-// Mistral doesn't surface stay zero.
-func mapMistralCategories(flags map[string]bool, scores map[string]float64) *moderation.Moderation {
-	get := func(key string) moderation.Category {
-		return moderation.Category{Flagged: flags[key], Score: scores[key]}
+// typed [moderation.Categories] slots. Mistral has a few categories
+// OpenAI's set doesn't (health, financial, law) — those map directly.
+// Categories Mistral doesn't surface stay zero.
+func mapMistralCategories(flags map[string]bool, scores map[string]float64) *moderation.Categories {
+	get := func(key string) moderation.Verdict {
+		return moderation.Verdict{Flagged: flags[key], Score: scores[key]}
 	}
-	return &moderation.Moderation{
+	return &moderation.Categories{
 		Sexual:                      get("sexual"),
 		Hate:                        get("hate_and_discrimination"),
 		Violence:                    get("violence_and_threats"),

@@ -127,7 +127,7 @@ func (r *ClientRequest) buildRequest() (*Request, error) {
 //
 // Example:
 //
-//	mod, _, err := client.Moderate().WithTexts([]string{"hi"}).Call().Moderation(ctx)
+//	cats, _, err := client.Moderate().WithTexts([]string{"hi"}).Call().Categories(ctx)
 func (r *ClientRequest) Call() *ClientCaller {
 	return &ClientCaller{request: r}
 }
@@ -150,25 +150,25 @@ func (c *ClientCaller) Response(ctx context.Context) (*Response, error) {
 		Call(ctx, req)
 }
 
-// Moderation runs the call and returns the first verdict alongside the
+// Categories runs the call and returns the first verdict alongside the
 // full response.
-func (c *ClientCaller) Moderation(ctx context.Context) (*Moderation, *Response, error) {
+func (c *ClientCaller) Categories(ctx context.Context) (*Categories, *Response, error) {
 	resp, err := c.Response(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-	return resp.Result().Moderation, resp, nil
+	return resp.Result().Categories, resp, nil
 }
 
-// Moderations runs the call and returns every verdict in input order.
-func (c *ClientCaller) Moderations(ctx context.Context) ([]*Moderation, *Response, error) {
+// AllCategories runs the call and returns every verdict in input order.
+func (c *ClientCaller) AllCategories(ctx context.Context) ([]*Categories, *Response, error) {
 	resp, err := c.Response(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-	out := make([]*Moderation, 0, len(resp.Results))
+	out := make([]*Categories, 0, len(resp.Results))
 	for _, result := range resp.Results {
-		out = append(out, result.Moderation)
+		out = append(out, result.Categories)
 	}
 	return out, resp, nil
 }
