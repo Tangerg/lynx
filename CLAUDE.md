@@ -79,7 +79,7 @@
 ### 高内聚低耦合（High Cohesion / Low Coupling）
 
 - **高内聚** = 一个 package / struct 内的东西**为同一个目的服务**。`internal/service/session/` 全是会话生命周期、`agentdoc/` 全是 AGENTS.md 发现 —— 这就是高内聚
-- **低耦合** = 跨包依赖**通过最小接口**而不是具体类型。chat 服务依赖 `chat.Engine`（5 方法）不直接抱 `*engine.Engine`、autonomy 包内定义 `platform` 接口（2 方法）不抱 `*runtime.Platform`
+- **低耦合** = **应用层**跨包依赖**通过最小接口**而不是具体类型。lyra chat 服务依赖 `chat.Engine`（5 方法）不直接抱 `*engine.Engine`。（**SDK 库内部例外**：单实现依赖直接用具体类型，见 ISP 段「库 vs 应用」）
 - **二者矛盾时**：宁可包多一点（更高内聚）也别让一个包横跨多个 domain；宁可接口多一点（更低耦合）也别让一个具体类型变成跨包枢纽
 - ❌ 反例：`chat.New(*engine.Engine)` —— 一处改 engine API 整个 chat 测试都得重写
 
@@ -98,20 +98,21 @@
 ### LSP — Liskov Substitution（可替换）
 
 - 实现一个接口就要**完整满足语义**，不能某些方法实现某些不实现 / 某些参数支持某些不支持
-- Go 里用 `var _ Iface = (*Impl)(nil)` 编译期断言 + 测试用 stub 实现接口（参考 `autonomy/platform_iface_test.go`）双重保证
+- Go 里用 `var _ Iface = (*Impl)(nil)` 编译期断言（如 lyra `var _ memory.Service = (*FileMemoryService)(nil)`）+ 测试用 stub 实现接口双重保证
 - ❌ 反例：`Service.Update(ctx, x)` 实现里悄悄忽略 ctx —— 调用方 cancel 不生效。LSP 不只看签名，还看行为契约
 
 ### ISP — Interface Segregation（接口隔离）
 
 - **接口里只放调用方真用的方法**。`approval.Console`（4 方法）给 client side；`approval.Gate`（2 方法）给 producer side；`Service = Console + Gate` union 给 runtime 装配
 - Rob Pike: "The bigger the interface, the weaker the abstraction." 大接口逼实现方塞 stub、逼 caller 多了解不该知道的
+- **库 vs 应用（关键）**：消费方窄接口是给**应用层**的（lyra：多实现 + 可测 + 跨模块边界）。**SDK 库内部**（agent）的**单实现**依赖直接用具体类型——抽窄接口是 YAGNI 仪式（按「单实现接口→内联」）。例：agent `autonomy` 已从 2 方法 `platform` 窄接口**内联回** `*runtime.Platform`。窄接口在库里只留给**公开 SPI**（`Planner`/`Ranker`/`Extension` 子接口）
 - ❌ 反例：原 `approval.Service` 把 5 方法揉一个接口，chat 只用其中 2 个 —— 已拆 Console / Gate
 
 ### DIP — Dependency Inversion（依赖倒置）
 
 - **高层模块依赖抽象，不依赖低层具体类型**。chat → `chat.Engine` interface（在 chat 包内定义）→ `*engine.Engine` 隐式满足。chat 包**不 import** engine 包的具体类型（除了共享 wire types）
 - 接口定义**放消费方**，不放被消费方（典型 Go idiom）
-- ❌ 反例：chat / tool / autonomy 都曾直接 import `*engine.Engine` / `*runtime.Platform` 整体 —— 已修
+- ❌ 反例（**应用层**）：lyra chat / tool 曾直接 import `*engine.Engine` 整体 —— 已改窄接口。（**SDK 库内部反而有意**直接用 `*runtime.Platform`：见 ISP 段「库 vs 应用」）
 
 ### DRY — Don't Repeat Yourself
 
@@ -124,7 +125,7 @@
 
 - **简单 > 巧妙**。读代码的人 90% 时间在维护，写代码的人 10% 时间在创造
 - 信号：嵌套泛型 > 2 层 / 反射 / `interface{}` / type-switch 长尾 / 函数闭包嵌套 —— 通常都是"我可以这么写"但不该这么写
-- ✅ 例：autonomy 引入 `platform` interface 时只 2 个方法（仅消费的），不预留"未来可能要的"方法
+- ✅ 例：SDK 库内部不为单实现依赖抽窄接口（agent `autonomy` 直接持 `*runtime.Platform`，而非引入 2 方法 `platform` 接口）—— 少一层就少一层
 - ❌ 反例：approval 的 `atomicMode{value int32}` 自家 wrapper —— `atomic.Int32` 一句话搞定（已删）
 
 ### YAGNI — You Aren't Gonna Need It
@@ -201,7 +202,7 @@
 - **(d) 精准命名** —— `idCounter` → `nextCompositeKeyId`；`x` / `tmp` / `data` / `result` / `obj` 不算名字；文件名 `impl.go` 是 Java 味（→ `inmemory.go` / `engine.go` / `sqlite.go`）
 - **(e) 注释清理** —— 大段解释 what 的删（代码自身说明）；过期的迁移注释删（"Legacy …" 这种）；误导性的"为什么这样写"（实际不再这样了）删。留下来的只解释 _why_ 而不是 _what_。`// M5 wires this` 这种推测性占位删
 - **(f) 现代 Go 扫描** —— `sync/atomic` 用 `atomic.Int32` 不用手写 wrapper / `sync.Map` 替代 `mutex + map`（适合 write-rare）/ `slices.*` `maps.*` helper 替代手写 loop / `iter.Seq2` 替代 channel-based 流 / `errors.New("...")` 替代 `fmt.Errorf("constant")` / `%w` 包装错误
-- **(g) 接口收窄扫描** —— 跨包传递的具体类型（`*Engine` / `*Platform` 等），看消费方实际只用几个方法 —— 能收窄成 interface 就收窄，附带加 compile-time tripwire 测试（参考 `autonomy/platform_iface_test.go`）
+- **(g) 接口收窄扫描** —— **仅应用层 / 多实现**：跨模块传递的具体类型（lyra `*engine.Engine` 等），消费方只用几个方法就收窄成自定义窄接口。**SDK 库内部单实现依赖不收窄**（YAGNI，见设计原则 ISP「库 vs 应用」；agent `autonomy` 已把 `platform` 窄接口内联回 `*runtime.Platform`）
 - **(h) 性能扫描** —— 热路径上 `sync.RWMutex` vs `sync.Map` 是否合适？循环里有 N² `slices.Index` / `Contains`？大 struct 是 copy 还是 pointer 传递？SSE / stream 路径有没有 buffering 把 flush 搞砸？
 
 ## Go idiom 纪律（写代码 / review 时必看）
@@ -210,7 +211,7 @@
 
 - **错误构造**：`fmt.Errorf("constant string")` 是浪费 → `errors.New("...")`。错误包装一律 `%w`，没有 `%v`
 - **接口在消费方定义**：典型例子 `chat.Engine` 定义在 chat 包内，`*engine.Engine` 隐式满足。被消费的具体类型**不主动暴露接口**给消费者 import —— 消费者自己写
-- **测试用 stub 接口而不是真实依赖**：参考 `autonomy/platform_iface_test.go` —— compile-time tripwire（接口偷偷长大，stub 就编译失败）
+- **应用层测试用 stub 接口**（多实现 + 隔离），编译期断言 `var _ Iface = (*Impl)(nil)` 防接口漂移。**SDK 库内部用真实具体依赖测**——agent `autonomy` 测试直接构造 `*runtime.Platform`，不为测试抽窄接口
 - **`impl.go` 是 Java 味**：实现文件按本质命名 —— `inmemory.go`（单进程内存实现）/ `engine.go`（engine-backed）/ `sqlite/session.go`（特定 backend）
 - **`atomic.Int32` 直接用**，别再包一层 `atomicXxx` wrapper（`Store(int32(v))` / `Load()` 就够）
 - **结构体字段超过 6 个**：用注释 `// --- xxx ---` 分区。读起来一目了然
