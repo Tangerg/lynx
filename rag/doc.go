@@ -62,7 +62,7 @@
 //	    docsR, logsR rag.DocumentRetriever
 //	}
 //	func (r *routingRetriever) Retrieve(ctx context.Context, q *rag.Query) ([]*document.Document, error) {
-//	    if q.Metadata["route"] == "logs" {
+//	    if route, _ := q.Get("route"); route == "logs" {
 //	        return r.logsR.Retrieve(ctx, q)
 //	    }
 //	    return r.docsR.Retrieve(ctx, q)

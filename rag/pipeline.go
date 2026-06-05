@@ -100,9 +100,9 @@ func NewPipeline(config PipelineConfig) (*Pipeline, error) {
 //
 // One parent `rag.pipeline` span wraps the call, with per-stage
 // children (`rag.transform`, `rag.expand`, `rag.retrieve`,
-// `rag.refine`, `rag.augment`). Each child carries `lynx.rag.stage`
-// plus stage-specific counts (`lynx.rag.query_count`,
-// `lynx.rag.doc_count`) — see doc/OBSERVABILITY.md §3.3.
+// `rag.refine`, `rag.augment`). Each child carries `rag.stage` plus
+// stage-specific counts (`rag.query_count`, `rag.doc_count`) — see
+// doc/OBSERVABILITY.md §3.3.
 func (p *Pipeline) Execute(ctx context.Context, query *Query) (*Query, []*document.Document, error) {
 	if query == nil {
 		return nil, nil, ErrNilQuery
@@ -143,7 +143,7 @@ func (p *Pipeline) Execute(ctx context.Context, query *Query) (*Query, []*docume
 		execErr = fmt.Errorf("rag.Pipeline: augment stage: %w", err)
 		return nil, nil, execErr
 	}
-	parent.SetAttributes(attribute.Int(attrLynxRAGDocCount, len(refined)))
+	parent.SetAttributes(attribute.Int(attrDocCount, len(refined)))
 	return augmented, refined, nil
 }
 
@@ -169,7 +169,7 @@ func (p *Pipeline) transformQuery(ctx context.Context, query *Query) (out *Query
 func (p *Pipeline) expandQuery(ctx context.Context, query *Query) (out []*Query, err error) {
 	ctx, span := startStageSpan(ctx, "expand")
 	defer func() {
-		finishSpan(span, err, attribute.Int(attrLynxRAGQueryCount, len(out)))
+		finishSpan(span, err, attribute.Int(attrQueryCount, len(out)))
 	}()
 	out, err = p.queryExpander.Expand(ctx, query)
 	return
@@ -226,8 +226,8 @@ func (p *Pipeline) retrieveByQueries(ctx context.Context, queries []*Query) (out
 	ctx, span := startStageSpan(ctx, "retrieve")
 	defer func() {
 		finishSpan(span, err,
-			attribute.Int(attrLynxRAGQueryCount, len(queries)),
-			attribute.Int(attrLynxRAGDocCount, len(out)),
+			attribute.Int(attrQueryCount, len(queries)),
+			attribute.Int(attrDocCount, len(out)),
 		)
 	}()
 	out, err = parallelCollect(ctx, queries, "query",
@@ -241,7 +241,7 @@ func (p *Pipeline) retrieveByQueries(ctx context.Context, queries []*Query) (out
 func (p *Pipeline) refineDocuments(ctx context.Context, query *Query, docs []*document.Document) (out []*document.Document, err error) {
 	ctx, span := startStageSpan(ctx, "refine")
 	defer func() {
-		finishSpan(span, err, attribute.Int(attrLynxRAGDocCount, len(out)))
+		finishSpan(span, err, attribute.Int(attrDocCount, len(out)))
 	}()
 
 	current := docs
@@ -261,7 +261,7 @@ func (p *Pipeline) refineDocuments(ctx context.Context, query *Query, docs []*do
 func (p *Pipeline) augmentQuery(ctx context.Context, query *Query, docs []*document.Document) (out *Query, err error) {
 	ctx, span := startStageSpan(ctx, "augment")
 	defer func() {
-		finishSpan(span, err, attribute.Int(attrLynxRAGDocCount, len(docs)))
+		finishSpan(span, err, attribute.Int(attrDocCount, len(docs)))
 	}()
 	out, err = p.queryAugmenter.Augment(ctx, query, docs)
 	return
