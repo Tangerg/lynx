@@ -27,6 +27,7 @@ import {
   W3CTraceContextPropagator,
 } from "@opentelemetry/core";
 import { resourceFromAttributes } from "@opentelemetry/resources";
+import { bindMetricInstruments } from "@/lib/metrics";
 import type { IMetricReader } from "@opentelemetry/sdk-metrics";
 import { MeterProvider, PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
 import type { LogRecordProcessor } from "@opentelemetry/sdk-logs";
@@ -81,6 +82,10 @@ export async function setupObservability(opts: ObservabilityOptions): Promise<vo
   if (otlp) readers.push(otlp.metricReader);
   const meterProvider = new MeterProvider({ resource, readers });
   metrics.setGlobalMeterProvider(meterProvider);
+  // The metrics API has no proxy meter, so lib/metrics' instruments must be
+  // created NOW (post-registration), not at its module load — otherwise every
+  // measurement is a permanent no-op. See lib/metrics' header.
+  bindMetricInstruments();
 
   // ── Logs ────────────────────────────────────────────────────────────────
   const logProcessors: LogRecordProcessor[] = [new LocalLogProcessor()];
