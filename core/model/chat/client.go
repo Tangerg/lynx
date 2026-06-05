@@ -359,7 +359,7 @@ func (s *ClientStreamer) Text(ctx context.Context) iter.Seq2[string, error] {
 				yield("", err)
 				return
 			}
-			if !yield(resp.Result.AssistantMessage.JoinedText(), nil) {
+			if !yield(resp.TextDelta(), nil) {
 				return
 			}
 		}
