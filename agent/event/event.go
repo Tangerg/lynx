@@ -16,20 +16,22 @@ type Event interface {
 }
 
 // BaseEvent is the embedded carrier shared across all concrete events.
-// Field names use JSON-friendly tags so each event's marshaler can drop
-// `At` / `PID` straight into the envelope.
+// It's an opaque value object: built via [NewBaseEvent] and read through
+// the [Event] interface methods. The timestamp / process id reach the
+// wire via [emit]'s envelope (which reads them through Timestamp() /
+// ProcessID()), so the fields carry no JSON tags of their own.
 type BaseEvent struct {
-	At  time.Time `json:"timestamp"`
-	PID string    `json:"process_id"`
+	at  time.Time
+	pid string
 }
 
-func (b BaseEvent) Timestamp() time.Time { return b.At }
-func (b BaseEvent) ProcessID() string    { return b.PID }
+func (b BaseEvent) Timestamp() time.Time { return b.at }
+func (b BaseEvent) ProcessID() string    { return b.pid }
 func (b BaseEvent) EventName() string    { return "base" }
 
 // NewBaseEvent stamps a fresh event with the configured time source.
 func NewBaseEvent(processID string) BaseEvent {
-	return BaseEvent{At: core.Now(), PID: processID}
+	return BaseEvent{at: core.Now(), pid: processID}
 }
 
 // envelope is the on-wire JSON shape for every event: a discriminator
