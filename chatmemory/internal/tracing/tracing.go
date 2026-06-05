@@ -12,9 +12,9 @@ import (
 const (
 	attrDBSystem        = "db.system"
 	attrDBOperationName = "db.operation.name"
-	attrLynxConvID      = "gen_ai.conversation.id"
-	attrLynxMsgCount    = "chat_memory.msg_count"
-	attrLynxConvCount   = "chat_memory.conv_count"
+	attrConvID          = "gen_ai.conversation.id"
+	attrMsgCount        = "chat_memory.msg_count"
+	attrConvCount       = "chat_memory.conv_count"
 )
 
 // tracerFor returns the per-provider tracer. Names follow
@@ -30,7 +30,7 @@ func start(ctx context.Context, system, op, convID string) (context.Context, tra
 		attribute.String(attrDBOperationName, op),
 	}
 	if convID != "" {
-		attrs = append(attrs, attribute.String(attrLynxConvID, convID))
+		attrs = append(attrs, attribute.String(attrConvID, convID))
 	}
 	return tracerFor(system).Start(ctx, "chat.memory."+op+" "+system,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -48,7 +48,7 @@ func StartRead(ctx context.Context, system, convID string) (context.Context, tra
 func StartWrite(ctx context.Context, system, convID string, msgCount int) (context.Context, trace.Span) {
 	ctx, span := start(ctx, system, "write", convID)
 	if msgCount > 0 {
-		span.SetAttributes(attribute.Int(attrLynxMsgCount, msgCount))
+		span.SetAttributes(attribute.Int(attrMsgCount, msgCount))
 	}
 	return ctx, span
 }
@@ -79,11 +79,11 @@ func Finish(span trace.Span, err error, extra ...attribute.KeyValue) {
 // RecordReadResult stamps the resulting message count onto a Read span
 // before ending it.
 func RecordReadResult(span trace.Span, err error, msgCount int) {
-	Finish(span, err, attribute.Int(attrLynxMsgCount, msgCount))
+	Finish(span, err, attribute.Int(attrMsgCount, msgCount))
 }
 
 // RecordListResult stamps the number of conversations found onto a List
 // span before ending it.
 func RecordListResult(span trace.Span, err error, convCount int) {
-	Finish(span, err, attribute.Int(attrLynxConvCount, convCount))
+	Finish(span, err, attribute.Int(attrConvCount, convCount))
 }
