@@ -2,7 +2,7 @@ package engine
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -40,7 +40,7 @@ func newPlanner(client *chat.Client) *planner {
 // decides whether to surface the error or proceed.
 func (p *planner) Plan(ctx context.Context, systemPrompt, userMessage string) (string, error) {
 	if p == nil {
-		return "", fmt.Errorf("planner: chat client missing")
+		return "", errors.New("planner: chat client missing")
 	}
 
 	const planInstructions = `Before doing anything, draft a brief plan

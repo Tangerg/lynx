@@ -120,7 +120,7 @@ func (e *Engine) buildChatAgent() *core.Agent {
 					// carried awaitable (→ StatusWaiting). The client answers
 					// via a continuation run; on resume hitl.Interrupt returns
 					// the resolution at the gate.
-					if interrupted := new(chat.ToolLoopInterrupted); errors.As(err, &interrupted) {
+					if interrupted, ok := errors.AsType[*chat.ToolLoopInterrupted](err); ok {
 						saveInflightConversation(pc.Blackboard, interrupted.Conversation)
 					}
 					if _, parked := hitl.HandleInterrupt(pc, err); parked {

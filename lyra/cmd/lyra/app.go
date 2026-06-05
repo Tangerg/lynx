@@ -11,6 +11,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -224,4 +225,4 @@ func (a *App) fatalErr(err error) error {
 // errSilenced is the sentinel RunE returns when the user-facing
 // message has already been printed. cobra.Command.SilenceErrors +
 // SilenceUsage on the root prevent the duplicate stderr.
-var errSilenced = fmt.Errorf("lyra: handled")
+var errSilenced = errors.New("lyra: handled")
