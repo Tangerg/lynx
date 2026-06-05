@@ -20,9 +20,9 @@ type Request struct {
 	Documents []*document.Document `json:"documents,omitzero"`
 }
 
-// extractDocuments concatenates non-empty document texts with newline
+// documentsText concatenates non-empty document texts with newline
 // separators — fed into evaluator prompts as the "context" variable.
-func extractDocuments(req *Request) string {
+func (req *Request) documentsText() string {
 	var texts []string
 	for _, doc := range req.Documents {
 		if doc.Text != "" {

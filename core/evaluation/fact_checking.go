@@ -92,7 +92,7 @@ func NewFactCheckingEvaluator(config FactCheckingEvaluatorConfig) (*FactChecking
 		config.PromptTemplate,
 		func(req *Request) map[string]any {
 			return map[string]any{
-				"Document": extractDocuments(req),
+				"Document": req.documentsText(),
 				"Claim":    req.Generation,
 			}
 		},

@@ -97,7 +97,7 @@ func NewRelevancyEvaluator(config RelevancyEvaluatorConfig) (*RelevancyEvaluator
 			return map[string]any{
 				"Query":    req.Prompt,
 				"Response": req.Generation,
-				"Context":  extractDocuments(req),
+				"Context":  req.documentsText(),
 			}
 		},
 		config.Threshold,
