@@ -6,6 +6,7 @@ import (
 	"iter"
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 )
@@ -221,42 +222,27 @@ func (m *middleware) saveResponseMessages(ctx context.Context, req *chat.Request
 	return m.persistMessages(ctx, req, msgs...)
 }
 
-// saveResumedTurn persists a HITL resume segment's net-new messages in
-// conversation ORDER, so the stored history stays a valid provider
-// sequence. The fed request carries the turn's mid-flight conversation up
-// to the assistant tool-call message the interrupt parked on — rounds that
-// were never persisted mid-turn — and this segment adds the tool results +
-// the final assistant. Persisting the unsaved request tail FIRST keeps the
-// tool message right after its assistant(tool_calls). Saving only the
-// accumulated [finalAssistant, toolMessage] (saveResponseMessages) would
-// orphan the tool message after the text-only final assistant, which the
-// provider rejects on the next load ("'tool' must follow 'tool_calls'").
-func (m *middleware) saveResumedTurn(ctx context.Context, req *chat.Request, resp *chat.Response) error {
-	msgs := m.filterUnsavedMessages(req.Messages)
-	if resp.Result != nil {
-		if resp.Result.ToolMessage != nil {
-			msgs = append(msgs, resp.Result.ToolMessage)
-		}
-		if resp.Result.AssistantMessage != nil {
-			msgs = append(msgs, resp.Result.AssistantMessage)
-		}
-	}
-	return m.persistMessages(ctx, req, msgs...)
+// blankAssistant reports whether an assistant message carries neither tool
+// calls nor non-whitespace text — a round boundary with nothing to persist.
+func blankAssistant(am *chat.AssistantMessage) bool {
+	return am == nil || (!am.HasToolCalls() && strings.TrimSpace(am.JoinedText()) == "")
 }
 
 // executeCall is the synchronous flow: prepare → call → save.
 func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next chat.CallHandler) (*chat.Response, error) {
 	if isResumedTurn(ctx) {
 		// Continuation of a suspended turn: input was persisted on the first
-		// segment and the tool loop resumes from its checkpoint, so pass the
-		// request straight through (no load) — and persist the net-new
-		// messages in conversation order (saveResumedTurn) so the stored
-		// history stays a valid sequence.
+		// segment, so pass the request straight through (no load) and save
+		// the final reply. The synchronous Call path exposes only the final
+		// response (no per-round tool messages), so it persists the answer
+		// without the round trace — valid, just lossy. lyra drives HITL via
+		// the streaming path (executeStream), which persists the full ordered
+		// sequence; this branch is a non-lyra fallback.
 		resp, err := next.Call(ctx, req)
 		if err != nil {
 			return nil, err
 		}
-		if err := m.saveResumedTurn(ctx, req, resp); err != nil {
+		if err := m.saveResponseMessages(ctx, req, resp); err != nil {
 			return nil, err
 		}
 		return resp, nil
@@ -288,12 +274,14 @@ func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next ch
 // would lie to the next turn about what the model actually said.
 func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next chat.StreamHandler) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
-		// Continuation of a suspended turn (HITL resume): skip the input
-		// side (already persisted; the tool loop resumes from its
-		// checkpoint and ignores these request messages) but still
-		// accumulate + save the segment's final result. See [executeCall].
+		resumed := isResumedTurn(ctx)
+
+		// Continuation of a suspended turn (HITL resume): skip the input side
+		// (already persisted; the tool loop resumes from its checkpoint and
+		// ignores these request messages). A fresh turn loads history +
+		// persists the new input here.
 		prepared := req
-		if !isResumedTurn(ctx) {
+		if !resumed {
 			var err error
 			prepared, err = m.prepareRequest(ctx, req)
 			if err != nil {
@@ -302,24 +290,53 @@ func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next 
 			}
 		}
 
-		acc := chat.NewResponseAccumulator()
+		// Accumulate the turn as an ORDERED message sequence, split on the
+		// tool-message boundaries the tool loop emits between rounds, so each
+		// round's assistant(tool_calls) is paired with its OWN tool results.
+		// The merge-everything ResponseAccumulator collapses every round into
+		// one assistant + keeps only the last round's tool message, which
+		// orphans earlier tool_calls and makes the next turn's load an invalid
+		// provider sequence ("'tool' must follow 'tool_calls'" / unanswered
+		// calls).
+		var seq []chat.Message
+		round := chat.NewResponseAccumulator()
+		flushRound := func() {
+			if round.Response.Result != nil {
+				if am := round.Response.Result.AssistantMessage; !blankAssistant(am) {
+					seq = append(seq, am)
+				}
+			}
+			round = chat.NewResponseAccumulator()
+		}
 
 		for chunk, err := range next.Stream(ctx, prepared) {
 			if err != nil {
-				yield(nil, err)
+				yield(nil, err) // includes HITL interrupt — persist nothing
 				return
 			}
-			acc.AddChunk(chunk)
+			// A tool message marks a round boundary: close the assistant that
+			// requested it, then record the tool results right after it.
+			if chunk != nil && chunk.Result != nil && chunk.Result.ToolMessage != nil {
+				flushRound()
+				seq = append(seq, chunk.Result.ToolMessage)
+			} else {
+				round.AddChunk(chunk)
+			}
 			if !yield(chunk, nil) {
-				return // consumer canceled — skip persistence
+				return // consumer canceled — skip persistence (abandon turn)
 			}
 		}
+		flushRound() // the final assistant reply
 
-		save := m.saveResponseMessages
-		if isResumedTurn(ctx) {
-			save = m.saveResumedTurn
+		// On resume, prepend the turn's unsaved mid-flight tail (the rounds +
+		// the assistant tool-call message the interrupt parked on, none
+		// persisted mid-turn) so the tool results that follow keep their
+		// preceding tool_calls.
+		toSave := seq
+		if resumed {
+			toSave = append(m.filterUnsavedMessages(req.Messages), seq...)
 		}
-		if err := save(ctx, req, &acc.Response); err != nil {
+		if err := m.persistMessages(ctx, req, toSave...); err != nil {
 			yield(nil, err)
 		}
 	}
