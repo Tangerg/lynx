@@ -13,13 +13,14 @@ import (
 )
 
 // OTel DB semantic-convention attribute keys we emit on every vector
-// store span. Keys outside this set live under `lynx.*`.
+// store span. The one non-semconv key (rag.doc_count) uses a bare
+// domain prefix — no brand (no lynx.*) — per the observability convention.
 const (
 	attrDBSystem                  = "db.system"
 	attrDBOperationName           = "db.operation.name"
 	attrDBVectorTopK              = "db.vector.query.top_k"
 	attrDBVectorSimilarityMinimum = "db.vector.query.similarity_threshold"
-	attrLynxRAGDocCount           = "rag.doc_count"
+	attrDocCount                  = "rag.doc_count"
 )
 
 // tracerFor returns the per-provider tracer. Tracer names follow
@@ -58,7 +59,7 @@ func StartCreate(ctx context.Context, system string, inputCount int) (context.Co
 		attribute.String(attrDBOperationName, "create"),
 	}
 	if inputCount > 0 {
-		attrs = append(attrs, attribute.Int(attrLynxRAGDocCount, inputCount))
+		attrs = append(attrs, attribute.Int(attrDocCount, inputCount))
 	}
 	return tracerFor(system).Start(ctx, "db.vector.create "+system,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -93,7 +94,7 @@ func Finish(span trace.Span, err error, extra ...attribute.KeyValue) {
 // RecordRetrieveResult is the convenience overload that stamps the
 // retrieved document count onto the span before ending it.
 func RecordRetrieveResult(span trace.Span, err error, docCount int) {
-	Finish(span, err, attribute.Int(attrLynxRAGDocCount, docCount))
+	Finish(span, err, attribute.Int(attrDocCount, docCount))
 }
 
 // Decorator wraps any [vectorstore.Store] implementation with the

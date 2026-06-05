@@ -336,7 +336,7 @@ func (s *Store) distanceToScore(distance float64) float64 {
 // pgvector table.
 //
 // One `db.vector.create pgvector` span per call carrying
-// `db.system` / `db.operation.name` / `lynx.rag.doc_count`.
+// `db.system` / `db.operation.name` / `rag.doc_count`.
 func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
 	if err = req.Validate(); err != nil {
 		return fmt.Errorf("pgvector: invalid create request: %w", err)
@@ -414,7 +414,7 @@ func drainBatch(br pgx.BatchResults, n int) error {
 //
 // One `db.vector.retrieve pgvector` span per call carrying
 // `db.vector.query.top_k` / `db.vector.query.similarity_threshold`
-// and (on success) `lynx.rag.doc_count`.
+// and (on success) `rag.doc_count`.
 func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("pgvector: invalid retrieval request: %w", err)
