@@ -3,10 +3,21 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
+
+// wireSessionErr maps the session domain's not-found sentinel onto the wire
+// sentinel, passing every other error through unchanged.
+func wireSessionErr(err error) error {
+	if errors.Is(err, session.ErrNotFound) {
+		return protocol.ErrSessionNotFound
+	}
+	return err
+}
 
 // ListSessions paginates over the in-process session.Service. The
 // backing store has no cursor pagination yet — the full list comes back
@@ -39,10 +50,7 @@ func (i *Server) ListSessions(ctx context.Context, q protocol.PageQuery) (*proto
 func (i *Server) GetSession(ctx context.Context, id string) (*protocol.Session, error) {
 	s, err := i.rt.Session().Get(ctx, id)
 	if err != nil {
-		if errors.Is(err, session.ErrNotFound) {
-			return nil, protocol.ErrSessionNotFound
-		}
-		return nil, err
+		return nil, wireSessionErr(err)
 	}
 	out := i.sessionToWire(s)
 	return &out, nil
@@ -68,18 +76,45 @@ func (i *Server) DeleteSession(ctx context.Context, id string) error {
 		return protocol.ErrSessionNotFound
 	}
 	if err := i.rt.Session().Delete(ctx, id); err != nil {
-		if errors.Is(err, session.ErrNotFound) {
-			return protocol.ErrSessionNotFound
-		}
-		return err
+		return wireSessionErr(err)
 	}
 	return nil
 }
 
-// UpdateSession — session.Service has no update verb yet; title /
-// model / relocate edits aren't wired. Gated off (features.relocate).
-func (i *Server) UpdateSession(_ context.Context, _ protocol.UpdateSessionRequest) (*protocol.Session, error) {
-	return nil, notImpl("sessions.update")
+// UpdateSession applies a sessions.update edit. Title (rename) and model are
+// live; cwd-relocate and metadata edits aren't backed yet and report
+// capability_not_negotiated (features.relocate off). Nil fields are left alone;
+// the updated session is returned. The dispatch layer already rejects an empty
+// SessionID.
+func (i *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionRequest) (*protocol.Session, error) {
+	if in.Cwd != nil {
+		return nil, notImpl("sessions.update (relocate)")
+	}
+	if in.Metadata != nil {
+		return nil, notImpl("sessions.update (metadata)")
+	}
+
+	if in.Title != nil {
+		title := strings.TrimSpace(*in.Title)
+		if title == "" {
+			return nil, fmt.Errorf("%w: title must not be empty", protocol.ErrInvalidParams)
+		}
+		if err := i.rt.Session().Rename(ctx, in.SessionID, title); err != nil {
+			return nil, wireSessionErr(err)
+		}
+	}
+	if in.Model != nil {
+		if err := i.rt.Session().SetModel(ctx, in.SessionID, *in.Model); err != nil {
+			return nil, wireSessionErr(err)
+		}
+	}
+
+	s, err := i.rt.Session().Get(ctx, in.SessionID)
+	if err != nil {
+		return nil, wireSessionErr(err)
+	}
+	out := i.sessionToWire(s)
+	return &out, nil
 }
 
 // ForkSession — fork at an item boundary depends on the checkpoint /

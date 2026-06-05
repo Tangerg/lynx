@@ -108,4 +108,10 @@ type Service interface {
 	// Session.model). Called when a run explicitly selects a provider+model.
 	// Returns ErrNotFound for an unknown id.
 	SetModel(ctx context.Context, id, model string) error
+
+	// Rename changes the session's human-readable title and refreshes
+	// UpdatedAt. Backs sessions.update's title edit. The caller is
+	// responsible for rejecting empty titles; this records whatever it is
+	// given. Returns ErrNotFound for an unknown id.
+	Rename(ctx context.Context, id, title string) error
 }
