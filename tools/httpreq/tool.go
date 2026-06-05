@@ -3,6 +3,7 @@ package httpreq
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -23,7 +24,7 @@ type Tool struct {
 // be configured explicitly.
 func NewTool(client *Client) (*Tool, error) {
 	if client == nil {
-		return nil, fmt.Errorf("httpreq: client is required")
+		return nil, errors.New("httpreq: client is required")
 	}
 	return &Tool{client: client}, nil
 }
