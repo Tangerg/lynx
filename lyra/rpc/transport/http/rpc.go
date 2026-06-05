@@ -38,11 +38,11 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 	// effort decoding. Content-Type is only enforced when present (a
 	// minimal client may omit it); when set it must be application/json.
 	if ct := strings.TrimSpace(r.Header.Get("Content-Type")); ct != "" && !isJSONMediaType(ct) {
-		writeFlatError(w, r, http.StatusUnsupportedMediaType, "content-type must be application/json", false)
+		writeFlatError(w, http.StatusUnsupportedMediaType, "content-type must be application/json", false)
 		return
 	}
 	if r.ContentLength > maxRPCBodyBytes {
-		writeFlatError(w, r, http.StatusRequestEntityTooLarge, "request body exceeds limit", false)
+		writeFlatError(w, http.StatusRequestEntityTooLarge, "request body exceeds limit", false)
 		return
 	}
 
@@ -50,11 +50,11 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 	// overflows surfaces as 413 rather than silently truncating.
 	body, err := io.ReadAll(io.LimitReader(r.Body, maxRPCBodyBytes+1))
 	if err != nil {
-		writeFlatError(w, r, http.StatusBadRequest, "read body: "+err.Error(), false)
+		writeFlatError(w, http.StatusBadRequest, "read body: "+err.Error(), false)
 		return
 	}
 	if len(body) > maxRPCBodyBytes {
-		writeFlatError(w, r, http.StatusRequestEntityTooLarge, "request body exceeds limit", false)
+		writeFlatError(w, http.StatusRequestEntityTooLarge, "request body exceeds limit", false)
 		return
 	}
 
@@ -90,7 +90,6 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 		if methodLabel != "" {
 			w.Header().Set("X-Method", methodLabel)
 		}
-		echoTraceID(w, r)
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -113,7 +112,6 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request, urlMethod stri
 	if methodLabel != "" {
 		w.Header().Set("X-Method", methodLabel)
 	}
-	echoTraceID(w, r)
 	w.WriteHeader(status)
 	data, err := transport.EncodeMessage(res.Response)
 	if err != nil {
@@ -171,23 +169,20 @@ func chooseMethodLabel(urlMethod, bodyMethod string) string {
 
 // writeFlatError serves 4xx/5xx responses that originate BELOW the
 // JSON-RPC layer (bad path, unread body, failed auth, dead stream) — a
-// flat JSON envelope `{"error", "traceId"?}` (TRANSPORT §6.3), NOT the
-// JSON-RPC envelope, since there may be no valid request id. X-Trace-Id
-// is echoed into the body's `traceId` for ops correlation. noCache adds
-// Cache-Control: no-store (auth failures must not be cached).
-func writeFlatError(w http.ResponseWriter, r *http.Request, status int, msg string, noCache bool) {
+// flat JSON envelope `{"error"}` (TRANSPORT §6.3), NOT the JSON-RPC
+// envelope, since there may be no valid request id. Trace correlation is
+// W3C-only: the request's traceparent already drives the server span, so
+// ops find the failure by its OTel trace_id (no separate id header).
+// noCache adds Cache-Control: no-store (auth failures must not be cached).
+func writeFlatError(w http.ResponseWriter, status int, msg string, noCache bool) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if noCache {
 		w.Header().Set("Cache-Control", "no-store")
 	}
 	w.WriteHeader(status)
 	body := struct {
-		Error   string `json:"error"`
-		TraceID string `json:"traceId,omitempty"`
+		Error string `json:"error"`
 	}{Error: msg}
-	if r != nil {
-		body.TraceID = strings.TrimSpace(r.Header.Get("X-Trace-Id"))
-	}
 	_ = json.NewEncoder(w).Encode(body)
 }
 
@@ -201,16 +196,6 @@ func writeRPCError(w http.ResponseWriter, status int, id transport.ID, rpcErr *t
 	if data, err := transport.EncodeMessage(resp); err == nil {
 		_, _ = w.Write(data)
 	}
-}
-
-// echoTraceID copies the client-supplied X-Trace-Id into the
-// response's X-Trace-Id header (TRANSPORT §16).
-func echoTraceID(w http.ResponseWriter, r *http.Request) {
-	traceID := strings.TrimSpace(r.Header.Get("X-Trace-Id"))
-	if traceID == "" {
-		return
-	}
-	w.Header().Set("X-Trace-Id", traceID)
 }
 
 // isJSONMediaType reports whether a Content-Type header denotes JSON.
