@@ -5,11 +5,11 @@
 // consistent across the 27-provider matrix.
 //
 // Per doc/OBSERVABILITY.md §3.2 the attributes follow the OTel DB
-// semconv plus the lynx vector-specific extensions:
+// semconv plus one bare-domain extension (no brand prefix):
 //
 //	db.system                            — provider id ("qdrant", "pgvector", ...)
 //	db.operation.name                    — "create" / "retrieve" / "delete"
 //	db.vector.query.top_k                — RetrievalRequest.TopK
 //	db.vector.query.similarity_threshold — RetrievalRequest.MinScore
-//	lynx.rag.doc_count                   — result size (retrieve) or input size (create)
+//	rag.doc_count                        — result size (retrieve) or input size (create)
 package tracing
