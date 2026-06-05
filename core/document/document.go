@@ -82,18 +82,27 @@ func (d *Document) EnsureID(ctx context.Context, generator id.Generator) error {
 
 // Format renders the document with all metadata included.
 func (d *Document) Format() string {
+	if d == nil {
+		return ""
+	}
 	return d.FormatByMetadataMode(MetadataModeAll)
 }
 
 // FormatByMetadataMode renders the document with the supplied metadata
 // mode using the document's installed [Formatter].
 func (d *Document) FormatByMetadataMode(mode MetadataMode) string {
+	if d == nil {
+		return ""
+	}
 	return d.FormatWith(mode, d.Formatter)
 }
 
 // FormatWith renders the document with the supplied metadata mode and
 // formatter, falling back to a no-op when formatter is nil.
 func (d *Document) FormatWith(mode MetadataMode, formatter Formatter) string {
+	if d == nil {
+		return ""
+	}
 	if formatter == nil {
 		formatter = NewNop()
 	}

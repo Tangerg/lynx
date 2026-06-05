@@ -126,7 +126,7 @@ func NewMedia(mimeType *mime.MIME, data any) (*Media, error) {
 // DataAsBytes returns the payload as []byte. Returns an error when Data
 // is nil or holds a non-bytes value.
 func (m *Media) DataAsBytes() ([]byte, error) {
-	if m.Data == nil {
+	if m == nil || m.Data == nil {
 		return nil, errors.New("media.DataAsBytes: data is nil")
 	}
 
@@ -140,7 +140,7 @@ func (m *Media) DataAsBytes() ([]byte, error) {
 // DataAsString returns the payload as a string. Returns an error when
 // Data is nil or holds a non-string value.
 func (m *Media) DataAsString() (string, error) {
-	if m.Data == nil {
+	if m == nil || m.Data == nil {
 		return "", errors.New("media.DataAsString: data is nil")
 	}
 
