@@ -442,7 +442,7 @@ func FilterMessages(messages []Message, predicate func(message Message) bool) []
 		panic("chat.FilterMessages: predicate must not be nil")
 	}
 	if len(messages) == 0 {
-		return make([]Message, 0)
+		return nil
 	}
 
 	out := make([]Message, 0, len(messages))
@@ -514,7 +514,7 @@ func MergeUserMessages(messages []Message) *UserMessage {
 
 	var text strings.Builder
 	merged := make(map[string]any)
-	mergedMedia := make([]*media.Media, 0)
+	var mergedMedia []*media.Media
 
 	for _, m := range users {
 		u := m.(*UserMessage)
@@ -543,7 +543,7 @@ func MergeToolMessages(messages []Message) (*ToolMessage, error) {
 	}
 
 	merged := make(map[string]any)
-	mergedReturns := make([]*ToolReturn, 0)
+	var mergedReturns []*ToolReturn
 
 	for _, m := range tools {
 		tm := m.(*ToolMessage)
