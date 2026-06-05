@@ -159,10 +159,7 @@ func (t *TokenSplitter) splitByTokens(ctx context.Context, text string) ([]strin
 			windowText = windowText[:lastPunct+1]
 		}
 
-		final := strings.TrimSpace(windowText)
-		if !t.keepSeparator {
-			final = strings.TrimSpace(strings.ReplaceAll(windowText, "\n", " "))
-		}
+		final := t.cleanChunk(windowText)
 		if len(final) > t.minEmbedLength {
 			chunks = append(chunks, final)
 		}
@@ -183,13 +180,23 @@ func (t *TokenSplitter) splitByTokens(ctx context.Context, text string) ([]strin
 		if err != nil {
 			return nil, err
 		}
-		final := strings.TrimSpace(strings.ReplaceAll(tail, "\n", " "))
+		final := t.cleanChunk(tail)
 		if len(final) > t.minEmbedLength {
 			chunks = append(chunks, final)
 		}
 	}
 
 	return chunks, nil
+}
+
+// cleanChunk trims surrounding whitespace and, unless separators are
+// kept, collapses newlines to spaces. Both the windowed chunks and the
+// trailing remainder run through it so they normalize identically.
+func (t *TokenSplitter) cleanChunk(s string) string {
+	if !t.keepSeparator {
+		s = strings.ReplaceAll(s, "\n", " ")
+	}
+	return strings.TrimSpace(s)
 }
 
 // lastSentenceEnd returns the highest byte index of any of ., ?, !, \n
