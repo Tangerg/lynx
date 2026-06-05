@@ -221,18 +221,42 @@ func (m *middleware) saveResponseMessages(ctx context.Context, req *chat.Request
 	return m.persistMessages(ctx, req, msgs...)
 }
 
+// saveResumedTurn persists a HITL resume segment's net-new messages in
+// conversation ORDER, so the stored history stays a valid provider
+// sequence. The fed request carries the turn's mid-flight conversation up
+// to the assistant tool-call message the interrupt parked on — rounds that
+// were never persisted mid-turn — and this segment adds the tool results +
+// the final assistant. Persisting the unsaved request tail FIRST keeps the
+// tool message right after its assistant(tool_calls). Saving only the
+// accumulated [finalAssistant, toolMessage] (saveResponseMessages) would
+// orphan the tool message after the text-only final assistant, which the
+// provider rejects on the next load ("'tool' must follow 'tool_calls'").
+func (m *middleware) saveResumedTurn(ctx context.Context, req *chat.Request, resp *chat.Response) error {
+	msgs := m.filterUnsavedMessages(req.Messages)
+	if resp.Result != nil {
+		if resp.Result.ToolMessage != nil {
+			msgs = append(msgs, resp.Result.ToolMessage)
+		}
+		if resp.Result.AssistantMessage != nil {
+			msgs = append(msgs, resp.Result.AssistantMessage)
+		}
+	}
+	return m.persistMessages(ctx, req, msgs...)
+}
+
 // executeCall is the synchronous flow: prepare → call → save.
 func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next chat.CallHandler) (*chat.Response, error) {
 	if isResumedTurn(ctx) {
 		// Continuation of a suspended turn: input was persisted on the first
 		// segment and the tool loop resumes from its checkpoint, so pass the
-		// request straight through (no load, no re-persist) — but still save
-		// the segment's final result.
+		// request straight through (no load) — and persist the net-new
+		// messages in conversation order (saveResumedTurn) so the stored
+		// history stays a valid sequence.
 		resp, err := next.Call(ctx, req)
 		if err != nil {
 			return nil, err
 		}
-		if err := m.saveResponseMessages(ctx, req, resp); err != nil {
+		if err := m.saveResumedTurn(ctx, req, resp); err != nil {
 			return nil, err
 		}
 		return resp, nil
@@ -291,7 +315,11 @@ func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next 
 			}
 		}
 
-		if err := m.saveResponseMessages(ctx, req, &acc.Response); err != nil {
+		save := m.saveResponseMessages
+		if isResumedTurn(ctx) {
+			save = m.saveResumedTurn
+		}
+		if err := save(ctx, req, &acc.Response); err != nil {
 			yield(nil, err)
 		}
 	}
