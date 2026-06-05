@@ -120,11 +120,16 @@ func (d OperationMetrics) baseAttrs() []attribute.KeyValue {
 // Record is a no-op, so this is zero-cost by default.
 func RecordOperationMetrics(ctx context.Context, dims OperationMetrics, usage *Usage, elapsed time.Duration, err error) {
 	base := dims.baseAttrs()
+	// withAttr returns base plus one extra tag, copied into a fresh
+	// slice so the appends never alias base's backing array across the
+	// three Record calls below.
+	withAttr := func(extra attribute.KeyValue) []attribute.KeyValue {
+		return append(append([]attribute.KeyValue(nil), base...), extra)
+	}
 
 	durationAttrs := base
 	if errType := errorTypeName(err); errType != "" {
-		durationAttrs = append(append([]attribute.KeyValue(nil), base...),
-			attribute.String(attrMetricErrorType, errType))
+		durationAttrs = withAttr(attribute.String(attrMetricErrorType, errType))
 	}
 	operationDurationHistogram.Record(ctx, elapsed.Seconds(), metric.WithAttributes(durationAttrs...))
 
@@ -132,12 +137,12 @@ func RecordOperationMetrics(ctx context.Context, dims OperationMetrics, usage *U
 		return
 	}
 	if usage.PromptTokens > 0 {
-		tokenUsageHistogram.Record(ctx, usage.PromptTokens, metric.WithAttributes(
-			append(append([]attribute.KeyValue(nil), base...), attribute.String(attrMetricTokenType, tokenTypeInput))...))
+		tokenUsageHistogram.Record(ctx, usage.PromptTokens,
+			metric.WithAttributes(withAttr(attribute.String(attrMetricTokenType, tokenTypeInput))...))
 	}
 	if usage.CompletionTokens > 0 {
-		tokenUsageHistogram.Record(ctx, usage.CompletionTokens, metric.WithAttributes(
-			append(append([]attribute.KeyValue(nil), base...), attribute.String(attrMetricTokenType, tokenTypeOutput))...))
+		tokenUsageHistogram.Record(ctx, usage.CompletionTokens,
+			metric.WithAttributes(withAttr(attribute.String(attrMetricTokenType, tokenTypeOutput))...))
 	}
 }
 
