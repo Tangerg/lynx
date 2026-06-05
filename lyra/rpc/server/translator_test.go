@@ -1,6 +1,7 @@
 package server
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/lyra/internal/service/chat"
@@ -181,5 +182,38 @@ func TestTranslator_ResumedQuestionCompletes(t *testing.T) {
 	// Emitted once — a second open() yields run.started alone.
 	if again := tr.open(); len(again) != 1 {
 		t.Fatalf("second open() re-emitted the question completion: %+v", again)
+	}
+}
+
+// TestClassifyRunError buckets provider/transient failures into provider_error
+// (with a clean, non-leaking detail) and leaves the rest internal_error — so
+// the client can react (back off / re-key) instead of opaque-retrying, and the
+// raw message (URL / Go call path) never reaches the wire.
+func TestClassifyRunError(t *testing.T) {
+	cases := []struct {
+		name, msg, wantType string
+		leakFragment        string // must NOT appear in the wire detail
+	}{
+		{"rate limit", `engine: run chat: POST "https://api.deepseek.com/v1": 429 Too Many Requests {"x"}`, "provider_error", "deepseek.com"},
+		{"auth", `POST "https://api.deepseek.com": 401 Unauthorized`, "provider_error", "api.deepseek.com"},
+		{"provider 5xx", `POST "https://api.x": 503 Service Unavailable`, "provider_error", "api.x"},
+		{"timeout", `Post "https://api.x": context deadline exceeded`, "provider_error", "api.x"},
+		{"bad request", `POST "https://api.x": 400 Bad Request invalid_request_error`, "provider_error", "api.x"},
+		{"genuine internal", `engine: deploy chat agent: blackboard nil pointer`, "internal_error", ""},
+		{"empty", ``, "internal_error", ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := classifyRunError(c.msg)
+			if got.Type != c.wantType {
+				t.Fatalf("type = %q, want %q (msg=%q)", got.Type, c.wantType, c.msg)
+			}
+			if got.Detail == "" {
+				t.Fatalf("detail must not be empty")
+			}
+			if c.leakFragment != "" && strings.Contains(got.Detail, c.leakFragment) {
+				t.Fatalf("detail leaked %q: %q", c.leakFragment, got.Detail)
+			}
+		})
 	}
 }
