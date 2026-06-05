@@ -84,11 +84,6 @@ type Job struct {
 	Language        string  `json:"language"`
 }
 
-// Transcript is the simplified transcript shape (text/plain rendering).
-// Rev's /jobs/{id}/transcript returns either text or JSON; we ask for
-// text by setting Accept: text/plain.
-type Transcript = string
-
 // SubmitURL queues a job pointing at media_url. Use Upload when the
 // caller has bytes instead.
 func (a *API) SubmitURL(ctx context.Context, opts JobOptions) (*Job, error) {
