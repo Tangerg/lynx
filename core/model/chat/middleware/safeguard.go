@@ -128,14 +128,9 @@ func (m *safeguardMiddleware) wrapCall(next chat.CallHandler) chat.CallHandler {
 			return resp, err
 		}
 
-		if m.opts.Scope.inspectsOutput() && resp != nil && resp.Result != nil && resp.Result.AssistantMessage != nil {
-			text := resp.Result.AssistantMessage.JoinedText()
-			if text != "" {
-				if term, hit := m.matcher.Match(ctx, text); hit {
-					m.opts.OnBlock(ctx, ScopeOutput, term)
-					return nil, blockError(ScopeOutput, term)
-				}
-			}
+		if term, hit := m.scanOutput(ctx, resp); hit {
+			m.opts.OnBlock(ctx, ScopeOutput, term)
+			return nil, blockError(ScopeOutput, term)
 		}
 		return resp, nil
 	})
@@ -164,19 +159,29 @@ func (m *safeguardMiddleware) wrapStream(next chat.StreamHandler) chat.StreamHan
 					return
 				}
 
-				if m.opts.Scope.inspectsOutput() && resp != nil && resp.Result != nil && resp.Result.AssistantMessage != nil {
-					text := resp.Result.AssistantMessage.JoinedText()
-					if text != "" {
-						if term, hit := m.matcher.Match(ctx, text); hit {
-							m.opts.OnBlock(ctx, ScopeOutput, term)
-							yield(nil, blockError(ScopeOutput, term))
-							return
-						}
-					}
+				if term, hit := m.scanOutput(ctx, resp); hit {
+					m.opts.OnBlock(ctx, ScopeOutput, term)
+					yield(nil, blockError(ScopeOutput, term))
+					return
 				}
 			}
 		}
 	})
+}
+
+// scanOutput runs the response's assistant text through the matcher when
+// the output scope is active, returning the matched term and true on a
+// hit. resp.TextDelta is nil-safe, so a nil response or a tool-result
+// chunk (no assistant text) simply yields no hit.
+func (m *safeguardMiddleware) scanOutput(ctx context.Context, resp *chat.Response) (string, bool) {
+	if !m.opts.Scope.inspectsOutput() {
+		return "", false
+	}
+	text := resp.TextDelta()
+	if text == "" {
+		return "", false
+	}
+	return m.matcher.Match(ctx, text)
 }
 
 // scanInputs walks system / user messages and runs each non-empty
