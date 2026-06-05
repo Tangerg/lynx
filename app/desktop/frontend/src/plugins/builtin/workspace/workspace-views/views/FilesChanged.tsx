@@ -26,6 +26,12 @@ export function FilesChanged({ files, activePath, onSelect }: Props) {
   );
 }
 
+const CHANGE_TAG: Record<FileChange["change"], { color: string; letter: string }> = {
+  add: { color: "text-accent", letter: "A" },
+  del: { color: "text-negative", letter: "D" },
+  mod: { color: "text-warning", letter: "M" },
+};
+
 function FileRow({
   file,
   active,
@@ -35,13 +41,7 @@ function FileRow({
   active: boolean;
   onSelect: (p: string) => void;
 }) {
-  const tagColor =
-    file.change === "add"
-      ? "text-accent"
-      : file.change === "del"
-        ? "text-negative"
-        : "text-warning";
-  const tagLetter = file.change === "add" ? "A" : file.change === "del" ? "D" : "M";
+  const { color: tagColor, letter: tagLetter } = CHANGE_TAG[file.change];
   return (
     <button
       type="button"

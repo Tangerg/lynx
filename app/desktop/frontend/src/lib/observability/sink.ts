@@ -24,6 +24,10 @@ const EXPORT_SUCCESS = 0; // ExportResultCode.SUCCESS
 const CUMULATIVE_TEMPORALITY = 1 as AggregationTemporality;
 const STATUS_ERROR = 2; // SpanStatusCode.ERROR
 const STATUS_OK = 1; // SpanStatusCode.OK
+const STATUS_TONE: Record<number, SpanRow["status"]> = {
+  [STATUS_ERROR]: "error",
+  [STATUS_OK]: "ok",
+};
 
 // One flush window for span/log batches — coalesces a burst into a single
 // store commit. Matches the metric reader's cadence so the view ticks once.
@@ -99,7 +103,7 @@ export class LocalSpanProcessor implements SpanProcessor {
       kind: SPAN_KIND[span.kind] ?? String(span.kind),
       startMs: hrToMs(span.startTime),
       durationMs: hrToMs(span.duration),
-      status: code === STATUS_ERROR ? "error" : code === STATUS_OK ? "ok" : "unset",
+      status: STATUS_TONE[code] ?? "unset",
       attrs: flattenAttrs(span.attributes),
     });
   }
