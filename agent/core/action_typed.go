@@ -153,7 +153,7 @@ func NewAction[In, Out any](
 		OutputBinding:   config.OutputBinding,
 		ClearBlackboard: config.ClearBlackboard,
 	}
-	meta.Preconditions, meta.Effects = computePreconditionsAndEffects(meta, config.Pre, config.Post)
+	meta.Preconditions, meta.Effects = meta.computePreconditionsAndEffects(config.Pre, config.Post)
 
 	return &typedAction[In, Out]{metadata: meta, fn: fn}
 }
@@ -171,7 +171,7 @@ func resolveBindingName(name string) string {
 // .effects in embabel: every input binding becomes a True precondition,
 // every output binding becomes a True effect, and the hasRun_<name>
 // condition is toggled to keep canRerun=false actions from looping.
-func computePreconditionsAndEffects(meta ActionMetadata, extraPre, extraPost []string) (Effects, Effects) {
+func (meta ActionMetadata) computePreconditionsAndEffects(extraPre, extraPost []string) (Effects, Effects) {
 	pre := Effects{}
 	eff := Effects{}
 

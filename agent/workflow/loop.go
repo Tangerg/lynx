@@ -127,7 +127,7 @@ func Loop[In, Out any](
 			if err != nil {
 				return zero, fmt.Errorf("iteration %d: %w", history.Count(), err)
 			}
-			if err := runtime.ChildError(child); err != nil {
+			if err := child.TerminalError(); err != nil {
 				return zero, fmt.Errorf("iteration %d (%s): %w", history.Count(), spec.Body.Name, err)
 			}
 

@@ -69,7 +69,7 @@ func (p *AgentProcess) maybeAutoSnapshot(ctx context.Context) {
 		return
 	}
 
-	if err := p.platform.processStore.Save(ctx, SnapshotProcess(p)); err != nil {
+	if err := p.platform.processStore.Save(ctx, p.Snapshot()); err != nil {
 		_, span := core.AgentTracer().Start(ctx, "agent.auto_snapshot")
 		span.SetAttributes(attribute.String(attrProcessID, p.id))
 		finishSpanWithError(span, err)

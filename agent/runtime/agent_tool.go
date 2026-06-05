@@ -52,11 +52,11 @@ func (t *agentTool) Call(ctx context.Context, arguments string) (string, error) 
 
 	// Waiting is special — surface as JSON tool result instead of an
 	// error so the calling LLM can decide to drop the path or re-plan.
-	// All other non-Completed statuses bubble up via ChildError.
+	// All other non-Completed statuses bubble up via TerminalError.
 	if proc.Status() == core.StatusWaiting {
 		return waitingResultText(t.agent.Name, proc), nil
 	}
-	if err := ChildError(proc); err != nil {
+	if err := proc.TerminalError(); err != nil {
 		return "", fmt.Errorf("%s %q (process %q): %w", t.label, t.agent.Name, proc.ID(), err)
 	}
 

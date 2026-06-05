@@ -11,7 +11,7 @@ import (
 // Deploy registers an agent after a multi-layer validation that reports
 // every problem at once (embabel-style) rather than stopping at the first:
 //
-//  1. [core.ValidateAgent] checks structural invariants.
+//  1. [core.Agent.Validate] checks structural invariants.
 //  2. [checkGoalsReachable] does a one-step producer scan for GOAP so
 //     every unreachable goal fails at deploy time, not first tick.
 //  3. Every [core.AgentValidator] extension runs; each error is collected
@@ -41,11 +41,11 @@ func (p *Platform) Deploy(a *core.Agent) error {
 // run without one.
 func (p *Platform) validateForDeploy(a *core.Agent) error {
 	if a == nil {
-		return fmt.Errorf("deploy agent: %w", core.ValidateAgent(a))
+		return fmt.Errorf("deploy agent: %w", a.Validate())
 	}
 
 	var problems []error
-	if err := core.ValidateAgent(a); err != nil {
+	if err := a.Validate(); err != nil {
 		problems = append(problems, fmt.Errorf("structure: %w", err))
 	}
 	problems = append(problems, checkGoalsReachable(a)...)

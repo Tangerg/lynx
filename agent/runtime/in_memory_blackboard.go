@@ -246,7 +246,7 @@ func (b *inMemoryBlackboard) Inspect(verbose bool) string {
 
 // Snapshot implements [BlackboardSnapshotter] — returns shallow copies
 // of the named bindings, conditions, and ordered objects list so the
-// [SnapshotProcess] helper can persist them. Hidden + protected
+// [AgentProcess.Snapshot] helper can persist them. Hidden + protected
 // markers are deliberately omitted: protected re-applies naturally at
 // restore time (a freshly-restored process behaves as though no
 // reset has occurred), and Hide markers are a transient view filter

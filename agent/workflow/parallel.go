@@ -90,7 +90,7 @@ func Parallel[In, Element, Result any](
 			if err != nil {
 				return zero, fmt.Errorf("agent %q: %w", sub.Name, err)
 			}
-			if err := runtime.ChildError(child); err != nil {
+			if err := child.TerminalError(); err != nil {
 				return zero, fmt.Errorf("agent %q: %w", sub.Name, err)
 			}
 			out, ok := core.ResultOfType[Element](child)

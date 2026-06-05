@@ -21,7 +21,7 @@ func (p *Platform) createProcess(
 	if agentDef == nil {
 		return nil, errors.New("create process: agent definition is nil")
 	}
-	if err := core.ValidateAgent(agentDef); err != nil {
+	if err := agentDef.Validate(); err != nil {
 		return nil, fmt.Errorf("create process: %w", err)
 	}
 	if err := validateProcessExtensions(options.Extensions); err != nil {

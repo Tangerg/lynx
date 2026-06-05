@@ -24,9 +24,9 @@ func TestValidateAgentRejectsNilAction(t *testing.T) {
 		Goals:   []*core.Goal{{Name: "goal"}},
 	})
 
-	err := core.ValidateAgent(a)
+	err := a.Validate()
 	if err == nil || !strings.Contains(err.Error(), "action at index 0 is nil") {
-		t.Fatalf("ValidateAgent error = %v, want nil action index", err)
+		t.Fatalf("Validate error = %v, want nil action index", err)
 	}
 }
 
@@ -37,9 +37,9 @@ func TestValidateAgentRejectsNilGoalWithIndex(t *testing.T) {
 		Goals:   []*core.Goal{nil},
 	})
 
-	err := core.ValidateAgent(a)
+	err := a.Validate()
 	if err == nil || !strings.Contains(err.Error(), "goal at index 0 is nil") {
-		t.Fatalf("ValidateAgent error = %v, want nil goal index", err)
+		t.Fatalf("Validate error = %v, want nil goal index", err)
 	}
 }
 
@@ -51,17 +51,17 @@ func TestValidateAgentRejectsInvalidConditions(t *testing.T) {
 	}
 
 	base.Conditions = []core.Condition{nil}
-	if err := core.ValidateAgent(core.NewAgent(base)); err == nil || !strings.Contains(err.Error(), "condition at index 0 is nil") {
+	if err := core.NewAgent(base).Validate(); err == nil || !strings.Contains(err.Error(), "condition at index 0 is nil") {
 		t.Fatalf("nil condition error = %v", err)
 	}
 
 	base.Conditions = []core.Condition{core.NewCondition("", nil)}
-	if err := core.ValidateAgent(core.NewAgent(base)); err == nil || !strings.Contains(err.Error(), "condition at index 0 has empty name") {
+	if err := core.NewAgent(base).Validate(); err == nil || !strings.Contains(err.Error(), "condition at index 0 has empty name") {
 		t.Fatalf("empty condition error = %v", err)
 	}
 
 	base.Conditions = []core.Condition{core.NewCondition("ready", nil), core.NewCondition("ready", nil)}
-	if err := core.ValidateAgent(core.NewAgent(base)); err == nil || !strings.Contains(err.Error(), "duplicate condition name") {
+	if err := core.NewAgent(base).Validate(); err == nil || !strings.Contains(err.Error(), "duplicate condition name") {
 		t.Fatalf("duplicate condition error = %v", err)
 	}
 }
