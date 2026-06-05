@@ -85,62 +85,62 @@ func (m *ModerationModel) buildModerationResponse(resp *openai.ModerationNewResp
 	results := make([]*moderation.Result, 0, len(resp.Results))
 
 	for _, item := range resp.Results {
-		mod := &moderation.Moderation{
-			Harassment: moderation.Category{
+		cats := &moderation.Categories{
+			Harassment: moderation.Verdict{
 				Flagged: item.Categories.Harassment,
 				Score:   item.CategoryScores.Harassment,
 			},
-			HarassmentThreatening: moderation.Category{
+			HarassmentThreatening: moderation.Verdict{
 				Flagged: item.Categories.HarassmentThreatening,
 				Score:   item.CategoryScores.HarassmentThreatening,
 			},
-			Hate: moderation.Category{
+			Hate: moderation.Verdict{
 				Flagged: item.Categories.Hate,
 				Score:   item.CategoryScores.Hate,
 			},
-			HateThreatening: moderation.Category{
+			HateThreatening: moderation.Verdict{
 				Flagged: item.Categories.HateThreatening,
 				Score:   item.CategoryScores.HateThreatening,
 			},
-			Illicit: moderation.Category{
+			Illicit: moderation.Verdict{
 				Flagged: item.Categories.Illicit,
 				Score:   item.CategoryScores.Illicit,
 			},
-			IllicitViolent: moderation.Category{
+			IllicitViolent: moderation.Verdict{
 				Flagged: item.Categories.IllicitViolent,
 				Score:   item.CategoryScores.IllicitViolent,
 			},
-			SelfHarm: moderation.Category{
+			SelfHarm: moderation.Verdict{
 				Flagged: item.Categories.SelfHarm,
 				Score:   item.CategoryScores.SelfHarm,
 			},
-			SelfHarmInstructions: moderation.Category{
+			SelfHarmInstructions: moderation.Verdict{
 				Flagged: item.Categories.SelfHarmInstructions,
 				Score:   item.CategoryScores.SelfHarmInstructions,
 			},
-			SelfHarmIntent: moderation.Category{
+			SelfHarmIntent: moderation.Verdict{
 				Flagged: item.Categories.SelfHarmIntent,
 				Score:   item.CategoryScores.SelfHarmIntent,
 			},
-			Sexual: moderation.Category{
+			Sexual: moderation.Verdict{
 				Flagged: item.Categories.Sexual,
 				Score:   item.CategoryScores.Sexual,
 			},
-			SexualMinors: moderation.Category{
+			SexualMinors: moderation.Verdict{
 				Flagged: item.Categories.SexualMinors,
 				Score:   item.CategoryScores.SexualMinors,
 			},
-			Violence: moderation.Category{
+			Violence: moderation.Verdict{
 				Flagged: item.Categories.Violence,
 				Score:   item.CategoryScores.Violence,
 			},
-			ViolenceGraphic: moderation.Category{
+			ViolenceGraphic: moderation.Verdict{
 				Flagged: item.Categories.ViolenceGraphic,
 				Score:   item.CategoryScores.ViolenceGraphic,
 			},
 		}
 
-		result, err := moderation.NewResult(mod, &moderation.ResultMetadata{})
+		result, err := moderation.NewResult(cats, &moderation.ResultMetadata{})
 		if err != nil {
 			return nil, err
 		}

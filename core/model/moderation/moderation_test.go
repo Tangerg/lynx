@@ -33,8 +33,8 @@ func (m *fakeModerationModel) Call(ctx context.Context, req *moderation.Request)
 	if m.respond != nil {
 		return m.respond(req)
 	}
-	mod := &moderation.Moderation{}
-	res, _ := moderation.NewResult(mod, &moderation.ResultMetadata{})
+	cats := &moderation.Categories{}
+	res, _ := moderation.NewResult(cats, &moderation.ResultMetadata{})
 	resp, _ := moderation.NewResponse([]*moderation.Result{res}, &moderation.ResponseMetadata{})
 	return resp, nil
 }
@@ -51,13 +51,13 @@ func TestNewRequest_RequiresTexts(t *testing.T) {
 	}
 }
 
-func TestModeration_FlaggedAggregates(t *testing.T) {
-	m := &moderation.Moderation{}
-	if m.Flagged() {
-		t.Fatal("default Moderation must not be flagged")
+func TestCategories_FlaggedAggregates(t *testing.T) {
+	c := &moderation.Categories{}
+	if c.Flagged() {
+		t.Fatal("default Categories must not be flagged")
 	}
-	m.Hate.Flagged = true
-	if !m.Flagged() {
+	c.Hate.Flagged = true
+	if !c.Flagged() {
 		t.Fatal("Hate.Flagged must propagate to Flagged()")
 	}
 }
@@ -68,38 +68,38 @@ func TestNewClient_RejectsNilModel(t *testing.T) {
 	}
 }
 
-func TestClient_ModerateWithText_ReturnsModeration(t *testing.T) {
+func TestClient_ModerateWithText_ReturnsCategories(t *testing.T) {
 	model := newFakeModerationModel(t)
 	client, err := moderation.NewClient(model)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	mod, _, err := client.ModerateWithText("hi").Call().Moderation(context.Background())
+	cats, _, err := client.ModerateWithText("hi").Call().Categories(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if mod == nil {
-		t.Fatal("Moderation is nil")
+	if cats == nil {
+		t.Fatal("Categories is nil")
 	}
 	if model.lastReq.Texts[0] != "hi" {
 		t.Fatalf("Texts[0] = %q", model.lastReq.Texts[0])
 	}
 }
 
-func TestClient_Moderations_ReturnsAll(t *testing.T) {
+func TestClient_AllCategories_ReturnsAll(t *testing.T) {
 	model := newFakeModerationModel(t)
 	model.respond = func(req *moderation.Request) (*moderation.Response, error) {
 		results := []*moderation.Result{}
 		for range req.Texts {
-			r, _ := moderation.NewResult(&moderation.Moderation{}, &moderation.ResultMetadata{})
+			r, _ := moderation.NewResult(&moderation.Categories{}, &moderation.ResultMetadata{})
 			results = append(results, r)
 		}
 		return moderation.NewResponse(results, &moderation.ResponseMetadata{})
 	}
 	client, _ := moderation.NewClient(model)
 
-	got, _, err := client.ModerateWithTexts([]string{"a", "b", "c"}).Call().Moderations(context.Background())
+	got, _, err := client.ModerateWithTexts([]string{"a", "b", "c"}).Call().AllCategories(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}

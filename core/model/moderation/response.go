@@ -2,9 +2,9 @@ package moderation
 
 import "errors"
 
-// Category is one moderation dimension's verdict — a flagged bit plus a
+// Verdict is one moderation dimension's outcome — a flagged bit plus a
 // confidence score in [0, 1].
-type Category struct {
+type Verdict struct {
 	// Flagged is true when the content violates this category's policy.
 	Flagged bool `json:"flagged"`
 
@@ -12,103 +12,103 @@ type Category struct {
 	Score float64 `json:"score"`
 }
 
-// Moderation aggregates every category a content-moderation provider
+// Categories aggregates every category a content-moderation provider
 // surfaces. Providers vary in which fields they populate — unflagged
 // categories simply leave Flagged=false and Score=0.
 //
 // Field doc comments preserve OpenAI's category descriptions because
 // the policy semantics are part of the API contract callers reason
 // about.
-type Moderation struct {
+type Categories struct {
 	// Sexual covers content meant to arouse sexual excitement or
 	// promote sexual services (sex education / wellness excluded).
-	Sexual Category `json:"sexual"`
+	Sexual Verdict `json:"sexual"`
 
 	// Hate covers content expressing or promoting hate based on race,
 	// gender, ethnicity, religion, nationality, sexual orientation,
 	// disability status, or caste.
-	Hate Category `json:"hate"`
+	Hate Verdict `json:"hate"`
 
 	// Harassment covers content expressing, inciting, or promoting
 	// harassing language toward any target.
-	Harassment Category `json:"harassment"`
+	Harassment Verdict `json:"harassment"`
 
 	// SelfHarm covers content promoting, encouraging, or depicting
 	// acts of self-harm (suicide, cutting, eating disorders).
-	SelfHarm Category `json:"self_harm"`
+	SelfHarm Verdict `json:"self_harm"`
 
 	// SexualMinors covers sexual content involving anyone under 18.
-	SexualMinors Category `json:"sexual_minors"`
+	SexualMinors Verdict `json:"sexual_minors"`
 
 	// HateThreatening covers hateful content that also includes
 	// violence or serious harm toward the targeted group.
-	HateThreatening Category `json:"hate_threatening"`
+	HateThreatening Verdict `json:"hate_threatening"`
 
 	// ViolenceGraphic covers content depicting death, violence, or
 	// physical injury in graphic detail.
-	ViolenceGraphic Category `json:"violence_graphic"`
+	ViolenceGraphic Verdict `json:"violence_graphic"`
 
 	// SelfHarmIntent covers content where the speaker expresses
 	// intent to engage in self-harm.
-	SelfHarmIntent Category `json:"self_harm_intent"`
+	SelfHarmIntent Verdict `json:"self_harm_intent"`
 
 	// SelfHarmInstructions covers content giving instructions or
 	// advice on committing self-harm.
-	SelfHarmInstructions Category `json:"self_harm_instructions"`
+	SelfHarmInstructions Verdict `json:"self_harm_instructions"`
 
 	// HarassmentThreatening covers harassment combined with violence
 	// or threats of serious harm.
-	HarassmentThreatening Category `json:"harassment_threatening"`
+	HarassmentThreatening Verdict `json:"harassment_threatening"`
 
 	// Violence covers content depicting death, violence, or physical
 	// injury (without the "graphic" qualifier).
-	Violence Category `json:"violence"`
+	Violence Verdict `json:"violence"`
 
 	// DangerousAndCriminalContent covers dangerous or criminal content.
-	DangerousAndCriminalContent Category `json:"dangerous_and_criminal_content"`
+	DangerousAndCriminalContent Verdict `json:"dangerous_and_criminal_content"`
 
 	// Health flags health-related misinformation.
-	Health Category `json:"health"`
+	Health Verdict `json:"health"`
 
 	// Financial flags financial misinformation or fraud.
-	Financial Category `json:"financial"`
+	Financial Verdict `json:"financial"`
 
 	// Law flags legal misinformation.
-	Law Category `json:"law"`
+	Law Verdict `json:"law"`
 
 	// Pii flags personally identifiable information.
-	Pii Category `json:"pii"`
+	Pii Verdict `json:"pii"`
 
 	// Illicit flags content giving instructions for committing illicit
 	// acts (e.g. "how to shoplift").
-	Illicit Category `json:"illicit"`
+	Illicit Verdict `json:"illicit"`
 
 	// IllicitViolent flags illicit-act instructions that also involve
 	// violence or weapons procurement.
-	IllicitViolent Category `json:"illicit_violent"`
+	IllicitViolent Verdict `json:"illicit_violent"`
 }
 
 // Flagged reports whether any category fired. Useful when callers only
 // need a yes/no decision without inspecting individual scores.
-func (m *Moderation) Flagged() bool {
-	return m.Sexual.Flagged ||
-		m.Hate.Flagged ||
-		m.Harassment.Flagged ||
-		m.SelfHarm.Flagged ||
-		m.SexualMinors.Flagged ||
-		m.HateThreatening.Flagged ||
-		m.ViolenceGraphic.Flagged ||
-		m.SelfHarmIntent.Flagged ||
-		m.SelfHarmInstructions.Flagged ||
-		m.HarassmentThreatening.Flagged ||
-		m.Violence.Flagged ||
-		m.DangerousAndCriminalContent.Flagged ||
-		m.Health.Flagged ||
-		m.Financial.Flagged ||
-		m.Law.Flagged ||
-		m.Pii.Flagged ||
-		m.Illicit.Flagged ||
-		m.IllicitViolent.Flagged
+func (c *Categories) Flagged() bool {
+	return c.Sexual.Flagged ||
+		c.Hate.Flagged ||
+		c.Harassment.Flagged ||
+		c.SelfHarm.Flagged ||
+		c.SexualMinors.Flagged ||
+		c.HateThreatening.Flagged ||
+		c.ViolenceGraphic.Flagged ||
+		c.SelfHarmIntent.Flagged ||
+		c.SelfHarmInstructions.Flagged ||
+		c.HarassmentThreatening.Flagged ||
+		c.Violence.Flagged ||
+		c.DangerousAndCriminalContent.Flagged ||
+		c.Health.Flagged ||
+		c.Financial.Flagged ||
+		c.Law.Flagged ||
+		c.Pii.Flagged ||
+		c.Illicit.Flagged ||
+		c.IllicitViolent.Flagged
 }
 
 // ResultMetadata holds per-input metadata returned by the provider.
@@ -141,23 +141,23 @@ func (r *ResultMetadata) Set(key string, value any) {
 
 // Result is one input's moderation verdict plus metadata.
 type Result struct {
-	// Moderation holds the per-category verdict.
-	Moderation *Moderation `json:"categories,omitempty"`
+	// Categories holds the per-category verdict.
+	Categories *Categories `json:"categories,omitempty"`
 
 	// Metadata carries per-input extras.
 	Metadata *ResultMetadata `json:"metadata,omitempty"`
 }
 
-// NewResult builds a [Result]. Returns an error when moderation or
+// NewResult builds a [Result]. Returns an error when categories or
 // metadata is nil.
-func NewResult(moderation *Moderation, metadata *ResultMetadata) (*Result, error) {
-	if moderation == nil {
-		return nil, errors.New("moderation.NewResult: moderation must not be nil")
+func NewResult(categories *Categories, metadata *ResultMetadata) (*Result, error) {
+	if categories == nil {
+		return nil, errors.New("moderation.NewResult: categories must not be nil")
 	}
 	if metadata == nil {
 		return nil, errors.New("moderation.NewResult: metadata must not be nil")
 	}
-	return &Result{Moderation: moderation, Metadata: metadata}, nil
+	return &Result{Categories: categories, Metadata: metadata}, nil
 }
 
 // ResponseMetadata holds response-level metadata for a moderation call.
