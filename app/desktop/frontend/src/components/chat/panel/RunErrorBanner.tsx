@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { Icon } from "@/components/common";
+import { flattenText } from "@/lib/agent/messageContent";
 import { useT } from "@/lib/i18n";
 import { swift } from "@/lib/motion";
 import {
@@ -16,17 +17,8 @@ import { useSessionStore } from "@/state/sessionStore";
 // case (there's nothing to resend).
 function findLastUserText(): string {
   const { messages } = getCurrentSessionView();
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i]!;
-    if (m.role !== "user") continue;
-    const text = m.blocks
-      .map((b) => ("text" in b ? ((b as { text?: string }).text ?? "") : ""))
-      .filter(Boolean)
-      .join("\n\n")
-      .trim();
-    if (text) return text;
-  }
-  return "";
+  const last = messages.findLast((m) => m.role === "user" && flattenText(m.blocks).trim() !== "");
+  return last ? flattenText(last.blocks).trim() : "";
 }
 
 // RunErrorBanner — surfaces an run error.

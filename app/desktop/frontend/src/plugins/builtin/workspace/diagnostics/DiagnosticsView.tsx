@@ -100,10 +100,14 @@ function TracesPanel() {
   );
 }
 
+const STATUS_TONE: Record<SpanRow["status"], string> = {
+  error: "text-negative",
+  ok: "text-positive",
+  unset: "text-fg-faint",
+};
+
 function StatusTag({ status }: { status: SpanRow["status"] }) {
-  const tone =
-    status === "error" ? "text-negative" : status === "ok" ? "text-positive" : "text-fg-faint";
-  return <span className={tone}>{status}</span>;
+  return <span className={STATUS_TONE[status]}>{status}</span>;
 }
 
 // ── Logs ────────────────────────────────────────────────────────────────
@@ -145,11 +149,14 @@ function LogsPanel() {
   );
 }
 
+const SEVERITY_TONE: Record<string, string> = {
+  ERROR: "text-negative",
+  WARN: "text-warning",
+  DEBUG: "text-fg-faint",
+};
+
 function severityTone(sev: string): string {
-  if (sev === "ERROR") return "text-negative";
-  if (sev === "WARN") return "text-warning";
-  if (sev === "DEBUG") return "text-fg-faint";
-  return "text-fg-muted";
+  return SEVERITY_TONE[sev] ?? "text-fg-muted";
 }
 
 // ── Metrics ─────────────────────────────────────────────────────────────
