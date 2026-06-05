@@ -9,9 +9,6 @@ import (
 // these with [errors.Is] to distinguish caller-side input errors from
 // transport, protocol, or remote-tool failures.
 var (
-	// ErrNilConfig is returned when a *Config validator receives nil.
-	ErrNilConfig = errors.New("mcp: config must not be nil")
-
 	// ErrNilServer is returned by [RegisterTools] when server is nil.
 	ErrNilServer = errors.New("mcp: server must not be nil")
 
