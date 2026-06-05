@@ -6,7 +6,7 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 )
 
-// Engine is the narrow behavioral surface chat depends on. It
+// engineDep is the narrow behavioral surface chat depends on. It
 // captures exactly the engine operations the chat service drives
 // — async chat dispatch (plan mode included), steering, post-turn
 // maintenance — and nothing more.
@@ -18,17 +18,17 @@ import (
 // than a bare goroutine. This is the lyra-as-agent-best-practice
 // pattern — every turn is a real agent process, addressable by id.
 //
-// *engine.Engine satisfies this interface implicitly. Tests pass
-// a stub that records calls without spinning up a real platform.
+// It's unexported: chat's own dependency abstraction with no
+// implementer outside this module — *engine.Engine satisfies it
+// implicitly, so nothing names it (tests pass a stub the same way).
 //
 // The shared parameter/result types still live in package engine
-// (RunChatRequest, ChatOutput, ToolObserver, ChatProcess) — those
-// describe the engine's I/O schema and importing them does not
-// create a concrete-type coupling. What we shed is the
-// *engine.Engine dependency, so chat can be unit-tested and the
-// layering matches the architecture (engine composes services,
-// not the other way).
-type Engine interface {
+// (RunChatRequest, ChatOutput, ChatProcess) — those describe the
+// engine's I/O schema and importing them does not create a
+// concrete-type coupling. What we shed is the *engine.Engine
+// dependency, so chat can be unit-tested and the layering matches
+// the architecture (engine composes services, not the other way).
+type engineDep interface {
 	StartChat(ctx context.Context, req engine.RunChatRequest) engine.ChatProcess
 	// RestoreChat rebuilds a turn's agent process from a persisted
 	// snapshot and re-parks it for Resume — the cross-restart resume seam

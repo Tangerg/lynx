@@ -33,14 +33,14 @@ func newTurnID() string { return turnIDPrefix + uuid.NewString() }
 //   - inmemory.go  — Service surface + live-turn registry (this file)
 //   - turn.go      — per-turn state + the runTurn execution loop
 //   - lifecycle.go — terminal-event capture from the agent runtime
-//   - observer.go  — engine.ToolObserver → chat.Event translation
+//   - observer.go  — engine tool-observer → chat.Event translation
 //
 // The Service interface is stable, so transport adapters don't care
 // which impl they talk to.
 // resolver is optional. When non-nil and a turn carries a Model, the impl
 // resolves a per-turn client for that model; nil (or an empty Model) runs
 // every turn on the platform's default client.
-func New(eng Engine, approvalSvc approval.Service, resolver ClientResolver) Service {
+func New(eng engineDep, approvalSvc approval.Service, resolver clientResolver) Service {
 	if eng == nil {
 		panic("chat: engine is required")
 	}
@@ -56,9 +56,9 @@ func New(eng Engine, approvalSvc approval.Service, resolver ClientResolver) Serv
 // tracks live turns in a map keyed by turn id; state lives in
 // process memory and does not survive restart.
 type inMemory struct {
-	engine   Engine
+	engine   engineDep
 	approval approval.Service // optional — nil = auto-approve every tool
-	resolver ClientResolver   // optional — nil = always use the default model
+	resolver clientResolver   // optional — nil = always use the default model
 
 	mu    sync.Mutex
 	turns map[string]*turnState // turn_id → state

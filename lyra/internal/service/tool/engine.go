@@ -21,11 +21,11 @@ var toolTracer = otel.Tracer("lynx/lyra/tool")
 
 const attrGenAIToolName = "gen_ai.tool.name"
 
-// Source is the narrow surface tool.Service consumes: just a
+// source is the narrow surface tool.Service consumes: just a
 // snapshot of the currently-registered chat tools. *engine.Engine
 // satisfies it implicitly via its Tools() accessor; tests pass a
 // stub that returns a fixed slice without needing a real platform.
-type Source interface {
+type source interface {
 	Tools() []chat.Tool
 }
 
@@ -33,7 +33,7 @@ type Source interface {
 // snapshots the registered tools; Invoke routes by tool name to
 // the registered tool's Call method (no agent loop involved —
 // direct synchronous invocation).
-func New(src Source) Service {
+func New(src source) Service {
 	if src == nil {
 		panic("tool: source is required")
 	}
@@ -42,9 +42,9 @@ func New(src Source) Service {
 
 // engineBacked is the single Service implementation today. The
 // "engine-backed" label is descriptive — the source is typically
-// the engine but could be any Source (tests, mocks).
+// the engine but could be any source (tests, mocks).
 type engineBacked struct {
-	src Source
+	src source
 }
 
 func (s *engineBacked) List(_ context.Context) ([]Tool, error) {

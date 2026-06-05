@@ -13,8 +13,8 @@ import (
 // cancellation) plus a typed result extractor — chat.Service drives
 // the turn off Done() and queries Status() to decide TurnEnd reason.
 //
-// The interface lives in this package (not chat.Engine) so test
-// stubs can substitute a fake without standing up a full platform.
+// The interface lives in this package (not in the chat service) so
+// test stubs can substitute a fake without standing up a full platform.
 type ChatProcess interface {
 	// ID is the underlying agent process id — surfaces to clients as
 	// the turn handle so cancellation / resume requests route through

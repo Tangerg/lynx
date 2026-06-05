@@ -13,12 +13,13 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 )
 
-// ClientResolver resolves a per-turn chat client for an explicit
+// clientResolver resolves a per-turn chat client for an explicit
 // (provider, model) — the seam the multi-provider runtime plugs in so a turn
-// can run against a model other than the default. Defined here (consumer
-// side); the runtime implements it against its provider registry. Returns an
-// error when the provider isn't configured / enabled.
-type ClientResolver interface {
+// can run against a model other than the default. Unexported: chat's own
+// consumer-side abstraction, satisfied implicitly by the runtime's provider
+// registry (nothing outside this package names it). Returns an error when the
+// provider isn't configured / enabled.
+type clientResolver interface {
 	ResolveClient(ctx context.Context, provider, model string) (*corechat.Client, error)
 }
 
@@ -36,7 +37,7 @@ type StartTurnRequest struct {
 
 	// Provider + Model select the model this turn runs against (the wire
 	// runs.start{providerId, model}). Both empty uses the runtime's default;
-	// both set resolves that provider+model client via [ClientResolver] and
+	// both set resolves that provider+model client via the clientResolver and
 	// runs the turn against it. The provider is explicit — never inferred.
 	Provider string
 	Model    string

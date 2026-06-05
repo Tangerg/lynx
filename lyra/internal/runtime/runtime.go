@@ -177,10 +177,10 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	resolver := newClientResolver(providerSvc)
 
 	return &Runtime{
-		engine:     eng,
-		chat:       chatsvc.New(eng, approvalSvc, resolver),
-		session:    sessionSvc,
-		tool:       toolsvc.New(eng),
+		engine:         eng,
+		chat:           chatsvc.New(eng, approvalSvc, resolver),
+		session:        sessionSvc,
+		tool:           toolsvc.New(eng),
 		memory:         cfg.MemoryService,
 		approval:       approvalSvc,
 		interrupts:     interruptStore,

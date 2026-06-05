@@ -72,10 +72,10 @@ func (cp *stubChatProcess) Resume(_ context.Context, _ engine.InterruptResolutio
 // nothing is ever pending.
 func (cp *stubChatProcess) PendingAwaitable() core.Awaitable { return nil }
 
-// stubEngine satisfies chat.Engine without touching the real
-// platform / chat-memory / MCP wiring. Existence proves the chat
-// service does not depend on *engine.Engine directly — only on
-// the narrow interface.
+// stubEngine satisfies the chat service's (unexported) engine
+// dependency without touching the real platform / chat-memory / MCP
+// wiring. Existence proves the chat service does not depend on
+// *engine.Engine directly — only on the narrow interface.
 type stubEngine struct {
 	runChatCalls atomic.Int32
 	restoreCalls atomic.Int32
