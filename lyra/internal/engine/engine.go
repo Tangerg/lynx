@@ -128,7 +128,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// resolver, which folds it into the ToolRoleCoding set only.
 	// AsChatToolFromAgent needs no separate deploy — child processes land
 	// on the platform when spawned.
-	taskTool, err := runtime.AsChatToolFromAgent[TaskInput, string](platform, e.buildSubtaskAgent())
+	taskTool, err := runtime.AsChatToolFromAgent[taskInput, string](platform, e.buildSubtaskAgent())
 	if err != nil {
 		return nil, fmt.Errorf("engine: build task tool: %w", err)
 	}

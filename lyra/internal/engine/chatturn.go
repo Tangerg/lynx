@@ -34,15 +34,15 @@ type RunChatRequest struct {
 
 	// MaxBudget caps the total tokens (prompt + completion) the turn
 	// may spend across its tool-loop rounds. 0 means unlimited. See
-	// [ChatInput.MaxBudget] for the stop semantics.
+	// [chatInput.MaxBudget] for the stop semantics.
 	MaxBudget int64
 
 	// MaxCostUSD caps the turn's dollar cost (0 = no cap). See
-	// [ChatInput.MaxCostUSD] — requires a [Config.Pricing] hook.
+	// [chatInput.MaxCostUSD] — requires a [Config.Pricing] hook.
 	MaxCostUSD float64
 
 	// PlanMode runs the turn behind plan approval — see
-	// [ChatInput.PlanMode]. The process parks on AwaitInput after
+	// [chatInput.PlanMode]. The process parks on AwaitInput after
 	// drafting a plan; drive it back with [ChatProcess.Resume].
 	PlanMode bool
 
@@ -82,7 +82,7 @@ type RunChatRequest struct {
 // attaches a process-scope [core.ToolDecorator]; SessionID binds the
 // turn to the chat-memory middleware's keyed conversation.
 func (e *Engine) StartChat(ctx context.Context, req RunChatRequest) ChatProcess {
-	in := ChatInput{Message: req.Message, Cwd: req.Cwd, MaxBudget: req.MaxBudget, MaxCostUSD: req.MaxCostUSD, PlanMode: req.PlanMode}
+	in := chatInput{Message: req.Message, Cwd: req.Cwd, MaxBudget: req.MaxBudget, MaxCostUSD: req.MaxCostUSD, PlanMode: req.PlanMode}
 
 	proc, done := e.platform.StartAgent(ctx, e.agent,
 		map[string]any{core.DefaultBindingName: in},

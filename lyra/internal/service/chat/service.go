@@ -335,17 +335,17 @@ type ErrorEvent struct {
 // already carries every routing field — emit builds it once per
 // call.
 
-func (e TurnStart) stamp(b BaseEvent) Event        { e.BaseEvent = b; return e }
-func (e MessageDelta) stamp(b BaseEvent) Event     { e.BaseEvent = b; return e }
-func (e ReasoningDelta) stamp(b BaseEvent) Event   { e.BaseEvent = b; return e }
-func (e ToolCallStart) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
-func (e ToolCallEnd) stamp(b BaseEvent) Event      { e.BaseEvent = b; return e }
-func (e PlanGenerated) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
-func (e CompactBoundary) stamp(b BaseEvent) Event  { e.BaseEvent = b; return e }
-func (e MemoryUpdated) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
-func (e TurnInterrupted) stamp(b BaseEvent) Event  { e.BaseEvent = b; return e }
-func (e TurnEnd) stamp(b BaseEvent) Event          { e.BaseEvent = b; return e }
-func (e ErrorEvent) stamp(b BaseEvent) Event       { e.BaseEvent = b; return e }
+func (e TurnStart) stamp(b BaseEvent) Event       { e.BaseEvent = b; return e }
+func (e MessageDelta) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
+func (e ReasoningDelta) stamp(b BaseEvent) Event  { e.BaseEvent = b; return e }
+func (e ToolCallStart) stamp(b BaseEvent) Event   { e.BaseEvent = b; return e }
+func (e ToolCallEnd) stamp(b BaseEvent) Event     { e.BaseEvent = b; return e }
+func (e PlanGenerated) stamp(b BaseEvent) Event   { e.BaseEvent = b; return e }
+func (e CompactBoundary) stamp(b BaseEvent) Event { e.BaseEvent = b; return e }
+func (e MemoryUpdated) stamp(b BaseEvent) Event   { e.BaseEvent = b; return e }
+func (e TurnInterrupted) stamp(b BaseEvent) Event { e.BaseEvent = b; return e }
+func (e TurnEnd) stamp(b BaseEvent) Event         { e.BaseEvent = b; return e }
+func (e ErrorEvent) stamp(b BaseEvent) Event      { e.BaseEvent = b; return e }
 
 // TurnEndReason enumerates why a turn ended.
 type TurnEndReason int
