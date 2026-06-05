@@ -62,10 +62,11 @@ func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 	return r
 }
 
-// WithTexts replaces the input list. Empty input is ignored.
+// WithTexts replaces the input list. Empty input is ignored. The
+// slice is cloned so caller mutations don't leak into the request.
 func (r *ClientRequest) WithTexts(texts []string) *ClientRequest {
 	if len(texts) > 0 {
-		r.texts = texts
+		r.texts = slices.Clone(texts)
 	}
 	return r
 }

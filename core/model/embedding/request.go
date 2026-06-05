@@ -161,10 +161,7 @@ func NewRequest(texts []string) (*Request, error) {
 	if len(texts) == 0 {
 		return nil, errors.New("embedding.NewRequest: texts must contain at least one entry")
 	}
-	return &Request{
-		Texts:  texts,
-		Params: make(map[string]any),
-	}, nil
+	return &Request{Texts: texts}, nil
 }
 
 // ensureParams lazily allocates Params. Used by [Request.Set] only.
