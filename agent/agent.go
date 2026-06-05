@@ -33,6 +33,25 @@ func NewCondition(name string, fn func(ctx context.Context, oc *core.ConditionEn
 // type T exists on the blackboard". See [core.GoalProducing].
 func GoalProducing[T any](g core.Goal) *core.Goal { return core.GoalProducing[T](g) }
 
+// ToolRolesFor builds the tool-group requirements for the given roles —
+// for an [ActionConfig.ToolGroups] field. See [core.ToolRolesFor].
+func ToolRolesFor(roles ...string) []ToolGroupRequirement { return core.ToolRolesFor(roles...) }
+
+// ProcessFrom retrieves the [Process] attached to ctx (nil if absent) —
+// the handle action bodies and tools read without an extra parameter.
+// See [core.ProcessFrom].
+func ProcessFrom(ctx context.Context) Process { return core.ProcessFrom(ctx) }
+
+// ResultOfType pulls the most-recent T from a process's blackboard — the
+// typed way to read a finished run's output. See [core.ResultOfType].
+func ResultOfType[T any](p Process) (T, bool) { return core.ResultOfType[T](p) }
+
+// Get is the typed blackboard read by (name, T). See [core.Get].
+func Get[T any](bb BlackboardReader, name string) (T, bool) { return core.Get[T](bb, name) }
+
+// Last returns the most-recent blackboard object of type T. See [core.Last].
+func Last[T any](bb BlackboardReader) (T, bool) { return core.Last[T](bb) }
+
 // NewPlatform constructs a runtime Platform from config. The zero
 // value yields a default-configured platform.
 //
@@ -68,3 +87,18 @@ func withDefaultPlanners(extensions []core.Extension) []core.Extension {
 	}
 	return append(defaults, extensions...)
 }
+
+// SnapshotProcess captures a process's full state for persistence via a
+// [ProcessStore]. See [runtime.SnapshotProcess].
+func SnapshotProcess(p *AgentProcess) ProcessSnapshot { return runtime.SnapshotProcess(p) }
+
+// RestoreProcess rebuilds a process from a persisted snapshot, re-entering
+// the tick loop with the same observability/session context a fresh run
+// gets. See [runtime.RestoreProcess].
+func RestoreProcess(platform *Platform, snap ProcessSnapshot, options ProcessOptions) (*AgentProcess, error) {
+	return runtime.RestoreProcess(platform, snap, options)
+}
+
+// ChildError reports a spawned child process's terminal failure, or nil
+// when it completed cleanly. See [runtime.ChildError].
+func ChildError(child *AgentProcess) error { return runtime.ChildError(child) }
