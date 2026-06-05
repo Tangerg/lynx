@@ -112,15 +112,11 @@ func (i *Server) sessionToWire(s session.Session) protocol.Session {
 	if meta == nil {
 		meta = map[string]any{} // Session.metadata is an object, never null (API.md §4.1)
 	}
-	model := s.Model
-	if model == "" {
-		model = i.rt.DefaultModel()
-	}
 	return protocol.Session{
 		ID:        s.ID,
 		Title:     s.Title,
 		Cwd:       s.Cwd,
-		Model:     model,
+		Model:     s.EffectiveModel(i.rt.DefaultModel()),
 		Status:    protocol.SessionStatusIdle,
 		CreatedAt: s.StartedAt,
 		UpdatedAt: s.UpdatedAt,

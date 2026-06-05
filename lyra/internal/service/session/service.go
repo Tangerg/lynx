@@ -36,6 +36,19 @@ type Session struct {
 	Metadata  map[string]string
 }
 
+// EffectiveModel returns the model the session should report on the wire.
+// A session that never explicitly ran against a provider+model (Model == "")
+// falls back to the supplied runtime default, so callers — and the frontend,
+// which derives the assistant's display name from it — always see a real model
+// name. The fallback is a Session invariant, so it lives here rather than in
+// the wire-translation layer.
+func (s Session) EffectiveModel(defaultModel string) string {
+	if s.Model != "" {
+		return s.Model
+	}
+	return defaultModel
+}
+
 // Service is the SessionService contract.
 //
 // All methods are safe for concurrent use. Implementations are
