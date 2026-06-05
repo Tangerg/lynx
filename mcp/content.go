@@ -34,7 +34,7 @@ func chatMessageFromContent(role sdkmcp.Role, content sdkmcp.Content) chat.Messa
 	if text == "" {
 		return nil
 	}
-	if string(role) == "assistant" {
+	if role == "assistant" {
 		return chat.NewAssistantMessage(text)
 	}
 	return chat.NewUserMessage(text)

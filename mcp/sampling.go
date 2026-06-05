@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -35,11 +36,11 @@ type SamplingHandler = func(context.Context, *sdkmcp.CreateMessageRequest) (*sdk
 // client is nil — caller decides whether to surface or panic.
 func SamplingViaChatClient(client *chat.Client) (SamplingHandler, error) {
 	if client == nil {
-		return nil, fmt.Errorf("mcp.SamplingViaChatClient: chat.Client must not be nil")
+		return nil, errors.New("mcp.SamplingViaChatClient: chat.Client must not be nil")
 	}
 	return func(ctx context.Context, req *sdkmcp.CreateMessageRequest) (*sdkmcp.CreateMessageResult, error) {
 		if req == nil || req.Params == nil {
-			return nil, fmt.Errorf("mcp.SamplingViaChatClient: sampling request params must not be nil")
+			return nil, errors.New("mcp.SamplingViaChatClient: sampling request params must not be nil")
 		}
 
 		chatReq := client.Chat().WithMessages(samplingMessagesToChat(req.Params.Messages)...)
