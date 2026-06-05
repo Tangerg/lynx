@@ -58,7 +58,7 @@
 - **协议形态写死 JSON-RPC 2.0**：所有 message envelope 走 MCP SDK 的 `jsonrpc` 类型，**不重新定义 envelope**。HTTP transport 上 method 名照搬协议表（`POST /v2/rpc/runtime.initialize`，点保留不斜杠化）
 - **业务 error → JSON-RPC `error.code`**（`-32001..-32016` 是扩展段，客户端按 `error.data.type` 的 symbolic name 分支、不按数字码），**不映射 HTTP status**。HTTP status 仅反映 transport 层（TRANSPORT §6.3：200 / 204 通知 / 400 含 method 不一致 / 401 带 `WWW-Authenticate` / 404 / 405 带 `Allow` / 413 / 415 / 500 / 503；**无 409** —— 自相矛盾请求归 400 而非资源冲突）
 - **Sidecar 端点只 `/v2/info` + `/v2/health` 两个**，flat JSON 不走 envelope，no-auth。**永远不加业务 read shadow**（如 `GET /v2/sessions/{id}`）
-- **Transport 元数据走 header，不进 envelope**：trace id 用 `X-Trace-Id`（已去品牌前缀）、本地 token 用 `Authorization: Bearer`、SSE 续连用 `Last-Event-Id`、协议版本 `X-Protocol-Version`、连接 id `X-Conn-Id`、幂等键 `X-Idempotency-Key`
+- **Transport 元数据走 header，不进 envelope**：trace 关联走 **W3C `traceparent`**（otel 标准 propagator，无自有 `X-Trace-Id`）、本地 token 用 `Authorization: Bearer`、SSE 续连用 `Last-Event-Id`、协议版本 `X-Protocol-Version`、幂等键 `X-Idempotency-Key`（响应侧另有 `X-Server` / `X-Method` / SSE 的 `X-Accel-Buffering`）。**无 `X-Conn-Id`**（streamable HTTP 已无连接路由）
 
 ## Lyra-specific 强反向不变量
 
