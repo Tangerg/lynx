@@ -10,8 +10,8 @@ import (
 )
 
 // MetricExporter writes OpenTelemetry metric data to a log/slog logger —
-// the Metrics leg of the dev observability triad, a sibling of [Exporter]
-// (spans) so all three signals share one slog stream.
+// the Metrics leg of the dev observability triad, a sibling of
+// [SpanExporter] so all three signals share one slog stream.
 //
 // Install it on a MeterProvider via a PeriodicReader:
 //
@@ -20,8 +20,8 @@ import (
 //	otel.SetMeterProvider(mp)
 //
 // Each metric becomes one slog record carrying the instrument name, unit,
-// scope, and a compact rendering of its data points. Like [Exporter] this
-// is for local visibility; production should use an OTLP metric exporter.
+// scope, and a compact rendering of its data points. Like [SpanExporter]
+// this is for local visibility; production should use an OTLP metric exporter.
 type MetricExporter struct {
 	logger *stdslog.Logger
 }
@@ -46,7 +46,7 @@ func (e *MetricExporter) Aggregation(k sdkmetric.InstrumentKind) sdkmetric.Aggre
 }
 
 // Export writes one slog record per metric. Always returns nil: a dev sink
-// must never fail a collection cycle (mirrors [Exporter.ExportSpans]).
+// must never fail a collection cycle (mirrors [SpanExporter.ExportSpans]).
 func (e *MetricExporter) Export(ctx context.Context, rm *metricdata.ResourceMetrics) error {
 	for _, sm := range rm.ScopeMetrics {
 		for _, m := range sm.Metrics {
