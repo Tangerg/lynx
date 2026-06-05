@@ -44,7 +44,7 @@
 
 ```
 otel/
-└── slog/        三个 exporter：span（exporter.go）+ metric（metric.go）+ log（logexporter.go）
+└── slog/        三个 exporter：span（spanexporter.go）+ metric（metricexporter.go）+ log（logexporter.go）
 ```
 
 （原 `log/`（stdlib `*log.Logger` span exporter）已删——所有信号统一走 slog。）
