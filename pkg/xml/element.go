@@ -590,9 +590,10 @@ func IsSelfClosingElement(element string) bool {
 	return strings.HasSuffix(trimmed, "/>") && trimmed[1] != '/'
 }
 
-// isValidElementSyntax checks if the element is valid syntax.
-// note: only for single element like <xml attr="value">, <xml attr="value"/>
-// TODO update for full element like <xml attr="value"></xml>
+// isValidElementSyntax reports whether element is a single well-formed
+// opening or self-closing tag (<x attr="v"> or <x attr="v"/>). Full
+// elements with content (<x>...</x>) are intentionally out of scope —
+// open/close pairing is the scanner's job, not this token validator's.
 func isValidElementSyntax(element string) bool {
 	// Minimum length check: "<a>"
 	if len(element) < 3 {
