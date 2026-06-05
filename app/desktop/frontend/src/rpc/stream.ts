@@ -24,7 +24,7 @@ export const RUN_EVENT_METHOD = "notifications.run.event";
 export const BACKGROUND_UPDATE_METHOD = "notifications.background.update";
 
 // ---------------------------------------------------------------------------
-// Trust-boundary validation (CLAUDE.md "边界校验用 Zod")
+// Trust-boundary validation (CLAUDE.md: "validate at trust boundaries with Zod")
 // ---------------------------------------------------------------------------
 //
 // We validate the RunEvent ENVELOPE shape + the StreamEvent discriminator

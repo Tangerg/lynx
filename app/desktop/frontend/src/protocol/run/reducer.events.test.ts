@@ -202,8 +202,8 @@ describe("reducer — item fold", () => {
 
   it("item.completed{status:inProgress} is a lost item — settles incomplete, not a forever spinner", () => {
     // History hydration (items.list) of a run lost to a crash/restart replays
-    // its last item as item.completed but with status still inProgress (backend
-    // 坑 B). The fold must coerce that to incomplete — a "running" block here
+    // its last item as item.completed but with status still inProgress (a known
+    // backend reconciliation gap). The fold must coerce that to incomplete — a "running" block here
     // would spin forever (no live stream will ever complete it).
     let s: AgentViewState = INITIAL_VIEW_STATE;
     s = reduce(

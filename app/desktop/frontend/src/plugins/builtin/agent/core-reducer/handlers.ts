@@ -219,7 +219,7 @@ function onItemCompleted(state: AgentViewState, rawItem: Item): AgentViewState {
   // (completed | incomplete) — never inProgress. A non-terminal status here
   // means the item was never cleanly finished: history hydration (items.list)
   // of a run lost to a crash/restart still returns its last item as
-  // inProgress (backend 坑 B is reconciled at the RunRef level, which this
+  // inProgress (the backend reconciles this at the RunRef level, which this
   // item-based fold never reads). Coerce it to incomplete so it renders as a
   // truncated block, not a block that spins forever waiting for a live stream
   // that will never come.
