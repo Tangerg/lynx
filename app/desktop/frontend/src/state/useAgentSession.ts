@@ -36,6 +36,13 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     let abort: AbortController | null = null;
     let currentRunId: RunId | null = null;
     let cancelled = false;
+    // Set once a live send/resume writes to this slice. History hydration
+    // (items.list) is async; if the user sends before it resolves, applying
+    // the backfill afterwards would append the old turns *below* the new
+    // message (the fold is arrival-ordered, not timestamp-sorted) and bleed
+    // history agentMessages into the open live turn. Skip the late backfill
+    // in that race — it'll hydrate cleanly on the next open.
+    let interacted = false;
 
     // Hydrate history for an existing (non-draft) session: replay its
     // completed Items as `item.completed` events through the SAME fold the
@@ -46,7 +53,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
         .client()
         .items.list({ sessionId: asSessionId(sessionId) })
         .then((resp) => {
-          if (cancelled || resp.items.length === 0) return;
+          if (cancelled || interacted || resp.items.length === 0) return;
           store().applyEvents(
             sessionId,
             resp.items.map((item): RunEvent["event"] => ({ type: "item.completed", item })),
@@ -93,6 +100,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       ) => Promise<StreamingResult<{ runId: RunId; userItemId?: string }, RunEvent>>,
       onResult?: (result: { runId: RunId; userItemId?: string }) => void,
     ): void => {
+      interacted = true; // a live run now owns this slice; gate late history
       abort?.abort(); // a new run supersedes any in-flight one
       const ctrl = new AbortController();
       abort = ctrl;
