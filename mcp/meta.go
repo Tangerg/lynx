@@ -17,7 +17,7 @@ type MetaFunc func(ctx context.Context) sdkmcp.Meta
 
 type metaContextKey struct{}
 
-// WithMeta returns a copy of ctx carrying meta. Empty meta is returned
+// WithMeta returns a copy of ctx carrying meta. Empty meta leaves ctx
 // unchanged. Pair with [MetaFromContext] to forward per-request
 // metadata across the tool subsystem without explicit plumbing.
 func WithMeta(ctx context.Context, meta sdkmcp.Meta) context.Context {

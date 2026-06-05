@@ -11,4 +11,4 @@ var mcpTracer = otel.Tracer("lynx/mcp")
 
 // MCP tool attribute key (GenAI semconv). Tool failures surface through
 // the span status (Error) + RecordError, not a separate bool attribute.
-const attrLynxMCPTool = "gen_ai.tool.name"
+const attrToolName = "gen_ai.tool.name"
