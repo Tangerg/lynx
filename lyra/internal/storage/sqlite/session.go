@@ -213,6 +213,26 @@ func (s *SessionService) SetModel(ctx context.Context, id, model string) error {
 	return nil
 }
 
+// Rename updates the session's title + refreshes UpdatedAt in a single UPDATE
+// (see [session.Service.Rename]). ErrNotFound for unknown id.
+func (s *SessionService) Rename(ctx context.Context, id, title string) error {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE sessions SET title = ?, updated_at = ? WHERE id = ?`,
+		title, time.Now().UTC().UnixNano(), id,
+	)
+	if err != nil {
+		return fmt.Errorf("sqlite: rename session: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("sqlite: rename session: %w", err)
+	}
+	if n == 0 {
+		return session.ErrNotFound
+	}
+	return nil
+}
+
 // insert is the one-shot path used by Create. Fork goes through
 // execInsert so it can run inside its own transaction.
 func (s *SessionService) insert(ctx context.Context, sess session.Session) error {

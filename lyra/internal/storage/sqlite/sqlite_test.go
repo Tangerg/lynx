@@ -151,6 +151,30 @@ func TestSessionTouch(t *testing.T) {
 	}
 }
 
+// TestSessionRename confirms Rename updates the title + refreshes UpdatedAt
+// and returns ErrNotFound for unknown ids.
+func TestSessionRename(t *testing.T) {
+	ctx := context.Background()
+	svc := newTempDB(t)
+
+	created, _ := svc.Create(ctx, "before", "")
+
+	if err := svc.Rename(ctx, created.ID, "after"); err != nil {
+		t.Fatalf("Rename: %v", err)
+	}
+	got, _ := svc.Get(ctx, created.ID)
+	if got.Title != "after" {
+		t.Fatalf("Title = %q, want after", got.Title)
+	}
+	if got.UpdatedAt.Before(created.UpdatedAt) {
+		t.Fatalf("UpdatedAt = %v, before %v", got.UpdatedAt, created.UpdatedAt)
+	}
+
+	if err := svc.Rename(ctx, "nope", "x"); !errors.Is(err, session.ErrNotFound) {
+		t.Fatalf("Rename unknown = %v, want ErrNotFound", err)
+	}
+}
+
 // TestSessionPersistAcrossReopen confirms data survives a DB close +
 // reopen — durability is the whole point of moving off in-memory.
 func TestSessionPersistAcrossReopen(t *testing.T) {
