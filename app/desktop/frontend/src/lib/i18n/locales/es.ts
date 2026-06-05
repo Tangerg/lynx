@@ -30,6 +30,7 @@ export const es: Record<string, string> = {
 
   "chat.error.title": "Error de renderizado",
   "chat.error.retry": "Reintentar",
+  "chat.jumpToBottom": "Ir al final",
 
   "welcome.eyebrow": "agent listo",
   "welcome.title": "¿Qué quieres construir hoy?",

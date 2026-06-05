@@ -1,4 +1,5 @@
 import { Icon, Tooltip } from "@/components/common";
+import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -14,11 +15,13 @@ interface Props {
 // so the user gets a soft reveal instead of a pop-in. When `visible`
 // is false it's still in the DOM but pointer-events: none + opacity: 0.
 export function JumpToBottomButton({ visible, onClick }: Props) {
+  const t = useT();
+  const label = t("chat.jumpToBottom");
   return (
-    <Tooltip label={visible ? "跳到底部" : ""}>
+    <Tooltip label={visible ? label : ""}>
       <button
         type="button"
-        aria-label="跳到底部"
+        aria-label={label}
         onClick={onClick}
         tabIndex={visible ? 0 : -1}
         className={cn(

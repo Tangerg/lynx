@@ -29,6 +29,7 @@ export const zhTW: Record<string, string> = {
 
   "chat.error.title": "顯示錯誤",
   "chat.error.retry": "重試",
+  "chat.jumpToBottom": "跳到底部",
 
   "welcome.eyebrow": "agent 已就緒",
   "welcome.title": "今天想建立什麼？",
