@@ -136,10 +136,8 @@ func (s *SessionService) Fork(ctx context.Context, parentID, atMessageID string)
 	}
 	defer tx.Rollback() //nolint:errcheck // commit overrides; rollback on early return
 
-	var parentTitle, parentCwd string
-	err = tx.QueryRowContext(ctx,
-		`SELECT title, cwd FROM sessions WHERE id = ?`, parentID,
-	).Scan(&parentTitle, &parentCwd)
+	parent, err := rowToSession(tx.QueryRowContext(ctx,
+		`SELECT `+sessionColumns+` FROM sessions WHERE id = ?`, parentID))
 	if errors.Is(err, sql.ErrNoRows) {
 		return session.Session{}, session.ErrNotFound
 	}
@@ -147,16 +145,10 @@ func (s *SessionService) Fork(ctx context.Context, parentID, atMessageID string)
 		return session.Session{}, fmt.Errorf("sqlite: fork parent lookup: %w", err)
 	}
 
-	now := time.Now().UTC()
-	child := session.Session{
-		ID:        session.IDPrefix + uuid.NewString(),
-		Title:     parentTitle + " (fork)",
-		Cwd:       parentCwd, // inherit the source's cwd (API.md §7.2)
-		ParentID:  parentID,
-		StartedAt: now,
-		UpdatedAt: now,
-		Metadata:  map[string]string{"fork_at_message_id": atMessageID},
-	}
+	// The fork-derivation rule (title suffix, cwd inheritance, branch-point
+	// metadata) is a Session invariant — the adapter only supplies the new id
+	// and the clock.
+	child := parent.Fork(session.IDPrefix+uuid.NewString(), atMessageID, time.Now().UTC())
 	if err := s.execInsert(ctx, tx, child); err != nil {
 		return session.Session{}, err
 	}
