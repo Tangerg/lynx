@@ -22,8 +22,8 @@
 - **`provider.go`** —— 客户端聚合：`Provider.Tools(ctx)` 拉取并缓存 MCP server 的 tools，`tools/list_changed` notification 触发 invalidate
 - **`tool.go`** —— `Tool` 包装器，远端 MCP tool → lynx `chat.Tool`（call → MCP RPC → 拿结果）
 - **`server.go`** —— 服务端：`RegisterTools(server, lynxTools, ...)` 把 lynx `chat.Tool` 注册成 MCP `CallTool` handler
-- **`transport.go` / `session.go`** —— 生命周期 + notification 分发
-- **`meta.go` / `prompt.go` / `notify.go` / `sampling.go`** —— OTel attrs / 自定义 `_meta` map / sampling
+- **`transport.go` / `session.go`** —— 生命周期 + context 注入
+- **`meta.go` / `prompt.go` / `reverse.go` / `sampling.go`** —— 自定义 `_meta` map / prompt 转换 / 反向能力（progress·elicit·log）/ sampling
 
 ## 关键接口/类型
 
@@ -49,7 +49,7 @@ mcp/
 ├── server.go        服务端 RegisterTools
 ├── session.go       session lifecycle
 ├── transport.go     transport hooks
-├── notify.go        notification 分发
+├── reverse.go       反向能力 helper（progress / elicit / log）
 ├── meta.go          _meta map 处理
 ├── prompt.go        prompt 协议（如果用到）
 └── sampling.go      sampling 请求
