@@ -4,10 +4,12 @@
 // the DB semconv attribute set stays consistent across backends.
 //
 // Per doc/OBSERVABILITY.md §3.5 the attributes follow the OTel DB
-// semconv plus the lynx chat-memory specific extensions:
+// semconv plus chat-memory specific extensions on the bare domain (no
+// brand prefix):
 //
-//	db.system                   — provider id ("postgres", "redis", ...)
-//	db.operation.name           — "read" / "write" / "clear"
-//	lynx.chat_memory.conv_id    — conversation id
-//	lynx.chat_memory.msg_count  — number of messages (read result / write input)
+//	db.system               — provider id ("postgres", "redis", ...)
+//	db.operation.name       — "read" / "write" / "clear" / "list"
+//	gen_ai.conversation.id  — conversation id (omitted on the list scan)
+//	chat_memory.msg_count   — message count (read result / write input)
+//	chat_memory.conv_count  — conversation count (list result)
 package tracing

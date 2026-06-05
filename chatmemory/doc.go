@@ -12,9 +12,12 @@
 //
 //	core/model/chat/memory/  — Store / Reader / Writer / Clearer
 //	                           + InMemoryStore + MessageWindowStore (default)
-//	chatmemory/postgres/     — PostgreSQL (pgx + JSONB) backend
-//	chatmemory/redis/        — Redis (planned)
-//	chatmemory/mongodb/      — MongoDB (planned)
+//	chatmemory/postgres/     — PostgreSQL (pgx + JSONB)
+//	chatmemory/redis/        — Redis (RPUSH / LRANGE lists)
+//	chatmemory/mongodb/      — MongoDB (document per message)
+//	chatmemory/cassandra/    — Cassandra (TIMEUUID clustering key)
+//	chatmemory/neo4j/        — Neo4j (node per message)
+//	chatmemory/cosmosdb/     — Azure Cosmos DB (NoSQL API)
 //
 // Every backend round-trips messages through the canonical
 // [chat.Message] JSON shape ([chat.UnmarshalMessage] / each message
