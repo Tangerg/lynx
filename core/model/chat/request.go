@@ -258,6 +258,9 @@ func (r *Request) ReplaceOfLastUserMessage(text string) {
 // UserMessage returns the most-recent user message in the conversation,
 // or an empty *UserMessage if the conversation has none.
 func (r *Request) UserMessage() *UserMessage {
+	if r == nil {
+		return NewUserMessage("")
+	}
 	idx, last := findLastMessageIndexOfType(r.Messages, MessageTypeUser)
 	if idx == -1 {
 		return NewUserMessage("")
@@ -268,6 +271,9 @@ func (r *Request) UserMessage() *UserMessage {
 // SystemMessage returns the most-recent system message in the
 // conversation, or an empty *SystemMessage if the conversation has none.
 func (r *Request) SystemMessage() *SystemMessage {
+	if r == nil {
+		return NewSystemMessage("")
+	}
 	idx, last := findLastMessageIndexOfType(r.Messages, MessageTypeSystem)
 	if idx == -1 {
 		return NewSystemMessage("")

@@ -91,6 +91,9 @@ type Categories struct {
 // Flagged reports whether any category fired. Useful when callers only
 // need a yes/no decision without inspecting individual scores.
 func (c *Categories) Flagged() bool {
+	if c == nil {
+		return false
+	}
 	return c.Sexual.Flagged ||
 		c.Hate.Flagged ||
 		c.Harassment.Flagged ||

@@ -352,7 +352,7 @@ func (u *UserMessage) Meta() map[string]any {
 }
 
 // HasMedia reports whether any attachments are present.
-func (u *UserMessage) HasMedia() bool { return len(u.Media) > 0 }
+func (u *UserMessage) HasMedia() bool { return u != nil && len(u.Media) > 0 }
 
 // NewUserMessage builds a [UserMessage] from a raw text string, media
 // slice, or full [MessageParams].
