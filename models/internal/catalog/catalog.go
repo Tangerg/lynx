@@ -20,6 +20,7 @@ package catalog
 import (
 	"embed"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"strings"
 
@@ -44,20 +45,20 @@ var catalog = mustLoad()
 func mustLoad() map[string]map[string]chat.ModelInfo {
 	files, err := fs.Glob(configs, "configs/*.json")
 	if err != nil {
-		panic("catalog: glob configs: " + err.Error())
+		panic(fmt.Errorf("catalog: glob configs: %w", err))
 	}
 	out := make(map[string]map[string]chat.ModelInfo, len(files))
 	for _, name := range files {
 		raw, err := configs.ReadFile(name)
 		if err != nil {
-			panic("catalog: read " + name + ": " + err.Error())
+			panic(fmt.Errorf("catalog: read %s: %w", name, err))
 		}
 		var cfg providerConfig
 		if err := json.Unmarshal(raw, &cfg); err != nil {
 			// Embedded, compile-time data — a parse failure is a build
 			// error in our own configs, so fail fast (mirrors
 			// regexp.MustCompile). Tests cover the configs parsing.
-			panic("catalog: invalid config " + name + ": " + err.Error())
+			panic(fmt.Errorf("catalog: invalid config %s: %w", name, err))
 		}
 		byModel := make(map[string]chat.ModelInfo, len(cfg.Models))
 		for _, m := range cfg.Models {
