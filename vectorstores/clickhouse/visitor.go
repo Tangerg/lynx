@@ -1,6 +1,7 @@
 package clickhouse
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -52,7 +53,7 @@ func (v *Visitor) Visit(expr ast.Expr) ast.Visitor {
 
 func (v *Visitor) visit(expr ast.Expr) error {
 	if expr == nil {
-		return fmt.Errorf("clickhouse: cannot process nil expression")
+		return errors.New("clickhouse: cannot process nil expression")
 	}
 	if v.err != nil {
 		return v.err
@@ -142,10 +143,10 @@ func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 	}
 	listLit, ok := expr.Right.(*ast.ListLiteral)
 	if !ok {
-		return fmt.Errorf("clickhouse: 'IN' requires a list on the right")
+		return errors.New("clickhouse: 'IN' requires a list on the right")
 	}
 	if len(listLit.Values) == 0 {
-		return fmt.Errorf("clickhouse: 'IN' requires a non-empty list")
+		return errors.New("clickhouse: 'IN' requires a non-empty list")
 	}
 	values := make([]any, 0, len(listLit.Values))
 	for _, lit := range listLit.Values {
@@ -254,7 +255,7 @@ func buildKeyPath(expr ast.Expr) (string, error) {
 		return "", err
 	}
 	if len(keys) == 0 {
-		return "", fmt.Errorf("empty key path")
+		return "", errors.New("empty key path")
 	}
 	return strings.Join(keys, "."), nil
 }

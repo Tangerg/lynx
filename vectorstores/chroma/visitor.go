@@ -1,6 +1,7 @@
 package chroma
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -67,7 +68,7 @@ func (v *Visitor) Visit(expr ast.Expr) ast.Visitor {
 // visit dispatches to the appropriate handler based on the expression type.
 func (v *Visitor) visit(expr ast.Expr) error {
 	if expr == nil {
-		return fmt.Errorf("cannot process nil expression")
+		return errors.New("cannot process nil expression")
 	}
 	if v.err != nil {
 		return v.err
@@ -121,7 +122,7 @@ func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 // is rejected with a guidance message.
 func (v *Visitor) visitUnaryExpr(expr *ast.UnaryExpr) error {
 	return filterhelp.DispatchUnaryErr(expr, func(*ast.UnaryExpr) error {
-		return fmt.Errorf("chroma: NOT operator is not supported; rewrite using != or NIN")
+		return errors.New("chroma: NOT operator is not supported; rewrite using != or NIN")
 	})
 }
 

@@ -1,6 +1,7 @@
 package filterhelp
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
@@ -172,7 +173,7 @@ func RequireStringPatternOnRight(expr *ast.BinaryExpr) (string, error) {
 // is unsupported.
 func ConvertListLiteral(list *ast.ListLiteral) (slice any, sample any, err error) {
 	if list == nil || len(list.Values) == 0 {
-		return nil, nil, fmt.Errorf("filter: empty list literal")
+		return nil, nil, errors.New("filter: empty list literal")
 	}
 	first := list.Values[0]
 	switch {

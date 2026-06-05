@@ -1,6 +1,7 @@
 package mariadb
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -56,7 +57,7 @@ func (v *Visitor) Visit(expr ast.Expr) ast.Visitor {
 
 func (v *Visitor) visit(expr ast.Expr) error {
 	if expr == nil {
-		return fmt.Errorf("mariadb: cannot process nil expression")
+		return errors.New("mariadb: cannot process nil expression")
 	}
 	if v.err != nil {
 		return v.err
@@ -246,7 +247,7 @@ func buildJSONPath(expr ast.Expr) (string, error) {
 		return "", err
 	}
 	if len(keys) == 0 {
-		return "", fmt.Errorf("empty key path on left operand")
+		return "", errors.New("empty key path on left operand")
 	}
 	return "$." + strings.Join(keys, "."), nil
 }

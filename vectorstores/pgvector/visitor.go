@@ -1,6 +1,7 @@
 package pgvector
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -64,7 +65,7 @@ func (v *Visitor) Visit(expr ast.Expr) ast.Visitor {
 
 func (v *Visitor) visit(expr ast.Expr) error {
 	if expr == nil {
-		return fmt.Errorf("pgvector: cannot process nil expression")
+		return errors.New("pgvector: cannot process nil expression")
 	}
 	if v.err != nil {
 		return v.err
@@ -275,7 +276,7 @@ func buildJSONPath(expr ast.Expr, metadataCol string, cast jsonCast) (string, er
 		return "", err
 	}
 	if len(pathParts) == 0 {
-		return "", fmt.Errorf("empty key path on left operand")
+		return "", errors.New("empty key path on left operand")
 	}
 
 	var b strings.Builder

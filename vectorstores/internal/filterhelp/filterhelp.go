@@ -1,6 +1,7 @@
 package filterhelp
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -24,7 +25,7 @@ func LiteralAsKey(lit *ast.Literal) (string, error) {
 		}
 		return strconv.FormatFloat(n, 'f', -1, 64), nil
 	default:
-		return "", fmt.Errorf("filter: index must be a string or number literal")
+		return "", errors.New("filter: index must be a string or number literal")
 	}
 }
 
