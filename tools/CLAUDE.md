@@ -46,7 +46,7 @@
 - **错误处理用包级 sentinel**：`ErrEmptyCommand` / `ErrHostNotAllowed`，调用方 `errors.Is()` 匹配
 - **非零退出码不算错**：`bash` 返回 `RunOutput` 里带 `ExitCode`，调用方决定如何处理
 - **输出 JSON 序列化**：Call 返 JSON string，框架反序列化喂给 LLM
-- **SPI 职责分工**：Tool 只 JSON 序列化 / schema 校验 / LLM 交互；所有业务逻辑（行号 / binary 检测 / 写锁 / path jail）都在 Executor → remote backend 可独立优化（不用往返整文件）
+- **SPI 职责分工**：Tool 只 JSON 序列化 / schema 校验 / LLM 交互；所有业务逻辑（行号 / binary 检测 / 写锁 / path 锚定）都在 Executor → remote backend 可独立优化（不用往返整文件）
 - **Nil-safety 双标**：
   - `bash` / `fs` / `fakeweather` 的 `NewXxxTool(nil)` 默认 LocalExecutor（开箱即用）
   - `websearch` / `webfetch` / `httpreq` 的 `NewTool(nil)` **返错**（无本地 fallback，必须显式配置）
@@ -63,7 +63,7 @@
 ## 特殊点
 
 - **沙箱 / 路径隔离**：
-  - `fs.LocalExecutor.Root` —— path jail
+  - `fs.LocalExecutor.Root` —— 相对路径**锚点**（非安全 jail：绝对路径与 `../` 仍可穿透，见 `local.go` 的 `TODO(security)`）；真正隔离靠外层（容器 / ProcessContext）
   - `httpreq.Client.AllowedHosts` —— 强制 allowlist（无默认值）
   - `bash.LocalExecutor` —— **无 root 限制**（信任调用方，lyra 通过 `ProcessContext.Workdir` 在外层管）
 - **Glob/Grep 在 SPI 层**：远程 backend 不能每次都往返整个文件系统，所以这两个 bulk 查询直接进 Executor，一次 RPC 而不是多轮 list+read
@@ -77,7 +77,7 @@
 tools/
 ├── bash/                单 bash 工具 + Executor SPI（local.go = LocalExecutor）
 ├── fs/                  5 个文件工具（read/write/edit/glob/grep） + Executor SPI + 本地实现
-│                        - 有 path jail（Executor.Root 字段）
+│                        - Executor.Root 锚定相对路径（非 jail，见 local.go TODO(security)）
 ├── httpreq/             HTTP 请求 + Client + 主机/方法 allowlist（无默认，必显式）
 ├── websearch/
 │   ├── tavily / brave / exa / ...    各 Provider 实现
