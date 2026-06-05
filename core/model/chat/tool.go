@@ -493,8 +493,7 @@ func (i *toolCallInvoker) invokeToolCalls(ctx context.Context, calls []*ToolCall
 	allReturnDirect := true
 	returns := make([]*ToolReturn, 0, len(calls))
 
-	for idx := range len(calls) {
-		call := calls[idx]
+	for _, call := range calls {
 		t, exists := i.registry.Find(call.Name)
 		if !exists {
 			// Reachable only with feedbackOnUnknown set (otherwise
