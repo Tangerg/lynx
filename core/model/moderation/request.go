@@ -85,7 +85,7 @@ func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
 // caller-supplied side-channel params.
 type Request struct {
 	// Texts is the input list. Each entry is moderated independently.
-	Texts []string `json:"text,omitzero"`
+	Texts []string `json:"texts,omitzero"`
 
 	// Options carries model-specific parameters.
 	Options *Options `json:"options,omitempty"`
