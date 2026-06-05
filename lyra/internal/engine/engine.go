@@ -27,9 +27,9 @@ import (
 //     prompt and the chat-memory middleware
 //
 // Each sub-component is a focused struct in its own file; Engine
-// just owns construction and the public surface. The chat.Engine
-// interface in internal/service/chat narrows this to exactly the
-// operations the chat service needs.
+// just owns construction and the public surface. The chat service's
+// own (unexported) engine interface narrows this to exactly the
+// operations that service needs.
 type Engine struct {
 	// Chat execution.
 	platform *runtime.Platform

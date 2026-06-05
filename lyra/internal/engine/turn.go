@@ -29,7 +29,7 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 		return ChatOutput{}, err
 	}
 
-	observer := ObserverFrom(pc.Options)
+	observer := observerFrom(pc.Options)
 
 	// HITL R-model resume: a prior segment interrupted for human input and
 	// saved the in-flight conversation (its tail is the assistant tool-call

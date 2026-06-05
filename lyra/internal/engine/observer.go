@@ -16,7 +16,7 @@ import (
 // generic tool failure (and from a green success). errors.Is-matchable.
 var ErrToolDenied = errors.New("tool call denied by user")
 
-// ToolObserver receives both tool-call lifecycle notifications and
+// toolObserver receives both tool-call lifecycle notifications and
 // streaming assistant text deltas as a turn unfolds. Each tool call
 // fires one OnToolCallStart followed by one OnToolCallEnd carrying
 // the same opaque CallID; the assistant text arrives in zero or
@@ -25,7 +25,7 @@ var ErrToolDenied = errors.New("tool call denied by user")
 // Implementations must be safe for concurrent calls — a chat turn
 // may dispatch multiple tools simultaneously when the model emits
 // parallel tool_calls.
-type ToolObserver interface {
+type toolObserver interface {
 	// ApproveToolCall is the gate consulted BEFORE every tool call.
 	// It returns a verdict telling the decorator whether the call runs,
 	// is denied (short-circuited to a recoverable result), or must pause
@@ -82,14 +82,14 @@ type ToolApprovalVerdict struct {
 	Arguments  string
 }
 
-// ObserverFrom extracts the [ToolObserver] the engine attached to
+// observerFrom extracts the [toolObserver] the engine attached to
 // opts via [Engine.RunChat]. Returns nil when no observer is
 // registered — Action bodies treat that as "no streaming hook
 // wired" and skip the per-chunk callback.
 //
 // Lives here (not on ProcessContext) because action bodies are the
 // only callers and the lookup is type-specific to Lyra's decorator.
-func ObserverFrom(opts *core.ProcessOptions) ToolObserver {
+func observerFrom(opts *core.ProcessOptions) toolObserver {
 	if opts == nil {
 		return nil
 	}
@@ -107,7 +107,7 @@ func ObserverFrom(opts *core.ProcessOptions) ToolObserver {
 // invocations land on the observer without changing the underlying
 // tool implementation.
 type toolObserverDecorator struct {
-	observer ToolObserver
+	observer toolObserver
 }
 
 // Name implements [core.Extension]. The constant string is fine —
@@ -128,7 +128,7 @@ func (d *toolObserverDecorator) DecorateTool(_ core.Process, _ core.Action, tool
 // distinguishable on the observer side.
 type observedTool struct {
 	inner    chat.Tool
-	observer ToolObserver
+	observer toolObserver
 }
 
 func (o *observedTool) Definition() chat.ToolDefinition { return o.inner.Definition() }

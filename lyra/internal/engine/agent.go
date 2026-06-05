@@ -87,7 +87,7 @@ type ChatOutput struct {
 // bash freely within one turn.
 //
 // The body uses Stream rather than Call so each text chunk surfaces
-// to [ToolObserver.OnMessageDelta] as it arrives — transport
+// to [toolObserver.OnMessageDelta] as it arrives — transport
 // adapters get a real streaming experience instead of one
 // pre-buffered MessageDelta. Tool-call rounds still go through the
 // same ToolMiddleware loop; tool events surface via the
@@ -250,7 +250,7 @@ func (e *Engine) planGate(ctx context.Context, pc *core.ProcessContext, message 
 		return ChatOutput{}, false, nil // NO_PLAN → execute directly, no approval
 	}
 
-	if obs := ObserverFrom(pc.Options); obs != nil {
+	if obs := observerFrom(pc.Options); obs != nil {
 		obs.OnPlanGenerated(plan)
 	}
 	// Plan review rides the same interrupt resolution as tool approval —

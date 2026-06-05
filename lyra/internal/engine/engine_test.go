@@ -27,7 +27,7 @@ func memoryNewInMemoryStore() memory.Store { return memory.NewInMemoryStore() }
 //
 // This is the M2-readiness gate: it proves the chain
 // engine.RunChat → lynx Platform → ToolMiddleware → ToolDecorator
-// → observedTool → ToolObserver is wired end-to-end without any
+// → observedTool → toolObserver is wired end-to-end without any
 // real LLM in the loop.
 func TestEngine_RunChat_ToolCallObserved(t *testing.T) {
 	stub := newStubModel("bash", `{"command":"echo lyra"}`, "I ran echo and got lyra.")

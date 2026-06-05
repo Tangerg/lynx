@@ -55,7 +55,7 @@ type RunChatRequest struct {
 
 	// Observer receives streaming tool-call + text-delta
 	// notifications. May be nil — the turn still runs.
-	Observer ToolObserver
+	Observer toolObserver
 
 	// EventListener, when non-nil, is registered as a process-scope
 	// extension. Values that also implement [event.Listener] (i.e.
@@ -97,7 +97,7 @@ func (e *Engine) StartChat(ctx context.Context, req RunChatRequest) ChatProcess 
 // StartChat and RestoreChat share it so a resumed turn is wired exactly
 // like a fresh one; if they diverged, the continuation would observe /
 // persist differently than the original turn.
-func chatProcessOptions(sessionID string, observer ToolObserver, listener core.Extension, client *chat.Client) core.ProcessOptions {
+func chatProcessOptions(sessionID string, observer toolObserver, listener core.Extension, client *chat.Client) core.ProcessOptions {
 	opts := core.ProcessOptions{}
 	if sessionID != "" {
 		opts.Session = &core.Session{ID: sessionID}
@@ -136,7 +136,7 @@ type RestoreChatRequest struct {
 
 	// Observer receives the continuation's streaming tool-call + text
 	// deltas, exactly as on a fresh turn. May be nil.
-	Observer ToolObserver
+	Observer toolObserver
 
 	// EventListener captures the restored process's terminal event so the
 	// resumed turn can map it onto a TurnEnd reason. May be nil.
