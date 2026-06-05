@@ -172,17 +172,13 @@ func LogToClient(ctx context.Context, level slog.Level, message string, data any
 
 	// The SDK exposes slog-style level constants; map by the closest
 	// numeric ordering used in mcp/logging.go.
-	mcpLevel := slogLevelToMCP(level)
 	if data == nil {
 		data = message
 	}
 	params := &sdkmcp.LoggingMessageParams{
-		Level:  mcpLevel,
+		Level:  slogLevelToMCP(level),
 		Data:   data,
 		Logger: logger,
-	}
-	if message != "" && data == message {
-		params.Data = message
 	}
 	return session.Log(ctx, params)
 }
