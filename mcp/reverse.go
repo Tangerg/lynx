@@ -75,7 +75,7 @@ type ElicitOptions struct {
 // Example:
 //
 //	func (t *longTool) Call(ctx context.Context, args string) (string, error) {
-//	    for i := 0; i < 100; i++ {
+//	    for i := range 100 {
 //	        // ... work ...
 //	        _ = mcp.ReportProgress(ctx, float64(i+1), ptr(100.0),
 //	            fmt.Sprintf("processed %d/100", i+1))
