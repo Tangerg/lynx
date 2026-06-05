@@ -2,6 +2,7 @@ package json
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -106,7 +107,7 @@ func MustMapDefSchemaOf(v any) map[string]any {
 // set so the result is a single, self-contained object.
 func generateSchema(v any, cfg SchemaConfig) (*jsonschema.Schema, error) {
 	if v == nil {
-		return nil, fmt.Errorf("nil value")
+		return nil, errors.New("value must not be nil")
 	}
 	r := &jsonschema.Reflector{
 		Anonymous:                 cfg.Anonymous,
@@ -115,7 +116,7 @@ func generateSchema(v any, cfg SchemaConfig) (*jsonschema.Schema, error) {
 		AllowAdditionalProperties: cfg.AllowAdditionalProperties,
 	}
 	t := reflect.TypeOf(v)
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	if t.Kind() == reflect.Struct {
