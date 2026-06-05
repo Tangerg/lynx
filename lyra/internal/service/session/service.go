@@ -15,6 +15,11 @@ import (
 // identical regardless of backend.
 const IDPrefix = "ses_"
 
+// ForkAtMessageIDKey is the metadata key under which a forked session records
+// the parent message it branched from. Stored on the child's Metadata so the
+// branch point survives a round-trip through storage.
+const ForkAtMessageIDKey = "fork_at_message_id"
+
 // Session is the persistent identity of a conversation. Lyra tracks
 // every turn (chat exchange) against one Session id; restarting the
 // runtime restores the Session from storage and lets a turn continue
@@ -47,6 +52,27 @@ func (s Session) EffectiveModel(defaultModel string) string {
 		return s.Model
 	}
 	return defaultModel
+}
+
+// Fork derives a child session that branches from s at atMessageID. The child
+// inherits s's working directory, takes s's title with a " (fork)" suffix, and
+// records the branch point in metadata; ParentID points back at s. The parent's
+// turn history, model and other accumulated state are NOT inherited — a fork
+// starts a fresh conversation from the shared prefix.
+//
+// id and now are supplied by the caller: the storage adapter owns id generation
+// (uuid) and the clock, keeping this derivation a pure, DB-free function the
+// "what a fork is" rule can be unit-tested against.
+func (s Session) Fork(id, atMessageID string, now time.Time) Session {
+	return Session{
+		ID:        id,
+		Title:     s.Title + " (fork)",
+		Cwd:       s.Cwd, // inherit the source's cwd (API.md §7.2)
+		ParentID:  s.ID,
+		StartedAt: now,
+		UpdatedAt: now,
+		Metadata:  map[string]string{ForkAtMessageIDKey: atMessageID},
+	}
 }
 
 // Service is the SessionService contract.
