@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -90,19 +91,9 @@ func (c *StoreConfig) ApplyDefaults() {
 	if c.Context == nil {
 		c.Context = context.Background()
 	}
-	c.SchemaName = cmpOr(c.SchemaName, DefaultSchemaName)
-	c.TableName = cmpOr(c.TableName, DefaultTableName)
-	c.IndexName = cmpOr(c.IndexName, c.TableName+DefaultIndexSuffix)
-}
-
-// cmpOr is a local stand-in for cmp.Or — first non-zero string wins.
-func cmpOr(values ...string) string {
-	for _, v := range values {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
+	c.SchemaName = cmp.Or(c.SchemaName, DefaultSchemaName)
+	c.TableName = cmp.Or(c.TableName, DefaultTableName)
+	c.IndexName = cmp.Or(c.IndexName, c.TableName+DefaultIndexSuffix)
 }
 
 var (
