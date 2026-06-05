@@ -38,7 +38,7 @@ func (p *AgentProcess) run(ctx context.Context) error {
 			return nil
 		}
 
-		if err := p.Tick(ctx); err != nil {
+		if err := p.tick(ctx); err != nil {
 			return err
 		}
 
@@ -156,11 +156,11 @@ const (
 	attrWorldStateSize = "agent.world_state.size"
 )
 
-// Tick performs one OODA iteration. Exported for tests that want to
-// step frame-by-frame; production callers go through
+// tick performs one OODA iteration — the run loop's single step. The
+// loop in run drives it; production callers go through
 // [Platform.RunAgent] / [Platform.StartAgent] / [Platform.ContinueProcess]
-// which drive the full loop.
-func (p *AgentProcess) Tick(ctx context.Context) error {
+// which run the full loop.
+func (p *AgentProcess) tick(ctx context.Context) error {
 	ctx = normalizeContext(ctx)
 	ctx = core.WithProcess(ctx, p)
 
