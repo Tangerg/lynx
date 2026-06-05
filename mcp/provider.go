@@ -148,7 +148,7 @@ func (p *Provider) refresh(ctx context.Context) ([]chat.Tool, error) {
 		return *cached, nil
 	}
 
-	all := make([]chat.Tool, 0)
+	var all []chat.Tool
 	seen := make(map[string]struct{})
 	for _, src := range p.cfg.Sources {
 		for descriptor, err := range src.Session.Tools(ctx, nil) {
