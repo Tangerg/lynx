@@ -266,7 +266,7 @@ func collectSegments(buf *bytes.Buffer, raw []byte, n ast.Node) {
 	}
 	if n.Type() == ast.TypeBlock {
 		lines := n.Lines()
-		for i := 0; i < lines.Len(); i++ {
+		for i := range lines.Len() {
 			seg := lines.At(i)
 			buf.Write(seg.Value(raw))
 		}
