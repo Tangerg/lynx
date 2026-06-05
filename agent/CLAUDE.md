@@ -58,13 +58,13 @@
 - **Action QoS retry 在 runtime 层**：`ActionQoS{MaxAttempts, BaseDelay, MaxDelay}` 委托 `pkg/retry`；不要每个 action 自己写重试
 - **HITL 是 first-class**：`AwaitInput` 把进程切 StatusWaiting，状态存 blackboard，`Resume` 拿到回复后重入
 - **Event JSON 单向**：lifecycle event 的 marshal 会把 Action / WorldState 这种接口字段降级成 lossy summary；要 round-trip 在内存里直接 type-assert
-- **依赖窄接口（已经踩过坑）**：`autonomy.platform` 接口就是这个 pattern —— 上层别 import `*runtime.Platform` 整体，定义自己的窄 interface
+- **库内部用具体类型，不做内部 ISP**：agent 是 SDK 库 —— 内部包之间**直接依赖具体类型**（`autonomy` 直接持 `*runtime.Platform`，不抽窄接口）。消费方窄接口是给**应用层 / 多实现 / 跨模块边界**用的（见 lyra 的 `chat.Engine`）；库内单实现还抽窄接口是 YAGNI 仪式（按 repo 自己的「单实现接口→内联」规则）
 
 ## 强反向不变量
 
 - ❌ **绕过 Blackboard 让 action 之间直接传值**：违反 planner 可见性，调度会坏
 - ❌ **Extension 用 string-key 注册（非类型分发）**：`collectExtensions[T]` 现在的 pattern 更好，加新能力时不改 dispatch loop
-- ❌ **新模块直接拿 `*runtime.Platform` 整体**：定义自己的窄接口（参考 `runtime/autonomy/platform.go` interface）
+- ❌ **库内部为单实现依赖抽消费方窄接口**：agent 内部直接用具体类型（`*runtime.Platform` 等）；窄接口留给公开 SPI（`Planner`/`Ranker`/`Extension` 子接口）和应用层消费方
 - ❌ **examples/ 里的代码当 reference**：那是 demo，约定不一定跟主线一致
 
 ## 关键目录
@@ -102,7 +102,7 @@ go test ./runtime/... -race    # 并发 + child spawn 必跑 race
 
 ## 已经做过的大重构（lyra 重构 session 期）
 
-- ✅ `autonomy.Autonomy` 解耦 `*runtime.Platform`，改用包内 `platform` 窄接口
+- ✅ `autonomy.Autonomy` 直接持 `*runtime.Platform`（曾引入包内 `platform` 窄接口 + tripwire 解耦，后判定 SDK 库内单实现依赖无需 ISP、已内联回具体类型）
 - ✅ `ProcessContextConfig` / `ProcessContext` 字段按 concern 分区（per-process state / platform-wired hooks / per-action state）
 - ✅ `fmt.Errorf("constant")` → `errors.New(...)` 全模块清扫
 - ✅ **委派 spawn 语义修复**（lyra 倒逼）：agent-as-tool（`AsChatTool`/`AsChatToolFromAgent`/`SubagentTools`/`AllAchievableTools`）原用 `SpawnChild` 全继承父 blackboard → `GoalProducing[T]` 子 agent 被预满足、静默不干活。新增 `SpawnChildProtectedOnly`（白板 + 仅保留 `BindProtected` 的 ambient 项，`Spawn()`+`Clear()` 组合，零接口改动）作委派默认，是 `SpawnChild`(全继承)/`SpawnChildFresh`(全空)之间缺的中间档。四个委派构造器改用之。`SpawnChild`(全继承)保留为公开 primitive —— 完整梯度 `SpawnChild`(全)→`SpawnChildProtectedOnly`(仅 ambient)→`SpawnChildFresh`(空),给外部编排留口子。async（`SpawnChildAsync`/`AsBackgroundChatTool`）仍全继承未动

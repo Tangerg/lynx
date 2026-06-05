@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
@@ -181,7 +182,7 @@ func (p *AgentProcess) tick(ctx context.Context) error {
 }
 
 // observe runs the determiner and publishes the ReadyToPlan event.
-func (p *AgentProcess) observe(ctx context.Context, span spanAttributer) core.WorldState {
+func (p *AgentProcess) observe(ctx context.Context, span trace.Span) core.WorldState {
 	worldState := p.determiner.determineWorldState(ctx)
 	p.state.setLastWorld(worldState)
 
@@ -191,13 +192,6 @@ func (p *AgentProcess) observe(ctx context.Context, span spanAttributer) core.Wo
 	})
 	span.SetAttributes(attribute.Int(attrWorldStateSize, len(worldState.State())))
 	return worldState
-}
-
-// spanAttributer is the tiny subset of trace.Span observe needs — keeps
-// the helper's signature decoupled from the full OTel span type so a
-// future test stub doesn't need to implement everything.
-type spanAttributer interface {
-	SetAttributes(...attribute.KeyValue)
 }
 
 // handleTerminationSignal processes a queued termination request. AGENT-
