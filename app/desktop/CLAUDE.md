@@ -54,8 +54,9 @@ frontend/src/
 ├── rpc/                            Runtime Protocol 边界（JSON-RPC client + methods + shapes + transports）— 唯一 outbound 副作用层
 ├── main/container.ts               composition root（DI 单例：createLyraClient(transport) + sidecar）
 └── styles/globals.css              Tailwind base + @theme token + 全局 keyframes（唯一 CSS；其余历史 .css 只承载无法用 utility 表达的 markdown/code/panel chrome）
-internal/mockruntime/               Lyra Runtime Protocol v2 的本地 dev mock（JSON-RPC + SSE），监听 :17171
 ```
+
+> Go 侧只剩 Wails 桌面壳（`app.go` / `main.go`），**不内嵌 runtime**；前端经 HTTP 连外部 Lyra Runtime（`api.baseUrl`，默认 `:17171`）。协议契约见 `docs/protocol/`。
 
 ---
 
