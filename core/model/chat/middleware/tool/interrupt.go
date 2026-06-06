@@ -10,12 +10,11 @@ import (
 )
 
 // interruptsToolLoop reports whether a tool error is a human-in-the-loop
-// INTERRUPT — the loop must exit immediately and propagate it unchanged
-// (no feedback to the model, no abort-masking) so the caller can park the
-// run and gather input. A tool signals it by returning an error
-// implementing ToolLoopInterrupt() bool returning true
-// (agent/hitl.InterruptError does). Duck-typed so this package never
-// imports agent — the one-way dependency holds.
+// INTERRUPT — a [chat.ToolHalt] whose Abort() is false. The loop exits
+// immediately and propagates it unchanged (no feedback to the model) so the
+// caller can park the run and gather input; agent/hitl.InterruptError is the
+// reference implementation. The [chat.ToolHalt] contract is duck-typed so this
+// package never imports agent — the one-way dependency holds.
 //
 // This is the Go-ecosystem interrupt model (LangGraph / eino /
 // trpc-agent-go): the interrupt is an ordinary error carrying its payload;
@@ -23,8 +22,8 @@ import (
 // triggered, and on resume the human's response is fed back at the original
 // call site.
 func interruptsToolLoop(err error) bool {
-	var i interface{ ToolLoopInterrupt() bool }
-	return errors.As(err, &i) && i.ToolLoopInterrupt()
+	h, ok := errors.AsType[chat.ToolHalt](err)
+	return ok && !h.Abort()
 }
 
 // LoopInterrupted is the error the tool loop returns when a tool

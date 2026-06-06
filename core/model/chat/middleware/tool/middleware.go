@@ -26,7 +26,7 @@ const emptyResponseNudge = "Your previous reply was empty. Please provide a comp
 // zero value yields the default loop (cap = [DefaultMaxIterations]).
 //
 // Tool-failure handling is NOT configurable: a tool error that isn't a
-// control-flow signal (context cancel / ToolLoopAbort / HITL interrupt) is
+// control-flow signal (ctx cancel / a chat.ToolHalt (abort or HITL interrupt)) is
 // always fed back to the model as a tool result so it can recover, and an
 // unregistered tool is always answered with an error result rather than
 // aborting the run. That recovery is the framework default; a tool author

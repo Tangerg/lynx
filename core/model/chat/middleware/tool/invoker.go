@@ -143,7 +143,7 @@ func (r *InvocationResult) validate() error {
 //
 // Error policy (no knobs — this is the framework default): a tool failure is
 // recoverable UNLESS it's a control-flow signal. A control-flow error
-// ([abortsToolLoop]: context cancel/deadline or an explicit ToolLoopAbort, and
+// ([abortsToolLoop]: context cancel/deadline or a chat.ToolHalt with Abort()==true, and
 // [interruptsToolLoop]: a HITL interrupt) propagates and stops the loop;
 // EVERYTHING else — file-not-found, wrong credentials, a non-zero exit a tool
 // chose to surface as an error, an unregistered tool — is turned into a tool
@@ -193,19 +193,18 @@ func toolErrorResult(name string, err error) string {
 	return fmt.Sprintf("error: tool %q failed: %s", name, err.Error())
 }
 
-// abortsToolLoop reports whether a tool error must PROPAGATE (abort the
-// loop) even under FeedbackOnToolError, instead of being fed back to the
-// model as a recoverable result. Two carve-outs from "feed back": context
-// cancellation (the run is being torn down) and control-flow errors that
-// implement ToolLoopAbort() bool returning true — HITL suspension
-// (agent/hitl.PauseError) rides this so a parked tool reaches the caller
-// intact rather than being masked as a failed tool result.
+// abortsToolLoop reports whether a tool error must PROPAGATE (abort the loop)
+// instead of being fed back to the model as a recoverable result. Two cases:
+// context cancellation / deadline (the run is being torn down), and a
+// [chat.ToolHalt] whose Abort() is true — a fatal failure the model can't fix.
+// (A ToolHalt whose Abort() is false is a HITL interrupt, handled separately
+// by [interruptsToolLoop] so it carries a resume checkpoint.)
 func abortsToolLoop(err error) bool {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}
-	var ab interface{ ToolLoopAbort() bool }
-	return errors.As(err, &ab) && ab.ToolLoopAbort()
+	h, ok := errors.AsType[chat.ToolHalt](err)
+	return ok && h.Abort()
 }
 
 // invokeToolCalls runs every requested tool in order and collects the
@@ -249,7 +248,7 @@ func (i *callInvoker) invokeToolCalls(ctx context.Context, calls []*chat.ToolCal
 			// Recoverable failure: feed it back to the model as the tool's
 			// result so it can adjust and continue, rather than aborting the
 			// run. This is the unconditional default — only control-flow errors
-			// (HITL interrupt above, context cancel / ToolLoopAbort here) stop
+			// (HITL interrupt above, context cancel / ToolHalt-abort here) stop
 			// the loop. The failure is also recorded out-of-band on the
 			// tool-call item (via the tool observer) — see lyra engine.
 			allReturnDirect = false

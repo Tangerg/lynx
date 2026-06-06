@@ -126,10 +126,6 @@ func (e *Engine) buildChatAgent() *core.Agent {
 					if _, parked := hitl.HandleInterrupt(pc, err); parked {
 						return ChatOutput{}, nil
 					}
-					// Plan-mode parks via AwaitInput directly (HandlePause).
-					if _, paused := hitl.HandlePause(pc, err); paused {
-						return ChatOutput{}, nil
-					}
 					return out, err
 				}
 				return out, nil

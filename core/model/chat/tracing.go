@@ -26,15 +26,13 @@ import (
 // gen_ai.operation namespace they instrument.
 var chatTracer = otel.Tracer("lynx/gen_ai/chat")
 
-// interruptsToolLoop reports whether err is a HITL interrupt (duck-typed via
-// ToolLoopInterrupt() bool, the way agent/hitl signals one). The chat client
-// span uses it to treat an interrupt as normal control flow rather than a
-// failure. The tool-calling middleware (core/model/chat/middleware/tool) has
-// its own equivalent for driving the loop — the two are independent, trivial
-// adapters over the same externally-defined contract.
-func interruptsToolLoop(err error) bool {
-	var i interface{ ToolLoopInterrupt() bool }
-	return errors.As(err, &i) && i.ToolLoopInterrupt()
+// isHITLInterrupt reports whether err is a HITL interrupt — a [ToolHalt] whose
+// Abort() is false (suspension for human input, not a fatal abort). The chat
+// client span uses it to treat an interrupt as normal control flow rather than
+// a failure, so production error-rate alerts don't fire on every approval.
+func isHITLInterrupt(err error) bool {
+	h, ok := errors.AsType[ToolHalt](err)
+	return ok && !h.Abort()
 }
 
 // OpenTelemetry GenAI semantic-convention attribute keys. The values
@@ -128,7 +126,7 @@ func startChatSpan(ctx context.Context, model Model, req *Request, operation str
 // RecordError event before ending.
 func finishChatSpan(span trace.Span, resp *Response, err error) {
 	if err != nil {
-		if interruptsToolLoop(err) {
+		if isHITLInterrupt(err) {
 			// A HITL interrupt is normal control flow (the run paused for
 			// human input), NOT a failure — record it as an event but leave
 			// the span status unset so production error-rate alerts don't

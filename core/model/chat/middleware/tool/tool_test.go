@@ -283,20 +283,20 @@ func continuationToolResult(t *testing.T, result *tool.InvocationResult) string 
 	return b.String()
 }
 
-// abortErr is a tool error that stops the loop the way a fatal/control-flow
-// failure does — structurally (duck-typed), via ToolLoopAbort.
+// abortErr is a fatal control-flow error — a [chat.ToolHalt] whose Abort() is
+// true. The loop must propagate it (stop the run), not feed it back.
 type abortErr struct{}
 
-func (abortErr) Error() string       { return "abort: fatal" }
-func (abortErr) ToolLoopAbort() bool { return true }
+func (abortErr) Error() string { return "abort: fatal" }
+func (abortErr) Abort() bool   { return true }
 
-// interruptErr is a tool error that interrupts the loop for human input,
-// the way agent/hitl.InterruptError does — structurally (duck-typed), with
-// no import.
+// interruptErr is a HITL interrupt — a [chat.ToolHalt] whose Abort() is false,
+// the way agent/hitl.InterruptError signals one (duck-typed, no import). The
+// loop exits and propagates it so the caller can park the run.
 type interruptErr struct{}
 
-func (interruptErr) Error() string           { return "interrupt: awaiting approval" }
-func (interruptErr) ToolLoopInterrupt() bool { return true }
+func (interruptErr) Error() string { return "interrupt: awaiting approval" }
+func (interruptErr) Abort() bool   { return false }
 
 // --- registry lifecycle ----------------------------------------------------
 
