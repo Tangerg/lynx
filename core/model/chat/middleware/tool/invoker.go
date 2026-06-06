@@ -144,24 +144,24 @@ func (i *callInvoker) canInvokeToolCalls(resp *chat.Response) (bool, error) {
 	return true, nil
 }
 
-// unknownToolResult is the synthetic tool result fed back to the model when
-// it calls a tool that isn't registered. It names the missing tool and lists
-// the available ones so the model can recover.
-func unknownToolResult(name string, available []string) string {
-	sorted := slices.Clone(available)
-	slices.Sort(sorted)
-	if len(sorted) == 0 {
+// unknownToolResult is the synthetic tool result the invoker feeds back to the
+// model when it calls a tool that isn't registered. It names the missing tool
+// and lists the invoker's registered tools so the model can recover.
+func (i *callInvoker) unknownToolResult(name string) string {
+	available := i.registry.names()
+	slices.Sort(available)
+	if len(available) == 0 {
 		return fmt.Sprintf("error: tool %q is not available, and no tools are registered", name)
 	}
-	return fmt.Sprintf("error: tool %q is not available. Available tools: %s", name, strings.Join(sorted, ", "))
+	return fmt.Sprintf("error: tool %q is not available. Available tools: %s", name, strings.Join(available, ", "))
 }
 
-// toolErrorResult is the synthetic tool result fed back to the model when a
-// tool execution fails recoverably, so the model sees the failure and can
-// adjust instead of the whole request aborting. The error string is the
-// tool's own (already wrapped by the tool); the invoker does not add its
+// toolErrorResult is the synthetic tool result the invoker feeds back to the
+// model when a tool execution fails recoverably, so the model sees the failure
+// and can adjust instead of the whole request aborting. The error string is
+// the tool's own (already wrapped by the tool); the invoker does not add its
 // internal call path.
-func toolErrorResult(name string, err error) string {
+func (i *callInvoker) toolErrorResult(name string, err error) string {
 	return fmt.Sprintf("error: tool %q failed: %s", name, err.Error())
 }
 
@@ -203,8 +203,10 @@ func nextRoundRequest(req *chat.Request, assistant *chat.AssistantMessage, toolM
 // context cancellation / deadline (the run is being torn down), and a
 // [chat.ToolHalt] whose Abort() is true — a fatal failure the model can't fix.
 // (A ToolHalt whose Abort() is false is a HITL interrupt — see
-// [interruptsToolLoop] — which also propagates but parks rather than fails.)
-func abortsToolLoop(err error) bool {
+// [callInvoker.interruptsToolLoop] — which also propagates but parks rather
+// than fails.) Together with interruptsToolLoop it is the invoker's tool-error
+// classification policy; stateless but owned by the invoker that applies it.
+func (i *callInvoker) abortsToolLoop(err error) bool {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}
@@ -219,7 +221,7 @@ func abortsToolLoop(err error) bool {
 // loop continues AT the still-pending call (the model is not re-invoked for
 // that round). agent/hitl.InterruptError is the reference implementation; the
 // contract is duck-typed so this package never imports agent.
-func interruptsToolLoop(err error) bool {
+func (i *callInvoker) interruptsToolLoop(err error) bool {
 	h, ok := errors.AsType[chat.ToolHalt](err)
 	return ok && !h.Abort()
 }
@@ -242,14 +244,14 @@ func (i *callInvoker) invokeToolCalls(ctx context.Context, calls []*chat.ToolCal
 			returns = append(returns, &chat.ToolReturn{
 				ID:     call.ID,
 				Name:   call.Name,
-				Result: unknownToolResult(call.Name, i.registry.names()),
+				Result: i.unknownToolResult(call.Name),
 			})
 			continue
 		}
 
 		content, err := i.invokeOne(ctx, t, call)
 		if err != nil {
-			if interruptsToolLoop(err) {
+			if i.interruptsToolLoop(err) {
 				// HITL: this call halts the round pending human input. Stop here
 				// and report the results produced so far plus the cause; the
 				// middleware turns this into a FinishReasonInterrupt response (the
@@ -262,7 +264,7 @@ func (i *callInvoker) invokeToolCalls(ctx context.Context, calls []*chat.ToolCal
 					interrupt: &roundInterrupt{done: returns, cause: err},
 				}, nil
 			}
-			if abortsToolLoop(err) {
+			if i.abortsToolLoop(err) {
 				return nil, fmt.Errorf("tool.callInvoker.invokeToolCalls: tool %q failed: %w", call.Name, err)
 			}
 			// Recoverable failure: feed it back to the model as the tool's
@@ -275,7 +277,7 @@ func (i *callInvoker) invokeToolCalls(ctx context.Context, calls []*chat.ToolCal
 			returns = append(returns, &chat.ToolReturn{
 				ID:     call.ID,
 				Name:   call.Name,
-				Result: toolErrorResult(call.Name, err),
+				Result: i.toolErrorResult(call.Name, err),
 			})
 			continue
 		}
@@ -317,7 +319,7 @@ func (i *callInvoker) invokeOne(ctx context.Context, t chat.Tool, call *chat.Too
 	content, err := t.Call(ctx, call.Arguments)
 
 	if err != nil {
-		if interruptsToolLoop(err) {
+		if i.interruptsToolLoop(err) {
 			// HITL interrupt: the tool asked to pause for human input — normal
 			// control flow, not a failure. Record it as an event but leave the
 			// span status unset (no false error-rate alerts on every approval).
