@@ -28,6 +28,21 @@ type ToolMetadata struct {
 	// notifications. False (the default) sends the result back to the
 	// LLM for integration into the next reply.
 	ReturnDirect bool
+
+	// Idempotent declares that re-executing this tool with the same
+	// arguments is harmless — it has no side effects, or re-applying them
+	// lands on the same state (a read, a pure query). False (the default)
+	// assumes the tool has side effects.
+	//
+	// It governs HITL resume safety. A run that parks for human input
+	// resumes by RE-RUNNING the turn from the last persisted point, so any
+	// tool that already ran in the interrupting round re-executes on resume.
+	// The tool-calling loop therefore REFUSES to suspend a round in which a
+	// non-idempotent tool already ran before the interrupting call — replaying
+	// its side effects would be a silent bug, so it surfaces an error instead.
+	// Mark a tool Idempotent only when re-running it is genuinely safe; the
+	// conservative default keeps an unmarked tool from being replayed.
+	Idempotent bool
 }
 
 // Tool is the executable contract every tool exposes — describable to
@@ -50,15 +65,21 @@ type Tool interface {
 	// LLM, or returned to the caller when ReturnDirect is true.
 	//
 	// A non-nil error means the tool could not produce a result. What happens
-	// to that error is decided by whatever drives the call, NOT by this
-	// interface: the bundled tool-calling loop in
-	// [core/model/chat/middleware/tool] feeds most errors back to the model as
-	// a result so it can recover, and propagates only control-flow signals
-	// (context cancellation / deadline and explicit abort/interrupt errors) —
-	// see that package for the exact contract. A tool author who wants control
-	// over the wording can fold an operational failure (file not found, wrong
-	// credentials, a non-zero exit, an HTTP 4xx) into the result string instead
-	// of returning an error; both reach the model.
+	// to it is decided by whatever DRIVES the call, not by this interface: a
+	// loop driver (the bundled [core/model/chat/middleware/tool], or a
+	// third-party one) feeds an ordinary error back to the model as a result so
+	// it can recover, and STOPS the loop only on a control-flow signal — context
+	// cancellation / deadline, or a [ToolHalt] (a fatal abort, or a HITL
+	// interrupt the run resumes from). See [ToolHalt] and that package for the
+	// exact contract. A tool author who wants control over the wording can fold
+	// an operational failure (file not found, wrong credentials, a non-zero
+	// exit, an HTTP 4xx) into the result string instead of returning an error;
+	// both reach the model.
+	//
+	// Call may run more than once for the same logical step: a run that parks
+	// on a HITL interrupt resumes by re-executing the turn, so a tool that ran
+	// before the interrupt runs again. Declare [ToolMetadata.Idempotent] when
+	// that replay is safe.
 	Call(ctx context.Context, arguments string) (string, error)
 }
 

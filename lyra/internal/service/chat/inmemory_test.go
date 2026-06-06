@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	chatmodel "github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
@@ -358,18 +359,19 @@ func TestService_ApprovalGate_AllowOnce(t *testing.T) {
 	}
 }
 
-// TestService_ApprovalGate_ResumeDoesNotReinvokeModel is the R-model
-// regression: approving a gated tool must RESUME the turn from the
-// just-approved call — NOT re-run the turn from scratch (re-invoking the
-// model for the already-completed round). The counting model proves it:
-// round 1 (the bash tool call) + round 2 (the final reply) = exactly 2
-// model invocations across the whole suspend/resume cycle. The old
-// re-run behavior invoked the model 3 times (round 1 twice).
-func TestService_ApprovalGate_ResumeDoesNotReinvokeModel(t *testing.T) {
+// TestService_ApprovalGate_ResumeRerunsTurn pins the propagate-and-rerun HITL
+// model: approving a gated tool RESUMES by re-running the turn (no checkpoint).
+// The conversation-driven stub re-emits the bash call on the re-run, so the
+// model is invoked 3 times across the cycle — round 1 (interrupts) + the
+// re-run's two rounds (regenerate the call, then the final reply). The crux is
+// that the re-run must NOT duplicate the user message in stored history: it
+// was persisted on the first run, and runChatTurn skips re-adding it on resume.
+func TestService_ApprovalGate_ResumeRerunsTurn(t *testing.T) {
 	model := &countingStubModel{}
 	model.defaults, _ = chatmodel.NewOptions("stub-counting")
 	client, _ := chatmodel.NewClient(model)
-	eng, _ := engine.New(context.Background(), engine.Config{ChatClient: client})
+	store := memory.NewInMemoryStore()
+	eng, _ := engine.New(context.Background(), engine.Config{ChatClient: client, MemoryStore: store})
 	svc := chat.New(eng, approval.New(approval.ModeBalanced), nil) // bash → gate
 
 	handle, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
@@ -393,9 +395,27 @@ func TestService_ApprovalGate_ResumeDoesNotReinvokeModel(t *testing.T) {
 	if endReason != chat.TurnEndCompleted {
 		t.Errorf("turn end = %s, want completed", endReason)
 	}
-	if got := model.calls.Load(); got != 2 {
-		t.Fatalf("model invoked %d times across resume, want 2 "+
-			"(round 1 must NOT be re-invoked — that was the HITL re-run bug)", got)
+	if got := model.calls.Load(); got != 3 {
+		t.Fatalf("model invoked %d times across resume, want 3 "+
+			"(round 1 interrupts; the re-run regenerates the call then replies)", got)
+	}
+
+	// The re-run must not duplicate the user message: it was persisted on the
+	// first run and the resume re-run sends only the system header. History
+	// must be a single valid user → assistant(tool_call) → tool → assistant
+	// sequence.
+	stored, err := store.Read(context.Background(), "sess-rmodel")
+	if err != nil {
+		t.Fatalf("read stored history: %v", err)
+	}
+	users := 0
+	for _, m := range stored {
+		if m.Type() == chatmodel.MessageTypeUser {
+			users++
+		}
+	}
+	if users != 1 {
+		t.Fatalf("stored history has %d user messages, want 1 (resume must not re-add the prompt): %+v", users, stored)
 	}
 }
 

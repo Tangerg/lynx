@@ -30,25 +30,26 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 
 	observer := observerFrom(pc.Options)
 
-	// HITL R-model resume: a prior segment interrupted for human input and
-	// saved the in-flight checkpoint (its tail is the assistant tool-call
-	// message + the results already produced this round). Continue from it —
-	// the chat tool loop resumes by executing the still-pending (now-resolved)
-	// calls, never re-invoking the model for completed rounds. The system
-	// prompt is re-applied (the checkpoint is thin and carries no system
-	// header); the inner memory middleware reconstructs the prior conversation
-	// from the store (the assistant reply was persisted before the interrupt)
-	// and persists the resumed rounds.
+	// HITL R-model resume: the run parked for human input and resumes by
+	// RE-RUNNING this turn on the same process. The user message was persisted
+	// to memory on the turn's first round, so a re-run must NOT add it again
+	// (that would duplicate it in the stored history). turnSeeded reports
+	// whether the prompt was already added; on the resuming re-tick it is true
+	// and the turn re-runs with only the system header, letting the inner
+	// memory middleware replay the stored conversation. The model regenerates
+	// the interrupted round's tool call and the gate now observes the recorded
+	// verdict. A system MESSAGE (not the prompt template) keeps the client from
+	// injecting a synthetic user seed into the otherwise message-less request.
+	sysPrompt := e.SystemPrompt(ctx)
 	var stream *chat.ClientStreamer
-	if saved, ok := loadInflightConversation(pc.Blackboard); ok {
-		clearInflightConversation(pc.Blackboard) // consume the checkpoint
+	if turnSeeded(pc.Blackboard) {
 		stream = req.
-			WithSystemPrompt(e.SystemPrompt(ctx)).
-			WithMessages(saved...).
+			WithMessages(chat.NewSystemMessage(sysPrompt)).
 			Stream()
 	} else {
+		seedTurn(pc.Blackboard)
 		stream = req.
-			WithSystemPrompt(e.SystemPrompt(ctx)).
+			WithSystemPrompt(sysPrompt).
 			WithUserPrompt(message).
 			Stream()
 	}
