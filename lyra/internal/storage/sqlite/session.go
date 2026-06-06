@@ -169,63 +169,45 @@ func (s *SessionService) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-// Touch refreshes UpdatedAt + bumps TurnCount in a single UPDATE.
-// Mirrors session.inMemoryService.Touch — lives off the public
-// interface because it's implementation-detail bookkeeping the
-// engine calls between turns.
+// Touch refreshes UpdatedAt + bumps TurnCount in a single UPDATE. The bump is
+// kept as atomic SQL (turn_count = turn_count + 1) rather than a
+// load-modify-store on the entity, so concurrent turns can't lose a count.
+// Lives off the public interface: it's implementation-detail bookkeeping the
+// engine calls between turns. ErrNotFound for unknown id.
 func (s *SessionService) Touch(ctx context.Context, id string) error {
-	res, err := s.db.ExecContext(ctx,
-		`UPDATE sessions
-		   SET updated_at = ?, turn_count = turn_count + 1
-		 WHERE id = ?`,
-		time.Now().UTC().UnixNano(), id,
-	)
-	if err != nil {
-		return fmt.Errorf("sqlite: touch session: %w", err)
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("sqlite: touch session: %w", err)
-	}
-	if n == 0 {
-		return session.ErrNotFound
-	}
-	return nil
+	return s.updateByID(ctx, "touch session",
+		`UPDATE sessions SET updated_at = ?, turn_count = turn_count + 1 WHERE id = ?`,
+		time.Now().UTC().UnixNano(), id)
 }
 
 // SetModel records the session's current model + refreshes UpdatedAt in a
 // single UPDATE (see [session.Service.SetModel]). ErrNotFound for unknown id.
 func (s *SessionService) SetModel(ctx context.Context, id, model string) error {
-	res, err := s.db.ExecContext(ctx,
+	return s.updateByID(ctx, "set session model",
 		`UPDATE sessions SET model = ?, updated_at = ? WHERE id = ?`,
-		model, time.Now().UTC().UnixNano(), id,
-	)
-	if err != nil {
-		return fmt.Errorf("sqlite: set session model: %w", err)
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("sqlite: set session model: %w", err)
-	}
-	if n == 0 {
-		return session.ErrNotFound
-	}
-	return nil
+		model, time.Now().UTC().UnixNano(), id)
 }
 
 // Rename updates the session's title + refreshes UpdatedAt in a single UPDATE
 // (see [session.Service.Rename]). ErrNotFound for unknown id.
 func (s *SessionService) Rename(ctx context.Context, id, title string) error {
-	res, err := s.db.ExecContext(ctx,
+	return s.updateByID(ctx, "rename session",
 		`UPDATE sessions SET title = ?, updated_at = ? WHERE id = ?`,
-		title, time.Now().UTC().UnixNano(), id,
-	)
+		title, time.Now().UTC().UnixNano(), id)
+}
+
+// updateByID runs a single-row UPDATE keyed on session id and maps "no row
+// matched" to session.ErrNotFound. op labels the operation for error wrapping
+// (e.g. "rename session"). Shared by the Touch / SetModel / Rename field
+// writes, which differ only in their SET clause and bound args.
+func (s *SessionService) updateByID(ctx context.Context, op, query string, args ...any) error {
+	res, err := s.db.ExecContext(ctx, query, args...)
 	if err != nil {
-		return fmt.Errorf("sqlite: rename session: %w", err)
+		return fmt.Errorf("sqlite: %s: %w", op, err)
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("sqlite: rename session: %w", err)
+		return fmt.Errorf("sqlite: %s: %w", op, err)
 	}
 	if n == 0 {
 		return session.ErrNotFound
