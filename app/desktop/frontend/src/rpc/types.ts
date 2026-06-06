@@ -78,7 +78,8 @@ export const RPC_RUN_NOT_FOUND = -32003;
 export const RPC_ITEM_NOT_FOUND = -32004;
 export const RPC_CWD_UNAVAILABLE = -32005;
 export const RPC_CAPABILITY_NOT_NEGOTIATED = -32006;
-export const RPC_RUN_NOT_RUNNING = -32007;
+// NOTE: there is no -32007 / run_not_running — a run is two-state
+// (running|finished), so "not running" collapses into run_already_finished (§8.2).
 export const RPC_RUN_ALREADY_FINISHED = -32008;
 export const RPC_CHECKPOINT_UNAVAILABLE = -32009;
 export const RPC_ATTACHMENT_TOO_LARGE = -32010;

@@ -118,7 +118,7 @@ type ItemOf<T extends Item["type"]> = Extract<Item, { type: T }>;
  *  The text block is always `complete`: a userMessage is atomic (its content
  *  is the whole prompt, present in full on both the started and completed
  *  events — never delta-streamed), so it has no "running" phase. Stamping it
- *  from item.status would make the live path (started=inProgress → "running",
+ *  from item.status would make the live path (started=running → "running",
  *  then the completed event de-dupes and never upgrades it) disagree with
  *  history replay (completed-only → "complete"). Pinning "complete" keeps the
  *  two convergent. */
@@ -220,26 +220,24 @@ export function writeToolCall(
   const prev = withBlock.toolCalls[item.id];
   const tool: ToolCall = {
     id: item.id,
-    kind: item.tool?.kind ?? "tool",
+    name: item.tool?.name ?? "tool",
     fn: toolLabel(item.tool),
     // Tool args are authoritative from the structured Item — tools are
     // call-and-result: the runtime parses the args whole before emitting the
     // card and re-sends them on the completed Item. So at the TERMINAL state we
     // derive args from that object (argsText), which makes live streaming and
     // history replay (item.completed-only) converge. While the item is still
-    // inProgress we instead show the accumulated toolArguments-delta preview —
+    // running we instead show the accumulated toolArguments-delta preview —
     // kept for a future where args stream incrementally for live UX (see
     // onItemDelta) — and the completed Item then reconciles to the object.
     args:
-      item.status === "inProgress"
-        ? (prev?.args ?? "") || argsText(item.tool)
-        : argsText(item.tool),
+      item.status === "running" ? (prev?.args ?? "") || argsText(item.tool) : argsText(item.tool),
     status: toolStatus(item),
     duration,
     // Keep the accumulated stream preview as the baseline; toolFields then
     // reconciles `result` to the authoritative value once the completed Item
-    // carries it (commandExecution.output / generic tool.result). While the
-    // item is still inProgress neither is present, so the toolOutput-delta
+    // carries it (command result.output / generic tool.result). While the
+    // item is still running neither is present, so the toolOutput-delta
     // accumulation stands (API.md §5.2, docs/protocol/TOOL_OUTPUT.md).
     result: prev?.result,
     // Surface the tool-level failure reason (§8.1 channel b) so an "err" tool

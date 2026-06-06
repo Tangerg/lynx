@@ -4,11 +4,42 @@
 // Items are the wire primitive; this grouping (one assistant turn = one
 // bubble with many blocks) is purely a UI concern.
 
-import type { OpenInterrupt, ToolKind } from "@/rpc";
+import type { OpenInterrupt } from "@/rpc";
 
 // Narrow view-side roles. userMessage → "user", everything the agent
 // produces → "assistant", protocol notes → "system".
 export type MessageRole = "user" | "assistant" | "system";
+
+// Client-side display convention (API.md §4.4.2) — maps a domain-neutral tool
+// `name` to a presentation category. This is NOT on the wire: the protocol core
+// only knows `{ name, arguments, result }`; how a tool renders richly is client
+// knowledge. Adding a new tool = a row here (or a TOOL_ICON/TOOL_PREVIEW
+// contribution), never a protocol change. Unknown names → "generic" (JSON tree
+// fallback). Used by the fold (projections), runDigest, and tool icon routing.
+export type ToolCategory =
+  | "command" // bash / shell → { command } + { exitCode, output, outputTruncated? }
+  | "fileEdit" // edit / write → { path } + { changes: FileEdit[] }
+  | "search" // grep / glob → { query|pattern } + { hits: SearchHit[] }
+  | "webSearch" // webSearch → { query } + { results: WebSearchResult[] }
+  | "read" // read → { path, range? } + { content }
+  | "subagent" // subagent → { prompt|task } + { summary, childRunId? }
+  | "generic"; // MCP "<server>.<tool>" / anything unknown → JSON tree
+
+const TOOL_CATEGORY: Record<string, ToolCategory> = {
+  bash: "command",
+  shell: "command",
+  edit: "fileEdit",
+  write: "fileEdit",
+  grep: "search",
+  glob: "search",
+  webSearch: "webSearch",
+  read: "read",
+  subagent: "subagent",
+};
+
+export function toolCategory(name: string): ToolCategory {
+  return TOOL_CATEGORY[name] ?? "generic";
+}
 
 // Tool-call display state, derived from toolCall Item status + error.
 // `denied` is a user decision (HITL decline → error.type "denied_by_user"),
@@ -27,7 +58,7 @@ export type BlockStatus = "running" | "complete" | "incomplete" | "requires-acti
 
 export interface ToolCall {
   id: string;
-  kind: ToolKind; // wire variant — drives icon routing (display label is `fn`)
+  name: string; // wire tool identity (ToolInvocation.name) — drives icon/preview routing (display label is `fn`)
   fn: string; // tool display name / command
   args: string; // accumulated arg text (toolArguments deltas, pre-parse)
   status: ToolCallStatus;
@@ -35,13 +66,14 @@ export interface ToolCall {
   added?: number;
   removed?: number;
   hits?: number;
-  /** commandExecution exit code. Surfaced for visibility; a non-zero exit is
-   *  shown but does NOT force the status red (exit≠0 isn't always failure —
-   *  e.g. grep "no match"). Real failures set the toolCall Item's `error`. */
+  /** command-category (`bash`/`shell`) exit code, from result.exitCode (§4.4.2).
+   *  Surfaced for visibility; a non-zero exit is shown but does NOT force the
+   *  status red (exit≠0 isn't always failure — e.g. grep "no match"). Real
+   *  failures set the toolCall Item's `error`. */
   exitCode?: number;
   result?: string;
-  /** commandExecution: the runtime capped `result` (stdout+stderr) at a size
-   *  limit. UI shows a "truncated — open in terminal for full" affordance. */
+  /** command-category: the runtime capped `result.output` (stdout+stderr) at a
+   *  size limit. UI shows a "truncated — open in terminal for full" affordance. */
   outputTruncated?: boolean;
   /** Human-readable failure reason from the toolCall Item's `error`
    *  (ProblemData.detail ?? type, API.md §8.1 channel b). Set when status="err". */

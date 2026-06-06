@@ -7,6 +7,7 @@
 // future surfaces — telemetry export, end-of-run toasts — can reuse it).
 
 import type { AgentViewState, TimelineEntry } from "./viewState";
+import { toolCategory } from "./viewState";
 
 export interface ApprovalDigest {
   command: string;
@@ -42,13 +43,6 @@ function firstToken(args: string): string {
   const m = args.match(/^([^\s(,]+)/);
   return m ? (m[1] ?? "") : "";
 }
-
-// File-read detection for the generic `tool` kind — its fn-name tells us
-// it read a file. The typed kinds (commandExecution / fileChange / search)
-// are bucketed by `kind` in the loop below, not by name. A Set keeps
-// "add a read alias" to one row; unknown generic fns are skipped from the
-// digest buckets but still appear in the raw timeline view.
-const FILE_READ = new Set(["read", "read_file", "cat"]);
 
 // A read tool's path lives in its args object (JSON) — pull `path`/`file`,
 // else fall back to the first token (a bare path string).
@@ -123,19 +117,22 @@ export function deriveLatestRun(view: AgentViewState): RunDigest | null {
   for (const id of startedTools) {
     const tool = view.toolCalls[id];
     if (!tool) continue;
-    if (tool.kind === "commandExecution") {
+    // Bucket by the §4.4.2 display category (derived from tool.name), the same
+    // table the fold + icon routing use.
+    const category = toolCategory(tool.name);
+    if (category === "command") {
       digest.commands.push({
-        // fn IS the command string (toolLabel joins the argv).
+        // fn IS the command string (toolLabel surfaces arguments.command).
         cmd: tool.fn,
         // Only a successfully-run command is "ok"; err / denied did not run
         // to a clean result.
         status: tool.status === "ok" ? "ok" : "err",
       });
-    } else if (tool.kind === "fileChange") {
+    } else if (category === "fileEdit") {
       // fn is the changed path (single) or "N files" (multi).
       digest.changedFiles.push({ path: tool.fn, added: tool.added, removed: tool.removed });
-    } else if (tool.kind === "tool" && FILE_READ.has(tool.fn)) {
-      const path = argPath(tool.args);
+    } else if (category === "read") {
+      const path = argPath(tool.args) || tool.fn;
       if (path) digest.readFiles.push(path);
     }
   }

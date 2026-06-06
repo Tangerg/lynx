@@ -60,7 +60,7 @@ describe("smoke: v2 end-to-end happy path", () => {
       capabilities: {
         events: ["run.started", "run.finished", "item.started", "item.delta", "item.completed"],
         features: {},
-        interruptKinds: ["approval", "question"],
+        interruptTypes: ["approval", "question"],
       },
     });
     const initReq = await waitForRequest(transport, "runtime.initialize");
@@ -118,7 +118,7 @@ describe("smoke: v2 end-to-end happy path", () => {
       });
       injectRunEvent(transport, "run_1", "evt_2", {
         type: "item.started",
-        item: agentMessageItem("item_1", "run_1", "", "inProgress"),
+        item: agentMessageItem("item_1", "run_1", "", "running"),
       });
       injectRunEvent(
         transport,
@@ -136,10 +136,10 @@ describe("smoke: v2 end-to-end happy path", () => {
         item: {
           id: asItemId("item_tool"),
           runId: asRunId("run_1"),
-          status: "inProgress",
+          status: "running",
           createdAt: "2026-06-03T00:00:00Z",
           type: "toolCall",
-          tool: { kind: "commandExecution", command: ["ls"] },
+          tool: { name: "bash", arguments: { command: "ls" } },
         },
       });
       // R-model HITL: the run ENDS with an interrupt for the tool approval.
@@ -148,8 +148,8 @@ describe("smoke: v2 end-to-end happy path", () => {
         interrupts: [
           {
             itemId: asItemId("item_tool"),
-            kind: "approval",
-            payload: { tool: { kind: "commandExecution", command: ["ls"] } },
+            type: "approval",
+            payload: { tool: { name: "bash", arguments: { command: "ls" } } },
           },
         ],
       });
@@ -170,7 +170,7 @@ describe("smoke: v2 end-to-end happy path", () => {
     const resumePromise = methods.runs.resume({
       parentRunId: asRunId("run_1"),
       responses: [
-        { itemId: asItemId("item_tool"), response: { kind: "approval", decision: "approve" } },
+        { itemId: asItemId("item_tool"), response: { type: "approval", decision: "approve" } },
       ],
     });
     const resumeReq = await waitForRequest(transport, "runs.resume");

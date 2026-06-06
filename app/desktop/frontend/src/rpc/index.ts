@@ -30,7 +30,7 @@ export type {
   ServerCapabilities,
   ServerFeatures,
   ServerInfo,
-  InterruptKind,
+  InterruptType,
   InitializeRequest,
   InitializeResponse,
   ShutdownRequest,
@@ -66,7 +66,6 @@ export type {
   QuestionFieldBase,
   QuestionOption,
   ToolInvocation,
-  ToolKind,
   ListItemsRequest,
   ListItemsResponse,
   EditItemRequest,
@@ -88,16 +87,18 @@ export type {
   ToolResultResponse,
   // Diff / search / files
   DiffRow,
+  Diff,
   SearchHit,
   WebSearchResult,
-  FileChangeEntry,
-  FileChange,
+  WorkspaceFileChange,
+  FileEdit,
   FileHead,
   FileLine,
   GrepMatch,
   GrepResult,
   // Usage / error / context / tools
   Usage,
+  ModelUsage,
   ProblemData,
   FieldError,
   ContextItem,
@@ -128,6 +129,7 @@ export type {
   Page,
   PageQuery,
 } from "./shapes";
+export { isDurableEvent } from "./shapes";
 export {
   streamBackgroundUpdates,
   streamRunEvents,
@@ -161,7 +163,6 @@ export {
   RPC_PROVIDER_ERROR,
   RPC_RUN_ALREADY_FINISHED,
   RPC_RUN_NOT_FOUND,
-  RPC_RUN_NOT_RUNNING,
   RPC_SESSION_NOT_FOUND,
   RPC_TOOL_DENIED,
   RPC_UNSUPPORTED_MIME,

@@ -37,7 +37,7 @@ export function useApprovalSubmit(parentRunId?: string, itemId?: string): Approv
         {
           itemId: asItemId(itemId),
           response: {
-            kind: "approval",
+            type: "approval",
             decision: WIRE_DECISION[decision],
             ...(editedArgs ? { editedArgs } : {}),
           },

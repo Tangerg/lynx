@@ -12,6 +12,7 @@ import type {
   ToolCall,
   ToolCallStatus,
 } from "@/protocol/run/viewState";
+import { toolCategory } from "@/protocol/run/viewState";
 
 // ---------------------------------------------------------------------------
 // Formatting / naming
@@ -35,7 +36,7 @@ export function nameForRole(role: MessageRole): string {
 }
 
 export function blockStatus(status: ItemStatus): BlockStatus {
-  if (status === "inProgress") return "running";
+  if (status === "running") return "running";
   if (status === "incomplete") return "incomplete";
   return "complete";
 }
@@ -57,7 +58,7 @@ export function contentText(blocks: WireContentBlock[] | undefined): string {
 
 const PLAN_STATUS: Record<PlanStep["status"], PlanItem["status"]> = {
   completed: "done",
-  inProgress: "doing",
+  running: "doing",
   pending: "todo",
   failed: "todo",
 };
@@ -103,25 +104,67 @@ export function mapQuestion(q: Question | undefined): QuestionItem[] {
   );
 }
 
+// ---------------------------------------------------------------------------
+// §4.4.2 display conventions — read the domain-neutral { name, arguments,
+// result } envelope into view fields. NOT wire-enforced: unknown names fall to
+// the JSON-tree generic path. The category map lives in viewState
+// (`toolCategory`) so the fold, runDigest, and icon routing share one table.
+// All readers are defensive: the item.started shell has no `result` and may
+// have empty `arguments`, so every access tolerates absent/malformed values
+// (a throw here is swallowed by the reducer's try/catch and silently drops the
+// block — or strands a HITL approval the user can no longer act on).
+// ---------------------------------------------------------------------------
+
+function asRecord(v: unknown): Record<string, unknown> | undefined {
+  return typeof v === "object" && v !== null && !Array.isArray(v)
+    ? (v as Record<string, unknown>)
+    : undefined;
+}
+function asString(v: unknown): string | undefined {
+  return typeof v === "string" ? v : undefined;
+}
+function asArrayLength(v: unknown): number | undefined {
+  return Array.isArray(v) ? v.length : undefined;
+}
+
+/** result.changes (FileEdit[]) → +added / −removed line counts (§4.4.2 edit). */
+function editLineCounts(result: unknown): { added: number; removed: number } {
+  const changes = asRecord(result)?.changes;
+  const rows = (Array.isArray(changes) ? changes : []).flatMap((c) => {
+    const diff = asRecord(c)?.diff;
+    return Array.isArray(diff) ? diff : [];
+  });
+  const isType = (r: unknown, t: string) => asRecord(r)?.type === t;
+  return {
+    added: rows.filter((r) => isType(r, "added")).length,
+    removed: rows.filter((r) => isType(r, "deleted")).length,
+  };
+}
+
 /** Human-readable label for a tool invocation (the toolCall row title).
  *  `undefined` on a body-less toolCall started shell (see `mapPlan`). */
 export function toolLabel(tool: ToolInvocation | undefined): string {
   if (!tool) return "tool";
-  // `?? []` / `|| …` guard the partial typed-variant case: a started shell may
-  // carry `kind` but not its body yet. Without it `.join` / `.length` on an
-  // absent field throws — the reducer's try/catch then silently drops the block
-  // (or, for an approval payload, breaks the HITL the user can no longer act on).
-  switch (tool.kind) {
-    case "commandExecution":
-      return (tool.command ?? []).join(" ") || "command";
-    case "fileChange": {
-      const changes = tool.changes ?? [];
-      return changes.length === 1 ? (changes[0]?.path ?? "file") : `${changes.length} files`;
+  const a = tool.arguments ?? {};
+  switch (toolCategory(tool.name)) {
+    case "command":
+      return asString(a.command) || tool.name || "command";
+    case "fileEdit": {
+      const path = asString(a.path);
+      if (path) return path;
+      const rawChanges = asRecord(tool.result)?.changes;
+      const changes = Array.isArray(rawChanges) ? rawChanges : [];
+      return changes.length === 1
+        ? (asString(asRecord(changes[0])?.path) ?? "file")
+        : `${changes.length} files`;
     }
     case "search":
+      return asString(a.query) || asString(a.pattern) || "search";
     case "webSearch":
-      return tool.query || "search";
-    case "tool":
+      return asString(a.query) || "search";
+    case "read":
+      return asString(a.path) || tool.name;
+    default:
       return tool.name || "tool";
   }
 }
@@ -130,33 +173,31 @@ export function toolLabel(tool: ToolInvocation | undefined): string {
  *  `undefined` on a body-less toolCall started shell (see `mapPlan`). */
 export function toolFields(tool: ToolInvocation | undefined): Partial<ToolCall> {
   if (!tool) return {};
-  switch (tool.kind) {
-    case "commandExecution":
-      // The authoritative merged stdout+stderr lands on `tool.output` at
-      // item.completed (durable) — surface it as `result` so history replay
-      // (items.list → completed only, no deltas), reconnect, and non-streaming
-      // runtimes all render it (API.md §5.2, docs/protocol/TOOL_OUTPUT.md). The
-      // item.delta{toolOutput} stream is only a live preview that accumulates
-      // into `result` while inProgress. `output` is absent ONLY on the started
-      // shell (lifecycle) — omit the key there so the preview stands until the
-      // completed Item reconciles it (mirrors how `args` settles on completed).
+  const result = asRecord(tool.result);
+  switch (toolCategory(tool.name)) {
+    case "command": {
+      // The authoritative merged stdout+stderr lands on `result.output` at
+      // item.completed (durable) — surface it as the view `result` so history
+      // replay (items.list → completed only, no deltas), reconnect, and
+      // non-streaming runtimes all render it (API.md §5.2 / §4.4.2). The
+      // item.delta{toolOutput} stream is only a live preview accumulating into
+      // `result` while running. `output` is absent ONLY on the started shell —
+      // omit the key there so the preview stands until completed reconciles it.
+      const output = asString(result?.output);
       return {
-        exitCode: tool.exitCode,
-        ...(tool.output !== undefined
-          ? { result: tool.output, outputTruncated: tool.outputTruncated }
+        exitCode: typeof result?.exitCode === "number" ? result.exitCode : undefined,
+        ...(output !== undefined
+          ? { result: output, outputTruncated: result?.outputTruncated === true }
           : {}),
       };
-    case "fileChange": {
-      const rows = (tool.changes ?? []).flatMap((c) => c.diff ?? []);
-      return {
-        added: rows.filter((r) => r.type === "added").length,
-        removed: rows.filter((r) => r.type === "deleted").length,
-      };
     }
+    case "fileEdit":
+      return tool.result === undefined ? {} : editLineCounts(tool.result);
     case "search":
+      return { hits: asArrayLength(result?.hits) };
     case "webSearch":
-      return { hits: tool.results?.length };
-    case "tool":
+      return { hits: asArrayLength(result?.results) };
+    default:
       // Best-effort JSON result → a pretty string the inspector renders as a
       // JSON tree (formatBody re-parses); plain strings pass through.
       return {
@@ -170,17 +211,18 @@ export function toolFields(tool: ToolInvocation | undefined): Partial<ToolCall> 
   }
 }
 
-/** Fallback args text when no `toolArguments` deltas streamed: the generic
- *  `tool`'s parsed `arguments`, pretty-printed (the inspector re-renders it as
- *  a JSON tree). "" for typed variants (their data shows via fn / added / hits)
- *  and for an empty object — so a started shell still seeds "" for delta
- *  accrual rather than "{}". Guards the case where a tool delivers its args
- *  only as an object on item.completed (no streaming). */
+/** Fallback args text when no `toolArguments` deltas streamed: the parsed
+ *  `arguments`, pretty-printed (the inspector re-renders it as a JSON tree).
+ *  "" for tools whose key arg is already baked into `fn` (command / fileEdit /
+ *  search / webSearch / read) and for an empty object — so a started shell
+ *  seeds "" for delta accrual rather than "{}". Guards the case where a tool
+ *  delivers its args only as an object on item.completed (no streaming). */
 export function argsText(tool: ToolInvocation | undefined): string {
-  if (tool?.kind === "tool" && Object.keys(tool.arguments).length > 0) {
-    return JSON.stringify(tool.arguments, null, 2);
-  }
-  return "";
+  if (!tool) return "";
+  if (toolCategory(tool.name) !== "generic" && toolCategory(tool.name) !== "subagent") return "";
+  return Object.keys(tool.arguments ?? {}).length > 0
+    ? JSON.stringify(tool.arguments, null, 2)
+    : "";
 }
 
 export function toolStatus(item: Extract<Item, { type: "toolCall" }>): ToolCallStatus {
@@ -188,6 +230,6 @@ export function toolStatus(item: Extract<Item, { type: "toolCall" }>): ToolCallS
   // (API.md §8.1) — that's a user decision, render it neutral, not failure-red.
   if (item.error?.type === "denied_by_user") return "denied";
   if (item.error || item.status === "incomplete") return "err";
-  if (item.status === "inProgress") return "running";
+  if (item.status === "running") return "running";
   return "ok";
 }

@@ -16,7 +16,7 @@ import { INITIAL_VIEW_STATE } from "./viewState";
 function item(partial: Record<string, unknown>): Item {
   return {
     runId: "run_1",
-    status: "inProgress",
+    status: "running",
     createdAt: "2026-06-03T00:00:00Z",
     ...partial,
   } as Item;
@@ -103,7 +103,7 @@ describe("reducer — item fold", () => {
         item({
           id: "t1",
           type: "toolCall",
-          tool: { kind: "commandExecution", command: ["pnpm", "test"] },
+          tool: { name: "bash", arguments: { command: "pnpm test" } },
         }),
       ),
     );
@@ -120,7 +120,7 @@ describe("reducer — item fold", () => {
           id: "t1",
           type: "toolCall",
           status: "completed",
-          tool: { kind: "commandExecution", command: ["pnpm", "test"], exitCode: 0 },
+          tool: { name: "bash", arguments: { command: "pnpm test" }, result: { exitCode: 0 } },
         }),
       ),
     );
@@ -200,9 +200,9 @@ describe("reducer — item fold", () => {
     expect(s.plan).toEqual([]);
   });
 
-  it("item.completed{status:inProgress} is a lost item — settles incomplete, not a forever spinner", () => {
+  it("item.completed{status:running} is a lost item — settles incomplete, not a forever spinner", () => {
     // History hydration (items.list) of a run lost to a crash/restart replays
-    // its last item as item.completed but with status still inProgress (a known
+    // its last item as item.completed but with status still running (a known
     // backend reconciliation gap). The fold must coerce that to incomplete — a "running" block here
     // would spin forever (no live stream will ever complete it).
     let s: AgentViewState = INITIAL_VIEW_STATE;
@@ -212,7 +212,7 @@ describe("reducer — item fold", () => {
         item({
           id: "a1",
           type: "agentMessage",
-          status: "inProgress", // contradictory on a completed event — coerced
+          status: "running", // contradictory on a completed event — coerced
           content: [{ type: "text", text: "half a thoug" }],
         }),
       ),
@@ -245,7 +245,7 @@ describe("reducer — item fold", () => {
     s = reduce(
       s,
       started(
-        item({ id: "t1", type: "toolCall", tool: { kind: "commandExecution", command: ["bad"] } }),
+        item({ id: "t1", type: "toolCall", tool: { name: "bash", arguments: { command: "bad" } } }),
       ),
     );
     s = reduce(
@@ -255,7 +255,7 @@ describe("reducer — item fold", () => {
           id: "t1",
           type: "toolCall",
           status: "incomplete",
-          tool: { kind: "commandExecution", command: ["bad"] },
+          tool: { name: "bash", arguments: { command: "bad" } },
           error: { type: "tool_failed", detail: "boom" },
         }),
       ),
@@ -271,7 +271,11 @@ describe("reducer — item fold", () => {
     s = reduce(
       s,
       started(
-        item({ id: "t1", type: "toolCall", tool: { kind: "commandExecution", command: ["bash"] } }),
+        item({
+          id: "t1",
+          type: "toolCall",
+          tool: { name: "bash", arguments: { command: "bash" } },
+        }),
       ),
     );
     s = reduce(
@@ -281,7 +285,7 @@ describe("reducer — item fold", () => {
           id: "t1",
           type: "toolCall",
           status: "incomplete",
-          tool: { kind: "commandExecution", command: ["bash"] },
+          tool: { name: "bash", arguments: { command: "bash" } },
           error: { type: "denied_by_user", detail: "tool call denied by user" },
         }),
       ),
@@ -301,7 +305,7 @@ describe("reducer — HITL interrupt", () => {
         item({
           id: "tool_1",
           type: "toolCall",
-          tool: { kind: "commandExecution", command: ["rm", "-rf", "x"] },
+          tool: { name: "bash", arguments: { command: "rm -rf x" } },
         }),
       ),
     );
@@ -312,8 +316,8 @@ describe("reducer — HITL interrupt", () => {
         interrupts: [
           {
             itemId: "tool_1" as never,
-            kind: "approval",
-            payload: { tool: { kind: "commandExecution", command: ["rm", "-rf", "x"] } },
+            type: "approval",
+            payload: { tool: { name: "bash", arguments: { command: "rm -rf x" } } },
           },
         ],
       }),
@@ -338,7 +342,7 @@ describe("reducer — HITL interrupt", () => {
         item({
           id: "t1",
           type: "toolCall",
-          tool: { kind: "tool", name: "fs.write", arguments: {} },
+          tool: { name: "fs.write", arguments: {} },
         }),
       ),
     );
@@ -349,9 +353,9 @@ describe("reducer — HITL interrupt", () => {
         interrupts: [
           {
             itemId: "t1" as never,
-            kind: "approval",
+            type: "approval",
             payload: {
-              tool: { kind: "tool", name: "fs.write", arguments: { path: "/etc/hosts" } },
+              tool: { name: "fs.write", arguments: { path: "/etc/hosts" } },
               risk: "high",
             },
           },
@@ -378,7 +382,7 @@ describe("reducer — HITL interrupt", () => {
         item({
           id: "tool_1",
           type: "toolCall",
-          tool: { kind: "commandExecution", command: ["rm", "x"] },
+          tool: { name: "bash", arguments: { command: "rm x" } },
         }),
       ),
     );
@@ -389,8 +393,8 @@ describe("reducer — HITL interrupt", () => {
         interrupts: [
           {
             itemId: "tool_1" as never,
-            kind: "approval",
-            payload: { tool: { kind: "commandExecution", command: ["rm", "x"] } },
+            type: "approval",
+            payload: { tool: { name: "bash", arguments: { command: "rm x" } } },
           },
         ],
       }),

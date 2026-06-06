@@ -13,7 +13,7 @@ import { INITIAL_VIEW_STATE } from "./viewState";
 function item(partial: Record<string, unknown>): Item {
   return {
     runId: "r1",
-    status: "inProgress",
+    status: "running",
     createdAt: "2026-06-03T00:00:00Z",
     ...partial,
   } as Item;
@@ -33,7 +33,7 @@ describe("reducer — timeline accumulator", () => {
     s = reduce(
       s,
       started(
-        item({ id: "tc1", type: "toolCall", tool: { kind: "commandExecution", command: ["ls"] } }),
+        item({ id: "tc1", type: "toolCall", tool: { name: "bash", arguments: { command: "ls" } } }),
       ),
     );
     s = reduce(
@@ -43,7 +43,7 @@ describe("reducer — timeline accumulator", () => {
           id: "tc1",
           type: "toolCall",
           status: "completed",
-          tool: { kind: "commandExecution", command: ["ls"] },
+          tool: { name: "bash", arguments: { command: "ls" } },
         }),
       ),
     );
@@ -69,7 +69,7 @@ describe("reducer — timeline accumulator", () => {
         item({
           id: "tc1",
           type: "toolCall",
-          tool: { kind: "commandExecution", command: ["psql"] },
+          tool: { name: "bash", arguments: { command: "psql" } },
         }),
       ),
     );
@@ -80,8 +80,8 @@ describe("reducer — timeline accumulator", () => {
         interrupts: [
           {
             itemId: "tc1" as never,
-            kind: "approval",
-            payload: { tool: { kind: "commandExecution", command: ["psql"] } },
+            type: "approval",
+            payload: { tool: { name: "bash", arguments: { command: "psql" } } },
           },
         ],
       },

@@ -14,12 +14,12 @@ import type { AttachmentId, ItemId, RunId, SessionId, TaskId } from "./ids";
 // §3 / §9 — Lifecycle + capabilities
 // ---------------------------------------------------------------------------
 
-export type InterruptKind = "approval" | "question" | "toolResult";
+export type InterruptType = "approval" | "question" | "toolResult";
 
 export interface ClientCapabilities {
   events: string[]; // event types this client can render
   features: Record<string, unknown>;
-  interruptKinds?: InterruptKind[]; // HITL kinds we can handle (anti-deadlock, §6.2)
+  interruptTypes?: InterruptType[]; // HITL types we can handle (anti-deadlock, §6.2)
   optOutNotificationMethods?: string[]; // suppress high-freq notifications, e.g. ["item.delta"]
 }
 
@@ -163,15 +163,16 @@ export type RunMode = "agent" | "chat" | "plan";
 
 export type RunOutcome =
   | { type: "completed"; result: RunResult }
-  | { type: "error"; result: RunResult }
-  | { type: "maxSteps"; result: RunResult } // agent step ceiling (Run = one turn)
-  | { type: "maxBudget"; result: RunResult } // cost ceiling (incl. subagent subtree)
-  | { type: "canceled"; result: RunResult }
+  | { type: "error"; result: RunResult } // result.error: ProblemData (with detail)
+  | { type: "maxSteps"; result: RunResult; detail?: string } // step ceiling within one Run (counted by step, not turn)
+  | { type: "maxBudget"; result: RunResult; detail?: string } // cost ceiling (incl. subagent subtree); detail like "spent $4.20 / cap $4.00"
+  | { type: "canceled"; result: RunResult; detail?: string } // runs.cancel reason flows here
   | { type: "interrupt"; interrupts: Interrupt[] }; // ★resumable; Run already ended, resources freed
 
+// Total cost reads `usage.costUsd` — there is NO RunResult.costUsd (avoids two
+// sources of truth for total cost, API.md §4.2).
 export interface RunResult {
   usage?: Usage;
-  costUsd?: number; // omitted when model not in pricing table (never fabricate 0)
   steps?: number;
   error?: ProblemData; // when outcome.type=error
 }
@@ -180,7 +181,7 @@ export interface RunResult {
 // §4.3 — Item (the unified history + streaming primitive)
 // ---------------------------------------------------------------------------
 
-export type ItemStatus = "inProgress" | "completed" | "incomplete"; // incomplete = interrupted/canceled
+export type ItemStatus = "running" | "completed" | "incomplete"; // running=in progress; incomplete = interrupted/canceled
 
 export interface ItemBase {
   id: ItemId;
@@ -196,7 +197,7 @@ export type ContentBlock =
 export interface PlanStep {
   id: string;
   title: string;
-  status: "pending" | "inProgress" | "completed" | "failed";
+  status: "pending" | "running" | "completed" | "failed"; // "in progress" uses running (§2.3)
 }
 
 export interface QuestionOption {
@@ -234,44 +235,22 @@ export type Item =
 export type ItemType = Item["type"];
 
 // ---------------------------------------------------------------------------
-// §4.4 — ToolInvocation
+// §4.4 — ToolInvocation (domain-neutral envelope)
 // ---------------------------------------------------------------------------
 
-// Uniform "general + special" tool shape (API.md §4.4). Closed, structurally
-// rich tools (command / file change / search) are typed variants — `kind` IS
-// the identity, no redundant `name`. The open set (MCP / dynamic / subagent /
-// custom) rides one generic envelope keyed by `name`, with a parsed-object
-// `arguments` and a best-effort-JSON `result`.
-export type ToolInvocation =
-  | {
-      kind: "commandExecution";
-      command: string[];
-      cwd?: string;
-      // Settled fields — REQUIRED on the item.completed toolCall, absent on the
-      // item.started shell (lifecycle, not optionality of contract). `output` is
-      // the authoritative merged stdout+stderr (interleaved in real time; "" when
-      // the command printed nothing). The `toolOutput` ItemDelta is only a live
-      // PREVIEW of it — dropping every ephemeral delta still yields correct output
-      // from here (API.md §5.2), and a runtime that doesn't stream emits no delta
-      // yet still carries it. See docs/protocol/TOOL_OUTPUT.md.
-      exitCode?: number;
-      durationMs?: number;
-      output?: string;
-      // True iff the runtime capped `output` (and the delta stream) at a size
-      // limit — UI shows a "truncated, open in terminal for full" affordance.
-      outputTruncated?: boolean;
-    }
-  | { kind: "fileChange"; changes: FileChangeEntry[] }
-  | { kind: "search"; query: string; results?: SearchHit[] } // local grep / glob
-  | { kind: "webSearch"; query: string; results?: WebSearchResult[] }
-  | { kind: "tool"; name: string; arguments: Record<string, unknown>; result?: unknown };
-
-export type ToolKind = ToolInvocation["kind"];
-
-export interface FileChangeEntry {
-  path: string;
-  kind: "add" | "modify" | "delete" | "rename";
-  diff?: DiffRow[];
+// The core has ONE tool shape (not a union). `name` is identity, `arguments`
+// is a parsed JSON object, `result` is best-effort JSON output. "How a tool
+// renders richly" is domain knowledge — NOT on the wire — layered by the
+// client display registry keyed on `name` (API.md §4.4.2). New tools cost the
+// protocol nothing (§13: no first-class typed tool variants).
+export interface ToolInvocation {
+  name: string; // tool identity (stable); MCP uses "<server>.<tool>"
+  arguments: Record<string, unknown>; // parsed JSON object (never a JSON string)
+  // best-effort JSON output; absent on the item.started shell, authoritative on
+  // item.completed. Never double-encoded ({x:1}, not "{\"x\":1}"). Streamed
+  // command stdout previews via item.delta{toolOutput} → settles into
+  // result.output on completed (API.md §4.4.1 / §5.2).
+  result?: unknown;
 }
 
 // ---------------------------------------------------------------------------
@@ -283,6 +262,22 @@ export type DiffRow =
   | { type: "context"; leftLine: number; rightLine: number; code: string }
   | { type: "added"; rightLine: number; code: string }
   | { type: "deleted"; leftLine: number; code: string };
+
+// Structured diff returned by workspace.getDiff (§7.5). `truncated` = capped at
+// `limit`; open the file for the full diff (no silent caps).
+export interface Diff {
+  rows: DiffRow[];
+  truncated?: boolean;
+}
+
+// A single edit's applied result (tool `result` convention, §4.4.2) — carries
+// a diff, no `untracked`. Shares the past-tense `status` vocabulary with
+// WorkspaceFileChange but is a distinct type (§4.5).
+export interface FileEdit {
+  path: string;
+  status: "added" | "modified" | "deleted" | "renamed";
+  diff?: DiffRow[];
+}
 
 // Local search hit (grep = path+line+snippet; glob = path only).
 export interface SearchHit {
@@ -298,7 +293,10 @@ export interface WebSearchResult {
   faviconUrl?: string;
 }
 
-export interface FileChange {
+// VCS working-tree scan state (workspace.listFileChanges) — includes
+// `untracked`. Distinct from FileEdit (one edit's applied result); they share
+// the past-tense `status` vocabulary by design (§4.5).
+export interface WorkspaceFileChange {
   path: string;
   status: "added" | "modified" | "deleted" | "renamed" | "untracked";
 }
@@ -324,16 +322,20 @@ export interface GrepResult {
 // §4.6 — Usage / Error
 // ---------------------------------------------------------------------------
 
-export interface Usage {
-  inputTokens?: number;
-  outputTokens?: number;
-  reasoningTokens?: number;
-  cacheReadTokens?: number;
-  cacheWriteTokens?: number;
-  byModel?: Record<
-    string,
-    { inputTokens?: number; outputTokens?: number; reasoningTokens?: number; costUsd?: number }
-  >;
+// Inclusive totals (provider-reported; each includes its sub-items) +
+// non-overlapping sub-items (each independently labelled — clients never
+// subtract, no underflow). §4.6.
+export interface ModelUsage {
+  inputTokens?: number; // total input (includes cacheRead portion)
+  outputTokens?: number; // total output (includes reasoning portion)
+  cacheReadTokens?: number; // subset of inputTokens that hit cache
+  cacheWriteTokens?: number; // tokens written to cache
+  reasoningTokens?: number; // subset of outputTokens that is hidden reasoning
+  costUsd?: number; // top-level Usage = total cost; byModel entry = that model's cost. Omitted when model not in pricing table (never fabricate 0).
+}
+
+export interface Usage extends ModelUsage {
+  byModel?: Record<string, ModelUsage>; // per-model split (not recursive); entries are the same shape (incl. cache)
 }
 
 // Field-level error inside ProblemData.errors (§8.3) — `field` is the
@@ -349,7 +351,9 @@ export interface FieldError {
 // (§8.3); plugins namespace it as `plugin:<name>/<symbol>` (§8.4).
 export interface ProblemData {
   type: string; // stable symbolic name (the discriminator)
+  channel?: "rpc" | "run" | "tool"; // self-describing: which delivery channel this error came from (§8.1)
   detail?: string; // per-occurrence human explanation
+  docUrl?: string; // optional: points at this type's doc page (lowers onboarding cost)
   retryable?: boolean;
   retryAfterSeconds?: number; // earliest retry (e.g. provider rate-limit backoff)
   errors?: FieldError[]; // field-level validation errors (invalid_params / forms)
@@ -361,10 +365,10 @@ export interface ProblemData {
 // ---------------------------------------------------------------------------
 
 export type ContextItem =
-  | { kind: "file"; path: string } // relative to Session.cwd
-  | { kind: "selection"; path: string; range: [number, number] } // 1-based inclusive
-  | { kind: "url"; url: string } // Runtime fetches (SSRF surface)
-  | { kind: "image"; attachmentId: AttachmentId };
+  | { type: "file"; path: string } // relative to Session.cwd
+  | { type: "selection"; path: string; range: [number, number] } // 1-based inclusive
+  | { type: "url"; url: string } // Runtime fetches (SSRF surface)
+  | { type: "image"; attachmentId: AttachmentId };
 
 export type JsonSchema = Record<string, unknown>;
 
@@ -386,13 +390,14 @@ export interface GenerationParams {
 // §4.8 — HITL types
 // ---------------------------------------------------------------------------
 
-// General (itemId) + special (per-kind payload), API.md §4.8. approval /
-// toolResult reuse ToolInvocation (read payload.tool — no guessing where the
-// command lives). question carries no payload (its content is on the Item).
+// All three interrupt types are "payload is enough to render" — none needs a
+// second request (API.md §4.8). approval / toolResult reuse ToolInvocation
+// (read payload.tool — name+arguments always present). question is
+// self-contained (S1): its payload carries the Question, so no items.list join.
 export type Interrupt =
-  | { kind: "approval"; itemId: ItemId; payload: ApprovalPayload }
-  | { kind: "question"; itemId: ItemId }
-  | { kind: "toolResult"; itemId: ItemId; payload: ToolResultPayload };
+  | { type: "approval"; itemId: ItemId; payload: ApprovalPayload }
+  | { type: "question"; itemId: ItemId; payload: { question: Question } }
+  | { type: "toolResult"; itemId: ItemId; payload: ToolResultPayload };
 
 export interface ApprovalPayload {
   tool: ToolInvocation; // the tool awaiting approval (result not yet present)
@@ -412,17 +417,17 @@ export interface OpenInterrupt {
 
 // §6.1 — InterruptResponse (sent via runs.resume).
 export interface ApprovalResponse {
-  kind: "approval";
+  type: "approval";
   decision: "approve" | "deny";
   editedArgs?: Record<string, unknown>;
   reason?: string;
 }
 export interface AnswerResponse {
-  kind: "answer";
-  answers: Record<string, string | string[]>; // key = QuestionField.name
+  type: "answer";
+  answers: Record<string, string[]>; // key = QuestionField.name; single-select = single-element array (S8)
 }
 export interface ToolResultResponse {
-  kind: "toolResult";
+  type: "toolResult";
   result?: unknown; // best-effort JSON, same shape as ToolInvocation.result
   error?: ProblemData; // when the client tool failed
 }
@@ -508,7 +513,7 @@ export interface Attachment {
 
 export interface BackgroundTask {
   id: TaskId;
-  kind: string;
+  category: string; // open classification (§2.6 namespace) — NOT `kind` (§2.1: kind never on wire)
   status: "running" | "completed" | "failed" | "canceled";
   createdAt: string;
   updatedAt?: string;
@@ -550,35 +555,58 @@ export type ItemDelta =
 
 export type StreamEvent =
   | { type: "run.started"; run: RunRef }
-  | { type: "run.progress"; progress: RunProgress } // ephemeral (durable=false); authoritative final usage/steps land on run.finished.result
+  | { type: "run.progress"; progress: RunProgress } // ephemeral; authoritative final usage/steps land on run.finished.result
   | { type: "run.finished"; outcome: RunOutcome }
-  | { type: "item.started"; item: Item } // shell (status=inProgress)
+  | { type: "item.started"; item: Item } // shell (status=running)
   | { type: "item.delta"; itemId: ItemId; delta: ItemDelta }
   | { type: "item.completed"; item: Item } // authoritative terminal, durable
   | { type: "state.snapshot"; state: Record<string, unknown> }
   | { type: "state.delta"; patch: JsonPatch }
-  | { type: "custom"; name: string; payload: unknown };
+  | { type: "custom"; name: string; durable?: boolean; payload: unknown }; // durable carried on-frame (default false)
 
 // Mid-run progress preview — a live readout of step/usage/cost while the Run
 // streams. Ephemeral like item.delta: dropping every run.progress still yields
 // the correct totals from run.finished.result (the authoritative landing), so
 // §5.2's durable invariant holds. Suppressible via optOutNotificationMethods.
+// Cumulative cost reads `usage.costUsd` — no separate RunProgress.costUsd (§5).
 export interface RunProgress {
   step?: number; // agent steps elapsed so far
   maxSteps?: number; // ceiling, when the Run was started with one
-  usage?: Usage; // cumulative usage so far
-  costUsd?: number; // cumulative cost so far
+  usage?: Usage; // cumulative usage so far (cost via usage.costUsd)
   activity?: string; // human-readable current action ("calling tool: bash")
 }
 
 export type StreamEventType = StreamEvent["type"];
 
+// The RunEvent envelope does NOT carry `durable` (S4). For all first-party
+// events durability is a pure function of `event.type` (see DURABLE_EVENT_TYPES
+// / isDurableEvent); only `custom` carries its own on-frame `durable?`. A
+// redundant per-frame bool would admit "item.completed yet durable:false" —
+// a self-contradictory illegal state — so it's removed (API.md §5.2,
+// TRANSPORT §6.4).
 export interface RunEvent {
   runId: RunId;
-  eventId: string; // evt_…; monotonic within a single root run stream (§2.2)
+  eventId: string; // evt_…; monotonic within a single root run stream (§2.4)
   timestamp: string; // ISO-8601
-  durable: boolean; // true = authoritative/listable; false = high-freq ephemeral delta
   event: StreamEvent;
+}
+
+// Durable derivation table (API.md §5.2, authoritative). Every ephemeral event
+// has a named durable landing; clients may opt out of ephemeral deltas and
+// still reconstruct correct terminal state.
+const DURABLE_EVENT_TYPES: ReadonlySet<StreamEventType> = new Set<StreamEventType>([
+  "run.started",
+  "run.finished",
+  "item.started",
+  "item.completed",
+  "state.snapshot",
+]);
+
+/** Is this StreamEvent durable (authoritative/listable)? Derived from
+ *  `event.type`; `custom` carries its own on-frame `durable?` (default false). */
+export function isDurableEvent(event: StreamEvent): boolean {
+  if (event.type === "custom") return event.durable ?? false;
+  return DURABLE_EVENT_TYPES.has(event.type);
 }
 
 // ---------------------------------------------------------------------------

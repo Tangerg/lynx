@@ -87,10 +87,10 @@ export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView 
             {tool.fn}
           </span>
           {/* Args rendered as a parens-wrapped argument list, mono, so the
-              full line reads as a function signature: `read({…})`. Typed
-              variants (commandExecution / fileChange / search) bake their
-              payload into `fn` and carry no separate args — skip the parens
-              entirely rather than print an empty `()`. */}
+              full line reads as a function signature: `read({…})`. Tools whose
+              key arg is baked into `fn` (command / fileEdit / search / webSearch
+              / read, §4.4.2) carry no separate args — skip the parens entirely
+              rather than print an empty `()`. */}
           {tool.args && (
             <span className="truncate font-mono text-[11.5px] text-fg-faint tracking-[-0.005em]">
               ({tool.args})

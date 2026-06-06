@@ -48,7 +48,7 @@ function item(partial: Record<string, unknown>): Item {
 }
 const started = (i: Item): StreamEvent => ({
   type: "item.started",
-  item: { ...i, status: "inProgress" },
+  item: { ...i, status: "running" },
 });
 const completed = (i: Item): StreamEvent => ({ type: "item.completed", item: i });
 const delta = (itemId: string, d: Record<string, unknown>): StreamEvent =>
@@ -96,7 +96,7 @@ const m1 = item({
 const t1 = item({
   id: "t1",
   type: "toolCall",
-  tool: { kind: "tool", name: "fs.delete", arguments: { path: "x" }, result: "ok" },
+  tool: { name: "fs.delete", arguments: { path: "x" }, result: "ok" },
 });
 const m2 = item({ id: "m2", type: "agentMessage", content: [{ type: "text", text: "Done." }] });
 

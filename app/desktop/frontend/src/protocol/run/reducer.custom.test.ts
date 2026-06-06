@@ -19,7 +19,7 @@ function seedAssistant() {
   const item = {
     id: "item_1",
     runId: "run_1",
-    status: "inProgress",
+    status: "running",
     createdAt: "2026-06-03T00:00:00Z",
     type: "agentMessage",
     content: [],

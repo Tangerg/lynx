@@ -14,7 +14,7 @@ import { useAgentStore } from "./agentStore";
 const SID = "ses_1";
 
 const item = (partial: Record<string, unknown>): Item =>
-  ({ runId: "run_1", status: "inProgress", createdAt: "2026-06-03T00:00:00Z", ...partial }) as Item;
+  ({ runId: "run_1", status: "running", createdAt: "2026-06-03T00:00:00Z", ...partial }) as Item;
 const runStarted = (id: string, sessionId: string): StreamEvent =>
   ({ type: "run.started", run: { id, sessionId } }) as never;
 const runFinished = (outcome: RunOutcome): StreamEvent => ({ type: "run.finished", outcome });
@@ -30,7 +30,7 @@ function seedInterrupt(kind: "approval" | "question", itemId: string): void {
           item({
             id: itemId,
             type: "toolCall",
-            tool: { kind: "commandExecution", command: ["rm", "x"] },
+            tool: { name: "bash", arguments: { command: "rm x" } },
           }),
         )
       : started(
@@ -46,10 +46,19 @@ function seedInterrupt(kind: "approval" | "question", itemId: string): void {
         kind === "approval"
           ? {
               itemId: itemId as never,
-              kind: "approval",
-              payload: { tool: { kind: "commandExecution", command: ["rm", "x"] } },
+              type: "approval",
+              payload: { tool: { name: "bash", arguments: { command: "rm x" } } },
             }
-          : { itemId: itemId as never, kind: "question" },
+          : {
+              itemId: itemId as never,
+              type: "question",
+              payload: {
+                question: {
+                  prompt: "Which?",
+                  fields: [{ type: "text", name: "f1", label: "Which?" }],
+                },
+              },
+            },
       ],
     }),
   ]);
@@ -102,14 +111,14 @@ describe("agentStore.resolveInterrupt", () => {
         item({
           id: "t1",
           type: "toolCall",
-          tool: { kind: "commandExecution", command: ["rm", "a"] },
+          tool: { name: "bash", arguments: { command: "rm a" } },
         }),
       ),
       started(
         item({
           id: "t2",
           type: "toolCall",
-          tool: { kind: "commandExecution", command: ["rm", "b"] },
+          tool: { name: "bash", arguments: { command: "rm b" } },
         }),
       ),
       runFinished({
@@ -117,13 +126,13 @@ describe("agentStore.resolveInterrupt", () => {
         interrupts: [
           {
             itemId: "t1" as never,
-            kind: "approval",
-            payload: { tool: { kind: "commandExecution", command: ["rm", "a"] } },
+            type: "approval",
+            payload: { tool: { name: "bash", arguments: { command: "rm a" } } },
           },
           {
             itemId: "t2" as never,
-            kind: "approval",
-            payload: { tool: { kind: "commandExecution", command: ["rm", "b"] } },
+            type: "approval",
+            payload: { tool: { name: "bash", arguments: { command: "rm b" } } },
           },
         ],
       }),

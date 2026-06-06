@@ -16,12 +16,13 @@ import type { ClientCapabilities } from "@/rpc";
 import { useRuntimeStore } from "@/state/runtimeStore";
 
 // The StreamEvent types the reducer renders — declared so the server can
-// avoid emitting events we'd drop (API.md §9). `interruptKinds` is the HITL
+// avoid emitting events we'd drop (API.md §9). `interruptTypes` is the HITL
 // switch: declaring approval / question tells the server we can render +
 // answer them, so it won't strand an unresolvable open interrupt (§6.2).
 const CLIENT_CAPABILITIES: ClientCapabilities = {
   events: [
     "run.started",
+    "run.progress",
     "run.finished",
     "item.started",
     "item.delta",
@@ -35,7 +36,7 @@ const CLIENT_CAPABILITIES: ClientCapabilities = {
     "custom",
   ],
   features: { multimodal: true },
-  interruptKinds: ["approval", "question"],
+  interruptTypes: ["approval", "question"],
 };
 
 async function handshake(): Promise<void> {

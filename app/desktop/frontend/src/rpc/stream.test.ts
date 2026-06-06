@@ -48,7 +48,7 @@ function fakeClient() {
 }
 
 function evt(runId: string, eventId: string, event: RunEvent["event"]): RunEvent {
-  return { runId, eventId, timestamp: "2026-06-03T00:00:00Z", durable: true, event } as RunEvent;
+  return { runId, eventId, timestamp: "2026-06-03T00:00:00Z", event } as RunEvent;
 }
 
 describe("streamRunEvents", () => {

@@ -7,9 +7,10 @@ import { useSessionStore } from "@/state/sessionStore";
 // it answers an open interrupt by starting a continuation Run via the active
 // session's `resume` action, and optimistically settles the card via
 // `resolveInterrupt`. Addressed by `parentRunId` (the interrupted Run) +
-// `itemId` (the question Item). `answers` maps each QuestionField.name to the
-// chosen option label(s) (string for single-select, string[] for multi); for
-// free-text fields the value is the typed text itself (API.md §6.1).
+// `itemId` (the question Item). The view collects each QuestionField.name as a
+// string (single-select / free-text) or string[] (multi); the wire
+// AnswerResponse.answers is always Record<string, string[]> (S8), so we
+// normalize single values to single-element arrays here at the boundary.
 
 export type QuestionAnswers = Record<string, string | string[]>;
 
@@ -28,8 +29,14 @@ export function useQuestionAnswer(parentRunId?: string, itemId?: string): Questi
       const sid = useSessionStore.getState().activeSessionId;
       useAgentStore.getState().resolveInterrupt(sid, itemId, { answered: true });
       const resume = useAgentStore.getState().sessions[sid]?.resume;
+      // Normalize to Record<string, string[]> — single-select / free-text
+      // values become single-element arrays (wire AnswerResponse, §6.1 S8).
+      const wireAnswers: Record<string, string[]> = {};
+      for (const [name, value] of Object.entries(answers)) {
+        wireAnswers[name] = Array.isArray(value) ? value : [value];
+      }
       resume?.(asRunId(parentRunId), [
-        { itemId: asItemId(itemId), response: { kind: "answer", answers } },
+        { itemId: asItemId(itemId), response: { type: "answer", answers: wireAnswers } },
       ]);
     },
     [parentRunId, itemId, pending],
