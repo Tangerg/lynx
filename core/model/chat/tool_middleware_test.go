@@ -185,25 +185,8 @@ func TestToolMiddleware_MaxIterationsCap(t *testing.T) {
 	}
 }
 
-// TestToolMiddleware_UnknownToolThrowsByDefault confirms the default
-// behavior is unchanged: a call to an unregistered tool aborts the request.
-func TestToolMiddleware_UnknownToolThrowsByDefault(t *testing.T) {
-	model := newFakeChatModel(t)
-	model.respond = func(req *chat.Request) (*chat.Response, error) {
-		return responseWithToolCall(t, "ghost", `{}`), nil
-	}
-
-	callMW, _ := chat.NewToolMiddleware()
-	req, _ := chat.NewClientRequest(model)
-	req.WithMiddlewares(callMW).WithMessages(chat.NewUserMessage("seed"))
-
-	if _, err := req.Call().Response(context.Background()); err == nil {
-		t.Fatal("expected error for unregistered tool, got nil")
-	}
-}
-
-// TestToolMiddleware_UnknownToolFeedback verifies that with feedback enabled
-// the loop hands the model an error result for the missing tool (so it can
+// TestToolMiddleware_UnknownToolFeedback verifies that by default the loop
+// hands the model an error result for the missing tool (so it can
 // recover) and continues, rather than aborting.
 func TestToolMiddleware_UnknownToolFeedback(t *testing.T) {
 	model := newFakeChatModel(t)
@@ -221,7 +204,8 @@ func TestToolMiddleware_UnknownToolFeedback(t *testing.T) {
 		return "ok", nil
 	})
 
-	callMW, _ := chat.NewToolMiddleware(chat.ToolLoopConfig{FeedbackOnUnknownTool: true})
+	// Unknown-tool recovery is the unconditional default now — no config knob.
+	callMW, _ := chat.NewToolMiddleware()
 	req, _ := chat.NewClientRequest(model)
 	req.WithMiddlewares(callMW).WithMessages(chat.NewUserMessage("seed")).WithTools(real)
 
