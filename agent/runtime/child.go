@@ -256,10 +256,52 @@ func prepareChild(
 	if err != nil {
 		return nil, fmt.Errorf("spawn child %q: create: %w", agentDef.Name, err)
 	}
+	linkChildSession(child, parentProc, agentDef)
 	if in != nil {
 		child.Blackboard().Bind(in)
 	}
 	return child, nil
+}
+
+// linkChildSession gives a spawned child its OWN session, linked to the
+// parent's conversation. The child's session id is its process id — an
+// independent conversation so its chat-memory history is isolated from the
+// parent's — and ParentID records the parent's conversation id so the
+// delegation lineage is preserved. No-op when the caller pinned a session
+// explicitly, or when the parent has no conversation to link to.
+func linkChildSession(child, parent *AgentProcess, agentDef *core.Agent) {
+	if child.options == nil || child.options.Session != nil {
+		return
+	}
+	parentConvID := conversationIDOf(parent)
+	if parentConvID == "" {
+		return
+	}
+	session := core.NewSession(child.ID(), userIDOf(parent), agentDef.Name)
+	session.ParentID = parentConvID
+	child.options.Session = &session
+}
+
+// conversationIDOf returns a process's chat-memory conversation id: its
+// session id when it runs under one, otherwise its process id (the fallback
+// the chat request uses — see ProcessContext.sessionParams).
+func conversationIDOf(p *AgentProcess) string {
+	if p != nil && p.options != nil && p.options.Session != nil && p.options.Session.ID != "" {
+		return p.options.Session.ID
+	}
+	if p != nil {
+		return p.id
+	}
+	return ""
+}
+
+// userIDOf returns the principal a process runs as, inherited by child
+// sessions so audit trails span the delegation subtree.
+func userIDOf(p *AgentProcess) string {
+	if p != nil && p.options != nil && p.options.Session != nil {
+		return p.options.Session.UserID
+	}
+	return ""
 }
 
 // spawnChildOptions is the synchronous shared core of [SpawnChild],

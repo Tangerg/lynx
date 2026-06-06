@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/model/chat/memory"
 )
 
 // SupervisorConfig configures a [Supervisor] — an LLM-orchestration agent
@@ -101,8 +102,19 @@ func Supervisor[In, Out any](platform *runtime.Platform, cfg SupervisorConfig[In
 				FeedbackOnUnknownTool: true,
 			})
 
+			// The tool loop hands each round only the new tool message
+			// downstream and relies on a memory layer to reconstruct the
+			// conversation. This standalone orchestration has no platform
+			// memory, so pair it with an ephemeral in-process store scoped to
+			// this single multi-round call.
+			memCallMW, memStreamMW, err := memory.NewMiddleware(memory.NewInMemoryStore())
+			if err != nil {
+				return zero, fmt.Errorf("workflow.Supervisor %q: %w", cfg.Name, err)
+			}
+
 			text, _, err := req.
-				WithMiddlewares(callMW, streamMW).
+				WithMiddlewares(callMW, streamMW, memCallMW, memStreamMW).
+				WithParams(map[string]any{memory.ConversationIDKey: "workflow:supervisor"}).
 				WithTools(tools...).
 				WithSystemPrompt(cfg.Instructions).
 				WithUserPrompt(render(in)).

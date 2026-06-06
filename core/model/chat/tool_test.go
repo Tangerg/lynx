@@ -121,8 +121,16 @@ func TestToolSupport_InvokeToolCalls_InternalReturnsForLLM(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := len(cont.Messages); got < 3 {
-		t.Fatalf("continuation has %d messages, want at least 3 (orig + assistant + tool)", got)
+	// New contract: the continuation carries only the turn's system header
+	// (none in this request) plus this round's tool result — NOT the prior
+	// user turn or the assistant tool-call message. The memory middleware
+	// owns the conversation history and splices it back in, so the loop is
+	// decoupled from it.
+	if got := len(cont.Messages); got != 1 {
+		t.Fatalf("continuation has %d messages, want 1 (just the tool result)", got)
+	}
+	if _, ok := cont.Messages[0].(*chat.ToolMessage); !ok {
+		t.Fatalf("continuation[0] is %T, want *chat.ToolMessage", cont.Messages[0])
 	}
 }
 

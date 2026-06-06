@@ -6,7 +6,6 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/memory"
 )
 
 // runChatTurn drives one streaming chat turn end-to-end: compose the
@@ -32,17 +31,21 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 	observer := observerFrom(pc.Options)
 
 	// HITL R-model resume: a prior segment interrupted for human input and
-	// saved the in-flight conversation (its tail is the assistant tool-call
-	// message + the results already produced). Continue from it — the chat
-	// tool loop resumes by executing the still-pending (now-resolved) calls,
-	// never re-invoking the model for completed rounds. The memory
-	// middleware skips its input load/persist (done on the first segment;
-	// the conversation is fed back here) but still saves the final result.
+	// saved the in-flight checkpoint (its tail is the assistant tool-call
+	// message + the results already produced this round). Continue from it —
+	// the chat tool loop resumes by executing the still-pending (now-resolved)
+	// calls, never re-invoking the model for completed rounds. The system
+	// prompt is re-applied (the checkpoint is thin and carries no system
+	// header); the inner memory middleware reconstructs the prior conversation
+	// from the store (the assistant reply was persisted before the interrupt)
+	// and persists the resumed rounds.
 	var stream *chat.ClientStreamer
 	if saved, ok := loadInflightConversation(pc.Blackboard); ok {
 		clearInflightConversation(pc.Blackboard) // consume the checkpoint
-		ctx = memory.WithResumedTurn(ctx)
-		stream = req.WithMessages(saved...).Stream()
+		stream = req.
+			WithSystemPrompt(e.SystemPrompt(ctx)).
+			WithMessages(saved...).
+			Stream()
 	} else {
 		stream = req.
 			WithSystemPrompt(e.SystemPrompt(ctx)).
