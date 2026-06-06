@@ -62,10 +62,17 @@ function onRunStarted(state: AgentViewState, run: RunRef): AgentViewState {
   if (run.spawnedByItemId) {
     return appendTimelineEntry({ kind: "run-start", runId: run.id, summary: "subagent" })(state);
   }
+  // A continuation run (resume after a HITL interrupt / edit — RunRef carries
+  // parentRunId, API.md §4.x) is the SAME logical assistant turn: keep the open
+  // turn so its post-approval output appends to the existing bubble instead of
+  // spawning a second avatar/name/timestamp header. A fresh user-initiated run
+  // has no parentRunId; its preceding userMessage already opened the new turn
+  // (appendUserMessage nulls turnMessageId), so resetting here is belt-and-suspenders.
+  const continuation = run.parentRunId !== undefined;
   const next: AgentViewState = {
     ...state,
     error: null,
-    turnMessageId: null,
+    turnMessageId: continuation ? state.turnMessageId : null,
     run: { ...state.run, running: true, runId: run.id, sessionId: run.sessionId },
   };
   return appendTimelineEntry({ kind: "run-start", runId: run.id })(next);

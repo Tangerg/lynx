@@ -29,6 +29,11 @@ const runStarted = (id: string, sessionId: string): StreamEvent => ({
   type: "run.started",
   run: { id, sessionId } as never,
 });
+// A resume/edit continuation Run — RunRef carries parentRunId (API.md §4.x).
+const runResumed = (id: string, sessionId: string, parentRunId: string): StreamEvent => ({
+  type: "run.started",
+  run: { id, sessionId, parentRunId } as never,
+});
 const runFinished = (outcome: RunOutcome): StreamEvent => ({ type: "run.finished", outcome });
 
 beforeEach(async () => {
@@ -366,5 +371,46 @@ describe("reducer — HITL interrupt", () => {
       args: { path: "/etc/hosts" },
       risk: "high",
     });
+  });
+
+  it("resume run keeps the open turn: post-approval text appends to the same bubble", () => {
+    // run_1: tool call → interrupt (approval). Tool block + approval land in
+    // one assistant turn.
+    let s = reduce(INITIAL_VIEW_STATE, runStarted("run_1", "ses_1"));
+    s = reduce(
+      s,
+      started(
+        item({
+          id: "tool_1",
+          type: "toolCall",
+          tool: { kind: "commandExecution", command: ["rm", "x"] },
+        }),
+      ),
+    );
+    s = reduce(
+      s,
+      runFinished({
+        type: "interrupt",
+        interrupts: [
+          {
+            itemId: "tool_1" as never,
+            kind: "approval",
+            payload: { tool: { kind: "commandExecution", command: ["rm", "x"] } },
+          },
+        ],
+      }),
+    );
+    expect(s.messages).toHaveLength(1);
+    const turnId = s.messages[0]!.id;
+
+    // Approve → resume Run (parentRunId set). Its agentMessage must fold into
+    // the SAME bubble, not spawn a second avatar/name header.
+    s = reduce(s, runResumed("run_2", "ses_1", "run_1"));
+    s = reduce(s, started(item({ id: "msg_1", type: "agentMessage", content: [] })));
+    s = reduce(s, delta("msg_1", { type: "content", text: "Deleted." }));
+
+    expect(s.messages).toHaveLength(1);
+    expect(s.messages[0]!.id).toBe(turnId);
+    expect(s.messages[0]!.blocks.map((b) => b.kind)).toEqual(["tool", "approval", "text"]);
   });
 });
