@@ -63,7 +63,7 @@ func (i *Server) listItemsFromHistory(ctx context.Context, store history.Store, 
 	if limit < len(items) {
 		items = items[:limit]
 	}
-	return &protocol.ListItemsResponse{Items: items, Runs: runs}, nil
+	return &protocol.ListItemsResponse{Data: items, Runs: runs}, nil
 }
 
 // reconcileLostRun heals a RunRef the durable history left at status:running
@@ -118,7 +118,7 @@ func (i *Server) listItemsFromMessages(ctx context.Context, in protocol.ListItem
 	if limit < len(items) {
 		items = items[:limit]
 	}
-	return &protocol.ListItemsResponse{Items: items, Runs: []protocol.RunRef{}}, nil
+	return &protocol.ListItemsResponse{Data: items, Runs: []protocol.RunRef{}}, nil
 }
 
 // EditItem — editing an item starts a continuation run (checkpoint

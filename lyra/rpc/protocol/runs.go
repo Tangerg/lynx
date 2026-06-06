@@ -166,7 +166,7 @@ type ResumeRunRequest struct {
 }
 
 // InterruptResponse answers one open interrupt, keyed by itemId (API.md §6.1).
-// Response is a tag-discriminated union (Kind):
+// Response is a tag-discriminated union (Type):
 //
 //	approval   → Decision, EditedArgs, Reason
 //	answer     → Answers
@@ -181,7 +181,7 @@ type InterruptResponse struct {
 // ToolInvocation.result (API.md §6.1): a best-effort JSON Result, or an
 // Error when the client tool failed.
 type InterruptResponseValue struct {
-	Kind       string         `json:"kind"`                 // "approval" | "answer" | "toolResult"
+	Type       string         `json:"type"`                 // "approval" | "answer" | "toolResult"
 	Decision   string         `json:"decision,omitempty"`   // approval: "approve" | "deny"
 	EditedArgs map[string]any `json:"editedArgs,omitempty"` // approval
 	Reason     string         `json:"reason,omitempty"`     // approval (deny rationale)
@@ -194,7 +194,7 @@ type InterruptResponseValue struct {
 // correlation key (the toolCall/question item awaiting resolution).
 type Interrupt struct {
 	ItemID  string         `json:"itemId"`
-	Kind    string         `json:"kind"` // "approval" | "question" | "toolResult"
+	Type    string         `json:"type"` // "approval" | "question" | "toolResult"
 	Payload map[string]any `json:"payload,omitempty"`
 }
 
@@ -207,7 +207,7 @@ type OpenInterrupt struct {
 }
 
 // ContextItem is one piece of side-channel context attached to a run
-// (API.md §4.7). Tag-discriminated by Kind:
+// (API.md §4.7). Tag-discriminated by Type:
 //
 //	file      → Path (relative to Session.cwd)
 //	selection → Path, Range ([startLine, endLine], 1-based inclusive)
@@ -217,7 +217,7 @@ type OpenInterrupt struct {
 // Security: file/selection paths relative to cwd; escaping cwd →
 // path_outside_root. URL fetches block loopback / private / metadata.
 type ContextItem struct {
-	Kind         string `json:"kind"`
+	Type         string `json:"type"`
 	Path         string `json:"path,omitempty"`
 	Range        []int  `json:"range,omitempty"`
 	URL          string `json:"url,omitempty"`

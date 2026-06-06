@@ -25,10 +25,12 @@ const (
 )
 
 // BackgroundTask is one entry in background.list + the
-// notifications.background.update payload (API.md §4.10).
+// notifications.background.update payload (API.md §4.10). Category is an
+// open classification string (task kind, §2.6) — named `category`, not
+// `kind`: `kind` never appears on the wire (§2.1).
 type BackgroundTask struct {
 	ID        string           `json:"id"`
-	Kind      string           `json:"kind"`
+	Category  string           `json:"category"`
 	Status    BackgroundStatus `json:"status"`
 	CreatedAt time.Time        `json:"createdAt"`
 	UpdatedAt *time.Time       `json:"updatedAt,omitempty"`

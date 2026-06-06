@@ -24,10 +24,12 @@ type ListItemsRequest struct {
 	Limit     int    `json:"limit,omitempty"`
 }
 
-// ListItemsResponse — items.list result. Flat items array (avoids the
-// awkward resp.items.data). runs carries Run-level structure (API.md §10.3).
+// ListItemsResponse — items.list result. A Page[Item] (Data + NextCursor)
+// plus the RunRefs needed to rebuild the run tree (API.md §7.4 / §10.3).
+// The page rides the shared `data` field so every paginated method reads
+// resp.data — no `data`/`items` drift across the protocol surface.
 type ListItemsResponse struct {
-	Items      []Item   `json:"items"`
+	Data       []Item   `json:"data"`
 	NextCursor string   `json:"nextCursor,omitempty"`
 	Runs       []RunRef `json:"runs"`
 }
@@ -48,7 +50,7 @@ type EditItemResponse struct {
 type ItemStatus string
 
 const (
-	ItemStatusInProgress ItemStatus = "inProgress"
+	ItemStatusRunning    ItemStatus = "running" // in-progress (§2.3: "running" everywhere)
 	ItemStatusCompleted  ItemStatus = "completed"
 	ItemStatusIncomplete ItemStatus = "incomplete" // interrupted/canceled before completion
 )
@@ -104,7 +106,7 @@ type ContentBlock struct {
 type PlanStep struct {
 	ID     string `json:"id"`
 	Title  string `json:"title"`
-	Status string `json:"status"` // "pending" | "inProgress" | "completed" | "failed"
+	Status string `json:"status"` // "pending" | "running" | "completed" | "failed"
 }
 
 // Question is a structured clarifying question (API.md §4.3). answers
@@ -157,7 +159,7 @@ const (
 // ItemDelta.argumentsTextDelta and command stdout via ItemDelta.text
 // (toolOutput) — API.md §5.1.
 //
-//	commandExecution → Command (argv), Cwd?, ExitCode?, DurationMs?
+//	commandExecution → Command (argv), Cwd?, ExitCode?, DurationMs?, Output?, OutputTruncated?
 //	fileChange       → Changes[]
 //	search           → Query, Results[] (path / lineNumber / snippet)
 //	webSearch        → Query, Results[] (title / url / snippet / faviconUrl)
@@ -165,11 +167,19 @@ const (
 type ToolInvocation struct {
 	Kind ToolInvocationKind `json:"kind"`
 
-	// commandExecution
-	Command    []string `json:"command,omitempty"`
-	Cwd        string   `json:"cwd,omitempty"`
-	ExitCode   *int     `json:"exitCode,omitempty"`
-	DurationMs *int64   `json:"durationMs,omitempty"`
+	// commandExecution. Output is the settled stdout+stderr (merged, full
+	// text; "" when the command produced none) — a *string so the started
+	// shell omits it (nil) while a completed item always carries it, even
+	// empty (&"" marshals to "output":""). It is the AUTHORITATIVE terminal
+	// value (durable); the toolOutput ItemDelta is only its streaming preview
+	// (API.md §4.4 / §5.2, TOOL_OUTPUT.md). OutputTruncated is set when the
+	// runtime capped Output (and the preview) at a size limit.
+	Command         []string `json:"command,omitempty"`
+	Cwd             string   `json:"cwd,omitempty"`
+	ExitCode        *int     `json:"exitCode,omitempty"`
+	DurationMs      *int64   `json:"durationMs,omitempty"`
+	Output          *string  `json:"output,omitempty"`
+	OutputTruncated bool     `json:"outputTruncated,omitempty"`
 
 	// fileChange
 	Changes []FileChangeEntry `json:"changes,omitempty"`

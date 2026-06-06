@@ -212,7 +212,7 @@ func (t *translator) openUserMessage() []protocol.StreamEvent {
 		}
 	}
 	return []protocol.StreamEvent{
-		{Type: protocol.StreamItemStarted, Item: item(protocol.ItemStatusInProgress)},
+		{Type: protocol.StreamItemStarted, Item: item(protocol.ItemStatusRunning)},
 		{Type: protocol.StreamItemCompleted, Item: item(protocol.ItemStatusCompleted)},
 	}
 }
@@ -303,7 +303,7 @@ func (t *translator) approvalInterrupt(in chat.Interrupt) (protocol.StreamEvent,
 		Item: &protocol.Item{
 			ID:        id,
 			RunID:     t.runID,
-			Status:    protocol.ItemStatusInProgress,
+			Status:    protocol.ItemStatusRunning,
 			Type:      protocol.ItemTypeToolCall,
 			CreatedAt: time.Now().UTC(),
 			Tool:      inv,
@@ -311,7 +311,7 @@ func (t *translator) approvalInterrupt(in chat.Interrupt) (protocol.StreamEvent,
 	}
 	entry := protocol.Interrupt{
 		ItemID: id,
-		Kind:   "approval",
+		Type:   "approval",
 		// payload.tool is the contract display payload (API.md §4.8). _resume
 		// carries the raw (name, arguments) the server needs to re-bind the
 		// re-fired approved tool to THIS proposal item across the resume
@@ -364,7 +364,7 @@ func (t *translator) questionInterrupt(in chat.Interrupt) (protocol.StreamEvent,
 		Item: &protocol.Item{
 			ID:        id,
 			RunID:     t.runID,
-			Status:    protocol.ItemStatusInProgress,
+			Status:    protocol.ItemStatusRunning,
 			Type:      protocol.ItemTypeQuestion,
 			CreatedAt: time.Now().UTC(),
 			Question:  question,
@@ -372,7 +372,7 @@ func (t *translator) questionInterrupt(in chat.Interrupt) (protocol.StreamEvent,
 	}
 	entry := protocol.Interrupt{
 		ItemID:  id,
-		Kind:    "question",
+		Type:    "question",
 		Payload: map[string]any{"question": question},
 	}
 	return ev, entry
@@ -404,7 +404,7 @@ func (t *translator) askUserInterrupt(in chat.Interrupt) (protocol.StreamEvent, 
 		Item: &protocol.Item{
 			ID:        id,
 			RunID:     t.runID,
-			Status:    protocol.ItemStatusInProgress,
+			Status:    protocol.ItemStatusRunning,
 			Type:      protocol.ItemTypeQuestion,
 			CreatedAt: time.Now().UTC(),
 			Question:  question,
@@ -412,7 +412,7 @@ func (t *translator) askUserInterrupt(in chat.Interrupt) (protocol.StreamEvent, 
 	}
 	entry := protocol.Interrupt{
 		ItemID:  id,
-		Kind:    "question",
+		Type:    "question",
 		Payload: map[string]any{"question": question},
 	}
 	return ev, entry
@@ -427,7 +427,7 @@ func (t *translator) appendText(text string) []protocol.StreamEvent {
 			Item: &protocol.Item{
 				ID:        t.text.id,
 				RunID:     t.runID,
-				Status:    protocol.ItemStatusInProgress,
+				Status:    protocol.ItemStatusRunning,
 				Type:      protocol.ItemTypeAgentMessage,
 				CreatedAt: t.text.createdAt,
 			},
@@ -451,7 +451,7 @@ func (t *translator) appendReasoning(text string) []protocol.StreamEvent {
 			Item: &protocol.Item{
 				ID:        t.reasoning.id,
 				RunID:     t.runID,
-				Status:    protocol.ItemStatusInProgress,
+				Status:    protocol.ItemStatusRunning,
 				Type:      protocol.ItemTypeReasoning,
 				CreatedAt: t.reasoning.createdAt,
 			},
@@ -509,7 +509,7 @@ func (t *translator) toolStart(e chat.ToolCallStart) []protocol.StreamEvent {
 		Item: &protocol.Item{
 			ID:        ref.id,
 			RunID:     ref.runID,
-			Status:    protocol.ItemStatusInProgress,
+			Status:    protocol.ItemStatusRunning,
 			Type:      protocol.ItemTypeToolCall,
 			CreatedAt: ref.createdAt,
 			Tool:      toolInvocation(e.ToolName, e.Arguments, ""),
@@ -533,14 +533,16 @@ func (t *translator) toolEnd(e chat.ToolCallEnd) []protocol.StreamEvent {
 	delete(t.tools, e.CallID)
 
 	var out []protocol.StreamEvent
-	// commandExecution carries no output field on the completed item — its
-	// stdout preview rides a toolOutput delta (API.md §4.4).
+	// The authoritative command output lands on the completed item's
+	// `output` (durable, below); this toolOutput delta is only its streaming
+	// preview (API.md §4.4 / §5.2, TOOL_OUTPUT.md). Same merged stdout+stderr
+	// text so preview and terminal agree.
 	if ref.kind == protocol.ToolKindCommandExecution && e.Output != "" {
-		if stdout := commandStdout(e.Output); stdout != "" {
+		if merged := commandOutput(e.Output); merged != "" {
 			out = append(out, protocol.StreamEvent{
 				Type:   protocol.StreamItemDelta,
 				ItemID: ref.id,
-				Delta:  &protocol.ItemDelta{Type: protocol.DeltaToolOutput, Text: stdout},
+				Delta:  &protocol.ItemDelta{Type: protocol.DeltaToolOutput, Text: merged},
 			})
 		}
 	}
@@ -794,10 +796,16 @@ func bestEffortJSON(raw string) any {
 	return v
 }
 
-// fillCommandResult populates exitCode / durationMs from a bash tool's JSON
-// output ({stdout, stderr, exit_code, duration}); stdout rides a toolOutput
-// delta, not the completed item (API.md §4.4).
+// fillCommandResult populates the settled fields of a completed
+// commandExecution from a bash tool's JSON output ({stdout, stderr,
+// exit_code, duration}): exitCode / durationMs and the AUTHORITATIVE
+// `output` (merged stdout+stderr, API.md §4.4 / §5.2, TOOL_OUTPUT.md §3).
+// Output is always set on a completed item — even to "" — so history
+// replay / reconnect (where the toolOutput delta isn't present) still
+// renders the command's terminal output rather than "(no output)".
 func fillCommandResult(inv *protocol.ToolInvocation, outputJSON string) {
+	merged := commandOutput(outputJSON)
+	inv.Output = &merged // &"" marshals to "output":"" — present, not omitted
 	var out struct {
 		ExitCode int    `json:"exit_code"`
 		Duration string `json:"duration"`
@@ -813,13 +821,24 @@ func fillCommandResult(inv *protocol.ToolInvocation, outputJSON string) {
 	}
 }
 
-// commandStdout extracts the stdout preview from a bash tool's JSON output.
-func commandStdout(outputJSON string) string {
+// commandOutput merges a bash tool's stdout+stderr into the single full-text
+// `output` value (API.md §4.4). The wire field is one stream (terminals
+// interleave the two); lacking true interleave order we append stderr after
+// stdout, separated by a newline when both are present.
+func commandOutput(outputJSON string) string {
 	var out struct {
 		Stdout string `json:"stdout"`
+		Stderr string `json:"stderr"`
 	}
 	_ = json.Unmarshal([]byte(outputJSON), &out)
-	return out.Stdout
+	switch {
+	case out.Stderr == "":
+		return out.Stdout
+	case out.Stdout == "":
+		return out.Stderr
+	default:
+		return out.Stdout + "\n" + out.Stderr
+	}
 }
 
 // parseLocalSearchHits maps grep / glob JSON output onto SearchResult hits.

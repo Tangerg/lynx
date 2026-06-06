@@ -158,7 +158,7 @@ func resumeBindingFrom(pending interrupts.Pending) *resumeBinding {
 		if in.ItemID == "" {
 			continue
 		}
-		switch in.Kind {
+		switch in.Type {
 		case "approval":
 			// Re-bind via the backend-internal _resume tuple (raw name +
 			// arguments) the translator stashed — payload.tool is the display
@@ -458,7 +458,7 @@ func (i *Server) SubscribeRun(ctx context.Context, runID string) (*protocol.Star
 // continue.
 func resolveResolution(responses []protocol.InterruptResponse) (engine.InterruptResolution, error) {
 	for _, r := range responses {
-		switch r.Response.Kind {
+		switch r.Response.Type {
 		case "approval":
 			switch r.Response.Decision {
 			case "approve":
