@@ -1,6 +1,6 @@
 // JSON-RPC 2.0 envelope for the Lyra Runtime Protocol.
 //
-// See docs/API.md §1 for the full spec. Three message kinds share one
+// See docs/protocol/API.md §1 for the full spec. Three message kinds share one
 // shape (discriminated by which optional fields are populated):
 //
 //   Request:      { jsonrpc, id, method, params? }
@@ -13,7 +13,7 @@
 export const JSONRPC_VERSION = "2.0" as const;
 
 // JSON-RPC 2.0 spec allows string | number for id; we lock to string
-// (docs/API.md §1.1). Type uniformity across the wire — every id in the
+// (docs/protocol/API.md §1.1). Type uniformity across the wire — every id in the
 // protocol (sessionId / runId / requestId / envelope id) is a string, so
 // dispatch + correlation never branch on id type. The client allocates
 // monotonic integers but stringifies them before they hit the wire.
@@ -55,7 +55,7 @@ export interface RpcErrorPayload {
 }
 
 // ---------------------------------------------------------------------------
-// Error codes (docs/API.md §8.2).
+// Error codes (docs/protocol/API.md §8.2).
 // ---------------------------------------------------------------------------
 //
 // IMPORTANT: codes are v2-fresh and NOT guaranteed to match any prior

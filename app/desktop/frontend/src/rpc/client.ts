@@ -1,5 +1,5 @@
 // Typed JSON-RPC client wrapping a Transport. Owns id allocation,
-// response correlation, notification dispatch. See docs/API.md §1.
+// response correlation, notification dispatch. See docs/protocol/API.md §1.
 //
 // Correlation pattern borrowed from kimi-code's controlledPromise idea:
 // each Request creates a pending entry with resolve/reject handles;
@@ -95,7 +95,7 @@ export function createRpcClient(transport: Transport): RpcClient {
       return;
     }
     // Unexpected: server-initiated Requests are not in our protocol.
-    // Drop them — see docs/API.md §1.1 (we don't do server→client RPC).
+    // Drop them — see docs/protocol/API.md §1.1 (we don't do server→client RPC).
     console.warn("[rpc] dropping unexpected server-initiated Request", msg);
   }
 
@@ -111,7 +111,7 @@ export function createRpcClient(transport: Transport): RpcClient {
 
     return new Promise<R>((resolve, reject) => {
       // AbortSignal hooks — cancel locally + send notifications.canceled
-      // so the runtime stops working on it (docs/API.md §3 / §7.1).
+      // so the runtime stops working on it (docs/protocol/API.md §3 / §7.1).
       const onAbort = () => {
         if (!pending.has(id)) return;
         pending.delete(id);

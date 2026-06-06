@@ -1,5 +1,5 @@
 // Transport interface — bidirectional pipe for JSON-RPC messages.
-// See docs/TRANSPORT.md §2. Implementations: transports/http.ts (Web /
+// See docs/protocol/TRANSPORT.md §2. Implementations: transports/http.ts (Web /
 // future facade), transports/memory.ts (tests). Future: Wails IPC when
 // the packaged-web client materialises.
 //

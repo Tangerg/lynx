@@ -349,7 +349,7 @@ func (rt *runtime) scriptRun(connID, sessionID, runID, input string) {
 	// stdout/stderr stream via toolOutput delta as a live PREVIEW (durable=false),
 	// then the authoritative merged `output` settles on item.completed (durable).
 	// Dropping the delta still leaves correct output on completed (API.md §5.2,
-	// docs/TOOL_OUTPUT.md).
+	// docs/protocol/TOOL_OUTPUT.md).
 	const out = "total 8\ndrwxr-xr-x  4 user  staff  128 .\n"
 	time.Sleep(120 * time.Millisecond)
 	e.emit(false, map[string]any{"type": "item.delta", "itemId": toolID,

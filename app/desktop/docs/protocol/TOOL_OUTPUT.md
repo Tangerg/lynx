@@ -1,7 +1,7 @@
 # 工具输出的持久化（Durable Tool Output）
 
 > 适用范围：`commandExecution` 的 stdout/stderr，以及任何"输出在 run 期间流式产生"的工具。
-> 关联：`docs/API.md` §4.4（ToolInvocation）/ §5.1（ItemDelta）/ §5.2（Durable/Ephemeral 不变量）/ §10（历史·重连·恢复）。
+> 关联：`docs/protocol/API.md` §4.4（ToolInvocation）/ §5.1（ItemDelta）/ §5.2（Durable/Ephemeral 不变量）/ §10（历史·重连·恢复）。
 
 ---
 
@@ -99,7 +99,7 @@ completed：
 
 ## 6. 影响面（本次改动）
 
-- `docs/API.md`：§4.4 `commandExecution` 加 `output` / `outputTruncated`，明确「结算字段 = completed 必发」；§5.1 补「toolArguments/toolOutput 皆预览通道」。
+- `docs/protocol/API.md`：§4.4 `commandExecution` 加 `output` / `outputTruncated`，明确「结算字段 = completed 必发」；§5.1 补「toolArguments/toolOutput 皆预览通道」。
 - `frontend/src/rpc/shapes.ts`：wire 类型加 `output` / `outputTruncated`；`toolOutput` ItemDelta 注释标为预览。
 - `frontend/src/protocol/run/viewState.ts`：视图 `ToolCall` 加 `outputTruncated`。
 - `frontend/src/plugins/builtin/agent/core-reducer/projections.ts`：`toolFields` 在 completed 把 `output`→`result`、`outputTruncated` 投影。

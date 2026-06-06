@@ -38,7 +38,7 @@
 | 卸载/热重载 | disposable sink 由 Host 收集，`host.plugins.{unload,reload}`                                                                      | `definePlugin.ts`          |
 | 错误隔离    | `PluginBoundary`(React) + `safeCall` + 按插件归因 + 可注册 errorFallback                                                          | `PluginBoundary.tsx`       |
 | 跨插件通信  | `host.state.slice(name, initial)`（约定名共享 ephemeral state）                                                                   | `sdk/stateSlice.ts`        |
-| 后端通信    | `host.rpc.{get,post}`(JSON-RPC) / `host.events.onCustom`(custom 事件) / `host.extensions.contribute(DATA_PROVIDER, …)`            | `host.ts`, `docs/API.md`   |
+| 后端通信    | `host.rpc.{get,post}`(JSON-RPC) / `host.events.onCustom`(custom 事件) / `host.extensions.contribute(DATA_PROVIDER, …)`            | `host.ts`, `docs/protocol/API.md`   |
 | `when` 子句 | 上下文表达式求值（命令/菜单可见性）                                                                                               | `sdk/evalWhen.ts`          |
 
 **一句话**：内核不长肉，所有面都是插件贡献；Host 是插件能看到的**唯一**世界。
@@ -194,7 +194,7 @@ builtin 可以 `const path = useSessionStore(s => s.activeFile)`。
 const content = await host.rpc.get("v1/rpc/workspace.fs.read", { path }); // ← 方法不存在
 ```
 
-后端 JSON-RPC 方法表（`docs/API.md`）里**没有** `workspace.fs.read/write/list`。
+后端 JSON-RPC 方法表（`docs/protocol/API.md`）里**没有** `workspace.fs.read/write/list`。
 需要在 Go Runtime 新增这组方法（dot-named，watch 走 streaming subscribe，对齐 `workspace.terminal.subscribe`）。
 且按"Runtime 无状态、无 user 概念"的不变量，**文件作用域/授权是 facade 层的事**，不进协议 body。
 

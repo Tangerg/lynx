@@ -1,5 +1,5 @@
 // Package mockruntime hosts the local dev mock for the Lyra Runtime Protocol v2
-// (docs/API.md + docs/TRANSPORT.md). It speaks JSON-RPC 2.0 over HTTP:
+// (docs/protocol/API.md + docs/protocol/TRANSPORT.md). It speaks JSON-RPC 2.0 over HTTP:
 //
 //	POST /v2/rpc/{method}      — request / client notification
 //	GET  /v2/rpc/stream?conn=  — SSE stream of server notifications

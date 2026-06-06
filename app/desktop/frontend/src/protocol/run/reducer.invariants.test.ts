@@ -22,7 +22,7 @@
 // One payload is protocol-asymmetric BY DESIGN and is therefore NOT in the
 // fixture: commandExecution stdout rides a single item.delta{toolOutput} at
 // tool-end and is NOT carried on the completed Item (lynx translator.go /
-// docs/API.md §4.4), so history replay genuinely cannot reconstruct it — an
+// docs/protocol/API.md §4.4), so history replay genuinely cannot reconstruct it — an
 // information gap in the wire, not divergent fold logic. Exercising the
 // symmetric core keeps this invariant an apples-to-apples comparison.
 

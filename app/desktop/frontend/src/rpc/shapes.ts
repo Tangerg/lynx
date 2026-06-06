@@ -1,5 +1,5 @@
 // Wire-level shape types for the Lyra Runtime Protocol v2. Mirror of
-// docs/API.md §4 (data catalog) + §5 (streaming) + §7 (method params /
+// docs/protocol/API.md §4 (data catalog) + §5 (streaming) + §7 (method params /
 // results) + §9 (capabilities) — keep in sync. Type naming follows the
 // backend Go `lyra/rpc/protocol` interface as the mechanical SSOT; this
 // file is the zero-mapping TS projection.
@@ -253,7 +253,7 @@ export type ToolInvocation =
       // the command printed nothing). The `toolOutput` ItemDelta is only a live
       // PREVIEW of it — dropping every ephemeral delta still yields correct output
       // from here (API.md §5.2), and a runtime that doesn't stream emits no delta
-      // yet still carries it. See docs/TOOL_OUTPUT.md.
+      // yet still carries it. See docs/protocol/TOOL_OUTPUT.md.
       exitCode?: number;
       durationMs?: number;
       output?: string;
