@@ -209,20 +209,25 @@ type WebSearchResult struct {
 	FaviconURL string `json:"faviconUrl,omitempty"`
 }
 
-// Usage is cumulative token usage (API.md §4.6).
-type Usage struct {
-	InputTokens      int64                 `json:"inputTokens,omitempty"`
-	OutputTokens     int64                 `json:"outputTokens,omitempty"`
-	ReasoningTokens  int64                 `json:"reasoningTokens,omitempty"`
-	CacheReadTokens  int64                 `json:"cacheReadTokens,omitempty"`
-	CacheWriteTokens int64                 `json:"cacheWriteTokens,omitempty"`
-	ByModel          map[string]ModelUsage `json:"byModel,omitempty"`
+// ModelUsage is one model's usage slice (API.md §4.6): provider-reported
+// inclusive totals (inputTokens incl. cacheRead, outputTokens incl.
+// reasoning) plus the non-overlapping sub-items, each tracked independently
+// so the client never subtracts. costUsd is the total at the top level and
+// per-model in byModel; omitted (not faked to 0) when the model isn't priced.
+type ModelUsage struct {
+	InputTokens      int64    `json:"inputTokens,omitempty"`
+	OutputTokens     int64    `json:"outputTokens,omitempty"`
+	CacheReadTokens  int64    `json:"cacheReadTokens,omitempty"`
+	CacheWriteTokens int64    `json:"cacheWriteTokens,omitempty"`
+	ReasoningTokens  int64    `json:"reasoningTokens,omitempty"`
+	CostUSD          *float64 `json:"costUsd,omitempty"`
 }
 
-// ModelUsage is one model's slice of usage (API.md §4.6).
-type ModelUsage struct {
-	InputTokens     int64    `json:"inputTokens,omitempty"`
-	OutputTokens    int64    `json:"outputTokens,omitempty"`
-	ReasoningTokens int64    `json:"reasoningTokens,omitempty"`
-	CostUSD         *float64 `json:"costUsd,omitempty"`
+// Usage is cumulative token usage (API.md §4.6): the embedded ModelUsage is
+// the total (incl. the top-level costUsd = total cost), plus an optional
+// per-model breakdown. byModel entries are the same shape (cache fields
+// included — symmetric with the total).
+type Usage struct {
+	ModelUsage
+	ByModel map[string]ModelUsage `json:"byModel,omitempty"`
 }

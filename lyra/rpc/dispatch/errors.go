@@ -61,7 +61,9 @@ func errorToRPC(err error) *transport.Error {
 // problemError builds an Error carrying a ProblemData{type, detail}.
 // typ is the symbolic name (API.md §8.2); detail is the human string.
 func problemError(code int, typ, detail string) *transport.Error {
-	data, _ := json.Marshal(protocol.ProblemData{Type: typ, Detail: detail})
+	// channel "rpc": every numeric-coded error is a synchronous JSON-RPC
+	// error response (API.md §8.1 channel a).
+	data, _ := json.Marshal(protocol.ProblemData{Type: typ, Channel: "rpc", Detail: detail})
 	return transport.NewErrorWithMessage(code, typ, data)
 }
 

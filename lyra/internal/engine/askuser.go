@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"strconv"
+	"strings"
 
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -66,15 +67,14 @@ func askUserKey(arguments string) string {
 }
 
 // answerText renders the structured answer map as the tool's result text.
-// Prefers a "text" field; falls back to a compact JSON rendering.
-func answerText(answer map[string]any) string {
+// Prefers the "text" field (joining multi-value answers a line apiece);
+// falls back to a compact JSON rendering.
+func answerText(answer map[string][]string) string {
 	if answer == nil {
 		return ""
 	}
-	if v, ok := answer["text"]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
+	if v, ok := answer["text"]; ok && len(v) > 0 {
+		return strings.Join(v, "\n")
 	}
 	b, _ := json.Marshal(answer)
 	return string(b)

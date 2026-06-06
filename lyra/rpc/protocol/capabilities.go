@@ -45,6 +45,5 @@ type AttachmentLimits struct {
 
 // RuntimeLimits — server-side hard caps surfaced to the client.
 type RuntimeLimits struct {
-	MaxConcurrentRuns  int `json:"maxConcurrentRuns,omitempty"`
-	MaxItemsPerSession int `json:"maxItemsPerSession,omitempty"`
+	MaxConcurrentRuns int `json:"maxConcurrentRuns,omitempty"`
 }

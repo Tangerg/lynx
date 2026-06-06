@@ -10,8 +10,16 @@ import "errors"
 // plugins namespace as `plugin:<name>/<symbol>` — one instance of the
 // unified extension-namespace convention (API.md §2.5, error case §8.4).
 type ProblemData struct {
-	Type   string `json:"type"`
-	Detail string `json:"detail,omitempty"` // per-occurrence human-readable note
+	Type string `json:"type"`
+	// Channel self-describes which delivery channel the error came on —
+	// "rpc" (sync JSON-RPC error), "run" (run.finished outcome:error), or
+	// "tool" (toolCall.error) — so the client reads it instead of inferring
+	// from where the error arrived (API.md §8.1). Empty = unclassified.
+	Channel string `json:"channel,omitempty"`
+	Detail  string `json:"detail,omitempty"` // per-occurrence human-readable note
+	// DocURL optionally points at this type's docs (Stripe doc_url), lowering
+	// integration cost (API.md §8.3); absent → look the symbolic type up in §8.2.
+	DocURL string `json:"docUrl,omitempty"`
 	// Retryable marks transient failures; RetryAfterSeconds, when given,
 	// is the earliest sensible retry (e.g. a provider rate-limit backoff)
 	// the client should honor before falling back to its own (API.md §8.3).

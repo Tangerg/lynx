@@ -571,10 +571,10 @@ func (t *translator) toolEnd(e chat.ToolCallEnd) []protocol.StreamEvent {
 		// Denied by the approval verdict — a distinct terminal from a green
 		// success or a generic failure, so the UI can render "denied".
 		item.Status = protocol.ItemStatusIncomplete
-		item.Error = &protocol.ProblemData{Type: "denied_by_user", Detail: "tool call denied by user"}
+		item.Error = &protocol.ProblemData{Type: "denied_by_user", Channel: "tool", Detail: "tool call denied by user"}
 	case e.Err != "":
 		item.Status = protocol.ItemStatusIncomplete
-		item.Error = &protocol.ProblemData{Type: "tool_failed", Detail: e.Err}
+		item.Error = &protocol.ProblemData{Type: "tool_failed", Channel: "tool", Detail: e.Err}
 	}
 	return append(out, protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: item})
 }
@@ -615,7 +615,7 @@ func (t *translator) finish(outcomeType protocol.RunOutcomeType) []protocol.Stre
 // implementation call path). After tool failures stopped escalating to run
 // errors (FeedbackOnToolError), this path is genuine engine/infra failure.
 func internalErrorProblem() *protocol.ProblemData {
-	return &protocol.ProblemData{Type: "internal_error", Detail: "the run failed due to an internal error"}
+	return &protocol.ProblemData{Type: "internal_error", Channel: "run", Detail: "the run failed due to an internal error"}
 }
 
 // classifyRunError maps a failed run's (server-side, full) error message
@@ -639,7 +639,7 @@ func classifyRunError(msg string) *protocol.ProblemData {
 		return false
 	}
 	provider := func(detail string) *protocol.ProblemData {
-		return &protocol.ProblemData{Type: "provider_error", Detail: detail}
+		return &protocol.ProblemData{Type: "provider_error", Channel: "run", Detail: detail}
 	}
 	switch {
 	case contains("429", "too many requests", "rate limit", "overloaded", "quota"):
@@ -680,10 +680,7 @@ func (t *translator) drainTools() []protocol.StreamEvent {
 }
 
 func (t *translator) outcome(e chat.TurnEnd) *protocol.RunOutcome {
-	res := &protocol.RunResult{
-		Usage:   turnUsage(e),
-		CostUSD: optCostUSD(e.CostUSD),
-	}
+	res := &protocol.RunResult{Usage: turnUsage(e)}
 	switch e.Reason {
 	case chat.TurnEndCancelled:
 		return &protocol.RunOutcome{Type: protocol.OutcomeCanceled, Result: res}
@@ -699,10 +696,15 @@ func (t *translator) outcome(e chat.TurnEnd) *protocol.RunOutcome {
 
 // turnUsage maps the engine's per-turn token roll-up onto wire Usage.
 func turnUsage(e chat.TurnEnd) *protocol.Usage {
+	// Total cost rides Usage.CostUSD (the embedded ModelUsage), not a separate
+	// RunResult.costUsd (§4.2 / N1 — one source of total cost).
 	u := &protocol.Usage{
-		InputTokens:     e.TokenUsage.PromptTokens,
-		OutputTokens:    e.TokenUsage.CompletionTokens,
-		ReasoningTokens: e.TokenUsage.ReasoningTokens,
+		ModelUsage: protocol.ModelUsage{
+			InputTokens:     e.TokenUsage.PromptTokens,
+			OutputTokens:    e.TokenUsage.CompletionTokens,
+			ReasoningTokens: e.TokenUsage.ReasoningTokens,
+			CostUSD:         optCostUSD(e.CostUSD),
+		},
 	}
 	if len(e.UsageByModel) > 0 {
 		u.ByModel = make(map[string]protocol.ModelUsage, len(e.UsageByModel))
