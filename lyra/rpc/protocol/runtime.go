@@ -11,11 +11,12 @@
 // the R model (finish with interrupt outcome, resume via a
 // continuation run).
 //
-// Discriminated unions (StreamEvent / Item / ToolInvocation /
-// RunOutcome / ItemDelta / ContextItem) are modeled as flat
-// tag-discriminated structs: a Type/Kind field plus the optional
-// fields that tag declares. The wire JSON is exactly {type, ...},
-// matching API.md.
+// Discriminated unions (StreamEvent / Item / RunOutcome / ItemDelta /
+// ContextItem / Interrupt) are modeled as flat tag-discriminated
+// structs: a single `type` discriminator field plus the optional
+// fields that tag declares (API.md §2.1: one discriminator `type`,
+// `kind` never appears on the wire). The wire JSON is exactly
+// {type, ...}, matching API.md.
 package protocol
 
 // Runtime is the runtime's public surface — the union of every method
@@ -38,7 +39,7 @@ type Runtime interface {
 
 // ProtocolVersion is the wire version this build implements (API.md
 // §11: date string).
-const ProtocolVersion = "2026-06-03"
+const ProtocolVersion = "2026-06-07"
 
 // Resource id prefixes (API.md §2.2). Server-generated, type-tagged.
 const (

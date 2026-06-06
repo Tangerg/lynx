@@ -14,7 +14,7 @@ import (
 	lyrahttp "github.com/Tangerg/lynx/lyra/rpc/transport/http"
 )
 
-const testProtocolVersion = "2026-06-03"
+const testProtocolVersion = "2026-06-07"
 
 // fakeRuntime is the smallest Runtime we can pass to NewServer for
 // smoke-testing the transport layer. The embedded nil protocol.Runtime
@@ -117,7 +117,7 @@ func TestInitializeOverRPC(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
 
-	reqBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{"protocolVersion":"2026-06-03","clientInfo":{"name":"test","version":"0"},"capabilities":{"events":[]}}}`)
+	reqBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.initialize","params":{"protocolVersion":"2026-06-07","clientInfo":{"name":"test","version":"0"},"capabilities":{"events":[]}}}`)
 	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.initialize", "application/json", bytes.NewReader(reqBody))
 	if err != nil {
 		t.Fatalf("post rpc: %v", err)

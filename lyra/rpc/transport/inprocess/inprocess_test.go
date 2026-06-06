@@ -18,7 +18,7 @@ import (
 type fakeRuntime struct{ protocol.Runtime }
 
 func (fakeRuntime) Initialize(_ context.Context, _ protocol.InitializeRequest) (*protocol.InitializeResponse, error) {
-	return &protocol.InitializeResponse{ProtocolVersion: "2026-06-03"}, nil
+	return &protocol.InitializeResponse{ProtocolVersion: "2026-06-07"}, nil
 }
 
 func (fakeRuntime) Ping(_ context.Context) error { return nil }
@@ -50,7 +50,7 @@ func TestInProcessRoundtrip(t *testing.T) {
 		if resp.Error != nil {
 			t.Fatalf("got error envelope: %+v", resp.Error)
 		}
-		if !strings.Contains(string(resp.Result), "2026-06-03") {
+		if !strings.Contains(string(resp.Result), "2026-06-07") {
 			t.Fatalf("missing protocolVersion in result: %s", string(resp.Result))
 		}
 	case <-time.After(1 * time.Second):

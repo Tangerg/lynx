@@ -46,7 +46,6 @@ const (
 	CodeItemNotFound           = -32004
 	CodeCwdUnavailable         = -32005
 	CodeCapabilityNotNeg       = -32006
-	CodeRunNotRunning          = -32007
 	CodeRunAlreadyDone         = -32008
 	CodeCheckpointUnavail      = -32009
 	CodeAttachmentTooLarge     = -32010
@@ -70,7 +69,6 @@ var (
 	ErrItemNotFound           = errors.New("item_not_found")
 	ErrCwdUnavailable         = errors.New("cwd_unavailable")
 	ErrCapabilityNotNeg       = errors.New("capability_not_negotiated")
-	ErrRunNotRunning          = errors.New("run_not_running")
 	ErrRunAlreadyDone         = errors.New("run_already_finished")
 	ErrCheckpointUnavailable  = errors.New("checkpoint_unavailable")
 	ErrAttachmentTooLarge     = errors.New("attachment_too_large")

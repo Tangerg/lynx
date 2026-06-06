@@ -23,7 +23,6 @@ var sentinelToCode = map[error]int{
 	protocol.ErrItemNotFound:           protocol.CodeItemNotFound,
 	protocol.ErrCwdUnavailable:         protocol.CodeCwdUnavailable,
 	protocol.ErrCapabilityNotNeg:       protocol.CodeCapabilityNotNeg,
-	protocol.ErrRunNotRunning:          protocol.CodeRunNotRunning,
 	protocol.ErrRunAlreadyDone:         protocol.CodeRunAlreadyDone,
 	protocol.ErrCheckpointUnavailable:  protocol.CodeCheckpointUnavail,
 	protocol.ErrAttachmentTooLarge:     protocol.CodeAttachmentTooLarge,
