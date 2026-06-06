@@ -158,6 +158,10 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		Compaction:    cfg.Compaction,
 		Pricing:       cfg.Pricing,
 		ProcessStore:  cfg.ProcessStore,
+		// When a sub-agent (the `task` delegation) is spawned, the runtime
+		// records its session here so the parent→child lineage is durably
+		// queryable; CreateSubtask marks it internal so it stays out of List.
+		SessionStore: newChildSessionStore(cfg.SessionService),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("runtime: engine: %w", err)

@@ -109,6 +109,9 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		// per-tick disk churn.
 		ProcessStore: cfg.ProcessStore,
 		AutoSnapshot: cfg.ProcessStore != nil,
+		// Persist sub-agent (subtask) sessions so the delegation lineage is
+		// durably recorded; the engine just forwards the store.
+		SessionStore: cfg.SessionStore,
 	})
 
 	// Build the engine value first so the agent's Action closure can

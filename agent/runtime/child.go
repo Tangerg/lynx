@@ -256,7 +256,9 @@ func prepareChild(
 	if err != nil {
 		return nil, fmt.Errorf("spawn child %q: create: %w", agentDef.Name, err)
 	}
-	linkChildSession(child, parentProc, agentDef)
+	if err := linkChildSession(ctx, platform, child, parentProc, agentDef); err != nil {
+		return nil, fmt.Errorf("spawn child %q: link session: %w", agentDef.Name, err)
+	}
 	if in != nil {
 		child.Blackboard().Bind(in)
 	}
@@ -267,19 +269,28 @@ func prepareChild(
 // parent's conversation. The child's session id is its process id — an
 // independent conversation so its chat-memory history is isolated from the
 // parent's — and ParentID records the parent's conversation id so the
-// delegation lineage is preserved. No-op when the caller pinned a session
-// explicitly, or when the parent has no conversation to link to.
-func linkChildSession(child, parent *AgentProcess, agentDef *core.Agent) {
+// delegation lineage is preserved. When the platform has a [core.SessionStore]
+// the child session is persisted there too, so consumers (e.g. a session list)
+// can query the delegation tree durably. No-op when the caller pinned a
+// session explicitly, or when the parent has no conversation to link to.
+func linkChildSession(ctx context.Context, platform *Platform, child, parent *AgentProcess, agentDef *core.Agent) error {
 	if child.options == nil || child.options.Session != nil {
-		return
+		return nil
 	}
 	parentConvID := conversationIDOf(parent)
 	if parentConvID == "" {
-		return
+		return nil
 	}
 	session := core.NewSession(child.ID(), userIDOf(parent), agentDef.Name)
 	session.ParentID = parentConvID
 	child.options.Session = &session
+
+	if platform.sessionStore != nil {
+		if err := platform.sessionStore.Save(ctx, session); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // conversationIDOf returns a process's chat-memory conversation id: its
