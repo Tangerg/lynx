@@ -14,15 +14,17 @@
 // completed snapshot and the delta stream, so any subset converges:
 //   - text / reasoning CONTENT streams via item.delta, and the completed
 //     snapshot equals the concatenated deltas;
-//   - a call-and-result tool (the generic `tool` used below) carries its args
-//     as the fully-parsed object and its result whole on item.completed — no
-//     delta — so its block is identical regardless of delivery mode.
+//   - a call-and-result tool (the generic `tool` below) carries its args as the
+//     fully-parsed object on the Item AND, redundantly, as one whole
+//     toolArguments delta (the live-preview channel). Args are AUTHORITATIVE
+//     from the structured object at the terminal state, so the redundant delta
+//     can't make streaming diverge from replay — see writeToolCall.
 // One payload is protocol-asymmetric BY DESIGN and is therefore NOT in the
-// fixture: commandExecution stdout streams via item.delta{toolOutput} and is
-// NOT carried on the completed Item (docs/API.md), so history replay genuinely
-// cannot reconstruct it — an information gap in the wire, not divergent fold
-// logic. Exercising the symmetric core keeps this invariant an apples-to-apples
-// comparison.
+// fixture: commandExecution stdout rides a single item.delta{toolOutput} at
+// tool-end and is NOT carried on the completed Item (lynx translator.go /
+// docs/API.md §4.4), so history replay genuinely cannot reconstruct it — an
+// information gap in the wire, not divergent fold logic. Exercising the
+// symmetric core keeps this invariant an apples-to-apples comparison.
 
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Item, StreamEvent } from "@/rpc";
@@ -81,8 +83,9 @@ function snapshotOnly(events: StreamEvent[], ids: Set<string>): StreamEvent[] {
 
 // One believable turn: user prompt → reasoning → message → tool → message,
 // expressed as a FULL streaming sequence. text/reasoning stream via deltas that
-// concatenate to the completed snapshot; the tool is call-and-result (args from
-// the parsed object, result whole on completion) — no tool delta.
+// concatenate to the completed snapshot; the tool is call-and-result — its args
+// arrive as the parsed object AND a redundant whole toolArguments delta (as the
+// real backend sends), and its result whole on completion.
 const u1 = item({ id: "u1", type: "userMessage", content: [{ type: "text", text: "delete it" }] });
 const r1 = item({ id: "r1", type: "reasoning", text: "Weighing the risk carefully." });
 const m1 = item({
@@ -109,6 +112,7 @@ const FULL_STREAM: StreamEvent[] = [
   delta("m1", { type: "content", text: "the file." }),
   completed(m1),
   started(t1),
+  delta("t1", { type: "toolArguments", argumentsTextDelta: '{"path":"x"}' }),
   completed(t1),
   started(m2),
   delta("m2", { type: "content", text: "Done." }),
