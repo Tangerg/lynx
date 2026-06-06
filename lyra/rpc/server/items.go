@@ -13,23 +13,51 @@ import (
 
 // ListItems returns a session's persisted history as durable Items
 // (API.md §7.4). History = the completed Item sequence; there is no
-// separate Message type. Cursor pagination isn't wired yet — without a
-// cursor the whole history comes back as one page; a cursor returns
-// capability_not_negotiated.
+// separate Message type. The result is a Page[Item] (`data` + `nextCursor`)
+// plus the RunRefs needed to rebuild the run tree (§10.3). Over a page the
+// server backfills nextCursor rather than silently truncating (§4.11 — no
+// silent caps); a returned cursor is the opaque "has more" token the client
+// passes back to continue.
 //
 // The authoritative source is the durable Item-history store: the exact
-// Items the runtime streamed (same ids, runId, text, createdAt) plus the
-// RunRefs needed to rebuild the run tree (§10.3). When no history store
-// is configured it falls back to reconstructing items from chat-memory
-// messages — a flat list with no runId/run tree.
+// Items the runtime streamed (same ids, runId, text, createdAt). When no
+// history store is configured it falls back to reconstructing items from
+// chat-memory messages — a flat list with no runId/run tree.
 func (i *Server) ListItems(ctx context.Context, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
-	if in.Cursor != "" {
-		return nil, notImpl("items.list (cursor)")
-	}
 	if store := i.rt.History(); store != nil {
 		return i.listItemsFromHistory(ctx, store, in)
 	}
 	return i.listItemsFromMessages(ctx, in)
+}
+
+// defaultItemPageLimit caps a single items.list page when the client gives
+// no (or an over-large) limit.
+const defaultItemPageLimit = 200
+
+// pageItems applies opaque-cursor + limit pagination over an ordered item
+// slice. cursor is the previous page's last id (opaque to the client); a
+// non-empty returned cursor is the "has more" signal (§4.11) — the server
+// never silently truncates. An unknown cursor yields an empty page (the
+// referenced item is gone), which the client reads as "no more".
+func pageItems(items []protocol.Item, cursor string, limit int) ([]protocol.Item, string) {
+	if cursor != "" {
+		start := len(items) // unknown cursor → past the end → empty page
+		for idx, it := range items {
+			if it.ID == cursor {
+				start = idx + 1
+				break
+			}
+		}
+		items = items[start:]
+	}
+	if limit <= 0 || limit > defaultItemPageLimit {
+		limit = defaultItemPageLimit
+	}
+	if len(items) > limit {
+		page := items[:limit]
+		return page, page[len(page)-1].ID
+	}
+	return items, ""
 }
 
 // listItemsFromHistory serves items.list from the durable Item store.
@@ -56,14 +84,11 @@ func (i *Server) listItemsFromHistory(ctx context.Context, store history.Store, 
 		runs = append(runs, r)
 	}
 
-	limit := in.Limit
-	if limit <= 0 || limit > 200 {
-		limit = 200
-	}
-	if limit < len(items) {
-		items = items[:limit]
-	}
-	return &protocol.ListItemsResponse{Data: items, Runs: runs}, nil
+	page, next := pageItems(items, in.Cursor, in.Limit)
+	return &protocol.ListItemsResponse{
+		Page: protocol.Page[protocol.Item]{Data: page, NextCursor: next},
+		Runs: runs,
+	}, nil
 }
 
 // reconcileLostRun heals a RunRef the durable history left at status:running
@@ -110,15 +135,11 @@ func (i *Server) listItemsFromMessages(ctx context.Context, in protocol.ListItem
 		return nil, err
 	}
 	items := historyToItems(in.SessionID, msgs)
-
-	limit := in.Limit
-	if limit <= 0 || limit > 200 {
-		limit = 200
-	}
-	if limit < len(items) {
-		items = items[:limit]
-	}
-	return &protocol.ListItemsResponse{Data: items, Runs: []protocol.RunRef{}}, nil
+	page, next := pageItems(items, in.Cursor, in.Limit)
+	return &protocol.ListItemsResponse{
+		Page: protocol.Page[protocol.Item]{Data: page, NextCursor: next},
+		Runs: []protocol.RunRef{},
+	}, nil
 }
 
 // EditItem — editing an item starts a continuation run (checkpoint

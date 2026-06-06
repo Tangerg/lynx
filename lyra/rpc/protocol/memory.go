@@ -8,7 +8,7 @@ import (
 // Memory is the memory.* method group — LYRA.md long-term memory
 // (API.md §7.7). Gated on features.memory.
 type Memory interface {
-	ListMemory(ctx context.Context, in WorkspaceQuery) ([]MemoryEntry, error)
+	ListMemory(ctx context.Context, in WorkspaceListQuery) (*Page[MemoryEntry], error)
 	GetMemory(ctx context.Context, in GetMemoryRequest) (*MemoryEntry, error)
 	UpdateMemory(ctx context.Context, in UpdateMemoryRequest) error
 }

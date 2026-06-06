@@ -17,7 +17,7 @@ import (
 // has an adapter for), each annotated from the registry: enabled ⇔ a masked
 // key is present (API.md §4.9 / §7.6). The per-provider model list isn't
 // here — it unlocks via models.list.
-func (i *Server) ListProviders(ctx context.Context) ([]protocol.Provider, error) {
+func (i *Server) ListProviders(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.Provider], error) {
 	configured, err := i.rt.Providers().List(ctx)
 	if err != nil {
 		return nil, err
@@ -32,7 +32,7 @@ func (i *Server) ListProviders(ctx context.Context) ([]protocol.Provider, error)
 		id := string(sp)
 		out = append(out, providerToWire(id, byID[id])) // zero entry when unconfigured
 	}
-	return out, nil
+	return protocol.NewPage(out), nil
 }
 
 // providerToWire maps a registry entry onto the wire Provider shape: id
@@ -95,13 +95,13 @@ func (i *Server) TestProvider(ctx context.Context, providerID string) (*protocol
 // ListModels enumerates the models a provider offers, from the embedded
 // catalog with full metadata (context window, capabilities, pricing). Served
 // straight from the static catalog — no key required (API.md §7.6).
-func (i *Server) ListModels(_ context.Context, providerID string) ([]protocol.Model, error) {
-	models := catalog.Models(providerID)
+func (i *Server) ListModels(_ context.Context, in protocol.ListModelsRequest) (*protocol.Page[protocol.Model], error) {
+	models := catalog.Models(in.Provider)
 	out := make([]protocol.Model, 0, len(models))
 	for _, m := range models {
-		out = append(out, modelToWire(providerID, m))
+		out = append(out, modelToWire(in.Provider, m))
 	}
-	return out, nil
+	return protocol.NewPage(out), nil
 }
 
 // modelToWire maps a catalog model onto the wire Model shape (API.md §4.9).
@@ -135,7 +135,7 @@ func isSupportedProvider(id string) bool {
 
 // ListTools surfaces every tool the engine registered — built-in coding
 // tools plus any MCP-server tools dialed at boot (API.md §7.6).
-func (i *Server) ListTools(ctx context.Context) ([]protocol.ToolSpec, error) {
+func (i *Server) ListTools(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.ToolSpec], error) {
 	internal, err := i.rt.Tool().List(ctx)
 	if err != nil {
 		return nil, err
@@ -149,7 +149,7 @@ func (i *Server) ListTools(ctx context.Context) ([]protocol.ToolSpec, error) {
 			SafetyClass: safetyClassToString(t.SafetyClass),
 		})
 	}
-	return out, nil
+	return protocol.NewPage(out), nil
 }
 
 // InvokeTool runs one tool directly, outside a run (diagnostics /

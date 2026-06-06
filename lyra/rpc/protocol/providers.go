@@ -4,22 +4,31 @@ import "context"
 
 // Providers is the providers.* method group (API.md §7.6).
 type Providers interface {
-	ListProviders(ctx context.Context) ([]Provider, error)
+	ListProviders(ctx context.Context, q PageQuery) (*Page[Provider], error)
 	ConfigureProvider(ctx context.Context, in ConfigureProviderRequest) (*Provider, error)
 	TestProvider(ctx context.Context, providerID string) (*ProviderTestResult, error)
 }
 
 // Models is the models.* method group.
 type Models interface {
-	ListModels(ctx context.Context, providerID string) ([]Model, error)
+	ListModels(ctx context.Context, in ListModelsRequest) (*Page[Model], error)
 }
 
 // Tools is the tools.* method group.
 type Tools interface {
-	ListTools(ctx context.Context) ([]ToolSpec, error)
+	ListTools(ctx context.Context, q PageQuery) (*Page[ToolSpec], error)
 	// InvokeTool runs one tool directly, outside a run (diagnostics /
 	// client-driven workflows without the LLM in the loop).
 	InvokeTool(ctx context.Context, in InvokeToolRequest) (any, error)
+}
+
+// ListModelsRequest — models.list body (API.md §7.6). Provider is optional
+// (models are organized by provider; omitted → empty page); Cursor/Limit
+// paginate.
+type ListModelsRequest struct {
+	Provider string `json:"provider,omitempty"`
+	Cursor   string `json:"cursor,omitempty"`
+	Limit    int    `json:"limit,omitempty"`
 }
 
 // Provider is one configured LLM provider (API.md §4.9). The key is

@@ -28,11 +28,12 @@ type Runs interface {
 	// CancelRun hard-stops a running run (outcome:canceled).
 	CancelRun(ctx context.Context, in CancelRunRequest) error
 
-	// ListRuns returns only running runs (API.md §7.3).
-	ListRuns(ctx context.Context, in ListRunsRequest) ([]RunRef, error)
+	// ListRuns returns only running runs (API.md §7.3), as a Page.
+	ListRuns(ctx context.Context, in ListRunsRequest) (*Page[RunRef], error)
 
-	// ListOpenInterrupts returns durable resumable interrupts (API.md §6.2).
-	ListOpenInterrupts(ctx context.Context, in ListOpenInterruptsRequest) ([]OpenInterrupt, error)
+	// ListOpenInterrupts returns durable resumable interrupts (API.md §6.2),
+	// as a Page.
+	ListOpenInterrupts(ctx context.Context, in ListOpenInterruptsRequest) (*Page[OpenInterrupt], error)
 }
 
 // RunStatus is the lifecycle status carried on RunRef (API.md §4.2).
@@ -103,12 +104,12 @@ const (
 // runId (idempotency is the X-Idempotency-Key header); no cwd (resolved
 // from the session).
 type StartRunRequest struct {
-	SessionID    string            `json:"sessionId"`
-	Input        []ContentBlock    `json:"input"`
-	Context      []ContextItem     `json:"context,omitempty"`
-	Tools        []ToolSpec        `json:"tools,omitempty"`
-	State        map[string]any    `json:"state,omitempty"`
-	Attachments  []string          `json:"attachments,omitempty"`
+	SessionID   string         `json:"sessionId"`
+	Input       []ContentBlock `json:"input"`
+	Context     []ContextItem  `json:"context,omitempty"`
+	Tools       []ToolSpec     `json:"tools,omitempty"`
+	State       map[string]any `json:"state,omitempty"`
+	Attachments []string       `json:"attachments,omitempty"`
 	// Provider + Model select the model for this run. They are paired: send
 	// both to pick a model, or neither to use the runtime's default. Sending
 	// one without the other is invalid_params — the provider is explicit,
@@ -152,11 +153,15 @@ type CancelRunRequest struct {
 // ListRunsRequest is the runs.list body.
 type ListRunsRequest struct {
 	SessionID string `json:"sessionId,omitempty"`
+	Cursor    string `json:"cursor,omitempty"`
+	Limit     int    `json:"limit,omitempty"`
 }
 
 // ListOpenInterruptsRequest is the runs.listOpenInterrupts body.
 type ListOpenInterruptsRequest struct {
 	SessionID string `json:"sessionId,omitempty"`
+	Cursor    string `json:"cursor,omitempty"`
+	Limit     int    `json:"limit,omitempty"`
 }
 
 // ResumeRunRequest is the runs.resume body (API.md §6.1).

@@ -30,7 +30,7 @@ func (i *Server) DeleteAttachment(_ context.Context, _ string) error {
 // ListBackground is gated off (features.background=false) — return
 // capability_not_negotiated rather than a misleading empty list, matching
 // background.subscribe / cancel (API.md §7.7).
-func (i *Server) ListBackground(_ context.Context) ([]protocol.BackgroundTask, error) {
+func (i *Server) ListBackground(_ context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.BackgroundTask], error) {
 	return nil, notImpl("background.list")
 }
 
