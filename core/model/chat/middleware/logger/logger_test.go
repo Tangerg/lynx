@@ -1,4 +1,4 @@
-package middleware_test
+package logger_test
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/middleware"
+	"github.com/Tangerg/lynx/core/model/chat/middleware/logger"
 )
 
 // fakeHandler is a minimal CallHandler + StreamHandler the tests use
@@ -63,9 +63,9 @@ func newSuccessResponse(t *testing.T, body string) *chat.Response {
 
 func TestLoggerMiddleware_Call_Success(t *testing.T) {
 	var buf bytes.Buffer
-	logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	sl := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
-	callMW, _ := middleware.NewLoggerMiddleware(middleware.NewSlogLogger(logger))
+	callMW, _ := logger.NewMiddleware(logger.NewSlogLogger(sl))
 	handler := callMW(&fakeHandler{callResponse: newSuccessResponse(t, "hello")})
 
 	resp, err := handler.Call(context.Background(), newRequest(t, "gpt-x", "hi"))
@@ -93,9 +93,9 @@ func TestLoggerMiddleware_Call_Success(t *testing.T) {
 
 func TestLoggerMiddleware_Call_Error(t *testing.T) {
 	var buf bytes.Buffer
-	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	sl := slog.New(slog.NewJSONHandler(&buf, nil))
 
-	callMW, _ := middleware.NewLoggerMiddleware(middleware.NewSlogLogger(logger))
+	callMW, _ := logger.NewMiddleware(logger.NewSlogLogger(sl))
 	handler := callMW(&fakeHandler{callErr: errors.New("boom")})
 
 	_, err := handler.Call(context.Background(), newRequest(t, "gpt-x", "hi"))
@@ -116,7 +116,7 @@ func TestLoggerMiddleware_Call_Error(t *testing.T) {
 }
 
 func TestLoggerMiddleware_NilLoggerIsSafe(t *testing.T) {
-	callMW, _ := middleware.NewLoggerMiddleware(nil) // nopLogger fallback
+	callMW, _ := logger.NewMiddleware(nil) // nopLogger fallback
 	handler := callMW(&fakeHandler{callResponse: newSuccessResponse(t, "ok")})
 	if _, err := handler.Call(context.Background(), newRequest(t, "m", "p")); err != nil {
 		t.Fatal(err)

@@ -29,7 +29,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
-	chatmem "github.com/Tangerg/lynx/core/model/chat/memory"
+	chatmem "github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 
 	"github.com/Tangerg/lynx/lyra/internal/config"
 	"github.com/Tangerg/lynx/lyra/internal/engine"

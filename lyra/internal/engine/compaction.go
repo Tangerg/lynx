@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/memory"
+	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 )
 
 // compactionDefaults govern the auto-compact trigger. Tunable via
