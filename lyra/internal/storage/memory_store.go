@@ -127,10 +127,15 @@ func (s *FileMemoryService) List(ctx context.Context) ([]memory.Entry, error) {
 		if content == "" {
 			continue
 		}
-		out = append(out, memory.Entry{
-			Scope:   scope,
-			Content: content,
-		})
+		entry := memory.Entry{Scope: scope, Content: content}
+		// CapturedAt = the LYRA.md file's mtime: it's a user-editable file, so
+		// its last-modified time is the truthful "when this memory landed".
+		// Best-effort — a stat failure leaves the zero time rather than
+		// dropping the entry.
+		if info, err := os.Stat(s.pathFor(scope)); err == nil {
+			entry.CapturedAt = info.ModTime()
+		}
+		out = append(out, entry)
 	}
 	return out, nil
 }
