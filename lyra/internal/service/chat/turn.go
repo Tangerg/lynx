@@ -301,7 +301,7 @@ func (s *inMemory) finishTurn(st *turnState, reason TurnEndReason) {
 // platform multicast delivered the terminal event.
 func (s *inMemory) emitTurnEnd(st *turnState, proc engine.ChatProcess, terminal event.Event, runErr error, duration time.Duration, ctxErr error) {
 	out, _ := proc.Output()
-	plan := terminalPlan(terminal, out, runErr, ctxErr, proc.Status())
+	plan := planTurnEnd(terminal, out, runErr, ctxErr, proc.Status())
 
 	finishTurnSpan(st.span, plan.reason, out.Usage, plan.withUsage, plan.errMsg)
 	recordTurnDuration(st.ctx, plan.reason, st.model, duration)
@@ -328,13 +328,15 @@ type turnEndPlan struct {
 	errCode   string
 }
 
-// terminalPlan maps the captured agent-runtime terminal event onto a
-// turnEndPlan. The lifecycle listener fires terminal events
-// authoritatively (ProcessCompleted / Killed / Failed / Stuck /
-// Terminated), so those drive the decision; the default case is the
-// fallback for stub tests where no listener fired and the race where
-// Done() returned before the platform multicast delivered the event.
-func terminalPlan(terminal event.Event, out engine.ChatOutput, runErr, ctxErr error, status core.AgentProcessStatus) turnEndPlan {
+// planTurnEnd is the turnEndPlan constructor: it maps the captured
+// agent-runtime terminal event (plus the engine output and the run-loop's
+// error signals) onto the plan emitTurnEnd executes. The lifecycle listener
+// fires terminal events authoritatively (ProcessCompleted / Killed / Failed /
+// Stuck / Terminated), so those drive the decision; the default case is the
+// fallback for stub tests where no listener fired and the race where Done()
+// returned before the platform multicast delivered the event. completedPlan /
+// fallbackPlan are the per-branch builders it delegates to.
+func planTurnEnd(terminal event.Event, out engine.ChatOutput, runErr, ctxErr error, status core.AgentProcessStatus) turnEndPlan {
 	switch t := terminal.(type) {
 	case event.ProcessCompleted:
 		return completedPlan(out)
