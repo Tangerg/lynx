@@ -42,8 +42,12 @@
 
 ## 5. 自由函数 vs 方法(控制包作用域)
 
-- 主参数是某**具体类型**、且只读它的包级私有函数 → 挂成该类型的**方法**(移出包作用域;编译器照样内联,零开销)。
-- **保留为自由函数**:操作切片 / sealed interface 的(没有类型可挂,类比 `slices.*`)、`newXxx` 构造器、跨包类型的 helper(Go 无法给外部类型加方法)。
+- 包级私有函数,只要**在概念上属于某具体类型的行为/策略**就挂成它的**方法**——判据**不是**"读不读它的字段"(那条太窄),而是"这是不是该类型该做的事"。读状态当然算;**无状态的策略/分类/产出**(如 invoker 的 tool-error 分类 `abortsToolLoop`/`interruptsToolLoop`、对失败工具产出的回灌结果 `unknownToolResult`/`toolErrorResult`)同样算——挂上去表达"这是 invoker 的错误处理行为",receiver 用不用得到不是门槛。移出包作用域;编译器照样内联,零开销。
+- **保留为自由函数**(挂上去只会造伪对象):
+  - `newXxx` / `parseXxx` **构造器 / 工厂**(它产出该类型,不是该类型的行为);
+  - **跨多个类型共享的纯组装/builder**(没有单一 owner,如本仓 tool 包的 `nextRoundRequest`/`buildInterruptResponse`——被 invoker 与 middleware 两条路径共用);
+  - 操作切片 / sealed interface 的(没类型可挂,类比 `slices.*`)、跨包类型的 helper(Go 无法给外部类型加方法)。
+- **挂对 owner,别硬塞**:一个行为若描述的是**它参数**那个类型(`isEmpty(resp)` 说的是 `*Response`、`systemMessages(msgs)` 说的是消息切片),它属于**那个**类型,不属于顺手路过的 invoker/middleware——塞错对象比留自由函数更糟。本类型没法改(跨包)就留自由函数。
 
 ### 5.1 充血模型(§5 的语义版)
 
