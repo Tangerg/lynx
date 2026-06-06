@@ -301,3 +301,64 @@ func TestHistoryStore_RoundTrip(t *testing.T) {
 		t.Fatalf("runs = %+v, want one finished run", runs)
 	}
 }
+
+// TestSessionSubtaskLineage covers the delegation-lineage recording: a
+// subtask child is stored under a caller-supplied id, inherits the parent's
+// cwd, is marked KindSubtask, is hidden from List, yet is reachable via
+// Children and Get. Idempotent on id.
+func TestSessionSubtaskLineage(t *testing.T) {
+	ctx := context.Background()
+	svc := newTempDB(t)
+
+	parent, err := svc.Create(ctx, "Parent", "/work/proj")
+	if err != nil {
+		t.Fatalf("Create parent: %v", err)
+	}
+
+	child, err := svc.CreateSubtask(ctx, "proc-123", parent.ID)
+	if err != nil {
+		t.Fatalf("CreateSubtask: %v", err)
+	}
+	if child.ID != "proc-123" {
+		t.Errorf("child id = %q, want proc-123", child.ID)
+	}
+	if child.ParentID != parent.ID {
+		t.Errorf("child ParentID = %q, want %q", child.ParentID, parent.ID)
+	}
+	if child.Kind != session.KindSubtask {
+		t.Errorf("child Kind = %q, want %q", child.Kind, session.KindSubtask)
+	}
+	if child.Cwd != "/work/proj" {
+		t.Errorf("child Cwd = %q, want inherited /work/proj", child.Cwd)
+	}
+
+	// Idempotent: re-recording the same id returns the existing row.
+	again, err := svc.CreateSubtask(ctx, "proc-123", parent.ID)
+	if err != nil || again.ID != child.ID {
+		t.Fatalf("CreateSubtask not idempotent: err=%v id=%q", err, again.ID)
+	}
+
+	// List hides subtask children — only the user-facing parent shows.
+	list, err := svc.List(ctx)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(list) != 1 || list[0].ID != parent.ID {
+		t.Fatalf("List should show only the parent; got %d entries", len(list))
+	}
+
+	// Children surfaces the subtask under the parent (lineage queryable).
+	kids, err := svc.Children(ctx, parent.ID)
+	if err != nil {
+		t.Fatalf("Children: %v", err)
+	}
+	if len(kids) != 1 || kids[0].ID != "proc-123" {
+		t.Fatalf("Children(parent) = %+v, want one subtask proc-123", kids)
+	}
+
+	// Get resolves the subtask directly.
+	got, err := svc.Get(ctx, "proc-123")
+	if err != nil || got.ParentID != parent.ID {
+		t.Fatalf("Get(subtask): err=%v parent=%q", err, got.ParentID)
+	}
+}

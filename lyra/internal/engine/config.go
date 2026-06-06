@@ -62,6 +62,13 @@ type Config struct {
 	// (status / blackboard / history / budget), so for a single-action
 	// chat turn it captures the turn boundary, not mid-LLM-loop state.
 	ProcessStore core.ProcessStore
+
+	// SessionStore, when non-nil, is handed to the platform so the runtime
+	// persists a sub-agent's session when it spawns one (the `task`
+	// delegation). The engine doesn't touch sessions itself — it only forwards
+	// this to [agent/runtime.PlatformConfig] — keeping session CRUD out of the
+	// chat-execution layer. nil = delegation lineage stays in-process only.
+	SessionStore core.SessionStore
 }
 
 // OnlineConfig groups the credentials network-reaching tools need

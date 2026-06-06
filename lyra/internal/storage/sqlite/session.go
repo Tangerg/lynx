@@ -43,7 +43,7 @@ func rowToSession(scanner interface {
 	)
 	if err := scanner.Scan(
 		&s.ID, &s.Title, &s.Cwd, &s.ParentID,
-		&startedAtNanos, &updatedAtNanos, &s.TurnCount, &metaJSON, &s.Model,
+		&startedAtNanos, &updatedAtNanos, &s.TurnCount, &metaJSON, &s.Model, &s.Kind,
 	); err != nil {
 		return session.Session{}, err
 	}
@@ -70,15 +70,19 @@ func encodeMetadata(m map[string]string) (string, error) {
 	return string(data), nil
 }
 
-const sessionColumns = `id, title, cwd, parent_id, started_at, updated_at, turn_count, metadata, model`
+const sessionColumns = `id, title, cwd, parent_id, started_at, updated_at, turn_count, metadata, model, kind`
 
 // ------------------------------------------------------------------
 // session.Service
 // ------------------------------------------------------------------
 
+// List returns user-facing sessions (roots and forks), newest-updated first.
+// Internal subtask-delegation sessions ([session.KindSubtask]) are excluded so
+// they never clutter the session list — query the lineage via [Children].
 func (s *SessionService) List(ctx context.Context) ([]session.Session, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT `+sessionColumns+` FROM sessions ORDER BY updated_at DESC`)
+		`SELECT `+sessionColumns+` FROM sessions WHERE kind != ? ORDER BY updated_at DESC`,
+		session.KindSubtask)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list sessions: %w", err)
 	}
@@ -158,6 +162,68 @@ func (s *SessionService) Fork(ctx context.Context, parentID, atMessageID string)
 	return child, nil
 }
 
+// CreateSubtask records an internal delegation session under the
+// caller-supplied id (the agent runtime's child conversation id), linked to
+// parentID and marked [session.KindSubtask]. It inherits the parent's working
+// directory and derives a title from it. Idempotent: a session already present
+// under id is returned unchanged, so a re-driven spawn doesn't error.
+func (s *SessionService) CreateSubtask(ctx context.Context, id, parentID string) (session.Session, error) {
+	if existing, err := s.Get(ctx, id); err == nil {
+		return existing, nil
+	} else if !errors.Is(err, session.ErrNotFound) {
+		return session.Session{}, err
+	}
+
+	cwd, title := "", "subtask"
+	if parent, err := s.Get(ctx, parentID); err == nil {
+		cwd = parent.Cwd
+		title = parent.Title + " · subtask"
+	} else if !errors.Is(err, session.ErrNotFound) {
+		return session.Session{}, err
+	}
+
+	now := time.Now().UTC()
+	child := session.Session{
+		ID:        id,
+		Title:     title,
+		Cwd:       cwd,
+		ParentID:  parentID,
+		Kind:      session.KindSubtask,
+		StartedAt: now,
+		UpdatedAt: now,
+	}
+	if err := s.insert(ctx, child); err != nil {
+		return session.Session{}, err
+	}
+	return child, nil
+}
+
+// Children returns the sessions whose parent_id is parentID — the
+// delegation / fork lineage under a session, newest-updated first. Includes
+// KindSubtask children (which List hides).
+func (s *SessionService) Children(ctx context.Context, parentID string) ([]session.Session, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT `+sessionColumns+` FROM sessions WHERE parent_id = ? ORDER BY updated_at DESC`,
+		parentID)
+	if err != nil {
+		return nil, fmt.Errorf("sqlite: list session children: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]session.Session, 0)
+	for rows.Next() {
+		sess, err := rowToSession(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, sess)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: list session children: %w", err)
+	}
+	return out, nil
+}
+
 // Delete is idempotent — deleting an unknown id is not an error
 // (matches session.Service contract).
 func (s *SessionService) Delete(ctx context.Context, id string) error {
@@ -234,10 +300,10 @@ func (s *SessionService) execInsert(ctx context.Context, ex execer, sess session
 	}
 	_, err = ex.ExecContext(ctx,
 		`INSERT INTO sessions(`+sessionColumns+`)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		sess.ID, sess.Title, sess.Cwd, sess.ParentID,
 		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
-		sess.TurnCount, metaJSON, sess.Model,
+		sess.TurnCount, metaJSON, sess.Model, sess.Kind,
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: insert session: %w", err)

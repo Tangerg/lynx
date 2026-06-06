@@ -20,6 +20,13 @@ const IDPrefix = "ses_"
 // branch point survives a round-trip through storage.
 const ForkAtMessageIDKey = "fork_at_message_id"
 
+// KindSubtask marks a session created for a sub-agent delegation (the `task`
+// tool). Such a session has its OWN conversation history (isolated from the
+// parent) and records the parent via [Session.ParentID], but it is internal:
+// [Service.List] hides it so it never clutters the user's session list. The
+// lineage stays queryable via [Service.Get] / [Service.Children].
+const KindSubtask = "subtask"
+
 // Session is the persistent identity of a conversation. Lyra tracks
 // every turn (chat exchange) against one Session id; restarting the
 // runtime restores the Session from storage and lets a turn continue
@@ -34,7 +41,8 @@ type Session struct {
 	Title     string // human-readable; auto-generated from first user message
 	Cwd       string // working-directory identity (API.md §0.2); defaults to the serve cwd
 	Model     string // the model the session last explicitly ran against; empty ⇒ runtime default
-	ParentID  string // empty for root sessions; non-empty for forks
+	ParentID  string // empty for root sessions; non-empty for a fork or a subtask child
+	Kind      string // "" for a user-facing session (root / fork); KindSubtask for an internal delegation child
 	StartedAt time.Time
 	UpdatedAt time.Time
 	TurnCount int
@@ -99,6 +107,18 @@ type Service interface {
 	// up to atMessageID, then diverges. The new session's ParentID
 	// points at the parent.
 	Fork(ctx context.Context, parentID, atMessageID string) (Session, error)
+
+	// CreateSubtask records an internal sub-agent delegation session under id
+	// (the caller supplies it — it is the agent runtime's child conversation
+	// id, so the persisted subtask history lines up), linked to parentID and
+	// marked [KindSubtask]. The child inherits the parent's working directory.
+	// Idempotent on id so a re-driven spawn doesn't error. Hidden from [List].
+	CreateSubtask(ctx context.Context, id, parentID string) (Session, error)
+
+	// Children returns the sessions whose ParentID is parentID — the
+	// delegation/fork lineage under a session, newest-updated first. Includes
+	// [KindSubtask] children (which List hides), so callers can walk the tree.
+	Children(ctx context.Context, parentID string) ([]Session, error)
 
 	// Delete drops the session and its persisted turns. Idempotent.
 	Delete(ctx context.Context, id string) error

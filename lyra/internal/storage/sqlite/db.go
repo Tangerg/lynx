@@ -12,6 +12,7 @@ package sqlite
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	_ "modernc.org/sqlite" // registers the "sqlite" driver
 )
@@ -62,10 +63,13 @@ func migrate(db *sql.DB) error {
 			updated_at  INTEGER NOT NULL,
 			turn_count  INTEGER NOT NULL DEFAULT 0,
 			metadata    TEXT    NOT NULL DEFAULT '{}',
-			model       TEXT    NOT NULL DEFAULT ''
+			model       TEXT    NOT NULL DEFAULT '',
+			kind        TEXT    NOT NULL DEFAULT ''
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_sessions_updated_at
 			ON sessions(updated_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_sessions_parent
+			ON sessions(parent_id)`,
 		`CREATE TABLE IF NOT EXISTS process_snapshots (
 			id           TEXT    PRIMARY KEY,
 			snapshot     TEXT    NOT NULL,
@@ -115,6 +119,19 @@ func migrate(db *sql.DB) error {
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {
 			return fmt.Errorf("sqlite: migrate: %w", err)
+		}
+	}
+	// Forward-compat column adds for databases created before the column
+	// existed. SQLite has no ADD COLUMN IF NOT EXISTS, so a fresh DB (whose
+	// CREATE TABLE above already includes the column) errors with "duplicate
+	// column name" here — that case is benign and ignored; any other error is
+	// real.
+	addColumns := []string{
+		`ALTER TABLE sessions ADD COLUMN kind TEXT NOT NULL DEFAULT ''`,
+	}
+	for _, stmt := range addColumns {
+		if _, err := db.Exec(stmt); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+			return fmt.Errorf("sqlite: migrate add-column: %w", err)
 		}
 	}
 	return nil

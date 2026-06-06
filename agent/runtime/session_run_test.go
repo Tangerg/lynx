@@ -183,3 +183,40 @@ func TestSpawnChild_LinksChildSessionToParent(t *testing.T) {
 		t.Errorf("child session ParentID = %v, want %q (the parent conversation)", parentID, "parent-conv")
 	}
 }
+
+// TestSpawnChild_PersistsChildSessionToStore verifies that when the platform
+// has a SessionStore, a spawned child's session is saved there (with its
+// ParentID), so the delegation lineage is durably queryable.
+func TestSpawnChild_PersistsChildSessionToStore(t *testing.T) {
+	store := core.NewInMemorySessionStore()
+	platform := agent.NewPlatform(runtime.PlatformConfig{SessionStore: store})
+	child := buildSessionAgent()
+	parent := buildLineageParentAgent(platform, child)
+	mustDeploy(t, platform, child, parent)
+
+	sess := core.NewSession("root-conv", "alice", "lineage-parent")
+	proc, err := platform.RunInSession(
+		context.Background(), parent, &sess,
+		map[string]any{core.DefaultBindingName: srWord{Text: "hi"}},
+		core.ProcessOptions{},
+	)
+	if err != nil {
+		t.Fatalf("run in session: %v", err)
+	}
+	if proc.Status() != core.StatusCompleted {
+		t.Fatalf("expected completed, got %s; failure=%v", proc.Status(), proc.Failure())
+	}
+
+	childID, _ := proc.Blackboard().Get("child_session_id")
+	id, _ := childID.(string)
+	if id == "" {
+		t.Fatal("child session id not recorded")
+	}
+	saved, err := store.Load(context.Background(), id)
+	if err != nil {
+		t.Fatalf("child session not persisted to store: %v", err)
+	}
+	if saved.ParentID != "root-conv" {
+		t.Errorf("persisted child ParentID = %q, want %q", saved.ParentID, "root-conv")
+	}
+}
