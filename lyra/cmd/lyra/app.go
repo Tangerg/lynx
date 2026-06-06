@@ -188,6 +188,7 @@ func buildStores() (sessionsvc.Service, memorysvc.Service, core.ProcessStore, in
 	}
 	mem, err := storage.NewFileMemoryService()
 	if err != nil {
+		_ = db.Close() // we opened it; don't leak the handle on the error path
 		return nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("memory storage: %w", err)
 	}
 	return sqlitestore.NewSessionService(db), mem,
