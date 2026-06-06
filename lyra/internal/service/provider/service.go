@@ -34,6 +34,24 @@ type Provider struct {
 // not enabled until a key is set.
 func (p Provider) Enabled() bool { return p.APIKey != "" }
 
+// MaskedAPIKey renders the key for the wire (API.md §4.9 apiKeyMasked): "" for
+// an unconfigured provider (the disabled signal), a fixed redaction for short
+// keys, otherwise an ellipsis + the last four chars (e.g. "…fc78"). The
+// provider owns how to present its own secret, so the wire boundary never
+// touches the raw key. This is distinct from the log-safe [core/model.APIKey]
+// masking — that guards against accidental leakage in logs/JSON, this is the
+// deliberate UI form.
+func (p Provider) MaskedAPIKey() string {
+	switch {
+	case p.APIKey == "":
+		return ""
+	case len(p.APIKey) <= 8:
+		return "••••"
+	default:
+		return "…" + p.APIKey[len(p.APIKey)-4:]
+	}
+}
+
 // Service is the provider registry. All methods are safe for concurrent use.
 type Service interface {
 	// List returns every known provider (the seeded supported set plus any

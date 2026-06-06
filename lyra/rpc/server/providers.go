@@ -42,7 +42,7 @@ func providerToWire(id string, entry provider.Provider) protocol.Provider {
 		ID:           id,
 		Type:         id,
 		BaseURL:      entry.BaseURL,
-		APIKeyMasked: config.MaskKey(entry.APIKey),
+		APIKeyMasked: entry.MaskedAPIKey(),
 	}
 }
 
@@ -82,33 +82,14 @@ func (i *Server) TestProvider(ctx context.Context, providerID string) (*protocol
 			Type: "provider_not_configured", Detail: "set the API key first",
 		}}, nil
 	}
-	if err := probeProvider(ctx, entry); err != nil {
+	// The build-client + ping lives on the runtime, which owns client
+	// construction (clientResolver); this layer just maps the verdict to wire.
+	if err := i.rt.ProbeProvider(ctx, entry); err != nil {
 		return &protocol.ProviderTestResult{OK: false, Error: &protocol.ProblemData{
 			Type: "provider_test_failed", Detail: err.Error(),
 		}}, nil
 	}
 	return &protocol.ProviderTestResult{OK: true}, nil
-}
-
-// probeProvider builds the provider's default-model client and issues one
-// tiny request — the cheapest call that proves the key + endpoint work.
-func probeProvider(ctx context.Context, entry provider.Provider) error {
-	client, _, err := config.BuildClient(config.ClientSpec{
-		Provider: config.Provider(entry.ID),
-		Model:    config.DefaultModel(config.Provider(entry.ID)),
-		APIKey:   entry.APIKey,
-		BaseURL:  entry.BaseURL,
-	})
-	if err != nil {
-		return err
-	}
-	maxTokens := int64(1)
-	_, err = client.Chat().
-		WithOptions(&chat.Options{MaxTokens: &maxTokens}).
-		WithUserPrompt("ping").
-		Call().
-		Response(ctx)
-	return err
 }
 
 // ListModels enumerates the models a provider offers, from the embedded
