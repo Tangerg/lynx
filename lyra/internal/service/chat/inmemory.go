@@ -60,6 +60,8 @@ type inMemory struct {
 	approval approval.Service // optional — nil = auto-approve every tool
 	resolver clientResolver   // optional — nil = always use the default model
 
+	// mu guards the live-turn registry + interruptKinds; each turn owns the
+	// synchronization of its own cross-goroutine state (see turnState.mu).
 	mu    sync.Mutex
 	turns map[string]*turnState // turn_id → state
 
@@ -212,14 +214,10 @@ func (s *inMemory) Cancel(_ context.Context, handle TurnHandle) error {
 		return err
 	}
 	state.cancel()
-	// proc/parked are written by runTurn/drive on other goroutines; read
-	// under the lock. Claim the parked flag so a racing Resume can't also
-	// act on the same suspended turn (whoever flips it false wins).
-	s.mu.Lock()
-	proc := state.proc
-	claimed := state.parked
-	state.parked = false
-	s.mu.Unlock()
+	// Claim the parked flag so a racing Resume can't also act on the same
+	// suspended turn (whoever flips it false wins).
+	proc := state.process()
+	claimed := state.claimPark()
 	if proc != nil {
 		_ = proc.Cancel("user cancel")
 	}
@@ -242,14 +240,9 @@ func (s *inMemory) Resume(_ context.Context, handle TurnHandle, resolution engin
 	if err != nil {
 		return err
 	}
-	s.mu.Lock()
-	if !state.parked {
-		s.mu.Unlock()
+	if !state.claimPark() {
 		return ErrTurnNotFound
 	}
-	state.parked = false
-	s.mu.Unlock()
-
 	return s.resumeAndDrive(state, resolution)
 }
 
@@ -260,7 +253,7 @@ func (s *inMemory) Resume(_ context.Context, handle TurnHandle, resolution engin
 // (same-process) and [Rehydrate] (cross-restart) so the resume tail —
 // deliver, on-error-finish, else-drive — stays identical.
 func (s *inMemory) resumeAndDrive(state *turnState, resolution engine.InterruptResolution) error {
-	resumed, err := state.proc.Resume(state.ctx, resolution)
+	resumed, err := state.process().Resume(state.ctx, resolution)
 	if err != nil {
 		s.emit(state, ErrorEvent{Message: err.Error(), Code: "ENGINE_ERROR"})
 		s.finishTurn(state, TurnEndErrored)
@@ -306,9 +299,7 @@ func (s *inMemory) ProcessID(_ context.Context, handle TurnHandle) (string, erro
 	if err != nil {
 		return "", err
 	}
-	s.mu.Lock()
-	proc := state.proc
-	s.mu.Unlock()
+	proc := state.process()
 	if proc == nil {
 		return "", errors.New("chat: turn has not dispatched a process yet")
 	}
@@ -345,7 +336,7 @@ func (s *inMemory) Rehydrate(ctx context.Context, req RehydrateRequest) (TurnHan
 		return TurnHandle{}, err
 	}
 	state.lifecycle.setRoot(proc.ID())
-	state.proc = proc
+	state.setProc(proc)
 
 	s.mu.Lock()
 	s.turns[handle.TurnID] = state

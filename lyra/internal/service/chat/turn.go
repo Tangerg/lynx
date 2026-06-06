@@ -17,13 +17,14 @@ import (
 
 // turnState holds the per-turn bookkeeping the implementation needs:
 // the event channel subscribers read from, the cancel func that fires
-// when [Service.Cancel] is called, a monotone sequence number stamped
-// onto every emitted event, and the parked flag that marks a turn
-// suspended on a HITL interrupt awaiting [Service.Resume].
+// when [Service.Cancel] is called, and a monotone sequence number stamped
+// onto every emitted event.
 //
-// Once the chat agent dispatches, proc holds the running
-// [engine.ChatProcess]; [Service.Cancel] routes through it so the
-// agent runtime (not just ctx cancellation) drives termination.
+// The turn owns its own synchronization: mu guards the cross-goroutine
+// mutable state (the backing process, the parked flag, the steering queue),
+// reached only through the methods below, so the service mutex is left to
+// guard just the live-turn registry. The remaining fields are set once at
+// the entry point and read without locking thereafter.
 type turnState struct {
 	handle TurnHandle
 	events chan Event
@@ -51,45 +52,84 @@ type turnState struct {
 	// duration that spans any interrupt/resume cycles.
 	startedAt time.Time
 
-	// proc is the agent process backing this turn. runTurn writes it once
-	// (under the impl mutex); [Service.Cancel] / [Service.Resume] read it
-	// under the same mutex from other goroutines. The value is stable
-	// after that single write, so callers may invoke proc's methods after
-	// releasing the lock.
-	proc engine.ChatProcess
-
 	// lifecycle captures the process's authoritative terminal event;
 	// retained across interrupt→resume so the eventual TurnEnd reads it.
+	// Written once before the turn goroutine reads it; not mu-guarded.
 	lifecycle *turnLifecycle
 
+	// --- mu-guarded: mutated/read across the turn + caller goroutines ---
+	mu sync.Mutex
+
+	// proc is the agent process backing this turn, set once setProc dispatches
+	// it. [Service.Cancel] / [Service.Resume] / [Service.ProcessID] read it
+	// via process() from other goroutines.
+	proc engine.ChatProcess
+
 	// parked is true while the turn is suspended on a HITL interrupt
-	// (StatusWaiting) awaiting [Service.Resume]. Guarded by the impl
-	// mutex. A parked turn stays registered (events channel open) until
-	// resumed to a terminal state or canceled.
+	// (StatusWaiting) awaiting [Service.Resume]. A parked turn stays
+	// registered (events channel open) until claimPark drives it to a
+	// terminal state.
 	parked bool
 
-	// steerMu guards steering — the queue of mid-turn user
-	// messages injected via [Service.InjectSteering]. The runtime
-	// flushes the queue to the chat-memory store after the turn
-	// ends so the messages land in conversation history for the
-	// next turn.
-	steerMu  sync.Mutex
+	// steering is the queue of mid-turn user messages injected via
+	// [Service.InjectSteering]. The runtime flushes it to the chat-memory
+	// store after the turn ends so the messages land in conversation
+	// history for the next turn.
 	steering []string
 }
 
-// appendSteering atomically pushes one user message onto the
-// turn's pending-steering queue.
+// setProc records the agent process backing this turn. runTurn / Rehydrate
+// write it once they have dispatched one; process() then hands it to the
+// caller goroutines.
+func (st *turnState) setProc(p engine.ChatProcess) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	st.proc = p
+}
+
+// process returns the backing agent process, or nil before the turn has
+// dispatched one (still in plan-mode). The value is stable after the single
+// setProc, so callers may invoke its methods after process() returns.
+func (st *turnState) process() engine.ChatProcess {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	return st.proc
+}
+
+// park marks the turn suspended on a HITL interrupt awaiting Resume.
+func (st *turnState) park() {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	st.parked = true
+}
+
+// claimPark atomically tests-and-clears the parked flag, reporting whether
+// THIS caller claimed the suspended turn. [Service.Resume] and [Service.Cancel]
+// both race to act on a parked turn; whoever flips the flag false wins and owns
+// driving it to a terminal state, so the loser is a no-op. Returns false for a
+// turn that isn't parked (never suspended, or already claimed).
+func (st *turnState) claimPark() bool {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if !st.parked {
+		return false
+	}
+	st.parked = false
+	return true
+}
+
+// appendSteering pushes one user message onto the pending-steering queue.
 func (st *turnState) appendSteering(message string) {
-	st.steerMu.Lock()
-	defer st.steerMu.Unlock()
+	st.mu.Lock()
+	defer st.mu.Unlock()
 	st.steering = append(st.steering, message)
 }
 
-// drainSteering atomically returns the queued steering messages
-// and clears the queue. Returns nil when no steering is pending.
+// drainSteering returns the queued steering messages and clears the queue,
+// or nil when none is pending.
 func (st *turnState) drainSteering() []string {
-	st.steerMu.Lock()
-	defer st.steerMu.Unlock()
+	st.mu.Lock()
+	defer st.mu.Unlock()
 	if len(st.steering) == 0 {
 		return nil
 	}
@@ -135,10 +175,7 @@ func (s *inMemory) runTurn(req StartTurnRequest, st *turnState) {
 	// Record the root process id so the lifecycle gate keeps subtask
 	// terminals (which fire first) from being mistaken for the turn's end.
 	st.lifecycle.setRoot(proc.ID())
-	// Guarded by s.mu: Cancel / Resume read st.proc from other goroutines.
-	s.mu.Lock()
-	st.proc = proc
-	s.mu.Unlock()
+	st.setProc(proc)
 
 	s.drive(st, proc.Done())
 }
@@ -152,9 +189,7 @@ func (s *inMemory) runTurn(req StartTurnRequest, st *turnState) {
 // for the first segment, the resume continuation's thereafter.
 func (s *inMemory) drive(st *turnState, doneCh <-chan error) {
 	runErr := <-doneCh
-	s.mu.Lock()
-	proc := st.proc
-	s.mu.Unlock()
+	proc := st.process()
 
 	if proc.Status() == core.StatusWaiting {
 		s.handleWaiting(st, proc)
@@ -198,9 +233,7 @@ func (s *inMemory) handleWaiting(st *turnState, proc engine.ChatProcess) {
 // its events channel open; [inMemory.Resume] drives the next segment.
 func (s *inMemory) emitInterrupt(st *turnState, proc engine.ChatProcess) {
 	aw := proc.PendingAwaitable()
-	s.mu.Lock()
-	st.parked = true
-	s.mu.Unlock()
+	st.park()
 	if aw == nil {
 		// Defensive: Waiting without a parked awaitable shouldn't happen;
 		// surface an empty interrupt rather than silently dropping it.
