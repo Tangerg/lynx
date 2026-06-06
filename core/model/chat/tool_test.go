@@ -165,33 +165,62 @@ func TestToolSupport_InvokeToolCalls_ReturnDirectShortCircuits(t *testing.T) {
 	}
 }
 
-func TestToolSupport_ShouldInvokeToolCalls_UnknownToolErrors(t *testing.T) {
+// continuationToolResult returns the concatenated tool-result text of the
+// continuation request the invocation result would feed back to the model.
+func continuationToolResult(t *testing.T, result *chat.ToolInvocationResult) string {
+	t.Helper()
+	cont, err := result.BuildContinueRequest()
+	if err != nil {
+		t.Fatalf("BuildContinueRequest: %v", err)
+	}
+	var b strings.Builder
+	for _, m := range cont.Messages {
+		if tm, ok := m.(*chat.ToolMessage); ok {
+			for _, r := range tm.ToolReturns {
+				b.WriteString(r.Result)
+			}
+		}
+	}
+	return b.String()
+}
+
+// TestToolSupport_InvokeToolCalls_UnknownToolFedBack pins the default: an
+// unregistered tool is tolerated (not a hard error) and answered with an error
+// result naming it, so the model can self-correct instead of the run aborting.
+func TestToolSupport_InvokeToolCalls_UnknownToolFedBack(t *testing.T) {
 	support := chat.NewToolSupport()
 	resp := responseWithToolCall(t, "missing", "")
 
-	_, err := support.ShouldInvokeToolCalls(resp)
-	if err == nil {
-		t.Fatal("unknown tool must error")
+	can, err := support.ShouldInvokeToolCalls(resp)
+	if err != nil || !can {
+		t.Fatalf("unknown tool should be tolerated, got can=%v err=%v", can, err)
 	}
-	if !strings.Contains(err.Error(), "missing") {
-		t.Fatalf("error %q should mention the offending tool name", err.Error())
+
+	result, err := support.InvokeToolCalls(context.Background(), mustNewRequest(t), resp)
+	if err != nil {
+		t.Fatalf("unknown tool must not propagate as an error: %v", err)
+	}
+	if got := continuationToolResult(t, result); !strings.Contains(got, "missing") {
+		t.Fatalf("fed-back result %q should mention the missing tool", got)
 	}
 }
 
-func TestToolSupport_InvokeToolCalls_ToolFailurePropagates(t *testing.T) {
-	wantErr := errors.New("tool blew up")
-
+// TestToolSupport_InvokeToolCalls_RecoverableFailureFedBack pins the default: a
+// tool that returns an ordinary error fails RECOVERABLY — the error text is
+// fed back as the tool result, the run does not abort.
+func TestToolSupport_InvokeToolCalls_RecoverableFailureFedBack(t *testing.T) {
 	support := chat.NewToolSupport()
 	support.Register(mustNewCallable(t, "fail", false, func(context.Context, string) (string, error) {
-		return "", wantErr
+		return "", errors.New("tool blew up")
 	}))
 
 	resp := responseWithToolCall(t, "fail", "")
-	req := mustNewRequest(t)
-
-	_, err := support.InvokeToolCalls(context.Background(), req, resp)
-	if !errors.Is(err, wantErr) {
-		t.Fatalf("err = %v, want chain to include %v", err, wantErr)
+	result, err := support.InvokeToolCalls(context.Background(), mustNewRequest(t), resp)
+	if err != nil {
+		t.Fatalf("a recoverable failure must be fed back, not propagated: %v", err)
+	}
+	if got := continuationToolResult(t, result); !strings.Contains(got, "tool blew up") {
+		t.Fatalf("fed-back result %q should include the failure text", got)
 	}
 }
 
@@ -275,4 +304,26 @@ func responseWithToolCall(t *testing.T, name, args string) *chat.Response {
 		t.Fatal(err)
 	}
 	return resp
+}
+
+// abortErr is a tool error that stops the loop the way a fatal/control-flow
+// failure does — structurally (duck-typed), via ToolLoopAbort.
+type abortErr struct{}
+
+func (abortErr) Error() string       { return "abort: fatal" }
+func (abortErr) ToolLoopAbort() bool { return true }
+
+// TestToolSupport_InvokeToolCalls_AbortErrorPropagates pins the other side of
+// the contract: a ToolLoopAbort error is NOT fed back — it propagates and
+// stops the loop, so genuinely unrecoverable failures end the run.
+func TestToolSupport_InvokeToolCalls_AbortErrorPropagates(t *testing.T) {
+	support := chat.NewToolSupport()
+	support.Register(mustNewCallable(t, "fatal", false, func(context.Context, string) (string, error) {
+		return "", abortErr{}
+	}))
+
+	resp := responseWithToolCall(t, "fatal", "")
+	if _, err := support.InvokeToolCalls(context.Background(), mustNewRequest(t), resp); err == nil {
+		t.Fatal("a ToolLoopAbort error must propagate (abort the loop), got nil")
+	}
 }

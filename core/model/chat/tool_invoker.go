@@ -138,19 +138,19 @@ func (r *ToolInvocationResult) validate() error {
 // toolCallInvoker drives one round of tool invocations: validate every
 // requested tool, execute each in order, and assemble the
 // [*ToolInvocationResult].
+//
+// Error policy (no knobs — this is the framework default): a tool failure is
+// recoverable UNLESS it's a control-flow signal. A control-flow error
+// ([abortsToolLoop]: context cancel/deadline or an explicit ToolLoopAbort, and
+// [interruptsToolLoop]: a HITL interrupt) propagates and stops the loop;
+// EVERYTHING else — file-not-found, wrong credentials, a non-zero exit a tool
+// chose to surface as an error, an unregistered tool — is turned into a tool
+// result and fed back so the model can adjust. A tool author thus picks the
+// outcome at the source: fold a failure into the result string for full
+// control over the wording, or just return an ordinary error and let the loop
+// wrap it. See [Tool.Call].
 type toolCallInvoker struct {
 	registry *ToolRegistry
-
-	// feedbackOnUnknown, when set, makes a call to an unregistered tool
-	// produce an error result fed back to the model (so it can pick a real
-	// tool) instead of aborting the whole request.
-	feedbackOnUnknown bool
-
-	// feedbackOnError, when set, turns a tool execution failure into an
-	// error result fed back to the model (so it can adjust and continue)
-	// instead of aborting the whole request. Sibling of feedbackOnUnknown
-	// for execution errors.
-	feedbackOnError bool
 }
 
 // newToolCallInvoker pairs an invoker with its registry.
@@ -158,31 +158,21 @@ func newToolCallInvoker(registry *ToolRegistry) *toolCallInvoker {
 	return &toolCallInvoker{registry: registry}
 }
 
-// canInvokeToolCalls verifies every requested tool name is registered.
-// Returns (false, nil) when the response contains no tool calls at all.
-// Returns (false, err) when an unknown tool is requested — unless
-// feedbackOnUnknown is set, in which case unknown tools are tolerated and
-// turned into error results by invokeToolCalls.
+// canInvokeToolCalls reports whether the response carries tool calls to run.
+// Returns (false, nil) when there are none. Unknown tool names are NOT
+// rejected here — they are tolerated and turned into error results by
+// invokeToolCalls (the model named a tool that doesn't exist; that's
+// recoverable feedback, not a reason to abort the run).
 func (i *toolCallInvoker) canInvokeToolCalls(resp *Response) (bool, error) {
 	if resp.Result == nil || !resp.Result.AssistantMessage.HasToolCalls() {
 		return false, nil
-	}
-
-	if i.feedbackOnUnknown {
-		return true, nil
-	}
-
-	for call := range resp.Result.AssistantMessage.ToolCalls() {
-		if _, exists := i.registry.Find(call.Name); !exists {
-			return false, fmt.Errorf("chat.toolCallInvoker.canInvokeToolCalls: tool %q not registered", call.Name)
-		}
 	}
 	return true, nil
 }
 
 // unknownToolResult is the synthetic tool result fed back to the model when
-// it calls a tool that isn't registered (feedbackOnUnknown path). It names
-// the missing tool and lists the available ones so the model can recover.
+// it calls a tool that isn't registered. It names the missing tool and lists
+// the available ones so the model can recover.
 func unknownToolResult(name string, available []string) string {
 	sorted := slices.Clone(available)
 	slices.Sort(sorted)
@@ -193,9 +183,9 @@ func unknownToolResult(name string, available []string) string {
 }
 
 // toolErrorResult is the synthetic tool result fed back to the model when a
-// tool execution fails (feedbackOnError path), so the model sees the failure
-// and can adjust instead of the whole request aborting. The error string is
-// the tool's own (already wrapped by the tool); the invoker does not add its
+// tool execution fails recoverably, so the model sees the failure and can
+// adjust instead of the whole request aborting. The error string is the
+// tool's own (already wrapped by the tool); the invoker does not add its
 // internal call path.
 func toolErrorResult(name string, err error) string {
 	return fmt.Sprintf("error: tool %q failed: %s", name, err.Error())
@@ -227,10 +217,9 @@ func (i *toolCallInvoker) invokeToolCalls(ctx context.Context, calls []*ToolCall
 	for _, call := range calls {
 		t, exists := i.registry.Find(call.Name)
 		if !exists {
-			// Reachable only with feedbackOnUnknown set (otherwise
-			// canInvokeToolCalls already aborted). Answer the tool call
-			// with an error result so the model can self-correct, and
-			// force a follow-up round.
+			// The model named a tool that isn't registered. Answer the call
+			// with an error result so it can self-correct, and force a
+			// follow-up round — never abort the run over a hallucinated name.
 			allReturnDirect = false
 			returns = append(returns, &ToolReturn{
 				ID:     call.ID,
@@ -252,14 +241,15 @@ func (i *toolCallInvoker) invokeToolCalls(ctx context.Context, calls []*ToolCall
 					interrupt: &toolRoundInterrupt{done: returns, cause: err},
 				}, nil
 			}
-			if !i.feedbackOnError || abortsToolLoop(err) {
+			if abortsToolLoop(err) {
 				return nil, fmt.Errorf("chat.toolCallInvoker.invokeToolCalls: tool %q failed: %w", call.Name, err)
 			}
-			// Feed the failure back to the model as the tool's result so it
-			// can adjust and continue, rather than aborting the run. The
-			// failure is already recorded out-of-band on the tool-call item
-			// (via the tool observer) — see lyra engine. Control-flow errors
-			// (HITL pause, cancellation) take the propagate path above.
+			// Recoverable failure: feed it back to the model as the tool's
+			// result so it can adjust and continue, rather than aborting the
+			// run. This is the unconditional default — only control-flow errors
+			// (HITL interrupt above, context cancel / ToolLoopAbort here) stop
+			// the loop. The failure is also recorded out-of-band on the
+			// tool-call item (via the tool observer) — see lyra engine.
 			allReturnDirect = false
 			returns = append(returns, &ToolReturn{
 				ID:     call.ID,

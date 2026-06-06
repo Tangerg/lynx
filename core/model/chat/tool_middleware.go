@@ -19,30 +19,26 @@ const DefaultMaxToolIterations = 50
 const emptyResponseNudge = "Your previous reply was empty. Please provide a complete answer, or call one of the available tools."
 
 // ToolLoopConfig tunes [NewToolMiddleware]. Every field is optional; the
-// zero value yields the default loop (cap = [DefaultMaxToolIterations], no
-// recovery feedback).
+// zero value yields the default loop (cap = [DefaultMaxToolIterations]).
+//
+// Tool-failure handling is NOT configurable: a tool error that isn't a
+// control-flow signal (context cancel / ToolLoopAbort / HITL interrupt) is
+// always fed back to the model as a tool result so it can recover, and an
+// unregistered tool is always answered with an error result rather than
+// aborting the run. That recovery is the framework default; a tool author
+// chooses the outcome at the source (fold the failure into the result string,
+// or return an ordinary error and let the loop wrap it). See [Tool.Call].
 type ToolLoopConfig struct {
 	// MaxIterations caps the number of model calls the tool loop makes.
 	// <= 0 falls back to [DefaultMaxToolIterations].
 	MaxIterations int
 
-	// FeedbackOnUnknownTool, when true, makes a call to an unregistered
-	// tool produce an error result fed back to the model (so it can pick a
-	// real tool) instead of aborting the request. Default off preserves the
-	// strict behavior.
-	FeedbackOnUnknownTool bool
-
 	// FeedbackOnEmptyResponse, when true, answers an empty model reply (no
 	// text and no tool calls) with a nudge and re-prompts the model once
-	// instead of returning the empty reply. Default off.
+	// instead of returning the empty reply. Default off. Unlike tool-failure
+	// recovery this is a genuine behavioral choice, not error handling, so it
+	// stays opt-in.
 	FeedbackOnEmptyResponse bool
-
-	// FeedbackOnToolError, when true, turns a tool execution failure into an
-	// error result fed back to the model (so it can adjust and continue)
-	// instead of aborting the whole request. The sibling of
-	// FeedbackOnUnknownTool for execution errors. Default off preserves the
-	// strict behavior (a tool error aborts the loop).
-	FeedbackOnToolError bool
 }
 
 // MaxToolIterationsError is returned when the tool-calling loop exceeds its
@@ -72,10 +68,8 @@ func (e *MaxToolIterationsError) Error() string {
 //	    WithTools(myTool).
 //	    Call().Response(ctx)
 type ToolMiddleware struct {
-	maxIterations   int
-	feedbackUnknown bool
-	feedbackEmpty   bool
-	feedbackError   bool
+	maxIterations int
+	feedbackEmpty bool
 }
 
 // NewToolMiddleware constructs the tool-calling middleware pair. Pass an
@@ -92,10 +86,8 @@ func NewToolMiddleware(config ...ToolLoopConfig) (CallMiddleware, StreamMiddlewa
 	}
 
 	mw := &ToolMiddleware{
-		maxIterations:   maxIterations,
-		feedbackUnknown: cfg.FeedbackOnUnknownTool,
-		feedbackEmpty:   cfg.FeedbackOnEmptyResponse,
-		feedbackError:   cfg.FeedbackOnToolError,
+		maxIterations: maxIterations,
+		feedbackEmpty: cfg.FeedbackOnEmptyResponse,
 	}
 	return mw.wrapCallHandler, mw.wrapStreamHandler
 }
@@ -128,13 +120,11 @@ func (m *ToolMiddleware) wrapStreamHandler(next StreamHandler) StreamHandler {
 	})
 }
 
-// newToolSupport builds the per-loop support, applying the middleware's
-// unknown-tool policy.
+// newToolSupport builds the per-loop support. Tool-failure recovery
+// (unknown-tool + recoverable-error feedback) is the unconditional default in
+// [toolCallInvoker], so there's nothing to configure here.
 func (m *ToolMiddleware) newToolSupport(toolCount int) *ToolSupport {
-	support := NewToolSupport(toolCount)
-	support.SetFeedbackOnUnknownTool(m.feedbackUnknown)
-	support.SetFeedbackOnToolError(m.feedbackError)
-	return support
+	return NewToolSupport(toolCount)
 }
 
 // executeCall is the synchronous entry point: short-circuit when prior

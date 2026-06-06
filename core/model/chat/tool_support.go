@@ -29,23 +29,6 @@ func NewToolSupport(capacityHint ...int) *ToolSupport {
 // Registry exposes the underlying [ToolRegistry] for direct access.
 func (s *ToolSupport) Registry() *ToolRegistry { return s.registry }
 
-// SetFeedbackOnUnknownTool toggles unknown-tool tolerance. When enabled, a
-// call to an unregistered tool yields an error result fed back to the model
-// (so it can pick a real tool) instead of aborting the whole request. The
-// default is off, preserving the strict "unknown tool is an error" behavior.
-func (s *ToolSupport) SetFeedbackOnUnknownTool(enabled bool) {
-	s.invoker.feedbackOnUnknown = enabled
-}
-
-// SetFeedbackOnToolError toggles tool-execution-error tolerance. When
-// enabled, a tool whose Call returns an error yields an error result fed
-// back to the model (so it can adjust and continue) instead of aborting the
-// whole request. The default is off, preserving the strict "tool error
-// aborts" behavior.
-func (s *ToolSupport) SetFeedbackOnToolError(enabled bool) {
-	s.invoker.feedbackOnError = enabled
-}
-
 // Register is a shorthand for [ToolRegistry.Register].
 func (s *ToolSupport) Register(tools ...Tool) {
 	s.registry.Register(tools...)

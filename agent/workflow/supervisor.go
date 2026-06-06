@@ -95,11 +95,11 @@ func Supervisor[In, Out any](platform *runtime.Platform, cfg SupervisorConfig[In
 				return zero, errors.New("workflow.Supervisor: no chat client configured on the platform")
 			}
 
+			// Orchestration is resilient by default: a hallucinated sub-agent
+			// name (unknown tool) and a recoverable tool failure are both fed
+			// back so the model can pick a real one / adjust — no knob needed.
 			callMW, streamMW := chat.NewToolMiddleware(chat.ToolLoopConfig{
 				MaxIterations: cfg.MaxIterations,
-				// Orchestration is resilient: if the model hallucinates a
-				// sub-agent, feed the error back so it can pick a real one.
-				FeedbackOnUnknownTool: true,
 			})
 
 			// The tool loop hands each round only the new tool message
