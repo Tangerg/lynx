@@ -174,8 +174,8 @@ func (m *middleware) executeCallRecursively(ctx context.Context, req *chat.Reque
 		return nil, err
 	}
 	if !shouldInvoke {
-		if nudgeReq, ok, err := m.maybeNudgeEmpty(req, resp, state); err != nil {
-			return nil, err
+		if nudgeReq, ok, nudgeErr := m.maybeNudgeEmpty(req, resp, state); nudgeErr != nil {
+			return nil, nudgeErr
 		} else if ok {
 			st := state.next()
 			st.emptyRetried = true
@@ -278,8 +278,8 @@ func (m *middleware) executeStreamRecursively(ctx context.Context, req *chat.Req
 		return
 	}
 	if !shouldInvoke {
-		if nudgeReq, ok, err := m.maybeNudgeEmpty(req, resp, state); err != nil {
-			yield(nil, err)
+		if nudgeReq, ok, nudgeErr := m.maybeNudgeEmpty(req, resp, state); nudgeErr != nil {
+			yield(nil, nudgeErr)
 		} else if ok {
 			st := state.next()
 			st.emptyRetried = true
@@ -319,8 +319,8 @@ func (m *middleware) executeStreamRecursively(ctx context.Context, req *chat.Req
 	// timeline matches the message history we will hand the next
 	// model turn.
 	if result.toolMessage != nil {
-		toolResp, err := newToolMessageResponse(result.toolMessage)
-		if err == nil && !yield(toolResp, nil) {
+		toolResp, wrapErr := newToolMessageResponse(result.toolMessage)
+		if wrapErr == nil && !yield(toolResp, nil) {
 			return
 		}
 	}

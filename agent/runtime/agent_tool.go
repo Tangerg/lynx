@@ -56,7 +56,7 @@ func (t *agentTool) Call(ctx context.Context, arguments string) (string, error) 
 	if proc.Status() == core.StatusWaiting {
 		return waitingResultText(t.agent.Name, proc), nil
 	}
-	if err := proc.TerminalError(); err != nil {
+	if err = proc.TerminalError(); err != nil {
 		return "", fmt.Errorf("%s %q (process %q): %w", t.label, t.agent.Name, proc.ID(), err)
 	}
 

@@ -310,9 +310,9 @@ func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		WithLimit(req.TopK)
 
 	if req.Filter != nil {
-		whereFilter, err := ToFilter(req.Filter)
-		if err != nil {
-			return nil, fmt.Errorf("weaviate: failed to convert filter: %w", err)
+		whereFilter, filterErr := ToFilter(req.Filter)
+		if filterErr != nil {
+			return nil, fmt.Errorf("weaviate: failed to convert filter: %w", filterErr)
 		}
 		getBuilder = getBuilder.WithWhere(whereFilter)
 	}

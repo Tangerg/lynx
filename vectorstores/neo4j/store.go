@@ -382,19 +382,19 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 
 	var result any
 	result, err = session.ExecuteRead(ctx, func(tx neo4j.ManagedTransaction) (any, error) {
-		res, err := tx.Run(ctx, cypher, params)
-		if err != nil {
-			return nil, err
+		res, runErr := tx.Run(ctx, cypher, params)
+		if runErr != nil {
+			return nil, runErr
 		}
-		records, err := res.Collect(ctx)
-		if err != nil {
-			return nil, err
+		records, collectErr := res.Collect(ctx)
+		if collectErr != nil {
+			return nil, collectErr
 		}
 		out := make([]*document.Document, 0, len(records))
 		for _, rec := range records {
-			doc, err := s.recordToDocument(rec)
-			if err != nil {
-				return nil, err
+			doc, convErr := s.recordToDocument(rec)
+			if convErr != nil {
+				return nil, convErr
 			}
 			out = append(out, doc)
 		}

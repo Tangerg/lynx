@@ -103,7 +103,7 @@ func (i *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	}
 
 	handle := chat.TurnHandle{SessionID: pending.SessionID, TurnID: pending.TurnID}
-	if err := i.rt.Chat().Resume(ctx, handle, resolution); err != nil {
+	if err = i.rt.Chat().Resume(ctx, handle, resolution); err != nil {
 		if !errors.Is(err, chat.ErrTurnNotFound) {
 			return nil, nil, err
 		}

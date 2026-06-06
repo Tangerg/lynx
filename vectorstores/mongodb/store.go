@@ -340,9 +340,9 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		"limit":         req.TopK,
 	}
 	if req.Filter != nil {
-		filterDoc, err := s.buildFilter(req.Filter)
-		if err != nil {
-			return nil, err
+		filterDoc, filterErr := s.buildFilter(req.Filter)
+		if filterErr != nil {
+			return nil, filterErr
 		}
 		if len(filterDoc) > 0 {
 			vectorSearch["filter"] = filterDoc

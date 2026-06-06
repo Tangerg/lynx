@@ -385,9 +385,9 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 
 	whereExtra := ""
 	if req.Filter != nil {
-		predicate, err := s.buildFilter(req.Filter)
-		if err != nil {
-			return nil, err
+		predicate, filterErr := s.buildFilter(req.Filter)
+		if filterErr != nil {
+			return nil, filterErr
 		}
 		if predicate != "" {
 			whereExtra = " AND " + predicate

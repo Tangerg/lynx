@@ -100,9 +100,9 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 
 	payloads := make([]any, 0, len(messages))
 	for _, msg := range messages {
-		raw, err := codec.EncodeMessage(msg)
-		if err != nil {
-			return fmt.Errorf("redis.Store.Write: encode message: %w", err)
+		raw, encErr := codec.EncodeMessage(msg)
+		if encErr != nil {
+			return fmt.Errorf("redis.Store.Write: encode message: %w", encErr)
 		}
 		payloads = append(payloads, raw)
 	}

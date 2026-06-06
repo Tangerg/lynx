@@ -360,7 +360,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 			metaRaw  sql.NullString
 			distance float64
 		)
-		if err := rows.Scan(&id, &content, &metaRaw, &distance); err != nil {
+		if err = rows.Scan(&id, &content, &metaRaw, &distance); err != nil {
 			return nil, fmt.Errorf("mariadb: scan row: %w", err)
 		}
 

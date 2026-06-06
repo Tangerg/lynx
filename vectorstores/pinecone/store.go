@@ -233,9 +233,9 @@ func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	}
 
 	if req.Filter != nil {
-		filter, err := ToFilter(req.Filter)
-		if err != nil {
-			return nil, fmt.Errorf("pinecone: failed to convert filter: %w", err)
+		filter, filterErr := ToFilter(req.Filter)
+		if filterErr != nil {
+			return nil, fmt.Errorf("pinecone: failed to convert filter: %w", filterErr)
 		}
 		queryReq.MetadataFilter = filter
 	}

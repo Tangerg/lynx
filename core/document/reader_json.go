@@ -58,7 +58,7 @@ func (j *JSONReader) Read(_ context.Context) ([]*Document, error) {
 	}
 
 	if j.looksLikeArray(data) {
-		if docs, err := j.parseAsArray(data); err == nil {
+		if docs, parseErr := j.parseAsArray(data); parseErr == nil {
 			return docs, nil
 		}
 		// fall through to single-document path on array decode failure;
@@ -66,7 +66,7 @@ func (j *JSONReader) Read(_ context.Context) ([]*Document, error) {
 		// which case wrapping the raw bytes is still useful.
 	}
 
-	if err := json.Unmarshal(data, new(any)); err != nil {
+	if err = json.Unmarshal(data, new(any)); err != nil {
 		return nil, err
 	}
 

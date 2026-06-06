@@ -69,9 +69,9 @@ func buildOnlineTools(online OnlineConfig) ([]chat.Tool, error) {
 	)
 
 	out, err = appendIfBuilt(out, online.JinaAPIKey != "", "webfetch (jina)", func() (chat.Tool, error) {
-		client, err := jina.NewClient(&jina.Config{APIKey: online.JinaAPIKey})
-		if err != nil {
-			return nil, err
+		client, clientErr := jina.NewClient(&jina.Config{APIKey: online.JinaAPIKey})
+		if clientErr != nil {
+			return nil, clientErr
 		}
 		return webfetch.NewTool(client)
 	})
@@ -80,9 +80,9 @@ func buildOnlineTools(online OnlineConfig) ([]chat.Tool, error) {
 	}
 
 	out, err = appendIfBuilt(out, online.TavilyAPIKey != "", "websearch (tavily)", func() (chat.Tool, error) {
-		client, err := tavily.NewClient(&tavily.Config{APIKey: online.TavilyAPIKey})
-		if err != nil {
-			return nil, err
+		client, clientErr := tavily.NewClient(&tavily.Config{APIKey: online.TavilyAPIKey})
+		if clientErr != nil {
+			return nil, clientErr
 		}
 		return websearch.NewTool(client)
 	})
@@ -91,9 +91,9 @@ func buildOnlineTools(online OnlineConfig) ([]chat.Tool, error) {
 	}
 
 	out, err = appendIfBuilt(out, len(online.HTTPAllowedHosts) > 0, "httpreq", func() (chat.Tool, error) {
-		client, err := httpreq.NewClient(httpreq.Config{AllowedHosts: online.HTTPAllowedHosts})
-		if err != nil {
-			return nil, err
+		client, clientErr := httpreq.NewClient(httpreq.Config{AllowedHosts: online.HTTPAllowedHosts})
+		if clientErr != nil {
+			return nil, clientErr
 		}
 		return httpreq.NewTool(client)
 	})

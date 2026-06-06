@@ -32,7 +32,7 @@ import (
 //
 // Returns an error when platform or agent is nil.
 func AsBackgroundChatTool[In, Out any](platform *Platform, agentDef *core.Agent) (spawn chat.Tool, collect chat.Tool, err error) {
-	if err := validateAgent("AsBackgroundChatTool", platform, agentDef); err != nil {
+	if err = validateAgent("AsBackgroundChatTool", platform, agentDef); err != nil {
 		return nil, nil, err
 	}
 
@@ -47,13 +47,13 @@ func AsBackgroundChatTool[In, Out any](platform *Platform, agentDef *core.Agent)
 		func(ctx context.Context, arguments string) (string, error) {
 			var in In
 			if arguments != "" {
-				if err := json.Unmarshal([]byte(arguments), &in); err != nil {
-					return "", fmt.Errorf("background spawn %q: parse input: %w", agentDef.Name, err)
+				if parseErr := json.Unmarshal([]byte(arguments), &in); parseErr != nil {
+					return "", fmt.Errorf("background spawn %q: parse input: %w", agentDef.Name, parseErr)
 				}
 			}
-			taskID, _, err := SpawnChildAsync(ctx, platform, agentDef, in)
-			if err != nil {
-				return "", fmt.Errorf("background spawn %q: %w", agentDef.Name, err)
+			taskID, _, spawnErr := SpawnChildAsync(ctx, platform, agentDef, in)
+			if spawnErr != nil {
+				return "", fmt.Errorf("background spawn %q: %w", agentDef.Name, spawnErr)
 			}
 			return marshalTaskResult(taskResult{TaskID: taskID, Status: taskStatusRunning})
 		},
@@ -71,8 +71,8 @@ func AsBackgroundChatTool[In, Out any](platform *Platform, agentDef *core.Agent)
 		chat.ToolMetadata{},
 		func(_ context.Context, arguments string) (string, error) {
 			var args collectTaskInput
-			if err := json.Unmarshal([]byte(arguments), &args); err != nil {
-				return "", fmt.Errorf("background collect %q: parse input: %w", agentDef.Name, err)
+			if parseErr := json.Unmarshal([]byte(arguments), &args); parseErr != nil {
+				return "", fmt.Errorf("background collect %q: parse input: %w", agentDef.Name, parseErr)
 			}
 			if args.TaskID == "" {
 				return "", fmt.Errorf("background collect %q: task_id is required", agentDef.Name)

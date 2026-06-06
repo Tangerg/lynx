@@ -100,14 +100,14 @@ func (p *StreamParser) Parse() error {
 	for {
 		n, err := p.reader.Read(buf)
 		if n > 0 {
-			if err := p.processBytes(buf[:n]); err != nil {
-				return err
+			if procErr := p.processBytes(buf[:n]); procErr != nil {
+				return procErr
 			}
 		}
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				if err := p.flushTopLevel(); err != nil {
-					return err
+				if flushErr := p.flushTopLevel(); flushErr != nil {
+					return flushErr
 				}
 				if len(p.scopes) > 0 {
 					return fmt.Errorf("json: unexpected EOF: unclosed %s", p.scopes[len(p.scopes)-1])
