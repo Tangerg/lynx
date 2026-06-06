@@ -20,8 +20,8 @@ func (i *Server) Initialize(_ context.Context, in protocol.InitializeRequest) (*
 	// than parking into a deadlock (API.md §6.2). An empty / absent list is
 	// treated permissively (surface all) so CLI / in-process callers that
 	// don't negotiate keep working.
-	if len(in.Capabilities.InterruptKinds) > 0 {
-		i.rt.Chat().SetInterruptKinds(in.Capabilities.InterruptKinds)
+	if len(in.Capabilities.InterruptTypes) > 0 {
+		i.rt.Chat().SetInterruptKinds(in.Capabilities.InterruptTypes)
 	}
 	return &protocol.InitializeResponse{
 		ProtocolVersion: protocol.ProtocolVersion, // server's truth — client falls back if needed

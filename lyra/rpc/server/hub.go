@@ -25,8 +25,10 @@ const liveHeadroom = 256
 //
 // Only durable events are retained for replay (API.md §9.3: item.delta /
 // state.delta are never replayed); ephemeral events reach live
-// subscribers but are not buffered. The hub is event-agnostic — the pump
-// calls Close on the terminal run.finished; the hub doesn't parse events.
+// subscribers but are not buffered. Durability is derived from the event
+// itself (StreamEvent.IsDurable, the §5.2 SSOT) — no per-frame bool. The
+// pump calls Close on the terminal run.finished; the hub doesn't otherwise
+// interpret events.
 type runHub struct {
 	mu        sync.Mutex
 	durable   []protocol.RunEvent // durable backlog, retained for the hub's life
@@ -49,7 +51,7 @@ func (h *runHub) Append(ev protocol.RunEvent) {
 	if h.closed {
 		return
 	}
-	if ev.Durable {
+	if ev.Event.IsDurable() {
 		h.durable = append(h.durable, ev)
 	}
 	for _, ch := range h.subs {

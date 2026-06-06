@@ -279,7 +279,6 @@ func (i *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 				RunID:     runID,
 				EventID:   i.nextEventID(),
 				Timestamp: time.Now().UTC(),
-				Durable:   durableFor(se.Type),
 				Event:     se,
 			}
 			if se.Type == protocol.StreamRunFinished {
@@ -355,16 +354,6 @@ func (i *Server) recordInterrupt(ctx context.Context, runID string, handle chat.
 		Interrupts:  raw,
 		CreatedAt:   time.Now().UTC(),
 	})
-}
-
-// durableFor classifies a stream event's durability (API.md §5.3).
-func durableFor(t protocol.StreamEventType) bool {
-	switch t {
-	case protocol.StreamItemDelta, protocol.StreamStateDelta:
-		return false
-	default:
-		return true
-	}
 }
 
 // CancelRun hard-stops a running run (outcome:canceled, API.md §7.3).

@@ -66,7 +66,15 @@ func (s *Server) serveStream(w http.ResponseWriter, r *http.Request, resp *trans
 				)
 				continue
 			}
-			if err := writeSSEMessage(ctx, sw, ev.EventID, notif); err != nil {
+			// Only durable frames carry an SSE id: (TRANSPORT §9.3 / API §5.2):
+			// Last-Event-Id must resume from a replayable event, never an
+			// ephemeral delta (which the hub doesn't buffer). Durability is
+			// derived from the event itself (no per-frame bool, S4).
+			sseID := ""
+			if ev.Event.IsDurable() {
+				sseID = ev.EventID
+			}
+			if err := writeSSEMessage(ctx, sw, sseID, notif); err != nil {
 				return // write failed — client gone; run continues server-side
 			}
 		case <-ticker.C:

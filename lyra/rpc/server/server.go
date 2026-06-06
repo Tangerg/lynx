@@ -113,20 +113,25 @@ func Capabilities(rt RuntimeServices) protocol.ServerCapabilities {
 			string(protocol.StreamItemDelta),
 			string(protocol.StreamItemCompleted),
 		},
-		Features: protocol.ServerFeatures{
-			Reasoning: true,
-			MCP:       true,
-			Memory:    memory,
+		// streamable-HTTP methods, machine-readable so the client knows which
+		// calls return an event stream rather than hardcoding the names (§7/§9).
+		StreamingMethods: []string{"runs.start", "runs.resume", "runs.subscribe", "background.subscribe"},
+		// Open features map (§9): advertise a new capability by adding a key.
+		// Known keys absent here default to off on the client.
+		Features: map[string]protocol.FeatureFlag{
+			"reasoning": true,
+			"mcp":       true,
+			"memory":    memory,
 			// Off until the corresponding engine support lands:
-			Multimodal:    false,
-			Checkpoints:   false,
-			Background:    false,
-			Subagents:     false,
-			Skills:        false,
-			SessionExport: false,
-			Relocate:      false,
-			ClientTools:   false,
-			Attachments:   protocol.AttachmentLimits{Enabled: false},
+			"multimodal":    false,
+			"checkpoints":   false,
+			"background":    false,
+			"subagents":     false,
+			"skills":        false,
+			"sessionExport": false,
+			"relocate":      false,
+			"clientTools":   false,
+			"attachments":   protocol.AttachmentLimits{Enabled: false},
 		},
 		Providers: supportedProviderIDs(),
 		Limits:    protocol.RuntimeLimits{MaxConcurrentRuns: 8},
