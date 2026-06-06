@@ -177,7 +177,7 @@ function onRunFinished(state: AgentViewState, outcome: RunOutcome): AgentViewSta
 function onItemStarted(state: AgentViewState, item: Item): AgentViewState {
   switch (item.type) {
     case "userMessage":
-      return appendUserMessage(state, item, blockStatus(item.status));
+      return appendUserMessage(state, item);
     case "agentMessage":
       return foldText(state, item, blockStatus(item.status));
     case "reasoning":
@@ -237,7 +237,7 @@ function onItemCompleted(state: AgentViewState, rawItem: Item): AgentViewState {
     rawItem.status === "inProgress" ? { ...rawItem, status: "incomplete" } : rawItem;
   switch (item.type) {
     case "userMessage":
-      return appendUserMessage(state, item, "complete");
+      return appendUserMessage(state, item);
     // Honor the terminal status: a canceled/interrupted run settles its
     // agentMessage/reasoning as `incomplete` (API.md §4.3), not "complete" —
     // blockStatus maps it so the UI can show the truncated affordance.
