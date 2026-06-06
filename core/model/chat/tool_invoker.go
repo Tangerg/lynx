@@ -45,17 +45,19 @@ func (r *ToolInvocationResult) ShouldContinue() bool {
 func (r *ToolInvocationResult) ShouldReturn() bool { return !r.ShouldContinue() }
 
 // BuildContinueRequest assembles the next [*Request] in the tool-calling
-// loop: the turn's system header plus this round's [*ToolMessage] carrying
-// the inline results. Returns an error when the result is not actually in
-// "continue" state.
+// loop: the turn's system header, this round's assistant tool-call message,
+// and the [*ToolMessage] carrying the inline results. Returns an error when
+// the result is not actually in "continue" state.
 //
-// It deliberately does NOT carry the prior conversation or the assistant
-// tool-call message. The memory middleware sitting below the loop already
-// persisted the assistant reply and owns the stored history; it splices
-// both back in front of this tool message. Re-sending the full
-// conversation here is exactly the coupling that forced the memory layer
-// to de-duplicate — so the loop now hands down only the system header
-// (constant for the turn, never stored) and the new tool result.
+// It does NOT carry the prior conversation — the memory middleware below the
+// loop owns the stored history and splices it back in. But it DOES carry the
+// assistant tool-call message alongside its tool result: the two form one
+// atomic exchange the memory layer persists together. (The memory layer
+// deliberately skips persisting a tool-call assistant on its own, so it can't
+// strand an unanswered assistant(tool_calls) in the store if the turn
+// interrupts mid-round.) Re-sending the FULL conversation, by contrast, is the
+// coupling that forced the memory layer to de-duplicate — so only the system
+// header and this round's new exchange travel down.
 func (r *ToolInvocationResult) BuildContinueRequest() (*Request, error) {
 	if !r.ShouldContinue() {
 		return nil, errors.New("chat.ToolInvocationResult.BuildContinueRequest: result is in return-direct state")
@@ -69,7 +71,7 @@ func (r *ToolInvocationResult) BuildContinueRequest() (*Request, error) {
 		return nil, errors.New("chat.ToolInvocationResult.BuildContinueRequest: response has no tool calls")
 	}
 
-	msgs := append(systemMessages(r.request.Messages), r.toolMessage)
+	msgs := append(systemMessages(r.request.Messages), result.AssistantMessage, r.toolMessage)
 	next, err := NewRequest(msgs)
 	if err != nil {
 		return nil, err
