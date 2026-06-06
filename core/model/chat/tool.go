@@ -46,27 +46,19 @@ type Tool interface {
 	Metadata() ToolMetadata
 
 	// Call runs the tool's body. arguments is the JSON-encoded payload the
-	// LLM produced. The string result is fed back to the LLM (or returned to
-	// the caller when ReturnDirect is true).
+	// LLM produced. The string result is the tool's output — fed back to the
+	// LLM, or returned to the caller when ReturnDirect is true.
 	//
-	// The error return means "the tool could not produce a result", and the
-	// tool-calling loop classifies it:
-	//
-	//   - A CONTROL-FLOW error stops the loop. A context cancellation /
-	//     deadline, or an error implementing ToolLoopAbort() bool == true,
-	//     propagates and aborts the run; an error implementing
-	//     ToolLoopInterrupt() bool == true (HITL) parks it for human input.
-	//   - ANY OTHER error is RECOVERABLE: the loop wraps its Error() string in
-	//     a tool result and feeds it back so the model can adjust (try another
-	//     path, fix an argument, tell the user). The run does NOT abort.
-	//
-	// So an operational failure the model should reason about — file not
-	// found, wrong credentials, a non-zero exit, an HTTP 4xx — can be returned
-	// EITHER as an ordinary error (the loop folds it into the result for you)
-	// OR folded into the result string yourself when you want control over the
-	// wording. Both reach the model; the choice is the tool author's. Reserve
-	// a genuine error only for failures the model can't act on, and a
-	// ToolLoopAbort error only for "stop the whole run".
+	// A non-nil error means the tool could not produce a result. What happens
+	// to that error is decided by whatever drives the call, NOT by this
+	// interface: the bundled tool-calling loop in
+	// [core/model/chat/middleware/tool] feeds most errors back to the model as
+	// a result so it can recover, and propagates only control-flow signals
+	// (context cancellation / deadline and explicit abort/interrupt errors) —
+	// see that package for the exact contract. A tool author who wants control
+	// over the wording can fold an operational failure (file not found, wrong
+	// credentials, a non-zero exit, an HTTP 4xx) into the result string instead
+	// of returning an error; both reach the model.
 	Call(ctx context.Context, arguments string) (string, error)
 }
 
