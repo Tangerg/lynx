@@ -28,7 +28,7 @@ type Provider struct {
 	ID           string `json:"id"`
 	Type         string `json:"type"` // "openai" | "anthropic" | ...
 	BaseURL      string `json:"baseUrl,omitempty"`
-	APIKeyMasked string `json:"apiKeyMasked"` // "" = unconfigured; e.g. "sk-…fc78"
+	APIKeyMasked string `json:"apiKeyMasked"` // "" = unconfigured; e.g. "sk****78"
 }
 
 // ConfigureProviderRequest — providers.configure body. Provider is the

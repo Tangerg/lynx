@@ -11,7 +11,11 @@
 // runtime edits across restarts.
 package provider
 
-import "context"
+import (
+	"context"
+
+	"github.com/Tangerg/lynx/core/model"
+)
 
 // Provider is one registry entry: a provider id plus the credentials a turn
 // uses to build its client. The id doubles as the adapter type Lyra resolves
@@ -35,22 +39,11 @@ type Provider struct {
 func (p Provider) Enabled() bool { return p.APIKey != "" }
 
 // MaskedAPIKey renders the key for the wire (API.md §4.9 apiKeyMasked): "" for
-// an unconfigured provider (the disabled signal), a fixed redaction for short
-// keys, otherwise an ellipsis + the last four chars (e.g. "…fc78"). The
-// provider owns how to present its own secret, so the wire boundary never
-// touches the raw key. This is distinct from the log-safe [core/model.APIKey]
-// masking — that guards against accidental leakage in logs/JSON, this is the
-// deliberate UI form.
-func (p Provider) MaskedAPIKey() string {
-	switch {
-	case p.APIKey == "":
-		return ""
-	case len(p.APIKey) <= 8:
-		return "••••"
-	default:
-		return "…" + p.APIKey[len(p.APIKey)-4:]
-	}
-}
+// an unconfigured provider (the disabled signal), otherwise the redacted form
+// (e.g. "sk****78"). The provider owns how to present its own secret, so the
+// wire boundary never touches the raw key. It delegates to [core/model.MaskAPIKey]
+// so lyra has a single masking rule shared with every log/JSON site.
+func (p Provider) MaskedAPIKey() string { return model.MaskAPIKey(p.APIKey) }
 
 // Service is the provider registry. All methods are safe for concurrent use.
 type Service interface {
