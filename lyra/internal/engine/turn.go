@@ -40,9 +40,10 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 	// front, and the (assistant, tool) pair persists atomically when the round
 	// completes. A fresh turn (no tail) adds the user message normally.
 	sysPrompt := e.SystemPrompt(ctx)
+	inflightTail := inflightTailStore{bb: pc.Blackboard}
 	var stream *chat.ClientStreamer
-	if tail, ok := loadInflightTail(pc.Blackboard); ok {
-		clearInflightTail(pc.Blackboard) // consume the tail
+	if tail, ok := inflightTail.Load(); ok {
+		inflightTail.Clear() // consume the tail
 		msgs := append([]chat.Message{chat.NewSystemMessage(sysPrompt)}, tail...)
 		stream = req.WithMessages(msgs...).Stream()
 	} else {
@@ -82,7 +83,7 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 		// it is not assistant text and never reaches the budget/observer below.
 		if isInterruptResult(chunk) {
 			recordRound()
-			saveInflightTail(pc.Blackboard, chunk.Result)
+			inflightTail.Save(chunk.Result)
 			continue
 		}
 		if chunk.IsToolResult() {
