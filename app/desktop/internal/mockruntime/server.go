@@ -1,4 +1,4 @@
-// Package agui hosts the local dev mock for the Lyra Runtime Protocol v2
+// Package mockruntime hosts the local dev mock for the Lyra Runtime Protocol v2
 // (docs/API.md + docs/TRANSPORT.md). It speaks JSON-RPC 2.0 over HTTP:
 //
 //	POST /v2/rpc/{method}      — request / client notification
@@ -9,7 +9,7 @@
 // It streams a scripted Session→Run→Item turn so the desktop app has
 // something believable to render without a real runtime. No external
 // protocol SDK — the v2 wire shapes are plain structs here.
-package agui
+package mockruntime
 
 import (
 	"context"
@@ -59,16 +59,16 @@ func (s *Server) Start() error {
 
 	listener, err := net.Listen("tcp", s.Addr)
 	if err != nil {
-		return fmt.Errorf("agui: bind %s: %w", s.Addr, err)
+		return fmt.Errorf("mockruntime: bind %s: %w", s.Addr, err)
 	}
 	s.server = &http.Server{Handler: s.handler(), ReadHeaderTimeout: 5 * time.Second}
 	go func() {
 		if err := s.server.Serve(listener); err != nil && err != http.ErrServerClosed {
-			log.Printf("agui: server stopped: %v", err)
+			log.Printf("mockruntime: server stopped: %v", err)
 		}
 	}()
 	s.started = true
-	log.Printf("agui: v2 mock listening on http://%s", s.Addr)
+	log.Printf("mockruntime: v2 mock listening on http://%s", s.Addr)
 	return nil
 }
 

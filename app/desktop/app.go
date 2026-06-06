@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"lyra/internal/agui"
+	"lyra/internal/mockruntime"
 )
 
 // App ties the Wails lifecycle to backing services. The AG-UI mock server is
@@ -16,12 +16,12 @@ import (
 // hang off here too.
 type App struct {
 	ctx    context.Context
-	server *agui.Server
+	server *mockruntime.Server
 }
 
 func NewApp() *App {
 	return &App{
-		server: agui.New(""), // empty → DefaultAddr
+		server: mockruntime.New(""), // empty → DefaultAddr
 	}
 }
 
@@ -33,12 +33,12 @@ func (a *App) startup(ctx context.Context) {
 	// this keeps :17171 free for it. Set LYRA_MOCK=1 to bring the demo mock
 	// back (e.g. `LYRA_MOCK=1 wails dev`).
 	if !mockEnabled() {
-		log.Printf("agui: embedded mock disabled (set LYRA_MOCK=1 to enable); " +
+		log.Printf("mockruntime: embedded mock disabled (set LYRA_MOCK=1 to enable); " +
 			"frontend will talk to the runtime on its configured base URL")
 		return
 	}
 	if err := a.server.Start(); err != nil {
-		log.Printf("agui: failed to start: %v", err)
+		log.Printf("mockruntime: failed to start: %v", err)
 	}
 }
 
@@ -59,7 +59,7 @@ func (a *App) shutdown(ctx context.Context) {
 	stopCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	if err := a.server.Stop(stopCtx); err != nil {
-		log.Printf("agui: shutdown: %v", err)
+		log.Printf("mockruntime: shutdown: %v", err)
 	}
 }
 
