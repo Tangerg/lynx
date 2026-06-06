@@ -2,7 +2,6 @@ package model
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 )
 
@@ -67,25 +66,23 @@ func (k *staticAPIKey) MarshalJSON() ([]byte, error) {
 	return json.Marshal(k.masked())
 }
 
-// masked renders the key as "api_key=<masked>" without revealing the
-// secret. It chooses one of three shapes by length:
+// masked renders the key without revealing the secret. It returns the masked
+// value alone — no "api_key=" label — so callers can drop it straight into a
+// log line, a JSON field, or a wire payload and supply their own context. It
+// chooses one of three shapes by length:
 //
-//	""              -> "api_key=<empty>"
-//	len ≤ 10        -> "api_key=" + asterisks
-//	len > 10        -> "api_key=ab****yz" (first 2, last 2)
+//	""              -> ""
+//	len ≤ 10        -> asterisks (too short to show the ends without leaking)
+//	len > 10        -> "ab****yz" (first 2, last 2, middle starred)
 func (k *staticAPIKey) masked() string {
 	value := k.value
 	if value == "" {
-		return "api_key=<empty>"
+		return ""
 	}
 
 	if len(value) <= 10 {
-		return "api_key=" + strings.Repeat("*", len(value))
+		return strings.Repeat("*", len(value))
 	}
 
-	return fmt.Sprintf("api_key=%s%s%s",
-		value[:2],
-		strings.Repeat("*", len(value)-4),
-		value[len(value)-2:],
-	)
+	return value[:2] + strings.Repeat("*", len(value)-4) + value[len(value)-2:]
 }
