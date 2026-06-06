@@ -42,9 +42,10 @@ func TestApiKey_StringMaskingShapes(t *testing.T) {
 		want string
 	}{
 		{name: "empty", key: "", want: ""},
-		{name: "short three", key: "abc", want: "***"},
-		{name: "boundary ten", key: "abcdefghij", want: "**********"},
-		{name: "long", key: "sk-1234567890", want: "sk*********90"},
+		{name: "short masked whole", key: "abc", want: "****"},
+		{name: "boundary eight masked whole", key: "abcdefgh", want: "****"},
+		{name: "nine shows ends", key: "abcdefghi", want: "ab****hi"},
+		{name: "long fixed middle", key: "sk-1234567890", want: "sk****90"},
 	}
 
 	for _, tc := range cases {
