@@ -7,11 +7,17 @@ import (
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
-// ev builds a RunEvent with a padded eventId and the given durability.
+// ev builds a RunEvent with a padded eventId and the given durability —
+// durability now derives from the event type (StreamEvent.IsDurable), so we
+// pick a durable type (item.completed) or an ephemeral one (item.delta).
 func ev(seq int, durable bool) protocol.RunEvent {
+	t := protocol.StreamItemDelta // ephemeral
+	if durable {
+		t = protocol.StreamItemCompleted
+	}
 	return protocol.RunEvent{
 		EventID: fmt.Sprintf("%s%011d", protocol.IDPrefixEvent, seq),
-		Durable: durable,
+		Event:   protocol.StreamEvent{Type: t},
 	}
 }
 

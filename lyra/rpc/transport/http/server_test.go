@@ -436,9 +436,9 @@ func readBody(r *netHTTP.Response) string {
 // run.finished) so a POST runs.start exercises serveStream end-to-end.
 func (f *fakeRuntime) StartRun(_ context.Context, in protocol.StartRunRequest) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
 	ch := make(chan protocol.RunEvent, 2)
-	ch <- protocol.RunEvent{RunID: "run_x", EventID: "evt_00000000001", Durable: true,
+	ch <- protocol.RunEvent{RunID: "run_x", EventID: "evt_00000000001",
 		Event: protocol.StreamEvent{Type: protocol.StreamRunStarted, Run: &protocol.RunRef{ID: "run_x", SessionID: in.SessionID}}}
-	ch <- protocol.RunEvent{RunID: "run_x", EventID: "evt_00000000002", Durable: true,
+	ch <- protocol.RunEvent{RunID: "run_x", EventID: "evt_00000000002",
 		Event: protocol.StreamEvent{Type: protocol.StreamRunFinished, Outcome: &protocol.RunOutcome{Type: protocol.OutcomeCompleted, Result: &protocol.RunResult{}}}}
 	close(ch)
 	return &protocol.StartRunResponse{RunID: "run_x"}, ch, nil
