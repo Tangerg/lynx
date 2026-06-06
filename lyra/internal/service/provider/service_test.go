@@ -9,9 +9,9 @@ func TestProviderMaskedAPIKey(t *testing.T) {
 		want string
 	}{
 		{"unconfigured", "", ""},
-		{"short fully masked", "abc123", "••••"},
-		{"boundary 8 fully masked", "12345678", "••••"},
-		{"long reveals last four", "sk-ant-0000fc78", "…fc78"},
+		{"short fully masked", "abc123", "****"},
+		{"boundary 8 fully masked", "12345678", "****"},
+		{"long reveals ends", "sk-ant-0000fc78", "sk****78"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
