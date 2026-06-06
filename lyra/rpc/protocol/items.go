@@ -24,14 +24,14 @@ type ListItemsRequest struct {
 	Limit     int    `json:"limit,omitempty"`
 }
 
-// ListItemsResponse — items.list result. A Page[Item] (Data + NextCursor)
-// plus the RunRefs needed to rebuild the run tree (API.md §7.4 / §10.3).
-// The page rides the shared `data` field so every paginated method reads
-// resp.data — no `data`/`items` drift across the protocol surface.
+// ListItemsResponse — items.list result: a Page[Item] (`data` +
+// `nextCursor`) embedded so every list method reads `resp.data`, plus the
+// RunRefs needed to rebuild the run tree (API.md §7.4 / §10.3 —
+// `Page<Item> & { runs }`). The embedded Page inlines `data`/`nextCursor`
+// onto the wire.
 type ListItemsResponse struct {
-	Data       []Item   `json:"data"`
-	NextCursor string   `json:"nextCursor,omitempty"`
-	Runs       []RunRef `json:"runs"`
+	Page[Item]
+	Runs []RunRef `json:"runs"`
 }
 
 // EditItemRequest — items.edit body.

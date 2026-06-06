@@ -10,10 +10,10 @@ import (
 // ListMemory enumerates LYRA.md entries across scopes (API.md §7.7).
 // Empty (not an error) when no memory service is configured, so the UI
 // renders an empty state rather than a banner.
-func (i *Server) ListMemory(ctx context.Context, _ protocol.WorkspaceQuery) ([]protocol.MemoryEntry, error) {
+func (i *Server) ListMemory(ctx context.Context, _ protocol.WorkspaceListQuery) (*protocol.Page[protocol.MemoryEntry], error) {
 	mem := i.rt.Memory()
 	if mem == nil {
-		return []protocol.MemoryEntry{}, nil
+		return protocol.NewPage([]protocol.MemoryEntry{}), nil
 	}
 	entries, err := mem.List(ctx)
 	if err != nil {
@@ -27,7 +27,7 @@ func (i *Server) ListMemory(ctx context.Context, _ protocol.WorkspaceQuery) ([]p
 			UpdatedAt: e.CapturedAt,
 		})
 	}
-	return out, nil
+	return protocol.NewPage(out), nil
 }
 
 // GetMemory returns one scope's LYRA.md content. Dispatch has already

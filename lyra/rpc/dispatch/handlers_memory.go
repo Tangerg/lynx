@@ -10,7 +10,7 @@ import (
 // ─── Memory — LYRA.md long-term memory (API.md §7.7) ────────────────
 
 func (d *Dispatcher) handleMemoryList(ctx context.Context, msg *transport.Request) HandleResult {
-	var in protocol.WorkspaceQuery
+	var in protocol.WorkspaceListQuery
 	_ = unmarshal(msg.Params, &in)
 	entries, err := d.api.ListMemory(ctx, in)
 	return reply(msg, entries, err)

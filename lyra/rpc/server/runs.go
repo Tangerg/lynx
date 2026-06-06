@@ -386,8 +386,9 @@ func (i *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) er
 	return nil
 }
 
-// ListRuns returns the currently running runs (API.md §7.3).
-func (i *Server) ListRuns(_ context.Context, in protocol.ListRunsRequest) ([]protocol.RunRef, error) {
+// ListRuns returns the currently running runs as a Page (API.md §7.3).
+// The set is in-process and bounded, so the page carries no cursor.
+func (i *Server) ListRuns(_ context.Context, in protocol.ListRunsRequest) (*protocol.Page[protocol.RunRef], error) {
 	i.runMu.Lock()
 	defer i.runMu.Unlock()
 	out := make([]protocol.RunRef, 0, len(i.runs))
@@ -402,12 +403,12 @@ func (i *Server) ListRuns(_ context.Context, in protocol.ListRunsRequest) ([]pro
 			Status:      protocol.RunStatusRunning,
 		})
 	}
-	return out, nil
+	return protocol.NewPage(out), nil
 }
 
-// ListOpenInterrupts returns durable resumable interrupts (API.md §6.2),
-// read from the pluggable interrupt store.
-func (i *Server) ListOpenInterrupts(ctx context.Context, in protocol.ListOpenInterruptsRequest) ([]protocol.OpenInterrupt, error) {
+// ListOpenInterrupts returns durable resumable interrupts as a Page
+// (API.md §6.2), read from the pluggable interrupt store.
+func (i *Server) ListOpenInterrupts(ctx context.Context, in protocol.ListOpenInterruptsRequest) (*protocol.Page[protocol.OpenInterrupt], error) {
 	pending, err := i.rt.Interrupts().List(ctx, in.SessionID)
 	if err != nil {
 		return nil, err
@@ -423,7 +424,7 @@ func (i *Server) ListOpenInterrupts(ctx context.Context, in protocol.ListOpenInt
 			CreatedAt:   p.CreatedAt,
 		})
 	}
-	return out, nil
+	return protocol.NewPage(out), nil
 }
 
 // SubscribeRun opens a fresh event stream onto an actively-streaming root

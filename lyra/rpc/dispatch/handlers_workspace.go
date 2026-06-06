@@ -10,10 +10,10 @@ import (
 // ─── Workspace (API.md §7.5) ────────────────────────────────────────
 //
 // Read methods take an optional cwd (default = serve dir); MCP methods
-// are runtime-global and take no cwd. All list results are bare arrays.
+// are runtime-global and take no cwd. All list results are Page[T] (§4.11).
 
 func (d *Dispatcher) handleWorkspaceListFileChanges(ctx context.Context, msg *transport.Request) HandleResult {
-	var in protocol.WorkspaceQuery
+	var in protocol.WorkspaceListQuery
 	_ = unmarshal(msg.Params, &in)
 	out, err := d.api.WorkspaceListFileChanges(ctx, in)
 	return reply(msg, out, err)
@@ -51,26 +51,30 @@ func (d *Dispatcher) handleWorkspaceGrep(ctx context.Context, msg *transport.Req
 }
 
 func (d *Dispatcher) handleWorkspaceListProjects(ctx context.Context, msg *transport.Request) HandleResult {
-	out, err := d.api.WorkspaceListProjects(ctx)
+	var q protocol.PageQuery
+	_ = unmarshal(msg.Params, &q)
+	out, err := d.api.WorkspaceListProjects(ctx, q)
 	return reply(msg, out, err)
 }
 
 func (d *Dispatcher) handleWorkspaceListSkills(ctx context.Context, msg *transport.Request) HandleResult {
-	var in protocol.WorkspaceQuery
+	var in protocol.WorkspaceListQuery
 	_ = unmarshal(msg.Params, &in)
 	out, err := d.api.WorkspaceListSkills(ctx, in)
 	return reply(msg, out, err)
 }
 
 func (d *Dispatcher) handleWorkspaceListAgentDocs(ctx context.Context, msg *transport.Request) HandleResult {
-	var in protocol.WorkspaceQuery
+	var in protocol.WorkspaceListQuery
 	_ = unmarshal(msg.Params, &in)
 	out, err := d.api.WorkspaceListAgentDocs(ctx, in)
 	return reply(msg, out, err)
 }
 
 func (d *Dispatcher) handleWorkspaceMCPListServers(ctx context.Context, msg *transport.Request) HandleResult {
-	out, err := d.api.WorkspaceMCPListServers(ctx)
+	var q protocol.PageQuery
+	_ = unmarshal(msg.Params, &q)
+	out, err := d.api.WorkspaceMCPListServers(ctx, q)
 	return reply(msg, out, err)
 }
 

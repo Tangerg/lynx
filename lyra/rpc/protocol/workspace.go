@@ -6,15 +6,15 @@ import "context"
 // methods take an optional cwd (default = serve directory); MCP methods
 // are runtime-global and take no cwd.
 type Workspace interface {
-	WorkspaceListFileChanges(ctx context.Context, in WorkspaceQuery) ([]WorkspaceFileChange, error)
-	WorkspaceGetDiff(ctx context.Context, in GetDiffRequest) ([]DiffRow, error)
+	WorkspaceListFileChanges(ctx context.Context, in WorkspaceListQuery) (*Page[WorkspaceFileChange], error)
+	WorkspaceGetDiff(ctx context.Context, in GetDiffRequest) (*Diff, error)
 	WorkspaceGetFileHead(ctx context.Context, in GetFileHeadRequest) (*FileHead, error)
 	WorkspaceGrep(ctx context.Context, in GrepRequest) (*GrepResult, error)
-	WorkspaceListProjects(ctx context.Context) ([]Project, error)
-	WorkspaceListSkills(ctx context.Context, in WorkspaceQuery) ([]Skill, error)
-	WorkspaceListAgentDocs(ctx context.Context, in WorkspaceQuery) ([]AgentDoc, error)
-	WorkspaceMCPListServers(ctx context.Context) ([]McpServer, error)
-	WorkspaceMCPListTools(ctx context.Context, in MCPListToolsRequest) ([]McpTool, error)
+	WorkspaceListProjects(ctx context.Context, q PageQuery) (*Page[Project], error)
+	WorkspaceListSkills(ctx context.Context, in WorkspaceListQuery) (*Page[Skill], error)
+	WorkspaceListAgentDocs(ctx context.Context, in WorkspaceListQuery) (*Page[AgentDoc], error)
+	WorkspaceMCPListServers(ctx context.Context, q PageQuery) (*Page[McpServer], error)
+	WorkspaceMCPListTools(ctx context.Context, in MCPListToolsRequest) (*Page[McpTool], error)
 	WorkspaceMCPReconnect(ctx context.Context, server string) error
 }
 
@@ -23,10 +23,12 @@ type WorkspaceQuery struct {
 	Cwd string `json:"cwd,omitempty"`
 }
 
-// GetDiffRequest — workspace.getDiff body.
+// GetDiffRequest — workspace.getDiff body. Limit caps the diff rows; over
+// it the result is truncated (Diff.Truncated) rather than silently dropped.
 type GetDiffRequest struct {
-	Cwd  string `json:"cwd,omitempty"`
-	Path string `json:"path,omitempty"`
+	Cwd   string `json:"cwd,omitempty"`
+	Path  string `json:"path,omitempty"`
+	Limit int    `json:"limit,omitempty"`
 }
 
 // GetFileHeadRequest — workspace.getFileHead body.
@@ -47,6 +49,16 @@ type GrepRequest struct {
 // MCPListToolsRequest — workspace.mcp.listTools body.
 type MCPListToolsRequest struct {
 	Server string `json:"server,omitempty"`
+	Cursor string `json:"cursor,omitempty"`
+	Limit  int    `json:"limit,omitempty"`
+}
+
+// Diff is the workspace.getDiff result (API.md §4.5): structured rows plus
+// a self-describing truncation flag — over the requested limit Truncated is
+// set rather than rows silently dropped ("no silent caps", §7.5).
+type Diff struct {
+	Rows      []DiffRow `json:"rows"`
+	Truncated bool      `json:"truncated,omitempty"`
 }
 
 // WorkspaceFileChange is one entry in workspace.listFileChanges (API.md

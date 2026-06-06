@@ -9,7 +9,7 @@ import (
 // outlive a single run (API.md §7.7). Gated on features.background.
 // Subscribe output flows via notifications.background.update.
 type Background interface {
-	ListBackground(ctx context.Context) ([]BackgroundTask, error)
+	ListBackground(ctx context.Context, q PageQuery) (*Page[BackgroundTask], error)
 	SubscribeBackground(ctx context.Context, taskID string) (<-chan BackgroundTask, error)
 	CancelBackground(ctx context.Context, taskID string) error
 }

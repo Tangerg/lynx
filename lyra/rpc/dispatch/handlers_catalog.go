@@ -10,7 +10,9 @@ import (
 // ─── Providers / Models / Tools (API.md §7.6) ───────────────────────
 
 func (d *Dispatcher) handleProvidersList(ctx context.Context, msg *transport.Request) HandleResult {
-	out, err := d.api.ListProviders(ctx)
+	var q protocol.PageQuery
+	_ = unmarshal(msg.Params, &q)
+	out, err := d.api.ListProviders(ctx, q)
 	return reply(msg, out, err)
 }
 
@@ -36,13 +38,16 @@ func (d *Dispatcher) handleProvidersTest(ctx context.Context, msg *transport.Req
 }
 
 func (d *Dispatcher) handleModelsList(ctx context.Context, msg *transport.Request) HandleResult {
-	provider, _ := decodeStringParam(msg.Params, "provider") // optional
-	out, err := d.api.ListModels(ctx, provider)
+	var in protocol.ListModelsRequest
+	_ = unmarshal(msg.Params, &in) // provider optional; empty → empty page
+	out, err := d.api.ListModels(ctx, in)
 	return reply(msg, out, err)
 }
 
 func (d *Dispatcher) handleToolsList(ctx context.Context, msg *transport.Request) HandleResult {
-	out, err := d.api.ListTools(ctx)
+	var q protocol.PageQuery
+	_ = unmarshal(msg.Params, &q)
+	out, err := d.api.ListTools(ctx, q)
 	return reply(msg, out, err)
 }
 
@@ -89,7 +94,9 @@ func (d *Dispatcher) handleAttachmentsDelete(ctx context.Context, msg *transport
 // ─── Background (API.md §7.7) ───────────────────────────────────────
 
 func (d *Dispatcher) handleBackgroundList(ctx context.Context, msg *transport.Request) HandleResult {
-	out, err := d.api.ListBackground(ctx)
+	var q protocol.PageQuery
+	_ = unmarshal(msg.Params, &q)
+	out, err := d.api.ListBackground(ctx, q)
 	return reply(msg, out, err)
 }
 
