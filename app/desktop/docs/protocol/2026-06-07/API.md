@@ -531,7 +531,7 @@ interface OpenInterrupt {
 ```
 
 > **为什么 question 自包含**：`OpenInterrupt` 的语义是"什么在等我处理"——它本就该是个**自足的待办快照**。让 question
-> 也带 `payload.question`，三类一致、去掉对 `items.list` 的二次 join，也根除"进程重启后 inProgress 的 question 还没进
+> 也带 `payload.question`，三类一致、去掉对 `items.list` 的二次 join，也根除"进程重启后 `running` 态的 question 还没进
 > durable 历史、join 落空、待答问题渲染不出来"的坑。interrupt 上的 question 与（completed 后的）question Item 上各存一份
 > 不算虚假 DRY：前者是待办快照、后者是历史，生命周期不同。
 
