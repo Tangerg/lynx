@@ -62,6 +62,31 @@ type Tool interface {
 	Call(ctx context.Context, arguments string) (string, error)
 }
 
+// ToolHalt is the one control-flow contract a tool error can carry. When an
+// error returned from [Tool.Call] implements it, the tool-calling loop STOPS
+// rather than feeding the error back to the model as a recoverable result: the
+// loop propagates the error unchanged so an outer layer can act on it. An
+// ordinary error — one that does NOT implement ToolHalt — is recoverable (the
+// loop wraps it as a tool result and the model adapts).
+//
+// It lives here, in the protocol package, on purpose: it is the contract
+// between a [Tool] and ANY tool-loop driver (the bundled
+// core/model/chat/middleware/tool, or a third-party one), and the guiding
+// model for third-party tool middleware. Implement it on your own sentinel
+// errors; agent/hitl.InterruptError is one example.
+type ToolHalt interface {
+	error
+
+	// Abort reports the halt's intent:
+	//   - true  → the run cannot continue (a fatal failure the model can't
+	//     fix); the loop propagates it and the run fails.
+	//   - false → the run is suspended for human input (HITL) and is expected
+	//     to resume; the loop propagates it and an outer layer parks the run.
+	// Either way the loop stops and propagates; the bool only tells the outer
+	// layer (and the loop's HITL resume handling) which kind it is.
+	Abort() bool
+}
+
 // tool is the concrete backing for tools built via [NewTool].
 type tool struct {
 	definition ToolDefinition
@@ -82,9 +107,11 @@ func (t *tool) Call(ctx context.Context, arguments string) (string, error) {
 // will return an error.
 //
 // To gate execution on human approval or to delegate execution to an
-// external system, wrap the result with a decorator that returns a
-// sentinel error (e.g., agent/hitl.RequireAwait) — the chat layer
-// always treats a registered tool as runnable.
+// external system, have the tool (or a decorator around it) return a
+// [ToolHalt] error — the loop propagates it instead of feeding it back, so an
+// outer layer can park or fail the run. agent/hitl.InterruptError is the
+// reference HITL implementation. The chat layer itself always treats a
+// registered tool as runnable.
 //
 // Example:
 //

@@ -20,10 +20,10 @@
 // aborting. The only errors that STOP the loop are control-flow signals:
 //
 //   - context cancellation / deadline — the run is being torn down;
-//   - an error implementing ToolLoopAbort() bool == true — propagates and
-//     aborts the run (for failures the model cannot act on);
-//   - an error implementing ToolLoopInterrupt() bool == true — parks the run
-//     for human input (HITL), carrying a [LoopInterrupted] checkpoint.
+//   - a [chat.ToolHalt] whose Abort() is true — propagates and aborts the run
+//     (a failure the model cannot act on);
+//   - a [chat.ToolHalt] whose Abort() is false — parks the run for human
+//     input (HITL), carrying a [LoopInterrupted] checkpoint.
 //
 // None of this is configurable; recovery is the framework default. A tool
 // author chooses where an operational failure surfaces — return an ordinary

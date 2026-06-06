@@ -13,10 +13,11 @@ import (
 // GraphInterrupt, eino's InterruptSignal, trpc-agent-go's InterruptError;
 // Go returns an error, Python raises). It carries a stable Key (the
 // interrupt's identity, stable across the resuming re-run) and a
-// user-facing Value (the payload surfaced to the client). The chat tool
-// loop exits immediately on it (the ToolLoopInterrupt marker) and
-// propagates it; the agent action parks the run on Awaitable and surfaces
-// Value. On resume the awaitable's handler records the human's response on
+// user-facing Value (the payload surfaced to the client). It satisfies
+// [chat.ToolHalt] with Abort() == false, so the chat tool loop exits
+// immediately on it and propagates it (rather than feeding it back); the
+// agent action parks the run on Awaitable and surfaces Value. On resume the
+// awaitable's handler records the human's response on
 // the process blackboard, and [Interrupt] returns it at the original call
 // site.
 //
@@ -39,11 +40,12 @@ func (e *InterruptError) Error() string {
 	return fmt.Sprintf("hitl.InterruptError: run interrupted for input (key %q)", e.Key)
 }
 
-// ToolLoopInterrupt marks this as an interrupt the chat tool loop must exit
-// on immediately and propagate unchanged — never feed back to the model as
-// a recoverable tool result. Duck-typed so core/model/chat probes it
-// without importing agent, preserving the one-way dependency.
-func (e *InterruptError) ToolLoopInterrupt() bool { return true }
+// Abort implements [chat.ToolHalt]: an InterruptError HALTS the chat tool
+// loop (propagated unchanged, never fed back to the model as a recoverable
+// result), and Abort() == false marks it a HITL suspension — the run is
+// expected to resume, not fail. The duck-typed [chat.ToolHalt] contract lets
+// core/model/chat recognize it without importing agent (one-way dependency).
+func (e *InterruptError) Abort() bool { return false }
 
 // Awaitable returns the parkable awaitable whose handler records the resume
 // response on the blackboard. The action parks the process on it (see
