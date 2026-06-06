@@ -2,11 +2,26 @@ package tool
 
 import (
 	"context"
-	"maps"
 	"slices"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 )
+
+// toolRoundResponse wraps an assistant turn (and the round's tool message, when
+// present) as a [*chat.Response] carrying the given finish reason — the common
+// shape of the loop's synthetic terminal responses (return-direct and HITL
+// interrupt). The response-level metadata is empty; only the result-level
+// finish reason distinguishes them.
+func toolRoundResponse(assistant *chat.AssistantMessage, toolMsg *chat.ToolMessage, reason chat.FinishReason) (*chat.Response, error) {
+	result, err := chat.NewResult(assistant, &chat.ResultMetadata{FinishReason: reason})
+	if err != nil {
+		return nil, err
+	}
+	if toolMsg != nil {
+		result.ToolMessage = toolMsg
+	}
+	return chat.NewResponse(result, &chat.ResponseMetadata{})
+}
 
 // buildInterruptResponse assembles the FinishReasonInterrupt response the loop
 // hands back when a round halts for human input (HITL): the round's assistant
@@ -16,16 +31,13 @@ import (
 // — never re-invoking the model. It mirrors return-direct's shape exactly,
 // differing only in the finish reason.
 func buildInterruptResponse(assistant *chat.AssistantMessage, done []*chat.ToolReturn) (*chat.Response, error) {
-	result, err := chat.NewResult(assistant, &chat.ResultMetadata{FinishReason: chat.FinishReasonInterrupt})
-	if err != nil {
-		return nil, err
-	}
+	var toolMsg *chat.ToolMessage
 	if len(done) > 0 {
-		if tm, e := chat.NewToolMessage(done); e == nil {
-			result.ToolMessage = tm
+		if tm, err := chat.NewToolMessage(done); err == nil {
+			toolMsg = tm
 		}
 	}
-	return chat.NewResponse(result, &chat.ResponseMetadata{})
+	return toolRoundResponse(assistant, toolMsg, chat.FinishReasonInterrupt)
 }
 
 // trailingPendingToolCalls inspects the conversation tail for a resume point:
@@ -164,9 +176,9 @@ func (m *middleware) resumeCall(ctx context.Context, req *chat.Request, assistan
 		return nil, err
 	}
 	if support.allReturnDirect(full) {
-		return buildResumedReturnResponse(assistant, toolMsg)
+		return toolRoundResponse(assistant, toolMsg, chat.FinishReasonReturnDirect)
 	}
-	nextReq, err := buildResumedContinueRequest(req, assistant, toolMsg)
+	nextReq, err := nextRoundRequest(req, assistant, toolMsg)
 	if err != nil {
 		return nil, err
 	}
@@ -203,10 +215,10 @@ func (m *middleware) resumeStream(ctx context.Context, req *chat.Request, assist
 		return
 	}
 	if support.allReturnDirect(full) {
-		yield(buildResumedReturnResponse(assistant, toolMsg))
+		yield(toolRoundResponse(assistant, toolMsg, chat.FinishReasonReturnDirect))
 		return
 	}
-	nextReq, err := buildResumedContinueRequest(req, assistant, toolMsg)
+	nextReq, err := nextRoundRequest(req, assistant, toolMsg)
 	if err != nil {
 		yield(nil, err)
 		return
@@ -214,33 +226,3 @@ func (m *middleware) resumeStream(ctx context.Context, req *chat.Request, assist
 	m.executeStreamRecursively(ctx, nextReq, next, support, yield, state.next())
 }
 
-// buildResumedContinueRequest assembles the next model request after a resumed
-// round completes: the turn's system header, the assistant tool-call message,
-// and the assembled tool results, carrying the live request's options / tools
-// / params. The prior conversation is NOT re-sent (the memory middleware
-// splices stored history back in); the assistant + tool results travel
-// together so the memory layer persists the exchange atomically — the
-// interrupting round's assistant was deliberately never persisted, so this is
-// where the (assistant, tool) pair lands.
-func buildResumedContinueRequest(req *chat.Request, assistant *chat.AssistantMessage, toolMsg *chat.ToolMessage) (*chat.Request, error) {
-	msgs := append(systemMessages(req.Messages), chat.Message(assistant), chat.Message(toolMsg))
-	next, err := chat.NewRequest(msgs)
-	if err != nil {
-		return nil, err
-	}
-	next.Options = req.Options.Clone()
-	next.Tools = slices.Clone(req.Tools)
-	next.Params = maps.Clone(req.Params)
-	return next, nil
-}
-
-// buildResumedReturnResponse wraps a resumed round's tool message as the final
-// response when every tool in the round is return-direct.
-func buildResumedReturnResponse(assistant *chat.AssistantMessage, toolMsg *chat.ToolMessage) (*chat.Response, error) {
-	result, err := chat.NewResult(assistant, &chat.ResultMetadata{FinishReason: chat.FinishReasonReturnDirect})
-	if err != nil {
-		return nil, err
-	}
-	result.ToolMessage = toolMsg
-	return chat.NewResponse(result, &chat.ResponseMetadata{})
-}

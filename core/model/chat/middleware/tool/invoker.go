@@ -53,25 +53,14 @@ func (r *invocationResult) shouldContinue() bool {
 // shouldReturn is the inverse of [invocationResult.shouldContinue].
 func (r *invocationResult) shouldReturn() bool { return !r.shouldContinue() }
 
-// buildContinueRequest assembles the next [*chat.Request] in the tool-calling
-// loop: the turn's system header, this round's assistant tool-call message,
-// and the [*chat.ToolMessage] carrying the inline results. Returns an error when
-// the result is not actually in "continue" state.
-//
-// It does NOT carry the prior conversation — the memory middleware below the
-// loop owns the stored history and splices it back in. But it DOES carry the
-// assistant tool-call message alongside its tool result: the two form one
-// atomic exchange the memory layer persists together. (The memory layer
-// deliberately skips persisting a tool-call assistant on its own, so it can't
-// strand an unanswered assistant(tool_calls) in the store if the turn
-// interrupts mid-round.) Re-sending the FULL conversation, by contrast, is the
-// coupling that forced the memory layer to de-duplicate — so only the system
-// header and this round's new exchange travel down.
+// buildContinueRequest assembles the next request when the round wants an LLM
+// follow-up. It validates the continue state, then defers the message assembly
+// to [nextRoundRequest].
 func (r *invocationResult) buildContinueRequest() (*chat.Request, error) {
 	if !r.shouldContinue() {
 		return nil, errors.New("tool.invocationResult.buildContinueRequest: result is in return-direct state")
 	}
-	if err := r.assertContinuableState(); err != nil {
+	if err := r.validate(); err != nil {
 		return nil, err
 	}
 
@@ -79,31 +68,7 @@ func (r *invocationResult) buildContinueRequest() (*chat.Request, error) {
 	if result == nil || !result.AssistantMessage.HasToolCalls() {
 		return nil, errors.New("tool.invocationResult.buildContinueRequest: response has no tool calls")
 	}
-
-	msgs := append(systemMessages(r.request.Messages), result.AssistantMessage, r.toolMessage)
-	next, err := chat.NewRequest(msgs)
-	if err != nil {
-		return nil, err
-	}
-	next.Options = r.request.Options.Clone()
-	next.Tools = slices.Clone(r.request.Tools)
-	next.Params = maps.Clone(r.request.Params)
-	return next, nil
-}
-
-// assertContinuableState validates that the inputs needed to build the
-// continuation request are present.
-func (r *invocationResult) assertContinuableState() error {
-	if r.request == nil {
-		return errors.New("tool.invocationResult: original request is missing")
-	}
-	if r.response == nil {
-		return errors.New("tool.invocationResult: LLM response is missing")
-	}
-	if r.toolMessage == nil {
-		return errors.New("tool.invocationResult: internal-tools message is missing")
-	}
-	return nil
+	return nextRoundRequest(r.request, result.AssistantMessage, r.toolMessage)
 }
 
 // buildReturnResponse assembles the final [*chat.Response] when no further
@@ -208,6 +173,31 @@ func systemMessages(msgs []chat.Message) []chat.Message {
 	return chat.FilterMessagesByMessageTypes(msgs, chat.MessageTypeSystem)
 }
 
+// nextRoundRequest assembles the next model request from the turn's system
+// header plus this round's (assistant tool-call, tool result) exchange,
+// carrying the live request's options / tools / params. Shared by the normal
+// loop ([invocationResult.buildContinueRequest]) and HITL resume
+// ([middleware.resumeCall] / [middleware.resumeStream]).
+//
+// It deliberately does NOT re-send the prior conversation — the memory
+// middleware below the loop owns the stored history and splices it back in. The
+// assistant tool-call message DOES travel alongside its tool result so the two
+// persist as one atomic exchange (memory skips a lone tool-call assistant, so
+// it can never strand an unanswered assistant(tool_calls) if the turn
+// interrupts mid-round). Re-sending the full conversation, by contrast, is the
+// coupling that forced the memory layer to de-duplicate.
+func nextRoundRequest(req *chat.Request, assistant *chat.AssistantMessage, toolMsg *chat.ToolMessage) (*chat.Request, error) {
+	msgs := append(systemMessages(req.Messages), assistant, toolMsg)
+	next, err := chat.NewRequest(msgs)
+	if err != nil {
+		return nil, err
+	}
+	next.Options = req.Options.Clone()
+	next.Tools = slices.Clone(req.Tools)
+	next.Params = maps.Clone(req.Params)
+	return next, nil
+}
+
 // abortsToolLoop reports whether a tool error must PROPAGATE (abort the loop)
 // instead of being fed back to the model as a recoverable result. Two cases:
 // context cancellation / deadline (the run is being torn down), and a
@@ -225,9 +215,10 @@ func abortsToolLoop(err error) bool {
 // interruptsToolLoop reports whether a tool error is a human-in-the-loop
 // INTERRUPT — a [chat.ToolHalt] whose Abort() is false. The loop stops and
 // propagates it unchanged (no feedback to the model) so an outer layer can
-// park the run and gather input; the run resumes by re-running the turn.
-// agent/hitl.InterruptError is the reference implementation; the contract is
-// duck-typed so this package never imports agent.
+// park the run and gather input; on resume the parked tail is fed back and the
+// loop continues AT the still-pending call (the model is not re-invoked for
+// that round). agent/hitl.InterruptError is the reference implementation; the
+// contract is duck-typed so this package never imports agent.
 func interruptsToolLoop(err error) bool {
 	h, ok := errors.AsType[chat.ToolHalt](err)
 	return ok && !h.Abort()

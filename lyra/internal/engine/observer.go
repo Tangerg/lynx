@@ -36,8 +36,9 @@ type toolObserver interface {
 	//
 	// The decider MUST be non-blocking — it records pending / decided
 	// state out of band (typically the process blackboard, keyed by the
-	// stable tool name + arguments so the verdict survives the LLM round
-	// re-running on resume) rather than waiting on a channel.
+	// stable tool name + arguments so the verdict matches the same parked
+	// tool call when it is re-presented on resume) rather than waiting on a
+	// channel.
 	//
 	// Receives the same callID it will later get on Start / End so the
 	// implementation can pair the gate with the lifecycle.

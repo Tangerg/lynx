@@ -3,7 +3,6 @@ package tool
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
@@ -81,17 +80,8 @@ func (s *support) buildReturnDirectResponse(msgs []chat.Message) (*chat.Response
 	assistantMsg := chat.NewAssistantMessage(map[string]any{
 		"created_by": chat.FinishReasonReturnDirect.String(),
 	})
-	metadata := &chat.ResultMetadata{FinishReason: chat.FinishReasonReturnDirect}
-
-	result, err := chat.NewResult(assistantMsg, metadata)
-	if err != nil {
-		return nil, fmt.Errorf("tool.support.buildReturnDirectResponse: %w", err)
-	}
-
-	// ShouldReturnDirect already verified this is a *chat.ToolMessage.
-	result.ToolMessage = last.(*chat.ToolMessage)
-
-	return chat.NewResponse(result, &chat.ResponseMetadata{})
+	// ShouldReturnDirect already verified the tail is a *chat.ToolMessage.
+	return toolRoundResponse(assistantMsg, last.(*chat.ToolMessage), chat.FinishReasonReturnDirect)
 }
 
 // shouldInvokeToolCalls reports whether the response contains tool

@@ -37,14 +37,16 @@ type ApprovalPrompt struct {
 //   - deny stance (read-only) → recoverable denial, the model adapts.
 //   - prompt stance → [hitl.Interrupt]: the first pass returns an
 //     InterruptError (the tool loop exits, the action parks at
-//     StatusWaiting, the client answers via runs.resume); on the resuming
-//     re-run Interrupt returns the human's [engine.InterruptResolution]
-//     and the gate runs / denies / runs-with-edited-args accordingly.
+//     StatusWaiting, the client answers via runs.resume); on resume the gate
+//     is consulted again at the same pending call and Interrupt returns the
+//     human's [engine.InterruptResolution], so the gate runs / denies /
+//     runs-with-edited-args accordingly.
 //
 // The interrupt key is the stable tool name + arguments (NOT the
-// per-invocation callID, which is regenerated each round) so the recorded
-// resolution matches the same call site across the resuming re-run. This
-// is the one interrupt mental model shared by every HITL flavor.
+// per-invocation callID, which is generated fresh on every Call) so the
+// recorded resolution matches the same call site when the parked tool call is
+// re-presented on resume. This is the one interrupt mental model shared by
+// every HITL flavor.
 func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, arguments string) engine.ToolApprovalVerdict {
 	if t.svc.approval == nil {
 		return engine.ToolApprovalVerdict{} // run
@@ -76,9 +78,9 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 }
 
 // approvalKey is the interrupt key for one gated tool call. Keyed by tool
-// name + arguments (NOT the per-invocation callID, which is regenerated
-// each round): the same frozen context produces the same tool call on
-// resume, so the recorded resolution matches.
+// name + arguments (NOT the per-invocation callID, which is fresh on every
+// Call): resume feeds the same parked tool call back unchanged, so keying on
+// its name + arguments matches the recorded resolution.
 func approvalKey(toolName, arguments string) string {
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(toolName))
