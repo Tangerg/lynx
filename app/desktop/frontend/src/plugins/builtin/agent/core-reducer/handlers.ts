@@ -4,10 +4,12 @@
 // contribution (CLAUDE.md "everything is a plugin").
 //
 // The view groups contiguous assistant-side Items (agentMessage / reasoning
-// / toolCall / question) into one bubble (the "turn"); a userMessage or a
-// run boundary opens a fresh turn. Streaming deltas route back to their
-// source Item by id (text block `itemId`, reasoning `reasoningId`, tool
-// `toolCallId`, toolCalls map key).
+// / toolCall / question) into one bubble (the "turn"); only a userMessage
+// opens a fresh turn. Run boundaries do NOT split a turn — a resume after a
+// HITL interrupt continues the same bubble — so live streaming groups
+// identically to history replay (items.list, which emits no run events).
+// Streaming deltas route back to their source Item by id (text block
+// `itemId`, reasoning `reasoningId`, tool `toolCallId`, toolCalls map key).
 
 import type { Operation } from "fast-json-patch";
 import type {
@@ -62,17 +64,18 @@ function onRunStarted(state: AgentViewState, run: RunRef): AgentViewState {
   if (run.spawnedByItemId) {
     return appendTimelineEntry({ kind: "run-start", runId: run.id, summary: "subagent" })(state);
   }
-  // A continuation run (resume after a HITL interrupt / edit — RunRef carries
-  // parentRunId, API.md §4.x) is the SAME logical assistant turn: keep the open
-  // turn so its post-approval output appends to the existing bubble instead of
-  // spawning a second avatar/name/timestamp header. A fresh user-initiated run
-  // has no parentRunId; its preceding userMessage already opened the new turn
-  // (appendUserMessage nulls turnMessageId), so resetting here is belt-and-suspenders.
-  const continuation = run.parentRunId !== undefined;
+  // run.started does NOT open/close a turn. Turn grouping is driven purely by
+  // item-level signals — a userMessage opens a fresh turn (appendUserMessage
+  // nulls turnMessageId), assistant Items append to the open one — so LIVE
+  // streaming groups bubbles IDENTICALLY to history replay (items.list emits no
+  // run events at all). A run boundary is not a turn boundary: a resume/edit
+  // continuation after a HITL interrupt is the same logical assistant turn, so
+  // its post-approval output stays in the same bubble (no second avatar/name/
+  // timestamp). This holds regardless of whether the backend marks the resume
+  // RunRef with parentRunId. Only error + run-state are touched here.
   const next: AgentViewState = {
     ...state,
     error: null,
-    turnMessageId: continuation ? state.turnMessageId : null,
     run: { ...state.run, running: true, runId: run.id, sessionId: run.sessionId },
   };
   return appendTimelineEntry({ kind: "run-start", runId: run.id })(next);
