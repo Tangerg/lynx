@@ -113,11 +113,18 @@ type ItemOf<T extends Item["type"]> = Extract<Item, { type: T }>;
 
 /** Append a user-message bubble (opens a fresh assistant turn). Idempotent —
  *  a re-seen id is a no-op, dodging React's duplicate-key warning — and it
- *  reconciles the optimistic placeholder so the streamed item doesn't double. */
+ *  reconciles the optimistic placeholder so the streamed item doesn't double.
+ *
+ *  The text block is always `complete`: a userMessage is atomic (its content
+ *  is the whole prompt, present in full on both the started and completed
+ *  events — never delta-streamed), so it has no "running" phase. Stamping it
+ *  from item.status would make the live path (started=inProgress → "running",
+ *  then the completed event de-dupes and never upgrades it) disagree with
+ *  history replay (completed-only → "complete"). Pinning "complete" keeps the
+ *  two convergent. */
 export function appendUserMessage(
   state: AgentViewState,
   item: ItemOf<"userMessage">,
-  status: BlockStatus,
 ): AgentViewState {
   // Already have this exact item (started→completed re-seen, or durable
   // replay / history hydration) → no-op.
@@ -143,7 +150,7 @@ export function appendUserMessage(
     role: "user",
     who: nameForRole("user"),
     time: formatTime(item.createdAt),
-    blocks: [{ kind: "text", text, status }],
+    blocks: [{ kind: "text", text, status: "complete" }],
   };
   return { ...state, messages: [...state.messages, msg], turnMessageId: null };
 }

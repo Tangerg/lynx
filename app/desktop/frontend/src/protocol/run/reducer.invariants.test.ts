@@ -102,7 +102,8 @@ const m2 = item({ id: "m2", type: "agentMessage", content: [{ type: "text", text
 
 const FULL_STREAM: StreamEvent[] = [
   { type: "run.started", run: { id: "run_1", sessionId: "ses_1" } as never },
-  completed(u1), // user bubble (boundary)
+  started(u1), // user bubble (boundary) — backend sends started(inProgress)+completed
+  completed(u1),
   started(r1),
   delta("r1", { type: "reasoning", text: "Weighing the risk " }),
   delta("r1", { type: "reasoning", text: "carefully." }),
