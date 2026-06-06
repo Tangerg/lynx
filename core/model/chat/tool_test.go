@@ -121,16 +121,19 @@ func TestToolSupport_InvokeToolCalls_InternalReturnsForLLM(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// New contract: the continuation carries only the turn's system header
-	// (none in this request) plus this round's tool result — NOT the prior
-	// user turn or the assistant tool-call message. The memory middleware
-	// owns the conversation history and splices it back in, so the loop is
-	// decoupled from it.
-	if got := len(cont.Messages); got != 1 {
-		t.Fatalf("continuation has %d messages, want 1 (just the tool result)", got)
+	// New contract: the continuation carries the turn's system header (none in
+	// this request) + this round's assistant tool-call message + its tool
+	// result — the atomic exchange the memory layer persists together. It does
+	// NOT carry the prior conversation (the memory middleware owns stored
+	// history and splices it back in). So here: [assistant(tool_calls), tool].
+	if got := len(cont.Messages); got != 2 {
+		t.Fatalf("continuation has %d messages, want 2 (assistant tool-call + tool result)", got)
 	}
-	if _, ok := cont.Messages[0].(*chat.ToolMessage); !ok {
-		t.Fatalf("continuation[0] is %T, want *chat.ToolMessage", cont.Messages[0])
+	if am, ok := cont.Messages[0].(*chat.AssistantMessage); !ok || !am.HasToolCalls() {
+		t.Fatalf("continuation[0] = %T, want *chat.AssistantMessage with tool calls", cont.Messages[0])
+	}
+	if _, ok := cont.Messages[1].(*chat.ToolMessage); !ok {
+		t.Fatalf("continuation[1] is %T, want *chat.ToolMessage", cont.Messages[1])
 	}
 }
 

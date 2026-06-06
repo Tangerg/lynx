@@ -242,7 +242,7 @@ func (m *ToolMiddleware) resumeCallRound(ctx context.Context, req *Request, assi
 	if support.allReturnDirect(full) {
 		return buildResumedReturnResponse(assistant, toolMsg)
 	}
-	nextReq, err := buildResumedContinueRequest(req, toolMsg)
+	nextReq, err := buildResumedContinueRequest(req, assistant, toolMsg)
 	if err != nil {
 		return nil, err
 	}
@@ -277,7 +277,7 @@ func (m *ToolMiddleware) resumeStreamRound(ctx context.Context, req *Request, as
 		yield(buildResumedReturnResponse(assistant, toolMsg))
 		return
 	}
-	nextReq, err := buildResumedContinueRequest(req, toolMsg)
+	nextReq, err := buildResumedContinueRequest(req, assistant, toolMsg)
 	if err != nil {
 		yield(nil, err)
 		return
@@ -286,14 +286,16 @@ func (m *ToolMiddleware) resumeStreamRound(ctx context.Context, req *Request, as
 }
 
 // buildResumedContinueRequest assembles the next model request after a
-// resumed round completes: the turn's system header + the assembled tool
-// results, carrying the live request's options / tools / params. As with
-// [ToolInvocationResult.BuildContinueRequest], the prior conversation and
-// the assistant tool-call message are NOT re-sent — the memory middleware
-// persisted the assistant before the interrupt and splices the stored
-// history back in.
-func buildResumedContinueRequest(req *Request, toolMsg *ToolMessage) (*Request, error) {
-	msgs := append(systemMessages(req.Messages), Message(toolMsg))
+// resumed round completes: the turn's system header, the assistant tool-call
+// message, and the assembled tool results, carrying the live request's
+// options / tools / params. As with
+// [ToolInvocationResult.BuildContinueRequest], the prior conversation is NOT
+// re-sent (the memory middleware splices stored history back in), but the
+// assistant + tool results travel together so the memory layer persists the
+// exchange atomically — the interrupting round's assistant was deliberately
+// never persisted, so this is where the (assistant, tool) pair lands.
+func buildResumedContinueRequest(req *Request, assistant *AssistantMessage, toolMsg *ToolMessage) (*Request, error) {
+	msgs := append(systemMessages(req.Messages), Message(assistant), Message(toolMsg))
 	next, err := NewRequest(msgs)
 	if err != nil {
 		return nil, err

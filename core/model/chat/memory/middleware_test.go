@@ -126,3 +126,58 @@ func TestMemoryMiddleware_NoConversationIDPassesThrough(t *testing.T) {
 		t.Fatalf("store wrote %v without a conversation id, want nothing", ids)
 	}
 }
+
+// toolCallHandler returns an assistant message carrying a single tool call.
+type toolCallHandler struct{ id, name string }
+
+func (h toolCallHandler) Call(_ context.Context, _ *chat.Request) (*chat.Response, error) {
+	am := chat.NewAssistantMessage([]*chat.ToolCallPart{{ID: h.id, Name: h.name, Arguments: "{}"}})
+	res, err := chat.NewResult(am, &chat.ResultMetadata{FinishReason: chat.FinishReasonStop})
+	if err != nil {
+		return nil, err
+	}
+	return chat.NewResponse(res, &chat.ResponseMetadata{})
+}
+
+// TestMemoryMiddleware_SkipsUnpairedToolCallAssistant pins the fix for the
+// dangling-tool_call bug: a model reply that REQUESTS tools is not persisted on
+// its own (it has no answering tool message yet), so an interrupt or abort
+// mid-round can never strand an unanswered assistant(tool_calls) in the store.
+// The (assistant, tool) pair is written only when the tool-calling middleware
+// re-presents them together as the next round's input.
+func TestMemoryMiddleware_SkipsUnpairedToolCallAssistant(t *testing.T) {
+	store := memory.NewInMemoryStore()
+	callMW, _, err := memory.NewMiddleware(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+
+	// Round 1: model asks for a tool. Memory must persist the user input but
+	// NOT the unpaired tool-call assistant.
+	h1 := callMW(chat.CallHandlerFunc(toolCallHandler{id: "call_1", name: "x"}.Call))
+	req1, _ := chat.NewRequest([]chat.Message{chat.NewUserMessage("do it")})
+	req1.Set(memory.ConversationIDKey, "c1")
+	if _, err := h1.Call(ctx, req1); err != nil {
+		t.Fatal(err)
+	}
+	stored, _ := store.Read(ctx, "c1")
+	if got := messageTypes(stored); got != "user" {
+		t.Fatalf("after a tool-call round, stored = %q, want just %q (no stranded assistant)", got, "user")
+	}
+
+	// Round 2: the tool middleware re-presents [assistant(tool_call), tool] as
+	// input; the model now gives a final answer. The pair lands atomically.
+	assistant := chat.NewAssistantMessage([]*chat.ToolCallPart{{ID: "call_1", Name: "x", Arguments: "{}"}})
+	toolMsg, _ := chat.NewToolMessage([]*chat.ToolReturn{{ID: "call_1", Name: "x", Result: "ok"}})
+	h2 := callMW(chat.CallHandlerFunc((&recordingHandler{text: "done"}).Call))
+	req2, _ := chat.NewRequest([]chat.Message{assistant, toolMsg})
+	req2.Set(memory.ConversationIDKey, "c1")
+	if _, err := h2.Call(ctx, req2); err != nil {
+		t.Fatal(err)
+	}
+	stored, _ = store.Read(ctx, "c1")
+	if want := "user → assistant → tool → assistant"; messageTypes(stored) != want {
+		t.Fatalf("stored = %q, want %q (the exchange paired atomically)", messageTypes(stored), want)
+	}
+}

@@ -113,18 +113,24 @@ func (m *middleware) splice(ctx context.Context, req *chat.Request, id string) (
 }
 
 // persist writes the round's new input plus the model's reply under id, in
-// order. System messages are excluded by construction (toPersist carries
-// only the request's non-system messages; replyMessages adds the assistant
-// reply). A blank assistant — no text, no tool calls — is dropped so an
-// empty round leaves no trace.
+// order. System messages are excluded by construction (toPersist carries only
+// the request's non-system messages).
+//
+// The reply is persisted ONLY when it is a final answer. A reply that requests
+// tools is INCOMPLETE on its own: persisting it now would strand an
+// assistant(tool_calls) with no answering tool message in the store if the
+// turn then interrupts (HITL) or aborts before the tool runs — and a later
+// turn loading that history would be rejected by the provider ("tool_calls
+// must be followed by tool messages"). Instead the tool-calling middleware
+// re-presents the assistant together with its tool result as the NEXT round's
+// input, so the (assistant, tool) pair is written here atomically. A blank
+// assistant — no text, no tool calls — is dropped so an empty round leaves no
+// trace.
 func (m *middleware) persist(ctx context.Context, id string, toPersist []chat.Message, resp *chat.Response) error {
 	msgs := slices.Clone(toPersist)
 	if resp != nil && resp.Result != nil {
-		if am := resp.Result.AssistantMessage; !blankAssistant(am) {
+		if am := resp.Result.AssistantMessage; !blankAssistant(am) && !am.HasToolCalls() {
 			msgs = append(msgs, am)
-		}
-		if tm := resp.Result.ToolMessage; tm != nil {
-			msgs = append(msgs, tm)
 		}
 	}
 	if len(msgs) == 0 {
