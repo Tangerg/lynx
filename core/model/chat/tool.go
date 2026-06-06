@@ -28,21 +28,6 @@ type ToolMetadata struct {
 	// notifications. False (the default) sends the result back to the
 	// LLM for integration into the next reply.
 	ReturnDirect bool
-
-	// Idempotent declares that re-executing this tool with the same
-	// arguments is harmless — it has no side effects, or re-applying them
-	// lands on the same state (a read, a pure query). False (the default)
-	// assumes the tool has side effects.
-	//
-	// It governs HITL resume safety. A run that parks for human input
-	// resumes by RE-RUNNING the turn from the last persisted point, so any
-	// tool that already ran in the interrupting round re-executes on resume.
-	// The tool-calling loop therefore REFUSES to suspend a round in which a
-	// non-idempotent tool already ran before the interrupting call — replaying
-	// its side effects would be a silent bug, so it surfaces an error instead.
-	// Mark a tool Idempotent only when re-running it is genuinely safe; the
-	// conservative default keeps an unmarked tool from being replayed.
-	Idempotent bool
 }
 
 // Tool is the executable contract every tool exposes — describable to
@@ -76,10 +61,10 @@ type Tool interface {
 	// exit, an HTTP 4xx) into the result string instead of returning an error;
 	// both reach the model.
 	//
-	// Call may run more than once for the same logical step: a run that parks
-	// on a HITL interrupt resumes by re-executing the turn, so a tool that ran
-	// before the interrupt runs again. Declare [ToolMetadata.Idempotent] when
-	// that replay is safe.
+	// On a HITL interrupt the loop does NOT re-run the turn: it surfaces the
+	// in-flight call to the caller and, on resume, continues AT this call (the
+	// approved call executes exactly once). So Call is invoked once per logical
+	// step, the same as a normal round.
 	Call(ctx context.Context, arguments string) (string, error)
 }
 

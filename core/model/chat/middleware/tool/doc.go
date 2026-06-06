@@ -24,12 +24,13 @@
 //   - a [chat.ToolHalt] whose Abort() is true — aborts the run (a failure the
 //     model cannot act on);
 //   - a [chat.ToolHalt] whose Abort() is false — parks the run for human input
-//     (HITL). The loop keeps no checkpoint: resume RE-RUNS the turn, replaying
-//     the stored conversation so the model regenerates the interrupted tool
-//     call. Because a re-run replays the interrupting round, the loop refuses
-//     to suspend a round in which a non-[chat.ToolMetadata.Idempotent] tool
-//     already ran (that would double-apply its side effects) — see
-//     [callInvoker].
+//     (HITL). The loop hands back a [chat.FinishReasonInterrupt] response — the
+//     resumable tail: the round's assistant tool-call message plus any partial
+//     results — then propagates the cause. The caller parks and, on resume,
+//     feeds that tail back; the loop continues AT the still-pending call (the
+//     model is NOT re-invoked for that round, and already-run calls are not
+//     re-executed). This is the conversation-as-checkpoint resume — the message
+//     shape alone drives it (see resume.go).
 //
 // None of this is configurable; recovery is the framework default. A tool
 // author chooses where an operational failure surfaces — return an ordinary

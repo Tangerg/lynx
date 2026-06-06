@@ -30,24 +30,22 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 
 	observer := observerFrom(pc.Options)
 
-	// HITL R-model resume: the run parked for human input and resumes by
-	// RE-RUNNING this turn on the same process. The user message was persisted
-	// to memory on the turn's first round, so a re-run must NOT add it again
-	// (that would duplicate it in the stored history). turnSeeded reports
-	// whether the prompt was already added; on the resuming re-tick it is true
-	// and the turn re-runs with only the system header, letting the inner
-	// memory middleware replay the stored conversation. The model regenerates
-	// the interrupted round's tool call and the gate now observes the recorded
-	// verdict. A system MESSAGE (not the prompt template) keeps the client from
-	// injecting a synthetic user seed into the otherwise message-less request.
+	// HITL R-model resume: the run parked for human input on the same process.
+	// When a parked tail is present (the interrupting round's assistant
+	// tool-call message + any partial results, captured below), feed it back so
+	// the tool loop continues AT the still-pending (now-resolved) call — the
+	// model is NOT re-invoked for that round. The system header rides as a
+	// MESSAGE (not the prompt template) so the client doesn't inject a synthetic
+	// user seed; the inner memory middleware splices the stored history in
+	// front, and the (assistant, tool) pair persists atomically when the round
+	// completes. A fresh turn (no tail) adds the user message normally.
 	sysPrompt := e.SystemPrompt(ctx)
 	var stream *chat.ClientStreamer
-	if turnSeeded(pc.Blackboard) {
-		stream = req.
-			WithMessages(chat.NewSystemMessage(sysPrompt)).
-			Stream()
+	if tail, ok := loadInflightTail(pc.Blackboard); ok {
+		clearInflightTail(pc.Blackboard) // consume the tail
+		msgs := append([]chat.Message{chat.NewSystemMessage(sysPrompt)}, tail...)
+		stream = req.WithMessages(msgs...).Stream()
 	} else {
-		seedTurn(pc.Blackboard)
 		stream = req.
 			WithSystemPrompt(sysPrompt).
 			WithUserPrompt(message).
@@ -76,6 +74,16 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 			// No-op when nothing arrived yet.
 			recordRound()
 			return ChatOutput{}, streamErr
+		}
+		// HITL interrupt: the tool loop hands back the resumable tail (the
+		// round's assistant tool-call message + any partial results) as a
+		// FinishReasonInterrupt response, then a ToolHalt error (handled above).
+		// Park the tail so the resuming re-tick continues AT the pending call —
+		// it is not assistant text and never reaches the budget/observer below.
+		if isInterruptResult(chunk) {
+			recordRound()
+			saveInflightTail(pc.Blackboard, chunk.Result)
+			continue
 		}
 		if chunk.IsToolResult() {
 			recordRound()

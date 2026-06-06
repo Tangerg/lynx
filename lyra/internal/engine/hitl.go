@@ -1,33 +1,110 @@
 package engine
 
 import (
+	"encoding/json"
+
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// turnSeededKey marks, on the process blackboard, that the turn's user
-// message has been added to the chat request (and thus persisted to memory by
-// the inner memory middleware). HITL resume re-runs the turn on the SAME
-// process; the marker rides the same blackboard across the
-// suspend → ResumeProcess → re-tick cycle, so the re-run observes it and
-// skips re-adding the user message — re-adding would duplicate it in the
-// stored history. Unlike a message slice, a bool round-trips a blackboard
-// JSON snapshot, so a cross-restart resume still observes it.
-const turnSeededKey = "lyra:hitl:turn-seeded"
+// inflightTailKey holds, on the process blackboard, the resumable tail a HITL
+// interrupt parks: the interrupting round's assistant tool-call message plus
+// any partial tool results, as a FinishReasonInterrupt response carried up by
+// the tool loop. HITL resume runs on the SAME process; the tail rides the same
+// blackboard across the suspend → ResumeProcess → re-tick cycle, and on resume
+// is fed back so the loop continues AT the still-pending call (the model is NOT
+// re-invoked for that round).
+//
+// It is stored as the chat-message discriminated JSON (a string), not a raw
+// []chat.Message — a string round-trips the blackboard process snapshot, so a
+// cross-restart resume (rebuilding the process from that snapshot) still finds
+// the tail. A raw interface slice would not survive the generic snapshot.
+const inflightTailKey = "lyra:hitl:inflight-tail"
 
-// turnSeeded reports whether this turn's user message has already been added
-// (so a HITL resume re-run must not add it again).
-func turnSeeded(bb core.Blackboard) bool {
-	v, ok := bb.Get(turnSeededKey)
-	if !ok {
-		return false
-	}
-	seeded, _ := v.(bool)
-	return seeded
+// isInterruptResult reports whether a streamed response is the tool loop's
+// FinishReasonInterrupt tail (assistant + partial results) rather than model
+// output — the signal to park, not to render.
+func isInterruptResult(resp *chat.Response) bool {
+	return resp != nil && resp.Result != nil && resp.Result.Metadata != nil &&
+		resp.Result.Metadata.FinishReason == chat.FinishReasonInterrupt
 }
 
-// seedTurn records that the turn's user message has been added.
-func seedTurn(bb core.Blackboard) {
-	bb.Set(turnSeededKey, true)
+// saveInflightTail parks the interrupt response's tail (assistant tool-call
+// message + any partial tool results) for the resuming re-tick to feed back.
+func saveInflightTail(bb core.Blackboard, result *chat.Result) {
+	if result == nil || result.AssistantMessage == nil {
+		return
+	}
+	tail := []chat.Message{result.AssistantMessage}
+	if result.ToolMessage != nil {
+		tail = append(tail, result.ToolMessage)
+	}
+	data, err := marshalMessages(tail)
+	if err != nil {
+		return
+	}
+	bb.Set(inflightTailKey, data)
+}
+
+// loadInflightTail returns the parked tail, or (nil, false) when none is set.
+func loadInflightTail(bb core.Blackboard) ([]chat.Message, bool) {
+	v, ok := bb.Get(inflightTailKey)
+	if !ok {
+		return nil, false
+	}
+	data, ok := v.(string)
+	if !ok || data == "" {
+		return nil, false
+	}
+	msgs, err := unmarshalMessages(data)
+	if err != nil || len(msgs) == 0 {
+		return nil, false
+	}
+	return msgs, true
+}
+
+// clearInflightTail drops a consumed tail (the blackboard has no delete; load
+// treats empty as absent).
+func clearInflightTail(bb core.Blackboard) {
+	bb.Set(inflightTailKey, "")
+}
+
+// marshalMessages encodes messages as a JSON array of the per-message
+// discriminated form ([chat] each message MarshalJSON tags its "type"), so the
+// slice round-trips a generic snapshot as a plain string.
+func marshalMessages(msgs []chat.Message) (string, error) {
+	raws := make([]json.RawMessage, 0, len(msgs))
+	for _, m := range msgs {
+		b, err := json.Marshal(m)
+		if err != nil {
+			return "", err
+		}
+		raws = append(raws, b)
+	}
+	b, err := json.Marshal(raws)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
+// unmarshalMessages reverses [marshalMessages] via [chat.UnmarshalMessage],
+// which dispatches each element on its "type" discriminator back to the
+// concrete message type.
+func unmarshalMessages(data string) ([]chat.Message, error) {
+	var raws []json.RawMessage
+	if err := json.Unmarshal([]byte(data), &raws); err != nil {
+		return nil, err
+	}
+	msgs := make([]chat.Message, 0, len(raws))
+	for _, raw := range raws {
+		m, err := chat.UnmarshalMessage(raw)
+		if err != nil {
+			return nil, err
+		}
+		msgs = append(msgs, m)
+	}
+	return msgs, nil
 }
 
 // InterruptResolution is the human's structured answer to a HITL interrupt

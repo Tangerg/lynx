@@ -772,91 +772,99 @@ func TestToolMiddleware_EmptyResponseNudgeIsOneShot(t *testing.T) {
 	}
 }
 
-// --- HITL interrupt: propagate-and-rerun model ----------------------------
+// --- HITL interrupt: yield resumable tail, resume AT the pending call ------
 
-// TestToolMiddleware_InterruptPropagatesUnchanged is the headline HITL test:
-// a gated tool interrupts the round; the loop STOPS and propagates the tool's
-// chat.ToolHalt error UNCHANGED — no checkpoint, no wrapper type. The run
-// resumes by RE-RUNNING the turn (a caller concern; see lyra engine), so the
-// loop keeps no resume state of its own.
-func TestToolMiddleware_InterruptPropagatesUnchanged(t *testing.T) {
+// TestToolMiddleware_InterruptThenResume is the headline R-model test: a gated
+// tool halts a round mid-way; the loop yields a FinishReasonInterrupt response
+// carrying the resumable tail (this round's assistant tool-call message + the
+// result of the call that already ran) and propagates the tool's chat.ToolHalt
+// cause. Feeding that tail back resumes the turn — executing ONLY the
+// still-pending (now-approved) call, NEVER re-invoking the model for the
+// completed round and NEVER re-running the call that already ran.
+func TestToolMiddleware_InterruptThenResume(t *testing.T) {
 	model := newFakeChatModel(t)
 	modelCalls := 0
 	model.streamRespond = func(*chat.Request) []*chat.Response {
 		modelCalls++
-		return []*chat.Response{responseWithToolCall(t, "gated", "")}
+		if modelCalls == 1 {
+			return []*chat.Response{twoToolCallResponse("free", "gated")} // round 1
+		}
+		return []*chat.Response{responseWithText("done")} // round 2 (resume synthesis)
 	}
-	gatedRuns := 0
+
+	var freeRuns, gatedRuns int
+	approved := false
+	freeTool := mustNewCallable(t, "free", false, func(context.Context, string) (string, error) {
+		freeRuns++
+		return "free-ok", nil
+	})
 	gatedTool := mustNewCallable(t, "gated", false, func(context.Context, string) (string, error) {
+		if !approved {
+			return "", interruptErr{}
+		}
 		gatedRuns++
-		return "", interruptErr{}
+		return "gated-ok", nil
 	})
 
 	_, streamMW := NewMiddleware()
-	req, _ := chat.NewClientRequest(model)
-	req.WithMiddlewares(streamMW).WithMessages(chat.NewUserMessage("seed")).WithTools(gatedTool)
 
-	var gotErr error
-	for _, e := range req.Stream().Response(context.Background()) {
+	// --- First run: free runs, gated halts. The loop yields a
+	//     FinishReasonInterrupt response (the tail) then the interruptErr. ---
+	req1, _ := chat.NewClientRequest(model)
+	req1.WithMiddlewares(streamMW).WithMessages(chat.NewUserMessage("seed")).WithTools(freeTool, gatedTool)
+
+	var (
+		tail     []chat.Message
+		firstErr error
+	)
+	for resp, e := range req1.Stream().Response(context.Background()) {
 		if e != nil {
-			gotErr = e
+			firstErr = e
 			break
 		}
+		if resp != nil && resp.Result != nil && resp.Result.Metadata != nil &&
+			resp.Result.Metadata.FinishReason == chat.FinishReasonInterrupt {
+			tail = append(tail, resp.Result.AssistantMessage)
+			if resp.Result.ToolMessage != nil {
+				tail = append(tail, resp.Result.ToolMessage)
+			}
+		}
 	}
-	if !errors.As(gotErr, new(interruptErr)) {
-		t.Fatalf("error = %v, want the tool's interruptErr propagated unchanged", gotErr)
+	if !errors.As(firstErr, new(interruptErr)) {
+		t.Fatalf("first run error = %v, want the tool's interruptErr", firstErr)
 	}
-	if modelCalls != 1 {
-		t.Fatalf("model calls = %d, want 1 (loop stops at the interrupt)", modelCalls)
+	if modelCalls != 1 || freeRuns != 1 || gatedRuns != 0 {
+		t.Fatalf("after interrupt: model=%d free=%d gated=%d, want 1/1/0", modelCalls, freeRuns, gatedRuns)
+	}
+	// Tail must be [assistant(free,gated), tool(free result)].
+	if len(tail) != 2 {
+		t.Fatalf("interrupt tail = %d messages, want 2 (assistant + partial tool)", len(tail))
+	}
+	if tm, ok := tail[1].(*chat.ToolMessage); !ok || len(tm.ToolReturns) != 1 || tm.ToolReturns[0].Name != "free" {
+		t.Fatalf("tail tool message = %+v, want one 'free' result", tail[1])
+	}
+
+	// --- Resume: approve, feed the tail back. Only 'gated' runs; the model is
+	//     NOT re-invoked for round 1. ---
+	approved = true
+	req2, _ := chat.NewClientRequest(model)
+	req2.WithMiddlewares(streamMW).WithMessages(tail...).WithTools(freeTool, gatedTool)
+
+	_, finalText, err := collectStream(req2.Stream().Response(context.Background()))
+	if err != nil {
+		t.Fatalf("resume run error: %v", err)
+	}
+	if modelCalls != 2 {
+		t.Fatalf("total model calls = %d, want 2 (round 1 NOT re-invoked on resume)", modelCalls)
+	}
+	if freeRuns != 1 {
+		t.Fatalf("free ran %d times total, want 1 (completed call NOT re-executed)", freeRuns)
 	}
 	if gatedRuns != 1 {
-		t.Fatalf("gated invoked %d times, want 1 (the interrupting call)", gatedRuns)
+		t.Fatalf("gated ran %d times, want 1 (executed once, on resume)", gatedRuns)
 	}
-}
-
-// TestToolMiddleware_NonIdempotentBeforeInterrupt_Errors guards the resume
-// contract: HITL resume re-runs the round, so a non-idempotent tool that
-// already ran before the interrupting call would double-apply its side effects
-// on resume. The loop refuses to suspend such a round, surfacing an error
-// rather than the interrupt.
-func TestToolMiddleware_NonIdempotentBeforeInterrupt_Errors(t *testing.T) {
-	support := newSupport()
-	support.register(
-		// non-idempotent (the default) — ran before the interrupt
-		mustNewCallable(t, "write", false, func(context.Context, string) (string, error) { return "wrote", nil }),
-		mustNewCallable(t, "gated", false, func(context.Context, string) (string, error) { return "", interruptErr{} }),
-	)
-
-	_, err := support.invokeToolCalls(context.Background(), mustNewRequest(t), twoToolCallResponse("write", "gated"))
-	if err == nil {
-		t.Fatal("want a suspend-refusal error: non-idempotent 'write' ran before the interrupt")
-	}
-	if errors.As(err, new(interruptErr)) {
-		t.Fatalf("error must be the suspend refusal, not the propagated interrupt: %v", err)
-	}
-}
-
-// TestToolMiddleware_IdempotentBeforeInterrupt_Propagates is the converse: an
-// idempotent prior call is safe to replay on resume, so the interrupt
-// propagates unchanged even though another tool already ran this round.
-func TestToolMiddleware_IdempotentBeforeInterrupt_Propagates(t *testing.T) {
-	readTool, err := chat.NewTool(
-		chat.ToolDefinition{Name: "read", InputSchema: `{"type":"object"}`},
-		chat.ToolMetadata{Idempotent: true},
-		func(context.Context, string) (string, error) { return "data", nil },
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	support := newSupport()
-	support.register(
-		readTool,
-		mustNewCallable(t, "gated", false, func(context.Context, string) (string, error) { return "", interruptErr{} }),
-	)
-
-	if _, err := support.invokeToolCalls(context.Background(), mustNewRequest(t), twoToolCallResponse("read", "gated")); !errors.As(err, new(interruptErr)) {
-		t.Fatalf("an idempotent prior call must let the interrupt propagate unchanged, got %v", err)
+	if finalText != "done" {
+		t.Fatalf("final text = %q, want \"done\"", finalText)
 	}
 }
 

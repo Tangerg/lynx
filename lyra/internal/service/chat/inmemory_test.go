@@ -359,14 +359,17 @@ func TestService_ApprovalGate_AllowOnce(t *testing.T) {
 	}
 }
 
-// TestService_ApprovalGate_ResumeRerunsTurn pins the propagate-and-rerun HITL
-// model: approving a gated tool RESUMES by re-running the turn (no checkpoint).
-// The conversation-driven stub re-emits the bash call on the re-run, so the
-// model is invoked 3 times across the cycle — round 1 (interrupts) + the
-// re-run's two rounds (regenerate the call, then the final reply). The crux is
-// that the re-run must NOT duplicate the user message in stored history: it
-// was persisted on the first run, and runChatTurn skips re-adding it on resume.
-func TestService_ApprovalGate_ResumeRerunsTurn(t *testing.T) {
+// TestService_ApprovalGate_ResumeAtPendingCall pins the R-model: approving a
+// gated tool RESUMES the turn AT the pending call — the loop feeds back the
+// parked tail (the interrupting round's assistant tool-call message) and runs
+// the now-approved tool, then the model replies. So the model is invoked
+// exactly TWICE across the cycle — round 1 (emits the call, interrupts) and the
+// synthesis after resume — NOT three times: the interrupted round's call is
+// never regenerated. The stored history must be a single valid
+// user → assistant(tool_call) → tool → assistant sequence (no duplicate user
+// message: it was persisted on the first run and the resume sends only the
+// system header + the fed-back tail).
+func TestService_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	model := &countingStubModel{}
 	model.defaults, _ = chatmodel.NewOptions("stub-counting")
 	client, _ := chatmodel.NewClient(model)
@@ -395,13 +398,13 @@ func TestService_ApprovalGate_ResumeRerunsTurn(t *testing.T) {
 	if endReason != chat.TurnEndCompleted {
 		t.Errorf("turn end = %s, want completed", endReason)
 	}
-	if got := model.calls.Load(); got != 3 {
-		t.Fatalf("model invoked %d times across resume, want 3 "+
-			"(round 1 interrupts; the re-run regenerates the call then replies)", got)
+	if got := model.calls.Load(); got != 2 {
+		t.Fatalf("model invoked %d times across resume, want 2 "+
+			"(round 1 emits the call + interrupts; resume runs the tool then the model replies — the call is NOT regenerated)", got)
 	}
 
-	// The re-run must not duplicate the user message: it was persisted on the
-	// first run and the resume re-run sends only the system header. History
+	// Resume must not duplicate the user message: it was persisted on the first
+	// run and resume sends only the system header + the fed-back tail. History
 	// must be a single valid user → assistant(tool_call) → tool → assistant
 	// sequence.
 	stored, err := store.Read(context.Background(), "sess-rmodel")

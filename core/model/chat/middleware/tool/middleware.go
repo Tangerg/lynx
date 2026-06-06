@@ -143,6 +143,14 @@ func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next ch
 
 	support.register(req.Tools...)
 
+	// HITL resume: when the conversation tail is an assistant turn whose tool
+	// calls aren't fully answered (a prior round halted for human input and its
+	// tail was fed back), execute the still-pending calls and continue —
+	// without re-invoking the model for the already-produced assistant.
+	if assistant, done, pending := trailingPendingToolCalls(req.Messages); assistant != nil {
+		return m.resumeCall(ctx, req, assistant, done, pending, next, support, loopState{iteration: priorModelRounds(req.Messages)})
+	}
+
 	return m.executeCallRecursively(ctx, req, next, support, loopState{iteration: 1})
 }
 
@@ -178,10 +186,20 @@ func (m *middleware) executeCallRecursively(ctx context.Context, req *chat.Reque
 
 	result, err := support.invokeToolCalls(ctx, req, resp)
 	if err != nil {
-		// A control-flow signal (HITL interrupt, abort, ctx cancel) propagates
-		// unchanged so an outer layer can park or fail the run; on a HITL
-		// interrupt the run resumes by re-running this turn.
+		// A fatal control-flow signal (abort / ctx cancel) propagates unchanged.
 		return nil, err
+	}
+
+	if result.interrupt != nil {
+		// HITL: a tool halted the round. Hand back the FinishReasonInterrupt
+		// response (the resumable tail: this round's assistant + any partial
+		// results) AND propagate the cause so the caller parks. On resume the
+		// tail is fed back and the loop continues at the pending calls.
+		interruptResp, e := buildInterruptResponse(resp.Result.AssistantMessage, result.interrupt.done)
+		if e != nil {
+			return nil, e
+		}
+		return interruptResp, result.interrupt.cause
 	}
 
 	if result.shouldReturn() {
@@ -209,6 +227,14 @@ func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next 
 		}
 
 		support.register(req.Tools...)
+
+		// HITL resume: continue from the conversation tail's unanswered tool
+		// calls (a prior round halted, its tail fed back) — execute only the
+		// pending calls, no model re-call. See executeCall.
+		if assistant, done, pending := trailingPendingToolCalls(req.Messages); assistant != nil {
+			m.resumeStream(ctx, req, assistant, done, pending, next, support, yield, loopState{iteration: priorModelRounds(req.Messages)})
+			return
+		}
 
 		m.executeStreamRecursively(ctx, req, next, support, yield, loopState{iteration: 1})
 	}
@@ -264,10 +290,23 @@ func (m *middleware) executeStreamRecursively(ctx context.Context, req *chat.Req
 
 	result, err := support.invokeToolCalls(ctx, req, resp)
 	if err != nil {
-		// A control-flow signal (HITL interrupt, abort, ctx cancel) propagates
-		// unchanged. The round's assistant deltas were already streamed above;
-		// on a HITL interrupt the run resumes by re-running this turn.
+		// A fatal control-flow signal (abort / ctx cancel) propagates unchanged.
 		yield(nil, err)
+		return
+	}
+
+	if result.interrupt != nil {
+		// HITL: a tool halted the round. The assistant deltas were already
+		// streamed above; yield the FinishReasonInterrupt response (the
+		// resumable tail) then propagate the cause so the caller parks. On
+		// resume the tail is fed back and the loop continues at the pending
+		// calls — the model is not re-invoked for this round.
+		if interruptResp, e := buildInterruptResponse(resp.Result.AssistantMessage, result.interrupt.done); e != nil {
+			yield(nil, e)
+		} else {
+			yield(interruptResp, nil)
+			yield(nil, result.interrupt.cause)
+		}
 		return
 	}
 

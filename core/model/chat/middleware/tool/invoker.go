@@ -24,6 +24,23 @@ type invocationResult struct {
 	response        *chat.Response
 	toolMessage     *chat.ToolMessage
 	allReturnDirect bool
+
+	// interrupt is set when a tool call halted the round for human input
+	// (HITL). It carries the results produced so far this round plus the
+	// interrupt cause; the middleware turns it into a FinishReasonInterrupt
+	// response (the resumable tail) and propagates the cause so the caller
+	// parks. When set, toolMessage is nil.
+	interrupt *roundInterrupt
+}
+
+// roundInterrupt is the partial result of a tool round that halted for human
+// input: the results already produced this invocation (done, in call order)
+// and the interrupt cause (a [chat.ToolHalt]). The still-pending calls are
+// derived from the assistant message at resume time, so they are not carried
+// here.
+type roundInterrupt struct {
+	done  []*chat.ToolReturn
+	cause error
 }
 
 // shouldContinue reports whether the runtime should re-prompt the LLM
@@ -216,20 +233,6 @@ func interruptsToolLoop(err error) bool {
 	return ok && !h.Abort()
 }
 
-// firstNonIdempotent returns the name of the first completed tool return whose
-// tool is registered and NOT [chat.ToolMetadata].Idempotent — i.e. unsafe to
-// replay — or "" when every completed call this round is safe to re-execute on
-// resume. Unregistered names (synthetic error results) carry no side effects
-// and are skipped.
-func firstNonIdempotent(registry *registry, returns []*chat.ToolReturn) string {
-	for _, ret := range returns {
-		if t, ok := registry.find(ret.Name); ok && !t.Metadata().Idempotent {
-			return ret.Name
-		}
-	}
-	return ""
-}
-
 // invokeToolCalls runs every requested tool in order and collects the
 // results into a single [*chat.ToolMessage]. One child span per tool call
 // is emitted under the parent chat span, tagged with `gen_ai.tool.*`
@@ -256,20 +259,17 @@ func (i *callInvoker) invokeToolCalls(ctx context.Context, calls []*chat.ToolCal
 		content, err := i.invokeOne(ctx, t, call)
 		if err != nil {
 			if interruptsToolLoop(err) {
-				// HITL: this call interrupts the loop pending human input. The
-				// run parks and resumes by RE-RUNNING the turn — the loop keeps
-				// no checkpoint — so any tool that already ran THIS round
-				// re-executes on resume. That is safe only for idempotent tools;
-				// refuse to suspend a round in which a non-idempotent tool
-				// already ran, since replaying its side effects would be a silent
-				// bug. Checked before the abort / feedback carve-outs so interrupt
-				// wins.
-				if bad := firstNonIdempotent(i.registry, returns); bad != "" {
-					return nil, fmt.Errorf("tool.callInvoker.invokeToolCalls: cannot suspend for human input — non-idempotent tool %q already ran this round before interrupting call %q; call it in its own round or mark it chat.ToolMetadata.Idempotent", bad, call.Name)
-				}
-				// Nothing unsafe to replay: propagate the interrupt unchanged so
-				// an outer layer parks the run.
-				return nil, err
+				// HITL: this call halts the round pending human input. Stop here
+				// and report the results produced so far plus the cause; the
+				// middleware turns this into a FinishReasonInterrupt response (the
+				// resumable tail) and propagates the cause so the caller parks.
+				// On resume the loop re-enters at the still-pending calls — it
+				// does NOT re-run this round's already-done calls or re-invoke the
+				// model. Checked before the abort / feedback carve-outs so
+				// interrupt wins.
+				return &invocationResult{
+					interrupt: &roundInterrupt{done: returns, cause: err},
+				}, nil
 			}
 			if abortsToolLoop(err) {
 				return nil, fmt.Errorf("tool.callInvoker.invokeToolCalls: tool %q failed: %w", call.Name, err)
@@ -356,5 +356,11 @@ func (i *callInvoker) invoke(ctx context.Context, req *chat.Request, resp *chat.
 	result.request = req
 	result.response = resp
 
+	if result.interrupt != nil {
+		// Interrupted round: toolMessage is intentionally nil. Skip validate
+		// (which requires it) — the middleware builds the FinishReasonInterrupt
+		// response and propagates the cause.
+		return result, nil
+	}
 	return result, result.validate()
 }

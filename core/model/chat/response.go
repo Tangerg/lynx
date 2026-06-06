@@ -31,6 +31,13 @@ const (
 	// being returned directly without re-prompting the LLM.
 	FinishReasonReturnDirect FinishReason = "return_direct"
 
+	// FinishReasonInterrupt — internal: the tool loop halted for human input
+	// (HITL). The Result carries the round's assistant tool-call message plus
+	// any partial tool results; the caller parks the run and, on resume, feeds
+	// that tail back so the loop continues AT the pending call (it is not a
+	// final answer). See core/model/chat/middleware/tool.
+	FinishReasonInterrupt FinishReason = "interrupt"
+
 	// FinishReasonOther — provider-specific reason that doesn't fit the
 	// above; inspect [ResultMetadata.Extra] for details.
 	FinishReasonOther FinishReason = "other"
