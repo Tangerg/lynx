@@ -37,6 +37,11 @@ type RuntimeServices interface {
 	// providers.list / configure / test operate on (models.list reads the
 	// catalog, not this).
 	Providers() providersvc.Service
+	// ProbeProvider validates a provider's credentials by building its
+	// default-model client and issuing one minimal request — backs
+	// providers.test. The runtime owns this because it owns client
+	// construction; the protocol layer only maps the verdict to wire.
+	ProbeProvider(ctx context.Context, entry providersvc.Provider) error
 	// MCPServerNames lists the connected MCP servers (workspace.mcp.listServers).
 	MCPServerNames() []string
 	// DefaultModel is the runtime's configured default model — used to fill
