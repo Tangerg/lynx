@@ -78,17 +78,24 @@ const (
 //	completed/error/maxSteps/maxBudget/canceled → Result
 //	interrupt                                   → Interrupts (resumable)
 type RunOutcome struct {
-	Type       RunOutcomeType `json:"type"`
-	Result     *RunResult     `json:"result,omitempty"`
-	Interrupts []Interrupt    `json:"interrupts,omitempty"`
+	Type   RunOutcomeType `json:"type"`
+	Result *RunResult     `json:"result,omitempty"`
+	// Detail is a human-readable note for the non-error terminals
+	// (maxSteps / maxBudget / canceled) — lets the client tell "user
+	// canceled" from "timed out", show "$X / $Y" for maxBudget, etc. The
+	// runs.cancel reason flows here (S6 / API.md §4.2). The error terminal's
+	// note stays on Result.Error.Detail (§4.6), not duplicated here.
+	Detail     string      `json:"detail,omitempty"`
+	Interrupts []Interrupt `json:"interrupts,omitempty"`
 }
 
-// RunResult is a run's terminal metering (API.md §4.2).
+// RunResult is a run's terminal metering (API.md §4.2). Total cost reads
+// Usage.CostUSD — there is no separate RunResult.costUsd (it would be a
+// second source of total cost; §4.2 / N1).
 type RunResult struct {
-	Usage   *Usage       `json:"usage,omitempty"`
-	CostUSD *float64     `json:"costUsd,omitempty"` // omitted when no pricing (not faked to 0)
-	Steps   *int         `json:"steps,omitempty"`
-	Error   *ProblemData `json:"error,omitempty"` // present when outcome.type=error
+	Usage *Usage       `json:"usage,omitempty"`
+	Steps *int         `json:"steps,omitempty"`
+	Error *ProblemData `json:"error,omitempty"` // present when outcome.type=error
 }
 
 // RunMode is the optional execution mode hint (API.md §7.1).
@@ -186,13 +193,13 @@ type InterruptResponse struct {
 // ToolInvocation.result (API.md §6.1): a best-effort JSON Result, or an
 // Error when the client tool failed.
 type InterruptResponseValue struct {
-	Type       string         `json:"type"`                 // "approval" | "answer" | "toolResult"
-	Decision   string         `json:"decision,omitempty"`   // approval: "approve" | "deny"
-	EditedArgs map[string]any `json:"editedArgs,omitempty"` // approval
-	Reason     string         `json:"reason,omitempty"`     // approval (deny rationale)
-	Answers    map[string]any `json:"answers,omitempty"`    // answer: field name → label(s) / free text
-	Result     any            `json:"result,omitempty"`     // toolResult: best-effort JSON
-	Error      *ProblemData   `json:"error,omitempty"`      // toolResult: client tool failure
+	Type       string              `json:"type"`                 // "approval" | "answer" | "toolResult"
+	Decision   string              `json:"decision,omitempty"`   // approval: "approve" | "deny"
+	EditedArgs map[string]any      `json:"editedArgs,omitempty"` // approval
+	Reason     string              `json:"reason,omitempty"`     // approval (deny rationale)
+	Answers    map[string][]string `json:"answers,omitempty"`    // answer: field name → values (single-select = one-element array, S8)
+	Result     any                 `json:"result,omitempty"`     // toolResult: best-effort JSON
+	Error      *ProblemData        `json:"error,omitempty"`      // toolResult: client tool failure
 }
 
 // Interrupt is one pending HITL item (API.md §4.8). itemId is the

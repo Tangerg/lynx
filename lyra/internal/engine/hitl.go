@@ -135,7 +135,8 @@ type InterruptResolution struct {
 	// same shape the model produced. Empty means run the call unchanged.
 	Arguments string
 
-	// Answer carries a structured reply for question / ask_user interrupts
-	// (the protocol answers map). Nil for approval-only resolutions.
-	Answer map[string]any
+	// Answer carries a structured reply for question / ask_user interrupts:
+	// field name → values (single-select is a one-element slice, matching the
+	// protocol answers map, §6.1). Nil for approval-only resolutions.
+	Answer map[string][]string
 }

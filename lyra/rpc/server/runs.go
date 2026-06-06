@@ -283,9 +283,20 @@ func (i *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 			}
 			if se.Type == protocol.StreamRunFinished {
 				finished = true
-				if se.Outcome != nil && se.Outcome.Type == protocol.OutcomeInterrupt {
-					parked = true
-					i.recordInterrupt(ctx, runID, handle, se.Outcome.Interrupts)
+				if se.Outcome != nil {
+					switch se.Outcome.Type {
+					case protocol.OutcomeInterrupt:
+						parked = true
+						i.recordInterrupt(ctx, runID, handle, se.Outcome.Interrupts)
+					case protocol.OutcomeCanceled:
+						// Flow the runs.cancel reason to the outcome detail (S6)
+						// so the client can tell user-canceled from other stops.
+						if se.Outcome.Detail == "" {
+							if r := i.cancelReasonFor(runID); r != "" {
+								se.Outcome.Detail = r
+							}
+						}
+					}
 				}
 			}
 			// Persist with a background ctx so the durable history (incl.
@@ -362,6 +373,9 @@ func (i *Server) recordInterrupt(ctx context.Context, runID string, handle chat.
 func (i *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) error {
 	i.runMu.Lock()
 	e, ok := i.runs[in.RunID]
+	if ok {
+		e.cancelReason = in.Reason // surfaced on the synthesized canceled outcome (S6)
+	}
 	i.runMu.Unlock()
 	_ = i.rt.Interrupts().Delete(ctx, in.RunID)
 	if !ok {
@@ -441,6 +455,17 @@ func (i *Server) SubscribeRun(ctx context.Context, runID string) (*protocol.Star
 
 // ─── helpers ────────────────────────────────────────────────────────
 
+// cancelReasonFor returns the runs.cancel reason recorded for a run, or ""
+// when it wasn't canceled with one. Read under runMu (S6).
+func (i *Server) cancelReasonFor(runID string) string {
+	i.runMu.Lock()
+	defer i.runMu.Unlock()
+	if e, ok := i.runs[runID]; ok {
+		return e.cancelReason
+	}
+	return ""
+}
+
 // resolveResolution maps the wire interrupt responses onto the structured
 // [engine.InterruptResolution] the chat service's Resume expects. The agent
 // runtime parks one awaitable at a time, so a single response drives the
@@ -461,13 +486,12 @@ func resolveResolution(responses []protocol.InterruptResponse) (engine.Interrupt
 			}
 		case "answer":
 			// Plan-review question (see translator.questionInterrupt): the
-			// decision field carries the chosen label. Anything other than an
-			// explicit reject proceeds. ask_user answers ride the same map.
+			// decision field carries the chosen label (a single-element array,
+			// S8). Anything other than an explicit reject proceeds. ask_user
+			// answers ride the same map.
 			approved := true
-			if v, ok := r.Response.Answers[planDecisionField]; ok {
-				if s, _ := v.(string); s == planDecisionReject {
-					approved = false
-				}
+			if v := r.Response.Answers[planDecisionField]; len(v) > 0 && v[0] == planDecisionReject {
+				approved = false
 			}
 			return engine.InterruptResolution{Approved: approved, Answer: r.Response.Answers}, nil
 		case "toolResult":

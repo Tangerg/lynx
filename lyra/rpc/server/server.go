@@ -65,12 +65,13 @@ func (i *Server) nextEventID() string {
 // runEntry holds bookkeeping for one in-flight run — used by CancelRun,
 // ListRuns, and the event pump in runs.go.
 type runEntry struct {
-	runID       string
-	sessionID   string
-	turnID      string
-	parentRunID string // set for continuation runs (runs.resume)
-	cancel      context.CancelFunc
-	hub         *runHub // per-run event fan-out + durable replay (streamable HTTP)
+	runID        string
+	sessionID    string
+	turnID       string
+	parentRunID  string // set for continuation runs (runs.resume)
+	cancelReason string // runs.cancel reason → flows to outcome.canceled.detail (S6)
+	cancel       context.CancelFunc
+	hub          *runHub // per-run event fan-out + durable replay (streamable HTTP)
 }
 
 // New builds a Server. Returns an error when Runtime is nil.
