@@ -1,5 +1,5 @@
 // End-to-end smoke test — exercises the happy path of the Lyra Runtime
-// Protocol v2 (docs/API.md). Uses MemoryTransport to simulate the server,
+// Protocol v2 (docs/protocol/API.md). Uses MemoryTransport to simulate the server,
 // so this runs in CI without any backend dependency.
 //
 // Swapping MemoryTransport for HTTPTransport validates wire compatibility

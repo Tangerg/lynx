@@ -2,7 +2,7 @@
 // Holds the negotiated protocol version + server capabilities so UI can
 // gate optional features behind what the server actually supports.
 //
-// Per docs/API.md §6.1: "Frontend treats every features.* as false by
+// Per docs/protocol/API.md §6.1: "Frontend treats every features.* as false by
 // default" — so when the store is empty (pre-handshake), every
 // capability selector returns false. UI MUST handle that gracefully
 // (e.g. hide a button instead of crashing).

@@ -2,7 +2,7 @@
 // streaming. The authoritative merged stdout lands on the completed item's
 // `output` (durable); the toolOutput ItemDelta is only a live preview. So
 // history replay (completed-only, no deltas), reconnect, and non-streaming
-// runtimes must all still render output. See docs/TOOL_OUTPUT.md + API.md §5.2.
+// runtimes must all still render output. See docs/protocol/TOOL_OUTPUT.md + API.md §5.2.
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Item, StreamEvent } from "@/rpc";
 import type { AgentViewState } from "./viewState";

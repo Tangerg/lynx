@@ -351,7 +351,7 @@ interface FileChangeEntry {
   合并后的 stdout+stderr 全文（实时交错；命令无输出则为 `""`）。`item.delta{ type:"toolOutput", text }` 仅是它的**流式预览**
   （`durable=false`，可丢）：丢掉每个 toolOutput delta，客户端仍必从 completed 的 `output` 得到正确终态（§5.2）；不流式的 runtime
   可不发任何 delta，但 completed 的 `output` 一样必发。**与其它工具（search 的 `results`、fileChange 的 `diff`、通用 `tool` 的 `result`
-  均在 completed 权威落定）是同一条不变量** —— 详见 `docs/TOOL_OUTPUT.md`。`output` 超限时 runtime 截断并置 `outputTruncated:true`
+  均在 completed 权威落定）是同一条不变量** —— 详见 `docs/protocol/TOOL_OUTPUT.md`。`output` 超限时 runtime 截断并置 `outputTruncated:true`
   （delta 与 `output` 同步截到同一边界），客户端据此提示"已截断，完整见终端"。
 - **`fileChange`**：多文件改动列表，每项带 `path` / `kind`（增改删移）/ `diff`。
 - **`search`（本地）**：grep / glob 一族。`query` 是模式（展示用），`results` 是 `SearchHit[]`（§4.5——grep = `path`+`lineNumber`+
@@ -580,7 +580,7 @@ type ItemDelta =
 >
 > **`toolArguments` / `toolOutput` 都是预览通道**：二者皆 `durable=false`，其权威终值都在 completed item 上
 > （`toolArguments`→已解析的入参字段，`toolOutput`→`commandExecution.output`）。客户端**不可**把流式累积当作终态来源——
-> 那会在历史回放 / 重连 / 后端整发（无 delta）时丢内容。见 §5.2 与 `docs/TOOL_OUTPUT.md`。
+> 那会在历史回放 / 重连 / 后端整发（无 delta）时丢内容。见 §5.2 与 `docs/protocol/TOOL_OUTPUT.md`。
 
 ### 5.2 Durable / Ephemeral 不变量（协议级保证）
 

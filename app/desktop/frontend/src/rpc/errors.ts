@@ -22,7 +22,7 @@ export class RpcError extends Error {
 
 // Lower-level transport failure — used when an HTTP request fails before
 // we get a JSON-RPC response back (network error, 4xx/5xx that aren't
-// JSON-RPC envelope, etc.). The HTTP status mapping in docs/API.md §7.3
+// JSON-RPC envelope, etc.). The HTTP status mapping in docs/protocol/API.md §7.3
 // says 401/500/503 return flat JSON not envelope, so we surface those
 // here without a JSON-RPC error code.
 export class RpcTransportError extends Error {

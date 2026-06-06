@@ -1,4 +1,4 @@
-// Typed wrappers for every method in docs/API.md §7. Grouped by namespace
+// Typed wrappers for every method in docs/protocol/API.md §7. Grouped by namespace
 // so callers do `methods.runs.start(...)` rather than
 // `client.call("runs.start")`. The factory takes an RpcClient and returns
 // the full typed surface.

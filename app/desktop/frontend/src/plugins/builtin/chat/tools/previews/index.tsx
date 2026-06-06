@@ -48,7 +48,7 @@ function BashPreview({ tool, onOpenView }: ToolPreviewProps) {
   // Render THIS call's stdout from `tool.result` — the authoritative merged
   // output reconciled from the completed Item's commandExecution.output, with
   // the toolOutput delta stream as the live preview while running (see
-  // projections.ts + docs/TOOL_OUTPUT.md).
+  // projections.ts + docs/protocol/TOOL_OUTPUT.md).
   const output = tool.result?.replace(/\n+$/, "");
   const lines = output ? output.split("\n") : [];
   const hiddenLines = lines.length - MAX_TERM_LINES;
