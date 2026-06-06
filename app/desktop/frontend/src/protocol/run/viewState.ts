@@ -188,8 +188,11 @@ export interface AgentViewState {
   run: RunState;
   error: RunError | null;
   /** The open assistant-turn message id — contiguous assistant-side Items
-   *  (agentMessage / reasoning / toolCall) fold into one bubble until the
-   *  next userMessage / run boundary. Reset on run.started + userMessage. */
+   *  (agentMessage / reasoning / toolCall) fold into one bubble until the next
+   *  userMessage. A userMessage is the SOLE turn boundary (reset by
+   *  appendUserMessage); run boundaries do not split a turn, so a resume after
+   *  a HITL interrupt continues the same bubble and live streaming groups
+   *  identically to history replay. */
   turnMessageId: string | null;
   /** Append-only audit log of run-significant events. See TimelineEntry. */
   timeline: TimelineEntry[];
