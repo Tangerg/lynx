@@ -2,43 +2,32 @@ package engine
 
 import (
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// inflightConversationKey is the blackboard slot holding a turn's in-flight
-// conversation across a HITL interrupt — saved when the run parks, consumed
-// when the continuation run resumes. One process (one blackboard) per turn,
-// so a single name binding suffices; it rides the same in-memory blackboard
-// across the suspend → ResumeProcess → re-tick cycle. Cross-restart rebuilds
-// the blackboard from a JSON snapshot where the message-typed slot does not
-// round-trip; loadInflightConversation then reports absent and the turn
-// falls back to a full re-run (rare, best-effort).
-const inflightConversationKey = "lyra:hitl:inflight-conversation"
+// turnSeededKey marks, on the process blackboard, that the turn's user
+// message has been added to the chat request (and thus persisted to memory by
+// the inner memory middleware). HITL resume re-runs the turn on the SAME
+// process; the marker rides the same blackboard across the
+// suspend → ResumeProcess → re-tick cycle, so the re-run observes it and
+// skips re-adding the user message — re-adding would duplicate it in the
+// stored history. Unlike a message slice, a bool round-trips a blackboard
+// JSON snapshot, so a cross-restart resume still observes it.
+const turnSeededKey = "lyra:hitl:turn-seeded"
 
-// loadInflightConversation returns the saved in-flight conversation, or
-// (nil, false) when none is parked.
-func loadInflightConversation(bb core.Blackboard) ([]chat.Message, bool) {
-	v, ok := bb.Get(inflightConversationKey)
+// turnSeeded reports whether this turn's user message has already been added
+// (so a HITL resume re-run must not add it again).
+func turnSeeded(bb core.Blackboard) bool {
+	v, ok := bb.Get(turnSeededKey)
 	if !ok {
-		return nil, false
+		return false
 	}
-	msgs, ok := v.([]chat.Message)
-	if !ok || len(msgs) == 0 {
-		return nil, false
-	}
-	return msgs, true
+	seeded, _ := v.(bool)
+	return seeded
 }
 
-// saveInflightConversation parks the conversation the chat tool loop
-// carried up on interrupt, so the continuation run resumes from it.
-func saveInflightConversation(bb core.Blackboard, msgs []chat.Message) {
-	bb.Set(inflightConversationKey, msgs)
-}
-
-// clearInflightConversation drops a consumed conversation (the blackboard
-// has no delete; load treats nil/empty as absent).
-func clearInflightConversation(bb core.Blackboard) {
-	bb.Set(inflightConversationKey, ([]chat.Message)(nil))
+// seedTurn records that the turn's user message has been added.
+func seedTurn(bb core.Blackboard) {
+	bb.Set(turnSeededKey, true)
 }
 
 // InterruptResolution is the human's structured answer to a HITL interrupt

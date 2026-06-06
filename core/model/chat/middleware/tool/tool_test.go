@@ -1,4 +1,4 @@
-package tool_test
+package tool
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 )
 
 // --- duplicated shared helpers (copies of chat_test equivalents) ----------
@@ -266,9 +265,9 @@ func historyShape(msgs []chat.Message) string {
 
 // continuationToolResult returns the concatenated tool-result text of the
 // continuation request the invocation result would feed back to the model.
-func continuationToolResult(t *testing.T, result *tool.InvocationResult) string {
+func continuationToolResult(t *testing.T, result *invocationResult) string {
 	t.Helper()
-	cont, err := result.BuildContinueRequest()
+	cont, err := result.buildContinueRequest()
 	if err != nil {
 		t.Fatalf("BuildContinueRequest: %v", err)
 	}
@@ -303,47 +302,47 @@ func (interruptErr) Abort() bool   { return false }
 // TestToolRegistry_Lifecycle covers the full mutation surface in one
 // run — register, find, exists, names, all, unregister, clear.
 func TestToolRegistry_Lifecycle(t *testing.T) {
-	support := tool.NewSupport()
+	support := newSupport()
 
 	a := mustNewTool(t, "alpha")
 	b := mustNewTool(t, "beta")
-	support.Register(a, b, nil) // nil silently dropped
+	support.register(a, b, nil) // nil silently dropped
 
-	if support.Registry().Size() != 2 {
-		t.Fatalf("Size = %d, want 2", support.Registry().Size())
+	if support.registry.size() != 2 {
+		t.Fatalf("Size = %d, want 2", support.registry.size())
 	}
-	if !support.Registry().Exists("alpha") {
+	if !support.registry.exists("alpha") {
 		t.Fatal("alpha must be registered")
 	}
-	if got, ok := support.Registry().Find("alpha"); !ok || got.Definition().Name != "alpha" {
+	if got, ok := support.registry.find("alpha"); !ok || got.Definition().Name != "alpha" {
 		t.Fatalf("Find returned (%v,%v)", got, ok)
 	}
-	if names := support.Registry().Names(); len(names) != 2 {
+	if names := support.registry.names(); len(names) != 2 {
 		t.Fatalf("Names len = %d", len(names))
 	}
-	if all := support.Registry().All(); len(all) != 2 {
+	if all := support.registry.all(); len(all) != 2 {
 		t.Fatalf("All len = %d", len(all))
 	}
 
-	support.Unregister("alpha")
-	if support.Registry().Exists("alpha") {
+	support.unregister("alpha")
+	if support.registry.exists("alpha") {
 		t.Fatal("alpha should have been unregistered")
 	}
 
-	support.Registry().Clear()
-	if support.Registry().Size() != 0 {
+	support.registry.clear()
+	if support.registry.size() != 0 {
 		t.Fatal("Clear did not empty the registry")
 	}
 }
 
 func TestToolRegistry_Register_DuplicatesIgnored(t *testing.T) {
-	support := tool.NewSupport()
+	support := newSupport()
 	a := mustNewTool(t, "alpha")
 	b := mustNewTool(t, "alpha") // same name
 
-	support.Register(a, b)
-	if support.Registry().Size() != 1 {
-		t.Fatalf("Size = %d, want 1 (duplicate names silently dropped)", support.Registry().Size())
+	support.register(a, b)
+	if support.registry.size() != 1 {
+		t.Fatalf("Size = %d, want 1 (duplicate names silently dropped)", support.registry.size())
 	}
 }
 
@@ -351,27 +350,27 @@ func TestToolRegistry_Register_DuplicatesIgnored(t *testing.T) {
 // happy path: an inline tool runs and the result message is built so
 // the runtime can re-prompt the LLM.
 func TestToolSupport_InvokeToolCalls_InternalReturnsForLLM(t *testing.T) {
-	support := tool.NewSupport()
-	support.Register(mustNewCallable(t, "echo", false, func(_ context.Context, args string) (string, error) {
+	support := newSupport()
+	support.register(mustNewCallable(t, "echo", false, func(_ context.Context, args string) (string, error) {
 		return "echoed:" + args, nil
 	}))
 
 	resp := responseWithToolCall(t, "echo", "args")
 	req := mustNewRequest(t)
 
-	can, err := support.ShouldInvokeToolCalls(resp)
+	can, err := support.shouldInvokeToolCalls(resp)
 	if err != nil || !can {
 		t.Fatalf("ShouldInvokeToolCalls = (%v,%v)", can, err)
 	}
 
-	result, err := support.InvokeToolCalls(context.Background(), req, resp)
+	result, err := support.invokeToolCalls(context.Background(), req, resp)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !result.ShouldContinue() {
+	if !result.shouldContinue() {
 		t.Fatal("internal tool with ReturnDirect=false should request continuation")
 	}
-	cont, err := result.BuildContinueRequest()
+	cont, err := result.buildContinueRequest()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -395,22 +394,22 @@ func TestToolSupport_InvokeToolCalls_InternalReturnsForLLM(t *testing.T) {
 // other branch: a tool with ReturnDirect=true should not trigger an
 // LLM follow-up.
 func TestToolSupport_InvokeToolCalls_ReturnDirectShortCircuits(t *testing.T) {
-	support := tool.NewSupport()
-	support.Register(mustNewCallable(t, "direct", true, func(context.Context, string) (string, error) {
+	support := newSupport()
+	support.register(mustNewCallable(t, "direct", true, func(context.Context, string) (string, error) {
 		return "ok", nil
 	}))
 
 	resp := responseWithToolCall(t, "direct", "")
 	req := mustNewRequest(t)
 
-	result, err := support.InvokeToolCalls(context.Background(), req, resp)
+	result, err := support.invokeToolCalls(context.Background(), req, resp)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.ShouldContinue() {
+	if result.shouldContinue() {
 		t.Fatal("ReturnDirect=true must not request continuation")
 	}
-	final, err := result.BuildReturnResponse()
+	final, err := result.buildReturnResponse()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -423,15 +422,15 @@ func TestToolSupport_InvokeToolCalls_ReturnDirectShortCircuits(t *testing.T) {
 // unregistered tool is tolerated (not a hard error) and answered with an error
 // result naming it, so the model can self-correct instead of the run aborting.
 func TestToolSupport_InvokeToolCalls_UnknownToolFedBack(t *testing.T) {
-	support := tool.NewSupport()
+	support := newSupport()
 	resp := responseWithToolCall(t, "missing", "")
 
-	can, err := support.ShouldInvokeToolCalls(resp)
+	can, err := support.shouldInvokeToolCalls(resp)
 	if err != nil || !can {
 		t.Fatalf("unknown tool should be tolerated, got can=%v err=%v", can, err)
 	}
 
-	result, err := support.InvokeToolCalls(context.Background(), mustNewRequest(t), resp)
+	result, err := support.invokeToolCalls(context.Background(), mustNewRequest(t), resp)
 	if err != nil {
 		t.Fatalf("unknown tool must not propagate as an error: %v", err)
 	}
@@ -444,13 +443,13 @@ func TestToolSupport_InvokeToolCalls_UnknownToolFedBack(t *testing.T) {
 // tool that returns an ordinary error fails RECOVERABLY — the error text is
 // fed back as the tool result, the run does not abort.
 func TestToolSupport_InvokeToolCalls_RecoverableFailureFedBack(t *testing.T) {
-	support := tool.NewSupport()
-	support.Register(mustNewCallable(t, "fail", false, func(context.Context, string) (string, error) {
+	support := newSupport()
+	support.register(mustNewCallable(t, "fail", false, func(context.Context, string) (string, error) {
 		return "", errors.New("tool blew up")
 	}))
 
 	resp := responseWithToolCall(t, "fail", "")
-	result, err := support.InvokeToolCalls(context.Background(), mustNewRequest(t), resp)
+	result, err := support.invokeToolCalls(context.Background(), mustNewRequest(t), resp)
 	if err != nil {
 		t.Fatalf("a recoverable failure must be fed back, not propagated: %v", err)
 	}
@@ -460,8 +459,8 @@ func TestToolSupport_InvokeToolCalls_RecoverableFailureFedBack(t *testing.T) {
 }
 
 func TestToolSupport_ShouldReturnDirect_RequiresAllReturnDirect(t *testing.T) {
-	support := tool.NewSupport()
-	support.Register(
+	support := newSupport()
+	support.register(
 		mustNewCallable(t, "a", true, nil),
 		mustNewCallable(t, "b", false, nil),
 	)
@@ -473,20 +472,20 @@ func TestToolSupport_ShouldReturnDirect_RequiresAllReturnDirect(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if support.ShouldReturnDirect([]chat.Message{tm}) {
+	if support.shouldReturnDirect([]chat.Message{tm}) {
 		t.Fatal("any non-return-direct tool must veto direct return")
 	}
 }
 
 func TestToolSupport_ShouldReturnDirect_AllDirect(t *testing.T) {
-	support := tool.NewSupport()
-	support.Register(mustNewCallable(t, "a", true, nil))
+	support := newSupport()
+	support.register(mustNewCallable(t, "a", true, nil))
 
 	tm, err := chat.NewToolMessage([]*chat.ToolReturn{{ID: "1", Name: "a", Result: "ok"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !support.ShouldReturnDirect([]chat.Message{tm}) {
+	if !support.shouldReturnDirect([]chat.Message{tm}) {
 		t.Fatal("all return-direct tools must allow direct return")
 	}
 }
@@ -495,13 +494,13 @@ func TestToolSupport_ShouldReturnDirect_AllDirect(t *testing.T) {
 // the contract: a ToolLoopAbort error is NOT fed back — it propagates and
 // stops the loop, so genuinely unrecoverable failures end the run.
 func TestToolSupport_InvokeToolCalls_AbortErrorPropagates(t *testing.T) {
-	support := tool.NewSupport()
-	support.Register(mustNewCallable(t, "fatal", false, func(context.Context, string) (string, error) {
+	support := newSupport()
+	support.register(mustNewCallable(t, "fatal", false, func(context.Context, string) (string, error) {
 		return "", abortErr{}
 	}))
 
 	resp := responseWithToolCall(t, "fatal", "")
-	if _, err := support.InvokeToolCalls(context.Background(), mustNewRequest(t), resp); err == nil {
+	if _, err := support.invokeToolCalls(context.Background(), mustNewRequest(t), resp); err == nil {
 		t.Fatal("a ToolLoopAbort error must propagate (abort the loop), got nil")
 	}
 }
@@ -530,7 +529,7 @@ func TestToolMiddleware_RecursiveLoop(t *testing.T) {
 		return "echoed:" + args, nil
 	})
 
-	callMW, _ := tool.NewMiddleware()
+	callMW, _ := NewMiddleware()
 	req, _ := chat.NewClientRequest(model)
 	req.
 		WithMiddlewares(callMW).
@@ -565,7 +564,7 @@ func TestToolMiddleware_DirectReturn(t *testing.T) {
 		return "sent", nil
 	})
 
-	callMW, _ := tool.NewMiddleware()
+	callMW, _ := NewMiddleware()
 	req, _ := chat.NewClientRequest(model)
 	req.
 		WithMiddlewares(callMW).
@@ -606,7 +605,7 @@ func TestToolMiddleware_StreamEmitsToolMessageBetweenTurns(t *testing.T) {
 		return "echoed:" + args, nil
 	})
 
-	_, streamMW := tool.NewMiddleware()
+	_, streamMW := NewMiddleware()
 	req, _ := chat.NewClientRequest(model)
 	req.
 		WithMiddlewares(streamMW).
@@ -663,7 +662,7 @@ func TestToolMiddleware_MaxIterationsCap(t *testing.T) {
 		return "echoed:" + args, nil
 	})
 
-	callMW, _ := tool.NewMiddleware(tool.LoopConfig{MaxIterations: 3})
+	callMW, _ := NewMiddleware(LoopConfig{MaxIterations: 3})
 	req, _ := chat.NewClientRequest(model)
 	req.
 		WithMiddlewares(callMW).
@@ -671,7 +670,7 @@ func TestToolMiddleware_MaxIterationsCap(t *testing.T) {
 		WithTools(echoTool)
 
 	_, err := req.Call().Response(context.Background())
-	var capErr *tool.MaxIterationsError
+	var capErr *MaxIterationsError
 	if !errors.As(err, &capErr) {
 		t.Fatalf("expected MaxIterationsError, got %v", err)
 	}
@@ -703,7 +702,7 @@ func TestToolMiddleware_UnknownToolFeedback(t *testing.T) {
 	})
 
 	// Unknown-tool recovery is the unconditional default now — no config knob.
-	callMW, _ := tool.NewMiddleware()
+	callMW, _ := NewMiddleware()
 	req, _ := chat.NewClientRequest(model)
 	req.WithMiddlewares(callMW).WithMessages(chat.NewUserMessage("seed")).WithTools(real)
 
@@ -733,7 +732,7 @@ func TestToolMiddleware_EmptyResponseFeedback(t *testing.T) {
 		return responseWithText("now answered"), nil
 	}
 
-	callMW, _ := tool.NewMiddleware(tool.LoopConfig{FeedbackOnEmptyResponse: true})
+	callMW, _ := NewMiddleware(LoopConfig{FeedbackOnEmptyResponse: true})
 	req, _ := chat.NewClientRequest(model)
 	req.WithMiddlewares(callMW).WithMessages(chat.NewUserMessage("seed"))
 
@@ -761,7 +760,7 @@ func TestToolMiddleware_EmptyResponseNudgeIsOneShot(t *testing.T) {
 		return responseWithText(""), nil // always empty
 	}
 
-	callMW, _ := tool.NewMiddleware(tool.LoopConfig{FeedbackOnEmptyResponse: true})
+	callMW, _ := NewMiddleware(LoopConfig{FeedbackOnEmptyResponse: true})
 	req, _ := chat.NewClientRequest(model)
 	req.WithMiddlewares(callMW).WithMessages(chat.NewUserMessage("seed"))
 
@@ -773,95 +772,91 @@ func TestToolMiddleware_EmptyResponseNudgeIsOneShot(t *testing.T) {
 	}
 }
 
-// --- HITL interrupt + conversation-driven resume (R-model) -----------------
+// --- HITL interrupt: propagate-and-rerun model ----------------------------
 
-// TestToolMiddleware_InterruptThenResume is the headline R-model test for
-// the interrupt/resume model: a gated tool interrupts mid-round; the loop
-// returns a *LoopInterrupted carrying the resumable conversation
-// (assistant tool-call message + the result of the call that already ran).
-// Feeding that conversation back resumes the turn — executing ONLY the
-// still-pending (now-approved) call, never re-invoking the model for the
-// completed round and never re-executing the tool that already ran.
-func TestToolMiddleware_InterruptThenResume(t *testing.T) {
+// TestToolMiddleware_InterruptPropagatesUnchanged is the headline HITL test:
+// a gated tool interrupts the round; the loop STOPS and propagates the tool's
+// chat.ToolHalt error UNCHANGED — no checkpoint, no wrapper type. The run
+// resumes by RE-RUNNING the turn (a caller concern; see lyra engine), so the
+// loop keeps no resume state of its own.
+func TestToolMiddleware_InterruptPropagatesUnchanged(t *testing.T) {
 	model := newFakeChatModel(t)
-
 	modelCalls := 0
 	model.streamRespond = func(*chat.Request) []*chat.Response {
 		modelCalls++
-		if modelCalls == 1 {
-			return []*chat.Response{twoToolCallResponse("free", "gated")} // round 1
-		}
-		return []*chat.Response{responseWithText("done")} // round 2 (resume only)
+		return []*chat.Response{responseWithToolCall(t, "gated", "")}
 	}
-
-	var freeRuns, gatedRuns int
-	approved := false
-
-	freeTool := mustNewCallable(t, "free", false, func(context.Context, string) (string, error) {
-		freeRuns++
-		return "free-ok", nil
-	})
+	gatedRuns := 0
 	gatedTool := mustNewCallable(t, "gated", false, func(context.Context, string) (string, error) {
-		if !approved {
-			return "", interruptErr{}
-		}
 		gatedRuns++
-		return "gated-ok", nil
+		return "", interruptErr{}
 	})
 
-	_, streamMW := tool.NewMiddleware()
+	_, streamMW := NewMiddleware()
+	req, _ := chat.NewClientRequest(model)
+	req.WithMiddlewares(streamMW).WithMessages(chat.NewUserMessage("seed")).WithTools(gatedTool)
 
-	// --- First run: free runs, gated interrupts. ---
-	req1, _ := chat.NewClientRequest(model)
-	req1.WithMiddlewares(streamMW).WithMessages(chat.NewUserMessage("seed")).WithTools(freeTool, gatedTool)
-
-	var firstErr error
-	for _, e := range req1.Stream().Response(context.Background()) {
+	var gotErr error
+	for _, e := range req.Stream().Response(context.Background()) {
 		if e != nil {
-			firstErr = e
+			gotErr = e
 			break
 		}
 	}
-	var interrupted *tool.LoopInterrupted
-	if !errors.As(firstErr, &interrupted) {
-		t.Fatalf("first run error = %v, want *tool.LoopInterrupted", firstErr)
+	if !errors.As(gotErr, new(interruptErr)) {
+		t.Fatalf("error = %v, want the tool's interruptErr propagated unchanged", gotErr)
 	}
-	if !errors.As(firstErr, new(interruptErr)) {
-		t.Fatal("interrupt cause should be reachable via errors.As")
-	}
-	if modelCalls != 1 || freeRuns != 1 || gatedRuns != 0 {
-		t.Fatalf("after interrupt: model=%d free=%d gated=%d, want 1/1/0", modelCalls, freeRuns, gatedRuns)
-	}
-	// Conversation tail must be [assistant(free,gated), tool(free result)].
-	conv := interrupted.Conversation
-	if len(conv) < 2 {
-		t.Fatalf("conversation too short: %d messages", len(conv))
-	}
-	if tm, ok := conv[len(conv)-1].(*chat.ToolMessage); !ok || len(tm.ToolReturns) != 1 || tm.ToolReturns[0].Name != "free" {
-		t.Fatalf("conversation tail tool message = %+v, want one 'free' result", conv[len(conv)-1])
-	}
-
-	// --- Resume: approve, feed the saved conversation back. ---
-	approved = true
-	req2, _ := chat.NewClientRequest(model)
-	req2.WithMiddlewares(streamMW).WithMessages(conv...).WithTools(freeTool, gatedTool)
-
-	_, finalText, err := collectStream(req2.Stream().Response(context.Background()))
-	if err != nil {
-		t.Fatalf("resume run error: %v", err)
-	}
-
-	if modelCalls != 2 {
-		t.Fatalf("total model calls = %d, want 2 (round 1 NOT re-invoked on resume)", modelCalls)
-	}
-	if freeRuns != 1 {
-		t.Fatalf("free ran %d times total, want 1 (completed call NOT re-executed)", freeRuns)
+	if modelCalls != 1 {
+		t.Fatalf("model calls = %d, want 1 (loop stops at the interrupt)", modelCalls)
 	}
 	if gatedRuns != 1 {
-		t.Fatalf("gated ran %d times, want 1 (executed once, on resume)", gatedRuns)
+		t.Fatalf("gated invoked %d times, want 1 (the interrupting call)", gatedRuns)
 	}
-	if finalText != "done" {
-		t.Fatalf("final text = %q, want \"done\"", finalText)
+}
+
+// TestToolMiddleware_NonIdempotentBeforeInterrupt_Errors guards the resume
+// contract: HITL resume re-runs the round, so a non-idempotent tool that
+// already ran before the interrupting call would double-apply its side effects
+// on resume. The loop refuses to suspend such a round, surfacing an error
+// rather than the interrupt.
+func TestToolMiddleware_NonIdempotentBeforeInterrupt_Errors(t *testing.T) {
+	support := newSupport()
+	support.register(
+		// non-idempotent (the default) — ran before the interrupt
+		mustNewCallable(t, "write", false, func(context.Context, string) (string, error) { return "wrote", nil }),
+		mustNewCallable(t, "gated", false, func(context.Context, string) (string, error) { return "", interruptErr{} }),
+	)
+
+	_, err := support.invokeToolCalls(context.Background(), mustNewRequest(t), twoToolCallResponse("write", "gated"))
+	if err == nil {
+		t.Fatal("want a suspend-refusal error: non-idempotent 'write' ran before the interrupt")
+	}
+	if errors.As(err, new(interruptErr)) {
+		t.Fatalf("error must be the suspend refusal, not the propagated interrupt: %v", err)
+	}
+}
+
+// TestToolMiddleware_IdempotentBeforeInterrupt_Propagates is the converse: an
+// idempotent prior call is safe to replay on resume, so the interrupt
+// propagates unchanged even though another tool already ran this round.
+func TestToolMiddleware_IdempotentBeforeInterrupt_Propagates(t *testing.T) {
+	readTool, err := chat.NewTool(
+		chat.ToolDefinition{Name: "read", InputSchema: `{"type":"object"}`},
+		chat.ToolMetadata{Idempotent: true},
+		func(context.Context, string) (string, error) { return "data", nil },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	support := newSupport()
+	support.register(
+		readTool,
+		mustNewCallable(t, "gated", false, func(context.Context, string) (string, error) { return "", interruptErr{} }),
+	)
+
+	if _, err := support.invokeToolCalls(context.Background(), mustNewRequest(t), twoToolCallResponse("read", "gated")); !errors.As(err, new(interruptErr)) {
+		t.Fatalf("an idempotent prior call must let the interrupt propagate unchanged, got %v", err)
 	}
 }
 
@@ -893,7 +888,7 @@ func TestMemory_SequentialMultiRoundTurn_ValidHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, toolStreamMW := tool.NewMiddleware()
+	_, toolStreamMW := NewMiddleware()
 
 	// Tool middleware is OUTERMOST, memory INNERMOST (model-adjacent): the
 	// tool loop drives the rounds and hands each round's new messages down
@@ -924,7 +919,7 @@ func TestToolMiddleware_PassthroughWithoutToolCalls(t *testing.T) {
 		return responseWithText("plain reply"), nil
 	}
 
-	callMW, _ := tool.NewMiddleware()
+	callMW, _ := NewMiddleware()
 	req, _ := chat.NewClientRequest(model)
 	req.
 		WithMiddlewares(callMW).

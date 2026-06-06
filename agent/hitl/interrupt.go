@@ -89,9 +89,9 @@ func Interrupt[R any](ctx context.Context, key string, value any) (resp R, resum
 	return zero, false, &InterruptError{Key: key, Value: value, awaitable: awaitable}
 }
 
-// HandleInterrupt parks the process on an interrupt's awaitable. It accepts
-// the error as it surfaces to an action body — a bare [*InterruptError], or
-// one wrapped (e.g. by tool.LoopInterrupted, reachable via errors.As).
+// HandleInterrupt parks the process on an interrupt's awaitable. The chat
+// tool loop propagates an [*InterruptError] unchanged, so it surfaces to an
+// action body either bare or wrapped (errors.As reaches it through Unwrap).
 // When found it calls pc.AwaitInput and returns (ActionWaiting, true); the
 // action body returns that status immediately. Otherwise returns (_, false)
 // and the caller still handles err.
