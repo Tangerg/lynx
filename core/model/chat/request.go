@@ -281,22 +281,6 @@ func (r *Request) SystemMessage() *SystemMessage {
 	return last.(*SystemMessage)
 }
 
-// continueWith derives the next request in a tool / feedback loop: this
-// request's messages plus the supplied extras, carrying over its options,
-// tools, and params. Used by the tool-loop middleware to re-prompt
-// without mutating the original request.
-func (r *Request) continueWith(extra ...Message) (*Request, error) {
-	msgs := append(slices.Clone(r.Messages), extra...)
-	next, err := NewRequest(msgs)
-	if err != nil {
-		return nil, err
-	}
-	next.Options = r.Options.Clone()
-	next.Tools = slices.Clone(r.Tools)
-	next.Params = maps.Clone(r.Params)
-	return next, nil
-}
-
 // UnmarshalJSON decodes a Request, dispatching each entry in the
 // "messages" array to the concrete [Message] type indicated by its
 // "type" discriminator. The standard library cannot decode into a

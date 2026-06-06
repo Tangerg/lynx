@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 )
 
 // PromptRunner is the ergonomic LLM entry point for action bodies. It
@@ -15,7 +16,7 @@ import (
 //
 //   - the running action's declared tool groups
 //     ([ProcessContext.ActionTools]),
-//   - [chat.NewToolMiddleware] when any tool is in play,
+//   - [tool.NewMiddleware] when any tool is in play,
 //   - an optional system prompt and chat options.
 //
 // Construct one via [ProcessContext.PromptRunner], chain WithXxx
@@ -106,7 +107,7 @@ func (pr *PromptRunner) buildClientRequest(ctx context.Context) (*chat.ClientReq
 		// reconstruction. Mirrors [ProcessContext.buildChatRequest]. Note
 		// WithMiddlewares REPLACES the chain, so the guardrails the bare
 		// pc.Chat() installed must be re-added here rather than dropped.
-		callMW, streamMW := chat.NewToolMiddleware()
+		callMW, streamMW := tool.NewMiddleware()
 		mws := []any{callMW, streamMW}
 		mws = append(mws, pr.pc.guardrails.MiddlewareValues()...)
 		req = req.WithMiddlewares(mws...).WithTools(tools...)

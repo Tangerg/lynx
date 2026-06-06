@@ -8,24 +8,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/media"
-	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
-
-// hasMessageTypeAtLast reports whether the last message has expectedType.
-// Empty slices and nil entries return false.
-func hasMessageTypeAtLast(messages []Message, expectedType MessageType) bool {
-	return hasMessageTypeAt(messages, -1, expectedType)
-}
-
-// hasMessageTypeAt reports whether the message at index has expectedType.
-// Negative indexes are supported (-1 is the last entry).
-func hasMessageTypeAt(messages []Message, index int, expectedType MessageType) bool {
-	msg, exists := pkgSlices.At(messages, index)
-	if !exists {
-		return false
-	}
-	return msg != nil && msg.Type() == expectedType
-}
 
 // FilterMessages returns messages for which predicate returns true. The
 // original order is preserved. Panics on a nil predicate — that's a

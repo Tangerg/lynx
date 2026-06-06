@@ -1,6 +1,6 @@
 // Command supervisor demonstrates the "LLM-orchestrated multi-agent"
 // pattern: a parent agent's LLM picks among sub-agents (each wrapped
-// via runtime.AsChatTool) and chains them through chat.NewToolMiddleware.
+// via runtime.AsChatTool) and chains them through tool.NewMiddleware.
 //
 // The parent's action body asks the LLM to brief a topic. The stub
 // LLM:

@@ -1,25 +1,29 @@
-package chat
+package tool
 
 import (
 	"context"
 	"fmt"
 	"iter"
+	"maps"
+	"slices"
 	"strings"
+
+	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// DefaultMaxToolIterations bounds the self-driving tool loop. A model that
+// DefaultMaxIterations bounds the self-driving tool loop. A model that
 // keeps requesting tools — or a buggy tool whose result always re-triggers
 // a call — would otherwise spin forever; the cap turns that into a
-// [MaxToolIterationsError] instead. Mirrors embabel's
+// [MaxIterationsError] instead. Mirrors embabel's
 // MaxIterationsExceededException.
-const DefaultMaxToolIterations = 50
+const DefaultMaxIterations = 50
 
 // emptyResponseNudge is the follow-up prompt sent when a model returns an
-// empty reply and [ToolLoopConfig.FeedbackOnEmptyResponse] is enabled.
+// empty reply and [LoopConfig.FeedbackOnEmptyResponse] is enabled.
 const emptyResponseNudge = "Your previous reply was empty. Please provide a complete answer, or call one of the available tools."
 
-// ToolLoopConfig tunes [NewToolMiddleware]. Every field is optional; the
-// zero value yields the default loop (cap = [DefaultMaxToolIterations]).
+// LoopConfig tunes [NewMiddleware]. Every field is optional; the
+// zero value yields the default loop (cap = [DefaultMaxIterations]).
 //
 // Tool-failure handling is NOT configurable: a tool error that isn't a
 // control-flow signal (context cancel / ToolLoopAbort / HITL interrupt) is
@@ -27,10 +31,10 @@ const emptyResponseNudge = "Your previous reply was empty. Please provide a comp
 // unregistered tool is always answered with an error result rather than
 // aborting the run. That recovery is the framework default; a tool author
 // chooses the outcome at the source (fold the failure into the result string,
-// or return an ordinary error and let the loop wrap it). See [Tool.Call].
-type ToolLoopConfig struct {
+// or return an ordinary error and let the loop wrap it). See [chat.Tool.Call].
+type LoopConfig struct {
 	// MaxIterations caps the number of model calls the tool loop makes.
-	// <= 0 falls back to [DefaultMaxToolIterations].
+	// <= 0 falls back to [DefaultMaxIterations].
 	MaxIterations int
 
 	// FeedbackOnEmptyResponse, when true, answers an empty model reply (no
@@ -41,97 +45,97 @@ type ToolLoopConfig struct {
 	FeedbackOnEmptyResponse bool
 }
 
-// MaxToolIterationsError is returned when the tool-calling loop exceeds its
+// MaxIterationsError is returned when the tool-calling loop exceeds its
 // configured iteration cap. Callers can detect it with [errors.As].
-type MaxToolIterationsError struct {
+type MaxIterationsError struct {
 	Limit int
 }
 
-func (e *MaxToolIterationsError) Error() string {
-	return fmt.Sprintf("chat: tool loop exceeded %d iterations without a final reply", e.Limit)
+func (e *MaxIterationsError) Error() string {
+	return fmt.Sprintf("tool: loop exceeded %d iterations without a final reply", e.Limit)
 }
 
-// ToolMiddleware turns the model handler into a self-driving tool-calling
+// Middleware turns the model handler into a self-driving tool-calling
 // loop. When the LLM emits tool calls the middleware executes them via
-// the [ToolSupport] machinery and re-prompts the model with the results,
+// the [Support] machinery and re-prompts the model with the results,
 // repeating until the model produces a regular reply, every tool is
 // configured for direct return, or the iteration cap is hit.
 //
-// Use it via [NewToolMiddleware], which returns both call and stream
+// Use it via [NewMiddleware], which returns both call and stream
 // halves so a single registration covers both paths.
 //
 // Example:
 //
-//	callMW, streamMW := chat.NewToolMiddleware()
+//	callMW, streamMW := tool.NewMiddleware()
 //	resp, err := client.Chat().
 //	    WithMiddlewares(callMW, streamMW).
 //	    WithTools(myTool).
 //	    Call().Response(ctx)
-type ToolMiddleware struct {
+type Middleware struct {
 	maxIterations int
 	feedbackEmpty bool
 }
 
-// NewToolMiddleware constructs the tool-calling middleware pair. Pass an
-// optional [ToolLoopConfig] to tune the loop; omit it for defaults.
-func NewToolMiddleware(config ...ToolLoopConfig) (CallMiddleware, StreamMiddleware) {
-	var cfg ToolLoopConfig
+// NewMiddleware constructs the tool-calling middleware pair. Pass an
+// optional [LoopConfig] to tune the loop; omit it for defaults.
+func NewMiddleware(config ...LoopConfig) (chat.CallMiddleware, chat.StreamMiddleware) {
+	var cfg LoopConfig
 	if len(config) > 0 {
 		cfg = config[0]
 	}
 
 	maxIterations := cfg.MaxIterations
 	if maxIterations <= 0 {
-		maxIterations = DefaultMaxToolIterations
+		maxIterations = DefaultMaxIterations
 	}
 
-	mw := &ToolMiddleware{
+	mw := &Middleware{
 		maxIterations: maxIterations,
 		feedbackEmpty: cfg.FeedbackOnEmptyResponse,
 	}
 	return mw.wrapCallHandler, mw.wrapStreamHandler
 }
 
-// toolLoopState carries the per-loop bookkeeping threaded through the
+// loopState carries the per-loop bookkeeping threaded through the
 // recursion: the 1-based model-call count and whether the one-shot
 // empty-response nudge has already been spent.
-type toolLoopState struct {
+type loopState struct {
 	iteration    int
 	emptyRetried bool
 }
 
-func (s toolLoopState) next() toolLoopState {
+func (s loopState) next() loopState {
 	s.iteration++
 	return s
 }
 
 // wrapCallHandler is the call-side adapter — turns the middleware body
-// into a [CallHandler] decorator.
-func (m *ToolMiddleware) wrapCallHandler(next CallHandler) CallHandler {
-	return CallHandlerFunc(func(ctx context.Context, req *Request) (*Response, error) {
+// into a [chat.CallHandler] decorator.
+func (m *Middleware) wrapCallHandler(next chat.CallHandler) chat.CallHandler {
+	return chat.CallHandlerFunc(func(ctx context.Context, req *chat.Request) (*chat.Response, error) {
 		return m.executeCall(ctx, req, next)
 	})
 }
 
 // wrapStreamHandler is the stream-side adapter.
-func (m *ToolMiddleware) wrapStreamHandler(next StreamHandler) StreamHandler {
-	return StreamHandlerFunc(func(ctx context.Context, req *Request) iter.Seq2[*Response, error] {
+func (m *Middleware) wrapStreamHandler(next chat.StreamHandler) chat.StreamHandler {
+	return chat.StreamHandlerFunc(func(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
 		return m.executeStream(ctx, req, next)
 	})
 }
 
-// newToolSupport builds the per-loop support. Tool-failure recovery
+// newSupport builds the per-loop support. Tool-failure recovery
 // (unknown-tool + recoverable-error feedback) is the unconditional default in
-// [toolCallInvoker], so there's nothing to configure here.
-func (m *ToolMiddleware) newToolSupport(toolCount int) *ToolSupport {
-	return NewToolSupport(toolCount)
+// [callInvoker], so there's nothing to configure here.
+func (m *Middleware) newSupport(toolCount int) *Support {
+	return NewSupport(toolCount)
 }
 
 // executeCall is the synchronous entry point: short-circuit when prior
 // messages already indicate a direct return; otherwise enter the
 // recursive call/tool loop.
-func (m *ToolMiddleware) executeCall(ctx context.Context, req *Request, next CallHandler) (*Response, error) {
-	support := m.newToolSupport(len(req.Tools))
+func (m *Middleware) executeCall(ctx context.Context, req *chat.Request, next chat.CallHandler) (*chat.Response, error) {
+	support := m.newSupport(len(req.Tools))
 
 	if support.ShouldReturnDirect(req.Messages) {
 		return support.BuildReturnDirectResponse(req.Messages)
@@ -144,20 +148,20 @@ func (m *ToolMiddleware) executeCall(ctx context.Context, req *Request, next Cal
 	// input and its conversation was fed back), execute the still-pending
 	// calls and continue — without re-invoking the model for completed work.
 	if assistant, done, pending := trailingPendingToolCalls(req.Messages); assistant != nil {
-		return m.resumeCallRound(ctx, req, assistant, done, pending, next, support, toolLoopState{iteration: priorModelRounds(req.Messages)})
+		return m.resumeCallRound(ctx, req, assistant, done, pending, next, support, loopState{iteration: priorModelRounds(req.Messages)})
 	}
 
-	return m.executeCallRecursively(ctx, req, next, support, toolLoopState{iteration: 1})
+	return m.executeCallRecursively(ctx, req, next, support, loopState{iteration: 1})
 }
 
 // executeCallRecursively runs one round of model + tool execution. If
 // the model asks for tools and the tools want LLM follow-up, the
 // function re-prompts and recurses. state.iteration is the 1-based
 // model-call count; exceeding maxIterations aborts with a
-// [MaxToolIterationsError].
-func (m *ToolMiddleware) executeCallRecursively(ctx context.Context, req *Request, next CallHandler, support *ToolSupport, state toolLoopState) (*Response, error) {
+// [MaxIterationsError].
+func (m *Middleware) executeCallRecursively(ctx context.Context, req *chat.Request, next chat.CallHandler, support *Support, state loopState) (*chat.Response, error) {
 	if state.iteration > m.maxIterations {
-		return nil, &MaxToolIterationsError{Limit: m.maxIterations}
+		return nil, &MaxIterationsError{Limit: m.maxIterations}
 	}
 
 	resp, err := next.Call(ctx, req)
@@ -187,7 +191,7 @@ func (m *ToolMiddleware) executeCallRecursively(ctx context.Context, req *Reques
 
 	if result.interrupt != nil {
 		// HITL: a tool call interrupted the round. Propagate a
-		// *ToolLoopInterrupted carrying the resumable conversation (prior
+		// *LoopInterrupted carrying the resumable conversation (prior
 		// turns + this round's assistant tool-call message + the results
 		// already produced) so the caller can save it, park, and resume.
 		return nil, m.wrapInterrupt(resp.Result.AssistantMessage, result.interrupt.done, result.interrupt.cause)
@@ -208,9 +212,9 @@ func (m *ToolMiddleware) executeCallRecursively(ctx context.Context, req *Reques
 // but delivers chunks through the iterator while accumulating them so
 // the tool-calling loop can inspect a complete response when the stream
 // closes.
-func (m *ToolMiddleware) executeStream(ctx context.Context, req *Request, next StreamHandler) iter.Seq2[*Response, error] {
-	return func(yield func(*Response, error) bool) {
-		support := m.newToolSupport(len(req.Tools))
+func (m *Middleware) executeStream(ctx context.Context, req *chat.Request, next chat.StreamHandler) iter.Seq2[*chat.Response, error] {
+	return func(yield func(*chat.Response, error) bool) {
+		support := m.newSupport(len(req.Tools))
 
 		if support.ShouldReturnDirect(req.Messages) {
 			yield(support.BuildReturnDirectResponse(req.Messages))
@@ -223,11 +227,11 @@ func (m *ToolMiddleware) executeStream(ctx context.Context, req *Request, next S
 		// calls (a prior segment interrupted, its conversation fed back) —
 		// execute only the pending calls, no model re-call. See executeCall.
 		if assistant, done, pending := trailingPendingToolCalls(req.Messages); assistant != nil {
-			m.resumeStreamRound(ctx, req, assistant, done, pending, next, support, yield, toolLoopState{iteration: priorModelRounds(req.Messages)})
+			m.resumeStreamRound(ctx, req, assistant, done, pending, next, support, yield, loopState{iteration: priorModelRounds(req.Messages)})
 			return
 		}
 
-		m.executeStreamRecursively(ctx, req, next, support, yield, toolLoopState{iteration: 1})
+		m.executeStreamRecursively(ctx, req, next, support, yield, loopState{iteration: 1})
 	}
 }
 
@@ -241,13 +245,13 @@ func (m *ToolMiddleware) executeStream(ctx context.Context, req *Request, next S
 // the request history. This is the discriminator established in §8.4
 // of MESSAGE_PARTS_DESIGN: each yielded Response has exactly one of
 // Result.AssistantMessage or Result.ToolMessage populated.
-func (m *ToolMiddleware) executeStreamRecursively(ctx context.Context, req *Request, next StreamHandler, support *ToolSupport, yield func(*Response, error) bool, state toolLoopState) {
+func (m *Middleware) executeStreamRecursively(ctx context.Context, req *chat.Request, next chat.StreamHandler, support *Support, yield func(*chat.Response, error) bool, state loopState) {
 	if state.iteration > m.maxIterations {
-		yield(nil, &MaxToolIterationsError{Limit: m.maxIterations})
+		yield(nil, &MaxIterationsError{Limit: m.maxIterations})
 		return
 	}
 
-	accumulator := NewResponseAccumulator()
+	accumulator := chat.NewResponseAccumulator()
 
 	for chunk, err := range next.Stream(ctx, req) {
 		if err != nil {
@@ -287,7 +291,7 @@ func (m *ToolMiddleware) executeStreamRecursively(ctx context.Context, req *Requ
 
 	if result.interrupt != nil {
 		// HITL: a tool call interrupted the round. Propagate a
-		// *ToolLoopInterrupted carrying the resumable conversation so the
+		// *LoopInterrupted carrying the resumable conversation so the
 		// caller can save it, park, and resume. The round's assistant deltas
 		// were already streamed above; on resume the loop re-enters at the
 		// pending tool calls, not the model.
@@ -323,22 +327,37 @@ func (m *ToolMiddleware) executeStreamRecursively(ctx context.Context, req *Requ
 // It returns (nextRequest, true, nil) when the empty-response feedback is
 // enabled, hasn't been spent yet, and the response is genuinely empty;
 // (nil, false, nil) otherwise.
-func (m *ToolMiddleware) maybeNudgeEmpty(req *Request, resp *Response, state toolLoopState) (*Request, bool, error) {
-	if !m.feedbackEmpty || state.emptyRetried || !resp.isEmpty() {
+func (m *Middleware) maybeNudgeEmpty(req *chat.Request, resp *chat.Response, state loopState) (*chat.Request, bool, error) {
+	if !m.feedbackEmpty || state.emptyRetried || !isEmpty(resp) {
 		return nil, false, nil
 	}
-	next, err := req.continueWith(resp.Result.AssistantMessage, NewUserMessage(emptyResponseNudge))
+	next, err := continueRequest(req, resp.Result.AssistantMessage, chat.NewUserMessage(emptyResponseNudge))
 	if err != nil {
 		return nil, false, err
 	}
 	return next, true, nil
 }
 
+// continueRequest assembles a follow-up request carrying the live request's
+// messages plus any extra messages appended, with options / tools / params
+// cloned from the original.
+func continueRequest(req *chat.Request, extra ...chat.Message) (*chat.Request, error) {
+	msgs := append(slices.Clone(req.Messages), extra...)
+	next, err := chat.NewRequest(msgs)
+	if err != nil {
+		return nil, err
+	}
+	next.Options = req.Options.Clone()
+	next.Tools = slices.Clone(req.Tools)
+	next.Params = maps.Clone(req.Params)
+	return next, nil
+}
+
 // isEmpty reports whether resp carries a real assistant turn with
 // neither tool calls nor non-whitespace text. A nil result is treated as
 // "not nudgeable" (there is no assistant message to append), so the loop
 // returns it unchanged.
-func (resp *Response) isEmpty() bool {
+func isEmpty(resp *chat.Response) bool {
 	if resp == nil || resp.Result == nil {
 		return false
 	}
@@ -349,14 +368,14 @@ func (resp *Response) isEmpty() bool {
 	return !am.HasToolCalls() && strings.TrimSpace(am.JoinedText()) == ""
 }
 
-// newToolMessageResponse wraps a [*ToolMessage] in a [*Response] whose
+// newToolMessageResponse wraps a [*chat.ToolMessage] in a [*chat.Response] whose
 // Result.ToolMessage is set and Result.AssistantMessage is nil — the
 // discriminator that distinguishes tool-injection deltas from model
 // output deltas on the stream.
-func newToolMessageResponse(tm *ToolMessage) (*Response, error) {
-	result := &Result{
+func newToolMessageResponse(tm *chat.ToolMessage) (*chat.Response, error) {
+	result := &chat.Result{
 		ToolMessage: tm,
-		Metadata:    &ResultMetadata{FinishReason: FinishReasonStop},
+		Metadata:    &chat.ResultMetadata{FinishReason: chat.FinishReasonStop},
 	}
-	return NewResponse(result, &ResponseMetadata{})
+	return chat.NewResponse(result, &chat.ResponseMetadata{})
 }

@@ -9,6 +9,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 )
 
 // agentTracer is the framework-wide OTel tracer. We deliberately don't
@@ -103,11 +104,11 @@ type ProcessContextConfig struct {
 	ActionToolGroups []ToolGroupRequirement
 
 	// ActionToolLoop carries the currently-executing action's
-	// [chat.ToolLoopConfig] so [ProcessContext.ChatWithActionTools]
+	// [tool.LoopConfig] so [ProcessContext.ChatWithActionTools]
 	// builds the tool middleware with the action's chosen recovery
 	// policies / iteration cap. Refreshed every tick alongside
 	// ActionToolGroups.
-	ActionToolLoop chat.ToolLoopConfig
+	ActionToolLoop tool.LoopConfig
 }
 
 // ProcessContext is the only thing handed to an [Action.Execute] call.
@@ -137,7 +138,7 @@ type ProcessContext struct {
 
 	// --- Per-action state + per-tick scratch. ---
 	actionToolGroups []ToolGroupRequirement
-	actionToolLoop   chat.ToolLoopConfig
+	actionToolLoop   tool.LoopConfig
 
 	// inputAwaited flips when the action calls [AwaitInput]; the
 	// typed-action wrapper reads it to return ActionWaiting. Per-tick
@@ -217,7 +218,7 @@ func (pc *ProcessContext) Chat() *chat.ClientRequest {
 
 // ChatWithActionTools is the "ask the LLM with my action's tools"
 // shortcut: a [chat.ClientRequest] pre-loaded with the action's
-// resolved tools and [chat.NewToolMiddleware]. When the action
+// resolved tools and [tool.NewMiddleware]. When the action
 // declares no ToolGroups, returns the bare client clone (same shape
 // as [Chat]).
 //
@@ -256,7 +257,7 @@ func (pc *ProcessContext) buildChatRequest(tools []AgentTool) *chat.ClientReques
 
 	var mws []any
 	if len(tools) > 0 {
-		callMW, streamMW := chat.NewToolMiddleware(pc.actionToolLoop)
+		callMW, streamMW := tool.NewMiddleware(pc.actionToolLoop)
 		mws = append(mws, callMW, streamMW)
 	}
 	mws = append(mws, pc.guardrails.MiddlewareValues()...)

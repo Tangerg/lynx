@@ -12,7 +12,7 @@ import (
 // PauseError is the sentinel error returned by HITL-decorated tools
 // when the agent process must be suspended to gather user input.
 //
-// The error surfaces through [chat.NewToolMiddleware] as the failure
+// The error surfaces through [tool.NewMiddleware] as the failure
 // from the LLM call (the tool's Call returned an error, so the
 // middleware bails and propagates). Action bodies detect it via
 // errors.As and route the carried [core.Awaitable] into
