@@ -55,8 +55,8 @@ func newAskUserTool() chat.Tool {
 }
 
 // askUserKey is the interrupt key for one ask_user call. Keyed by the
-// arguments so the same question resumes to the same call site across the
-// re-run (mirrors approvalKey).
+// arguments so the recorded answer matches the same call site when the parked
+// question is re-presented on resume (mirrors approvalKey).
 func askUserKey(arguments string) string {
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(askUserToolName))
