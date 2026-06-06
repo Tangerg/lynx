@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/chatmemory/mongodb"
-	chatmem "github.com/Tangerg/lynx/core/model/chat/memory"
+	chatmem "github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 )
 
 func TestStoreConfig_CollectionRequired(t *testing.T) {

@@ -7,7 +7,7 @@ import (
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	neo4jmem "github.com/Tangerg/lynx/chatmemory/neo4j"
-	chatmem "github.com/Tangerg/lynx/core/model/chat/memory"
+	chatmem "github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 )
 
 // stubDriver is a non-nil but never-used DriverWithContext for tests

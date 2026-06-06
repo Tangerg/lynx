@@ -7,7 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Tangerg/lynx/chatmemory/postgres"
-	chatmem "github.com/Tangerg/lynx/core/model/chat/memory"
+	chatmem "github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 )
 
 // stubPool is a sentinel non-nil *pgxpool.Pool used to exercise the

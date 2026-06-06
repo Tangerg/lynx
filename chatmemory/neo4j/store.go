@@ -12,7 +12,7 @@ import (
 	"github.com/Tangerg/lynx/chatmemory/internal/codec"
 	"github.com/Tangerg/lynx/chatmemory/internal/tracing"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/memory"
+	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 )
 
 const Provider = "Neo4jChatMemory"

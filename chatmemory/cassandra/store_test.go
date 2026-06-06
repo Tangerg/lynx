@@ -7,7 +7,7 @@ import (
 	"github.com/gocql/gocql"
 
 	"github.com/Tangerg/lynx/chatmemory/cassandra"
-	chatmem "github.com/Tangerg/lynx/core/model/chat/memory"
+	chatmem "github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 )
 
 func stubSession() *gocql.Session { return new(gocql.Session) }
