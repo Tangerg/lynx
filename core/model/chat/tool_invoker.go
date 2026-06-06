@@ -45,9 +45,17 @@ func (r *ToolInvocationResult) ShouldContinue() bool {
 func (r *ToolInvocationResult) ShouldReturn() bool { return !r.ShouldContinue() }
 
 // BuildContinueRequest assembles the next [*Request] in the tool-calling
-// loop: the original conversation plus the assistant's tool-call message
-// plus the [*ToolMessage] carrying inline results. Returns an error when
-// the result is not actually in "continue" state.
+// loop: the turn's system header plus this round's [*ToolMessage] carrying
+// the inline results. Returns an error when the result is not actually in
+// "continue" state.
+//
+// It deliberately does NOT carry the prior conversation or the assistant
+// tool-call message. The memory middleware sitting below the loop already
+// persisted the assistant reply and owns the stored history; it splices
+// both back in front of this tool message. Re-sending the full
+// conversation here is exactly the coupling that forced the memory layer
+// to de-duplicate — so the loop now hands down only the system header
+// (constant for the turn, never stored) and the new tool result.
 func (r *ToolInvocationResult) BuildContinueRequest() (*Request, error) {
 	if !r.ShouldContinue() {
 		return nil, errors.New("chat.ToolInvocationResult.BuildContinueRequest: result is in return-direct state")
@@ -61,7 +69,7 @@ func (r *ToolInvocationResult) BuildContinueRequest() (*Request, error) {
 		return nil, errors.New("chat.ToolInvocationResult.BuildContinueRequest: response has no tool calls")
 	}
 
-	msgs := append(r.request.Messages, result.AssistantMessage, r.toolMessage)
+	msgs := append(systemMessages(r.request.Messages), r.toolMessage)
 	next, err := NewRequest(msgs)
 	if err != nil {
 		return nil, err

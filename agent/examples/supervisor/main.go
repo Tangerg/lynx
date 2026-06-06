@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/model/chat/memory"
 )
 
 // Domain types
@@ -74,9 +75,15 @@ func main() {
 				researchTool, _ := runtime.AsChatTool[Topic, Sources](platform, "research-agent")
 				summarizeTool, _ := runtime.AsChatTool[Sources, Summary](platform, "summarize-agent")
 
+				// The tool loop carries only each round's new tool message
+				// downstream; an inner memory layer reconstructs the
+				// conversation. Standalone here, so pair with an ephemeral
+				// in-process store scoped to this call.
 				callMW, streamMW := chat.NewToolMiddleware()
+				memCallMW, memStreamMW, _ := memory.NewMiddleware(memory.NewInMemoryStore())
 				req := pc.Chat().
-					WithMiddlewares(callMW, streamMW).
+					WithMiddlewares(callMW, streamMW, memCallMW, memStreamMW).
+					WithParams(map[string]any{memory.ConversationIDKey: "example:supervisor"}).
 					WithTools(researchTool, summarizeTool)
 
 				prompt := fmt.Sprintf(

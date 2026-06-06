@@ -26,6 +26,14 @@ type Session struct {
 	// history flows through without separate plumbing.
 	ID string
 
+	// ParentID links a child session to the one that spawned it. A
+	// sub-agent (e.g. a subtask delegation) runs under its OWN session —
+	// its conversation history is isolated from the parent's — but records
+	// the parent's session id here so the delegation lineage is preserved.
+	// Empty for a root session. The runtime stamps it when spawning a child
+	// process under a parent that has a conversation (see the spawn path).
+	ParentID string
+
 	// UserID identifies the principal driving the conversation.
 	// Optional — present for multi-tenant deployments / audit
 	// trails / RBAC; absent for anonymous / single-user use.

@@ -200,7 +200,7 @@ func (m *ToolMiddleware) executeCallRecursively(ctx context.Context, req *Reques
 		// *ToolLoopInterrupted carrying the resumable conversation (prior
 		// turns + this round's assistant tool-call message + the results
 		// already produced) so the caller can save it, park, and resume.
-		return nil, m.wrapInterrupt(req.Messages, resp.Result.AssistantMessage, result.interrupt.done, result.interrupt.cause)
+		return nil, m.wrapInterrupt(resp.Result.AssistantMessage, result.interrupt.done, result.interrupt.cause)
 	}
 
 	if result.ShouldReturn() {
@@ -301,7 +301,7 @@ func (m *ToolMiddleware) executeStreamRecursively(ctx context.Context, req *Requ
 		// caller can save it, park, and resume. The round's assistant deltas
 		// were already streamed above; on resume the loop re-enters at the
 		// pending tool calls, not the model.
-		yield(nil, m.wrapInterrupt(req.Messages, resp.Result.AssistantMessage, result.interrupt.done, result.interrupt.cause))
+		yield(nil, m.wrapInterrupt(resp.Result.AssistantMessage, result.interrupt.done, result.interrupt.cause))
 		return
 	}
 

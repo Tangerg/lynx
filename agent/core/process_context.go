@@ -221,9 +221,11 @@ func (pc *ProcessContext) Chat() *chat.ClientRequest {
 // declares no ToolGroups, returns the bare client clone (same shape
 // as [Chat]).
 //
-// Platform-level [Guardrails] are layered outside the tool middleware
-// so the guardrails see the user-facing request shape (before the
-// tool loop expands it).
+// Platform-level [Guardrails] (which carry the memory middleware) are
+// layered INSIDE the tool middleware, directly above the model: the tool
+// loop drives the rounds and hands each round's new messages down to the
+// memory layer, which owns conversation load/splice/save. See
+// [ProcessContext.buildChatRequest].
 //
 // Errors when no ChatClient is configured or tool resolution fails.
 func (pc *ProcessContext) ChatWithActionTools(ctx context.Context) (*chat.ClientRequest, error) {
@@ -237,19 +239,27 @@ func (pc *ProcessContext) ChatWithActionTools(ctx context.Context) (*chat.Client
 	return pc.buildChatRequest(tools), nil
 }
 
-// buildChatRequest composes the per-action chat request: guardrails
-// outermost, optional tool middleware innermost. Callers pre-resolve
+// buildChatRequest composes the per-action chat request: the tool
+// middleware OUTERMOST, platform guardrails (which carry the memory
+// middleware) INNERMOST, directly above the model. Callers pre-resolve
 // tools (nil means "no tool middleware"); the rest of the wiring
 // (chatClient existence, session params, middleware order) lives in
 // one place so [Chat] and [ChatWithActionTools] stay aligned.
+//
+// The order matters: the tool loop drives the rounds and hands each
+// round's new messages (the user turn, then each tool result) down to the
+// memory middleware, which loads history, splices it in, and persists. The
+// loop carries only the new tool message downstream — the memory layer is
+// the single owner of the conversation, so the two are fully decoupled.
 func (pc *ProcessContext) buildChatRequest(tools []AgentTool) *chat.ClientRequest {
 	req := pc.chatClient.Chat()
 
-	mws := pc.guardrails.MiddlewareValues()
+	var mws []any
 	if len(tools) > 0 {
 		callMW, streamMW := chat.NewToolMiddleware(pc.actionToolLoop)
 		mws = append(mws, callMW, streamMW)
 	}
+	mws = append(mws, pc.guardrails.MiddlewareValues()...)
 	if len(mws) > 0 {
 		req = req.WithMiddlewares(mws...)
 	}
@@ -266,12 +276,31 @@ func (pc *ProcessContext) buildChatRequest(tools []AgentTool) *chat.ClientReques
 // machinery needs the chat client to see — currently just the
 // chat-memory conversation key. Returns nil when no session is
 // bound so [buildChatRequest] can skip the WithParams call.
+// sessionParams stamps the chat-memory conversation id onto the request so
+// the memory middleware can load / splice / save this turn's conversation.
+//
+// The id is the multi-turn [Session.ID] when the process runs under a
+// session (durable cross-turn history), otherwise the process id. The
+// fallback matters because the tool loop is delta-driven: each round it
+// hands the memory middleware only the new tool message and relies on it to
+// reconstruct the conversation from the store. Without an id the memory
+// middleware would pass through and the loop would lose context across
+// rounds. A child agent (e.g. a subtask delegation) runs without a session,
+// so it gets its OWN process-scoped conversation — isolated from the parent
+// while [Process.ParentID] preserves the lineage link.
 func (pc *ProcessContext) sessionParams() map[string]any {
-	if pc.Options == nil || pc.Options.Session == nil || pc.Options.Session.ID == "" {
+	id := ""
+	if pc.Options != nil && pc.Options.Session != nil {
+		id = pc.Options.Session.ID
+	}
+	if id == "" && pc.Process != nil {
+		id = pc.Process.ID()
+	}
+	if id == "" {
 		return nil
 	}
 	return map[string]any{
-		chatMemoryConversationIDKey: pc.Options.Session.ID,
+		chatMemoryConversationIDKey: id,
 	}
 }
 

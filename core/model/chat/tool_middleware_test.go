@@ -611,8 +611,12 @@ func TestMemory_SequentialMultiRoundTurn_ValidHistory(t *testing.T) {
 	}
 	_, toolStreamMW := chat.NewToolMiddleware()
 
+	// Tool middleware is OUTERMOST, memory INNERMOST (model-adjacent): the
+	// tool loop drives the rounds and hands each round's new messages down
+	// to memory, which loads history, splices, and persists. First in the
+	// slice = outermost.
 	req, _ := chat.NewClientRequest(model)
-	req.WithMiddlewares(memCallMW, memStreamMW, toolStreamMW).
+	req.WithMiddlewares(toolStreamMW, memCallMW, memStreamMW).
 		WithParams(map[string]any{memory.ConversationIDKey: "c1"}).
 		WithSystemPrompt("sys").
 		WithUserPrompt("go").
