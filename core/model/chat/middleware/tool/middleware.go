@@ -147,8 +147,8 @@ func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next ch
 	// calls aren't fully answered (a prior round halted for human input and its
 	// tail was fed back), execute the still-pending calls and continue —
 	// without re-invoking the model for the already-produced assistant.
-	if assistant, done, pending := trailingPendingToolCalls(req.Messages); assistant != nil {
-		return m.resumeCall(ctx, req, assistant, done, pending, next, support, loopState{iteration: priorModelRounds(req.Messages)})
+	if point, ok := parseResumePoint(req.Messages); ok {
+		return m.resumeCall(ctx, req, point, next, support)
 	}
 
 	return m.executeCallRecursively(ctx, req, next, support, loopState{iteration: 1})
@@ -231,8 +231,8 @@ func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next 
 		// HITL resume: continue from the conversation tail's unanswered tool
 		// calls (a prior round halted, its tail fed back) — execute only the
 		// pending calls, no model re-call. See executeCall.
-		if assistant, done, pending := trailingPendingToolCalls(req.Messages); assistant != nil {
-			m.resumeStream(ctx, req, assistant, done, pending, next, support, yield, loopState{iteration: priorModelRounds(req.Messages)})
+		if point, ok := parseResumePoint(req.Messages); ok {
+			m.resumeStream(ctx, req, point, next, support, yield)
 			return
 		}
 
@@ -303,8 +303,7 @@ func (m *middleware) executeStreamRecursively(ctx context.Context, req *chat.Req
 		// calls — the model is not re-invoked for this round.
 		if interruptResp, e := buildInterruptResponse(resp.Result.AssistantMessage, result.interrupt.done); e != nil {
 			yield(nil, e)
-		} else {
-			yield(interruptResp, nil)
+		} else if yield(interruptResp, nil) {
 			yield(nil, result.interrupt.cause)
 		}
 		return
