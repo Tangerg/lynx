@@ -40,6 +40,9 @@ export interface ToolCall {
    *  e.g. grep "no match"). Real failures set the toolCall Item's `error`. */
   exitCode?: number;
   result?: string;
+  /** commandExecution: the runtime capped `result` (stdout+stderr) at a size
+   *  limit. UI shows a "truncated — open in terminal for full" affordance. */
+  outputTruncated?: boolean;
   /** Human-readable failure reason from the toolCall Item's `error`
    *  (ProblemData.detail ?? type, API.md §8.1 channel b). Set when status="err". */
   error?: string;

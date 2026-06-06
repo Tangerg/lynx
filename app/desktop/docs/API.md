@@ -236,6 +236,8 @@ interface RunRef {
   parentRunId?: string;                // continuation-of：本 Run 是 resume/edit 的延续
   status?: "running" | "finished";
   outcome?: RunOutcome;                // status=finished 时给
+  model?: string;                      // 本 Run 用的 model（Model.id）
+  mode?: "agent" | "chat" | "plan";    // 本 Run 的模式
   createdAt?: string;
   finishedAt?: string;
 }
@@ -257,6 +259,8 @@ interface RunResult {
 ```
 
 > `spawnedByItemId`（子）与 `parentRunId`（延续）是**两种不同关系，永不互相复用**。
+> `model` / `mode` 落在 RunRef 上：`runs.subscribe` 重连或 `items.list.runs` 历史还原**没见过原始 `runs.start` 请求**时，
+> 仍能据此标注"这条 Run 用的哪个模型 / 什么模式"。
 
 ### 4.3 Item
 
@@ -328,7 +332,7 @@ interface QuestionOption {
 ```ts
 type ToolInvocation =
   // 特殊：闭集 + 结构丰富 → 强类型（kind 即身份，无 name）
-  | { kind: "commandExecution"; command: string[]; cwd?: string; exitCode?: number; durationMs?: number }
+  | { kind: "commandExecution"; command: string[]; cwd?: string; exitCode?: number; durationMs?: number; output?: string; outputTruncated?: boolean }
   | { kind: "fileChange";       changes: FileChangeEntry[] }
   | { kind: "search";           query: string; results?: SearchHit[] }         // 本地：grep / glob
   | { kind: "webSearch";        query: string; results?: WebSearchResult[] }    // 网络检索
@@ -342,8 +346,13 @@ interface FileChangeEntry {
 }
 ```
 
-- **`commandExecution`**：`command` 是 **argv 数组**（无 shell 引号歧义）；stdout/stderr 走 `item.delta{ type:"toolOutput", text }`
-  流式累积预览，`exitCode` / `durationMs` 在 `item.completed` 落定。无独立 `output` 字段。
+- **`commandExecution`**：`command` 是 **argv 数组**（无 shell 引号歧义）。`exitCode` / `durationMs` / **`output`** 是**结算字段**——
+  在 `item.completed` 的 toolCall 上**必发**（durable，权威终态），在 `item.started` 壳上不存在（生命周期，非"可选契约"）。`output` 是
+  合并后的 stdout+stderr 全文（实时交错；命令无输出则为 `""`）。`item.delta{ type:"toolOutput", text }` 仅是它的**流式预览**
+  （`durable=false`，可丢）：丢掉每个 toolOutput delta，客户端仍必从 completed 的 `output` 得到正确终态（§5.2）；不流式的 runtime
+  可不发任何 delta，但 completed 的 `output` 一样必发。**与其它工具（search 的 `results`、fileChange 的 `diff`、通用 `tool` 的 `result`
+  均在 completed 权威落定）是同一条不变量** —— 详见 `docs/TOOL_OUTPUT.md`。`output` 超限时 runtime 截断并置 `outputTruncated:true`
+  （delta 与 `output` 同步截到同一边界），客户端据此提示"已截断，完整见终端"。
 - **`fileChange`**：多文件改动列表，每项带 `path` / `kind`（增改删移）/ `diff`。
 - **`search`（本地）**：grep / glob 一族。`query` 是模式（展示用），`results` 是 `SearchHit[]`（§4.5——grep = `path`+`lineNumber`+
   `snippet`，glob = 仅 `path`）。
@@ -446,7 +455,8 @@ interface GenerationParams { temperature?: number; maxTokens?: number; topP?: nu
 ```ts
 // 通用（itemId）+ 特殊（按 kind 的 payload）。approval / toolResult 复用 ToolInvocation（§4.4）——
 // 客户端读 payload.tool 即可，不再猜 command 在哪 / 处理字符串转义。question 的内容在 question Item 上（item.question），
-// 故不带冗余 payload。
+// 故不带冗余 payload；重启后渲染待答问题：用 OpenInterrupt.interrupts[].itemId join `items.list` 取回那个 question Item
+// 的 `question` 字段（§10.2 流程本就会拉 items.list，无额外往返）。
 type Interrupt =
   | { kind: "approval";   itemId: string; payload: ApprovalPayload }
   | { kind: "question";   itemId: string }                          // 内容见 question Item，无 payload
@@ -527,6 +537,7 @@ interface RunEvent {
 
 type StreamEvent =
   | { type: "run.started";    run: RunRef }
+  | { type: "run.progress";   progress: RunProgress }            // mid-run 进度预览（ephemeral）
   | { type: "run.finished";   outcome: RunOutcome }
   | { type: "item.started";   item: Item }                       // item 壳（status=inProgress）
   | { type: "item.delta";     itemId: string; delta: ItemDelta }
@@ -535,11 +546,22 @@ type StreamEvent =
   | { type: "state.delta";    patch: JsonPatch }
   | { type: "custom";         name: string; payload: unknown }; // 第三方 name 遵 §2.5
 
+// mid-run 进度预览：run 流式期间的 step/usage/cost 实时读数。与 item.delta 同档
+// ephemeral——丢掉每个 run.progress 仍能从 run.finished.result 得到正确总量（权威落点，
+// §5.2），故 durable 不变量成立。可经 optOutNotificationMethods 抑制。
+interface RunProgress {
+  step?: number;          // 已走的 agent 步数
+  maxSteps?: number;      // 上限（run 起时设了才有）
+  usage?: Usage;          // 至此累计用量
+  costUsd?: number;       // 至此累计成本
+  activity?: string;      // 人读的当前动作（"calling tool: bash"）
+}
+
 type JsonPatch = Array<{ op: "add"|"remove"|"replace"|"move"|"copy"|"test"; path: string; value?: unknown; from?: string }>;
 ```
 
-事件 `durable` 取值：`run.*` / `item.started` / `item.completed` / `state.snapshot` = **true**；
-`item.delta` / `state.delta` = **false**；`custom` 由产出方标注。
+事件 `durable` 取值：`run.started` / `run.finished` / `item.started` / `item.completed` / `state.snapshot` = **true**；
+`run.progress` / `item.delta` / `state.delta` = **false**（ephemeral，终值另有 durable 落点）；`custom` 由产出方标注。
 
 ### 5.1 ItemDelta
 
@@ -555,6 +577,10 @@ type ItemDelta =
 > **`toolArguments` 是文本增量**：流式工具入参是逐片到达的不完整 JSON 文本，无法在中途构成合法对象；客户端累积
 > `argumentsTextDelta`、用 `untruncate-json` 修复成可解析片段做预览；**已解析结构化字段只在 completed `toolCall` item**
 > 落定（§4.4——通用 `tool` 的 `arguments`、`commandExecution` 的 `command`、`search`/`webSearch` 的 `results` 等）。
+>
+> **`toolArguments` / `toolOutput` 都是预览通道**：二者皆 `durable=false`，其权威终值都在 completed item 上
+> （`toolArguments`→已解析的入参字段，`toolOutput`→`commandExecution.output`）。客户端**不可**把流式累积当作终态来源——
+> 那会在历史回放 / 重连 / 后端整发（无 delta）时丢内容。见 §5.2 与 `docs/TOOL_OUTPUT.md`。
 
 ### 5.2 Durable / Ephemeral 不变量（协议级保证）
 
@@ -564,7 +590,21 @@ type ItemDelta =
 
 - 每个 item 的最终态必然出现在后续 `item.completed`；
 - 被 `state.delta` 影响的每个共享状态最终值必然出现在后续 `state.snapshot`；
+- run 的进度终值必然出现在 `run.finished.result`；
 - 客户端可 opt out 高频 delta 而仍保持正确（§9 `optOutNotificationMethods`）。
+
+**权威落点校验表（硬规则）**：每个 ephemeral 事件**必须**在某个 durable 落点上有命名终值。新增一个无落点的
+ephemeral 事件 / delta 类型 = **协议违规**（它会在历史回放 / 重连 / opt-out / 后端整发时丢内容，§10）。
+
+| ephemeral（durable=false） | 权威 durable 落点 |
+| --- | --- |
+| `item.delta{content}` | `agentMessage.content`（completed，§4.3） |
+| `item.delta{reasoning}` | `reasoning.text`（completed） |
+| `item.delta{toolArguments}` | 解析后的 `tool.arguments` / `commandExecution.command`（completed，§4.4） |
+| `item.delta{toolOutput}` | `commandExecution.output`（completed，§4.4） |
+| `item.delta{plan}` | `plan.steps`（completed） |
+| `state.delta` | `state.snapshot`（§5.3 必发边界） |
+| `run.progress` | `run.finished.result`（usage / steps / costUsd） |
 
 ### 5.3 state.snapshot 必发边界
 
@@ -771,10 +811,10 @@ server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` 
   | 字段 | 类型 | 必填 | 说明 |
   | --- | --- | --- | --- |
   | `parentRunId` | string | 是 | 被中断的 Run（其 outcome.type=interrupt） |
-  | `responses` | `InterruptResponse[]`（§6.1） | 是 | 对每个 open interrupt 的应答（按 itemId 寻址） |
+  | `responses` | `InterruptResponse[]`（§6.1） | 是 | 按 itemId 寻址。**必须恰好覆盖 parentRun 的全部 open interrupt**——缺漏（仍有未应答的 interrupt）或含未知/已 resolve 的 itemId → 报错 |
 
 - 返回 `{ runId: string }`（新 runId，其 `RunRef.parentRunId` = `parentRunId`）+ 流式 `RunEvent`。
-- 错误：`run_not_found` / `interrupt_not_open`（interrupt 缺失或已 resolve）/ `invalid_params`。
+- 错误：`run_not_found` / `interrupt_not_open`（含未知 / 已 resolve 的 itemId）/ `invalid_params`（`responses` 未覆盖全部 open interrupt——避免留下半应答的卡死 run）。
 
 - **示例**（批准一个 toolCall interrupt）：
   ```json
@@ -792,7 +832,7 @@ server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` 
 #### `runs.cancel`
 硬终止一个在跑的 run。
 
-- 入参 `{ runId: string; reason?: string }`；返回无。run 以 `outcome:canceled` 收尾。错误：`run_not_found` / `run_not_running`。
+- 入参 `{ runId: string; reason?: string }`；返回无。run 以 `outcome:canceled` 收尾。错误：`run_not_found`（不存在）/ `run_already_finished`（已收尾——run 是二态 running|finished，interrupt outcome 亦属 finished）。
 
 #### `runs.list`
 - 入参 `{ sessionId?: string }`；返回 `RunRef[]` —— **仅在跑的 run**。已结束/被中断的 run 经 `listOpenInterrupts` 或
@@ -809,12 +849,12 @@ server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` 
 会话历史 = completed Item 序列 + 还原 run 树所需的 RunRef。
 
 - 入参 `{ sessionId: string; cursor?: string; limit?: number }`。
-- 返回 `ListItemsResponse`：
+- 返回 `ListItemsResponse = Page<Item> & { runs }`（复用 §4.11 `Page<T>` 的 `data` 字段，全协议分页统一读 `resp.data`，无 `data`/`items` 漂移）：
 
   | 字段 | 类型 | 说明 |
   | --- | --- | --- |
-  | `items` | `Item[]` | 平铺（避免 `resp.items.data`） |
-  | `nextCursor` | string? | 分页游标 |
+  | `data` | `Item[]` | 本页 item（`Page<Item>.data`） |
+  | `nextCursor` | string? | 分页游标（`Page<Item>`） |
   | `runs` | `RunRef[]` | 这些 item 所属 Run（含已完成/在跑），带 `parentRunId`/`spawnedByItemId`，供 join 还原 Run 树（§10.3） |
 
 - 错误：`session_not_found`。
@@ -942,8 +982,7 @@ server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` 
 | `-32004` | `item_not_found` | item 不存在 |
 | `-32005` | `cwd_unavailable` | 工作目录缺失或不可读 |
 | `-32006` | `capability_not_negotiated` | 方法或能力被关闭 |
-| `-32007` | `run_not_running` | 操作需要一个在跑的 run |
-| `-32008` | `run_already_finished` | 操作不能作用于已结束 run |
+| `-32008` | `run_already_finished` | 操作不能作用于已结束 run（run 二态 running\|finished；故无单独 "not running" 码） |
 | `-32009` | `checkpoint_unavailable` | 编辑 / checkpoint 不可用 |
 | `-32010` | `attachment_too_large` | 附件超限 |
 | `-32011` | `unsupported_mime` | 附件 MIME 不支持 |
@@ -994,7 +1033,7 @@ interface ServerCapabilities {
     attachments: { enabled: boolean; maxSizeBytes?: number; mimeTypes?: string[] };
   };
   providers: string[];
-  limits: { maxConcurrentRuns?: number; maxItemsPerSession?: number };
+  limits: { maxConcurrentRuns?: number };
 }
 
 interface ClientCapabilities {

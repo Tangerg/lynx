@@ -18,6 +18,7 @@ import type {
   ItemDelta,
   OpenInterrupt,
   RunOutcome,
+  RunProgress,
   RunRef,
   StreamEvent,
   ToolInvocation,
@@ -79,6 +80,25 @@ function onRunStarted(state: AgentViewState, run: RunRef): AgentViewState {
     run: { ...state.run, running: true, runId: run.id, sessionId: run.sessionId },
   };
   return appendTimelineEntry({ kind: "run-start", runId: run.id })(next);
+}
+
+// Live progress preview (ephemeral). Mirrors the run.finished mapping but only
+// patches the fields the event carries — the authoritative totals still settle
+// on run.finished (§5.2). Subagent progress (no way to tell here) harmlessly
+// updates the same readout.
+function onRunProgress(state: AgentViewState, progress: RunProgress): AgentViewState {
+  const usage = progress.usage;
+  const tokensUsed =
+    usage !== undefined ? (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0) : undefined;
+  return patchRun({
+    ...(progress.step !== undefined ? { step: progress.step } : {}),
+    ...(progress.maxSteps !== undefined ? { totalSteps: progress.maxSteps } : {}),
+    ...(progress.activity !== undefined ? { activity: progress.activity } : {}),
+    ...(tokensUsed !== undefined
+      ? { tokens: { used: String(tokensUsed), total: state.run.tokens.total } }
+      : {}),
+    ...(progress.costUsd !== undefined ? { cost: progress.costUsd.toFixed(2) } : {}),
+  })(state);
 }
 
 function materializeInterrupt(
@@ -292,6 +312,7 @@ function bind<T extends StreamEvent["type"]>(
 
 export const HANDLERS: ReadonlyArray<[string, StreamEventHandler]> = [
   bind("run.started", (s, ev) => onRunStarted(s, ev.run)),
+  bind("run.progress", (s, ev) => onRunProgress(s, ev.progress)),
   bind("run.finished", (s, ev) => onRunFinished(s, ev.outcome)),
   bind("item.started", (s, ev) => onItemStarted(s, ev.item)),
   bind("item.delta", (s, ev) => onItemDelta(s, ev.itemId, ev.delta)),

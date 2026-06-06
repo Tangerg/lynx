@@ -132,9 +132,20 @@ export function toolFields(tool: ToolInvocation | undefined): Partial<ToolCall> 
   if (!tool) return {};
   switch (tool.kind) {
     case "commandExecution":
-      // stdout streams via item.delta{toolOutput} and accumulates into the
-      // view `result`; surface the exit code (shown when non-zero).
-      return { exitCode: tool.exitCode };
+      // The authoritative merged stdout+stderr lands on `tool.output` at
+      // item.completed (durable) — surface it as `result` so history replay
+      // (items.list → completed only, no deltas), reconnect, and non-streaming
+      // runtimes all render it (API.md §5.2, docs/TOOL_OUTPUT.md). The
+      // item.delta{toolOutput} stream is only a live preview that accumulates
+      // into `result` while inProgress. `output` is absent ONLY on the started
+      // shell (lifecycle) — omit the key there so the preview stands until the
+      // completed Item reconciles it (mirrors how `args` settles on completed).
+      return {
+        exitCode: tool.exitCode,
+        ...(tool.output !== undefined
+          ? { result: tool.output, outputTruncated: tool.outputTruncated }
+          : {}),
+      };
     case "fileChange": {
       const rows = (tool.changes ?? []).flatMap((c) => c.diff ?? []);
       return {
