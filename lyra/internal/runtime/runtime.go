@@ -31,6 +31,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	chatmem "github.com/Tangerg/lynx/core/model/chat/memory"
 
+	"github.com/Tangerg/lynx/lyra/internal/config"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
 	chatsvc "github.com/Tangerg/lynx/lyra/internal/service/chat"
@@ -237,6 +238,31 @@ func (r *Runtime) MCPServerNames() []string { return r.mcpServerNames }
 // providers + credentials that providers.list / configure / test operate on.
 // Always non-nil.
 func (r *Runtime) Providers() provider.Service { return r.providers }
+
+// ProbeProvider validates a provider's credentials by building its
+// default-model client and issuing one minimal (max_tokens=1) request — the
+// cheapest call that proves the key + endpoint work. Backs providers.test.
+// Lives here, not in the protocol layer, because the runtime owns client
+// construction. Returns the provider error verbatim so the caller can surface
+// it inline.
+func (r *Runtime) ProbeProvider(ctx context.Context, entry provider.Provider) error {
+	client, _, err := config.BuildClient(config.ClientSpec{
+		Provider: config.Provider(entry.ID),
+		Model:    config.DefaultModel(config.Provider(entry.ID)),
+		APIKey:   entry.APIKey,
+		BaseURL:  entry.BaseURL,
+	})
+	if err != nil {
+		return err
+	}
+	maxTokens := int64(1)
+	_, err = client.Chat().
+		WithOptions(&chat.Options{MaxTokens: &maxTokens}).
+		WithUserPrompt("ping").
+		Call().
+		Response(ctx)
+	return err
+}
 
 // DefaultModel is the model a turn runs against when it doesn't pick one
 // (the configured Config.Model seed). The session layer uses it to fill
