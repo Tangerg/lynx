@@ -16,7 +16,7 @@ import (
 // reads (listFileChanges / getDiff / getFileHead / grep / mcp.reconnect)
 // stay notImpl until the engine grows the corresponding probe.
 
-func (i *Server) WorkspaceListFileChanges(_ context.Context, _ protocol.WorkspaceQuery) ([]protocol.FileChange, error) {
+func (i *Server) WorkspaceListFileChanges(_ context.Context, _ protocol.WorkspaceQuery) ([]protocol.WorkspaceFileChange, error) {
 	return nil, notImpl("workspace.listFileChanges")
 }
 

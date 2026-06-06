@@ -185,11 +185,12 @@ func TestTranslator_ResumedQuestionCompletes(t *testing.T) {
 	}
 }
 
-// TestTranslator_CommandOutputOnCompleted is the TOOL_OUTPUT.md regression: a
-// completed commandExecution MUST carry the authoritative `output` (merged
-// stdout+stderr) on the item itself — not only as a toolOutput delta preview.
+// TestTranslator_CommandOutputOnCompleted is the §5.2 regression: a completed
+// command tool MUST carry the authoritative output (merged stdout+stderr) on
+// the item's tool.result.output — not only as a toolOutput delta preview.
 // Without it, history replay / reconnect (no deltas) render "(no output)"
-// even though the model saw the output (API.md §4.4 / §5.2).
+// even though the model saw the output (API.md §4.4.2 / §5.2). The domain-
+// neutral envelope carries name + arguments + a best-effort JSON result.
 func TestTranslator_CommandOutputOnCompleted(t *testing.T) {
 	tr := newTranslator("ses_1", "run_1", "", nil, nil)
 	tr.translate(chat.ToolCallStart{CallID: "c1", ToolName: "bash", Arguments: `{"command":"echo hi"}`})
@@ -207,26 +208,28 @@ func TestTranslator_CommandOutputOnCompleted(t *testing.T) {
 	if completed == nil || completed.Tool == nil {
 		t.Fatalf("no completed toolCall item: %+v", out)
 	}
-	if completed.Tool.Kind != protocol.ToolKindCommandExecution {
-		t.Fatalf("kind = %s, want commandExecution", completed.Tool.Kind)
+	if completed.Tool.Name != "bash" {
+		t.Fatalf("tool name = %q, want bash (name is the sole identity, §4.4)", completed.Tool.Name)
 	}
-	if completed.Tool.Output == nil {
-		t.Fatal("commandExecution.output is nil on completed item — must be present (authoritative terminal value)")
+	res, ok := completed.Tool.Result.(commandResult)
+	if !ok {
+		t.Fatalf("result = %T, want commandResult {exitCode,output,…} (§4.4.2)", completed.Tool.Result)
 	}
-	if got := *completed.Tool.Output; got != "hi\n\noops" {
-		t.Fatalf("output = %q, want merged stdout+stderr %q", got, "hi\n\noops")
+	if got := res.Output; got != "hi\n\noops" {
+		t.Fatalf("result.output = %q, want merged stdout+stderr %q", got, "hi\n\noops")
 	}
 
-	// A command with no output still carries output:"" (present, not omitted) so
-	// the client renders an empty terminal rather than falling back to a stale
-	// preview / "(no output)".
+	// A command with no output still carries result.output:"" (present, not
+	// omitted) so the client renders an empty terminal rather than falling back
+	// to a stale preview / "(no output)".
 	tr2 := newTranslator("ses_1", "run_2", "", nil, nil)
 	tr2.translate(chat.ToolCallStart{CallID: "c2", ToolName: "bash", Arguments: `{"command":"true"}`})
 	out2 := tr2.translate(chat.ToolCallEnd{CallID: "c2", Output: `{"stdout":"","stderr":"","exit_code":0,"duration":"1ms"}`})
 	for _, se := range out2 {
 		if se.Type == protocol.StreamItemCompleted {
-			if se.Item.Tool.Output == nil || *se.Item.Tool.Output != "" {
-				t.Fatalf("empty-output command: output = %v, want non-nil \"\"", se.Item.Tool.Output)
+			res, ok := se.Item.Tool.Result.(commandResult)
+			if !ok || res.Output != "" {
+				t.Fatalf("empty-output command: result = %#v, want commandResult with output \"\"", se.Item.Tool.Result)
 			}
 		}
 	}

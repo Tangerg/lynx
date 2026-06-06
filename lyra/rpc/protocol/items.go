@@ -137,72 +137,40 @@ type QuestionOption struct {
 	Preview     string `json:"preview,omitempty"`
 }
 
-// ToolInvocationKind discriminates the ToolInvocation union (API.md §4.4).
-// Strongly-typed closed-set variants (kind IS the identity, no redundant
-// name) + one generic envelope for the open set.
-type ToolInvocationKind string
-
-const (
-	ToolKindCommandExecution ToolInvocationKind = "commandExecution" // bash → argv + exit/duration
-	ToolKindFileChange       ToolInvocationKind = "fileChange"       // write / edit → changed files
-	ToolKindSearch           ToolInvocationKind = "search"           // local grep / glob → SearchResult hits
-	ToolKindWebSearch        ToolInvocationKind = "webSearch"        // web search → SearchResult web hits
-	ToolKindTool             ToolInvocationKind = "tool"             // generic: MCP / read / fetch / subagent / custom
-)
-
-// ToolInvocation is a tag-discriminated union (API.md §4.4): closed-set
-// strongly-typed variants carry their fields directly; the open set rides
-// the generic `tool` envelope (name + parsed arguments object + best-effort
-// JSON result). No variant carries both a kind-implied field set AND a
-// redundant name. Completed-item fields (exitCode / results / result) land
-// at item.completed; streaming partial args arrive via
-// ItemDelta.argumentsTextDelta and command stdout via ItemDelta.text
-// (toolOutput) — API.md §5.1.
+// ToolInvocation is the domain-neutral tool envelope (API.md §4.4). The
+// core knows exactly ONE tool shape — not a union: Name is identity,
+// Arguments is the parsed JSON object, Result is best-effort JSON output.
+// "How a given tool is richly rendered" is domain knowledge that lives in
+// the client's display registry keyed by Name (§4.4.2), never on the wire —
+// so adding a tool costs zero protocol change (protocol-level OCP).
 //
-//	commandExecution → Command (argv), Cwd?, ExitCode?, DurationMs?, Output?, OutputTruncated?
-//	fileChange       → Changes[]
-//	search           → Query, Results[] (path / lineNumber / snippet)
-//	webSearch        → Query, Results[] (title / url / snippet / faviconUrl)
-//	tool             → Name, Arguments (object), Result? (JSON)
+// Hard constraints (§4.4.1):
+//   - Arguments is ALWAYS a JSON object, never a JSON string (no double
+//     escaping). Streaming partial args arrive via ItemDelta.argumentsTextDelta
+//     and are unmarshaled into Arguments at item.completed / the approval
+//     payload (§4.8).
+//   - Result is best-effort JSON, NEVER double-encoded; absent on
+//     item.started, authoritative on item.completed (durable, §5.2). The
+//     command-output preview rides ItemDelta.toolOutput, whose terminal value
+//     is result.output (§5.2) — clients must not treat the streamed
+//     accumulation as the source of truth.
+//   - Tool-level failure does NOT go in Result — it rides the toolCall
+//     Item's Error + status:"incomplete" (§4.3 / §8).
 type ToolInvocation struct {
-	Kind ToolInvocationKind `json:"kind"`
-
-	// commandExecution. Output is the settled stdout+stderr (merged, full
-	// text; "" when the command produced none) — a *string so the started
-	// shell omits it (nil) while a completed item always carries it, even
-	// empty (&"" marshals to "output":""). It is the AUTHORITATIVE terminal
-	// value (durable); the toolOutput ItemDelta is only its streaming preview
-	// (API.md §4.4 / §5.2, TOOL_OUTPUT.md). OutputTruncated is set when the
-	// runtime capped Output (and the preview) at a size limit.
-	Command         []string `json:"command,omitempty"`
-	Cwd             string   `json:"cwd,omitempty"`
-	ExitCode        *int     `json:"exitCode,omitempty"`
-	DurationMs      *int64   `json:"durationMs,omitempty"`
-	Output          *string  `json:"output,omitempty"`
-	OutputTruncated bool     `json:"outputTruncated,omitempty"`
-
-	// fileChange
-	Changes []FileChangeEntry `json:"changes,omitempty"`
-
-	// search / webSearch (one Results field; omitempty yields each variant's
-	// shape — SearchHit{path,lineNumber,snippet} vs WebSearchResult{title,url,
-	// snippet,faviconUrl} — without a tag collision)
-	Query   string         `json:"query,omitempty"`
-	Results []SearchResult `json:"results,omitempty"`
-
-	// tool (generic)
-	Name      string         `json:"name,omitempty"`
-	Arguments map[string]any `json:"arguments,omitempty"`
-	Result    any            `json:"result,omitempty"`
+	Name      string         `json:"name"`             // tool identity (stable); MCP uses "<server>.<tool>"
+	Arguments map[string]any `json:"arguments"`        // parsed JSON object (always present; never a JSON string)
+	Result    any            `json:"result,omitempty"` // best-effort JSON; absent on item.started, authoritative on item.completed
 }
 
-// FileChangeEntry is one changed file in a fileChange invocation (API.md
-// §4.4). Diff is optional (progressive enhancement; omitted when the tool
-// doesn't surface structured diff rows).
-type FileChangeEntry struct {
-	Path string    `json:"path"`
-	Kind string    `json:"kind"` // add | modify | delete | rename
-	Diff []DiffRow `json:"diff,omitempty"`
+// FileEdit is the applied result of one edit (API.md §4.5) — used in an
+// edit/write tool's result {changes} (§4.4.2). status is past-tense (the
+// post-change state); Diff is optional. No "untracked" (that's a VCS scan
+// state only — see WorkspaceFileChange). Shares the FileEdit/WorkspaceFileChange
+// status vocabulary deliberately (§4.5).
+type FileEdit struct {
+	Path   string    `json:"path"`
+	Status string    `json:"status"` // "added" | "modified" | "deleted" | "renamed"
+	Diff   []DiffRow `json:"diff,omitempty"`
 }
 
 // DiffRow is one structured row of a unified diff (API.md §4.5). Code
@@ -220,19 +188,24 @@ type DiffRow struct {
 	Code      string `json:"code,omitempty"`
 }
 
-// SearchResult is one hit for a search / webSearch invocation (API.md §4.5).
-// One struct covers both wire shapes: a local SearchHit populates
-// Path/LineNumber/Snippet; a WebSearchResult populates Title/URL/Snippet/
-// FaviconURL. omitempty drops the irrelevant half so the wire matches the
-// contract's two distinct types without a Go tag collision.
-type SearchResult struct {
-	// local search hit (grep / glob)
-	Path       string `json:"path,omitempty"`
+// SearchHit is one LOCAL search hit (API.md §4.5) — used in a grep/glob
+// tool's result {hits} (§4.4.2): grep = path+lineNumber+snippet, glob = path
+// only. Distinct type from WebSearchResult: local (file+line) and web
+// (url+title) are two mutually-exclusive shapes, never merged into one loose
+// struct (which would let a result carry both path and url — an illegal but
+// representable state).
+type SearchHit struct {
+	Path       string `json:"path"`
 	LineNumber int    `json:"lineNumber,omitempty"`
 	Snippet    string `json:"snippet,omitempty"`
-	// web search result
+}
+
+// WebSearchResult is one web-search result (API.md §4.5) — used in a
+// webSearch tool's result {results} (§4.4.2).
+type WebSearchResult struct {
 	Title      string `json:"title,omitempty"`
-	URL        string `json:"url,omitempty"`
+	URL        string `json:"url"`
+	Snippet    string `json:"snippet,omitempty"`
 	FaviconURL string `json:"faviconUrl,omitempty"`
 }
 
