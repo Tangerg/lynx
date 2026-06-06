@@ -63,13 +63,6 @@ type ToolReturn struct {
 
 	// Result is the tool's textual output.
 	Result string `json:"result"`
-
-	// Artifact is an optional typed value a tool can attach alongside its
-	// textual Result (see [ArtifactTool]). It is NEVER sent to the model or
-	// serialized into chat history (json:"-") — it rides the tool message
-	// for non-LLM consumers (e.g. an agent action sinking it onto the
-	// blackboard). Nil for ordinary tools.
-	Artifact any `json:"-"`
 }
 
 // MessageParams is the universal constructor input — the message-type

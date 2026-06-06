@@ -70,34 +70,6 @@ type Tool interface {
 	Call(ctx context.Context, arguments string) (string, error)
 }
 
-// ToolResult is the richer return of an [ArtifactTool]: the Content string
-// is fed to the LLM exactly like [Tool.Call]'s result, while Artifact is an
-// optional typed value carried out-of-band for non-LLM consumers (sinked
-// onto the tool message, never shown to the model). Use it for tools that
-// produce a binary or structured artifact — an image, a parsed document, a
-// domain object — alongside a textual summary.
-type ToolResult struct {
-	// Content is the LLM-visible text (same role as [Tool.Call]'s string).
-	Content string
-
-	// Artifact is the out-of-band typed value, or nil. It lands on the
-	// resulting [ToolReturn.Artifact].
-	Artifact any
-}
-
-// ArtifactTool is an optional capability a [Tool] may also implement to
-// return a typed artifact alongside its text. The tool-calling machinery
-// detects it via type assertion (no change to the base [Tool] contract):
-// when present, [ArtifactTool.CallArtifact] is used instead of
-// [Tool.Call], and the artifact is attached to [ToolReturn.Artifact].
-type ArtifactTool interface {
-	Tool
-
-	// CallArtifact runs the tool, returning the LLM-visible content plus an
-	// optional artifact.
-	CallArtifact(ctx context.Context, arguments string) (ToolResult, error)
-}
-
 // tool is the concrete backing for tools built via [NewTool].
 type tool struct {
 	definition ToolDefinition
@@ -141,50 +113,6 @@ func NewTool(definition ToolDefinition, metadata ToolMetadata, execFunc func(ctx
 	}
 
 	return &tool{
-		definition: definition,
-		metadata:   metadata,
-		execFunc:   execFunc,
-	}, nil
-}
-
-// artifactTool is the concrete backing for [NewArtifactTool].
-type artifactTool struct {
-	definition ToolDefinition
-	metadata   ToolMetadata
-	execFunc   func(ctx context.Context, arguments string) (ToolResult, error)
-}
-
-func (t *artifactTool) Definition() ToolDefinition { return t.definition }
-func (t *artifactTool) Metadata() ToolMetadata     { return t.metadata }
-
-// Call satisfies [Tool] by returning only the text content, so an
-// artifactTool works anywhere a plain Tool is expected.
-func (t *artifactTool) Call(ctx context.Context, arguments string) (string, error) {
-	res, err := t.execFunc(ctx, arguments)
-	return res.Content, err
-}
-
-// CallArtifact satisfies [ArtifactTool], returning content + artifact.
-func (t *artifactTool) CallArtifact(ctx context.Context, arguments string) (ToolResult, error) {
-	return t.execFunc(ctx, arguments)
-}
-
-// NewArtifactTool builds an [ArtifactTool] — a tool that returns a typed
-// artifact alongside its LLM-visible text. Same required components as
-// [NewTool]. The artifact lands on [ToolReturn.Artifact] and is never sent
-// to the model.
-func NewArtifactTool(definition ToolDefinition, metadata ToolMetadata, execFunc func(ctx context.Context, arguments string) (ToolResult, error)) (ArtifactTool, error) {
-	if definition.Name == "" {
-		return nil, errors.New("chat.NewArtifactTool: definition.Name must not be empty")
-	}
-	if definition.InputSchema == "" {
-		return nil, errors.New("chat.NewArtifactTool: definition.InputSchema must not be empty")
-	}
-	if execFunc == nil {
-		return nil, errors.New("chat.NewArtifactTool: execFunc must not be nil")
-	}
-
-	return &artifactTool{
 		definition: definition,
 		metadata:   metadata,
 		execFunc:   execFunc,
