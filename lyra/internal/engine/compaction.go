@@ -99,6 +99,25 @@ func (c *compactor) maybeCompact(ctx context.Context, sessionID string) (Compact
 
 	before := len(msgs)
 	cutoff := len(msgs) - c.keepRecent
+
+	// Advance cutoff to the next UserMessage boundary so that `recent`
+	// never starts mid-turn. Without this, the split can leave a
+	// ToolMessage at the head of `recent` whose preceding AssistantMessage
+	// (with tool_calls) ended up in `older` — producing an invalid
+	// conversation where a tool result has no preceding tool_call, which
+	// DeepSeek (and other strict providers) reject with 400.
+	for cutoff < len(msgs) {
+		if _, ok := msgs[cutoff].(*chat.UserMessage); ok {
+			break
+		}
+		cutoff++
+	}
+	if cutoff >= len(msgs) {
+		// No clean UserMessage boundary in the trailing segment —
+		// skip this compaction cycle rather than corrupt the history.
+		return CompactionResult{}, nil
+	}
+
 	older := msgs[:cutoff]
 	recent := msgs[cutoff:]
 

@@ -119,6 +119,67 @@ func TestCompactor_Compacts(t *testing.T) {
 	}
 }
 
+// TestCompactor_CutBoundary is the regression for the DeepSeek 400 bug:
+// when the naive cutoff (len-keepRecent) lands mid-turn — splitting an
+// AssistantMessage-with-tool_calls from its ToolMessage — the compactor
+// must advance the cut to the next UserMessage boundary so the kept
+// `recent` slice never starts with an orphaned ToolMessage.
+func TestCompactor_CutBoundary(t *testing.T) {
+	store := memory.NewInMemoryStore()
+	const sessID = "sess-boundary"
+
+	// Build a history that triggers the boundary bug:
+	//   [0] user      <- first turn
+	//   [1] assistant (with tool call — represented here as AssistantMessage)
+	//   [2] tool      (result)
+	//   [3] assistant (reply)
+	//   [4] user      <- second turn
+	//   [5] assistant
+	// With MaxMessages=6, keepRecent=4 → naive cutoff = 6-4 = 2.
+	// msgs[2] is a ToolMessage → recent would start orphaned.
+	// The fix must advance cutoff to 4 (the UserMessage at [4]).
+
+	asst := func(text string) chat.Message { return chat.NewAssistantMessage(text) }
+	user := func(text string) chat.Message { return chat.NewUserMessage(text) }
+	tool := func(id, result string) chat.Message {
+		m, _ := chat.NewToolMessage([]*chat.ToolReturn{{ID: id, Name: "bash", Result: result}})
+		return m
+	}
+
+	msgs := []chat.Message{
+		user("first question"),
+		asst(""),         // assistant turn with (notional) tool_calls
+		tool("c1", "ok"), // tool result — must not be orphaned at recent[0]
+		asst("done"),
+		user("second question"),
+		asst("answer"),
+	}
+	for _, m := range msgs {
+		_ = store.Write(context.Background(), sessID, m)
+	}
+
+	stub := newStreamingStubModel("BULLETS")
+	client, _ := chat.NewClient(stub)
+	c := newCompactor(store, client, CompactionConfig{MaxMessages: 6, KeepRecent: 4})
+	res, err := c.maybeCompact(context.Background(), sessID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Compacted {
+		t.Fatal("expected compaction to fire")
+	}
+
+	after, _ := store.Read(context.Background(), sessID)
+	// First message must be the system summary.
+	if _, ok := after[0].(*chat.SystemMessage); !ok {
+		t.Fatalf("after[0] = %T, want *chat.SystemMessage", after[0])
+	}
+	// Second message must be the UserMessage from the second turn, never a ToolMessage.
+	if _, ok := after[1].(*chat.UserMessage); !ok {
+		t.Fatalf("after[1] = %T, want *chat.UserMessage (not orphaned ToolMessage)", after[1])
+	}
+}
+
 // ------------------------------------------------------------------
 // helpers
 // ------------------------------------------------------------------
