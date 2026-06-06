@@ -74,6 +74,11 @@ func TestFileMemoryService_List_SkipsEmptyScopes(t *testing.T) {
 	if entries[0].Scope != memory.ScopeUser {
 		t.Errorf("scope = %d, want user", entries[0].Scope)
 	}
+	// CapturedAt must be populated from the file mtime, not left zero (the wire
+	// maps it to MemoryEntry.UpdatedAt — a zero time would surface as 0001-01-01).
+	if entries[0].CapturedAt.IsZero() {
+		t.Error("CapturedAt is zero; want the LYRA.md file mtime")
+	}
 }
 
 // TestFileMemoryService_ProjectScopeUsesCwd points cwd at a temp
