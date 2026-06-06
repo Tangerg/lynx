@@ -215,9 +215,18 @@ export function writeToolCall(
     id: item.id,
     kind: item.tool?.kind ?? "tool",
     fn: toolLabel(item.tool),
-    // Accumulated stream text wins; fall back to the parsed arguments object
-    // when a generic tool delivered no toolArguments deltas (object-on-complete).
-    args: (prev?.args ?? "") || argsText(item.tool),
+    // Tool args are authoritative from the structured Item — tools are
+    // call-and-result: the runtime parses the args whole before emitting the
+    // card and re-sends them on the completed Item. So at the TERMINAL state we
+    // derive args from that object (argsText), which makes live streaming and
+    // history replay (item.completed-only) converge. While the item is still
+    // inProgress we instead show the accumulated toolArguments-delta preview —
+    // kept for a future where args stream incrementally for live UX (see
+    // onItemDelta) — and the completed Item then reconciles to the object.
+    args:
+      item.status === "inProgress"
+        ? (prev?.args ?? "") || argsText(item.tool)
+        : argsText(item.tool),
     status: toolStatus(item),
     duration,
     // Keep the accumulated stream output (commandExecution stdout streams via
