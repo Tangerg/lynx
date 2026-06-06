@@ -84,8 +84,8 @@ describe("deriveLatestRun", () => {
       toolCalls: {
         "t-write": {
           id: "t-write",
-          kind: "fileChange",
-          fn: "src/auth.ts", // toolLabel(fileChange) = the changed path
+          name: "write", // fileEdit category (§4.4.2)
+          fn: "src/auth.ts", // toolLabel(write) = the changed path
           args: "",
           status: "ok",
           duration: "12ms",
@@ -94,16 +94,16 @@ describe("deriveLatestRun", () => {
         },
         "t-read": {
           id: "t-read",
-          kind: "tool",
-          fn: "read_file",
+          name: "read", // read category (§4.4.2)
+          fn: "read",
           args: "src/types.ts",
           status: "ok",
           duration: "3ms",
         },
         "t-bash": {
           id: "t-bash",
-          kind: "commandExecution",
-          fn: "pnpm test", // toolLabel(commandExecution) = the joined argv
+          name: "bash", // command category (§4.4.2)
+          fn: "pnpm test", // toolLabel(bash) = arguments.command
           args: "",
           status: "err",
           duration: "1.4s",

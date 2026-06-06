@@ -2,8 +2,8 @@
 // stack. Locks the full wiring (provider → container.methods() → client →
 // transport) plus each v2 shape mapping:
 //   - sessions:    Page<Session>.data → SidebarSession (updatedAt → time)
-//   - projects:    Project[] (cwd identity) → SidebarProject (cwd → id)
-//   - mcp-servers: McpServer → sidebar row (synthesised id + icon + status)
+//   - projects:    Page<Project>.data (cwd identity) → SidebarProject (cwd → id)
+//   - mcp-servers: Page<McpServer>.data → sidebar row (synthesised id + icon + status)
 
 import type {
   MCPServer as SidebarMCPServer,
@@ -63,17 +63,19 @@ describe("defaultData — providers over JSON-RPC", () => {
   });
 
   it("projects: maps v2 Project (cwd identity) into SidebarProject rows", async () => {
-    const rows = await runProvider<SidebarProject[]>("projects", "workspace.listProjects", [
-      { cwd: "/work/fern", name: "fern-api", branch: "feat/result-type", sessionCount: 3 },
-    ]);
+    const rows = await runProvider<SidebarProject[]>("projects", "workspace.listProjects", {
+      data: [{ cwd: "/work/fern", name: "fern-api", branch: "feat/result-type", sessionCount: 3 }],
+    });
     expect(rows).toEqual([{ id: "/work/fern", name: "fern-api", branch: "feat/result-type" }]);
   });
 
   it("mcp-servers: synthesises id from name + maps status + icon", async () => {
-    const rows = await runProvider<SidebarMCPServer[]>("mcp-servers", "workspace.mcp.listServers", [
-      { name: "Git", status: "connected", description: "Branches, commits" },
-      { name: "Unknown", status: "disconnected" },
-    ]);
+    const rows = await runProvider<SidebarMCPServer[]>("mcp-servers", "workspace.mcp.listServers", {
+      data: [
+        { name: "Git", status: "connected", description: "Branches, commits" },
+        { name: "Unknown", status: "disconnected" },
+      ],
+    });
     expect(rows).toEqual([
       {
         id: "Git",

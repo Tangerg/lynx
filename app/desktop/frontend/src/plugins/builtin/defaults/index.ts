@@ -12,10 +12,10 @@ import type {
   SidebarSession,
 } from "@/lib/data/queries";
 import type {
-  FileChange as RpcFileChange,
   McpServer as RpcMCPServer,
   Project as RpcProject,
   Session,
+  WorkspaceFileChange as RpcFileChange,
 } from "@/rpc";
 import { api } from "@/lib/data/http";
 import { RUNTIME_BASE } from "@/main/config";
@@ -73,8 +73,8 @@ function toSidebarProject(p: RpcProject): SidebarProject {
   return { id: p.cwd, name: p.name, branch: p.branch ?? "" };
 }
 
-// `files-changed` — v2 FileChange carries the status only; the sidebar row
-// wants a short code + line counts (counts come from getDiff, not the list).
+// `files-changed` — v2 WorkspaceFileChange carries the status only; the sidebar
+// row wants a short code + line counts (counts come from getDiff, not the list).
 const FILE_CHANGE: Record<RpcFileChange["status"], SidebarFileChange["change"]> = {
   added: "add",
   untracked: "add",
@@ -88,9 +88,11 @@ function toSidebarFileChange(f: RpcFileChange): SidebarFileChange {
 
 // Capability-gated workspace reads (skills / agent docs) return
 // capability_not_negotiated when the runtime has the feature off (§9). Treat
-// that as "none" so the view shows its empty state instead of an error toast.
-function emptyIfUngated(err: unknown): never[] {
-  if (err instanceof RpcError && errorType(err.data) === "capability_not_negotiated") return [];
+// that as "none" (an empty Page) so the view shows its empty state instead of
+// an error toast.
+function emptyPageIfUngated(err: unknown): { data: never[] } {
+  if (err instanceof RpcError && errorType(err.data) === "capability_not_negotiated")
+    return { data: [] };
   throw err;
 }
 
@@ -200,20 +202,22 @@ export const defaultData = definePlugin({
     });
     host.extensions.contribute(DATA_PROVIDER, {
       key: "projects",
-      fetcher: async () => (await client().workspace.listProjects()).map(toSidebarProject),
+      fetcher: async () => (await client().workspace.listProjects()).data.map(toSidebarProject),
     });
     host.extensions.contribute(DATA_PROVIDER, {
       key: "files-changed",
-      fetcher: async () => (await client().workspace.listFileChanges()).map(toSidebarFileChange),
+      fetcher: async () =>
+        (await client().workspace.listFileChanges()).data.map(toSidebarFileChange),
     });
     host.extensions.contribute(DATA_PROVIDER, {
       key: "mcp-servers",
-      fetcher: async () => (await client().workspace.mcp.listServers()).map(toSidebarMCPServer),
+      fetcher: async () =>
+        (await client().workspace.mcp.listServers()).data.map(toSidebarMCPServer),
     });
     host.extensions.contribute(DATA_PROVIDER, {
       key: "skills",
       fetcher: async () =>
-        (await client().workspace.listSkills().catch(emptyIfUngated)).map((s) => ({
+        (await client().workspace.listSkills().catch(emptyPageIfUngated)).data.map((s) => ({
           name: s.name,
           description: s.description ?? "",
           source: s.source ?? "",
@@ -222,7 +226,7 @@ export const defaultData = definePlugin({
     host.extensions.contribute(DATA_PROVIDER, {
       key: "agent-docs",
       fetcher: async () =>
-        (await client().workspace.listAgentDocs().catch(emptyIfUngated)).map((d) => ({
+        (await client().workspace.listAgentDocs().catch(emptyPageIfUngated)).data.map((d) => ({
           path: d.path,
           title: d.title ?? "",
           scope: d.scope,
@@ -236,11 +240,12 @@ export const defaultData = definePlugin({
       // litter the picker with dead options — configure one in Settings →
       // Providers to surface its models here.
       fetcher: async () => {
-        const enabled = (await client().providers.list()).filter((p) => p.apiKeyMasked !== "");
+        const enabled = (await client().providers.list()).data.filter((p) => p.apiKeyMasked !== "");
         const lists = await Promise.all(
           enabled.map((p) =>
             client()
               .models.list(p.id)
+              .then((r) => r.data)
               .catch(() => []),
           ),
         );
@@ -254,7 +259,7 @@ export const defaultData = definePlugin({
     host.extensions.contribute(DATA_PROVIDER, {
       key: "providers",
       fetcher: async () =>
-        (await client().providers.list()).map((p) => ({
+        (await client().providers.list()).data.map((p) => ({
           id: p.id,
           type: p.type,
           baseUrl: p.baseUrl ?? "",

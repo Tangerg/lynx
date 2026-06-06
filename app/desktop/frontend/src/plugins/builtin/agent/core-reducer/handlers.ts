@@ -27,7 +27,8 @@ import type { StreamEventHandler } from "@/plugins/sdk";
 import type { AgentViewState, ContentBlock } from "@/protocol/run/viewState";
 import { applyPatch, deepClone } from "fast-json-patch";
 import { appendTimelineEntry, patchRun, setPlan } from "@/plugins/sdk";
-import { blockStatus, mapPlan, toolLabel } from "./projections";
+import { toolCategory } from "@/protocol/run/viewState";
+import { blockStatus, mapPlan, mapQuestion, toolLabel } from "./projections";
 import {
   appendToTurn,
   appendUserMessage,
@@ -39,20 +40,35 @@ import {
   writeToolCall,
 } from "./fold";
 
-// Short verb phrase for an approval card title, derived from the tool kind.
+// Short verb phrase for an approval card title, derived from the tool category
+// (§4.4.2 display convention). The approval payload's tool has no `result` yet,
+// so the label keys on `name` only.
 function approvalText(tool: ToolInvocation): string {
-  switch (tool.kind) {
-    case "commandExecution":
+  switch (toolCategory(tool.name)) {
+    case "command":
       return "Run command";
-    case "fileChange":
-      return (tool.changes ?? []).length === 1 ? "Apply file change" : "Apply file changes";
+    case "fileEdit":
+      return "Apply file change";
     case "search":
       return "Run search";
     case "webSearch":
       return "Run web search";
-    case "tool":
+    default:
       return `Run ${tool.name}`;
   }
+}
+
+function commandString(tool: ToolInvocation): string {
+  const c = tool.arguments?.command;
+  return typeof c === "string" ? c : "";
+}
+
+// Editable args make sense for free-form tools (the JSON-tree generic envelope
+// + subagent) — approve-with-modified-args (§6.1 editedArgs). Commands / file
+// edits / searches bake their key arg into the card title, so no arg editor.
+function editableArgs(tool: ToolInvocation): Record<string, unknown> | undefined {
+  const cat = toolCategory(tool.name);
+  return cat === "generic" || cat === "subagent" ? tool.arguments : undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -90,6 +106,8 @@ function onRunProgress(state: AgentViewState, progress: RunProgress): AgentViewS
   const usage = progress.usage;
   const tokensUsed =
     usage !== undefined ? (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0) : undefined;
+  // Cost reads usage.costUsd — there is no separate RunProgress.costUsd (§5).
+  const costUsd = usage?.costUsd;
   return patchRun({
     ...(progress.step !== undefined ? { step: progress.step } : {}),
     ...(progress.maxSteps !== undefined ? { totalSteps: progress.maxSteps } : {}),
@@ -97,7 +115,7 @@ function onRunProgress(state: AgentViewState, progress: RunProgress): AgentViewS
     ...(tokensUsed !== undefined
       ? { tokens: { used: String(tokensUsed), total: state.run.tokens.total } }
       : {}),
-    ...(progress.costUsd !== undefined ? { cost: progress.costUsd.toFixed(2) } : {}),
+    ...(costUsd !== undefined ? { cost: costUsd.toFixed(2) } : {}),
   })(state);
 }
 
@@ -106,11 +124,11 @@ function materializeInterrupt(
   it: Interrupt,
   parentRunId: string,
 ): AgentViewState {
-  if (it.kind === "approval") {
-    // payload.tool is the uniform ToolInvocation (API.md §4.8) — read it
-    // directly, no guessing where the command lives / unescaping strings.
-    // Tolerate a missing tool (malformed payload) so a buggy backend can't
-    // crash the fold and leave an un-actionable interrupt.
+  if (it.type === "approval") {
+    // payload.tool is the uniform ToolInvocation (API.md §4.8) — name+arguments
+    // are always present, no guessing where the command lives. Tolerate a
+    // missing tool (malformed payload) so a buggy backend can't crash the fold
+    // and leave an un-actionable interrupt.
     const tool = it.payload.tool as ToolInvocation | undefined;
     const block: ContentBlock = {
       kind: "approval",
@@ -118,11 +136,9 @@ function materializeInterrupt(
       itemId: it.itemId,
       parentRunId,
       text: tool ? approvalText(tool) : "Approve this action?",
-      command: tool?.kind === "commandExecution" ? (tool.command ?? []).join(" ") : "",
+      command: tool ? commandString(tool) : "",
       reason: it.payload.reason ?? "",
-      // Editable args only make sense for the generic `tool` (its arguments are
-      // a free-form object); typed variants carry no editable arg bag.
-      args: tool?.kind === "tool" ? tool.arguments : undefined,
+      args: tool ? editableArgs(tool) : undefined,
       risk: it.payload.risk,
     };
     const withBlock = appendToTurn(state, it.itemId, block);
@@ -132,14 +148,29 @@ function materializeInterrupt(
       summary: block.command || toolLabel(tool),
     })(withBlock);
   }
-  if (it.kind === "question") {
-    // The question Item already produced a question block at item.started —
-    // flip it to requires-action + bind the resume target.
-    return patchBlock(
-      state,
-      (b) => b.kind === "question" && b.itemId === it.itemId,
-      (b) => ({ ...b, status: "requires-action", parentRunId }),
+  if (it.type === "question") {
+    // The interrupt payload is self-contained (API.md §4.8, S1): it carries the
+    // Question, so the card materializes from the payload even if item.started
+    // was missed (e.g. process restart while the question was still running and
+    // not yet in durable history). Upsert: patch the block in place if the
+    // item.started already produced it, else create it from the payload.
+    const hasBlock = state.messages.some((m) =>
+      m.blocks.some((b) => b.kind === "question" && b.itemId === it.itemId),
     );
+    if (hasBlock) {
+      return patchBlock(
+        state,
+        (b) => b.kind === "question" && b.itemId === it.itemId,
+        (b) => ({ ...b, status: "requires-action", parentRunId }),
+      );
+    }
+    return appendToTurn(state, it.itemId, {
+      kind: "question",
+      status: "requires-action",
+      itemId: it.itemId,
+      parentRunId,
+      questions: mapQuestion(it.payload.question),
+    });
   }
   return state; // toolResult — gated by features.clientTools, not rendered here
 }
@@ -161,12 +192,14 @@ function onRunFinished(state: AgentViewState, outcome: RunOutcome): AgentViewSta
   const { result } = outcome;
   const usage = result.usage;
   const tokensUsed = (usage?.inputTokens ?? 0) + (usage?.outputTokens ?? 0);
+  // Total cost reads usage.costUsd — there is no RunResult.costUsd (§4.2).
+  const costUsd = usage?.costUsd;
   const withRun = patchRun({
     running: false,
     step: result.steps ?? state.run.step,
     totalSteps: result.steps ?? state.run.totalSteps,
     tokens: { used: String(tokensUsed), total: state.run.tokens.total },
-    cost: result.costUsd !== undefined ? result.costUsd.toFixed(2) : state.run.cost,
+    cost: costUsd !== undefined ? costUsd.toFixed(2) : state.run.cost,
   })(idle);
 
   if (outcome.type === "error") {
@@ -246,15 +279,14 @@ function onItemDelta(state: AgentViewState, itemId: string, delta: ItemDelta): A
 
 function onItemCompleted(state: AgentViewState, rawItem: Item): AgentViewState {
   // item.completed ⟹ the item has settled, so its status is terminal
-  // (completed | incomplete) — never inProgress. A non-terminal status here
+  // (completed | incomplete) — never running. A non-terminal status here
   // means the item was never cleanly finished: history hydration (items.list)
   // of a run lost to a crash/restart still returns its last item as
-  // inProgress (the backend reconciles this at the RunRef level, which this
+  // running (the backend reconciles this at the RunRef level, which this
   // item-based fold never reads). Coerce it to incomplete so it renders as a
   // truncated block, not a block that spins forever waiting for a live stream
   // that will never come.
-  const item: Item =
-    rawItem.status === "inProgress" ? { ...rawItem, status: "incomplete" } : rawItem;
+  const item: Item = rawItem.status === "running" ? { ...rawItem, status: "incomplete" } : rawItem;
   switch (item.type) {
     case "userMessage":
       return appendUserMessage(state, item);

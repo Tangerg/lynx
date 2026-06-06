@@ -39,13 +39,14 @@ const RunEventEnvelopeSchema = z.object({
   runId: z.string(),
   eventId: z.string(),
   timestamp: z.string(),
-  durable: z.boolean(),
+  // No `durable` on the envelope — durability derives from event.type
+  // (isDurableEvent), only `custom` carries its own (API.md §5.2 / TRANSPORT §6.4).
   event: z.looseObject({ type: z.string() }),
 });
 
 const BackgroundTaskSchema = z.object({
   id: z.string(),
-  kind: z.string(),
+  category: z.string(),
   status: z.enum(["running", "completed", "failed", "canceled"]),
   createdAt: z.string(),
 });

@@ -19,11 +19,10 @@ import type {
   CreateSessionRequest,
   CreateUploadUrlRequest,
   CreateUploadUrlResponse,
-  DiffRow,
+  Diff,
   EditItemResponse,
   ExportSessionResponse,
   FeedbackRequest,
-  FileChange,
   FileHead,
   ForkSessionRequest,
   GrepResult,
@@ -53,6 +52,7 @@ import type {
   StartRunResponse,
   ToolSpec,
   UpdateSessionRequest,
+  WorkspaceFileChange,
 } from "./shapes";
 import { streamBackgroundUpdates, streamRunEvents, streamRunEventsDeferred } from "./stream";
 
@@ -93,9 +93,9 @@ export interface Methods {
     ) => Promise<StreamingResult<{ runId: RunId }, RunEvent>>;
     cancel: (runId: RunId, reason?: string) => Promise<void>;
     // Running runs only (§7.3); finished/interrupted via listOpenInterrupts or items history.
-    list: (sessionId?: SessionId) => Promise<RunRef[]>;
+    list: (sessionId?: SessionId) => Promise<Page<RunRef>>;
     // Durable HITL discovery — resumable interrupted runs (§7.3 / §10.2).
-    listOpenInterrupts: (sessionId?: SessionId) => Promise<OpenInterrupt[]>;
+    listOpenInterrupts: (sessionId?: SessionId) => Promise<Page<OpenInterrupt>>;
   };
   items: {
     list: (params: {
@@ -107,8 +107,8 @@ export interface Methods {
     edit: (itemId: ItemId, replacement: StartRunRequest["input"]) => Promise<EditItemResponse>;
   };
   workspace: {
-    listFileChanges: (cwd?: string) => Promise<FileChange[]>;
-    getDiff: (params?: { cwd?: string; path?: string }) => Promise<DiffRow[]>;
+    listFileChanges: (cwd?: string) => Promise<Page<WorkspaceFileChange>>;
+    getDiff: (params?: { cwd?: string; path?: string; limit?: number }) => Promise<Diff>;
     getFileHead: (params: { path: string; cwd?: string; lines?: number }) => Promise<FileHead>;
     grep: (params: {
       query: string;
@@ -116,29 +116,29 @@ export interface Methods {
       path?: string;
       limit?: number;
     }) => Promise<GrepResult>;
-    listProjects: () => Promise<Project[]>;
-    listSkills: (cwd?: string) => Promise<Skill[]>;
-    listAgentDocs: (cwd?: string) => Promise<AgentDoc[]>;
+    listProjects: () => Promise<Page<Project>>;
+    listSkills: (cwd?: string) => Promise<Page<Skill>>;
+    listAgentDocs: (cwd?: string) => Promise<Page<AgentDoc>>;
     mcp: {
-      listServers: () => Promise<McpServer[]>;
-      listTools: (server?: string) => Promise<McpTool[]>;
+      listServers: () => Promise<Page<McpServer>>;
+      listTools: (server?: string) => Promise<Page<McpTool>>;
       reconnect: (server: string) => Promise<void>;
     };
   };
   providers: {
-    list: () => Promise<Provider[]>;
+    list: () => Promise<Page<Provider>>;
     configure: (params: ConfigureProviderRequest) => Promise<Provider>;
     test: (provider: string) => Promise<ProviderTestResult>;
   };
   models: {
-    list: (provider?: string) => Promise<Model[]>;
+    list: (provider?: string) => Promise<Page<Model>>;
   };
   tools: {
-    list: () => Promise<ToolSpec[]>;
+    list: () => Promise<Page<ToolSpec>>;
     invoke: (params: InvokeToolRequest) => Promise<unknown>;
   };
   memory: {
-    list: (cwd?: string) => Promise<MemoryEntry[]>;
+    list: (cwd?: string) => Promise<Page<MemoryEntry>>;
     get: (scope: MemoryScope, cwd?: string) => Promise<MemoryEntry>;
     update: (params: { scope: MemoryScope; cwd?: string; content: string }) => Promise<void>;
   };
@@ -148,7 +148,7 @@ export interface Methods {
     delete: (attachmentId: AttachmentId) => Promise<void>;
   };
   background: {
-    list: () => Promise<BackgroundTask[]>;
+    list: () => Promise<Page<BackgroundTask>>;
     subscribe: (
       taskId: TaskId,
       signal?: AbortSignal,
@@ -202,9 +202,9 @@ export function createMethods(client: RpcClient): Methods {
         return { result, events };
       },
       cancel: (runId, reason) => client.call<void>("runs.cancel", { runId, reason }),
-      list: (sessionId) => client.call<RunRef[]>("runs.list", sessionId ? { sessionId } : {}),
+      list: (sessionId) => client.call<Page<RunRef>>("runs.list", sessionId ? { sessionId } : {}),
       listOpenInterrupts: (sessionId) =>
-        client.call<OpenInterrupt[]>("runs.listOpenInterrupts", sessionId ? { sessionId } : {}),
+        client.call<Page<OpenInterrupt>>("runs.listOpenInterrupts", sessionId ? { sessionId } : {}),
     },
     items: {
       list: (params) => client.call<ListItemsResponse>("items.list", params),
@@ -212,34 +212,35 @@ export function createMethods(client: RpcClient): Methods {
         client.call<EditItemResponse>("items.edit", { itemId, replacement }),
     },
     workspace: {
-      listFileChanges: (cwd) => client.call<FileChange[]>("workspace.listFileChanges", { cwd }),
-      getDiff: (params) => client.call<DiffRow[]>("workspace.getDiff", params ?? {}),
+      listFileChanges: (cwd) =>
+        client.call<Page<WorkspaceFileChange>>("workspace.listFileChanges", { cwd }),
+      getDiff: (params) => client.call<Diff>("workspace.getDiff", params ?? {}),
       getFileHead: (params) => client.call<FileHead>("workspace.getFileHead", params),
       grep: (params) => client.call<GrepResult>("workspace.grep", params),
-      listProjects: () => client.call<Project[]>("workspace.listProjects"),
-      listSkills: (cwd) => client.call<Skill[]>("workspace.listSkills", { cwd }),
-      listAgentDocs: (cwd) => client.call<AgentDoc[]>("workspace.listAgentDocs", { cwd }),
+      listProjects: () => client.call<Page<Project>>("workspace.listProjects"),
+      listSkills: (cwd) => client.call<Page<Skill>>("workspace.listSkills", { cwd }),
+      listAgentDocs: (cwd) => client.call<Page<AgentDoc>>("workspace.listAgentDocs", { cwd }),
       mcp: {
-        listServers: () => client.call<McpServer[]>("workspace.mcp.listServers"),
+        listServers: () => client.call<Page<McpServer>>("workspace.mcp.listServers"),
         listTools: (server) =>
-          client.call<McpTool[]>("workspace.mcp.listTools", server ? { server } : {}),
+          client.call<Page<McpTool>>("workspace.mcp.listTools", server ? { server } : {}),
         reconnect: (server) => client.call<void>("workspace.mcp.reconnect", { server }),
       },
     },
     providers: {
-      list: () => client.call<Provider[]>("providers.list"),
+      list: () => client.call<Page<Provider>>("providers.list"),
       configure: (params) => client.call<Provider>("providers.configure", params),
       test: (provider) => client.call<ProviderTestResult>("providers.test", { provider }),
     },
     models: {
-      list: (provider) => client.call<Model[]>("models.list", provider ? { provider } : {}),
+      list: (provider) => client.call<Page<Model>>("models.list", provider ? { provider } : {}),
     },
     tools: {
-      list: () => client.call<ToolSpec[]>("tools.list"),
+      list: () => client.call<Page<ToolSpec>>("tools.list"),
       invoke: (params) => client.call<unknown>("tools.invoke", params),
     },
     memory: {
-      list: (cwd) => client.call<MemoryEntry[]>("memory.list", { cwd }),
+      list: (cwd) => client.call<Page<MemoryEntry>>("memory.list", { cwd }),
       get: (scope, cwd) => client.call<MemoryEntry>("memory.get", { scope, cwd }),
       update: (params) => client.call<void>("memory.update", params),
     },
@@ -250,7 +251,7 @@ export function createMethods(client: RpcClient): Methods {
       delete: (attachmentId) => client.call<void>("attachments.delete", { attachmentId }),
     },
     background: {
-      list: () => client.call<BackgroundTask[]>("background.list"),
+      list: () => client.call<Page<BackgroundTask>>("background.list"),
       subscribe: async (taskId, signal) => {
         const result = await client.call<{ taskId: TaskId }>(
           "background.subscribe",

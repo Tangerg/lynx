@@ -15,7 +15,7 @@ import { INITIAL_VIEW_STATE } from "./viewState";
 function item(partial: Record<string, unknown>): Item {
   return {
     runId: "run_X",
-    status: "inProgress",
+    status: "running",
     createdAt: "2026-06-03T00:00:00Z",
     ...partial,
   } as Item;
@@ -46,7 +46,7 @@ describe("reducer — HITL resume preserves toolOutput on result", () => {
     s = reduce(
       s,
       started(
-        item({ id: TOOL, type: "toolCall", tool: { kind: "commandExecution", command: ["pwd"] } }),
+        item({ id: TOOL, type: "toolCall", tool: { name: "bash", arguments: { command: "pwd" } } }),
       ),
     );
     s = reduce(
@@ -56,8 +56,8 @@ describe("reducer — HITL resume preserves toolOutput on result", () => {
         interrupts: [
           {
             itemId: TOOL,
-            kind: "approval",
-            payload: { tool: { kind: "commandExecution", command: ["pwd"] } },
+            type: "approval",
+            payload: { tool: { name: "bash", arguments: { command: "pwd" } } },
           },
         ],
       } as never),
@@ -69,7 +69,7 @@ describe("reducer — HITL resume preserves toolOutput on result", () => {
     s = reduce(
       s,
       started(
-        item({ id: TOOL, type: "toolCall", tool: { kind: "commandExecution", command: ["pwd"] } }),
+        item({ id: TOOL, type: "toolCall", tool: { name: "bash", arguments: { command: "pwd" } } }),
       ),
     );
     s = reduce(s, delta(TOOL, { type: "toolArguments", argumentsTextDelta: '{"command": "pwd"}' }));
@@ -81,7 +81,7 @@ describe("reducer — HITL resume preserves toolOutput on result", () => {
           id: TOOL,
           status: "completed",
           type: "toolCall",
-          tool: { kind: "commandExecution", command: ["pwd"], exitCode: 0, durationMs: 5 },
+          tool: { name: "bash", arguments: { command: "pwd" }, result: { exitCode: 0 } },
         }),
       ),
     );

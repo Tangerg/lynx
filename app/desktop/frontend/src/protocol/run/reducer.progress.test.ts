@@ -31,8 +31,7 @@ describe("reducer — run.progress (mid-run live readout)", () => {
         step: 2,
         maxSteps: 8,
         activity: "calling tool: ls -la",
-        usage: { inputTokens: 1200, outputTokens: 80 },
-        costUsd: 0.0123,
+        usage: { inputTokens: 1200, outputTokens: 80, costUsd: 0.0123 },
       }),
     );
     expect(s.run).toMatchObject({
@@ -53,7 +52,7 @@ describe("reducer — run.progress (mid-run live readout)", () => {
       s,
       runFinished({
         type: "completed",
-        result: { steps: 3, usage: { inputTokens: 1200, outputTokens: 80 }, costUsd: 0.5 },
+        result: { steps: 3, usage: { inputTokens: 1200, outputTokens: 80, costUsd: 0.5 } },
       }),
     );
     expect(s.run.running).toBe(false);

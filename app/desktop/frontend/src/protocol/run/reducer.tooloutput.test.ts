@@ -13,7 +13,7 @@ import { INITIAL_VIEW_STATE } from "./viewState";
 function item(partial: Record<string, unknown>): Item {
   return {
     runId: "run_1",
-    status: "inProgress",
+    status: "running",
     createdAt: "2026-06-03T00:00:00Z",
     ...partial,
   } as Item;
@@ -28,10 +28,14 @@ beforeEach(async () => {
   await loadPlugin(spec);
 });
 
-const cmd = (extra: Record<string, unknown>) => ({
-  kind: "commandExecution",
-  command: ["pwd"],
-  ...extra,
+// A `bash` tool (§4.4.2): identity `name`, `arguments.command`, and the
+// settled `result` ({ output, exitCode, outputTruncated }) on completion. The
+// `result` fields land in `result`, not on the tool root (domain-neutral
+// envelope, API.md §4.4).
+const cmd = (result: Record<string, unknown>) => ({
+  name: "bash",
+  arguments: { command: "pwd" },
+  ...(Object.keys(result).length > 0 ? { result } : {}),
 });
 
 describe("reducer — commandExecution output durability", () => {
@@ -73,7 +77,7 @@ describe("reducer — commandExecution output durability", () => {
     expect(s.toolCalls["t1"]?.result).toBe("/Users/tangerg\n");
   });
 
-  it("while inProgress the toolOutput delta is the live preview (no settled fields yet)", () => {
+  it("while running the toolOutput delta is the live preview (no settled fields yet)", () => {
     // The started shell carries no output (lifecycle); the delta stream stands
     // in as preview until item.completed reconciles to the authoritative output.
     let s: AgentViewState = INITIAL_VIEW_STATE;

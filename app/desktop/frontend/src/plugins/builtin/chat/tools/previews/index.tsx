@@ -153,14 +153,14 @@ function GrepPreview({ onOpenView }: ToolPreviewProps) {
   );
 }
 
-// Previews are keyed by the tool ROUTING KEY (see toolRoutingKey): typed
-// variants use their ToolInvocation.kind; the generic `tool` envelope uses
-// the tool name.
+// Previews are keyed by the tool ROUTING KEY = the wire tool `name` (§4.4 /
+// §4.4.2 display conventions).
 export const bash = definePlugin({
   name: "lyra.builtin.bash",
   version: "1.0.0",
   setup({ host }) {
-    host.extensions.contribute(TOOL_PREVIEW, BashPreview, { key: "commandExecution" });
+    host.extensions.contribute(TOOL_PREVIEW, BashPreview, { key: "bash" });
+    host.extensions.contribute(TOOL_PREVIEW, BashPreview, { key: "shell" });
   },
 });
 
@@ -168,7 +168,8 @@ export const diff = definePlugin({
   name: "lyra.builtin.diff",
   version: "1.0.0",
   setup({ host }) {
-    host.extensions.contribute(TOOL_PREVIEW, DiffPreview, { key: "fileChange" });
+    host.extensions.contribute(TOOL_PREVIEW, DiffPreview, { key: "edit" });
+    host.extensions.contribute(TOOL_PREVIEW, DiffPreview, { key: "write" });
   },
 });
 
@@ -176,9 +177,7 @@ export const file = definePlugin({
   name: "lyra.builtin.file",
   version: "1.0.0",
   setup({ host }) {
-    // generic `read` tool (by name)
     host.extensions.contribute(TOOL_PREVIEW, FilePreview, { key: "read" });
-    host.extensions.contribute(TOOL_PREVIEW, FilePreview, { key: "read_file" });
   },
 });
 
@@ -186,7 +185,7 @@ export const grep = definePlugin({
   name: "lyra.builtin.grep",
   version: "1.0.0",
   setup({ host }) {
-    // local grep/glob → kind "search"
-    host.extensions.contribute(TOOL_PREVIEW, GrepPreview, { key: "search" });
+    host.extensions.contribute(TOOL_PREVIEW, GrepPreview, { key: "grep" });
+    host.extensions.contribute(TOOL_PREVIEW, GrepPreview, { key: "glob" });
   },
 });

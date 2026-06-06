@@ -39,11 +39,11 @@ describe("bootstrap handshake", () => {
     await vi.waitFor(() => {
       expect(useRuntimeStore.getState().protocolVersion).toBe("2026-06-03");
     });
-    // The declared capabilities reached the runtime — interruptKinds carry
+    // The declared capabilities reached the runtime — interruptTypes carry
     // the HITL switches (API.md §6.2).
-    const sent = initialize.mock.calls[0]![0] as { capabilities: { interruptKinds: string[] } };
-    expect(sent.capabilities.interruptKinds).toContain("approval");
-    expect(sent.capabilities.interruptKinds).toContain("question");
+    const sent = initialize.mock.calls[0]![0] as { capabilities: { interruptTypes: string[] } };
+    expect(sent.capabilities.interruptTypes).toContain("approval");
+    expect(sent.capabilities.interruptTypes).toContain("question");
     expect(useRuntimeStore.getState().serverName).toBe("lyra-runtime");
   });
 

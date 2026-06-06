@@ -10,7 +10,7 @@ import type { RpcMessage } from "./types";
 import { JSONRPC_VERSION } from "./types";
 
 function runEvent(runId: string, eventId: string, event: StreamEvent): RunEvent {
-  return { runId, eventId, timestamp: "2026-06-03T00:00:00Z", durable: true, event } as RunEvent;
+  return { runId, eventId, timestamp: "2026-06-03T00:00:00Z", event } as RunEvent;
 }
 
 describe("methods factory", () => {

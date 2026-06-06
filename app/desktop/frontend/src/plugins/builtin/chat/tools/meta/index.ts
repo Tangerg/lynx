@@ -34,13 +34,14 @@ export const toolIcons = definePlugin({
   name: "lyra.builtin.tool-icons",
   version: "1.0.0",
   setup({ host }) {
-    // Typed variants — keyed by ToolInvocation.kind (the routing key).
-    host.extensions.contribute(TOOL_ICON, "terminal", { key: "commandExecution" });
-    host.extensions.contribute(TOOL_ICON, "file", { key: "fileChange" });
-    host.extensions.contribute(TOOL_ICON, "search", { key: "search" });
-    host.extensions.contribute(TOOL_ICON, "globe", { key: "webSearch" });
-    // Generic-tool names.
+    // Keyed by tool `name` (the routing key, §4.4.2 display conventions).
+    host.extensions.contribute(TOOL_ICON, "terminal", { key: "bash" });
+    host.extensions.contribute(TOOL_ICON, "terminal", { key: "shell" });
+    host.extensions.contribute(TOOL_ICON, "file", { key: "edit" });
+    host.extensions.contribute(TOOL_ICON, "file", { key: "write" });
     host.extensions.contribute(TOOL_ICON, "file", { key: "read" });
-    host.extensions.contribute(TOOL_ICON, "file", { key: "read_file" });
+    host.extensions.contribute(TOOL_ICON, "search", { key: "grep" });
+    host.extensions.contribute(TOOL_ICON, "search", { key: "glob" });
+    host.extensions.contribute(TOOL_ICON, "globe", { key: "webSearch" });
   },
 });

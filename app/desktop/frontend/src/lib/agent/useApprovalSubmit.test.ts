@@ -32,7 +32,7 @@ describe("useApprovalSubmit", () => {
     const { result } = renderHook(() => useApprovalSubmit("run_1", "item_1"));
     act(() => result.current.submit("approved"));
     expect(resume).toHaveBeenCalledWith("run_1", [
-      { itemId: "item_1", response: { kind: "approval", decision: "approve" } },
+      { itemId: "item_1", response: { type: "approval", decision: "approve" } },
     ]);
     expect(result.current.pending).toBe("approved");
   });
@@ -42,7 +42,7 @@ describe("useApprovalSubmit", () => {
     const { result } = renderHook(() => useApprovalSubmit("run_1", "item_2"));
     act(() => result.current.submit("declined"));
     expect(resume).toHaveBeenCalledWith("run_1", [
-      { itemId: "item_2", response: { kind: "approval", decision: "deny" } },
+      { itemId: "item_2", response: { type: "approval", decision: "deny" } },
     ]);
   });
 
@@ -53,7 +53,7 @@ describe("useApprovalSubmit", () => {
     expect(resume).toHaveBeenCalledWith("run_1", [
       {
         itemId: "item_e",
-        response: { kind: "approval", decision: "approve", editedArgs: { path: "/safe" } },
+        response: { type: "approval", decision: "approve", editedArgs: { path: "/safe" } },
       },
     ]);
   });
