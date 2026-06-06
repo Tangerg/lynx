@@ -117,7 +117,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 	// already persisted from a prior providers.configure), so the default
 	// provider is enabled out of the box. Other supported providers stay
 	// unconfigured until the user sets their keys.
-	if err := seedConfiguredProvider(ctx, providerSvc, cfg); err != nil {
+	if err = seedConfiguredProvider(ctx, providerSvc, cfg); err != nil {
 		return err
 	}
 

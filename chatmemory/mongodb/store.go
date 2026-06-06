@@ -112,9 +112,9 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 	now := time.Now().UTC()
 	docs := make([]any, 0, len(messages))
 	for _, msg := range messages {
-		raw, err := codec.EncodeMessage(msg)
-		if err != nil {
-			return fmt.Errorf("mongodb.Store.Write: encode message: %w", err)
+		raw, encErr := codec.EncodeMessage(msg)
+		if encErr != nil {
+			return fmt.Errorf("mongodb.Store.Write: encode message: %w", encErr)
 		}
 		docs = append(docs, bson.M{
 			fieldConversationID: conversationID,

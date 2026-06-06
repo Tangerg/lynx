@@ -186,9 +186,9 @@ func (v *Store) initialize(ctx context.Context) error {
 		}
 
 		idx := index.NewAutoIndex(v.metricType)
-		indexTask, err := v.client.CreateIndex(ctx, milvusclient.NewCreateIndexOption(v.collectionName, fieldVector, idx))
-		if err != nil {
-			return fmt.Errorf("milvus: failed to create index on collection %s: %w", v.collectionName, err)
+		indexTask, createErr := v.client.CreateIndex(ctx, milvusclient.NewCreateIndexOption(v.collectionName, fieldVector, idx))
+		if createErr != nil {
+			return fmt.Errorf("milvus: failed to create index on collection %s: %w", v.collectionName, createErr)
 		}
 		if err = indexTask.Await(ctx); err != nil {
 			return fmt.Errorf("milvus: failed to await index creation on collection %s: %w", v.collectionName, err)
@@ -348,9 +348,9 @@ func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		WithOutputFields(fieldID, fieldContent, fieldMeta)
 
 	if req.Filter != nil {
-		filterExpr, err := ToFilter(req.Filter)
-		if err != nil {
-			return nil, fmt.Errorf("milvus: failed to convert filter: %w", err)
+		filterExpr, filterErr := ToFilter(req.Filter)
+		if filterErr != nil {
+			return nil, fmt.Errorf("milvus: failed to convert filter: %w", filterErr)
 		}
 		searchOpt = searchOpt.WithFilter(filterExpr)
 	}

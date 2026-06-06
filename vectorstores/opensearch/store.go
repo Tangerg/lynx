@@ -332,11 +332,11 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 				id = uuid.NewString()
 			}
 
-			actionLine, err := json.Marshal(map[string]any{
+			actionLine, encErr := json.Marshal(map[string]any{
 				"index": map[string]any{"_id": id},
 			})
-			if err != nil {
-				return fmt.Errorf("opensearch: encode bulk action: %w", err)
+			if encErr != nil {
+				return fmt.Errorf("opensearch: encode bulk action: %w", encErr)
 			}
 
 			docBody := map[string]any{
@@ -350,9 +350,9 @@ func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 					docBody[k] = v
 				}
 			}
-			docLine, err := json.Marshal(docBody)
-			if err != nil {
-				return fmt.Errorf("opensearch: encode bulk doc: %w", err)
+			docLine, encErr := json.Marshal(docBody)
+			if encErr != nil {
+				return fmt.Errorf("opensearch: encode bulk doc: %w", encErr)
 			}
 
 			body.Write(actionLine)
