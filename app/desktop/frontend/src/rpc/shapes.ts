@@ -43,7 +43,7 @@ export interface ServerCapabilities {
   events: string[]; // event types the server emits
   features: ServerFeatures; // unset flag ⇒ false
   providers: string[];
-  limits: { maxConcurrentRuns?: number; maxItemsPerSession?: number };
+  limits: { maxConcurrentRuns?: number };
 }
 
 export interface ServerInfo {
@@ -150,9 +150,16 @@ export interface RunRef {
   parentRunId?: RunId; // continuation-of: this Run is a resume/edit continuation
   status?: "running" | "finished";
   outcome?: RunOutcome; // when status=finished
+  // The model + mode this Run executed under. Carried on the RunRef so a
+  // reconnect (runs.subscribe) or history hydration (items.list.runs) that
+  // never saw the originating runs.start request can still attribute the Run.
+  model?: string;
+  mode?: RunMode;
   createdAt?: string;
   finishedAt?: string;
 }
+
+export type RunMode = "agent" | "chat" | "plan";
 
 export type RunOutcome =
   | { type: "completed"; result: RunResult }
@@ -240,8 +247,19 @@ export type ToolInvocation =
       kind: "commandExecution";
       command: string[];
       cwd?: string;
+      // Settled fields — REQUIRED on the item.completed toolCall, absent on the
+      // item.started shell (lifecycle, not optionality of contract). `output` is
+      // the authoritative merged stdout+stderr (interleaved in real time; "" when
+      // the command printed nothing). The `toolOutput` ItemDelta is only a live
+      // PREVIEW of it — dropping every ephemeral delta still yields correct output
+      // from here (API.md §5.2), and a runtime that doesn't stream emits no delta
+      // yet still carries it. See docs/TOOL_OUTPUT.md.
       exitCode?: number;
       durationMs?: number;
+      output?: string;
+      // True iff the runtime capped `output` (and the delta stream) at a size
+      // limit — UI shows a "truncated, open in terminal for full" affordance.
+      outputTruncated?: boolean;
     }
   | { kind: "fileChange"; changes: FileChangeEntry[] }
   | { kind: "search"; query: string; results?: SearchHit[] } // local grep / glob
@@ -527,11 +545,12 @@ export type ItemDelta =
   | { type: "content"; index?: number; text: string } // agentMessage text delta
   | { type: "reasoning"; text: string } // reasoning text delta
   | { type: "toolArguments"; argumentsTextDelta: string } // partial JSON text of tool args
-  | { type: "toolOutput"; text: string } // tool output (e.g. command stdout) delta
+  | { type: "toolOutput"; text: string } // PREVIEW of command stdout — authoritative copy lands on the completed item (commandExecution.output)
   | { type: "plan"; steps: PlanStep[] }; // current full plan (not a hot char stream)
 
 export type StreamEvent =
   | { type: "run.started"; run: RunRef }
+  | { type: "run.progress"; progress: RunProgress } // ephemeral (durable=false); authoritative final usage/steps land on run.finished.result
   | { type: "run.finished"; outcome: RunOutcome }
   | { type: "item.started"; item: Item } // shell (status=inProgress)
   | { type: "item.delta"; itemId: ItemId; delta: ItemDelta }
@@ -539,6 +558,18 @@ export type StreamEvent =
   | { type: "state.snapshot"; state: Record<string, unknown> }
   | { type: "state.delta"; patch: JsonPatch }
   | { type: "custom"; name: string; payload: unknown };
+
+// Mid-run progress preview — a live readout of step/usage/cost while the Run
+// streams. Ephemeral like item.delta: dropping every run.progress still yields
+// the correct totals from run.finished.result (the authoritative landing), so
+// §5.2's durable invariant holds. Suppressible via optOutNotificationMethods.
+export interface RunProgress {
+  step?: number; // agent steps elapsed so far
+  maxSteps?: number; // ceiling, when the Run was started with one
+  usage?: Usage; // cumulative usage so far
+  costUsd?: number; // cumulative cost so far
+  activity?: string; // human-readable current action ("calling tool: bash")
+}
 
 export type StreamEventType = StreamEvent["type"];
 
@@ -600,10 +631,10 @@ export interface ListItemsRequest {
   limit?: number;
 }
 
-// items.list — flat items + the RunRefs needed to rebuild the run tree (§10.3).
-export interface ListItemsResponse {
-  items: Item[]; // flat (avoid resp.items.data)
-  nextCursor?: string;
+// items.list — a Page<Item> plus the RunRefs needed to rebuild the run tree
+// (§10.3). Reuses Page<T>'s `data` field so every paginated method reads
+// `resp.data` (no `data` vs `items` drift across the surface).
+export interface ListItemsResponse extends Page<Item> {
   runs: RunRef[]; // owning Runs (finished/running), with parentRunId/spawnedByItemId
 }
 

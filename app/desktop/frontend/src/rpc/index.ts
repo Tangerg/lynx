@@ -46,7 +46,9 @@ export type {
   ExportSessionResponse,
   // Runs
   RunRef,
+  RunMode,
   RunOutcome,
+  RunProgress,
   RunResult,
   StartRunRequest,
   StartRunResponse,

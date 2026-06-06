@@ -6,7 +6,7 @@
 
 import type { ToolPreviewProps } from "@/plugins/sdk";
 import { PreviewFoot } from "@/components/tools/previews/PreviewFoot";
-import { useDiff, useFileHead, useGrep, useTerminal } from "@/lib/data/queries";
+import { useDiff, useFileHead, useGrep } from "@/lib/data/queries";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
@@ -44,15 +44,29 @@ const ROW_STYLE: Record<
   ctx: { tone: "", meta: "text-fg-faint", codeTone: "text-fg-soft", sign: " " },
 };
 
-function BashPreview({ onOpenView }: ToolPreviewProps) {
-  const { data: lines } = useTerminal();
+function BashPreview({ tool, onOpenView }: ToolPreviewProps) {
+  // Render THIS call's stdout from `tool.result` — the authoritative merged
+  // output reconciled from the completed Item's commandExecution.output, with
+  // the toolOutput delta stream as the live preview while running (see
+  // projections.ts + docs/TOOL_OUTPUT.md).
+  const output = tool.result?.replace(/\n+$/, "");
+  const lines = output ? output.split("\n") : [];
+  const hiddenLines = lines.length - MAX_TERM_LINES;
   return (
-    <div className={cn(PREVIEW_WRAP, "whitespace-pre text-fg-soft")}>
-      {(lines ?? []).slice(0, MAX_TERM_LINES).map((l, i) => (
-        <span key={i} className={l.kind}>
-          {l.text}
-        </span>
-      ))}
+    <div className={cn(PREVIEW_WRAP, "whitespace-pre-wrap break-all text-fg-soft")}>
+      {lines.length > 0 ? (
+        lines.slice(0, MAX_TERM_LINES).map((text, i) => <div key={i}>{text || " "}</div>)
+      ) : (
+        <div className="text-fg-faint">
+          {tool.status === "running" ? "Running…" : "(no output)"}
+        </div>
+      )}
+      {(hiddenLines > 0 || tool.outputTruncated) && (
+        <div className="text-fg-faint">
+          {hiddenLines > 0 && `… ${hiddenLines} more lines`}
+          {tool.outputTruncated && " · output truncated by runtime"}
+        </div>
+      )}
       <PreviewFoot label="Open in Terminal" onClick={onOpenView} />
     </div>
   );

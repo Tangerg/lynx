@@ -53,10 +53,10 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
         .client()
         .items.list({ sessionId: asSessionId(sessionId) })
         .then((resp) => {
-          if (cancelled || interacted || resp.items.length === 0) return;
+          if (cancelled || interacted || resp.data.length === 0) return;
           store().applyEvents(
             sessionId,
-            resp.items.map((item): RunEvent["event"] => ({ type: "item.completed", item })),
+            resp.data.map((item): RunEvent["event"] => ({ type: "item.completed", item })),
           );
         })
         .catch((err: unknown) => {
