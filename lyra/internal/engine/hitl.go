@@ -29,9 +29,19 @@ func isInterruptResult(resp *chat.Response) bool {
 		resp.Result.Metadata.FinishReason == chat.FinishReasonInterrupt
 }
 
-// saveInflightTail parks the interrupt response's tail (assistant tool-call
-// message + any partial tool results) for the resuming re-tick to feed back.
-func saveInflightTail(bb core.Blackboard, result *chat.Result) {
+// inflightTailStore is the keyed access to the HITL inflight tail on a
+// process blackboard. It owns the [inflightTailKey] convention and the
+// string-encoded serialization format ([marshalMessages]) in one place, so
+// the save → load → clear cycle the resume path drives reads as one object
+// rather than three blackboard pokes at a shared magic key.
+type inflightTailStore struct {
+	bb core.Blackboard
+}
+
+// Save parks the interrupt response's tail (assistant tool-call message + any
+// partial tool results) for the resuming re-tick to feed back. No-op when the
+// result carries no assistant message or fails to encode.
+func (s inflightTailStore) Save(result *chat.Result) {
 	if result == nil || result.AssistantMessage == nil {
 		return
 	}
@@ -43,12 +53,12 @@ func saveInflightTail(bb core.Blackboard, result *chat.Result) {
 	if err != nil {
 		return
 	}
-	bb.Set(inflightTailKey, data)
+	s.bb.Set(inflightTailKey, data)
 }
 
-// loadInflightTail returns the parked tail, or (nil, false) when none is set.
-func loadInflightTail(bb core.Blackboard) ([]chat.Message, bool) {
-	v, ok := bb.Get(inflightTailKey)
+// Load returns the parked tail, or (nil, false) when none is set.
+func (s inflightTailStore) Load() ([]chat.Message, bool) {
+	v, ok := s.bb.Get(inflightTailKey)
 	if !ok {
 		return nil, false
 	}
@@ -63,10 +73,10 @@ func loadInflightTail(bb core.Blackboard) ([]chat.Message, bool) {
 	return msgs, true
 }
 
-// clearInflightTail drops a consumed tail (the blackboard has no delete; load
-// treats empty as absent).
-func clearInflightTail(bb core.Blackboard) {
-	bb.Set(inflightTailKey, "")
+// Clear drops a consumed tail (the blackboard has no delete; Load treats
+// empty as absent).
+func (s inflightTailStore) Clear() {
+	s.bb.Set(inflightTailKey, "")
 }
 
 // marshalMessages encodes messages as a JSON array of the per-message
