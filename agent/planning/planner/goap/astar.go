@@ -87,33 +87,35 @@ func (p *Planner) PlanToGoal(
 	// actions whose effects don't interact with the current goal.
 	candidates = relevantActions(candidates, goal)
 
+	s := newSearch(start, candidates, goal, p.iterationCap(options))
+
 	// Reachability pre-check — short-circuits before A* burns 10k iterations
 	// chasing a goal whose required conditions no action can establish.
 	// After pruning the check operates on the regression set, so a goal
 	// precondition with no producer in the relevant closure is caught here
 	// even when the unpruned action set had a "producer" whose own
 	// preconditions can never be met.
-	if !goalReachable(start, candidates, goal) {
+	if !s.goalReachable() {
 		span.SetAttributes(attribute.Bool(attrAstarReachable, false))
 		return nil, nil
 	}
 
-	bestGoalNode, cameFrom, iterations, err := p.searchForGoal(ctx, start, candidates, goal, p.iterationCap(options))
+	bestGoalNode, err := s.run(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	span.SetAttributes(attribute.Int(attrAstarIterations, iterations))
+	span.SetAttributes(attribute.Int(attrAstarIterations, s.iterations))
 
 	if bestGoalNode == nil {
 		span.SetAttributes(attribute.Bool(attrAstarFound, false))
 		return nil, nil
 	}
 
-	path := reconstructPath(cameFrom, bestGoalNode.state.HashKey(), start.HashKey())
+	path := s.reconstructPath(bestGoalNode.state.HashKey())
 	rawLen := len(path)
-	path = backwardOptimize(path, start, goal)
-	path = forwardOptimize(path, start)
+	path = s.backwardOptimize(path)
+	path = s.forwardOptimize(path)
 
 	span.SetAttributes(
 		attribute.Bool(attrAstarFound, true),
@@ -154,49 +156,69 @@ func candidateActions(actions []core.Action, excluded map[string]struct{}) []cor
 	return out
 }
 
-// searchForGoal runs the A* loop. It's separated from PlanToGoal so the
-// outer function stays focused on validation, span management, and post-
-// processing.
-func (p *Planner) searchForGoal(
-	ctx context.Context,
-	start core.WorldState,
-	actions []core.Action,
-	goal *core.Goal,
-	maxIter int,
-) (*searchNode, map[string]edge, int, error) {
+// search holds the state of one A* run over world states: the inputs
+// (start, actions, goal, iteration cap) plus the mutable frontier (open /
+// closed / gScores / cameFrom). One search serves one PlanToGoal call; its
+// methods (run / expand / heuristic / reconstructPath / the optimize passes)
+// operate on this shared state instead of threading open/cameFrom/gScores/
+// start/goal/actions through parameter lists.
+type search struct {
+	start   core.WorldState
+	actions []core.Action
+	goal    *core.Goal
+	maxIter int
+
+	startKey string
+	open     *openList
+	gScores  map[string]float64
+	cameFrom map[string]edge
+	closed   map[string]struct{}
+
+	// iterations counts node expansions; read for the span after run.
+	iterations int
+}
+
+// newSearch seeds the frontier with the start state. The goalReachable
+// pre-check and run both operate on the returned search.
+func newSearch(start core.WorldState, actions []core.Action, goal *core.Goal, maxIter int) *search {
 	startKey := start.HashKey()
-	startHeuristic := heuristic(start, goal)
+	s := &search{
+		start:    start,
+		actions:  actions,
+		goal:     goal,
+		maxIter:  maxIter,
+		startKey: startKey,
+		open:     &openList{},
+		gScores:  map[string]float64{startKey: 0},
+		cameFrom: map[string]edge{},
+		closed:   map[string]struct{}{},
+	}
+	heap.Init(s.open)
+	heap.Push(s.open, &searchNode{state: start, gScore: 0, fScore: s.heuristic(start)})
+	return s
+}
 
-	open := &openList{}
-	heap.Init(open)
-	heap.Push(open, &searchNode{
-		state:  start,
-		gScore: 0,
-		fScore: startHeuristic,
-	})
-
-	gScores := map[string]float64{startKey: 0}
-	cameFrom := map[string]edge{}
-	closed := map[string]struct{}{}
-
+// run executes the A* loop, returning the cheapest goal-satisfying node found
+// (nil when none within the iteration cap). The cameFrom trail is retained on
+// the search for reconstructPath; ctx cancellation aborts mid-search.
+func (s *search) run(ctx context.Context) (*searchNode, error) {
 	var bestGoalNode *searchNode
 	bestGoalCost := math.Inf(1)
-	iterations := 0
 
-	for open.Len() > 0 && iterations < maxIter {
+	for s.open.Len() > 0 && s.iterations < s.maxIter {
 		if err := ctx.Err(); err != nil {
-			return nil, nil, iterations, err
+			return nil, err
 		}
-		iterations++
+		s.iterations++
 
-		current := heap.Pop(open).(*searchNode)
+		current := heap.Pop(s.open).(*searchNode)
 		key := current.state.HashKey()
-		if _, seen := closed[key]; seen {
+		if _, seen := s.closed[key]; seen {
 			continue
 		}
-		closed[key] = struct{}{}
+		s.closed[key] = struct{}{}
 
-		if goal.IsSatisfiedBy(current.state) {
+		if s.goal.IsSatisfiedBy(current.state) {
 			if current.gScore < bestGoalCost {
 				bestGoalNode = current
 				bestGoalCost = current.gScore
@@ -205,27 +227,19 @@ func (p *Planner) searchForGoal(
 			continue
 		}
 
-		expandNeighbors(current, actions, start, gScores, cameFrom, open, goal)
+		s.expand(current)
 	}
 
-	return bestGoalNode, cameFrom, iterations, nil
+	return bestGoalNode, nil
 }
 
-// expandNeighbors enqueues every state reachable from current by applying
-// one applicable action. The cost calc samples the start world state so
+// expand enqueues every state reachable from current by applying one
+// applicable action. The cost calc samples the start world state so
 // dynamic-cost actions see a stable input across the whole search.
-func expandNeighbors(
-	current *searchNode,
-	actions []core.Action,
-	start core.WorldState,
-	gScores map[string]float64,
-	cameFrom map[string]edge,
-	open *openList,
-	goal *core.Goal,
-) {
+func (s *search) expand(current *searchNode) {
 	currentKey := current.state.HashKey()
 	currentState := current.state.State()
-	for _, action := range actions {
+	for _, action := range s.actions {
 		meta := action.Metadata()
 		if !meta.IsApplicableIn(currentState) {
 			continue
@@ -240,17 +254,17 @@ func expandNeighbors(
 
 		tentativeG := current.gScore
 		if meta.Cost != nil {
-			tentativeG += meta.Cost(start)
+			tentativeG += meta.Cost(s.start)
 		}
-		if existing, ok := gScores[nextKey]; ok && tentativeG >= existing {
+		if existing, ok := s.gScores[nextKey]; ok && tentativeG >= existing {
 			continue
 		}
 
-		gScores[nextKey] = tentativeG
-		cameFrom[nextKey] = edge{prevKey: currentKey, action: action}
+		s.gScores[nextKey] = tentativeG
+		s.cameFrom[nextKey] = edge{prevKey: currentKey, action: action}
 
-		h := heuristic(nextState, goal)
-		heap.Push(open, &searchNode{
+		h := s.heuristic(nextState)
+		heap.Push(s.open, &searchNode{
 			state:  nextState,
 			gScore: tentativeG,
 			fScore: tentativeG + h,
@@ -293,10 +307,10 @@ type edge struct {
 // heuristic counts unsatisfied goal preconditions. It's admissible (never
 // overestimates) — every still-unsatisfied condition needs at least one
 // more action to fix. That guarantees A* finds an optimal plan.
-func heuristic(worldState core.WorldState, goal *core.Goal) float64 {
+func (s *search) heuristic(worldState core.WorldState) float64 {
 	state := worldState.State()
 	unsatisfied := 0
-	for key, required := range goal.Preconditions() {
+	for key, required := range s.goal.Preconditions() {
 		if state[key] != required {
 			unsatisfied++
 		}
@@ -304,13 +318,13 @@ func heuristic(worldState core.WorldState, goal *core.Goal) float64 {
 	return float64(unsatisfied)
 }
 
-// reconstructPath walks the cameFrom map from goal back to start,
+// reconstructPath walks the cameFrom trail from goalKey back to the start,
 // producing the action list in execution order.
-func reconstructPath(cameFrom map[string]edge, goalKey, startKey string) []core.Action {
+func (s *search) reconstructPath(goalKey string) []core.Action {
 	var reversed []core.Action
 	cursor := goalKey
-	for cursor != startKey {
-		e, ok := cameFrom[cursor]
+	for cursor != s.startKey {
+		e, ok := s.cameFrom[cursor]
 		if !ok {
 			break
 		}
@@ -332,14 +346,14 @@ func reconstructPath(cameFrom map[string]edge, goalKey, startKey string) []core.
 // in vain. It is intentionally NOT a full transitive reachability proof —
 // such a check would need fixed-point iteration over the action graph and
 // is dominated by A* itself for the common case.
-func goalReachable(start core.WorldState, actions []core.Action, goal *core.Goal) bool {
-	state := start.State()
-	for key, required := range goal.Preconditions() {
+func (s *search) goalReachable() bool {
+	state := s.start.State()
+	for key, required := range s.goal.Preconditions() {
 		if state[key] == required {
 			continue // already satisfied at start; no producer needed
 		}
 		produced := false
-		for _, a := range actions {
+		for _, a := range s.actions {
 			if a.Metadata().Effects[key] == required {
 				produced = true
 				break
@@ -362,16 +376,16 @@ func goalReachable(start core.WorldState, actions []core.Action, goal *core.Goal
 // have a low-cost path through it but doesn't actually produce anything
 // the goal needs. forwardOptimize handles the symmetric "doesn't change
 // state" case; running both passes covers redundancy from both ends.
-func backwardOptimize(actions []core.Action, start core.WorldState, goal *core.Goal) []core.Action {
+func (s *search) backwardOptimize(actions []core.Action) []core.Action {
 	if len(actions) <= 1 {
 		return actions
 	}
 
-	startState := start.State()
+	startState := s.start.State()
 
 	// Initialize needed = goal preconditions not yet satisfied at start.
 	needed := map[string]core.Determination{}
-	for key, required := range goal.Preconditions() {
+	for key, required := range s.goal.Preconditions() {
 		if startState[key] != required {
 			needed[key] = required
 		}
@@ -423,13 +437,13 @@ func backwardOptimize(actions []core.Action, start core.WorldState, goal *core.G
 // change the world state at the point they're scheduled. This catches the
 // case where A* picked an action that is logically redundant given an
 // earlier action's effects (rare with the heuristic but possible).
-func forwardOptimize(actions []core.Action, start core.WorldState) []core.Action {
+func (s *search) forwardOptimize(actions []core.Action) []core.Action {
 	if len(actions) <= 1 {
 		return actions
 	}
 
 	out := make([]core.Action, 0, len(actions))
-	cur := start
+	cur := s.start
 	for _, action := range actions {
 		next := cur.Apply(action.Metadata().Effects)
 		if next.HashKey() == cur.HashKey() {
