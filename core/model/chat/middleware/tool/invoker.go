@@ -1,4 +1,4 @@
-package chat
+package tool
 
 import (
 	"context"
@@ -11,16 +11,18 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// ToolInvocationResult is what the tool-calling middleware emits after
+// InvocationResult is what the tool-calling middleware emits after
 // running the LLM-requested tool calls. It captures the inline results
 // (toolMessage) plus the flow-control bit (allReturnDirect) that decides
 // whether to feed results back to the LLM or return them to the caller.
-type ToolInvocationResult struct {
-	request         *Request
-	response        *Response
-	toolMessage     *ToolMessage
+type InvocationResult struct {
+	request         *chat.Request
+	response        *chat.Response
+	toolMessage     *chat.ToolMessage
 	allReturnDirect bool
 
 	// interrupt is set when a tool call interrupted the loop pending human
@@ -28,25 +30,25 @@ type ToolInvocationResult struct {
 	// the interrupt cause so the middleware can assemble the resumable
 	// conversation and propagate. When set, toolMessage is nil and the
 	// normal continue/return path is bypassed.
-	interrupt *toolRoundInterrupt
+	interrupt *roundInterrupt
 }
 
 // Interrupted reports whether the round interrupted pending human input.
-func (r *ToolInvocationResult) Interrupted() bool { return r.interrupt != nil }
+func (r *InvocationResult) Interrupted() bool { return r.interrupt != nil }
 
 // ShouldContinue reports whether the runtime should re-prompt the LLM
 // with the tool results. It is true when at least one internal tool
 // wants its result fed back to the LLM.
-func (r *ToolInvocationResult) ShouldContinue() bool {
+func (r *InvocationResult) ShouldContinue() bool {
 	return !r.allReturnDirect
 }
 
-// ShouldReturn is the inverse of [ToolInvocationResult.ShouldContinue].
-func (r *ToolInvocationResult) ShouldReturn() bool { return !r.ShouldContinue() }
+// ShouldReturn is the inverse of [InvocationResult.ShouldContinue].
+func (r *InvocationResult) ShouldReturn() bool { return !r.ShouldContinue() }
 
-// BuildContinueRequest assembles the next [*Request] in the tool-calling
+// BuildContinueRequest assembles the next [*chat.Request] in the tool-calling
 // loop: the turn's system header, this round's assistant tool-call message,
-// and the [*ToolMessage] carrying the inline results. Returns an error when
+// and the [*chat.ToolMessage] carrying the inline results. Returns an error when
 // the result is not actually in "continue" state.
 //
 // It does NOT carry the prior conversation — the memory middleware below the
@@ -58,9 +60,9 @@ func (r *ToolInvocationResult) ShouldReturn() bool { return !r.ShouldContinue() 
 // interrupts mid-round.) Re-sending the FULL conversation, by contrast, is the
 // coupling that forced the memory layer to de-duplicate — so only the system
 // header and this round's new exchange travel down.
-func (r *ToolInvocationResult) BuildContinueRequest() (*Request, error) {
+func (r *InvocationResult) BuildContinueRequest() (*chat.Request, error) {
 	if !r.ShouldContinue() {
-		return nil, errors.New("chat.ToolInvocationResult.BuildContinueRequest: result is in return-direct state")
+		return nil, errors.New("tool.InvocationResult.BuildContinueRequest: result is in return-direct state")
 	}
 	if err := r.assertContinuableState(); err != nil {
 		return nil, err
@@ -68,11 +70,11 @@ func (r *ToolInvocationResult) BuildContinueRequest() (*Request, error) {
 
 	result := r.response.Result
 	if result == nil || !result.AssistantMessage.HasToolCalls() {
-		return nil, errors.New("chat.ToolInvocationResult.BuildContinueRequest: response has no tool calls")
+		return nil, errors.New("tool.InvocationResult.BuildContinueRequest: response has no tool calls")
 	}
 
 	msgs := append(systemMessages(r.request.Messages), result.AssistantMessage, r.toolMessage)
-	next, err := NewRequest(msgs)
+	next, err := chat.NewRequest(msgs)
 	if err != nil {
 		return nil, err
 	}
@@ -84,60 +86,60 @@ func (r *ToolInvocationResult) BuildContinueRequest() (*Request, error) {
 
 // assertContinuableState validates that the inputs needed to build the
 // continuation request are present.
-func (r *ToolInvocationResult) assertContinuableState() error {
+func (r *InvocationResult) assertContinuableState() error {
 	if r.request == nil {
-		return errors.New("chat.ToolInvocationResult: original request is missing")
+		return errors.New("tool.InvocationResult: original request is missing")
 	}
 	if r.response == nil {
-		return errors.New("chat.ToolInvocationResult: LLM response is missing")
+		return errors.New("tool.InvocationResult: LLM response is missing")
 	}
 	if r.toolMessage == nil {
-		return errors.New("chat.ToolInvocationResult: internal-tools message is missing")
+		return errors.New("tool.InvocationResult: internal-tools message is missing")
 	}
 	return nil
 }
 
-// BuildReturnResponse assembles the final [*Response] when no further
+// BuildReturnResponse assembles the final [*chat.Response] when no further
 // LLM round is needed — every internal tool was return-direct.
-func (r *ToolInvocationResult) BuildReturnResponse() (*Response, error) {
+func (r *InvocationResult) BuildReturnResponse() (*chat.Response, error) {
 	if !r.ShouldReturn() {
-		return nil, errors.New("chat.ToolInvocationResult.BuildReturnResponse: result is in continue state")
+		return nil, errors.New("tool.InvocationResult.BuildReturnResponse: result is in continue state")
 	}
 	if r.response == nil {
-		return nil, errors.New("chat.ToolInvocationResult.BuildReturnResponse: LLM response is missing")
+		return nil, errors.New("tool.InvocationResult.BuildReturnResponse: LLM response is missing")
 	}
 
 	withCalls := r.response.Result
 	if withCalls == nil || !withCalls.AssistantMessage.HasToolCalls() {
-		return nil, errors.New("chat.ToolInvocationResult.BuildReturnResponse: response has no tool calls")
+		return nil, errors.New("tool.InvocationResult.BuildReturnResponse: response has no tool calls")
 	}
 
-	result, err := NewResult(withCalls.AssistantMessage, withCalls.Metadata)
+	result, err := chat.NewResult(withCalls.AssistantMessage, withCalls.Metadata)
 	if err != nil {
-		return nil, fmt.Errorf("chat.ToolInvocationResult.BuildReturnResponse: %w", err)
+		return nil, fmt.Errorf("tool.InvocationResult.BuildReturnResponse: %w", err)
 	}
 	result.ToolMessage = r.toolMessage
 
-	return NewResponse(result, r.response.Metadata)
+	return chat.NewResponse(result, r.response.Metadata)
 }
 
 // validate ensures the result has the inline tool message populated.
-func (r *ToolInvocationResult) validate() error {
+func (r *InvocationResult) validate() error {
 	if r.request == nil {
-		return errors.New("chat.ToolInvocationResult: original request is missing")
+		return errors.New("tool.InvocationResult: original request is missing")
 	}
 	if r.response == nil {
-		return errors.New("chat.ToolInvocationResult: LLM response is missing")
+		return errors.New("tool.InvocationResult: LLM response is missing")
 	}
 	if r.toolMessage == nil {
-		return errors.New("chat.ToolInvocationResult: internal-tools message is required")
+		return errors.New("tool.InvocationResult: internal-tools message is required")
 	}
 	return nil
 }
 
-// toolCallInvoker drives one round of tool invocations: validate every
+// callInvoker drives one round of tool invocations: validate every
 // requested tool, execute each in order, and assemble the
-// [*ToolInvocationResult].
+// [*InvocationResult].
 //
 // Error policy (no knobs — this is the framework default): a tool failure is
 // recoverable UNLESS it's a control-flow signal. A control-flow error
@@ -148,14 +150,14 @@ func (r *ToolInvocationResult) validate() error {
 // result and fed back so the model can adjust. A tool author thus picks the
 // outcome at the source: fold a failure into the result string for full
 // control over the wording, or just return an ordinary error and let the loop
-// wrap it. See [Tool.Call].
-type toolCallInvoker struct {
-	registry *ToolRegistry
+// wrap it. See [chat.Tool.Call].
+type callInvoker struct {
+	registry *Registry
 }
 
-// newToolCallInvoker pairs an invoker with its registry.
-func newToolCallInvoker(registry *ToolRegistry) *toolCallInvoker {
-	return &toolCallInvoker{registry: registry}
+// newCallInvoker pairs an invoker with its registry.
+func newCallInvoker(registry *Registry) *callInvoker {
+	return &callInvoker{registry: registry}
 }
 
 // canInvokeToolCalls reports whether the response carries tool calls to run.
@@ -163,7 +165,7 @@ func newToolCallInvoker(registry *ToolRegistry) *toolCallInvoker {
 // rejected here — they are tolerated and turned into error results by
 // invokeToolCalls (the model named a tool that doesn't exist; that's
 // recoverable feedback, not a reason to abort the run).
-func (i *toolCallInvoker) canInvokeToolCalls(resp *Response) (bool, error) {
+func (i *callInvoker) canInvokeToolCalls(resp *chat.Response) (bool, error) {
 	if resp.Result == nil || !resp.Result.AssistantMessage.HasToolCalls() {
 		return false, nil
 	}
@@ -207,12 +209,12 @@ func abortsToolLoop(err error) bool {
 }
 
 // invokeToolCalls runs every requested tool in order and collects the
-// results into a single [*ToolMessage]. One child span per tool call
-// is emitted under the parent chat span, tagged with `lynx.tool.*`
+// results into a single [*chat.ToolMessage]. One child span per tool call
+// is emitted under the parent chat span, tagged with `gen_ai.tool.*`
 // attributes — see [toolTracer] / doc/OBSERVABILITY.md §4.5.
-func (i *toolCallInvoker) invokeToolCalls(ctx context.Context, calls []*ToolCallPart) (*ToolInvocationResult, error) {
+func (i *callInvoker) invokeToolCalls(ctx context.Context, calls []*chat.ToolCallPart) (*InvocationResult, error) {
 	allReturnDirect := true
-	returns := make([]*ToolReturn, 0, len(calls))
+	returns := make([]*chat.ToolReturn, 0, len(calls))
 
 	for _, call := range calls {
 		t, exists := i.registry.Find(call.Name)
@@ -221,7 +223,7 @@ func (i *toolCallInvoker) invokeToolCalls(ctx context.Context, calls []*ToolCall
 			// with an error result so it can self-correct, and force a
 			// follow-up round — never abort the run over a hallucinated name.
 			allReturnDirect = false
-			returns = append(returns, &ToolReturn{
+			returns = append(returns, &chat.ToolReturn{
 				ID:     call.ID,
 				Name:   call.Name,
 				Result: unknownToolResult(call.Name, i.registry.Names()),
@@ -237,12 +239,12 @@ func (i *toolCallInvoker) invokeToolCalls(ctx context.Context, calls []*ToolCall
 				// plus the interrupt cause; the middleware assembles the
 				// resumable conversation and propagates. Checked before the
 				// abort / feedback carve-outs below so interrupt wins.
-				return &ToolInvocationResult{
-					interrupt: &toolRoundInterrupt{done: returns, cause: err},
+				return &InvocationResult{
+					interrupt: &roundInterrupt{done: returns, cause: err},
 				}, nil
 			}
 			if abortsToolLoop(err) {
-				return nil, fmt.Errorf("chat.toolCallInvoker.invokeToolCalls: tool %q failed: %w", call.Name, err)
+				return nil, fmt.Errorf("tool.callInvoker.invokeToolCalls: tool %q failed: %w", call.Name, err)
 			}
 			// Recoverable failure: feed it back to the model as the tool's
 			// result so it can adjust and continue, rather than aborting the
@@ -251,7 +253,7 @@ func (i *toolCallInvoker) invokeToolCalls(ctx context.Context, calls []*ToolCall
 			// the loop. The failure is also recorded out-of-band on the
 			// tool-call item (via the tool observer) — see lyra engine.
 			allReturnDirect = false
-			returns = append(returns, &ToolReturn{
+			returns = append(returns, &chat.ToolReturn{
 				ID:     call.ID,
 				Name:   call.Name,
 				Result: toolErrorResult(call.Name, err),
@@ -260,35 +262,35 @@ func (i *toolCallInvoker) invokeToolCalls(ctx context.Context, calls []*ToolCall
 		}
 
 		allReturnDirect = allReturnDirect && t.Metadata().ReturnDirect
-		returns = append(returns, &ToolReturn{
+		returns = append(returns, &chat.ToolReturn{
 			ID:     call.ID,
 			Name:   call.Name,
 			Result: content,
 		})
 	}
 
-	toolMsg, err := NewToolMessage(returns)
+	toolMsg, err := chat.NewToolMessage(returns)
 	if err != nil {
-		return nil, fmt.Errorf("chat.toolCallInvoker.invokeToolCalls: %w", err)
+		return nil, fmt.Errorf("tool.callInvoker.invokeToolCalls: %w", err)
 	}
 
-	return &ToolInvocationResult{
+	return &InvocationResult{
 		toolMessage:     toolMsg,
 		allReturnDirect: allReturnDirect,
 	}, nil
 }
 
 // invokeOne dispatches a single tool call under its own OTel span.
-// The span emits `lynx.tool.name` / `lynx.tool.call_id`; an error
-// adds `lynx.tool.is_error=true` and sets span status before
+// The span emits `gen_ai.tool.name` / `gen_ai.tool.call.id`; an error
+// adds the error to the span and sets span status before
 // re-throwing the underlying error to the caller. No-op overhead
 // when no TracerProvider is configured.
-func (i *toolCallInvoker) invokeOne(ctx context.Context, t Tool, call *ToolCallPart) (string, error) {
+func (i *callInvoker) invokeOne(ctx context.Context, t chat.Tool, call *chat.ToolCallPart) (string, error) {
 	ctx, span := toolTracer.Start(ctx, "tool.invoke "+call.Name,
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
-			attribute.String(attrLynxToolName, call.Name),
-			attribute.String(attrLynxToolCallID, call.ID),
+			attribute.String(attrToolName, call.Name),
+			attribute.String(attrToolCallID, call.ID),
 		),
 	)
 	defer span.End()
@@ -310,13 +312,13 @@ func (i *toolCallInvoker) invokeOne(ctx context.Context, t Tool, call *ToolCallP
 }
 
 // invoke is the orchestrator: validate, run, attach context.
-func (i *toolCallInvoker) invoke(ctx context.Context, req *Request, resp *Response) (*ToolInvocationResult, error) {
+func (i *callInvoker) invoke(ctx context.Context, req *chat.Request, resp *chat.Response) (*InvocationResult, error) {
 	canInvoke, err := i.canInvokeToolCalls(resp)
 	if err != nil {
 		return nil, err
 	}
 	if !canInvoke {
-		return nil, errors.New("chat.toolCallInvoker.invoke: response has no valid tool calls")
+		return nil, errors.New("tool.callInvoker.invoke: response has no valid tool calls")
 	}
 
 	result, err := i.invokeToolCalls(ctx, resp.Result.AssistantMessage.CollectToolCalls())

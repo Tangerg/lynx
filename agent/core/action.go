@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 )
 
 // Action is the agent's smallest planning unit. Implementations are
@@ -43,7 +43,7 @@ type ActionMetadata struct {
 	// time config the runtime reads when building the action's
 	// ProcessContext — not something the planner reasons about. Zero
 	// value = loop defaults.
-	ToolLoop chat.ToolLoopConfig
+	ToolLoop tool.LoopConfig
 
 	// Cost defaults to [Static](1.0) so the planner doesn't pick
 	// "free" actions over ones with real work.

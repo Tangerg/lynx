@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	"github.com/Tangerg/lynx/core/model/chat/memory"
 )
 
@@ -79,7 +80,7 @@ func main() {
 				// downstream; an inner memory layer reconstructs the
 				// conversation. Standalone here, so pair with an ephemeral
 				// in-process store scoped to this call.
-				callMW, streamMW := chat.NewToolMiddleware()
+				callMW, streamMW := tool.NewMiddleware()
 				memCallMW, memStreamMW, _ := memory.NewMiddleware(memory.NewInMemoryStore())
 				req := pc.Chat().
 					WithMiddlewares(callMW, streamMW, memCallMW, memStreamMW).

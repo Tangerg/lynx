@@ -8,7 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
-	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	"github.com/Tangerg/lynx/core/model/chat/memory"
 )
 
@@ -43,7 +43,7 @@ type SupervisorConfig[In, Out any] struct {
 	Parse func(text string) (Out, error)
 
 	// MaxIterations caps the orchestration tool loop. 0 uses the chat
-	// default ([chat.DefaultMaxToolIterations]).
+	// default ([tool.DefaultMaxIterations]).
 	MaxIterations int
 }
 
@@ -98,7 +98,7 @@ func Supervisor[In, Out any](platform *runtime.Platform, cfg SupervisorConfig[In
 			// Orchestration is resilient by default: a hallucinated sub-agent
 			// name (unknown tool) and a recoverable tool failure are both fed
 			// back so the model can pick a real one / adjust — no knob needed.
-			callMW, streamMW := chat.NewToolMiddleware(chat.ToolLoopConfig{
+			callMW, streamMW := tool.NewMiddleware(tool.LoopConfig{
 				MaxIterations: cfg.MaxIterations,
 			})
 

@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -25,19 +26,16 @@ import (
 // gen_ai.operation namespace they instrument.
 var chatTracer = otel.Tracer("lynx/gen_ai/chat")
 
-// toolTracer is the package-level tracer for inline tool execution
-// spans. Tools that the LLM requests during a chat turn are dispatched
-// by the tool-calling middleware and each invocation gets its own
-// child span tagged with `lynx.tool.*` attributes.
-var toolTracer = otel.Tracer("lynx/tool")
-
-// Tool-call attribute keys from the OTel GenAI semconv. Tool failures
-// surface through the span status (Error) + RecordError, not a separate
-// is_error bool attribute.
-const (
-	attrLynxToolName   = "gen_ai.tool.name"
-	attrLynxToolCallID = "gen_ai.tool.call.id"
-)
+// interruptsToolLoop reports whether err is a HITL interrupt (duck-typed via
+// ToolLoopInterrupt() bool, the way agent/hitl signals one). The chat client
+// span uses it to treat an interrupt as normal control flow rather than a
+// failure. The tool-calling middleware (core/model/chat/middleware/tool) has
+// its own equivalent for driving the loop — the two are independent, trivial
+// adapters over the same externally-defined contract.
+func interruptsToolLoop(err error) bool {
+	var i interface{ ToolLoopInterrupt() bool }
+	return errors.As(err, &i) && i.ToolLoopInterrupt()
+}
 
 // OpenTelemetry GenAI semantic-convention attribute keys. The values
 // these spans carry MUST match the spec under
