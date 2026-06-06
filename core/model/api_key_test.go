@@ -20,12 +20,9 @@ func TestApiKey_StringNeverLeaksSecret(t *testing.T) {
 	const secret = "sk-this-is-a-secret-token"
 	k := model.NewAPIKey(secret)
 
-	stringer, ok := k.(interface{ String() string })
-	if !ok {
-		t.Fatal("APIKey implementation must satisfy fmt.Stringer for safe logging")
-	}
-
-	masked := stringer.String()
+	// String is part of the APIKey contract (interface method), so it's callable
+	// directly — no type assertion needed.
+	masked := k.String()
 	if strings.Contains(masked, "this-is-a-secret-token") {
 		t.Fatalf("masked form leaks secret: %q", masked)
 	}
@@ -51,8 +48,7 @@ func TestApiKey_StringMaskingShapes(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			k := model.NewAPIKey(tc.key)
-			stringer := k.(interface{ String() string })
-			if got := stringer.String(); got != tc.want {
+			if got := k.String(); got != tc.want {
 				t.Fatalf("String = %q, want %q", got, tc.want)
 			}
 		})

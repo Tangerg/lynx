@@ -18,6 +18,15 @@ type APIKey interface {
 	// can refresh transparently. Returns "" when no authentication is
 	// required.
 	Get() string
+
+	// String returns the masked, secret-safe rendering of the key (it makes
+	// every APIKey an [fmt.Stringer]). Use this — never [APIKey.Get] — wherever
+	// a key is shown: log lines, structured-log/JSON dumps, and wire payloads.
+	// Because it is part of the interface, every implementation is guaranteed
+	// to render safely, so a key can be passed to "%v"/"%s" or json.Marshal
+	// without leaking. The masked form carries no label (e.g. no "api_key="),
+	// so callers add their own context.
+	String() string
 }
 
 var _ APIKey = (*staticAPIKey)(nil)
@@ -48,9 +57,8 @@ func (k *staticAPIKey) Get() string {
 	return k.value
 }
 
-// String returns the masked representation, suitable for logs.
-// Implements [fmt.Stringer] so the value never leaks accidentally via
-// "%v" or "%s" formatting.
+// String returns the masked representation (see [APIKey.String]), so the value
+// never leaks accidentally via "%v" / "%s" formatting.
 func (k *staticAPIKey) String() string {
 	return k.masked()
 }
@@ -73,15 +81,15 @@ const maskStars = "****"
 // itself exposed.
 const maskEndsMinLen = 9
 
-// MaskAPIKey redacts a credential for display — the reusable form behind every
-// log line, JSON field, or wire payload that must show a key without leaking
-// it. The middle is a fixed-width star run, so the output never reveals the key
-// length, and it carries no "api_key=" label (callers add their own context):
+// masked redacts the key for display. The middle is a fixed-width star run, so
+// the output never reveals the key length, and it carries no "api_key=" label
+// (callers add their own context):
 //
 //	""                    -> ""
 //	len < maskEndsMinLen  -> "****"
 //	len ≥ maskEndsMinLen  -> "ab****yz" (first 2, last 2)
-func MaskAPIKey(value string) string {
+func (k *staticAPIKey) masked() string {
+	value := k.value
 	if value == "" {
 		return ""
 	}
@@ -90,7 +98,3 @@ func MaskAPIKey(value string) string {
 	}
 	return value[:2] + maskStars + value[len(value)-2:]
 }
-
-// masked renders this key's value through [MaskAPIKey] for the Stringer /
-// JSON leak-safe paths.
-func (k *staticAPIKey) masked() string { return MaskAPIKey(k.value) }
