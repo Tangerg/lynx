@@ -1,4 +1,4 @@
-package middleware
+package logger
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// Logger is the dependency-inverted sink that [NewLoggerMiddleware]
+// Logger is the dependency-inverted sink that [NewMiddleware]
 // delegates to. Implementations decide *how* to record what the
 // middleware observes — slog, zap, an OTel log bridge, a metrics
 // counter, or a no-op for benchmarks. Lynx ships [NewSlogLogger] as
@@ -33,7 +33,7 @@ type Logger interface {
 	LogError(ctx context.Context, req *chat.Request, err error, latency time.Duration)
 }
 
-// NewLoggerMiddleware returns a (call, stream) middleware pair that
+// NewMiddleware returns a (call, stream) middleware pair that
 // emits one request event before the handler runs and one
 // response / error event after. The pair shares a single [Logger]
 // instance, so the middleware adds zero allocations beyond the
@@ -41,7 +41,7 @@ type Logger interface {
 //
 // Example:
 //
-//	callMW, streamMW := middleware.NewLoggerMiddleware(
+//	callMW, streamMW := middleware.NewMiddleware(
 //	    middleware.NewSlogLogger(slog.Default()),
 //	)
 //	resp, err := client.Chat().
@@ -51,7 +51,7 @@ type Logger interface {
 //
 // Passing nil falls back to a no-op Logger so callers never need to
 // nil-check.
-func NewLoggerMiddleware(logger Logger) (chat.CallMiddleware, chat.StreamMiddleware) {
+func NewMiddleware(logger Logger) (chat.CallMiddleware, chat.StreamMiddleware) {
 	if logger == nil {
 		logger = nopLogger{}
 	}

@@ -3,7 +3,7 @@ package engine
 import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/memory"
+	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	lyramem "github.com/Tangerg/lynx/lyra/internal/service/memory"
 	"github.com/Tangerg/lynx/mcp"
 )

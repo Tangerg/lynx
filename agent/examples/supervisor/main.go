@@ -13,7 +13,7 @@ import (
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
-	"github.com/Tangerg/lynx/core/model/chat/memory"
+	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 )
 
 // Domain types

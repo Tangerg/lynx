@@ -18,7 +18,7 @@ import (
 	"path/filepath"
 
 	"github.com/Tangerg/lynx/agent/core"
-	chatmem "github.com/Tangerg/lynx/core/model/chat/memory"
+	chatmem "github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/lyra/internal/config"
 	lyraruntime "github.com/Tangerg/lynx/lyra/internal/runtime"
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"

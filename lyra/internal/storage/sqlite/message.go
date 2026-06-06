@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/memory"
+	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 )
 
 // MessageStore implements the lynx-core chat-memory [memory.Store] against

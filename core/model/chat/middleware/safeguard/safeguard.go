@@ -1,4 +1,4 @@
-package middleware
+package safeguard
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// ErrUnsafeContent is returned by [NewSafeguardMiddleware] when an
+// ErrUnsafeContent is returned by [NewMiddleware] when an
 // input or output text triggers the configured [Matcher]. Wrap or
 // errors.Is against this sentinel to special-case safeguard
 // rejections; the underlying error string carries the matched term
@@ -18,7 +18,7 @@ import (
 var ErrUnsafeContent = errors.New("chat.middleware: unsafe content blocked")
 
 // Matcher is the dependency-inverted predicate that
-// [NewSafeguardMiddleware] consults to decide whether a piece of
+// [NewMiddleware] consults to decide whether a piece of
 // text is allowed. Implementations decide *how* — substring scan,
 // compiled regex set, classifier, RPC to a moderation API.
 //
@@ -31,14 +31,14 @@ type Matcher interface {
 	Match(ctx context.Context, text string) (term string, hit bool)
 }
 
-// SafeguardScope picks which side of the chat exchange the
+// Scope picks which side of the chat exchange the
 // middleware inspects.
-type SafeguardScope int
+type Scope int
 
 const (
 	// ScopeInput scans the user/system message texts before they
 	// reach the model.
-	ScopeInput SafeguardScope = 1 << iota
+	ScopeInput Scope = 1 << iota
 
 	// ScopeOutput scans the assistant text after the model replies
 	// (whole response on Call; on each chunk during Stream).
@@ -49,23 +49,23 @@ const (
 	ScopeBoth = ScopeInput | ScopeOutput
 )
 
-func (s SafeguardScope) inspectsInput() bool  { return s&ScopeInput != 0 }
-func (s SafeguardScope) inspectsOutput() bool { return s&ScopeOutput != 0 }
+func (s Scope) inspectsInput() bool  { return s&ScopeInput != 0 }
+func (s Scope) inspectsOutput() bool { return s&ScopeOutput != 0 }
 
-// SafeguardOptions configures [NewSafeguardMiddleware].
-type SafeguardOptions struct {
+// Options configures [NewMiddleware].
+type Options struct {
 	// Scope selects which side of the exchange is inspected.
 	// Defaults to [ScopeBoth] when zero.
-	Scope SafeguardScope
+	Scope Scope
 
 	// OnBlock is called when a match triggers a block. The default
 	// is no-op; supply your own to log, increment metrics, or push
 	// to an audit pipeline. The middleware always rejects with
 	// [ErrUnsafeContent] regardless of what this callback does.
-	OnBlock func(ctx context.Context, scope SafeguardScope, term string)
+	OnBlock func(ctx context.Context, scope Scope, term string)
 }
 
-// NewSafeguardMiddleware returns a (call, stream) middleware pair
+// NewMiddleware returns a (call, stream) middleware pair
 // that screens user input and / or assistant output through matcher
 // and blocks the request when a hit occurs. Both halves share one
 // Matcher so any in-memory state (compiled regex, hash set) is
@@ -90,11 +90,11 @@ type SafeguardOptions struct {
 //
 // Example with default matcher:
 //
-//	callMW, streamMW := middleware.NewSafeguardMiddleware(
+//	callMW, streamMW := middleware.NewMiddleware(
 //	    middleware.NewSubstringMatcher([]string{"forbidden", "secret-key"}, true),
-//	    middleware.SafeguardOptions{Scope: middleware.ScopeBoth},
+//	    middleware.Options{Scope: middleware.ScopeBoth},
 //	)
-func NewSafeguardMiddleware(matcher Matcher, opts SafeguardOptions) (chat.CallMiddleware, chat.StreamMiddleware) {
+func NewMiddleware(matcher Matcher, opts Options) (chat.CallMiddleware, chat.StreamMiddleware) {
 	if matcher == nil {
 		return passthroughCall, passthroughStream
 	}
@@ -102,7 +102,7 @@ func NewSafeguardMiddleware(matcher Matcher, opts SafeguardOptions) (chat.CallMi
 		opts.Scope = ScopeBoth
 	}
 	if opts.OnBlock == nil {
-		opts.OnBlock = func(context.Context, SafeguardScope, string) {}
+		opts.OnBlock = func(context.Context, Scope, string) {}
 	}
 
 	mw := &safeguardMiddleware{matcher: matcher, opts: opts}
@@ -111,7 +111,7 @@ func NewSafeguardMiddleware(matcher Matcher, opts SafeguardOptions) (chat.CallMi
 
 type safeguardMiddleware struct {
 	matcher Matcher
-	opts    SafeguardOptions
+	opts    Options
 }
 
 func (m *safeguardMiddleware) wrapCall(next chat.CallHandler) chat.CallHandler {
@@ -211,7 +211,7 @@ func (m *safeguardMiddleware) scanInputs(ctx context.Context, req *chat.Request)
 	return "", false
 }
 
-func blockError(scope SafeguardScope, term string) error {
+func blockError(scope Scope, term string) error {
 	side := "input"
 	if scope == ScopeOutput {
 		side = "output"
