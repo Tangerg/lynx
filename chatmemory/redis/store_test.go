@@ -8,7 +8,7 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/Tangerg/lynx/chatmemory/redis"
-	chatmem "github.com/Tangerg/lynx/core/model/chat/memory"
+	chatmem "github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 )
 
 func stubClient() goredis.UniversalClient {
