@@ -86,8 +86,7 @@ type openTool struct {
 	runID     string // the run the item belongs to (origin run for a resumed tool)
 	createdAt time.Time
 	name      string
-	args      string // raw JSON arguments, replayed to rebuild the variant at completion
-	kind      protocol.ToolInvocationKind
+	args      string // raw JSON arguments, replayed to rebuild the invocation at completion
 }
 
 func newTranslator(sessionID, runID, parentRunID string, userInput []protocol.ContentBlock, resume *resumeBinding) *translator {
@@ -101,11 +100,26 @@ func newTranslator(sessionID, runID, parentRunID string, userInput []protocol.Co
 	}
 }
 
-// resumeKey identifies a gated tool call by (name, arguments) — the same pair
-// the approval gate keys its verdict on, so a re-fired approved call matches
-// the pending item recorded at interrupt time.
-func resumeKey(toolName, arguments string) string {
-	return toolName + "\x00" + arguments
+// resumeKey identifies a gated tool call by (name, canonical-arguments) — the
+// same pair the approval gate keys its verdict on, so a re-fired approved call
+// matches the pending item recorded at interrupt time. argsKey is the
+// CANONICAL form of the arguments object: both the re-fire side (raw JSON
+// string → parse → marshal) and the resume side (the round-tripped
+// payload.tool.arguments map → marshal) produce the same string, since
+// encoding/json sorts map keys deterministically. This is what lets the
+// resume binding read (name, arguments) straight off payload.tool (§4.4) —
+// the domain-neutral envelope always carries them — instead of the old
+// backend-internal `_resume` tuple the strongly-typed variants forced.
+func resumeKey(toolName, argsKey string) string {
+	return toolName + "\x00" + argsKey
+}
+
+// argsKey is the canonical (key-sorted) JSON of a parsed arguments object,
+// used as the stable half of resumeKey. nil args canonicalize to "null", an
+// empty object to "{}" — consistently on both sides of the resume boundary.
+func argsKey(args map[string]any) string {
+	b, _ := json.Marshal(args)
+	return string(b)
 }
 
 // reuseOrNextItemID returns the original proposal item id + its origin run for
@@ -113,10 +127,11 @@ func resumeKey(toolName, arguments string) string {
 // freshly minted id under the current run otherwise. Matching is by
 // (name, arguments); an edited-args approval won't match and cleanly falls
 // back to a new item.
-func (t *translator) reuseOrNextItemID(toolName, arguments string) (id, runID string) {
+func (t *translator) reuseOrNextItemID(toolName, argsJSON string) (id, runID string) {
 	if t.resume != nil {
-		if orig, ok := t.resume.toolItems[resumeKey(toolName, arguments)]; ok {
-			delete(t.resume.toolItems, resumeKey(toolName, arguments))
+		key := resumeKey(toolName, argsKey(parseArgs(argsJSON)))
+		if orig, ok := t.resume.toolItems[key]; ok {
+			delete(t.resume.toolItems, key)
 			return orig, t.resume.originRunID
 		}
 	}
@@ -312,16 +327,12 @@ func (t *translator) approvalInterrupt(in chat.Interrupt) (protocol.StreamEvent,
 	entry := protocol.Interrupt{
 		ItemID: id,
 		Type:   "approval",
-		// payload.tool is the contract display payload (API.md §4.8). _resume
-		// carries the raw (name, arguments) the server needs to re-bind the
-		// re-fired approved tool to THIS proposal item across the resume
-		// boundary (resumeKey) — strongly-typed variants drop the name from
-		// the wire, so it can't be recovered from `tool`. Backend-internal;
-		// clients ignore unknown fields (API.md §11).
-		Payload: map[string]any{
-			"tool":    inv,
-			"_resume": map[string]any{"name": p.ToolName, "args": p.Arguments},
-		},
+		// payload.tool is the self-contained ApprovalPayload (API.md §4.8): the
+		// domain-neutral ToolInvocation always carries name + arguments, so the
+		// server re-binds the re-fired approved tool to THIS proposal item
+		// across the resume boundary straight off payload.tool (resumeKey on
+		// name + canonical arguments) — no backend-internal `_resume` tuple.
+		Payload: map[string]any{"tool": inv},
 	}
 	return ev, entry
 }
@@ -502,7 +513,7 @@ func (t *translator) toolStart(e chat.ToolCallStart) []protocol.StreamEvent {
 	out = append(out, t.closeText()...)
 
 	id, runID := t.reuseOrNextItemID(e.ToolName, e.Arguments)
-	ref := &openTool{id: id, runID: runID, createdAt: time.Now().UTC(), name: e.ToolName, args: e.Arguments, kind: toolKind(e.ToolName)}
+	ref := &openTool{id: id, runID: runID, createdAt: time.Now().UTC(), name: e.ToolName, args: e.Arguments}
 	t.tools[e.CallID] = ref
 	out = append(out, protocol.StreamEvent{
 		Type: protocol.StreamItemStarted,
@@ -534,10 +545,10 @@ func (t *translator) toolEnd(e chat.ToolCallEnd) []protocol.StreamEvent {
 
 	var out []protocol.StreamEvent
 	// The authoritative command output lands on the completed item's
-	// `output` (durable, below); this toolOutput delta is only its streaming
-	// preview (API.md §4.4 / §5.2, TOOL_OUTPUT.md). Same merged stdout+stderr
-	// text so preview and terminal agree.
-	if ref.kind == protocol.ToolKindCommandExecution && e.Output != "" {
+	// tool.result.output (durable, below); this toolOutput delta is only its
+	// streaming preview (API.md §4.4 / §5.2). Same merged stdout+stderr text
+	// so preview and terminal agree.
+	if isCommandTool(ref.name) && e.Output != "" {
 		if merged := commandOutput(e.Output); merged != "" {
 			out = append(out, protocol.StreamEvent{
 				Type:   protocol.StreamItemDelta,
@@ -715,66 +726,89 @@ func optCostUSD(c float64) *float64 {
 	return nil
 }
 
-// toolKind maps a built-in tool name onto its wire ToolInvocation kind
-// (API.md §4.4). Strongly-typed variants are exact-name matched; everything
-// else (read / webfetch / httpreq / MCP `<server>.<tool>` / subagent /
-// unknown) rides the generic `tool` envelope.
-func toolKind(name string) protocol.ToolInvocationKind {
+// isCommandTool reports whether a tool name is a shell/command tool, whose
+// stdout streams as a toolOutput preview and whose result is the command
+// shape {exitCode, output, outputTruncated?} (§4.4.2). The name is the sole
+// identity now (no kind on the wire, §4.4) — the display convention keys off
+// it. Everything else falls through to a generic best-effort JSON result.
+func isCommandTool(name string) bool {
 	switch strings.ToLower(name) {
-	case "bash":
-		return protocol.ToolKindCommandExecution
-	case "glob", "grep":
-		return protocol.ToolKindSearch
-	case "websearch":
-		return protocol.ToolKindWebSearch
-	case "write", "edit":
-		return protocol.ToolKindFileChange
+	case "bash", "shell":
+		return true
 	default:
-		return protocol.ToolKindTool
+		return false
 	}
 }
 
-// toolInvocation builds the wire ToolInvocation for a tool call. argsJSON is
-// the model's raw JSON arguments; outputJSON is the tool's JSON result
-// ("" before completion). Strongly-typed variants pull their fields from the
-// parsed args (command argv / query / changed path) and, at completion, from
-// the parsed output (exit/duration, search hits); the generic `tool` carries
-// the parsed args object + best-effort JSON result. Failure / streaming is
-// handled by the caller (toolEnd error mapping, toolOutput delta).
+// toolInvocation builds the domain-neutral wire ToolInvocation for a tool
+// call (API.md §4.4): Name (identity) + Arguments (parsed object, always
+// present) + a best-effort JSON Result. Result is shaped per the §4.4.2
+// display convention keyed by Name (bash→{exitCode,output,…}, grep/glob→
+// {hits}, webSearch→{results}, edit/write→{changes}); any other tool gets a
+// generic best-effort JSON result. argsJSON is the model's raw JSON
+// arguments; outputJSON is the tool's JSON result ("" before completion, so
+// the started shell carries no result). Tool failure / the streaming output
+// preview are handled by the caller (toolEnd error mapping, toolOutput delta).
 func toolInvocation(name, argsJSON, outputJSON string) *protocol.ToolInvocation {
-	inv := &protocol.ToolInvocation{Kind: toolKind(name)}
 	args := parseArgs(argsJSON)
-	switch inv.Kind {
-	case protocol.ToolKindCommandExecution:
-		if cmd := argString(args, "command"); cmd != "" {
-			inv.Command = []string{cmd}
-		}
-		if outputJSON != "" {
-			fillCommandResult(inv, outputJSON)
-		}
-	case protocol.ToolKindSearch:
-		inv.Query = argString(args, "pattern")
-		if outputJSON != "" {
-			inv.Results = parseLocalSearchHits(outputJSON)
-		}
-	case protocol.ToolKindWebSearch:
-		inv.Query = argString(args, "query")
-		if outputJSON != "" {
-			inv.Results = parseWebSearchHits(outputJSON)
-		}
-	case protocol.ToolKindFileChange:
-		if path := argString(args, "path"); path != "" {
-			inv.Changes = []protocol.FileChangeEntry{{Path: path, Kind: "modify"}}
-		}
-	default: // generic tool
-		inv.Name = name
-		inv.Arguments = args
-		if outputJSON != "" {
-			inv.Result = bestEffortJSON(outputJSON)
-		}
+	if args == nil {
+		args = map[string]any{} // arguments is ALWAYS an object on the wire (§4.4.1)
+	}
+	inv := &protocol.ToolInvocation{Name: name, Arguments: args}
+	if outputJSON != "" {
+		inv.Result = toolResult(name, args, outputJSON)
 	}
 	return inv
 }
+
+// toolResult shapes a completed tool's best-effort JSON result per the
+// §4.4.2 display convention keyed by tool name. The convention is
+// non-normative (the client's display registry reads it) — an unknown tool
+// falls back to a generic JSON value, which the client renders as a JSON
+// tree. Failure never lands here (it rides toolCall.error, §4.3).
+func toolResult(name string, args map[string]any, outputJSON string) any {
+	switch strings.ToLower(name) {
+	case "bash", "shell":
+		return commandResultFrom(outputJSON)
+	case "grep", "glob":
+		return searchResult{Hits: parseLocalSearchHits(outputJSON)}
+	case "websearch":
+		return webSearchResultSet{Results: parseWebSearchHits(outputJSON)}
+	case "write", "edit":
+		if path := argString(args, "path"); path != "" {
+			return fileChangeResult{Changes: []protocol.FileEdit{{Path: path, Status: "modified"}}}
+		}
+		return bestEffortJSON(outputJSON)
+	default:
+		return bestEffortJSON(outputJSON)
+	}
+}
+
+// Result envelopes for the §4.4.2 display convention. Typed (not ad-hoc
+// maps) so the shape is compile-time exact and marshals to the documented
+// keys. They are server-side projection helpers, not protocol types — the
+// reusable members (SearchHit / WebSearchResult / FileEdit) are.
+type (
+	// commandResult is the bash/shell convention: merged stdout+stderr as the
+	// AUTHORITATIVE `output` (§5.2 — the toolOutput delta is only its preview)
+	// + exitCode; outputTruncated flags a size-capped output. output is always
+	// present (even ""), so history replay / reconnect (no delta) still renders
+	// the terminal output rather than "(no output)".
+	commandResult struct {
+		ExitCode        *int   `json:"exitCode,omitempty"`
+		Output          string `json:"output"`
+		OutputTruncated bool   `json:"outputTruncated,omitempty"`
+	}
+	searchResult struct {
+		Hits []protocol.SearchHit `json:"hits"`
+	}
+	webSearchResultSet struct {
+		Results []protocol.WebSearchResult `json:"results"`
+	}
+	fileChangeResult struct {
+		Changes []protocol.FileEdit `json:"changes"`
+	}
+)
 
 // argString reads a string field from the parsed arguments, "" when absent.
 func argString(args map[string]any, key string) string {
@@ -796,33 +830,24 @@ func bestEffortJSON(raw string) any {
 	return v
 }
 
-// fillCommandResult populates the settled fields of a completed
-// commandExecution from a bash tool's JSON output ({stdout, stderr,
-// exit_code, duration}): exitCode / durationMs and the AUTHORITATIVE
-// `output` (merged stdout+stderr, API.md §4.4 / §5.2, TOOL_OUTPUT.md §3).
-// Output is always set on a completed item — even to "" — so history
-// replay / reconnect (where the toolOutput delta isn't present) still
-// renders the command's terminal output rather than "(no output)".
-func fillCommandResult(inv *protocol.ToolInvocation, outputJSON string) {
-	merged := commandOutput(outputJSON)
-	inv.Output = &merged // &"" marshals to "output":"" — present, not omitted
+// commandResultFrom builds the command result from a bash tool's JSON output
+// ({stdout, stderr, exit_code}): the AUTHORITATIVE merged `output` + exitCode
+// (API.md §4.4.2 / §5.2). Output is always set — even "" — so a no-output
+// command renders an empty terminal, not a stale preview.
+func commandResultFrom(outputJSON string) commandResult {
+	r := commandResult{Output: commandOutput(outputJSON)}
 	var out struct {
-		ExitCode int    `json:"exit_code"`
-		Duration string `json:"duration"`
+		ExitCode int `json:"exit_code"`
 	}
-	if err := json.Unmarshal([]byte(outputJSON), &out); err != nil {
-		return
+	if json.Unmarshal([]byte(outputJSON), &out) == nil {
+		ec := out.ExitCode
+		r.ExitCode = &ec
 	}
-	ec := out.ExitCode
-	inv.ExitCode = &ec
-	if d, err := time.ParseDuration(out.Duration); err == nil {
-		ms := d.Milliseconds()
-		inv.DurationMs = &ms
-	}
+	return r
 }
 
 // commandOutput merges a bash tool's stdout+stderr into the single full-text
-// `output` value (API.md §4.4). The wire field is one stream (terminals
+// `output` value (API.md §4.4.2). The wire field is one stream (terminals
 // interleave the two); lacking true interleave order we append stderr after
 // stdout, separated by a newline when both are present.
 func commandOutput(outputJSON string) string {
@@ -841,10 +866,11 @@ func commandOutput(outputJSON string) string {
 	}
 }
 
-// parseLocalSearchHits maps grep / glob JSON output onto SearchResult hits.
-// grep "content" mode → {matches:[{path,line,text}]}; grep
-// "files_with_matches" / glob → {files|paths:[…]}; counts mode → {counts}.
-func parseLocalSearchHits(outputJSON string) []protocol.SearchResult {
+// parseLocalSearchHits maps grep / glob JSON output onto SearchHit values
+// (a search tool's result {hits}, §4.4.2). grep "content" mode →
+// {matches:[{path,line,text}]}; grep "files_with_matches" / glob →
+// {files|paths:[…]}; counts mode → {counts}.
+func parseLocalSearchHits(outputJSON string) []protocol.SearchHit {
 	var out struct {
 		Matches []struct {
 			Path string `json:"path"`
@@ -861,22 +887,23 @@ func parseLocalSearchHits(outputJSON string) []protocol.SearchResult {
 	if err := json.Unmarshal([]byte(outputJSON), &out); err != nil {
 		return nil
 	}
-	var hits []protocol.SearchResult
+	var hits []protocol.SearchHit
 	for _, m := range out.Matches {
-		hits = append(hits, protocol.SearchResult{Path: m.Path, LineNumber: m.Line, Snippet: m.Text})
+		hits = append(hits, protocol.SearchHit{Path: m.Path, LineNumber: m.Line, Snippet: m.Text})
 	}
 	for _, p := range append(out.Files, out.Paths...) {
-		hits = append(hits, protocol.SearchResult{Path: p})
+		hits = append(hits, protocol.SearchHit{Path: p})
 	}
 	for _, c := range out.Counts {
-		hits = append(hits, protocol.SearchResult{Path: c.Path, Snippet: strconv.Itoa(c.Count) + " matches"})
+		hits = append(hits, protocol.SearchHit{Path: c.Path, Snippet: strconv.Itoa(c.Count) + " matches"})
 	}
 	return hits
 }
 
 // parseWebSearchHits maps websearch JSON output ({results:[{title,url,
-// snippet,favicon_url}]}) onto web SearchResult hits.
-func parseWebSearchHits(outputJSON string) []protocol.SearchResult {
+// snippet,favicon_url}]}) onto WebSearchResult values (a webSearch tool's
+// result {results}, §4.4.2).
+func parseWebSearchHits(outputJSON string) []protocol.WebSearchResult {
 	var out struct {
 		Results []struct {
 			Title      string `json:"title"`
@@ -888,9 +915,9 @@ func parseWebSearchHits(outputJSON string) []protocol.SearchResult {
 	if err := json.Unmarshal([]byte(outputJSON), &out); err != nil {
 		return nil
 	}
-	hits := make([]protocol.SearchResult, 0, len(out.Results))
+	hits := make([]protocol.WebSearchResult, 0, len(out.Results))
 	for _, r := range out.Results {
-		hits = append(hits, protocol.SearchResult{Title: r.Title, URL: r.URL, Snippet: r.Snippet, FaviconURL: r.FaviconURL})
+		hits = append(hits, protocol.WebSearchResult{Title: r.Title, URL: r.URL, Snippet: r.Snippet, FaviconURL: r.FaviconURL})
 	}
 	return hits
 }

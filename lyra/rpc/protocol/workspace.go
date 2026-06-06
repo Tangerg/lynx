@@ -6,7 +6,7 @@ import "context"
 // methods take an optional cwd (default = serve directory); MCP methods
 // are runtime-global and take no cwd.
 type Workspace interface {
-	WorkspaceListFileChanges(ctx context.Context, in WorkspaceQuery) ([]FileChange, error)
+	WorkspaceListFileChanges(ctx context.Context, in WorkspaceQuery) ([]WorkspaceFileChange, error)
 	WorkspaceGetDiff(ctx context.Context, in GetDiffRequest) ([]DiffRow, error)
 	WorkspaceGetFileHead(ctx context.Context, in GetFileHeadRequest) (*FileHead, error)
 	WorkspaceGrep(ctx context.Context, in GrepRequest) (*GrepResult, error)
@@ -49,8 +49,11 @@ type MCPListToolsRequest struct {
 	Server string `json:"server,omitempty"`
 }
 
-// FileChange is one entry in workspace.listFileChanges (API.md §4.5).
-type FileChange struct {
+// WorkspaceFileChange is one entry in workspace.listFileChanges (API.md
+// §4.5) — the VCS working-tree scan state. Distinct from FileEdit (a tool's
+// edit result): this one has "untracked" (a VCS-only state) and no diff;
+// they share the past-tense status vocabulary deliberately (§4.5).
+type WorkspaceFileChange struct {
 	Path   string `json:"path"`
 	Status string `json:"status"` // "added"|"modified"|"deleted"|"renamed"|"untracked"
 }

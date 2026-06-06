@@ -160,14 +160,15 @@ func resumeBindingFrom(pending interrupts.Pending) *resumeBinding {
 		}
 		switch in.Type {
 		case "approval":
-			// Re-bind via the backend-internal _resume tuple (raw name +
-			// arguments) the translator stashed — payload.tool is the display
-			// ToolInvocation and drops the name on strongly-typed variants.
-			rm, _ := in.Payload["_resume"].(map[string]any)
-			tool, _ := rm["name"].(string)
-			args, _ := rm["args"].(string)
-			if tool != "" {
-				items[resumeKey(tool, args)] = in.ItemID
+			// Re-bind straight off payload.tool (API.md §4.8): the
+			// domain-neutral ToolInvocation always carries name + arguments, so
+			// the re-fired approved tool matches THIS proposal item by
+			// (name, canonical arguments) — no backend-internal `_resume` tuple.
+			tool, _ := in.Payload["tool"].(map[string]any)
+			name, _ := tool["name"].(string)
+			args, _ := tool["arguments"].(map[string]any)
+			if name != "" {
+				items[resumeKey(name, argsKey(args))] = in.ItemID
 			}
 		case "question":
 			// A plan-review question is resolved by the resume answer (no
