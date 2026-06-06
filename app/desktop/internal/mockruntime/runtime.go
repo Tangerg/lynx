@@ -1,4 +1,4 @@
-package agui
+package mockruntime
 
 import (
 	"encoding/json"
@@ -90,7 +90,8 @@ func capabilities() map[string]any {
 	return map[string]any{
 		"protocolVersion": ProtocolVersion,
 		"events": []string{
-			"run.started", "run.finished", "item.started", "item.delta", "item.completed",
+			"run.started", "run.progress", "run.finished",
+			"item.started", "item.delta", "item.completed",
 			"state.snapshot", "state.delta",
 		},
 		"features": map[string]any{
@@ -292,8 +293,12 @@ func textBlocks(s string) []map[string]any {
 // streamed message + one tool call.
 func (rt *runtime) scriptRun(connID, sessionID, runID, input string) {
 	e := &emitter{rt: rt, connID: connID, runID: runID}
+	model := "claude-mock"
+	if s := rt.getSession(sessionID); s != nil {
+		model = s.model
+	}
 	e.emit(true, map[string]any{"type": "run.started",
-		"run": map[string]any{"id": runID, "sessionId": sessionID}})
+		"run": map[string]any{"id": runID, "sessionId": sessionID, "model": model, "mode": "agent"}})
 
 	// Streamed assistant message.
 	msgID := rt.nextID("item")
@@ -313,13 +318,18 @@ func (rt *runtime) scriptRun(connID, sessionID, runID, input string) {
 		strings.Contains(input, "delete")
 
 	toolID := rt.nextID("item")
-	cmd := "ls -la"
+	cmd := []string{"ls", "-la"}
 	if dangerous {
-		cmd = "rm -rf ./build"
+		cmd = []string{"rm", "-rf", "./build"}
 	}
+	// mid-run progress preview (ephemeral; authoritative totals on run.finished).
+	e.emit(false, map[string]any{"type": "run.progress",
+		"progress": map[string]any{"step": 1, "maxSteps": 8,
+			"activity": "calling tool: " + strings.Join(cmd, " "),
+			"usage":    map[string]any{"inputTokens": 120, "outputTokens": 48}}})
 	e.emit(true, map[string]any{"type": "item.started",
 		"item": item(toolID, runID, "toolCall", "inProgress",
-			map[string]any{"tool": map[string]any{"kind": "command", "command": cmd}})})
+			map[string]any{"tool": map[string]any{"kind": "commandExecution", "command": cmd}})})
 
 	if dangerous {
 		// R-model HITL: end the run with an approval interrupt.
@@ -329,20 +339,25 @@ func (rt *runtime) scriptRun(connID, sessionID, runID, input string) {
 			"interrupts": []any{map[string]any{
 				"itemId": toolID, "kind": "approval",
 				"payload": map[string]any{
-					"command": cmd, "text": "Run this command?", "reason": "It deletes files.",
+					"command": strings.Join(cmd, " "), "text": "Run this command?", "reason": "It deletes files.",
 				},
 			}},
 		}})
 		return
 	}
 
+	// stdout/stderr stream via toolOutput delta as a live PREVIEW (durable=false),
+	// then the authoritative merged `output` settles on item.completed (durable).
+	// Dropping the delta still leaves correct output on completed (API.md §5.2,
+	// docs/TOOL_OUTPUT.md).
+	const out = "total 8\ndrwxr-xr-x  4 user  staff  128 .\n"
 	time.Sleep(120 * time.Millisecond)
 	e.emit(false, map[string]any{"type": "item.delta", "itemId": toolID,
-		"delta": map[string]any{"type": "toolOutput", "text": "total 8\ndrwxr-xr-x  4 user  staff  128 .\n"}})
+		"delta": map[string]any{"type": "toolOutput", "text": out}})
 	e.emit(true, map[string]any{"type": "item.completed",
 		"item": item(toolID, runID, "toolCall", "completed",
-			map[string]any{"tool": map[string]any{"kind": "command", "command": cmd,
-				"output": "total 8\ndrwxr-xr-x  4 user  staff  128 .\n", "exitCode": 0}})})
+			map[string]any{"tool": map[string]any{"kind": "commandExecution", "command": cmd,
+				"output": out, "exitCode": 0}})})
 
 	rt.finishCompleted(e)
 }

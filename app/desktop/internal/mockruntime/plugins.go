@@ -1,4 +1,4 @@
-package agui
+package mockruntime
 
 import (
 	"encoding/json"

@@ -54,7 +54,7 @@ frontend/src/
 ├── rpc/                            Runtime Protocol 边界（JSON-RPC client + methods + shapes + transports）— 唯一 outbound 副作用层
 ├── main/container.ts               composition root（DI 单例：createLyraClient(transport) + sidecar）
 └── styles/globals.css              Tailwind base + @theme token + 全局 keyframes（唯一 CSS；其余历史 .css 只承载无法用 utility 表达的 markdown/code/panel chrome）
-internal/agui/                       Go v2 Runtime mock（JSON-RPC + SSE），监听 :17171（目录名 agui 是历史遗留，说的是同一套 Lyra Runtime 协议）
+internal/mockruntime/               Lyra Runtime Protocol v2 的本地 dev mock（JSON-RPC + SSE），监听 :17171
 ```
 
 ---
