@@ -61,6 +61,7 @@ Search hygiene:
 func (t *Tool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
 
 func (t *Tool) Call(ctx context.Context, arguments string) (string, error) {
+	_ = ctx
 	var req Request
 	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
 		return "", fmt.Errorf("websearch: parse arguments: %w", err)

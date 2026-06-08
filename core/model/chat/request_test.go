@@ -1,7 +1,6 @@
 package chat_test
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -215,18 +214,4 @@ func TestRequest_SystemMessage_ReturnsEmptyWhenAbsent(t *testing.T) {
 	if got == nil {
 		t.Fatal("SystemMessage must not return nil; it returns a fresh empty *SystemMessage")
 	}
-}
-
-// mustNewTool builds a Tool with a unique name for use across tests.
-func mustNewTool(t *testing.T, name string) chat.Tool {
-	t.Helper()
-	tool, err := chat.NewTool(
-		chat.ToolDefinition{Name: name, InputSchema: `{"type":"object"}`},
-		chat.ToolMetadata{},
-		func(context.Context, string) (string, error) { return "", nil },
-	)
-	if err != nil {
-		t.Fatalf("NewTool: %v", err)
-	}
-	return tool
 }

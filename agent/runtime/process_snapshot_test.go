@@ -66,7 +66,8 @@ func TestPlatform_SaveAndRestore_RoundTrip(t *testing.T) {
 		t.Fatalf("expected completed, got %s; failure=%v", proc.Status(), proc.Failure())
 	}
 
-	if err := platform.SaveProcess(context.Background(), proc.ID()); err != nil {
+	err = platform.SaveProcess(context.Background(), proc.ID())
+	if err != nil {
 		t.Fatalf("save: %v", err)
 	}
 

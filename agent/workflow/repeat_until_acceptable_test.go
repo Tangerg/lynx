@@ -39,7 +39,8 @@ func TestRepeatUntilAcceptable_StopsWhenScoreCrossesThreshold(t *testing.T) {
 	}
 
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	if err := platform.Deploy(a); err != nil {
+	err = platform.Deploy(a)
+	if err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
 	proc, err := platform.RunAgent(t.Context(), a,

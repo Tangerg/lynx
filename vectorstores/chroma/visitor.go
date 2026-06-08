@@ -68,7 +68,7 @@ func (v *Visitor) Visit(expr ast.Expr) ast.Visitor {
 // visit dispatches to the appropriate handler based on the expression type.
 func (v *Visitor) visit(expr ast.Expr) error {
 	if expr == nil {
-		return errors.New("cannot process nil expression")
+		return errors.New("chroma: cannot process nil expression")
 	}
 	if v.err != nil {
 		return v.err
@@ -88,7 +88,7 @@ func (v *Visitor) visit(expr ast.Expr) error {
 	case *ast.ListLiteral:
 		return v.visitListLiteral(node)
 	default:
-		return fmt.Errorf("unsupported expression type %T", node)
+		return fmt.Errorf("chroma: unsupported expression type %T", node)
 	}
 }
 
@@ -136,7 +136,7 @@ func (v *Visitor) visitIdent(ident *ast.Ident) error {
 func (v *Visitor) visitLiteral(lit *ast.Literal) error {
 	value, err := v.literalToValue(lit)
 	if err != nil {
-		return fmt.Errorf("failed to convert literal at %s: %w", lit.Start().String(), err)
+		return fmt.Errorf("chroma: failed to convert literal at %s: %w", lit.Start().String(), err)
 	}
 	v.currentFieldValue = value
 	return nil
@@ -148,7 +148,7 @@ func (v *Visitor) visitListLiteral(list *ast.ListLiteral) error {
 	for i, lit := range list.Values {
 		value, err := v.literalToValue(lit)
 		if err != nil {
-			return fmt.Errorf("failed to convert list element at index %d: %w", i, err)
+			return fmt.Errorf("chroma: failed to convert list element at index %d: %w", i, err)
 		}
 		values = append(values, value)
 	}
@@ -162,7 +162,7 @@ func (v *Visitor) visitListLiteral(list *ast.ListLiteral) error {
 func (v *Visitor) visitIndexExpr(expr *ast.IndexExpr) error {
 	fieldKey, err := v.buildIndexedFieldKey(expr)
 	if err != nil {
-		return fmt.Errorf("failed to build field path at %s: %w", expr.Start().String(), err)
+		return fmt.Errorf("chroma: failed to build field path at %s: %w", expr.Start().String(), err)
 	}
 	v.currentFieldKey = fieldKey
 	return nil
@@ -174,13 +174,13 @@ func (v *Visitor) visitIndexExpr(expr *ast.IndexExpr) error {
 func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
 	leftClause, err := v.buildNestedClause(expr.Left)
 	if err != nil {
-		return fmt.Errorf("failed to process left operand of '%s' at %s: %w",
+		return fmt.Errorf("chroma: failed to process left operand of '%s' at %s: %w",
 			expr.Op.Literal, expr.Start().String(), err)
 	}
 
 	rightClause, err := v.buildNestedClause(expr.Right)
 	if err != nil {
-		return fmt.Errorf("failed to process right operand of '%s' at %s: %w",
+		return fmt.Errorf("chroma: failed to process right operand of '%s' at %s: %w",
 			expr.Op.Literal, expr.Start().String(), err)
 	}
 
@@ -190,7 +190,7 @@ func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
 	case token.OR:
 		v.result = v2.Or(leftClause, rightClause)
 	default:
-		return fmt.Errorf("unexpected logical operator '%s' at %s",
+		return fmt.Errorf("chroma: unexpected logical operator '%s' at %s",
 			expr.Op.Literal, expr.Start().String())
 	}
 	return nil
@@ -201,19 +201,19 @@ func (v *Visitor) visitLogicalExpr(expr *ast.BinaryExpr) error {
 func (v *Visitor) visitEqualityExpr(expr *ast.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left)
 	if err != nil {
-		return fmt.Errorf("failed to extract field key from left operand of '%s' at %s: %w",
+		return fmt.Errorf("chroma: failed to extract field key from left operand of '%s' at %s: %w",
 			expr.Op.Literal, expr.Start().String(), err)
 	}
 
 	fieldValue, err := v.extractFieldValue(expr.Right)
 	if err != nil {
-		return fmt.Errorf("failed to extract value from right operand of '%s' at %s: %w",
+		return fmt.Errorf("chroma: failed to extract value from right operand of '%s' at %s: %w",
 			expr.Op.Literal, expr.Start().String(), err)
 	}
 
 	clause, err := v.buildEqualityClause(fieldKey, fieldValue, expr.Op.Kind)
 	if err != nil {
-		return fmt.Errorf("failed to build equality clause for '%s' at %s: %w",
+		return fmt.Errorf("chroma: failed to build equality clause for '%s' at %s: %w",
 			expr.Op.Literal, expr.Start().String(), err)
 	}
 
@@ -252,7 +252,7 @@ func (v *Visitor) buildEqualityClause(fieldKey string, fieldValue any, op token.
 		return v2.NotEqBool(fieldKey, val), nil
 
 	default:
-		return nil, fmt.Errorf("unsupported value type %T for equality condition", fieldValue)
+		return nil, fmt.Errorf("chroma: unsupported value type %T for equality condition", fieldValue)
 	}
 }
 
@@ -262,19 +262,19 @@ func (v *Visitor) buildEqualityClause(fieldKey string, fieldValue any, op token.
 func (v *Visitor) visitOrderingExpr(expr *ast.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left)
 	if err != nil {
-		return fmt.Errorf("failed to extract field key from left operand of '%s' at %s: %w",
+		return fmt.Errorf("chroma: failed to extract field key from left operand of '%s' at %s: %w",
 			expr.Op.Literal, expr.Start().String(), err)
 	}
 
 	fieldValue, err := v.extractFieldValue(expr.Right)
 	if err != nil {
-		return fmt.Errorf("failed to extract value from right operand of '%s' at %s: %w",
+		return fmt.Errorf("chroma: failed to extract value from right operand of '%s' at %s: %w",
 			expr.Op.Literal, expr.Start().String(), err)
 	}
 
 	numericValue, err := cast.ToFloat64E(fieldValue)
 	if err != nil {
-		return fmt.Errorf("cannot convert value to number for '%s' comparison at %s: expected number, got %T",
+		return fmt.Errorf("chroma: cannot convert value to number for '%s' comparison at %s: expected number, got %T",
 			expr.Op.Literal, expr.Start().String(), fieldValue)
 	}
 
@@ -308,7 +308,7 @@ func (v *Visitor) visitOrderingExpr(expr *ast.BinaryExpr) error {
 			clause = v2.GteFloat(fieldKey, f32Val)
 		}
 	default:
-		return fmt.Errorf("unexpected ordering operator '%s' at %s",
+		return fmt.Errorf("chroma: unexpected ordering operator '%s' at %s",
 			expr.Op.Literal, expr.Start().String())
 	}
 
@@ -325,7 +325,7 @@ func (v *Visitor) visitOrderingExpr(expr *ast.BinaryExpr) error {
 func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left)
 	if err != nil {
-		return fmt.Errorf("failed to extract field key from left operand of 'IN' at %s: %w",
+		return fmt.Errorf("chroma: failed to extract field key from left operand of 'IN' at %s: %w",
 			expr.Start().String(), err)
 	}
 
@@ -340,7 +340,7 @@ func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 
 	values, ok := v.currentFieldValue.([]any)
 	if !ok || len(values) == 0 {
-		return fmt.Errorf("failed to extract list values for 'IN' operator at %s",
+		return fmt.Errorf("chroma: failed to extract list values for 'IN' operator at %s",
 			expr.Start().String())
 	}
 
@@ -384,7 +384,7 @@ func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 		v.result = v2.InBool(fieldKey, bools...)
 
 	default:
-		return fmt.Errorf("unsupported value type %T in 'IN' list at %s",
+		return fmt.Errorf("chroma: unsupported value type %T in 'IN' list at %s",
 			values[0], expr.Start().String())
 	}
 
@@ -403,7 +403,7 @@ func (v *Visitor) buildNestedClause(expr ast.Expr) (v2.WhereClause, error) {
 		}
 		return nested.result, nil
 	default:
-		return nil, fmt.Errorf("unsupported expression type %T for clause building", node)
+		return nil, fmt.Errorf("chroma: unsupported expression type %T for clause building", node)
 	}
 }
 
@@ -422,7 +422,7 @@ func (v *Visitor) extractFieldKey(expr ast.Expr) (string, error) {
 		return "", err
 	}
 	if extracted == "" {
-		return "", fmt.Errorf("failed to extract field key from %T expression", expr)
+		return "", fmt.Errorf("chroma: failed to extract field key from %T expression", expr)
 	}
 	return extracted, nil
 }
@@ -442,7 +442,7 @@ func (v *Visitor) extractFieldValue(expr ast.Expr) (any, error) {
 		return nil, err
 	}
 	if extracted == nil {
-		return nil, fmt.Errorf("failed to extract value from %T expression", expr)
+		return nil, fmt.Errorf("chroma: failed to extract value from %T expression", expr)
 	}
 	return extracted, nil
 }
@@ -470,7 +470,7 @@ func (v *Visitor) buildIndexedFieldKey(expr *ast.IndexExpr) (string, error) {
 		case float64:
 			pathParts = append([]string{strconv.Itoa(int(val))}, pathParts...)
 		default:
-			return "", fmt.Errorf("invalid index type %T, expected string or number", v.currentFieldValue)
+			return "", fmt.Errorf("chroma: invalid index type %T, expected string or number", v.currentFieldValue)
 		}
 
 		switch left := current.Left.(type) {
@@ -481,7 +481,7 @@ func (v *Visitor) buildIndexedFieldKey(expr *ast.IndexExpr) (string, error) {
 			// keys are flat, so only the inner path is needed.
 			return strings.Join(pathParts, "."), nil
 		default:
-			return "", fmt.Errorf("invalid left operand type %T in index expression", left)
+			return "", fmt.Errorf("chroma: invalid left operand type %T in index expression", left)
 		}
 	}
 }
@@ -497,7 +497,7 @@ func (v *Visitor) literalToValue(lit *ast.Literal) (any, error) {
 	if lit.IsBool() {
 		return lit.AsBool()
 	}
-	return nil, fmt.Errorf("unsupported literal type '%s'", lit.Token.Kind.Name())
+	return nil, fmt.Errorf("chroma: unsupported literal type '%s'", lit.Token.Kind.Name())
 }
 
 // toInt returns (int(f), true) when f is a whole number that fits in int,

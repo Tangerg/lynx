@@ -49,7 +49,7 @@ func TestWithMetadata_DoesNotClobberReaderKeys(t *testing.T) {
 
 func TestRead_HonorsContextCancellation(t *testing.T) {
 	r, _ := markdown.NewReader(strings.NewReader(sample), markdown.WithHeadingSplit(2))
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	if _, err := r.Read(ctx); err == nil {
 		t.Fatal("canceled context must produce an error")

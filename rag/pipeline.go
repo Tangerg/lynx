@@ -156,7 +156,7 @@ func (p *Pipeline) transformQuery(ctx context.Context, query *Query) (out *Query
 	for i, transformer := range p.queryTransformers {
 		next, terr := transformer.Transform(ctx, current)
 		if terr != nil {
-			err = fmt.Errorf("transformer #%d: %w", i, terr)
+			err = fmt.Errorf("rag.Pipeline.transformQuery: transformer #%d: %w", i, terr)
 			return nil, err
 		}
 		current = next
@@ -206,7 +206,7 @@ func parallelCollect[Item, Out any](
 	}
 
 	if err := g.Wait(); err != nil && len(out) == 0 {
-		return nil, fmt.Errorf("all %ss failed: %w", itemLabel, err)
+		return nil, fmt.Errorf("rag.parallelCollect: all %ss failed: %w", itemLabel, err)
 	}
 	return out, nil
 }
@@ -248,7 +248,7 @@ func (p *Pipeline) refineDocuments(ctx context.Context, query *Query, docs []*do
 	for i, refiner := range p.documentRefiners {
 		next, rerr := refiner.Refine(ctx, query, current)
 		if rerr != nil {
-			err = fmt.Errorf("refiner #%d: %w", i, rerr)
+			err = fmt.Errorf("rag.Pipeline.refine: refiner #%d: %w", i, rerr)
 			return nil, err
 		}
 		current = next

@@ -14,7 +14,7 @@ import (
 // when a tool call is denied by the approval verdict (vs. failing during
 // execution). Lets the wire layer render a "denied" terminal distinct from a
 // generic tool failure (and from a green success). errors.Is-matchable.
-var ErrToolDenied = errors.New("tool call denied by user")
+var ErrToolDenied = errors.New("engine.ErrToolDenied: tool call denied by user")
 
 // toolObserver receives both tool-call lifecycle notifications and
 // streaming assistant text deltas as a turn unfolds. Each tool call

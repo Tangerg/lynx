@@ -92,7 +92,8 @@ func TestStore_CreateAndRetrieveBasics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewCreateRequest: %v", err)
 	}
-	if err := store.Create(ctx, createReq); err != nil {
+	err = store.Create(ctx, createReq)
+	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 	if got := store.Len(); got != 3 {

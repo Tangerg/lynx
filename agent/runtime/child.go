@@ -136,7 +136,7 @@ func SpawnChildFresh(
 //
 // The caller's tick is NOT blocked: the spawning action returns while the
 // child keeps running, and the result is collected later via
-// [Platform.ProcessByID] + [core.ResultOfType], or the child is cancelled
+// [Platform.ProcessByID] + [core.ResultOfType], or the child is canceled
 // via [Platform.KillProcess] (= SDK stopTask). The child joins the parent's
 // budget tree (subtree usage still counts against the parent's
 // BudgetPolicy) and inherits the FULL parent blackboard via Spawn.
@@ -144,7 +144,7 @@ func SpawnChildFresh(
 // The background run uses [context.WithoutCancel] so the child survives
 // the spawning action's ctx ending — a background task whose parent
 // action already returned must not die just because that call frame is
-// gone. It therefore has NO deadline and is NOT auto-cancelled when the
+// gone. It therefore has NO deadline and is NOT auto-canceled when the
 // parent ends; lifecycle is the orchestrator's job via the returned id
 // (KillProcess one, or [Platform.KillChildren] to sweep all of a
 // parent's outstanding children on turn exit).

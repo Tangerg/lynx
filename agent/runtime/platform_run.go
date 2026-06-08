@@ -70,10 +70,10 @@ func (p *Platform) RunInSession(
 	options core.ProcessOptions,
 ) (*AgentProcess, error) {
 	if session == nil {
-		return nil, errors.New("run in session: session must not be nil")
+		return nil, errors.New("runtime.Platform.RunInSession: session must not be nil")
 	}
 	if session.ID == "" {
-		return nil, errors.New("run in session: session ID must not be empty")
+		return nil, errors.New("runtime.Platform.RunInSession: session ID must not be empty")
 	}
 	if session.AgentName == "" && agentDef != nil {
 		session.AgentName = agentDef.Name

@@ -84,7 +84,7 @@ func (p *AgentProcess) maybeAutoSnapshot(ctx context.Context) {
 // reported by PlanToGoal at tick time.
 func (p *AgentProcess) validateAgentForRun() error {
 	if p.planner.Name() == "goap" && len(p.agent.Goals) == 0 {
-		return fmt.Errorf("run agent %q: goap planner requires at least one goal", p.agent.Name)
+		return fmt.Errorf("runtime.AgentProcess.validateAgentForRun: run agent %q: goap planner requires at least one goal", p.agent.Name)
 	}
 	return nil
 }
@@ -355,7 +355,7 @@ func (p *AgentProcess) translateActionStatus(action core.Action, status core.Act
 // returned ActionFailed without recording an explicit error on the
 // ProcessContext (rare, but possible).
 func actionFailureError(name string) error {
-	return fmt.Errorf("action %q failed without recording an error", name)
+	return fmt.Errorf("runtime.actionFailureError: action %q failed without recording an error", name)
 }
 
 // handleStuck is invoked when the planner returned no plan. If the agent

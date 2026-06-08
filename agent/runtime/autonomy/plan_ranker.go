@@ -88,7 +88,7 @@ func (r *LLMPlanRanker) Rank(ctx context.Context, plans []*planning.Plan, ws cor
 	for i, p := range plans {
 		s := 0.0
 		if entry, ok := scored[planID(i, p)]; ok {
-			s = clamp01(entry.Confidence)
+			s = max(0.0, min(1.0, entry.Confidence))
 		}
 		scoredPlans[i] = ranked{plan: p, score: s}
 	}

@@ -12,6 +12,7 @@
 package config
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"os"
@@ -160,8 +161,8 @@ func Load() (Config, error) {
 // `online:`, with the legacy LYRA_* env vars taking precedence so the
 // old workflow keeps working.
 func loadOnline(v *viper.Viper) engine.OnlineConfig {
-	jina := firstNonEmpty(os.Getenv("LYRA_JINA_API_KEY"), v.GetString("online.jinaApiKey"))
-	tavily := firstNonEmpty(os.Getenv("LYRA_TAVILY_API_KEY"), v.GetString("online.tavilyApiKey"))
+	jina := cmp.Or(os.Getenv("LYRA_JINA_API_KEY"), v.GetString("online.jinaApiKey"))
+	tavily := cmp.Or(os.Getenv("LYRA_TAVILY_API_KEY"), v.GetString("online.tavilyApiKey"))
 	hosts := v.GetStringSlice("online.httpAllowedHosts")
 	if env := os.Getenv("LYRA_HTTP_ALLOWED_HOSTS"); env != "" {
 		hosts = splitHosts(env)
@@ -193,17 +194,17 @@ func parseMCPServers(raw string) ([]mcp.ServerConfig, error) {
 		}
 		eq := strings.IndexByte(p, '=')
 		if eq <= 0 || eq == len(p)-1 {
-			return nil, fmt.Errorf("entry %q: expected name=value", p)
+			return nil, fmt.Errorf("config.parseDotEnvList: entry %q: expected name=value", p)
 		}
 		name := strings.TrimSpace(p[:eq])
 		value := strings.TrimSpace(p[eq+1:])
 		if name == "" || value == "" {
-			return nil, fmt.Errorf("entry %q: name and value must be non-empty", p)
+			return nil, fmt.Errorf("config.parseDotEnvList: entry %q: name and value must be non-empty", p)
 		}
 
 		srv, err := parseMCPServerValue(name, value)
 		if err != nil {
-			return nil, fmt.Errorf("entry %q: %w", p, err)
+			return nil, fmt.Errorf("config.parseDotEnvList: entry %q: %w", p, err)
 		}
 		out = append(out, srv)
 	}
@@ -230,7 +231,7 @@ func parseMCPServerValue(name, value string) (mcp.ServerConfig, error) {
 		}, nil
 	}
 	if !strings.HasPrefix(value, "http://") && !strings.HasPrefix(value, "https://") {
-		return mcp.ServerConfig{}, fmt.Errorf("expected http(s):// URL or stdio: prefix, got %q", value)
+		return mcp.ServerConfig{}, fmt.Errorf("config.parseMCPServerValue: expected http(s):// URL or stdio: prefix, got %q", value)
 	}
 	return mcp.ServerConfig{
 		Name:      name,
@@ -255,11 +256,4 @@ func splitHosts(raw string) []string {
 		return nil
 	}
 	return out
-}
-
-func firstNonEmpty(a, b string) string {
-	if a != "" {
-		return a
-	}
-	return b
 }

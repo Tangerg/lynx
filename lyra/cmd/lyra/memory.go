@@ -127,7 +127,7 @@ func parseScope(s string, allowBoth bool) (target memory.Scope, both bool, err e
 		return memory.ScopeUser, false, nil
 	case "both":
 		if !allowBoth {
-			return 0, false, fmt.Errorf("scope %q not allowed here (use project|user)", s)
+			return 0, false, fmt.Errorf("lyra.parseScope: scope %q not allowed here (use project|user)", s)
 		}
 		return 0, true, nil
 	}
@@ -135,7 +135,7 @@ func parseScope(s string, allowBoth bool) (target memory.Scope, both bool, err e
 	if allowBoth {
 		allowed += " | both"
 	}
-	return 0, false, fmt.Errorf("scope must be one of %s", allowed)
+	return 0, false, fmt.Errorf("lyra.parseScope: scope must be one of %s", allowed)
 }
 
 // readMemoryBody returns the content to write — from the named

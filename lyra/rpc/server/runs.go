@@ -114,13 +114,16 @@ func (i *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 		// unresumable, so drop it (API.md §6.2 anti-dangling).
 		rebuilt, rerr := i.rehydrate(ctx, pending, resolution.Approved)
 		if rerr != nil {
+			// Best-effort: rehydrate failed; drop the unresumable
+			// interrupt record so it won't show up in list queries.
 			_ = i.rt.Interrupts().Delete(ctx, in.ParentRunID)
 			return nil, nil, protocol.ErrRunNotFound
 		}
 		handle = rebuilt
 	}
-	// The interrupt is now answered — drop the open-interrupt record
-	// before streaming the continuation.
+	// Best-effort: the interrupt is now answered — drop the
+	// open-interrupt record. If this fails, a dangling record
+	// surfaces on the next list and can be re-resumed safely.
 	_ = i.rt.Interrupts().Delete(ctx, in.ParentRunID)
 
 	// Continuation gets a fresh wire runId linked to the parent. handle.TurnID
@@ -353,9 +356,10 @@ func (i *Server) recordInterrupt(ctx context.Context, runID string, handle chat.
 	if err != nil {
 		return
 	}
-	// Capture the parked process's snapshot key so a restart can rebuild
-	// it (cross-restart resume). Best-effort: an empty id just means resume
-	// stays same-process-only for this interrupt.
+	// Best-effort: persist the interrupt record so the run can be
+	// resumed across restarts. If Put fails, same-process resume still
+	// works (the process is parked in-memory), but cross-restart resume
+	// will not find this interrupt.
 	processID, _ := i.rt.Chat().ProcessID(ctx, handle)
 	_ = i.rt.Interrupts().Put(ctx, interrupts.Pending{
 		ParentRunID: runID,
@@ -377,6 +381,9 @@ func (i *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) er
 		e.cancelReason = in.Reason // surfaced on the synthesized canceled outcome (S6)
 	}
 	i.runMu.Unlock()
+	// Best-effort: drop the interrupt record for the canceled run.
+	// If this fails, a dangling record is harmless — it won't match
+	// any live turn and will be ignored on the next ListOpenInterrupts.
 	_ = i.rt.Interrupts().Delete(ctx, in.RunID)
 	if !ok {
 		// Not actively running — it may be a parked run whose pump already
@@ -419,7 +426,11 @@ func (i *Server) ListOpenInterrupts(ctx context.Context, in protocol.ListOpenInt
 	out := make([]protocol.OpenInterrupt, 0, len(pending))
 	for _, p := range pending {
 		var ints []protocol.Interrupt
-		_ = json.Unmarshal(p.Interrupts, &ints)
+		if err := json.Unmarshal(p.Interrupts, &ints); err != nil {
+			// Corrupted interrupt record — skip it rather than
+			// surfacing a bogus entry with zero interrupts.
+			continue
+		}
 		out = append(out, protocol.OpenInterrupt{
 			ParentRunID: p.ParentRunID,
 			SessionID:   p.SessionID,

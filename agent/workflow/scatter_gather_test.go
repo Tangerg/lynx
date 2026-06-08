@@ -50,10 +50,12 @@ func TestScatterGather_RunsAllGeneratorsAndJoins(t *testing.T) {
 	}
 
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	if err := platform.Deploy(a); err != nil {
+	err = platform.Deploy(a)
+	if err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
-	proc, err := platform.RunAgent(t.Context(), a,
+	var proc *runtime.AgentProcess
+	proc, err = platform.RunAgent(t.Context(), a,
 		map[string]any{core.DefaultBindingName: sgIn{Topic: "test"}},
 		core.ProcessOptions{},
 	)

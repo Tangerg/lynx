@@ -77,7 +77,6 @@ func TestAuthGate401HasChallenge(t *testing.T) {
 	}
 }
 
-
 // TestAuthGateWrongToken — wrong bearer also 401.
 func TestAuthGateWrongToken(t *testing.T) {
 	ts := newGatedServer(t)

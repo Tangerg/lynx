@@ -670,8 +670,8 @@ func TestToolMiddleware_MaxIterationsCap(t *testing.T) {
 		WithTools(echoTool)
 
 	_, err := req.Call().Response(context.Background())
-	var capErr *MaxIterationsError
-	if !errors.As(err, &capErr) {
+	capErr, ok := errors.AsType[*MaxIterationsError](err)
+	if !ok {
 		t.Fatalf("expected MaxIterationsError, got %v", err)
 	}
 	if capErr.Limit != 3 {

@@ -20,7 +20,7 @@ func TestFileMemoryService_UpdateAndGet(t *testing.T) {
 	ctx := context.Background()
 
 	const userBody = "# User\nprefer terse output\n"
-	if err := svc.Update(ctx, memory.ScopeUser, userBody); err != nil {
+	if err = svc.Update(ctx, memory.ScopeUser, userBody); err != nil {
 		t.Fatalf("Update: %v", err)
 	}
 	got, err := svc.Get(ctx, memory.ScopeUser)

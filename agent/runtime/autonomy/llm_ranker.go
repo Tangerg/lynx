@@ -79,7 +79,7 @@ func (r *LLMRanker) Rank(ctx context.Context, userInput string, candidates []Can
 		out[i] = Choice{Candidate: cand}
 		key := cand.String()
 		if entry, ok := scored[key]; ok {
-			out[i].Confidence = clamp01(entry.Confidence)
+			out[i].Confidence = max(0.0, min(1.0, entry.Confidence))
 			out[i].Rationale = entry.Rationale
 		}
 	}
@@ -196,16 +196,6 @@ func extractJSON(text string) string {
 		return ""
 	}
 	return text[start : end+1]
-}
-
-func clamp01(v float64) float64 {
-	switch {
-	case v < 0:
-		return 0
-	case v > 1:
-		return 1
-	}
-	return v
 }
 
 const defaultRankerSystemPrompt = `You are a routing classifier. Given a user request and a list of

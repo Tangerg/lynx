@@ -255,7 +255,7 @@ func buildKeyPath(expr ast.Expr) (string, error) {
 		return "", err
 	}
 	if len(keys) == 0 {
-		return "", errors.New("empty key path")
+		return "", errors.New("clickhouse: empty key path")
 	}
 	return strings.Join(keys, "."), nil
 }
@@ -275,7 +275,7 @@ func sqlOpFor(kind token.Kind) (string, error) {
 	case token.GE:
 		return ">=", nil
 	default:
-		return "", fmt.Errorf("unexpected comparison operator '%s'", kind.Name())
+		return "", fmt.Errorf("clickhouse: unexpected comparison operator '%s'", kind.Name())
 	}
 }
 

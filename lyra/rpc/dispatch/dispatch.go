@@ -229,5 +229,5 @@ func decodeStringParam(raw json.RawMessage, key string) (string, error) {
 			}
 		}
 	}
-	return "", fmt.Errorf("missing %s", key)
+	return "", fmt.Errorf("dispatch.decodeStringParam: missing %s", key)
 }

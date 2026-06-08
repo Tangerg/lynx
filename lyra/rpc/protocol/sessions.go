@@ -37,7 +37,7 @@ type Project struct {
 	ProjectRoot  string     `json:"projectRoot,omitempty"`
 	Branch       string     `json:"branch,omitempty"`
 	SessionCount int        `json:"sessionCount"`
-	LastActiveAt *time.Time `json:"lastActiveAt,omitempty"`
+	LastActiveAt *time.Time `json:"lastActiveAt,omitzero"`
 	CwdMissing   bool       `json:"cwdMissing,omitempty"`
 }
 

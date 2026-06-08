@@ -85,7 +85,8 @@ func TestEngine_DialMCPServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build tool: %v", err)
 	}
-	if err := mcp.RegisterTools(mcpServer, ping); err != nil {
+	err = mcp.RegisterTools(mcpServer, ping)
+	if err != nil {
 		t.Fatalf("register tools: %v", err)
 	}
 
@@ -174,7 +175,8 @@ func TestEngine_DialMCPServer_Stdio(t *testing.T) {
 	if err != nil {
 		t.Skipf("os.Executable not available: %v", err)
 	}
-	if _, err := exec.LookPath(self); err != nil && !fileExists(self) {
+	_, err = exec.LookPath(self)
+	if err != nil && !fileExists(self) {
 		t.Skipf("test binary unreachable for re-exec: %v", err)
 	}
 

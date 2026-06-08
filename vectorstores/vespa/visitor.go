@@ -215,7 +215,7 @@ func (v *Visitor) fieldPath(expr ast.Expr) (string, error) {
 		return "", err
 	}
 	if len(keys) == 0 {
-		return "", errors.New("empty key path")
+		return "", errors.New("vespa: empty key path")
 	}
 	joined := strings.Join(keys, ".")
 	if v.metadataPrefix == "" {

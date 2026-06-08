@@ -248,7 +248,7 @@ func (v *Visitor) propertyAccess(expr ast.Expr) (string, error) {
 		return "", err
 	}
 	if len(keys) == 0 {
-		return "", errors.New("empty key path on left operand")
+		return "", errors.New("neo4j: empty key path on left operand")
 	}
 	propName := strings.Join(keys, ".")
 	if v.metadataPrefix != "" {

@@ -12,7 +12,6 @@ import (
 	"github.com/Tangerg/lynx/core/model/embedding"
 	"github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/pkg/math"
-	"github.com/Tangerg/lynx/pkg/ptr"
 	"github.com/Tangerg/lynx/vectorstores/internal/tracing"
 )
 
@@ -165,7 +164,7 @@ func (v *Store) initialize(ctx context.Context) error {
 func (v *Store) buildUpsertPoints(ctx context.Context, req *vectorstore.CreateRequest) (*qdrant.UpsertPoints, error) {
 	upsertPoints := &qdrant.UpsertPoints{
 		CollectionName: v.collectionName,
-		Wait:           ptr.To(true),
+		Wait:           new(true),
 	}
 
 	batchedDocs, err := v.documentBatcher.Batch(ctx, req.Documents)
@@ -247,8 +246,8 @@ func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 func (v *Store) buildQueryPoints(ctx context.Context, req *vectorstore.RetrievalRequest) (*qdrant.QueryPoints, error) {
 	queryPoints := &qdrant.QueryPoints{
 		CollectionName: v.collectionName,
-		ScoreThreshold: ptr.To(float32(req.MinScore)),
-		Limit:          ptr.To(uint64(req.TopK)),
+		ScoreThreshold: new(float32(req.MinScore)),
+		Limit:          new(uint64(req.TopK)),
 		WithPayload:    qdrant.NewWithPayload(true),
 	}
 

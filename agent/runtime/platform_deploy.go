@@ -41,7 +41,7 @@ func (p *Platform) Deploy(a *core.Agent) error {
 // run without one.
 func (p *Platform) validateForDeploy(a *core.Agent) error {
 	if a == nil {
-		return fmt.Errorf("deploy agent: %w", a.Validate())
+		return fmt.Errorf("runtime.Platform.validateForDeploy: deploy agent: %w", a.Validate())
 	}
 
 	var problems []error
@@ -52,7 +52,7 @@ func (p *Platform) validateForDeploy(a *core.Agent) error {
 	problems = append(problems, runAgentValidators(collectExtensions[core.AgentValidator](p.extensions.list), a)...)
 
 	if joined := errors.Join(problems...); joined != nil {
-		return fmt.Errorf("deploy agent %q: %w", a.Name, joined)
+		return fmt.Errorf("runtime.Platform.validateForDeploy: deploy agent %q: %w", a.Name, joined)
 	}
 	return nil
 }
@@ -61,7 +61,7 @@ func (p *Platform) validateForDeploy(a *core.Agent) error {
 // unknown so callers don't silently miss typos.
 func (p *Platform) Undeploy(name string) error {
 	if err := p.agents.unregister(name); err != nil {
-		return fmt.Errorf("undeploy agent %q: %w", name, err)
+		return fmt.Errorf("runtime.Platform.Undeploy: undeploy agent %q: %w", name, err)
 	}
 	p.publish(event.AgentUndeployed{
 		BaseEvent: event.NewBaseEvent(""),
@@ -111,7 +111,7 @@ func checkGoalsReachable(a *core.Agent) []error {
 			}
 			if _, ok := producible[key]; !ok {
 				problems = append(problems, fmt.Errorf(
-					"reachability: goal %q requires condition %q, but no action produces it",
+					"runtime.checkGoalsReachable: goal %q requires condition %q, but no action produces it",
 					goal.Name, key,
 				))
 			}

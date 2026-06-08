@@ -61,6 +61,7 @@ Usage notes:
 func (t *Tool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
 
 func (t *Tool) Call(ctx context.Context, arguments string) (string, error) {
+	_ = ctx
 	var req Request
 	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
 		return "", fmt.Errorf("webfetch: parse arguments: %w", err)
