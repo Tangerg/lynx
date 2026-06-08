@@ -146,6 +146,35 @@ func (p *Platform) Agents() []*core.Agent { return p.agents.list() }
 // FindAgent does a name lookup.
 func (p *Platform) FindAgent(name string) (*core.Agent, bool) { return p.agents.find(name) }
 
+// findAgent looks the agent up by name for agent-as-tool constructors
+// ([AsChatTool] / [AsMCPTool]). Returns an error when the platform is
+// nil, name is empty, or the agent isn't registered.
+func (p *Platform) findAgent(label string, name string) (*core.Agent, error) {
+	if p == nil {
+		return nil, fmt.Errorf("runtime.%s: platform must not be nil", label)
+	}
+	if name == "" {
+		return nil, fmt.Errorf("runtime.%s: agentName must not be empty", label)
+	}
+	agentDef, ok := p.FindAgent(name)
+	if !ok {
+		return nil, fmt.Errorf("runtime.%s: agent %q not registered on platform", label, name)
+	}
+	return agentDef, nil
+}
+
+// validateAgent is the [AsChatToolFromAgent] companion: same nil checks
+// as [Platform.findAgent] minus the registry lookup.
+func (p *Platform) validateAgent(label string, agentDef *core.Agent) error {
+	if p == nil {
+		return fmt.Errorf("runtime.%s: platform must not be nil", label)
+	}
+	if agentDef == nil {
+		return fmt.Errorf("runtime.%s: agent must not be nil", label)
+	}
+	return nil
+}
+
 // ProcessByID looks up a process by id.
 func (p *Platform) ProcessByID(id string) (*AgentProcess, bool) { return p.procs.get(id) }
 

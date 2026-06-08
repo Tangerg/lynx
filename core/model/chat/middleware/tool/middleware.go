@@ -6,7 +6,6 @@ import (
 	"iter"
 	"maps"
 	"slices"
-	"strings"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 )
@@ -338,7 +337,7 @@ func (m *middleware) executeStreamRecursively(ctx context.Context, req *chat.Req
 // enabled, hasn't been spent yet, and the response is genuinely empty;
 // (nil, false, nil) otherwise.
 func (m *middleware) maybeNudgeEmpty(req *chat.Request, resp *chat.Response, state loopState) (*chat.Request, bool, error) {
-	if !m.feedbackEmpty || state.emptyRetried || !isEmpty(resp) {
+	if !m.feedbackEmpty || state.emptyRetried || !resp.IsEmpty() {
 		return nil, false, nil
 	}
 	next, err := continueRequest(req, resp.Result.AssistantMessage, chat.NewUserMessage(emptyResponseNudge))
@@ -361,21 +360,6 @@ func continueRequest(req *chat.Request, extra ...chat.Message) (*chat.Request, e
 	next.Tools = slices.Clone(req.Tools)
 	next.Params = maps.Clone(req.Params)
 	return next, nil
-}
-
-// isEmpty reports whether resp carries a real assistant turn with
-// neither tool calls nor non-whitespace text. A nil result is treated as
-// "not nudgeable" (there is no assistant message to append), so the loop
-// returns it unchanged.
-func isEmpty(resp *chat.Response) bool {
-	if resp == nil || resp.Result == nil {
-		return false
-	}
-	am := resp.Result.AssistantMessage
-	if am == nil {
-		return false
-	}
-	return !am.HasToolCalls() && strings.TrimSpace(am.JoinedText()) == ""
 }
 
 // newToolMessageResponse wraps a [*chat.ToolMessage] in a [*chat.Response] whose

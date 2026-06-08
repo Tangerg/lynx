@@ -19,6 +19,13 @@ func (t TokenUsage) total() int64 {
 	return t.PromptTokens + t.CompletionTokens
 }
 
+// add folds one invocation's token counts into this running roll-up.
+func (t *TokenUsage) add(inv core.LLMInvocation) {
+	t.PromptTokens += inv.PromptTokens
+	t.CompletionTokens += inv.CompletionTokens
+	t.ReasoningTokens += inv.ReasoningTokens
+}
+
 // ModelUsage is one model's slice of a turn's tokens + cost — the lynx
 // analog of an SDK modelUsage map entry.
 type ModelUsage struct {
@@ -93,7 +100,7 @@ func chatOutput(pc *core.ProcessContext, reply string, stoppedOnBudget bool) Cha
 	byModel := map[string]*ModelUsage{}
 	var order []string
 	for _, inv := range pc.Process.LLMInvocations() {
-		addUsage(&out.Usage, inv)
+		out.Usage.add(inv)
 		out.CostUSD += inv.CostUSD
 		m := byModel[inv.Model]
 		if m == nil {
@@ -101,20 +108,11 @@ func chatOutput(pc *core.ProcessContext, reply string, stoppedOnBudget bool) Cha
 			byModel[inv.Model] = m
 			order = append(order, inv.Model)
 		}
-		addUsage(&m.TokenUsage, inv)
+		m.TokenUsage.add(inv)
 		m.CostUSD += inv.CostUSD
 	}
 	for _, model := range order {
 		out.UsageByModel = append(out.UsageByModel, *byModel[model])
 	}
 	return out
-}
-
-// addUsage folds one invocation's token counts into a running roll-up.
-// Shared by the total and per-model accumulators in chatOutput so the
-// field list lives in one place.
-func addUsage(dst *TokenUsage, inv core.LLMInvocation) {
-	dst.PromptTokens += inv.PromptTokens
-	dst.CompletionTokens += inv.CompletionTokens
-	dst.ReasoningTokens += inv.ReasoningTokens
 }

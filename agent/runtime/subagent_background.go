@@ -32,7 +32,7 @@ import (
 //
 // Returns an error when platform or agent is nil.
 func AsBackgroundChatTool[In, Out any](platform *Platform, agentDef *core.Agent) (spawn chat.Tool, collect chat.Tool, err error) {
-	if err = validateAgent("AsBackgroundChatTool", platform, agentDef); err != nil {
+	if err = platform.validateAgent("AsBackgroundChatTool", agentDef); err != nil {
 		return nil, nil, err
 	}
 

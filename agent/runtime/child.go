@@ -277,11 +277,11 @@ func linkChildSession(ctx context.Context, platform *Platform, child, parent *Ag
 	if child.options == nil || child.options.Session != nil {
 		return nil
 	}
-	parentConvID := conversationIDOf(parent)
+	parentConvID := parent.conversationID()
 	if parentConvID == "" {
 		return nil
 	}
-	session := core.NewSession(child.ID(), userIDOf(parent), agentDef.Name)
+	session := core.NewSession(child.ID(), parent.userID(), agentDef.Name)
 	session.ParentID = parentConvID
 	child.options.Session = &session
 
@@ -291,28 +291,6 @@ func linkChildSession(ctx context.Context, platform *Platform, child, parent *Ag
 		}
 	}
 	return nil
-}
-
-// conversationIDOf returns a process's chat-memory conversation id: its
-// session id when it runs under one, otherwise its process id (the fallback
-// the chat request uses — see ProcessContext.sessionParams).
-func conversationIDOf(p *AgentProcess) string {
-	if p != nil && p.options != nil && p.options.Session != nil && p.options.Session.ID != "" {
-		return p.options.Session.ID
-	}
-	if p != nil {
-		return p.id
-	}
-	return ""
-}
-
-// userIDOf returns the principal a process runs as, inherited by child
-// sessions so audit trails span the delegation subtree.
-func userIDOf(p *AgentProcess) string {
-	if p != nil && p.options != nil && p.options.Session != nil {
-		return p.options.Session.UserID
-	}
-	return ""
 }
 
 // spawnChildOptions is the synchronous shared core of [SpawnChild],
