@@ -282,7 +282,7 @@ func loadAPI(source string) (map[string]apiProvider, error) {
 		}
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("status %s", resp.Status)
+			return nil, fmt.Errorf("catalog.fetchSource: HTTP status %s", resp.Status)
 		}
 		raw, err = io.ReadAll(resp.Body)
 	} else {

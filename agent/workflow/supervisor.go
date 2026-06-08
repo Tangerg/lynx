@@ -8,8 +8,8 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 )
 
 // SupervisorConfig configures a [Supervisor] — an LLM-orchestration agent

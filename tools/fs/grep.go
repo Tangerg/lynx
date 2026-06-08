@@ -76,6 +76,7 @@ func (t *GrepTool) Definition() chat.ToolDefinition {
 func (t *GrepTool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
 
 func (t *GrepTool) Call(ctx context.Context, arguments string) (string, error) {
+	_ = ctx
 	var req GrepRequest
 	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
 		return "", fmt.Errorf("fs.grep: parse arguments: %w", err)

@@ -31,15 +31,15 @@ const scopeName = "lyra"
 //   - Traces:  TracerProvider, synchronous slog span exporter, AlwaysSample.
 //   - Metrics: MeterProvider, PeriodicReader → slog metric exporter.
 //   - Logs:    LoggerProvider → slog log exporter; slog.Default() is the
-//              contrib otelslog bridge feeding that provider, so business
-//              code calls slog.InfoContext and the records flow AS OTel log
-//              records (trace_id / span_id filled natively from the active
-//              span). Routing logs through OTel — rather than writing slog
-//              directly — is what makes them backend-swappable: a production
-//              build swaps every exporter for OTLP (→ Datadog / Cloud
-//              Logging / ...) with zero business-code change.
+//     contrib otelslog bridge feeding that provider, so business
+//     code calls slog.InfoContext and the records flow AS OTel log
+//     records (trace_id / span_id filled natively from the active
+//     span). Routing logs through OTel — rather than writing slog
+//     directly — is what makes them backend-swappable: a production
+//     build swaps every exporter for OTLP (→ Datadog / Cloud
+//     Logging / ...) with zero business-code change.
 //   - Context: W3C trace-context + baggage propagator, so a traceparent the
-//              frontend sends extends into the backend (full-link tracing).
+//     frontend sends extends into the backend (full-link tracing).
 //
 // Level comes from LYRA_LOG_LEVEL (debug|info|warn|error, default info) and
 // is gated before the bridge (the bridge itself does no level filtering).

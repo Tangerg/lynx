@@ -24,7 +24,7 @@ import (
 // surface can refuse malformed input early.
 func EncodeMessage(msg chat.Message) ([]byte, error) {
 	if msg == nil {
-		return nil, errors.New("message must not be nil")
+		return nil, errors.New("codec.EncodeMessage: message must not be nil")
 	}
 	switch m := msg.(type) {
 	case *chat.SystemMessage:
@@ -36,6 +36,6 @@ func EncodeMessage(msg chat.Message) ([]byte, error) {
 	case *chat.ToolMessage:
 		return m.MarshalJSON()
 	default:
-		return nil, fmt.Errorf("unsupported message type %T", msg)
+		return nil, fmt.Errorf("codec.EncodeMessage: unsupported message type %T", msg)
 	}
 }

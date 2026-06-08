@@ -31,7 +31,7 @@ func TestWithMetadata_AppliedToEveryDocument(t *testing.T) {
 
 func TestRead_HonorsContextCancellation(t *testing.T) {
 	r, _ := html.NewReader(strings.NewReader(samplePage))
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	if _, err := r.Read(ctx); err == nil {
 		t.Fatal("canceled context must produce an error")

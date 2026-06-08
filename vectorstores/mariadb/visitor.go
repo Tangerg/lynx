@@ -247,7 +247,7 @@ func buildJSONPath(expr ast.Expr) (string, error) {
 		return "", err
 	}
 	if len(keys) == 0 {
-		return "", errors.New("empty key path on left operand")
+		return "", errors.New("mariadb: empty key path on left operand")
 	}
 	return "$." + strings.Join(keys, "."), nil
 }
@@ -267,7 +267,7 @@ func sqlOpFor(kind token.Kind) (string, error) {
 	case token.GE:
 		return ">=", nil
 	default:
-		return "", fmt.Errorf("unexpected comparison operator '%s'", kind.Name())
+		return "", fmt.Errorf("mariadb: unexpected comparison operator '%s'", kind.Name())
 	}
 }
 

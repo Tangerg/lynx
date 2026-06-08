@@ -266,7 +266,8 @@ func TestEngine_RunChat_PersistsProcessSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := eng.RunChat(context.Background(), RunChatRequest{Message: "go"}); err != nil {
+	_, err = eng.RunChat(context.Background(), RunChatRequest{Message: "go"})
+	if err != nil {
 		t.Fatalf("RunChat: %v", err)
 	}
 

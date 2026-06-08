@@ -52,6 +52,7 @@ func (t *WriteTool) Definition() chat.ToolDefinition {
 func (t *WriteTool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
 
 func (t *WriteTool) Call(ctx context.Context, arguments string) (string, error) {
+	_ = ctx
 	var req WriteRequest
 	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
 		return "", fmt.Errorf("fs.write: parse arguments: %w", err)

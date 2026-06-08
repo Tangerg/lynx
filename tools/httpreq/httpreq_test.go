@@ -76,7 +76,8 @@ func TestDo_MethodAllowlist(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := client.Do(t.Context(), &Request{URL: srv.URL, Method: "POST"}); !errors.Is(err, ErrMethodNotAllowed) {
+	_, err = client.Do(t.Context(), &Request{URL: srv.URL, Method: "POST"})
+	if !errors.Is(err, ErrMethodNotAllowed) {
 		t.Fatalf("default methods should block POST, got %v", err)
 	}
 

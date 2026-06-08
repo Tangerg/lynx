@@ -71,7 +71,8 @@ func TestParallel_RunsAllAndJoins(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parallel: %v", err)
 	}
-	if err := platform.Deploy(wf); err != nil {
+	err = platform.Deploy(wf)
+	if err != nil {
 		t.Fatalf("deploy wf: %v", err)
 	}
 

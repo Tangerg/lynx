@@ -230,7 +230,7 @@ func TestService_PlanMode_GatedWhenClientCannotHandle(t *testing.T) {
 		t.Error("plan interrupt should have been gated (auto-denied), not surfaced")
 	}
 	if endReason != chat.TurnEndCancelled {
-		t.Errorf("gated plan should end Cancelled (rejected), got %s", endReason)
+		t.Errorf("gated plan should end Canceled (rejected), got %s", endReason)
 	}
 }
 

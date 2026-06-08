@@ -1,0 +1,521 @@
+package qdrant
+
+import (
+	"fmt"
+	"strconv"
+	"strings"
+
+	"github.com/qdrant/go-client/qdrant"
+	"github.com/spf13/cast"
+
+	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
+	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
+	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
+)
+
+func (c *Visitor) visitEqualityExpr(expr *ast.BinaryExpr) error {
+	fieldKey, err := c.extractFieldKey(expr.Left)
+	if err != nil {
+		return fmt.Errorf("failed to extract field key from left operand of '%s' at %s: %w",
+			expr.Op.Literal, expr.Start().String(), err)
+	}
+
+	fieldValue, err := c.extractFieldValue(expr.Right)
+	if err != nil {
+		return fmt.Errorf("failed to extract value from right operand of '%s' at %s: %w",
+			expr.Op.Literal, expr.Start().String(), err)
+	}
+
+	matchCond, err := c.buildMatchCondition(fieldKey, fieldValue)
+	if err != nil {
+		return fmt.Errorf("failed to create match condition for '%s' at %s: %w",
+			expr.Op.Literal, expr.Start().String(), err)
+	}
+
+	switch expr.Op.Kind {
+	case token.EQ:
+		// == operator: field must equal value
+		c.filter.Must = append(c.filter.Must, matchCond)
+	case token.NE:
+		// != operator: field must not equal value (negation)
+		c.filter.MustNot = append(c.filter.MustNot, matchCond)
+	default:
+		// Defensive programming: should never reach here
+		return fmt.Errorf("unexpected equality operator '%s' at %s",
+			expr.Op.Literal, expr.Start().String())
+	}
+
+	return nil
+}
+
+// buildMatchCondition creates an appropriate Qdrant match condition based on value type.
+// The method automatically selects the correct Qdrant match function:
+//   - string -> NewMatchKeyword (exact keyword match)
+//   - float64 -> NewMatchInt (integer match, value is cast to int64)
+//   - bool -> NewMatchBool (boolean match)
+//
+// Returns an error if the value type is not supported for matching.
+func (c *Visitor) buildMatchCondition(fieldKey string, fieldValue any) (*qdrant.Condition, error) {
+	switch v := fieldValue.(type) {
+	case string:
+		// String: use keyword match (exact match)
+		return qdrant.NewMatchKeyword(fieldKey, v), nil
+	case float64:
+		// Number: use integer match (cast to int64)
+		return qdrant.NewMatchInt(fieldKey, cast.ToInt64(v)), nil
+	case bool:
+		// Boolean: use bool match
+		return qdrant.NewMatchBool(fieldKey, v), nil
+	default:
+		return nil, fmt.Errorf("unsupported value type %T for match condition", fieldValue)
+	}
+}
+
+// visitOrderingExpr handles ordering/comparison operators (<, <=, >, >=).
+// The right operand value is converted to float64 and used to create a range condition.
+//
+// Operator mappings:
+//   - <  : Creates Range with Lt (less than)
+//   - <= : Creates Range with Lte (less than or equal)
+//   - >  : Creates Range with Gt (greater than)
+//   - >= : Creates Range with Gte (greater than or equal)
+//
+// All range conditions are added to filter.Must.
+//
+// Examples:
+//   - "age > 18" produces: Must[Range{Gt: 18}]
+//   - "price <= 99.99" produces: Must[Range{Lte: 99.99}]
+func (c *Visitor) visitOrderingExpr(expr *ast.BinaryExpr) error {
+	fieldKey, err := c.extractFieldKey(expr.Left)
+	if err != nil {
+		return fmt.Errorf("failed to extract field key from left operand of '%s' at %s: %w",
+			expr.Op.Literal, expr.Start().String(), err)
+	}
+
+	fieldValue, err := c.extractFieldValue(expr.Right)
+	if err != nil {
+		return fmt.Errorf("failed to extract value from right operand of '%s' at %s: %w",
+			expr.Op.Literal, expr.Start().String(), err)
+	}
+
+	// Convert value to float64 for range comparison
+	numericValue, err := cast.ToFloat64E(fieldValue)
+	if err != nil {
+		return fmt.Errorf("cannot convert value to number for '%s' comparison at %s: expected number, got %T",
+			expr.Op.Literal, expr.Start().String(), fieldValue)
+	}
+
+	switch expr.Op.Kind {
+	case token.LT:
+		// < operator: field value must be less than the specified value
+		c.filter.Must = append(c.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
+			Lt: new(numericValue),
+		}))
+	case token.LE:
+		// <= operator: field value must be less than or equal to the specified value
+		c.filter.Must = append(c.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
+			Lte: new(numericValue),
+		}))
+	case token.GT:
+		// > operator: field value must be greater than the specified value
+		c.filter.Must = append(c.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
+			Gt: new(numericValue),
+		}))
+	case token.GE:
+		// >= operator: field value must be greater than or equal to the specified value
+		c.filter.Must = append(c.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
+			Gte: new(numericValue),
+		}))
+	default:
+		// Defensive programming: should never reach here
+		return fmt.Errorf("unexpected ordering operator '%s' at %s",
+			expr.Op.Literal, expr.Start().String())
+	}
+
+	return nil
+}
+
+// visitInExpr handles the IN operator for membership testing.
+// The right operand must be a non-empty list literal containing values of the same type.
+//
+// Creates appropriate Qdrant conditions based on list element type:
+//   - String list: Uses NewMatchKeywords (matches if field equals any keyword in the list)
+//   - Number list: Uses NewMatchInts (matches if field equals any integer in the list)
+//   - Boolean list: Creates a nested Should filter with individual bool matches
+//
+// The boolean case requires special handling because the Qdrant SDK doesn't provide
+// a NewMatchBools function. A nested filter with Should conditions is used to achieve
+// OR semantics while maintaining proper isolation from other conditions.
+//
+// Examples:
+//   - "status IN ['active', 'pending']" produces: Must[MatchKeywords(status, [active, pending])]
+//   - "age IN [18, 21, 25]" produces: Must[MatchInts(age, [18, 21, 25])]
+//   - "active IN [true, false]" produces: Must[Filter{Should[active==true, active==false]}]
+func (c *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
+	fieldKey, err := c.extractFieldKey(expr.Left)
+	if err != nil {
+		return fmt.Errorf("failed to extract field key from left operand of 'IN' at %s: %w",
+			expr.Start().String(), err)
+	}
+
+	listLit, err := filterhelp.RequireListLiteral(expr)
+	if err != nil {
+		return fmt.Errorf("qdrant: %w", err)
+	}
+
+	if err = c.visitListLiteral(listLit); err != nil {
+		return err
+	}
+
+	values, ok := c.currentFieldValue.([]any)
+	if !ok {
+		return fmt.Errorf("failed to extract list values for 'IN' operator at %s",
+			expr.Start().String())
+	}
+
+	// Safety check (should be caught earlier, but defensive programming)
+	if len(values) == 0 {
+		return fmt.Errorf("'IN' operator requires a non-empty list at %s",
+			expr.Start().String())
+	}
+
+	// Determine list type and create appropriate condition based on first element
+	switch values[0].(type) {
+	case string:
+		// String list: use MatchKeywords (OR semantics for multiple keywords)
+		keywords := make([]string, 0, len(values))
+		for _, val := range values {
+			keywords = append(keywords, cast.ToString(val))
+		}
+		c.filter.Must = append(c.filter.Must, qdrant.NewMatchKeywords(fieldKey, keywords...))
+
+	case float64:
+		// Number list: use MatchInts (OR semantics for multiple integers)
+		integers := make([]int64, 0, len(values))
+		for _, val := range values {
+			integers = append(integers, cast.ToInt64(val))
+		}
+		c.filter.Must = append(c.filter.Must, qdrant.NewMatchInts(fieldKey, integers...))
+
+	case bool:
+		// Boolean list: wrap Should conditions in a nested filter
+		// This is necessary because:
+		// 1. The SDK doesn't provide NewMatchBools
+		// 2. Direct Should append would affect top-level filter semantics
+		// 3. Nested filter isolates the OR logic for this specific condition
+		boolConditions := make([]*qdrant.Condition, 0, len(values))
+		for _, val := range values {
+			boolConditions = append(boolConditions, qdrant.NewMatchBool(fieldKey, cast.ToBool(val)))
+		}
+		c.filter.Must = append(c.filter.Must,
+			qdrant.NewFilterAsCondition(&qdrant.Filter{
+				Should: boolConditions,
+			}))
+
+	default:
+		return fmt.Errorf("unsupported value type %T in 'IN' list at %s",
+			values[0], expr.Start().String())
+	}
+
+	return nil
+}
+
+// visitLikeExpr handles the LIKE operator for pattern matching.
+// The right operand must be a string literal containing the search pattern.
+//
+// Uses Qdrant's NewMatchText function, which performs full-text search.
+// The exact matching behavior depends on the full-text index configuration in Qdrant,
+// typically supporting:
+//   - Substring matching
+//   - Tokenization
+//   - Case insensitivity
+//   - Other text search features configured in the collection
+//
+// Note: Ensure that the field has a full-text index configured in Qdrant
+// for LIKE operations to work effectively.
+//
+// Example:
+//   - "description LIKE 'python programming'" produces: Must[MatchText(description, "python programming")]
+func (c *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
+	fieldKey, err := c.extractFieldKey(expr.Left)
+	if err != nil {
+		return fmt.Errorf("failed to extract field key from left operand of 'LIKE' at %s: %w",
+			expr.Start().String(), err)
+	}
+
+	lit, ok := expr.Right.(*ast.Literal)
+	if !ok {
+		return fmt.Errorf("'LIKE' operator requires a string literal on the right side at %s, got %T",
+			expr.Start().String(), expr.Right)
+	}
+
+	if !lit.IsString() {
+		return fmt.Errorf("'LIKE' operator requires a string pattern at %s, got %s",
+			expr.Start().String(), lit.Token.Kind.Name())
+	}
+
+	if err = c.visitLiteral(lit); err != nil {
+		return err
+	}
+
+	pattern, ok := c.currentFieldValue.(string)
+	if !ok {
+		return fmt.Errorf("failed to extract string pattern for 'LIKE' operator at %s",
+			expr.Start().String())
+	}
+
+	// LIKE operation uses MatchText (full-text search)
+	// Behavior depends on full-text index configuration in Qdrant
+	c.filter.Must = append(c.filter.Must, qdrant.NewMatchText(fieldKey, pattern))
+	return nil
+}
+
+// buildNestedCondition constructs a Qdrant condition from an AST expression
+// using an isolated converter instance.
+//
+// This method is crucial for maintaining proper condition scoping in nested expressions.
+// By creating a new converter for each nested expression, we ensure that:
+//   - Logical operators (AND/OR) maintain separate Must/Should/MustNot lists
+//   - Conditions don't leak between different parts of the expression tree
+//   - Complex nested expressions are properly isolated
+//
+// The isolated converter processes the expression and its entire subtree,
+// then the resulting filter is wrapped as a single condition.
+//
+// Examples:
+//   - Simple: "age > 18" -> Filter{Must[age>18]}
+//   - Logical: "age > 18 AND status == 'active'" -> Filter{Must[age>18, status==active]}
+//   - Nested: "(age > 18 OR age < 10) AND status == 'active'" ->
+//     Filter{Must[Filter{Should[age>18, age<10]}, status==active]}
+func (c *Visitor) buildNestedCondition(expr ast.Expr) (*qdrant.Condition, error) {
+	switch node := expr.(type) {
+	case *ast.BinaryExpr,
+		*ast.UnaryExpr:
+		// Create isolated converter to maintain proper condition scoping
+		nestedConv := NewVisitor()
+		err := nestedConv.visit(node)
+		if err != nil {
+			return nil, err
+		}
+		// Wrap the nested filter as a single condition
+		return qdrant.NewFilterAsCondition(nestedConv.filter), nil
+
+	default:
+		return nil, fmt.Errorf("unsupported expression type %T for condition building", node)
+	}
+}
+
+// extractFieldKey extracts a field key (identifier or indexed path) from an expression.
+// This method handles both simple identifiers and complex indexed expressions.
+//
+// The converter's state (currentFieldKey) is preserved during extraction to allow
+// safe nested calls without state corruption.
+//
+// Supported expression types:
+//   - Ident: Simple field name (e.g., "age")
+//   - IndexExpr: Indexed field access (e.g., metadata["user"]["name"])
+//
+// Examples:
+//   - *ast.Ident{Value: "age"} -> "age"
+//   - metadata["user"] -> "metadata.user"
+//   - data["tags"][0] -> "data.tags.0"
+func (c *Visitor) extractFieldKey(expr ast.Expr) (string, error) {
+	savedFieldKey := c.currentFieldKey
+	c.currentFieldKey = ""
+
+	err := c.visit(expr)
+
+	// Restore state to prevent corruption in nested calls
+	extractedKey := c.currentFieldKey
+	c.currentFieldKey = savedFieldKey
+
+	if err != nil {
+		return "", err
+	}
+
+	if extractedKey == "" {
+		return "", fmt.Errorf("failed to extract field key from %T expression", expr)
+	}
+
+	return extractedKey, nil
+}
+
+// extractFieldValue extracts a value (literal or list) from an expression.
+// This method handles both single literals and list literals.
+//
+// The converter's state (currentFieldValue) is preserved during extraction to allow
+// safe nested calls without state corruption.
+//
+// Supported expression types:
+//   - Literal: Single constant value (string, number, boolean)
+//   - ListLiteral: Array of constant values
+//
+// Examples:
+//   - *ast.Literal{Value: "active"} -> "active"
+//   - *ast.Literal{Value: 18.0} -> 18.0
+//   - *ast.ListLiteral{Values: ["a", "b"]} -> []any{"a", "b"}
+func (c *Visitor) extractFieldValue(expr ast.Expr) (any, error) {
+	savedFieldValue := c.currentFieldValue
+	c.currentFieldValue = nil
+
+	err := c.visit(expr)
+
+	// Restore state to prevent corruption in nested calls
+	extractedValue := c.currentFieldValue
+	c.currentFieldValue = savedFieldValue
+
+	if err != nil {
+		return nil, err
+	}
+
+	if extractedValue == nil {
+		return nil, fmt.Errorf("failed to extract value from %T expression", expr)
+	}
+
+	return extractedValue, nil
+}
+
+// buildIndexedFieldKey constructs a dot-separated field path from an index expression.
+// This method recursively processes nested index expressions to build the complete path.
+//
+// The conversion process:
+//  1. Extracts index values from right to left
+//  2. Supports both string and numeric indices
+//  3. Continues until reaching the base identifier
+//  4. Joins all parts with dots to form the final path
+//
+// Transformation examples:
+//   - user["name"] -> "user.name"
+//   - metadata["tags"][0] -> "metadata.tags.0"
+//   - data["user"]["profile"]["age"] -> "data.user.profile.age"
+//   - config["servers"][1]["host"] -> "config.servers.1.host"
+//
+// The method validates:
+//   - Index values must be strings or numbers
+//   - Left side must be either another IndexExpr or an Ident
+//   - Base identifier must exist
+func (c *Visitor) buildIndexedFieldKey(expr *ast.IndexExpr) (string, error) {
+	var pathParts []string
+
+	currentExpr := expr
+	for {
+		// Extract the index value (the part in brackets)
+		if err := c.visitLiteral(currentExpr.Index); err != nil {
+			return "", err
+		}
+
+		indexVal := c.currentFieldValue
+		switch v := indexVal.(type) {
+		case string:
+			// String index: prepend to path parts
+			pathParts = append([]string{v}, pathParts...)
+		case float64:
+			// Numeric index: convert to string and prepend
+			pathParts = append([]string{strconv.Itoa(int(v))}, pathParts...)
+		default:
+			return "", fmt.Errorf("invalid index type %T, expected string or number", indexVal)
+		}
+
+		// Process the left side of the index expression
+		switch leftNode := currentExpr.Left.(type) {
+		case *ast.IndexExpr:
+			// Nested index expression: continue processing recursively
+			currentExpr = leftNode
+		case *ast.Ident:
+			// Base identifier found: prepend and complete the path
+			pathParts = append([]string{leftNode.Value}, pathParts...)
+			return strings.Join(pathParts, "."), nil
+		default:
+			return "", fmt.Errorf("invalid left operand type %T in index expression, expected identifier or index", leftNode)
+		}
+	}
+}
+
+// literalToValue converts an AST literal node to its corresponding Go value.
+// This method handles the three supported literal types in the filter DSL.
+//
+// Supported conversions:
+//   - String literals -> string (with quote removal)
+//   - Number literals -> float64 (supports integers and decimals)
+//   - Boolean literals -> bool (true/false)
+//
+// Returns an error if the literal type is not supported or if conversion fails.
+func (c *Visitor) literalToValue(lit *ast.Literal) (any, error) {
+	if lit.IsString() {
+		return lit.AsString()
+	}
+
+	if lit.IsNumber() {
+		return lit.AsNumber()
+	}
+
+	if lit.IsBool() {
+		return lit.AsBool()
+	}
+
+	return nil, fmt.Errorf("unsupported literal type '%s'", lit.Token.Kind.Name())
+}
+
+// ToFilter converts an AST filter expression into a Qdrant filter.
+//
+// This is the main entry point for converting filter expressions written in
+// the Lynx filter DSL into Qdrant's native filter format. The conversion process
+// traverses the AST and maps filter operations to appropriate Qdrant conditions.
+//
+// Supported operations:
+//   - Logical: AND, OR, NOT
+//   - Equality: ==, !=
+//   - Ordering: <, <=, >, >=
+//   - Membership: IN
+//   - Pattern matching: LIKE
+//
+// Conversion semantics:
+//   - AND: All conditions must match (added to filter.Must)
+//   - OR: At least one condition must match (added to filter.Should)
+//   - NOT: Condition must not match (added to filter.MustNot)
+//   - ==: Field must equal value (added to filter.Must)
+//   - !=: Field must not equal value (added to filter.MustNot)
+//   - <, <=, >, >=: Field must satisfy range condition (added to filter.Must)
+//   - IN: Field must equal one of the values (added to filter.Must with OR semantics)
+//   - LIKE: Field must match text pattern (added to filter.Must)
+//
+// Example usage:
+//
+//	// Parse a filter expression
+//	expr, err := parser.Parse(`age > 18 AND status == "active"`)
+//	if err != nil {
+//	    return nil, err
+//	}
+//
+//	// Convert to Qdrant filter
+//	filter, err := qdrant.ToFilter(expr)
+//	if err != nil {
+//	    return nil, err
+//	}
+//
+//	// Use in Qdrant search
+//	results, err := client.Search(ctx, &qdrant.SearchPoints{
+//	    CollectionName: "users",
+//	    Filter:         filter,
+//	    Vector:         queryVector,
+//	    Limit:          10,
+//	})
+//
+// Complex example:
+//
+//	// Expression: (age > 18 AND age < 65) AND (status == "active" OR role == "admin")
+//	// Produces: Filter{
+//	//   Must: [
+//	//     Filter{Must: [age>18, age<65]},
+//	//     Filter{Should: [status==active, role==admin]}
+//	//   ]
+//	// }
+//
+// Returns:
+//   - *qdrant.Filter: The converted filter ready for use with Qdrant client
+//   - error: Conversion error if the expression contains unsupported operations or syntax errors
+func ToFilter(expr ast.Expr) (*qdrant.Filter, error) {
+	conv := NewVisitor()
+	conv.Visit(expr)
+	return conv.Filter(), conv.Error()
+}

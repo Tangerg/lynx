@@ -33,7 +33,7 @@ type BackgroundTask struct {
 	Category  string           `json:"category"`
 	Status    BackgroundStatus `json:"status"`
 	CreatedAt time.Time        `json:"createdAt"`
-	UpdatedAt *time.Time       `json:"updatedAt,omitempty"`
+	UpdatedAt *time.Time       `json:"updatedAt,omitzero"`
 	Result    any              `json:"result,omitempty"`
 	Error     *ProblemData     `json:"error,omitempty"`
 }

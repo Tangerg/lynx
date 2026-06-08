@@ -48,6 +48,7 @@ const description = `Execute a single HTTP request and return the response.
 func (t *Tool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
 
 func (t *Tool) Call(ctx context.Context, arguments string) (string, error) {
+	_ = ctx
 	var req Request
 	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
 		return "", fmt.Errorf("httpreq: parse arguments: %w", err)

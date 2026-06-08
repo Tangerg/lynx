@@ -222,7 +222,7 @@ func TestStubEngineCancelsCleanly(t *testing.T) {
 			return
 		}
 	}
-	// Iterator drained: either a TurnEnd(Cancelled) returned above, or the
+	// Iterator drained: either a TurnEnd(Canceled) returned above, or the
 	// channel closed on turn done. Reaching here only on the 2s ctx timeout.
 	if ctx.Err() != nil {
 		t.Fatalf("turn did not cancel within 2s")

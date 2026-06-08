@@ -115,7 +115,7 @@ func runAgentValidators(validators []core.AgentValidator, agent *core.Agent) []e
 	var problems []error
 	for _, v := range validators {
 		if err := v.ValidateAgent(agent); err != nil {
-			problems = append(problems, fmt.Errorf("validator %q: %w", v.Name(), err))
+			problems = append(problems, fmt.Errorf("runtime.runAgentValidators: validator %q: %w", v.Name(), err))
 		}
 	}
 	return problems
@@ -148,14 +148,14 @@ func runToolGroupResolvers(
 	for _, r := range resolvers {
 		group, err := r.Resolve(ctx, requirement)
 		if err != nil {
-			return nil, fmt.Errorf("resolver %q: %w", r.Name(), err)
+			return nil, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q: %w", r.Name(), err)
 		}
 		if group == nil {
 			continue
 		}
 		granted := group.Metadata().Permissions()
 		if !core.PermissionsSatisfy(requirement.Permissions, granted) {
-			return nil, fmt.Errorf("resolver %q: tool group %q grants permissions %v exceeding requirement %v",
+			return nil, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q: tool group %q grants permissions %v exceeding requirement %v",
 				r.Name(), group.Metadata().Role(), granted, requirement.Permissions)
 		}
 		return group, nil

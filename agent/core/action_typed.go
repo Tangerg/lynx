@@ -32,17 +32,17 @@ func (a *typedAction[In, Out]) Execute(ctx context.Context, pc *ProcessContext) 
 		return ActionFailed
 	}
 	if pc.Blackboard == nil {
-		pc.recordError(fmt.Errorf("action %q cannot run: process context has no blackboard", a.metadata.Name))
+		pc.recordError(fmt.Errorf("agent.Action.Execute: action %q cannot run: process context has no blackboard", a.metadata.Name))
 		return ActionFailed
 	}
 	if a.fn == nil {
-		pc.recordError(fmt.Errorf("action %q cannot run: action function is nil", a.metadata.Name))
+		pc.recordError(fmt.Errorf("agent.Action.Execute: action %q cannot run: action function is nil", a.metadata.Name))
 		return ActionFailed
 	}
 
 	input, err := loadTypedInput[In](pc.Blackboard, a.metadata.Inputs)
 	if err != nil {
-		pc.recordError(fmt.Errorf("action %q cannot run: %w", a.metadata.Name, err))
+		pc.recordError(fmt.Errorf("agent.Action.Execute: action %q cannot run: %w", a.metadata.Name, err))
 		return ActionFailed
 	}
 
@@ -88,13 +88,13 @@ func loadTypedInput[In any](bb Blackboard, inputs []IOBinding) (In, error) {
 	binding := inputs[0]
 	value, ok := bb.Lookup(binding.Name, binding.Type)
 	if !ok {
-		return zero, fmt.Errorf("blackboard is missing required input %s", binding)
+		return zero, fmt.Errorf("agent.loadTypedInput: blackboard is missing required input %s", binding)
 	}
 
 	typed, ok := value.(In)
 	if !ok {
 		return zero, fmt.Errorf(
-			"blackboard value %s has type %T, expected %s",
+			"agent.loadTypedInput: blackboard value %s has type %T, expected %s",
 			binding, value, TypeName[In](),
 		)
 	}

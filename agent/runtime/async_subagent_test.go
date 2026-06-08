@@ -158,7 +158,8 @@ func TestAsBackgroundChatTool_SpawnRunningThenCollectDone(t *testing.T) {
 		Actions(agent.NewAction("drive",
 			func(ctx context.Context, _ *core.ProcessContext, in subInput) (parentOutput, error) {
 				args, _ := json.Marshal(in)
-				spawnOut, err := spawnTool.Call(ctx, string(args))
+				var spawnOut string
+				spawnOut, err = spawnTool.Call(ctx, string(args))
 				if err != nil {
 					return parentOutput{}, err
 				}
@@ -166,7 +167,8 @@ func TestAsBackgroundChatTool_SpawnRunningThenCollectDone(t *testing.T) {
 					TaskID string `json:"task_id"`
 					Status string `json:"status"`
 				}
-				if err := json.Unmarshal([]byte(spawnOut), &sp); err != nil {
+				err = json.Unmarshal([]byte(spawnOut), &sp)
+				if err != nil {
 					return parentOutput{}, err
 				}
 				if sp.Status != "running" {
@@ -184,7 +186,7 @@ func TestAsBackgroundChatTool_SpawnRunningThenCollectDone(t *testing.T) {
 		)).
 		Goals(agent.GoalProducing[parentOutput](core.Goal{Description: "driven"})).
 		Build()
-	if err := platform.Deploy(parent); err != nil {
+	if err = platform.Deploy(parent); err != nil {
 		t.Fatalf("deploy parent: %v", err)
 	}
 
@@ -200,7 +202,8 @@ func TestAsBackgroundChatTool_SpawnRunningThenCollectDone(t *testing.T) {
 	var running struct {
 		Status string `json:"status"`
 	}
-	if err := json.Unmarshal([]byte(runningResult), &running); err != nil {
+	err = json.Unmarshal([]byte(runningResult), &running)
+	if err != nil {
 		t.Fatalf("unmarshal running result: %v", err)
 	}
 	if running.Status != "running" {

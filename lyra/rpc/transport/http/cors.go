@@ -31,7 +31,7 @@ func corsMiddleware(origins []string) func(http.Handler) http.Handler {
 		return func(next http.Handler) http.Handler { return next }
 	}
 	opts := cors.Options{
-		AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodOptions},
+		AllowedMethods: []string{http.MethodGet, http.MethodPost, http.MethodOptions},
 		// Transport-metadata headers the FE sends (TRANSPORT §2) + the W3C
 		// trace-context headers its OTel layer injects on every request
 		// (traceparent / tracestate / baggage) so the FE span extends the

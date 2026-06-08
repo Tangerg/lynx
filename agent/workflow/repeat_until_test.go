@@ -35,10 +35,12 @@ func TestRepeatUntil_LoopsUntilAccept(t *testing.T) {
 	}
 
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	if err := platform.Deploy(a); err != nil {
+	err = platform.Deploy(a)
+	if err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
-	proc, err := platform.RunAgent(t.Context(), a,
+	var proc *runtime.AgentProcess
+	proc, err = platform.RunAgent(t.Context(), a,
 		map[string]any{core.DefaultBindingName: ruIn{Target: 4}},
 		core.ProcessOptions{},
 	)
@@ -71,7 +73,8 @@ func TestRepeatUntil_MaxIterationsCap(t *testing.T) {
 		t.Fatalf("RepeatUntil: %v", err)
 	}
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	if err := platform.Deploy(a); err != nil {
+	err = platform.Deploy(a)
+	if err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
 	proc, _ := platform.RunAgent(t.Context(), a,
@@ -108,7 +111,8 @@ func TestRepeatUntil_HistoryPassedToTaskAndAccept(t *testing.T) {
 		t.Fatalf("RepeatUntil: %v", err)
 	}
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
-	if err := platform.Deploy(a); err != nil {
+	err = platform.Deploy(a)
+	if err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
 	proc, _ := platform.RunAgent(t.Context(), a,

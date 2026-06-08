@@ -231,11 +231,11 @@ func (pc *ProcessContext) Chat() *chat.ClientRequest {
 // Errors when no ChatClient is configured or tool resolution fails.
 func (pc *ProcessContext) ChatWithActionTools(ctx context.Context) (*chat.ClientRequest, error) {
 	if pc.chatClient == nil {
-		return nil, errors.New("chat with action tools: no ChatClient configured on the platform")
+		return nil, errors.New("agent.ProcessContext.ChatWithActionTools: no ChatClient configured on the platform")
 	}
 	tools, err := pc.ActionTools(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("chat with action tools: %w", err)
+		return nil, fmt.Errorf("agent.ProcessContext.ChatWithActionTools: %w", err)
 	}
 	return pc.buildChatRequest(tools), nil
 }
@@ -405,7 +405,7 @@ func (pc *ProcessContext) RecordEmbeddingInvocation(inv EmbeddingInvocation) {
 // [ProcessContext.LastError]). A panic forces [ActionFailed].
 func (pc *ProcessContext) ExecuteSafely(ctx context.Context, a Action) (status ActionStatus) {
 	if a == nil {
-		pc.recordError(errors.New("execute action: action is nil"))
+		pc.recordError(errors.New("agent.ProcessContext.ExecuteSafely: execute action: action is nil"))
 		return ActionFailed
 	}
 	defer func() {
@@ -425,7 +425,7 @@ func (pc *ProcessContext) recordError(err error) { pc.lastErr = err }
 func (pc *ProcessContext) recordPanic(panicValue any) {
 	err, ok := panicValue.(error)
 	if !ok {
-		err = fmt.Errorf("action panicked: %v", panicValue)
+		err = fmt.Errorf("agent.ProcessContext.recordPanic: action panicked: %v", panicValue)
 	}
 	pc.recordError(err)
 }

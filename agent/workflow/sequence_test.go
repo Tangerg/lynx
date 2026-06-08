@@ -65,11 +65,13 @@ func TestSequence_TwoStepChain(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Sequence: %v", err)
 	}
-	if err := platform.Deploy(pipeline); err != nil {
+	err = platform.Deploy(pipeline)
+	if err != nil {
 		t.Fatalf("deploy pipeline: %v", err)
 	}
 
-	proc, err := platform.RunAgent(t.Context(), pipeline,
+	var proc *runtime.AgentProcess
+	proc, err = platform.RunAgent(t.Context(), pipeline,
 		map[string]any{core.DefaultBindingName: seqTopic{Word: "agents"}},
 		core.ProcessOptions{},
 	)

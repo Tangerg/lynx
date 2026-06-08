@@ -58,14 +58,14 @@ func NewReplRunner(app *App, requestedSession string) (*ReplRunner, error) {
 	if requestedSession != "" {
 		sess, err := app.rt.Session().Get(ctx, requestedSession)
 		if err != nil {
-			return nil, fmt.Errorf("resume session %q: %w", requestedSession, err)
+			return nil, fmt.Errorf("lyra.repl: resume session %q: %w", requestedSession, err)
 		}
 		sessID = sess.ID
 	} else {
 		cwd, _ := os.Getwd()
 		sess, err := app.rt.Session().Create(ctx, "", cwd)
 		if err != nil {
-			return nil, fmt.Errorf("create session: %w", err)
+			return nil, fmt.Errorf("lyra.repl: create session: %w", err)
 		}
 		sessID = sess.ID
 	}

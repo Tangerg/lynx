@@ -109,7 +109,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		return err
 	}
 
-	sessionSvc, memSvc, procStore, interruptStore, historyStore, providerSvc, msgStore, err := buildStores()
+	stores, err := buildStores()
 	if err != nil {
 		return err
 	}
@@ -117,7 +117,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 	// already persisted from a prior providers.configure), so the default
 	// provider is enabled out of the box. Other supported providers stay
 	// unconfigured until the user sets their keys.
-	if err = seedConfiguredProvider(ctx, providerSvc, cfg); err != nil {
+	if err = seedConfiguredProvider(ctx, stores.Provider, cfg); err != nil {
 		return err
 	}
 
@@ -128,17 +128,17 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		Pricing:        config.CatalogPricing(),
 		Online:         cfg.Online,
 		MCPServers:     cfg.MCPServers,
-		MemoryStore:    msgStore,
-		MemoryService:  memSvc,
-		SessionService: sessionSvc,
+		MemoryStore:    stores.ChatMem,
+		MemoryService:  stores.Memory,
+		SessionService: stores.Session,
 		// Durable stores enable cross-restart HITL resume: ProcessStore
 		// auto-snapshots every agent process (so a parked turn survives a
 		// restart); InterruptStore persists the open-interrupt registry
 		// that runs.resume looks up. Both are sqlite-backed (buildStores).
-		ProcessStore:    procStore,
-		InterruptStore:  interruptStore,
-		HistoryStore:    historyStore,
-		ProviderService: providerSvc,
+		ProcessStore:    stores.Process,
+		InterruptStore:  stores.Interrupt,
+		HistoryStore:    stores.History,
+		ProviderService: stores.Provider,
 		// Default provider+model a turn runs against when it picks no model.
 		Provider: string(cfg.Provider),
 		Model:    cfg.Model,
@@ -177,24 +177,40 @@ func (a *App) config() config.Config { return a.cfg }
 // restart. The *sql.DB is intentionally process-lifetime (no teardown);
 // modernc.org/sqlite cleans up its WAL on exit. Add explicit teardown when
 // the runtime grows a Shutdown path.
-func buildStores() (sessionsvc.Service, memorysvc.Service, core.ProcessStore, interrupts.Store, history.Store, providersvc.Service, chatmem.Store, error) {
+func buildStores() (*Stores, error) {
 	home, err := storage.Home()
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("storage home: %w", err)
+		return nil, fmt.Errorf("storage home: %w", err)
 	}
 	db, err := sqlitestore.Open(filepath.Join(home, "lyra.db"))
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, err
+		return nil, err
 	}
 	mem, err := storage.NewFileMemoryService()
 	if err != nil {
 		_ = db.Close() // we opened it; don't leak the handle on the error path
-		return nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("memory storage: %w", err)
+		return nil, fmt.Errorf("memory storage: %w", err)
 	}
-	return sqlitestore.NewSessionService(db), mem,
-		sqlitestore.NewProcessStore(db), sqlitestore.NewInterruptStore(db),
-		sqlitestore.NewHistoryStore(db), sqlitestore.NewProviderService(db),
-		sqlitestore.NewMessageStore(db), nil
+	return &Stores{
+		Session:   sqlitestore.NewSessionService(db),
+		Memory:    mem,
+		Process:   sqlitestore.NewProcessStore(db),
+		Interrupt: sqlitestore.NewInterruptStore(db),
+		History:   sqlitestore.NewHistoryStore(db),
+		Provider:  sqlitestore.NewProviderService(db),
+		ChatMem:   sqlitestore.NewMessageStore(db),
+	}, nil
+}
+
+// Stores bundles all persistence backends wired by [buildStores].
+type Stores struct {
+	Session   sessionsvc.Service
+	Memory    memorysvc.Service
+	Process   core.ProcessStore
+	Interrupt interrupts.Store
+	History   history.Store
+	Provider  providersvc.Service
+	ChatMem   chatmem.Store
 }
 
 // seedConfiguredProvider ensures the config-file provider is present in the

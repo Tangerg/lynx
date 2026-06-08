@@ -89,10 +89,12 @@ func TestMedia_JSONRoundTrip_Bytes(t *testing.T) {
 	}
 
 	var got media.Media
-	if err := json.Unmarshal(data, &got); err != nil {
+	err = json.Unmarshal(data, &got)
+	if err != nil {
 		t.Fatalf("Unmarshal: %v", err)
 	}
-	gotBytes, err := got.DataAsBytes()
+	var gotBytes []byte
+	gotBytes, err = got.DataAsBytes()
 	if err != nil {
 		t.Fatalf("DataAsBytes after round-trip: %v", err)
 	}
@@ -117,10 +119,12 @@ func TestMedia_JSONRoundTrip_String(t *testing.T) {
 	}
 
 	var got media.Media
-	if err := json.Unmarshal(data, &got); err != nil {
+	err = json.Unmarshal(data, &got)
+	if err != nil {
 		t.Fatalf("Unmarshal: %v", err)
 	}
-	gotStr, err := got.DataAsString()
+	var gotStr string
+	gotStr, err = got.DataAsString()
 	if err != nil {
 		t.Fatalf("DataAsString after round-trip: %v", err)
 	}

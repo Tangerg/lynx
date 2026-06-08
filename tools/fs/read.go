@@ -59,6 +59,7 @@ func (t *ReadTool) Definition() chat.ToolDefinition {
 func (t *ReadTool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
 
 func (t *ReadTool) Call(ctx context.Context, arguments string) (string, error) {
+	_ = ctx
 	var req ReadRequest
 	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
 		return "", fmt.Errorf("fs.read: parse arguments: %w", err)

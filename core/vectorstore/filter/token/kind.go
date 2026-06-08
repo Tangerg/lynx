@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode"
 )
 
@@ -110,22 +111,22 @@ func (k Kind) hasCategory(mask category) bool {
 	return kindMetadata[k].Categories&mask != 0
 }
 
-// keywordKinds maps lowercase keyword text to its Kind. Built once at
-// package init from kindMetadata so [KindOf] can do an O(1) lookup.
-var keywordKinds map[string]Kind
-
-func init() {
-	keywordKinds = make(map[string]Kind)
+// keywordKinds maps lowercase keyword text to its Kind. Built once
+// lazily via [sync.OnceValues] from kindMetadata so [KindOf] can do
+// an O(1) lookup without an init() ordering dependency.
+var keywordKinds = sync.OnceValues(func() (map[string]Kind, struct{}) {
+	m := make(map[string]Kind)
 	for i := kindBegin + 1; i < kindEnd; i++ {
 		meta := kindMetadata[i]
 		if meta == nil {
 			panic(fmt.Sprintf("token.init: missing metadata for kind %d", i))
 		}
 		if meta.IsKeyword {
-			keywordKinds[meta.Literal] = i
+			m[meta.Literal] = i
 		}
 	}
-}
+	return m, struct{}{}
+})
 
 // IsValid reports whether k is a real token kind (not the sentinel
 // boundaries).
@@ -238,13 +239,14 @@ func (k Kind) Precedence() int {
 // allocation in [strings.ToLower] for the common case where the
 // caller already supplies lowercase text.
 func KindOf(ident string) Kind {
+	kw, _ := keywordKinds()
 	if !hasUpperASCII(ident) {
-		if k, ok := keywordKinds[ident]; ok {
+		if k, ok := kw[ident]; ok {
 			return k
 		}
 		return IDENT
 	}
-	if k, ok := keywordKinds[strings.ToLower(ident)]; ok {
+	if k, ok := kw[strings.ToLower(ident)]; ok {
 		return k
 	}
 	return IDENT

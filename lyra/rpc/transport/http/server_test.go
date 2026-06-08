@@ -22,7 +22,7 @@ const testProtocolVersion = "2026-06-07"
 // the tests only touch lifecycle, sidecars, error paths, runs.cancel.
 type fakeRuntime struct {
 	protocol.Runtime
-	cancelledRuns []string
+	cancelledRuns  []string
 	gotLastEventID string
 }
 

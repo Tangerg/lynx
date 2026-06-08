@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/spf13/cast"
+
 	"github.com/Tangerg/lynx/core/vectorstore/filter/ast"
 	"github.com/Tangerg/lynx/core/vectorstore/filter/token"
 	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
@@ -146,8 +148,8 @@ func (v *Visitor) visitComparisonExpr(expr *ast.BinaryExpr) error {
 		v.sql.WriteString("}")
 
 	case FieldNumeric:
-		num, ok := toNumeric(value)
-		if !ok {
+		num, err := cast.ToFloat64E(value)
+		if err != nil {
 			return fmt.Errorf("redis: NUMERIC field '%s' requires a number value, got %T",
 				field, value)
 		}
@@ -268,7 +270,7 @@ func (v *Visitor) resolveFieldKey(expr ast.Expr) (string, MetadataFieldType, err
 		}
 		field = strings.Join(parts, ".")
 	default:
-		return "", 0, fmt.Errorf("unsupported left operand %T", node)
+		return "", 0, fmt.Errorf("redis: unsupported left operand %T", node)
 	}
 
 	kind, ok := v.fields[field]
@@ -299,7 +301,7 @@ func flattenIndexExpr(expr *ast.IndexExpr) ([]string, error) {
 			// (often "metadata") rather than a key in the path.
 			return keys, nil
 		default:
-			return nil, fmt.Errorf("unsupported index base %T", inner)
+			return nil, fmt.Errorf("redis: unsupported index base %T", inner)
 		}
 	}
 }
@@ -333,19 +335,6 @@ func formatNumber(f float64) string {
 	return strconv.FormatFloat(f, 'f', -1, 64)
 }
 
-func toNumeric(v any) (float64, bool) {
-	switch x := v.(type) {
-	case float64:
-		return x, true
-	case int:
-		return float64(x), true
-	case int64:
-		return float64(x), true
-	default:
-		return 0, false
-	}
-}
-
 func literalToString(lit *ast.Literal) (string, error) {
 	switch {
 	case lit.IsString():
@@ -363,7 +352,7 @@ func literalToString(lit *ast.Literal) (string, error) {
 		}
 		return strconv.FormatBool(b), nil
 	default:
-		return "", fmt.Errorf("unsupported literal kind %s", lit.Token.Kind.Name())
+		return "", fmt.Errorf("redis: unsupported literal kind %s", lit.Token.Kind.Name())
 	}
 }
 

@@ -109,7 +109,8 @@ func TestSessionFork(t *testing.T) {
 	}
 
 	// fork of unknown parent → ErrNotFound
-	if _, err := svc.Fork(ctx, "nope", "msg-0"); !errors.Is(err, session.ErrNotFound) {
+	_, err = svc.Fork(ctx, "nope", "msg-0")
+	if !errors.Is(err, session.ErrNotFound) {
 		t.Fatalf("Fork unknown parent = %v, want ErrNotFound", err)
 	}
 
@@ -219,21 +220,26 @@ func TestMessageStore_RoundTrip(t *testing.T) {
 	store := sqlite.NewMessageStore(db)
 	ctx := context.Background()
 
-	if got, err := store.Read(ctx, "conv-a"); err != nil || len(got) != 0 {
+	var got []chat.Message
+	got, err = store.Read(ctx, "conv-a")
+	if err != nil || len(got) != 0 {
 		t.Fatalf("Read empty = %v (err %v), want empty", got, err)
 	}
 
-	if err := store.Write(ctx, "conv-a", chat.NewUserMessage("hello"), chat.NewAssistantMessage("hi")); err != nil {
+	err = store.Write(ctx, "conv-a", chat.NewUserMessage("hello"), chat.NewAssistantMessage("hi"))
+	if err != nil {
 		t.Fatalf("Write: %v", err)
 	}
-	if err := store.Write(ctx, "conv-a", chat.NewUserMessage("again")); err != nil {
+	err = store.Write(ctx, "conv-a", chat.NewUserMessage("again"))
+	if err != nil {
 		t.Fatalf("Write 2: %v", err)
 	}
-	if err := store.Write(ctx, "conv-b", chat.NewUserMessage("other")); err != nil {
+	err = store.Write(ctx, "conv-b", chat.NewUserMessage("other"))
+	if err != nil {
 		t.Fatalf("Write conv-b: %v", err)
 	}
 
-	got, err := store.Read(ctx, "conv-a")
+	got, err = store.Read(ctx, "conv-a")
 	if err != nil {
 		t.Fatalf("Read: %v", err)
 	}
@@ -279,14 +285,17 @@ func TestHistoryStore_RoundTrip(t *testing.T) {
 		{SessionID: "ses_a", RunID: "run_1", ItemID: "i2", CreatedAt: now, Blob: json.RawMessage(`{"id":"i2"}`)},
 		{SessionID: "ses_b", RunID: "run_9", ItemID: "i9", CreatedAt: now, Blob: json.RawMessage(`{"id":"i9"}`)},
 	} {
-		if err := store.AppendItem(ctx, it); err != nil {
+		err = store.AppendItem(ctx, it)
+		if err != nil {
 			t.Fatalf("append %s: %v", it.ItemID, err)
 		}
 	}
-	if err := store.PutRun(ctx, history.Run{SessionID: "ses_a", RunID: "run_1", UpdatedAt: now, Blob: json.RawMessage(`{"status":"running"}`)}); err != nil {
+	err = store.PutRun(ctx, history.Run{SessionID: "ses_a", RunID: "run_1", UpdatedAt: now, Blob: json.RawMessage(`{"status":"running"}`)})
+	if err != nil {
 		t.Fatalf("put run running: %v", err)
 	}
-	if err := store.PutRun(ctx, history.Run{SessionID: "ses_a", RunID: "run_1", UpdatedAt: now, Blob: json.RawMessage(`{"status":"finished"}`)}); err != nil {
+	err = store.PutRun(ctx, history.Run{SessionID: "ses_a", RunID: "run_1", UpdatedAt: now, Blob: json.RawMessage(`{"status":"finished"}`)})
+	if err != nil {
 		t.Fatalf("put run finished: %v", err)
 	}
 
