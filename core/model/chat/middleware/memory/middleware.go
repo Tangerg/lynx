@@ -6,7 +6,6 @@ import (
 	"iter"
 	"maps"
 	"slices"
-	"strings"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 )
@@ -129,7 +128,7 @@ func (m *middleware) splice(ctx context.Context, req *chat.Request, id string) (
 func (m *middleware) persist(ctx context.Context, id string, toPersist []chat.Message, resp *chat.Response) error {
 	msgs := slices.Clone(toPersist)
 	if resp != nil && resp.Result != nil {
-		if am := resp.Result.AssistantMessage; !blankAssistant(am) && !am.HasToolCalls() {
+		if am := resp.Result.AssistantMessage; !am.IsBlank() && !am.HasToolCalls() {
 			msgs = append(msgs, am)
 		}
 	}
@@ -137,12 +136,6 @@ func (m *middleware) persist(ctx context.Context, id string, toPersist []chat.Me
 		return nil
 	}
 	return m.store.Write(ctx, id, msgs...)
-}
-
-// blankAssistant reports whether an assistant message carries neither tool
-// calls nor non-whitespace text — a round boundary with nothing to persist.
-func blankAssistant(am *chat.AssistantMessage) bool {
-	return am == nil || (!am.HasToolCalls() && strings.TrimSpace(am.JoinedText()) == "")
 }
 
 // executeCall is the synchronous flow: splice → call → save.

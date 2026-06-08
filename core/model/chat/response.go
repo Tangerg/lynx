@@ -237,3 +237,18 @@ func (r *Response) IsToolResult() bool {
 		r.Result.AssistantMessage == nil &&
 		r.Result.ToolMessage != nil
 }
+
+// IsEmpty reports whether this response carries no meaningful assistant
+// reply — the assistant message has no tool calls and no non-whitespace
+// text. It delegates to [AssistantMessage.IsBlank] after unwrapping the
+// result chain. A nil receiver or a response without an assistant message
+// returns false (there was no reply to consider empty).
+//
+// The tool-loop middleware uses it to decide whether to nudge the model
+// with an empty-response follow-up.
+func (r *Response) IsEmpty() bool {
+	if r == nil || r.Result == nil || r.Result.AssistantMessage == nil {
+		return false
+	}
+	return r.Result.AssistantMessage.IsBlank()
+}

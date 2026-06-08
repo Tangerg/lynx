@@ -222,6 +222,20 @@ func (a *AssistantMessage) HasReasoning() bool {
 	})
 }
 
+// IsBlank reports whether this assistant message carries neither tool
+// calls nor non-whitespace text — a round boundary with nothing to persist
+// (memory middleware) or re-prompt (tool middleware). A nil receiver
+// returns true (the message is absent, so it has no content).
+func (a *AssistantMessage) IsBlank() bool {
+	if a == nil {
+		return true
+	}
+	if a.HasToolCalls() {
+		return false
+	}
+	return strings.TrimSpace(a.JoinedText()) == ""
+}
+
 // NewAssistantMessage builds an [AssistantMessage] from one of the
 // supported parameter shapes — the type-set on T documents the
 // accepted forms:

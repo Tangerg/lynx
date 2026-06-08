@@ -121,6 +121,31 @@ func (p *AgentProcess) StartedAt() time.Time          { return p.startedAt }
 func (p *AgentProcess) Blackboard() core.Blackboard   { return p.blackboard }
 func (p *AgentProcess) Options() *core.ProcessOptions { return p.options }
 
+// conversationID returns the chat-memory conversation id for this process:
+// its session id when it runs under one, otherwise its process id (the
+// fallback the chat request uses — see ProcessContext.sessionParams).
+func (p *AgentProcess) conversationID() string {
+	if p == nil {
+		return ""
+	}
+	if p.options != nil && p.options.Session != nil && p.options.Session.ID != "" {
+		return p.options.Session.ID
+	}
+	return p.id
+}
+
+// userID returns the principal this process runs as, inherited by child
+// sessions so audit trails span the delegation subtree.
+func (p *AgentProcess) userID() string {
+	if p == nil {
+		return ""
+	}
+	if p.options != nil && p.options.Session != nil {
+		return p.options.Session.UserID
+	}
+	return ""
+}
+
 // Status / Goal / LastWorldState / Failure / History delegate to the
 // state sub-struct, which owns the lock.
 func (p *AgentProcess) Status() core.AgentProcessStatus { return p.state.getStatus() }
