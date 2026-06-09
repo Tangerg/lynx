@@ -26,20 +26,6 @@ type ParkState struct {
 // When absent the middleware skips park persistence.
 const ParkKey = "lynx:ai:model:chat:tool:park"
 
-// parkID reads the park conversation identifier from the request
-// params, or "" when the caller didn't set [ParkKey].
-func parkID(req *chat.Request) string {
-	if req == nil {
-		return ""
-	}
-	raw, ok := req.Get(ParkKey)
-	if !ok {
-		return ""
-	}
-	id, _ := raw.(string)
-	return id
-}
-
 // ParkReader loads a parked round for a conversation, or (nil, nil)
 // when nothing is parked.
 type ParkReader interface {
