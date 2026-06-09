@@ -65,7 +65,9 @@ const (
 // mapping for ListTools metadata; keep the shared rows in sync.
 func safetyClassFor(name string) safetyClass {
 	switch name {
-	case "read", "grep", "glob", "ask_user":
+	case "read", "grep", "glob", "skill", "ask_user":
+		// skill only reads skill files (list / load / load_resource) — read-only
+		// discovery, so it never needs an approval gate.
 		// ask_user has no side effect — it IS a HITL interrupt itself (the
 		// model asking the user a question), so it must never be approval-
 		// gated on top: that would double-prompt. Its own interrupt handles
