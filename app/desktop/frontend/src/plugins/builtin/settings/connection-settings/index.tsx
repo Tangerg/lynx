@@ -97,7 +97,7 @@ function ConnectionPane() {
               <button
                 type="button"
                 onClick={reset}
-                className="h-9 shrink-0 rounded-md border border-line bg-transparent px-3 font-sans text-[12.5px] text-fg-muted cursor-pointer hover:bg-surface-3 hover:text-fg transition-colors"
+                className="h-9 shrink-0 rounded-md border border-line bg-transparent px-3 font-sans text-[12.5px] text-fg-muted hover:bg-surface-3 hover:text-fg transition-colors"
               >
                 {t("settings.connection.reset")}
               </button>

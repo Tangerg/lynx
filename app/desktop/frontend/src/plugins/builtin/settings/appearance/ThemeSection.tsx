@@ -43,7 +43,7 @@ function ThemeRow({
       onClick={() => onSelect(spec.id)}
       aria-pressed={active}
       className={cn(
-        "grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-line bg-surface px-3 py-2.5 text-left cursor-pointer transition-[background,border-color] duration-150 hover:bg-surface-2 focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_22%,transparent)]",
+        "grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-line bg-surface px-3 py-2.5 text-left transition-[background,border-color] duration-150 hover:bg-surface-2 focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_22%,transparent)]",
         active && "bg-surface-2 border-accent",
       )}
     >

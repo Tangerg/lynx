@@ -46,7 +46,7 @@ export function SessionRow({ session, active, onSelect, onDelete }: Props) {
       aria-current={active ? "page" : undefined}
       aria-label={session.title}
       className={cn(
-        "group relative grid w-full grid-cols-[18px_minmax(0,1fr)] items-center gap-2.5 rounded-lg border-0 bg-transparent px-2.5 py-2 text-left cursor-pointer transition-colors duration-150 hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+        "group relative grid w-full grid-cols-[18px_minmax(0,1fr)] items-center gap-2.5 rounded-lg border-0 bg-transparent px-2.5 py-2 text-left transition-colors duration-150 hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
         active && [
           "bg-surface-2",
           "before:content-[''] before:absolute before:-left-1 before:top-2 before:bottom-2 before:w-[3px] before:bg-accent before:rounded-full",
@@ -89,7 +89,7 @@ export function SessionRow({ session, active, onSelect, onDelete }: Props) {
         <ContextMenu.Content className="z-50 min-w-[160px] overflow-hidden rounded-md border border-line-soft bg-surface p-1 shadow-lg animate-rise-in">
           <ContextMenu.Item
             onSelect={() => onDelete(session.id)}
-            className="grid cursor-pointer grid-cols-[14px_minmax(0,1fr)] items-center gap-2 rounded-sm px-2.5 py-1.5 text-[12.5px] text-negative outline-none data-[highlighted]:bg-negative/10"
+            className="grid grid-cols-[14px_minmax(0,1fr)] items-center gap-2 rounded-sm px-2.5 py-1.5 text-[12.5px] text-negative outline-none data-[highlighted]:bg-negative/10"
           >
             <Icon name="trash" size={12} />
             <span className="truncate">Delete</span>

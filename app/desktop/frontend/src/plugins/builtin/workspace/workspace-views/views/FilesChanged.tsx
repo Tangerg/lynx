@@ -48,7 +48,7 @@ function FileRow({
       aria-pressed={active}
       onClick={() => onSelect(file.path)}
       className={cn(
-        "flex w-full items-center gap-2 border-0 bg-transparent px-2.5 py-1.5 text-left text-[12px] cursor-pointer hover:bg-surface focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--color-accent)]",
+        "flex w-full items-center gap-2 border-0 bg-transparent px-2.5 py-1.5 text-left text-[12px] hover:bg-surface focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--color-accent)]",
         active ? "bg-surface-2 text-fg" : "text-fg-muted",
       )}
     >

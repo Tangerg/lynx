@@ -40,7 +40,7 @@ export function SidebarExpanded({ onToggleRail }: Props) {
         aria-label={t("sidebar.action.collapse")}
         className={cn(
           "absolute top-2 right-3 z-10 grid h-6.5 w-6.5 place-items-center",
-          "rounded-md border-0 bg-transparent text-fg-muted cursor-pointer transition-colors",
+          "rounded-md border-0 bg-transparent text-fg-muted transition-colors",
           "hover:bg-surface-2 hover:text-fg",
           noDragClasses,
         )}

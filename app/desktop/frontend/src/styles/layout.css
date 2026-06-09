@@ -113,6 +113,11 @@ html.theme-light .tool-card.running::before {
   flex: 1 1 0;
   min-height: 0;
   overflow-y: auto;
+  /* No rubber-band glow / scroll-chaining at the edges — a native pane stops
+     dead at its bounds, it doesn't bounce or hand the scroll to a parent.
+     `.panel-scroll` is THE scroller everywhere (panels + the chat's inner
+     stick-to-bottom div via scrollClassName), so this covers both. */
+  overscroll-behavior: contain;
   /* Intentionally no `overflow-x: hidden` here — adding it broke
      use-stick-to-bottom during streaming (rapid content-height changes
      interacted badly with WebKit's scrollbar-recompute path, causing

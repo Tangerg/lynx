@@ -65,7 +65,7 @@ function RunState() {
             type="button"
             onClick={stop}
             aria-label="Stop"
-            className="ml-1 inline-flex items-center gap-0.5 rounded-xs border border-line-soft bg-transparent px-1.5 py-px font-mono text-[10px] text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg"
+            className="ml-1 inline-flex items-center gap-0.5 rounded-xs border border-line-soft bg-transparent px-1.5 py-px font-mono text-[10px] text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg"
           >
             <Icon name="stop" size={9} />
             stop

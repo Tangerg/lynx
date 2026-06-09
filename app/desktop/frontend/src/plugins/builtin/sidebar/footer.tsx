@@ -5,7 +5,7 @@ import { definePlugin } from "@/plugins/sdk";
 import { useSessionStore } from "@/state/sessionStore";
 
 const userActionClasses =
-  "grid h-6.5 w-6.5 place-items-center rounded-md border-0 bg-transparent text-fg-faint cursor-pointer transition-[background,color,transform] hover:bg-surface-2 hover:text-fg light:hover:bg-surface-3 active:scale-[0.92]";
+  "grid h-6.5 w-6.5 place-items-center rounded-md border-0 bg-transparent text-fg-faint transition-[background,color,transform] hover:bg-surface-2 hover:text-fg light:hover:bg-surface-3 active:scale-[0.92]";
 
 function SidebarFooter() {
   const t = useT();

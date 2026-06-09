@@ -9,7 +9,7 @@ import { Tooltip } from "./Tooltip";
 //   rail         — collapsed sidebar items (40px rounded square)
 //   rail-primary — emphasized rail item (subtle bg in idle state)
 const styles = cva(
-  "grid place-items-center text-fg-muted cursor-pointer border-0 bg-transparent " +
+  "grid place-items-center text-fg-muted border-0 bg-transparent " +
     "transition-colors duration-150 ease-out hover:text-fg disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {

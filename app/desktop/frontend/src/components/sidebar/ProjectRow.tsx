@@ -10,7 +10,7 @@ export function ProjectRow({ project }: { project: SidebarProject }) {
   return (
     <div
       className={cn(
-        "group relative grid grid-cols-[18px_1fr] items-center gap-2.5 rounded-lg px-2.5 py-2 cursor-pointer transition-colors duration-150 hover:bg-surface-2",
+        "group relative grid grid-cols-[18px_1fr] items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors duration-150 hover:bg-surface-2",
         active && [
           "bg-surface-2",
           "before:content-[''] before:absolute before:-left-1 before:top-2 before:bottom-2 before:w-[3px] before:bg-accent before:rounded-full",

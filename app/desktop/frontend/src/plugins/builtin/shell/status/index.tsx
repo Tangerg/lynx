@@ -28,7 +28,7 @@ function NotificationsBadge() {
         type="button"
         onClick={onClick}
         aria-label="Notifications"
-        className="relative grid h-6.5 w-6.5 place-items-center rounded-md border-0 bg-transparent text-fg-faint cursor-pointer transition-[background,color] hover:bg-surface-2 hover:text-fg light:hover:bg-surface-3 active:scale-[0.92]"
+        className="relative grid h-6.5 w-6.5 place-items-center rounded-md border-0 bg-transparent text-fg-faint transition-[background,color] hover:bg-surface-2 hover:text-fg light:hover:bg-surface-3 active:scale-[0.92]"
       >
         <Icon name="chat" size={14} />
         {unread > 0 && (

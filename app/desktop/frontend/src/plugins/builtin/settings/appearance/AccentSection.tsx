@@ -28,7 +28,7 @@ function CustomAccentPicker({
       title={label}
       aria-label={label}
       className={cn(
-        "relative inline-grid h-4.5 w-4.5 place-items-center rounded-full border-2 border-transparent bg-clip-padding cursor-pointer transition-[transform,box-shadow] duration-150 hover:scale-[1.08] active:scale-95",
+        "relative inline-grid h-4.5 w-4.5 place-items-center rounded-full border-2 border-transparent bg-clip-padding transition-[transform,box-shadow] duration-150 hover:scale-[1.08] active:scale-95",
         isActive && "border-surface shadow-[0_0_0_1.5px_var(--color-text)]",
       )}
       style={{ background: isActive ? value : RAINBOW_HINT }}
@@ -40,7 +40,7 @@ function CustomAccentPicker({
         aria-label="Custom accent color"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        className="absolute inset-0 h-full w-full opacity-0"
       />
     </label>
   );
@@ -67,7 +67,7 @@ export function AccentSection() {
             aria-pressed={accent === a.dark}
             style={{ background: a.dark }}
             className={cn(
-              "h-4.5 w-4.5 rounded-full border-2 border-transparent bg-clip-padding p-0 cursor-pointer transition-[transform,box-shadow] duration-150 hover:scale-[1.08] active:scale-95",
+              "h-4.5 w-4.5 rounded-full border-2 border-transparent bg-clip-padding p-0 transition-[transform,box-shadow] duration-150 hover:scale-[1.08] active:scale-95",
               accent === a.dark && "border-surface shadow-[0_0_0_1.5px_var(--color-text)]",
             )}
           />

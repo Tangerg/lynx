@@ -137,7 +137,7 @@ function Item({
   return (
     <ContextMenu.Item
       onSelect={onSelect}
-      className="grid cursor-pointer grid-cols-[14px_minmax(0,1fr)] items-center gap-2 rounded-sm px-2.5 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
+      className="grid grid-cols-[14px_minmax(0,1fr)] items-center gap-2 rounded-sm px-2.5 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
     >
       <Icon name={icon} size={12} />
       <span className="truncate">{children}</span>

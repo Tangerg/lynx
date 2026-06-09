@@ -51,7 +51,7 @@ export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView 
         // `.tool-card.running::before` rotating conic-gradient border
         // animation defined in tool.css — it uses @property + mask, not
         // expressible cleanly in Tailwind. Everything else here is utilities.
-        "tool-card group relative my-1.5 overflow-hidden rounded-md border border-transparent cursor-pointer transition-[background,border-color,transform] duration-150",
+        "tool-card group relative my-1.5 overflow-hidden rounded-md border border-transparent transition-[background,border-color,transform] duration-150",
         !selected && "hover:bg-line hover:border-line-soft hover:-translate-y-px",
         selected && "bg-line border-line-soft",
         running && "running",
@@ -167,7 +167,7 @@ export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView 
 
 // Shared button style for inline action + expand glyphs.
 const ACTION_BTN =
-  "grid h-5.5 w-5.5 place-items-center rounded-xs border-0 bg-transparent text-fg-faint cursor-pointer transition-colors hover:bg-surface-3 hover:text-fg";
+  "grid h-5.5 w-5.5 place-items-center rounded-xs border-0 bg-transparent text-fg-faint transition-colors hover:bg-surface-3 hover:text-fg";
 
 function ToolMeta({ tool }: { tool: ToolCall }) {
   return (

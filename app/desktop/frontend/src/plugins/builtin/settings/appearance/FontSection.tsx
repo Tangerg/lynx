@@ -38,7 +38,7 @@ function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerPr
       <span className="text-[12px] font-semibold text-fg-faint">{label}</span>
       <label
         htmlFor={checkboxId}
-        className="inline-flex cursor-pointer items-center gap-1.5 text-[12.5px] text-fg-muted"
+        className="inline-flex items-center gap-1.5 text-[12.5px] text-fg-muted"
       >
         <Checkbox
           id={checkboxId}
@@ -52,7 +52,7 @@ function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerPr
         <DropdownMenu.Trigger
           disabled={!customEnabled}
           className={cn(
-            "inline-flex w-fit min-w-[220px] max-w-[280px] items-center justify-between gap-2 rounded-md border border-line bg-surface px-2.5 py-1.5 text-[13px] text-fg cursor-pointer transition-colors hover:bg-surface-2 data-[state=open]:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+            "inline-flex w-fit min-w-[220px] max-w-[280px] items-center justify-between gap-2 rounded-md border border-line bg-surface px-2.5 py-1.5 text-[13px] text-fg transition-colors hover:bg-surface-2 data-[state=open]:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
             "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-surface",
             mono && customEnabled && "font-mono text-[12.5px]",
           )}
@@ -75,7 +75,7 @@ function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerPr
                 // scan the list and pick by visual feel, not by name
                 // recall.
                 style={{ fontFamily: `"${f}"` }}
-                className="grid cursor-pointer grid-cols-[minmax(0,1fr)_12px] items-center gap-2 rounded-sm px-2.5 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
+                className="grid grid-cols-[minmax(0,1fr)_12px] items-center gap-2 rounded-sm px-2.5 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
               >
                 <span className="truncate">{f}</span>
                 {value === f ? (
@@ -162,7 +162,7 @@ export function FontSection() {
         />
         <label
           htmlFor={smoothingId}
-          className="mt-1 inline-flex cursor-pointer items-center gap-2 text-[12.5px] text-fg-muted"
+          className="mt-1 inline-flex items-center gap-2 text-[12.5px] text-fg-muted"
         >
           <Checkbox
             id={smoothingId}

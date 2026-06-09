@@ -99,7 +99,7 @@ function PlanProgressBanner() {
               }
               className={cn(
                 "flex-1 min-w-0 flex items-center gap-2.5 px-3 py-2.5",
-                "border-0 bg-transparent text-left cursor-pointer transition-colors hover:bg-surface-2",
+                "border-0 bg-transparent text-left transition-colors hover:bg-surface-2",
                 "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent",
               )}
             >
@@ -138,7 +138,7 @@ function PlanProgressBanner() {
                 aria-label="Dismiss plan banner"
                 className={cn(
                   "mr-1.5 grid h-7 w-7 shrink-0 place-items-center rounded-md border-0 bg-transparent",
-                  "text-fg-faint cursor-pointer transition-colors",
+                  "text-fg-faint transition-colors",
                   "hover:bg-surface-2 hover:text-fg",
                   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
                 )}

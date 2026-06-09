@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 // variants in two sizes. md (8px) corner per DESIGN.md §6.
 const styles = cva(
   "inline-flex items-center gap-1.5 rounded-md font-sans font-medium tracking-normal " +
-    "transition-colors duration-150 ease-out cursor-pointer " +
+    "transition-colors duration-150 ease-out " +
     "disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
