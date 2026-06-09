@@ -37,11 +37,11 @@ type Engine struct {
 	agent    *core.Agent
 
 	// Context inputs (read at SystemPrompt + chat-memory time).
-	tools    []chat.Tool
-	memStore memory.Store
-	memSvc   lyramem.Service
-	workdir  string  // captured from Config.Workdir for the AGENTS.md cascade
-	pricing  Pricing // optional per-round cost hook; nil → cost stays zero
+	tools     []chat.Tool
+	memStore  memory.Store
+	memSvc    lyramem.Service
+	workdir   string  // captured from Config.Workdir for the AGENTS.md cascade
+	pricing   Pricing // optional per-round cost hook; nil → cost stays zero
 	parkStore tool.ParkStore
 
 	// Maintenance sub-components — each may be nil when the
@@ -100,8 +100,14 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("engine: build memory middleware: %w", err)
 	}
+	// One tool + memory middleware chain serves every process — top-level
+	// turns and spawned subtasks alike. Each request carries its own
+	// conversation id (the agent runtime stamps [chat.ConversationIDKey]
+	// from the process's Session), so a single shared chain keys memory and
+	// park state per-process without per-turn reconstruction.
 	toolCallMW, toolStreamMW := tool.NewMiddleware(tool.Config{
 		FeedbackOnEmptyResponse: true,
+		ParkStore:               cfg.ParkStore,
 	})
 	platform := agent.NewPlatform(runtime.PlatformConfig{
 		ChatClient: cfg.ChatClient,

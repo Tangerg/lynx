@@ -195,10 +195,10 @@ func (pc *ProcessContext) ResolveTools(ctx context.Context, roles ...string) ([]
 // passes through the global logger / safeguard / quota middlewares
 // before reaching the underlying model.
 //
-// When [ProcessOptions.Session] is set (typically via
-// [Platform.RunInSession]) the session id is stamped onto the
-// request params under the chat-memory conversation key so the
-// memory middleware auto-loads the conversation history.
+// The process's conversation id ([Session.ID], falling back to the
+// process id) is stamped onto the request params under
+// [chat.ConversationIDKey] so the memory middleware auto-loads /
+// persists the conversation history — see [conversationID].
 func (pc *ProcessContext) Chat() *chat.ClientRequest {
 	if pc.chatClient == nil {
 		return nil
@@ -240,7 +240,32 @@ func (pc *ProcessContext) buildChatRequest(tools []AgentTool) *chat.ClientReques
 	if len(tools) > 0 {
 		req = req.WithTools(tools...)
 	}
+	if id := pc.conversationID(); id != "" {
+		req = req.WithParams(map[string]any{chat.ConversationIDKey: id})
+	}
 	return req
+}
+
+// conversationID is this process's chat-memory conversation key, stamped
+// onto every chat request under [chat.ConversationIDKey] so the memory
+// middleware loads / saves history (and the tool middleware parks
+// interrupted rounds) keyed by it. It is the multi-turn [Session.ID] when
+// the process runs under a session, otherwise the process id — the
+// fallback matters because the tool loop is delta-driven (each round hands
+// the memory layer only the new messages and relies on it to reconstruct
+// the conversation from the store, so without an id a multi-round turn
+// would lose context across rounds). A child agent (e.g. a subtask
+// delegation) runs under its own session (its process id), so it gets an
+// isolated conversation while [Process.ParentID] preserves the lineage.
+// Returns "" only when neither is available, leaving the request unstamped.
+func (pc *ProcessContext) conversationID() string {
+	if pc.Options != nil && pc.Options.Session != nil && pc.Options.Session.ID != "" {
+		return pc.Options.Session.ID
+	}
+	if pc.Process != nil {
+		return pc.Process.ID()
+	}
+	return ""
 }
 
 // ActionTools resolves the tools declared on the currently-executing

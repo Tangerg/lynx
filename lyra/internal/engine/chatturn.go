@@ -6,8 +6,6 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 )
 
 // RunChatRequest carries the per-turn parameters for [Engine.StartChat] /
@@ -16,10 +14,12 @@ import (
 // notifications.
 type RunChatRequest struct {
 	// SessionID anchors the turn to a chat-memory conversation. The
-	// memory middleware reads this via [memory.ConversationIDKey] to
-	// pull prior history before the model call and to save the new
-	// round afterwards. Empty string runs the turn unattached (each
-	// call starts fresh).
+	// runtime stamps it onto each request under [chat.ConversationIDKey],
+	// which the memory middleware reads to pull prior history before the
+	// model call and save the new round afterwards. Empty string runs the
+	// turn unattached (the runtime falls back to the process id, so a
+	// single multi-round turn still keeps context, but nothing persists
+	// across turns).
 	SessionID string
 
 	// Message is the user's input for this turn.
@@ -88,27 +88,19 @@ func (e *Engine) StartChat(ctx context.Context, req RunChatRequest) ChatProcess 
 
 	proc, done := e.platform.StartAgent(ctx, e.agent,
 		map[string]any{core.DefaultBindingName: in},
-		e.chatProcessOptions(req.SessionID, req.Observer, req.EventListener, req.ChatClient),
+		chatProcessOptions(req.SessionID, req.Observer, req.EventListener, req.ChatClient),
 	)
 	return &chatProcess{proc: proc, done: done, platform: e.platform}
 }
 
-// chatProcessOptions assembles per-process wiring: chat middleware
-// (tool loop + memory, constructed per-turn from the engine's stores),
-// the observer decorator, lifecycle listener, and per-run model client.
-func (e *Engine) chatProcessOptions(sessionID string, observer toolObserver, listener core.Extension, client *chat.Client) core.ProcessOptions {
-	toolMW, toolStreamMW := tool.NewMiddleware(tool.Config{
-		ParkID:                  sessionID,
-		ParkStore:               e.parkStore,
-		FeedbackOnEmptyResponse: true,
-	})
-	memMW, memStreamMW, _ := memory.NewMiddleware(e.memStore, sessionID)
-	opts := core.ProcessOptions{
-		Guardrails: &core.Guardrails{
-			CallMiddlewares:   []chat.CallMiddleware{toolMW, memMW},
-			StreamMiddlewares: []chat.StreamMiddleware{toolStreamMW, memStreamMW},
-		},
-	}
+// chatProcessOptions assembles per-process wiring: the chat-memory Session
+// binding, the observer decorator, lifecycle listener, and per-run model
+// client. The chat middleware chain itself (tool loop + memory) is the
+// platform default built once in [New]; the runtime stamps each request's
+// conversation id from this Session, so a single shared chain serves both
+// this turn and any subtask it spawns.
+func chatProcessOptions(sessionID string, observer toolObserver, listener core.Extension, client *chat.Client) core.ProcessOptions {
+	opts := core.ProcessOptions{}
 	if sessionID != "" {
 		opts.Session = &core.Session{ID: sessionID}
 	}
@@ -166,7 +158,7 @@ func (e *Engine) RestoreChat(ctx context.Context, processID string, req RestoreC
 	// A restored continuation runs on the platform's default client. Per-run
 	// model fidelity across a restart would need the model persisted with the
 	// interrupt — a follow-up; resume is rare and uses the default model.
-	opts := e.chatProcessOptions(req.SessionID, req.Observer, req.EventListener, nil)
+	opts := chatProcessOptions(req.SessionID, req.Observer, req.EventListener, nil)
 	proc, err := e.platform.RestoreProcess(ctx, processID, opts)
 	if err != nil {
 		return nil, fmt.Errorf("engine: restore chat: %w", err)

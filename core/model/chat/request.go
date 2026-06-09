@@ -197,6 +197,25 @@ type Request struct {
 	Params map[string]any `json:"params,omitzero"`
 }
 
+// ConversationIDKey is the [Request.Params] key identifying the
+// conversation a request belongs to — a protocol-level convention (not
+// any single middleware's secret) so the layer that owns the conversation
+// stamps it once and every middleware that cares reads it from the request:
+//
+//   - the memory middleware keys stored history by it,
+//   - the tool middleware keys parked (interrupted) rounds by it.
+//
+// It lives here, on the protocol type, rather than inside a middleware
+// package so the producer (e.g. the agent runtime, which knows the
+// conversation/session id per process) can stamp it without importing any
+// middleware implementation. Set it before the call:
+//
+//	req.Set(chat.ConversationIDKey, "session-42")
+//
+// Absent, the memory middleware passes through (no load/save) and the tool
+// middleware skips park persistence.
+const ConversationIDKey = "lynx:ai:model:chat:conversation_id"
+
 // NewRequest builds a Request from the given messages. nil entries are
 // filtered out; an empty (or nil-only) input returns an error.
 //

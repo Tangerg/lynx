@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
+	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 )
@@ -114,7 +115,7 @@ func Supervisor[In, Out any](platform *runtime.Platform, cfg SupervisorConfig[In
 
 			text, _, err := req.
 				WithMiddlewares(callMW, streamMW, memCallMW, memStreamMW).
-				WithParams(map[string]any{memory.ConversationIDKey: "workflow:supervisor"}).
+				WithParams(map[string]any{chat.ConversationIDKey: "workflow:supervisor"}).
 				WithTools(tools...).
 				WithSystemPrompt(cfg.Instructions).
 				WithUserPrompt(render(in)).

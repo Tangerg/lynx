@@ -217,6 +217,38 @@ func TestEngine_RunChat_SubtaskInheritsCwd(t *testing.T) {
 	}
 }
 
+// TestEngine_RunChat_SubtaskKeepsMemoryAcrossRounds is the regression guard
+// for subtask chat-memory continuity. A subtask runs its own multi-round
+// tool loop with no externally-supplied session; the tool loop strips the
+// original prompt between rounds, so round 2 only sees it if the child's
+// memory middleware reconstructs it — which requires the runtime to stamp a
+// conversation id (here the child's process id) onto every request. The
+// subtask is told a secret on round 1 and must echo it on round 2; if the
+// per-process keying regresses, the subtask reports subtaskContextLost and
+// the main turn surfaces it.
+func TestEngine_RunChat_SubtaskKeepsMemoryAcrossRounds(t *testing.T) {
+	stub := newSubtaskMemoryStub()
+	client, _ := chat.NewClient(stub)
+	eng, err := New(context.Background(), Config{ChatClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := eng.RunChat(context.Background(), RunChatRequest{
+		Message: "delegate this",
+		Cwd:     t.TempDir(),
+	})
+	if err != nil {
+		t.Fatalf("RunChat: %v", err)
+	}
+	if strings.Contains(out.Reply, subtaskContextLost) {
+		t.Fatalf("subtask lost its round-1 context across tool rounds — per-process chat-memory keying regressed; reply = %q", out.Reply)
+	}
+	if !strings.Contains(out.Reply, subtaskSecret) {
+		t.Errorf("reply = %q, want it to carry the subtask's secret %q (proof round-2 saw round-1's prompt)", out.Reply, subtaskSecret)
+	}
+}
+
 // TestEngine_RunChat_TokenUsageAccumulates verifies the per-turn
 // usage roll-up sums across both LLM rounds (tool-call + final
 // reply). ReasoningTokens come from a pointer field on chat.Usage —
