@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"github.com/Tangerg/lynx/a2a"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
@@ -49,6 +50,12 @@ type Config struct {
 	// tool set, prefixed with the server's Name so collisions across
 	// servers stay separable. Empty disables MCP integration.
 	MCPServers []mcp.ServerConfig
+
+	// A2AAgents lists remote A2A (Agent-to-Agent) agents to dial at engine
+	// construction. Each becomes one delegation tool in the coding set (named
+	// by its config, else the resolved AgentCard), letting the chat loop hand
+	// work to a remote agent. Empty disables A2A integration.
+	A2AAgents []a2a.ClientConfig
 
 	// Pricing optionally computes per-round USD cost from the served
 	// model + token usage. nil leaves cost at zero (the chat path gets
