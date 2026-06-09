@@ -83,6 +83,34 @@ func (s Session) Fork(id, atMessageID string, now time.Time) Session {
 	}
 }
 
+// NewSubtask derives an internal delegation child of s — the sub-agent behind
+// the `task` tool. The child inherits s's working directory, takes s's title
+// with a " · subtask" suffix (just "subtask" when s is untitled), is marked
+// [KindSubtask], and points ParentID back at s. Unlike [Fork] it records no
+// branch point: a subtask is a fresh delegated conversation, not a branch of
+// the parent's history.
+//
+// id and now are supplied by the caller — id is the agent runtime's child
+// conversation id, so the persisted subtask history lines up. A parent that
+// doesn't exist is passed as a zero Session carrying only its ID, which
+// naturally yields the untitled-parent form; keeping the derivation here makes
+// "what a subtask is" a pure, DB-free function the adapter just persists.
+func (s Session) NewSubtask(id string, now time.Time) Session {
+	title := "subtask"
+	if s.Title != "" {
+		title = s.Title + " · subtask"
+	}
+	return Session{
+		ID:        id,
+		Title:     title,
+		Cwd:       s.Cwd,
+		ParentID:  s.ID,
+		Kind:      KindSubtask,
+		StartedAt: now,
+		UpdatedAt: now,
+	}
+}
+
 // Service is the SessionService contract.
 //
 // All methods are safe for concurrent use. Implementations are
