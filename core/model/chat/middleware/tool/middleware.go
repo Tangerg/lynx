@@ -213,7 +213,7 @@ func (m *middleware) executeCallRecursively(ctx context.Context, req *chat.Reque
 		// configured) so the caller never sees an interrupt chunk;
 		// fall back to [buildInterruptResponse] for legacy callers.
 		if m.parkStore != nil {
-			m.savePark(req, resp.Result.AssistantMessage, result.interrupt.done)
+			m.savePark(ctx, req, resp.Result.AssistantMessage, result.interrupt.done)
 			return nil, result.interrupt.cause
 		}
 		interruptResp, e := buildInterruptResponse(resp.Result.AssistantMessage, result.interrupt.done)
@@ -328,7 +328,7 @@ func (m *middleware) executeStreamRecursively(ctx context.Context, req *chat.Req
 		// HITL: a tool halted the round. Save park state (when
 		// configured); fall back to legacy interrupt chunk path.
 		if m.parkStore != nil {
-			m.savePark(req, resp.Result.AssistantMessage, result.interrupt.done)
+			m.savePark(ctx, req, resp.Result.AssistantMessage, result.interrupt.done)
 			yield(nil, result.interrupt.cause)
 			return
 		}
@@ -440,7 +440,7 @@ func injectParkTail(req *chat.Request, state *ParkState) *chat.Request {
 
 // savePark persists an interrupted round so it can be resumed later.
 // No-op when no ParkStore is configured or no park id is on the request.
-func (m *middleware) savePark(req *chat.Request, assistant *chat.AssistantMessage, done []*chat.ToolReturn) {
+func (m *middleware) savePark(ctx context.Context, req *chat.Request, assistant *chat.AssistantMessage, done []*chat.ToolReturn) {
 	if m.parkStore == nil {
 		return
 	}
@@ -448,7 +448,7 @@ func (m *middleware) savePark(req *chat.Request, assistant *chat.AssistantMessag
 	if id == "" {
 		return
 	}
-	_ = m.parkStore.Write(context.TODO(), id, &ParkState{
+	_ = m.parkStore.Write(ctx, id, &ParkState{
 		Assistant: assistant,
 		Done:      done,
 	})

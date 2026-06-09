@@ -203,7 +203,7 @@ func (m *middleware) resumeCall(ctx context.Context, req *chat.Request, point *r
 		// [interruptResponse] for legacy callers.
 		if m.parkStore != nil {
 			merged := append(slices.Clone(point.done), res.interrupt.done...)
-			m.savePark(req, point.assistant, merged)
+			m.savePark(ctx, req, point.assistant, merged)
 			return nil, res.interrupt.cause
 		}
 		resp, e := point.interruptResponse(res.interrupt.done)
@@ -240,7 +240,7 @@ func (m *middleware) resumeStream(ctx context.Context, req *chat.Request, point 
 	if res.interrupt != nil {
 		if m.parkStore != nil {
 			merged := append(slices.Clone(point.done), res.interrupt.done...)
-			m.savePark(req, point.assistant, merged)
+			m.savePark(ctx, req, point.assistant, merged)
 			yield(nil, res.interrupt.cause)
 			return
 		}
