@@ -40,7 +40,8 @@ const ConversationIDKey = "lynx:ai:model:chat:memory:conversation_id"
 //     The spliced order is: system (from the live request) → stored
 //     history → the request's new non-system messages.
 type middleware struct {
-	store Store
+	store                   Store
+	conversationIDOverride  string
 }
 
 // NewMiddleware constructs a memory-management middleware backed by
@@ -57,11 +58,14 @@ type middleware struct {
 //	    WithMiddlewares(callMW, streamMW).
 //	    WithUserPrompt("hi").
 //	    Call().Response(ctx)
-func NewMiddleware(store Store) (chat.CallMiddleware, chat.StreamMiddleware, error) {
+func NewMiddleware(store Store, conversationID ...string) (chat.CallMiddleware, chat.StreamMiddleware, error) {
 	if store == nil {
 		return nil, nil, errors.New("memory.NewMiddleware: store must not be nil")
 	}
 	mw := &middleware{store: store}
+	if len(conversationID) > 0 {
+		mw.conversationIDOverride = conversationID[0]
+	}
 	return mw.wrapCallHandler, mw.wrapStreamHandler, nil
 }
 
@@ -69,6 +73,9 @@ func NewMiddleware(store Store) (chat.CallMiddleware, chat.StreamMiddleware, err
 // [ConversationIDKey], or "" when the caller did not supply one.
 // Returns an error if the value exists but is the wrong type.
 func (m *middleware) conversationID(req *chat.Request) (string, error) {
+	if m.conversationIDOverride != "" {
+		return m.conversationIDOverride, nil
+	}
 	raw, exists := req.Get(ConversationIDKey)
 	if !exists {
 		return "", nil

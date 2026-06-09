@@ -100,12 +100,15 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("engine: build memory middleware: %w", err)
 	}
+	toolCallMW, toolStreamMW := tool.NewMiddleware(tool.Config{
+		FeedbackOnEmptyResponse: true,
+	})
 	platform := agent.NewPlatform(runtime.PlatformConfig{
 		ChatClient: cfg.ChatClient,
 		Extensions: []core.Extension{resolver},
 		Guardrails: &core.Guardrails{
-			CallMiddlewares:   []chat.CallMiddleware{callMW},
-			StreamMiddlewares: []chat.StreamMiddleware{streamMW},
+			CallMiddlewares:   []chat.CallMiddleware{toolCallMW, callMW},
+			StreamMiddlewares: []chat.StreamMiddleware{toolStreamMW, streamMW},
 		},
 		// Auto-snapshot only when a store is configured — no store, no
 		// per-tick disk churn.

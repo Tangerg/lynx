@@ -9,8 +9,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 )
 
 // agentTracer is the framework-wide OTel tracer. We deliberately don't
@@ -103,13 +101,6 @@ type ProcessContextConfig struct {
 	// names. Mirrors embabel's ConditionEnv.toolGroups, which reads
 	// action.toolGroups for the LLM ops layer.
 	ActionToolGroups []ToolGroupRequirement
-
-	// ActionToolLoop carries the currently-executing action's
-	// [tool.Config] so [ProcessContext.ChatWithActionTools]
-	// builds the tool middleware with the action's chosen recovery
-	// policies / iteration cap. Refreshed every tick alongside
-	// ActionToolGroups.
-	ActionToolLoop tool.Config
 }
 
 // ProcessContext is the only thing handed to an [Action.Execute] call.
@@ -139,7 +130,6 @@ type ProcessContext struct {
 
 	// --- Per-action state + per-tick scratch. ---
 	actionToolGroups []ToolGroupRequirement
-	actionToolLoop   tool.Config
 
 	// inputAwaited flips when the action calls [AwaitInput]; the
 	// typed-action wrapper reads it to return ActionWaiting. Per-tick
@@ -165,7 +155,6 @@ func NewProcessContext(config ProcessContextConfig) *ProcessContext {
 		chatClient:       config.ChatClient,
 		guardrails:       config.Guardrails,
 		actionToolGroups: config.ActionToolGroups,
-		actionToolLoop:   config.ActionToolLoop,
 		publishEvent:     config.Publish,
 		resolveTools:     config.ResolveTools,
 		toolCallCancel:   config.ToolCallCancel,
@@ -256,55 +245,14 @@ func (pc *ProcessContext) ChatWithActionTools(ctx context.Context) (*chat.Client
 func (pc *ProcessContext) buildChatRequest(tools []AgentTool) *chat.ClientRequest {
 	req := pc.chatClient.Chat()
 
-	var mws []any
-	if len(tools) > 0 {
-		callMW, streamMW := tool.NewMiddleware(pc.actionToolLoop)
-		mws = append(mws, callMW, streamMW)
-	}
-	mws = append(mws, pc.guardrails.MiddlewareValues()...)
+	mws := pc.guardrails.MiddlewareValues()
 	if len(mws) > 0 {
 		req = req.WithMiddlewares(mws...)
 	}
 	if len(tools) > 0 {
 		req = req.WithTools(tools...)
 	}
-	if params := pc.sessionParams(); len(params) > 0 {
-		req = req.WithParams(params)
-	}
 	return req
-}
-
-// sessionParams returns the request-params map the session
-// machinery needs the chat client to see — currently just the
-// chat-memory conversation key. Returns nil when no session is
-// bound so [buildChatRequest] can skip the WithParams call.
-// sessionParams stamps the chat-memory conversation id onto the request so
-// the memory middleware can load / splice / save this turn's conversation.
-//
-// The id is the multi-turn [Session.ID] when the process runs under a
-// session (durable cross-turn history), otherwise the process id. The
-// fallback matters because the tool loop is delta-driven: each round it
-// hands the memory middleware only the new tool message and relies on it to
-// reconstruct the conversation from the store. Without an id the memory
-// middleware would pass through and the loop would lose context across
-// rounds. A child agent (e.g. a subtask delegation) runs without a session,
-// so it gets its OWN process-scoped conversation — isolated from the parent
-// while [Process.ParentID] preserves the lineage link.
-func (pc *ProcessContext) sessionParams() map[string]any {
-	id := ""
-	if pc.Options != nil && pc.Options.Session != nil {
-		id = pc.Options.Session.ID
-	}
-	if id == "" && pc.Process != nil {
-		id = pc.Process.ID()
-	}
-	if id == "" {
-		return nil
-	}
-	return map[string]any{
-		memory.ConversationIDKey: id,
-		tool.ParkKey:             id,
-	}
 }
 
 // ActionTools resolves the tools declared on the currently-executing

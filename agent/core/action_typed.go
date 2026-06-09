@@ -147,7 +147,6 @@ func NewAction[In, Out any](
 		CanRerun:        config.CanRerun,
 		QoS:             config.QoS,
 		ToolGroups:      config.ToolGroups,
-		ToolLoop:        config.ToolLoop,
 		Cost:            config.Cost,
 		Value:           config.Value,
 		OutputBinding:   config.OutputBinding,
@@ -171,31 +170,31 @@ func resolveBindingName(name string) string {
 // .effects in embabel: every input binding becomes a True precondition,
 // every output binding becomes a True effect, and the hasRun_<name>
 // condition is toggled to keep canRerun=false actions from looping.
-func (meta ActionMetadata) computePreconditionsAndEffects(extraPre, extraPost []string) (Effects, Effects) {
+func (m ActionMetadata) computePreconditionsAndEffects(extraPre, extraPost []string) (Effects, Effects) {
 	pre := Effects{}
 	eff := Effects{}
 
 	for _, key := range extraPre {
 		pre[key] = True
 	}
-	for _, in := range meta.Inputs {
+	for _, in := range m.Inputs {
 		pre[in.String()] = True
 	}
 
 	for _, key := range extraPost {
 		eff[key] = True
 	}
-	for _, out := range meta.Outputs {
+	for _, out := range m.Outputs {
 		eff[out.String()] = True
 	}
 
 	// "Have not run yet" is a precondition; "have run" is an effect. The
 	// determiner promotes the runtime's stored hasRun condition into the
 	// world state so the planner can prune already-executed actions.
-	if !meta.CanRerun {
-		pre[meta.EffectiveRunKey()] = False
+	if !m.CanRerun {
+		pre[m.EffectiveRunKey()] = False
 	}
-	eff[meta.EffectiveRunKey()] = True
+	eff[m.EffectiveRunKey()] = True
 
 	return pre, eff
 }

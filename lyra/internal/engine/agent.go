@@ -6,7 +6,6 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/hitl"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 )
 
 // chatInput is the typed input to the M1 single-turn chat agent. It
@@ -127,7 +126,6 @@ func (e *Engine) buildChatAgent() *core.Agent {
 			},
 			core.ActionConfig{
 				ToolGroups: core.ToolRolesFor(ToolRoleCoding),
-				ToolLoop:   recoverToolLoop(e.parkStore),
 				// MaxAttempts:1 — don't let the runtime retry an LLM action.
 				// Transient errors are already retried inside the model SDK;
 				// permanent ones (no-access model, bad key, invalid request)
@@ -181,7 +179,6 @@ func (e *Engine) buildSubtaskAgent() *core.Agent {
 			},
 			core.ActionConfig{
 				ToolGroups: core.ToolRolesFor(ToolRoleSubtask),
-				ToolLoop:   recoverToolLoop(e.parkStore),
 				QoS:        core.ActionQoS{MaxAttempts: 1}, // same rationale as the chat action
 			},
 		)).
@@ -189,21 +186,6 @@ func (e *Engine) buildSubtaskAgent() *core.Agent {
 			Description: "subtask answer produced",
 		})).
 		Build()
-}
-
-// recoverToolLoop is the tool-loop policy both the chat agent and the task
-// sub-agent use. Recovering from a hallucinated tool name and from a
-// recoverable tool failure is now the framework default (the chat tool loop
-// feeds both back to the model rather than aborting — a tool failure is also
-// recorded on its toolCall item, status:incomplete + error:tool_failed, via
-// the tool observer; the run continues per API.md §8.1). The only knob left is
-// the empty-reply nudge, which we opt into so a blank model turn re-prompts
-// once instead of ending the turn empty.
-func recoverToolLoop(parkStore tool.ParkStore) tool.Config {
-	return tool.Config{
-		FeedbackOnEmptyResponse: true,
-		ParkStore:               parkStore,
-	}
 }
 
 // planApprovedKey is the blackboard condition the plan-mode approval
