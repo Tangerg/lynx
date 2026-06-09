@@ -2,6 +2,8 @@ github.com/Tangerg/lynx/core v0.0.0-20260511081009-fbf46737de3d h1:Wu7lQQfPWQQnu
 github.com/Tangerg/lynx/core v0.0.0-20260511081009-fbf46737de3d/go.mod h1:rnQieXQaK1oIMWufnXdWlFVctFXlQvE2EEHNNNMWjac=
 github.com/Tangerg/lynx/pkg v0.0.0-20260511081009-fbf46737de3d h1:gjCbC1D3FfBMdGbGfNl0Y52EE3xoqOfe0Q0LhcudUhc=
 github.com/Tangerg/lynx/pkg v0.0.0-20260511081009-fbf46737de3d/go.mod h1:irOX9IMBJ1Oms4KWfCne/0FWPdh3Uk0vpQJ88KKpv8I=
+github.com/Tangerg/lynx/skills v0.0.0-20260609153805-f3f96cb3e7dc h1:dubtMK86iezn/EO4c53081cbq+WiJkymhGbz7dpebFo=
+github.com/Tangerg/lynx/skills v0.0.0-20260609153805-f3f96cb3e7dc/go.mod h1:R/G2TvSsEV4TtipujfJjGjdU5Rkj0eEzLr1BZyLH9l8=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=
 github.com/bahlo/generic-list-go v0.2.0/go.mod h1:2KvAjgMlE5NNynlg/5iLrrCCZ2+5xWbdbCW3pNTGyYg=
 github.com/bits-and-blooms/bitset v1.24.4 h1:95H15Og1clikBrKr/DuzMXkQzECs1M6hhoGXLwLQOZE=
