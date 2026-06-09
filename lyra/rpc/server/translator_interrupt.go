@@ -21,10 +21,27 @@ import (
 func (t *translator) interrupt(e chat.TurnInterrupted) []protocol.StreamEvent {
 	out := t.closeReasoning()
 	out = append(out, t.closeText()...)
+
+	// Snapshot every open tool item before drainTools clears t.tools.
+	// Internal-interrupt tools (tools that call hitl.Interrupt inside
+	// their Call rather than going through the approval gate) have
+	// already been through OnToolCallStart (observedTool.Call fires
+	// Start before inner.Call). drainTools closes their items as
+	// incomplete — but on resume the tool re-fires and would create a
+	// new item without reuse. We capture these here so the interrupt
+	// payload can carry the (name, args, itemID) mapping for
+	// resumeBindingFrom to register in resume.toolItems.
+	//
+	// Approval-gate tools exit earlier (gate returns Interrupt before
+	// Start fires) and never populate t.tools, so snapshotTools returns
+	// empty for those — correct, because approvalInterrupt creates a
+	// fresh item and keys it directly.
+	drained := snapshotTools(t.tools)
+
+	out = append(out, t.drainTools()...)
 	// Close any tool item still open when the turn parks (defensive: the
 	// gated call itself paused before item.started, but a sibling tool could
 	// be mid-flight) so no started item is left without a terminal (§5.2).
-	out = append(out, t.drainTools()...)
 
 	wire := make([]protocol.Interrupt, 0, len(e.Interrupts))
 	for _, in := range e.Interrupts {
@@ -36,6 +53,20 @@ func (t *translator) interrupt(e chat.TurnInterrupted) []protocol.StreamEvent {
 		default: // question — ask_user (free text) or plan review (choice)
 			if _, ok := in.Payload.(engine.QuestionPrompt); ok {
 				ev, entry = t.askUserInterrupt(in)
+				// Attach the drained tool items to the interrupt so
+				// resumeBindingFrom can register them for reuse. The
+				// interrupting tool is the only item in t.tools (the
+				// round stops at the first HITL tool), so len(drained)<=1.
+				for _, ref := range drained {
+					if entry.Payload == nil {
+						entry.Payload = make(map[string]any)
+					}
+					entry.Payload["_tool"] = map[string]any{
+						"id":        ref.id,
+						"name":      ref.name,
+						"arguments": protocol.ParseArgs(ref.args),
+					}
+				}
 			} else {
 				ev, entry = t.questionInterrupt(in)
 			}
@@ -59,7 +90,7 @@ func (t *translator) approvalInterrupt(in chat.Interrupt) (protocol.StreamEvent,
 	// yet). The approval Interrupt's payload reuses it (API.md §4.8:
 	// ApprovalPayload.tool), so the client reads payload.tool directly
 	// instead of guessing where the command / args live.
-	inv := toolInvocation(p.ToolName, p.Arguments, "")
+	inv := t.newToolInvocation(p.ToolName, p.Arguments, "")
 	ev := protocol.StreamEvent{
 		Type: protocol.StreamItemStarted,
 		Item: &protocol.Item{

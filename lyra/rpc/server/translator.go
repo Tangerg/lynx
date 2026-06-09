@@ -128,7 +128,7 @@ func argsKey(args map[string]any) string {
 // back to a new item.
 func (t *translator) reuseOrNextItemID(toolName, argsJSON string) (id, runID string) {
 	if t.resume != nil {
-		key := resumeKey(toolName, argsKey(parseArgs(argsJSON)))
+		key := resumeKey(toolName, argsKey(protocol.ParseArgs(argsJSON)))
 		if orig, ok := t.resume.toolItems[key]; ok {
 			delete(t.resume.toolItems, key)
 			return orig, t.resume.originRunID

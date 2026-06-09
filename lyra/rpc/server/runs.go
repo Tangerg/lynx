@@ -177,6 +177,18 @@ func resumeBindingFrom(pending interrupts.Pending) *resumeBinding {
 			// A plan-review question is resolved by the resume answer (no
 			// re-fired event), so the continuation must complete its item.
 			questions = append(questions, resumedQuestion{itemID: in.ItemID, question: questionFromPayload(in.Payload)})
+
+			// An ask_user question interrupt carries the drained tool item
+			// under `_tool` so the re-fired ask_user on resume reuses the
+			// original item id rather than creating a duplicate toolCall item.
+			if tool, ok := in.Payload["_tool"].(map[string]any); ok {
+				name, _ := tool["name"].(string)
+				id, _ := tool["id"].(string)
+				args, _ := tool["arguments"].(map[string]any)
+				if name != "" && id != "" {
+					items[resumeKey(name, argsKey(args))] = id
+				}
+			}
 		}
 	}
 	if len(items) == 0 && len(questions) == 0 {

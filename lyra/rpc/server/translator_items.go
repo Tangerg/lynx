@@ -101,7 +101,7 @@ func (t *translator) toolStart(e chat.ToolCallStart) []protocol.StreamEvent {
 			Status:    protocol.ItemStatusRunning,
 			Type:      protocol.ItemTypeToolCall,
 			CreatedAt: ref.createdAt,
-			Tool:      toolInvocation(e.ToolName, e.Arguments, ""),
+			Tool:      t.newToolInvocation(e.ToolName, e.Arguments, ""),
 		},
 	})
 	if e.Arguments != "" {
@@ -142,7 +142,7 @@ func (t *translator) toolEnd(e chat.ToolCallEnd) []protocol.StreamEvent {
 		Status:    protocol.ItemStatusCompleted,
 		Type:      protocol.ItemTypeToolCall,
 		CreatedAt: ref.createdAt,
-		Tool:      toolInvocation(ref.name, ref.args, e.Output),
+		Tool:      t.newToolInvocation(ref.name, ref.args, e.Output),
 	}
 	switch {
 	case e.Denied:
@@ -178,7 +178,7 @@ func (t *translator) finish(outcomeType protocol.RunOutcomeType) []protocol.Stre
 	out = append(out, t.drainTools()...)
 	res := &protocol.RunResult{}
 	if outcomeType == protocol.OutcomeError && t.errMsg != "" {
-		res.Error = classifyRunError(t.errMsg)
+		res.Error = t.classifyRunError(t.errMsg)
 	}
 	return append(out, protocol.StreamEvent{
 		Type:    protocol.StreamRunFinished,
