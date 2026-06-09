@@ -154,7 +154,7 @@ func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next ch
 
 	// ParkStore resume: load parked round, inject tail so
 	// [parseResumePoint] detects and resumes at the pending call.
-	if parkID := parkID(req); parkID != "" && m.parkStore != nil {
+	if parkID := m.parkID(req); parkID != "" && m.parkStore != nil {
 		if state, _ := m.parkStore.Read(ctx, parkID); state != nil {
 			req = injectParkTail(req, state)
 			_ = m.parkStore.Clear(ctx, parkID)
@@ -250,7 +250,7 @@ func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next 
 	support.register(req.Tools...)
 
 	// ParkStore resume: load parked round.
-	if parkID := parkID(req); parkID != "" && m.parkStore != nil {
+	if parkID := m.parkID(req); parkID != "" && m.parkStore != nil {
 		if state, _ := m.parkStore.Read(ctx, parkID); state != nil {
 			req = injectParkTail(req, state)
 			_ = m.parkStore.Clear(ctx, parkID)
@@ -408,6 +408,20 @@ func newToolMessageResponse(tm *chat.ToolMessage) (*chat.Response, error) {
 
 // ─── ParkStore helpers ──────────────────────────────────────────
 
+// parkID reads the park conversation identifier from the request
+// params (set via [ParkKey]), or "" when absent.
+func (m *middleware) parkID(req *chat.Request) string {
+	if req == nil {
+		return ""
+	}
+	raw, ok := req.Get(ParkKey)
+	if !ok {
+		return ""
+	}
+	id, _ := raw.(string)
+	return id
+}
+
 // injectParkTail appends the parked round's conversation tail
 // (assistant + Done tool returns) onto the request's messages
 // so [parseResumePoint] detects it and resumes at the pending call.
@@ -444,7 +458,7 @@ func (m *middleware) savePark(ctx context.Context, req *chat.Request, assistant 
 	if m.parkStore == nil {
 		return
 	}
-	id := parkID(req)
+	id := m.parkID(req)
 	if id == "" {
 		return
 	}
