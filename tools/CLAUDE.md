@@ -1,6 +1,6 @@
 # CLAUDE.md — tools module
 
-> 给 LLM 调用的具体工具集 —— bash / 文件系统 / HTTP / 网页抓取 / 网页搜索 / 假天气.
+> 给 LLM 调用的具体工具集 —— bash / 文件系统 / HTTP / 网页抓取 / 网页搜索 / 假天气 / skill.
 > 项目级约定见 `../CLAUDE.md`。
 
 ---
@@ -42,7 +42,7 @@
 
 ## 强约定
 
-- **工具名 snake_case 一目了然**：`bash` / `read` / `write` / `edit` / `glob` / `grep` / `http_request` / `web_search` / `web_fetch` / `weather_query`
+- **工具名 snake_case 一目了然**：`bash` / `read` / `write` / `edit` / `glob` / `grep` / `http_request` / `web_search` / `web_fetch` / `weather_query` / `skill`
 - **错误处理用包级 sentinel**：`ErrEmptyCommand` / `ErrHostNotAllowed`，调用方 `errors.Is()` 匹配
 - **非零退出码不算错**：`bash` 返回 `RunOutput` 里带 `ExitCode`，调用方决定如何处理
 - **输出 JSON 序列化**：Call 返 JSON string，框架反序列化喂给 LLM
@@ -86,6 +86,8 @@ tools/
 │   ├── jina / firecrawl / ...        各 Provider 实现
 │   └── internal/
 ├── fakeweather/         演示用虚拟天气（确定性输出，无网络依赖）
+├── skills/              Agent Skills 工具：单 op-多路 tool（list/load/load_resource）
+│                        薄封装顶层 `skills` 模块的 Source（Tool 层 ↔ skills 模块 = backend 层）
 └── docs/                架构文档（待补）
 ```
 
