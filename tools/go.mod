@@ -5,6 +5,7 @@ go 1.26.3
 require (
 	github.com/Tangerg/lynx/core v0.0.0-20260511081009-fbf46737de3d
 	github.com/Tangerg/lynx/pkg v0.0.0-20260511081009-fbf46737de3d
+	github.com/Tangerg/lynx/skills v0.0.0-20260609153805-f3f96cb3e7dc
 	github.com/go-resty/resty/v2 v2.17.2
 )
 
