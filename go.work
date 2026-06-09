@@ -15,6 +15,7 @@ use (
 	./otel
 	./pkg
 	./rag
+	./skills
 	./tools
 	./vectorstores
 )
