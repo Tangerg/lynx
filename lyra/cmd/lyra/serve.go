@@ -35,6 +35,7 @@ func (a *App) ServeCmd() *cobra.Command {
 		localTokenPath string
 		noLocalToken   bool
 		corsOrigins    []string
+		a2aListen      string
 	)
 	cmd := &cobra.Command{
 		Use:   "serve",
@@ -71,6 +72,9 @@ Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 			if cmd.Flags().Changed("cors-origin") {
 				srv.CORSOrigins = corsOrigins
 			}
+			if cmd.Flags().Changed("a2a-listen") {
+				srv.A2AListen = a2aListen
+			}
 			if len(srv.CORSOrigins) == 0 {
 				srv.CORSOrigins = lyrahttp.DefaultCORSOrigins
 			}
@@ -95,7 +99,16 @@ Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 			if err != nil {
 				return a.fatalErr(err)
 			}
-			return a.runServer(cmd.Context(), httpServer, srv.Listen, token)
+
+			// Opt-in A2A endpoint on its own listener (separate protocol).
+			var a2aServer *http.Server
+			if srv.A2AListen != "" {
+				a2aServer, err = a.buildA2AServer(srv.A2AListen, lyrahttp.ServerInfoOrDefault())
+				if err != nil {
+					return a.fatalErr(err)
+				}
+			}
+			return a.runServer(cmd.Context(), httpServer, srv.Listen, token, a2aServer)
 		},
 	}
 	cmd.Flags().StringVar(&addr, "listen", "",
@@ -106,6 +119,8 @@ Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 		"disable the local-process gate; overrides config server.noLocalToken")
 	cmd.Flags().StringSliceVar(&corsOrigins, "cors-origin", nil,
 		"CORS-allowed origin (repeatable); overrides config server.corsOrigins")
+	cmd.Flags().StringVar(&a2aListen, "a2a-listen", "",
+		"bind address for the opt-in A2A endpoint (exposes this agent to other agents); empty disables it")
 	return cmd
 }
 
@@ -185,11 +200,12 @@ func agentDocsLister() lyrahttp.AgentDocsLister {
 
 // runServer launches the server, blocks until it returns or a
 // shutdown signal arrives, then drains with a 10s budget.
-func (a *App) runServer(ctx context.Context, server *lyrahttp.Server, addr string, token *lyrahttp.LocalToken) error {
+func (a *App) runServer(ctx context.Context, server *lyrahttp.Server, addr string, token *lyrahttp.LocalToken, a2aServer *http.Server) error {
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	errs := make(chan error, 1)
+	// Buffered for both listeners so a failing one never blocks on send.
+	errs := make(chan error, 2)
 	go func() {
 		fmt.Fprintf(a.Err, "[lyra] http listening on %s\n", addr)
 		fmt.Fprintf(a.Err, "[lyra]   POST /v2/rpc/{method}     JSON-RPC (streaming methods → text/event-stream)\n")
@@ -203,6 +219,11 @@ func (a *App) runServer(ctx context.Context, server *lyrahttp.Server, addr strin
 		errs <- server.Start()
 	}()
 
+	if a2aServer != nil {
+		fmt.Fprintf(a.Err, "[lyra] A2A endpoint on %s (POST %s, GET /.well-known/agent-card.json)\n", a2aServer.Addr, a2aRPCPattern)
+		go func() { errs <- a2aServer.ListenAndServe() }()
+	}
+
 	select {
 	case err := <-errs:
 		if errors.Is(err, http.ErrServerClosed) || err == nil {
@@ -215,6 +236,9 @@ func (a *App) runServer(ctx context.Context, server *lyrahttp.Server, addr strin
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	if a2aServer != nil {
+		_ = a2aServer.Shutdown(shutdownCtx)
+	}
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		return a.fatalErr(err)
 	}
