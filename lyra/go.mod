@@ -9,7 +9,8 @@ require (
 	github.com/Tangerg/lynx/mcp v0.0.0-20260511081009-fbf46737de3d
 	github.com/Tangerg/lynx/models v0.0.0-20260604172808-5d1a7cd57b63
 	github.com/Tangerg/lynx/otel v0.0.0-20260604172808-5d1a7cd57b63
-	github.com/Tangerg/lynx/tools v0.0.0-20260521101326-c68784dc9f99
+	github.com/Tangerg/lynx/skills v0.0.0-20260609154908-0fc90583038b
+	github.com/Tangerg/lynx/tools v0.0.0-20260609154908-0fc90583038b
 	github.com/Tangerg/sse v0.0.1
 	github.com/a2aproject/a2a-go/v2 v2.3.1
 	github.com/anthropics/anthropic-sdk-go v1.43.0

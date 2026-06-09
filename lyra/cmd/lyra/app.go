@@ -126,13 +126,16 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		ChatClient: client,
 		// Catalog-driven cost: price each round by its served model across
 		// every provider, so turns on any provider+model report CostUSD.
-		Pricing:        config.CatalogPricing(),
-		Online:         cfg.Online,
-		MCPServers:     cfg.MCPServers,
-		A2AAgents:      cfg.A2AAgents,
-		MemoryStore:    stores.ChatMem,
-		MemoryService:  stores.Memory,
-		SessionService: stores.Session,
+		Pricing: config.CatalogPricing(),
+		// User-scope Agent Skills live under the storage home; per-session
+		// project skills (<cwd>/.lyra/skills) layer on top of these.
+		SkillsGlobalDir: filepath.Join(stores.Home, "skills"),
+		Online:          cfg.Online,
+		MCPServers:      cfg.MCPServers,
+		A2AAgents:       cfg.A2AAgents,
+		MemoryStore:     stores.ChatMem,
+		MemoryService:   stores.Memory,
+		SessionService:  stores.Session,
 		// Durable stores enable cross-restart HITL resume: ProcessStore
 		// auto-snapshots every agent process (so a parked turn survives a
 		// restart); InterruptStore persists the open-interrupt registry
@@ -195,6 +198,7 @@ func buildStores() (*Stores, error) {
 		return nil, fmt.Errorf("memory storage: %w", err)
 	}
 	return &Stores{
+		Home:      home,
 		Session:   sqlitestore.NewSessionService(db),
 		Memory:    mem,
 		Process:   sqlitestore.NewProcessStore(db),
@@ -206,8 +210,11 @@ func buildStores() (*Stores, error) {
 	}, nil
 }
 
-// Stores bundles all persistence backends wired by [buildStores].
+// Stores bundles all persistence backends wired by [buildStores], plus the
+// storage Home they share (the root for derived paths like the global skills
+// directory).
 type Stores struct {
+	Home      string
 	Session   sessionsvc.Service
 	Memory    memorysvc.Service
 	Process   core.ProcessStore

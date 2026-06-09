@@ -14,8 +14,10 @@ github.com/Tangerg/lynx/otel v0.0.0-20260604172808-5d1a7cd57b63 h1:PdauL8Awe14AJ
 github.com/Tangerg/lynx/otel v0.0.0-20260604172808-5d1a7cd57b63/go.mod h1:h/eaLgP9QdAYvE9AbVkje1mTdAchDecEataqODAxmnE=
 github.com/Tangerg/lynx/pkg v0.0.0-20260511081009-fbf46737de3d h1:gjCbC1D3FfBMdGbGfNl0Y52EE3xoqOfe0Q0LhcudUhc=
 github.com/Tangerg/lynx/pkg v0.0.0-20260511081009-fbf46737de3d/go.mod h1:irOX9IMBJ1Oms4KWfCne/0FWPdh3Uk0vpQJ88KKpv8I=
-github.com/Tangerg/lynx/tools v0.0.0-20260521101326-c68784dc9f99 h1:E/LrZby3/cm76kjtK46ubcXnZkOkZdw3p6SQRGxSUkY=
-github.com/Tangerg/lynx/tools v0.0.0-20260521101326-c68784dc9f99/go.mod h1:rGn+APD+aRZz9Kflek1MBtta+EMzFN2XnTz2REwru5E=
+github.com/Tangerg/lynx/skills v0.0.0-20260609154908-0fc90583038b h1:EtKuAefRUIaXbRsHRDkBbGO09kDlEgKLNLYejDVkg8M=
+github.com/Tangerg/lynx/skills v0.0.0-20260609154908-0fc90583038b/go.mod h1:R/G2TvSsEV4TtipujfJjGjdU5Rkj0eEzLr1BZyLH9l8=
+github.com/Tangerg/lynx/tools v0.0.0-20260609154908-0fc90583038b h1:9cwJ1AgemT1aZtPLBJ1tBQx5v/QVRULkJxC/QABKo30=
+github.com/Tangerg/lynx/tools v0.0.0-20260609154908-0fc90583038b/go.mod h1:N8l58Zd24E3J4rF6S1vtNjrRgA/KCLq1y+BY8618FuI=
 github.com/Tangerg/sse v0.0.1 h1:y8NIGcy6PgC1gnwJ65SzDnCtvsoxz4KoXKLMkJkmqmw=
 github.com/Tangerg/sse v0.0.1/go.mod h1:+GPL/425WlIYRig6frpXeEk7GFYgcHaadIufk6pwe0I=
 github.com/a2aproject/a2a-go/v2 v2.3.1 h1:QWMdOX2UsJ8BJmjs952eo1FRyGsOVl0gFCKeM76AgGE=
