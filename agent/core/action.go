@@ -43,7 +43,7 @@ type ActionMetadata struct {
 	// time config the runtime reads when building the action's
 	// ProcessContext — not something the planner reasons about. Zero
 	// value = loop defaults.
-	ToolLoop tool.LoopConfig
+	ToolLoop tool.Config
 
 	// Cost defaults to [Static](1.0) so the planner doesn't pick
 	// "free" actions over ones with real work.

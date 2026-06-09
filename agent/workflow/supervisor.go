@@ -98,7 +98,7 @@ func Supervisor[In, Out any](platform *runtime.Platform, cfg SupervisorConfig[In
 			// Orchestration is resilient by default: a hallucinated sub-agent
 			// name (unknown tool) and a recoverable tool failure are both fed
 			// back so the model can pick a real one / adjust — no knob needed.
-			callMW, streamMW := tool.NewMiddleware(tool.LoopConfig{
+			callMW, streamMW := tool.NewMiddleware(tool.Config{
 				MaxIterations: cfg.MaxIterations,
 			})
 

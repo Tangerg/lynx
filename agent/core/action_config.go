@@ -52,7 +52,7 @@ type ActionConfig struct {
 	// actions are unaffected. Tool-failure recovery (unknown tool /
 	// recoverable error fed back to the model) is the framework default and
 	// needs no configuration here.
-	ToolLoop tool.LoopConfig
+	ToolLoop tool.Config
 
 	// OutputBinding overrides the default "it" output variable name.
 	// Use when an action produces multiple distinct artifacts of

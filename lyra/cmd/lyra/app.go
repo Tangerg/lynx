@@ -19,6 +19,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	chatmem "github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	"github.com/Tangerg/lynx/lyra/internal/config"
 	lyraruntime "github.com/Tangerg/lynx/lyra/internal/runtime"
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
@@ -139,6 +140,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		InterruptStore:  stores.Interrupt,
 		HistoryStore:    stores.History,
 		ProviderService: stores.Provider,
+		ParkStore:       stores.Park,
 		// Default provider+model a turn runs against when it picks no model.
 		Provider: string(cfg.Provider),
 		Model:    cfg.Model,
@@ -199,6 +201,7 @@ func buildStores() (*Stores, error) {
 		History:   sqlitestore.NewHistoryStore(db),
 		Provider:  sqlitestore.NewProviderService(db),
 		ChatMem:   sqlitestore.NewMessageStore(db),
+		Park:      sqlitestore.NewParkStore(db),
 	}, nil
 }
 
@@ -211,6 +214,7 @@ type Stores struct {
 	History   history.Store
 	Provider  providersvc.Service
 	ChatMem   chatmem.Store
+	Park      tool.ParkStore
 }
 
 // seedConfiguredProvider ensures the config-file provider is present in the
