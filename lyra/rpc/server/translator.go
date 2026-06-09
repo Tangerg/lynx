@@ -107,8 +107,11 @@ func newTranslator(sessionID, runID, parentRunID string, userInput []protocol.Co
 // payload.tool.arguments map → marshal) produce the same string, since
 // encoding/json sorts map keys deterministically. This is what lets the
 // resume binding read (name, arguments) straight off payload.tool (§4.4) —
-// the domain-neutral envelope always carries them — instead of the old
-// backend-internal `_resume` tuple the strongly-typed variants forced.
+// the domain-neutral envelope always carries name + arguments, so the
+// resume binding reads them directly — keeping correlation simple.
+// Null byte separator — tool names per the spec cannot contain it
+// (lowercase alphanumerics + single hyphens only), so the join is
+// unambiguous and collision-free.
 func resumeKey(toolName, argsKey string) string {
 	return toolName + "\x00" + argsKey
 }
@@ -182,9 +185,13 @@ func (t *translator) translate(ev chat.Event) []protocol.StreamEvent {
 		// not here. Nothing to do for the chat-level TurnStart.
 		return nil
 	case chat.MessageDelta:
+		// Close any open reasoning before emitting text — reasoning and
+		// text cannot be concurrently open (API.md §5: at most one
+		// streaming item at a time).
 		out := t.closeReasoning()
 		return append(out, t.appendText(e.Text)...)
 	case chat.ReasoningDelta:
+		// Close any open text before emitting reasoning.
 		out := t.closeText()
 		return append(out, t.appendReasoning(e.Text)...)
 	case chat.ToolCallStart:

@@ -168,6 +168,9 @@ func (p *AgentProcess) runWithRetry(
 		maxAttempts = 1
 	}
 
+	// Discard the retry error — status, replan, attempts, and lastErr
+	// are captured by the op closure above. retry.Do's error only signals
+	// that retries were exhausted, which the captured state already reflects.
 	_ = retry.Do(op,
 		retry.WithContext(ctx),
 		retry.WithMaxAttempts(maxAttempts),

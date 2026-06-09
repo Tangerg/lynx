@@ -18,6 +18,8 @@ import (
 func (p *AgentProcess) run(ctx context.Context) error {
 	ctx = normalizeContext(ctx)
 
+	// makeRunning is a CAS — if the process is already running (e.g.
+	// a double StartAgent call), it returns false and we silently no-op.
 	if !p.state.makeRunning() {
 		return nil
 	}
@@ -341,6 +343,8 @@ func (p *AgentProcess) translateActionStatus(action core.Action, status core.Act
 		// Stay running — the next tick re-plans.
 	case core.ActionFailed:
 		p.state.setStatus(core.StatusFailed)
+		// Don't overwrite a failure already recorded by an earlier action
+		// — the first failure is the root cause worth surfacing.
 		if p.Failure() == nil {
 			p.state.setFailure(actionFailureError(action.Metadata().Name))
 		}
