@@ -69,9 +69,9 @@ func NewMiddleware(store Store, conversationID ...string) (chat.CallMiddleware, 
 	return mw.wrapCallHandler, mw.wrapStreamHandler, nil
 }
 
-// conversationID returns the conversation id stashed under
-// [ConversationIDKey], or "" when the caller did not supply one.
-// Returns an error if the value exists but is the wrong type.
+// conversationID returns the stored conversation id — either from the
+// construction-time override or from [ConversationIDKey] on the
+// request params.
 func (m *middleware) conversationID(req *chat.Request) (string, error) {
 	if m.conversationIDOverride != "" {
 		return m.conversationIDOverride, nil

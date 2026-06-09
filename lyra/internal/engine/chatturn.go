@@ -97,19 +97,12 @@ func (e *Engine) StartChat(ctx context.Context, req RunChatRequest) ChatProcess 
 // (tool loop + memory, constructed per-turn from the engine's stores),
 // the observer decorator, lifecycle listener, and per-run model client.
 func (e *Engine) chatProcessOptions(sessionID string, observer toolObserver, listener core.Extension, client *chat.Client) core.ProcessOptions {
-	id := sessionID
 	toolMW, toolStreamMW := tool.NewMiddleware(tool.Config{
-		ParkID:                  id,
+		ParkID:                  sessionID,
 		ParkStore:               e.parkStore,
 		FeedbackOnEmptyResponse: true,
 	})
-	var memMW chat.CallMiddleware
-	var memStreamMW chat.StreamMiddleware
-	if sessionID != "" {
-		memMW, memStreamMW, _ = memory.NewMiddleware(e.memStore, sessionID)
-	} else {
-		memMW, memStreamMW, _ = memory.NewMiddleware(e.memStore)
-	}
+	memMW, memStreamMW, _ := memory.NewMiddleware(e.memStore, sessionID)
 	opts := core.ProcessOptions{
 		Guardrails: &core.Guardrails{
 			CallMiddlewares:   []chat.CallMiddleware{toolMW, memMW},
