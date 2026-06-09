@@ -37,12 +37,11 @@ func dialA2AAgents(ctx context.Context, agents []a2a.ClientConfig) (tools []chat
 		span.End()
 	}()
 
-	provider, clients, derr := a2a.DialAll(ctx, agents...)
+	tools, clients, derr := a2a.DialAll(ctx, agents...)
 	if derr != nil {
 		return nil, nil, fmt.Errorf("engine: dial A2A agents: %w", derr)
 	}
 
-	tools = provider.Tools()
 	span.SetAttributes(attribute.Int("a2a.tool.count", len(tools)))
 	return tools, clients, nil
 }
