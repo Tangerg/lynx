@@ -136,7 +136,7 @@ func (m *middleware) wrapStreamHandler(next chat.StreamHandler) chat.StreamHandl
 // newSupport builds the per-loop support. Tool-failure recovery
 // (unknown-tool + recoverable-error feedback) is the unconditional default in
 // [callInvoker], so there's nothing to configure here.
-func (m *middleware) newSupport(toolCount int) *support {
+func (m *middleware) newSupport(toolCount int) *loopSupport {
 	return newSupport(toolCount)
 }
 
@@ -177,7 +177,7 @@ func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next ch
 // function re-prompts and recurses. state.iteration is the 1-based
 // model-call count; exceeding maxIterations aborts with a
 // [MaxIterationsError].
-func (m *middleware) executeCallRecursively(ctx context.Context, req *chat.Request, next chat.CallHandler, support *support, state loopState) (*chat.Response, error) {
+func (m *middleware) executeCallRecursively(ctx context.Context, req *chat.Request, next chat.CallHandler, support *loopSupport, state loopState) (*chat.Response, error) {
 	if state.iteration > m.maxIterations {
 		return nil, &MaxIterationsError{Limit: m.maxIterations}
 	}
@@ -279,7 +279,7 @@ func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next 
 // the request history. This is the discriminator established in §8.4
 // of MESSAGE_PARTS_DESIGN: each yielded Response has exactly one of
 // Result.AssistantMessage or Result.ToolMessage populated.
-func (m *middleware) executeStreamRecursively(ctx context.Context, req *chat.Request, next chat.StreamHandler, support *support, yield func(*chat.Response, error) bool, state loopState) {
+func (m *middleware) executeStreamRecursively(ctx context.Context, req *chat.Request, next chat.StreamHandler, support *loopSupport, yield func(*chat.Response, error) bool, state loopState) {
 	if state.iteration > m.maxIterations {
 		yield(nil, &MaxIterationsError{Limit: m.maxIterations})
 		return

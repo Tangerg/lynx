@@ -178,7 +178,7 @@ func priorModelRounds(msgs []chat.Message) int {
 // allReturnDirect reports whether every tool referenced in returns is
 // registered AND return-direct — the resume-path analog of the allReturnDirect
 // bit invokeToolCalls computes inline.
-func (s *support) allReturnDirect(returns []*chat.ToolReturn) bool {
+func (s *loopSupport) allReturnDirect(returns []*chat.ToolReturn) bool {
 	for _, ret := range returns {
 		t, exists := s.registry.find(ret.Name)
 		if !exists || !t.Metadata().ReturnDirect {
@@ -192,7 +192,7 @@ func (s *support) allReturnDirect(returns []*chat.ToolReturn) bool {
 // synchronous path, then re-interrupts, returns direct, or continues the loop
 // at the next model round. It never re-invokes the model for the resumed round
 // — the assistant message is already known (carried by point).
-func (m *middleware) resumeCall(ctx context.Context, req *chat.Request, point *resumePoint, next chat.CallHandler, support *support) (*chat.Response, error) {
+func (m *middleware) resumeCall(ctx context.Context, req *chat.Request, point *resumePoint, next chat.CallHandler, support *loopSupport) (*chat.Response, error) {
 	res, err := support.invoker.invokeToolCalls(ctx, point.pending)
 	if err != nil {
 		return nil, err
@@ -231,7 +231,7 @@ func (m *middleware) resumeCall(ctx context.Context, req *chat.Request, point *r
 // resumeStream is the streaming analog of [resumeCall]. It surfaces the
 // resumed round's tool message to the stream (so the wire timeline + caller's
 // per-round budget boundary see it) before continuing.
-func (m *middleware) resumeStream(ctx context.Context, req *chat.Request, point *resumePoint, next chat.StreamHandler, support *support, yield func(*chat.Response, error) bool) {
+func (m *middleware) resumeStream(ctx context.Context, req *chat.Request, point *resumePoint, next chat.StreamHandler, support *loopSupport, yield func(*chat.Response, error) bool) {
 	res, err := support.invoker.invokeToolCalls(ctx, point.pending)
 	if err != nil {
 		yield(nil, err)

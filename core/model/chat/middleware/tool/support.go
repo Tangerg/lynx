@@ -11,28 +11,28 @@ import (
 // support bundles a [registry] with a tool-call invoker — the
 // integration point the [NewMiddleware] middleware uses to drive
 // the tool-calling loop. See [NewMiddleware] for end-to-end wiring.
-type support struct {
+type loopSupport struct {
 	registry *registry
 	invoker  *callInvoker
 }
 
 // newSupport returns a [support] backed by a fresh registry.
 // capacityHint, if positive, preallocates the registry's backing map.
-func newSupport(capacityHint ...int) *support {
+func newSupport(capacityHint ...int) *loopSupport {
 	registry := newRegistry(capacityHint...)
-	return &support{
+	return &loopSupport{
 		registry: registry,
 		invoker:  newCallInvoker(registry),
 	}
 }
 
 // register is a shorthand for [registry.register].
-func (s *support) register(tools ...chat.Tool) {
+func (s *loopSupport) register(tools ...chat.Tool) {
 	s.registry.register(tools...)
 }
 
 // unregister is a shorthand for [registry.unregister].
-func (s *support) unregister(names ...string) {
+func (s *loopSupport) unregister(names ...string) {
 	s.registry.unregister(names...)
 }
 
@@ -42,7 +42,7 @@ func (s *support) unregister(names ...string) {
 //   - the last message is a [*chat.ToolMessage], AND
 //   - every tool referenced in that message is registered, AND
 //   - every such tool has ReturnDirect = true.
-func (s *support) shouldReturnDirect(msgs []chat.Message) bool {
+func (s *loopSupport) shouldReturnDirect(msgs []chat.Message) bool {
 	if len(msgs) == 0 {
 		return false
 	}
@@ -71,7 +71,7 @@ func (s *support) shouldReturnDirect(msgs []chat.Message) bool {
 // buildReturnDirectResponse assembles a synthetic [*chat.Response] that wraps
 // the last [*chat.ToolMessage] as the final answer. Returns an error when
 // [support.shouldReturnDirect] would return false.
-func (s *support) buildReturnDirectResponse(msgs []chat.Message) (*chat.Response, error) {
+func (s *loopSupport) buildReturnDirectResponse(msgs []chat.Message) (*chat.Response, error) {
 	if !s.shouldReturnDirect(msgs) {
 		return nil, errors.New("tool.support.buildReturnDirectResponse: conditions for return-direct are not met")
 	}
@@ -86,7 +86,7 @@ func (s *support) buildReturnDirectResponse(msgs []chat.Message) (*chat.Response
 
 // shouldInvokeToolCalls reports whether the response contains tool
 // calls that the registry can fulfill.
-func (s *support) shouldInvokeToolCalls(resp *chat.Response) (bool, error) {
+func (s *loopSupport) shouldInvokeToolCalls(resp *chat.Response) (bool, error) {
 	return s.invoker.canInvokeToolCalls(resp)
 }
 
@@ -96,6 +96,6 @@ func (s *support) shouldInvokeToolCalls(resp *chat.Response) (bool, error) {
 // Flow control: when every invoked tool is return-direct the loop ends;
 // otherwise the caller is expected to re-prompt the LLM via
 // [invocationResult.buildContinueRequest].
-func (s *support) invokeToolCalls(ctx context.Context, req *chat.Request, resp *chat.Response) (*invocationResult, error) {
+func (s *loopSupport) invokeToolCalls(ctx context.Context, req *chat.Request, resp *chat.Response) (*invocationResult, error) {
 	return s.invoker.invoke(ctx, req, resp)
 }
