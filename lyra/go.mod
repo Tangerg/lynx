@@ -3,7 +3,7 @@ module github.com/Tangerg/lynx/lyra
 go 1.26.3
 
 require (
-	github.com/Tangerg/lynx/a2a v0.0.0-20260609141858-d10b0a710dba
+	github.com/Tangerg/lynx/a2a v0.0.0-20260609163147-d82b84d55f3a
 	github.com/Tangerg/lynx/agent v0.0.0-20260521101326-c68784dc9f99
 	github.com/Tangerg/lynx/core v0.0.0-20260609141858-d10b0a710dba
 	github.com/Tangerg/lynx/mcp v0.0.0-20260511081009-fbf46737de3d
