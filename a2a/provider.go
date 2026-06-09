@@ -68,7 +68,7 @@ func DialAll(ctx context.Context, configs ...ClientConfig) (*Provider, []*a2acli
 	for _, cfg := range configs {
 		client, card, err := Dial(ctx, cfg)
 		if err != nil {
-			closeClients(clients)
+			_ = CloseClients(clients) // best-effort cleanup; the dial error is what matters
 			return nil, nil, err
 		}
 		clients = append(clients, client)
@@ -77,18 +77,10 @@ func DialAll(ctx context.Context, configs ...ClientConfig) (*Provider, []*a2acli
 
 	provider, err := NewProvider(sources...)
 	if err != nil {
-		closeClients(clients)
+		_ = CloseClients(clients)
 		return nil, nil, err
 	}
 	return provider, clients, nil
-}
-
-// closeClients destroys every client, ignoring individual errors — used on
-// the DialAll failure path to avoid leaking already-opened connections.
-func closeClients(clients []*a2aclient.Client) {
-	for _, client := range clients {
-		_ = client.Destroy()
-	}
 }
 
 // CloseClients destroys a set of clients, joining any errors — the shutdown
