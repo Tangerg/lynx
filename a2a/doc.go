@@ -7,8 +7,8 @@
 //   - CLIENT — consume a remote A2A agent AS a lynx tool. [Dial] resolves a
 //     remote AgentCard and opens a client; [NewAgentTool] wraps it as a
 //     [chat.Tool] so a lynx agent can delegate to it through the ordinary
-//     tool-calling loop. [Provider] aggregates several remote agents into one
-//     []chat.Tool.
+//     tool-calling loop. [DialAll] does both for a set of agents at once,
+//     returning the []chat.Tool plus the clients to close on shutdown.
 //
 //   - SERVER — expose a lynx capability AS an A2A endpoint. Implement the
 //     narrow [Agent] interface (text in, streamed text out); [NewExecutor]

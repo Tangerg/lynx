@@ -9,10 +9,10 @@ import (
 
 // Input-validation sentinels. Use errors.Is to detect them.
 var (
-	// ErrNilClient is returned when a Tool/Provider is built without a client.
+	// ErrNilClient is returned when an AgentTool is built without a client.
 	ErrNilClient = errors.New("a2a: client must not be nil")
 
-	// ErrNilCard is returned when a Tool/Provider is built without an AgentCard.
+	// ErrNilCard is returned when an AgentTool is built without an AgentCard.
 	ErrNilCard = errors.New("a2a: agent card must not be nil")
 
 	// ErrNilAgent is returned when a server is built without an Agent.

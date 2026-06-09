@@ -22,7 +22,7 @@
 **Client 侧（消费远端 A2A agent）**
 - **`transport.go`** —— `Dial(ctx, ClientConfig)`：resolve 远端 AgentCard + 开 `a2aclient.Client`（默认 JSON-RPC + REST 两种 HTTP transport）
 - **`agent_tool.go`** —— `AgentTool` 包装器：一个远端 agent → 一个 `chat.Tool`（`Call` → `SendMessage` → 抽回复文本）。输入 schema 统一 `{"message": string}`（A2A 是发消息,不是 typed call）
-- **`provider.go`** —— `Provider`/`DialAll` 聚合多个远端 agent 成 `[]chat.Tool`,`CloseClients` 收尾(lyra dialMCPServers 的同构)
+- **`transport.go`** —— client transport：`Dial`(单个)+ `DialAll` 一次拨号多个远端 agent 直接产出 `[]chat.Tool`，`CloseClients` 收尾。**无 Provider 包装层** —— A2A agent 是静态的（不像 MCP 工具列表会变），没有 cache/refresh 要管，故不照搬 `mcp.Provider`（那是被真实差异证成的分叉）
 
 **Server 侧（暴露 lynx 能力）**
 - **`executor.go`** —— 窄接口 `Agent`(文本进/流式文本出)→ `a2asrv.AgentExecutor`,按规范 task 生命周期(submitted → working → artifact deltas → completed/failed)
@@ -36,7 +36,7 @@
 
 - `Agent` —— **server 侧窄接口**(`Run(ctx, input string) iter.Seq2[string, error]`),由消费方(lyra/agent)实现。**定义在本包内**(接口在消费方),所以模块只依赖 `core/model/chat` + SDK,**不依赖 `agent`/`lyra`**
 - `AgentTool` —— 包装远端 agent,实现 `chat.Tool`
-- `Provider` / `Source` —— client 聚合;`Source.Tool()` 自己变成 tool
+- `DialAll` —— client 一次拨号多个远端 agent → `([]chat.Tool, []*client, error)`,按名去重;无中间 Provider/Source 类型(去掉了空壳聚合层)
 - `ClientConfig` / `AgentToolConfig` / `ServerConfig` —— 都带 `Validate()`/`ApplyDefaults()`(充血,同 `mcp.ToolConfig`)
 - `RemoteAgentError` —— 远端 task 落 failed/rejected/canceled 终态(`errors.As` 区分于 transport 失败)
 
@@ -53,9 +53,8 @@
 
 ```
 a2a/
-├── transport.go    [client] Dial: resolve card + 开 client
+├── transport.go    [client] Dial / DialAll / CloseClients (resolve card + 开 client + 产出 []chat.Tool)
 ├── agent_tool.go   [client] 远端 agent → chat.Tool
-├── provider.go     [client] Provider / DialAll / CloseClients
 ├── executor.go     [server] Agent → a2asrv.AgentExecutor
 ├── server.go       [server] NewHTTPHandler(JSON-RPC + well-known card)
 ├── content.go      codec: sdka2a 类型 ↔ 文本
