@@ -59,6 +59,11 @@ type Config struct {
 	// production where the model could read anywhere on disk.
 	Workdir string
 
+	// SkillsGlobalDir is the user-scope Agent Skills directory
+	// (typically ~/.lyra/skills), merged under each session's project
+	// skills. Empty disables the global layer. See [engine.Config.SkillsGlobalDir].
+	SkillsGlobalDir string
+
 	// Online toggles the provider-backed online tools. Each field is
 	// independent; empty credentials skip the corresponding tool.
 	Online engine.OnlineConfig
@@ -160,17 +165,18 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	}
 
 	eng, err := engine.New(ctx, engine.Config{
-		ChatClient:    cfg.ChatClient,
-		Workdir:       cfg.Workdir,
-		Online:        cfg.Online,
-		MCPServers:    cfg.MCPServers,
-		A2AAgents:     cfg.A2AAgents,
-		MemoryStore:   cfg.MemoryStore,
-		MemoryService: cfg.MemoryService,
-		Compaction:    cfg.Compaction,
-		Pricing:       cfg.Pricing,
-		ProcessStore:  cfg.ProcessStore,
-		ParkStore:     cfg.ParkStore,
+		ChatClient:      cfg.ChatClient,
+		Workdir:         cfg.Workdir,
+		SkillsGlobalDir: cfg.SkillsGlobalDir,
+		Online:          cfg.Online,
+		MCPServers:      cfg.MCPServers,
+		A2AAgents:       cfg.A2AAgents,
+		MemoryStore:     cfg.MemoryStore,
+		MemoryService:   cfg.MemoryService,
+		Compaction:      cfg.Compaction,
+		Pricing:         cfg.Pricing,
+		ProcessStore:    cfg.ProcessStore,
+		ParkStore:       cfg.ParkStore,
 		// When a sub-agent (the `task` delegation) is spawned, the runtime
 		// records its session here so the parent→child lineage is durably
 		// queryable; CreateSubtask marks it internal so it stays out of List.

@@ -101,10 +101,11 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// needs the platform). The resolver reads each turn's working
 	// directory off the process blackboard at resolution time.
 	resolver := &cwdToolResolver{
-		defaultWorkdir: cfg.Workdir,
-		online:         online,
-		mcp:            mcpTools,
-		a2a:            a2aTools,
+		defaultWorkdir:  cfg.Workdir,
+		skillsGlobalDir: cfg.SkillsGlobalDir,
+		online:          online,
+		mcp:             mcpTools,
+		a2a:             a2aTools,
 	}
 
 	memStore := cfg.MemoryStore
@@ -172,6 +173,9 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	e.tools = append(buildWorkdirTools(cfg.Workdir), online...)
 	e.tools = append(e.tools, mcpTools...)
 	e.tools = append(e.tools, a2aTools...)
+	if skillTool := buildSkillTool(cfg.Workdir, cfg.SkillsGlobalDir); skillTool != nil {
+		e.tools = append(e.tools, skillTool)
+	}
 	e.tools = append(e.tools, taskTool)
 	e.tools = append(e.tools, newAskUserTool())
 

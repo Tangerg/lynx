@@ -24,6 +24,13 @@ type Config struct {
 	// production. Typical value: the user's project cwd.
 	Workdir string
 
+	// SkillsGlobalDir is the user-scope Agent Skills directory (typically
+	// ~/.lyra/skills). It is merged UNDER each session's project skills
+	// (<workdir>/.lyra/skills), so a project skill overrides a global one of
+	// the same name. Empty disables the global layer; the skill tool still
+	// appears when a project directory exists, and is absent when neither does.
+	SkillsGlobalDir string
+
 	// Online controls which network-reaching tools (webfetch /
 	// websearch / httpreq) are registered. Each tool is independent;
 	// missing credentials skip just that tool.

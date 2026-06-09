@@ -131,11 +131,12 @@ func appendIfBuilt(tools []chat.Tool, cond bool, label string, build func() (cha
 // each running its tools in its own project directory — without a
 // per-session engine.
 type cwdToolResolver struct {
-	defaultWorkdir string
-	online         []chat.Tool // working-directory-independent network tools
-	mcp            []chat.Tool // working-directory-independent MCP tools
-	a2a            []chat.Tool // working-directory-independent remote A2A agents
-	task           chat.Tool   // delegation tool; coding role only, nil until set
+	defaultWorkdir  string
+	skillsGlobalDir string      // user-scope skills dir; merged under each turn's project skills
+	online          []chat.Tool // working-directory-independent network tools
+	mcp             []chat.Tool // working-directory-independent MCP tools
+	a2a             []chat.Tool // working-directory-independent remote A2A agents
+	task            chat.Tool   // delegation tool; coding role only, nil until set
 }
 
 func (*cwdToolResolver) Name() string { return "coding-tools" }
@@ -179,10 +180,17 @@ func (g *cwdToolGroup) Metadata() core.ToolGroupMetadata {
 }
 
 func (g *cwdToolGroup) Tools(ctx context.Context) ([]core.AgentTool, error) {
-	tools := buildWorkdirTools(g.resolver.workdirFor(ctx))
+	workdir := g.resolver.workdirFor(ctx)
+	tools := buildWorkdirTools(workdir)
 	tools = append(tools, g.resolver.online...)
 	tools = append(tools, g.resolver.mcp...)
 	tools = append(tools, g.resolver.a2a...)
+	// The skill tool is working-directory scoped (project skills live under
+	// the turn's cwd), so it is built per resolution like fs/bash and is
+	// available to both coding and subtask roles. nil when no skills exist.
+	if skillTool := buildSkillTool(workdir, g.resolver.skillsGlobalDir); skillTool != nil {
+		tools = append(tools, skillTool)
+	}
 	if g.role == ToolRoleCoding {
 		// Coding role only: the `task` delegation tool (no recursion) and
 		// ask_user (HITL question). Sub-agents (ToolRoleSubtask) get neither —
