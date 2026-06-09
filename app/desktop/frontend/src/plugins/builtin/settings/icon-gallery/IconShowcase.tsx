@@ -142,7 +142,7 @@ function ShowcaseCard({ id }: { id: string }) {
   return (
     <div
       title={`${title} — ${id}`}
-      className="flex flex-col items-center gap-1.5 rounded-md border border-line bg-surface px-2 pt-2.5 pb-2 cursor-default transition-[border-color,transform] duration-150 hover:border-[color-mix(in_srgb,var(--color-accent)_30%,var(--color-line))] hover:-translate-y-px"
+      className="flex flex-col items-center gap-1.5 rounded-md border border-line bg-surface px-2 pt-2.5 pb-2 cursor-default transition-[border-color,transform] duration-150 hover:border-[color-mix(in_srgb,var(--color-accent)_30%,var(--color-line))]"
     >
       <div className="grid h-8.5 w-8.5 place-items-center rounded-sm bg-surface-2 text-fg">
         {Glyph ? <Glyph size={22} /> : <span className="font-mono text-fg-faint">?</span>}

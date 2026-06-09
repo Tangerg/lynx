@@ -111,7 +111,7 @@ function IconCard({ entry }: { entry: (typeof rawToc)[number] }) {
   return (
     <div
       title={`${entry.fullTitle} — ${entry.id}`}
-      className="flex flex-col items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 pt-3.5 pb-2.5 cursor-default transition-[border-color,transform] duration-150 hover:border-[color-mix(in_srgb,var(--color-accent)_30%,var(--color-line))] hover:-translate-y-px"
+      className="flex flex-col items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 pt-3.5 pb-2.5 cursor-default transition-[border-color,transform] duration-150 hover:border-[color-mix(in_srgb,var(--color-accent)_30%,var(--color-line))]"
     >
       <div className="grid h-11 w-11 place-items-center rounded-md bg-surface-2 text-fg">
         {Component ? <Component size={28} /> : <span className="font-mono text-fg-faint">?</span>}

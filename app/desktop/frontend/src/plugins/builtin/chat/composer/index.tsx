@@ -278,7 +278,7 @@ function SendButton() {
           type="button"
           disabled={!stop}
           onClick={() => stop?.()}
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 bg-surface-3 text-fg transition-transform duration-150 hover:scale-105 active:scale-95"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 bg-surface-3 text-fg transition-transform duration-150 active:scale-95"
         >
           <Icon name="stop" size={13} />
         </button>
@@ -301,7 +301,7 @@ function SendButton() {
           "grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 transition-transform duration-150",
           disabled
             ? "bg-surface-3 text-fg-faint cursor-not-allowed"
-            : "bg-accent text-on-accent hover:scale-105 active:scale-95",
+            : "bg-accent text-on-accent active:scale-95",
         )}
       >
         <Icon name="send-arrow" size={14} strokeWidth={2.5} />

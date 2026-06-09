@@ -52,7 +52,7 @@ export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView 
         // animation defined in tool.css — it uses @property + mask, not
         // expressible cleanly in Tailwind. Everything else here is utilities.
         "tool-card group relative my-1.5 overflow-hidden rounded-md border border-transparent transition-[background,border-color,transform] duration-150",
-        !selected && "hover:bg-line hover:border-line-soft hover:-translate-y-px",
+        !selected && "hover:bg-line hover:border-line-soft",
         selected && "bg-line border-line-soft",
         running && "running",
       )}
