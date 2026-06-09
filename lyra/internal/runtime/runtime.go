@@ -32,6 +32,7 @@ import (
 	chatmem "github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	toolmw "github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 
+	"github.com/Tangerg/lynx/a2a"
 	"github.com/Tangerg/lynx/lyra/internal/config"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
@@ -66,6 +67,10 @@ type Config struct {
 	// Their tools merge into the engine's tool set under the
 	// configured Name prefix.
 	MCPServers []mcp.ServerConfig
+
+	// A2AAgents lists remote A2A agents to dial at startup. Each merges
+	// into the engine's tool set as a delegation tool.
+	A2AAgents []a2a.ClientConfig
 
 	// Compaction tunes the post-turn auto-compaction. Zero values
 	// fall back to the package defaults; setting MaxMessages
@@ -159,6 +164,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		Workdir:       cfg.Workdir,
 		Online:        cfg.Online,
 		MCPServers:    cfg.MCPServers,
+		A2AAgents:     cfg.A2AAgents,
 		MemoryStore:   cfg.MemoryStore,
 		MemoryService: cfg.MemoryService,
 		Compaction:    cfg.Compaction,

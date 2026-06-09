@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/a2aproject/a2a-go/v2/a2aclient"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/Tangerg/lynx/a2a"
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
@@ -51,9 +53,10 @@ type Engine struct {
 	extractor *extractor
 	planner   *planner
 
-	// External lifecycle. mcpSessions are closed during [Engine.Close];
-	// nil when no MCP servers are wired.
+	// External lifecycle. mcpSessions and a2aClients are closed during
+	// [Engine.Close]; nil when no MCP servers / A2A agents are wired.
 	mcpSessions []*sdkmcp.ClientSession
+	a2aClients  []*a2aclient.Client
 }
 
 // New constructs an engine. Returns an error when required deps
@@ -81,8 +84,19 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		return nil, err
 	}
 
+	// Dial remote A2A agents (one delegation tool each). On failure, close
+	// the MCP sessions already opened above so a late startup error doesn't
+	// leak them — Engine.Close never runs because New returns before e exists.
+	a2aTools, a2aClients, err := dialA2AAgents(ctx, cfg.A2AAgents)
+	if err != nil {
+		for _, sess := range mcpSessions {
+			_ = sess.Close()
+		}
+		return nil, err
+	}
+
 	// One platform-scope resolver serves both roles. ToolRoleSubtask
-	// resolves the cwd-bound coding tools + online + MCP; ToolRoleCoding
+	// resolves the cwd-bound coding tools + online + MCP + A2A; ToolRoleCoding
 	// adds the `task` delegation tool, wired below once it exists (it
 	// needs the platform). The resolver reads each turn's working
 	// directory off the process blackboard at resolution time.
@@ -90,6 +104,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		defaultWorkdir: cfg.Workdir,
 		online:         online,
 		mcp:            mcpTools,
+		a2a:            a2aTools,
 	}
 
 	memStore := cfg.MemoryStore
@@ -136,6 +151,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		pricing:     cfg.Pricing,
 		parkStore:   cfg.ParkStore,
 		mcpSessions: mcpSessions,
+		a2aClients:  a2aClients,
 	}
 
 	// The `task` tool delegates to a fresh sub-agent (declares
@@ -155,6 +171,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// turn resolves.
 	e.tools = append(buildWorkdirTools(cfg.Workdir), online...)
 	e.tools = append(e.tools, mcpTools...)
+	e.tools = append(e.tools, a2aTools...)
 	e.tools = append(e.tools, taskTool)
 	e.tools = append(e.tools, newAskUserTool())
 
@@ -205,17 +222,13 @@ func (e *Engine) MaybeExtract(ctx context.Context, sessionID string) (Extraction
 // re-running the construction.
 func (e *Engine) Tools() []chat.Tool { return e.tools }
 
-// Close releases per-engine external resources — currently only
-// the MCP client sessions opened in [New]. Safe to call multiple
-// times; the second call is a no-op.
+// Close releases per-engine external resources — the MCP client sessions
+// and remote A2A clients opened in [New]. Safe to call multiple times; nil
+// slices make the second call a no-op.
 //
-// Errors from individual session closures are collected and
-// returned together so the caller can log them; partial failure
-// does not stop subsequent closes.
+// Errors from individual closures are collected and returned together so the
+// caller can log them; partial failure does not stop subsequent closes.
 func (e *Engine) Close() error {
-	if len(e.mcpSessions) == 0 {
-		return nil
-	}
 	var errs []error
 	for _, sess := range e.mcpSessions {
 		if err := sess.Close(); err != nil {
@@ -223,6 +236,10 @@ func (e *Engine) Close() error {
 		}
 	}
 	e.mcpSessions = nil
+	if err := a2a.CloseClients(e.a2aClients); err != nil {
+		errs = append(errs, err)
+	}
+	e.a2aClients = nil
 	return errors.Join(errs...)
 }
 

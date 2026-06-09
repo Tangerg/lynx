@@ -3,13 +3,15 @@ module github.com/Tangerg/lynx/lyra
 go 1.26.3
 
 require (
+	github.com/Tangerg/lynx/a2a v0.0.0-20260609141858-d10b0a710dba
 	github.com/Tangerg/lynx/agent v0.0.0-20260521101326-c68784dc9f99
-	github.com/Tangerg/lynx/core v0.0.0-20260521101326-c68784dc9f99
+	github.com/Tangerg/lynx/core v0.0.0-20260609141858-d10b0a710dba
 	github.com/Tangerg/lynx/mcp v0.0.0-20260511081009-fbf46737de3d
 	github.com/Tangerg/lynx/models v0.0.0-20260604172808-5d1a7cd57b63
 	github.com/Tangerg/lynx/otel v0.0.0-20260604172808-5d1a7cd57b63
 	github.com/Tangerg/lynx/tools v0.0.0-20260521101326-c68784dc9f99
 	github.com/Tangerg/sse v0.0.1
+	github.com/a2aproject/a2a-go/v2 v2.3.1
 	github.com/anthropics/anthropic-sdk-go v1.43.0
 	github.com/go-chi/chi/v5 v5.3.0
 	github.com/go-chi/cors v1.2.2

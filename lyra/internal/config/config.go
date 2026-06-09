@@ -20,6 +20,7 @@ import (
 
 	"github.com/spf13/viper"
 
+	"github.com/Tangerg/lynx/a2a"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/mcp"
 )
@@ -79,6 +80,11 @@ type Config struct {
 	// startup. First cut: sourced from LYRA_MCP_SERVERS env (yaml
 	// support is a later addition).
 	MCPServers []mcp.ServerConfig
+
+	// A2AAgents is the parsed list of remote A2A agents dialed at startup.
+	// Sourced from LYRA_A2A_AGENTS env (same name=value shape as
+	// LYRA_MCP_SERVERS; yaml support is a later addition).
+	A2AAgents []a2a.ClientConfig
 
 	// Server holds the HTTP serve settings.
 	Server ServerConfig
@@ -141,6 +147,11 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("config: LYRA_MCP_SERVERS: %w", err)
 	}
 
+	a2aAgents, err := parseA2AAgents(os.Getenv("LYRA_A2A_AGENTS"))
+	if err != nil {
+		return Config{}, fmt.Errorf("config: LYRA_A2A_AGENTS: %w", err)
+	}
+
 	return Config{
 		Provider:   provider,
 		Model:      model,
@@ -148,6 +159,7 @@ func Load() (Config, error) {
 		BaseURL:    v.GetString("baseURL"),
 		Online:     loadOnline(v),
 		MCPServers: servers,
+		A2AAgents:  a2aAgents,
 		Server: ServerConfig{
 			Listen:         v.GetString("server.listen"),
 			NoLocalToken:   v.GetBool("server.noLocalToken"),
@@ -207,6 +219,39 @@ func parseMCPServers(raw string) ([]mcp.ServerConfig, error) {
 			return nil, fmt.Errorf("config.parseDotEnvList: entry %q: %w", p, err)
 		}
 		out = append(out, srv)
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
+}
+
+// parseA2AAgents parses the LYRA_A2A_AGENTS env var: a comma-separated list
+// of "name=cardURL" pairs, where cardURL is the base URL the remote agent's
+// AgentCard is resolved from. Empty input yields nil. The name becomes the
+// delegation tool's name; the first '=' separates it from the URL, so query
+// strings in the URL are preserved.
+func parseA2AAgents(raw string) ([]a2a.ClientConfig, error) {
+	if raw == "" {
+		return nil, nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]a2a.ClientConfig, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		eq := strings.IndexByte(p, '=')
+		if eq <= 0 || eq == len(p)-1 {
+			return nil, fmt.Errorf("entry %q: expected name=cardURL", p)
+		}
+		name := strings.TrimSpace(p[:eq])
+		url := strings.TrimSpace(p[eq+1:])
+		if name == "" || url == "" {
+			return nil, fmt.Errorf("entry %q: name and cardURL must be non-empty", p)
+		}
+		out = append(out, a2a.ClientConfig{Name: name, CardURL: url})
 	}
 	if len(out) == 0 {
 		return nil, nil

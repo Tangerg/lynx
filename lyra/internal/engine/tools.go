@@ -134,6 +134,7 @@ type cwdToolResolver struct {
 	defaultWorkdir string
 	online         []chat.Tool // working-directory-independent network tools
 	mcp            []chat.Tool // working-directory-independent MCP tools
+	a2a            []chat.Tool // working-directory-independent remote A2A agents
 	task           chat.Tool   // delegation tool; coding role only, nil until set
 }
 
@@ -181,6 +182,7 @@ func (g *cwdToolGroup) Tools(ctx context.Context) ([]core.AgentTool, error) {
 	tools := buildWorkdirTools(g.resolver.workdirFor(ctx))
 	tools = append(tools, g.resolver.online...)
 	tools = append(tools, g.resolver.mcp...)
+	tools = append(tools, g.resolver.a2a...)
 	if g.role == ToolRoleCoding {
 		// Coding role only: the `task` delegation tool (no recursion) and
 		// ask_user (HITL question). Sub-agents (ToolRoleSubtask) get neither —

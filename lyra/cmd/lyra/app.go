@@ -129,6 +129,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		Pricing:        config.CatalogPricing(),
 		Online:         cfg.Online,
 		MCPServers:     cfg.MCPServers,
+		A2AAgents:      cfg.A2AAgents,
 		MemoryStore:    stores.ChatMem,
 		MemoryService:  stores.Memory,
 		SessionService: stores.Session,
