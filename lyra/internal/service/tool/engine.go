@@ -97,7 +97,8 @@ func (s *engineBacked) Invoke(ctx context.Context, name string, arguments string
 // keep the shared rows in sync when adding a built-in tool.
 func defaultSafetyClass(name string) SafetyClass {
 	switch name {
-	case "read", "glob", "grep":
+	case "read", "glob", "grep", "skill":
+		// skill is read-only (lists / reads skill files), like read/glob/grep.
 		return SafetyClassSafe
 	case "write", "edit":
 		return SafetyClassWrite
