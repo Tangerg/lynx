@@ -9,6 +9,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 )
 
@@ -301,18 +302,10 @@ func (pc *ProcessContext) sessionParams() map[string]any {
 		return nil
 	}
 	return map[string]any{
-		chatMemoryConversationIDKey: id,
-		tool.ParkKey:                id,
+		memory.ConversationIDKey: id,
+		tool.ParkKey:             id,
 	}
 }
-
-// chatMemoryConversationIDKey is the string the memory middleware
-// in core/model/chat/memory reads from the request params. Kept as
-// a local constant (matching the value declared at memory.ConversationIDKey)
-// so agent/core doesn't import the memory package — that import
-// would pull memory into every agent binary even when nobody uses
-// chat sessions.
-const chatMemoryConversationIDKey = "lynx:ai:model:chat:memory:conversation_id"
 
 // ActionTools resolves the tools declared on the currently-executing
 // action's [ActionConfig.ToolGroups]. Returns (nil, nil) when the
