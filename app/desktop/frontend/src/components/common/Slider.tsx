@@ -36,7 +36,7 @@ export function Slider({
       <RadixSlider.Track className="relative h-1 grow rounded-full bg-surface-3">
         <RadixSlider.Range className="absolute h-full rounded-full bg-accent" />
       </RadixSlider.Track>
-      <RadixSlider.Thumb className="block h-3.5 w-3.5 rounded-full border border-line bg-fg shadow-sm transition-transform hover:scale-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" />
+      <RadixSlider.Thumb className="block h-3.5 w-3.5 rounded-full border border-line bg-fg shadow-sm transition-transform focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" />
     </RadixSlider.Root>
   );
 }

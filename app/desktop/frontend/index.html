@@ -14,15 +14,23 @@
          JS-side `applyTheme()` corrects the class. -->
     <script>
       (function () {
+        var scheme = "dark";
         try {
           var raw = localStorage.getItem("lyra.ui");
-          if (!raw) return;
-          var id = JSON.parse(raw)?.state?.theme;
-          var scheme = id === "light" ? "light" : "dark";
-          document.documentElement.classList.add("theme-" + scheme);
+          if (raw) {
+            var id = JSON.parse(raw)?.state?.theme;
+            scheme = id === "light" ? "light" : "dark";
+          }
         } catch (_) {
           /* localStorage blocked, malformed JSON — fall back to default dark */
         }
+        var root = document.documentElement;
+        root.classList.add("theme-" + scheme);
+        // Paint the canvas colour on <html> BEFORE the CSS bundle parses, so a
+        // cold boot opens straight into the app surface instead of flashing
+        // white. Matches the native window BackgroundColour (main.go) for dark,
+        // and the light canvas for light. (NATIVE_FEEL.md §B — launch flicker.)
+        root.style.backgroundColor = scheme === "light" ? "#ffffff" : "#121212";
       })();
     </script>
     <!-- JetBrains Mono — numbers, IDs, timestamps, code-adjacent UI text.

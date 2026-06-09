@@ -14,8 +14,8 @@ const styles = cva(
       variant: {
         outlined:
           "border border-line text-fg bg-transparent hover:bg-surface-2 hover:border-line-soft",
-        solid: "bg-white text-black border border-white hover:scale-[1.04]",
-        accent: "bg-accent text-on-accent border border-accent hover:scale-[1.04]",
+        solid: "bg-white text-black border border-white",
+        accent: "bg-accent text-on-accent border border-accent",
         danger: "bg-transparent text-negative border border-negative hover:bg-negative/8",
       },
       size: {
