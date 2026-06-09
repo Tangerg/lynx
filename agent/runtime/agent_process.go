@@ -377,6 +377,16 @@ func (p *AgentProcess) platformGuardrails() *core.Guardrails {
 	return p.platform.guardrails
 }
 
+// effectiveGuardrails returns the process-scoped guardrails when set
+// ([core.ProcessOptions.Guardrails]), falling back to the platform
+// default. Called once per tick by [buildProcessContext].
+func (p *AgentProcess) effectiveGuardrails() *core.Guardrails {
+	if p.options != nil && p.options.Guardrails != nil {
+		return p.options.Guardrails
+	}
+	return p.platformGuardrails()
+}
+
 // platformExtensions exposes the platform-scoped extension list.
 func (p *AgentProcess) platformExtensions() []core.Extension {
 	if p.platform == nil {

@@ -227,13 +227,12 @@ func (p *AgentProcess) buildProcessContext(actionToolGroups []core.ToolGroupRequ
 		},
 		PlatformHooks: core.PlatformHooks{
 			ChatClient:     p.effectiveChatClient(),
-			Guardrails:     p.platformGuardrails(),
+			Guardrails:     p.effectiveGuardrails(),
 			Publish:        p.publishAny,
 			ResolveTools:   p.toolResolverFor(action),
 			ToolCallCancel: p.signals.registerToolCallCancel,
 		},
 		ActionToolGroups: actionToolGroups,
-		ActionToolLoop:   action.Metadata().ToolLoop,
 	}
 	return core.NewProcessContext(config)
 }

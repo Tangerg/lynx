@@ -50,6 +50,12 @@ type Config struct {
 	// legacy [buildInterruptResponse] path (conversation-based tail
 	// the caller must intercept).
 	ParkStore ParkStore
+
+	// ParkID, when non-empty, is the park conversation key passed
+	// at construction time. Takes precedence over [ParkKey] on the
+	// request params — when set the middleware never reads the
+	// request for the park id.
+	ParkID string
 }
 
 // MaxIterationsError is returned when the tool-calling loop exceeds its
@@ -82,6 +88,7 @@ type middleware struct {
 	maxIterations int
 	feedbackEmpty bool
 	parkStore     ParkStore
+	parkIDOverride string
 }
 
 // NewMiddleware constructs the tool-calling middleware pair. Pass an
@@ -98,9 +105,10 @@ func NewMiddleware(config ...Config) (chat.CallMiddleware, chat.StreamMiddleware
 	}
 
 	mw := &middleware{
-		maxIterations: maxIterations,
-		feedbackEmpty: cfg.FeedbackOnEmptyResponse,
-		parkStore:     cfg.ParkStore,
+		maxIterations:   maxIterations,
+		feedbackEmpty:   cfg.FeedbackOnEmptyResponse,
+		parkStore:       cfg.ParkStore,
+		parkIDOverride:  cfg.ParkID,
 	}
 	return mw.wrapCallHandler, mw.wrapStreamHandler
 }
@@ -411,6 +419,9 @@ func newToolMessageResponse(tm *chat.ToolMessage) (*chat.Response, error) {
 // parkID reads the park conversation identifier from the request
 // params (set via [ParkKey]), or "" when absent.
 func (m *middleware) parkID(req *chat.Request) string {
+	if m.parkIDOverride != "" {
+		return m.parkIDOverride
+	}
 	if req == nil {
 		return ""
 	}

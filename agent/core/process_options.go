@@ -48,6 +48,12 @@ type ProcessOptions struct {
 	// is violated. Process-scope Names may collide with platform-scope
 	// Names — that's the explicit override mechanism.
 	Extensions []Extension
+
+	// Guardrails, when non-nil, overrides the platform-level guardrails
+	// for this process. nil means "use the platform default". Set it to
+	// inject per-process chat middleware (tool loop, memory) so agent/core
+	// doesn't need to import middleware implementations.
+	Guardrails *Guardrails
 }
 
 // ApplyDefaults fills in zero-valued fields whose conceptual default is
