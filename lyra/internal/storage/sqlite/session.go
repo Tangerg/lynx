@@ -174,24 +174,18 @@ func (s *SessionService) CreateSubtask(ctx context.Context, id, parentID string)
 		return session.Session{}, err
 	}
 
-	cwd, title := "", "subtask"
-	if parent, err := s.Get(ctx, parentID); err == nil {
-		cwd = parent.Cwd
-		title = parent.Title + " · subtask"
-	} else if !errors.Is(err, session.ErrNotFound) {
+	// The subtask-derivation rule (title suffix, cwd inheritance, KindSubtask
+	// marker) is a Session invariant — the adapter only supplies the new id and
+	// the clock. A missing parent is passed as an id-only Session, which yields
+	// the untitled-parent form.
+	parent, err := s.Get(ctx, parentID)
+	if errors.Is(err, session.ErrNotFound) {
+		parent = session.Session{ID: parentID}
+	} else if err != nil {
 		return session.Session{}, err
 	}
 
-	now := time.Now().UTC()
-	child := session.Session{
-		ID:        id,
-		Title:     title,
-		Cwd:       cwd,
-		ParentID:  parentID,
-		Kind:      session.KindSubtask,
-		StartedAt: now,
-		UpdatedAt: now,
-	}
+	child := parent.NewSubtask(id, time.Now().UTC())
 	if err := s.insert(ctx, child); err != nil {
 		return session.Session{}, err
 	}
