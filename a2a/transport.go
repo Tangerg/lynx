@@ -36,9 +36,9 @@ func (c *ClientConfig) Validate() error {
 	return nil
 }
 
-// client returns the HTTP client to use, defaulting to the shared
+// httpClient returns the HTTP client to use, defaulting to the shared
 // http.DefaultClient when none was supplied.
-func (c *ClientConfig) client() *http.Client {
+func (c *ClientConfig) httpClient() *http.Client {
 	if c.HTTPClient != nil {
 		return c.HTTPClient
 	}
@@ -56,7 +56,7 @@ func Dial(ctx context.Context, cfg ClientConfig) (*a2aclient.Client, *sdka2a.Age
 	if err := cfg.Validate(); err != nil {
 		return nil, nil, err
 	}
-	httpClient := cfg.client()
+	httpClient := cfg.httpClient()
 
 	resolver := agentcard.NewResolver(httpClient)
 	card, err := resolver.Resolve(ctx, cfg.CardURL)

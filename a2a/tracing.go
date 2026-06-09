@@ -7,9 +7,6 @@ import "go.opentelemetry.io/otel"
 // whatever is globally configured rather than accepting one by DI.
 var a2aTracer = otel.Tracer("lynx/a2a")
 
-// Attribute keys for A2A spans. Brand-neutral GenAI semconv where one
-// exists, otherwise a bare domain key.
-const (
-	attrAgentName = "gen_ai.agent.name"
-	attrTaskState = "a2a.task.state"
-)
+// attrAgentName tags an A2A client span with the remote agent's name —
+// brand-neutral GenAI semconv.
+const attrAgentName = "gen_ai.agent.name"
