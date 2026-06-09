@@ -1,6 +1,6 @@
 # CLAUDE.md — lynx monorepo 项目级上下文
 
-> Go monorepo，12 个 sub-module 各自有 `go.mod`：`core` / `agent` / `models` / `vectorstores` / `tools` / `pkg` / `rag` / `chatmemory` / `documentreaders` / `mcp` / `otel` / `lyra`。每个模块的具体形态见各自的 `CLAUDE.md`，本文件只放**跨模块共用**的约定。
+> Go monorepo，13 个 sub-module 各自有 `go.mod`：`core` / `agent` / `models` / `vectorstores` / `tools` / `pkg` / `rag` / `chatmemory` / `documentreaders` / `mcp` / `a2a` / `otel` / `lyra`。每个模块的具体形态见各自的 `CLAUDE.md`，本文件只放**跨模块共用**的约定。
 
 ---
 
@@ -35,6 +35,7 @@
 | [`rag/`](rag/CLAUDE.md) | ~1.6k | 5 阶段 RAG pipeline |
 | [`chatmemory/`](chatmemory/CLAUDE.md) | ~1.6k | Chat history DB 后端 |
 | [`mcp/`](mcp/CLAUDE.md) | ~1.3k | MCP client + server 桥 |
+| `a2a/` | ~0.5k | A2A (Agent-to-Agent) client + server 桥（wraps a2a-go SDK） |
 | [`documentreaders/`](documentreaders/CLAUDE.md) | ~0.7k | Markdown / HTML / PDF readers |
 | [`otel/`](otel/CLAUDE.md) | ~0.3k | OTel dev exporter |
 | [`lyra/`](lyra/CLAUDE.md) | ~10k | Lyra Runtime backend |
