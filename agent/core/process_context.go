@@ -302,6 +302,7 @@ func (pc *ProcessContext) sessionParams() map[string]any {
 	}
 	return map[string]any{
 		chatMemoryConversationIDKey: id,
+		tool.ParkKey:                id,
 	}
 }
 

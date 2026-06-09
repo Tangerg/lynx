@@ -6,7 +6,6 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 )
 
 // runChatTurn drives one streaming chat turn end-to-end: compose the
@@ -23,7 +22,6 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 	if err != nil {
 		return ChatOutput{}, err
 	}
-	ctx = tool.WithParkKey(ctx, pc.Process.ID())
 
 	observer := observerFrom(pc.Options)
 	sysPrompt := e.SystemPrompt(ctx)

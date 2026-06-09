@@ -16,20 +16,27 @@ type ParkState struct {
 	Done      []*chat.ToolReturn     `json:"done,omitempty"`
 }
 
-// parkCtxKey is the context key for the park conversation identifier.
-type parkCtxKey struct{}
+// ParkKey is the [chat.Request].Params key that identifies the
+// conversation owning a parked tool round. Mirrors
+// [memory.ConversationIDKey] — set it on the request before the
+// tool loop runs:
+//
+//	req.WithParams(map[string]any{tool.ParkKey: processID})
+//
+// When absent the middleware skips park persistence.
+const ParkKey = "lynx:ai:model:chat:tool:park"
 
-// WithParkKey returns a child context carrying the park conversation
-// identifier. The engine sets it before streaming so the tool
-// middleware reads it (via [parkKey]) to key ParkStore operations.
-func WithParkKey(ctx context.Context, id string) context.Context {
-	return context.WithValue(ctx, parkCtxKey{}, id)
-}
-
-// parkKey reads the park conversation identifier from ctx, or ""
-// when the caller didn't set one via [WithParkKey].
-func parkKey(ctx context.Context) string {
-	id, _ := ctx.Value(parkCtxKey{}).(string)
+// parkID reads the park conversation identifier from the request
+// params, or "" when the caller didn't set [ParkKey].
+func parkID(req *chat.Request) string {
+	if req == nil {
+		return ""
+	}
+	raw, ok := req.Get(ParkKey)
+	if !ok {
+		return ""
+	}
+	id, _ := raw.(string)
 	return id
 }
 
