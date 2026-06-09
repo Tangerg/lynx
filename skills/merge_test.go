@@ -2,6 +2,7 @@ package skills
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"testing/fstest"
 )
@@ -65,5 +66,56 @@ func TestListMissingDir(t *testing.T) {
 	}
 	if len(got) != 0 {
 		t.Errorf("want empty list, got %v", got)
+	}
+}
+
+// TestMergeLoadResource proves LoadResource is served from the first source
+// that can satisfy it: the project copy of a shared skill wins, and a
+// global-only skill's resource is still reachable through the merge.
+func TestMergeLoadResource(t *testing.T) {
+	project := NewFS(fstest.MapFS{
+		"shared/SKILL.md":           skillFile("shared", "project shared", "x"),
+		"shared/references/note.md": {Data: []byte("PROJECT note")},
+	})
+	global := NewFS(fstest.MapFS{
+		"shared/SKILL.md":           skillFile("shared", "global shared", "y"),
+		"shared/references/note.md": {Data: []byte("GLOBAL note")},
+		"glob-only/SKILL.md":        skillFile("glob-only", "global only", "z"),
+		"glob-only/assets/data.txt": {Data: []byte("global asset")},
+	})
+	src := Merge(project, global)
+
+	note, err := src.LoadResource(context.Background(), "shared", "references/note.md")
+	if err != nil {
+		t.Fatalf("LoadResource shared: %v", err)
+	}
+	if string(note) != "PROJECT note" {
+		t.Errorf("shared resource = %q, want the project copy (precedence)", note)
+	}
+
+	asset, err := src.LoadResource(context.Background(), "glob-only", "assets/data.txt")
+	if err != nil {
+		t.Fatalf("LoadResource glob-only: %v", err)
+	}
+	if string(asset) != "global asset" {
+		t.Errorf("glob-only resource = %q, want the global copy", asset)
+	}
+}
+
+// TestMergeNoSources proves the degenerate empty merge is well-behaved: List
+// is empty, and Load reports a clear not-found rather than a nil/nil result.
+func TestMergeNoSources(t *testing.T) {
+	src := Merge() // no sources
+
+	if got, err := src.List(context.Background()); err != nil || len(got) != 0 {
+		t.Errorf("List on empty merge = (%v, %v), want (empty, nil)", got, err)
+	}
+
+	_, err := src.Load(context.Background(), "anything")
+	if err == nil {
+		t.Fatal("Load on empty merge should error")
+	}
+	if !strings.Contains(err.Error(), "no sources") {
+		t.Errorf("err = %v, want a 'no sources' message", err)
 	}
 }
