@@ -13,15 +13,15 @@ import (
 
 // ─── Attachments ────────────────────────────────────────────────────
 
-func (i *Server) CreateUploadURL(_ context.Context, _ protocol.CreateUploadURLRequest) (*protocol.CreateUploadURLResponse, error) {
+func (s *Server) CreateUploadURL(_ context.Context, _ protocol.CreateUploadURLRequest) (*protocol.CreateUploadURLResponse, error) {
 	return nil, notImpl("attachments.createUploadUrl")
 }
 
-func (i *Server) GetAttachment(_ context.Context, _ string) (*protocol.Attachment, error) {
+func (s *Server) GetAttachment(_ context.Context, _ string) (*protocol.Attachment, error) {
 	return nil, notImpl("attachments.get")
 }
 
-func (i *Server) DeleteAttachment(_ context.Context, _ string) error {
+func (s *Server) DeleteAttachment(_ context.Context, _ string) error {
 	return notImpl("attachments.delete")
 }
 
@@ -30,15 +30,15 @@ func (i *Server) DeleteAttachment(_ context.Context, _ string) error {
 // ListBackground is gated off (features.background=false) — return
 // capability_not_negotiated rather than a misleading empty list, matching
 // background.subscribe / cancel (API.md §7.7).
-func (i *Server) ListBackground(_ context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.BackgroundTask], error) {
+func (s *Server) ListBackground(_ context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.BackgroundTask], error) {
 	return nil, notImpl("background.list")
 }
 
-func (i *Server) SubscribeBackground(_ context.Context, _ string) (<-chan protocol.BackgroundTask, error) {
+func (s *Server) SubscribeBackground(_ context.Context, _ string) (<-chan protocol.BackgroundTask, error) {
 	return nil, notImpl("background.subscribe")
 }
 
-func (i *Server) CancelBackground(_ context.Context, _ string) error {
+func (s *Server) CancelBackground(_ context.Context, _ string) error {
 	return notImpl("background.cancel")
 }
 
@@ -49,6 +49,6 @@ func (i *Server) CancelBackground(_ context.Context, _ string) error {
 // storage. The Runtime doesn't retain feedback yet (write-only-never-read
 // data isn't worth a store); accept it. Add a sink (OTel / store) when a
 // real consumer exists.
-func (i *Server) CreateFeedback(_ context.Context, _ protocol.FeedbackRequest) error {
+func (s *Server) CreateFeedback(_ context.Context, _ protocol.FeedbackRequest) error {
 	return nil
 }

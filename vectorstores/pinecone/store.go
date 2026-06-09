@@ -107,7 +107,7 @@ func NewStore(cfg StoreConfig) (*Store, error) {
 	}, nil
 }
 
-func (v *Store) buildVectors(docs []*document.Document, vectors [][]float64) ([]*pinecone.Vector, error) {
+func (s *Store) buildVectors(docs []*document.Document, vectors [][]float64) ([]*pinecone.Vector, error) {
 	result := make([]*pinecone.Vector, len(docs))
 
 	for i, doc := range docs {
@@ -122,7 +122,7 @@ func (v *Store) buildVectors(docs []*document.Document, vectors [][]float64) ([]
 		for k, val := range doc.Metadata {
 			metaMap[k] = val
 		}
-		if v.storeDocumentContent {
+		if s.storeDocumentContent {
 			metaMap[payloadDocumentContentKey] = doc.Text
 		}
 
@@ -138,7 +138,7 @@ func (v *Store) buildVectors(docs []*document.Document, vectors [][]float64) ([]
 	return result, nil
 }
 
-func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
+func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
 	if err = req.Validate(); err != nil {
 		return fmt.Errorf("pinecone: invalid create request: %w", err)
 	}
@@ -147,13 +147,13 @@ func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 	defer func() { tracing.Finish(span, err) }()
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = v.documentBatcher.Batch(ctx, req.Documents)
+	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
 	if err != nil {
 		return fmt.Errorf("pinecone: failed to batch documents: %w", err)
 	}
 
 	for _, docs := range batchedDocs {
-		vectors, _, err := v.embeddingClient.
+		vectors, _, err := s.embeddingClient.
 			EmbedWithDocuments(docs).
 			Call().
 			Embeddings(ctx)
@@ -161,12 +161,12 @@ func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 			return fmt.Errorf("pinecone: failed to generate vectors: %w", err)
 		}
 
-		points, err := v.buildVectors(docs, vectors)
+		points, err := s.buildVectors(docs, vectors)
 		if err != nil {
 			return err
 		}
 
-		_, err = v.index.UpsertVectors(ctx, points)
+		_, err = s.index.UpsertVectors(ctx, points)
 		if err != nil {
 			return fmt.Errorf("pinecone: failed to upsert %d vectors: %w", len(points), err)
 		}
@@ -175,7 +175,7 @@ func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 	return nil
 }
 
-func (v *Store) buildDocumentsFromScoredVectors(svs []*pinecone.ScoredVector, minScore float64) ([]*document.Document, error) {
+func (s *Store) buildDocumentsFromScoredVectors(svs []*pinecone.ScoredVector, minScore float64) ([]*document.Document, error) {
 	docs := make([]*document.Document, 0, len(svs))
 
 	for _, sv := range svs {
@@ -192,7 +192,7 @@ func (v *Store) buildDocumentsFromScoredVectors(svs []*pinecone.ScoredVector, mi
 			if sv.Vector.Metadata != nil {
 				metadata := sv.Vector.Metadata.AsMap()
 
-				if v.storeDocumentContent {
+				if s.storeDocumentContent {
 					if text, ok := metadata[payloadDocumentContentKey].(string); ok {
 						doc.Text = text
 					}
@@ -209,7 +209,7 @@ func (v *Store) buildDocumentsFromScoredVectors(svs []*pinecone.ScoredVector, mi
 	return docs, nil
 }
 
-func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("pinecone: invalid retrieval request: %w", err)
 	}
@@ -218,7 +218,7 @@ func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
 
 	var vector []float64
-	vector, _, err = v.embeddingClient.
+	vector, _, err = s.embeddingClient.
 		EmbedWithText(req.Query).
 		Call().
 		Embedding(ctx)
@@ -240,7 +240,7 @@ func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		queryReq.MetadataFilter = filter
 	}
 
-	resp, err := v.index.QueryByVectorValues(ctx, queryReq)
+	resp, err := s.index.QueryByVectorValues(ctx, queryReq)
 	if err != nil {
 		return nil, fmt.Errorf("pinecone: failed to query index: %w", err)
 	}
@@ -249,7 +249,7 @@ func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		return nil, nil
 	}
 
-	docs, err = v.buildDocumentsFromScoredVectors(resp.Matches, float64(req.MinScore))
+	docs, err = s.buildDocumentsFromScoredVectors(resp.Matches, float64(req.MinScore))
 	if err != nil {
 		return nil, fmt.Errorf("pinecone: failed to build documents from results: %w", err)
 	}
@@ -257,7 +257,7 @@ func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	return docs, nil
 }
 
-func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
+func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
 	if err = req.Validate(); err != nil {
 		return fmt.Errorf("pinecone: invalid delete request: %w", err)
 	}
@@ -271,7 +271,7 @@ func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 		return fmt.Errorf("pinecone: failed to convert filter: %w", err)
 	}
 
-	if err = v.index.DeleteVectorsByFilter(ctx, filter); err != nil {
+	if err = s.index.DeleteVectorsByFilter(ctx, filter); err != nil {
 		return fmt.Errorf("pinecone: failed to delete vectors: %w", err)
 	}
 
@@ -281,7 +281,7 @@ func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 // DeleteByIDs removes vectors by their string ids. An empty slice is a
 // no-op; unknown ids are silently ignored (idempotent). Implements
 // [vectorstore.IDDeleter].
-func (v *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
 	if len(ids) == 0 {
 		return nil
 	}
@@ -289,20 +289,20 @@ func (v *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
 	ctx, span := tracing.StartDelete(ctx, "pinecone")
 	defer func() { tracing.Finish(span, err) }()
 
-	if err = v.index.DeleteVectorsById(ctx, ids); err != nil {
+	if err = s.index.DeleteVectorsById(ctx, ids); err != nil {
 		return fmt.Errorf("pinecone: failed to delete vectors by ids: %w", err)
 	}
 
 	return nil
 }
 
-func (v *Store) Metadata() vectorstore.StoreMetadata {
+func (s *Store) Metadata() vectorstore.StoreMetadata {
 	return vectorstore.StoreMetadata{
-		NativeClient: v.index,
+		NativeClient: s.index,
 		Provider:     Provider,
 	}
 }
 
-func (v *Store) Close() error {
-	return v.index.Close()
+func (s *Store) Close() error {
+	return s.index.Close()
 }

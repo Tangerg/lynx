@@ -112,30 +112,30 @@ func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
 }
 
 // applyOverride mutates the receiver in place with the non-zero fields of src.
-func (dst *Options) applyOverride(src *Options) {
+func (o *Options) applyOverride(src *Options) {
 	if src.Model != "" {
-		dst.Model = src.Model
+		o.Model = src.Model
 	}
 	if src.Language != "" {
-		dst.Language = src.Language
+		o.Language = src.Language
 	}
 	if src.Prompt != "" {
-		dst.Prompt = src.Prompt
+		o.Prompt = src.Prompt
 	}
 	if src.Temperature != nil {
-		dst.Temperature = src.Temperature
+		o.Temperature = src.Temperature
 	}
 	if src.ResponseFormat != "" {
-		dst.ResponseFormat = src.ResponseFormat
+		o.ResponseFormat = src.ResponseFormat
 	}
 	if len(src.TimestampGranularity) > 0 {
-		dst.TimestampGranularity = slices.Clone(src.TimestampGranularity)
+		o.TimestampGranularity = slices.Clone(src.TimestampGranularity)
 	}
 	if len(src.Extra) > 0 {
-		if dst.Extra == nil {
-			dst.Extra = make(map[string]any, len(src.Extra))
+		if o.Extra == nil {
+			o.Extra = make(map[string]any, len(src.Extra))
 		}
-		maps.Copy(dst.Extra, src.Extra)
+		maps.Copy(o.Extra, src.Extra)
 	}
 }
 

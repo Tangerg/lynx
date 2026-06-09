@@ -13,20 +13,20 @@ import (
 	"github.com/Tangerg/lynx/vectorstores/internal/filterhelp"
 )
 
-func (c *Visitor) visitEqualityExpr(expr *ast.BinaryExpr) error {
-	fieldKey, err := c.extractFieldKey(expr.Left)
+func (v *Visitor) visitEqualityExpr(expr *ast.BinaryExpr) error {
+	fieldKey, err := v.extractFieldKey(expr.Left)
 	if err != nil {
 		return fmt.Errorf("failed to extract field key from left operand of '%s' at %s: %w",
 			expr.Op.Literal, expr.Start().String(), err)
 	}
 
-	fieldValue, err := c.extractFieldValue(expr.Right)
+	fieldValue, err := v.extractFieldValue(expr.Right)
 	if err != nil {
 		return fmt.Errorf("failed to extract value from right operand of '%s' at %s: %w",
 			expr.Op.Literal, expr.Start().String(), err)
 	}
 
-	matchCond, err := c.buildMatchCondition(fieldKey, fieldValue)
+	matchCond, err := v.buildMatchCondition(fieldKey, fieldValue)
 	if err != nil {
 		return fmt.Errorf("failed to create match condition for '%s' at %s: %w",
 			expr.Op.Literal, expr.Start().String(), err)
@@ -35,10 +35,10 @@ func (c *Visitor) visitEqualityExpr(expr *ast.BinaryExpr) error {
 	switch expr.Op.Kind {
 	case token.EQ:
 		// == operator: field must equal value
-		c.filter.Must = append(c.filter.Must, matchCond)
+		v.filter.Must = append(v.filter.Must, matchCond)
 	case token.NE:
 		// != operator: field must not equal value (negation)
-		c.filter.MustNot = append(c.filter.MustNot, matchCond)
+		v.filter.MustNot = append(v.filter.MustNot, matchCond)
 	default:
 		// Defensive programming: should never reach here
 		return fmt.Errorf("unexpected equality operator '%s' at %s",
@@ -55,7 +55,7 @@ func (c *Visitor) visitEqualityExpr(expr *ast.BinaryExpr) error {
 //   - bool -> NewMatchBool (boolean match)
 //
 // Returns an error if the value type is not supported for matching.
-func (c *Visitor) buildMatchCondition(fieldKey string, fieldValue any) (*qdrant.Condition, error) {
+func (v *Visitor) buildMatchCondition(fieldKey string, fieldValue any) (*qdrant.Condition, error) {
 	switch v := fieldValue.(type) {
 	case string:
 		// String: use keyword match (exact match)
@@ -85,14 +85,14 @@ func (c *Visitor) buildMatchCondition(fieldKey string, fieldValue any) (*qdrant.
 // Examples:
 //   - "age > 18" produces: Must[Range{Gt: 18}]
 //   - "price <= 99.99" produces: Must[Range{Lte: 99.99}]
-func (c *Visitor) visitOrderingExpr(expr *ast.BinaryExpr) error {
-	fieldKey, err := c.extractFieldKey(expr.Left)
+func (v *Visitor) visitOrderingExpr(expr *ast.BinaryExpr) error {
+	fieldKey, err := v.extractFieldKey(expr.Left)
 	if err != nil {
 		return fmt.Errorf("failed to extract field key from left operand of '%s' at %s: %w",
 			expr.Op.Literal, expr.Start().String(), err)
 	}
 
-	fieldValue, err := c.extractFieldValue(expr.Right)
+	fieldValue, err := v.extractFieldValue(expr.Right)
 	if err != nil {
 		return fmt.Errorf("failed to extract value from right operand of '%s' at %s: %w",
 			expr.Op.Literal, expr.Start().String(), err)
@@ -108,22 +108,22 @@ func (c *Visitor) visitOrderingExpr(expr *ast.BinaryExpr) error {
 	switch expr.Op.Kind {
 	case token.LT:
 		// < operator: field value must be less than the specified value
-		c.filter.Must = append(c.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
+		v.filter.Must = append(v.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
 			Lt: new(numericValue),
 		}))
 	case token.LE:
 		// <= operator: field value must be less than or equal to the specified value
-		c.filter.Must = append(c.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
+		v.filter.Must = append(v.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
 			Lte: new(numericValue),
 		}))
 	case token.GT:
 		// > operator: field value must be greater than the specified value
-		c.filter.Must = append(c.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
+		v.filter.Must = append(v.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
 			Gt: new(numericValue),
 		}))
 	case token.GE:
 		// >= operator: field value must be greater than or equal to the specified value
-		c.filter.Must = append(c.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
+		v.filter.Must = append(v.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
 			Gte: new(numericValue),
 		}))
 	default:
@@ -151,8 +151,8 @@ func (c *Visitor) visitOrderingExpr(expr *ast.BinaryExpr) error {
 //   - "status IN ['active', 'pending']" produces: Must[MatchKeywords(status, [active, pending])]
 //   - "age IN [18, 21, 25]" produces: Must[MatchInts(age, [18, 21, 25])]
 //   - "active IN [true, false]" produces: Must[Filter{Should[active==true, active==false]}]
-func (c *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
-	fieldKey, err := c.extractFieldKey(expr.Left)
+func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
+	fieldKey, err := v.extractFieldKey(expr.Left)
 	if err != nil {
 		return fmt.Errorf("failed to extract field key from left operand of 'IN' at %s: %w",
 			expr.Start().String(), err)
@@ -163,11 +163,11 @@ func (c *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 		return fmt.Errorf("qdrant: %w", err)
 	}
 
-	if err = c.visitListLiteral(listLit); err != nil {
+	if err = v.visitListLiteral(listLit); err != nil {
 		return err
 	}
 
-	values, ok := c.currentFieldValue.([]any)
+	values, ok := v.currentFieldValue.([]any)
 	if !ok {
 		return fmt.Errorf("failed to extract list values for 'IN' operator at %s",
 			expr.Start().String())
@@ -187,7 +187,7 @@ func (c *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 		for _, val := range values {
 			keywords = append(keywords, cast.ToString(val))
 		}
-		c.filter.Must = append(c.filter.Must, qdrant.NewMatchKeywords(fieldKey, keywords...))
+		v.filter.Must = append(v.filter.Must, qdrant.NewMatchKeywords(fieldKey, keywords...))
 
 	case float64:
 		// Number list: use MatchInts (OR semantics for multiple integers)
@@ -195,7 +195,7 @@ func (c *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 		for _, val := range values {
 			integers = append(integers, cast.ToInt64(val))
 		}
-		c.filter.Must = append(c.filter.Must, qdrant.NewMatchInts(fieldKey, integers...))
+		v.filter.Must = append(v.filter.Must, qdrant.NewMatchInts(fieldKey, integers...))
 
 	case bool:
 		// Boolean list: wrap Should conditions in a nested filter
@@ -207,7 +207,7 @@ func (c *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 		for _, val := range values {
 			boolConditions = append(boolConditions, qdrant.NewMatchBool(fieldKey, cast.ToBool(val)))
 		}
-		c.filter.Must = append(c.filter.Must,
+		v.filter.Must = append(v.filter.Must,
 			qdrant.NewFilterAsCondition(&qdrant.Filter{
 				Should: boolConditions,
 			}))
@@ -236,8 +236,8 @@ func (c *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 //
 // Example:
 //   - "description LIKE 'python programming'" produces: Must[MatchText(description, "python programming")]
-func (c *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
-	fieldKey, err := c.extractFieldKey(expr.Left)
+func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
+	fieldKey, err := v.extractFieldKey(expr.Left)
 	if err != nil {
 		return fmt.Errorf("failed to extract field key from left operand of 'LIKE' at %s: %w",
 			expr.Start().String(), err)
@@ -254,11 +254,11 @@ func (c *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 			expr.Start().String(), lit.Token.Kind.Name())
 	}
 
-	if err = c.visitLiteral(lit); err != nil {
+	if err = v.visitLiteral(lit); err != nil {
 		return err
 	}
 
-	pattern, ok := c.currentFieldValue.(string)
+	pattern, ok := v.currentFieldValue.(string)
 	if !ok {
 		return fmt.Errorf("failed to extract string pattern for 'LIKE' operator at %s",
 			expr.Start().String())
@@ -266,7 +266,7 @@ func (c *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 
 	// LIKE operation uses MatchText (full-text search)
 	// Behavior depends on full-text index configuration in Qdrant
-	c.filter.Must = append(c.filter.Must, qdrant.NewMatchText(fieldKey, pattern))
+	v.filter.Must = append(v.filter.Must, qdrant.NewMatchText(fieldKey, pattern))
 	return nil
 }
 
@@ -287,7 +287,7 @@ func (c *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 //   - Logical: "age > 18 AND status == 'active'" -> Filter{Must[age>18, status==active]}
 //   - Nested: "(age > 18 OR age < 10) AND status == 'active'" ->
 //     Filter{Must[Filter{Should[age>18, age<10]}, status==active]}
-func (c *Visitor) buildNestedCondition(expr ast.Expr) (*qdrant.Condition, error) {
+func (v *Visitor) buildNestedCondition(expr ast.Expr) (*qdrant.Condition, error) {
 	switch node := expr.(type) {
 	case *ast.BinaryExpr,
 		*ast.UnaryExpr:
@@ -319,15 +319,15 @@ func (c *Visitor) buildNestedCondition(expr ast.Expr) (*qdrant.Condition, error)
 //   - *ast.Ident{Value: "age"} -> "age"
 //   - metadata["user"] -> "metadata.user"
 //   - data["tags"][0] -> "data.tags.0"
-func (c *Visitor) extractFieldKey(expr ast.Expr) (string, error) {
-	savedFieldKey := c.currentFieldKey
-	c.currentFieldKey = ""
+func (v *Visitor) extractFieldKey(expr ast.Expr) (string, error) {
+	savedFieldKey := v.currentFieldKey
+	v.currentFieldKey = ""
 
-	err := c.visit(expr)
+	err := v.visit(expr)
 
 	// Restore state to prevent corruption in nested calls
-	extractedKey := c.currentFieldKey
-	c.currentFieldKey = savedFieldKey
+	extractedKey := v.currentFieldKey
+	v.currentFieldKey = savedFieldKey
 
 	if err != nil {
 		return "", err
@@ -354,15 +354,15 @@ func (c *Visitor) extractFieldKey(expr ast.Expr) (string, error) {
 //   - *ast.Literal{Value: "active"} -> "active"
 //   - *ast.Literal{Value: 18.0} -> 18.0
 //   - *ast.ListLiteral{Values: ["a", "b"]} -> []any{"a", "b"}
-func (c *Visitor) extractFieldValue(expr ast.Expr) (any, error) {
-	savedFieldValue := c.currentFieldValue
-	c.currentFieldValue = nil
+func (v *Visitor) extractFieldValue(expr ast.Expr) (any, error) {
+	savedFieldValue := v.currentFieldValue
+	v.currentFieldValue = nil
 
-	err := c.visit(expr)
+	err := v.visit(expr)
 
 	// Restore state to prevent corruption in nested calls
-	extractedValue := c.currentFieldValue
-	c.currentFieldValue = savedFieldValue
+	extractedValue := v.currentFieldValue
+	v.currentFieldValue = savedFieldValue
 
 	if err != nil {
 		return nil, err
@@ -394,17 +394,17 @@ func (c *Visitor) extractFieldValue(expr ast.Expr) (any, error) {
 //   - Index values must be strings or numbers
 //   - Left side must be either another IndexExpr or an Ident
 //   - Base identifier must exist
-func (c *Visitor) buildIndexedFieldKey(expr *ast.IndexExpr) (string, error) {
+func (v *Visitor) buildIndexedFieldKey(expr *ast.IndexExpr) (string, error) {
 	var pathParts []string
 
 	currentExpr := expr
 	for {
 		// Extract the index value (the part in brackets)
-		if err := c.visitLiteral(currentExpr.Index); err != nil {
+		if err := v.visitLiteral(currentExpr.Index); err != nil {
 			return "", err
 		}
 
-		indexVal := c.currentFieldValue
+		indexVal := v.currentFieldValue
 		switch v := indexVal.(type) {
 		case string:
 			// String index: prepend to path parts
@@ -440,7 +440,7 @@ func (c *Visitor) buildIndexedFieldKey(expr *ast.IndexExpr) (string, error) {
 //   - Boolean literals -> bool (true/false)
 //
 // Returns an error if the literal type is not supported or if conversion fails.
-func (c *Visitor) literalToValue(lit *ast.Literal) (any, error) {
+func (v *Visitor) literalToValue(lit *ast.Literal) (any, error) {
 	if lit.IsString() {
 		return lit.AsString()
 	}

@@ -64,9 +64,9 @@ func PublishAll(platform *Platform) []chat.Tool {
 // [PublishAll]. For each deployed agent it walks goals, filters by
 // Export presence (and Export.Remote when remoteOnly), and packages
 // each into a [newDynamicAgentTool].
-func (platform *Platform) collectExportedTools(remoteOnly bool, start processStarter) []chat.Tool {
+func (p *Platform) collectExportedTools(remoteOnly bool, start processStarter) []chat.Tool {
 	var out []chat.Tool
-	for _, agentDef := range platform.Agents() {
+	for _, agentDef := range p.Agents() {
 		if agentDef == nil {
 			continue
 		}
@@ -77,7 +77,7 @@ func (platform *Platform) collectExportedTools(remoteOnly bool, start processSta
 			if remoteOnly && !goal.Export.Remote {
 				continue
 			}
-			out = append(out, newDynamicAgentTool(platform, agentDef, goal, start))
+			out = append(out, newDynamicAgentTool(p, agentDef, goal, start))
 		}
 	}
 	return out

@@ -23,11 +23,11 @@ func wireSessionErr(err error) error {
 // backing store has no cursor pagination yet — the full list comes back
 // as one page when no cursor is supplied; a cursor returns
 // capability_not_negotiated until the store grows real pagination.
-func (i *Server) ListSessions(ctx context.Context, q protocol.PageQuery) (*protocol.Page[protocol.Session], error) {
+func (s *Server) ListSessions(ctx context.Context, q protocol.PageQuery) (*protocol.Page[protocol.Session], error) {
 	if q.Cursor != "" {
 		return nil, notImpl("sessions.list (cursor)")
 	}
-	sessions, err := i.rt.Session().List(ctx)
+	sessions, err := s.rt.Session().List(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -39,43 +39,43 @@ func (i *Server) ListSessions(ctx context.Context, q protocol.PageQuery) (*proto
 		limit = len(sessions)
 	}
 	data := make([]protocol.Session, 0, limit)
-	for _, s := range sessions[:limit] {
-		data = append(data, i.sessionToWire(s))
+	for _, ses := range sessions[:limit] {
+		data = append(data, s.sessionToWire(ses))
 	}
 	// No NextCursor: the store returns a single page (cursor paging is
 	// gated off above). Emitting a cursor would point at an erroring call.
 	return &protocol.Page[protocol.Session]{Data: data}, nil
 }
 
-func (i *Server) GetSession(ctx context.Context, id string) (*protocol.Session, error) {
-	s, err := i.rt.Session().Get(ctx, id)
+func (s *Server) GetSession(ctx context.Context, id string) (*protocol.Session, error) {
+	ses, err := s.rt.Session().Get(ctx, id)
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
-	out := i.sessionToWire(s)
+	out := s.sessionToWire(ses)
 	return &out, nil
 }
 
-func (i *Server) CreateSession(ctx context.Context, in protocol.CreateSessionRequest) (*protocol.Session, error) {
+func (s *Server) CreateSession(ctx context.Context, in protocol.CreateSessionRequest) (*protocol.Session, error) {
 	// cwd defaults to the serve directory (ServerInfo.cwd) when the
 	// client omits it — cold-start zero friction (API.md §7.2 / §0.2).
 	cwd := in.Cwd
 	if cwd == "" {
-		cwd = i.serverInfo.Cwd
+		cwd = s.serverInfo.Cwd
 	}
-	s, err := i.rt.Session().Create(ctx, in.Title, cwd)
+	ses, err := s.rt.Session().Create(ctx, in.Title, cwd)
 	if err != nil {
 		return nil, err
 	}
-	out := i.sessionToWire(s)
+	out := s.sessionToWire(ses)
 	return &out, nil
 }
 
-func (i *Server) DeleteSession(ctx context.Context, id string) error {
+func (s *Server) DeleteSession(ctx context.Context, id string) error {
 	if id == "" {
 		return protocol.ErrSessionNotFound
 	}
-	if err := i.rt.Session().Delete(ctx, id); err != nil {
+	if err := s.rt.Session().Delete(ctx, id); err != nil {
 		return wireSessionErr(err)
 	}
 	return nil
@@ -86,7 +86,7 @@ func (i *Server) DeleteSession(ctx context.Context, id string) error {
 // capability_not_negotiated (features.relocate off). Nil fields are left alone;
 // the updated session is returned. The dispatch layer already rejects an empty
 // SessionID.
-func (i *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionRequest) (*protocol.Session, error) {
+func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionRequest) (*protocol.Session, error) {
 	if in.Cwd != nil {
 		return nil, notImpl("sessions.update (relocate)")
 	}
@@ -99,34 +99,34 @@ func (i *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionReq
 		if title == "" {
 			return nil, fmt.Errorf("%w: title must not be empty", protocol.ErrInvalidParams)
 		}
-		if err := i.rt.Session().Rename(ctx, in.SessionID, title); err != nil {
+		if err := s.rt.Session().Rename(ctx, in.SessionID, title); err != nil {
 			return nil, wireSessionErr(err)
 		}
 	}
 	if in.Model != nil {
-		if err := i.rt.Session().SetModel(ctx, in.SessionID, *in.Model); err != nil {
+		if err := s.rt.Session().SetModel(ctx, in.SessionID, *in.Model); err != nil {
 			return nil, wireSessionErr(err)
 		}
 	}
 
-	s, err := i.rt.Session().Get(ctx, in.SessionID)
+	ses, err := s.rt.Session().Get(ctx, in.SessionID)
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
-	out := i.sessionToWire(s)
+	out := s.sessionToWire(ses)
 	return &out, nil
 }
 
 // ForkSession — fork at an item boundary depends on the checkpoint /
 // item-id model, which isn't reconciled with the engine's history yet.
 // Gated off (features.checkpoints).
-func (i *Server) ForkSession(_ context.Context, _ protocol.ForkSessionRequest) (*protocol.Session, error) {
+func (s *Server) ForkSession(_ context.Context, _ protocol.ForkSessionRequest) (*protocol.Session, error) {
 	return nil, notImpl("sessions.fork")
 }
 
 // ExportSession — needs a transport file channel to serve the artifact.
 // Gated off (features.sessionExport).
-func (i *Server) ExportSession(_ context.Context, _ protocol.ExportSessionRequest) (*protocol.ExportSessionResponse, error) {
+func (s *Server) ExportSession(_ context.Context, _ protocol.ExportSessionRequest) (*protocol.ExportSessionResponse, error) {
 	return nil, notImpl("sessions.export")
 }
 
@@ -136,11 +136,11 @@ func (i *Server) ExportSession(_ context.Context, _ protocol.ExportSessionReques
 // Model falls back to the runtime default when the session never explicitly
 // selected one, so the wire always carries a real model name (the frontend
 // resolves the assistant's displayName from it).
-func (i *Server) sessionToWire(s session.Session) protocol.Session {
+func (s *Server) sessionToWire(ses session.Session) protocol.Session {
 	var meta map[string]any
-	if len(s.Metadata) > 0 {
-		meta = make(map[string]any, len(s.Metadata))
-		for k, v := range s.Metadata {
+	if len(ses.Metadata) > 0 {
+		meta = make(map[string]any, len(ses.Metadata))
+		for k, v := range ses.Metadata {
 			meta[k] = v
 		}
 	}
@@ -148,13 +148,13 @@ func (i *Server) sessionToWire(s session.Session) protocol.Session {
 		meta = map[string]any{} // Session.metadata is an object, never null (API.md §4.1)
 	}
 	return protocol.Session{
-		ID:        s.ID,
-		Title:     s.Title,
-		Cwd:       s.Cwd,
-		Model:     s.EffectiveModel(i.rt.DefaultModel()),
+		ID:        ses.ID,
+		Title:     ses.Title,
+		Cwd:       ses.Cwd,
+		Model:     ses.EffectiveModel(s.rt.DefaultModel()),
 		Status:    protocol.SessionStatusIdle,
-		CreatedAt: s.StartedAt,
-		UpdatedAt: s.UpdatedAt,
+		CreatedAt: ses.StartedAt,
+		UpdatedAt: ses.UpdatedAt,
 		Metadata:  meta,
 	}
 }

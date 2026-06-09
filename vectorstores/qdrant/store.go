@@ -128,12 +128,12 @@ func NewStore(config StoreConfig) (*Store, error) {
 	return store, nil
 }
 
-func (v *Store) initialize(ctx context.Context) error {
-	if !v.initializeSchema {
+func (s *Store) initialize(ctx context.Context) error {
+	if !s.initializeSchema {
 		return nil
 	}
 
-	exists, err := v.client.CollectionExists(ctx, v.collectionName)
+	exists, err := s.client.CollectionExists(ctx, s.collectionName)
 	if err != nil {
 		return fmt.Errorf("qdrant: failed to check collection existence: %w", err)
 	}
@@ -142,38 +142,38 @@ func (v *Store) initialize(ctx context.Context) error {
 		return nil
 	}
 
-	dimensions := v.embeddingModel.Dimensions(ctx)
+	dimensions := s.embeddingModel.Dimensions(ctx)
 	if dimensions <= 0 {
 		return errors.New("qdrant: dimensions must be greater than zero")
 	}
 
-	err = v.client.CreateCollection(ctx, &qdrant.CreateCollection{
-		CollectionName: v.collectionName,
+	err = s.client.CreateCollection(ctx, &qdrant.CreateCollection{
+		CollectionName: s.collectionName,
 		VectorsConfig: qdrant.NewVectorsConfig(&qdrant.VectorParams{
 			Size:     uint64(dimensions),
 			Distance: qdrant.Distance_Cosine,
 		}),
 	})
 	if err != nil {
-		return fmt.Errorf("qdrant: failed to create collection %s: %w", v.collectionName, err)
+		return fmt.Errorf("qdrant: failed to create collection %s: %w", s.collectionName, err)
 	}
 
 	return nil
 }
 
-func (v *Store) buildUpsertPoints(ctx context.Context, req *vectorstore.CreateRequest) (*qdrant.UpsertPoints, error) {
+func (s *Store) buildUpsertPoints(ctx context.Context, req *vectorstore.CreateRequest) (*qdrant.UpsertPoints, error) {
 	upsertPoints := &qdrant.UpsertPoints{
-		CollectionName: v.collectionName,
+		CollectionName: s.collectionName,
 		Wait:           new(true),
 	}
 
-	batchedDocs, err := v.documentBatcher.Batch(ctx, req.Documents)
+	batchedDocs, err := s.documentBatcher.Batch(ctx, req.Documents)
 	if err != nil {
 		return nil, fmt.Errorf("qdrant: failed to batch documents: %w", err)
 	}
 
 	for _, docs := range batchedDocs {
-		vectors, _, err := v.
+		vectors, _, err := s.
 			embeddingClient.
 			EmbedWithDocuments(docs).
 			Call().
@@ -183,7 +183,7 @@ func (v *Store) buildUpsertPoints(ctx context.Context, req *vectorstore.CreateRe
 		}
 
 		for i, doc := range docs {
-			point, err := v.buildPointStruct(doc, vectors[i])
+			point, err := s.buildPointStruct(doc, vectors[i])
 			if err != nil {
 				return nil, fmt.Errorf("qdrant: failed to build point for document %s: %w", doc.ID, err)
 			}
@@ -195,7 +195,7 @@ func (v *Store) buildUpsertPoints(ctx context.Context, req *vectorstore.CreateRe
 	return upsertPoints, nil
 }
 
-func (v *Store) buildPointStruct(doc *document.Document, vector []float64) (*qdrant.PointStruct, error) {
+func (s *Store) buildPointStruct(doc *document.Document, vector []float64) (*qdrant.PointStruct, error) {
 	id := uuid.NewString()
 
 	point := &qdrant.PointStruct{
@@ -209,7 +209,7 @@ func (v *Store) buildPointStruct(doc *document.Document, vector []float64) (*qdr
 	}
 	point.Payload = payload
 
-	if v.storeDocumentContent {
+	if s.storeDocumentContent {
 		contentValue, err := qdrant.NewValue(doc.Text)
 		if err != nil {
 			return nil, fmt.Errorf("qdrant: failed to create content value: %w", err)
@@ -220,7 +220,7 @@ func (v *Store) buildPointStruct(doc *document.Document, vector []float64) (*qdr
 	return point, nil
 }
 
-func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
+func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
 	if err = req.Validate(); err != nil {
 		return fmt.Errorf("qdrant: invalid create request: %w", err)
 	}
@@ -229,23 +229,23 @@ func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 	defer func() { tracing.Finish(span, err) }()
 
 	var upsertPoints *qdrant.UpsertPoints
-	upsertPoints, err = v.buildUpsertPoints(ctx, req)
+	upsertPoints, err = s.buildUpsertPoints(ctx, req)
 	if err != nil {
 		return err
 	}
 
-	_, err = v.client.Upsert(ctx, upsertPoints)
+	_, err = s.client.Upsert(ctx, upsertPoints)
 	if err != nil {
 		return fmt.Errorf("qdrant: failed to upsert %d points to collection %s: %w",
-			len(upsertPoints.Points), v.collectionName, err)
+			len(upsertPoints.Points), s.collectionName, err)
 	}
 
 	return nil
 }
 
-func (v *Store) buildQueryPoints(ctx context.Context, req *vectorstore.RetrievalRequest) (*qdrant.QueryPoints, error) {
+func (s *Store) buildQueryPoints(ctx context.Context, req *vectorstore.RetrievalRequest) (*qdrant.QueryPoints, error) {
 	queryPoints := &qdrant.QueryPoints{
-		CollectionName: v.collectionName,
+		CollectionName: s.collectionName,
 		ScoreThreshold: new(float32(req.MinScore)),
 		Limit:          new(uint64(req.TopK)),
 		WithPayload:    qdrant.NewWithPayload(true),
@@ -259,7 +259,7 @@ func (v *Store) buildQueryPoints(ctx context.Context, req *vectorstore.Retrieval
 		queryPoints.Filter = filter
 	}
 
-	vector, _, err := v.embeddingClient.
+	vector, _, err := s.embeddingClient.
 		EmbedWithText(req.Query).
 		Call().
 		Embedding(ctx)
@@ -272,7 +272,7 @@ func (v *Store) buildQueryPoints(ctx context.Context, req *vectorstore.Retrieval
 	return queryPoints, nil
 }
 
-func (v *Store) convertQdrantValue(value *qdrant.Value) any {
+func (s *Store) convertQdrantValue(value *qdrant.Value) any {
 	if value == nil {
 		return nil
 	}
@@ -289,41 +289,41 @@ func (v *Store) convertQdrantValue(value *qdrant.Value) any {
 	case *qdrant.Value_NullValue:
 		return nil
 	case *qdrant.Value_StructValue:
-		return v.convertQdrantStruct(kind.StructValue)
+		return s.convertQdrantStruct(kind.StructValue)
 	case *qdrant.Value_ListValue:
-		return v.convertQdrantList(kind.ListValue)
+		return s.convertQdrantList(kind.ListValue)
 	default:
 		return nil
 	}
 }
 
-func (v *Store) convertQdrantStruct(s *qdrant.Struct) map[string]any {
-	if s == nil || s.Fields == nil {
+func (s *Store) convertQdrantStruct(qs *qdrant.Struct) map[string]any {
+	if qs == nil || qs.Fields == nil {
 		return nil
 	}
 
-	result := make(map[string]any, len(s.Fields))
-	for key, val := range s.Fields {
-		result[key] = v.convertQdrantValue(val)
+	result := make(map[string]any, len(qs.Fields))
+	for key, val := range qs.Fields {
+		result[key] = s.convertQdrantValue(val)
 	}
 
 	return result
 }
 
-func (v *Store) convertQdrantList(l *qdrant.ListValue) []any {
+func (s *Store) convertQdrantList(l *qdrant.ListValue) []any {
 	if l == nil || len(l.Values) == 0 {
 		return nil
 	}
 
 	result := make([]any, len(l.Values))
 	for i, val := range l.Values {
-		result[i] = v.convertQdrantValue(val)
+		result[i] = s.convertQdrantValue(val)
 	}
 
 	return result
 }
 
-func (v *Store) convertPayloadToMetadata(payload map[string]*qdrant.Value) map[string]any {
+func (s *Store) convertPayloadToMetadata(payload map[string]*qdrant.Value) map[string]any {
 	if payload == nil {
 		return nil
 	}
@@ -333,13 +333,13 @@ func (v *Store) convertPayloadToMetadata(payload map[string]*qdrant.Value) map[s
 		if value == nil {
 			continue
 		}
-		metadata[key] = v.convertQdrantValue(value)
+		metadata[key] = s.convertQdrantValue(value)
 	}
 
 	return metadata
 }
 
-func (v *Store) buildDocumentsFromPoints(scoredPoints []*qdrant.ScoredPoint) ([]*document.Document, error) {
+func (s *Store) buildDocumentsFromPoints(scoredPoints []*qdrant.ScoredPoint) ([]*document.Document, error) {
 	docs := make([]*document.Document, 0, len(scoredPoints))
 
 	for _, point := range scoredPoints {
@@ -359,7 +359,7 @@ func (v *Store) buildDocumentsFromPoints(scoredPoints []*qdrant.ScoredPoint) ([]
 
 			delete(payload, payloadDocumentContentKey)
 
-			doc.Metadata = v.convertPayloadToMetadata(payload)
+			doc.Metadata = s.convertPayloadToMetadata(payload)
 		}
 
 		docs = append(docs, doc)
@@ -368,7 +368,7 @@ func (v *Store) buildDocumentsFromPoints(scoredPoints []*qdrant.ScoredPoint) ([]
 	return docs, nil
 }
 
-func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("qdrant: invalid retrieval request: %w", err)
 	}
@@ -377,18 +377,18 @@ func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
 
 	var queryPoints *qdrant.QueryPoints
-	queryPoints, err = v.buildQueryPoints(ctx, req)
+	queryPoints, err = s.buildQueryPoints(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
 	var scoredPoints []*qdrant.ScoredPoint
-	scoredPoints, err = v.client.Query(ctx, queryPoints)
+	scoredPoints, err = s.client.Query(ctx, queryPoints)
 	if err != nil {
-		return nil, fmt.Errorf("qdrant: failed to query collection %s: %w", v.collectionName, err)
+		return nil, fmt.Errorf("qdrant: failed to query collection %s: %w", s.collectionName, err)
 	}
 
-	docs, err = v.buildDocumentsFromPoints(scoredPoints)
+	docs, err = s.buildDocumentsFromPoints(scoredPoints)
 	if err != nil {
 		return nil, fmt.Errorf("qdrant: failed to build documents from query results: %w", err)
 	}
@@ -396,7 +396,7 @@ func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	return docs, nil
 }
 
-func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
+func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
 	if err = req.Validate(); err != nil {
 		return fmt.Errorf("qdrant: invalid delete request: %w", err)
 	}
@@ -410,12 +410,12 @@ func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 		return fmt.Errorf("qdrant: failed to convert filter: %w", err)
 	}
 
-	_, err = v.client.Delete(ctx, &qdrant.DeletePoints{
-		CollectionName: v.collectionName,
+	_, err = s.client.Delete(ctx, &qdrant.DeletePoints{
+		CollectionName: s.collectionName,
 		Points:         qdrant.NewPointsSelectorFilter(filter),
 	})
 	if err != nil {
-		return fmt.Errorf("qdrant: failed to delete points from collection %s: %w", v.collectionName, err)
+		return fmt.Errorf("qdrant: failed to delete points from collection %s: %w", s.collectionName, err)
 	}
 
 	return nil
@@ -427,7 +427,7 @@ func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 // out), so the same qdrant.NewID conversion maps an id back to a *PointId.
 // An empty slice is a no-op; unknown ids are silently ignored (idempotent).
 // Implements [vectorstore.IDDeleter].
-func (v *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
 	if len(ids) == 0 {
 		return nil
 	}
@@ -440,24 +440,24 @@ func (v *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
 		pointIDs[i] = qdrant.NewID(id)
 	}
 
-	_, err = v.client.Delete(ctx, &qdrant.DeletePoints{
-		CollectionName: v.collectionName,
+	_, err = s.client.Delete(ctx, &qdrant.DeletePoints{
+		CollectionName: s.collectionName,
 		Points:         qdrant.NewPointsSelector(pointIDs...),
 	})
 	if err != nil {
-		return fmt.Errorf("qdrant: failed to delete points by ids from collection %s: %w", v.collectionName, err)
+		return fmt.Errorf("qdrant: failed to delete points by ids from collection %s: %w", s.collectionName, err)
 	}
 
 	return nil
 }
 
-func (v *Store) Metadata() vectorstore.StoreMetadata {
+func (s *Store) Metadata() vectorstore.StoreMetadata {
 	return vectorstore.StoreMetadata{
-		NativeClient: v.client,
+		NativeClient: s.client,
 		Provider:     Provider,
 	}
 }
 
-func (v *Store) Close() error {
-	return v.client.Close()
+func (s *Store) Close() error {
+	return s.client.Close()
 }

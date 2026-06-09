@@ -137,39 +137,39 @@ func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
 }
 
 // applyOverride mutates the receiver in place with the non-zero fields of src.
-func (dst *Options) applyOverride(src *Options) {
+func (o *Options) applyOverride(src *Options) {
 	if src.NegativePrompt != "" {
-		dst.NegativePrompt = src.NegativePrompt
+		o.NegativePrompt = src.NegativePrompt
 	}
 	if src.Model != "" {
-		dst.Model = src.Model
+		o.Model = src.Model
 	}
 	if src.Width != nil {
-		dst.Width = src.Width
+		o.Width = src.Width
 	}
 	if src.Height != nil {
-		dst.Height = src.Height
+		o.Height = src.Height
 	}
 	if src.Style != "" {
-		dst.Style = src.Style
+		o.Style = src.Style
 	}
 	if src.Quality != "" {
-		dst.Quality = src.Quality
+		o.Quality = src.Quality
 	}
 	if src.Seed != nil {
-		dst.Seed = src.Seed
+		o.Seed = src.Seed
 	}
 	if src.OutputFormat != nil {
-		dst.OutputFormat = src.OutputFormat
+		o.OutputFormat = src.OutputFormat
 	}
 	if src.ResponseFormat.Valid() {
-		dst.ResponseFormat = src.ResponseFormat
+		o.ResponseFormat = src.ResponseFormat
 	}
 	if len(src.Extra) > 0 {
-		if dst.Extra == nil {
-			dst.Extra = make(map[string]any, len(src.Extra))
+		if o.Extra == nil {
+			o.Extra = make(map[string]any, len(src.Extra))
 		}
-		maps.Copy(dst.Extra, src.Extra)
+		maps.Copy(o.Extra, src.Extra)
 	}
 }
 

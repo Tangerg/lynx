@@ -120,21 +120,21 @@ func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
 }
 
 // applyOverride mutates the receiver in place with the non-zero fields of src.
-func (dst *Options) applyOverride(src *Options) {
+func (o *Options) applyOverride(src *Options) {
 	if src.Model != "" {
-		dst.Model = src.Model
+		o.Model = src.Model
 	}
 	if src.EncodingFormat.Valid() {
-		dst.EncodingFormat = src.EncodingFormat
+		o.EncodingFormat = src.EncodingFormat
 	}
 	if src.Dimensions != nil {
-		dst.Dimensions = src.Dimensions
+		o.Dimensions = src.Dimensions
 	}
 	if len(src.Extra) > 0 {
-		if dst.Extra == nil {
-			dst.Extra = make(map[string]any, len(src.Extra))
+		if o.Extra == nil {
+			o.Extra = make(map[string]any, len(src.Extra))
 		}
-		maps.Copy(dst.Extra, src.Extra)
+		maps.Copy(o.Extra, src.Extra)
 	}
 }
 

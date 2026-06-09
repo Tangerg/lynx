@@ -17,8 +17,8 @@ import (
 // has an adapter for), each annotated from the registry: enabled ⇔ a masked
 // key is present (API.md §4.9 / §7.6). The per-provider model list isn't
 // here — it unlocks via models.list.
-func (i *Server) ListProviders(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.Provider], error) {
-	configured, err := i.rt.Providers().List(ctx)
+func (s *Server) ListProviders(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.Provider], error) {
+	configured, err := s.rt.Providers().List(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -49,18 +49,18 @@ func providerToWire(id string, entry provider.Provider) protocol.Provider {
 // ConfigureProvider upserts a provider's credentials (key + base URL) into
 // the registry and returns the masked result (API.md §7.6). The provider
 // must be one Lyra supports.
-func (i *Server) ConfigureProvider(ctx context.Context, in protocol.ConfigureProviderRequest) (*protocol.Provider, error) {
+func (s *Server) ConfigureProvider(ctx context.Context, in protocol.ConfigureProviderRequest) (*protocol.Provider, error) {
 	if !isSupportedProvider(in.Provider) {
 		return nil, protocol.ErrInvalidParams
 	}
-	if err := i.rt.Providers().Configure(ctx, provider.Provider{
+	if err := s.rt.Providers().Configure(ctx, provider.Provider{
 		ID:      in.Provider,
 		APIKey:  in.APIKey,
 		BaseURL: in.BaseURL,
 	}); err != nil {
 		return nil, err
 	}
-	entry, _, err := i.rt.Providers().Get(ctx, in.Provider)
+	entry, _, err := s.rt.Providers().Get(ctx, in.Provider)
 	if err != nil {
 		return nil, err
 	}
@@ -72,8 +72,8 @@ func (i *Server) ConfigureProvider(ctx context.Context, in protocol.ConfigurePro
 // completion to validate its key + endpoint (API.md §7.6). Returns
 // {ok:false, error} on failure rather than erroring the RPC, so the UI can
 // show "test failed: <reason>" inline.
-func (i *Server) TestProvider(ctx context.Context, providerID string) (*protocol.ProviderTestResult, error) {
-	entry, ok, err := i.rt.Providers().Get(ctx, providerID)
+func (s *Server) TestProvider(ctx context.Context, providerID string) (*protocol.ProviderTestResult, error) {
+	entry, ok, err := s.rt.Providers().Get(ctx, providerID)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func (i *Server) TestProvider(ctx context.Context, providerID string) (*protocol
 	}
 	// The build-client + ping lives on the runtime, which owns client
 	// construction (clientResolver); this layer just maps the verdict to wire.
-	if err := i.rt.ProbeProvider(ctx, entry); err != nil {
+	if err := s.rt.ProbeProvider(ctx, entry); err != nil {
 		return &protocol.ProviderTestResult{OK: false, Error: &protocol.ProblemData{
 			Type: "provider_test_failed", Detail: err.Error(),
 		}}, nil
@@ -95,7 +95,7 @@ func (i *Server) TestProvider(ctx context.Context, providerID string) (*protocol
 // ListModels enumerates the models a provider offers, from the embedded
 // catalog with full metadata (context window, capabilities, pricing). Served
 // straight from the static catalog — no key required (API.md §7.6).
-func (i *Server) ListModels(_ context.Context, in protocol.ListModelsRequest) (*protocol.Page[protocol.Model], error) {
+func (s *Server) ListModels(_ context.Context, in protocol.ListModelsRequest) (*protocol.Page[protocol.Model], error) {
 	models := catalog.Models(in.Provider)
 	out := make([]protocol.Model, 0, len(models))
 	for _, m := range models {
@@ -135,8 +135,8 @@ func isSupportedProvider(id string) bool {
 
 // ListTools surfaces every tool the engine registered — built-in coding
 // tools plus any MCP-server tools dialed at boot (API.md §7.6).
-func (i *Server) ListTools(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.ToolSpec], error) {
-	internal, err := i.rt.Tool().List(ctx)
+func (s *Server) ListTools(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.ToolSpec], error) {
+	internal, err := s.rt.Tool().List(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -155,12 +155,12 @@ func (i *Server) ListTools(ctx context.Context, _ protocol.PageQuery) (*protocol
 // InvokeTool runs one tool directly, outside a run (diagnostics /
 // client-driven workflows, API.md §7.6). Backed by tool.Service.Invoke,
 // whose result is the tool's raw string output.
-func (i *Server) InvokeTool(ctx context.Context, in protocol.InvokeToolRequest) (any, error) {
+func (s *Server) InvokeTool(ctx context.Context, in protocol.InvokeToolRequest) (any, error) {
 	args, err := json.Marshal(in.Arguments)
 	if err != nil {
 		return nil, err
 	}
-	return i.rt.Tool().Invoke(ctx, in.Name, string(args))
+	return s.rt.Tool().Invoke(ctx, in.Name, string(args))
 }
 
 // parseSchema decodes a tool's JSON Schema string into a structured

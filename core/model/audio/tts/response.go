@@ -8,26 +8,26 @@ type ResultMetadata struct {
 	Extra map[string]any `json:"extra,omitzero"`
 }
 
-func (r *ResultMetadata) ensureExtra() {
-	if r.Extra == nil {
-		r.Extra = make(map[string]any)
+func (m *ResultMetadata) ensureExtra() {
+	if m.Extra == nil {
+		m.Extra = make(map[string]any)
 	}
 }
 
 // Get returns the Extra value for key plus an existence flag. See
 // [chat.Options.Get] for the concurrency contract.
-func (r *ResultMetadata) Get(key string) (any, bool) {
-	if r == nil || r.Extra == nil {
+func (m *ResultMetadata) Get(key string) (any, bool) {
+	if m == nil || m.Extra == nil {
 		return nil, false
 	}
-	value, exists := r.Extra[key]
+	value, exists := m.Extra[key]
 	return value, exists
 }
 
 // Set stores value under key in Extra.
-func (r *ResultMetadata) Set(key string, value any) {
-	r.ensureExtra()
-	r.Extra[key] = value
+func (m *ResultMetadata) Set(key string, value any) {
+	m.ensureExtra()
+	m.Extra[key] = value
 }
 
 // Result is one chunk of generated audio. For synchronous calls the
@@ -66,26 +66,26 @@ type ResponseMetadata struct {
 	Extra map[string]any `json:"extra,omitzero"`
 }
 
-func (r *ResponseMetadata) ensureExtra() {
-	if r.Extra == nil {
-		r.Extra = make(map[string]any)
+func (m *ResponseMetadata) ensureExtra() {
+	if m.Extra == nil {
+		m.Extra = make(map[string]any)
 	}
 }
 
 // Get returns the Extra value for key plus an existence flag. See
 // [chat.Options.Get] for the concurrency contract.
-func (r *ResponseMetadata) Get(key string) (any, bool) {
-	if r == nil || r.Extra == nil {
+func (m *ResponseMetadata) Get(key string) (any, bool) {
+	if m == nil || m.Extra == nil {
 		return nil, false
 	}
-	value, exists := r.Extra[key]
+	value, exists := m.Extra[key]
 	return value, exists
 }
 
 // Set stores value under key in Extra.
-func (r *ResponseMetadata) Set(key string, value any) {
-	r.ensureExtra()
-	r.Extra[key] = value
+func (m *ResponseMetadata) Set(key string, value any) {
+	m.ensureExtra()
+	m.Extra[key] = value
 }
 
 // Response is one TTS call's audio output plus shared metadata. For

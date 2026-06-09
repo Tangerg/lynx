@@ -23,11 +23,11 @@ import (
 // Items the runtime streamed (same ids, runId, text, createdAt). When no
 // history store is configured it falls back to reconstructing items from
 // chat-memory messages — a flat list with no runId/run tree.
-func (i *Server) ListItems(ctx context.Context, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
-	if store := i.rt.History(); store != nil {
-		return i.listItemsFromHistory(ctx, store, in)
+func (s *Server) ListItems(ctx context.Context, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
+	if store := s.rt.History(); store != nil {
+		return s.listItemsFromHistory(ctx, store, in)
 	}
-	return i.listItemsFromMessages(ctx, in)
+	return s.listItemsFromMessages(ctx, in)
 }
 
 // defaultItemPageLimit caps a single items.list page when the client gives
@@ -61,7 +61,7 @@ func pageItems(items []protocol.Item, cursor string, limit int) ([]protocol.Item
 }
 
 // listItemsFromHistory serves items.list from the durable Item store.
-func (i *Server) listItemsFromHistory(ctx context.Context, store history.Store, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
+func (s *Server) listItemsFromHistory(ctx context.Context, store history.Store, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
 	hItems, hRuns, err := store.List(ctx, in.SessionID)
 	if err != nil {
 		return nil, err
@@ -80,7 +80,7 @@ func (i *Server) listItemsFromHistory(ctx context.Context, store history.Store, 
 		if err := json.Unmarshal(hr.Blob, &r); err != nil {
 			continue
 		}
-		i.reconcileLostRun(&r)
+		s.reconcileLostRun(&r)
 		runs = append(runs, r)
 	}
 
@@ -104,8 +104,8 @@ func (i *Server) listItemsFromHistory(ctx context.Context, store history.Store, 
 // terminalized (the table entry is set before the first persist and cleared
 // only after the terminal one — a genuinely live run is always present). No-op
 // for already-terminal runs.
-func (i *Server) reconcileLostRun(r *protocol.RunRef) {
-	if r.Status != protocol.RunStatusRunning || i.isRunLive(r.ID) {
+func (s *Server) reconcileLostRun(r *protocol.RunRef) {
+	if r.Status != protocol.RunStatusRunning || s.isRunLive(r.ID) {
 		return
 	}
 	r.Status = protocol.RunStatusFinished
@@ -119,18 +119,18 @@ func (i *Server) reconcileLostRun(r *protocol.RunRef) {
 }
 
 // isRunLive reports whether a run is currently being pumped in this process.
-func (i *Server) isRunLive(runID string) bool {
-	i.runMu.Lock()
-	defer i.runMu.Unlock()
-	_, ok := i.runs[runID]
+func (s *Server) isRunLive(runID string) bool {
+	s.runMu.Lock()
+	defer s.runMu.Unlock()
+	_, ok := s.runs[runID]
 	return ok
 }
 
 // listItemsFromMessages is the fallback when no Item-history store is
 // configured: reconstruct items from chat-memory messages. No runId / no
 // run tree (Runs is empty) — clients render a flat item list.
-func (i *Server) listItemsFromMessages(ctx context.Context, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
-	msgs, err := i.rt.ReadHistory(ctx, in.SessionID)
+func (s *Server) listItemsFromMessages(ctx context.Context, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
+	msgs, err := s.rt.ReadHistory(ctx, in.SessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +145,7 @@ func (i *Server) listItemsFromMessages(ctx context.Context, in protocol.ListItem
 // EditItem — editing an item starts a continuation run (checkpoint
 // semantics), which the engine doesn't support yet. Gated off
 // (features.checkpoints).
-func (i *Server) EditItem(_ context.Context, _ protocol.EditItemRequest) (*protocol.EditItemResponse, error) {
+func (s *Server) EditItem(_ context.Context, _ protocol.EditItemRequest) (*protocol.EditItemResponse, error) {
 	return nil, notImpl("items.edit")
 }
 

@@ -22,9 +22,9 @@ type Request struct {
 
 // documentsText concatenates non-empty document texts with newline
 // separators — fed into evaluator prompts as the "context" variable.
-func (req *Request) documentsText() string {
+func (r *Request) documentsText() string {
 	var texts []string
-	for _, doc := range req.Documents {
+	for _, doc := range r.Documents {
 		if doc.Text != "" {
 			texts = append(texts, doc.Text)
 		}
