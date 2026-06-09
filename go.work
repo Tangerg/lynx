@@ -1,6 +1,7 @@
 go 1.26.3
 
 use (
+	./a2a
 	./agent
 	./chatmemory
 	./core
