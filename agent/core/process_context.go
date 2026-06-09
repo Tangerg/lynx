@@ -208,15 +208,12 @@ func (pc *ProcessContext) Chat() *chat.ClientRequest {
 
 // ChatWithActionTools is the "ask the LLM with my action's tools"
 // shortcut: a [chat.ClientRequest] pre-loaded with the action's
-// resolved tools and [tool.NewMiddleware]. When the action
-// declares no ToolGroups, returns the bare client clone (same shape
-// as [Chat]).
+// resolved tools. Middleware (tool loop, memory, etc.) comes from
+// [Guardrails] — configured by the caller via [ProcessOptions].
 //
-// Platform-level [Guardrails] (which carry the memory middleware) are
-// layered INSIDE the tool middleware, directly above the model: the tool
-// loop drives the rounds and hands each round's new messages down to the
-// memory layer, which owns conversation load/splice/save. See
-// [ProcessContext.buildChatRequest].
+// When the action declares no ToolGroups, the request still carries
+// the configured guardrails (tool loop is in the guardrails chain,
+// not constructed here).
 //
 // Errors when no ChatClient is configured or tool resolution fails.
 func (pc *ProcessContext) ChatWithActionTools(ctx context.Context) (*chat.ClientRequest, error) {
@@ -230,18 +227,9 @@ func (pc *ProcessContext) ChatWithActionTools(ctx context.Context) (*chat.Client
 	return pc.buildChatRequest(tools), nil
 }
 
-// buildChatRequest composes the per-action chat request: the tool
-// middleware OUTERMOST, platform guardrails (which carry the memory
-// middleware) INNERMOST, directly above the model. Callers pre-resolve
-// tools (nil means "no tool middleware"); the rest of the wiring
-// (chatClient existence, session params, middleware order) lives in
-// one place so [Chat] and [ChatWithActionTools] stay aligned.
-//
-// The order matters: the tool loop drives the rounds and hands each
-// round's new messages (the user turn, then each tool result) down to the
-// memory middleware, which loads history, splices it in, and persists. The
-// loop carries only the new tool message downstream — the memory layer is
-// the single owner of the conversation, so the two are fully decoupled.
+// buildChatRequest composes the per-action chat request. Middleware
+// (tool loop, memory, etc.) comes from [Guardrails] — configured by
+// the caller via [ProcessOptions.Guardrails] or the platform default.
 func (pc *ProcessContext) buildChatRequest(tools []AgentTool) *chat.ClientRequest {
 	req := pc.chatClient.Chat()
 

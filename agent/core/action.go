@@ -36,7 +36,6 @@ type ActionMetadata struct {
 	QoS           ActionQoS
 	ToolGroups    []ToolGroupRequirement
 
-	// ToolLoop tunes the chat tool-calling loop built for this action
 	// Cost defaults to [Static](1.0) so the planner doesn't pick
 	// "free" actions over ones with real work.
 	Cost CostFunc

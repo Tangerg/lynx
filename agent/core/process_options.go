@@ -26,12 +26,10 @@ type ProcessOptions struct {
 	ProcessType ProcessType
 
 	// Session optionally binds this process to a multi-turn
-	// conversation. When set, [ProcessContext.Chat] /
-	// [ProcessContext.ChatWithActionTools] stamps the session id
-	// onto each chat request as the chat-memory conversation key
-	// — so the memory middleware (installed by the caller on the
-	// platform's chat client) auto-loads + persists history keyed
-	// by [Session.ID].
+	// conversation. The caller passes the session id to the memory
+	// middleware constructor (via [Guardrails]), so the middleware
+	// loads + persists history keyed by [Session.ID] without
+	// reading it from request params.
 	//
 	// Typically set via [Platform.RunInSession]; the runtime fills
 	// the field and refreshes [Session.UpdatedAt] on every dispatch.
