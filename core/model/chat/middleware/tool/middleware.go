@@ -152,14 +152,14 @@ func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next ch
 
 	support.register(req.Tools...)
 
-		// ParkStore resume: load the parked round and inject the
-		// conversation tail so [parseResumePoint] picks it up.
-		if parkID := parkID(req); parkID != "" && m.parkStore != nil {
-			if state, _ := m.parkStore.Read(ctx, parkID); state != nil {
-				req = injectParkTail(req, state)
-				_ = m.parkStore.Clear(ctx, parkID) // consumed
-			}
+	// ParkStore resume: load parked round, inject tail so
+	// [parseResumePoint] detects and resumes at the pending call.
+	if parkID := parkID(req); parkID != "" && m.parkStore != nil {
+		if state, _ := m.parkStore.Read(ctx, parkID); state != nil {
+			req = injectParkTail(req, state)
+			_ = m.parkStore.Clear(ctx, parkID)
 		}
+	}
 
 	// HITL resume: when the conversation tail is an assistant turn whose tool
 	// calls aren't fully answered (a prior round halted for human input and its
@@ -247,17 +247,17 @@ func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next 
 			return
 		}
 
-		support.register(req.Tools...)
+	support.register(req.Tools...)
 
-		// ParkStore resume: load the parked round.
-		if parkID := parkID(req); parkID != "" && m.parkStore != nil {
-			if state, _ := m.parkStore.Read(ctx, parkID); state != nil {
-				req = injectParkTail(req, state)
-				_ = m.parkStore.Clear(ctx, parkID)
-			}
+	// ParkStore resume: load parked round.
+	if parkID := parkID(req); parkID != "" && m.parkStore != nil {
+		if state, _ := m.parkStore.Read(ctx, parkID); state != nil {
+			req = injectParkTail(req, state)
+			_ = m.parkStore.Clear(ctx, parkID)
 		}
+	}
 
-		// HITL resume: continue from the conversation tail's unanswered tool
+	// HITL resume: continue from the conversation tail's unanswered tool
 		// calls (a prior round halted, its tail fed back) — execute only the
 		// pending calls, no model re-call. See executeCall.
 		if point, ok := parseResumePoint(req.Messages); ok {
