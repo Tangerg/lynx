@@ -144,7 +144,7 @@ func NewStore(cfg StoreConfig) (*Store, error) {
 	return store, nil
 }
 
-func (v *Store) createSchema(dim int64) *entity.Schema {
+func (s *Store) createSchema(dim int64) *entity.Schema {
 	return entity.NewSchema().
 		WithField(entity.NewField().
 			WithName(fieldID).
@@ -164,49 +164,49 @@ func (v *Store) createSchema(dim int64) *entity.Schema {
 			WithDataType(entity.FieldTypeJSON))
 }
 
-func (v *Store) initialize(ctx context.Context) error {
-	if !v.initializeSchema {
+func (s *Store) initialize(ctx context.Context) error {
+	if !s.initializeSchema {
 		return nil
 	}
 
-	exists, err := v.client.HasCollection(ctx, milvusclient.NewHasCollectionOption(v.collectionName))
+	exists, err := s.client.HasCollection(ctx, milvusclient.NewHasCollectionOption(s.collectionName))
 	if err != nil {
 		return fmt.Errorf("milvus: failed to check collection existence: %w", err)
 	}
 
 	if !exists {
-		dim := v.embeddingModel.Dimensions(ctx)
+		dim := s.embeddingModel.Dimensions(ctx)
 		if dim <= 0 {
 			return errors.New("milvus: dimensions must be greater than zero")
 		}
 
-		schema := v.createSchema(dim)
-		if err = v.client.CreateCollection(ctx, milvusclient.NewCreateCollectionOption(v.collectionName, schema)); err != nil {
-			return fmt.Errorf("milvus: failed to create collection %s: %w", v.collectionName, err)
+		schema := s.createSchema(dim)
+		if err = s.client.CreateCollection(ctx, milvusclient.NewCreateCollectionOption(s.collectionName, schema)); err != nil {
+			return fmt.Errorf("milvus: failed to create collection %s: %w", s.collectionName, err)
 		}
 
-		idx := index.NewAutoIndex(v.metricType)
-		indexTask, createErr := v.client.CreateIndex(ctx, milvusclient.NewCreateIndexOption(v.collectionName, fieldVector, idx))
+		idx := index.NewAutoIndex(s.metricType)
+		indexTask, createErr := s.client.CreateIndex(ctx, milvusclient.NewCreateIndexOption(s.collectionName, fieldVector, idx))
 		if createErr != nil {
-			return fmt.Errorf("milvus: failed to create index on collection %s: %w", v.collectionName, createErr)
+			return fmt.Errorf("milvus: failed to create index on collection %s: %w", s.collectionName, createErr)
 		}
 		if err = indexTask.Await(ctx); err != nil {
-			return fmt.Errorf("milvus: failed to await index creation on collection %s: %w", v.collectionName, err)
+			return fmt.Errorf("milvus: failed to await index creation on collection %s: %w", s.collectionName, err)
 		}
 	}
 
-	loadTask, err := v.client.LoadCollection(ctx, milvusclient.NewLoadCollectionOption(v.collectionName))
+	loadTask, err := s.client.LoadCollection(ctx, milvusclient.NewLoadCollectionOption(s.collectionName))
 	if err != nil {
-		return fmt.Errorf("milvus: failed to load collection %s: %w", v.collectionName, err)
+		return fmt.Errorf("milvus: failed to load collection %s: %w", s.collectionName, err)
 	}
 	if err = loadTask.Await(ctx); err != nil {
-		return fmt.Errorf("milvus: failed to await collection load %s: %w", v.collectionName, err)
+		return fmt.Errorf("milvus: failed to await collection load %s: %w", s.collectionName, err)
 	}
 
 	return nil
 }
 
-func (v *Store) buildInsertColumns(docs []*document.Document, vectors [][]float64) ([]column.Column, error) {
+func (s *Store) buildInsertColumns(docs []*document.Document, vectors [][]float64) ([]column.Column, error) {
 	n := len(docs)
 	ids := make([]string, n)
 	vecs := make([][]float32, n)
@@ -217,7 +217,7 @@ func (v *Store) buildInsertColumns(docs []*document.Document, vectors [][]float6
 		ids[i] = uuid.NewString()
 		vecs[i] = math.ConvertSlice[float64, float32](vectors[i])
 
-		if v.storeDocumentContent {
+		if s.storeDocumentContent {
 			content := doc.Text
 			if int64(len(content)) > maxContentLength {
 				content = content[:maxContentLength]
@@ -242,7 +242,7 @@ func (v *Store) buildInsertColumns(docs []*document.Document, vectors [][]float6
 	}, nil
 }
 
-func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
+func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
 	if err = req.Validate(); err != nil {
 		return fmt.Errorf("milvus: invalid create request: %w", err)
 	}
@@ -251,13 +251,13 @@ func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 	defer func() { tracing.Finish(span, err) }()
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = v.documentBatcher.Batch(ctx, req.Documents)
+	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
 	if err != nil {
 		return fmt.Errorf("milvus: failed to batch documents: %w", err)
 	}
 
 	for _, docs := range batchedDocs {
-		vectors, _, err := v.embeddingClient.
+		vectors, _, err := s.embeddingClient.
 			EmbedWithDocuments(docs).
 			Call().
 			Embeddings(ctx)
@@ -265,22 +265,22 @@ func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 			return fmt.Errorf("milvus: failed to generate vectors: %w", err)
 		}
 
-		cols, err := v.buildInsertColumns(docs, vectors)
+		cols, err := s.buildInsertColumns(docs, vectors)
 		if err != nil {
 			return err
 		}
 
-		_, err = v.client.Upsert(ctx, milvusclient.NewColumnBasedInsertOption(v.collectionName, cols...))
+		_, err = s.client.Upsert(ctx, milvusclient.NewColumnBasedInsertOption(s.collectionName, cols...))
 		if err != nil {
 			return fmt.Errorf("milvus: failed to upsert %d documents to collection %s: %w",
-				len(docs), v.collectionName, err)
+				len(docs), s.collectionName, err)
 		}
 	}
 
 	return nil
 }
 
-func (v *Store) buildDocumentsFromResults(rs milvusclient.ResultSet, minScore float64) ([]*document.Document, error) {
+func (s *Store) buildDocumentsFromResults(rs milvusclient.ResultSet, minScore float64) ([]*document.Document, error) {
 	docs := make([]*document.Document, 0, rs.Len())
 
 	idCol := rs.GetColumn(fieldID)
@@ -301,7 +301,7 @@ func (v *Store) buildDocumentsFromResults(rs milvusclient.ResultSet, minScore fl
 			}
 		}
 
-		if v.storeDocumentContent && contentCol != nil {
+		if s.storeDocumentContent && contentCol != nil {
 			if text, err := contentCol.GetAsString(i); err == nil {
 				doc.Text = text
 			}
@@ -324,7 +324,7 @@ func (v *Store) buildDocumentsFromResults(rs milvusclient.ResultSet, minScore fl
 	return docs, nil
 }
 
-func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("milvus: invalid retrieval request: %w", err)
 	}
@@ -333,7 +333,7 @@ func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
 
 	var vector []float64
-	vector, _, err = v.embeddingClient.
+	vector, _, err = s.embeddingClient.
 		EmbedWithText(req.Query).
 		Call().
 		Embedding(ctx)
@@ -343,7 +343,7 @@ func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 
 	queryVec := entity.FloatVector(math.ConvertSlice[float64, float32](vector))
 
-	searchOpt := milvusclient.NewSearchOption(v.collectionName, int(req.TopK), []entity.Vector{queryVec}).
+	searchOpt := milvusclient.NewSearchOption(s.collectionName, int(req.TopK), []entity.Vector{queryVec}).
 		WithANNSField(fieldVector).
 		WithOutputFields(fieldID, fieldContent, fieldMeta)
 
@@ -355,16 +355,16 @@ func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		searchOpt = searchOpt.WithFilter(filterExpr)
 	}
 
-	results, err := v.client.Search(ctx, searchOpt)
+	results, err := s.client.Search(ctx, searchOpt)
 	if err != nil {
-		return nil, fmt.Errorf("milvus: failed to search collection %s: %w", v.collectionName, err)
+		return nil, fmt.Errorf("milvus: failed to search collection %s: %w", s.collectionName, err)
 	}
 
 	if len(results) == 0 {
 		return nil, nil
 	}
 
-	docs, err = v.buildDocumentsFromResults(results[0], float64(req.MinScore))
+	docs, err = s.buildDocumentsFromResults(results[0], float64(req.MinScore))
 	if err != nil {
 		return nil, fmt.Errorf("milvus: failed to build documents from results: %w", err)
 	}
@@ -372,7 +372,7 @@ func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	return docs, nil
 }
 
-func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
+func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
 	if err = req.Validate(); err != nil {
 		return fmt.Errorf("milvus: invalid delete request: %w", err)
 	}
@@ -386,9 +386,9 @@ func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 		return fmt.Errorf("milvus: failed to convert filter: %w", err)
 	}
 
-	_, err = v.client.Delete(ctx, milvusclient.NewDeleteOption(v.collectionName).WithExpr(filterExpr))
+	_, err = s.client.Delete(ctx, milvusclient.NewDeleteOption(s.collectionName).WithExpr(filterExpr))
 	if err != nil {
-		return fmt.Errorf("milvus: failed to delete from collection %s: %w", v.collectionName, err)
+		return fmt.Errorf("milvus: failed to delete from collection %s: %w", s.collectionName, err)
 	}
 
 	return nil
@@ -397,7 +397,7 @@ func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 // DeleteByIDs removes rows by primary key. WithStringIDs compiles to the
 // expr `id in ["a","b"]`, so unknown ids are silently ignored (idempotent).
 // An empty slice is a no-op. Implements [vectorstore.IDDeleter].
-func (v *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
 	if len(ids) == 0 {
 		return nil
 	}
@@ -405,21 +405,21 @@ func (v *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
 	ctx, span := tracing.StartDelete(ctx, "milvus")
 	defer func() { tracing.Finish(span, err) }()
 
-	_, err = v.client.Delete(ctx, milvusclient.NewDeleteOption(v.collectionName).WithStringIDs(fieldID, ids))
+	_, err = s.client.Delete(ctx, milvusclient.NewDeleteOption(s.collectionName).WithStringIDs(fieldID, ids))
 	if err != nil {
-		return fmt.Errorf("milvus: failed to delete by ids from collection %s: %w", v.collectionName, err)
+		return fmt.Errorf("milvus: failed to delete by ids from collection %s: %w", s.collectionName, err)
 	}
 
 	return nil
 }
 
-func (v *Store) Metadata() vectorstore.StoreMetadata {
+func (s *Store) Metadata() vectorstore.StoreMetadata {
 	return vectorstore.StoreMetadata{
-		NativeClient: v.client,
+		NativeClient: s.client,
 		Provider:     Provider,
 	}
 }
 
-func (v *Store) Close() error {
-	return v.client.Close(context.Background())
+func (s *Store) Close() error {
+	return s.client.Close(context.Background())
 }

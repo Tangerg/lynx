@@ -24,8 +24,8 @@ import (
 // channel — including outcome:interrupt when the run parks for HITL
 // approval, after which the run suspends and the client answers via
 // runs.resume.
-func (i *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
-	sessionID, err := i.resolveSession(ctx, in.SessionID)
+func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
+	sessionID, err := s.resolveSession(ctx, in.SessionID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -33,7 +33,7 @@ func (i *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	// The turn's filesystem + bash tools run in the session's project cwd
 	// (API.md §0.2). Resolve it here so the engine anchors them per session
 	// rather than at the single serve-time workdir.
-	sess, err := i.rt.Session().Get(ctx, sessionID)
+	sess, err := s.rt.Session().Get(ctx, sessionID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -50,7 +50,7 @@ func (i *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		return nil, nil, protocol.ErrInvalidParams
 	}
 
-	handle, err := i.rt.Chat().StartTurn(ctx, chat.StartTurnRequest{
+	handle, err := s.rt.Chat().StartTurn(ctx, chat.StartTurnRequest{
 		SessionID:  sessionID,
 		Message:    userMsg,
 		Cwd:        sess.Cwd,
@@ -66,7 +66,7 @@ func (i *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	// surface the session's current model (Session.model). An unset model
 	// runs the default — sessionToWire fills that from the runtime default.
 	if in.Model != "" {
-		_ = i.rt.Session().SetModel(ctx, sessionID, in.Model)
+		_ = s.rt.Session().SetModel(ctx, sessionID, in.Model)
 	}
 
 	// runId on the wire == the turn id for the root run. The user's input
@@ -74,7 +74,7 @@ func (i *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	// emits it after run.started) — streamed live and persisted through the
 	// same path, so the wire id and the items.list id are one and the same.
 	runID := handle.TurnID
-	out, events, err := i.openSegment(ctx, runID, "", handle, sessionID, in.Input, nil)
+	out, events, err := s.openSegment(ctx, runID, "", handle, sessionID, in.Input, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -89,8 +89,8 @@ func (i *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 // the interrupted run; the response decision is delivered to the live
 // agent process, and the continuation streams under a new runId linked
 // back via RunRef.parentRunId.
-func (i *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
-	pending, ok, err := i.rt.Interrupts().Get(ctx, in.ParentRunID)
+func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
+	pending, ok, err := s.rt.Interrupts().Get(ctx, in.ParentRunID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -103,7 +103,7 @@ func (i *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	}
 
 	handle := chat.TurnHandle{SessionID: pending.SessionID, TurnID: pending.TurnID}
-	if err = i.rt.Chat().Resume(ctx, handle, resolution); err != nil {
+	if err = s.rt.Chat().Resume(ctx, handle, resolution); err != nil {
 		if !errors.Is(err, chat.ErrTurnNotFound) {
 			return nil, nil, err
 		}
@@ -112,11 +112,11 @@ func (i *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 		// a fresh turn. Needs a recorded ProcessID + a configured durable
 		// ProcessStore; if either is missing the interrupt is genuinely
 		// unresumable, so drop it (API.md §6.2 anti-dangling).
-		rebuilt, rerr := i.rehydrate(ctx, pending, resolution.Approved)
+		rebuilt, rerr := s.rehydrate(ctx, pending, resolution.Approved)
 		if rerr != nil {
 			// Best-effort: rehydrate failed; drop the unresumable
 			// interrupt record so it won't show up in list queries.
-			_ = i.rt.Interrupts().Delete(ctx, in.ParentRunID)
+			_ = s.rt.Interrupts().Delete(ctx, in.ParentRunID)
 			return nil, nil, protocol.ErrRunNotFound
 		}
 		handle = rebuilt
@@ -124,7 +124,7 @@ func (i *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	// Best-effort: the interrupt is now answered — drop the
 	// open-interrupt record. If this fails, a dangling record
 	// surfaces on the next list and can be re-resumed safely.
-	_ = i.rt.Interrupts().Delete(ctx, in.ParentRunID)
+	_ = s.rt.Interrupts().Delete(ctx, in.ParentRunID)
 
 	// Continuation gets a fresh wire runId linked to the parent. handle.TurnID
 	// is the original turn for a same-process resume, or the freshly rebuilt
@@ -136,7 +136,7 @@ func (i *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	// carry the resume binding: an approved tool re-fires in this run and
 	// must complete its ORIGINAL proposal item (API.md §5.2 / §6), not a
 	// fresh one.
-	out, events, err := i.openSegment(ctx, contRunID, in.ParentRunID, handle, pending.SessionID, nil, resumeBindingFrom(pending))
+	out, events, err := s.openSegment(ctx, contRunID, in.ParentRunID, handle, pending.SessionID, nil, resumeBindingFrom(pending))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -223,11 +223,11 @@ func questionFromPayload(payload map[string]any) *protocol.Question {
 // Returns the fresh turn handle the continuation streams on, or an error
 // when the interrupt can't be rebuilt (no recorded ProcessID, no
 // ProcessStore, or a missing / non-deployable snapshot).
-func (i *Server) rehydrate(ctx context.Context, pending interrupts.Pending, approved bool) (chat.TurnHandle, error) {
+func (s *Server) rehydrate(ctx context.Context, pending interrupts.Pending, approved bool) (chat.TurnHandle, error) {
 	if pending.ProcessID == "" {
 		return chat.TurnHandle{}, errors.New("server: interrupt has no recorded process id")
 	}
-	return i.rt.Chat().Rehydrate(ctx, chat.RehydrateRequest{
+	return s.rt.Chat().Rehydrate(ctx, chat.RehydrateRequest{
 		SessionID: pending.SessionID,
 		ProcessID: pending.ProcessID,
 		Approved:  approved,
@@ -238,14 +238,14 @@ func (i *Server) rehydrate(ctx context.Context, pending interrupts.Pending, appr
 // pump for one run segment. parentRunID is empty for a root run
 // (runs.start) and set for a continuation (runs.resume) — it rides onto
 // the RunRef and the runEntry so the continuation links back to its parent.
-func (i *Server) openSegment(reqCtx context.Context, runID, parentRunID string, handle chat.TurnHandle, sessionID string, userInput []protocol.ContentBlock, resume *resumeBinding) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
+func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, handle chat.TurnHandle, sessionID string, userInput []protocol.ContentBlock, resume *resumeBinding) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
 	// Detach the run from the request's cancellation (it must outlive the
 	// request) WITHOUT losing the request's trace context: WithoutCancel
 	// keeps ctx values — including the entry span — so the run's spans are
 	// children of the same trace (full-link), while our own cancel drives
 	// CancelRun. Rooting on context.Background() here would sever the trace.
 	runCtx, cancel := context.WithCancel(context.WithoutCancel(reqCtx))
-	inner, err := i.rt.Chat().Events(runCtx, handle)
+	inner, err := s.rt.Chat().Events(runCtx, handle)
 	if err != nil {
 		cancel()
 		return nil, nil, err
@@ -255,16 +255,16 @@ func (i *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 	// §6.4/§9.2). The pump appends to it; this caller streams from a
 	// fresh subscription; a later runs.subscribe attaches another.
 	hub := newRunHub()
-	i.runMu.Lock()
-	i.runs[runID] = &runEntry{runID: runID, sessionID: sessionID, turnID: handle.TurnID, parentRunID: parentRunID, cancel: cancel, hub: hub}
-	i.runMu.Unlock()
+	s.runMu.Lock()
+	s.runs[runID] = &runEntry{runID: runID, sessionID: sessionID, turnID: handle.TurnID, parentRunID: parentRunID, cancel: cancel, hub: hub}
+	s.runMu.Unlock()
 	events, unsubscribe := hub.Subscribe("")
 	// Drop this caller's subscription when its request ends (client
 	// disconnect or stream completion) — the run keeps running on runCtx
 	// and stays resumable via runs.subscribe. runCtx is Background-rooted
 	// on purpose: the run must outlive the request that started it.
 	context.AfterFunc(reqCtx, unsubscribe)
-	go i.pumpRun(runCtx, runID, parentRunID, handle, inner, hub, userInput, resume)
+	go s.pumpRun(runCtx, runID, parentRunID, handle, inner, hub, userInput, resume)
 	return &protocol.StartRunResponse{RunID: runID}, events, nil
 }
 
@@ -278,7 +278,7 @@ func (i *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 //
 // Either way the wire run.finished event is the last thing on the
 // channel before it closes.
-func (i *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle chat.TurnHandle, inner iter.Seq[chat.Event], hub *runHub, userInput []protocol.ContentBlock, resume *resumeBinding) {
+func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle chat.TurnHandle, inner iter.Seq[chat.Event], hub *runHub, userInput []protocol.ContentBlock, resume *resumeBinding) {
 	tr := newTranslator(handle.SessionID, runID, parentRunID, userInput, resume)
 	finished := false
 	parked := false
@@ -292,7 +292,7 @@ func (i *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 		for _, se := range events {
 			re := protocol.RunEvent{
 				RunID:     runID,
-				EventID:   i.nextEventID(),
+				EventID:   s.nextEventID(),
 				Timestamp: time.Now().UTC(),
 				Event:     se,
 			}
@@ -302,12 +302,12 @@ func (i *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 					switch se.Outcome.Type {
 					case protocol.OutcomeInterrupt:
 						parked = true
-						i.recordInterrupt(ctx, runID, handle, se.Outcome.Interrupts)
+						s.recordInterrupt(ctx, runID, handle, se.Outcome.Interrupts)
 					case protocol.OutcomeCanceled:
 						// Flow the runs.cancel reason to the outcome detail (S6)
 						// so the client can tell user-canceled from other stops.
 						if se.Outcome.Detail == "" {
-							if r := i.cancelReasonFor(runID); r != "" {
+							if r := s.cancelReasonFor(runID); r != "" {
 								se.Outcome.Detail = r
 							}
 						}
@@ -317,7 +317,7 @@ func (i *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 			// Persist with a background ctx so the durable history (incl.
 			// the terminal run.finished synthesized on a canceled run) lands
 			// regardless of run-ctx cancellation.
-			i.persistStreamEvent(context.Background(), runID, handle.SessionID, parentRunID, se)
+			s.persistStreamEvent(context.Background(), runID, handle.SessionID, parentRunID, se)
 			hub.Append(re)
 		}
 	}
@@ -340,16 +340,16 @@ func (i *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 			emit(tr.finish(outcome))
 		}
 		hub.Close()
-		i.runMu.Lock()
-		if e, ok := i.runs[runID]; ok {
+		s.runMu.Lock()
+		if e, ok := s.runs[runID]; ok {
 			// A parked run keeps its live turn alive for resume — only
 			// cancel + forget on a true terminal.
 			if !parked {
 				e.cancel()
 			}
-			delete(i.runs, runID)
+			delete(s.runs, runID)
 		}
-		i.runMu.Unlock()
+		s.runMu.Unlock()
 	}()
 
 	for ev := range inner {
@@ -363,7 +363,7 @@ func (i *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 
 // recordInterrupt persists the open interrupt so runs.listOpenInterrupts
 // can discover it and runs.resume can map it back to the live turn.
-func (i *Server) recordInterrupt(ctx context.Context, runID string, handle chat.TurnHandle, ints []protocol.Interrupt) {
+func (s *Server) recordInterrupt(ctx context.Context, runID string, handle chat.TurnHandle, ints []protocol.Interrupt) {
 	raw, err := json.Marshal(ints)
 	if err != nil {
 		return
@@ -372,8 +372,8 @@ func (i *Server) recordInterrupt(ctx context.Context, runID string, handle chat.
 	// resumed across restarts. If Put fails, same-process resume still
 	// works (the process is parked in-memory), but cross-restart resume
 	// will not find this interrupt.
-	processID, _ := i.rt.Chat().ProcessID(ctx, handle)
-	_ = i.rt.Interrupts().Put(ctx, interrupts.Pending{
+	processID, _ := s.rt.Chat().ProcessID(ctx, handle)
+	_ = s.rt.Interrupts().Put(ctx, interrupts.Pending{
 		ParentRunID: runID,
 		SessionID:   handle.SessionID,
 		TurnID:      handle.TurnID,
@@ -386,17 +386,17 @@ func (i *Server) recordInterrupt(ctx context.Context, runID string, handle chat.
 // CancelRun hard-stops a running run (outcome:canceled, API.md §7.3).
 // A parked run is also abandoned — its open interrupt is dropped so it
 // stops surfacing as resumable.
-func (i *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) error {
-	i.runMu.Lock()
-	e, ok := i.runs[in.RunID]
+func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) error {
+	s.runMu.Lock()
+	e, ok := s.runs[in.RunID]
 	if ok {
 		e.cancelReason = in.Reason // surfaced on the synthesized canceled outcome (S6)
 	}
-	i.runMu.Unlock()
+	s.runMu.Unlock()
 	// Best-effort: drop the interrupt record for the canceled run.
 	// If this fails, a dangling record is harmless — it won't match
 	// any live turn and will be ignored on the next ListOpenInterrupts.
-	_ = i.rt.Interrupts().Delete(ctx, in.RunID)
+	_ = s.rt.Interrupts().Delete(ctx, in.RunID)
 	if !ok {
 		// Not actively running — it may be a parked run whose pump already
 		// returned. Cancel the underlying turn by id if we can find it via
@@ -404,17 +404,17 @@ func (i *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) er
 		return protocol.ErrRunNotFound
 	}
 	e.cancel()
-	_ = i.rt.Chat().Cancel(ctx, chat.TurnHandle{SessionID: e.sessionID, TurnID: e.turnID})
+	_ = s.rt.Chat().Cancel(ctx, chat.TurnHandle{SessionID: e.sessionID, TurnID: e.turnID})
 	return nil
 }
 
 // ListRuns returns the currently running runs as a Page (API.md §7.3).
 // The set is in-process and bounded, so the page carries no cursor.
-func (i *Server) ListRuns(_ context.Context, in protocol.ListRunsRequest) (*protocol.Page[protocol.RunRef], error) {
-	i.runMu.Lock()
-	defer i.runMu.Unlock()
-	out := make([]protocol.RunRef, 0, len(i.runs))
-	for _, e := range i.runs {
+func (s *Server) ListRuns(_ context.Context, in protocol.ListRunsRequest) (*protocol.Page[protocol.RunRef], error) {
+	s.runMu.Lock()
+	defer s.runMu.Unlock()
+	out := make([]protocol.RunRef, 0, len(s.runs))
+	for _, e := range s.runs {
 		if in.SessionID != "" && e.sessionID != in.SessionID {
 			continue
 		}
@@ -430,8 +430,8 @@ func (i *Server) ListRuns(_ context.Context, in protocol.ListRunsRequest) (*prot
 
 // ListOpenInterrupts returns durable resumable interrupts as a Page
 // (API.md §6.2), read from the pluggable interrupt store.
-func (i *Server) ListOpenInterrupts(ctx context.Context, in protocol.ListOpenInterruptsRequest) (*protocol.Page[protocol.OpenInterrupt], error) {
-	pending, err := i.rt.Interrupts().List(ctx, in.SessionID)
+func (s *Server) ListOpenInterrupts(ctx context.Context, in protocol.ListOpenInterruptsRequest) (*protocol.Page[protocol.OpenInterrupt], error) {
+	pending, err := s.rt.Interrupts().List(ctx, in.SessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -460,13 +460,13 @@ func (i *Server) ListOpenInterrupts(ctx context.Context, in protocol.ListOpenInt
 // via ctx, TRANSPORT §9.2) then tailing live. A run that isn't actively
 // streaming (finished / parked / unknown) returns run_not_found — its tail
 // is recovered through items.list, not here.
-func (i *Server) SubscribeRun(ctx context.Context, runID string) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
+func (s *Server) SubscribeRun(ctx context.Context, runID string) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
 	if runID == "" {
 		return nil, nil, protocol.ErrRunNotFound
 	}
-	i.runMu.Lock()
-	e, live := i.runs[runID]
-	i.runMu.Unlock()
+	s.runMu.Lock()
+	e, live := s.runs[runID]
+	s.runMu.Unlock()
 	if !live || e.hub == nil {
 		return nil, nil, protocol.ErrRunNotFound
 	}
@@ -480,10 +480,10 @@ func (i *Server) SubscribeRun(ctx context.Context, runID string) (*protocol.Star
 
 // cancelReasonFor returns the runs.cancel reason recorded for a run, or ""
 // when it wasn't canceled with one. Read under runMu (S6).
-func (i *Server) cancelReasonFor(runID string) string {
-	i.runMu.Lock()
-	defer i.runMu.Unlock()
-	if e, ok := i.runs[runID]; ok {
+func (s *Server) cancelReasonFor(runID string) string {
+	s.runMu.Lock()
+	defer s.runMu.Unlock()
+	if e, ok := s.runs[runID]; ok {
 		return e.cancelReason
 	}
 	return ""
@@ -527,15 +527,15 @@ func resolveResolution(responses []protocol.InterruptResponse) (engine.Interrupt
 
 // resolveSession verifies sessionID exists, or creates a fresh session
 // when empty (zero-friction cold start for in-process callers).
-func (i *Server) resolveSession(ctx context.Context, sessionID string) (string, error) {
+func (s *Server) resolveSession(ctx context.Context, sessionID string) (string, error) {
 	if sessionID == "" {
-		sess, err := i.rt.Session().Create(ctx, "", i.serverInfo.Cwd)
+		sess, err := s.rt.Session().Create(ctx, "", s.serverInfo.Cwd)
 		if err != nil {
 			return "", err
 		}
 		return sess.ID, nil
 	}
-	if _, err := i.rt.Session().Get(ctx, sessionID); err != nil {
+	if _, err := s.rt.Session().Get(ctx, sessionID); err != nil {
 		if errors.Is(err, session.ErrNotFound) {
 			return "", protocol.ErrSessionNotFound
 		}

@@ -58,8 +58,8 @@ type Server struct {
 // nextEventID returns the next globally-monotonic RunEvent id, formatted
 // evt_<zero-padded-decimal> (TRANSPORT.md §9.1, e.g. evt_00000000042).
 // The fixed width keeps lexical and numeric ordering in agreement.
-func (i *Server) nextEventID() string {
-	return protocol.IDPrefixEvent + fmt.Sprintf("%011d", i.eventSeq.Add(1))
+func (s *Server) nextEventID() string {
+	return protocol.IDPrefixEvent + fmt.Sprintf("%011d", s.eventSeq.Add(1))
 }
 
 // runEntry holds bookkeeping for one in-flight run — used by CancelRun,
@@ -95,8 +95,8 @@ func New(cfg Config) (protocol.Runtime, error) {
 // Capabilities returns this Server's capability snapshot (API.md §9),
 // delegating to the package-level [Capabilities] so the /v2/info
 // sidecar can build the same snapshot without a constructed Server.
-func (i *Server) Capabilities() protocol.ServerCapabilities {
-	return Capabilities(i.rt)
+func (s *Server) Capabilities() protocol.ServerCapabilities {
+	return Capabilities(s.rt)
 }
 
 // Capabilities builds the capability snapshot a Runtime advertises

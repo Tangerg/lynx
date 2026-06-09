@@ -111,8 +111,8 @@ func (p *AgentProcess) Snapshot() core.ProcessSnapshot {
 // observability + session context a fresh one gets from
 // [Platform.StartAgent], so the continuation streams and keys chat-memory
 // correctly. Pass the zero value to restore read-only (audit / inspect).
-func (platform *Platform) RestoreFromSnapshot(snap core.ProcessSnapshot, options core.ProcessOptions) (*AgentProcess, error) {
-	if platform == nil {
+func (p *Platform) RestoreFromSnapshot(snap core.ProcessSnapshot, options core.ProcessOptions) (*AgentProcess, error) {
+	if p == nil {
 		return nil, errors.New("restore process: nil platform")
 	}
 	if snap.ID == "" {
@@ -122,7 +122,7 @@ func (platform *Platform) RestoreFromSnapshot(snap core.ProcessSnapshot, options
 		return nil, errors.New("restore process: snapshot has empty AgentName")
 	}
 
-	agentDef, ok := platform.agents.find(snap.AgentName)
+	agentDef, ok := p.agents.find(snap.AgentName)
 	if !ok {
 		return nil, fmt.Errorf("restore process: agent %q not deployed", snap.AgentName)
 	}
@@ -131,40 +131,40 @@ func (platform *Platform) RestoreFromSnapshot(snap core.ProcessSnapshot, options
 		return nil, fmt.Errorf("restore process: %w", err)
 	}
 	options.ApplyDefaults()
-	blackboard := platform.resolveBlackboard(options.Blackboard)
-	plannerInst, err := platform.resolvePlanner(agentDef, options.Extensions)
+	blackboard := p.resolveBlackboard(options.Blackboard)
+	plannerInst, err := p.resolvePlanner(agentDef, options.Extensions)
 	if err != nil {
 		return nil, fmt.Errorf("restore process: %w", err)
 	}
 	system := planning.FromAgent(agentDef)
 
-	p := newAgentProcess(snap.ID, agentDef, &options, blackboard, plannerInst, system, platform)
+	proc := newAgentProcess(snap.ID, agentDef, &options, blackboard, plannerInst, system, p)
 	// Wire the determiner + event multicast the same way createProcess
 	// does — without it a resumable snapshot panics on its first
 	// post-restore tick (nil determiner in observe). The caller's
 	// Extensions (observer / listener) attach here too.
-	p.wireRuntimeDeps(options.Extensions)
-	p.parentID = snap.ParentID
-	p.startedAt = snap.StartedAt
+	proc.wireRuntimeDeps(options.Extensions)
+	proc.parentID = snap.ParentID
+	proc.startedAt = snap.StartedAt
 
 	// Re-populate state.
-	p.state.setStatus(snap.Status)
+	proc.state.setStatus(snap.Status)
 	if snap.GoalName != "" {
 		for _, g := range agentDef.Goals {
 			if g.Name == snap.GoalName {
-				p.state.setGoal(g)
+				proc.state.setGoal(g)
 				break
 			}
 		}
 	}
 	if snap.LastWorld != nil {
-		p.state.setLastWorld(snap.LastWorld)
+		proc.state.setLastWorld(snap.LastWorld)
 	}
 	if snap.Failure != "" {
-		p.state.setFailure(errors.New(snap.Failure))
+		proc.state.setFailure(errors.New(snap.Failure))
 	}
 	for _, h := range snap.History {
-		p.state.recordInvocation(ActionInvocation{
+		proc.state.recordInvocation(ActionInvocation{
 			ActionName: h.ActionName,
 			Timestamp:  h.Timestamp,
 			Duration:   h.Duration,
@@ -173,15 +173,15 @@ func (platform *Platform) RestoreFromSnapshot(snap core.ProcessSnapshot, options
 		})
 	}
 
-	p.budget.restore(snap.Cost, snap.Tokens, snap.LLMInvocations, snap.EmbeddingInvocations)
+	proc.budget.restore(snap.Cost, snap.Tokens, snap.LLMInvocations, snap.EmbeddingInvocations)
 
 	// Re-populate blackboard when the implementation supports it.
 	if r, ok := blackboard.(BlackboardRestorer); ok {
 		r.Restore(snap.Blackboard, snap.Conditions, snap.Objects)
 	}
 
-	platform.procs.register(p)
-	return p, nil
+	p.procs.register(proc)
+	return proc, nil
 }
 
 // BlackboardSnapshotter is the optional capture surface a custom

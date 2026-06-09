@@ -141,37 +141,37 @@ func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
 // applyOverride mutates the receiver in place with the non-zero fields of
 // src. Extracted from MergeOptions to keep the merge body free of repeated
 // "if-not-zero overwrite" boilerplate.
-func (dst *Options) applyOverride(src *Options) {
+func (o *Options) applyOverride(src *Options) {
 	if src.Model != "" {
-		dst.Model = src.Model
+		o.Model = src.Model
 	}
 	if src.FrequencyPenalty != nil {
-		dst.FrequencyPenalty = src.FrequencyPenalty
+		o.FrequencyPenalty = src.FrequencyPenalty
 	}
 	if src.MaxTokens != nil {
-		dst.MaxTokens = src.MaxTokens
+		o.MaxTokens = src.MaxTokens
 	}
 	if src.PresencePenalty != nil {
-		dst.PresencePenalty = src.PresencePenalty
+		o.PresencePenalty = src.PresencePenalty
 	}
 	if len(src.Stop) > 0 {
 		// Replace, not append: every other scalar field overrides on
 		// non-zero, and appending makes MergeOptions non-idempotent —
 		// merging the same override N times would multiply stop
 		// sequences. Clone so callers can mutate either slice safely.
-		dst.Stop = slices.Clone(src.Stop)
+		o.Stop = slices.Clone(src.Stop)
 	}
 	if src.Temperature != nil {
-		dst.Temperature = src.Temperature
+		o.Temperature = src.Temperature
 	}
 	if src.TopK != nil {
-		dst.TopK = src.TopK
+		o.TopK = src.TopK
 	}
 	if src.TopP != nil {
-		dst.TopP = src.TopP
+		o.TopP = src.TopP
 	}
 	if len(src.Extra) > 0 {
-		maps.Copy(dst.Extra, src.Extra)
+		maps.Copy(o.Extra, src.Extra)
 	}
 }
 

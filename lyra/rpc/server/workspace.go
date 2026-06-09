@@ -16,19 +16,19 @@ import (
 // reads (listFileChanges / getDiff / getFileHead / grep / mcp.reconnect)
 // stay notImpl until the engine grows the corresponding probe.
 
-func (i *Server) WorkspaceListFileChanges(_ context.Context, _ protocol.WorkspaceListQuery) (*protocol.Page[protocol.WorkspaceFileChange], error) {
+func (s *Server) WorkspaceListFileChanges(_ context.Context, _ protocol.WorkspaceListQuery) (*protocol.Page[protocol.WorkspaceFileChange], error) {
 	return nil, notImpl("workspace.listFileChanges")
 }
 
-func (i *Server) WorkspaceGetDiff(_ context.Context, _ protocol.GetDiffRequest) (*protocol.Diff, error) {
+func (s *Server) WorkspaceGetDiff(_ context.Context, _ protocol.GetDiffRequest) (*protocol.Diff, error) {
 	return nil, notImpl("workspace.getDiff")
 }
 
-func (i *Server) WorkspaceGetFileHead(_ context.Context, _ protocol.GetFileHeadRequest) (*protocol.FileHead, error) {
+func (s *Server) WorkspaceGetFileHead(_ context.Context, _ protocol.GetFileHeadRequest) (*protocol.FileHead, error) {
 	return nil, notImpl("workspace.getFileHead")
 }
 
-func (i *Server) WorkspaceGrep(_ context.Context, _ protocol.GrepRequest) (*protocol.GrepResult, error) {
+func (s *Server) WorkspaceGrep(_ context.Context, _ protocol.GrepRequest) (*protocol.GrepResult, error) {
 	return nil, notImpl("workspace.grep")
 }
 
@@ -36,8 +36,8 @@ func (i *Server) WorkspaceGrep(_ context.Context, _ protocol.GrepRequest) (*prot
 // entry per distinct Session.cwd (API.md §0.2 / §7.5), newest-active
 // first. projectRoot / branch are best-effort decorations left empty
 // until the engine grows a git probe.
-func (i *Server) WorkspaceListProjects(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.Project], error) {
-	sessions, err := i.rt.Session().List(ctx)
+func (s *Server) WorkspaceListProjects(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.Project], error) {
+	sessions, err := s.rt.Session().List(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -77,19 +77,19 @@ func projectsFromSessions(sessions []session.Session) []protocol.Project {
 // WorkspaceListSkills is gated off (features.skills=false) — return
 // capability_not_negotiated rather than a misleading empty list, until
 // the engine grows skill discovery.
-func (i *Server) WorkspaceListSkills(_ context.Context, _ protocol.WorkspaceListQuery) (*protocol.Page[protocol.Skill], error) {
+func (s *Server) WorkspaceListSkills(_ context.Context, _ protocol.WorkspaceListQuery) (*protocol.Page[protocol.Skill], error) {
 	return nil, notImpl("workspace.listSkills")
 }
 
 // WorkspaceListAgentDocs lists the AGENTS.md files discovered from cwd
 // (or the serve cwd) up to home — the same cascade the engine injects
 // into the system prompt (API.md §7.5).
-func (i *Server) WorkspaceListAgentDocs(ctx context.Context, q protocol.WorkspaceListQuery) (*protocol.Page[protocol.AgentDoc], error) {
+func (s *Server) WorkspaceListAgentDocs(ctx context.Context, q protocol.WorkspaceListQuery) (*protocol.Page[protocol.AgentDoc], error) {
 	cwd := q.Cwd
 	if cwd == "" {
-		cwd = i.serverInfo.Cwd
+		cwd = s.serverInfo.Cwd
 	}
-	home := i.serverInfo.Home
+	home := s.serverInfo.Home
 	files, err := agentdoc.Discover(ctx, cwd, home)
 	if err != nil {
 		return nil, err
@@ -119,8 +119,8 @@ func agentDocScope(path, cwd, home string) string {
 // WorkspaceMCPListServers lists the MCP servers dialed at startup. They
 // are all "connected" — a dial failure fails runtime construction, so a
 // running server only knows connected ones (API.md §7.5).
-func (i *Server) WorkspaceMCPListServers(_ context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.McpServer], error) {
-	names := i.rt.MCPServerNames()
+func (s *Server) WorkspaceMCPListServers(_ context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.McpServer], error) {
+	names := s.rt.MCPServerNames()
 	out := make([]protocol.McpServer, 0, len(names))
 	for _, n := range names {
 		out = append(out, protocol.McpServer{Name: n, Status: "connected"})
@@ -131,10 +131,10 @@ func (i *Server) WorkspaceMCPListServers(_ context.Context, _ protocol.PageQuery
 // WorkspaceMCPListTools — per-server MCP tool enumeration isn't wired
 // yet (MCP tools merge into the engine's flat tool set, surfaced via
 // tools.list; segmenting them by server needs an engine accessor).
-func (i *Server) WorkspaceMCPListTools(_ context.Context, _ protocol.MCPListToolsRequest) (*protocol.Page[protocol.McpTool], error) {
+func (s *Server) WorkspaceMCPListTools(_ context.Context, _ protocol.MCPListToolsRequest) (*protocol.Page[protocol.McpTool], error) {
 	return nil, notImpl("workspace.mcp.listTools")
 }
 
-func (i *Server) WorkspaceMCPReconnect(_ context.Context, _ string) error {
+func (s *Server) WorkspaceMCPReconnect(_ context.Context, _ string) error {
 	return notImpl("workspace.mcp.reconnect")
 }

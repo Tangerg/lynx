@@ -10,8 +10,8 @@ import (
 // ListMemory enumerates LYRA.md entries across scopes (API.md §7.7).
 // Empty (not an error) when no memory service is configured, so the UI
 // renders an empty state rather than a banner.
-func (i *Server) ListMemory(ctx context.Context, _ protocol.WorkspaceListQuery) (*protocol.Page[protocol.MemoryEntry], error) {
-	mem := i.rt.Memory()
+func (s *Server) ListMemory(ctx context.Context, _ protocol.WorkspaceListQuery) (*protocol.Page[protocol.MemoryEntry], error) {
+	mem := s.rt.Memory()
 	if mem == nil {
 		return protocol.NewPage([]protocol.MemoryEntry{}), nil
 	}
@@ -32,8 +32,8 @@ func (i *Server) ListMemory(ctx context.Context, _ protocol.WorkspaceListQuery) 
 
 // GetMemory returns one scope's LYRA.md content. Dispatch has already
 // validated the scope (MemoryScope.Valid).
-func (i *Server) GetMemory(ctx context.Context, in protocol.GetMemoryRequest) (*protocol.MemoryEntry, error) {
-	mem := i.rt.Memory()
+func (s *Server) GetMemory(ctx context.Context, in protocol.GetMemoryRequest) (*protocol.MemoryEntry, error) {
+	mem := s.rt.Memory()
 	if mem == nil {
 		return nil, notImpl("memory.get")
 	}
@@ -44,8 +44,8 @@ func (i *Server) GetMemory(ctx context.Context, in protocol.GetMemoryRequest) (*
 	return &protocol.MemoryEntry{Scope: in.Scope, Content: content}, nil
 }
 
-func (i *Server) UpdateMemory(ctx context.Context, in protocol.UpdateMemoryRequest) error {
-	mem := i.rt.Memory()
+func (s *Server) UpdateMemory(ctx context.Context, in protocol.UpdateMemoryRequest) error {
+	mem := s.rt.Memory()
 	if mem == nil {
 		return notImpl("memory.update")
 	}

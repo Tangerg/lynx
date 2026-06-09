@@ -14,19 +14,19 @@ import (
 // Items are appended; the run's RunRef is upserted on start (running) and
 // finish (finished + outcome). Best-effort + a no-op when no history store
 // is configured — items.list then falls back to message reconstruction.
-func (i *Server) persistStreamEvent(ctx context.Context, runID, sessionID, parentRunID string, se protocol.StreamEvent) {
-	if i.rt.History() == nil {
+func (s *Server) persistStreamEvent(ctx context.Context, runID, sessionID, parentRunID string, se protocol.StreamEvent) {
+	if s.rt.History() == nil {
 		return
 	}
 	switch se.Type {
 	case protocol.StreamItemCompleted:
-		i.persistItem(ctx, sessionID, se.Item)
+		s.persistItem(ctx, sessionID, se.Item)
 	case protocol.StreamRunStarted:
-		i.persistRun(ctx, sessionID, se.Run)
+		s.persistRun(ctx, sessionID, se.Run)
 	case protocol.StreamRunFinished:
 		// run.finished carries only the outcome; synthesize the terminal
 		// RunRef so history records the run's final status + outcome.
-		i.persistRun(ctx, sessionID, &protocol.RunRef{
+		s.persistRun(ctx, sessionID, &protocol.RunRef{
 			ID:          runID,
 			SessionID:   sessionID,
 			ParentRunID: parentRunID,
@@ -38,8 +38,8 @@ func (i *Server) persistStreamEvent(ctx context.Context, runID, sessionID, paren
 }
 
 // persistItem appends one completed Item to the history store.
-func (i *Server) persistItem(ctx context.Context, sessionID string, item *protocol.Item) {
-	store := i.rt.History()
+func (s *Server) persistItem(ctx context.Context, sessionID string, item *protocol.Item) {
+	store := s.rt.History()
 	if store == nil || item == nil {
 		return
 	}
@@ -57,8 +57,8 @@ func (i *Server) persistItem(ctx context.Context, sessionID string, item *protoc
 }
 
 // persistRun upserts one RunRef into the history store.
-func (i *Server) persistRun(ctx context.Context, sessionID string, run *protocol.RunRef) {
-	store := i.rt.History()
+func (s *Server) persistRun(ctx context.Context, sessionID string, run *protocol.RunRef) {
+	store := s.rt.History()
 	if store == nil || run == nil {
 		return
 	}

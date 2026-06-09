@@ -143,13 +143,13 @@ func NewStore(config StoreConfig) (*Store, error) {
 	return store, nil
 }
 
-func (v *Store) initialize(ctx context.Context) error {
-	if !v.initializeSchema {
+func (s *Store) initialize(ctx context.Context) error {
+	if !s.initializeSchema {
 		return nil
 	}
 
-	exists, err := v.client.Schema().ClassExistenceChecker().
-		WithClassName(v.className).
+	exists, err := s.client.Schema().ClassExistenceChecker().
+		WithClassName(s.className).
 		Do(ctx)
 	if err != nil {
 		return fmt.Errorf("weaviate: failed to check class existence: %w", err)
@@ -159,11 +159,11 @@ func (v *Store) initialize(ctx context.Context) error {
 	}
 
 	class := &models.Class{
-		Class:           v.className,
+		Class:           s.className,
 		Vectorizer:      "none",
 		VectorIndexType: "hnsw",
 		VectorIndexConfig: map[string]any{
-			"distance": v.distanceMetric,
+			"distance": s.distanceMetric,
 		},
 		Properties: []*models.Property{
 			{
@@ -177,19 +177,19 @@ func (v *Store) initialize(ctx context.Context) error {
 		},
 	}
 
-	if err = v.client.Schema().ClassCreator().WithClass(class).Do(ctx); err != nil {
-		return fmt.Errorf("weaviate: failed to create class %s: %w", v.className, err)
+	if err = s.client.Schema().ClassCreator().WithClass(class).Do(ctx); err != nil {
+		return fmt.Errorf("weaviate: failed to create class %s: %w", s.className, err)
 	}
 
 	return nil
 }
 
-func (v *Store) buildObjects(docs []*document.Document, vectors [][]float64) ([]*models.Object, error) {
+func (s *Store) buildObjects(docs []*document.Document, vectors [][]float64) ([]*models.Object, error) {
 	objects := make([]*models.Object, 0, len(docs))
 
 	for i, doc := range docs {
 		content := ""
-		if v.storeDocumentContent {
+		if s.storeDocumentContent {
 			content = doc.Text
 		}
 
@@ -199,7 +199,7 @@ func (v *Store) buildObjects(docs []*document.Document, vectors [][]float64) ([]
 		}
 
 		obj := &models.Object{
-			Class:  v.className,
+			Class:  s.className,
 			ID:     strfmt.UUID(uuid.NewString()),
 			Vector: models.C11yVector(math.ConvertSlice[float64, float32](vectors[i])),
 			Properties: map[string]any{
@@ -213,7 +213,7 @@ func (v *Store) buildObjects(docs []*document.Document, vectors [][]float64) ([]
 	return objects, nil
 }
 
-func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
+func (s *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err error) {
 	if err = req.Validate(); err != nil {
 		return fmt.Errorf("weaviate: invalid create request: %w", err)
 	}
@@ -222,13 +222,13 @@ func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 	defer func() { tracing.Finish(span, err) }()
 
 	var batchedDocs [][]*document.Document
-	batchedDocs, err = v.documentBatcher.Batch(ctx, req.Documents)
+	batchedDocs, err = s.documentBatcher.Batch(ctx, req.Documents)
 	if err != nil {
 		return fmt.Errorf("weaviate: failed to batch documents: %w", err)
 	}
 
 	for _, docs := range batchedDocs {
-		vectors, _, err := v.embeddingClient.
+		vectors, _, err := s.embeddingClient.
 			EmbedWithDocuments(docs).
 			Call().
 			Embeddings(ctx)
@@ -236,17 +236,17 @@ func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 			return fmt.Errorf("weaviate: failed to generate vectors: %w", err)
 		}
 
-		objects, err := v.buildObjects(docs, vectors)
+		objects, err := s.buildObjects(docs, vectors)
 		if err != nil {
 			return err
 		}
 
-		responses, err := v.client.Batch().ObjectsBatcher().
+		responses, err := s.client.Batch().ObjectsBatcher().
 			WithObjects(objects...).
 			Do(ctx)
 		if err != nil {
 			return fmt.Errorf("weaviate: failed to batch insert %d objects to class %s: %w",
-				len(objects), v.className, err)
+				len(objects), s.className, err)
 		}
 
 		for j := range responses {
@@ -261,19 +261,19 @@ func (v *Store) Create(ctx context.Context, req *vectorstore.CreateRequest) (err
 	return nil
 }
 
-func (v *Store) buildNearVector(vector []float64, minScore float64) *graphql.NearVectorArgumentBuilder {
-	builder := v.client.GraphQL().NearVectorArgBuilder().
+func (s *Store) buildNearVector(vector []float64, minScore float64) *graphql.NearVectorArgumentBuilder {
+	builder := s.client.GraphQL().NearVectorArgBuilder().
 		WithVector(models.C11yVector(math.ConvertSlice[float64, float32](vector)))
 
 	// WithCertainty is the minimum similarity threshold, only valid for cosine distance.
-	if minScore > 0 && v.distanceMetric == "cosine" {
+	if minScore > 0 && s.distanceMetric == "cosine" {
 		builder = builder.WithCertainty(float32(minScore))
 	}
 
 	return builder
 }
 
-func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
+func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest) (docs []*document.Document, err error) {
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("weaviate: invalid retrieval request: %w", err)
 	}
@@ -282,7 +282,7 @@ func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	defer func() { tracing.RecordRetrieveResult(span, err, len(docs)) }()
 
 	var vector []float64
-	vector, _, err = v.embeddingClient.
+	vector, _, err = s.embeddingClient.
 		EmbedWithText(req.Query).
 		Call().
 		Embedding(ctx)
@@ -303,10 +303,10 @@ func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 		},
 	}
 
-	getBuilder := v.client.GraphQL().Get().
-		WithClassName(v.className).
+	getBuilder := s.client.GraphQL().Get().
+		WithClassName(s.className).
 		WithFields(fields...).
-		WithNearVector(v.buildNearVector(vector, req.MinScore)).
+		WithNearVector(s.buildNearVector(vector, req.MinScore)).
 		WithLimit(req.TopK)
 
 	if req.Filter != nil {
@@ -319,14 +319,14 @@ func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 
 	result, err := getBuilder.Do(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("weaviate: failed to query class %s: %w", v.className, err)
+		return nil, fmt.Errorf("weaviate: failed to query class %s: %w", s.className, err)
 	}
 
 	if len(result.Errors) > 0 {
 		return nil, fmt.Errorf("weaviate: GraphQL query error: %v", result.Errors[0].Message)
 	}
 
-	docs, err = v.buildDocumentsFromResult(result)
+	docs, err = s.buildDocumentsFromResult(result)
 	if err != nil {
 		return nil, fmt.Errorf("weaviate: failed to build documents from results: %w", err)
 	}
@@ -334,7 +334,7 @@ func (v *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 	return docs, nil
 }
 
-func (v *Store) buildDocumentsFromResult(result *models.GraphQLResponse) ([]*document.Document, error) {
+func (s *Store) buildDocumentsFromResult(result *models.GraphQLResponse) ([]*document.Document, error) {
 	getData, ok := result.Data["Get"]
 	if !ok {
 		return nil, nil
@@ -345,7 +345,7 @@ func (v *Store) buildDocumentsFromResult(result *models.GraphQLResponse) ([]*doc
 		return nil, nil
 	}
 
-	classData, ok := getMap[v.className]
+	classData, ok := getMap[s.className]
 	if !ok {
 		return nil, nil
 	}
@@ -377,7 +377,7 @@ func (v *Store) buildDocumentsFromResult(result *models.GraphQLResponse) ([]*doc
 			}
 		}
 
-		if v.storeDocumentContent {
+		if s.storeDocumentContent {
 			if content, ok := objMap[fieldContent].(string); ok {
 				doc.Text = content
 			}
@@ -396,7 +396,7 @@ func (v *Store) buildDocumentsFromResult(result *models.GraphQLResponse) ([]*doc
 	return docs, nil
 }
 
-func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
+func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
 	if err = req.Validate(); err != nil {
 		return fmt.Errorf("weaviate: invalid delete request: %w", err)
 	}
@@ -410,12 +410,12 @@ func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 		return fmt.Errorf("weaviate: failed to convert filter: %w", err)
 	}
 
-	_, err = v.client.Batch().ObjectsBatchDeleter().
-		WithClassName(v.className).
+	_, err = s.client.Batch().ObjectsBatchDeleter().
+		WithClassName(s.className).
 		WithWhere(whereFilter).
 		Do(ctx)
 	if err != nil {
-		return fmt.Errorf("weaviate: failed to delete from class %s: %w", v.className, err)
+		return fmt.Errorf("weaviate: failed to delete from class %s: %w", s.className, err)
 	}
 
 	return nil
@@ -429,7 +429,7 @@ func (v *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 // [vectorstore.IDDeleter].
 //
 // One `db.vector.delete weaviate` span per call.
-func (v *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
+func (s *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
 	if len(ids) == 0 {
 		return nil
 	}
@@ -438,8 +438,8 @@ func (v *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
 	defer func() { tracing.Finish(span, err) }()
 
 	for _, id := range ids {
-		if delErr := v.client.Data().Deleter().
-			WithClassName(v.className).
+		if delErr := s.client.Data().Deleter().
+			WithClassName(s.className).
 			WithID(id).
 			Do(ctx); delErr != nil {
 			// A missing object yields a 404; treat unknown ids as a no-op
@@ -448,7 +448,7 @@ func (v *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
 				continue
 			}
 			err = fmt.Errorf("weaviate: failed to delete object %s from class %s: %w",
-				id, v.className, delErr)
+				id, s.className, delErr)
 			return err
 		}
 	}
@@ -456,14 +456,14 @@ func (v *Store) DeleteByIDs(ctx context.Context, ids []string) (err error) {
 	return nil
 }
 
-func (v *Store) Metadata() vectorstore.StoreMetadata {
+func (s *Store) Metadata() vectorstore.StoreMetadata {
 	return vectorstore.StoreMetadata{
-		NativeClient: v.client,
+		NativeClient: s.client,
 		Provider:     Provider,
 	}
 }
 
-func (v *Store) Close() error {
+func (s *Store) Close() error {
 	// Weaviate HTTP client does not require explicit closing.
 	return nil
 }
