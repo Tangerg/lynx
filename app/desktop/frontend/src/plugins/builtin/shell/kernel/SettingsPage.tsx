@@ -43,7 +43,7 @@ export function SettingsPage() {
             // distinguishes them — the active pane reads as "selected"
             // via the chat-tab strip mirror in the topbar, not via a
             // second tone step inside the rail itself.
-            className="flex items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-2 text-left text-[14px] text-fg-muted cursor-pointer transition-colors duration-150 hover:bg-surface-3 hover:text-fg data-[state=active]:bg-surface-3 data-[state=active]:text-fg"
+            className="flex items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-2 text-left text-[14px] text-fg-muted transition-colors duration-150 hover:bg-surface-3 hover:text-fg data-[state=active]:bg-surface-3 data-[state=active]:text-fg"
           >
             {p.icon && <Icon name={p.icon as IconName} size={15} />}
             <span>{p.label}</span>

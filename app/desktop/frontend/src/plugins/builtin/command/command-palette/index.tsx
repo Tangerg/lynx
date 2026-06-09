@@ -91,7 +91,7 @@ function CommandPalette() {
                 ...(cmd.keywords ?? []),
               ].join(" ")}
               onSelect={() => run(cmd)}
-              className="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] text-fg-muted aria-selected:bg-surface-2 aria-selected:text-fg"
+              className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] text-fg-muted aria-selected:bg-surface-2 aria-selected:text-fg"
             >
               {cmd.icon && <Icon name={cmd.icon as IconName} size={14} />}
               <div className="flex min-w-0 flex-1 flex-col">

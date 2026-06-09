@@ -136,7 +136,7 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
           type="button"
           onClick={onCopy}
           title={copied ? "Copied" : "Copy code"}
-          className="inline-flex items-center gap-1 rounded-md border-0 bg-transparent px-2 py-1 font-mono text-[11px] font-semibold text-fg-faint cursor-pointer transition-[opacity,color,background] duration-150 opacity-60 group-hover/code:opacity-100 hover:!text-fg hover:bg-[color-mix(in_srgb,var(--color-text)_8%,transparent)]"
+          className="inline-flex items-center gap-1 rounded-md border-0 bg-transparent px-2 py-1 font-mono text-[11px] font-semibold text-fg-faint transition-[opacity,color,background] duration-150 opacity-60 group-hover/code:opacity-100 hover:!text-fg hover:bg-[color-mix(in_srgb,var(--color-text)_8%,transparent)]"
         >
           <Icon name={copied ? "check" : "copy"} size={11} />
           {copied ? "Copied" : "Copy"}
@@ -182,4 +182,4 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
 }
 
 const FOLD_TOGGLE =
-  "flex w-full items-center justify-center gap-1.5 border-0 bg-transparent px-4 py-2.5 font-sans text-[11.5px] font-semibold text-fg-muted tracking-normal cursor-pointer transition-[background,color] duration-150 hover:bg-[color-mix(in_srgb,var(--color-text)_4%,transparent)] hover:text-fg";
+  "flex w-full items-center justify-center gap-1.5 border-0 bg-transparent px-4 py-2.5 font-sans text-[11.5px] font-semibold text-fg-muted tracking-normal transition-[background,color] duration-150 hover:bg-[color-mix(in_srgb,var(--color-text)_4%,transparent)] hover:text-fg";

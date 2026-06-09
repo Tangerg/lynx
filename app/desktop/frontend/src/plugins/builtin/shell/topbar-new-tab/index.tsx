@@ -24,7 +24,7 @@ function NewTabButton() {
         onClick={() => void createSession()}
         aria-label="New session"
         className={cn(
-          "ml-1 mr-0.5 mb-1 grid h-6.5 w-6.5 shrink-0 place-items-center rounded-md border-0 bg-transparent text-fg-muted cursor-pointer hover:bg-surface hover:text-fg",
+          "ml-1 mr-0.5 mb-1 grid h-6.5 w-6.5 shrink-0 place-items-center rounded-md border-0 bg-transparent text-fg-muted hover:bg-surface hover:text-fg",
           noDragClasses,
         )}
       >

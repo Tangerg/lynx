@@ -27,7 +27,7 @@ export function JumpToBottomButton({ visible, onClick }: Props) {
         className={cn(
           "absolute bottom-24 right-7 z-[3] grid h-9 w-9 place-items-center rounded-full",
           "bg-surface-2 text-fg border border-[color-mix(in_srgb,var(--color-text)_14%,transparent)]",
-          "shadow-md cursor-pointer transition-all duration-150 ease-out",
+          "shadow-md transition-all duration-150 ease-out",
           "hover:bg-surface-3 hover:border-[color-mix(in_srgb,var(--color-text)_22%,transparent)]",
           "active:translate-y-0 active:scale-95",
           visible

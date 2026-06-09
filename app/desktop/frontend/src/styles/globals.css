@@ -266,6 +266,16 @@ html {
   font-family: var(--font-ui);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Native subtractions (NATIVE_FEEL.md §A): no grey tap-flash on press, no
+     long-press callout/magnifier. Inherited, so this covers the whole tree. */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+/* Icons/images can't be drag-ghosted out of the window as a file — a desktop
+   surface doesn't hand you its glyphs. (NATIVE_FEEL.md §A.) */
+img,
+svg {
+  -webkit-user-drag: none;
 }
 body {
   font-size: var(--fs-body-md);

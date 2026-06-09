@@ -40,7 +40,7 @@ function ChatErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
         <button
           type="button"
           onClick={resetErrorBoundary}
-          className="rounded-md border border-[color-mix(in_srgb,var(--color-text)_12%,transparent)] bg-surface-2 px-3 py-1 text-[13px] text-fg font-sans cursor-pointer transition-colors hover:bg-surface-3"
+          className="rounded-md border border-[color-mix(in_srgb,var(--color-text)_12%,transparent)] bg-surface-2 px-3 py-1 text-[13px] text-fg font-sans transition-colors hover:bg-surface-3"
         >
           {t("chat.error.retry")}
         </button>

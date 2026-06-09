@@ -70,7 +70,7 @@ export function IconGallery() {
               type="button"
               onClick={() => setQuery("")}
               title="Clear"
-              className="grid h-5.5 w-5.5 place-items-center rounded-xs border-0 bg-transparent p-0 text-fg-faint cursor-pointer transition-[background,color,transform] duration-150 hover:bg-surface-3 hover:text-fg active:scale-90"
+              className="grid h-5.5 w-5.5 place-items-center rounded-xs border-0 bg-transparent p-0 text-fg-faint transition-[background,color,transform] duration-150 hover:bg-surface-3 hover:text-fg active:scale-90"
             >
               <Icon name="x" size={11} />
             </button>

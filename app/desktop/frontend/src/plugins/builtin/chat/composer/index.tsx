@@ -136,7 +136,7 @@ function IconChip({ icon, hint, onClick }: { icon: IconName; hint: string; onCli
         type="button"
         aria-label={hint}
         onClick={onClick}
-        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm border-0 bg-transparent text-fg-faint cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg"
+        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm border-0 bg-transparent text-fg-faint transition-colors hover:bg-surface-2 hover:text-fg"
       >
         <Icon name={icon} size={12} />
       </button>
@@ -195,7 +195,7 @@ function ModelPicker() {
         <button
           type="button"
           aria-label="Switch model"
-          className="mr-1 inline-flex h-6.5 shrink-0 items-center gap-1.5 rounded-full border border-transparent bg-transparent pl-1.5 pr-2.5 font-sans text-[12px] font-semibold text-fg whitespace-nowrap cursor-pointer transition-colors hover:bg-surface-2 hover:border-line data-[state=open]:bg-surface-2 data-[state=open]:border-line"
+          className="mr-1 inline-flex h-6.5 shrink-0 items-center gap-1.5 rounded-full border border-transparent bg-transparent pl-1.5 pr-2.5 font-sans text-[12px] font-semibold text-fg whitespace-nowrap transition-colors hover:bg-surface-2 hover:border-line data-[state=open]:bg-surface-2 data-[state=open]:border-line"
         >
           <ProviderIcon provider={selected.provider} size={16} />
           <span className="font-mono text-[11.5px] font-semibold tracking-[0.01em]">
@@ -214,7 +214,7 @@ function ModelPicker() {
             <DropdownMenu.Item
               key={`${m.provider}:${m.id}`}
               onSelect={() => setModel(m.provider, m.id)}
-              className="grid cursor-pointer grid-cols-[16px_minmax(0,1fr)_14px] items-center gap-2 rounded-sm px-2 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
+              className="grid grid-cols-[16px_minmax(0,1fr)_14px] items-center gap-2 rounded-sm px-2 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
             >
               <ProviderIcon provider={m.provider} size={16} />
               <span className="truncate">{m.label}</span>
@@ -235,7 +235,7 @@ function AttachButton() {
       <button
         type="button"
         aria-label="Attach file"
-        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border-0 bg-transparent text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg"
+        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border-0 bg-transparent text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg"
       >
         <Icon name={"paperclip" as IconName} size={13} />
       </button>
@@ -278,7 +278,7 @@ function SendButton() {
           type="button"
           disabled={!stop}
           onClick={() => stop?.()}
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 cursor-pointer bg-surface-3 text-fg transition-transform duration-150 hover:scale-105 active:scale-95"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 bg-surface-3 text-fg transition-transform duration-150 hover:scale-105 active:scale-95"
         >
           <Icon name="stop" size={13} />
         </button>
@@ -298,7 +298,7 @@ function SendButton() {
         disabled={disabled}
         onClick={onClick}
         className={cn(
-          "grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 cursor-pointer transition-transform duration-150",
+          "grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 transition-transform duration-150",
           disabled
             ? "bg-surface-3 text-fg-faint cursor-not-allowed"
             : "bg-accent text-on-accent hover:scale-105 active:scale-95",

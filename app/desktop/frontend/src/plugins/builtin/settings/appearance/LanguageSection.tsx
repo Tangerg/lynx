@@ -28,7 +28,7 @@ export function LanguageSection() {
           carries between settings + chat. */}
       <DropdownMenu.Root>
         <DropdownMenu.Trigger
-          className="inline-flex w-fit min-w-[180px] items-center justify-between gap-2 rounded-md border border-line bg-surface-2 px-3 py-1.5 text-[13px] font-medium text-fg cursor-pointer transition-colors hover:bg-surface-3 data-[state=open]:bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+          className="inline-flex w-fit min-w-[180px] items-center justify-between gap-2 rounded-md border border-line bg-surface-2 px-3 py-1.5 text-[13px] font-medium text-fg transition-colors hover:bg-surface-3 data-[state=open]:bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
           aria-label={t("settings.language.label")}
         >
           <span>{active.label}</span>
@@ -44,7 +44,7 @@ export function LanguageSection() {
               <DropdownMenu.Item
                 key={l.id}
                 onSelect={() => setLocale(l.id)}
-                className="grid cursor-pointer grid-cols-[minmax(0,1fr)_12px] items-center gap-2 rounded-sm px-2.5 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
+                className="grid grid-cols-[minmax(0,1fr)_12px] items-center gap-2 rounded-sm px-2.5 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
               >
                 <span className="truncate">{l.label}</span>
                 {locale === l.id ? (

@@ -41,6 +41,7 @@ import globalKeymap from "./command/global-keymap";
 import iconGallery from "./settings/icon-gallery";
 import rpcAgent from "./agent/rpc-agent";
 import { kernelChat, kernelSettings, kernelSidebar } from "./shell/kernel";
+import nativeShell from "./shell/native-shell";
 import { localesPack } from "./i18n";
 import mainRoute from "./shell/main-route";
 import { messageCopy, messageEdit, messageRegenerate } from "./chat/message-actions";
@@ -91,6 +92,7 @@ const protocol: PluginSpec[] = [coreReducer];
 // Configuration & infrastructure.
 // ---------------------------------------------------------------------------
 const infrastructure: PluginSpec[] = [
+  nativeShell,
   defaultConfig,
   // bootstrap after defaultConfig so api.localToken is set before the
   // handshake builds the RpcClient (API.md §2 Lifecycle).

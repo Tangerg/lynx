@@ -81,7 +81,7 @@ function CopyItem({
   return (
     <DropdownMenu.Item
       onSelect={onSelect}
-      className="flex cursor-pointer flex-col gap-0.5 rounded-sm px-2.5 py-1.5 outline-none data-[highlighted]:bg-surface-2"
+      className="flex flex-col gap-0.5 rounded-sm px-2.5 py-1.5 outline-none data-[highlighted]:bg-surface-2"
     >
       <span className="text-[12.5px] text-fg">{label}</span>
       <span className="text-[11px] text-fg-faint">{hint}</span>

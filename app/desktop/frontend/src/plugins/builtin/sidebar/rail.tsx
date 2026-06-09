@@ -88,7 +88,7 @@ function RailSessions() {
               // Dark: surface at rest, surface-2 on hover/active. Light
               // reads the same ladder but starts one tone deeper because
               // the panel itself is white.
-              "relative grid h-9 w-9 place-items-center rounded-lg border-0 font-sans text-[13px] font-semibold cursor-pointer transition-[background,color,transform]",
+              "relative grid h-9 w-9 place-items-center rounded-lg border-0 font-sans text-[13px] font-semibold transition-[background,color,transform]",
               "bg-surface text-fg-muted light:bg-surface-2",
               "hover:bg-surface-2 hover:text-fg light:hover:bg-surface-3",
               s.id === activeSessionId &&
@@ -160,7 +160,7 @@ function RailUser() {
     <Tooltip label="You · jdoe@longbridge-inc.com" side="right">
       <div
         aria-label="Account"
-        className="mt-1 grid h-9 w-9 place-items-center rounded-full border-2 border-transparent bg-surface-2 font-sans text-[13px] font-semibold text-fg cursor-pointer transition-colors hover:border-accent"
+        className="mt-1 grid h-9 w-9 place-items-center rounded-full border-2 border-transparent bg-surface-2 font-sans text-[13px] font-semibold text-fg transition-colors hover:border-accent"
       >
         J
       </div>

@@ -38,7 +38,7 @@ is grounded in what's in the tree today (`src/styles/*`, `main.go`), not aspirat
 
 | Tell | Native behaviour | Lyra status |
 |---|---|---|
-| `cursor: pointer` on controls | macOS shows the **arrow** on buttons, not a link hand | ◻︎ **Audit needed.** Default `<button>`/Radix triggers don't set it, but any `cursor-pointer` Tailwind util on a control is a web tell — grep and remove. Reserve the hand for genuine hyperlinks inside `.msg-content` only. |
+| `cursor: pointer` on controls | macOS shows the **arrow** on buttons, not a link hand | ✅ Done — stripped all `cursor-pointer` utils from controls (47 files); buttons/rows/toggles fall back to the arrow. The hand survives only on genuine hyperlinks inside `.md`/`.msg-content` (native `<a href>` default, no util needed). Re-audit on new surfaces via the checklist. |
 | Hover highlight on everything | Native rows highlight on **selection / keyboard focus**, hover is subdued or absent | ◻︎ Keep hover affordances quiet and reserved for list rows; don't glow buttons/labels on hover. |
 | Text selects when you drag the chrome | Chrome (tabs, sidebar, toolbar, status bar) is non-selectable; only content is | ✅ Done — `body { user-select: none }`, re-enabled on `.msg-content` subtree (`globals.css`). |
 | OS-default blue selection bleeding through | A deliberate, on-brand selection tint | ✅ Done — `::selection` accent-tinted (`globals.css`). |
@@ -46,9 +46,9 @@ is grounded in what's in the tree today (`src/styles/*`, `main.go`), not aspirat
 | Settings / dialogs as page-dimming modals | Native apps open **separate windows** or inline panels, not overlays that gray out the app | ◻︎ Prefer inline panels / dedicated views over full-screen dimming modals. Where a Radix Dialog is used, keep it small and app-like, not a page takeover. |
 | Tooltips / popovers as DOM nodes | Raycast renders them as **native windows** so they escape the WebView and never clip | ⚠️ **Divergence (accepted).** We use Radix tooltips/popovers (DOM, portaled). Wails has no first-class native-tooltip API, so native windows aren't a cheap win here. Mitigation: portal to body, allow overflow, never let a popover get clipped by a `panel-scroll` container. Revisit only if clipping/throttling becomes visible. |
 | Browser scrollbars | Thin, themed, overlay-style scrollbars | ✅ Done — `::-webkit-scrollbar` themed per surface (`layout.css`, `markdown.css`, `globals.css`). |
-| Rubber-band / overscroll glow | No bounce at the edges of inner scrollers | ◻︎ Add `overscroll-behavior: contain` on `panel-scroll` / `msg-scroll-frame`. Not present today. |
-| Tap highlight, callout, drag-ghost on long-press | Nothing | ◻︎ Add `-webkit-tap-highlight-color: transparent` and `-webkit-touch-callout: none` globally; set `-webkit-user-drag: none` on images/icons so they can't be dragged out as files. |
-| Right-click = browser context menu | App-defined context menu, or nothing | ◻︎ Suppress the default `contextmenu` except where a real (Radix) context menu is wired. |
+| Rubber-band / overscroll glow | No bounce at the edges of inner scrollers | ✅ Done — `overscroll-behavior: contain` on `.panel-scroll` (`layout.css`), which is THE scroller everywhere (panels + the chat's inner stick-to-bottom div via `scrollClassName`). |
+| Tap highlight, callout, drag-ghost on long-press | Nothing | ✅ Done — `-webkit-tap-highlight-color: transparent` + `-webkit-touch-callout: none` on `html` (inherited tree-wide), `-webkit-user-drag: none` on `img, svg` (`globals.css`). |
+| Right-click = browser context menu | App-defined context menu, or nothing | ✅ Done — `native-shell` builtin plugin suppresses the default `contextmenu` (`plugins/builtin/shell/native-shell`). Exempts real text fields (system edit menu) and leaves Radix context menus intact (they open at the trigger before the document listener). |
 | Native font edges | Crisp, OS-matched text | ✅ Done — `-webkit-font-smoothing: antialiased`; mono carries `tabular-nums` (`globals.css`). |
 
 ### B · Make the WebView render like a native surface

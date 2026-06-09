@@ -168,7 +168,7 @@ function ChatSearchOverlay() {
           onClick={prev}
           disabled={total === 0}
           aria-label="Previous match"
-          className="grid h-6 w-6 place-items-center rounded border-0 bg-transparent text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
+          className="grid h-6 w-6 place-items-center rounded border-0 bg-transparent text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Icon name="chevron-up" size={12} />
         </button>
@@ -179,7 +179,7 @@ function ChatSearchOverlay() {
           onClick={next}
           disabled={total === 0}
           aria-label="Next match"
-          className="grid h-6 w-6 place-items-center rounded border-0 bg-transparent text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
+          className="grid h-6 w-6 place-items-center rounded border-0 bg-transparent text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Icon name="chevron-down" size={12} />
         </button>
@@ -189,7 +189,7 @@ function ChatSearchOverlay() {
           type="button"
           onClick={() => setOpen(false)}
           aria-label="Close"
-          className="grid h-6 w-6 place-items-center rounded border-0 bg-transparent text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg"
+          className="grid h-6 w-6 place-items-center rounded border-0 bg-transparent text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg"
         >
           <Icon name="x" size={12} />
         </button>

@@ -17,7 +17,7 @@ function ProjectsSection() {
             type="button"
             title={t("sidebar.action.addProject")}
             aria-label={t("sidebar.action.addProject")}
-            className="ml-auto grid h-6.5 w-6.5 place-items-center rounded-full border-0 bg-surface-2 text-fg-muted cursor-pointer transition-colors hover:bg-surface-3 hover:text-fg active:scale-[0.92]"
+            className="ml-auto grid h-6.5 w-6.5 place-items-center rounded-full border-0 bg-surface-2 text-fg-muted transition-colors hover:bg-surface-3 hover:text-fg active:scale-[0.92]"
           >
             <Icon name="plus" size={12} />
           </button>

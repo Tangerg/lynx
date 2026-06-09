@@ -17,7 +17,7 @@ function ColorRow({
   onChange: (hex: string) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-md border border-line bg-surface-2 px-3 py-1.5 transition-colors hover:bg-surface-3">
+    <label className="flex items-center justify-between gap-3 rounded-md border border-line bg-surface-2 px-3 py-1.5 transition-colors hover:bg-surface-3">
       <span className="text-[13px] text-fg-muted">{label}</span>
       <span className="relative inline-flex items-center gap-2">
         <span className="font-mono text-[12px] uppercase text-fg">{value}</span>
@@ -31,7 +31,7 @@ function ColorRow({
           aria-label={label}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          className="absolute inset-0 h-full w-full opacity-0"
         />
       </span>
     </label>

@@ -95,7 +95,7 @@ function ProviderRow({ p }: { p: ProviderInfo }) {
             "h-7 rounded-md px-3 text-[12px] font-semibold transition-colors",
             !dirty || saving
               ? "cursor-not-allowed bg-surface-2 text-fg-faint"
-              : "cursor-pointer bg-accent text-on-accent hover:opacity-90",
+              : "bg-accent text-on-accent hover:opacity-90",
           )}
         >
           {saving ? "Saving…" : "Save"}
@@ -108,7 +108,7 @@ function ProviderRow({ p }: { p: ProviderInfo }) {
             "h-7 rounded-md border px-3 text-[12px] font-semibold transition-colors",
             !enabled || probe.state === "busy"
               ? "cursor-not-allowed border-line-soft text-fg-faint"
-              : "cursor-pointer border-line text-fg-muted hover:bg-surface-2 hover:text-fg",
+              : "border-line text-fg-muted hover:bg-surface-2 hover:text-fg",
           )}
         >
           {probe.state === "busy" ? "Testing…" : "Test"}

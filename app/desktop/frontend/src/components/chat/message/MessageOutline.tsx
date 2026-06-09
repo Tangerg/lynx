@@ -112,7 +112,7 @@ export function MessageOutline({ target }: { target: RefObject<HTMLElement | nul
                 }}
                 style={{ paddingLeft: `${(it.level - minLevel) * 10}px` }}
                 className={cn(
-                  "block truncate rounded px-1.5 py-0.5 text-[12px] text-fg-muted cursor-pointer transition-colors",
+                  "block truncate rounded px-1.5 py-0.5 text-[12px] text-fg-muted transition-colors",
                   "hover:bg-surface-2 hover:text-fg",
                   it.level === minLevel && "font-semibold text-fg-soft",
                 )}

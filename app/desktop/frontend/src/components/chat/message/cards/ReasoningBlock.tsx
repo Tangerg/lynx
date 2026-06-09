@@ -65,7 +65,7 @@ export function ReasoningBlock({ text, status }: Props) {
       <button
         type="button"
         onClick={toggle}
-        className="inline-flex max-w-full items-center gap-2 rounded-md bg-transparent border-0 px-2.5 py-1.5 font-mono text-[12px] font-semibold text-fg-faint cursor-pointer transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--color-text)_6%,transparent)] hover:text-fg active:bg-[color-mix(in_srgb,var(--color-text)_10%,transparent)]"
+        className="inline-flex max-w-full items-center gap-2 rounded-md bg-transparent border-0 px-2.5 py-1.5 font-mono text-[12px] font-semibold text-fg-faint transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--color-text)_6%,transparent)] hover:text-fg active:bg-[color-mix(in_srgb,var(--color-text)_10%,transparent)]"
       >
         <Icon name="sparkle" size={11} />
         <span className="shrink-0 [font-feature-settings:'tnum']">{label}</span>

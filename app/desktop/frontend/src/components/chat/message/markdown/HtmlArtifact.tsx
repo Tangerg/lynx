@@ -49,7 +49,7 @@ export function HtmlArtifact({ code }: Props) {
               type="button"
               onClick={() => setTab(t)}
               className={cn(
-                "rounded-sm px-2 py-0.5 text-[11px] font-sans font-medium cursor-pointer transition-colors",
+                "rounded-sm px-2 py-0.5 text-[11px] font-sans font-medium transition-colors",
                 tab === t
                   ? "bg-surface text-fg shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
                   : "bg-transparent text-fg-muted hover:text-fg",

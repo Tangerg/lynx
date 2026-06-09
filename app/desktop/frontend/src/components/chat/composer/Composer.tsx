@@ -164,7 +164,7 @@ function ModePicker({
         type="button"
         aria-label={`Mode: ${active.label} (click to switch)`}
         onClick={cycle}
-        className="inline-flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-sm border-0 bg-transparent text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+        className="inline-flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-sm border-0 bg-transparent text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
       >
         <Icon name={(active.icon as IconName) ?? "spark"} size={14} />
       </button>

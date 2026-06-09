@@ -95,7 +95,7 @@ export function RunErrorBanner() {
             onClick={() => clearError(sid)}
             title={t("runError.action.dismiss")}
             aria-label={t("runError.action.dismiss")}
-            className="grid h-5.5 w-5.5 place-items-center rounded text-fg-faint cursor-pointer bg-transparent border-0 transition-all duration-150 hover:bg-[color-mix(in_srgb,var(--color-text)_10%,transparent)] hover:text-fg active:scale-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            className="grid h-5.5 w-5.5 place-items-center rounded text-fg-faint bg-transparent border-0 transition-all duration-150 hover:bg-[color-mix(in_srgb,var(--color-text)_10%,transparent)] hover:text-fg active:scale-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           >
             <Icon name="x" size={12} />
           </button>
@@ -125,8 +125,8 @@ function BannerAction({ icon, label, onClick, primary }: BannerActionProps) {
       onClick={onClick}
       className={
         primary
-          ? `inline-flex h-6 items-center gap-1 rounded-md border border-negative/40 bg-negative/15 px-2 font-sans text-[11.5px] font-semibold text-negative cursor-pointer transition-colors hover:bg-negative/25 ${focusRing}`
-          : `inline-flex h-6 items-center gap-1 rounded-md border border-line-soft bg-transparent px-2 font-sans text-[11.5px] text-fg-muted cursor-pointer transition-colors hover:bg-surface-2 hover:text-fg ${focusRing}`
+          ? `inline-flex h-6 items-center gap-1 rounded-md border border-negative/40 bg-negative/15 px-2 font-sans text-[11.5px] font-semibold text-negative transition-colors hover:bg-negative/25 ${focusRing}`
+          : `inline-flex h-6 items-center gap-1 rounded-md border border-line-soft bg-transparent px-2 font-sans text-[11.5px] text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg ${focusRing}`
       }
     >
       <Icon name={icon} size={11} />
