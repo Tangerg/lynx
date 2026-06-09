@@ -50,12 +50,6 @@ type Config struct {
 	// legacy [buildInterruptResponse] path (conversation-based tail
 	// the caller must intercept).
 	ParkStore ParkStore
-
-	// ParkID, when non-empty, is the park conversation key passed
-	// at construction time. Takes precedence over [ParkKey] on the
-	// request params — when set the middleware never reads the
-	// request for the park id.
-	ParkID string
 }
 
 // MaxIterationsError is returned when the tool-calling loop exceeds its
@@ -88,7 +82,6 @@ type middleware struct {
 	maxIterations int
 	feedbackEmpty bool
 	parkStore     ParkStore
-	parkIDOverride string
 }
 
 // NewMiddleware constructs the tool-calling middleware pair. Pass an
@@ -105,10 +98,9 @@ func NewMiddleware(config ...Config) (chat.CallMiddleware, chat.StreamMiddleware
 	}
 
 	mw := &middleware{
-		maxIterations:   maxIterations,
-		feedbackEmpty:   cfg.FeedbackOnEmptyResponse,
-		parkStore:       cfg.ParkStore,
-		parkIDOverride:  cfg.ParkID,
+		maxIterations: maxIterations,
+		feedbackEmpty: cfg.FeedbackOnEmptyResponse,
+		parkStore:     cfg.ParkStore,
 	}
 	return mw.wrapCallHandler, mw.wrapStreamHandler
 }
@@ -255,17 +247,17 @@ func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next 
 			return
 		}
 
-	support.register(req.Tools...)
+		support.register(req.Tools...)
 
-	// ParkStore resume: load parked round.
-	if parkID := m.parkID(req); parkID != "" && m.parkStore != nil {
-		if state, _ := m.parkStore.Read(ctx, parkID); state != nil {
-			req = injectParkTail(req, state)
-			_ = m.parkStore.Clear(ctx, parkID)
+		// ParkStore resume: load parked round.
+		if parkID := m.parkID(req); parkID != "" && m.parkStore != nil {
+			if state, _ := m.parkStore.Read(ctx, parkID); state != nil {
+				req = injectParkTail(req, state)
+				_ = m.parkStore.Clear(ctx, parkID)
+			}
 		}
-	}
 
-	// HITL resume: continue from the conversation tail's unanswered tool
+		// HITL resume: continue from the conversation tail's unanswered tool
 		// calls (a prior round halted, its tail fed back) — execute only the
 		// pending calls, no model re-call. See executeCall.
 		if point, ok := parseResumePoint(req.Messages); ok {
@@ -417,15 +409,14 @@ func newToolMessageResponse(tm *chat.ToolMessage) (*chat.Response, error) {
 // ─── ParkStore helpers ──────────────────────────────────────────
 
 // parkID reads the park conversation identifier from the request
-// params (set via [ParkKey]), or "" when absent.
+// params (set via [chat.ConversationIDKey]), or "" when absent — the
+// same key the memory middleware reads, since a parked round belongs to
+// the conversation it interrupted.
 func (m *middleware) parkID(req *chat.Request) string {
-	if m.parkIDOverride != "" {
-		return m.parkIDOverride
-	}
 	if req == nil {
 		return ""
 	}
-	raw, ok := req.Get(ParkKey)
+	raw, ok := req.Get(chat.ConversationIDKey)
 	if !ok {
 		return ""
 	}

@@ -904,7 +904,7 @@ func TestMemory_SequentialMultiRoundTurn_ValidHistory(t *testing.T) {
 	// slice = outermost.
 	req, _ := chat.NewClientRequest(model)
 	req.WithMiddlewares(toolStreamMW, memCallMW, memStreamMW).
-		WithParams(map[string]any{memory.ConversationIDKey: "c1"}).
+		WithParams(map[string]any{chat.ConversationIDKey: "c1"}).
 		WithSystemPrompt("sys").
 		WithUserPrompt("go").
 		WithTools(alpha, beta)

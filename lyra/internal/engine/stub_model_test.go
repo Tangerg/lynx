@@ -62,9 +62,12 @@ func (m *cwdDelegatingStubModel) Metadata() chat.ModelMetadata {
 func (m *cwdDelegatingStubModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
 	switch {
 	case hasToolMessage(req.Messages):
-		// Round 2 — distinguish the main turn (delegated) from the
-		// sub-agent turn (ran bash) by the user message.
-		if mentionsDelegate(req.Messages) {
+		// Round 2 — distinguish the main turn (delegated via task) from
+		// the sub-agent turn (ran bash) by inspecting tool calls in the
+		// conversation. The tool-loop middleware strips user messages
+		// between rounds (§invoker.nextRoundRequest), so we use the
+		// assistant tool calls on the wire instead.
+		if hasToolCall(req.Messages, "task") {
 			return responseWithText("main: subtask done")
 		}
 		return responseWithText("subtask done")
@@ -89,6 +92,108 @@ func mentionsDelegate(msgs []chat.Message) bool {
 		}
 	}
 	return false
+}
+
+// hasToolCall reports whether any assistant message in msgs contains a
+// call to the named tool. Used by stub models to distinguish context when
+// the tool-loop middleware has stripped user messages between rounds.
+func hasToolCall(msgs []chat.Message, name string) bool {
+	for _, msg := range msgs {
+		a, ok := msg.(*chat.AssistantMessage)
+		if !ok || !a.HasToolCalls() {
+			continue
+		}
+		for _, call := range a.CollectToolCalls() {
+			if call.Name == name {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// subtaskSecret is planted in the subtask's prompt on round 1 and must
+// reappear in the model's view on round 2; subtaskContextLost is what the
+// stub reports when it doesn't.
+const (
+	subtaskSecret      = "WIDGET-42"
+	subtaskContextLost = "subtask: context lost"
+)
+
+// subtaskMemoryStub proves a spawned subtask keeps chat-memory context
+// across its OWN tool-loop rounds. The tool loop hands the model only each
+// round's new (assistant, tool result) delta — the original user prompt is
+// reconstructed by the memory middleware, which only fires when the request
+// carries a conversation id. A subtask runs without an externally-supplied
+// session, so this exercises the runtime's process-id fallback: without it
+// the subtask's round 2 loses the secret and reports subtaskContextLost.
+//
+// Turn dispatch (main turn vs sub-agent turn, round 1 vs round 2) keys off
+// which tool call is on the wire, since user messages are stripped between
+// rounds (see [hasToolCall]).
+type subtaskMemoryStub struct{ defaults *chat.Options }
+
+func newSubtaskMemoryStub() *subtaskMemoryStub {
+	opts, _ := chat.NewOptions("stub-subtask-memory")
+	return &subtaskMemoryStub{defaults: opts}
+}
+
+func (m *subtaskMemoryStub) DefaultOptions() chat.Options { return *m.defaults }
+func (m *subtaskMemoryStub) Metadata() chat.ModelMetadata {
+	return chat.ModelMetadata{Provider: "stub"}
+}
+
+func (m *subtaskMemoryStub) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
+	switch {
+	case hasToolCall(req.Messages, "task"):
+		// Main turn, round 2: echo back whatever the subtask reported.
+		return responseWithText("main: " + toolResult(req.Messages, "task"))
+	case hasToolCall(req.Messages, "bash"):
+		// Sub-agent turn, round 2: the secret is only visible if the child's
+		// memory middleware spliced round 1's prompt back in.
+		if userMessagesContain(req.Messages, subtaskSecret) {
+			return responseWithText("subtask: " + subtaskSecret)
+		}
+		return responseWithText(subtaskContextLost)
+	case mentionsDelegate(req.Messages):
+		// Main turn, round 1: delegate, planting the secret in the prompt.
+		return responseWithToolCall("task", `{"prompt":"the secret is `+subtaskSecret+`; run a command then echo the secret back to me"}`)
+	default:
+		// Sub-agent turn, round 1: run a tool so a round 2 happens.
+		return responseWithToolCall("bash", `{"command":"echo working"}`)
+	}
+}
+
+func (m *subtaskMemoryStub) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
+	resp, err := m.Call(ctx, req)
+	return func(yield func(*chat.Response, error) bool) { yield(resp, err) }
+}
+
+// userMessagesContain reports whether any user message in msgs contains
+// substr — used to detect whether round 1's prompt survived into round 2.
+func userMessagesContain(msgs []chat.Message, substr string) bool {
+	for _, msg := range msgs {
+		if u, ok := msg.(*chat.UserMessage); ok && strings.Contains(u.Text, substr) {
+			return true
+		}
+	}
+	return false
+}
+
+// toolResult returns the first tool return for the named tool in msgs, or "".
+func toolResult(msgs []chat.Message, name string) string {
+	for _, msg := range msgs {
+		tm, ok := msg.(*chat.ToolMessage)
+		if !ok {
+			continue
+		}
+		for _, r := range tm.ToolReturns {
+			if r.Name == name {
+				return r.Result
+			}
+		}
+	}
+	return ""
 }
 
 // stubModel is a deterministic chat.Model used by engine + chat-service

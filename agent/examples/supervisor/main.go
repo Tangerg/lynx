@@ -12,8 +12,8 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 )
 
 // Domain types
@@ -84,7 +84,7 @@ func main() {
 				memCallMW, memStreamMW, _ := memory.NewMiddleware(memory.NewInMemoryStore())
 				req := pc.Chat().
 					WithMiddlewares(callMW, streamMW, memCallMW, memStreamMW).
-					WithParams(map[string]any{memory.ConversationIDKey: "example:supervisor"}).
+					WithParams(map[string]any{chat.ConversationIDKey: "example:supervisor"}).
 					WithTools(researchTool, summarizeTool)
 
 				prompt := fmt.Sprintf(

@@ -55,7 +55,7 @@ func TestMemoryMiddleware_SystemFirstAndNeverPersisted(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		req.Set(memory.ConversationIDKey, "c1")
+		req.Set(chat.ConversationIDKey, "c1")
 		if _, err := handler.Call(ctx, req); err != nil {
 			t.Fatal(err)
 		}
@@ -157,7 +157,7 @@ func TestMemoryMiddleware_SkipsUnpairedToolCallAssistant(t *testing.T) {
 	// NOT the unpaired tool-call assistant.
 	h1 := callMW(chat.CallHandlerFunc(toolCallHandler{id: "call_1", name: "x"}.Call))
 	req1, _ := chat.NewRequest([]chat.Message{chat.NewUserMessage("do it")})
-	req1.Set(memory.ConversationIDKey, "c1")
+	req1.Set(chat.ConversationIDKey, "c1")
 	if _, err := h1.Call(ctx, req1); err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestMemoryMiddleware_SkipsUnpairedToolCallAssistant(t *testing.T) {
 	toolMsg, _ := chat.NewToolMessage([]*chat.ToolReturn{{ID: "call_1", Name: "x", Result: "ok"}})
 	h2 := callMW(chat.CallHandlerFunc((&recordingHandler{text: "done"}).Call))
 	req2, _ := chat.NewRequest([]chat.Message{assistant, toolMsg})
-	req2.Set(memory.ConversationIDKey, "c1")
+	req2.Set(chat.ConversationIDKey, "c1")
 	if _, err := h2.Call(ctx, req2); err != nil {
 		t.Fatal(err)
 	}

@@ -9,7 +9,7 @@
 //	store := memory.NewInMemoryStore()
 //	mw, _, err := memory.NewMiddleware(store)
 //	resp, err := client.Chat().
-//	    WithParams(map[string]any{memory.ConversationIDKey: "session-123"}).
+//	    WithParams(map[string]any{chat.ConversationIDKey: "session-123"}).
 //	    WithMiddlewares(mw).
 //	    WithUserPrompt("hi").
 //	    Call().Response(ctx)

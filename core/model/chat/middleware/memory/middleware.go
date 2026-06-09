@@ -10,15 +10,6 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// ConversationIDKey is the [chat.Request].Params key that identifies
-// the conversation. Set it before calling the model:
-//
-//	req.Set(memory.ConversationIDKey, "session-42")
-//
-// When the key is absent the middleware short-circuits — no history
-// load, no save — and the request passes through unchanged.
-const ConversationIDKey = "lynx:ai:model:chat:memory:conversation_id"
-
 // middleware is the conversation-memory layer. It owns exactly one job:
 // on the way down it loads the stored history and splices it in front of
 // the request's new messages; on the way up it persists the new messages
@@ -40,8 +31,7 @@ const ConversationIDKey = "lynx:ai:model:chat:memory:conversation_id"
 //     The spliced order is: system (from the live request) → stored
 //     history → the request's new non-system messages.
 type middleware struct {
-	store                   Store
-	conversationIDOverride  string
+	store Store
 }
 
 // NewMiddleware constructs a memory-management middleware backed by
@@ -54,29 +44,22 @@ type middleware struct {
 //	callMW, streamMW, err := memory.NewMiddleware(store)
 //	if err != nil { return err }
 //	resp, err := client.Chat().
-//	    WithParams(map[string]any{memory.ConversationIDKey: "user-1"}).
+//	    WithParams(map[string]any{chat.ConversationIDKey: "user-1"}).
 //	    WithMiddlewares(callMW, streamMW).
 //	    WithUserPrompt("hi").
 //	    Call().Response(ctx)
-func NewMiddleware(store Store, conversationID ...string) (chat.CallMiddleware, chat.StreamMiddleware, error) {
+func NewMiddleware(store Store) (chat.CallMiddleware, chat.StreamMiddleware, error) {
 	if store == nil {
 		return nil, nil, errors.New("memory.NewMiddleware: store must not be nil")
 	}
 	mw := &middleware{store: store}
-	if len(conversationID) > 0 {
-		mw.conversationIDOverride = conversationID[0]
-	}
 	return mw.wrapCallHandler, mw.wrapStreamHandler, nil
 }
 
-// conversationID returns the stored conversation id — either from the
-// construction-time override or from [ConversationIDKey] on the
-// request params.
+// conversationID returns the conversation id from [chat.ConversationIDKey]
+// on the request params, or "" when the producer did not stamp one.
 func (m *middleware) conversationID(req *chat.Request) (string, error) {
-	if m.conversationIDOverride != "" {
-		return m.conversationIDOverride, nil
-	}
-	raw, exists := req.Get(ConversationIDKey)
+	raw, exists := req.Get(chat.ConversationIDKey)
 	if !exists {
 		return "", nil
 	}

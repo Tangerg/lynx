@@ -17,7 +17,7 @@
 //
 //	chatMW, _, _ := memory.NewMiddleware(store)
 //	resp, _ := client.Chat().
-//	    WithParams(map[string]any{memory.ConversationIDKey: "u-42"}).
+//	    WithParams(map[string]any{chat.ConversationIDKey: "u-42"}).
 //	    WithMiddlewares(chatMW).
 //	    WithUserPrompt("hi").
 //	    Call().Response(ctx)

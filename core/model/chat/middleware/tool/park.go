@@ -16,16 +16,6 @@ type ParkState struct {
 	Done      []*chat.ToolReturn     `json:"done,omitempty"`
 }
 
-// ParkKey is the [chat.Request].Params key that identifies the
-// conversation owning a parked tool round. Mirrors
-// [memory.ConversationIDKey] — set it on the request before the
-// tool loop runs:
-//
-//	req.WithParams(map[string]any{tool.ParkKey: processID})
-//
-// When absent the middleware skips park persistence.
-const ParkKey = "lynx:ai:model:chat:tool:park"
-
 // ParkReader loads a parked round for a conversation, or (nil, nil)
 // when nothing is parked.
 type ParkReader interface {
