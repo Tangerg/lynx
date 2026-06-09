@@ -154,7 +154,7 @@ func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next ch
 
 		// ParkStore resume: load the parked round and inject the
 		// conversation tail so [parseResumePoint] picks it up.
-		if parkID := parkKey(ctx); parkID != "" && m.parkStore != nil {
+		if parkID := parkID(req); parkID != "" && m.parkStore != nil {
 			if state, _ := m.parkStore.Read(ctx, parkID); state != nil {
 				req = injectParkTail(req, state)
 				_ = m.parkStore.Clear(ctx, parkID) // consumed
@@ -213,7 +213,7 @@ func (m *middleware) executeCallRecursively(ctx context.Context, req *chat.Reque
 		// configured) so the caller never sees an interrupt chunk;
 		// fall back to [buildInterruptResponse] for legacy callers.
 		if m.parkStore != nil {
-			m.savePark(ctx, resp.Result.AssistantMessage, result.interrupt.done)
+			m.savePark(req, resp.Result.AssistantMessage, result.interrupt.done)
 			return nil, result.interrupt.cause
 		}
 		interruptResp, e := buildInterruptResponse(resp.Result.AssistantMessage, result.interrupt.done)
@@ -250,7 +250,7 @@ func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next 
 		support.register(req.Tools...)
 
 		// ParkStore resume: load the parked round.
-		if parkID := parkKey(ctx); parkID != "" && m.parkStore != nil {
+		if parkID := parkID(req); parkID != "" && m.parkStore != nil {
 			if state, _ := m.parkStore.Read(ctx, parkID); state != nil {
 				req = injectParkTail(req, state)
 				_ = m.parkStore.Clear(ctx, parkID)
@@ -328,7 +328,7 @@ func (m *middleware) executeStreamRecursively(ctx context.Context, req *chat.Req
 		// HITL: a tool halted the round. Save park state (when
 		// configured); fall back to legacy interrupt chunk path.
 		if m.parkStore != nil {
-			m.savePark(ctx, resp.Result.AssistantMessage, result.interrupt.done)
+			m.savePark(req, resp.Result.AssistantMessage, result.interrupt.done)
 			yield(nil, result.interrupt.cause)
 			return
 		}
@@ -439,16 +439,16 @@ func injectParkTail(req *chat.Request, state *ParkState) *chat.Request {
 }
 
 // savePark persists an interrupted round so it can be resumed later.
-// No-op when no ParkStore is configured or no park id is on the context.
-func (m *middleware) savePark(ctx context.Context, assistant *chat.AssistantMessage, done []*chat.ToolReturn) {
+// No-op when no ParkStore is configured or no park id is on the request.
+func (m *middleware) savePark(req *chat.Request, assistant *chat.AssistantMessage, done []*chat.ToolReturn) {
 	if m.parkStore == nil {
 		return
 	}
-	id := parkKey(ctx)
+	id := parkID(req)
 	if id == "" {
 		return
 	}
-	_ = m.parkStore.Write(ctx, id, &ParkState{
+	_ = m.parkStore.Write(context.TODO(), id, &ParkState{
 		Assistant: assistant,
 		Done:      done,
 	})
