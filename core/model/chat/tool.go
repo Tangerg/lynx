@@ -103,7 +103,6 @@ type tool struct {
 func (t *tool) Definition() ToolDefinition { return t.definition }
 func (t *tool) Metadata() ToolMetadata     { return t.metadata }
 
-// Call runs the tool's exec function.
 func (t *tool) Call(ctx context.Context, arguments string) (string, error) {
 	return t.execFunc(ctx, arguments)
 }

@@ -204,8 +204,9 @@ func (l *LocalExecutor) Edit(_ context.Context, in EditInput) (EditOutput, error
 	content, hadBOM, hadCRLF := normalizeText(data)
 	occurrences := strings.Count(content, in.OldString)
 	if occurrences == 0 {
-		// TODO(fuzzy): retry with normalised quotes / dashes / whitespace
-		// before declaring failure (Claude Code's likeMatch trick).
+		// Fuzzy-match retry (quotes / dashes / whitespace normalisation)
+		// before declaring not-found — Claude Code's likeMatch trick.
+		// Tracked: lynx#tools-fuzzy-edit
 		return EditOutput{}, fmt.Errorf("fs.LocalExecutor.Edit: old_string not found in %s", in.Path)
 	}
 	if occurrences > 1 && !in.ReplaceAll {
