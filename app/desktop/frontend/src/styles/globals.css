@@ -14,10 +14,8 @@
  * `text-fg` callsite live.
  */
 
-/* Webfonts first — @import can't follow other rules per spec, and
-   Tailwind's @import expands into rules. */
-@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400&display=swap");
-
+/* Fonts are self-hosted and bundled via main.tsx (@fontsource-variable/geist
+   + geist-mono) — no CDN @import here. See NATIVE_FEEL.md §A. */
 @import "tailwindcss";
 
 /* Scheme variants. `theme-light` / `theme-dark` are written to <html>
@@ -63,8 +61,8 @@
   --radius-pill: 9999px;
 
   /* Fonts */
-  --font-sans: "Geist", "Inter", system-ui, sans-serif;
-  --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --font-sans: "Geist Variable", "Geist", "Inter", system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, Menlo, monospace;
 
   /* Animations — `animate-shimmer` powers Skeleton, `animate-pulse-dot`
      the running indicator, `animate-rise-in` popover entry. */
@@ -161,10 +159,11 @@
   /* Fonts — Geist (sans + mono) handles every role; CJK fallbacks
      preserve readability for mixed-script text. */
   --font-ui:
-    "Geist", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Sans",
-    "Hiragino Kaku Gothic ProN", Meiryo, "MS Gothic", sans-serif;
+    "Geist Variable", "Geist", "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
+    "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, "MS Gothic", sans-serif;
   --font-mono:
-    "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    "Geist Mono Variable", "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
+    Consolas, monospace;
 
   /* Primary CTA — decoupled from --color-accent so themes can have
      accent drive "live state" while CTA is something else (e.g. Vercel
