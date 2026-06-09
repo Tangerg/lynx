@@ -2,6 +2,7 @@ package skills
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -52,9 +53,14 @@ func Dir(root string) *FS {
 
 // List returns a summary for every valid skill directory, sorted by name.
 // Entries that are not directories, lack a SKILL.md, or fail validation are
-// skipped rather than failing the whole listing.
+// skipped rather than failing the whole listing. A missing root directory is
+// not an error — it just means there are no skills yet (so a source pointed at
+// a not-yet-created ~/.lyra/skills lists empty rather than failing).
 func (f *FS) List(_ context.Context) ([]Summary, error) {
 	entries, err := fs.ReadDir(f.fsys, ".")
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, fmt.Errorf("skills: list: %w", err)
 	}
