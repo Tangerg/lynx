@@ -59,15 +59,14 @@ func TestRoundTrip(t *testing.T) {
 	delegate = handler
 
 	// Client side: resolve the card and wrap the remote agent as a tool.
-	provider, clients, err := a2a.DialAll(ctx, a2a.ClientConfig{CardURL: ts.URL})
+	tools, clients, err := a2a.DialAll(ctx, a2a.ClientConfig{CardURL: ts.URL})
 	if err != nil {
 		t.Fatalf("DialAll: %v", err)
 	}
 	defer a2a.CloseClients(clients)
 
-	tools := provider.Tools()
 	if len(tools) != 1 {
-		t.Fatalf("Tools() = %d tools, want 1", len(tools))
+		t.Fatalf("DialAll returned %d tools, want 1", len(tools))
 	}
 	tool := tools[0]
 
