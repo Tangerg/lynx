@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 
-	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 )
 
@@ -73,7 +72,3 @@ func (s *parkStore) Clear(ctx context.Context, conversationID string) error {
 
 // Ensure parkStore satisfies tool.ParkStore.
 var _ tool.ParkStore = (*parkStore)(nil)
-
-// chat.Message is a concrete type in the tool package but JSON-encoded
-// here. Declare an empty interface constraint for the import to stick.
-var _ = chat.AssistantMessage{} // ensure import stays

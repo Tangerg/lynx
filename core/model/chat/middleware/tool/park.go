@@ -33,14 +33,18 @@ func parkKey(ctx context.Context) string {
 	return id
 }
 
+// ParkReader loads a parked round for a conversation, or (nil, nil)
+// when nothing is parked.
 type ParkReader interface {
 	Read(ctx context.Context, conversationID string) (*ParkState, error)
 }
 
+// ParkWriter persists a parked round.
 type ParkWriter interface {
 	Write(ctx context.Context, conversationID string, state *ParkState) error
 }
 
+// ParkClearer drops a consumed parked round.
 type ParkClearer interface {
 	Clear(ctx context.Context, conversationID string) error
 }

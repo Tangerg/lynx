@@ -448,7 +448,7 @@ func (m *middleware) savePark(ctx context.Context, assistant *chat.AssistantMess
 	if id == "" {
 		return
 	}
-	_ = m.parkStore.Write(context.TODO(), id, &ParkState{
+	_ = m.parkStore.Write(ctx, id, &ParkState{
 		Assistant: assistant,
 		Done:      done,
 	})
