@@ -198,8 +198,14 @@ func (m *middleware) resumeCall(ctx context.Context, req *chat.Request, point *r
 		return nil, err
 	}
 	if res.interrupt != nil {
-		// Another call in the same round halted: fold the results so far into
-		// the round's done-set and surface the interrupt tail again.
+		// Another call in the same round halted. Save park state
+		// (when configured) with the merged done-set; fall back to
+		// [interruptResponse] for legacy callers.
+		if m.parkStore != nil {
+			merged := append(slices.Clone(point.done), res.interrupt.done...)
+			m.savePark(ctx, point.assistant, merged)
+			return nil, res.interrupt.cause
+		}
 		resp, e := point.interruptResponse(res.interrupt.done)
 		if e != nil {
 			return nil, e
@@ -232,6 +238,12 @@ func (m *middleware) resumeStream(ctx context.Context, req *chat.Request, point 
 		return
 	}
 	if res.interrupt != nil {
+		if m.parkStore != nil {
+			merged := append(slices.Clone(point.done), res.interrupt.done...)
+			m.savePark(ctx, point.assistant, merged)
+			yield(nil, res.interrupt.cause)
+			return
+		}
 		if resp, e := point.interruptResponse(res.interrupt.done); e != nil {
 			yield(nil, e)
 		} else if yield(resp, nil) {

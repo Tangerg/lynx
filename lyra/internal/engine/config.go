@@ -4,6 +4,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	lyramem "github.com/Tangerg/lynx/lyra/internal/service/memory"
 	"github.com/Tangerg/lynx/mcp"
 )
@@ -69,6 +70,11 @@ type Config struct {
 	// this to [agent/runtime.PlatformConfig] — keeping session CRUD out of the
 	// chat-execution layer. nil = delegation lineage stays in-process only.
 	SessionStore core.SessionStore
+
+	// ParkStore persists interrupted tool rounds for HITL resume.
+	// When nil the tool middleware falls back to the legacy inflight-tail
+	// path (the engine must intercept [chat.FinishReasonInterrupt] chunks).
+	ParkStore tool.ParkStore
 }
 
 // OnlineConfig groups the credentials network-reaching tools need

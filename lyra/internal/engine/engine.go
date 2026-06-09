@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	lyramem "github.com/Tangerg/lynx/lyra/internal/service/memory"
 )
 
@@ -41,6 +42,7 @@ type Engine struct {
 	memSvc   lyramem.Service
 	workdir  string  // captured from Config.Workdir for the AGENTS.md cascade
 	pricing  Pricing // optional per-round cost hook; nil → cost stays zero
+	parkStore tool.ParkStore
 
 	// Maintenance sub-components — each may be nil when the
 	// corresponding feature is disabled by config (e.g. extractor
@@ -123,6 +125,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		memSvc:      cfg.MemoryService,
 		workdir:     cfg.Workdir,
 		pricing:     cfg.Pricing,
+		parkStore:   cfg.ParkStore,
 		mcpSessions: mcpSessions,
 	}
 

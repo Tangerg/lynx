@@ -6,20 +6,16 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 )
 
 // runChatTurn drives one streaming chat turn end-to-end: compose the
 // system prompt + user message, run the tool-loop, stream deltas to the
-// observer (when one is attached), record each LLM round into the
-// process budget, and assemble the result from that ledger. Shared by
-// the main chat agent and the task sub-agent — they differ only in the
-// typed input wrapper, the declared tool role, and whether an observer
-// is present (sub-agents run without one, so their work is opaque to the
-// parent turn's event stream; only the final answer flows back).
+// observer, record each LLM round into the process budget, and assemble
+// the result. HITL interrupt / resume is handled by the tool
+// middleware's [tool.ParkStore]; when none is configured, the engine
+// intercepts [chat.FinishReasonInterrupt] chunks as a fallback.
 func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, message string, budget turnBudget) (ChatOutput, error) {
-	// Backstop a hung LLM connection (see llmCallTimeout): the deadline
-	// rides the whole streaming round so a stuck read surfaces as a
-	// stream error here rather than blocking the run forever.
 	ctx, cancel := context.WithTimeout(ctx, llmCallTimeout)
 	defer cancel()
 
@@ -27,23 +23,14 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 	if err != nil {
 		return ChatOutput{}, err
 	}
+	ctx = tool.WithParkKey(ctx, pc.Process.ID())
 
 	observer := observerFrom(pc.Options)
-
-	// HITL R-model resume: the run parked for human input on the same process.
-	// When a parked tail is present (the interrupting round's assistant
-	// tool-call message + any partial results, captured below), feed it back so
-	// the tool loop continues AT the still-pending (now-resolved) call — the
-	// model is NOT re-invoked for that round. The system header rides as a
-	// MESSAGE (not the prompt template) so the client doesn't inject a synthetic
-	// user seed; the inner memory middleware splices the stored history in
-	// front, and the (assistant, tool) pair persists atomically when the round
-	// completes. A fresh turn (no tail) adds the user message normally.
 	sysPrompt := e.SystemPrompt(ctx)
 	inflightTail := inflightTailStore{bb: pc.Blackboard}
 	var stream *chat.ClientStreamer
 	if tail, ok := inflightTail.Load(); ok {
-		inflightTail.Clear() // consume the tail
+		inflightTail.Clear()
 		msgs := append([]chat.Message{chat.NewSystemMessage(sysPrompt)}, tail...)
 		stream = req.WithMessages(msgs...).Stream()
 	} else {
@@ -58,9 +45,6 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 		roundUsage  *chat.Usage
 		roundModel  string
 	)
-	// recordRound commits the just-finished LLM round to the process
-	// budget via the framework's invocation ledger; usage is read back
-	// from there, not tallied locally.
 	recordRound := func() {
 		if roundUsage == nil {
 			return
@@ -70,17 +54,13 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 	}
 	for chunk, streamErr := range stream.Response(ctx) {
 		if streamErr != nil {
-			// Best-effort accounting: if the round's usage already
-			// arrived before the error, record it (tokens were spent).
-			// No-op when nothing arrived yet.
 			recordRound()
 			return ChatOutput{}, streamErr
 		}
-		// HITL interrupt: the tool loop hands back the resumable tail (the
-		// round's assistant tool-call message + any partial results) as a
-		// FinishReasonInterrupt response, then a ToolHalt error (handled above).
-		// Park the tail so the resuming re-tick continues AT the pending call —
-		// it is not assistant text and never reaches the budget/observer below.
+		// Fallback: when no ParkStore is configured, the tool middleware
+		// yields FinishReasonInterrupt chunks. Intercept and save to the
+		// process blackboard so resume works. With a ParkStore configured
+		// the middleware never yields these — the engine does nothing.
 		if isInterruptResult(chunk) {
 			recordRound()
 			inflightTail.Save(chunk.Result)
@@ -88,9 +68,6 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 		}
 		if chunk.IsToolResult() {
 			recordRound()
-			// Enforce the per-turn budget at the round boundary — stop
-			// before the next LLM call. The running totals come from the
-			// process budget the recordRound above just updated.
 			if budget.exceeded(pc) {
 				return chatOutput(pc, accumulated.String(), true), nil
 			}

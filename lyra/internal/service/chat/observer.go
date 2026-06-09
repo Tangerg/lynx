@@ -6,8 +6,9 @@ import (
 	"hash/fnv"
 	"strconv"
 
-	"github.com/Tangerg/lynx/agent/hitl"
+	corechat "github.com/Tangerg/lynx/core/model/chat"
 
+	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 )
 
@@ -53,7 +54,7 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	}
 	mode, err := t.svc.approval.GetMode(ctx)
 	if err != nil {
-		return engine.ToolApprovalVerdict{Denied: true, DenyReason: "approval mode unavailable: " + err.Error()}
+		return engine.ToolApprovalVerdict{Denied: true, DenyReason: "approval mode unavailable"}
 	}
 	switch gateFor(toolName, mode) {
 	case gatePass:
@@ -98,6 +99,13 @@ func (t *turnObserver) OnToolCallStart(callID, toolName, arguments string) {
 }
 
 func (t *turnObserver) OnToolCallEnd(callID, _ string, output string, err error) {
+	// HITL interrupt (chat.ToolHalt with Abort()==false): the tool
+	// paused for human input. Not a failure — skip the ToolCallEnd
+	// event. The turn-park handler drains the in-flight tool item
+	// and creates the appropriate interrupt card.
+	if h, ok := errors.AsType[corechat.ToolHalt](err); ok && !h.Abort() {
+		return
+	}
 	end := ToolCallEnd{CallID: callID, Output: output}
 	switch {
 	case errors.Is(err, engine.ErrToolDenied):

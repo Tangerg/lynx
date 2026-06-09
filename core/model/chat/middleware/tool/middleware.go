@@ -18,11 +18,11 @@ import (
 const DefaultMaxIterations = 50
 
 // emptyResponseNudge is the follow-up prompt sent when a model returns an
-// empty reply and [LoopConfig.FeedbackOnEmptyResponse] is enabled.
+// empty reply and [Config.FeedbackOnEmptyResponse] is enabled.
 const emptyResponseNudge = "Your previous reply was empty. Please provide a complete answer, or call one of the available tools."
 
-// LoopConfig tunes [NewMiddleware]. Every field is optional; the
-// zero value yields the default loop (cap = [DefaultMaxIterations]).
+// Config tunes [NewMiddleware]. Every field is optional; the zero
+// value yields the default loop (cap = [DefaultMaxIterations]).
 //
 // Tool-failure handling is NOT configurable: a tool error that isn't a
 // control-flow signal (ctx cancel / a chat.ToolHalt (abort or HITL interrupt)) is
@@ -31,7 +31,7 @@ const emptyResponseNudge = "Your previous reply was empty. Please provide a comp
 // aborting the run. That recovery is the framework default; a tool author
 // chooses the outcome at the source (fold the failure into the result string,
 // or return an ordinary error and let the loop wrap it). See [chat.Tool.Call].
-type LoopConfig struct {
+type Config struct {
 	// MaxIterations caps the number of model calls the tool loop makes.
 	// <= 0 falls back to [DefaultMaxIterations].
 	MaxIterations int
@@ -42,6 +42,14 @@ type LoopConfig struct {
 	// recovery this is a genuine behavioral choice, not error handling, so it
 	// stays opt-in.
 	FeedbackOnEmptyResponse bool
+
+	// ParkStore, when non-nil, persists interrupted tool rounds so the
+	// engine never sees a [chat.FinishReasonInterrupt] chunk — the
+	// middleware saves the park state on interrupt and restores it on
+	// resume, both transparent to the caller. nil falls back to the
+	// legacy [buildInterruptResponse] path (conversation-based tail
+	// the caller must intercept).
+	ParkStore ParkStore
 }
 
 // MaxIterationsError is returned when the tool-calling loop exceeds its
@@ -73,12 +81,13 @@ func (e *MaxIterationsError) Error() string {
 type middleware struct {
 	maxIterations int
 	feedbackEmpty bool
+	parkStore     ParkStore
 }
 
 // NewMiddleware constructs the tool-calling middleware pair. Pass an
-// optional [LoopConfig] to tune the loop; omit it for defaults.
-func NewMiddleware(config ...LoopConfig) (chat.CallMiddleware, chat.StreamMiddleware) {
-	var cfg LoopConfig
+// optional [Config] to tune the loop; omit it for defaults.
+func NewMiddleware(config ...Config) (chat.CallMiddleware, chat.StreamMiddleware) {
+	var cfg Config
 	if len(config) > 0 {
 		cfg = config[0]
 	}
@@ -91,6 +100,7 @@ func NewMiddleware(config ...LoopConfig) (chat.CallMiddleware, chat.StreamMiddle
 	mw := &middleware{
 		maxIterations: maxIterations,
 		feedbackEmpty: cfg.FeedbackOnEmptyResponse,
+		parkStore:     cfg.ParkStore,
 	}
 	return mw.wrapCallHandler, mw.wrapStreamHandler
 }
@@ -142,6 +152,15 @@ func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next ch
 
 	support.register(req.Tools...)
 
+		// ParkStore resume: load the parked round and inject the
+		// conversation tail so [parseResumePoint] picks it up.
+		if parkID := parkKey(ctx); parkID != "" && m.parkStore != nil {
+			if state, _ := m.parkStore.Read(ctx, parkID); state != nil {
+				req = injectParkTail(req, state)
+				_ = m.parkStore.Clear(ctx, parkID) // consumed
+			}
+		}
+
 	// HITL resume: when the conversation tail is an assistant turn whose tool
 	// calls aren't fully answered (a prior round halted for human input and its
 	// tail was fed back), execute the still-pending calls and continue —
@@ -190,10 +209,13 @@ func (m *middleware) executeCallRecursively(ctx context.Context, req *chat.Reque
 	}
 
 	if result.interrupt != nil {
-		// HITL: a tool halted the round. Hand back the FinishReasonInterrupt
-		// response (the resumable tail: this round's assistant + any partial
-		// results) AND propagate the cause so the caller parks. On resume the
-		// tail is fed back and the loop continues at the pending calls.
+		// HITL: a tool halted the round. Save park state (when
+		// configured) so the caller never sees an interrupt chunk;
+		// fall back to [buildInterruptResponse] for legacy callers.
+		if m.parkStore != nil {
+			m.savePark(ctx, resp.Result.AssistantMessage, result.interrupt.done)
+			return nil, result.interrupt.cause
+		}
 		interruptResp, e := buildInterruptResponse(resp.Result.AssistantMessage, result.interrupt.done)
 		if e != nil {
 			return nil, e
@@ -226,6 +248,14 @@ func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next 
 		}
 
 		support.register(req.Tools...)
+
+		// ParkStore resume: load the parked round.
+		if parkID := parkKey(ctx); parkID != "" && m.parkStore != nil {
+			if state, _ := m.parkStore.Read(ctx, parkID); state != nil {
+				req = injectParkTail(req, state)
+				_ = m.parkStore.Clear(ctx, parkID)
+			}
+		}
 
 		// HITL resume: continue from the conversation tail's unanswered tool
 		// calls (a prior round halted, its tail fed back) — execute only the
@@ -295,11 +325,13 @@ func (m *middleware) executeStreamRecursively(ctx context.Context, req *chat.Req
 	}
 
 	if result.interrupt != nil {
-		// HITL: a tool halted the round. The assistant deltas were already
-		// streamed above; yield the FinishReasonInterrupt response (the
-		// resumable tail) then propagate the cause so the caller parks. On
-		// resume the tail is fed back and the loop continues at the pending
-		// calls — the model is not re-invoked for this round.
+		// HITL: a tool halted the round. Save park state (when
+		// configured); fall back to legacy interrupt chunk path.
+		if m.parkStore != nil {
+			m.savePark(ctx, resp.Result.AssistantMessage, result.interrupt.done)
+			yield(nil, result.interrupt.cause)
+			return
+		}
 		if interruptResp, e := buildInterruptResponse(resp.Result.AssistantMessage, result.interrupt.done); e != nil {
 			yield(nil, e)
 		} else if yield(interruptResp, nil) {
@@ -372,4 +404,52 @@ func newToolMessageResponse(tm *chat.ToolMessage) (*chat.Response, error) {
 		Metadata:    &chat.ResultMetadata{FinishReason: chat.FinishReasonStop},
 	}
 	return chat.NewResponse(result, &chat.ResponseMetadata{})
+}
+
+// ─── ParkStore helpers ──────────────────────────────────────────
+
+// injectParkTail appends the parked round's conversation tail
+// (assistant + Done tool returns) onto the request's messages
+// so [parseResumePoint] detects it and resumes at the pending call.
+// The engine always adds a user message on every turn — on resume
+// the memory middleware replays the full history, so we strip the
+// trailing user message and replace it with the tail.
+func injectParkTail(req *chat.Request, state *ParkState) *chat.Request {
+	msgs := req.Messages
+	// Strip the trailing user message the engine always adds.
+	if len(msgs) > 0 {
+		if _, ok := msgs[len(msgs)-1].(*chat.UserMessage); ok {
+			msgs = msgs[:len(msgs)-1]
+		}
+	}
+	msgs = append(msgs, state.Assistant)
+	if len(state.Done) > 0 {
+		if tm, err := chat.NewToolMessage(state.Done); err == nil {
+			msgs = append(msgs, tm)
+		}
+	}
+	next, err := chat.NewRequest(msgs)
+	if err != nil {
+		return req
+	}
+	next.Options = req.Options.Clone()
+	next.Tools = req.Tools
+	next.Params = req.Params
+	return next
+}
+
+// savePark persists an interrupted round so it can be resumed later.
+// No-op when no ParkStore is configured or no park id is on the context.
+func (m *middleware) savePark(ctx context.Context, assistant *chat.AssistantMessage, done []*chat.ToolReturn) {
+	if m.parkStore == nil {
+		return
+	}
+	id := parkKey(ctx)
+	if id == "" {
+		return
+	}
+	_ = m.parkStore.Write(context.TODO(), id, &ParkState{
+		Assistant: assistant,
+		Done:      done,
+	})
 }

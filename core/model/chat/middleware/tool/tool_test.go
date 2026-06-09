@@ -662,7 +662,7 @@ func TestToolMiddleware_MaxIterationsCap(t *testing.T) {
 		return "echoed:" + args, nil
 	})
 
-	callMW, _ := NewMiddleware(LoopConfig{MaxIterations: 3})
+	callMW, _ := NewMiddleware(Config{MaxIterations: 3})
 	req, _ := chat.NewClientRequest(model)
 	req.
 		WithMiddlewares(callMW).
@@ -732,7 +732,7 @@ func TestToolMiddleware_EmptyResponseFeedback(t *testing.T) {
 		return responseWithText("now answered"), nil
 	}
 
-	callMW, _ := NewMiddleware(LoopConfig{FeedbackOnEmptyResponse: true})
+	callMW, _ := NewMiddleware(Config{FeedbackOnEmptyResponse: true})
 	req, _ := chat.NewClientRequest(model)
 	req.WithMiddlewares(callMW).WithMessages(chat.NewUserMessage("seed"))
 
@@ -760,7 +760,7 @@ func TestToolMiddleware_EmptyResponseNudgeIsOneShot(t *testing.T) {
 		return responseWithText(""), nil // always empty
 	}
 
-	callMW, _ := NewMiddleware(LoopConfig{FeedbackOnEmptyResponse: true})
+	callMW, _ := NewMiddleware(Config{FeedbackOnEmptyResponse: true})
 	req, _ := chat.NewClientRequest(model)
 	req.WithMiddlewares(callMW).WithMessages(chat.NewUserMessage("seed"))
 

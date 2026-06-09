@@ -104,11 +104,11 @@ type ProcessContextConfig struct {
 	ActionToolGroups []ToolGroupRequirement
 
 	// ActionToolLoop carries the currently-executing action's
-	// [tool.LoopConfig] so [ProcessContext.ChatWithActionTools]
+	// [tool.Config] so [ProcessContext.ChatWithActionTools]
 	// builds the tool middleware with the action's chosen recovery
 	// policies / iteration cap. Refreshed every tick alongside
 	// ActionToolGroups.
-	ActionToolLoop tool.LoopConfig
+	ActionToolLoop tool.Config
 }
 
 // ProcessContext is the only thing handed to an [Action.Execute] call.
@@ -138,7 +138,7 @@ type ProcessContext struct {
 
 	// --- Per-action state + per-tick scratch. ---
 	actionToolGroups []ToolGroupRequirement
-	actionToolLoop   tool.LoopConfig
+	actionToolLoop   tool.Config
 
 	// inputAwaited flips when the action calls [AwaitInput]; the
 	// typed-action wrapper reads it to return ActionWaiting. Per-tick

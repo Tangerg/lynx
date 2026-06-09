@@ -127,7 +127,7 @@ func (e *Engine) buildChatAgent() *core.Agent {
 			},
 			core.ActionConfig{
 				ToolGroups: core.ToolRolesFor(ToolRoleCoding),
-				ToolLoop:   recoverToolLoop(),
+				ToolLoop:   recoverToolLoop(e.parkStore),
 				// MaxAttempts:1 — don't let the runtime retry an LLM action.
 				// Transient errors are already retried inside the model SDK;
 				// permanent ones (no-access model, bad key, invalid request)
@@ -181,7 +181,7 @@ func (e *Engine) buildSubtaskAgent() *core.Agent {
 			},
 			core.ActionConfig{
 				ToolGroups: core.ToolRolesFor(ToolRoleSubtask),
-				ToolLoop:   recoverToolLoop(),
+				ToolLoop:   recoverToolLoop(e.parkStore),
 				QoS:        core.ActionQoS{MaxAttempts: 1}, // same rationale as the chat action
 			},
 		)).
@@ -199,9 +199,10 @@ func (e *Engine) buildSubtaskAgent() *core.Agent {
 // the tool observer; the run continues per API.md §8.1). The only knob left is
 // the empty-reply nudge, which we opt into so a blank model turn re-prompts
 // once instead of ending the turn empty.
-func recoverToolLoop() tool.LoopConfig {
-	return tool.LoopConfig{
+func recoverToolLoop(parkStore tool.ParkStore) tool.Config {
+	return tool.Config{
 		FeedbackOnEmptyResponse: true,
+		ParkStore:               parkStore,
 	}
 }
 

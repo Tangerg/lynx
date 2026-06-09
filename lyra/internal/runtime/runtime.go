@@ -30,6 +30,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
 	chatmem "github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	toolmw "github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 
 	"github.com/Tangerg/lynx/lyra/internal/config"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
@@ -116,6 +117,11 @@ type Config struct {
 	// credentials, persisted). Required — the composition root injects the
 	// sqlite-backed registry and seeds the configured provider into it.
 	ProviderService provider.Service
+
+	// ParkStore persists interrupted tool rounds so the tool loop can
+	// resume from the parked conversation tail. Required — sqlite-backed,
+	// same DB as the other stores.
+	ParkStore toolmw.ParkStore
 }
 
 // Runtime is the bundle. Construct once via [New]; share the
@@ -158,6 +164,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		Compaction:    cfg.Compaction,
 		Pricing:       cfg.Pricing,
 		ProcessStore:  cfg.ProcessStore,
+		ParkStore:     cfg.ParkStore,
 		// When a sub-agent (the `task` delegation) is spawned, the runtime
 		// records its session here so the parent→child lineage is durably
 		// queryable; CreateSubtask marks it internal so it stays out of List.
