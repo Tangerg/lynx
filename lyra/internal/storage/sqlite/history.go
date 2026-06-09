@@ -32,10 +32,26 @@ func (s *HistoryStore) AppendItem(ctx context.Context, it history.Item) error {
 	if it.SessionID == "" {
 		return errors.New("sqlite: history item sessionId is required")
 	}
+	if it.ItemID == "" {
+		return errors.New("sqlite: history item itemId is required")
+	}
+	// Replace any prior record of this item (e.g. a drainTools-produced
+	// incomplete toolCall that a resumed HITL round later completes with the
+	// same id) so items.list always surfaces the latest state. Two-step
+	// (DELETE + INSERT) avoids adding a UNIQUE constraint on the existing
+	// table and keeps the migration surface zero.
+	now := it.CreatedAt.UnixNano()
 	_, err := s.db.ExecContext(ctx,
+		`DELETE FROM history_items WHERE item_id = ?`,
+		it.ItemID,
+	)
+	if err != nil {
+		return fmt.Errorf("sqlite: delete prior history item %q: %w", it.ItemID, err)
+	}
+	_, err = s.db.ExecContext(ctx,
 		`INSERT INTO history_items(session_id, run_id, item_id, created_at, item)
 		 VALUES (?, ?, ?, ?, ?)`,
-		it.SessionID, it.RunID, it.ItemID, it.CreatedAt.UnixNano(), string(it.Blob),
+		it.SessionID, it.RunID, it.ItemID, now, string(it.Blob),
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: append history item: %w", err)

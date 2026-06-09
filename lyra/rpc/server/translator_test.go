@@ -254,7 +254,8 @@ func TestClassifyRunError(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := classifyRunError(c.msg)
+			tr := newTranslator("", "", "", nil, nil)
+			got := tr.classifyRunError(c.msg)
 			if got.Type != c.wantType {
 				t.Fatalf("type = %q, want %q (msg=%q)", got.Type, c.wantType, c.msg)
 			}

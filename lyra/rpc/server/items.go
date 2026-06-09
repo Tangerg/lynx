@@ -193,7 +193,7 @@ func historyToItems(sessionID string, msgs []chat.Message) []protocol.Item {
 					ID:     nextID(),
 					Status: protocol.ItemStatusCompleted,
 					Type:   protocol.ItemTypeToolCall,
-					Tool:   toolInvocation(call.Name, call.Arguments, ""),
+					Tool:   protocol.NewToolInvocation(call.Name, call.Arguments, ""),
 				})
 			}
 		case *chat.ToolMessage:
@@ -204,7 +204,7 @@ func historyToItems(sessionID string, msgs []chat.Message) []protocol.Item {
 				if r, ok := byCallID[ret.ID]; ok {
 					// Rebuild the full invocation now the output is known
 					// (search hits / exit code / generic result land here).
-					out[r.idx].Tool = toolInvocation(r.name, r.args, ret.Result)
+					out[r.idx].Tool = protocol.NewToolInvocation(r.name, r.args, ret.Result)
 				}
 			}
 		}
@@ -212,16 +212,4 @@ func historyToItems(sessionID string, msgs []chat.Message) []protocol.Item {
 	return out
 }
 
-// parseArgs decodes a tool call's JSON-encoded arguments into a
-// structured object for the completed-item Tool.Arguments; nil when
-// empty or unparseable.
-func parseArgs(raw string) map[string]any {
-	if raw == "" {
-		return nil
-	}
-	var m map[string]any
-	if json.Unmarshal([]byte(raw), &m) != nil {
-		return nil
-	}
-	return m
-}
+// parseArgs was removed (replaced by protocol.ParseArgs).
