@@ -12,7 +12,7 @@ import (
 // every problem at once (embabel-style) rather than stopping at the first:
 //
 //  1. [core.Agent.Validate] checks structural invariants.
-//  2. [checkGoalsReachable] does a one-step producer scan for GOAP so
+//  2. [core.Agent.CheckGoalsReachable] does a one-step producer scan so
 //     every unreachable goal fails at deploy time, not first tick.
 //  3. Every [core.AgentValidator] extension runs; each error is collected
 //     (with the validator's Name attributed).
@@ -48,7 +48,7 @@ func (p *Platform) validateForDeploy(a *core.Agent) error {
 	if err := a.Validate(); err != nil {
 		problems = append(problems, fmt.Errorf("structure: %w", err))
 	}
-	problems = append(problems, checkGoalsReachable(a)...)
+	problems = append(problems, a.CheckGoalsReachable()...)
 	problems = append(problems, runAgentValidators(collectExtensions[core.AgentValidator](p.extensions.list), a)...)
 
 	if joined := errors.Join(problems...); joined != nil {
@@ -68,56 +68,6 @@ func (p *Platform) Undeploy(name string) error {
 		AgentName: name,
 	})
 	return nil
-}
-
-// checkGoalsReachable does a conservative one-step producer scan: for
-// every condition each goal requires, verify that either an action's
-// effects can establish it OR an action's input binding looks like
-// it (input bindings are externally supplied via process bindings +
-// dual-binding rules). It returns one error per unreachable
-// (goal, condition) pair so Deploy can report them all together.
-//
-// Intentionally weaker than running the full planner from empty
-// state — the latter falsely rejects agents whose first action's
-// precondition is "input binding present", because empty world state
-// has no bindings. We accept the false-negative tradeoff so
-// legitimate input-driven agents can deploy. Nil actions/goals are
-// skipped here; structural validation reports those separately.
-func checkGoalsReachable(a *core.Agent) []error {
-	producible := map[string]struct{}{}
-	for _, action := range a.Actions {
-		if action == nil {
-			continue
-		}
-		meta := action.Metadata()
-		for key, value := range meta.Effects {
-			if value == core.True {
-				producible[key] = struct{}{}
-			}
-		}
-		for _, in := range meta.Inputs {
-			producible[in.String()] = struct{}{}
-		}
-	}
-
-	var problems []error
-	for _, goal := range a.Goals {
-		if goal == nil {
-			continue
-		}
-		for key, required := range goal.Preconditions() {
-			if required != core.True {
-				continue
-			}
-			if _, ok := producible[key]; !ok {
-				problems = append(problems, fmt.Errorf(
-					"runtime.checkGoalsReachable: goal %q requires condition %q, but no action produces it",
-					goal.Name, key,
-				))
-			}
-		}
-	}
-	return problems
 }
 
 // idGenerator returns the most-recently-registered IDGenerator

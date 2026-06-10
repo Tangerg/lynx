@@ -27,13 +27,31 @@ import (
 // process after a restart (the live TurnID is gone then). Interrupts is
 // the wire payload (one entry per pending awaitable), stored opaquely as
 // JSON so this package stays free of a protocol-type dependency.
+// DrainedTools is the backend-private half of the park: resume
+// bookkeeping the client never sees.
 type Pending struct {
-	ParentRunID string
-	SessionID   string
-	TurnID      string
-	ProcessID   string
-	Interrupts  json.RawMessage
-	CreatedAt   time.Time
+	ParentRunID  string
+	SessionID    string
+	TurnID       string
+	ProcessID    string
+	Interrupts   json.RawMessage
+	DrainedTools []DrainedTool
+	CreatedAt    time.Time
+}
+
+// DrainedTool records one tool item that was still open when the run
+// parked (e.g. an ask_user call that interrupted from inside its own
+// execution). The continuation uses it to re-bind the re-fired tool to
+// its ORIGINAL item id — by (Name, canonical Arguments) — instead of
+// minting a duplicate toolCall item. This is backend bookkeeping, kept
+// as a typed field here rather than smuggled into the wire interrupt
+// payload.
+type DrainedTool struct {
+	ItemID string `json:"itemId"`
+	Name   string `json:"name"`
+	// Arguments is the raw argument JSON exactly as the tool received
+	// it; consumers canonicalize when keying.
+	Arguments string `json:"arguments"`
 }
 
 // Store is the open-interrupt registry. Implementations must be safe

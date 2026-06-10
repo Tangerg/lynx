@@ -56,20 +56,6 @@ func NewMiddleware(store Store) (chat.CallMiddleware, chat.StreamMiddleware, err
 	return mw.wrapCallHandler, mw.wrapStreamHandler, nil
 }
 
-// conversationID returns the conversation id from [chat.ConversationIDKey]
-// on the request params, or "" when the producer did not stamp one.
-func (m *middleware) conversationID(req *chat.Request) (string, error) {
-	raw, exists := req.Get(chat.ConversationIDKey)
-	if !exists {
-		return "", nil
-	}
-	id, ok := raw.(string)
-	if !ok {
-		return "", errors.New("memory: ConversationIDKey value must be a string")
-	}
-	return id, nil
-}
-
 // splice loads the conversation history and assembles the request sent to
 // the model: the live request's system message first (never drawn from
 // storage), then the stored history, then the request's new non-system
@@ -130,7 +116,7 @@ func (m *middleware) persist(ctx context.Context, id string, toPersist []chat.Me
 
 // executeCall is the synchronous flow: splice → call → save.
 func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next chat.CallHandler) (*chat.Response, error) {
-	id, err := m.conversationID(req)
+	id, err := req.ConversationID()
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +150,7 @@ func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next ch
 // what the model actually said.
 func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next chat.StreamHandler) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
-		id, err := m.conversationID(req)
+		id, err := req.ConversationID()
 		if err != nil {
 			yield(nil, err)
 			return

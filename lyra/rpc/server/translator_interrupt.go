@@ -28,15 +28,16 @@ func (t *translator) interrupt(e chat.TurnInterrupted) []protocol.StreamEvent {
 	// already been through OnToolCallStart (observedTool.Call fires
 	// Start before inner.Call). drainTools closes their items as
 	// incomplete — but on resume the tool re-fires and would create a
-	// new item without reuse. We capture these here so the interrupt
-	// payload can carry the (name, args, itemID) mapping for
-	// resumeBindingFrom to register in resume.toolItems.
+	// new item without reuse. The snapshot is recorded on the pending
+	// interrupt as [interrupts.Pending.DrainedTools] (backend-private —
+	// never on the wire payload) so resumeBindingFrom can register the
+	// (name, args, itemID) mapping in resume.toolItems.
 	//
 	// Approval-gate tools exit earlier (gate returns Interrupt before
-	// Start fires) and never populate t.tools, so snapshotTools returns
+	// Start fires) and never populate t.tools, so the snapshot is
 	// empty for those — correct, because approvalInterrupt creates a
 	// fresh item and keys it directly.
-	drained := snapshotTools(t.tools)
+	t.parkDrained = drainedToolsFrom(t.tools)
 
 	out = append(out, t.drainTools()...)
 	// Close any tool item still open when the turn parks (defensive: the
@@ -53,20 +54,6 @@ func (t *translator) interrupt(e chat.TurnInterrupted) []protocol.StreamEvent {
 		default: // question — ask_user (free text) or plan review (choice)
 			if _, ok := in.Payload.(engine.QuestionPrompt); ok {
 				ev, entry = t.askUserInterrupt(in)
-				// Attach the drained tool items to the interrupt so
-				// resumeBindingFrom can register them for reuse. The
-				// interrupting tool is the only item in t.tools (the
-				// round stops at the first HITL tool), so len(drained)<=1.
-				for _, ref := range drained {
-					if entry.Payload == nil {
-						entry.Payload = make(map[string]any)
-					}
-					entry.Payload["_tool"] = map[string]any{
-						"id":        ref.id,
-						"name":      ref.name,
-						"arguments": protocol.ParseArgs(ref.args),
-					}
-				}
 			} else {
 				ev, entry = t.questionInterrupt(in)
 			}

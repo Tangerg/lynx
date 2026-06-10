@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -31,16 +32,25 @@ func (s *InterruptStore) Put(ctx context.Context, p interrupts.Pending) error {
 	if p.ParentRunID == "" {
 		return errors.New("sqlite: interrupt parentRunId is required")
 	}
+	var drained string
+	if len(p.DrainedTools) > 0 {
+		b, err := json.Marshal(p.DrainedTools)
+		if err != nil {
+			return fmt.Errorf("sqlite: encode drained tools: %w", err)
+		}
+		drained = string(b)
+	}
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO interrupts(parent_run_id, session_id, turn_id, process_id, interrupts, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?)
+		`INSERT INTO interrupts(parent_run_id, session_id, turn_id, process_id, interrupts, drained_tools, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(parent_run_id) DO UPDATE SET
-		   session_id = excluded.session_id,
-		   turn_id    = excluded.turn_id,
-		   process_id = excluded.process_id,
-		   interrupts = excluded.interrupts,
-		   created_at = excluded.created_at`,
-		p.ParentRunID, p.SessionID, p.TurnID, p.ProcessID, string(p.Interrupts), p.CreatedAt.UnixNano(),
+		   session_id    = excluded.session_id,
+		   turn_id       = excluded.turn_id,
+		   process_id    = excluded.process_id,
+		   interrupts    = excluded.interrupts,
+		   drained_tools = excluded.drained_tools,
+		   created_at    = excluded.created_at`,
+		p.ParentRunID, p.SessionID, p.TurnID, p.ProcessID, string(p.Interrupts), drained, p.CreatedAt.UnixNano(),
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: put interrupt: %w", err)
@@ -49,7 +59,7 @@ func (s *InterruptStore) Put(ctx context.Context, p interrupts.Pending) error {
 }
 
 func (s *InterruptStore) List(ctx context.Context, sessionID string) ([]interrupts.Pending, error) {
-	query := `SELECT parent_run_id, session_id, turn_id, process_id, interrupts, created_at FROM interrupts`
+	query := `SELECT parent_run_id, session_id, turn_id, process_id, interrupts, drained_tools, created_at FROM interrupts`
 	args := []any{}
 	if sessionID != "" {
 		query += ` WHERE session_id = ?`
@@ -79,7 +89,7 @@ func (s *InterruptStore) List(ctx context.Context, sessionID string) ([]interrup
 
 func (s *InterruptStore) Get(ctx context.Context, parentRunID string) (interrupts.Pending, bool, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT parent_run_id, session_id, turn_id, process_id, interrupts, created_at
+		`SELECT parent_run_id, session_id, turn_id, process_id, interrupts, drained_tools, created_at
 		 FROM interrupts WHERE parent_run_id = ?`, parentRunID)
 	p, err := scanPending(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -110,9 +120,10 @@ func scanPending(row scanRow) (interrupts.Pending, error) {
 	var (
 		p         interrupts.Pending
 		payload   string
+		drained   string
 		createdNs int64
 	)
-	if err := row.Scan(&p.ParentRunID, &p.SessionID, &p.TurnID, &p.ProcessID, &payload, &createdNs); err != nil {
+	if err := row.Scan(&p.ParentRunID, &p.SessionID, &p.TurnID, &p.ProcessID, &payload, &drained, &createdNs); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return interrupts.Pending{}, err
 		}
@@ -120,6 +131,11 @@ func scanPending(row scanRow) (interrupts.Pending, error) {
 	}
 	if payload != "" {
 		p.Interrupts = []byte(payload)
+	}
+	if drained != "" {
+		if err := json.Unmarshal([]byte(drained), &p.DrainedTools); err != nil {
+			return interrupts.Pending{}, fmt.Errorf("sqlite: decode drained tools: %w", err)
+		}
 	}
 	p.CreatedAt = time.Unix(0, createdNs).UTC()
 	return p, nil
