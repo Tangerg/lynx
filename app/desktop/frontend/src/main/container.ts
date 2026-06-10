@@ -5,8 +5,13 @@
 
 import { PROTOCOL_VERSION, RUNTIME_BASE } from "@/main/config";
 import { getConfig } from "@/plugins/sdk/config";
-import type { LyraClient, SidecarClient } from "@/rpc";
-import { createHttpTransport, createLyraClient, createSidecarClient } from "@/rpc";
+import type { LyraClient, ShellClient, SidecarClient } from "@/rpc";
+import {
+  createHttpTransport,
+  createLyraClient,
+  createShellClient,
+  createSidecarClient,
+} from "@/rpc";
 
 export interface Container {
   /**
@@ -24,6 +29,13 @@ export interface Container {
    * caller handles the RpcTransportError).
    */
   sidecar: SidecarClient;
+  /**
+   * Wails shell asset client (sideloaded-plugin manifest). NOT the Runtime
+   * Protocol — host/packaging metadata served by the desktop shell. Routed
+   * through the container so sideload discovery is injectable in tests and the
+   * "single outbound seam" invariant holds (no bare fetch in plugins/host).
+   */
+  shell: ShellClient;
 }
 
 function defaultContainer(): Container {
@@ -44,6 +56,7 @@ function defaultContainer(): Container {
         }),
       )),
     sidecar: createSidecarClient({ baseUrl }),
+    shell: createShellClient({ baseUrl }),
   };
 }
 

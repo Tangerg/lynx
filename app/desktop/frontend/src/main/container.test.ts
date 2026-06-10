@@ -9,6 +9,7 @@ describe("main/container", () => {
     const c = getContainer();
     expect(typeof c.client).toBe("function");
     expect(c.sidecar).toBeDefined();
+    expect(c.shell).toBeDefined();
   });
 
   it("setContainer() swaps a single slot, leaving others intact", () => {

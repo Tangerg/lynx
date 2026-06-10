@@ -9,8 +9,10 @@
 
 import type { LoadResult } from "../sdk/definePlugin";
 import type { PluginSpec } from "../sdk/types";
+import type { SideloadEntry } from "@/rpc";
 import { z } from "zod";
 import { RUNTIME_BASE } from "@/main/config";
+import { getContainer } from "@/main/container";
 import { loadPlugin } from "../sdk/definePlugin";
 import { reportPluginError } from "../sdk/errors";
 import { pluginOrigin, setPluginOrigin } from "../sdk/pluginOrigin";
@@ -35,17 +37,6 @@ const PluginSpecSchema = z.object({
   contributes: z.unknown().optional(),
 });
 
-interface SideloadInfo {
-  id: string;
-  url: string;
-}
-
-async function fetchSideloadList(): Promise<SideloadInfo[]> {
-  const res = await fetch(`${RUNTIME_BASE}/plugins`);
-  if (!res.ok) throw new Error(`GET /plugins → ${res.status}`);
-  return (await res.json()) as SideloadInfo[];
-}
-
 /**
  * Discover sideloaded plugins from the Go backend and load each one.
  *
@@ -53,9 +44,13 @@ async function fetchSideloadList(): Promise<SideloadInfo[]> {
  * but tests do.
  */
 export async function loadSideloadedPlugins(): Promise<LoadResult[]> {
-  let infos: SideloadInfo[];
+  // The manifest fetch goes through the container's shell client (the single
+  // outbound seam — injectable in tests, ARCHITECTURE §10). The per-plugin
+  // module load below is a dynamic import(), inherently glue, so it builds the
+  // URL from RUNTIME_BASE directly.
+  let infos: SideloadEntry[];
   try {
-    infos = await fetchSideloadList();
+    infos = await getContainer().shell.sideloadManifest();
   } catch (err) {
     console.warn("[plugin] sideload manifest fetch failed:", err);
     return [];
