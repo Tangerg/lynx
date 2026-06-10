@@ -54,6 +54,8 @@ func NewSimpleFormatter(config SimpleFormatterConfig) *SimpleFormatter {
 }
 
 // Format renders doc by emitting filtered metadata as `key: value` lines
+// (sorted by key — map iteration order would make the rendered text,
+// and thus embedding inputs and token counts, non-deterministic)
 // followed by a blank line and the document text. With no metadata
 // (filtered empty), the output is just doc.Text — no leading newlines.
 func (s *SimpleFormatter) Format(doc *Document, mode MetadataMode) string {
@@ -63,8 +65,8 @@ func (s *SimpleFormatter) Format(doc *Document, mode MetadataMode) string {
 	}
 
 	entries := make([]string, 0, len(filtered))
-	for key, value := range filtered {
-		entries = append(entries, key+": "+cast.ToString(value))
+	for _, key := range slices.Sorted(maps.Keys(filtered)) {
+		entries = append(entries, key+": "+cast.ToString(filtered[key]))
 	}
 	return strings.Join(entries, "\n") + "\n\n" + doc.Text
 }

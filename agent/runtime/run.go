@@ -26,6 +26,7 @@ func (p *AgentProcess) run(ctx context.Context) error {
 
 	if err := p.validateAgentForRun(); err != nil {
 		p.failProcess(err)
+		p.publishTerminalEvent()
 		return err
 	}
 
@@ -91,14 +92,14 @@ func (p *AgentProcess) validateAgentForRun() error {
 	return nil
 }
 
-// failProcess transitions to StatusFailed and publishes the failure event.
+// failProcess transitions to StatusFailed and records the failure.
+// It deliberately does NOT publish [event.ProcessFailed] — every run
+// exit funnels through [publishTerminalEvent], which is the single
+// publisher of terminal events (publishing here too double-fired
+// ProcessFailed on planner errors).
 func (p *AgentProcess) failProcess(err error) {
 	p.state.setFailure(err)
 	p.state.setStatus(core.StatusFailed)
-	p.publishEvent(event.ProcessFailed{
-		BaseEvent: p.baseEvent(),
-		Err:       err,
-	})
 }
 
 // markCancelled records context cancellation as a kill.

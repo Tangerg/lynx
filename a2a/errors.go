@@ -20,6 +20,11 @@ var (
 
 	// ErrEmptyCardURL is returned by Dial when no card URL is supplied.
 	ErrEmptyCardURL = errors.New("a2a: card URL must not be empty")
+
+	// ErrEmptyToolName is returned when an AgentTool ends up with an empty
+	// tool name — the card's Name contains no sanitizable characters (e.g.
+	// fully non-ASCII) and no explicit Name override was supplied.
+	ErrEmptyToolName = errors.New("a2a: tool name must not be empty; set AgentToolConfig.Name when the card name does not sanitize")
 )
 
 // RemoteAgentError reports that a remote A2A agent ended a task in a

@@ -132,12 +132,25 @@ func (s *SQLLikeVisitor) visitIdent(expr *ast.Ident) {
 	s.buffer.WriteString(expr.Value)
 }
 
-// visitLiteral renders a literal — strings get single quotes, other
-// kinds are emitted as-is.
+// stringEscaper re-applies the filter language's string escapes — the
+// inverse of the lexer's resolveEscape — so a rendered literal
+// round-trips through the parser and an embedded quote can't break
+// out of the quoted form. Backslash comes first so the escapes the
+// later pairs insert are never themselves re-escaped.
+var stringEscaper = strings.NewReplacer(
+	`\`, `\\`,
+	`'`, `\'`,
+	"\n", `\n`,
+	"\t", `\t`,
+	"\r", `\r`,
+)
+
+// visitLiteral renders a literal — strings get single quotes with
+// their content re-escaped, other kinds are emitted as-is.
 func (s *SQLLikeVisitor) visitLiteral(expr *ast.Literal) {
 	if expr.IsString() {
 		s.buffer.WriteString("'")
-		s.buffer.WriteString(expr.Value)
+		s.buffer.WriteString(stringEscaper.Replace(expr.Value))
 		s.buffer.WriteString("'")
 		return
 	}

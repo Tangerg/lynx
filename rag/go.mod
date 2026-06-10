@@ -7,7 +7,6 @@ require (
 	github.com/Tangerg/lynx/pkg v0.0.0-20260511081009-fbf46737de3d
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/trace v1.43.0
-	golang.org/x/sync v0.20.0
 )
 
 require (

@@ -143,3 +143,17 @@ func TestSQLLike_Roundtrip(t *testing.T) {
 		t.Fatalf("not idempotent:\n  first=%q\n  second=%q", first, second)
 	}
 }
+
+func TestSQLLike_StringEscapeRoundtrip(t *testing.T) {
+	// The lexer decodes \' \\ \n \t \r inside string literals; the
+	// renderer must re-apply those escapes or an embedded quote breaks
+	// out of the quoted form and the output no longer re-parses.
+	first := render(t, `name == 'O\'Brien \\ line\nbreak'`)
+	second := render(t, first)
+	if first != second {
+		t.Fatalf("escape round-trip not idempotent:\n  first=%q\n  second=%q", first, second)
+	}
+	if !strings.Contains(first, `'O\'Brien`) {
+		t.Fatalf("rendered = %q — embedded quote must stay escaped", first)
+	}
+}
