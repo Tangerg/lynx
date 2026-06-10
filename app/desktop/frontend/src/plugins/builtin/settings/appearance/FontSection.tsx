@@ -10,7 +10,13 @@
 import type { SegmentedOption } from "@/components/common";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useId } from "react";
-import { Checkbox, Icon, Segmented } from "@/components/common";
+import {
+  Checkbox,
+  Icon,
+  MENU_CONTENT_CLASSES,
+  MENU_ITEM_CLASSES,
+  Segmented,
+} from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { useSystemFonts } from "@/lib/systemFonts";
 import { cn } from "@/lib/utils";
@@ -65,7 +71,7 @@ function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerPr
           <DropdownMenu.Content
             align="start"
             sideOffset={4}
-            className="z-50 max-h-[280px] min-w-[220px] overflow-auto rounded-md border border-line-soft bg-surface p-1 shadow-lg animate-rise-in"
+            className={cn(MENU_CONTENT_CLASSES, "max-h-[280px] min-w-[220px] overflow-auto")}
           >
             {fonts.map((f) => (
               <DropdownMenu.Item
@@ -75,7 +81,7 @@ function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerPr
                 // scan the list and pick by visual feel, not by name
                 // recall.
                 style={{ fontFamily: `"${f}"` }}
-                className="grid grid-cols-[minmax(0,1fr)_12px] items-center gap-2 rounded-sm px-2.5 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
+                className={cn(MENU_ITEM_CLASSES, "grid-cols-[minmax(0,1fr)_12px]")}
               >
                 <span className="truncate">{f}</span>
                 {value === f ? (

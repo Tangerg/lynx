@@ -13,50 +13,19 @@
 import type { Message } from "@/protocol/run/viewState";
 import type { ReactNode } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
-import { Icon } from "@/components/common";
+import { Icon, MENU_CONTENT_CLASSES, MENU_ITEM_CLASSES } from "@/components/common";
+import { editMessageInComposer, regenerateMessage } from "@/lib/agent/messageActions";
 import {
   flattenCode,
   flattenMarkdown,
   flattenText,
   writeToClipboard,
 } from "@/lib/agent/messageContent";
-import { getCurrentSessionView, useAgentStore } from "@/state/agentStore";
-import { useComposerStore } from "@/state/composerStore";
-import { useSessionStore } from "@/state/sessionStore";
+import { cn } from "@/lib/utils";
 
 interface Props {
   msg: Message;
   children: ReactNode;
-}
-
-// Replay the most recent user prompt before the given assistant message.
-// Same algorithm as the RegenerateButton in message-actions/index.tsx —
-// the protocol has no "fork-from-here" verb so we resend the last user text.
-function regenerate(msg: Message): void {
-  const sid = useSessionStore.getState().activeSessionId;
-  const send = useAgentStore.getState().sessions[sid]?.send;
-  if (!send) return;
-  const { messages } = getCurrentSessionView();
-  const idx = messages.findIndex((m) => m.id === msg.id);
-  if (idx < 0) return;
-  for (let i = idx - 1; i >= 0; i--) {
-    const m = messages[i]!;
-    if (m.role !== "user") continue;
-    const text = flattenText(m.blocks).trim();
-    if (text) send(text);
-    return;
-  }
-}
-
-// Load the message text back into the composer so the user can tweak
-// and re-send. Mirrors the EditButton flow.
-function editInComposer(msg: Message): void {
-  const text = flattenText(msg.blocks);
-  if (!text) return;
-  useComposerStore.getState().setValue(text);
-  const ta = document.querySelector<HTMLTextAreaElement>(".composer-input");
-  ta?.focus();
-  ta?.setSelectionRange(text.length, text.length);
 }
 
 export function MessageContextMenu({ msg, children }: Props) {
@@ -72,7 +41,7 @@ export function MessageContextMenu({ msg, children }: Props) {
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>{children}</ContextMenu.Trigger>
       <ContextMenu.Portal>
-        <ContextMenu.Content className="z-50 min-w-[180px] overflow-hidden rounded-md border border-line-soft bg-surface p-1 shadow-lg animate-rise-in">
+        <ContextMenu.Content className={cn(MENU_CONTENT_CLASSES, "min-w-[180px]")}>
           {canCopy && (
             <Item
               icon="copy"
@@ -106,7 +75,7 @@ export function MessageContextMenu({ msg, children }: Props) {
           {isUser && plain && (
             <>
               <Separator />
-              <Item icon="edit" onSelect={() => editInComposer(msg)}>
+              <Item icon="edit" onSelect={() => editMessageInComposer(msg)}>
                 Edit in composer
               </Item>
             </>
@@ -114,7 +83,7 @@ export function MessageContextMenu({ msg, children }: Props) {
           {isAssistant && (
             <>
               <Separator />
-              <Item icon="loop" onSelect={() => regenerate(msg)}>
+              <Item icon="loop" onSelect={() => regenerateMessage(msg)}>
                 Regenerate
               </Item>
             </>
@@ -137,7 +106,7 @@ function Item({
   return (
     <ContextMenu.Item
       onSelect={onSelect}
-      className="grid grid-cols-[14px_minmax(0,1fr)] items-center gap-2 rounded-sm px-2.5 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
+      className={cn(MENU_ITEM_CLASSES, "grid-cols-[14px_minmax(0,1fr)]")}
     >
       <Icon name={icon} size={12} />
       <span className="truncate">{children}</span>
