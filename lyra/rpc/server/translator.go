@@ -11,6 +11,79 @@ import (
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
+// resumeBindingFrom extracts the pending approval items' ids (keyed by tool
+// name + arguments) from a parked run so the continuation translator can
+// reuse them when the approved tools re-fire. Returns nil when there are no
+// approval interrupts (e.g. a plan-review question, which resolves without a
+// re-fired tool). originRunID is the interrupted run the items were created
+// in — the continuation re-emits them under that run so the item's id + runId
+// stay stable across the boundary.
+func resumeBindingFrom(pending interrupts.Pending) *resumeBinding {
+	var ints []protocol.Interrupt
+	if err := json.Unmarshal(pending.Interrupts, &ints); err != nil || len(ints) == 0 {
+		return nil
+	}
+	items := map[string]string{}
+	var questions []resumedQuestion
+	for _, in := range ints {
+		if in.ItemID == "" {
+			continue
+		}
+		switch in.Type {
+		case "approval":
+			// Re-bind straight off payload.tool (API.md §4.8): the
+			// domain-neutral ToolInvocation always carries name + arguments, so
+			// the re-fired approved tool matches THIS proposal item by
+			// (name, canonical arguments) — no backend-internal `_resume` tuple.
+			tool, _ := in.Payload["tool"].(map[string]any)
+			name, _ := tool["name"].(string)
+			args, _ := tool["arguments"].(map[string]any)
+			if name != "" {
+				items[resumeKey(name, argsKey(args))] = in.ItemID
+			}
+		case "question":
+			// A plan-review question is resolved by the resume answer (no
+			// re-fired event), so the continuation must complete its item.
+			questions = append(questions, resumedQuestion{itemID: in.ItemID, question: questionFromPayload(in.Payload)})
+		}
+	}
+	// Tools that were still open at park time (e.g. the ask_user call
+	// that interrupted from inside its own execution) re-fire on resume
+	// and must reuse their ORIGINAL item ids — typed bookkeeping on the
+	// pending record, never part of the wire payload.
+	for _, dt := range pending.DrainedTools {
+		if dt.Name == "" || dt.ItemID == "" {
+			continue
+		}
+		items[resumeKey(dt.Name, argsKey(protocol.ParseArgs(dt.Arguments)))] = dt.ItemID
+	}
+	if len(items) == 0 && len(questions) == 0 {
+		return nil
+	}
+	return &resumeBinding{originRunID: pending.ParentRunID, toolItems: items, questions: questions}
+}
+
+// questionFromPayload reconstructs the wire Question from an interrupt's
+// payload map (round-tripped through JSON in the interrupt store) so the
+// continuation's terminal item.completed carries the same content the
+// proposal did. Returns nil when absent / malformed (the item still
+// completes — just without re-stated content; the client already has it).
+func questionFromPayload(payload map[string]any) *protocol.Question {
+	raw, ok := payload["question"]
+	if !ok {
+		return nil
+	}
+	b, err := json.Marshal(raw)
+	if err != nil {
+		return nil
+	}
+	var q protocol.Question
+	if err := json.Unmarshal(b, &q); err != nil {
+		return nil
+	}
+	return &q
+}
+
 // translator converts Lyra's internal [chat.Event] delta stream into
 // the v2 [protocol.StreamEvent] / Item model (API.md §5). One
 // translator per run — it carries the in-flight Item state (open

@@ -62,14 +62,24 @@ func (s *Server) listItemsFromHistory(ctx context.Context, store history.Store, 
 	if err != nil {
 		return nil, err
 	}
-	items := make([]protocol.Item, 0, len(hItems))
-	for _, hi := range hItems {
+	// Page first, decode after: pagination is a row-level operation and
+	// the item id is a plain column, so only the returned page's blobs
+	// are unmarshaled (a long session would otherwise decode thousands
+	// of items to serve 200). A corrupt row occupies its page slot and
+	// is skipped at decode — same tolerance as a cursor pointing at a
+	// deleted element.
+	pageRows, next := pageByID(hItems, func(hi history.Item) string { return hi.ItemID }, in.Cursor, in.Limit, defaultItemPageLimit)
+	items := make([]protocol.Item, 0, len(pageRows))
+	for _, hi := range pageRows {
 		var it protocol.Item
 		if err := json.Unmarshal(hi.Blob, &it); err != nil {
 			continue // skip a corrupt row rather than failing the whole list
 		}
 		items = append(items, it)
 	}
+	// Runs stay fully decoded: the client needs the whole run tree to
+	// thread items, the per-session run count is small, and
+	// reconcileLostRun must inspect each ref.
 	runs := make([]protocol.RunRef, 0, len(hRuns))
 	for _, hr := range hRuns {
 		var r protocol.RunRef
@@ -80,9 +90,8 @@ func (s *Server) listItemsFromHistory(ctx context.Context, store history.Store, 
 		runs = append(runs, r)
 	}
 
-	page, next := pageByID(items, func(it protocol.Item) string { return it.ID }, in.Cursor, in.Limit, defaultItemPageLimit)
 	return &protocol.ListItemsResponse{
-		Page: protocol.Page[protocol.Item]{Data: page, NextCursor: next},
+		Page: protocol.Page[protocol.Item]{Data: items, NextCursor: next},
 		Runs: runs,
 	}, nil
 }

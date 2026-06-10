@@ -5,6 +5,7 @@ import (
 
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/service/chat"
+	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
@@ -192,4 +193,45 @@ func (t *translator) askUserInterrupt(in chat.Interrupt) (protocol.StreamEvent, 
 		Payload: map[string]any{"question": question},
 	}
 	return ev, entry
+}
+
+// drainedToolsFrom captures every running tool item currently tracked
+// in tools as [interrupts.DrainedTool] records. Called before
+// [drainTools] so the pending interrupt can carry their
+// (name, args, itemID) for resume reuse.
+func drainedToolsFrom(tools map[string]*openTool) []interrupts.DrainedTool {
+	if len(tools) == 0 {
+		return nil
+	}
+	out := make([]interrupts.DrainedTool, 0, len(tools))
+	for _, ref := range tools {
+		out = append(out, interrupts.DrainedTool{
+			ItemID:    ref.id,
+			Name:      ref.name,
+			Arguments: ref.args,
+		})
+	}
+	return out
+}
+
+func (t *translator) drainTools() []protocol.StreamEvent {
+	if len(t.tools) == 0 {
+		return nil
+	}
+	out := make([]protocol.StreamEvent, 0, len(t.tools))
+	for callID, ref := range t.tools {
+		out = append(out, protocol.StreamEvent{
+			Type: protocol.StreamItemCompleted,
+			Item: &protocol.Item{
+				ID:        ref.id,
+				RunID:     ref.runID,
+				Status:    protocol.ItemStatusIncomplete,
+				Type:      protocol.ItemTypeToolCall,
+				CreatedAt: ref.createdAt,
+				Tool:      t.newToolInvocation(ref.name, ref.args, ""),
+			},
+		})
+		delete(t.tools, callID)
+	}
+	return out
 }
