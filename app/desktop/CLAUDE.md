@@ -194,7 +194,7 @@ cd frontend && npm run check        # 全套：typecheck + lint + format + test 
 - **中文回复**（用户偏好）；代码 / 注释保持英文。
 - 大重构前先给三步方案 + 权衡，等用户确认再动。
 - 改动后跑 `npm run check`，commit message 写清"why"而不仅"what"。
-- commit trailer 用 `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`。
+- commit trailer 用 `Co-Authored-By: Claude <当前实际模型名> <noreply@anthropic.com>`（如 `Claude Opus 4.8`），署名以实际生成该 commit 的模型为准，不硬编码型号。
 
 ---
 
