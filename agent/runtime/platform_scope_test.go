@@ -47,7 +47,7 @@ func TestRunInScope_CrossAgentPlanning(t *testing.T) {
 
 	proc, err := platform.RunInScope(
 		context.Background(),
-		runtime.ScopeRun{
+		runtime.ScopeConfig{
 			Name:   "scope:joint",
 			Agents: []*core.Agent{scopeAgentA(), scopeAgentB()},
 		},
@@ -78,7 +78,7 @@ func TestRunInScope_CrossAgentPlanning(t *testing.T) {
 func TestRunInScope_ReusesSyntheticAgent(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 
-	cfg := runtime.ScopeRun{
+	cfg := runtime.ScopeConfig{
 		Name:   "scope:reuse",
 		Agents: []*core.Agent{scopeAgentA(), scopeAgentB()},
 	}
@@ -109,7 +109,7 @@ func TestRunInScope_EmptyName(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	_, err := platform.RunInScope(
 		context.Background(),
-		runtime.ScopeRun{Agents: []*core.Agent{scopeAgentA()}},
+		runtime.ScopeConfig{Agents: []*core.Agent{scopeAgentA()}},
 		nil, core.ProcessOptions{},
 	)
 	if err == nil || !strings.Contains(err.Error(), "Name must not be empty") {
@@ -121,7 +121,7 @@ func TestRunInScope_EmptyAgents(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	_, err := platform.RunInScope(
 		context.Background(),
-		runtime.ScopeRun{Name: "empty"},
+		runtime.ScopeConfig{Name: "empty"},
 		nil, core.ProcessOptions{},
 	)
 	if err == nil || !strings.Contains(err.Error(), "Agents must not be empty") {
@@ -133,7 +133,7 @@ func TestRunInScope_NilAgentEntry(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	_, err := platform.RunInScope(
 		context.Background(),
-		runtime.ScopeRun{
+		runtime.ScopeConfig{
 			Name:   "with-nil",
 			Agents: []*core.Agent{scopeAgentA(), nil},
 		},
@@ -164,7 +164,7 @@ func TestRunInScope_DuplicateActionNameAcrossAgents(t *testing.T) {
 	platform := agent.NewPlatform(runtime.PlatformConfig{})
 	_, err := platform.RunInScope(
 		context.Background(),
-		runtime.ScopeRun{
+		runtime.ScopeConfig{
 			Name:   "scope:dup",
 			Agents: []*core.Agent{dup("agent-1"), dup("agent-2")},
 		},
@@ -176,7 +176,7 @@ func TestRunInScope_DuplicateActionNameAcrossAgents(t *testing.T) {
 }
 
 func TestBuildScopeAgent_UnionsCapabilities(t *testing.T) {
-	scope := runtime.BuildScopeAgent(runtime.ScopeRun{
+	scope := runtime.BuildScopeAgent(runtime.ScopeConfig{
 		Name:        "inspect",
 		Description: "custom",
 		Agents:      []*core.Agent{scopeAgentA(), scopeAgentB()},
@@ -196,7 +196,7 @@ func TestBuildScopeAgent_UnionsCapabilities(t *testing.T) {
 }
 
 func TestBuildScopeAgent_DefaultDescription(t *testing.T) {
-	scope := runtime.BuildScopeAgent(runtime.ScopeRun{
+	scope := runtime.BuildScopeAgent(runtime.ScopeConfig{
 		Name:   "auto",
 		Agents: []*core.Agent{scopeAgentA(), scopeAgentB()},
 	})

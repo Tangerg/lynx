@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 )
 
-// ScopeRun is the configuration for [Platform.RunInScope]. It mirrors
+// ScopeConfig is the configuration for [Platform.RunInScope]. It mirrors
 // embabel's AgentScope joint-planning surface: the runtime fuses every
 // listed agent's actions, goals, and conditions into a single planning
 // universe and asks the planner to pick a path across that union.
@@ -18,7 +18,7 @@ import (
 // regular [core.Agent]). Callers prefix names per agent (e.g.
 // "checkout:authorize", "checkout:capture", "fulfillment:pack") to
 // avoid collisions while keeping intent legible.
-type ScopeRun struct {
+type ScopeConfig struct {
 	// Name is the synthetic scope agent's identifier — surfaces in
 	// traces and lookups as `Platform.FindAgent(Name)`. Required, must
 	// not collide with an already-deployed agent.
@@ -48,7 +48,7 @@ type ScopeRun struct {
 // embabel.
 //
 // The synthetic scope agent is re-used across calls with the same
-// [ScopeRun.Name] so repeated invocations don't churn registry state.
+// [ScopeConfig.Name] so repeated invocations don't churn registry state.
 // To refresh after the participant set changes, call
 // [Platform.Undeploy] on the scope name first.
 //
@@ -57,7 +57,7 @@ type ScopeRun struct {
 // missing tool groups, etc).
 func (p *Platform) RunInScope(
 	ctx context.Context,
-	cfg ScopeRun,
+	cfg ScopeConfig,
 	bindings map[string]any,
 	options core.ProcessOptions,
 ) (*AgentProcess, error) {
@@ -82,9 +82,9 @@ func (p *Platform) RunInScope(
 
 // resolveScopeAgent returns the synthetic scope agent for cfg, building
 // and deploying it the first time it's seen. Subsequent calls with the
-// same [ScopeRun.Name] reuse the deployed instance — embabel's
+// same [ScopeConfig.Name] reuse the deployed instance — embabel's
 // AgentPlatform reuses scope state across invocations and so does this.
-func (p *Platform) resolveScopeAgent(cfg ScopeRun) (*core.Agent, error) {
+func (p *Platform) resolveScopeAgent(cfg ScopeConfig) (*core.Agent, error) {
 	if existing, ok := p.agents.find(cfg.Name); ok {
 		return existing, nil
 	}
@@ -105,7 +105,7 @@ func (p *Platform) resolveScopeAgent(cfg ScopeRun) (*core.Agent, error) {
 // in input order; the resulting agent must pass [core.Agent.Validate]
 // for [Platform.Deploy] to accept it (so unique names across the union
 // is a hard requirement at deploy time).
-func BuildScopeAgent(cfg ScopeRun) *core.Agent {
+func BuildScopeAgent(cfg ScopeConfig) *core.Agent {
 	var (
 		actions    []core.Action
 		goals      []*core.Goal

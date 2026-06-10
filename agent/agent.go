@@ -25,7 +25,7 @@ func NewAction[In, Out any](name string, fn core.TypedActionFunc[In, Out], confi
 // Go's "accept interfaces, return structs" convention — callers can
 // always assign the result to a [core.Condition] when they want the
 // narrower view.
-func NewCondition(name string, fn func(ctx context.Context, oc *core.ConditionEnv) core.Determination) *core.ComputedCondition {
+func NewCondition(name string, fn func(ctx context.Context, env *core.ConditionEnv) core.Determination) *core.ComputedCondition {
 	return core.NewCondition(name, fn)
 }
 

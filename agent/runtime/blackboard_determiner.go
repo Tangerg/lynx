@@ -8,8 +8,6 @@ import (
 	"github.com/Tangerg/lynx/agent/planning"
 )
 
-const hasRunPrefix = "hasRun_"
-
 // blackboardDeterminer is the OBSERVE stage of the OODA loop: read
 // the blackboard and return the [core.WorldState] the planner needs.
 // It walks the agent's planning.System.KnownConditions(), classifies
@@ -53,10 +51,10 @@ func newBlackboardDeterminer(system *planning.System, blackboard core.Blackboard
 // every tick.
 func (d *blackboardDeterminer) determineWorldState(ctx context.Context) core.WorldState {
 	state := map[string]core.Determination{}
-	operationContext := &core.ConditionEnv{Process: d.process, Blackboard: d.blackboard}
+	env := &core.ConditionEnv{Process: d.process, Blackboard: d.blackboard}
 
 	for condition := range d.system.KnownConditions() {
-		state[condition] = d.evaluateCondition(ctx, condition, operationContext)
+		state[condition] = d.evaluateCondition(ctx, condition, env)
 	}
 	return planning.NewConditionWorldState(state)
 }
@@ -70,17 +68,17 @@ func (d *blackboardDeterminer) determineWorldState(ctx context.Context) core.Wor
 // panicking implementation degrades to Unknown rather than tearing down
 // the whole tick — mirrors [core.ProcessContext.ExecuteSafely]'s guard
 // for action bodies.
-func (d *blackboardDeterminer) evaluateCondition(ctx context.Context, key string, oc *core.ConditionEnv) core.Determination {
+func (d *blackboardDeterminer) evaluateCondition(ctx context.Context, key string, env *core.ConditionEnv) core.Determination {
 	if strings.Contains(key, ":") {
 		return d.evaluateTypeBinding(key)
 	}
 
-	if strings.HasPrefix(key, hasRunPrefix) {
+	if strings.HasPrefix(key, core.HasRunPrefix) {
 		return d.evaluateHasRun(key)
 	}
 
 	if cond, ok := d.namedConditions[key]; ok {
-		return safeEvaluateCondition(ctx, cond, oc)
+		return safeEvaluateCondition(ctx, cond, env)
 	}
 
 	if value, ok := d.blackboard.Condition(key); ok {
@@ -93,13 +91,13 @@ func (d *blackboardDeterminer) evaluateCondition(ctx context.Context, key string
 // panicking user condition becomes [core.Unknown] — A* treats Unknown
 // as "doesn't satisfy", so a misbehaving condition fails its actions
 // closed (planner picks something else) rather than crashing the tick.
-func safeEvaluateCondition(ctx context.Context, condition core.Condition, operationContext *core.ConditionEnv) (result core.Determination) {
+func safeEvaluateCondition(ctx context.Context, condition core.Condition, env *core.ConditionEnv) (result core.Determination) {
 	defer func() {
 		if r := recover(); r != nil {
 			result = core.Unknown
 		}
 	}()
-	return condition.Evaluate(ctx, operationContext)
+	return condition.Evaluate(ctx, env)
 }
 
 func (d *blackboardDeterminer) evaluateTypeBinding(key string) core.Determination {

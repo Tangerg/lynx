@@ -46,12 +46,19 @@ type ActionMetadata struct {
 	ClearBlackboard bool // On success, clear blackboard before binding output.
 }
 
+// HasRunPrefix prefixes the conventional "this action has run" condition
+// keys ([ActionMetadata.EffectiveRunKey] mints them; the runtime's world-
+// state determiner routes any key with this prefix to the blackboard's
+// condition map). One constant on the protocol type so the producer and
+// the classifier can't drift.
+const HasRunPrefix = "hasRun_"
+
 // EffectiveRunKey is the conventional condition key recording that this
 // action has executed at least once. The runtime sets it after each
 // successful run; the planner consumes it as a precondition guard for
 // non-rerunnable actions.
 func (m ActionMetadata) EffectiveRunKey() string {
-	return "hasRun_" + m.Name
+	return HasRunPrefix + m.Name
 }
 
 // IsApplicableIn reports whether every precondition holds in state.
