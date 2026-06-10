@@ -6,19 +6,25 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/lyra/internal/service/chat"
+	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
-// snapshotTools captures every running tool item currently tracked in
-// tools. Called before [drainTools] so the interrupt payload can carry
-// their (name, args, itemID) for resume reuse.
-func snapshotTools(tools map[string]*openTool) []openTool {
+// drainedToolsFrom captures every running tool item currently tracked
+// in tools as [interrupts.DrainedTool] records. Called before
+// [drainTools] so the pending interrupt can carry their
+// (name, args, itemID) for resume reuse.
+func drainedToolsFrom(tools map[string]*openTool) []interrupts.DrainedTool {
 	if len(tools) == 0 {
 		return nil
 	}
-	out := make([]openTool, 0, len(tools))
+	out := make([]interrupts.DrainedTool, 0, len(tools))
 	for _, ref := range tools {
-		out = append(out, *ref)
+		out = append(out, interrupts.DrainedTool{
+			ItemID:    ref.id,
+			Name:      ref.name,
+			Arguments: ref.args,
+		})
 	}
 	return out
 }

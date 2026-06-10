@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/lyra/internal/service/chat"
+	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
@@ -70,6 +71,12 @@ type translator struct {
 	text      *openText
 	reasoning *openText
 	tools     map[string]*openTool // callID → in-flight toolCall item
+
+	// parkDrained is the snapshot of tool items that were still open
+	// when the turn parked (set by [translator.interrupt]). The pump
+	// records it on the pending interrupt as backend-private resume
+	// bookkeeping — see [interrupts.Pending.DrainedTools].
+	parkDrained []interrupts.DrainedTool
 
 	errMsg string
 }

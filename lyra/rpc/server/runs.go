@@ -177,19 +177,17 @@ func resumeBindingFrom(pending interrupts.Pending) *resumeBinding {
 			// A plan-review question is resolved by the resume answer (no
 			// re-fired event), so the continuation must complete its item.
 			questions = append(questions, resumedQuestion{itemID: in.ItemID, question: questionFromPayload(in.Payload)})
-
-			// An ask_user question interrupt carries the drained tool item
-			// under `_tool` so the re-fired ask_user on resume reuses the
-			// original item id rather than creating a duplicate toolCall item.
-			if tool, ok := in.Payload["_tool"].(map[string]any); ok {
-				name, _ := tool["name"].(string)
-				id, _ := tool["id"].(string)
-				args, _ := tool["arguments"].(map[string]any)
-				if name != "" && id != "" {
-					items[resumeKey(name, argsKey(args))] = id
-				}
-			}
 		}
+	}
+	// Tools that were still open at park time (e.g. the ask_user call
+	// that interrupted from inside its own execution) re-fire on resume
+	// and must reuse their ORIGINAL item ids — typed bookkeeping on the
+	// pending record, never part of the wire payload.
+	for _, dt := range pending.DrainedTools {
+		if dt.Name == "" || dt.ItemID == "" {
+			continue
+		}
+		items[resumeKey(dt.Name, argsKey(protocol.ParseArgs(dt.Arguments)))] = dt.ItemID
 	}
 	if len(items) == 0 && len(questions) == 0 {
 		return nil
@@ -302,7 +300,7 @@ func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 					switch se.Outcome.Type {
 					case protocol.OutcomeInterrupt:
 						parked = true
-						s.recordInterrupt(ctx, runID, handle, se.Outcome.Interrupts)
+						s.recordInterrupt(ctx, runID, handle, se.Outcome.Interrupts, tr.parkDrained)
 					case protocol.OutcomeCanceled:
 						// Flow the runs.cancel reason to the outcome detail (S6)
 						// so the client can tell user-canceled from other stops.
@@ -363,7 +361,9 @@ func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 
 // recordInterrupt persists the open interrupt so runs.listOpenInterrupts
 // can discover it and runs.resume can map it back to the live turn.
-func (s *Server) recordInterrupt(ctx context.Context, runID string, handle chat.TurnHandle, ints []protocol.Interrupt) {
+// drained is the backend-private snapshot of tool items open at park
+// time — see [interrupts.Pending.DrainedTools].
+func (s *Server) recordInterrupt(ctx context.Context, runID string, handle chat.TurnHandle, ints []protocol.Interrupt, drained []interrupts.DrainedTool) {
 	raw, err := json.Marshal(ints)
 	if err != nil {
 		return
@@ -374,12 +374,13 @@ func (s *Server) recordInterrupt(ctx context.Context, runID string, handle chat.
 	// will not find this interrupt.
 	processID, _ := s.rt.Chat().ProcessID(ctx, handle)
 	_ = s.rt.Interrupts().Put(ctx, interrupts.Pending{
-		ParentRunID: runID,
-		SessionID:   handle.SessionID,
-		TurnID:      handle.TurnID,
-		ProcessID:   processID,
-		Interrupts:  raw,
-		CreatedAt:   time.Now().UTC(),
+		ParentRunID:  runID,
+		SessionID:    handle.SessionID,
+		TurnID:       handle.TurnID,
+		ProcessID:    processID,
+		Interrupts:   raw,
+		DrainedTools: drained,
+		CreatedAt:    time.Now().UTC(),
 	})
 }
 

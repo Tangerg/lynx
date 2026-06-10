@@ -91,10 +91,9 @@ func (a *Agent) KnownConditions() map[string]struct{} {
 
 // Validate checks structural invariants that must hold for any
 // runnable agent: a non-empty name, at least one action, at least one
-// goal, and unique action / goal names within the agent. It does NOT
-// verify goal reachability — that requires the planner and lives on
-// [github.com/Tangerg/lynx/agent/runtime.Platform.Deploy], which can
-// reach the configured planner factory.
+// goal, and unique action / goal names within the agent. Goal
+// reachability is a separate, coarser invariant — see
+// [Agent.CheckGoalsReachable]; the deploy path runs both.
 //
 // Distinct from the [AgentValidator] extension SPI: this is the
 // framework's built-in structural check on the entity itself; an
@@ -141,6 +140,61 @@ func (a *Agent) Validate() error {
 		}
 	}
 	return nil
+}
+
+
+// CheckGoalsReachable does a conservative one-step producer scan: for
+// every condition each goal requires, verify that either an action's
+// effects can establish it OR an action's input binding looks like
+// it (input bindings are externally supplied via process bindings +
+// dual-binding rules). It returns one error per unreachable
+// (goal, condition) pair so deploy-time validation can report them
+// all together.
+//
+// Intentionally weaker than running the full planner from empty
+// state — the latter falsely rejects agents whose first action's
+// precondition is "input binding present", because empty world state
+// has no bindings. We accept the false-negative tradeoff so
+// legitimate input-driven agents can deploy. Nil actions/goals are
+// skipped here; [Agent.Validate] reports those separately.
+func (a *Agent) CheckGoalsReachable() []error {
+	if a == nil {
+		return nil
+	}
+	producible := map[string]struct{}{}
+	for _, action := range a.Actions {
+		if action == nil {
+			continue
+		}
+		meta := action.Metadata()
+		for key, value := range meta.Effects {
+			if value == True {
+				producible[key] = struct{}{}
+			}
+		}
+		for _, in := range meta.Inputs {
+			producible[in.String()] = struct{}{}
+		}
+	}
+
+	var problems []error
+	for _, goal := range a.Goals {
+		if goal == nil {
+			continue
+		}
+		for key, required := range goal.Preconditions() {
+			if required != True {
+				continue
+			}
+			if _, ok := producible[key]; !ok {
+				problems = append(problems, fmt.Errorf(
+					"agent.Agent.CheckGoalsReachable: goal %q requires condition %q, but no action produces it",
+					goal.Name, key,
+				))
+			}
+		}
+	}
+	return problems
 }
 
 // validateUniqueNamed checks one named-element slice for "≥1 entry

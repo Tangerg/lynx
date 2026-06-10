@@ -80,6 +80,7 @@ func migrate(db *sql.DB) error {
 			turn_id       TEXT    NOT NULL DEFAULT '',
 			process_id    TEXT    NOT NULL DEFAULT '',
 			interrupts    TEXT    NOT NULL DEFAULT '',
+			drained_tools TEXT    NOT NULL DEFAULT '',
 			created_at    INTEGER NOT NULL
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_interrupts_session

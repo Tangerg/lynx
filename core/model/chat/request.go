@@ -245,6 +245,25 @@ func (r *Request) ensureParams() {
 	}
 }
 
+// ConversationID returns the conversation id stamped under
+// [ConversationIDKey], or "" when the producer did not stamp one.
+// A present but non-string value is a stamping bug: every consumer
+// (memory history, tool park persistence) keys durable state by this
+// id, so it surfaces as an error here — once, with one semantic —
+// rather than each middleware independently deciding whether to error
+// or silently treat it as absent.
+func (r *Request) ConversationID() (string, error) {
+	raw, exists := r.Get(ConversationIDKey)
+	if !exists {
+		return "", nil
+	}
+	id, ok := raw.(string)
+	if !ok {
+		return "", fmt.Errorf("chat: ConversationIDKey value must be a string, got %T", raw)
+	}
+	return id, nil
+}
+
 // Get returns the Params value for key plus an existence flag. Safe
 // to call concurrently with other Get calls; concurrent with Set is not.
 func (r *Request) Get(key string) (any, bool) {
