@@ -29,9 +29,6 @@ type ProblemData struct {
 	// invalid_params / form validation), addressable by field so the UI
 	// can flag each one (API.md §8.3).
 	Errors []FieldError `json:"errors,omitempty"`
-	// Extra carries any additional, error-specific fields. Marshaled
-	// flat alongside the named fields by the dispatch layer.
-	Extra map[string]any `json:"-"`
 }
 
 // FieldError is one field-level validation failure inside ProblemData

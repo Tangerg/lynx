@@ -233,9 +233,8 @@ func (p *AgentProcess) TerminateAction(reason string) {
 // invocation contexts via [core.ProcessContext.ToolCallContext] observe
 // ctx.Done() at this point and abort. No-op when no tool-call context
 // is currently registered.
-func (p *AgentProcess) TerminateToolCall(reason string) {
+func (p *AgentProcess) TerminateToolCall() {
 	p.signals.fireToolCallCancel()
-	_ = reason // reserved for future event publishing
 }
 
 // PendingAwaitable returns the awaitable currently parked by an

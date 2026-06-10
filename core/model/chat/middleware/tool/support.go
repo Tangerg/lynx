@@ -31,11 +31,6 @@ func (s *loopSupport) register(tools ...chat.Tool) {
 	s.registry.register(tools...)
 }
 
-// unregister is a shorthand for [registry.unregister].
-func (s *loopSupport) unregister(names ...string) {
-	s.registry.unregister(names...)
-}
-
 // shouldReturnDirect reports whether the conversation should end with
 // the most recent tool message (no further LLM round). It is true only
 // when:

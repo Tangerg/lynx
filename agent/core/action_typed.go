@@ -149,7 +149,6 @@ func NewAction[In, Out any](
 		ToolGroups:      config.ToolGroups,
 		Cost:            config.Cost,
 		Value:           config.Value,
-		OutputBinding:   config.OutputBinding,
 		ClearBlackboard: config.ClearBlackboard,
 	}
 	meta.Preconditions, meta.Effects = meta.computePreconditionsAndEffects(config.Pre, config.Post)

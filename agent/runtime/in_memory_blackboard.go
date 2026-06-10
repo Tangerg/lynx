@@ -276,8 +276,9 @@ func (b *inMemoryBlackboard) Restore(named map[string]any, conditions map[string
 }
 
 // typeMatches checks whether v matches typeName by walking the same rules
-// IOBinding uses. Pointer types unwrap; sealed-interface hierarchies
-// require explicit DomainType registration (handled by the determiner).
+// IOBinding uses: pointer types unwrap, then the concrete type's full
+// name is compared. Interface hierarchies are not walked — a binding
+// matches the stored value's concrete type only.
 func typeMatches(v any, typeName string) bool {
 	if typeName == "" {
 		return true

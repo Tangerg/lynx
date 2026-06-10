@@ -315,25 +315,3 @@ func (r *Runtime) Close() error {
 	}
 	return r.engine.Close()
 }
-
-// MaybeMaintain runs the post-turn compaction + extraction pair —
-// mostly a passthrough so transport adapters don't reach into the
-// engine directly. Returns (compacted, nil) so callers can chain
-// follow-on work conditionally.
-//
-// Lives here (not on chat.Service) because the maintenance is
-// platform-level housekeeping; chat.Service.runTurn already calls
-// it after each successful turn, but the standalone form lets
-// scripts trigger it after bulk imports.
-func (r *Runtime) MaybeMaintain(ctx context.Context, sessionID string) (bool, error) {
-	compaction, err := r.engine.MaybeCompact(ctx, sessionID)
-	if err != nil {
-		return false, err
-	}
-	if compaction.Compacted {
-		if _, err := r.engine.MaybeExtract(ctx, sessionID); err != nil {
-			return true, err
-		}
-	}
-	return compaction.Compacted, nil
-}
