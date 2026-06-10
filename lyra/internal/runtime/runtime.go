@@ -263,6 +263,13 @@ func (r *Runtime) ListSkills(ctx context.Context, cwd string) ([]engine.SkillInf
 	return r.engine.ListSkills(ctx, cwd)
 }
 
+// MCPTools lists tools advertised by the connected MCP servers (scoped to
+// server when non-empty) for workspace.mcp.listTools. Delegates to the
+// engine, which holds the dialed sessions.
+func (r *Runtime) MCPTools(ctx context.Context, server string) ([]engine.McpToolInfo, error) {
+	return r.engine.MCPTools(ctx, server)
+}
+
 // Close releases per-runtime external resources — MCP sessions and
 // any future engine-owned handles. Idempotent.
 func (r *Runtime) Close() error {

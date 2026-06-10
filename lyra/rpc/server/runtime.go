@@ -48,6 +48,9 @@ type RuntimeServices interface {
 	// ListSkills enumerates the skills visible from cwd (project over global) —
 	// backs workspace.listSkills. The engine owns skill sourcing + precedence.
 	ListSkills(ctx context.Context, cwd string) ([]engine.SkillInfo, error)
+	// MCPTools lists tools per connected MCP server (server="" = all) —
+	// backs workspace.mcp.listTools. The engine holds the dialed sessions.
+	MCPTools(ctx context.Context, server string) ([]engine.McpToolInfo, error)
 	// DefaultModel is the runtime's configured default model — used to fill
 	// Session.model for sessions that never explicitly selected one.
 	DefaultModel() string

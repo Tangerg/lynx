@@ -15,15 +15,31 @@ import (
 // panic if ever called) and overriding only what the session handlers touch.
 type stubRuntime struct {
 	RuntimeServices
-	sess   session.Service
-	model  string
-	skills []engine.SkillInfo
+	sess     session.Service
+	model    string
+	skills   []engine.SkillInfo
+	mcpTools []engine.McpToolInfo
 }
 
 func (s stubRuntime) Session() session.Service { return s.sess }
 func (s stubRuntime) DefaultModel() string     { return s.model }
 func (s stubRuntime) ListSkills(context.Context, string) ([]engine.SkillInfo, error) {
 	return s.skills, nil
+}
+
+// MCPTools echoes the canned set, applying the same server filter the real
+// engine does, so the handler test exercises the scoping passthrough.
+func (s stubRuntime) MCPTools(_ context.Context, server string) ([]engine.McpToolInfo, error) {
+	if server == "" {
+		return s.mcpTools, nil
+	}
+	var out []engine.McpToolInfo
+	for _, t := range s.mcpTools {
+		if t.Server == server {
+			out = append(out, t)
+		}
+	}
+	return out, nil
 }
 
 func newSessionServer(t *testing.T) (*Server, session.Service) {

@@ -287,11 +287,25 @@ func (s *Server) WorkspaceMCPListServers(_ context.Context, _ protocol.PageQuery
 	return protocol.NewPage(out), nil
 }
 
-// WorkspaceMCPListTools — per-server MCP tool enumeration isn't wired
-// yet (MCP tools merge into the engine's flat tool set, surfaced via
-// tools.list; segmenting them by server needs an engine accessor).
-func (s *Server) WorkspaceMCPListTools(_ context.Context, _ protocol.MCPListToolsRequest) (*protocol.Page[protocol.McpTool], error) {
-	return nil, notImpl("workspace.mcp.listTools")
+// WorkspaceMCPListTools lists tools advertised by the connected MCP servers,
+// scoped to in.Server when set (empty = all). Each tool's bare name + the
+// server it belongs to are kept separate on the wire (the model sees them as
+// "<server>_<name>"). MCP is runtime-global, so this takes no cwd (API.md §7.5).
+func (s *Server) WorkspaceMCPListTools(ctx context.Context, in protocol.MCPListToolsRequest) (*protocol.Page[protocol.McpTool], error) {
+	found, err := s.rt.MCPTools(ctx, in.Server)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]protocol.McpTool, 0, len(found))
+	for _, t := range found {
+		out = append(out, protocol.McpTool{
+			Server:      t.Server,
+			Name:        t.Name,
+			Description: t.Description,
+			InputSchema: t.InputSchema,
+		})
+	}
+	return protocol.NewPage(out), nil
 }
 
 func (s *Server) WorkspaceMCPReconnect(_ context.Context, _ string) error {
