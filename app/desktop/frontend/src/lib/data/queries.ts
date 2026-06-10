@@ -83,21 +83,33 @@ export type DiffRow =
   | { type: "add"; r: number; code: string }
   | { type: "del"; l: number; code: string };
 
+// workspace.grep params + result (API.md §7.5). `total` may exceed
+// matches.length — that's the truncation signal ("narrow the query"), never
+// assume the two are equal.
+export interface GrepQuery {
+  query: string; // regex
+  path?: string; // optional sub-path jail under cwd
+  limit?: number; // default 100 server-side
+}
 export interface GrepMatch {
   path: string;
-  match: string;
+  lineNumber: number;
+  text: string;
 }
-
-export interface FileLine {
-  ln: string; // line number or marker like "···"
-  code: string; // already-rendered HTML
-  muted?: boolean;
-}
-
-// Shape returned by /grep — matches plus a "more matches" total.
 export interface GrepResult {
   matches: GrepMatch[];
   total: number;
+}
+
+// workspace.getFileHead params + row (API.md §7.5) — plain text, 1-based
+// line numbers; highlighting is the renderer's job.
+export interface FileHeadQuery {
+  path: string; // relative to cwd
+  lines?: number; // default 200 server-side
+}
+export interface FileLine {
+  lineNumber: number;
+  text: string;
 }
 
 // Shared options — these resources rarely change for the mock, so we cache
@@ -107,13 +119,13 @@ const STATIC = {
   refetchOnWindowFocus: false as const,
 };
 
-function resolve<T>(key: string): () => Promise<T> {
+function resolve<T, P = void>(key: string, params?: P): () => Promise<T> {
   return () => {
-    const fetcher = lookupDataProvider<T>(key);
+    const fetcher = lookupDataProvider<T, P>(key);
     if (!fetcher) {
       return Promise.reject(new Error(`No data provider registered for key "${key}"`));
     }
-    return fetcher();
+    return fetcher(params);
   };
 }
 
@@ -124,13 +136,26 @@ function makeDataQuery<T>(key: string): () => UseQueryResult<T> {
   return () => useQuery({ queryKey: [key], queryFn: resolve<T>(key), ...STATIC });
 }
 
+// Parameterized variant — params join the query key (each distinct params
+// object caches independently) and flow into the provider. `undefined`
+// params disables the query (the caller has nothing to ask yet).
+function makeParamDataQuery<P, T>(key: string): (params: P | undefined) => UseQueryResult<T> {
+  return (params) =>
+    useQuery({
+      queryKey: [key, params],
+      queryFn: resolve<T, P>(key, params),
+      enabled: params !== undefined,
+      ...STATIC,
+    });
+}
+
 export const useSessions = makeDataQuery<SidebarSession[]>("sessions");
 export const useProjects = makeDataQuery<SidebarProject[]>("projects");
 export const useFilesChanged = makeDataQuery<FileChange[]>("files-changed");
 export const useDiff = makeDataQuery<DiffRow[]>("diff");
 export const useTerminal = makeDataQuery<TermLine[]>("terminal");
-export const useGrep = makeDataQuery<GrepResult>("grep");
-export const useFileHead = makeDataQuery<FileLine[]>("file-head");
+export const useGrep = makeParamDataQuery<GrepQuery, GrepResult>("grep");
+export const useFileHead = makeParamDataQuery<FileHeadQuery, FileLine[]>("file-head");
 export const useMCPServers = makeDataQuery<MCPServer[]>("mcp-servers");
 export const useSkills = makeDataQuery<WorkspaceSkill[]>("skills");
 export const useAgentDocs = makeDataQuery<WorkspaceAgentDoc[]>("agent-docs");

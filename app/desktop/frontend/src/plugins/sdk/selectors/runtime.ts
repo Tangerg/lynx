@@ -40,9 +40,11 @@ export function pickAgentSource(): AgentSourceSpec | undefined {
  * cast to their expected return shape. Returns undefined when nothing
  * registered (consumer hooks should throw or fall back).
  */
-export function lookupDataProvider<T = unknown>(key: string): (() => Promise<T>) | undefined {
+export function lookupDataProvider<T = unknown, P = unknown>(
+  key: string,
+): ((params?: P) => Promise<T>) | undefined {
   const spec = lookupExtensionByKey(DATA_PROVIDER, key);
-  return spec ? (spec.fetcher as () => Promise<T>) : undefined;
+  return spec ? (spec.fetcher as (params?: P) => Promise<T>) : undefined;
 }
 
 /** Snapshot of registered beforeRequest hooks in insertion order. */

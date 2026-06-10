@@ -9,6 +9,8 @@ interface Props {
   session: SidebarSession;
   active: boolean;
   onSelect: (id: string) => void;
+  /** When set, right-click reveals a Fork action (whole-session copy). */
+  onFork?: (id: string) => void;
   /** When set, right-click reveals a Delete action. */
   onDelete?: (id: string) => void;
 }
@@ -20,7 +22,7 @@ interface Props {
 // text to fg. Only the 3px accent indicator bar on the left
 // distinguishes "currently selected" from "just hovering" — a single
 // visual cue carries the active state, no fighting tone steps.
-export function SessionRow({ session, active, onSelect, onDelete }: Props) {
+export function SessionRow({ session, active, onSelect, onFork, onDelete }: Props) {
   // `useT()` subscribes to i18next language changes, so the relative
   // time + status labels refresh on locale toggle automatically.
   // formatRelative reads `i18next.t` and `i18next.language` directly
@@ -81,19 +83,30 @@ export function SessionRow({ session, active, onSelect, onDelete }: Props) {
     </button>
   );
 
-  if (!onDelete) return row;
+  if (!onDelete && !onFork) return row;
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>{row}</ContextMenu.Trigger>
       <ContextMenu.Portal>
         <ContextMenu.Content className="z-50 min-w-[160px] overflow-hidden rounded-md border border-line-soft bg-surface p-1 shadow-lg animate-rise-in">
-          <ContextMenu.Item
-            onSelect={() => onDelete(session.id)}
-            className="grid grid-cols-[14px_minmax(0,1fr)] items-center gap-2 rounded-sm px-2.5 py-1.5 text-[12.5px] text-negative outline-none data-[highlighted]:bg-negative/10"
-          >
-            <Icon name="trash" size={12} />
-            <span className="truncate">Delete</span>
-          </ContextMenu.Item>
+          {onFork && (
+            <ContextMenu.Item
+              onSelect={() => onFork(session.id)}
+              className="grid grid-cols-[14px_minmax(0,1fr)] items-center gap-2 rounded-sm px-2.5 py-1.5 text-[12.5px] text-fg outline-none data-[highlighted]:bg-surface-2"
+            >
+              <Icon name="branch" size={12} />
+              <span className="truncate">Fork</span>
+            </ContextMenu.Item>
+          )}
+          {onDelete && (
+            <ContextMenu.Item
+              onSelect={() => onDelete(session.id)}
+              className="grid grid-cols-[14px_minmax(0,1fr)] items-center gap-2 rounded-sm px-2.5 py-1.5 text-[12.5px] text-negative outline-none data-[highlighted]:bg-negative/10"
+            >
+              <Icon name="trash" size={12} />
+              <span className="truncate">Delete</span>
+            </ContextMenu.Item>
+          )}
         </ContextMenu.Content>
       </ContextMenu.Portal>
     </ContextMenu.Root>

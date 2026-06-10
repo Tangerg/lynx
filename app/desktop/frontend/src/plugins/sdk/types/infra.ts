@@ -86,11 +86,13 @@ export type RpcAfterResponseHook = (
  * Plugins can swap the underlying transport (HTTP, IPC, in-memory mock)
  * without callers having to know.
  */
-export interface DataProviderSpec<T = unknown> {
+export interface DataProviderSpec<T = unknown, P = unknown> {
   /** Query key — must match the consumer hook's expected key. */
   key: string;
-  /** Async fetcher. Throw for failure; TanStack-Query handles the rest. */
-  fetcher: () => Promise<T>;
+  /** Async fetcher. Throw for failure; TanStack-Query handles the rest.
+   *  Parameterized resources (grep / file-head) receive the consumer hook's
+   *  params object; list resources ignore the argument. */
+  fetcher: (params?: P) => Promise<T>;
 }
 
 // ---------------------------------------------------------------------------
