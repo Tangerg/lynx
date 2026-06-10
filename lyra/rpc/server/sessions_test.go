@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
 	"github.com/Tangerg/lynx/lyra/internal/storage/sqlite"
@@ -19,10 +20,20 @@ type stubRuntime struct {
 	model    string
 	skills   []engine.SkillInfo
 	mcpTools []engine.McpToolInfo
+	history  map[string][]chat.Message // per-session chat history (fork copies it)
 }
 
 func (s stubRuntime) Session() session.Service { return s.sess }
 func (s stubRuntime) DefaultModel() string     { return s.model }
+func (s stubRuntime) ReadHistory(_ context.Context, id string) ([]chat.Message, error) {
+	return s.history[id], nil
+}
+func (s stubRuntime) SeedHistory(_ context.Context, id string, msgs []chat.Message) error {
+	if s.history != nil {
+		s.history[id] = append(s.history[id], msgs...)
+	}
+	return nil
+}
 func (s stubRuntime) ListSkills(context.Context, string) ([]engine.SkillInfo, error) {
 	return s.skills, nil
 }
@@ -113,5 +124,46 @@ func TestUpdateSession(t *testing.T) {
 	}
 	if out.Metadata["pinned"] != true || out.Metadata["n"] != float64(3) {
 		t.Errorf("Metadata = %+v, want {pinned:true, n:3}", out.Metadata)
+	}
+}
+
+// TestForkSession: a full-history fork inherits the parent's cwd, copies its
+// history into the child, and honours a title override; an item-boundary fork
+// (fromItemId) is rejected as checkpoint_unavailable.
+func TestForkSession(t *testing.T) {
+	db, err := sqlite.Open(":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	svc := sqlite.NewSessionService(db)
+	ctx := context.Background()
+	parent, _ := svc.Create(ctx, "research", "/work/proj")
+
+	hist := map[string][]chat.Message{parent.ID: {chat.NewUserMessage("hello"), chat.NewAssistantMessage("hi")}}
+	s := &Server{rt: stubRuntime{sess: svc, history: hist}}
+
+	child, err := s.ForkSession(ctx, protocol.ForkSessionRequest{SessionID: parent.ID, Title: "branch A"})
+	if err != nil {
+		t.Fatalf("fork: %v", err)
+	}
+	if child.Cwd != "/work/proj" {
+		t.Errorf("child cwd = %q, want inherited /work/proj", child.Cwd)
+	}
+	if child.Title != "branch A" {
+		t.Errorf("child title = %q, want override 'branch A'", child.Title)
+	}
+	if got := len(hist[child.ID]); got != 2 {
+		t.Errorf("child history = %d msgs, want 2 copied from parent", got)
+	}
+
+	// item-boundary fork isn't backed → checkpoint_unavailable
+	if _, err := s.ForkSession(ctx, protocol.ForkSessionRequest{SessionID: parent.ID, FromItemID: "item_x"}); !errors.Is(err, protocol.ErrCheckpointUnavailable) {
+		t.Errorf("fromItemId fork err = %v, want ErrCheckpointUnavailable", err)
+	}
+
+	// unknown parent → session_not_found
+	if _, err := s.ForkSession(ctx, protocol.ForkSessionRequest{SessionID: "nope"}); !errors.Is(err, protocol.ErrSessionNotFound) {
+		t.Errorf("unknown parent err = %v, want ErrSessionNotFound", err)
 	}
 }
