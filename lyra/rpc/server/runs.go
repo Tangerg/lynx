@@ -384,8 +384,8 @@ func (s *Server) recordInterrupt(ctx context.Context, runID string, handle chat.
 }
 
 // CancelRun hard-stops a running run (outcome:canceled, API.md §7.3).
-// A parked run is also abandoned — its open interrupt is dropped so it
-// stops surfacing as resumable.
+// A parked run is also abandoned — its live parked turn is torn down
+// and its open interrupt dropped so it stops surfacing as resumable.
 func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) error {
 	s.runMu.Lock()
 	e, ok := s.runs[in.RunID]
@@ -393,16 +393,26 @@ func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) er
 		e.cancelReason = in.Reason // surfaced on the synthesized canceled outcome (S6)
 	}
 	s.runMu.Unlock()
-	// Best-effort: drop the interrupt record for the canceled run.
-	// If this fails, a dangling record is harmless — it won't match
-	// any live turn and will be ignored on the next ListOpenInterrupts.
-	_ = s.rt.Interrupts().Delete(ctx, in.RunID)
+
 	if !ok {
-		// Not actively running — it may be a parked run whose pump already
-		// returned. Cancel the underlying turn by id if we can find it via
-		// the interrupt record (already deleted above); best-effort.
-		return protocol.ErrRunNotFound
+		// Not actively pumping — a parked run whose pump already returned.
+		// The open-interrupt record maps the run back to its live parked
+		// turn: cancel that turn first (tears down the parked process and
+		// turn state), THEN drop the record. Resolving before deleting
+		// keeps the operation atomic from the client's view — a failed
+		// lookup leaves the run resumable instead of half-abandoned.
+		pending, found, err := s.rt.Interrupts().Get(ctx, in.RunID)
+		if err != nil || !found {
+			return protocol.ErrRunNotFound
+		}
+		_ = s.rt.Chat().Cancel(ctx, chat.TurnHandle{SessionID: pending.SessionID, TurnID: pending.TurnID})
+		_ = s.rt.Interrupts().Delete(ctx, in.RunID)
+		return nil
 	}
+
+	// Actively pumping: drop any open interrupt record (no-op for an
+	// un-parked run), cancel the run ctx, and stop the underlying turn.
+	_ = s.rt.Interrupts().Delete(ctx, in.RunID)
 	e.cancel()
 	_ = s.rt.Chat().Cancel(ctx, chat.TurnHandle{SessionID: e.sessionID, TurnID: e.turnID})
 	return nil

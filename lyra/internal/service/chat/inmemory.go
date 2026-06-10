@@ -357,10 +357,14 @@ func (s *inMemory) Rehydrate(ctx context.Context, req RehydrateRequest) (TurnHan
 // event variant means writing the struct + one stamp method,
 // nothing here.
 //
-// Sends are non-blocking: if the receiver has fallen behind, we
-// drop the event rather than stall the turn. A future enhancement
-// could buffer dropped events into an outbox + metric counter so
-// slow clients are visible in observability.
+// Sends block when the consumer falls behind: the durable history
+// (items.list) is built from this stream, so backpressure — the turn
+// slowing to the consumer's persistence speed — is correct where
+// dropping would silently corrupt persisted items (a lost
+// MessageDelta truncates the item text; a lost TurnEnd misreports the
+// outcome as canceled). The turn-lifetime ctx is the escape hatch: a
+// canceled turn stops blocking producers even when no consumer is
+// left to drain.
 func (s *inMemory) emit(st *turnState, ev Event) {
 	stamped := ev.stamp(BaseEvent{
 		SessionID: st.handle.SessionID,
@@ -370,6 +374,6 @@ func (s *inMemory) emit(st *turnState, ev Event) {
 	})
 	select {
 	case st.events <- stamped:
-	default:
+	case <-st.ctx.Done():
 	}
 }

@@ -8,7 +8,6 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/Tangerg/lynx/core/document"
 )
@@ -177,7 +176,12 @@ func (p *Pipeline) expandQuery(ctx context.Context, query *Query) (out []*Query,
 
 // parallelCollect runs fn against each item in parallel and unions
 // the per-item slices. Partial failures keep the partial results;
-// the wrapped error surfaces only when every item failed.
+// an error surfaces only when every item failed (joining every
+// per-item error). Each item runs on the caller's ctx — NOT a
+// group-canceled one — so one fast-failing item can't cancel its
+// still-running siblings (which would turn "partial failure" into
+// "total failure" for free). Absorbed errors are recorded on the
+// ambient span so a degraded collection stays observable.
 func parallelCollect[Item, Out any](
 	ctx context.Context,
 	items []Item,
@@ -185,28 +189,35 @@ func parallelCollect[Item, Out any](
 	fn func(ctx context.Context, idx int, item Item) ([]Out, error),
 ) ([]Out, error) {
 	var (
-		mu  sync.Mutex
-		out []Out
+		mu   sync.Mutex
+		out  []Out
+		errs []error
 	)
 
-	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(len(items))
-
+	var wg sync.WaitGroup
 	for index, item := range items {
-		g.Go(func() error {
-			result, err := fn(gctx, index, item)
-			if err != nil {
-				return fmt.Errorf("%s #%d: %w", itemLabel, index, err)
-			}
+		wg.Go(func() {
+			result, err := fn(ctx, index, item)
 			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				errs = append(errs, fmt.Errorf("%s #%d: %w", itemLabel, index, err))
+				return
+			}
 			out = append(out, result...)
-			mu.Unlock()
-			return nil
 		})
 	}
+	wg.Wait()
 
-	if err := g.Wait(); err != nil && len(out) == 0 {
-		return nil, fmt.Errorf("rag.parallelCollect: all %ss failed: %w", itemLabel, err)
+	if len(errs) == 0 {
+		return out, nil
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("rag.parallelCollect: every %s failed: %w", itemLabel, errors.Join(errs...))
+	}
+	span := trace.SpanFromContext(ctx)
+	for _, err := range errs {
+		span.RecordError(err)
 	}
 	return out, nil
 }

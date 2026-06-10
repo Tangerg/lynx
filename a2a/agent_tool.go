@@ -51,13 +51,19 @@ type AgentToolConfig struct {
 	Metadata chat.ToolMetadata
 }
 
-// Validate reports whether the config has the required fields.
+// Validate reports whether the config has the required fields. Run
+// [AgentToolConfig.ApplyDefaults] first — Name is checked post-default,
+// so a card whose name sanitizes to nothing fails loudly here instead
+// of registering a tool with an empty name.
 func (c *AgentToolConfig) Validate() error {
 	if c.Client == nil {
 		return ErrNilClient
 	}
 	if c.Card == nil {
 		return ErrNilCard
+	}
+	if c.Name == "" {
+		return ErrEmptyToolName
 	}
 	return nil
 }
