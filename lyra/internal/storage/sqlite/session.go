@@ -58,7 +58,7 @@ func rowToSession(scanner interface {
 
 // encodeMetadata marshals the metadata map; nil / empty maps become
 // "{}" so the row's NOT NULL constraint stays satisfied.
-func encodeMetadata(m map[string]string) (string, error) {
+func encodeMetadata(m map[string]any) (string, error) {
 	if len(m) == 0 {
 		return "{}", nil
 	}
@@ -253,6 +253,27 @@ func (s *SessionService) Rename(ctx context.Context, id, title string) error {
 	return s.updateByID(ctx, "rename session",
 		`UPDATE sessions SET title = ?, updated_at = ? WHERE id = ?`,
 		title, time.Now().UTC().UnixNano(), id)
+}
+
+// SetCwd relocates the session (see [session.Service.SetCwd]) + refreshes
+// UpdatedAt in a single UPDATE. ErrNotFound for unknown id.
+func (s *SessionService) SetCwd(ctx context.Context, id, cwd string) error {
+	return s.updateByID(ctx, "relocate session",
+		`UPDATE sessions SET cwd = ?, updated_at = ? WHERE id = ?`,
+		cwd, time.Now().UTC().UnixNano(), id)
+}
+
+// SetMetadata full-replaces the session's metadata (see
+// [session.Service.SetMetadata]) + refreshes UpdatedAt. ErrNotFound for
+// unknown id.
+func (s *SessionService) SetMetadata(ctx context.Context, id string, meta map[string]any) error {
+	metaJSON, err := encodeMetadata(meta)
+	if err != nil {
+		return err
+	}
+	return s.updateByID(ctx, "set session metadata",
+		`UPDATE sessions SET metadata = ?, updated_at = ? WHERE id = ?`,
+		metaJSON, time.Now().UTC().UnixNano(), id)
 }
 
 // updateByID runs a single-row UPDATE keyed on session id and maps "no row
