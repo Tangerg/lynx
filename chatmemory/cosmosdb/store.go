@@ -63,8 +63,12 @@ type document struct {
 }
 
 // Write upserts every message under conversationID. The synthesized
-// id (`<conversation_id>_<seq>`) is monotone so re-runs of a Write
-// with the same batch are idempotent at the document level.
+// id (`<conversation_id>_<seq>`) is monotone within the batch
+// (seqBase = call-time UnixNano, +1 per message). A retried Write
+// recomputes seqBase, so re-runs append fresh documents — they are
+// NOT idempotent. Two writers calling in the same nanosecond would
+// collide ids and silently upsert over each other; chat memory has a
+// single writer per conversation, so that stays theoretical.
 func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) (err error) {
 	if err = ctx.Err(); err != nil {
 		return err
@@ -201,11 +205,21 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 		},
 	}
 
-	pager := s.container.NewQueryItemsPager(query, pk, opts)
-	for pager.More() {
+	// Deleting while paging the same query can skip items (the
+	// continuation token is computed against the mutating result set),
+	// so each round re-runs the query from scratch and deletes one
+	// page, until the query comes back empty.
+	for {
+		pager := s.container.NewQueryItemsPager(query, pk, opts)
+		if !pager.More() {
+			return nil
+		}
 		resp, err := pager.NextPage(ctx)
 		if err != nil {
 			return fmt.Errorf("cosmosdb.Store.Clear: %w", err)
+		}
+		if len(resp.Items) == 0 {
+			return nil
 		}
 		for _, item := range resp.Items {
 			var projected struct {
@@ -219,5 +233,4 @@ func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 			}
 		}
 	}
-	return nil
 }

@@ -104,7 +104,7 @@ func NewStore(cfg StoreConfig) (*Store, error) {
 	s := &Store{
 		session: cfg.Session,
 		writeCQL: fmt.Sprintf(
-			"INSERT INTO %s (conversation_id, seq, message) VALUES (?, now(), ?)",
+			"INSERT INTO %s (conversation_id, seq, message) VALUES (?, ?, ?)",
 			qualified,
 		),
 		readCQL: fmt.Sprintf(
@@ -130,9 +130,15 @@ func NewStore(cfg StoreConfig) (*Store, error) {
 	return s, nil
 }
 
-// Write appends every message under conversationID. Each insert
-// stamps `seq = now()` server-side, yielding a globally-monotone
-// TIMEUUID clustering key.
+// Write appends every message under conversationID. seq TIMEUUIDs are
+// generated CLIENT-side ([gocql.TimeUUID] is monotone within this
+// process), not by the server's now(): server-side generation hands
+// each statement to whichever coordinator the driver routes it to, and
+// cross-node clock skew can reorder a batch's messages — putting an
+// assistant reply before its user turn in the replayed history. The
+// whole batch ships as one unlogged batch to a single partition: one
+// round trip, atomic within the partition, so a mid-write failure
+// can't persist half the exchange.
 func (s *Store) Write(ctx context.Context, conversationID string, messages ...chat.Message) (err error) {
 	if err = ctx.Err(); err != nil {
 		return err
@@ -144,15 +150,17 @@ func (s *Store) Write(ctx context.Context, conversationID string, messages ...ch
 	ctx, span := tracing.StartWrite(ctx, "cassandra", conversationID, len(messages))
 	defer func() { tracing.Finish(span, err) }()
 
+	batch := s.session.NewBatch(gocql.UnloggedBatch).WithContext(ctx)
 	for _, msg := range messages {
 		raw, encErr := codec.EncodeMessage(msg)
 		if encErr != nil {
 			err = fmt.Errorf("cassandra.Store.Write: encode message: %w", encErr)
 			return err
 		}
-		if err = s.session.Query(s.writeCQL, conversationID, string(raw)).WithContext(ctx).Exec(); err != nil {
-			return fmt.Errorf("cassandra.Store.Write: %w", err)
-		}
+		batch.Query(s.writeCQL, conversationID, gocql.TimeUUID(), string(raw))
+	}
+	if err = s.session.ExecuteBatch(batch); err != nil {
+		return fmt.Errorf("cassandra.Store.Write: %w", err)
 	}
 	return nil
 }

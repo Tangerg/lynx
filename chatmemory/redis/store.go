@@ -177,6 +177,9 @@ func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
 
 	match := s.keyPrefix + "*"
 	seen := make(map[string]struct{})
+	// Non-nil even when no conversations exist — every backend's
+	// Conversations returns an empty slice, not nil.
+	ids = []string{}
 
 	var cursor uint64
 	for {

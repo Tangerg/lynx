@@ -29,10 +29,11 @@ Neo4j)。所有实现必须满足同一份 `Store` 契约 (Read / Write / Clear)
 
 ## 跨模块提醒
 
-- Lyra 用的是 `lyra/internal/storage/message_store.go` 的 JSONL 文件后端，
-  不在这里 — 但实现的是同一个 `Store` 接口，可以对比参考。
-- 中间件层（消息加载 / 去重 / Save marker）在 `core/model/chat/memory/
-  middleware.go`，不在 backend 这一层 — 这里只做 KV 存储。
+- Lyra 用的是 `lyra/internal/storage/sqlite` 的 `MessageStore`（单一
+  SQLite 后端），不在这里 — 但实现的是同一个 `Store` 接口，可以对比参考。
+- 中间件层（历史 splice / 持久化时机）在
+  `core/model/chat/middleware/memory/middleware.go`，不在 backend 这一层 —
+  这里只做 KV 存储。
 
 ## 体检命令
 
