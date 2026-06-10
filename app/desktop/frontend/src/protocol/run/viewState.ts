@@ -170,6 +170,15 @@ export interface Message {
   blocks: ContentBlock[];
 }
 
+/** Optimistic (client-minted) user-message id prefix. send() stamps a bubble
+ *  `${LOCAL_MESSAGE_PREFIX}${n}` a round-trip before the runtime streams the
+ *  real userMessage Item, then the fold reconciles by matching this prefix.
+ *  One owner for the convention so the minter (useAgentSession) and the
+ *  matcher (core-reducer fold) can't drift — change the prefix in one place
+ *  and reconciliation would otherwise silently break (duplicate user bubble). */
+export const LOCAL_MESSAGE_PREFIX = "local-";
+export const isLocalMessageId = (id: string): boolean => id.startsWith(LOCAL_MESSAGE_PREFIX);
+
 export interface RunState {
   running: boolean;
   sessionId: string | null;

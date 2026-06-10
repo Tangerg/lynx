@@ -2,6 +2,7 @@ import type { AgentDriver } from "@/plugins/sdk";
 import type { InterruptResponse, RunEvent, RunId, StreamingResult } from "@/rpc";
 import { useEffect, useRef } from "react";
 import { asSessionId, errorDetail, errorType, RpcError } from "@/rpc";
+import { LOCAL_MESSAGE_PREFIX } from "@/protocol/run/viewState";
 import { endSpan, startRunSpan, withSpan } from "@/lib/observability/tracing";
 import { getContainer } from "@/main/container";
 import { useAgentStore } from "./agentStore";
@@ -156,7 +157,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       // a round-trip later — so when runs.start resolves we relabel this
       // placeholder to the returned `userItemId`, and the streamed Item then
       // dedupes by exact id (no duplicate, no content-text heuristic).
-      const localId = `local-${++localSeq}`;
+      const localId = `${LOCAL_MESSAGE_PREFIX}${++localSeq}`;
       store().applyEvents(sessionId, [
         {
           type: "item.completed",
