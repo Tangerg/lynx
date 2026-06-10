@@ -7,5 +7,9 @@ lyra/config/config.yaml
 # Lyra dev binary (built via `go build -o lyra ./cmd/lyra`).
 lyra/lyra
 
+# Lyra dev-server runtime artifacts (written by `make restart` / `make start`).
+lyra/lyra.log
+lyra/lyra.pid
+
 # Lyra runtime-generated memory (written to cwd when serving from lyra/).
 lyra/LYRA.md
