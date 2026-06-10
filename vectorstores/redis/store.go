@@ -610,8 +610,7 @@ func (s *Store) buildFilterQuery(filter ast.Expr) (string, error) {
 		return "*", nil
 	}
 	v := NewVisitor(s.fieldTypes)
-	v.Visit(filter)
-	if err := v.Error(); err != nil {
+	if err := v.Visit(filter); err != nil {
 		return "", fmt.Errorf("redis: convert filter: %w", err)
 	}
 	fragment := v.Result()

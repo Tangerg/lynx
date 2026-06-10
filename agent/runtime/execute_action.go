@@ -254,13 +254,13 @@ func (p *AgentProcess) toolResolverFor(action core.Action) core.ToolResolver {
 	if len(resolvers) == 0 {
 		return nil
 	}
-	return func(ctx context.Context, roles []string) ([]core.AgentTool, error) {
+	return func(ctx context.Context, requirements []core.ToolGroupRequirement) ([]core.AgentTool, error) {
 		var collected []core.AgentTool
 
-		for _, role := range roles {
-			group, err := runToolGroupResolvers(resolvers, ctx, core.ToolGroupRequirement{Role: role})
+		for _, req := range requirements {
+			group, err := runToolGroupResolvers(resolvers, ctx, req)
 			if err != nil {
-				return nil, fmt.Errorf("resolve tools for role %q: %w", role, err)
+				return nil, fmt.Errorf("resolve tools for role %q: %w", req.Role, err)
 			}
 			if group == nil {
 				continue
@@ -268,7 +268,7 @@ func (p *AgentProcess) toolResolverFor(action core.Action) core.ToolResolver {
 
 			tools, err := group.Tools(ctx)
 			if err != nil {
-				return nil, fmt.Errorf("load tools for role %q: %w", role, err)
+				return nil, fmt.Errorf("load tools for role %q: %w", req.Role, err)
 			}
 			for _, tool := range tools {
 				collected = append(collected, runToolDecorators(decorators, p, action, tool))

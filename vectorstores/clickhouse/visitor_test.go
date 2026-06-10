@@ -20,8 +20,7 @@ func TestVisitor_Conformance(t *testing.T) {
 			return err
 		}
 		v := clickhouse.NewVisitor("metadata")
-		v.Visit(expr)
-		return v.Error()
+		return v.Visit(expr)
 	})
 }
 
@@ -33,8 +32,7 @@ func build(t *testing.T, src string) (string, []any, error) {
 		return "", nil, err
 	}
 	v := clickhouse.NewVisitor("metadata")
-	v.Visit(expr)
-	if err := v.Error(); err != nil {
+	if err := v.Visit(expr); err != nil {
 		return "", nil, err
 	}
 	sql, args := v.Result()

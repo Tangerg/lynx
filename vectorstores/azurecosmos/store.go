@@ -322,8 +322,7 @@ func (s *Store) buildFilter(filter ast.Expr) (string, []NamedParam, error) {
 		return "", nil, nil
 	}
 	v := NewVisitor(docAlias, s.metadataField)
-	v.Visit(filter)
-	if err := v.Error(); err != nil {
+	if err := v.Visit(filter); err != nil {
 		return "", nil, fmt.Errorf("azurecosmos: convert filter: %w", err)
 	}
 	predicate, params := v.Result()

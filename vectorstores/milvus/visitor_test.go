@@ -15,7 +15,6 @@ func TestVisitor_Conformance(t *testing.T) {
 			return err
 		}
 		v := milvus.NewVisitor()
-		v.Visit(expr)
-		return v.Error()
+		return v.Visit(expr)
 	})
 }

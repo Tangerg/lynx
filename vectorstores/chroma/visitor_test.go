@@ -21,8 +21,7 @@ func TestVisitor_Conformance(t *testing.T) {
 				return err
 			}
 			v := chroma.NewVisitor()
-			v.Visit(expr)
-			return v.Error()
+			return v.Visit(expr)
 		},
 		storetest.Options{
 			Skip: []string{"not", "nested_logical", "like"},

@@ -281,8 +281,7 @@ func (s *Store) buildFilter(filter ast.Expr) (string, error) {
 		return "", nil
 	}
 	v := NewVisitor(s.metadataPrefix)
-	v.Visit(filter)
-	if err := v.Error(); err != nil {
+	if err := v.Visit(filter); err != nil {
 		return "", fmt.Errorf("vectara: convert filter: %w", err)
 	}
 	return v.Result(), nil

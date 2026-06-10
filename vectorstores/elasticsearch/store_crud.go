@@ -262,8 +262,7 @@ func (s *Store) buildFilterQuery(filter ast.Expr) (string, error) {
 		return "", nil
 	}
 	v := NewVisitor(s.metadataField)
-	v.Visit(filter)
-	if err := v.Error(); err != nil {
+	if err := v.Visit(filter); err != nil {
 		return "", fmt.Errorf("elasticsearch: convert filter: %w", err)
 	}
 	return v.Result(), nil

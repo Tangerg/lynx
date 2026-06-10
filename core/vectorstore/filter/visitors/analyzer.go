@@ -16,26 +16,18 @@ import (
 // Example:
 //
 //	expr, _ := filter.Parse(`category == 'tech' AND year >= 2020`)
-//	a := visitors.NewAnalyzer()
-//	a.Visit(expr)
-//	if err := a.Error(); err != nil {
+//	if err := visitors.NewAnalyzer().Visit(expr); err != nil {
 //	    return err
 //	}
-type Analyzer struct {
-	err error
-}
+type Analyzer struct{}
 
-// NewAnalyzer returns an empty [Analyzer] ready to walk an AST.
+// NewAnalyzer returns an [Analyzer] ready to walk an AST.
 func NewAnalyzer() *Analyzer { return &Analyzer{} }
 
-// Error returns the first violation found during traversal, or nil.
-func (a *Analyzer) Error() error { return a.err }
-
-// Visit dispatches expr to the matching internal handler and stops
-// further descent — the visitor walks the tree itself.
-func (a *Analyzer) Visit(expr ast.Expr) ast.Visitor {
-	a.err = a.visit(expr)
-	return nil
+// Visit walks the whole tree rooted at expr and returns the first
+// violation found, or nil.
+func (a *Analyzer) Visit(expr ast.Expr) error {
+	return a.visit(expr)
 }
 
 // visit dispatches by node type. Returns the first error encountered.

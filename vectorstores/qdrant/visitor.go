@@ -57,21 +57,15 @@ func (v *Visitor) Filter() *qdrant.Filter {
 	return v.filter
 }
 
-// Error returns the last error encountered during conversion.
-// Returns nil if the conversion was successful.
-func (v *Visitor) Error() error {
-	return v.err
-}
-
 // Visit implements the ast.Visitor interface.
-// It initiates the conversion process for the given expression and stores any error.
-// Always returns nil to stop further traversal as conversion is done in a single pass.
+// It walks the whole tree rooted at expr and returns the first error
+// encountered, or nil when the entire expression was accepted.
 //
 // This is the main entry point for AST traversal. The actual conversion logic
 // is delegated to the visit method and its specialized handlers.
-func (v *Visitor) Visit(expr ast.Expr) ast.Visitor {
+func (v *Visitor) Visit(expr ast.Expr) error {
 	v.err = v.visit(expr)
-	return nil
+	return v.err
 }
 
 // visit dispatches conversion to specialized methods based on expression type.

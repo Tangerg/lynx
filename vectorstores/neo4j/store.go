@@ -522,8 +522,7 @@ func (s *Store) buildPredicate(filter ast.Expr) (string, map[string]any, error) 
 		return "", nil, nil
 	}
 	v := NewVisitor("node", s.metadataPrefix)
-	v.Visit(filter)
-	if err := v.Error(); err != nil {
+	if err := v.Visit(filter); err != nil {
 		return "", nil, fmt.Errorf("neo4j: convert filter: %w", err)
 	}
 	predicate, params := v.Result()

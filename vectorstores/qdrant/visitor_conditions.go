@@ -516,6 +516,8 @@ func (v *Visitor) literalToValue(lit *ast.Literal) (any, error) {
 //   - error: Conversion error if the expression contains unsupported operations or syntax errors
 func ToFilter(expr ast.Expr) (*qdrant.Filter, error) {
 	conv := NewVisitor()
-	conv.Visit(expr)
-	return conv.Filter(), conv.Error()
+	if err := conv.Visit(expr); err != nil {
+		return nil, err
+	}
+	return conv.Filter(), nil
 }

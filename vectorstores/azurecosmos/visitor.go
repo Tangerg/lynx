@@ -51,11 +51,9 @@ func (v *Visitor) Result() (string, []NamedParam) {
 	return v.sql.String(), v.params
 }
 
-func (v *Visitor) Error() error { return v.err }
-
-func (v *Visitor) Visit(expr ast.Expr) ast.Visitor {
+func (v *Visitor) Visit(expr ast.Expr) error {
 	v.err = v.visit(expr)
-	return nil
+	return v.err
 }
 
 func (v *Visitor) visit(expr ast.Expr) error {

@@ -546,8 +546,7 @@ func (s *Store) buildWhereClause(filter ast.Expr) (string, []any, error) {
 		return "", nil, nil
 	}
 	visitor := NewVisitor(s.metadataColumn)
-	visitor.Visit(filter)
-	if err := visitor.Error(); err != nil {
+	if err := visitor.Visit(filter); err != nil {
 		return "", nil, fmt.Errorf("pgvector: convert filter: %w", err)
 	}
 	fragment, args := visitor.Result()

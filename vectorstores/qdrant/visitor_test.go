@@ -17,8 +17,7 @@ func TestVisitor_Conformance(t *testing.T) {
 			return err
 		}
 		v := qdrant.NewVisitor()
-		v.Visit(expr)
-		return v.Error()
+		return v.Visit(expr)
 	})
 }
 
@@ -29,9 +28,8 @@ func toFilter(t *testing.T, src string) *qdrantclient.Filter {
 		t.Fatalf("parse %q: %v", src, err)
 	}
 	v := qdrant.NewVisitor()
-	v.Visit(expr)
-	if v.Error() != nil {
-		t.Fatalf("visit %q: %v", src, v.Error())
+	if err := v.Visit(expr); err != nil {
+		t.Fatalf("visit %q: %v", src, err)
 	}
 	return v.Filter()
 }

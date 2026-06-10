@@ -15,8 +15,7 @@ func TestVisitor_Conformance(t *testing.T) {
 			return err
 		}
 		v := opensearch.NewVisitor("metadata")
-		v.Visit(expr)
-		return v.Error()
+		return v.Visit(expr)
 	})
 }
 
@@ -48,8 +47,7 @@ func TestVisitor_NullTest(t *testing.T) {
 				t.Fatalf("parse %q: %v", tt.src, err)
 			}
 			v := opensearch.NewVisitor("metadata")
-			v.Visit(expr)
-			if err := v.Error(); err != nil {
+			if err := v.Visit(expr); err != nil {
 				t.Fatalf("visit %q: %v", tt.src, err)
 			}
 			if got := v.Result(); got != tt.want {

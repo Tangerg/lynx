@@ -16,9 +16,7 @@ func analyze(t *testing.T, input string) error {
 	if err != nil {
 		t.Fatalf("parse %q: %v", input, err)
 	}
-	a := visitors.NewAnalyzer()
-	a.Visit(expr)
-	return a.Error()
+	return visitors.NewAnalyzer().Visit(expr)
 }
 
 func TestAnalyzer_HappyPath(t *testing.T) {
@@ -74,8 +72,7 @@ func render(t *testing.T, input string) string {
 		t.Fatalf("parse %q: %v", input, err)
 	}
 	v := visitors.NewSQLLikeVisitor()
-	v.Visit(expr)
-	if err := v.Error(); err != nil {
+	if err := v.Visit(expr); err != nil {
 		t.Fatalf("render error: %v", err)
 	}
 	return v.SQL()

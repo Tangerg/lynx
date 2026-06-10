@@ -302,8 +302,7 @@ func (s *Store) buildFilter(filter ast.Expr) (string, error) {
 		return "", nil
 	}
 	v := NewVisitor(metadataField)
-	v.Visit(filter)
-	if err := v.Error(); err != nil {
+	if err := v.Visit(filter); err != nil {
 		return "", fmt.Errorf("typesense: convert filter: %w", err)
 	}
 	return v.Result(), nil

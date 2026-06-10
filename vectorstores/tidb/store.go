@@ -417,8 +417,7 @@ func (s *Store) buildFilter(filter ast.Expr) (string, []any, error) {
 		return "", nil, nil
 	}
 	v := NewVisitor(s.metadataColumn)
-	v.Visit(filter)
-	if err := v.Error(); err != nil {
+	if err := v.Visit(filter); err != nil {
 		return "", nil, fmt.Errorf("tidb: convert filter: %w", err)
 	}
 	predicate, args := v.Result()
