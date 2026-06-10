@@ -7,6 +7,7 @@ export { EmptyState } from "./EmptyState";
 export { Icon } from "./Icon";
 export type { IconName } from "./Icon";
 export { IconButton } from "./IconButton";
+export { MENU_CONTENT_CLASSES, MENU_ITEM_CLASSES } from "./menuClasses";
 export { Panel } from "./Panel";
 export { PillButton } from "./PillButton";
 export { ProviderIcon } from "./ProviderIcon";

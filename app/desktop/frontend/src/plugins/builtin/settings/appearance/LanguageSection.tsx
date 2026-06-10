@@ -3,8 +3,9 @@
 // live with their only consumer, the Personalization pane.
 
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Icon } from "@/components/common";
+import { Icon, MENU_CONTENT_CLASSES, MENU_ITEM_CLASSES } from "@/components/common";
 import { setLocale, useLocale, useT } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 import { LOCALE, useExtensionPoint } from "@/plugins/sdk";
 import { SettingRow } from "../SettingRow";
 
@@ -38,13 +39,13 @@ export function LanguageSection() {
           <DropdownMenu.Content
             align="start"
             sideOffset={4}
-            className="z-50 min-w-[180px] overflow-hidden rounded-md border border-line-soft bg-surface p-1 shadow-lg animate-rise-in"
+            className={cn(MENU_CONTENT_CLASSES, "min-w-[180px]")}
           >
             {locales.map((l) => (
               <DropdownMenu.Item
                 key={l.id}
                 onSelect={() => setLocale(l.id)}
-                className="grid grid-cols-[minmax(0,1fr)_12px] items-center gap-2 rounded-sm px-2.5 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
+                className={cn(MENU_ITEM_CLASSES, "grid-cols-[minmax(0,1fr)_12px]")}
               >
                 <span className="truncate">{l.label}</span>
                 {locale === l.id ? (

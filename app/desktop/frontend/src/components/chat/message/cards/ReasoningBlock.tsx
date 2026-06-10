@@ -13,6 +13,12 @@ interface Props {
 // Collapsible "thinking" panel. Auto-opens while the agent streams, then
 // collapses once the reasoning is done. User can toggle anytime to override.
 //
+// Hand-rolled rather than Radix Collapsible (CLAUDE.md §4 exemption c):
+// the open state is derived — streaming drives it until the user's first
+// toggle takes over — which Radix's controlled/uncontrolled split can't
+// express, and a disclosure header needs no focus/keyboard management
+// beyond the native <button>.
+//
 // Elapsed time is captured client-side: we snapshot the wall clock at first
 // render (≈ first reasoning delta) and freeze it the tick streaming flips
 // false. Server-authoritative duration would be cleaner, but reasoning

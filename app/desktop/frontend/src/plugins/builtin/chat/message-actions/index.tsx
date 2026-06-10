@@ -6,16 +6,16 @@
 // _shared.ts.
 
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Icon, Tooltip } from "@/components/common";
+import { Icon, MENU_CONTENT_CLASSES, Tooltip } from "@/components/common";
+import { editMessageInComposer, regenerateMessage } from "@/lib/agent/messageActions";
 import {
   flattenCode,
   flattenMarkdown,
   flattenText,
   writeToClipboard,
 } from "@/lib/agent/messageContent";
+import { cn } from "@/lib/utils";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
-import { getCurrentSessionView, useAgentAction } from "@/state/agentStore";
-import { useComposerStore } from "@/state/composerStore";
 import { ACTION_BTN_CLASSES } from "./_shared";
 
 // ---- Copy: dropdown menu with Markdown / Plain text / Code only. ----
@@ -44,7 +44,7 @@ function CopyButton() {
         <DropdownMenu.Content
           align="end"
           sideOffset={4}
-          className="z-50 min-w-[160px] overflow-hidden rounded-md border border-line-soft bg-surface p-1 shadow-lg animate-rise-in"
+          className={cn(MENU_CONTENT_CLASSES, "min-w-[160px]")}
         >
           <CopyItem
             label="Copy markdown"
@@ -107,24 +107,14 @@ export const messageCopy = definePlugin({
 
 function EditButton() {
   const msg = useCurrentMessage();
-  const setValue = useComposerStore((s) => s.setValue);
   if (msg.role !== "user") return null;
-  const text = flattenText(msg.blocks);
-  if (!text) return null;
-
-  const onClick = () => {
-    setValue(text);
-    // Focus the composer textarea so the user can edit immediately.
-    const ta = document.querySelector<HTMLTextAreaElement>(".composer-input");
-    ta?.focus();
-    ta?.setSelectionRange(text.length, text.length);
-  };
+  if (!flattenText(msg.blocks)) return null;
 
   return (
     <Tooltip label="Edit message">
       <button
         type="button"
-        onClick={onClick}
+        onClick={() => editMessageInComposer(msg)}
         aria-label="Edit message"
         className={ACTION_BTN_CLASSES}
       >
@@ -146,35 +136,18 @@ export const messageEdit = definePlugin({
   },
 });
 
-// ---- Regenerate (assistant messages only): find the preceding user
-// prompt and re-send it. the protocol has no a "fork-from-here" verb, so
-// the closest thing we can do is replay that prompt — backend treats it
-// as a fresh request and produces a new response. ----
+// ---- Regenerate (assistant messages only): replay the preceding user
+// prompt via the shared regenerateMessage action (lib/agent). ----
 
 function RegenerateButton() {
   const msg = useCurrentMessage();
-  const send = useAgentAction("send");
   if (msg.role !== "assistant") return null;
-  if (!send) return null;
-
-  const onClick = () => {
-    const { messages } = getCurrentSessionView();
-    const idx = messages.findIndex((m) => m.id === msg.id);
-    if (idx < 0) return;
-    for (let i = idx - 1; i >= 0; i--) {
-      const m = messages[i]!;
-      if (m.role !== "user") continue;
-      const text = flattenText(m.blocks).trim();
-      if (text) send(text);
-      return;
-    }
-  };
 
   return (
     <Tooltip label="Regenerate response">
       <button
         type="button"
-        onClick={onClick}
+        onClick={() => regenerateMessage(msg)}
         aria-label="Regenerate response"
         className={ACTION_BTN_CLASSES}
       >
