@@ -1,10 +1,15 @@
 package server
 
 import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
+	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
 // TestProjectsFromSessions: distinct cwds collapse to one project each,
@@ -32,6 +37,55 @@ func TestProjectsFromSessions(t *testing.T) {
 	}
 	if got[1].Cwd != "/b/other" || got[1].SessionCount != 1 {
 		t.Fatalf("got[1] = %+v, want /b/other count=1", got[1])
+	}
+}
+
+// TestResolveInRoot pins the path-jail: in-root paths resolve relative to
+// root; anything climbing out (or an absolute path elsewhere) is rejected.
+func TestResolveInRoot(t *testing.T) {
+	root := "/work/proj"
+	ok := []struct{ in, want string }{
+		{"main.go", "main.go"},
+		{"pkg/util.go", "pkg/util.go"},
+		{"./a/../b.go", "b.go"},
+		{"/work/proj/sub/x.go", "sub/x.go"}, // absolute but inside root
+	}
+	for _, c := range ok {
+		got, err := resolveInRoot(root, c.in)
+		if err != nil || got != c.want {
+			t.Errorf("resolveInRoot(%q) = (%q, %v), want (%q, nil)", c.in, got, err, c.want)
+		}
+	}
+	bad := []string{"../escape.go", "../../etc/passwd", "/etc/passwd", "sub/../../out.go"}
+	for _, p := range bad {
+		if _, err := resolveInRoot(root, p); !errors.Is(err, protocol.ErrPathOutsideRoot) {
+			t.Errorf("resolveInRoot(%q) err = %v, want ErrPathOutsideRoot", p, err)
+		}
+	}
+	if _, err := resolveInRoot(root, ""); !errors.Is(err, protocol.ErrInvalidParams) {
+		t.Errorf("resolveInRoot(\"\") err = %v, want ErrInvalidParams", err)
+	}
+}
+
+// TestWorkspaceGetFileHead reads the first N lines of a cwd-relative file,
+// numbers them 1-based, and refuses a path that climbs out of the root.
+func TestWorkspaceGetFileHead(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte("a\nb\nc\nd\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := &Server{serverInfo: protocol.ServerInfo{Cwd: dir}}
+
+	got, err := s.WorkspaceGetFileHead(context.Background(), protocol.GetFileHeadRequest{Path: "f.txt", Lines: 2})
+	if err != nil {
+		t.Fatalf("getFileHead: %v", err)
+	}
+	if len(got.Lines) != 2 || got.Lines[0].LineNumber != 1 || got.Lines[0].Text != "a" || got.Lines[1].LineNumber != 2 {
+		t.Fatalf("lines = %+v, want first two lines numbered 1,2", got.Lines)
+	}
+
+	if _, err := s.WorkspaceGetFileHead(context.Background(), protocol.GetFileHeadRequest{Path: "../escape"}); !errors.Is(err, protocol.ErrPathOutsideRoot) {
+		t.Errorf("escape path err = %v, want ErrPathOutsideRoot", err)
 	}
 }
 
