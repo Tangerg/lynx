@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -9,7 +11,51 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/service/agentdoc"
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
+	"github.com/Tangerg/lynx/tools/fs"
 )
+
+// defaultFileHeadLines caps a workspace.getFileHead preview when the client
+// gives no (or a non-positive) line count.
+const defaultFileHeadLines = 200
+
+// workspaceRoot resolves the effective root for a workspace read: the
+// request's cwd, or the serve directory when omitted (API.md §7.5 "default =
+// serve directory"). It returns ErrCwdUnavailable when the root doesn't
+// resolve to an existing directory, so reads against a stale cwd fail
+// honestly rather than returning empty.
+func (s *Server) workspaceRoot(cwd string) (string, error) {
+	root := cwd
+	if root == "" {
+		root = s.serverInfo.Cwd
+	}
+	info, err := os.Stat(root)
+	if err != nil || !info.IsDir() {
+		return "", fmt.Errorf("%w: %s", protocol.ErrCwdUnavailable, root)
+	}
+	return root, nil
+}
+
+// resolveInRoot lexically confines a client-supplied path to root and returns
+// it relative to root (the form fs.LocalExecutor wants). It is the path-jail
+// fs.LocalExecutor itself doesn't enforce (its Root only anchors; "../" and
+// absolute paths escape — see tools/fs local.go TODO(security)). Absolute
+// paths are accepted only when already inside root; anything climbing out
+// (or "..") is rejected as path_outside_root (API.md §7.5).
+func resolveInRoot(root, p string) (rel string, err error) {
+	if p == "" {
+		return "", fmt.Errorf("%w: path required", protocol.ErrInvalidParams)
+	}
+	abs := p
+	if !filepath.IsAbs(abs) {
+		abs = filepath.Join(root, p)
+	}
+	abs = filepath.Clean(abs)
+	rel, err = filepath.Rel(root, abs)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", protocol.ErrPathOutsideRoot
+	}
+	return rel, nil
+}
 
 // workspace.* (API.md §7.5). listProjects + listAgentDocs are real
 // (derived from sessions / AGENTS.md discovery); the git/ripgrep-backed
@@ -24,8 +70,42 @@ func (s *Server) WorkspaceGetDiff(_ context.Context, _ protocol.GetDiffRequest) 
 	return nil, notImpl("workspace.getDiff")
 }
 
-func (s *Server) WorkspaceGetFileHead(_ context.Context, _ protocol.GetFileHeadRequest) (*protocol.FileHead, error) {
-	return nil, notImpl("workspace.getFileHead")
+// WorkspaceGetFileHead returns the first N lines of a cwd-relative file
+// (API.md §7.5). The path is jailed to the workspace root (resolveInRoot);
+// binary files surface fs.ErrBinaryFile. Lines default to defaultFileHeadLines.
+func (s *Server) WorkspaceGetFileHead(ctx context.Context, in protocol.GetFileHeadRequest) (*protocol.FileHead, error) {
+	root, err := s.workspaceRoot(in.Cwd)
+	if err != nil {
+		return nil, err
+	}
+	rel, err := resolveInRoot(root, in.Path)
+	if err != nil {
+		return nil, err
+	}
+	lines := in.Lines
+	if lines <= 0 {
+		lines = defaultFileHeadLines
+	}
+	out, err := fs.NewLocalExecutor(root).Read(ctx, fs.ReadInput{Path: rel, Limit: lines})
+	if err != nil {
+		return nil, err
+	}
+	return &protocol.FileHead{Path: in.Path, Lines: fileLines(out)}, nil
+}
+
+// fileLines splits a Read result into numbered preview lines. StartLine is
+// 0-based; the wire LineNumber is 1-based. A read that windowed nothing (an
+// empty file) yields no lines rather than one spurious blank.
+func fileLines(out fs.ReadOutput) []protocol.FileLine {
+	if out.Content == "" && out.TotalLines == 0 {
+		return []protocol.FileLine{}
+	}
+	parts := strings.Split(out.Content, "\n")
+	lines := make([]protocol.FileLine, 0, len(parts))
+	for i, text := range parts {
+		lines = append(lines, protocol.FileLine{LineNumber: out.StartLine + i + 1, Text: text})
+	}
+	return lines
 }
 
 func (s *Server) WorkspaceGrep(_ context.Context, _ protocol.GrepRequest) (*protocol.GrepResult, error) {
