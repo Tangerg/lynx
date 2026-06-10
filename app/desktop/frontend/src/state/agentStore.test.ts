@@ -147,6 +147,30 @@ describe("agentStore.resolveInterrupt", () => {
   });
 });
 
+describe("agentStore never resurrects a dropped session", () => {
+  // Closing a tab mid-stream: the prune subscriber drops the slice
+  // synchronously, but a late rAF flush / in-flight items.list / the unmount
+  // cleanup nulling send-stop all run afterwards. None may re-seed a ghost
+  // entry (prune won't fire again for an id no longer in tabIds → leak).
+  it("applyEvents on an absent session is a no-op (no ghost entry)", () => {
+    useAgentStore.getState().dropSession("ses_ghost");
+    useAgentStore.getState().applyEvents("ses_ghost", [runStarted("run_x", "ses_ghost")]);
+    expect(useAgentStore.getState().sessions["ses_ghost"]).toBeUndefined();
+  });
+
+  it("unmount-cleanup setters don't resurrect a dropped slice", () => {
+    const store = useAgentStore.getState();
+    store.resetSession(SID);
+    expect(useAgentStore.getState().sessions[SID]).toBeDefined();
+    store.dropSession(SID);
+    // Order mirrors prod: prune drops the slice, THEN the effect cleanup runs.
+    store.setSend(SID, null);
+    store.setStop(SID, null);
+    store.setResume(SID, null);
+    expect(useAgentStore.getState().sessions[SID]).toBeUndefined();
+  });
+});
+
 describe("agentStore.setError", () => {
   it("surfaces a channel-a failure on the banner; clearError dismisses it", () => {
     const store = useAgentStore.getState();
