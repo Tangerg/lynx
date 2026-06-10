@@ -24,10 +24,9 @@ const llmCallTimeout = 2 * time.Minute
 // extraction and planning, which work outside the normal
 // conversation flow and must not pollute its history.
 //
-// nil client surfaces as a plain error rather than a panic so the
-// engine's lazy-init paths (Compactor / Extractor / Planner all
-// degrade to no-op when ChatClient is missing) can detect the
-// condition.
+// nil client surfaces as a plain error rather than a panic — a
+// defensive guard only, since [New] rejects a nil ChatClient before
+// any caller of askDirect can exist.
 func askDirect(ctx context.Context, client *chat.Client, systemPrompt, userPrompt string) (string, error) {
 	if client == nil {
 		return "", errors.New("engine: chat client missing")

@@ -3,7 +3,6 @@ package runtime
 import (
 	"slices"
 	"sync"
-	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
 )
@@ -33,12 +32,10 @@ type processBudget struct {
 }
 
 // recordLLMInvocation appends a fully-attributed LLM call to history
-// and rolls its cost/tokens into the budget. Timestamp defaults to
-// time.Now() when unset by the caller.
+// and rolls its cost/tokens into the budget. Timestamp defaulting
+// happens in [AgentProcess.RecordLLMInvocation] — the only caller —
+// so the published event and the stored record carry the same stamp.
 func (b *processBudget) recordLLMInvocation(inv core.LLMInvocation) {
-	if inv.Timestamp.IsZero() {
-		inv.Timestamp = time.Now()
-	}
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	b.ownCost += inv.CostUSD
@@ -47,11 +44,9 @@ func (b *processBudget) recordLLMInvocation(inv core.LLMInvocation) {
 }
 
 // recordEmbeddingInvocation appends an embedding call and rolls its
-// cost/tokens into the budget.
+// cost/tokens into the budget. Timestamp defaulting happens in
+// [AgentProcess.RecordEmbeddingInvocation], mirroring the LLM path.
 func (b *processBudget) recordEmbeddingInvocation(inv core.EmbeddingInvocation) {
-	if inv.Timestamp.IsZero() {
-		inv.Timestamp = time.Now()
-	}
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	b.ownCost += inv.CostUSD

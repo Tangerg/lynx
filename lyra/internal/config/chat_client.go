@@ -30,8 +30,8 @@ type ClientSpec struct {
 
 // BuildChatClient wires the single configured provider into a *chat.Client
 // (plus its cost hook), from the loaded config. Thin wrapper over
-// [BuildClient] — the runtime uses BuildClient directly to build other
-// (provider, model) pairs once a provider registry lands.
+// [BuildClient] — the runtime's clientResolver uses BuildClient directly
+// to build other (provider, model) pairs from the provider registry.
 func BuildChatClient(cfg Config) (*chat.Client, engine.Pricing, error) {
 	return BuildClient(ClientSpec{
 		Provider: cfg.Provider,

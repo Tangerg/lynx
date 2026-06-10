@@ -39,7 +39,7 @@ type ChatProcess interface {
 	// Cancel marks the process [core.StatusKilled] via the platform.
 	// The ongoing tick observes the status flip at its next checkpoint
 	// and the run loop exits, delivering its error on Done().
-	Cancel(reason string) error
+	Cancel() error
 
 	// Resume answers a HITL interrupt the process is parked on
 	// (StatusWaiting) — a plan-mode plan, a gated tool call, or an
@@ -69,8 +69,7 @@ type chatProcess struct {
 func (cp *chatProcess) ID() string                      { return cp.proc.ID() }
 func (cp *chatProcess) Status() core.AgentProcessStatus { return cp.proc.Status() }
 func (cp *chatProcess) Done() <-chan error              { return cp.done }
-func (cp *chatProcess) Cancel(reason string) error {
-	_ = reason
+func (cp *chatProcess) Cancel() error {
 	return cp.platform.KillProcess(cp.proc.ID())
 }
 

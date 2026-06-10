@@ -35,7 +35,7 @@ import (
 var ErrNoServerSession = errors.New("mcp: no active MCP server session on context")
 
 // ElicitOptions configures an [ElicitFromClient] call. Either
-// RequestedSchema or RequestedURL must be set; pass nil/empty to fall
+// RequestedSchema or URL must be set; pass nil/empty to fall
 // back to the SDK default.
 type ElicitOptions struct {
 	// Message is the prompt shown to the end user by the client.
@@ -170,8 +170,6 @@ func LogToClient(ctx context.Context, level slog.Level, message string, data any
 		return ErrNoServerSession
 	}
 
-	// The SDK exposes slog-style level constants; map by the closest
-	// numeric ordering used in mcp/logging.go.
 	if data == nil {
 		data = message
 	}
@@ -184,8 +182,11 @@ func LogToClient(ctx context.Context, level slog.Level, message string, data any
 }
 
 // slogLevelToMCP mirrors the SDK's mapping but is kept private to the
-// lynx package so we are not bound to the SDK's unexported helper.
-// Falls back to "info" for unknown levels.
+// lynx package so we are not bound to the SDK's unexported helper. The
+// SDK exposes slog-style level constants; map by the closest numeric
+// ordering used in the SDK's mcp/logging.go. Levels at or below
+// LevelDebug map to "debug"; everything above LevelAlert falls through
+// to "emergency".
 func slogLevelToMCP(l slog.Level) sdkmcp.LoggingLevel {
 	switch {
 	case l <= slog.LevelDebug:

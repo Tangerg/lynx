@@ -3,6 +3,8 @@ package chat
 import (
 	"slices"
 	"time"
+
+	"github.com/Tangerg/lynx/pkg/ptr"
 )
 
 // ModelMetadata holds identity metadata for a [Model] instance: the
@@ -168,8 +170,8 @@ func (p Pricing) Cost(u *Usage) float64 {
 	if u == nil || p.IsZero() {
 		return 0
 	}
-	cacheRead := derefInt64(u.CacheReadInputTokens)
-	cacheWrite := derefInt64(u.CacheWriteInputTokens)
+	cacheRead := ptr.From(u.CacheReadInputTokens)
+	cacheWrite := ptr.From(u.CacheWriteInputTokens)
 	uncachedIn := max(u.PromptTokens-cacheRead-cacheWrite, 0)
 
 	readRate := p.CacheReadPer1M
@@ -186,13 +188,6 @@ func (p Pricing) Cost(u *Usage) float64 {
 		float64(cacheRead)*readRate +
 		float64(cacheWrite)*writeRate
 	return total / 1_000_000
-}
-
-func derefInt64(p *int64) int64 {
-	if p == nil {
-		return 0
-	}
-	return *p
 }
 
 // Reasoning describes a chat model's extended-thinking (reasoning)

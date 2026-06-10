@@ -122,9 +122,9 @@ type Service interface {
 	Events(ctx context.Context, handle TurnHandle) (iter.Seq[Event], error)
 
 	// InjectSteering delivers a user message mid-turn. The runtime
-	// queues it until the next tool boundary then injects it into the
-	// model's context. No-op when the turn has already completed.
-	// (M-future; signature reserved to stabilize the surface.)
+	// queues it in the active turn state and flushes it into the
+	// conversation history once the turn completes, so the next turn
+	// sees the steering. No-op when the turn has already completed.
 	InjectSteering(ctx context.Context, handle TurnHandle, message string) error
 
 	// Resume answers a turn parked on a HITL interrupt (a gated tool
@@ -225,9 +225,6 @@ type ReasoningDelta struct {
 
 // ToolCallStart fires when the model invokes a tool. Arguments is
 // the raw JSON the model emitted.
-//
-// Reserved for M2 (tool 集); declared in M1 so the event sum type is
-// stable from the start.
 type ToolCallStart struct {
 	BaseEvent
 	CallID    string
@@ -250,8 +247,6 @@ type PlanGenerated struct {
 
 // ToolCallEnd fires when the tool finishes. Output is the tool's
 // returned text; Err is non-empty when the tool failed.
-//
-// Reserved for M2.
 type ToolCallEnd struct {
 	BaseEvent
 	CallID string
@@ -330,9 +325,9 @@ type ErrorEvent struct {
 
 // stamp implementations — concrete events return themselves with
 // the BaseEvent header replaced wholesale. Value-typed events are
-// the right idiom here: the dispatcher (impl.emit) takes ownership
-// of a copy so concurrent receivers can't observe a half-stamped
-// header. Each method is one assignment because the new BaseEvent
+// the right idiom here: the dispatcher (emit, in inmemory.go) takes
+// ownership of a copy so concurrent receivers can't observe a
+// half-stamped header. Each method is one assignment because the new BaseEvent
 // already carries every routing field — emit builds it once per
 // call.
 
@@ -354,9 +349,9 @@ type TurnEndReason int
 const (
 	// TurnEndCompleted — the model returned a stop-marker normally.
 	TurnEndCompleted TurnEndReason = iota
-	// TurnEndCancelled — the client called [Service.Cancel] or ctx was
+	// TurnEndCanceled — the client called [Service.Cancel] or ctx was
 	// canceled.
-	TurnEndCancelled
+	TurnEndCanceled
 	// TurnEndErrored — the turn aborted on error. An [ErrorEvent]
 	// fires before [TurnEnd] in this case.
 	TurnEndErrored
@@ -371,7 +366,7 @@ func (r TurnEndReason) String() string {
 	switch r {
 	case TurnEndCompleted:
 		return "completed"
-	case TurnEndCancelled:
+	case TurnEndCanceled:
 		return "canceled"
 	case TurnEndErrored:
 		return "errored"

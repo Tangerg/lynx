@@ -113,28 +113,28 @@ func (p *AgentProcess) Snapshot() core.ProcessSnapshot {
 // correctly. Pass the zero value to restore read-only (audit / inspect).
 func (p *Platform) RestoreFromSnapshot(snap core.ProcessSnapshot, options core.ProcessOptions) (*AgentProcess, error) {
 	if p == nil {
-		return nil, errors.New("restore process: nil platform")
+		return nil, errors.New("runtime.Platform.RestoreFromSnapshot: nil platform")
 	}
 	if snap.ID == "" {
-		return nil, errors.New("restore process: snapshot has empty ID")
+		return nil, errors.New("runtime.Platform.RestoreFromSnapshot: snapshot has empty ID")
 	}
 	if snap.AgentName == "" {
-		return nil, errors.New("restore process: snapshot has empty AgentName")
+		return nil, errors.New("runtime.Platform.RestoreFromSnapshot: snapshot has empty AgentName")
 	}
 
 	agentDef, ok := p.agents.find(snap.AgentName)
 	if !ok {
-		return nil, fmt.Errorf("restore process: agent %q not deployed", snap.AgentName)
+		return nil, fmt.Errorf("runtime.Platform.RestoreFromSnapshot: agent %q not deployed", snap.AgentName)
 	}
 
 	if err := validateProcessExtensions(options.Extensions); err != nil {
-		return nil, fmt.Errorf("restore process: %w", err)
+		return nil, fmt.Errorf("runtime.Platform.RestoreFromSnapshot: %w", err)
 	}
 	options.ApplyDefaults()
 	blackboard := p.resolveBlackboard(options.Blackboard)
 	plannerInst, err := p.resolvePlanner(agentDef, options.Extensions)
 	if err != nil {
-		return nil, fmt.Errorf("restore process: %w", err)
+		return nil, fmt.Errorf("runtime.Platform.RestoreFromSnapshot: %w", err)
 	}
 	system := planning.FromAgent(agentDef)
 

@@ -41,7 +41,7 @@ type HTTPServerOptions struct {
 // router:
 //
 //	mux := http.NewServeMux()
-//	mux.Handle("/mcp", mcp.NewStreamableHTTPHandler(server, nil))
+//	mux.Handle("/mcp", mcp.NewStreamableHTTPHandler(server, mcp.HTTPServerOptions{}))
 //	_ = http.ListenAndServe(":8080", mux)
 //
 // Multi-tenant routing example:
@@ -94,14 +94,14 @@ type HTTPClientOptions struct {
 //
 //	cli := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "agent", Version: "v0.1"}, nil)
 //	session, err := mcp.DialStreamableHTTP(ctx, cli,
-//	    "https://mcp.example.com/", nil)
+//	    "https://mcp.example.com/", mcp.HTTPClientOptions{})
 //	if err != nil { return err }
 //	defer session.Close()
 //
 //	res, err := session.ListTools(ctx, nil)
 //	...
 //
-// Returns an error when client or endpoint is empty.
+// Returns an error when client is nil or endpoint is empty.
 func DialStreamableHTTP(
 	ctx context.Context,
 	client *sdkmcp.Client,
@@ -158,11 +158,11 @@ type CommandClientOptions struct {
 //	cli := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "agent", Version: "v0.1"}, nil)
 //	session, err := mcp.DialCommand(ctx, cli, "npx",
 //	    []string{"-y", "@modelcontextprotocol/server-filesystem", "/workspace"},
-//	    nil)
+//	    mcp.CommandClientOptions{})
 //	if err != nil { return err }
 //	defer session.Close()
 //
-// Returns an error when client or command is empty.
+// Returns an error when client is nil or command is empty.
 func DialCommand(
 	ctx context.Context,
 	client *sdkmcp.Client,

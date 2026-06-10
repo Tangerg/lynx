@@ -7,6 +7,8 @@ import (
 	"maps"
 	"slices"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
@@ -66,7 +68,7 @@ func (e *MaxIterationsError) Error() string {
 
 // middleware turns the model handler into a self-driving tool-calling
 // loop. When the LLM emits tool calls the middleware executes them via
-// the [support] machinery and re-prompts the model with the results,
+// the [loopSupport] machinery and re-prompts the model with the results,
 // repeating until the model produces a regular reply, every tool is
 // configured for direct return, or the iteration cap is hit.
 //
@@ -120,6 +122,15 @@ func (s loopState) next() loopState {
 	return s
 }
 
+// nudged returns the next-iteration state with the one-shot
+// empty-response retry marked as spent, so the nudge fires at most once
+// per loop.
+func (s loopState) nudged() loopState {
+	s = s.next()
+	s.emptyRetried = true
+	return s
+}
+
 // wrapCallHandler is the call-side adapter — turns the middleware body
 // into a [chat.CallHandler] decorator.
 func (m *middleware) wrapCallHandler(next chat.CallHandler) chat.CallHandler {
@@ -135,18 +146,11 @@ func (m *middleware) wrapStreamHandler(next chat.StreamHandler) chat.StreamHandl
 	})
 }
 
-// newSupport builds the per-loop support. Tool-failure recovery
-// (unknown-tool + recoverable-error feedback) is the unconditional default in
-// [callInvoker], so there's nothing to configure here.
-func (m *middleware) newSupport(toolCount int) *loopSupport {
-	return newSupport(toolCount)
-}
-
 // executeCall is the synchronous entry point: short-circuit when prior
 // messages already indicate a direct return; otherwise enter the
 // recursive call/tool loop.
 func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next chat.CallHandler) (*chat.Response, error) {
-	support := m.newSupport(len(req.Tools))
+	support := newSupport(len(req.Tools))
 
 	if support.shouldReturnDirect(req.Messages) {
 		return support.buildReturnDirectResponse(req.Messages)
@@ -154,19 +158,9 @@ func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next ch
 
 	support.register(req.Tools...)
 
-	// ParkStore resume: load parked round, inject tail so
-	// [parseResumePoint] detects and resumes at the pending call. A
-	// malformed conversation id fails the request — parked rounds are
-	// keyed by it, so guessing would resume the wrong conversation.
-	parkID, err := req.ConversationID()
+	req, err := m.restorePark(ctx, req)
 	if err != nil {
 		return nil, err
-	}
-	if parkID != "" && m.parkStore != nil {
-		if state, _ := m.parkStore.Read(ctx, parkID); state != nil {
-			req = injectParkTail(req, state)
-			_ = m.parkStore.Clear(ctx, parkID)
-		}
 	}
 
 	// HITL resume: when the conversation tail is an assistant turn whose tool
@@ -195,17 +189,11 @@ func (m *middleware) executeCallRecursively(ctx context.Context, req *chat.Reque
 		return nil, err
 	}
 
-	shouldInvoke, err := support.shouldInvokeToolCalls(resp)
-	if err != nil {
-		return nil, err
-	}
-	if !shouldInvoke {
+	if !support.shouldInvokeToolCalls(resp) {
 		if nudgeReq, ok, nudgeErr := m.maybeNudgeEmpty(req, resp, state); nudgeErr != nil {
 			return nil, nudgeErr
 		} else if ok {
-			st := state.next()
-			st.emptyRetried = true
-			return m.executeCallRecursively(ctx, nudgeReq, next, support, st)
+			return m.executeCallRecursively(ctx, nudgeReq, next, support, state.nudged())
 		}
 		return resp, nil
 	}
@@ -249,7 +237,7 @@ func (m *middleware) executeCallRecursively(ctx context.Context, req *chat.Reque
 // closes.
 func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next chat.StreamHandler) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
-		support := m.newSupport(len(req.Tools))
+		support := newSupport(len(req.Tools))
 
 		if support.shouldReturnDirect(req.Messages) {
 			yield(support.buildReturnDirectResponse(req.Messages))
@@ -258,18 +246,10 @@ func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next 
 
 		support.register(req.Tools...)
 
-		// ParkStore resume: load parked round. Same loud-failure
-		// semantics as the call path.
-		parkID, err := req.ConversationID()
+		req, err := m.restorePark(ctx, req)
 		if err != nil {
 			yield(nil, err)
 			return
-		}
-		if parkID != "" && m.parkStore != nil {
-			if state, _ := m.parkStore.Read(ctx, parkID); state != nil {
-				req = injectParkTail(req, state)
-				_ = m.parkStore.Clear(ctx, parkID)
-			}
 		}
 
 		// HITL resume: continue from the conversation tail's unanswered tool
@@ -316,18 +296,11 @@ func (m *middleware) executeStreamRecursively(ctx context.Context, req *chat.Req
 	}
 
 	resp := &accumulator.Response
-	shouldInvoke, err := support.shouldInvokeToolCalls(resp)
-	if err != nil {
-		yield(nil, err)
-		return
-	}
-	if !shouldInvoke {
+	if !support.shouldInvokeToolCalls(resp) {
 		if nudgeReq, ok, nudgeErr := m.maybeNudgeEmpty(req, resp, state); nudgeErr != nil {
 			yield(nil, nudgeErr)
 		} else if ok {
-			st := state.next()
-			st.emptyRetried = true
-			m.executeStreamRecursively(ctx, nudgeReq, next, support, yield, st)
+			m.executeStreamRecursively(ctx, nudgeReq, next, support, yield, state.nudged())
 		}
 		return
 	}
@@ -425,13 +398,40 @@ func newToolMessageResponse(tm *chat.ToolMessage) (*chat.Response, error) {
 
 // ─── ParkStore helpers ──────────────────────────────────────────
 
+// restorePark loads (and clears) any parked round for the request's
+// conversation and injects its tail so [parseResumePoint] detects it
+// and resumes at the pending call. A malformed conversation id fails
+// the request — parked rounds are keyed by it, so guessing would
+// resume the wrong conversation. Returns the request unchanged when
+// no ParkStore is configured or nothing is parked.
+func (m *middleware) restorePark(ctx context.Context, req *chat.Request) (*chat.Request, error) {
+	parkID, err := req.ConversationID()
+	if err != nil {
+		return nil, err
+	}
+	if parkID == "" || m.parkStore == nil {
+		return req, nil
+	}
+	if state, _ := m.parkStore.Read(ctx, parkID); state != nil {
+		req = injectParkTail(ctx, req, state)
+		_ = m.parkStore.Clear(ctx, parkID)
+	}
+	return req, nil
+}
+
 // injectParkTail appends the parked round's conversation tail
 // (assistant + Done tool returns) onto the request's messages
 // so [parseResumePoint] detects it and resumes at the pending call.
 // The engine always adds a user message on every turn — on resume
 // the memory middleware replays the full history, so we strip the
 // trailing user message and replace it with the tail.
-func injectParkTail(req *chat.Request, state *ParkState) *chat.Request {
+//
+// Failures degrade gracefully (the Done returns are dropped / the
+// original request is kept — the run proceeds, only re-running work),
+// but they mean park state silently evaporated, so each is recorded
+// on the ambient span to stay diagnosable.
+func injectParkTail(ctx context.Context, req *chat.Request, state *ParkState) *chat.Request {
+	span := trace.SpanFromContext(ctx)
 	msgs := req.Messages
 	// Strip the trailing user message the engine always adds.
 	if len(msgs) > 0 {
@@ -443,10 +443,13 @@ func injectParkTail(req *chat.Request, state *ParkState) *chat.Request {
 	if len(state.Done) > 0 {
 		if tm, err := chat.NewToolMessage(state.Done); err == nil {
 			msgs = append(msgs, tm)
+		} else {
+			span.RecordError(fmt.Errorf("tool: park-tail injection dropped done results: %w", err))
 		}
 	}
 	next, err := chat.NewRequest(msgs)
 	if err != nil {
+		span.RecordError(fmt.Errorf("tool: park-tail injection kept original request: %w", err))
 		return req
 	}
 	next.Options = req.Options.Clone()

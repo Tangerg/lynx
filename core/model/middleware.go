@@ -103,9 +103,9 @@ func (m *MiddlewareManager[Request, Response]) UseStreamMiddlewares(middlewares 
 }
 
 // UseMiddlewares accepts mixed call- and stream-middlewares and routes
-// each to the matching chain via type assertion. Values that match neither
-// type — or that match both, e.g. a single function returned from
-// [tool.NewToolMiddleware] — are appended to every matching chain.
+// each to the matching chain via type assertion — so the (call, stream)
+// pair returned by tool.NewMiddleware registers in one call. A value
+// that matches both types lands on both chains.
 //
 // The any-typed parameter is the price for "register everything in one
 // call"; type-mismatches are silently ignored, so callers that want

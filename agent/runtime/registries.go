@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"sync"
 
@@ -50,11 +51,7 @@ func (r *agentRegistry) list() []*core.Agent {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	out := make([]*core.Agent, 0, len(r.agents))
-	for _, a := range r.agents {
-		out = append(out, a)
-	}
-	return out
+	return slices.Collect(maps.Values(r.agents))
 }
 
 // find does a name lookup.
@@ -134,11 +131,5 @@ func (r *processRegistry) list() []*AgentProcess {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	return slices.Collect(func(yield func(*AgentProcess) bool) {
-		for _, p := range r.procs {
-			if !yield(p) {
-				return
-			}
-		}
-	})
+	return slices.Collect(maps.Values(r.procs))
 }

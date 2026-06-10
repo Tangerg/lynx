@@ -84,7 +84,7 @@ type VectorStoreRetriever struct {
 
 // NewVectorStoreRetriever builds a
 // [VectorStoreRetriever]. Returns an error when the
-// configuration fails [VectorStoreRetrieverConfig.validate].
+// configuration fails [VectorStoreRetrieverConfig.Validate].
 func NewVectorStoreRetriever(cfg VectorStoreRetrieverConfig) (*VectorStoreRetriever, error) {
 	cfg.ApplyDefaults()
 	if err := cfg.Validate(); err != nil {

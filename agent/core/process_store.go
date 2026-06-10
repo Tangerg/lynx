@@ -138,9 +138,9 @@ type SnapshotActionInvocation struct {
 //   - Audit / replay (snapshot every tick, inspect later)
 //
 // Lynx ships [NewInMemoryProcessStore] as a reference implementation
-// suitable for tests + development. Production backends (postgres,
-// redis, mongodb, ...) live in the top-level `agentstore/` module
-// once that lands.
+// suitable for tests + development. Persistent backends (postgres,
+// redis, mongodb, ...) are the caller's to supply behind this
+// interface.
 //
 // All methods are expected to be safe for concurrent use.
 type ProcessStore interface {

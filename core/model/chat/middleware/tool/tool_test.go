@@ -339,9 +339,8 @@ func TestToolSupport_InvokeToolCalls_InternalReturnsForLLM(t *testing.T) {
 	resp := responseWithToolCall(t, "echo", "args")
 	req := mustNewRequest(t)
 
-	can, err := support.shouldInvokeToolCalls(resp)
-	if err != nil || !can {
-		t.Fatalf("ShouldInvokeToolCalls = (%v,%v)", can, err)
+	if !support.shouldInvokeToolCalls(resp) {
+		t.Fatal("shouldInvokeToolCalls = false, want true")
 	}
 
 	result, err := support.invokeToolCalls(context.Background(), req, resp)
@@ -406,9 +405,8 @@ func TestToolSupport_InvokeToolCalls_UnknownToolFedBack(t *testing.T) {
 	support := newSupport()
 	resp := responseWithToolCall(t, "missing", "")
 
-	can, err := support.shouldInvokeToolCalls(resp)
-	if err != nil || !can {
-		t.Fatalf("unknown tool should be tolerated, got can=%v err=%v", can, err)
+	if !support.shouldInvokeToolCalls(resp) {
+		t.Fatal("unknown tool should be tolerated, got shouldInvokeToolCalls = false")
 	}
 
 	result, err := support.invokeToolCalls(context.Background(), mustNewRequest(t), resp)

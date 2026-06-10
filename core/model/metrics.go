@@ -148,8 +148,8 @@ func RecordOperationMetrics(ctx context.Context, dims OperationMetrics, usage *U
 
 // errorTypeName returns a bounded label for the error.type metric tag —
 // the concrete Go type of the error (e.g. "*fmt.wrapError",
-// "*chat.ToolCallError"). Error types are a bounded set, so this stays
-// low-cardinality. Returns "" for a nil error.
+// "*tool.MaxIterationsError"). Error types are a bounded set, so this
+// stays low-cardinality. Returns "" for a nil error.
 func errorTypeName(err error) string {
 	if err == nil {
 		return ""

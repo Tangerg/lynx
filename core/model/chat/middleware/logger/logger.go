@@ -41,8 +41,8 @@ type Logger interface {
 //
 // Example:
 //
-//	callMW, streamMW := middleware.NewMiddleware(
-//	    middleware.NewSlogLogger(slog.Default()),
+//	callMW, streamMW := logger.NewMiddleware(
+//	    logger.NewSlogLogger(slog.Default()),
 //	)
 //	resp, err := client.Chat().
 //	    WithMiddlewares(callMW, streamMW).

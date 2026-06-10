@@ -2,6 +2,7 @@ package skills
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -76,20 +77,22 @@ func (m *merged) LoadResource(ctx context.Context, name, resource string) ([]byt
 	})
 }
 
-// firstOK returns the first source's successful result, or the last error if
-// none succeed (a not-found-style error when there are no sources at all).
+// firstOK returns the first source's successful result. When every source
+// fails it joins ALL of their errors — so a real failure in an early source
+// isn't masked by a later source's not-found (a not-found-style error when
+// there are no sources at all).
 func firstOK[T any](sources []Source, name string, op func(Source) (T, error)) (T, error) {
 	var zero T
-	var lastErr error
+	var errs []error
 	for _, src := range sources {
 		got, err := op(src)
 		if err == nil {
 			return got, nil
 		}
-		lastErr = err
+		errs = append(errs, err)
 	}
-	if lastErr == nil {
+	if len(errs) == 0 {
 		return zero, fmt.Errorf("skills: %q not found: no sources", name)
 	}
-	return zero, lastErr
+	return zero, errors.Join(errs...)
 }

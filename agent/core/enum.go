@@ -100,7 +100,7 @@ func (t ProcessType) String() string {
 	}
 }
 
-// Now is the framework's time source — production code uses this so a
-// future override (e.g. for deterministic tests) lives in one place.
-// Currently a thin wrapper over [time.Now].
+// Now is the framework's single time source — a thin wrapper over
+// [time.Now] that keeps every timestamp the framework stamps coming
+// from one place.
 func Now() time.Time { return time.Now() }

@@ -62,8 +62,8 @@ func NewClientRequest(model Model) (*ClientRequest, error) {
 }
 
 // WithMiddlewares replaces the entire middleware chain with the given
-// values. Pass call middlewares, stream middlewares, or values returned
-// by [NewToolMiddleware] which yields both at once.
+// values. Pass call middlewares, stream middlewares, or both halves of
+// a pair like the one tool.NewMiddleware returns.
 func (r *ClientRequest) WithMiddlewares(middlewares ...any) *ClientRequest {
 	if len(middlewares) > 0 {
 		r.middlewareManager = NewMiddlewareManager().UseMiddlewares(middlewares...)
@@ -183,9 +183,10 @@ func (r *ClientRequest) resolveOptions() *Options {
 }
 
 // resolveMessages produces the final, normalized message list — seed
-// from the user-prompt template if empty, render the system-prompt
-// template into a leading system message, then merge adjacent
-// same-type runs (the planner's preferred shape).
+// from the user-prompt template if empty (an error when there is no
+// template either), render the system-prompt template into a leading
+// system message, then merge adjacent same-type runs (the planner's
+// preferred shape).
 func (r *ClientRequest) resolveMessages() ([]Message, error) {
 	msgs := slices.Clone(r.messages)
 
@@ -217,13 +218,15 @@ func (r *ClientRequest) resolveMessages() ([]Message, error) {
 }
 
 // seedMessage produces the first user turn when the caller didn't
-// supply any messages — either the user-prompt template, or a friendly
-// fallback so the conversation has something to start from.
+// supply any messages — rendered from the user-prompt template. With no
+// template either, the request has nothing to say to the model, so it
+// fails loudly (mirroring [NewRequest]'s empty-message rejection) rather
+// than fabricating a greeting the caller never wrote.
 func (r *ClientRequest) seedMessage() (Message, error) {
 	if r.userPromptTemplate != nil {
 		return r.userPromptTemplate.CreateUserMessage()
 	}
-	return NewUserMessage("Hi!"), nil
+	return nil, errors.New("chat.ClientRequest: request must carry at least one message or a user-prompt template")
 }
 
 // buildRequest assembles the [Request] sent through the middleware chain
@@ -275,8 +278,8 @@ type ClientStreamer struct {
 }
 
 // stream feeds the request through the middleware chain into the model.
-// Tool execution is NOT auto-injected — register [NewToolMiddleware] via
-// WithMiddlewares if you need that.
+// Tool execution is NOT auto-injected — register the middleware pair
+// from tool.NewMiddleware via WithMiddlewares if you need that.
 //
 // One OTel span is started per stream call, following the GenAI
 // semconv: request-side attributes (model, options) are stamped up
@@ -374,8 +377,8 @@ type ClientCaller struct {
 }
 
 // call feeds the request through the middleware chain into the model.
-// Tool execution is NOT auto-injected — register [NewToolMiddleware] via
-// WithMiddlewares if you need that.
+// Tool execution is NOT auto-injected — register the middleware pair
+// from tool.NewMiddleware via WithMiddlewares if you need that.
 //
 // One OTel span is started per call, following the GenAI semconv —
 // see [startChatSpan] / [finishChatSpan] for the attribute set. When
@@ -419,6 +422,10 @@ func (c *ClientCaller) Text(ctx context.Context) (string, *Response, error) {
 	if err != nil {
 		return "", nil, err
 	}
+	// Providers aren't forced to populate Result — guard rather than panic.
+	if resp.Result == nil || resp.Result.AssistantMessage == nil {
+		return "", resp, errors.New("chat.ClientCaller.Text: response carries no assistant message")
+	}
 	return resp.Result.AssistantMessage.JoinedText(), resp, nil
 }
 
@@ -433,6 +440,10 @@ func (c *ClientCaller) Structured(ctx context.Context, parser StructuredParser[a
 	resp, err := c.runCall(ctx, parser)
 	if err != nil {
 		return nil, nil, err
+	}
+	// Providers aren't forced to populate Result — guard rather than panic.
+	if resp.Result == nil || resp.Result.AssistantMessage == nil {
+		return nil, resp, errors.New("chat.ClientCaller.Structured: response carries no assistant message")
 	}
 	data, parseErr := parser.Parse(resp.Result.AssistantMessage.JoinedText())
 	return data, resp, parseErr

@@ -10,3 +10,11 @@ var a2aTracer = otel.Tracer("lynx/a2a")
 // attrAgentName tags an A2A client span with the remote agent's name —
 // brand-neutral GenAI semconv.
 const attrAgentName = "gen_ai.agent.name"
+
+// attrTaskID / attrContextID tag a server span with the A2A task identity
+// (no semconv covers A2A tasks, so bare domain keys per the repo's
+// observability convention).
+const (
+	attrTaskID    = "task.id"
+	attrContextID = "context.id"
+)

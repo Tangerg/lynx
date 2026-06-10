@@ -116,7 +116,7 @@ func Capabilities(rt RuntimeServices) protocol.ServerCapabilities {
 		},
 		// streamable-HTTP methods, machine-readable so the client knows which
 		// calls return an event stream rather than hardcoding the names (§7/§9).
-		StreamingMethods: []string{"runs.start", "runs.resume", "runs.subscribe", "background.subscribe"},
+		StreamingMethods: []string{"runs.start", "runs.resume", "runs.subscribe"},
 		// Open features map (§9): advertise a new capability by adding a key.
 		// Known keys absent here default to off on the client.
 		Features: map[string]protocol.FeatureFlag{

@@ -287,9 +287,9 @@ func (r *Request) AppendToLastUserMessage(text string) {
 	appendTextToLastMessageOfType(r.Messages, MessageTypeUser, text)
 }
 
-// ReplaceOfLastUserMessage replaces the entire text of the last user
-// message. No-op when no user message exists.
-func (r *Request) ReplaceOfLastUserMessage(text string) {
+// ReplaceTextOfLastUserMessage replaces the entire text of the last
+// user message. No-op when no user message exists.
+func (r *Request) ReplaceTextOfLastUserMessage(text string) {
 	replaceTextOfLastMessageOfType(r.Messages, MessageTypeUser, text)
 }
 

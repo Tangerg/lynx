@@ -14,9 +14,8 @@ import (
 )
 
 // SessionService implements session.Service against a SQLite database.
-// Mutations are single-row INSERT / UPDATE / DELETE — no rollback gymnastics
-// needed compared to FileSessionService (which has to undo the in-memory
-// repo when persist fails).
+// Mutations are single-row INSERT / UPDATE / DELETE, so each operation is
+// atomic on its own — no multi-step rollback handling needed.
 //
 // All methods are safe for concurrent use; the underlying *sql.DB serializes
 // writes when MaxOpenConns is 1 (see [Open]).

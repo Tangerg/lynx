@@ -12,8 +12,9 @@ import (
 // persistStreamEvent records the durable side of one stream event to the
 // Item-history store as a run streams (API.md §7.4 / §10.3): completed
 // Items are appended; the run's RunRef is upserted on start (running) and
-// finish (finished + outcome). Best-effort + a no-op when no history store
-// is configured — items.list then falls back to message reconstruction.
+// finish (finished + outcome). Best-effort — persistence errors never fail
+// the live stream. The nil guard only covers test stubs; the real runtime
+// always supplies a history store.
 func (s *Server) persistStreamEvent(ctx context.Context, runID, sessionID, parentRunID string, se protocol.StreamEvent) {
 	if s.rt.History() == nil {
 		return

@@ -86,7 +86,11 @@ func buildService(t *testing.T) tool.Service {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return tool.New(eng)
+	svc, err := tool.New(eng)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return svc
 }
 
 type stubModel struct{ defaults *chatmodel.Options }

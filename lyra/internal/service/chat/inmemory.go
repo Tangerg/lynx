@@ -40,16 +40,16 @@ func newTurnID() string { return turnIDPrefix + uuid.NewString() }
 // resolver is optional. When non-nil and a turn carries a Model, the impl
 // resolves a per-turn client for that model; nil (or an empty Model) runs
 // every turn on the platform's default client.
-func New(eng engineDep, approvalSvc approval.Service, resolver clientResolver) Service {
+func New(eng engineDep, approvalSvc approval.Service, resolver clientResolver) (Service, error) {
 	if eng == nil {
-		panic("chat: engine is required")
+		return nil, errors.New("chat: engine is required")
 	}
 	return &inMemory{
 		engine:   eng,
 		approval: approvalSvc,
 		resolver: resolver,
 		turns:    map[string]*turnState{},
-	}
+	}, nil
 }
 
 // inMemory is the single-process [Service] implementation. It
@@ -207,7 +207,7 @@ func (s *inMemory) InjectSteering(_ context.Context, handle TurnHandle, message 
 // ctx cancel still fires too so any in-flight LLM stream (which
 // reads ctx.Done()) aborts promptly. For turns still in plan-mode
 // (proc not yet populated), only the ctx cancel applies — runTurn
-// observes ctx.Done() during waitDecision and emits TurnEndCancelled.
+// observes ctx.Done() during waitDecision and emits TurnEndCanceled.
 func (s *inMemory) Cancel(_ context.Context, handle TurnHandle) error {
 	state, err := s.findTurn(handle.TurnID)
 	if err != nil {
@@ -219,12 +219,12 @@ func (s *inMemory) Cancel(_ context.Context, handle TurnHandle) error {
 	proc := state.process()
 	claimed := state.claimPark()
 	if proc != nil {
-		_ = proc.Cancel("user cancel")
+		_ = proc.Cancel()
 	}
 	if claimed {
 		// The turn was parked on an interrupt — no drive goroutine is
 		// waiting on it, so emit the terminal + tear down here.
-		s.finishTurn(state, TurnEndCancelled)
+		s.finishTurn(state, TurnEndCanceled)
 	}
 	return nil
 }

@@ -17,6 +17,10 @@ import (
 // RegisterTools installs every [chat.Tool] in tools onto server using
 // the low-level [(*sdkmcp.Server).AddTool] API.
 //
+// Registration is all-or-nothing: every tool is validated and built
+// before any is added, so a bad entry mid-list never leaves the server
+// half-registered.
+//
 // The generic sdkmcp.AddTool[In, Out] form is deliberately avoided:
 // lynx tools already supply a hand-authored JSON schema, and the
 // generic API would otherwise reflect over a Go In type and overwrite
@@ -26,37 +30,49 @@ func RegisterTools(server *sdkmcp.Server, tools ...chat.Tool) error {
 		return ErrNilServer
 	}
 
+	prepared := make([]preparedTool, 0, len(tools))
 	for i, tool := range tools {
 		if tool == nil {
 			return fmt.Errorf("mcp.RegisterTools: tools[%d] must not be nil", i)
 		}
-		if err := registerOne(server, tool); err != nil {
+		pt, err := prepareOne(tool)
+		if err != nil {
 			return err
 		}
+		prepared = append(prepared, pt)
+	}
+	for _, pt := range prepared {
+		server.AddTool(pt.tool, pt.handler)
 	}
 	return nil
 }
 
-func registerOne(server *sdkmcp.Server, tool chat.Tool) error {
+// preparedTool is one validated, ready-to-add registration — the unit
+// RegisterTools builds in its first pass.
+type preparedTool struct {
+	tool    *sdkmcp.Tool
+	handler sdkmcp.ToolHandler
+}
+
+func prepareOne(tool chat.Tool) (preparedTool, error) {
 	def := tool.Definition()
 	if def.Name == "" {
-		return errors.New("mcp.RegisterTools: tool has empty name")
+		return preparedTool{}, errors.New("mcp.RegisterTools: tool has empty name")
 	}
 
 	schema, err := stringSchemaToAny(def.InputSchema)
 	if err != nil {
-		return fmt.Errorf("mcp.RegisterTools: convert input schema for tool %q: %w", def.Name, err)
+		return preparedTool{}, fmt.Errorf("mcp.RegisterTools: convert input schema for tool %q: %w", def.Name, err)
 	}
 
-	server.AddTool(
-		&sdkmcp.Tool{
+	return preparedTool{
+		tool: &sdkmcp.Tool{
 			Name:        def.Name,
 			Description: def.Description,
 			InputSchema: schema,
 		},
-		serverHandler(tool),
-	)
-	return nil
+		handler: serverHandler(tool),
+	}, nil
 }
 
 // serverHandler routes a tools/call RPC into a [chat.Tool]. Errors
@@ -78,10 +94,18 @@ func serverHandler(tool chat.Tool) sdkmcp.ToolHandler {
 		)
 		defer span.End()
 
-		ctx = WithServerSession(ctx, req.Session)
+		// The SDK doesn't guarantee a non-nil request / params — guard like
+		// withProgressToken does rather than dereferencing raw.
+		var rawArgs string
+		if req != nil {
+			ctx = WithServerSession(ctx, req.Session)
+			if req.Params != nil {
+				rawArgs = string(req.Params.Arguments)
+			}
+		}
 		ctx = withProgressToken(ctx, req)
 
-		args := cmp.Or(string(req.Params.Arguments), "{}")
+		args := cmp.Or(rawArgs, "{}")
 		out, err := tool.Call(ctx, args)
 		if err != nil {
 			span.RecordError(err)

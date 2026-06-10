@@ -59,9 +59,9 @@ type Session struct {
 	Metadata map[string]any
 }
 
-// NewSession builds a session with sensible defaults — generated id
-// when not supplied (caller is expected to seed a stable id) and
-// timestamps set to now. The Metadata map is allocated so callers
+// NewSession builds a session with sensible defaults — the caller's id
+// is stored verbatim (callers are expected to seed a stable id) and
+// timestamps are set to now. The Metadata map is allocated so callers
 // can write without nil-checking.
 func NewSession(id, userID, agentName string) Session {
 	now := Now()
@@ -73,6 +73,24 @@ func NewSession(id, userID, agentName string) Session {
 		UpdatedAt: now,
 		Metadata:  map[string]any{},
 	}
+}
+
+// ConversationID derives a process's chat-memory conversation key: the
+// multi-turn [Session.ID] when the process runs under a session,
+// otherwise the process id. The fallback matters because the tool loop
+// is delta-driven — each round hands the memory layer only the new
+// messages and relies on it to reconstruct the conversation from the
+// store, so without an id a multi-round turn would lose context across
+// rounds. A child agent (e.g. a subtask delegation) runs under its own
+// session (its process id), so it gets an isolated conversation while
+// [Session.ParentID] preserves the lineage. This is the single source
+// of the rule — both the chat-request stamping (ProcessContext) and the
+// runtime's child-session linking derive through it.
+func ConversationID(options *ProcessOptions, processID string) string {
+	if options != nil && options.Session != nil && options.Session.ID != "" {
+		return options.Session.ID
+	}
+	return processID
 }
 
 // Touch refreshes [Session.UpdatedAt] to now. [Platform.RunInSession]
@@ -88,8 +106,8 @@ func (s *Session) Touch() {
 // SessionStore is the persistence SPI for [Session] records. The
 // shape mirrors [ProcessStore]: Save / Load / Delete / List. The
 // in-memory reference implementation lives in
-// [InMemorySessionStore]; persistent backends will land in a sibling
-// `agentstore/` module alongside the [ProcessStore] implementations.
+// [InMemorySessionStore]; persistent backends are the caller's to
+// supply behind the same interface.
 //
 // All methods are expected to be safe for concurrent use.
 type SessionStore interface {

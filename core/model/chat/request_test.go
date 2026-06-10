@@ -184,11 +184,11 @@ func TestRequest_AppendToLastUserMessage(t *testing.T) {
 	}
 }
 
-func TestRequest_ReplaceOfLastUserMessage(t *testing.T) {
+func TestRequest_ReplaceTextOfLastUserMessage(t *testing.T) {
 	user := chat.NewUserMessage("original")
 	req, _ := chat.NewRequest([]chat.Message{user})
 
-	req.ReplaceOfLastUserMessage("replaced")
+	req.ReplaceTextOfLastUserMessage("replaced")
 
 	if user.Text != "replaced" {
 		t.Fatalf("Text = %q, want replaced", user.Text)

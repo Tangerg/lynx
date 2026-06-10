@@ -25,7 +25,7 @@ type stubChatProcess struct {
 	failure  error
 	output   engine.ChatOutput
 	done     chan error
-	onCancel func(reason string)
+	onCancel func()
 }
 
 func newStubChatProcess(id string, output engine.ChatOutput) *stubChatProcess {
@@ -49,10 +49,10 @@ func (cp *stubChatProcess) Done() <-chan error { return cp.done }
 func (cp *stubChatProcess) Output() (engine.ChatOutput, error) {
 	return cp.output, nil
 }
-func (cp *stubChatProcess) Cancel(reason string) error {
+func (cp *stubChatProcess) Cancel() error {
 	cp.status.Store(int32(core.StatusKilled))
 	if cp.onCancel != nil {
-		cp.onCancel(reason)
+		cp.onCancel()
 	}
 	return nil
 }
@@ -132,7 +132,7 @@ func (s *stubEngine) MaybeExtract(_ context.Context, _ string) (engine.Extractio
 func TestStubEngineDrivesTurn(t *testing.T) {
 	stub := &stubEngine{runReply: "hello from stub"}
 
-	svc := chat.New(stub, nil, nil)
+	svc := mustChat(chat.New(stub, nil, nil))
 	handle, err := svc.StartTurn(context.Background(), chat.StartTurnRequest{
 		SessionID: "sess-1",
 		Message:   "hi",
@@ -175,7 +175,7 @@ func TestStubEngineDrivesTurn(t *testing.T) {
 // "model finished".
 func TestStubEngineBudgetStop(t *testing.T) {
 	stub := &stubEngine{runReply: "partial answer", stopOnBudget: true}
-	svc := chat.New(stub, nil, nil)
+	svc := mustChat(chat.New(stub, nil, nil))
 
 	handle, err := svc.StartTurn(context.Background(), chat.StartTurnRequest{
 		SessionID: "s",
@@ -204,7 +204,7 @@ func TestStubEngineBudgetStop(t *testing.T) {
 // turn without needing a real engine.
 func TestStubEngineCancelsCleanly(t *testing.T) {
 	stub := &slowStubEngine{}
-	svc := chat.New(stub, nil, nil)
+	svc := mustChat(chat.New(stub, nil, nil))
 
 	handle, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
 		SessionID: "s",
@@ -218,7 +218,7 @@ func TestStubEngineCancelsCleanly(t *testing.T) {
 	defer cancel()
 	events, _ := svc.Events(ctx, handle)
 	for ev := range events {
-		if end, ok := ev.(chat.TurnEnd); ok && end.Reason == chat.TurnEndCancelled {
+		if end, ok := ev.(chat.TurnEnd); ok && end.Reason == chat.TurnEndCanceled {
 			return
 		}
 	}
@@ -234,7 +234,7 @@ func TestStubEngineCancelsCleanly(t *testing.T) {
 // streams the continuation (delta + TurnEnd) on a fresh handle.
 func TestRehydrateResumesRestoredTurn(t *testing.T) {
 	stub := &stubEngine{runReply: "continuation reply"}
-	svc := chat.New(stub, nil, nil)
+	svc := mustChat(chat.New(stub, nil, nil))
 
 	handle, err := svc.Rehydrate(context.Background(), chat.RehydrateRequest{
 		SessionID: "sess-restored",
@@ -289,7 +289,7 @@ func (s *slowStubEngine) StartChat(ctx context.Context, _ engine.RunChatRequest)
 		done: make(chan error, 1),
 	}
 	cp.status.Store(int32(core.StatusRunning))
-	cp.onCancel = func(_ string) {
+	cp.onCancel = func() {
 		select {
 		case cp.done <- errors.New("canceled"):
 		default:
@@ -330,7 +330,7 @@ func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 	sentinel, _ := corechat.NewClient(newCapturingModel())
 	resolver := &fakeResolver{client: sentinel}
 
-	svc := chat.New(stub, nil, resolver)
+	svc := mustChat(chat.New(stub, nil, resolver))
 	handle, err := svc.StartTurn(context.Background(), chat.StartTurnRequest{
 		SessionID: "s",
 		Message:   "hi",
@@ -363,7 +363,7 @@ func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 func TestStartTurn_PassesCwd(t *testing.T) {
 	stub := &stubEngine{runReply: "ok"}
 
-	svc := chat.New(stub, nil, nil)
+	svc := mustChat(chat.New(stub, nil, nil))
 	handle, err := svc.StartTurn(context.Background(), chat.StartTurnRequest{
 		SessionID: "s",
 		Message:   "hi",

@@ -341,7 +341,7 @@ func planTurnEnd(terminal event.Event, out engine.ChatOutput, runErr, ctxErr err
 	case event.ProcessCompleted:
 		return completedPlan(out)
 	case event.ProcessKilled, event.ProcessTerminated:
-		return turnEndPlan{reason: TurnEndCancelled}
+		return turnEndPlan{reason: TurnEndCanceled}
 	case event.ProcessFailed:
 		msg := "engine error"
 		if t.Err != nil {
@@ -362,7 +362,7 @@ func planTurnEnd(terminal event.Event, out engine.ChatOutput, runErr, ctxErr err
 func completedPlan(out engine.ChatOutput) turnEndPlan {
 	switch {
 	case out.PlanRejected:
-		return turnEndPlan{reason: TurnEndCancelled}
+		return turnEndPlan{reason: TurnEndCanceled}
 	case out.StoppedOnBudget:
 		return turnEndPlan{reason: TurnEndBudgetExceeded, withUsage: true}
 	default:
@@ -377,7 +377,7 @@ func completedPlan(out engine.ChatOutput) turnEndPlan {
 func fallbackPlan(out engine.ChatOutput, runErr, ctxErr error, status core.AgentProcessStatus) turnEndPlan {
 	if runErr != nil {
 		if status == core.StatusKilled || errors.Is(ctxErr, context.Canceled) {
-			return turnEndPlan{reason: TurnEndCancelled}
+			return turnEndPlan{reason: TurnEndCanceled}
 		}
 		return turnEndPlan{reason: TurnEndErrored, errMsg: runErr.Error(), errCode: "ENGINE_ERROR"}
 	}

@@ -15,7 +15,7 @@ import (
 // errors.Is against this sentinel to special-case safeguard
 // rejections; the underlying error string carries the matched term
 // when the matcher chose to expose it.
-var ErrUnsafeContent = errors.New("chat.middleware: unsafe content blocked")
+var ErrUnsafeContent = errors.New("safeguard: unsafe content blocked")
 
 // Matcher is the dependency-inverted predicate that
 // [NewMiddleware] consults to decide whether a piece of
@@ -90,9 +90,9 @@ type Options struct {
 //
 // Example with default matcher:
 //
-//	callMW, streamMW := middleware.NewMiddleware(
-//	    middleware.NewSubstringMatcher([]string{"forbidden", "secret-key"}, true),
-//	    middleware.Options{Scope: middleware.ScopeBoth},
+//	callMW, streamMW := safeguard.NewMiddleware(
+//	    safeguard.NewSubstringMatcher([]string{"forbidden", "secret-key"}),
+//	    safeguard.Options{Scope: safeguard.ScopeBoth},
 //	)
 func NewMiddleware(matcher Matcher, opts Options) (chat.CallMiddleware, chat.StreamMiddleware) {
 	if matcher == nil {

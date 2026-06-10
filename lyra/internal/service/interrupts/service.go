@@ -5,13 +5,11 @@
 // answers via runs.resume, which removes the entry.
 //
 // The [Store] interface is the pluggable seam: the runtime depends on
-// it, not on a concrete backend. The default is [NewInMemory] (correct
-// for same-process resume, where the live agent process is retained).
-// A persistent backend (SQLite / file) becomes meaningful once
-// cross-restart resume — rebuilding the parked process from a
-// ProcessStore snapshot — lands; until then a persisted-but-
-// unrestorable interrupt would be a dangling entry resume could never
-// honor (API.md §6.2), so it is deliberately NOT the default.
+// it, not on a concrete backend. Lyra backs it with the SQLite store
+// (internal/storage/sqlite), so open interrupts survive a restart and
+// runs.resume rebuilds the parked process from its ProcessStore
+// snapshot (Pending.ProcessID) — same-process resume just drives the
+// retained live process instead.
 package interrupts
 
 import (
@@ -56,8 +54,8 @@ type DrainedTool struct {
 
 // Store is the open-interrupt registry. Implementations must be safe
 // for concurrent use. The interface is the consumer-side abstraction
-// (the runtime + RPC server depend on it); back it with [NewInMemory]
-// or any persistent implementation.
+// (the runtime + RPC server depend on it); back it with the sqlite
+// store (internal/storage/sqlite) or any persistent implementation.
 type Store interface {
 	// Put records (or replaces) a pending interrupt keyed by ParentRunID.
 	Put(ctx context.Context, p Pending) error

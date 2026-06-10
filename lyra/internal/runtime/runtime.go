@@ -46,9 +46,10 @@ import (
 	"github.com/Tangerg/lynx/mcp"
 )
 
-// Config is the construction-time bundle for [New]. ChatClient is
-// the only strictly required field — every other dependency has a
-// sensible in-memory default for tests / smoke runs.
+// Config is the construction-time bundle for [New]. Several fields
+// are required and injected by the composition root (ChatClient plus
+// the sqlite-backed stores marked "Required" below); the rest are
+// optional — nil/zero disables or defaults the feature, per-field docs.
 type Config struct {
 	// ChatClient is the LLM client every action eventually calls
 	// through to. Required.
@@ -112,9 +113,9 @@ type Config struct {
 	// [engine.Config.ProcessStore].
 	ProcessStore core.ProcessStore
 
-	// HistoryStore, when non-nil, persists the durable Item history that
-	// items.list is served from (authoritative completed Items + their
-	// RunRefs). nil falls back to deriving items from chat-memory messages.
+	// HistoryStore persists the durable Item history that items.list is
+	// served from (authoritative completed Items + their RunRefs).
+	// Required — injected sqlite-backed, same as SessionService.
 	HistoryStore history.Store
 
 	// Provider / Model name the runtime's DEFAULT provider+model — the one a
@@ -157,11 +158,14 @@ type Runtime struct {
 }
 
 // New assembles a Runtime from cfg. Returns an error when a required
-// dependency (ChatClient) is missing or any internal constructor
-// fails — engine deployment, MCP dial, etc.
+// dependency is missing or any internal constructor fails — engine
+// deployment, MCP dial, etc.
 func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	if cfg.ChatClient == nil {
 		return nil, errors.New("runtime: ChatClient is required")
+	}
+	if cfg.HistoryStore == nil {
+		return nil, errors.New("runtime: HistoryStore is required")
 	}
 
 	eng, err := engine.New(ctx, engine.Config{
@@ -200,11 +204,20 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	// credentials. A turn with no selection runs the engine's default client.
 	resolver := newClientResolver(providerSvc)
 
+	chatSvc, err := chatsvc.New(eng, approvalSvc, resolver)
+	if err != nil {
+		return nil, fmt.Errorf("runtime: chat service: %w", err)
+	}
+	toolSvc, err := toolsvc.New(eng)
+	if err != nil {
+		return nil, fmt.Errorf("runtime: tool service: %w", err)
+	}
+
 	return &Runtime{
 		engine:         eng,
-		chat:           chatsvc.New(eng, approvalSvc, resolver),
+		chat:           chatSvc,
 		session:        sessionSvc,
-		tool:           toolsvc.New(eng),
+		tool:           toolSvc,
 		memory:         cfg.MemoryService,
 		approval:       approvalSvc,
 		interrupts:     interruptStore,
@@ -248,9 +261,8 @@ func (r *Runtime) Approval() approval.Service { return r.approval }
 // discovery). Always non-nil.
 func (r *Runtime) Interrupts() interrupts.Store { return r.interrupts }
 
-// History returns the durable Item-history store, or nil when none was
-// configured (the RPC server then derives items.list from chat-memory
-// messages instead).
+// History returns the durable Item-history store items.list is served
+// from. Always non-nil — HistoryStore is a required dependency.
 func (r *Runtime) History() history.Store { return r.history }
 
 // MCPServerNames returns the names of the MCP servers dialed at startup

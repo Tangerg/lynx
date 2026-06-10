@@ -3,13 +3,17 @@
 // `agentic/` family (OneShotPerLoopTool / PlaybookTool with
 // UnlockCondition / …).
 //
-// Each helper wraps an existing tool and returns a new
-// [chat.Tool]. Compose freely:
+// Each helper wraps an existing tool and returns a new [chat.Tool]
+// (plus an error for nil inputs). Compose freely:
 //
-//	tool := toolpolicy.Unlocked(
-//	    toolpolicy.OnceOnly(rawSearch),
-//	    func(ctx context.Context) bool {
-//	        p := core.ProcessFrom(ctx); return p != nil && approved(p)
+//	once, err := toolpolicy.OnceOnly(rawSearch)
+//	if err != nil { /* handle */ }
+//	tool, err := toolpolicy.Unlocked(once,
+//	    func(ctx context.Context, arguments string) (bool, string) {
+//	        if p := core.ProcessFrom(ctx); p != nil && approved(p) {
+//	            return true, ""
+//	        }
+//	        return false, "awaiting approval"
 //	    },
 //	)
 //

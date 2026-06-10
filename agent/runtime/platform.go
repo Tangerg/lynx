@@ -192,11 +192,11 @@ func (p *Platform) ProcessStore() core.ProcessStore { return p.processStore }
 // write.
 func (p *Platform) SaveProcess(ctx context.Context, processID string) error {
 	if p.processStore == nil {
-		return errors.New("save process: no ProcessStore configured")
+		return errors.New("runtime.Platform.SaveProcess: no ProcessStore configured")
 	}
 	proc, ok := p.procs.get(processID)
 	if !ok {
-		return fmt.Errorf("save process: id %q not registered", processID)
+		return fmt.Errorf("runtime.Platform.SaveProcess: id %q not registered", processID)
 	}
 	return p.processStore.Save(ctx, proc.Snapshot())
 }
@@ -217,11 +217,11 @@ func (p *Platform) SaveProcess(ctx context.Context, processID string) error {
 // value for a read-only restore.
 func (p *Platform) RestoreProcess(ctx context.Context, processID string, options core.ProcessOptions) (*AgentProcess, error) {
 	if p.processStore == nil {
-		return nil, errors.New("restore process: no ProcessStore configured")
+		return nil, errors.New("runtime.Platform.RestoreProcess: no ProcessStore configured")
 	}
 	snap, err := p.processStore.Load(ctx, processID)
 	if err != nil {
-		return nil, fmt.Errorf("restore process: %w", err)
+		return nil, fmt.Errorf("runtime.Platform.RestoreProcess: %w", err)
 	}
 	return p.RestoreFromSnapshot(snap, options)
 }

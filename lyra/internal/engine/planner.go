@@ -35,9 +35,9 @@ func newPlanner(client *chat.Client) *planner {
 // Returns the raw markdown — the runtime emits it verbatim as
 // [PlanGenerated.Plan].
 //
-// Failure means the runtime falls back to direct execution rather
-// than blocking on a missing plan — the caller (chat.Service)
-// decides whether to surface the error or proceed.
+// Failure propagates: planGate returns the error and the turn
+// fails — a plan-mode turn never silently degrades to unreviewed
+// direct execution.
 func (p *planner) Plan(ctx context.Context, systemPrompt, userMessage string) (string, error) {
 	if p == nil {
 		return "", errors.New("planner: chat client missing")

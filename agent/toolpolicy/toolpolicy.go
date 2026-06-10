@@ -26,7 +26,7 @@ var ErrToolLocked = errors.New("toolpolicy: tool is locked by an unlock conditio
 
 // OnceOnly wraps tool so a second call within the same scope
 // returns [ErrToolAlreadyCalled] instead of running the underlying
-// tool. Each unique scope (see [Scope]) maintains its own
+// tool. Each unique scope (see [LoopScope]) maintains its own
 // already-called set.
 //
 // Default scope is per-[tool.NewMiddleware]-loop: callers wrap

@@ -188,7 +188,7 @@ func TestService_PlanMode_RejectPath(t *testing.T) {
 		}
 	}
 
-	if endReason != chat.TurnEndCancelled {
+	if endReason != chat.TurnEndCanceled {
 		t.Errorf("reject path: TurnEnd reason = %s, want canceled", endReason)
 	}
 	// One call total: the plan generation. The real Chat path must not run.
@@ -229,7 +229,7 @@ func TestService_PlanMode_GatedWhenClientCannotHandle(t *testing.T) {
 	if sawInterrupt {
 		t.Error("plan interrupt should have been gated (auto-denied), not surfaced")
 	}
-	if endReason != chat.TurnEndCancelled {
+	if endReason != chat.TurnEndCanceled {
 		t.Errorf("gated plan should end Canceled (rejected), got %s", endReason)
 	}
 }
@@ -264,7 +264,7 @@ func TestService_InjectSteering_LandsInNextTurn(t *testing.T) {
 	stub := newHistoryAwareStub()
 	client, _ := chatmodel.NewClient(stub)
 	eng, _ := engine.New(context.Background(), engine.Config{ChatClient: client})
-	svc := chat.New(eng, nil, nil)
+	svc := mustChat(chat.New(eng, nil, nil))
 
 	// Turn 1.
 	handle, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
@@ -323,7 +323,7 @@ func TestService_InjectSteering_UnknownTurn(t *testing.T) {
 func TestService_ApprovalGate_AllowOnce(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
 	eng, _ := engine.New(context.Background(), engine.Config{ChatClient: client})
-	svc := chat.New(eng, approval.New(approval.ModeBalanced), nil) // bash → gate
+	svc := mustChat(chat.New(eng, approval.New(approval.ModeBalanced), nil)) // bash → gate
 
 	handle, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
 		SessionID: "sess-approve",
@@ -375,7 +375,7 @@ func TestService_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	client, _ := chatmodel.NewClient(model)
 	store := memory.NewInMemoryStore()
 	eng, _ := engine.New(context.Background(), engine.Config{ChatClient: client, MemoryStore: store})
-	svc := chat.New(eng, approval.New(approval.ModeBalanced), nil) // bash → gate
+	svc := mustChat(chat.New(eng, approval.New(approval.ModeBalanced), nil)) // bash → gate
 
 	handle, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
 		SessionID: "sess-rmodel",
@@ -429,7 +429,7 @@ func TestService_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 func TestService_ApprovalGate_Deny(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
 	eng, _ := engine.New(context.Background(), engine.Config{ChatClient: client})
-	svc := chat.New(eng, approval.New(approval.ModeBalanced), nil)
+	svc := mustChat(chat.New(eng, approval.New(approval.ModeBalanced), nil))
 
 	handle, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
 		SessionID: "sess-deny",
@@ -469,7 +469,7 @@ func TestService_ApprovalGate_Deny(t *testing.T) {
 func TestService_ApprovalGate_YoloSkipsEvent(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
 	eng, _ := engine.New(context.Background(), engine.Config{ChatClient: client})
-	svc := chat.New(eng, approval.New(approval.ModeYolo), nil)
+	svc := mustChat(chat.New(eng, approval.New(approval.ModeYolo), nil))
 
 	handle, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
 		SessionID: "sess-yolo",
@@ -511,7 +511,7 @@ func buildService(t *testing.T) (chat.Service, *engine.Engine) {
 	if err != nil {
 		t.Fatalf("engine.New: %v", err)
 	}
-	return chat.New(eng, nil, nil), eng
+	return mustChat(chat.New(eng, nil, nil)), eng
 }
 
 // buildPlanService stands up a service backed by a planAwareStub
@@ -529,7 +529,7 @@ func buildPlanService(t *testing.T, planText string) (chat.Service, *planAwareSt
 	if err != nil {
 		t.Fatal(err)
 	}
-	return chat.New(eng, nil, nil), stub
+	return mustChat(chat.New(eng, nil, nil)), stub
 }
 
 func drainEvents(events iter.Seq[chat.Event]) []chat.Event {
@@ -768,4 +768,14 @@ func isPlanRequest(req *chatmodel.Request) bool {
 		}
 	}
 	return false
+}
+
+// mustChat unwraps chat.New in test wiring — construction only fails on a
+// nil engine, which tests never pass. Takes (svc, err) directly so call
+// sites can splice chat.New's multi-value return straight in.
+func mustChat(svc chat.Service, err error) chat.Service {
+	if err != nil {
+		panic(err)
+	}
+	return svc
 }

@@ -8,8 +8,9 @@ import (
 )
 
 // inflightTailKey holds, on the process blackboard, the resumable tail a
-// HITL interrupt parks. Used only when no [tool.ParkStore] is configured
-// (the legacy fallback path).
+// HITL interrupt parks. Used only when no [tool.ParkStore] is configured —
+// the nil-ParkStore design keeps the tail on the conversation's blackboard
+// instead of a durable store.
 const inflightTailKey = "lyra:hitl:inflight-tail"
 
 // isInterruptResult reports whether a streamed response is the tool

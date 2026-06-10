@@ -1,6 +1,16 @@
 package event
 
-import "sync"
+import (
+	"context"
+	"fmt"
+	"sync"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/Tangerg/lynx/agent/core"
+)
 
 // Listener is the subscriber surface. Implementations should be
 // non-blocking; the multicast snapshots the listener slice under a
@@ -70,9 +80,28 @@ func (m *Multicast) OnEvent(e Event) {
 
 // safeDeliver invokes the listener with a panic guard. Panicking
 // listeners are a bug, but we don't want one to take down the whole
-// process — production deployments can wire a recovering listener that
-// reports to logs / metrics.
+// process — delivery to the remaining listeners continues. The panic
+// is not silent: it surfaces as a short error span so the failure is
+// observable through the standard OTel pipeline.
 func safeDeliver(l Listener, e Event) {
-	defer func() { _ = recover() }()
+	defer func() {
+		r := recover()
+		if r == nil {
+			return
+		}
+		// Cheap, non-blocking observability: a zero-duration span that
+		// only exists to carry the error + identity of the offender.
+		_, span := core.AgentTracer().Start(context.Background(), "agent.listener.panic",
+			trace.WithSpanKind(trace.SpanKindInternal),
+			trace.WithAttributes(
+				attribute.String("agent.listener", fmt.Sprintf("%T", l)),
+				attribute.String("agent.event", fmt.Sprintf("%T", e)),
+			),
+		)
+		err := fmt.Errorf("event listener panicked: %v", r)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		span.End()
+	}()
 	l.OnEvent(e)
 }
