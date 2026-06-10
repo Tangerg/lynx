@@ -1,6 +1,7 @@
 import type { RpcMessage } from "../types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RpcTransportError } from "../errors";
+import { STREAM_DOWN_METHOD } from "../transport";
 import { createHttpTransport } from "./http";
 
 afterEach(() => vi.restoreAllMocks());
@@ -135,6 +136,55 @@ describe("HTTPTransport — streamable HTTP", () => {
     await transport.close();
 
     expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("a stream dying mid-run synthesizes a stream-down naming the run", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    // Response frame arrives (runId run_01), then the connection dies with a
+    // non-abort error — no run.finished was ever delivered. Without the
+    // synthetic, every consumer of run_01's events would await forever.
+    const responseFrame = frame({ jsonrpc: "2.0", id: "1", result: { runId: "run_01" } });
+    const enc = new TextEncoder();
+    let sent = false;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (!sent) {
+          sent = true;
+          controller.enqueue(enc.encode(responseFrame));
+        } else {
+          controller.error(new Error("connection reset")); // NOT an AbortError
+        }
+      },
+    });
+    const fetchStub = (async () =>
+      new Response(body, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      })) as unknown as typeof fetch;
+    const transport = createHttpTransport({ baseUrl: "http://x", fetch: fetchStub });
+    const it = transport.recv()[Symbol.asyncIterator]();
+
+    await transport.send(req("1", "runs.start"));
+    const r0 = await it.next(); // the call's response
+    const r1 = await it.next(); // the synthetic stream-down
+    await transport.close();
+
+    expect(r0.value).toMatchObject({ id: "1", result: { runId: "run_01" } });
+    expect(r1.value).toMatchObject({ method: STREAM_DOWN_METHOD, params: { runIds: ["run_01"] } });
+  });
+
+  it("a stream ending before the call's response synthesizes an error Response", async () => {
+    // The POST opened but the stream EOS'd before the first (response) frame
+    // — the pending call must reject, not hang forever.
+    const fetchStub = (async () => sseResponse([])) as unknown as typeof fetch;
+    const transport = createHttpTransport({ baseUrl: "http://x", fetch: fetchStub });
+    const it = transport.recv()[Symbol.asyncIterator]();
+
+    await transport.send(req("7", "runs.start"));
+    const r = await it.next();
+    await transport.close();
+
+    expect(r.value).toMatchObject({ id: "7", error: { code: -32000 } });
   });
 
   it("skips a malformed frame without tearing down the stream", async () => {

@@ -185,21 +185,44 @@ export function createMethods(client: RpcClient): Methods {
         // same ordered stream, so the first events follow the response
         // immediately; binding only after `call` resolves could drop the head
         // (see streamRunEventsDeferred).
+        //
+        // If the call REJECTS the stream must be disposed explicitly: nobody
+        // will ever iterate `events`, so its self-cleaning iterator never runs
+        // — the subscription would leak and its unbound buffer would accumulate
+        // every run event in the app, forever.
         const stream = streamRunEventsDeferred(client, signal);
-        const result = await client.call<StartRunResponse>("runs.start", params, signal);
+        let result: StartRunResponse;
+        try {
+          result = await client.call<StartRunResponse>("runs.start", params, signal);
+        } catch (err) {
+          stream.dispose();
+          throw err;
+        }
         stream.bind(result.runId);
         return { result, events: stream.events };
       },
       resume: async (params, signal) => {
         const stream = streamRunEventsDeferred(client, signal);
-        const result = await client.call<ResumeRunResponse>("runs.resume", params, signal);
+        let result: ResumeRunResponse;
+        try {
+          result = await client.call<ResumeRunResponse>("runs.resume", params, signal);
+        } catch (err) {
+          stream.dispose();
+          throw err;
+        }
         stream.bind(result.runId);
         return { result, events: stream.events };
       },
       subscribe: async (runId, signal) => {
-        const events = streamRunEvents(client, runId, signal);
-        const result = await client.call<{ runId: RunId }>("runs.subscribe", { runId }, signal);
-        return { result, events };
+        const stream = streamRunEvents(client, runId, signal);
+        let result: { runId: RunId };
+        try {
+          result = await client.call<{ runId: RunId }>("runs.subscribe", { runId }, signal);
+        } catch (err) {
+          stream.dispose();
+          throw err;
+        }
+        return { result, events: stream.events };
       },
       cancel: (runId, reason) => client.call<void>("runs.cancel", { runId, reason }),
       list: (sessionId) => client.call<Page<RunRef>>("runs.list", sessionId ? { sessionId } : {}),
@@ -253,12 +276,23 @@ export function createMethods(client: RpcClient): Methods {
     background: {
       list: () => client.call<Page<BackgroundTask>>("background.list"),
       subscribe: async (taskId, signal) => {
-        const result = await client.call<{ taskId: TaskId }>(
-          "background.subscribe",
-          { taskId },
-          signal,
-        );
-        return { result, events: streamBackgroundUpdates(client, result.taskId, signal) };
+        // Subscribe BEFORE the call — same head-drop race as runs.start: under
+        // streamable HTTP the first update frames ride right behind the
+        // response, and a fast task's ONLY frame may be its terminal one.
+        // taskId is an input, so no deferred bind is needed here.
+        const stream = streamBackgroundUpdates(client, taskId, signal);
+        let result: { taskId: TaskId };
+        try {
+          result = await client.call<{ taskId: TaskId }>(
+            "background.subscribe",
+            { taskId },
+            signal,
+          );
+        } catch (err) {
+          stream.dispose();
+          throw err;
+        }
+        return { result, events: stream.events };
       },
       cancel: (taskId) => client.call<void>("background.cancel", { taskId }),
     },

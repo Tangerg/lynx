@@ -10,6 +10,21 @@
 
 import type { RpcMessage } from "./types";
 
+/**
+ * CLIENT-SYNTHETIC notification a transport injects into its own inbound
+ * channel when a streaming response dies abnormally (network drop, runtime
+ * restart — anything that ends the stream other than a caller abort). It is
+ * never sent by the server and never goes on the wire; it exists so the run
+ * stream layer (rpc/stream.ts) can close the affected runs' channels instead
+ * of leaving their consumers awaiting forever. `runIds` = the run ids whose
+ * events were observed on the dead stream.
+ */
+export const STREAM_DOWN_METHOD = "transport.streamDown";
+
+export interface StreamDownParams {
+  runIds: string[];
+}
+
 export interface Transport {
   /** Queue an outbound message. */
   send(msg: RpcMessage, signal?: AbortSignal): Promise<void>;
