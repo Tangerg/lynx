@@ -93,8 +93,8 @@ func Loop[In, Out any](
 	// that for type-binding keys. Use '_' as the separator.
 	doneKey := spec.Name + "_done"
 
-	doneCondition := core.NewCondition(doneKey, func(ctx context.Context, oc *core.ConditionEnv) core.Determination {
-		history, ok := core.Last[*History[Out]](oc.Blackboard)
+	doneCondition := core.NewCondition(doneKey, func(ctx context.Context, env *core.ConditionEnv) core.Determination {
+		history, ok := core.Last[*History[Out]](env.Blackboard)
 		if !ok {
 			return core.False
 		}
@@ -105,7 +105,7 @@ func Loop[In, Out any](
 		if history.Count() >= maxIter {
 			return core.True
 		}
-		in, _ := core.Last[In](oc.Blackboard)
+		in, _ := core.Last[In](env.Blackboard)
 		if spec.Until(ctx, in, last) {
 			return core.True
 		}

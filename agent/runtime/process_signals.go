@@ -6,7 +6,6 @@ import (
 	"sync/atomic"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/event"
 )
 
 // processSignals owns the three channels / atomic slots an AgentProcess
@@ -135,14 +134,4 @@ func (s *processSignals) deliverResponse(response any) (core.ResponseImpact, err
 		return core.ImpactUnchanged, errors.New("runtime.processSignals.deliverResponse: no awaitable response is pending")
 	}
 	return slot.awaitable.OnResponseAny(response)
-}
-
-// buildWaitingEvent constructs the ProcessWaiting published by
-// AgentProcess.AwaitInput. Kept on processSignals so AwaitInput stays
-// short and doesn't reach into the event package directly.
-func (s *processSignals) buildWaitingEvent(processID string, req core.Awaitable) event.ProcessWaiting {
-	return event.ProcessWaiting{
-		BaseEvent: event.NewBaseEvent(processID),
-		Awaitable: req,
-	}
 }

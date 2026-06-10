@@ -96,8 +96,8 @@ func RepeatUntilAcceptable[In, Out any](spec RepeatUntilAcceptableConfig[In, Out
 
 	acceptKey := spec.Name + "_acceptable"
 
-	acceptCondition := core.NewCondition(acceptKey, func(_ context.Context, oc *core.ConditionEnv) core.Determination {
-		history, ok := core.Last[*AttemptHistory[Out]](oc.Blackboard)
+	acceptCondition := core.NewCondition(acceptKey, func(_ context.Context, env *core.ConditionEnv) core.Determination {
+		history, ok := core.Last[*AttemptHistory[Out]](env.Blackboard)
 		if !ok {
 			return core.False
 		}

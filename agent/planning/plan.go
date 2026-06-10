@@ -97,26 +97,26 @@ func SortByNetValueDesc(plans []*Plan, ws core.WorldState) {
 	if len(plans) < 2 {
 		return
 	}
-	keys := make([]float64, len(plans))
+	type keyed struct {
+		plan *Plan
+		net  float64
+	}
+	ranked := make([]keyed, len(plans))
 	for i, pl := range plans {
-		keys[i] = pl.NetValue(ws)
+		ranked[i] = keyed{plan: pl, net: pl.NetValue(ws)}
 	}
-	indices := make([]int, len(plans))
-	for i := range indices {
-		indices[i] = i
-	}
-	slices.SortStableFunc(indices, func(a, b int) int {
+	// The switch comparator (not cmp.Compare) keeps NaN net values
+	// "equal", so the stable sort leaves them in place.
+	slices.SortStableFunc(ranked, func(a, b keyed) int {
 		switch {
-		case keys[a] > keys[b]:
+		case a.net > b.net:
 			return -1
-		case keys[a] < keys[b]:
+		case a.net < b.net:
 			return 1
 		}
 		return 0
 	})
-	out := make([]*Plan, len(plans))
-	for newIdx, oldIdx := range indices {
-		out[newIdx] = plans[oldIdx]
+	for i, k := range ranked {
+		plans[i] = k.plan
 	}
-	copy(plans, out)
 }

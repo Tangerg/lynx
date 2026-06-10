@@ -253,7 +253,7 @@ func (p *AgentProcess) PendingAwaitable() core.Awaitable {
 func (p *AgentProcess) AwaitInput(req core.Awaitable) core.ActionStatus {
 	status := p.signals.parkAwaitable(req)
 	if status == core.ActionWaiting {
-		p.publishEvent(p.signals.buildWaitingEvent(p.id, req))
+		p.publishEvent(event.ProcessWaiting{BaseEvent: p.baseEvent(), Awaitable: req})
 	}
 	return status
 }
