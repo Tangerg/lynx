@@ -19,6 +19,7 @@ import { z } from "zod";
 import { createPushPullChannel, type PushPullChannel } from "./channel";
 import type { RpcClient } from "./client";
 import type { BackgroundTask, RunEvent, StreamEvent } from "./shapes";
+import { STREAM_DOWN_METHOD, type StreamDownParams } from "./transport";
 
 export const RUN_EVENT_METHOD = "notifications.run.event";
 export const BACKGROUND_UPDATE_METHOD = "notifications.background.update";
@@ -78,9 +79,28 @@ const parseBackgroundTask = makeParser(BACKGROUND_UPDATE_METHOD, BackgroundTaskS
 class RunTree {
   private readonly runs: Set<string>;
   private readonly itemOwner = new Map<string, string>(); // itemId → owning runId
+  // Event ids already delivered on this stream. §9.2 requires the client to
+  // dedupe on replay/overlap (a residual live stream + a runs.subscribe
+  // replay window would otherwise double-append every item.delta). The
+  // contract only guarantees eventId is MONOTONIC, not lexicographically
+  // comparable, so we track a per-stream seen-set (freed with the stream).
+  private readonly seenEventIds = new Set<string>();
 
   constructor(private readonly rootRunId: string) {
     this.runs = new Set([rootRunId]);
+  }
+
+  /** True if this event id was already delivered on this stream (replay /
+   *  overlapping-subscription duplicate). Marks it seen otherwise. */
+  alreadySeen(eventId: string): boolean {
+    if (this.seenEventIds.has(eventId)) return true;
+    this.seenEventIds.add(eventId);
+    return false;
+  }
+
+  /** True if the given run belongs to this stream's tree. */
+  hasRun(runId: string): boolean {
+    return this.runs.has(runId);
   }
 
   /** Update tree membership from an event; return true if it belongs here. */
@@ -174,8 +194,39 @@ function toRunEvent(params: unknown): RunEvent | null {
 
 /** Push an event into the stream if it belongs to the tree; close on root finish. */
 function feedRunEvent(tree: RunTree, channel: PushPullChannel<RunEvent>, ev: RunEvent): void {
-  if (tree.admit(ev)) channel.push(ev);
+  // Membership FIRST, dedupe second: eventId is only monotonic/unique within
+  // THIS root run stream — a foreign run's event may carry an equal id and
+  // must not poison the seen-set (admit's bookkeeping is idempotent, so a
+  // re-delivered duplicate passing through it is harmless).
+  if (!tree.admit(ev)) return;
+  if (tree.alreadySeen(ev.eventId)) return;
+  channel.push(ev);
   if (tree.isRootFinish(ev)) channel.close();
+}
+
+/** Subscribe to the transport's stream-down synthetic: when the HTTP stream
+ *  carrying this tree's events dies abnormally, close the channel so the
+ *  consumer's for-await ends instead of hanging forever (see transport.ts). */
+function subscribeStreamDown(
+  client: RpcClient,
+  channel: PushPullChannel<RunEvent>,
+  treeOf: () => RunTree | null,
+): () => void {
+  return client.subscribe(STREAM_DOWN_METHOD, (msg) => {
+    if (channel.closed) return;
+    const tree = treeOf();
+    const runIds = (msg.params as StreamDownParams | undefined)?.runIds ?? [];
+    if (tree && runIds.some((id) => tree.hasRun(id))) channel.close();
+  });
+}
+
+/** A run-event stream plus its teardown. `dispose` exists for the case where
+ *  the stream's owning call FAILS before anyone iterates `events` — without
+ *  it the subscription (and, for the deferred variant, its grow-forever
+ *  pre-bind buffer) leaks, since iterableOf's cleanup only runs on iteration. */
+export interface RunEventStream {
+  events: AsyncIterable<RunEvent>;
+  dispose: () => void;
 }
 
 /** Subscribe to a known root run's event stream (runs.subscribe). */
@@ -183,15 +234,30 @@ export function streamRunEvents(
   client: RpcClient,
   rootRunId: string,
   signal?: AbortSignal,
-): AsyncIterable<RunEvent> {
+): RunEventStream {
   const channel = createPushPullChannel<RunEvent>();
   const tree = new RunTree(rootRunId);
-  const unsub = client.subscribe(RUN_EVENT_METHOD, (msg) => {
+  const unsubEvents = client.subscribe(RUN_EVENT_METHOD, (msg) => {
     if (channel.closed) return;
     const ev = toRunEvent(msg.params);
     if (ev) feedRunEvent(tree, channel, ev);
   });
-  return iterableOf(channel, bindLifecycle(channel, unsub, signal));
+  const unsubDown = subscribeStreamDown(client, channel, () => tree);
+  const cleanup = bindLifecycle(
+    channel,
+    () => {
+      unsubEvents();
+      unsubDown();
+    },
+    signal,
+  );
+  return {
+    events: iterableOf(channel, cleanup),
+    dispose: () => {
+      channel.close();
+      cleanup();
+    },
+  };
 }
 
 /**
@@ -206,12 +272,12 @@ export function streamRunEvents(
 export function streamRunEventsDeferred(
   client: RpcClient,
   signal?: AbortSignal,
-): { events: AsyncIterable<RunEvent>; bind: (rootRunId: string) => void } {
+): RunEventStream & { bind: (rootRunId: string) => void } {
   const channel = createPushPullChannel<RunEvent>();
   const buffer: RunEvent[] = [];
   let tree: RunTree | null = null;
 
-  const unsub = client.subscribe(RUN_EVENT_METHOD, (msg) => {
+  const unsubEvents = client.subscribe(RUN_EVENT_METHOD, (msg) => {
     if (channel.closed) return;
     const ev = toRunEvent(msg.params);
     if (!ev) return;
@@ -219,6 +285,10 @@ export function streamRunEventsDeferred(
     if (tree === null) buffer.push(ev);
     else feedRunEvent(tree, channel, ev);
   });
+  // Pre-bind, tree is null and the handler no-ops — correct: if the stream
+  // died before our call's response arrived, the call itself rejects (the
+  // transport synthesizes an error Response) and methods.ts disposes us.
+  const unsubDown = subscribeStreamDown(client, channel, () => tree);
 
   const bind = (rootRunId: string): void => {
     if (tree !== null) return;
@@ -227,7 +297,28 @@ export function streamRunEventsDeferred(
     buffer.length = 0;
   };
 
-  return { events: iterableOf(channel, bindLifecycle(channel, unsub, signal)), bind };
+  const cleanup = bindLifecycle(
+    channel,
+    () => {
+      unsubEvents();
+      unsubDown();
+    },
+    signal,
+  );
+  return {
+    events: iterableOf(channel, cleanup),
+    bind,
+    dispose: () => {
+      channel.close();
+      cleanup();
+    },
+  };
+}
+
+/** A background-task update stream plus its teardown (see RunEventStream). */
+export interface BackgroundUpdateStream {
+  events: AsyncIterable<BackgroundTask>;
+  dispose: () => void;
 }
 
 /** Subscribe to a background task's updates (background.subscribe). */
@@ -235,7 +326,7 @@ export function streamBackgroundUpdates(
   client: RpcClient,
   taskId: string,
   signal?: AbortSignal,
-): AsyncIterable<BackgroundTask> {
+): BackgroundUpdateStream {
   const channel = createPushPullChannel<BackgroundTask>();
   const unsub = client.subscribe(BACKGROUND_UPDATE_METHOD, (msg) => {
     if (channel.closed) return;
@@ -244,5 +335,12 @@ export function streamBackgroundUpdates(
     channel.push(task as BackgroundTask);
     if (task.status !== "running") channel.close();
   });
-  return iterableOf(channel, bindLifecycle(channel, unsub, signal));
+  const cleanup = bindLifecycle(channel, unsub, signal);
+  return {
+    events: iterableOf(channel, cleanup),
+    dispose: () => {
+      channel.close();
+      cleanup();
+    },
+  };
 }

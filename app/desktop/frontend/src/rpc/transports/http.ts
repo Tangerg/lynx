@@ -33,8 +33,9 @@ import {
 import { createParser } from "eventsource-parser";
 import { createPushPullChannel } from "../channel";
 import { RpcTransportError } from "../errors";
-import type { Transport } from "../transport";
-import type { RpcMessage } from "../types";
+import { STREAM_DOWN_METHOD, type Transport } from "../transport";
+import type { RpcId, RpcMessage } from "../types";
+import { JSONRPC_VERSION } from "../types";
 
 // Delegating tracer — resolves to the global provider once observability is
 // installed (no-op spans before then). One CLIENT span per RPC call; the
@@ -87,12 +88,43 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
   // (a run may stream for minutes); not awaited by send(). The first frame is
   // the call's JSON-RPC response (correlated by id upstream), the rest are
   // `notifications.run.event` frames. SSE framing → eventsource-parser.
-  async function drainStream(body: ReadableStream<Uint8Array>): Promise<void> {
+  //
+  // A stream that dies any way OTHER than a caller abort (network drop,
+  // runtime restart, premature EOS) must not strand its consumers: without a
+  // signal, the call whose response never arrived hangs its pending promise
+  // forever, and a run mid-stream leaves the UI stuck "running". So we sniff
+  // what this stream carried — whether `requestId`'s response was delivered,
+  // and which runIds streamed events here — and on an abnormal end synthesize
+  // (a) an error Response settling the un-responded call, and (b) a
+  // STREAM_DOWN notification (transport.ts) so rpc/stream.ts closes the
+  // affected runs' channels. A unary call's stream EOSing after its one
+  // response frame produces neither (responseSeen, no runIds) — that's the
+  // normal case, not a death.
+  async function drainStream(body: ReadableStream<Uint8Array>, requestId?: RpcId): Promise<void> {
+    let responseSeen = false;
+    const runIds = new Set<string>();
     const parser = createParser({
       onEvent(event) {
         if (!event.data) return;
         try {
-          channel.push(JSON.parse(event.data) as RpcMessage);
+          const msg = JSON.parse(event.data) as RpcMessage;
+          const m = msg as {
+            id?: RpcId;
+            method?: string;
+            params?: { runId?: string };
+            result?: { runId?: string };
+          };
+          if (requestId !== undefined && m.id === requestId) {
+            responseSeen = true;
+            // runs.start/resume/subscribe responses carry the stream's root
+            // runId — record it so a death BEFORE the first run event still
+            // names the run in the STREAM_DOWN synthetic.
+            if (typeof m.result?.runId === "string") runIds.add(m.result.runId);
+          }
+          if (m.method === "notifications.run.event" && typeof m.params?.runId === "string") {
+            runIds.add(m.params.runId);
+          }
+          channel.push(msg);
         } catch {
           // Malformed frame — skip rather than tearing down the stream.
         }
@@ -101,21 +133,37 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
     const reader = body.getReader();
     readers.add(reader);
     const decoder = new TextDecoder();
+    let aborted = false;
     try {
       for (;;) {
         const { done, value } = await reader.read();
-        if (done) return;
+        if (done) break;
         parser.feed(decoder.decode(value, { stream: true }));
       }
     } catch (err) {
       // Aborts (stop / switch session / superseded run / transport close) are
       // expected teardown via the fetch signal — not failures, stay quiet.
-      const aborted = err instanceof Error && err.name === "AbortError";
+      aborted = err instanceof Error && err.name === "AbortError";
       if (!aborted && !channel.closed) {
         console.warn("[rpc] stream read error:", (err as Error).message);
       }
     } finally {
       readers.delete(reader);
+    }
+    if (aborted || channel.closed) return;
+    if (requestId !== undefined && !responseSeen) {
+      channel.push({
+        jsonrpc: JSONRPC_VERSION,
+        id: requestId,
+        error: { code: -32000, message: "transport: stream ended before the call's response" },
+      } as RpcMessage);
+    }
+    if (runIds.size > 0) {
+      channel.push({
+        jsonrpc: JSONRPC_VERSION,
+        method: STREAM_DOWN_METHOD,
+        params: { runIds: [...runIds] },
+      } as RpcMessage);
     }
   }
 
@@ -180,7 +228,7 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
     // send() returns once headers are in, not at stream end.
     if ((res.headers.get("Content-Type") ?? "").includes("text/event-stream")) {
       if (!res.body) throw new RpcTransportError("event-stream response has no body");
-      void drainStream(res.body);
+      void drainStream(res.body, "id" in msg ? msg.id : undefined);
       return;
     }
 

@@ -38,8 +38,11 @@ export const composerModes = definePlugin({
       order: 0,
       description: "Runs tools, edits files, executes commands. Asks before risky actions.",
     });
+    // id is the WIRE RunMode value (API.md: agent | chat | plan) — the driver
+    // forwards the selection verbatim on runs.start, so the picker's promise
+    // ("read-only, no tool calls") is enforced by the runtime, not just copy.
     host.extensions.contribute(COMPOSER_MODE, {
-      id: "ask",
+      id: "chat",
       label: "Ask",
       icon: "chat",
       order: 1,
