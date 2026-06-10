@@ -48,7 +48,7 @@ import {
   WORKSPACE_VIEW,
 } from "./kernelPoints";
 import { useNotificationStore } from "./notifications";
-import { pluginOrigin } from "./pluginOrigin";
+import { pluginOrigin, setPluginOrigin } from "./pluginOrigin";
 import { usePluginStore } from "./registry";
 import { executeCommand } from "./selectors/commands";
 import {
@@ -243,7 +243,10 @@ export function createHost(
       get: <T = ConfigValue>(key: string, defaultValue?: T) => getConfig<T>(key, defaultValue),
       set: (key: string, value: ConfigValue) => setConfig(key, value),
       has: (key: string) => hasConfig(key),
-      onChange: (key, fn) => useConfigStore.getState().subscribe(key, fn),
+      // track() — like every other registering facade — so unload disposes
+      // the subscription. Untracked, each plugin reload (Plugins pane) would
+      // leak the previous setup's subscriber, which keeps firing forever.
+      onChange: (key, fn) => track(useConfigStore.getState().subscribe(key, fn)),
     },
 
     lifecycle: {
@@ -315,6 +318,14 @@ export function createHost(
       // in definePlugin.ts and is installed via setPluginRuntime() so we
       // don't introduce a circular import.
       load(spec: PluginSpec): Promise<void> {
+        // Propagate the CALLER's origin: an unrecorded name defaults to
+        // "builtin" (full trust), so a sideload that declared only
+        // ["plugins"] could otherwise mint a fully-privileged child and
+        // bypass deny-by-default entirely. definePluginPack already pins
+        // child origins this way — same invariant for the raw facade.
+        if (pluginOrigin(pluginName) === "sideload") {
+          setPluginOrigin(spec.name, "sideload");
+        }
         return getRuntime().load(spec);
       },
       unload(name: string): void {
