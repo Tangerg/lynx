@@ -121,7 +121,7 @@ func (s *stubEngine) MaybeCompact(_ context.Context, _ string) (engine.Compactio
 	return engine.CompactionResult{}, nil
 }
 
-func (s *stubEngine) MaybeExtract(_ context.Context, _ string) (engine.ExtractionResult, error) {
+func (s *stubEngine) MaybeExtract(_ context.Context, _, _ string) (engine.ExtractionResult, error) {
 	return engine.ExtractionResult{}, nil
 }
 

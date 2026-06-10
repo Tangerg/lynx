@@ -10,12 +10,15 @@ import (
 // ListMemory enumerates LYRA.md entries across scopes (API.md §7.7).
 // Empty (not an error) when no memory service is configured, so the UI
 // renders an empty state rather than a banner.
-func (s *Server) ListMemory(ctx context.Context, _ protocol.WorkspaceListQuery) (*protocol.Page[protocol.MemoryEntry], error) {
+func (s *Server) ListMemory(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.MemoryEntry], error) {
 	mem := s.rt.Memory()
 	if mem == nil {
 		return protocol.NewPage([]protocol.MemoryEntry{}), nil
 	}
-	entries, err := mem.List(ctx)
+	// in.Cwd scopes the project entry to that directory's LYRA.md;
+	// empty keeps the workspace convention "default = serve directory"
+	// (the memory service's default dir).
+	entries, err := mem.List(ctx, in.Cwd)
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +40,7 @@ func (s *Server) GetMemory(ctx context.Context, in protocol.GetMemoryRequest) (*
 	if mem == nil {
 		return nil, notImpl("memory.get")
 	}
-	content, err := mem.Get(ctx, memScopeFromWire(in.Scope))
+	content, err := mem.Get(ctx, memScopeFromWire(in.Scope), in.Cwd)
 	if err != nil {
 		return nil, err
 	}
@@ -49,13 +52,13 @@ func (s *Server) UpdateMemory(ctx context.Context, in protocol.UpdateMemoryReque
 	if mem == nil {
 		return notImpl("memory.update")
 	}
-	return mem.Update(ctx, memScopeFromWire(in.Scope), in.Content)
+	return mem.Update(ctx, memScopeFromWire(in.Scope), in.Cwd, in.Content)
 }
 
 // memScopeToWire / memScopeFromWire bridge the protocol string enum and
-// the memory service's int Scope. The service has two backing files —
-// project (<cwd>/LYRA.md) and user (~/.lyra/LYRA.md); the wire's
-// projectRoot folds into project until per-root memory exists.
+// the memory service's int Scope. The wire's cwd + projectRoot both
+// fold into the project scope (addressed by the request's cwd);
+// home maps to the user scope.
 func memScopeToWire(s memsvc.Scope) protocol.MemoryScope {
 	if s == memsvc.ScopeUser {
 		return protocol.MemoryScopeHome

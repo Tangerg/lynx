@@ -50,11 +50,13 @@ func newExtractor(store memory.Store, memSvc lyramem.Service, client *chat.Clien
 }
 
 // maybeExtract reads the post-compaction history, asks the LLM
-// what's worth keeping long-term, and appends the result to
-// LYRA.md's project scope. Returns nil when the engine has no
-// memory service (LYRA.md disabled), or when the conversation is
-// still too short to be worth mining.
-func (e *extractor) maybeExtract(ctx context.Context, sessionID string) (ExtractionResult, error) {
+// what's worth keeping long-term, and appends the result to the
+// project-scope LYRA.md of cwd — the session's working directory, so
+// facts land in the project the conversation was about (empty cwd
+// falls back to the memory service's default dir). Returns the zero
+// result when the engine has no memory service (LYRA.md disabled) or
+// the conversation is still too short to be worth mining.
+func (e *extractor) maybeExtract(ctx context.Context, sessionID, cwd string) (ExtractionResult, error) {
 	if e == nil || sessionID == "" {
 		return ExtractionResult{}, nil
 	}
@@ -74,12 +76,12 @@ func (e *extractor) maybeExtract(ctx context.Context, sessionID string) (Extract
 		return ExtractionResult{}, nil
 	}
 
-	existing, err := e.memSvc.Get(ctx, lyramem.ScopeProject)
+	existing, err := e.memSvc.Get(ctx, lyramem.ScopeProject, cwd)
 	if err != nil {
 		return ExtractionResult{}, fmt.Errorf("extractor: read memory: %w", err)
 	}
 	updated := mergeMemory(existing, facts)
-	if err := e.memSvc.Update(ctx, lyramem.ScopeProject, updated); err != nil {
+	if err := e.memSvc.Update(ctx, lyramem.ScopeProject, cwd, updated); err != nil {
 		return ExtractionResult{}, err
 	}
 	return ExtractionResult{Extracted: true, Facts: facts}, nil

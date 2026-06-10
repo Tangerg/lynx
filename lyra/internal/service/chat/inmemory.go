@@ -93,6 +93,7 @@ func (s *inMemory) StartTurn(ctx context.Context, req StartTurnRequest) (TurnHan
 	}
 	state := newTurnState(ctx, handle)
 	state.model = modelOr(req.Model)
+	state.cwd = req.Cwd
 	// Open the turn span synchronously (before the goroutine launches and
 	// before the handle is returned) so st.ctx carries it for every later
 	// reader — runTurn, drive, resume, Cancel. The entry trace rode in via

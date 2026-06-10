@@ -187,9 +187,20 @@ func TestCompactor_CutBoundary(t *testing.T) {
 type stubMemoryService struct {
 	user    string
 	project string
+
+	// projectDir records the dir the last ScopeProject Get received —
+	// the per-session-cwd regression assertions read it.
+	projectDir string
 }
 
-func (s *stubMemoryService) Get(_ context.Context, scope lyramem.Scope) (string, error) {
+func (s *stubMemoryService) Get(_ context.Context, scope lyramem.Scope, dir string) (string, error) {
+	if scope == lyramem.ScopeProject {
+		s.projectDir = dir
+	}
+	return s.get(scope)
+}
+
+func (s *stubMemoryService) get(scope lyramem.Scope) (string, error) {
 	switch scope {
 	case lyramem.ScopeUser:
 		return s.user, nil
@@ -199,7 +210,7 @@ func (s *stubMemoryService) Get(_ context.Context, scope lyramem.Scope) (string,
 	return "", nil
 }
 
-func (s *stubMemoryService) Update(_ context.Context, scope lyramem.Scope, content string) error {
+func (s *stubMemoryService) Update(_ context.Context, scope lyramem.Scope, _ string, content string) error {
 	switch scope {
 	case lyramem.ScopeUser:
 		s.user = content
@@ -209,6 +220,17 @@ func (s *stubMemoryService) Update(_ context.Context, scope lyramem.Scope, conte
 	return nil
 }
 
-func (s *stubMemoryService) List(_ context.Context) ([]lyramem.Entry, error) {
+func (s *stubMemoryService) List(_ context.Context, _ string) ([]lyramem.Entry, error) {
 	return nil, nil
+}
+
+// TestComposePrompt_ProjectMemoryFollowsCwd — the project scope must
+// read the LYRA.md of the TURN's working directory (the per-session
+// cwd), not a directory fixed at construction time.
+func TestComposePrompt_ProjectMemoryFollowsCwd(t *testing.T) {
+	svc := &stubMemoryService{project: "project body"}
+	composePrompt(context.Background(), svc, "/projects/alpha")
+	if svc.projectDir != "/projects/alpha" {
+		t.Fatalf("project memory read dir = %q, want /projects/alpha", svc.projectDir)
+	}
 }
