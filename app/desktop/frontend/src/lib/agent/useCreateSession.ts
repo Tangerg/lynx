@@ -16,7 +16,7 @@ import { useSessionStore } from "@/state/sessionStore";
  * (an empty draft ready to type into); the welcome composer calls it with
  * the typed text, which the chat flushes on remount (useAgentSession).
  */
-async function doCreate(qc: QueryClient, firstMessage?: string): Promise<string | null> {
+async function createAndOpen(qc: QueryClient, firstMessage?: string): Promise<string | null> {
   try {
     const session = await getContainer().client().sessions.create({});
     const store = useSessionStore.getState();
@@ -33,6 +33,20 @@ async function doCreate(qc: QueryClient, firstMessage?: string): Promise<string 
     console.error("[session] create failed:", err);
     return null;
   }
+}
+
+// In-flight latch: every "New" entry point (rail "+", ⌘N, palette command,
+// welcome composer) fires bare, and sessions.create is a full round-trip — a
+// double-click inside that window would otherwise create two backend sessions
+// and two tabs. Re-entrant calls join the pending create instead.
+let inflight: Promise<string | null> | null = null;
+
+function doCreate(qc: QueryClient, firstMessage?: string): Promise<string | null> {
+  if (inflight) return inflight;
+  inflight = createAndOpen(qc, firstMessage).finally(() => {
+    inflight = null;
+  });
+  return inflight;
 }
 
 /** Imperative create for non-React callers (palette commands, keymap) — uses

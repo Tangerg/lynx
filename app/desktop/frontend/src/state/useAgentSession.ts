@@ -27,6 +27,10 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
   factoryRef.current = makeDriver;
 
   useEffect(() => {
+    // Welcome screen (no active session) mounts the kernel chat with an empty
+    // id — there is nothing to drive: no slice to seed, and items.list("")
+    // would just be a guaranteed-failing RPC on every mount.
+    if (!sessionId) return;
     const driver = factoryRef.current();
     const store = () => useAgentStore.getState();
 

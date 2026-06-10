@@ -25,6 +25,18 @@ function reset() {
   });
 }
 
+describe("selectTab returns the main pane to chat", () => {
+  beforeEach(reset);
+
+  it("clears activeMainView — selecting a session while a view is promoted must not no-op", () => {
+    expect(useSessionStore.getState().activeMainView).toBe("v2");
+    useSessionStore.getState().selectTab("s2");
+    const s = useSessionStore.getState();
+    expect(s.activeSessionId).toBe("s2");
+    expect(s.activeMainView).toBeNull();
+  });
+});
+
 describe("sessionStore multi-tab close (chat tabs)", () => {
   beforeEach(reset);
 

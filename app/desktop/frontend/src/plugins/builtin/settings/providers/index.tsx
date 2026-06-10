@@ -5,7 +5,7 @@
 // surfaces its models in the composer picker (models.list is per-provider).
 
 import type { ProviderInfo } from "@/lib/data/queries";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { DataView, Icon, ProviderIcon } from "@/components/common";
 import { useProviders } from "@/lib/data/queries";
 import { useConfigureProvider, useTestProvider } from "@/lib/agent/useProviderConfig";
@@ -22,12 +22,18 @@ function ProviderRow({ p }: { p: ProviderInfo }) {
   const [baseUrl, setBaseUrl] = useState(p.baseUrl);
   const [saving, setSaving] = useState(false);
   const [probe, setProbe] = useState<Probe>({ state: "idle" });
+  // Monotonic token guarding probe results: a Test fired against the OLD key
+  // can resolve after a Save reset the row — without the token the stale
+  // outcome would stamp itself over the new key's state. Save bumps it so
+  // any in-flight probe's result is discarded.
+  const probeSeq = useRef(0);
 
   const enabled = p.apiKeyMasked !== "";
   const dirty = apiKey.trim() !== "" || baseUrl !== p.baseUrl;
 
   const onSave = async () => {
     setSaving(true);
+    probeSeq.current++;
     setProbe({ state: "idle" });
     try {
       await configure({ provider: p.id, apiKey: apiKey.trim() || undefined, baseUrl });
@@ -40,11 +46,14 @@ function ProviderRow({ p }: { p: ProviderInfo }) {
   };
 
   const onTest = async () => {
+    const token = ++probeSeq.current;
     setProbe({ state: "busy" });
     try {
       const r = await test(p.id);
+      if (probeSeq.current !== token) return; // superseded by a save / newer test
       setProbe(r.ok ? { state: "ok" } : { state: "error", reason: r.error ?? "Test failed" });
     } catch (err) {
+      if (probeSeq.current !== token) return;
       setProbe({ state: "error", reason: err instanceof Error ? err.message : "Test failed" });
     }
   };

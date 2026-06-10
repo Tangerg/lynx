@@ -4,6 +4,8 @@
 // Lives outside the render tree so `ToolCard` can invoke it directly
 // without anyone passing a callback down through the chat panel.
 
+import type { ToolCall } from "@/protocol/run/viewState";
+import { toolCategory } from "@/protocol/run/viewState";
 import { getCurrentSessionView } from "./agentStore";
 import { useSessionStore } from "./sessionStore";
 
@@ -13,18 +15,25 @@ interface ViewRouting {
   icon: string;
 }
 
-// Choose which workspace view to surface for a given tool fn name. Each
-// branch sets up the side effects the view will rely on (e.g. active-file
-// path for the diff view).
-function routeForTool(fn: string, args: string): ViewRouting {
-  if (fn === "bash") {
+// toolLabel renders a multi-file edit as "N files" — not a path, so don't
+// feed it to the diff view's active-file focus.
+const MULTI_FILE_LABEL = /^\d+ files$/;
+
+// Choose which workspace view to surface for the clicked tool. Routing keys
+// on the WIRE identity (`tool.name` → §4.4.2 category) — `fn` is the display
+// label (the command string for bash, the path for edits), never the tool
+// name, so matching on it would route nothing. Each branch sets up the side
+// effects the view relies on (e.g. active-file path for the diff view).
+function routeForTool(tool: ToolCall): ViewRouting {
+  const category = toolCategory(tool.name);
+  if (category === "command") {
     return { id: "terminal", title: "Terminal", icon: "terminal" };
   }
-  if (fn === "edit_file" || fn === "write_file" || fn === "read_file") {
-    // Pull the path off the front of the args ("src/foo.ts …") so the
-    // diff view knows which file to render.
-    const m = args.match(/^([^\s(]+)/);
-    if (m && m[1]) useSessionStore.getState().setActiveFile(m[1]);
+  if (category === "fileEdit" || category === "read") {
+    // For these categories toolLabel surfaces the file path as `fn`.
+    if (tool.fn && !MULTI_FILE_LABEL.test(tool.fn)) {
+      useSessionStore.getState().setActiveFile(tool.fn);
+    }
     return { id: "diff", title: "Diff", icon: "diff" };
   }
   return { id: "diff", title: "Diff", icon: "diff" };
@@ -38,7 +47,7 @@ export function openViewForTool(toolId: string): void {
   const tool = getCurrentSessionView().toolCalls[toolId];
   if (!tool) return;
 
-  const view = routeForTool(tool.fn, String(tool.args));
+  const view = routeForTool(tool);
   const ui = useSessionStore.getState();
   ui.setSelectedToolId(toolId);
   ui.openMainView(view);

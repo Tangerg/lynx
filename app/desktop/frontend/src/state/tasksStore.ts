@@ -71,6 +71,12 @@ const TASK_LINGER_MS = 2400;
 export function startTask(pluginName: string, opts: TaskStartOptions): TaskHandle {
   const store = useTasksStore.getState();
   const id = opts.id ?? `task:${pluginName}:${nanoid(8)}`;
+  // Generation stamp: ids are a supported cross-call handle, so a restart can
+  // reuse this id with a FRESH entry. The old handle (and its timers) must
+  // only ever touch the generation it created — startedAt is the marker.
+  const startedAt = Date.now();
+  const isMine = (cur: TaskEntry | undefined): cur is TaskEntry =>
+    cur !== undefined && cur.startedAt === startedAt;
 
   store.add({
     id,
@@ -79,22 +85,29 @@ export function startTask(pluginName: string, opts: TaskStartOptions): TaskHandl
     message: opts.message ?? null,
     progress: opts.progress ?? null,
     status: "running",
-    startedAt: Date.now(),
+    startedAt,
   });
 
   // Mark settled + schedule removal. Guards against double-settle so a
   // late `succeed()` after `fail()` (or vice versa) is a silent no-op.
   const settle = (status: "succeeded" | "failed", patch: Partial<TaskEntry>): void => {
     const cur = useTasksStore.getState().tasks.get(id);
-    if (!cur || cur.status !== "running") return;
-    useTasksStore.getState().patch(id, { ...patch, status, settledAt: Date.now() });
-    window.setTimeout(() => useTasksStore.getState().remove(id), TASK_LINGER_MS);
+    if (!isMine(cur) || cur.status !== "running") return;
+    const settledAt = Date.now();
+    useTasksStore.getState().patch(id, { ...patch, status, settledAt });
+    // The linger timer removes only THE settle it was armed for — a
+    // restarted task reusing this id must not be deleted mid-flight by the
+    // previous settle's stale timer.
+    window.setTimeout(() => {
+      const latest = useTasksStore.getState().tasks.get(id);
+      if (isMine(latest) && latest.settledAt === settledAt) useTasksStore.getState().remove(id);
+    }, TASK_LINGER_MS);
   };
 
   return {
     update(patch) {
       const cur = useTasksStore.getState().tasks.get(id);
-      if (!cur || cur.status !== "running") return;
+      if (!isMine(cur) || cur.status !== "running") return;
       useTasksStore.getState().patch(id, {
         progress: patch.progress === undefined ? cur.progress : patch.progress,
         message: patch.message === undefined ? cur.message : patch.message,

@@ -77,4 +77,22 @@ describe("useCreateSession", () => {
     await expect(result.current("x")).resolves.toBeNull();
     expect(useSessionStore.getState().activeSessionId).toBe("");
   });
+
+  it("re-entrant calls join the in-flight create (double-click ≠ two sessions)", async () => {
+    // sessions.create is a round-trip; a second "New" click inside that
+    // window must not create a second backend session + tab.
+    let release!: (v: ReturnType<typeof fakeSession>) => void;
+    const create = vi.fn(() => new Promise<ReturnType<typeof fakeSession>>((r) => (release = r)));
+    stubCreate(create as unknown as Methods["sessions"]["create"]);
+    const { result } = renderHook(() => useCreateSession(), { wrapper });
+
+    const first = result.current();
+    const second = result.current(); // joins, does not re-fire
+    release(fakeSession("new-3"));
+
+    expect(await first).toBe("new-3");
+    expect(await second).toBe("new-3");
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(useSessionStore.getState().tabIds).toEqual(["new-3"]);
+  });
 });

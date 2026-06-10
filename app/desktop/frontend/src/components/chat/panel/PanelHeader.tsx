@@ -47,19 +47,14 @@ export function PanelHeader() {
       tabs={openTabs}
       viewTabs={mainViewTabs}
       activeId={headerActiveId}
-      onSelectChat={selectChat}
+      // selectTab itself clears activeMainView (sessionStore) — the
+      // return-to-chat behavior is uniform across every entry point
+      // (this strip, sidebar rows, Cmd+1..9, ⌘N).
+      onSelectChat={(id) => useSessionStore.getState().selectTab(id)}
       onCloseChat={(id) => useSessionStore.getState().closeTab(id)}
       onSelectView={(id) => useSessionStore.getState().selectMainView(id)}
       onCloseView={(id) => useSessionStore.getState().closeMainView(id)}
       closeActionsFor={headerTabCloseActionsFor}
     />
   );
-}
-
-// Switching to a chat session has to clear `activeMainView` first so the
-// workspace-view tab doesn't stay focused.
-function selectChat(id: string) {
-  const ui = useSessionStore.getState();
-  ui.selectChat();
-  ui.selectTab(id);
 }

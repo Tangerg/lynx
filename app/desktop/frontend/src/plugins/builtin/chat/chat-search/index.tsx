@@ -11,6 +11,7 @@ import { Icon, Tooltip } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { SHORTCUT } from "@/plugins/sdk/kernelPoints";
+import { useSessionStore } from "@/state/sessionStore";
 
 const OPEN_EVENT = "lyra.chat-search.open";
 
@@ -82,6 +83,15 @@ function ChatSearchOverlay() {
     window.addEventListener(OPEN_EVENT, open);
     return () => window.removeEventListener(OPEN_EVENT, open);
   }, []);
+
+  // Close on session switch: the held Ranges point into the OLD session's
+  // (now unmounted) message DOM — the count would lie about the visible chat,
+  // navigation would silently no-op on detached nodes, and the Ranges would
+  // pin the unmounted subtree in memory until the next keystroke.
+  const activeSessionId = useSessionStore((s) => s.activeSessionId);
+  useEffect(() => {
+    setOpen(false);
+  }, [activeSessionId]);
 
   // Focus input when the overlay opens.
   useEffect(() => {

@@ -151,7 +151,7 @@ function MessageBlockInner({
               heading" affordance, and the per-token MutationObserver
               rebuild used to compete with use-stick-to-bottom and cause
               the chat to snap back during streaming. */}
-          {isAgent && !isStreaming && <MessageOutline target={contentRef} />}
+          {isAgent && !isStreaming && <MessageOutline target={contentRef} scopeId={msg.id} />}
         </div>
       </CitationContext.Provider>
     </MessageContext.Provider>
