@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
@@ -74,19 +75,11 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 	return nil
 }
 
-// UpdateSession applies a sessions.update edit. Title (rename) and model are
-// live; cwd-relocate and metadata edits aren't backed yet and report
-// capability_not_negotiated (features.relocate off). Nil fields are left alone;
-// the updated session is returned. The dispatch layer already rejects an empty
-// SessionID.
+// UpdateSession applies a sessions.update edit: title (rename), model,
+// cwd (relocate, gated by features.relocate) and metadata (full replace) are
+// all live. Nil fields are left alone; the updated session is returned. The
+// dispatch layer already rejects an empty SessionID.
 func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionRequest) (*protocol.Session, error) {
-	if in.Cwd != nil {
-		return nil, notImpl("sessions.update (relocate)")
-	}
-	if in.Metadata != nil {
-		return nil, notImpl("sessions.update (metadata)")
-	}
-
 	if in.Title != nil {
 		title := strings.TrimSpace(*in.Title)
 		if title == "" {
@@ -98,6 +91,22 @@ func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionReq
 	}
 	if in.Model != nil {
 		if err := s.rt.Session().SetModel(ctx, in.SessionID, *in.Model); err != nil {
+			return nil, wireSessionErr(err)
+		}
+	}
+	if in.Cwd != nil {
+		// Relocate to a real, existing directory — a stale path would silently
+		// break every later run's tool/memory resolution, so reject it now.
+		info, err := os.Stat(*in.Cwd)
+		if err != nil || !info.IsDir() {
+			return nil, fmt.Errorf("%w: %s", protocol.ErrCwdUnavailable, *in.Cwd)
+		}
+		if err := s.rt.Session().SetCwd(ctx, in.SessionID, *in.Cwd); err != nil {
+			return nil, wireSessionErr(err)
+		}
+	}
+	if in.Metadata != nil {
+		if err := s.rt.Session().SetMetadata(ctx, in.SessionID, *in.Metadata); err != nil {
 			return nil, wireSessionErr(err)
 		}
 	}
@@ -125,18 +134,11 @@ func (s *Server) ExportSession(_ context.Context, _ protocol.ExportSessionReques
 
 // sessionToWire converts the internal session shape into the wire shape.
 // Status is synthesized (internal sessions don't track running/waiting/
-// idle yet → idle). Metadata widens map[string]string → map[string]any.
-// Model falls back to the runtime default when the session never explicitly
-// selected one, so the wire always carries a real model name (the frontend
-// resolves the assistant's displayName from it).
+// idle yet → idle). Model falls back to the runtime default when the session
+// never explicitly selected one, so the wire always carries a real model name
+// (the frontend resolves the assistant's displayName from it).
 func (s *Server) sessionToWire(ses session.Session) protocol.Session {
-	var meta map[string]any
-	if len(ses.Metadata) > 0 {
-		meta = make(map[string]any, len(ses.Metadata))
-		for k, v := range ses.Metadata {
-			meta[k] = v
-		}
-	}
+	meta := ses.Metadata
 	if meta == nil {
 		meta = map[string]any{} // Session.metadata is an object, never null (API.md §4.1)
 	}

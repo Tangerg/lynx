@@ -130,7 +130,7 @@ func Capabilities(rt RuntimeServices) protocol.ServerCapabilities {
 			"background":    false,
 			"subagents":     false,
 			"sessionExport": false,
-			"relocate":      false,
+			"relocate":      true, // sessions.update cwd-relocate
 			"clientTools":   false,
 			"attachments":   protocol.AttachmentLimits{Enabled: false},
 		},

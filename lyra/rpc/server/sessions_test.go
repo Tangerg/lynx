@@ -72,9 +72,30 @@ func TestUpdateSession(t *testing.T) {
 		t.Errorf("unknown id err = %v, want ErrSessionNotFound", err)
 	}
 
-	// cwd relocate is gated off → capability_not_negotiated
-	cwd := "/elsewhere"
-	if _, err := s.UpdateSession(ctx, protocol.UpdateSessionRequest{SessionID: created.ID, Cwd: &cwd}); !errors.Is(err, protocol.ErrCapabilityNotNeg) {
-		t.Errorf("relocate err = %v, want ErrCapabilityNotNeg", err)
+	// relocate to a non-existent dir → cwd_unavailable (a stale path would
+	// silently break later runs)
+	ghost := "/no/such/dir"
+	if _, err := s.UpdateSession(ctx, protocol.UpdateSessionRequest{SessionID: created.ID, Cwd: &ghost}); !errors.Is(err, protocol.ErrCwdUnavailable) {
+		t.Errorf("relocate to ghost err = %v, want ErrCwdUnavailable", err)
+	}
+
+	// relocate to a real dir → cwd surfaces on the wire
+	newCwd := t.TempDir()
+	out, err = s.UpdateSession(ctx, protocol.UpdateSessionRequest{SessionID: created.ID, Cwd: &newCwd})
+	if err != nil {
+		t.Fatalf("relocate: %v", err)
+	}
+	if out.Cwd != newCwd {
+		t.Errorf("Cwd = %q, want relocated %q", out.Cwd, newCwd)
+	}
+
+	// metadata is full-replaced and round-trips arbitrary JSON values
+	meta := map[string]any{"pinned": true, "n": float64(3)}
+	out, err = s.UpdateSession(ctx, protocol.UpdateSessionRequest{SessionID: created.ID, Metadata: &meta})
+	if err != nil {
+		t.Fatalf("set metadata: %v", err)
+	}
+	if out.Metadata["pinned"] != true || out.Metadata["n"] != float64(3) {
+		t.Errorf("Metadata = %+v, want {pinned:true, n:3}", out.Metadata)
 	}
 }

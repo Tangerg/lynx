@@ -46,7 +46,7 @@ type Session struct {
 	StartedAt time.Time
 	UpdatedAt time.Time
 	TurnCount int
-	Metadata  map[string]string
+	Metadata  map[string]any // free-form, full-replaced by sessions.update (API.md §4.1, an object)
 }
 
 // EffectiveModel returns the model the session should report on the wire.
@@ -79,7 +79,7 @@ func (s Session) Fork(id, atMessageID string, now time.Time) Session {
 		ParentID:  s.ID,
 		StartedAt: now,
 		UpdatedAt: now,
-		Metadata:  map[string]string{ForkAtMessageIDKey: atMessageID},
+		Metadata:  map[string]any{ForkAtMessageIDKey: atMessageID},
 	}
 }
 
@@ -161,4 +161,16 @@ type Service interface {
 	// responsible for rejecting empty titles; this records whatever it is
 	// given. Returns ErrNotFound for an unknown id.
 	Rename(ctx context.Context, id, title string) error
+
+	// SetCwd relocates the session's working-directory identity (API.md §7.2
+	// relocate): subsequent runs resolve tools and memory against the new cwd;
+	// existing history is untouched. The caller validates the cwd exists
+	// (cwd_unavailable is its concern); this records whatever it is given.
+	// Returns ErrNotFound for an unknown id.
+	SetCwd(ctx context.Context, id, cwd string) error
+
+	// SetMetadata full-replaces the session's free-form metadata (API.md §7.2
+	// — "全替换") and refreshes UpdatedAt. A nil map clears it. Returns
+	// ErrNotFound for an unknown id.
+	SetMetadata(ctx context.Context, id string, meta map[string]any) error
 }

@@ -34,7 +34,7 @@ func TestSessionFork(t *testing.T) {
 		Cwd:       "/work/proj",
 		Model:     "claude-opus-4-8",
 		TurnCount: 9,
-		Metadata:  map[string]string{"k": "v"},
+		Metadata:  map[string]any{"k": "v"},
 	}
 
 	child := parent.Fork("ses_child", "msg-7", now)
