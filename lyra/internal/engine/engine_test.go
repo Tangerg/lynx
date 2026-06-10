@@ -19,6 +19,64 @@ import (
 // "shared store" rather than spelling out the lynx package twice.
 func memoryNewInMemoryStore() memory.Store { return memory.NewInMemoryStore() }
 
+// toolCountStubModel records how many tools were offered on its first request,
+// then replies with text — so a test can assert what the tool resolver handed
+// the model for a given turn mode.
+type toolCountStubModel struct {
+	defaults  *chat.Options
+	firstSeen int
+	once      sync.Once
+}
+
+func newToolCountStubModel() *toolCountStubModel {
+	opts, _ := chat.NewOptions("stub-toolcount")
+	return &toolCountStubModel{defaults: opts}
+}
+
+func (m *toolCountStubModel) DefaultOptions() chat.Options { return *m.defaults }
+func (m *toolCountStubModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
+
+func (m *toolCountStubModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
+	m.once.Do(func() { m.firstSeen = len(req.Tools) })
+	return responseWithText("ok")
+}
+
+func (m *toolCountStubModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
+	resp, err := m.Call(ctx, req)
+	return func(yield func(*chat.Response, error) bool) { yield(resp, err) }
+}
+
+// TestEngine_RunChat_ChatModeIsToolless proves runs.start mode=chat resolves
+// to an empty tool set: the same engine offers the coding tools on a default
+// turn but none on a ChatMode turn.
+func TestEngine_RunChat_ChatModeIsToolless(t *testing.T) {
+	build := func() (*Engine, *toolCountStubModel) {
+		stub := newToolCountStubModel()
+		client, _ := chat.NewClient(stub)
+		eng, err := New(context.Background(), Config{ChatClient: client})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return eng, stub
+	}
+
+	agentEng, agentStub := build()
+	if _, err := agentEng.RunChat(context.Background(), RunChatRequest{Message: "hi"}); err != nil {
+		t.Fatalf("agent-mode RunChat: %v", err)
+	}
+	if agentStub.firstSeen == 0 {
+		t.Fatalf("agent mode offered 0 tools, want the coding set")
+	}
+
+	chatEng, chatStub := build()
+	if _, err := chatEng.RunChat(context.Background(), RunChatRequest{Message: "hi", ChatMode: true}); err != nil {
+		t.Fatalf("chat-mode RunChat: %v", err)
+	}
+	if chatStub.firstSeen != 0 {
+		t.Fatalf("chat mode offered %d tools, want 0 (tool-less)", chatStub.firstSeen)
+	}
+}
+
 // TestEngine_RunChat_ToolCallObserved drives the engine with a stub
 // model that asks for a `bash` tool call (echo lyra), then returns a
 // final text mentioning the captured output. The observer must see

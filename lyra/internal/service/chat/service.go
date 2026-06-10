@@ -48,6 +48,10 @@ type StartTurnRequest struct {
 	// TBD) or cancels. M6 milestone.
 	PlanMode bool
 
+	// ChatMode runs the turn tool-less (runs.start mode=chat): a plain
+	// single-round LLM exchange with no filesystem / bash / delegation tools.
+	ChatMode bool
+
 	// MaxBudget caps the total tokens (prompt + completion) the turn
 	// may spend across its tool-loop rounds. 0 means unlimited. On
 	// overrun the turn stops cleanly after the current round and ends

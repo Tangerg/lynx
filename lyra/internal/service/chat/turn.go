@@ -175,6 +175,7 @@ func (s *inMemory) runTurn(req StartTurnRequest, st *turnState) {
 		MaxBudget:     req.MaxBudget,
 		MaxCostUSD:    req.MaxCostUSD,
 		PlanMode:      req.PlanMode,
+		ChatMode:      req.ChatMode,
 		ChatClient:    client,
 		Observer:      observer,
 		EventListener: st.lifecycle.listener(st.handle.TurnID),
