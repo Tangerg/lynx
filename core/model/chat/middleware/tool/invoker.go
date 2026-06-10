@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/core/model/chat"
+	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
 
 // invocationResult is what the tool-calling middleware emits after
@@ -109,9 +110,10 @@ func (r *invocationResult) validate() error {
 	return nil
 }
 
-// callInvoker drives one round of tool invocations: validate every
-// requested tool, execute each in order, and assemble the
-// [*invocationResult].
+// invoker drives the tool-calling loop's per-round work for both the
+// call and stream paths: it owns the loop's tool [registry], decides
+// return-direct, validates every requested tool, executes each in
+// order, and assembles the [*invocationResult].
 //
 // Error policy (no knobs — this is the framework default): a tool failure is
 // recoverable UNLESS it's a control-flow signal. A control-flow error
@@ -123,27 +125,77 @@ func (r *invocationResult) validate() error {
 // outcome at the source: fold a failure into the result string for full
 // control over the wording, or just return an ordinary error and let the loop
 // wrap it. See [chat.Tool.Call].
-type callInvoker struct {
+type invoker struct {
 	registry *registry
 }
 
-// newCallInvoker pairs an invoker with its registry.
-func newCallInvoker(registry *registry) *callInvoker {
-	return &callInvoker{registry: registry}
+// newInvoker builds an invoker backed by a fresh registry.
+// capacityHint, if positive, preallocates the registry's backing map.
+func newInvoker(capacityHint ...int) *invoker {
+	return &invoker{registry: newRegistry(capacityHint...)}
+}
+
+// register adds tools to the loop's registry, keyed by definition name.
+func (i *invoker) register(tools ...chat.Tool) {
+	i.registry.register(tools...)
+}
+
+// shouldReturnDirect reports whether the conversation should end with
+// the most recent tool message (no further LLM round). It is true only
+// when:
+//   - the last message is a [*chat.ToolMessage], AND
+//   - every tool referenced in that message is registered, AND
+//   - every such tool has ReturnDirect = true.
+func (i *invoker) shouldReturnDirect(msgs []chat.Message) bool {
+	last, ok := pkgSlices.Last(msgs)
+	if !ok {
+		return false
+	}
+	toolMsg, ok := last.(*chat.ToolMessage)
+	if !ok {
+		return false
+	}
+
+	for _, ret := range toolMsg.ToolReturns {
+		t, exists := i.registry.find(ret.Name)
+		if !exists {
+			return false
+		}
+		if !t.Metadata().ReturnDirect {
+			return false
+		}
+	}
+	return true
+}
+
+// buildReturnDirectResponse assembles a synthetic [*chat.Response] that wraps
+// the last [*chat.ToolMessage] as the final answer. Returns an error when
+// [invoker.shouldReturnDirect] would return false.
+func (i *invoker) buildReturnDirectResponse(msgs []chat.Message) (*chat.Response, error) {
+	if !i.shouldReturnDirect(msgs) {
+		return nil, errors.New("tool.invoker.buildReturnDirectResponse: conditions for return-direct are not met")
+	}
+	last, _ := pkgSlices.Last(msgs)
+
+	assistantMsg := chat.NewAssistantMessage(map[string]any{
+		"created_by": chat.FinishReasonReturnDirect.String(),
+	})
+	// shouldReturnDirect already verified the tail is a *chat.ToolMessage.
+	return toolRoundResponse(assistantMsg, last.(*chat.ToolMessage), chat.FinishReasonReturnDirect)
 }
 
 // canInvokeToolCalls reports whether the response carries tool calls to run.
 // Unknown tool names are NOT rejected here — they are tolerated and turned
 // into error results by invokeToolCalls (the model named a tool that doesn't
 // exist; that's recoverable feedback, not a reason to abort the run).
-func (i *callInvoker) canInvokeToolCalls(resp *chat.Response) bool {
+func (i *invoker) canInvokeToolCalls(resp *chat.Response) bool {
 	return resp.Result != nil && resp.Result.AssistantMessage.HasToolCalls()
 }
 
 // unknownToolResult is the synthetic tool result the invoker feeds back to the
 // model when it calls a tool that isn't registered. It names the missing tool
 // and lists the invoker's registered tools so the model can recover.
-func (i *callInvoker) unknownToolResult(name string) string {
+func (i *invoker) unknownToolResult(name string) string {
 	available := i.registry.names()
 	slices.Sort(available)
 	if len(available) == 0 {
@@ -157,7 +209,7 @@ func (i *callInvoker) unknownToolResult(name string) string {
 // and can adjust instead of the whole request aborting. The error string is
 // the tool's own (already wrapped by the tool); the invoker does not add its
 // internal call path.
-func (i *callInvoker) toolErrorResult(name string, err error) string {
+func (i *invoker) toolErrorResult(name string, err error) string {
 	return fmt.Sprintf("error: tool %q failed: %s", name, err.Error())
 }
 
@@ -199,10 +251,10 @@ func nextRoundRequest(req *chat.Request, assistant *chat.AssistantMessage, toolM
 // context cancellation / deadline (the run is being torn down), and a
 // [chat.ToolHalt] whose Abort() is true — a fatal failure the model can't fix.
 // (A ToolHalt whose Abort() is false is a HITL interrupt — see
-// [callInvoker.interruptsToolLoop] — which also propagates but parks rather
+// [invoker.interruptsToolLoop] — which also propagates but parks rather
 // than fails.) Together with interruptsToolLoop it is the invoker's tool-error
 // classification policy; stateless but owned by the invoker that applies it.
-func (i *callInvoker) abortsToolLoop(err error) bool {
+func (i *invoker) abortsToolLoop(err error) bool {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}
@@ -217,7 +269,7 @@ func (i *callInvoker) abortsToolLoop(err error) bool {
 // loop continues AT the still-pending call (the model is not re-invoked for
 // that round). agent/hitl.InterruptError is the reference implementation; the
 // contract is duck-typed so this package never imports agent.
-func (i *callInvoker) interruptsToolLoop(err error) bool {
+func (i *invoker) interruptsToolLoop(err error) bool {
 	h, ok := errors.AsType[chat.ToolHalt](err)
 	return ok && !h.Abort()
 }
@@ -226,7 +278,7 @@ func (i *callInvoker) interruptsToolLoop(err error) bool {
 // results into a single [*chat.ToolMessage]. One child span per tool call
 // is emitted under the parent chat span, tagged with `gen_ai.tool.*`
 // attributes — see [toolTracer] / doc/OBSERVABILITY.md §4.5.
-func (i *callInvoker) invokeToolCalls(ctx context.Context, calls []*chat.ToolCallPart) (*invocationResult, error) {
+func (i *invoker) invokeToolCalls(ctx context.Context, calls []*chat.ToolCallPart) (*invocationResult, error) {
 	allReturnDirect := true
 	returns := make([]*chat.ToolReturn, 0, len(calls))
 
@@ -261,7 +313,7 @@ func (i *callInvoker) invokeToolCalls(ctx context.Context, calls []*chat.ToolCal
 				}, nil
 			}
 			if i.abortsToolLoop(err) {
-				return nil, fmt.Errorf("tool.callInvoker.invokeToolCalls: tool %q failed: %w", call.Name, err)
+				return nil, fmt.Errorf("tool.invoker.invokeToolCalls: tool %q failed: %w", call.Name, err)
 			}
 			// Recoverable failure: feed it back to the model as the tool's
 			// result so it can adjust and continue, rather than aborting the
@@ -288,7 +340,7 @@ func (i *callInvoker) invokeToolCalls(ctx context.Context, calls []*chat.ToolCal
 
 	toolMsg, err := chat.NewToolMessage(returns)
 	if err != nil {
-		return nil, fmt.Errorf("tool.callInvoker.invokeToolCalls: %w", err)
+		return nil, fmt.Errorf("tool.invoker.invokeToolCalls: %w", err)
 	}
 
 	return &invocationResult{
@@ -302,7 +354,7 @@ func (i *callInvoker) invokeToolCalls(ctx context.Context, calls []*chat.ToolCal
 // adds the error to the span and sets span status before
 // re-throwing the underlying error to the caller. No-op overhead
 // when no TracerProvider is configured.
-func (i *callInvoker) invokeOne(ctx context.Context, t chat.Tool, call *chat.ToolCallPart) (string, error) {
+func (i *invoker) invokeOne(ctx context.Context, t chat.Tool, call *chat.ToolCallPart) (string, error) {
 	ctx, span := toolTracer.Start(ctx, "tool.invoke "+call.Name,
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -329,9 +381,9 @@ func (i *callInvoker) invokeOne(ctx context.Context, t chat.Tool, call *chat.Too
 }
 
 // invoke is the orchestrator: validate, run, attach context.
-func (i *callInvoker) invoke(ctx context.Context, req *chat.Request, resp *chat.Response) (*invocationResult, error) {
+func (i *invoker) invoke(ctx context.Context, req *chat.Request, resp *chat.Response) (*invocationResult, error) {
 	if !i.canInvokeToolCalls(resp) {
-		return nil, errors.New("tool.callInvoker.invoke: response has no valid tool calls")
+		return nil, errors.New("tool.invoker.invoke: response has no valid tool calls")
 	}
 
 	result, err := i.invokeToolCalls(ctx, resp.Result.AssistantMessage.CollectToolCalls())

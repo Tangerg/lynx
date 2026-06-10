@@ -302,27 +302,27 @@ func (interruptErr) Abort() bool   { return false }
 // TestToolRegistry_Lifecycle covers the mutation surface — register
 // (nil-tolerant), find, names.
 func TestToolRegistry_Lifecycle(t *testing.T) {
-	support := newSupport()
+	inv := newInvoker()
 
 	a := mustNewTool(t, "alpha")
 	b := mustNewTool(t, "beta")
-	support.register(a, b, nil) // nil silently dropped
+	inv.register(a, b, nil) // nil silently dropped
 
-	if got, ok := support.registry.find("alpha"); !ok || got.Definition().Name != "alpha" {
+	if got, ok := inv.registry.find("alpha"); !ok || got.Definition().Name != "alpha" {
 		t.Fatalf("Find returned (%v,%v)", got, ok)
 	}
-	if names := support.registry.names(); len(names) != 2 {
+	if names := inv.registry.names(); len(names) != 2 {
 		t.Fatalf("Names len = %d", len(names))
 	}
 }
 
 func TestToolRegistry_Register_DuplicatesIgnored(t *testing.T) {
-	support := newSupport()
+	inv := newInvoker()
 	a := mustNewTool(t, "alpha")
 	b := mustNewTool(t, "alpha") // same name
 
-	support.register(a, b)
-	if names := support.registry.names(); len(names) != 1 {
+	inv.register(a, b)
+	if names := inv.registry.names(); len(names) != 1 {
 		t.Fatalf("names = %v, want 1 entry (duplicate names silently dropped)", names)
 	}
 }
@@ -331,19 +331,19 @@ func TestToolRegistry_Register_DuplicatesIgnored(t *testing.T) {
 // happy path: an inline tool runs and the result message is built so
 // the runtime can re-prompt the LLM.
 func TestToolSupport_InvokeToolCalls_InternalReturnsForLLM(t *testing.T) {
-	support := newSupport()
-	support.register(mustNewCallable(t, "echo", false, func(_ context.Context, args string) (string, error) {
+	inv := newInvoker()
+	inv.register(mustNewCallable(t, "echo", false, func(_ context.Context, args string) (string, error) {
 		return "echoed:" + args, nil
 	}))
 
 	resp := responseWithToolCall(t, "echo", "args")
 	req := mustNewRequest(t)
 
-	if !support.shouldInvokeToolCalls(resp) {
+	if !inv.canInvokeToolCalls(resp) {
 		t.Fatal("shouldInvokeToolCalls = false, want true")
 	}
 
-	result, err := support.invokeToolCalls(context.Background(), req, resp)
+	result, err := inv.invoke(context.Background(), req, resp)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -374,15 +374,15 @@ func TestToolSupport_InvokeToolCalls_InternalReturnsForLLM(t *testing.T) {
 // other branch: a tool with ReturnDirect=true should not trigger an
 // LLM follow-up.
 func TestToolSupport_InvokeToolCalls_ReturnDirectShortCircuits(t *testing.T) {
-	support := newSupport()
-	support.register(mustNewCallable(t, "direct", true, func(context.Context, string) (string, error) {
+	inv := newInvoker()
+	inv.register(mustNewCallable(t, "direct", true, func(context.Context, string) (string, error) {
 		return "ok", nil
 	}))
 
 	resp := responseWithToolCall(t, "direct", "")
 	req := mustNewRequest(t)
 
-	result, err := support.invokeToolCalls(context.Background(), req, resp)
+	result, err := inv.invoke(context.Background(), req, resp)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -402,14 +402,14 @@ func TestToolSupport_InvokeToolCalls_ReturnDirectShortCircuits(t *testing.T) {
 // unregistered tool is tolerated (not a hard error) and answered with an error
 // result naming it, so the model can self-correct instead of the run aborting.
 func TestToolSupport_InvokeToolCalls_UnknownToolFedBack(t *testing.T) {
-	support := newSupport()
+	inv := newInvoker()
 	resp := responseWithToolCall(t, "missing", "")
 
-	if !support.shouldInvokeToolCalls(resp) {
+	if !inv.canInvokeToolCalls(resp) {
 		t.Fatal("unknown tool should be tolerated, got shouldInvokeToolCalls = false")
 	}
 
-	result, err := support.invokeToolCalls(context.Background(), mustNewRequest(t), resp)
+	result, err := inv.invoke(context.Background(), mustNewRequest(t), resp)
 	if err != nil {
 		t.Fatalf("unknown tool must not propagate as an error: %v", err)
 	}
@@ -422,13 +422,13 @@ func TestToolSupport_InvokeToolCalls_UnknownToolFedBack(t *testing.T) {
 // tool that returns an ordinary error fails RECOVERABLY — the error text is
 // fed back as the tool result, the run does not abort.
 func TestToolSupport_InvokeToolCalls_RecoverableFailureFedBack(t *testing.T) {
-	support := newSupport()
-	support.register(mustNewCallable(t, "fail", false, func(context.Context, string) (string, error) {
+	inv := newInvoker()
+	inv.register(mustNewCallable(t, "fail", false, func(context.Context, string) (string, error) {
 		return "", errors.New("tool blew up")
 	}))
 
 	resp := responseWithToolCall(t, "fail", "")
-	result, err := support.invokeToolCalls(context.Background(), mustNewRequest(t), resp)
+	result, err := inv.invoke(context.Background(), mustNewRequest(t), resp)
 	if err != nil {
 		t.Fatalf("a recoverable failure must be fed back, not propagated: %v", err)
 	}
@@ -438,8 +438,8 @@ func TestToolSupport_InvokeToolCalls_RecoverableFailureFedBack(t *testing.T) {
 }
 
 func TestToolSupport_ShouldReturnDirect_RequiresAllReturnDirect(t *testing.T) {
-	support := newSupport()
-	support.register(
+	inv := newInvoker()
+	inv.register(
 		mustNewCallable(t, "a", true, nil),
 		mustNewCallable(t, "b", false, nil),
 	)
@@ -451,20 +451,20 @@ func TestToolSupport_ShouldReturnDirect_RequiresAllReturnDirect(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if support.shouldReturnDirect([]chat.Message{tm}) {
+	if inv.shouldReturnDirect([]chat.Message{tm}) {
 		t.Fatal("any non-return-direct tool must veto direct return")
 	}
 }
 
 func TestToolSupport_ShouldReturnDirect_AllDirect(t *testing.T) {
-	support := newSupport()
-	support.register(mustNewCallable(t, "a", true, nil))
+	inv := newInvoker()
+	inv.register(mustNewCallable(t, "a", true, nil))
 
 	tm, err := chat.NewToolMessage([]*chat.ToolReturn{{ID: "1", Name: "a", Result: "ok"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !support.shouldReturnDirect([]chat.Message{tm}) {
+	if !inv.shouldReturnDirect([]chat.Message{tm}) {
 		t.Fatal("all return-direct tools must allow direct return")
 	}
 }
@@ -473,13 +473,13 @@ func TestToolSupport_ShouldReturnDirect_AllDirect(t *testing.T) {
 // the contract: a ToolLoopAbort error is NOT fed back — it propagates and
 // stops the loop, so genuinely unrecoverable failures end the run.
 func TestToolSupport_InvokeToolCalls_AbortErrorPropagates(t *testing.T) {
-	support := newSupport()
-	support.register(mustNewCallable(t, "fatal", false, func(context.Context, string) (string, error) {
+	inv := newInvoker()
+	inv.register(mustNewCallable(t, "fatal", false, func(context.Context, string) (string, error) {
 		return "", abortErr{}
 	}))
 
 	resp := responseWithToolCall(t, "fatal", "")
-	if _, err := support.invokeToolCalls(context.Background(), mustNewRequest(t), resp); err == nil {
+	if _, err := inv.invoke(context.Background(), mustNewRequest(t), resp); err == nil {
 		t.Fatal("a ToolLoopAbort error must propagate (abort the loop), got nil")
 	}
 }
