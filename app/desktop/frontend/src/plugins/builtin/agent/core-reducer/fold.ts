@@ -238,7 +238,7 @@ export function writeToolCall(
     // reconciles `result` to the authoritative value once the completed Item
     // carries it (command result.output / generic tool.result). While the
     // item is still running neither is present, so the toolOutput-delta
-    // accumulation stands (API.md §5.2, docs/protocol/TOOL_OUTPUT.md).
+    // accumulation stands (API.md §4.4.1 + §5.2).
     result: prev?.result,
     // Surface the tool-level failure reason (§8.1 channel b) so an "err" tool
     // tells the user *why*, not just that it went red.
