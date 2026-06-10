@@ -84,10 +84,25 @@ func NewReader(src io.ReaderAt, size int64, opts ...Option) (*Reader, error) {
 
 // Read parses the source and emits documents according to the
 // configured mode. ctx cancellation is honored between pages.
-func (r *Reader) Read(ctx context.Context) ([]*document.Document, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
+//
+// Pages that fail to parse are skipped (their errors are joined into
+// the returned error only when NO page yielded text); a document-level
+// parse failure returns an error. Both guard against the upstream
+// library's panic-on-malformed-input style — see [pageText].
+func (r *Reader) Read(ctx context.Context) (docs []*document.Document, err error) {
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, ctxErr
 	}
+	// ledongthuc/pdf (following rsc/pdf) reports malformed input by
+	// panicking deep in the parser, and only its GetPlainText path
+	// recovers internally. Convert document-level panics (trailer /
+	// xref parsing in NewReader, NumPage) into errors at the module
+	// boundary so a corrupt PDF can't crash the caller.
+	defer func() {
+		if rec := recover(); rec != nil {
+			docs, err = nil, fmt.Errorf("pdf: malformed document: %v", rec)
+		}
+	}()
 	pdfReader, err := r.openReader()
 	if err != nil {
 		return nil, err
@@ -116,7 +131,7 @@ func (r *Reader) openReader() (*ledongthuc.Reader, error) {
 }
 
 func (r *Reader) readWhole(ctx context.Context, pdfReader *ledongthuc.Reader, total int) ([]*document.Document, error) {
-	body, err := readAllText(ctx, pdfReader)
+	body, err := readAllText(ctx, pdfReader, total)
 	if err != nil {
 		return nil, err
 	}
@@ -134,17 +149,20 @@ func (r *Reader) readWhole(ctx context.Context, pdfReader *ledongthuc.Reader, to
 
 func (r *Reader) readPages(ctx context.Context, pdfReader *ledongthuc.Reader, total int) ([]*document.Document, error) {
 	docs := make([]*document.Document, 0, total)
+	// fonts caches parsed font charmaps across pages — GetPlainText
+	// rebuilds every font per call when handed nil.
+	fonts := make(map[string]*ledongthuc.Font)
+	var pageErrs []error
 	for i := 1; i <= total; i++ {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		page := pdfReader.Page(i)
-		if page.V.IsNull() {
-			continue
-		}
-		text, err := page.GetPlainText(nil)
+		text, err := pageText(pdfReader, i, fonts)
 		if err != nil {
-			return nil, fmt.Errorf("pdf: page %d: %w", i, err)
+			// A bad page shouldn't abort the readable rest of the
+			// document; its error surfaces only when nothing parsed.
+			pageErrs = append(pageErrs, err)
+			continue
 		}
 		text = strings.TrimSpace(text)
 		if text == "" {
@@ -158,6 +176,9 @@ func (r *Reader) readPages(ctx context.Context, pdfReader *ledongthuc.Reader, to
 		md[MetadataPageIndex] = i
 		doc.Metadata = md
 		docs = append(docs, doc)
+	}
+	if len(docs) == 0 && len(pageErrs) > 0 {
+		return nil, fmt.Errorf("pdf: no readable pages: %w", errors.Join(pageErrs...))
 	}
 	return docs, nil
 }
@@ -174,24 +195,23 @@ func (r *Reader) baseMetadata(total int) map[string]any {
 	return md
 }
 
-// readAllText streams every page through GetPlainText and concatenates
+// readAllText streams every page through [pageText] and concatenates
 // the result. Using the per-page API instead of Reader.GetPlainText so
-// we can recover from a single bad page without aborting the whole
-// document. ctx cancellation is honored between pages.
-func readAllText(ctx context.Context, pdfReader *ledongthuc.Reader) (string, error) {
+// a single bad page is skipped without aborting the whole document;
+// page errors surface only when no page yielded text. ctx cancellation
+// is honored between pages.
+func readAllText(ctx context.Context, pdfReader *ledongthuc.Reader, total int) (string, error) {
 	var b strings.Builder
-	total := pdfReader.NumPage()
+	fonts := make(map[string]*ledongthuc.Font)
+	var pageErrs []error
 	for i := 1; i <= total; i++ {
 		if err := ctx.Err(); err != nil {
 			return "", err
 		}
-		page := pdfReader.Page(i)
-		if page.V.IsNull() {
-			continue
-		}
-		text, err := page.GetPlainText(nil)
+		text, err := pageText(pdfReader, i, fonts)
 		if err != nil {
-			return "", fmt.Errorf("pdf: page %d: %w", i, err)
+			pageErrs = append(pageErrs, err)
+			continue
 		}
 		if text == "" {
 			continue
@@ -201,5 +221,30 @@ func readAllText(ctx context.Context, pdfReader *ledongthuc.Reader) (string, err
 		}
 		b.WriteString(text)
 	}
+	if b.Len() == 0 && len(pageErrs) > 0 {
+		return "", fmt.Errorf("pdf: no readable pages: %w", errors.Join(pageErrs...))
+	}
 	return b.String(), nil
+}
+
+// pageText extracts one page's plain text. The upstream parser panics
+// on malformed page content (its panic-as-error style only recovers
+// inside GetPlainText itself, not in Page / object resolution), so the
+// recover here converts a bad page into an error the caller can skip.
+// fonts is the cross-page font cache GetPlainText fills as it goes.
+func pageText(pdfReader *ledongthuc.Reader, i int, fonts map[string]*ledongthuc.Font) (text string, err error) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			text, err = "", fmt.Errorf("page %d: malformed page: %v", i, rec)
+		}
+	}()
+	page := pdfReader.Page(i)
+	if page.V.IsNull() {
+		return "", nil
+	}
+	text, err = page.GetPlainText(fonts)
+	if err != nil {
+		return "", fmt.Errorf("page %d: %w", i, err)
+	}
+	return text, nil
 }

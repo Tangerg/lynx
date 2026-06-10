@@ -105,7 +105,12 @@ func (r *Reader) Read(ctx context.Context) ([]*document.Document, error) {
 }
 
 // readWhole returns one document containing the entire markdown body.
+// Blank input yields no documents — the same contract as the html and
+// pdf readers, not an error.
 func (r *Reader) readWhole(raw []byte) ([]*document.Document, error) {
+	if strings.TrimSpace(string(raw)) == "" {
+		return nil, nil
+	}
 	doc, err := document.NewDocument(string(raw), nil)
 	if err != nil {
 		return nil, fmt.Errorf("markdown: build document: %w", err)
