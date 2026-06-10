@@ -7,6 +7,8 @@
 
 import type {
   FileChange as SidebarFileChange,
+  FileHeadQuery,
+  GrepQuery,
   MCPServer as SidebarMCPServer,
   SidebarProject,
   SidebarSession,
@@ -57,12 +59,12 @@ const MCP_STATUS: Record<RpcMCPServer["status"], SidebarMCPServer["status"]> = {
   disconnected: "idle",
   error: "error",
 };
-function toSidebarMCPServer(s: RpcMCPServer): SidebarMCPServer {
+function toSidebarMCPServer(s: RpcMCPServer, toolCount: number): SidebarMCPServer {
   return {
     id: s.name,
     name: s.name,
     desc: s.description ?? "",
-    tools: 0, // tool count comes from workspace.mcp.listTools, not the list row
+    tools: toolCount,
     status: MCP_STATUS[s.status],
     icon: MCP_ICON[s.name] ?? "tool",
   };
@@ -182,13 +184,12 @@ export const defaultRoles = definePlugin({
   },
 });
 
-// HTTP_KEYS lists the query keys still served over REST GET. Migrated to
-// the JSON-RPC stack so far: sessions, projects, files-changed, mcp-servers
-// (registered separately below). The four that remain need view-param
-// plumbing (diff / grep / file-head take a path/query the param-less
-// provider model can't carry yet) or are a stream (terminal → #160).
-// Adding a key in queries without a provider here makes that hook reject.
-const HTTP_KEYS = ["diff", "terminal", "grep", "file-head"] as const;
+// HTTP_KEYS lists the query keys still served over REST GET. Everything else
+// rides the JSON-RPC stack now. `diff` waits on workspace.getDiff landing in
+// the runtime (needs git, 2026-06-10 backend note §4); `terminal` is a
+// stream (#160). Adding a key in queries without a provider here makes that
+// hook reject.
+const HTTP_KEYS = ["diff", "terminal"] as const;
 
 export const defaultData = definePlugin({
   name: "lyra.builtin.default-data",
@@ -211,8 +212,31 @@ export const defaultData = definePlugin({
     });
     host.extensions.contribute(DATA_PROVIDER, {
       key: "mcp-servers",
-      fetcher: async () =>
-        (await client().workspace.mcp.listServers()).data.map(toSidebarMCPServer),
+      // listTools (no server filter = all connected servers) joins the per-row
+      // tool count; the list row itself carries none (API.md §7.5). McpTool
+      // gives `server` as its own field — count by it, names stay bare.
+      fetcher: async () => {
+        const [servers, tools] = await Promise.all([
+          client().workspace.mcp.listServers(),
+          client().workspace.mcp.listTools(),
+        ]);
+        const counts = new Map<string, number>();
+        for (const t of tools.data) counts.set(t.server, (counts.get(t.server) ?? 0) + 1);
+        return servers.data.map((s) => toSidebarMCPServer(s, counts.get(s.name) ?? 0));
+      },
+    });
+    // Parameterized workspace reads — params come from the consumer hook
+    // (queries.ts makeParamDataQuery), so each distinct query caches its own
+    // entry. Wire shapes match the UI shapes 1:1 (queries.ts re-declares them
+    // so components never import @/rpc).
+    host.extensions.contribute(DATA_PROVIDER, {
+      key: "grep",
+      fetcher: (params) => client().workspace.grep(params as GrepQuery),
+    });
+    host.extensions.contribute(DATA_PROVIDER, {
+      key: "file-head",
+      fetcher: async (params) =>
+        (await client().workspace.getFileHead(params as FileHeadQuery)).lines,
     });
     host.extensions.contribute(DATA_PROVIDER, {
       key: "skills",

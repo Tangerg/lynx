@@ -14,6 +14,7 @@ import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
 const MAX_TERM_LINES = 9;
 const MAX_DIFF_ROWS = 8;
 const MAX_GREP_MATCHES = 4;
+const MAX_FILE_LINES = 40;
 
 // Shared container shape for every inline tool preview. The wrapper sits
 // one step deeper than the .tool-card surface (canvas) so it reads as
@@ -101,25 +102,21 @@ function DiffPreview({ onOpenView }: ToolPreviewProps) {
   );
 }
 
-function FilePreview({ onOpenView }: ToolPreviewProps) {
-  const { data: lines } = useFileHead();
+// Both parameterized previews read their query off `tool.fn` — the §4.4.2
+// projection bakes the key argument into the display name (read → path,
+// search → query; see core-reducer toolLabel). A started shell without args
+// still shows the projection fallback (the tool name / "search"), so treat
+// that as "nothing to ask yet" and let the hook stay disabled.
+function FilePreview({ tool, onOpenView }: ToolPreviewProps) {
+  const path = tool.fn && tool.fn !== tool.name ? tool.fn : undefined;
+  const { data: lines } = useFileHead(path ? { path, lines: MAX_FILE_LINES } : undefined);
   return (
     <div className={PREVIEW_WRAP}>
-      {/* file-preview class kept as a hook so highlight.ts spans
-          (.t-kw/.t-str/.t-fn) emitted via dangerouslySetInnerHTML can be
-          coloured by tool.css — those classes come from a string, not
-          JSX, so Tailwind utilities aren't applicable. */}
-      <div className="file-preview font-mono text-[11.5px] leading-[1.55]">
-        {(lines ?? []).map((l, i) => (
-          <div
-            key={i}
-            className={cn("fp-line grid grid-cols-[28px_1fr] gap-2.5", l.muted && "text-fg-faint")}
-          >
-            <span className="text-right text-[11px] text-fg-faint select-none">{l.ln}</span>
-            <span
-              className={cn("code", l.muted && "text-fg-faint")}
-              dangerouslySetInnerHTML={{ __html: l.code }}
-            />
+      <div className="font-mono text-[11.5px] leading-[1.55]">
+        {(lines ?? []).map((l) => (
+          <div key={l.lineNumber} className="grid grid-cols-[28px_1fr] gap-2.5">
+            <span className="text-right text-[11px] text-fg-faint select-none">{l.lineNumber}</span>
+            <span className="whitespace-pre text-fg-soft">{l.text || " "}</span>
           </div>
         ))}
       </div>
@@ -128,22 +125,26 @@ function FilePreview({ onOpenView }: ToolPreviewProps) {
   );
 }
 
-function GrepPreview({ onOpenView }: ToolPreviewProps) {
-  const { data } = useGrep();
+function GrepPreview({ tool, onOpenView }: ToolPreviewProps) {
+  // Re-querying makes sense only for regex search — a glob pattern is not a
+  // workspace.grep query, so the glob preview keeps just the footer link.
+  const query = tool.name === "grep" && tool.fn && tool.fn !== "search" ? tool.fn : undefined;
+  const { data } = useGrep(query ? { query, limit: MAX_GREP_MATCHES } : undefined);
   const matches = data?.matches ?? [];
-  const total = data?.total ?? matches.length;
-  const visible = matches.slice(0, MAX_GREP_MATCHES);
-  const overflow = total - visible.length;
+  // §7.5 no-silent-caps: total may exceed matches.length (server truncation).
+  const overflow = (data?.total ?? 0) - matches.length;
   return (
     <div className={PREVIEW_WRAP}>
       <div className="font-mono text-[11.5px] leading-[1.55]">
-        {visible.map((m, i) => (
+        {matches.map((m, i) => (
           <div
             key={i}
             className="grid grid-cols-[200px_1fr] gap-3 py-0.5 whitespace-nowrap overflow-hidden"
           >
-            <span className="truncate text-[11px] text-fg-faint">{m.path}</span>
-            <span className="truncate text-fg">{m.match}</span>
+            <span className="truncate text-[11px] text-fg-faint">
+              {m.path}:{m.lineNumber}
+            </span>
+            <span className="truncate text-fg">{m.text}</span>
           </div>
         ))}
         {overflow > 0 && <div className="pt-1 text-fg-faint">… {overflow} more matches</div>}

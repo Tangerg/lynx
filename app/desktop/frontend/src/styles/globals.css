@@ -404,30 +404,6 @@ html.theme-light .panel {
     0 12px 20px -4px rgba(15, 15, 15, 0.08);
 }
 
-/* Syntax tokens — light-theme tones for highlight.ts / FilePreview
-   spans. (Dark defaults live in tool.css.) */
-html.theme-light .token-kw {
-  color: #b91d7d;
-}
-html.theme-light .token-str {
-  color: #b86a00;
-}
-html.theme-light .token-fn {
-  color: #1d4ed8;
-}
-html.theme-light .token-comm {
-  color: #9a9a9a;
-}
-html.theme-light .file-preview .fp-line .code .t-kw {
-  color: #b91d7d;
-}
-html.theme-light .file-preview .fp-line .code .t-str {
-  color: #b86a00;
-}
-html.theme-light .file-preview .fp-line .code .t-fn {
-  color: #1d4ed8;
-}
-
 /* Quieter scrollbar on light — the dark thumb tokens overshoot. */
 html.theme-light .panel-scroll {
   scrollbar-color: #cdcdcc transparent;

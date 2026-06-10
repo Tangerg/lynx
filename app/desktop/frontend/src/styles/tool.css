@@ -1,8 +1,6 @@
-/* Three orthogonal concerns:
+/* Two orthogonal concerns:
    - .tool-card.running rotating border (@property + conic + mask, not
      Tailwind-expressible);
-   - .token-* / .t-* syntax span colours (highlight.ts emits raw HTML
-     strings via dangerouslySetInnerHTML, no JSX nodes to attach utils);
    - .lazy-activator marker for the LazyActivator placeholder. */
 
 /* Running animation */
@@ -41,30 +39,6 @@
   to {
     --tc-angle: 360deg;
   }
-}
-
-/* Syntax tokens — dark defaults. Light theme overrides in theme.css. */
-.token-kw {
-  color: #e07acc;
-}
-.token-str {
-  color: #f5d97a;
-}
-.token-fn {
-  color: #82cfff;
-}
-.token-comm {
-  color: var(--color-text-faint);
-  font-style: italic;
-}
-.file-preview .fp-line .code .t-kw {
-  color: #e07acc;
-}
-.file-preview .fp-line .code .t-str {
-  color: #f5d97a;
-}
-.file-preview .fp-line .code .t-fn {
-  color: #82cfff;
 }
 
 /* Lazy-activator slot placeholder */
