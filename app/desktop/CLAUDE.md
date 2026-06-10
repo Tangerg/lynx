@@ -155,7 +155,7 @@ perf 排查沉淀的硬规则，几个"看似没事其实在累积"的坑：
 - ❌ **把"远程后端 / 团队 server / 云端订阅"当部署形态**。这些是**未来 facade 层**的事，Runtime 协议永不感知 facade。Runtime 同一份代码跑桌面也跑服务器；facade 在外面包一层做 billing / 用户管理 / 授权。
 - ❌ **协议 envelope 装 transport 元数据**（session id / auth token / trace id / idempotency key）。走 Go `context.Context` 或 HTTP header，**永不进 JSON-RPC message body**。详见 `docs/protocol/TRANSPORT.md` §2。
 - ❌ **协议 wire 用 REST + 各种 verb / 状态码**。Lyra Runtime Protocol 是 **JSON-RPC 2.0** envelope（参考 MCP）。HTTP 只是其中一种 transport；InProcess / Wails IPC 用同样 envelope 形状。
-- ❌ **把 method 名斜杠化成 `/v2/rpc/runs/start`**。HTTP transport 上 method 名照搬 method 表字符串，点保留（`/v2/rpc/runs.start`）。斜杠化会跟 REST shadow 混淆。详见 `docs/protocol/TRANSPORT.md` §6.1 + `docs/protocol/API.md` §2.4。
+- ❌ **把 method 名斜杠化成 `/v2/rpc/runs/start`**。HTTP transport 上 method 名照搬 method 表字符串，点保留（`/v2/rpc/runs.start`）。斜杠化会跟 REST shadow 混淆。详见 `docs/protocol/TRANSPORT.md` §6.1 + `docs/protocol/API.md` §2.5。
 - ❌ **加业务方法的 RESTy read-only shadow**（如 `GET /v2/sessions/{id}`）。业务调用一律走 JSON-RPC `POST /v2/rpc/{method}`。Sidecar 只限 `/v2/info` + `/v2/health` 两个 metadata 端点，永不扩展。详见 `docs/protocol/TRANSPORT.md` §12。
 - ❌ **把业务 error 映射到 HTTP status code**（如 `session_not_found` 返 404）。HTTP status 仅反映 transport 层；业务 error 一律走 JSON-RPC `error.code`。详见 `docs/protocol/API.md` §8.2 + `docs/protocol/TRANSPORT.md` §6.3。
 

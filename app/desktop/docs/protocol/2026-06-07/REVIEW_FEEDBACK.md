@@ -1,11 +1,12 @@
 # 契约审查反馈 · `2026-06-07`
 
-> 后端（lyra）侧对本目录 `API.md` / `TRANSPORT.md` 的审查意见。**先定稿契约、再迁后端**——避免后端忠实
+> 后端（lyra）侧对 `2026-06-07` 版 `API.md` / `TRANSPORT.md`（定稿后提升为 [`../API.md`](../API.md) /
+> [`../TRANSPORT.md`](../TRANSPORT.md)）的审查意见。**先定稿契约、再迁后端**——避免后端忠实
 > 复制契约里的问题。整体评价：本版大幅改进，几乎全部采纳了上一轮关于"领域中立核心 / 统一 `type` 判别 /
 > question 自包含 / 全 list 用 Page / 开放 features / durable 去冗余 / 错误自描述 channel"等建议，方向正确。
 >
 > 下面是本版**新引入**的问题，按需要前端动 contract 的程度分级：⭐ 应改 / ◐ 建议改 / ○ note。
-> 记号 §x.y 指本目录 API.md / TRANSPORT.md 的节号。
+> 记号 §x.y 指 `../API.md` / `../TRANSPORT.md` 的节号。
 
 ---
 
