@@ -28,9 +28,7 @@ func Parse(input string) (ast.Expr, error) {
 // compatibility, valid operator/operand pairings, etc. Returns the
 // first violation found.
 func Analyze(expr ast.Expr) error {
-	analyzer := visitors.NewAnalyzer()
-	analyzer.Visit(expr)
-	return analyzer.Error()
+	return visitors.NewAnalyzer().Visit(expr)
 }
 
 // ParseAndAnalyze chains [Parse], [Analyze], and [Optimize]: it parses

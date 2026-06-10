@@ -15,8 +15,13 @@ import (
 //
 //   - the running action's declared tool groups
 //     ([ProcessContext.ActionTools]),
-//   - [tool.NewMiddleware] when any tool is in play,
 //   - an optional system prompt and chat options.
+//
+// Middleware (tool loop, memory, ...) comes from the configured
+// [Guardrails], same as [ProcessContext.ChatWithActionTools] — the
+// runner does not construct middleware itself, so a platform whose
+// guardrails lack the tool loop will declare tools without driving
+// them.
 //
 // Construct one via [ProcessContext.PromptRunner], chain WithXxx
 // builders, then call [PromptRunner.Generate] / [PromptRunner.Stream]
@@ -99,9 +104,10 @@ func (pr *PromptRunner) buildClientRequest(ctx context.Context) (*chat.ClientReq
 		return nil, fmt.Errorf("agent.PromptRunner: %w", err)
 	}
 
+	// Guardrails are already installed by pc.Chat() — only the tools
+	// need attaching here.
 	if len(tools) > 0 {
-		mws := pr.pc.guardrails.MiddlewareValues()
-		req = req.WithMiddlewares(mws...).WithTools(tools...)
+		req = req.WithTools(tools...)
 	}
 	if pr.options != nil {
 		req = req.WithOptions(pr.options)

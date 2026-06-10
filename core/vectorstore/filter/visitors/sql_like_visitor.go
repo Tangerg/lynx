@@ -15,8 +15,7 @@ import (
 //
 //	expr, _ := filter.Parse(`category == 'tech' AND year >= 2020`)
 //	v := visitors.NewSQLLikeVisitor()
-//	v.Visit(expr)
-//	if err := v.Error(); err != nil {
+//	if err := v.Visit(expr); err != nil {
 //	    return err
 //	}
 //	fmt.Println(v.SQL())
@@ -29,19 +28,15 @@ type SQLLikeVisitor struct {
 // AST.
 func NewSQLLikeVisitor() *SQLLikeVisitor { return &SQLLikeVisitor{} }
 
-// Error returns the first error encountered during traversal, or nil.
-func (s *SQLLikeVisitor) Error() error { return s.err }
-
 // SQL returns the rendered output. Call it after [SQLLikeVisitor.Visit]
 // finishes the traversal.
 func (s *SQLLikeVisitor) SQL() string { return s.buffer.String() }
 
-// Visit dispatches expr to the matching internal handler and stops
-// further descent — the visitor walks the tree itself rather than
-// returning a sub-visitor.
-func (s *SQLLikeVisitor) Visit(expr ast.Expr) ast.Visitor {
+// Visit walks the whole tree rooted at expr and returns the first
+// error encountered, or nil.
+func (s *SQLLikeVisitor) Visit(expr ast.Expr) error {
 	s.visit(expr)
-	return nil
+	return s.err
 }
 
 // visit is the internal dispatch used recursively by handlers. Halts on

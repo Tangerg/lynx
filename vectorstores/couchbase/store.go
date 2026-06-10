@@ -483,8 +483,7 @@ func (s *Store) buildFilter(expr ast.Expr) (string, error) {
 		return "", nil
 	}
 	v := NewVisitor(metadataField)
-	v.Visit(expr)
-	if err := v.Error(); err != nil {
+	if err := v.Visit(expr); err != nil {
 		return "", fmt.Errorf("couchbase: convert filter: %w", err)
 	}
 	return v.Result(), nil

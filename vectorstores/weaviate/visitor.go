@@ -63,18 +63,12 @@ func (v *Visitor) Result() *filters.WhereBuilder {
 	return v.result
 }
 
-// Error returns the last error encountered during conversion.
-// Returns nil if the conversion was successful.
-func (v *Visitor) Error() error {
-	return v.err
-}
-
 // Visit implements the ast.Visitor interface.
-// It initiates the conversion process for the given expression and stores any error.
-// Always returns nil to stop further traversal as conversion is done in a single pass.
-func (v *Visitor) Visit(expr ast.Expr) ast.Visitor {
+// It walks the whole tree rooted at expr and returns the first error
+// encountered, or nil when the entire expression was accepted.
+func (v *Visitor) Visit(expr ast.Expr) error {
 	v.err = v.visit(expr)
-	return nil
+	return v.err
 }
 
 // visit dispatches conversion to specialized methods based on expression type.
@@ -634,6 +628,8 @@ func (v *Visitor) literalToValue(lit *ast.Literal) (any, error) {
 //	// Used with: getBuilder.WithWhere(whereFilter)
 func ToFilter(expr ast.Expr) (*filters.WhereBuilder, error) {
 	conv := NewVisitor()
-	conv.Visit(expr)
-	return conv.Result(), conv.Error()
+	if err := conv.Visit(expr); err != nil {
+		return nil, err
+	}
+	return conv.Result(), nil
 }

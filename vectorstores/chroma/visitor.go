@@ -56,13 +56,9 @@ func (v *Visitor) Result() v2.WhereClause {
 	return v.result
 }
 
-func (v *Visitor) Error() error {
-	return v.err
-}
-
-func (v *Visitor) Visit(expr ast.Expr) ast.Visitor {
+func (v *Visitor) Visit(expr ast.Expr) error {
 	v.err = v.visit(expr)
-	return nil
+	return v.err
 }
 
 // visit dispatches to the appropriate handler based on the expression type.
@@ -520,6 +516,8 @@ func ToFilter(expr ast.Expr) (v2.WhereClause, error) {
 		return nil, nil
 	}
 	vis := NewVisitor()
-	vis.Visit(expr)
-	return vis.Result(), vis.Error()
+	if err := vis.Visit(expr); err != nil {
+		return nil, err
+	}
+	return vis.Result(), nil
 }

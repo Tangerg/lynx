@@ -20,9 +20,12 @@ var agentTracer = otel.Tracer("lynx/agent")
 // outside Action.Execute (e.g. event listeners building debug spans).
 func AgentTracer() trace.Tracer { return agentTracer }
 
-// ToolResolver is the callable the runtime installs so actions can convert a
-// list of role names into concrete tools without importing the runtime.
-type ToolResolver func(ctx context.Context, roles []string) ([]AgentTool, error)
+// ToolResolver is the callable the runtime installs so actions can convert
+// their declared [ToolGroupRequirement]s into concrete tools without
+// importing the runtime. The full requirement flows through (not just the
+// role) so the permission check at the resolver dispatch site sees the
+// privileges the action opted into — see [ToolGroupRequirement.Permissions].
+type ToolResolver func(ctx context.Context, requirements []ToolGroupRequirement) ([]AgentTool, error)
 
 // EventPublisher is the callable the runtime installs for actions to push
 // custom events through the multicast listener.
@@ -178,11 +181,17 @@ func (pc *ProcessContext) Publish(event any) {
 // platform-configured resolver. Returns (nil, nil) when no resolver
 // is wired or no roles are supplied; the caller decides whether
 // missing tools are fatal.
+//
+// Each role resolves with empty [ToolGroupRequirement.Permissions] —
+// "no special privileges" — so high-privilege tool groups are rejected
+// at the dispatch site. Actions that need such groups declare them via
+// [ActionConfig.ToolGroups] with explicit permissions and use
+// [ProcessContext.ActionTools] instead.
 func (pc *ProcessContext) ResolveTools(ctx context.Context, roles ...string) ([]AgentTool, error) {
 	if pc.resolveTools == nil {
 		return nil, nil
 	}
-	return pc.resolveTools(ctx, roles)
+	return pc.resolveTools(ctx, ToolRolesFor(roles...))
 }
 
 // Chat returns a fresh [chat.ClientRequest] cloned from the platform's
@@ -275,11 +284,7 @@ func (pc *ProcessContext) ActionTools(ctx context.Context) ([]AgentTool, error) 
 	if pc.resolveTools == nil || len(pc.actionToolGroups) == 0 {
 		return nil, nil
 	}
-	roles := make([]string, 0, len(pc.actionToolGroups))
-	for _, req := range pc.actionToolGroups {
-		roles = append(roles, req.Role)
-	}
-	return pc.resolveTools(ctx, roles)
+	return pc.resolveTools(ctx, pc.actionToolGroups)
 }
 
 // ToolCallContext derives a child context the runtime can cancel via

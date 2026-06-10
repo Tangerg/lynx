@@ -17,8 +17,7 @@ func optimizeRender(t *testing.T, src string) string {
 	}
 	optimized := visitors.NewOptimizer().Optimize(expr)
 	v := visitors.NewSQLLikeVisitor()
-	v.Visit(optimized)
-	if err := v.Error(); err != nil {
+	if err := v.Visit(optimized); err != nil {
 		t.Fatalf("render(%q): %v", src, err)
 	}
 	return v.SQL()

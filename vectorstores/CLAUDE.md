@@ -51,7 +51,7 @@
 - **向量编码因 DB 而异**：SQL 系（pgvector / MariaDB / Oracle / Cassandra）用文本 `[v1,v2,...]`；gRPC（Qdrant / Milvus）用二进制；REST（Chroma / ES）用 JSON 数组
 - **元数据序列化**：JSON marshal + `nullSentinel`（pgvector `null` / 其他 `{}`），`docio` 统一工具
 - **ID 生成**：缺省 UUID（`docio.EnsureID`），提供则原样
-- **Visitor 错误**：`Result()` / `Error()` 对，AST 遍历累积到 `visitor.err`，最后一并返
+- **Visitor 错误**：`Visit(expr)` 返回首个错误（或 nil）；`Result()` 在出错时返回零值（内部 `visitor.err` 把关）
 - **Distance metric 归一化**：pgvector cosine `[0, 2]` 内部转 `[0, 1]`；ES / Chroma 原生 `[0, 1]`；统一靠 `pkg/math`
 
 ## 强反向不变量

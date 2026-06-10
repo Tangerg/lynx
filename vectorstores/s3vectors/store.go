@@ -308,8 +308,7 @@ func (s *Store) buildFilter(filter ast.Expr) (map[string]any, error) {
 		return nil, nil
 	}
 	v := NewVisitor()
-	v.Visit(filter)
-	if err := v.Error(); err != nil {
+	if err := v.Visit(filter); err != nil {
 		return nil, fmt.Errorf("s3vectors: convert filter: %w", err)
 	}
 	return v.Result(), nil

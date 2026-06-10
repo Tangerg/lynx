@@ -55,18 +55,12 @@ func (v *Visitor) Result() string {
 	return v.result
 }
 
-// Error returns the last error encountered during conversion.
-// Returns nil if the conversion was successful.
-func (v *Visitor) Error() error {
-	return v.err
-}
-
 // Visit implements the ast.Visitor interface.
-// It initiates the conversion process for the given expression and stores any error.
-// Always returns nil to stop further traversal as conversion is done in a single pass.
-func (v *Visitor) Visit(expr ast.Expr) ast.Visitor {
+// It walks the whole tree rooted at expr and returns the first error
+// encountered, or nil when the entire expression was accepted.
+func (v *Visitor) Visit(expr ast.Expr) error {
 	v.err = v.visit(expr)
-	return nil
+	return v.err
 }
 
 // visit dispatches conversion to specialized methods based on expression type.
@@ -494,6 +488,8 @@ func (v *Visitor) literalToString(lit *ast.Literal) (string, error) {
 //	// filter: (age > 18) and (status == "active")
 func ToFilter(expr ast.Expr) (string, error) {
 	conv := NewVisitor()
-	conv.Visit(expr)
-	return conv.Result(), conv.Error()
+	if err := conv.Visit(expr); err != nil {
+		return "", err
+	}
+	return conv.Result(), nil
 }

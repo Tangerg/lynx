@@ -40,8 +40,7 @@ func TestVisitor_Conformance(t *testing.T) {
 				return err
 			}
 			v := redis.NewVisitor(fields)
-			v.Visit(expr)
-			return v.Error()
+			return v.Visit(expr)
 		},
 		storetest.Options{
 			// Redis doesn't support IN on NUMERIC fields — the visitor

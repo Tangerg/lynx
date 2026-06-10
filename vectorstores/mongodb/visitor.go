@@ -45,13 +45,11 @@ func (v *Visitor) Result() map[string]any {
 	return v.result
 }
 
-func (v *Visitor) Error() error { return v.err }
-
-func (v *Visitor) Visit(expr ast.Expr) ast.Visitor {
+func (v *Visitor) Visit(expr ast.Expr) error {
 	doc, err := v.translate(expr)
 	v.err = err
 	v.result = doc
-	return nil
+	return v.err
 }
 
 // translate is the recursive worker — it builds and returns the

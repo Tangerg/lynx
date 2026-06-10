@@ -12,8 +12,7 @@
 //	            return err
 //	        }
 //	        v := redis.NewVisitor(myFieldSchema)
-//	        v.Visit(expr)
-//	        return v.Error()
+//	        return v.Visit(expr)
 //	    })
 //	}
 //

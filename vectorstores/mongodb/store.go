@@ -429,8 +429,7 @@ func (s *Store) buildFilter(expr ast.Expr) (bson.M, error) {
 		return nil, nil
 	}
 	v := NewVisitor(s.metadataField)
-	v.Visit(expr)
-	if err := v.Error(); err != nil {
+	if err := v.Visit(expr); err != nil {
 		return nil, fmt.Errorf("mongodb: convert filter: %w", err)
 	}
 	return bson.M(v.Result()), nil

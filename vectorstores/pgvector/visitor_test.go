@@ -21,8 +21,7 @@ func TestVisitor_Conformance(t *testing.T) {
 			return err
 		}
 		v := pgvector.NewVisitor("metadata")
-		v.Visit(expr)
-		return v.Error()
+		return v.Visit(expr)
 	})
 }
 
@@ -34,8 +33,7 @@ func build(t *testing.T, src string) (string, []any, error) {
 		return "", nil, err
 	}
 	v := pgvector.NewVisitor("metadata")
-	v.Visit(expr)
-	if err := v.Error(); err != nil {
+	if err := v.Visit(expr); err != nil {
 		return "", nil, err
 	}
 	sql, args := v.Result()
@@ -215,9 +213,8 @@ func TestVisitor_EmptyMetadataColDefaults(t *testing.T) {
 		t.Fatalf("ParseAndAnalyze: %v", err)
 	}
 	v := pgvector.NewVisitor("") // empty → defaults to "metadata"
-	v.Visit(expr)
-	if v.Error() != nil {
-		t.Fatalf("visit: %v", v.Error())
+	if err := v.Visit(expr); err != nil {
+		t.Fatalf("visit: %v", err)
 	}
 	sql, _ := v.Result()
 	if !strings.Contains(sql, "metadata->>'a'") {
@@ -227,8 +224,7 @@ func TestVisitor_EmptyMetadataColDefaults(t *testing.T) {
 
 func TestVisitor_NilExpression(t *testing.T) {
 	v := pgvector.NewVisitor("metadata")
-	v.Visit(nil)
-	if v.Error() == nil {
+	if v.Visit(nil) == nil {
 		t.Fatal("nil expression must produce an error")
 	}
 }
