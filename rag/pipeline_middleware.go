@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"iter"
+	"slices"
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -84,7 +85,7 @@ func (m *pipelineMiddleware) executeCall(ctx context.Context, req *chat.Request,
 		return nil, err
 	}
 
-	req.ReplaceTextOfLastUserMessage(augmented.Text)
+	req = withAugmentedUserText(req, augmented.Text)
 
 	resp, err := next.Call(ctx, req)
 	if err != nil {
@@ -105,7 +106,7 @@ func (m *pipelineMiddleware) executeStream(ctx context.Context, req *chat.Reques
 			return
 		}
 
-		req.ReplaceTextOfLastUserMessage(augmented.Text)
+		req = withAugmentedUserText(req, augmented.Text)
 
 		for resp, err := range next.Stream(ctx, req) {
 			if err != nil {
@@ -118,6 +119,38 @@ func (m *pipelineMiddleware) executeStream(ctx context.Context, req *chat.Reques
 			}
 		}
 	}
+}
+
+// withAugmentedUserText returns a request whose last user message
+// carries text instead of the original. It REPLACES the message in a
+// fresh copy of the slice rather than mutating the existing
+// *chat.UserMessage in place: that message pointer is shared with the
+// caller's [chat.ClientRequest] (buildRequest only clones the slice,
+// not its elements), so an in-place edit would corrupt the caller's
+// stored messages and make a re-consumed stream augment its own
+// already-augmented output. Media / Metadata on the original message
+// are preserved.
+func withAugmentedUserText(req *chat.Request, text string) *chat.Request {
+	idx := -1
+	for i := len(req.Messages) - 1; i >= 0; i-- {
+		if _, ok := req.Messages[i].(*chat.UserMessage); ok {
+			idx = i
+			break
+		}
+	}
+	if idx == -1 {
+		return req
+	}
+
+	out := *req
+	out.Messages = slices.Clone(req.Messages)
+	orig := req.Messages[idx].(*chat.UserMessage)
+	out.Messages[idx] = &chat.UserMessage{
+		Text:     text,
+		Media:    orig.Media,
+		Metadata: orig.Metadata,
+	}
+	return &out
 }
 
 // wrapCallHandler is the call-side adapter.
