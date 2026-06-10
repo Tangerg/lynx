@@ -81,9 +81,8 @@ type ToolGroupMetadata interface {
 // Permissions slice means "no special privileges" — high-privilege
 // groups are rejected unless the requirement opts in.
 type ToolGroupRequirement struct {
-	Role             string
-	TerminationScope TerminationScope
-	Permissions      []ToolGroupPermission
+	Role        string
+	Permissions []ToolGroupPermission
 }
 
 // PermissionsSatisfy returns true when every permission in `granted`

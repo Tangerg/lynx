@@ -299,8 +299,8 @@ func (interruptErr) Abort() bool   { return false }
 
 // --- registry lifecycle ----------------------------------------------------
 
-// TestToolRegistry_Lifecycle covers the full mutation surface in one
-// run — register, find, exists, names, all, unregister, clear.
+// TestToolRegistry_Lifecycle covers the mutation surface — register
+// (nil-tolerant), find, names.
 func TestToolRegistry_Lifecycle(t *testing.T) {
 	support := newSupport()
 
@@ -308,30 +308,11 @@ func TestToolRegistry_Lifecycle(t *testing.T) {
 	b := mustNewTool(t, "beta")
 	support.register(a, b, nil) // nil silently dropped
 
-	if support.registry.size() != 2 {
-		t.Fatalf("Size = %d, want 2", support.registry.size())
-	}
-	if !support.registry.exists("alpha") {
-		t.Fatal("alpha must be registered")
-	}
 	if got, ok := support.registry.find("alpha"); !ok || got.Definition().Name != "alpha" {
 		t.Fatalf("Find returned (%v,%v)", got, ok)
 	}
 	if names := support.registry.names(); len(names) != 2 {
 		t.Fatalf("Names len = %d", len(names))
-	}
-	if all := support.registry.all(); len(all) != 2 {
-		t.Fatalf("All len = %d", len(all))
-	}
-
-	support.unregister("alpha")
-	if support.registry.exists("alpha") {
-		t.Fatal("alpha should have been unregistered")
-	}
-
-	support.registry.clear()
-	if support.registry.size() != 0 {
-		t.Fatal("Clear did not empty the registry")
 	}
 }
 
@@ -341,8 +322,8 @@ func TestToolRegistry_Register_DuplicatesIgnored(t *testing.T) {
 	b := mustNewTool(t, "alpha") // same name
 
 	support.register(a, b)
-	if support.registry.size() != 1 {
-		t.Fatalf("Size = %d, want 1 (duplicate names silently dropped)", support.registry.size())
+	if names := support.registry.names(); len(names) != 1 {
+		t.Fatalf("names = %v, want 1 entry (duplicate names silently dropped)", names)
 	}
 }
 

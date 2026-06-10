@@ -26,10 +26,6 @@ type ChatProcess interface {
 	// Killed / Terminated when the run ends.
 	Status() core.AgentProcessStatus
 
-	// Failure returns the terminal error the process recorded on
-	// itself, or nil when the run is still in flight or succeeded.
-	Failure() error
-
 	// Done delivers the final error (or nil on success) once the
 	// run loop exits. Buffered cap-1 so callers can receive after
 	// the goroutine has already finished.
@@ -72,7 +68,6 @@ type chatProcess struct {
 
 func (cp *chatProcess) ID() string                      { return cp.proc.ID() }
 func (cp *chatProcess) Status() core.AgentProcessStatus { return cp.proc.Status() }
-func (cp *chatProcess) Failure() error                  { return cp.proc.Failure() }
 func (cp *chatProcess) Done() <-chan error              { return cp.done }
 func (cp *chatProcess) Cancel(reason string) error {
 	_ = reason

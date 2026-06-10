@@ -12,7 +12,6 @@ package sqlite
 import (
 	"database/sql"
 	"fmt"
-	"strings"
 
 	_ "modernc.org/sqlite" // registers the "sqlite" driver
 )
@@ -25,8 +24,8 @@ import (
 // Tuning baked in:
 //   - journal_mode = WAL — concurrent readers don't block the writer
 //   - foreign_keys = ON — surfaces parent-id violations early
-//   - busy_timeout = 5000ms — survives brief contention from the
-//     observer / trace writers piling onto the same connection
+//   - busy_timeout = 5000ms — survives brief contention from
+//     concurrent writers piling onto the same connection
 func Open(path string) (*sql.DB, error) {
 	dsn := fmt.Sprintf(
 		"file:%s?_pragma=journal_mode(WAL)&_pragma=foreign_keys(ON)&_pragma=busy_timeout(5000)",
@@ -89,7 +88,7 @@ func migrate(db *sql.DB) error {
 			seq         INTEGER PRIMARY KEY AUTOINCREMENT,
 			session_id  TEXT    NOT NULL,
 			run_id      TEXT    NOT NULL DEFAULT '',
-			item_id     TEXT    NOT NULL DEFAULT '',
+			item_id     TEXT    NOT NULL UNIQUE,
 			created_at  INTEGER NOT NULL,
 			item        TEXT    NOT NULL
 		)`,
@@ -115,23 +114,16 @@ func migrate(db *sql.DB) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_messages_conversation
 			ON messages(conversation_id, seq)`,
+		`CREATE TABLE IF NOT EXISTS tool_parks (
+			conversation_id TEXT    PRIMARY KEY,
+			assistant       TEXT    NOT NULL,
+			done            TEXT,
+			created_at      INTEGER NOT NULL
+		)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {
 			return fmt.Errorf("sqlite: migrate: %w", err)
-		}
-	}
-	// Forward-compat column adds for databases created before the column
-	// existed. SQLite has no ADD COLUMN IF NOT EXISTS, so a fresh DB (whose
-	// CREATE TABLE above already includes the column) errors with "duplicate
-	// column name" here — that case is benign and ignored; any other error is
-	// real.
-	addColumns := []string{
-		`ALTER TABLE sessions ADD COLUMN kind TEXT NOT NULL DEFAULT ''`,
-	}
-	for _, stmt := range addColumns {
-		if _, err := db.Exec(stmt); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
-			return fmt.Errorf("sqlite: migrate add-column: %w", err)
 		}
 	}
 	return nil

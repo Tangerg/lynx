@@ -82,14 +82,13 @@ func (c *ActionConfig) ApplyDefaults() {
 }
 
 // ToolRolesFor builds a slice of [ToolGroupRequirement] from plain
-// role names, defaulting each entry to action-scope termination.
+// role names. Each entry carries no Permissions — "no special
+// privileges" — so high-privilege groups need an explicit
+// [ToolGroupRequirement] literal instead.
 func ToolRolesFor(roles ...string) []ToolGroupRequirement {
 	out := make([]ToolGroupRequirement, 0, len(roles))
 	for _, role := range roles {
-		out = append(out, ToolGroupRequirement{
-			Role:             role,
-			TerminationScope: TerminationScopeAction,
-		})
+		out = append(out, ToolGroupRequirement{Role: role})
 	}
 	return out
 }

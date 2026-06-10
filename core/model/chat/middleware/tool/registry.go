@@ -26,11 +26,10 @@ func newRegistry(capacityHint ...int) *registry {
 }
 
 // register adds tools using their definition Name as the key. Duplicate
-// names are silently dropped — first writer wins. Returns the registry
-// for chaining.
-func (r *registry) register(tools ...chat.Tool) *registry {
+// names are silently dropped — first writer wins.
+func (r *registry) register(tools ...chat.Tool) {
 	if len(tools) == 0 {
-		return r
+		return
 	}
 
 	r.mu.Lock()
@@ -44,22 +43,6 @@ func (r *registry) register(tools ...chat.Tool) *registry {
 			r.tools[name] = t
 		}
 	}
-	return r
-}
-
-// unregister removes tools by name. Unknown names are silently ignored.
-// Returns the registry for chaining.
-func (r *registry) unregister(names ...string) *registry {
-	if len(names) == 0 {
-		return r
-	}
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	for _, name := range names {
-		delete(r.tools, name)
-	}
-	return r
 }
 
 // find looks up a tool by name.
@@ -68,25 +51,6 @@ func (r *registry) find(name string) (chat.Tool, bool) {
 	defer r.mu.RUnlock()
 	t, exists := r.tools[name]
 	return t, exists
-}
-
-// exists reports whether a tool with the given name is registered.
-func (r *registry) exists(name string) bool {
-	_, ok := r.find(name)
-	return ok
-}
-
-// all returns a snapshot of every registered tool. Mutations to the
-// returned slice do not affect the registry.
-func (r *registry) all() []chat.Tool {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	out := make([]chat.Tool, 0, len(r.tools))
-	for _, t := range r.tools {
-		out = append(out, t)
-	}
-	return out
 }
 
 // names returns a snapshot of every registered tool name.
@@ -99,19 +63,4 @@ func (r *registry) names() []string {
 		out = append(out, name)
 	}
 	return out
-}
-
-// size returns the number of registered tools.
-func (r *registry) size() int {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return len(r.tools)
-}
-
-// clear removes every registered tool. Returns the registry for chaining.
-func (r *registry) clear() *registry {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	clear(r.tools)
-	return r
 }

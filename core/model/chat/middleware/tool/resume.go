@@ -198,9 +198,10 @@ func (m *middleware) resumeCall(ctx context.Context, req *chat.Request, point *r
 		return nil, err
 	}
 	if res.interrupt != nil {
-		// Another call in the same round halted. Save park state
-		// (when configured) with the merged done-set; fall back to
-		// [interruptResponse] for legacy callers.
+		// Another call in the same round halted. With a ParkStore,
+		// save the merged done-set; without one, hand the round back
+		// via [interruptResponse] (conversation-tail design — see
+		// [Config.ParkStore]).
 		if m.parkStore != nil {
 			merged := append(slices.Clone(point.done), res.interrupt.done...)
 			m.savePark(ctx, req, point.assistant, merged)

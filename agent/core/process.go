@@ -38,7 +38,7 @@ type Process interface {
 	// that helper; calls made with a raw ctx receive no cancellation
 	// signal. Calling TerminateToolCall when no tool call is active is
 	// a no-op.
-	TerminateToolCall(reason string)
+	TerminateToolCall()
 
 	// AwaitInput suspends the action until external input arrives. The
 	// runtime stores the Awaitable on the blackboard, transitions to

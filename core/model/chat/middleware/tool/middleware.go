@@ -46,9 +46,11 @@ type Config struct {
 	// ParkStore, when non-nil, persists interrupted tool rounds so the
 	// engine never sees a [chat.FinishReasonInterrupt] chunk — the
 	// middleware saves the park state on interrupt and restores it on
-	// resume, both transparent to the caller. nil falls back to the
-	// legacy [buildInterruptResponse] path (conversation-based tail
-	// the caller must intercept).
+	// resume, both transparent to the caller. nil (the zero-value
+	// default) selects the conversation-tail design instead:
+	// [buildInterruptResponse] hands the interrupted round back as a
+	// [chat.FinishReasonInterrupt] response whose tail the caller
+	// re-feeds to resume.
 	ParkStore ParkStore
 }
 
@@ -209,9 +211,10 @@ func (m *middleware) executeCallRecursively(ctx context.Context, req *chat.Reque
 	}
 
 	if result.interrupt != nil {
-		// HITL: a tool halted the round. Save park state (when
-		// configured) so the caller never sees an interrupt chunk;
-		// fall back to [buildInterruptResponse] for legacy callers.
+		// HITL: a tool halted the round. With a ParkStore the caller
+		// never sees an interrupt chunk; without one the round is
+		// handed back via [buildInterruptResponse] (conversation-tail
+		// design — see [Config.ParkStore]).
 		if m.parkStore != nil {
 			m.savePark(ctx, req, resp.Result.AssistantMessage, result.interrupt.done)
 			return nil, result.interrupt.cause
@@ -325,8 +328,10 @@ func (m *middleware) executeStreamRecursively(ctx context.Context, req *chat.Req
 	}
 
 	if result.interrupt != nil {
-		// HITL: a tool halted the round. Save park state (when
-		// configured); fall back to legacy interrupt chunk path.
+		// HITL: a tool halted the round. With a ParkStore the caller
+		// never sees an interrupt chunk; without one the interrupt
+		// chunk is streamed (conversation-tail design — see
+		// [Config.ParkStore]).
 		if m.parkStore != nil {
 			m.savePark(ctx, req, resp.Result.AssistantMessage, result.interrupt.done)
 			yield(nil, result.interrupt.cause)

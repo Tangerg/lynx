@@ -43,8 +43,7 @@ type ActionMetadata struct {
 	// Value defaults to [Static](0).
 	Value CostFunc
 
-	OutputBinding   string // Override the variable name written to the blackboard.
-	ClearBlackboard bool   // On success, clear blackboard before binding output.
+	ClearBlackboard bool // On success, clear blackboard before binding output.
 }
 
 // EffectiveRunKey is the conventional condition key recording that this
