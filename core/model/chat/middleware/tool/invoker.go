@@ -133,15 +133,11 @@ func newCallInvoker(registry *registry) *callInvoker {
 }
 
 // canInvokeToolCalls reports whether the response carries tool calls to run.
-// Returns (false, nil) when there are none. Unknown tool names are NOT
-// rejected here — they are tolerated and turned into error results by
-// invokeToolCalls (the model named a tool that doesn't exist; that's
-// recoverable feedback, not a reason to abort the run).
-func (i *callInvoker) canInvokeToolCalls(resp *chat.Response) (bool, error) {
-	if resp.Result == nil || !resp.Result.AssistantMessage.HasToolCalls() {
-		return false, nil
-	}
-	return true, nil
+// Unknown tool names are NOT rejected here — they are tolerated and turned
+// into error results by invokeToolCalls (the model named a tool that doesn't
+// exist; that's recoverable feedback, not a reason to abort the run).
+func (i *callInvoker) canInvokeToolCalls(resp *chat.Response) bool {
+	return resp.Result != nil && resp.Result.AssistantMessage.HasToolCalls()
 }
 
 // unknownToolResult is the synthetic tool result the invoker feeds back to the
@@ -334,11 +330,7 @@ func (i *callInvoker) invokeOne(ctx context.Context, t chat.Tool, call *chat.Too
 
 // invoke is the orchestrator: validate, run, attach context.
 func (i *callInvoker) invoke(ctx context.Context, req *chat.Request, resp *chat.Response) (*invocationResult, error) {
-	canInvoke, err := i.canInvokeToolCalls(resp)
-	if err != nil {
-		return nil, err
-	}
-	if !canInvoke {
+	if !i.canInvokeToolCalls(resp) {
 		return nil, errors.New("tool.callInvoker.invoke: response has no valid tool calls")
 	}
 

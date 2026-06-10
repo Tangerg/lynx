@@ -2,7 +2,7 @@
 // transport. One endpoint carries JSON-RPC:
 //
 //	POST /v2/rpc/{method}   Request / Notification. A streaming method
-//	                        (runs.start/resume/subscribe, background.subscribe)
+//	                        (runs.start/resume/subscribe)
 //	                        replies text/event-stream — the response body
 //	                        IS the call's event stream (TRANSPORT §6.4);
 //	                        everything else replies application/json.

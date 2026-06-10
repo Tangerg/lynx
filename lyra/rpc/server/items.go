@@ -3,10 +3,8 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"strconv"
 	"time"
 
-	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/service/history"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
@@ -19,45 +17,43 @@ import (
 // silent caps); a returned cursor is the opaque "has more" token the client
 // passes back to continue.
 //
-// The authoritative source is the durable Item-history store: the exact
-// Items the runtime streamed (same ids, runId, text, createdAt). When no
-// history store is configured it falls back to reconstructing items from
-// chat-memory messages — a flat list with no runId/run tree.
+// The source is the durable Item-history store (a required runtime
+// dependency): the exact Items the runtime streamed (same ids, runId,
+// text, createdAt).
 func (s *Server) ListItems(ctx context.Context, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
-	if store := s.rt.History(); store != nil {
-		return s.listItemsFromHistory(ctx, store, in)
-	}
-	return s.listItemsFromMessages(ctx, in)
+	return s.listItemsFromHistory(ctx, s.rt.History(), in)
 }
 
 // defaultItemPageLimit caps a single items.list page when the client gives
 // no (or an over-large) limit.
 const defaultItemPageLimit = 200
 
-// pageItems applies opaque-cursor + limit pagination over an ordered item
-// slice. cursor is the previous page's last id (opaque to the client); a
-// non-empty returned cursor is the "has more" signal (§4.11) — the server
-// never silently truncates. An unknown cursor yields an empty page (the
-// referenced item is gone), which the client reads as "no more".
-func pageItems(items []protocol.Item, cursor string, limit int) ([]protocol.Item, string) {
+// pageByID applies opaque-cursor + limit pagination over an ordered slice
+// whose elements carry a unique id. cursor is the previous page's last id
+// (opaque to the client); a non-empty returned cursor is the "has more"
+// signal (§4.11) — the server never silently truncates. An unknown cursor
+// yields an empty page (the referenced element is gone), which the client
+// reads as "no more". Shared by items.list and sessions.list so both
+// surfaces keep identical cursor mechanics.
+func pageByID[T any](elems []T, id func(T) string, cursor string, limit, maxLimit int) ([]T, string) {
 	if cursor != "" {
-		start := len(items) // unknown cursor → past the end → empty page
-		for idx, it := range items {
-			if it.ID == cursor {
+		start := len(elems) // unknown cursor → past the end → empty page
+		for idx, el := range elems {
+			if id(el) == cursor {
 				start = idx + 1
 				break
 			}
 		}
-		items = items[start:]
+		elems = elems[start:]
 	}
-	if limit <= 0 || limit > defaultItemPageLimit {
-		limit = defaultItemPageLimit
+	if limit <= 0 || limit > maxLimit {
+		limit = maxLimit
 	}
-	if len(items) > limit {
-		page := items[:limit]
-		return page, page[len(page)-1].ID
+	if len(elems) > limit {
+		page := elems[:limit]
+		return page, id(page[len(page)-1])
 	}
-	return items, ""
+	return elems, ""
 }
 
 // listItemsFromHistory serves items.list from the durable Item store.
@@ -84,7 +80,7 @@ func (s *Server) listItemsFromHistory(ctx context.Context, store history.Store, 
 		runs = append(runs, r)
 	}
 
-	page, next := pageItems(items, in.Cursor, in.Limit)
+	page, next := pageByID(items, func(it protocol.Item) string { return it.ID }, in.Cursor, in.Limit, defaultItemPageLimit)
 	return &protocol.ListItemsResponse{
 		Page: protocol.Page[protocol.Item]{Data: page, NextCursor: next},
 		Runs: runs,
@@ -126,90 +122,9 @@ func (s *Server) isRunLive(runID string) bool {
 	return ok
 }
 
-// listItemsFromMessages is the fallback when no Item-history store is
-// configured: reconstruct items from chat-memory messages. No runId / no
-// run tree (Runs is empty) — clients render a flat item list.
-func (s *Server) listItemsFromMessages(ctx context.Context, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
-	msgs, err := s.rt.ReadHistory(ctx, in.SessionID)
-	if err != nil {
-		return nil, err
-	}
-	items := historyToItems(in.SessionID, msgs)
-	page, next := pageItems(items, in.Cursor, in.Limit)
-	return &protocol.ListItemsResponse{
-		Page: protocol.Page[protocol.Item]{Data: page, NextCursor: next},
-		Runs: []protocol.RunRef{},
-	}, nil
-}
-
 // EditItem — editing an item starts a continuation run (checkpoint
 // semantics), which the engine doesn't support yet. Gated off
 // (features.checkpoints).
 func (s *Server) EditItem(_ context.Context, _ protocol.EditItemRequest) (*protocol.EditItemResponse, error) {
 	return nil, notImpl("items.edit")
 }
-
-// historyToItems converts persisted chat.Messages into wire Items,
-// assigning stable 1-based ids ("item_<sessionId>_<n>"). Tool returns
-// (a trailing ToolMessage) are folded back into their originating
-// toolCall Item's Output by matching ToolCallID. System messages are
-// dropped — the system prompt is not part of the Item history.
-func historyToItems(sessionID string, msgs []chat.Message) []protocol.Item {
-	out := make([]protocol.Item, 0, len(msgs))
-	// toolCallID → where its item lives + the raw name/args, so the matching
-	// ToolMessage can rebuild the full ToolInvocation from the output.
-	type toolRef struct {
-		idx        int
-		name, args string
-	}
-	byCallID := map[string]toolRef{}
-	seq := 0
-	nextID := func() string {
-		seq++
-		return protocol.IDPrefixItem + sessionID + "_" + strconv.Itoa(seq)
-	}
-
-	for _, msg := range msgs {
-		switch m := msg.(type) {
-		case *chat.UserMessage:
-			out = append(out, protocol.Item{
-				ID:      nextID(),
-				Status:  protocol.ItemStatusCompleted,
-				Type:    protocol.ItemTypeUserMessage,
-				Content: []protocol.ContentBlock{{Type: "text", Text: m.Text}},
-			})
-		case *chat.AssistantMessage:
-			if text := m.JoinedText(); text != "" {
-				out = append(out, protocol.Item{
-					ID:      nextID(),
-					Status:  protocol.ItemStatusCompleted,
-					Type:    protocol.ItemTypeAgentMessage,
-					Content: []protocol.ContentBlock{{Type: "text", Text: text}},
-				})
-			}
-			for _, call := range m.CollectToolCalls() {
-				byCallID[call.ID] = toolRef{idx: len(out), name: call.Name, args: call.Arguments}
-				out = append(out, protocol.Item{
-					ID:     nextID(),
-					Status: protocol.ItemStatusCompleted,
-					Type:   protocol.ItemTypeToolCall,
-					Tool:   protocol.NewToolInvocation(call.Name, call.Arguments, ""),
-				})
-			}
-		case *chat.ToolMessage:
-			for _, ret := range m.ToolReturns {
-				if ret == nil {
-					continue
-				}
-				if r, ok := byCallID[ret.ID]; ok {
-					// Rebuild the full invocation now the output is known
-					// (search hits / exit code / generic result land here).
-					out[r.idx].Tool = protocol.NewToolInvocation(r.name, r.args, ret.Result)
-				}
-			}
-		}
-	}
-	return out
-}
-
-// parseArgs was removed (replaced by protocol.ParseArgs).

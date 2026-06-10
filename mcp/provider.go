@@ -175,7 +175,7 @@ func (p *Provider) refresh(ctx context.Context) ([]chat.Tool, error) {
 		}
 	}
 
-	all = all[:len(all):len(all)] // clip so callers can't append into shared backing array
+	all = slices.Clip(all) // so callers can't append into the shared backing array
 	p.cache.Store(&all)
 	return all, nil
 }

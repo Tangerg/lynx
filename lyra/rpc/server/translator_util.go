@@ -54,7 +54,7 @@ func (t *translator) drainTools() []protocol.StreamEvent {
 func (t *translator) outcome(e chat.TurnEnd) *protocol.RunOutcome {
 	res := &protocol.RunResult{Usage: t.turnUsage(e)}
 	switch e.Reason {
-	case chat.TurnEndCancelled:
+	case chat.TurnEndCanceled:
 		return &protocol.RunOutcome{Type: protocol.OutcomeCanceled, Result: res}
 	case chat.TurnEndBudgetExceeded:
 		return &protocol.RunOutcome{Type: protocol.OutcomeMaxBudget, Result: res}

@@ -25,9 +25,10 @@ type Request struct {
 func (r *Request) documentsText() string {
 	var texts []string
 	for _, doc := range r.Documents {
-		if doc.Text != "" {
-			texts = append(texts, doc.Text)
+		if doc == nil || doc.Text == "" {
+			continue
 		}
+		texts = append(texts, doc.Text)
 	}
 	return strings.Join(texts, "\n")
 }

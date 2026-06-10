@@ -21,8 +21,9 @@ type Tool struct {
 type SafetyClass int
 
 const (
-	// SafetyClassSafe — read-only, no side effects (Read, Grep, Glob,
-	// WebFetch). Never prompts.
+	// SafetyClassSafe — read-only, no side effects (read, grep, glob,
+	// skill). Never prompts. Network-reaching tools (webfetch etc.) are
+	// NOT safe — they classify as Exec, fail-conservative.
 	SafetyClassSafe SafetyClass = iota
 	// SafetyClassWrite — writes files in cwd. Prompts in `safe` mode.
 	SafetyClassWrite

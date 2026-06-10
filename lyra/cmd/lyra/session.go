@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/spf13/cobra"
 
@@ -103,9 +104,7 @@ func (a *App) sessionDeleteCmd() *cobra.Command {
 // printSession is the shared renderer for `session show`. Kept as
 // a package-level function (not a method) because it depends on
 // nothing but the supplied writer + session value.
-func printSession(out interface {
-	Write([]byte) (int, error)
-}, sess session.Session) {
+func printSession(out io.Writer, sess session.Session) {
 	fmt.Fprintf(out, "id:         %s\n", sess.ID)
 	fmt.Fprintf(out, "title:      %s\n", sess.Title)
 	if sess.ParentID != "" {

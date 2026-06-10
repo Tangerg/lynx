@@ -19,13 +19,13 @@ func (p *Platform) createProcess(
 	options core.ProcessOptions,
 ) (*AgentProcess, error) {
 	if agentDef == nil {
-		return nil, errors.New("create process: agent definition is nil")
+		return nil, errors.New("runtime.Platform.createProcess: agent definition is nil")
 	}
 	if err := agentDef.Validate(); err != nil {
-		return nil, fmt.Errorf("create process: %w", err)
+		return nil, fmt.Errorf("runtime.Platform.createProcess: %w", err)
 	}
 	if err := validateProcessExtensions(options.Extensions); err != nil {
-		return nil, fmt.Errorf("create process: %w", err)
+		return nil, fmt.Errorf("runtime.Platform.createProcess: %w", err)
 	}
 	options.ApplyDefaults()
 
@@ -63,7 +63,7 @@ func (p *Platform) CreateChildProcess(
 	options core.ProcessOptions,
 ) (*AgentProcess, error) {
 	if parent == nil {
-		return nil, errors.New("create child process: parent process is nil")
+		return nil, errors.New("runtime.Platform.CreateChildProcess: parent process is nil")
 	}
 	if options.Blackboard == nil {
 		options.Blackboard = parent.Blackboard().Spawn()

@@ -178,8 +178,8 @@ func Load() (Config, error) {
 }
 
 // loadOnline reads the optional provider-tool credentials. yaml under
-// `online:`, with the legacy LYRA_* env vars taking precedence so the
-// old workflow keeps working.
+// `online:`; the LYRA_* env vars take precedence over yaml, matching
+// the overall source ordering (env over file).
 func loadOnline(v *viper.Viper) engine.OnlineConfig {
 	jina := cmp.Or(os.Getenv("LYRA_JINA_API_KEY"), v.GetString("online.jinaApiKey"))
 	tavily := cmp.Or(os.Getenv("LYRA_TAVILY_API_KEY"), v.GetString("online.tavilyApiKey"))
@@ -214,17 +214,17 @@ func parseMCPServers(raw string) ([]mcp.ServerConfig, error) {
 		}
 		eq := strings.IndexByte(p, '=')
 		if eq <= 0 || eq == len(p)-1 {
-			return nil, fmt.Errorf("config.parseDotEnvList: entry %q: expected name=value", p)
+			return nil, fmt.Errorf("config.parseMCPServers: entry %q: expected name=value", p)
 		}
 		name := strings.TrimSpace(p[:eq])
 		value := strings.TrimSpace(p[eq+1:])
 		if name == "" || value == "" {
-			return nil, fmt.Errorf("config.parseDotEnvList: entry %q: name and value must be non-empty", p)
+			return nil, fmt.Errorf("config.parseMCPServers: entry %q: name and value must be non-empty", p)
 		}
 
 		srv, err := parseMCPServerValue(name, value)
 		if err != nil {
-			return nil, fmt.Errorf("config.parseDotEnvList: entry %q: %w", p, err)
+			return nil, fmt.Errorf("config.parseMCPServers: entry %q: %w", p, err)
 		}
 		out = append(out, srv)
 	}

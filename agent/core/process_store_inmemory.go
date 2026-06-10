@@ -4,8 +4,8 @@ import "context"
 
 // InMemoryProcessStore is the reference [ProcessStore] backend —
 // snapshots live in a goroutine-safe map. Suitable for tests and
-// single-node development. Production deployments wire a persistent
-// backend from the `agentstore/` sibling module.
+// single-node development. Production deployments supply their own
+// persistent backend behind the same interface.
 type InMemoryProcessStore struct {
 	kv *inMemoryKV[ProcessSnapshot]
 }

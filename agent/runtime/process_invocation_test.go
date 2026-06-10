@@ -51,11 +51,6 @@ func TestProcessBudget_RecordLLMInvocation_AggregatesCostAndTokens(t *testing.T)
 	if history[0].Model != "claude-sonnet-4-5" || history[1].Model != "gpt-4o" {
 		t.Errorf("history order or content wrong: %#v", history)
 	}
-	for _, inv := range history {
-		if inv.Timestamp.IsZero() {
-			t.Errorf("timestamp should default to time.Now(); got zero on %v", inv)
-		}
-	}
 }
 
 func TestProcessBudget_RecordEmbeddingInvocation(t *testing.T) {
@@ -110,18 +105,17 @@ func TestProcessBudget_RecordUsage_AppendsToLLMHistory(t *testing.T) {
 	}
 }
 
-func TestProcessBudget_LLMInvocation_TimestampDefaulting(t *testing.T) {
+func TestProcessBudget_LLMInvocation_TimestampPreserved(t *testing.T) {
+	// Timestamp defaulting lives in AgentProcess.RecordLLMInvocation
+	// (covered by TestRecordInvocation_PublishesEvents); the budget
+	// layer stores whatever it receives verbatim.
 	b := newBudgetForTest()
 
 	explicit := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
 	b.recordLLMInvocation(core.LLMInvocation{Timestamp: explicit, CostUSD: 0.001})
-	b.recordLLMInvocation(core.LLMInvocation{CostUSD: 0.002}) // zero timestamp
 
 	history := b.llmHistory()
 	if !history[0].Timestamp.Equal(explicit) {
 		t.Errorf("explicit timestamp not preserved: got %v", history[0].Timestamp)
-	}
-	if history[1].Timestamp.IsZero() {
-		t.Errorf("zero timestamp should be defaulted to time.Now()")
 	}
 }

@@ -172,7 +172,12 @@ func (c *ClientCaller) Embedding(ctx context.Context) ([]float64, *Response, err
 	if err != nil {
 		return nil, nil, err
 	}
-	return resp.Result().Embedding, resp, nil
+	// Providers aren't forced to populate Results — guard rather than panic.
+	result := resp.Result()
+	if result == nil {
+		return nil, resp, errors.New("embedding.ClientCaller.Embedding: response carries no results")
+	}
+	return result.Embedding, resp, nil
 }
 
 // Embeddings runs the call and returns every embedding vector in input

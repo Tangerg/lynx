@@ -47,8 +47,8 @@ func gateFor(toolName string, mode approval.Mode) gateAction {
 }
 
 // safetyClass is the per-tool side-effect classification. The
-// engine doesn't see it — chat.impl maps name → class as part of
-// the gate's policy.
+// engine doesn't see it — the chat service maps name → class here
+// as part of the gate's policy.
 type safetyClass int
 
 const (

@@ -6,6 +6,9 @@ import (
 
 	sdka2a "github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/a2aproject/a2a-go/v2/a2asrv"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Agent is the lynx-side capability exposed over A2A. It is intentionally
@@ -47,6 +50,19 @@ func NewExecutor(agent Agent) (a2asrv.AgentExecutor, error) {
 // status carrying the error message if the agent errors mid-stream.
 func (e *executor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorContext) iter.Seq2[sdka2a.Event, error] {
 	return func(yield func(sdka2a.Event, error) bool) {
+		// One server span per task execution — the inbound mirror of the
+		// client span in [AgentTool.Call]. Opened when the SDK drains the
+		// sequence, closed at the terminal event; a mid-stream agent error
+		// is recorded before the Failed terminal goes out.
+		ctx, span := a2aTracer.Start(ctx, "a2a.agent.serve",
+			trace.WithSpanKind(trace.SpanKindServer),
+			trace.WithAttributes(
+				attribute.String(attrTaskID, string(execCtx.TaskID)),
+				attribute.String(attrContextID, execCtx.ContextID),
+			),
+		)
+		defer span.End()
+
 		input := ""
 		if execCtx.Message != nil {
 			input = flattenParts(execCtx.Message.Parts)
@@ -64,6 +80,8 @@ func (e *executor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorContext)
 
 		for chunk, err := range e.agent.Run(ctx, input) {
 			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
 				failure := sdka2a.NewMessage(sdka2a.MessageRoleAgent, sdka2a.NewTextPart(err.Error()))
 				yield(sdka2a.NewStatusUpdateEvent(execCtx, sdka2a.TaskStateFailed, failure), nil)
 				return

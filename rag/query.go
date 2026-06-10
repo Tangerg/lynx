@@ -6,9 +6,9 @@ import (
 )
 
 // Sentinel errors for the rag stages. Callers can match these with
-// [errors.Is] to distinguish caller-side input errors (nil query,
-// nil request) from store/model failures returned by downstream
-// retrievers, transformers, augmenters.
+// [errors.Is] to distinguish caller-side input errors (nil query)
+// from store/model failures returned by downstream retrievers,
+// transformers, augmenters.
 var (
 	// ErrNilQuery is returned by every pipeline stage on a nil
 	// [*Query] argument — pipeline.Execute validates this once at

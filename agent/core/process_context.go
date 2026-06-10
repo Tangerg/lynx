@@ -258,23 +258,15 @@ func (pc *ProcessContext) buildChatRequest(tools []AgentTool) *chat.ClientReques
 // conversationID is this process's chat-memory conversation key, stamped
 // onto every chat request under [chat.ConversationIDKey] so the memory
 // middleware loads / saves history (and the tool middleware parks
-// interrupted rounds) keyed by it. It is the multi-turn [Session.ID] when
-// the process runs under a session, otherwise the process id — the
-// fallback matters because the tool loop is delta-driven (each round hands
-// the memory layer only the new messages and relies on it to reconstruct
-// the conversation from the store, so without an id a multi-round turn
-// would lose context across rounds). A child agent (e.g. a subtask
-// delegation) runs under its own session (its process id), so it gets an
-// isolated conversation while [Process.ParentID] preserves the lineage.
-// Returns "" only when neither is available, leaving the request unstamped.
+// interrupted rounds) keyed by it. The derivation rule lives in
+// [ConversationID]. Returns "" only when neither a session nor a
+// process is available, leaving the request unstamped.
 func (pc *ProcessContext) conversationID() string {
-	if pc.Options != nil && pc.Options.Session != nil && pc.Options.Session.ID != "" {
-		return pc.Options.Session.ID
-	}
+	var processID string
 	if pc.Process != nil {
-		return pc.Process.ID()
+		processID = pc.Process.ID()
 	}
-	return ""
+	return ConversationID(pc.Options, processID)
 }
 
 // ActionTools resolves the tools declared on the currently-executing

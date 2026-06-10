@@ -67,7 +67,7 @@ type ActionConfig struct {
 	ClearBlackboard bool
 }
 
-// applyDefaults fills in zero-valued fields whose conceptual default
+// ApplyDefaults fills in zero-valued fields whose conceptual default
 // is non-zero.
 func (c *ActionConfig) ApplyDefaults() {
 	if c.Cost == nil {

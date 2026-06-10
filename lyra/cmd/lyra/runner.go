@@ -55,9 +55,18 @@ func NewTurnRunner(app *App, opts turnOptions) *TurnRunner {
 // TurnEnd(Canceled). A second SIGINT escalates to the default
 // kill — for wedged turns.
 func (r *TurnRunner) Run(ctx context.Context, sessionID, message string) int {
+	// Resolve the session's cwd so fs/bash tools run in the session's
+	// project directory rather than the engine default — same contract
+	// as the runs.start wire path.
+	sess, err := r.app.rt.Session().Get(ctx, sessionID)
+	if err != nil {
+		fmt.Fprintf(r.app.Err, "lyra: %s\n", err)
+		return 1
+	}
 	handle, err := r.app.rt.Chat().StartTurn(ctx, chat.StartTurnRequest{
 		SessionID:  sessionID,
 		Message:    message,
+		Cwd:        sess.Cwd,
 		PlanMode:   r.opts.PlanMode,
 		MaxBudget:  r.opts.MaxBudget,
 		MaxCostUSD: r.opts.MaxCostUSD,

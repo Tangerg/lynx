@@ -14,7 +14,7 @@ type Options struct {
 	Voice string `json:"voice"`
 
 	// ResponseFormat selects the audio container ("mp3", "wav", ...).
-	ResponseFormat string `json:"format"`
+	ResponseFormat string `json:"response_format"`
 
 	// Speed scales the playback rate. 1.0 is normal speed.
 	Speed float64 `json:"speed"`

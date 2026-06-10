@@ -75,8 +75,10 @@ func projectsFromSessions(sessions []session.Session) []protocol.Project {
 }
 
 // WorkspaceListSkills is gated off (features.skills=false) — return
-// capability_not_negotiated rather than a misleading empty list, until
-// the engine grows skill discovery.
+// capability_not_negotiated rather than a misleading empty list. The
+// engine surfaces skills to the MODEL via the skill tool (resolved
+// against each turn's cwd), but exposes no client-facing enumeration
+// accessor yet — that needs a per-cwd skill listing seam on the engine.
 func (s *Server) WorkspaceListSkills(_ context.Context, _ protocol.WorkspaceListQuery) (*protocol.Page[protocol.Skill], error) {
 	return nil, notImpl("workspace.listSkills")
 }

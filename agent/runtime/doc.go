@@ -13,17 +13,23 @@
 //
 // Process lifecycle:
 //
-//	NewPlatform → Deploy(agent) → Run(processID, opts) → tick loop
-//	  → Resume(processID, hitlResult)  // for HITL flows
-//	  → Kill / Remove / Prune          // termination + cleanup
+//	NewPlatform → Deploy(agent)
+//	  → RunAgent(ctx, agentDef, bindings, options)    // synchronous run
+//	  → StartAgent / RunInSession                     // background / multi-turn variants
+//	  → ResumeProcess(id, response) + ContinueProcess // HITL: deliver reply, re-enter loop
+//	  → KillProcess / RemoveProcess / PruneTerminalProcesses
 //
 // HITL is a first-class state: when an action surfaces an [hitl]
-// awaitable, the process suspends and Resume re-enters from the same
-// blackboard state with the operator's reply folded in. Concurrent
-// child processes (via [Platform.CreateChildProcess]) inherit the
-// parent's chat client + extensions but get their own blackboard.
+// awaitable, the process suspends in [core.StatusWaiting];
+// [Platform.ResumeProcess] folds the operator's reply into the
+// blackboard and [Platform.ContinueProcess] re-enters the loop from
+// that state. Child processes (via [Platform.CreateChildProcess])
+// inherit the parent's blackboard via Spawn (unless overridden) and
+// its process-scope [EventListener] extensions — other extensions
+// stay scoped to the process that declared them.
 //
-// OTel: every action invocation, planner replan, and platform Run
-// produces a span under the `lynx/agent` tracer. See `agent/tracing`
-// in source for the attribute schema.
+// OTel: every action invocation, planner replan, and platform run
+// produces a span under the `lynx/agent` tracer (planners use
+// `lynx/agent/planner`). See doc/OBSERVABILITY.md for the attribute
+// schema.
 package runtime

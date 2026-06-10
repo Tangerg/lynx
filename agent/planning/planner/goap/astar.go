@@ -332,10 +332,7 @@ func (s *search) reconstructPath(goalKey string) []core.Action {
 		cursor = e.prevKey
 	}
 
-	// Reverse in place to get forward order.
-	for i, j := 0, len(reversed)-1; i < j; i, j = i+1, j-1 {
-		reversed[i], reversed[j] = reversed[j], reversed[i]
-	}
+	slices.Reverse(reversed) // forward (execution) order
 	return reversed
 }
 

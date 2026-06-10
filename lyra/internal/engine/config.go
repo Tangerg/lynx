@@ -10,9 +10,10 @@ import (
 	"github.com/Tangerg/lynx/mcp"
 )
 
-// Config is the engine construction-time bundle. All fields are
-// required — engine assumes its dependencies are wired before
-// construction.
+// Config is the engine construction-time bundle. ChatClient is the
+// only hard requirement (New errors without it); the rest are
+// optional — a nil/empty field disables or defaults the corresponding
+// feature, per-field docs below.
 type Config struct {
 	// ChatClient is the LLM client used by every action. Built from
 	// a lynx model adapter (anthropic, openai, ...) at startup.
@@ -86,8 +87,8 @@ type Config struct {
 	SessionStore core.SessionStore
 
 	// ParkStore persists interrupted tool rounds for HITL resume.
-	// When nil the tool middleware falls back to the legacy inflight-tail
-	// path (the engine must intercept [chat.FinishReasonInterrupt] chunks).
+	// When nil the engine intercepts [chat.FinishReasonInterrupt] chunks
+	// itself and parks the resumable tail on the process blackboard.
 	ParkStore tool.ParkStore
 }
 

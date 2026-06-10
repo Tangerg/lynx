@@ -73,11 +73,11 @@ func SpawnChildProtectedOnly(
 	in any,
 ) (*AgentProcess, error) {
 	if platform == nil {
-		return nil, errors.New("spawn child fresh protected: platform is nil")
+		return nil, errors.New("spawn child protected only: platform is nil")
 	}
 	parent := core.ProcessFrom(ctx)
 	if parent == nil {
-		return nil, errors.New("spawn child fresh protected: no parent process in ctx (use core.WithProcess to inject one)")
+		return nil, errors.New("spawn child protected only: no parent process in ctx (use core.WithProcess to inject one)")
 	}
 	return spawnChildOptions(ctx, platform, agentDef, in, core.ProcessOptions{
 		Blackboard: protectedOnlyBlackboard(parent.Blackboard()),

@@ -186,9 +186,10 @@ func parseRankerReply(text string) (map[string]rankerEntry, error) {
 	return out, nil
 }
 
-// extractJSON pulls the first balanced top-level "{...}" object out
-// of text — robustness for LLMs that prepend "Here is the JSON:" or
-// trail with markdown fences.
+// extractJSON slices text from the first "{" to the last "}" —
+// robustness for LLMs that prepend "Here is the JSON:" or trail with
+// markdown fences. It does not balance braces; it assumes a single
+// JSON object surrounded by noise.
 func extractJSON(text string) string {
 	start := strings.Index(text, "{")
 	end := strings.LastIndex(text, "}")

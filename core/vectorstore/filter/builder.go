@@ -161,7 +161,7 @@ func (b *ExprBuilder) Or(fn func(*ExprBuilder)) *ExprBuilder {
 // expression in NOT, and joins it with AND. An empty sub-builder
 // (nil expression) is silently skipped.
 func (b *ExprBuilder) Not(fn func(*ExprBuilder)) *ExprBuilder {
-	if expr, ok := b.subExpr(fn); ok && any(expr) != nil {
+	if expr, ok := b.subExpr(fn); ok && expr != nil {
 		b.and(Not(expr))
 	}
 	return b

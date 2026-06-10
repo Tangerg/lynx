@@ -1,15 +1,15 @@
 package main
 
 import (
+	"os"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
 
-// ChatCmd is `lyra chat <message...>` — one-shot, no session
-// persistence beyond the in-memory chat-memory keyed by the
-// auto-generated session id. With --plan the LLM first drafts a
+// ChatCmd is `lyra chat <message...>` — one-shot: it creates a real
+// session (so the turn's history and cwd persist like any other) and
+// runs a single turn against it. With --plan the LLM first drafts a
 // plan and waits for y/N approval; --auto-approve skips the
 // prompt; --verbose disables tool-output truncation.
 func (a *App) ChatCmd() *cobra.Command {
@@ -32,6 +32,14 @@ func (a *App) ChatCmd() *cobra.Command {
 			if message == "" {
 				return cmd.Usage()
 			}
+			// A real session (not a fabricated id): the ses_ id convention
+			// holds and the chat-memory rows stay attached to a session the
+			// session surface can list / delete.
+			cwd, _ := os.Getwd()
+			sess, err := a.rt.Session().Create(cmd.Context(), "", cwd)
+			if err != nil {
+				return a.fatalErr(err)
+			}
 			runner := NewTurnRunner(a, turnOptions{
 				PlanMode:    planMode,
 				AutoApprove: autoApprove,
@@ -39,7 +47,7 @@ func (a *App) ChatCmd() *cobra.Command {
 				MaxBudget:   maxBudget,
 				MaxCostUSD:  maxCostUSD,
 			})
-			if runner.Run(cmd.Context(), "cli-"+uuid.NewString(), message) != 0 {
+			if runner.Run(cmd.Context(), sess.ID, message) != 0 {
 				return errSilenced
 			}
 			return nil

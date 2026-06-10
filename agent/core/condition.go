@@ -114,13 +114,13 @@ func NewPromptCondition(
 	parser ConditionParser,
 ) (*PromptCondition, error) {
 	if client == nil {
-		return nil, errors.New("core.NewPromptCondition: client must not be nil")
+		return nil, errors.New("agent.NewPromptCondition: client must not be nil")
 	}
 	if prompt == nil {
-		return nil, errors.New("core.NewPromptCondition: prompt builder must not be nil")
+		return nil, errors.New("agent.NewPromptCondition: prompt builder must not be nil")
 	}
 	if parser == nil {
-		return nil, errors.New("core.NewPromptCondition: parser must not be nil")
+		return nil, errors.New("agent.NewPromptCondition: parser must not be nil")
 	}
 	return &PromptCondition{
 		name:   name,

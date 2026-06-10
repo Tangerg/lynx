@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"iter"
 	"strconv"
 	"strings"
@@ -38,7 +39,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		return nil, nil, err
 	}
 
-	userMsg := lastUserText(in.Input)
+	userMsg := joinUserText(in.Input)
 	if userMsg == "" {
 		return nil, nil, errors.New("runs.start: input must contain a user text block")
 	}
@@ -50,12 +51,29 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		return nil, nil, protocol.ErrInvalidParams
 	}
 
+	// Mode (agent|chat|plan, API.md §7.1): plan threads to the chat
+	// service's plan-preview flow; agent is the default loop. chat
+	// (tool-less) has no engine seam yet — gate it off honestly rather
+	// than silently running the agent loop. Unknown values are
+	// invalid_params, never silently dropped.
+	planMode := false
+	switch in.Mode {
+	case "", protocol.RunModeAgent:
+	case protocol.RunModePlan:
+		planMode = true
+	case protocol.RunModeChat:
+		return nil, nil, notImpl("runs.start (mode=chat)")
+	default:
+		return nil, nil, fmt.Errorf("%w: unknown mode %q", protocol.ErrInvalidParams, in.Mode)
+	}
+
 	handle, err := s.rt.Chat().StartTurn(ctx, chat.StartTurnRequest{
 		SessionID:  sessionID,
 		Message:    userMsg,
 		Cwd:        sess.Cwd,
 		Provider:   in.Provider,
 		Model:      in.Model,
+		PlanMode:   planMode,
 		MaxCostUSD: in.MaxBudgetUSD,
 	})
 	if err != nil {
@@ -555,9 +573,10 @@ func (s *Server) resolveSession(ctx context.Context, sessionID string) (string, 
 	return sessionID, nil
 }
 
-// lastUserText joins the text blocks of a run's input into the single
-// user message the in-process chat.StartTurn API expects today.
-func lastUserText(blocks []protocol.ContentBlock) string {
+// joinUserText joins ALL of a run's input text blocks (newline-
+// separated) into the single user message the in-process
+// chat.StartTurn API expects today.
+func joinUserText(blocks []protocol.ContentBlock) string {
 	var b []string
 	for _, blk := range blocks {
 		if blk.Type == "text" && blk.Text != "" {

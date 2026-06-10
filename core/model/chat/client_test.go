@@ -88,33 +88,18 @@ func TestNewClientRequest_RejectsNilModel(t *testing.T) {
 	}
 }
 
-func TestClientRequest_Build_DefaultGreetingWhenEmpty(t *testing.T) {
+func TestClientRequest_Build_ErrorWhenEmpty(t *testing.T) {
 	model := newFakeChatModel(t)
 	req, err := chat.NewClientRequest(model)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	resp, err := req.Call().Response(context.Background())
-	if err != nil {
-		t.Fatal(err)
+	if _, err := req.Call().Response(context.Background()); err == nil {
+		t.Fatal("expected error for a request with no messages and no user-prompt template")
 	}
-	if resp == nil {
-		t.Fatal("nil response")
-	}
-
-	if model.lastReq == nil {
-		t.Fatal("model never received a request")
-	}
-	if len(model.lastReq.Messages) != 1 {
-		t.Fatalf("expected 1 message, got %d", len(model.lastReq.Messages))
-	}
-	user, ok := model.lastReq.Messages[0].(*chat.UserMessage)
-	if !ok {
-		t.Fatalf("first message type = %T, want *UserMessage", model.lastReq.Messages[0])
-	}
-	if user.Text != "Hi!" {
-		t.Fatalf("default greeting = %q, want %q", user.Text, "Hi!")
+	if model.lastReq != nil {
+		t.Fatal("model must not be called when the request cannot be built")
 	}
 }
 

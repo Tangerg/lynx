@@ -21,12 +21,6 @@ func TestPosition_ResetAndAdjust(t *testing.T) {
 		t.Fatalf("after ResetColumn: %+v", p)
 	}
 
-	p = token.Position{Line: 3, Column: 7}
-	p.ResetLine()
-	if p.Line != 1 || p.Column != 7 {
-		t.Fatalf("after ResetLine: %+v", p)
-	}
-
 	p.Reset()
 	if p.Line != 1 || p.Column != 1 {
 		t.Fatalf("after Reset: %+v", p)

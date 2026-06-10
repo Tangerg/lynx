@@ -26,10 +26,6 @@ func NewPosition() Position {
 // the lexer on every newline.
 func (p *Position) ResetColumn() { p.Column = 1 }
 
-// ResetLine moves Line back to 1 while keeping Column. Rarely used;
-// kept for symmetry with [Position.ResetColumn].
-func (p *Position) ResetLine() { p.Line = 1 }
-
 // Reset returns the position to (1, 1) — typically called when reusing
 // a Position across multiple parses.
 func (p *Position) Reset() {

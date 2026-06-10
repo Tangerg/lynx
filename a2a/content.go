@@ -2,6 +2,7 @@ package a2a
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	sdka2a "github.com/a2aproject/a2a-go/v2/a2a"
@@ -33,12 +34,16 @@ func flattenParts(parts sdka2a.ContentParts) string {
 		case sdka2a.Data:
 			if raw, err := json.Marshal(content.Value); err == nil {
 				b.Write(raw)
+			} else {
+				// Don't let the part vanish silently — leave a marker so the
+				// reader knows something was here.
+				b.WriteString("[unrenderable data]")
 			}
 		case sdka2a.URL:
 			b.WriteString(string(content))
 		case sdka2a.Raw:
 			// Binary payloads have no faithful text form; note the size.
-			b.WriteString("[binary content]")
+			fmt.Fprintf(&b, "[binary content, %d bytes]", len(content))
 		}
 	}
 	return b.String()

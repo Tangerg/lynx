@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"gopkg.in/yaml.v3"
 )
@@ -62,15 +63,18 @@ func (f Frontmatter) Validate() error {
 		errs = append(errs, fmt.Errorf("%w: %q", ErrNameInvalid, name))
 	}
 
+	// Description / Compatibility limits are in characters (the spec's
+	// unit), so count runes — byte length over-counts non-ASCII text.
+	// Name stays byte-counted: its regex locks it to ASCII anyway.
 	switch {
 	case strings.TrimSpace(f.Description) == "":
 		errs = append(errs, ErrDescriptionEmpty)
-	case len(f.Description) > maxDescriptionLen:
-		errs = append(errs, fmt.Errorf("%w: %d characters", ErrDescriptionTooLong, len(f.Description)))
+	case utf8.RuneCountInString(f.Description) > maxDescriptionLen:
+		errs = append(errs, fmt.Errorf("%w: %d characters", ErrDescriptionTooLong, utf8.RuneCountInString(f.Description)))
 	}
 
-	if len(f.Compatibility) > maxCompatibilityLen {
-		errs = append(errs, fmt.Errorf("%w: %d characters", ErrCompatibilityTooLong, len(f.Compatibility)))
+	if utf8.RuneCountInString(f.Compatibility) > maxCompatibilityLen {
+		errs = append(errs, fmt.Errorf("%w: %d characters", ErrCompatibilityTooLong, utf8.RuneCountInString(f.Compatibility)))
 	}
 
 	return errors.Join(errs...)

@@ -143,7 +143,7 @@ func (m *MultiQueryExpander) Expand(ctx context.Context, query *Query) ([]*Query
 	}
 
 	variants := slices.DeleteFunc(strings.Split(expanded, "\n"), func(s string) bool {
-		return s == ""
+		return strings.TrimSpace(s) == ""
 	})
 
 	queries := make([]*Query, 0, len(variants)+1)

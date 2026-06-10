@@ -42,9 +42,9 @@ type CompactionResult struct {
 	MessagesAfter  int
 }
 
-// compactor is the engine's auto-compaction worker. Constructed
-// lazily in [Engine.MaybeCompact] (so engines without a memory
-// store + chat client both skip silently).
+// compactor is the engine's auto-compaction worker. Constructed in
+// [New] unless compaction is disabled (negative MaxMessages); a nil
+// compactor makes [Engine.MaybeCompact] a silent no-op.
 type compactor struct {
 	store      memory.Store
 	client     *chat.Client

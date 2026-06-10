@@ -84,7 +84,7 @@ func (m *pipelineMiddleware) executeCall(ctx context.Context, req *chat.Request,
 		return nil, err
 	}
 
-	req.ReplaceOfLastUserMessage(augmented.Text)
+	req.ReplaceTextOfLastUserMessage(augmented.Text)
 
 	resp, err := next.Call(ctx, req)
 	if err != nil {
@@ -105,7 +105,7 @@ func (m *pipelineMiddleware) executeStream(ctx context.Context, req *chat.Reques
 			return
 		}
 
-		req.ReplaceOfLastUserMessage(augmented.Text)
+		req.ReplaceTextOfLastUserMessage(augmented.Text)
 
 		for resp, err := range next.Stream(ctx, req) {
 			if err != nil {

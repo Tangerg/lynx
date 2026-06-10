@@ -31,7 +31,7 @@ const (
 	// gen_ai.usage.input_tokens is the canonical "tokens consumed by
 	// the embedded input" attribute per the OTel GenAI registry.
 	attrEmbedGenAIUsageInputTokens = "gen_ai.usage.input_tokens"
-	// lynx.embeddings.input.count is the lynx-specific extension that
+	// embeddings.input.count is the lynx-specific extension that
 	// records the batch size (number of texts). No GenAI attribute
 	// covers this today.
 	attrEmbedInputCount = "embeddings.input.count"

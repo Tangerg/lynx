@@ -41,7 +41,7 @@ func (p *Platform) Deploy(a *core.Agent) error {
 // run without one.
 func (p *Platform) validateForDeploy(a *core.Agent) error {
 	if a == nil {
-		return fmt.Errorf("runtime.Platform.validateForDeploy: deploy agent: %w", a.Validate())
+		return errors.New("runtime.Platform.validateForDeploy: deploy agent: agent is nil")
 	}
 
 	var problems []error

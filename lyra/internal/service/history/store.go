@@ -41,8 +41,8 @@ type Run struct {
 
 // Store is the durable Item history. Implementations must be safe for
 // concurrent use. Consumer-side abstraction: the runtime + RPC server
-// depend on it; back it with [storage.FileHistoryStore] or the sqlite
-// implementation.
+// depend on it; back it with the sqlite HistoryStore
+// (internal/storage/sqlite).
 type Store interface {
 	// AppendItem records one completed Item. List returns items in
 	// append order.

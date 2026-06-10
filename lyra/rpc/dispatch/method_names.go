@@ -75,7 +75,6 @@ const (
 	MethodAttachmentsGet          = "attachments.get"
 	MethodAttachmentsDelete       = "attachments.delete"
 	MethodBackgroundList          = "background.list"
-	MethodBackgroundSubscribe     = "background.subscribe"
 	MethodBackgroundCancel        = "background.cancel"
 	MethodFeedbackCreate          = "feedback.create"
 

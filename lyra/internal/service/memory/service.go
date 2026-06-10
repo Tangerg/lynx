@@ -29,9 +29,9 @@ type Entry struct {
 	CapturedAt time.Time // when this entry last landed in LYRA.md
 }
 
-// Service is the MemoryService contract. File-backed and SQLite-
-// backed implementations live in internal/storage and
-// internal/storage/sqlite respectively.
+// Service is the MemoryService contract. The implementation is
+// file-backed (internal/storage) — LYRA.md stays a user-editable
+// file by design, the one deliberate exception to the SQLite backend.
 type Service interface {
 	// Get returns the full LYRA.md content for the given scope.
 	// Empty result is valid (file may not exist yet).

@@ -133,7 +133,7 @@ func (t *TokenSplitter) splitByTokens(ctx context.Context, text string) ([]strin
 		return nil, err
 	}
 
-	chunks := make([]string, 0, t.chunkSize)
+	var chunks []string
 	processed := 0
 
 	for len(tokens) > 0 && processed < t.maxChunkCount {
@@ -204,9 +204,9 @@ func (t *TokenSplitter) cleanChunk(s string) string {
 func lastSentenceEnd(s string) int {
 	return max(
 		strings.LastIndex(s, "."),
-		max(strings.LastIndex(s, "?"),
-			max(strings.LastIndex(s, "!"),
-				strings.LastIndex(s, "\n"))),
+		strings.LastIndex(s, "?"),
+		strings.LastIndex(s, "!"),
+		strings.LastIndex(s, "\n"),
 	)
 }
 

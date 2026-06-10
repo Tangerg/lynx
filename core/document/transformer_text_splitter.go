@@ -36,7 +36,6 @@ var _ Transformer = (*TextSplitter)(nil)
 //	s := document.NewTextSplitter(document.TextSplitterConfig{Separator: "\n\n"})
 //	chunks, _ := s.Transform(ctx, []*document.Document{doc})
 type TextSplitter struct {
-	config   TextSplitterConfig
 	splitter *Splitter
 }
 
@@ -59,7 +58,7 @@ func NewTextSplitter(config TextSplitterConfig) *TextSplitter {
 			return strings.Split(text, config.Separator), nil
 		},
 	})
-	return &TextSplitter{config: config, splitter: splitter}
+	return &TextSplitter{splitter: splitter}
 }
 
 // Transform delegates to the wrapped [Splitter].

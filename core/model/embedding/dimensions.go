@@ -34,7 +34,14 @@ func GetDimensions(ctx context.Context, model Model) int64 {
 		return 0
 	}
 
-	dimensions := int64(len(resp.Result().Embedding))
+	// A provider that answers with no results is as unknown as a failed
+	// probe — report 0 and don't poison the cache.
+	result := resp.Result()
+	if result == nil {
+		return 0
+	}
+
+	dimensions := int64(len(result.Embedding))
 	dimensionsStore.Store(cacheKey, dimensions)
 	return dimensions
 }

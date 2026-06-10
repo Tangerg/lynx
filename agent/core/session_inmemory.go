@@ -4,8 +4,8 @@ import "context"
 
 // InMemorySessionStore is the reference [SessionStore] backend —
 // sessions live in a goroutine-safe map. Suitable for tests and
-// single-node development. Production deployments wire a persistent
-// backend from the `agentstore/` sibling module.
+// single-node development. Production deployments supply their own
+// persistent backend behind the same interface.
 type InMemorySessionStore struct {
 	kv *inMemoryKV[Session]
 }

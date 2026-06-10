@@ -69,10 +69,6 @@ func SubagentTools(platform *Platform, names ...string) ([]chat.Tool, error) {
 // context like the working directory. Budget aggregation is automatic —
 // the parent's [core.Process.Usage] sums the entire delegation tree.
 //
-// Panics on construction when platform is nil or agentName isn't
-// registered: programming errors should fail at boot, not on the
-// first LLM tool call.
-//
 // Example:
 //
 //	tool, _ := runtime.AsChatTool[Topic, Brief](platform, "research-agent")

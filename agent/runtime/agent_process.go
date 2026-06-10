@@ -121,17 +121,14 @@ func (p *AgentProcess) StartedAt() time.Time          { return p.startedAt }
 func (p *AgentProcess) Blackboard() core.Blackboard   { return p.blackboard }
 func (p *AgentProcess) Options() *core.ProcessOptions { return p.options }
 
-// conversationID returns the chat-memory conversation id for this process:
-// its session id when it runs under one, otherwise its process id (the
-// fallback the chat request uses — see ProcessContext.sessionParams).
+// conversationID returns the chat-memory conversation id for this
+// process; the derivation rule (session id when under a session, else
+// process id) lives in [core.ConversationID].
 func (p *AgentProcess) conversationID() string {
 	if p == nil {
 		return ""
 	}
-	if p.options != nil && p.options.Session != nil && p.options.Session.ID != "" {
-		return p.options.Session.ID
-	}
-	return p.id
+	return core.ConversationID(p.options, p.id)
 }
 
 // userID returns the principal this process runs as, inherited by child

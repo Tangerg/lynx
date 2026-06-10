@@ -66,7 +66,7 @@ func (b *inMemoryBlackboard) Get(key string) (any, bool) {
 	return v, ok
 }
 
-// GetValue resolves typed lookups:
+// Lookup resolves typed lookups:
 //
 //   - variable == "it" / empty: newest object whose stored type matches typeName.
 //   - variable == "last_result":  newest object regardless of type.

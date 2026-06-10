@@ -208,19 +208,19 @@ func validateUniqueNamed(
 	require bool,
 ) error {
 	if require && count == 0 {
-		return fmt.Errorf("agent.validateUniqueNamed: invalid agent %q: at least one %s is required", agentName, kind)
+		return fmt.Errorf("agent.Agent.Validate: invalid agent %q: at least one %s is required", agentName, kind)
 	}
 	seen := make(map[string]struct{}, count)
 	for i := range count {
 		name, isNil := nameAt(i)
 		switch {
 		case isNil:
-			return fmt.Errorf("agent.validateUniqueNamed: invalid agent %q: %s at index %d is nil", agentName, kind, i)
+			return fmt.Errorf("agent.Agent.Validate: invalid agent %q: %s at index %d is nil", agentName, kind, i)
 		case name == "":
-			return fmt.Errorf("agent.validateUniqueNamed: invalid agent %q: %s at index %d has empty name", agentName, kind, i)
+			return fmt.Errorf("agent.Agent.Validate: invalid agent %q: %s at index %d has empty name", agentName, kind, i)
 		}
 		if _, dup := seen[name]; dup {
-			return fmt.Errorf("agent.validateUniqueNamed: invalid agent %q: duplicate %s name %q", agentName, kind, name)
+			return fmt.Errorf("agent.Agent.Validate: invalid agent %q: duplicate %s name %q", agentName, kind, name)
 		}
 		seen[name] = struct{}{}
 	}

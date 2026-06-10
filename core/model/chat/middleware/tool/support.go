@@ -8,7 +8,7 @@ import (
 	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 )
 
-// support bundles a [registry] with a tool-call invoker — the
+// loopSupport bundles a [registry] with a tool-call invoker — the
 // integration point the [NewMiddleware] middleware uses to drive
 // the tool-calling loop. See [NewMiddleware] for end-to-end wiring.
 type loopSupport struct {
@@ -16,7 +16,7 @@ type loopSupport struct {
 	invoker  *callInvoker
 }
 
-// newSupport returns a [support] backed by a fresh registry.
+// newSupport returns a [loopSupport] backed by a fresh registry.
 // capacityHint, if positive, preallocates the registry's backing map.
 func newSupport(capacityHint ...int) *loopSupport {
 	registry := newRegistry(capacityHint...)
@@ -38,14 +38,10 @@ func (s *loopSupport) register(tools ...chat.Tool) {
 //   - every tool referenced in that message is registered, AND
 //   - every such tool has ReturnDirect = true.
 func (s *loopSupport) shouldReturnDirect(msgs []chat.Message) bool {
-	if len(msgs) == 0 {
+	last, ok := pkgSlices.Last(msgs)
+	if !ok {
 		return false
 	}
-	if _, ok := msgs[len(msgs)-1].(*chat.ToolMessage); !ok {
-		return false
-	}
-
-	last, _ := pkgSlices.Last(msgs)
 	toolMsg, ok := last.(*chat.ToolMessage)
 	if !ok {
 		return false
@@ -65,7 +61,7 @@ func (s *loopSupport) shouldReturnDirect(msgs []chat.Message) bool {
 
 // buildReturnDirectResponse assembles a synthetic [*chat.Response] that wraps
 // the last [*chat.ToolMessage] as the final answer. Returns an error when
-// [support.shouldReturnDirect] would return false.
+// [loopSupport.shouldReturnDirect] would return false.
 func (s *loopSupport) buildReturnDirectResponse(msgs []chat.Message) (*chat.Response, error) {
 	if !s.shouldReturnDirect(msgs) {
 		return nil, errors.New("tool.support.buildReturnDirectResponse: conditions for return-direct are not met")
@@ -81,7 +77,7 @@ func (s *loopSupport) buildReturnDirectResponse(msgs []chat.Message) (*chat.Resp
 
 // shouldInvokeToolCalls reports whether the response contains tool
 // calls that the registry can fulfill.
-func (s *loopSupport) shouldInvokeToolCalls(resp *chat.Response) (bool, error) {
+func (s *loopSupport) shouldInvokeToolCalls(resp *chat.Response) bool {
 	return s.invoker.canInvokeToolCalls(resp)
 }
 

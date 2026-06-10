@@ -35,7 +35,7 @@ type BlackboardReader interface {
 	// Objects returns a snapshot in insertion order.
 	Objects() []any
 
-	// GetCondition reads boolean state set via [BlackboardWriter.SetCondition].
+	// Condition reads boolean state set via [BlackboardWriter.SetCondition].
 	Condition(key string) (bool, bool)
 
 	// Inspect is for human consumption — verbose=true dumps everything,

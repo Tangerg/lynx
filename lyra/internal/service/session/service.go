@@ -117,9 +117,8 @@ func (s Session) NewSubtask(id string, now time.Time) Session {
 // transport-agnostic — HTTP/gRPC/IPC adapters wrap this surface
 // without changing its shape.
 type Service interface {
-	// List returns every known session, newest-updated first.
-	// Implementations may paginate; callers that need stability
-	// supply Pagination opts.
+	// List returns every known session, newest-updated first. The full
+	// list comes back in one call; the wire layer paginates on top.
 	List(ctx context.Context) ([]Session, error)
 
 	// Get returns the session by id, or ErrNotFound.

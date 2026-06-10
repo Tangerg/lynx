@@ -120,7 +120,7 @@ func (f *FileWriter) writeBatched(docs []*Document, file *os.File) error {
 
 		if (i+1)%fileWriterBatchSize == 0 {
 			if _, err := file.WriteString(buf.String()); err != nil {
-				return fmt.Errorf("document.fileWriter.flushBatches: flush batch at index %d: %w", i, err)
+				return fmt.Errorf("document.FileWriter.writeBatched: flush batch at index %d: %w", i, err)
 			}
 			buf.Reset()
 		}
@@ -128,7 +128,7 @@ func (f *FileWriter) writeBatched(docs []*Document, file *os.File) error {
 
 	if buf.Len() > 0 {
 		if _, err := file.WriteString(buf.String()); err != nil {
-			return fmt.Errorf("document.fileWriter.flushBatches: flush trailing batch: %w", err)
+			return fmt.Errorf("document.FileWriter.writeBatched: flush trailing batch: %w", err)
 		}
 	}
 	return file.Sync()

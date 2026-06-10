@@ -33,11 +33,11 @@ type source interface {
 // snapshots the registered tools; Invoke routes by tool name to
 // the registered tool's Call method (no agent loop involved —
 // direct synchronous invocation).
-func New(src source) Service {
+func New(src source) (Service, error) {
 	if src == nil {
-		panic("tool: source is required")
+		return nil, errors.New("tool: source is required")
 	}
-	return &engineBacked{src: src}
+	return &engineBacked{src: src}, nil
 }
 
 // engineBacked is the single Service implementation today. The
