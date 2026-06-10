@@ -99,6 +99,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
         signal: AbortSignal,
       ) => Promise<StreamingResult<{ runId: RunId; userItemId?: string }, RunEvent>>,
       onResult?: (result: { runId: RunId; userItemId?: string }) => void,
+      onStartError?: () => void,
     ): void => {
       interacted = true; // a live run now owns this slice; gate late history
       abort?.abort(); // a new run supersedes any in-flight one
@@ -131,11 +132,25 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
               message: errorDetail(err.data) ?? err.message,
               code: errorType(err.data),
             });
+          // Let the caller roll back optimistic UI (send re-entrancy latch,
+          // HITL card pending state) now that we know the run never opened.
+          onStartError?.();
         })
         .finally(() => endSpan(span, failure));
     };
 
+    // Synchronous re-entrancy latch for the pre-run.started window. The view's
+    // run.running (the steady-state guard in useChatSend) only flips true when
+    // the run.started event arrives — a full round-trip after send(). Without
+    // this latch a second Enter inside that window passes the running guard and
+    // fires a second runs.start: two optimistic bubbles, two backend runs, and
+    // the first bubble orphaned (its localId never relabeled). Cleared the
+    // moment the run starts (onResult) or fails to start (onStartError).
+    let starting = false;
+
     const send = (text: string): void => {
+      if (starting) return;
+      starting = true;
       // Optimistically render the user's own bubble with a local id. The
       // runtime DOES stream the userMessage Item back (with its own server id),
       // a round-trip later — so when runs.start resolves we relabel this
@@ -158,15 +173,28 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       begin(
         (signal) => driver.start(text, signal),
         (result) => {
+          starting = false;
           if (result.userItemId) store().relabelMessage(sessionId, localId, result.userItemId);
+        },
+        () => {
+          starting = false;
         },
       );
       // First message graduates a draft session into the sidebar.
       useSessionStore.getState().graduateDraft(sessionId);
     };
 
-    const resume = (parentRunId: RunId, responses: InterruptResponse[]): void => {
-      begin((signal) => driver.resume(parentRunId, responses, signal));
+    const resume = (
+      parentRunId: RunId,
+      responses: InterruptResponse[],
+      onSettled?: () => void,
+      onStartError?: () => void,
+    ): void => {
+      begin(
+        (signal) => driver.resume(parentRunId, responses, signal),
+        onSettled ? () => onSettled() : undefined,
+        onStartError,
+      );
     };
 
     const stop = (): void => {

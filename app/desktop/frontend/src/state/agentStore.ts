@@ -19,7 +19,17 @@ import { useSessionStore } from "./sessionStore";
 
 type StopFn = (() => void) | null;
 type SendFn = ((text: string) => void) | null;
-type ResumeFn = ((parentRunId: RunId, responses: InterruptResponse[]) => void) | null;
+// onSettled fires once the continuation run has actually started (channel-a
+// accepted); onStartError fires if runs.resume rejects before any stream
+// opened (API.md §8.1), so the caller can roll back its optimistic UI.
+type ResumeFn =
+  | ((
+      parentRunId: RunId,
+      responses: InterruptResponse[],
+      onSettled?: () => void,
+      onStartError?: () => void,
+    ) => void)
+  | null;
 
 interface SessionEntry {
   view: AgentViewState;
@@ -84,12 +94,19 @@ const emptyEntry = (): SessionEntry => ({
   resume: null,
 });
 
+// Patch an EXISTING session entry. Never resurrects a dropped slice:
+// resetSession (run once at mount) is the sole creator, so a write that can't
+// find its session — a late rAF flush, an in-flight items.list resolving, or
+// the unmount cleanup nulling send/stop after the prune subscriber already
+// dropped the tab — must no-op rather than re-seed a ghost entry that prune
+// will never collect again (it only fires on the next tabIds change).
 function patch(
   sessions: Record<string, SessionEntry>,
   sessionId: string,
   next: Partial<SessionEntry>,
 ): Record<string, SessionEntry> {
-  const prev = sessions[sessionId] ?? emptyEntry();
+  const prev = sessions[sessionId];
+  if (!prev) return sessions;
   return { ...sessions, [sessionId]: { ...prev, ...next } };
 }
 
@@ -97,13 +114,15 @@ export const useAgentStore = create<AgentStore>((set) => ({
   sessions: {},
   applyEvent: (sessionId, event) =>
     set((s) => {
-      const prev = s.sessions[sessionId] ?? emptyEntry();
+      const prev = s.sessions[sessionId];
+      if (!prev) return s; // session torn down — drop the late event
       return { sessions: patch(s.sessions, sessionId, { view: reduce(prev.view, event) }) };
     }),
   applyEvents: (sessionId, events) =>
     set((s) => {
       if (events.length === 0) return s;
-      const prev = s.sessions[sessionId] ?? emptyEntry();
+      const prev = s.sessions[sessionId];
+      if (!prev) return s; // session torn down — drop the late batch
       let view = prev.view;
       for (const event of events) view = reduce(view, event);
       return { sessions: patch(s.sessions, sessionId, { view }) };
@@ -145,11 +164,11 @@ export const useAgentStore = create<AgentStore>((set) => ({
       };
     }),
   setError: (sessionId, error) =>
-    set((s) => ({
-      sessions: patch(s.sessions, sessionId, {
-        view: { ...(s.sessions[sessionId]?.view ?? INITIAL_VIEW_STATE), error },
-      }),
-    })),
+    set((s) => {
+      const prev = s.sessions[sessionId];
+      if (!prev) return s;
+      return { sessions: patch(s.sessions, sessionId, { view: { ...prev.view, error } }) };
+    }),
   resolveInterrupt: (sessionId, itemId, settled) =>
     set((s) => {
       const prev = s.sessions[sessionId];
