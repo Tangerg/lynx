@@ -27,12 +27,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
-	chatmem "github.com/Tangerg/lynx/core/model/chat/middleware/memory"
-	toolmw "github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 
-	"github.com/Tangerg/lynx/a2a"
 	"github.com/Tangerg/lynx/lyra/internal/config"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
@@ -46,50 +42,17 @@ import (
 	"github.com/Tangerg/lynx/mcp"
 )
 
-// Config is the construction-time bundle for [New]. Several fields
-// are required and injected by the composition root (ChatClient plus
-// the sqlite-backed stores marked "Required" below); the rest are
-// optional — nil/zero disables or defaults the feature, per-field docs.
+// Config is the construction-time bundle for [New]. Engine carries the
+// engine's own construction config verbatim; the remaining fields are
+// the runtime-layer services. Several are required and injected by the
+// composition root (the sqlite-backed stores marked "Required" below).
 type Config struct {
-	// ChatClient is the LLM client every action eventually calls
-	// through to. Required.
-	ChatClient *chat.Client
-
-	// Workdir scopes filesystem-touching tools (fs / bash). Empty
-	// disables scoping — fine for tests, NOT recommended for
-	// production where the model could read anywhere on disk.
-	Workdir string
-
-	// SkillsGlobalDir is the user-scope Agent Skills directory
-	// (typically ~/.lyra/skills), merged under each session's project
-	// skills. Empty disables the global layer. See [engine.Config.SkillsGlobalDir].
-	SkillsGlobalDir string
-
-	// Online toggles the provider-backed online tools. Each field is
-	// independent; empty credentials skip the corresponding tool.
-	Online engine.OnlineConfig
-
-	// MCPServers lists external MCP servers to dial at startup.
-	// Their tools merge into the engine's tool set under the
-	// configured Name prefix.
-	MCPServers []mcp.ServerConfig
-
-	// A2AAgents lists remote A2A agents to dial at startup. Each merges
-	// into the engine's tool set as a delegation tool.
-	A2AAgents []a2a.ClientConfig
-
-	// Compaction tunes the post-turn auto-compaction. Zero values
-	// fall back to the package defaults; setting MaxMessages
-	// negative disables compaction entirely.
-	Compaction engine.CompactionConfig
-
-	// MemoryStore is the chat-memory backend. nil falls back to the
-	// in-process [chatmem.InMemoryStore] (history lost on restart).
-	MemoryStore chatmem.Store
-
-	// MemoryService backs the LYRA.md cascade reader. nil disables
-	// the cascade — the base system prompt is used verbatim.
-	MemoryService memsvc.Service
+	// Engine is the engine's construction config, passed through
+	// verbatim — with one exception: [engine.Config.SessionStore] is
+	// owned by the runtime (derived from SessionService so subtask
+	// sessions persist with parent lineage); any value set there is
+	// replaced. Engine.ChatClient is required.
+	Engine engine.Config
 
 	// SessionService persists Lyra sessions. Required — the composition
 	// root injects the sqlite-backed service (tests use a sqlite :memory: DB).
@@ -99,40 +62,26 @@ type Config struct {
 	// discovery). Required — injected sqlite-backed, same as SessionService.
 	InterruptStore interrupts.Store
 
-	// ApprovalMode sets the initial runtime approval stance. The
-	// service is always constructed; mode defaults to [approval.ModeYolo]
-	// when this field is the zero value.
-	ApprovalMode approval.Mode
-
-	// Pricing optionally computes per-round USD cost so turns report
-	// CostUSD. nil leaves cost at zero. See [engine.Pricing].
-	Pricing engine.Pricing
-
-	// ProcessStore, when non-nil, persists agent-process snapshots
-	// (audit + restart durability). nil = no persistence. See
-	// [engine.Config.ProcessStore].
-	ProcessStore core.ProcessStore
-
 	// HistoryStore persists the durable Item history that items.list is
 	// served from (authoritative completed Items + their RunRefs).
 	// Required — injected sqlite-backed, same as SessionService.
 	HistoryStore history.Store
-
-	// Provider / Model name the runtime's DEFAULT provider+model — the one a
-	// turn runs against when it doesn't pick a model. providers.list /
-	// models.list are served from the registry + catalog, not these.
-	Provider string
-	Model    string
 
 	// ProviderService is the runtime-mutable provider registry (per-provider
 	// credentials, persisted). Required — the composition root injects the
 	// sqlite-backed registry and seeds the configured provider into it.
 	ProviderService provider.Service
 
-	// ParkStore persists interrupted tool rounds so the tool loop can
-	// resume from the parked conversation tail. Required — sqlite-backed,
-	// same DB as the other stores.
-	ParkStore toolmw.ParkStore
+	// ApprovalMode sets the initial runtime approval stance. The
+	// service is always constructed; mode defaults to [approval.ModeYolo]
+	// when this field is the zero value.
+	ApprovalMode approval.Mode
+
+	// Provider / Model name the runtime's DEFAULT provider+model — the one a
+	// turn runs against when it doesn't pick a model. providers.list /
+	// models.list are served from the registry + catalog, not these.
+	Provider string
+	Model    string
 }
 
 // Runtime is the bundle. Construct once via [New]; share the
@@ -161,31 +110,20 @@ type Runtime struct {
 // dependency is missing or any internal constructor fails — engine
 // deployment, MCP dial, etc.
 func New(ctx context.Context, cfg Config) (*Runtime, error) {
-	if cfg.ChatClient == nil {
-		return nil, errors.New("runtime: ChatClient is required")
+	if cfg.Engine.ChatClient == nil {
+		return nil, errors.New("runtime: Engine.ChatClient is required")
 	}
 	if cfg.HistoryStore == nil {
 		return nil, errors.New("runtime: HistoryStore is required")
 	}
 
-	eng, err := engine.New(ctx, engine.Config{
-		ChatClient:      cfg.ChatClient,
-		Workdir:         cfg.Workdir,
-		SkillsGlobalDir: cfg.SkillsGlobalDir,
-		Online:          cfg.Online,
-		MCPServers:      cfg.MCPServers,
-		A2AAgents:       cfg.A2AAgents,
-		MemoryStore:     cfg.MemoryStore,
-		MemoryService:   cfg.MemoryService,
-		Compaction:      cfg.Compaction,
-		Pricing:         cfg.Pricing,
-		ProcessStore:    cfg.ProcessStore,
-		ParkStore:       cfg.ParkStore,
-		// When a sub-agent (the `task` delegation) is spawned, the runtime
-		// records its session here so the parent→child lineage is durably
-		// queryable; CreateSubtask marks it internal so it stays out of List.
-		SessionStore: newChildSessionStore(cfg.SessionService),
-	})
+	// The engine config passes through verbatim except SessionStore: when
+	// a sub-agent (the `task` delegation) is spawned, the runtime records
+	// its session so the parent→child lineage is durably queryable;
+	// CreateSubtask marks it internal so it stays out of List.
+	ecfg := cfg.Engine
+	ecfg.SessionStore = newChildSessionStore(cfg.SessionService)
+	eng, err := engine.New(ctx, ecfg)
 	if err != nil {
 		return nil, fmt.Errorf("runtime: engine: %w", err)
 	}
@@ -218,12 +156,12 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		chat:           chatSvc,
 		session:        sessionSvc,
 		tool:           toolSvc,
-		memory:         cfg.MemoryService,
+		memory:         cfg.Engine.MemoryService,
 		approval:       approvalSvc,
 		interrupts:     interruptStore,
 		history:        cfg.HistoryStore,
 		providers:      providerSvc,
-		mcpServerNames: mcpNamesFrom(cfg.MCPServers),
+		mcpServerNames: mcpNamesFrom(cfg.Engine.MCPServers),
 		defaultModel:   cfg.Model,
 	}, nil
 }
@@ -250,7 +188,7 @@ func (r *Runtime) Session() sessionsvc.Service { return r.session }
 func (r *Runtime) Tool() toolsvc.Service { return r.tool }
 
 // Memory returns the LYRA.md cascade service. Nil when no memory
-// service was configured (cfg.MemoryService was nil).
+// service was configured (cfg.Engine.MemoryService was nil).
 func (r *Runtime) Memory() memsvc.Service { return r.memory }
 
 // Approval returns the ApprovalService. Always non-nil — the runtime

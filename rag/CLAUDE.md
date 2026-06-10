@@ -12,7 +12,6 @@
 ## 技术栈
 
 - Go 1.26.3
-- `golang.org/x/sync/errgroup`（并行 retrieve）
 - `go.opentelemetry.io/otel` 1.43（每阶段 span）
 - 依赖 `core/document`（Document 类型）+ `pkg`（工具）+ 由调用方注入 vectorstore + embedding model
 
@@ -22,7 +21,7 @@
 
 1. **QueryTransformer** —— rewrite / compression / translation（链式按 config 顺序跑）
 2. **QueryExpander** —— 多 query（一个变多个），下游 fan-out
-3. **DocumentRetriever** —— **并行**跑多个 retriever（errgroup），结果 union
+3. **DocumentRetriever** —— **并行**跑多个 retriever（`sync.WaitGroup`，不连坐取消——部分失败保留部分结果），结果 union
 4. **DocumentRefiner** —— union 后的 dedup（by ID）+ rank（top-K by score）
 5. **QueryAugmenter** —— 把检索到的 docs 当 system context 注入回 query
 
@@ -38,7 +37,7 @@
 ## 强约定
 
 - **至少一个 Retriever 必填**（其他阶段都可空）
-- **只有 Retrieve 阶段并行**（errgroup fan-out），其他阶段顺序
+- **只有 Retrieve 阶段并行**（WaitGroup fan-out，部分失败容忍），其他阶段顺序
 - **Query.Extra 流过所有阶段**（不丢，可写 / 可读）—— 跨阶段传 metadata 用这个
 - **每阶段一个 OTel span**，错误包装 `fmt.Errorf("stage X: %w", err)` 给上层定位
 - **不做的事**（设计决策）：

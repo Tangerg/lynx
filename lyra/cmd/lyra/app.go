@@ -21,6 +21,7 @@ import (
 	chatmem "github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	"github.com/Tangerg/lynx/lyra/internal/config"
+	"github.com/Tangerg/lynx/lyra/internal/engine"
 	lyraruntime "github.com/Tangerg/lynx/lyra/internal/runtime"
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
 	"github.com/Tangerg/lynx/lyra/internal/service/history"
@@ -123,28 +124,33 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 	}
 
 	rt, err := lyraruntime.New(ctx, lyraruntime.Config{
-		ChatClient: client,
-		// Catalog-driven cost: price each round by its served model across
-		// every provider, so turns on any provider+model report CostUSD.
-		Pricing: config.CatalogPricing(),
-		// User-scope Agent Skills live under the storage home; per-session
-		// project skills (<cwd>/.lyra/skills) layer on top of these.
-		SkillsGlobalDir: filepath.Join(stores.Home, "skills"),
-		Online:          cfg.Online,
-		MCPServers:      cfg.MCPServers,
-		A2AAgents:       cfg.A2AAgents,
-		MemoryStore:     stores.ChatMem,
-		MemoryService:   stores.Memory,
-		SessionService:  stores.Session,
-		// Durable stores enable cross-restart HITL resume: ProcessStore
-		// auto-snapshots every agent process (so a parked turn survives a
-		// restart); InterruptStore persists the open-interrupt registry
-		// that runs.resume looks up. Both are sqlite-backed (buildStores).
-		ProcessStore:    stores.Process,
+		// Engine construction config passes through verbatim (SessionStore
+		// is the runtime's to fill — see runtime.Config.Engine).
+		Engine: engine.Config{
+			ChatClient: client,
+			// Catalog-driven cost: price each round by its served model across
+			// every provider, so turns on any provider+model report CostUSD.
+			Pricing: config.CatalogPricing(),
+			// User-scope Agent Skills live under the storage home; per-session
+			// project skills (<cwd>/.lyra/skills) layer on top of these.
+			SkillsGlobalDir: filepath.Join(stores.Home, "skills"),
+			Online:          cfg.Online,
+			MCPServers:      cfg.MCPServers,
+			A2AAgents:       cfg.A2AAgents,
+			MemoryStore:     stores.ChatMem,
+			MemoryService:   stores.Memory,
+			// ProcessStore auto-snapshots every agent process so a parked
+			// turn survives a restart (cross-restart HITL resume);
+			// ParkStore persists interrupted tool rounds. Both sqlite-backed.
+			ProcessStore: stores.Process,
+			ParkStore:    stores.Park,
+		},
+		SessionService: stores.Session,
+		// InterruptStore persists the open-interrupt registry that
+		// runs.resume looks up — the other half of cross-restart resume.
 		InterruptStore:  stores.Interrupt,
 		HistoryStore:    stores.History,
 		ProviderService: stores.Provider,
-		ParkStore:       stores.Park,
 		// Default provider+model a turn runs against when it picks no model.
 		Provider: string(cfg.Provider),
 		Model:    cfg.Model,
