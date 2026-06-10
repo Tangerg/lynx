@@ -131,9 +131,15 @@ func (s *Server) isRunLive(runID string) bool {
 	return ok
 }
 
-// EditItem — editing an item starts a continuation run (checkpoint
-// semantics), which the engine doesn't support yet. Gated off
-// (features.checkpoints).
+// EditItem — editing an item replaces it and starts a continuation run from
+// that point (checkpoint semantics). This is intrinsically item-boundary: it
+// must truncate the conversation to before the edited item, swap the content,
+// and re-run. The blocker is the same one sessions.fork's fromItemId hits —
+// the durable Item log and the chat-memory message log are parallel views with
+// no positional correlation, so "history up to item X" can't be resolved
+// reliably. Unlike fork there is no whole-conversation fallback (an edit is
+// always at a point), so it stays gated off (features.checkpoints) until the
+// data model carries a message↔item link. NOT a thin accessor — a feature.
 func (s *Server) EditItem(_ context.Context, _ protocol.EditItemRequest) (*protocol.EditItemResponse, error) {
 	return nil, notImpl("items.edit")
 }
