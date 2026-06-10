@@ -16,54 +16,58 @@ import (
 // blob the agent reads as project / user knowledge.
 const memoryFileName = "LYRA.md"
 
-// FileMemoryService persists [memory.Service] state to two
-// markdown files:
+// FileMemoryService persists [memory.Service] state to markdown
+// files:
 //
-//   - <cwd>/LYRA.md    — project scope (per-repo knowledge)
+//   - <dir>/LYRA.md    — project scope (per-repo knowledge); dir is
+//     supplied per call (a session's cwd), so one service serves
+//     every project
 //   - <home>/LYRA.md   — user scope    (cross-project preferences)
 //
 // Files are created lazily on first Update; Get returns "" until
-// that point. Concurrent writes are serialized per-scope so
-// `lyra memory edit` racing with the agent's auto-extract doesn't
-// truncate either side.
+// that point. Concurrent writes are serialized so `lyra memory edit`
+// racing with the agent's auto-extract doesn't truncate either side.
 type FileMemoryService struct {
-	cwd  string // resolved at construction time; empty if unavailable
-	home string // resolved from storage.Home()
+	defaultDir string // fallback project dir for calls without one; empty if unavailable
+	home       string // resolved from storage.Home()
 
-	mu sync.Mutex // protects the per-scope file writes (project + user are separate paths but a single mutex is plenty for this volume)
+	mu sync.Mutex // protects the file writes (paths differ but a single mutex is plenty for this volume)
 }
 
 // Compile-time tripwire: NewFileMemoryService returns the concrete type,
 // so nothing checks memory.Service conformance until this assertion.
 var _ memory.Service = (*FileMemoryService)(nil)
 
-// NewFileMemoryService captures the current working directory and
-// the storage home. cwd is used as-is; if the agent later
-// switches directories the project scope still points at the
-// original cwd (Lyra is a per-invocation tool, not a daemon).
+// NewFileMemoryService captures the process working directory (the
+// per-call fallback project dir) and the storage home. Callers with a
+// session in hand pass that session's cwd per call instead.
 func NewFileMemoryService() (*FileMemoryService, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
-		// Non-fatal: project scope simply stays unavailable.
+		// Non-fatal: the default project scope simply stays unavailable.
 		cwd = ""
 	}
 	home, err := Home()
 	if err != nil {
 		return nil, fmt.Errorf("memory store: %w", err)
 	}
-	return &FileMemoryService{cwd: cwd, home: home}, nil
+	return &FileMemoryService{defaultDir: cwd, home: home}, nil
 }
 
-// pathFor maps a Scope to its absolute filesystem path. Returns an
-// empty string when the scope is unavailable (project scope on a
-// process that couldn't resolve cwd) so callers can skip cleanly.
-func (s *FileMemoryService) pathFor(scope memory.Scope) string {
+// pathFor maps a (scope, dir) pair to its absolute filesystem path.
+// Empty dir falls back to the construction-time default. Returns an
+// empty string when the scope is unavailable (project scope with
+// neither a dir nor a resolvable default) so callers can skip cleanly.
+func (s *FileMemoryService) pathFor(scope memory.Scope, dir string) string {
 	switch scope {
 	case memory.ScopeProject:
-		if s.cwd == "" {
+		if dir == "" {
+			dir = s.defaultDir
+		}
+		if dir == "" {
 			return ""
 		}
-		return filepath.Join(s.cwd, memoryFileName)
+		return filepath.Join(dir, memoryFileName)
 	case memory.ScopeUser:
 		return filepath.Join(s.home, memoryFileName)
 	}
@@ -74,8 +78,8 @@ func (s *FileMemoryService) pathFor(scope memory.Scope) string {
 // memory.Service
 // ------------------------------------------------------------------
 
-func (s *FileMemoryService) Get(_ context.Context, scope memory.Scope) (string, error) {
-	path := s.pathFor(scope)
+func (s *FileMemoryService) Get(_ context.Context, scope memory.Scope, dir string) (string, error) {
+	path := s.pathFor(scope, dir)
 	if path == "" {
 		return "", nil
 	}
@@ -89,8 +93,8 @@ func (s *FileMemoryService) Get(_ context.Context, scope memory.Scope) (string, 
 	return string(data), nil
 }
 
-func (s *FileMemoryService) Update(_ context.Context, scope memory.Scope, content string) error {
-	path := s.pathFor(scope)
+func (s *FileMemoryService) Update(_ context.Context, scope memory.Scope, dir string, content string) error {
+	path := s.pathFor(scope, dir)
 	if path == "" {
 		return fmt.Errorf("memory store: scope %d unavailable", scope)
 	}
@@ -117,10 +121,10 @@ func (s *FileMemoryService) Update(_ context.Context, scope memory.Scope, conten
 // List returns one [memory.Entry] per scope that has content. Empty
 // scopes are skipped — the UI shouldn't render placeholder entries
 // for files that don't exist yet.
-func (s *FileMemoryService) List(ctx context.Context) ([]memory.Entry, error) {
+func (s *FileMemoryService) List(ctx context.Context, dir string) ([]memory.Entry, error) {
 	out := make([]memory.Entry, 0, 2)
 	for _, scope := range []memory.Scope{memory.ScopeProject, memory.ScopeUser} {
-		content, err := s.Get(ctx, scope)
+		content, err := s.Get(ctx, scope, dir)
 		if err != nil {
 			return nil, err
 		}
@@ -132,7 +136,7 @@ func (s *FileMemoryService) List(ctx context.Context) ([]memory.Entry, error) {
 		// its last-modified time is the truthful "when this memory landed".
 		// Best-effort — a stat failure leaves the zero time rather than
 		// dropping the entry.
-		if info, err := os.Stat(s.pathFor(scope)); err == nil {
+		if info, err := os.Stat(s.pathFor(scope, dir)); err == nil {
 			entry.CapturedAt = info.ModTime()
 		}
 		out = append(out, entry)

@@ -25,42 +25,46 @@ When you change files, show the change. When a tool returns an
 error, read the message and adjust — don't blindly retry. If a
 task is ambiguous, ask one focused question rather than guess.`
 
-// SystemPrompt assembles the system prompt for one turn. The
-// shape is:
+// SystemPrompt assembles the system prompt for one turn. Global
+// context loads first, project context second, so project knowledge
+// extends and overrides the global layer:
 //
 //	<base prompt>
-//	<user memory>     (memory.Service.Get(ScopeUser)  — user-managed)
-//	<project memory>  (memory.Service.Get(ScopeProject) — user-managed)
-//	<discovered>      (agentdoc cascade — AGENTS.md walked from
-//	                   cwd up to project root + standard user dirs)
+//	<user memory>     (~/.lyra/LYRA.md — global, user-managed)
+//	<project memory>  (<cwd>/LYRA.md — per-session project dir)
+//	<discovered>      (agentdoc cascade — global AGENTS.md first
+//	                   (~/.lyra, ~/.agents), then project root → cwd)
+//
+// The project side anchors to the TURN's working directory — the
+// session cwd seeded on the process blackboard ([turnCwd]), the same
+// seam the fs/bash/skill tools follow — so a session opened on
+// project A briefs the model about project A regardless of where
+// `lyra serve` was started.
 //
 // memory.Service is Lyra's writable surface (`lyra memory edit`);
-// agentdoc is the read-only cross-tool AGENTS.md convention. Both
-// flow in so users get both the curated notes AND the project's
-// committed AGENTS.md.
-//
-// Engines built without a memory service simply yield the base
-// prompt + discovered files.
+// agentdoc is the read-only cross-tool AGENTS.md convention. Engines
+// built without a memory service simply yield the base prompt +
+// discovered files.
 func (e *Engine) SystemPrompt(ctx context.Context) string {
-	return composePrompt(ctx, e.memSvc, e.workdir)
+	return composePrompt(ctx, e.memSvc, turnCwd(ctx, e.workdir))
 }
 
 // composePrompt is the pure form behind [Engine.SystemPrompt],
 // exposed unexported so the unit tests (which build stub memory
 // services without a full Engine) can exercise the cascade
 // directly.
-func composePrompt(ctx context.Context, mem memory.Service, workdir string) string {
+func composePrompt(ctx context.Context, mem memory.Service, cwd string) string {
 	var b strings.Builder
 	b.WriteString(basePrompt)
 
 	if mem != nil {
-		userMem, _ := mem.Get(ctx, memory.ScopeUser)
+		userMem, _ := mem.Get(ctx, memory.ScopeUser, "")
 		if s := strings.TrimSpace(userMem); s != "" {
 			b.WriteString("\n\n## User preferences (from ~/.lyra/LYRA.md)\n\n")
 			b.WriteString(s)
 		}
 
-		projectMem, _ := mem.Get(ctx, memory.ScopeProject)
+		projectMem, _ := mem.Get(ctx, memory.ScopeProject, cwd)
 		if s := strings.TrimSpace(projectMem); s != "" {
 			b.WriteString("\n\n## Project knowledge (from <cwd>/LYRA.md)\n\n")
 			b.WriteString(s)
@@ -69,9 +73,9 @@ func composePrompt(ctx context.Context, mem memory.Service, workdir string) stri
 
 	// AGENTS.md cascade — best-effort, silent on error so a missing
 	// file or unreadable home dir never derails a turn.
-	if cwd := resolveCwd(workdir); cwd != "" {
+	if dir := resolveCwd(cwd); dir != "" {
 		home, _ := os.UserHomeDir()
-		if files, err := agentdoc.Discover(ctx, cwd, home); err == nil {
+		if files, err := agentdoc.Discover(ctx, dir, home); err == nil {
 			if rendered := agentdoc.Render(files, agentdoc.DefaultMaxBytes); rendered != "" {
 				b.WriteString("\n\n## Project context (from AGENTS.md cascade)\n\n")
 				b.WriteString(rendered)
@@ -82,12 +86,12 @@ func composePrompt(ctx context.Context, mem memory.Service, workdir string) stri
 	return b.String()
 }
 
-// resolveCwd picks the engine's configured workdir when set,
-// falling back to the process cwd. Returns "" only when both
-// sources fail — in which case agentdoc discovery silently skips.
-func resolveCwd(workdir string) string {
-	if workdir != "" {
-		return workdir
+// resolveCwd falls back to the process cwd when the turn carried no
+// working directory. Returns "" only when both sources fail — in
+// which case agentdoc discovery silently skips.
+func resolveCwd(cwd string) string {
+	if cwd != "" {
+		return cwd
 	}
 	cwd, err := os.Getwd()
 	if err != nil {

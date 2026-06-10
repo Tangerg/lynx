@@ -37,5 +37,5 @@ type engineDep interface {
 	RestoreChat(ctx context.Context, processID string, req engine.RestoreChatRequest) (engine.ChatProcess, error)
 	InjectUserMessage(ctx context.Context, sessionID, text string) error
 	MaybeCompact(ctx context.Context, sessionID string) (engine.CompactionResult, error)
-	MaybeExtract(ctx context.Context, sessionID string) (engine.ExtractionResult, error)
+	MaybeExtract(ctx context.Context, sessionID, cwd string) (engine.ExtractionResult, error)
 }

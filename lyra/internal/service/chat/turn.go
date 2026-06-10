@@ -31,6 +31,13 @@ type turnState struct {
 	cancel context.CancelFunc
 	seq    atomic.Uint64
 
+	// cwd is the session working directory the turn ran in — threaded
+	// to post-turn maintenance so extracted facts land in THAT
+	// project's LYRA.md. Empty for turns without a session cwd (the
+	// memory service then falls back to its default dir) and for
+	// rehydrated turns (the snapshot predates the live request).
+	cwd string
+
 	// ctx is the turn's own lifetime context — derived via
 	// context.WithoutCancel from the entry ctx so it outlives the
 	// StartTurn caller's cancellation yet KEEPS the entry trace span, then
@@ -438,7 +445,7 @@ func (s *inMemory) postTurnMaintenance(ctx context.Context, st *turnState, sessi
 		MessagesAfter:  compaction.MessagesAfter,
 	})
 
-	extraction, err := s.engine.MaybeExtract(ctx, sessionID)
+	extraction, err := s.engine.MaybeExtract(ctx, sessionID, st.cwd)
 	if err != nil {
 		s.emit(st, ErrorEvent{
 			Message: "memory extraction failed: " + err.Error(),

@@ -217,8 +217,10 @@ func (e *Engine) MaybeCompact(ctx context.Context, sessionID string) (Compaction
 //
 // No-op (zero ExtractionResult) when the engine has no MemoryService
 // or the conversation is too short.
-func (e *Engine) MaybeExtract(ctx context.Context, sessionID string) (ExtractionResult, error) {
-	return e.extractor.maybeExtract(ctx, sessionID)
+// cwd is the session's working directory — facts extract into THAT
+// project's LYRA.md; empty falls back to the memory service default.
+func (e *Engine) MaybeExtract(ctx context.Context, sessionID, cwd string) (ExtractionResult, error) {
+	return e.extractor.maybeExtract(ctx, sessionID, cwd)
 }
 
 // Tools returns the registered coding tool set — used by

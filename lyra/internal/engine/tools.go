@@ -150,21 +150,30 @@ func (r *cwdToolResolver) Resolve(_ context.Context, req core.ToolGroupRequireme
 	}
 }
 
-// workdirFor reads the working directory the resolving process seeded on its
-// blackboard, falling back to the engine default when the turn carried none
-// (a sessionless smoke run, or a restored continuation whose snapshot
-// predates cwd seeding).
+// workdirFor reads the per-turn working directory, falling back to the
+// engine default.
 func (r *cwdToolResolver) workdirFor(ctx context.Context) string {
+	return turnCwd(ctx, r.defaultWorkdir)
+}
+
+// turnCwd reads the working directory the running process seeded on its
+// blackboard ([cwdBindingKey]), falling back to fallback when the turn
+// carried none (a sessionless smoke run, or a restored continuation
+// whose snapshot predates cwd seeding). This is THE per-session-cwd
+// seam: the tool resolver, the skill tool, and the system-prompt
+// composition all read the same key, so everything cwd-dependent
+// follows the session together.
+func turnCwd(ctx context.Context, fallback string) string {
 	p := core.ProcessFrom(ctx)
 	if p == nil {
-		return r.defaultWorkdir
+		return fallback
 	}
 	if v, ok := p.Blackboard().Get(cwdBindingKey); ok {
 		if cwd, ok := v.(string); ok && cwd != "" {
 			return cwd
 		}
 	}
-	return r.defaultWorkdir
+	return fallback
 }
 
 // cwdToolGroup resolves its tool slice lazily at Tools() time so it can read

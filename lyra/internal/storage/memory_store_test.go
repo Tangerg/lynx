@@ -20,10 +20,10 @@ func TestFileMemoryService_UpdateAndGet(t *testing.T) {
 	ctx := context.Background()
 
 	const userBody = "# User\nprefer terse output\n"
-	if err = svc.Update(ctx, memory.ScopeUser, userBody); err != nil {
+	if err = svc.Update(ctx, memory.ScopeUser, "", userBody); err != nil {
 		t.Fatalf("Update: %v", err)
 	}
-	got, err := svc.Get(ctx, memory.ScopeUser)
+	got, err := svc.Get(ctx, memory.ScopeUser, "")
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
@@ -35,7 +35,7 @@ func TestFileMemoryService_UpdateAndGet(t *testing.T) {
 func TestFileMemoryService_GetEmptyOnFreshHome(t *testing.T) {
 	t.Setenv("LYRA_HOME", t.TempDir())
 	svc, _ := storage.NewFileMemoryService()
-	got, err := svc.Get(context.Background(), memory.ScopeUser)
+	got, err := svc.Get(context.Background(), memory.ScopeUser, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,10 +48,10 @@ func TestFileMemoryService_PersistsAcrossInstances(t *testing.T) {
 	t.Setenv("LYRA_HOME", t.TempDir())
 
 	first, _ := storage.NewFileMemoryService()
-	_ = first.Update(context.Background(), memory.ScopeUser, "remember me")
+	_ = first.Update(context.Background(), memory.ScopeUser, "", "remember me")
 
 	second, _ := storage.NewFileMemoryService()
-	got, _ := second.Get(context.Background(), memory.ScopeUser)
+	got, _ := second.Get(context.Background(), memory.ScopeUser, "")
 	if got != "remember me" {
 		t.Errorf("after restart got %q", got)
 	}
@@ -62,9 +62,9 @@ func TestFileMemoryService_List_SkipsEmptyScopes(t *testing.T) {
 	svc, _ := storage.NewFileMemoryService()
 	ctx := context.Background()
 
-	_ = svc.Update(ctx, memory.ScopeUser, "only user")
+	_ = svc.Update(ctx, memory.ScopeUser, "", "only user")
 
-	entries, err := svc.List(ctx)
+	entries, err := svc.List(ctx, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestFileMemoryService_ProjectScopeUsesCwd(t *testing.T) {
 
 	svc, _ := storage.NewFileMemoryService()
 	ctx := context.Background()
-	_ = svc.Update(ctx, memory.ScopeProject, "project body")
+	_ = svc.Update(ctx, memory.ScopeProject, "", "project body")
 
 	// File should live at <projectDir>/LYRA.md
 	body, err := os.ReadFile(filepath.Join(projectDir, "LYRA.md"))
@@ -105,5 +105,30 @@ func TestFileMemoryService_ProjectScopeUsesCwd(t *testing.T) {
 	}
 	if string(body) != "project body" {
 		t.Errorf("project file body = %q", string(body))
+	}
+}
+
+// TestFileMemoryService_ProjectScopeFollowsDir — the project scope is
+// addressed by the per-call dir, so one service serves every project;
+// empty dir falls back to the construction-time default.
+func TestFileMemoryService_ProjectScopeFollowsDir(t *testing.T) {
+	t.Setenv("LYRA_HOME", t.TempDir())
+	svc, err := storage.NewFileMemoryService()
+	if err != nil {
+		t.Fatalf("NewFileMemoryService: %v", err)
+	}
+
+	dirA, dirB := t.TempDir(), t.TempDir()
+	ctx := context.Background()
+	if err := svc.Update(ctx, memory.ScopeProject, dirA, "alpha knowledge"); err != nil {
+		t.Fatalf("Update dirA: %v", err)
+	}
+
+	got, err := svc.Get(ctx, memory.ScopeProject, dirA)
+	if err != nil || got != "alpha knowledge" {
+		t.Fatalf("Get dirA = (%q, %v), want alpha knowledge", got, err)
+	}
+	if got, _ := svc.Get(ctx, memory.ScopeProject, dirB); got != "" {
+		t.Fatalf("Get dirB = %q, want empty (projects are isolated)", got)
 	}
 }
