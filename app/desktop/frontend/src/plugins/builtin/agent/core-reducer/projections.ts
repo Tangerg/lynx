@@ -233,3 +233,42 @@ export function toolStatus(item: Extract<Item, { type: "toolCall" }>): ToolCallS
   if (item.status === "running") return "running";
   return "ok";
 }
+
+// ---------------------------------------------------------------------------
+// Approval-card projections — read the same ToolInvocation envelope the HITL
+// interrupt carries (API.md §4.8). Co-located with the other tool readers
+// (toolLabel / toolFields) so every `toolCategory` switch lives here, not in
+// the StreamEvent dispatcher (handlers.ts).
+// ---------------------------------------------------------------------------
+
+/** Short verb phrase for an approval card title, derived from the tool category
+ *  (§4.4.2 display convention). The approval payload's tool has no `result`
+ *  yet, so the label keys on `name` only. */
+export function approvalText(tool: ToolInvocation): string {
+  switch (toolCategory(tool.name)) {
+    case "command":
+      return "Run command";
+    case "fileEdit":
+      return "Apply file change";
+    case "search":
+      return "Run search";
+    case "webSearch":
+      return "Run web search";
+    default:
+      return `Run ${tool.name}`;
+  }
+}
+
+/** The bare command string for a command-category approval (the `$ cmd` line). */
+export function commandString(tool: ToolInvocation): string {
+  const c = tool.arguments?.command;
+  return typeof c === "string" ? c : "";
+}
+
+/** Editable args make sense for free-form tools (the JSON-tree generic envelope
+ *  + subagent) — approve-with-modified-args (§6.1 editedArgs). Commands / file
+ *  edits / searches bake their key arg into the card title, so no arg editor. */
+export function editableArgs(tool: ToolInvocation): Record<string, unknown> | undefined {
+  const cat = toolCategory(tool.name);
+  return cat === "generic" || cat === "subagent" ? tool.arguments : undefined;
+}

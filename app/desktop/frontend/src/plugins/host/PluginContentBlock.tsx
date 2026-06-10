@@ -1,6 +1,6 @@
 // Adapter for plugin-contributed content blocks.
 //
-// PartRenderer hands unknown block kinds here; we look up the registered
+// BlockRenderer hands unknown block kinds here; we look up the registered
 // renderer and wrap it in a PluginBoundary so a buggy plugin renderer can't
 // break the whole message.
 

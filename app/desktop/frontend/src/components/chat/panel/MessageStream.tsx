@@ -1,4 +1,4 @@
-import type { PartCtx } from "../message";
+import type { BlockCtx } from "../message";
 import type { Message } from "@/protocol/run/viewState";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect } from "react";
@@ -18,7 +18,7 @@ export interface StreamControls {
 
 interface Props {
   messages: Message[];
-  ctx: PartCtx;
+  ctx: BlockCtx;
   /** Live model name for assistant turns (resolved in ChatStream). */
   assistantName?: string;
   /** Re-key on change to reset scroll position + follow state. */

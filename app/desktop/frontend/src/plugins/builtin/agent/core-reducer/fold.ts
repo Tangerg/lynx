@@ -10,6 +10,7 @@ import type {
   Message,
   ToolCall,
 } from "@/protocol/run/viewState";
+import { isLocalMessageId } from "@/protocol/run/viewState";
 import {
   argsText,
   contentText,
@@ -161,7 +162,7 @@ export function appendUserMessage(
   const placeholder = state.messages.findIndex(
     (m) =>
       m.role === "user" &&
-      m.id.startsWith("local-") &&
+      isLocalMessageId(m.id) &&
       m.blocks.find((b): b is Extract<ContentBlock, { kind: "text" }> => b.kind === "text")
         ?.text === text,
   );

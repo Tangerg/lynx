@@ -27,8 +27,15 @@ import type { StreamEventHandler } from "@/plugins/sdk";
 import type { AgentViewState, ContentBlock } from "@/protocol/run/viewState";
 import { applyPatch, deepClone } from "fast-json-patch";
 import { appendTimelineEntry, patchRun, setPlan } from "@/plugins/sdk";
-import { toolCategory } from "@/protocol/run/viewState";
-import { blockStatus, mapPlan, mapQuestion, toolLabel } from "./projections";
+import {
+  approvalText,
+  blockStatus,
+  commandString,
+  editableArgs,
+  mapPlan,
+  mapQuestion,
+  toolLabel,
+} from "./projections";
 import {
   appendToTurn,
   appendUserMessage,
@@ -40,37 +47,6 @@ import {
   updateTool,
   writeToolCall,
 } from "./fold";
-
-// Short verb phrase for an approval card title, derived from the tool category
-// (§4.4.2 display convention). The approval payload's tool has no `result` yet,
-// so the label keys on `name` only.
-function approvalText(tool: ToolInvocation): string {
-  switch (toolCategory(tool.name)) {
-    case "command":
-      return "Run command";
-    case "fileEdit":
-      return "Apply file change";
-    case "search":
-      return "Run search";
-    case "webSearch":
-      return "Run web search";
-    default:
-      return `Run ${tool.name}`;
-  }
-}
-
-function commandString(tool: ToolInvocation): string {
-  const c = tool.arguments?.command;
-  return typeof c === "string" ? c : "";
-}
-
-// Editable args make sense for free-form tools (the JSON-tree generic envelope
-// + subagent) — approve-with-modified-args (§6.1 editedArgs). Commands / file
-// edits / searches bake their key arg into the card title, so no arg editor.
-function editableArgs(tool: ToolInvocation): Record<string, unknown> | undefined {
-  const cat = toolCategory(tool.name);
-  return cat === "generic" || cat === "subagent" ? tool.arguments : undefined;
-}
 
 // ---------------------------------------------------------------------------
 // run.*

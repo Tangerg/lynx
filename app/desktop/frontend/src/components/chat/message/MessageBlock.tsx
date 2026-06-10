@@ -7,7 +7,7 @@
 // left-aligned flat-prose layout.
 
 import type { Citation } from "./CitationContext";
-import type { PartCtx } from "./PartRenderer";
+import type { BlockCtx } from "./BlockRenderer";
 import type { IconName } from "@/components/common";
 import type { Message } from "@/protocol/run/viewState";
 import { memo, useMemo, useRef } from "react";
@@ -21,7 +21,7 @@ import { MessageContext } from "@/plugins/sdk/messageContext";
 import { CitationContext } from "./CitationContext";
 import { MessageContextMenu } from "./MessageContextMenu";
 import { MessageOutline } from "./MessageOutline";
-import { renderPart } from "./PartRenderer";
+import { renderBlock } from "./BlockRenderer";
 
 function MessageBlockInner({
   msg,
@@ -29,7 +29,7 @@ function MessageBlockInner({
   assistantName,
 }: {
   msg: Message;
-  ctx: PartCtx;
+  ctx: BlockCtx;
   /** Live model name for assistant turns (resolved once in ChatStream from the
    *  session's model). Falls back to the role's neutral displayName. */
   assistantName?: string;
@@ -79,7 +79,7 @@ function MessageBlockInner({
 
   // Skip the stream-reveal + fade-in pipeline for user messages — they
   // already saw what they typed; replaying it adds latency for no gain.
-  const partCtx: PartCtx = isUser ? { ...ctx, instant: true } : ctx;
+  const blockCtx: BlockCtx = isUser ? { ...ctx, instant: true } : ctx;
 
   return (
     <MessageContext.Provider value={msg}>
@@ -131,11 +131,11 @@ function MessageBlockInner({
                     "max-w-[580px] rounded-[14px_14px_4px_14px] bg-surface-2 px-3.5 py-2.5 text-left light:bg-surface-3",
                 )}
               >
-                {msg.blocks.map((part, i) => {
-                  if (part.kind === "text" && part.status === "running" && i !== lastIdx) {
-                    return renderPart({ ...part, status: "complete" }, i, partCtx);
+                {msg.blocks.map((block, i) => {
+                  if (block.kind === "text" && block.status === "running" && i !== lastIdx) {
+                    return renderBlock({ ...block, status: "complete" }, i, blockCtx);
                   }
-                  return renderPart(part, i, partCtx);
+                  return renderBlock(block, i, blockCtx);
                 })}
               </div>
             </div>

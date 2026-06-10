@@ -11,7 +11,7 @@ import { openViewForTool } from "@/state/toolRouting";
  * The "open the full view" action lives in `openViewForTool` so the
  * callback doesn't have to be threaded down.
  */
-export interface PartCtx {
+export interface BlockCtx {
   plan: PlanItem[];
   toolCalls: Record<string, ToolCall>;
   selectedToolId: string;
@@ -43,7 +43,7 @@ export interface PartCtx {
  * `CustomContentBlockMap` kinds — third-party plugins + the quarantined
  * preview-blocks (search / code / checkpoint) — which fall through to default.
  */
-export function renderPart(block: ContentBlock, key: number, ctx: PartCtx) {
+export function renderBlock(block: ContentBlock, key: number, ctx: BlockCtx) {
   switch (block.kind) {
     case "text":
       // Wrapper is a <div>, not a <p>: react-markdown emits <p> nodes
