@@ -132,3 +132,43 @@ type errorRetriever struct {
 func (r *errorRetriever) Retrieve(_ context.Context, _ *rag.Query) ([]*document.Document, error) {
 	return nil, r.err
 }
+
+// TestPipelineMiddleware_DoesNotMutateCallerMessages verifies the
+// middleware augments a COPY: the caller's original *chat.UserMessage
+// text must survive the call unchanged (buildRequest shares message
+// pointers with the ClientRequest, so an in-place edit would corrupt
+// reuse / re-consumed streams).
+func TestPipelineMiddleware_DoesNotMutateCallerMessages(t *testing.T) {
+	doc, _ := document.NewDocument("retrieved info", nil)
+	retriever := &stubRetriever{docs: []*document.Document{doc}}
+	aug, _ := rag.NewContextualAugmenter(rag.ContextualAugmenterConfig{})
+
+	callMW, _, err := rag.NewPipelineMiddleware(rag.PipelineConfig{
+		DocumentRetrievers: []rag.DocumentRetriever{retriever},
+		QueryAugmenter:     aug,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	model := newEchoChatModel(t)
+	client, _ := chat.NewClient(model)
+
+	userMsg := chat.NewUserMessage("what is RAG?")
+	if _, err := client.Chat().
+		WithMiddlewares(callMW).
+		WithMessages(userMsg).
+		Call().
+		Response(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	// The model saw the augmented text...
+	if !strings.Contains(model.captured, "retrieved info") {
+		t.Fatalf("model did not see augmented text: %q", model.captured)
+	}
+	// ...but the caller's own message is untouched.
+	if userMsg.Text != "what is RAG?" {
+		t.Fatalf("caller message was mutated: %q", userMsg.Text)
+	}
+}

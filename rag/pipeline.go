@@ -97,6 +97,19 @@ func NewPipeline(config PipelineConfig) (*Pipeline, error) {
 // short-circuits the pipeline. Returns an error when query is nil so
 // downstream stages can assume non-nil input.
 //
+// Which query each stage sees: transform → expand → retrieve operate
+// on the TRANSFORMED query (rewritten / translated / expanded for
+// retrieval), but refine and augment receive the ORIGINAL user query.
+// The transformed form exists to improve recall against the store; the
+// original is the user's actual intent, which is what should rank the
+// results and (via the augmenter) become the grounded prompt the LLM
+// answers. The shipped refiners ignore the query entirely; only an
+// augmenter reads it (e.g. [ContextualAugmenter] fills {{.Query}}).
+// One consequence worth knowing: a [CompressionTransformer] that folds
+// chat history into a standalone query improves retrieval but does NOT
+// change what the augmenter sees — feed the augmenter the standalone
+// form yourself (via a custom augmenter) if the LLM needs it.
+//
 // One parent `rag.pipeline` span wraps the call, with per-stage
 // children (`rag.transform`, `rag.expand`, `rag.retrieve`,
 // `rag.refine`, `rag.augment`). Each child carries `rag.stage` plus
