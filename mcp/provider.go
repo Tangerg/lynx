@@ -121,6 +121,13 @@ func (p *Provider) Tools(ctx context.Context) ([]chat.Tool, error) {
 // refetches. Safe to call from notification handlers — the actual fetch
 // is deferred to the next consumer so the SDK's notification dispatcher
 // is never blocked.
+//
+// Known (accepted) race: an Invalidate that lands while a refresh is
+// mid-fetch is overwritten when that refresh stores its — by then
+// stale — result. The list stays stale until the next Invalidate or
+// restart. Tool lists change rarely and every change re-notifies, so
+// the window self-heals; a generation counter could close it but
+// isn't worth the machinery in a thin wrapper.
 func (p *Provider) Invalidate() { p.cache.Store(nil) }
 
 // OnToolListChanged is the dispatcher target for

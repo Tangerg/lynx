@@ -9,6 +9,7 @@
 package codec
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -26,16 +27,12 @@ func EncodeMessage(msg chat.Message) ([]byte, error) {
 	if msg == nil {
 		return nil, errors.New("codec.EncodeMessage: message must not be nil")
 	}
-	switch m := msg.(type) {
-	case *chat.SystemMessage:
-		return m.MarshalJSON()
-	case *chat.UserMessage:
-		return m.MarshalJSON()
-	case *chat.AssistantMessage:
-		return m.MarshalJSON()
-	case *chat.ToolMessage:
-		return m.MarshalJSON()
-	default:
-		return nil, fmt.Errorf("codec.EncodeMessage: unsupported message type %T", msg)
+	// Message is a sealed union whose every variant implements
+	// MarshalJSON with the Type discriminator — json.Marshal dispatches
+	// to it, so no per-variant switch is needed.
+	raw, err := json.Marshal(msg)
+	if err != nil {
+		return nil, fmt.Errorf("codec.EncodeMessage: %w", err)
 	}
+	return raw, nil
 }
