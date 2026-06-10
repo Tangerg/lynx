@@ -142,6 +142,32 @@ func TestWorkspaceListSkills(t *testing.T) {
 	}
 }
 
+// TestWorkspaceMCPListTools maps engine tool info onto the wire (keeping
+// server + bare name separate) and passes the server scope through.
+func TestWorkspaceMCPListTools(t *testing.T) {
+	s := &Server{rt: stubRuntime{mcpTools: []engine.McpToolInfo{
+		{Server: "fs", Name: "read", Description: "read a file", InputSchema: map[string]any{"type": "object"}},
+		{Server: "fs", Name: "write"},
+		{Server: "git", Name: "log"},
+	}}}
+
+	all, err := s.WorkspaceMCPListTools(context.Background(), protocol.MCPListToolsRequest{})
+	if err != nil {
+		t.Fatalf("listTools: %v", err)
+	}
+	if len(all.Data) != 3 || all.Data[0].Server != "fs" || all.Data[0].Name != "read" || all.Data[0].InputSchema["type"] != "object" {
+		t.Fatalf("all = %+v, want 3 with fs/read carrying its schema", all.Data)
+	}
+
+	scoped, err := s.WorkspaceMCPListTools(context.Background(), protocol.MCPListToolsRequest{Server: "git"})
+	if err != nil {
+		t.Fatalf("listTools(git): %v", err)
+	}
+	if len(scoped.Data) != 1 || scoped.Data[0].Server != "git" {
+		t.Fatalf("scoped = %+v, want only git tools", scoped.Data)
+	}
+}
+
 // TestAgentDocScope pins the cwd→home cascade classification.
 func TestAgentDocScope(t *testing.T) {
 	cwd, home := "/Users/x/proj", "/Users/x"

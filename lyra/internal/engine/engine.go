@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/a2aproject/a2a-go/v2/a2aclient"
-	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Tangerg/lynx/a2a"
 	"github.com/Tangerg/lynx/agent"
@@ -16,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	lyramem "github.com/Tangerg/lynx/lyra/internal/service/memory"
+	"github.com/Tangerg/lynx/mcp"
 )
 
 // Engine is the runtime facade. It composes three concerns:
@@ -54,10 +54,11 @@ type Engine struct {
 	extractor *extractor
 	planner   *planner
 
-	// External lifecycle. mcpSessions and a2aClients are closed during
-	// [Engine.Close]; nil when no MCP servers / A2A agents are wired.
-	mcpSessions []*sdkmcp.ClientSession
-	a2aClients  []*a2aclient.Client
+	// External lifecycle. mcpSources (name + live session) and a2aClients are
+	// closed during [Engine.Close]; nil when no MCP servers / A2A agents are
+	// wired. mcpSources also backs the per-server workspace.mcp.listTools view.
+	mcpSources []mcp.Source
+	a2aClients []*a2aclient.Client
 }
 
 // New constructs an engine. Returns an error when required deps
@@ -80,7 +81,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// happens before resolver wiring so the resolver captures the set in
 	// one place. ctx flows from the caller so a slow / unreachable MCP
 	// server can be canceled during startup.
-	mcpTools, mcpSessions, err := dialMCPServers(ctx, cfg.MCPServers)
+	mcpTools, mcpSources, err := dialMCPServers(ctx, cfg.MCPServers)
 	if err != nil {
 		return nil, err
 	}
@@ -90,8 +91,8 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// leak them — Engine.Close never runs because New returns before e exists.
 	a2aTools, a2aClients, err := dialA2AAgents(ctx, cfg.A2AAgents)
 	if err != nil {
-		for _, sess := range mcpSessions {
-			_ = sess.Close()
+		for _, src := range mcpSources {
+			_ = src.Session.Close()
 		}
 		return nil, err
 	}
@@ -153,7 +154,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		skillsGlobalDir: cfg.SkillsGlobalDir,
 		pricing:         cfg.Pricing,
 		parkStore:   cfg.ParkStore,
-		mcpSessions: mcpSessions,
+		mcpSources:  mcpSources,
 		a2aClients:  a2aClients,
 	}
 
@@ -238,12 +239,12 @@ func (e *Engine) Tools() []chat.Tool { return e.tools }
 // caller can log them; partial failure does not stop subsequent closes.
 func (e *Engine) Close() error {
 	var errs []error
-	for _, sess := range e.mcpSessions {
-		if err := sess.Close(); err != nil {
+	for _, src := range e.mcpSources {
+		if err := src.Session.Close(); err != nil {
 			errs = append(errs, err)
 		}
 	}
-	e.mcpSessions = nil
+	e.mcpSources = nil
 	if err := a2a.CloseClients(e.a2aClients); err != nil {
 		errs = append(errs, err)
 	}
