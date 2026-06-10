@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
@@ -118,6 +119,26 @@ func TestWorkspaceGrep(t *testing.T) {
 
 	if _, err := s.WorkspaceGrep(context.Background(), protocol.GrepRequest{Query: "x", Path: "../out"}); !errors.Is(err, protocol.ErrPathOutsideRoot) {
 		t.Errorf("escape path err = %v, want ErrPathOutsideRoot", err)
+	}
+}
+
+// TestWorkspaceListSkills maps the engine's discovered skills onto the wire,
+// carrying each one's scope through Source, and defaults cwd to the serve dir.
+func TestWorkspaceListSkills(t *testing.T) {
+	dir := t.TempDir()
+	s := &Server{
+		serverInfo: protocol.ServerInfo{Cwd: dir},
+		rt: stubRuntime{skills: []engine.SkillInfo{
+			{Name: "pdf", Description: "PDF tools", Scope: "project"},
+			{Name: "web", Description: "web tools", Scope: "global"},
+		}},
+	}
+	got, err := s.WorkspaceListSkills(context.Background(), protocol.WorkspaceListQuery{})
+	if err != nil {
+		t.Fatalf("listSkills: %v", err)
+	}
+	if len(got.Data) != 2 || got.Data[0].Name != "pdf" || got.Data[0].Source != "project" || got.Data[1].Source != "global" {
+		t.Fatalf("skills = %+v, want pdf(project) + web(global)", got.Data)
 	}
 }
 

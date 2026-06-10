@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
 	"github.com/Tangerg/lynx/lyra/internal/storage/sqlite"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
@@ -14,12 +15,16 @@ import (
 // panic if ever called) and overriding only what the session handlers touch.
 type stubRuntime struct {
 	RuntimeServices
-	sess  session.Service
-	model string
+	sess   session.Service
+	model  string
+	skills []engine.SkillInfo
 }
 
 func (s stubRuntime) Session() session.Service { return s.sess }
 func (s stubRuntime) DefaultModel() string     { return s.model }
+func (s stubRuntime) ListSkills(context.Context, string) ([]engine.SkillInfo, error) {
+	return s.skills, nil
+}
 
 func newSessionServer(t *testing.T) (*Server, session.Service) {
 	t.Helper()

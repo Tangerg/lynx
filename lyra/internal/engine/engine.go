@@ -42,7 +42,8 @@ type Engine struct {
 	tools     []chat.Tool
 	memStore  memory.Store
 	memSvc    lyramem.Service
-	workdir   string  // captured from Config.Workdir for the AGENTS.md cascade
+	workdir         string // captured from Config.Workdir for the AGENTS.md cascade
+	skillsGlobalDir string // captured from Config.SkillsGlobalDir for workspace.listSkills
 	pricing   Pricing // optional per-round cost hook; nil → cost stays zero
 	parkStore tool.ParkStore
 
@@ -148,8 +149,9 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		platform:    platform,
 		memStore:    memStore,
 		memSvc:      cfg.MemoryService,
-		workdir:     cfg.Workdir,
-		pricing:     cfg.Pricing,
+		workdir:         cfg.Workdir,
+		skillsGlobalDir: cfg.SkillsGlobalDir,
+		pricing:         cfg.Pricing,
 		parkStore:   cfg.ParkStore,
 		mcpSessions: mcpSessions,
 		a2aClients:  a2aClients,

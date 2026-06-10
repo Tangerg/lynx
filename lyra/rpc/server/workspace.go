@@ -219,13 +219,25 @@ func projectsFromSessions(sessions []session.Session) []protocol.Project {
 	return out
 }
 
-// WorkspaceListSkills is gated off (features.skills=false) — return
-// capability_not_negotiated rather than a misleading empty list. The
-// engine surfaces skills to the MODEL via the skill tool (resolved
-// against each turn's cwd), but exposes no client-facing enumeration
-// accessor yet — that needs a per-cwd skill listing seam on the engine.
-func (s *Server) WorkspaceListSkills(_ context.Context, _ protocol.WorkspaceListQuery) (*protocol.Page[protocol.Skill], error) {
-	return nil, notImpl("workspace.listSkills")
+// WorkspaceListSkills enumerates the skills visible from cwd — project skills
+// (<cwd>/.lyra/skills) layered over the global directory, project winning on a
+// name collision (the same set + precedence the engine gives the model). Each
+// entry's Source records its scope ("project" | "global"). cwd defaults to the
+// serve directory (API.md §7.5).
+func (s *Server) WorkspaceListSkills(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.Skill], error) {
+	root, err := s.workspaceRoot(in.Cwd)
+	if err != nil {
+		return nil, err
+	}
+	found, err := s.rt.ListSkills(ctx, root)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]protocol.Skill, 0, len(found))
+	for _, sk := range found {
+		out = append(out, protocol.Skill{Name: sk.Name, Description: sk.Description, Source: sk.Scope})
+	}
+	return protocol.NewPage(out), nil
 }
 
 // WorkspaceListAgentDocs lists the AGENTS.md files discovered from cwd

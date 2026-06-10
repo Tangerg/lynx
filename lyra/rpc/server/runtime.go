@@ -5,6 +5,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
+	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
 	chatsvc "github.com/Tangerg/lynx/lyra/internal/service/chat"
 	"github.com/Tangerg/lynx/lyra/internal/service/history"
@@ -44,6 +45,9 @@ type RuntimeServices interface {
 	ProbeProvider(ctx context.Context, entry providersvc.Provider) error
 	// MCPServerNames lists the connected MCP servers (workspace.mcp.listServers).
 	MCPServerNames() []string
+	// ListSkills enumerates the skills visible from cwd (project over global) —
+	// backs workspace.listSkills. The engine owns skill sourcing + precedence.
+	ListSkills(ctx context.Context, cwd string) ([]engine.SkillInfo, error)
 	// DefaultModel is the runtime's configured default model — used to fill
 	// Session.model for sessions that never explicitly selected one.
 	DefaultModel() string
