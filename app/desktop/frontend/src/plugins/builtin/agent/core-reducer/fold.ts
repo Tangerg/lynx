@@ -102,6 +102,30 @@ export function updateTool(
   return { ...state, toolCalls: { ...state.toolCalls, [id]: fn(existing) } };
 }
 
+/** Drop every open interrupt and downgrade its still-actionable approval /
+ *  question card to `incomplete`. Called on a terminal run end (not an
+ *  interrupt): the run that owned the interrupt is finished, so a card left in
+ *  `requires-action` would offer buttons that resume a dead run. No-op when
+ *  nothing is open (a resolved interrupt already emptied the list). */
+export function settleOpenInterrupts(state: AgentViewState): AgentViewState {
+  if (state.openInterrupts.length === 0) return state;
+  const actionable = (b: ContentBlock) =>
+    (b.kind === "approval" || b.kind === "question") && b.status === "requires-action";
+  const messages = state.messages.map((m) =>
+    m.blocks.some(actionable)
+      ? {
+          ...m,
+          blocks: m.blocks.map((b) =>
+            (b.kind === "approval" || b.kind === "question") && b.status === "requires-action"
+              ? { ...b, status: "incomplete" as const }
+              : b,
+          ),
+        }
+      : m,
+  );
+  return { ...state, messages, openInterrupts: [] };
+}
+
 // ---------------------------------------------------------------------------
 // Per-item folds — shared by item.started (append) and item.completed
 // (upsert). started/completed differ only in the block status they stamp,
@@ -167,7 +191,11 @@ export function foldText(
     item.id,
     (b) => b.kind === "text" && b.itemId === item.id,
     () => ({ kind: "text", itemId: item.id, text, status }),
-    (b) => (b.kind === "text" ? { ...b, text, status } : b),
+    // Never let an empty completed snapshot wipe already-streamed text: the
+    // contract is that completed restates the full content, but a malformed /
+    // empty terminal frame must not blank the bubble. Keep the prior text when
+    // the projection is empty (status still upgrades).
+    (b) => (b.kind === "text" ? { ...b, text: text || b.text, status } : b),
   );
 }
 
@@ -186,7 +214,9 @@ export function foldReasoning(
     item.id,
     (b) => b.kind === "reasoning" && b.reasoningId === item.id,
     () => ({ kind: "reasoning", reasoningId: item.id, text, status }),
-    (b) => (b.kind === "reasoning" ? { ...b, text, status } : b),
+    // Preserve already-streamed reasoning when a completed snapshot is empty
+    // (see foldText) — the status still upgrades.
+    (b) => (b.kind === "reasoning" ? { ...b, text: text || b.text, status } : b),
   );
 }
 
