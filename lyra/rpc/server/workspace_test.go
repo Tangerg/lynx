@@ -89,6 +89,38 @@ func TestWorkspaceGetFileHead(t *testing.T) {
 	}
 }
 
+// TestWorkspaceGrep searches the workspace root, requires a query, and jails
+// the optional sub-path. Depends on rg or grep being on PATH (skips if not).
+func TestWorkspaceGrep(t *testing.T) {
+	dir := t.TempDir()
+	for name, body := range map[string]string{
+		"a.go": "package a\nfunc Needle() {}\n",
+		"b.go": "package b\n// no match here\n",
+		"c.go": "package c\nvar Needle = 1\n",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s := &Server{serverInfo: protocol.ServerInfo{Cwd: dir}}
+
+	if _, err := s.WorkspaceGrep(context.Background(), protocol.GrepRequest{}); !errors.Is(err, protocol.ErrInvalidParams) {
+		t.Errorf("empty query err = %v, want ErrInvalidParams", err)
+	}
+
+	got, err := s.WorkspaceGrep(context.Background(), protocol.GrepRequest{Query: "Needle"})
+	if err != nil {
+		t.Skipf("grep backend unavailable: %v", err) // no rg/grep on PATH
+	}
+	if got.Total != 2 || len(got.Matches) != 2 {
+		t.Fatalf("grep Needle = %d matches / total %d, want 2/2", len(got.Matches), got.Total)
+	}
+
+	if _, err := s.WorkspaceGrep(context.Background(), protocol.GrepRequest{Query: "x", Path: "../out"}); !errors.Is(err, protocol.ErrPathOutsideRoot) {
+		t.Errorf("escape path err = %v, want ErrPathOutsideRoot", err)
+	}
+}
+
 // TestAgentDocScope pins the cwd→home cascade classification.
 func TestAgentDocScope(t *testing.T) {
 	cwd, home := "/Users/x/proj", "/Users/x"
