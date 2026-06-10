@@ -37,6 +37,11 @@ const (
 // when the sub-agent's action clears its inherited blackboard.
 const cwdBindingKey = "lyra:cwd"
 
+// chatModeBindingKey is the blackboard key the chat action binds (protected)
+// when a turn runs tool-less (runs.start mode=chat). [cwdToolGroup.Tools] reads
+// it back and yields an empty tool set, so the turn is a plain LLM exchange.
+const chatModeBindingKey = "lyra:chat-mode"
+
 // buildWorkdirTools instantiates the working-directory-bound coding tools —
 // the five filesystem tools and bash, all anchored at workdir. These are the
 // only tools whose behavior depends on the working directory, so they are
@@ -176,6 +181,22 @@ func turnCwd(ctx context.Context, fallback string) string {
 	return fallback
 }
 
+// chatModeFrom reports whether the resolving process is a tool-less chat turn
+// (the chat action bound [chatModeBindingKey]). Read off the same blackboard
+// seam as the working directory (see turnCwd).
+func chatModeFrom(ctx context.Context) bool {
+	p := core.ProcessFrom(ctx)
+	if p == nil {
+		return false
+	}
+	v, ok := p.Blackboard().Get(chatModeBindingKey)
+	if !ok {
+		return false
+	}
+	on, _ := v.(bool)
+	return on
+}
+
 // cwdToolGroup resolves its tool slice lazily at Tools() time so it can read
 // the per-process working directory. ToolRoleSubtask omits the `task` tool so
 // a delegated subtask can't recurse into another delegation.
@@ -189,6 +210,11 @@ func (g *cwdToolGroup) Metadata() core.ToolGroupMetadata {
 }
 
 func (g *cwdToolGroup) Tools(ctx context.Context) ([]core.AgentTool, error) {
+	// Tool-less chat (runs.start mode=chat): the turn bound chatModeBindingKey,
+	// so resolve no tools — the model gets a plain single-round exchange.
+	if chatModeFrom(ctx) {
+		return nil, nil
+	}
 	workdir := g.resolver.workdirFor(ctx)
 	tools := buildWorkdirTools(workdir)
 	tools = append(tools, g.resolver.online...)

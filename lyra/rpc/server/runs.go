@@ -50,18 +50,17 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		return nil, nil, protocol.ErrInvalidParams
 	}
 
-	// Mode (agent|chat|plan, API.md §7.1): plan threads to the chat
-	// service's plan-preview flow; agent is the default loop. chat
-	// (tool-less) has no engine seam yet — gate it off honestly rather
-	// than silently running the agent loop. Unknown values are
+	// Mode (agent|chat|plan, API.md §7.1): agent is the default tool loop;
+	// plan threads to the chat service's plan-preview flow; chat runs
+	// tool-less (a plain single-round exchange). Unknown values are
 	// invalid_params, never silently dropped.
-	planMode := false
+	planMode, chatMode := false, false
 	switch in.Mode {
 	case "", protocol.RunModeAgent:
 	case protocol.RunModePlan:
 		planMode = true
 	case protocol.RunModeChat:
-		return nil, nil, notImpl("runs.start (mode=chat)")
+		chatMode = true
 	default:
 		return nil, nil, fmt.Errorf("%w: unknown mode %q", protocol.ErrInvalidParams, in.Mode)
 	}
@@ -73,6 +72,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		Provider:   in.Provider,
 		Model:      in.Model,
 		PlanMode:   planMode,
+		ChatMode:   chatMode,
 		MaxCostUSD: in.MaxBudgetUSD,
 	})
 	if err != nil {

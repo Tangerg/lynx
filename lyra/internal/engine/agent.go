@@ -39,6 +39,13 @@ type chatInput struct {
 	// approval. A rejected plan returns [ChatOutput.PlanRejected]; a
 	// trivial request (planner returns NO_PLAN) executes without parking.
 	PlanMode bool
+
+	// ChatMode runs the turn tool-less (runs.start mode=chat): the action
+	// binds [chatModeBindingKey] so cwdToolResolver yields an empty tool set,
+	// turning the turn into a plain single-round LLM exchange with no
+	// filesystem / bash / delegation tools. Mutually exclusive with PlanMode
+	// in practice (a tool-less turn has nothing to plan against).
+	ChatMode bool
 }
 
 // ChatOutput is the typed output of one turn. Reply is the assistant's
@@ -100,6 +107,11 @@ func (e *Engine) buildChatAgent() *core.Agent {
 					// sub-agents and survives the typed-action
 					// ClearBlackboard — see cwdToolResolver / cwdBindingKey.
 					pc.Blackboard.BindProtected(cwdBindingKey, in.Cwd)
+				}
+				if in.ChatMode {
+					// Tool-less: cwdToolGroup reads this back and yields no tools.
+					// Protected for the same survive-ClearBlackboard reason as cwd.
+					pc.Blackboard.BindProtected(chatModeBindingKey, true)
 				}
 				if in.PlanMode {
 					out, done, err := e.planGate(ctx, pc, in.Message)
