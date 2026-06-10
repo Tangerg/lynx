@@ -220,6 +220,43 @@ describe("loadPlugins", () => {
     expect(setupB).not.toHaveBeenCalled();
     expect(results.every((r) => r.kind === "skipped")).toBe(true);
   });
+
+  it("skip propagates transitively — a dependent of a skipped plugin is skipped too", async () => {
+    // mid requires gone (missing) → mid skipped; leaf requires mid → leaf
+    // must ALSO skip, not load without its declared dependency.
+    const setupMid = vi.fn();
+    const setupLeaf = vi.fn();
+    const results = await loadPlugins([
+      definePlugin({ name: "mid", version: "1.0.0", requires: ["gone"], setup: setupMid }),
+      definePlugin({ name: "leaf", version: "1.0.0", requires: ["mid"], setup: setupLeaf }),
+    ]);
+    expect(setupMid).not.toHaveBeenCalled();
+    expect(setupLeaf).not.toHaveBeenCalled();
+    expect(results.map((r) => r.kind)).toEqual(["skipped", "skipped"]);
+    const leaf = results.find((r) => r.name === "leaf")!;
+    if (leaf.kind !== "skipped") throw new Error("unreachable");
+    expect(leaf.reason).toMatch(/mid/);
+  });
+});
+
+describe("loadPlugin already-loaded guard", () => {
+  it("a second load of the same name is skipped — no overwrite, no doubled handlers", async () => {
+    const setup = vi.fn();
+    const spec = definePlugin({ name: "dup-guard", version: "1.0.0", setup });
+    expect(await loadPlugin(spec)).toMatchObject({ kind: "loaded" });
+
+    // Same name again (sideload collision / repeated host.plugins.load):
+    // registerLoaded would have overwritten the entry and orphaned its
+    // disposables; the guard skips instead.
+    const again = await loadPlugin(definePlugin({ name: "dup-guard", version: "2.0.0", setup }));
+    expect(again).toMatchObject({ kind: "skipped", name: "dup-guard" });
+    expect(setup).toHaveBeenCalledTimes(1);
+
+    // unload → load is the sanctioned replace path and still works.
+    unloadPlugin("dup-guard");
+    expect(await loadPlugin(spec)).toMatchObject({ kind: "loaded" });
+    unloadPlugin("dup-guard");
+  });
 });
 
 describe("lazy activation", () => {

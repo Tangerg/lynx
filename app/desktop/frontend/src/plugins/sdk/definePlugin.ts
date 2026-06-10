@@ -34,6 +34,21 @@ export type LoadResult =
  * register before the crash, and return a `failed` result. The host stays up.
  */
 export async function loadPlugin(spec: PluginSpec): Promise<LoadResult> {
+  // 0. Already-loaded guard. registerLoaded would silently OVERWRITE the
+  //    existing entry, orphaning its disposables (their contributions become
+  //    permanently irremovable) and double-registering every multi-point
+  //    handler — the reducer would fold each StreamEvent twice. Reachable in
+  //    production via a sideload manifest name colliding with a builtin, or
+  //    host.plugins.load of an already-loaded spec. NOTE: this is a load
+  //    guard only — it never unloads/replaces (the reverted 06fdf94 taught us
+  //    idempotent-unload removes just-added contributions); replacing goes
+  //    through unload → load (reloadPlugin).
+  if (usePluginStore.getState().loaded.has(spec.name)) {
+    const reason = "already loaded — unload first to replace";
+    console.warn(`[plugin] ${spec.name} skipped: ${reason}`);
+    return { kind: "skipped", name: spec.name, reason };
+  }
+
   // 1. apiVersion gate. Plugins that don't declare a range are accepted —
   //    they implicitly trust whatever host is running them.
   if (spec.apiVersion) {
@@ -163,8 +178,18 @@ async function activateLazy(pluginName: string): Promise<void> {
   const store = usePluginStore.getState();
   const pending = store.pendingActivations.get(pluginName);
   if (!pending) return;
+  // Remove BEFORE the await so a concurrent second activation no-ops instead
+  // of double-loading.
   store.removePendingActivation(pluginName);
-  await loadPlugin(pending.spec);
+  const result = await loadPlugin(pending.spec);
+  if (result.kind !== "loaded") {
+    // Setup failed: re-stage so the placeholders stay and the user can retry
+    // (the error already surfaced via reportPluginError). Dropping them here
+    // would permanently erase the plugin's palette commands/views after one
+    // bad activation.
+    store.addPendingActivation(pending.spec, pending.events);
+    return;
+  }
   // Real registrations are in place now; drop every placeholder owned by
   // this plugin so selectors emit the real specs from here on out.
   store.removeDeclaredCommandsBy(pluginName);
@@ -239,6 +264,24 @@ function topoSort(specs: PluginSpec[]): { order: PluginSpec[]; skipped: Skipped[
   }
   const skippedNames = new Set(skipped.map((s) => s.name));
 
+  // Propagate skips to a fixpoint: a dependent of a skipped plugin is itself
+  // skipped, transitively. Without this, B→A→missing dropped only A — B's
+  // dead edge was discarded and B loaded WITHOUT its declared dependency,
+  // contradicting the doc ("missing dependencies: dependent is skipped").
+  let propagated = true;
+  while (propagated) {
+    propagated = false;
+    for (const s of specs) {
+      if (skippedNames.has(s.name)) continue;
+      const dead = requires.get(s.name)!.find((dep) => skippedNames.has(dep));
+      if (dead !== undefined) {
+        skipped.push({ name: s.name, reason: `requires "${dead}" which was skipped` });
+        skippedNames.add(s.name);
+        propagated = true;
+      }
+    }
+  }
+
   const inDegree = new Map<string, number>();
   const dependents = new Map<string, string[]>();
   for (const s of specs) {
@@ -248,8 +291,8 @@ function topoSort(specs: PluginSpec[]): { order: PluginSpec[]; skipped: Skipped[
   }
   for (const s of specs) {
     if (skippedNames.has(s.name)) continue;
+    // Post-fixpoint, a surviving spec has no skipped deps — every edge is live.
     for (const dep of requires.get(s.name)!) {
-      if (skippedNames.has(dep)) continue;
       inDegree.set(s.name, (inDegree.get(s.name) ?? 0) + 1);
       dependents.get(dep)!.push(s.name);
     }
