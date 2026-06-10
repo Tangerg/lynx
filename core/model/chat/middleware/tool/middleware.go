@@ -68,7 +68,7 @@ func (e *MaxIterationsError) Error() string {
 
 // middleware turns the model handler into a self-driving tool-calling
 // loop. When the LLM emits tool calls the middleware executes them via
-// the [loopSupport] machinery and re-prompts the model with the results,
+// the [invoker] and re-prompts the model with the results,
 // repeating until the model produces a regular reply, every tool is
 // configured for direct return, or the iteration cap is hit.
 //
@@ -150,13 +150,13 @@ func (m *middleware) wrapStreamHandler(next chat.StreamHandler) chat.StreamHandl
 // messages already indicate a direct return; otherwise enter the
 // recursive call/tool loop.
 func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next chat.CallHandler) (*chat.Response, error) {
-	support := newSupport(len(req.Tools))
+	inv := newInvoker(len(req.Tools))
 
-	if support.shouldReturnDirect(req.Messages) {
-		return support.buildReturnDirectResponse(req.Messages)
+	if inv.shouldReturnDirect(req.Messages) {
+		return inv.buildReturnDirectResponse(req.Messages)
 	}
 
-	support.register(req.Tools...)
+	inv.register(req.Tools...)
 
 	req, err := m.restorePark(ctx, req)
 	if err != nil {
@@ -168,10 +168,10 @@ func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next ch
 	// tail was fed back), execute the still-pending calls and continue —
 	// without re-invoking the model for the already-produced assistant.
 	if point, ok := parseResumePoint(req.Messages); ok {
-		return m.resumeCall(ctx, req, point, next, support)
+		return m.resumeCall(ctx, req, point, next, inv)
 	}
 
-	return m.executeCallRecursively(ctx, req, next, support, loopState{iteration: 1})
+	return m.executeCallRecursively(ctx, req, next, inv, loopState{iteration: 1})
 }
 
 // executeCallRecursively runs one round of model + tool execution. If
@@ -179,7 +179,7 @@ func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next ch
 // function re-prompts and recurses. state.iteration is the 1-based
 // model-call count; exceeding maxIterations aborts with a
 // [MaxIterationsError].
-func (m *middleware) executeCallRecursively(ctx context.Context, req *chat.Request, next chat.CallHandler, support *loopSupport, state loopState) (*chat.Response, error) {
+func (m *middleware) executeCallRecursively(ctx context.Context, req *chat.Request, next chat.CallHandler, inv *invoker, state loopState) (*chat.Response, error) {
 	if state.iteration > m.maxIterations {
 		return nil, &MaxIterationsError{Limit: m.maxIterations}
 	}
@@ -189,35 +189,28 @@ func (m *middleware) executeCallRecursively(ctx context.Context, req *chat.Reque
 		return nil, err
 	}
 
-	if !support.shouldInvokeToolCalls(resp) {
+	if !inv.canInvokeToolCalls(resp) {
 		if nudgeReq, ok, nudgeErr := m.maybeNudgeEmpty(req, resp, state); nudgeErr != nil {
 			return nil, nudgeErr
 		} else if ok {
-			return m.executeCallRecursively(ctx, nudgeReq, next, support, state.nudged())
+			return m.executeCallRecursively(ctx, nudgeReq, next, inv, state.nudged())
 		}
 		return resp, nil
 	}
 
-	result, err := support.invokeToolCalls(ctx, req, resp)
+	result, err := inv.invoke(ctx, req, resp)
 	if err != nil {
 		// A fatal control-flow signal (abort / ctx cancel) propagates unchanged.
 		return nil, err
 	}
 
 	if result.interrupt != nil {
-		// HITL: a tool halted the round. With a ParkStore the caller
-		// never sees an interrupt chunk; without one the round is
-		// handed back via [buildInterruptResponse] (conversation-tail
-		// design — see [Config.ParkStore]).
-		if m.parkStore != nil {
-			m.savePark(ctx, req, resp.Result.AssistantMessage, result.interrupt.done)
-			return nil, result.interrupt.cause
-		}
-		interruptResp, e := buildInterruptResponse(resp.Result.AssistantMessage, result.interrupt.done)
+		// HITL: a tool halted the round — park or hand the tail back.
+		tail, e := m.interruptOutcome(ctx, req, resp.Result.AssistantMessage, result.interrupt.done)
 		if e != nil {
 			return nil, e
 		}
-		return interruptResp, result.interrupt.cause
+		return tail, result.interrupt.cause
 	}
 
 	if result.shouldReturn() {
@@ -228,7 +221,7 @@ func (m *middleware) executeCallRecursively(ctx context.Context, req *chat.Reque
 	if err != nil {
 		return nil, err
 	}
-	return m.executeCallRecursively(ctx, nextReq, next, support, state.next())
+	return m.executeCallRecursively(ctx, nextReq, next, inv, state.next())
 }
 
 // executeStream is the streaming entry point. Same shape as executeCall
@@ -237,14 +230,14 @@ func (m *middleware) executeCallRecursively(ctx context.Context, req *chat.Reque
 // closes.
 func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next chat.StreamHandler) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
-		support := newSupport(len(req.Tools))
+		inv := newInvoker(len(req.Tools))
 
-		if support.shouldReturnDirect(req.Messages) {
-			yield(support.buildReturnDirectResponse(req.Messages))
+		if inv.shouldReturnDirect(req.Messages) {
+			yield(inv.buildReturnDirectResponse(req.Messages))
 			return
 		}
 
-		support.register(req.Tools...)
+		inv.register(req.Tools...)
 
 		req, err := m.restorePark(ctx, req)
 		if err != nil {
@@ -256,11 +249,11 @@ func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next 
 		// calls (a prior round halted, its tail fed back) — execute only the
 		// pending calls, no model re-call. See executeCall.
 		if point, ok := parseResumePoint(req.Messages); ok {
-			m.resumeStream(ctx, req, point, next, support, yield)
+			m.resumeStream(ctx, req, point, next, inv, yield)
 			return
 		}
 
-		m.executeStreamRecursively(ctx, req, next, support, yield, loopState{iteration: 1})
+		m.executeStreamRecursively(ctx, req, next, inv, yield, loopState{iteration: 1})
 	}
 }
 
@@ -274,7 +267,7 @@ func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next 
 // the request history. This is the discriminator established in §8.4
 // of MESSAGE_PARTS_DESIGN: each yielded Response has exactly one of
 // Result.AssistantMessage or Result.ToolMessage populated.
-func (m *middleware) executeStreamRecursively(ctx context.Context, req *chat.Request, next chat.StreamHandler, support *loopSupport, yield func(*chat.Response, error) bool, state loopState) {
+func (m *middleware) executeStreamRecursively(ctx context.Context, req *chat.Request, next chat.StreamHandler, inv *invoker, yield func(*chat.Response, error) bool, state loopState) {
 	if state.iteration > m.maxIterations {
 		yield(nil, &MaxIterationsError{Limit: m.maxIterations})
 		return
@@ -296,16 +289,16 @@ func (m *middleware) executeStreamRecursively(ctx context.Context, req *chat.Req
 	}
 
 	resp := &accumulator.Response
-	if !support.shouldInvokeToolCalls(resp) {
+	if !inv.canInvokeToolCalls(resp) {
 		if nudgeReq, ok, nudgeErr := m.maybeNudgeEmpty(req, resp, state); nudgeErr != nil {
 			yield(nil, nudgeErr)
 		} else if ok {
-			m.executeStreamRecursively(ctx, nudgeReq, next, support, yield, state.nudged())
+			m.executeStreamRecursively(ctx, nudgeReq, next, inv, yield, state.nudged())
 		}
 		return
 	}
 
-	result, err := support.invokeToolCalls(ctx, req, resp)
+	result, err := inv.invoke(ctx, req, resp)
 	if err != nil {
 		// A fatal control-flow signal (abort / ctx cancel) propagates unchanged.
 		yield(nil, err)
@@ -313,20 +306,8 @@ func (m *middleware) executeStreamRecursively(ctx context.Context, req *chat.Req
 	}
 
 	if result.interrupt != nil {
-		// HITL: a tool halted the round. With a ParkStore the caller
-		// never sees an interrupt chunk; without one the interrupt
-		// chunk is streamed (conversation-tail design — see
-		// [Config.ParkStore]).
-		if m.parkStore != nil {
-			m.savePark(ctx, req, resp.Result.AssistantMessage, result.interrupt.done)
-			yield(nil, result.interrupt.cause)
-			return
-		}
-		if interruptResp, e := buildInterruptResponse(resp.Result.AssistantMessage, result.interrupt.done); e != nil {
-			yield(nil, e)
-		} else if yield(interruptResp, nil) {
-			yield(nil, result.interrupt.cause)
-		}
+		// HITL: a tool halted the round — park or stream the tail.
+		m.yieldInterrupt(ctx, req, resp.Result.AssistantMessage, result.interrupt, yield)
 		return
 	}
 
@@ -351,7 +332,7 @@ func (m *middleware) executeStreamRecursively(ctx context.Context, req *chat.Req
 		yield(nil, err)
 		return
 	}
-	m.executeStreamRecursively(ctx, nextReq, next, support, yield, state.next())
+	m.executeStreamRecursively(ctx, nextReq, next, inv, yield, state.next())
 }
 
 // maybeNudgeEmpty decides whether to re-prompt after an empty model reply.
@@ -456,6 +437,39 @@ func injectParkTail(ctx context.Context, req *chat.Request, state *ParkState) *c
 	next.Tools = req.Tools
 	next.Params = req.Params
 	return next
+}
+
+// interruptOutcome applies the park-vs-tail policy when a tool round
+// halts for human input: with a ParkStore the round parks (persisted
+// under the request's conversation id) and the returned response is
+// nil; without one it returns the [chat.FinishReasonInterrupt] tail
+// the caller re-feeds to resume (conversation-tail design — see
+// [Config.ParkStore]). The caller pairs the result with the interrupt
+// cause per its own delivery protocol — a single return on the call
+// path, the two-yield sequence on the stream path ([yieldInterrupt]).
+func (m *middleware) interruptOutcome(ctx context.Context, req *chat.Request, assistant *chat.AssistantMessage, done []*chat.ToolReturn) (*chat.Response, error) {
+	if m.parkStore != nil {
+		m.savePark(ctx, req, assistant, done)
+		return nil, nil
+	}
+	return buildInterruptResponse(assistant, done)
+}
+
+// yieldInterrupt delivers an interrupt outcome on the stream path:
+// the tail chunk first (when the round didn't park), then the cause —
+// skipping the cause when the consumer already walked away.
+func (m *middleware) yieldInterrupt(ctx context.Context, req *chat.Request, assistant *chat.AssistantMessage, ri *roundInterrupt, yield func(*chat.Response, error) bool) {
+	tail, err := m.interruptOutcome(ctx, req, assistant, ri.done)
+	switch {
+	case err != nil:
+		yield(nil, err)
+	case tail == nil:
+		yield(nil, ri.cause)
+	default:
+		if yield(tail, nil) {
+			yield(nil, ri.cause)
+		}
+	}
 }
 
 // savePark persists an interrupted round so it can be resumed later.

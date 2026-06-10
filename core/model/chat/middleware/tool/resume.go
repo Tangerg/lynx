@@ -31,9 +31,10 @@ func toolRoundResponse(assistant *chat.AssistantMessage, toolMsg *chat.ToolMessa
 // — never re-invoking the model. It mirrors return-direct's shape exactly,
 // differing only in the finish reason.
 //
-// The first interrupt of a round goes through here directly (no resume point
-// exists yet); a re-interrupt during a resumed round goes through
-// [resumePoint.interruptResponse], which folds the prior round's done-set in.
+// The first interrupt of a round arrives with just that round's done-set;
+// a re-interrupt during a resumed round folds the prior round's done-set in
+// first (see [middleware.resumeCall]). Both flow through
+// [middleware.interruptOutcome], which picks park-vs-tail.
 func buildInterruptResponse(assistant *chat.AssistantMessage, done []*chat.ToolReturn) (*chat.Response, error) {
 	var toolMsg *chat.ToolMessage
 	if len(done) > 0 {
@@ -150,15 +151,6 @@ func (p *resumePoint) merge(fresh []*chat.ToolReturn) []*chat.ToolReturn {
 	return out
 }
 
-// interruptResponse re-surfaces the FinishReasonInterrupt tail when a call in
-// the resumed round halts again: it folds the results produced so far this
-// invocation (extra) into the round's done-set before building the tail, so
-// the next resume sees every result of the round.
-func (p *resumePoint) interruptResponse(extra []*chat.ToolReturn) (*chat.Response, error) {
-	merged := append(slices.Clone(p.done), extra...)
-	return buildInterruptResponse(p.assistant, merged)
-}
-
 // priorModelRounds counts the assistant messages in a resumed conversation —
 // the model rounds already spent — so the resumed loop keeps counting toward
 // the iteration cap instead of restarting at 1.
@@ -178,9 +170,9 @@ func priorModelRounds(msgs []chat.Message) int {
 // allReturnDirect reports whether every tool referenced in returns is
 // registered AND return-direct — the resume-path analog of the allReturnDirect
 // bit invokeToolCalls computes inline.
-func (s *loopSupport) allReturnDirect(returns []*chat.ToolReturn) bool {
+func (i *invoker) allReturnDirect(returns []*chat.ToolReturn) bool {
 	for _, ret := range returns {
-		t, exists := s.registry.find(ret.Name)
+		t, exists := i.registry.find(ret.Name)
 		if !exists || !t.Metadata().ReturnDirect {
 			return false
 		}
@@ -192,26 +184,21 @@ func (s *loopSupport) allReturnDirect(returns []*chat.ToolReturn) bool {
 // synchronous path, then re-interrupts, returns direct, or continues the loop
 // at the next model round. It never re-invokes the model for the resumed round
 // — the assistant message is already known (carried by point).
-func (m *middleware) resumeCall(ctx context.Context, req *chat.Request, point *resumePoint, next chat.CallHandler, support *loopSupport) (*chat.Response, error) {
-	res, err := support.invoker.invokeToolCalls(ctx, point.pending)
+func (m *middleware) resumeCall(ctx context.Context, req *chat.Request, point *resumePoint, next chat.CallHandler, inv *invoker) (*chat.Response, error) {
+	res, err := inv.invokeToolCalls(ctx, point.pending)
 	if err != nil {
 		return nil, err
 	}
 	if res.interrupt != nil {
-		// Another call in the same round halted. With a ParkStore,
-		// save the merged done-set; without one, hand the round back
-		// via [interruptResponse] (conversation-tail design — see
-		// [Config.ParkStore]).
-		if m.parkStore != nil {
-			merged := append(slices.Clone(point.done), res.interrupt.done...)
-			m.savePark(ctx, req, point.assistant, merged)
-			return nil, res.interrupt.cause
-		}
-		resp, e := point.interruptResponse(res.interrupt.done)
+		// Another call in the same round halted. Fold the prior
+		// done-set in so the next resume sees every result of the
+		// round, then park or hand the tail back.
+		merged := append(slices.Clone(point.done), res.interrupt.done...)
+		tail, e := m.interruptOutcome(ctx, req, point.assistant, merged)
 		if e != nil {
 			return nil, e
 		}
-		return resp, res.interrupt.cause
+		return tail, res.interrupt.cause
 	}
 
 	full := point.merge(res.toolMessage.ToolReturns)
@@ -219,37 +206,33 @@ func (m *middleware) resumeCall(ctx context.Context, req *chat.Request, point *r
 	if err != nil {
 		return nil, err
 	}
-	if support.allReturnDirect(full) {
+	if inv.allReturnDirect(full) {
 		return toolRoundResponse(point.assistant, toolMsg, chat.FinishReasonReturnDirect)
 	}
 	nextReq, err := nextRoundRequest(req, point.assistant, toolMsg)
 	if err != nil {
 		return nil, err
 	}
-	return m.executeCallRecursively(ctx, nextReq, next, support, loopState{iteration: point.priorRounds}.next())
+	return m.executeCallRecursively(ctx, nextReq, next, inv, loopState{iteration: point.priorRounds}.next())
 }
 
 // resumeStream is the streaming analog of [resumeCall]. It surfaces the
 // resumed round's tool message to the stream (so the wire timeline + caller's
 // per-round budget boundary see it) before continuing.
-func (m *middleware) resumeStream(ctx context.Context, req *chat.Request, point *resumePoint, next chat.StreamHandler, support *loopSupport, yield func(*chat.Response, error) bool) {
-	res, err := support.invoker.invokeToolCalls(ctx, point.pending)
+func (m *middleware) resumeStream(ctx context.Context, req *chat.Request, point *resumePoint, next chat.StreamHandler, inv *invoker, yield func(*chat.Response, error) bool) {
+	res, err := inv.invokeToolCalls(ctx, point.pending)
 	if err != nil {
 		yield(nil, err)
 		return
 	}
 	if res.interrupt != nil {
-		if m.parkStore != nil {
-			merged := append(slices.Clone(point.done), res.interrupt.done...)
-			m.savePark(ctx, req, point.assistant, merged)
-			yield(nil, res.interrupt.cause)
-			return
+		// Re-interrupt during a resumed round — same fold-and-deliver
+		// as [middleware.resumeCall], on the stream protocol.
+		merged := &roundInterrupt{
+			done:  append(slices.Clone(point.done), res.interrupt.done...),
+			cause: res.interrupt.cause,
 		}
-		if resp, e := point.interruptResponse(res.interrupt.done); e != nil {
-			yield(nil, e)
-		} else if yield(resp, nil) {
-			yield(nil, res.interrupt.cause)
-		}
+		m.yieldInterrupt(ctx, req, point.assistant, merged, yield)
 		return
 	}
 
@@ -262,7 +245,7 @@ func (m *middleware) resumeStream(ctx context.Context, req *chat.Request, point 
 	if toolResp, e := newToolMessageResponse(toolMsg); e == nil && !yield(toolResp, nil) {
 		return
 	}
-	if support.allReturnDirect(full) {
+	if inv.allReturnDirect(full) {
 		yield(toolRoundResponse(point.assistant, toolMsg, chat.FinishReasonReturnDirect))
 		return
 	}
@@ -271,5 +254,5 @@ func (m *middleware) resumeStream(ctx context.Context, req *chat.Request, point 
 		yield(nil, err)
 		return
 	}
-	m.executeStreamRecursively(ctx, nextReq, next, support, yield, loopState{iteration: point.priorRounds}.next())
+	m.executeStreamRecursively(ctx, nextReq, next, inv, yield, loopState{iteration: point.priorRounds}.next())
 }
