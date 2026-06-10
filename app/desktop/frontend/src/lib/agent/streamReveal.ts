@@ -83,27 +83,31 @@ export function useStreamReveal(rawText: string, enabled: boolean, typewriter = 
     }
   }
 
-  useEffect(() => {
-    let rafId = 0;
-    let active = true;
+  // rAF bookkeeping. 0 = parked. The loop PARKS at zero backlog instead of
+  // self-rescheduling forever: every mounted message owns one of these hooks,
+  // so a long session would otherwise keep hundreds of 60fps callbacks
+  // spinning while fully idle. The rawText-keyed effect below re-arms the
+  // loop on growth — same next-frame reveal latency as the perpetual loop.
+  const rafRef = useRef(0);
+  const armRef = useRef(() => {});
 
+  useEffect(() => {
     const tick = () => {
-      if (!active) return;
+      rafRef.current = 0;
       const st = stateRef.current;
       const backlog = st.rawText.length - st.displayLen;
 
       if (backlog <= 0) {
-        // Idle. Reset rate state so the next text-growth event starts a
+        // Park. Reset rate state so the next text-growth event starts a
         // clean cadence (no stale lastTickAt → giant elapsed → debt dump).
         st.lastTickAt = -1;
         st.charDebt = 0;
-        rafId = requestAnimationFrame(tick);
         return;
       }
 
       const now = performance.now();
       if (now < st.pauseUntil) {
-        rafId = requestAnimationFrame(tick);
+        rafRef.current = requestAnimationFrame(tick);
         return;
       }
 
@@ -161,16 +165,25 @@ export function useStreamReveal(rawText: string, enabled: boolean, typewriter = 
         st.pauseUntil = now + SENTENCE_PAUSE_MS;
       }
 
-      rafId = requestAnimationFrame(tick);
+      rafRef.current = requestAnimationFrame(tick);
     };
 
-    rafId = requestAnimationFrame(tick);
+    armRef.current = () => {
+      if (rafRef.current === 0) rafRef.current = requestAnimationFrame(tick);
+    };
+    armRef.current(); // initial backlog (enabled mount) starts revealing
 
     return () => {
-      active = false;
-      cancelAnimationFrame(rafId);
+      if (rafRef.current !== 0) cancelAnimationFrame(rafRef.current);
+      rafRef.current = 0;
     };
   }, []);
+
+  // Re-arm on every text growth (one cheap effect per delta on the single
+  // streaming message; settled messages never re-render so never re-run it).
+  useEffect(() => {
+    armRef.current();
+  }, [rawText]);
 
   return rawText.slice(0, displayLen);
 }
