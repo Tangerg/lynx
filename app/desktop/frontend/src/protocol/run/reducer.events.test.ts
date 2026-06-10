@@ -415,3 +415,71 @@ describe("reducer — HITL interrupt", () => {
     expect(s.messages[0]!.blocks.map((b) => b.kind)).toEqual(["tool", "approval", "text"]);
   });
 });
+
+describe("reducer — interrupt idempotency + terminal cleanup", () => {
+  const approvalInterrupt = (itemId: string, command: string): StreamEvent =>
+    runFinished({
+      type: "interrupt",
+      interrupts: [
+        {
+          itemId: itemId as never,
+          type: "approval",
+          payload: { tool: { name: "bash", arguments: { command } } },
+        },
+      ],
+    });
+
+  const toInterrupt = (): AgentViewState => {
+    let s = reduce(INITIAL_VIEW_STATE, runStarted("run_1", "ses_1"));
+    s = reduce(
+      s,
+      started(
+        item({
+          id: "tool_1",
+          type: "toolCall",
+          tool: { name: "bash", arguments: { command: "rm x" } },
+        }),
+      ),
+    );
+    return reduce(s, approvalInterrupt("tool_1", "rm x"));
+  };
+
+  const approvalBlocks = (s: AgentViewState) =>
+    s.messages.flatMap((m) => m.blocks).filter((b) => b.kind === "approval");
+
+  it("a re-delivered run.finished{interrupt} keeps one card + one open interrupt (B1)", () => {
+    let s = toInterrupt();
+    expect(approvalBlocks(s)).toHaveLength(1);
+    expect(s.openInterrupts).toHaveLength(1);
+
+    // Reconnect / replay re-presents the same finished event — must be a no-op,
+    // not a duplicate approval block (React key clash) or a second envelope.
+    s = reduce(s, approvalInterrupt("tool_1", "rm x"));
+    expect(approvalBlocks(s)).toHaveLength(1);
+    expect(s.openInterrupts).toHaveLength(1);
+    expect(s.openInterrupts[0]!.interrupts).toHaveLength(1);
+  });
+
+  it("a terminal run.finished clears open interrupts + downgrades the card (B2)", () => {
+    let s = toInterrupt();
+    expect(s.openInterrupts).toHaveLength(1);
+
+    // The run is canceled while the approval is still open (user never answered).
+    s = reduce(s, runFinished({ type: "canceled", result: {} }));
+    expect(s.openInterrupts).toHaveLength(0);
+    expect(approvalBlocks(s)[0]).toMatchObject({ status: "incomplete" });
+  });
+
+  it("an empty completed snapshot does not wipe already-streamed text (B3)", () => {
+    let s: AgentViewState = INITIAL_VIEW_STATE;
+    s = reduce(s, started(item({ id: "m1", type: "agentMessage", content: [] })));
+    s = reduce(s, delta("m1", { type: "content", text: "hello world" }));
+    // Malformed / empty terminal frame must not blank the bubble.
+    s = reduce(
+      s,
+      completed(item({ id: "m1", type: "agentMessage", status: "completed", content: [] })),
+    );
+    const block = s.messages.flatMap((m) => m.blocks).find((b) => b.kind === "text");
+    expect(block).toMatchObject({ kind: "text", text: "hello world", status: "complete" });
+  });
+});

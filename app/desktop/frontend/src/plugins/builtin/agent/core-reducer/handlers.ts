@@ -36,6 +36,7 @@ import {
   foldReasoning,
   foldText,
   patchBlock,
+  settleOpenInterrupts,
   updateTool,
   writeToolCall,
 } from "./fold";
@@ -130,6 +131,21 @@ function materializeInterrupt(
     // missing tool (malformed payload) so a buggy backend can't crash the fold
     // and leave an un-actionable interrupt.
     const tool = it.payload.tool as ToolInvocation | undefined;
+    // Upsert — mirror the question branch below. A re-delivered interrupt
+    // (reconnect / replay re-seeing the same run.finished) must re-affirm the
+    // existing card, not append a second approval block with the same itemId
+    // (→ React duplicate-key warning + two cards).
+    if (
+      state.messages.some((m) =>
+        m.blocks.some((b) => b.kind === "approval" && b.itemId === it.itemId),
+      )
+    ) {
+      return patchBlock(
+        state,
+        (b) => b.kind === "approval" && b.itemId === it.itemId,
+        (b) => ({ ...b, status: "requires-action", parentRunId }),
+      );
+    }
     const block: ContentBlock = {
       kind: "approval",
       status: "requires-action",
@@ -175,17 +191,40 @@ function materializeInterrupt(
   return state; // toolResult — gated by features.clientTools, not rendered here
 }
 
+// KNOWN LIMITATION (deferred until subagents stream): unlike onRunStarted,
+// this has no spawnedByItemId guard — RunOutcome carries no runId, and the
+// fold receives the unwrapped StreamEvent (RunEvent.runId is dropped before
+// reduce). So a subagent's run.finished would idle the main run and attribute
+// its interrupt's parentRunId to the root run. Fixing it needs the wire runId
+// threaded into the fold; revisit when subagents actually emit run.finished.
 function onRunFinished(state: AgentViewState, outcome: RunOutcome): AgentViewState {
   const idle: AgentViewState = { ...state, run: { ...state.run, running: false } };
   if (outcome.type === "interrupt") {
-    const open: OpenInterrupt = {
-      parentRunId: (state.run.runId ?? "") as OpenInterrupt["parentRunId"],
-      sessionId: (state.run.sessionId ?? "") as OpenInterrupt["sessionId"],
-      interrupts: outcome.interrupts,
-      createdAt: new Date().toISOString(),
-    };
-    let next: AgentViewState = { ...idle, openInterrupts: [...idle.openInterrupts, open] };
-    for (const it of outcome.interrupts) next = materializeInterrupt(next, it, open.parentRunId);
+    const parentRunId = (state.run.runId ?? "") as OpenInterrupt["parentRunId"];
+    // Re-delivery (reconnect / replay) can re-present an interrupt already
+    // open. Only enroll genuinely-new interrupts in a fresh envelope (else
+    // openInterrupts grows duplicates); materializeInterrupt below is an
+    // idempotent upsert, so re-affirming an existing card is safe.
+    const openItemIds = new Set(
+      idle.openInterrupts.flatMap((oi) => oi.interrupts.map((i) => i.itemId)),
+    );
+    const fresh = outcome.interrupts.filter((it) => !openItemIds.has(it.itemId));
+    let next: AgentViewState =
+      fresh.length === 0
+        ? idle
+        : {
+            ...idle,
+            openInterrupts: [
+              ...idle.openInterrupts,
+              {
+                parentRunId,
+                sessionId: (state.run.sessionId ?? "") as OpenInterrupt["sessionId"],
+                interrupts: fresh,
+                createdAt: new Date().toISOString(),
+              },
+            ],
+          };
+    for (const it of outcome.interrupts) next = materializeInterrupt(next, it, parentRunId);
     return next;
   }
 
@@ -194,13 +233,20 @@ function onRunFinished(state: AgentViewState, outcome: RunOutcome): AgentViewSta
   const tokensUsed = (usage?.inputTokens ?? 0) + (usage?.outputTokens ?? 0);
   // Total cost reads usage.costUsd — there is no RunResult.costUsd (§4.2).
   const costUsd = usage?.costUsd;
-  const withRun = patchRun({
-    running: false,
-    step: result.steps ?? state.run.step,
-    totalSteps: result.steps ?? state.run.totalSteps,
-    tokens: { used: String(tokensUsed), total: state.run.tokens.total },
-    cost: costUsd !== undefined ? costUsd.toFixed(2) : state.run.cost,
-  })(idle);
+  // A terminal end (completed / error / canceled / maxSteps) means any
+  // interrupt still open was never resolved by the user — the run that owned
+  // it is done (canceled, errored, or auto-resolved server-side). Drop those
+  // open interrupts and downgrade their still-actionable cards so the UI stops
+  // offering buttons that would resume a dead run.
+  const withRun = settleOpenInterrupts(
+    patchRun({
+      running: false,
+      step: result.steps ?? state.run.step,
+      totalSteps: result.steps ?? state.run.totalSteps,
+      tokens: { used: String(tokensUsed), total: state.run.tokens.total },
+      cost: costUsd !== undefined ? costUsd.toFixed(2) : state.run.cost,
+    })(idle),
+  );
 
   if (outcome.type === "error") {
     const errored: AgentViewState = {
