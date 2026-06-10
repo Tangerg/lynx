@@ -119,11 +119,48 @@ func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionReq
 	return &out, nil
 }
 
-// ForkSession — fork at an item boundary depends on the checkpoint /
-// item-id model, which isn't reconciled with the engine's history yet.
-// Gated off (features.checkpoints).
-func (s *Server) ForkSession(_ context.Context, _ protocol.ForkSessionRequest) (*protocol.Session, error) {
-	return nil, notImpl("sessions.fork")
+// ForkSession branches a session into a fresh child that continues from the
+// parent's conversation (API.md §7.2): the child inherits the parent's cwd and
+// a copy of its full chat history, then diverges. An optional title overrides
+// the default "<parent> (fork)".
+//
+// Item-boundary forking (FromItemID — "branch from this point") is NOT backed:
+// the durable Item log and the chat-memory message log are parallel views with
+// no positional correlation, so truncating history at a specific item can't be
+// done reliably. Rather than fork at a guessed point, reject it as
+// checkpoint_unavailable; full-history fork is the honest, backed capability.
+func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest) (*protocol.Session, error) {
+	if in.FromItemID != "" {
+		return nil, fmt.Errorf("%w: item-boundary fork (fromItemId) not supported", protocol.ErrCheckpointUnavailable)
+	}
+
+	// Fork records the branch lineage (parent id, inherited cwd); atMessageID
+	// is empty because this is a whole-conversation fork, not a point branch.
+	child, err := s.rt.Session().Fork(ctx, in.SessionID, "")
+	if err != nil {
+		return nil, wireSessionErr(err)
+	}
+
+	// Copy the parent's full history into the fresh child so its next turn
+	// continues with the same context. The child was just created (empty), so
+	// the append-only seed can't double up.
+	msgs, err := s.rt.ReadHistory(ctx, in.SessionID)
+	if err != nil {
+		return nil, wireSessionErr(err)
+	}
+	if err := s.rt.SeedHistory(ctx, child.ID, msgs); err != nil {
+		return nil, err
+	}
+
+	if in.Title != "" {
+		if err := s.rt.Session().Rename(ctx, child.ID, in.Title); err != nil {
+			return nil, wireSessionErr(err)
+		}
+		child.Title = in.Title
+	}
+
+	out := s.sessionToWire(child)
+	return &out, nil
 }
 
 // ExportSession — needs a transport file channel to serve the artifact.
