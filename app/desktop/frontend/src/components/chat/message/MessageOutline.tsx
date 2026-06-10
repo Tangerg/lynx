@@ -33,7 +33,17 @@ function sameItems(a: OutlineItem[], b: OutlineItem[]): boolean {
   return true;
 }
 
-export function MessageOutline({ target }: { target: RefObject<HTMLElement | null> }) {
+export function MessageOutline({
+  target,
+  scopeId,
+}: {
+  target: RefObject<HTMLElement | null>;
+  /** Owning message id — namespaces the auto-assigned heading ids. Without it
+   *  two messages with the same heading at the same position ("Summary",
+   *  "Plan"…) mint identical DOM ids and getElementById resolves every
+   *  outline click to the FIRST message in the stream. */
+  scopeId: string;
+}) {
   const [items, setItems] = useState<OutlineItem[]>([]);
 
   useEffect(() => {
@@ -47,7 +57,7 @@ export function MessageOutline({ target }: { target: RefObject<HTMLElement | nul
         const text = h.textContent?.trim() ?? "";
         if (!text) continue;
         // Auto-assign an id if rehype didn't (we don't use rehype-slug).
-        if (!h.id) h.id = `h-${next.length}-${text.slice(0, 24).replace(/\s+/g, "-")}`;
+        if (!h.id) h.id = `h-${scopeId}-${next.length}-${text.slice(0, 24).replace(/\s+/g, "-")}`;
         next.push({ id: h.id, level: Number(h.tagName.slice(1)), text });
       }
       setItems((prev) => (sameItems(prev, next) ? prev : next));
@@ -72,7 +82,7 @@ export function MessageOutline({ target }: { target: RefObject<HTMLElement | nul
       obs.disconnect();
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [target]);
+  }, [target, scopeId]);
 
   if (items.length < MIN_ITEMS) return null;
 

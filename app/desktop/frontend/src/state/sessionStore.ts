@@ -151,6 +151,12 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         set({
           activeSessionId: id,
           tabIds: tabIds.includes(id) ? tabIds : [...tabIds, id],
+          // Selecting a chat session always returns the main pane to the
+          // message stream — a promoted workspace view (Settings/Diagnostics
+          // …) must not stay focused, or the click visibly "does nothing".
+          // Cleared HERE (not per call site): sidebar rows, Cmd+1..9, ⌘N and
+          // the tab strip all funnel through selectTab.
+          activeMainView: null,
           // Tool-inspector + file focus are session-scoped. Switching to a
           // different session must not carry A's selection/expansion into B
           // (the ids wouldn't match B's items, and expandedToolIds would
