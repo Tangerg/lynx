@@ -257,6 +257,12 @@ func (r *Runtime) SeedHistory(ctx context.Context, sessionID string, msgs []chat
 	return r.engine.SeedHistory(ctx, sessionID, msgs)
 }
 
+// ListSkills enumerates the skills visible from cwd (project over global) for
+// workspace.listSkills. Delegates to the engine, which owns skill sourcing.
+func (r *Runtime) ListSkills(ctx context.Context, cwd string) ([]engine.SkillInfo, error) {
+	return r.engine.ListSkills(ctx, cwd)
+}
+
 // Close releases per-runtime external resources — MCP sessions and
 // any future engine-owned handles. Idempotent.
 func (r *Runtime) Close() error {

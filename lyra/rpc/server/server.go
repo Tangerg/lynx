@@ -123,12 +123,12 @@ func Capabilities(rt RuntimeServices) protocol.ServerCapabilities {
 			"reasoning": true,
 			"mcp":       true,
 			"memory":    memory,
+			"skills":    true, // workspace.listSkills (project + global enumeration)
 			// Off until the corresponding engine support lands:
 			"multimodal":    false,
 			"checkpoints":   false,
 			"background":    false,
 			"subagents":     false,
-			"skills":        false,
 			"sessionExport": false,
 			"relocate":      false,
 			"clientTools":   false,
