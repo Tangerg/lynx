@@ -99,6 +99,14 @@ export const zhTW: Record<string, string> = {
   "question.settled.answered": "已回答",
   "question.freetext.placeholder": "輸入自訂答案…",
 
+  "cwdMissing.title": "工作目錄遺失",
+  "cwdMissing.body":
+    "該資料夾已從磁碟消失——在還原或重新定位工作階段之前，agent 將以純聊天模式運作。",
+  "cwdMissing.action.relocate": "重新定位…",
+  "cwdMissing.action.apply": "套用",
+  "cwdMissing.action.cancel": "取消",
+  "cwdMissing.placeholder": "新的絕對路徑",
+
   "runError.title": "Agent 錯誤",
   "runError.action.retry": "重試",
   "runError.action.timeline": "開啟時間軸",

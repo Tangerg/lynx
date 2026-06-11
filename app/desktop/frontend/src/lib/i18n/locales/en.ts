@@ -115,6 +115,14 @@ export const en: Record<string, string> = {
   "question.settled.answered": "Answered",
   "question.freetext.placeholder": "Type a custom answer…",
 
+  "cwdMissing.title": "Working directory missing",
+  "cwdMissing.body":
+    "The folder is gone from disk — the agent runs in plain-chat mode until it is restored or the session is relocated.",
+  "cwdMissing.action.relocate": "Relocate…",
+  "cwdMissing.action.apply": "Apply",
+  "cwdMissing.action.cancel": "Cancel",
+  "cwdMissing.placeholder": "New absolute path",
+
   "runError.title": "Agent error",
   "runError.action.retry": "Retry",
   "runError.action.timeline": "Open timeline",

@@ -15,6 +15,7 @@ import { useSessionStore } from "@/state/sessionStore";
 import { useUiStore } from "@/state/uiStore";
 import { Composer, ComposerFooter, SlashSuggestions } from "../composer";
 import { ChatErrorBoundary } from "./ChatErrorBoundary";
+import { CwdMissingBanner } from "./CwdMissingBanner";
 import { JumpToBottomButton } from "./JumpToBottomButton";
 import { MessageStream } from "./MessageStream";
 import { RunErrorBanner } from "./RunErrorBanner";
@@ -117,6 +118,9 @@ export function ChatStream({ onSend, resetKey }: Props) {
 
   return (
     <>
+      {/* Keyed on the session so the relocate input never carries a
+          half-typed path across a tab switch. */}
+      <CwdMissingBanner key={resetKey} />
       <RunErrorBanner />
       {/* Banner row pinned above the message stream — sits at the
           chat header's lower edge and stays put while the user scrolls

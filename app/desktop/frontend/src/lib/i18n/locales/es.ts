@@ -102,6 +102,14 @@ export const es: Record<string, string> = {
   "question.settled.answered": "Respondido",
   "question.freetext.placeholder": "Escribe una respuesta…",
 
+  "cwdMissing.title": "Falta el directorio de trabajo",
+  "cwdMissing.body":
+    "La carpeta desapareció del disco: el agent funciona en modo solo chat hasta restaurarla o reubicar la sesión.",
+  "cwdMissing.action.relocate": "Reubicar…",
+  "cwdMissing.action.apply": "Aplicar",
+  "cwdMissing.action.cancel": "Cancelar",
+  "cwdMissing.placeholder": "Nueva ruta absoluta",
+
   "runError.title": "Error de agent",
   "runError.action.retry": "Reintentar",
   "runError.action.timeline": "Abrir línea de tiempo",

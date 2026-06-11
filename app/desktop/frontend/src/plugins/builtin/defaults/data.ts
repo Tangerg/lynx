@@ -51,6 +51,7 @@ function toSidebarSession(s: Session): SidebarSession {
     status: s.status,
     model: s.model,
     cwd: s.cwd,
+    cwdMissing: s.cwdMissing,
     time: s.updatedAt || s.createdAt,
   };
 }
