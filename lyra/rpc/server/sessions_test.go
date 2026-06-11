@@ -16,12 +16,15 @@ import (
 // panic if ever called) and overriding only what the session handlers touch.
 type stubRuntime struct {
 	RuntimeServices
-	sess     session.Service
-	model    string
-	skills   []engine.SkillInfo
-	mcpTools []engine.McpToolInfo
-	history  map[string][]chat.Message // per-session chat history (fork copies it)
+	sess       session.Service
+	model      string
+	skills     []engine.SkillInfo
+	mcpTools   []engine.McpToolInfo
+	mcpServers []string
+	history    map[string][]chat.Message // per-session chat history (fork copies it)
 }
+
+func (s stubRuntime) MCPServerNames() []string { return s.mcpServers }
 
 func (s stubRuntime) Session() session.Service { return s.sess }
 func (s stubRuntime) DefaultModel() string     { return s.model }
