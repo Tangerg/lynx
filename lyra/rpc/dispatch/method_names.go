@@ -57,6 +57,7 @@ const (
 	MethodWorkspaceMCPListServers  = "workspace.mcp.listServers"
 	MethodWorkspaceMCPListTools    = "workspace.mcp.listTools"
 	MethodWorkspaceMCPReconnect    = "workspace.mcp.reconnect"
+	MethodWorkspaceSubscribe       = "workspace.subscribe"
 
 	// Providers / Models / Tools (API.md §7.6).
 	MethodProvidersList      = "providers.list"
@@ -77,6 +78,7 @@ const (
 
 	// Notifications (API.md §7.8). notifications.canceled is
 	// client→server; the rest are server→client.
-	NotificationCanceled = "notifications.canceled"
-	NotificationRunEvent = "notifications.run.event"
+	NotificationCanceled       = "notifications.canceled"
+	NotificationRunEvent       = "notifications.run.event"
+	NotificationWorkspaceEvent = "notifications.workspace.event"
 )

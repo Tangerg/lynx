@@ -16,6 +16,44 @@ type Workspace interface {
 	WorkspaceMCPListServers(ctx context.Context, q PageQuery) (*Page[McpServer], error)
 	WorkspaceMCPListTools(ctx context.Context, in MCPListToolsRequest) (*Page[McpTool], error)
 	WorkspaceMCPReconnect(ctx context.Context, server string) error
+	// WorkspaceSubscribe opens the non-run workspace event stream (AUX_API §3):
+	// files/skills/mcp changes. Returns an ack + the event channel, closed when
+	// the request ctx ends. Streaming method (in streamingMethods).
+	WorkspaceSubscribe(ctx context.Context, in WorkspaceSubscribeRequest) (*WorkspaceSubscribeResponse, <-chan WorkspaceEvent, error)
+}
+
+// WorkspaceSubscribeRequest — workspace.subscribe body (AUX_API §3.1). Watches
+// registers file-monitoring interest; gated behind features.fileWatch.
+type WorkspaceSubscribeRequest struct {
+	Watches []WatchSpec `json:"watches,omitempty"`
+}
+
+// WatchSpec is one file-watch registration. WatchId is client-chosen (echoed
+// in files.changed); Cwd defaults to the serve directory; Path is relative to
+// Cwd (jailed like §7.5).
+type WatchSpec struct {
+	WatchID string `json:"watchId"`
+	Cwd     string `json:"cwd,omitempty"`
+	Path    string `json:"path"`
+}
+
+// WorkspaceSubscribeResponse is the (empty) streaming ack — the first frame of
+// the stream, mirroring StartRunResponse's role for runs.
+type WorkspaceSubscribeResponse struct{}
+
+// WorkspaceEvent is one non-run workspace event (AUX_API §3.2) — a flat
+// tag-discriminated struct (single `type`, optional fields per tag, §2.1).
+// Types: files.changed | skills.changed | mcp.serverChanged | resync.
+type WorkspaceEvent struct {
+	Type string `json:"type"`
+	// files.changed
+	WatchID string   `json:"watchId,omitempty"`
+	Paths   []string `json:"paths,omitempty"`
+	// mcp.serverChanged
+	Server    string       `json:"server,omitempty"`
+	Status    string       `json:"status,omitempty"`
+	ToolCount *int         `json:"toolCount,omitempty"`
+	Error     *ProblemData `json:"error,omitempty"`
 }
 
 // WorkspaceQuery is the common cwd input for workspace reads (API.md §7.5).
