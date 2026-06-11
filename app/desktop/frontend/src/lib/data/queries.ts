@@ -69,6 +69,13 @@ export interface McpToolsQuery {
   server: string;
 }
 
+// One built-in (non-MCP) tool from the runtime's catalog (tools.list).
+export interface BuiltinToolInfo {
+  name: string;
+  description: string;
+  safetyClass?: string; // "safe" | "write" | "exec" | "network" …
+}
+
 export interface WorkspaceSkill {
   name: string;
   description: string;
@@ -236,6 +243,7 @@ export const useTerminal = makeDataQuery<TermLine[]>("terminal");
 export const useGrep = makeParamDataQuery<GrepQuery, GrepResult>("grep");
 export const useFileHead = makeParamDataQuery<FileHeadQuery, FileLine[]>("file-head");
 export const useMCPServers = makeDataQuery<MCPServer[]>(MCP_SERVERS_KEY);
+export const useBuiltinTools = makeDataQuery<BuiltinToolInfo[]>("builtin-tools");
 export const useMCPTools = makeParamDataQuery<McpToolsQuery, McpToolInfo[]>(MCP_TOOLS_KEY);
 export const useSkills = makeDataQuery<WorkspaceSkill[]>(SKILLS_KEY);
 export const useMemory = makeParamDataQuery<MemoryQuery, MemoryEntryInfo[]>(MEMORY_KEY);

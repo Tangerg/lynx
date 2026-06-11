@@ -261,19 +261,10 @@ function ModelPicker() {
   );
 }
 
-function AttachButton() {
-  return (
-    <Tooltip label="Attach file">
-      <button
-        type="button"
-        aria-label="Attach file"
-        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border-0 bg-transparent text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg"
-      >
-        <Icon name={"paperclip" as IconName} size={13} />
-      </button>
-    </Tooltip>
-  );
-}
+// (No attach button yet: the attachments pipeline — createUploadUrl,
+// StartRunRequest.attachments, image blocks — isn't live on the backend.
+// A button that can't do anything is worse than none; it returns with
+// the upload flow.)
 
 export const composerToolbar = definePlugin({
   name: "lyra.builtin.composer-toolbar",
@@ -283,11 +274,6 @@ export const composerToolbar = definePlugin({
       id: "model",
       order: 0,
       component: ModelPicker,
-    });
-    host.layout.register("composer.toolbar.start", {
-      id: "attach",
-      order: 1,
-      component: AttachButton,
     });
   },
 });
