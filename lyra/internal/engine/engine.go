@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
+	"github.com/Tangerg/lynx/lyra/internal/engine/toolset"
 	"github.com/Tangerg/lynx/lyra/internal/infra/a2a"
 	"github.com/Tangerg/lynx/lyra/internal/infra/exec"
 	"github.com/Tangerg/lynx/lyra/internal/infra/mcp"
@@ -86,7 +87,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// independent, so they're built once and captured by the resolver.
 	// The filesystem + bash tools are rebuilt per resolution against the
 	// turn's working directory — see cwdToolResolver.
-	online, err := buildOnlineTools(cfg.Online)
+	online, err := toolset.BuildOnlineTools(cfg.Online)
 	if err != nil {
 		return nil, fmt.Errorf("engine: build online tools: %w", err)
 	}
@@ -122,29 +123,29 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// server table falls back to the built-in defaults; config can replace it
 	// wholesale.
 	codeIntel := codeintel.New(cfg.LSPServers)
-	lspTools := buildLSPTools(codeIntel, cfg.Workdir)
+	lspTools := toolset.BuildLSPTools(codeIntel, cfg.Workdir)
 
 	// readTracker backs the read-before-edit + stale-file guards on the fs
 	// read/edit/write tools (per-session, in-memory).
-	tracker := newReadTracker()
+	tracker := toolset.NewReadTracker()
 
 	// Background-command tools (run_in_background / bash_output / kill_shell)
 	// over one per-engine manager; processes are killed in Close.
 	bgShells := exec.NewManager()
-	bgShellTools := buildBgShellTools(bgShells, cfg.Workdir)
+	bgShellTools := toolset.BuildBgShellTools(bgShells, cfg.Workdir)
 
-	resolver := &cwdToolResolver{
-		defaultWorkdir:  cfg.Workdir,
-		skillsGlobalDir: cfg.SkillsGlobalDir,
-		online:          online,
-		a2a:             a2aTools,
-		lsp:             lspTools,
-		codeIntel:       codeIntel,
-		readTracker:     tracker,
-		bgShell:         bgShellTools,
-	}
-	resolver.setMCPTools(mcpTools)            // seed the hot-swappable MCP set
-	mcpConns.SetToolSink(resolver.setMCPTools) // reconnect hot-swaps the refreshed set into the resolver
+	resolver := toolset.NewResolver(toolset.Deps{
+		DefaultWorkdir:  cfg.Workdir,
+		SkillsGlobalDir: cfg.SkillsGlobalDir,
+		Online:          online,
+		A2A:             a2aTools,
+		LSP:             lspTools,
+		BgShell:         bgShellTools,
+		CodeIntel:       codeIntel,
+		ReadTracker:     tracker,
+	})
+	resolver.SetMCPTools(mcpTools)             // seed the hot-swappable MCP set
+	mcpConns.SetToolSink(resolver.SetMCPTools) // reconnect hot-swaps the refreshed set into the resolver
 
 	memStore := cfg.MemoryStore
 	if memStore == nil {
@@ -205,22 +206,27 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("engine: build task tool: %w", err)
 	}
-	resolver.task = taskTool
+	resolver.SetTask(taskTool)
+
+	// ask_user (HITL question) rides the engine's interrupt contract, so the
+	// engine builds it and injects it into the resolver (coding role only).
+	askUser := newAskUserTool()
+	resolver.SetAskUser(askUser)
 
 	// e.tools is the canonical coding tool set for ToolService.List —
 	// tool metadata (name / schema) is working-directory independent, so
 	// the default-workdir build is a faithful representative of what any
 	// turn resolves.
-	e.tools = append(buildWorkdirTools(cfg.Workdir, codeIntel, tracker), online...)
+	e.tools = append(toolset.BuildWorkdirTools(cfg.Workdir, codeIntel, tracker), online...)
 	e.tools = append(e.tools, mcpTools...)
 	e.tools = append(e.tools, a2aTools...)
 	e.tools = append(e.tools, lspTools...)
 	e.tools = append(e.tools, bgShellTools...)
-	if skillTool := buildSkillTool(cfg.Workdir, cfg.SkillsGlobalDir); skillTool != nil {
+	if skillTool := toolset.BuildSkillTool(cfg.Workdir, cfg.SkillsGlobalDir); skillTool != nil {
 		e.tools = append(e.tools, skillTool)
 	}
 	e.tools = append(e.tools, taskTool)
-	e.tools = append(e.tools, newAskUserTool())
+	e.tools = append(e.tools, askUser)
 
 	e.agent = e.buildChatAgent()
 	if err := platform.Deploy(e.agent); err != nil {

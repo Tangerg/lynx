@@ -1,4 +1,4 @@
-package engine
+package toolset
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 // a shared [exec.Manager]. The process mechanism — spawn, the bounded output
 // ring, kill — lives in infra/exec; this file is just the chat.Tool assembly
 // that exposes it to the model (the long-running counterpart to the
-// synchronous bash tool). cwd is read per call (turnCwd) so a background
+// synchronous bash tool). cwd is read per call (TurnCwd) so a background
 // command runs in the session's working directory, like the bash tool.
 
 const (
@@ -23,7 +23,7 @@ const (
 	bgShellIDSchema = `{"type":"object","properties":{"shell_id":{"type":"string","description":"Background shell id returned by run_in_background."}},"required":["shell_id"]}`
 )
 
-func buildBgShellTools(mgr *exec.Manager, defaultWorkdir string) []chat.Tool {
+func BuildBgShellTools(mgr *exec.Manager, defaultWorkdir string) []chat.Tool {
 	run, _ := chat.NewTool(
 		chat.ToolDefinition{
 			Name:        "run_in_background",
@@ -41,7 +41,7 @@ func buildBgShellTools(mgr *exec.Manager, defaultWorkdir string) []chat.Tool {
 			if a.Command == "" {
 				return "", errors.New("run_in_background: command is required")
 			}
-			id := mgr.Launch(turnCwd(ctx, defaultWorkdir), a.Command)
+			id := mgr.Launch(TurnCwd(ctx, defaultWorkdir), a.Command)
 			return fmt.Sprintf("Started background shell %s. Use bash_output {\"shell_id\":%q} to read output, kill_shell to stop it.", id, id), nil
 		},
 	)

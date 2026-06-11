@@ -1,4 +1,4 @@
-package engine
+package toolset
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 func TestBgShell_Tools(t *testing.T) {
 	mgr := exec.NewManager()
 	t.Cleanup(mgr.KillAll)
-	tools := buildBgShellTools(mgr, t.TempDir())
+	tools := BuildBgShellTools(mgr, t.TempDir())
 	if len(tools) != 3 {
 		t.Fatalf("got %d tools, want 3", len(tools))
 	}

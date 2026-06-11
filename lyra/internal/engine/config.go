@@ -5,6 +5,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
+	"github.com/Tangerg/lynx/lyra/internal/engine/toolset"
 	"github.com/Tangerg/lynx/lyra/internal/infra/a2a"
 	"github.com/Tangerg/lynx/lyra/internal/infra/mcp"
 	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
@@ -104,23 +105,7 @@ type Config struct {
 	ParkStore tool.ParkStore
 }
 
-// OnlineConfig groups the credentials network-reaching tools need
-// (webfetch / websearch / httpreq). Empty fields disable the
-// corresponding tool — no tool is registered without explicit
-// opt-in, so an offline-only install makes no surprise outbound
-// calls. This is the canonical definition; the config layer stores
-// it directly (no bridge mapping), keeping engine free of any
-// dependency on config.
-type OnlineConfig struct {
-	// JinaAPIKey enables the webfetch tool backed by Jina Reader.
-	JinaAPIKey string
-
-	// TavilyAPIKey enables the websearch tool backed by Tavily.
-	TavilyAPIKey string
-
-	// HTTPAllowedHosts enables the httpreq tool. Pass an explicit
-	// allowlist (e.g. ["api.github.com", "*.openai.com"]) — empty
-	// keeps the tool disabled so the LLM can't reach arbitrary
-	// internal endpoints.
-	HTTPAllowedHosts []string
-}
+// OnlineConfig groups the credentials network-reaching tools need. Defined in
+// the toolset layer (which builds those tools); aliased here so engine.Config
+// and the config layer name one type without importing toolset everywhere.
+type OnlineConfig = toolset.OnlineConfig
