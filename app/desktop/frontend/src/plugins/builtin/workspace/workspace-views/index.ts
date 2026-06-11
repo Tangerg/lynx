@@ -12,6 +12,7 @@ export { skillsView } from "./skills";
 export { notificationsView } from "./notifications";
 export { planView } from "./plan";
 export { runSummaryView } from "./run-summary";
+export { searchView } from "./search";
 export { terminalView } from "./terminal";
 export { timelineView } from "./timeline";
 export { toolsView } from "./tools";
