@@ -31,8 +31,9 @@ const (
 	MethodSessionsCreate = "sessions.create"
 	MethodSessionsUpdate = "sessions.update"
 	MethodSessionsDelete = "sessions.delete"
-	MethodSessionsFork   = "sessions.fork"
-	MethodSessionsExport = "sessions.export"
+	MethodSessionsFork     = "sessions.fork"
+	MethodSessionsRollback = "sessions.rollback"
+	MethodSessionsExport   = "sessions.export"
 
 	// Runs (API.md §7.3). HITL is the R model: runs.resume answers
 	// open interrupts via a continuation run.

@@ -64,6 +64,18 @@ func (d *Dispatcher) handleSessionsFork(ctx context.Context, msg *transport.Requ
 	return reply(msg, sess, err)
 }
 
+func (d *Dispatcher) handleSessionsRollback(ctx context.Context, msg *transport.Request) HandleResult {
+	in, bad := decode[protocol.RollbackSessionRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
+	if in.SessionID == "" {
+		return responseError(msg.ID, invalidParams("sessionId is required"))
+	}
+	out, err := d.api.RollbackSession(ctx, in)
+	return reply(msg, out, err)
+}
+
 func (d *Dispatcher) handleSessionsExport(ctx context.Context, msg *transport.Request) HandleResult {
 	in, bad := decode[protocol.ExportSessionRequest](msg)
 	if bad != nil {

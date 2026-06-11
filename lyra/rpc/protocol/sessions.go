@@ -49,6 +49,11 @@ type Sessions interface {
 	UpdateSession(ctx context.Context, in UpdateSessionRequest) (*Session, error)
 	DeleteSession(ctx context.Context, sessionID string) error
 	ForkSession(ctx context.Context, in ForkSessionRequest) (*Session, error)
+	// RollbackSession discards the runs after a kept boundary, truncating the
+	// session's history at a run granularity (AUX_API §4.1). Destructive +
+	// in-place — it mutates the session rather than producing a copy (that's
+	// fork). Rejected with session_busy while a run is in flight.
+	RollbackSession(ctx context.Context, in RollbackSessionRequest) (*RollbackSessionResponse, error)
 	ExportSession(ctx context.Context, in ExportSessionRequest) (*ExportSessionResponse, error)
 }
 
@@ -78,6 +83,34 @@ type ForkSessionRequest struct {
 	SessionID string `json:"sessionId"`
 	FromRunID string `json:"fromRunId,omitempty"`
 	Title     string `json:"title,omitempty"`
+}
+
+// RollbackSessionRequest — sessions.rollback body (AUX_API §4.1). ToRunID is
+// inclusive-keep: the last ROOT run to keep, everything after it is dropped
+// (its continuation chain + subagent subtree + dangling interrupts go too).
+// Omit ToRunID to drop every run and return to an empty session ("edit the
+// first message"). A non-root / continuation ToRunID is invalid_params.
+type RollbackSessionRequest struct {
+	SessionID string `json:"sessionId"`
+	ToRunID   string `json:"toRunId,omitempty"`
+}
+
+// RollbackSessionResponse — sessions.rollback result. DroppedRuns lists what
+// was removed (newest-relevant first is not required; the server returns drop
+// order) so the client can reconcile its view and re-populate the composer.
+type RollbackSessionResponse struct {
+	Session     *Session     `json:"session"`
+	DroppedRuns []DroppedRun `json:"droppedRuns"`
+}
+
+// DroppedRun is one run sessions.rollback removed (AUX_API §4.1). UserInput is
+// the dropped run's opening userMessage content — same shape as
+// StartRunRequest.input, so the client can re-populate the composer with zero
+// transformation. Continuation runs (resume/edit) open no user turn, so it's
+// omitted for them.
+type DroppedRun struct {
+	Run       RunRef         `json:"run"`
+	UserInput []ContentBlock `json:"userInput,omitempty"`
 }
 
 // ExportFormat enumerates sessions.export output formats.

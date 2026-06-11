@@ -7,6 +7,8 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
+	historysvc "github.com/Tangerg/lynx/lyra/internal/service/history"
+	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
 	"github.com/Tangerg/lynx/lyra/internal/storage/sqlite"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
@@ -16,15 +18,37 @@ import (
 // panic if ever called) and overriding only what the session handlers touch.
 type stubRuntime struct {
 	RuntimeServices
-	sess       session.Service
-	model      string
-	skills     []engine.SkillInfo
-	mcpTools   []engine.McpToolInfo
+	sess        session.Service
+	model       string
+	skills      []engine.SkillInfo
+	mcpTools    []engine.McpToolInfo
 	mcpStatuses []engine.McpServerStatus
 	history     map[string][]chat.Message // per-session chat history (fork copies it)
+	hist        historysvc.Store          // durable Item/run history (rollback/fork read runs)
+	interrupts  interrupts.Store          // open-interrupt registry (rollback clears dropped)
 }
 
 func (s stubRuntime) MCPServerStatuses() []engine.McpServerStatus { return s.mcpStatuses }
+
+func (s stubRuntime) History() historysvc.Store      { return s.hist }
+func (s stubRuntime) Interrupts() interrupts.Store   { return s.interrupts }
+
+// MessageCount / TruncateMessages operate on the in-memory history map, mirroring
+// the engine's chat-memory store closely enough for rollback/fork tests.
+func (s stubRuntime) MessageCount(_ context.Context, id string) (int, error) {
+	return len(s.history[id]), nil
+}
+func (s stubRuntime) TruncateMessages(_ context.Context, id string, keepN int) error {
+	msgs := s.history[id]
+	if keepN <= 0 {
+		delete(s.history, id)
+		return nil
+	}
+	if keepN < len(msgs) {
+		s.history[id] = msgs[:keepN]
+	}
+	return nil
+}
 
 // ReconnectMCPServer is a no-op for the stub — WorkspaceMCPReconnect's event
 // sequencing is what the server test exercises, and it builds those frames from
@@ -136,8 +160,8 @@ func TestUpdateSession(t *testing.T) {
 }
 
 // TestForkSession: a full-history fork inherits the parent's cwd, copies its
-// history into the child, and honours a title override; an item-boundary fork
-// (fromItemId) is rejected as checkpoint_unavailable.
+// history into the child, and honours a title override; a run-boundary fork
+// (fromRunId) against an unknown run is run_not_found.
 func TestForkSession(t *testing.T) {
 	db, err := sqlite.Open(":memory:")
 	if err != nil {
@@ -149,7 +173,7 @@ func TestForkSession(t *testing.T) {
 	parent, _ := svc.Create(ctx, "research", "/work/proj")
 
 	hist := map[string][]chat.Message{parent.ID: {chat.NewUserMessage("hello"), chat.NewAssistantMessage("hi")}}
-	s := &Server{rt: stubRuntime{sess: svc, history: hist}}
+	s := &Server{rt: stubRuntime{sess: svc, history: hist, hist: sqlite.NewHistoryStore(db)}}
 
 	child, err := s.ForkSession(ctx, protocol.ForkSessionRequest{SessionID: parent.ID, Title: "branch A"})
 	if err != nil {
@@ -165,9 +189,9 @@ func TestForkSession(t *testing.T) {
 		t.Errorf("child history = %d msgs, want 2 copied from parent", got)
 	}
 
-	// run-boundary fork isn't backed until B4 → checkpoint_unavailable
-	if _, err := s.ForkSession(ctx, protocol.ForkSessionRequest{SessionID: parent.ID, FromRunID: "run_x"}); !errors.Is(err, protocol.ErrCheckpointUnavailable) {
-		t.Errorf("fromRunId fork err = %v, want ErrCheckpointUnavailable", err)
+	// run-boundary fork against a run that doesn't exist → run_not_found
+	if _, err := s.ForkSession(ctx, protocol.ForkSessionRequest{SessionID: parent.ID, FromRunID: "run_x"}); !errors.Is(err, protocol.ErrRunNotFound) {
+		t.Errorf("fromRunId fork err = %v, want ErrRunNotFound", err)
 	}
 
 	// unknown parent → session_not_found

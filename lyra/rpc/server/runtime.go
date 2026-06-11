@@ -61,4 +61,9 @@ type RuntimeServices interface {
 	DefaultModel() string
 	ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error)
 	SeedHistory(ctx context.Context, sessionID string, msgs []chat.Message) error
+	// MessageCount / TruncateMessages back the chat-memory side of
+	// sessions.rollback + fork{fromRunId}: record the per-run watermark and
+	// truncate the message log to a kept boundary.
+	MessageCount(ctx context.Context, sessionID string) (int, error)
+	TruncateMessages(ctx context.Context, sessionID string, keepN int) error
 }

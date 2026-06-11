@@ -61,6 +61,7 @@ const (
 	CodeIdempotencyConflict    = -32015
 	CodeInvalidProtocolVersion = -32016
 	CodeVcsUnavailable         = -32017
+	CodeSessionBusy            = -32018
 )
 
 // InternalErrorProblem is the self-contained "internal error" ProblemData
@@ -100,4 +101,7 @@ var (
 	// §2.3) — distinct from "clean repo" (empty result). NOT for missing git
 	// (that's features.git=false) nor an unresolvable base branch (invalid_params).
 	ErrVcsUnavailable = errors.New("vcs_unavailable")
+	// ErrSessionBusy: a session has a run in flight, so an operation that would
+	// race the in-progress history append is refused (AUX_API §4.1 — rollback).
+	ErrSessionBusy = errors.New("session_busy")
 )
