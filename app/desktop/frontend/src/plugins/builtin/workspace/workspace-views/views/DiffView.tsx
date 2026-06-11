@@ -6,21 +6,24 @@ import { cn } from "@/lib/utils";
 import { resolveScheme } from "@/plugins/sdk";
 import { useUiStore } from "@/state/uiStore";
 
-// A diff row's line numbers (`l`/`r`) plus a small ordinal are enough to
-// produce a stable key without relying on row content collisions.
+// A diff row's line numbers plus a small ordinal are enough to produce a
+// stable key without relying on row content collisions.
 function keyFor(row: DiffRow, i: number): string {
   if (row.type === "hunk") return `h:${i}:${row.text}`;
-  if (row.type === "add") return `+:${row.r}`;
-  if (row.type === "del") return `-:${row.l}`;
-  return `=:${row.l}-${row.r}`;
+  if (row.type === "added") return `+:${row.rightLine}`;
+  if (row.type === "deleted") return `-:${row.leftLine}`;
+  return `=:${row.leftLine}-${row.rightLine}`;
 }
 
 // Per-line presentation keyed by row type — one lookup beats three parallel
-// `add ? … : del ? … : …` ternary chains switching on the same field.
-const ROW_STYLE: Record<"add" | "del" | "ctx", { tone: string; meta: string; sign: string }> = {
-  add: { tone: "bg-[rgba(30,215,96,0.07)]", meta: "text-[rgba(95,227,154,0.7)]", sign: "+" },
-  del: { tone: "bg-[rgba(243,114,127,0.07)]", meta: "text-[rgba(243,114,127,0.7)]", sign: "−" },
-  ctx: { tone: "", meta: "text-fg-faint", sign: " " },
+// ternary chains switching on the same field.
+const ROW_STYLE: Record<
+  "added" | "deleted" | "context",
+  { tone: string; meta: string; sign: string }
+> = {
+  added: { tone: "bg-[rgba(30,215,96,0.07)]", meta: "text-[rgba(95,227,154,0.7)]", sign: "+" },
+  deleted: { tone: "bg-[rgba(243,114,127,0.07)]", meta: "text-[rgba(243,114,127,0.7)]", sign: "−" },
+  context: { tone: "", meta: "text-fg-faint", sign: " " },
 };
 
 // Strip Shiki's <pre><code>…</code></pre> wrapper so the inner token spans
@@ -70,7 +73,7 @@ export function DiffView({ rows }: { rows: DiffRow[] }) {
           );
         }
         const style = ROW_STYLE[row.type];
-        const lnum = row.type === "del" ? row.l : row.r;
+        const lnum = row.type === "deleted" ? row.leftLine : row.rightLine;
         const inner = highlighted?.get(row.code);
         return (
           <div key={k} className={cn("grid grid-cols-[36px_36px_1fr] gap-1.5 px-3", style.tone)}>

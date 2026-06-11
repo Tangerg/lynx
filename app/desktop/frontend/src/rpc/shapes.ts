@@ -27,6 +27,7 @@ export interface ServerFeatures {
   reasoning: boolean;
   mcp: boolean;
   multimodal: boolean;
+  git: boolean; // git binary on PATH — gates workspace.getDiff/listFileChanges (AUX_API §1)
   checkpoints: boolean; // [v2] gates restoreType (file snapshots) — AUX_API §4.3
   subagents: boolean;
   skills: boolean;
@@ -266,11 +267,26 @@ export type DiffRow =
   | { type: "added"; rightLine: number; code: string }
   | { type: "deleted"; leftLine: number; code: string };
 
-// Structured diff returned by workspace.getDiff (§7.5). `truncated` = capped at
-// `limit`; open the file for the full diff (no silent caps).
+// Structured diff returned by workspace.getDiff (AUX_API §2.3). Sum-type by
+// the request's `format`: rows → `files`, raw → `patch`. `truncated` = the
+// rows `limit` was hit; truncation happens at FILE boundaries (a file's rows
+// appear whole or not at all — no half diffs, no silent caps).
 export interface Diff {
-  rows: DiffRow[];
+  files?: FileDiff[]; // format=rows
+  patch?: string; // format=raw (original unified patch)
   truncated?: boolean;
+}
+
+// One file's structured diff. `added`/`removed` are absent (not 0) for
+// binary files; `previousPath` only on renames.
+export interface FileDiff {
+  path: string;
+  status: "added" | "modified" | "deleted" | "renamed" | "untracked";
+  previousPath?: string;
+  added?: number;
+  removed?: number;
+  binary?: true;
+  rows: DiffRow[]; // [] for binary files
 }
 
 // A single edit's applied result (tool `result` convention, §4.4.2) — carries
@@ -296,12 +312,18 @@ export interface WebSearchResult {
   faviconUrl?: string;
 }
 
-// VCS working-tree scan state (workspace.listFileChanges) — includes
-// `untracked`. Distinct from FileEdit (one edit's applied result); they share
-// the past-tense `status` vocabulary by design (§4.5).
+// VCS working-tree scan state (workspace.listFileChanges, AUX_API §2.2) —
+// includes `untracked`. Distinct from FileEdit (one edit's applied result);
+// they share the past-tense `status` vocabulary by design (§4.5).
+// `added`/`removed` line counts are absent (never a fabricated 0) for binary
+// files; `previousPath` only on renames.
 export interface WorkspaceFileChange {
   path: string;
   status: "added" | "modified" | "deleted" | "renamed" | "untracked";
+  previousPath?: string;
+  added?: number;
+  removed?: number;
+  binary?: true;
 }
 export interface FileLine {
   lineNumber: number;

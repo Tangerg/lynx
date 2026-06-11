@@ -71,6 +71,7 @@ export type ServerFeature =
   | "multimodal"
   | "reasoning"
   | "checkpoints"
+  | "git"
   | "subagents"
   | "skills"
   | "mcp"

@@ -8,11 +8,13 @@
 //   - file-head:   params pass-through, FileHead unwrapped to its lines
 
 import type {
+  FileChange as SidebarFileChange,
   FileLine,
   GrepResult,
   MCPServer as SidebarMCPServer,
   SidebarProject,
   SidebarSession,
+  WorkspaceDiff,
 } from "@/lib/data/queries";
 import { afterEach, describe, expect, it } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
@@ -129,6 +131,34 @@ describe("defaultData — providers over JSON-RPC", () => {
       },
       { id: "Unknown", name: "Unknown", desc: "", tools: 0, status: "idle", icon: "tool" },
     ]);
+  });
+
+  it("files-changed: maps statuses to change codes and keeps ± counts / binary honest", async () => {
+    const { value: rows } = await runProvider<SidebarFileChange[]>("files-changed", [
+      [
+        "workspace.listFileChanges",
+        {
+          data: [
+            { path: "src/a.ts", status: "modified", added: 3, removed: 1 },
+            { path: "logo.png", status: "untracked", binary: true }, // no fabricated ±0
+          ],
+        },
+      ],
+    ]);
+    expect(rows).toEqual([
+      { path: "src/a.ts", change: "mod", added: 3, removed: 1, binary: undefined },
+      { path: "logo.png", change: "add", added: undefined, removed: undefined, binary: true },
+    ]);
+  });
+
+  it("diff: pins format=rows on the wire and defaults files to []", async () => {
+    const { value, requests } = await runProvider<WorkspaceDiff>(
+      "diff",
+      [["workspace.getDiff", { truncated: true }]], // rows response may omit files
+      { path: "src/a.ts", mode: "worktree" },
+    );
+    expect(requests[0]?.params).toEqual({ path: "src/a.ts", mode: "worktree", format: "rows" });
+    expect(value).toEqual({ files: [], truncated: true });
   });
 
   it("grep: forwards params on the wire and returns matches + total verbatim", async () => {

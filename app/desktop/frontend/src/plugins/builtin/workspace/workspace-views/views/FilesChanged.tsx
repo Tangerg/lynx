@@ -9,8 +9,8 @@ interface Props {
 }
 
 export function FilesChanged({ files, activePath, onSelect }: Props) {
-  const totalAdded = files.reduce((s, f) => s + f.added, 0);
-  const totalRemoved = files.reduce((s, f) => s + f.removed, 0);
+  const totalAdded = files.reduce((s, f) => s + (f.added ?? 0), 0);
+  const totalRemoved = files.reduce((s, f) => s + (f.removed ?? 0), 0);
 
   return (
     <div>
@@ -57,10 +57,17 @@ function FileRow({
         {tagLetter}
       </span>
       <span className="flex-1 truncate font-mono">{file.path}</span>
-      <span className="flex gap-1.5 font-mono text-[10px]">
-        <span className="text-accent">+{file.added}</span>
-        <span className="text-negative">−{file.removed}</span>
-      </span>
+      {/* Binary files carry no line counts (AUX_API §2.2) — badge instead of fake ±0. */}
+      {file.binary ? (
+        <span className="rounded-xs bg-surface-2 px-1 font-mono text-[9px] uppercase text-fg-faint">
+          bin
+        </span>
+      ) : (
+        <span className="flex gap-1.5 font-mono text-[10px]">
+          <span className="text-accent">+{file.added ?? 0}</span>
+          <span className="text-negative">−{file.removed ?? 0}</span>
+        </span>
+      )}
     </button>
   );
 }

@@ -8,12 +8,14 @@
 // — see API.md §6.5).
 
 import type {
+  DiffQuery,
   FileChange as SidebarFileChange,
   FileHeadQuery,
   GrepQuery,
   MCPServer as SidebarMCPServer,
   SidebarProject,
   SidebarSession,
+  WorkspaceDiff,
 } from "@/lib/data/queries";
 import type {
   McpServer as RpcMCPServer,
@@ -72,8 +74,8 @@ function toSidebarProject(p: RpcProject): SidebarProject {
   return { id: p.cwd, name: p.name, branch: p.branch ?? "" };
 }
 
-// `files-changed` — v2 WorkspaceFileChange carries the status only; the sidebar
-// row wants a short code + line counts (counts come from getDiff, not the list).
+// `files-changed` — collapse the five wire statuses into the sidebar's three
+// change codes; ± line counts ride along (absent for binary files, AUX_API §2.2).
 const FILE_CHANGE: Record<RpcFileChange["status"], SidebarFileChange["change"]> = {
   added: "add",
   untracked: "add",
@@ -82,7 +84,13 @@ const FILE_CHANGE: Record<RpcFileChange["status"], SidebarFileChange["change"]> 
   deleted: "del",
 };
 function toSidebarFileChange(f: RpcFileChange): SidebarFileChange {
-  return { path: f.path, change: FILE_CHANGE[f.status], added: 0, removed: 0 };
+  return {
+    path: f.path,
+    change: FILE_CHANGE[f.status],
+    added: f.added,
+    removed: f.removed,
+    binary: f.binary,
+  };
 }
 
 // Capability-gated workspace reads (skills / agent docs) return
@@ -96,10 +104,9 @@ function emptyPageIfUngated(err: unknown): { data: never[] } {
 }
 
 // HTTP_KEYS lists the query keys still served over REST GET. Everything else
-// rides the JSON-RPC stack now. `diff` waits on workspace.getDiff landing in
-// the runtime (AUX_API batch B1); `terminal` is a stream (#160). Adding a key
+// rides the JSON-RPC stack now; `terminal` is a stream (#160). Adding a key
 // in queries without a provider here makes that hook reject.
-const HTTP_KEYS = ["diff", "terminal"] as const;
+const HTTP_KEYS = ["terminal"] as const;
 
 export const defaultData = definePlugin({
   name: "lyra.builtin.default-data",
@@ -139,6 +146,15 @@ export const defaultData = definePlugin({
     // (queries.ts makeParamDataQuery), so each distinct query caches its own
     // entry. Wire shapes match the UI shapes 1:1 (queries.ts re-declares them
     // so components never import @/rpc).
+    host.extensions.contribute(DATA_PROVIDER, {
+      key: "diff",
+      // format is pinned to rows here — the structured form every renderer
+      // consumes; raw unified patches are an export concern (AUX_API §2.3).
+      fetcher: async (params) => {
+        const diff = await client().workspace.getDiff({ ...(params as DiffQuery), format: "rows" });
+        return { files: diff.files ?? [], truncated: diff.truncated } satisfies WorkspaceDiff;
+      },
+    });
     host.extensions.contribute(DATA_PROVIDER, {
       key: "grep",
       fetcher: (params) => client().workspace.grep(params as GrepQuery),

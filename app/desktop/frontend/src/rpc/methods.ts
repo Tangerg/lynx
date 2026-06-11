@@ -104,7 +104,13 @@ export interface Methods {
   };
   workspace: {
     listFileChanges: (cwd?: string) => Promise<Page<WorkspaceFileChange>>;
-    getDiff: (params?: { cwd?: string; path?: string; limit?: number }) => Promise<Diff>;
+    getDiff: (params?: {
+      cwd?: string;
+      path?: string;
+      mode?: "worktree" | "base"; // default worktree (includes untracked); base = vs default-branch merge-base
+      format?: "rows" | "raw"; // default rows
+      limit?: number; // row cap, truncated at file boundaries
+    }) => Promise<Diff>;
     getFileHead: (params: { path: string; cwd?: string; lines?: number }) => Promise<FileHead>;
     grep: (params: {
       query: string;
