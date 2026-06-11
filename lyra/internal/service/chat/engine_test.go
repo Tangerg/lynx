@@ -216,7 +216,14 @@ func TestStubEngineCancelsCleanly(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	events, _ := svc.Events(ctx, handle)
+	events, err := svc.Events(ctx, handle)
+	if err != nil {
+		// Cancel raced ahead and tore the turn down (parked-turn teardown, or
+		// the drive goroutine finishing) before we subscribed — Events then
+		// returns ErrTurnNotFound + a nil iterator. The turn is gone, which is
+		// exactly the clean cancel this test asserts, so don't range a nil.
+		return
+	}
 	for ev := range events {
 		if end, ok := ev.(chat.TurnEnd); ok && end.Reason == chat.TurnEndCanceled {
 			return
