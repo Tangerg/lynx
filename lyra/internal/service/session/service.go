@@ -130,6 +130,13 @@ type Service interface {
 	// the default when the client omits it.
 	Create(ctx context.Context, title, cwd string) (Session, error)
 
+	// Restore upserts a session VERBATIM — its id, timestamps, and every
+	// field as given — overwriting any existing row with the same id. It is
+	// the write side of sessions.import (restore semantics): unlike Create it
+	// preserves the supplied id rather than minting a new one. The caller owns
+	// id validity.
+	Restore(ctx context.Context, sess Session) error
+
 	// Fork creates a new session whose history equals the parent's
 	// up to atMessageID, then diverges. The new session's ParentID
 	// points at the parent.

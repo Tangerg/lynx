@@ -88,6 +88,18 @@ func (d *Dispatcher) handleSessionsExport(ctx context.Context, msg *transport.Re
 	return reply(msg, out, err)
 }
 
+func (d *Dispatcher) handleSessionsImport(ctx context.Context, msg *transport.Request) HandleResult {
+	in, bad := decode[protocol.ImportSessionRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
+	if in.Artifact.Session.ID == "" {
+		return responseError(msg.ID, invalidParams("artifact.session.id is required"))
+	}
+	out, err := d.api.ImportSession(ctx, in)
+	return reply(msg, out, err)
+}
+
 // ─── Items (API.md §7.4) ────────────────────────────────────────────
 
 func (d *Dispatcher) handleItemsList(ctx context.Context, msg *transport.Request) HandleResult {

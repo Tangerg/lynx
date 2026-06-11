@@ -119,6 +119,7 @@ var methodTable = map[string]methodHandler{
 	MethodSessionsFork:     (*Dispatcher).handleSessionsFork,
 	MethodSessionsRollback: (*Dispatcher).handleSessionsRollback,
 	MethodSessionsExport:   (*Dispatcher).handleSessionsExport,
+	MethodSessionsImport:   (*Dispatcher).handleSessionsImport,
 
 	// Runs.
 	MethodRunsStart:              (*Dispatcher).handleRunsStart,

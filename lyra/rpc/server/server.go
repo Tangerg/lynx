@@ -135,11 +135,11 @@ func Capabilities(rt RuntimeServices) protocol.ServerCapabilities {
 			"fileWatch": true,             // workspace.subscribe watches → files.changed (fsnotify)
 			"lsp":       true,             // code-intelligence tools (definition/refs/hover/symbols/diagnostics) + auto type-check on edit
 
+			"sessionExport": true, // sessions.export (inline json/md) + sessions.import (restore)
 			// Off until the corresponding engine support lands:
-			"multimodal":    false,
-			"checkpoints":   false,
-			"subagents":     false,
-			"sessionExport": false,
+			"multimodal":  false,
+			"checkpoints": false,
+			"subagents":   false,
 			"relocate":      true, // sessions.update cwd-relocate
 			"clientTools":   false,
 			"attachments":   protocol.AttachmentLimits{Enabled: false},

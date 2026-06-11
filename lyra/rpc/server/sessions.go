@@ -183,12 +183,6 @@ func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest
 	return &out, nil
 }
 
-// ExportSession — needs a transport file channel to serve the artifact.
-// Gated off (features.sessionExport).
-func (s *Server) ExportSession(_ context.Context, _ protocol.ExportSessionRequest) (*protocol.ExportSessionResponse, error) {
-	return nil, notImpl("sessions.export")
-}
-
 // sessionToWire converts the internal session shape into the wire shape.
 // Status is synthesized (internal sessions don't track running/waiting/
 // idle yet → idle). Model falls back to the runtime default when the session

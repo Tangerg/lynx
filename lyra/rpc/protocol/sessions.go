@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 )
 
@@ -54,7 +55,15 @@ type Sessions interface {
 	// in-place — it mutates the session rather than producing a copy (that's
 	// fork). Rejected with session_busy while a run is in flight.
 	RollbackSession(ctx context.Context, in RollbackSessionRequest) (*RollbackSessionResponse, error)
+	// ExportSession serializes a session to a portable artifact (AUX_API §4.3):
+	// format=json yields a round-trippable SessionArtifact (consumed by
+	// ImportSession), format=md a human-readable transcript. Gated by
+	// features.sessionExport.
 	ExportSession(ctx context.Context, in ExportSessionRequest) (*ExportSessionResponse, error)
+	// ImportSession recreates a session from a SessionArtifact under its
+	// ORIGINAL id (restore semantics — overwrites one already present), so an
+	// exported session round-trips faithfully. Gated by features.sessionExport.
+	ImportSession(ctx context.Context, in ImportSessionRequest) (*ImportSessionResponse, error)
 }
 
 // CreateSessionRequest — sessions.create body. Cwd is optional; empty
@@ -121,15 +130,65 @@ const (
 	ExportFormatJSON     ExportFormat = "json"
 )
 
-// ExportSessionRequest — sessions.export body.
+// ExportSessionRequest — sessions.export body. Format defaults to json.
 type ExportSessionRequest struct {
 	SessionID string       `json:"sessionId"`
 	Format    ExportFormat `json:"format,omitempty"`
 }
 
-// ExportSessionResponse — sessions.export result. URL points at a
-// transport file channel; bytes are fetched out of band (API.md §7.2).
+// ExportSessionResponse — sessions.export result, returned INLINE (lyra is a
+// local loopback runtime, so there is no out-of-band file channel / giant-
+// payload concern). For format=json, Artifact is the round-trippable bundle
+// sessions.import consumes; for format=md, Markdown is a human-readable
+// transcript (not re-importable). Exactly one is populated, per Format.
 type ExportSessionResponse struct {
-	URL       string    `json:"url"`
-	ExpiresAt time.Time `json:"expiresAt"`
+	Format   ExportFormat     `json:"format"`
+	Artifact *SessionArtifact `json:"artifact,omitempty"`
+	Markdown string           `json:"markdown,omitempty"`
+}
+
+// SessionArtifactVersion is the artifact schema version. Import rejects an
+// artifact it doesn't recognize, so a future breaking change bumps this.
+const SessionArtifactVersion = 1
+
+// SessionArtifact is the portable, round-trippable form of a session: its
+// metadata plus the full conversation — chat messages (the model's context),
+// and the items + runs (the UI transcript). Messages are opaque chat.Message
+// blobs; items/runs carry the storage keys explicitly so import reconstructs
+// them without peeking inside the wire blob.
+type SessionArtifact struct {
+	Version  int               `json:"version"`
+	Session  Session           `json:"session"`
+	Messages []json.RawMessage `json:"messages"`
+	Runs     []ArtifactRun     `json:"runs"`
+	Items    []ArtifactItem    `json:"items"`
+}
+
+// ArtifactRun is one run record in a SessionArtifact — the wire RunRef blob
+// plus the storage-side fields (watermark, updatedAt) not carried in RunRef.
+type ArtifactRun struct {
+	RunID     string          `json:"runId"`
+	UpdatedAt time.Time       `json:"updatedAt"`
+	Mark      int             `json:"mark"` // chat-memory watermark for rollback/fork boundaries (-1 = unknown)
+	Run       json.RawMessage `json:"run"`  // protocol.RunRef blob
+}
+
+// ArtifactItem is one item record in a SessionArtifact — the wire Item blob
+// plus the storage keys (run id, item id, createdAt) needed to re-persist it.
+type ArtifactItem struct {
+	RunID     string          `json:"runId"`
+	ItemID    string          `json:"itemId"`
+	CreatedAt time.Time       `json:"createdAt"`
+	Item      json.RawMessage `json:"item"` // protocol.Item blob
+}
+
+// ImportSessionRequest — sessions.import body. Restore semantics: the session
+// is recreated under Artifact.Session.ID (overwriting one already present).
+type ImportSessionRequest struct {
+	Artifact SessionArtifact `json:"artifact"`
+}
+
+// ImportSessionResponse — sessions.import result: the restored session.
+type ImportSessionResponse struct {
+	Session *Session `json:"session"`
 }
