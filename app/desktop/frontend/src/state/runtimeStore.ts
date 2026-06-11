@@ -72,6 +72,7 @@ export type ServerFeature =
   | "reasoning"
   | "checkpoints"
   | "git"
+  | "fileWatch"
   | "subagents"
   | "skills"
   | "mcp"

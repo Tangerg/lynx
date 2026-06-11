@@ -15,10 +15,11 @@
 import { z } from "zod";
 import { createPushPullChannel, type PushPullChannel } from "./channel";
 import type { RpcClient } from "./client";
-import type { RunEvent, StreamEvent } from "./shapes";
+import type { RunEvent, StreamEvent, WorkspaceEvent } from "./shapes";
 import { STREAM_DOWN_METHOD, type StreamDownParams } from "./transport";
 
 export const RUN_EVENT_METHOD = "notifications.run.event";
+export const WORKSPACE_EVENT_METHOD = "notifications.workspace.event";
 
 // ---------------------------------------------------------------------------
 // Trust-boundary validation (CLAUDE.md: "validate at trust boundaries with Zod")
@@ -56,6 +57,13 @@ function makeParser<S extends z.ZodTypeAny>(method: string, schema: S) {
 }
 
 const parseRunEvent = makeParser(RUN_EVENT_METHOD, RunEventEnvelopeSchema);
+
+// Same envelope-only discipline as RunEvent: validate the wrapper + type
+// discriminator, cast the typed payload (AUX_API §3.2).
+const WorkspaceEventEnvelopeSchema = z.object({
+  event: z.looseObject({ type: z.string() }),
+});
+const parseWorkspaceEvent = makeParser(WORKSPACE_EVENT_METHOD, WorkspaceEventEnvelopeSchema);
 
 // ---------------------------------------------------------------------------
 // Run-tree membership tracker
@@ -296,6 +304,51 @@ export function streamRunEventsDeferred(
   return {
     events: iterableOf(channel, cleanup),
     bind,
+    dispose: () => {
+      channel.close();
+      cleanup();
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Workspace event stream (workspace.subscribe, AUX_API §3)
+// ---------------------------------------------------------------------------
+
+/** The workspace notification stream plus its teardown (see RunEventStream).
+ *  Connection-scoped and lossy: no terminal frame, no replay — the stream
+ *  ends when its POST stream does, signalled via a method-attributed
+ *  STREAM_DOWN. The consumer resubscribes and treats reconnect as `resync`. */
+export interface WorkspaceEventStream {
+  events: AsyncIterable<WorkspaceEvent>;
+  dispose: () => void;
+}
+
+export function streamWorkspaceEvents(
+  client: RpcClient,
+  signal?: AbortSignal,
+): WorkspaceEventStream {
+  const channel = createPushPullChannel<WorkspaceEvent>();
+  const unsubEvents = client.subscribe(WORKSPACE_EVENT_METHOD, (msg) => {
+    if (channel.closed) return;
+    const parsed = parseWorkspaceEvent(msg.params);
+    if (parsed) channel.push(parsed.event as WorkspaceEvent);
+  });
+  const unsubDown = client.subscribe(STREAM_DOWN_METHOD, (msg) => {
+    if (channel.closed) return;
+    if ((msg.params as StreamDownParams | undefined)?.method === "workspace.subscribe")
+      channel.close();
+  });
+  const cleanup = bindLifecycle(
+    channel,
+    () => {
+      unsubEvents();
+      unsubDown();
+    },
+    signal,
+  );
+  return {
+    events: iterableOf(channel, cleanup),
     dispose: () => {
       channel.close();
       cleanup();

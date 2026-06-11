@@ -37,6 +37,7 @@ import {
   defaultTitle,
 } from "./defaults";
 import diagnostics from "./workspace/diagnostics";
+import workspaceEvents from "./workspace/events";
 import globalKeymap from "./command/global-keymap";
 import iconGallery from "./settings/icon-gallery";
 import rpcAgent from "./agent/rpc-agent";
@@ -98,6 +99,9 @@ const infrastructure: PluginSpec[] = [
   // handshake builds the RpcClient (API.md §2 Lifecycle).
   bootstrap,
   defaultData,
+  // After bootstrap: watches the handshake result and opens the app's one
+  // workspace.subscribe stream (AUX_API §3).
+  workspaceEvents,
   rpcAgent,
   defaultTitle,
   defaultAccents,

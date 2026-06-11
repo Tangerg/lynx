@@ -42,7 +42,8 @@ function toSidebarSession(s: Session): SidebarSession {
 }
 
 // `mcp-servers` — the protocol MCPServer carries no id/icon (both are
-// client-side). Use the MCP name as the stable id and map name → icon.
+// client-side). Use the MCP name as the stable id and map name → icon;
+// status passes through verbatim (the UI shape mirrors the wire lifecycle).
 const MCP_ICON: Record<string, string> = {
   Filesystem: "folder",
   Git: "branch",
@@ -53,18 +54,14 @@ const MCP_ICON: Record<string, string> = {
   Postgres: "tool",
   Slack: "chat",
 };
-const MCP_STATUS: Record<RpcMCPServer["status"], SidebarMCPServer["status"]> = {
-  connected: "active",
-  disconnected: "idle",
-  error: "error",
-};
-function toSidebarMCPServer(s: RpcMCPServer, toolCount: number): SidebarMCPServer {
+function toSidebarMCPServer(s: RpcMCPServer): SidebarMCPServer {
   return {
     id: s.name,
     name: s.name,
     desc: s.description ?? "",
-    tools: toolCount,
-    status: MCP_STATUS[s.status],
+    tools: s.toolCount ?? 0,
+    status: s.status,
+    errorDetail: s.error ? (s.error.detail ?? s.error.type) : undefined,
     icon: MCP_ICON[s.name] ?? "tool",
   };
 }
@@ -129,18 +126,11 @@ export const defaultData = definePlugin({
     });
     host.extensions.contribute(DATA_PROVIDER, {
       key: "mcp-servers",
-      // listTools (no server filter = all connected servers) joins the per-row
-      // tool count; the list row itself carries none (API.md §7.5). McpTool
-      // gives `server` as its own field — count by it, names stay bare.
-      fetcher: async () => {
-        const [servers, tools] = await Promise.all([
-          client().workspace.mcp.listServers(),
-          client().workspace.mcp.listTools(),
-        ]);
-        const counts = new Map<string, number>();
-        for (const t of tools.data) counts.set(t.server, (counts.get(t.server) ?? 0) + 1);
-        return servers.data.map((s) => toSidebarMCPServer(s, counts.get(s.name) ?? 0));
-      },
+      // B3 enriched the entry with toolCount/authStatus/error inline
+      // (AUX_API §5.1) — no more listServers⨝listTools join; listTools
+      // stays for the detail pane (pagination + inputSchema).
+      fetcher: async () =>
+        (await client().workspace.mcp.listServers()).data.map(toSidebarMCPServer),
     });
     // Parameterized workspace reads — params come from the consumer hook
     // (queries.ts makeParamDataQuery), so each distinct query caches its own

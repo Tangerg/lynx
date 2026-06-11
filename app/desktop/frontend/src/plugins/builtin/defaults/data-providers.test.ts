@@ -98,24 +98,19 @@ describe("defaultData — providers over JSON-RPC", () => {
     expect(rows).toEqual([{ id: "/work/fern", name: "fern-api", branch: "feat/result-type" }]);
   });
 
-  it("mcp-servers: joins listTools counts onto listServers rows (id + icon + status)", async () => {
+  it("mcp-servers: maps the enriched B3 entry (inline toolCount, 5-state, error detail)", async () => {
     const { value: rows } = await runProvider<SidebarMCPServer[]>("mcp-servers", [
       [
         "workspace.mcp.listServers",
         {
           data: [
-            { name: "Git", status: "connected", description: "Branches, commits" },
-            { name: "Unknown", status: "disconnected" },
-          ],
-        },
-      ],
-      [
-        "workspace.mcp.listTools",
-        {
-          data: [
-            { server: "Git", name: "log" },
-            { server: "Git", name: "blame" },
-            { server: "Orphan", name: "ghost" }, // unlisted server — must not crash the join
+            { name: "Git", status: "connected", toolCount: 2, description: "Branches, commits" },
+            {
+              name: "Flaky",
+              status: "failed",
+              error: { type: "mcp_spawn_failed", detail: "exit 1" },
+            },
+            { name: "Cloud", status: "needsAuth", authStatus: "notLoggedIn" },
           ],
         },
       ],
@@ -126,10 +121,28 @@ describe("defaultData — providers over JSON-RPC", () => {
         name: "Git",
         desc: "Branches, commits",
         tools: 2,
-        status: "active",
+        status: "connected",
+        errorDetail: undefined,
         icon: "branch",
       },
-      { id: "Unknown", name: "Unknown", desc: "", tools: 0, status: "idle", icon: "tool" },
+      {
+        id: "Flaky",
+        name: "Flaky",
+        desc: "",
+        tools: 0,
+        status: "failed",
+        errorDetail: "exit 1",
+        icon: "tool",
+      },
+      {
+        id: "Cloud",
+        name: "Cloud",
+        desc: "",
+        tools: 0,
+        status: "needsAuth",
+        errorDetail: undefined,
+        icon: "tool",
+      },
     ]);
   });
 

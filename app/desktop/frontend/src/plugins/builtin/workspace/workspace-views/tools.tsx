@@ -9,7 +9,7 @@ const CONFIG_PATH = "~/.lyra/mcp.json";
 function ToolsTab() {
   const { data, isLoading, isError } = useMCPServers();
   const servers = data ?? [];
-  const active = servers.filter((s) => s.status === "active").length;
+  const active = servers.filter((s) => s.status === "connected").length;
 
   return (
     <WorkspaceViewLayout
