@@ -11,18 +11,14 @@
 // seed with the root, then admit a child run when its `run.started`
 // carries a `spawnedByItemId` whose owning item we've already seen on
 // this tree. The stream ends when the ROOT run's `run.finished` arrives.
-//
-// Background tasks stream on `notifications.background.update`, params =
-// BackgroundTask, terminal when status leaves "running".
 
 import { z } from "zod";
 import { createPushPullChannel, type PushPullChannel } from "./channel";
 import type { RpcClient } from "./client";
-import type { BackgroundTask, RunEvent, StreamEvent } from "./shapes";
+import type { RunEvent, StreamEvent } from "./shapes";
 import { STREAM_DOWN_METHOD, type StreamDownParams } from "./transport";
 
 export const RUN_EVENT_METHOD = "notifications.run.event";
-export const BACKGROUND_UPDATE_METHOD = "notifications.background.update";
 
 // ---------------------------------------------------------------------------
 // Trust-boundary validation (CLAUDE.md: "validate at trust boundaries with Zod")
@@ -45,13 +41,6 @@ const RunEventEnvelopeSchema = z.object({
   event: z.looseObject({ type: z.string() }),
 });
 
-const BackgroundTaskSchema = z.object({
-  id: z.string(),
-  category: z.string(),
-  status: z.enum(["running", "completed", "failed", "canceled"]),
-  createdAt: z.string(),
-});
-
 function makeParser<S extends z.ZodTypeAny>(method: string, schema: S) {
   return (raw: unknown): z.infer<S> | null => {
     const result = schema.safeParse(raw);
@@ -67,7 +56,6 @@ function makeParser<S extends z.ZodTypeAny>(method: string, schema: S) {
 }
 
 const parseRunEvent = makeParser(RUN_EVENT_METHOD, RunEventEnvelopeSchema);
-const parseBackgroundTask = makeParser(BACKGROUND_UPDATE_METHOD, BackgroundTaskSchema);
 
 // ---------------------------------------------------------------------------
 // Run-tree membership tracker
@@ -308,36 +296,6 @@ export function streamRunEventsDeferred(
   return {
     events: iterableOf(channel, cleanup),
     bind,
-    dispose: () => {
-      channel.close();
-      cleanup();
-    },
-  };
-}
-
-/** A background-task update stream plus its teardown (see RunEventStream). */
-export interface BackgroundUpdateStream {
-  events: AsyncIterable<BackgroundTask>;
-  dispose: () => void;
-}
-
-/** Subscribe to a background task's updates (background.subscribe). */
-export function streamBackgroundUpdates(
-  client: RpcClient,
-  taskId: string,
-  signal?: AbortSignal,
-): BackgroundUpdateStream {
-  const channel = createPushPullChannel<BackgroundTask>();
-  const unsub = client.subscribe(BACKGROUND_UPDATE_METHOD, (msg) => {
-    if (channel.closed) return;
-    const task = parseBackgroundTask(msg.params);
-    if (!task || task.id !== taskId) return;
-    channel.push(task as BackgroundTask);
-    if (task.status !== "running") channel.close();
-  });
-  const cleanup = bindLifecycle(channel, unsub, signal);
-  return {
-    events: iterableOf(channel, cleanup),
     dispose: () => {
       channel.close();
       cleanup();

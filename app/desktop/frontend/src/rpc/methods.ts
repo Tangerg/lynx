@@ -3,24 +3,22 @@
 // `client.call("runs.start")`. The factory takes an RpcClient and returns
 // the full typed surface.
 //
-// Streaming methods (runs.start / runs.resume / runs.subscribe /
-// background.subscribe) return `{ result, events }` where `events` is an
-// AsyncIterable. Run streams carry the whole run tree and end on the root
-// run's `run.finished` (see ./stream).
+// Streaming methods (runs.start / runs.resume / runs.subscribe) return
+// `{ result, events }` where `events` is an AsyncIterable. Run streams
+// carry the whole run tree and end on the root run's `run.finished`
+// (see ./stream).
 
 import type { RpcClient } from "./client";
-import type { AttachmentId, ItemId, RunId, SessionId, TaskId } from "./ids";
+import type { AttachmentId, RunId, SessionId } from "./ids";
 import type {
   AgentDoc,
   Attachment,
-  BackgroundTask,
   CanceledNotification,
   ConfigureProviderRequest,
   CreateSessionRequest,
   CreateUploadUrlRequest,
   CreateUploadUrlResponse,
   Diff,
-  EditItemResponse,
   ExportSessionResponse,
   FeedbackRequest,
   FileHead,
@@ -54,7 +52,7 @@ import type {
   UpdateSessionRequest,
   WorkspaceFileChange,
 } from "./shapes";
-import { streamBackgroundUpdates, streamRunEvents, streamRunEventsDeferred } from "./stream";
+import { streamRunEvents, streamRunEventsDeferred } from "./stream";
 
 export interface StreamingResult<R, E> {
   result: R;
@@ -103,8 +101,6 @@ export interface Methods {
       cursor?: string;
       limit?: number;
     }) => Promise<ListItemsResponse>;
-    // Edit an item → a continuation Run (semantics like resume).
-    edit: (itemId: ItemId, replacement: StartRunRequest["input"]) => Promise<EditItemResponse>;
   };
   workspace: {
     listFileChanges: (cwd?: string) => Promise<Page<WorkspaceFileChange>>;
@@ -146,14 +142,6 @@ export interface Methods {
     createUploadUrl: (params: CreateUploadUrlRequest) => Promise<CreateUploadUrlResponse>;
     get: (attachmentId: AttachmentId) => Promise<Attachment>;
     delete: (attachmentId: AttachmentId) => Promise<void>;
-  };
-  background: {
-    list: () => Promise<Page<BackgroundTask>>;
-    subscribe: (
-      taskId: TaskId,
-      signal?: AbortSignal,
-    ) => Promise<StreamingResult<{ taskId: TaskId }, BackgroundTask>>;
-    cancel: (taskId: TaskId) => Promise<void>;
   };
   feedback: {
     create: (params: FeedbackRequest) => Promise<void>;
@@ -231,8 +219,6 @@ export function createMethods(client: RpcClient): Methods {
     },
     items: {
       list: (params) => client.call<ListItemsResponse>("items.list", params),
-      edit: (itemId, replacement) =>
-        client.call<EditItemResponse>("items.edit", { itemId, replacement }),
     },
     workspace: {
       listFileChanges: (cwd) =>
@@ -272,29 +258,6 @@ export function createMethods(client: RpcClient): Methods {
         client.call<CreateUploadUrlResponse>("attachments.createUploadUrl", params),
       get: (attachmentId) => client.call<Attachment>("attachments.get", { attachmentId }),
       delete: (attachmentId) => client.call<void>("attachments.delete", { attachmentId }),
-    },
-    background: {
-      list: () => client.call<Page<BackgroundTask>>("background.list"),
-      subscribe: async (taskId, signal) => {
-        // Subscribe BEFORE the call — same head-drop race as runs.start: under
-        // streamable HTTP the first update frames ride right behind the
-        // response, and a fast task's ONLY frame may be its terminal one.
-        // taskId is an input, so no deferred bind is needed here.
-        const stream = streamBackgroundUpdates(client, taskId, signal);
-        let result: { taskId: TaskId };
-        try {
-          result = await client.call<{ taskId: TaskId }>(
-            "background.subscribe",
-            { taskId },
-            signal,
-          );
-        } catch (err) {
-          stream.dispose();
-          throw err;
-        }
-        return { result, events: stream.events };
-      },
-      cancel: (taskId) => client.call<void>("background.cancel", { taskId }),
     },
     feedback: {
       create: (params) => client.call<void>("feedback.create", params),

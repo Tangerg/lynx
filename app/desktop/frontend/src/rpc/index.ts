@@ -18,8 +18,8 @@ export type { PushPullChannel } from "./channel";
 export { createRpcClient } from "./client";
 export type { NotificationHandler, RpcClient } from "./client";
 export { RpcError, RpcTransportError } from "./errors";
-export { asAttachmentId, asEventId, asItemId, asRunId, asSessionId, asTaskId } from "./ids";
-export type { AttachmentId, EventId, ItemId, RunId, SessionId, TaskId } from "./ids";
+export { asAttachmentId, asEventId, asItemId, asRunId, asSessionId } from "./ids";
+export type { AttachmentId, EventId, ItemId, RunId, SessionId } from "./ids";
 export { createMethods } from "./methods";
 export type { Methods, StreamingResult } from "./methods";
 export { createLyraClient } from "./sdk";
@@ -68,8 +68,6 @@ export type {
   ToolInvocation,
   ListItemsRequest,
   ListItemsResponse,
-  EditItemRequest,
-  EditItemResponse,
   // Streaming
   RunEvent,
   StreamEvent,
@@ -119,24 +117,17 @@ export type {
   MemoryScope,
   MemoryEntry,
   WorkspaceQuery,
-  // Attachments / background / feedback
+  // Attachments / feedback
   Attachment,
   CreateUploadUrlRequest,
   CreateUploadUrlResponse,
-  BackgroundTask,
   FeedbackRequest,
   // Pagination
   Page,
   PageQuery,
 } from "./shapes";
 export { isDurableEvent } from "./shapes";
-export {
-  streamBackgroundUpdates,
-  streamRunEvents,
-  streamRunEventsDeferred,
-  RUN_EVENT_METHOD,
-  BACKGROUND_UPDATE_METHOD,
-} from "./stream";
+export { streamRunEvents, streamRunEventsDeferred, RUN_EVENT_METHOD } from "./stream";
 export { createSidecarClient } from "./sidecar";
 export type { HealthStatus, RuntimeInfo, SidecarClient, SidecarClientConfig } from "./sidecar";
 export { createShellClient } from "./shell";
