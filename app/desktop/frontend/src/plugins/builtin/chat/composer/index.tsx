@@ -15,6 +15,7 @@ import { Icon, ProviderIcon, Tooltip } from "@/components/common";
 import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
 import { useChatSend } from "@/lib/agent/useChatSend";
 import { useModels, useProjects } from "@/lib/data/queries";
+import { basename } from "@/lib/path";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import {
@@ -154,10 +155,9 @@ const ExecModeChip = () => <IconChip icon="shield" hint="Execution mode · Works
 function CwdChip() {
   const cwd = useActiveSessionCwd();
   if (!cwd) return null;
-  const basename = cwd.replace(/\/+$/, "").split("/").at(-1) || cwd;
   return (
     <Chip icon="folder" title={cwd}>
-      {basename}
+      {basename(cwd)}
     </Chip>
   );
 }

@@ -11,6 +11,7 @@ import { DataView, FIELD_CLASSES, Icon, SectionLabel } from "@/components/common
 import { ProjectRow } from "@/components/sidebar/ProjectRow";
 import { SessionRow } from "@/components/sidebar/SessionRow";
 import { useT } from "@/lib/i18n";
+import { basename } from "@/lib/path";
 import { useProjects, useSessions } from "@/lib/data/queries";
 import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
 import { useCreateSession } from "@/lib/agent/useCreateSession";
@@ -155,10 +156,6 @@ function ProjectGroupNode({
       )}
     </div>
   );
-}
-
-function basename(cwd: string): string {
-  return cwd.replace(/\/+$/, "").split("/").at(-1) || cwd;
 }
 
 function ProjectsSection() {

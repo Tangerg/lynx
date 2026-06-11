@@ -3,21 +3,10 @@
 
 import { EmptyState, Icon, IconButton } from "@/components/common";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
+import { formatRelative } from "@/lib/i18n/relativeTime";
 import { cn } from "@/lib/utils";
 import { useNotificationStore } from "@/plugins/sdk";
 import { defineWorkspaceView } from "./defineWorkspaceView";
-
-function timeAgo(ts: number): string {
-  const sec = Math.floor((Date.now() - ts) / 1000);
-  if (sec < 5) return "just now";
-  if (sec < 60) return `${sec}s ago`;
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}m ago`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h ago`;
-  const day = Math.floor(hr / 24);
-  return `${day}d ago`;
-}
 
 function NotificationsTab() {
   const log = useNotificationStore((s) => s.log);
@@ -92,7 +81,7 @@ function NotificationRow({ level, message, plugin, timestamp, dismissed, onDismi
       <div className="min-w-0 flex-1">
         <div className="whitespace-pre-wrap break-words text-[12px] text-fg">{message}</div>
         <div className="mt-0.5 text-[10px] text-fg-faint">
-          {plugin} · {timeAgo(timestamp)}
+          {plugin} · {formatRelative(timestamp)}
         </div>
       </div>
       {!dismissed && (
