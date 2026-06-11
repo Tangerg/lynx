@@ -18,7 +18,7 @@ type chatInput struct {
 
 	// Cwd is the working directory the turn's filesystem + bash tools run
 	// in. The chat action binds it protected on the blackboard so
-	// cwdToolResolver anchors the tools there and `task` sub-agents inherit
+	// the tool resolver anchors the tools there and `task` sub-agents inherit
 	// it. Empty falls back to the engine's default workdir.
 	Cwd string
 
@@ -48,7 +48,7 @@ type chatInput struct {
 	PlanMode bool
 
 	// ChatMode runs the turn tool-less (runs.start mode=chat): the action
-	// binds [toolset.ChatModeBindingKey] so cwdToolResolver yields an empty tool set,
+	// binds [toolset.ChatModeBindingKey] so the tool resolver yields an empty tool set,
 	// turning the turn into a plain single-round LLM exchange with no
 	// filesystem / bash / delegation tools. Mutually exclusive with PlanMode
 	// in practice (a tool-less turn has nothing to plan against).
@@ -112,7 +112,7 @@ func (e *Engine) buildChatAgent() *core.Agent {
 				if in.Cwd != "" {
 					// Protected so it rides Blackboard.Spawn down to `task`
 					// sub-agents and survives the typed-action
-					// ClearBlackboard — see cwdToolResolver / toolset.CwdBindingKey.
+					// ClearBlackboard — see the tool resolver / toolset.CwdBindingKey.
 					pc.Blackboard.BindProtected(toolset.CwdBindingKey, in.Cwd)
 				}
 				if in.SessionID != "" {
@@ -121,7 +121,7 @@ func (e *Engine) buildChatAgent() *core.Agent {
 					pc.Blackboard.BindProtected(toolset.SessionBindingKey, in.SessionID)
 				}
 				if in.ChatMode {
-					// Tool-less: cwdToolGroup reads this back and yields no tools.
+					// Tool-less: the tool group reads this back and yields no tools.
 					// Protected for the same survive-ClearBlackboard reason as cwd.
 					pc.Blackboard.BindProtected(toolset.ChatModeBindingKey, true)
 				}

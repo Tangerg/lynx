@@ -12,9 +12,9 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 
 	"github.com/Tangerg/lynx/lyra/internal/engine"
-	"github.com/Tangerg/lynx/lyra/internal/service/maintenance"
-	"github.com/Tangerg/lynx/lyra/internal/service/approval"
 	"github.com/Tangerg/lynx/lyra/internal/engine/chat"
+	"github.com/Tangerg/lynx/lyra/internal/service/approval"
+	"github.com/Tangerg/lynx/lyra/internal/service/maintenance"
 )
 
 // TestService_StartTurn_EmitsExpectedEvents drives a full turn

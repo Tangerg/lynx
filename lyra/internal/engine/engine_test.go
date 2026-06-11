@@ -36,7 +36,9 @@ func newToolCountStubModel() *toolCountStubModel {
 }
 
 func (m *toolCountStubModel) DefaultOptions() chat.Options { return *m.defaults }
-func (m *toolCountStubModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
+func (m *toolCountStubModel) Metadata() chat.ModelMetadata {
+	return chat.ModelMetadata{Provider: "stub"}
+}
 
 func (m *toolCountStubModel) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
 	m.once.Do(func() { m.firstSeen = len(req.Tools) })

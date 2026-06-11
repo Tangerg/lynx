@@ -15,21 +15,23 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
 )
 
-// Engine is the runtime facade. It composes three concerns:
+// Engine is the microkernel core: it drives the agent loop and depends on
+// injected ports for the capabilities it consumes (doc/MICROKERNEL.md). It
+// composes three concerns:
 //
 //   - chat execution: platform + agent drive [Engine.StartChat]
 //     (async; returns a [ChatProcess] handle backed by a real
 //     [runtime.AgentProcess]) and [Engine.RunChat] (sync wrapper) —
 //     see chatturn.go / chatprocess.go
-//   - maintenance:    compactor / extractor / planner power
-//     [Engine.MaybeCompact] / [Engine.MaybeExtract]
-//   - context:        conversation / memSvc / workdir feed the
+//   - maintenance:    the injected Compactor / Extractor / Planner ports
+//     power [Engine.MaybeCompact] / [Engine.MaybeExtract] / plan mode
+//   - context:        the Conversation port / memSvc / workdir feed the
 //     system prompt and the chat-memory middleware
 //
-// Each sub-component is a focused struct in its own file; Engine
-// just owns construction and the public surface. The chat service's
-// own (unexported) engine interface narrows this to exactly the
-// operations that service needs.
+// The tool environment (resolver + tools + MCP facade + closers) is assembled
+// outside the core by [toolset.Build] and injected via [Config]; the core
+// constructs no capability. The chat service's own (unexported) engine
+// interface narrows this surface to exactly the operations it needs.
 type Engine struct {
 	// Chat execution.
 	platform *runtime.Platform

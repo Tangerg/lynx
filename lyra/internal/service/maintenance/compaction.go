@@ -32,7 +32,6 @@ type CompactionConfig struct {
 	KeepRecent  int // default: defaultCompactKeepRecent
 }
 
-
 // Compactor is the auto-compaction worker. Constructed by the engine
 // unless compaction is disabled (negative MaxMessages); a nil
 // Compactor makes [Compactor.MaybeCompact] a silent no-op.

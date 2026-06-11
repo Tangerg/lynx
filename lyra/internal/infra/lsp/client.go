@@ -29,8 +29,8 @@ type client struct {
 	cancel context.CancelFunc // tears down the connection's read loop
 
 	mu    sync.Mutex
-	open  map[string]openDoc          // uri → last synced version + content hash
-	diags map[string]diagSet          // uri → latest pushed diagnostics
+	open  map[string]openDoc // uri → last synced version + content hash
+	diags map[string]diagSet // uri → latest pushed diagnostics
 	// updated is closed (and replaced) on every diagnostics push, so a waiter
 	// can block for the next one without polling.
 	updated chan struct{}
