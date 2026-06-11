@@ -126,12 +126,18 @@ interface DiffRow {     // 同 §4.5,Type ∈ hunk|context|added|deleted
 { event: WorkspaceEvent }
 
 type WorkspaceEvent =
-  | { type: "files.changed";   watchId: string; paths: string[] }       // paths 相对该 watch 的 cwd
+  | { type: "files.changed";   paths: string[]; cwd?: string }          // agent 文件工具的精确改动;paths 相对 cwd
   | { type: "skills.changed" }                                          // 不区分 cwd:任何 skill 目录变化均触发
   | { type: "mcp.serverChanged"; server: string; status?: McpStatus;    // 见 §5;增/删/任意字段变均发
       toolCount?: number; error?: ProblemData }
-  | { type: "resync" }                                                  // 兜底:丢过事件 → 客户端全量失效一次
+  | { type: "resync" }                                                  // 兜底 / git 状态变更 → 客户端全量失效一次
 ```
+
+> **watch 模型(实现澄清,优于早期"递归文件监听")**:后端**不递归监视工作树**(macOS Go fsnotify 走 kqueue=每文件一 fd,
+> 大树耗尽 fd;FSEvents 需 cgo 走不了)。改两路覆盖,跨平台:① 带 `watches` → 监视该 cwd 的 `.git` 信号集,git 状态一变发
+> 去抖 **`resync`**(client 重拉 getDiff);② **agent 自身编辑**(write/edit 工具)由运行时从 run 流**精确推 `files.changed{cwd,paths}`**
+> ——无需 watch。`bash`/纯外部编辑不实时(git 操作经 .git 监视;否则降级手动刷新,同 Claude Code)。故 `WatchSpec.path` 当前未用,
+> `files.changed` 不再带 `watchId`、改带 `cwd`。
 
 - 客户端常态按 `type` 局部失效(各域一个缓存 key);`resync` = 全量兜底。**v1 无 seq**。
 - `optOutNotificationMethods` 按 **event `type`** 抑制(如 `["mcp.serverChanged"]`)。
