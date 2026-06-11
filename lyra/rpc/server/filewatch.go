@@ -42,7 +42,28 @@ type fileWatcher struct {
 	exited  chan struct{}
 }
 
-// startFileWatcher resolves the watch set onto a live recursive fsnotify watch.
+// maxWatchedDirs bounds how many directories one subscription's recursive watch
+// adds. fsnotify is non-recursive, and on macOS its kqueue backend opens a file
+// descriptor PER watched directory AND per file within it — so an unbounded
+// walk over a real project tree exhausts the process's FDs and takes the whole
+// server down. The cap (plus the ignore set below) keeps a watch's FD cost
+// bounded; a tree that exceeds it gets a partial watch + a resync signal.
+const maxWatchedDirs = 1024
+
+// watchIgnoreDirs are directories never worth watching — VCS metadata, dependency
+// and build caches. They dominate a tree's directory count (and thus its FD cost)
+// while almost never being what a client wants change events for.
+var watchIgnoreDirs = map[string]struct{}{
+	".git": {}, ".hg": {}, ".svn": {},
+	"node_modules": {}, "vendor": {}, "bower_components": {},
+	"target": {}, "dist": {}, "build": {}, "out": {}, ".next": {}, ".nuxt": {},
+	"__pycache__": {}, ".venv": {}, "venv": {}, ".tox": {},
+	".idea": {}, ".cache": {}, ".gradle": {}, ".terraform": {}, ".turbo": {},
+}
+
+// startFileWatcher resolves the watch set onto a live recursive fsnotify watch,
+// bounded by maxWatchedDirs. When the bound clips the tree, it emits a resync so
+// the client re-fetches rather than trusting a watch it knows is partial.
 func startFileWatcher(targets []watchTarget, emit func(protocol.WorkspaceEvent)) (*fileWatcher, error) {
 	fsw, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -55,26 +76,45 @@ func startFileWatcher(targets []watchTarget, emit func(protocol.WorkspaceEvent))
 		done:    make(chan struct{}),
 		exited:  make(chan struct{}),
 	}
+	added := 0
 	for _, t := range targets {
-		w.addTree(t.absPath)
+		added += w.addTree(t.absPath, maxWatchedDirs-added)
+	}
+	if added >= maxWatchedDirs {
+		emit(protocol.WorkspaceEvent{Type: "resync"})
 	}
 	go w.run()
 	return w, nil
 }
 
-// addTree adds root and every existing subdirectory to the watch set —
-// fsnotify is non-recursive, so a recursive watch is a walk + per-dir Add.
+// addTree adds root and its subdirectories to the watch set, up to budget dirs,
+// skipping the ignore set (and not descending into it). fsnotify is
+// non-recursive, so a recursive watch is a walk + per-dir Add. Returns how many
+// directories were added so the caller can detect a clipped (partial) watch.
 // Best-effort: unreadable subtrees are skipped, not fatal.
-func (w *fileWatcher) addTree(root string) {
+func (w *fileWatcher) addTree(root string, budget int) int {
+	if budget <= 0 {
+		return 0
+	}
+	added := 0
 	_ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return nil
+		if err != nil || !d.IsDir() {
+			return nil //nolint:nilerr // skip unreadable entries / non-dirs
 		}
-		if d.IsDir() {
-			_ = w.fsw.Add(path)
+		if path != root {
+			if _, ignore := watchIgnoreDirs[d.Name()]; ignore {
+				return filepath.SkipDir
+			}
+		}
+		if added >= budget {
+			return filepath.SkipAll
+		}
+		if w.fsw.Add(path) == nil {
+			added++
 		}
 		return nil
 	})
+	return added
 }
 
 func (w *fileWatcher) run() {
