@@ -230,7 +230,7 @@ runs.start ──▶ run.started ──▶ (item.started → item.delta* → ite
 **最小 client 声明**：`ClientCapabilities.events` 只列它认得的事件（如 `["run.started","run.finished","item.started","item.completed","item.delta"]`）、
 `interruptTypes: []`（不处理 HITL）。server **必须**尊重：不产出 client 未声明的事件类型、不产出 client 未声明 type
 的 open interrupt（§6.2、§9）。于是"只实现一个子集"是协议合法状态——HITL / subagents / state / attachments /
-background 全部可后续加，不回头改最小路径。
+文件监听等全部可后续加，不回头改最小路径。
 
 ---
 
@@ -560,19 +560,22 @@ interface Model {
 ```ts
 interface Skill    { name: string; description?: string; source?: string }
 interface AgentDoc { path: string; title?: string; scope: "cwd" | "projectRoot" | "home" }
-interface McpServer{ name: string; status: "connected" | "disconnected" | "error"; description?: string }
+// status: 5 态（AUX_API §5.1）。toolCount 内联，省去 listServers⨝listTools。
+// error 仅 status:"failed" 时给出（dial 失败原因，type:"mcp_dial_failed"）。
+// authStatus 省略 = 未跟踪（v1 不产 needsAuth：dial 暂不暴露可区分鉴权错）。
+interface McpServer{
+  name: string;
+  status: "connecting" | "connected" | "disconnected" | "failed" | "needsAuth";
+  toolCount?: number;
+  authStatus?: "none" | "bearerToken" | "oauth" | "notLoggedIn";
+  error?: ProblemData;
+  description?: string;
+}
 interface McpTool  { server: string; name: string; description?: string; inputSchema?: Record<string, unknown> }
 
 interface MemoryEntry { scope: "cwd" | "projectRoot" | "home"; path: string; content: string; updatedAt?: string }
 interface Attachment  { id: string; name: string; mime: string; sizeBytes: number; createdAt: string }
-interface BackgroundTask {
-  id: string; category: string; status: "running" | "completed" | "failed" | "canceled";
-  createdAt: string; updatedAt?: string; result?: unknown; error?: ProblemData;
-}
 ```
-
-> `BackgroundTask.category` 是开放分类字符串（task 种类，§2.6 命名空间）——**不叫 `kind`**：`kind` 在 wire 上一律不出现
-> （§2.1），分类属性按语义命名。
 
 ### 4.11 分页（所有 list 统一）
 
@@ -715,12 +718,21 @@ interface InterruptResponse {
   itemId: string;                      // 对应 Interrupt.itemId
   response: ApprovalResponse | AnswerResponse | ToolResultResponse;
 }
-interface ApprovalResponse  { type: "approval"; decision: "approve" | "deny"; editedArgs?: Record<string, unknown>; reason?: string }
+interface ApprovalResponse  {
+  type: "approval"; decision: "approve" | "deny";
+  remember?: { scope: "session" };       // 记住这个决策（approve 或 deny），同会话该工具后续免提示（AUX_API §6）
+  editedArgs?: Record<string, unknown>;  // 批准前一次性改写工具入参（不进 remember）
+  reason?: string;
+}
 interface AnswerResponse    { type: "answer"; answers: Record<string, string[]> }   // key = QuestionField.name；单选=单元素数组（S8）
 interface ToolResultResponse{ type: "toolResult"; result?: unknown; error?: ProblemData }  // client 工具结果，与 tool.result 同形（best-effort JSON）；失败给 error
 ```
 
 > `answers` 值一律 `string[]`（单选也是单元素数组）——消费端形状统一、不用每次判 `string | string[]`（S8）。
+
+> **`remember`（审批 scope，AUX_API §6）**：KEY = **工具名**（按参数匹配是 v1 不做的规则引擎域）。`decision:"deny" + remember`
+> 合法 = 记住拒绝。`editedArgs` 是**一次性**的(记的是「这个工具」而非「工具+这次的参数」)。v1 `scope` 仅 `session`
+> （内存、重启重置）；`project|global` 未持久化、未进枚举——发了也只当本次（不假装记住）。
 
 ### 6.2 防挂死（协议级硬约束）
 
@@ -810,7 +822,24 @@ server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` 
 - 入参 `{ sessionId: string }`；返回无。
 
 #### `sessions.fork`
-- 入参 `{ sessionId: string; fromItemId?: string; title?: string }`（在某 item 边界分叉，继承源 cwd）；返回新 `Session`。
+- 入参 `{ sessionId: string; fromRunId?: string; title?: string }`；返回新 `Session`（继承源 cwd）。
+- 省略 `fromRunId` = 整段 fork（复制全部历史）；给定 = **含 `fromRunId` 在内**截断复制到该 run 边界（AUX_API §4.2）。
+- **快照语义、随时可调**：只复制**已完结**的 run（in-flight run 不进副本），故 fork 删不动任何东西、无 `session_busy`。
+- 错误 `session_not_found` / `run_not_found`。
+
+#### `sessions.rollback`  **（turn 粒度回退，AUX_API §4.1）**
+- 入参 `{ sessionId: string; toRunId?: string }`；返回 `{ session: Session; droppedRuns: DroppedRun[] }`。
+- **`toRunId` = inclusive-keep**：保留的**最后一个 root run**（其延续链一并保留），其后**全部丢弃**。省略 `toRunId` = 丢弃全部、回到空会话（覆盖「编辑第一条消息重跑」）。
+- `toRunId` **必须是 root run**（子 agent / 延续 run → `invalid_params`）；未知 → `run_not_found`。
+- **就地销毁**：截断聊天历史、删被丢 run 的 Item/记录、清其悬挂 open interrupt、并**递归 purge 被丢 run 派生的 subagent 子会话整棵子树**。
+- **运行中拒绝**：session 有 run 在跑 → `session_busy`（避免与在 append 的历史竞争）。
+- **不动文件**（v1 无快照）：UI 用 `workspace.getDiff` 自查未还原改动。
+- `DroppedRun.userInput` 是被丢 run 的开场 userMessage `content`（与 `StartRunRequest.input` 同型，composer 零转换预填）；延续 run 无开场轮 → 省略。
+- 错误 `session_not_found` / `run_not_found` / `invalid_params` / `session_busy`。
+
+```ts
+interface DroppedRun { run: RunRef; userInput?: ContentBlock[] }
+```
 
 #### `sessions.export`
 - 入参 `{ sessionId: string; format?: "md" | "json" }`；返回 `{ url: string; expiresAt: string }`。
@@ -930,12 +959,8 @@ server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` 
 
 - 错误：`session_not_found`。
 
-#### `items.edit`
-编辑某 item → 起一个延续 Run（语义同 resume）。
-
-- 入参 `{ itemId: string; replacement: ContentBlock[] }`。
-- 返回 `{ runId: string; parentRunId: string }`（新延续 Run）。受 `features.checkpoints` 门控。
-- 错误：`item_not_found` / `checkpoint_unavailable`。
+> **已移除 `items.edit`**（AUX_API §7）：turn 粒度下「编辑某条重跑」= `sessions.rollback{toRunId}` + `runs.start`，
+> item 精确编辑无独立存在理由。`features.checkpoints` 的语义已改写为 v2 影子 git + `restoreType`（见 §9）。
 
 ---
 
@@ -952,13 +977,33 @@ server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` 
 | `workspace.listProjects` | `{ cursor?; limit? }` | `Page<Project>` | distinct-cwd 派生视图 |
 | `workspace.listSkills` | `WorkspaceQuery & { cursor?; limit? }` | `Page<Skill>` | |
 | `workspace.listAgentDocs` | `WorkspaceQuery & { cursor?; limit? }` | `Page<AgentDoc>` | 从 cwd 向上发现的 AGENTS.md |
-| `workspace.mcp.listServers` | `{ cursor?; limit? }` | `Page<McpServer>` | MCP 全局，不收 cwd |
+| `workspace.mcp.listServers` | `{ cursor?; limit? }` | `Page<McpServer>` | MCP 全局，不收 cwd；含 boot 失败的 server（status:"failed" + error） |
 | `workspace.mcp.listTools` | `{ server?: string; cursor?; limit? }` | `Page<McpTool>` | |
-| `workspace.mcp.reconnect` | `{ server: string }` | 无 | |
+| `workspace.mcp.reconnect` | `{ server: string }` | 无（异步） | 结果走推送，见下 |
+| `workspace.subscribe` — Stream | `{ watches?: WatchSpec[] }` | Stream（`notifications.workspace.event`，params `WorkspaceEvent`） | 流式方法（在 `streamingMethods`）；`watches` 受 `features.fileWatch` |
 
 错误：读方法可返 `cwd_unavailable` / `path_outside_root`。git 方法(`listFileChanges` / `getDiff`)按**三态分离**:
 无 git 二进制 → `features.git=false`(客户端不调);有 git、cwd 非仓 → `vcs_unavailable`;是仓、无改动 → 空结果。
 `getDiff` 的 `mode:"base"` 解析不出基线分支 → `invalid_params`(不是 `vcs_unavailable`)。详见 AUX_API §2。
+
+#### Workspace 事件流（`workspace.subscribe`，AUX_API §3 / §5）
+
+`workspace.subscribe` 打开一条非-run 工作区事件流（生命周期 = 订阅；client 断开即结束）。全局事件（`mcp.serverChanged` /
+`skills.changed`）发给每个订阅；`watches` 注册**本订阅**的文件监听，其 `files.changed` 走同一条流。
+
+```ts
+interface WatchSpec     { watchId: string; cwd?: string; path?: string }   // path 相对 cwd（默认 serve 目录）、被 jail；空 path = 监听 cwd 根
+interface WorkspaceEvent {
+  type: "files.changed" | "skills.changed" | "mcp.serverChanged" | "resync";
+  watchId?: string; paths?: string[];                       // files.changed：变更路径（相对 watch 的 cwd），watchId 回显
+  server?: string; status?: string; toolCount?: number; error?: ProblemData;  // mcp.serverChanged
+}
+```
+
+- **`workspace.mcp.reconnect`** 无同步返回 —— 结果经 `mcp.serverChanged` 投递，**保证顺序 `connecting → (connected | failed)`**
+  （client 按钮 loading 绑 `connecting`，终态解除）。重连成功热刷新工具集，模型即时可见新工具。`status` 省略 = 条目已不存在。
+- **`files.changed`** 防抖（~150ms 合并一阵 fs 事件）+ lossy（订阅方慢则丢，下次变更/`resync` 自愈）。`watchId` 越界路径 →
+  `path_outside_root`，非目录 → `invalid_params`（不静默丢 watch）。
 
 > `getDiff` / `getFileHead` / `grep` 返回的是**单一聚合结果**（非集合列表），故保留专用 shape、不套 `Page<T>`；但仍守
 > "no silent caps"——截断都**自描述**：`grep` 由 `GrepResult.total ≥ matches.length`、`getDiff` 由 `Diff.truncated`。
@@ -1009,22 +1054,19 @@ server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` 
 | `attachments.createUploadUrl` | `{ name: string; mime: string; sizeBytes: number }` | `{ attachmentId; uploadUrl; expiresAt }` | `attachments` |
 | `attachments.get` | `{ attachmentId: string }` | `Attachment` | `attachments` |
 | `attachments.delete` | `{ attachmentId: string }` | 无 | `attachments` |
-| `background.list` | `{ cursor?; limit? }` | `Page<BackgroundTask>` | `background` |
-| `background.subscribe` | `{ taskId: string }` | Stream（经 `notifications.background.update`，params `BackgroundTask`） | `background` |
-| `background.cancel` | `{ taskId: string }` | 无 | `background` |
 | `feedback.create` | `{ sessionId?; runId?; itemId?; rating?: "positive"\|"negative"; text? }` | 无 | —— |
 
 错误：`attachment_too_large` / `unsupported_mime`（attachments）。
 
-> `background.subscribe` 是流式方法 → 必须出现在 `ServerCapabilities.streamingMethods`（§9）且仅在 `features.background`
-> 开启时进方法表；关闭时返 `capability_not_negotiated`（不是 `method_not_found`）。
+> **已移除 `background.*`**（list/subscribe/cancel + `notifications.background.update` + `BackgroundTask`，AUX_API §7）：
+> 八家对照 agent 无一有 client 可见的任务注册表；后台子任务 = 子 agent 的 turn，挂在 run 树上随其流式（§5.4）。
 
 ### 7.8 服务端发出的 Notification 汇总
 
 | Notification | params | 何时 |
 | --- | --- | --- |
 | `notifications.run.event` | `RunEvent` | run 期间每个事件（run/item/state/custom） |
-| `notifications.background.update` | `BackgroundTask` | background 任务状态变化（gated） |
+| `notifications.workspace.event` | `WorkspaceEvent` | 非-run 工作区变化（files/skills/mcp.serverChanged/resync），经 `workspace.subscribe` 流（§7.5） |
 
 > `notifications.canceled` 是 **client→server**（§7.1），不在此表。
 
@@ -1074,10 +1116,11 @@ server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` 
 | `-32015` | `idempotency_conflict` | 幂等键与不同 params 冲突 |
 | `-32016` | `invalid_protocol_version` | 版本协商失败（`initialize` 硬断开） |
 | `-32017` | `vcs_unavailable` | 有 git 二进制但 cwd 非 git 仓（与"干净仓=空结果"区分；无 git 是 `features.git=false`） |
+| `-32018` | `session_busy` | session 有 run 在跑，拒绝会破坏在 append 历史的操作（`sessions.rollback`） |
 
 `error.data` 为 `ProblemData`，**必须含 `type`（= 上表 name）**。
 
-> 业务码 `-32001..-32017` 落在 JSON-RPC 2.0 的 `-32000..-32099`「implementation-defined server-error」保留段；
+> 业务码 `-32001..-32018` 落在 JSON-RPC 2.0 的 `-32000..-32099`「implementation-defined server-error」保留段；
 > `-326xx` / `-32700` 为 spec 预定义码。数字码合规即可，**判别一律走 `type`**。
 
 ### 8.3 错误细节（ProblemData，对标 RFC 9457）
@@ -1137,7 +1180,7 @@ interface ClientCapabilities {
 | `multimodal` | bool | image content / attachments 输入 |
 | `git` | bool | `workspace.listFileChanges` / `getDiff`（git 二进制在 PATH） |
 | `checkpoints` | bool | `restoreType`（v2 影子 git 文件快照） |
-| `fileWatch` | bool | `workspace.subscribe` 的 `watches`（文件监听，B2/B3） |
+| `fileWatch` | bool | `workspace.subscribe` 的 `watches` → `files.changed`（fsnotify 文件监听） |
 | `subagents` | bool | 子 Run / run 树 |
 | `skills` | bool | `workspace.listSkills` |
 | `sessionExport` | bool | `sessions.export` |
