@@ -828,12 +828,17 @@ server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` 
 - 错误 `session_not_found` / `run_not_found`。
 
 #### `sessions.rollback`  **（turn 粒度回退，AUX_API §4.1）**
-- 入参 `{ sessionId: string; toRunId?: string }`；返回 `{ session: Session; droppedRuns: DroppedRun[] }`。
+- 入参 `{ sessionId: string; toRunId?: string; restoreType?: "history" | "files" | "both" }`；返回 `{ session: Session; droppedRuns: DroppedRun[] }`。
 - **`toRunId` = inclusive-keep**：保留的**最后一个 root run**（其延续链一并保留），其后**全部丢弃**。省略 `toRunId` = 丢弃全部、回到空会话（覆盖「编辑第一条消息重跑」）。
 - `toRunId` **必须是 root run**（子 agent / 延续 run → `invalid_params`）；未知 → `run_not_found`。
 - **就地销毁**：截断聊天历史、删被丢 run 的 Item/记录、清其悬挂 open interrupt、并**递归 purge 被丢 run 派生的 subagent 子会话整棵子树**。
 - **运行中拒绝**：session 有 run 在跑 → `session_busy`（避免与在 append 的历史竞争）。
-- **不动文件**（v1 无快照）：UI 用 `workspace.getDiff` 自查未还原改动。
+- **`restoreType`（默认 `history`，AUX_API §4.3，门控 `features.checkpoints`）**：
+  - `history` → 只回退聊天历史（不动文件，老行为）。
+  - `files` → 只把工作区**文件**还原到 `toRunId` 的影子-git 快照（历史不动）。
+  - `both` → 二者，**原子**：files 先行,失败 → 整体失败、history 不动、返 `checkpoint_unavailable`，**绝不静默降级**。
+  - `files`/`both` **必须带 `toRunId`**（否则 `invalid_params`）；该 run 无快照 → `checkpoint_unavailable`。还原前自动快照当前态(可 unrevert)。
+  - `history`（默认）下不动文件：UI 用 `workspace.getDiff` 自查未还原改动。
 - `DroppedRun.userInput` 是被丢 run 的开场 userMessage `content`（与 `StartRunRequest.input` 同型，composer 零转换预填）；延续 run 无开场轮 → 省略。
 - 错误 `session_not_found` / `run_not_found` / `invalid_params` / `session_busy`。
 

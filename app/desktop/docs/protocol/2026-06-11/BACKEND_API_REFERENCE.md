@@ -53,7 +53,8 @@ curl -s -H "Authorization: Bearer $TOK" -H 'Content-Type: application/json' \
     "fileWatch": true,        // workspace.subscribe 的 git 状态监视
     "lsp":       true,        // 代码智能工具(lsp_* 6 个)+ 编辑后自动类型检查(见 §2.9)
     "relocate":  true,        // sessions.update 改 cwd
-    "multimodal":    false, "checkpoints":   false, "subagents": false,
+    "checkpoints": true,      // sessions.rollback{restoreType:files|both}(影子 git;git 在 PATH 时,否则 false)
+    "multimodal":    false, "subagents": false,
     "sessionExport": true,    // sessions.export(inline json/md)+ sessions.import(restore)
     "clientTools":   false, "attachments": { "enabled": false }
   },
@@ -62,7 +63,7 @@ curl -s -H "Authorization: Bearer $TOK" -H 'Content-Type: application/json' \
 }
 ```
 
-> **注意**:`checkpoints:false` **不**门控 `sessions.rollback` / `fork{fromRunId}` —— 那俩是 turn 粒度 history 回退,**常备可用**;`checkpoints` 现在专指未做的 v2 影子-git 文件快照(`restoreType`)。
+> **注意**:`sessions.rollback` / `fork{fromRunId}` 的 turn 粒度 history 回退**常备可用**(不门控)。`checkpoints` 现专指**文件**回退 —— `sessions.rollback{restoreType:files|both}` 经影子 git 还原工作区(git 在 PATH 时为 true)。**fork 暂只支持 history**(文件还原因 fork 共享 cwd 语义未定,推迟)。
 
 ---
 
@@ -88,7 +89,7 @@ curl -s -H "Authorization: Bearer $TOK" -H 'Content-Type: application/json' \
 | `sessions.update` | ✅ | `{ sessionId, title?, cwd?, model?, metadata? }` → `Session` | 改 cwd = relocate(门控 `relocate`),坏路径 → `cwd_unavailable`;空标题 → `invalid_params` |
 | `sessions.delete` | ✅ | `{ sessionId }` → 无 | |
 | `sessions.fork` | ✅ | `{ sessionId, fromRunId?, title? }` → `Session` | 省略 `fromRunId`=整段复制;给定=**含该 run 在内**截断复制;只复制已完结 run;`run_not_found` |
-| `sessions.rollback` | ✅ | `{ sessionId, toRunId? }` → `{ session, droppedRuns[] }` | `toRunId` inclusive-keep(必须 root run),省略=清空;运行中 → `session_busy`;递归清被丢 run 的 subagent 子会话;非 root → `invalid_params` |
+| `sessions.rollback` | ✅ | `{ sessionId, toRunId?, restoreType? }` → `{ session, droppedRuns[] }` | `toRunId` inclusive-keep(必须 root run),省略=清空;运行中 → `session_busy`;递归清被丢 run 的 subagent 子会话;非 root → `invalid_params`。`restoreType` history(默认)/files/both —— files/both 经影子 git 还原工作区(必须带 toRunId,both 原子、files 先行),无快照 → `checkpoint_unavailable`(门控 `checkpoints`) |
 | `sessions.export` | ✅ | `{ sessionId, format? }` → `{ format, artifact?, markdown? }` | **内联**(非 URL);`json`→可 round-trip 的 `SessionArtifact`,`md`→人读转写;门控 `sessionExport` |
 | `sessions.import` | ✅ | `{ artifact }` → `{ session }` | **restore 语义**:原 id 重建+覆盖历史,幂等;版本/缺 id/坏 blob → `invalid_params`;门控 `sessionExport` |
 
@@ -265,4 +266,4 @@ type WorkspaceEvent =
 
 ## 7. 当前明确未做(能力位 off,非遗留)
 
-`multimodal`(图片输入)· `attachments`(附件上传)· `clientTools`(toolResult interrupt)· `subagents`(能力位;`task` 委派本身已跑,只是不单列 subagent run 能力)· `checkpoints` 的 v2 文件快照(`restoreType` —— 影子 git)· MCP `needsAuth`。这些方法返 `capability_not_negotiated` 或能力位为 false,接入前按 `initialize` 协商即可,不影响其余能力。
+`multimodal`(图片输入)· `attachments`(附件上传)· `clientTools`(toolResult interrupt)· `subagents`(能力位;`task` 委派本身已跑,只是不单列 subagent run 能力)· `fork{restoreType}` 的文件还原(rollback 已支持;fork 因共享 cwd 语义推迟)· MCP `needsAuth`。这些方法返 `capability_not_negotiated` 或能力位为 false,接入前按 `initialize` 协商即可,不影响其余能力。
