@@ -1,5 +1,6 @@
 import type { SidebarSession } from "@/lib/data/queries";
 import * as ContextMenu from "@radix-ui/react-context-menu";
+import { useState } from "react";
 import { Icon, MENU_CONTENT_CLASSES, MENU_ITEM_CLASSES, StatusDot } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { formatRelative } from "@/lib/i18n/relativeTime";
@@ -9,6 +10,8 @@ interface Props {
   session: SidebarSession;
   active: boolean;
   onSelect: (id: string) => void;
+  /** When set, right-click reveals a Rename action (inline title edit). */
+  onRename?: (id: string, title: string) => void;
   /** When set, right-click reveals a Fork action (whole-session copy). */
   onFork?: (id: string) => void;
   /** When set, right-click reveals a Delete action. */
@@ -22,7 +25,10 @@ interface Props {
 // text to fg. Only the 3px accent indicator bar on the left
 // distinguishes "currently selected" from "just hovering" — a single
 // visual cue carries the active state, no fighting tone steps.
-export function SessionRow({ session, active, onSelect, onFork, onDelete }: Props) {
+export function SessionRow({ session, active, onSelect, onRename, onFork, onDelete }: Props) {
+  // Inline rename: the context menu flips this on; the title swaps for an
+  // input until Enter (commit) or Escape/blur-without-change (cancel).
+  const [renaming, setRenaming] = useState(false);
   // `useT()` subscribes to i18next language changes, so the relative
   // time + status labels refresh on locale toggle automatically.
   // formatRelative reads `i18next.t` and `i18next.language` directly
@@ -64,14 +70,43 @@ export function SessionRow({ session, active, onSelect, onFork, onDelete }: Prop
         <Icon name="chat" size={14} />
       </div>
       <div className="min-w-0">
-        <div
-          className={cn(
-            "text-[13px] font-semibold leading-[1.3] truncate transition-colors text-fg-muted group-hover:text-fg",
-            active && "text-fg",
-          )}
-        >
-          {session.title}
-        </div>
+        {renaming ? (
+          <input
+            type="text"
+            defaultValue={session.title}
+            aria-label="Session title"
+            // Rename only ever starts from an explicit user action (the
+            // context-menu item), so stealing focus here is the expectation,
+            // not a surprise — the a11y concern the rule guards against.
+            // eslint-disable-next-line jsx-a11y/no-autofocus
+            autoFocus
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === "Escape") setRenaming(false);
+              if (e.key === "Enter") {
+                const next = e.currentTarget.value.trim();
+                if (next && next !== session.title) onRename?.(session.id, next);
+                setRenaming(false);
+              }
+            }}
+            onBlur={(e) => {
+              const next = e.currentTarget.value.trim();
+              if (next && next !== session.title) onRename?.(session.id, next);
+              setRenaming(false);
+            }}
+            className="w-full rounded-xs border-0 bg-surface-3 px-1 py-0 text-[13px] font-semibold leading-[1.5] text-fg outline-none focus-visible:shadow-[inset_0_0_0_1.5px_var(--color-accent)]"
+          />
+        ) : (
+          <div
+            className={cn(
+              "text-[13px] font-semibold leading-[1.3] truncate transition-colors text-fg-muted group-hover:text-fg",
+              active && "text-fg",
+            )}
+          >
+            {session.title}
+          </div>
+        )}
         <div
           className="mt-0.5 flex items-center gap-1.5 text-[11px] leading-[1.2] text-fg-faint"
           title={session.status === "idle" ? session.time : undefined}
@@ -83,12 +118,21 @@ export function SessionRow({ session, active, onSelect, onFork, onDelete }: Prop
     </button>
   );
 
-  if (!onDelete && !onFork) return row;
+  if (!onDelete && !onFork && !onRename) return row;
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>{row}</ContextMenu.Trigger>
       <ContextMenu.Portal>
         <ContextMenu.Content className={cn(MENU_CONTENT_CLASSES, "min-w-[160px]")}>
+          {onRename && (
+            <ContextMenu.Item
+              onSelect={() => setRenaming(true)}
+              className={cn(MENU_ITEM_CLASSES, "grid-cols-[14px_minmax(0,1fr)]")}
+            >
+              <Icon name="edit" size={12} />
+              <span className="truncate">Rename</span>
+            </ContextMenu.Item>
+          )}
           {onFork && (
             <ContextMenu.Item
               onSelect={() => onFork(session.id)}

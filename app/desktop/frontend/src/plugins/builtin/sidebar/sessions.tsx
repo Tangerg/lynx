@@ -4,6 +4,7 @@ import { SessionRow } from "@/components/sidebar/SessionRow";
 import { useT } from "@/lib/i18n";
 import { useDeleteSession } from "@/lib/agent/useDeleteSession";
 import { useForkSession } from "@/lib/agent/useForkSession";
+import { useRenameSession } from "@/lib/agent/useRenameSession";
 import { useSessions } from "@/lib/data/queries";
 import { definePlugin } from "@/plugins/sdk";
 import { SIDEBAR_SECTION } from "@/plugins/sdk/kernelPoints";
@@ -18,6 +19,7 @@ function SessionsSection() {
   const selectTab = useSessionStore((s) => s.selectTab);
   const deleteSession = useDeleteSession();
   const forkSession = useForkSession();
+  const renameSession = useRenameSession();
   // Hide draft sessions (created but not yet sent to) — they graduate into
   // the list on first message.
   const sessions = useMemo(
@@ -60,6 +62,7 @@ function SessionsSection() {
                 session={s}
                 active={s.id === activeSessionId}
                 onSelect={selectTab}
+                onRename={(id, title) => void renameSession(id, title)}
                 onFork={forkSession}
                 onDelete={deleteSession}
               />

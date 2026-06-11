@@ -1,6 +1,8 @@
 import type { MCPServer } from "@/lib/data/queries";
 import type { IconName } from "@/components/common";
+import { useState } from "react";
 import { Icon, IconButton } from "@/components/common";
+import { useMCPTools } from "@/lib/data/queries";
 import { getContainer } from "@/main/container";
 import { cn } from "@/lib/utils";
 
@@ -26,41 +28,79 @@ function reconnect(server: string): void {
     .catch((err: unknown) => console.warn("[mcp] reconnect failed:", err));
 }
 
+// Expanded detail: the server's tool list (workspace.mcp.listTools), fetched
+// lazily on first expand and kept fresh by mcp.serverChanged invalidation.
+function McpToolList({ server }: { server: string }) {
+  const { data: tools, isLoading } = useMCPTools({ server });
+  if (isLoading)
+    return <p className="m-0 px-4 pb-3 pl-[68px] text-[11.5px] text-fg-faint">Loading tools…</p>;
+  if (!tools?.length)
+    return <p className="m-0 px-4 pb-3 pl-[68px] text-[11.5px] text-fg-faint">No tools exposed.</p>;
+  return (
+    <ul className="m-0 list-none px-4 pb-3 pl-[68px]">
+      {tools.map((tool) => (
+        <li key={tool.name} className="flex items-baseline gap-2 py-0.5">
+          <code className="shrink-0 rounded-xs bg-surface-2 px-1 font-mono text-[11px] text-fg">
+            {tool.name}
+          </code>
+          <span className="truncate text-[11.5px] text-fg-faint">{tool.description}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function McpRow({ server }: { server: MCPServer }) {
   const pill = STATUS_PILL[server.status];
   const connecting = server.status === "connecting";
+  // Click the row to expand its tool list — the "N tools" badge finally has
+  // a detail behind it.
+  const [open, setOpen] = useState(false);
   return (
-    <div className="group grid grid-cols-[40px_1fr_auto_auto_auto] items-center gap-3 px-4 py-3 hover:bg-surface">
-      <div
-        className={cn(
-          "grid h-10 w-10 place-items-center rounded-lg bg-surface-2 text-fg-muted group-hover:bg-surface-3 group-hover:text-fg",
-          server.status === "connected" && "bg-accent/10 text-accent",
-          server.status === "failed" && "bg-negative/10 text-negative",
-        )}
-      >
-        <Icon name={server.icon as IconName} size={15} />
+    <div>
+      <div className="group grid grid-cols-[40px_1fr_auto_auto_auto] items-center gap-3 px-4 py-3 hover:bg-surface">
+        <div
+          className={cn(
+            "grid h-10 w-10 place-items-center rounded-lg bg-surface-2 text-fg-muted group-hover:bg-surface-3 group-hover:text-fg",
+            server.status === "connected" && "bg-accent/10 text-accent",
+            server.status === "failed" && "bg-negative/10 text-negative",
+          )}
+        >
+          <Icon name={server.icon as IconName} size={15} />
+        </div>
+        {/* The name/desc block is the expand toggle (a nested button inside a
+            row-button would be invalid HTML — IconButton sits beside it). */}
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+          className="min-w-0 border-0 bg-transparent p-0 text-left"
+        >
+          <div className="text-[14px] font-semibold text-fg truncate">{server.name}</div>
+          <div className="mt-0.5 text-[12px] text-fg-faint truncate">{server.desc}</div>
+        </button>
+        <div className="rounded-xs bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-fg-faint">
+          {server.tools} tools
+        </div>
+        <div
+          className={cn(
+            "rounded-xs px-1.5 py-0.5 font-mono text-[11px] font-semibold",
+            pill.classes,
+          )}
+          title={server.status === "failed" ? server.errorDetail : undefined}
+        >
+          {pill.label}
+        </div>
+        <IconButton
+          title="Reconnect"
+          disabled={connecting}
+          onClick={() => reconnect(server.id)}
+          className={cn(connecting && "animate-spin")}
+        >
+          <Icon name="loop" size={13} />
+        </IconButton>
       </div>
-      <div className="min-w-0">
-        <div className="text-[14px] font-semibold text-fg truncate">{server.name}</div>
-        <div className="mt-0.5 text-[12px] text-fg-faint truncate">{server.desc}</div>
-      </div>
-      <div className="rounded-xs bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-fg-faint">
-        {server.tools} tools
-      </div>
-      <div
-        className={cn("rounded-xs px-1.5 py-0.5 font-mono text-[11px] font-semibold", pill.classes)}
-        title={server.status === "failed" ? server.errorDetail : undefined}
-      >
-        {pill.label}
-      </div>
-      <IconButton
-        title="Reconnect"
-        disabled={connecting}
-        onClick={() => reconnect(server.id)}
-        className={cn(connecting && "animate-spin")}
-      >
-        <Icon name="loop" size={13} />
-      </IconButton>
+      {open && <McpToolList server={server.id} />}
     </div>
   );
 }

@@ -17,6 +17,7 @@ import { Icon, MENU_CONTENT_CLASSES, MENU_ITEM_CLASSES } from "@/components/comm
 import {
   editAndRerunMessage,
   editMessageInComposer,
+  forkFromMessage,
   regenerateMessage,
 } from "@/lib/agent/messageActions";
 import {
@@ -89,6 +90,13 @@ export function MessageContextMenu({ msg, children }: Props) {
                   Edit & rerun from here
                 </Item>
               )}
+              {/* Non-destructive sibling of Edit & rerun: branch a new
+                  session that keeps history through this exchange. */}
+              {msg.runId && (
+                <Item icon="branch" onSelect={() => forkFromMessage(msg)}>
+                  Fork up to here
+                </Item>
+              )}
             </>
           )}
           {isAssistant && (
@@ -110,7 +118,7 @@ function Item({
   onSelect,
   children,
 }: {
-  icon: "copy" | "code" | "edit" | "loop";
+  icon: "copy" | "code" | "edit" | "loop" | "branch";
   onSelect: () => void;
   children: ReactNode;
 }) {
