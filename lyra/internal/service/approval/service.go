@@ -49,4 +49,17 @@ type Service interface {
 	// SetMode changes the runtime-wide stance. Future tool calls honor
 	// the new mode; in-flight calls keep their original mode.
 	SetMode(ctx context.Context, mode Mode) error
+
+	// Remember records a standing per-session decision for a tool, so future
+	// gated calls to it in that session skip the prompt (AUX_API §6,
+	// "approve/deny + remember"). approved=true auto-passes; approved=false
+	// auto-denies — recording a denial is a valid choice. The key is the tool
+	// NAME (not its arguments); scope is the session. v1 is in-memory and
+	// resets on restart — project / global scopes aren't persisted yet.
+	Remember(ctx context.Context, sessionID, toolName string, approved bool) error
+
+	// Remembered reports a standing session decision for a tool: ok=false when
+	// none was recorded, otherwise approved is the recorded verdict. The chat
+	// gate consults it before prompting so a remembered tool never re-asks.
+	Remembered(ctx context.Context, sessionID, toolName string) (approved bool, ok bool, err error)
 }

@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"context"
 	"testing"
 
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
@@ -44,5 +45,30 @@ func TestGateFor_Matrix(t *testing.T) {
 		if got := gateFor(c.tool, c.mode); got != c.want {
 			t.Errorf("gateFor(%q, %v) = %d, want %d", c.tool, c.mode, got, c.want)
 		}
+	}
+}
+
+// TestApproveToolCall_RememberedShortCircuit verifies the gate consults a
+// standing session decision BEFORE prompting (B5): a remembered approve passes
+// without an interrupt, a remembered deny refuses without one. Both paths
+// avoid hitl.Interrupt, so no agent process context is needed.
+func TestApproveToolCall_RememberedShortCircuit(t *testing.T) {
+	ctx := context.Background()
+	appr := approval.New(approval.ModeSafe) // bash gates → would prompt
+	obs := &turnObserver{
+		svc: &inMemory{approval: appr},
+		st:  &turnState{handle: TurnHandle{SessionID: "s1"}},
+	}
+
+	// Remembered approve → verdict runs (no interrupt, not denied).
+	_ = appr.Remember(ctx, "s1", "bash", true)
+	if v := obs.ApproveToolCall(ctx, "c1", "bash", "{}"); v.Interrupt != nil || v.Denied {
+		t.Fatalf("remembered approve = %+v, want a clean run verdict", v)
+	}
+
+	// Remembered deny → verdict denies (no interrupt).
+	_ = appr.Remember(ctx, "s1", "write", false)
+	if v := obs.ApproveToolCall(ctx, "c2", "write", "{}"); v.Interrupt != nil || !v.Denied {
+		t.Fatalf("remembered deny = %+v, want a denied verdict", v)
 	}
 }

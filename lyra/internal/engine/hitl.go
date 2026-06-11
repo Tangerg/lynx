@@ -98,4 +98,9 @@ type InterruptResolution struct {
 	Approved  bool
 	Arguments string
 	Answer    map[string][]string
+	// Remember asks the runtime to keep this approve/deny decision for the
+	// session, so future calls to the same tool skip the prompt (AUX_API §6).
+	// The chat gate records it keyed by tool name; honored only for the
+	// "session" scope (the wire's only v1 scope).
+	Remember bool
 }
