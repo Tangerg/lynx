@@ -34,6 +34,7 @@ const (
 	MethodSessionsFork     = "sessions.fork"
 	MethodSessionsRollback = "sessions.rollback"
 	MethodSessionsExport   = "sessions.export"
+	MethodSessionsImport   = "sessions.import"
 
 	// Runs (API.md §7.3). HITL is the R model: runs.resume answers
 	// open interrupts via a continuation run.

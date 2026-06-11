@@ -129,6 +129,28 @@ func (s *SessionService) Create(ctx context.Context, title, cwd string) (session
 	return sess, nil
 }
 
+// Restore upserts a session row verbatim (INSERT OR REPLACE) — the write side
+// of sessions.import. It preserves the supplied id and all fields, overwriting
+// any existing row with that id (restore semantics). See
+// [session.Service.Restore].
+func (s *SessionService) Restore(ctx context.Context, sess session.Session) error {
+	metaJSON, err := encodeMetadata(sess.Metadata)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx,
+		`INSERT OR REPLACE INTO sessions(`+sessionColumns+`)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		sess.ID, sess.Title, sess.Cwd, sess.ParentID,
+		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
+		sess.TurnCount, metaJSON, sess.Model, sess.Kind,
+	)
+	if err != nil {
+		return fmt.Errorf("sqlite: restore session: %w", err)
+	}
+	return nil
+}
+
 // Fork checks the parent exists and inserts the child in a single
 // transaction so a concurrent Delete on the parent can't race against
 // the fork.
