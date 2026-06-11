@@ -34,6 +34,7 @@ import {
   MCP_TOOLS_KEY,
   MEMORY_KEY,
   MODELS_KEY,
+  PROJECTS_KEY,
   PROVIDERS_KEY,
   SESSIONS_KEY,
   SKILLS_KEY,
@@ -83,7 +84,13 @@ function toSidebarMCPServer(s: RpcMCPServer): SidebarMCPServer {
 
 // `projects` — v2 Project keys identity on cwd (no opaque id, no active flag).
 function toSidebarProject(p: RpcProject): SidebarProject {
-  return { id: p.cwd, name: p.name, branch: p.branch ?? "" };
+  return {
+    id: p.cwd,
+    name: p.name,
+    branch: p.branch ?? "",
+    sessionCount: p.sessionCount,
+    cwdMissing: p.cwdMissing,
+  };
 }
 
 // `files-changed` — collapse the five wire statuses into the sidebar's three
@@ -130,7 +137,7 @@ export const defaultData = definePlugin({
       fetcher: async () => (await client().sessions.list()).data.map(toSidebarSession),
     });
     host.extensions.contribute(DATA_PROVIDER, {
-      key: "projects",
+      key: PROJECTS_KEY,
       fetcher: async () => (await client().workspace.listProjects()).data.map(toSidebarProject),
     });
     host.extensions.contribute(DATA_PROVIDER, {

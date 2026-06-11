@@ -47,7 +47,7 @@ describe("useCreateSession", () => {
     stubCreate(create);
     const { result } = renderHook(() => useCreateSession(), { wrapper });
 
-    const id = await result.current("first message");
+    const id = await result.current({ firstMessage: "first message" });
 
     expect(id).toBe("new-1");
     const s = useSessionStore.getState();
@@ -55,6 +55,16 @@ describe("useCreateSession", () => {
     expect(s.tabIds).toContain("new-1");
     expect(s.draftSessionIds.has("new-1")).toBe(true);
     expect(s.takePendingMessage("new-1")).toBe("first message");
+  });
+
+  it("forwards cwd so the session lands in the chosen project directory", async () => {
+    const create = vi.fn().mockResolvedValue(fakeSession("new-cwd"));
+    stubCreate(create);
+    const { result } = renderHook(() => useCreateSession(), { wrapper });
+
+    await result.current({ cwd: "/tmp/proj" });
+
+    expect(create).toHaveBeenCalledWith({ cwd: "/tmp/proj" });
   });
 
   it("creates an empty draft (no message) for the New button", async () => {
@@ -74,7 +84,7 @@ describe("useCreateSession", () => {
     stubCreate(vi.fn().mockRejectedValue(new Error("boom")));
     const { result } = renderHook(() => useCreateSession(), { wrapper });
 
-    await expect(result.current("x")).resolves.toBeNull();
+    await expect(result.current({ firstMessage: "x" })).resolves.toBeNull();
     expect(useSessionStore.getState().activeSessionId).toBe("");
   });
 

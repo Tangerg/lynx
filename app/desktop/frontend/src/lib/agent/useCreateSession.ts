@@ -3,8 +3,17 @@ import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getContainer } from "@/main/container";
 import { queryClient as appQueryClient } from "@/lib/data/queryClient";
-import { SESSIONS_KEY } from "@/lib/data/queries";
+import { PROJECTS_KEY, SESSIONS_KEY } from "@/lib/data/queries";
 import { useSessionStore } from "@/state/sessionStore";
+
+export interface CreateSessionOptions {
+  /** Queue this as the session's first message (welcome composer). */
+  firstMessage?: string;
+  /** Create the session in this working directory (sessions.create cwd,
+   *  API.md §7.2) — the Projects "+" / project-row entry. Omitted = the
+   *  runtime's serve dir. */
+  cwd?: string;
+}
 
 /**
  * Create a fresh backend session as a hidden **draft**, open it as the
@@ -17,9 +26,14 @@ import { useSessionStore } from "@/state/sessionStore";
  * (an empty draft ready to type into); the welcome composer calls it with
  * the typed text, which the chat flushes on remount (useAgentSession).
  */
-async function createAndOpen(qc: QueryClient, firstMessage?: string): Promise<string | null> {
+async function createAndOpen(
+  qc: QueryClient,
+  { firstMessage, cwd }: CreateSessionOptions,
+): Promise<string | null> {
   try {
-    const session = await getContainer().client().sessions.create({});
+    const session = await getContainer()
+      .client()
+      .sessions.create(cwd ? { cwd } : {});
     const store = useSessionStore.getState();
     // Mark draft + queue the message BEFORE selecting, so the remount
     // useAgentSession triggers sees both already in place.
@@ -27,8 +41,10 @@ async function createAndOpen(qc: QueryClient, firstMessage?: string): Promise<st
     if (firstMessage?.trim()) store.setPendingMessage(session.id, firstMessage);
     store.selectTab(session.id); // opens tab + sets active → remounts chat
     // Draft is filtered out of the sidebar; refetch so its graduation
-    // (and any backend-assigned title) lands promptly.
+    // (and any backend-assigned title) lands promptly. A cwd create may
+    // also have minted a brand-new project.
     void qc.invalidateQueries({ queryKey: [SESSIONS_KEY] });
+    if (cwd) void qc.invalidateQueries({ queryKey: [PROJECTS_KEY] });
     return session.id;
   } catch (err) {
     console.error("[session] create failed:", err);
@@ -42,9 +58,9 @@ async function createAndOpen(qc: QueryClient, firstMessage?: string): Promise<st
 // and two tabs. Re-entrant calls join the pending create instead.
 let inflight: Promise<string | null> | null = null;
 
-function doCreate(qc: QueryClient, firstMessage?: string): Promise<string | null> {
+function doCreate(qc: QueryClient, opts: CreateSessionOptions): Promise<string | null> {
   if (inflight) return inflight;
-  inflight = createAndOpen(qc, firstMessage).finally(() => {
+  inflight = createAndOpen(qc, opts).finally(() => {
     inflight = null;
   });
   return inflight;
@@ -53,10 +69,10 @@ function doCreate(qc: QueryClient, firstMessage?: string): Promise<string | null
 /** Imperative create for non-React callers (palette commands, keymap) — uses
  *  the app's shared QueryClient. React components use {@link useCreateSession}. */
 export function createSession(firstMessage?: string): Promise<string | null> {
-  return doCreate(appQueryClient, firstMessage);
+  return doCreate(appQueryClient, { firstMessage });
 }
 
-export function useCreateSession(): (firstMessage?: string) => Promise<string | null> {
+export function useCreateSession(): (opts?: CreateSessionOptions) => Promise<string | null> {
   const queryClient = useQueryClient();
-  return useCallback((firstMessage) => doCreate(queryClient, firstMessage), [queryClient]);
+  return useCallback((opts) => doCreate(queryClient, opts ?? {}), [queryClient]);
 }

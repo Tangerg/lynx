@@ -27,9 +27,11 @@ export interface SidebarSession {
 }
 
 export interface SidebarProject {
-  id: string;
+  id: string; // = Project.cwd (the wire identity)
   name: string;
   branch: string;
+  sessionCount: number;
+  cwdMissing?: boolean; // directory gone from disk (relocate/restore to fix)
   active?: boolean;
 }
 
@@ -211,6 +213,7 @@ function makeParamDataQuery<P, T>(key: string): (params: P | undefined) => UseQu
 // exactly one place — the same no-drift argument as passing the key once
 // into makeDataQuery. Keys only ever read stay inline below.
 export const SESSIONS_KEY = "sessions";
+export const PROJECTS_KEY = "projects";
 export const PROVIDERS_KEY = "providers";
 export const MODELS_KEY = "models";
 export const FILES_CHANGED_KEY = "files-changed";
@@ -221,7 +224,7 @@ export const MCP_TOOLS_KEY = "mcp-tools";
 export const MEMORY_KEY = "memory";
 
 export const useSessions = makeDataQuery<SidebarSession[]>(SESSIONS_KEY);
-export const useProjects = makeDataQuery<SidebarProject[]>("projects");
+export const useProjects = makeDataQuery<SidebarProject[]>(PROJECTS_KEY);
 export const useFilesChanged = makeParamDataQuery<FileChangesQuery, FileChange[]>(
   FILES_CHANGED_KEY,
 );
