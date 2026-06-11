@@ -57,10 +57,28 @@ import type {
   WorkspaceFileChange,
 } from "./shapes";
 import { streamRunEvents, streamRunEventsDeferred, streamWorkspaceEvents } from "./stream";
+import { WORKSPACE_SUBSCRIBE_METHOD } from "./transport";
 
 export interface StreamingResult<R, E> {
   result: R;
   events: AsyncIterable<E>;
+}
+
+// Invariant shared by every streaming method: the subscription is opened
+// BEFORE the call (head-drop race, see runs.start), so if the call REJECTS
+// the stream must be disposed explicitly — nobody will ever iterate
+// `events`, its self-cleaning iterator never runs, and the subscription
+// (plus any pre-bind buffer) would leak and accumulate forever.
+async function callOrDispose<R>(
+  stream: { dispose: () => void },
+  call: () => Promise<R>,
+): Promise<R> {
+  try {
+    return await call();
+  } catch (err) {
+    stream.dispose();
+    throw err;
+  }
 }
 
 export interface Methods {
@@ -194,43 +212,26 @@ export function createMethods(client: RpcClient): Methods {
         // same ordered stream, so the first events follow the response
         // immediately; binding only after `call` resolves could drop the head
         // (see streamRunEventsDeferred).
-        //
-        // If the call REJECTS the stream must be disposed explicitly: nobody
-        // will ever iterate `events`, so its self-cleaning iterator never runs
-        // — the subscription would leak and its unbound buffer would accumulate
-        // every run event in the app, forever.
         const stream = streamRunEventsDeferred(client, signal);
-        let result: StartRunResponse;
-        try {
-          result = await client.call<StartRunResponse>("runs.start", params, signal);
-        } catch (err) {
-          stream.dispose();
-          throw err;
-        }
+        const result = await callOrDispose(stream, () =>
+          client.call<StartRunResponse>("runs.start", params, signal),
+        );
         stream.bind(result.runId);
         return { result, events: stream.events };
       },
       resume: async (params, signal) => {
         const stream = streamRunEventsDeferred(client, signal);
-        let result: ResumeRunResponse;
-        try {
-          result = await client.call<ResumeRunResponse>("runs.resume", params, signal);
-        } catch (err) {
-          stream.dispose();
-          throw err;
-        }
+        const result = await callOrDispose(stream, () =>
+          client.call<ResumeRunResponse>("runs.resume", params, signal),
+        );
         stream.bind(result.runId);
         return { result, events: stream.events };
       },
       subscribe: async (runId, signal) => {
         const stream = streamRunEvents(client, runId, signal);
-        let result: { runId: RunId };
-        try {
-          result = await client.call<{ runId: RunId }>("runs.subscribe", { runId }, signal);
-        } catch (err) {
-          stream.dispose();
-          throw err;
-        }
+        const result = await callOrDispose(stream, () =>
+          client.call<{ runId: RunId }>("runs.subscribe", { runId }, signal),
+        );
         return { result, events: stream.events };
       },
       cancel: (runId, reason) => client.call<void>("runs.cancel", { runId, reason }),
@@ -251,21 +252,10 @@ export function createMethods(client: RpcClient): Methods {
       listSkills: (cwd) => client.call<Page<Skill>>("workspace.listSkills", { cwd }),
       listAgentDocs: (cwd) => client.call<Page<AgentDoc>>("workspace.listAgentDocs", { cwd }),
       subscribe: async (params, signal) => {
-        // Subscribe BEFORE the call — same head-drop race as runs.start: the
-        // first event frames ride right behind the response on the same
-        // ordered stream.
         const stream = streamWorkspaceEvents(client, signal);
-        let result: Record<string, never>;
-        try {
-          result = await client.call<Record<string, never>>(
-            "workspace.subscribe",
-            params ?? {},
-            signal,
-          );
-        } catch (err) {
-          stream.dispose();
-          throw err;
-        }
+        const result = await callOrDispose(stream, () =>
+          client.call<Record<string, never>>(WORKSPACE_SUBSCRIBE_METHOD, params ?? {}, signal),
+        );
         return { result, events: stream.events };
       },
       mcp: {
