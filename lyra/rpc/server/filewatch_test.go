@@ -2,70 +2,28 @@ package server
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
-	"slices"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
-// TestWorkspaceSubscribe_FileWatch verifies the watches path (AUX_API §3):
-// a write under a watched directory surfaces a debounced files.changed naming
-// the changed path (relative to the watch cwd) and echoing the client watchId.
-func TestWorkspaceSubscribe_FileWatch(t *testing.T) {
+// TestWorkspaceSubscribe_GitWatch verifies the cross-platform git-state watch:
+// a write to a .git signal file (here .git/index) surfaces a debounced resync.
+// No working-tree recursion — so no per-file fd cost on any platform.
+func TestWorkspaceSubscribe_GitWatch(t *testing.T) {
 	dir := t.TempDir()
-	s := &Server{wsHub: newWorkspaceHub(), serverInfo: protocol.ServerInfo{Cwd: dir}}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	_, events, err := s.WorkspaceSubscribe(ctx, protocol.WorkspaceSubscribeRequest{
-		Watches: []protocol.WatchSpec{{WatchID: "w1"}}, // empty path → watch the cwd root
-	})
-	if err != nil {
-		t.Fatalf("subscribe: %v", err)
-	}
-
-	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("hi"), 0o644); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-
-	select {
-	case ev := <-events:
-		if ev.Type != "files.changed" || ev.WatchID != "w1" {
-			t.Fatalf("event = %+v, want files.changed for w1", ev)
-		}
-		found := false
-		for _, p := range ev.Paths {
-			if p == "a.txt" {
-				found = true
-			}
-		}
-		if !found {
-			t.Fatalf("paths = %v, want to include a.txt", ev.Paths)
-		}
-	case <-time.After(3 * time.Second):
-		t.Fatal("no files.changed within 3s")
-	}
-}
-
-// TestFileWatch_IgnoresVCSDir verifies the watch skips dependency / VCS dirs
-// (here .git) — they dominate a tree's FD cost on macOS (kqueue = 1 fd/file)
-// and are never what a client wants change events for. A change inside .git
-// surfaces nothing; a change at the root still does.
-func TestFileWatch_IgnoresVCSDir(t *testing.T) {
-	dir := t.TempDir()
-	// Pre-create .git/config so subscribing doesn't see a mkdir event for it.
-	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0o755); err != nil {
+	gitDir := filepath.Join(dir, ".git")
+	if err := os.MkdirAll(filepath.Join(gitDir, "refs", "heads"), 0o755); err != nil {
 		t.Fatalf("mkdir .git: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, ".git", "config"), []byte("x"), 0o644); err != nil {
-		t.Fatalf("seed .git/config: %v", err)
+	if err := os.WriteFile(filepath.Join(gitDir, "index"), []byte("v0"), 0o644); err != nil {
+		t.Fatalf("seed index: %v", err)
 	}
 	s := &Server{wsHub: newWorkspaceHub(), serverInfo: protocol.ServerInfo{Cwd: dir}}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	_, events, err := s.WorkspaceSubscribe(ctx, protocol.WorkspaceSubscribeRequest{
@@ -75,36 +33,24 @@ func TestFileWatch_IgnoresVCSDir(t *testing.T) {
 		t.Fatalf("subscribe: %v", err)
 	}
 
-	// Touch an ignored path and a watched one; only the watched one should surface.
-	_ = os.WriteFile(filepath.Join(dir, ".git", "config"), []byte("changed"), 0o644)
-	_ = os.WriteFile(filepath.Join(dir, "a.txt"), []byte("hi"), 0o644)
-
+	// A git operation rewrites .git/index → expect a debounced resync.
+	if err := os.WriteFile(filepath.Join(gitDir, "index"), []byte("v1"), 0o644); err != nil {
+		t.Fatalf("touch index: %v", err)
+	}
 	select {
 	case ev := <-events:
-		for _, p := range ev.Paths {
-			if strings.HasPrefix(p, ".git") {
-				t.Fatalf("paths = %v, must not include the ignored .git subtree", ev.Paths)
-			}
-		}
-		if !slices.Contains(ev.Paths, "a.txt") {
-			t.Fatalf("paths = %v, want a.txt", ev.Paths)
+		if ev.Type != "resync" {
+			t.Fatalf("event = %+v, want resync", ev)
 		}
 	case <-time.After(3 * time.Second):
-		t.Fatal("no files.changed within 3s")
+		t.Fatal("no resync within 3s of a .git change")
 	}
 }
 
-// TestFileWatch_HonorsGitignore verifies the watch reads the cwd's .gitignore:
-// a gitignored dir (build/) and file pattern (*.log) produce no files.changed,
-// while a tracked file does.
-func TestFileWatch_HonorsGitignore(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("build/\n*.log\n"), 0o644); err != nil {
-		t.Fatalf("write .gitignore: %v", err)
-	}
-	if err := os.MkdirAll(filepath.Join(dir, "build"), 0o755); err != nil {
-		t.Fatalf("mkdir build: %v", err)
-	}
+// TestWorkspaceSubscribe_NonRepoInert: a watch on a cwd that isn't a git repo
+// contributes no watcher (and doesn't error) — the broadcast stream still works.
+func TestWorkspaceSubscribe_NonRepoInert(t *testing.T) {
+	dir := t.TempDir() // no .git
 	s := &Server{wsHub: newWorkspaceHub(), serverInfo: protocol.ServerInfo{Cwd: dir}}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -112,51 +58,67 @@ func TestFileWatch_HonorsGitignore(t *testing.T) {
 		Watches: []protocol.WatchSpec{{WatchID: "w1"}},
 	})
 	if err != nil {
-		t.Fatalf("subscribe: %v", err)
+		t.Fatalf("subscribe (non-repo) must not error: %v", err)
 	}
-
-	_ = os.WriteFile(filepath.Join(dir, "build", "out.bin"), []byte("x"), 0o644) // ignored dir
-	_ = os.WriteFile(filepath.Join(dir, "debug.log"), []byte("x"), 0o644)        // ignored *.log
-	_ = os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main"), 0o644)
-
+	// Broadcast events still flow on the subscription.
+	s.PublishWorkspaceEvent(protocol.WorkspaceEvent{Type: "skills.changed"})
 	select {
 	case ev := <-events:
-		for _, p := range ev.Paths {
-			if strings.HasPrefix(p, "build") || strings.HasSuffix(p, ".log") {
-				t.Fatalf("paths = %v, must not include gitignored entries", ev.Paths)
-			}
+		if ev.Type != "skills.changed" {
+			t.Fatalf("event = %+v, want skills.changed", ev)
 		}
-		if !slices.Contains(ev.Paths, "main.go") {
-			t.Fatalf("paths = %v, want main.go", ev.Paths)
-		}
-	case <-time.After(3 * time.Second):
-		t.Fatal("no files.changed within 3s")
+	case <-time.After(time.Second):
+		t.Fatal("broadcast event not delivered on a non-repo subscription")
 	}
 }
 
-// TestWorkspaceSubscribe_WatchJail rejects a watch escaping its cwd
-// (path_outside_root) and a missing / non-directory target (invalid_params),
-// rather than silently dropping the watch.
-func TestWorkspaceSubscribe_WatchJail(t *testing.T) {
-	dir := t.TempDir()
-	s := &Server{wsHub: newWorkspaceHub(), serverInfo: protocol.ServerInfo{Cwd: dir}}
-	ctx := context.Background()
+// TestEmitToolFileChange: a completed write/edit tool call publishes a
+// files.changed naming the exact (cwd-relative) path; bash, errored, and
+// non-tool items publish nothing.
+func TestEmitToolFileChange(t *testing.T) {
+	s := &Server{wsHub: newWorkspaceHub()}
+	events, unsub := s.wsHub.subscribe()
+	defer unsub()
 
-	if _, _, err := s.WorkspaceSubscribe(ctx, protocol.WorkspaceSubscribeRequest{
-		Watches: []protocol.WatchSpec{{WatchID: "w1", Path: "../escape"}},
-	}); !errors.Is(err, protocol.ErrPathOutsideRoot) {
-		t.Fatalf("escaping watch err = %v, want ErrPathOutsideRoot", err)
+	completed := func(name, path string, failed bool) protocol.StreamEvent {
+		it := &protocol.Item{
+			Type: protocol.ItemTypeToolCall, Status: protocol.ItemStatusCompleted,
+			Tool: &protocol.ToolInvocation{Name: name, Arguments: map[string]any{"path": path}},
+		}
+		if failed {
+			it.Error = &protocol.ProblemData{Type: "tool_failed"}
+		}
+		return protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: it}
 	}
 
-	if _, _, err := s.WorkspaceSubscribe(ctx, protocol.WorkspaceSubscribeRequest{
-		Watches: []protocol.WatchSpec{{WatchID: "w1", Path: "nope.txt"}},
-	}); !errors.Is(err, protocol.ErrInvalidParams) {
-		t.Fatalf("missing-dir watch err = %v, want ErrInvalidParams", err)
+	// write → files.changed{cwd, [path]}
+	s.emitToolFileChange("/proj", completed("write", "src/a.go", false))
+	select {
+	case ev := <-events:
+		if ev.Type != "files.changed" || ev.Cwd != "/proj" || len(ev.Paths) != 1 || ev.Paths[0] != "src/a.go" {
+			t.Fatalf("event = %+v, want files.changed cwd=/proj [src/a.go]", ev)
+		}
+	default:
+		t.Fatal("write tool call must publish files.changed")
 	}
 
-	if _, _, err := s.WorkspaceSubscribe(ctx, protocol.WorkspaceSubscribeRequest{
-		Watches: []protocol.WatchSpec{{Path: ""}}, // no watchId
-	}); !errors.Is(err, protocol.ErrInvalidParams) {
-		t.Fatalf("missing watchId err = %v, want ErrInvalidParams", err)
+	// bash, errored write, and a non-tool item → nothing.
+	s.emitToolFileChange("/proj", completed("bash", "whatever", false))
+	s.emitToolFileChange("/proj", completed("write", "src/b.go", true))
+	s.emitToolFileChange("/proj", protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: &protocol.Item{Type: protocol.ItemTypeAgentMessage}})
+	select {
+	case ev := <-events:
+		t.Fatalf("expected no further events, got %+v", ev)
+	default:
+	}
+}
+
+// TestWorkspaceSubscribe_MissingWatchID rejects a watch with no id.
+func TestWorkspaceSubscribe_MissingWatchID(t *testing.T) {
+	s := &Server{wsHub: newWorkspaceHub(), serverInfo: protocol.ServerInfo{Cwd: t.TempDir()}}
+	if _, _, err := s.WorkspaceSubscribe(context.Background(), protocol.WorkspaceSubscribeRequest{
+		Watches: []protocol.WatchSpec{{}},
+	}); err == nil {
+		t.Fatal("watch missing watchId must be invalid_params")
 	}
 }

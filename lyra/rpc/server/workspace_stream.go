@@ -3,11 +3,8 @@ package server
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sync"
 
-	"github.com/Tangerg/lynx/lyra/internal/git"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
@@ -70,25 +67,26 @@ func (h *workspaceHub) publish(ev protocol.WorkspaceEvent) {
 // WorkspaceSubscribe opens the workspace event stream (AUX_API §3.1). The
 // stream's lifetime is the subscription; it ends when the request ctx does
 // (client disconnect). Broadcast events (mcp.serverChanged, skills.changed) go
-// to every subscription; the optional watches register per-subscription file
-// monitoring, whose debounced files.changed events ride the same channel
-// (features.fileWatch). An invalid watch (escaping the cwd jail, missing dir)
-// fails the call rather than silently dropping the watch.
+// to every subscription; when the request carries watches, the subscription
+// also monitors those cwds' git state and emits a debounced resync on any
+// change (commit / stage / checkout / merge) — the client then re-fetches
+// workspace.getDiff. (Working-tree file edits aren't watched directly — see
+// gitWatcher; the agent's own edits arrive as files.changed from its tools.)
 func (s *Server) WorkspaceSubscribe(ctx context.Context, in protocol.WorkspaceSubscribeRequest) (*protocol.WorkspaceSubscribeResponse, <-chan protocol.WorkspaceEvent, error) {
-	targets, err := s.resolveWatches(in.Watches)
+	gitDirs, err := s.resolveWatchGitDirs(in.Watches)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// WorkspaceSubscribe owns the channel: the hub broadcasts to it and (when
-	// watches are present) the file watcher emits to it. Closing it only after
+	// watches are present) the git watcher emits to it. Closing it only after
 	// the watcher has stopped keeps emit from racing the close.
 	out := make(chan protocol.WorkspaceEvent, 64)
 	unregister := s.wsHub.register(out)
 
-	var watcher *fileWatcher
-	if len(targets) > 0 {
-		watcher, err = startFileWatcher(targets, func(ev protocol.WorkspaceEvent) {
+	var watcher *gitWatcher
+	if len(gitDirs) > 0 {
+		watcher, err = startGitWatcher(gitDirs, func(ev protocol.WorkspaceEvent) {
 			select {
 			case out <- ev: // lossy: a slow subscriber drops the event (re-fetch on next change)
 			default:
@@ -97,7 +95,7 @@ func (s *Server) WorkspaceSubscribe(ctx context.Context, in protocol.WorkspaceSu
 		if err != nil {
 			unregister()
 			close(out)
-			return nil, nil, fmt.Errorf("workspace.subscribe: start file watcher: %w", err)
+			return nil, nil, fmt.Errorf("workspace.subscribe: start git watcher: %w", err)
 		}
 	}
 
@@ -111,15 +109,17 @@ func (s *Server) WorkspaceSubscribe(ctx context.Context, in protocol.WorkspaceSu
 	return &protocol.WorkspaceSubscribeResponse{}, out, nil
 }
 
-// resolveWatches validates + resolves each watch spec onto an absolute, jailed
-// directory to watch. A watch path is relative to its cwd (default the serve
-// dir) and confined to it (path_outside_root on escape); empty path watches the
-// cwd root. The target must be an existing directory (fsnotify watches dirs).
-func (s *Server) resolveWatches(specs []protocol.WatchSpec) ([]watchTarget, error) {
+// resolveWatchGitDirs validates each watch spec and resolves the DISTINCT .git
+// directories to monitor. A watch's cwd defaults to the serve directory; a
+// non-repo cwd contributes no git dir (its watch is inert — getDiff would
+// report vcs_unavailable too). Returns invalid_params for a watch missing its
+// id or an unresolvable cwd.
+func (s *Server) resolveWatchGitDirs(specs []protocol.WatchSpec) ([]string, error) {
 	if len(specs) == 0 {
 		return nil, nil
 	}
-	targets := make([]watchTarget, 0, len(specs))
+	seen := map[string]struct{}{}
+	var gitDirs []string
 	for _, spec := range specs {
 		if spec.WatchID == "" {
 			return nil, fmt.Errorf("%w: watchId is required", protocol.ErrInvalidParams)
@@ -128,25 +128,17 @@ func (s *Server) resolveWatches(specs []protocol.WatchSpec) ([]watchTarget, erro
 		if err != nil {
 			return nil, err
 		}
-		abs := root
-		if spec.Path != "" {
-			rel, rerr := resolveInRoot(root, spec.Path)
-			if rerr != nil {
-				return nil, rerr
-			}
-			abs = filepath.Join(root, rel)
+		g, ok := gitDirOf(root)
+		if !ok {
+			continue // not a repo → nothing to watch for this cwd
 		}
-		if info, err := os.Stat(abs); err != nil || !info.IsDir() {
-			return nil, fmt.Errorf("%w: watch path %q is not a directory", protocol.ErrInvalidParams, spec.Path)
+		if _, dup := seen[g]; dup {
+			continue
 		}
-		targets = append(targets, watchTarget{
-			watchID: spec.WatchID,
-			cwdRoot: root,
-			absPath: abs,
-			ignore:  git.LoadIgnore(root), // skip the cwd's gitignored subtrees + file events
-		})
+		seen[g] = struct{}{}
+		gitDirs = append(gitDirs, g)
 	}
-	return targets, nil
+	return gitDirs, nil
 }
 
 // PublishWorkspaceEvent fans one workspace event out to subscribers. The
@@ -157,4 +149,44 @@ func (s *Server) PublishWorkspaceEvent(ev protocol.WorkspaceEvent) {
 	if s.wsHub != nil {
 		s.wsHub.publish(ev)
 	}
+}
+
+// sessionCwd resolves a session's working directory (empty on any error) — used
+// to scope tool-derived files.changed events.
+func (s *Server) sessionCwd(ctx context.Context, sessionID string) string {
+	sess, err := s.rt.Session().Get(ctx, sessionID)
+	if err != nil {
+		return ""
+	}
+	return sess.Cwd
+}
+
+// fileMutatingTools are the agent tools whose completed call means a specific
+// file changed — their path argument names it exactly, so a workspace
+// subscriber can refresh without watching the working tree. bash is excluded
+// (its file effects aren't knowable from arguments); git-affecting commands
+// surface via the .git watch instead.
+var fileMutatingTools = map[string]struct{}{"write": {}, "edit": {}}
+
+// emitToolFileChange publishes a files.changed for a completed, successful
+// file-mutating tool call, scoped to the session cwd (paths are relative to it).
+// No-op for any other event. This is the precise, fd-free half of the watch
+// model: the agent's own edits are known here exactly, so the git watcher only
+// needs to cover out-of-band (git) state changes.
+func (s *Server) emitToolFileChange(cwd string, se protocol.StreamEvent) {
+	if se.Type != protocol.StreamItemCompleted || se.Item == nil {
+		return
+	}
+	it := se.Item
+	if it.Type != protocol.ItemTypeToolCall || it.Status != protocol.ItemStatusCompleted || it.Error != nil || it.Tool == nil {
+		return
+	}
+	if _, ok := fileMutatingTools[it.Tool.Name]; !ok {
+		return
+	}
+	path, _ := it.Tool.Arguments["path"].(string)
+	if path == "" {
+		return
+	}
+	s.PublishWorkspaceEvent(protocol.WorkspaceEvent{Type: "files.changed", Cwd: cwd, Paths: []string{path}})
 }
