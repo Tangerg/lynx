@@ -73,6 +73,7 @@ export type ServerFeature =
   | "checkpoints"
   | "git"
   | "fileWatch"
+  | "lsp"
   | "subagents"
   | "skills"
   | "mcp"

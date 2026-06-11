@@ -26,6 +26,7 @@ import {
   flattenText,
   writeToClipboard,
 } from "@/lib/agent/messageContent";
+import { useRuntimeStore } from "@/state/runtimeStore";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -41,6 +42,9 @@ export function MessageContextMenu({ msg, children }: Props) {
   const isUser = msg.role === "user";
   const isAssistant = msg.role === "assistant";
   const canCopy = Boolean(markdown || plain);
+  // getState, not a subscription (see header comment) — capabilities are
+  // handshake-time stable and messages can't exist before the handshake.
+  const canRestoreFiles = useRuntimeStore.getState().capabilities?.features.checkpoints === true;
 
   return (
     <ContextMenu.Root>
@@ -90,6 +94,16 @@ export function MessageContextMenu({ msg, children }: Props) {
                   Edit & rerun from here
                 </Item>
               )}
+              {/* Same rewind, but also restores the working tree to the
+                  pre-turn shadow-git checkpoint (restoreType:"both"). */}
+              {msg.runId && canRestoreFiles && (
+                <Item
+                  icon="history"
+                  onSelect={() => editAndRerunMessage(msg, { restoreFiles: true })}
+                >
+                  Edit & rerun, restore files
+                </Item>
+              )}
               {/* Non-destructive sibling of Edit & rerun: branch a new
                   session that keeps history through this exchange. */}
               {msg.runId && (
@@ -105,6 +119,14 @@ export function MessageContextMenu({ msg, children }: Props) {
               <Item icon="loop" onSelect={() => regenerateMessage(msg)}>
                 Regenerate
               </Item>
+              {canRestoreFiles && (
+                <Item
+                  icon="history"
+                  onSelect={() => regenerateMessage(msg, { restoreFiles: true })}
+                >
+                  Regenerate, restore files
+                </Item>
+              )}
             </>
           )}
         </ContextMenu.Content>
@@ -118,7 +140,7 @@ function Item({
   onSelect,
   children,
 }: {
-  icon: "copy" | "code" | "edit" | "loop" | "branch";
+  icon: "copy" | "code" | "edit" | "loop" | "branch" | "history";
   onSelect: () => void;
   children: ReactNode;
 }) {

@@ -1,16 +1,16 @@
-// Built-in plugin: export the current conversation.
+// Built-in plugin: export / import the current conversation.
 //
-// Two command-palette entries — "Export conversation as Markdown" and
-// "... as JSON". No new UI surface; lives on the Cmd+K palette so it
-// stays out of the way until needed.
+// Command-palette entries only — "Export conversation as Markdown",
+// "... as JSON", and "Import conversation from JSON". No new UI
+// surface; lives on the Cmd+K palette so it stays out of the way.
 //
 // Source of truth: when the runtime advertises features.sessionExport,
 // export goes through `sessions.export` — the SERVER-authoritative dump
-// (full run structure + raw Items) delivered over the transport file
-// channel (a short-lived download URL; content never rides the JSON-RPC
-// envelope, API.md §7.2). The local view-state render below is the
-// FALLBACK for runtimes without the feature — it's lossy by design
-// (only what the fold projected into messages).
+// returned INLINE (API.md §7.2: `markdown` transcript or a round-trippable
+// `artifact` that `sessions.import` restores under its original id). The
+// local view-state render below is the FALLBACK for runtimes without the
+// feature — it's lossy by design (only what the fold projected into
+// messages) and NOT importable.
 //
 // Cherry Studio supports nine export targets (Markdown, DOCX, Notion,
 // Obsidian, etc.); we ship the two formats that cover ~90% of "save
@@ -18,14 +18,17 @@
 // into-docs, and structured JSON for replay / re-import / archive.
 
 import type { Message } from "@/protocol/run/viewState";
+import type { SessionArtifact } from "@/rpc";
+import { toast } from "sonner";
+import { z } from "zod";
 import { asSessionId } from "@/rpc";
 import { definePlugin } from "@/plugins/sdk";
-import { getConfig } from "@/plugins/sdk/config";
 import { getContainer } from "@/main/container";
-import { RUNTIME_BASE } from "@/main/config";
-import { getCurrentSessionView } from "@/state/agentStore";
+import { getCurrentSessionView, useAgentStore } from "@/state/agentStore";
 import { useRuntimeStore } from "@/state/runtimeStore";
 import { useSessionStore } from "@/state/sessionStore";
+import { SESSIONS_KEY } from "@/lib/data/queries";
+import { queryClient as appQueryClient } from "@/lib/data/queryClient";
 import { flattenMarkdown } from "@/lib/agent/messageContent";
 
 function timestampForFilename(): string {
@@ -57,31 +60,29 @@ function renderMessageMarkdown(msg: Message): string {
   return `## ${headerName} · ${msg.time}\n\n${body}\n`;
 }
 
-// The export URL is transport-relative on HTTP ("/v2/files/..."-style local
-// gated path) but may be absolute (file:// on InProcess/IPC) — resolve
-// against the live api.baseUrl only when it's relative.
-function resolveExportUrl(url: string): string {
-  if (/^[a-z][a-z0-9+.-]*:/i.test(url)) return url; // already absolute (http/file/…)
-  const base = (getConfig<string>("api.baseUrl") ?? RUNTIME_BASE).replace(/\/$/, "");
-  return url.startsWith("/") ? base + url : `${base}/${url}`;
-}
-
-/** Server-authoritative export. Returns false when the runtime doesn't
- *  advertise the feature or the call fails — callers fall back to the
- *  local render so the command never dead-ends. */
+/** Server-authoritative export (inline payload). Returns false when the
+ *  runtime doesn't advertise the feature or the call fails — callers fall
+ *  back to the local render so the command never dead-ends. */
 async function exportServer(format: "md" | "json"): Promise<boolean> {
   const sid = useSessionStore.getState().activeSessionId;
   if (!sid) return false;
   if (useRuntimeStore.getState().capabilities?.features.sessionExport !== true) return false;
   try {
-    const { url } = await getContainer().client().sessions.export(asSessionId(sid), format);
-    const a = document.createElement("a");
-    a.href = resolveExportUrl(url);
-    a.download = ""; // filename comes from the server's Content-Disposition
-    document.body.append(a);
-    a.click();
-    a.remove();
-    return true;
+    const resp = await getContainer().client().sessions.export(asSessionId(sid), format);
+    const stamp = timestampForFilename();
+    if (resp.format === "md" && resp.markdown !== undefined) {
+      downloadBlob(`lyra-${sid}-${stamp}.md`, resp.markdown, "text/markdown;charset=utf-8");
+      return true;
+    }
+    if (resp.format === "json" && resp.artifact) {
+      downloadBlob(
+        `lyra-${sid}-${stamp}.json`,
+        JSON.stringify(resp.artifact, null, 2),
+        "application/json;charset=utf-8",
+      );
+      return true;
+    }
+    return false;
   } catch (err) {
     console.warn("[export] sessions.export failed — falling back to local render:", err);
     return false;
@@ -128,6 +129,82 @@ function exportJson(): void {
   );
 }
 
+// Trust-boundary envelope check for a user-picked file (CLAUDE.md §3): just
+// enough to tell a SessionArtifact apart from a local-fallback export or a
+// random JSON, with a friendly error instead of a server invalid_params.
+// The server remains the authority on the full shape.
+const artifactEnvelope = z.looseObject({
+  version: z.literal(1),
+  session: z.looseObject({ id: z.string().min(1) }),
+  messages: z.array(z.unknown()),
+  runs: z.array(z.unknown()),
+  items: z.array(z.unknown()),
+});
+
+function pickFile(): Promise<string | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "application/json,.json";
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return resolve(null);
+      void file.text().then(resolve, () => resolve(null));
+    };
+    // WebKit fires no event on a cancelled picker; the promise just stays
+    // pending and the detached input is GC'd — harmless for a command.
+    input.click();
+  });
+}
+
+/** sessions.import — restore semantics: the session reappears under its
+ *  original id (overwriting any current history), so after importing a
+ *  session that's currently mounted we rebuild its view from the server. */
+async function importConversation(): Promise<void> {
+  if (useRuntimeStore.getState().capabilities?.features.sessionExport !== true) {
+    toast.error("This runtime doesn't support session import.");
+    return;
+  }
+  const text = await pickFile();
+  if (text === null) return;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    toast.error("Not a JSON file.");
+    return;
+  }
+  const parsed = artifactEnvelope.safeParse(raw);
+  if (!parsed.success) {
+    toast.error("Not a Lyra session export — pick a JSON exported via “Export conversation”.");
+    return;
+  }
+  try {
+    const client = getContainer().client();
+    const { session } = await client.sessions.import(parsed.data as unknown as SessionArtifact);
+    // Imported over a session that's currently mounted → its view is stale.
+    // resetView only clears (no auto re-hydration), so rebuild from the
+    // restored server history, same as the rollback flow in messageActions.
+    const store = useAgentStore.getState();
+    if (store.sessions[session.id]) {
+      store.resetView(session.id);
+      const resp = await client.items.list({ sessionId: asSessionId(session.id) });
+      if (resp.data.length > 0) {
+        store.applyEvents(
+          session.id,
+          resp.data.map((item) => ({ type: "item.completed" as const, item })),
+        );
+      }
+    }
+    useSessionStore.getState().selectTab(session.id);
+    void appQueryClient.invalidateQueries({ queryKey: [SESSIONS_KEY] });
+    toast.success(`Imported “${session.title ?? session.id}”.`);
+  } catch (err) {
+    console.error("[import] sessions.import failed:", err);
+    toast.error("Couldn't import the conversation.");
+  }
+}
+
 export default definePlugin({
   name: "lyra.builtin.conversation-export",
   version: "1.0.0",
@@ -151,6 +228,14 @@ export default definePlugin({
       run: async () => {
         if (!(await exportServer("json"))) exportJson();
       },
+    });
+    host.commands.register({
+      id: "chat.import.json",
+      label: "Import conversation from JSON",
+      icon: "history",
+      group: "Chat",
+      keywords: ["restore", "load", "import"],
+      run: () => importConversation(),
     });
   },
 });

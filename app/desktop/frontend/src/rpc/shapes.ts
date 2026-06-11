@@ -29,7 +29,8 @@ export interface ServerFeatures {
   multimodal: boolean;
   git: boolean; // git binary on PATH — gates workspace.getDiff/listFileChanges (AUX_API §1)
   fileWatch: boolean; // workspace.subscribe `watches` (git-state watch) available (AUX_API §3.1)
-  checkpoints: boolean; // [v2] gates restoreType (file snapshots) — AUX_API §4.3
+  checkpoints: boolean; // sessions.rollback{restoreType:files|both} — shadow-git file restore (AUX_API §4.3)
+  lsp: boolean; // code-intelligence tool set (lsp_*) + post-edit auto typecheck; tools render as ordinary toolCalls
   subagents: boolean;
   skills: boolean;
   sessionExport: boolean;
@@ -136,11 +137,18 @@ export interface ForkSessionRequest {
 // `toRunId` is INCLUSIVE-KEEP: the last ROOT run to keep (its continuation
 // chain stays); everything after is destroyed (items, open interrupts,
 // spawned subagent sub-sessions). Omitted = drop all runs (empty session).
-// Files are NOT touched (v1 has no snapshots) — UI checks getDiff.
 // Rejected with `session_busy` while a run is in flight.
+//
+// `restoreType` (default "history", gated features.checkpoints): "files"
+// restores the working tree to toRunId's shadow-git snapshot (history kept),
+// "both" does files-then-history ATOMICALLY — on snapshot failure the whole
+// call fails with `checkpoint_unavailable`, history untouched, never a silent
+// history-only degrade. files/both REQUIRE toRunId (else invalid_params).
+// Plain "history" never touches files — UI checks getDiff.
 export interface RollbackSessionRequest {
   sessionId: SessionId;
   toRunId?: RunId;
+  restoreType?: "history" | "files" | "both";
 }
 
 // A run destroyed by rollback. `userInput` is the opening userMessage's
@@ -161,11 +169,31 @@ export interface ExportSessionRequest {
   format?: "md" | "json";
 }
 
-// sessions.export — export file goes through the transport file channel,
-// not inlined into the JSON-RPC envelope.
+// sessions.export — INLINE payload (API.md §7.2): the runtime is a local
+// loopback process, so there's no giant-payload concern and no download
+// endpoint. format "json" → `artifact` (round-trippable via sessions.import);
+// format "md" → `markdown` (human transcript, NOT importable).
 export interface ExportSessionResponse {
-  url: string;
-  expiresAt: string;
+  format: "md" | "json";
+  artifact?: SessionArtifact;
+  markdown?: string;
+}
+
+// Round-trippable session bundle (sessions.export format:"json" →
+// sessions.import). `messages` is the provider chat-message blob — opaque
+// to the client, carried verbatim.
+export interface SessionArtifact {
+  version: number; // artifact schema version (currently 1); import rejects unknown
+  session: Session;
+  messages: unknown[];
+  runs: { runId: string; updatedAt: string; mark: number; run: RunRef }[];
+  items: { runId: string; itemId: string; createdAt: string; item: Item }[];
+}
+
+// sessions.import — RESTORE semantics: rebuilds the session under the
+// artifact's ORIGINAL id (overwriting if it exists), idempotent by-id upsert.
+export interface ImportSessionResponse {
+  session: Session;
 }
 
 // ---------------------------------------------------------------------------

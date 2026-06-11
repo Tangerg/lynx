@@ -27,7 +27,16 @@ function prefillComposer(text: string): void {
 // run's id, or nothing when it was the first), then rebuild the view from
 // the truncated server history. resetView (not resetSession) keeps the
 // mounted session's send/resume bindings alive — no remount needed.
-async function rollbackToBefore(sessionId: string, runId: string): Promise<boolean> {
+//
+// `restoreFiles` upgrades the rollback to restoreType:"both" (atomic file +
+// history restore to the kept run's shadow-git snapshot, features.checkpoints).
+// Rolling back before the FIRST run has no kept run to snapshot from —
+// files/both require toRunId — so that case degrades to history-only, loudly.
+async function rollbackToBefore(
+  sessionId: string,
+  runId: string,
+  restoreFiles = false,
+): Promise<boolean> {
   const client = getContainer().client();
   const sid = asSessionId(sessionId);
   const { runs } = await client.items.list({ sessionId: sid });
@@ -35,7 +44,14 @@ async function rollbackToBefore(sessionId: string, runId: string): Promise<boole
   const idx = roots.findIndex((r) => r.id === runId);
   if (idx < 0) return false;
   const keep = idx > 0 ? roots[idx - 1]!.id : undefined;
-  await client.sessions.rollback({ sessionId: sid, ...(keep ? { toRunId: asRunId(keep) } : {}) });
+  if (restoreFiles && !keep) {
+    toast.info("No checkpoint before the first turn — files left as they are.");
+  }
+  await client.sessions.rollback({
+    sessionId: sid,
+    ...(keep ? { toRunId: asRunId(keep) } : {}),
+    ...(restoreFiles && keep ? { restoreType: "both" as const } : {}),
+  });
   const store = useAgentStore.getState();
   store.resetView(sessionId);
   const resp = await client.items.list({ sessionId: sid });
@@ -53,8 +69,20 @@ function reportRollbackError(err: unknown): void {
     toast.error("Session is busy — wait for the current run to finish.");
     return;
   }
+  // restoreType:"both" is atomic — on a missing snapshot the WHOLE call
+  // fails and history is untouched, so this is a clean no-op to report.
+  if (isErrorType(err, "checkpoint_unavailable")) {
+    toast.error("No file checkpoint for that turn — nothing was changed.");
+    return;
+  }
   console.error("[message] rollback failed:", err);
   toast.error("Couldn't rewind the conversation.");
+}
+
+export interface RollbackActionOptions {
+  /** Also restore the working tree to the pre-turn checkpoint
+   *  (restoreType:"both", gated features.checkpoints). */
+  restoreFiles?: boolean;
 }
 
 // Regenerate the answer to the most recent user prompt before the given
@@ -62,7 +90,7 @@ function reportRollbackError(err: unknown): void {
 // (sessions.rollback) and resend it — the old answer is gone, not appended
 // to. Messages that never reconciled to a server run (no runId) fall back
 // to plain resend (a fresh turn below the old one).
-export function regenerateMessage(msg: Message): void {
+export function regenerateMessage(msg: Message, opts?: RollbackActionOptions): void {
   const sid = useSessionStore.getState().activeSessionId;
   const send = useAgentStore.getState().sessions[sid]?.send;
   if (!send) return;
@@ -78,7 +106,7 @@ export function regenerateMessage(msg: Message): void {
       send(text);
       return;
     }
-    void rollbackToBefore(sid, m.runId)
+    void rollbackToBefore(sid, m.runId, opts?.restoreFiles)
       .then((ok) => {
         // Re-read send at resolve time — resetView kept the binding, but the
         // tab could have been torn down while the rollback was in flight.
@@ -104,7 +132,7 @@ export function editMessageInComposer(msg: Message): void {
 // message (and everything after it) is gone from history — sending writes
 // the corrected turn in its place. Falls back to the non-destructive
 // composer prefill when the message never reconciled to a run.
-export function editAndRerunMessage(msg: Message): void {
+export function editAndRerunMessage(msg: Message, opts?: RollbackActionOptions): void {
   const sid = useSessionStore.getState().activeSessionId;
   const text = flattenText(msg.blocks);
   if (!sid || !text) return;
@@ -112,7 +140,7 @@ export function editAndRerunMessage(msg: Message): void {
     prefillComposer(text);
     return;
   }
-  void rollbackToBefore(sid, msg.runId)
+  void rollbackToBefore(sid, msg.runId, opts?.restoreFiles)
     // Run unknown to the server (ok=false) still prefills — the user can at
     // least resend; only a hard failure (busy / transport) aborts with a toast.
     .then(() => prefillComposer(text))

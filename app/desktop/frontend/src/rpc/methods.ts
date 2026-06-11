@@ -24,6 +24,7 @@ import type {
   FileHead,
   ForkSessionRequest,
   GrepResult,
+  ImportSessionResponse,
   InitializeRequest,
   InitializeResponse,
   InvokeToolRequest,
@@ -46,6 +47,7 @@ import type {
   RunEvent,
   RunRef,
   Session,
+  SessionArtifact,
   ShutdownRequest,
   Skill,
   StartRunRequest,
@@ -97,9 +99,12 @@ export interface Methods {
     delete: (sessionId: SessionId) => Promise<void>;
     fork: (params: ForkSessionRequest) => Promise<Session>;
     // Turn-granular history truncation (AUX_API §4.1). Rejected with
-    // session_busy while a run is in flight; never touches files.
+    // session_busy while a run is in flight. restoreType files|both also
+    // restores the working tree (gated features.checkpoints).
     rollback: (params: RollbackSessionRequest) => Promise<RollbackSessionResponse>;
     export: (sessionId: SessionId, format?: "md" | "json") => Promise<ExportSessionResponse>;
+    // Restore semantics — rebuilds under the artifact's original id (idempotent).
+    import: (artifact: SessionArtifact) => Promise<ImportSessionResponse>;
   };
   runs: {
     start: (
@@ -204,6 +209,7 @@ export function createMethods(client: RpcClient): Methods {
       rollback: (params) => client.call<RollbackSessionResponse>("sessions.rollback", params),
       export: (sessionId, format) =>
         client.call<ExportSessionResponse>("sessions.export", { sessionId, format }),
+      import: (artifact) => client.call<ImportSessionResponse>("sessions.import", { artifact }),
     },
     runs: {
       start: async (params, signal) => {
