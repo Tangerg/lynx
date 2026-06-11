@@ -11,6 +11,7 @@ import type { RunDigest } from "@/protocol/run/runDigest";
 import { useMemo, useState } from "react";
 import { EmptyState, Icon, IconButton } from "@/components/common";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
+import { copyText } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { buildPlaintext, deriveLatestRun, durationText } from "@/protocol/run/runDigest";
@@ -87,12 +88,9 @@ function RunSummaryTab() {
     : "";
 
   const onCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(buildPlaintext(digest));
+    if (await copyText(buildPlaintext(digest))) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // Clipboard can fail in non-secure contexts; silently ignore.
     }
   };
 

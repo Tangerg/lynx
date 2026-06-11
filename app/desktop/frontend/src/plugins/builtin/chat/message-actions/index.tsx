@@ -9,12 +9,8 @@ import { useState } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Icon, MENU_CONTENT_CLASSES, Tooltip } from "@/components/common";
 import { editMessageInComposer, regenerateMessage } from "@/lib/agent/messageActions";
-import {
-  flattenCode,
-  flattenMarkdown,
-  flattenText,
-  writeToClipboard,
-} from "@/lib/agent/messageContent";
+import { flattenCode, flattenMarkdown, flattenText } from "@/lib/agent/messageContent";
+import { writeToClipboard } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
 import { getContainer } from "@/main/container";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";

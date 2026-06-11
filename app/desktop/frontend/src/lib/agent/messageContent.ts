@@ -6,7 +6,6 @@
 // it — the underscore-prefixed plugin-internal location was the wrong
 // home.
 
-import { toast } from "sonner";
 import type { Message } from "@/protocol/run/viewState";
 
 /**
@@ -58,28 +57,4 @@ export function flattenCode(blocks: Message["blocks"]): string {
     if (b.kind === "code" && b.text) out.push(b.text);
   }
   return out.join("\n\n");
-}
-
-/**
- * Async clipboard write, silent on permission failures so an unfocused
- * window or sandbox doesn't blow up the calling action. Pass
- * `successLabel` to surface a sonner success toast — the default is
- * silent so the helper stays usable from non-UI contexts (tests, batch
- * exports, etc).
- */
-export async function writeToClipboard(
-  text: string,
-  options?: { successLabel?: string },
-): Promise<boolean> {
-  if (!text || typeof navigator === "undefined" || !navigator.clipboard) return false;
-  try {
-    await navigator.clipboard.writeText(text);
-    // sonner is already in the main chunk (PluginToaster mounts it), so a
-    // dynamic import here buys no code-splitting — just dispatch into the
-    // existing instance.
-    if (options?.successLabel) toast.success(options.successLabel);
-    return true;
-  } catch {
-    return false;
-  }
 }

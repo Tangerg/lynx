@@ -20,12 +20,8 @@ import {
   forkFromMessage,
   regenerateMessage,
 } from "@/lib/agent/messageActions";
-import {
-  flattenCode,
-  flattenMarkdown,
-  flattenText,
-  writeToClipboard,
-} from "@/lib/agent/messageContent";
+import { flattenCode, flattenMarkdown, flattenText } from "@/lib/agent/messageContent";
+import { writeToClipboard } from "@/lib/clipboard";
 import { serverFeature } from "@/state/runtimeStore";
 import { cn } from "@/lib/utils";
 
