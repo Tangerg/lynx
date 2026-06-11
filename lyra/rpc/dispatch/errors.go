@@ -32,6 +32,7 @@ var sentinelToCode = map[error]int{
 	protocol.ErrInterruptNotOpen:       protocol.CodeInterruptNotOpen,
 	protocol.ErrIdempotencyConflict:    protocol.CodeIdempotencyConflict,
 	protocol.ErrInvalidProtocolVersion: protocol.CodeInvalidProtocolVersion,
+	protocol.ErrVcsUnavailable:         protocol.CodeVcsUnavailable,
 }
 
 // errorToRPC maps a Go error returned from Runtime into a JSON-RPC
