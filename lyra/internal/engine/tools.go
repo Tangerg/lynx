@@ -44,6 +44,13 @@ const cwdBindingKey = "lyra:cwd"
 // it back and yields an empty tool set, so the turn is a plain LLM exchange.
 const chatModeBindingKey = "lyra:chat-mode"
 
+// sessionBindingKey is the blackboard key the chat action binds (protected)
+// with the turn's session id, so the read/edit guards ([readTracker]) can key
+// file-read state per session — read in the same seam as the working directory
+// (see turnSession / [cwdBindingKey]). Protected so it rides to `task`
+// sub-agents and survives the snapshot/resume round trip.
+const sessionBindingKey = "lyra:session"
+
 // buildWorkdirTools instantiates the working-directory-bound coding tools —
 // the five filesystem tools and bash, all anchored at workdir. These are the
 // only tools whose behavior depends on the working directory, so they are
@@ -53,14 +60,17 @@ const chatModeBindingKey = "lyra:chat-mode"
 // write and edit are wrapped so a successful edit is type-checked by the
 // language server and any new problems are folded into the tool result (see
 // withEditDiagnostics). lspMgr may be nil — the wrap is then a no-op.
-func buildWorkdirTools(workdir string, lspMgr *lsp.Manager) []chat.Tool {
+func buildWorkdirTools(workdir string, lspMgr *lsp.Manager, tracker *readTracker) []chat.Tool {
 	fsExec := fs.NewLocalExecutor(workdir)
 	bashExec := bash.NewLocalExecutor()
 	bashExec.Dir = workdir
 	return []chat.Tool{
-		fs.NewReadTool(fsExec),
-		withEditDiagnostics(fs.NewWriteTool(fsExec), lspMgr, workdir),
-		withEditDiagnostics(fs.NewEditTool(fsExec), lspMgr, workdir),
+		withReadTracking(fs.NewReadTool(fsExec), tracker, workdir),
+		// write/edit: the LSP diagnostics wrap is inner (runs on the applied
+		// change); the read guard is outer (gates before the change, refreshes
+		// the read stamp after).
+		withWriteGuard(withEditDiagnostics(fs.NewWriteTool(fsExec), lspMgr, workdir), tracker, workdir),
+		withEditGuard(withEditDiagnostics(fs.NewEditTool(fsExec), lspMgr, workdir), tracker, workdir),
 		fs.NewGlobTool(fsExec),
 		fs.NewGrepTool(fsExec),
 		bash.NewTool(bashExec),
@@ -148,6 +158,7 @@ type cwdToolResolver struct {
 	a2a             []chat.Tool // working-directory-independent remote A2A agents
 	lsp             []chat.Tool  // code-intelligence tools; cwd read per-call (manager keys servers by root)
 	lspManager      *lsp.Manager // backs the write/edit diagnostics wrap (rebuilt per resolution with the turn's cwd)
+	readTracker     *readTracker // backs the read-before-edit + stale guards on read/edit/write
 	task            chat.Tool    // delegation tool; coding role only, nil until set
 
 	// mcp is the working-directory-independent MCP tool set, held behind an
@@ -208,6 +219,22 @@ func turnCwd(ctx context.Context, fallback string) string {
 	return fallback
 }
 
+// turnSession reads the session id the chat action seeded on the blackboard
+// ([sessionBindingKey]), empty when the turn carried none (a sessionless smoke
+// run). The read/edit guards key per-session file-read state off it.
+func turnSession(ctx context.Context) string {
+	p := core.ProcessFrom(ctx)
+	if p == nil {
+		return ""
+	}
+	if v, ok := p.Blackboard().Get(sessionBindingKey); ok {
+		if id, ok := v.(string); ok {
+			return id
+		}
+	}
+	return ""
+}
+
 // chatModeFrom reports whether the resolving process is a tool-less chat turn
 // (the chat action bound [chatModeBindingKey]). Read off the same blackboard
 // seam as the working directory (see turnCwd).
@@ -243,7 +270,7 @@ func (g *cwdToolGroup) Tools(ctx context.Context) ([]core.AgentTool, error) {
 		return nil, nil
 	}
 	workdir := g.resolver.workdirFor(ctx)
-	tools := buildWorkdirTools(workdir, g.resolver.lspManager)
+	tools := buildWorkdirTools(workdir, g.resolver.lspManager, g.resolver.readTracker)
 	tools = append(tools, g.resolver.online...)
 	tools = append(tools, g.resolver.mcpTools()...)
 	tools = append(tools, g.resolver.a2a...)

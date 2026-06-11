@@ -20,6 +20,11 @@ type chatInput struct {
 	// it. Empty falls back to the engine's default workdir.
 	Cwd string
 
+	// SessionID anchors the turn to its session; the chat action binds it
+	// protected so the read/edit guards can key file-read state per session
+	// (same blackboard seam as Cwd). Empty for a sessionless smoke run.
+	SessionID string
+
 	// MaxBudget caps the total tokens (prompt + completion) the turn
 	// may spend across its tool-loop rounds. 0 means unlimited. When
 	// exceeded the action stops cleanly after the current round —
@@ -107,6 +112,11 @@ func (e *Engine) buildChatAgent() *core.Agent {
 					// sub-agents and survives the typed-action
 					// ClearBlackboard — see cwdToolResolver / cwdBindingKey.
 					pc.Blackboard.BindProtected(cwdBindingKey, in.Cwd)
+				}
+				if in.SessionID != "" {
+					// Protected for the same reasons as cwd — the read/edit
+					// guards read it back via turnSession.
+					pc.Blackboard.BindProtected(sessionBindingKey, in.SessionID)
 				}
 				if in.ChatMode {
 					// Tool-less: cwdToolGroup reads this back and yields no tools.
