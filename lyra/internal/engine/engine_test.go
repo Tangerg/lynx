@@ -616,11 +616,12 @@ func TestEngine_Tools_OfflineOnly(t *testing.T) {
 	}
 
 	tools := eng.Tools()
-	// 6 offline coding tools + 6 always-on LSP tools + the `task` delegation
-	// tool + the ask_user HITL tool. (LSP tools advertise unconditionally; they
-	// return a no-server message at call time when no language server applies.)
-	if len(tools) != 14 {
-		t.Fatalf("tool count = %d, want 14 (6 offline + 6 lsp + task + ask_user)", len(tools))
+	// 6 offline coding tools + 6 always-on LSP tools + 3 background-command
+	// tools + the `task` delegation tool + the ask_user HITL tool. (LSP tools
+	// advertise unconditionally; they return a no-server message at call time
+	// when no language server applies.)
+	if len(tools) != 17 {
+		t.Fatalf("tool count = %d, want 17 (6 offline + 6 lsp + 3 bg + task + ask_user)", len(tools))
 	}
 
 	names := toolNames(tools)
@@ -628,6 +629,7 @@ func TestEngine_Tools_OfflineOnly(t *testing.T) {
 		"read", "write", "edit", "glob", "grep", "bash", "task", "ask_user",
 		"lsp_definition", "lsp_references", "lsp_hover",
 		"lsp_document_symbols", "lsp_diagnostics", "lsp_workspace_symbols",
+		"run_in_background", "bash_output", "kill_shell",
 	} {
 		if !names[want] {
 			t.Errorf("missing tool %q in %v", want, names)
@@ -658,8 +660,8 @@ func TestEngine_Tools_OnlineEnabled(t *testing.T) {
 	}
 
 	tools := eng.Tools()
-	if len(tools) != 17 {
-		t.Fatalf("tool count = %d, want 17 (6 offline + 6 lsp + 3 online + task + ask_user)", len(tools))
+	if len(tools) != 20 {
+		t.Fatalf("tool count = %d, want 20 (6 offline + 6 lsp + 3 bg + 3 online + task + ask_user)", len(tools))
 	}
 	names := toolNames(tools)
 	for _, want := range []string{"web_fetch", "web_search", "http_request"} {
@@ -682,8 +684,8 @@ func TestEngine_Tools_PartialOnline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(eng.Tools()) != 15 {
-		t.Fatalf("tool count = %d, want 15 (6 offline + 6 lsp + jina + task + ask_user)", len(eng.Tools()))
+	if len(eng.Tools()) != 18 {
+		t.Fatalf("tool count = %d, want 18 (6 offline + 6 lsp + 3 bg + jina + task + ask_user)", len(eng.Tools()))
 	}
 }
 

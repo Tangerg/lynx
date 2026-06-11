@@ -77,6 +77,9 @@ type Engine struct {
 	// tools. Servers launch lazily per (workspace root, language) and are shut
 	// down in Close. nil only in a never-constructed engine.
 	lspManager *lsp.Manager
+
+	// bgShells owns the background-command processes; killed in Close.
+	bgShells *bgShellManager
 }
 
 // New constructs an engine. Returns an error when required deps
@@ -144,6 +147,11 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// read/edit/write tools (per-session, in-memory).
 	tracker := newReadTracker()
 
+	// Background-command tools (run_in_background / bash_output / kill_shell)
+	// over one per-engine manager; processes are killed in Close.
+	bgShells := newBgShellManager()
+	bgShellTools := buildBgShellTools(bgShells, cfg.Workdir)
+
 	resolver := &cwdToolResolver{
 		defaultWorkdir:  cfg.Workdir,
 		skillsGlobalDir: cfg.SkillsGlobalDir,
@@ -152,6 +160,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		lsp:             lspTools,
 		lspManager:      lspManager,
 		readTracker:     tracker,
+		bgShell:         bgShellTools,
 	}
 	resolver.setMCPTools(mcpTools) // seed the hot-swappable MCP set (reconnect re-stores it)
 
@@ -204,6 +213,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		toolResolver: resolver,
 		a2aClients:   a2aClients,
 		lspManager:   lspManager,
+		bgShells:     bgShells,
 	}
 
 	// The `task` tool delegates to a fresh sub-agent (declares
@@ -225,6 +235,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	e.tools = append(e.tools, mcpTools...)
 	e.tools = append(e.tools, a2aTools...)
 	e.tools = append(e.tools, lspTools...)
+	e.tools = append(e.tools, bgShellTools...)
 	if skillTool := buildSkillTool(cfg.Workdir, cfg.SkillsGlobalDir); skillTool != nil {
 		e.tools = append(e.tools, skillTool)
 	}
@@ -307,6 +318,10 @@ func (e *Engine) Close() error {
 			errs = append(errs, err)
 		}
 		e.lspManager = nil
+	}
+	if e.bgShells != nil {
+		e.bgShells.killAll()
+		e.bgShells = nil
 	}
 	return errors.Join(errs...)
 }
