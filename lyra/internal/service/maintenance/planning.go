@@ -1,4 +1,4 @@
-package engine
+package maintenance
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// planner is the LLM-produced-plan generator. Distinct from lynx's
+// Planner is the LLM-produced-plan generator. Distinct from lynx's
 // algorithmic planners (GOAP / HTN / utility / reactive): those
 // search a known Action space, this one asks the language model to
 // describe what it intends to do in natural language so the user
@@ -18,27 +18,31 @@ import (
 // middleware so plan generation doesn't pollute the conversation
 // history (the plan itself goes into history only on Approve, when
 // the regular execution path runs).
-type planner struct {
+type Planner struct {
 	client *chat.Client
 }
 
-func newPlanner(client *chat.Client) *planner {
+// NewPlanner builds a Planner over the chat client. A nil client
+// yields a nil Planner — [Planner.Plan] then surfaces a plain error
+// rather than running, so a misconfigured plan-mode turn fails loudly
+// instead of silently skipping review.
+func NewPlanner(client *chat.Client) *Planner {
 	if client == nil {
 		return nil
 	}
-	return &planner{client: client}
+	return &Planner{client: client}
 }
 
 // Plan asks the LLM for a step-by-step plan to handle userMessage,
 // optionally seeded with the system prompt the regular agent would
 // have used (so plan generation sees the same LYRA.md context).
-// Returns the raw markdown — the runtime emits it verbatim as
-// [PlanGenerated.Plan].
+// Returns the raw markdown — the runtime emits it verbatim as the
+// generated plan.
 //
-// Failure propagates: planGate returns the error and the turn
-// fails — a plan-mode turn never silently degrades to unreviewed
-// direct execution.
-func (p *planner) Plan(ctx context.Context, systemPrompt, userMessage string) (string, error) {
+// Failure propagates: the caller's plan gate returns the error and
+// the turn fails — a plan-mode turn never silently degrades to
+// unreviewed direct execution.
+func (p *Planner) Plan(ctx context.Context, systemPrompt, userMessage string) (string, error) {
 	if p == nil {
 		return "", errors.New("planner: chat client missing")
 	}

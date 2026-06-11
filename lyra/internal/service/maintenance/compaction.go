@@ -1,4 +1,4 @@
-package engine
+package maintenance
 
 import (
 	"context"
@@ -10,8 +10,8 @@ import (
 )
 
 // compactionDefaults govern the auto-compact trigger. Tunable via
-// [CompactionConfig] on [Config]; the defaults aim at "comfortably
-// fits in 128k-context models" without doing per-turn token math.
+// [CompactionConfig]; the defaults aim at "comfortably fits in
+// 128k-context models" without doing per-turn token math.
 const (
 	defaultCompactThreshold  = 24 // total messages before we trigger
 	defaultCompactKeepRecent = 6  // raw messages to preserve verbatim
@@ -30,29 +30,32 @@ type CompactionConfig struct {
 	KeepRecent  int // default: defaultCompactKeepRecent
 }
 
-// CompactionResult reports what a single [Engine.MaybeCompact] sweep
+// CompactionResult reports what a single [Compactor.MaybeCompact] sweep
 // did. Compacted is false (and the counts zero) when the sweep
-// didn't fire — no session, history below threshold, or compaction
-// disabled. The before/after message counts let the caller surface
-// an observable "context compacted (N → M messages)" event instead
-// of silently dropping history.
+// didn't fire — no session, history below threshold, or a nil
+// compactor (compaction disabled). The before/after message counts let
+// the caller surface an observable "context compacted (N → M messages)"
+// event instead of silently dropping history.
 type CompactionResult struct {
 	Compacted      bool
 	MessagesBefore int
 	MessagesAfter  int
 }
 
-// compactor is the engine's auto-compaction worker. Constructed in
-// [New] unless compaction is disabled (negative MaxMessages); a nil
-// compactor makes [Engine.MaybeCompact] a silent no-op.
-type compactor struct {
+// Compactor is the auto-compaction worker. Constructed by the engine
+// unless compaction is disabled (negative MaxMessages); a nil
+// Compactor makes [Compactor.MaybeCompact] a silent no-op.
+type Compactor struct {
 	store      memory.Store
 	client     *chat.Client
 	threshold  int
 	keepRecent int
 }
 
-func newCompactor(store memory.Store, client *chat.Client, cfg CompactionConfig) *compactor {
+// NewCompactor builds a Compactor over the chat-memory store and chat
+// client. Zero / out-of-range config fields fall back to the package
+// defaults.
+func NewCompactor(store memory.Store, client *chat.Client, cfg CompactionConfig) *Compactor {
 	threshold := cfg.MaxMessages
 	if threshold <= 0 {
 		threshold = defaultCompactThreshold
@@ -66,7 +69,7 @@ func newCompactor(store memory.Store, client *chat.Client, cfg CompactionConfig)
 	if keep >= threshold {
 		keep = threshold / 2
 	}
-	return &compactor{
+	return &Compactor{
 		store:      store,
 		client:     client,
 		threshold:  threshold,
@@ -74,18 +77,21 @@ func newCompactor(store memory.Store, client *chat.Client, cfg CompactionConfig)
 	}
 }
 
-// maybeCompact inspects sessionID's history. When the message
+// MaybeCompact inspects sessionID's history. When the message
 // count exceeds the threshold the older slice is summarized and
 // the store is rewritten as [summary, recent...]. The returned
 // [CompactionResult] reports whether the sweep fired and the
 // before/after message counts so callers can both chain follow-on
 // work (e.g. extraction) and surface an observable boundary event.
 //
+// No-op (zero result) on a nil receiver (compaction disabled) or an
+// empty sessionID.
+//
 // Important: the summary call goes through chat.Client directly
 // (no middleware), so it does NOT enter the chat-memory middleware
 // — otherwise the summarisation request itself would be appended
 // to the history and trigger another compaction round.
-func (c *compactor) maybeCompact(ctx context.Context, sessionID string) (CompactionResult, error) {
+func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string) (CompactionResult, error) {
 	if c == nil || sessionID == "" {
 		return CompactionResult{}, nil
 	}
@@ -146,7 +152,7 @@ func (c *compactor) maybeCompact(ctx context.Context, sessionID string) (Compact
 // system message of bullet points. Failure aborts compaction —
 // keeping the existing history is always preferable to losing it
 // behind a bad summary.
-func (c *compactor) summarize(ctx context.Context, msgs []chat.Message) (chat.Message, error) {
+func (c *Compactor) summarize(ctx context.Context, msgs []chat.Message) (chat.Message, error) {
 	transcript := renderTranscript(msgs)
 	const prompt = `You are summarizing the earlier portion of a coding-agent
 conversation that has grown too long to keep verbatim. Produce a
@@ -172,40 +178,4 @@ verbatim as part of its system prompt.`
 
 	body := "[Earlier conversation summary]\n" + strings.TrimSpace(text)
 	return chat.NewSystemMessage(body), nil
-}
-
-// renderTranscript flattens messages into a plain-text role-tagged
-// transcript the summariser can read. Lossy by design — tool-call
-// arguments and parts are flattened to their text bodies; what we
-// need is gist, not fidelity.
-func renderTranscript(msgs []chat.Message) string {
-	var b strings.Builder
-	for _, msg := range msgs {
-		if msg == nil {
-			continue
-		}
-		switch m := msg.(type) {
-		case *chat.SystemMessage:
-			b.WriteString("[system] ")
-			b.WriteString(m.Text)
-		case *chat.UserMessage:
-			b.WriteString("[user] ")
-			b.WriteString(m.Text)
-		case *chat.AssistantMessage:
-			b.WriteString("[assistant] ")
-			b.WriteString(m.JoinedText())
-		case *chat.ToolMessage:
-			b.WriteString("[tool] ")
-			for _, r := range m.ToolReturns {
-				if r != nil {
-					b.WriteString(r.Result)
-					b.WriteString(" ")
-				}
-			}
-		default:
-			b.WriteString(fmt.Sprintf("[%s] (unrecognized)", msg.Type()))
-		}
-		b.WriteString("\n")
-	}
-	return b.String()
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	"github.com/Tangerg/lynx/lyra/internal/lsp"
+	"github.com/Tangerg/lynx/lyra/internal/service/maintenance"
 	lyramem "github.com/Tangerg/lynx/lyra/internal/service/memory"
 	"github.com/Tangerg/lynx/mcp"
 )
@@ -53,9 +54,9 @@ type Config struct {
 	MemoryService lyramem.Service
 
 	// Compaction tunes the auto-compaction heuristic. Zero values
-	// fall back to defaults (see [CompactionConfig]). Setting
-	// MaxMessages negative disables auto-compaction entirely.
-	Compaction CompactionConfig
+	// fall back to defaults (see [maintenance.CompactionConfig]).
+	// Setting MaxMessages negative disables auto-compaction entirely.
+	Compaction maintenance.CompactionConfig
 
 	// MCPServers lists external MCP servers to dial at engine
 	// construction. Their tools are merged into the built-in coding

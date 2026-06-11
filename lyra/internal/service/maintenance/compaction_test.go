@@ -1,62 +1,14 @@
-package engine
+package maintenance
 
 import (
 	"context"
+	"iter"
 	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
-
-	lyramem "github.com/Tangerg/lynx/lyra/internal/service/memory"
 )
-
-// TestComposeSystemPrompt_BaseOnly verifies a nil memory service
-// yields the base prompt verbatim (no markdown headers).
-func TestComposeSystemPrompt_BaseOnly(t *testing.T) {
-	got := composePrompt(context.Background(), nil, "")
-	if !strings.Contains(got, "You are Lyra") {
-		t.Errorf("base prompt missing identity, got %q", got)
-	}
-	if strings.Contains(got, "## User preferences") || strings.Contains(got, "## Project knowledge") {
-		t.Error("nil memory should not produce section headers")
-	}
-}
-
-// TestComposeSystemPrompt_WithMemory verifies the cascade — user
-// then project — appears under stable headers.
-func TestComposeSystemPrompt_WithMemory(t *testing.T) {
-	svc := &stubMemoryService{
-		user:    "prefer terse output",
-		project: "build with `make test`",
-	}
-	got := composePrompt(context.Background(), svc, "")
-	if !strings.Contains(got, "## User preferences") {
-		t.Error("user section missing")
-	}
-	if !strings.Contains(got, "## Project knowledge") {
-		t.Error("project section missing")
-	}
-	// User precedes project.
-	userIdx := strings.Index(got, "## User preferences")
-	projIdx := strings.Index(got, "## Project knowledge")
-	if userIdx > projIdx {
-		t.Error("user section should appear before project section")
-	}
-}
-
-// TestComposeSystemPrompt_SkipsEmptyScopes verifies absent scopes
-// don't produce empty markdown headers.
-func TestComposeSystemPrompt_SkipsEmptyScopes(t *testing.T) {
-	svc := &stubMemoryService{project: "only project"}
-	got := composePrompt(context.Background(), svc, "")
-	if strings.Contains(got, "## User preferences") {
-		t.Error("empty user scope should be skipped")
-	}
-	if !strings.Contains(got, "## Project knowledge") {
-		t.Error("project scope should appear")
-	}
-}
 
 // TestCompactor_NopBelowThreshold doesn't talk to a real LLM —
 // confirms the early-return path when there aren't enough
@@ -68,8 +20,8 @@ func TestCompactor_NopBelowThreshold(t *testing.T) {
 		chat.NewUserMessage("a"),
 		chat.NewAssistantMessage("b"),
 	)
-	c := newCompactor(store, nil /* never called */, CompactionConfig{MaxMessages: 10})
-	res, err := c.maybeCompact(context.Background(), sessID)
+	c := NewCompactor(store, nil /* never called */, CompactionConfig{MaxMessages: 10})
+	res, err := c.MaybeCompact(context.Background(), sessID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,11 +43,10 @@ func TestCompactor_Compacts(t *testing.T) {
 		_ = store.Write(context.Background(), sessID, chat.NewUserMessage("msg"))
 	}
 
-	stub := newStreamingStubModel("BULLETS")
-	client, _ := chat.NewClient(stub)
+	client, _ := chat.NewClient(newTextStubModel("BULLETS"))
 
-	c := newCompactor(store, client, CompactionConfig{MaxMessages: total, KeepRecent: 4})
-	res, err := c.maybeCompact(context.Background(), sessID)
+	c := NewCompactor(store, client, CompactionConfig{MaxMessages: total, KeepRecent: 4})
+	res, err := c.MaybeCompact(context.Background(), sessID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,10 +109,9 @@ func TestCompactor_CutBoundary(t *testing.T) {
 		_ = store.Write(context.Background(), sessID, m)
 	}
 
-	stub := newStreamingStubModel("BULLETS")
-	client, _ := chat.NewClient(stub)
-	c := newCompactor(store, client, CompactionConfig{MaxMessages: 6, KeepRecent: 4})
-	res, err := c.maybeCompact(context.Background(), sessID)
+	client, _ := chat.NewClient(newTextStubModel("BULLETS"))
+	c := NewCompactor(store, client, CompactionConfig{MaxMessages: 6, KeepRecent: 4})
+	res, err := c.MaybeCompact(context.Background(), sessID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,53 +134,33 @@ func TestCompactor_CutBoundary(t *testing.T) {
 // helpers
 // ------------------------------------------------------------------
 
-type stubMemoryService struct {
-	user    string
-	project string
-
-	// projectDir records the dir the last ScopeProject Get received —
-	// the per-session-cwd regression assertions read it.
-	projectDir string
+// textStubModel is a deterministic chat.Model that returns a fixed
+// reply for any prompt — enough to drive the maintenance workers'
+// direct (middleware-free) LLM calls offline.
+type textStubModel struct {
+	reply    string
+	defaults *chat.Options
 }
 
-func (s *stubMemoryService) Get(_ context.Context, scope lyramem.Scope, dir string) (string, error) {
-	if scope == lyramem.ScopeProject {
-		s.projectDir = dir
-	}
-	return s.get(scope)
+func newTextStubModel(reply string) *textStubModel {
+	opts, _ := chat.NewOptions("stub-maintenance")
+	return &textStubModel{reply: reply, defaults: opts}
 }
 
-func (s *stubMemoryService) get(scope lyramem.Scope) (string, error) {
-	switch scope {
-	case lyramem.ScopeUser:
-		return s.user, nil
-	case lyramem.ScopeProject:
-		return s.project, nil
-	}
-	return "", nil
+func (m *textStubModel) DefaultOptions() chat.Options { return *m.defaults }
+func (m *textStubModel) Metadata() chat.ModelMetadata { return chat.ModelMetadata{Provider: "stub"} }
+
+func (m *textStubModel) Call(_ context.Context, _ *chat.Request) (*chat.Response, error) {
+	return chat.NewResponse(
+		&chat.Result{
+			AssistantMessage: chat.NewAssistantMessage(m.reply),
+			Metadata:         &chat.ResultMetadata{FinishReason: chat.FinishReasonStop},
+		},
+		&chat.ResponseMetadata{},
+	)
 }
 
-func (s *stubMemoryService) Update(_ context.Context, scope lyramem.Scope, _ string, content string) error {
-	switch scope {
-	case lyramem.ScopeUser:
-		s.user = content
-	case lyramem.ScopeProject:
-		s.project = content
-	}
-	return nil
-}
-
-func (s *stubMemoryService) List(_ context.Context, _ string) ([]lyramem.Entry, error) {
-	return nil, nil
-}
-
-// TestComposePrompt_ProjectMemoryFollowsCwd — the project scope must
-// read the LYRA.md of the TURN's working directory (the per-session
-// cwd), not a directory fixed at construction time.
-func TestComposePrompt_ProjectMemoryFollowsCwd(t *testing.T) {
-	svc := &stubMemoryService{project: "project body"}
-	composePrompt(context.Background(), svc, "/projects/alpha")
-	if svc.projectDir != "/projects/alpha" {
-		t.Fatalf("project memory read dir = %q, want /projects/alpha", svc.projectDir)
-	}
+func (m *textStubModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
+	resp, err := m.Call(ctx, req)
+	return func(yield func(*chat.Response, error) bool) { yield(resp, err) }
 }
