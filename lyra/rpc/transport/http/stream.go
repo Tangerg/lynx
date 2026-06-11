@@ -6,10 +6,8 @@ import (
 	"time"
 
 	"github.com/Tangerg/sse"
-	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/Tangerg/lynx/lyra/rpc/dispatch"
-	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 	"github.com/Tangerg/lynx/lyra/rpc/transport"
 )
 
@@ -26,7 +24,7 @@ const heartbeatInterval = 15 * time.Second
 // run stream closes (terminal run.finished → the hub closed the channel)
 // or the client disconnects — a disconnect only detaches; the run keeps
 // running server-side and the client resumes via runs.subscribe (§9.2).
-func (s *Server) serveStream(w http.ResponseWriter, r *http.Request, resp *transport.Response, events <-chan protocol.RunEvent, methodLabel string) {
+func (s *Server) serveStream(w http.ResponseWriter, r *http.Request, resp *transport.Response, events <-chan dispatch.StreamFrame, methodLabel string) {
 	// Proxy hints + observability headers before NewHTTPWriter — the
 	// library adds Content-Type: text/event-stream itself and leaves our
 	// stricter Cache-Control intact (it only fills no-cache when unset).
@@ -54,28 +52,15 @@ func (s *Server) serveStream(w http.ResponseWriter, r *http.Request, resp *trans
 
 	for {
 		select {
-		case ev, ok := <-events:
+		case frame, ok := <-events:
 			if !ok {
-				return // terminal run.finished — the hub closed the stream
+				return // stream done — the source closed the channel
 			}
-			notif, err := dispatch.EncodeRunEvent(ev)
-			if err != nil {
-				recordError(ctx, "rpc.encode-run-event", err,
-					attribute.String("run.id", ev.RunID),
-					attribute.String("run.event.id", ev.EventID),
-				)
-				continue
-			}
-			// Only durable frames carry an SSE id: (TRANSPORT §9.3 / API §5.2):
-			// Last-Event-Id must resume from a replayable event, never an
-			// ephemeral delta (which the hub doesn't buffer). Durability is
-			// derived from the event itself (no per-frame bool, S4).
-			sseID := ""
-			if ev.Event.IsDurable() {
-				sseID = ev.EventID
-			}
-			if err := writeSSEMessage(ctx, sw, sseID, notif); err != nil {
-				return // write failed — client gone; run continues server-side
+			// The dispatch already encoded the frame (method + params) and set
+			// its SSE id (durable run events carry one; ephemeral workspace
+			// events don't). The transport just writes it.
+			if err := writeSSEMessage(ctx, sw, frame.SSEID, frame.Notif); err != nil {
+				return // write failed — client gone; the source continues server-side
 			}
 		case <-ticker.C:
 			if err := sw.Comment(ctx, "heartbeat"); err != nil {
