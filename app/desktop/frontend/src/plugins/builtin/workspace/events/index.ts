@@ -26,7 +26,7 @@ import {
 } from "@/lib/data/queries";
 import { getContainer } from "@/main/container";
 import { definePlugin } from "@/plugins/sdk";
-import { useRuntimeStore } from "@/state/runtimeStore";
+import { serverFeature, useRuntimeStore } from "@/state/runtimeStore";
 import { useSessionStore } from "@/state/sessionStore";
 
 const RECONNECT_BASE_MS = 1_000;
@@ -132,7 +132,7 @@ async function subscribeLoop(signal: AbortSignal): Promise<void> {
       // changes arrive as debounced `resync`, the agent's own edits as
       // precise files.changed. Bare subscription (skills/mcp) works
       // regardless of fileWatch; cwd omitted = serve dir.
-      const fileWatch = useRuntimeStore.getState().capabilities?.features.fileWatch === true;
+      const fileWatch = serverFeature("fileWatch");
       const { events } = await getContainer()
         .client()
         .workspace.subscribe(

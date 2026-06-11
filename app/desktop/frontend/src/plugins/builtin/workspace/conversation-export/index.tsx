@@ -25,7 +25,7 @@ import { asSessionId } from "@/rpc";
 import { definePlugin } from "@/plugins/sdk";
 import { getContainer } from "@/main/container";
 import { getCurrentSessionView } from "@/state/agentStore";
-import { useRuntimeStore } from "@/state/runtimeStore";
+import { serverFeature } from "@/state/runtimeStore";
 import { useSessionStore } from "@/state/sessionStore";
 import { SESSIONS_KEY } from "@/lib/data/queries";
 import { queryClient as appQueryClient } from "@/lib/data/queryClient";
@@ -67,7 +67,7 @@ function renderMessageMarkdown(msg: Message): string {
 async function exportServer(format: "md" | "json"): Promise<boolean> {
   const sid = useSessionStore.getState().activeSessionId;
   if (!sid) return false;
-  if (useRuntimeStore.getState().capabilities?.features.sessionExport !== true) return false;
+  if (!serverFeature("sessionExport")) return false;
   try {
     const resp = await getContainer().client().sessions.export(asSessionId(sid), format);
     const stamp = timestampForFilename();
@@ -162,7 +162,7 @@ function pickFile(): Promise<string | null> {
  *  original id (overwriting any current history), so after importing a
  *  session that's currently mounted we rebuild its view from the server. */
 async function importConversation(): Promise<void> {
-  if (useRuntimeStore.getState().capabilities?.features.sessionExport !== true) {
+  if (!serverFeature("sessionExport")) {
     toast.error("This runtime doesn't support session import.");
     return;
   }
