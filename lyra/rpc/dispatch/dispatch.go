@@ -38,12 +38,22 @@ type HandleResult struct {
 	// was a notification (no id, no response on the wire).
 	Response *transport.Response
 
-	// EventStream is the channel of RunEvents for a streaming method,
-	// closed when the run tree ends. The terminal run.finished event
-	// rides this same channel (no separate close notification). Under
-	// streamable HTTP the transport drains it straight into the call's
-	// own text/event-stream response — there is no separate routing key.
-	EventStream <-chan protocol.RunEvent
+	// EventStream is the channel of stream frames for a streaming method,
+	// closed when the stream ends. Frames are domain-agnostic (run events,
+	// workspace events): the dispatch encodes each domain event into a
+	// StreamFrame (method + params + optional SSE id) so the transport stays
+	// dumb — it just writes frames. Under streamable HTTP the transport drains
+	// it straight into the call's own text/event-stream response.
+	EventStream <-chan StreamFrame
+}
+
+// StreamFrame is one ready-to-write downstream notification on a streaming
+// method's event channel. The dispatch produces these from domain events so
+// every transport writes them identically. SSEID drives Last-Event-Id replay;
+// "" marks an ephemeral frame (no replay) — e.g. all workspace events.
+type StreamFrame struct {
+	Notif transport.Message
+	SSEID string
 }
 
 // Handle is the entry point — every inbound transport.Message goes
@@ -196,12 +206,59 @@ func responseError(id transport.ID, rpcErr *transport.Error) HandleResult {
 	return HandleResult{Response: transport.NewResponseError(id, rpcErr)}
 }
 
-// streamingResult attaches the event channel onto the synchronous reply;
+// streamingResult attaches the frame channel onto the synchronous reply;
 // the transport streams it as the call's own response (streamable HTTP).
-func streamingResult(id transport.ID, result any, events <-chan protocol.RunEvent) HandleResult {
+func streamingResult(id transport.ID, result any, events <-chan StreamFrame) HandleResult {
 	res := responseResult(id, result)
 	res.EventStream = events
 	return res
+}
+
+// adaptStream fans a domain event channel into a StreamFrame channel via conv,
+// which encodes each event (returns ok=false to skip an unencodable one). The
+// goroutine exits on ctx cancellation OR when in closes, and never blocks past
+// ctx (leak-safe): the streaming request's ctx ends on client disconnect /
+// completion, which also stops the source.
+func adaptStream[T any](ctx context.Context, in <-chan T, conv func(T) (StreamFrame, bool)) <-chan StreamFrame {
+	out := make(chan StreamFrame)
+	go func() {
+		defer close(out)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case ev, ok := <-in:
+				if !ok {
+					return
+				}
+				frame, ok := conv(ev)
+				if !ok {
+					continue
+				}
+				select {
+				case out <- frame:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+	return out
+}
+
+// runEventToFrame encodes a RunEvent into a notifications.run.event frame.
+// Only durable events carry an SSE id: (TRANSPORT §9.3 / API §5.2) — replay
+// must resume from a replayable event, never an ephemeral delta.
+func runEventToFrame(ev protocol.RunEvent) (StreamFrame, bool) {
+	notif, err := EncodeRunEvent(ev)
+	if err != nil {
+		return StreamFrame{}, false
+	}
+	sseID := ""
+	if ev.Event.IsDurable() {
+		sseID = ev.EventID
+	}
+	return StreamFrame{Notif: notif, SSEID: sseID}, true
 }
 
 func unmarshal(raw json.RawMessage, dst any) error {

@@ -1,6 +1,8 @@
 package dispatch
 
 import (
+	"context"
+
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 	"github.com/Tangerg/lynx/lyra/rpc/transport"
 )
@@ -47,9 +49,9 @@ func replyDone(msg *transport.Request, err error) HandleResult {
 // replyStream maps a streaming method's (result, events, error) tail onto
 // a HandleResult carrying the synchronous reply + its event channel (the
 // transport streams the channel as the call's own response).
-func replyStream[Out any](msg *transport.Request, out Out, events <-chan protocol.RunEvent, err error) HandleResult {
+func replyStream[Out any](ctx context.Context, msg *transport.Request, out Out, events <-chan protocol.RunEvent, err error) HandleResult {
 	if err != nil {
 		return responseError(msg.ID, errorToRPC(err))
 	}
-	return streamingResult(msg.ID, out, events)
+	return streamingResult(msg.ID, out, adaptStream(ctx, events, runEventToFrame))
 }

@@ -103,23 +103,18 @@ func (t *Transport) Send(ctx context.Context, msg transport.Message) error {
 	return nil
 }
 
-// pumpStream drains a run's RunEvent channel and encodes each event as
-// a notifications.run.event message. Each RunEvent already carries its
-// eventId; the terminal run.finished rides this same channel, so
-// channel close just means "stream done". Exits when the channel closes
-// (run ended) or the transport closes.
-func (t *Transport) pumpStream(ctx context.Context, events <-chan protocol.RunEvent) {
+// pumpStream drains a streaming method's frame channel and emits each frame's
+// pre-encoded notification onto Recv. The dispatch already encoded + tagged
+// each frame (run / workspace), so channel close just means "stream done".
+// Exits when the channel closes or the transport closes.
+func (t *Transport) pumpStream(ctx context.Context, events <-chan dispatch.StreamFrame) {
 	for {
 		select {
-		case ev, ok := <-events:
+		case frame, ok := <-events:
 			if !ok {
 				return
 			}
-			notif, err := dispatch.EncodeRunEvent(ev)
-			if err != nil {
-				continue
-			}
-			if !t.tryEmit(notif) {
+			if !t.tryEmit(frame.Notif) {
 				return
 			}
 		case <-ctx.Done():
