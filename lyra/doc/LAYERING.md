@@ -252,3 +252,20 @@ rpc/server ─→ engine, 全部 service, checkpoint(infra), git(infra), sqlite(
 - 端口只在"多实现 / 需测试桩 / 跨边界"处保留;单实现直接具体依赖。
 
 > 维护提示:这是**目标 + 计划**文档。每完成一个批次,回来勾掉对应 §2 问题、更新 §3 映射的落地状态。
+
+---
+
+## 8. 执行状态（2026-06-12）
+
+逐批落地记录。每批一个独立可 revert 的 commit,`go build && vet && test ./...` 全绿后推送。
+
+- ✅ **批次 1 — 领域算法服务化**:`compactor`/`extractor`/`planner` → `internal/service/maintenance`(单包三文件 + 共享 `llm.go`,因三者共享 `askDirect`/`renderTranscript`,§3⑤ 允许的形态)。engine 经 `*maintenance.{Compactor,Extractor,Planner}` 编排。**消除 §2 问题 4**。
+- ✅ **批次 2 — infra 物理归集**:`internal/{storage,git,lsp,checkpoint}` → `internal/infra/{...}`,层次在目录上可见。
+- ✅ **批次 3 — codeintel 服务**:`internal/service/codeintel` 独占 `infra/lsp`,engine 的 `lsp_*` 工具 + 编辑后诊断经 service(`DiagnoseEdit` 闭包封住 baseline-diff)。**消除 §2 问题 2**(engine→lsp 直连)。
+- ✅ **批次 4A — workspace 服务**:`internal/service/workspace` 独占 `infra/git` + `infra/checkpoint`(VCS 读为无状态包函数 + checkpoint 为有状态 `*Service`)。rpc/server + cmd/lyra 不再 import git/checkpoint。**消除 §2 问题 3**(delivery→infra 直连)。
+- ✅ **批次 6 — 命名消歧(改名部分)**:`service/memory`→`service/knowledge`、`service/history`→`service/transcript`(含 sqlite `HistoryStore`→`TranscriptStore`、runtime SPI `History()`→`Transcript()`)。消除 "memory×2 + history" 混指;别名(lyramem/memsvc/...)全删。
+- ⏳ **批次 4B — 工具集装配收敛**:评估后判定低价值、无 layering 收益(各工具构造已按类型内聚在各自文件,装配已集中在 engine.go + cwdToolResolver)——**暂缓**,避免投机性 churn(CLAUDE.md「承认 audit 过度 call 的项」)。
+- ⏳ **批次 6 余下 — conversation 显形**:把 LLM 消息上下文(engine 的 `MemoryStore`/`ReadHistory`/`SeedHistory` 透传)显形为 `service/conversation`,并把 `engine.Config.MemoryStore`/`MemoryService` 字段改名。**暂缓**(纯改名 + 一个新 service 包,待 §2 问题 1 一并处理或单列)。
+- 🚧 **批次 5 — chat/tool 编排归位 engine 层**:**§2 问题 1(核心结点)未消除**——`chat→engine` / `tool→engine` 逆向边仍在。这是计划里唯一**动前需单独签字**的大结构改动(chat 1750L + 契约类型迁移 + rpc 接线,爆炸半径大)。待用户确认 scope 后执行。
+
+**当前依赖图**:§2 的问题 2/3/4 已消除,领域算法 + LSP + workspace 都已沉到 service/infra,delivery 不再碰 infra。**唯一剩余的反向边是 §2 问题 1**(chat/tool 编排在 engine 之上),由批次 5 处理。
