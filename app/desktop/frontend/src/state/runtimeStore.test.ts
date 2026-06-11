@@ -15,6 +15,7 @@ function makeCaps(overrides: Partial<ServerCapabilities> = {}): ServerCapabiliti
       multimodal: false,
       reasoning: true,
       checkpoints: false,
+      git: true,
       subagents: false,
       skills: false,
       mcp: true,

@@ -86,6 +86,7 @@ export type {
   // Diff / search / files
   DiffRow,
   Diff,
+  FileDiff,
   SearchHit,
   WebSearchResult,
   WorkspaceFileChange,

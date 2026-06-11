@@ -10,6 +10,7 @@ import { useDiff, useFileHead, useGrep } from "@/lib/data/queries";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
+import { useServerFeature } from "@/state/runtimeStore";
 
 const MAX_TERM_LINES = 9;
 const MAX_DIFF_ROWS = 8;
@@ -27,22 +28,22 @@ const PREVIEW_WRAP =
 // workspace plugin keeps its own narrower table: it highlights code via shiki
 // instead of carrying a flat `codeTone`, so the two don't share a module.)
 const ROW_STYLE: Record<
-  "add" | "del" | "ctx",
+  "added" | "deleted" | "context",
   { tone: string; meta: string; codeTone: string; sign: string }
 > = {
-  add: {
+  added: {
     tone: "bg-[rgba(30,215,96,0.07)]",
     meta: "text-[rgba(95,227,154,0.7)]",
     codeTone: "text-[#c8f5d8]",
     sign: "+",
   },
-  del: {
+  deleted: {
     tone: "bg-[rgba(243,114,127,0.07)]",
     meta: "text-[rgba(243,114,127,0.7)]",
     codeTone: "text-[#f5cdd2]",
     sign: "−",
   },
-  ctx: { tone: "", meta: "text-fg-faint", codeTone: "text-fg-soft", sign: " " },
+  context: { tone: "", meta: "text-fg-faint", codeTone: "text-fg-soft", sign: " " },
 };
 
 function BashPreview({ tool, onOpenView }: ToolPreviewProps) {
@@ -74,11 +75,19 @@ function BashPreview({ tool, onOpenView }: ToolPreviewProps) {
 }
 
 function DiffPreview({ onOpenView }: ToolPreviewProps) {
-  const { data: rows } = useDiff();
+  // Whole-worktree diff (the tool just edited it); never called without git.
+  const gitEnabled = useServerFeature("git");
+  const { data } = useDiff(gitEnabled ? {} : undefined);
+  // Flatten per-file diffs for the glance view — each file's path becomes a
+  // hunk-style separator row so MAX_DIFF_ROWS stays one simple slice.
+  const rows = (data?.files ?? []).flatMap((f) => [
+    { type: "hunk" as const, text: f.path },
+    ...f.rows,
+  ]);
   return (
     <div className={PREVIEW_WRAP}>
       <div className="font-mono text-[11.5px] leading-[1.55]">
-        {(rows ?? []).slice(0, MAX_DIFF_ROWS).map((row, i) => {
+        {rows.slice(0, MAX_DIFF_ROWS).map((row, i) => {
           if (row.type === "hunk") {
             return (
               <div key={i} className="mx-0 mt-1.5 mb-1 px-1.5 py-1 text-[11px] text-fg-faint">

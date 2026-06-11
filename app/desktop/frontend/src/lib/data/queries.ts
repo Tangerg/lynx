@@ -34,8 +34,9 @@ export interface SidebarProject {
 export interface FileChange {
   path: string;
   change: "add" | "mod" | "del";
-  added: number;
-  removed: number;
+  added?: number; // absent for binary files (never a fabricated 0)
+  removed?: number;
+  binary?: boolean;
 }
 
 export interface MCPServer {
@@ -77,11 +78,31 @@ export interface TermLine {
   text: string;
 }
 
+// workspace.getDiff params + result (AUX_API §2.3) — structured rows only;
+// the raw-patch format is for export flows and gets its own hook when needed.
+export interface DiffQuery {
+  path?: string; // omit = whole working tree
+  mode?: "worktree" | "base"; // default worktree (includes untracked)
+  limit?: number; // row cap; server truncates at file boundaries
+}
 export type DiffRow =
   | { type: "hunk"; text: string }
-  | { type: "ctx"; l: number; r: number; code: string }
-  | { type: "add"; r: number; code: string }
-  | { type: "del"; l: number; code: string };
+  | { type: "context"; leftLine: number; rightLine: number; code: string }
+  | { type: "added"; rightLine: number; code: string }
+  | { type: "deleted"; leftLine: number; code: string };
+export interface FileDiff {
+  path: string;
+  status: "added" | "modified" | "deleted" | "renamed" | "untracked";
+  previousPath?: string; // only on renames
+  added?: number; // absent for binary files
+  removed?: number;
+  binary?: boolean;
+  rows: DiffRow[]; // [] for binary files
+}
+export interface WorkspaceDiff {
+  files: FileDiff[];
+  truncated?: boolean;
+}
 
 // workspace.grep params + result (API.md §7.5). `total` may exceed
 // matches.length — that's the truncation signal ("narrow the query"), never
@@ -132,8 +153,16 @@ function resolve<T, P = void>(key: string, params?: P): () => Promise<T> {
 // One hook per cached side-panel resource. The query key and the
 // data-provider key are the same string, passed once — no chance of the
 // two drifting apart (a real bug class with the old per-hook literals).
-function makeDataQuery<T>(key: string): () => UseQueryResult<T> {
-  return () => useQuery({ queryKey: [key], queryFn: resolve<T>(key), ...STATIC });
+// `enabled: false` skips the fetch entirely — for capability-gated
+// resources (features.git off → never call the VCS providers).
+function makeDataQuery<T>(key: string): (opts?: { enabled?: boolean }) => UseQueryResult<T> {
+  return (opts) =>
+    useQuery({
+      queryKey: [key],
+      queryFn: resolve<T>(key),
+      enabled: opts?.enabled ?? true,
+      ...STATIC,
+    });
 }
 
 // Parameterized variant — params join the query key (each distinct params
@@ -160,7 +189,7 @@ export const MODELS_KEY = "models";
 export const useSessions = makeDataQuery<SidebarSession[]>(SESSIONS_KEY);
 export const useProjects = makeDataQuery<SidebarProject[]>("projects");
 export const useFilesChanged = makeDataQuery<FileChange[]>("files-changed");
-export const useDiff = makeDataQuery<DiffRow[]>("diff");
+export const useDiff = makeParamDataQuery<DiffQuery, WorkspaceDiff>("diff");
 export const useTerminal = makeDataQuery<TermLine[]>("terminal");
 export const useGrep = makeParamDataQuery<GrepQuery, GrepResult>("grep");
 export const useFileHead = makeParamDataQuery<FileHeadQuery, FileLine[]>("file-head");
