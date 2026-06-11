@@ -8,23 +8,10 @@ import { DiffView } from "./views/DiffView";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useDiff } from "@/lib/data/queries";
 import { cn } from "@/lib/utils";
-import { errorType, RpcError } from "@/rpc";
+import { gitOffEmpty, isVcsUnavailable, notARepoEmpty } from "./views/vcsGate";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { useServerFeature } from "@/state/runtimeStore";
 import { useSessionStore } from "@/state/sessionStore";
-
-// AUX_API §3 degradation: git missing → never call; non-repo cwd →
-// vcs_unavailable, which must read as "not a repo", not "no changes".
-const GIT_OFF = {
-  icon: "diff",
-  title: "Git not available",
-  sub: "This runtime has no git binary on its PATH.",
-} as const;
-const NOT_A_REPO = {
-  icon: "diff",
-  title: "Not a git repository",
-  sub: "The session's working directory is not under version control.",
-} as const;
 
 function FileSection({ file, showHeader }: { file: FileDiff; showHeader: boolean }) {
   return (
@@ -56,7 +43,7 @@ function DiffViewTab() {
   const files = data?.files;
   const added = files?.reduce((s, f) => s + (f.added ?? 0), 0) ?? 0;
   const removed = files?.reduce((s, f) => s + (f.removed ?? 0), 0) ?? 0;
-  const notARepo = error instanceof RpcError && errorType(error.data) === "vcs_unavailable";
+  const notARepo = isVcsUnavailable(error);
 
   const sub = (
     <>
@@ -90,7 +77,7 @@ function DiffViewTab() {
         // A non-repo cwd is an expected state with its own copy, not a failure.
         isError={isError && !notARepo}
         skeletonCount={10}
-        empty={!gitEnabled ? GIT_OFF : notARepo ? NOT_A_REPO : EMPTY_DIFF}
+        empty={!gitEnabled ? gitOffEmpty("diff") : notARepo ? notARepoEmpty("diff") : EMPTY_DIFF}
         error={{
           icon: "diff",
           title: "Couldn't load the diff",

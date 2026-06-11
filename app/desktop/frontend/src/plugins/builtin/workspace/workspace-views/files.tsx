@@ -6,7 +6,7 @@ import { DataView, Icon, IconButton } from "@/components/common";
 import { FilesChanged } from "./views/FilesChanged";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useFilesChanged } from "@/lib/data/queries";
-import { errorType, RpcError } from "@/rpc";
+import { gitOffEmpty, isVcsUnavailable, notARepoEmpty } from "./views/vcsGate";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { useServerFeature } from "@/state/runtimeStore";
 import { useSessionStore } from "@/state/sessionStore";
@@ -18,7 +18,7 @@ function FilesView() {
   const openMainView = useSessionStore((s) => s.openMainView);
   const { data: files, isLoading, isError, error } = useFilesChanged({ enabled: gitEnabled });
   const items = files ?? [];
-  const notARepo = error instanceof RpcError && errorType(error.data) === "vcs_unavailable";
+  const notARepo = isVcsUnavailable(error);
 
   return (
     <WorkspaceViewLayout
@@ -45,17 +45,9 @@ function FilesView() {
         skeletonCount={6}
         empty={
           !gitEnabled
-            ? {
-                icon: "filetext",
-                title: "Git not available",
-                sub: "This runtime has no git binary on its PATH.",
-              }
+            ? gitOffEmpty("filetext")
             : notARepo
-              ? {
-                  icon: "filetext",
-                  title: "Not a git repository",
-                  sub: "The session's working directory is not under version control.",
-                }
+              ? notARepoEmpty("filetext")
               : {
                   icon: "check",
                   title: "Working tree clean",

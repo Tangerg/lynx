@@ -16,7 +16,7 @@ import { z } from "zod";
 import { createPushPullChannel, type PushPullChannel } from "./channel";
 import type { RpcClient } from "./client";
 import type { RunEvent, StreamEvent, WorkspaceEvent } from "./shapes";
-import { STREAM_DOWN_METHOD, type StreamDownParams } from "./transport";
+import { STREAM_DOWN_METHOD, WORKSPACE_SUBSCRIBE_METHOD, type StreamDownParams } from "./transport";
 
 export const RUN_EVENT_METHOD = "notifications.run.event";
 export const WORKSPACE_EVENT_METHOD = "notifications.workspace.event";
@@ -336,7 +336,7 @@ export function streamWorkspaceEvents(
   });
   const unsubDown = client.subscribe(STREAM_DOWN_METHOD, (msg) => {
     if (channel.closed) return;
-    if ((msg.params as StreamDownParams | undefined)?.method === "workspace.subscribe")
+    if ((msg.params as StreamDownParams | undefined)?.method === WORKSPACE_SUBSCRIBE_METHOD)
       channel.close();
   });
   const cleanup = bindLifecycle(

@@ -184,22 +184,26 @@ function makeParamDataQuery<P, T>(key: string): (params: P | undefined) => UseQu
 }
 
 // Keys that are also INVALIDATED outside this file (lib/agent mutation
-// hooks). Named so the literal exists in exactly one place — the same
-// no-drift argument as passing the key once into makeDataQuery. Keys only
-// ever read stay inline below.
+// hooks, the workspace-events plugin). Named so the literal exists in
+// exactly one place — the same no-drift argument as passing the key once
+// into makeDataQuery. Keys only ever read stay inline below.
 export const SESSIONS_KEY = "sessions";
 export const PROVIDERS_KEY = "providers";
 export const MODELS_KEY = "models";
+export const FILES_CHANGED_KEY = "files-changed";
+export const DIFF_KEY = "diff";
+export const SKILLS_KEY = "skills";
+export const MCP_SERVERS_KEY = "mcp-servers";
 
 export const useSessions = makeDataQuery<SidebarSession[]>(SESSIONS_KEY);
 export const useProjects = makeDataQuery<SidebarProject[]>("projects");
-export const useFilesChanged = makeDataQuery<FileChange[]>("files-changed");
-export const useDiff = makeParamDataQuery<DiffQuery, WorkspaceDiff>("diff");
+export const useFilesChanged = makeDataQuery<FileChange[]>(FILES_CHANGED_KEY);
+export const useDiff = makeParamDataQuery<DiffQuery, WorkspaceDiff>(DIFF_KEY);
 export const useTerminal = makeDataQuery<TermLine[]>("terminal");
 export const useGrep = makeParamDataQuery<GrepQuery, GrepResult>("grep");
 export const useFileHead = makeParamDataQuery<FileHeadQuery, FileLine[]>("file-head");
-export const useMCPServers = makeDataQuery<MCPServer[]>("mcp-servers");
-export const useSkills = makeDataQuery<WorkspaceSkill[]>("skills");
+export const useMCPServers = makeDataQuery<MCPServer[]>(MCP_SERVERS_KEY);
+export const useSkills = makeDataQuery<WorkspaceSkill[]>(SKILLS_KEY);
 export const useAgentDocs = makeDataQuery<WorkspaceAgentDoc[]>("agent-docs");
 export const useModels = makeDataQuery<SelectableModel[]>(MODELS_KEY);
 export const useProviders = makeDataQuery<ProviderInfo[]>(PROVIDERS_KEY);

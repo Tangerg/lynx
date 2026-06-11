@@ -24,7 +24,15 @@ import type {
   WorkspaceFileChange as RpcFileChange,
 } from "@/rpc";
 import { api } from "@/lib/data/http";
-import { MODELS_KEY, PROVIDERS_KEY, SESSIONS_KEY } from "@/lib/data/queries";
+import {
+  DIFF_KEY,
+  FILES_CHANGED_KEY,
+  MCP_SERVERS_KEY,
+  MODELS_KEY,
+  PROVIDERS_KEY,
+  SESSIONS_KEY,
+  SKILLS_KEY,
+} from "@/lib/data/queries";
 import { getContainer } from "@/main/container";
 import { errorType, RpcError } from "@/rpc";
 import { definePlugin } from "@/plugins/sdk";
@@ -120,12 +128,12 @@ export const defaultData = definePlugin({
       fetcher: async () => (await client().workspace.listProjects()).data.map(toSidebarProject),
     });
     host.extensions.contribute(DATA_PROVIDER, {
-      key: "files-changed",
+      key: FILES_CHANGED_KEY,
       fetcher: async () =>
         (await client().workspace.listFileChanges()).data.map(toSidebarFileChange),
     });
     host.extensions.contribute(DATA_PROVIDER, {
-      key: "mcp-servers",
+      key: MCP_SERVERS_KEY,
       // B3 enriched the entry with toolCount/authStatus/error inline
       // (AUX_API §5.1) — no more listServers⨝listTools join; listTools
       // stays for the detail pane (pagination + inputSchema).
@@ -137,7 +145,7 @@ export const defaultData = definePlugin({
     // entry. Wire shapes match the UI shapes 1:1 (queries.ts re-declares them
     // so components never import @/rpc).
     host.extensions.contribute(DATA_PROVIDER, {
-      key: "diff",
+      key: DIFF_KEY,
       // format is pinned to rows here — the structured form every renderer
       // consumes; raw unified patches are an export concern (AUX_API §2.3).
       fetcher: async (params) => {
@@ -155,7 +163,7 @@ export const defaultData = definePlugin({
         (await client().workspace.getFileHead(params as FileHeadQuery)).lines,
     });
     host.extensions.contribute(DATA_PROVIDER, {
-      key: "skills",
+      key: SKILLS_KEY,
       fetcher: async () =>
         (await client().workspace.listSkills().catch(emptyPageIfUngated)).data.map((s) => ({
           name: s.name,

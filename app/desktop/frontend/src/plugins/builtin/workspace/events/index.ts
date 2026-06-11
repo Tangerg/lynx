@@ -13,7 +13,9 @@
 //   `resync` event is the lost-events fallback → invalidate everything.
 
 import type { WorkspaceEvent } from "@/rpc";
+import { WORKSPACE_SUBSCRIBE_METHOD } from "@/rpc/transport";
 import { queryClient } from "@/lib/data/queryClient";
+import { DIFF_KEY, FILES_CHANGED_KEY, MCP_SERVERS_KEY, SKILLS_KEY } from "@/lib/data/queries";
 import { getContainer } from "@/main/container";
 import { definePlugin } from "@/plugins/sdk";
 import { useRuntimeStore } from "@/state/runtimeStore";
@@ -33,13 +35,13 @@ function invalidateAll(): void {
 function handle(ev: WorkspaceEvent): void {
   switch (ev.type) {
     case "files.changed":
-      invalidate("files-changed", "diff");
+      invalidate(FILES_CHANGED_KEY, DIFF_KEY);
       return;
     case "skills.changed":
-      invalidate("skills");
+      invalidate(SKILLS_KEY);
       return;
     case "mcp.serverChanged":
-      invalidate("mcp-servers");
+      invalidate(MCP_SERVERS_KEY);
       return;
     case "resync":
       invalidateAll();
@@ -105,7 +107,7 @@ export default definePlugin({
     const startIfAdvertised = (): void => {
       if (started || controller.signal.aborted) return;
       const caps = useRuntimeStore.getState().capabilities;
-      if (!caps?.streamingMethods?.includes("workspace.subscribe")) return;
+      if (!caps?.streamingMethods?.includes(WORKSPACE_SUBSCRIBE_METHOD)) return;
       started = true;
       void subscribeLoop(controller.signal);
     };

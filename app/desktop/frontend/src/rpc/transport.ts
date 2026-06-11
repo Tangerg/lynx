@@ -21,6 +21,11 @@ import type { RpcMessage } from "./types";
  */
 export const STREAM_DOWN_METHOD = "transport.streamDown";
 
+/** The one non-run streaming method (AUX_API §3.1). Named here — next to the
+ *  STREAM_DOWN synthetic that special-cases it — so the transport, the stream
+ *  layer, and the subscriber plugin all share one literal. */
+export const WORKSPACE_SUBSCRIBE_METHOD = "workspace.subscribe";
+
 export interface StreamDownParams {
   runIds: string[];
   /** The streaming method whose POST stream ended — set for non-run streams

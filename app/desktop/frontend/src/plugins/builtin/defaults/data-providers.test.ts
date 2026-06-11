@@ -3,7 +3,7 @@
 // transport) plus each v2 shape mapping:
 //   - sessions:    Page<Session>.data → SidebarSession (updatedAt → time)
 //   - projects:    Page<Project>.data (cwd identity) → SidebarProject (cwd → id)
-//   - mcp-servers: listServers ⨝ listTools → sidebar row (id + icon + tool count)
+//   - mcp-servers: enriched B3 entry → sidebar row (id + icon + inline toolCount)
 //   - grep:        params pass-through, result verbatim (matches + total)
 //   - file-head:   params pass-through, FileHead unwrapped to its lines
 
