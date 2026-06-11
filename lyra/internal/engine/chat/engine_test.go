@@ -12,7 +12,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	corechat "github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
-	"github.com/Tangerg/lynx/lyra/internal/service/chat"
+	"github.com/Tangerg/lynx/lyra/internal/engine/chat"
 	"github.com/Tangerg/lynx/lyra/internal/service/maintenance"
 )
 

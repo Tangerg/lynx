@@ -32,7 +32,7 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/config"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
-	chatsvc "github.com/Tangerg/lynx/lyra/internal/service/chat"
+	chatsvc "github.com/Tangerg/lynx/lyra/internal/engine/chat"
 	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
 	"github.com/Tangerg/lynx/lyra/internal/service/provider"

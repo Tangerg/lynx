@@ -9,7 +9,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/lyra/internal/service/chat"
+	"github.com/Tangerg/lynx/lyra/internal/engine/chat"
 )
 
 // TestStartTurn_PropagatesEntryTrace is the full-link tracing guarantee:
