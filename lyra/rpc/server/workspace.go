@@ -382,18 +382,29 @@ func agentDocScope(path, cwd, home string) string {
 	}
 }
 
-// WorkspaceMCPListServers lists the MCP servers dialed at startup. They
-// are all "connected" — a dial failure fails runtime construction, so a
-// running server only knows connected ones (API.md §7.5).
+// WorkspaceMCPListServers lists every configured MCP server with its real
+// connection state (AUX_API §5.1). Boot tolerates a per-server failure, so the
+// list includes servers that couldn't connect — each carrying its failure
+// reason as Error — alongside the connected ones, instead of the old
+// "everything is connected" assumption.
 func (s *Server) WorkspaceMCPListServers(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.McpServer], error) {
-	names := s.rt.MCPServerNames()
-	out := make([]protocol.McpServer, 0, len(names))
-	for _, n := range names {
-		entry := protocol.McpServer{Name: n, Status: "connected"} // dial-at-boot: a running server is connected
-		// Inline the tool count so the client needn't ⨝ listTools (AUX_API §5.1).
-		if tools, err := s.rt.MCPTools(ctx, n); err == nil {
-			count := len(tools)
-			entry.ToolCount = &count
+	statuses := s.rt.MCPServerStatuses()
+	out := make([]protocol.McpServer, 0, len(statuses))
+	for _, st := range statuses {
+		entry := protocol.McpServer{Name: st.Name, Status: st.Status}
+		switch st.Status {
+		case "connected":
+			// Inline the tool count so the client needn't ⨝ listTools (AUX_API §5.1).
+			if tools, err := s.rt.MCPTools(ctx, st.Name); err == nil {
+				count := len(tools)
+				entry.ToolCount = &count
+			}
+		case "failed":
+			detail := ""
+			if st.Err != nil {
+				detail = st.Err.Error()
+			}
+			entry.Error = &protocol.ProblemData{Type: "mcp_dial_failed", Channel: "mcp", Detail: detail}
 		}
 		out = append(out, entry)
 	}

@@ -43,8 +43,9 @@ type RuntimeServices interface {
 	// providers.test. The runtime owns this because it owns client
 	// construction; the protocol layer only maps the verdict to wire.
 	ProbeProvider(ctx context.Context, entry providersvc.Provider) error
-	// MCPServerNames lists the connected MCP servers (workspace.mcp.listServers).
-	MCPServerNames() []string
+	// MCPServerStatuses lists every configured MCP server with its connection
+	// state — connected and boot-failed alike (workspace.mcp.listServers).
+	MCPServerStatuses() []engine.McpServerStatus
 	// ListSkills enumerates the skills visible from cwd (project over global) —
 	// backs workspace.listSkills. The engine owns skill sourcing + precedence.
 	ListSkills(ctx context.Context, cwd string) ([]engine.SkillInfo, error)

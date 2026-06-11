@@ -238,3 +238,35 @@ func fileExists(p string) bool {
 	_, err := os.Stat(p)
 	return err == nil
 }
+
+// TestEngine_DialMCPServers_ToleratesUnreachable verifies boot tolerance
+// (B3b-1): a well-formed but unreachable server is recorded "failed" with its
+// reason and skipped, so engine.New still succeeds and serves the rest —
+// replacing the old all-or-nothing boot. (A malformed config stays fatal, as
+// the sibling Rejects* tests assert.)
+func TestEngine_DialMCPServers_ToleratesUnreachable(t *testing.T) {
+	stub := newStubModel("nop", `{}`, "")
+	client, _ := chat.NewClient(stub)
+	eng, err := New(context.Background(), Config{
+		ChatClient: client,
+		MCPServers: []mcp.ServerConfig{
+			{Name: "down", Transport: mcp.TransportHTTP, Endpoint: "http://127.0.0.1:1/mcp"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("New must tolerate an unreachable server, got %v", err)
+	}
+	t.Cleanup(func() { _ = eng.Close() })
+
+	statuses := eng.MCPServerStatuses()
+	if len(statuses) != 1 || statuses[0].Name != "down" || statuses[0].Status != "failed" || statuses[0].Err == nil {
+		t.Fatalf("statuses = %+v, want [down failed <reason>]", statuses)
+	}
+	tools, err := eng.MCPTools(context.Background(), "")
+	if err != nil {
+		t.Fatalf("MCPTools: %v", err)
+	}
+	if len(tools) != 0 {
+		t.Fatalf("MCPTools = %+v, want empty (no connected server)", tools)
+	}
+}
