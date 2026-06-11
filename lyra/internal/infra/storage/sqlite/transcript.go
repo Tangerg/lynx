@@ -7,28 +7,28 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/lyra/internal/service/history"
+	"github.com/Tangerg/lynx/lyra/internal/service/transcript"
 )
 
-// HistoryStore implements [history.Store] against a SQLite database — the
+// TranscriptStore implements [transcript.Store] against a SQLite database — the
 // durable Item history a session's items.list is served from. Two tables:
 // history_items (append-only, ordered by an autoincrement seq) and
 // history_runs (one row per run, UPSERT by run_id). Wire Item / RunRef
 // payloads are stored as opaque JSON text; created_at / updated_at as
 // unix nanos.
-type HistoryStore struct {
+type TranscriptStore struct {
 	db *sql.DB
 }
 
-var _ history.Store = (*HistoryStore)(nil)
+var _ transcript.Store = (*TranscriptStore)(nil)
 
-// NewHistoryStore binds the SQLite history to db. db must have been
+// NewTranscriptStore binds the SQLite history to db. db must have been
 // opened via [Open] so the migration ran.
-func NewHistoryStore(db *sql.DB) *HistoryStore {
-	return &HistoryStore{db: db}
+func NewTranscriptStore(db *sql.DB) *TranscriptStore {
+	return &TranscriptStore{db: db}
 }
 
-func (s *HistoryStore) AppendItem(ctx context.Context, it history.Item) error {
+func (s *TranscriptStore) AppendItem(ctx context.Context, it transcript.Item) error {
 	if it.SessionID == "" {
 		return errors.New("sqlite: history item sessionId is required")
 	}
@@ -54,7 +54,7 @@ func (s *HistoryStore) AppendItem(ctx context.Context, it history.Item) error {
 	return nil
 }
 
-func (s *HistoryStore) PutRun(ctx context.Context, r history.Run) error {
+func (s *TranscriptStore) PutRun(ctx context.Context, r transcript.Run) error {
 	if r.SessionID == "" || r.RunID == "" {
 		return errors.New("sqlite: history run sessionId/runId are required")
 	}
@@ -77,7 +77,7 @@ func (s *HistoryStore) PutRun(ctx context.Context, r history.Run) error {
 // DeleteRun removes a run's record and all its items in one transaction
 // (sessions.rollback drops the runs after the kept boundary). Unknown run /
 // session is a no-op, not an error.
-func (s *HistoryStore) DeleteRun(ctx context.Context, sessionID, runID string) error {
+func (s *TranscriptStore) DeleteRun(ctx context.Context, sessionID, runID string) error {
 	if sessionID == "" || runID == "" {
 		return errors.New("sqlite: delete history run requires sessionId + runId")
 	}
@@ -105,7 +105,7 @@ func (s *HistoryStore) DeleteRun(ctx context.Context, sessionID, runID string) e
 
 // DeleteSession removes every item + run for a session (sessions.rollback
 // purges the subagent child sessions a dropped run spawned). Idempotent.
-func (s *HistoryStore) DeleteSession(ctx context.Context, sessionID string) error {
+func (s *TranscriptStore) DeleteSession(ctx context.Context, sessionID string) error {
 	if sessionID == "" {
 		return errors.New("sqlite: delete history session requires sessionId")
 	}
@@ -131,7 +131,7 @@ func (s *HistoryStore) DeleteSession(ctx context.Context, sessionID string) erro
 	return nil
 }
 
-func (s *HistoryStore) List(ctx context.Context, sessionID string) ([]history.Item, []history.Run, error) {
+func (s *TranscriptStore) List(ctx context.Context, sessionID string) ([]transcript.Item, []transcript.Run, error) {
 	items, err := s.listItems(ctx, sessionID)
 	if err != nil {
 		return nil, nil, err
@@ -143,7 +143,7 @@ func (s *HistoryStore) List(ctx context.Context, sessionID string) ([]history.It
 	return items, runs, nil
 }
 
-func (s *HistoryStore) listItems(ctx context.Context, sessionID string) ([]history.Item, error) {
+func (s *TranscriptStore) listItems(ctx context.Context, sessionID string) ([]transcript.Item, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT session_id, run_id, item_id, created_at, item
 		 FROM history_items WHERE session_id = ? ORDER BY seq`, sessionID)
@@ -152,10 +152,10 @@ func (s *HistoryStore) listItems(ctx context.Context, sessionID string) ([]histo
 	}
 	defer rows.Close()
 
-	out := make([]history.Item, 0)
+	out := make([]transcript.Item, 0)
 	for rows.Next() {
 		var (
-			it        history.Item
+			it        transcript.Item
 			createdNs int64
 			blob      string
 		)
@@ -172,7 +172,7 @@ func (s *HistoryStore) listItems(ctx context.Context, sessionID string) ([]histo
 	return out, nil
 }
 
-func (s *HistoryStore) listRuns(ctx context.Context, sessionID string) ([]history.Run, error) {
+func (s *TranscriptStore) listRuns(ctx context.Context, sessionID string) ([]transcript.Run, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT session_id, run_id, updated_at, run, message_mark
 		 FROM history_runs WHERE session_id = ? ORDER BY updated_at`, sessionID)
@@ -181,10 +181,10 @@ func (s *HistoryStore) listRuns(ctx context.Context, sessionID string) ([]histor
 	}
 	defer rows.Close()
 
-	out := make([]history.Run, 0)
+	out := make([]transcript.Run, 0)
 	for rows.Next() {
 		var (
-			r         history.Run
+			r         transcript.Run
 			updatedNs int64
 			blob      string
 		)

@@ -1,7 +1,7 @@
 // Package memory defines the MemoryService — Lyra's long-term memory
 // surface. Memory is the cascade of LYRA.md files (project + user
 // scopes) that get auto-injected into every session's system prompt.
-package memory
+package knowledge
 
 import (
 	"context"

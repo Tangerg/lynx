@@ -22,15 +22,15 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	"github.com/Tangerg/lynx/lyra/internal/config"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
-	lyraruntime "github.com/Tangerg/lynx/lyra/internal/runtime"
-	"github.com/Tangerg/lynx/lyra/internal/service/approval"
-	"github.com/Tangerg/lynx/lyra/internal/service/history"
-	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
-	memorysvc "github.com/Tangerg/lynx/lyra/internal/service/memory"
-	providersvc "github.com/Tangerg/lynx/lyra/internal/service/provider"
-	sessionsvc "github.com/Tangerg/lynx/lyra/internal/service/session"
 	"github.com/Tangerg/lynx/lyra/internal/infra/storage"
 	sqlitestore "github.com/Tangerg/lynx/lyra/internal/infra/storage/sqlite"
+	lyraruntime "github.com/Tangerg/lynx/lyra/internal/runtime"
+	"github.com/Tangerg/lynx/lyra/internal/service/approval"
+	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
+	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
+	providersvc "github.com/Tangerg/lynx/lyra/internal/service/provider"
+	sessionsvc "github.com/Tangerg/lynx/lyra/internal/service/session"
+	"github.com/Tangerg/lynx/lyra/internal/service/transcript"
 )
 
 // App is the top-level CLI object. It owns the IO streams every
@@ -150,7 +150,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		// InterruptStore persists the open-interrupt registry that
 		// runs.resume looks up — the other half of cross-restart resume.
 		InterruptStore:  stores.Interrupt,
-		HistoryStore:    stores.History,
+		TranscriptStore: stores.History,
 		ProviderService: stores.Provider,
 		// Default provider+model a turn runs against when it picks no model.
 		Provider: string(cfg.Provider),
@@ -199,7 +199,7 @@ func buildStores() (*Stores, error) {
 	if err != nil {
 		return nil, err
 	}
-	mem, err := storage.NewFileMemoryService()
+	mem, err := storage.NewFileKnowledgeService()
 	if err != nil {
 		_ = db.Close() // we opened it; don't leak the handle on the error path
 		return nil, fmt.Errorf("memory storage: %w", err)
@@ -210,7 +210,7 @@ func buildStores() (*Stores, error) {
 		Memory:    mem,
 		Process:   sqlitestore.NewProcessStore(db),
 		Interrupt: sqlitestore.NewInterruptStore(db),
-		History:   sqlitestore.NewHistoryStore(db),
+		History:   sqlitestore.NewTranscriptStore(db),
 		Provider:  sqlitestore.NewProviderService(db),
 		ChatMem:   sqlitestore.NewMessageStore(db),
 		Park:      sqlitestore.NewParkStore(db),
@@ -223,10 +223,10 @@ func buildStores() (*Stores, error) {
 type Stores struct {
 	Home      string
 	Session   sessionsvc.Service
-	Memory    memorysvc.Service
+	Memory    knowledge.Service
 	Process   core.ProcessStore
 	Interrupt interrupts.Store
-	History   history.Store
+	History   transcript.Store
 	Provider  providersvc.Service
 	ChatMem   chatmem.Store
 	Park      tool.ParkStore

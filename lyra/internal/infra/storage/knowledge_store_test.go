@@ -6,24 +6,24 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Tangerg/lynx/lyra/internal/service/memory"
 	"github.com/Tangerg/lynx/lyra/internal/infra/storage"
+	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
 )
 
 func TestFileMemoryService_UpdateAndGet(t *testing.T) {
 	t.Setenv("LYRA_HOME", t.TempDir())
 
-	svc, err := storage.NewFileMemoryService()
+	svc, err := storage.NewFileKnowledgeService()
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
 
 	const userBody = "# User\nprefer terse output\n"
-	if err = svc.Update(ctx, memory.ScopeUser, "", userBody); err != nil {
+	if err = svc.Update(ctx, knowledge.ScopeUser, "", userBody); err != nil {
 		t.Fatalf("Update: %v", err)
 	}
-	got, err := svc.Get(ctx, memory.ScopeUser, "")
+	got, err := svc.Get(ctx, knowledge.ScopeUser, "")
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
@@ -34,8 +34,8 @@ func TestFileMemoryService_UpdateAndGet(t *testing.T) {
 
 func TestFileMemoryService_GetEmptyOnFreshHome(t *testing.T) {
 	t.Setenv("LYRA_HOME", t.TempDir())
-	svc, _ := storage.NewFileMemoryService()
-	got, err := svc.Get(context.Background(), memory.ScopeUser, "")
+	svc, _ := storage.NewFileKnowledgeService()
+	got, err := svc.Get(context.Background(), knowledge.ScopeUser, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,11 +47,11 @@ func TestFileMemoryService_GetEmptyOnFreshHome(t *testing.T) {
 func TestFileMemoryService_PersistsAcrossInstances(t *testing.T) {
 	t.Setenv("LYRA_HOME", t.TempDir())
 
-	first, _ := storage.NewFileMemoryService()
-	_ = first.Update(context.Background(), memory.ScopeUser, "", "remember me")
+	first, _ := storage.NewFileKnowledgeService()
+	_ = first.Update(context.Background(), knowledge.ScopeUser, "", "remember me")
 
-	second, _ := storage.NewFileMemoryService()
-	got, _ := second.Get(context.Background(), memory.ScopeUser, "")
+	second, _ := storage.NewFileKnowledgeService()
+	got, _ := second.Get(context.Background(), knowledge.ScopeUser, "")
 	if got != "remember me" {
 		t.Errorf("after restart got %q", got)
 	}
@@ -59,10 +59,10 @@ func TestFileMemoryService_PersistsAcrossInstances(t *testing.T) {
 
 func TestFileMemoryService_List_SkipsEmptyScopes(t *testing.T) {
 	t.Setenv("LYRA_HOME", t.TempDir())
-	svc, _ := storage.NewFileMemoryService()
+	svc, _ := storage.NewFileKnowledgeService()
 	ctx := context.Background()
 
-	_ = svc.Update(ctx, memory.ScopeUser, "", "only user")
+	_ = svc.Update(ctx, knowledge.ScopeUser, "", "only user")
 
 	entries, err := svc.List(ctx, "")
 	if err != nil {
@@ -71,7 +71,7 @@ func TestFileMemoryService_List_SkipsEmptyScopes(t *testing.T) {
 	if len(entries) != 1 {
 		t.Fatalf("len = %d, want 1 (project skipped)", len(entries))
 	}
-	if entries[0].Scope != memory.ScopeUser {
+	if entries[0].Scope != knowledge.ScopeUser {
 		t.Errorf("scope = %d, want user", entries[0].Scope)
 	}
 	// CapturedAt must be populated from the file mtime, not left zero (the wire
@@ -94,9 +94,9 @@ func TestFileMemoryService_ProjectScopeUsesCwd(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	svc, _ := storage.NewFileMemoryService()
+	svc, _ := storage.NewFileKnowledgeService()
 	ctx := context.Background()
-	_ = svc.Update(ctx, memory.ScopeProject, "", "project body")
+	_ = svc.Update(ctx, knowledge.ScopeProject, "", "project body")
 
 	// File should live at <projectDir>/LYRA.md
 	body, err := os.ReadFile(filepath.Join(projectDir, "LYRA.md"))
@@ -113,22 +113,22 @@ func TestFileMemoryService_ProjectScopeUsesCwd(t *testing.T) {
 // empty dir falls back to the construction-time default.
 func TestFileMemoryService_ProjectScopeFollowsDir(t *testing.T) {
 	t.Setenv("LYRA_HOME", t.TempDir())
-	svc, err := storage.NewFileMemoryService()
+	svc, err := storage.NewFileKnowledgeService()
 	if err != nil {
-		t.Fatalf("NewFileMemoryService: %v", err)
+		t.Fatalf("NewFileKnowledgeService: %v", err)
 	}
 
 	dirA, dirB := t.TempDir(), t.TempDir()
 	ctx := context.Background()
-	if err := svc.Update(ctx, memory.ScopeProject, dirA, "alpha knowledge"); err != nil {
+	if err := svc.Update(ctx, knowledge.ScopeProject, dirA, "alpha knowledge"); err != nil {
 		t.Fatalf("Update dirA: %v", err)
 	}
 
-	got, err := svc.Get(ctx, memory.ScopeProject, dirA)
+	got, err := svc.Get(ctx, knowledge.ScopeProject, dirA)
 	if err != nil || got != "alpha knowledge" {
 		t.Fatalf("Get dirA = (%q, %v), want alpha knowledge", got, err)
 	}
-	if got, _ := svc.Get(ctx, memory.ScopeProject, dirB); got != "" {
+	if got, _ := svc.Get(ctx, knowledge.ScopeProject, dirB); got != "" {
 		t.Fatalf("Get dirB = %q, want empty (projects are isolated)", got)
 	}
 }

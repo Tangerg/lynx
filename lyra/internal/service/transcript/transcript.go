@@ -10,7 +10,7 @@
 // wire blobs (marshaled protocol.Item / protocol.RunRef) plus the few
 // fields the store needs to order and group them, so this package depends
 // on neither rpc/protocol nor any backend.
-package history
+package transcript
 
 import (
 	"context"
@@ -46,7 +46,7 @@ type Run struct {
 
 // Store is the durable Item history. Implementations must be safe for
 // concurrent use. Consumer-side abstraction: the runtime + RPC server
-// depend on it; back it with the sqlite HistoryStore
+// depend on it; back it with the sqlite TranscriptStore
 // (internal/storage/sqlite).
 type Store interface {
 	// AppendItem records one completed Item. List returns items in

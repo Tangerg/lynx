@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/Tangerg/lynx/lyra/internal/service/history"
+	"github.com/Tangerg/lynx/lyra/internal/service/transcript"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
@@ -21,7 +21,7 @@ import (
 // dependency): the exact Items the runtime streamed (same ids, runId,
 // text, createdAt).
 func (s *Server) ListItems(ctx context.Context, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
-	return s.listItemsFromHistory(ctx, s.rt.History(), in)
+	return s.listItemsFromHistory(ctx, s.rt.Transcript(), in)
 }
 
 // defaultItemPageLimit caps a single items.list page when the client gives
@@ -57,7 +57,7 @@ func pageByID[T any](elems []T, id func(T) string, cursor string, limit, maxLimi
 }
 
 // listItemsFromHistory serves items.list from the durable Item store.
-func (s *Server) listItemsFromHistory(ctx context.Context, store history.Store, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
+func (s *Server) listItemsFromHistory(ctx context.Context, store transcript.Store, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
 	hItems, hRuns, err := store.List(ctx, in.SessionID)
 	if err != nil {
 		return nil, err
@@ -68,7 +68,7 @@ func (s *Server) listItemsFromHistory(ctx context.Context, store history.Store, 
 	// of items to serve 200). A corrupt row occupies its page slot and
 	// is skipped at decode — same tolerance as a cursor pointing at a
 	// deleted element.
-	pageRows, next := pageByID(hItems, func(hi history.Item) string { return hi.ItemID }, in.Cursor, in.Limit, defaultItemPageLimit)
+	pageRows, next := pageByID(hItems, func(hi transcript.Item) string { return hi.ItemID }, in.Cursor, in.Limit, defaultItemPageLimit)
 	items := make([]protocol.Item, 0, len(pageRows))
 	for _, hi := range pageRows {
 		var it protocol.Item

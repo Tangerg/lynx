@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	lyramem "github.com/Tangerg/lynx/lyra/internal/service/memory"
+	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
 )
 
 // TestComposeSystemPrompt_BaseOnly verifies a nil memory service
@@ -79,33 +79,33 @@ type stubMemoryService struct {
 	projectDir string
 }
 
-func (s *stubMemoryService) Get(_ context.Context, scope lyramem.Scope, dir string) (string, error) {
-	if scope == lyramem.ScopeProject {
+func (s *stubMemoryService) Get(_ context.Context, scope knowledge.Scope, dir string) (string, error) {
+	if scope == knowledge.ScopeProject {
 		s.projectDir = dir
 	}
 	return s.get(scope)
 }
 
-func (s *stubMemoryService) get(scope lyramem.Scope) (string, error) {
+func (s *stubMemoryService) get(scope knowledge.Scope) (string, error) {
 	switch scope {
-	case lyramem.ScopeUser:
+	case knowledge.ScopeUser:
 		return s.user, nil
-	case lyramem.ScopeProject:
+	case knowledge.ScopeProject:
 		return s.project, nil
 	}
 	return "", nil
 }
 
-func (s *stubMemoryService) Update(_ context.Context, scope lyramem.Scope, _ string, content string) error {
+func (s *stubMemoryService) Update(_ context.Context, scope knowledge.Scope, _ string, content string) error {
 	switch scope {
-	case lyramem.ScopeUser:
+	case knowledge.ScopeUser:
 		s.user = content
-	case lyramem.ScopeProject:
+	case knowledge.ScopeProject:
 		s.project = content
 	}
 	return nil
 }
 
-func (s *stubMemoryService) List(_ context.Context, _ string) ([]lyramem.Entry, error) {
+func (s *stubMemoryService) List(_ context.Context, _ string) ([]knowledge.Entry, error) {
 	return nil, nil
 }

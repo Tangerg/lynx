@@ -7,8 +7,8 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
+	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
 	"github.com/Tangerg/lynx/lyra/internal/service/maintenance"
-	lyramem "github.com/Tangerg/lynx/lyra/internal/service/memory"
 	"github.com/Tangerg/lynx/mcp"
 )
 
@@ -51,7 +51,7 @@ type Config struct {
 	// MemoryService optionally supplies the LYRA.md cascade reader
 	// the agent injects into every system prompt. nil disables the
 	// injection — the base prompt is used verbatim.
-	MemoryService lyramem.Service
+	MemoryService knowledge.Service
 
 	// Compaction tunes the auto-compaction heuristic. Zero values
 	// fall back to defaults (see [maintenance.CompactionConfig]).

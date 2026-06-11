@@ -33,12 +33,12 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
 	chatsvc "github.com/Tangerg/lynx/lyra/internal/service/chat"
-	"github.com/Tangerg/lynx/lyra/internal/service/history"
 	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
-	memsvc "github.com/Tangerg/lynx/lyra/internal/service/memory"
+	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
 	"github.com/Tangerg/lynx/lyra/internal/service/provider"
 	sessionsvc "github.com/Tangerg/lynx/lyra/internal/service/session"
 	toolsvc "github.com/Tangerg/lynx/lyra/internal/service/tool"
+	"github.com/Tangerg/lynx/lyra/internal/service/transcript"
 )
 
 // Config is the construction-time bundle for [New]. Engine carries the
@@ -61,10 +61,10 @@ type Config struct {
 	// discovery). Required — injected sqlite-backed, same as SessionService.
 	InterruptStore interrupts.Store
 
-	// HistoryStore persists the durable Item history that items.list is
+	// TranscriptStore persists the durable Item history that items.list is
 	// served from (authoritative completed Items + their RunRefs).
 	// Required — injected sqlite-backed, same as SessionService.
-	HistoryStore history.Store
+	TranscriptStore transcript.Store
 
 	// ProviderService is the runtime-mutable provider registry (per-provider
 	// credentials, persisted). Required — the composition root injects the
@@ -95,10 +95,10 @@ type Runtime struct {
 	chat       chatsvc.Service
 	session    sessionsvc.Service
 	tool       toolsvc.Service
-	memory     memsvc.Service
+	memory     knowledge.Service
 	approval   approval.Service
 	interrupts interrupts.Store
-	history    history.Store
+	transcript transcript.Store
 
 	providers    provider.Service
 	defaultModel string
@@ -111,8 +111,8 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	if cfg.Engine.ChatClient == nil {
 		return nil, errors.New("runtime: Engine.ChatClient is required")
 	}
-	if cfg.HistoryStore == nil {
-		return nil, errors.New("runtime: HistoryStore is required")
+	if cfg.TranscriptStore == nil {
+		return nil, errors.New("runtime: TranscriptStore is required")
 	}
 
 	// The engine config passes through verbatim except SessionStore: when
@@ -150,14 +150,14 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	}
 
 	return &Runtime{
-		engine:         eng,
-		chat:           chatSvc,
-		session:        sessionSvc,
-		tool:           toolSvc,
-		memory:         cfg.Engine.MemoryService,
-		approval:       approvalSvc,
-		interrupts:     interruptStore,
-		history:        cfg.HistoryStore,
+		engine:       eng,
+		chat:         chatSvc,
+		session:      sessionSvc,
+		tool:         toolSvc,
+		memory:       cfg.Engine.MemoryService,
+		approval:     approvalSvc,
+		interrupts:   interruptStore,
+		transcript:   cfg.TranscriptStore,
 		providers:    providerSvc,
 		defaultModel: cfg.Model,
 	}, nil
@@ -175,7 +175,7 @@ func (r *Runtime) Tool() toolsvc.Service { return r.tool }
 
 // Memory returns the LYRA.md cascade service. Nil when no memory
 // service was configured (cfg.Engine.MemoryService was nil).
-func (r *Runtime) Memory() memsvc.Service { return r.memory }
+func (r *Runtime) Memory() knowledge.Service { return r.memory }
 
 // Approval returns the ApprovalService. Always non-nil — the runtime
 // constructs one regardless of cfg.ApprovalMode (defaults to YOLO).
@@ -185,9 +185,9 @@ func (r *Runtime) Approval() approval.Service { return r.approval }
 // discovery). Always non-nil.
 func (r *Runtime) Interrupts() interrupts.Store { return r.interrupts }
 
-// History returns the durable Item-history store items.list is served
-// from. Always non-nil — HistoryStore is a required dependency.
-func (r *Runtime) History() history.Store { return r.history }
+// Transcript returns the durable Item-history store items.list is served
+// from. Always non-nil — TranscriptStore is a required dependency.
+func (r *Runtime) Transcript() transcript.Store { return r.transcript }
 
 // MCPServerStatuses returns the per-server connection state of every
 // configured MCP server (connected and boot-failed alike) for
