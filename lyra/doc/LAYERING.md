@@ -78,16 +78,108 @@ rpc/server ─→ engine, 全部 service, checkpoint(infra), git(infra), sqlite(
 
 ---
 
-## 3. 目标包映射
+## 3. 模块目录（每个模块：能力 / 向下依赖 / 现状来源）
 
-| 目标层 | 包 | 说明 |
+> 切分原则:**按"外部系统 / 领域"切,不按"函数"切**(infra 一个外部系统一包;service 一个领域一包;不把 git 拆成 diff/status)。内聚优先,不原子化。
+
+### infra/ — 技术设施（零领域，不依赖任何上层）
+
+| 模块 | 能力 | 现状来源 |
 |---|---|---|
-| delivery | `rpc/protocol` `rpc/server` `rpc/dispatch` `rpc/transport/*` | 不变；改为只经 service 触达 infra |
-| engine | `internal/engine` | 编排 + 工具集装配；**吸收** chat/tool 的编排（§5 批次 5）；领域算法下沉 |
-| service | `internal/service/session` `memory` `approval` `history` `interrupts` `provider` `agentdoc` `tool` | 既有领域/端口 |
-| service（新） | `internal/service/maintenance`（compaction+extraction+planning）`codeintel`（LSP 能力）`workspace`（git diff + checkpoint） | 由 engine / rpc 下沉而来 |
-| infra | `internal/infra/storage`（原 storage）`infra/git` `infra/lsp` `infra/checkpoint` | 物理归集到 `internal/infra/*`,层次可见 |
-| composition | `internal/runtime` `cmd/lyra` | 装配处,可 import 所有层 |
+| `infra/storage` | 单一 SQLite（session / items+runs / interrupt / provider / message）+ file（LYRA.md）。**实现 service 层端口**。 | `internal/storage/*` |
+| `infra/git` | git 二进制:`diff` / `status` / `available`。 | `internal/git` |
+| `infra/lsp` | language-server client:spawn + JSON-RPC + diagnostics 缓存。 | `internal/lsp` |
+| `infra/checkpoint` | 影子 git 工作区快照 / 还原。 | `internal/checkpoint` |
+| `infra/exec` | 进程执行:前台（bash）+ 后台（ring buffer + kill）。 | 抽 `engine/bgshell.go` 机制（+ `tools/bash` 复用） |
+| `infra/mcp` | MCP client:dial / 5 态生命周期 / 工具热插。 | 抽 `engine/mcp.go` 连接管理（SDK mcp 之上） |
+| `infra/a2a` | A2A client:dial 远程 agent。 | 抽 `engine/a2a.go` 的 dial（SDK a2a 之上） |
+
+### service/ — 领域（一域一包，只向下依赖 infra）
+
+按 **loop 每一步要调的东西** 归类:
+
+**① 上下文装配所需**
+| 模块 | 能力 | 依赖↓ | 现状 |
+|---|---|---|---|
+| `service/knowledge`（现 `memory`,建议改名,见 §3.1） | LYRA.md 长期知识:get / update / list（project + user scope）。 | infra/storage(file) | `internal/service/memory` |
+| `service/agentdoc` | AGENTS.md 级联发现 + render。 | — | `internal/service/agentdoc` |
+| `service/skills` | skill 发现 / 取用（project + global 合并）。 | SDK `skills` | 散在 `engine/skills.go` |
+
+**② 会话与历史**
+| 模块 | 能力 | 依赖↓ | 现状 |
+|---|---|---|---|
+| `service/session` | 会话实体 + 生命周期:create / fork / subtask / rollback / restore / relocate（充血实体:Fork/NewSubtask 派生）。 | infra/storage | `internal/service/session` |
+| `service/transcript`（现 `history`,建议改名,见 §3.1） | 持久 items + runs（UI 时间线）。 | infra/storage | `internal/service/history` |
+| `service/conversation`（**新显形**,见 §3.1） | LLM 上下文消息历史 chat.Message[]:read / seed / truncate / count。 | infra/storage | SDK chat-memory store + engine 的 ReadHistory/SeedHistory 透传 |
+
+**③ 工具能力（loop 执行步调用）**
+| 模块 | 能力 | 依赖↓ | 现状 |
+|---|---|---|---|
+| `service/codeintel` | 代码智能:definition / references / hover / symbols / diagnostics。 | infra/lsp | `engine/lsptools.go` 能力侧 |
+| `service/workspace` | VCS 视图（diff / status）+ 文件 checkpoint（snapshot / restore）。 | infra/git, infra/checkpoint | `rpc/server/{workspace_vcs,checkpoint,rollback}.go` |
+| `service/tool` | 工具注册表 / 元数据 + 直调（tools.list / invoke）。 | — | `internal/service/tool` |
+
+> fs / bash / web / 后台命令工具的"能力"够薄 —— 直接是 infra（storage / exec / http）+ engine 装配,**不单列 service**（YAGNI）。
+
+**④ 策略 / 横切**
+| 模块 | 能力 | 依赖↓ | 现状 |
+|---|---|---|---|
+| `service/approval` | 审批 stance（readonly/safe/balanced/yolo）+ HITL gate 判定。 | — | `internal/service/approval` |
+| `service/interrupts` | open-interrupt 注册表（park/resume 查它）。 | infra/storage | `internal/service/interrupts` |
+| `service/provider` | provider 注册表（key / baseURL）+ model→client 解析。 | infra/storage | `internal/service/provider` |
+
+**⑤ 维护（turn 边界的自治操作）**
+| 模块 | 能力 | 依赖↓ | 现状 |
+|---|---|---|---|
+| `service/compaction` | 历史摘要压缩（超阈值时折叠）。 | conversation, SDK chat client | `engine/compaction.go` |
+| `service/extraction` | LYRA.md 事实提取（写回 knowledge）。 | knowledge, conversation, SDK chat client | `engine/extractor.go` |
+| `service/planning` | plan 生成（plan 模式的策略产出）。 | SDK chat client | `engine/planner.go` |
+
+> ⑤ 三者可保持三个单一职责小包,或合为 `service/maintenance` 一包三文件 —— 看后续是否共享状态决定;当前倾向**三个独立小包**(各自能脱离 engine 单测)。
+
+### engine/ — 编排（装配 + 驱动 loop，§0）
+
+不是模块清单而是**职责清单**(它 import 上述 service + agent SDK):
+
+- 装配 **system prompt**（组合 knowledge + agentdoc + skills）。
+- 装配 **工具集**（从 codeintel / workspace / tool / exec / mcp / a2a / skills + fs/bash/web）。
+- 解析 **model client**（provider）。
+- **驱动 `agent/runtime` 的 `for{}`** 跑一个 turn（`StartChat` / `ResumeChat`）。
+- **turn 生命周期**:start / resume / cancel / steering / events（批次 5 吸收自 `chat.Service`）。
+- **HITL** park / resume 编排（approval + interrupts）。
+- **turn 边界**触发 compaction / extraction + workspace 快照。
+- **会话操作**编排:fork / rollback / export / import（调 session + transcript + conversation + workspace）。
+
+### delivery/ — rpc（只经 engine + service，不直碰 infra）
+
+`rpc/protocol`（wire 契约）/ `rpc/server`（handler）/ `rpc/dispatch`（路由）/ `rpc/transport/*`（HTTP+SSE / inprocess）。
+
+### composition root
+
+`internal/runtime` + `cmd/lyra`:装配处,可 import 所有层,把各层实现注入。**不算业务依赖**。
+
+---
+
+## 3.1 命名消歧（架构清晰度的硬伤，建议一并修）
+
+现在 **"memory" 和 "history" 各指两样东西**,是命名漂移 —— lyra 实则有**三种**不同的"历史/记忆",必须各有其名:
+
+| 概念 | 是什么 | 现状叫法（混淆点） | 建议名 |
+|---|---|---|---|
+| **knowledge** | LYRA.md 长期知识（用户可编辑、跨会话） | `service/memory` | `service/knowledge` |
+| **conversation** | 喂给 LLM 的消息上下文 `chat.Message[]` | SDK `memory.Store`（与上面撞名）+ 散在 engine | `service/conversation` |
+| **transcript** | UI 渲染的 items + runs 时间线 | `service/history` | `service/transcript` |
+
+> 三者职责、生命周期、消费方都不同(knowledge 用户编辑 / conversation 喂模型 / transcript 给 UI),却被 "memory×2 + history" 混指。消歧是低风险高收益的清晰度提升(纯改名 + import)。
+
+---
+
+## 3.2 演进纪律（避免过度切分 / 仪式）
+
+- **内聚但不原子化**:一个外部系统 / 一个领域一包;别为"看起来分层"把单一职责再切碎。
+- **单实现直接具体依赖**(你的原则,§4):端口只在"多实现 / 需测试桩 / 跨边界"处留(storage 端口、chat client 端口保留 —— 它们让 service 能 mock 测)。
+- **不叠 DDD 仪式层**(§6):service 不是"application service 层",是"领域能力";infra 不是"repository 层",是"技术适配器"。
+- **一次一刀**:模块目录是**目标**,不是一次到位;按 §5 批次逐步逼近,每刀全绿可独立 revert。
 
 ---
 
@@ -108,7 +200,7 @@ rpc/server ─→ engine, 全部 service, checkpoint(infra), git(infra), sqlite(
 > 节奏遵 REFACTORING.md §10:每批 `go build && vet && test ./...` 全绿、commit 写 why、推送。**批次 5 是大结构改动,动前单独签字。**
 
 ### 批次 1 — 领域算法服务化（最高价值/最低风险）
-`engine` 的私有 `compactor`/`extractor`/`planner`（compaction.go 211 + extractor.go 143 + planner.go 72）→ `internal/service/maintenance`（或三个 service）。engine 经接口编排。
+`engine` 的私有 `compactor`/`extractor`/`planner`（compaction.go 211 + extractor.go 143 + planner.go 72）→ `service/compaction` + `service/extraction` + `service/planning`（三个单一职责小包,§3⑤）。engine 经接口编排。
 - **效果**:engine -426L;压缩/提取/规划可脱离 engine 单测;正中"重逻辑进 service"。
 - **风险**:低。纯移动 + 注入;不动 wire、不动 infra。
 
@@ -132,6 +224,11 @@ rpc/server ─→ engine, 全部 service, checkpoint(infra), git(infra), sqlite(
 消除 `chat→engine` / `tool→engine` 逆向边:把 `chat.Service` 的编排（turn 状态机 / lifecycle / dispatch / observer / policy）与 engine **并入同一编排层**;契约类型（`ChatProcess`/`RunChatRequest`/…）随之归位。结束后 engine 是唯一编排所有者,`service/` 只剩纯领域/数据,实现干净的 `engine → service → infra`。
 - **效果**:彻底单向;消除中段纠缠。
 - **风险**:高、面广（chat 1750L + 契约类型迁移 + rpc 接线）。**动前列 scope + 爆炸半径 + 备选,单独签字。**
+
+### 批次 6（可独立、随时插入）— 命名消歧（§3.1）
+`service/memory → service/knowledge`、`service/history → service/transcript`,并把 LLM 消息上下文显形为 `service/conversation`。纯改名 + import 调整,无行为变化。
+- **效果**:消除 "memory×2 + history" 混指,三种历史/记忆各有其名。
+- **风险**:低（机械,但 ripple 到 rpc/server + runtime + engine 的 import）。建议早做,清晰度收益立竿见影。
 
 ---
 
