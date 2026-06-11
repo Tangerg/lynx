@@ -1,9 +1,10 @@
 package server
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -86,7 +87,7 @@ func (w *fileWatcher) run() {
 
 	flush := func() {
 		for watchID, paths := range pending {
-			w.emit(protocol.WorkspaceEvent{Type: "files.changed", WatchID: watchID, Paths: sortedKeys(paths)})
+			w.emit(protocol.WorkspaceEvent{Type: "files.changed", WatchID: watchID, Paths: slices.Sorted(maps.Keys(paths))})
 		}
 		pending = map[string]map[string]struct{}{}
 		armed = false
@@ -155,13 +156,4 @@ func (w *fileWatcher) Close() {
 	close(w.done)
 	<-w.exited
 	_ = w.fsw.Close()
-}
-
-func sortedKeys(set map[string]struct{}) []string {
-	out := make([]string, 0, len(set))
-	for k := range set {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
 }
