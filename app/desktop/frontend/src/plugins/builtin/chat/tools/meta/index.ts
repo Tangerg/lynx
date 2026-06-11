@@ -4,6 +4,7 @@
 // paint before plugins load still picks a sensible glyph); this plugin
 // is the source of truth that third-party tools extend.
 
+import { copyText } from "@/lib/clipboard";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_ACTION, TOOL_ICON } from "@/plugins/sdk/kernelPoints";
 
@@ -18,13 +19,7 @@ export const toolActions = definePlugin({
       order: 0,
       predicate: (tool) => tool.args.trim().length > 0,
       run: async (tool) => {
-        if (typeof navigator !== "undefined" && navigator.clipboard) {
-          try {
-            await navigator.clipboard.writeText(tool.args);
-          } catch {
-            /* clipboard write can fail in unfocused windows; ignore */
-          }
-        }
+        await copyText(tool.args);
       },
     });
   },

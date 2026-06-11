@@ -11,6 +11,7 @@
 import type { PluginError, PluginErrorSource } from "@/plugins/sdk";
 import { useState } from "react";
 import { Icon, IconButton, PillButton } from "@/components/common";
+import { copyText } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
 import { definePlugin, reloadPlugin, usePluginErrorStore, usePluginStore } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
@@ -147,7 +148,7 @@ const SOURCE_LABEL: Record<PluginErrorSource, string> = {
 function ErrorEntry({ err }: { err: PluginError }) {
   const time = new Date(err.timestamp).toLocaleTimeString();
   const copy = () =>
-    void navigator.clipboard?.writeText(
+    void copyText(
       `[${SOURCE_LABEL[err.source]}] ${err.message}${err.detail ? `\n\n${err.detail}` : ""}`,
     );
   return (

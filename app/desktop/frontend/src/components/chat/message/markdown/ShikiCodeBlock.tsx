@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDebounce } from "use-debounce";
 import { Icon } from "@/components/common";
+import { copyText } from "@/lib/clipboard";
 import { measureShikiHighlight } from "@/lib/metrics";
 import { getHighlighter, resolveLang } from "@/lib/markdown/shiki";
 import { getCachedHighlight, setCachedHighlight } from "@/lib/markdown/shikiCache";
@@ -95,11 +96,7 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
   );
 
   const onCopy = () => {
-    try {
-      navigator.clipboard?.writeText(code);
-    } catch {
-      /* ignore */
-    }
+    void copyText(code);
     setCopied(true);
     if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
     copyTimerRef.current = window.setTimeout(() => {
