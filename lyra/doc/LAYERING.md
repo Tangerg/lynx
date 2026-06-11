@@ -273,4 +273,20 @@ rpc/server ─→ engine, 全部 service, checkpoint(infra), git(infra), sqlite(
   **关于 tool**:§2 列了 "tool→engine",但 `service/tool` 生产代码**不 import engine**——它消费自定义 `source interface{ Tools() }`(干净 ISP),只有集成测试建真 engine。故 tool 是合法领域 service,无需移动。
 - ⏳ **批次 5b(原设想的"合并契约类型/进一步并包")— 不再需要**:5a 已达成 layering 目标(零反向边 + 单向分层)。把契约类型从 engine 抽出已被证明是错误方向(类型与编排不可分),进一步并包只会造 god-package。**关闭**。
 
-**当前依赖图**:§2 的**全部四个问题(1/2/3/4)已消除**。`delivery(rpc) → 编排(engine + engine/chat) → 领域(service/*) → infra(infra/*)`,`grep` 不出任何生产反向边。**结构重构核心已完成**;余下仅 4B(暂缓,低价值)+ conversation 显形(暂缓,非 layering 必需)。
+**当前依赖图**:§2 的**全部四个问题(1/2/3/4)已消除**。`delivery(rpc) → 编排(engine + engine/chat) → 领域(service/*) → infra(infra/*)`,`grep` 不出任何生产反向边。
+
+### 第二轮 —— engine 残留的领域/infra 全部下沉(2026-06-12,补 §3 目标表未落地项)
+
+批次 2 当初只搬了「已经独立成目录」的 4 个 infra(storage/git/lsp/checkpoint),**漏了嵌在 engine 里的** infra(exec/mcp/a2a)与 service(skills/conversation)。本轮补齐:
+
+- ✅ **批次 7 — `service/skills`**:skill 发现/合并/列举(原 `engine/skills.go`)。engine 只留 per-cwd 解析 + `chat.Tool` 构造;`SkillInfo` 以 type alias 保留零 ripple。
+- ✅ **批次 8 — `infra/exec`**:后台进程机制 `Manager`/`Shell`(os/exec + 环形缓冲 + kill,原 `engine/bgshell.go`)。engine 只留 bg 工具构造。
+- ✅ **批次 9 — `service/conversation`**:LLM 消息上下文 read/seed/count/truncate/inject(原 `engine.go` 直操 memStore)。engine 5 个方法变薄 facade 委派(同批次 1 模式),`memStore` 字段消失。**§3.1 第三种历史「conversation」显形完成**。
+- ✅ **批次 10 — `infra/mcp`**:MCP 连接生命周期 `Connections`(dial/sessions/reconnect/Close,原 `engine/mcp.go` ~330L 挂在 Engine 上)。reconnect→resolver 热插经 `SetToolSink` 回调解耦。engine 留 facade(`Mcp*` 类型 alias 零 ripple);生产 engine 不再 import MCP SDK。
+- ✅ **批次 11 — `infra/a2a`**:A2A dial + client 生命周期 `Connections`(原 `engine/a2a.go`)。engine/a2a.go 整文件删除;生产 engine 不再 import a2a SDK。`engineTracer` 随之移走。
+
+**engine 残留外部依赖审计(实测)**:仅剩 ①`tools/*` 工具模块(bash/fs/web/skills —— 「装配工具集」是 engine 明确职责,§3)②`prompt.go` 的 `os`(home/cwd 给 AGENTS.md 级联)③`editguard.go` 的 `os`+`sha256`(read-before-edit 守卫的文件哈希)。
+
+- ⏸ **editguard(readTracker)判定保留**:read-tracking/staleness 是工具装饰的可靠性逻辑,**单一消费方(engine 的工具 wrapper)、无多实现/测试桩需求**——按 §4.2 + CLAUDE.md「单实现→直接依赖,不为单实现抽服务」+ 文档自身「fs/bash/web 工具够薄不单列 service(YAGNI)」,**留在 engine**(与 codeintel 不同:codeintel 独占 infra/lsp 这个外部系统,editguard 只是哈希文件做装饰)。
+
+**结论**:engine 已收敛为纯**编排 + 装配**层;所有领域算法/状态与外部系统适配器都已落到 `service/*` 与 `infra/*`。`internal/service/` = {agentdoc, approval, chat→engine/chat, codeintel, conversation, interrupts, knowledge, maintenance, provider, session, skills, tool, transcript, workspace};`internal/infra/` = {a2a, checkpoint, exec, git, lsp, mcp, storage}。
