@@ -10,7 +10,6 @@ export const es: Record<string, string> = {
   "sidebar.search.placeholder": "Buscar · archivos · comandos",
   "sidebar.search.label": "Buscar archivos y comandos",
   "sidebar.section.projects": "Proyectos",
-  "sidebar.section.sessions": "Sesiones",
   "sidebar.action.addProject": "Añadir proyecto",
   "sidebar.addProject.title": "Nueva sesión en carpeta",
   "sidebar.addProject.placeholder": "Ruta absoluta",

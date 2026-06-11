@@ -1,17 +1,36 @@
-import type { SidebarProject } from "@/lib/data/queries";
-import { useState } from "react";
+// The sidebar's ONE workspace tree (Codex-style): projects are folder
+// nodes, sessions nest under their project by cwd (project identity IS
+// the cwd, AUX_API §1). Replaces the old flat Projects + Sessions pair —
+// two lists describing one hierarchy was the un-converged version of
+// this section.
+
+import type { SidebarProject, SidebarSession } from "@/lib/data/queries";
+import { useMemo, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { DataView, FIELD_CLASSES, Icon, SectionLabel } from "@/components/common";
-import { cn } from "@/lib/utils";
 import { ProjectRow } from "@/components/sidebar/ProjectRow";
+import { SessionRow } from "@/components/sidebar/SessionRow";
 import { useT } from "@/lib/i18n";
 import { useProjects, useSessions } from "@/lib/data/queries";
 import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
 import { useCreateSession } from "@/lib/agent/useCreateSession";
+import { useDeleteSession } from "@/lib/agent/useDeleteSession";
+import { useForkSession } from "@/lib/agent/useForkSession";
+import { useRenameSession } from "@/lib/agent/useRenameSession";
+import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { SIDEBAR_SECTION } from "@/plugins/sdk/kernelPoints";
 import { useSessionStore } from "@/state/sessionStore";
 import { sideListClasses } from "./styles";
+
+// Sessions shown per expanded project before the "Show more" fold —
+// keeps a busy project from burying the ones below it (Codex's 展开显示).
+const VISIBLE_CAP = 5;
+
+interface ProjectGroup {
+  project: SidebarProject;
+  sessions: SidebarSession[];
+}
 
 // "+" — create a session in a chosen directory (sessions.create cwd). The
 // runtime derives projects from session cwds, so "adding a project" IS
@@ -73,36 +92,133 @@ function AddProjectButton() {
   );
 }
 
+// One project node: header + (when open) its capped session list.
+function ProjectGroupNode({
+  group,
+  activeCwd,
+  activeSessionId,
+  onNewSession,
+  onSelect,
+  onRename,
+  onFork,
+  onDelete,
+}: {
+  group: ProjectGroup;
+  activeCwd: string | undefined;
+  activeSessionId: string;
+  onNewSession: (project: SidebarProject) => void;
+  onSelect: (id: string) => void;
+  onRename: (id: string, title: string) => void;
+  onFork: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(true);
+  const [showAll, setShowAll] = useState(false);
+  const visible = showAll ? group.sessions : group.sessions.slice(0, VISIBLE_CAP);
+  const hidden = group.sessions.length - visible.length;
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <ProjectRow
+        project={group.project}
+        // The accent bar marks the group only while it's collapsed — when
+        // open, the nested session row carries the active state itself.
+        active={group.project.id === activeCwd && !open}
+        open={open}
+        count={group.sessions.length}
+        onToggle={() => setOpen((v) => !v)}
+        onNewSession={onNewSession}
+      />
+      {open && group.sessions.length > 0 && (
+        <div className="flex flex-col gap-0.5 pl-4">
+          {visible.map((s) => (
+            <SessionRow
+              key={s.id}
+              session={s}
+              active={s.id === activeSessionId}
+              onSelect={onSelect}
+              onRename={onRename}
+              onFork={onFork}
+              onDelete={onDelete}
+            />
+          ))}
+          {(hidden > 0 || showAll) && (
+            <button
+              type="button"
+              onClick={() => setShowAll((v) => !v)}
+              className="rounded-lg border-0 bg-transparent px-2.5 py-1 text-left text-[11.5px] text-fg-faint transition-colors hover:bg-surface-2 hover:text-fg"
+            >
+              {hidden > 0 ? `Show ${hidden} more` : "Show less"}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function basename(cwd: string): string {
+  return cwd.replace(/\/+$/, "").split("/").at(-1) || cwd;
+}
+
 function ProjectsSection() {
   const t = useT();
-  const { data: projects, isLoading, isError } = useProjects();
-  const { data: sessions } = useSessions();
+  const { data: projects, isLoading: projectsLoading, isError: projectsError } = useProjects();
+  const { data: sessions, isLoading: sessionsLoading, isError: sessionsError } = useSessions();
+  const draftIds = useSessionStore((s) => s.draftSessionIds);
+  const activeSessionId = useSessionStore((s) => s.activeSessionId);
   const selectTab = useSessionStore((s) => s.selectTab);
   const createSession = useCreateSession();
-
-  // The "current" project = the active session's cwd (project identity is
-  // the cwd, AUX_API §1).
+  const deleteSession = useDeleteSession();
+  const forkSession = useForkSession();
+  const renameSession = useRenameSession();
   const activeCwd = useActiveSessionCwd();
 
-  // Open a project = jump to its most recent session, or start a fresh
-  // draft there when none exists yet.
+  // Project nodes + their sessions (drafts hidden until first message, as
+  // before). Sessions whose cwd has no project entry yet (cache timing /
+  // serve-dir sessions) get a synthetic node from the cwd, so every
+  // session stays reachable — the tree never silently drops one.
+  const groups = useMemo<ProjectGroup[] | undefined>(() => {
+    if (!projects && !sessions) return undefined;
+    const byCwd = new Map<string, SidebarSession[]>();
+    for (const s of sessions ?? []) {
+      if (draftIds.has(s.id)) continue;
+      const key = s.cwd ?? "";
+      const list = byCwd.get(key);
+      if (list) list.push(s);
+      else byCwd.set(key, [s]);
+    }
+    for (const list of byCwd.values()) list.sort((a, b) => (a.time < b.time ? 1 : -1));
+    const result: ProjectGroup[] = (projects ?? []).map((p) => {
+      const own = byCwd.get(p.id) ?? [];
+      byCwd.delete(p.id);
+      return { project: p, sessions: own };
+    });
+    for (const [cwd, list] of byCwd) {
+      result.push({
+        project: {
+          id: cwd,
+          name: cwd ? basename(cwd) : "Other",
+          branch: "",
+          sessionCount: list.length,
+        },
+        sessions: list,
+      });
+    }
+    return result;
+  }, [projects, sessions, draftIds]);
+
   const openProject = (project: SidebarProject): void => {
-    const latest = sessions
-      ?.filter((s) => s.cwd === project.id)
-      .reduce<
-        (typeof sessions)[number] | undefined
-      >((best, s) => (!best || s.time > best.time ? s : best), undefined);
-    if (latest) selectTab(latest.id);
-    else void createSession({ cwd: project.id });
+    void createSession({ cwd: project.id });
   };
 
   return (
     <>
       <SectionLabel trailing={<AddProjectButton />}>{t("sidebar.section.projects")}</SectionLabel>
       <DataView
-        items={projects}
-        isLoading={isLoading}
-        isError={isError}
+        items={groups}
+        isLoading={projectsLoading || sessionsLoading}
+        isError={projectsError && sessionsError}
         skeletonCount={3}
         empty={{
           icon: "folder",
@@ -113,8 +229,18 @@ function ProjectsSection() {
       >
         {(items) => (
           <div className={sideListClasses}>
-            {items.map((p) => (
-              <ProjectRow key={p.id} project={p} active={p.id === activeCwd} onOpen={openProject} />
+            {items.map((g) => (
+              <ProjectGroupNode
+                key={g.project.id}
+                group={g}
+                activeCwd={activeCwd}
+                activeSessionId={activeSessionId}
+                onNewSession={openProject}
+                onSelect={selectTab}
+                onRename={(id, title) => void renameSession(id, title)}
+                onFork={forkSession}
+                onDelete={deleteSession}
+              />
             ))}
           </div>
         )}

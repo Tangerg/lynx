@@ -10,7 +10,6 @@ export const ko: Record<string, string> = {
   "sidebar.search.placeholder": "검색 · 파일 · 명령",
   "sidebar.search.label": "파일과 명령 검색",
   "sidebar.section.projects": "프로젝트",
-  "sidebar.section.sessions": "세션",
   "sidebar.action.addProject": "프로젝트 추가",
   "sidebar.addProject.title": "폴더에서 새 세션",
   "sidebar.addProject.placeholder": "절대 경로",

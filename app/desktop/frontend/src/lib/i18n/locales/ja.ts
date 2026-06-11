@@ -10,7 +10,6 @@ export const ja: Record<string, string> = {
   "sidebar.search.placeholder": "検索 · ファイル · コマンド",
   "sidebar.search.label": "ファイルとコマンドを検索",
   "sidebar.section.projects": "プロジェクト",
-  "sidebar.section.sessions": "セッション",
   "sidebar.action.addProject": "プロジェクトを追加",
   "sidebar.addProject.title": "フォルダで新規セッション",
   "sidebar.addProject.placeholder": "絶対パス",

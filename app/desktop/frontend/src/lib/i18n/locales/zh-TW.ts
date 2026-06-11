@@ -10,7 +10,6 @@ export const zhTW: Record<string, string> = {
   "sidebar.search.placeholder": "搜尋 · 檔案 · 命令",
   "sidebar.search.label": "搜尋檔案和命令",
   "sidebar.section.projects": "專案",
-  "sidebar.section.sessions": "會話",
   "sidebar.action.addProject": "新增專案",
   "sidebar.addProject.title": "在目錄中新建工作階段",
   "sidebar.addProject.placeholder": "絕對路徑",

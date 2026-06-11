@@ -62,7 +62,6 @@ import {
   sidebarRailBottom,
   sidebarRailSessions,
   sidebarSearch,
-  sidebarSessions,
 } from "./sidebar";
 import slashHints from "./chat/slash-hints";
 import { statusNotifications, statusPill } from "./shell/status";
@@ -185,7 +184,6 @@ const kernel: PluginSpec[] = [kernelSidebar, kernelChat, kernelSettings];
 const sidebar: PluginSpec[] = [
   sidebarSearch,
   sidebarProjects,
-  sidebarSessions,
   sidebarFooter,
   sidebarRailActions,
   sidebarRailSessions,
