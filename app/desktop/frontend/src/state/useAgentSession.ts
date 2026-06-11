@@ -1,5 +1,5 @@
 import type { AgentDriver } from "@/plugins/sdk";
-import type { InterruptResponse, RunEvent, RunId, StreamingResult } from "@/rpc";
+import type { InterruptResponse, RunEvent, RunId, RunRef, StreamingResult } from "@/rpc";
 import { useEffect, useRef } from "react";
 import { asSessionId, errorDetail, errorType, RpcError } from "@/rpc";
 import { LOCAL_MESSAGE_PREFIX } from "@/protocol/run/viewState";
@@ -49,26 +49,6 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     // in that race — it'll hydrate cleanly on the next open.
     let interacted = false;
 
-    // Hydrate history for an existing (non-draft) session: replay its
-    // completed Items as `item.completed` events through the SAME fold the
-    // live stream uses, so past turns render identically. Drafts have no
-    // history (just created) — their queued first message is flushed below.
-    if (!useSessionStore.getState().draftSessionIds.has(sessionId)) {
-      void getContainer()
-        .client()
-        .items.list({ sessionId: asSessionId(sessionId) })
-        .then((resp) => {
-          if (cancelled || interacted || resp.data.length === 0) return;
-          store().applyEvents(
-            sessionId,
-            resp.data.map((item): RunEvent["event"] => ({ type: "item.completed", item })),
-          );
-        })
-        .catch((err: unknown) => {
-          if (!cancelled) console.error("[agent] history load failed:", sessionId, err);
-        });
-    }
-
     // Per-session rAF batcher. A run streams many item.delta events per
     // second; without batching each one triggers a store.set + React
     // commit. Coalescing into one flush per animation frame caps that at
@@ -113,6 +93,83 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
         if (!cancelled) console.error("[agent] run stream failed:", sessionId, err);
       }
     };
+
+    // Replay the session's durable Items as `item.completed` events through
+    // the SAME fold the live stream uses, so past turns render identically.
+    // Idempotent (the fold upserts by item id) — safe to re-apply after a
+    // reattach race below.
+    const applyHistory = async (): Promise<void> => {
+      const resp = await getContainer()
+        .client()
+        .items.list({ sessionId: asSessionId(sessionId) });
+      if (cancelled || interacted || resp.data.length === 0) return;
+      store().applyEvents(
+        sessionId,
+        resp.data.map((item): RunEvent["event"] => ({ type: "item.completed", item })),
+      );
+    };
+
+    // Reattach to a run that survived a reload (API.md §10.1): runs.subscribe
+    // streams events from now on, so the view's "running" state is seeded from
+    // the RunRef — the original run.started fired before we were listening.
+    const attach = async (run: RunRef): Promise<void> => {
+      // Register the controller BEFORE the call so a user send() supersedes
+      // the reattached stream exactly like it supersedes a started one
+      // (begin() aborts `abort`).
+      const ctrl = new AbortController();
+      abort = ctrl;
+      let stream: StreamingResult<{ runId: RunId }, RunEvent>;
+      try {
+        stream = await getContainer().client().runs.subscribe(run.id, ctrl.signal);
+      } catch (err) {
+        if (cancelled || ctrl.signal.aborted) return;
+        // Most likely the run finished between runs.list and subscribe — its
+        // tail items missed the first items.list, so re-apply history.
+        console.warn("[agent] run reattach failed:", sessionId, err);
+        void applyHistory().catch(() => undefined);
+        return;
+      }
+      if (cancelled || ctrl.signal.aborted) return;
+      store().applyEvents(sessionId, [{ type: "run.started", run }]);
+      await pump(stream);
+    };
+
+    // Hydrate + recover an existing (non-draft) session (API.md §10.2):
+    // durable history, then unresolved HITL interrupts (their cards must come
+    // back after a reload), then reattach a still-running run. Drafts have no
+    // history (just created) — their queued first message is flushed below.
+    // Each step re-checks `interacted`: once the user sends, the live run owns
+    // the slice and late backfill would interleave below it (see above).
+    if (!useSessionStore.getState().draftSessionIds.has(sessionId)) {
+      void (async () => {
+        const client = getContainer().client();
+        const sid = asSessionId(sessionId);
+        await applyHistory();
+        if (cancelled || interacted) return;
+        // Durable HITL recovery: synthesize the exact wire sequence the live
+        // path produces (run.started + run.finished{interrupt}) per envelope,
+        // so the cards rebuild through the same idempotent fold.
+        const open = await client.runs.listOpenInterrupts(sid);
+        if (cancelled || interacted) return;
+        for (const oi of open.data) {
+          store().applyEvents(sessionId, [
+            {
+              type: "run.started",
+              run: { id: oi.parentRunId, sessionId: oi.sessionId, createdAt: oi.createdAt },
+            },
+            { type: "run.finished", outcome: { type: "interrupt", interrupts: oi.interrupts } },
+          ]);
+        }
+        // At most one root run can be in flight (session_busy), so reattach
+        // the first non-subagent run if any.
+        const running = await client.runs.list(sid);
+        if (cancelled || interacted) return;
+        const root = running.data.find((r) => !r.spawnedByItemId);
+        if (root) await attach(root);
+      })().catch((err: unknown) => {
+        if (!cancelled) console.error("[agent] session recovery failed:", sessionId, err);
+      });
+    }
 
     const begin = (
       run: (
