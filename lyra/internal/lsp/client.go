@@ -274,6 +274,9 @@ func (c *client) diagnostics(ctx context.Context, abs string, settle time.Durati
 		return nil, err
 	}
 	uri := pathToURI(abs)
+	// Nudge servers that only publish on save (typescript-language-server) —
+	// harmless for those that publish on change (gopls).
+	_ = c.conn.Notify(ctx, "textDocument/didSave", didSaveParams{TextDocument: textDocumentIdentifier{URI: uri}})
 	deadline := time.NewTimer(settle)
 	defer deadline.Stop()
 	for {
