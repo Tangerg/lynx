@@ -35,7 +35,12 @@ const TOOL_CATEGORY: Record<string, ToolCategory> = {
   webSearch: "webSearch",
   read: "read",
   subagent: "subagent",
+  task: "subagent", // the runtime's subagent tool (spawns a child run, returns its reply)
 };
+// lsp_* / skill / ask_user stay "generic" on purpose: their labels, icons,
+// and previews key on the tool NAME (projections.toolLabel + TOOL_ICON +
+// TOOL_PREVIEW), and their results are plain text the generic field
+// projection already passes through.
 
 export function toolCategory(name: string): ToolCategory {
   return TOOL_CATEGORY[name] ?? "generic";

@@ -12,17 +12,14 @@ import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
 import { useServerFeature } from "@/state/runtimeStore";
 import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
+import { parseJsonResult, PREVIEW_WRAP } from "./shared";
+
+export { askUserPreview, globPreview, lspPreviews, skillPreview, taskPreview } from "./specialised";
 
 const MAX_TERM_LINES = 9;
 const MAX_DIFF_ROWS = 8;
 const MAX_GREP_MATCHES = 4;
 const MAX_FILE_LINES = 40;
-
-// Shared container shape for every inline tool preview. The wrapper sits
-// one step deeper than the .tool-card surface (canvas) so it reads as
-// nested content — DESIGN.md §5 surface-step depth rule.
-const PREVIEW_WRAP =
-  "max-h-60 overflow-y-auto bg-canvas px-3.5 pt-2.5 pb-2 font-mono text-[12px] leading-[1.55] text-fg-muted";
 
 // Per-line presentation keyed by row type — one lookup beats four parallel
 // ternary chains switching on the same field. (The full DiffView in the
@@ -140,30 +137,72 @@ function FilePreview({ tool, onOpenView }: ToolPreviewProps) {
   );
 }
 
+// One display row per hit, whatever grep's output_mode returned — matches
+// ({path,line,text}), files (paths), or counts ({path,count}). Undefined
+// when the result isn't one of those shapes (still streaming / legacy
+// `hits` convention) — the caller then falls back to re-querying.
+function inlineGrepRows(
+  result: string | undefined,
+): { rows: { loc: string; text: string }[]; truncated: boolean } | undefined {
+  const parsed = parseJsonResult(result);
+  if (!parsed) return undefined;
+  const rec = (v: unknown): Record<string, unknown> =>
+    typeof v === "object" && v !== null ? (v as Record<string, unknown>) : {};
+  const truncated = parsed.truncated === true;
+  if (Array.isArray(parsed.matches)) {
+    return {
+      rows: parsed.matches.map((m) => ({
+        loc: `${String(rec(m).path ?? "")}:${String(rec(m).line ?? "")}`,
+        text: String(rec(m).text ?? ""),
+      })),
+      truncated,
+    };
+  }
+  if (Array.isArray(parsed.files)) {
+    return { rows: parsed.files.map((f) => ({ loc: String(f), text: "" })), truncated };
+  }
+  if (Array.isArray(parsed.counts)) {
+    return {
+      rows: parsed.counts.map((c) => ({
+        loc: String(rec(c).path ?? ""),
+        text: `${String(rec(c).count ?? 0)} matches`,
+      })),
+      truncated,
+    };
+  }
+  return undefined;
+}
+
 function GrepPreview({ tool, onOpenView }: ToolPreviewProps) {
-  // Re-querying makes sense only for regex search — a glob pattern is not a
-  // workspace.grep query, so the glob preview keeps just the footer link.
+  // Prefer the call's OWN result — grep returns matches/files/counts inline
+  // (output_mode), which also honors filters (glob/type/context) a re-query
+  // can't reproduce. The workspace.grep re-query stays as the fallback for
+  // runtimes whose result carries only the §4.4.2 `hits` convention.
+  const inline = inlineGrepRows(tool.result);
   const cwd = useActiveSessionCwd();
-  const query = tool.name === "grep" && tool.fn && tool.fn !== "search" ? tool.fn : undefined;
+  const query =
+    !inline && tool.name === "grep" && tool.fn && tool.fn !== "search" ? tool.fn : undefined;
   const { data } = useGrep(query ? { query, cwd, limit: MAX_GREP_MATCHES } : undefined);
-  const matches = data?.matches ?? [];
-  // §7.5 no-silent-caps: total may exceed matches.length (server truncation).
-  const overflow = (data?.total ?? 0) - matches.length;
+  const rows =
+    inline?.rows ??
+    (data?.matches ?? []).map((m) => ({ loc: `${m.path}:${m.lineNumber}`, text: m.text }));
+  const shown = rows.slice(0, MAX_GREP_MATCHES);
+  // §7.5 no-silent-caps: surface both our preview cap and server truncation.
+  const overflow = inline ? rows.length - shown.length : (data?.total ?? 0) - shown.length;
   return (
     <div className={PREVIEW_WRAP}>
       <div className="font-mono text-[11.5px] leading-[1.55]">
-        {matches.map((m, i) => (
+        {shown.map((r, i) => (
           <div
             key={i}
             className="grid grid-cols-[200px_1fr] gap-3 py-0.5 whitespace-nowrap overflow-hidden"
           >
-            <span className="truncate text-[11px] text-fg-faint">
-              {m.path}:{m.lineNumber}
-            </span>
-            <span className="truncate text-fg">{m.text}</span>
+            <span className="truncate text-[11px] text-fg-faint">{r.loc}</span>
+            <span className="truncate text-fg">{r.text}</span>
           </div>
         ))}
         {overflow > 0 && <div className="pt-1 text-fg-faint">… {overflow} more matches</div>}
+        {inline?.truncated && <div className="pt-1 text-fg-faint">… truncated by runtime</div>}
       </div>
       <PreviewFoot label="View all matches" onClick={onOpenView} />
     </div>
@@ -202,7 +241,8 @@ export const grep = definePlugin({
   name: "lyra.builtin.grep",
   version: "1.0.0",
   setup({ host }) {
+    // glob gets its own preview (specialised.tsx) — a glob pattern is not a
+    // workspace.grep query, and GlobResponse carries the paths inline.
     host.extensions.contribute(TOOL_PREVIEW, GrepPreview, { key: "grep" });
-    host.extensions.contribute(TOOL_PREVIEW, GrepPreview, { key: "glob" });
   },
 });

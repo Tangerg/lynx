@@ -29,5 +29,9 @@ export function toolIconFor(key: string): IconName {
   if (key === "edit" || key === "write" || key === "read") return "file";
   if (key === "grep" || key === "glob") return "search";
   if (key === "webSearch") return "globe";
+  if (key.startsWith("lsp_")) return "code";
+  if (key === "skill") return "sparkle";
+  if (key === "task" || key === "subagent") return "spark";
+  if (key === "ask_user") return "chat";
   return "tool";
 }

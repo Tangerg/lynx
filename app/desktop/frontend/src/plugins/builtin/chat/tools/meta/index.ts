@@ -43,5 +43,19 @@ export const toolIcons = definePlugin({
     host.extensions.contribute(TOOL_ICON, "search", { key: "grep" });
     host.extensions.contribute(TOOL_ICON, "search", { key: "glob" });
     host.extensions.contribute(TOOL_ICON, "globe", { key: "webSearch" });
+    for (const key of [
+      "lsp_definition",
+      "lsp_references",
+      "lsp_hover",
+      "lsp_document_symbols",
+      "lsp_diagnostics",
+      "lsp_workspace_symbols",
+    ]) {
+      host.extensions.contribute(TOOL_ICON, "code", { key });
+    }
+    host.extensions.contribute(TOOL_ICON, "sparkle", { key: "skill" });
+    host.extensions.contribute(TOOL_ICON, "spark", { key: "task" });
+    host.extensions.contribute(TOOL_ICON, "spark", { key: "subagent" });
+    host.extensions.contribute(TOOL_ICON, "chat", { key: "ask_user" });
   },
 });
