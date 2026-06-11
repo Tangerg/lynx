@@ -1,4 +1,4 @@
-package engine
+package maintenance
 
 import (
 	"context"
@@ -11,37 +11,39 @@ import (
 	lyramem "github.com/Tangerg/lynx/lyra/internal/service/memory"
 )
 
-// extractor folds long-term knowledge out of a session and appends
+// Extractor folds long-term knowledge out of a session and appends
 // it to the project-scope LYRA.md. The intent is "things this
 // conversation taught us that the next session should already know
 // without re-deriving" — file structure invariants, user
 // preferences stated mid-turn, repeated commands the user prefers,
 // etc.
 //
-// Runs after a compaction sweep so the LLM sees a manageable slice
+// Run after a compaction sweep so the LLM sees a manageable slice
 // of recent history. Failure is non-fatal — the conversation has
 // already been compacted; we'd rather skip the extraction than
 // undo that.
-type extractor struct {
+type Extractor struct {
 	store   memory.Store
 	memSvc  lyramem.Service
 	client  *chat.Client
 	minMsgs int
 }
 
-// ExtractionResult reports what a single [Engine.MaybeExtract] pass
+// ExtractionResult reports what a single [Extractor.MaybeExtract] pass
 // wrote to long-term memory. Extracted is false (Facts empty) when
-// nothing was mined — no memory service, conversation too short, or
-// the LLM judged nothing worth keeping. Facts is the markdown the
-// pass appended to LYRA.md, so callers can surface an observable
-// "saved N notes to memory" event.
+// nothing was mined — a nil extractor (no memory service), conversation
+// too short, or the LLM judged nothing worth keeping. Facts is the
+// markdown the pass appended to LYRA.md, so callers can surface an
+// observable "saved N notes to memory" event.
 type ExtractionResult struct {
 	Extracted bool
 	Facts     string
 }
 
-func newExtractor(store memory.Store, memSvc lyramem.Service, client *chat.Client) *extractor {
-	return &extractor{
+// NewExtractor builds an Extractor over the chat-memory store, the
+// long-term LYRA.md service, and the chat client.
+func NewExtractor(store memory.Store, memSvc lyramem.Service, client *chat.Client) *Extractor {
+	return &Extractor{
 		store:   store,
 		memSvc:  memSvc,
 		client:  client,
@@ -49,14 +51,14 @@ func newExtractor(store memory.Store, memSvc lyramem.Service, client *chat.Clien
 	}
 }
 
-// maybeExtract reads the post-compaction history, asks the LLM
+// MaybeExtract reads the post-compaction history, asks the LLM
 // what's worth keeping long-term, and appends the result to the
 // project-scope LYRA.md of cwd — the session's working directory, so
 // facts land in the project the conversation was about (empty cwd
 // falls back to the memory service's default dir). Returns the zero
-// result when the engine has no memory service (LYRA.md disabled) or
-// the conversation is still too short to be worth mining.
-func (e *extractor) maybeExtract(ctx context.Context, sessionID, cwd string) (ExtractionResult, error) {
+// result on a nil receiver (LYRA.md disabled) or when the conversation
+// is still too short to be worth mining.
+func (e *Extractor) MaybeExtract(ctx context.Context, sessionID, cwd string) (ExtractionResult, error) {
 	if e == nil || sessionID == "" {
 		return ExtractionResult{}, nil
 	}
@@ -90,7 +92,7 @@ func (e *extractor) maybeExtract(ctx context.Context, sessionID, cwd string) (Ex
 // askForFacts queries the LLM directly (no middleware → no
 // recursion into the chat-memory layer). Returns "" when the LLM
 // explicitly says nothing is worth recording.
-func (e *extractor) askForFacts(ctx context.Context, msgs []chat.Message) (string, error) {
+func (e *Extractor) askForFacts(ctx context.Context, msgs []chat.Message) (string, error) {
 	transcript := renderTranscript(msgs)
 	const prompt = `You are mining a coding-agent conversation for facts worth
 adding to a project's persistent memory file (LYRA.md). Output

@@ -3,10 +3,20 @@ package engine
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
+
+// llmCallTimeout caps a single chat turn's LLM work so a hung provider
+// connection — no response, or a stream the client can't parse (e.g. the
+// error body a no-access model returns on a streaming request) — fails
+// the turn instead of blocking the run forever. The ctx deadline also
+// lets Go's HTTP stack interrupt a stuck tls.Read. This is a hang
+// backstop, not a turn budget: keep it generous (use MaxBudget /
+// MaxCostUSD to bound normal work).
+const llmCallTimeout = 2 * time.Minute
 
 // runChatTurn drives one streaming chat turn end-to-end: compose the
 // system prompt + user message, run the tool-loop, stream deltas to the

@@ -17,6 +17,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	"github.com/Tangerg/lynx/lyra/internal/lsp"
+	"github.com/Tangerg/lynx/lyra/internal/service/maintenance"
 	lyramem "github.com/Tangerg/lynx/lyra/internal/service/memory"
 )
 
@@ -52,9 +53,9 @@ type Engine struct {
 	// Maintenance sub-components — each may be nil when the
 	// corresponding feature is disabled by config (e.g. extractor
 	// when no MemoryService was supplied).
-	compactor *compactor
-	extractor *extractor
-	planner   *planner
+	compactor *maintenance.Compactor
+	extractor *maintenance.Extractor
+	planner   *maintenance.Planner
 
 	// External lifecycle. mcpServers (per-server session + status) and
 	// a2aClients are closed during [Engine.Close]; nil when no MCP servers /
@@ -248,12 +249,12 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	}
 
 	if cfg.Compaction.MaxMessages >= 0 {
-		e.compactor = newCompactor(memStore, cfg.ChatClient, cfg.Compaction)
+		e.compactor = maintenance.NewCompactor(memStore, cfg.ChatClient, cfg.Compaction)
 	}
 	if cfg.MemoryService != nil {
-		e.extractor = newExtractor(memStore, cfg.MemoryService, cfg.ChatClient)
+		e.extractor = maintenance.NewExtractor(memStore, cfg.MemoryService, cfg.ChatClient)
 	}
-	e.planner = newPlanner(cfg.ChatClient)
+	e.planner = maintenance.NewPlanner(cfg.ChatClient)
 	return e, nil
 }
 
@@ -268,8 +269,8 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 //   - sessionID is empty (single-turn / no chat-memory path)
 //   - the configured Compaction.MaxMessages is negative (disabled)
 //   - the current history is shorter than the threshold
-func (e *Engine) MaybeCompact(ctx context.Context, sessionID string) (CompactionResult, error) {
-	return e.compactor.maybeCompact(ctx, sessionID)
+func (e *Engine) MaybeCompact(ctx context.Context, sessionID string) (maintenance.CompactionResult, error) {
+	return e.compactor.MaybeCompact(ctx, sessionID)
 }
 
 // MaybeExtract mines the recent conversation for facts worth
@@ -282,8 +283,8 @@ func (e *Engine) MaybeCompact(ctx context.Context, sessionID string) (Compaction
 // or the conversation is too short.
 // cwd is the session's working directory — facts extract into THAT
 // project's LYRA.md; empty falls back to the memory service default.
-func (e *Engine) MaybeExtract(ctx context.Context, sessionID, cwd string) (ExtractionResult, error) {
-	return e.extractor.maybeExtract(ctx, sessionID, cwd)
+func (e *Engine) MaybeExtract(ctx context.Context, sessionID, cwd string) (maintenance.ExtractionResult, error) {
+	return e.extractor.MaybeExtract(ctx, sessionID, cwd)
 }
 
 // Tools returns the registered coding tool set — used by

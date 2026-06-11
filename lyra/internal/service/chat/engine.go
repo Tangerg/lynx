@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/Tangerg/lynx/lyra/internal/engine"
+	"github.com/Tangerg/lynx/lyra/internal/service/maintenance"
 )
 
 // engineDep is the narrow behavioral surface chat depends on. It
@@ -22,9 +23,10 @@ import (
 // implementer outside this module — *engine.Engine satisfies it
 // implicitly, so nothing names it (tests pass a stub the same way).
 //
-// The shared parameter/result types still live in package engine
-// (RunChatRequest, ChatOutput, ChatProcess) — those describe the
-// engine's I/O schema and importing them does not create a
+// The shared parameter/result types live with their owning layer —
+// engine I/O schema in package engine (RunChatRequest, ChatOutput,
+// ChatProcess), maintenance results in package maintenance
+// (CompactionResult, ExtractionResult). Importing them carries no
 // concrete-type coupling. What we shed is the *engine.Engine
 // dependency, so chat can be unit-tested and the layering matches
 // the architecture (engine composes services, not the other way).
@@ -36,6 +38,6 @@ type engineDep interface {
 	// re-parked [engine.ChatProcess] ready for Resume(approved).
 	RestoreChat(ctx context.Context, processID string, req engine.RestoreChatRequest) (engine.ChatProcess, error)
 	InjectUserMessage(ctx context.Context, sessionID, text string) error
-	MaybeCompact(ctx context.Context, sessionID string) (engine.CompactionResult, error)
-	MaybeExtract(ctx context.Context, sessionID, cwd string) (engine.ExtractionResult, error)
+	MaybeCompact(ctx context.Context, sessionID string) (maintenance.CompactionResult, error)
+	MaybeExtract(ctx context.Context, sessionID, cwd string) (maintenance.ExtractionResult, error)
 }
