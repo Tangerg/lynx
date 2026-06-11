@@ -164,24 +164,24 @@ func New(ctx, cfg Config) (*Runtime, error) {
 
 ---
 
-## 7. 迁移批次(增量,每批全绿可 revert;复用前 11 批抽出的 adapter)
+## 7. 迁移批次(已落地)
 
-> 两条主线:**(I) 把工具构造移出核心 → 装配层**(让核心变薄、tools 在外组好注入);**(II) 把核心直接消费的能力翻成 engine 定义的窄 port + runtime 注入**。
+> 两条主线:**(I) 把工具构造移出核心 → 装配层**;**(II) 把核心消费的能力翻成 engine 定义的窄 port + 注入**。
 
-- **M1 — 工具装配层 `internal/engine/toolset`(主线 I)**:把 builders(workdir/online/lsp/bgshell/skill + edit-guards)+ `cwdToolResolver` + seam 移出 engine 核心文件到 `toolset` 包(`toolset` import 能力具体类型 + agent/core + tools/*,**不 import engine**,无环)。`toolset.NewResolver(Deps)` 组装;ask_user/task(HITL/需 platform)由 engine 建好注入 resolver。engine 核心瘦身 ~700 LOC。**这是治"engine 太重"的直接手段。**
-- **M2 — maintenance hooks port 化(主线 II)**:engine 定义 `Compactor`/`Extractor`/`Planner` 窄接口(port.go),engine 持接口不再 `maintenance.NewX`,构造挪 runtime 注入。(扩展点:可换压缩/提取策略。)
-- **M3 — prompt-context + conversation port 化**:engine 定义 `Knowledge`/`AgentDocs`/`Conversation` 窄接口,持接口;runtime 注入 `service/knowledge`、`service/agentdoc`、`service/conversation`。
-- **M4 — 能力构造上移 runtime**:`codeintel.New` / `exec.NewManager` / `mcp.Dial` / `a2a.Dial` / skills 从 engine.New 挪到 runtime,经 `toolset.Deps` 喂装配层;能力 lifecycle/Close 归 runtime。engine.New 不再构造任何能力。
-- **M5 — 收尾 + 验证**:确认 engine 核心 **零具体 `service/*` `infra/*` import**(只 port + agent SDK + `core/model/chat` + 契约类型 + observer/HITL)。chat:微内核下"service 引用 engine"正常,可评估从 `engine/chat` 移回 `service/chat`(可选,非必需)。`port.go` 集中所有核心 port。
+- ✅ **M1 — 工具装配层 `internal/engine/toolset`**:builders(workdir/online/lsp/bgshell/skill + edit-guards)+ `Resolver` + seam 移出 engine 核心到 `toolset`(import 能力 + agent/core + tools/*,**不 import engine**)。ask_user/task 由 engine 建好经 `SetTask`/`SetAskUser` 注入。engine 核心瘦身 ~800 LOC。
+- ✅ **M2 — conversation + maintenance port 化**:engine 定义 `Conversation`/`Compactor`/`Extractor`/`Planner` 窄接口 + 契约结果类型(port.go);engine 持接口、不再构造;runtime 注入实现。maintenance 反过来 import engine(adapter→kernel,微内核允许)。每个 port 用处 nil-guard,故 bare `engine.New` 仍可跑 loop(测试零 churn)。
+- ⏸ **M3 — knowledge/agentdoc — 评估后保留(net-negative ceremony)**:`knowledge.Service` 已是注入的接口(rpc 也用),再定义 engine port 会**重复其 `Scope` 枚举**(违 CLAUDE.md「enum 双份」);`agentdoc` 是**无状态包函数**,套接口是仪式。`skills` 同理(engine.ListSkills 薄委派)。这三者作为**共享接口/枚举/无状态 helper** 留在 engine 的 import 里 —— 不是具体 service 耦合,符合 §8 精神。
+- ✅ **M4 — 能力+工具构造上移装配层 + runtime 注入**:新增 `toolset.Build(ctx, BuildConfig)` 作唯一构造点(codeintel/exec/mcp/a2a + resolver + 工具表 + MCPControl + closers);engine.Config 去掉 Online/MCPServers/A2AAgents/LSPServers(→ runtime.Config),换成注入的 `ToolResolver`/`Tools`/`MCP`/`Closers`。engine.New 不再构造任何能力,只注册 resolver + 建 task/ask_user + Close 时跑 closers。MCP facade 经 `toolset.MCPControl` port(engine 零 import infra/mcp)。runtime.New 是 composition root,调 toolset.Build + 注入。
+- ✅ **M5 — 验证**:实测 `internal/engine/*.go`(核心,非 toolset 子包)**零 import `internal/infra/*`、零 codeintel/maintenance/conversation**。chat 留在 `engine/chat`(微内核下"消费 engine 的子包"正常,移回 service/chat 是可选的命名偏好,非必需,未做)。
 
 ---
 
-## 8. 完成态(self-check)
+## 8. 完成态(self-check,2026-06-12 已达成)
 
-- `internal/engine` 生产代码 **不 import 任何 `internal/service/*` 或 `internal/infra/*` 具体包** —— 只 import 自己的 port 接口 + agent SDK + `tools/*` 装配模块 + `core/model/chat`。
-- 每个 port 是 engine 定义的窄接口;service 结构化满足,**多数 service 不 import engine**。
-- runtime 是唯一构造能力实现并注入 engine 的地方;能力 lifecycle 归 runtime。
-- 没有 service `import engine` 取"公共能力"(无 Service Locator);ambient 环境走 ctx。
-- engine 可用 stub port 孤立单测。
+- ✅ engine **核心**(`internal/engine/*.go`,不含 `toolset` 子包)**零 import `internal/infra/*`、零 codeintel/maintenance/conversation 具体包**。剩余 lyra-internal import 仅:`engine/toolset`(自家装配子包)+ `service/{knowledge,agentdoc,skills}`(共享接口/枚举/无状态 helper,见 §7 M3,非具体耦合)。
+- ✅ model(`ChatClientProvider`)+ 工具集(`ToolResolver`)+ maintenance(Compactor/Extractor/Planner)+ conversation 都是**注入的 port**;engine 核心不构造它们。
+- ✅ 能力构造集中在 `toolset.Build`(装配层),runtime 是唯一 composition root,调它并注入;能力 lifecycle(Close)经注入的 closers 由 engine 在 Close 跑(runtime 拥有装配)。
+- ✅ 无 Service Locator(无 service `import engine` 取公共能力);ambient cwd/session 走 `context.Context`(blackboard + `toolset.TurnCwd`)。
+- ✅ bare `engine.New`(空 port)仍驱动 loop —— 每个 port 用处 nil-guard,核心可孤立测。
 
-> 维护:每完成一个 M 批次,回来勾掉 §7 + 更新 §3 落地状态。本文件与 LAYERING.md §1「engine↔service 上下关系」冲突处,**以本文件为准**。
+> 维护:本文件与 LAYERING.md §1「engine↔service 上下关系」冲突处,**以本文件为准**。微内核迁移 M1/M2/M4/M5 已落地,M3 评估后保留(ceremony)。
