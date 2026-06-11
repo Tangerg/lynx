@@ -18,6 +18,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	"github.com/Tangerg/lynx/lyra/internal/infra/exec"
 	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
+	"github.com/Tangerg/lynx/lyra/internal/service/conversation"
 	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
 	"github.com/Tangerg/lynx/lyra/internal/service/maintenance"
 )
@@ -30,8 +31,8 @@ import (
 //     see chatturn.go / chatprocess.go
 //   - maintenance:    compactor / extractor / planner power
 //     [Engine.MaybeCompact] / [Engine.MaybeExtract]
-//   - context:        memStore / memSvc / workdir feed the system
-//     prompt and the chat-memory middleware
+//   - context:        conversation / memSvc / workdir feed the
+//     system prompt and the chat-memory middleware
 //
 // Each sub-component is a focused struct in its own file; Engine
 // just owns construction and the public surface. The chat service's
@@ -44,7 +45,7 @@ type Engine struct {
 
 	// Context inputs (read at SystemPrompt + chat-memory time).
 	tools           []chat.Tool
-	memStore        memory.Store
+	conversation    *conversation.Service // LLM message history (fork/rollback/steering/messages.list facade)
 	memSvc          knowledge.Service
 	workdir         string  // captured from Config.Workdir for the AGENTS.md cascade
 	skillsGlobalDir string  // captured from Config.SkillsGlobalDir for workspace.listSkills
@@ -202,7 +203,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// of dragging a memory service through the constructor.
 	e := &Engine{
 		platform:        platform,
-		memStore:        memStore,
+		conversation:    conversation.New(memStore),
 		memSvc:          cfg.MemoryService,
 		workdir:         cfg.Workdir,
 		skillsGlobalDir: cfg.SkillsGlobalDir,
@@ -326,93 +327,36 @@ func (e *Engine) Close() error {
 	return errors.Join(errs...)
 }
 
-// InjectUserMessage appends a synthetic user message to the
-// chat-memory store under sessionID. The message becomes part of
-// the conversation history that the chat-memory middleware loads
-// at the start of the next chat call.
-//
-// chat.Service.InjectSteering uses this to deliver mid-turn
-// steering: the runtime queues the message in the active turn
-// state and flushes it through here once the current turn ends
-// in TurnEndCompleted so the next StartTurn (or post-turn
-// maintenance, e.g. compaction) sees the steering as part of the
-// conversation.
-//
-// Returns an error when sessionID is empty (no conversation to
-// attach to) or text is empty (no message to inject).
+// The conversation surface (InjectUserMessage / ReadHistory / SeedHistory /
+// MessageCount / TruncateMessages) is a thin facade over the conversation
+// service — the engine exposes it for the chat service's steering seam and the
+// runtime SPI (fork / rollback / messages.list); the domain logic lives in
+// [conversation.Service].
+
+// InjectUserMessage delivers mid-turn steering: chat.Service flushes a queued
+// steering message through here once the current turn ends, so the next
+// StartTurn (or post-turn maintenance) sees it as part of the conversation.
 func (e *Engine) InjectUserMessage(ctx context.Context, sessionID, text string) error {
-	if sessionID == "" {
-		return errors.New("engine: sessionID is required")
-	}
-	if text == "" {
-		return errors.New("engine: text must not be empty")
-	}
-	return e.memStore.Write(ctx, sessionID, chat.NewUserMessage(text))
+	return e.conversation.InjectUser(ctx, sessionID, text)
 }
 
-// ReadHistory returns the persisted chat-memory history for sessionID
-// — the same messages the chat-memory middleware loads at the start of
-// each turn. Empty (nil, nil) for an unknown / never-used session. The
-// messages.list wire surface converts these to protocol.Message; fork
-// copies a prefix of them. Reads through the engine (not the raw store)
-// so callers depend on the engine's narrow surface, not memory.Store.
+// ReadHistory returns sessionID's persisted message history (messages.list /
+// fork read it).
 func (e *Engine) ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error) {
-	if sessionID == "" {
-		return nil, errors.New("engine: sessionID is required")
-	}
-	return e.memStore.Read(ctx, sessionID)
+	return e.conversation.Read(ctx, sessionID)
 }
 
-// SeedHistory writes msgs into sessionID's chat-memory store. Used by
-// sessions.fork to copy a slice of the parent's history into a freshly
-// created child so the child's next turn continues from the fork point.
-// No-op for an empty slice. The store appends, so seed a fresh session
-// only (seeding one with existing history would concatenate).
+// SeedHistory copies msgs into sessionID's history (sessions.fork).
 func (e *Engine) SeedHistory(ctx context.Context, sessionID string, msgs []chat.Message) error {
-	if sessionID == "" {
-		return errors.New("engine: sessionID is required")
-	}
-	if len(msgs) == 0 {
-		return nil
-	}
-	return e.memStore.Write(ctx, sessionID, msgs...)
+	return e.conversation.Seed(ctx, sessionID, msgs)
 }
 
-// MessageCount returns sessionID's chat-memory message count — the per-run
-// watermark sessions.rollback / fork{fromRunId} record at run.finished and
-// truncate to. Empty session → 0.
+// MessageCount returns sessionID's message count (rollback / fork watermark).
 func (e *Engine) MessageCount(ctx context.Context, sessionID string) (int, error) {
-	if sessionID == "" {
-		return 0, errors.New("engine: sessionID is required")
-	}
-	msgs, err := e.memStore.Read(ctx, sessionID)
-	if err != nil {
-		return 0, err
-	}
-	return len(msgs), nil
+	return e.conversation.Count(ctx, sessionID)
 }
 
-// TruncateMessages keeps the first keepN chat-memory messages of sessionID and
-// drops the rest (sessions.rollback). keepN >= current count is a no-op; keepN
-// <= 0 clears the session. Store-agnostic — read / clear / re-write the kept
-// prefix — so it works for any memory.Store backend (the seq renumbering on
-// re-write is immaterial; rollback doesn't depend on stable seqs).
+// TruncateMessages keeps the first keepN messages of sessionID (rollback).
 func (e *Engine) TruncateMessages(ctx context.Context, sessionID string, keepN int) error {
-	if sessionID == "" {
-		return errors.New("engine: sessionID is required")
-	}
-	msgs, err := e.memStore.Read(ctx, sessionID)
-	if err != nil {
-		return err
-	}
-	if keepN >= len(msgs) {
-		return nil
-	}
-	if err := e.memStore.Clear(ctx, sessionID); err != nil {
-		return err
-	}
-	if keepN <= 0 {
-		return nil
-	}
-	return e.memStore.Write(ctx, sessionID, msgs[:keepN]...)
+	return e.conversation.Truncate(ctx, sessionID, keepN)
 }
