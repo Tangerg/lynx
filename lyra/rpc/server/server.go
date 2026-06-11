@@ -132,6 +132,7 @@ func Capabilities(rt RuntimeServices) protocol.ServerCapabilities {
 			"memory":    memory,
 			"skills":    true,             // workspace.listSkills (project + global enumeration)
 			"git":       git.Available(),  // workspace.listFileChanges / getDiff (git binary on PATH)
+			"fileWatch": true,             // workspace.subscribe watches → files.changed (fsnotify)
 			// Off until the corresponding engine support lands:
 			"multimodal":    false,
 			"checkpoints":   false,

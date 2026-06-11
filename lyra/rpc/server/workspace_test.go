@@ -292,17 +292,11 @@ func TestWorkspaceGitWireMapping(t *testing.T) {
 	}
 }
 
-// TestWorkspaceSubscribe: a watch-less subscribe receives published events and
-// closes on ctx cancel; a subscribe carrying watches is rejected while
-// features.fileWatch is off.
+// TestWorkspaceSubscribe: a watch-less subscribe receives the broadcast events
+// (mcp/skills) and closes on ctx cancel. The watches path has its own coverage
+// in filewatch_test.go.
 func TestWorkspaceSubscribe(t *testing.T) {
 	s := &Server{wsHub: newWorkspaceHub()}
-
-	if _, _, err := s.WorkspaceSubscribe(context.Background(), protocol.WorkspaceSubscribeRequest{
-		Watches: []protocol.WatchSpec{{WatchID: "w", Path: "."}},
-	}); !errors.Is(err, protocol.ErrCapabilityNotNeg) {
-		t.Errorf("watches err = %v, want ErrCapabilityNotNeg", err)
-	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
