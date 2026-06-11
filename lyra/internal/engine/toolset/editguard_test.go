@@ -1,4 +1,4 @@
-package engine
+package toolset
 
 import (
 	"context"
@@ -15,8 +15,8 @@ import (
 // guards over dir (no LSP — nil manager makes that wrap a no-op). The tests
 // drive them with a plain context, so turnSession resolves to "" and every
 // call shares one session bucket.
-func guardTools(dir string) (read, edit, write chat.Tool, tr *readTracker) {
-	tr = newReadTracker()
+func guardTools(dir string) (read, edit, write chat.Tool, tr *ReadTracker) {
+	tr = NewReadTracker()
 	ex := fs.NewLocalExecutor(dir)
 	read = withReadTracking(fs.NewReadTool(ex), tr, dir)
 	edit = withEditGuard(withEditDiagnostics(fs.NewEditTool(ex), nil, dir), tr, dir)

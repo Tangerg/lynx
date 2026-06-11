@@ -1,4 +1,4 @@
-package engine
+package toolset
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// readTracker records which files an agent has read, and the content hash at
+// ReadTracker records which files an agent has read, and the content hash at
 // read time, so the edit / write guards can enforce two reliability rules that
 // the mature Claude-optimized agent (Claude Code) relies on instead of a patch
 // format: a file must be READ before it is edited, and it must not have CHANGED
@@ -24,7 +24,7 @@ import (
 // exactly as Claude Code's per-session cache behaves). Content hash, not mtime
 // — mtime has coarse granularity and is unreliable across filesystems, and we
 // read the file content anyway.
-type readTracker struct {
+type ReadTracker struct {
 	mu   sync.Mutex
 	seen map[string]map[string]fileStamp // sessionID → absPath → stamp
 }
@@ -34,11 +34,11 @@ type fileStamp struct {
 	partial bool // only a line range was read → not safe to overwrite wholesale
 }
 
-func newReadTracker() *readTracker {
-	return &readTracker{seen: map[string]map[string]fileStamp{}}
+func NewReadTracker() *ReadTracker {
+	return &ReadTracker{seen: map[string]map[string]fileStamp{}}
 }
 
-func (t *readTracker) record(session, abs string, st fileStamp) {
+func (t *ReadTracker) record(session, abs string, st fileStamp) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	m := t.seen[session]
@@ -52,7 +52,7 @@ func (t *readTracker) record(session, abs string, st fileStamp) {
 // refresh re-stamps abs from its current content (a full view), called after a
 // successful edit / write so consecutive edits to the same file in a turn
 // don't trip the guard.
-func (t *readTracker) refresh(session, abs string) {
+func (t *ReadTracker) refresh(session, abs string) {
 	if h, err := hashFile(abs); err == nil {
 		t.record(session, abs, fileStamp{hash: h})
 	}
@@ -71,7 +71,7 @@ const (
 // the partial-view rule (a whole-file overwrite needs a whole-file read). A
 // file that can't be hashed now (missing / unreadable) returns readOK so the
 // underlying tool surfaces its own, more specific error.
-func (t *readTracker) check(session, abs string, requireFull bool) readCheck {
+func (t *ReadTracker) check(session, abs string, requireFull bool) readCheck {
 	st, ok := t.get(session, abs)
 	if !ok {
 		return readMissing
@@ -89,7 +89,7 @@ func (t *readTracker) check(session, abs string, requireFull bool) readCheck {
 	return readOK
 }
 
-func (t *readTracker) get(session, abs string) (fileStamp, bool) {
+func (t *ReadTracker) get(session, abs string) (fileStamp, bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	st, ok := t.seen[session][abs]
@@ -98,7 +98,7 @@ func (t *readTracker) get(session, abs string) (fileStamp, bool) {
 
 // withReadTracking wraps the read tool to stamp every successfully read file,
 // marking it partial when only a line range was requested.
-func withReadTracking(inner chat.Tool, tr *readTracker, workdir string) chat.Tool {
+func withReadTracking(inner chat.Tool, tr *ReadTracker, workdir string) chat.Tool {
 	if tr == nil {
 		return inner
 	}
@@ -125,7 +125,7 @@ func withReadTracking(inner chat.Tool, tr *readTracker, workdir string) chat.Too
 
 // withEditGuard wraps the edit tool: it requires the file to have been read and
 // unchanged since, then refreshes the stamp after a successful edit.
-func withEditGuard(inner chat.Tool, tr *readTracker, workdir string) chat.Tool {
+func withEditGuard(inner chat.Tool, tr *ReadTracker, workdir string) chat.Tool {
 	if tr == nil {
 		return inner
 	}
@@ -153,7 +153,7 @@ func withEditGuard(inner chat.Tool, tr *readTracker, workdir string) chat.Tool {
 // withWriteGuard wraps the write tool: overwriting an EXISTING file requires a
 // full, current read (a new file or an append is exempt — there's nothing to
 // clobber). The stamp is refreshed after a successful write.
-func withWriteGuard(inner chat.Tool, tr *readTracker, workdir string) chat.Tool {
+func withWriteGuard(inner chat.Tool, tr *ReadTracker, workdir string) chat.Tool {
 	if tr == nil {
 		return inner
 	}

@@ -1,4 +1,4 @@
-package engine
+package toolset
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
 )
 
-// buildLSPTools exposes the code-intelligence service as the agent's
+// BuildLSPTools exposes the code-intelligence service as the agent's
 // language tools (definition / references / hover / symbols / diagnostics).
 // The service is working-directory independent — it keys servers by
 // workspace root internally — so these tools are built ONCE and each reads
@@ -17,7 +17,7 @@ import (
 // per-session-cwd seam as fs / bash). Positions are 1-based at the tool
 // boundary (what a human/LLM reads off a file); the service converts to the
 // LSP 0-based wire form and folds unsupported file types into a plain reply.
-func buildLSPTools(ci *codeintel.Service, defaultWorkdir string) []chat.Tool {
+func BuildLSPTools(ci *codeintel.Service, defaultWorkdir string) []chat.Tool {
 	return []chat.Tool{
 		newLSPPositionTool(
 			"lsp_definition",
@@ -126,7 +126,7 @@ func newLSPPositionTool(name, desc string, run func(ctx context.Context, root, f
 			if in.File == "" {
 				return "", fmt.Errorf("%s: file is required", name)
 			}
-			return run(ctx, turnCwd(ctx, defaultWorkdir), in.File, in.Line, in.Column)
+			return run(ctx, TurnCwd(ctx, defaultWorkdir), in.File, in.Line, in.Column)
 		},
 	)
 	return t
@@ -145,7 +145,7 @@ func newLSPFileTool(name, desc string, run func(ctx context.Context, root, file 
 			if in.File == "" {
 				return "", fmt.Errorf("%s: file is required", name)
 			}
-			return run(ctx, turnCwd(ctx, defaultWorkdir), in.File)
+			return run(ctx, TurnCwd(ctx, defaultWorkdir), in.File)
 		},
 	)
 	return t
@@ -164,7 +164,7 @@ func newLSPQueryTool(name, desc string, run func(ctx context.Context, root, quer
 			if in.Query == "" {
 				return "", fmt.Errorf("%s: query is required", name)
 			}
-			return run(ctx, turnCwd(ctx, defaultWorkdir), in.Query)
+			return run(ctx, TurnCwd(ctx, defaultWorkdir), in.Query)
 		},
 	)
 	return t

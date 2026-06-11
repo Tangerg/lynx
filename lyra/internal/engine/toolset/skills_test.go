@@ -1,4 +1,4 @@
-package engine
+package toolset
 
 import (
 	"context"
@@ -34,9 +34,9 @@ func TestBuildSkillTool_MergesProjectOverGlobal(t *testing.T) {
 	writeSkill(t, global, "shared", "GLOBAL copy")
 	writeSkill(t, global, "glob-only", "global only")
 
-	tool := buildSkillTool(workdir, global)
+	tool := BuildSkillTool(workdir, global)
 	if tool == nil {
-		t.Fatal("buildSkillTool returned nil despite existing skills dirs")
+		t.Fatal("BuildSkillTool returned nil despite existing skills dirs")
 	}
 
 	list, err := tool.Call(context.Background(), `{"op":"list"}`)
@@ -62,7 +62,7 @@ func TestBuildSkillTool_MergesProjectOverGlobal(t *testing.T) {
 // neither the project nor the global skills directory exists — no empty skill
 // tool cluttering the model's tool list.
 func TestBuildSkillTool_AbsentWhenNoDirs(t *testing.T) {
-	if tool := buildSkillTool(t.TempDir(), filepath.Join(t.TempDir(), "missing")); tool != nil {
-		t.Error("buildSkillTool should return nil when no skills directory exists")
+	if tool := BuildSkillTool(t.TempDir(), filepath.Join(t.TempDir(), "missing")); tool != nil {
+		t.Error("BuildSkillTool should return nil when no skills directory exists")
 	}
 }

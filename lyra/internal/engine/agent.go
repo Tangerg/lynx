@@ -6,6 +6,8 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/hitl"
+
+	"github.com/Tangerg/lynx/lyra/internal/engine/toolset"
 )
 
 // chatInput is the typed input to the M1 single-turn chat agent. It
@@ -46,7 +48,7 @@ type chatInput struct {
 	PlanMode bool
 
 	// ChatMode runs the turn tool-less (runs.start mode=chat): the action
-	// binds [chatModeBindingKey] so cwdToolResolver yields an empty tool set,
+	// binds [toolset.ChatModeBindingKey] so cwdToolResolver yields an empty tool set,
 	// turning the turn into a plain single-round LLM exchange with no
 	// filesystem / bash / delegation tools. Mutually exclusive with PlanMode
 	// in practice (a tool-less turn has nothing to plan against).
@@ -89,7 +91,7 @@ type ChatOutput struct {
 // memory service for system-prompt composition without an extra
 // parameter passed through every turn.
 //
-// The Action declares [ToolRoleCoding] so the runtime resolves the
+// The Action declares [toolset.ToolRoleCoding] so the runtime resolves the
 // coding tool group at dispatch time; the body calls
 // [core.ProcessContext.ChatWithActionTools] which composes the
 // tool.NewMiddleware tool-loop on top of platform guardrails.
@@ -110,18 +112,18 @@ func (e *Engine) buildChatAgent() *core.Agent {
 				if in.Cwd != "" {
 					// Protected so it rides Blackboard.Spawn down to `task`
 					// sub-agents and survives the typed-action
-					// ClearBlackboard — see cwdToolResolver / cwdBindingKey.
-					pc.Blackboard.BindProtected(cwdBindingKey, in.Cwd)
+					// ClearBlackboard — see cwdToolResolver / toolset.CwdBindingKey.
+					pc.Blackboard.BindProtected(toolset.CwdBindingKey, in.Cwd)
 				}
 				if in.SessionID != "" {
 					// Protected for the same reasons as cwd — the read/edit
 					// guards read it back via turnSession.
-					pc.Blackboard.BindProtected(sessionBindingKey, in.SessionID)
+					pc.Blackboard.BindProtected(toolset.SessionBindingKey, in.SessionID)
 				}
 				if in.ChatMode {
 					// Tool-less: cwdToolGroup reads this back and yields no tools.
 					// Protected for the same survive-ClearBlackboard reason as cwd.
-					pc.Blackboard.BindProtected(chatModeBindingKey, true)
+					pc.Blackboard.BindProtected(toolset.ChatModeBindingKey, true)
 				}
 				if in.PlanMode {
 					out, done, err := e.planGate(ctx, pc, in.Message)
@@ -147,7 +149,7 @@ func (e *Engine) buildChatAgent() *core.Agent {
 				return out, nil
 			},
 			core.ActionConfig{
-				ToolGroups: core.ToolRolesFor(ToolRoleCoding),
+				ToolGroups: core.ToolRolesFor(toolset.ToolRoleCoding),
 				// MaxAttempts:1 — don't let the runtime retry an LLM action.
 				// Transient errors are already retried inside the model SDK;
 				// permanent ones (no-access model, bad key, invalid request)
@@ -173,7 +175,7 @@ type taskInput struct {
 
 // buildSubtaskAgent constructs the agent behind the `task` delegation
 // tool. Same chat body as the main agent, but: (1) named "task" so the
-// derived tool is `task`; (2) declares [ToolRoleSubtask] — the coding
+// derived tool is `task`; (2) declares [toolset.ToolRoleSubtask] — the coding
 // tools WITHOUT `task`, so a subtask can't recurse into another
 // delegation; (3) its goal produces just the reply string, so the tool
 // result handed to the parent model is the answer text, not a ChatOutput
@@ -200,7 +202,7 @@ func (e *Engine) buildSubtaskAgent() *core.Agent {
 				return out.Reply, nil
 			},
 			core.ActionConfig{
-				ToolGroups: core.ToolRolesFor(ToolRoleSubtask),
+				ToolGroups: core.ToolRolesFor(toolset.ToolRoleSubtask),
 				QoS:        core.ActionQoS{MaxAttempts: 1}, // same rationale as the chat action
 			},
 		)).
