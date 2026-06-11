@@ -8,6 +8,8 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 
+	"github.com/Tangerg/lynx/lyra/internal/engine"
+
 	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
 )
 
@@ -29,17 +31,6 @@ type Extractor struct {
 	minMsgs int
 }
 
-// ExtractionResult reports what a single [Extractor.MaybeExtract] pass
-// wrote to long-term memory. Extracted is false (Facts empty) when
-// nothing was mined — a nil extractor (no memory service), conversation
-// too short, or the LLM judged nothing worth keeping. Facts is the
-// markdown the pass appended to LYRA.md, so callers can surface an
-// observable "saved N notes to memory" event.
-type ExtractionResult struct {
-	Extracted bool
-	Facts     string
-}
-
 // NewExtractor builds an Extractor over the chat-memory store, the
 // long-term LYRA.md service, and the chat client.
 func NewExtractor(store memory.Store, memSvc knowledge.Service, client *chat.Client) *Extractor {
@@ -58,35 +49,35 @@ func NewExtractor(store memory.Store, memSvc knowledge.Service, client *chat.Cli
 // falls back to the memory service's default dir). Returns the zero
 // result on a nil receiver (LYRA.md disabled) or when the conversation
 // is still too short to be worth mining.
-func (e *Extractor) MaybeExtract(ctx context.Context, sessionID, cwd string) (ExtractionResult, error) {
+func (e *Extractor) MaybeExtract(ctx context.Context, sessionID, cwd string) (engine.ExtractionResult, error) {
 	if e == nil || sessionID == "" {
-		return ExtractionResult{}, nil
+		return engine.ExtractionResult{}, nil
 	}
 	msgs, err := e.store.Read(ctx, sessionID)
 	if err != nil {
-		return ExtractionResult{}, fmt.Errorf("extractor: read: %w", err)
+		return engine.ExtractionResult{}, fmt.Errorf("extractor: read: %w", err)
 	}
 	if len(msgs) < e.minMsgs {
-		return ExtractionResult{}, nil
+		return engine.ExtractionResult{}, nil
 	}
 
 	facts, err := e.askForFacts(ctx, msgs)
 	if err != nil {
-		return ExtractionResult{}, fmt.Errorf("extractor: ask: %w", err)
+		return engine.ExtractionResult{}, fmt.Errorf("extractor: ask: %w", err)
 	}
 	if facts == "" {
-		return ExtractionResult{}, nil
+		return engine.ExtractionResult{}, nil
 	}
 
 	existing, err := e.memSvc.Get(ctx, knowledge.ScopeProject, cwd)
 	if err != nil {
-		return ExtractionResult{}, fmt.Errorf("extractor: read memory: %w", err)
+		return engine.ExtractionResult{}, fmt.Errorf("extractor: read memory: %w", err)
 	}
 	updated := mergeMemory(existing, facts)
 	if err := e.memSvc.Update(ctx, knowledge.ScopeProject, cwd, updated); err != nil {
-		return ExtractionResult{}, err
+		return engine.ExtractionResult{}, err
 	}
-	return ExtractionResult{Extracted: true, Facts: facts}, nil
+	return engine.ExtractionResult{Extracted: true, Facts: facts}, nil
 }
 
 // askForFacts queries the LLM directly (no middleware → no

@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/Tangerg/lynx/lyra/internal/engine"
-	"github.com/Tangerg/lynx/lyra/internal/service/maintenance"
 )
 
 // engineDep is the narrow behavioral surface chat depends on. It
@@ -23,13 +22,11 @@ import (
 // implementer outside this module — *engine.Engine satisfies it
 // implicitly, so nothing names it (tests pass a stub the same way).
 //
-// The shared parameter/result types live with their owning layer —
-// engine I/O schema in package engine (RunChatRequest, ChatOutput,
-// ChatProcess), maintenance results in package maintenance
-// (CompactionResult, ExtractionResult). Importing them carries no
-// concrete-type coupling. What we shed is the *engine.Engine
-// dependency, so chat can be unit-tested and the layering matches
-// the architecture (engine composes services, not the other way).
+// The shared parameter/result types live in package engine — its I/O schema
+// (RunChatRequest, ChatOutput, ChatProcess) and the maintenance port results
+// (CompactionResult, ExtractionResult). Importing them carries no concrete-type
+// coupling; what we shed is the *engine.Engine dependency, so chat can be
+// unit-tested and the layering matches the architecture.
 type engineDep interface {
 	StartChat(ctx context.Context, req engine.RunChatRequest) engine.ChatProcess
 	// RestoreChat rebuilds a turn's agent process from a persisted
@@ -38,6 +35,6 @@ type engineDep interface {
 	// re-parked [engine.ChatProcess] ready for Resume(approved).
 	RestoreChat(ctx context.Context, processID string, req engine.RestoreChatRequest) (engine.ChatProcess, error)
 	InjectUserMessage(ctx context.Context, sessionID, text string) error
-	MaybeCompact(ctx context.Context, sessionID string) (maintenance.CompactionResult, error)
-	MaybeExtract(ctx context.Context, sessionID, cwd string) (maintenance.ExtractionResult, error)
+	MaybeCompact(ctx context.Context, sessionID string) (engine.CompactionResult, error)
+	MaybeExtract(ctx context.Context, sessionID, cwd string) (engine.ExtractionResult, error)
 }

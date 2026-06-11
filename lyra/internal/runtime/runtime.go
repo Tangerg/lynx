@@ -28,13 +28,16 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 
 	"github.com/Tangerg/lynx/lyra/internal/config"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
-	"github.com/Tangerg/lynx/lyra/internal/service/approval"
 	chatsvc "github.com/Tangerg/lynx/lyra/internal/engine/chat"
+	"github.com/Tangerg/lynx/lyra/internal/service/approval"
+	"github.com/Tangerg/lynx/lyra/internal/service/conversation"
 	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
+	"github.com/Tangerg/lynx/lyra/internal/service/maintenance"
 	"github.com/Tangerg/lynx/lyra/internal/service/provider"
 	sessionsvc "github.com/Tangerg/lynx/lyra/internal/service/session"
 	toolsvc "github.com/Tangerg/lynx/lyra/internal/service/tool"
@@ -115,12 +118,28 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		return nil, errors.New("runtime: TranscriptStore is required")
 	}
 
-	// The engine config passes through verbatim except SessionStore: when
-	// a sub-agent (the `task` delegation) is spawned, the runtime records
-	// its session so the parent→child lineage is durably queryable;
-	// CreateSubtask marks it internal so it stays out of List.
+	// The engine config passes through except SessionStore + the microkernel
+	// ports. SessionStore: a spawned sub-agent (the `task` delegation) gets its
+	// session recorded so the parent→child lineage is durably queryable.
 	ecfg := cfg.Engine
 	ecfg.SessionStore = newChildSessionStore(cfg.SessionService)
+
+	// Microkernel port wiring: the runtime is the composition root that builds
+	// the capability implementations and injects them into the engine core
+	// (which depends only on the port interfaces). All share one chat-memory
+	// store so the engine's chat-memory middleware and these ports agree.
+	memStore := cfg.Engine.MemoryStore
+	if memStore == nil {
+		memStore = memory.NewInMemoryStore()
+		ecfg.MemoryStore = memStore
+	}
+	ecfg.Conversation = conversation.New(memStore)
+	ecfg.Compactor = maintenance.NewCompactor(memStore, cfg.Engine.ChatClient, maintenance.CompactionConfig{})
+	ecfg.Planner = maintenance.NewPlanner(cfg.Engine.ChatClient)
+	if cfg.Engine.MemoryService != nil {
+		ecfg.Extractor = maintenance.NewExtractor(memStore, cfg.Engine.MemoryService, cfg.Engine.ChatClient)
+	}
+
 	eng, err := engine.New(ctx, ecfg)
 	if err != nil {
 		return nil, fmt.Errorf("runtime: engine: %w", err)

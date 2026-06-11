@@ -238,6 +238,9 @@ func (e *Engine) planGate(ctx context.Context, pc *core.ProcessContext, message 
 		return ChatOutput{}, false, nil // approved → execute
 	}
 
+	if e.planner == nil {
+		return ChatOutput{}, false, nil // no planner wired → execute directly
+	}
 	plan, err := e.planner.Plan(ctx, e.SystemPrompt(ctx), message)
 	if err != nil {
 		return ChatOutput{}, false, err
