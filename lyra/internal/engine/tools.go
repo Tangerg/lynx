@@ -7,7 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/lyra/internal/infra/lsp"
+	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
 	"github.com/Tangerg/lynx/tools/bash"
 	"github.com/Tangerg/lynx/tools/fs"
 	"github.com/Tangerg/lynx/tools/httpreq"
@@ -67,9 +67,9 @@ func wrapTool(inner chat.Tool, call func(ctx context.Context, arguments string) 
 // credentials needed; safe to build unconditionally.
 //
 // write and edit are wrapped so a successful edit is type-checked by the
-// language server and any new problems are folded into the tool result (see
-// withEditDiagnostics). lspMgr may be nil — the wrap is then a no-op.
-func buildWorkdirTools(workdir string, lspMgr *lsp.Manager, tracker *readTracker) []chat.Tool {
+// code-intelligence service and any new problems are folded into the tool
+// result (see withEditDiagnostics). ci may be nil — the wrap is then a no-op.
+func buildWorkdirTools(workdir string, ci *codeintel.Service, tracker *readTracker) []chat.Tool {
 	fsExec := fs.NewLocalExecutor(workdir)
 	bashExec := bash.NewLocalExecutor()
 	bashExec.Dir = workdir
@@ -78,8 +78,8 @@ func buildWorkdirTools(workdir string, lspMgr *lsp.Manager, tracker *readTracker
 		// write/edit: the LSP diagnostics wrap is inner (runs on the applied
 		// change); the read guard is outer (gates before the change, refreshes
 		// the read stamp after).
-		withWriteGuard(withEditDiagnostics(fs.NewWriteTool(fsExec), lspMgr, workdir), tracker, workdir),
-		withEditGuard(withEditDiagnostics(fs.NewEditTool(fsExec), lspMgr, workdir), tracker, workdir),
+		withWriteGuard(withEditDiagnostics(fs.NewWriteTool(fsExec), ci, workdir), tracker, workdir),
+		withEditGuard(withEditDiagnostics(fs.NewEditTool(fsExec), ci, workdir), tracker, workdir),
 		fs.NewGlobTool(fsExec),
 		fs.NewGrepTool(fsExec),
 		bash.NewTool(bashExec),
@@ -165,9 +165,9 @@ type cwdToolResolver struct {
 	skillsGlobalDir string      // user-scope skills dir; merged under each turn's project skills
 	online          []chat.Tool // working-directory-independent network tools
 	a2a             []chat.Tool // working-directory-independent remote A2A agents
-	lsp             []chat.Tool  // code-intelligence tools; cwd read per-call (manager keys servers by root)
-	lspManager      *lsp.Manager // backs the write/edit diagnostics wrap (rebuilt per resolution with the turn's cwd)
-	readTracker     *readTracker // backs the read-before-edit + stale guards on read/edit/write
+	lsp             []chat.Tool        // code-intelligence tools; cwd read per-call (service keys servers by root)
+	codeIntel       *codeintel.Service // backs the write/edit diagnostics wrap (rebuilt per resolution with the turn's cwd)
+	readTracker     *readTracker       // backs the read-before-edit + stale guards on read/edit/write
 	bgShell         []chat.Tool  // background-command tools (run_in_background / bash_output / kill_shell); cwd read per-call
 	task            chat.Tool    // delegation tool; coding role only, nil until set
 
@@ -280,7 +280,7 @@ func (g *cwdToolGroup) Tools(ctx context.Context) ([]core.AgentTool, error) {
 		return nil, nil
 	}
 	workdir := g.resolver.workdirFor(ctx)
-	tools := buildWorkdirTools(workdir, g.resolver.lspManager, g.resolver.readTracker)
+	tools := buildWorkdirTools(workdir, g.resolver.codeIntel, g.resolver.readTracker)
 	tools = append(tools, g.resolver.online...)
 	tools = append(tools, g.resolver.mcpTools()...)
 	tools = append(tools, g.resolver.a2a...)
