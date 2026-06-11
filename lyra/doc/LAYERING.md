@@ -1,5 +1,7 @@
 # Lyra — 分层架构与单向依赖（重构计划）
 
+> **⚠️ 演进提示(2026-06-12)**：`engine ↔ service` 的关系已从本文件的「上下层(engine 在上、向下 import service)」**改为「微内核 + 端口注入」** —— 见 [`MICROKERNEL.md`](MICROKERNEL.md)。engine 是核、定义 port,service 实现,runtime 注入。本文件的其余结论(infra 物理归集、各 service 抽取、delivery 经 runtime、反向边消除)仍有效;**唯独 §1 的 engine↔service 方向以 MICROKERNEL.md 为准**。
+>
 > **日期**：2026-06-11。**状态**：目标架构 + 迁移计划（尚未执行）。
 > **目标**：把 lyra 内部收敛成**严格单向依赖**的分层 —— 高层依赖低层，**禁止任何反向依赖**；同领域逻辑收敛进各自的 service；技术设施沉到 infra。
 > **与既有原则的关系**：这是 CLAUDE.md「高内聚低耦合 / DIP」+ DESIGN_PHILOSOPHY §5.1「充血、但不叠 DDD 仪式层」的**落地形态**，不是引入 DDD tactical patterns（repository / aggregate / app-service / event-bus 一律不加 —— 见 §6）。
