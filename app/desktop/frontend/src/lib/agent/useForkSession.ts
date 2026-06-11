@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getContainer } from "@/main/container";
 import { asSessionId } from "@/rpc";
+import { SESSIONS_KEY } from "@/lib/data/queries";
 import { useSessionStore } from "@/state/sessionStore";
 
 /**
@@ -21,7 +22,7 @@ export function useForkSession(): (id: string) => Promise<void> {
           .client()
           .sessions.fork({ sessionId: asSessionId(id) });
         useSessionStore.getState().selectTab(fork.id);
-        void queryClient.invalidateQueries({ queryKey: ["sessions"] });
+        void queryClient.invalidateQueries({ queryKey: [SESSIONS_KEY] });
       } catch (err) {
         console.error("[session] fork failed:", err);
       }

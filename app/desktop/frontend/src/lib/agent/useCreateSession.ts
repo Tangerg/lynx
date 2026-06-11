@@ -3,6 +3,7 @@ import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getContainer } from "@/main/container";
 import { queryClient as appQueryClient } from "@/lib/data/queryClient";
+import { SESSIONS_KEY } from "@/lib/data/queries";
 import { useSessionStore } from "@/state/sessionStore";
 
 /**
@@ -27,7 +28,7 @@ async function createAndOpen(qc: QueryClient, firstMessage?: string): Promise<st
     store.selectTab(session.id); // opens tab + sets active → remounts chat
     // Draft is filtered out of the sidebar; refetch so its graduation
     // (and any backend-assigned title) lands promptly.
-    void qc.invalidateQueries({ queryKey: ["sessions"] });
+    void qc.invalidateQueries({ queryKey: [SESSIONS_KEY] });
     return session.id;
   } catch (err) {
     console.error("[session] create failed:", err);

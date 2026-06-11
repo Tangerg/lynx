@@ -945,8 +945,8 @@ server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` 
 
 | 方法 | 入参 | 返回 | 说明 |
 | --- | --- | --- | --- |
-| `workspace.listFileChanges` | `WorkspaceQuery & { cursor?; limit? }` | `Page<WorkspaceFileChange>` | 工作区改动 |
-| `workspace.getDiff` | `WorkspaceQuery & { path?: string; limit?: number }` | `Diff` | 结构化 diff（`{ rows, truncated? }`，单文件/全量）；超 `limit` 行置 `truncated` |
+| `workspace.listFileChanges` | `WorkspaceQuery & { cursor?; limit? }` | `Page<WorkspaceFileChange>` | 工作区改动（±行、rename、binary、untracked）；见 AUX_API §2.2 |
+| `workspace.getDiff` | `WorkspaceQuery & { path?; mode?: "worktree"\|"base"; format?: "rows"\|"raw"; limit? }` | `Diff` | sum-type `{ files \| patch, truncated? }`；worktree(含 untracked)\|base(merge-base);超 `limit` 在**文件边界**截断置 `truncated`;见 AUX_API §2.3 |
 | `workspace.getFileHead` | `WorkspaceQuery & { path: string; lines?: number }` | `FileHead` | 文件头若干行 |
 | `workspace.grep` | `WorkspaceQuery & { query: string; path?: string; limit?: number }` | `GrepResult` | `{ matches, total }`（total 反映截断） |
 | `workspace.listProjects` | `{ cursor?; limit? }` | `Page<Project>` | distinct-cwd 派生视图 |
@@ -956,7 +956,9 @@ server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` 
 | `workspace.mcp.listTools` | `{ server?: string; cursor?; limit? }` | `Page<McpTool>` | |
 | `workspace.mcp.reconnect` | `{ server: string }` | 无 | |
 
-错误：读方法可返 `cwd_unavailable` / `path_outside_root`。
+错误：读方法可返 `cwd_unavailable` / `path_outside_root`。git 方法(`listFileChanges` / `getDiff`)按**三态分离**:
+无 git 二进制 → `features.git=false`(客户端不调);有 git、cwd 非仓 → `vcs_unavailable`;是仓、无改动 → 空结果。
+`getDiff` 的 `mode:"base"` 解析不出基线分支 → `invalid_params`(不是 `vcs_unavailable`)。详见 AUX_API §2。
 
 > `getDiff` / `getFileHead` / `grep` 返回的是**单一聚合结果**（非集合列表），故保留专用 shape、不套 `Page<T>`；但仍守
 > "no silent caps"——截断都**自描述**：`grep` 由 `GrepResult.total ≥ matches.length`、`getDiff` 由 `Diff.truncated`。
@@ -1071,10 +1073,11 @@ server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` 
 | `-32014` | `interrupt_not_open` | interrupt 缺失或已 resolve |
 | `-32015` | `idempotency_conflict` | 幂等键与不同 params 冲突 |
 | `-32016` | `invalid_protocol_version` | 版本协商失败（`initialize` 硬断开） |
+| `-32017` | `vcs_unavailable` | 有 git 二进制但 cwd 非 git 仓（与"干净仓=空结果"区分；无 git 是 `features.git=false`） |
 
 `error.data` 为 `ProblemData`，**必须含 `type`（= 上表 name）**。
 
-> 业务码 `-32001..-32016` 落在 JSON-RPC 2.0 的 `-32000..-32099`「implementation-defined server-error」保留段；
+> 业务码 `-32001..-32017` 落在 JSON-RPC 2.0 的 `-32000..-32099`「implementation-defined server-error」保留段；
 > `-326xx` / `-32700` 为 spec 预定义码。数字码合规即可，**判别一律走 `type`**。
 
 ### 8.3 错误细节（ProblemData，对标 RFC 9457）
@@ -1110,7 +1113,7 @@ type FeatureFlag = boolean | { enabled: boolean; [key: string]: unknown };
 interface ServerCapabilities {
   protocolVersion: string;
   events: string[];                    // 发出的事件 type（run.* / item.* / state.* / custom 名；第三方 custom 名遵 §2.6）
-  streamingMethods: string[];          // 机器可读的流式方法集（如 ["runs.start","runs.resume","runs.subscribe","background.subscribe"]）
+  streamingMethods: string[];          // 机器可读的流式方法集（如 ["runs.start","runs.resume","runs.subscribe","workspace.subscribe"]）
   features: Record<string, FeatureFlag>;   // 开放 map：未声明 / falsy 即关闭
   providers: string[];
   limits: { maxConcurrentRuns?: number };
@@ -1132,8 +1135,9 @@ interface ClientCapabilities {
 | `reasoning` | bool | 产出 `reasoning` item / delta |
 | `mcp` | bool | MCP 工具 / `workspace.mcp.*` |
 | `multimodal` | bool | image content / attachments 输入 |
-| `checkpoints` | bool | `items.edit` / fork-at-item |
-| `background` | bool | `background.*` |
+| `git` | bool | `workspace.listFileChanges` / `getDiff`（git 二进制在 PATH） |
+| `checkpoints` | bool | `restoreType`（v2 影子 git 文件快照） |
+| `fileWatch` | bool | `workspace.subscribe` 的 `watches`（文件监听，B2/B3） |
 | `subagents` | bool | 子 Run / run 树 |
 | `skills` | bool | `workspace.listSkills` |
 | `sessionExport` | bool | `sessions.export` |
