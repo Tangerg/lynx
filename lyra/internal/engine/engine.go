@@ -5,15 +5,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/a2aproject/a2a-go/v2/a2aclient"
-
-	"github.com/Tangerg/lynx/a2a"
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
+	"github.com/Tangerg/lynx/lyra/internal/infra/a2a"
 	"github.com/Tangerg/lynx/lyra/internal/infra/exec"
 	"github.com/Tangerg/lynx/lyra/internal/infra/mcp"
 	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
@@ -63,9 +61,9 @@ type Engine struct {
 	// workspace.mcp.{listServers,listTools} views — including servers that
 	// failed to connect at boot (recorded, not dropped) — and pushes the
 	// refreshed tool set into the resolver on reconnect via its tool sink.
-	// a2aClients are the remote A2A clients; nil when no A2A agents are wired.
-	mcp        *mcp.Connections
-	a2aClients []*a2aclient.Client
+	// a2a holds the remote A2A clients; nil when no A2A agents are wired.
+	mcp *mcp.Connections
+	a2a *a2a.Connections
 
 	// codeIntel drives language servers (gopls, …) for the code-intelligence
 	// tools and the post-edit diagnostics wrap. Servers launch lazily per
@@ -106,7 +104,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// Dial remote A2A agents (one delegation tool each). On failure, close the
 	// MCP sessions already opened above so a late startup error doesn't leak
 	// them — Engine.Close never runs because New returns before e exists.
-	a2aTools, a2aClients, err := dialA2AAgents(ctx, cfg.A2AAgents)
+	a2aConns, a2aTools, err := a2a.Dial(ctx, cfg.A2AAgents)
 	if err != nil {
 		_ = mcpConns.Close()
 		return nil, err
@@ -193,7 +191,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		pricing:         cfg.Pricing,
 		parkStore:       cfg.ParkStore,
 		mcp:             mcpConns,
-		a2aClients:      a2aClients,
+		a2a:             a2aConns,
 		codeIntel:       codeIntel,
 		bgShells:        bgShells,
 	}
@@ -284,10 +282,9 @@ func (e *Engine) Close() error {
 	if err := e.mcp.Close(); err != nil {
 		errs = append(errs, err)
 	}
-	if err := a2a.CloseClients(e.a2aClients); err != nil {
+	if err := e.a2a.Close(); err != nil {
 		errs = append(errs, err)
 	}
-	e.a2aClients = nil
 	if e.codeIntel != nil {
 		if err := e.codeIntel.Close(); err != nil {
 			errs = append(errs, err)
