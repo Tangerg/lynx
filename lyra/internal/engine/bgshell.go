@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strconv"
@@ -37,9 +38,8 @@ func newBgShellManager() *bgShellManager {
 const maxBgBuffer = 256 * 1024
 
 type bgShell struct {
-	command string
-	cancel  context.CancelFunc
-	cmd     *exec.Cmd
+	cancel context.CancelFunc
+	cmd    *exec.Cmd
 
 	mu       sync.Mutex
 	buf      []byte // tail of stdout+stderr, capped at maxBgBuffer
@@ -55,9 +55,9 @@ func (m *bgShellManager) launch(cwd, command string) string {
 	runCtx, cancel := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(runCtx, "/bin/sh", "-c", command)
 	cmd.Dir = cwd
-	sh := &bgShell{command: command, cancel: cancel, cmd: cmd}
-	cmd.Stdout = (*bgWriter)(sh)
-	cmd.Stderr = (*bgWriter)(sh)
+	sh := &bgShell{cancel: cancel, cmd: cmd}
+	cmd.Stdout = sh
+	cmd.Stderr = sh
 
 	m.mu.Lock()
 	m.nextID++
@@ -146,11 +146,10 @@ func (s *bgShell) status() (done bool, info string) {
 	return s.done, s.exitInfo
 }
 
-// bgWriter funnels a shell's stdout/stderr into its capped ring buffer.
-type bgWriter bgShell
-
-func (w *bgWriter) Write(p []byte) (int, error) {
-	s := (*bgShell)(w)
+// Write funnels the shell's stdout/stderr into its capped ring buffer (the
+// process's Stdout/Stderr point straight at the bgShell). On overflow the
+// oldest bytes are dropped — a poll that fell behind learns so via read.
+func (s *bgShell) Write(p []byte) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.total += len(p)
@@ -187,7 +186,7 @@ func buildBgShellTools(mgr *bgShellManager, defaultWorkdir string) []chat.Tool {
 				return "", fmt.Errorf("run_in_background: invalid arguments: %w", err)
 			}
 			if a.Command == "" {
-				return "", fmt.Errorf("run_in_background: command is required")
+				return "", errors.New("run_in_background: command is required")
 			}
 			id := mgr.launch(turnCwd(ctx, defaultWorkdir), a.Command)
 			return fmt.Sprintf("Started background shell %s. Use bash_output {\"shell_id\":%q} to read output, kill_shell to stop it.", id, id), nil

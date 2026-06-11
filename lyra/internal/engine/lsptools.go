@@ -348,6 +348,9 @@ func formatSymbols(root string, syms []lsp.Symbol) string {
 	var b strings.Builder
 	for _, s := range syms {
 		fmt.Fprintf(&b, "%s %s", symbolKindName(s.Kind), s.Name)
+		if s.Detail != "" {
+			fmt.Fprintf(&b, " %s", s.Detail) // signature / type the server attached
+		}
 		if s.Container != "" {
 			fmt.Fprintf(&b, " (in %s)", s.Container)
 		}
@@ -377,62 +380,19 @@ func formatDiagnostics(_, file string, diags []lsp.Diagnostic) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-// symbolKindName maps the LSP SymbolKind enum (1..26) to a readable label.
+// symbolKindNames maps the LSP SymbolKind enum (1..26) to a readable label.
+var symbolKindNames = map[int]string{
+	1: "file", 2: "module", 3: "namespace", 4: "package", 5: "class",
+	6: "method", 7: "property", 8: "field", 9: "constructor", 10: "enum",
+	11: "interface", 12: "function", 13: "variable", 14: "constant", 15: "string",
+	16: "number", 17: "boolean", 18: "array", 19: "object", 20: "key",
+	21: "null", 22: "enum-member", 23: "struct", 24: "event", 25: "operator",
+	26: "type-parameter",
+}
+
 func symbolKindName(kind int) string {
-	switch kind {
-	case 1:
-		return "file"
-	case 2:
-		return "module"
-	case 3:
-		return "namespace"
-	case 4:
-		return "package"
-	case 5:
-		return "class"
-	case 6:
-		return "method"
-	case 7:
-		return "property"
-	case 8:
-		return "field"
-	case 9:
-		return "constructor"
-	case 10:
-		return "enum"
-	case 11:
-		return "interface"
-	case 12:
-		return "function"
-	case 13:
-		return "variable"
-	case 14:
-		return "constant"
-	case 15:
-		return "string"
-	case 16:
-		return "number"
-	case 17:
-		return "boolean"
-	case 18:
-		return "array"
-	case 19:
-		return "object"
-	case 20:
-		return "key"
-	case 21:
-		return "null"
-	case 22:
-		return "enum-member"
-	case 23:
-		return "struct"
-	case 24:
-		return "event"
-	case 25:
-		return "operator"
-	case 26:
-		return "type-parameter"
-	default:
-		return "symbol"
+	if name, ok := symbolKindNames[kind]; ok {
+		return name
 	}
+	return "symbol"
 }
