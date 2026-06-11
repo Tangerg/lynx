@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Tangerg/lynx/lyra/internal/service/skills"
 )
 
 func writeSkill(t *testing.T, root, name, desc string) {
@@ -27,8 +29,8 @@ func TestBuildSkillTool_MergesProjectOverGlobal(t *testing.T) {
 	workdir := t.TempDir()
 	global := t.TempDir()
 
-	writeSkill(t, filepath.Join(workdir, projectSkillsSubdir), "shared", "PROJECT copy")
-	writeSkill(t, filepath.Join(workdir, projectSkillsSubdir), "proj-only", "project only")
+	writeSkill(t, skills.ProjectDir(workdir), "shared", "PROJECT copy")
+	writeSkill(t, skills.ProjectDir(workdir), "proj-only", "project only")
 	writeSkill(t, global, "shared", "GLOBAL copy")
 	writeSkill(t, global, "glob-only", "global only")
 
