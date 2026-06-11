@@ -4,10 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 
 	"github.com/a2aproject/a2a-go/v2/a2aclient"
-	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Tangerg/lynx/a2a"
 	"github.com/Tangerg/lynx/agent"
@@ -17,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	"github.com/Tangerg/lynx/lyra/internal/infra/exec"
+	"github.com/Tangerg/lynx/lyra/internal/infra/mcp"
 	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
 	"github.com/Tangerg/lynx/lyra/internal/service/conversation"
 	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
@@ -59,22 +58,14 @@ type Engine struct {
 	extractor *maintenance.Extractor
 	planner   *maintenance.Planner
 
-	// External lifecycle. mcpServers (per-server session + status) and
-	// a2aClients are closed during [Engine.Close]; nil when no MCP servers /
-	// A2A agents are wired. mcpServers also backs the per-server
+	// External lifecycle, closed during [Engine.Close]. mcp holds the live MCP
+	// server connections (sessions + status + reconnect); it also backs the
 	// workspace.mcp.{listServers,listTools} views — including servers that
-	// failed to connect at boot (recorded, not dropped).
-	//
-	// mcpMu guards every mcpServer's mutable fields (session/status/lastErr):
-	// boot writes happen-before the engine is published, ReconnectMCPServer is
-	// the only post-boot mutator, and MCPTools / MCPServerStatuses read under
-	// it. mcpClient is the shared client reconnect re-dials with; toolResolver
-	// is held so a reconnect can hot-swap the live MCP tool set.
-	mcpMu        sync.Mutex
-	mcpServers   []*mcpServer
-	mcpClient    *sdkmcp.Client
-	toolResolver *cwdToolResolver
-	a2aClients   []*a2aclient.Client
+	// failed to connect at boot (recorded, not dropped) — and pushes the
+	// refreshed tool set into the resolver on reconnect via its tool sink.
+	// a2aClients are the remote A2A clients; nil when no A2A agents are wired.
+	mcp        *mcp.Connections
+	a2aClients []*a2aclient.Client
 
 	// codeIntel drives language servers (gopls, …) for the code-intelligence
 	// tools and the post-edit diagnostics wrap. Servers launch lazily per
@@ -102,31 +93,22 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		return nil, fmt.Errorf("engine: build online tools: %w", err)
 	}
 
-	// One MCP client identity for every server — none of lyra's connections
-	// need per-server client handlers (sampling / list-changed), so they share
-	// it. Retained on the engine so ReconnectMCPServer can re-dial with it.
-	mcpClient := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "runtime", Version: "v0.1.0"}, nil)
-
 	// Dial MCP servers so the model can call them transparently. The dial
-	// happens before resolver wiring so the resolver captures the set in
-	// one place. ctx flows from the caller so a slow / unreachable MCP
-	// server can be canceled during startup. A single unreachable server is
-	// tolerated (recorded "failed"); only a config mistake fails the call.
-	mcpServers, mcpTools, err := dialMCPServers(ctx, mcpClient, cfg.MCPServers)
+	// happens before resolver wiring so the resolver captures the set in one
+	// place. ctx flows from the caller so a slow / unreachable MCP server can be
+	// canceled during startup. A single unreachable server is tolerated
+	// (recorded "failed"); only a config mistake fails the call.
+	mcpConns, mcpTools, err := mcp.Dial(ctx, cfg.MCPServers)
 	if err != nil {
 		return nil, err
 	}
 
-	// Dial remote A2A agents (one delegation tool each). On failure, close
-	// the MCP sessions already opened above so a late startup error doesn't
-	// leak them — Engine.Close never runs because New returns before e exists.
+	// Dial remote A2A agents (one delegation tool each). On failure, close the
+	// MCP sessions already opened above so a late startup error doesn't leak
+	// them — Engine.Close never runs because New returns before e exists.
 	a2aTools, a2aClients, err := dialA2AAgents(ctx, cfg.A2AAgents)
 	if err != nil {
-		for _, ms := range mcpServers {
-			if ms.session != nil {
-				_ = ms.session.Close()
-			}
-		}
+		_ = mcpConns.Close()
 		return nil, err
 	}
 
@@ -163,7 +145,8 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		readTracker:     tracker,
 		bgShell:         bgShellTools,
 	}
-	resolver.setMCPTools(mcpTools) // seed the hot-swappable MCP set (reconnect re-stores it)
+	resolver.setMCPTools(mcpTools)            // seed the hot-swappable MCP set
+	mcpConns.SetToolSink(resolver.setMCPTools) // reconnect hot-swaps the refreshed set into the resolver
 
 	memStore := cfg.MemoryStore
 	if memStore == nil {
@@ -209,9 +192,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		skillsGlobalDir: cfg.SkillsGlobalDir,
 		pricing:         cfg.Pricing,
 		parkStore:       cfg.ParkStore,
-		mcpServers:      mcpServers,
-		mcpClient:       mcpClient,
-		toolResolver:    resolver,
+		mcp:             mcpConns,
 		a2aClients:      a2aClients,
 		codeIntel:       codeIntel,
 		bgShells:        bgShells,
@@ -300,16 +281,9 @@ func (e *Engine) Tools() []chat.Tool { return e.tools }
 // caller can log them; partial failure does not stop subsequent closes.
 func (e *Engine) Close() error {
 	var errs []error
-	for _, ms := range e.mcpServers {
-		if ms.session == nil {
-			continue
-		}
-		if err := ms.session.Close(); err != nil {
-			errs = append(errs, err)
-		}
-		ms.session = nil
+	if err := e.mcp.Close(); err != nil {
+		errs = append(errs, err)
 	}
-	e.mcpServers = nil
 	if err := a2a.CloseClients(e.a2aClients); err != nil {
 		errs = append(errs, err)
 	}

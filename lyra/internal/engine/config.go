@@ -6,10 +6,10 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
+	"github.com/Tangerg/lynx/lyra/internal/infra/mcp"
 	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
 	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
 	"github.com/Tangerg/lynx/lyra/internal/service/maintenance"
-	"github.com/Tangerg/lynx/mcp"
 )
 
 // Config is the engine construction-time bundle. ChatClient is the
