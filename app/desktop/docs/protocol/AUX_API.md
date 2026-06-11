@@ -247,6 +247,10 @@ interface McpServer {
 
 ## 8. 实现批次 × 落点（供前后端排期）
 
+> **状态（2026-06-11）：B1–B6 + 去债 后端全部落地、已并入 `API.md`。** 对接说明见
+> [`2026-06-11/BACKEND_CAPABILITIES.md`](./2026-06-11/BACKEND_CAPABILITIES.md)（B1+去债）+
+> [`2026-06-11/BACKEND_CAPABILITIES_B2-B6.md`](./2026-06-11/BACKEND_CAPABILITIES_B2-B6.md)（其余全部）。
+
 | 批次 | 内容 | API.md 落点 | 前端同轮动作 |
 | --- | --- | --- | --- |
 | **B1** | git `listFileChanges` + `getDiff` + `features.git`/`vcs_unavailable` | §7.5 + §8.2 | `Diff` 重写为 `{files: FileDiff[]}`;`WorkspaceFileChange` 加字段;DiffView/DiffPreview 改造 |
