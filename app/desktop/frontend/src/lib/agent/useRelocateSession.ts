@@ -1,8 +1,7 @@
 import { useCallback } from "react";
 import { getContainer } from "@/main/container";
 import { asSessionId, errorDetail, isErrorType, RpcError } from "@/rpc";
-import { SESSIONS_KEY } from "@/lib/data/queries";
-import { queryClient } from "@/lib/data/queryClient";
+import { invalidateSessions } from "@/lib/data/queries";
 import { reportSessionError } from "./reportSessionError";
 
 /** Relocate a session (sessions.update cwd — features.relocate gated,
@@ -16,7 +15,9 @@ export function useRelocateSession(): (id: string, cwd: string) => Promise<boole
       await getContainer()
         .client()
         .sessions.update({ sessionId: asSessionId(id), cwd });
-      await queryClient.invalidateQueries({ queryKey: [SESSIONS_KEY] });
+      // projects too: the list is derived from session cwds, and this
+      // session just moved — its old project may retire, the new one mint.
+      await invalidateSessions({ projects: true });
       return true;
     } catch (err) {
       const description = isErrorType(err, "cwd_unavailable")

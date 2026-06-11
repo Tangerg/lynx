@@ -1,7 +1,6 @@
 import { useCallback } from "react";
 import { getContainer } from "@/main/container";
-import { queryClient } from "@/lib/data/queryClient";
-import { PROJECTS_KEY, SESSIONS_KEY } from "@/lib/data/queries";
+import { invalidateSessions } from "@/lib/data/queries";
 import { useSessionStore } from "@/state/sessionStore";
 import { reportSessionError } from "./reportSessionError";
 
@@ -39,8 +38,7 @@ async function createAndOpen({ firstMessage, cwd }: CreateSessionOptions): Promi
     // Draft is filtered out of the sidebar; refetch so its graduation
     // (and any backend-assigned title) lands promptly. A cwd create may
     // also have minted a brand-new project.
-    void queryClient.invalidateQueries({ queryKey: [SESSIONS_KEY] });
-    if (cwd) void queryClient.invalidateQueries({ queryKey: [PROJECTS_KEY] });
+    void invalidateSessions(cwd ? { projects: true } : undefined);
     return session.id;
   } catch (err) {
     reportSessionError("create", err);

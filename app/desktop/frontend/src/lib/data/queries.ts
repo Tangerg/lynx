@@ -8,6 +8,7 @@
 import type { UseQueryResult } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { lookupDataProvider } from "@/plugins/sdk";
+import { queryClient } from "./queryClient";
 
 // ---- API response shapes ---------------------------------------------------
 //
@@ -235,6 +236,17 @@ export const MEMORY_KEY = "memory";
 
 export const useSessions = makeDataQuery<SidebarSession[]>(SESSIONS_KEY);
 export const useProjects = makeDataQuery<SidebarProject[]>(PROJECTS_KEY);
+
+/** The server's session set changed (create / delete / rename / fork /
+ *  relocate / import) — refetch the sidebar list. cwd-affecting mutations
+ *  pass `projects: true`: a new cwd can mint (or retire) a project node. */
+export function invalidateSessions(opts?: { projects?: boolean }): Promise<void> {
+  const sessions = queryClient.invalidateQueries({ queryKey: [SESSIONS_KEY] });
+  if (!opts?.projects) return sessions;
+  return Promise.all([sessions, queryClient.invalidateQueries({ queryKey: [PROJECTS_KEY] })]).then(
+    () => undefined,
+  );
+}
 export const useFilesChanged = makeParamDataQuery<FileChangesQuery, FileChange[]>(
   FILES_CHANGED_KEY,
 );

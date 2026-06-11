@@ -27,8 +27,7 @@ import { getContainer } from "@/main/container";
 import { getCurrentSessionView } from "@/state/agentStore";
 import { serverFeature } from "@/state/runtimeStore";
 import { useSessionStore } from "@/state/sessionStore";
-import { SESSIONS_KEY } from "@/lib/data/queries";
-import { queryClient as appQueryClient } from "@/lib/data/queryClient";
+import { invalidateSessions } from "@/lib/data/queries";
 import { flattenMarkdown } from "@/lib/agent/messageContent";
 import { rehydrateSessionView } from "@/lib/agent/rehydrateSession";
 
@@ -188,7 +187,8 @@ async function importConversation(): Promise<void> {
     // rebuild it from the restored server history.
     await rehydrateSessionView(session.id);
     useSessionStore.getState().selectTab(session.id);
-    void appQueryClient.invalidateQueries({ queryKey: [SESSIONS_KEY] });
+    // projects too: the restored session's cwd may mint a project node.
+    void invalidateSessions({ projects: true });
     toast.success(`Imported “${session.title ?? session.id}”.`);
   } catch (err) {
     console.error("[import] sessions.import failed:", err);

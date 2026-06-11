@@ -1,8 +1,7 @@
 import { useCallback } from "react";
 import { getContainer } from "@/main/container";
 import { asSessionId } from "@/rpc";
-import { SESSIONS_KEY } from "@/lib/data/queries";
-import { queryClient } from "@/lib/data/queryClient";
+import { invalidateSessions } from "@/lib/data/queries";
 import { useSessionStore } from "@/state/sessionStore";
 import { reportSessionError } from "./reportSessionError";
 
@@ -16,7 +15,7 @@ export function useDeleteSession(): (id: string) => Promise<void> {
     try {
       await getContainer().client().sessions.delete(asSessionId(id));
       useSessionStore.getState().closeTab(id);
-      void queryClient.invalidateQueries({ queryKey: [SESSIONS_KEY] });
+      void invalidateSessions();
     } catch (err) {
       reportSessionError("delete", err);
     }
