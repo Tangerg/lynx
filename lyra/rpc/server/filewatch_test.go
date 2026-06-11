@@ -94,6 +94,46 @@ func TestFileWatch_IgnoresVCSDir(t *testing.T) {
 	}
 }
 
+// TestFileWatch_HonorsGitignore verifies the watch reads the cwd's .gitignore:
+// a gitignored dir (build/) and file pattern (*.log) produce no files.changed,
+// while a tracked file does.
+func TestFileWatch_HonorsGitignore(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("build/\n*.log\n"), 0o644); err != nil {
+		t.Fatalf("write .gitignore: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "build"), 0o755); err != nil {
+		t.Fatalf("mkdir build: %v", err)
+	}
+	s := &Server{wsHub: newWorkspaceHub(), serverInfo: protocol.ServerInfo{Cwd: dir}}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	_, events, err := s.WorkspaceSubscribe(ctx, protocol.WorkspaceSubscribeRequest{
+		Watches: []protocol.WatchSpec{{WatchID: "w1"}},
+	})
+	if err != nil {
+		t.Fatalf("subscribe: %v", err)
+	}
+
+	_ = os.WriteFile(filepath.Join(dir, "build", "out.bin"), []byte("x"), 0o644) // ignored dir
+	_ = os.WriteFile(filepath.Join(dir, "debug.log"), []byte("x"), 0o644)        // ignored *.log
+	_ = os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main"), 0o644)
+
+	select {
+	case ev := <-events:
+		for _, p := range ev.Paths {
+			if strings.HasPrefix(p, "build") || strings.HasSuffix(p, ".log") {
+				t.Fatalf("paths = %v, must not include gitignored entries", ev.Paths)
+			}
+		}
+		if !slices.Contains(ev.Paths, "main.go") {
+			t.Fatalf("paths = %v, want main.go", ev.Paths)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("no files.changed within 3s")
+	}
+}
+
 // TestWorkspaceSubscribe_WatchJail rejects a watch escaping its cwd
 // (path_outside_root) and a missing / non-directory target (invalid_params),
 // rather than silently dropping the watch.
