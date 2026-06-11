@@ -400,15 +400,21 @@ func (s *Server) WorkspaceMCPListServers(ctx context.Context, _ protocol.PageQue
 				entry.ToolCount = &count
 			}
 		case "failed":
-			detail := ""
-			if st.Err != nil {
-				detail = st.Err.Error()
-			}
-			entry.Error = &protocol.ProblemData{Type: "mcp_dial_failed", Channel: "mcp", Detail: detail}
+			entry.Error = mcpDialFailedProblem(st.Err)
 		}
 		out = append(out, entry)
 	}
 	return protocol.NewPage(out), nil
+}
+
+// mcpDialFailedProblem renders a failed MCP server's reason for the wire
+// (McpServer.error / mcp.serverChanged error). A nil err yields an empty detail.
+func mcpDialFailedProblem(err error) *protocol.ProblemData {
+	detail := ""
+	if err != nil {
+		detail = err.Error()
+	}
+	return &protocol.ProblemData{Type: "mcp_dial_failed", Channel: "mcp", Detail: detail}
 }
 
 // WorkspaceMCPListTools lists tools advertised by the connected MCP servers,
@@ -481,11 +487,7 @@ func (s *Server) mcpServerChangedEvent(ctx context.Context, server string) proto
 				ev.ToolCount = &count
 			}
 		case "failed":
-			detail := ""
-			if st.Err != nil {
-				detail = st.Err.Error()
-			}
-			ev.Error = &protocol.ProblemData{Type: "mcp_dial_failed", Channel: "mcp", Detail: detail}
+			ev.Error = mcpDialFailedProblem(st.Err)
 		}
 		break
 	}
