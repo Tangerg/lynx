@@ -12,8 +12,9 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useEffect } from "react";
 import { submitComposer } from "@/components/chat/composer";
 import { Icon, ProviderIcon, Tooltip } from "@/components/common";
+import { useActiveSessionCwd } from "@/lib/agent/useActiveSessionCwd";
 import { useChatSend } from "@/lib/agent/useChatSend";
-import { useModels } from "@/lib/data/queries";
+import { useModels, useProjects } from "@/lib/data/queries";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import {
@@ -148,16 +149,44 @@ function IconChip({ icon, hint, onClick }: { icon: IconName; hint: string; onCli
 }
 
 const ExecModeChip = () => <IconChip icon="shield" hint="Execution mode · Workspace · Auto" />;
-const GitBranchChip = () => (
-  <Chip icon="branch" title="Git branch">
-    feat/result-type
-  </Chip>
-);
+
+// Where is this conversation working? Basename in the chip, full path in
+// the tooltip. Hidden until the session (and its cwd) is known.
+function CwdChip() {
+  const cwd = useActiveSessionCwd();
+  if (!cwd) return null;
+  const basename = cwd.replace(/\/+$/, "").split("/").at(-1) || cwd;
+  return (
+    <Chip icon="folder" title={cwd}>
+      {basename}
+    </Chip>
+  );
+}
+
+// Live git branch of the active session's project (workspace.listProjects;
+// checkout flows refresh it through the resync invalidation). Hidden when
+// the cwd isn't a known project or has no branch.
+function GitBranchChip() {
+  const cwd = useActiveSessionCwd();
+  const { data: projects } = useProjects();
+  const branch = cwd ? projects?.find((p) => p.id === cwd)?.branch : undefined;
+  if (!branch) return null;
+  return (
+    <Chip icon="branch" title="Git branch">
+      {branch}
+    </Chip>
+  );
+}
 
 export const composerChips = definePlugin({
   name: "lyra.builtin.composer-chips",
   version: "1.0.0",
   setup({ host }) {
+    host.extensions.contribute(COMPOSER_STATUS, {
+      id: "cwd",
+      order: 0,
+      component: CwdChip,
+    });
     host.extensions.contribute(COMPOSER_STATUS, {
       id: "exec-mode",
       order: 1,
