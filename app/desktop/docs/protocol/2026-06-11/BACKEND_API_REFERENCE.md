@@ -51,6 +51,7 @@ curl -s -H "Authorization: Bearer $TOK" -H 'Content-Type: application/json' \
     "skills":    true,        // workspace.listSkills
     "git":       true,        // workspace.listFileChanges/getDiff(git 在 PATH 时;否则 false)
     "fileWatch": true,        // workspace.subscribe 的 git 状态监视
+    "lsp":       true,        // 代码智能工具(lsp_* 6 个)+ 编辑后自动类型检查(见 §2.9)
     "relocate":  true,        // sessions.update 改 cwd
     "multimodal":    false, "checkpoints":   false, "subagents": false,
     "sessionExport": false, "clientTools":   false, "attachments": { "enabled": false }
@@ -145,6 +146,28 @@ curl -s -H "Authorization: Bearer $TOK" -H 'Content-Type: application/json' \
 | `memory.list` / `memory.get` / `memory.update` | 🔉 `memory` | LYRA.md 长期记忆;scope cwd\|projectRoot\|home(cwd/projectRoot 都落到按 cwd 寻址的 project scope) |
 | `feedback.create` | ✅(write-only) | `{ sessionId?, runId?, itemId?, rating?, text? }` → 无;当前不留存(write-only-never-read) |
 | `attachments.createUploadUrl` / `get` / `delete` | ⛔ | `attachments` off |
+
+### 2.9 代码智能(LSP)· `features.lsp`
+
+不是新 RPC 域 —— 是 **agent 工具集**里的 6 个工具,经 language server(gopls / typescript-language-server / …)提供代码智能。前端**无需直接调**:它们随 run 由 agent 调用,结果作为 toolCall item 入流;也会出现在 `tools.list` 里,可经 `tools.invoke` 直调。位置 **1-based**(`file:line:column`,和编辑器一致),路径相对会话 cwd(或绝对)。
+
+| 工具 | 入参 | 返回 |
+| --- | --- | --- |
+| `lsp_definition` | `{ file, line, column }` | 声明位置 `file:line:col`(可多个) |
+| `lsp_references` | `{ file, line, column }` | 全部引用(含声明)`file:line:col` |
+| `lsp_hover` | `{ file, line, column }` | 类型签名 / 文档(纯文本) |
+| `lsp_document_symbols` | `{ file }` | 文件内符号(函数/类型/方法/变量) |
+| `lsp_workspace_symbols` | `{ query }` | 全工作区按名搜符号 |
+| `lsp_diagnostics` | `{ file }` | 该文件当前问题(error/warning/info/hint) |
+
+**编辑后自动类型检查(最有价值的一项)**:`write` / `edit` 成功后,后端让 language server 复查该文件,并把**这次编辑新引入**的 error/warning append 进该 toolCall 的结果文本(`Language server flagged N new problem(s) in <file> after this edit:` 段)。
+
+- **只报新增**:编辑前抓一份诊断基线,编辑后做差集(位置无关 key),只报基线里没有的 —— 这是为了**规避 LSP 缓存/stale 导致的误报**:server 若返回未重分析的缓存(after==before),差集为空 → 不报。宁可漏报,绝不把编辑没造成的问题算到它头上。**因此这些诊断可当事实呈现,无需"可能过期"的免责说明。**
+- 非代码文件、编辑失败、language server 不可用 → 不影响结果,静默跳过。
+
+**前端处理**:把该段当普通 toolCall 文本渲染即可;无需特殊 UI。`features.lsp=true` 仅表示"本 build 提供 LSP 能力",**具体语言是否可用取决于对应 server 二进制是否安装**(未装 → 该类文件的工具返回 "No language server available",不报错)。
+
+**配置**:默认 server 表 = gopls + typescript-language-server;后端 `config.yaml` 的 `lsp.servers` 可整体替换(加 pyright / rust-analyzer 等),纯配置、无需改代码。跨平台(macOS/Linux/Windows 同构,唯一 OS 依赖是用户装的 server 二进制)。
 
 ---
 
