@@ -10,6 +10,7 @@
 import type {
   DiffQuery,
   FileChange as SidebarFileChange,
+  FileChangesQuery,
   FileHeadQuery,
   GrepQuery,
   MCPServer as SidebarMCPServer,
@@ -45,6 +46,7 @@ function toSidebarSession(s: Session): SidebarSession {
     title: s.title,
     status: s.status,
     model: s.model,
+    cwd: s.cwd,
     time: s.updatedAt || s.createdAt,
   };
 }
@@ -128,8 +130,10 @@ export const defaultData = definePlugin({
     });
     host.extensions.contribute(DATA_PROVIDER, {
       key: FILES_CHANGED_KEY,
-      fetcher: async () =>
-        (await client().workspace.listFileChanges()).data.map(toSidebarFileChange),
+      fetcher: async (params) =>
+        (
+          await client().workspace.listFileChanges((params as FileChangesQuery | undefined)?.cwd)
+        ).data.map(toSidebarFileChange),
     });
     host.extensions.contribute(DATA_PROVIDER, {
       key: MCP_SERVERS_KEY,

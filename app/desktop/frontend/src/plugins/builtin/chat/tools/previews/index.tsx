@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
 import { useServerFeature } from "@/state/runtimeStore";
+import { useActiveSessionCwd } from "@/lib/agent/useActiveSessionCwd";
 
 const MAX_TERM_LINES = 9;
 const MAX_DIFF_ROWS = 8;
@@ -75,9 +76,11 @@ function BashPreview({ tool, onOpenView }: ToolPreviewProps) {
 }
 
 function DiffPreview({ onOpenView }: ToolPreviewProps) {
-  // Whole-worktree diff (the tool just edited it); never called without git.
+  // Whole-worktree diff of the active session's cwd (the tool ran there);
+  // never called without git.
   const gitEnabled = useServerFeature("git");
-  const { data } = useDiff(gitEnabled ? {} : undefined);
+  const cwd = useActiveSessionCwd();
+  const { data } = useDiff(gitEnabled ? { cwd } : undefined);
   // Flatten per-file diffs for the glance view — each file's path becomes a
   // hunk-style separator row so MAX_DIFF_ROWS stays one simple slice.
   const rows = (data?.files ?? []).flatMap((f) => [
@@ -117,8 +120,11 @@ function DiffPreview({ onOpenView }: ToolPreviewProps) {
 // still shows the projection fallback (the tool name / "search"), so treat
 // that as "nothing to ask yet" and let the hook stay disabled.
 function FilePreview({ tool, onOpenView }: ToolPreviewProps) {
+  // cwd = the active session's workspace — the tool ran there, so the
+  // preview must read the same tree (the serve dir may be elsewhere).
+  const cwd = useActiveSessionCwd();
   const path = tool.fn && tool.fn !== tool.name ? tool.fn : undefined;
-  const { data: lines } = useFileHead(path ? { path, lines: MAX_FILE_LINES } : undefined);
+  const { data: lines } = useFileHead(path ? { path, cwd, lines: MAX_FILE_LINES } : undefined);
   return (
     <div className={PREVIEW_WRAP}>
       <div className="font-mono text-[11.5px] leading-[1.55]">
@@ -137,8 +143,9 @@ function FilePreview({ tool, onOpenView }: ToolPreviewProps) {
 function GrepPreview({ tool, onOpenView }: ToolPreviewProps) {
   // Re-querying makes sense only for regex search — a glob pattern is not a
   // workspace.grep query, so the glob preview keeps just the footer link.
+  const cwd = useActiveSessionCwd();
   const query = tool.name === "grep" && tool.fn && tool.fn !== "search" ? tool.fn : undefined;
-  const { data } = useGrep(query ? { query, limit: MAX_GREP_MATCHES } : undefined);
+  const { data } = useGrep(query ? { query, cwd, limit: MAX_GREP_MATCHES } : undefined);
   const matches = data?.matches ?? [];
   // §7.5 no-silent-caps: total may exceed matches.length (server truncation).
   const overflow = (data?.total ?? 0) - matches.length;

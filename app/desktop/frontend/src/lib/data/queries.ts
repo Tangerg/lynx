@@ -21,6 +21,7 @@ export interface SidebarSession {
   title: string;
   status: "running" | "waiting" | "idle";
   model: string;
+  cwd?: string; // session working directory — absent on 1:1 placeholder rows (PanelHeader)
   time: string;
 }
 
@@ -86,9 +87,14 @@ export interface TermLine {
 // workspace.getDiff params + result (AUX_API §2.3) — structured rows only;
 // the raw-patch format is for export flows and gets its own hook when needed.
 export interface DiffQuery {
+  cwd?: string; // default = serve dir; pass the active session's cwd
   path?: string; // omit = whole working tree
   mode?: "worktree" | "base"; // default worktree (includes untracked)
   limit?: number; // row cap; server truncates at file boundaries
+}
+
+export interface FileChangesQuery {
+  cwd?: string; // default = serve dir; pass the active session's cwd
 }
 export type DiffRow =
   | { type: "hunk"; text: string }
@@ -114,6 +120,7 @@ export interface WorkspaceDiff {
 // assume the two are equal.
 export interface GrepQuery {
   query: string; // regex
+  cwd?: string; // default = serve dir; pass the active session's cwd
   path?: string; // optional sub-path jail under cwd
   limit?: number; // default 100 server-side
 }
@@ -131,6 +138,7 @@ export interface GrepResult {
 // line numbers; highlighting is the renderer's job.
 export interface FileHeadQuery {
   path: string; // relative to cwd
+  cwd?: string; // default = serve dir; pass the active session's cwd
   lines?: number; // default 200 server-side
 }
 export interface FileLine {
@@ -158,16 +166,8 @@ function resolve<T, P = void>(key: string, params?: P): () => Promise<T> {
 // One hook per cached side-panel resource. The query key and the
 // data-provider key are the same string, passed once — no chance of the
 // two drifting apart (a real bug class with the old per-hook literals).
-// `enabled: false` skips the fetch entirely — for capability-gated
-// resources (features.git off → never call the VCS providers).
-function makeDataQuery<T>(key: string): (opts?: { enabled?: boolean }) => UseQueryResult<T> {
-  return (opts) =>
-    useQuery({
-      queryKey: [key],
-      queryFn: resolve<T>(key),
-      enabled: opts?.enabled ?? true,
-      ...STATIC,
-    });
+function makeDataQuery<T>(key: string): () => UseQueryResult<T> {
+  return () => useQuery({ queryKey: [key], queryFn: resolve<T>(key), ...STATIC });
 }
 
 // Parameterized variant — params join the query key (each distinct params
@@ -197,7 +197,9 @@ export const MCP_SERVERS_KEY = "mcp-servers";
 
 export const useSessions = makeDataQuery<SidebarSession[]>(SESSIONS_KEY);
 export const useProjects = makeDataQuery<SidebarProject[]>("projects");
-export const useFilesChanged = makeDataQuery<FileChange[]>(FILES_CHANGED_KEY);
+export const useFilesChanged = makeParamDataQuery<FileChangesQuery, FileChange[]>(
+  FILES_CHANGED_KEY,
+);
 export const useDiff = makeParamDataQuery<DiffQuery, WorkspaceDiff>(DIFF_KEY);
 export const useTerminal = makeDataQuery<TermLine[]>("terminal");
 export const useGrep = makeParamDataQuery<GrepQuery, GrepResult>("grep");

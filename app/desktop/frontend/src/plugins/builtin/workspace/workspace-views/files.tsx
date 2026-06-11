@@ -6,6 +6,7 @@ import { DataView, Icon, IconButton } from "@/components/common";
 import { FilesChanged } from "./views/FilesChanged";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useFilesChanged } from "@/lib/data/queries";
+import { useActiveSessionCwd } from "@/lib/agent/useActiveSessionCwd";
 import { gitOffEmpty, isVcsUnavailable, notARepoEmpty } from "./views/vcsGate";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { useServerFeature } from "@/state/runtimeStore";
@@ -13,10 +14,18 @@ import { useSessionStore } from "@/state/sessionStore";
 
 function FilesView() {
   const gitEnabled = useServerFeature("git");
+  const cwd = useActiveSessionCwd();
   const activeFile = useSessionStore((s) => s.activeFile);
   const setActiveFile = useSessionStore((s) => s.setActiveFile);
   const openMainView = useSessionStore((s) => s.openMainView);
-  const { data: files, isLoading, isError, error } = useFilesChanged({ enabled: gitEnabled });
+  // Scoped to the ACTIVE session's cwd (undefined = serve dir fallback);
+  // disabled entirely while the git capability is off.
+  const {
+    data: files,
+    isLoading,
+    isError,
+    error,
+  } = useFilesChanged(gitEnabled ? { cwd } : undefined);
   const items = files ?? [];
   const notARepo = isVcsUnavailable(error);
 
