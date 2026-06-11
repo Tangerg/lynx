@@ -13,9 +13,6 @@ type Items interface {
 	// ListItems returns completed items plus the RunRef records needed
 	// to reconstruct their run tree + continuation chain (API.md §7.4).
 	ListItems(ctx context.Context, in ListItemsRequest) (*ListItemsResponse, error)
-	// EditItem edits an item and starts a continuation Run (resume
-	// semantics). Gated on features.checkpoints.
-	EditItem(ctx context.Context, in EditItemRequest) (*EditItemResponse, error)
 }
 
 // ListItemsRequest — items.list body.
@@ -33,18 +30,6 @@ type ListItemsRequest struct {
 type ListItemsResponse struct {
 	Page[Item]
 	Runs []RunRef `json:"runs"`
-}
-
-// EditItemRequest — items.edit body.
-type EditItemRequest struct {
-	ItemID      string         `json:"itemId"`
-	Replacement []ContentBlock `json:"replacement"`
-}
-
-// EditItemResponse — items.edit result; a continuation Run.
-type EditItemResponse struct {
-	RunID       string `json:"runId"`
-	ParentRunID string `json:"parentRunId"`
 }
 
 // ItemStatus is the lifecycle status of an Item (API.md §4.3).

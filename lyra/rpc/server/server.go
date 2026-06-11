@@ -127,7 +127,6 @@ func Capabilities(rt RuntimeServices) protocol.ServerCapabilities {
 			// Off until the corresponding engine support lands:
 			"multimodal":    false,
 			"checkpoints":   false,
-			"background":    false,
 			"subagents":     false,
 			"sessionExport": false,
 			"relocate":      true, // sessions.update cwd-relocate

@@ -157,9 +157,9 @@ func TestForkSession(t *testing.T) {
 		t.Errorf("child history = %d msgs, want 2 copied from parent", got)
 	}
 
-	// item-boundary fork isn't backed → checkpoint_unavailable
-	if _, err := s.ForkSession(ctx, protocol.ForkSessionRequest{SessionID: parent.ID, FromItemID: "item_x"}); !errors.Is(err, protocol.ErrCheckpointUnavailable) {
-		t.Errorf("fromItemId fork err = %v, want ErrCheckpointUnavailable", err)
+	// run-boundary fork isn't backed until B4 → checkpoint_unavailable
+	if _, err := s.ForkSession(ctx, protocol.ForkSessionRequest{SessionID: parent.ID, FromRunID: "run_x"}); !errors.Is(err, protocol.ErrCheckpointUnavailable) {
+		t.Errorf("fromRunId fork err = %v, want ErrCheckpointUnavailable", err)
 	}
 
 	// unknown parent → session_not_found

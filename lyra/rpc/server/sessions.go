@@ -124,14 +124,13 @@ func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionReq
 // a copy of its full chat history, then diverges. An optional title overrides
 // the default "<parent> (fork)".
 //
-// Item-boundary forking (FromItemID — "branch from this point") is NOT backed:
-// the durable Item log and the chat-memory message log are parallel views with
-// no positional correlation, so truncating history at a specific item can't be
-// done reliably. Rather than fork at a guessed point, reject it as
-// checkpoint_unavailable; full-history fork is the honest, backed capability.
+// Run-boundary forking (FromRunID — "branch from this run") is the B4 turn-
+// granular capability (AUX_API §4.2): truncate-copy history up to and including
+// that run. Not wired yet — until B4 lands it reports checkpoint_unavailable;
+// the whole-conversation fork (no FromRunID) is the backed capability today.
 func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest) (*protocol.Session, error) {
-	if in.FromItemID != "" {
-		return nil, fmt.Errorf("%w: item-boundary fork (fromItemId) not supported", protocol.ErrCheckpointUnavailable)
+	if in.FromRunID != "" {
+		return nil, fmt.Errorf("%w: run-boundary fork (fromRunId) lands in B4", protocol.ErrCheckpointUnavailable)
 	}
 
 	// Fork records the branch lineage (parent id, inherited cwd); atMessageID

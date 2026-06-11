@@ -33,7 +33,6 @@ type Runtime interface {
 	Tools
 	Memory
 	Attachments
-	Background
 	Feedback
 }
 
@@ -47,6 +46,5 @@ const (
 	IDPrefixRun        = "run_"
 	IDPrefixItem       = "item_"
 	IDPrefixAttachment = "att_"
-	IDPrefixTask       = "tsk_"
 	IDPrefixEvent      = "evt_"
 )

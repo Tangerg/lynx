@@ -89,15 +89,3 @@ func (d *Dispatcher) handleItemsList(ctx context.Context, msg *transport.Request
 	out, err := d.api.ListItems(ctx, in)
 	return reply(msg, out, err)
 }
-
-func (d *Dispatcher) handleItemsEdit(ctx context.Context, msg *transport.Request) HandleResult {
-	in, bad := decode[protocol.EditItemRequest](msg)
-	if bad != nil {
-		return responseError(msg.ID, bad)
-	}
-	if in.ItemID == "" {
-		return responseError(msg.ID, invalidParams("itemId is required"))
-	}
-	out, err := d.api.EditItem(ctx, in)
-	return reply(msg, out, err)
-}

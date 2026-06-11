@@ -45,7 +45,6 @@ const (
 
 	// Items (API.md §7.4). History = the completed Item sequence.
 	MethodItemsList = "items.list"
-	MethodItemsEdit = "items.edit"
 
 	// Workspace (API.md §7.5).
 	MethodWorkspaceListFileChanges = "workspace.listFileChanges"
@@ -67,20 +66,17 @@ const (
 	MethodToolsList          = "tools.list"
 	MethodToolsInvoke        = "tools.invoke"
 
-	// Memory / Attachments / Background / Feedback (API.md §7.7).
+	// Memory / Attachments / Feedback (API.md §7.7).
 	MethodMemoryList              = "memory.list"
 	MethodMemoryGet               = "memory.get"
 	MethodMemoryUpdate            = "memory.update"
 	MethodAttachmentsCreateUpload = "attachments.createUploadUrl"
 	MethodAttachmentsGet          = "attachments.get"
 	MethodAttachmentsDelete       = "attachments.delete"
-	MethodBackgroundList          = "background.list"
-	MethodBackgroundCancel        = "background.cancel"
 	MethodFeedbackCreate          = "feedback.create"
 
 	// Notifications (API.md §7.8). notifications.canceled is
 	// client→server; the rest are server→client.
-	NotificationCanceled         = "notifications.canceled"
-	NotificationRunEvent         = "notifications.run.event"
-	NotificationBackgroundUpdate = "notifications.background.update"
+	NotificationCanceled = "notifications.canceled"
+	NotificationRunEvent = "notifications.run.event"
 )
