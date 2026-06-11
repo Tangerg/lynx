@@ -8,24 +8,23 @@
 // negative: the session still works, just degraded.
 
 import { useState } from "react";
-import { Icon } from "@/components/common";
-import { useSessions } from "@/lib/data/queries";
+import { FIELD_CLASSES, Icon } from "@/components/common";
+import { cn } from "@/lib/utils";
+import { useActiveSession } from "@/lib/agent/useActiveSession";
 import { useRelocateSession } from "@/lib/agent/useRelocateSession";
+import { BannerAction } from "./BannerAction";
 import { useT } from "@/lib/i18n";
 import { useServerFeature } from "@/state/runtimeStore";
-import { useSessionStore } from "@/state/sessionStore";
 
 export function CwdMissingBanner() {
   const t = useT();
-  const activeSessionId = useSessionStore((s) => s.activeSessionId);
-  const { data: sessions } = useSessions();
+  const session = useActiveSession();
   const relocateEnabled = useServerFeature("relocate");
   const relocate = useRelocateSession();
   const [editing, setEditing] = useState(false);
   const [path, setPath] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const session = sessions?.find((s) => s.id === activeSessionId);
   if (!session?.cwdMissing) return null;
 
   const submit = async (): Promise<void> => {
@@ -71,12 +70,13 @@ export function CwdMissingBanner() {
                   // focusing it is the expected continuation, not a steal.
                   // eslint-disable-next-line jsx-a11y/no-autofocus
                   autoFocus
-                  className="h-6.5 w-72 max-w-full rounded-md bg-canvas px-2 font-mono text-[12px] text-fg outline-none focus:ring-1 focus:ring-accent/40"
+                  className={cn(FIELD_CLASSES, "h-6.5 w-72 max-w-full px-2 text-fg")}
                 />
                 <BannerAction
                   label={busy ? "…" : t("cwdMissing.action.apply")}
                   onClick={() => void submit()}
                   primary
+                  tone="warning"
                 />
                 <BannerAction
                   label={t("cwdMissing.action.cancel")}
@@ -91,37 +91,12 @@ export function CwdMissingBanner() {
                   setEditing(true);
                 }}
                 primary
+                tone="warning"
               />
             )}
           </div>
         )}
       </div>
     </div>
-  );
-}
-
-function BannerAction({
-  label,
-  onClick,
-  primary,
-}: {
-  label: string;
-  onClick: () => void;
-  primary?: boolean;
-}) {
-  const focusRing =
-    "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent";
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={
-        primary
-          ? `inline-flex h-6 items-center rounded-md border border-warning/40 bg-warning/15 px-2 font-sans text-[11.5px] font-semibold text-warning transition-colors hover:bg-warning/25 ${focusRing}`
-          : `inline-flex h-6 items-center rounded-md border border-line-soft bg-transparent px-2 font-sans text-[11.5px] text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg ${focusRing}`
-      }
-    >
-      {label}
-    </button>
   );
 }

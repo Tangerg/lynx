@@ -9,7 +9,7 @@ import { useDebounce } from "use-debounce";
 import { DataView, Icon } from "@/components/common";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useGrep, type GrepMatch } from "@/lib/data/queries";
-import { useActiveSessionCwd } from "@/lib/agent/useActiveSessionCwd";
+import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 
 const MAX_MATCHES = 200;

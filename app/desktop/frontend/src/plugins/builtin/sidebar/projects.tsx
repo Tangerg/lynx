@@ -1,10 +1,12 @@
 import type { SidebarProject } from "@/lib/data/queries";
 import { useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
-import { DataView, Icon, SectionLabel } from "@/components/common";
+import { DataView, FIELD_CLASSES, Icon, SectionLabel } from "@/components/common";
+import { cn } from "@/lib/utils";
 import { ProjectRow } from "@/components/sidebar/ProjectRow";
 import { useT } from "@/lib/i18n";
 import { useProjects, useSessions } from "@/lib/data/queries";
+import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
 import { useCreateSession } from "@/lib/agent/useCreateSession";
 import { definePlugin } from "@/plugins/sdk";
 import { SIDEBAR_SECTION } from "@/plugins/sdk/kernelPoints";
@@ -60,7 +62,7 @@ function AddProjectButton() {
             placeholder={t("sidebar.addProject.placeholder")}
             aria-label={t("sidebar.addProject.placeholder")}
             spellCheck={false}
-            className="h-7 w-full rounded-md bg-canvas px-2 font-mono text-[12px] text-fg outline-none focus:ring-1 focus:ring-accent/40"
+            className={cn(FIELD_CLASSES, "h-7 w-full px-2 text-fg")}
           />
           <div className="mt-1.5 text-[10.5px] leading-[1.4] text-fg-faint">
             {t("sidebar.addProject.hint")}
@@ -75,13 +77,12 @@ function ProjectsSection() {
   const t = useT();
   const { data: projects, isLoading, isError } = useProjects();
   const { data: sessions } = useSessions();
-  const activeSessionId = useSessionStore((s) => s.activeSessionId);
   const selectTab = useSessionStore((s) => s.selectTab);
   const createSession = useCreateSession();
 
   // The "current" project = the active session's cwd (project identity is
   // the cwd, AUX_API §1).
-  const activeCwd = sessions?.find((s) => s.id === activeSessionId)?.cwd;
+  const activeCwd = useActiveSessionCwd();
 
   // Open a project = jump to its most recent session, or start a fresh
   // draft there when none exists yet.

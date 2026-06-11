@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { Icon } from "@/components/common";
+import { BannerAction } from "./BannerAction";
 import { flattenText } from "@/lib/agent/messageContent";
 import { useT } from "@/lib/i18n";
 import { swift } from "@/lib/motion";
@@ -102,35 +103,5 @@ export function RunErrorBanner() {
         </motion.div>
       )}
     </AnimatePresence>
-  );
-}
-
-interface BannerActionProps {
-  icon: "loop" | "history" | "spark";
-  label: string;
-  onClick: () => void;
-  primary?: boolean;
-}
-
-function BannerAction({ icon, label, onClick, primary }: BannerActionProps) {
-  // Shared focus-visible ring so keyboard users get a clear focus
-  // indicator on both the primary (Retry) and secondary (Timeline /
-  // Diagnostics) actions. `focus-visible:` rather than `focus:` so
-  // mouse clicks don't trigger the ring.
-  const focusRing =
-    "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent";
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={
-        primary
-          ? `inline-flex h-6 items-center gap-1 rounded-md border border-negative/40 bg-negative/15 px-2 font-sans text-[11.5px] font-semibold text-negative transition-colors hover:bg-negative/25 ${focusRing}`
-          : `inline-flex h-6 items-center gap-1 rounded-md border border-line-soft bg-transparent px-2 font-sans text-[11.5px] text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg ${focusRing}`
-      }
-    >
-      <Icon name={icon} size={11} />
-      <span>{label}</span>
-    </button>
   );
 }
