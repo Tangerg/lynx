@@ -19,7 +19,6 @@ function Overflow({ count }: { count: number }) {
 }
 
 // ---- lsp_definition / lsp_references / lsp_document_symbols /
-// ---- lsp_workspace_symbols -------------------------------------------------
 //
 // Result is one line per hit: `path:line:col` (locations) or
 // `kind Name (in Container) — path:line:col` (symbols), or a
@@ -54,7 +53,6 @@ function LspLocationsPreview({ tool, onOpenView }: ToolPreviewProps) {
   );
 }
 
-// ---- lsp_hover --------------------------------------------------------------
 function LspHoverPreview({ tool, onOpenView }: ToolPreviewProps) {
   const text = tool.result?.trim();
   return (
@@ -67,7 +65,6 @@ function LspHoverPreview({ tool, onOpenView }: ToolPreviewProps) {
   );
 }
 
-// ---- lsp_diagnostics --------------------------------------------------------
 //
 // `severity path:line:col: message [source]` per line — tint the severity
 // word so a wall of diagnostics scans by color.
@@ -104,7 +101,6 @@ function LspDiagnosticsPreview({ tool, onOpenView }: ToolPreviewProps) {
   );
 }
 
-// ---- skill ------------------------------------------------------------------
 //
 // op="list" returns an <available_skills> XML catalog — parse it into
 // name + description rows. op="load" / "load_resource" return the skill's
@@ -146,7 +142,6 @@ function SkillPreview({ tool, onOpenView }: ToolPreviewProps) {
   );
 }
 
-// ---- task (sub-agent) -------------------------------------------------------
 //
 // The result is the sub-agent's final reply. The child run itself streams
 // on the same tree (spawnedByItemId) — this preview is the parent-side
@@ -165,7 +160,6 @@ function TaskPreview({ tool, onOpenView }: ToolPreviewProps) {
   );
 }
 
-// ---- ask_user ---------------------------------------------------------------
 //
 // The question rides the card title (fn); the result is the human's answer
 // once the HITL interrupt resolves.
@@ -185,7 +179,6 @@ function AskUserPreview({ tool }: ToolPreviewProps) {
   );
 }
 
-// ---- glob -------------------------------------------------------------------
 //
 // GlobResponse { paths, truncated? } — a path list, rendered from the
 // call's own result (glob patterns aren't workspace.grep queries, so
@@ -215,8 +208,6 @@ function GlobPreview({ tool, onOpenView }: ToolPreviewProps) {
 function isString(v: unknown): v is string {
   return typeof v === "string";
 }
-
-// ---- registrations ----------------------------------------------------------
 
 export const lspPreviews = definePlugin({
   name: "lyra.builtin.lsp-previews",

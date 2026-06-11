@@ -28,10 +28,9 @@ function closeFocusedTab(): void {
   }
 }
 
-// "Open a new chat tab" — create a fresh draft session and open it (same as
-// the topbar "+" and the rail "+"). It used to just re-open an existing
-// untabbed session and no-op when none was free, so ⌘N never actually made
-// a new chat.
+// "Open a new chat tab" — create a fresh draft session and open it.
+// The previous re-open-untabbed-session approach silently no-opped when
+// none was free, making ⌘N a dead key.
 function openNewChatTab(): void {
   void createSession();
 }

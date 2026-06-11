@@ -57,9 +57,7 @@ export const useRuntimeStore = create<RuntimeState>((set) => ({
     }),
 }));
 
-// ---------------------------------------------------------------------------
 // Selector hooks
-// ---------------------------------------------------------------------------
 
 // Feature flags the server can advertise via `capabilities.features.*`.
 // Keeping this as a string-literal union (rather than `string`) means

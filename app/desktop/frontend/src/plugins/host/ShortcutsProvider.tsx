@@ -7,14 +7,14 @@
 //     event runs.
 //   - O(1) lookup by canonical combo — cheaper than running N handlers per
 //     keypress and short-circuiting when one matches.
-//   - Plugin registration changes (register / unregister) update the
-//     registry only; the listener itself never re-binds.
+//   - Plugin registration changes only update the registry; the listener
+//     never re-binds.
 
 import { useEffect } from "react";
 import { lookupExtensionByKey, SHORTCUT, usePluginStore } from "@/plugins/sdk";
 import { normalizeCombo } from "@/plugins/sdk/registry";
 
-// Stuff we ignore in form fields by default. `allowInInputs: true` opts in.
+// `allowInInputs: true` opts in so the shortcut fires even in form fields.
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   if (target.isContentEditable) return true;

@@ -23,8 +23,6 @@ import {
 } from "@/plugins/sdk";
 import { useWhenContext } from "@/state/useWhenContext";
 
-// ---------- open-state store ---------------------------------------------
-
 interface PaletteState {
   open: boolean;
   setOpen: (open: boolean) => void;
@@ -36,8 +34,6 @@ const usePaletteStore = create<PaletteState>((set) => ({
   setOpen: (open) => set({ open }),
   toggle: () => set((s) => ({ open: !s.open })),
 }));
-
-// ---------- palette UI ----------------------------------------------------
 
 function CommandPalette() {
   const open = usePaletteStore((s) => s.open);
@@ -115,8 +111,6 @@ function CommandPalette() {
     </Command.Dialog>
   );
 }
-
-// ---------- plugin --------------------------------------------------------
 
 export default definePlugin({
   name: "lyra.builtin.command-palette",

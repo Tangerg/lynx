@@ -3,11 +3,12 @@
 // Streamdown's block-level memo means completed code blocks rarely
 // re-render — but they DO re-mount on scroll-away/back, theme toggle,
 // and when the parent MarkdownBlock's memo key invalidates in long
-// histories. Each re-mount used to re-run the tokenizer (~3-10ms).
+// histories. Each re-mount would re-run the tokenizer (~3-10ms) without
+// a cache.
 //
 // Bounded so a long session can't grow the map unboundedly; `quick-lru`
 // gives real LRU eviction (get/set both refresh recency) in a tiny ESM
-// package — replacing a hand-rolled FIFO-with-reinsert Map.
+// package.
 
 import QuickLRU from "quick-lru";
 

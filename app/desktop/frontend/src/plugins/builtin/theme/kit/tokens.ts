@@ -7,9 +7,7 @@
 import { colord } from "colord";
 import type { ThemeCta, ThemePluginSpec, ThemeRadii, ThemeShadows } from "./types";
 
-// ---------------------------------------------------------------------------
 // Default shadow + radii ladders
-// ---------------------------------------------------------------------------
 
 export const DARK_SHADOWS: ThemeShadows = {
   xs: "none",
@@ -73,9 +71,7 @@ export const SCHEME_ICON: Record<"dark" | "light", string> = {
   light: "sun",
 };
 
-// ---------------------------------------------------------------------------
 // buildTokenMap — spec → flat CSS-variable map
-// ---------------------------------------------------------------------------
 
 /**
  * Build the flat CSS-variable map a theme registers as `tokens`. Pure

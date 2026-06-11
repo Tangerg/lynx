@@ -3,10 +3,6 @@
 
 import { useMemo } from "react";
 
-// ---------------------------------------------------------------------------
-// Map → sorted list shapes
-// ---------------------------------------------------------------------------
-
 export interface Owned<T> {
   value: T;
   pluginName: string;
@@ -35,10 +31,6 @@ export function useDeclaredMerged<D extends { id: string }, R extends { id: stri
   }, [registered, declared, declaredToReal]);
 }
 
-// ---------------------------------------------------------------------------
-// Cached secondary index
-// ---------------------------------------------------------------------------
-
 /**
  * Lazily-built secondary index over an Owned<T> source map. The
  * registry produces a fresh Map on every add/remove, so caching on
@@ -66,14 +58,9 @@ export function createIndex<S, V>(extract: (owned: Owned<S>) => { key: string; v
   };
 }
 
-// ---------------------------------------------------------------------------
-// Plugin activator (cross-cutting — wired by definePlugin.ts at module load)
-// ---------------------------------------------------------------------------
-//
-// The real activate-the-plugin impl lives in `definePlugin.ts` (it
-// needs to run setup) and installs itself at module-load time via
-// `setActivator`. Selectors → definePlugin direction stays clean (no
-// cycle).
+// The real activate-the-plugin impl lives in `definePlugin.ts` (it needs to
+// run setup) and installs itself at module-load time via `setActivator`.
+// Selectors → definePlugin direction stays clean (no cycle).
 
 type Activator = (pluginName: string) => Promise<void>;
 let pluginActivator: Activator | null = null;

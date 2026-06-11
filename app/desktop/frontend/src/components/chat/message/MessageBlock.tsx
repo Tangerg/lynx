@@ -148,9 +148,9 @@ function MessageBlockInner({
           {/* Right-gutter outline. Hidden on narrow viewports where no
               gutter is available. Skipped while *any* block on the message
               is still streaming — the outline is a "jump to a finished
-              heading" affordance, and the per-token MutationObserver
-              rebuild used to compete with use-stick-to-bottom and cause
-              the chat to snap back during streaming. */}
+              heading" affordance, and the per-token DOM mutations from
+              streaming compete with use-stick-to-bottom, causing the
+              chat to snap back. */}
           {isAgent && !isStreaming && <MessageOutline target={contentRef} scopeId={msg.id} />}
         </div>
       </CitationContext.Provider>

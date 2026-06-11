@@ -1,10 +1,6 @@
 // Built-in plugin: the "+" button on the right side of the chat top bar.
 // Creates a fresh draft session and opens it (same as ⌘N / the rail "+").
-//
-// Used to live as a hardcoded `<button class="tab-new">` inside PanelTabBar;
-// pluginifying it means a fork that doesn't want this button can simply
-// drop the plugin (and other plugins can register their own top-bar
-// actions alongside).
+// Plugins are free to register their own top-bar actions alongside.
 
 import { Icon, noDragClasses, Tooltip } from "@/components/common";
 import { useCreateSession } from "@/lib/agent/useCreateSession";
@@ -12,9 +8,8 @@ import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 
 function NewTabButton() {
-  // "New session" must CREATE one (a hidden draft, opened active) — it used to
-  // just open an existing untabbed session and silently no-op when none was
-  // free, which read as a dead button.
+  // "New session" creates a fresh draft tab — the previous approach of
+  // re-opening untabbed sessions silently no-opped when none was free.
   const createSession = useCreateSession();
 
   return (

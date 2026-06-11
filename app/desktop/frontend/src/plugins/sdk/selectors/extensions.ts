@@ -50,10 +50,9 @@ const byPoint = createIndex<ContributionEntry, Resolved>((o) => ({
   value: { key: o.value.key, order: o.value.order, item: o.value.item },
 }));
 
-// Sort hint precedence: the item's own `order` (the legacy spec field every
-// kernel slot already carries) wins, then the contribute-time `opts.order`,
-// then a stable default. Array#sort is stable so equal orders keep insertion
-// order.
+// Sort hint precedence: the item's own `order` field wins, then the
+// contribute-time `opts.order`, then a stable default. Array#sort is
+// stable so equal orders keep insertion order.
 function sortKey(e: Resolved): number {
   const own = (e.item as { order?: number } | null)?.order;
   return own ?? e.order ?? 100;

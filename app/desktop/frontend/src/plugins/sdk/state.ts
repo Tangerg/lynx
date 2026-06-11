@@ -114,8 +114,6 @@ export function appendTimelineEntry(
   };
 }
 
-// ---- internal -------------------------------------------------------------
-
 function updateMessage(
   state: AgentViewState,
   id: string,

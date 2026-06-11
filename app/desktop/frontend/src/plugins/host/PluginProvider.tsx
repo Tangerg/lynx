@@ -16,17 +16,13 @@ interface Props {
  *   1. Install the `window.__LYRA__` bridge so sideloaded modules can reach
  *      the host's React / motion / SDK without bundling their own.
  *   2. Load built-in plugins (sync — already in the bundle).
- *   3. Tag everything loaded so far as "builtin" for the Plugins pane.
+ *   3. Tag everything loaded so far as "builtin".
  *   4. Fetch the sideload manifest from the Go backend and dynamic-import
  *      each plugin.
  *
- * Children are gated on the *built-in* plugins finishing because anything
- * that lives in the bundle's startup path (routes, layout slots, themes) is
- * a built-in plugin contribution. Sideloaded plugins load in the background
- * and add to the registry as they arrive — they're not on the critical path.
- *
- * Built-in setup is synchronous (no I/O), so the gate resolves on the next
- * microtask — visible as nothing more than the first paint blanking briefly.
+ * Children are gated on the built-in plugins finishing because anything
+ * in the bundle's startup path (routes, layout slots, themes) is a built-in
+ * plugin contribution. Sideloaded plugins load in the background.
  */
 export function PluginProvider({ children }: Props) {
   const [builtinsReady, setBuiltinsReady] = useState(false);
@@ -42,12 +38,9 @@ export function PluginProvider({ children }: Props) {
     void (async () => {
       await loadPlugins(builtinPlugins);
       tagAllAsBuiltin();
-      // Flush lifecycle.onReady listeners — plugins that registered
-      // onReady at setup time get called now (in registration order).
+      // Flush lifecycle.onReady listeners in registration order.
       usePluginStore.getState().markAppReady();
       if (!cancelled) setBuiltinsReady(true);
-      // Sideloaded plugins kick off independently — they're additive and
-      // don't block the kernel.
       void loadSideloadedPlugins();
     })();
 

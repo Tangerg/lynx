@@ -29,18 +29,15 @@ interface Props {
 }
 
 export function ChatStream({ onSend, resetKey }: Props) {
-  // ---- agent state (scoped to the current session) ----
   const messages = useAgentSlice((v) => v.messages);
   const plan = useAgentSlice((v) => v.plan);
   const toolCalls = useAgentSlice((v) => v.toolCalls);
 
-  // ---- session UI: tool inspector ----
   const selectedToolId = useSessionStore((s) => s.selectedToolId);
   const expandedToolIds = useSessionStore((s) => s.expandedToolIds);
   const setSelectedToolId = useSessionStore((s) => s.setSelectedToolId);
   const toggleExpandedTool = useSessionStore((s) => s.toggleExpandedTool);
 
-  // ---- composer ----
   const composerValue = useComposerStore((s) => s.value);
   const composerMode = useComposerStore((s) => s.mode);
   const attachments = useComposerStore((s) => s.attachments);

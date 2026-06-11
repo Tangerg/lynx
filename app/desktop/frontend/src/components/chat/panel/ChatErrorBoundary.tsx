@@ -6,12 +6,10 @@ import { useT } from "@/lib/i18n";
 // ChatErrorBoundary — wraps the chat surface so a render error in one
 // message, code block, or mermaid diagram doesn't crash the whole tab.
 //
-// Backed by `react-error-boundary` (the de-facto community library) —
-// we used to hand-roll the class component, but the lib already covers
-// every edge case we'd want (resetKeys, onReset, onError, fallback
-// component) in ~3KB. Our shell here just supplies the localized
-// fallback UI and forwards `resetKey` so switching sessions clears a
-// stuck card.
+// Backed by `react-error-boundary` — covers every edge case we need
+// (resetKeys, onReset, onError, fallback component) in ~3KB. Our shell
+// supplies the localized fallback UI and forwards `resetKey` so
+// switching sessions clears a stuck card.
 
 interface Props {
   /** Identifier (typically the active session id) that resets the
