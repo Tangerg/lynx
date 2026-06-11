@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Tangerg/lynx/lyra/internal/infra/checkpoint"
+	"github.com/Tangerg/lynx/lyra/internal/service/workspace"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
@@ -21,7 +21,7 @@ func checkpointHarness(t *testing.T) (*Server, string, string) {
 		t.Skip("git not installed; skipping checkpoint rollback test")
 	}
 	s, rt := rollbackHarness(t)
-	s.checkpoints = checkpoint.NewStore(t.TempDir())
+	s.workspace = workspace.New(t.TempDir())
 	cwd := t.TempDir()
 	ses, err := rt.sess.Create(context.Background(), "ckpt", cwd)
 	if err != nil {
@@ -45,13 +45,13 @@ func TestRollback_RestoreBoth(t *testing.T) {
 	rt := s.rt.(*stubRuntime)
 
 	writeFile(t, cwd, "a.txt", "v1")
-	if err := s.checkpoints.Snapshot(ctx, sid, cwd, "run1"); err != nil {
+	if err := s.workspace.Snapshot(ctx, sid, cwd, "run1"); err != nil {
 		t.Fatalf("snapshot run1: %v", err)
 	}
 	putRun(t, rt, sid, "run1", "", 1, 1)
 
 	writeFile(t, cwd, "a.txt", "v2")
-	if err := s.checkpoints.Snapshot(ctx, sid, cwd, "run2"); err != nil {
+	if err := s.workspace.Snapshot(ctx, sid, cwd, "run2"); err != nil {
 		t.Fatalf("snapshot run2: %v", err)
 	}
 	putRun(t, rt, sid, "run2", "", 2, 2)
@@ -78,10 +78,10 @@ func TestRollback_RestoreFilesKeepsHistory(t *testing.T) {
 	rt := s.rt.(*stubRuntime)
 
 	writeFile(t, cwd, "a.txt", "v1")
-	s.checkpoints.Snapshot(ctx, sid, cwd, "run1")
+	s.workspace.Snapshot(ctx, sid, cwd, "run1")
 	putRun(t, rt, sid, "run1", "", 1, 1)
 	writeFile(t, cwd, "a.txt", "v2")
-	s.checkpoints.Snapshot(ctx, sid, cwd, "run2")
+	s.workspace.Snapshot(ctx, sid, cwd, "run2")
 	putRun(t, rt, sid, "run2", "", 2, 2)
 
 	resp, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{

@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/lyra/internal/engine"
-	"github.com/Tangerg/lynx/lyra/internal/infra/git"
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
+	"github.com/Tangerg/lynx/lyra/internal/service/workspace"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
@@ -237,7 +237,7 @@ func TestWorkspaceMCPListTools(t *testing.T) {
 // TestWorkspaceVcsUnavailable: git present but cwd is not a repo → both git
 // methods report vcs_unavailable (distinct from "clean repo" = empty result).
 func TestWorkspaceVcsUnavailable(t *testing.T) {
-	if !git.Available() {
+	if !workspace.GitAvailable() {
 		t.Skip("git not on PATH")
 	}
 	s := &Server{serverInfo: protocol.ServerInfo{Cwd: t.TempDir()}} // exists, not a repo
@@ -252,7 +252,7 @@ func TestWorkspaceVcsUnavailable(t *testing.T) {
 // TestWorkspaceGitWireMapping: a real repo with one modified file maps onto the
 // wire with non-nil added/removed (non-binary), and getDiff returns rows.
 func TestWorkspaceGitWireMapping(t *testing.T) {
-	if !git.Available() {
+	if !workspace.GitAvailable() {
 		t.Skip("git not on PATH")
 	}
 	dir := t.TempDir()

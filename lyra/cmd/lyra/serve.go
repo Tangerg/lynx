@@ -13,11 +13,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Tangerg/lynx/lyra/internal/infra/checkpoint"
 	"github.com/Tangerg/lynx/lyra/internal/config"
-	"github.com/Tangerg/lynx/lyra/internal/infra/git"
-	"github.com/Tangerg/lynx/lyra/internal/service/agentdoc"
 	"github.com/Tangerg/lynx/lyra/internal/infra/storage"
+	"github.com/Tangerg/lynx/lyra/internal/service/agentdoc"
+	"github.com/Tangerg/lynx/lyra/internal/service/workspace"
 	"github.com/Tangerg/lynx/lyra/rpc/server"
 	lyrahttp "github.com/Tangerg/lynx/lyra/rpc/transport/http"
 )
@@ -142,18 +141,17 @@ func (a *App) buildHTTPServer(srv config.ServerConfig, tokenValue string) (*lyra
 	}
 
 	// File checkpoints live in a shadow git repo per session under the lyra
-	// home; only wired when git is present (features.checkpoints mirrors this).
-	var checkpoints *checkpoint.Store
-	if git.Available() {
-		if home, err := storage.Home(); err == nil {
-			checkpoints = checkpoint.NewStore(filepath.Join(home, "checkpoints"))
-		}
+	// home; the workspace service enables them only when git is present
+	// (features.checkpoints mirrors this).
+	var checkpointDir string
+	if home, err := storage.Home(); err == nil {
+		checkpointDir = filepath.Join(home, "checkpoints")
 	}
 
 	api, err := server.New(server.Config{
-		Runtime:     a.runtime(),
-		ServerInfo:  info,
-		Checkpoints: checkpoints,
+		Runtime:    a.runtime(),
+		ServerInfo: info,
+		Workspace:  workspace.New(checkpointDir),
 	})
 	if err != nil {
 		return nil, err
