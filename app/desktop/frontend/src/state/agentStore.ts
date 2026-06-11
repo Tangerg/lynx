@@ -33,6 +33,11 @@ type ResumeFn =
 
 interface SessionEntry {
   view: AgentViewState;
+  /** Bumped by resetView (rollback re-hydration). The useAgentSession rAF
+   *  batcher stamps its queue with the epoch it saw at enqueue time and
+   *  drops the batch if it changed — a flush scheduled before the reset
+   *  must not append the old run's tail events into the rebuilt view. */
+  viewEpoch: number;
   stop: StopFn;
   send: SendFn;
   resume: ResumeFn;
@@ -90,6 +95,7 @@ interface AgentStore {
 
 const emptyEntry = (): SessionEntry => ({
   view: INITIAL_VIEW_STATE,
+  viewEpoch: 0,
   stop: null,
   send: null,
   resume: null,
@@ -135,7 +141,12 @@ export const useAgentStore = create<AgentStore>((set) => ({
   // history shrank; the view rebuilds from items.list while the composer
   // must keep working without a remount).
   resetView: (sessionId) =>
-    set((s) => ({ sessions: patch(s.sessions, sessionId, { view: emptyEntry().view }) })),
+    set((s) => ({
+      sessions: patch(s.sessions, sessionId, {
+        view: emptyEntry().view,
+        viewEpoch: (s.sessions[sessionId]?.viewEpoch ?? 0) + 1,
+      }),
+    })),
   relabelMessage: (sessionId, fromId, toId) =>
     set((s) => {
       const prev = s.sessions[sessionId];

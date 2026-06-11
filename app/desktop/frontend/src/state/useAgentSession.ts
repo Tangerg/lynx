@@ -75,14 +75,29 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     // ~1 commit per frame without changing perceived token latency.
     let queue: RunEvent["event"][] = [];
     let raf: number | null = null;
+    // The queue is stamped with the view epoch it was filled under. An
+    // external resetView (sessions.rollback re-hydration) bumps the epoch;
+    // a flush scheduled BEFORE the reset must drop its batch — otherwise
+    // the old run's tail events would append below the rebuilt history.
+    const epochOf = () => store().sessions[sessionId]?.viewEpoch ?? 0;
+    let queueEpoch = epochOf();
     const flush = () => {
       raf = null;
       if (cancelled || queue.length === 0) return;
       const batch = queue;
       queue = [];
+      if (epochOf() !== queueEpoch) {
+        queueEpoch = epochOf();
+        return; // stale batch from before a view reset
+      }
       store().applyEvents(sessionId, batch);
     };
     const enqueue = (event: RunEvent["event"]) => {
+      const epoch = epochOf();
+      if (epoch !== queueEpoch) {
+        queue = []; // events queued before the reset are stale too
+        queueEpoch = epoch;
+      }
       queue.push(event);
       if (raf === null) raf = requestAnimationFrame(flush);
     };
