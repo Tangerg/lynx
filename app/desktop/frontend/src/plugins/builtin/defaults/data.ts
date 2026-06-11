@@ -53,6 +53,13 @@ function toSidebarSession(s: Session): SidebarSession {
     model: s.model,
     cwd: s.cwd,
     cwdMissing: s.cwdMissing,
+    usage: s.usage
+      ? {
+          inputTokens: s.usage.inputTokens,
+          outputTokens: s.usage.outputTokens,
+          costUsd: s.usage.costUsd,
+        }
+      : undefined,
     time: s.updatedAt || s.createdAt,
   };
 }

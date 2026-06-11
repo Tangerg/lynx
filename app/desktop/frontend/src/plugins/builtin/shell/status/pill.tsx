@@ -11,10 +11,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon, StatusDot, Tooltip } from "@/components/common";
+import { SESSIONS_KEY, useSessions } from "@/lib/data/queries";
+import { queryClient } from "@/lib/data/queryClient";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { COMPOSER_STATUS } from "@/plugins/sdk/kernelPoints";
 import { useAgentAction, useAgentSlice } from "@/state/agentStore";
+import { useSessionStore } from "@/state/sessionStore";
 
 // One slot in the status bar. All callers use the same shape:
 // inline-flex row, 5px gap, no-wrap, tabular-numeric so digits don't
@@ -208,6 +211,50 @@ function TokenRate() {
   );
 }
 
+// Cumulative session usage (wire Session.usage) — the run-scoped chips
+// above reset every run; this is the session's lifetime total, the
+// "what has this conversation cost me" readout. Totals only move when a
+// run settles, so the running→idle edge refetches the sessions list
+// (its 5-minute staleTime is tuned for the sidebar, too slow here).
+const fmtTokens = new Intl.NumberFormat("en", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+function SessionUsage() {
+  const activeSessionId = useSessionStore((s) => s.activeSessionId);
+  const { data: sessions } = useSessions();
+  const running = useAgentSlice((v) => v.run.running);
+  const prevRunning = useRef(running);
+  useEffect(() => {
+    if (prevRunning.current && !running) {
+      void queryClient.invalidateQueries({ queryKey: [SESSIONS_KEY] });
+    }
+    prevRunning.current = running;
+  }, [running]);
+
+  const usage = sessions?.find((s) => s.id === activeSessionId)?.usage;
+  if (!usage) return null;
+  const total = (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0);
+  if (total === 0 && usage.costUsd === undefined) return null;
+  const detail = [
+    `in ${fmtTokens.format(usage.inputTokens ?? 0)}`,
+    `out ${fmtTokens.format(usage.outputTokens ?? 0)}`,
+    ...(usage.costUsd !== undefined ? [`$${usage.costUsd.toFixed(2)}`] : []),
+  ].join(" · ");
+  return (
+    <Tooltip label={`Session total · ${detail}`}>
+      <span className={pill("text-fg-faint")}>
+        <span>Σ</span>
+        <span className="font-mono">{fmtTokens.format(total)}</span>
+        {usage.costUsd !== undefined && (
+          <span className="font-mono">${usage.costUsd.toFixed(2)}</span>
+        )}
+      </span>
+    </Tooltip>
+  );
+}
+
 export const statusPill = definePlugin({
   name: "lyra.builtin.status-pill",
   version: "1.0.0",
@@ -231,6 +278,12 @@ export const statusPill = definePlugin({
       order: 92,
       align: "end",
       component: ContextRing,
+    });
+    host.extensions.contribute(COMPOSER_STATUS, {
+      id: "session-usage",
+      order: 93,
+      align: "end",
+      component: SessionUsage,
     });
   },
 });

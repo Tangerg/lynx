@@ -23,6 +23,9 @@ export interface SidebarSession {
   model: string;
   cwd?: string; // session working directory — absent on 1:1 placeholder rows (PanelHeader)
   cwdMissing?: boolean; // cwd lost on disk → agent degrades to plain chat (relocate to fix)
+  /** Cumulative session usage (wire Session.usage). costUsd stays absent
+   *  when the model isn't in the pricing table — never fabricate 0. */
+  usage?: { inputTokens?: number; outputTokens?: number; costUsd?: number };
   time: string;
 }
 
