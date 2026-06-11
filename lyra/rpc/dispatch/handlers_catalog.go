@@ -91,23 +91,6 @@ func (d *Dispatcher) handleAttachmentsDelete(ctx context.Context, msg *transport
 	return replyDone(msg, d.api.DeleteAttachment(ctx, id))
 }
 
-// ─── Background (API.md §7.7) ───────────────────────────────────────
-
-func (d *Dispatcher) handleBackgroundList(ctx context.Context, msg *transport.Request) HandleResult {
-	var q protocol.PageQuery
-	_ = unmarshal(msg.Params, &q)
-	out, err := d.api.ListBackground(ctx, q)
-	return reply(msg, out, err)
-}
-
-func (d *Dispatcher) handleBackgroundCancel(ctx context.Context, msg *transport.Request) HandleResult {
-	id, err := decodeStringParam(msg.Params, "taskId")
-	if err != nil {
-		return responseError(msg.ID, invalidParams(err.Error()))
-	}
-	return replyDone(msg, d.api.CancelBackground(ctx, id))
-}
-
 // ─── Feedback (API.md §7.7) ─────────────────────────────────────────
 
 func (d *Dispatcher) handleFeedbackCreate(ctx context.Context, msg *transport.Request) HandleResult {

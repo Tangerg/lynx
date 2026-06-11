@@ -6,10 +6,9 @@ import (
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
-// Attachments / Background / Feedback (API.md §7.7) — surfaces with no
-// engine backing yet. List endpoints return empty (valid "nothing here"
-// answers); the rest are honestly gated off via notImpl, matching the
-// capability flags advertised at initialize.
+// Attachments / Feedback (API.md §7.7) — surfaces with no engine backing
+// yet, honestly gated off via notImpl, matching the capability flags
+// advertised at initialize.
 
 // ─── Attachments ────────────────────────────────────────────────────
 
@@ -23,23 +22,6 @@ func (s *Server) GetAttachment(_ context.Context, _ string) (*protocol.Attachmen
 
 func (s *Server) DeleteAttachment(_ context.Context, _ string) error {
 	return notImpl("attachments.delete")
-}
-
-// ─── Background ─────────────────────────────────────────────────────
-
-// ListBackground is gated off (features.background=false) — return
-// capability_not_negotiated rather than a misleading empty list, matching
-// background.subscribe / cancel (API.md §7.7).
-func (s *Server) ListBackground(_ context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.BackgroundTask], error) {
-	return nil, notImpl("background.list")
-}
-
-func (s *Server) SubscribeBackground(_ context.Context, _ string) (<-chan protocol.BackgroundTask, error) {
-	return nil, notImpl("background.subscribe")
-}
-
-func (s *Server) CancelBackground(_ context.Context, _ string) error {
-	return notImpl("background.cancel")
 }
 
 // ─── Feedback ───────────────────────────────────────────────────────

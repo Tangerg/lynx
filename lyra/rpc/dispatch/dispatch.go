@@ -119,7 +119,6 @@ var methodTable = map[string]methodHandler{
 
 	// Items.
 	MethodItemsList: (*Dispatcher).handleItemsList,
-	MethodItemsEdit: (*Dispatcher).handleItemsEdit,
 
 	// Workspace.
 	MethodWorkspaceListFileChanges: (*Dispatcher).handleWorkspaceListFileChanges,
@@ -150,10 +149,6 @@ var methodTable = map[string]methodHandler{
 	MethodAttachmentsCreateUpload: (*Dispatcher).handleAttachmentsCreateUpload,
 	MethodAttachmentsGet:          (*Dispatcher).handleAttachmentsGet,
 	MethodAttachmentsDelete:       (*Dispatcher).handleAttachmentsDelete,
-
-	// Background.
-	MethodBackgroundList:   (*Dispatcher).handleBackgroundList,
-	MethodBackgroundCancel: (*Dispatcher).handleBackgroundCancel,
 
 	// Feedback.
 	MethodFeedbackCreate: (*Dispatcher).handleFeedbackCreate,

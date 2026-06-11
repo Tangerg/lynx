@@ -71,12 +71,13 @@ type UpdateSessionRequest struct {
 	Metadata  *map[string]any `json:"metadata,omitempty"`
 }
 
-// ForkSessionRequest — sessions.fork body. Forks at an item boundary,
-// inheriting the source cwd.
+// ForkSessionRequest — sessions.fork body (AUX_API §4.2). Omit fromRunId for a
+// whole-conversation fork; give it to truncate-copy up to and including that
+// run boundary. Inherits the source cwd.
 type ForkSessionRequest struct {
-	SessionID  string `json:"sessionId"`
-	FromItemID string `json:"fromItemId,omitempty"`
-	Title      string `json:"title,omitempty"`
+	SessionID string `json:"sessionId"`
+	FromRunID string `json:"fromRunId,omitempty"`
+	Title     string `json:"title,omitempty"`
 }
 
 // ExportFormat enumerates sessions.export output formats.
