@@ -1,10 +1,11 @@
 package engine
 
 import (
-	"context"
 	"testing"
 
 	"github.com/Tangerg/lynx/core/model/chat"
+
+	"github.com/Tangerg/lynx/lyra/internal/engine/toolset"
 )
 
 // TestEngine_RegistersLSPTools verifies the six code-intelligence tools are
@@ -14,10 +15,7 @@ import (
 func TestEngine_RegistersLSPTools(t *testing.T) {
 	stub := newStubModel("nop", `{}`, "")
 	client, _ := chat.NewClient(stub)
-	eng, err := New(context.Background(), Config{ChatClient: client})
-	if err != nil {
-		t.Fatalf("engine.New: %v", err)
-	}
+	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
 	have := map[string]bool{}

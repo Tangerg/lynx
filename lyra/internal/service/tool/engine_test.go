@@ -9,6 +9,7 @@ import (
 	chatmodel "github.com/Tangerg/lynx/core/model/chat"
 
 	"github.com/Tangerg/lynx/lyra/internal/engine"
+	"github.com/Tangerg/lynx/lyra/internal/engine/toolset"
 	"github.com/Tangerg/lynx/lyra/internal/service/tool"
 )
 
@@ -82,7 +83,17 @@ func buildService(t *testing.T) tool.Service {
 	if err != nil {
 		t.Fatal(err)
 	}
-	eng, err := engine.New(context.Background(), engine.Config{ChatClient: client})
+	built, err := toolset.Build(context.Background(), toolset.BuildConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	eng, err := engine.New(context.Background(), engine.Config{
+		ChatClient:   client,
+		ToolResolver: built.Resolver,
+		Tools:        built.Tools,
+		MCP:          built.MCP,
+		Closers:      built.Closers,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

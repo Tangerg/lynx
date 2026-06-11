@@ -6,9 +6,6 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	"github.com/Tangerg/lynx/lyra/internal/engine/toolset"
-	"github.com/Tangerg/lynx/lyra/internal/infra/a2a"
-	"github.com/Tangerg/lynx/lyra/internal/infra/mcp"
-	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
 	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
 )
 
@@ -37,11 +34,6 @@ type Config struct {
 	// appears when a project directory exists, and is absent when neither does.
 	SkillsGlobalDir string
 
-	// Online controls which network-reaching tools (webfetch /
-	// websearch / httpreq) are registered. Each tool is independent;
-	// missing credentials skip just that tool.
-	Online OnlineConfig
-
 	// MemoryStore optionally supplies a persistent chat-memory
 	// backend (the sqlite MessageStore, redis-backed, ...). When nil the
 	// engine falls back to lynx's in-process [memory.InMemoryStore]
@@ -61,24 +53,15 @@ type Config struct {
 	Extractor    Extractor    // turn-boundary fact extraction → LYRA.md
 	Planner      Planner      // plan-mode plan generation
 
-	// MCPServers lists external MCP servers to dial at engine
-	// construction. Their tools are merged into the built-in coding
-	// tool set, prefixed with the server's Name so collisions across
-	// servers stay separable. Empty disables MCP integration.
-	MCPServers []mcp.ServerConfig
-
-	// A2AAgents lists remote A2A (Agent-to-Agent) agents to dial at engine
-	// construction. Each becomes one delegation tool in the coding set (named
-	// by its config, else the resolved AgentCard), letting the chat loop hand
-	// work to a remote agent. Empty disables A2A integration.
-	A2AAgents []a2a.ClientConfig
-
-	// LSPServers overrides the language-server table the code-intelligence
-	// tools drive. Empty uses codeintel.DefaultServers() (gopls + typescript).
-	// When set, it REPLACES the defaults wholesale (list every language you
-	// want), so an operator can add servers (pyright, rust-analyzer, …) or pin
-	// commands via config without a rebuild.
-	LSPServers []codeintel.ServerSpec
+	// Tool environment — assembled outside the core by [toolset.Build] and
+	// injected by the composition root. The engine registers ToolResolver on
+	// the platform, exposes MCP as its workspace.mcp.* facade, surfaces Tools
+	// (plus the engine-built task/ask_user) via tools.list, and runs Closers at
+	// shutdown. A nil ToolResolver yields an empty (no-tool) environment.
+	ToolResolver *toolset.Resolver
+	Tools        []chat.Tool        // canonical tool list (without task/ask_user)
+	MCP          toolset.MCPControl // live-MCP-connections facade
+	Closers      []func() error     // capability shutdown hooks
 
 	// Pricing optionally computes per-round USD cost from the served
 	// model + token usage. nil leaves cost at zero (the chat path gets

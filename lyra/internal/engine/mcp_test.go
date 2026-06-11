@@ -13,6 +13,8 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/mcp"
+
+	"github.com/Tangerg/lynx/lyra/internal/engine/toolset"
 )
 
 // runAsMCPServerEnv is the env-var sentinel that flips this test
@@ -97,13 +99,9 @@ func TestEngine_DialMCPServer(t *testing.T) {
 	// 2. Construct the engine pointing at the http MCP endpoint.
 	stub := newStubModel("ping", `{}`, "pong-received")
 	client, _ := chat.NewClient(stub)
-	eng, err := New(context.Background(), Config{
-		ChatClient: client,
+	eng := mustEngineWith(t, client, toolset.BuildConfig{
 		MCPServers: []mcp.ServerConfig{{Name: "test", Transport: mcp.TransportHTTP, Endpoint: httpServer.URL}},
 	})
-	if err != nil {
-		t.Fatalf("engine.New: %v", err)
-	}
 	defer eng.Close()
 
 	// 3. The remote tool must appear in the merged list under its
@@ -130,11 +128,7 @@ func TestEngine_DialMCPServer(t *testing.T) {
 // entries with the same Name must abort engine.New rather than
 // silently overwriting.
 func TestEngine_DialMCPServer_RejectsDuplicateNames(t *testing.T) {
-	stub := newStubModel("nop", `{}`, "")
-	client, _ := chat.NewClient(stub)
-
-	_, err := New(context.Background(), Config{
-		ChatClient: client,
+	_, err := toolset.Build(context.Background(), toolset.BuildConfig{
 		MCPServers: []mcp.ServerConfig{
 			{Name: "dup", Transport: mcp.TransportHTTP, Endpoint: "http://example.invalid/"},
 			{Name: "dup", Transport: mcp.TransportHTTP, Endpoint: "http://other.invalid/"},
@@ -149,11 +143,7 @@ func TestEngine_DialMCPServer_RejectsDuplicateNames(t *testing.T) {
 // failures at engine.New time so operators don't discover the
 // problem on the first tool call.
 func TestEngine_DialMCPServer_RejectsBadEndpoint(t *testing.T) {
-	stub := newStubModel("nop", `{}`, "")
-	client, _ := chat.NewClient(stub)
-
-	_, err := New(context.Background(), Config{
-		ChatClient: client,
+	_, err := toolset.Build(context.Background(), toolset.BuildConfig{
 		MCPServers: []mcp.ServerConfig{
 			{Name: "bad", Transport: mcp.TransportHTTP, Endpoint: ""}, // empty endpoint fails Validate
 		},
@@ -184,8 +174,7 @@ func TestEngine_DialMCPServer_Stdio(t *testing.T) {
 	stub := newStubModel("ping", `{}`, "")
 	client, _ := chat.NewClient(stub)
 
-	eng, err := New(context.Background(), Config{
-		ChatClient: client,
+	eng := mustEngineWith(t, client, toolset.BuildConfig{
 		MCPServers: []mcp.ServerConfig{{
 			Name:      "stdio",
 			Transport: mcp.TransportStdio,
@@ -194,9 +183,6 @@ func TestEngine_DialMCPServer_Stdio(t *testing.T) {
 			Env:       append(os.Environ(), runAsMCPServerEnv+"=1"),
 		}},
 	})
-	if err != nil {
-		t.Fatalf("engine.New (stdio): %v", err)
-	}
 	defer eng.Close()
 
 	want := "stdio_ping"
@@ -219,10 +205,7 @@ func TestEngine_DialMCPServer_Stdio(t *testing.T) {
 // TestEngine_DialMCPServer_StdioRejectsEmptyCommand mirrors the
 // HTTP empty-endpoint guard for the stdio path.
 func TestEngine_DialMCPServer_StdioRejectsEmptyCommand(t *testing.T) {
-	stub := newStubModel("nop", `{}`, "")
-	client, _ := chat.NewClient(stub)
-	_, err := New(context.Background(), Config{
-		ChatClient: client,
+	_, err := toolset.Build(context.Background(), toolset.BuildConfig{
 		MCPServers: []mcp.ServerConfig{{
 			Name:      "bad",
 			Transport: mcp.TransportStdio,
@@ -248,15 +231,11 @@ func fileExists(p string) bool {
 func TestEngine_DialMCPServers_ToleratesUnreachable(t *testing.T) {
 	stub := newStubModel("nop", `{}`, "")
 	client, _ := chat.NewClient(stub)
-	eng, err := New(context.Background(), Config{
-		ChatClient: client,
+	eng := mustEngineWith(t, client, toolset.BuildConfig{
 		MCPServers: []mcp.ServerConfig{
 			{Name: "down", Transport: mcp.TransportHTTP, Endpoint: "http://127.0.0.1:1/mcp"},
 		},
 	})
-	if err != nil {
-		t.Fatalf("New must tolerate an unreachable server, got %v", err)
-	}
 	t.Cleanup(func() { _ = eng.Close() })
 
 	statuses := eng.MCPServerStatuses()
@@ -280,15 +259,11 @@ func TestEngine_DialMCPServers_ToleratesUnreachable(t *testing.T) {
 func TestEngine_ReconnectMCPServer(t *testing.T) {
 	stub := newStubModel("nop", `{}`, "")
 	client, _ := chat.NewClient(stub)
-	eng, err := New(context.Background(), Config{
-		ChatClient: client,
+	eng := mustEngineWith(t, client, toolset.BuildConfig{
 		MCPServers: []mcp.ServerConfig{
 			{Name: "down", Transport: mcp.TransportHTTP, Endpoint: "http://127.0.0.1:1/mcp"},
 		},
 	})
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
 	t.Cleanup(func() { _ = eng.Close() })
 
 	if err := eng.ReconnectMCPServer(context.Background(), "down"); err == nil {

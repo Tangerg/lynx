@@ -12,6 +12,8 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+
+	"github.com/Tangerg/lynx/lyra/internal/engine/toolset"
 )
 
 // memoryNewInMemoryStore re-exports memory.NewInMemoryStore under a
@@ -610,10 +612,8 @@ func TestEngine_RunChat_NoSessionIDDoesNotPersist(t *testing.T) {
 func TestEngine_Tools_OfflineOnly(t *testing.T) {
 	stub := newStubModel("bash", `{}`, "")
 	client, _ := chat.NewClient(stub)
-	eng, err := New(context.Background(), Config{ChatClient: client})
-	if err != nil {
-		t.Fatal(err)
-	}
+	eng := mustEngineWith(t, client, toolset.BuildConfig{})
+	defer eng.Close()
 
 	tools := eng.Tools()
 	// 6 offline coding tools + 6 always-on LSP tools + 3 background-command
@@ -642,22 +642,42 @@ func TestEngine_Tools_OfflineOnly(t *testing.T) {
 	}
 }
 
+// mustEngineWith builds an engine over a tool environment assembled by
+// toolset.Build (the production path: capabilities + resolver constructed
+// outside the core, injected in) — for tests that exercise the assembled tool
+// set / MCP facade.
+func mustEngineWith(t *testing.T, client *chat.Client, bc toolset.BuildConfig) *Engine {
+	t.Helper()
+	built, err := toolset.Build(context.Background(), bc)
+	if err != nil {
+		t.Fatalf("toolset.Build: %v", err)
+	}
+	eng, err := New(context.Background(), Config{
+		ChatClient:   client,
+		ToolResolver: built.Resolver,
+		Tools:        built.Tools,
+		MCP:          built.MCP,
+		Closers:      built.Closers,
+	})
+	if err != nil {
+		t.Fatalf("engine.New: %v", err)
+	}
+	return eng
+}
+
 // TestEngine_Tools_OnlineEnabled verifies provider-backed tools
 // arrive when their credentials are supplied.
 func TestEngine_Tools_OnlineEnabled(t *testing.T) {
 	stub := newStubModel("bash", `{}`, "")
 	client, _ := chat.NewClient(stub)
-	eng, err := New(context.Background(), Config{
-		ChatClient: client,
+	eng := mustEngineWith(t, client, toolset.BuildConfig{
 		Online: OnlineConfig{
 			JinaAPIKey:       "test-jina",
 			TavilyAPIKey:     "test-tavily",
 			HTTPAllowedHosts: []string{"api.example.com"},
 		},
 	})
-	if err != nil {
-		t.Fatalf("engine.New: %v", err)
-	}
+	defer eng.Close()
 
 	tools := eng.Tools()
 	if len(tools) != 20 {
@@ -677,13 +697,8 @@ func TestEngine_Tools_OnlineEnabled(t *testing.T) {
 func TestEngine_Tools_PartialOnline(t *testing.T) {
 	stub := newStubModel("bash", `{}`, "")
 	client, _ := chat.NewClient(stub)
-	eng, err := New(context.Background(), Config{
-		ChatClient: client,
-		Online:     OnlineConfig{JinaAPIKey: "k"},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	eng := mustEngineWith(t, client, toolset.BuildConfig{Online: OnlineConfig{JinaAPIKey: "k"}})
+	defer eng.Close()
 	if len(eng.Tools()) != 18 {
 		t.Fatalf("tool count = %d, want 18 (6 offline + 6 lsp + 3 bg + jina + task + ask_user)", len(eng.Tools()))
 	}
