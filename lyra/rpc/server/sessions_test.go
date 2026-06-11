@@ -26,6 +26,11 @@ type stubRuntime struct {
 
 func (s stubRuntime) MCPServerStatuses() []engine.McpServerStatus { return s.mcpStatuses }
 
+// ReconnectMCPServer is a no-op for the stub — WorkspaceMCPReconnect's event
+// sequencing is what the server test exercises, and it builds those frames from
+// MCPServerStatuses (above), not from this call's side effects.
+func (s stubRuntime) ReconnectMCPServer(context.Context, string) error { return nil }
+
 func (s stubRuntime) Session() session.Service { return s.sess }
 func (s stubRuntime) DefaultModel() string     { return s.model }
 func (s stubRuntime) ReadHistory(_ context.Context, id string) ([]chat.Message, error) {

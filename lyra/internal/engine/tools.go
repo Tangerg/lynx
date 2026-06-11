@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -139,9 +140,28 @@ type cwdToolResolver struct {
 	defaultWorkdir  string
 	skillsGlobalDir string      // user-scope skills dir; merged under each turn's project skills
 	online          []chat.Tool // working-directory-independent network tools
-	mcp             []chat.Tool // working-directory-independent MCP tools
 	a2a             []chat.Tool // working-directory-independent remote A2A agents
 	task            chat.Tool   // delegation tool; coding role only, nil until set
+
+	// mcp is the working-directory-independent MCP tool set, held behind an
+	// atomic pointer so a reconnect (B3b-2) can hot-swap the live set without
+	// locking the per-turn resolution path: Tools() does one atomic load, the
+	// reconnect does one atomic store. The model therefore always sees the
+	// currently-connected servers' tools, even mid-session.
+	mcp atomic.Pointer[[]chat.Tool]
+}
+
+// mcpTools returns the current MCP tool set (nil before the first store).
+func (r *cwdToolResolver) mcpTools() []chat.Tool {
+	if p := r.mcp.Load(); p != nil {
+		return *p
+	}
+	return nil
+}
+
+// setMCPTools swaps in a freshly-built MCP tool set (boot + each reconnect).
+func (r *cwdToolResolver) setMCPTools(tools []chat.Tool) {
+	r.mcp.Store(&tools)
 }
 
 func (*cwdToolResolver) Name() string { return "coding-tools" }
@@ -218,7 +238,7 @@ func (g *cwdToolGroup) Tools(ctx context.Context) ([]core.AgentTool, error) {
 	workdir := g.resolver.workdirFor(ctx)
 	tools := buildWorkdirTools(workdir)
 	tools = append(tools, g.resolver.online...)
-	tools = append(tools, g.resolver.mcp...)
+	tools = append(tools, g.resolver.mcpTools()...)
 	tools = append(tools, g.resolver.a2a...)
 	// The skill tool is working-directory scoped (project skills live under
 	// the turn's cwd), so it is built per resolution like fs/bash and is

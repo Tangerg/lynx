@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http/httptest"
 	"os"
@@ -268,5 +269,40 @@ func TestEngine_DialMCPServers_ToleratesUnreachable(t *testing.T) {
 	}
 	if len(tools) != 0 {
 		t.Fatalf("MCPTools = %+v, want empty (no connected server)", tools)
+	}
+}
+
+// TestEngine_ReconnectMCPServer covers the reconnect path (B3b-2) against an
+// unreachable server: the dial still fails, so the server walks connecting →
+// failed (returning the error) and its tools stay absent; an unknown name is
+// ErrUnknownMCPServer. (A successful reconnect's tool hot-swap rides the same
+// code path as boot, which the stdio integration test already exercises.)
+func TestEngine_ReconnectMCPServer(t *testing.T) {
+	stub := newStubModel("nop", `{}`, "")
+	client, _ := chat.NewClient(stub)
+	eng, err := New(context.Background(), Config{
+		ChatClient: client,
+		MCPServers: []mcp.ServerConfig{
+			{Name: "down", Transport: mcp.TransportHTTP, Endpoint: "http://127.0.0.1:1/mcp"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	t.Cleanup(func() { _ = eng.Close() })
+
+	if err := eng.ReconnectMCPServer(context.Background(), "down"); err == nil {
+		t.Fatal("reconnect of an unreachable server must return the dial error")
+	}
+	st := eng.MCPServerStatuses()
+	if len(st) != 1 || st[0].Status != "failed" || st[0].Err == nil {
+		t.Fatalf("statuses = %+v, want [down failed <reason>]", st)
+	}
+	if tools, _ := eng.MCPTools(context.Background(), ""); len(tools) != 0 {
+		t.Fatalf("MCPTools = %+v, want empty after a failed reconnect", tools)
+	}
+
+	if err := eng.ReconnectMCPServer(context.Background(), "ghost"); !errors.Is(err, ErrUnknownMCPServer) {
+		t.Fatalf("reconnect unknown = %v, want ErrUnknownMCPServer", err)
 	}
 }
