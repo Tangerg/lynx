@@ -195,11 +195,24 @@ type InterruptResponse struct {
 type InterruptResponseValue struct {
 	Type       string              `json:"type"`                 // "approval" | "answer" | "toolResult"
 	Decision   string              `json:"decision,omitempty"`   // approval: "approve" | "deny"
-	EditedArgs map[string]any      `json:"editedArgs,omitempty"` // approval
+	Remember   *RememberScope      `json:"remember,omitempty"`   // approval: keep this decision (AUX_API §6)
+	EditedArgs map[string]any      `json:"editedArgs,omitempty"` // approval: one-shot arg override
 	Reason     string              `json:"reason,omitempty"`     // approval (deny rationale)
 	Answers    map[string][]string `json:"answers,omitempty"`    // answer: field name → values (single-select = one-element array, S8)
 	Result     any                 `json:"result,omitempty"`     // toolResult: best-effort JSON
 	Error      *ProblemData        `json:"error,omitempty"`      // toolResult: client tool failure
+}
+
+// RememberScope is the standing-decision directive on an approval response
+// (AUX_API §6). When present the runtime keeps the approve/deny decision so
+// future calls to the same tool (keyed by tool NAME, not its args) skip the
+// prompt. v1 honors Scope "session" only — in-memory, process lifetime;
+// "project" / "global" need a persistence home and aren't wired, so a client
+// sending them gets one-shot behavior rather than a false promise. editedArgs
+// stays one-shot regardless: remember records "this tool", not "this tool +
+// these args".
+type RememberScope struct {
+	Scope string `json:"scope"` // "session" (v1)
 }
 
 // Interrupt is one pending HITL item (API.md §4.8). itemId is the

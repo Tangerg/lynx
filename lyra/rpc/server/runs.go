@@ -291,14 +291,31 @@ func resolveResolution(responses []protocol.InterruptResponse) (engine.Interrupt
 	for _, r := range responses {
 		switch r.Response.Type {
 		case "approval":
+			// remember{scope:session} keeps the decision for the session; any
+			// other scope isn't persisted yet, so we honor it as one-shot
+			// rather than promise a memory we can't keep (AUX_API §6).
+			res := engine.InterruptResolution{
+				Remember: r.Response.Remember != nil && r.Response.Remember.Scope == "session",
+			}
 			switch r.Response.Decision {
 			case "approve":
-				return engine.InterruptResolution{Approved: true}, nil
+				res.Approved = true
+				// editedArgs overrides the model-regenerated tool args for this
+				// one call (the gate's verdict.Arguments path). One-shot: never
+				// folded into a remembered decision.
+				if len(r.Response.EditedArgs) > 0 {
+					b, err := json.Marshal(r.Response.EditedArgs)
+					if err != nil {
+						return engine.InterruptResolution{}, fmt.Errorf("runs.resume: editedArgs: %w", err)
+					}
+					res.Arguments = string(b)
+				}
 			case "deny":
-				return engine.InterruptResolution{Approved: false}, nil
+				res.Approved = false
 			default:
 				return engine.InterruptResolution{}, errors.New(`runs.resume: approval decision must be "approve" | "deny"`)
 			}
+			return res, nil
 		case "answer":
 			// Plan-review question (see translator.questionInterrupt): the
 			// decision field carries the chosen label (a single-element array,

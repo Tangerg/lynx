@@ -51,3 +51,55 @@ func TestSubscribeRun_StreamsLiveRunFromHub(t *testing.T) {
 		t.Fatalf("subscribe empty: err = %v, want ErrRunNotFound", err)
 	}
 }
+
+// TestResolveResolution covers the approval-response → InterruptResolution
+// mapping the resume path depends on (B5): approve/deny, editedArgs marshalled
+// into the one-shot Arguments override, and remember{scope} honored only for
+// "session". An unknown decision is invalid; an empty response continues.
+func TestResolveResolution(t *testing.T) {
+	approval := func(v protocol.InterruptResponseValue) []protocol.InterruptResponse {
+		v.Type = "approval"
+		return []protocol.InterruptResponse{{Response: v}}
+	}
+
+	// approve + editedArgs + remember{session}: approved, args marshalled, remembered.
+	res, err := resolveResolution(approval(protocol.InterruptResponseValue{
+		Decision:   "approve",
+		EditedArgs: map[string]any{"cmd": "ls -la"},
+		Remember:   &protocol.RememberScope{Scope: "session"},
+	}))
+	if err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+	if !res.Approved || !res.Remember || res.Arguments != `{"cmd":"ls -la"}` {
+		t.Fatalf("approve = %+v, want approved+remember+args", res)
+	}
+
+	// deny + remember{session}: a remembered denial is valid.
+	res, _ = resolveResolution(approval(protocol.InterruptResponseValue{
+		Decision: "deny",
+		Remember: &protocol.RememberScope{Scope: "session"},
+	}))
+	if res.Approved || !res.Remember {
+		t.Fatalf("deny+remember = %+v, want !approved && remember", res)
+	}
+
+	// Unhonored scope (not "session") is one-shot, not a false promise.
+	res, _ = resolveResolution(approval(protocol.InterruptResponseValue{
+		Decision: "approve",
+		Remember: &protocol.RememberScope{Scope: "global"},
+	}))
+	if res.Remember {
+		t.Fatal("scope=global must not set Remember (not persisted in v1)")
+	}
+
+	// Bad decision → error.
+	if _, err := resolveResolution(approval(protocol.InterruptResponseValue{Decision: "maybe"})); err == nil {
+		t.Fatal("decision=maybe must be an error")
+	}
+
+	// No actionable response → continue (approved).
+	if res, _ := resolveResolution(nil); !res.Approved {
+		t.Fatal("empty responses must continue (approved)")
+	}
+}

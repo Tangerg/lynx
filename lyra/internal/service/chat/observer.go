@@ -63,14 +63,31 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 		return engine.ToolApprovalVerdict{Denied: true, DenyReason: "read-only mode: " + toolName + " is not permitted"}
 	}
 
-	// gatePrompt: interrupt for human approval (R model). First pass bubbles
-	// the InterruptError up to park; resume delivers the resolution here.
+	// gatePrompt. A standing session decision (the user previously answered
+	// "approve/deny + remember" for this tool) short-circuits the prompt —
+	// the whole point of remember is to stop re-asking (AUX_API §6). A
+	// remembered deny is just as binding as a remembered approve.
+	sessionID := t.st.handle.SessionID
+	if approved, ok, _ := t.svc.approval.Remembered(ctx, sessionID, toolName); ok {
+		if approved {
+			return engine.ToolApprovalVerdict{}
+		}
+		return engine.ToolApprovalVerdict{Denied: true, DenyReason: "tool call denied for this session (remembered)"}
+	}
+
+	// interrupt for human approval (R model). First pass bubbles the
+	// InterruptError up to park; resume delivers the resolution here.
 	res, _, err := hitl.Interrupt[engine.InterruptResolution](ctx,
 		approvalKey(toolName, arguments),
 		ApprovalPrompt{CallID: callID, ToolName: toolName, Arguments: arguments},
 	)
 	if err != nil {
 		return engine.ToolApprovalVerdict{Interrupt: err}
+	}
+	// "remember" keeps this decision for the session so the next call to the
+	// same tool auto-resolves the same way — recorded for approve AND deny.
+	if res.Remember {
+		_ = t.svc.approval.Remember(ctx, sessionID, toolName, res.Approved)
 	}
 	if !res.Approved {
 		return engine.ToolApprovalVerdict{Denied: true, DenyReason: "tool call denied by user"}
