@@ -133,6 +133,8 @@ func Capabilities(rt RuntimeServices) protocol.ServerCapabilities {
 			"skills":    true,             // workspace.listSkills (project + global enumeration)
 			"git":       git.Available(),  // workspace.listFileChanges / getDiff (git binary on PATH)
 			"fileWatch": true,             // workspace.subscribe watches → files.changed (fsnotify)
+			"lsp":       true,             // code-intelligence tools (definition/refs/hover/symbols/diagnostics) + auto type-check on edit
+
 			// Off until the corresponding engine support lands:
 			"multimodal":    false,
 			"checkpoints":   false,
