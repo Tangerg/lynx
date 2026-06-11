@@ -1,10 +1,9 @@
-import type { QueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { getContainer } from "@/main/container";
-import { queryClient as appQueryClient } from "@/lib/data/queryClient";
+import { queryClient } from "@/lib/data/queryClient";
 import { PROJECTS_KEY, SESSIONS_KEY } from "@/lib/data/queries";
 import { useSessionStore } from "@/state/sessionStore";
+import { reportSessionError } from "./reportSessionError";
 
 export interface CreateSessionOptions {
   /** Queue this as the session's first message (welcome composer). */
@@ -26,10 +25,7 @@ export interface CreateSessionOptions {
  * (an empty draft ready to type into); the welcome composer calls it with
  * the typed text, which the chat flushes on remount (useAgentSession).
  */
-async function createAndOpen(
-  qc: QueryClient,
-  { firstMessage, cwd }: CreateSessionOptions,
-): Promise<string | null> {
+async function createAndOpen({ firstMessage, cwd }: CreateSessionOptions): Promise<string | null> {
   try {
     const session = await getContainer()
       .client()
@@ -43,11 +39,11 @@ async function createAndOpen(
     // Draft is filtered out of the sidebar; refetch so its graduation
     // (and any backend-assigned title) lands promptly. A cwd create may
     // also have minted a brand-new project.
-    void qc.invalidateQueries({ queryKey: [SESSIONS_KEY] });
-    if (cwd) void qc.invalidateQueries({ queryKey: [PROJECTS_KEY] });
+    void queryClient.invalidateQueries({ queryKey: [SESSIONS_KEY] });
+    if (cwd) void queryClient.invalidateQueries({ queryKey: [PROJECTS_KEY] });
     return session.id;
   } catch (err) {
-    console.error("[session] create failed:", err);
+    reportSessionError("create", err);
     return null;
   }
 }
@@ -58,21 +54,20 @@ async function createAndOpen(
 // and two tabs. Re-entrant calls join the pending create instead.
 let inflight: Promise<string | null> | null = null;
 
-function doCreate(qc: QueryClient, opts: CreateSessionOptions): Promise<string | null> {
+function doCreate(opts: CreateSessionOptions): Promise<string | null> {
   if (inflight) return inflight;
-  inflight = createAndOpen(qc, opts).finally(() => {
+  inflight = createAndOpen(opts).finally(() => {
     inflight = null;
   });
   return inflight;
 }
 
-/** Imperative create for non-React callers (palette commands, keymap) — uses
- *  the app's shared QueryClient. React components use {@link useCreateSession}. */
+/** Imperative create for non-React callers (palette commands, keymap).
+ *  React components use {@link useCreateSession}. */
 export function createSession(firstMessage?: string): Promise<string | null> {
-  return doCreate(appQueryClient, { firstMessage });
+  return doCreate({ firstMessage });
 }
 
 export function useCreateSession(): (opts?: CreateSessionOptions) => Promise<string | null> {
-  const queryClient = useQueryClient();
-  return useCallback((opts) => doCreate(queryClient, opts ?? {}), [queryClient]);
+  return useCallback((opts) => doCreate(opts ?? {}), []);
 }

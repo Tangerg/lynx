@@ -3,8 +3,9 @@ import { useCallback } from "react";
 import { getContainer } from "@/main/container";
 import { asSessionId } from "@/rpc";
 import { SESSIONS_KEY } from "@/lib/data/queries";
-import { queryClient as appQueryClient } from "@/lib/data/queryClient";
+import { queryClient } from "@/lib/data/queryClient";
 import { useSessionStore } from "@/state/sessionStore";
+import { reportSessionError } from "./reportSessionError";
 
 /** Imperative fork for non-React callers (message context-menu actions).
  *  `fromRunId` = branch up to AND INCLUDING that root run (AUX_API §4.2);
@@ -17,9 +18,9 @@ export async function forkSessionAt(id: string, fromRunId?: RunId): Promise<void
       .client()
       .sessions.fork({ sessionId: asSessionId(id), ...(fromRunId ? { fromRunId } : {}) });
     useSessionStore.getState().selectTab(fork.id);
-    void appQueryClient.invalidateQueries({ queryKey: [SESSIONS_KEY] });
+    void queryClient.invalidateQueries({ queryKey: [SESSIONS_KEY] });
   } catch (err) {
-    console.error("[session] fork failed:", err);
+    reportSessionError("fork", err);
   }
 }
 

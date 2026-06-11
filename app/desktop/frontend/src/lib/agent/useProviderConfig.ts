@@ -1,8 +1,8 @@
 import { useCallback } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { getContainer } from "@/main/container";
 import { errorDetail, type ConfigureProviderRequest } from "@/rpc";
 import { MODELS_KEY, PROVIDERS_KEY } from "@/lib/data/queries";
+import { queryClient } from "@/lib/data/queryClient";
 
 // Provider configuration mutations (providers.configure / providers.test).
 // Lives in lib/ so the settings pane (a component) reaches the runtime through
@@ -21,20 +21,16 @@ export interface SaveProviderInput {
  * new enablement immediately.
  */
 export function useConfigureProvider(): (input: SaveProviderInput) => Promise<void> {
-  const queryClient = useQueryClient();
-  return useCallback(
-    async (input) => {
-      const params: ConfigureProviderRequest = { provider: input.provider };
-      if (input.apiKey) params.apiKey = input.apiKey;
-      if (input.baseUrl) params.baseUrl = input.baseUrl;
-      await getContainer().client().providers.configure(params);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: [PROVIDERS_KEY] }),
-        queryClient.invalidateQueries({ queryKey: [MODELS_KEY] }),
-      ]);
-    },
-    [queryClient],
-  );
+  return useCallback(async (input) => {
+    const params: ConfigureProviderRequest = { provider: input.provider };
+    if (input.apiKey) params.apiKey = input.apiKey;
+    if (input.baseUrl) params.baseUrl = input.baseUrl;
+    await getContainer().client().providers.configure(params);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: [PROVIDERS_KEY] }),
+      queryClient.invalidateQueries({ queryKey: [MODELS_KEY] }),
+    ]);
+  }, []);
 }
 
 export interface TestOutcome {
