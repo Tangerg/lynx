@@ -54,7 +54,8 @@ curl -s -H "Authorization: Bearer $TOK" -H 'Content-Type: application/json' \
     "lsp":       true,        // 代码智能工具(lsp_* 6 个)+ 编辑后自动类型检查(见 §2.9)
     "relocate":  true,        // sessions.update 改 cwd
     "multimodal":    false, "checkpoints":   false, "subagents": false,
-    "sessionExport": false, "clientTools":   false, "attachments": { "enabled": false }
+    "sessionExport": true,    // sessions.export(inline json/md)+ sessions.import(restore)
+    "clientTools":   false, "attachments": { "enabled": false }
   },
   "providers": ["anthropic","openai","deepseek","moonshot", ...],   // 后端支持的 provider 类型
   "limits": { "maxConcurrentRuns": 8 }
@@ -88,7 +89,8 @@ curl -s -H "Authorization: Bearer $TOK" -H 'Content-Type: application/json' \
 | `sessions.delete` | ✅ | `{ sessionId }` → 无 | |
 | `sessions.fork` | ✅ | `{ sessionId, fromRunId?, title? }` → `Session` | 省略 `fromRunId`=整段复制;给定=**含该 run 在内**截断复制;只复制已完结 run;`run_not_found` |
 | `sessions.rollback` | ✅ | `{ sessionId, toRunId? }` → `{ session, droppedRuns[] }` | `toRunId` inclusive-keep(必须 root run),省略=清空;运行中 → `session_busy`;递归清被丢 run 的 subagent 子会话;非 root → `invalid_params` |
-| `sessions.export` | ⛔ | — | `sessionExport` off |
+| `sessions.export` | ✅ | `{ sessionId, format? }` → `{ format, artifact?, markdown? }` | **内联**(非 URL);`json`→可 round-trip 的 `SessionArtifact`,`md`→人读转写;门控 `sessionExport` |
+| `sessions.import` | ✅ | `{ artifact }` → `{ session }` | **restore 语义**:原 id 重建+覆盖历史,幂等;版本/缺 id/坏 blob → `invalid_params`;门控 `sessionExport` |
 
 ### 2.3 `runs.*`(API.md §7.3 / §6 HITL)
 
@@ -263,4 +265,4 @@ type WorkspaceEvent =
 
 ## 7. 当前明确未做(能力位 off,非遗留)
 
-`multimodal`(图片输入)· `attachments`(附件上传)· `sessionExport` · `clientTools`(toolResult interrupt)· `subagents`(能力位;`task` 委派本身已跑,只是不单列 subagent run 能力)· `checkpoints` 的 v2 文件快照(`restoreType` —— 影子 git)· MCP `needsAuth`。这些方法返 `capability_not_negotiated` 或能力位为 false,接入前按 `initialize` 协商即可,不影响其余能力。
+`multimodal`(图片输入)· `attachments`(附件上传)· `clientTools`(toolResult interrupt)· `subagents`(能力位;`task` 委派本身已跑,只是不单列 subagent run 能力)· `checkpoints` 的 v2 文件快照(`restoreType` —— 影子 git)· MCP `needsAuth`。这些方法返 `capability_not_negotiated` 或能力位为 false,接入前按 `initialize` 协商即可,不影响其余能力。

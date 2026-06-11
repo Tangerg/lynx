@@ -842,9 +842,27 @@ interface DroppedRun { run: RunRef; userInput?: ContentBlock[] }
 ```
 
 #### `sessions.export`
-- 入参 `{ sessionId: string; format?: "md" | "json" }`；返回 `{ url: string; expiresAt: string }`。
-- **导出走 transport 文件通道**（不内联会话内容，避免长会话巨型 payload）：HTTP 上 `url` 是带本地门禁的短期下载路径，
-  InProcess/IPC 上是 `file://` 或 native binding 句柄。受 `features.sessionExport` 门控。
+- 入参 `{ sessionId: string; format?: "md" | "json" }`（缺省 `json`）；返回 `{ format; artifact?: SessionArtifact; markdown?: string }`。
+- **内联返回**（后端是本地 loopback 运行时，无长会话巨型 payload 顾虑，故不走 out-of-band 文件通道）：
+  - `format:"json"` → `artifact`：可 round-trip 的会话包，喂给 `sessions.import` 原样恢复。
+  - `format:"md"` → `markdown`：人读转写文本（**不可**再导入）。
+- 受 `features.sessionExport` 门控。
+
+```ts
+interface SessionArtifact {
+  version: number               // artifact schema 版本（当前 1）；import 不识别即 invalid_params
+  session: Session              // 会话元数据（wire 形态）
+  messages: unknown[]           // chat 消息 blob（模型上下文）
+  runs:  { runId: string; updatedAt: string; mark: number; run: RunRef }[]
+  items: { runId: string; itemId: string; createdAt: string; item: Item }[]
+}
+```
+
+#### `sessions.import`
+- 入参 `{ artifact: SessionArtifact }`；返回 `{ session: Session }`。
+- **restore 语义**：在 artifact **原 id** 下重建会话（已存在则覆盖），并替换其历史后重灌 messages + runs + items。
+  幂等：重复导入同一 artifact 不产生副本（按 id UPSERT）。受 `features.sessionExport` 门控。
+- 错误 `invalid_params`（缺 `artifact.session.id` / 版本不识别 / 消息 blob 损坏）。
 
 ---
 
