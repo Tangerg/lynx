@@ -47,6 +47,8 @@ export type {
   DroppedRun,
   ExportSessionRequest,
   ExportSessionResponse,
+  SessionArtifact,
+  ImportSessionResponse,
   // Runs
   RunRef,
   RunMode,
