@@ -84,8 +84,13 @@ func (cp *chatProcess) PendingAwaitable() core.Awaitable { return cp.proc.Pendin
 
 func (cp *chatProcess) Output() (ChatOutput, error) {
 	out, ok := core.ResultOfType[ChatOutput](cp.proc)
-	if !ok {
-		return ChatOutput{}, fmt.Errorf("engine: no ChatOutput produced; status=%s failure=%v", cp.proc.Status(), cp.proc.Failure())
+	if ok {
+		return out, nil
 	}
-	return out, nil
+	// Preserve the process failure's error chain when there is one (%w);
+	// a bare %w on a nil failure would format as "%!w(<nil>)".
+	if failure := cp.proc.Failure(); failure != nil {
+		return ChatOutput{}, fmt.Errorf("engine: no ChatOutput produced (status=%s): %w", cp.proc.Status(), failure)
+	}
+	return ChatOutput{}, fmt.Errorf("engine: no ChatOutput produced (status=%s)", cp.proc.Status())
 }
