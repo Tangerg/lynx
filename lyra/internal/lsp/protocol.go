@@ -32,6 +32,10 @@ type Location struct {
 	Range Range  `json:"range"`
 }
 
+// Path returns the location's native filesystem path (the inverse of the
+// file:// URI), for rendering results back to the caller.
+func (l Location) Path() string { return uriToPath(l.URI) }
+
 // Diagnostic is one problem a server reports for a document (a compile error,
 // a vet warning). Severity: 1=error 2=warning 3=info 4=hint.
 type Diagnostic struct {
