@@ -44,7 +44,12 @@ export interface MCPServer {
   name: string;
   desc: string;
   tools: number;
-  status: "active" | "idle" | "error";
+  // Mirrors the wire McpStatus lifecycle (AUX_API §5.1) — reconnect flows
+  // push connecting → (connected | failed | needsAuth) through the
+  // workspace event channel, and the row binds its loading state to it.
+  status: "connecting" | "connected" | "disconnected" | "failed" | "needsAuth";
+  /** Why the server is `failed` — shown in the row tooltip. */
+  errorDetail?: string;
   icon: string;
 }
 

@@ -100,7 +100,16 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
   // affected runs' channels. A unary call's stream EOSing after its one
   // response frame produces neither (responseSeen, no runIds) — that's the
   // normal case, not a death.
-  async function drainStream(body: ReadableStream<Uint8Array>, requestId?: RpcId): Promise<void> {
+  //
+  // workspace.subscribe is the one NON-run stream: it has no runId to
+  // attribute and no terminal frame, so for it ANY non-abort end — graceful
+  // EOS included — means "subscription over, resubscribe" (AUX_API §3.1). We
+  // signal that with a method-attributed STREAM_DOWN.
+  async function drainStream(
+    body: ReadableStream<Uint8Array>,
+    requestId?: RpcId,
+    method?: string,
+  ): Promise<void> {
     let responseSeen = false;
     const runIds = new Set<string>();
     const parser = createParser({
@@ -158,11 +167,11 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
         error: { code: -32000, message: "transport: stream ended before the call's response" },
       } as RpcMessage);
     }
-    if (runIds.size > 0) {
+    if (runIds.size > 0 || method === "workspace.subscribe") {
       channel.push({
         jsonrpc: JSONRPC_VERSION,
         method: STREAM_DOWN_METHOD,
-        params: { runIds: [...runIds] },
+        params: { runIds: [...runIds], method },
       } as RpcMessage);
     }
   }
@@ -228,7 +237,7 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
     // send() returns once headers are in, not at stream end.
     if ((res.headers.get("Content-Type") ?? "").includes("text/event-stream")) {
       if (!res.body) throw new RpcTransportError("event-stream response has no body");
-      void drainStream(res.body, "id" in msg ? msg.id : undefined);
+      void drainStream(res.body, "id" in msg ? msg.id : undefined, method);
       return;
     }
 

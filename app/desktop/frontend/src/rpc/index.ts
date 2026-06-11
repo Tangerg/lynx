@@ -114,10 +114,15 @@ export type {
   Skill,
   AgentDoc,
   McpServer,
+  McpStatus,
   McpTool,
   MemoryScope,
   MemoryEntry,
   WorkspaceQuery,
+  WatchSpec,
+  SubscribeWorkspaceRequest,
+  WorkspaceEvent,
+  WorkspaceEventType,
   // Attachments / feedback
   Attachment,
   CreateUploadUrlRequest,
@@ -128,7 +133,13 @@ export type {
   PageQuery,
 } from "./shapes";
 export { isDurableEvent } from "./shapes";
-export { streamRunEvents, streamRunEventsDeferred, RUN_EVENT_METHOD } from "./stream";
+export {
+  streamRunEvents,
+  streamRunEventsDeferred,
+  streamWorkspaceEvents,
+  RUN_EVENT_METHOD,
+  WORKSPACE_EVENT_METHOD,
+} from "./stream";
 export { createSidecarClient } from "./sidecar";
 export type { HealthStatus, RuntimeInfo, SidecarClient, SidecarClientConfig } from "./sidecar";
 export { createShellClient } from "./shell";

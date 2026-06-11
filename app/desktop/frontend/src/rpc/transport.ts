@@ -23,6 +23,12 @@ export const STREAM_DOWN_METHOD = "transport.streamDown";
 
 export interface StreamDownParams {
   runIds: string[];
+  /** The streaming method whose POST stream ended — set for non-run streams
+   *  (workspace.subscribe), which carry no runId to attribute. For those the
+   *  synthetic fires on ANY non-abort end (even a graceful EOS): the
+   *  subscription is connection-scoped, so stream end = subscription over and
+   *  the consumer must resubscribe (AUX_API §3.1). */
+  method?: string;
 }
 
 export interface Transport {

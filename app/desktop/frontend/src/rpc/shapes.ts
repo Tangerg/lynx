@@ -28,6 +28,7 @@ export interface ServerFeatures {
   mcp: boolean;
   multimodal: boolean;
   git: boolean; // git binary on PATH — gates workspace.getDiff/listFileChanges (AUX_API §1)
+  fileWatch: boolean; // workspace.subscribe `watches` param available (AUX_API §3.1)
   checkpoints: boolean; // [v2] gates restoreType (file snapshots) — AUX_API §4.3
   subagents: boolean;
   skills: boolean;
@@ -508,9 +509,17 @@ export interface AgentDoc {
   title?: string;
   scope: "cwd" | "projectRoot" | "home";
 }
+export type McpStatus = "connecting" | "connected" | "disconnected" | "failed" | "needsAuth";
+
+// Enriched server entry (AUX_API §5.1) — toolCount/authStatus inline so the
+// list view needs no listServers⨝listTools join; `error` is set on failed
+// (the UI shows WHY, not just a red pill).
 export interface McpServer {
   name: string;
-  status: "connected" | "disconnected" | "error";
+  status: McpStatus;
+  toolCount?: number;
+  authStatus?: "none" | "bearerToken" | "oauth" | "notLoggedIn";
+  error?: ProblemData;
   description?: string;
 }
 export interface McpTool {
@@ -688,6 +697,40 @@ export interface ListItemsResponse extends Page<Item> {
 export interface WorkspaceQuery {
   cwd?: string; // default = serve dir
 }
+
+// ---------------------------------------------------------------------------
+// AUX_API §3 — workspace notification channel (workspace.subscribe)
+// ---------------------------------------------------------------------------
+
+// One file-watch registration. Scope = the subscribe stream that carried it
+// (no standalone watch/unwatch methods); changing the watch set means
+// resubscribing. Gated by features.fileWatch.
+export interface WatchSpec {
+  watchId: string; // client-named
+  cwd?: string; // per-watch cwd (default = serve dir); jail same as §7.5
+  path: string; // relative to this watch's cwd
+}
+
+export interface SubscribeWorkspaceRequest {
+  watches?: WatchSpec[];
+}
+
+// Lossy "something changed → refetch" signals — no seq, no replay; a
+// (re)subscribe is an implicit `resync`. Type names are globally unique
+// across the run/workspace event unions (optOut matches by type name).
+export type WorkspaceEvent =
+  | { type: "files.changed"; watchId: string; paths: string[] } // paths relative to the watch's cwd
+  | { type: "skills.changed" } // cwd-agnostic: any skill dir changed
+  | {
+      type: "mcp.serverChanged";
+      server: string;
+      status?: McpStatus;
+      toolCount?: number;
+      error?: ProblemData;
+    } // status absent = entry removed
+  | { type: "resync" }; // events were lost — refetch everything
+
+export type WorkspaceEventType = WorkspaceEvent["type"];
 
 // ---------------------------------------------------------------------------
 // §7.6 — tools.invoke

@@ -48,11 +48,13 @@ import type {
   Skill,
   StartRunRequest,
   StartRunResponse,
+  SubscribeWorkspaceRequest,
   ToolSpec,
   UpdateSessionRequest,
+  WorkspaceEvent,
   WorkspaceFileChange,
 } from "./shapes";
-import { streamRunEvents, streamRunEventsDeferred } from "./stream";
+import { streamRunEvents, streamRunEventsDeferred, streamWorkspaceEvents } from "./stream";
 
 export interface StreamingResult<R, E> {
   result: R;
@@ -121,6 +123,13 @@ export interface Methods {
     listProjects: () => Promise<Page<Project>>;
     listSkills: (cwd?: string) => Promise<Page<Skill>>;
     listAgentDocs: (cwd?: string) => Promise<Page<AgentDoc>>;
+    // The app-wide workspace notification channel (AUX_API §3): lossy
+    // "changed → refetch" events, connection-scoped, no replay. One stream
+    // per app; resubscribe (= implicit resync) when it ends.
+    subscribe: (
+      params?: SubscribeWorkspaceRequest,
+      signal?: AbortSignal,
+    ) => Promise<StreamingResult<Record<string, never>, WorkspaceEvent>>;
     mcp: {
       listServers: () => Promise<Page<McpServer>>;
       listTools: (server?: string) => Promise<Page<McpTool>>;
@@ -235,6 +244,24 @@ export function createMethods(client: RpcClient): Methods {
       listProjects: () => client.call<Page<Project>>("workspace.listProjects"),
       listSkills: (cwd) => client.call<Page<Skill>>("workspace.listSkills", { cwd }),
       listAgentDocs: (cwd) => client.call<Page<AgentDoc>>("workspace.listAgentDocs", { cwd }),
+      subscribe: async (params, signal) => {
+        // Subscribe BEFORE the call — same head-drop race as runs.start: the
+        // first event frames ride right behind the response on the same
+        // ordered stream.
+        const stream = streamWorkspaceEvents(client, signal);
+        let result: Record<string, never>;
+        try {
+          result = await client.call<Record<string, never>>(
+            "workspace.subscribe",
+            params ?? {},
+            signal,
+          );
+        } catch (err) {
+          stream.dispose();
+          throw err;
+        }
+        return { result, events: stream.events };
+      },
       mcp: {
         listServers: () => client.call<Page<McpServer>>("workspace.mcp.listServers"),
         listTools: (server) =>
