@@ -86,6 +86,7 @@ export const de: Record<string, string> = {
   "approval.required": "Freigabe erforderlich",
   "approval.action.approve": "Genehmigen",
   "approval.action.decline": "Ablehnen",
+  "approval.remember": "In dieser Sitzung nicht erneut fragen",
   "approval.risk.low": "Niedriges Risiko",
   "approval.risk.medium": "Mittleres Risiko",
   "approval.risk.high": "Hohes Risiko",

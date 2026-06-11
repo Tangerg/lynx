@@ -85,6 +85,7 @@ export const ja: Record<string, string> = {
   "approval.required": "承認が必要",
   "approval.action.approve": "承認",
   "approval.action.decline": "拒否",
+  "approval.remember": "このセッションでは再確認しない",
   "approval.risk.low": "低リスク",
   "approval.risk.medium": "中リスク",
   "approval.risk.high": "高リスク",

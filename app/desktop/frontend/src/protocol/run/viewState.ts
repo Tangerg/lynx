@@ -167,6 +167,11 @@ export interface Message {
   role: MessageRole;
   who: string; // display name
   time: string; // formatted timestamp
+  /** Owning root Run (Item.runId) — anchors run-boundary actions
+   *  (edit-and-rerun via sessions.rollback, fork-from-run). Absent on
+   *  optimistic local bubbles until the real Item reconciles, and on
+   *  assistant turn shells (not needed there yet). */
+  runId?: string;
   blocks: ContentBlock[];
 }
 

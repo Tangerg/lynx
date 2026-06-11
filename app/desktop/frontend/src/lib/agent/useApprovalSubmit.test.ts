@@ -60,13 +60,30 @@ describe("useApprovalSubmit", () => {
   it("forwards editedArgs only when provided (approve-with-modified-args)", () => {
     const resume = bindResume();
     const { result } = renderHook(() => useApprovalSubmit("run_1", "item_e"));
-    act(() => result.current.submit("approved", { path: "/safe" }));
+    act(() => result.current.submit("approved", { editedArgs: { path: "/safe" } }));
     expect(resume).toHaveBeenCalledWith(
       "run_1",
       [
         {
           itemId: "item_e",
           response: { type: "approval", decision: "approve", editedArgs: { path: "/safe" } },
+        },
+      ],
+      expect.any(Function),
+      expect.any(Function),
+    );
+  });
+
+  it("forwards remember{scope:session} when rememberForSession is set (AUX_API §6)", () => {
+    const resume = bindResume();
+    const { result } = renderHook(() => useApprovalSubmit("run_1", "item_r"));
+    act(() => result.current.submit("declined", { rememberForSession: true }));
+    expect(resume).toHaveBeenCalledWith(
+      "run_1",
+      [
+        {
+          itemId: "item_r",
+          response: { type: "approval", decision: "deny", remember: { scope: "session" } },
         },
       ],
       expect.any(Function),

@@ -84,6 +84,7 @@ export const ko: Record<string, string> = {
   "approval.required": "승인 필요",
   "approval.action.approve": "승인",
   "approval.action.decline": "거부",
+  "approval.remember": "이 세션에서 다시 묻지 않기",
   "approval.risk.low": "낮은 위험",
   "approval.risk.medium": "중간 위험",
   "approval.risk.high": "높은 위험",

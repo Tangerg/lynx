@@ -96,6 +96,7 @@ export const zh: Record<string, string> = {
   "approval.required": "需要审批",
   "approval.action.approve": "批准",
   "approval.action.decline": "拒绝",
+  "approval.remember": "本会话不再询问",
   "approval.risk.low": "低风险",
   "approval.risk.medium": "中风险",
   "approval.risk.high": "高风险",

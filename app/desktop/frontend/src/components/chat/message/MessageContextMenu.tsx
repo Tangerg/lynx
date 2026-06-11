@@ -14,7 +14,11 @@ import type { Message } from "@/protocol/run/viewState";
 import type { ReactNode } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { Icon, MENU_CONTENT_CLASSES, MENU_ITEM_CLASSES } from "@/components/common";
-import { editMessageInComposer, regenerateMessage } from "@/lib/agent/messageActions";
+import {
+  editAndRerunMessage,
+  editMessageInComposer,
+  regenerateMessage,
+} from "@/lib/agent/messageActions";
 import {
   flattenCode,
   flattenMarkdown,
@@ -78,6 +82,13 @@ export function MessageContextMenu({ msg, children }: Props) {
               <Item icon="edit" onSelect={() => editMessageInComposer(msg)}>
                 Edit in composer
               </Item>
+              {/* Destructive variant: rewinds history to before this turn
+                  (sessions.rollback), then prefills the composer. */}
+              {msg.runId && (
+                <Item icon="loop" onSelect={() => editAndRerunMessage(msg)}>
+                  Edit & rerun from here
+                </Item>
+              )}
             </>
           )}
           {isAssistant && (

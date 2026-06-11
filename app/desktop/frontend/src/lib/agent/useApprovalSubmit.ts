@@ -15,13 +15,18 @@ export type { ApprovalDecision };
 // interrupted Run) + `itemId` (the toolCall awaiting approval). When either is
 // absent the card is a decorative preview.
 
+export interface ApprovalSubmitOptions {
+  /** Forwarded only when the user tweaked the tool's arguments before
+   *  approving (approve-with-modified-args, §6.1) — omitted otherwise so the
+   *  runtime executes the original args. One-shot: never part of remember. */
+  editedArgs?: Record<string, unknown>;
+  /** Remember this decision (approve OR deny) for the rest of the session,
+   *  keyed by tool name (AUX_API §6) — the runtime stops asking for it. */
+  rememberForSession?: boolean;
+}
+
 export interface ApprovalSubmit {
-  /**
-   * Submit the decision. `editedArgs` (approve-with-modified-args, §6.1) is
-   * forwarded only when the user tweaked the tool's arguments before
-   * approving — omitted otherwise so the runtime executes the original args.
-   */
-  submit: (decision: ApprovalDecision, editedArgs?: Record<string, unknown>) => void;
+  submit: (decision: ApprovalDecision, opts?: ApprovalSubmitOptions) => void;
   pending: ApprovalDecision | null;
 }
 
@@ -34,7 +39,7 @@ export function useApprovalSubmit(parentRunId?: string, itemId?: string): Approv
   const [sessionId] = useState(() => useSessionStore.getState().activeSessionId);
 
   const submit = useCallback(
-    (decision: ApprovalDecision, editedArgs?: Record<string, unknown>) => {
+    (decision: ApprovalDecision, opts?: ApprovalSubmitOptions) => {
       if (!parentRunId || !itemId || pending !== null) return;
       const resume = useAgentStore.getState().sessions[sessionId]?.resume;
       if (!resume) return;
@@ -51,7 +56,8 @@ export function useApprovalSubmit(parentRunId?: string, itemId?: string): Approv
             response: {
               type: "approval",
               decision: WIRE_DECISION[decision],
-              ...(editedArgs ? { editedArgs } : {}),
+              ...(opts?.editedArgs ? { editedArgs: opts.editedArgs } : {}),
+              ...(opts?.rememberForSession ? { remember: { scope: "session" as const } } : {}),
             },
           },
         ],
