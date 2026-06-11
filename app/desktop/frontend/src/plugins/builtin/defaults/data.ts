@@ -203,6 +203,17 @@ export const defaultData = definePlugin({
         })),
     });
     host.extensions.contribute(DATA_PROVIDER, {
+      key: "builtin-tools",
+      // The runtime's native tool catalog (tools.list) — MCP tools live
+      // under workspace.mcp.* instead.
+      fetcher: async () =>
+        (await client().tools.list()).data.map((t) => ({
+          name: t.name,
+          description: t.description ?? "",
+          safetyClass: t.safetyClass,
+        })),
+    });
+    host.extensions.contribute(DATA_PROVIDER, {
       key: MEMORY_KEY,
       // Wire MemoryEntry matches MemoryEntryInfo 1:1 — mapped field-by-field
       // anyway so a wire-shape change can't silently leak into the UI type.
