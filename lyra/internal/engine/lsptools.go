@@ -99,6 +99,74 @@ func buildLSPTools(mgr *lsp.Manager, defaultWorkdir string) []chat.Tool {
 	}
 }
 
+// withEditDiagnostics wraps a file-mutating tool (write / edit) so a
+// successful edit is immediately type-checked: the language server re-analyzes
+// the just-written file and any errors/warnings are appended to the tool
+// result, so the model sees the problems it introduced without a separate
+// lsp_diagnostics call (the highest-value LSP integration in mature agents).
+//
+// Best-effort and non-blocking on failure: a failed edit is passed through
+// untouched (nothing to check), an unsupported file type is skipped (no server
+// spawned), and any LSP trouble leaves the original result intact. root is the
+// resolved workspace directory for this resolution; the wrapped tool's path
+// argument is relative to it.
+func withEditDiagnostics(inner chat.Tool, mgr *lsp.Manager, root string) chat.Tool {
+	if mgr == nil {
+		return inner
+	}
+	t, _ := chat.NewTool(
+		inner.Definition(),
+		inner.Metadata(),
+		func(ctx context.Context, arguments string) (string, error) {
+			out, err := inner.Call(ctx, arguments)
+			if err != nil {
+				return out, err // edit didn't apply — nothing to diagnose
+			}
+			var a struct {
+				Path string `json:"path"`
+			}
+			_ = json.Unmarshal([]byte(arguments), &a)
+			if a.Path == "" || !mgr.Supported(a.Path) {
+				return out, nil
+			}
+			diags, derr := mgr.Diagnostics(ctx, root, a.Path)
+			if derr != nil {
+				return out, nil // never fail an edit on language-server trouble
+			}
+			section := diagnosticsSection(a.Path, diags)
+			if section == "" {
+				return out, nil
+			}
+			return out + "\n\n" + section, nil
+		},
+	)
+	return t
+}
+
+// diagnosticsSection renders the errors and warnings (info/hint are dropped as
+// noise) for a just-edited file, or "" when there are none.
+func diagnosticsSection(file string, diags []lsp.Diagnostic) string {
+	var lines []string
+	for _, d := range diags {
+		if d.Severity > 2 { // 1=error 2=warning; skip 3=info 4=hint
+			continue
+		}
+		sev := d.SeverityName()
+		if sev == "" {
+			sev = "error" // unset severity → treat as error per the LSP default
+		}
+		line := fmt.Sprintf("%s %s:%d:%d: %s", sev, file, d.Range.Start.Line+1, d.Range.Start.Character+1, d.Message)
+		if d.Source != "" {
+			line += fmt.Sprintf(" [%s]", d.Source)
+		}
+		lines = append(lines, line)
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("Language server diagnostics for %s (%d):\n%s", file, len(lines), strings.Join(lines, "\n"))
+}
+
 // --- input shapes + schemas ---
 
 type lspPositionInput struct {

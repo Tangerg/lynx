@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/lyra/internal/lsp"
 	"github.com/Tangerg/lynx/tools/bash"
 	"github.com/Tangerg/lynx/tools/fs"
 	"github.com/Tangerg/lynx/tools/httpreq"
@@ -48,14 +49,18 @@ const chatModeBindingKey = "lyra:chat-mode"
 // only tools whose behavior depends on the working directory, so they are
 // rebuilt per resolution (cheap structs) rather than captured once. No
 // credentials needed; safe to build unconditionally.
-func buildWorkdirTools(workdir string) []chat.Tool {
+//
+// write and edit are wrapped so a successful edit is type-checked by the
+// language server and any new problems are folded into the tool result (see
+// withEditDiagnostics). lspMgr may be nil — the wrap is then a no-op.
+func buildWorkdirTools(workdir string, lspMgr *lsp.Manager) []chat.Tool {
 	fsExec := fs.NewLocalExecutor(workdir)
 	bashExec := bash.NewLocalExecutor()
 	bashExec.Dir = workdir
 	return []chat.Tool{
 		fs.NewReadTool(fsExec),
-		fs.NewWriteTool(fsExec),
-		fs.NewEditTool(fsExec),
+		withEditDiagnostics(fs.NewWriteTool(fsExec), lspMgr, workdir),
+		withEditDiagnostics(fs.NewEditTool(fsExec), lspMgr, workdir),
 		fs.NewGlobTool(fsExec),
 		fs.NewGrepTool(fsExec),
 		bash.NewTool(bashExec),
@@ -141,8 +146,9 @@ type cwdToolResolver struct {
 	skillsGlobalDir string      // user-scope skills dir; merged under each turn's project skills
 	online          []chat.Tool // working-directory-independent network tools
 	a2a             []chat.Tool // working-directory-independent remote A2A agents
-	lsp             []chat.Tool // code-intelligence tools; cwd read per-call (manager keys servers by root)
-	task            chat.Tool   // delegation tool; coding role only, nil until set
+	lsp             []chat.Tool  // code-intelligence tools; cwd read per-call (manager keys servers by root)
+	lspManager      *lsp.Manager // backs the write/edit diagnostics wrap (rebuilt per resolution with the turn's cwd)
+	task            chat.Tool    // delegation tool; coding role only, nil until set
 
 	// mcp is the working-directory-independent MCP tool set, held behind an
 	// atomic pointer so a reconnect (B3b-2) can hot-swap the live set without
@@ -237,7 +243,7 @@ func (g *cwdToolGroup) Tools(ctx context.Context) ([]core.AgentTool, error) {
 		return nil, nil
 	}
 	workdir := g.resolver.workdirFor(ctx)
-	tools := buildWorkdirTools(workdir)
+	tools := buildWorkdirTools(workdir, g.resolver.lspManager)
 	tools = append(tools, g.resolver.online...)
 	tools = append(tools, g.resolver.mcpTools()...)
 	tools = append(tools, g.resolver.a2a...)
