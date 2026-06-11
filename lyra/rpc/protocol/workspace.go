@@ -23,12 +23,17 @@ type WorkspaceQuery struct {
 	Cwd string `json:"cwd,omitempty"`
 }
 
-// GetDiffRequest — workspace.getDiff body. Limit caps the diff rows; over
-// it the result is truncated (Diff.Truncated) rather than silently dropped.
+// GetDiffRequest — workspace.getDiff body (AUX_API §2.3). Mode selects the
+// baseline (worktree=changes vs HEAD incl. untracked; base=vs merge-base with
+// default branch). Format selects the shape (rows=structured; raw=unified
+// patch string). Limit caps the diff rows (rows format); over it the result is
+// truncated at a file boundary (Diff.Truncated) rather than silently dropped.
 type GetDiffRequest struct {
-	Cwd   string `json:"cwd,omitempty"`
-	Path  string `json:"path,omitempty"`
-	Limit int    `json:"limit,omitempty"`
+	Cwd    string `json:"cwd,omitempty"`
+	Path   string `json:"path,omitempty"`
+	Mode   string `json:"mode,omitempty"`   // "worktree" (default) | "base"
+	Format string `json:"format,omitempty"` // "rows" (default) | "raw"
+	Limit  int    `json:"limit,omitempty"`
 }
 
 // GetFileHeadRequest — workspace.getFileHead body.
@@ -53,21 +58,41 @@ type MCPListToolsRequest struct {
 	Limit  int    `json:"limit,omitempty"`
 }
 
-// Diff is the workspace.getDiff result (API.md §4.5): structured rows plus
-// a self-describing truncation flag — over the requested limit Truncated is
-// set rather than rows silently dropped ("no silent caps", §7.5).
+// Diff is the workspace.getDiff result (AUX_API §2.3) — a sum type: Files is
+// populated for format=rows (per-file structured diff), Patch for format=raw
+// (the unified patch string). Truncated self-describes a row-limit cut at a
+// file boundary ("no silent caps", §7.5).
 type Diff struct {
-	Rows      []DiffRow `json:"rows"`
-	Truncated bool      `json:"truncated,omitempty"`
+	Files     []FileDiff `json:"files,omitempty"`
+	Patch     string     `json:"patch,omitempty"`
+	Truncated bool       `json:"truncated,omitempty"`
 }
 
-// WorkspaceFileChange is one entry in workspace.listFileChanges (API.md
-// §4.5) — the VCS working-tree scan state. Distinct from FileEdit (a tool's
-// edit result): this one has "untracked" (a VCS-only state) and no diff;
-// they share the past-tense status vocabulary deliberately (§4.5).
+// FileDiff is one file's structured diff (AUX_API §2.3). Added/Removed are
+// omitted for a Binary file (Rows empty) rather than reported as a fake 0;
+// PreviousPath is set only for renames.
+type FileDiff struct {
+	Path         string    `json:"path"`
+	Status       string    `json:"status"` // "added"|"modified"|"deleted"|"renamed"|"untracked"
+	PreviousPath string    `json:"previousPath,omitempty"`
+	Added        *int      `json:"added,omitempty"`
+	Removed      *int      `json:"removed,omitempty"`
+	Binary       bool      `json:"binary,omitempty"`
+	Rows         []DiffRow `json:"rows"`
+}
+
+// WorkspaceFileChange is one entry in workspace.listFileChanges (AUX_API §2.2)
+// — the VCS working-tree scan state. Distinct from FileEdit (a tool's edit
+// result): this one has "untracked" (a VCS-only state); they share the
+// past-tense status vocabulary deliberately (§4.5). Added/Removed are omitted
+// for a Binary file (not a fake 0); PreviousPath is set only for renames.
 type WorkspaceFileChange struct {
-	Path   string `json:"path"`
-	Status string `json:"status"` // "added"|"modified"|"deleted"|"renamed"|"untracked"
+	Path         string `json:"path"`
+	Status       string `json:"status"` // "added"|"modified"|"deleted"|"renamed"|"untracked"
+	PreviousPath string `json:"previousPath,omitempty"`
+	Added        *int   `json:"added,omitempty"`
+	Removed      *int   `json:"removed,omitempty"`
+	Binary       bool   `json:"binary,omitempty"`
 }
 
 // FileHead is a file preview (API.md §4.5).

@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 
 	"github.com/Tangerg/lynx/lyra/internal/config"
+	"github.com/Tangerg/lynx/lyra/internal/git"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
@@ -123,7 +124,8 @@ func Capabilities(rt RuntimeServices) protocol.ServerCapabilities {
 			"reasoning": true,
 			"mcp":       true,
 			"memory":    memory,
-			"skills":    true, // workspace.listSkills (project + global enumeration)
+			"skills":    true,             // workspace.listSkills (project + global enumeration)
+			"git":       git.Available(),  // workspace.listFileChanges / getDiff (git binary on PATH)
 			// Off until the corresponding engine support lands:
 			"multimodal":    false,
 			"checkpoints":   false,

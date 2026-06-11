@@ -60,6 +60,7 @@ const (
 	CodeInterruptNotOpen       = -32014
 	CodeIdempotencyConflict    = -32015
 	CodeInvalidProtocolVersion = -32016
+	CodeVcsUnavailable         = -32017
 )
 
 // InternalErrorProblem is the self-contained "internal error" ProblemData
@@ -95,4 +96,8 @@ var (
 	ErrInterruptNotOpen       = errors.New("interrupt_not_open")
 	ErrIdempotencyConflict    = errors.New("idempotency_conflict")
 	ErrInvalidProtocolVersion = errors.New("invalid_protocol_version")
+	// ErrVcsUnavailable: git is available but the cwd isn't a repo (AUX_API
+	// §2.3) — distinct from "clean repo" (empty result). NOT for missing git
+	// (that's features.git=false) nor an unresolvable base branch (invalid_params).
+	ErrVcsUnavailable = errors.New("vcs_unavailable")
 )
