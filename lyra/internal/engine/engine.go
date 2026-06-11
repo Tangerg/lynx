@@ -16,7 +16,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
-	"github.com/Tangerg/lynx/lyra/internal/infra/lsp"
+	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
 	"github.com/Tangerg/lynx/lyra/internal/service/maintenance"
 	lyramem "github.com/Tangerg/lynx/lyra/internal/service/memory"
 )
@@ -74,10 +74,11 @@ type Engine struct {
 	toolResolver *cwdToolResolver
 	a2aClients   []*a2aclient.Client
 
-	// lspManager drives language servers (gopls, …) for the code-intelligence
-	// tools. Servers launch lazily per (workspace root, language) and are shut
-	// down in Close. nil only in a never-constructed engine.
-	lspManager *lsp.Manager
+	// codeIntel drives language servers (gopls, …) for the code-intelligence
+	// tools and the post-edit diagnostics wrap. Servers launch lazily per
+	// (workspace root, language) and are shut down in Close. nil only in a
+	// never-constructed engine.
+	codeIntel *codeintel.Service
 
 	// bgShells owns the background-command processes; killed in Close.
 	bgShells *bgShellManager
@@ -132,17 +133,14 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// adds the `task` delegation tool, wired below once it exists (it
 	// needs the platform). The resolver reads each turn's working
 	// directory off the process blackboard at resolution time.
-	// LSP code-intelligence: one manager per engine, servers launched lazily
-	// per (workspace root, language). The tools are cwd-independent (the
-	// manager keys by root, read per-call off the blackboard) so they're built
-	// once here alongside online / A2A. A nil server table falls back to the
-	// built-in defaults; config can replace it wholesale.
-	lspServers := cfg.LSPServers
-	if len(lspServers) == 0 {
-		lspServers = lsp.DefaultServers()
-	}
-	lspManager := lsp.NewManager(lspServers)
-	lspTools := buildLSPTools(lspManager, cfg.Workdir)
+	// LSP code-intelligence: one service per engine wrapping the LSP manager,
+	// servers launched lazily per (workspace root, language). The tools are
+	// cwd-independent (the service keys by root, read per-call off the
+	// blackboard) so they're built once here alongside online / A2A. An empty
+	// server table falls back to the built-in defaults; config can replace it
+	// wholesale.
+	codeIntel := codeintel.New(cfg.LSPServers)
+	lspTools := buildLSPTools(codeIntel, cfg.Workdir)
 
 	// readTracker backs the read-before-edit + stale-file guards on the fs
 	// read/edit/write tools (per-session, in-memory).
@@ -159,7 +157,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		online:          online,
 		a2a:             a2aTools,
 		lsp:             lspTools,
-		lspManager:      lspManager,
+		codeIntel:       codeIntel,
 		readTracker:     tracker,
 		bgShell:         bgShellTools,
 	}
@@ -213,7 +211,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		mcpClient:    mcpClient,
 		toolResolver: resolver,
 		a2aClients:   a2aClients,
-		lspManager:   lspManager,
+		codeIntel:    codeIntel,
 		bgShells:     bgShells,
 	}
 
@@ -232,7 +230,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// tool metadata (name / schema) is working-directory independent, so
 	// the default-workdir build is a faithful representative of what any
 	// turn resolves.
-	e.tools = append(buildWorkdirTools(cfg.Workdir, lspManager, tracker), online...)
+	e.tools = append(buildWorkdirTools(cfg.Workdir, codeIntel, tracker), online...)
 	e.tools = append(e.tools, mcpTools...)
 	e.tools = append(e.tools, a2aTools...)
 	e.tools = append(e.tools, lspTools...)
@@ -314,11 +312,11 @@ func (e *Engine) Close() error {
 		errs = append(errs, err)
 	}
 	e.a2aClients = nil
-	if e.lspManager != nil {
-		if err := e.lspManager.Close(); err != nil {
+	if e.codeIntel != nil {
+		if err := e.codeIntel.Close(); err != nil {
 			errs = append(errs, err)
 		}
-		e.lspManager = nil
+		e.codeIntel = nil
 	}
 	if e.bgShells != nil {
 		e.bgShells.killAll()

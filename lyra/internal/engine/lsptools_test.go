@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/lyra/internal/infra/lsp"
+	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
 )
 
 // TestEngine_RegistersLSPTools verifies the six code-intelligence tools are
@@ -44,9 +44,9 @@ func TestEngine_RegistersLSPTools(t *testing.T) {
 // type with no configured server returns a plain message (the model adapts),
 // not an error that would halt the loop.
 func TestLSPToolUnsupportedFile(t *testing.T) {
-	mgr := lsp.NewManager(lsp.DefaultServers())
-	t.Cleanup(func() { _ = mgr.Close() })
-	tools := buildLSPTools(mgr, t.TempDir())
+	ci := codeintel.New(nil)
+	t.Cleanup(func() { _ = ci.Close() })
+	tools := buildLSPTools(ci, t.TempDir())
 
 	var hover chat.Tool
 	for _, tool := range tools {
@@ -66,32 +66,6 @@ func TestLSPToolUnsupportedFile(t *testing.T) {
 	}
 }
 
-// TestNewProblems_FiltersBaseline is the deterministic guard against the LSP
-// caching / staleness false positives the baseline diff exists to prevent: a
-// pre-existing problem (even one whose line shifted, or one the server
-// re-reported verbatim from cache) must not be counted as introduced — only a
-// genuinely new diagnostic surfaces.
-func TestNewProblems_FiltersBaseline(t *testing.T) {
-	before := []lsp.Diagnostic{
-		{Message: "undefined: foo", Severity: 1, Range: lsp.Range{Start: lsp.Position{Line: 10}}},
-	}
-	after := []lsp.Diagnostic{
-		// same problem, shifted down 5 lines + re-reported → must be filtered
-		{Message: "undefined: foo", Severity: 1, Range: lsp.Range{Start: lsp.Position{Line: 15}}},
-		// genuinely new problem the edit introduced
-		{Message: "undefined: bar", Severity: 1, Range: lsp.Range{Start: lsp.Position{Line: 20}}},
-	}
-	got := newProblems(before, after)
-	if len(got) != 1 || got[0].Message != "undefined: bar" {
-		t.Fatalf("newProblems = %v, want only [undefined: bar]", got)
-	}
-
-	// A cached, identical result (after == before) yields nothing.
-	if n := newProblems(before, before); len(n) != 0 {
-		t.Errorf("newProblems(before, before) = %v, want none (stale cache must not false-positive)", n)
-	}
-}
-
 // TestWithEditDiagnostics_AppendsProblems verifies the highest-value LSP
 // integration: a successful write to a Go file with a compile error gets the
 // language server's diagnostics folded into the tool result. Runs real gopls.
@@ -103,8 +77,8 @@ func TestWithEditDiagnostics_AppendsProblems(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/edit\n\ngo 1.21\n"), 0o644); err != nil {
 		t.Fatalf("go.mod: %v", err)
 	}
-	mgr := lsp.NewManager(lsp.DefaultServers())
-	t.Cleanup(func() { _ = mgr.Close() })
+	ci := codeintel.New(nil)
+	t.Cleanup(func() { _ = ci.Close() })
 
 	// A stub "write" tool that writes path+content under root (stands in for the
 	// real fs write tool — we're testing the decorator, not fs).
@@ -120,7 +94,7 @@ func TestWithEditDiagnostics_AppendsProblems(t *testing.T) {
 			return "wrote " + a.Path, nil
 		},
 	)
-	wrapped := withEditDiagnostics(inner, mgr, root)
+	wrapped := withEditDiagnostics(inner, ci, root)
 	args := `{"path":"oops.go","content":"package main\n\nfunc main() {\n\tundefinedXYZ()\n}\n"}`
 
 	// Cold gopls may need more than one settle window; the file content is
