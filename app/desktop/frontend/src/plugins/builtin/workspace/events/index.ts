@@ -95,16 +95,20 @@ let resubscribe = false;
 function retargetWatch(): void {
   const id = useSessionStore.getState().activeSessionId;
   if (!id) return; // keep the last known cwd — better than dropping to serve dir
-  const cached = queryClient
-    .getQueryData<{ id: string; cwd?: string }[]>([SESSIONS_KEY])
-    ?.find((s) => s.id === id)?.cwd;
-  const resolved = cached
-    ? Promise.resolve(cached)
-    : getContainer()
-        .client()
-        .sessions.get(asSessionId(id))
-        .then((sess) => sess.cwd)
-        .catch(() => undefined);
+  const list = queryClient.getQueryData<{ id: string; cwd?: string }[]>([SESSIONS_KEY]);
+  const cached = list?.find((s) => s.id === id)?.cwd;
+  // The sessions.get fallback only covers the boot window where the list
+  // hasn't been fetched at all. Once the list IS cached, a missing entry/cwd
+  // resolves to undefined (no-op) — this runs on every sessions-cache event,
+  // so falling back there would turn cache churn into RPC spam.
+  const resolved =
+    cached !== undefined || list !== undefined
+      ? Promise.resolve(cached)
+      : getContainer()
+          .client()
+          .sessions.get(asSessionId(id))
+          .then((sess) => sess.cwd)
+          .catch(() => undefined);
   void Promise.resolve(resolved).then((cwd) => {
     if (cwd === undefined || cwd === watchCwd) return;
     watchCwd = cwd;
@@ -185,10 +189,18 @@ export default definePlugin({
     // point at (the serve dir may be anywhere — BACKEND_API_REFERENCE §5).
     retargetWatch();
     const unsubSession = useSessionStore.subscribe(retargetWatch);
+    // Also follow the sessions CACHE: a relocate (sessions.update cwd)
+    // changes the active session's cwd without any sessionStore event, so
+    // keying retarget on store changes alone would leave the watch on the
+    // dead directory until the next tab switch.
+    const unsubCache = queryClient.getQueryCache().subscribe((event) => {
+      if (event.query.queryKey[0] === SESSIONS_KEY) retargetWatch();
+    });
 
     return () => {
       unsubRuntime();
       unsubSession();
+      unsubCache();
       controller.abort();
     };
   },

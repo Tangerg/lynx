@@ -100,6 +100,14 @@ export const ja: Record<string, string> = {
   "question.settled.answered": "回答済み",
   "question.freetext.placeholder": "自由に入力…",
 
+  "cwdMissing.title": "作業ディレクトリが見つかりません",
+  "cwdMissing.body":
+    "フォルダがディスクから消失しました。復元するかセッションを再配置するまで、agent はチャット専用モードで動作します。",
+  "cwdMissing.action.relocate": "再配置…",
+  "cwdMissing.action.apply": "適用",
+  "cwdMissing.action.cancel": "キャンセル",
+  "cwdMissing.placeholder": "新しい絶対パス",
+
   "runError.title": "Agent エラー",
   "runError.action.retry": "再試行",
   "runError.action.timeline": "タイムラインを開く",

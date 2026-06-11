@@ -102,6 +102,14 @@ export const fr: Record<string, string> = {
   "question.settled.answered": "Répondu",
   "question.freetext.placeholder": "Saisir une réponse…",
 
+  "cwdMissing.title": "Répertoire de travail introuvable",
+  "cwdMissing.body":
+    "Le dossier a disparu du disque — l'agent fonctionne en mode chat seul jusqu'à sa restauration ou la relocalisation de la session.",
+  "cwdMissing.action.relocate": "Relocaliser…",
+  "cwdMissing.action.apply": "Appliquer",
+  "cwdMissing.action.cancel": "Annuler",
+  "cwdMissing.placeholder": "Nouveau chemin absolu",
+
   "runError.title": "Erreur d'agent",
   "runError.action.retry": "Réessayer",
   "runError.action.timeline": "Ouvrir la timeline",

@@ -101,6 +101,14 @@ export const de: Record<string, string> = {
   "question.settled.answered": "Beantwortet",
   "question.freetext.placeholder": "Eigene Antwort eingeben…",
 
+  "cwdMissing.title": "Arbeitsverzeichnis fehlt",
+  "cwdMissing.body":
+    "Der Ordner ist von der Festplatte verschwunden — der Agent läuft im reinen Chat-Modus, bis er wiederhergestellt oder die Session verschoben wird.",
+  "cwdMissing.action.relocate": "Verschieben…",
+  "cwdMissing.action.apply": "Anwenden",
+  "cwdMissing.action.cancel": "Abbrechen",
+  "cwdMissing.placeholder": "Neuer absoluter Pfad",
+
   "runError.title": "Agent-Fehler",
   "runError.action.retry": "Erneut versuchen",
   "runError.action.timeline": "Timeline öffnen",

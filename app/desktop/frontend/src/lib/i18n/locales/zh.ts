@@ -111,6 +111,13 @@ export const zh: Record<string, string> = {
   "question.settled.answered": "已回答",
   "question.freetext.placeholder": "输入自定义答案…",
 
+  "cwdMissing.title": "工作目录丢失",
+  "cwdMissing.body": "该文件夹已从磁盘消失——在恢复或重新定位会话之前，agent 将以纯聊天模式运行。",
+  "cwdMissing.action.relocate": "重新定位…",
+  "cwdMissing.action.apply": "应用",
+  "cwdMissing.action.cancel": "取消",
+  "cwdMissing.placeholder": "新的绝对路径",
+
   "runError.title": "Agent 报错",
   "runError.action.retry": "重试",
   "runError.action.timeline": "查看时间线",

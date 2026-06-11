@@ -99,6 +99,14 @@ export const ko: Record<string, string> = {
   "question.settled.answered": "답변함",
   "question.freetext.placeholder": "직접 입력…",
 
+  "cwdMissing.title": "작업 디렉터리를 찾을 수 없음",
+  "cwdMissing.body":
+    "폴더가 디스크에서 사라졌습니다. 복원하거나 세션을 재배치할 때까지 agent는 일반 채팅 모드로 동작합니다.",
+  "cwdMissing.action.relocate": "재배치…",
+  "cwdMissing.action.apply": "적용",
+  "cwdMissing.action.cancel": "취소",
+  "cwdMissing.placeholder": "새 절대 경로",
+
   "runError.title": "Agent 오류",
   "runError.action.retry": "재시도",
   "runError.action.timeline": "타임라인 열기",

@@ -22,6 +22,7 @@ export interface SidebarSession {
   status: "running" | "waiting" | "idle";
   model: string;
   cwd?: string; // session working directory — absent on 1:1 placeholder rows (PanelHeader)
+  cwdMissing?: boolean; // cwd lost on disk → agent degrades to plain chat (relocate to fix)
   time: string;
 }
 
