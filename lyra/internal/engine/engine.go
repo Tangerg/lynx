@@ -141,6 +141,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		online:          online,
 		a2a:             a2aTools,
 		lsp:             lspTools,
+		lspManager:      lspManager,
 	}
 	resolver.setMCPTools(mcpTools) // seed the hot-swappable MCP set (reconnect re-stores it)
 
@@ -210,7 +211,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// tool metadata (name / schema) is working-directory independent, so
 	// the default-workdir build is a faithful representative of what any
 	// turn resolves.
-	e.tools = append(buildWorkdirTools(cfg.Workdir), online...)
+	e.tools = append(buildWorkdirTools(cfg.Workdir, lspManager), online...)
 	e.tools = append(e.tools, mcpTools...)
 	e.tools = append(e.tools, a2aTools...)
 	e.tools = append(e.tools, lspTools...)
