@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getContainer } from "@/main/container";
 import { errorDetail, type ConfigureProviderRequest } from "@/rpc";
+import { MODELS_KEY, PROVIDERS_KEY } from "@/lib/data/queries";
 
 // Provider configuration mutations (providers.configure / providers.test).
 // Lives in lib/ so the settings pane (a component) reaches the runtime through
@@ -28,8 +29,8 @@ export function useConfigureProvider(): (input: SaveProviderInput) => Promise<vo
       if (input.baseUrl) params.baseUrl = input.baseUrl;
       await getContainer().client().providers.configure(params);
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["providers"] }),
-        queryClient.invalidateQueries({ queryKey: ["models"] }),
+        queryClient.invalidateQueries({ queryKey: [PROVIDERS_KEY] }),
+        queryClient.invalidateQueries({ queryKey: [MODELS_KEY] }),
       ]);
     },
     [queryClient],

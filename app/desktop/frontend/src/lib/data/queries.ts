@@ -149,7 +149,15 @@ function makeParamDataQuery<P, T>(key: string): (params: P | undefined) => UseQu
     });
 }
 
-export const useSessions = makeDataQuery<SidebarSession[]>("sessions");
+// Keys that are also INVALIDATED outside this file (lib/agent mutation
+// hooks). Named so the literal exists in exactly one place — the same
+// no-drift argument as passing the key once into makeDataQuery. Keys only
+// ever read stay inline below.
+export const SESSIONS_KEY = "sessions";
+export const PROVIDERS_KEY = "providers";
+export const MODELS_KEY = "models";
+
+export const useSessions = makeDataQuery<SidebarSession[]>(SESSIONS_KEY);
 export const useProjects = makeDataQuery<SidebarProject[]>("projects");
 export const useFilesChanged = makeDataQuery<FileChange[]>("files-changed");
 export const useDiff = makeDataQuery<DiffRow[]>("diff");
@@ -159,5 +167,5 @@ export const useFileHead = makeParamDataQuery<FileHeadQuery, FileLine[]>("file-h
 export const useMCPServers = makeDataQuery<MCPServer[]>("mcp-servers");
 export const useSkills = makeDataQuery<WorkspaceSkill[]>("skills");
 export const useAgentDocs = makeDataQuery<WorkspaceAgentDoc[]>("agent-docs");
-export const useModels = makeDataQuery<SelectableModel[]>("models");
-export const useProviders = makeDataQuery<ProviderInfo[]>("providers");
+export const useModels = makeDataQuery<SelectableModel[]>(MODELS_KEY);
+export const useProviders = makeDataQuery<ProviderInfo[]>(PROVIDERS_KEY);

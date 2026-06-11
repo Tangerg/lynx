@@ -1,6 +1,6 @@
 import type { SidebarSession } from "@/lib/data/queries";
 import * as ContextMenu from "@radix-ui/react-context-menu";
-import { Icon, StatusDot } from "@/components/common";
+import { Icon, MENU_CONTENT_CLASSES, MENU_ITEM_CLASSES, StatusDot } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { formatRelative } from "@/lib/i18n/relativeTime";
 import { cn } from "@/lib/utils";
@@ -88,11 +88,11 @@ export function SessionRow({ session, active, onSelect, onFork, onDelete }: Prop
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>{row}</ContextMenu.Trigger>
       <ContextMenu.Portal>
-        <ContextMenu.Content className="z-50 min-w-[160px] overflow-hidden rounded-md border border-line-soft bg-surface p-1 shadow-lg animate-rise-in">
+        <ContextMenu.Content className={cn(MENU_CONTENT_CLASSES, "min-w-[160px]")}>
           {onFork && (
             <ContextMenu.Item
               onSelect={() => onFork(session.id)}
-              className="grid grid-cols-[14px_minmax(0,1fr)] items-center gap-2 rounded-sm px-2.5 py-1.5 text-[12.5px] text-fg outline-none data-[highlighted]:bg-surface-2"
+              className={cn(MENU_ITEM_CLASSES, "grid-cols-[14px_minmax(0,1fr)]")}
             >
               <Icon name="branch" size={12} />
               <span className="truncate">Fork</span>
@@ -101,7 +101,10 @@ export function SessionRow({ session, active, onSelect, onFork, onDelete }: Prop
           {onDelete && (
             <ContextMenu.Item
               onSelect={() => onDelete(session.id)}
-              className="grid grid-cols-[14px_minmax(0,1fr)] items-center gap-2 rounded-sm px-2.5 py-1.5 text-[12.5px] text-negative outline-none data-[highlighted]:bg-negative/10"
+              className={cn(
+                MENU_ITEM_CLASSES,
+                "grid-cols-[14px_minmax(0,1fr)] text-negative data-[highlighted]:bg-negative/10 data-[highlighted]:text-negative",
+              )}
             >
               <Icon name="trash" size={12} />
               <span className="truncate">Delete</span>

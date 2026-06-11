@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getContainer } from "@/main/container";
 import { asSessionId } from "@/rpc";
+import { SESSIONS_KEY } from "@/lib/data/queries";
 import { useSessionStore } from "@/state/sessionStore";
 
 /**
@@ -16,7 +17,7 @@ export function useDeleteSession(): (id: string) => Promise<void> {
       try {
         await getContainer().client().sessions.delete(asSessionId(id));
         useSessionStore.getState().closeTab(id);
-        void queryClient.invalidateQueries({ queryKey: ["sessions"] });
+        void queryClient.invalidateQueries({ queryKey: [SESSIONS_KEY] });
       } catch (err) {
         console.error("[session] delete failed:", err);
       }
