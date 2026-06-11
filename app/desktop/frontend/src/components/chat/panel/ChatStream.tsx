@@ -7,7 +7,8 @@
 
 import type { StreamControls } from "./MessageStream";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useModels, useSessions } from "@/lib/data/queries";
+import { useModels } from "@/lib/data/queries";
+import { useActiveSession } from "@/lib/agent/useActiveSession";
 import { Slot } from "@/plugins/host/Slot";
 import { useAgentSlice } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
@@ -52,10 +53,8 @@ export function ChatStream({ onSend, resetKey }: Props) {
   // not per-token state) and threaded down — never per-message subscriptions
   // (CLAUDE.md §5). Falls back to the raw model id, then the role's neutral
   // "Assistant" in MessageBlock.
-  const activeSessionId = useSessionStore((s) => s.activeSessionId);
-  const { data: sessions } = useSessions();
   const { data: models } = useModels();
-  const sessionModelId = sessions?.find((s) => s.id === activeSessionId)?.model ?? "";
+  const sessionModelId = useActiveSession()?.model ?? "";
   const assistantName = useMemo(() => {
     if (!sessionModelId) return undefined;
     return models?.find((m) => m.id === sessionModelId)?.label ?? sessionModelId;

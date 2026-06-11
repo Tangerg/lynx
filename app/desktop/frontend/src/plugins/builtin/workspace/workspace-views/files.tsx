@@ -6,7 +6,7 @@ import { DataView, Icon, IconButton } from "@/components/common";
 import { FilesChanged } from "./views/FilesChanged";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useFilesChanged } from "@/lib/data/queries";
-import { useActiveSessionCwd } from "@/lib/agent/useActiveSessionCwd";
+import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
 import { gitOffEmpty, isVcsUnavailable, notARepoEmpty } from "./views/vcsGate";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { useServerFeature } from "@/state/runtimeStore";

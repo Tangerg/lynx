@@ -11,13 +11,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon, StatusDot, Tooltip } from "@/components/common";
-import { SESSIONS_KEY, useSessions } from "@/lib/data/queries";
+import { useActiveSession } from "@/lib/agent/useActiveSession";
+import { SESSIONS_KEY } from "@/lib/data/queries";
 import { queryClient } from "@/lib/data/queryClient";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { COMPOSER_STATUS } from "@/plugins/sdk/kernelPoints";
 import { useAgentAction, useAgentSlice } from "@/state/agentStore";
-import { useSessionStore } from "@/state/sessionStore";
 
 // One slot in the status bar. All callers use the same shape:
 // inline-flex row, 5px gap, no-wrap, tabular-numeric so digits don't
@@ -222,8 +222,6 @@ const fmtTokens = new Intl.NumberFormat("en", {
 });
 
 function SessionUsage() {
-  const activeSessionId = useSessionStore((s) => s.activeSessionId);
-  const { data: sessions } = useSessions();
   const running = useAgentSlice((v) => v.run.running);
   const prevRunning = useRef(running);
   useEffect(() => {
@@ -233,7 +231,7 @@ function SessionUsage() {
     prevRunning.current = running;
   }, [running]);
 
-  const usage = sessions?.find((s) => s.id === activeSessionId)?.usage;
+  const usage = useActiveSession()?.usage;
   if (!usage) return null;
   const total = (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0);
   if (total === 0 && usage.costUsd === undefined) return null;

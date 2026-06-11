@@ -6,11 +6,11 @@
 import type { MemoryEntryInfo } from "@/lib/data/queries";
 import { useState } from "react";
 import { toast } from "sonner";
-import { DataView, Icon, PillButton } from "@/components/common";
+import { DataView, FIELD_CLASSES, Icon, PillButton } from "@/components/common";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { MEMORY_KEY, useMemory } from "@/lib/data/queries";
 import { queryClient } from "@/lib/data/queryClient";
-import { useActiveSessionCwd } from "@/lib/agent/useActiveSessionCwd";
+import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
 import { cn } from "@/lib/utils";
 import { getContainer } from "@/main/container";
 import { useServerFeature } from "@/state/runtimeStore";
@@ -74,7 +74,7 @@ function MemoryRow({ entry, cwd }: { entry: MemoryEntryInfo; cwd?: string }) {
             onChange={(e) => setDraft(e.target.value)}
             spellCheck={false}
             rows={Math.min(18, Math.max(6, (draft ?? entry.content).split("\n").length + 1))}
-            className="w-full resize-y rounded-md bg-canvas px-3 py-2.5 font-mono text-[12px] leading-[1.55] text-fg-soft outline-none focus:ring-1 focus:ring-accent/40"
+            className={cn(FIELD_CLASSES, "w-full resize-y px-3 py-2.5 leading-[1.55] text-fg-soft")}
           />
           <div className="flex items-center gap-2">
             <PillButton size="sm" variant="accent" disabled={!dirty || saving} onClick={save}>

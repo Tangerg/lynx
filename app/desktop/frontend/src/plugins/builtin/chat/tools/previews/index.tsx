@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
 import { useServerFeature } from "@/state/runtimeStore";
-import { useActiveSessionCwd } from "@/lib/agent/useActiveSessionCwd";
+import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
 
 const MAX_TERM_LINES = 9;
 const MAX_DIFF_ROWS = 8;

@@ -12,7 +12,7 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useEffect } from "react";
 import { submitComposer } from "@/components/chat/composer";
 import { Icon, ProviderIcon, Tooltip } from "@/components/common";
-import { useActiveSessionCwd } from "@/lib/agent/useActiveSessionCwd";
+import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
 import { useChatSend } from "@/lib/agent/useChatSend";
 import { useModels, useProjects } from "@/lib/data/queries";
 import { cn } from "@/lib/utils";
@@ -112,10 +112,9 @@ export const composerKeymap = definePlugin({
 
 // ---- status chips --------------------------------------------------------
 //
-// Values are still hard-coded strings (taken over verbatim from the
-// original AgentClientPage props). Wiring them to live state (active
-// project, current branch via git, …) is a follow-up that doesn't touch
-// the registration API.
+// cwd + branch read live session/project state. ExecModeChip is the one
+// hold-out: the protocol has no approval-policy surface yet, so its hint
+// stays a static placeholder until one exists.
 
 // Readable chip — icon + label, no affordance glyph. Used where the
 // value itself carries meaning the user wants to read (e.g. branch name).
