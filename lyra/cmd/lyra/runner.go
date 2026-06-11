@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/lyra/internal/engine"
-	"github.com/Tangerg/lynx/lyra/internal/service/chat"
+	"github.com/Tangerg/lynx/lyra/internal/engine/chat"
 )
 
 // turnOptions is the per-turn knobs both `chat` and `repl` pass to
