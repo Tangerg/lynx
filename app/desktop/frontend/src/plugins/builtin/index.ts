@@ -72,6 +72,7 @@ import {
   agentDocsView,
   diffView,
   filesView,
+  memoryView,
   notificationsView,
   planView,
   runSummaryView,
@@ -160,6 +161,7 @@ const panes: PluginSpec[] = [
   toolsView,
   skillsView,
   agentDocsView,
+  memoryView,
   notificationsView,
   diagnostics,
 ];
