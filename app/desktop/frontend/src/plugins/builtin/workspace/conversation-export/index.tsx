@@ -4,14 +4,27 @@
 // "... as JSON". No new UI surface; lives on the Cmd+K palette so it
 // stays out of the way until needed.
 //
+// Source of truth: when the runtime advertises features.sessionExport,
+// export goes through `sessions.export` — the SERVER-authoritative dump
+// (full run structure + raw Items) delivered over the transport file
+// channel (a short-lived download URL; content never rides the JSON-RPC
+// envelope, API.md §7.2). The local view-state render below is the
+// FALLBACK for runtimes without the feature — it's lossy by design
+// (only what the fold projected into messages).
+//
 // Cherry Studio supports nine export targets (Markdown, DOCX, Notion,
 // Obsidian, etc.); we ship the two formats that cover ~90% of "save
 // this somewhere else" workflows: human-readable Markdown for paste-
 // into-docs, and structured JSON for replay / re-import / archive.
 
 import type { Message } from "@/protocol/run/viewState";
+import { asSessionId } from "@/rpc";
 import { definePlugin } from "@/plugins/sdk";
+import { getConfig } from "@/plugins/sdk/config";
+import { getContainer } from "@/main/container";
+import { RUNTIME_BASE } from "@/main/config";
 import { getCurrentSessionView } from "@/state/agentStore";
+import { useRuntimeStore } from "@/state/runtimeStore";
 import { useSessionStore } from "@/state/sessionStore";
 import { flattenMarkdown } from "@/lib/agent/messageContent";
 
@@ -42,6 +55,37 @@ function renderMessageMarkdown(msg: Message): string {
   if (!body) return "";
   const headerName = msg.who || msg.role;
   return `## ${headerName} · ${msg.time}\n\n${body}\n`;
+}
+
+// The export URL is transport-relative on HTTP ("/v2/files/..."-style local
+// gated path) but may be absolute (file:// on InProcess/IPC) — resolve
+// against the live api.baseUrl only when it's relative.
+function resolveExportUrl(url: string): string {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(url)) return url; // already absolute (http/file/…)
+  const base = (getConfig<string>("api.baseUrl") ?? RUNTIME_BASE).replace(/\/$/, "");
+  return url.startsWith("/") ? base + url : `${base}/${url}`;
+}
+
+/** Server-authoritative export. Returns false when the runtime doesn't
+ *  advertise the feature or the call fails — callers fall back to the
+ *  local render so the command never dead-ends. */
+async function exportServer(format: "md" | "json"): Promise<boolean> {
+  const sid = useSessionStore.getState().activeSessionId;
+  if (!sid) return false;
+  if (useRuntimeStore.getState().capabilities?.features.sessionExport !== true) return false;
+  try {
+    const { url } = await getContainer().client().sessions.export(asSessionId(sid), format);
+    const a = document.createElement("a");
+    a.href = resolveExportUrl(url);
+    a.download = ""; // filename comes from the server's Content-Disposition
+    document.body.append(a);
+    a.click();
+    a.remove();
+    return true;
+  } catch (err) {
+    console.warn("[export] sessions.export failed — falling back to local render:", err);
+    return false;
+  }
 }
 
 function exportMarkdown(): void {
@@ -94,7 +138,9 @@ export default definePlugin({
       icon: "filetext",
       group: "Chat",
       keywords: ["save", "download", "export"],
-      run: exportMarkdown,
+      run: async () => {
+        if (!(await exportServer("md"))) exportMarkdown();
+      },
     });
     host.commands.register({
       id: "chat.export.json",
@@ -102,7 +148,9 @@ export default definePlugin({
       icon: "code",
       group: "Chat",
       keywords: ["save", "download", "export", "archive"],
-      run: exportJson,
+      run: async () => {
+        if (!(await exportServer("json"))) exportJson();
+      },
     });
   },
 });
