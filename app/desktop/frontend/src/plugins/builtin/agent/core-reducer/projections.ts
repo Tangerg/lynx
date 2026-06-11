@@ -174,6 +174,9 @@ function nameLabel(tool: ToolInvocation): string | undefined {
     }
     case "ask_user":
       return firstLine(a.question);
+    case "bash_output":
+    case "kill_shell":
+      return asString(a.shell_id);
     default:
       return undefined;
   }
@@ -225,16 +228,17 @@ export function toolFields(tool: ToolInvocation | undefined): Partial<ToolCall> 
       // item.delta{toolOutput} stream is only a live preview accumulating
       // into `result` while running; absent output here (the started shell)
       // omits the key so that preview stands until completed reconciles it.
-      // Two wire dialects: the §4.4.2 convention `{exitCode, output}` and
-      // the runtime's raw bash response `{exit_code, stdout, stderr}` —
-      // stderr appended after stdout so failures aren't silently blank.
+      // Three wire dialects: the §4.4.2 convention `{exitCode, output}`, the
+      // runtime's raw bash response `{exit_code, stdout, stderr}` — stderr
+      // appended after stdout so failures aren't silently blank — and the
+      // plain-string ack of run_in_background ("Started background shell …").
       const stdout = asString(result?.stdout);
       const stderr = asString(result?.stderr);
       const merged =
         asString(result?.output) ??
         (stdout !== undefined || stderr !== undefined
           ? [stdout, stderr].filter(Boolean).join("\n")
-          : undefined);
+          : asString(tool.result));
       const exitCode = [result?.exitCode, result?.exit_code].find((v) => typeof v === "number");
       return {
         exitCode: exitCode as number | undefined,

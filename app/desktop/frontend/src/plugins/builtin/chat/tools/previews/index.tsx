@@ -217,6 +217,11 @@ export const bash = definePlugin({
   setup({ host }) {
     host.extensions.contribute(TOOL_PREVIEW, BashPreview, { key: "bash" });
     host.extensions.contribute(TOOL_PREVIEW, BashPreview, { key: "shell" });
+    // Background-shell family: all three return terminal-style plain text
+    // (start ack / incremental output + status line / kill confirmation).
+    host.extensions.contribute(TOOL_PREVIEW, BashPreview, { key: "run_in_background" });
+    host.extensions.contribute(TOOL_PREVIEW, BashPreview, { key: "bash_output" });
+    host.extensions.contribute(TOOL_PREVIEW, BashPreview, { key: "kill_shell" });
   },
 });
 

@@ -28,6 +28,7 @@ export type ToolCategory =
 const TOOL_CATEGORY: Record<string, ToolCategory> = {
   bash: "command",
   shell: "command",
+  run_in_background: "command", // bg counterpart of bash: { command } in, plain-string ack out
   edit: "fileEdit",
   write: "fileEdit",
   grep: "search",
@@ -37,10 +38,10 @@ const TOOL_CATEGORY: Record<string, ToolCategory> = {
   subagent: "subagent",
   task: "subagent", // the runtime's subagent tool (spawns a child run, returns its reply)
 };
-// lsp_* / skill / ask_user stay "generic" on purpose: their labels, icons,
-// and previews key on the tool NAME (projections.toolLabel + TOOL_ICON +
-// TOOL_PREVIEW), and their results are plain text the generic field
-// projection already passes through.
+// lsp_* / skill / ask_user / bash_output / kill_shell stay "generic" on
+// purpose: their labels, icons, and previews key on the tool NAME
+// (projections.toolLabel + TOOL_ICON + TOOL_PREVIEW), and their results are
+// plain text the generic field projection already passes through.
 
 export function toolCategory(name: string): ToolCategory {
   return TOOL_CATEGORY[name] ?? "generic";

@@ -35,6 +35,12 @@ describe("toolLabel — name-keyed specialised tools", () => {
       "Investigate flaky test",
     );
   });
+
+  it("background-shell tools: run_in_background labels the command, pollers the shell id", () => {
+    expect(toolLabel(tool("run_in_background", { command: "npm run dev" }))).toBe("npm run dev");
+    expect(toolLabel(tool("bash_output", { shell_id: "bg_1" }))).toBe("bg_1");
+    expect(toolLabel(tool("kill_shell", { shell_id: "bg_2" }))).toBe("bg_2");
+  });
 });
 
 describe("toolFields — runtime wire shapes", () => {
@@ -50,6 +56,14 @@ describe("toolFields — runtime wire shapes", () => {
     const f = toolFields(tool("bash", {}, { output: "done", exitCode: 0 }));
     expect(f.result).toBe("done");
     expect(f.exitCode).toBe(0);
+  });
+
+  it("run_in_background: passes the plain-string start ack through", () => {
+    const f = toolFields(
+      tool("run_in_background", { command: "npm run dev" }, "Started background shell bg_1."),
+    );
+    expect(f.result).toBe("Started background shell bg_1.");
+    expect(f.exitCode).toBeUndefined();
   });
 
   it("grep: hits from whichever of matches/files/counts is populated", () => {
