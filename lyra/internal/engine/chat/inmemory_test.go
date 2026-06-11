@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 
 	"github.com/Tangerg/lynx/lyra/internal/engine"
+	"github.com/Tangerg/lynx/lyra/internal/service/maintenance"
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
 	"github.com/Tangerg/lynx/lyra/internal/engine/chat"
 )
@@ -525,7 +526,10 @@ func buildPlanService(t *testing.T, planText string) (chat.Service, *planAwareSt
 	if err != nil {
 		t.Fatal(err)
 	}
-	eng, err := engine.New(context.Background(), engine.Config{ChatClient: client})
+	eng, err := engine.New(context.Background(), engine.Config{
+		ChatClient: client,
+		Planner:    maintenance.NewPlanner(client), // plan mode exercises the planner port
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

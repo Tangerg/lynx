@@ -16,9 +16,7 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/infra/exec"
 	"github.com/Tangerg/lynx/lyra/internal/infra/mcp"
 	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
-	"github.com/Tangerg/lynx/lyra/internal/service/conversation"
 	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
-	"github.com/Tangerg/lynx/lyra/internal/service/maintenance"
 )
 
 // Engine is the runtime facade. It composes three concerns:
@@ -43,19 +41,18 @@ type Engine struct {
 
 	// Context inputs (read at SystemPrompt + chat-memory time).
 	tools           []chat.Tool
-	conversation    *conversation.Service // LLM message history (fork/rollback/steering/messages.list facade)
+	conversation    Conversation // LLM message history (fork/rollback/steering/messages.list facade)
 	memSvc          knowledge.Service
 	workdir         string  // captured from Config.Workdir for the AGENTS.md cascade
 	skillsGlobalDir string  // captured from Config.SkillsGlobalDir for workspace.listSkills
 	pricing         Pricing // optional per-round cost hook; nil → cost stays zero
 	parkStore       tool.ParkStore
 
-	// Maintenance sub-components — each may be nil when the
-	// corresponding feature is disabled by config (e.g. extractor
-	// when no MemoryService was supplied).
-	compactor *maintenance.Compactor
-	extractor *maintenance.Extractor
-	planner   *maintenance.Planner
+	// Maintenance ports (turn-boundary autonomous ops) — injected by the
+	// composition root; nil when not wired (every use is nil-guarded).
+	compactor Compactor
+	extractor Extractor
+	planner   Planner
 
 	// External lifecycle, closed during [Engine.Close]. mcp holds the live MCP
 	// server connections (sessions + status + reconnect); it also backs the
@@ -185,7 +182,10 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// of dragging a memory service through the constructor.
 	e := &Engine{
 		platform:        platform,
-		conversation:    conversation.New(memStore),
+		conversation:    cfg.Conversation,
+		compactor:       cfg.Compactor,
+		extractor:       cfg.Extractor,
+		planner:         cfg.Planner,
 		memSvc:          cfg.MemoryService,
 		workdir:         cfg.Workdir,
 		skillsGlobalDir: cfg.SkillsGlobalDir,
@@ -232,14 +232,6 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	if err := platform.Deploy(e.agent); err != nil {
 		return nil, fmt.Errorf("engine: deploy chat agent: %w", err)
 	}
-
-	if cfg.Compaction.MaxMessages >= 0 {
-		e.compactor = maintenance.NewCompactor(memStore, cfg.ChatClient, cfg.Compaction)
-	}
-	if cfg.MemoryService != nil {
-		e.extractor = maintenance.NewExtractor(memStore, cfg.MemoryService, cfg.ChatClient)
-	}
-	e.planner = maintenance.NewPlanner(cfg.ChatClient)
 	return e, nil
 }
 
@@ -254,7 +246,10 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 //   - sessionID is empty (single-turn / no chat-memory path)
 //   - the configured Compaction.MaxMessages is negative (disabled)
 //   - the current history is shorter than the threshold
-func (e *Engine) MaybeCompact(ctx context.Context, sessionID string) (maintenance.CompactionResult, error) {
+func (e *Engine) MaybeCompact(ctx context.Context, sessionID string) (CompactionResult, error) {
+	if e.compactor == nil {
+		return CompactionResult{}, nil
+	}
 	return e.compactor.MaybeCompact(ctx, sessionID)
 }
 
@@ -268,7 +263,10 @@ func (e *Engine) MaybeCompact(ctx context.Context, sessionID string) (maintenanc
 // or the conversation is too short.
 // cwd is the session's working directory — facts extract into THAT
 // project's LYRA.md; empty falls back to the memory service default.
-func (e *Engine) MaybeExtract(ctx context.Context, sessionID, cwd string) (maintenance.ExtractionResult, error) {
+func (e *Engine) MaybeExtract(ctx context.Context, sessionID, cwd string) (ExtractionResult, error) {
+	if e.extractor == nil {
+		return ExtractionResult{}, nil
+	}
 	return e.extractor.MaybeExtract(ctx, sessionID, cwd)
 }
 
@@ -314,26 +312,41 @@ func (e *Engine) Close() error {
 // steering message through here once the current turn ends, so the next
 // StartTurn (or post-turn maintenance) sees it as part of the conversation.
 func (e *Engine) InjectUserMessage(ctx context.Context, sessionID, text string) error {
+	if e.conversation == nil {
+		return errors.New("engine: no conversation port wired")
+	}
 	return e.conversation.InjectUser(ctx, sessionID, text)
 }
 
 // ReadHistory returns sessionID's persisted message history (messages.list /
 // fork read it).
 func (e *Engine) ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error) {
+	if e.conversation == nil {
+		return nil, nil
+	}
 	return e.conversation.Read(ctx, sessionID)
 }
 
 // SeedHistory copies msgs into sessionID's history (sessions.fork).
 func (e *Engine) SeedHistory(ctx context.Context, sessionID string, msgs []chat.Message) error {
+	if e.conversation == nil {
+		return nil
+	}
 	return e.conversation.Seed(ctx, sessionID, msgs)
 }
 
 // MessageCount returns sessionID's message count (rollback / fork watermark).
 func (e *Engine) MessageCount(ctx context.Context, sessionID string) (int, error) {
+	if e.conversation == nil {
+		return 0, nil
+	}
 	return e.conversation.Count(ctx, sessionID)
 }
 
 // TruncateMessages keeps the first keepN messages of sessionID (rollback).
 func (e *Engine) TruncateMessages(ctx context.Context, sessionID string, keepN int) error {
+	if e.conversation == nil {
+		return nil
+	}
 	return e.conversation.Truncate(ctx, sessionID, keepN)
 }

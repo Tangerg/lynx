@@ -7,6 +7,8 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+
+	"github.com/Tangerg/lynx/lyra/internal/engine"
 )
 
 // compactionDefaults govern the auto-compact trigger. Tunable via
@@ -30,17 +32,6 @@ type CompactionConfig struct {
 	KeepRecent  int // default: defaultCompactKeepRecent
 }
 
-// CompactionResult reports what a single [Compactor.MaybeCompact] sweep
-// did. Compacted is false (and the counts zero) when the sweep
-// didn't fire — no session, history below threshold, or a nil
-// compactor (compaction disabled). The before/after message counts let
-// the caller surface an observable "context compacted (N → M messages)"
-// event instead of silently dropping history.
-type CompactionResult struct {
-	Compacted      bool
-	MessagesBefore int
-	MessagesAfter  int
-}
 
 // Compactor is the auto-compaction worker. Constructed by the engine
 // unless compaction is disabled (negative MaxMessages); a nil
@@ -80,7 +71,7 @@ func NewCompactor(store memory.Store, client *chat.Client, cfg CompactionConfig)
 // MaybeCompact inspects sessionID's history. When the message
 // count exceeds the threshold the older slice is summarized and
 // the store is rewritten as [summary, recent...]. The returned
-// [CompactionResult] reports whether the sweep fired and the
+// [engine.CompactionResult] reports whether the sweep fired and the
 // before/after message counts so callers can both chain follow-on
 // work (e.g. extraction) and surface an observable boundary event.
 //
@@ -91,16 +82,16 @@ func NewCompactor(store memory.Store, client *chat.Client, cfg CompactionConfig)
 // (no middleware), so it does NOT enter the chat-memory middleware
 // — otherwise the summarisation request itself would be appended
 // to the history and trigger another compaction round.
-func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string) (CompactionResult, error) {
+func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string) (engine.CompactionResult, error) {
 	if c == nil || sessionID == "" {
-		return CompactionResult{}, nil
+		return engine.CompactionResult{}, nil
 	}
 	msgs, err := c.store.Read(ctx, sessionID)
 	if err != nil {
-		return CompactionResult{}, fmt.Errorf("compactor: read: %w", err)
+		return engine.CompactionResult{}, fmt.Errorf("compactor: read: %w", err)
 	}
 	if len(msgs) < c.threshold {
-		return CompactionResult{}, nil
+		return engine.CompactionResult{}, nil
 	}
 
 	before := len(msgs)
@@ -121,7 +112,7 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string) (Compact
 	if cutoff >= len(msgs) {
 		// No clean UserMessage boundary in the trailing segment —
 		// skip this compaction cycle rather than corrupt the history.
-		return CompactionResult{}, nil
+		return engine.CompactionResult{}, nil
 	}
 
 	older := msgs[:cutoff]
@@ -129,19 +120,19 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string) (Compact
 
 	summary, err := c.summarize(ctx, older)
 	if err != nil {
-		return CompactionResult{}, fmt.Errorf("compactor: summarize: %w", err)
+		return engine.CompactionResult{}, fmt.Errorf("compactor: summarize: %w", err)
 	}
 
 	if err := c.store.Clear(ctx, sessionID); err != nil {
-		return CompactionResult{}, fmt.Errorf("compactor: clear: %w", err)
+		return engine.CompactionResult{}, fmt.Errorf("compactor: clear: %w", err)
 	}
 	rewritten := make([]chat.Message, 0, 1+len(recent))
 	rewritten = append(rewritten, summary)
 	rewritten = append(rewritten, recent...)
 	if err := c.store.Write(ctx, sessionID, rewritten...); err != nil {
-		return CompactionResult{}, err
+		return engine.CompactionResult{}, err
 	}
-	return CompactionResult{
+	return engine.CompactionResult{
 		Compacted:      true,
 		MessagesBefore: before,
 		MessagesAfter:  len(rewritten),

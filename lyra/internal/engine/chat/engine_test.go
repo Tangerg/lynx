@@ -13,7 +13,6 @@ import (
 	corechat "github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/engine/chat"
-	"github.com/Tangerg/lynx/lyra/internal/service/maintenance"
 )
 
 // stubChatProcess fakes the [engine.ChatProcess] handle without
@@ -118,12 +117,12 @@ func (s *stubEngine) RestoreChat(_ context.Context, processID string, req engine
 
 func (s *stubEngine) InjectUserMessage(_ context.Context, _, _ string) error { return nil }
 
-func (s *stubEngine) MaybeCompact(_ context.Context, _ string) (maintenance.CompactionResult, error) {
-	return maintenance.CompactionResult{}, nil
+func (s *stubEngine) MaybeCompact(_ context.Context, _ string) (engine.CompactionResult, error) {
+	return engine.CompactionResult{}, nil
 }
 
-func (s *stubEngine) MaybeExtract(_ context.Context, _, _ string) (maintenance.ExtractionResult, error) {
-	return maintenance.ExtractionResult{}, nil
+func (s *stubEngine) MaybeExtract(_ context.Context, _, _ string) (engine.ExtractionResult, error) {
+	return engine.ExtractionResult{}, nil
 }
 
 // TestStubEngineDrivesTurn — confirms the chat service runs a full

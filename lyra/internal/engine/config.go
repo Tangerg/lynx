@@ -10,7 +10,6 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/infra/mcp"
 	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
 	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
-	"github.com/Tangerg/lynx/lyra/internal/service/maintenance"
 )
 
 // Config is the engine construction-time bundle. ChatClient is the
@@ -54,10 +53,13 @@ type Config struct {
 	// injection — the base prompt is used verbatim.
 	MemoryService knowledge.Service
 
-	// Compaction tunes the auto-compaction heuristic. Zero values
-	// fall back to defaults (see [maintenance.CompactionConfig]).
-	// Setting MaxMessages negative disables auto-compaction entirely.
-	Compaction maintenance.CompactionConfig
+	// Microkernel ports — injected by the composition root (runtime). Each is
+	// optional; a nil port no-ops its capability (every use is nil-guarded), so
+	// a bare engine still drives the loop. See port.go / doc/MICROKERNEL.md.
+	Conversation Conversation // LLM message-history facade (fork/rollback/steering)
+	Compactor    Compactor    // turn-boundary history compaction
+	Extractor    Extractor    // turn-boundary fact extraction → LYRA.md
+	Planner      Planner      // plan-mode plan generation
 
 	// MCPServers lists external MCP servers to dial at engine
 	// construction. Their tools are merged into the built-in coding
