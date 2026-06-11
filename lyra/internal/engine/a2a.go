@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/a2aproject/a2a-go/v2/a2aclient"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -12,6 +13,11 @@ import (
 	"github.com/Tangerg/lynx/a2a"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
+
+// engineTracer emits the lyra-runtime startup / orchestration spans the lower
+// layers don't (A2A dial; MCP dial has its own tracer in infra/mcp). No-op
+// until a TracerProvider is installed.
+var engineTracer = otel.Tracer("lynx/lyra/engine")
 
 // dialA2AAgents resolves and connects every configured remote A2A agent,
 // returning the tools (one per agent) alongside the open clients so the
