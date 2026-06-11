@@ -143,6 +143,19 @@ export interface GrepResult {
   total: number;
 }
 
+// memory.* (features.memory gated) — the LYRA.md memory files the runtime
+// reads into the agent's context, one per scope. Content rides along so the
+// Memory panel can edit in place (memory.update writes whole-file).
+export interface MemoryQuery {
+  cwd?: string; // default = serve dir; pass the active session's cwd
+}
+export interface MemoryEntryInfo {
+  scope: "cwd" | "projectRoot" | "home";
+  path: string;
+  content: string;
+  updatedAt?: string;
+}
+
 // workspace.getFileHead params + row (API.md §7.5) — plain text, 1-based
 // line numbers; highlighting is the renderer's job.
 export interface FileHeadQuery {
@@ -204,6 +217,7 @@ export const DIFF_KEY = "diff";
 export const SKILLS_KEY = "skills";
 export const MCP_SERVERS_KEY = "mcp-servers";
 export const MCP_TOOLS_KEY = "mcp-tools";
+export const MEMORY_KEY = "memory";
 
 export const useSessions = makeDataQuery<SidebarSession[]>(SESSIONS_KEY);
 export const useProjects = makeDataQuery<SidebarProject[]>("projects");
@@ -217,6 +231,7 @@ export const useFileHead = makeParamDataQuery<FileHeadQuery, FileLine[]>("file-h
 export const useMCPServers = makeDataQuery<MCPServer[]>(MCP_SERVERS_KEY);
 export const useMCPTools = makeParamDataQuery<McpToolsQuery, McpToolInfo[]>(MCP_TOOLS_KEY);
 export const useSkills = makeDataQuery<WorkspaceSkill[]>(SKILLS_KEY);
+export const useMemory = makeParamDataQuery<MemoryQuery, MemoryEntryInfo[]>(MEMORY_KEY);
 export const useAgentDocs = makeDataQuery<WorkspaceAgentDoc[]>("agent-docs");
 export const useModels = makeDataQuery<SelectableModel[]>(MODELS_KEY);
 export const useProviders = makeDataQuery<ProviderInfo[]>(PROVIDERS_KEY);

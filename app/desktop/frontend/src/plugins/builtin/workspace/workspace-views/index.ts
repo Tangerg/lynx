@@ -7,6 +7,7 @@
 export { agentDocsView } from "./agent-docs";
 export { diffView } from "./diff";
 export { filesView } from "./files";
+export { memoryView } from "./memory";
 export { skillsView } from "./skills";
 export { notificationsView } from "./notifications";
 export { planView } from "./plan";

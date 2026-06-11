@@ -15,6 +15,7 @@ import type {
   GrepQuery,
   McpToolsQuery,
   MCPServer as SidebarMCPServer,
+  MemoryQuery,
   SidebarProject,
   SidebarSession,
   WorkspaceDiff,
@@ -31,6 +32,7 @@ import {
   FILES_CHANGED_KEY,
   MCP_SERVERS_KEY,
   MCP_TOOLS_KEY,
+  MEMORY_KEY,
   MODELS_KEY,
   PROVIDERS_KEY,
   SESSIONS_KEY,
@@ -183,6 +185,22 @@ export const defaultData = definePlugin({
           name: s.name,
           description: s.description ?? "",
           source: s.source ?? "",
+        })),
+    });
+    host.extensions.contribute(DATA_PROVIDER, {
+      key: MEMORY_KEY,
+      // Wire MemoryEntry matches MemoryEntryInfo 1:1 — mapped field-by-field
+      // anyway so a wire-shape change can't silently leak into the UI type.
+      fetcher: async (params) =>
+        (
+          await client()
+            .memory.list((params as MemoryQuery | undefined)?.cwd)
+            .catch(emptyPageIfUngated)
+        ).data.map((m) => ({
+          scope: m.scope,
+          path: m.path,
+          content: m.content,
+          updatedAt: m.updatedAt,
         })),
     });
     host.extensions.contribute(DATA_PROVIDER, {
