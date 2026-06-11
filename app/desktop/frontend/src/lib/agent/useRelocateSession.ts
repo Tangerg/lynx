@@ -1,9 +1,9 @@
 import { useCallback } from "react";
-import { toast } from "sonner";
 import { getContainer } from "@/main/container";
 import { asSessionId, errorDetail, isErrorType, RpcError } from "@/rpc";
 import { SESSIONS_KEY } from "@/lib/data/queries";
 import { queryClient } from "@/lib/data/queryClient";
+import { reportSessionError } from "./reportSessionError";
 
 /** Relocate a session (sessions.update cwd — features.relocate gated,
  *  API.md §7.2). Refreshing the sidebar list also re-points the git-state
@@ -24,7 +24,7 @@ export function useRelocateSession(): (id: string, cwd: string) => Promise<boole
         : err instanceof RpcError
           ? (errorDetail(err.data) ?? err.message)
           : String(err);
-      toast.error("Relocate failed", { description });
+      reportSessionError("relocate", err, description);
       return false;
     }
   }, []);

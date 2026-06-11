@@ -3,6 +3,7 @@ import { getContainer } from "@/main/container";
 import { asSessionId } from "@/rpc";
 import { SESSIONS_KEY } from "@/lib/data/queries";
 import { queryClient } from "@/lib/data/queryClient";
+import { reportSessionError } from "./reportSessionError";
 
 /** Rename a session (sessions.update title) and refresh the sidebar list.
  *  Empty titles are rejected server-side (invalid_params) — callers trim
@@ -15,7 +16,7 @@ export function useRenameSession(): (id: string, title: string) => Promise<void>
         .sessions.update({ sessionId: asSessionId(id), title });
       void queryClient.invalidateQueries({ queryKey: [SESSIONS_KEY] });
     } catch (err) {
-      console.error("[session] rename failed:", err);
+      reportSessionError("rename", err);
     }
   }, []);
 }
