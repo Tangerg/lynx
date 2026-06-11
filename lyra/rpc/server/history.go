@@ -44,6 +44,9 @@ func (s *Server) persistStreamEvent(ctx context.Context, runID, sessionID, paren
 			Outcome:     se.Outcome,
 			FinishedAt:  time.Now().UTC(),
 		}, mark)
+		// Anchor a file snapshot at this run boundary so a later
+		// rollback{restoreType:files|both} can restore the working tree here.
+		s.snapshotCheckpoint(ctx, sessionID, runID)
 	}
 }
 

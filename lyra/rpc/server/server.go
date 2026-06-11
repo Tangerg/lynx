@@ -17,6 +17,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/Tangerg/lynx/lyra/internal/checkpoint"
 	"github.com/Tangerg/lynx/lyra/internal/config"
 	"github.com/Tangerg/lynx/lyra/internal/git"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
@@ -34,6 +35,10 @@ type Config struct {
 	// name, since the protocol is consumed by arbitrary clients and the
 	// rpc/protocol package is the codegen SSOT for other languages.
 	ServerInfo protocol.ServerInfo
+
+	// Checkpoints backs sessions.rollback's file restore (restoreType). nil
+	// when git is unavailable — features.checkpoints reflects this.
+	Checkpoints *checkpoint.Store
 }
 
 // Server is the Runtime implementation. Exposed via [New]; the returned
@@ -59,6 +64,11 @@ type Server struct {
 	// workspace.subscribe streams (AUX_API §3). Ephemeral, lossy, connection-
 	// scoped — distinct from the durable per-run hubs.
 	wsHub *workspaceHub
+
+	// checkpoints snapshots a session's working tree at each run boundary so
+	// sessions.rollback can restore files (restoreType). nil disables file
+	// checkpoints (git unavailable) — features.checkpoints then reads false.
+	checkpoints *checkpoint.Store
 }
 
 // nextEventID returns the next globally-monotonic RunEvent id, formatted
@@ -92,10 +102,11 @@ func New(cfg Config) (protocol.Runtime, error) {
 		cfg.ServerInfo.Version = "0.0.0-dev"
 	}
 	return &Server{
-		rt:         cfg.Runtime,
-		serverInfo: cfg.ServerInfo,
-		runs:       map[string]*runEntry{},
-		wsHub:      newWorkspaceHub(),
+		rt:          cfg.Runtime,
+		serverInfo:  cfg.ServerInfo,
+		runs:        map[string]*runEntry{},
+		wsHub:       newWorkspaceHub(),
+		checkpoints: cfg.Checkpoints,
 	}, nil
 }
 
@@ -136,10 +147,12 @@ func Capabilities(rt RuntimeServices) protocol.ServerCapabilities {
 			"lsp":       true,             // code-intelligence tools (definition/refs/hover/symbols/diagnostics) + auto type-check on edit
 
 			"sessionExport": true, // sessions.export (inline json/md) + sessions.import (restore)
+			// File checkpoints (restoreType on rollback) ride the shadow-git
+			// store, which needs the git binary — same gate as the git feature.
+			"checkpoints": git.Available(),
 			// Off until the corresponding engine support lands:
-			"multimodal":  false,
-			"checkpoints": false,
-			"subagents":   false,
+			"multimodal": false,
+			"subagents":  false,
 			"relocate":      true, // sessions.update cwd-relocate
 			"clientTools":   false,
 			"attachments":   protocol.AttachmentLimits{Enabled: false},

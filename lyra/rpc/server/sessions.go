@@ -72,6 +72,7 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 	if err := s.rt.Session().Delete(ctx, id); err != nil {
 		return wireSessionErr(err)
 	}
+	s.dropCheckpoints(id) // best-effort: discard the session's file snapshots
 	return nil
 }
 

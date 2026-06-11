@@ -7,13 +7,17 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/Tangerg/lynx/lyra/internal/checkpoint"
 	"github.com/Tangerg/lynx/lyra/internal/config"
+	"github.com/Tangerg/lynx/lyra/internal/git"
 	"github.com/Tangerg/lynx/lyra/internal/service/agentdoc"
+	"github.com/Tangerg/lynx/lyra/internal/storage"
 	"github.com/Tangerg/lynx/lyra/rpc/server"
 	lyrahttp "github.com/Tangerg/lynx/lyra/rpc/transport/http"
 )
@@ -137,9 +141,19 @@ func (a *App) buildHTTPServer(srv config.ServerConfig, tokenValue string) (*lyra
 		info.Home = home
 	}
 
+	// File checkpoints live in a shadow git repo per session under the lyra
+	// home; only wired when git is present (features.checkpoints mirrors this).
+	var checkpoints *checkpoint.Store
+	if git.Available() {
+		if home, err := storage.Home(); err == nil {
+			checkpoints = checkpoint.NewStore(filepath.Join(home, "checkpoints"))
+		}
+	}
+
 	api, err := server.New(server.Config{
-		Runtime:    a.runtime(),
-		ServerInfo: info,
+		Runtime:     a.runtime(),
+		ServerInfo:  info,
+		Checkpoints: checkpoints,
 	})
 	if err != nil {
 		return nil, err
