@@ -10,6 +10,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
+	"github.com/Tangerg/lynx/lyra/internal/git"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
@@ -20,12 +21,14 @@ import (
 const fileWatchDebounce = 150 * time.Millisecond
 
 // watchTarget is one resolved workspace.subscribe watch: the client-chosen id,
-// the cwd emitted paths are relativized against, and the absolute directory
-// watched (cwd joined with the jailed relative path).
+// the cwd emitted paths are relativized against, the absolute directory watched
+// (cwd joined with the jailed relative path), and the cwd's .gitignore matcher
+// (so the watch skips ignored subtrees + drops ignored-file events).
 type watchTarget struct {
 	watchID string
 	cwdRoot string // abs; emitted paths are relative to this
 	absPath string // abs directory watched (cwdRoot + the jailed rel path)
+	ignore  *git.Ignore
 }
 
 // fileWatcher watches the resolved targets and emits a debounced files.changed
@@ -77,8 +80,8 @@ func startFileWatcher(targets []watchTarget, emit func(protocol.WorkspaceEvent))
 		exited:  make(chan struct{}),
 	}
 	added := 0
-	for _, t := range targets {
-		added += w.addTree(t.absPath, maxWatchedDirs-added)
+	for i := range targets {
+		added += w.addTree(&targets[i], maxWatchedDirs-added)
 	}
 	if added >= maxWatchedDirs {
 		emit(protocol.WorkspaceEvent{Type: "resync"})
@@ -87,23 +90,27 @@ func startFileWatcher(targets []watchTarget, emit func(protocol.WorkspaceEvent))
 	return w, nil
 }
 
-// addTree adds root and its subdirectories to the watch set, up to budget dirs,
-// skipping the ignore set (and not descending into it). fsnotify is
-// non-recursive, so a recursive watch is a walk + per-dir Add. Returns how many
-// directories were added so the caller can detect a clipped (partial) watch.
-// Best-effort: unreadable subtrees are skipped, not fatal.
-func (w *fileWatcher) addTree(root string, budget int) int {
+// addTree adds the target's directory and subdirectories to the watch set, up
+// to budget dirs, skipping both the static ignore set and the cwd's .gitignore
+// (and not descending into either). fsnotify is non-recursive, so a recursive
+// watch is a walk + per-dir Add. Returns how many directories were added so the
+// caller can detect a clipped (partial) watch. Best-effort: unreadable subtrees
+// are skipped, not fatal.
+func (w *fileWatcher) addTree(t *watchTarget, budget int) int {
 	if budget <= 0 {
 		return 0
 	}
 	added := 0
-	_ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+	_ = filepath.WalkDir(t.absPath, func(path string, d os.DirEntry, err error) error {
 		if err != nil || !d.IsDir() {
 			return nil //nolint:nilerr // skip unreadable entries / non-dirs
 		}
-		if path != root {
+		if path != t.absPath {
 			if _, ignore := watchIgnoreDirs[d.Name()]; ignore {
 				return filepath.SkipDir
+			}
+			if rel, rerr := filepath.Rel(t.cwdRoot, path); rerr == nil && t.ignore.Match(rel, true) {
+				return filepath.SkipDir // gitignored subtree
 			}
 		}
 		if added >= budget {
@@ -141,18 +148,25 @@ func (w *fileWatcher) run() {
 			if !ok {
 				return
 			}
-			// A newly-created directory extends the recursive watch.
-			if ev.Op&fsnotify.Create != 0 {
-				if info, err := os.Stat(ev.Name); err == nil && info.IsDir() {
-					_ = w.fsw.Add(ev.Name)
-				}
-			}
 			t := w.match(ev.Name)
 			if t == nil {
 				continue
 			}
 			rel, err := filepath.Rel(t.cwdRoot, ev.Name)
 			if err != nil {
+				continue
+			}
+			// A newly-created directory extends the recursive watch — but not
+			// into ignored subtrees (else `mkdir node_modules` re-arms the leak).
+			if ev.Op&fsnotify.Create != 0 {
+				if info, serr := os.Stat(ev.Name); serr == nil && info.IsDir() {
+					if _, deny := watchIgnoreDirs[filepath.Base(ev.Name)]; !deny && !t.ignore.Match(rel, true) {
+						_ = w.fsw.Add(ev.Name)
+					}
+				}
+			}
+			// Drop changes to ignored files (e.g. *.log inside a watched dir).
+			if t.ignore.Match(rel, false) {
 				continue
 			}
 			set := pending[t.watchID]

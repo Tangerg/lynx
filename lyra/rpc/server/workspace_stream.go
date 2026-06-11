@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/Tangerg/lynx/lyra/internal/git"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
@@ -138,7 +139,12 @@ func (s *Server) resolveWatches(specs []protocol.WatchSpec) ([]watchTarget, erro
 		if info, err := os.Stat(abs); err != nil || !info.IsDir() {
 			return nil, fmt.Errorf("%w: watch path %q is not a directory", protocol.ErrInvalidParams, spec.Path)
 		}
-		targets = append(targets, watchTarget{watchID: spec.WatchID, cwdRoot: root, absPath: abs})
+		targets = append(targets, watchTarget{
+			watchID: spec.WatchID,
+			cwdRoot: root,
+			absPath: abs,
+			ignore:  git.LoadIgnore(root), // skip the cwd's gitignored subtrees + file events
+		})
 	}
 	return targets, nil
 }
