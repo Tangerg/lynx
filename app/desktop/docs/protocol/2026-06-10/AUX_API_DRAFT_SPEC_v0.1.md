@@ -235,3 +235,26 @@ streamingMethods: [ "runs.start", "runs.resume", "runs.subscribe", "workspace.su
 
 **状态**:四个开放项闭环 + 三轮评审 ⛔/⚠/✎ 全部吸收,A/B 结构改动后端已采纳。前端按 REVIEW 结论应"v0.1 后无保留放行"
 ——如确认,后端即按 §8 从 **B1(git,最自包含)** 开写,每批落地改 API.md 正文 + 更新 `BACKEND_CAPABILITIES.md`。
+
+---
+
+## 10. 终审后端确认(N1–N9)· `2026-06-11`
+
+回 [`AUX_API_DRAFT_SPEC_v0.1_REVIEW.md`](./AUX_API_DRAFT_SPEC_v0.1_REVIEW.md):**9 条全部接受,无异议。本稿即终稿,不出 v0.2。**
+落 API.md 时按下列修正:
+
+- **N1 [§2.1]** `cwd` 下放到每个 watch:`workspace.subscribe { watches?: [ { watchId, cwd?, path } ] }`(`cwd` 缺省=serve 目录,
+  jail 按各自 cwd);`files.changed.paths` 相对**该 watch 的 cwd**。单流多项目成立。
+- **N2 [§5.1]** `sessions.rollback { sessionId, toRunId? }` —— `toRunId` 改**可选**,省略 = 丢弃全部 root run、回到空会话
+  (覆盖"编辑第一条消息重跑")。
+- **N3 [§4.2]** `mcp.serverChanged` 的 `status` 改**可选**:条目增/删/任何字段变化均发;`status` 缺省 = 条目已不存在。
+- **N4 [§2.1]** `features.fileWatch:false` 时带 `watches` → **`capability_not_negotiated`**;不带 watches 的 `subscribe`
+  (只收 skills/mcp 事件)**始终可用**、不受该位门控。
+- **N5 [§2.2]** v1 删 `resync.domains`:`{type:"resync"}` 裸载荷 = 全量失效;局部 domains additive 后补。
+- **N6** 订阅竞态:规范写明「**先开订阅、再拉列表**」(先订后拉无丢失窗口)。
+- **N7** type 名跨 `run`/`workspace` 两个事件联合**必须唯一**(optOut 按 type 名匹配;写成一句不变量防撞名)。
+- **N8 [§5.2]** fork 快照语义钉死:**只复制已完结 run**(in-flight run 不进副本——codex「如同先 interrupt」的实际含义)。
+- **N9** 恢复 v0 那句:旁路通道在 **InProcess/IPC 上即 notification 回调**(传输无关措辞,§5 同款)。
+
+**收口**:四轮调研(8 家 agent)+ 四份评审到此结束。后端按 §8 开写,从 **B1(git)** 起;每批落 API.md 正文 +
+更新 `BACKEND_CAPABILITIES.md`(怎么调 + 边界),前端按 §9 清单同轮跟进。
