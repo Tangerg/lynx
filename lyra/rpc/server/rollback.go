@@ -24,16 +24,20 @@ type runRecord struct {
 	mark int
 }
 
-// isRootRun reports whether r opens a turn (a runs.start run) rather than a
+// isRoot reports whether the run opens a turn (a runs.start run) rather than a
 // continuation (runs.resume → ParentRunID) or a subagent (SpawnedByItemID).
-func isRootRun(r protocol.RunRef) bool {
-	return r.ParentRunID == "" && r.SpawnedByItemID == ""
+func (r runRecord) isRoot() bool {
+	return r.ref.ParentRunID == "" && r.ref.SpawnedByItemID == ""
 }
 
-// runTimeline parses a session's persisted runs into records ordered by
-// CreatedAt — the wall-clock turn order rollback / fork reason about.
-func runTimeline(runs []history.Run) ([]runRecord, error) {
-	out := make([]runRecord, 0, len(runs))
+// runTimeline is a session's runs ordered by CreatedAt — the wall-clock turn
+// order sessions.rollback / fork reason about. It owns the boundary math both
+// operate on (newRunTimeline builds it from persisted history runs).
+type runTimeline []runRecord
+
+// newRunTimeline parses persisted runs into a timeline ordered by CreatedAt.
+func newRunTimeline(runs []history.Run) (runTimeline, error) {
+	out := make(runTimeline, 0, len(runs))
 	for _, r := range runs {
 		var ref protocol.RunRef
 		if err := json.Unmarshal(r.Blob, &ref); err != nil {
@@ -47,47 +51,65 @@ func runTimeline(runs []history.Run) ([]runRecord, error) {
 	return out, nil
 }
 
-// boundaryAt computes the inclusive-keep split of a run timeline at runID:
+// rollbackBoundary is the inclusive-keep split of a timeline at a run:
 //
-//   - keepMark: the message watermark to keep — the Mark of runID's chain
-//     terminal (the last run before the first ROOT run after runID), so runID's
-//     own continuation chain is kept. -1 when that run's watermark is unknown
+//   - KeepMark: the message watermark to keep — the Mark of the kept run's
+//     chain terminal (the last run before the first ROOT run after it), so the
+//     run's own continuation chain is kept. -1 when that watermark is unknown
 //     (in-flight / pre-watermark), which the caller clamps.
-//   - dropped: the runs at/after the boundary, in timeline order (runID's
-//     continuation chain stays kept; the next root run + everything after it,
-//     including subagent runs, is dropped).
-//   - boundaryTime: the first dropped root run's CreatedAt — the cut-off used
-//     to attribute subagent child sessions to dropped runs. Zero when nothing
-//     is dropped, or when runID is empty (drop everything).
-//
-// runID=="" drops every run (keepMark 0). requireRoot rejects a non-root runID
-// with invalid_params (rollback addresses root runs only; fork is lax).
-func boundaryAt(timeline []runRecord, runID string, requireRoot bool) (keepMark int, dropped []runRecord, boundaryTime time.Time, err error) {
+//   - Dropped: the runs at/after the boundary, in timeline order — the next
+//     root run + everything after it (continuations, subagent runs) included.
+//   - BoundaryTime: the first dropped root run's CreatedAt, the cut-off that
+//     attributes subagent child sessions to dropped runs. Zero when nothing is
+//     dropped, or when the whole timeline is dropped.
+type rollbackBoundary struct {
+	KeepMark     int
+	Dropped      []runRecord
+	BoundaryTime time.Time
+}
+
+// boundaryAt computes the inclusive-keep split at runID. runID=="" drops every
+// run (KeepMark 0). requireRoot rejects a non-root runID with invalid_params
+// (rollback addresses root runs only; fork is lax); an unknown runID is
+// run_not_found.
+func (t runTimeline) boundaryAt(runID string, requireRoot bool) (rollbackBoundary, error) {
 	if runID == "" {
-		return 0, append([]runRecord(nil), timeline...), time.Time{}, nil
+		return rollbackBoundary{Dropped: t.clone()}, nil
 	}
-	idx := -1
-	for i, rec := range timeline {
-		if rec.ref.ID == runID {
-			idx = i
-			break
-		}
-	}
+	idx := t.indexOf(runID)
 	if idx < 0 {
-		return 0, nil, time.Time{}, protocol.ErrRunNotFound
+		return rollbackBoundary{}, protocol.ErrRunNotFound
 	}
-	if requireRoot && !isRootRun(timeline[idx].ref) {
-		return 0, nil, time.Time{}, fmt.Errorf("%w: run %q is not a root run", protocol.ErrInvalidParams, runID)
+	if requireRoot && !t[idx].isRoot() {
+		return rollbackBoundary{}, fmt.Errorf("%w: run %q is not a root run", protocol.ErrInvalidParams, runID)
 	}
-	for k := idx + 1; k < len(timeline); k++ {
-		if isRootRun(timeline[k].ref) {
-			return timeline[k-1].mark, append([]runRecord(nil), timeline[k:]...), timeline[k].ref.CreatedAt, nil
+	for k := idx + 1; k < len(t); k++ {
+		if t[k].isRoot() {
+			// Keep through t[k-1] (runID's chain terminal); drop from the next
+			// root on.
+			return rollbackBoundary{
+				KeepMark:     t[k-1].mark,
+				Dropped:      append([]runRecord(nil), t[k:]...),
+				BoundaryTime: t[k].ref.CreatedAt,
+			}, nil
 		}
 	}
 	// No root run after runID — its turn (incl. continuations) is the latest,
 	// so there is nothing to drop / everything up to it is copied.
-	return timeline[len(timeline)-1].mark, nil, time.Time{}, nil
+	return rollbackBoundary{KeepMark: t[len(t)-1].mark}, nil
 }
+
+// indexOf returns the position of runID, or -1.
+func (t runTimeline) indexOf(runID string) int {
+	for i := range t {
+		if t[i].ref.ID == runID {
+			return i
+		}
+	}
+	return -1
+}
+
+func (t runTimeline) clone() []runRecord { return append([]runRecord(nil), t...) }
 
 // hasActiveRun reports whether the session has a run in flight — the
 // session_busy guard: rolling back under a live run would race its history
@@ -122,15 +144,15 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	if err != nil {
 		return nil, err
 	}
-	timeline, err := runTimeline(runs)
+	timeline, err := newRunTimeline(runs)
 	if err != nil {
 		return nil, err
 	}
-	keepMark, dropped, boundaryTime, err := boundaryAt(timeline, in.ToRunID, true)
+	b, err := timeline.boundaryAt(in.ToRunID, true)
 	if err != nil {
 		return nil, err
 	}
-	if len(dropped) == 0 {
+	if len(b.Dropped) == 0 {
 		// ToRunID is already the latest turn — nothing after it to drop.
 		out := s.sessionToWire(ses)
 		return &protocol.RollbackSessionResponse{Session: &out, DroppedRuns: []protocol.DroppedRun{}}, nil
@@ -139,15 +161,15 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	// Truncate the chat-memory log to the kept watermark. An unknown (-1) mark
 	// (chain terminal still in-flight / pre-watermark) clamps to the current
 	// count — keep what's there rather than guess at a boundary we never recorded.
-	if keepMark >= 0 {
-		if err := s.rt.TruncateMessages(ctx, in.SessionID, keepMark); err != nil {
+	if b.KeepMark >= 0 {
+		if err := s.rt.TruncateMessages(ctx, in.SessionID, b.KeepMark); err != nil {
 			return nil, err
 		}
 	}
 
 	// Drop each run's durable items + run record, and clear any open interrupt
 	// dangling on it (rollback over a parked run un-parks it).
-	for _, rec := range dropped {
+	for _, rec := range b.Dropped {
 		_ = s.rt.History().DeleteRun(ctx, in.SessionID, rec.ref.ID)
 		_ = s.rt.Interrupts().Delete(ctx, rec.ref.ID)
 	}
@@ -157,13 +179,13 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	// drop boundary, one of a dropped run at/after it. This is exact because a
 	// session runs its turns sequentially and rollback requires it idle (the
 	// session_busy guard above), so run windows don't overlap.
-	s.purgeSubtasksAfter(ctx, in.SessionID, boundaryTime)
+	s.purgeSubtasksAfter(ctx, in.SessionID, b.BoundaryTime)
 
 	// Each dropped run reports its opening user input so the client can
 	// re-populate the composer.
 	userByRun := openingUserInput(items)
-	out := make([]protocol.DroppedRun, 0, len(dropped))
-	for _, rec := range dropped {
+	out := make([]protocol.DroppedRun, 0, len(b.Dropped))
+	for _, rec := range b.Dropped {
 		out = append(out, protocol.DroppedRun{Run: rec.ref, UserInput: userByRun[rec.ref.ID]})
 	}
 	sess := s.sessionToWire(ses)
