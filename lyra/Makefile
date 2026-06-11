@@ -15,8 +15,15 @@ PID    := lyra.pid
 LOG    := lyra.log
 HEALTH := http://127.0.0.1:$(PORT)/v2/health
 
+# LYRA_HOME holds the runtime's persistent state; DB is the single SQLite store
+# `make reset-db` / `make fresh` drop (dev stage = drop + rebuild, never
+# migrate). Only the db + its WAL/SHM sidecars are removed — local-token,
+# skills/, plugins/, and any user-edited LYRA.md are preserved.
+LYRA_HOME ?= $(HOME)/.lyra
+DB        := $(LYRA_HOME)/lyra.db
+
 .DEFAULT_GOAL := help
-.PHONY: help build start stop restart status health logs run clean
+.PHONY: help build start stop restart status health logs run clean reset-db fresh
 
 help: ## List targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -72,3 +79,13 @@ run: build ## Build + run in the foreground (Ctrl-C to stop)
 clean: stop ## Stop the server and remove build/runtime artifacts
 	rm -f $(BIN) $(PID) $(LOG)
 	@echo "[make] cleaned"
+
+reset-db: stop ## Stop the server and drop the SQLite db + log (no migration)
+	rm -f $(DB) $(DB)-wal $(DB)-shm $(LOG)
+	@echo "[make] dropped $(DB) (+wal/shm) + log — kept token/skills/plugins"
+
+fresh: ## One-key clean slate: rebuild, drop the db + log, start fresh
+	@$(MAKE) --no-print-directory build
+	@$(MAKE) --no-print-directory reset-db
+	@$(MAKE) --no-print-directory start
+	@echo "[make] fresh start complete"
