@@ -14,6 +14,7 @@ import { useComposerStore } from "@/state/composerStore";
 import { useSessionStore } from "@/state/sessionStore";
 import { forkSessionAt } from "./useForkSession";
 import { flattenText } from "./messageContent";
+import { rehydrateSessionView } from "./rehydrateSession";
 
 function prefillComposer(text: string): void {
   useComposerStore.getState().setValue(text);
@@ -25,8 +26,7 @@ function prefillComposer(text: string): void {
 // Truncate the session's history to just BEFORE the given root run
 // (sessions.rollback, inclusive-keep semantics — we pass the preceding root
 // run's id, or nothing when it was the first), then rebuild the view from
-// the truncated server history. resetView (not resetSession) keeps the
-// mounted session's send/resume bindings alive — no remount needed.
+// the truncated server history (rehydrateSessionView).
 //
 // `restoreFiles` upgrades the rollback to restoreType:"both" (atomic file +
 // history restore to the kept run's shadow-git snapshot, features.checkpoints).
@@ -52,15 +52,7 @@ async function rollbackToBefore(
     ...(keep ? { toRunId: asRunId(keep) } : {}),
     ...(restoreFiles && keep ? { restoreType: "both" as const } : {}),
   });
-  const store = useAgentStore.getState();
-  store.resetView(sessionId);
-  const resp = await client.items.list({ sessionId: sid });
-  if (resp.data.length > 0) {
-    store.applyEvents(
-      sessionId,
-      resp.data.map((item) => ({ type: "item.completed" as const, item })),
-    );
-  }
+  await rehydrateSessionView(sessionId);
   return true;
 }
 
