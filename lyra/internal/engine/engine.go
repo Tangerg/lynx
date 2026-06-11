@@ -131,8 +131,13 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// LSP code-intelligence: one manager per engine, servers launched lazily
 	// per (workspace root, language). The tools are cwd-independent (the
 	// manager keys by root, read per-call off the blackboard) so they're built
-	// once here alongside online / A2A.
-	lspManager := lsp.NewManager(lsp.DefaultServers())
+	// once here alongside online / A2A. A nil server table falls back to the
+	// built-in defaults; config can replace it wholesale.
+	lspServers := cfg.LSPServers
+	if len(lspServers) == 0 {
+		lspServers = lsp.DefaultServers()
+	}
+	lspManager := lsp.NewManager(lspServers)
 	lspTools := buildLSPTools(lspManager, cfg.Workdir)
 
 	resolver := &cwdToolResolver{

@@ -33,9 +33,11 @@ type ServerSpec struct {
 	RootMarkers []string
 }
 
-// DefaultServers is the built-in server table. Today it carries Go (gopls)
-// only; every entry is self-contained, so other languages slot in beside it
-// without touching any other code.
+// DefaultServers is the built-in server table — the languages lyra supports
+// out of the box. Every entry is self-contained, so adding a language is a
+// single literal here (or a config override; see engine.Config.LSPServers).
+// A server whose Command isn't installed simply stays unavailable: its files
+// resolve no server and the tools report that, nothing crashes.
 func DefaultServers() []ServerSpec {
 	return []ServerSpec{
 		{
@@ -44,6 +46,14 @@ func DefaultServers() []ServerSpec {
 			LanguageID:  "go",
 			Extensions:  []string{".go"},
 			RootMarkers: []string{"go.mod", "go.work"},
+		},
+		{
+			Name:        "typescript",
+			Command:     "typescript-language-server",
+			Args:        []string{"--stdio"},
+			LanguageID:  "typescript",
+			Extensions:  []string{".ts", ".tsx", ".mts", ".cts"},
+			RootMarkers: []string{"tsconfig.json", "jsconfig.json", "package.json"},
 		},
 	}
 }
