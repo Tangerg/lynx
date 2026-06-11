@@ -127,10 +127,13 @@ function asArrayLength(v: unknown): number | undefined {
   return Array.isArray(v) ? v.length : undefined;
 }
 
-/** result.changes (FileEdit[]) → +added / −removed line counts (§4.4.2 edit). */
-function editLineCounts(result: unknown): { added: number; removed: number } {
+/** result.changes (FileEdit[]) → +added / −removed line counts (§4.4.2 edit).
+ *  The runtime's edit/write return `{replacements}` / `{bytes_written}` —
+ *  no diff rows — so absent `changes` yields {} (no fabricated "+0 −0"). */
+function editLineCounts(result: unknown): Partial<ToolCall> {
   const changes = asRecord(result)?.changes;
-  const rows = (Array.isArray(changes) ? changes : []).flatMap((c) => {
+  if (!Array.isArray(changes)) return {};
+  const rows = changes.flatMap((c) => {
     const diff = asRecord(c)?.diff;
     return Array.isArray(diff) ? diff : [];
   });
@@ -141,10 +144,47 @@ function editLineCounts(result: unknown): { added: number; removed: number } {
   };
 }
 
+/** First line of a free-form prompt, for row titles. */
+function firstLine(v: unknown): string | undefined {
+  const s = asString(v)?.trim();
+  return s ? s.split("\n", 1)[0] : undefined;
+}
+
+/** Name-keyed labels for the runtime's specialised tools — these don't fit a
+ *  category (each reads a different key argument). Checked BEFORE the
+ *  category switch in toolLabel. */
+function nameLabel(tool: ToolInvocation): string | undefined {
+  const a = tool.arguments ?? {};
+  switch (tool.name) {
+    case "lsp_definition":
+    case "lsp_references":
+    case "lsp_hover": {
+      const file = asString(a.file);
+      return file ? `${file}:${a.line ?? "?"}:${a.column ?? "?"}` : undefined;
+    }
+    case "lsp_document_symbols":
+    case "lsp_diagnostics":
+      return asString(a.file);
+    case "lsp_workspace_symbols":
+      return asString(a.query);
+    case "skill": {
+      const op = asString(a.op);
+      const name = asString(a.name);
+      return op ? (name ? `${op} ${name}` : op) : undefined;
+    }
+    case "ask_user":
+      return firstLine(a.question);
+    default:
+      return undefined;
+  }
+}
+
 /** Human-readable label for a tool invocation (the toolCall row title).
  *  `undefined` on a body-less toolCall started shell (see `mapPlan`). */
 export function toolLabel(tool: ToolInvocation | undefined): string {
   if (!tool) return "tool";
+  const byName = nameLabel(tool);
+  if (byName) return byName;
   const a = tool.arguments ?? {};
   switch (toolCategory(tool.name)) {
     case "command":
@@ -164,6 +204,8 @@ export function toolLabel(tool: ToolInvocation | undefined): string {
       return asString(a.query) || "search";
     case "read":
       return asString(a.path) || tool.name;
+    case "subagent":
+      return firstLine(a.prompt) || firstLine(a.task) || tool.name;
     default:
       return tool.name || "tool";
   }
@@ -176,27 +218,57 @@ export function toolFields(tool: ToolInvocation | undefined): Partial<ToolCall> 
   const result = asRecord(tool.result);
   switch (toolCategory(tool.name)) {
     case "command": {
-      // The authoritative merged stdout+stderr lands on `result.output` at
-      // item.completed (durable) — surface it as the view `result` so history
-      // replay (items.list → completed only, no deltas), reconnect, and
+      // The authoritative output lands on the result at item.completed
+      // (durable) — surface it as the view `result` so history replay
+      // (items.list → completed only, no deltas), reconnect, and
       // non-streaming runtimes all render it (API.md §5.2 / §4.4.2). The
-      // item.delta{toolOutput} stream is only a live preview accumulating into
-      // `result` while running. `output` is absent ONLY on the started shell —
-      // omit the key there so the preview stands until completed reconciles it.
-      const output = asString(result?.output);
+      // item.delta{toolOutput} stream is only a live preview accumulating
+      // into `result` while running; absent output here (the started shell)
+      // omits the key so that preview stands until completed reconciles it.
+      // Two wire dialects: the §4.4.2 convention `{exitCode, output}` and
+      // the runtime's raw bash response `{exit_code, stdout, stderr}` —
+      // stderr appended after stdout so failures aren't silently blank.
+      const stdout = asString(result?.stdout);
+      const stderr = asString(result?.stderr);
+      const merged =
+        asString(result?.output) ??
+        (stdout !== undefined || stderr !== undefined
+          ? [stdout, stderr].filter(Boolean).join("\n")
+          : undefined);
+      const exitCode = [result?.exitCode, result?.exit_code].find((v) => typeof v === "number");
       return {
-        exitCode: typeof result?.exitCode === "number" ? result.exitCode : undefined,
-        ...(output !== undefined
-          ? { result: output, outputTruncated: result?.outputTruncated === true }
+        exitCode: exitCode as number | undefined,
+        ...(merged !== undefined
+          ? { result: merged, outputTruncated: result?.outputTruncated === true }
           : {}),
       };
     }
     case "fileEdit":
-      return tool.result === undefined ? {} : editLineCounts(tool.result);
+      return editLineCounts(tool.result);
     case "search":
-      return { hits: asArrayLength(result?.hits) };
+      // grep returns ONE of matches/files/counts (output_mode); glob returns
+      // paths. `hits` (§4.4.2) kept first for convention-shaped runtimes.
+      // The raw result rides along so the grep/glob previews can render the
+      // call's own rows instead of re-querying.
+      return {
+        hits:
+          asArrayLength(result?.hits) ??
+          asArrayLength(result?.matches) ??
+          asArrayLength(result?.files) ??
+          asArrayLength(result?.counts) ??
+          asArrayLength(result?.paths),
+        ...(tool.result !== undefined
+          ? {
+              result: typeof tool.result === "string" ? tool.result : JSON.stringify(tool.result),
+            }
+          : {}),
+      };
     case "webSearch":
       return { hits: asArrayLength(result?.results) };
+    case "read":
+      // ReadResponse carries the text on `content` — pass it through as the
+      // result body (the JSON-stringified envelope is escaped noise).
+      return { result: asString(result?.content) };
     default:
       // Best-effort JSON result → a pretty string the inspector renders as a
       // JSON tree (formatBody re-parses); plain strings pass through.
@@ -213,12 +285,14 @@ export function toolFields(tool: ToolInvocation | undefined): Partial<ToolCall> 
 
 /** Fallback args text when no `toolArguments` deltas streamed: the parsed
  *  `arguments`, pretty-printed (the inspector re-renders it as a JSON tree).
- *  "" for tools whose key arg is already baked into `fn` (command / fileEdit /
- *  search / webSearch / read) and for an empty object — so a started shell
- *  seeds "" for delta accrual rather than "{}". Guards the case where a tool
- *  delivers its args only as an object on item.completed (no streaming). */
+ *  "" for tools whose key arg is already baked into `fn` — the category ones
+ *  (command / fileEdit / search / webSearch / read) and the name-labelled
+ *  ones (lsp_* / skill / ask_user, see nameLabel) — and for an empty object,
+ *  so a started shell seeds "" for delta accrual rather than "{}". Guards the
+ *  case where a tool delivers its args only on item.completed (no streaming). */
 export function argsText(tool: ToolInvocation | undefined): string {
   if (!tool) return "";
+  if (nameLabel(tool) !== undefined) return "";
   if (toolCategory(tool.name) !== "generic" && toolCategory(tool.name) !== "subagent") return "";
   return Object.keys(tool.arguments ?? {}).length > 0
     ? JSON.stringify(tool.arguments, null, 2)
@@ -254,6 +328,8 @@ export function approvalText(tool: ToolInvocation): string {
       return "Run search";
     case "webSearch":
       return "Run web search";
+    case "subagent":
+      return "Delegate to sub-agent";
     default:
       return `Run ${tool.name}`;
   }

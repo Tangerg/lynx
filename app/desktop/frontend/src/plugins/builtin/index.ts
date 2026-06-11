@@ -69,7 +69,17 @@ import { tasksPill } from "./workspace/tasks";
 import { themesPack } from "./theme";
 import toaster from "./shell/toaster";
 import { toolActions, toolIcons } from "./chat/tools/meta";
-import { bash, diff, file, grep } from "./chat/tools/previews";
+import {
+  askUserPreview,
+  bash,
+  diff,
+  file,
+  globPreview,
+  grep,
+  lspPreviews,
+  skillPreview,
+  taskPreview,
+} from "./chat/tools/previews";
 import topbarNewTab from "./shell/topbar-new-tab";
 import welcomeScreen from "./shell/welcome-screen";
 import {
@@ -134,7 +144,19 @@ const messageRendering: PluginSpec[] = [
 // ---------------------------------------------------------------------------
 // Tool rendering — previews, header actions, icon glyph map.
 // ---------------------------------------------------------------------------
-const toolRendering: PluginSpec[] = [bash, diff, file, grep, toolActions, toolIcons];
+const toolRendering: PluginSpec[] = [
+  bash,
+  diff,
+  file,
+  grep,
+  globPreview,
+  lspPreviews,
+  skillPreview,
+  taskPreview,
+  askUserPreview,
+  toolActions,
+  toolIcons,
+];
 
 // ---------------------------------------------------------------------------
 // Composer — slash commands, modes, toolbar, status chips, send & hint.
