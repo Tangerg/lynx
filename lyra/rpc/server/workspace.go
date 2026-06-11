@@ -385,11 +385,17 @@ func agentDocScope(path, cwd, home string) string {
 // WorkspaceMCPListServers lists the MCP servers dialed at startup. They
 // are all "connected" — a dial failure fails runtime construction, so a
 // running server only knows connected ones (API.md §7.5).
-func (s *Server) WorkspaceMCPListServers(_ context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.McpServer], error) {
+func (s *Server) WorkspaceMCPListServers(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.McpServer], error) {
 	names := s.rt.MCPServerNames()
 	out := make([]protocol.McpServer, 0, len(names))
 	for _, n := range names {
-		out = append(out, protocol.McpServer{Name: n, Status: "connected"})
+		entry := protocol.McpServer{Name: n, Status: "connected"} // dial-at-boot: a running server is connected
+		// Inline the tool count so the client needn't ⨝ listTools (AUX_API §5.1).
+		if tools, err := s.rt.MCPTools(ctx, n); err == nil {
+			count := len(tools)
+			entry.ToolCount = &count
+		}
+		out = append(out, entry)
 	}
 	return protocol.NewPage(out), nil
 }

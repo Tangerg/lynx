@@ -176,8 +176,13 @@ type AgentDoc struct {
 // McpServer is one configured MCP server (API.md §4.10).
 type McpServer struct {
 	Name        string `json:"name"`
-	Status      string `json:"status"` // "connected" | "disconnected" | "error"
-	Description string `json:"description,omitempty"`
+	Status      string `json:"status"` // AUX_API §5.1: connecting|connected|disconnected|failed|needsAuth
+	ToolCount   *int   `json:"toolCount,omitempty"`
+	AuthStatus  string `json:"authStatus,omitempty"` // none|bearerToken|oauth|notLoggedIn (omitted when untracked)
+	// Error carries the reason for a failed server (AUX_API §5.1); set only
+	// when Status is "failed".
+	Error       *ProblemData `json:"error,omitempty"`
+	Description string       `json:"description,omitempty"`
 }
 
 // McpTool is one tool exposed by an MCP server (API.md §4.10).

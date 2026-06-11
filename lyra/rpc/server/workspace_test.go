@@ -144,6 +144,24 @@ func TestWorkspaceListSkills(t *testing.T) {
 	}
 }
 
+// TestWorkspaceMCPListServers inlines each server's tool count (AUX_API §5.1)
+// so the client needn't ⨝ listTools.
+func TestWorkspaceMCPListServers(t *testing.T) {
+	s := &Server{rt: stubRuntime{
+		mcpServers: []string{"fs"},
+		mcpTools: []engine.McpToolInfo{
+			{Server: "fs", Name: "read"}, {Server: "fs", Name: "write"},
+		},
+	}}
+	page, err := s.WorkspaceMCPListServers(context.Background(), protocol.PageQuery{})
+	if err != nil {
+		t.Fatalf("listServers: %v", err)
+	}
+	if len(page.Data) != 1 || page.Data[0].Status != "connected" || page.Data[0].ToolCount == nil || *page.Data[0].ToolCount != 2 {
+		t.Fatalf("servers = %+v, want fs connected toolCount=2", page.Data)
+	}
+}
+
 // TestWorkspaceMCPListTools maps engine tool info onto the wire (keeping
 // server + bare name separate) and passes the server scope through.
 func TestWorkspaceMCPListTools(t *testing.T) {
