@@ -17,7 +17,7 @@ export type MessageRole = "user" | "assistant" | "system";
 // contribution), never a protocol change. Unknown names → "generic" (JSON tree
 // fallback). Used by the fold (projections), runDigest, and tool icon routing.
 export type ToolCategory =
-  | "command" // bash / shell → { command } + { exitCode, output, outputTruncated? }
+  | "command" // bash / shell / run_in_background → { command } + { exitCode, output, outputTruncated? } or a plain-string ack
   | "fileEdit" // edit / write → { path } + { changes: FileEdit[] }
   | "search" // grep / glob → { query|pattern } + { hits: SearchHit[] }
   | "webSearch" // webSearch → { query } + { results: WebSearchResult[] }

@@ -24,12 +24,13 @@ import { z } from "zod";
 import { asSessionId } from "@/rpc";
 import { definePlugin } from "@/plugins/sdk";
 import { getContainer } from "@/main/container";
-import { getCurrentSessionView, useAgentStore } from "@/state/agentStore";
+import { getCurrentSessionView } from "@/state/agentStore";
 import { useRuntimeStore } from "@/state/runtimeStore";
 import { useSessionStore } from "@/state/sessionStore";
 import { SESSIONS_KEY } from "@/lib/data/queries";
 import { queryClient as appQueryClient } from "@/lib/data/queryClient";
 import { flattenMarkdown } from "@/lib/agent/messageContent";
+import { rehydrateSessionView } from "@/lib/agent/rehydrateSession";
 
 function timestampForFilename(): string {
   // Filesystem-safe ISO slice (no `:` or `.`).
@@ -111,8 +112,8 @@ function exportMarkdown(): void {
 function exportJson(): void {
   const view = getCurrentSessionView();
   const sid = useSessionStore.getState().activeSessionId;
-  // Versioned envelope so a future "Import conversation" can refuse
-  // shapes it doesn't understand.
+  // Lossy view dump, NOT a SessionArtifact — "Import conversation" rejects
+  // it by design (only the server's round-trippable export restores).
   const payload = {
     version: 1,
     sessionId: sid,
@@ -174,28 +175,18 @@ async function importConversation(): Promise<void> {
     toast.error("Not a JSON file.");
     return;
   }
-  const parsed = artifactEnvelope.safeParse(raw);
-  if (!parsed.success) {
+  if (!artifactEnvelope.safeParse(raw).success) {
     toast.error("Not a Lyra session export — pick a JSON exported via “Export conversation”.");
     return;
   }
   try {
-    const client = getContainer().client();
-    const { session } = await client.sessions.import(parsed.data as unknown as SessionArtifact);
-    // Imported over a session that's currently mounted → its view is stale.
-    // resetView only clears (no auto re-hydration), so rebuild from the
-    // restored server history, same as the rollback flow in messageActions.
-    const store = useAgentStore.getState();
-    if (store.sessions[session.id]) {
-      store.resetView(session.id);
-      const resp = await client.items.list({ sessionId: asSessionId(session.id) });
-      if (resp.data.length > 0) {
-        store.applyEvents(
-          session.id,
-          resp.data.map((item) => ({ type: "item.completed" as const, item })),
-        );
-      }
-    }
+    // Envelope-checked above; the server is the authority on the full shape.
+    const { session } = await getContainer()
+      .client()
+      .sessions.import(raw as SessionArtifact);
+    // Imported over a session that's currently mounted → its view is stale;
+    // rebuild it from the restored server history.
+    await rehydrateSessionView(session.id);
     useSessionStore.getState().selectTab(session.id);
     void appQueryClient.invalidateQueries({ queryKey: [SESSIONS_KEY] });
     toast.success(`Imported “${session.title ?? session.id}”.`);

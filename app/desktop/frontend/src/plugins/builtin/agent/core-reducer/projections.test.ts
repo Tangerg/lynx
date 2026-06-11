@@ -2,7 +2,8 @@
 // shapes (lynx/lyra tool implementations), not just the §4.4.2 conventions:
 // bash returns {stdout, stderr, exit_code}, grep one of matches/files/counts,
 // glob {paths}, edit/write {replacements}/{bytes_written} (no diff rows),
-// and the specialised tools (lsp_* / skill / task / ask_user) label by name.
+// and the specialised tools (lsp_* / skill / task / ask_user / bash_output /
+// kill_shell) label by name.
 
 import type { ToolInvocation } from "@/rpc";
 import { describe, expect, it } from "vitest";

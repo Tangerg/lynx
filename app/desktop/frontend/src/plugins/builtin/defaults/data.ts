@@ -156,9 +156,9 @@ export const defaultData = definePlugin({
     });
     host.extensions.contribute(DATA_PROVIDER, {
       key: MCP_SERVERS_KEY,
-      // B3 enriched the entry with toolCount/authStatus/error inline
-      // (AUX_API §5.1) — no more listServers⨝listTools join; listTools
-      // stays for the detail pane (pagination + inputSchema).
+      // toolCount/authStatus/error ride inline on each entry (AUX_API §5.1)
+      // — no listServers⨝listTools join here; listTools is only for the
+      // detail pane (pagination + inputSchema).
       fetcher: async () =>
         (await client().workspace.mcp.listServers()).data.map(toSidebarMCPServer),
     });
