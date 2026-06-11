@@ -23,10 +23,19 @@ func (s *Server) persistStreamEvent(ctx context.Context, runID, sessionID, paren
 	case protocol.StreamItemCompleted:
 		s.persistItem(ctx, sessionID, se.Item)
 	case protocol.StreamRunStarted:
-		s.persistRun(ctx, sessionID, se.Run)
+		// Start: status running, watermark unknown (-1) until finish.
+		s.persistRun(ctx, sessionID, se.Run, -1)
 	case protocol.StreamRunFinished:
 		// run.finished carries only the outcome; synthesize the terminal
-		// RunRef so history records the run's final status + outcome.
+		// RunRef so history records the run's final status + outcome. The
+		// message log is now in its terminal post-maintenance (post-compaction)
+		// shape — the chat service emits run.finished only after flushSteering
+		// + postTurnMaintenance — so MessageCount here is this run's watermark,
+		// the boundary sessions.rollback / fork{fromRunId} truncate to (B4).
+		mark, err := s.rt.MessageCount(ctx, sessionID)
+		if err != nil {
+			mark = -1
+		}
 		s.persistRun(ctx, sessionID, &protocol.RunRef{
 			ID:          runID,
 			SessionID:   sessionID,
@@ -34,7 +43,7 @@ func (s *Server) persistStreamEvent(ctx context.Context, runID, sessionID, paren
 			Status:      protocol.RunStatusFinished,
 			Outcome:     se.Outcome,
 			FinishedAt:  time.Now().UTC(),
-		})
+		}, mark)
 	}
 }
 
@@ -57,8 +66,9 @@ func (s *Server) persistItem(ctx context.Context, sessionID string, item *protoc
 	})
 }
 
-// persistRun upserts one RunRef into the history store.
-func (s *Server) persistRun(ctx context.Context, sessionID string, run *protocol.RunRef) {
+// persistRun upserts one RunRef into the history store. mark is the per-run
+// message watermark recorded at finish (-1 at start / when unknown).
+func (s *Server) persistRun(ctx context.Context, sessionID string, run *protocol.RunRef, mark int) {
 	store := s.rt.History()
 	if store == nil || run == nil {
 		return
@@ -72,5 +82,6 @@ func (s *Server) persistRun(ctx context.Context, sessionID string, run *protocol
 		RunID:     run.ID,
 		UpdatedAt: time.Now().UTC(),
 		Blob:      blob,
+		Mark:      mark,
 	})
 }

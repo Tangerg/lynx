@@ -253,6 +253,18 @@ func (r *Runtime) SeedHistory(ctx context.Context, sessionID string, msgs []chat
 	return r.engine.SeedHistory(ctx, sessionID, msgs)
 }
 
+// MessageCount returns sessionID's chat-memory message count — the per-run
+// watermark sessions.rollback / fork record. Delegates to the engine.
+func (r *Runtime) MessageCount(ctx context.Context, sessionID string) (int, error) {
+	return r.engine.MessageCount(ctx, sessionID)
+}
+
+// TruncateMessages keeps the first keepN chat-memory messages of sessionID
+// (sessions.rollback). Delegates to the engine.
+func (r *Runtime) TruncateMessages(ctx context.Context, sessionID string, keepN int) error {
+	return r.engine.TruncateMessages(ctx, sessionID, keepN)
+}
+
 // ListSkills enumerates the skills visible from cwd (project over global) for
 // workspace.listSkills. Delegates to the engine, which owns skill sourcing.
 func (r *Runtime) ListSkills(ctx context.Context, cwd string) ([]engine.SkillInfo, error) {

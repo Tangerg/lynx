@@ -120,32 +120,53 @@ func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionReq
 }
 
 // ForkSession branches a session into a fresh child that continues from the
-// parent's conversation (API.md §7.2): the child inherits the parent's cwd and
-// a copy of its full chat history, then diverges. An optional title overrides
-// the default "<parent> (fork)".
+// parent's conversation (API.md §7.2 / AUX_API §4.2): the child inherits the
+// parent's cwd and a copy of its chat history, then diverges. An optional title
+// overrides the default "<parent> (fork)".
 //
-// Run-boundary forking (FromRunID — "branch from this run") is the B4 turn-
-// granular capability (AUX_API §4.2): truncate-copy history up to and including
-// that run. Not wired yet — until B4 lands it reports checkpoint_unavailable;
-// the whole-conversation fork (no FromRunID) is the backed capability today.
+// FromRunID (run-boundary fork — "branch from this run", B4) truncate-copies
+// history up to and INCLUDING that run's turn; omit it for a whole-conversation
+// fork. Snapshot semantics: only completed runs are copied, so an in-flight run
+// at the boundary contributes only what it has already flushed. Forking deletes
+// nothing, so unlike rollback it needs no session_busy guard.
 func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest) (*protocol.Session, error) {
+	// Resolve the copy boundary against the parent BEFORE creating the child.
+	// copyN < 0 means "copy the whole history".
+	copyN := -1
 	if in.FromRunID != "" {
-		return nil, fmt.Errorf("%w: run-boundary fork (fromRunId) lands in B4", protocol.ErrCheckpointUnavailable)
+		_, runs, err := s.rt.History().List(ctx, in.SessionID)
+		if err != nil {
+			return nil, wireSessionErr(err)
+		}
+		timeline, err := runTimeline(runs)
+		if err != nil {
+			return nil, err
+		}
+		// requireRoot=false: fork is lax about the boundary run's kind (the
+		// contract lists only session_not_found / run_not_found).
+		mark, _, _, err := boundaryAt(timeline, in.FromRunID, false)
+		if err != nil {
+			return nil, err
+		}
+		copyN = mark // -1 (unknown watermark) falls back to a full copy below
 	}
 
 	// Fork records the branch lineage (parent id, inherited cwd); atMessageID
-	// is empty because this is a whole-conversation fork, not a point branch.
+	// is empty because lineage is run-based now, not message-based.
 	child, err := s.rt.Session().Fork(ctx, in.SessionID, "")
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
 
-	// Copy the parent's full history into the fresh child so its next turn
+	// Copy the parent's history prefix into the fresh child so its next turn
 	// continues with the same context. The child was just created (empty), so
 	// the append-only seed can't double up.
 	msgs, err := s.rt.ReadHistory(ctx, in.SessionID)
 	if err != nil {
 		return nil, wireSessionErr(err)
+	}
+	if copyN >= 0 && copyN < len(msgs) {
+		msgs = msgs[:copyN]
 	}
 	if err := s.rt.SeedHistory(ctx, child.ID, msgs); err != nil {
 		return nil, err

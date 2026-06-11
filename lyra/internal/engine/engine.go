@@ -329,3 +329,42 @@ func (e *Engine) SeedHistory(ctx context.Context, sessionID string, msgs []chat.
 	}
 	return e.memStore.Write(ctx, sessionID, msgs...)
 }
+
+// MessageCount returns sessionID's chat-memory message count — the per-run
+// watermark sessions.rollback / fork{fromRunId} record at run.finished and
+// truncate to. Empty session → 0.
+func (e *Engine) MessageCount(ctx context.Context, sessionID string) (int, error) {
+	if sessionID == "" {
+		return 0, errors.New("engine: sessionID is required")
+	}
+	msgs, err := e.memStore.Read(ctx, sessionID)
+	if err != nil {
+		return 0, err
+	}
+	return len(msgs), nil
+}
+
+// TruncateMessages keeps the first keepN chat-memory messages of sessionID and
+// drops the rest (sessions.rollback). keepN >= current count is a no-op; keepN
+// <= 0 clears the session. Store-agnostic — read / clear / re-write the kept
+// prefix — so it works for any memory.Store backend (the seq renumbering on
+// re-write is immaterial; rollback doesn't depend on stable seqs).
+func (e *Engine) TruncateMessages(ctx context.Context, sessionID string, keepN int) error {
+	if sessionID == "" {
+		return errors.New("engine: sessionID is required")
+	}
+	msgs, err := e.memStore.Read(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	if keepN >= len(msgs) {
+		return nil
+	}
+	if err := e.memStore.Clear(ctx, sessionID); err != nil {
+		return err
+	}
+	if keepN <= 0 {
+		return nil
+	}
+	return e.memStore.Write(ctx, sessionID, msgs[:keepN]...)
+}

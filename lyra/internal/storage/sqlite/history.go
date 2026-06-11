@@ -59,16 +59,74 @@ func (s *HistoryStore) PutRun(ctx context.Context, r history.Run) error {
 		return errors.New("sqlite: history run sessionId/runId are required")
 	}
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO history_runs(run_id, session_id, updated_at, run)
-		 VALUES (?, ?, ?, ?)
+		`INSERT INTO history_runs(run_id, session_id, updated_at, run, message_mark)
+		 VALUES (?, ?, ?, ?, ?)
 		 ON CONFLICT(run_id) DO UPDATE SET
-		   session_id = excluded.session_id,
-		   updated_at = excluded.updated_at,
-		   run        = excluded.run`,
-		r.RunID, r.SessionID, r.UpdatedAt.UnixNano(), string(r.Blob),
+		   session_id   = excluded.session_id,
+		   updated_at   = excluded.updated_at,
+		   run          = excluded.run,
+		   message_mark = excluded.message_mark`,
+		r.RunID, r.SessionID, r.UpdatedAt.UnixNano(), string(r.Blob), r.Mark,
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: put history run: %w", err)
+	}
+	return nil
+}
+
+// DeleteRun removes a run's record and all its items in one transaction
+// (sessions.rollback drops the runs after the kept boundary). Unknown run /
+// session is a no-op, not an error.
+func (s *HistoryStore) DeleteRun(ctx context.Context, sessionID, runID string) error {
+	if sessionID == "" || runID == "" {
+		return errors.New("sqlite: delete history run requires sessionId + runId")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("sqlite: begin delete history run: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // commit overrides; rollback on early return
+
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM history_items WHERE session_id = ? AND run_id = ?`, sessionID, runID,
+	); err != nil {
+		return fmt.Errorf("sqlite: delete run items: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM history_runs WHERE run_id = ?`, runID,
+	); err != nil {
+		return fmt.Errorf("sqlite: delete run: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("sqlite: commit delete history run: %w", err)
+	}
+	return nil
+}
+
+// DeleteSession removes every item + run for a session (sessions.rollback
+// purges the subagent child sessions a dropped run spawned). Idempotent.
+func (s *HistoryStore) DeleteSession(ctx context.Context, sessionID string) error {
+	if sessionID == "" {
+		return errors.New("sqlite: delete history session requires sessionId")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("sqlite: begin delete history session: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // commit overrides; rollback on early return
+
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM history_items WHERE session_id = ?`, sessionID,
+	); err != nil {
+		return fmt.Errorf("sqlite: delete session items: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM history_runs WHERE session_id = ?`, sessionID,
+	); err != nil {
+		return fmt.Errorf("sqlite: delete session runs: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("sqlite: commit delete history session: %w", err)
 	}
 	return nil
 }
@@ -116,7 +174,7 @@ func (s *HistoryStore) listItems(ctx context.Context, sessionID string) ([]histo
 
 func (s *HistoryStore) listRuns(ctx context.Context, sessionID string) ([]history.Run, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT session_id, run_id, updated_at, run
+		`SELECT session_id, run_id, updated_at, run, message_mark
 		 FROM history_runs WHERE session_id = ? ORDER BY updated_at`, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list history runs: %w", err)
@@ -130,7 +188,7 @@ func (s *HistoryStore) listRuns(ctx context.Context, sessionID string) ([]histor
 			updatedNs int64
 			blob      string
 		)
-		if err := rows.Scan(&r.SessionID, &r.RunID, &updatedNs, &blob); err != nil {
+		if err := rows.Scan(&r.SessionID, &r.RunID, &updatedNs, &blob, &r.Mark); err != nil {
 			return nil, fmt.Errorf("sqlite: scan history run: %w", err)
 		}
 		r.UpdatedAt = time.Unix(0, updatedNs).UTC()

@@ -37,6 +37,11 @@ type Run struct {
 	RunID     string
 	UpdatedAt time.Time
 	Blob      json.RawMessage
+	// Mark is the per-run chat-memory message watermark — the message count
+	// captured when the run finished (post-compaction). sessions.rollback /
+	// fork{fromRunId} truncate the message log to it. -1 means unknown: a run
+	// still in flight, or one persisted before this field existed.
+	Mark int
 }
 
 // Store is the durable Item history. Implementations must be safe for
@@ -54,4 +59,12 @@ type Store interface {
 	// List returns sessionID's items (append order) plus the RunRefs
 	// those items belong to (for run-tree reconstruction, §10.3).
 	List(ctx context.Context, sessionID string) ([]Item, []Run, error)
+
+	// DeleteRun removes one run's record and its items (sessions.rollback drops
+	// runs after the kept boundary). Idempotent — unknown run is not an error.
+	DeleteRun(ctx context.Context, sessionID, runID string) error
+
+	// DeleteSession removes every item + run for a session (sessions.rollback
+	// purges the subagent child sessions a dropped run spawned). Idempotent.
+	DeleteSession(ctx context.Context, sessionID string) error
 }
