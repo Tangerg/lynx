@@ -17,9 +17,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/Tangerg/lynx/lyra/internal/infra/checkpoint"
 	"github.com/Tangerg/lynx/lyra/internal/config"
-	"github.com/Tangerg/lynx/lyra/internal/infra/git"
+	"github.com/Tangerg/lynx/lyra/internal/service/workspace"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
@@ -36,9 +35,10 @@ type Config struct {
 	// rpc/protocol package is the codegen SSOT for other languages.
 	ServerInfo protocol.ServerInfo
 
-	// Checkpoints backs sessions.rollback's file restore (restoreType). nil
-	// when git is unavailable — features.checkpoints reflects this.
-	Checkpoints *checkpoint.Store
+	// Workspace backs the git-backed VCS views and sessions.rollback's file
+	// restore (restoreType). nil defaults to a disabled service —
+	// features.{git,checkpoints} then reflect git availability.
+	Workspace *workspace.Service
 }
 
 // Server is the Runtime implementation. Exposed via [New]; the returned
@@ -65,10 +65,11 @@ type Server struct {
 	// scoped — distinct from the durable per-run hubs.
 	wsHub *workspaceHub
 
-	// checkpoints snapshots a session's working tree at each run boundary so
-	// sessions.rollback can restore files (restoreType). nil disables file
-	// checkpoints (git unavailable) — features.checkpoints then reads false.
-	checkpoints *checkpoint.Store
+	// workspace owns the VCS views + per-session file checkpoints (snapshot at
+	// each run boundary so sessions.rollback can restore files). Always
+	// non-nil; checkpoints disabled (git unavailable) → features.checkpoints
+	// reads false.
+	workspace *workspace.Service
 }
 
 // nextEventID returns the next globally-monotonic RunEvent id, formatted
@@ -101,12 +102,16 @@ func New(cfg Config) (protocol.Runtime, error) {
 	if cfg.ServerInfo.Version == "" {
 		cfg.ServerInfo.Version = "0.0.0-dev"
 	}
+	ws := cfg.Workspace
+	if ws == nil {
+		ws = workspace.New("") // disabled service: VCS reads still work, checkpoints off
+	}
 	return &Server{
-		rt:          cfg.Runtime,
-		serverInfo:  cfg.ServerInfo,
-		runs:        map[string]*runEntry{},
-		wsHub:       newWorkspaceHub(),
-		checkpoints: cfg.Checkpoints,
+		rt:         cfg.Runtime,
+		serverInfo: cfg.ServerInfo,
+		runs:       map[string]*runEntry{},
+		wsHub:      newWorkspaceHub(),
+		workspace:  ws,
 	}, nil
 }
 
@@ -142,14 +147,14 @@ func Capabilities(rt RuntimeServices) protocol.ServerCapabilities {
 			"mcp":       true,
 			"memory":    memory,
 			"skills":    true,             // workspace.listSkills (project + global enumeration)
-			"git":       git.Available(),  // workspace.listFileChanges / getDiff (git binary on PATH)
+			"git":       workspace.GitAvailable(), // workspace.listFileChanges / getDiff (git binary on PATH)
 			"fileWatch": true,             // workspace.subscribe watches → files.changed (fsnotify)
 			"lsp":       true,             // code-intelligence tools (definition/refs/hover/symbols/diagnostics) + auto type-check on edit
 
 			"sessionExport": true, // sessions.export (inline json/md) + sessions.import (restore)
 			// File checkpoints (restoreType on rollback) ride the shadow-git
 			// store, which needs the git binary — same gate as the git feature.
-			"checkpoints": git.Available(),
+			"checkpoints": workspace.GitAvailable(),
 			// Off until the corresponding engine support lands:
 			"multimodal": false,
 			"subagents":  false,

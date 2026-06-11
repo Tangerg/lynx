@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/lyra/internal/infra/git"
+	"github.com/Tangerg/lynx/lyra/internal/service/workspace"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
@@ -19,7 +19,7 @@ func (s *Server) WorkspaceListFileChanges(ctx context.Context, in protocol.Works
 	if err != nil {
 		return nil, err
 	}
-	changes, err := git.ListChanges(ctx, root)
+	changes, err := workspace.ListChanges(ctx, root)
 	if err != nil {
 		return nil, mapGitErr(err)
 	}
@@ -51,23 +51,23 @@ func (s *Server) WorkspaceGetDiff(ctx context.Context, in protocol.GetDiffReques
 			return nil, err
 		}
 	}
-	mode := git.Worktree
+	var base bool
 	switch in.Mode {
 	case "", "worktree":
 	case "base":
-		mode = git.Base
+		base = true
 	default:
 		return nil, fmt.Errorf("%w: unknown mode %q", protocol.ErrInvalidParams, in.Mode)
 	}
 
 	if in.Format == "raw" {
-		patch, err := git.RawDiff(ctx, root, rel, mode)
+		patch, err := workspace.RawDiff(ctx, root, rel, base)
 		if err != nil {
 			return nil, mapGitErr(err)
 		}
 		return &protocol.Diff{Patch: patch}, nil
 	}
-	files, err := git.Diff(ctx, root, rel, mode)
+	files, err := workspace.Diff(ctx, root, rel, base)
 	if err != nil {
 		return nil, mapGitErr(err)
 	}
@@ -80,9 +80,9 @@ func (s *Server) WorkspaceGetDiff(ctx context.Context, in protocol.GetDiffReques
 // invalid_params (NOT vcs_unavailable — that's the "not a repo" signal).
 func mapGitErr(err error) error {
 	switch {
-	case errors.Is(err, git.ErrNotRepo), errors.Is(err, git.ErrUnavailable):
+	case errors.Is(err, workspace.ErrNotRepo), errors.Is(err, workspace.ErrUnavailable):
 		return protocol.ErrVcsUnavailable
-	case errors.Is(err, git.ErrNoBase):
+	case errors.Is(err, workspace.ErrNoBase):
 		return fmt.Errorf("%w: cannot resolve base branch", protocol.ErrInvalidParams)
 	default:
 		return err
@@ -92,7 +92,7 @@ func mapGitErr(err error) error {
 // diffFilesToWire maps git DiffFiles onto the wire, capping total rows at limit
 // with a file-boundary cut (a file is included whole or not at all; a single
 // over-limit file is still included so the client gets something).
-func diffFilesToWire(files []git.DiffFile, limit int) ([]protocol.FileDiff, bool) {
+func diffFilesToWire(files []workspace.DiffFile, limit int) ([]protocol.FileDiff, bool) {
 	out := make([]protocol.FileDiff, 0, len(files))
 	rows, truncated := 0, false
 	for _, f := range files {
@@ -114,7 +114,7 @@ func diffFilesToWire(files []git.DiffFile, limit int) ([]protocol.FileDiff, bool
 	return out, truncated
 }
 
-func rowsToWire(rows []git.Row) []protocol.DiffRow {
+func rowsToWire(rows []workspace.Row) []protocol.DiffRow {
 	out := make([]protocol.DiffRow, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, protocol.DiffRow{
