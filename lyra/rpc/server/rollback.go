@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"slices"
 	"time"
 
 	"github.com/Tangerg/lynx/lyra/internal/service/history"
@@ -45,8 +45,8 @@ func newRunTimeline(runs []history.Run) (runTimeline, error) {
 		}
 		out = append(out, runRecord{ref: ref, mark: r.Mark})
 	}
-	sort.SliceStable(out, func(i, j int) bool {
-		return out[i].ref.CreatedAt.Before(out[j].ref.CreatedAt)
+	slices.SortStableFunc(out, func(a, b runRecord) int {
+		return a.ref.CreatedAt.Compare(b.ref.CreatedAt)
 	})
 	return out, nil
 }
@@ -74,9 +74,9 @@ type rollbackBoundary struct {
 // run_not_found.
 func (t runTimeline) boundaryAt(runID string, requireRoot bool) (rollbackBoundary, error) {
 	if runID == "" {
-		return rollbackBoundary{Dropped: t.clone()}, nil
+		return rollbackBoundary{Dropped: slices.Clone(t)}, nil
 	}
-	idx := t.indexOf(runID)
+	idx := slices.IndexFunc(t, func(r runRecord) bool { return r.ref.ID == runID })
 	if idx < 0 {
 		return rollbackBoundary{}, protocol.ErrRunNotFound
 	}
@@ -89,7 +89,7 @@ func (t runTimeline) boundaryAt(runID string, requireRoot bool) (rollbackBoundar
 			// root on.
 			return rollbackBoundary{
 				KeepMark:     t[k-1].mark,
-				Dropped:      append([]runRecord(nil), t[k:]...),
+				Dropped:      slices.Clone(t[k:]),
 				BoundaryTime: t[k].ref.CreatedAt,
 			}, nil
 		}
@@ -98,18 +98,6 @@ func (t runTimeline) boundaryAt(runID string, requireRoot bool) (rollbackBoundar
 	// so there is nothing to drop / everything up to it is copied.
 	return rollbackBoundary{KeepMark: t[len(t)-1].mark}, nil
 }
-
-// indexOf returns the position of runID, or -1.
-func (t runTimeline) indexOf(runID string) int {
-	for i := range t {
-		if t[i].ref.ID == runID {
-			return i
-		}
-	}
-	return -1
-}
-
-func (t runTimeline) clone() []runRecord { return append([]runRecord(nil), t...) }
 
 // hasActiveRun reports whether the session has a run in flight — the
 // session_busy guard: rolling back under a live run would race its history
