@@ -20,11 +20,11 @@ type stubRuntime struct {
 	model      string
 	skills     []engine.SkillInfo
 	mcpTools   []engine.McpToolInfo
-	mcpServers []string
-	history    map[string][]chat.Message // per-session chat history (fork copies it)
+	mcpStatuses []engine.McpServerStatus
+	history     map[string][]chat.Message // per-session chat history (fork copies it)
 }
 
-func (s stubRuntime) MCPServerNames() []string { return s.mcpServers }
+func (s stubRuntime) MCPServerStatuses() []engine.McpServerStatus { return s.mcpStatuses }
 
 func (s stubRuntime) Session() session.Service { return s.sess }
 func (s stubRuntime) DefaultModel() string     { return s.model }

@@ -39,7 +39,6 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/service/provider"
 	sessionsvc "github.com/Tangerg/lynx/lyra/internal/service/session"
 	toolsvc "github.com/Tangerg/lynx/lyra/internal/service/tool"
-	"github.com/Tangerg/lynx/mcp"
 )
 
 // Config is the construction-time bundle for [New]. Engine carries the
@@ -101,9 +100,8 @@ type Runtime struct {
 	interrupts interrupts.Store
 	history    history.Store
 
-	providers      provider.Service
-	mcpServerNames []string
-	defaultModel   string
+	providers    provider.Service
+	defaultModel string
 }
 
 // New assembles a Runtime from cfg. Returns an error when a required
@@ -160,21 +158,9 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		approval:       approvalSvc,
 		interrupts:     interruptStore,
 		history:        cfg.HistoryStore,
-		providers:      providerSvc,
-		mcpServerNames: mcpNamesFrom(cfg.Engine.MCPServers),
-		defaultModel:   cfg.Model,
+		providers:    providerSvc,
+		defaultModel: cfg.Model,
 	}, nil
-}
-
-// mcpNamesFrom lifts the configured MCP server names. The runtime only
-// starts when every server dialed successfully (engine construction fails
-// otherwise), so a name present here is a connected server.
-func mcpNamesFrom(servers []mcp.ServerConfig) []string {
-	out := make([]string, 0, len(servers))
-	for _, s := range servers {
-		out = append(out, s.Name)
-	}
-	return out
 }
 
 // Chat returns the ChatService — the one-turn dispatch surface
@@ -203,9 +189,12 @@ func (r *Runtime) Interrupts() interrupts.Store { return r.interrupts }
 // from. Always non-nil — HistoryStore is a required dependency.
 func (r *Runtime) History() history.Store { return r.history }
 
-// MCPServerNames returns the names of the MCP servers dialed at startup
-// (all connected — see mcpNamesFrom).
-func (r *Runtime) MCPServerNames() []string { return r.mcpServerNames }
+// MCPServerStatuses returns the per-server connection state of every
+// configured MCP server (connected and boot-failed alike) for
+// workspace.mcp.listServers. Delegates to the engine, which owns the sessions.
+func (r *Runtime) MCPServerStatuses() []engine.McpServerStatus {
+	return r.engine.MCPServerStatuses()
+}
 
 // Providers returns the provider registry — the runtime-mutable set of
 // providers + credentials that providers.list / configure / test operate on.

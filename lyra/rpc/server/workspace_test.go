@@ -144,11 +144,15 @@ func TestWorkspaceListSkills(t *testing.T) {
 	}
 }
 
-// TestWorkspaceMCPListServers inlines each server's tool count (AUX_API §5.1)
-// so the client needn't ⨝ listTools.
+// TestWorkspaceMCPListServers renders each server's real status (AUX_API §5.1):
+// a connected server inlines its tool count (so the client needn't ⨝ listTools),
+// a boot-failed server carries its failure reason as Error and no tool count.
 func TestWorkspaceMCPListServers(t *testing.T) {
 	s := &Server{rt: stubRuntime{
-		mcpServers: []string{"fs"},
+		mcpStatuses: []engine.McpServerStatus{
+			{Name: "fs", Status: "connected"},
+			{Name: "down", Status: "failed", Err: errors.New("connection refused")},
+		},
 		mcpTools: []engine.McpToolInfo{
 			{Server: "fs", Name: "read"}, {Server: "fs", Name: "write"},
 		},
@@ -157,8 +161,16 @@ func TestWorkspaceMCPListServers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listServers: %v", err)
 	}
-	if len(page.Data) != 1 || page.Data[0].Status != "connected" || page.Data[0].ToolCount == nil || *page.Data[0].ToolCount != 2 {
-		t.Fatalf("servers = %+v, want fs connected toolCount=2", page.Data)
+	if len(page.Data) != 2 {
+		t.Fatalf("servers = %+v, want 2 (connected + failed)", page.Data)
+	}
+	fs := page.Data[0]
+	if fs.Status != "connected" || fs.ToolCount == nil || *fs.ToolCount != 2 || fs.Error != nil {
+		t.Fatalf("fs = %+v, want connected toolCount=2 no error", fs)
+	}
+	down := page.Data[1]
+	if down.Status != "failed" || down.ToolCount != nil || down.Error == nil || down.Error.Detail != "connection refused" {
+		t.Fatalf("down = %+v, want failed + Error(connection refused) no toolCount", down)
 	}
 }
 
