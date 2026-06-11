@@ -101,15 +101,25 @@ func buildLSPTools(mgr *lsp.Manager, defaultWorkdir string) []chat.Tool {
 
 // withEditDiagnostics wraps a file-mutating tool (write / edit) so a
 // successful edit is immediately type-checked: the language server re-analyzes
-// the just-written file and any errors/warnings are appended to the tool
-// result, so the model sees the problems it introduced without a separate
+// the file and any problems the edit INTRODUCED are appended to the tool
+// result, so the model sees the breakage it just caused without a separate
 // lsp_diagnostics call (the highest-value LSP integration in mature agents).
 //
-// Best-effort and non-blocking on failure: a failed edit is passed through
-// untouched (nothing to check), an unsupported file type is skipped (no server
-// spawned), and any LSP trouble leaves the original result intact. root is the
-// resolved workspace directory for this resolution; the wrapped tool's path
-// argument is relative to it.
+// It reports only NEW problems — a baseline of the file's diagnostics is taken
+// BEFORE the edit and subtracted from the post-edit set. This is the guard
+// against the language server's caching/staleness causing false positives: if
+// the server returns a cached (not-yet-reanalyzed) result, after == before and
+// the diff is empty, so nothing is reported. Pre-existing problems the edit
+// didn't touch are likewise filtered out. The diff is position-independent
+// (keyed by severity/source/code/message) so a pre-existing problem that
+// merely shifted lines isn't mistaken for a new one. The bias is deliberately
+// toward under-reporting: never blame an edit for a problem it didn't cause.
+//
+// Best-effort throughout: a failed edit is passed through untouched, an
+// unsupported file type is skipped (no server spawned), and any language-server
+// trouble leaves the original result intact — an edit never fails because of
+// LSP. root is the resolved workspace directory for this resolution; the
+// wrapped tool's path argument is relative to it.
 func withEditDiagnostics(inner chat.Tool, mgr *lsp.Manager, root string) chat.Tool {
 	if mgr == nil {
 		return inner
@@ -118,22 +128,28 @@ func withEditDiagnostics(inner chat.Tool, mgr *lsp.Manager, root string) chat.To
 		inner.Definition(),
 		inner.Metadata(),
 		func(ctx context.Context, arguments string) (string, error) {
-			out, err := inner.Call(ctx, arguments)
-			if err != nil {
-				return out, err // edit didn't apply — nothing to diagnose
-			}
 			var a struct {
 				Path string `json:"path"`
 			}
 			_ = json.Unmarshal([]byte(arguments), &a)
-			if a.Path == "" || !mgr.Supported(a.Path) {
-				return out, nil
+			check := a.Path != "" && mgr.Supported(a.Path)
+
+			// Baseline BEFORE the edit (best effort: a brand-new file has none).
+			var baseline []lsp.Diagnostic
+			if check {
+				baseline, _ = mgr.Diagnostics(ctx, root, a.Path)
 			}
-			diags, derr := mgr.Diagnostics(ctx, root, a.Path)
+
+			out, err := inner.Call(ctx, arguments)
+			if err != nil || !check {
+				return out, err // edit failed (nothing to diagnose) or unsupported
+			}
+
+			after, derr := mgr.Diagnostics(ctx, root, a.Path)
 			if derr != nil {
 				return out, nil // never fail an edit on language-server trouble
 			}
-			section := diagnosticsSection(a.Path, diags)
+			section := diagnosticsSection(a.Path, newProblems(baseline, after))
 			if section == "" {
 				return out, nil
 			}
@@ -141,6 +157,33 @@ func withEditDiagnostics(inner chat.Tool, mgr *lsp.Manager, root string) chat.To
 		},
 	)
 	return t
+}
+
+// newProblems returns the diagnostics in after that aren't in before, matched
+// as a multiset on a position-independent key — so a pre-existing problem
+// whose line merely shifted (or that the server re-reported from cache) is not
+// counted as introduced.
+func newProblems(before, after []lsp.Diagnostic) []lsp.Diagnostic {
+	seen := make(map[string]int, len(before))
+	for _, d := range before {
+		seen[diagKey(d)]++
+	}
+	var out []lsp.Diagnostic
+	for _, d := range after {
+		k := diagKey(d)
+		if seen[k] > 0 {
+			seen[k]-- // consume one baseline occurrence
+			continue
+		}
+		out = append(out, d)
+	}
+	return out
+}
+
+// diagKey identifies a diagnostic independently of its position, so line shifts
+// from the edit don't turn a pre-existing problem into a "new" one.
+func diagKey(d lsp.Diagnostic) string {
+	return fmt.Sprintf("%d\x00%s\x00%v\x00%s", d.Severity, d.Source, d.Code, d.Message)
 }
 
 // diagnosticsSection renders the errors and warnings (info/hint are dropped as
@@ -164,7 +207,7 @@ func diagnosticsSection(file string, diags []lsp.Diagnostic) string {
 	if len(lines) == 0 {
 		return ""
 	}
-	return fmt.Sprintf("Language server diagnostics for %s (%d):\n%s", file, len(lines), strings.Join(lines, "\n"))
+	return fmt.Sprintf("Language server flagged %d new problem(s) in %s after this edit:\n%s", len(lines), file, strings.Join(lines, "\n"))
 }
 
 // --- input shapes + schemas ---

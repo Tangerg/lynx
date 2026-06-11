@@ -132,6 +132,10 @@ type referenceContext struct {
 	IncludeDeclaration bool `json:"includeDeclaration"`
 }
 
+type didSaveParams struct {
+	TextDocument textDocumentIdentifier `json:"textDocument"`
+}
+
 type documentSymbolParams struct {
 	TextDocument textDocumentIdentifier `json:"textDocument"`
 }
