@@ -265,7 +265,12 @@ rpc/server ─→ engine, 全部 service, checkpoint(infra), git(infra), sqlite(
 - ✅ **批次 4A — workspace 服务**:`internal/service/workspace` 独占 `infra/git` + `infra/checkpoint`(VCS 读为无状态包函数 + checkpoint 为有状态 `*Service`)。rpc/server + cmd/lyra 不再 import git/checkpoint。**消除 §2 问题 3**(delivery→infra 直连)。
 - ✅ **批次 6 — 命名消歧(改名部分)**:`service/memory`→`service/knowledge`、`service/history`→`service/transcript`(含 sqlite `HistoryStore`→`TranscriptStore`、runtime SPI `History()`→`Transcript()`)。消除 "memory×2 + history" 混指;别名(lyramem/memsvc/...)全删。
 - ⏳ **批次 4B — 工具集装配收敛**:评估后判定低价值、无 layering 收益(各工具构造已按类型内聚在各自文件,装配已集中在 engine.go + cwdToolResolver)——**暂缓**,避免投机性 churn(CLAUDE.md「承认 audit 过度 call 的项」)。
-- ⏳ **批次 6 余下 — conversation 显形**:把 LLM 消息上下文(engine 的 `MemoryStore`/`ReadHistory`/`SeedHistory` 透传)显形为 `service/conversation`,并把 `engine.Config.MemoryStore`/`MemoryService` 字段改名。**暂缓**(纯改名 + 一个新 service 包,待 §2 问题 1 一并处理或单列)。
-- 🚧 **批次 5 — chat/tool 编排归位 engine 层**:**§2 问题 1(核心结点)未消除**——`chat→engine` / `tool→engine` 逆向边仍在。这是计划里唯一**动前需单独签字**的大结构改动(chat 1750L + 契约类型迁移 + rpc 接线,爆炸半径大)。待用户确认 scope 后执行。
+- ⏳ **批次 6 余下 — conversation 显形**:把 LLM 消息上下文(engine 的 `MemoryStore`/`ReadHistory`/`SeedHistory` 透传)显形为 `service/conversation`,并把 `engine.Config.MemoryStore`/`MemoryService` 字段改名。**暂缓**(纯改名 + 一个新 service 包,价值/风险比低,非 layering 必需)。
+- ✅ **批次 5a — chat 编排归位 engine 层**:`internal/service/chat` → `internal/engine/chat`。**消除 §2 问题 1(核心结点)**——最后一条反向边 `chat→engine` 消失。
 
-**当前依赖图**:§2 的问题 2/3/4 已消除,领域算法 + LSP + workspace 都已沉到 service/infra,delivery 不再碰 infra。**唯一剩余的反向边是 §2 问题 1**(chat/tool 编排在 engine 之上),由批次 5 处理。
+  **设计偏离说明**(优于文档原设想):①契约类型(`ChatProcess`/`RunChatRequest`/...)**无法干净抽到中立包**——`RunChatRequest`/`RestoreChatRequest` 引 engine 内部 `toolObserver`,`ChatProcess` 实现绑 `runtime.AgentProcess`/`Platform`,类型与编排是一块布。②文档原设想"把 chat 并入 engine 包"会把 ~1750L 状态机塞进本已很大的 engine 包,违 SRP。③**故改为:把 chat 重新归类为它本来的身份——turn 编排(非领域 service)**,整包移到 engine 层做子包。`chat→engine` 边变为**同层 子包→父包** 边(engine 不 import chat,无环),chat 仍是聚焦小包,**零逻辑改动**(纯移动)。
+  **结果**:`service/` 生产代码对 `internal/engine` 的 import 归零(实测),编排层 = {engine, engine/chat},领域层 = service/*,delivery 在上。**§7 完成态全部满足**。
+  **关于 tool**:§2 列了 "tool→engine",但 `service/tool` 生产代码**不 import engine**——它消费自定义 `source interface{ Tools() }`(干净 ISP),只有集成测试建真 engine。故 tool 是合法领域 service,无需移动。
+- ⏳ **批次 5b(原设想的"合并契约类型/进一步并包")— 不再需要**:5a 已达成 layering 目标(零反向边 + 单向分层)。把契约类型从 engine 抽出已被证明是错误方向(类型与编排不可分),进一步并包只会造 god-package。**关闭**。
+
+**当前依赖图**:§2 的**全部四个问题(1/2/3/4)已消除**。`delivery(rpc) → 编排(engine + engine/chat) → 领域(service/*) → infra(infra/*)`,`grep` 不出任何生产反向边。**结构重构核心已完成**;余下仅 4B(暂缓,低价值)+ conversation 显形(暂缓,非 layering 必需)。
