@@ -27,8 +27,6 @@ import {
 import { useAgentAction, useAgentSlice } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
 
-// ---- modes ---------------------------------------------------------------
-
 export const composerModes = definePlugin({
   name: "lyra.builtin.composer-modes",
   version: "1.0.0",
@@ -60,8 +58,6 @@ export const composerModes = definePlugin({
   },
 });
 
-// ---- placeholders --------------------------------------------------------
-
 export const composerPlaceholders = definePlugin({
   name: "lyra.builtin.composer-placeholders",
   version: "1.0.0",
@@ -84,8 +80,6 @@ export const composerPlaceholders = definePlugin({
     });
   },
 });
-
-// ---- keymap --------------------------------------------------------------
 
 export const composerKeymap = definePlugin({
   name: "lyra.builtin.composer-keymap",
@@ -111,7 +105,6 @@ export const composerKeymap = definePlugin({
   },
 });
 
-// ---- status chips --------------------------------------------------------
 //
 // cwd + branch read live session/project state. ExecModeChip is the one
 // hold-out: the protocol has no approval-policy surface yet, so its hint
@@ -199,8 +192,6 @@ export const composerChips = definePlugin({
   },
 });
 
-// ---- toolbar (start) -----------------------------------------------------
-
 // Model selector — lists the models of every enabled provider (brand-iconed);
 // selection drives the next run's `provider` + `model` PAIR (read by the
 // rpc-agent driver from composerStore). Models are identified by provider+id
@@ -276,8 +267,6 @@ export const composerToolbar = definePlugin({
     });
   },
 });
-
-// ---- toolbar (end): send -------------------------------------------------
 
 function SendButton() {
   const value = useComposerStore((s) => s.value);

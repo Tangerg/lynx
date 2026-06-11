@@ -48,9 +48,7 @@ import {
   writeToolCall,
 } from "./fold";
 
-// ---------------------------------------------------------------------------
 // run.*
-// ---------------------------------------------------------------------------
 
 function onRunStarted(state: AgentViewState, run: RunRef): AgentViewState {
   // Subagent run (spawned by a tool) shares the parent stream but must not
@@ -245,9 +243,7 @@ function onRunFinished(state: AgentViewState, outcome: RunOutcome): AgentViewSta
   })(withRun);
 }
 
-// ---------------------------------------------------------------------------
 // item.started
-// ---------------------------------------------------------------------------
 
 function onItemStarted(state: AgentViewState, item: Item): AgentViewState {
   switch (item.type) {
@@ -268,9 +264,7 @@ function onItemStarted(state: AgentViewState, item: Item): AgentViewState {
   }
 }
 
-// ---------------------------------------------------------------------------
 // item.delta
-// ---------------------------------------------------------------------------
 
 function onItemDelta(state: AgentViewState, itemId: string, delta: ItemDelta): AgentViewState {
   switch (delta.type) {
@@ -295,9 +289,7 @@ function onItemDelta(state: AgentViewState, itemId: string, delta: ItemDelta): A
   }
 }
 
-// ---------------------------------------------------------------------------
 // item.completed
-// ---------------------------------------------------------------------------
 
 function onItemCompleted(state: AgentViewState, rawItem: Item): AgentViewState {
   // item.completed ⟹ the item has settled, so its status is terminal
@@ -335,9 +327,7 @@ function onItemCompleted(state: AgentViewState, rawItem: Item): AgentViewState {
   }
 }
 
-// ---------------------------------------------------------------------------
 // state.*
-// ---------------------------------------------------------------------------
 
 function onStateSnapshot(state: AgentViewState, shared: Record<string, unknown>): AgentViewState {
   return { ...state, shared };
@@ -353,9 +343,7 @@ function onStateDelta(state: AgentViewState, patch: Operation[]): AgentViewState
   }
 }
 
-// ---------------------------------------------------------------------------
 // Registration table — one StreamEventHandler per first-class event type.
-// ---------------------------------------------------------------------------
 
 function bind<T extends StreamEvent["type"]>(
   type: T,

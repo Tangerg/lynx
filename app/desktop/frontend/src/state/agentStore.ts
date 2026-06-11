@@ -243,9 +243,8 @@ const unsubPruneSessions = useSessionStore.subscribe((state, prev) => {
 
 disposeOnHmr(unsubPruneSessions);
 
-// ---------------------------------------------------------------------------
 // Selector hooks
-// ---------------------------------------------------------------------------
+
 //
 // Components don't see the sessions map directly. They pick a slice of the
 // current session's view via `useAgentSlice(v => v.messages)` etc., which

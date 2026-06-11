@@ -10,7 +10,6 @@ import { useQuery } from "@tanstack/react-query";
 import { lookupDataProvider } from "@/plugins/sdk";
 import { queryClient } from "./queryClient";
 
-// ---- API response shapes ---------------------------------------------------
 //
 // Declared here (the data fetcher) rather than in the rendering
 // components so neither state/ nor lib/ has to import upward into

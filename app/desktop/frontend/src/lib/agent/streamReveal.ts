@@ -111,7 +111,6 @@ export function useStreamReveal(rawText: string, enabled: boolean, typewriter = 
         return;
       }
 
-      // --- Shared cadence: turn elapsed time into a per-frame char budget. ---
       if (st.lastTickAt < 0) {
         // Cold start: seed one unit so the first frame isn't empty (no elapsed
         // to integrate yet). The advance below consumes it — one word / char.
@@ -123,7 +122,6 @@ export function useStreamReveal(rawText: string, enabled: boolean, typewriter = 
         st.charDebt += pickRate(backlog, enabledRef.current) * (elapsed / 1000);
       }
 
-      // --- Mode-specific advance — the only step that differs. ---
       let newLen: number;
       let lastWord = "";
       if (typewriterRef.current) {
@@ -152,7 +150,6 @@ export function useStreamReveal(rawText: string, enabled: boolean, typewriter = 
       }
       st.charDebt = Math.max(0, Math.min(st.charDebt, MAX_DEBT));
 
-      // --- Shared commit. ---
       newLen = Math.min(newLen, st.rawText.length);
       if (newLen !== st.displayLen) {
         st.displayLen = newLen;

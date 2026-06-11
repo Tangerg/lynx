@@ -22,9 +22,7 @@ import {
   toolStatus,
 } from "./projections";
 
-// ---------------------------------------------------------------------------
 // Message / block mutations
-// ---------------------------------------------------------------------------
 
 function mutateMessage(
   state: AgentViewState,
@@ -127,12 +125,10 @@ export function settleOpenInterrupts(state: AgentViewState): AgentViewState {
   return { ...state, messages, openInterrupts: [] };
 }
 
-// ---------------------------------------------------------------------------
 // Per-item folds — shared by item.started (append) and item.completed
 // (upsert). started/completed differ only in the block status they stamp,
 // so both call through here; the upsert keeps durable replay / history
 // hydration idempotent (a re-seen item patches in place, never duplicates).
-// ---------------------------------------------------------------------------
 
 type ItemOf<T extends Item["type"]> = Extract<Item, { type: T }>;
 

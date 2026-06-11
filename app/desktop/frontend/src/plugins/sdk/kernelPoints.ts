@@ -6,8 +6,6 @@
 // another extension consumer" property).
 //
 // Adding a kernel point = one `defineExtensionPoint` block here + one selector.
-// `single` = one entry per `keyOf` (override + warn); `multi` = every
-// contribution coexists (composite `${plugin}|${id}` key).
 
 import type {
   AgentSourceSpec,
@@ -49,7 +47,6 @@ import { defineExtensionPoint } from "./defineExtensionPoint";
 import { LIFECYCLE_POINT_IDS } from "./pointIds";
 import { normalizeCombo } from "./registry";
 
-// ---- theme domain --------------------------------------------------------
 export const THEME = defineExtensionPoint<ThemeSpec>({
   id: "lyra.theme",
   capability: "theme",
@@ -66,7 +63,6 @@ export const LOCALE = defineExtensionPoint<LocaleSpec>({
   keying: "single",
 });
 
-// ---- runtime / data-layer domain -----------------------------------------
 export const ROUTE = defineExtensionPoint<RouteSpec>({
   id: "lyra.route",
   capability: "router",
@@ -89,7 +85,6 @@ export const ERROR_FALLBACK = defineExtensionPoint<PluginErrorFallbackSpec>({
   keying: "single",
 });
 
-// ---- composer domain ------------------------------------------------------
 export const COMPOSER_PLACEHOLDER = defineExtensionPoint<ComposerPlaceholderSpec>({
   id: "lyra.composer.placeholder",
   capability: "composer",
@@ -129,7 +124,6 @@ export const COMPOSER_KEY_BINDING = defineExtensionPoint<ComposerKeyBindingSpec>
   normalizeKey: normalizeCombo,
 });
 
-// ---- shortcuts domain -----------------------------------------------------
 export const SHORTCUT = defineExtensionPoint<ShortcutSpec>({
   id: "lyra.shortcut",
   capability: "shortcuts",
@@ -138,7 +132,6 @@ export const SHORTCUT = defineExtensionPoint<ShortcutSpec>({
   normalizeKey: normalizeCombo,
 });
 
-// ---- declared-merge surfaces ----------------------------------------------
 // The "registered" half of the registered+declared-placeholder merge. The
 // declared half (contributes.* placeholders awaiting activation) keeps its own
 // named map; the selectors merge the two (registered wins on id collision).
@@ -175,7 +168,6 @@ export const LOG_SUBSCRIBER = defineExtensionPoint<LogSubscriber>({
   keying: "multi",
 });
 
-// ---- lifecycle hooks ------------------------------------------------------
 // Fired from inside the registry store (markAppReady / registerLoaded /
 // unload), so their ids live in `pointIds.ts` — the store filters `extensions`
 // by these while staying ignorant of the typed handles defined here.
@@ -200,7 +192,6 @@ export const PLUGIN_UNLOAD_LISTENER = defineExtensionPoint<(name: string) => voi
   keying: "multi",
 });
 
-// ---- Run events + layout (multi, sub-keyed by name / type / slot) ---------
 // The item wraps its sub-key (name / eventType / slot) alongside the payload;
 // the events + layout selectors build a cached secondary index over it (see
 // `createPointSubIndex`). The reducer hits these per StreamEvent.
@@ -218,7 +209,6 @@ export const LAYOUT_SLOT = defineExtensionPoint<{ slot: string; spec: LayoutSlot
   keying: "multi",
 });
 
-// ---- sidebar domain -------------------------------------------------------
 export const SIDEBAR_SECTION = defineExtensionPoint<SidebarSectionSpec>({
   id: "lyra.sidebar.section",
   capability: "sidebar",
@@ -230,7 +220,6 @@ export const SIDEBAR_RAIL_ITEM = defineExtensionPoint<SidebarRailItemSpec>({
   keying: "single",
 });
 
-// ---- message / tool domain ------------------------------------------------
 export const MESSAGE_ROLE = defineExtensionPoint<MessageRoleSpec>({
   id: "lyra.message.role",
   capability: "message",

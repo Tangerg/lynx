@@ -1,11 +1,5 @@
-// Sideload discovery + loading.
-//
-// Asks the Go backend for the list of installed plugins, dynamic-imports
-// each one's `index.js`, validates the default export, and runs setup
-// through the same loadPlugin path the built-ins use.
-//
-// Failures are isolated per plugin: a broken module logs + is skipped,
-// remaining plugins still load.
+// Sideload discovery + loading. Failures are isolated per plugin: a broken
+// module logs + is skipped; remaining plugins still load.
 
 import type { LoadResult } from "../sdk/definePlugin";
 import type { PluginSpec } from "../sdk/types";
@@ -18,7 +12,6 @@ import { reportPluginError } from "../sdk/errors";
 import { pluginOrigin, setPluginOrigin } from "../sdk/pluginOrigin";
 import { usePluginStore } from "../sdk/registry";
 
-// Re-export so existing importers (PluginsPane) keep `@/plugins/host/sideload`.
 export { pluginOrigin };
 
 // Sideloaded modules cross the trust boundary — we can't trust their
@@ -37,12 +30,7 @@ const PluginSpecSchema = z.object({
   contributes: z.unknown().optional(),
 });
 
-/**
- * Discover sideloaded plugins from the Go backend and load each one.
- *
- * Returns the load results. The caller (PluginProvider) doesn't need them,
- * but tests do.
- */
+/** Discover sideloaded plugins from the Go backend and load each one. */
 export async function loadSideloadedPlugins(): Promise<LoadResult[]> {
   // The manifest fetch goes through the container's shell client (the single
   // outbound seam — injectable in tests, ARCHITECTURE §10). The per-plugin
@@ -94,9 +82,8 @@ export async function loadSideloadedPlugins(): Promise<LoadResult[]> {
   return results;
 }
 
-// Tag any plugin that's currently loaded as builtin when this module is
-// first imported by the host bundle. Sideloaded plugins override their own
-// entry to "sideload" inside `loadSideloadedPlugins`.
+// Sideloaded plugins override their own origin to "sideload" inside
+// `loadSideloadedPlugins`.
 export function tagAllAsBuiltin(): void {
   for (const name of usePluginStore.getState().loaded.keys()) {
     setPluginOrigin(name, "builtin");

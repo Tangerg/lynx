@@ -1,8 +1,6 @@
-// The registry's state shape + action signatures + the `freshState`
-// factory. Pulled out of registry.ts so the Zustand store there is
-// purely the action implementations; adding a new slot is a two-file
-// edit (this file + registry.ts) instead of one file scrolled. Map
-// mutation helpers live in `registryHelpers.ts`.
+// The registry's state shape + action signatures + the `freshState` factory.
+// Pulled out of registry.ts so adding a new slot is a two-file edit (this
+// file + registry.ts). Map mutation helpers live in `registryHelpers.ts`.
 
 import type {
   ContributedCommand,
@@ -35,32 +33,18 @@ export interface ContributionEntry {
 
 export interface PluginStoreState {
   loaded: Map<string, LoadedPlugin>;
-  /**
-   * Commands declared in `PluginSpec.contributes.commands` but whose
-   * owning plugin hasn't been activated yet. Displayed as palette
-   * placeholders; running one activates the plugin first, then dispatches
-   * to whatever `host.commands.register` set up during setup.
-   */
+  /** Commands declared in `PluginSpec.contributes.commands` but whose
+   *  owning plugin hasn't been activated yet. Displayed as palette
+   *  placeholders; running one activates the plugin first. */
   declaredCommands: Map<string, Owned<ContributedCommand>>;
-  /** Same idea, for workspace views. Mounting renders a placeholder UI. */
   declaredViews: Map<string, Owned<ContributedView>>;
-  /** Same idea, for settings panes. */
   declaredSettingsPanes: Map<string, Owned<ContributedSettingsPane>>;
-  /**
-   * Specs awaiting an activation event. Keyed by plugin name so we can
-   * activate by id; the value carries the spec + the list of events it
-   * registered for (used by the palette to map "onCommand:foo" back to a
-   * plugin).
-   */
   pendingActivations: Map<string, { spec: PluginSpec; events: string[] }>;
-  /** Set true after PluginProvider has finished loading built-ins. */
   appReady: boolean;
   // Open extension points — the unified substrate. Plugin-defined points
-  // (and, post-collapse, every kernel point) store their contributions here
-  // keyed by `${point.id}#${dedupeKey}`. Read via the extensions selector.
+  // (and every kernel point) store their contributions here keyed by
+  // `${point.id}#${dedupeKey}`. Read via the extensions selector.
   extensions: Map<string, Owned<ContributionEntry>>;
-  // Window title state — most-recent setter wins. Stored as the "base"
-  // text + a badge count; document.title is derived: `[n] base`.
   windowTitle: string;
   windowBadge: number;
 }
@@ -107,9 +91,6 @@ export interface PluginStoreActions {
   resetForTest: () => void;
 }
 
-// Single source of truth for the "fresh registry" shape. New slots only
-// need to be added here — the test setup, the reset action, and the store
-// initializer all call this.
 export function freshState(): PluginStoreState {
   return {
     loaded: new Map(),

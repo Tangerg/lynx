@@ -17,10 +17,6 @@ import {
 } from "../kernelPoints";
 import { lookupExtensionByKey, lookupExtensionPoint } from "./extensions";
 
-// ---------------------------------------------------------------------------
-// Agent sources
-// ---------------------------------------------------------------------------
-
 /**
  * Pick the active agent source — highest priority wins, ties broken by
  * insertion order. Returns undefined if none registered.
@@ -30,10 +26,6 @@ export function pickAgentSource(): AgentSourceSpec | undefined {
   if (sources.length === 0) return undefined;
   return sources.reduce((best, cur) => ((cur.priority ?? 0) > (best.priority ?? 0) ? cur : best));
 }
-
-// ---------------------------------------------------------------------------
-// Data providers + RPC hooks
-// ---------------------------------------------------------------------------
 
 /**
  * Look up the fetcher for a data-provider key. Type is erased — callers
@@ -56,10 +48,6 @@ export function listRpcBeforeHooks(): RpcBeforeRequestHook[] {
 export function listRpcAfterHooks(): RpcAfterResponseHook[] {
   return lookupExtensionPoint(RPC_AFTER_RESPONSE);
 }
-
-// ---------------------------------------------------------------------------
-// Plugin error fallback
-// ---------------------------------------------------------------------------
 
 /**
  * Pick the highest-priority registered error fallback. Tied priorities

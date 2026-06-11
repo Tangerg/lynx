@@ -16,10 +16,6 @@ import { usePluginStore } from "../registry";
 import { runActivator, useDeclaredMerged } from "./_helpers";
 import { createPointSubIndex, useExtensionPoint } from "./extensions";
 
-// ---------------------------------------------------------------------------
-// Layout slots
-// ---------------------------------------------------------------------------
-
 const layoutBySlot = createPointSubIndex<{ slot: string; spec: LayoutSlotSpec }, LayoutSlotSpec>(
   LAYOUT_SLOT.id,
   (item) => ({ key: item.slot, value: item.spec }),
@@ -36,10 +32,6 @@ export function useLayoutSlot(slot: string): LayoutSlotSpec[] {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Workspace views (registered + declared merged)
-// ---------------------------------------------------------------------------
-
 export function useWorkspaceViews(): WorkspaceViewSpec[] {
   const registered = useExtensionPoint(WORKSPACE_VIEW);
   const declared = usePluginStore((s) => s.declaredViews);
@@ -54,10 +46,6 @@ function declaredToWorkspaceView(d: ContributedView, pluginName: string): Worksp
     }),
   };
 }
-
-// ---------------------------------------------------------------------------
-// Settings panes (registered + declared merged)
-// ---------------------------------------------------------------------------
 
 export function useSettingsPanes(): SettingsPaneSpec[] {
   const registered = useExtensionPoint(SETTINGS_PANE);

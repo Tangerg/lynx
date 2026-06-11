@@ -392,8 +392,6 @@ function emitLog(plugin: string, level: LogLevel, args: unknown[]): void {
   }
 }
 
-// ---- toast plumbing -------------------------------------------------------
-//
 // A self-mounting listener (see PluginToaster.tsx) picks up these events and
 // renders an animated toast. Keeping the dispatcher event-based means the
 // SDK doesn't import React for its notification path.

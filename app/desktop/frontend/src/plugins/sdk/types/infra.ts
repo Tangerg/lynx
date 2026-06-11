@@ -5,10 +5,6 @@
 import type { ComponentType } from "react";
 import type { InterruptResponse, ItemId, RunEvent, RunId, StreamingResult } from "@/rpc";
 
-// ---------------------------------------------------------------------------
-// Notifications — persistent feed surfaced by host.notify().
-// ---------------------------------------------------------------------------
-
 export type NotificationLevel = "info" | "warn" | "error";
 
 /**
@@ -30,10 +26,6 @@ export interface NotificationEntry {
   dismissed?: boolean;
 }
 
-// ---------------------------------------------------------------------------
-// Logger — structured logger passed to a plugin in setup().
-// ---------------------------------------------------------------------------
-
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
 /**
@@ -49,10 +41,6 @@ export interface LogEvent {
 
 /** Subscriber for log events. Errors thrown inside are caught by the host. */
 export type LogSubscriber = (event: LogEvent) => void;
-
-// ---------------------------------------------------------------------------
-// RPC hooks — runtime extension of the host.rpc namespace.
-// ---------------------------------------------------------------------------
 
 /**
  * A `beforeRequest` hook — runs immediately before the underlying fetch.
@@ -73,10 +61,6 @@ export type RpcAfterResponseHook = (
   response: Response,
 ) => void | Response | Promise<void | Response>;
 
-// ---------------------------------------------------------------------------
-// Data providers — pluggable fetchers behind React Query hooks.
-// ---------------------------------------------------------------------------
-
 /**
  * A data fetcher registered against a key. TanStack-Query hooks in the app
  * resolve their `queryFn` by looking up the provider for their key. The
@@ -94,10 +78,6 @@ export interface DataProviderSpec<T = unknown, P = unknown> {
    *  params object; list resources ignore the argument. */
   fetcher: (params?: P) => Promise<T>;
 }
-
-// ---------------------------------------------------------------------------
-// Agent sources — transports that drive the chat (HTTP, mock, IPC…).
-// ---------------------------------------------------------------------------
 
 /**
  * Drives one chat session over the Lyra Runtime Protocol: starts runs and
@@ -142,20 +122,13 @@ export interface AgentSourceSpec {
   factory: () => AgentDriver;
 }
 
-// ---------------------------------------------------------------------------
-// Plugin error fallback — UI shown when a plugin component throws.
-// ---------------------------------------------------------------------------
-
 /**
  * Props passed to the registered error-fallback renderer when a plugin
  * component throws inside `PluginBoundary`.
  */
 export interface PluginErrorFallbackProps {
-  /** Plugin name / context label, e.g. "view:diff" or "layout:app.main:chat". */
   plugin: string;
-  /** Optional human-readable label that was passed to the boundary. */
   label?: string;
-  /** The thrown Error. */
   error: Error;
 }
 
@@ -165,10 +138,6 @@ export interface PluginErrorFallbackSpec {
   priority?: number;
   component: ComponentType<PluginErrorFallbackProps>;
 }
-
-// ---------------------------------------------------------------------------
-// Tasks — long-running operations visible in the status bar
-// ---------------------------------------------------------------------------
 
 /** Handle returned by `host.tasks.start`. All methods are idempotent after a
  *  terminal transition (succeed / fail) — extra calls are no-ops. */

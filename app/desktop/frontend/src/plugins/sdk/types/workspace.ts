@@ -4,10 +4,6 @@
 
 import type { ComponentType } from "react";
 
-// ---------------------------------------------------------------------------
-// Settings panes — rail entries inside the Settings workspace view.
-// ---------------------------------------------------------------------------
-
 export interface SettingsPaneSpec {
   /** Stable id used as the rail key + storage namespace if needed. */
   id: string;
@@ -20,10 +16,6 @@ export interface SettingsPaneSpec {
   /** The pane content. Receives no props in v1. */
   component: ComponentType;
 }
-
-// ---------------------------------------------------------------------------
-// Workspace views — plugin-contributed surfaces that open as main-area tabs.
-// ---------------------------------------------------------------------------
 
 /** First-launch docking hint. Plain regions only; floating is not exposed. */
 export type DockLocation = "left" | "right" | "main" | "bottom";
@@ -51,10 +43,6 @@ export interface WorkspaceViewSpec {
   component: ComponentType;
 }
 
-// ---------------------------------------------------------------------------
-// Layout slots — named mount points the kernel exposes (sidebar.body, …).
-// ---------------------------------------------------------------------------
-
 /**
  * Plugin-contributed kernel region.
  *
@@ -79,10 +67,6 @@ export interface LayoutSlotSpec {
   /** Component that renders the region. Receives no props. */
   component: ComponentType;
 }
-
-// ---------------------------------------------------------------------------
-// Routes — plugin-contributed URL paths and their renderers.
-// ---------------------------------------------------------------------------
 
 /**
  * A top-level route — registers a path → component pair. The router is

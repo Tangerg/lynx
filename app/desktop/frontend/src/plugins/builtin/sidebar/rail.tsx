@@ -17,8 +17,6 @@ import { useSessionStore } from "@/state/sessionStore";
 const openView = (id: string, title: string, icon: string) =>
   useSessionStore.getState().openMainView({ id, title, icon });
 
-// ---- top actions --------------------------------------------------------
-
 function NewSessionBtn() {
   const t = useT();
   const createSession = useCreateSession();
@@ -62,8 +60,6 @@ export const sidebarRailActions = definePlugin({
     });
   },
 });
-
-// ---- sessions stack -----------------------------------------------------
 
 function RailSessions() {
   const { data: sessions = [] } = useSessions();
@@ -122,8 +118,6 @@ export const sidebarRailSessions = definePlugin({
     });
   },
 });
-
-// ---- bottom utilities ---------------------------------------------------
 
 function RailSpacer() {
   return <div className="flex-1" />;

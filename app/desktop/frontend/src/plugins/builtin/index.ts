@@ -97,17 +97,14 @@ import {
   toolsView,
 } from "./workspace/workspace-views";
 
-// ---------------------------------------------------------------------------
 // Protocol — fold v2 RunEvents (run.* / item.* / state.*) into view state.
 // All semantics (messages, reasoning, tools, plan, questions, HITL) are
 // first-class Items now, so the single core-reducer owns the whole fold;
 // `custom` StreamEvents are reserved for third-party plugins.
-// ---------------------------------------------------------------------------
 const protocol: PluginSpec[] = [coreReducer];
 
-// ---------------------------------------------------------------------------
 // Configuration & infrastructure.
-// ---------------------------------------------------------------------------
+
 const infrastructure: PluginSpec[] = [
   nativeShell,
   defaultConfig,
@@ -126,9 +123,8 @@ const infrastructure: PluginSpec[] = [
   mainRoute,
 ];
 
-// ---------------------------------------------------------------------------
 // Message rendering — roles, content blocks, per-message decorations.
-// ---------------------------------------------------------------------------
+
 // Built-in content blocks (text / tool / reasoning / plan / approval /
 // question) render directly in the message module — no plugin here. This
 // group is roles + per-message actions + the extension-only preview blocks.
@@ -141,9 +137,8 @@ const messageRendering: PluginSpec[] = [
   previewBlocks,
 ];
 
-// ---------------------------------------------------------------------------
 // Tool rendering — previews, header actions, icon glyph map.
-// ---------------------------------------------------------------------------
+
 const toolRendering: PluginSpec[] = [
   bash,
   diff,
@@ -158,9 +153,8 @@ const toolRendering: PluginSpec[] = [
   toolIcons,
 ];
 
-// ---------------------------------------------------------------------------
 // Composer — slash commands, modes, toolbar, status chips, send & hint.
-// ---------------------------------------------------------------------------
+
 const composer: PluginSpec[] = [
   slashHints,
   composerChips,
@@ -171,9 +165,8 @@ const composer: PluginSpec[] = [
   composerSend,
 ];
 
-// ---------------------------------------------------------------------------
 // Settings panes + workspace views (each spec is independent).
-// ---------------------------------------------------------------------------
+
 const panes: PluginSpec[] = [
   appearance,
   personalization,
@@ -195,14 +188,12 @@ const panes: PluginSpec[] = [
   diagnostics,
 ];
 
-// ---------------------------------------------------------------------------
 // Kernel layout regions — fill the named slots in AgentClientPage.
-// ---------------------------------------------------------------------------
+
 const kernel: PluginSpec[] = [kernelSidebar, kernelChat, kernelSettings];
 
-// ---------------------------------------------------------------------------
 // Sidebar internals — sections in the expanded view, items in the rail.
-// ---------------------------------------------------------------------------
+
 const sidebar: PluginSpec[] = [
   sidebarSearch,
   sidebarProjects,
@@ -212,9 +203,8 @@ const sidebar: PluginSpec[] = [
   sidebarRailBottom,
 ];
 
-// ---------------------------------------------------------------------------
 // Overlays — toasts, command palette, status pill, welcome screen, …
-// ---------------------------------------------------------------------------
+
 const overlays: PluginSpec[] = [
   toaster,
   commandPalette,

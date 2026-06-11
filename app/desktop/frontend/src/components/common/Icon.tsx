@@ -56,13 +56,12 @@ import {
 
 // Project-wide icon shim — name → lucide-react component.
 //
-// We used to hand-write every SVG path. That meant ~80 lines of inline
-// JSX, no consistent stroke width handling, and every new icon was a
-// path-editor exercise. Switching to lucide-react gives us:
+// lucide-react gives us:
 //   - 1500+ icons available out-of-the-box (Feather-derived, consistent)
 //   - tree-shaking: only icons referenced here ship in the bundle
 //     (~150-300 bytes per icon)
 //   - sane defaults (24x24 viewBox, currentColor stroke, rounded ends)
+//   - consistent stroke width without hand-tuning each path
 //
 // The component API stays the same (<Icon name="search" size={14} />)
 // so we don't have to touch the 100+ callsites scattered across plugins

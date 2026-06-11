@@ -14,9 +14,7 @@ import type {
 } from "@/protocol/run/viewState";
 import { toolCategory } from "@/protocol/run/viewState";
 
-// ---------------------------------------------------------------------------
 // Formatting / naming
-// ---------------------------------------------------------------------------
 
 export function formatTime(iso?: string): string {
   const d = iso ? new Date(iso) : new Date();
@@ -41,9 +39,7 @@ export function blockStatus(status: ItemStatus): BlockStatus {
   return "complete";
 }
 
-// ---------------------------------------------------------------------------
 // Wire Item → view projections
-// ---------------------------------------------------------------------------
 
 // `blocks` is absent on the `item.started` shell of a message item — its
 // content streams in via item.delta and only lands whole on item.completed.
@@ -104,7 +100,6 @@ export function mapQuestion(q: Question | undefined): QuestionItem[] {
   );
 }
 
-// ---------------------------------------------------------------------------
 // §4.4.2 display conventions — read the domain-neutral { name, arguments,
 // result } envelope into view fields. NOT wire-enforced: unknown names fall to
 // the JSON-tree generic path. The category map lives in viewState
@@ -113,7 +108,6 @@ export function mapQuestion(q: Question | undefined): QuestionItem[] {
 // have empty `arguments`, so every access tolerates absent/malformed values
 // (a throw here is swallowed by the reducer's try/catch and silently drops the
 // block — or strands a HITL approval the user can no longer act on).
-// ---------------------------------------------------------------------------
 
 function asRecord(v: unknown): Record<string, unknown> | undefined {
   return typeof v === "object" && v !== null && !Array.isArray(v)
@@ -312,12 +306,10 @@ export function toolStatus(item: Extract<Item, { type: "toolCall" }>): ToolCallS
   return "ok";
 }
 
-// ---------------------------------------------------------------------------
 // Approval-card projections — read the same ToolInvocation envelope the HITL
 // interrupt carries (API.md §4.8). Co-located with the other tool readers
 // (toolLabel / toolFields) so every `toolCategory` switch lives here, not in
 // the StreamEvent dispatcher (handlers.ts).
-// ---------------------------------------------------------------------------
 
 /** Short verb phrase for an approval card title, derived from the tool category
  *  (§4.4.2 display convention). The approval payload's tool has no `result`

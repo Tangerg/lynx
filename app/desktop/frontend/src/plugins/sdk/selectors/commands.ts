@@ -16,10 +16,6 @@ import {
   useExtensionPoint,
 } from "./extensions";
 
-// ---------------------------------------------------------------------------
-// Palette commands (registered + declared merged)
-// ---------------------------------------------------------------------------
-//
 // Registered wins on id collision, so once a plugin is activated its real
 // CommandSpec replaces the contributes.commands placeholder transparently.
 
@@ -70,10 +66,8 @@ export function executeCommand(id: string, ...args: unknown[]): Promise<void> {
   return Promise.resolve();
 }
 
-// ---------------------------------------------------------------------------
-// Slash commands — the list pairs each spec with its trigger (the trigger
-// lives in the map key, not on the spec, so the generic read can't surface it).
-// ---------------------------------------------------------------------------
+// The slash-command trigger lives in the map key, not on the spec, so the
+// generic read can't surface it — we pair key+spec into a list.
 
 export function useSlashCommands(): Array<{ cmd: string; spec: SlashCommandSpec }> {
   const entries = useExtensionEntries(SLASH_COMMAND);

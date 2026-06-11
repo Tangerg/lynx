@@ -22,9 +22,7 @@ import {
   type RpcRequest,
 } from "../types";
 
-// ---------------------------------------------------------------------------
 // Outbound (client → server) — synchronisation helpers
-// ---------------------------------------------------------------------------
 
 /**
  * Wait until a Request with the given method name appears in the
@@ -44,9 +42,7 @@ export async function waitForRequest(t: MemoryTransport, method: string): Promis
   throw new Error(`timeout waiting for outbound Request "${method}"`);
 }
 
-// ---------------------------------------------------------------------------
 // Inbound (server → client) — message synthesis
-// ---------------------------------------------------------------------------
 
 /** Inject a JSON-RPC success Response matching a prior Request id. */
 export function respondSuccess(t: MemoryTransport, id: RpcId, result: unknown): void {

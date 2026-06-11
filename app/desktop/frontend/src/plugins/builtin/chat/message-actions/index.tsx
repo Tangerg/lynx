@@ -18,7 +18,6 @@ import { asItemId, asRunId, asSessionId } from "@/rpc";
 import { useSessionStore } from "@/state/sessionStore";
 import { ACTION_BTN_CLASSES } from "./_shared";
 
-// ---- Copy: dropdown menu with Markdown / Plain text / Code only. ----
 //
 // Default click writes Markdown (preserves headings / lists / fences
 // as they were rendered). The submenu surfaces the two alternates:
