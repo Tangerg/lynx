@@ -8,12 +8,12 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
 	chatsvc "github.com/Tangerg/lynx/lyra/internal/service/chat"
-	"github.com/Tangerg/lynx/lyra/internal/service/history"
 	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
-	memsvc "github.com/Tangerg/lynx/lyra/internal/service/memory"
+	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
 	providersvc "github.com/Tangerg/lynx/lyra/internal/service/provider"
 	sessionsvc "github.com/Tangerg/lynx/lyra/internal/service/session"
 	toolsvc "github.com/Tangerg/lynx/lyra/internal/service/tool"
+	"github.com/Tangerg/lynx/lyra/internal/service/transcript"
 )
 
 // RuntimeServices is the accessor surface the protocol server needs from
@@ -30,10 +30,10 @@ type RuntimeServices interface {
 	Chat() chatsvc.Service
 	Session() sessionsvc.Service
 	Tool() toolsvc.Service
-	Memory() memsvc.Service
+	Memory() knowledge.Service
 	Approval() approval.Service
 	Interrupts() interrupts.Store
-	History() history.Store
+	Transcript() transcript.Store
 	// Providers is the provider registry — credentials + enablement that
 	// providers.list / configure / test operate on (models.list reads the
 	// catalog, not this).

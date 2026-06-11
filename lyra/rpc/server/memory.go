@@ -3,7 +3,7 @@ package server
 import (
 	"context"
 
-	memsvc "github.com/Tangerg/lynx/lyra/internal/service/memory"
+	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
@@ -59,16 +59,16 @@ func (s *Server) UpdateMemory(ctx context.Context, in protocol.UpdateMemoryReque
 // the memory service's int Scope. The wire's cwd + projectRoot both
 // fold into the project scope (addressed by the request's cwd);
 // home maps to the user scope.
-func memScopeToWire(s memsvc.Scope) protocol.MemoryScope {
-	if s == memsvc.ScopeUser {
+func memScopeToWire(s knowledge.Scope) protocol.MemoryScope {
+	if s == knowledge.ScopeUser {
 		return protocol.MemoryScopeHome
 	}
 	return protocol.MemoryScopeCwd
 }
 
-func memScopeFromWire(s protocol.MemoryScope) memsvc.Scope {
+func memScopeFromWire(s protocol.MemoryScope) knowledge.Scope {
 	if s == protocol.MemoryScopeHome {
-		return memsvc.ScopeUser
+		return knowledge.ScopeUser
 	}
-	return memsvc.ScopeProject
+	return knowledge.ScopeProject
 }

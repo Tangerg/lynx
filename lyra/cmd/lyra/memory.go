@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Tangerg/lynx/lyra/internal/service/memory"
+	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
 )
 
 // MemoryCmd is the `lyra memory` group — inspect / edit the
@@ -46,8 +46,8 @@ func (a *App) memoryShowCmd() *cobra.Command {
 			}
 			ctx := cmd.Context()
 			if both {
-				a.printScope(ctx, memory.ScopeUser, "user")
-				a.printScope(ctx, memory.ScopeProject, "project")
+				a.printScope(ctx, knowledge.ScopeUser, "user")
+				a.printScope(ctx, knowledge.ScopeProject, "project")
 				return nil
 			}
 			a.printScope(ctx, target, scope)
@@ -119,12 +119,12 @@ func (a *App) memoryClearCmd() *cobra.Command {
 // parseScope maps the --scope flag value to the typed enum.
 // allowBoth controls whether "both" is acceptable — show accepts
 // it, set / clear don't.
-func parseScope(s string, allowBoth bool) (target memory.Scope, both bool, err error) {
+func parseScope(s string, allowBoth bool) (target knowledge.Scope, both bool, err error) {
 	switch s {
 	case "project":
-		return memory.ScopeProject, false, nil
+		return knowledge.ScopeProject, false, nil
 	case "user":
-		return memory.ScopeUser, false, nil
+		return knowledge.ScopeUser, false, nil
 	case "both":
 		if !allowBoth {
 			return 0, false, fmt.Errorf("lyra.parseScope: scope %q not allowed here (use project|user)", s)
@@ -150,7 +150,7 @@ func readMemoryBody(from string, stdin io.Reader) ([]byte, error) {
 // printScope writes one scope's contents to the App's stdout
 // under a markdown heading. Errors print to stderr but don't
 // abort the show command — partial output is still useful.
-func (a *App) printScope(ctx context.Context, scope memory.Scope, label string) {
+func (a *App) printScope(ctx context.Context, scope knowledge.Scope, label string) {
 	content, err := a.rt.Memory().Get(ctx, scope, "")
 	if err != nil {
 		fmt.Fprintf(a.Err, "[lyra] %s scope read error: %s\n", label, err)

@@ -10,7 +10,7 @@
 //   - chat/       — one-turn dispatch + event stream
 //   - tool/       — tool registry inspection and (optional) direct invocation
 //   - approval/   — runtime tool-approval stance (Mode: pass/deny/prompt)
-//   - memory/     — long-term memory (LYRA.md cascade)
+//   - knowledge/  — long-term knowledge (LYRA.md cascade)
 //   - agentdoc/   — AGENTS.md cascade discovery + render
 //   - history/    — authoritative Item store backing items.list
 //   - interrupts/ — HITL interrupt store (park on interrupt, resume)

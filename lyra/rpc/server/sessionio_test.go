@@ -51,7 +51,7 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 	if err := rt.sess.Delete(ctx, ses.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	if err := rt.History().DeleteSession(ctx, ses.ID); err != nil {
+	if err := rt.Transcript().DeleteSession(ctx, ses.ID); err != nil {
 		t.Fatalf("delete history: %v", err)
 	}
 	_ = rt.TruncateMessages(ctx, ses.ID, 0)

@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/lyra/internal/service/agentdoc"
-	"github.com/Tangerg/lynx/lyra/internal/service/memory"
+	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
 )
 
 // basePrompt is the always-on identity / behavioral preamble. It
@@ -41,7 +41,7 @@ task is ambiguous, ask one focused question rather than guess.`
 // project A briefs the model about project A regardless of where
 // `lyra serve` was started.
 //
-// memory.Service is Lyra's writable surface (`lyra memory edit`);
+// knowledge.Service is Lyra's writable surface (`lyra memory edit`);
 // agentdoc is the read-only cross-tool AGENTS.md convention. Engines
 // built without a memory service simply yield the base prompt +
 // discovered files.
@@ -53,18 +53,18 @@ func (e *Engine) SystemPrompt(ctx context.Context) string {
 // exposed unexported so the unit tests (which build stub memory
 // services without a full Engine) can exercise the cascade
 // directly.
-func composePrompt(ctx context.Context, mem memory.Service, cwd string) string {
+func composePrompt(ctx context.Context, mem knowledge.Service, cwd string) string {
 	var b strings.Builder
 	b.WriteString(basePrompt)
 
 	if mem != nil {
-		userMem, _ := mem.Get(ctx, memory.ScopeUser, "")
+		userMem, _ := mem.Get(ctx, knowledge.ScopeUser, "")
 		if s := strings.TrimSpace(userMem); s != "" {
 			b.WriteString("\n\n## User preferences (from ~/.lyra/LYRA.md)\n\n")
 			b.WriteString(s)
 		}
 
-		projectMem, _ := mem.Get(ctx, memory.ScopeProject, cwd)
+		projectMem, _ := mem.Get(ctx, knowledge.ScopeProject, cwd)
 		if s := strings.TrimSpace(projectMem); s != "" {
 			b.WriteString("\n\n## Project knowledge (from <cwd>/LYRA.md)\n\n")
 			b.WriteString(s)

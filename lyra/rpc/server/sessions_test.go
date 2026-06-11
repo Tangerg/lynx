@@ -7,10 +7,10 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
-	historysvc "github.com/Tangerg/lynx/lyra/internal/service/history"
+	"github.com/Tangerg/lynx/lyra/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
-	"github.com/Tangerg/lynx/lyra/internal/infra/storage/sqlite"
+	"github.com/Tangerg/lynx/lyra/internal/service/transcript"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
@@ -24,14 +24,14 @@ type stubRuntime struct {
 	mcpTools    []engine.McpToolInfo
 	mcpStatuses []engine.McpServerStatus
 	history     map[string][]chat.Message // per-session chat history (fork copies it)
-	hist        historysvc.Store          // durable Item/run history (rollback/fork read runs)
+	hist        transcript.Store          // durable Item/run history (rollback/fork read runs)
 	interrupts  interrupts.Store          // open-interrupt registry (rollback clears dropped)
 }
 
 func (s stubRuntime) MCPServerStatuses() []engine.McpServerStatus { return s.mcpStatuses }
 
-func (s stubRuntime) History() historysvc.Store      { return s.hist }
-func (s stubRuntime) Interrupts() interrupts.Store   { return s.interrupts }
+func (s stubRuntime) Transcript() transcript.Store { return s.hist }
+func (s stubRuntime) Interrupts() interrupts.Store { return s.interrupts }
 
 // MessageCount / TruncateMessages operate on the in-memory history map, mirroring
 // the engine's chat-memory store closely enough for rollback/fork tests.
@@ -173,7 +173,7 @@ func TestForkSession(t *testing.T) {
 	parent, _ := svc.Create(ctx, "research", "/work/proj")
 
 	hist := map[string][]chat.Message{parent.ID: {chat.NewUserMessage("hello"), chat.NewAssistantMessage("hi")}}
-	s := &Server{rt: stubRuntime{sess: svc, history: hist, hist: sqlite.NewHistoryStore(db)}}
+	s := &Server{rt: stubRuntime{sess: svc, history: hist, hist: sqlite.NewTranscriptStore(db)}}
 
 	child, err := s.ForkSession(ctx, protocol.ForkSessionRequest{SessionID: parent.ID, Title: "branch A"})
 	if err != nil {

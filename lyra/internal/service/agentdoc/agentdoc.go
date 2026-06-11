@@ -10,7 +10,7 @@
 // subdir take precedence over notes at the repo root.
 //
 // LYRA.md is intentionally NOT in scope here — that's managed by
-// internal/service/memory (writable via `lyra memory edit`).
+// internal/service/knowledge (writable via `lyra memory edit`).
 // AGENTS.md is read-only at runtime; the engine never writes to it.
 package agentdoc
 

@@ -17,8 +17,8 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
+	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
 	"github.com/Tangerg/lynx/lyra/internal/service/maintenance"
-	lyramem "github.com/Tangerg/lynx/lyra/internal/service/memory"
 )
 
 // Engine is the runtime facade. It composes three concerns:
@@ -42,13 +42,13 @@ type Engine struct {
 	agent    *core.Agent
 
 	// Context inputs (read at SystemPrompt + chat-memory time).
-	tools     []chat.Tool
-	memStore  memory.Store
-	memSvc    lyramem.Service
-	workdir         string // captured from Config.Workdir for the AGENTS.md cascade
-	skillsGlobalDir string // captured from Config.SkillsGlobalDir for workspace.listSkills
-	pricing   Pricing // optional per-round cost hook; nil → cost stays zero
-	parkStore tool.ParkStore
+	tools           []chat.Tool
+	memStore        memory.Store
+	memSvc          knowledge.Service
+	workdir         string  // captured from Config.Workdir for the AGENTS.md cascade
+	skillsGlobalDir string  // captured from Config.SkillsGlobalDir for workspace.listSkills
+	pricing         Pricing // optional per-round cost hook; nil → cost stays zero
+	parkStore       tool.ParkStore
 
 	// Maintenance sub-components — each may be nil when the
 	// corresponding feature is disabled by config (e.g. extractor
@@ -200,19 +200,19 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// capture *Engine (and therefore reach e.SystemPrompt) instead
 	// of dragging a memory service through the constructor.
 	e := &Engine{
-		platform:    platform,
-		memStore:    memStore,
-		memSvc:      cfg.MemoryService,
+		platform:        platform,
+		memStore:        memStore,
+		memSvc:          cfg.MemoryService,
 		workdir:         cfg.Workdir,
 		skillsGlobalDir: cfg.SkillsGlobalDir,
 		pricing:         cfg.Pricing,
-		parkStore:    cfg.ParkStore,
-		mcpServers:   mcpServers,
-		mcpClient:    mcpClient,
-		toolResolver: resolver,
-		a2aClients:   a2aClients,
-		codeIntel:    codeIntel,
-		bgShells:     bgShells,
+		parkStore:       cfg.ParkStore,
+		mcpServers:      mcpServers,
+		mcpClient:       mcpClient,
+		toolResolver:    resolver,
+		a2aClients:      a2aClients,
+		codeIntel:       codeIntel,
+		bgShells:        bgShells,
 	}
 
 	// The `task` tool delegates to a fresh sub-agent (declares

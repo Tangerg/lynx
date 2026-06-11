@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/lyra/internal/service/history"
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
+	"github.com/Tangerg/lynx/lyra/internal/service/transcript"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
@@ -23,7 +23,7 @@ func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionReq
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
-	items, runs, err := s.rt.History().List(ctx, in.SessionID)
+	items, runs, err := s.rt.Transcript().List(ctx, in.SessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +110,7 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 
 	// Replace any existing history so an import-over restores rather than
 	// appends: drop the old items/runs and clear the chat log before re-seeding.
-	if err := s.rt.History().DeleteSession(ctx, id); err != nil {
+	if err := s.rt.Transcript().DeleteSession(ctx, id); err != nil {
 		return nil, err
 	}
 	if err := s.rt.TruncateMessages(ctx, id, 0); err != nil {
@@ -120,14 +120,14 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 		return nil, err
 	}
 	for _, r := range art.Runs {
-		if err := s.rt.History().PutRun(ctx, history.Run{
+		if err := s.rt.Transcript().PutRun(ctx, transcript.Run{
 			SessionID: id, RunID: r.RunID, UpdatedAt: r.UpdatedAt, Blob: r.Run, Mark: r.Mark,
 		}); err != nil {
 			return nil, err
 		}
 	}
 	for _, it := range art.Items {
-		if err := s.rt.History().AppendItem(ctx, history.Item{
+		if err := s.rt.Transcript().AppendItem(ctx, transcript.Item{
 			SessionID: id, RunID: it.RunID, ItemID: it.ItemID, CreatedAt: it.CreatedAt, Blob: it.Item,
 		}); err != nil {
 			return nil, err
@@ -162,7 +162,7 @@ func artifactToSession(w protocol.Session) session.Session {
 // renderSessionMarkdown produces a human-readable transcript of a session — a
 // header plus each item rendered by type. Best-effort: an item whose blob
 // can't be decoded is skipped. Not re-importable (use format=json for that).
-func renderSessionMarkdown(ses protocol.Session, items []history.Item) string {
+func renderSessionMarkdown(ses protocol.Session, items []transcript.Item) string {
 	var b strings.Builder
 	title := ses.Title
 	if title == "" {

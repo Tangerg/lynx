@@ -7,14 +7,14 @@ import (
 	"slices"
 	"time"
 
-	"github.com/Tangerg/lynx/lyra/internal/service/history"
+	"github.com/Tangerg/lynx/lyra/internal/service/transcript"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
 // B4 turn-granular checkpoints (AUX_API §4): sessions.rollback truncates a
 // session's history at a run boundary in place; sessions.fork{fromRunId}
 // truncate-copies it into a child. Both reason over the per-run message
-// watermark (history.Run.Mark, recorded at run.finished — see history.go) to
+// watermark (transcript.Run.Mark, recorded at run.finished — see transcript.go) to
 // map a run boundary onto a chat-memory message count, since the message log
 // itself carries no run markers.
 
@@ -36,7 +36,7 @@ func (r runRecord) isRoot() bool {
 type runTimeline []runRecord
 
 // newRunTimeline parses persisted runs into a timeline ordered by CreatedAt.
-func newRunTimeline(runs []history.Run) (runTimeline, error) {
+func newRunTimeline(runs []transcript.Run) (runTimeline, error) {
 	out := make(runTimeline, 0, len(runs))
 	for _, r := range runs {
 		var ref protocol.RunRef
@@ -138,7 +138,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 		return nil, fmt.Errorf("%w: restoreType %q requires toRunId", protocol.ErrInvalidParams, restoreType)
 	}
 
-	items, runs, err := s.rt.History().List(ctx, in.SessionID)
+	items, runs, err := s.rt.Transcript().List(ctx, in.SessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +178,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	// Drop each run's durable items + run record, and clear any open interrupt
 	// dangling on it (rollback over a parked run un-parks it).
 	for _, rec := range b.Dropped {
-		_ = s.rt.History().DeleteRun(ctx, in.SessionID, rec.ref.ID)
+		_ = s.rt.Transcript().DeleteRun(ctx, in.SessionID, rec.ref.ID)
 		_ = s.rt.Interrupts().Delete(ctx, rec.ref.ID)
 	}
 
@@ -203,7 +203,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 // openingUserInput maps each run id to the content of its FIRST userMessage
 // item — the opening turn the client re-populates the composer from. Runs with
 // no opening user turn (resume / edit continuations) are absent from the map.
-func openingUserInput(items []history.Item) map[string][]protocol.ContentBlock {
+func openingUserInput(items []transcript.Item) map[string][]protocol.ContentBlock {
 	out := map[string][]protocol.ContentBlock{}
 	for _, it := range items {
 		if _, seen := out[it.RunID]; seen {
@@ -247,6 +247,6 @@ func (s *Server) purgeSession(ctx context.Context, sessionID string) {
 		}
 	}
 	_ = s.rt.TruncateMessages(ctx, sessionID, 0) // clear chat-memory
-	_ = s.rt.History().DeleteSession(ctx, sessionID)
+	_ = s.rt.Transcript().DeleteSession(ctx, sessionID)
 	_ = s.rt.Session().Delete(ctx, sessionID)
 }

@@ -135,7 +135,7 @@ func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest
 	// copyN < 0 means "copy the whole history".
 	copyN := -1
 	if in.FromRunID != "" {
-		_, runs, err := s.rt.History().List(ctx, in.SessionID)
+		_, runs, err := s.rt.Transcript().List(ctx, in.SessionID)
 		if err != nil {
 			return nil, wireSessionErr(err)
 		}

@@ -125,7 +125,7 @@ func TestRollback_NoCheckpointStore(t *testing.T) {
 		t.Fatalf("err = %v, want ErrCheckpointUnavailable", err)
 	}
 	// Atomic "both": the files step failed first, so run2 must still be present.
-	_, runs, _ := s.rt.History().List(ctx, ses.ID)
+	_, runs, _ := s.rt.Transcript().List(ctx, ses.ID)
 	if len(runs) != 2 {
 		t.Errorf("runs = %d, want 2 (history untouched after files failure)", len(runs))
 	}

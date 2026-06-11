@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	historysvc "github.com/Tangerg/lynx/lyra/internal/service/history"
 	"github.com/Tangerg/lynx/lyra/internal/infra/storage/sqlite"
+	"github.com/Tangerg/lynx/lyra/internal/service/transcript"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
@@ -95,7 +95,7 @@ func rollbackHarness(t *testing.T) (*Server, *stubRuntime) {
 		sess:       sqlite.NewSessionService(db),
 		model:      "default-model",
 		history:    map[string][]chat.Message{},
-		hist:       sqlite.NewHistoryStore(db),
+		hist:       sqlite.NewTranscriptStore(db),
 		interrupts: sqlite.NewInterruptStore(db),
 	}
 	return &Server{rt: rt, runs: map[string]*runEntry{}}, rt
@@ -105,7 +105,7 @@ func putRun(t *testing.T, rt *stubRuntime, sessionID, runID, parentRunID string,
 	t.Helper()
 	ref := protocol.RunRef{ID: runID, SessionID: sessionID, ParentRunID: parentRunID, CreatedAt: time.Unix(atUnix, 0).UTC()}
 	blob, _ := json.Marshal(ref)
-	if err := rt.hist.PutRun(context.Background(), historysvc.Run{
+	if err := rt.hist.PutRun(context.Background(), transcript.Run{
 		SessionID: sessionID, RunID: runID, UpdatedAt: time.Unix(atUnix, 0).UTC(), Blob: blob, Mark: mark,
 	}); err != nil {
 		t.Fatalf("putRun %s: %v", runID, err)
@@ -116,7 +116,7 @@ func putUserItem(t *testing.T, rt *stubRuntime, sessionID, runID, itemID, text s
 	t.Helper()
 	item := protocol.Item{ID: itemID, RunID: runID, Type: protocol.ItemTypeUserMessage, Content: []protocol.ContentBlock{{Type: "text", Text: text}}}
 	blob, _ := json.Marshal(item)
-	if err := rt.hist.AppendItem(context.Background(), historysvc.Item{
+	if err := rt.hist.AppendItem(context.Background(), transcript.Item{
 		SessionID: sessionID, RunID: runID, ItemID: itemID, CreatedAt: time.Unix(1, 0).UTC(), Blob: blob,
 	}); err != nil {
 		t.Fatalf("putUserItem %s: %v", itemID, err)

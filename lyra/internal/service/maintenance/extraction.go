@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 
-	lyramem "github.com/Tangerg/lynx/lyra/internal/service/memory"
+	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
 )
 
 // Extractor folds long-term knowledge out of a session and appends
@@ -24,7 +24,7 @@ import (
 // undo that.
 type Extractor struct {
 	store   memory.Store
-	memSvc  lyramem.Service
+	memSvc  knowledge.Service
 	client  *chat.Client
 	minMsgs int
 }
@@ -42,7 +42,7 @@ type ExtractionResult struct {
 
 // NewExtractor builds an Extractor over the chat-memory store, the
 // long-term LYRA.md service, and the chat client.
-func NewExtractor(store memory.Store, memSvc lyramem.Service, client *chat.Client) *Extractor {
+func NewExtractor(store memory.Store, memSvc knowledge.Service, client *chat.Client) *Extractor {
 	return &Extractor{
 		store:   store,
 		memSvc:  memSvc,
@@ -78,12 +78,12 @@ func (e *Extractor) MaybeExtract(ctx context.Context, sessionID, cwd string) (Ex
 		return ExtractionResult{}, nil
 	}
 
-	existing, err := e.memSvc.Get(ctx, lyramem.ScopeProject, cwd)
+	existing, err := e.memSvc.Get(ctx, knowledge.ScopeProject, cwd)
 	if err != nil {
 		return ExtractionResult{}, fmt.Errorf("extractor: read memory: %w", err)
 	}
 	updated := mergeMemory(existing, facts)
-	if err := e.memSvc.Update(ctx, lyramem.ScopeProject, cwd, updated); err != nil {
+	if err := e.memSvc.Update(ctx, knowledge.ScopeProject, cwd, updated); err != nil {
 		return ExtractionResult{}, err
 	}
 	return ExtractionResult{Extracted: true, Facts: facts}, nil

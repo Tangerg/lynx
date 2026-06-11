@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/Tangerg/lynx/lyra/internal/service/history"
+	"github.com/Tangerg/lynx/lyra/internal/service/transcript"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
@@ -16,7 +16,7 @@ import (
 // the live stream. The nil guard only covers test stubs; the real runtime
 // always supplies a history store.
 func (s *Server) persistStreamEvent(ctx context.Context, runID, sessionID, parentRunID string, se protocol.StreamEvent) {
-	if s.rt.History() == nil {
+	if s.rt.Transcript() == nil {
 		return
 	}
 	switch se.Type {
@@ -52,7 +52,7 @@ func (s *Server) persistStreamEvent(ctx context.Context, runID, sessionID, paren
 
 // persistItem appends one completed Item to the history store.
 func (s *Server) persistItem(ctx context.Context, sessionID string, item *protocol.Item) {
-	store := s.rt.History()
+	store := s.rt.Transcript()
 	if store == nil || item == nil {
 		return
 	}
@@ -60,7 +60,7 @@ func (s *Server) persistItem(ctx context.Context, sessionID string, item *protoc
 	if err != nil {
 		return
 	}
-	_ = store.AppendItem(ctx, history.Item{
+	_ = store.AppendItem(ctx, transcript.Item{
 		SessionID: sessionID,
 		RunID:     item.RunID,
 		ItemID:    item.ID,
@@ -72,7 +72,7 @@ func (s *Server) persistItem(ctx context.Context, sessionID string, item *protoc
 // persistRun upserts one RunRef into the history store. mark is the per-run
 // message watermark recorded at finish (-1 at start / when unknown).
 func (s *Server) persistRun(ctx context.Context, sessionID string, run *protocol.RunRef, mark int) {
-	store := s.rt.History()
+	store := s.rt.Transcript()
 	if store == nil || run == nil {
 		return
 	}
@@ -80,7 +80,7 @@ func (s *Server) persistRun(ctx context.Context, sessionID string, run *protocol
 	if err != nil {
 		return
 	}
-	_ = store.PutRun(ctx, history.Run{
+	_ = store.PutRun(ctx, transcript.Run{
 		SessionID: sessionID,
 		RunID:     run.ID,
 		UpdatedAt: time.Now().UTC(),
