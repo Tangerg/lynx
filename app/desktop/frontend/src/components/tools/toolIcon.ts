@@ -26,6 +26,8 @@ export function toolIconFor(key: string): IconName {
 
   // Fallback by tool name (§4.4.2 display conventions).
   if (key === "bash" || key === "shell") return "terminal";
+  if (key === "run_in_background" || key === "bash_output") return "terminal";
+  if (key === "kill_shell") return "stop";
   if (key === "edit" || key === "write" || key === "read") return "file";
   if (key === "grep" || key === "glob") return "search";
   if (key === "webSearch") return "globe";

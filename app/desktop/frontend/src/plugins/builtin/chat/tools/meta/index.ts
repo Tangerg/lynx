@@ -37,6 +37,9 @@ export const toolIcons = definePlugin({
     // Keyed by tool `name` (the routing key, §4.4.2 display conventions).
     host.extensions.contribute(TOOL_ICON, "terminal", { key: "bash" });
     host.extensions.contribute(TOOL_ICON, "terminal", { key: "shell" });
+    host.extensions.contribute(TOOL_ICON, "terminal", { key: "run_in_background" });
+    host.extensions.contribute(TOOL_ICON, "terminal", { key: "bash_output" });
+    host.extensions.contribute(TOOL_ICON, "stop", { key: "kill_shell" });
     host.extensions.contribute(TOOL_ICON, "file", { key: "edit" });
     host.extensions.contribute(TOOL_ICON, "file", { key: "write" });
     host.extensions.contribute(TOOL_ICON, "file", { key: "read" });
