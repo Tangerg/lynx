@@ -49,6 +49,11 @@ type WorkspaceEvent struct {
 	// files.changed
 	WatchID string   `json:"watchId,omitempty"`
 	Paths   []string `json:"paths,omitempty"`
+	// Cwd scopes a tool-derived files.changed to the session's working
+	// directory (paths are relative to it) — set when the change comes from an
+	// agent file tool rather than a client-registered watch, so a client can
+	// tell whether the change belongs to the project it's showing.
+	Cwd string `json:"cwd,omitempty"`
 	// mcp.serverChanged
 	Server    string       `json:"server,omitempty"`
 	Status    string       `json:"status,omitempty"`

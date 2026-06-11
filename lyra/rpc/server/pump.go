@@ -65,6 +65,9 @@ func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 	tr := newTranslator(handle.SessionID, runID, parentRunID, userInput, resume)
 	finished := false
 	parked := false
+	// The session's cwd, resolved once: tool-derived files.changed events carry
+	// it so a workspace subscriber can scope the (cwd-relative) paths.
+	cwd := s.sessionCwd(ctx, handle.SessionID)
 
 	// emit assigns each StreamEvent its eventId, persists the durable
 	// side to history, and appends to the hub. hub.Append is non-blocking
@@ -101,6 +104,9 @@ func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 			// the terminal run.finished synthesized on a canceled run) lands
 			// regardless of run-ctx cancellation.
 			s.persistStreamEvent(context.Background(), runID, handle.SessionID, parentRunID, se)
+			// Tell workspace subscribers a file changed when an agent file tool
+			// completes — precise + fd-free, so the watcher needn't watch the tree.
+			s.emitToolFileChange(cwd, se)
 			hub.Append(re)
 		}
 	}

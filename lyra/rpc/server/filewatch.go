@@ -1,213 +1,104 @@
 package server
 
 import (
-	"maps"
 	"os"
 	"path/filepath"
-	"slices"
-	"strings"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/Tangerg/lynx/lyra/internal/git"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
-// fileWatchDebounce coalesces a burst of filesystem events into one
-// files.changed per watch — an editor write-renames-chmods a file several
-// times within a few ms, and the client only needs "something under this watch
-// changed → re-fetch" (AUX_API §3.2).
-const fileWatchDebounce = 150 * time.Millisecond
+// gitWatchDebounce coalesces a burst of .git writes (a single git command
+// rewrites several refs/index/HEAD in a few ms) into one resync.
+const gitWatchDebounce = 200 * time.Millisecond
 
-// watchTarget is one resolved workspace.subscribe watch: the client-chosen id,
-// the cwd emitted paths are relativized against, the absolute directory watched
-// (cwd joined with the jailed relative path), and the cwd's .gitignore matcher
-// (so the watch skips ignored subtrees + drops ignored-file events).
-type watchTarget struct {
-	watchID string
-	cwdRoot string // abs; emitted paths are relative to this
-	absPath string // abs directory watched (cwdRoot + the jailed rel path)
-	ignore  *git.Ignore
+// gitWatcher watches a cwd's .git "signal" files — HEAD, index, packed-refs,
+// ORIG_HEAD / MERGE_HEAD (direct children of .git) and refs/heads/* — and emits
+// a debounced resync when any change, i.e. when git state moves (commit, stage,
+// checkout, branch, merge) by ANY process. The client then re-fetches
+// workspace.getDiff / listFileChanges.
+//
+// It deliberately does NOT watch the working tree. On macOS Go's fsnotify uses
+// kqueue, which opens a file descriptor per watched file — a recursive watch of
+// a real project tree exhausts the process's FDs and takes the server down
+// (the bug this replaces). The peers that can't use FSEvents avoid tree-watch
+// the same way: codex watches only requested paths, Claude Code watches just
+// the .git signal set + diffs on demand. The agent's OWN edits don't need a
+// watcher at all — they're emitted as files.changed straight from its
+// file-mutating tools (see runs.go emitToolFileChange).
+type gitWatcher struct {
+	fsw    *fsnotify.Watcher
+	emit   func(protocol.WorkspaceEvent)
+	done   chan struct{}
+	exited chan struct{}
 }
 
-// fileWatcher watches the resolved targets and emits a debounced files.changed
-// per watch via emit (a lossy send onto the subscription channel). Recursive:
-// every directory under a target is added up front and new directories are
-// added as they appear (fsnotify itself is non-recursive). Its lifetime is the
-// workspace.subscribe request — [fileWatcher.Close] stops the run goroutine
-// before the subscription channel is closed, so emit never races that close.
-type fileWatcher struct {
-	fsw     *fsnotify.Watcher
-	targets []watchTarget
-	emit    func(protocol.WorkspaceEvent)
-	done    chan struct{}
-	exited  chan struct{}
-}
-
-// maxWatchedDirs bounds how many directories one subscription's recursive watch
-// adds. fsnotify is non-recursive, and on macOS its kqueue backend opens a file
-// descriptor PER watched directory AND per file within it — so an unbounded
-// walk over a real project tree exhausts the process's FDs and takes the whole
-// server down. The cap (plus the ignore set below) keeps a watch's FD cost
-// bounded; a tree that exceeds it gets a partial watch + a resync signal.
-const maxWatchedDirs = 1024
-
-// watchIgnoreDirs are directories never worth watching — VCS metadata, dependency
-// and build caches. They dominate a tree's directory count (and thus its FD cost)
-// while almost never being what a client wants change events for.
-var watchIgnoreDirs = map[string]struct{}{
-	".git": {}, ".hg": {}, ".svn": {},
-	"node_modules": {}, "vendor": {}, "bower_components": {},
-	"target": {}, "dist": {}, "build": {}, "out": {}, ".next": {}, ".nuxt": {},
-	"__pycache__": {}, ".venv": {}, "venv": {}, ".tox": {},
-	".idea": {}, ".cache": {}, ".gradle": {}, ".terraform": {}, ".turbo": {},
-}
-
-// startFileWatcher resolves the watch set onto a live recursive fsnotify watch,
-// bounded by maxWatchedDirs. When the bound clips the tree, it emits a resync so
-// the client re-fetches rather than trusting a watch it knows is partial.
-func startFileWatcher(targets []watchTarget, emit func(protocol.WorkspaceEvent)) (*fileWatcher, error) {
+// startGitWatcher watches the signal files of each distinct .git directory.
+// gitDirs that don't exist (no repo) are skipped — the watch is then inert,
+// which is correct (workspace.getDiff would itself report vcs_unavailable).
+func startGitWatcher(gitDirs []string, emit func(protocol.WorkspaceEvent)) (*gitWatcher, error) {
 	fsw, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err
 	}
-	w := &fileWatcher{
-		fsw:     fsw,
-		targets: targets,
-		emit:    emit,
-		done:    make(chan struct{}),
-		exited:  make(chan struct{}),
-	}
-	added := 0
-	for i := range targets {
-		added += w.addTree(&targets[i], maxWatchedDirs-added)
-	}
-	if added >= maxWatchedDirs {
-		emit(protocol.WorkspaceEvent{Type: "resync"})
+	w := &gitWatcher{fsw: fsw, emit: emit, done: make(chan struct{}), exited: make(chan struct{})}
+	for _, g := range gitDirs {
+		// .git holds HEAD / index / packed-refs / ORIG_HEAD / MERGE_HEAD as
+		// direct children; refs/heads holds the per-branch refs. Watching these
+		// two directories (non-recursive) covers every git state transition at a
+		// fixed, tiny FD cost. Best-effort: a missing dir is simply not watched.
+		_ = fsw.Add(g)
+		_ = fsw.Add(filepath.Join(g, "refs", "heads"))
 	}
 	go w.run()
 	return w, nil
 }
 
-// addTree adds the target's directory and subdirectories to the watch set, up
-// to budget dirs, skipping both the static ignore set and the cwd's .gitignore
-// (and not descending into either). fsnotify is non-recursive, so a recursive
-// watch is a walk + per-dir Add. Returns how many directories were added so the
-// caller can detect a clipped (partial) watch. Best-effort: unreadable subtrees
-// are skipped, not fatal.
-func (w *fileWatcher) addTree(t *watchTarget, budget int) int {
-	if budget <= 0 {
-		return 0
-	}
-	added := 0
-	_ = filepath.WalkDir(t.absPath, func(path string, d os.DirEntry, err error) error {
-		if err != nil || !d.IsDir() {
-			return nil //nolint:nilerr // skip unreadable entries / non-dirs
-		}
-		if path != t.absPath {
-			if _, ignore := watchIgnoreDirs[d.Name()]; ignore {
-				return filepath.SkipDir
-			}
-			if rel, rerr := filepath.Rel(t.cwdRoot, path); rerr == nil && t.ignore.Match(rel, true) {
-				return filepath.SkipDir // gitignored subtree
-			}
-		}
-		if added >= budget {
-			return filepath.SkipAll
-		}
-		if w.fsw.Add(path) == nil {
-			added++
-		}
-		return nil
-	})
-	return added
-}
-
-func (w *fileWatcher) run() {
+func (w *gitWatcher) run() {
 	defer close(w.exited)
-
-	pending := map[string]map[string]struct{}{} // watchID → set of rel paths
-	timer := time.NewTimer(fileWatchDebounce)
-	timer.Stop() // start idle; armed on the first event
+	timer := time.NewTimer(gitWatchDebounce)
+	timer.Stop()
 	armed := false
-
-	flush := func() {
-		for watchID, paths := range pending {
-			w.emit(protocol.WorkspaceEvent{Type: "files.changed", WatchID: watchID, Paths: slices.Sorted(maps.Keys(paths))})
-		}
-		pending = map[string]map[string]struct{}{}
-		armed = false
-	}
-
 	for {
 		select {
 		case <-w.done:
 			return
-		case ev, ok := <-w.fsw.Events:
+		case _, ok := <-w.fsw.Events:
 			if !ok {
 				return
 			}
-			t := w.match(ev.Name)
-			if t == nil {
-				continue
-			}
-			rel, err := filepath.Rel(t.cwdRoot, ev.Name)
-			if err != nil {
-				continue
-			}
-			// A newly-created directory extends the recursive watch — but not
-			// into ignored subtrees (else `mkdir node_modules` re-arms the leak).
-			if ev.Op&fsnotify.Create != 0 {
-				if info, serr := os.Stat(ev.Name); serr == nil && info.IsDir() {
-					if _, deny := watchIgnoreDirs[filepath.Base(ev.Name)]; !deny && !t.ignore.Match(rel, true) {
-						_ = w.fsw.Add(ev.Name)
-					}
-				}
-			}
-			// Drop changes to ignored files (e.g. *.log inside a watched dir).
-			if t.ignore.Match(rel, false) {
-				continue
-			}
-			set := pending[t.watchID]
-			if set == nil {
-				set = map[string]struct{}{}
-				pending[t.watchID] = set
-			}
-			set[rel] = struct{}{}
 			if !armed {
-				timer.Reset(fileWatchDebounce)
+				timer.Reset(gitWatchDebounce)
 				armed = true
 			}
 		case <-w.fsw.Errors:
-			// Watcher errors are non-fatal (e.g. a transient overflow) — keep going.
+			// Non-fatal (transient overflow / removed ref dir) — keep watching.
 		case <-timer.C:
-			flush()
+			armed = false
+			w.emit(protocol.WorkspaceEvent{Type: "resync"})
 		}
 	}
-}
-
-// match returns the target whose watched directory contains abs; the longest
-// absPath wins when targets nest, so the event is attributed to the most
-// specific watch.
-func (w *fileWatcher) match(abs string) *watchTarget {
-	var best *watchTarget
-	for i := range w.targets {
-		t := &w.targets[i]
-		if abs == t.absPath || strings.HasPrefix(abs, t.absPath+string(filepath.Separator)) {
-			if best == nil || len(t.absPath) > len(best.absPath) {
-				best = t
-			}
-		}
-	}
-	return best
 }
 
 // Close stops the run goroutine and waits for it to exit before closing the
-// underlying watcher — so no emit is in flight when the caller closes the
-// subscription channel.
-func (w *fileWatcher) Close() {
+// underlying watcher, so no emit is in flight when the subscription channel is
+// closed.
+func (w *gitWatcher) Close() {
 	close(w.done)
 	<-w.exited
 	_ = w.fsw.Close()
+}
+
+// gitDirOf returns the .git directory for root, or ok=false when root isn't a
+// git repository (no .git, or a .git file — worktree/submodule links aren't
+// followed in v1; the watch is then inert).
+func gitDirOf(root string) (string, bool) {
+	g := filepath.Join(root, ".git")
+	info, err := os.Stat(g)
+	if err != nil || !info.IsDir() {
+		return "", false
+	}
+	return g, true
 }
