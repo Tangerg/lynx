@@ -8,7 +8,7 @@
 // are a *presentation projection* the reducer folds these wire shapes
 // into; this file is the upstream contract.
 
-import type { AttachmentId, ItemId, RunId, SessionId, TaskId } from "./ids";
+import type { AttachmentId, ItemId, RunId, SessionId } from "./ids";
 
 // ---------------------------------------------------------------------------
 // §3 / §9 — Lifecycle + capabilities
@@ -27,8 +27,7 @@ export interface ServerFeatures {
   reasoning: boolean;
   mcp: boolean;
   multimodal: boolean;
-  checkpoints: boolean;
-  background: boolean;
+  checkpoints: boolean; // [v2] gates restoreType (file snapshots) — AUX_API §4.3
   subagents: boolean;
   skills: boolean;
   sessionExport: boolean;
@@ -43,6 +42,7 @@ export interface ServerCapabilities {
   events: string[]; // event types the server emits
   features: ServerFeatures; // unset flag ⇒ false
   providers: string[];
+  streamingMethods: string[]; // machine-readable stream-method set (§9) — clients never hardcode
   limits: { maxConcurrentRuns?: number };
 }
 
@@ -123,7 +123,10 @@ export interface UpdateSessionRequest {
 
 export interface ForkSessionRequest {
   sessionId: SessionId;
-  fromItemId?: ItemId; // fork at an item boundary
+  // Fork at a run boundary: copy history up to AND INCLUDING this root run.
+  // Omitted = whole-session fork. (AUX_API §4.2 — replaced item-level
+  // fromItemId; run boundaries are reliable without an item↔message join.)
+  fromRunId?: RunId;
   title?: string;
 }
 
@@ -511,16 +514,6 @@ export interface Attachment {
   createdAt: string;
 }
 
-export interface BackgroundTask {
-  id: TaskId;
-  category: string; // open classification (§2.6 namespace) — NOT `kind` (§2.1: kind never on wire)
-  status: "running" | "completed" | "failed" | "canceled";
-  createdAt: string;
-  updatedAt?: string;
-  result?: unknown;
-  error?: ProblemData;
-}
-
 // ---------------------------------------------------------------------------
 // §4.11 — Pagination
 // ---------------------------------------------------------------------------
@@ -664,16 +657,6 @@ export interface ListItemsRequest {
 // `resp.data` (no `data` vs `items` drift across the surface).
 export interface ListItemsResponse extends Page<Item> {
   runs: RunRef[]; // owning Runs (finished/running), with parentRunId/spawnedByItemId
-}
-
-export interface EditItemRequest {
-  itemId: ItemId;
-  replacement: ContentBlock[];
-}
-
-export interface EditItemResponse {
-  runId: RunId; // new continuation Run
-  parentRunId: RunId;
 }
 
 // ---------------------------------------------------------------------------

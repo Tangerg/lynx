@@ -15,7 +15,6 @@ function makeCaps(overrides: Partial<ServerCapabilities> = {}): ServerCapabiliti
       multimodal: false,
       reasoning: true,
       checkpoints: false,
-      background: true,
       subagents: false,
       skills: false,
       mcp: true,
@@ -26,6 +25,7 @@ function makeCaps(overrides: Partial<ServerCapabilities> = {}): ServerCapabiliti
       attachments: { enabled: false },
     },
     providers: ["openai", "anthropic"],
+    streamingMethods: ["runs.start", "runs.resume", "runs.subscribe"],
     limits: {},
     ...overrides,
   };

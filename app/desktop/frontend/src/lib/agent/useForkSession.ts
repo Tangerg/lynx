@@ -6,9 +6,8 @@ import { useSessionStore } from "@/state/sessionStore";
 
 /**
  * Fork a session (whole-history copy, sessions.fork) and jump into the new
- * branch. The runtime only supports full-session forks today — forking from
- * an item boundary (`fromItemId`) waits on checkpoints, so no position is
- * passed here (backend note 2026-06-10 §3.7).
+ * branch. Forking from a run boundary (`fromRunId`, AUX_API §4.2) lands with
+ * backend batch B4 — until then no position is passed here.
  *
  * The fork inherits the source's chat history, so unlike a fresh create it
  * is no draft — it shows in the sidebar immediately.
