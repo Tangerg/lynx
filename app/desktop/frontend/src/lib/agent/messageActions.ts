@@ -6,8 +6,8 @@
 // §5): both callers mount once per message, so they must not subscribe.
 
 import type { Message } from "@/protocol/run/viewState";
-import { toast } from "sonner";
 import { getContainer } from "@/main/container";
+import { notifyError, notifyInfo } from "@/lib/notify";
 import { asRunId, asSessionId } from "@/rpc";
 import { getCurrentSessionView, useAgentStore } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
@@ -46,7 +46,9 @@ async function rollbackToBefore(
   if (idx < 0) return false;
   const keep = idx > 0 ? roots[idx - 1]!.id : undefined;
   if (restoreFiles && !keep) {
-    toast.info("No checkpoint before the first turn — files left as they are.");
+    notifyInfo("No checkpoint before the first turn — files left as they are.", {
+      source: "session",
+    });
   }
   await client.sessions.rollback({
     sessionId: sid,
@@ -63,7 +65,7 @@ async function rollbackToBefore(
 function reportRollbackError(err: unknown): void {
   const copy = describeRpcError(err);
   if (!copy) console.error("[message] rollback failed:", err);
-  toast.error(copy ?? "Couldn't rewind the conversation.");
+  notifyError(copy ?? "Couldn't rewind the conversation.", { source: "session" });
 }
 
 export interface RollbackActionOptions {

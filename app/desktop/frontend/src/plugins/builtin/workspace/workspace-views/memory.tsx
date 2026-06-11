@@ -5,12 +5,12 @@
 
 import type { MemoryEntryInfo } from "@/lib/data/queries";
 import { useState } from "react";
-import { toast } from "sonner";
 import { DataView, FIELD_CLASSES, Icon, PillButton } from "@/components/common";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { MEMORY_KEY, useMemory } from "@/lib/data/queries";
 import { queryClient } from "@/lib/data/queryClient";
 import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
+import { notifyError } from "@/lib/notify";
 import { cn } from "@/lib/utils";
 import { getContainer } from "@/main/container";
 import { useServerFeature } from "@/state/runtimeStore";
@@ -41,8 +41,9 @@ function MemoryRow({ entry, cwd }: { entry: MemoryEntryInfo; cwd?: string }) {
         void queryClient.invalidateQueries({ queryKey: [MEMORY_KEY] });
       })
       .catch((err: unknown) => {
-        toast.error("Memory save failed", {
+        notifyError("Memory save failed", {
           description: err instanceof Error ? err.message : String(err),
+          source: "memory",
         });
       })
       .finally(() => setSaving(false));

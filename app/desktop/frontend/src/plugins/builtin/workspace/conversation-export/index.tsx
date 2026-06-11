@@ -21,6 +21,7 @@ import type { Message } from "@/protocol/run/viewState";
 import type { SessionArtifact } from "@/rpc";
 import { toast } from "sonner";
 import { z } from "zod";
+import { notifyError } from "@/lib/notify";
 import { asSessionId } from "@/rpc";
 import { definePlugin } from "@/plugins/sdk";
 import { getContainer } from "@/main/container";
@@ -162,7 +163,7 @@ function pickFile(): Promise<string | null> {
  *  session that's currently mounted we rebuild its view from the server. */
 async function importConversation(): Promise<void> {
   if (!serverFeature("sessionExport")) {
-    toast.error("This runtime doesn't support session import.");
+    notifyError("This runtime doesn't support session import.", { source: "import" });
     return;
   }
   const text = await pickFile();
@@ -171,11 +172,13 @@ async function importConversation(): Promise<void> {
   try {
     raw = JSON.parse(text);
   } catch {
-    toast.error("Not a JSON file.");
+    notifyError("Not a JSON file.", { source: "import" });
     return;
   }
   if (!artifactEnvelope.safeParse(raw).success) {
-    toast.error("Not a Lyra session export — pick a JSON exported via “Export conversation”.");
+    notifyError("Not a Lyra session export — pick a JSON exported via “Export conversation”.", {
+      source: "import",
+    });
     return;
   }
   try {
@@ -192,7 +195,7 @@ async function importConversation(): Promise<void> {
     toast.success(`Imported “${session.title ?? session.id}”.`);
   } catch (err) {
     console.error("[import] sessions.import failed:", err);
-    toast.error("Couldn't import the conversation.");
+    notifyError("Couldn't import the conversation.", { source: "import" });
   }
 }
 
