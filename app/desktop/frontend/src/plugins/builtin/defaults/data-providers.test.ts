@@ -96,7 +96,15 @@ describe("defaultData — providers over JSON-RPC", () => {
         },
       ],
     ]);
-    expect(rows).toEqual([{ id: "/work/fern", name: "fern-api", branch: "feat/result-type" }]);
+    expect(rows).toEqual([
+      {
+        id: "/work/fern",
+        name: "fern-api",
+        branch: "feat/result-type",
+        sessionCount: 3,
+        cwdMissing: undefined,
+      },
+    ]);
   });
 
   it("mcp-servers: maps the enriched B3 entry (inline toolCount, 5-state, error detail)", async () => {

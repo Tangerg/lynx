@@ -22,7 +22,7 @@ export function useChatSend(): (text: string) => void {
     (text: string) => {
       if (running) return;
       if (useSessionStore.getState().activeSessionId && send) send(text);
-      else void createSession(text);
+      else void createSession({ firstMessage: text });
     },
     [send, running, createSession],
   );
