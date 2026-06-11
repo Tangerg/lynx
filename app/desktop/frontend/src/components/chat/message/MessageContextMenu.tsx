@@ -26,7 +26,7 @@ import {
   flattenText,
   writeToClipboard,
 } from "@/lib/agent/messageContent";
-import { useRuntimeStore } from "@/state/runtimeStore";
+import { serverFeature } from "@/state/runtimeStore";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -42,9 +42,9 @@ export function MessageContextMenu({ msg, children }: Props) {
   const isUser = msg.role === "user";
   const isAssistant = msg.role === "assistant";
   const canCopy = Boolean(markdown || plain);
-  // getState, not a subscription (see header comment) — capabilities are
-  // handshake-time stable and messages can't exist before the handshake.
-  const canRestoreFiles = useRuntimeStore.getState().capabilities?.features.checkpoints === true;
+  // Imperative read, not a subscription (see header comment) — capabilities
+  // are handshake-time stable and messages can't exist before the handshake.
+  const canRestoreFiles = serverFeature("checkpoints");
 
   return (
     <ContextMenu.Root>

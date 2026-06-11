@@ -91,6 +91,13 @@ export function useServerFeature(feature: ServerFeature): boolean {
   return useRuntimeStore((s) => s.capabilities?.features[feature] === true);
 }
 
+/** Imperative twin of {@link useServerFeature} for non-React call sites
+ *  (palette commands, context-menu handlers, module-level wiring). Same
+ *  pre-handshake default: false. */
+export function serverFeature(feature: ServerFeature): boolean {
+  return useRuntimeStore.getState().capabilities?.features[feature] === true;
+}
+
 /** Returns true if the server emits a specific StreamEvent type (§9). */
 export function useServerEmitsEvent(eventType: string): boolean {
   return useRuntimeStore((s) => s.capabilities?.events.includes(eventType) === true);
