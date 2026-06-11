@@ -1,0 +1,31 @@
+// Single home for translating protocol error types (API.md §8.2) into
+// user-facing copy — the same type must read the same everywhere it
+// surfaces. Branch logic still uses isErrorType at the call site when an
+// error type changes BEHAVIOR (retry, keep-input-open); this table only
+// owns the words.
+
+import { errorDetail, errorType, RpcError } from "@/rpc";
+
+const ERROR_COPY: Record<string, string> = {
+  session_busy: "Session is busy — wait for the current run to finish.",
+  checkpoint_unavailable: "No file checkpoint for that turn — nothing was changed.",
+  cwd_unavailable: "That path does not exist on the runtime's disk.",
+  vcs_unavailable: "This folder isn't a git repository.",
+  provider_error: "The model provider didn't respond — try again.",
+};
+
+/** Friendly copy for a mapped protocol error type; undefined otherwise.
+ *  Callers append their own context-specific fallback. */
+export function describeRpcError(err: unknown): string | undefined {
+  if (!(err instanceof RpcError)) return undefined;
+  const type = errorType(err.data);
+  return type ? ERROR_COPY[type] : undefined;
+}
+
+/** Best human-readable text for any RPC error: mapped copy, then the
+ *  server's per-occurrence detail, then the raw message. Undefined for
+ *  non-RPC errors (transport failures, programming errors). */
+export function rpcErrorText(err: unknown): string | undefined {
+  if (!(err instanceof RpcError)) return undefined;
+  return describeRpcError(err) ?? errorDetail(err.data) ?? err.message;
+}
