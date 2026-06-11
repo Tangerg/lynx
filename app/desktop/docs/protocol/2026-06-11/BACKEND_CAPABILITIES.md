@@ -77,7 +77,7 @@
 | B4 | `sessions.rollback` + `fork{fromRunId}` 真逻辑 | rollback `method_not_found`;fromRunId `checkpoint_unavailable` |
 | B5 | 审批 `remember{scope}` | 旧后端忽略该字段(UI 可先画原型不接线) |
 
-attachments / sessions.export / checkpoints(v2 影子 git)维持 `false`,见 [`../AUX_API.md §1`](../AUX_API.md)。
+attachments / checkpoints(v2 影子 git)维持 `false`,见 [`../AUX_API.md §1`](../AUX_API.md)。`sessionExport` 现已 `true`(sessions.export 内联 json/md + sessions.import restore)。
 
 ---
 
