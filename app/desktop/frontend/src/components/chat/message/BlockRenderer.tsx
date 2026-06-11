@@ -93,9 +93,13 @@ export function renderBlock(block: ContentBlock, key: number, ctx: BlockCtx) {
       return <PlanBlock key={key} plan={ctx.plan} />;
 
     case "approval":
+      // Identity key, NOT the block index: HITL cards hold per-interrupt
+      // local state (remember / edited args / answers). Index keying reuses
+      // the component instance when a different approval lands at the same
+      // position, leaking one interrupt's draft state into the next.
       return (
         <ApprovalCard
-          key={key}
+          key={block.itemId ?? key}
           status={block.status}
           what={block.text}
           cmd={block.command}
@@ -112,9 +116,10 @@ export function renderBlock(block: ContentBlock, key: number, ctx: BlockCtx) {
       );
 
     case "question":
+      // Identity key — same reasoning as the approval card above.
       return (
         <QuestionCard
-          key={key}
+          key={block.itemId ?? key}
           status={block.status}
           parentRunId={block.parentRunId}
           itemId={block.itemId}
