@@ -128,6 +128,16 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 		return nil, fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, in.SessionID)
 	}
 
+	restoreType := in.RestoreType
+	if restoreType == "" {
+		restoreType = protocol.RestoreHistory
+	}
+	doFiles := restoreType == protocol.RestoreFiles || restoreType == protocol.RestoreBoth
+	doHistory := restoreType == protocol.RestoreHistory || restoreType == protocol.RestoreBoth
+	if doFiles && in.ToRunID == "" {
+		return nil, fmt.Errorf("%w: restoreType %q requires toRunId", protocol.ErrInvalidParams, restoreType)
+	}
+
 	items, runs, err := s.rt.History().List(ctx, in.SessionID)
 	if err != nil {
 		return nil, err
@@ -140,8 +150,18 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	if err != nil {
 		return nil, err
 	}
-	if len(b.Dropped) == 0 {
-		// ToRunID is already the latest turn — nothing after it to drop.
+
+	// Files first — for "both" this is the atomicity guarantee: if the working
+	// tree can't be restored, return now and leave history untouched.
+	if doFiles {
+		if err := s.restoreCheckpoint(ctx, in.SessionID, in.ToRunID); err != nil {
+			return nil, err
+		}
+	}
+
+	if !doHistory || len(b.Dropped) == 0 {
+		// History stays (files-only rollback), or ToRunID is already the latest
+		// turn so there's nothing after it to drop.
 		out := s.sessionToWire(ses)
 		return &protocol.RollbackSessionResponse{Session: &out, DroppedRuns: []protocol.DroppedRun{}}, nil
 	}

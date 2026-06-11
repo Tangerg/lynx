@@ -102,7 +102,21 @@ type ForkSessionRequest struct {
 type RollbackSessionRequest struct {
 	SessionID string `json:"sessionId"`
 	ToRunID   string `json:"toRunId,omitempty"`
+	// RestoreType selects what the rollback rewinds (AUX_API §4.3), default
+	// "history". "files"/"both" restore the working tree to ToRunID's
+	// checkpoint and require ToRunID + features.checkpoints; "both" is atomic
+	// (files first — if they fail, history is left untouched).
+	RestoreType RestoreType `json:"restoreType,omitempty"`
 }
+
+// RestoreType selects what sessions.rollback rewinds.
+type RestoreType string
+
+const (
+	RestoreHistory RestoreType = "history" // chat history only (default; files untouched)
+	RestoreFiles   RestoreType = "files"   // working-tree files only (history untouched)
+	RestoreBoth    RestoreType = "both"    // both, atomically (files first)
+)
 
 // RollbackSessionResponse — sessions.rollback result. DroppedRuns lists what
 // was removed (newest-relevant first is not required; the server returns drop
