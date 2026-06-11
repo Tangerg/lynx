@@ -100,6 +100,7 @@ export const en: Record<string, string> = {
   "approval.required": "Approval required",
   "approval.action.approve": "Approve",
   "approval.action.decline": "Decline",
+  "approval.remember": "Don't ask again this session",
   "approval.risk.low": "Low risk",
   "approval.risk.medium": "Medium risk",
   "approval.risk.high": "High risk",

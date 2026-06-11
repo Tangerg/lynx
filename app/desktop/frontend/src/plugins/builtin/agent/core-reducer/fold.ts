@@ -167,7 +167,9 @@ export function appendUserMessage(
         ?.text === text,
   );
   if (placeholder !== -1) {
-    const messages = state.messages.map((m, i) => (i === placeholder ? { ...m, id: item.id } : m));
+    const messages = state.messages.map((m, i) =>
+      i === placeholder ? { ...m, id: item.id, runId: item.runId } : m,
+    );
     return { ...state, messages, turnMessageId: null };
   }
   const msg: Message = {
@@ -175,6 +177,7 @@ export function appendUserMessage(
     role: "user",
     who: nameForRole("user"),
     time: formatTime(item.createdAt),
+    runId: item.runId,
     blocks: [{ kind: "text", text, status: "complete" }],
   };
   return { ...state, messages: [...state.messages, msg], turnMessageId: null };

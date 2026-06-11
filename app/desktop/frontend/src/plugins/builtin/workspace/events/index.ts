@@ -69,9 +69,16 @@ async function subscribeLoop(signal: AbortSignal): Promise<void> {
   let attempt = 0;
   while (!signal.aborted) {
     try {
-      // No watches yet — features.fileWatch is still off; bare subscription
-      // carries skills/mcp/resync. Watches join here when the feature lands.
-      const { events } = await getContainer().client().workspace.subscribe(undefined, signal);
+      // One recursive watch on the serve-dir root drives files-changed/diff
+      // refresh (paths come debounced + lossy, AUX_API §3). Bare subscription
+      // (skills/mcp/resync) works regardless of the fileWatch capability.
+      const fileWatch = useRuntimeStore.getState().capabilities?.features.fileWatch === true;
+      const { events } = await getContainer()
+        .client()
+        .workspace.subscribe(
+          fileWatch ? { watches: [{ watchId: "workspace-root" }] } : undefined,
+          signal,
+        );
       attempt = 0;
       // (Re)connected = implicit resync: anything that changed while we were
       // dark is unknown, so refetch before trusting the cache again.

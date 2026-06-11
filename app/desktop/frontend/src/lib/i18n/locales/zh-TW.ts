@@ -84,6 +84,7 @@ export const zhTW: Record<string, string> = {
   "approval.required": "需要核可",
   "approval.action.approve": "核可",
   "approval.action.decline": "拒絕",
+  "approval.remember": "本對話不再詢問",
   "approval.risk.low": "低風險",
   "approval.risk.medium": "中風險",
   "approval.risk.high": "高風險",

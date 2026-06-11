@@ -52,6 +52,7 @@ interface AgentStore {
   applyEvents: (sessionId: string, events: StreamEvent[]) => void;
   /** Discard a session's state and start clean (e.g. on agent re-mount). */
   resetSession: (sessionId: string) => void;
+  resetView: (sessionId: string) => void;
   /**
    * Rename a message id (optimistic placeholder → server id). Used to
    * reconcile the optimistic user bubble with the run's `userItemId` the
@@ -129,6 +130,12 @@ export const useAgentStore = create<AgentStore>((set) => ({
     }),
   resetSession: (sessionId) =>
     set((s) => ({ sessions: { ...s.sessions, [sessionId]: emptyEntry() } })),
+  // Reset ONLY the view, keeping the mounted session's send/stop/resume
+  // bindings — for external re-hydration (after sessions.rollback the server
+  // history shrank; the view rebuilds from items.list while the composer
+  // must keep working without a remount).
+  resetView: (sessionId) =>
+    set((s) => ({ sessions: patch(s.sessions, sessionId, { view: emptyEntry().view }) })),
   relabelMessage: (sessionId, fromId, toId) =>
     set((s) => {
       const prev = s.sessions[sessionId];

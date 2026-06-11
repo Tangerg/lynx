@@ -1,7 +1,7 @@
 import type { ApprovalDecision } from "@/lib/agent/useApprovalSubmit";
 import type { BlockStatus } from "@/protocol/run/viewState";
 import { useState } from "react";
-import { Divider, Icon, PillButton } from "@/components/common";
+import { Checkbox, Divider, Icon, PillButton } from "@/components/common";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
 import { useApprovalSubmit } from "@/lib/agent/useApprovalSubmit";
@@ -106,9 +106,13 @@ export function ApprovalCard({
   const [argsText, setArgsText] = useState(originalArgs);
   const [argsInvalid, setArgsInvalid] = useState(false);
 
+  // "Don't ask again this session" — remembers the decision (approve or
+  // deny) keyed by tool name, runtime-side (AUX_API §6). Off by default.
+  const [remember, setRemember] = useState(false);
+
   const onApprove = () => {
     if (!hasArgs) {
-      submit("approved");
+      submit("approved", { rememberForSession: remember });
       return;
     }
     let editedArgs: Record<string, unknown> | undefined;
@@ -121,7 +125,7 @@ export function ApprovalCard({
       setArgsInvalid(true);
       return; // block approve on malformed JSON
     }
-    submit("approved", editedArgs);
+    submit("approved", { editedArgs, rememberForSession: remember });
   };
 
   const finalised = status === "complete" ? decision : pending;
@@ -244,9 +248,21 @@ export function ApprovalCard({
         <PillButton variant="accent" size="sm" disabled={disabled} onClick={onApprove}>
           {t("approval.action.approve")}
         </PillButton>
-        <PillButton size="sm" disabled={disabled} onClick={() => submit("declined")}>
+        <PillButton
+          size="sm"
+          disabled={disabled}
+          onClick={() => submit("declined", { rememberForSession: remember })}
+        >
           {t("approval.action.decline")}
         </PillButton>
+        <label className="ml-auto flex cursor-pointer items-center gap-1.5 text-[11.5px] text-fg-muted select-none">
+          <Checkbox
+            checked={remember}
+            onCheckedChange={setRemember}
+            ariaLabel={t("approval.remember")}
+          />
+          {t("approval.remember")}
+        </label>
       </div>
     </HitlCardShell>
   );

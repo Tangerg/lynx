@@ -42,6 +42,9 @@ export type {
   CreateSessionRequest,
   UpdateSessionRequest,
   ForkSessionRequest,
+  RollbackSessionRequest,
+  RollbackSessionResponse,
+  DroppedRun,
   ExportSessionRequest,
   ExportSessionResponse,
   // Runs

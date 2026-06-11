@@ -41,6 +41,8 @@ import type {
   ProviderTestResult,
   ResumeRunRequest,
   ResumeRunResponse,
+  RollbackSessionRequest,
+  RollbackSessionResponse,
   RunEvent,
   RunRef,
   Session,
@@ -76,6 +78,9 @@ export interface Methods {
     update: (params: UpdateSessionRequest) => Promise<Session>;
     delete: (sessionId: SessionId) => Promise<void>;
     fork: (params: ForkSessionRequest) => Promise<Session>;
+    // Turn-granular history truncation (AUX_API §4.1). Rejected with
+    // session_busy while a run is in flight; never touches files.
+    rollback: (params: RollbackSessionRequest) => Promise<RollbackSessionResponse>;
     export: (sessionId: SessionId, format?: "md" | "json") => Promise<ExportSessionResponse>;
   };
   runs: {
@@ -178,6 +183,7 @@ export function createMethods(client: RpcClient): Methods {
       update: (params) => client.call<Session>("sessions.update", params),
       delete: (sessionId) => client.call<void>("sessions.delete", { sessionId }),
       fork: (params) => client.call<Session>("sessions.fork", params),
+      rollback: (params) => client.call<RollbackSessionResponse>("sessions.rollback", params),
       export: (sessionId, format) =>
         client.call<ExportSessionResponse>("sessions.export", { sessionId, format }),
     },

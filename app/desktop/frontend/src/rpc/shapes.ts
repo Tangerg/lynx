@@ -132,6 +132,30 @@ export interface ForkSessionRequest {
   title?: string;
 }
 
+// sessions.rollback (AUX_API §4.1) — turn-granular, in-place truncation.
+// `toRunId` is INCLUSIVE-KEEP: the last ROOT run to keep (its continuation
+// chain stays); everything after is destroyed (items, open interrupts,
+// spawned subagent sub-sessions). Omitted = drop all runs (empty session).
+// Files are NOT touched (v1 has no snapshots) — UI checks getDiff.
+// Rejected with `session_busy` while a run is in flight.
+export interface RollbackSessionRequest {
+  sessionId: SessionId;
+  toRunId?: RunId;
+}
+
+// A run destroyed by rollback. `userInput` is the opening userMessage's
+// content (same shape as StartRunRequest.input → composer prefill is
+// zero-conversion); continuation runs have no opening user turn.
+export interface DroppedRun {
+  run: RunRef;
+  userInput?: ContentBlock[];
+}
+
+export interface RollbackSessionResponse {
+  session: Session;
+  droppedRuns: DroppedRun[];
+}
+
 export interface ExportSessionRequest {
   sessionId: SessionId;
   format?: "md" | "json";
@@ -445,7 +469,11 @@ export interface OpenInterrupt {
 export interface ApprovalResponse {
   type: "approval";
   decision: "approve" | "deny";
-  editedArgs?: Record<string, unknown>;
+  // Remember this decision for the rest of the session, keyed by TOOL NAME
+  // (AUX_API §6) — works for deny too. Omitted = this once only. v1 scope is
+  // session-only (in-memory); project|global join additively once persisted.
+  remember?: { scope: "session" };
+  editedArgs?: Record<string, unknown>; // one-shot input rewrite — NOT part of remember
   reason?: string;
 }
 export interface AnswerResponse {
@@ -708,7 +736,7 @@ export interface WorkspaceQuery {
 export interface WatchSpec {
   watchId: string; // client-named
   cwd?: string; // per-watch cwd (default = serve dir); jail same as §7.5
-  path: string; // relative to this watch's cwd
+  path?: string; // relative to this watch's cwd; omitted/empty = the cwd root (recursive)
 }
 
 export interface SubscribeWorkspaceRequest {
