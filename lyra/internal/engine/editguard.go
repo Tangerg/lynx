@@ -102,27 +102,25 @@ func withReadTracking(inner chat.Tool, tr *readTracker, workdir string) chat.Too
 	if tr == nil {
 		return inner
 	}
-	t, _ := chat.NewTool(inner.Definition(), inner.Metadata(),
-		func(ctx context.Context, arguments string) (string, error) {
-			out, err := inner.Call(ctx, arguments)
-			if err != nil {
-				return out, err
+	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
+		out, err := inner.Call(ctx, arguments)
+		if err != nil {
+			return out, err
+		}
+		var a struct {
+			Path   string `json:"path"`
+			Offset int    `json:"offset"`
+			Limit  int    `json:"limit"`
+		}
+		_ = json.Unmarshal([]byte(arguments), &a)
+		if a.Path != "" {
+			abs := resolveAbs(workdir, a.Path)
+			if h, herr := hashFile(abs); herr == nil {
+				tr.record(turnSession(ctx), abs, fileStamp{hash: h, partial: a.Offset > 0 || a.Limit > 0})
 			}
-			var a struct {
-				Path   string `json:"path"`
-				Offset int    `json:"offset"`
-				Limit  int    `json:"limit"`
-			}
-			_ = json.Unmarshal([]byte(arguments), &a)
-			if a.Path != "" {
-				abs := resolveAbs(workdir, a.Path)
-				if h, herr := hashFile(abs); herr == nil {
-					tr.record(turnSession(ctx), abs, fileStamp{hash: h, partial: a.Offset > 0 || a.Limit > 0})
-				}
-			}
-			return out, nil
-		})
-	return t
+		}
+		return out, nil
+	})
 }
 
 // withEditGuard wraps the edit tool: it requires the file to have been read and
@@ -131,27 +129,25 @@ func withEditGuard(inner chat.Tool, tr *readTracker, workdir string) chat.Tool {
 	if tr == nil {
 		return inner
 	}
-	t, _ := chat.NewTool(inner.Definition(), inner.Metadata(),
-		func(ctx context.Context, arguments string) (string, error) {
-			var a struct {
-				Path string `json:"path"`
+	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
+		var a struct {
+			Path string `json:"path"`
+		}
+		_ = json.Unmarshal([]byte(arguments), &a)
+		if a.Path != "" {
+			if msg := tr.check(turnSession(ctx), resolveAbs(workdir, a.Path), false).message(a.Path, "editing"); msg != "" {
+				return msg, nil // recoverable: the model reads, then retries
 			}
-			_ = json.Unmarshal([]byte(arguments), &a)
-			if a.Path != "" {
-				if msg := guardMessage(tr.check(turnSession(ctx), resolveAbs(workdir, a.Path), false), a.Path, "editing"); msg != "" {
-					return msg, nil // recoverable: the model reads, then retries
-				}
-			}
-			out, err := inner.Call(ctx, arguments)
-			if err != nil {
-				return out, err
-			}
-			if a.Path != "" {
-				tr.refresh(turnSession(ctx), resolveAbs(workdir, a.Path))
-			}
-			return out, nil
-		})
-	return t
+		}
+		out, err := inner.Call(ctx, arguments)
+		if err != nil {
+			return out, err
+		}
+		if a.Path != "" {
+			tr.refresh(turnSession(ctx), resolveAbs(workdir, a.Path))
+		}
+		return out, nil
+	})
 }
 
 // withWriteGuard wraps the write tool: overwriting an EXISTING file requires a
@@ -161,36 +157,34 @@ func withWriteGuard(inner chat.Tool, tr *readTracker, workdir string) chat.Tool 
 	if tr == nil {
 		return inner
 	}
-	t, _ := chat.NewTool(inner.Definition(), inner.Metadata(),
-		func(ctx context.Context, arguments string) (string, error) {
-			var a struct {
-				Path   string `json:"path"`
-				Append bool   `json:"append"`
-			}
-			_ = json.Unmarshal([]byte(arguments), &a)
-			if a.Path != "" && !a.Append {
-				abs := resolveAbs(workdir, a.Path)
-				if isExistingFile(abs) {
-					if msg := guardMessage(tr.check(turnSession(ctx), abs, true), a.Path, "overwriting"); msg != "" {
-						return msg, nil
-					}
+	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
+		var a struct {
+			Path   string `json:"path"`
+			Append bool   `json:"append"`
+		}
+		_ = json.Unmarshal([]byte(arguments), &a)
+		if a.Path != "" && !a.Append {
+			abs := resolveAbs(workdir, a.Path)
+			if isExistingFile(abs) {
+				if msg := tr.check(turnSession(ctx), abs, true).message(a.Path, "overwriting"); msg != "" {
+					return msg, nil
 				}
 			}
-			out, err := inner.Call(ctx, arguments)
-			if err != nil {
-				return out, err
-			}
-			if a.Path != "" {
-				tr.refresh(turnSession(ctx), resolveAbs(workdir, a.Path))
-			}
-			return out, nil
-		})
-	return t
+		}
+		out, err := inner.Call(ctx, arguments)
+		if err != nil {
+			return out, err
+		}
+		if a.Path != "" {
+			tr.refresh(turnSession(ctx), resolveAbs(workdir, a.Path))
+		}
+		return out, nil
+	})
 }
 
-// guardMessage renders the model-facing instruction for a failed check (""
-// when the check passed). verb is "editing" / "overwriting".
-func guardMessage(c readCheck, path, verb string) string {
+// message renders the model-facing instruction for a failed check ("" when the
+// check passed). verb is "editing" / "overwriting".
+func (c readCheck) message(path, verb string) string {
 	switch c {
 	case readMissing:
 		return fmt.Sprintf("You must read %s before %s it. Use the read tool first.", path, verb)
