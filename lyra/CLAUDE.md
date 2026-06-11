@@ -24,29 +24,33 @@
 - **LLM provider**: 多 provider × 多 model。`internal/service/provider` 是运行态可变注册表（每 provider 的 key+baseURL，file/sqlite 持久化）；`config.BuildClient(ClientSpec)` 按 provider id 建 client（anthropic/openai/moonshot/deepseek，后两者走 OpenAI 兼容端点，全部支持 baseURL 覆盖）。**per-run model**：`runs.start{provider, model}`(显式配对,缺一即 `invalid_params`、都缺用默认 —— provider **不从 model 推断**)→ `clientResolver` 取该 provider 的注册表凭证建/缓存 client → 经 agent `core.ChatClientProvider` 扩展点让该 turn 用它。model 元数据/定价/能力全来自公开的 `models/catalog`（models.list 直读，无需 key）。`config.yaml` 的 `provider`/`apiKey`/`baseURL` 是默认 provider 的种子
 - **测试**: stdlib `testing` + `httptest`
 
-## 三大支柱
+## 架构分层（单向：delivery → engine → service → infra，见 doc/LAYERING.md）
 
-1. **`rpc/` —— 协议契约**
+1. **`rpc/` —— 协议契约（delivery）**
    - `rpc/protocol/` 接口（`Runtime` + 12 个子接口）+ wire 数据类型 + v2 协议错误码 / Item / RunEvent 形状
    - `rpc/server/` in-process `Runtime` 实现
    - `rpc/dispatch/` JSON-RPC 方法路由
    - `rpc/transport/` envelope I/O：`http/`（HTTP + SSE）/ `inprocess/`
 
-2. **`internal/engine/` —— Chat 循环 + 工具编排**
-   - facade，组合 `compactor` / `extractor` / `planner` / MCP sessions
-   - 给 `chat.Service` 暴露 `chat.Engine` 窄接口（5 方法）—— **chat 不直接依赖 `*engine.Engine`**
-   - 系统提示拼装在 `engine/prompt.go`
+2. **`internal/engine/` —— 编排层（装配 + 驱动 agent loop）**
+   - facade：装配 system prompt（`engine/prompt.go`）+ 工具集 + model client，驱动 agent SDK 跑一个 turn
+   - 领域算法（压缩/提取/规划）已下沉到 `internal/service/maintenance`，engine 经 `*maintenance.{Compactor,Extractor,Planner}` 编排
+   - **`internal/engine/chat`** —— turn 编排子包（状态机 / lifecycle / observer / policy）。它是编排层（不是 domain service），经包内 `engineDep` 窄接口驱动 `*engine.Engine`（同层 子包→父包,非反向边）
+   - 详见 [`doc/LAYERING.md`](doc/LAYERING.md)：分层为 `delivery(rpc) → 编排(engine + engine/chat) → 领域(service/*) → infra(infra/*)`，单向无反向边
 
-3. **`internal/service/*` —— Domain 切片**
-   - 每个 domain 一个目录：`session` / `memory` / `chat` / `approval` / `tool` / `agentdoc`
-   - 每个目录：`service.go`（interface）+ `inmemory.go` 或 `engine.go`（实现）+ tests
+3. **`internal/service/*` —— Domain 切片（领域层,只向下依赖 infra）**
+   - 每个 domain 一个目录：`session` / `knowledge`（LYRA.md）/ `transcript`（items+runs）/ `approval` / `tool` / `agentdoc` / `codeintel`（包 infra/lsp）/ `workspace`（包 infra/git+checkpoint）/ `maintenance`（压缩·提取·规划）/ `interrupts` / `provider`
+   - 每个目录：`service.go`（interface）+ 实现（按本质命名）+ tests
+
+4. **`internal/infra/*` —— 技术设施（零领域,不依赖任何上层）**
+   - `infra/storage`（sqlite + file LYRA.md）/ `infra/git` / `infra/lsp` / `infra/checkpoint`
 
 ## 持久化后端
 
 **dev 阶段单一后端：SQLite**（`modernc.org/sqlite` 纯 Go 无 CGO），`$LYRA_HOME/lyra.db` 一个 *sql.DB 跨表持久化 **session / process-snapshot / interrupt / history / provider / message（chat-memory）**。没有 `LYRA_STORAGE` 开关、没有 file/in-memory 并行实现（已删）。
 
 **唯一例外仍是文件**（"用户可编辑" 是它存在的意义）：
-- **memory**：`internal/storage/FileMemoryService`（`<会话 cwd>/LYRA.md` + `~/.lyra/LYRA.md`，用户可 `cat`/编辑；project scope 按每次调用传入的 dir 寻址——一个 service 服务所有项目，空 dir 回退构造时的进程 cwd）。
+- **knowledge**：`internal/infra/storage/FileKnowledgeService`（`<会话 cwd>/LYRA.md` + `~/.lyra/LYRA.md`，用户可 `cat`/编辑；实现 `service/knowledge.Service`，project scope 按每次调用传入的 dir 寻址——一个 service 服务所有项目，空 dir 回退构造时的进程 cwd）。
 - （AGENTS.md 是发现，不是 storage。）
 
 装配在 `cmd/lyra/app.go:buildStores()`（恒 sqlite + file LYRA.md memory）。runtime **不再有 in-memory 回退** —— session/interrupt/provider 由 composition root 注入;测试 + 回退用 `sqlite.Open(":memory:" 或 temp file)`。
@@ -94,21 +98,28 @@ lyra/
 │       ├── http/                   HTTP+SSE transport（cors.go / auth.go / sidecar.go / stream.go / rpc.go）
 │       └── inprocess/              同进程 chan transport（TUI 用）
 │
-├── internal/                       业务层
+├── internal/                       业务层（单向分层,见 doc/LAYERING.md）
 │   ├── config/                     LYRA_* env vars + Config struct + BuildChatClient
-│   ├── runtime/                    顶层装配（service 注入 server.Server）
-│   ├── engine/                     Chat 循环（agent / compactor / extractor / planner / mcp / prompt）
-│   ├── service/                    Domain 切片
-│   │   ├── session/                interface + inmemory + Repo（共享数据层）
-│   │   ├── memory/                 LYRA.md 长期记忆
-│   │   ├── chat/                   单 turn 状态机（engine 通过窄接口注入）
-│   │   ├── approval/               运行态审批 stance（`Mode` + GetMode/SetMode）—— R 模型工具审批查它决定 pass/deny/prompt
-│   │   ├── tool/                   工具注册 + 直接调用
+│   ├── runtime/                    composition root（service 注入 server.Server）
+│   ├── engine/                     编排层：装配 + 驱动 agent loop（agent / mcp / a2a / prompt / 工具集）
+│   │   └── chat/                   turn 编排子包（状态机 / lifecycle / observer / policy；经 engineDep 窄接口驱动 engine）
+│   ├── service/                    领域层（一域一包,只向下依赖 infra）
+│   │   ├── session/                会话生命周期
+│   │   ├── knowledge/              LYRA.md 长期知识（原 memory）
+│   │   ├── transcript/             items+runs 时间线（原 history）
+│   │   ├── maintenance/            压缩 / 提取 / 规划（turn 边界自治操作）
+│   │   ├── codeintel/              代码智能（包住 infra/lsp）
+│   │   ├── workspace/              VCS 视图 + 文件 checkpoint（包住 infra/git + infra/checkpoint）
+│   │   ├── approval/               运行态审批 stance（`Mode`）—— R 模型工具审批查它
+│   │   ├── tool/                   工具注册 + 直接调用（自定义 source 窄接口,不 import engine）
+│   │   ├── interrupts/ provider/   HITL 中断登记 / provider 注册表
 │   │   └── agentdoc/               AGENTS.md 级联发现 + render
-│   └── storage/                    持久化实现
-│       └── sqlite/                 SQLite-backed 实现（modernc 纯 Go）
+│   └── infra/                      技术设施（零领域,不依赖任何上层）
+│       ├── storage/                SQLite（modernc 纯 Go）+ file LYRA.md（FileKnowledgeService）
+│       │   └── sqlite/
+│       ├── git/ lsp/ checkpoint/   git 二进制 / language-server client / 影子 git 快照
 │
-└── doc/                            ARCHITECTURE.md / ROADMAP.md / NAMING_REVIEW.md / REVIEW.md
+└── doc/                            LAYERING.md（分层重构计划+状态）/ ARCHITECTURE.md / ROADMAP.md / ...
 ```
 
 ## 常用命令
@@ -137,9 +148,9 @@ curl -H "Authorization: Bearer $(cat ~/.lyra/local-token)" \
 
 1. **`rpc/protocol/`**：动了协议契约 —— 前后端都要同步，先在前端仓 `docs/API.md` 对一遍
 2. **`rpc/transport/http/`**：动了 transport —— 跑 `server_test.go` + `auth_cors_test.go` + `sidecar_test.go` 三个文件全套
-3. **`internal/engine/`**：动了 chat 循环 —— 跑 `compaction_test.go` + chat stub-engine 测试
+3. **`internal/engine/`**：动了编排 / turn 循环 —— 跑 `internal/engine/...`（含 `engine/chat` 的 stub-engine 测试 + `service/maintenance` 压缩测试）
 4. **`internal/service/<name>/`**：动 service interface —— 跑该包测试。如果改 interface 形状，搜下游 consumer
-5. **`internal/storage/`**：动持久化 —— sqlite 改了跑 `internal/storage/sqlite/...`；file memory / message 改了跑 `internal/storage/...`
+5. **`internal/infra/storage/`**：动持久化 —— sqlite 改了跑 `internal/infra/storage/sqlite/...`；file knowledge / message 改了跑 `internal/infra/storage/...`
 6. **`internal/service/agentdoc/`**：动 discovery 规则 —— 跑 `agentdoc_test.go`，烟测 `lyra agents` 在多层目录的输出
 7. **加一个新 transport**：实现 `rpc/transport.Transport` 接口，新建 `rpc/transport/<name>/`，参考 inprocess（最简）和 http（最全）
 
