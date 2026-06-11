@@ -5,6 +5,7 @@
 // without touching the others. Shared chrome / helpers live in
 // _shared.ts.
 
+import { useState } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Icon, MENU_CONTENT_CLASSES, Tooltip } from "@/components/common";
 import { editMessageInComposer, regenerateMessage } from "@/lib/agent/messageActions";
@@ -15,7 +16,10 @@ import {
   writeToClipboard,
 } from "@/lib/agent/messageContent";
 import { cn } from "@/lib/utils";
+import { getContainer } from "@/main/container";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
+import { asItemId, asRunId, asSessionId } from "@/rpc";
+import { useSessionStore } from "@/state/sessionStore";
 import { ACTION_BTN_CLASSES } from "./_shared";
 
 // ---- Copy: dropdown menu with Markdown / Plain text / Code only. ----
@@ -165,6 +169,81 @@ export const messageRegenerate = definePlugin({
       id: "regenerate",
       order: 10,
       component: RegenerateButton,
+    });
+  },
+});
+
+// ---- Feedback (assistant messages only): thumbs up / down wired to
+// `feedback.create`. The wire is write-only (no read-back API), so the
+// settled rating lives in a session-lifetime map — same scope as the
+// approval "remember" decisions. Re-rating re-submits; the runtime
+// treats each as a new event. ----
+
+const ratedMessages = new Map<string, "positive" | "negative">();
+
+function FeedbackButtons() {
+  const msg = useCurrentMessage();
+  const [rated, setRated] = useState(() => ratedMessages.get(msg.id));
+  if (msg.role !== "assistant") return null;
+
+  const rate = (rating: "positive" | "negative"): void => {
+    if (rated === rating) return;
+    ratedMessages.set(msg.id, rating);
+    setRated(rating);
+    const sessionId = useSessionStore.getState().activeSessionId;
+    // Fire-and-forget: a lost feedback event isn't worth an error banner,
+    // but roll the latch back so the user can retry.
+    getContainer()
+      .client()
+      .feedback.create({
+        sessionId: sessionId ? asSessionId(sessionId) : undefined,
+        runId: msg.runId ? asRunId(msg.runId) : undefined,
+        itemId: asItemId(msg.id),
+        rating,
+      })
+      .catch((err: unknown) => {
+        console.warn("[feedback] create failed:", err);
+        ratedMessages.delete(msg.id);
+        setRated(undefined);
+      });
+  };
+
+  return (
+    <>
+      <Tooltip label="Good response">
+        <button
+          type="button"
+          onClick={() => rate("positive")}
+          aria-label="Good response"
+          aria-pressed={rated === "positive"}
+          className={cn(ACTION_BTN_CLASSES, rated === "positive" && "text-success")}
+        >
+          <Icon name="thumbs-up" size={11} />
+        </button>
+      </Tooltip>
+      <Tooltip label="Poor response">
+        <button
+          type="button"
+          onClick={() => rate("negative")}
+          aria-label="Poor response"
+          aria-pressed={rated === "negative"}
+          className={cn(ACTION_BTN_CLASSES, rated === "negative" && "text-negative")}
+        >
+          <Icon name="thumbs-down" size={11} />
+        </button>
+      </Tooltip>
+    </>
+  );
+}
+
+export const messageFeedback = definePlugin({
+  name: "lyra.builtin.message-feedback",
+  version: "1.0.0",
+  setup({ host }) {
+    host.layout.register("message.header.end", {
+      id: "feedback",
+      order: 15,
+      component: FeedbackButtons,
     });
   },
 });
