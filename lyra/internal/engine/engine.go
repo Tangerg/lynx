@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/a2aproject/a2a-go/v2/a2aclient"
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Tangerg/lynx/a2a"
 	"github.com/Tangerg/lynx/agent"
@@ -58,8 +60,17 @@ type Engine struct {
 	// A2A agents are wired. mcpServers also backs the per-server
 	// workspace.mcp.{listServers,listTools} views — including servers that
 	// failed to connect at boot (recorded, not dropped).
-	mcpServers []*mcpServer
-	a2aClients []*a2aclient.Client
+	//
+	// mcpMu guards every mcpServer's mutable fields (session/status/lastErr):
+	// boot writes happen-before the engine is published, ReconnectMCPServer is
+	// the only post-boot mutator, and MCPTools / MCPServerStatuses read under
+	// it. mcpClient is the shared client reconnect re-dials with; toolResolver
+	// is held so a reconnect can hot-swap the live MCP tool set.
+	mcpMu        sync.Mutex
+	mcpServers   []*mcpServer
+	mcpClient    *sdkmcp.Client
+	toolResolver *cwdToolResolver
+	a2aClients   []*a2aclient.Client
 }
 
 // New constructs an engine. Returns an error when required deps
@@ -78,12 +89,17 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		return nil, fmt.Errorf("engine: build online tools: %w", err)
 	}
 
+	// One MCP client identity for every server — none of lyra's connections
+	// need per-server client handlers (sampling / list-changed), so they share
+	// it. Retained on the engine so ReconnectMCPServer can re-dial with it.
+	mcpClient := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "runtime", Version: "v0.1.0"}, nil)
+
 	// Dial MCP servers so the model can call them transparently. The dial
 	// happens before resolver wiring so the resolver captures the set in
 	// one place. ctx flows from the caller so a slow / unreachable MCP
 	// server can be canceled during startup. A single unreachable server is
-	// tolerated (recorded "failed"); only a duplicate name fails the call.
-	mcpServers, mcpTools, err := dialMCPServers(ctx, cfg.MCPServers)
+	// tolerated (recorded "failed"); only a config mistake fails the call.
+	mcpServers, mcpTools, err := dialMCPServers(ctx, mcpClient, cfg.MCPServers)
 	if err != nil {
 		return nil, err
 	}
@@ -110,9 +126,9 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		defaultWorkdir:  cfg.Workdir,
 		skillsGlobalDir: cfg.SkillsGlobalDir,
 		online:          online,
-		mcp:             mcpTools,
 		a2a:             a2aTools,
 	}
+	resolver.setMCPTools(mcpTools) // seed the hot-swappable MCP set (reconnect re-stores it)
 
 	memStore := cfg.MemoryStore
 	if memStore == nil {
@@ -157,9 +173,11 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		workdir:         cfg.Workdir,
 		skillsGlobalDir: cfg.SkillsGlobalDir,
 		pricing:         cfg.Pricing,
-		parkStore:   cfg.ParkStore,
-		mcpServers:  mcpServers,
-		a2aClients:  a2aClients,
+		parkStore:    cfg.ParkStore,
+		mcpServers:   mcpServers,
+		mcpClient:    mcpClient,
+		toolResolver: resolver,
+		a2aClients:   a2aClients,
 	}
 
 	// The `task` tool delegates to a fresh sub-agent (declares

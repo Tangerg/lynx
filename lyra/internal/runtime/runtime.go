@@ -196,6 +196,13 @@ func (r *Runtime) MCPServerStatuses() []engine.McpServerStatus {
 	return r.engine.MCPServerStatuses()
 }
 
+// ReconnectMCPServer re-dials a configured MCP server and hot-swaps the live
+// tool set (workspace.mcp.reconnect). Delegates to the engine, which owns the
+// sessions + the shared client.
+func (r *Runtime) ReconnectMCPServer(ctx context.Context, name string) error {
+	return r.engine.ReconnectMCPServer(ctx, name)
+}
+
 // Providers returns the provider registry — the runtime-mutable set of
 // providers + credentials that providers.list / configure / test operate on.
 // Always non-nil.

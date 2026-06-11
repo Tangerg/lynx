@@ -46,6 +46,10 @@ type RuntimeServices interface {
 	// MCPServerStatuses lists every configured MCP server with its connection
 	// state — connected and boot-failed alike (workspace.mcp.listServers).
 	MCPServerStatuses() []engine.McpServerStatus
+	// ReconnectMCPServer re-dials a configured MCP server and hot-swaps the
+	// live tool set (workspace.mcp.reconnect). Returns engine.ErrUnknownMCPServer
+	// for an unconfigured name.
+	ReconnectMCPServer(ctx context.Context, name string) error
 	// ListSkills enumerates the skills visible from cwd (project over global) —
 	// backs workspace.listSkills. The engine owns skill sourcing + precedence.
 	ListSkills(ctx context.Context, cwd string) ([]engine.SkillInfo, error)

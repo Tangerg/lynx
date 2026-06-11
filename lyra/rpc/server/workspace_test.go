@@ -174,6 +174,40 @@ func TestWorkspaceMCPListServers(t *testing.T) {
 	}
 }
 
+// TestWorkspaceMCPReconnect verifies the reconnect push contract (AUX_API §5.2):
+// a known server validates synchronously then emits mcp.serverChanged in the
+// guaranteed order connecting → terminal (here connected, with its tool count
+// inlined); an unknown server fails synchronously with invalid_params and emits
+// nothing.
+func TestWorkspaceMCPReconnect(t *testing.T) {
+	s := &Server{
+		rt: stubRuntime{
+			mcpStatuses: []engine.McpServerStatus{{Name: "fs", Status: "connected"}},
+			mcpTools:    []engine.McpToolInfo{{Server: "fs", Name: "read"}},
+		},
+		wsHub: newWorkspaceHub(),
+	}
+	events, unsub := s.wsHub.subscribe()
+	defer unsub()
+
+	if err := s.WorkspaceMCPReconnect(context.Background(), "fs"); err != nil {
+		t.Fatalf("reconnect: %v", err)
+	}
+	// connecting is published synchronously (ordering guarantee); the terminal
+	// frame follows from the async dial.
+	if first := <-events; first.Type != "mcp.serverChanged" || first.Server != "fs" || first.Status != "connecting" {
+		t.Fatalf("first event = %+v, want fs connecting", first)
+	}
+	if term := <-events; term.Status != "connected" || term.ToolCount == nil || *term.ToolCount != 1 {
+		t.Fatalf("terminal event = %+v, want fs connected toolCount=1", term)
+	}
+
+	// Unknown server → invalid_params, no push.
+	if err := s.WorkspaceMCPReconnect(context.Background(), "ghost"); !errors.Is(err, protocol.ErrInvalidParams) {
+		t.Fatalf("reconnect unknown = %v, want ErrInvalidParams", err)
+	}
+}
+
 // TestWorkspaceMCPListTools maps engine tool info onto the wire (keeping
 // server + bare name separate) and passes the server scope through.
 func TestWorkspaceMCPListTools(t *testing.T) {
