@@ -146,21 +146,21 @@ func Capabilities(rt RuntimeServices) protocol.ServerCapabilities {
 			"reasoning": true,
 			"mcp":       true,
 			"memory":    memory,
-			"skills":    true,             // workspace.listSkills (project + global enumeration)
+			"skills":    true,                     // workspace.listSkills (project + global enumeration)
 			"git":       workspace.GitAvailable(), // workspace.listFileChanges / getDiff (git binary on PATH)
-			"fileWatch": true,             // workspace.subscribe watches → files.changed (fsnotify)
-			"lsp":       true,             // code-intelligence tools (definition/refs/hover/symbols/diagnostics) + auto type-check on edit
+			"fileWatch": true,                     // workspace.subscribe watches → files.changed (fsnotify)
+			"lsp":       true,                     // code-intelligence tools (definition/refs/hover/symbols/diagnostics) + auto type-check on edit
 
 			"sessionExport": true, // sessions.export (inline json/md) + sessions.import (restore)
 			// File checkpoints (restoreType on rollback) ride the shadow-git
 			// store, which needs the git binary — same gate as the git feature.
 			"checkpoints": workspace.GitAvailable(),
 			// Off until the corresponding engine support lands:
-			"multimodal": false,
-			"subagents":  false,
-			"relocate":      true, // sessions.update cwd-relocate
-			"clientTools":   false,
-			"attachments":   protocol.AttachmentLimits{Enabled: false},
+			"multimodal":  false,
+			"subagents":   false,
+			"relocate":    true, // sessions.update cwd-relocate
+			"clientTools": false,
+			"attachments": protocol.AttachmentLimits{Enabled: false},
 		},
 		Providers: supportedProviderIDs(),
 		Limits:    protocol.RuntimeLimits{MaxConcurrentRuns: 8},

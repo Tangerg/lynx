@@ -234,10 +234,10 @@ func parseSymbols(raw json.RawMessage, docURI string) []Symbol {
 		walk = func(parent string, ds []documentSymbol) {
 			for _, s := range ds {
 				out = append(out, Symbol{
-					Name:     s.Name,
-					Kind:     s.Kind,
-					Detail:   s.Detail,
-					Location: Location{URI: docURI, Range: s.SelectionRange},
+					Name:      s.Name,
+					Kind:      s.Kind,
+					Detail:    s.Detail,
+					Location:  Location{URI: docURI, Range: s.SelectionRange},
 					Container: parent,
 				})
 				walk(s.Name, s.Children)

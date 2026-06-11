@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 	"github.com/Tangerg/lynx/lyra/internal/infra/storage/sqlite"
+	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 )
 
 func newInterruptStore(t *testing.T) *sqlite.InterruptStore {

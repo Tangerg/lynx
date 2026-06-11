@@ -180,9 +180,9 @@ func appendIfBuilt(tools []chat.Tool, cond bool, label string, build func() (cha
 // per-session engine.
 type Resolver struct {
 	defaultWorkdir  string
-	skillsGlobalDir string      // user-scope skills dir; merged under each turn's project skills
-	online          []chat.Tool // working-directory-independent network tools
-	a2a             []chat.Tool // working-directory-independent remote A2A agents
+	skillsGlobalDir string             // user-scope skills dir; merged under each turn's project skills
+	online          []chat.Tool        // working-directory-independent network tools
+	a2a             []chat.Tool        // working-directory-independent remote A2A agents
 	lsp             []chat.Tool        // code-intelligence tools; cwd read per-call (service keys servers by root)
 	codeIntel       *codeintel.Service // backs the write/edit diagnostics wrap (rebuilt per resolution with the turn's cwd)
 	readTracker     *ReadTracker       // backs the read-before-edit + stale guards on read/edit/write

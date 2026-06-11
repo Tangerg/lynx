@@ -48,7 +48,7 @@ func TestListChangesAndDiff(t *testing.T) {
 	dir := initRepo(t)
 	ctx := context.Background()
 	write(t, dir, "a.txt", "a\nB\nc\nd\n") // modify line 2, add line 4
-	write(t, dir, "new.txt", "x\ny\n")      // untracked
+	write(t, dir, "new.txt", "x\ny\n")     // untracked
 
 	changes, err := ListChanges(ctx, dir)
 	if err != nil {
