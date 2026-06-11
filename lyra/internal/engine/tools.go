@@ -141,6 +141,7 @@ type cwdToolResolver struct {
 	skillsGlobalDir string      // user-scope skills dir; merged under each turn's project skills
 	online          []chat.Tool // working-directory-independent network tools
 	a2a             []chat.Tool // working-directory-independent remote A2A agents
+	lsp             []chat.Tool // code-intelligence tools; cwd read per-call (manager keys servers by root)
 	task            chat.Tool   // delegation tool; coding role only, nil until set
 
 	// mcp is the working-directory-independent MCP tool set, held behind an
@@ -240,6 +241,7 @@ func (g *cwdToolGroup) Tools(ctx context.Context) ([]core.AgentTool, error) {
 	tools = append(tools, g.resolver.online...)
 	tools = append(tools, g.resolver.mcpTools()...)
 	tools = append(tools, g.resolver.a2a...)
+	tools = append(tools, g.resolver.lsp...)
 	// The skill tool is working-directory scoped (project skills live under
 	// the turn's cwd), so it is built per resolution like fs/bash and is
 	// available to both coding and subtask roles. nil when no skills exist.

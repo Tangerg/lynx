@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
+	"github.com/Tangerg/lynx/lyra/internal/lsp"
 	lyramem "github.com/Tangerg/lynx/lyra/internal/service/memory"
 )
 
@@ -71,6 +72,11 @@ type Engine struct {
 	mcpClient    *sdkmcp.Client
 	toolResolver *cwdToolResolver
 	a2aClients   []*a2aclient.Client
+
+	// lspManager drives language servers (gopls, …) for the code-intelligence
+	// tools. Servers launch lazily per (workspace root, language) and are shut
+	// down in Close. nil only in a never-constructed engine.
+	lspManager *lsp.Manager
 }
 
 // New constructs an engine. Returns an error when required deps
@@ -122,11 +128,19 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// adds the `task` delegation tool, wired below once it exists (it
 	// needs the platform). The resolver reads each turn's working
 	// directory off the process blackboard at resolution time.
+	// LSP code-intelligence: one manager per engine, servers launched lazily
+	// per (workspace root, language). The tools are cwd-independent (the
+	// manager keys by root, read per-call off the blackboard) so they're built
+	// once here alongside online / A2A.
+	lspManager := lsp.NewManager(lsp.DefaultServers())
+	lspTools := buildLSPTools(lspManager, cfg.Workdir)
+
 	resolver := &cwdToolResolver{
 		defaultWorkdir:  cfg.Workdir,
 		skillsGlobalDir: cfg.SkillsGlobalDir,
 		online:          online,
 		a2a:             a2aTools,
+		lsp:             lspTools,
 	}
 	resolver.setMCPTools(mcpTools) // seed the hot-swappable MCP set (reconnect re-stores it)
 
@@ -178,6 +192,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		mcpClient:    mcpClient,
 		toolResolver: resolver,
 		a2aClients:   a2aClients,
+		lspManager:   lspManager,
 	}
 
 	// The `task` tool delegates to a fresh sub-agent (declares
@@ -198,6 +213,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	e.tools = append(buildWorkdirTools(cfg.Workdir), online...)
 	e.tools = append(e.tools, mcpTools...)
 	e.tools = append(e.tools, a2aTools...)
+	e.tools = append(e.tools, lspTools...)
 	if skillTool := buildSkillTool(cfg.Workdir, cfg.SkillsGlobalDir); skillTool != nil {
 		e.tools = append(e.tools, skillTool)
 	}
@@ -275,6 +291,12 @@ func (e *Engine) Close() error {
 		errs = append(errs, err)
 	}
 	e.a2aClients = nil
+	if e.lspManager != nil {
+		if err := e.lspManager.Close(); err != nil {
+			errs = append(errs, err)
+		}
+		e.lspManager = nil
+	}
 	return errors.Join(errs...)
 }
 
