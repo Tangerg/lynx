@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
+	"github.com/Tangerg/lynx/lyra/internal/infra/exec"
 	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
 	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
 	"github.com/Tangerg/lynx/lyra/internal/service/maintenance"
@@ -81,7 +82,7 @@ type Engine struct {
 	codeIntel *codeintel.Service
 
 	// bgShells owns the background-command processes; killed in Close.
-	bgShells *bgShellManager
+	bgShells *exec.Manager
 }
 
 // New constructs an engine. Returns an error when required deps
@@ -148,7 +149,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 
 	// Background-command tools (run_in_background / bash_output / kill_shell)
 	// over one per-engine manager; processes are killed in Close.
-	bgShells := newBgShellManager()
+	bgShells := exec.NewManager()
 	bgShellTools := buildBgShellTools(bgShells, cfg.Workdir)
 
 	resolver := &cwdToolResolver{
@@ -319,7 +320,7 @@ func (e *Engine) Close() error {
 		e.codeIntel = nil
 	}
 	if e.bgShells != nil {
-		e.bgShells.killAll()
+		e.bgShells.KillAll()
 		e.bgShells = nil
 	}
 	return errors.Join(errs...)
