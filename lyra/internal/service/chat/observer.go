@@ -63,16 +63,11 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 		return engine.ToolApprovalVerdict{Denied: true, DenyReason: "read-only mode: " + toolName + " is not permitted"}
 	}
 
-	// gatePrompt. A standing session decision (the user previously answered
-	// "approve/deny + remember" for this tool) short-circuits the prompt —
-	// the whole point of remember is to stop re-asking (AUX_API §6). A
-	// remembered deny is just as binding as a remembered approve.
+	// gatePrompt. A standing session decision short-circuits the prompt; else
+	// interrupt for human approval and record the answer if "remember".
 	sessionID := t.st.handle.SessionID
-	if approved, ok, _ := t.svc.approval.Remembered(ctx, sessionID, toolName); ok {
-		if approved {
-			return engine.ToolApprovalVerdict{}
-		}
-		return engine.ToolApprovalVerdict{Denied: true, DenyReason: "tool call denied for this session (remembered)"}
+	if v, ok := t.rememberedVerdict(ctx, sessionID, toolName); ok {
+		return v
 	}
 
 	// interrupt for human approval (R model). First pass bubbles the
@@ -93,6 +88,22 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 		return engine.ToolApprovalVerdict{Denied: true, DenyReason: "tool call denied by user"}
 	}
 	return engine.ToolApprovalVerdict{Arguments: res.Arguments}
+}
+
+// rememberedVerdict resolves a gated tool call from a standing session decision
+// the user previously made with "approve/deny + remember", short-circuiting the
+// prompt — the whole point of remember is to stop re-asking (AUX_API §6). ok is
+// false when nothing is remembered (the caller then prompts). A remembered deny
+// is as binding as a remembered approve.
+func (t *turnObserver) rememberedVerdict(ctx context.Context, sessionID, toolName string) (engine.ToolApprovalVerdict, bool) {
+	approved, ok, _ := t.svc.approval.Remembered(ctx, sessionID, toolName)
+	if !ok {
+		return engine.ToolApprovalVerdict{}, false
+	}
+	if approved {
+		return engine.ToolApprovalVerdict{}, true
+	}
+	return engine.ToolApprovalVerdict{Denied: true, DenyReason: "tool call denied for this session (remembered)"}, true
 }
 
 // approvalKey is the interrupt key for one gated tool call. Keyed by tool
