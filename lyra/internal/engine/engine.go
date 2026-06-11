@@ -12,10 +12,6 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	"github.com/Tangerg/lynx/lyra/internal/engine/toolset"
-	"github.com/Tangerg/lynx/lyra/internal/infra/a2a"
-	"github.com/Tangerg/lynx/lyra/internal/infra/exec"
-	"github.com/Tangerg/lynx/lyra/internal/infra/mcp"
-	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
 	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
 )
 
@@ -54,23 +50,13 @@ type Engine struct {
 	extractor Extractor
 	planner   Planner
 
-	// External lifecycle, closed during [Engine.Close]. mcp holds the live MCP
-	// server connections (sessions + status + reconnect); it also backs the
-	// workspace.mcp.{listServers,listTools} views — including servers that
-	// failed to connect at boot (recorded, not dropped) — and pushes the
-	// refreshed tool set into the resolver on reconnect via its tool sink.
-	// a2a holds the remote A2A clients; nil when no A2A agents are wired.
-	mcp *mcp.Connections
-	a2a *a2a.Connections
-
-	// codeIntel drives language servers (gopls, …) for the code-intelligence
-	// tools and the post-edit diagnostics wrap. Servers launch lazily per
-	// (workspace root, language) and are shut down in Close. nil only in a
-	// never-constructed engine.
-	codeIntel *codeintel.Service
-
-	// bgShells owns the background-command processes; killed in Close.
-	bgShells *exec.Manager
+	// mcp is the live-MCP-connections facade port (workspace.mcp.* views +
+	// reconnect), assembled in the toolset layer and injected; nil when no MCP
+	// servers are wired. closers are the capability shutdown hooks (code-intel
+	// servers, background processes, MCP/A2A sessions) the toolset assembly
+	// handed over, run in [Engine.Close].
+	mcp     toolset.MCPControl
+	closers []func() error
 }
 
 // New constructs an engine. Returns an error when required deps
@@ -80,69 +66,19 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		return nil, errors.New("engine: ChatClient is required")
 	}
 
-	// The online (network) and MCP tools are working-directory
-	// independent, so they're built once and captured by the resolver.
-	// The filesystem + bash tools are rebuilt per resolution against the
-	// turn's working directory — see cwdToolResolver.
-	online, err := toolset.BuildOnlineTools(cfg.Online)
-	if err != nil {
-		return nil, fmt.Errorf("engine: build online tools: %w", err)
+	// The tool environment (capability adapters + per-role/per-cwd resolver +
+	// canonical tool list) is assembled OUTSIDE the core, in the toolset layer,
+	// and injected via [Config.ToolResolver] / [Config.Tools] / [Config.MCP] /
+	// [Config.Closers] (the composition root calls [toolset.Build]). The engine
+	// core therefore constructs no capability and imports no infra/service for
+	// them — it only drives the resolver + appends the two engine-owned tools
+	// (task / ask_user) below.
+	resolver := cfg.ToolResolver
+	if resolver == nil {
+		// A bare engine (unit tests that drive only the loop) gets an empty
+		// resolver — no tools, but the loop still runs.
+		resolver = toolset.NewResolver(toolset.Deps{DefaultWorkdir: cfg.Workdir, SkillsGlobalDir: cfg.SkillsGlobalDir})
 	}
-
-	// Dial MCP servers so the model can call them transparently. The dial
-	// happens before resolver wiring so the resolver captures the set in one
-	// place. ctx flows from the caller so a slow / unreachable MCP server can be
-	// canceled during startup. A single unreachable server is tolerated
-	// (recorded "failed"); only a config mistake fails the call.
-	mcpConns, mcpTools, err := mcp.Dial(ctx, cfg.MCPServers)
-	if err != nil {
-		return nil, err
-	}
-
-	// Dial remote A2A agents (one delegation tool each). On failure, close the
-	// MCP sessions already opened above so a late startup error doesn't leak
-	// them — Engine.Close never runs because New returns before e exists.
-	a2aConns, a2aTools, err := a2a.Dial(ctx, cfg.A2AAgents)
-	if err != nil {
-		_ = mcpConns.Close()
-		return nil, err
-	}
-
-	// One platform-scope resolver serves both roles. ToolRoleSubtask
-	// resolves the cwd-bound coding tools + online + MCP + A2A; ToolRoleCoding
-	// adds the `task` delegation tool, wired below once it exists (it
-	// needs the platform). The resolver reads each turn's working
-	// directory off the process blackboard at resolution time.
-	// LSP code-intelligence: one service per engine wrapping the LSP manager,
-	// servers launched lazily per (workspace root, language). The tools are
-	// cwd-independent (the service keys by root, read per-call off the
-	// blackboard) so they're built once here alongside online / A2A. An empty
-	// server table falls back to the built-in defaults; config can replace it
-	// wholesale.
-	codeIntel := codeintel.New(cfg.LSPServers)
-	lspTools := toolset.BuildLSPTools(codeIntel, cfg.Workdir)
-
-	// readTracker backs the read-before-edit + stale-file guards on the fs
-	// read/edit/write tools (per-session, in-memory).
-	tracker := toolset.NewReadTracker()
-
-	// Background-command tools (run_in_background / bash_output / kill_shell)
-	// over one per-engine manager; processes are killed in Close.
-	bgShells := exec.NewManager()
-	bgShellTools := toolset.BuildBgShellTools(bgShells, cfg.Workdir)
-
-	resolver := toolset.NewResolver(toolset.Deps{
-		DefaultWorkdir:  cfg.Workdir,
-		SkillsGlobalDir: cfg.SkillsGlobalDir,
-		Online:          online,
-		A2A:             a2aTools,
-		LSP:             lspTools,
-		BgShell:         bgShellTools,
-		CodeIntel:       codeIntel,
-		ReadTracker:     tracker,
-	})
-	resolver.SetMCPTools(mcpTools)             // seed the hot-swappable MCP set
-	mcpConns.SetToolSink(resolver.SetMCPTools) // reconnect hot-swaps the refreshed set into the resolver
 
 	memStore := cfg.MemoryStore
 	if memStore == nil {
@@ -191,10 +127,8 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		skillsGlobalDir: cfg.SkillsGlobalDir,
 		pricing:         cfg.Pricing,
 		parkStore:       cfg.ParkStore,
-		mcp:             mcpConns,
-		a2a:             a2aConns,
-		codeIntel:       codeIntel,
-		bgShells:        bgShells,
+		mcp:             cfg.MCP,
+		closers:         cfg.Closers,
 	}
 
 	// The `task` tool delegates to a fresh sub-agent (declares
@@ -213,20 +147,10 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	askUser := newAskUserTool()
 	resolver.SetAskUser(askUser)
 
-	// e.tools is the canonical coding tool set for ToolService.List —
-	// tool metadata (name / schema) is working-directory independent, so
-	// the default-workdir build is a faithful representative of what any
-	// turn resolves.
-	e.tools = append(toolset.BuildWorkdirTools(cfg.Workdir, codeIntel, tracker), online...)
-	e.tools = append(e.tools, mcpTools...)
-	e.tools = append(e.tools, a2aTools...)
-	e.tools = append(e.tools, lspTools...)
-	e.tools = append(e.tools, bgShellTools...)
-	if skillTool := toolset.BuildSkillTool(cfg.Workdir, cfg.SkillsGlobalDir); skillTool != nil {
-		e.tools = append(e.tools, skillTool)
-	}
-	e.tools = append(e.tools, taskTool)
-	e.tools = append(e.tools, askUser)
+	// e.tools is the canonical coding tool set for ToolService.List — the
+	// toolset-assembled list (working-directory-independent metadata) plus the
+	// two engine-owned tools.
+	e.tools = append(append([]chat.Tool{}, cfg.Tools...), taskTool, askUser)
 
 	e.agent = e.buildChatAgent()
 	if err := platform.Deploy(e.agent); err != nil {
@@ -275,30 +199,21 @@ func (e *Engine) MaybeExtract(ctx context.Context, sessionID, cwd string) (Extra
 // re-running the construction.
 func (e *Engine) Tools() []chat.Tool { return e.tools }
 
-// Close releases per-engine external resources — the MCP client sessions
-// and remote A2A clients opened in [New]. Safe to call multiple times; nil
-// slices make the second call a no-op.
+// Close releases the per-engine external resources the toolset assembly opened
+// (code-intelligence servers, background processes, MCP / A2A sessions) by
+// running the capability closers it handed over. Safe to call multiple times; a
+// nil/empty closer slice makes the second call a no-op.
 //
 // Errors from individual closures are collected and returned together so the
 // caller can log them; partial failure does not stop subsequent closes.
 func (e *Engine) Close() error {
 	var errs []error
-	if err := e.mcp.Close(); err != nil {
-		errs = append(errs, err)
-	}
-	if err := e.a2a.Close(); err != nil {
-		errs = append(errs, err)
-	}
-	if e.codeIntel != nil {
-		if err := e.codeIntel.Close(); err != nil {
+	for _, closeFn := range e.closers {
+		if err := closeFn(); err != nil {
 			errs = append(errs, err)
 		}
-		e.codeIntel = nil
 	}
-	if e.bgShells != nil {
-		e.bgShells.KillAll()
-		e.bgShells = nil
-	}
+	e.closers = nil
 	return errors.Join(errs...)
 }
 

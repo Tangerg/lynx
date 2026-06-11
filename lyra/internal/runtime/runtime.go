@@ -33,7 +33,11 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/config"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	chatsvc "github.com/Tangerg/lynx/lyra/internal/engine/chat"
+	"github.com/Tangerg/lynx/lyra/internal/engine/toolset"
+	"github.com/Tangerg/lynx/lyra/internal/infra/a2a"
+	"github.com/Tangerg/lynx/lyra/internal/infra/mcp"
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
+	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
 	"github.com/Tangerg/lynx/lyra/internal/service/conversation"
 	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
@@ -49,12 +53,20 @@ import (
 // the runtime-layer services. Several are required and injected by the
 // composition root (the sqlite-backed stores marked "Required" below).
 type Config struct {
-	// Engine is the engine's construction config, passed through
-	// verbatim — with one exception: [engine.Config.SessionStore] is
-	// owned by the runtime (derived from SessionService so subtask
-	// sessions persist with parent lineage); any value set there is
-	// replaced. Engine.ChatClient is required.
+	// Engine is the engine's construction config. The runtime fills its
+	// SessionStore (derived from SessionService) and the tool-environment
+	// fields (ToolResolver/Tools/MCP/Closers) from [toolset.Build] below;
+	// Engine.ChatClient is required.
 	Engine engine.Config
+
+	// Tool-environment inputs — the runtime reads these to assemble the tool
+	// environment via toolset.Build and inject it into the engine core (which
+	// constructs no capability itself). Workdir / SkillsGlobalDir come from
+	// Engine (the engine also needs them for the prompt cascade / listSkills).
+	Online     engine.OnlineConfig    // network-tool credentials
+	MCPServers []mcp.ServerConfig     // external MCP servers to dial
+	A2AAgents  []a2a.ClientConfig     // remote A2A agents to dial
+	LSPServers []codeintel.ServerSpec // language-server table (nil → defaults)
 
 	// SessionService persists Lyra sessions. Required — the composition
 	// root injects the sqlite-backed service (tests use a sqlite :memory: DB).
@@ -139,6 +151,26 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	if cfg.Engine.MemoryService != nil {
 		ecfg.Extractor = maintenance.NewExtractor(memStore, cfg.Engine.MemoryService, cfg.Engine.ChatClient)
 	}
+
+	// Tool environment: assembled outside the core (constructs the code-intel /
+	// exec / MCP / A2A capabilities + the resolver) and injected, so the engine
+	// core builds no capability. ctx flows so a slow MCP/A2A dial can be
+	// canceled during startup.
+	built, err := toolset.Build(ctx, toolset.BuildConfig{
+		Workdir:         cfg.Engine.Workdir,
+		SkillsGlobalDir: cfg.Engine.SkillsGlobalDir,
+		Online:          cfg.Online,
+		LSPServers:      cfg.LSPServers,
+		MCPServers:      cfg.MCPServers,
+		A2AAgents:       cfg.A2AAgents,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("runtime: build tools: %w", err)
+	}
+	ecfg.ToolResolver = built.Resolver
+	ecfg.Tools = built.Tools
+	ecfg.MCP = built.MCP
+	ecfg.Closers = built.Closers
 
 	eng, err := engine.New(ctx, ecfg)
 	if err != nil {

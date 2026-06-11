@@ -134,10 +134,6 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 			// User-scope Agent Skills live under the storage home; per-session
 			// project skills (<cwd>/.lyra/skills) layer on top of these.
 			SkillsGlobalDir: filepath.Join(stores.Home, "skills"),
-			Online:          cfg.Online,
-			MCPServers:      cfg.MCPServers,
-			A2AAgents:       cfg.A2AAgents,
-			LSPServers:      cfg.LSPServers, // nil → engine uses lsp.DefaultServers()
 			MemoryStore:     stores.ChatMem,
 			MemoryService:   stores.Memory,
 			// ProcessStore auto-snapshots every agent process so a parked
@@ -146,6 +142,12 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 			ProcessStore: stores.Process,
 			ParkStore:    stores.Park,
 		},
+		// Tool-environment inputs — the runtime assembles the tool environment
+		// (toolset.Build) from these and injects it into the engine core.
+		Online:     cfg.Online,
+		MCPServers: cfg.MCPServers,
+		A2AAgents:  cfg.A2AAgents,
+		LSPServers: cfg.LSPServers, // nil → toolset uses codeintel.DefaultServers()
 		SessionService: stores.Session,
 		// InterruptStore persists the open-interrupt registry that
 		// runs.resume looks up — the other half of cross-restart resume.
