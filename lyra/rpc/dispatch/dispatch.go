@@ -141,6 +141,7 @@ var methodTable = map[string]methodHandler{
 	MethodWorkspaceMCPListServers:  (*Dispatcher).handleWorkspaceMCPListServers,
 	MethodWorkspaceMCPListTools:    (*Dispatcher).handleWorkspaceMCPListTools,
 	MethodWorkspaceMCPReconnect:    (*Dispatcher).handleWorkspaceMCPReconnect,
+	MethodWorkspaceSubscribe:       (*Dispatcher).handleWorkspaceSubscribe,
 
 	// Providers / Models / Tools.
 	MethodProvidersList:      (*Dispatcher).handleProvidersList,

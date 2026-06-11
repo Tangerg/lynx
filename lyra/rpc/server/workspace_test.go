@@ -228,6 +228,45 @@ func TestWorkspaceGitWireMapping(t *testing.T) {
 	}
 }
 
+// TestWorkspaceSubscribe: a watch-less subscribe receives published events and
+// closes on ctx cancel; a subscribe carrying watches is rejected while
+// features.fileWatch is off.
+func TestWorkspaceSubscribe(t *testing.T) {
+	s := &Server{wsHub: newWorkspaceHub()}
+
+	if _, _, err := s.WorkspaceSubscribe(context.Background(), protocol.WorkspaceSubscribeRequest{
+		Watches: []protocol.WatchSpec{{WatchID: "w", Path: "."}},
+	}); !errors.Is(err, protocol.ErrCapabilityNotNeg) {
+		t.Errorf("watches err = %v, want ErrCapabilityNotNeg", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	_, events, err := s.WorkspaceSubscribe(ctx, protocol.WorkspaceSubscribeRequest{})
+	if err != nil {
+		t.Fatalf("subscribe: %v", err)
+	}
+	s.PublishWorkspaceEvent(protocol.WorkspaceEvent{Type: "skills.changed"})
+	select {
+	case ev := <-events:
+		if ev.Type != "skills.changed" {
+			t.Fatalf("event = %+v, want skills.changed", ev)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("no event received")
+	}
+
+	cancel() // ctx done → unsubscribe closes the channel
+	select {
+	case _, ok := <-events:
+		for ok { // drain any buffered, then expect close
+			_, ok = <-events
+		}
+	case <-time.After(time.Second):
+		t.Fatal("channel not closed after ctx cancel")
+	}
+}
+
 // TestAgentDocScope pins the cwd→home cascade classification.
 func TestAgentDocScope(t *testing.T) {
 	cwd, home := "/Users/x/proj", "/Users/x"

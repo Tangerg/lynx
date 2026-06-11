@@ -92,3 +92,15 @@ func (d *Dispatcher) handleWorkspaceMCPReconnect(ctx context.Context, msg *trans
 	}
 	return replyDone(msg, d.api.WorkspaceMCPReconnect(ctx, server))
 }
+
+// handleWorkspaceSubscribe opens the workspace event stream (AUX_API §3.1) and
+// adapts its WorkspaceEvents into ephemeral StreamFrames.
+func (d *Dispatcher) handleWorkspaceSubscribe(ctx context.Context, msg *transport.Request) HandleResult {
+	var in protocol.WorkspaceSubscribeRequest
+	_ = unmarshal(msg.Params, &in)
+	out, events, err := d.api.WorkspaceSubscribe(ctx, in)
+	if err != nil {
+		return responseError(msg.ID, errorToRPC(err))
+	}
+	return streamingResult(msg.ID, out, adaptStream(ctx, events, workspaceEventToFrame))
+}

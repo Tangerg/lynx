@@ -54,6 +54,11 @@ type Server struct {
 	// Last-Event-Id linearly resume / dedup even when the single SSE
 	// connection interleaves events from more than one run.
 	eventSeq atomic.Uint64
+
+	// wsHub fans non-run workspace events (files/skills/mcp changes) out to
+	// workspace.subscribe streams (AUX_API §3). Ephemeral, lossy, connection-
+	// scoped — distinct from the durable per-run hubs.
+	wsHub *workspaceHub
 }
 
 // nextEventID returns the next globally-monotonic RunEvent id, formatted
@@ -90,6 +95,7 @@ func New(cfg Config) (protocol.Runtime, error) {
 		rt:         cfg.Runtime,
 		serverInfo: cfg.ServerInfo,
 		runs:       map[string]*runEntry{},
+		wsHub:      newWorkspaceHub(),
 	}, nil
 }
 
@@ -117,7 +123,7 @@ func Capabilities(rt RuntimeServices) protocol.ServerCapabilities {
 		},
 		// streamable-HTTP methods, machine-readable so the client knows which
 		// calls return an event stream rather than hardcoding the names (§7/§9).
-		StreamingMethods: []string{"runs.start", "runs.resume", "runs.subscribe"},
+		StreamingMethods: []string{"runs.start", "runs.resume", "runs.subscribe", "workspace.subscribe"},
 		// Open features map (§9): advertise a new capability by adding a key.
 		// Known keys absent here default to off on the client.
 		Features: map[string]protocol.FeatureFlag{
