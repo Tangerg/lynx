@@ -2,8 +2,7 @@ import type { RunId } from "@/rpc";
 import { useCallback } from "react";
 import { getContainer } from "@/main/container";
 import { asSessionId } from "@/rpc";
-import { SESSIONS_KEY } from "@/lib/data/queries";
-import { queryClient } from "@/lib/data/queryClient";
+import { invalidateSessions } from "@/lib/data/queries";
 import { useSessionStore } from "@/state/sessionStore";
 import { reportSessionError } from "./reportSessionError";
 
@@ -18,7 +17,7 @@ export async function forkSessionAt(id: string, fromRunId?: RunId): Promise<void
       .client()
       .sessions.fork({ sessionId: asSessionId(id), ...(fromRunId ? { fromRunId } : {}) });
     useSessionStore.getState().selectTab(fork.id);
-    void queryClient.invalidateQueries({ queryKey: [SESSIONS_KEY] });
+    void invalidateSessions();
   } catch (err) {
     reportSessionError("fork", err);
   }

@@ -1,8 +1,7 @@
 import { useCallback } from "react";
 import { getContainer } from "@/main/container";
 import { asSessionId } from "@/rpc";
-import { SESSIONS_KEY } from "@/lib/data/queries";
-import { queryClient } from "@/lib/data/queryClient";
+import { invalidateSessions } from "@/lib/data/queries";
 import { reportSessionError } from "./reportSessionError";
 
 /** Rename a session (sessions.update title) and refresh the sidebar list.
@@ -14,7 +13,7 @@ export function useRenameSession(): (id: string, title: string) => Promise<void>
       await getContainer()
         .client()
         .sessions.update({ sessionId: asSessionId(id), title });
-      void queryClient.invalidateQueries({ queryKey: [SESSIONS_KEY] });
+      void invalidateSessions();
     } catch (err) {
       reportSessionError("rename", err);
     }
