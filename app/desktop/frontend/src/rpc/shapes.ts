@@ -28,7 +28,7 @@ export interface ServerFeatures {
   mcp: boolean;
   multimodal: boolean;
   git: boolean; // git binary on PATH — gates workspace.getDiff/listFileChanges (AUX_API §1)
-  fileWatch: boolean; // workspace.subscribe `watches` param available (AUX_API §3.1)
+  fileWatch: boolean; // workspace.subscribe `watches` (git-state watch) available (AUX_API §3.1)
   checkpoints: boolean; // [v2] gates restoreType (file snapshots) — AUX_API §4.3
   subagents: boolean;
   skills: boolean;
@@ -730,13 +730,19 @@ export interface WorkspaceQuery {
 // AUX_API §3 — workspace notification channel (workspace.subscribe)
 // ---------------------------------------------------------------------------
 
-// One file-watch registration. Scope = the subscribe stream that carried it
-// (no standalone watch/unwatch methods); changing the watch set means
+// One watch registration. Scope = the subscribe stream that carried it (no
+// standalone watch/unwatch methods); changing the watch set means
 // resubscribing. Gated by features.fileWatch.
+//
+// NOT a recursive file watcher (AUX_API §3.1 watch model): the backend
+// watches the cwd's .git signal set and emits a debounced `resync` on any
+// git-state change; the agent's own write/edit tools push precise
+// `files.changed{cwd, paths}` from the run stream. External non-git edits
+// are not real-time (next git operation / manual refresh picks them up).
 export interface WatchSpec {
   watchId: string; // client-named
   cwd?: string; // per-watch cwd (default = serve dir); jail same as §7.5
-  path?: string; // relative to this watch's cwd; omitted/empty = the cwd root (recursive)
+  path?: string; // currently unused under the git-state watch model
 }
 
 export interface SubscribeWorkspaceRequest {
@@ -747,7 +753,7 @@ export interface SubscribeWorkspaceRequest {
 // (re)subscribe is an implicit `resync`. Type names are globally unique
 // across the run/workspace event unions (optOut matches by type name).
 export type WorkspaceEvent =
-  | { type: "files.changed"; watchId: string; paths: string[] } // paths relative to the watch's cwd
+  | { type: "files.changed"; paths: string[]; cwd?: string } // the agent's own write/edit tools — precise paths, relative to cwd
   | { type: "skills.changed" } // cwd-agnostic: any skill dir changed
   | {
       type: "mcp.serverChanged";
@@ -756,7 +762,7 @@ export type WorkspaceEvent =
       toolCount?: number;
       error?: ProblemData;
     } // status absent = entry removed
-  | { type: "resync" }; // events were lost — refetch everything
+  | { type: "resync" }; // watched cwd's git state changed, or events were lost — refetch
 
 export type WorkspaceEventType = WorkspaceEvent["type"];
 

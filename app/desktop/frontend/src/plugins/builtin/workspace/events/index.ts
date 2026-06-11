@@ -44,6 +44,10 @@ function handle(ev: WorkspaceEvent): void {
       invalidate(MCP_SERVERS_KEY);
       return;
     case "resync":
+      // Watched cwd's git state changed (commit / stage / checkout / merge)
+      // OR the lossy channel dropped events — either way the contract says
+      // refetch (AUX_API §3.2). Full invalidation: only mounted panels
+      // actually refetch, so the cost tracks what's visible.
       invalidateAll();
       return;
     default:
@@ -71,9 +75,10 @@ async function subscribeLoop(signal: AbortSignal): Promise<void> {
   let attempt = 0;
   while (!signal.aborted) {
     try {
-      // One recursive watch on the serve-dir root drives files-changed/diff
-      // refresh (paths come debounced + lossy, AUX_API §3). Bare subscription
-      // (skills/mcp/resync) works regardless of the fileWatch capability.
+      // One watch on the serve-dir cwd = git-state monitoring (AUX_API §3.1
+      // watch model — NOT recursive file watching): git changes arrive as
+      // debounced `resync`, the agent's own edits as precise files.changed.
+      // Bare subscription (skills/mcp) works regardless of fileWatch.
       const fileWatch = useRuntimeStore.getState().capabilities?.features.fileWatch === true;
       const { events } = await getContainer()
         .client()
