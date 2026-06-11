@@ -12,6 +12,7 @@ import { asRunId, asSessionId, isErrorType } from "@/rpc";
 import { getCurrentSessionView, useAgentStore } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
 import { useSessionStore } from "@/state/sessionStore";
+import { forkSessionAt } from "./useForkSession";
 import { flattenText } from "./messageContent";
 
 function prefillComposer(text: string): void {
@@ -116,4 +117,14 @@ export function editAndRerunMessage(msg: Message): void {
     // least resend; only a hard failure (busy / transport) aborts with a toast.
     .then(() => prefillComposer(text))
     .catch(reportRollbackError);
+}
+
+// Branch the conversation up to AND INCLUDING this message's run
+// (sessions.fork{fromRunId}, AUX_API §4.2): the new session keeps history
+// through this exchange and opens as the active tab; the original is
+// untouched. No-ops for messages that never reconciled to a run.
+export function forkFromMessage(msg: Message): void {
+  const sid = useSessionStore.getState().activeSessionId;
+  if (!sid || !msg.runId) return;
+  void forkSessionAt(sid, asRunId(msg.runId));
 }

@@ -1,8 +1,9 @@
+import type { RunId } from "@/rpc";
 import { useCallback } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { getContainer } from "@/main/container";
 import { asSessionId } from "@/rpc";
 import { SESSIONS_KEY } from "@/lib/data/queries";
+import { queryClient as appQueryClient } from "@/lib/data/queryClient";
 import { useSessionStore } from "@/state/sessionStore";
 
 /**
@@ -13,20 +14,22 @@ import { useSessionStore } from "@/state/sessionStore";
  * The fork inherits the source's chat history, so unlike a fresh create it
  * is no draft — it shows in the sidebar immediately.
  */
+/** Imperative fork for non-React callers (message context-menu actions).
+ *  `fromRunId` = branch up to AND INCLUDING that root run (AUX_API §4.2);
+ *  omitted = whole-session copy. Opens the new branch's tab. */
+export async function forkSessionAt(id: string, fromRunId?: RunId): Promise<void> {
+  try {
+    const fork = await getContainer()
+      .client()
+      .sessions.fork({ sessionId: asSessionId(id), ...(fromRunId ? { fromRunId } : {}) });
+    useSessionStore.getState().selectTab(fork.id);
+    void appQueryClient.invalidateQueries({ queryKey: [SESSIONS_KEY] });
+  } catch (err) {
+    console.error("[session] fork failed:", err);
+  }
+}
+
 export function useForkSession(): (id: string) => Promise<void> {
-  const queryClient = useQueryClient();
-  return useCallback(
-    async (id) => {
-      try {
-        const fork = await getContainer()
-          .client()
-          .sessions.fork({ sessionId: asSessionId(id) });
-        useSessionStore.getState().selectTab(fork.id);
-        void queryClient.invalidateQueries({ queryKey: [SESSIONS_KEY] });
-      } catch (err) {
-        console.error("[session] fork failed:", err);
-      }
-    },
-    [queryClient],
-  );
+  // Stable identity for React callers; the imperative core owns the logic.
+  return useCallback((id) => forkSessionAt(id), []);
 }

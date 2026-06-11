@@ -13,6 +13,7 @@ import type {
   FileChangesQuery,
   FileHeadQuery,
   GrepQuery,
+  McpToolsQuery,
   MCPServer as SidebarMCPServer,
   SidebarProject,
   SidebarSession,
@@ -29,6 +30,7 @@ import {
   DIFF_KEY,
   FILES_CHANGED_KEY,
   MCP_SERVERS_KEY,
+  MCP_TOOLS_KEY,
   MODELS_KEY,
   PROVIDERS_KEY,
   SESSIONS_KEY,
@@ -142,6 +144,15 @@ export const defaultData = definePlugin({
       // stays for the detail pane (pagination + inputSchema).
       fetcher: async () =>
         (await client().workspace.mcp.listServers()).data.map(toSidebarMCPServer),
+    });
+    host.extensions.contribute(DATA_PROVIDER, {
+      key: MCP_TOOLS_KEY,
+      // Per-server tool detail for the expanded row (counts ride inline on
+      // the server entry; this is the name+description list).
+      fetcher: async (params) =>
+        (await client().workspace.mcp.listTools((params as McpToolsQuery).server)).data.map(
+          (t) => ({ name: t.name, description: t.description ?? "" }),
+        ),
     });
     // Parameterized workspace reads — params come from the consumer hook
     // (queries.ts makeParamDataQuery), so each distinct query caches its own

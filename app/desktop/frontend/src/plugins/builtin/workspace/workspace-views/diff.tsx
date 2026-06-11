@@ -2,8 +2,9 @@
 // workspace.getDiff (AUX_API §2.3). With a file selected (Files tab) it
 // scopes to that path; otherwise it shows the whole working tree.
 
-import type { FileDiff } from "@/lib/data/queries";
-import { DataView, Icon, IconButton } from "@/components/common";
+import type { DiffQuery, FileDiff } from "@/lib/data/queries";
+import { useState } from "react";
+import { DataView, Segmented } from "@/components/common";
 import { DiffView } from "./views/DiffView";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useDiff } from "@/lib/data/queries";
@@ -39,8 +40,12 @@ function DiffViewTab() {
   const gitEnabled = useServerFeature("git");
   const cwd = useActiveSessionCwd();
   const activeFile = useSessionStore((s) => s.activeFile);
+  // worktree = uncommitted changes (incl. untracked); base = vs the default
+  // branch's merge-base (AUX_API §2.3) — the "what does this branch change"
+  // review view.
+  const [mode, setMode] = useState<NonNullable<DiffQuery["mode"]>>("worktree");
   const { data, isLoading, isError, error } = useDiff(
-    gitEnabled ? { cwd, path: activeFile || undefined } : undefined,
+    gitEnabled ? { cwd, mode, path: activeFile || undefined } : undefined,
   );
   const files = data?.files;
   const added = files?.reduce((s, f) => s + (f.added ?? 0), 0) ?? 0;
@@ -63,14 +68,15 @@ function DiffViewTab() {
       title={activeFile || "Working tree"}
       sub={sub}
       actions={
-        <>
-          <IconButton title="Revert">
-            <Icon name="loop" size={14} />
-          </IconButton>
-          <IconButton title="Accept">
-            <Icon name="check" size={14} />
-          </IconButton>
-        </>
+        <Segmented
+          ariaLabel="Diff baseline"
+          value={mode}
+          onChange={setMode}
+          options={[
+            { value: "worktree", label: "Worktree" },
+            { value: "base", label: "Branch" },
+          ]}
+        />
       }
     >
       <DataView
@@ -82,8 +88,11 @@ function DiffViewTab() {
         empty={!gitEnabled ? gitOffEmpty("diff") : notARepo ? notARepoEmpty("diff") : EMPTY_DIFF}
         error={{
           icon: "diff",
-          title: "Couldn't load the diff",
-          sub: "The runtime rejected workspace.getDiff — see Diagnostics.",
+          title: mode === "base" ? "No baseline branch" : "Couldn't load the diff",
+          sub:
+            mode === "base"
+              ? "The default branch couldn't be resolved (no remote / detached HEAD)."
+              : "The runtime rejected workspace.getDiff — see Diagnostics.",
         }}
       >
         {(fileDiffs) => (

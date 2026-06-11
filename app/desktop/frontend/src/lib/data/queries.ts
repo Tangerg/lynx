@@ -54,6 +54,15 @@ export interface MCPServer {
   icon: string;
 }
 
+// One MCP tool row for the expanded server detail (workspace.mcp.listTools).
+export interface McpToolInfo {
+  name: string;
+  description: string;
+}
+export interface McpToolsQuery {
+  server: string;
+}
+
 export interface WorkspaceSkill {
   name: string;
   description: string;
@@ -194,6 +203,7 @@ export const FILES_CHANGED_KEY = "files-changed";
 export const DIFF_KEY = "diff";
 export const SKILLS_KEY = "skills";
 export const MCP_SERVERS_KEY = "mcp-servers";
+export const MCP_TOOLS_KEY = "mcp-tools";
 
 export const useSessions = makeDataQuery<SidebarSession[]>(SESSIONS_KEY);
 export const useProjects = makeDataQuery<SidebarProject[]>("projects");
@@ -205,6 +215,7 @@ export const useTerminal = makeDataQuery<TermLine[]>("terminal");
 export const useGrep = makeParamDataQuery<GrepQuery, GrepResult>("grep");
 export const useFileHead = makeParamDataQuery<FileHeadQuery, FileLine[]>("file-head");
 export const useMCPServers = makeDataQuery<MCPServer[]>(MCP_SERVERS_KEY);
+export const useMCPTools = makeParamDataQuery<McpToolsQuery, McpToolInfo[]>(MCP_TOOLS_KEY);
 export const useSkills = makeDataQuery<WorkspaceSkill[]>(SKILLS_KEY);
 export const useAgentDocs = makeDataQuery<WorkspaceAgentDoc[]>("agent-docs");
 export const useModels = makeDataQuery<SelectableModel[]>(MODELS_KEY);
