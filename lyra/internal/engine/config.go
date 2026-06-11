@@ -6,6 +6,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
+	"github.com/Tangerg/lynx/lyra/internal/lsp"
 	lyramem "github.com/Tangerg/lynx/lyra/internal/service/memory"
 	"github.com/Tangerg/lynx/mcp"
 )
@@ -67,6 +68,13 @@ type Config struct {
 	// by its config, else the resolved AgentCard), letting the chat loop hand
 	// work to a remote agent. Empty disables A2A integration.
 	A2AAgents []a2a.ClientConfig
+
+	// LSPServers overrides the language-server table the code-intelligence
+	// tools drive. Empty uses lsp.DefaultServers() (gopls + typescript). When
+	// set, it REPLACES the defaults wholesale (list every language you want),
+	// so an operator can add servers (pyright, rust-analyzer, …) or pin
+	// commands via config without a rebuild.
+	LSPServers []lsp.ServerSpec
 
 	// Pricing optionally computes per-round USD cost from the served
 	// model + token usage. nil leaves cost at zero (the chat path gets

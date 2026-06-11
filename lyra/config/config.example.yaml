@@ -39,3 +39,29 @@ online:
   jinaApiKey: ""
   tavilyApiKey: ""
   httpAllowedHosts: []
+
+# Optional language-server table for the code-intelligence tools
+# (lsp_definition / lsp_references / lsp_hover / lsp_document_symbols /
+# lsp_diagnostics / lsp_workspace_symbols, plus auto type-check after edits).
+# Omit this block to use the built-in defaults (gopls + typescript). When
+# present it REPLACES the defaults — list every language you want. A server
+# whose `command` isn't installed simply stays unavailable; nothing breaks.
+# lsp:
+#   servers:
+#     - name: gopls
+#       command: gopls
+#       languageId: go
+#       extensions: [".go"]
+#       rootMarkers: ["go.mod", "go.work"]
+#     - name: typescript
+#       command: typescript-language-server
+#       args: ["--stdio"]
+#       languageId: typescript
+#       extensions: [".ts", ".tsx", ".mts", ".cts"]
+#       rootMarkers: ["tsconfig.json", "package.json"]
+#     - name: pyright
+#       command: pyright-langserver
+#       args: ["--stdio"]
+#       languageId: python
+#       extensions: [".py", ".pyi"]
+#       rootMarkers: ["pyproject.toml", "setup.py", "requirements.txt"]

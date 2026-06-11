@@ -22,6 +22,7 @@ import (
 
 	"github.com/Tangerg/lynx/a2a"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
+	"github.com/Tangerg/lynx/lyra/internal/lsp"
 	"github.com/Tangerg/lynx/mcp"
 )
 
@@ -93,6 +94,11 @@ type Config struct {
 	// LYRA_MCP_SERVERS; yaml support is a later addition).
 	A2AAgents []a2a.ClientConfig
 
+	// LSPServers is the optional language-server table from yaml `lsp.servers`.
+	// Empty leaves the engine on its built-in defaults (gopls + typescript);
+	// when set it replaces them wholesale.
+	LSPServers []lsp.ServerSpec
+
 	// Server holds the HTTP serve settings.
 	Server ServerConfig
 }
@@ -159,6 +165,11 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("config: LYRA_A2A_AGENTS: %w", err)
 	}
 
+	lspServers, err := loadLSPServers(v)
+	if err != nil {
+		return Config{}, err
+	}
+
 	return Config{
 		Provider:   provider,
 		Model:      model,
@@ -167,6 +178,7 @@ func Load() (Config, error) {
 		Online:     loadOnline(v),
 		MCPServers: servers,
 		A2AAgents:  a2aAgents,
+		LSPServers: lspServers,
 		Server: ServerConfig{
 			Listen:         v.GetString("server.listen"),
 			NoLocalToken:   v.GetBool("server.noLocalToken"),
@@ -192,6 +204,18 @@ func loadOnline(v *viper.Viper) engine.OnlineConfig {
 		TavilyAPIKey:     tavily,
 		HTTPAllowedHosts: hosts,
 	}
+}
+
+// loadLSPServers reads the optional language-server table from yaml
+// `lsp.servers`. Absent → nil (the engine falls back to lsp.DefaultServers()).
+// mapstructure matches keys case-insensitively, so the yaml keys are
+// name/command/args/languageId/extensions/rootMarkers.
+func loadLSPServers(v *viper.Viper) ([]lsp.ServerSpec, error) {
+	var servers []lsp.ServerSpec
+	if err := v.UnmarshalKey("lsp.servers", &servers); err != nil {
+		return nil, fmt.Errorf("config: lsp.servers: %w", err)
+	}
+	return servers, nil
 }
 
 // parseMCPServers parses the LYRA_MCP_SERVERS env var: a comma-

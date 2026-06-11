@@ -137,6 +137,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 			Online:          cfg.Online,
 			MCPServers:      cfg.MCPServers,
 			A2AAgents:       cfg.A2AAgents,
+			LSPServers:      cfg.LSPServers, // nil → engine uses lsp.DefaultServers()
 			MemoryStore:     stores.ChatMem,
 			MemoryService:   stores.Memory,
 			// ProcessStore auto-snapshots every agent process so a parked
