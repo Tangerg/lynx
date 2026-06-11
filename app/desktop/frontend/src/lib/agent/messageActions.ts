@@ -8,7 +8,7 @@
 import type { Message } from "@/protocol/run/viewState";
 import { toast } from "sonner";
 import { getContainer } from "@/main/container";
-import { asRunId, asSessionId, errorType, RpcError } from "@/rpc";
+import { asRunId, asSessionId, isErrorType } from "@/rpc";
 import { getCurrentSessionView, useAgentStore } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
 import { useSessionStore } from "@/state/sessionStore";
@@ -48,7 +48,7 @@ async function rollbackToBefore(sessionId: string, runId: string): Promise<boole
 }
 
 function reportRollbackError(err: unknown): void {
-  if (err instanceof RpcError && errorType(err.data) === "session_busy") {
+  if (isErrorType(err, "session_busy")) {
     toast.error("Session is busy — wait for the current run to finish.");
     return;
   }

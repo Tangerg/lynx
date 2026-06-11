@@ -34,7 +34,7 @@ import {
   SKILLS_KEY,
 } from "@/lib/data/queries";
 import { getContainer } from "@/main/container";
-import { errorType, RpcError } from "@/rpc";
+import { isErrorType } from "@/rpc";
 import { definePlugin } from "@/plugins/sdk";
 import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
 
@@ -103,8 +103,7 @@ function toSidebarFileChange(f: RpcFileChange): SidebarFileChange {
 // that as "none" (an empty Page) so the view shows its empty state instead of
 // an error toast.
 function emptyPageIfUngated(err: unknown): { data: never[] } {
-  if (err instanceof RpcError && errorType(err.data) === "capability_not_negotiated")
-    return { data: [] };
+  if (isErrorType(err, "capability_not_negotiated")) return { data: [] };
   throw err;
 }
 
