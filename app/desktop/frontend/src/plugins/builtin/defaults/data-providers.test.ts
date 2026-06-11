@@ -79,6 +79,7 @@ describe("defaultData — providers over JSON-RPC", () => {
         title: "Refactor auth",
         status: "running",
         model: "claude",
+        cwd: "/work/auth",
         time: "2026-06-01T01:00:00Z",
       },
     ]);
@@ -146,18 +147,23 @@ describe("defaultData — providers over JSON-RPC", () => {
     ]);
   });
 
-  it("files-changed: maps statuses to change codes and keeps ± counts / binary honest", async () => {
-    const { value: rows } = await runProvider<SidebarFileChange[]>("files-changed", [
+  it("files-changed: forwards cwd, maps statuses, keeps ± counts / binary honest", async () => {
+    const { value: rows, requests } = await runProvider<SidebarFileChange[]>(
+      "files-changed",
       [
-        "workspace.listFileChanges",
-        {
-          data: [
-            { path: "src/a.ts", status: "modified", added: 3, removed: 1 },
-            { path: "logo.png", status: "untracked", binary: true }, // no fabricated ±0
-          ],
-        },
+        [
+          "workspace.listFileChanges",
+          {
+            data: [
+              { path: "src/a.ts", status: "modified", added: 3, removed: 1 },
+              { path: "logo.png", status: "untracked", binary: true }, // no fabricated ±0
+            ],
+          },
+        ],
       ],
-    ]);
+      { cwd: "/work/auth" },
+    );
+    expect(requests[0]?.params).toEqual({ cwd: "/work/auth" });
     expect(rows).toEqual([
       { path: "src/a.ts", change: "mod", added: 3, removed: 1, binary: undefined },
       { path: "logo.png", change: "add", added: undefined, removed: undefined, binary: true },

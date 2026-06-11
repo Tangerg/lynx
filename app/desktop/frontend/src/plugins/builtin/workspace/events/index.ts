@@ -13,12 +13,20 @@
 //   `resync` event is the lost-events fallback → invalidate everything.
 
 import type { WorkspaceEvent } from "@/rpc";
+import { asSessionId } from "@/rpc";
 import { WORKSPACE_SUBSCRIBE_METHOD } from "@/rpc/transport";
 import { queryClient } from "@/lib/data/queryClient";
-import { DIFF_KEY, FILES_CHANGED_KEY, MCP_SERVERS_KEY, SKILLS_KEY } from "@/lib/data/queries";
+import {
+  DIFF_KEY,
+  FILES_CHANGED_KEY,
+  MCP_SERVERS_KEY,
+  SESSIONS_KEY,
+  SKILLS_KEY,
+} from "@/lib/data/queries";
 import { getContainer } from "@/main/container";
 import { definePlugin } from "@/plugins/sdk";
 import { useRuntimeStore } from "@/state/runtimeStore";
+import { useSessionStore } from "@/state/sessionStore";
 
 const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_CAP_MS = 30_000;
@@ -71,20 +79,59 @@ function delay(ms: number, signal: AbortSignal): Promise<void> {
   });
 }
 
+// The cwd the current subscription watches, and the per-iteration abort
+// that lets a cwd change close the stream for an immediate, backoff-free
+// resubscribe (changing the watch set = close + resubscribe, AUX_API §3.1).
+let watchCwd: string | undefined;
+let iterAbort: AbortController | null = null;
+let resubscribe = false;
+
+/** Point the git-state watch at the active session's cwd. The sessions list
+ *  cache is tried first; a cache miss falls back to one sessions.get. A
+ *  change closes the current stream — the loop reopens it with the new
+ *  watch immediately (no backoff). */
+function retargetWatch(): void {
+  const id = useSessionStore.getState().activeSessionId;
+  if (!id) return; // keep the last known cwd — better than dropping to serve dir
+  const cached = queryClient
+    .getQueryData<{ id: string; cwd?: string }[]>([SESSIONS_KEY])
+    ?.find((s) => s.id === id)?.cwd;
+  const resolved = cached
+    ? Promise.resolve(cached)
+    : getContainer()
+        .client()
+        .sessions.get(asSessionId(id))
+        .then((sess) => sess.cwd)
+        .catch(() => undefined);
+  void Promise.resolve(resolved).then((cwd) => {
+    if (cwd === undefined || cwd === watchCwd) return;
+    watchCwd = cwd;
+    resubscribe = true;
+    iterAbort?.abort();
+  });
+}
+
 async function subscribeLoop(signal: AbortSignal): Promise<void> {
   let attempt = 0;
   while (!signal.aborted) {
+    // Per-iteration controller so a watch retarget can end JUST this stream
+    // while the outer signal still owns plugin-lifetime teardown.
+    const iter = new AbortController();
+    iterAbort = iter;
+    const onOuterAbort = () => iter.abort();
+    signal.addEventListener("abort", onOuterAbort, { once: true });
     try {
-      // One watch on the serve-dir cwd = git-state monitoring (AUX_API §3.1
-      // watch model — NOT recursive file watching): git changes arrive as
-      // debounced `resync`, the agent's own edits as precise files.changed.
-      // Bare subscription (skills/mcp) works regardless of fileWatch.
+      // One watch on the ACTIVE SESSION's cwd = git-state monitoring
+      // (AUX_API §3.1 watch model — NOT recursive file watching): git
+      // changes arrive as debounced `resync`, the agent's own edits as
+      // precise files.changed. Bare subscription (skills/mcp) works
+      // regardless of fileWatch; cwd omitted = serve dir.
       const fileWatch = useRuntimeStore.getState().capabilities?.features.fileWatch === true;
       const { events } = await getContainer()
         .client()
         .workspace.subscribe(
-          fileWatch ? { watches: [{ watchId: "workspace-root" }] } : undefined,
-          signal,
+          fileWatch ? { watches: [{ watchId: "active-session", cwd: watchCwd }] } : undefined,
+          iter.signal,
         );
       attempt = 0;
       // (Re)connected = implicit resync: anything that changed while we were
@@ -92,9 +139,20 @@ async function subscribeLoop(signal: AbortSignal): Promise<void> {
       invalidateAll();
       for await (const ev of events) handle(ev);
     } catch (err) {
-      if (!signal.aborted) console.warn("[workspace-events] subscribe failed:", err);
+      if (!signal.aborted && !resubscribe) {
+        console.warn("[workspace-events] subscribe failed:", err);
+      }
+    } finally {
+      signal.removeEventListener("abort", onOuterAbort);
+      if (iterAbort === iter) iterAbort = null;
     }
     if (signal.aborted) return;
+    if (resubscribe) {
+      // Intentional close (watch retarget) — reopen immediately.
+      resubscribe = false;
+      attempt = 0;
+      continue;
+    }
     // Exponential backoff, capped — covers both call failures and stream
     // ends (the for-await exits when the POST stream dies, see STREAM_DOWN).
     await delay(Math.min(RECONNECT_BASE_MS * 2 ** attempt, RECONNECT_CAP_MS), signal);
@@ -120,10 +178,15 @@ export default definePlugin({
     // The handshake (bootstrap plugin) may land before or after this plugin's
     // setup — check now, and watch the store for the capabilities arriving.
     startIfAdvertised();
-    const unsub = useRuntimeStore.subscribe(startIfAdvertised);
+    const unsubRuntime = useRuntimeStore.subscribe(startIfAdvertised);
+    // Follow the active session: its cwd is what the git-state watch should
+    // point at (the serve dir may be anywhere — BACKEND_API_REFERENCE §5).
+    retargetWatch();
+    const unsubSession = useSessionStore.subscribe(retargetWatch);
 
     return () => {
-      unsub();
+      unsubRuntime();
+      unsubSession();
       controller.abort();
     };
   },
