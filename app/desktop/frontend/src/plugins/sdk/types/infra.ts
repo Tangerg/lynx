@@ -127,6 +127,7 @@ export interface AgentSourceSpec {
  * component throws inside `PluginBoundary`.
  */
 export interface PluginErrorFallbackProps {
+  /** Plugin name OR boundary context label, e.g. "view:diff" / "layout:app.main:chat". */
   plugin: string;
   label?: string;
   error: Error;
