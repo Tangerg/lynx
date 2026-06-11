@@ -51,6 +51,15 @@ const chatModeBindingKey = "lyra:chat-mode"
 // sub-agents and survives the snapshot/resume round trip.
 const sessionBindingKey = "lyra:session"
 
+// wrapTool returns a Tool that runs call while preserving inner's Definition
+// and Metadata — the shared spine of the tool decorators (read/edit guards,
+// post-edit diagnostics). A valid inner yields a valid definition, so the
+// chat.NewTool error is impossible and discarded.
+func wrapTool(inner chat.Tool, call func(ctx context.Context, arguments string) (string, error)) chat.Tool {
+	t, _ := chat.NewTool(inner.Definition(), inner.Metadata(), call)
+	return t
+}
+
 // buildWorkdirTools instantiates the working-directory-bound coding tools —
 // the five filesystem tools and bash, all anchored at workdir. These are the
 // only tools whose behavior depends on the working directory, so they are

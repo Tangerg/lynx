@@ -124,39 +124,34 @@ func withEditDiagnostics(inner chat.Tool, mgr *lsp.Manager, root string) chat.To
 	if mgr == nil {
 		return inner
 	}
-	t, _ := chat.NewTool(
-		inner.Definition(),
-		inner.Metadata(),
-		func(ctx context.Context, arguments string) (string, error) {
-			var a struct {
-				Path string `json:"path"`
-			}
-			_ = json.Unmarshal([]byte(arguments), &a)
-			check := a.Path != "" && mgr.Supported(a.Path)
+	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
+		var a struct {
+			Path string `json:"path"`
+		}
+		_ = json.Unmarshal([]byte(arguments), &a)
+		check := a.Path != "" && mgr.Supported(a.Path)
 
-			// Baseline BEFORE the edit (best effort: a brand-new file has none).
-			var baseline []lsp.Diagnostic
-			if check {
-				baseline, _ = mgr.Diagnostics(ctx, root, a.Path)
-			}
+		// Baseline BEFORE the edit (best effort: a brand-new file has none).
+		var baseline []lsp.Diagnostic
+		if check {
+			baseline, _ = mgr.Diagnostics(ctx, root, a.Path)
+		}
 
-			out, err := inner.Call(ctx, arguments)
-			if err != nil || !check {
-				return out, err // edit failed (nothing to diagnose) or unsupported
-			}
+		out, err := inner.Call(ctx, arguments)
+		if err != nil || !check {
+			return out, err // edit failed (nothing to diagnose) or unsupported
+		}
 
-			after, derr := mgr.Diagnostics(ctx, root, a.Path)
-			if derr != nil {
-				return out, nil // never fail an edit on language-server trouble
-			}
-			section := diagnosticsSection(a.Path, newProblems(baseline, after))
-			if section == "" {
-				return out, nil
-			}
-			return out + "\n\n" + section, nil
-		},
-	)
-	return t
+		after, derr := mgr.Diagnostics(ctx, root, a.Path)
+		if derr != nil {
+			return out, nil // never fail an edit on language-server trouble
+		}
+		section := diagnosticsSection(a.Path, newProblems(baseline, after))
+		if section == "" {
+			return out, nil
+		}
+		return out + "\n\n" + section, nil
+	})
 }
 
 // newProblems returns the diagnostics in after that aren't in before, matched
