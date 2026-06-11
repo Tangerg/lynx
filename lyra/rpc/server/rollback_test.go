@@ -28,7 +28,7 @@ func cont(id, parent string, atUnix int64, mark int) runRecord {
 // a non-root / unknown target errors (rollback's requireRoot).
 func TestBoundaryAt(t *testing.T) {
 	// R1 @1 mark2 → C1 (resume of R1) @2 mark4 → R2 @3 mark6 → R3 @4 mark9
-	tl := []runRecord{
+	tl := runTimeline{
 		root("R1", 1, 2),
 		cont("C1", "R1", 2, 4),
 		root("R2", 3, 6),
@@ -37,39 +37,39 @@ func TestBoundaryAt(t *testing.T) {
 
 	// Keep through R1 inclusive → keep R1+C1 (watermark 4, the chain terminal),
 	// drop R2+R3, boundary at R2's time.
-	keep, dropped, boundary, err := boundaryAt(tl, "R1", true)
+	b, err := tl.boundaryAt("R1", true)
 	if err != nil {
 		t.Fatalf("R1: %v", err)
 	}
-	if keep != 4 || len(dropped) != 2 || dropped[0].ref.ID != "R2" || !boundary.Equal(time.Unix(3, 0).UTC()) {
-		t.Fatalf("R1 split = keep%d drop%v boundary%v, want keep4 [R2 R3] @3", keep, runIDs(dropped), boundary.Unix())
+	if b.KeepMark != 4 || len(b.Dropped) != 2 || b.Dropped[0].ref.ID != "R2" || !b.BoundaryTime.Equal(time.Unix(3, 0).UTC()) {
+		t.Fatalf("R1 split = keep%d drop%v boundary%v, want keep4 [R2 R3] @3", b.KeepMark, runIDs(b.Dropped), b.BoundaryTime.Unix())
 	}
 
 	// Keep through R2 → watermark 6, drop only R3.
-	if keep, dropped, _, _ := boundaryAt(tl, "R2", true); keep != 6 || len(dropped) != 1 || dropped[0].ref.ID != "R3" {
-		t.Fatalf("R2 split = keep%d drop%v, want keep6 [R3]", keep, runIDs(dropped))
+	if b, _ := tl.boundaryAt("R2", true); b.KeepMark != 6 || len(b.Dropped) != 1 || b.Dropped[0].ref.ID != "R3" {
+		t.Fatalf("R2 split = keep%d drop%v, want keep6 [R3]", b.KeepMark, runIDs(b.Dropped))
 	}
 
 	// Keep through the latest root → nothing to drop.
-	if _, dropped, _, _ := boundaryAt(tl, "R3", true); len(dropped) != 0 {
-		t.Fatalf("R3 drop = %v, want none", runIDs(dropped))
+	if b, _ := tl.boundaryAt("R3", true); len(b.Dropped) != 0 {
+		t.Fatalf("R3 drop = %v, want none", runIDs(b.Dropped))
 	}
 
 	// Drop everything (empty target) → keep 0, drop all.
-	if keep, dropped, boundary, _ := boundaryAt(tl, "", true); keep != 0 || len(dropped) != 4 || !boundary.IsZero() {
-		t.Fatalf("drop-all = keep%d drop%d boundary%v, want keep0 drop4 zero", keep, len(dropped), boundary)
+	if b, _ := tl.boundaryAt("", true); b.KeepMark != 0 || len(b.Dropped) != 4 || !b.BoundaryTime.IsZero() {
+		t.Fatalf("drop-all = keep%d drop%d boundary%v, want keep0 drop4 zero", b.KeepMark, len(b.Dropped), b.BoundaryTime)
 	}
 
 	// A continuation target is not a root → invalid_params (rollback).
-	if _, _, _, err := boundaryAt(tl, "C1", true); !errors.Is(err, protocol.ErrInvalidParams) {
+	if _, err := tl.boundaryAt("C1", true); !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("C1 err = %v, want ErrInvalidParams", err)
 	}
 	// Unknown target → run_not_found.
-	if _, _, _, err := boundaryAt(tl, "ghost", true); !errors.Is(err, protocol.ErrRunNotFound) {
+	if _, err := tl.boundaryAt("ghost", true); !errors.Is(err, protocol.ErrRunNotFound) {
 		t.Fatalf("ghost err = %v, want ErrRunNotFound", err)
 	}
 	// Fork is lax: a continuation target is allowed (requireRoot=false).
-	if _, _, _, err := boundaryAt(tl, "C1", false); err != nil {
+	if _, err := tl.boundaryAt("C1", false); err != nil {
 		t.Fatalf("C1 lax err = %v, want nil", err)
 	}
 }

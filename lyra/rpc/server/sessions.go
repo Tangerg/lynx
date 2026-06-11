@@ -138,17 +138,17 @@ func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest
 		if err != nil {
 			return nil, wireSessionErr(err)
 		}
-		timeline, err := runTimeline(runs)
+		timeline, err := newRunTimeline(runs)
 		if err != nil {
 			return nil, err
 		}
 		// requireRoot=false: fork is lax about the boundary run's kind (the
 		// contract lists only session_not_found / run_not_found).
-		mark, _, _, err := boundaryAt(timeline, in.FromRunID, false)
+		b, err := timeline.boundaryAt(in.FromRunID, false)
 		if err != nil {
 			return nil, err
 		}
-		copyN = mark // -1 (unknown watermark) falls back to a full copy below
+		copyN = b.KeepMark // -1 (unknown watermark) falls back to a full copy below
 	}
 
 	// Fork records the branch lineage (parent id, inherited cwd); atMessageID
