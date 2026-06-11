@@ -7,7 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/lyra/internal/lsp"
+	"github.com/Tangerg/lynx/lyra/internal/infra/lsp"
 	"github.com/Tangerg/lynx/tools/bash"
 	"github.com/Tangerg/lynx/tools/fs"
 	"github.com/Tangerg/lynx/tools/httpreq"

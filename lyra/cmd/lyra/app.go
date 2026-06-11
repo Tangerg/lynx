@@ -29,8 +29,8 @@ import (
 	memorysvc "github.com/Tangerg/lynx/lyra/internal/service/memory"
 	providersvc "github.com/Tangerg/lynx/lyra/internal/service/provider"
 	sessionsvc "github.com/Tangerg/lynx/lyra/internal/service/session"
-	"github.com/Tangerg/lynx/lyra/internal/storage"
-	sqlitestore "github.com/Tangerg/lynx/lyra/internal/storage/sqlite"
+	"github.com/Tangerg/lynx/lyra/internal/infra/storage"
+	sqlitestore "github.com/Tangerg/lynx/lyra/internal/infra/storage/sqlite"
 )
 
 // App is the top-level CLI object. It owns the IO streams every

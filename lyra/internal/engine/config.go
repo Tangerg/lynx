@@ -6,7 +6,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
-	"github.com/Tangerg/lynx/lyra/internal/lsp"
+	"github.com/Tangerg/lynx/lyra/internal/infra/lsp"
 	"github.com/Tangerg/lynx/lyra/internal/service/maintenance"
 	lyramem "github.com/Tangerg/lynx/lyra/internal/service/memory"
 	"github.com/Tangerg/lynx/mcp"

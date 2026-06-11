@@ -17,9 +17,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/Tangerg/lynx/lyra/internal/checkpoint"
+	"github.com/Tangerg/lynx/lyra/internal/infra/checkpoint"
 	"github.com/Tangerg/lynx/lyra/internal/config"
-	"github.com/Tangerg/lynx/lyra/internal/git"
+	"github.com/Tangerg/lynx/lyra/internal/infra/git"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 

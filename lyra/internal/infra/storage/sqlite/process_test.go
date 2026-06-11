@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/lyra/internal/storage/sqlite"
+	"github.com/Tangerg/lynx/lyra/internal/infra/storage/sqlite"
 )
 
 func newProcessStore(t *testing.T) *sqlite.ProcessStore {

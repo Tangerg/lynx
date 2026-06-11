@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/lyra/internal/lsp"
+	"github.com/Tangerg/lynx/lyra/internal/infra/lsp"
 )
 
 // TestEngine_RegistersLSPTools verifies the six code-intelligence tools are

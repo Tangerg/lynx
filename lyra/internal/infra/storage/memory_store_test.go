@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/lyra/internal/service/memory"
-	"github.com/Tangerg/lynx/lyra/internal/storage"
+	"github.com/Tangerg/lynx/lyra/internal/infra/storage"
 )
 
 func TestFileMemoryService_UpdateAndGet(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/Tangerg/lynx/lyra/internal/checkpoint"
+	"github.com/Tangerg/lynx/lyra/internal/infra/checkpoint"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
