@@ -989,21 +989,29 @@ interface DroppedRun { run: RunRef; userInput?: ContentBlock[] }
 #### Workspace 事件流（`workspace.subscribe`，AUX_API §3 / §5）
 
 `workspace.subscribe` 打开一条非-run 工作区事件流（生命周期 = 订阅；client 断开即结束）。全局事件（`mcp.serverChanged` /
-`skills.changed`）发给每个订阅；`watches` 注册**本订阅**的文件监听，其 `files.changed` 走同一条流。
+`skills.changed`）发给每个订阅；带 `watches` 时,**监视该 cwd 的 git 状态**,任何变化发一个去抖 `resync`。
 
 ```ts
-interface WatchSpec     { watchId: string; cwd?: string; path?: string }   // path 相对 cwd（默认 serve 目录）、被 jail；空 path = 监听 cwd 根
+interface WatchSpec     { watchId: string; cwd?: string; path?: string }   // path 当前未用;cwd 默认 serve 目录
 interface WorkspaceEvent {
   type: "files.changed" | "skills.changed" | "mcp.serverChanged" | "resync";
-  watchId?: string; paths?: string[];                       // files.changed：变更路径（相对 watch 的 cwd），watchId 回显
+  paths?: string[]; cwd?: string;                           // files.changed：变更文件(相对 cwd)+ 所属 cwd
   server?: string; status?: string; toolCount?: number; error?: ProblemData;  // mcp.serverChanged
 }
 ```
 
-- **`workspace.mcp.reconnect`** 无同步返回 —— 结果经 `mcp.serverChanged` 投递，**保证顺序 `connecting → (connected | failed)`**
-  （client 按钮 loading 绑 `connecting`，终态解除）。重连成功热刷新工具集，模型即时可见新工具。`status` 省略 = 条目已不存在。
-- **`files.changed`** 防抖（~150ms 合并一阵 fs 事件）+ lossy（订阅方慢则丢，下次变更/`resync` 自愈）。`watchId` 越界路径 →
-  `path_outside_root`，非目录 → `invalid_params`（不静默丢 watch）。
+**watch 模型(重要,与早期"递归文件监听"不同)** —— 后端**不递归监视工作树**(macOS kqueue 每文件一个 fd,大树会耗尽
+fd;且我们用不了 fd-廉价的 FSEvents)。改为两路覆盖,跨平台(inotify/kqueue/Win32 同样廉价):
+
+- **`resync`** —— 带 `watches` 时,监视该 cwd 的 `.git` 信号集(HEAD/index/refs/heads/ORIG_HEAD/MERGE_HEAD)。git 状态一变
+  (commit/暂存/checkout/branch/merge,任何进程所为)发去抖 `resync` → client 重拉 `workspace.getDiff`/`listFileChanges`。
+  非 git 仓的 cwd → 该 watch 静默无效(getDiff 本身也会 `vcs_unavailable`)。
+- **`files.changed{cwd, paths}`** —— **agent 自己的文件编辑**(write/edit 工具)由运行时从 run 流**精确推送**:工具一完成就发
+  变更文件路径(相对 `cwd`)。无需 watch、无竞态。`bash` 的文件改动不发(参数无法判定;若是 git 操作则走上面的 `.git` 监视)。
+  纯外部进程编辑(非 git、非 agent)不实时,降级到下次 git 操作 / 手动刷新(同 Claude Code 取舍)。
+- 客户端用 `cwd` 区分 `files.changed` 属于哪个项目;`resync` 无 paths,语义是"该 cwd 重拉"。
+- **`workspace.mcp.reconnect`** 无同步返回 —— 结果经 `mcp.serverChanged` 投递,**保证顺序 `connecting → (connected | failed)`**
+  （client 按钮 loading 绑 `connecting`,终态解除）。重连成功热刷新工具集,模型即时可见新工具。`status` 省略 = 条目已不存在。
 
 > `getDiff` / `getFileHead` / `grep` 返回的是**单一聚合结果**（非集合列表），故保留专用 shape、不套 `Page<T>`；但仍守
 > "no silent caps"——截断都**自描述**：`grep` 由 `GrepResult.total ≥ matches.length`、`getDiff` 由 `Diff.truncated`。
