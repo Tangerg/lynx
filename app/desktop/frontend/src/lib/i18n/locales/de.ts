@@ -10,7 +10,6 @@ export const de: Record<string, string> = {
   "sidebar.search.placeholder": "Suchen · Dateien · Befehle",
   "sidebar.search.label": "Dateien und Befehle suchen",
   "sidebar.section.projects": "Projekte",
-  "sidebar.section.sessions": "Sitzungen",
   "sidebar.action.addProject": "Projekt hinzufügen",
   "sidebar.addProject.title": "Neue Session im Ordner",
   "sidebar.addProject.placeholder": "Absoluter Pfad",
