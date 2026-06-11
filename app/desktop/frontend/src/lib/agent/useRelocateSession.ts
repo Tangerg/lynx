@@ -1,7 +1,8 @@
 import { useCallback } from "react";
 import { getContainer } from "@/main/container";
-import { asSessionId, errorDetail, isErrorType, RpcError } from "@/rpc";
+import { asSessionId } from "@/rpc";
 import { invalidateSessions } from "@/lib/data/queries";
+import { rpcErrorText } from "./errorCopy";
 import { reportSessionError } from "./reportSessionError";
 
 /** Relocate a session (sessions.update cwd — features.relocate gated,
@@ -20,12 +21,7 @@ export function useRelocateSession(): (id: string, cwd: string) => Promise<boole
       await invalidateSessions({ projects: true });
       return true;
     } catch (err) {
-      const description = isErrorType(err, "cwd_unavailable")
-        ? "That path does not exist on the runtime's disk."
-        : err instanceof RpcError
-          ? (errorDetail(err.data) ?? err.message)
-          : String(err);
-      reportSessionError("relocate", err, description);
+      reportSessionError("relocate", err, rpcErrorText(err) ?? String(err));
       return false;
     }
   }, []);

@@ -8,10 +8,11 @@
 import type { Message } from "@/protocol/run/viewState";
 import { toast } from "sonner";
 import { getContainer } from "@/main/container";
-import { asRunId, asSessionId, isErrorType } from "@/rpc";
+import { asRunId, asSessionId } from "@/rpc";
 import { getCurrentSessionView, useAgentStore } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
 import { useSessionStore } from "@/state/sessionStore";
+import { describeRpcError } from "./errorCopy";
 import { forkSessionAt } from "./useForkSession";
 import { flattenText } from "./messageContent";
 import { rehydrateSessionView } from "./rehydrateSession";
@@ -56,19 +57,13 @@ async function rollbackToBefore(
   return true;
 }
 
+// Mapped types (session_busy; checkpoint_unavailable — restoreType:"both"
+// is atomic, so a missing snapshot is a clean no-op) toast their standard
+// copy; anything else is unexpected and also logs the raw error.
 function reportRollbackError(err: unknown): void {
-  if (isErrorType(err, "session_busy")) {
-    toast.error("Session is busy — wait for the current run to finish.");
-    return;
-  }
-  // restoreType:"both" is atomic — on a missing snapshot the WHOLE call
-  // fails and history is untouched, so this is a clean no-op to report.
-  if (isErrorType(err, "checkpoint_unavailable")) {
-    toast.error("No file checkpoint for that turn — nothing was changed.");
-    return;
-  }
-  console.error("[message] rollback failed:", err);
-  toast.error("Couldn't rewind the conversation.");
+  const copy = describeRpcError(err);
+  if (!copy) console.error("[message] rollback failed:", err);
+  toast.error(copy ?? "Couldn't rewind the conversation.");
 }
 
 export interface RollbackActionOptions {
