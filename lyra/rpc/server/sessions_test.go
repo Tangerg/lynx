@@ -10,7 +10,7 @@ import (
 	historysvc "github.com/Tangerg/lynx/lyra/internal/service/history"
 	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
-	"github.com/Tangerg/lynx/lyra/internal/storage/sqlite"
+	"github.com/Tangerg/lynx/lyra/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 

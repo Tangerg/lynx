@@ -13,11 +13,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Tangerg/lynx/lyra/internal/checkpoint"
+	"github.com/Tangerg/lynx/lyra/internal/infra/checkpoint"
 	"github.com/Tangerg/lynx/lyra/internal/config"
-	"github.com/Tangerg/lynx/lyra/internal/git"
+	"github.com/Tangerg/lynx/lyra/internal/infra/git"
 	"github.com/Tangerg/lynx/lyra/internal/service/agentdoc"
-	"github.com/Tangerg/lynx/lyra/internal/storage"
+	"github.com/Tangerg/lynx/lyra/internal/infra/storage"
 	"github.com/Tangerg/lynx/lyra/rpc/server"
 	lyrahttp "github.com/Tangerg/lynx/lyra/rpc/transport/http"
 )

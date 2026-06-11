@@ -22,7 +22,7 @@ import (
 
 	"github.com/Tangerg/lynx/a2a"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
-	"github.com/Tangerg/lynx/lyra/internal/lsp"
+	"github.com/Tangerg/lynx/lyra/internal/infra/lsp"
 	"github.com/Tangerg/lynx/mcp"
 )
 

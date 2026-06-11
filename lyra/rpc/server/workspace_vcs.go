@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/lyra/internal/git"
+	"github.com/Tangerg/lynx/lyra/internal/infra/git"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
