@@ -45,7 +45,12 @@ import { kernelChat, kernelSettings, kernelSidebar } from "./shell/kernel";
 import nativeShell from "./shell/native-shell";
 import { localesPack } from "./i18n";
 import mainRoute from "./shell/main-route";
-import { messageCopy, messageEdit, messageRegenerate } from "./chat/message-actions";
+import {
+  messageCopy,
+  messageEdit,
+  messageFeedback,
+  messageRegenerate,
+} from "./chat/message-actions";
 import planProgress from "./chat/plan-progress";
 import pluginsPane from "./settings/plugins-pane";
 import providersPane from "./settings/providers";
@@ -123,6 +128,7 @@ const messageRendering: PluginSpec[] = [
   messageCopy,
   messageEdit,
   messageRegenerate,
+  messageFeedback,
   previewBlocks,
 ];
 

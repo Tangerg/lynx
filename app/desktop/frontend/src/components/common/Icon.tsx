@@ -42,6 +42,8 @@ import {
   SkipForward,
   Sparkle,
   Sparkles,
+  ThumbsDown,
+  ThumbsUp,
   Square,
   Sun,
   Terminal,
@@ -94,6 +96,8 @@ export type IconName =
   | "history"
   | "tool"
   | "sparkle"
+  | "thumbs-up"
+  | "thumbs-down"
   | "edit"
   | "paperclip"
   | "image"
@@ -151,6 +155,8 @@ const ICON_MAP: Record<IconName, LucideIcon> = {
   history: History,
   tool: Wrench,
   sparkle: Sparkle,
+  "thumbs-up": ThumbsUp,
+  "thumbs-down": ThumbsDown,
   edit: Pencil,
   paperclip: Paperclip,
   image: ImageIcon,
