@@ -64,14 +64,12 @@ func SymmetricDifference[T comparable](s1, s2 Set[T]) Set[T] {
 	// Pre-estimate capacity for worst case (no overlapping elements)
 	result := NewHashSet[T](s1.Size() + s2.Size())
 
-	// Add elements from s1 that are not in s2
 	for x := range s1.Iter() {
 		if !s2.Contains(x) {
 			result.Add(x)
 		}
 	}
 
-	// Add elements from s2 that are not in s1
 	for x := range s2.Iter() {
 		if !s1.Contains(x) {
 			result.Add(x)
@@ -113,7 +111,6 @@ func UnionAll[T comparable](sets ...Set[T]) Set[T] {
 
 		result := NewHashSet[T](totalSize)
 
-		// Add all elements from all sets
 		for _, s := range sets {
 			for x := range s.Iter() {
 				result.Add(x)
@@ -161,7 +158,6 @@ func IntersectionAll[T comparable](sets ...Set[T]) Set[T] {
 		// Pre-allocate capacity based on the smaller set size (upper bound)
 		result := NewHashSet[T](smaller.Size())
 
-		// Iterate over the smaller set and check membership in the larger set
 		for x := range smaller.Iter() {
 			if larger.Contains(x) {
 				result.Add(x)
@@ -216,7 +212,6 @@ func DifferenceAll[T comparable](sets ...Set[T]) Set[T] {
 		// Pre-allocate capacity based on s1 size (upper bound for result)
 		result := NewHashSet[T](s1.Size())
 
-		// Add elements from s1 that are not present in s2
 		for x := range s1.Iter() {
 			if !s2.Contains(x) {
 				result.Add(x)
@@ -451,10 +446,8 @@ func CartesianProduct[T, U comparable](s1 Set[T], s2 Set[U]) Set[Pair[T, U]] {
 //	set := Of(1, 2, 3, 2, 1)  // creates a set containing {1, 2, 3}
 //	empty := Of[string]()     // creates an empty string set
 func Of[T comparable](items ...T) Set[T] {
-	// Pre-allocate capacity based on input length
 	result := NewHashSet[T](len(items))
 
-	// Add all items (duplicates are automatically handled)
 	for _, item := range items {
 		result.Add(item)
 	}

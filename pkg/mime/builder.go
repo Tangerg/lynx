@@ -30,7 +30,6 @@ func init() {
 		separatorChars.Set(position)
 	}
 
-	// Create token bitset by excluding control and separator characters
 	validTokenChars := bitset.New(128)
 	for i := uint(0); i < 128; i++ {
 		validTokenChars.Set(i)
@@ -73,7 +72,6 @@ func (b *Builder) checkToken(token string) error {
 // checkParam validates a parameter key/value pair. The value may be a
 // quoted string or a token; the key must always be a token.
 func (b *Builder) checkParam(paramKey string, paramValue string) error {
-	// Validate parameter key (must be a valid token)
 	if err := b.checkToken(paramKey); err != nil {
 		return err
 	}
@@ -83,7 +81,6 @@ func (b *Builder) checkParam(paramKey string, paramValue string) error {
 		return nil
 	}
 
-	// Validate parameter value if it's not quoted
 	return b.checkToken(paramValue)
 }
 

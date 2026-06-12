@@ -54,7 +54,6 @@ func Parse(mimeString string) (*MIME, error) {
 	}
 	typeSubtypeString = strings.TrimSpace(typeSubtypeString)
 
-	// Validate the type/subtype portion
 	if typeSubtypeString == "" {
 		return nil, fmt.Errorf("%w: 'mime type' must not be empty", ErrorInvalidMimeType)
 	}
@@ -73,22 +72,18 @@ func Parse(mimeString string) (*MIME, error) {
 		return nil, fmt.Errorf("%w: does not contain subtype after '/'", ErrorInvalidMimeType)
 	}
 
-	// Extract the type and subtype
 	primaryType := typeSubtypeString[:slashIndex]
 	subType := typeSubtypeString[slashIndex+1:]
 
-	// Validate wildcard type usage
 	if primaryType == wildcardType && subType != wildcardType {
 		return nil, fmt.Errorf("%w: wildcard type is legal only in '*/*' (all mime types)", ErrorInvalidMimeType)
 	}
 
-	// Process parameters (if any)
 	parameterMap := maps.NewHashMap[string, string]()
 	for semicolonIndex < len(mimeString) {
 		nextSemicolonIndex := semicolonIndex + 1
 		isQuoted := false
 
-		// Find the end of the current parameter
 		for nextSemicolonIndex < len(mimeString) {
 			currentChar := mimeString[nextSemicolonIndex]
 			if currentChar == ';' {
@@ -114,7 +109,6 @@ func Parse(mimeString string) (*MIME, error) {
 		semicolonIndex = nextSemicolonIndex
 	}
 
-	// Build and validate the final MIME type
 	mimeResult, err := NewBuilder().
 		WithType(primaryType).
 		WithSubType(subType).

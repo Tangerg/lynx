@@ -54,13 +54,10 @@ func (l *LinkedMap[K, V]) Put(key K, value V) (V, bool) {
 		return oldValue, true
 	}
 
-	// Create new node and add to hash map
 	newNode := &mapNode[K, V]{key: key, value: value}
 	l.nodes[key] = newNode
 
-	// Insert at the end of the linked list
 	if l.tail == nil {
-		// Empty list - both head and tail point to the new node
 		l.head = newNode
 		l.tail = newNode
 	} else {
@@ -96,10 +93,8 @@ func (l *LinkedMap[K, V]) Remove(key K) (V, bool) {
 
 	oldValue := nodeToRemove.value
 
-	// Remove from hash map
 	delete(l.nodes, key)
 
-	// Remove from linked list structure
 	l.removeNode(nodeToRemove)
 
 	return oldValue, true
@@ -108,15 +103,12 @@ func (l *LinkedMap[K, V]) Remove(key K) (V, bool) {
 // removeNode removes a node from the doubly-linked list and updates head/tail pointers.
 // This is a helper method that handles all the pointer manipulation safely.
 func (l *LinkedMap[K, V]) removeNode(node *mapNode[K, V]) {
-	// Update previous node's next pointer
 	if node.prev != nil {
 		node.prev.next = node.next
 	} else {
-		// Removing the head node
 		l.head = node.next
 	}
 
-	// Update next node's previous pointer
 	if node.next != nil {
 		node.next.prev = node.prev
 	} else {

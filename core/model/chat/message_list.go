@@ -43,7 +43,6 @@ func FilterMessagesByMessageTypes(messages []Message, types ...MessageType) []Me
 	})
 }
 
-// filterOutNilMessages returns a copy with nil entries removed.
 func filterOutNilMessages(messages []Message) []Message {
 	return FilterMessages(messages, func(msg Message) bool { return msg != nil })
 }
@@ -176,9 +175,6 @@ func MergeAdjacentSameTypeMessages(messages []Message) []Message {
 	return result
 }
 
-// findLastMessageIndexOfType returns the (index, message) of the last
-// non-nil entry whose type equals targetType, or (-1, nil) when no such
-// message exists.
 func findLastMessageIndexOfType(messages []Message, targetType MessageType) (int, Message) {
 	for i := len(messages) - 1; i >= 0; i-- {
 		msg := messages[i]
@@ -189,8 +185,6 @@ func findLastMessageIndexOfType(messages []Message, targetType MessageType) (int
 	return -1, nil
 }
 
-// augmentLastMessageOfType finds the last message of targetType and
-// runs augmentFunc on it in place.
 func augmentLastMessageOfType(messages []Message, targetType MessageType, augmentFunc func(message Message) Message) {
 	if augmentFunc == nil {
 		return
@@ -206,9 +200,6 @@ func augmentLastMessageOfType(messages []Message, targetType MessageType, augmen
 	}
 }
 
-// appendTextToLastMessageOfType appends text to the last user or system
-// message, separated by a double newline. Other types are silently
-// ignored.
 func appendTextToLastMessageOfType(messages []Message, targetType MessageType, text string) {
 	augmentLastMessageOfType(messages, targetType, func(msg Message) Message {
 		switch typed := msg.(type) {
@@ -224,8 +215,6 @@ func appendTextToLastMessageOfType(messages []Message, targetType MessageType, t
 	})
 }
 
-// replaceTextOfLastMessageOfType overwrites the text of the last user or
-// system message.
 func replaceTextOfLastMessageOfType(messages []Message, targetType MessageType, text string) {
 	augmentLastMessageOfType(messages, targetType, func(msg Message) Message {
 		switch typed := msg.(type) {

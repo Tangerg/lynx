@@ -177,7 +177,6 @@ func LoopScope(ctx context.Context) context.Context {
 	return context.WithValue(ctx, scopeKey{}, &loopScope{})
 }
 
-// scopeFromContext returns the active loop scope, or nil.
 func scopeFromContext(ctx context.Context) *loopScope {
 	scope, _ := ctx.Value(scopeKey{}).(*loopScope)
 	return scope

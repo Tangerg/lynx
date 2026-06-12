@@ -98,7 +98,6 @@ func (v *Visitor) visitOrderingExpr(expr *ast.BinaryExpr) error {
 			expr.Op.Literal, expr.Start().String(), err)
 	}
 
-	// Convert value to float64 for range comparison
 	numericValue, err := cast.ToFloat64E(fieldValue)
 	if err != nil {
 		return fmt.Errorf("cannot convert value to number for '%s' comparison at %s: expected number, got %T",
@@ -107,22 +106,18 @@ func (v *Visitor) visitOrderingExpr(expr *ast.BinaryExpr) error {
 
 	switch expr.Op.Kind {
 	case token.LT:
-		// < operator: field value must be less than the specified value
 		v.filter.Must = append(v.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
 			Lt: new(numericValue),
 		}))
 	case token.LE:
-		// <= operator: field value must be less than or equal to the specified value
 		v.filter.Must = append(v.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
 			Lte: new(numericValue),
 		}))
 	case token.GT:
-		// > operator: field value must be greater than the specified value
 		v.filter.Must = append(v.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
 			Gt: new(numericValue),
 		}))
 	case token.GE:
-		// >= operator: field value must be greater than or equal to the specified value
 		v.filter.Must = append(v.filter.Must, qdrant.NewRange(fieldKey, &qdrant.Range{
 			Gte: new(numericValue),
 		}))
@@ -291,13 +286,12 @@ func (v *Visitor) buildNestedCondition(expr ast.Expr) (*qdrant.Condition, error)
 	switch node := expr.(type) {
 	case *ast.BinaryExpr,
 		*ast.UnaryExpr:
-		// Create isolated converter to maintain proper condition scoping
+		// Isolated converter maintains proper condition scoping.
 		nestedConv := NewVisitor()
 		err := nestedConv.visit(node)
 		if err != nil {
 			return nil, err
 		}
-		// Wrap the nested filter as a single condition
 		return qdrant.NewFilterAsCondition(nestedConv.filter), nil
 
 	default:
@@ -416,13 +410,10 @@ func (v *Visitor) buildIndexedFieldKey(expr *ast.IndexExpr) (string, error) {
 			return "", fmt.Errorf("invalid index type %T, expected string or number", indexVal)
 		}
 
-		// Process the left side of the index expression
 		switch leftNode := currentExpr.Left.(type) {
 		case *ast.IndexExpr:
-			// Nested index expression: continue processing recursively
 			currentExpr = leftNode
 		case *ast.Ident:
-			// Base identifier found: prepend and complete the path
 			pathParts = append([]string{leftNode.Value}, pathParts...)
 			return strings.Join(pathParts, "."), nil
 		default:

@@ -98,18 +98,14 @@ func (l *LinkedSet[T]) ContainsAny(items ...T) bool {
 // Returns false if the element already exists.
 // Time complexity: O(1)
 func (l *LinkedSet[T]) Add(x T) bool {
-	// Check existence using the hash map for O(1) lookup
 	if l.Contains(x) {
 		return false
 	}
 
-	// Create new node and add to hash map
 	newNode := &node[T]{value: x}
 	l.nodes[x] = newNode
 
-	// Insert at the end of the linked list
 	if l.tail == nil {
-		// Empty list - both head and tail point to the new node
 		l.head = newNode
 		l.tail = newNode
 	} else {
@@ -137,19 +133,15 @@ func (l *LinkedSet[T]) AddAll(items ...T) bool {
 // removeNode removes a node from the doubly-linked list and updates head/tail pointers.
 // This is a helper method that handles all the pointer manipulation safely.
 func (l *LinkedSet[T]) removeNode(node *node[T]) {
-	// Update previous node's next pointer
 	if node.prev != nil {
 		node.prev.next = node.next
 	} else {
-		// Removing the head node
 		l.head = node.next
 	}
 
-	// Update next node's previous pointer
 	if node.next != nil {
 		node.next.prev = node.prev
 	} else {
-		// Removing the tail node
 		l.tail = node.prev
 	}
 
@@ -206,7 +198,6 @@ func (l *LinkedSet[T]) RetainAll(items ...T) bool {
 		return true
 	}
 
-	// Create a lookup map for elements to retain
 	toRetain := make(HashSet[T], len(items))
 	for _, item := range items {
 		toRetain[item] = struct{}{}
@@ -277,7 +268,6 @@ func (l *LinkedSet[T]) ToSlice() []T {
 // The cloned set will have the same elements in the same order.
 func (l *LinkedSet[T]) Clone() Set[T] {
 	cloned := NewLinkedSet[T](l.Size())
-	// Add elements in insertion order to preserve order in the clone
 	current := l.head
 	for current != nil {
 		cloned.Add(current.value)

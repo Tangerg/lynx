@@ -29,7 +29,6 @@ type inMemoryBlackboard struct {
 	conditions map[string]bool
 }
 
-// newInMemoryBlackboard returns a fresh blackboard with a generated UUID id.
 func newInMemoryBlackboard() *inMemoryBlackboard {
 	return &inMemoryBlackboard{
 		id:         uuid.NewString(),

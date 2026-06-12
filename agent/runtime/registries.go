@@ -21,7 +21,6 @@ type agentRegistry struct {
 	agents map[string]*core.Agent
 }
 
-// newAgentRegistry returns an empty registry.
 func newAgentRegistry() agentRegistry {
 	return agentRegistry{agents: map[string]*core.Agent{}}
 }
@@ -75,7 +74,6 @@ type processRegistry struct {
 	procs map[string]*AgentProcess
 }
 
-// newProcessRegistry returns an empty registry.
 func newProcessRegistry() processRegistry {
 	return processRegistry{procs: map[string]*AgentProcess{}}
 }

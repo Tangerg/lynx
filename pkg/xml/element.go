@@ -328,7 +328,6 @@ var second = &unicode.RangeTable{
 // expandSelfCloseElement expands a self-closing element into separate start and end elements.
 // Example: "<element />" -> "<element>", "</element>"
 func expandSelfCloseElement(element string, eleName string) (string, string) {
-	// Remove trailing "/>" and whitespace
 	startEle := strings.TrimSuffix(element, "/>")
 	startEle = strings.TrimRightFunc(startEle, unicode.IsSpace)
 	startEle = startEle + ">"
@@ -346,7 +345,6 @@ func ExpandSelfCloseElement(element string) (string, string, error) {
 		return "", "", errors.New("element is not self-closing")
 	}
 
-	// Extract element name
 	name := extractElementName(element)
 	if name.Local == "" {
 		return "", "", errors.New("empty element name")
@@ -359,7 +357,6 @@ func ExpandSelfCloseElement(element string) (string, string, error) {
 // extractElementContent extracts the content between start and end elements.
 // Example: "<element>content</element>" -> "content"
 func extractElementContent(element string, eleName string) []byte {
-	// Find the end of the start element
 	startEleEnd := strings.Index(element, ">")
 	if startEleEnd == -1 {
 		return nil
@@ -401,19 +398,14 @@ func ExtractElementContent(element string) ([]byte, error) {
 func parseAttrs(startEle string) ([]Attr, error) {
 	attrs := make([]Attr, 0, 4)
 
-	// Validate element format
 	if !strings.HasPrefix(startEle, "<") || !strings.HasSuffix(startEle, ">") {
 		return nil, errors.New("invalid element format")
 	}
 
-	// Remove angle brackets
 	inner := startEle[1 : len(startEle)-1]
-
-	// Remove trailing "/" for self-closing elements
 	inner = strings.TrimSuffix(inner, "/")
 	inner = strings.TrimSpace(inner)
 
-	// Split element name from attributes
 	parts := strings.SplitN(inner, " ", 2)
 	if len(parts) < 2 {
 		return attrs, nil // No attributes
@@ -422,9 +414,7 @@ func parseAttrs(startEle string) ([]Attr, error) {
 	attrStr := strings.TrimSpace(parts[1])
 	pos := 0
 
-	// Parse each attribute
 	for pos < len(attrStr) {
-		// Skip whitespace
 		for pos < len(attrStr) && unicode.IsSpace(rune(attrStr[pos])) {
 			pos++
 		}
@@ -432,19 +422,16 @@ func parseAttrs(startEle string) ([]Attr, error) {
 			break
 		}
 
-		// Read attribute name
 		nameStart := pos
 		for pos < len(attrStr) && attrStr[pos] != '=' && !unicode.IsSpace(rune(attrStr[pos])) {
 			pos++
 		}
 		attrName := attrStr[nameStart:pos]
 
-		// Validate attribute name
 		if !isNameString(attrName) {
 			return nil, fmt.Errorf("invalid attribute name %q", attrName)
 		}
 
-		// Skip whitespace and equals sign
 		for pos < len(attrStr) && (unicode.IsSpace(rune(attrStr[pos])) || attrStr[pos] == '=') {
 			pos++
 		}
@@ -453,7 +440,6 @@ func parseAttrs(startEle string) ([]Attr, error) {
 			return nil, fmt.Errorf("attribute %q has no value", attrName)
 		}
 
-		// Parse quoted value
 		quote := attrStr[pos]
 		if quote != '"' && quote != '\'' {
 			return nil, fmt.Errorf("attribute %q value must be quoted", attrName)
@@ -595,23 +581,19 @@ func IsSelfClosingElement(element string) bool {
 // elements with content (<x>...</x>) are intentionally out of scope —
 // open/close pairing is the scanner's job, not this token validator's.
 func isValidElementSyntax(element string) bool {
-	// Minimum length check: "<a>"
 	if len(element) < 3 {
 		return false
 	}
 
-	// Must start with '<' and end with '>'
 	if element[0] != '<' || element[len(element)-1] != '>' {
 		return false
 	}
 
-	// Remove angle brackets
 	inner := element[1 : len(element)-1]
 	if len(inner) < 1 {
 		return false
 	}
 
-	// Check if it's an end element or self-closing element
 	isEndEle := inner[0] == '/'
 	isSelfClosing := inner[len(inner)-1] == '/'
 
@@ -620,12 +602,10 @@ func isValidElementSyntax(element string) bool {
 		return false
 	}
 
-	// Remove leading "/" for end elements
 	if isEndEle {
 		inner = inner[1:]
 	}
 
-	// Remove trailing "/" for self-closing elements
 	if isSelfClosing {
 		inner = inner[:len(inner)-1]
 	}
@@ -635,13 +615,11 @@ func isValidElementSyntax(element string) bool {
 		return false
 	}
 
-	// Extract element name (before first space or end of string)
 	spaceIdx := strings.IndexFunc(inner, unicode.IsSpace)
 	var eleName string
 	var attrPart string
 
 	if spaceIdx == -1 {
-		// No attributes
 		eleName = inner
 		attrPart = ""
 	} else {
@@ -649,7 +627,6 @@ func isValidElementSyntax(element string) bool {
 		attrPart = strings.TrimSpace(inner[spaceIdx:])
 	}
 
-	// Validate element name
 	if !isNameString(eleName) {
 		return false
 	}
@@ -659,12 +636,10 @@ func isValidElementSyntax(element string) bool {
 		return false
 	}
 
-	// If no attributes, validation passes
 	if len(attrPart) == 0 {
 		return true
 	}
 
-	// Validate attribute syntax
 	return isValidAttributes(attrPart)
 }
 
@@ -673,7 +648,6 @@ func isValidAttributes(attrStr string) bool {
 	pos := 0
 
 	for pos < len(attrStr) {
-		// Skip whitespace
 		for pos < len(attrStr) && unicode.IsSpace(rune(attrStr[pos])) {
 			pos++
 		}
@@ -681,7 +655,6 @@ func isValidAttributes(attrStr string) bool {
 			break
 		}
 
-		// Read attribute name
 		nameStart := pos
 		for pos < len(attrStr) && attrStr[pos] != '=' && !unicode.IsSpace(rune(attrStr[pos])) {
 			pos++
@@ -693,28 +666,23 @@ func isValidAttributes(attrStr string) bool {
 
 		attrName := attrStr[nameStart:pos]
 
-		// Validate attribute name
 		if !isNameString(attrName) {
 			return false
 		}
 
-		// Skip whitespace before '='
 		for pos < len(attrStr) && unicode.IsSpace(rune(attrStr[pos])) {
 			pos++
 		}
 
-		// Must have '=' sign
 		if pos >= len(attrStr) || attrStr[pos] != '=' {
 			return false
 		}
 		pos++ // Skip '='
 
-		// Skip whitespace after '='
 		for pos < len(attrStr) && unicode.IsSpace(rune(attrStr[pos])) {
 			pos++
 		}
 
-		// Must have opening quote
 		if pos >= len(attrStr) {
 			return false
 		}

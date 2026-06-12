@@ -46,8 +46,6 @@ type awaitSlot struct {
 	awaitable core.Awaitable
 }
 
-// newProcessSignals returns a fresh signals block with a 1-buffered
-// terminate channel.
 func newProcessSignals() processSignals {
 	return processSignals{
 		terminate: make(chan core.TerminationSignal, 1),
