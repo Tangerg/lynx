@@ -210,8 +210,7 @@ func renderSessionMarkdown(ses protocol.Session, items []transcript.Item) string
 	return strings.TrimRight(b.String(), "\n") + "\n"
 }
 
-// contentText joins an item's text content blocks (image blocks render as a
-// placeholder).
+// contentText returns the text of an item (image blocks render as "[image]").
 func contentText(it protocol.Item) string {
 	if it.Text != "" {
 		return it.Text

@@ -45,7 +45,6 @@ func newTurnMetrics() *turnMetrics {
 	return &turnMetrics{duration: duration, interrupts: interrupts}
 }
 
-// millis renders a duration as fractional milliseconds for histograms.
 func millis(d time.Duration) float64 { return float64(d.Microseconds()) / 1000.0 }
 
 // recordTurnDuration records one finished turn's wall-clock against the

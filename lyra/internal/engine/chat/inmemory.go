@@ -18,7 +18,6 @@ import (
 // prefix (API.md §2.2; mirrors protocol.IDPrefixRun).
 const turnIDPrefix = "run_"
 
-// newTurnID mints a fresh prefixed turn id.
 func newTurnID() string { return turnIDPrefix + uuid.NewString() }
 
 // New returns the [Service] implementation. The implementation is
