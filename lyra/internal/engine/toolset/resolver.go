@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/infra/exec"
 	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
+	"github.com/Tangerg/lynx/lyra/internal/service/editguard"
 	"github.com/Tangerg/lynx/tools/fs"
 	"github.com/Tangerg/lynx/tools/httpreq"
 	"github.com/Tangerg/lynx/tools/webfetch"
@@ -45,7 +46,7 @@ const CwdBindingKey = "lyra:cwd"
 const ChatModeBindingKey = "lyra:chat-mode"
 
 // SessionBindingKey is the blackboard key the chat action binds (protected)
-// with the turn's session id, so the read/edit guards ([ReadTracker]) can key
+// with the turn's session id, so the read/edit guards ([editguard.Tracker]) can key
 // file-read state per session — read in the same seam as the working directory
 // (see turnSession / [CwdBindingKey]). Protected so it rides to `task`
 // sub-agents and survives the snapshot/resume round trip.
@@ -70,7 +71,7 @@ func wrapTool(inner chat.Tool, call func(ctx context.Context, arguments string) 
 // write and edit are wrapped so a successful edit is type-checked by the
 // code-intelligence service and any new problems are folded into the tool
 // result (see withEditDiagnostics). ci may be nil — the wrap is then a no-op.
-func BuildWorkdirTools(workdir string, ci *codeintel.Service, tracker *ReadTracker) []chat.Tool {
+func BuildWorkdirTools(workdir string, ci *codeintel.Service, tracker *editguard.Tracker) []chat.Tool {
 	fsExec := fs.NewLocalExecutor(workdir)
 	return []chat.Tool{
 		withReadTracking(fs.NewReadTool(fsExec), tracker, workdir),
@@ -183,7 +184,7 @@ type Resolver struct {
 	a2a             []chat.Tool        // working-directory-independent remote A2A agents
 	lsp             []chat.Tool        // code-intelligence tools; cwd read per-call (service keys servers by root)
 	codeIntel       *codeintel.Service // backs the write/edit diagnostics wrap (rebuilt per resolution with the turn's cwd)
-	readTracker     *ReadTracker       // backs the read-before-edit + stale guards on read/edit/write
+	readTracker     *editguard.Tracker // backs the read-before-edit + stale guards on read/edit/write
 	shell           []chat.Tool        // shell tools (bash / bash_output / kill_shell) over the exec.Manager; cwd read per-call
 	task            chat.Tool          // delegation tool; coding role only, nil until set
 	askUser         chat.Tool          // ask_user HITL tool; coding role only, built by engine + injected
@@ -208,7 +209,7 @@ type Deps struct {
 	LSP             []chat.Tool        // code-intelligence tools
 	Shell           []chat.Tool        // shell tools (bash / bash_output / kill_shell)
 	CodeIntel       *codeintel.Service // backs the post-edit diagnostics wrap
-	ReadTracker     *ReadTracker       // backs the read/edit/write guards
+	ReadTracker     *editguard.Tracker // backs the read/edit/write guards
 }
 
 // NewResolver builds the platform-scope tool resolver from its
