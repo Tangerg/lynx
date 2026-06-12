@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/models
 
-go 1.26.3
+go 1.26.4
 
 require (
 	github.com/Tangerg/lynx/core v0.0.0-20260511081009-fbf46737de3d

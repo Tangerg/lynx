@@ -43,7 +43,7 @@
 
 ## 共用强约定（违反 = 回归）
 
-- **Go 1.26.3 统一版本**：所有模块 `go.mod` 同步；用 `iter.Seq2` / `slices.*` / `maps.*` / `atomic.Int32` 等现代 stdlib
+- **Go 1.26.4 统一版本**：所有模块 `go.mod` 同步；用 `iter.Seq2` / `slices.*` / `maps.*` / `atomic.Int32` 等现代 stdlib
 - **依赖接口，不依赖具体类型**：跨包消费一定走 interface，**接口在消费方定义**（不在被消费方）。如果一个新模块要拿到 `*Engine` / `*Platform` / `*Service` 整体，先停下来想能不能拆成只用的几个方法
 - **ISP 切碎接口**：典型例子 `approval.Console` vs `approval.Gate`（lyra），`tool.ToolSource` 一方法接口（lyra）。消费者只 import 自己用的那侧
 - **`errors.New` 优先于 `fmt.Errorf("constant")`**。`fmt.Errorf` 只在真要格式化时用，包装其他错误必须 `%w` 才能 `errors.Is/As`

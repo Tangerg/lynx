@@ -4,4 +4,4 @@
 // need.
 module github.com/Tangerg/lynx/documentreaders
 
-go 1.26.3
+go 1.26.4

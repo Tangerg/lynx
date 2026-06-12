@@ -11,7 +11,7 @@
 
 ## 技术栈
 
-- Go 1.26.3
+- Go 1.26.4
 - `github.com/a2aproject/a2a-go/v2`，三个子包别名/原名：核心类型 `sdka2a`、server `a2asrv`、client `a2aclient`（`sdka2a` 别名避免和本包名 `a2a` 冲突，同 mcp 的 `sdkmcp`）
 - `go.opentelemetry.io/otel` 1.43
 - `core/model/chat` —— 复用 `chat.Tool` 接口

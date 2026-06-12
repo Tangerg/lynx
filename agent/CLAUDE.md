@@ -11,7 +11,7 @@
 
 ## 技术栈
 
-- Go 1.26.3
+- Go 1.26.4
 - 内部依赖：`core` / `mcp` / `pkg`
 - 外部依赖：
   - `modelcontextprotocol/go-sdk` —— MCP 集成

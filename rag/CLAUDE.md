@@ -11,7 +11,7 @@
 
 ## 技术栈
 
-- Go 1.26.3
+- Go 1.26.4
 - `go.opentelemetry.io/otel` 1.43（每阶段 span）
 - 依赖 `core/document`（Document 类型）+ `pkg`（工具）+ 由调用方注入 vectorstore + embedding model
 

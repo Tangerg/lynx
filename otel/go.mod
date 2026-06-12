@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/otel
 
-go 1.26.3
+go 1.26.4
 
 require (
 	go.opentelemetry.io/otel v1.43.0

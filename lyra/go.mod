@@ -1,6 +1,6 @@
 module github.com/Tangerg/lynx/lyra
 
-go 1.26.3
+go 1.26.4
 
 require (
 	github.com/Tangerg/lynx/a2a v0.0.0-20260609163147-d82b84d55f3a

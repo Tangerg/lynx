@@ -11,7 +11,7 @@
 
 ## 技术栈
 
-- Go 1.26.3
+- Go 1.26.4
 - `gopkg.in/yaml.v3` —— 解析 frontmatter（唯一外部依赖）
 - **零业务依赖**：不 import `core` / `agent` / `lyra`，连 `chat.Tool` 都不碰 —— 渐进披露的三个能力是裸 Go 类型
 - ~0.3k LOC
