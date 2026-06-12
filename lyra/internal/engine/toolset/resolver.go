@@ -7,8 +7,8 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/lyra/internal/infra/exec"
 	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
-	"github.com/Tangerg/lynx/tools/bash"
 	"github.com/Tangerg/lynx/tools/fs"
 	"github.com/Tangerg/lynx/tools/httpreq"
 	"github.com/Tangerg/lynx/tools/webfetch"
@@ -60,19 +60,18 @@ func wrapTool(inner chat.Tool, call func(ctx context.Context, arguments string) 
 	return t
 }
 
-// BuildWorkdirTools instantiates the working-directory-bound coding tools —
-// the five filesystem tools and bash, all anchored at workdir. These are the
-// only tools whose behavior depends on the working directory, so they are
-// rebuilt per resolution (cheap structs) rather than captured once. No
-// credentials needed; safe to build unconditionally.
+// BuildWorkdirTools instantiates the working-directory-bound filesystem tools,
+// all anchored at workdir. These are the only tools whose behavior depends on
+// the working directory, so they are rebuilt per resolution (cheap structs)
+// rather than captured once. No credentials needed; safe to build
+// unconditionally. (bash is built over the shared exec.Manager in
+// BuildShellTools, not here — it reads cwd per call like bash_output.)
 //
 // write and edit are wrapped so a successful edit is type-checked by the
 // code-intelligence service and any new problems are folded into the tool
 // result (see withEditDiagnostics). ci may be nil — the wrap is then a no-op.
 func BuildWorkdirTools(workdir string, ci *codeintel.Service, tracker *ReadTracker) []chat.Tool {
 	fsExec := fs.NewLocalExecutor(workdir)
-	bashExec := bash.NewLocalExecutor()
-	bashExec.Dir = workdir
 	return []chat.Tool{
 		withReadTracking(fs.NewReadTool(fsExec), tracker, workdir),
 		// write/edit: the LSP diagnostics wrap is inner (runs on the applied
@@ -82,7 +81,6 @@ func BuildWorkdirTools(workdir string, ci *codeintel.Service, tracker *ReadTrack
 		withEditGuard(withEditDiagnostics(fs.NewEditTool(fsExec), ci, workdir), tracker, workdir),
 		fs.NewGlobTool(fsExec),
 		fs.NewGrepTool(fsExec),
-		bash.NewTool(bashExec),
 	}
 }
 
@@ -186,7 +184,7 @@ type Resolver struct {
 	lsp             []chat.Tool        // code-intelligence tools; cwd read per-call (service keys servers by root)
 	codeIntel       *codeintel.Service // backs the write/edit diagnostics wrap (rebuilt per resolution with the turn's cwd)
 	readTracker     *ReadTracker       // backs the read-before-edit + stale guards on read/edit/write
-	bgShell         []chat.Tool        // background-command tools (run_in_background / bash_output / kill_shell); cwd read per-call
+	shell           []chat.Tool        // shell tools (bash / bash_output / kill_shell) over the exec.Manager; cwd read per-call
 	task            chat.Tool          // delegation tool; coding role only, nil until set
 	askUser         chat.Tool          // ask_user HITL tool; coding role only, built by engine + injected
 
@@ -208,7 +206,7 @@ type Deps struct {
 	Online          []chat.Tool        // network tools (webfetch/websearch/httpreq)
 	A2A             []chat.Tool        // remote A2A delegation tools
 	LSP             []chat.Tool        // code-intelligence tools
-	BgShell         []chat.Tool        // background-command tools
+	Shell           []chat.Tool        // shell tools (bash / bash_output / kill_shell)
 	CodeIntel       *codeintel.Service // backs the post-edit diagnostics wrap
 	ReadTracker     *ReadTracker       // backs the read/edit/write guards
 }
@@ -219,13 +217,22 @@ type Deps struct {
 // SetAskUser] (they need the platform / the engine's HITL contract); the MCP
 // tool set is seeded + hot-swapped via [Resolver.SetMCPTools].
 func NewResolver(d Deps) *Resolver {
+	shell := d.Shell
+	if shell == nil {
+		// Bare resolver (a unit-test engine with no injected tool environment):
+		// own a private exec.Manager so bash and its background companions are
+		// still available. The production path injects shell tools built over the
+		// shared manager whose KillAll is a shutdown closer (toolset.Build); this
+		// private manager has no closer, fine for a process-lifetime test engine.
+		shell = BuildShellTools(exec.NewManager(), d.DefaultWorkdir)
+	}
 	return &Resolver{
 		defaultWorkdir:  d.DefaultWorkdir,
 		skillsGlobalDir: d.SkillsGlobalDir,
 		online:          d.Online,
 		a2a:             d.A2A,
 		lsp:             d.LSP,
-		bgShell:         d.BgShell,
+		shell:           shell,
 		codeIntel:       d.CodeIntel,
 		readTracker:     d.ReadTracker,
 	}
@@ -345,7 +352,7 @@ func (g *toolGroup) Tools(ctx context.Context) ([]core.AgentTool, error) {
 	tools = append(tools, g.resolver.mcpTools()...)
 	tools = append(tools, g.resolver.a2a...)
 	tools = append(tools, g.resolver.lsp...)
-	tools = append(tools, g.resolver.bgShell...)
+	tools = append(tools, g.resolver.shell...)
 	// The skill tool is working-directory scoped (project skills live under
 	// the turn's cwd), so it is built per resolution like fs/bash and is
 	// available to both coding and subtask roles. nil when no skills exist.
