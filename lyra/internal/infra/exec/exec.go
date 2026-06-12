@@ -1,23 +1,29 @@
 // Package exec is the background-process mechanism: it runs shell commands
 // detached from the calling turn, buffers their output in a bounded ring so
-// the model can poll incrementally, and kills them on demand. It is pure
-// infra — no domain knowledge, no upward dependency. The engine builds the
-// run_in_background / bash_output / kill_shell tools over a [Manager]; the
-// synchronous bash tool (tools/bash) is unaffected.
+// the model can read it incrementally, and kills them on demand. It is pure
+// infra — no domain knowledge, no upward dependency.
+//
+// Every command the engine's bash tool runs starts here as a detached job:
+// the foreground path races the command's completion ([Shell.Done]) against an
+// auto-background window, removing the job ([Manager.Remove]) if it finishes in
+// time and otherwise leaving it running and addressable by its shell id. So one
+// mechanism backs both the synchronous bash result and the bash_output /
+// kill_shell tools — the crush auto-background design.
 //
 // No PTY (matching claude_code / opencode; only codex uses one, at a heavy
-// platform cost): plain pipes into a bounded ring buffer, read incrementally.
-// Cross-platform with no platform-specific features — kill is a plain process
-// kill (same /bin/sh -c shell + reach as the synchronous bash tool), so a
-// command that itself forks grandchildren may leave them, acceptable for the
-// local single-user runtime.
+// platform cost): plain pipes into a bounded ring buffer. Cross-platform with
+// no platform-specific features — kill is a plain process kill, so a command
+// that itself forks grandchildren may leave them, acceptable for the local
+// single-user runtime.
 package exec
 
 import (
 	"context"
+	"errors"
 	"os/exec"
 	"strconv"
 	"sync"
+	"time"
 )
 
 // maxBuffer caps a background shell's retained output; once exceeded the
@@ -39,27 +45,38 @@ func NewManager() *Manager {
 }
 
 // Shell is one background process: its handle, the tail of its combined
-// stdout+stderr (capped), and its completion state. Poll it with [Shell.Read]
-// / [Shell.Status]; the [Manager] owns its lifecycle.
+// stdout+stderr (capped), and its completion state. Read its output with
+// [Shell.Read], wait for it with [Shell.Done], inspect its terminal state with
+// [Shell.Status] / [Shell.Outcome]; the [Manager] owns its lifecycle.
 type Shell struct {
-	cancel context.CancelFunc
-	cmd    *exec.Cmd
+	cancel  context.CancelFunc
+	cmd     *exec.Cmd
+	started time.Time
+	done    chan struct{} // closed once the process finishes
 
 	mu       sync.Mutex
 	buf      []byte // tail of stdout+stderr, capped at maxBuffer
 	total    int    // absolute bytes ever written (buf holds the last len(buf))
 	readPos  int    // absolute offset already returned to the caller
-	done     bool
-	exitInfo string // "exit 0" / "exit 2" / "signal: killed" — set on completion
+	finished bool
+	exitInfo string        // "exit 0" / "exit 2" / "signal: killed" — set on completion
+	exitCode int           // process exit code; -1 when it never ran / wasn't an exit
+	killed   bool          // terminated by ctx/timeout/kill rather than exiting on its own
+	duration time.Duration // wall time from launch to completion
 }
 
 // Launch starts command under cwd in the background, detached from any
-// tool-call context so it outlives the turn, and returns its shell id.
-func (m *Manager) Launch(cwd, command string) string {
+// tool-call context so it outlives the turn, and returns its shell id. A
+// positive timeout hard-kills the command when it elapses (0 = no hard
+// timeout; the command runs until it exits or is killed).
+func (m *Manager) Launch(cwd, command string, timeout time.Duration) string {
 	runCtx, cancel := context.WithCancel(context.Background())
+	if timeout > 0 {
+		runCtx, cancel = context.WithTimeout(context.Background(), timeout)
+	}
 	cmd := exec.CommandContext(runCtx, "/bin/sh", "-c", command)
 	cmd.Dir = cwd
-	sh := &Shell{cancel: cancel, cmd: cmd}
+	sh := &Shell{cancel: cancel, cmd: cmd, started: time.Now(), done: make(chan struct{})}
 	cmd.Stdout = sh
 	cmd.Stderr = sh
 
@@ -70,17 +87,23 @@ func (m *Manager) Launch(cwd, command string) string {
 	m.mu.Unlock()
 
 	if err := cmd.Start(); err != nil {
-		sh.finish("start failed: " + err.Error())
+		sh.finish("start failed: "+err.Error(), -1, false)
 		return id
 	}
 	go func() {
 		err := cmd.Wait()
+		killed := runCtx.Err() != nil // ctx done = timeout or an explicit Kill
 		cancel()
+		code, info := 0, "exit 0"
 		if err != nil {
-			sh.finish(err.Error())
-		} else {
-			sh.finish("exit 0")
+			if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
+				code = exitErr.ExitCode()
+				info = "exit " + strconv.Itoa(code)
+			} else {
+				code, info = -1, err.Error()
+			}
 		}
+		sh.finish(info, code, killed)
 	}()
 	return id
 }
@@ -101,13 +124,23 @@ func (m *Manager) Kill(id string) (running, ok bool) {
 		return false, false
 	}
 	sh.mu.Lock()
-	running = !sh.done
+	running = !sh.finished
 	sh.mu.Unlock()
 	if running {
 		sh.cancel()
 		_ = sh.cmd.Process.Kill()
 	}
 	return running, true
+}
+
+// Remove drops a shell from the manager without killing it. The foreground
+// bash race calls it once a command completes within the auto-background
+// window, so a finished command isn't left behind as a phantom background job.
+// Killing instead would cancel the already-exited process context needlessly.
+func (m *Manager) Remove(id string) {
+	m.mu.Lock()
+	delete(m.shells, id)
+	m.mu.Unlock()
 }
 
 // KillAll stops every background shell — called on engine shutdown.
@@ -124,11 +157,32 @@ func (m *Manager) KillAll() {
 	}
 }
 
-func (s *Shell) finish(info string) {
+func (s *Shell) finish(info string, code int, killed bool) {
 	s.mu.Lock()
-	s.done = true
+	if s.finished {
+		s.mu.Unlock()
+		return
+	}
+	s.finished = true
 	s.exitInfo = info
+	s.exitCode = code
+	s.killed = killed
+	s.duration = time.Since(s.started)
 	s.mu.Unlock()
+	close(s.done)
+}
+
+// Done is closed when the process finishes — the foreground bash race selects
+// on it to detect completion without polling.
+func (s *Shell) Done() <-chan struct{} { return s.done }
+
+// Outcome reports a finished shell's exit code, whether it was killed
+// (timeout / explicit kill) rather than exiting on its own, and its wall-clock
+// duration. Meaningful only after [Shell.Done] is closed.
+func (s *Shell) Outcome() (exitCode int, killed bool, duration time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.exitCode, s.killed, s.duration
 }
 
 // Read returns the output not yet returned to the caller and whether earlier
@@ -150,7 +204,7 @@ func (s *Shell) Read() (out string, dropped bool) {
 func (s *Shell) Status() (done bool, info string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.done, s.exitInfo
+	return s.finished, s.exitInfo
 }
 
 // Write funnels the shell's stdout/stderr into its capped ring buffer (the

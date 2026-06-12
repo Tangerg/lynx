@@ -79,7 +79,7 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 	tracker := NewReadTracker()
 
 	bg := exec.NewManager()
-	bgShellTools := BuildBgShellTools(bg, cfg.Workdir)
+	shellTools := BuildShellTools(bg, cfg.Workdir)
 
 	mcpConns, mcpTools, err := mcp.Dial(ctx, cfg.MCPServers)
 	if err != nil {
@@ -98,7 +98,7 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 		Online:          online,
 		A2A:             a2aTools,
 		LSP:             lspTools,
-		BgShell:         bgShellTools,
+		Shell:           shellTools,
 		CodeIntel:       codeIntel,
 		ReadTracker:     tracker,
 	})
@@ -113,7 +113,7 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 	tools = append(tools, mcpTools...)
 	tools = append(tools, a2aTools...)
 	tools = append(tools, lspTools...)
-	tools = append(tools, bgShellTools...)
+	tools = append(tools, shellTools...)
 	if skillTool := BuildSkillTool(cfg.Workdir, cfg.SkillsGlobalDir); skillTool != nil {
 		tools = append(tools, skillTool)
 	}

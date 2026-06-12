@@ -14,7 +14,7 @@ func TestManager_RunReadKill(t *testing.T) {
 	t.Cleanup(mgr.KillAll)
 
 	// A quick command: capture output + completion.
-	id := mgr.Launch("", "printf hello")
+	id := mgr.Launch("", "printf hello", 0)
 	waitDone(t, mgr, id)
 	out, _ := mustShell(t, mgr, id).Read()
 	if !strings.Contains(out, "hello") {
@@ -30,7 +30,7 @@ func TestManager_RunReadKill(t *testing.T) {
 	}
 
 	// A long-running command: kill it.
-	longID := mgr.Launch("", "sleep 30")
+	longID := mgr.Launch("", "sleep 30", 0)
 	running, ok := mgr.Kill(longID)
 	if !ok || !running {
 		t.Fatalf("kill = (running=%v ok=%v), want a running shell stopped", running, ok)
@@ -38,6 +38,28 @@ func TestManager_RunReadKill(t *testing.T) {
 	waitDone(t, mgr, longID)
 	if running2, _ := mgr.Kill(longID); running2 {
 		t.Error("second kill should report not-running")
+	}
+}
+
+// TestManager_TimeoutKills checks the hard-timeout path: a command outliving
+// its timeout is killed, and Outcome reports it as killed with a duration.
+func TestManager_TimeoutKills(t *testing.T) {
+	mgr := NewManager()
+	t.Cleanup(mgr.KillAll)
+
+	id := mgr.Launch("", "sleep 30", 200*time.Millisecond)
+	sh := mustShell(t, mgr, id)
+	select {
+	case <-sh.Done():
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed-out command did not finish")
+	}
+	_, killed, dur := sh.Outcome()
+	if !killed {
+		t.Error("Outcome.killed = false, want true (terminated by timeout)")
+	}
+	if dur <= 0 {
+		t.Errorf("Outcome.duration = %v, want positive", dur)
 	}
 }
 

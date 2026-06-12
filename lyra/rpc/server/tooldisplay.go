@@ -85,11 +85,12 @@ func argString(args map[string]any, key string) string {
 func commandResultFrom(outputJSON string) commandResult {
 	r := commandResult{Output: commandOutput(outputJSON)}
 	var out struct {
-		ExitCode int `json:"exit_code"`
+		ExitCode *int `json:"exit_code"`
 	}
-	if json.Unmarshal([]byte(outputJSON), &out) == nil {
-		ec := out.ExitCode
-		r.ExitCode = &ec
+	// Pointer so an absent exit_code stays nil: a command moved to the
+	// background hasn't exited, so it must not render a phantom "exit 0".
+	if json.Unmarshal([]byte(outputJSON), &out) == nil && out.ExitCode != nil {
+		r.ExitCode = out.ExitCode
 	}
 	return r
 }
