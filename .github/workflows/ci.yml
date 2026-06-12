@@ -18,14 +18,6 @@ jobs:
   check:
     name: ${{ matrix.module }}
     runs-on: ubuntu-latest
-    # chroma-go-local's v0.3.4 tag was force-moved upstream, so proxy.golang.org
-    # (and its sumdb) serve pre-move bits that no longer match the tag — and
-    # never will. Fetch that one module direct from its origin (which serves the
-    # current bits our go.sum pins) and skip the public sumdb for it. go.sum is
-    # still the integrity anchor; only the unsatisfiable public-DB cross-check is
-    # bypassed. Other modules are unaffected (only vectorstores imports it).
-    env:
-      GOPRIVATE: github.com/amikos-tech/chroma-go-local
     strategy:
       fail-fast: false
       matrix:
