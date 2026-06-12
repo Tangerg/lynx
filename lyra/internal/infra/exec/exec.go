@@ -76,6 +76,10 @@ func (m *Manager) Launch(cwd, command string, timeout time.Duration) string {
 	}
 	cmd := exec.CommandContext(runCtx, "/bin/sh", "-c", command)
 	cmd.Dir = cwd
+	// On kill/timeout, force-close the pipes shortly after so the Wait goroutine
+	// (and thus Done) returns promptly even when a child the shell spawned still
+	// holds them — otherwise Wait blocks until that child exits.
+	cmd.WaitDelay = time.Second
 	sh := &Shell{cancel: cancel, cmd: cmd, started: time.Now(), done: make(chan struct{})}
 	cmd.Stdout = sh
 	cmd.Stderr = sh

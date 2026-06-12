@@ -61,6 +61,11 @@ func (l *LocalExecutor) Run(ctx context.Context, in Input) (Output, error) {
 
 	cmd := exec.CommandContext(runCtx, cmp.Or(l.Shell, "/bin/sh"), "-c", in.Cmd)
 	cmd.Dir = l.Dir // "" leaves exec to inherit the host process cwd
+	// On a timeout/ctx kill, force-close the command's pipes shortly after so
+	// Wait returns promptly even when a child the shell spawned still holds them
+	// (otherwise Wait blocks until that child exits — the command runs its full
+	// duration despite the kill, which is exactly what slow CI runners surface).
+	cmd.WaitDelay = time.Second
 
 	stdout := newBoundedBuffer(l.maxOutput())
 	stderr := newBoundedBuffer(l.maxOutput())
