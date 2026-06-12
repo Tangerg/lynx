@@ -6,6 +6,7 @@ import (
 	"math/rand/v2"
 	"time"
 )
+
 // generate is the entry point: parse the request, derive every output
 // field deterministically from (location, date), and return the
 // Response. All randomness is seeded from the input — same input,

@@ -53,7 +53,7 @@ func TestSubscribeRun_StreamsLiveRunFromHub(t *testing.T) {
 }
 
 // TestResolveResolution covers the approval-response → InterruptResolution
-// mapping the resume path depends on (B5): approve/deny, editedArgs marshalled
+// mapping the resume path depends on (B5): approve/deny, editedArgs marshaled
 // into the one-shot Arguments override, and remember{scope} honored only for
 // "session". An unknown decision is invalid; an empty response continues.
 func TestResolveResolution(t *testing.T) {
@@ -62,7 +62,7 @@ func TestResolveResolution(t *testing.T) {
 		return []protocol.InterruptResponse{{Response: v}}
 	}
 
-	// approve + editedArgs + remember{session}: approved, args marshalled, remembered.
+	// approve + editedArgs + remember{session}: approved, args marshaled, remembered.
 	res, err := resolveResolution(approval(protocol.InterruptResponseValue{
 		Decision:   "approve",
 		EditedArgs: map[string]any{"cmd": "ls -la"},

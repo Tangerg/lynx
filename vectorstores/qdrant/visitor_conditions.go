@@ -98,6 +98,9 @@ func (v *Visitor) visitOrderingExpr(expr *ast.BinaryExpr) error {
 			expr.Op.Literal, expr.Start().String(), err)
 	}
 
+	//nolint:staticcheck // SA4006 false positive: numericValue is used below via
+	// the Go 1.26 new(value) builtin (new(numericValue)), which staticcheck v1.x
+	// doesn't yet model — it reads the arg as a type position, not a value use.
 	numericValue, err := cast.ToFloat64E(fieldValue)
 	if err != nil {
 		return fmt.Errorf("cannot convert value to number for '%s' comparison at %s: expected number, got %T",

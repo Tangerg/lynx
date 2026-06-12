@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"slices"
 
+	anthropicopt "github.com/anthropics/anthropic-sdk-go/option"
+	openaiopt "github.com/openai/openai-go/v3/option"
+
 	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
@@ -12,8 +15,6 @@ import (
 	"github.com/Tangerg/lynx/models/deepseek"
 	"github.com/Tangerg/lynx/models/moonshot"
 	"github.com/Tangerg/lynx/models/openai"
-	anthropicopt "github.com/anthropics/anthropic-sdk-go/option"
-	openaiopt "github.com/openai/openai-go/v3/option"
 )
 
 // ClientSpec is everything needed to build one chat client: which provider

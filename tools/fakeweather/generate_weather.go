@@ -378,4 +378,3 @@ func generateAstronomy(date time.Time, coords Coordinates, rng *rand.Rand) Astro
 		MoonIllumination: moonIllum,
 	}
 }
-

@@ -142,7 +142,6 @@ func (a *Agent) Validate() error {
 	return nil
 }
 
-
 // CheckGoalsReachable does a conservative one-step producer scan: for
 // every condition each goal requires, verify that either an action's
 // effects can establish it OR an action's input binding looks like
