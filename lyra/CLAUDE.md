@@ -112,6 +112,7 @@ lyra/
 │   │   ├── workspace/              VCS 视图 + 文件 checkpoint（包住 infra/git + infra/checkpoint）
 │   │   ├── approval/               运行态审批 stance（`Mode`）—— R 模型工具审批查它
 │   │   ├── tool/                   工具注册 + 直接调用（自定义 source 窄接口,不 import engine）
+│   │   ├── editguard/              read-before-edit + stale 不变量（纯领域；toolset 的 guard 包装是其 LLM presentation）
 │   │   ├── interrupts/ provider/   HITL 中断登记 / provider 注册表
 │   │   └── agentdoc/               AGENTS.md 级联发现 + render
 │   └── infra/                      技术设施（零领域,不依赖任何上层）

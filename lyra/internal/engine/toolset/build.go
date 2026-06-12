@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/infra/exec"
 	"github.com/Tangerg/lynx/lyra/internal/infra/mcp"
 	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
+	"github.com/Tangerg/lynx/lyra/internal/service/editguard"
 )
 
 // This file is the tool-assembly entry point. It is the SOLE place that
@@ -76,7 +77,7 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 	codeIntel := codeintel.New(cfg.LSPServers)
 	lspTools := BuildLSPTools(codeIntel, cfg.Workdir)
 
-	tracker := NewReadTracker()
+	tracker := editguard.NewTracker()
 
 	bg := exec.NewManager()
 	shellTools := BuildShellTools(bg, cfg.Workdir)
