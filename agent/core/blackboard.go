@@ -54,9 +54,9 @@ type BlackboardWriter interface {
 	AddObject(value any)
 
 	// Bind stores under "it" AND derives a second key from the value's type
-	// (e.g. UserInput → "user_input"). Implements embabel 0.4's autonomy
-	// dual-binding so YAML/prompt actions can reference inputs by
-	// type-derived names without coupling to the actual variable name.
+	// (e.g. UserInput → "user_input"). Dual-binding so YAML/prompt actions
+	// can reference inputs by type-derived names without coupling to the
+	// actual variable name.
 	Bind(value any)
 
 	// BindAll runs Set for each entry — convenience for seeding.
@@ -78,8 +78,7 @@ type BlackboardWriter interface {
 }
 
 // Blackboard is the shared, typed memory all actions read from and write
-// to. embabel uses a flat map plus an ordered "objects" list — Lynx
-// mirrors that: named keys for explicit lookups, an ordered tail for
+// to. It uses named keys for explicit lookups, an ordered tail for
 // "give me the latest thing of type T" semantics, plus a separate set of
 // explicit conditions.
 //

@@ -39,7 +39,7 @@ func (c AnthropicChatModelConfig) Validate() error {
 // /v1/messages spec — tool calling, thinking blocks, and signature
 // continuity all behave as on Anthropic's first-party API.
 //
-// Lets Claude Code / Anthropic-SDK callers swap base URL and keep
+// Swap base URL and keep
 // their existing integration while targeting mimo-v2.5-pro /
 // mimo-v2-pro.
 func NewAnthropicChatModel(cfg AnthropicChatModelConfig) (*anthropic.ChatModel, error) {

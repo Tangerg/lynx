@@ -67,15 +67,14 @@ type PlatformConfig struct {
 	// ProcessStore persists [AgentProcess] snapshots so a process
 	// can survive runtime restart, be migrated across nodes, or
 	// audited after termination. Optional — nil means "no
-	// persistence" (lynx's historical in-memory-only behavior).
+	// persistence" (historical in-memory-only behavior).
 	// See [AgentProcess.Snapshot] / [Platform.RestoreProcess] /
 	// [Platform.RestoreFromSnapshot] for the surface.
 	ProcessStore core.ProcessStore
 
 	// AutoSnapshot, when true and a ProcessStore is configured, makes the
 	// runtime persist a snapshot after every tick (and on terminal /
-	// early-termination transitions) — embabel-style automatic
-	// persistence, instead of requiring an explicit [Platform.SaveProcess]
+	// early-termination transitions) — automatic persistence, instead of requiring an explicit [Platform.SaveProcess]
 	// call. Snapshot failures are recorded on a span and do not abort the
 	// running process. Ignored when ProcessStore is nil.
 	AutoSnapshot bool

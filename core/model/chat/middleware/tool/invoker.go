@@ -320,7 +320,7 @@ func (i *invoker) invokeToolCalls(ctx context.Context, calls []*chat.ToolCallPar
 			// run. This is the unconditional default — only control-flow errors
 			// (HITL interrupt above, context cancel / ToolHalt-abort here) stop
 			// the loop. The failure is also recorded out-of-band on the
-			// tool-call item (via the tool observer) — see lyra engine.
+			// tool-call item (via the tool observer) — see engine.
 			allReturnDirect = false
 			returns = append(returns, &chat.ToolReturn{
 				ID:     call.ID,

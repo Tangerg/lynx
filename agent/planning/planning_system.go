@@ -6,9 +6,8 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 )
 
-// System is the bag of capabilities passed to a planner. It mirrors
-// embabel's AgentScope — but is detached from agent identity (a planner can
-// reason over any subset).
+// System is the bag of capabilities passed to a planner — detached from
+// agent identity (a planner can reason over any subset).
 type System struct {
 	Actions    []core.Action
 	Goals      []*core.Goal
@@ -42,8 +41,7 @@ func FromAgent(a *core.Agent) *System {
 }
 
 // FromAgents unions the capability sets of multiple agents into a single
-// planning system — the lynx analog of embabel's AgentScope joint
-// planning. The resulting system carries the concatenation of every
+// planning system — joint planning across agent boundaries. The resulting system carries the concatenation of every
 // agent's actions, goals, and conditions; the planner reasons over the
 // whole union and may pick a path that crosses agent boundaries.
 //

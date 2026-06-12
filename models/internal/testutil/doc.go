@@ -1,4 +1,4 @@
-// Package testutil provides shared test helpers for lynx model vendors.
+// Package testutil provides shared test helpers for model vendors.
 //
 // The package is intentionally internal so it can grow vendor-specific
 // helpers without polluting the public API. The helpers fall into three

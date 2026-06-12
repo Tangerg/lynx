@@ -40,7 +40,7 @@ func isHITLInterrupt(err error) bool {
 // https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/
 // so downstream collectors (Tempo, Jaeger, Honeycomb, …) and any
 // auto-instrumentation hook (go.opentelemetry.io/auto/sdk) can
-// recognize them without lynx-specific wiring.
+// recognize them without framework-specific wiring.
 const (
 	attrGenAISystem                = "gen_ai.system"
 	attrGenAIOperationName         = "gen_ai.operation.name"
@@ -64,7 +64,7 @@ const (
 // `<operation> <model>` shape (e.g. `chat gpt-4o-mini`); when the
 // model id is empty the span name falls back to the operation alone.
 //
-// Span kind is Client — the lynx process is invoking a remote LLM.
+// Span kind is Client — the host process is invoking a remote LLM.
 //
 // The returned context carries the new span so any nested operations
 // (tool calls, retrieval, sub-handlers) attach as children

@@ -33,7 +33,7 @@ const (
 
 	// DefaultDimensions falls back to OpenAI's text-embedding-3-small
 	// width when the embedding model can't report its own dim and
-	// the caller didn't pass one. Spring AI uses the same value.
+	// the caller didn't pass one. the same value is used.
 	DefaultDimensions = 1536
 )
 

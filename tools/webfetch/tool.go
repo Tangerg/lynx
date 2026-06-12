@@ -38,7 +38,7 @@ func (t *Tool) Definition() chat.ToolDefinition {
 }
 
 // webFetchDescription is the LLM-facing prompt. Structure follows
-// Claude Code's WebFetch prompt.
+// the standard WebFetch prompt.
 const webFetchDescription = `Fetch and read a single web page, returning the content in a clean format.
 - Takes a fully-formed http(s) URL
 - Returns the page content rendered to the requested format (markdown by default)

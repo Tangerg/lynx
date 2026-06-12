@@ -12,7 +12,7 @@
 //
 // # Parameter mapping
 //
-// lynx [websearch.Request] → Firecrawl request:
+// [websearch.Request] → Firecrawl request:
 //   - Query          → query (after Google-style site:/-site:
 //     rewriting; Firecrawl has no native allow/block fields)
 //   - MaxResults     → limit (clamped to [1, 100]; default 10)

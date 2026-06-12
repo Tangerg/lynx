@@ -11,7 +11,7 @@ import (
 )
 
 // defaultMaxOutputBytes caps each captured stream (stdout, stderr).
-// 30 KiB mirrors Claude Code's default; large enough for typical
+// 30 KiB default; large enough for typical
 // command output, small enough to keep LLM context bounded even when
 // a command misbehaves.
 const defaultMaxOutputBytes = 30 * 1024

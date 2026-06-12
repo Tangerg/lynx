@@ -15,7 +15,7 @@ import (
 )
 
 // Default result caps applied when the caller leaves MaxResults at 0.
-// Mirrors Claude Code's defaults (250 grep matches, 100 glob paths) —
+// The defaults (250 grep matches, 100 glob paths) —
 // these prevent LLM context bloat without forcing the LLM to pass a
 // cap on every call.
 const (
@@ -205,8 +205,8 @@ func (l *LocalExecutor) Edit(_ context.Context, in EditInput) (EditOutput, error
 	occurrences := strings.Count(content, in.OldString)
 	if occurrences == 0 {
 		// Fuzzy-match retry (quotes / dashes / whitespace normalisation)
-		// before declaring not-found — Claude Code's likeMatch trick.
-		// Tracked: lynx#tools-fuzzy-edit
+		// before declaring not-found — fuzzy-match trick.
+		// Fuzzy-match retry
 		return EditOutput{}, fmt.Errorf("fs.LocalExecutor.Edit: old_string not found in %s", in.Path)
 	}
 	if occurrences > 1 && !in.ReplaceAll {

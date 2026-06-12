@@ -13,8 +13,7 @@ import (
 )
 
 // NirvanaGoalName is the conventional name for the unsatisfiable
-// "keep firing useful things" goal. Mirrors embabel's
-// `com.embabel.agent.core.support.NIRVANA`. A planner finding a goal
+// "keep firing useful things" goal. A planner finding a goal
 // with this exact Name treats it as never-satisfied and emits a
 // one-action plan as long as any applicable action remains.
 //

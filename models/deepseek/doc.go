@@ -8,7 +8,7 @@
 // transparently:
 //
 //   - reasoning_content on assistant messages from deepseek-reasoner
-//     (lynx [openai.ChatModel] reads it from JSON.ExtraFields and
+//     ([openai.ChatModel] reads it from JSON.ExtraFields and
 //     emits a [chat.ReasoningPart] in AssistantMessage.Parts automatically).
 //
 // Provider-specific features that need explicit BaseURL switching:

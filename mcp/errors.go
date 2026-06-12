@@ -33,7 +33,7 @@ var (
 //	}
 type ToolCallError struct {
 	// ToolName is the original MCP tool name as the server advertised
-	// it (not the prefixed name reported into the lynx registry).
+	// it (not the prefixed name reported into the registry).
 	ToolName string
 
 	// Message is the human-readable failure text reported by the tool,

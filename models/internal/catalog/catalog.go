@@ -7,13 +7,13 @@
 // hard-coding tables.
 //
 // The configs are generated from models.dev (a community model database,
-// also used by LangChain's model profiles), with reasoning effort levels
+// also used by model profiles), with reasoning effort levels
 // backfilled from charm.land/catwalk. It's internal to the models module:
 // adapters fill metadata, and downstream code reads it via a Model's
 // Metadata, not by importing this package.
 //
 // Maintenance: regenerate the configs/<provider>.json files from
-// models.dev. Only the providers lynx ships adapters for are covered; add
+// models.dev. Only the providers are available with adapters for are covered; add
 // a config + nothing else to extend (the embed is a glob).
 package catalog
 

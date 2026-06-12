@@ -10,7 +10,7 @@
 //
 // Similarity functions: [SimilarityCosine] / [SimilarityL2Norm] /
 // [SimilarityDotProduct]. Default is dot product (matches the
-// Spring AI defaults); pick cosine if your embedder isn't normalised.
+// the framework defaults); pick cosine if your embedder isn't normalised.
 //
 // Index optimization knobs: [OptimizeRecall] (default),
 // [OptimizeLatency], [OptimizeMemory] — they hint Couchbase how to
@@ -24,7 +24,7 @@
 //
 // Schema. The store provisions an FTS index of type `vectorSearch`
 // under [StoreConfig.InitializeSchema] = true, mirroring the JSON
-// template Spring AI ships.
+// template the framework ships.
 //
 // See https://docs.couchbase.com/server/current/vector-search/
 // vector-search.html for the official reference.

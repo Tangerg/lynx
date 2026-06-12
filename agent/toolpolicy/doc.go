@@ -1,7 +1,6 @@
 // Package toolpolicy ships [chat.Tool] decorators that enforce
-// LLM-tool-loop policies — the runtime equivalent of embabel's
-// `agentic/` family (OneShotPerLoopTool / PlaybookTool with
-// UnlockCondition / …).
+// LLM-tool-loop policies — OneShotPerLoop, Playbook with
+// UnlockCondition, and similar patterns.
 //
 // Each helper wraps an existing tool and returns a new [chat.Tool]
 // (plus an error for nil inputs). Compose freely:

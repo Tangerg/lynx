@@ -8,7 +8,7 @@
 //
 // # Parameter mapping
 //
-// lynx [webfetch.Request] → Tavily request:
+// [webfetch.Request] → Tavily request:
 //   - URL    → urls=[<single>] (Tavily accepts batches; we send one)
 //   - Format → format. Tavily's enum only supports "markdown" and
 //     "text". When the caller asks for HTML we silently map to

@@ -8,5 +8,5 @@
 // — so adapter code can write `req := options.GetParams[Foo](opts,
 // FooKey)` without nil-checking on every field access.
 //
-// Internal: not part of the public lynx API.
+// Internal: not part of the public public API.
 package options

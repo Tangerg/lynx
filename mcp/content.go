@@ -88,7 +88,7 @@ func decodeArguments(arguments string) (any, error) {
 }
 
 // schemaToString converts the heterogeneous [sdkmcp.Tool.InputSchema]
-// (declared `any`) into the JSON string form lynx requires.
+// (declared `any`) into the JSON string form the framework requires.
 // Pre-encoded shapes pass through unchanged; everything else is
 // JSON-marshaled. A missing or empty schema falls back to
 // [emptyObjectSchema].
@@ -117,7 +117,7 @@ func schemaToString(schema any) (string, error) {
 	}
 }
 
-// stringSchemaToAny adapts a lynx ToolDefinition.InputSchema (always a
+// stringSchemaToAny adapts a ToolDefinition.InputSchema (always a
 // JSON string) to the heterogeneous sdkmcp.Tool.InputSchema field
 // (declared `any`). The SDK accepts json.RawMessage on the low-level
 // AddTool path, which is exactly what we have.

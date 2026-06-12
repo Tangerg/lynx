@@ -73,7 +73,7 @@ type StoreConfig struct {
 
 	// VectorProfileName is the index's vector search profile name.
 	// Optional. Pure-vector queries don't require it, but the
-	// Spring AI defaults match a profile called "default-profile".
+	// the framework defaults match a profile called "default-profile".
 	VectorProfileName string
 
 	// EmbeddingModel produces vectors for the documents. Required.

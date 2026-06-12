@@ -9,7 +9,7 @@
 //
 // # Parameter mapping
 //
-// lynx [websearch.Request] → Exa request:
+// [websearch.Request] → Exa request:
 //   - Query          → query (required)
 //   - MaxResults     → numResults (clamped to [1, 100])
 //   - AllowedDomains → includeDomains (Exa caps at 1200)
@@ -21,7 +21,7 @@
 // contents.summary.query=<query> (asks Exa to summarize each result
 // against the query). Highlights and full text are not requested.
 //
-// Not used: category (lynx's SearchType was removed from the SPI for
+// Not used: category (SearchType was removed from the SPI for
 // being too provider-specific), userLocation, moderation.
 //
 // # Response mapping

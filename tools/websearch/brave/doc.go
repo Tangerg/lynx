@@ -8,7 +8,7 @@
 //
 // # Parameter mapping
 //
-// lynx [websearch.Request] → Brave query parameters:
+// [websearch.Request] → Brave query parameters:
 //   - Query          → q (after Google-style site:/-site: rewriting)
 //   - MaxResults     → count (clamped to [1, 20]; default 10)
 //   - AllowedDomains → inlined as `site:foo.com` operators

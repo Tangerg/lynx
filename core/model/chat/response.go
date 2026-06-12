@@ -173,9 +173,8 @@ func (m *ResponseMetadata) Set(key string, value any) {
 // The chat surface is one-completion-per-call by design. Providers that
 // accept an `n` / `candidateCount` parameter (OpenAI, Google) still return
 // only the first choice through this surface; reach for the underlying SDK
-// when multiple completions are actually needed (see mature frameworks like
-// Spring AI / LangChain — `n` lives on provider-specific options, not the
-// generic chat interface).
+// when multiple completions are actually needed (`n` lives on
+// provider-specific options, not the generic chat interface).
 type Response struct {
 	// Result is the assistant's generation. Non-nil after [NewResponse].
 	Result *Result `json:"result,omitempty"`

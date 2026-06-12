@@ -9,14 +9,14 @@ import (
 )
 
 // userMessage builds an A2A user message carrying a single text part — the
-// shape a lynx caller sends when delegating to a remote agent.
+// shape a caller sends when delegating to a remote agent.
 func userMessage(text string) *sdka2a.Message {
 	return sdka2a.NewMessage(sdka2a.MessageRoleUser, sdka2a.NewTextPart(text))
 }
 
 // flattenParts renders A2A content parts to a single string: text parts are
 // concatenated verbatim, structured data parts are JSON-encoded, and other
-// kinds (raw bytes, file URLs) are described compactly. lynx tools and the
+// kinds (raw bytes, file URLs) are described compactly. tools and the
 // chat loop are text-first, so this is the lossy-but-faithful projection —
 // the analog of mcp.flattenContent.
 func flattenParts(parts sdka2a.ContentParts) string {

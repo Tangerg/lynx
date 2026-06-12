@@ -185,7 +185,7 @@ type Request struct {
 	// URL is the page to scrape. Required.
 	URL string `json:"url"`
 
-	// Formats picks one or more output formats. lynx wires this as
+	// Formats picks one or more output formats. wires this as
 	// [{"type": "markdown"}] etc.; richer modes (json, summary) need
 	// the {type, schema}-style objects.
 	Formats []FormatEntry `json:"formats"`

@@ -17,7 +17,7 @@ import (
 // declarative mcp.ServerConfig: a logical name plus a card URL the resolver
 // reads .well-known/agent-card.json from.
 type ClientConfig struct {
-	// Name is the logical handle for the agent — used as the lynx tool name
+	// Name is the logical handle for the agent — used as the tool name
 	// when this config is turned into a [chat.Tool]. Empty defaults to a
 	// sanitized form of the resolved AgentCard's Name.
 	Name string
@@ -78,7 +78,7 @@ func Dial(ctx context.Context, cfg ClientConfig) (*a2aclient.Client, *sdka2a.Age
 }
 
 // DialAll resolves and connects every config and wraps each remote agent as a
-// [chat.Tool] — the one-call client setup mirroring lyra's MCP wiring. Unlike
+// [chat.Tool] — the one-call client setup mirroring MCP wiring. Unlike
 // MCP there is no per-agent tool list to refresh (each remote agent is a single
 // static capability), so the tools are built once here rather than behind a
 // stateful provider.

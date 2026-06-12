@@ -9,7 +9,7 @@
 //
 // # Parameter mapping
 //
-// lynx [websearch.Request] → Serper request:
+// [websearch.Request] → Serper request:
 //   - Query          → q (after Google site:/-site: rewriting via
 //     [websearch.BuildSiteOperatorQuery])
 //   - MaxResults     → num (forwarded as-is)
@@ -41,7 +41,7 @@
 // For full parameter access (AnswerBox, KnowledgeGraph,
 // PeopleAlsoAsk, RelatedSearches, page, location, autocorrect) call
 // [Client.SearchNative] with the provider's own [Request] /
-// [Response] types instead of the lynx SPI.
+// [Response] types instead of the SPI.
 //
 // # Reference
 //

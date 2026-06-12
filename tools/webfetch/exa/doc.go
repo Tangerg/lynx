@@ -8,7 +8,7 @@
 //
 // # Parameter mapping
 //
-// lynx [webfetch.Request] → Exa request:
+// [webfetch.Request] → Exa request:
 //   - URL    → urls=[<single>] (Exa accepts batches; we send one)
 //   - Format → text.includeHtmlTags: true when FormatHTML is asked,
 //     false otherwise. Exa returns the page as a single `text`

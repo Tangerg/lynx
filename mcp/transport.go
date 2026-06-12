@@ -34,8 +34,7 @@ type HTTPServerOptions struct {
 
 // NewStreamableHTTPHandler exposes server as an [http.Handler] over
 // the modern Streamable HTTP transport — the default since MCP spec
-// 2025-03-26 (replaces the legacy two-endpoint SSE transport that
-// spring-ai has deprecated in c549bf821).
+// 2025-03-26 (replaces the legacy two-endpoint SSE transport).
 //
 // Mount the returned handler on any standard library / framework
 // router:
@@ -208,8 +207,8 @@ const (
 )
 
 // ServerConfig declaratively describes one MCP server to connect to —
-// the lynx analog of an entry in the ubiquitous `mcpServers` config map
-// (Claude Desktop / Cursor / Cline / ...). [Dial] turns it into a live
+// the analog of an entry in the ubiquitous `mcpServers` config map
+// (MCP client applications). [Dial] turns it into a live
 // session, dispatching on Transport. Exactly one transport's fields
 // apply; the others must be blank. For per-connection tuning (custom
 // http.Client, retries, terminate timeout) reach for the lower-level

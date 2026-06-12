@@ -31,8 +31,8 @@ type StuckResult struct {
 	Reason string
 }
 
-// ReplanRequest is the Go-flavored replacement for embabel's
-// ReplanRequestedException. An action that decides "what I just learned
+// ReplanRequest is the structured error replacement for checked
+// replan exceptions. An action that decides "what I just learned
 // invalidates the current plan" returns one as an error; the runtime
 // extracts it via [errors.AsType], blacklists the offending action for
 // one tick, and reformulates the plan.

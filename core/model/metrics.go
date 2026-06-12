@@ -13,7 +13,7 @@ import (
 // GenAI client metric names per the OpenTelemetry GenAI semantic
 // conventions. Emitting these standard names lets downstream collectors
 // (Prometheus, Tempo, Honeycomb, …) aggregate token spend and latency
-// without lynx-specific wiring — the metric counterpart to the spans in
+// without framework-specific wiring — the metric counterpart to the spans in
 // each modality's tracing.go.
 //
 // https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/

@@ -26,7 +26,7 @@ type Process interface {
 	LastWorldState() WorldState
 
 	// TerminateAgent and TerminateAction are the structured-termination
-	// signals from embabel 0.4. Calling them outside a tick boundary is
+	// signals. Calling them outside a tick boundary is
 	// allowed; the runtime checks for pending signals at the start of each
 	// tick.
 	TerminateAgent(reason string)
@@ -90,7 +90,7 @@ type Process interface {
 type processCtxKey struct{}
 
 // WithProcess attaches the process to ctx so deeply-nested helpers can find
-// it without an extra parameter — replaces embabel's ThreadLocal access.
+// it without an extra parameter.
 func WithProcess(ctx context.Context, p Process) context.Context {
 	return context.WithValue(ctx, processCtxKey{}, p)
 }
@@ -106,9 +106,8 @@ func ProcessFrom(ctx context.Context) Process {
 	return p
 }
 
-// ResultOfType pulls the most-recent T from a process's blackboard. Mirrors
-// embabel's AgentProcess.resultOfType<T>() but as a top-level function (Go
-// can't have method-level type parameters).
+// ResultOfType pulls the most-recent T from a process's blackboard.
+// A top-level function because Go can't have method-level type parameters.
 func ResultOfType[T any](p Process) (T, bool) {
 	var zero T
 	if p == nil {

@@ -11,10 +11,8 @@ import (
 // [memory.Middleware] (in `core/model/chat/memory`) — no extra
 // wiring needed beyond installing the middleware on the chat client.
 //
-// Compare embabel-agent's `ChatSession`: same role (continuity across
-// agent runs), thinner shape — lynx puts the message history under
-// chatmemory, the session struct only carries identity + audit
-// metadata.
+// Sessions carry identity + audit metadata; the message history lives
+// under chatmemory, keeping the session struct thin.
 //
 // Sessions are persisted via [SessionStore]; the in-memory reference
 // implementation ([NewInMemorySessionStore]) ships in this package.
@@ -22,7 +20,7 @@ import (
 // / mongo / ...) under the same interface.
 type Session struct {
 	// ID uniquely identifies the conversation. Doubles as the
-	// chat-memory conversation id (lynx convention) so message
+	// chat-memory conversation id so message
 	// history flows through without separate plumbing.
 	ID string
 

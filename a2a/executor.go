@@ -11,10 +11,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// Agent is the lynx-side capability exposed over A2A. It is intentionally
-// narrow — text in, streamed text out — so the consumer (lyra / an agent
+// Agent is the the framework-side capability exposed over A2A. It is intentionally
+// narrow — text in, streamed text out — so the consumer (an agent
 // runtime) implements it without this package depending on those layers.
-// The interface lives here, in the consumer, per the lynx convention: the
+// The interface lives here, in the consumer, per the convention: the
 // a2a server is what "runs an agent", so it declares the shape it needs.
 type Agent interface {
 	// Run handles one inbound A2A message, already flattened to text, and
@@ -34,7 +34,7 @@ type executor struct {
 
 var _ a2asrv.AgentExecutor = (*executor)(nil)
 
-// NewExecutor adapts a lynx [Agent] to an [a2asrv.AgentExecutor], the
+// NewExecutor adapts a [Agent] to an [a2asrv.AgentExecutor], the
 // dependency [a2asrv.NewHandler] requires. Use it when wiring the server
 // onto a custom mux or transport; [NewHTTPHandler] does this for you.
 func NewExecutor(agent Agent) (a2asrv.AgentExecutor, error) {

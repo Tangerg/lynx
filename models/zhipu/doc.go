@@ -5,7 +5,7 @@
 //   - OpenAI-compatible at /api/paas/v4 — use [NewOpenAIChatModel];
 //   - Anthropic-compatible at /api/anthropic — use
 //     [NewAnthropicChatModel], available for GLM-4.5 and GLM-4.6.
-//     Lets Claude Code / Anthropic-SDK callers swap base URL and keep
+//     Swap base URL and keep
 //     their existing integration.
 //
 // Embedding (embedding-3 / embedding-2) only has the OpenAI flavor

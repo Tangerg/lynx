@@ -5,8 +5,8 @@
 //
 //   - OpenAI-compatible at /v1 — use [NewOpenAIChatModel];
 //   - Anthropic-compatible at /anthropic — use [NewAnthropicChatModel],
-//     supported on Kimi-K2 and newer reasoning models. Lets Claude
-//     Code / Anthropic-SDK callers swap base URL.
+//     supported on Kimi-K2 and newer reasoning models. Allows
+//     Anthropic-SDK callers to swap base URL.
 //
 // Use [BaseURL] / [BaseURLAnthropic] for the domestic Chinese region
 // and [BaseURLIntl] / [BaseURLIntlAnthropic] for the international

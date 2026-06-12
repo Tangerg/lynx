@@ -8,10 +8,10 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 )
 
-// ScopeConfig is the configuration for [Platform.RunInScope]. It mirrors
-// embabel's AgentScope joint-planning surface: the runtime fuses every
-// listed agent's actions, goals, and conditions into a single planning
-// universe and asks the planner to pick a path across that union.
+// ScopeConfig is the configuration for [Platform.RunInScope]. It
+// fuses every listed agent's actions, goals, and conditions into a
+// single planning universe and asks the planner to pick a path across
+// that union.
 //
 // Action / goal / condition names must be unique across the scope —
 // duplicate names are rejected at validation time (same rule as for a
@@ -44,8 +44,7 @@ type ScopeConfig struct {
 // already deployed), and dispatches it through the same [RunAgent]
 // path as any other agent. The planner therefore reasons over the
 // whole capability bag and may pick an action from one agent followed
-// by an action from another — exactly the AgentScope semantics from
-// embabel.
+// by an action from another — joint planning across the fused scope.
 //
 // The synthetic scope agent is re-used across calls with the same
 // [ScopeConfig.Name] so repeated invocations don't churn registry state.
@@ -82,8 +81,8 @@ func (p *Platform) RunInScope(
 
 // resolveScopeAgent returns the synthetic scope agent for cfg, building
 // and deploying it the first time it's seen. Subsequent calls with the
-// same [ScopeConfig.Name] reuse the deployed instance — embabel's
-// AgentPlatform reuses scope state across invocations and so does this.
+// same [ScopeConfig.Name] reuse the deployed instance — the scope agent
+// is cached across invocations.
 func (p *Platform) resolveScopeAgent(cfg ScopeConfig) (*core.Agent, error) {
 	if existing, ok := p.agents.find(cfg.Name); ok {
 		return existing, nil

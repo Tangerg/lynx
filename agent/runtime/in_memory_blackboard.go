@@ -147,7 +147,7 @@ func (b *inMemoryBlackboard) Objects() []any {
 	return slices.Clone(b.objects)
 }
 
-// Bind implements the embabel 0.4 dual-binding behavior: the value lands at
+// Bind implements dual-binding: the value lands at
 // "it" AND at a type-derived key (UserInput → "user_input") so prompt
 // templates can refer to it by either name.
 func (b *inMemoryBlackboard) Bind(value any) {

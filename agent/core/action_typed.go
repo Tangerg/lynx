@@ -7,8 +7,8 @@ import (
 
 // TypedActionFunc is the user-supplied Action body. The framework keeps In/Out
 // concrete all the way through to Execute so users get true compile-time type
-// safety — embabel achieves the same via Kotlin reflection on JVM signatures,
-// which is rich enough; Go gets there with generics.
+// safety — the same compile-time guarantee that reflection-based frameworks
+// achieve at runtime; Go gets there with generics.
 type TypedActionFunc[In, Out any] func(ctx context.Context, pc *ProcessContext, input In) (Out, error)
 
 // typedAction is the concrete implementation backing NewAction[In,Out]. It
@@ -61,7 +61,7 @@ func (a *typedAction[In, Out]) Execute(ctx context.Context, pc *ProcessContext) 
 		return ActionWaiting
 	}
 
-	// Mirror embabel's MultiTransformationAction: when the action is
+	// MultiTransformationAction: when the action is
 	// flagged ClearBlackboard, wipe (preserving Protected entries)
 	// before binding the output so only the just-produced value
 	// survives. Used for state-machine transitions and looping flows
@@ -166,7 +166,7 @@ func resolveBindingName(name string) string {
 }
 
 // computePreconditionsAndEffects mirrors AbstractAction.preconditions /
-// .effects in embabel: every input binding becomes a True precondition,
+// effects: every input binding becomes a True precondition,
 // every output binding becomes a True effect, and the hasRun_<name>
 // condition is toggled to keep canRerun=false actions from looping.
 func (m ActionMetadata) computePreconditionsAndEffects(extraPre, extraPost []string) (Effects, Effects) {

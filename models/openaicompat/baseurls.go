@@ -87,7 +87,7 @@ const (
 	// general availability the same Llama models are reachable through
 	// Groq, Together, Fireworks, Cerebras, OpenRouter, AWS Bedrock,
 	// HuggingFace, or self-hosted via Ollama / vLLM — all already
-	// supported by lynx.
+	// supported by the framework.
 	// Docs: https://llama.developer.meta.com/docs
 	BaseURLMetaLlama = "https://api.llama.com/compat/v1"
 

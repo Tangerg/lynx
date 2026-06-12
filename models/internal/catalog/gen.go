@@ -2,7 +2,7 @@
 
 // Command gen regenerates the embedded model catalog (configs/*.json)
 // from models.dev — a community model database (the same data behind
-// LangChain's model profiles). Run it from this directory:
+// model profiles). Run it from this directory:
 //
 //	go run gen.go                          # fetch live https://models.dev/api.json
 //	go run gen.go -source ./api.json       # or read a local snapshot
@@ -13,7 +13,7 @@
 //     provider id -> { models: { model id -> spec } }. It's already
 //     resolved (TOML parsed, [extends] applied), so this tool needs only
 //     encoding/json and no TOML dependency.
-//  2. Keep only the providers lynx ships a chat adapter for (providerMap),
+//  2. Keep only the providers are available with a chat adapter for (providerMap),
 //     and only chat models (drop embedding / TTS / image-generation —
 //     output modality not "text", or an embedding family).
 //  3. Map each spec into a chat.ModelInfo. The output is marshaled from
@@ -22,7 +22,7 @@
 //  4. Overlay augmentations.json for fields models.dev lacks. Today that's
 //     only reasoning effort levels (models.dev has a bare reasoning bool);
 //     the file is the seam to hand-fill anything upstream is missing,
-//     mirroring LangChain's profile_augmentations.
+//     mirroring profile_augmentations.
 //
 // To add a provider: add it to providerMap (left = models.dev provider id,
 // right = the adapter's Provider const, lowercased) and re-run.

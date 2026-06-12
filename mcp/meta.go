@@ -9,7 +9,7 @@ import (
 // MetaFunc produces the _meta map carried on outbound MCP requests
 // (CallTool today; extend to other RPCs as the package grows). It is the
 // seam through which a caller forwards ambient identifiers (userId,
-// traceId, sessionId, …) from the lynx-side context to the remote
+// traceId, sessionId, …) from the caller-side context to the remote
 // server.
 //
 // A nil MetaFunc, or one that returns an empty map, sends no _meta.

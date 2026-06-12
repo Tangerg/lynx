@@ -26,9 +26,7 @@ type Evaluator[In, Out any] func(ctx context.Context, pc *core.ProcessContext, i
 // reject the previous attempt" via blackboard tools — useful when
 // Task wants to read prior feedback to revise.
 //
-// Mirrors embabel's `RepeatUntilAcceptable.kt` without wiring it as
-// a separate Spring path — it's just RepeatUntil with a Feedback-
-// shaped Accept.
+// RepeatUntilAcceptable: RepeatUntil with a Feedback-shaped Accept.
 type RepeatUntilAcceptableConfig[In, Out any] struct {
 	// Name names the produced agent. Required.
 	Name string
@@ -62,7 +60,8 @@ type RepeatUntilAcceptableConfig[In, Out any] struct {
 // records every (output, feedback) pair in an [AttemptHistory], and
 // produces the highest-scoring attempt rather than merely the last
 // accepted one — so a later, worse attempt never overwrites an earlier,
-// better one. Mirrors embabel's RepeatUntilAcceptable best-of-N semantics.
+// better one. Follows best-of-N semantics — a later, worse attempt
+// never overwrites an earlier, better one.
 //
 // Per iteration the action: runs Task (which sees prior outputs for
 // revision), scores it via Evaluator, records the pair, binds the latest

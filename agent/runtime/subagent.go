@@ -113,10 +113,8 @@ func AsChatToolFromAgent[In, Out any](platform *Platform, agentDef *core.Agent) 
 //	server := sdkmcp.NewServer(impl, nil)
 //	mcp.RegisterTools(server, runtime.AsMCPTool[Topic, Brief](platform, "BriefingAgent"))
 //
-// embabel's `PerGoalMcpExportToolCallbackPublisher` does the same
-// in batch over an agent's goals; lynx's typical "one goal per
-// agent" shape makes the per-call form ergonomic enough that we
-// don't ship a separate batch helper.
+// Target per-call form is ergonomic enough that we don't ship a
+// separate batch helper.
 //
 // Suspended (HITL) runs surface the same JSON "status: waiting"
 // payload [AsChatTool] uses, so an MCP host can decide to drive the

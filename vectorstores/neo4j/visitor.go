@@ -25,7 +25,7 @@ var _ ast.Visitor = (*Visitor)(nil)
 //	NOT (a == "x")             →  NOT (node.`metadata.a` = $p1)
 //	a == "x" AND b == "y"      →  (node.`metadata.a` = $p1 AND node.`metadata.b` = $p2)
 //
-// Property paths follow Spring AI's convention: metadata keys are
+// Property paths follow convention: metadata keys are
 // stored as flat node properties named `metadata.<key>` and addressed
 // with backtick-quoted Cypher identifiers.
 type Visitor struct {

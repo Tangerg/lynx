@@ -18,9 +18,8 @@ import (
 // each voter returns (often a string label or small struct that can
 // be compared via Key).
 //
-// Mirrors embabel's `multimodel/ConsensusBuilder.kt` without the
-// Spring multi-model wiring — voters are plain functions; users
-// inject different chat.Clients via closure.
+// ConsensusConfig configures a consensus workflow — voters are plain
+// functions; users inject different chat.Clients via closure.
 type ConsensusConfig[In, Element any] struct {
 	// Name names the produced agent + its goal. Required.
 	Name string

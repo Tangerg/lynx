@@ -6,7 +6,7 @@ import "github.com/Tangerg/lynx/agent/core"
 // via [Process.RecordLLMInvocation] or [Process.RecordUsage]. It carries the
 // full invocation so listeners can do per-call cost auditing, billing
 // reconciliation, or live token dashboards without polling
-// [Process.LLMInvocations]. Mirrors embabel's LlmInvocationEvent.
+// [Process.LLMInvocations].
 type LLMInvocationRecorded struct {
 	BaseEvent
 	Invocation core.LLMInvocation `json:"-"`

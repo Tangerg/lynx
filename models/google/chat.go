@@ -99,7 +99,7 @@ func (r *requestHelper) buildUserMsg(msg *chat.UserMessage) *genai.Content {
 }
 
 func (r *requestHelper) buildAssistantMsg(msg *chat.AssistantMessage) (*genai.Content, error) {
-	// Gemini preserves Parts ordering 1:1 — map lynx Parts in emission
+	// Gemini preserves Parts ordering 1:1 — map Parts in emission
 	// order. Reasoning parts get a Thought=true flag; tool calls become
 	// FunctionCall parts; text becomes Text parts.
 	parts := make([]*genai.Part, 0, len(msg.Parts))
@@ -226,7 +226,7 @@ func (r *responseHelper) buildAssistantMsg(candidate *genai.Candidate) *chat.Ass
 		return chat.NewAssistantMessage(msgParams)
 	}
 
-	// Gemini Parts arrive in emission order — map 1:1 into lynx
+	// Gemini Parts arrive in emission order — map 1:1 into 
 	// OutputParts. Thought=true parts route to ReasoningPart;
 	// FunctionCall parts route to ToolCallPart; text parts to TextPart.
 	parts := make([]chat.OutputPart, 0, len(candidate.Content.Parts))

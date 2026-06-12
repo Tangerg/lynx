@@ -53,7 +53,7 @@ func atomicWriteFile(path string, data []byte, mode os.FileMode) (err error) {
 	if err = os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(dir, ".lynx-write-*")
+	tmp, err := os.CreateTemp(dir, ".write-*")
 	if err != nil {
 		return err
 	}

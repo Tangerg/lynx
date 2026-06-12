@@ -22,7 +22,7 @@ import (
 const agentToolInputSchema = `{"type":"object","properties":{"message":{"type":"string","description":"The natural-language request to send to the remote agent."}},"required":["message"]}`
 
 // AgentTool wraps a remote A2A agent as a [chat.Tool]. Each Call sends the
-// argument text as an A2A message and returns the agent's reply, so a lynx
+// argument text as an A2A message and returns the agent's reply, so an
 // agent can delegate to a remote agent through the ordinary tool-calling
 // loop. A non-successful terminal task is mapped to [*RemoteAgentError] (use
 // errors.As) so a remote failure is not fed back as a successful result.
@@ -43,7 +43,7 @@ type AgentToolConfig struct {
 	// definition and its skills enrich the description.
 	Card *sdka2a.AgentCard
 
-	// Name overrides the lynx tool name. Empty defaults to a sanitized form
+	// Name overrides the tool name. Empty defaults to a sanitized form
 	// of the card's Name.
 	Name string
 
