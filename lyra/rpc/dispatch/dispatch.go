@@ -111,11 +111,11 @@ var methodTable = map[string]methodHandler{
 	MethodPing:       (*Dispatcher).handlePing,
 
 	// Sessions.
-	MethodSessionsList:   (*Dispatcher).handleSessionsList,
-	MethodSessionsGet:    (*Dispatcher).handleSessionsGet,
-	MethodSessionsCreate: (*Dispatcher).handleSessionsCreate,
-	MethodSessionsUpdate: (*Dispatcher).handleSessionsUpdate,
-	MethodSessionsDelete: (*Dispatcher).handleSessionsDelete,
+	MethodSessionsList:     (*Dispatcher).handleSessionsList,
+	MethodSessionsGet:      (*Dispatcher).handleSessionsGet,
+	MethodSessionsCreate:   (*Dispatcher).handleSessionsCreate,
+	MethodSessionsUpdate:   (*Dispatcher).handleSessionsUpdate,
+	MethodSessionsDelete:   (*Dispatcher).handleSessionsDelete,
 	MethodSessionsFork:     (*Dispatcher).handleSessionsFork,
 	MethodSessionsRollback: (*Dispatcher).handleSessionsRollback,
 	MethodSessionsExport:   (*Dispatcher).handleSessionsExport,

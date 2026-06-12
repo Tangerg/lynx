@@ -160,7 +160,7 @@ func TestUpdateSession(t *testing.T) {
 }
 
 // TestForkSession: a full-history fork inherits the parent's cwd, copies its
-// history into the child, and honours a title override; a run-boundary fork
+// history into the child, and honors a title override; a run-boundary fork
 // (fromRunId) against an unknown run is run_not_found.
 func TestForkSession(t *testing.T) {
 	db, err := sqlite.Open(":memory:")

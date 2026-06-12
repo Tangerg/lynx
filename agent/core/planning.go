@@ -38,4 +38,3 @@ type CostFunc func(WorldState) float64
 func Static(v float64) CostFunc {
 	return func(WorldState) float64 { return v }
 }
-

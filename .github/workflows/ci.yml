@@ -36,6 +36,8 @@ jobs:
           - rag
           - tools
           - vectorstores
+          - a2a
+          - skills
           - lyra
     steps:
       - uses: actions/checkout@v4
@@ -61,7 +63,13 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
+          version: v1.64.8
+          # Build golangci-lint from source with the runner's Go (1.26.3) rather
+          # than pulling the prebuilt binary: the prebuilt v1.64.8 is built with
+          # go1.24, and golangci-lint refuses to run when its build Go is older
+          # than go.mod's `go 1.26.3`. goinstall sidesteps that — same as the
+          # local `go install`-ed binary that works.
+          install-mode: goinstall
           working-directory: ${{ matrix.module }}
           args: --config=${{ github.workspace }}/.golangci.yml
 

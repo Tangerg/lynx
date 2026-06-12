@@ -1,11 +1,11 @@
 package fakeweather
 
 import (
-"fmt"
-"math"
-"math/rand/v2"
-"strings"
-"time"
+	"fmt"
+	"math"
+	"math/rand/v2"
+	"strings"
+	"time"
 )
 
 func formatHM(hours float64) string {

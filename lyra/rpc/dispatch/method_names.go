@@ -26,11 +26,11 @@ const (
 	MethodPing       = "runtime.ping"
 
 	// Sessions (API.md §7.2).
-	MethodSessionsList   = "sessions.list"
-	MethodSessionsGet    = "sessions.get"
-	MethodSessionsCreate = "sessions.create"
-	MethodSessionsUpdate = "sessions.update"
-	MethodSessionsDelete = "sessions.delete"
+	MethodSessionsList     = "sessions.list"
+	MethodSessionsGet      = "sessions.get"
+	MethodSessionsCreate   = "sessions.create"
+	MethodSessionsUpdate   = "sessions.update"
+	MethodSessionsDelete   = "sessions.delete"
 	MethodSessionsFork     = "sessions.fork"
 	MethodSessionsRollback = "sessions.rollback"
 	MethodSessionsExport   = "sessions.export"
