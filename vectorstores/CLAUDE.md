@@ -11,7 +11,7 @@
 
 ## 技术栈
 
-- Go 1.26.3
+- Go 1.26.4
 - 各 DB client 直接依赖（按需）：
   - `pgvector/pgvector-go`（PostgreSQL）/ `qdrant/go-client` / `weaviate/weaviate-go-client` / `pinecone-io/go-pinecone`
   - `chroma-core/chroma-go` / `milvus-io/milvus-sdk-go` / `elastic/go-elasticsearch` / `opensearch-project/opensearch-go`

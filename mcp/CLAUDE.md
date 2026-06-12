@@ -13,7 +13,7 @@
 
 ## 技术栈
 
-- Go 1.26.3
+- Go 1.26.4
 - `github.com/modelcontextprotocol/go-sdk` v1.6+（包内别名 `sdkmcp`，避免和我们包名冲突）
 - `go.opentelemetry.io/otel` 1.43
 - `core/model/chat` —— 复用 `chat.Tool` 接口

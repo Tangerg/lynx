@@ -11,7 +11,7 @@
 
 ## 技术栈
 
-- Go 1.26.3
+- Go 1.26.4
 - `go.opentelemetry.io/otel` 1.43 + `otel/sdk/{trace,metric,log}`（log SDK v0.19，配套 core 1.43）
 - 零外部依赖（除了 OTel 本身）；contrib `otelslog` bridge 由消费方（lyra）引入，不在本模块
 

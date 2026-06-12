@@ -11,7 +11,7 @@
 
 ## 技术栈
 
-- Go 1.26.3
+- Go 1.26.4
 - DB clients：`jackc/pgx` v5（Postgres）、`redis/go-redis` v9、`mongo-driver` v2、`gocql`（Cassandra）、`neo4j-go-driver` v5、`azcosmos`
 - 依赖 `core/model/chat/memory`（Store interface）+ `core/model/chat`（Message 类型 + 序列化）
 - ~1.6k LOC，多个 backend 平行实现

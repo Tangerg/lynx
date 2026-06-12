@@ -11,7 +11,7 @@
 
 ## 技术栈
 
-- Go 1.26.3
+- Go 1.26.4
 - `github.com/go-resty/resty/v2`（HTTP client）
 - 依赖 `core` / `pkg`，内部 schema 走 `pkg/json.StringDefSchemaOf` 自动生成
 - ~7k LOC / 60 文件 / 21 子目录

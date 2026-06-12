@@ -11,7 +11,7 @@
 
 ## 技术栈
 
-- Go 1.26.3
+- Go 1.26.4
 - 解析器各管各：`yuin/goldmark`（markdown AST）/ `PuerkitoBio/goquery`（HTML CSS 选择器）/ `ledongthuc/pdf`（PDF 文本提取）
 - 依赖 `core/document` 提供 `Reader` 接口和 `Document` 类型
 - ~700 LOC，3 个 reader 各占一个子包

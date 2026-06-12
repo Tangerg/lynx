@@ -11,7 +11,7 @@
 
 ## 技术栈
 
-- Go 1.26.3（generics + Go 1.23 range-over-func iterator 全用上）
+- Go 1.26.4（generics + Go 1.23 range-over-func iterator 全用上）
 - 5 个核心外部依赖：
   - `gammazero/workerpool` / `panjf2000/ants/v2` —— goroutine pool 两套（按场景选）
   - `sourcegraph/conc` —— structured concurrency

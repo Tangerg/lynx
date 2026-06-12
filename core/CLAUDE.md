@@ -11,7 +11,7 @@
 
 ## 技术栈
 
-- Go 1.26.3
+- Go 1.26.4
 - 关键外部依赖：
   - `pkoukk/tiktoken-go` —— token 计数（tiktoken）
   - `go.opentelemetry.io/otel` —— span 注入
