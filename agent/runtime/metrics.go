@@ -12,9 +12,8 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 )
 
-// Metric names + the meter scope. Mirrors embabel's Micrometer counters /
-// timers, but via the OTel metric API so it slots into the same pipeline as
-// the runtime's tracing. When no MeterProvider is configured the global
+// Metric names + the meter scope. Via the OTel metric API so it slots
+// into the same pipeline as the runtime's tracing. When no MeterProvider is configured the global
 // meter is a no-op, so these add zero overhead by default.
 const (
 	meterName = "lynx/agent"

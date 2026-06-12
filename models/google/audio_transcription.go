@@ -82,7 +82,7 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 
 // OptionsKeyTranscriptionPrompt selects the user-supplied prompt Gemini
 // receives alongside the audio bytes. Stored on Options.Extra so the
-// lynx-level transcription.Options stays minimal.
+// the transcription.Options stays minimal.
 const OptionsKeyTranscriptionPrompt = "prompt"
 
 func (a *AudioTranscriptionModel) buildAPITranscriptionRequest(req *transcription.Request) (string, []*genai.Content, *genai.GenerateContentConfig, error) {

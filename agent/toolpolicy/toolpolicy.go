@@ -32,11 +32,7 @@ var ErrToolLocked = errors.New("toolpolicy: tool is locked by an unlock conditio
 // Default scope is per-[tool.NewMiddleware]-loop: callers wrap
 // the action ctx with [LoopScope] before driving the tool loop;
 // each tool's first call within that scope succeeds, subsequent
-// calls reject. Without an explicit scope the tool effectively
-// becomes "once per process lifetime".
-//
-// Mirrors embabel's `OneShotPerLoopTool` semantics. Returns an error
-// when tool is nil — caller decides whether to surface or panic.
+// calls reject. Returns an error when tool is nil.
 func OnceOnly(tool chat.Tool) (chat.Tool, error) {
 	if tool == nil {
 		return nil, errors.New("toolpolicy.OnceOnly: tool must not be nil")
@@ -98,7 +94,7 @@ type UnlockCondition func(ctx context.Context, arguments string) (allowed bool, 
 //     bound on the blackboard
 //   - tools that are part of a playbook step-machine
 //
-// Mirrors embabel's `PlaybookTool` + `UnlockCondition` semantics.
+// PlaybookTool + UnlockCondition semantics.
 // Returns an error when tool or condition is nil — caller decides
 // whether to surface or panic.
 func Unlocked(tool chat.Tool, condition UnlockCondition) (chat.Tool, error) {

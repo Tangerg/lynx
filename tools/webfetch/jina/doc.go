@@ -14,7 +14,7 @@
 //
 // # Parameter mapping
 //
-// lynx [webfetch.Request] → Jina:
+// [webfetch.Request] → Jina:
 //   - URL    → {"url": ...} in body
 //   - Format → X-Return-Format header (markdown is the default)
 //

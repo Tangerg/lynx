@@ -106,7 +106,7 @@ func BestValuePlan(
 // signal we care about is "this action can never participate in
 // any plan", not "this goal is unreachable".
 //
-// Use cases (mirrors embabel's OptimizingGoapPlanner.prune):
+// Use cases (prune unreachable actions):
 //
 //   - Deploy-time diagnostic — surface "agent X has N actions of
 //     which K are unreachable" so the author can clean up the

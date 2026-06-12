@@ -39,7 +39,7 @@ func (t *Tool) Definition() chat.ToolDefinition {
 }
 
 // webSearchDescription is the LLM-facing prompt. Structure follows
-// Claude Code's WebSearch prompt: short bullets + a CRITICAL block
+// the standard WebSearch prompt: short bullets + a CRITICAL block
 // for the source-citation contract.
 const webSearchDescription = `Search the web for current information.
 - Returns a ranked list of result items, each with title, URL, and snippet

@@ -45,7 +45,7 @@ const (
 	// SimilarityL2Norm — L2 (Euclidean) norm.
 	SimilarityL2Norm Similarity = "l2_norm"
 
-	// SimilarityDotProduct — dot product. Default in Spring AI; works
+	// SimilarityDotProduct — dot product. Default; works
 	// best with already-normalized embeddings (e.g. OpenAI).
 	SimilarityDotProduct Similarity = "dot_product"
 )
@@ -229,7 +229,7 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 
 // upsertSearchIndex creates (or refreshes) the FTS index used for
 // vector + content search. The index definition mirrors the one
-// Spring AI generates.
+// the framework generates.
 func (s *Store) upsertSearchIndex() error {
 	mgr := s.scope.SearchIndexes()
 	if existing, err := mgr.GetIndex(s.vectorIndexName, nil); err == nil && existing != nil {

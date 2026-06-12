@@ -125,9 +125,8 @@ func (s *processState) snapshotExclusions() map[string]struct{} {
 	return maps.Clone(s.excludedActions)
 }
 
-// makeRunning attempts to transition into StatusRunning. Mirrors
-// embabel's AbstractAgentProcess.makeRunning(): NotStarted / Waiting /
-// Paused all advance into Running, terminal states refuse, and an
+// makeRunning attempts to transition into StatusRunning.
+// NotStarted / Waiting / Paused all advance into Running, terminal states refuse, and an
 // already-running process refuses too so concurrent ContinueProcess
 // calls don't spawn parallel run loops over the same process. Returns
 // true when the caller now owns the run loop.

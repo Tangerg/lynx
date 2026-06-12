@@ -22,7 +22,7 @@ type LLMInvocation struct {
 	// "claude-sonnet-4-5", "gpt-4o-2024-08-06"). Empty when unknown.
 	Model string
 
-	// Provider is the lynx provider id ("anthropic", "openai", ...).
+	// Provider is the provider id ("anthropic", "openai", ...).
 	// Empty when unknown.
 	Provider string
 

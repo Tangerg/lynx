@@ -41,7 +41,7 @@ type Planner struct {
 }
 
 // NewPlanner returns a planner with sensible defaults (10k node
-// expansions cap; matches embabel). Per-call overrides go through
+// expansions cap). Per-call overrides go through
 // [planning.Options].MaxIterations.
 func NewPlanner() *Planner {
 	return &Planner{maxIterations: defaultMaxIterations}
@@ -136,7 +136,7 @@ func (p *Planner) iterationCap(options planning.Options) int {
 
 // candidateActions filters the master action list against the per-call
 // exclusion set and stable-sorts so more-specific actions (those with more
-// preconditions) get expanded first. Specificity-first matches embabel's
+// preconditions) get expanded first. Specificity-first
 // behavior and keeps the search frontier focused.
 func candidateActions(actions []core.Action, excluded map[string]struct{}) []core.Action {
 	out := make([]core.Action, 0, len(actions))

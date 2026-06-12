@@ -35,7 +35,7 @@ var _ image.Model = (*ImageModel)(nil)
 // ([image.Options].Model) carries the full Prodia type, e.g.
 // "inference.flux.dev.txt2img.v1". Prompt-level config (negative,
 // seed, sampler, steps, width, height) is threaded through the Extra
-// JobRequest.Config map; lynx's typed Width/Height/NegativePrompt/Seed
+// JobRequest.Config map; the typed Width/Height/NegativePrompt/Seed
 // are copied into Config automatically when set.
 type ImageModel struct {
 	api            *API

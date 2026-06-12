@@ -22,7 +22,7 @@ import (
 // half-registered.
 //
 // The generic sdkmcp.AddTool[In, Out] form is deliberately avoided:
-// lynx tools already supply a hand-authored JSON schema, and the
+// tools already supply a hand-authored JSON schema, and the
 // generic API would otherwise reflect over a Go In type and overwrite
 // it.
 func RegisterTools(server *sdkmcp.Server, tools ...chat.Tool) error {
@@ -76,7 +76,7 @@ func prepareOne(tool chat.Tool) (preparedTool, error) {
 }
 
 // serverHandler routes a tools/call RPC into a [chat.Tool]. Errors
-// from the lynx tool surface via [sdkmcp.CallToolResult.IsError] plus
+// from the tool surface via [sdkmcp.CallToolResult.IsError] plus
 // a [*sdkmcp.TextContent] body — never as a Go error from the handler
 // — because the latter would be promoted to a JSON-RPC protocol error
 // and hide the failure from the LLM's view.

@@ -11,9 +11,9 @@ import (
 // endpoint. The AgentCard's JSON-RPC interface URL must point at this path.
 const DefaultRPCPattern = "/invoke"
 
-// ServerConfig wires a lynx [Agent] into an HTTP A2A endpoint.
+// ServerConfig wires a [Agent] into an HTTP A2A endpoint.
 type ServerConfig struct {
-	// Agent is the lynx capability served over A2A. Required.
+	// Agent is the capability served over A2A. Required.
 	Agent Agent
 
 	// Card is the AgentCard served at the well-known path. Required — its
@@ -50,7 +50,7 @@ func (c *ServerConfig) ApplyDefaults() {
 	}
 }
 
-// NewHTTPHandler builds an http.Handler serving the A2A protocol for a lynx
+// NewHTTPHandler builds an http.Handler serving the A2A protocol for a the framework
 // [Agent]: the JSON-RPC method endpoint at RPCPattern and the AgentCard at
 // [a2asrv.WellKnownAgentCardPath]. Mount it on a server, or compose it into
 // a larger mux.

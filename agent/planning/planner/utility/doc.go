@@ -1,5 +1,5 @@
-// Package utility provides two value-based planners ported from
-// embabel-agent's utility-AI family.
+// Package utility provides two value-based planners: classic utility-AI
+// and a hybrid variant with goal-satisfaction termination.
 //
 // Both planners score every applicable action by its net value
 // ([core.Action.Value] − [core.Action.Cost]) and pick the highest.

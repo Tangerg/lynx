@@ -10,6 +10,4 @@
 // expressed via action effects and computed conditions the planner
 // already understands.
 //
-// Mirrors embabel's `api/common/workflow/` package without inheriting
-// its Spring-DI scaffolding.
 package workflow

@@ -16,5 +16,4 @@
 //   - the action space is too large for A* but you still want goal-
 //     directed behavior
 //
-// Mirrors embabel's UtilityPlanner — same shape, different name.
 package reactive

@@ -44,7 +44,7 @@ func NewAPI(cfg APIConfig) (*API, error) {
 }
 
 // ImageGenerateRequest mirrors POST /generations/image. Luma uses
-// Photon for stills (Dream Machine handles video — out of lynx scope).
+// Photon for stills (Dream Machine handles video — out of scope).
 type ImageGenerateRequest struct {
 	Prompt      string `json:"prompt"`
 	AspectRatio string `json:"aspect_ratio,omitempty"`

@@ -34,7 +34,7 @@ func (c *Config) Validate() error {
 
 // Client implements [websearch.Provider] against Tavily.
 // Use [Client.SearchNative] for full parameter access; [Client.Search]
-// is the slimmer lynx-SPI flavor.
+// is the slimmer SPI flavor.
 type Client struct {
 	http *resty.Client
 }
@@ -161,7 +161,7 @@ type Response struct {
 
 // SearchNative calls POST /search with the full Tavily request shape.
 // Returns the raw response so callers can access Answer, Images,
-// Usage, etc. that the lynx SPI doesn't surface.
+// Usage, etc. that the SPI doesn't surface.
 func (c *Client) SearchNative(ctx context.Context, req *Request) (*Response, error) {
 	if err := req.Validate(); err != nil {
 		return nil, err

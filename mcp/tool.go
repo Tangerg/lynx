@@ -40,7 +40,7 @@ type ToolConfig struct {
 	// Its Name must be non-empty.
 	Descriptor *sdkmcp.Tool
 
-	// PrefixedName overrides the public name reported into the lynx tool
+	// PrefixedName overrides the public name reported into the tool
 	// registry. Empty defaults to Descriptor.Name.
 	PrefixedName string
 

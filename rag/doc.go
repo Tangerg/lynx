@@ -31,8 +31,7 @@
 // abstraction. When multiple retrievers run in parallel, the pipeline
 // unions their result lists into a flat slice, and the refine stage is
 // where you re-organize that slice. The canonical "join overlapping
-// retriever results" pattern is the refiner pair below — equivalent to
-// spring-ai's ConcatenationDocumentJoiner:
+// retriever results" pattern is the refiner pair below:
 //
 //	pipe, _ := rag.NewPipeline(rag.PipelineConfig{
 //	    DocumentRetrievers: []rag.DocumentRetriever{vectorR1, vectorR2},

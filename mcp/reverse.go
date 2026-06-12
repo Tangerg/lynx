@@ -182,7 +182,7 @@ func LogToClient(ctx context.Context, level slog.Level, message string, data any
 }
 
 // slogLevelToMCP mirrors the SDK's mapping but is kept private to the
-// lynx package so we are not bound to the SDK's unexported helper. The
+// package so we are not bound to the SDK's unexported helper. The
 // SDK exposes slog-style level constants; map by the closest numeric
 // ordering used in the SDK's mcp/logging.go. Levels at or below
 // LevelDebug map to "debug"; everything above LevelAlert falls through

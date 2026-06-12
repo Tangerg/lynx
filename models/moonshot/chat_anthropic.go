@@ -37,7 +37,7 @@ func (c AnthropicChatModelConfig) Validate() error {
 
 // NewAnthropicChatModel returns an [anthropic.ChatModel] pointed at
 // Moonshot's Anthropic-compatible endpoint. Lets callers using
-// Claude Code / Anthropic SDK swap base URL to keep their integration
+// Anthropic SDK callers swap base URL to keep their integration
 // while targeting Kimi-K2.
 func NewAnthropicChatModel(cfg AnthropicChatModelConfig) (*anthropic.ChatModel, error) {
 	if err := cfg.Validate(); err != nil {

@@ -9,7 +9,7 @@ import (
 )
 
 // Deploy registers an agent after a multi-layer validation that reports
-// every problem at once (embabel-style) rather than stopping at the first:
+// every problem at once rather than stopping at the first:
 //
 //  1. [core.Agent.Validate] checks structural invariants.
 //  2. [core.Agent.CheckGoalsReachable] does a one-step producer scan so

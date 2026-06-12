@@ -185,7 +185,7 @@ func ParseYesNoDetermination(text string) Determination {
 
 // --- Boolean composition --------------------------------------------------
 //
-// These mirror Kotlin's operator overloads via plain functions. They
+// These mirror operator overloads via plain functions. They
 // short-circuit so an expensive child is never evaluated when a cheap
 // sibling has already determined the outcome.
 

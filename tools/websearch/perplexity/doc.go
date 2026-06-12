@@ -9,7 +9,7 @@
 //
 // # Parameter mapping
 //
-// lynx [websearch.Request] → Perplexity request:
+// [websearch.Request] → Perplexity request:
 //   - Query          → query (required)
 //   - MaxResults     → max_results (clamped to [1, 20])
 //   - AllowedDomains → search_domain_filter (capped at 20 entries)
@@ -21,7 +21,7 @@
 //
 // Not used: max_tokens, max_tokens_per_page, country,
 // search_language_filter, search_mode (these are not exposed at the
-// lynx SPI layer because they're inconsistent across providers).
+// SPI layer because they're inconsistent across providers).
 //
 // # Response mapping
 //

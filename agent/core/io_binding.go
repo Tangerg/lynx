@@ -12,8 +12,7 @@ const (
 	DefaultBindingName = "it"
 
 	// LastResultBindingName addresses the single most-recently-added
-	// object regardless of type — mirrors embabel's
-	// @Trigger(lastResult=true) idiom.
+	// object regardless of type.
 	LastResultBindingName = "last_result"
 )
 

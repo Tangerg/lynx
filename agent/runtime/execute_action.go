@@ -30,7 +30,7 @@ const (
 // with back-off; ActionWaiting/Paused/Succeeded short-circuit immediately.
 // The full retry loop (not each attempt) is wrapped by every registered
 // [core.ActionMiddleware] — interceptors fire once per action, not per
-// retry, matching embabel's AgentProcessCallback semantics.
+// retry, matching standard agent-process callback semantics.
 func (p *AgentProcess) executeAction(ctx context.Context, action core.Action) (core.ActionStatus, *core.ReplanRequest) {
 	meta := action.Metadata()
 	startedAt := core.Now()
@@ -128,8 +128,7 @@ func (p *AgentProcess) runWithRetry(
 
 		// On a retry (any attempt after the first), clear this action's
 		// declared effect conditions so a half-applied effect from the
-		// failed attempt doesn't poison the next one. Mirrors embabel's
-		// AbstractAgentProcess retry (effects.forEach { setCondition(it,
+		// failed attempt doesn't poison the next one. On retry, clear the
 		// false) } when retryCount > 0). The hasRun key is only promoted on
 		// success after the loop, so clearing it here is a harmless no-op.
 		if attempts > 1 {

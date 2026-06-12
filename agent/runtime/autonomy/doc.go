@@ -12,8 +12,7 @@
 //     winning agent with a per-process [core.GoalApprover] that
 //     locks the planner onto just the chosen goal.
 //
-// Mirrors embabel's `Autonomy` + `Ranker` SPI without the Spring DI
-// scaffolding. lynx ships [LLMRanker] as the canonical LLM-backed
-// ranker; users with simpler routing rules can implement [Ranker]
-// directly.
+// [Autonomy] + [Ranker] SPI. [LLMRanker] ships as the canonical
+// LLM-backed ranker; users with simpler routing rules can implement
+// [Ranker] directly.
 package autonomy

@@ -8,11 +8,11 @@
 //
 // # Parameter mapping
 //
-// lynx [webfetch.Request] → Firecrawl request:
+// [webfetch.Request] → Firecrawl request:
 //   - URL    → url
 //   - Format → formats=[{"type": <format>}]. We always request a
 //     single format. Firecrawl supports markdown/html/text plus
-//     richer modes (summary, screenshot, links, json) that lynx
+//     richer modes (summary, screenshot, links, json) that
 //     doesn't expose.
 //
 // Hardcoded: onlyMainContent=true (strips nav/footer/boilerplate).

@@ -1,7 +1,7 @@
 # Lyra — Agent 能力横向对比
 
-> **日期**：2026-06-11。**基线**：lyra HEAD（含 LSP / session export-import / edit 守卫 / 文件 checkpoint / 后台命令 五项落地后）。
-> **对比对象**：桌面源码仓 `claude_code`（Claude Code CLI）、`codex`（OpenAI Codex CLI, Rust）、`opencode`、`cline`（VS Code 扩展）、`kimi-code`（Moonshot），外加 `aider` / `cursor` / `windsurf` / `amp` / `gemini-cli` 的公开认知。
+> **日期**：2026-06-11（2026-06-12 追加 plandex）。**基线**：lyra HEAD（含 LSP / session export-import / edit 守卫 / 文件 checkpoint / 后台命令 五项落地后）。
+> **对比对象**：桌面源码仓 `claude_code`（Claude Code CLI）、`codex`（OpenAI Codex CLI, Rust）、`opencode`、`cline`（VS Code 扩展）、`kimi-code`（Moonshot）、`plandex`（Go，plan-first 终端 agent），外加 `aider` / `cursor` / `windsurf` / `amp` / `gemini-cli` 的公开认知。
 > **方法**：对每个仓库实地清点能力面（工具名 / 特性 / 架构），再与 lyra 现状拉成矩阵。
 
 ---
@@ -21,37 +21,38 @@ Lyra 是**运行时后端**（协议层，经 Lyra Runtime Protocol 服务独立
 
 ✅ 有 · 🟡 部分 · ❌ 无
 
-| 维度 | lyra | claude_code | codex | opencode | cline | kimi-code |
-|---|---|---|---|---|---|---|
-| read / write / edit | ✅（edit 有 read-before + stale 守卫） | ✅ | 🟡（仅 apply_patch） | ✅ | ✅ | ✅ |
-| 多文件 / apply_patch | ❌（刻意不做，见 §4） | ❌ | ✅ V4A | ✅ | ✅ | ❌ |
-| notebook 编辑 | ❌ | ✅ | 🟡 | ❌ | ❌ | ❌ |
-| grep / glob | ✅ | ✅ | 🟡（走 shell） | ✅ | ✅ | ✅ |
-| **LSP 代码智能** | ✅ 6 op | ✅ 9 op | ❌ | ✅ 9 op | 🟡（插件示例） | ❌ |
-| bash 同步 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **后台命令** | ✅（无 PTY） | ✅ | ✅（PTY） | ✅ | 🟡 | ✅ |
-| web fetch / search | ✅（+httpreq） | ✅ | 🟡（仅 search） | ✅ | 🟡（仅 fetch） | ✅ |
-| **todo / plan 工具** | 🟡（有 plan 模式，无 model-facing todo） | ✅ | ✅ | ✅ | ✅（plan 模式） | ✅（todo + goal） |
-| 持久记忆（*.md） | ✅ LYRA.md + AGENTS.md | ✅ CLAUDE.md | ✅ AGENTS.md | ✅ AGENTS.md | ✅ .clinerules | ✅ AGENTS.md |
-| 自动压缩 | ✅ | ✅ | ✅ | ✅ | 🟡 | ✅ |
-| 子 agent 委派 | ✅（单个） | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **多 agent swarm / team** | ❌ | ✅ teams | ✅ agent_jobs | 🟡 | ✅ 16 team tools | ✅ swarm |
-| MCP client | ✅（5 态生命周期） | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **MCP OAuth** | ❌（seam 已备） | ✅ | ✅ | ✅ | ✅ | ✅ |
-| MCP server（自身作为） | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| **A2A（agent 互联）** | ✅ | ❌ | 🟡（进程内 multi-agent） | ❌ | ❌ | ❌ |
-| **多模态（图片输入）** | ❌ | ✅ | ✅ | ✅ | ✅ | ✅（+视频） |
-| 图片输出 | ❌ | ✅ | ✅（生成） | ❌ | ❌ | ❌ |
-| **Hooks（pre/post tool）** | ❌ | ✅ 8+ 事件 | ✅ 10 事件 | 🟡（插件 hook） | ✅ | ✅ |
-| **OS Sandbox** | ❌（有审批兜底） | 🟡 可选 | ✅ 三平台 | ❌ | ❌ | 🟡 路径限制 |
-| 审批 / 权限 | ✅ R 模型 4 档 | ✅ | ✅ | ✅ | ✅ | ✅ |
-| session export / import | ✅ | 🟡（仅 export） | ❌ | ✅ | 🟡（仅 export） | 🟡（仅 export） |
-| fork | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **文件 checkpoint / restore** | ✅ 影子 git | 🟡（file history） | 🟡（compaction 边界） | ❌ | ✅ 影子 git | ❌ |
-| skills | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ |
-| 多 provider × model | ✅ 显式配对 | ❌（Anthropic） | ❌（OpenAI） | ✅ | ✅ | 🟡 |
-| cron / 调度 | ❌ | ✅ | 🟡（cloud-tasks） | ❌ | ❌ | ✅ |
-| **OTel 可观测（traces+metrics+logs）** | ✅ 三件套 | 🟡 | 🟡（trace） | 🟡 | ❌ | 🟡 |
+| 维度 | lyra | claude_code | codex | opencode | cline | kimi-code | plandex |
+|---|---|---|---|---|---|---|---|
+| read / write / edit | ✅（edit 有 read-before + stale 守卫） | ✅ | 🟡（仅 apply_patch） | ✅ | ✅ | ✅ | 🟡（沙箱累积，非直写） |
+| 多文件 / apply_patch | ❌（刻意不做，见 §4） | ❌ | ✅ V4A | ✅ | ✅ | ❌ | ✅（anchor 结构化编辑） |
+| notebook 编辑 | ❌ | ✅ | 🟡 | ❌ | ❌ | ❌ | ❌ |
+| grep / glob | ✅ | ✅ | 🟡（走 shell） | ✅ | ✅ | ✅ | 🟡（architect 走 map） |
+| **LSP 代码智能** | ✅ 6 op | ✅ 9 op | ❌ | ✅ 9 op | 🟡（插件示例） | ❌ | ❌（内部 tree-sitter map，非工具） |
+| bash 同步 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🟡（_apply.sh 延迟执行） |
+| **后台命令** | ✅（无 PTY） | ✅ | ✅（PTY） | ✅ | 🟡 | ✅ | ❌ |
+| **auto-debug 自纠环** | 🟡（tool loop 隐式：报错回喂模型自行重试） | 🟡（loop 隐式） | 🟡（loop 隐式） | 🟡（loop 隐式） | 🟡（loop 隐式） | 🟡（loop 隐式） | ✅（显式 `AutoDebugTries` 有界重试） |
+| web fetch / search | ✅（+httpreq） | ✅ | 🟡（仅 search） | ✅ | 🟡（仅 fetch） | ✅ | ❌ |
+| **todo / plan 工具** | 🟡（有 plan 模式，无 model-facing todo） | ✅ | ✅ | ✅ | ✅（plan 模式） | ✅（todo + goal） | ✅（subtask 一等 + 完成闸门） |
+| 持久记忆（*.md） | ✅ LYRA.md + AGENTS.md | ✅ CLAUDE.md | ✅ AGENTS.md | ✅ AGENTS.md | ✅ .clinerules | ✅ AGENTS.md | ❌ |
+| 自动压缩 | ✅ | ✅ | ✅ | ✅ | 🟡 | ✅ | 🟡（summary 仅展示，非回灌缩 prompt） |
+| 子 agent 委派 | ✅（单个） | ✅ | ✅ | ✅ | ✅ | ✅ | ❌（role 流水，非委派） |
+| **多 agent swarm / team** | ❌ | ✅ teams | ✅ agent_jobs | 🟡 | ✅ 16 team tools | ✅ swarm | ❌ |
+| MCP client | ✅（5 态生命周期） | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **MCP OAuth** | ❌（seam 已备） | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| MCP server（自身作为） | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **A2A（agent 互联）** | ✅ | ❌ | 🟡（进程内 multi-agent） | ❌ | ❌ | ❌ | ❌ |
+| **多模态（图片输入）** | ❌ | ✅ | ✅ | ✅ | ✅ | ✅（+视频） | ❌ |
+| 图片输出 | ❌ | ✅ | ✅（生成） | ❌ | ❌ | ❌ | ❌ |
+| **Hooks（pre/post tool）** | ❌ | ✅ 8+ 事件 | ✅ 10 事件 | 🟡（插件 hook） | ✅ | ✅ | ❌ |
+| **OS Sandbox** | ❌（有审批兜底） | 🟡 可选 | ✅ 三平台 | ❌ | ❌ | 🟡 路径限制 | ❌（diff 沙箱 ≠ OS 沙箱） |
+| 审批 / 权限 | ✅ R 模型 4 档 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅（5 档自治 + apply/reject 闸门） |
+| session export / import | ✅ | 🟡（仅 export） | ❌ | ✅ | 🟡（仅 export） | 🟡（仅 export） | ❌ |
+| fork | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅（plan 分支，token 继承） |
+| **文件 checkpoint / restore** | ✅ 影子 git | 🟡（file history） | 🟡（compaction 边界） | ❌ | ✅ 影子 git | ❌ | ✅（沙箱 + reject 回退） |
+| skills | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ |
+| 多 provider × model | ✅ 显式配对 | ❌（Anthropic） | ❌（OpenAI） | ✅ | ✅ | 🟡 | ✅（per-role model packs） |
+| cron / 调度 | ❌ | ✅ | 🟡（cloud-tasks） | ❌ | ❌ | ✅ | ❌ |
+| **OTel 可观测（traces+metrics+logs）** | ✅ 三件套 | 🟡 | 🟡（trace） | 🟡 | ❌ | 🟡 | ❌ |
 
 ---
 
@@ -76,6 +77,16 @@ Lyra 是**运行时后端**（协议层，经 Lyra Runtime Protocol 服务独立
 9. **notebook 编辑 / 图片输出 / cron 调度** —— 小众，按需。
 10. **apply_patch** —— **刻意不做**（见 §4），非缺口。
 
+### plandex 复盘追加（2026-06-12）
+
+plandex 与上面 5 家不同：它**不是 tool-calling agent，而是刚性多阶段 prompt 流水线**（planner→architect→coder→builder，工具调用只用于命名/完成校验，文件改动靠自定义 `<PlandexBlock>` 文本块解析）。因此它的多数"产品特性"（累积 diff 沙箱 UI、plan 分支、org/RBAC/Postgres 后端、5 档自治预设）属**前端/产品层**，不进 lyra 运行时缺口。过滤后，对 lyra 真正有借鉴价值的只有 **2.5 条**：
+
+- **A. per-role 模型分配（真启发，成本低）** —— plandex 给 planner / builder / summarizer / auto-continue 各配不同模型（便宜模型做 summarize、强模型做 build）。lyra 的 `maintenance` 域已把 **Compactor / Extractor / Planner** 拆成独立 service —— **它们正好是天然的 role 边界**。lyra 已有 per-run model 的 seam（`core.ChatClientProvider` + `clientResolver`），把它从 per-run 扩成 **per-internal-role**（压缩走 haiku、规划走 opus）几乎顺水推舟。归入第二梯队。
+- **B. repo-map 接入的具体范式（强化既有 §2.7）** —— plandex 用 tree-sitter 抽每文件符号签名 → 按文件 hash 缓存成 JSON 地图 → 喂给 "architect" 阶段**先决定加载哪些文件**再进 implementation。这是 §2.7「`rag` 模块未接进 agent」的**可落地蓝图**：repo-map 既可做成一个 model-facing 工具（符号图查询），也可做成上下文注入器（让模型按需拉文件而非全量）。不必照搬流水线。
+- **C.（半条，已修正）auto-debug** —— plandex 有显式 `AutoDebugTries`：命令失败 → 回喂 exit code+stderr → 有界重试。**但 lyra 是 tool-calling loop，bash 报错模型本来就看得到、能自行重试**——这层 plandex **因为不是 agent loop 才必须显式补**。故对 lyra 不是真缺口，可借鉴的仅是一个**有界 `debug <cmd>` 便利封装** + 把 exit-code/stderr 结构化回喂，价值有限，列为可选。
+
+**plandex 没有、lyra 已领先的**：真正的 tool-calling loop、真自动压缩（plandex 的 summary 仅展示）、MCP / A2A / skills / LSP 工具 / 多 provider×model 显式配对、本地纯净运行时（plandex 强绑 Postgres + org/billing）。
+
 ---
 
 ## 3. Lyra 反而领先 / 独有的（不是全面落后）
@@ -99,7 +110,7 @@ Lyra 是**运行时后端**（协议层，经 Lyra Runtime Protocol 服务独立
 
 - **aider**：`repo-map`（tree-sitter 抽全仓符号图喂模型）+ git-native commit → 印证缺口 §2.7。
 - **cursor / windsurf**：embeddings 全仓索引 + 大型 "apply model"（快速套改）+ 深 IDE → 语义检索 + IDE 集成（后者属前端）。
-- **amp（Sourcegraph）**：子 agent + "oracle"（强模型做架构判断）+ 代码搜索 → 印证缺口 §2.5。
+- **amp（Sourcegraph）**：子 agent + "oracle"（强模型做架构判断）+ 代码搜索 → 印证缺口 §2.5、且与 plandex 的 per-role 模型同源（见 §2 复盘追加 A）。
 - **gemini-cli**：超长上下文 + MCP + 内置 web → 无新维度。
 - **continue**：IDE 自动补全（非 agent 范畴）。
 
@@ -115,6 +126,7 @@ Lyra 是**运行时后端**（协议层，经 Lyra Runtime Protocol 服务独立
 2. **todo 工具**（成本极低、顺手）
 3. **Hooks**（扩展性核心）
 4. **MCP OAuth**（seam 已备）
-5. **多 agent swarm** / **repo-map 接 rag**（进阶）
+5. **per-role 模型分配**（复用 per-run-model seam，maintenance 三服务现成 role 边界；plandex / amp 印证 —— 见 §2 复盘追加 A）
+6. **多 agent swarm** / **repo-map 接 rag**（进阶；plandex 的 architect + tree-sitter map 是 repo-map 的可落地范式 —— 见 §2 复盘追加 B）
 
 > 维护提示：本文是**时点快照**。竞品演进快，落地新能力后请回来勾掉对应缺口、更新矩阵。

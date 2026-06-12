@@ -12,7 +12,7 @@
 //
 // # Parameter mapping
 //
-// lynx [websearch.Request] → Jina query params:
+// [websearch.Request] → Jina query params:
 //   - Query          → URL path segment
 //   - MaxResults     → num + count (both required by Jina; clamped
 //     to [1, 20])

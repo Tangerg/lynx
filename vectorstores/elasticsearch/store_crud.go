@@ -269,7 +269,7 @@ func (s *Store) buildFilterQuery(filter ast.Expr) (string, error) {
 }
 
 // normalizeScore reverses Elasticsearch's vector-score transform to
-// produce a [0, 1] similarity score, matching Spring AI's mapping.
+// produce a [0, 1] similarity score, matching the mapping.
 //
 //	cosine / dot_product:  ES already returns (sim+1)/2 in [0, 1];
 //	                       map back via (2*score - 1).

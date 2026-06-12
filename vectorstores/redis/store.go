@@ -90,7 +90,7 @@ const (
 	FieldNumeric
 )
 
-// MetadataField declares one filterable metadata key. Spring AI's
+// MetadataField declares one filterable metadata key. the framework's
 // builder calls this a "MetadataField".
 type MetadataField struct {
 	// Name is the HASH field / JSON key that holds the value.
@@ -382,7 +382,7 @@ func searchFieldType(t MetadataFieldType) goredis.SearchFieldType {
 
 // distanceToScore maps the raw distance returned by RediSearch to a
 // "higher = more similar" score in [0, 1]. Mirrors RedisVL's
-// implementation referenced by Spring AI.
+// implementation referenced by the framework.
 func (s *Store) distanceToScore(distance float64) float64 {
 	switch s.distanceMetric {
 	case DistanceL2:

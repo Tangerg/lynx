@@ -136,10 +136,10 @@ func (p *Platform) StartAgent(
 }
 
 // ContinueProcess re-enters the run loop on an already-created
-// process. Mirrors embabel's pattern: after [Platform.ResumeProcess]
-// delivers an awaitable response, or after a stuck-handler stages
-// new blackboard state, ContinueProcess drives the OODA loop until
-// the process exits Running again (terminal, waiting, or paused).
+// process. After [Platform.ResumeProcess] delivers an awaitable
+// response, or after a stuck-handler stages new blackboard state,
+// ContinueProcess drives the OODA loop until the process exits
+// Running again (terminal, waiting, or paused).
 //
 // Concurrent ContinueProcess calls on the same id are safe — the
 // underlying makeRunning rejects when the process is already running
@@ -231,8 +231,7 @@ func (p *Platform) KillChildren(parentID string) []string {
 	return killed
 }
 
-// RemoveProcess deletes a process from the registry. Mirrors
-// embabel's AgentProcessRepository.delete: lets long-running
+// RemoveProcess deletes a process from the registry — lets long-running
 // services free terminal-state processes that the host has already
 // drained. Returns an error when the id is unknown so callers can
 // detect typos.

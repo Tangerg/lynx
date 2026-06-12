@@ -9,7 +9,7 @@ import (
 )
 
 // Request is the typed surface every HITL prompt implements. Generic
-// methods Prompt/OnResponse mirror embabel 0.4's Awaitable<P, R> contract.
+// methods Prompt/OnResponse implement the standard Awaitable<P, R> contract.
 // Named Request rather than Awaitable to avoid the same-name collision
 // with [core.Awaitable] — the latter is the non-generic root the
 // runtime uses; this one is the typed flavor user code talks to.

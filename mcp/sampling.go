@@ -29,7 +29,7 @@ type SamplingHandler = func(context.Context, *sdkmcp.CreateMessageRequest) (*sdk
 //
 // MaxTokens / Temperature / StopSequences / ModelPreferences are not
 // forwarded: per the MCP spec these are hints the client may ignore,
-// and lynx defers to the chat.Client's configured defaults.
+// and the framework defers to the chat.Client's configured defaults.
 //
 // Concurrency is not bounded — wrap the returned handler with your own
 // semaphore if your model quota requires it. Returns an error when

@@ -100,9 +100,7 @@ type ProcessContextConfig struct {
 
 	// ActionToolGroups carries the currently-executing action's declared
 	// [ToolGroupRequirement]s, so [ProcessContext.ActionTools] can
-	// resolve them without the action body having to re-state role
-	// names. Mirrors embabel's ConditionEnv.toolGroups, which reads
-	// action.toolGroups for the LLM ops layer.
+	// resolve them without the action body having to re-state role names.
 	ActionToolGroups []ToolGroupRequirement
 }
 

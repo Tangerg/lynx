@@ -51,10 +51,9 @@ func (p *AgentProcess) run(ctx context.Context) error {
 		// including the terminal / waiting one on the loop's last pass.
 		p.maybeAutoSnapshot(ctx)
 
-		// Mirror embabel's AbstractAgentProcess.run loop: keep ticking
-		// only while Running. Waiting / Paused / Stuck / terminal all
-		// release the loop so the host (HITL resume, stuck-handler,
-		// terminal cleanup) can drive next.
+		// Keep ticking only while Running. Waiting / Paused / Stuck /
+		// terminal all release the loop so the host (HITL resume,
+		// stuck-handler, terminal cleanup) can drive next.
 		if p.Status() != core.StatusRunning {
 			p.publishTerminalEvent()
 			p.recordRunExitMetric(ctx)

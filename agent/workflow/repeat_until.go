@@ -23,8 +23,7 @@ type RepeatUntilConfig[In, Out any] struct {
 	// Description is the agent's human-facing summary.
 	Description string
 
-	// MaxIterations bounds the loop. <=0 defaults to 3, matching
-	// embabel's RepeatUntil default. The workflow always runs Task
+	// MaxIterations bounds the loop. <=0 defaults to 3. The workflow always runs Task
 	// at least once.
 	MaxIterations int
 

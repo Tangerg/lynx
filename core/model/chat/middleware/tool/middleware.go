@@ -15,8 +15,7 @@ import (
 // DefaultMaxIterations bounds the self-driving tool loop. A model that
 // keeps requesting tools — or a buggy tool whose result always re-triggers
 // a call — would otherwise spin forever; the cap turns that into a
-// [MaxIterationsError] instead. Mirrors embabel's
-// MaxIterationsExceededException.
+// [MaxIterationsError] instead.
 const DefaultMaxIterations = 50
 
 // emptyResponseNudge is the follow-up prompt sent when a model returns an

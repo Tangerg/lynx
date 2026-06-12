@@ -9,7 +9,7 @@
 //
 // # Parameter mapping
 //
-// lynx [websearch.Request] → Tavily request:
+// [websearch.Request] → Tavily request:
 //   - Query          → query (required)
 //   - MaxResults     → max_results (clamped to [1, 20]; default 5 when 0)
 //   - AllowedDomains → include_domains (Tavily caps at 300)
@@ -35,7 +35,7 @@
 //
 // For full parameter access (Answer, Images, Usage, ChunksPerSource,
 // IncludeAnswer, etc.) call [Client.SearchNative] with the
-// provider's own [Request] / [Response] types instead of the lynx
+// provider's own [Request] / [Response] types instead of the
 // SPI's slimmer [websearch.Request] / [websearch.Response].
 //
 // # Reference

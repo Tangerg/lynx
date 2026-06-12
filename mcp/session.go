@@ -7,7 +7,7 @@ import (
 )
 
 // sessionKey is the unexported context-key type for the per-call MCP
-// server session. The session is stamped onto the context by lynx's
+// server session. The session is stamped onto the context by the 
 // tool dispatcher ([serverHandler]) and retrieved by tool authors via
 // [ServerSessionFromContext].
 type sessionKey struct{}
@@ -34,7 +34,7 @@ func withProgressToken(ctx context.Context, req *sdkmcp.CallToolRequest) context
 // progressTokenFromContext returns the progress token associated with
 // the current MCP tool invocation, or nil when the client did not
 // request progress reporting (or when ctx was not produced by the
-// lynx dispatcher).
+// dispatcher).
 func progressTokenFromContext(ctx context.Context) any {
 	if ctx == nil {
 		return nil
@@ -43,7 +43,7 @@ func progressTokenFromContext(ctx context.Context) any {
 }
 
 // WithServerSession returns a copy of ctx carrying the MCP server
-// session. The lynx tool dispatcher calls this before invoking a
+// session. The tool dispatcher calls this before invoking a
 // [chat.Tool] so reverse-capability helpers ([ReportProgress],
 // [ElicitFromClient], [LogToClient]) can recover the session from
 // context.

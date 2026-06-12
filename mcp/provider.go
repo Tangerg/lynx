@@ -13,7 +13,7 @@ import (
 )
 
 // NamingFunc maps a remote MCP tool to the public name reported into the
-// lynx tool registry. It must be deterministic; the same input pair must
+// tool registry. It must be deterministic; the same input pair must
 // always yield the same output, otherwise cache invalidation may produce
 // mismatched names.
 type NamingFunc func(sourceName string, tool *sdkmcp.Tool) string
