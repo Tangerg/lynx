@@ -157,10 +157,6 @@ func (p *ToolCallPart) clone() OutputPart {
 	return &ToolCallPart{ID: p.ID, Name: p.Name, Arguments: p.Arguments}
 }
 
-// marshalOutputPart renders an [OutputPart] as a kind-tagged JSON
-// object. Each part is encoded inline (no nested envelope) with a
-// leading "kind" discriminator so the message-level JSON stays flat
-// and decoders can dispatch in one pass.
 func marshalOutputPart(p OutputPart) ([]byte, error) {
 	switch tp := p.(type) {
 	case *TextPart:
@@ -192,8 +188,6 @@ func marshalKindedPart[T any](kind PartKind, val T) ([]byte, error) {
 	return []byte(prefix + "," + string(body[1:])), nil
 }
 
-// unmarshalOutputPart decodes a kind-tagged JSON object back into the
-// matching concrete [OutputPart] implementation.
 func unmarshalOutputPart(data []byte) (OutputPart, error) {
 	var head struct {
 		Kind PartKind `json:"kind"`

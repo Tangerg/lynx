@@ -245,7 +245,6 @@ func (s *Store) initialize(ctx context.Context, initSchema bool, replication str
 			s.keyspaceName, replication),
 	}
 
-	// Build CREATE TABLE with all declared metadata columns.
 	var cols strings.Builder
 	cols.WriteString(s.idColumn)
 	cols.WriteString(" text PRIMARY KEY, ")

@@ -45,7 +45,6 @@ func (e StartElement) String() string {
 	sb.WriteString("<")
 	sb.WriteString(e.Name.String())
 
-	// Append all attributes
 	for _, attr := range e.Attrs {
 		sb.WriteString(" ")
 		sb.WriteString(attr.String())
@@ -129,7 +128,6 @@ func (e Element) String() string {
 	sb := new(strings.Builder)
 	sb.WriteString(e.Start.String())
 
-	// Append all content
 	for _, content := range e.Contents {
 		sb.WriteString(content.String())
 	}

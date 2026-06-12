@@ -50,11 +50,9 @@ func (s *elementScope) appendCharData(chars CharData) {
 	lastContent := s.element.Contents[len(s.element.Contents)-1]
 	switch typed := lastContent.(type) {
 	case CharData:
-		// Merge with existing CharData
 		typed = append(typed, chars...)
 		s.element.Contents[len(s.element.Contents)-1] = typed
 	case Element:
-		// Append as new content
 		s.element.Contents = append(s.element.Contents, chars)
 	}
 }
@@ -345,7 +343,6 @@ func (p *StreamScanner) processChunk(data []byte) error {
 
 // processByte processes a single byte based on current state.
 func (p *StreamScanner) processByte(b byte) error {
-	// Handle quote characters
 	if (b == '"' || b == '\'') && p.elementState.inElement {
 		if !p.elementState.inString {
 			p.elementState.inString = true
@@ -358,23 +355,19 @@ func (p *StreamScanner) processByte(b byte) error {
 		return nil
 	}
 
-	// Handle quotes outside elements
 	if (b == '"' || b == '\'') && !p.elementState.inElement {
 		return p.writeToCurrentBuffer(b)
 	}
 
-	// If inside quoted string, write to element buffer
 	if p.elementState.inString {
 		p.buffers.element.WriteByte(b)
 		return nil
 	}
 
-	// Handle whitespace
 	if unicode.IsSpace(rune(b)) {
 		return p.handleWhitespace(b)
 	}
 
-	// Handle special characters
 	switch b {
 	case '<':
 		return p.handleElementOpen(b)
@@ -494,7 +487,6 @@ func (p *StreamScanner) handleElementClose(b byte) error {
 
 	eleContent := p.buffers.element.String()
 
-	// Validate element syntax
 	if !isValidElementSyntax(eleContent) {
 		err := p.writeStringToCurrentBuffer(eleContent)
 		if err != nil {
@@ -563,7 +555,6 @@ func (p *StreamScanner) processOpenElement(eleContent string) error {
 		return err
 	}
 
-	// Parse attributes
 	attrs, err := parseAttrs(eleContent)
 	if err != nil {
 		return errors.Join(
@@ -597,7 +588,6 @@ func (p *StreamScanner) processSelfCloseElement(eleContent string) error {
 		return p.writeStringToCurrentBuffer(eleContent)
 	}
 
-	// Expand self-closing element into open and close elements
 	openEle, closeEle := expandSelfCloseElement(eleContent, eleName.String())
 
 	if err := p.processOpenElement(openEle); err != nil {
@@ -609,11 +599,9 @@ func (p *StreamScanner) processSelfCloseElement(eleContent string) error {
 
 // pushScope pushes a new element scope onto the stack.
 func (p *StreamScanner) pushScope(eleName Name, attrs []Attr, openEle string, listener *ElementListener) error {
-	// Create scope buffer
 	scopeBuffer := bytes.NewBuffer(make([]byte, 0, len(openEle)*2))
 	scopeBuffer.WriteString(openEle)
 
-	// Push new scope
 	p.stack.push(&elementScope{
 		element: Element{
 			Start: StartElement{
@@ -645,19 +633,16 @@ func (p *StreamScanner) popScope(eleName Name, closeEle string) error {
 		return err
 	}
 
-	// Element name matches, pop from stack
 	p.stack.pop()
 	currentBuffer.WriteString(closeEle)
 	fullEle := currentBuffer.String()
 
-	// Build complete element
 	element := Element{
 		Start:    currentScope.element.Start,
 		Contents: currentScope.element.Contents,
 		End:      currentScope.element.Start.End(),
 	}
 
-	// Extract text content if no parsed contents
 	if len(element.Contents) == 0 {
 		textContent := extractElementContent(fullEle, currentScope.element.Start.Name.String())
 		if len(textContent) > 0 {
@@ -665,7 +650,6 @@ func (p *StreamScanner) popScope(eleName Name, closeEle string) error {
 		}
 	}
 
-	// Add to parent scope or output buffer
 	if p.stack.len() > 0 {
 		lastScope, lastBuffer := p.stack.last()
 		lastScope.appendElement(element)

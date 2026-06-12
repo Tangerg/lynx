@@ -83,7 +83,6 @@ func taskText(task *sdka2a.Task) string {
 	return b.String()
 }
 
-// statusDetail returns the text of a task's status message, or "".
 func statusDetail(task *sdka2a.Task) string {
 	if task.Status.Message == nil {
 		return ""

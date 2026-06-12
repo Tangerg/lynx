@@ -156,7 +156,6 @@ func (a *AssistantMessage) ToolCalls() iter.Seq[*ToolCallPart] {
 	return partsOf[*ToolCallPart](a)
 }
 
-// partsOf yields the parts assignable to T, in order. Nil-receiver safe.
 func partsOf[T OutputPart](a *AssistantMessage) iter.Seq[T] {
 	return func(yield func(T) bool) {
 		if a == nil {
@@ -190,8 +189,6 @@ func (a *AssistantMessage) JoinedReasoning() string {
 	return joinTexts(a.ReasoningParts(), func(p *ReasoningPart) string { return p.Text })
 }
 
-// joinTexts concatenates each part's text body (extracted by getText)
-// into a single string without separators.
 func joinTexts[T any](seq iter.Seq[T], getText func(T) string) string {
 	var b strings.Builder
 	for p := range seq {

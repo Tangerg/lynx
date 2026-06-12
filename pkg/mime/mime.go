@@ -57,12 +57,10 @@ func (m *MIME) UnmarshalJSON(data []byte) error {
 func (m *MIME) formatStringValue() {
 	stringBuilder := strings.Builder{}
 
-	// Build the basic type/subtype structure
 	stringBuilder.WriteString(m._type)
 	stringBuilder.WriteString("/")
 	stringBuilder.WriteString(m.subType)
 
-	// Append all parameters
 	m.params.ForEach(func(paramKey, paramValue string) {
 		stringBuilder.WriteString(";")
 		stringBuilder.WriteString(paramKey)

@@ -24,10 +24,6 @@ type StructuredParser[T any] interface {
 	Parse(rawLLMOutput string) (T, error)
 }
 
-// removeMarkdownCodeBlockDelimiters strips a leading/trailing ``` fence
-// from input. LLMs often wrap structured payloads in fenced code even
-// when told not to; the parsers handle that quietly. Whitespace around
-// the content is also trimmed.
 func removeMarkdownCodeBlockDelimiters(input string) string {
 	trimmed := strings.TrimSpace(input)
 

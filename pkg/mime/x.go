@@ -144,7 +144,6 @@ func NormalizeXSubtype(sourceMime *MIME) *MIME {
 		normalizedSubtype = strings.TrimPrefix(sourceMime.subType, "x-")
 	}
 
-	// Build the normalized MIME type
 	normalizedMime, _ := NewBuilder().
 		FromMime(sourceMime).
 		WithSubType(normalizedSubtype).
