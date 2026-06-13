@@ -25,8 +25,8 @@ import (
 //     see chatturn.go / chatprocess.go
 //   - maintenance:    the injected Compactor / Extractor / Planner ports
 //     power [Engine.MaybeCompact] / [Engine.MaybeExtract] / plan mode
-//   - context:        the Conversation port / memSvc / workdir feed the
-//     system prompt and the chat-memory middleware
+//   - context:        memSvc / workdir feed the system prompt; the Steering
+//     port flushes a queued steering message into history at turn-end
 //
 // The tool environment (resolver + tools + MCP facade + closers) is assembled
 // outside the core by [toolset.Build] and injected via [Config]; the core
@@ -39,7 +39,7 @@ type Engine struct {
 
 	// Context inputs (read at SystemPrompt + chat-memory time).
 	tools           []chat.Tool
-	conversation    Conversation // LLM message history (fork/rollback/steering/messages.list facade)
+	steering        SteeringSink // turn-end steering inject; nil → steering drops
 	memSvc          knowledge.Service
 	workdir         string  // captured from Config.Workdir for the AGENTS.md cascade
 	skillsGlobalDir string  // captured from Config.SkillsGlobalDir for workspace.listSkills
@@ -120,7 +120,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	// of dragging a memory service through the constructor.
 	e := &Engine{
 		platform:        platform,
-		conversation:    cfg.Conversation,
+		steering:        cfg.Steering,
 		compactor:       cfg.Compactor,
 		extractor:       cfg.Extractor,
 		planner:         cfg.Planner,
@@ -219,51 +219,16 @@ func (e *Engine) Close() error {
 	return errors.Join(errs...)
 }
 
-// The conversation surface (InjectUserMessage / ReadHistory / SeedHistory /
-// MessageCount / TruncateMessages) is a thin facade over the conversation
-// service — the engine exposes it for the chat service's steering seam and the
-// runtime SPI (fork / rollback / messages.list); the domain logic lives in
-// [conversation.Service].
-
 // InjectUserMessage delivers mid-turn steering: chat.Service flushes a queued
 // steering message through here once the current turn ends, so the next
 // StartTurn (or post-turn maintenance) sees it as part of the conversation.
+// This is the engine's ONE message-history touchpoint — it's a turn-lifecycle
+// concern, so it stays on the loop driver; the rest of history management
+// (read/seed/count/truncate for fork/rollback/messages.list) is driven off
+// [conversation.Service] directly by the runtime, never proxied through here.
 func (e *Engine) InjectUserMessage(ctx context.Context, sessionID, text string) error {
-	if e.conversation == nil {
-		return errors.New("engine: no conversation port wired")
+	if e.steering == nil {
+		return errors.New("engine: no steering port wired")
 	}
-	return e.conversation.InjectUser(ctx, sessionID, text)
-}
-
-// ReadHistory returns sessionID's persisted message history (messages.list /
-// fork read it).
-func (e *Engine) ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error) {
-	if e.conversation == nil {
-		return nil, nil
-	}
-	return e.conversation.Read(ctx, sessionID)
-}
-
-// SeedHistory copies msgs into sessionID's history (sessions.fork).
-func (e *Engine) SeedHistory(ctx context.Context, sessionID string, msgs []chat.Message) error {
-	if e.conversation == nil {
-		return nil
-	}
-	return e.conversation.Seed(ctx, sessionID, msgs)
-}
-
-// MessageCount returns sessionID's message count (rollback / fork watermark).
-func (e *Engine) MessageCount(ctx context.Context, sessionID string) (int, error) {
-	if e.conversation == nil {
-		return 0, nil
-	}
-	return e.conversation.Count(ctx, sessionID)
-}
-
-// TruncateMessages keeps the first keepN messages of sessionID (rollback).
-func (e *Engine) TruncateMessages(ctx context.Context, sessionID string, keepN int) error {
-	if e.conversation == nil {
-		return nil
-	}
-	return e.conversation.Truncate(ctx, sessionID, keepN)
+	return e.steering.InjectUser(ctx, sessionID, text)
 }

@@ -1,10 +1,6 @@
 package engine
 
-import (
-	"context"
-
-	"github.com/Tangerg/lynx/core/model/chat"
-)
+import "context"
 
 // This file is the microkernel's port surface: the narrow interfaces the engine
 // core consumes, defined here (the consumer) per DIP. Implementations live in
@@ -31,14 +27,15 @@ type ExtractionResult struct {
 	Facts     string
 }
 
-// Conversation is the LLM message-history port — the chat.Message[] context a
-// session feeds the model, read/edited out of turn (fork / rollback / steering
-// / messages.list). Implemented by service/conversation.
-type Conversation interface {
-	Read(ctx context.Context, sessionID string) ([]chat.Message, error)
-	Seed(ctx context.Context, sessionID string, msgs []chat.Message) error
-	Count(ctx context.Context, sessionID string) (int, error)
-	Truncate(ctx context.Context, sessionID string, keepN int) error
+// SteeringSink is the engine's turn-lifecycle seam for mid-turn steering: chat
+// flushes a queued steering message through here at turn-end so the next turn
+// sees it as part of the conversation. It is the ONLY message-history operation
+// the engine core touches — steering is a turn concern. The rest of history
+// management (read / seed / count / truncate, for fork / rollback /
+// messages.list) is NOT a turn concern and is driven directly off
+// service/conversation by the runtime, never proxied through the engine.
+// Implemented by service/conversation.
+type SteeringSink interface {
 	InjectUser(ctx context.Context, sessionID, text string) error
 }
 
