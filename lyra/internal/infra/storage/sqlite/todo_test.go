@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Tangerg/lynx/lyra/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/lyra/internal/domain/todo"
+	"github.com/Tangerg/lynx/lyra/internal/infra/storage/sqlite"
 )
 
 func newTodoStore(t *testing.T) *sqlite.TodoService {

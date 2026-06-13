@@ -6,12 +6,12 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/lyra/internal/engine"
-	"github.com/Tangerg/lynx/lyra/internal/infra/storage/sqlite"
+	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/lyra/internal/domain/session"
 	"github.com/Tangerg/lynx/lyra/internal/domain/transcript"
-	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/lyra/internal/infra/storage/sqlite"
+	"github.com/Tangerg/lynx/lyra/internal/kernel"
 )
 
 // stubRuntime satisfies RuntimeServices by embedding it (unstubbed methods
@@ -20,15 +20,15 @@ type stubRuntime struct {
 	RuntimeServices
 	sess        session.Service
 	model       string
-	skills      []engine.SkillInfo
-	mcpTools    []engine.McpToolInfo
-	mcpStatuses []engine.McpServerStatus
+	skills      []kernel.SkillInfo
+	mcpTools    []kernel.McpToolInfo
+	mcpStatuses []kernel.McpServerStatus
 	history     map[string][]chat.Message // per-session chat history (fork copies it)
 	hist        transcript.Store          // durable Item/run history (rollback/fork read runs)
 	interrupts  interrupts.Store          // open-interrupt registry (rollback clears dropped)
 }
 
-func (s stubRuntime) MCPServerStatuses() []engine.McpServerStatus { return s.mcpStatuses }
+func (s stubRuntime) MCPServerStatuses() []kernel.McpServerStatus { return s.mcpStatuses }
 
 func (s stubRuntime) Transcript() transcript.Store { return s.hist }
 func (s stubRuntime) Interrupts() interrupts.Store { return s.interrupts }
@@ -66,17 +66,17 @@ func (s stubRuntime) SeedHistory(_ context.Context, id string, msgs []chat.Messa
 	}
 	return nil
 }
-func (s stubRuntime) ListSkills(context.Context, string) ([]engine.SkillInfo, error) {
+func (s stubRuntime) ListSkills(context.Context, string) ([]kernel.SkillInfo, error) {
 	return s.skills, nil
 }
 
 // MCPTools echoes the canned set, applying the same server filter the real
 // engine does, so the handler test exercises the scoping passthrough.
-func (s stubRuntime) MCPTools(_ context.Context, server string) ([]engine.McpToolInfo, error) {
+func (s stubRuntime) MCPTools(_ context.Context, server string) ([]kernel.McpToolInfo, error) {
 	if server == "" {
 		return s.mcpTools, nil
 	}
-	var out []engine.McpToolInfo
+	var out []kernel.McpToolInfo
 	for _, t := range s.mcpTools {
 		if t.Server == server {
 			out = append(out, t)

@@ -3,8 +3,8 @@ package server
 import (
 	"strings"
 
-	"github.com/Tangerg/lynx/lyra/internal/engine/chat"
 	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/lyra/internal/kernel/chat"
 )
 
 // Run-terminal shaping: how a finished turn becomes the wire

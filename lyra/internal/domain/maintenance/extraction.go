@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 
-	"github.com/Tangerg/lynx/lyra/internal/engine"
+	"github.com/Tangerg/lynx/lyra/internal/kernel"
 
 	"github.com/Tangerg/lynx/lyra/internal/domain/knowledge"
 )
@@ -49,35 +49,35 @@ func NewExtractor(store memory.Store, memSvc knowledge.Service, client *chat.Cli
 // falls back to the memory service's default dir). Returns the zero
 // result on a nil receiver (LYRA.md disabled) or when the conversation
 // is still too short to be worth mining.
-func (e *Extractor) MaybeExtract(ctx context.Context, sessionID, cwd string) (engine.ExtractionResult, error) {
+func (e *Extractor) MaybeExtract(ctx context.Context, sessionID, cwd string) (kernel.ExtractionResult, error) {
 	if e == nil || sessionID == "" {
-		return engine.ExtractionResult{}, nil
+		return kernel.ExtractionResult{}, nil
 	}
 	msgs, err := e.store.Read(ctx, sessionID)
 	if err != nil {
-		return engine.ExtractionResult{}, fmt.Errorf("extractor: read: %w", err)
+		return kernel.ExtractionResult{}, fmt.Errorf("extractor: read: %w", err)
 	}
 	if len(msgs) < e.minMsgs {
-		return engine.ExtractionResult{}, nil
+		return kernel.ExtractionResult{}, nil
 	}
 
 	facts, err := e.askForFacts(ctx, msgs)
 	if err != nil {
-		return engine.ExtractionResult{}, fmt.Errorf("extractor: ask: %w", err)
+		return kernel.ExtractionResult{}, fmt.Errorf("extractor: ask: %w", err)
 	}
 	if facts == "" {
-		return engine.ExtractionResult{}, nil
+		return kernel.ExtractionResult{}, nil
 	}
 
 	existing, err := e.memSvc.Get(ctx, knowledge.ScopeProject, cwd)
 	if err != nil {
-		return engine.ExtractionResult{}, fmt.Errorf("extractor: read memory: %w", err)
+		return kernel.ExtractionResult{}, fmt.Errorf("extractor: read memory: %w", err)
 	}
 	updated := mergeMemory(existing, facts)
 	if err := e.memSvc.Update(ctx, knowledge.ScopeProject, cwd, updated); err != nil {
-		return engine.ExtractionResult{}, err
+		return kernel.ExtractionResult{}, err
 	}
-	return engine.ExtractionResult{Extracted: true, Facts: facts}, nil
+	return kernel.ExtractionResult{Extracted: true, Facts: facts}, nil
 }
 
 // askForFacts queries the LLM directly (no middleware → no

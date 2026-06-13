@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/lyra/internal/engine/chat"
-	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
-	"github.com/Tangerg/lynx/lyra/internal/domain/session"
 	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/lyra/internal/delivery/transport"
+	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
+	"github.com/Tangerg/lynx/lyra/internal/domain/session"
+	"github.com/Tangerg/lynx/lyra/internal/kernel/chat"
 )
 
 // StartRun translates runs.start into the in-process chat.StartTurn

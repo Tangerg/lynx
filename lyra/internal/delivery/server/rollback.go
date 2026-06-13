@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/lyra/internal/domain/transcript"
 	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/lyra/internal/domain/transcript"
 )
 
 // B4 turn-granular checkpoints (AUX_API §4): sessions.rollback truncates a

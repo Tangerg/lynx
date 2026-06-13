@@ -7,9 +7,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/lyra/internal/domain/session"
 	"github.com/Tangerg/lynx/lyra/internal/domain/transcript"
-	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
 )
 
 // wireSessionErr maps the session domain's not-found sentinel onto the wire

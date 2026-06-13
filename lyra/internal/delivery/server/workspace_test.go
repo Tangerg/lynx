@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/lyra/internal/engine"
+	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/lyra/internal/domain/session"
 	"github.com/Tangerg/lynx/lyra/internal/domain/workspace"
-	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/lyra/internal/kernel"
 )
 
 // TestProjectsFromSessions: distinct cwds collapse to one project each,
@@ -130,7 +130,7 @@ func TestWorkspaceListSkills(t *testing.T) {
 	dir := t.TempDir()
 	s := &Server{
 		serverInfo: protocol.ServerInfo{Cwd: dir},
-		rt: stubRuntime{skills: []engine.SkillInfo{
+		rt: stubRuntime{skills: []kernel.SkillInfo{
 			{Name: "pdf", Description: "PDF tools", Scope: "project"},
 			{Name: "web", Description: "web tools", Scope: "global"},
 		}},
@@ -149,11 +149,11 @@ func TestWorkspaceListSkills(t *testing.T) {
 // a boot-failed server carries its failure reason as Error and no tool count.
 func TestWorkspaceMCPListServers(t *testing.T) {
 	s := &Server{rt: stubRuntime{
-		mcpStatuses: []engine.McpServerStatus{
+		mcpStatuses: []kernel.McpServerStatus{
 			{Name: "fs", Status: "connected"},
 			{Name: "down", Status: "failed", Err: errors.New("connection refused")},
 		},
-		mcpTools: []engine.McpToolInfo{
+		mcpTools: []kernel.McpToolInfo{
 			{Server: "fs", Name: "read"}, {Server: "fs", Name: "write"},
 		},
 	}}
@@ -182,8 +182,8 @@ func TestWorkspaceMCPListServers(t *testing.T) {
 func TestWorkspaceMCPReconnect(t *testing.T) {
 	s := &Server{
 		rt: stubRuntime{
-			mcpStatuses: []engine.McpServerStatus{{Name: "fs", Status: "connected"}},
-			mcpTools:    []engine.McpToolInfo{{Server: "fs", Name: "read"}},
+			mcpStatuses: []kernel.McpServerStatus{{Name: "fs", Status: "connected"}},
+			mcpTools:    []kernel.McpToolInfo{{Server: "fs", Name: "read"}},
 		},
 		wsHub: newWorkspaceHub(),
 	}
@@ -211,7 +211,7 @@ func TestWorkspaceMCPReconnect(t *testing.T) {
 // TestWorkspaceMCPListTools maps engine tool info onto the wire (keeping
 // server + bare name separate) and passes the server scope through.
 func TestWorkspaceMCPListTools(t *testing.T) {
-	s := &Server{rt: stubRuntime{mcpTools: []engine.McpToolInfo{
+	s := &Server{rt: stubRuntime{mcpTools: []kernel.McpToolInfo{
 		{Server: "fs", Name: "read", Description: "read a file", InputSchema: map[string]any{"type": "object"}},
 		{Server: "fs", Name: "write"},
 		{Server: "git", Name: "log"},

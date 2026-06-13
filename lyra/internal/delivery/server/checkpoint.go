@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/Tangerg/lynx/lyra/internal/domain/workspace"
 	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/lyra/internal/domain/workspace"
 )
 
 // snapshotCheckpoint anchors the session's working tree at a finished run, so a

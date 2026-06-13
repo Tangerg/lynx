@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/lyra/internal/engine/chat"
 	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/lyra/internal/kernel/chat"
 )
 
 // TestTranslator_OpensUserMessageOnRootRun verifies a root run streams the

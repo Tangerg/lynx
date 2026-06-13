@@ -3,8 +3,8 @@ package server
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/lyra/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/lyra/internal/domain/knowledge"
 )
 
 // ListMemory enumerates LYRA.md entries across scopes (API.md §7.7).

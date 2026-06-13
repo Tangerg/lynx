@@ -6,9 +6,9 @@ import (
 	"iter"
 	"time"
 
-	"github.com/Tangerg/lynx/lyra/internal/engine/chat"
-	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
+	"github.com/Tangerg/lynx/lyra/internal/kernel/chat"
 )
 
 // The run pump: one goroutine per run segment that subscribes to the

@@ -31,11 +31,6 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 
 	"github.com/Tangerg/lynx/lyra/internal/config"
-	"github.com/Tangerg/lynx/lyra/internal/engine"
-	chatsvc "github.com/Tangerg/lynx/lyra/internal/engine/chat"
-	"github.com/Tangerg/lynx/lyra/internal/engine/toolset"
-	"github.com/Tangerg/lynx/lyra/internal/infra/a2a"
-	"github.com/Tangerg/lynx/lyra/internal/infra/mcp"
 	"github.com/Tangerg/lynx/lyra/internal/domain/approval"
 	"github.com/Tangerg/lynx/lyra/internal/domain/codeintel"
 	"github.com/Tangerg/lynx/lyra/internal/domain/conversation"
@@ -47,6 +42,11 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/domain/todo"
 	toolsvc "github.com/Tangerg/lynx/lyra/internal/domain/tool"
 	"github.com/Tangerg/lynx/lyra/internal/domain/transcript"
+	"github.com/Tangerg/lynx/lyra/internal/infra/a2a"
+	"github.com/Tangerg/lynx/lyra/internal/infra/mcp"
+	"github.com/Tangerg/lynx/lyra/internal/kernel"
+	chatsvc "github.com/Tangerg/lynx/lyra/internal/kernel/chat"
+	"github.com/Tangerg/lynx/lyra/internal/kernel/toolset"
 )
 
 // Config is the construction-time bundle for [New]. Engine carries the
@@ -58,7 +58,7 @@ type Config struct {
 	// SessionStore (derived from SessionService) and the tool-environment
 	// fields (ToolResolver/Tools/MCP/Closers) from [toolset.Build] below;
 	// Engine.ChatClient is required.
-	Engine engine.Config
+	Engine kernel.Config
 
 	// MaintenanceClient optionally runs the in-house turn-boundary maintenance
 	// services (compaction / extraction / planning) on a separate — typically
@@ -71,7 +71,7 @@ type Config struct {
 	// environment via toolset.Build and inject it into the engine core (which
 	// constructs no capability itself). Workdir / SkillsGlobalDir come from
 	// Engine (the engine also needs them for the prompt cascade / listSkills).
-	Online     engine.OnlineConfig    // network-tool credentials
+	Online     kernel.OnlineConfig    // network-tool credentials
 	MCPServers []mcp.ServerConfig     // external MCP servers to dial
 	A2AAgents  []a2a.ClientConfig     // remote A2A agents to dial
 	LSPServers []codeintel.ServerSpec // language-server table (nil → defaults)
@@ -119,7 +119,7 @@ type Config struct {
 // are safe for concurrent use. Runtime itself holds no mutable
 // state after construction.
 type Runtime struct {
-	engine     *engine.Engine
+	engine     *kernel.Engine
 	chat       chatsvc.Service
 	session    sessionsvc.Service
 	tool       toolsvc.Service
@@ -225,7 +225,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	ecfg.MCP = built.MCP
 	ecfg.Closers = built.Closers
 
-	eng, err := engine.New(ctx, ecfg)
+	eng, err := kernel.New(ctx, ecfg)
 	if err != nil {
 		return nil, fmt.Errorf("runtime: engine: %w", err)
 	}
@@ -298,7 +298,7 @@ func (r *Runtime) Transcript() transcript.Store { return r.transcript }
 // MCPServerStatuses returns the per-server connection state of every
 // configured MCP server (connected and boot-failed alike) for
 // workspace.mcp.listServers. Delegates to the engine, which owns the sessions.
-func (r *Runtime) MCPServerStatuses() []engine.McpServerStatus {
+func (r *Runtime) MCPServerStatuses() []kernel.McpServerStatus {
 	return r.engine.MCPServerStatuses()
 }
 
@@ -372,14 +372,14 @@ func (r *Runtime) TruncateMessages(ctx context.Context, sessionID string, keepN 
 
 // ListSkills enumerates the skills visible from cwd (project over global) for
 // workspace.listSkills. Delegates to the engine, which owns skill sourcing.
-func (r *Runtime) ListSkills(ctx context.Context, cwd string) ([]engine.SkillInfo, error) {
+func (r *Runtime) ListSkills(ctx context.Context, cwd string) ([]kernel.SkillInfo, error) {
 	return r.engine.ListSkills(ctx, cwd)
 }
 
 // MCPTools lists tools advertised by the connected MCP servers (scoped to
 // server when non-empty) for workspace.mcp.listTools. Delegates to the
 // engine, which holds the dialed sessions.
-func (r *Runtime) MCPTools(ctx context.Context, server string) ([]engine.McpToolInfo, error) {
+func (r *Runtime) MCPTools(ctx context.Context, server string) ([]kernel.McpToolInfo, error) {
 	return r.engine.MCPTools(ctx, server)
 }
 

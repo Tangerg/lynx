@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/lyra/internal/domain/workspace"
 	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/lyra/internal/domain/workspace"
 )
 
 // workspace.* git-backed reads (AUX_API §2). Three states stay distinct

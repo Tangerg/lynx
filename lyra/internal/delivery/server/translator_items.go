@@ -3,8 +3,8 @@ package server
 import (
 	"time"
 
-	"github.com/Tangerg/lynx/lyra/internal/engine/chat"
 	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/lyra/internal/kernel/chat"
 )
 
 func (t *translator) appendText(text string) []protocol.StreamEvent {
