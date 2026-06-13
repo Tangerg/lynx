@@ -294,7 +294,7 @@ func resolveResolution(responses []protocol.InterruptResponse) (interrupts.Resol
 			// other scope isn't persisted yet, so we honor it as one-shot
 			// rather than promise a memory we can't keep (AUX_API §6).
 			res := interrupts.Resolution{
-				Remember: r.Response.Remember != nil && r.Response.Remember.Scope == "session",
+				Remember: r.Response.Remember != nil && r.Response.Remember.Scope == protocol.RememberSession,
 			}
 			switch r.Response.Decision {
 			case "approve":
@@ -358,7 +358,7 @@ func (s *Server) resolveSession(ctx context.Context, sessionID string) (string, 
 func joinUserText(blocks []protocol.ContentBlock) string {
 	var b []string
 	for _, blk := range blocks {
-		if blk.Type == "text" && blk.Text != "" {
+		if blk.Type == protocol.ContentBlockText && blk.Text != "" {
 			b = append(b, blk.Text)
 		}
 	}

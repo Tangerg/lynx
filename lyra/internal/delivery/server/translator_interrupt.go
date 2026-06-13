@@ -91,7 +91,7 @@ func (t *translator) approvalInterrupt(in turn.Interrupt) (protocol.StreamEvent,
 	}
 	entry := protocol.Interrupt{
 		ItemID: id,
-		Type:   "approval",
+		Type:   protocol.InterruptApproval,
 		// payload.tool is the self-contained ApprovalPayload (API.md §4.8): the
 		// domain-neutral ToolInvocation always carries name + arguments, so the
 		// server re-binds the re-fired approved tool to THIS proposal item
@@ -148,7 +148,7 @@ func (t *translator) questionInterrupt(in turn.Interrupt) (protocol.StreamEvent,
 	}
 	entry := protocol.Interrupt{
 		ItemID:  id,
-		Type:    "question",
+		Type:    protocol.InterruptQuestion,
 		Payload: map[string]any{"question": question},
 	}
 	return ev, entry
@@ -188,7 +188,7 @@ func (t *translator) askUserInterrupt(in turn.Interrupt) (protocol.StreamEvent, 
 	}
 	entry := protocol.Interrupt{
 		ItemID:  id,
-		Type:    "question",
+		Type:    protocol.InterruptQuestion,
 		Payload: map[string]any{"question": question},
 	}
 	return ev, entry

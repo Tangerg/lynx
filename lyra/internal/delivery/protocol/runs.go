@@ -175,6 +175,32 @@ type ResumeRunRequest struct {
 	Responses   []InterruptResponse `json:"responses"`
 }
 
+// InterruptResponseType discriminates a client's answer to an interrupt
+// (API.md §6.1). "answer" responds to a "question" interrupt.
+type InterruptResponseType string
+
+const (
+	InterruptResponseApproval   InterruptResponseType = "approval"
+	InterruptResponseAnswer     InterruptResponseType = "answer"
+	InterruptResponseToolResult InterruptResponseType = "toolResult"
+)
+
+// Valid reports whether t is a known interrupt-response type.
+func (t InterruptResponseType) Valid() bool {
+	return t == InterruptResponseApproval || t == InterruptResponseAnswer || t == InterruptResponseToolResult
+}
+
+// ApprovalDecision is the verdict on an approval interrupt (API.md §6.1).
+type ApprovalDecision string
+
+const (
+	ApprovalApprove ApprovalDecision = "approve"
+	ApprovalDeny    ApprovalDecision = "deny"
+)
+
+// Valid reports whether d is a known decision.
+func (d ApprovalDecision) Valid() bool { return d == ApprovalApprove || d == ApprovalDeny }
+
 // InterruptResponse answers one open interrupt, keyed by itemId (API.md §6.1).
 // Response is a tag-discriminated union (Type):
 //
@@ -191,14 +217,14 @@ type InterruptResponse struct {
 // ToolInvocation.result (API.md §6.1): a best-effort JSON Result, or an
 // Error when the client tool failed.
 type InterruptResponseValue struct {
-	Type       string              `json:"type"`                 // "approval" | "answer" | "toolResult"
-	Decision   string              `json:"decision,omitempty"`   // approval: "approve" | "deny"
-	Remember   *RememberScope      `json:"remember,omitempty"`   // approval: keep this decision (AUX_API §6)
-	EditedArgs map[string]any      `json:"editedArgs,omitempty"` // approval: one-shot arg override
-	Reason     string              `json:"reason,omitempty"`     // approval (deny rationale)
-	Answers    map[string][]string `json:"answers,omitempty"`    // answer: field name → values (single-select = one-element array, S8)
-	Result     any                 `json:"result,omitempty"`     // toolResult: best-effort JSON
-	Error      *ProblemData        `json:"error,omitempty"`      // toolResult: client tool failure
+	Type       InterruptResponseType `json:"type"`                 // see InterruptResponseType
+	Decision   ApprovalDecision      `json:"decision,omitempty"`   // approval: see ApprovalDecision
+	Remember   *RememberScope        `json:"remember,omitempty"`   // approval: keep this decision (AUX_API §6)
+	EditedArgs map[string]any        `json:"editedArgs,omitempty"` // approval: one-shot arg override
+	Reason     string                `json:"reason,omitempty"`     // approval (deny rationale)
+	Answers    map[string][]string   `json:"answers,omitempty"`    // answer: field name → values (single-select = one-element array, S8)
+	Result     any                   `json:"result,omitempty"`     // toolResult: best-effort JSON
+	Error      *ProblemData          `json:"error,omitempty"`      // toolResult: client tool failure
 }
 
 // RememberScope is the standing-decision directive on an approval response
@@ -209,15 +235,36 @@ type InterruptResponseValue struct {
 // sending them gets one-shot behavior rather than a false promise. editedArgs
 // stays one-shot regardless: remember records "this tool", not "this tool +
 // these args".
+// RememberScopeKind is the persistence scope of a remembered approval (AUX_API
+// §6). v1 honors "session" only; "project"/"global" are accepted but degrade to
+// one-shot (no persistence home yet).
+type RememberScopeKind string
+
+const (
+	RememberSession RememberScopeKind = "session"
+	RememberProject RememberScopeKind = "project"
+	RememberGlobal  RememberScopeKind = "global"
+)
+
 type RememberScope struct {
-	Scope string `json:"scope"` // "session" (v1)
+	Scope RememberScopeKind `json:"scope"` // see RememberScopeKind (v1 honors session)
 }
 
 // Interrupt is one pending HITL item (API.md §4.8). itemId is the
 // correlation key (the toolCall/question item awaiting resolution).
+// InterruptType discriminates a pending interrupt (API.md §4.8): a tool awaiting
+// approval, a question awaiting an answer, or a client-side tool to run.
+type InterruptType string
+
+const (
+	InterruptApproval   InterruptType = "approval"
+	InterruptQuestion   InterruptType = "question"
+	InterruptToolResult InterruptType = "toolResult"
+)
+
 type Interrupt struct {
 	ItemID  string         `json:"itemId"`
-	Type    string         `json:"type"` // "approval" | "question" | "toolResult"
+	Type    InterruptType  `json:"type"` // see InterruptType
 	Payload map[string]any `json:"payload,omitempty"`
 }
 
@@ -239,12 +286,27 @@ type OpenInterrupt struct {
 //
 // Security: file/selection paths relative to cwd; escaping cwd →
 // path_outside_root. URL fetches block loopback / private / metadata.
+// ContextItemType discriminates a ContextItem (API.md §4.7).
+type ContextItemType string
+
+const (
+	ContextItemFile      ContextItemType = "file"
+	ContextItemSelection ContextItemType = "selection"
+	ContextItemURL       ContextItemType = "url"
+	ContextItemImage     ContextItemType = "image"
+)
+
+// Valid reports whether t is a known context-item type.
+func (t ContextItemType) Valid() bool {
+	return t == ContextItemFile || t == ContextItemSelection || t == ContextItemURL || t == ContextItemImage
+}
+
 type ContextItem struct {
-	Type         string `json:"type"`
-	Path         string `json:"path,omitempty"`
-	Range        []int  `json:"range,omitempty"`
-	URL          string `json:"url,omitempty"`
-	AttachmentID string `json:"attachmentId,omitempty"`
+	Type         ContextItemType `json:"type"`
+	Path         string          `json:"path,omitempty"`
+	Range        []int           `json:"range,omitempty"`
+	URL          string          `json:"url,omitempty"`
+	AttachmentID string          `json:"attachmentId,omitempty"`
 }
 
 // ToolSpec is a client-supplied tool descriptor (API.md §4.7).
