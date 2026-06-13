@@ -144,15 +144,11 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	}
 	resolver.SetTask(taskTool)
 
-	// ask_user (HITL question) rides the engine's interrupt contract, so the
-	// engine builds it and injects it into the resolver (coding role only).
-	askUser := newAskUserTool()
-	resolver.SetAskUser(askUser)
-
 	// e.tools is the canonical coding tool set for ToolService.List — the
-	// toolset-assembled list (working-directory-independent metadata) plus the
-	// two engine-owned tools.
-	e.tools = append(append([]chat.Tool{}, cfg.Tools...), taskTool, askUser)
+	// toolset-assembled list (working-directory-independent metadata, which now
+	// includes ask_user) plus the one engine-owned tool, `task` (it needs the
+	// platform to spawn the sub-agent, so the engine builds + injects it).
+	e.tools = append(append([]chat.Tool{}, cfg.Tools...), taskTool)
 
 	e.agent = e.buildChatAgent()
 	if err := platform.Deploy(e.agent); err != nil {

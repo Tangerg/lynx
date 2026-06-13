@@ -16,3 +16,12 @@ type Resolution struct {
 	// "session" scope (the wire's only v1 scope).
 	Remember bool
 }
+
+// QuestionPrompt is the payload an ask_user interrupt parks with — a free-form
+// question awaiting the human's answer. Shared HITL vocabulary: the ask_user
+// tool produces it, and the protocol adapter type-asserts on it to render the
+// question on the wire (vs a plan-review choice). Classified as a "question"
+// interrupt (not "approval") since it is not an ApprovalPrompt.
+type QuestionPrompt struct {
+	Question string `json:"question"`
+}

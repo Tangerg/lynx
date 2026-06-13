@@ -187,7 +187,7 @@ type Resolver struct {
 	readTracker     *editguard.Tracker // backs the read-before-edit + stale guards on read/edit/write
 	shell           []chat.Tool        // shell tools (bash / bash_output / kill_shell) over the exec.Manager; cwd read per-call
 	task            chat.Tool          // delegation tool; coding role only, nil until set
-	askUser         chat.Tool          // ask_user HITL tool; coding role only, built by engine + injected
+	askUser         chat.Tool          // ask_user HITL tool; coding role only (askuser.New, via Deps)
 
 	// mcp is the working-directory-independent MCP tool set, held behind an
 	// atomic pointer so a reconnect (B3b-2) can hot-swap the live set without
@@ -208,6 +208,7 @@ type Deps struct {
 	A2A             []chat.Tool        // remote A2A delegation tools
 	LSP             []chat.Tool        // code-intelligence tools
 	Shell           []chat.Tool        // shell tools (bash / bash_output / kill_shell)
+	AskUser         chat.Tool          // ask_user HITL tool (coding role only)
 	CodeIntel       *codeintel.Service // backs the post-edit diagnostics wrap
 	ReadTracker     *editguard.Tracker // backs the read/edit/write guards
 }
@@ -234,6 +235,7 @@ func NewResolver(d Deps) *Resolver {
 		a2a:             d.A2A,
 		lsp:             d.LSP,
 		shell:           shell,
+		askUser:         d.AskUser,
 		codeIntel:       d.CodeIntel,
 		readTracker:     d.ReadTracker,
 	}
@@ -242,10 +244,6 @@ func NewResolver(d Deps) *Resolver {
 // SetTask injects the `task` delegation tool (coding role only) — the engine
 // builds it after the platform exists (it spawns a sub-agent on the platform).
 func (r *Resolver) SetTask(t chat.Tool) { r.task = t }
-
-// SetAskUser injects the ask_user HITL tool (coding role only) — the engine
-// builds it (it rides the engine's HITL interrupt contract).
-func (r *Resolver) SetAskUser(t chat.Tool) { r.askUser = t }
 
 // mcpTools returns the current MCP tool set (nil before the first store).
 func (r *Resolver) mcpTools() []chat.Tool {

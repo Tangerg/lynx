@@ -3,7 +3,6 @@ package server
 import (
 	"time"
 
-	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/engine/chat"
 	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
@@ -53,7 +52,7 @@ func (t *translator) interrupt(e chat.TurnInterrupted) []protocol.StreamEvent {
 		case "approval":
 			ev, entry = t.approvalInterrupt(in)
 		default: // question — ask_user (free text) or plan review (choice)
-			if _, ok := in.Payload.(engine.QuestionPrompt); ok {
+			if _, ok := in.Payload.(interrupts.QuestionPrompt); ok {
 				ev, entry = t.askUserInterrupt(in)
 			} else {
 				ev, entry = t.questionInterrupt(in)
@@ -165,7 +164,7 @@ const askUserQuestionField = "text"
 // field (vs. questionInterrupt's plan Approve/Reject choice). The client
 // answers via runs.resume with an "answer" response carrying the text.
 func (t *translator) askUserInterrupt(in chat.Interrupt) (protocol.StreamEvent, protocol.Interrupt) {
-	q, _ := in.Payload.(engine.QuestionPrompt)
+	q, _ := in.Payload.(interrupts.QuestionPrompt)
 	id := t.nextItemID()
 	question := &protocol.Question{
 		Prompt: q.Question,
