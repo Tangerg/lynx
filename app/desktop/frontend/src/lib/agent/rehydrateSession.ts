@@ -15,9 +15,18 @@ export async function rehydrateSessionView(sessionId: string): Promise<void> {
   const store = useAgentStore.getState();
   if (!store.sessions[sessionId]) return;
   store.resetView(sessionId);
+  // Snapshot the epoch resetView just bumped, to detect mid-flight invalidation.
+  const epoch = useAgentStore.getState().sessions[sessionId]?.viewEpoch;
   const { data } = await getContainer()
     .client()
     .items.list({ sessionId: asSessionId(sessionId) });
+  // Abort the backfill if the await window invalidated it: the session was torn
+  // down, a newer resetView superseded this one, or the user started a run (its
+  // turn now owns the reset view — appending the rolled-back history below it,
+  // arrival-ordered, would corrupt order). The direct items.list path here would
+  // otherwise skip the interacted/epoch guards useAgentSession's loader applies.
+  const live = useAgentStore.getState().sessions[sessionId];
+  if (!live || live.viewEpoch !== epoch || live.view.messages.length > 0) return;
   if (data.length > 0) {
     store.applyEvents(
       sessionId,
