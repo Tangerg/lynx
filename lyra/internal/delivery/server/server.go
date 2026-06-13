@@ -130,12 +130,12 @@ func Capabilities(rt RuntimeServices) protocol.ServerCapabilities {
 	memory := rt != nil && rt.Memory() != nil
 	return protocol.ServerCapabilities{
 		ProtocolVersion: protocol.ProtocolVersion,
-		Events: []string{
-			string(protocol.StreamRunStarted),
-			string(protocol.StreamRunFinished),
-			string(protocol.StreamItemStarted),
-			string(protocol.StreamItemDelta),
-			string(protocol.StreamItemCompleted),
+		Events: []protocol.StreamEventType{
+			protocol.StreamRunStarted,
+			protocol.StreamRunFinished,
+			protocol.StreamItemStarted,
+			protocol.StreamItemDelta,
+			protocol.StreamItemCompleted,
 		},
 		// streamable-HTTP methods, machine-readable so the client knows which
 		// calls return an event stream rather than hardcoding the names (§7/§9).

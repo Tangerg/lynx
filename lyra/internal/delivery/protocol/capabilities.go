@@ -6,22 +6,24 @@ package protocol
 type ClientCapabilities struct {
 	// Events is the set of stream event types the client can render
 	// (run.* / item.* / state.* / custom names).
-	Events []string `json:"events"`
+	Events []StreamEventType `json:"events"`
 	// Features is free-form client feature declaration.
 	Features map[string]any `json:"features,omitempty"`
 	// InterruptTypes are the HITL interrupt types the client can handle
-	// ("approval" | "question" | "toolResult"). Anti-deadlock (API.md §6.2).
-	InterruptTypes []string `json:"interruptTypes,omitempty"`
+	// (see InterruptType). Anti-deadlock (API.md §6.2).
+	InterruptTypes []InterruptType `json:"interruptTypes,omitempty"`
 	// OptOutNotificationMethods lets the client suppress high-frequency
-	// notifications per connection, e.g. ["item.delta"] (API.md §9).
-	OptOutNotificationMethods []string `json:"optOutNotificationMethods,omitempty"`
+	// notifications per connection, by event type, e.g. [StreamItemDelta]
+	// (API.md §9). The values are StreamEventTypes (the wire field keeps its
+	// historical "...Methods" name).
+	OptOutNotificationMethods []StreamEventType `json:"optOutNotificationMethods,omitempty"`
 }
 
 // ServerCapabilities is what Runtime advertises in the initialize result
 // and the /v2/info sidecar (API.md §9).
 type ServerCapabilities struct {
 	ProtocolVersion  string                 `json:"protocolVersion"`
-	Events           []string               `json:"events"`
+	Events           []StreamEventType      `json:"events"`
 	StreamingMethods []string               `json:"streamingMethods"`
 	Features         map[string]FeatureFlag `json:"features"`
 	Providers        []string               `json:"providers"`

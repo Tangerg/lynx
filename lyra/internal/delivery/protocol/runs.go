@@ -313,6 +313,6 @@ type ContextItem struct {
 type ToolSpec struct {
 	Name        string         `json:"name"`
 	Description string         `json:"description,omitempty"`
-	Parameters  map[string]any `json:"parameters,omitempty"` // JSON Schema
-	SafetyClass string         `json:"safetyClass,omitempty"`
+	Parameters  map[string]any `json:"parameters,omitempty"`  // JSON Schema
+	SafetyClass SafetyClass    `json:"safetyClass,omitempty"` // see SafetyClass
 }
