@@ -124,5 +124,6 @@ export const diffView = defineWorkspaceView({
   icon: "diff",
   openByDefault: false,
   order: 0,
+  splittable: true,
   component: DiffViewTab,
 });

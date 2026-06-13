@@ -37,6 +37,8 @@ const uiPersistSchema = z.object({
   messageStyle: z.enum(["bubble", "plain"]),
   // .default keeps older blobs (no streamReveal field) parsing — no version bump.
   streamReveal: z.enum(["smooth", "typewriter"]).default("smooth"),
+  // .default keeps older blobs (no splitRatio) parsing — no version bump.
+  splitRatio: z.number().default(0.5),
   sidebarRail: z.boolean(),
 });
 
@@ -100,6 +102,9 @@ interface UiState {
    *  word-by-word reveal with a per-word fade-in. "typewriter": crisp
    *  character-by-character reveal, no fade — a steady terminal cadence. */
   streamReveal: "smooth" | "typewriter";
+  /** Chat-vs-side-pane split: the fraction (0.25–0.75) of the main area the
+   *  chat stream takes when a `splitViewId` side pane is open. */
+  splitRatio: number;
   /** True = collapsed rail. False = expanded sidebar. */
   sidebarRail: boolean;
 }
@@ -125,6 +130,7 @@ interface UiActions {
   setMotionScale: (scale: number) => void;
   setMessageStyle: (style: "bubble" | "plain") => void;
   setStreamReveal: (mode: "smooth" | "typewriter") => void;
+  setSplitRatio: (ratio: number) => void;
   toggleSidebar: () => void;
 }
 
@@ -143,6 +149,7 @@ export const useUiStore = create<UiState & UiActions>()(
       motionScale: 1,
       messageStyle: "bubble",
       streamReveal: "smooth",
+      splitRatio: 0.5,
       sidebarRail: true,
 
       setTheme: (theme) => set({ theme }),
@@ -168,6 +175,7 @@ export const useUiStore = create<UiState & UiActions>()(
       setMotionScale: (motionScale) => set({ motionScale }),
       setMessageStyle: (messageStyle) => set({ messageStyle }),
       setStreamReveal: (streamReveal) => set({ streamReveal }),
+      setSplitRatio: (splitRatio) => set({ splitRatio }),
       toggleSidebar: () => set((s) => ({ sidebarRail: !s.sidebarRail })),
     }),
     {
