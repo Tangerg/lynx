@@ -66,7 +66,13 @@ function RailSessions() {
   const activeSessionId = useSessionStore((s) => s.activeSessionId);
   const draftIds = useSessionStore((s) => s.draftSessionIds);
   const selectTab = useSessionStore((s) => s.selectTab);
-  const recent = sessions.filter((s) => !draftIds.has(s.id)).slice(0, 5);
+  // Sort newest-first before taking 5 — the sessions provider returns server
+  // order (unsorted), so without this the rail's "recent" set/order diverges
+  // from the time-sorted expanded sidebar (the active session could be absent).
+  const recent = sessions
+    .filter((s) => !draftIds.has(s.id))
+    .sort((a, b) => (a.time < b.time ? 1 : -1))
+    .slice(0, 5);
 
   return (
     <>
