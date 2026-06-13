@@ -136,9 +136,11 @@ export function ApprovalCard({
     return <Divider icon={<Icon name="x" size={11} />}>{t("approval.settled.declined")}</Divider>;
   }
 
-  // Pre-decision card. Buttons disabled when not resumable (decorative
-  // preview) or while a request is in flight.
-  const disabled = !parentRunId || !itemId || pending !== null;
+  // Pre-decision card. Buttons disabled when not resumable (decorative preview),
+  // while a request is in flight, OR once the interrupt is no longer open:
+  // settleOpenInterrupts downgrades an unacted interrupt to `incomplete` on
+  // run-end precisely so its buttons can't resume a dead run.
+  const disabled = !parentRunId || !itemId || pending !== null || status !== "requires-action";
   const effectiveRisk: Risk = risk ?? "medium";
   return (
     <HitlCardShell
