@@ -6,6 +6,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 
 	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/askuser"
+	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/lsptools"
 	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/shell"
 	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/skill"
 	"github.com/Tangerg/lynx/lyra/internal/infra/a2a"
@@ -78,7 +79,7 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 	// lazily per (workspace root, language). Tools are cwd-independent (the
 	// service keys by root, read per call off the blackboard).
 	codeIntel := codeintel.New(cfg.LSPServers)
-	lspTools := BuildLSPTools(codeIntel, cfg.Workdir)
+	lspTools := lsptools.Build(codeIntel, cfg.Workdir)
 
 	tracker := editguard.NewTracker()
 
