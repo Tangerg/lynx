@@ -129,8 +129,7 @@ type GrepRequest struct {
 // MCPListToolsRequest — workspace.mcp.listTools body.
 type MCPListToolsRequest struct {
 	Server string `json:"server,omitempty"`
-	Cursor string `json:"cursor,omitempty"`
-	Limit  int    `json:"limit,omitempty"`
+	PageQuery
 }
 
 // Diff is the workspace.getDiff result (AUX_API §2.3) — a sum type: Files is
