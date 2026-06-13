@@ -31,6 +31,10 @@ export interface ServerFeatures {
   fileWatch: boolean; // workspace.subscribe `watches` (git-state watch) available (AUX_API §3.1)
   checkpoints: boolean; // sessions.rollback{restoreType:files|both} — shadow-git file restore (AUX_API §4.3)
   lsp: boolean; // code-intelligence tool set (lsp_*) + post-edit auto typecheck; tools render as ordinary toolCalls
+  // workspace.code.* RPC surface (B7, docs/613) — distinct from `lsp` above, which gates the
+  // model's lsp_* TOOLS; this gates the direct RPC methods the UI calls for @symbol / code-nav.
+  // Optional: absent until the backend ships it ⇒ reads as false. Folds into API.md §9 on landing.
+  codeIntel?: boolean;
   subagents: boolean;
   skills: boolean;
   sessionExport: boolean;
@@ -756,6 +760,108 @@ export interface ListItemsResponse extends Page<Item> {
 
 export interface WorkspaceQuery {
   cwd?: string; // default = serve dir
+}
+
+// ---------------------------------------------------------------------------
+// §7.5 — Code intelligence (workspace.code.*) — PROPOSAL, docs/613 B7
+// ---------------------------------------------------------------------------
+//
+// LSP-backed, read-only code navigation. Positions are 0-based and `character`
+// counts UTF-16 code units (LSP convention) — NOT the 1-based line range
+// workspace.readFile uses (human/editor-facing). Do not cross the two. Gated by
+// features.codeIntel; a file type with no language server → no_language_server
+// (non-fatal, UI retreats), an indexing/unavailable server → EMPTY result (not
+// an error — "no results" and "not ready" are indistinguishable at the wire).
+
+// Base for per-file code-intel queries: a workspace path under cwd (jailed, §7.5).
+export interface CodeQuery extends WorkspaceQuery {
+  path: string;
+}
+export interface CodePosition {
+  line: number; // 0-based
+  character: number; // 0-based, UTF-16 code unit
+}
+export interface CodeRange {
+  start: CodePosition;
+  end: CodePosition;
+}
+export interface CodeLocation {
+  path: string; // relative to cwd; external deps (GOROOT/node_modules) give an absolute path + external:true
+  range: CodeRange;
+  external?: boolean; // outside the workspace
+  preview?: string; // the location's line text (saves a follow-up readFile)
+}
+export interface Hover {
+  contents: string; // markdown: signature + doc
+  range?: CodeRange; // matched symbol range (editor can highlight)
+}
+// Mirrors LSP SymbolKind names; open (the `& {}` keeps the known set as
+// autocomplete while allowing an unknown kind to degrade to a default icon).
+export type SymbolKind =
+  | "file"
+  | "module"
+  | "namespace"
+  | "package"
+  | "class"
+  | "method"
+  | "property"
+  | "field"
+  | "constructor"
+  | "enum"
+  | "interface"
+  | "function"
+  | "variable"
+  | "constant"
+  | "string"
+  | "number"
+  | "struct"
+  | "enumMember"
+  | "typeParameter"
+  | (string & {});
+export interface DocumentSymbol {
+  name: string;
+  kind: SymbolKind;
+  detail?: string; // signature summary
+  range: CodeRange; // whole range (incl. doc/modifiers)
+  selectionRange: CodeRange; // the name itself (jump/highlight anchor)
+  children?: DocumentSymbol[]; // nested (methods in a class, …)
+}
+export interface WorkspaceSymbol {
+  name: string;
+  kind: SymbolKind;
+  path: string; // relative to cwd
+  range: CodeRange;
+  containerName?: string; // owning class/package
+}
+export interface Diagnostic {
+  range: CodeRange;
+  severity: "error" | "warning" | "info" | "hint";
+  message: string;
+  source?: string; // producer, e.g. "gopls" / "tsserver"
+  code?: string; // rule code, e.g. "deadcode"
+}
+
+// ---------------------------------------------------------------------------
+// §7.5 — File browse (workspace.listFiles / readFile) — PROPOSAL, docs/613 B8
+// ---------------------------------------------------------------------------
+
+export interface FileEntry {
+  path: string; // relative to cwd
+  name: string; // basename
+  type: "file" | "dir" | "symlink";
+  sizeBytes?: number; // file only
+  modifiedAt?: string; // ISO-8601 (sortable)
+}
+// workspace.readFile result. `startLine`/`endLine` echo the served range —
+// 1-based inclusive (editor-facing), unlike code-intel's 0-based positions.
+export interface FileContent {
+  path: string;
+  content: string; // full text, or the requested line slice
+  encoding: "utf-8"; // text only; binary goes through the attachments domain
+  totalLines: number; // full-file line count even for a slice (UI shows "12–40 / 320")
+  truncated?: boolean; // hit maxBytes (self-describing, no silent cap)
+  startLine?: number;
+  endLine?: number;
 }
 
 // ---------------------------------------------------------------------------
