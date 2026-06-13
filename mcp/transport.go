@@ -192,6 +192,28 @@ func DialCommand(
 	return client.Connect(ctx, transport, nil)
 }
 
+// authHTTPClient returns an *http.Client that adds a static Authorization
+// header to every request — how [ServerConfig.Authorization] reaches an
+// access-controlled Streamable HTTP server. It wraps http.DefaultTransport so
+// TLS / proxy / redirect behavior is unchanged.
+func authHTTPClient(authorization string) *http.Client {
+	return &http.Client{Transport: &authRoundTripper{authorization: authorization, base: http.DefaultTransport}}
+}
+
+// authRoundTripper sets the Authorization header on each request, cloning it
+// first so the caller's request is never mutated (the [http.RoundTripper]
+// contract).
+type authRoundTripper struct {
+	authorization string
+	base          http.RoundTripper
+}
+
+func (t *authRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	r := req.Clone(req.Context())
+	r.Header.Set("Authorization", t.authorization)
+	return t.base.RoundTrip(r)
+}
+
 // Transport is the wire mode of an MCP server connection. The zero value
 // is invalid — callers pick one explicitly so a misconfigured entry
 // fails [ServerConfig.Validate] instead of silently defaulting.
@@ -240,6 +262,13 @@ type ServerConfig struct {
 	// Dir sets the subprocess working directory; empty inherits the
 	// parent's. Used when Transport == [TransportStdio].
 	Dir string
+
+	// Authorization, when set, is sent as the HTTP `Authorization` header on
+	// every request to a [TransportHTTP] server — typically "Bearer <token>".
+	// It authenticates the client to an access-controlled MCP server. HTTP
+	// transport only ([Validate] rejects it for stdio, where a subprocess
+	// authenticates through Env, not an HTTP header).
+	Authorization string
 }
 
 // Validate reports whether exactly one transport is fully specified and
@@ -263,6 +292,9 @@ func (c ServerConfig) Validate() error {
 		if c.Endpoint != "" {
 			return fmt.Errorf("mcp.ServerConfig %q: Endpoint must be empty for stdio transport", c.Name)
 		}
+		if c.Authorization != "" {
+			return fmt.Errorf("mcp.ServerConfig %q: Authorization applies to HTTP transport only (a stdio subprocess authenticates via Env)", c.Name)
+		}
 	default:
 		return fmt.Errorf("mcp.ServerConfig %q: unknown transport %d (set TransportHTTP or TransportStdio)", c.Name, c.Transport)
 	}
@@ -284,7 +316,11 @@ func Dial(ctx context.Context, client *sdkmcp.Client, cfg ServerConfig) (*sdkmcp
 	}
 	switch cfg.Transport {
 	case TransportHTTP:
-		return DialStreamableHTTP(ctx, client, cfg.Endpoint, HTTPClientOptions{})
+		opts := HTTPClientOptions{}
+		if cfg.Authorization != "" {
+			opts.HTTPClient = authHTTPClient(cfg.Authorization)
+		}
+		return DialStreamableHTTP(ctx, client, cfg.Endpoint, opts)
 	case TransportStdio:
 		return DialCommand(ctx, client, cfg.Command, cfg.Args, CommandClientOptions{Env: cfg.Env, Dir: cfg.Dir})
 	default:

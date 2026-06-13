@@ -324,7 +324,37 @@ func parseMCPServerValue(name, value string) (mcp.ServerConfig, error) {
 		Name:      name,
 		Transport: mcp.TransportHTTP,
 		Endpoint:  value,
+		// Optional bearer token from a per-server env, kept out of the
+		// server-list string so the secret isn't co-located with the URL.
+		Authorization: mcpAuthFromEnv(name),
 	}, nil
+}
+
+// mcpAuthFromEnv reads an optional bearer token for HTTP MCP server `name`
+// from LYRA_MCP_<NAME>_TOKEN (name upper-cased, non-alphanumerics → '_') and
+// returns it as an "Authorization: Bearer <token>" header value, or "" when
+// unset. It authenticates Lyra to an access-controlled MCP server. The token
+// lives in its own env var (not the LYRA_MCP_SERVERS list) so the secret stays
+// separate from the connection descriptor.
+func mcpAuthFromEnv(name string) string {
+	if tok := os.Getenv("LYRA_MCP_" + envTokenKey(name) + "_TOKEN"); tok != "" {
+		return "Bearer " + tok
+	}
+	return ""
+}
+
+// envTokenKey normalizes a server name into an env-var-safe fragment:
+// upper-cased, every non-alphanumeric rune replaced by '_'.
+func envTokenKey(name string) string {
+	var b strings.Builder
+	for _, r := range strings.ToUpper(name) {
+		if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		} else {
+			b.WriteByte('_')
+		}
+	}
+	return b.String()
 }
 
 // splitHosts parses the comma-separated LYRA_HTTP_ALLOWED_HOSTS value.
