@@ -66,17 +66,39 @@ type WorkspaceQuery struct {
 	Cwd string `json:"cwd,omitempty"`
 }
 
+// DiffMode selects the baseline workspace.getDiff compares against (AUX_API §2.3).
+type DiffMode string
+
+const (
+	DiffModeWorktree DiffMode = "worktree" // changes vs HEAD, incl. untracked (default)
+	DiffModeBase     DiffMode = "base"     // vs merge-base with the default branch
+)
+
+// Valid reports whether m is a known diff mode (empty = default worktree).
+func (m DiffMode) Valid() bool { return m == "" || m == DiffModeWorktree || m == DiffModeBase }
+
+// DiffFormat selects the workspace.getDiff result shape (AUX_API §2.3).
+type DiffFormat string
+
+const (
+	DiffFormatRows DiffFormat = "rows" // per-file structured diff (default)
+	DiffFormatRaw  DiffFormat = "raw"  // unified patch string
+)
+
+// Valid reports whether f is a known diff format (empty = default rows).
+func (f DiffFormat) Valid() bool { return f == "" || f == DiffFormatRows || f == DiffFormatRaw }
+
 // GetDiffRequest — workspace.getDiff body (AUX_API §2.3). Mode selects the
 // baseline (worktree=changes vs HEAD incl. untracked; base=vs merge-base with
 // default branch). Format selects the shape (rows=structured; raw=unified
 // patch string). Limit caps the diff rows (rows format); over it the result is
 // truncated at a file boundary (Diff.Truncated) rather than silently dropped.
 type GetDiffRequest struct {
-	Cwd    string `json:"cwd,omitempty"`
-	Path   string `json:"path,omitempty"`
-	Mode   string `json:"mode,omitempty"`   // "worktree" (default) | "base"
-	Format string `json:"format,omitempty"` // "rows" (default) | "raw"
-	Limit  int    `json:"limit,omitempty"`
+	Cwd    string     `json:"cwd,omitempty"`
+	Path   string     `json:"path,omitempty"`
+	Mode   DiffMode   `json:"mode,omitempty"`   // "worktree" (default) | "base"
+	Format DiffFormat `json:"format,omitempty"` // "rows" (default) | "raw"
+	Limit  int        `json:"limit,omitempty"`
 }
 
 // GetFileHeadRequest — workspace.getFileHead body.
