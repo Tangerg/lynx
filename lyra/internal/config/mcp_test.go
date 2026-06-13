@@ -103,3 +103,30 @@ func TestParseMCPServers(t *testing.T) {
 		})
 	}
 }
+
+// TestParseMCPServers_AuthFromEnv covers the per-server bearer-token env:
+// LYRA_MCP_<NAME>_TOKEN populates an HTTP server's Authorization (as a Bearer
+// header), the name is normalized (upper-cased, '-' → '_'), and stdio servers
+// never pick one up.
+func TestParseMCPServers_AuthFromEnv(t *testing.T) {
+	t.Setenv("LYRA_MCP_GH_TOKEN", "ghp_secret")
+	t.Setenv("LYRA_MCP_MY_API_TOKEN", "tok2") // for server "my-api"
+
+	got, err := parseMCPServers("gh=https://mcp.github.com/,my-api=https://api.example.com/,local=stdio:echo hi")
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	byName := map[string]mcp.ServerConfig{}
+	for _, s := range got {
+		byName[s.Name] = s
+	}
+	if got := byName["gh"].Authorization; got != "Bearer ghp_secret" {
+		t.Errorf("gh Authorization = %q, want %q", got, "Bearer ghp_secret")
+	}
+	if got := byName["my-api"].Authorization; got != "Bearer tok2" {
+		t.Errorf("my-api Authorization = %q, want %q (dash should normalize to underscore)", got, "Bearer tok2")
+	}
+	if got := byName["local"].Authorization; got != "" {
+		t.Errorf("stdio server picked up Authorization %q, want none", got)
+	}
+}

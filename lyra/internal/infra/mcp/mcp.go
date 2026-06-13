@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -34,12 +35,14 @@ type ServerConfig = lynxmcp.ServerConfig
 var ErrUnknownServer = errors.New("mcp: unknown server")
 
 // Connection status (wire vocabulary, AUX_API §5.1). "connecting" is the
-// transient reconnect state; "needsAuth" stays unproduced until a dial
-// surfaces an auth-distinguishable error.
+// transient reconnect state; "needsAuth" is produced when a dial fails with an
+// auth-distinguishable error (a 401 / Unauthorized), so the client can prompt
+// for credentials rather than treat it as a generic "failed".
 const (
 	statusConnected  = "connected"
 	statusConnecting = "connecting"
 	statusFailed     = "failed"
+	statusNeedsAuth  = "needsAuth"
 )
 
 // tracer emits the MCP dial / reconnect spans the lower layers don't (per-call
@@ -134,7 +137,7 @@ func Dial(ctx context.Context, servers []ServerConfig) (*Connections, []chat.Too
 		ms := &server{config: srv}
 		session, derr := lynxmcp.Dial(ctx, client, srv)
 		if derr != nil {
-			ms.status, ms.lastErr = statusFailed, derr
+			ms.status, ms.lastErr = dialStatus(derr), derr
 			failures++
 			c.servers = append(c.servers, ms)
 			continue
@@ -254,7 +257,7 @@ func (c *Connections) Reconnect(ctx context.Context, name string) error {
 
 	c.mu.Lock()
 	if err != nil {
-		ms.session, ms.status, ms.lastErr = nil, statusFailed, err
+		ms.session, ms.status, ms.lastErr = nil, dialStatus(err), err
 	} else {
 		ms.session, ms.status, ms.lastErr = session, statusConnected, nil
 	}
@@ -336,6 +339,29 @@ func sourceTools(ctx context.Context, src lynxmcp.Source) ([]chat.Tool, error) {
 		return nil, fmt.Errorf("mcp: build provider for %q: %w", src.Name, err)
 	}
 	return provider.Tools(ctx)
+}
+
+// dialStatus maps a dial error to the connection status: an
+// auth-distinguishable failure becomes "needsAuth" (so the client can prompt
+// for credentials), otherwise "failed".
+func dialStatus(err error) string {
+	if isAuthError(err) {
+		return statusNeedsAuth
+	}
+	return statusFailed
+}
+
+// isAuthError reports whether err looks like an MCP server rejecting the
+// connection for missing / invalid credentials (HTTP 401 Unauthorized). The
+// go-sdk surfaces the transport failure as a wrapped error, so detection is a
+// heuristic string match; a false negative just yields the generic "failed"
+// status, never a wrong success.
+func isAuthError(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	return strings.Contains(s, "401") || strings.Contains(s, "unauthorized")
 }
 
 // schemaToMap renders an MCP tool's input schema as a generic object for the
