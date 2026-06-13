@@ -39,6 +39,7 @@ import {
 import {
   appendToTurn,
   appendUserMessage,
+  foldCompaction,
   foldQuestion,
   foldReasoning,
   foldText,
@@ -278,6 +279,8 @@ function onItemStarted(state: AgentViewState, item: Item): AgentViewState {
       return foldQuestion(state, item, blockStatus(item.status));
     case "plan":
       return setPlan(mapPlan(item.steps))(state);
+    case "compaction":
+      return foldCompaction(state, item);
   }
 }
 
@@ -341,6 +344,8 @@ function onItemCompleted(state: AgentViewState, rawItem: Item): AgentViewState {
       return foldQuestion(state, item, blockStatus(item.status));
     case "plan":
       return setPlan(mapPlan(item.steps))(state);
+    case "compaction":
+      return foldCompaction(state, item);
   }
 }
 

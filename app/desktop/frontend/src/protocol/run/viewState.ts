@@ -157,6 +157,11 @@ export interface BuiltinContentBlockMap {
     /** Stamped true once the answer is submitted — flips to settled state. */
     answered?: boolean;
   };
+  /** A context-compaction boundary (B10) — renders as a collapsed
+   *  "⊟ compacted N messages" divider. The containing message carries the
+   *  Item id; summary / droppedMessages are optional (absent until the backend
+   *  fills them). */
+  compaction: { kind: "compaction"; summary?: string; droppedMessages?: number };
 }
 
 // Empty by design — plugins augment this via `declare module`.
