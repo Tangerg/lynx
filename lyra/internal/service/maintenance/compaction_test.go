@@ -130,6 +130,36 @@ func TestCompactor_CutBoundary(t *testing.T) {
 	}
 }
 
+// TestCompactor_TokenTrigger fires the token-footprint trigger
+// independently of message count: a conversation with far fewer messages
+// than MaxMessages still compacts when one carries a large tool result,
+// because byte size — not message count — is what fills a context window.
+func TestCompactor_TokenTrigger(t *testing.T) {
+	store := memory.NewInMemoryStore()
+	const sessID = "sess-tokens"
+
+	big := strings.Repeat("x", 50_000) // ~12.5k estimated tokens
+	huge, _ := chat.NewToolMessage([]*chat.ToolReturn{{ID: "c1", Name: "read", Result: big}})
+	_ = store.Write(context.Background(), sessID,
+		chat.NewUserMessage("read the file"),
+		chat.NewAssistantMessage(""),
+		huge,
+		chat.NewUserMessage("now summarize"),
+	)
+
+	client, _ := chat.NewClient(newTextStubModel("BULLETS"))
+	// Message bound far out of reach; token bound below the tool result —
+	// so only the token trigger can fire.
+	c := NewCompactor(store, client, CompactionConfig{MaxMessages: 1000, MaxTokens: 10_000, KeepRecent: 2})
+	res, err := c.MaybeCompact(context.Background(), sessID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Compacted {
+		t.Fatal("expected the token-footprint trigger to fire on a large tool result")
+	}
+}
+
 // ------------------------------------------------------------------
 // helpers
 // ------------------------------------------------------------------
