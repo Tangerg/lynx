@@ -297,7 +297,11 @@ export type Item =
       tool: ToolInvocation;
       safetyClass?: string;
       error?: ProblemData;
-    });
+    })
+  // A context-compaction boundary (B10, docs/613) — the durable marker that "N
+  // earlier messages were summarized here". Emitted by autonomous (turn-edge)
+  // compaction and explicit sessions.compact alike; folds to a timeline divider.
+  | (ItemBase & { type: "compaction"; summary?: string; droppedMessages?: number });
 
 export type ItemType = Item["type"];
 

@@ -1,6 +1,6 @@
 import type { ContentBlock, PlanItem, ToolCall } from "@/protocol/run/viewState";
 import { MarkdownMessage } from "./markdown/MarkdownMessage";
-import { ApprovalCard, PlanBlock, QuestionCard, ReasoningBlock } from "./cards";
+import { ApprovalCard, CompactionBlock, PlanBlock, QuestionCard, ReasoningBlock } from "./cards";
 import { ToolCard } from "@/components/tools/ToolCard";
 import { isReadOnlyTool } from "@/components/tools/ToolGroup";
 import { PluginContentBlock } from "@/plugins/host/PluginContentBlock";
@@ -173,6 +173,15 @@ export function renderBlock(block: ContentBlock, key: number, ctx: BlockCtx) {
           itemId={block.itemId}
           questions={block.questions}
           answered={block.answered}
+        />
+      );
+
+    case "compaction":
+      return (
+        <CompactionBlock
+          key={key}
+          summary={block.summary}
+          droppedMessages={block.droppedMessages}
         />
       );
 

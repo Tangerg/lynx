@@ -296,6 +296,47 @@ describe("reducer — item fold", () => {
   });
 });
 
+describe("reducer — compaction fold (B10)", () => {
+  const compaction = (partial: Record<string, unknown>): Item =>
+    item({ type: "compaction", ...partial });
+
+  it("a compaction item folds to its own system message + divider block", () => {
+    let s: AgentViewState = INITIAL_VIEW_STATE;
+    s = reduce(s, started(item({ id: "a1", type: "agentMessage", content: [] })));
+    s = reduce(s, delta("a1", { type: "content", text: "done" }));
+    s = reduce(
+      s,
+      completed(
+        compaction({ id: "c1", status: "completed", summary: "earlier work", droppedMessages: 8 }),
+      ),
+    );
+    expect(s.messages).toHaveLength(2);
+    const sys = s.messages[1]!;
+    expect(sys.role).toBe("system");
+    expect(sys.id).toBe("c1");
+    expect(sys.blocks).toEqual([
+      { kind: "compaction", summary: "earlier work", droppedMessages: 8 },
+    ]);
+  });
+
+  it("started + completed for the same compaction id upsert (one divider, never two)", () => {
+    let s: AgentViewState = INITIAL_VIEW_STATE;
+    s = reduce(s, started(compaction({ id: "c1" })));
+    s = reduce(s, completed(compaction({ id: "c1", status: "completed", droppedMessages: 3 })));
+    const dividers = s.messages.filter((m) => m.role === "system");
+    expect(dividers).toHaveLength(1);
+    expect(dividers[0]!.blocks[0]).toMatchObject({ kind: "compaction", droppedMessages: 3 });
+  });
+
+  it("a compaction does not split the assistant turn (only a userMessage does)", () => {
+    let s: AgentViewState = INITIAL_VIEW_STATE;
+    s = reduce(s, started(item({ id: "a1", type: "agentMessage", content: [] })));
+    s = reduce(s, completed(compaction({ id: "c1", status: "completed", droppedMessages: 2 })));
+    s = reduce(s, started(item({ id: "a2", type: "agentMessage", content: [] })));
+    expect(s.messages.filter((m) => m.role === "assistant")).toHaveLength(1);
+  });
+});
+
 describe("reducer — HITL interrupt", () => {
   it("run.finished{interrupt} materializes an approval block + open interrupt", () => {
     let s = reduce(INITIAL_VIEW_STATE, runStarted("run_1", "ses_1"));

@@ -60,6 +60,20 @@ function MessageBlockInner({
     [msg.blocks, sources],
   );
 
+  // System messages (e.g. a compaction boundary) are chrome-less full-width
+  // notes — no avatar / name / time / outline / context-menu, just the block(s)
+  // rendered inline (CompactionBlock draws its own divider). Placed after all
+  // hooks so rules-of-hooks holds.
+  if (msg.role === "system") {
+    return (
+      <MessageContext.Provider value={msg}>
+        <div className="msg-content">
+          {msg.blocks.map((block, index) => renderBlock(block, index, ctx))}
+        </div>
+      </MessageContext.Provider>
+    );
+  }
+
   const displayName = (isAgent && assistantName) || role?.displayName || msg.who;
   const avatarVariant = (role?.avatarVariant ?? (isUser ? "msg-user" : "msg-agent")) as
     | "msg-user"

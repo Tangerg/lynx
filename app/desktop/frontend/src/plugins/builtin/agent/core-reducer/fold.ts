@@ -235,6 +235,32 @@ export function foldQuestion(
   );
 }
 
+/** Place a compaction boundary as its OWN system message — a standalone
+ *  "context compacted" divider, not folded into an assistant turn (a compaction
+ *  sits between turns). Idempotent by the Item id: item.started then
+ *  item.completed (and durable replay / history hydration) re-see the same id
+ *  and patch the existing divider in place, never appending a second. Leaves
+ *  turnMessageId untouched — only a userMessage is a turn boundary. */
+export function foldCompaction(state: AgentViewState, item: ItemOf<"compaction">): AgentViewState {
+  const block: ContentBlock = {
+    kind: "compaction",
+    summary: item.summary,
+    droppedMessages: item.droppedMessages,
+  };
+  if (state.messages.some((m) => m.id === item.id)) {
+    return mutateMessage(state, item.id, (m) => ({ ...m, blocks: [block] }));
+  }
+  const msg: Message = {
+    id: item.id,
+    role: "system",
+    who: nameForRole("system"),
+    time: formatTime(item.createdAt),
+    runId: item.runId,
+    blocks: [block],
+  };
+  return { ...state, messages: [...state.messages, msg] };
+}
+
 /** Ensure the tool block + write its toolCalls entry; preserves any
  *  accumulated arg text. Returns the next state + the resolved ToolCall (the
  *  caller stamps the matching tool-start / tool-end timeline entry). */
