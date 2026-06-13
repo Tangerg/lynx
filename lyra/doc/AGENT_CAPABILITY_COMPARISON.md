@@ -1,189 +1,187 @@
-# Lyra — Agent 能力横向对比
+# Lyra — Agent 能力横向对比（全量重写 · 2026-06-14）
 
-> **日期**：2026-06-11（2026-06-12 追加 plandex；2026-06-13 追加 mimocode）。**基线**：lyra HEAD（含 LSP / session export-import / edit 守卫 / 文件 checkpoint / 后台命令 五项落地后）。
-> **对比对象**：桌面源码仓 `claude_code`（Claude Code CLI）、`codex`（OpenAI Codex CLI, Rust）、`opencode`、`cline`（VS Code 扩展）、`kimi-code`（Moonshot）、`plandex`（Go，plan-first 终端 agent）、`mimocode`（小米，opencode fork，主打跨会话记忆）、`crush`（Charmbracelet，Go TUI）、`OpenHands`（Python，自治 agent + Docker runtime），外加桌面应用类 `AionUi` / `Proma` / `lobehub` / `cherry-studio`（§5）与 `aider` / `cursor` / `windsurf` / `amp` / `gemini-cli` 的公开认知。
->
-> **范围**：只比 **AI agent 应用**（终端产品），不比库/框架（a2a-go / adk-go / eino / koog / langchain4j / spring-ai / trpc-agent-go 等）。
-> **方法**：对每个仓库实地清点能力面（工具名 / 特性 / 架构），再与 lyra 现状拉成矩阵。
+> **视角**：能力面（运行时 capability），不比 UI 样式。**基线**：lyra = Go agent-runtime backend（前端在 `/Users/tangerg/Desktop/lyra/`）。
+> **对比对象**：桌面上**所有 AI Agent 应用**。**排除**：库 / 框架（a2a-go / adk-go / eino / koog / langchain4j / spring-ai / trpc-* / go-sdk / ai / sse / embabel / langgraphgo …）、**Port AI 系列**、纯模型目录服务（catwalk）、纯前端壳（agent-chat-ui）。
+> **公平前提**：lyra 是**后端运行时**;桌面 app 是 frontend+backend 打包。本文比"后端运行时能力";**前端/桌面 UX**（语音 ASR、全局热键、图片生成的显示）归 lyra 前端,**不算 runtime 缺口**（见 §6）。
 
 ---
 
-## 0. 定位校正（公平比较的前提）
+## 0. 一句话结论
 
-Lyra 是**运行时后端**（协议层，经 Lyra Runtime Protocol 服务独立前端），竞品多是**完整产品**（CLI / IDE 扩展）。因此：
-
-- **属于前端、不计入 lyra 缺口**：slash 命令、TUI / Web UI、输出样式（output styles）、diff 渲染、自动补全（autocomplete）、IDE 深集成。
-- **真正可比的是运行时能力**：工具集、上下文/记忆、安全、会话、扩展机制、多 agent、可观测。
-
-本文只在**运行时层**判定缺口。
+> **lyra 在「单次 agent turn 的执行质量」上已是第一梯队**（LSP / HITL / fork+checkpoint / 多 provider / A2A / OTel / loop-detect / token 压缩 / 编辑安全 全都有）。**真正落后的是「agent 的自主性与触达」**——调度/自动化、远程 IM 桥接、多 agent 团队、hooks——这正是同品类的 **Proma / AionUi** 领先之处。
 
 ---
 
-## 1. 能力矩阵
+## 1. 对比对象（两类）
 
-✅ 有 · 🟡 部分 · ❌ 无
+### 1.1 同品类 —— 本地优先 AI 桌面 agent（lyra 的真正对标）
 
-> `mimocode` 是 **opencode 的 fork**，基础能力承 opencode，净增集中在「记忆 / 上下文 / 自治」一线（见 §2 mimocode 复盘追加）。`crush`（Charmbracelet，Go TUI）/ `OpenHands`（Python，自治 agent + Docker runtime）是 2026-06-13 追加的同类运行时（见 §2 桌面应用批次追加）。
+| 应用 | 形态 | 一句话 |
+|---|---|---|
+| **Proma** | Electron + Claude Agent SDK | 多模型 Chat + 通用 Agent + 工作区 + Skills + MCP + **远程机器人** + 记忆 + **自动化调度** |
+| **AionUi** | Electron + 自带引擎 | 统一 15+ CLI agent + **Team mode（ACP）** + **cron 24/7** + 6 个 IM 桥接 + 21 助手 |
+| **cherry-studio** | Electron 多 LLM 客户端 | 强 UX、typed per-tool 渲染、分支导航;agent 能力偏轻 |
+| **lobe-chat（lobehub）** | Web/桌面 | chat UX 标杆;agent/工具偏轻 |
 
-| 维度 | lyra | claude_code | codex | opencode | cline | kimi-code | plandex | mimocode | crush | OpenHands |
-|---|---|---|---|---|---|---|---|---|---|---|
-| read / write / edit | ✅（edit 有 read-before + stale 守卫） | ✅ | 🟡（仅 apply_patch） | ✅ | ✅ | ✅ | 🟡（沙箱累积，非直写） | ✅ | ✅ | ✅（str_replace，sandbox 内） |
-| 多文件 / apply_patch | ❌（刻意不做，见 §4） | ❌ | ✅ V4A | ✅ | ✅ | ❌ | ✅（anchor 结构化编辑） | ✅（承 opencode） | 🟡（multiedit 单文件批量） | 🟡（whatthepatch） |
-| notebook 编辑 | ❌ | ✅ | 🟡 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| grep / glob | ✅ | ✅ | 🟡（走 shell） | ✅ | ✅ | ✅ | 🟡（architect 走 map） | ✅ | ✅（+rg） | ✅（sandbox bash） |
-| **LSP 代码智能** | ✅ 6 op | ✅ 9 op | ❌ | ✅ 9 op | 🟡（插件示例） | ❌ | ❌（内部 tree-sitter map，非工具） | ✅ 9 op（承 opencode） | ✅ 5+ op | ❌（LLM 理解，无 LSP） |
-| bash 同步 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🟡（_apply.sh 延迟执行） | ✅ | ✅ | ✅（async，libtmux） |
-| **后台命令** | ✅（无 PTY） | ✅ | ✅（PTY） | ✅ | 🟡 | ✅ | ❌ | ✅ | ✅（60s 自动后台 + job poll/kill） | ✅（libtmux 持久 session） |
-| **auto-debug 自纠环** | 🟡（tool loop 隐式：报错回喂模型自行重试） | 🟡（loop 隐式） | 🟡（loop 隐式） | 🟡（loop 隐式） | 🟡（loop 隐式） | 🟡（loop 隐式） | ✅（显式 `AutoDebugTries` 有界重试） | 🟡（loop 隐式 + goal-judge 重进） | 🟡（loop 隐式 + 签名级 loop detection） | 🟡（observation→agent 重试） |
-| web fetch / search | ✅（+httpreq） | ✅ | 🟡（仅 search） | ✅ | 🟡（仅 fetch） | ✅ | ❌ | ✅ | ✅（DuckDuckGo） | ✅（Tavily + Playwright 浏览器） |
-| **todo / plan 工具** | 🟡（有 plan 模式，无 model-facing todo） | ✅ | ✅ | ✅ | ✅（plan 模式） | ✅（todo + goal） | ✅（subtask 一等 + 完成闸门） | ✅（树状 T1/T1.1 + SQL + progress.md，最完整） | ✅（todos 工具） | 🟡（skill 演示，无内置） |
-| **Goal / judge 停止闸** | 🟡（GoalApprover 扩展点已备，无 judge） | ❌ | ❌ | ❌ | ❌ | 🟡（有 goal 概念） | 🟡（execStatusShouldContinue 完成校验） | ✅（独立 judge 只读 transcript 验证） | ❌ | 🟡（max_iterations + 状态机，无独立 judge） |
-| 持久记忆（*.md） | ✅ LYRA.md + AGENTS.md | ✅ CLAUDE.md | ✅ AGENTS.md | ✅ AGENTS.md | ✅ .clinerules | ✅ AGENTS.md | ❌ | ✅✅ MEMORY.md + checkpoint.md + FTS5 检索 + 多 scope | ✅（CRUSH/AGENTS/CLAUDE.md 注入） | ✅（.openhands/microagents/repo.md 自动注入） |
-| **记忆自我改进（dream/distill）** | 🟡（extractor ≈ 轻量 dream，无 distill） | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅（/dream 提炼+剪枝 · /distill 自动产 skill） | ❌ | ✅（agent 经用户确认维护 repo 知识） |
-| 自动压缩 | ✅ | ✅ | ✅ | ✅ | 🟡 | ✅ | 🟡（summary 仅展示，非回灌缩 prompt） | ✅（**重建式** + microcompaction，非纯 summarize） | ✅（200K 阈值，保留 todos） | ✅✅（**Condenser 5+ 策略**：LLMSummarizing/ObservationMasking/Amortized/LLMAttention） |
-| 子 agent 委派 | ✅（单个） | ✅ | ✅ | ✅ | ✅ | ✅ | ❌（role 流水，非委派） | ✅（fork 继承 prefix + 并行 + 专用） | ✅（agentic_fetch 子会话，cost 上卷父） | ✅（enable_sub_agents，registry） |
-| **多 agent swarm / team** | ❌ | ✅ teams | ✅ agent_jobs | 🟡 | ✅ 16 team tools | ✅ swarm | ❌ | 🟡（子 agent 并行，非 team 工具） | ❌（串行） | 🟡（parent-child 会话，无 in-conv handoff） |
-| MCP client | ✅（5 态生命周期） | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅（stdio/HTTP/SSE） | ✅（FastMCP，StreamableHTTP） |
-| **MCP OAuth** | ❌（seam 已备） | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌（OAuth 在 git provider 层） |
-| MCP server（自身作为） | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅（FastMCP /mcp 暴露 create_pr 等） |
-| **A2A（agent 互联）** | ✅ | ❌ | 🟡（进程内 multi-agent） | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **多模态（图片输入）** | ❌ | ✅ | ✅ | ✅ | ✅ | ✅（+视频） | ❌ | ✅（+语音输入） | ✅ | ✅（图片 + 截图） |
-| 图片输出 | ❌ | ✅ | ✅（生成） | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **Hooks（pre/post tool）** | ❌ | ✅ 8+ 事件 | ✅ 10 事件 | 🟡（插件 hook） | ✅ | ✅ | ❌ | 🟡（插件 hook，承 opencode） | 🟡（仅 PreToolUse shell） | ✅（.openhands/hooks.json，command/prompt） |
-| **OS Sandbox** | ❌（有审批兜底） | 🟡 可选 | ✅ 三平台 | ❌ | ❌ | 🟡 路径限制 | ❌（diff 沙箱 ≠ OS 沙箱） | ❌ | 🟡（bash 白名单，无 OS 级） | ✅✅（Docker/Remote/Process + `SandboxService` 抽象） |
-| 审批 / 权限 | ✅ R 模型 4 档 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅（5 档自治 + apply/reject 闸门） | ✅（agent 权限分级） | ✅（per session/tool/path） | 🟡（confirmation_mode + security analyzer） |
-| session export / import | ✅ | 🟡（仅 export） | ❌ | ✅ | 🟡（仅 export） | 🟡（仅 export） | ❌ | ✅（承 opencode） | 🟡（SQLite 持久，无导出格式） | ✅（导出 ZIP + trajectory replay） |
-| fork | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ✅（plan 分支，token 继承） | ❌（fork agent ≠ session fork） | ❌ | 🟡（parent_conversation_id 隐式） |
-| **文件 checkpoint / restore** | ✅ 影子 git | 🟡（file history） | 🟡（compaction 边界） | ❌ | ✅ 影子 git | ❌ | ✅（沙箱 + reject 回退） | ❌（其 checkpoint 是**会话态**，非文件） | ❌（仅 file tracking） | 🟡（trajectory replay） |
-| skills | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ | ✅（compose 编排 + distill 自产） | ✅（.agents/skills 自动发现） | ✅（microagents：public + repo，关键词触发） |
-| 多 provider × model | ✅ 显式配对 | ❌（Anthropic） | ❌（OpenAI） | ✅ | ✅ | 🟡 | ✅（per-role model packs） | ✅（承 opencode + judge/summary 分模型） | ✅（10+，中途可切） | ✅（LiteLLM 10+，profile + fallback） |
-| cron / 调度 | ❌ | ✅ | 🟡（cloud-tasks） | ❌ | ❌ | ✅ | ❌ | 🟡（dream/distill 定时自维护） | ❌ | ❌ |
-| **OTel 可观测（traces+metrics+logs）** | ✅ 三件套 | 🟡 | 🟡（trace） | 🟡 | ❌ | 🟡 | ❌ | 🟡（承 opencode） | 🟡（PostHog，无 OTel） | ✅（OTLP gRPC） |
+### 1.2 编码 agent / runtime
+
+`claude_code` · `codex` · `cline` · `continue` · `crush` · `opencode` · `OpenHands` · `kimi-code` · `plandex` · `MiMoCode` · `harness9` · `pi`
+
+> assistant-ui 是 React 组件库（UX 范式参照,非 runtime,不进矩阵）。
 
 ---
 
-## 2. Lyra 的真正缺口（运行时层，按价值/成本排序）
+## 2. lyra 现状能力基线（2026-06-14 实测,防止误报缺口）
 
-### 第一梯队 —— 平台无关、价值高、竞品几乎全有
+**单 turn 执行**：agent loop（复用 lynx `agent/runtime` 的 `for{}`）· 工具循环 + **并行工具** · **HITL R 模型**（park-on-interrupt + resume,可持久化/审计/跨重启）· plan 模式 · steering 注入 · **MaxBudget/MaxCostUSD/MaxSteps 上限**。
+**防失控**：**loop detection 已接**（`kernel/engine.go: LoopDetection`,经 agent/tool SDK）· budget/step backstop。
+**上下文**：压缩 **同时按消息数(24) 和 token 估算(100k) 触发** · 整段 wholesale 摘要 + 保留最近 · LYRA.md 长期记忆 + extractor 提取事实。
+**代码能力**：**LSP 6 操作**（definition/references/hover/symbols/diagnostics）· 编辑安全（read-before + stale 守卫）· fs/bash/web（fetch+search）· **model-facing todo（`todo_write`,SQLite 持久化）**。
+**会话/状态**：Session→Run→Item · **fork + 影子 git 文件 checkpoint + export/import** 三件套 · per-session cwd。
+**集成**：MCP client（5 态生命周期 + **auth 基座已铺**）· **A2A**(agent-to-agent 跨 runtime) · Skills（project+global） · **多 provider×多 model（38 provider,显式配对）**。
+**委派**：subagent 3 种 spawn 模式（protected-only 作委派默认）。
+**可观测**：OTel 三驾马车 → slog（vendor-neutral）。
 
-1. **多模态图片输入** —— **5/5 全有，唯独 lyra 没有**。最显眼的单点缺口。截图 / 设计稿 / 报错图驱动是主流用法。平台无关：牵协议 content block + 附件存储 + model adapter 的 image content。
-2. **Hooks（pre/post tool 用户脚本）** —— 4/5 有（claude_code 8 事件、codex 10 事件、cline 子进程 + 文件 IPC、kimi session hooks）。扩展性核心：lint / 格式化 / 拦截 / 审计。平台无关（exec）。lyra 当前零扩展钩子。
-3. **model-facing todo 工具** —— 5/5 有。lyra 有 plan 模式，但没有"模型自维护的 live todo list"。**成本极低**（一个会话态状态工具），对长任务连贯性立竿见影。
-4. **MCP OAuth** —— 5/5 有；lyra 的 5 态生命周期已含 `needsAuth`，seam 已备好（`internal/engine/mcp.go`），接入是"填空"非"重构"：ServerConfig 加 auth 字段 + dial 识别 401 → needsAuth + OAuth 回调端点 + token 存储。
-
-### 第二梯队 —— 价值中、偏进阶
-
-5. **多 agent swarm / 并行 team** —— 4/5 有（cline 16 个 team 工具、kimi `AgentSwarm`、codex `agent_jobs`、claude_code teams）。lyra 只有单个 `task` 委派。lyra 的 agent runtime + A2A 是好地基。
-6. **LSP 操作补全** —— lyra 6 op；claude_code / opencode 9 op（缺 `goToImplementation` + call hierarchy in/out）。纯加法、低成本。
-7. **语义代码检索 / repo-map** —— lyra 有 `rag` 模块但**未接进 agent**；aider 的 tree-sitter repo-map、cursor/windsurf 的 embeddings 全仓索引印证此维度有价值。
-
-### 第三梯队 —— 平台相关或小众
-
-8. **OS Sandbox** —— 仅 codex 全做、claude_code 可选；**平台强相关**（每 OS 一套），已论证暂缓（审批模型 = claude_code 的主防御，lyra 已有）。
-9. **notebook 编辑 / 图片输出 / cron 调度** —— 小众，按需。
-10. **apply_patch** —— **刻意不做**（见 §4），非缺口。
-
-### plandex 复盘追加（2026-06-12）
-
-plandex 与上面 5 家不同：它**不是 tool-calling agent，而是刚性多阶段 prompt 流水线**（planner→architect→coder→builder，工具调用只用于命名/完成校验，文件改动靠自定义 `<PlandexBlock>` 文本块解析）。因此它的多数"产品特性"（累积 diff 沙箱 UI、plan 分支、org/RBAC/Postgres 后端、5 档自治预设）属**前端/产品层**，不进 lyra 运行时缺口。过滤后，对 lyra 真正有借鉴价值的只有 **2.5 条**：
-
-- **A. per-role 模型分配（真启发，成本低）** —— plandex 给 planner / builder / summarizer / auto-continue 各配不同模型（便宜模型做 summarize、强模型做 build）。lyra 的 `maintenance` 域已把 **Compactor / Extractor / Planner** 拆成独立 service —— **它们正好是天然的 role 边界**。lyra 已有 per-run model 的 seam（`core.ChatClientProvider` + `clientResolver`），把它从 per-run 扩成 **per-internal-role**（压缩走 haiku、规划走 opus）几乎顺水推舟。归入第二梯队。
-- **B. repo-map 接入的具体范式（强化既有 §2.7）** —— plandex 用 tree-sitter 抽每文件符号签名 → 按文件 hash 缓存成 JSON 地图 → 喂给 "architect" 阶段**先决定加载哪些文件**再进 implementation。这是 §2.7「`rag` 模块未接进 agent」的**可落地蓝图**：repo-map 既可做成一个 model-facing 工具（符号图查询），也可做成上下文注入器（让模型按需拉文件而非全量）。不必照搬流水线。
-- **C.（半条，已修正）auto-debug** —— plandex 有显式 `AutoDebugTries`：命令失败 → 回喂 exit code+stderr → 有界重试。**但 lyra 是 tool-calling loop，bash 报错模型本来就看得到、能自行重试**——这层 plandex **因为不是 agent loop 才必须显式补**。故对 lyra 不是真缺口，可借鉴的仅是一个**有界 `debug <cmd>` 便利封装** + 把 exit-code/stderr 结构化回喂，价值有限，列为可选。
-
-**plandex 没有、lyra 已领先的**：真正的 tool-calling loop、真自动压缩（plandex 的 summary 仅展示）、MCP / A2A / skills / LSP 工具 / 多 provider×model 显式配对、本地纯净运行时（plandex 强绑 Postgres + org/billing）。
-
-### mimocode 复盘追加（2026-06-13）
-
-mimocode 是 **opencode 的 fork**，基础能力（多 provider / TUI / LSP / MCP / plugin）全承 opencode；净增集中在 **「记忆 / 上下文 / 自治」一线**，恰好命中 lyra 当前最薄的一块。架构详剖见 [`MIMOCODE_ARCHITECTURE_REVIEW.md`](MIMOCODE_ARCHITECTURE_REVIEW.md)。过滤掉前端/产品（voice / TUI / theme / OAuth / slack）后，对 lyra 真正有价值的按契合度排序：
-
-- **A.（最强）Goal + 独立 judge 停止闸 —— 直接落到 lyra 现成扩展点** —— mimocode `/goal` 设停止条件，agent 想停时一个**独立 judge 模型只读 transcript**（不信 agent 自报）返回 `{ok, impossible, reason}`，没满足就重进 loop（有上限）。这是 plandex `execStatusShouldContinue` 的更干净版（judge 只读证据，防"乐观假装做完"）。**lyra 的 agent SDK 已有 `GoalApprover` 扩展点（`collectExtensions` 会发现），这个 judge 几乎就是一个 GoalApprover 实现** —— 架构契合度最高，独立可加，对自治长任务价值高。**第一梯队候选。**
-- **B.（该深想，非显然赢）上下文「重建」vs「压缩」** —— mimocode 满了**不 summarize，而是从持久结构化产物重建**上下文：`checkpoint.md`（11 段会话状态，由 checkpoint-writer fork 子 agent 维护）+ `MEMORY.md` + 任务 progress + 近期消息，**每段带 token 预算 + 重要性排序**注入。lyra 现在是 summarize 压缩（有损快照）。这是同一问题的两种哲学，重建对长任务更稳但机器重得多 —— 是**真架构抉择**，不是显然该抄。**可先低成本摘 microcompaction 一招**（清空 read/bash/edit 的 tool_result body、保留 tool_use 帧，让重建后首个未缓存请求更小）。
-- **C. 结构化 todo（树状任务 + progress 日志）** —— mimocode 把层级任务（T1/T1.1）存 SQL，子 agent 退出写 `tasks/<id>/progress.md`，checkpoint-writer 回收对账。这是 §2.3「无 model-facing todo」缺口的**结构化成品形态**，与 A（judge 闸）+ B（重建）天然咬合。
-- **D.（与 lyra KISS 取向有张力，谨慎）记忆 = 可检索 DB + 自我改进** —— mimocode 把所有 memory 文件索引进 **SQLite FTS5（BM25）**、按 scope 分层、指纹增量 reconcile；并有 `/dream`（提炼持久知识进 MEMORY.md + 剪枝过期）/ `/distill`（发现重复工作流自动打包成 skill/subagent/command）。lyra 后端已是 SQLite，加 FTS 索引技术上自然；lyra 的 extractor ≈ 一个轻量持续版 dream。**但 mimocode 这套 11 段 checkpoint + notes + 多 scope + dream/distill 是重度机器，与 lyra「记忆极简（单一可编辑 LYRA.md）」的 KISS/YAGNI 取向直接冲突** —— 列为"值得想清楚的方向"，不建议现阶段全抄。
-
-**mimocode 没有、lyra 已领先/独有的**：A2A、多 provider×model **显式配对**（mimocode 承 opencode 的隐式）、OTel 三件套、文件级 checkpoint（影子 git；mimocode 的 checkpoint 是会话态另一根轴）、Go 运行时的分层纪律。
-
-> 净增到 lyra 的可落地新启发只有 **1.5 条**：**A（judge 停止闸，落 GoalApprover）** 是真正该做的；**B 的 microcompaction** 是顺手的便宜半条。其余（重建、FTS、todo 结构化、dream/distill）是"方向"，需先与 lyra 记忆极简哲学权衡。
-
-### 桌面应用批次复盘追加（2026-06-13）
-
-实地清点桌面上其余 AI agent **应用**（排除库/框架与 portai）。两类：
-
-**① 真 coding-agent 运行时（已并入矩阵列）**：
-- **crush**（Charmbracelet，Go TUI + SQLite 会话）—— 与 lyra/opencode 最同类。
-- **OpenHands**（Python，自治 agent + Docker runtime）—— 自治执行 + 沙箱见长。
-
-**② 桌面/编排类（不进矩阵，属前端/产品层，见 §5）**：AionUi（Electron，内置 agent + 自动接管 13+ CLI agent + Team Mode）、Proma（Electron，Claude Agent SDK，Chat↔Agent 双模 + local-first JSON 存储）、lobehub（agent 编排平台，Team Mode 多 agent 并行）、cherry-studio（50+ provider 聊天客户端）、continue（已归档）、geminisearch（窄搜索工具）。
-
-过滤后，对 lyra 真正有价值的（多家独立印证 = 收敛信号，价值更高）：
-
-- **A.（收敛，强化既有方向）压缩 = 一个设计空间，ObservationMasking 是便宜收敛赢** —— **OpenHands 的 Condenser 有 5+ 策略**（LLMSummarizing / **ObservationMasking** / Recent / Amortized / LLMAttention），mimocode 有 microcompaction。两家独立都做了**「掩盖/清空旧 tool 观察的 body、保留事件结构」**这招。这与 §2 mimocode 复盘 B 的 microcompaction 是**同一个低成本收敛点**，现有两个独立来源印证 —— lyra 压缩路径应吸收（清 read/bash/edit 的 tool_result body、留 tool_use 帧）。
-- **B.（挑战既有假设）OpenHands 证明「可移植 sandbox 抽象」是存在的** —— lyra §4 记「Sandbox 暂缓：无可移植抽象（每 OS 一套原语）」。**OpenHands 用一个 `SandboxService` 接口 + Docker / Remote-HTTP / Process 三实现做到了可移植**（代价是依赖 Docker / 远程服务，重）。这不推翻 lyra 的暂缓决定（审批兜底 + 重依赖），但**「无可移植抽象」这条理由需要修正为「有抽象但依赖重、当前不值得」** —— 见 §4 已更新。
-- **C.（便宜小招）crush 的签名级 loop-detection** —— crush 对 (tool+input+output) 做签名哈希，10 窗口内同签名重复 ≥5 次即halt。这是一个**便宜的防死循环安全网**，与 Goal+judge 停止闸**互补**（judge 防"乐观假装做完"，loop-detection 防"卡死重复"），lyra 当前两者都无。落地成本极低（一个 ring buffer + 哈希）。
-- **D.（强化既有缺口，无新增）** Hooks（crush PreToolUse / OpenHands hooks.json）再次印证 §2 hooks 缺口；多 agent swarm（lobehub Team Mode 并行 + 共享任务板 / AionUi Team Mode）再次印证 §2.5；skills（crush `.agents/skills` / OpenHands microagents 关键词触发）lyra 已有。
-
-**这批没有、lyra 已领先/独有的**：A2A（全无）、多 provider×model **显式配对**（crush/OpenHands 都是隐式选择）、OTel 三件套（仅 OpenHands 有 OTLP，crush 只有 PostHog）、fork+文件 checkpoint+export 三件齐。
-
-> 本批净增可落地启发：**C（loop-detection，极便宜）** 可直接做；**A（ObservationMasking 式 microcompaction）** 现被两家印证，升格为"该做"；**B** 是认知修正（改 §4 措辞），非新任务。
+> **旧版列为缺口、现已落地的**：model-facing todo（`78fc84e`）、loop detection、token-aware 压缩触发、MCP auth 基座（`a4f7a4d`）、budget/step caps。**别再当缺口。**
 
 ---
 
-## 3. Lyra 反而领先 / 独有的（不是全面落后）
+## 3. 能力矩阵（capability → lyra → 谁有）
 
-- **A2A（agent-to-agent）**：这 5 家基本都没有（codex 的 multi-agent 是进程内编排，非跨运行时协议）。
-- **fork + 文件 checkpoint + export/import 三件齐全**：多数竞品只占其中一两项（codex 无 fork/export；opencode 无 checkpoint；cline/claude_code/kimi 多为单向 export）。
-- **多 provider × model 显式配对** + **per-round 成本核算** + **OTel 三件套**：运行时治理比多数 CLI 完整。
-- **read-before-edit + stale 守卫**：与最 Claude 优化的 claude_code 的 `readFileState` 对齐（无 PTY、无 V4A，靠守卫式单 edit 保可靠）。
+### ✅ lyra 已具备（与第一梯队齐平或领先）
+
+| 能力 | lyra | 备注 |
+|---|---|---|
+| agent loop + 工具循环 | ✅ | 复用 SDK `for{}`,不手写 |
+| 并行工具执行 | ✅ | `ParallelToolLoop` + per-call 取消;**缺 per-path 锁**（§4.10） |
+| HITL 审批（R 模型） | ✅ | 可持久化/审计/跨重启,优于 cline 同步 gate |
+| loop detection | ✅ | SDK `LoopDetectionConfig` |
+| budget/step 上限 | ✅ | token + cost + steps |
+| 压缩（token 触发） | ✅🟡 | 有触发,**策略待精修**（§4.6） |
+| LSP 代码智能 | ✅ | 6 操作;harness9/pi/codex/OpenHands 零 LSP |
+| 编辑安全（read-before+stale） | ✅ | claude_code/crush 同款,方向被验证正确 |
+| model-facing todo | ✅ | `todo_write` SQLite |
+| fork + 文件 checkpoint + export/import | ✅ | 三者同时具备,组合罕见 |
+| 多 provider×model | ✅ | 38 provider 显式配对,广度+显式性领先 |
+| A2A 跨 runtime | ✅ | 全部对比里独有 |
+| Skills | ✅ | project+global 合并 |
+| OTel 三驾马车 | ✅ | vendor-neutral,独有形态 |
+| web fetch + search | ✅ | |
+
+### ❌ / 🟡 lyra 缺或弱（详见 §4）
+
+| 能力 | lyra | 谁有 |
+|---|---|---|
+| **调度 / 自动化运行时** | ❌ | **Proma**（scheduler 30s tick）· **AionUi**（cron 24/7）· claude_code/kimi 部分 |
+| **远程 IM 桥接** | ❌(仅蓝图) | **Proma**（飞书/钉钉/微信）· **AionUi**（6 平台） |
+| **Hooks（pre/post-tool）** | ❌ | claude_code(27)·codex(10)·pi(~40)·harness9 |
+| **多模态图片输入** | 🟡(wire 有,模型路径未接) | 几乎全部 peer |
+| **多 agent 团队/并行编排** | 🟡(单委派) | AionUi(ACP Team)·cline(16 team tools)·claude_code·kimi |
+| **microcompaction / 压缩精修** | ❌ | claude_code·mimocode·OpenHands·pi |
+| **语义代码搜索 / repo-map** | ❌(rag 未接) | plandex(tree-sitter)·cursor/windsurf(向量) |
+| **per-role 模型分配** | ❌ | plandex·crush·OpenHands·pi |
+| **OS sandbox** | ❌(缓做) | codex·OpenHands·harness9 |
+| **evals 回归框架** | ❌ | harness9 |
+| **stall 检测 / anti-cheat-todo / denial-stops-turn** | ❌ | crush·harness9·codex |
+| **MCP-as-server / per-workspace MCP** | ❌ | OpenHands·crush(server)·Proma(per-workspace) |
+| **proactive 推荐 / monitors** | ❌ | Proma |
+| image 生成 · 语音输入 | ❌(前端层,§6) | claude_code/codex/AionUi(生成)·Proma(语音) |
 
 ---
 
-## 4. 已记录的刻意决策（非缺口）
+## 4. lyra 的真正缺口（按价值/普遍性,三梯队）
 
-- **不做 codex V4A apply_patch**：lyra 默认跑 Claude，而最 Claude 优化的 claude_code **故意不用** apply_patch、专门强化守卫式单 edit。lyra 已对齐其核心（unique-or-fail + replace_all + read-before + stale）。若未来要多文件原子，再单议。
-- **后台命令无 PTY**：仅 codex 用 PTY（平台重）；claude_code / opencode 都不用。lyra 选无 PTY + 纯进程 kill（不引入 setpgid / taskkill 等平台特性），代价是深层孙进程可能残留——与现有同步 bash 同档。
-- **Sandbox 暂缓**：~~无可移植抽象（每 OS 一套原语）~~ → **修正（2026-06-13）**：可移植抽象**是存在的**（OpenHands `SandboxService` 接口 + Docker/Remote/Process 三实现即证），但代价是**重依赖 Docker / 远程沙箱服务**。lyra 暂缓的真实理由应是「**有抽象但依赖重、审批模型已兜底、当前不值得**」，而非「无抽象」。要做时照 OpenHands 的接口范式（一个 `Sandbox` 接口 + 多 provider 实现）。
+### 第一梯队 —— 同品类（Proma/AionUi）领先、定义"自主 agent"的三样
+
+**4.1 调度 / 自动化运行时** ❌ —— **最大品类差距**
+Proma `automation-scheduler.ts`（30s tick、断电恢复、daily/weekly/interval、run 历史、失败连续阈值自动暂停、permission profile per task）;AionUi cron 24/7 无人值守 + 会话绑定。lyra 是**纯 turn 驱动,零调度器**。
+> 价值:把 agent 从"一问一答"变成"会自己定时跑";本地优先桌面 agent 的核心卖点。成本:中（新 domain:调度表 + tick + run 记账,可复用 session/run 基建）。
+
+**4.2 远程 IM 桥接** ❌ —— 只有 `IM_GATEWAY.md` 蓝图
+Proma 飞书 OAuth(68KB)+钉钉+微信(presence/通知/触发);AionUi 飞书/钉钉/微信/Telegram/Slack/Discord。lyra 未建。
+> 价值:从手机/群里触发任务、收结果。成本:中-高（每平台一座桥 + 鉴权;可先做一个 webhook 入口）。
+
+**4.3 Hooks / 扩展点（pre/post-tool）** ❌ —— **最大扩展性缺口**
+claude_code 27 事件（PreToolUse = 改入参+权限+注上下文 三合一）;codex 10;pi ~40（自扩展 + LLM 写自己的工具 + 热重载）;harness9 装饰器注册表 + **权限从磁盘热重载**（改"always allow"即时生效,便宜招）。lyra 零 hooks。
+> 价值:lint/format/拦截/审计的地基。成本:中（事件分发 + SPI 接口）。
+
+**4.4 多模态图片输入** 🟡 —— wire 支持、模型路径待接
+wire 的 `ContentBlock{type:image, attachmentId}` + `StartRunRequest.attachments` 已就位,`features.multimodal` 能力位也在,但**模型适配器是否真把图片发给模型待核实**。除 lyra/harness9 外几乎所有 peer 都有。
+> 价值:最显眼的单点能力差。成本:低-中（接通 model adapter 的 image content）。
+
+### 第二梯队 —— 进阶、数家有
+
+**4.5 多 agent 团队 / 并行编排** 🟡 —— lyra 只单委派
+AionUi Leader+Teammate 经 **ACP** 并行 + 共享任务板;cline 16 team tools;claude_code teams+SendMessage。lyra 有 `SpawnChildProtectedOnly` 单委派,**无并行团队编排**。
+> 成本:高（新 domain:团队生命周期 + 消息板 + 成本 roll-up）。
+
+**4.6 压缩精修** ❌ —— 现在是整段 wholesale 摘要 + 固定阈值
+缺:① **window-相对 token 触发**（remaining ≤ window*80%,用 CatalogPricing 真 token,而非固定 100k 字符估算,5/5 收敛）;② **microcompaction**（清旧 tool_result 体、留 tool_use + 最近 N;claude_code 还有 API-native `clear_tool_uses`,lyra 默认 Claude 可先评估这条）;③ **结构化摘要模板**（claude_code 9 段 / pi Goal-Constraints-Progress + 文件清单）;④ **condensation-as-event**（OpenHands:压缩=产生不可变事件 + projection 重放,可审计)。
+> 成本:① 触发改写 trivial;②③④ 各中等。
+
+**4.7 语义代码搜索 / repo-map** ❌ —— `rag/` 模块未接进 agent
+plandex tree-sitter 符号图;cursor/windsurf 全库向量。lyra 有 RAG pipeline 但不喂给 agent 选文件。
+> 成本:中（接 rag + tree-sitter 变体）。
+
+**4.8 per-role 模型分配** ❌ —— Compactor/Extractor/Planner 各用合适模型
+plandex per-role model pack;crush Large/Small。lyra 可复用 per-run-model seam。
+> 成本:中（角色边界 + 复用现有 seam）。
+
+**4.9 OS sandbox** ❌ —— 缓做（审计模型兜底）
+codex（policy→argv 纯函数,3 平台）· OpenHands（Workspace 接口 + LocalWorkspace 无 Docker）· harness9（per-agent Docker）。可移植抽象**确实存在**（三家收敛）。
+> **立即可做、零依赖**:`.git` 子路径强制只读（防 agent 改 `.git/hooks` 提权,codex 范式）。macOS path 便宜（sandbox-exec 字符串,无 cgo);Linux 重（bwrap/seccomp）。
+
+**4.10 per-path 工具锁** 🟡 —— 并行已有,缺 fs-写互斥
+claude_code `isConcurrencySafe`·OpenHands `ResourceLockManager`·pi per-realpath 队列·harness9 path_locker（5/5 收敛）。
+> 成本:低（PathLocker 装饰器,串行化同路径写,读/LSP/MCP 不受影响）。
+
+### 第三梯队 —— 防御性 / niche
+
+**4.11 evals 回归框架** ❌ —— harness9 ScriptedProvider（确定性 mock）+ Hard/Soft 断言 + hermetic + CI 闸（golden 用例,失败阻 merge）。lyra 零。成本:中。
+**4.12 防失控补全** ❌ —— lyra 有 loop-detect,缺:stall 检测（harness9:3 turn + todo 完成数不变,~10 行）、anti-cheat-todo（harness9:1 完成/调用硬限,~20 行）、denial-stops-turn（codex/crush:拒绝即停 turn,trivial）。成本:低,~120 行全做。
+**4.13 MCP-as-server / per-workspace MCP** ❌ —— OpenHands/crush 把自己暴露成 MCP server;Proma 每 workspace 独立 MCP/Skills。lyra MCP 是 runtime 全局。成本:中。
+**4.14 proactive 推荐 / monitors** ❌ —— Proma 规则信号→建议定时任务/监控 + 文件/会话/外部事件触发 run。lyra 有 `workspace.subscribe`(文件事件) 但不"事件→触发 run"。niche。
 
 ---
 
-## 5. 其他几家补充（桌面无源码）
+## 5. lyra 领先 / 独有（勿误报为缺口）
 
-- **aider**：`repo-map`（tree-sitter 抽全仓符号图喂模型）+ git-native commit → 印证缺口 §2.7。
-- **cursor / windsurf**：embeddings 全仓索引 + 大型 "apply model"（快速套改）+ 深 IDE → 语义检索 + IDE 集成（后者属前端）。
-- **amp（Sourcegraph）**：子 agent + "oracle"（强模型做架构判断）+ 代码搜索 → 印证缺口 §2.5、且与 plandex 的 per-role 模型同源（见 §2 复盘追加 A）。
-- **gemini-cli**：超长上下文 + MCP + 内置 web → 无新维度。
-- **continue**：IDE 自动补全（非 agent 范畴）。
-- **mimocode**（有源码，已并入矩阵 + §2 mimocode 复盘追加）：opencode fork，记忆/上下文/自治一线最完整 —— 上下文重建、FTS5 记忆、goal-judge 停止闸、dream/distill 自改进。架构详剖 [`MIMOCODE_ARCHITECTURE_REVIEW.md`](MIMOCODE_ARCHITECTURE_REVIEW.md)。
-- **crush / OpenHands**（有源码，已并入矩阵 + §2 桌面应用批次追加）：crush = Charm Go TUI 编码 agent（签名级 loop-detection 独特）；OpenHands = Python 自治 agent（Condenser 5+ 压缩策略 + Docker/Remote/Process 三沙箱 + 既是 MCP client 又是 MCP server）。
-
-### 桌面应用类（属前端/产品层，不进运行时矩阵）
-
-这些是**桌面/Web 应用或编排平台**，按 §0 范围属前端/产品层，仅作认知补充：
-
-- **AionUi**（Electron + Bun）：内置 agent（本地文件/shell/web）+ **自动检测并接管 13+ CLI agent**（Claude Code/Codex/…）于统一界面 + Team Mode 多 agent 并行 + 远程接入（WebUI/Telegram/飞书/钉钉）+ cron。是"元编排器 + 内置运行时"混合体。
-- **Proma**（Electron + Bun + Claude Agent SDK）：**Chat ↔ Agent 双模切换** + 工作区隔离的 Skills/MCP + local-first JSON/JSONL 存储（无 DB）+ 飞书/钉钉桥。agent-first 设计。
-- **lobehub**（Next.js）：**agent 编排平台** —— "agent 即工作单元"，Team Mode 多 agent 并行 + 异步信箱 + 共享任务板 + 调度 + 1w+ skill 市场。印证多 agent swarm 维度。
-- **cherry-studio**（Electron）：**50+ provider 聊天客户端** + 300+ 预置助手 + MCP client；**无本地代码执行/文件编辑**（纯 chat）。
-- **continue**（已归档只读，终版 v2.0.0）：曾是先驱级 IDE 编码 agent（VS Code/JetBrains + CLI），现停维护。
-- **geminisearch**（Bun CLI）：Gemini Search Grounding 窄工具（带引用），非 agent。
+- **A2A（跨 runtime agent-to-agent 协议）** —— 全部对比里**独有**。
+- **LSP 代码智能（6 操作,内建非外部服务）** —— 第一梯队;harness9/pi/codex/OpenHands 零 LSP。
+- **多 provider×model 显式配对（38 provider）** —— 广度 + `(provider,model)` 必须成对的显式性,独有。
+- **OTel 三驾马车 → slog（vendor-neutral semconv 去品牌）** —— 独有形态（codex 仅 OTLP / OpenHands 仅 trace / crush PostHog / pi 无）。
+- **fork + 影子 git 文件 checkpoint + inline export/import 三者同时** —— 组合罕见（cline 缺 fork/export 之一）。
+- **HITL R 模型可持久化跨重启** —— 比 cline 同步阻塞 gate 强（有审计、可恢复）。
+- **协议参数纪律**（32 typed 枚举 / 单 `type` 判别 / `Page[T]` / 开放 features map,对齐 Stripe/AIP）—— 见 `FRONTEND_API_REVIEW.md`。
 
 ---
 
-## 6. 结论与建议顺序
+## 6. 刻意不做 / 非 runtime 缺口
 
-跨家最一致、lyra 又缺的运行时能力：**多模态、hooks、todo 工具、MCP OAuth、语义检索（repo-map）**。
+- **apply_patch（V4A 多文件 patch）** —— 刻意不做;claude_code（最 Claude-优化的 agent）也避开,lyra 守"guarded 单编辑"被验证正确。可选未来:codex 4 级模糊匹配作 fallback。
+- **PTY 后台命令** —— 协议层刻意不做;trade-off:深层子进程孤儿不追踪。
+- **图片生成(output) / 语音输入(ASR) / 桌面 UX（全局热键、语音窗口）** —— **前端/产品层**,归 lyra 前端;runtime 最多提供数据通道,不背为 runtime 缺口。
+- **多租户 / 用户鉴权 / 订阅** —— 协议层零 user 概念,由更外层解决。
 
-按"平台无关 + 价值/成本最优"建议落地顺序：
+---
 
-1. **多模态图片输入**（唯一 5/5 全有而 lyra 没有；缺口最显眼）
-2. **todo 工具**（成本极低、顺手）
-3. **Hooks**（扩展性核心）
-4. **MCP OAuth**（seam 已备）
-5. **per-role 模型分配**（复用 per-run-model seam，maintenance 三服务现成 role 边界；plandex / amp 印证 —— 见 §2 plandex 复盘追加 A）
-6. **Goal + judge 停止闸**（落 lyra 现成 `GoalApprover` 扩展点，防自治长任务"乐观停止"；mimocode 印证 —— 见 §2 mimocode 复盘追加 A）
-7. **microcompaction（ObservationMasking 式）**（清旧 tool_result body、留 tool_use 帧；mimocode + OpenHands **两家独立印证**，便宜 —— 见 §2 桌面应用批次追加 A）
-8. **loop-detection（签名哈希防卡死）**（与 judge 停止闸互补，落地极便宜：ring buffer + 哈希；crush 印证 —— 见 §2 桌面应用批次追加 C）
-9. **多 agent swarm** / **repo-map 接 rag**（进阶；plandex 的 architect + tree-sitter map 是 repo-map 的可落地范式 —— 见 §2 plandex 复盘追加 B；lobehub/AionUi Team Mode 印证 swarm）
+## 7. 落地优先级（平台无关 + 价值/成本最优）
 
-> 待权衡（非即做，需先对齐 lyra 记忆极简哲学）：上下文「重建 vs 压缩」、记忆 FTS 检索、dream/distill 自我改进 —— 见 §2 mimocode 复盘追加 B/D + [`MIMOCODE_ARCHITECTURE_REVIEW.md`](MIMOCODE_ARCHITECTURE_REVIEW.md)。
-> 维护提示：本文是**时点快照**。竞品演进快，落地新能力后请回来勾掉对应缺口、更新矩阵。
+| 序 | 项 | 梯队 | 成本 | 为什么 |
+|---|---|---|---|---|
+| 1 | **调度/自动化运行时** | 1 | 中 | 同品类核心差距,把 agent 变"自主" |
+| 2 | **防失控补全**（stall/anti-cheat/denial-stops）+ **per-path 锁** | 2/3 | 低（~120+ 行） | 极便宜、即时稳健性 |
+| 3 | **`.git` 只读不变量** | 2 | 极低 | 零依赖、防提权,现在就能做 |
+| 4 | **window-相对 token 压缩触发** | 2 | trivial | CatalogPricing 已有,改触发即可 |
+| 5 | **多模态图片输入** | 1 | 低-中 | 接通 model adapter,补最显眼缺口 |
+| 6 | **Hooks（PreToolUse 三合一为核心）** | 1 | 中 | 扩展性地基 |
+| 7 | **远程 IM 桥接（先一个 webhook 入口）** | 1 | 中 | 触达;先飞书/钉钉其一 |
+| 8 | **microcompaction**（先评估 API-native `clear_tool_uses`） | 2 | 低-中 | 长会话质量 |
+| 9 | **per-role 模型分配** | 2 | 中 | 复用 per-run-model seam |
+| 10 | **语义检索 / repo-map** | 2 | 中 | 接 rag |
+| 11 | **多 agent 团队编排** | 2 | 高 | 进阶,需求驱动再做 |
+| 12 | **OS sandbox（macOS first）/ evals / MCP-as-server** | 3 | 中-高 | 防御性 / 触发条件驱动 |
+
+---
+
+> **维护**:本文是 2026-06-14 全量重写的现状快照。能力落地后回来勾掉对应 §4 项 + 更新 §2 基线;新对比对象出现时增列 §1。机制级实现细节（压缩 4 不变量、loop-detect 算法、sandbox 各平台成本）在落地该项时展开,不在本对比文档堆砌。

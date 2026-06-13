@@ -54,7 +54,7 @@ type Config struct {
 
 	// Microkernel ports — injected by the composition root (runtime). Each is
 	// optional; a nil port no-ops its capability (every use is nil-guarded), so
-	// a bare engine still drives the loop. See port.go / doc/MICROKERNEL.md.
+	// a bare engine still drives the loop. See port.go / doc/GREENFIELD_ARCHITECTURE.md §5.1.
 	Steering  SteeringSink // turn-end steering inject (next-turn message)
 	Compactor Compactor    // turn-boundary history compaction
 	Extractor Extractor    // turn-boundary fact extraction → LYRA.md

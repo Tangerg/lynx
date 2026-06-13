@@ -17,7 +17,7 @@ import (
 // module: source dependencies point INWARD, toward the domain. Outer rings
 // (delivery / infra adapters) may depend on inner rings; the reverse — or a
 // sibling adapter reaching across the core — is forbidden. See
-// doc/STRUCTURE_REVIEW.md §1.
+// doc/GREENFIELD_ARCHITECTURE.md.
 //
 // Rings (outer → inner):
 //
@@ -36,7 +36,7 @@ import (
 //	orchestration ↛ delivery
 //
 // Intentionally NOT forbidden (each is a correct inward / hexagonal edge —
-// documented in STRUCTURE_REVIEW.md §2):
+// documented in GREENFIELD_ARCHITECTURE.md §5):
 //
 //	kernel            → domain/*    orchestration depends inward on domain
 //	infra             → domain/*    adapter depends inward on domain entities + repo ports

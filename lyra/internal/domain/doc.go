@@ -26,5 +26,5 @@
 //     and lynx-core.
 //
 // The transport layer wraps these interfaces; the interfaces stay
-// transport-agnostic. See lyra/doc/ARCHITECTURE.md §2.1.
+// transport-agnostic. See lyra/doc/GREENFIELD_ARCHITECTURE.md
 package service

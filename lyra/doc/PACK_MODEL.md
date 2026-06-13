@@ -7,7 +7,7 @@
 >
 > 图例:**[现状]** 已落地 · **[提议]** 本文新增 · **[纪律]** 该遵守的规约 · **[不做]** 明确反向不变量。
 >
-> 关联:[`ARCHITECTURE.md`](ARCHITECTURE.md) · 协议契约在前端仓 `docs/API.md` / `docs/TRANSPORT.md` ·
+> 关联:[`GREENFIELD_ARCHITECTURE.md`](GREENFIELD_ARCHITECTURE.md) · 协议契约在前端仓 `docs/API.md` / `docs/TRANSPORT.md` ·
 > 项目哲学 [`../../DESIGN_PHILOSOPHY.md`](../../DESIGN_PHILOSOPHY.md)。
 
 ---

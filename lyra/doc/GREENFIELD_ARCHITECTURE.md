@@ -1,7 +1,7 @@
 # Greenfield 架构设计 —— 如果从零重写 Lyra
 
 > **日期**：2026-06-14。**视角**：架构师命题作文 —— "假设从零开始写 Lyra，目录结构与架构怎么设计？"
-> **状态**：**§6 的目录/命名重构已于 2026-06-14 执行落地**（见文末 §9 执行记录）—— 代码现已按本文的树形组织（kernel/domain/delivery/turn）。本文其余部分（架构本质、port 表、SPI/焊死判据、不做清单）是**现行结构基准**之一，与 [`../CLAUDE.md`](../CLAUDE.md) + [`MICROKERNEL.md`](MICROKERNEL.md) + [`EXTENSIBILITY.md`](EXTENSIBILITY.md) + [`STRUCTURE_REVIEW.md`](STRUCTURE_REVIEW.md) 一致；[`LAYERING.md`](LAYERING.md) 是演进考古层。
+> **状态**：**现行架构基准（canonical）**。§6 的目录/命名重构已于 2026-06-14 落地（见文末 §9）—— 代码按本文树形组织（kernel/domain/delivery/turn）。**同日清理**把多份演进切片（`LAYERING`/`MICROKERNEL`/`STRUCTURE_REVIEW`/`ARCHITECTURE`/`ROADMAP`）折叠进本文并删除,历史见 git。配套 [`EXTENSIBILITY.md`](EXTENSIBILITY.md)（SPI vs 焊死政策）+ [`../CLAUDE.md`](../CLAUDE.md)。
 > **方法**：第一手通读 lyra 现状结构（rings / ports / 组合根 / arch_test）+ 对照那几份演进文档，把"用 11 个重构批次、3 次文档互相 supersede 才逼出来的终态"重写成**第一天就刻意设计的起点**。
 >
 > **结论先行**：
@@ -63,7 +63,7 @@
                                                        └──────────┘
 ```
 
-要点：engine 既"在上"（被 delivery 驱动），又"定义 port 让 domain 实现"，所以它**不是一层**，是同心环的**核**（kernel）。这是 MICROKERNEL.md 的核心洞察 —— 从零应该让目录结构直接长成这个样子，而不是先摆成四层再纠结"chat 在 engine 之上还是之下"。
+要点：engine 既"在上"（被 delivery 驱动），又"定义 port 让 domain 实现"，所以它**不是一层**，是同心环的**核**（kernel）。这是微内核设计的核心洞察 —— 从零应该让目录结构直接长成这个样子，而不是先摆成四层再纠结"chat 在 engine 之上还是之下"。
 
 ---
 
@@ -110,7 +110,7 @@ lyra/
 │   ├── runtime/                    # 组合根：把各环拼起来，nil-default 注入 SPI
 │   └── config/                     # env / 配置解析（纯数据）
 │
-└── doc/                            # 一份 ARCHITECTURE.md 即可（见 §6③）
+└── doc/                            # GREENFIELD_ARCHITECTURE.md（本文 = 架构基准）+ EXTENSIBILITY.md（SPI 政策）
 ```
 
 > 跟现状的差异**只有三个名字**：`engine→kernel`、`service→domain`、`rpc→delivery`（§6 详述）。代码组织几乎一致。
@@ -207,9 +207,9 @@ cwd / session id 是"本次 turn 的环境"，不是稳定能力 —— 挂 proc
 
 现状 `Server` 80 方法 / 19 文件，大多 1:1 协议绑定（健康），但 F1 暴露过用例编排（rollback 时间线）漏进适配器。从零会把这条边界画得更早更硬：adapter 里**只准**有 wire↔domain 翻译 + 编排调用，任何"领域算法"（把 run 边界映射到消息 watermark 这种）一出现就立刻下沉 domain。**不是加层，是纪律。**
 
-### ③ 一份 `ARCHITECTURE.md`，不是多份演进切片
+### ③ 一份架构文档，不是多份演进切片（**2026-06-14 已落地**）
 
-现状 LAYERING / MICROKERNEL / EXTENSIBILITY / STRUCTURE_REVIEW 四份在描述同一架构的不同演进切片，互相"本文 §X 以那份为准"。那是**演进的考古记录**，有价值但不该是入口。从零只留一份当前态 ARCHITECTURE.md（依赖规则 + 微内核 + port 表 + SPI/焊死判据 + 不做清单），演进史进 git log。**本文的 §1–§5 即可充当这份单一入口的草稿。**
+原本 LAYERING / MICROKERNEL / STRUCTURE_REVIEW / ARCHITECTURE / ROADMAP 多份在描述同一架构的不同演进切片，互相"本文 §X 以那份为准"——演进考古记录,有价值但不该是入口。**已折叠**:本文（GREENFIELD_ARCHITECTURE.md）成为**唯一架构入口**（依赖规则 + 微内核 + port 表 + SPI/焊死判据 + 不做清单 + §9 执行记录）,那些演进切片已删、历史进 git log;`EXTENSIBILITY.md` 作 SPI 政策 companion 保留。
 
 ---
 

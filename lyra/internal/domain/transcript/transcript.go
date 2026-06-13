@@ -82,7 +82,7 @@ type Store interface {
 // boundary math is a domain invariant of the run log, so it lives here (wire-
 // free) rather than in the protocol adapter; the adapter only lifts the
 // structured fields out of the opaque Run.Blob and maps these sentinels to wire
-// errors. See doc/STRUCTURE_REVIEW.md §2 (F1).
+// errors. See doc/GREENFIELD_ARCHITECTURE.md (F1).
 
 // Boundary-resolution errors. The adapter maps them to protocol errors.
 var (
