@@ -215,7 +215,7 @@ function ProjectsSection() {
       <DataView
         items={groups}
         isLoading={projectsLoading || sessionsLoading}
-        isError={projectsError && sessionsError}
+        isError={projectsError || sessionsError}
         skeletonCount={3}
         empty={{
           icon: "folder",
