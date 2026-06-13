@@ -24,7 +24,6 @@ import type { ExtensionPoint } from "../types/extensions";
 import { useMemo } from "react";
 import { usePluginStore } from "../registry";
 import { ownedContributionsTo } from "../registryHelpers";
-import { createIndex } from "./_helpers";
 
 // The one structural invariant shared by the write path (host.contribute) and
 // every read: a contribution lives under `${point.id}#${dedupe}` in the flat
@@ -45,7 +44,33 @@ interface Resolved {
   item: unknown;
 }
 
-const byPoint = createIndex<ContributionEntry, Resolved>((o) => ({
+// One cached secondary-index engine shared by `byPoint` (bucket every
+// contribution by its point id) and `createPointSubIndex` (bucket one point's
+// contributions by a derived sub-key). Caches on the source Map reference — the
+// registry mints a fresh Map per contribute/remove, so the cache auto-
+// invalidates on mutation and steady-state reads (streaming, no registers) stay
+// O(1). `extract` returns null to drop an entry from the index.
+function cachedBucketIndex<V>(
+  extract: (owned: Owned<ContributionEntry>) => { key: string; value: V } | null,
+) {
+  const cache = new WeakMap<Map<string, Owned<ContributionEntry>>, Map<string, V[]>>();
+  return (source: Map<string, Owned<ContributionEntry>>): Map<string, V[]> => {
+    const cached = cache.get(source);
+    if (cached) return cached;
+    const idx = new Map<string, V[]>();
+    for (const o of source.values()) {
+      const entry = extract(o);
+      if (!entry) continue;
+      const list = idx.get(entry.key);
+      if (list) list.push(entry.value);
+      else idx.set(entry.key, [entry.value]);
+    }
+    cache.set(source, idx);
+    return idx;
+  };
+}
+
+const byPoint = cachedBucketIndex<Resolved>((o) => ({
   key: o.value.point,
   value: { key: o.value.key, order: o.value.order, item: o.value.item },
 }));
@@ -129,30 +154,17 @@ export function lookupExtensionOwner<T>(point: ExtensionPoint<T>, key: string): 
 
 /**
  * Cached secondary index over one point's contributions, bucketed by a sub-key
- * derived from each item (event type, slot name…). Caches on the `extensions`
- * Map reference — rebuilt once per registry mutation, O(1) per lookup in
- * between (the reducer hits this per StreamEvent). Insertion order within a
- * bucket is preserved.
+ * derived from each item (event type, slot name…). The reducer hits this per
+ * StreamEvent; insertion order within a bucket is preserved. Caching contract is
+ * `cachedBucketIndex`'s.
  */
 export function createPointSubIndex<I, V>(
   pointId: string,
   extract: (item: I, pluginName: string) => { key: string; value: V },
 ) {
-  const cache = new WeakMap<Map<string, Owned<ContributionEntry>>, Map<string, V[]>>();
-  return (extensions: Map<string, Owned<ContributionEntry>>): Map<string, V[]> => {
-    const cached = cache.get(extensions);
-    if (cached) return cached;
-    const idx = new Map<string, V[]>();
-    for (const o of extensions.values()) {
-      if (o.value.point !== pointId) continue;
-      const { key, value } = extract(o.value.item as I, o.pluginName);
-      const list = idx.get(key);
-      if (list) list.push(value);
-      else idx.set(key, [value]);
-    }
-    cache.set(extensions, idx);
-    return idx;
-  };
+  return cachedBucketIndex<V>((o) =>
+    o.value.point === pointId ? extract(o.value.item as I, o.pluginName) : null,
+  );
 }
 
 /** Item paired with its owner plugin. */

@@ -2,11 +2,7 @@
 // in this directory. Not exported from the SDK barrel.
 
 import { useMemo } from "react";
-
-export interface Owned<T> {
-  value: T;
-  pluginName: string;
-}
+import type { Owned } from "../registryState";
 
 export interface Ordered {
   order?: number;
@@ -29,33 +25,6 @@ export function useDeclaredMerged<D extends { id: string }, R extends { id: stri
     for (const r of registered) byId.set(r.id, r);
     return Array.from(byId.values()).sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
   }, [registered, declared, declaredToReal]);
-}
-
-/**
- * Lazily-built secondary index over an Owned<T> source map. The
- * registry produces a fresh Map on every add/remove, so caching on
- * the source Map reference auto-invalidates on mutation. Subsequent
- * lookups against the same epoch are O(1).
- *
- * Used to flip three hot-path scans (lookupStreamHandlers,
- * lookupCustomHandlers, useLayoutSlot) from O(n) per StreamEvent
- * / Slot render into O(n) once per registry mutation.
- */
-export function createIndex<S, V>(extract: (owned: Owned<S>) => { key: string; value: V }) {
-  const cache = new WeakMap<Map<string, Owned<S>>, Map<string, V[]>>();
-  return (source: Map<string, Owned<S>>): Map<string, V[]> => {
-    let idx = cache.get(source);
-    if (idx) return idx;
-    idx = new Map();
-    for (const o of source.values()) {
-      const { key, value } = extract(o);
-      const list = idx.get(key);
-      if (list) list.push(value);
-      else idx.set(key, [value]);
-    }
-    cache.set(source, idx);
-    return idx;
-  };
 }
 
 // The real activate-the-plugin impl lives in `definePlugin.ts` (it needs to

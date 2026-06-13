@@ -1,6 +1,6 @@
 // StreamEvent handler lookups — used imperatively by the reducer at
 // dispatch time. Both surfaces are O(1) per lookup thanks to the cached
-// secondary index in _helpers (invalidates on registry mutation).
+// per-point index (createPointSubIndex, invalidates on registry mutation).
 
 import type { StreamEventHandler, CustomEventHandler } from "../types";
 import { STREAM_EVENT_HANDLER, CUSTOM_EVENT_HANDLER } from "../kernelPoints";
