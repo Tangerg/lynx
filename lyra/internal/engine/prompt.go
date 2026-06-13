@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Tangerg/lynx/lyra/internal/engine/toolset"
+	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/turnctx"
 	"github.com/Tangerg/lynx/lyra/internal/service/agentdoc"
 	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
 )
@@ -47,7 +47,7 @@ task is ambiguous, ask one focused question rather than guess.`
 // built without a memory service simply yield the base prompt +
 // discovered files.
 func (e *Engine) SystemPrompt(ctx context.Context) string {
-	return composePrompt(ctx, e.knowledge, toolset.TurnCwd(ctx, e.workdir))
+	return composePrompt(ctx, e.knowledge, turnctx.TurnCwd(ctx, e.workdir))
 }
 
 // composePrompt is the pure form behind [Engine.SystemPrompt],

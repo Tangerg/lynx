@@ -9,6 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
+	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/turnctx"
 	"github.com/Tangerg/lynx/lyra/internal/infra/exec"
 )
 
@@ -21,7 +22,7 @@ import (
 // job is removed; outliving the window leaves it running, addressable by the
 // same shell id, so bash_output / kill_shell work on it unchanged. This is the
 // crush auto-background design — lyra selects on the per-shell done channel
-// instead of polling. cwd is read per call (TurnCwd) so a command runs in the
+// instead of polling. cwd is read per call (turnctx.TurnCwd) so a command runs in the
 // session's working directory.
 
 // defaultAutoBackgroundSeconds is how long a foreground bash command may run
@@ -65,7 +66,7 @@ func BuildShellTools(mgr *exec.Manager, defaultWorkdir string) []chat.Tool {
 				return "", errors.New("bash: command is required")
 			}
 
-			id := mgr.Launch(TurnCwd(ctx, defaultWorkdir), a.Command, time.Duration(a.Timeout)*time.Millisecond)
+			id := mgr.Launch(turnctx.TurnCwd(ctx, defaultWorkdir), a.Command, time.Duration(a.Timeout)*time.Millisecond)
 			if a.RunInBackground {
 				return backgroundedJSON(id), nil
 			}
