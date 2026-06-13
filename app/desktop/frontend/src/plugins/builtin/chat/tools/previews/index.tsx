@@ -84,6 +84,7 @@ function DiffPreview({ onOpenView }: ToolPreviewProps) {
     { type: "hunk" as const, text: f.path },
     ...f.rows,
   ]);
+  const hiddenRows = rows.length - MAX_DIFF_ROWS;
   return (
     <div className={PREVIEW_WRAP}>
       <div className="font-mono text-[11.5px] leading-[1.55]">
@@ -105,6 +106,12 @@ function DiffPreview({ onOpenView }: ToolPreviewProps) {
             </div>
           );
         })}
+        {(hiddenRows > 0 || data?.truncated) && (
+          <div className="text-fg-faint">
+            {hiddenRows > 0 && `… ${hiddenRows} more rows`}
+            {data?.truncated && " · truncated by runtime"}
+          </div>
+        )}
       </div>
       <PreviewFoot label="Open full diff" onClick={onOpenView} />
     </div>
