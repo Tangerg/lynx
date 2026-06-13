@@ -1,4 +1,4 @@
-package toolset
+package skill
 
 import (
 	"context"
@@ -22,10 +22,10 @@ func writeSkill(t *testing.T, root, name, desc string) {
 	}
 }
 
-// TestBuildSkillTool_MergesProjectOverGlobal proves the engine's skill tool
+// TestBuild_MergesProjectOverGlobal proves the engine's skill tool
 // layers <workdir>/.lyra/skills over the global dir, with the project copy
 // winning on a name collision.
-func TestBuildSkillTool_MergesProjectOverGlobal(t *testing.T) {
+func TestBuild_MergesProjectOverGlobal(t *testing.T) {
 	workdir := t.TempDir()
 	global := t.TempDir()
 
@@ -34,9 +34,9 @@ func TestBuildSkillTool_MergesProjectOverGlobal(t *testing.T) {
 	writeSkill(t, global, "shared", "GLOBAL copy")
 	writeSkill(t, global, "glob-only", "global only")
 
-	tool := BuildSkillTool(workdir, global)
+	tool := Build(workdir, global)
 	if tool == nil {
-		t.Fatal("BuildSkillTool returned nil despite existing skills dirs")
+		t.Fatal("Build returned nil despite existing skills dirs")
 	}
 
 	list, err := tool.Call(context.Background(), `{"op":"list"}`)
@@ -58,11 +58,11 @@ func TestBuildSkillTool_MergesProjectOverGlobal(t *testing.T) {
 	}
 }
 
-// TestBuildSkillTool_AbsentWhenNoDirs proves the tool is omitted entirely when
+// TestBuild_AbsentWhenNoDirs proves the tool is omitted entirely when
 // neither the project nor the global skills directory exists — no empty skill
 // tool cluttering the model's tool list.
-func TestBuildSkillTool_AbsentWhenNoDirs(t *testing.T) {
-	if tool := BuildSkillTool(t.TempDir(), filepath.Join(t.TempDir(), "missing")); tool != nil {
-		t.Error("BuildSkillTool should return nil when no skills directory exists")
+func TestBuild_AbsentWhenNoDirs(t *testing.T) {
+	if tool := Build(t.TempDir(), filepath.Join(t.TempDir(), "missing")); tool != nil {
+		t.Error("Build should return nil when no skills directory exists")
 	}
 }
