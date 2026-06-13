@@ -126,6 +126,11 @@ func migrate(db *sql.DB) error {
 			done            TEXT,
 			created_at      INTEGER NOT NULL
 		)`,
+		`CREATE TABLE IF NOT EXISTS todos (
+			session_id TEXT    PRIMARY KEY,
+			items      TEXT    NOT NULL,
+			updated_at INTEGER NOT NULL
+		)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {

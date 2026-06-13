@@ -44,6 +44,7 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/service/maintenance"
 	"github.com/Tangerg/lynx/lyra/internal/service/provider"
 	sessionsvc "github.com/Tangerg/lynx/lyra/internal/service/session"
+	"github.com/Tangerg/lynx/lyra/internal/service/todo"
 	toolsvc "github.com/Tangerg/lynx/lyra/internal/service/tool"
 	"github.com/Tangerg/lynx/lyra/internal/service/transcript"
 )
@@ -85,6 +86,11 @@ type Config struct {
 	// credentials, persisted). Required — the composition root injects the
 	// sqlite-backed registry and seeds the configured provider into it.
 	ProviderService provider.Service
+
+	// TodoService persists per-session todo lists for the todo_write tool.
+	// Optional — nil disables the feature (no tool, no prompt injection). The
+	// composition root injects the sqlite-backed service.
+	TodoService todo.Service
 
 	// ApprovalMode sets the initial runtime approval stance. The
 	// service is always constructed; mode defaults to [approval.ModeYolo]
@@ -175,6 +181,11 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	if ecfg.Extractor == nil && cfg.Engine.Knowledge != nil {
 		ecfg.Extractor = maintenance.NewExtractor(memStore, cfg.Engine.Knowledge, cfg.Engine.ChatClient)
 	}
+	// Todo list: same nil-default contract — honor a pre-injected engine
+	// Todos (an external task store), else use the runtime-supplied one.
+	if ecfg.Todos == nil {
+		ecfg.Todos = cfg.TodoService
+	}
 
 	// Tool environment: assembled outside the core (constructs the code-intel /
 	// exec / MCP / A2A capabilities + the resolver) and injected, so the engine
@@ -187,6 +198,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		LSPServers:      cfg.LSPServers,
 		MCPServers:      cfg.MCPServers,
 		A2AAgents:       cfg.A2AAgents,
+		Todos:           ecfg.Todos,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("runtime: build tools: %w", err)

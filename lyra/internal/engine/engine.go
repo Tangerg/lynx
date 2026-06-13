@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	"github.com/Tangerg/lynx/lyra/internal/engine/toolset"
 	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
+	"github.com/Tangerg/lynx/lyra/internal/service/todo"
 )
 
 // Engine is the microkernel core: it drives the agent loop and depends on
@@ -41,6 +42,7 @@ type Engine struct {
 	tools           []chat.Tool
 	steering        SteeringSink // turn-end steering inject; nil → steering drops
 	knowledge       knowledge.Service
+	todos           todo.Service // per-session task list; nil → todo_write absent + no prompt injection
 	workdir         string  // captured from Config.Workdir for the AGENTS.md cascade
 	skillsGlobalDir string  // captured from Config.SkillsGlobalDir for workspace.listSkills
 	pricing         Pricing // optional per-round cost hook; nil → cost stays zero
@@ -129,6 +131,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		extractor:       cfg.Extractor,
 		planner:         cfg.Planner,
 		knowledge:       cfg.Knowledge,
+		todos:           cfg.Todos,
 		workdir:         cfg.Workdir,
 		skillsGlobalDir: cfg.SkillsGlobalDir,
 		pricing:         cfg.Pricing,

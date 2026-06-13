@@ -7,6 +7,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	"github.com/Tangerg/lynx/lyra/internal/engine/toolset"
 	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
+	"github.com/Tangerg/lynx/lyra/internal/service/todo"
 )
 
 // Config is the engine construction-time bundle. ChatClient is the
@@ -44,6 +45,12 @@ type Config struct {
 	// injects into every system prompt. nil disables the injection — the
 	// base prompt is used verbatim. (Wire/API calls this "memory".)
 	Knowledge knowledge.Service
+
+	// Todos optionally supplies the per-session task list backing the
+	// todo_write tool: when set, the tool is registered and the session's
+	// current list is injected into every system prompt. nil disables the
+	// feature (no tool, no injection).
+	Todos todo.Service
 
 	// Microkernel ports — injected by the composition root (runtime). Each is
 	// optional; a nil port no-ops its capability (every use is nil-guarded), so
