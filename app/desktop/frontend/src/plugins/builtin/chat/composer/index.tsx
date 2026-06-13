@@ -22,8 +22,9 @@ import {
   COMPOSER_PLACEHOLDER,
   COMPOSER_STATUS,
 } from "@/plugins/sdk/kernelPoints";
-import { useAgentAction, useAgentSlice } from "@/state/agentStore";
+import { useAgentAction, useAgentSlice, useAgentStore } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
+import { useSessionStore } from "@/state/sessionStore";
 
 export const composerModes = definePlugin({
   name: "lyra.builtin.composer-modes",
@@ -97,6 +98,23 @@ export const composerKeymap = definePlugin({
       description: "Send message (override)",
       handler: ({ submit }) => {
         submit();
+        return true;
+      },
+    });
+    // Esc stops the active run while the composer is focused — the Stop button's
+    // "(Esc)" hint. Composer-scoped on purpose: a GLOBAL Escape would fight the
+    // overlays (command palette / dropdowns) that own Esc. Returns false (lets
+    // Esc fall through) when nothing is running. Reads the store imperatively —
+    // keybinding handlers run outside React. Composer.tsx guards isComposing
+    // before this lookup, so Esc-to-cancel an IME candidate never reaches here.
+    host.extensions.contribute(COMPOSER_KEY_BINDING, {
+      key: "Escape",
+      description: "Stop the running response",
+      handler: () => {
+        const sid = useSessionStore.getState().activeSessionId;
+        const entry = useAgentStore.getState().sessions[sid];
+        if (!entry?.view.run.running) return false;
+        entry.stop?.();
         return true;
       },
     });
@@ -277,7 +295,7 @@ function SendButton() {
 
   if (running) {
     return (
-      <Tooltip label="Stop">
+      <Tooltip label="Stop (Esc)">
         <button
           type="button"
           disabled={!stop}
