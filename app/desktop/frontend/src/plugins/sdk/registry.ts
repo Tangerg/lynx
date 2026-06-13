@@ -96,7 +96,6 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
     },
 
     addDeclaredCommand: declaredCommands.add,
-    removeDeclaredCommand: declaredCommands.remove,
     removeDeclaredCommandsBy(pluginName) {
       set({ declaredCommands: clearByPlugin(get().declaredCommands, pluginName) });
     },

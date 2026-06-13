@@ -1,5 +1,4 @@
-import type { SidebarProject, SidebarSession } from "@/lib/data/queries";
-import type { Theme } from "@/state/uiStore";
+import type { SidebarSession } from "@/lib/data/queries";
 import { SidebarExpanded } from "./SidebarExpanded";
 import { SidebarRail } from "./SidebarRail";
 
@@ -29,5 +28,3 @@ export function SidebarPanel({ rail, sessions, activeSessionId, onSelect, onTogg
   }
   return <SidebarExpanded onToggleRail={onToggleRail} />;
 }
-
-export type { SidebarProject, SidebarSession, Theme };
