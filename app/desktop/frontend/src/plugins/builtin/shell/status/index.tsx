@@ -1,7 +1,6 @@
 // Built-in plugins: status contributors.
 //
-// `statusPill` is the run-telemetry cluster for the composer footer (its
-// own file — a couple of components plus shorthand parsing).
+// `statusBar` is the persistent app-bottom runtime data row (its own file).
 // `statusNotifications` is the unread-count badge that lives in the
 // sidebar footer (avatar row) and opens the Notifications view on click.
 
@@ -9,7 +8,7 @@ import { Icon, Tooltip } from "@/components/common";
 import { definePlugin, useNotificationStore } from "@/plugins/sdk";
 import { useSessionStore } from "@/state/sessionStore";
 
-export { statusPill } from "./pill";
+export { statusBar } from "./statusbar";
 
 function NotificationsBadge() {
   const unread = useNotificationStore((s) => s.log.reduce((n, e) => (e.dismissed ? n : n + 1), 0));

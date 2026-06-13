@@ -64,7 +64,7 @@ import {
   sidebarSearch,
 } from "./sidebar";
 import slashHints from "./chat/slash-hints";
-import { statusNotifications, statusPill } from "./shell/status";
+import { statusBar, statusNotifications } from "./shell/status";
 import { tasksPill } from "./workspace/tasks";
 import { themesPack } from "./theme";
 import toaster from "./shell/toaster";
@@ -203,14 +203,14 @@ const sidebar: PluginSpec[] = [
   sidebarRailBottom,
 ];
 
-// Overlays — toasts, command palette, status pill, welcome screen, …
+// Overlays + chrome — toasts, command palette, status bar, welcome screen, …
 
 const overlays: PluginSpec[] = [
   toaster,
   commandPalette,
   chatSearch,
   defaultCommands,
-  statusPill,
+  statusBar,
   tasksPill,
   statusNotifications,
   welcomeScreen,

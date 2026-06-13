@@ -50,7 +50,9 @@ html.theme-light {
    pads it so panels read as lifted cards. */
 .app {
   display: grid;
-  grid-template-rows: 1fr;
+  /* Row 1: the cards-on-canvas main area. Row 2: the full-width status bar.
+     The overlay Slot's children are position:fixed, so they claim no track. */
+  grid-template-rows: 1fr auto;
   height: 100vh;
   min-width: var(--app-min-width);
   min-height: var(--app-min-height);
@@ -70,6 +72,36 @@ html.theme-light {
 
 .app.rail .app-main {
   grid-template-columns: 56px minmax(0, 1fr);
+}
+
+/* Status bar — persistent runtime data row (DESIGN.md §8). Full-bleed chrome
+   on the canvas (no card lift), so it reads as app furniture distinct from the
+   lifted content cards above. Mono + tnum so digits don't shimmy as telemetry
+   ticks. Items self-omit; the pipe separator is drawn only between rendered
+   `.sb-item`s, so an idle bar has no dangling pipes. */
+.statusbar {
+  display: flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 12px;
+  background: var(--color-bg);
+  color: var(--color-fg-muted);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  user-select: none;
+}
+.statusbar .sb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.statusbar .sb-item:not(:first-child)::before {
+  content: "│";
+  margin: 0 10px;
+  color: var(--color-border-soft);
 }
 
 /* Running tool card border — full accent gradient is too loud on white;
