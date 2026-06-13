@@ -151,6 +151,13 @@ export function useStreamReveal(rawText: string, enabled: boolean, typewriter = 
       st.charDebt = Math.max(0, Math.min(st.charDebt, MAX_DEBT));
 
       newLen = Math.min(newLen, st.rawText.length);
+      // Don't stop between a surrogate pair — typewriter mode spends raw UTF-16
+      // units, so a mid-emoji boundary would slice a lone high surrogate (renders
+      // "�" for a frame). Pull in the low half.
+      if (newLen > st.displayLen && newLen < st.rawText.length) {
+        const code = st.rawText.charCodeAt(newLen - 1);
+        if (code >= 0xd800 && code <= 0xdbff) newLen += 1;
+      }
       if (newLen !== st.displayLen) {
         st.displayLen = newLen;
         setDisplayLen(newLen);
