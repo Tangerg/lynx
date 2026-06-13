@@ -87,8 +87,7 @@ export {
 export { getOrCreateSlice } from "./stateSlice";
 export type { StateSlice } from "./stateSlice";
 
-// Storage migrations (live in storage.ts since they're per-plugin).
-export type { KeyValueStore, StorageMigration } from "./storage";
+export type { KeyValueStore } from "./storage";
 
 export type {
   AgentDriver,

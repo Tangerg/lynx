@@ -9,21 +9,6 @@
 // trivially purgeable.
 
 const ROOT = "lyra.plugin";
-/** Reserved key that records the highest-applied migration version. */
-const SCHEMA_VERSION_KEY = "__schema_version";
-
-/**
- * One step in a plugin's storage upgrade path. `version` is the new schema
- * version after the migration runs. The host applies migrations in
- * ascending order; each step is idempotent because it's only ever run
- * once per version bump (the current version is tracked in
- * `__schema_version`).
- */
-export interface StorageMigration {
-  version: number;
-  /** Synchronous mutation against the plugin's namespace. */
-  migrate: (store: KeyValueStore) => void;
-}
 
 export interface KeyValueStore {
   get: <T = unknown>(key: string) => T | undefined;
@@ -33,12 +18,6 @@ export interface KeyValueStore {
   clear: () => void;
   /** List the plugin's keys (without the prefix). */
   keys: () => string[];
-  /**
-   * Run an ordered set of migrations once each. Idempotent — pass the full
-   * list every boot; only the unapplied ones execute. Migration errors
-   * abort the chain and surface to the console (no partial bumps).
-   */
-  migrate: (migrations: StorageMigration[]) => void;
 }
 
 export function createStorage(pluginName: string): KeyValueStore {
@@ -107,25 +86,6 @@ export function createStorage(pluginName: string): KeyValueStore {
         if (k && k.startsWith(prefix)) out.push(k.slice(prefix.length));
       }
       return out;
-    },
-
-    migrate(migrations: StorageMigration[]): void {
-      const self = this;
-      const current = self.get<number>(SCHEMA_VERSION_KEY) ?? 0;
-      // Stable sort so a migration list authored in arbitrary order still
-      // applies low-to-high. Filter out steps we've already executed.
-      const pending = [...migrations]
-        .sort((a, b) => a.version - b.version)
-        .filter((m) => m.version > current);
-      for (const step of pending) {
-        try {
-          step.migrate(self);
-          self.set(SCHEMA_VERSION_KEY, step.version);
-        } catch (err) {
-          console.error(`[plugin] ${pluginName} migration to v${step.version} failed:`, err);
-          return;
-        }
-      }
     },
   };
 }
