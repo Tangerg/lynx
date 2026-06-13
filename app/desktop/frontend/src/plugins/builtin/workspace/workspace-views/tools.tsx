@@ -21,11 +21,7 @@ const SAFETY_PILL: Record<string, string> = {
 };
 
 function SectionHead({ children }: { children: string }) {
-  return (
-    <div className="px-4 pt-2 pb-1 text-[10px] font-semibold tracking-wider text-fg-faint uppercase">
-      {children}
-    </div>
-  );
+  return <div className="px-4 pt-2 pb-1 text-[10px] font-semibold text-fg-faint">{children}</div>;
 }
 
 function BuiltinToolsSection() {

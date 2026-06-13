@@ -55,9 +55,7 @@ function InspectorSection({ title, body }: { title: string; body: FormattedBody 
   return (
     <div className="mb-2 last:mb-0">
       <div className="mb-1 flex items-baseline gap-2">
-        <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-fg-faint">
-          {title}
-        </span>
+        <span className="font-mono text-[10px] font-semibold text-fg-faint">{title}</span>
         {body.isJson && <span className="font-mono text-[10px] text-fg-faint">json</span>}
       </div>
       <pre

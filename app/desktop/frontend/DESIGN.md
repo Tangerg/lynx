@@ -632,7 +632,7 @@ When in doubt: **does this surface convey "the agent is alive and live"?** If ye
 
 ### Don't
 
-- **Don't use ALL-CAPS labels with letter-spacing.** Replace with `caption-mono` lowercase.
+- **Don't use ALL-CAPS labels with letter-spacing.** Section labels / eyebrows / table heads are **sentence-case** (mono for dense technical labels like `args` / `attrs`); the ALL-CAPS + wide-tracking eyebrow is the rejected Sonance vocabulary.
 - **Don't use pill-radius CTAs** (`9999px`, `500px`, `100px` on a button). Buttons are `md` 8px.
 - **Don't use weight 700+ for display.** 600 is the ceiling, Linear and Vercel both forbid this.
 - **Don't drop a single heavy `box-shadow` on dark surfaces.** Depth _inside_ a panel is surface ladder + hairlines. Stacked-subtle shadow is for the cards-on-canvas panel frame and floating overlays (Level 4) only — never a single 24px-blur drop.

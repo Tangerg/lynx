@@ -100,9 +100,7 @@ function TasksPill() {
           sideOffset={6}
           className="z-50 w-[320px] overflow-hidden rounded-lg border border-line bg-surface shadow-lg"
         >
-          <div className="px-3 pt-2 pb-1 text-[10px] font-semibold tracking-wider text-fg-faint uppercase">
-            Tasks
-          </div>
+          <div className="px-3 pt-2 pb-1 text-[10px] font-semibold text-fg-faint">Tasks</div>
           <div className="max-h-[280px] overflow-y-auto">
             {list.map((task) => (
               <TaskRow key={task.id} task={task} />
