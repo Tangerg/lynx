@@ -18,8 +18,8 @@ import { useWorkspaceViews } from "@/plugins/sdk";
 import { useSessionStore } from "@/state/sessionStore";
 import { useUiStore } from "@/state/uiStore";
 import { ChatStream } from "./ChatStream";
+import { MainSplit } from "./MainSplit";
 import { PanelHeader } from "./PanelHeader";
-import { SplitResizer } from "./SplitResizer";
 import { ViewPlacementProvider } from "./ViewPlacement";
 import { WorkspaceViewBody } from "./WorkspaceViewBody";
 
@@ -73,23 +73,13 @@ export function ChatPanel({ onSend }: Props) {
           <WorkspaceViewBody viewId={activeMainView} />
         </ViewPlacementProvider>
       ) : splitViewId ? (
-        // Chat | resizer | view. Each pane is its own `relative flex-col` so
-        // ChatStream's absolute-positioned composer scopes to the chat half
-        // (not the whole Panel) and both halves scroll independently.
-        <div className="flex min-h-0 flex-1">
-          <div
-            className="relative flex min-h-0 min-w-0 flex-col"
-            style={{ flexBasis: `${splitRatio * 100}%` }}
-          >
-            <ChatStream onSend={onSend} resetKey={activeSessionId} />
-          </div>
-          <SplitResizer />
-          <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-            <ViewPlacementProvider value={placementFor(splitViewId, "split")}>
-              <WorkspaceViewBody viewId={splitViewId} />
-            </ViewPlacementProvider>
-          </div>
-        </div>
+        <MainSplit
+          onSend={onSend}
+          sessionId={activeSessionId}
+          viewId={splitViewId}
+          placement={placementFor(splitViewId, "split")}
+          ratio={splitRatio}
+        />
       ) : (
         <ChatStream onSend={onSend} resetKey={activeSessionId} />
       )}
