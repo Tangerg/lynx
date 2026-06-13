@@ -2,6 +2,17 @@ package protocol
 
 import "errors"
 
+// ErrorChannel self-describes which delivery channel an error arrived on
+// (API.md §8.1): a sync JSON-RPC error, a run's error outcome, or a tool
+// failure. Empty = unclassified.
+type ErrorChannel string
+
+const (
+	ErrorChannelRPC  ErrorChannel = "rpc"
+	ErrorChannelRun  ErrorChannel = "run"
+	ErrorChannelTool ErrorChannel = "tool"
+)
+
 // ProblemData is the structured error payload (API.md §4.6 / §8) — a
 // transport-agnostic trim of RFC 9457 Problem Details. It rides
 // RPCError.data, RunResult.error, and toolCall.error. Type is the stable
@@ -15,8 +26,8 @@ type ProblemData struct {
 	// "rpc" (sync JSON-RPC error), "run" (run.finished outcome:error), or
 	// "tool" (toolCall.error) — so the client reads it instead of inferring
 	// from where the error arrived (API.md §8.1). Empty = unclassified.
-	Channel string `json:"channel,omitempty"`
-	Detail  string `json:"detail,omitempty"` // per-occurrence human-readable note
+	Channel ErrorChannel `json:"channel,omitempty"`
+	Detail  string       `json:"detail,omitempty"` // per-occurrence human-readable note
 	// DocURL optionally points at this type's docs (Stripe doc_url), lowering
 	// integration cost (API.md §8.3); absent → look the symbolic type up in §8.2.
 	DocURL string `json:"docUrl,omitempty"`
@@ -71,7 +82,7 @@ const (
 func InternalErrorProblem() *ProblemData {
 	return &ProblemData{
 		Type:    "internal_error",
-		Channel: "run",
+		Channel: ErrorChannelRun,
 		Detail:  "the run failed due to an internal error",
 	}
 }

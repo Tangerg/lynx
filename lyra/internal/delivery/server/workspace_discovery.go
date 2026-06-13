@@ -73,7 +73,7 @@ func (s *Server) WorkspaceListSkills(ctx context.Context, in protocol.WorkspaceL
 	}
 	out := make([]protocol.Skill, 0, len(found))
 	for _, sk := range found {
-		out = append(out, protocol.Skill{Name: sk.Name, Description: sk.Description, Source: sk.Scope})
+		out = append(out, protocol.Skill{Name: sk.Name, Description: sk.Description, Source: protocol.SkillSource(sk.Scope)})
 	}
 	return protocol.NewPage(out), nil
 }
@@ -93,7 +93,7 @@ func (s *Server) WorkspaceListAgentDocs(ctx context.Context, q protocol.Workspac
 	}
 	out := make([]protocol.AgentDoc, 0, len(files))
 	for _, f := range files {
-		out = append(out, protocol.AgentDoc{Path: f.Path, Scope: agentDocScope(f.Path, cwd, home)})
+		out = append(out, protocol.AgentDoc{Path: f.Path, Scope: protocol.AgentDocScope(agentDocScope(f.Path, cwd, home))})
 	}
 	return protocol.NewPage(out), nil
 }

@@ -120,10 +120,22 @@ type ItemDelta struct {
 // JsonPatch is an RFC 6902 patch (API.md §5).
 type JsonPatch []JsonPatchOp
 
+// PatchOp is one RFC 6902 operation verb (API.md §5).
+type PatchOp string
+
+const (
+	PatchOpAdd     PatchOp = "add"
+	PatchOpRemove  PatchOp = "remove"
+	PatchOpReplace PatchOp = "replace"
+	PatchOpMove    PatchOp = "move"
+	PatchOpCopy    PatchOp = "copy"
+	PatchOpTest    PatchOp = "test"
+)
+
 // JsonPatchOp is one RFC 6902 operation.
 type JsonPatchOp struct {
-	Op    string `json:"op"` // "add"|"remove"|"replace"|"move"|"copy"|"test"
-	Path  string `json:"path"`
-	Value any    `json:"value,omitempty"`
-	From  string `json:"from,omitempty"`
+	Op    PatchOp `json:"op"` // see PatchOp
+	Path  string  `json:"path"`
+	Value any     `json:"value,omitempty"`
+	From  string  `json:"from,omitempty"`
 }

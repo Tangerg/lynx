@@ -39,7 +39,7 @@ func (t *translator) classifyRunError(msg string) *protocol.ProblemData {
 		return false
 	}
 	provider := func(detail string) *protocol.ProblemData {
-		return &protocol.ProblemData{Type: "provider_error", Channel: "run", Detail: detail}
+		return &protocol.ProblemData{Type: "provider_error", Channel: protocol.ErrorChannelRun, Detail: detail}
 	}
 	switch {
 	case contains("429", "too many requests", "rate limit", "overloaded", "quota"):
