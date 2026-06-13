@@ -5,7 +5,7 @@ import (
 
 	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
-	"github.com/Tangerg/lynx/lyra/internal/kernel/chat"
+	"github.com/Tangerg/lynx/lyra/internal/kernel/turn"
 )
 
 // interrupt maps a parked turn (HITL) onto its Item(s) + a terminal
@@ -18,7 +18,7 @@ import (
 //
 // (The contract has no "plan" interrupt kind — plan-review rides the
 // generic question mechanism; see questionInterrupt.)
-func (t *translator) interrupt(e chat.TurnInterrupted) []protocol.StreamEvent {
+func (t *translator) interrupt(e turn.TurnInterrupted) []protocol.StreamEvent {
 	out := t.closeReasoning()
 	out = append(out, t.closeText()...)
 
@@ -70,8 +70,8 @@ func (t *translator) interrupt(e chat.TurnInterrupted) []protocol.StreamEvent {
 
 // approvalInterrupt renders a gated tool call awaiting approval as an
 // inProgress toolCall Item plus the protocol.Interrupt keyed to it.
-func (t *translator) approvalInterrupt(in chat.Interrupt) (protocol.StreamEvent, protocol.Interrupt) {
-	p, _ := in.Payload.(chat.ApprovalPrompt)
+func (t *translator) approvalInterrupt(in turn.Interrupt) (protocol.StreamEvent, protocol.Interrupt) {
+	p, _ := in.Payload.(turn.ApprovalPrompt)
 	id := t.nextItemID()
 	// The gated tool as a full ToolInvocation (arguments parsed, no result
 	// yet). The approval Interrupt's payload reuses it (API.md §4.8:
@@ -118,7 +118,7 @@ const (
 // question Item (the plan markdown as the prompt, an Approve/Reject choice)
 // plus the protocol.Interrupt keyed to it. The client answers via
 // runs.resume with an "answer" response carrying the chosen label.
-func (t *translator) questionInterrupt(in chat.Interrupt) (protocol.StreamEvent, protocol.Interrupt) {
+func (t *translator) questionInterrupt(in turn.Interrupt) (protocol.StreamEvent, protocol.Interrupt) {
 	plan, _ := in.Payload.(string)
 	id := t.nextItemID()
 	question := &protocol.Question{
@@ -163,7 +163,7 @@ const askUserQuestionField = "text"
 // question Item carrying the actual question + a single free-text answer
 // field (vs. questionInterrupt's plan Approve/Reject choice). The client
 // answers via runs.resume with an "answer" response carrying the text.
-func (t *translator) askUserInterrupt(in chat.Interrupt) (protocol.StreamEvent, protocol.Interrupt) {
+func (t *translator) askUserInterrupt(in turn.Interrupt) (protocol.StreamEvent, protocol.Interrupt) {
 	q, _ := in.Payload.(interrupts.QuestionPrompt)
 	id := t.nextItemID()
 	question := &protocol.Question{

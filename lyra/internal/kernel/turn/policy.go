@@ -1,4 +1,4 @@
-package chat
+package turn
 
 import "github.com/Tangerg/lynx/lyra/internal/domain/approval"
 

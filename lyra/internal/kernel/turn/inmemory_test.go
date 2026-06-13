@@ -1,4 +1,4 @@
-package chat_test
+package turn_test
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/lyra/internal/domain/maintenance"
 	"github.com/Tangerg/lynx/lyra/internal/kernel"
-	"github.com/Tangerg/lynx/lyra/internal/kernel/chat"
+	"github.com/Tangerg/lynx/lyra/internal/kernel/turn"
 )
 
 // TestService_StartTurn_EmitsExpectedEvents drives a full turn
@@ -30,7 +30,7 @@ import (
 func TestService_StartTurn_EmitsExpectedEvents(t *testing.T) {
 	svc, _ := buildService(t)
 
-	handle, err := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-1",
 		Message:   "say lyra via bash",
 	})
@@ -53,33 +53,33 @@ func TestService_StartTurn_EmitsExpectedEvents(t *testing.T) {
 	// Spot-check each event's content.
 	for _, ev := range got {
 		switch e := ev.(type) {
-		case chat.TurnStart:
+		case turn.TurnStart:
 			if e.SessionID != "sess-1" {
 				t.Errorf("TurnStart.SessionID = %q, want sess-1", e.SessionID)
 			}
 			if e.TurnID == "" {
 				t.Error("TurnStart.TurnID is empty")
 			}
-		case chat.ToolCallStart:
+		case turn.ToolCallStart:
 			if e.ToolName != "bash" {
 				t.Errorf("ToolCallStart.ToolName = %q, want bash", e.ToolName)
 			}
 			if !strings.Contains(e.Arguments, "echo lyra") {
 				t.Errorf("ToolCallStart.Arguments missing command: %q", e.Arguments)
 			}
-		case chat.ToolCallEnd:
+		case turn.ToolCallEnd:
 			if e.Err != "" {
 				t.Errorf("ToolCallEnd.Err = %q, want empty", e.Err)
 			}
 			if !strings.Contains(e.Output, "lyra") {
 				t.Errorf("ToolCallEnd.Output missing 'lyra': %q", e.Output)
 			}
-		case chat.MessageDelta:
+		case turn.MessageDelta:
 			if !strings.Contains(e.Text, "lyra") {
 				t.Errorf("MessageDelta.Text missing 'lyra': %q", e.Text)
 			}
-		case chat.TurnEnd:
-			if e.Reason != chat.TurnEndCompleted {
+		case turn.TurnEnd:
+			if e.Reason != turn.TurnEndCompleted {
 				t.Errorf("TurnEnd.Reason = %s, want completed", e.Reason)
 			}
 		}
@@ -100,7 +100,7 @@ func TestService_StartTurn_EmitsExpectedEvents(t *testing.T) {
 // on monotonicity for resume-from-seq semantics.
 func TestService_SeqMonotone(t *testing.T) {
 	svc, _ := buildService(t)
-	handle, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "s", Message: "hi",
 	})
 	events, _ := svc.Events(context.Background(), handle)
@@ -121,7 +121,7 @@ func TestService_SeqMonotone(t *testing.T) {
 // calls Resume(true) → execution proceeds → TurnEnd(Completed).
 func TestService_PlanMode_ApprovePath(t *testing.T) {
 	svc, _ := buildPlanService(t, "1. read file\n2. edit it")
-	handle, err := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-plan",
 		Message:   "do the thing",
 		PlanMode:  true,
@@ -132,23 +132,23 @@ func TestService_PlanMode_ApprovePath(t *testing.T) {
 	events, _ := svc.Events(context.Background(), handle)
 
 	var (
-		gotPlan      *chat.PlanGenerated
-		gotTurnEnd   *chat.TurnEnd
+		gotPlan      *turn.PlanGenerated
+		gotTurnEnd   *turn.TurnEnd
 		messageDelta bool
 	)
 	for ev := range events {
 		switch e := ev.(type) {
-		case chat.PlanGenerated:
+		case turn.PlanGenerated:
 			gotPlan = &e
-		case chat.TurnInterrupted:
+		case turn.TurnInterrupted:
 			// The turn parked on plan approval (R model). Approve it —
 			// the continuation streams onto the same event channel.
 			if err := svc.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}); err != nil {
 				t.Errorf("Resume: %v", err)
 			}
-		case chat.MessageDelta:
+		case turn.MessageDelta:
 			messageDelta = true
-		case chat.TurnEnd:
+		case turn.TurnEnd:
 			tmp := e
 			gotTurnEnd = &tmp
 		}
@@ -163,7 +163,7 @@ func TestService_PlanMode_ApprovePath(t *testing.T) {
 	if !messageDelta {
 		t.Error("approve path should run the actual model afterwards (no MessageDelta seen)")
 	}
-	if gotTurnEnd == nil || gotTurnEnd.Reason != chat.TurnEndCompleted {
+	if gotTurnEnd == nil || gotTurnEnd.Reason != turn.TurnEndCompleted {
 		t.Errorf("turn end = %+v, want Completed", gotTurnEnd)
 	}
 }
@@ -172,7 +172,7 @@ func TestService_PlanMode_ApprovePath(t *testing.T) {
 // the turn without ever calling the model for the real reply.
 func TestService_PlanMode_RejectPath(t *testing.T) {
 	svc, stub := buildPlanService(t, "1. step")
-	handle, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-reject",
 		Message:   "do",
 		PlanMode:  true,
@@ -180,17 +180,17 @@ func TestService_PlanMode_RejectPath(t *testing.T) {
 	events, _ := svc.Events(context.Background(), handle)
 
 	priorCalls := stub.callCount()
-	var endReason chat.TurnEndReason
+	var endReason turn.TurnEndReason
 	for ev := range events {
 		switch e := ev.(type) {
-		case chat.TurnInterrupted:
+		case turn.TurnInterrupted:
 			_ = svc.Resume(context.Background(), handle, interrupts.Resolution{Approved: false})
-		case chat.TurnEnd:
+		case turn.TurnEnd:
 			endReason = e.Reason
 		}
 	}
 
-	if endReason != chat.TurnEndCanceled {
+	if endReason != turn.TurnEndCanceled {
 		t.Errorf("reject path: TurnEnd reason = %s, want canceled", endReason)
 	}
 	// One call total: the plan generation. The real Chat path must not run.
@@ -208,7 +208,7 @@ func TestService_PlanMode_GatedWhenClientCannotHandle(t *testing.T) {
 	svc, _ := buildPlanService(t, "1. step")
 	svc.SetInterruptKinds([]string{"approval"}) // no "plan"
 
-	handle, err := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-gated",
 		Message:   "do",
 		PlanMode:  true,
@@ -219,19 +219,19 @@ func TestService_PlanMode_GatedWhenClientCannotHandle(t *testing.T) {
 	events, _ := svc.Events(context.Background(), handle)
 
 	var sawInterrupt bool
-	var endReason chat.TurnEndReason
+	var endReason turn.TurnEndReason
 	for ev := range events {
 		switch e := ev.(type) {
-		case chat.TurnInterrupted:
+		case turn.TurnInterrupted:
 			sawInterrupt = true
-		case chat.TurnEnd:
+		case turn.TurnEnd:
 			endReason = e.Reason
 		}
 	}
 	if sawInterrupt {
 		t.Error("plan interrupt should have been gated (auto-denied), not surfaced")
 	}
-	if endReason != chat.TurnEndCanceled {
+	if endReason != turn.TurnEndCanceled {
 		t.Errorf("gated plan should end Canceled (rejected), got %s", endReason)
 	}
 }
@@ -242,7 +242,7 @@ func TestService_PlanMode_GatedWhenClientCannotHandle(t *testing.T) {
 // PlanGenerated event.
 func TestService_PlanMode_NoPlanFallthrough(t *testing.T) {
 	svc, _ := buildPlanService(t, "NO_PLAN")
-	handle, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-nop",
 		Message:   "two plus two?",
 		PlanMode:  true,
@@ -250,7 +250,7 @@ func TestService_PlanMode_NoPlanFallthrough(t *testing.T) {
 	events, _ := svc.Events(context.Background(), handle)
 
 	for ev := range events {
-		if _, ok := ev.(chat.PlanGenerated); ok {
+		if _, ok := ev.(turn.PlanGenerated); ok {
 			t.Error("NO_PLAN path should not emit PlanGenerated")
 		}
 	}
@@ -266,10 +266,10 @@ func TestService_InjectSteering_LandsInNextTurn(t *testing.T) {
 	stub := newHistoryAwareStub()
 	client, _ := chatmodel.NewClient(stub)
 	eng, _ := kernel.New(context.Background(), kernel.Config{ChatClient: client})
-	svc := mustChat(chat.New(eng, nil, nil))
+	svc := mustChat(turn.New(eng, nil, nil))
 
 	// Turn 1.
-	handle, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-steer",
 		Message:   "hi",
 	})
@@ -287,7 +287,7 @@ func TestService_InjectSteering_LandsInNextTurn(t *testing.T) {
 	turn1Msgs := stub.seenLengths[0]
 
 	// Turn 2 — should see (original user + assistant + steering + new user) = at least turn1Msgs+3.
-	handle2, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+	handle2, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-steer",
 		Message:   "go on",
 	})
@@ -311,7 +311,7 @@ func TestService_InjectSteering_LandsInNextTurn(t *testing.T) {
 // pruned from the in-memory map.
 func TestService_InjectSteering_UnknownTurn(t *testing.T) {
 	svc, _ := buildService(t)
-	err := svc.InjectSteering(context.Background(), chat.TurnHandle{TurnID: "no-such"}, "msg")
+	err := svc.InjectSteering(context.Background(), turn.TurnHandle{TurnID: "no-such"}, "msg")
 	if err == nil {
 		t.Error("steering on unknown handle should error")
 	}
@@ -325,9 +325,9 @@ func TestService_InjectSteering_UnknownTurn(t *testing.T) {
 func TestService_ApprovalGate_AllowOnce(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
 	eng, _ := kernel.New(context.Background(), kernel.Config{ChatClient: client})
-	svc := mustChat(chat.New(eng, approval.New(approval.ModeBalanced), nil)) // bash → gate
+	svc := mustChat(turn.New(eng, approval.New(approval.ModeBalanced), nil)) // bash → gate
 
-	handle, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-approve",
 		Message:   "echo lyra",
 	})
@@ -335,28 +335,28 @@ func TestService_ApprovalGate_AllowOnce(t *testing.T) {
 
 	var (
 		sawInterrupt bool
-		endReason    chat.TurnEndReason
+		endReason    turn.TurnEndReason
 	)
 	for ev := range events {
 		switch e := ev.(type) {
-		case chat.TurnInterrupted:
+		case turn.TurnInterrupted:
 			sawInterrupt = true
 			if len(e.Interrupts) != 1 || e.Interrupts[0].Kind != "approval" {
 				t.Errorf("interrupts = %+v, want one approval", e.Interrupts)
-			} else if p, ok := e.Interrupts[0].Payload.(chat.ApprovalPrompt); !ok || p.ToolName != "bash" {
+			} else if p, ok := e.Interrupts[0].Payload.(turn.ApprovalPrompt); !ok || p.ToolName != "bash" {
 				t.Errorf("approval payload = %+v, want bash ApprovalPrompt", e.Interrupts[0].Payload)
 			}
 			if err := svc.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}); err != nil {
 				t.Errorf("Resume: %v", err)
 			}
-		case chat.TurnEnd:
+		case turn.TurnEnd:
 			endReason = e.Reason
 		}
 	}
 	if !sawInterrupt {
 		t.Error("TurnInterrupted never fired in balanced mode")
 	}
-	if endReason != chat.TurnEndCompleted {
+	if endReason != turn.TurnEndCompleted {
 		t.Errorf("turn end = %s, want completed", endReason)
 	}
 }
@@ -377,27 +377,27 @@ func TestService_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	client, _ := chatmodel.NewClient(model)
 	store := memory.NewInMemoryStore()
 	eng, _ := kernel.New(context.Background(), kernel.Config{ChatClient: client, MemoryStore: store})
-	svc := mustChat(chat.New(eng, approval.New(approval.ModeBalanced), nil)) // bash → gate
+	svc := mustChat(turn.New(eng, approval.New(approval.ModeBalanced), nil)) // bash → gate
 
-	handle, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-rmodel",
 		Message:   "echo lyra",
 	})
 	events, _ := svc.Events(context.Background(), handle)
 
-	var endReason chat.TurnEndReason
+	var endReason turn.TurnEndReason
 	for ev := range events {
 		switch e := ev.(type) {
-		case chat.TurnInterrupted:
+		case turn.TurnInterrupted:
 			if err := svc.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}); err != nil {
 				t.Errorf("Resume: %v", err)
 			}
-		case chat.TurnEnd:
+		case turn.TurnEnd:
 			endReason = e.Reason
 		}
 	}
 
-	if endReason != chat.TurnEndCompleted {
+	if endReason != turn.TurnEndCompleted {
 		t.Errorf("turn end = %s, want completed", endReason)
 	}
 	if got := model.calls.Load(); got != 2 {
@@ -431,9 +431,9 @@ func TestService_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 func TestService_ApprovalGate_Deny(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
 	eng, _ := kernel.New(context.Background(), kernel.Config{ChatClient: client})
-	svc := mustChat(chat.New(eng, approval.New(approval.ModeBalanced), nil))
+	svc := mustChat(turn.New(eng, approval.New(approval.ModeBalanced), nil))
 
-	handle, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-deny",
 		Message:   "echo lyra",
 	})
@@ -441,26 +441,26 @@ func TestService_ApprovalGate_Deny(t *testing.T) {
 
 	var (
 		sawDenial bool
-		endReason chat.TurnEndReason
+		endReason turn.TurnEndReason
 	)
 	for ev := range events {
 		switch e := ev.(type) {
-		case chat.TurnInterrupted:
+		case turn.TurnInterrupted:
 			_ = svc.Resume(context.Background(), handle, interrupts.Resolution{Approved: false})
-		case chat.ToolCallEnd:
+		case turn.ToolCallEnd:
 			// Denial flows back as a tool *result* so the model can
 			// recover — Err stays empty, Output carries the reason.
 			if strings.Contains(e.Output, "denied") {
 				sawDenial = true
 			}
-		case chat.TurnEnd:
+		case turn.TurnEnd:
 			endReason = e.Reason
 		}
 	}
 	if !sawDenial {
 		t.Error("expected a denied tool result after Resume(false)")
 	}
-	if endReason != chat.TurnEndCompleted {
+	if endReason != turn.TurnEndCompleted {
 		t.Errorf("turn end = %s, want completed (model recovered after denial)", endReason)
 	}
 }
@@ -471,16 +471,16 @@ func TestService_ApprovalGate_Deny(t *testing.T) {
 func TestService_ApprovalGate_YoloSkipsEvent(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
 	eng, _ := kernel.New(context.Background(), kernel.Config{ChatClient: client})
-	svc := mustChat(chat.New(eng, approval.New(approval.ModeYolo), nil))
+	svc := mustChat(turn.New(eng, approval.New(approval.ModeYolo), nil))
 
-	handle, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-yolo",
 		Message:   "echo lyra",
 	})
 	events, _ := svc.Events(context.Background(), handle)
 
 	for ev := range events {
-		if _, ok := ev.(chat.TurnInterrupted); ok {
+		if _, ok := ev.(turn.TurnInterrupted); ok {
 			t.Error("TurnInterrupted should NOT fire in yolo mode")
 		}
 	}
@@ -490,10 +490,10 @@ func TestService_ApprovalGate_YoloSkipsEvent(t *testing.T) {
 func TestService_StartTurn_Validation(t *testing.T) {
 	svc, _ := buildService(t)
 
-	if _, err := svc.StartTurn(context.Background(), chat.StartTurnRequest{Message: "x"}); err == nil {
+	if _, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{Message: "x"}); err == nil {
 		t.Error("missing SessionID should error")
 	}
-	if _, err := svc.StartTurn(context.Background(), chat.StartTurnRequest{SessionID: "s"}); err == nil {
+	if _, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{SessionID: "s"}); err == nil {
 		t.Error("missing Message should error")
 	}
 }
@@ -502,7 +502,7 @@ func TestService_StartTurn_Validation(t *testing.T) {
 // Helpers
 // ------------------------------------------------------------------
 
-func buildService(t *testing.T) (chat.Service, *kernel.Engine) {
+func buildService(t *testing.T) (turn.Service, *kernel.Engine) {
 	t.Helper()
 
 	client, err := chatmodel.NewClient(newStubChatModel())
@@ -513,14 +513,14 @@ func buildService(t *testing.T) (chat.Service, *kernel.Engine) {
 	if err != nil {
 		t.Fatalf("engine.New: %v", err)
 	}
-	return mustChat(chat.New(eng, nil, nil)), eng
+	return mustChat(turn.New(eng, nil, nil)), eng
 }
 
 // buildPlanService stands up a service backed by a planAwareStub
 // that answers "produce a plan" prompts with planText and every
 // other prompt with "done". Returned alongside the stub so tests
 // can assert on call counts.
-func buildPlanService(t *testing.T, planText string) (chat.Service, *planAwareStub) {
+func buildPlanService(t *testing.T, planText string) (turn.Service, *planAwareStub) {
 	t.Helper()
 	stub := newPlanAwareStub(planText, "done")
 	client, err := chatmodel.NewClient(stub)
@@ -534,32 +534,32 @@ func buildPlanService(t *testing.T, planText string) (chat.Service, *planAwareSt
 	if err != nil {
 		t.Fatal(err)
 	}
-	return mustChat(chat.New(eng, nil, nil)), stub
+	return mustChat(turn.New(eng, nil, nil)), stub
 }
 
-func drainEvents(events iter.Seq[chat.Event]) []chat.Event {
-	var out []chat.Event
+func drainEvents(events iter.Seq[turn.Event]) []turn.Event {
+	var out []turn.Event
 	for ev := range events {
 		out = append(out, ev)
 	}
 	return out
 }
 
-func eventNames(events []chat.Event) []string {
+func eventNames(events []turn.Event) []string {
 	out := make([]string, len(events))
 	for i, ev := range events {
 		switch ev.(type) {
-		case chat.TurnStart:
+		case turn.TurnStart:
 			out[i] = "TurnStart"
-		case chat.MessageDelta:
+		case turn.MessageDelta:
 			out[i] = "MessageDelta"
-		case chat.ToolCallStart:
+		case turn.ToolCallStart:
 			out[i] = "ToolCallStart"
-		case chat.ToolCallEnd:
+		case turn.ToolCallEnd:
 			out[i] = "ToolCallEnd"
-		case chat.TurnEnd:
+		case turn.TurnEnd:
 			out[i] = "TurnEnd"
-		case chat.ErrorEvent:
+		case turn.ErrorEvent:
 			out[i] = "ErrorEvent"
 		default:
 			out[i] = "?"
@@ -580,19 +580,19 @@ func sliceEqual(a, b []string) bool {
 	return true
 }
 
-func baseSeq(ev chat.Event) uint64 {
+func baseSeq(ev turn.Event) uint64 {
 	switch e := ev.(type) {
-	case chat.TurnStart:
+	case turn.TurnStart:
 		return e.Seq
-	case chat.MessageDelta:
+	case turn.MessageDelta:
 		return e.Seq
-	case chat.ToolCallStart:
+	case turn.ToolCallStart:
 		return e.Seq
-	case chat.ToolCallEnd:
+	case turn.ToolCallEnd:
 		return e.Seq
-	case chat.TurnEnd:
+	case turn.TurnEnd:
 		return e.Seq
-	case chat.ErrorEvent:
+	case turn.ErrorEvent:
 		return e.Seq
 	}
 	return 0
@@ -778,7 +778,7 @@ func isPlanRequest(req *chatmodel.Request) bool {
 // mustChat unwraps chat.New in test wiring — construction only fails on a
 // nil engine, which tests never pass. Takes (svc, err) directly so call
 // sites can splice chat.New's multi-value return straight in.
-func mustChat(svc chat.Service, err error) chat.Service {
+func mustChat(svc turn.Service, err error) turn.Service {
 	if err != nil {
 		panic(err)
 	}

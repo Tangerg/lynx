@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/lyra/internal/kernel/chat"
+	"github.com/Tangerg/lynx/lyra/internal/kernel/turn"
 )
 
 // TestTranslator_OpensUserMessageOnRootRun verifies a root run streams the
@@ -52,7 +52,7 @@ func TestTranslator_OpensUserMessageOnRootRun(t *testing.T) {
 		t.Fatalf("second open() re-emitted the user message: %+v", again)
 	}
 	// The chat-level TurnStart is a no-op (run.started comes from open()).
-	if ts := tr.translate(chat.TurnStart{Model: "deepseek-v4-flash"}); ts != nil {
+	if ts := tr.translate(turn.TurnStart{Model: "deepseek-v4-flash"}); ts != nil {
 		t.Fatalf("chat TurnStart should be a no-op, got %+v", ts)
 	}
 }
@@ -94,7 +94,7 @@ func TestTranslator_ResumedToolReusesOriginalItemID(t *testing.T) {
 		return nil
 	}
 
-	start := itemStarted(tr.translate(chat.ToolCallStart{CallID: "call_x", ToolName: "bash", Arguments: args}))
+	start := itemStarted(tr.translate(turn.ToolCallStart{CallID: "call_x", ToolName: "bash", Arguments: args}))
 	if start == nil {
 		t.Fatal("no item.started for the resumed tool")
 	}
@@ -102,7 +102,7 @@ func TestTranslator_ResumedToolReusesOriginalItemID(t *testing.T) {
 		t.Fatalf("resumed tool item id/runId = %q/%q, want %q/run_1 (reuse the proposal item)", start.ID, start.RunID, origItemID)
 	}
 
-	end := tr.translate(chat.ToolCallEnd{CallID: "call_x", Output: "files"})
+	end := tr.translate(turn.ToolCallEnd{CallID: "call_x", Output: "files"})
 	if len(end) != 1 || end[0].Type != protocol.StreamItemCompleted {
 		t.Fatalf("toolEnd = %+v, want one item.completed", end)
 	}
@@ -115,7 +115,7 @@ func TestTranslator_ResumedToolReusesOriginalItemID(t *testing.T) {
 
 	// A non-matching call (different args) gets a fresh id under the
 	// continuation run — the binding is consumed once, no false reuse.
-	other := itemStarted(tr.translate(chat.ToolCallStart{CallID: "call_y", ToolName: "bash", Arguments: `{"command":"pwd"}`}))
+	other := itemStarted(tr.translate(turn.ToolCallStart{CallID: "call_y", ToolName: "bash", Arguments: `{"command":"pwd"}`}))
 	if other == nil || other.ID == origItemID {
 		t.Fatalf("non-matching tool reused the original id: %+v", other)
 	}
@@ -129,8 +129,8 @@ func TestTranslator_ResumedToolReusesOriginalItemID(t *testing.T) {
 // — so the UI can render "denied" rather than ✓.
 func TestTranslator_DeniedToolIsDistinct(t *testing.T) {
 	tr := newTranslator("ses_1", "run_1", "", nil, nil)
-	tr.translate(chat.ToolCallStart{CallID: "c1", ToolName: "bash", Arguments: `{"command":"rm -rf /"}`})
-	end := tr.translate(chat.ToolCallEnd{CallID: "c1", Output: "tool call denied by user", Denied: true})
+	tr.translate(turn.ToolCallStart{CallID: "c1", ToolName: "bash", Arguments: `{"command":"rm -rf /"}`})
+	end := tr.translate(turn.ToolCallEnd{CallID: "c1", Output: "tool call denied by user", Denied: true})
 	if len(end) != 1 || end[0].Item == nil {
 		t.Fatalf("toolEnd = %+v, want one item.completed", end)
 	}
@@ -193,8 +193,8 @@ func TestTranslator_ResumedQuestionCompletes(t *testing.T) {
 // neutral envelope carries name + arguments + a best-effort JSON result.
 func TestTranslator_CommandOutputOnCompleted(t *testing.T) {
 	tr := newTranslator("ses_1", "run_1", "", nil, nil)
-	tr.translate(chat.ToolCallStart{CallID: "c1", ToolName: "bash", Arguments: `{"command":"echo hi"}`})
-	out := tr.translate(chat.ToolCallEnd{
+	tr.translate(turn.ToolCallStart{CallID: "c1", ToolName: "bash", Arguments: `{"command":"echo hi"}`})
+	out := tr.translate(turn.ToolCallEnd{
 		CallID: "c1",
 		Output: `{"stdout":"hi\n","stderr":"oops","exit_code":0,"duration":"5ms"}`,
 	})
@@ -223,8 +223,8 @@ func TestTranslator_CommandOutputOnCompleted(t *testing.T) {
 	// omitted) so the client renders an empty terminal rather than falling back
 	// to a stale preview / "(no output)".
 	tr2 := newTranslator("ses_1", "run_2", "", nil, nil)
-	tr2.translate(chat.ToolCallStart{CallID: "c2", ToolName: "bash", Arguments: `{"command":"true"}`})
-	out2 := tr2.translate(chat.ToolCallEnd{CallID: "c2", Output: `{"stdout":"","stderr":"","exit_code":0,"duration":"1ms"}`})
+	tr2.translate(turn.ToolCallStart{CallID: "c2", ToolName: "bash", Arguments: `{"command":"true"}`})
+	out2 := tr2.translate(turn.ToolCallEnd{CallID: "c2", Output: `{"stdout":"","stderr":"","exit_code":0,"duration":"1ms"}`})
 	for _, se := range out2 {
 		if se.Type == protocol.StreamItemCompleted {
 			res, ok := se.Item.Tool.Result.(commandResult)

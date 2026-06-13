@@ -4,21 +4,21 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/lyra/internal/kernel/chat"
+	"github.com/Tangerg/lynx/lyra/internal/kernel/turn"
 )
 
 // Run-terminal shaping: how a finished turn becomes the wire
 // RunOutcome — outcome kind, usage roll-up, and error classification.
 // This file changes when the outcome contract does.
 
-func (t *translator) outcome(e chat.TurnEnd) *protocol.RunOutcome {
+func (t *translator) outcome(e turn.TurnEnd) *protocol.RunOutcome {
 	res := &protocol.RunResult{Usage: t.turnUsage(e)}
 	switch e.Reason {
-	case chat.TurnEndCanceled:
+	case turn.TurnEndCanceled:
 		return &protocol.RunOutcome{Type: protocol.OutcomeCanceled, Result: res}
-	case chat.TurnEndBudgetExceeded:
+	case turn.TurnEndBudgetExceeded:
 		return &protocol.RunOutcome{Type: protocol.OutcomeMaxBudget, Result: res}
-	case chat.TurnEndErrored:
+	case turn.TurnEndErrored:
 		res.Error = t.classifyRunError(t.errMsg)
 		return &protocol.RunOutcome{Type: protocol.OutcomeError, Result: res}
 	default:
@@ -58,7 +58,7 @@ func (t *translator) classifyRunError(msg string) *protocol.ProblemData {
 }
 
 // turnUsage maps the engine's per-turn token roll-up onto wire Usage.
-func (t *translator) turnUsage(e chat.TurnEnd) *protocol.Usage {
+func (t *translator) turnUsage(e turn.TurnEnd) *protocol.Usage {
 	u := &protocol.Usage{
 		ModelUsage: protocol.ModelUsage{
 			InputTokens:     e.TokenUsage.PromptTokens,

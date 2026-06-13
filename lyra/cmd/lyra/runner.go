@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
-	"github.com/Tangerg/lynx/lyra/internal/kernel/chat"
+	"github.com/Tangerg/lynx/lyra/internal/kernel/turn"
 )
 
 // turnOptions is the per-turn knobs both `chat` and `repl` pass to
@@ -63,7 +63,7 @@ func (r *TurnRunner) Run(ctx context.Context, sessionID, message string) int {
 		fmt.Fprintf(r.app.Err, "lyra: %s\n", err)
 		return 1
 	}
-	handle, err := r.app.rt.Chat().StartTurn(ctx, chat.StartTurnRequest{
+	handle, err := r.app.rt.Chat().StartTurn(ctx, turn.StartTurnRequest{
 		SessionID:  sessionID,
 		Message:    message,
 		Cwd:        sess.Cwd,
@@ -111,17 +111,17 @@ func (r *TurnRunner) Run(ctx context.Context, sessionID, message string) int {
 // dispatch routes one event to the right per-type renderer. Each
 // renderer is a method on *TurnRunner so it has access to the
 // App's streams + the active TurnHandle.
-func (r *TurnRunner) dispatch(ctx context.Context, handle chat.TurnHandle, ev chat.Event) {
+func (r *TurnRunner) dispatch(ctx context.Context, handle turn.TurnHandle, ev turn.Event) {
 	switch e := ev.(type) {
-	case chat.TurnStart:
+	case turn.TurnStart:
 		fmt.Fprintf(r.app.Err, "[lyra] turn %s started (model=%s)\n", e.TurnID[:8], e.Model)
-	case chat.PlanGenerated:
+	case turn.PlanGenerated:
 		r.renderPlan(e)
-	case chat.TurnInterrupted:
+	case turn.TurnInterrupted:
 		r.handleInterrupt(ctx, handle, e)
-	case chat.MessageDelta:
+	case turn.MessageDelta:
 		fmt.Fprint(r.app.Out, e.Text)
-	case chat.ReasoningDelta:
+	case turn.ReasoningDelta:
 		// Render extended thinking only when --verbose is on so the
 		// terse-mode UX stays focused on the model's final answer.
 		// Marked with a `[think]` prefix per line so it doesn't mix
@@ -129,16 +129,16 @@ func (r *TurnRunner) dispatch(ctx context.Context, handle chat.TurnHandle, ev ch
 		if r.opts.Verbose {
 			fmt.Fprintf(r.app.Err, "[think] %s", e.Text)
 		}
-	case chat.ToolCallStart:
+	case turn.ToolCallStart:
 		fmt.Fprintf(r.app.Err, "\n[lyra] tool start: %s\n", e.ToolName)
-	case chat.ToolCallEnd:
+	case turn.ToolCallEnd:
 		r.renderToolEnd(e)
-	case chat.ErrorEvent:
+	case turn.ErrorEvent:
 		fmt.Fprintf(r.app.Err, "\n[lyra] error: %s (%s)\n", e.Message, e.Code)
 		r.exit = 1
-	case chat.TurnEnd:
+	case turn.TurnEnd:
 		r.renderTurnEnd(e)
-		if e.Reason == chat.TurnEndErrored {
+		if e.Reason == turn.TurnEndErrored {
 			r.exit = 1
 		}
 	}
@@ -147,7 +147,7 @@ func (r *TurnRunner) dispatch(ctx context.Context, handle chat.TurnHandle, ev ch
 // renderPlan prints the proposed plan. The approval prompt itself fires
 // later, on the [chat.TurnInterrupted] that follows once the turn has
 // actually parked (R model) — see [TurnRunner.handleInterrupt].
-func (r *TurnRunner) renderPlan(e chat.PlanGenerated) {
+func (r *TurnRunner) renderPlan(e turn.PlanGenerated) {
 	fmt.Fprintln(r.app.Out, "\n---- proposed plan ----")
 	fmt.Fprintln(r.app.Out, e.Plan)
 	fmt.Fprintln(r.app.Out, "-----------------------")
@@ -158,10 +158,10 @@ func (r *TurnRunner) renderPlan(e chat.PlanGenerated) {
 // (already printed by renderPlan) — prompts for approval, and forwards
 // the decision via [chat.Service.Resume]. The continuation streams onto
 // the same event channel the caller is still draining.
-func (r *TurnRunner) handleInterrupt(ctx context.Context, handle chat.TurnHandle, e chat.TurnInterrupted) {
+func (r *TurnRunner) handleInterrupt(ctx context.Context, handle turn.TurnHandle, e turn.TurnInterrupted) {
 	for _, in := range e.Interrupts {
 		if in.Kind == "approval" {
-			if p, ok := in.Payload.(chat.ApprovalPrompt); ok {
+			if p, ok := in.Payload.(turn.ApprovalPrompt); ok {
 				fmt.Fprintf(r.app.Out, "\n---- approve tool: %s ----\n%s\n-----------------------\n", p.ToolName, p.Arguments)
 			}
 		}
@@ -179,7 +179,7 @@ func (r *TurnRunner) handleInterrupt(ctx context.Context, handle chat.TurnHandle
 // clock plus the token roll-up when the provider reported one.
 // Zero usage is omitted (stub models / mocked endpoints) so the
 // line stays compact when there's nothing to show.
-func (r *TurnRunner) renderTurnEnd(e chat.TurnEnd) {
+func (r *TurnRunner) renderTurnEnd(e turn.TurnEnd) {
 	u := e.TokenUsage
 	if u.PromptTokens == 0 && u.CompletionTokens == 0 && u.ReasoningTokens == 0 {
 		fmt.Fprintf(r.app.Err, "\n[lyra] turn ended: %s (%s)\n", e.Reason, e.Duration)
@@ -194,7 +194,7 @@ func (r *TurnRunner) renderTurnEnd(e chat.TurnEnd) {
 
 // renderToolEnd prints the tool's output, truncated to
 // [toolOutputMaxLines] in terse mode and verbatim under --verbose.
-func (r *TurnRunner) renderToolEnd(e chat.ToolCallEnd) {
+func (r *TurnRunner) renderToolEnd(e turn.ToolCallEnd) {
 	if e.Err != "" {
 		fmt.Fprintf(r.app.Err, "[lyra] tool end: error: %s\n", e.Err)
 		return

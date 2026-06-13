@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/lyra/internal/kernel/chat"
+	"github.com/Tangerg/lynx/lyra/internal/kernel/turn"
 )
 
 func (t *translator) appendText(text string) []protocol.StreamEvent {
@@ -86,7 +86,7 @@ func (t *translator) closeReasoning() []protocol.StreamEvent {
 	return []protocol.StreamEvent{{Type: protocol.StreamItemCompleted, Item: item}}
 }
 
-func (t *translator) toolStart(e chat.ToolCallStart) []protocol.StreamEvent {
+func (t *translator) toolStart(e turn.ToolCallStart) []protocol.StreamEvent {
 	out := t.closeReasoning()
 	out = append(out, t.closeText()...)
 
@@ -114,7 +114,7 @@ func (t *translator) toolStart(e chat.ToolCallStart) []protocol.StreamEvent {
 	return out
 }
 
-func (t *translator) toolEnd(e chat.ToolCallEnd) []protocol.StreamEvent {
+func (t *translator) toolEnd(e turn.ToolCallEnd) []protocol.StreamEvent {
 	ref, ok := t.tools[e.CallID]
 	if !ok {
 		return nil
@@ -159,7 +159,7 @@ func (t *translator) toolEnd(e chat.ToolCallEnd) []protocol.StreamEvent {
 
 // turnEnd closes any open items (so the wire ends balanced) then emits
 // the terminal run.finished with its discriminated outcome.
-func (t *translator) turnEnd(e chat.TurnEnd) []protocol.StreamEvent {
+func (t *translator) turnEnd(e turn.TurnEnd) []protocol.StreamEvent {
 	out := t.closeReasoning()
 	out = append(out, t.closeText()...)
 	out = append(out, t.drainTools()...)
