@@ -19,7 +19,7 @@
 // Design constraints:
 //
 //   - Method signatures use only Go std types (context.Context, channels,
-//     plain structs). No proto/pb types ever leak into the service layer.
+//     plain structs). No proto/pb types ever leak into the domain layer.
 //   - Event types are channel-based — the natural Go idiom for streaming.
 //   - Concrete implementations sit alongside (inmemory.go for the in-process
 //     impls, engine.go where the impl is engine-backed), built on lynx-agent

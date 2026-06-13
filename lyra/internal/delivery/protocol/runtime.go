@@ -2,7 +2,7 @@
 // Protocol v2 — the typed Go interface every transport and every
 // implementation agrees on. Wire formats (JSON-RPC over HTTP / IPC /
 // InProcess) are derived from this surface; rpc/server realizes it on
-// top of Lyra's internal engine + service layer.
+// top of Lyra's internal kernel + domain layer.
 //
 // docs/API.md describes the wire contract; every method on [Runtime]
 // maps to one row in API.md §7. The model is Session → Run → Item

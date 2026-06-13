@@ -16,7 +16,7 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/kernel/turn"
 )
 
-// stubChatProcess fakes the [engine.ChatProcess] handle without
+// stubChatProcess fakes the [kernel.ChatProcess] handle without
 // touching the real platform. The done channel is pre-fired so
 // runTurn receives immediately; status / output / cancel return
 // the values the test wired.
@@ -73,10 +73,10 @@ func (cp *stubChatProcess) Resume(_ context.Context, _ interrupts.Resolution) (<
 // nothing is ever pending.
 func (cp *stubChatProcess) PendingAwaitable() core.Awaitable { return nil }
 
-// stubEngine satisfies the chat service's (unexported) engine
+// stubEngine satisfies the turn service's (unexported) engine
 // dependency without touching the real platform / chat-memory / MCP
-// wiring. Existence proves the chat service does not depend on
-// *engine.Engine directly — only on the narrow interface.
+// wiring. Existence proves the turn service does not depend on
+// *kernel.Engine directly — only on the narrow interface.
 type stubEngine struct {
 	runChatCalls atomic.Int32
 	restoreCalls atomic.Int32
@@ -126,9 +126,9 @@ func (s *stubEngine) MaybeExtract(_ context.Context, _, _ string) (kernel.Extrac
 	return kernel.ExtractionResult{}, nil
 }
 
-// TestStubEngineDrivesTurn — confirms the chat service runs a full
-// turn against a stub engine, no real platform involved. If chat
-// ever regrows a hard *engine.Engine dependency, this test stops
+// TestStubEngineDrivesTurn — confirms the turn service runs a full
+// turn against a stub engine, no real platform involved. If turn
+// ever regrows a hard *kernel.Engine dependency, this test stops
 // compiling.
 func TestStubEngineDrivesTurn(t *testing.T) {
 	stub := &stubEngine{runReply: "hello from stub"}
@@ -332,7 +332,7 @@ func (r *fakeResolver) ResolveClient(_ context.Context, provider, model string) 
 
 // TestStartTurn_ResolvesPerRunClient verifies a turn carrying a Model passes
 // the resolver's client through to the engine's RunChatRequest.ChatClient —
-// the chat-service half of per-run model selection.
+// the turn-service half of per-run model selection.
 func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 	stub := &stubEngine{runReply: "ok"}
 	sentinel, _ := corechat.NewClient(newCapturingModel())
@@ -367,7 +367,7 @@ func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 
 // TestStartTurn_PassesCwd verifies the session's working directory flows
 // from StartTurnRequest.Cwd through to the engine's RunChatRequest.Cwd —
-// the chat-service half of per-session tool working directories.
+// the turn-service half of per-session tool working directories.
 func TestStartTurn_PassesCwd(t *testing.T) {
 	stub := &stubEngine{runReply: "ok"}
 
