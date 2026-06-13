@@ -59,7 +59,7 @@ describe("loadPlugin", () => {
       definePlugin({
         name: "tooOld",
         version: "1.0.0",
-        apiVersion: "^2.0.0", // host is 1.0.0
+        apiVersion: "^3.0.0", // host is 2.0.0
         setup,
       }),
     );
@@ -74,7 +74,7 @@ describe("loadPlugin", () => {
       definePlugin({
         name: "ok",
         version: "1.0.0",
-        apiVersion: "^1.0.0",
+        apiVersion: "^2.0.0",
         setup: () => {},
       }),
     );

@@ -10,6 +10,7 @@
 import type { IconName } from "@/components/common";
 import type { CommandSpec } from "@/plugins/sdk";
 import { SHORTCUT } from "@/plugins/sdk/kernelPoints";
+import { comboGlyph } from "../comboGlyph";
 import { Command } from "cmdk";
 import { useMemo } from "react";
 import { create } from "zustand";
@@ -101,8 +102,10 @@ function CommandPalette() {
                   {cmd.group}
                 </span>
               )}
-              {cmd.shortcut && (
-                <span className="ml-1 font-mono text-[11px] text-fg-faint">{cmd.shortcut}</span>
+              {cmd.combo && (
+                <span className="ml-1 font-mono text-[11px] text-fg-faint">
+                  {comboGlyph(cmd.combo)}
+                </span>
               )}
             </Command.Item>
           ))}
@@ -143,7 +146,7 @@ export default definePlugin({
       icon: "command",
       group: "General",
       keywords: ["palette", "search", "command"],
-      shortcut: "⌘K",
+      combo: "Mod+K",
       run: () => usePaletteStore.getState().setOpen(true),
     });
   },

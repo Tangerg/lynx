@@ -53,7 +53,7 @@ export const defaultCommands = definePlugin({
       group: "View",
       keywords: ["collapse", "expand"],
       order: 0,
-      shortcut: "⌘B",
+      combo: "Mod+B",
       run: () => useUiStore.getState().toggleSidebar(),
     });
 
@@ -63,7 +63,7 @@ export const defaultCommands = definePlugin({
       icon: "moon",
       group: "Theme",
       order: 0,
-      shortcut: "⌘⇧L",
+      combo: "Mod+Shift+L",
       run: () => useUiStore.getState().toggleTheme(),
     });
 
@@ -74,7 +74,7 @@ export const defaultCommands = definePlugin({
       group: "Chat",
       keywords: ["session", "tab", "open"],
       order: 0,
-      shortcut: "⌘N",
+      combo: "Mod+N",
       run: openNewChatTab,
     });
 
@@ -85,7 +85,7 @@ export const defaultCommands = definePlugin({
       group: "Chat",
       keywords: ["dismiss"],
       order: 1,
-      shortcut: "⌘W",
+      combo: "Mod+W",
       run: closeFocusedTab,
     });
 
@@ -96,7 +96,7 @@ export const defaultCommands = definePlugin({
       group: "Composer",
       keywords: ["input", "write"],
       order: 0,
-      shortcut: "⌘L",
+      combo: "Mod+L",
       run: focusComposer,
     });
 
