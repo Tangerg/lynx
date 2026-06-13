@@ -21,8 +21,10 @@ export interface CommandSpec {
   group?: string;
   /** Extra search aliases — appears in the label match but isn't displayed. */
   keywords?: string[];
-  /** Display-only hint of the keyboard shortcut; does NOT auto-register one. */
-  shortcut?: string;
+  /** Key combo this command is bound to, e.g. "Mod+N" (Cmd on Mac, Ctrl
+   *  elsewhere). The palette renders it as a platform glyph; `global-keymap`
+   *  binds the global commands by reading this — one source, no glyph/combo drift. */
+  combo?: string;
   /** Sort hint within the group. Lower comes first. */
   order?: number;
   /**

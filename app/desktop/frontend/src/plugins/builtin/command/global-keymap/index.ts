@@ -1,25 +1,22 @@
-// Wires global keyboard shortcuts to palette commands. The key combos live in
-// COMMAND_BINDINGS below; CommandSpec.shortcut is only the display glyph shown
-// in the palette. The handler resolves each combo to its command at trigger
-// time (late binding). Cmd+1..9 stays here as pure shortcuts — 9 "switch to
-// tab N" entries would drown the palette.
+// Wires global keyboard shortcuts to palette commands. The combo lives on each
+// command (CommandSpec.combo); this plugin only lists WHICH commands get a
+// global binding and reads their combo from the catalog — no second copy of the
+// combo to drift. The handler resolves the command at trigger time (late
+// binding), so a plugin can swap run() without touching the wiring. Cmd+1..9
+// stays here as pure tab-switch shortcuts — 9 entries would drown the palette.
 
 import { definePlugin, lookupExtensionByKey } from "@/plugins/sdk";
 import { COMMAND, SHORTCUT } from "@/plugins/sdk/kernelPoints";
 import { useSessionStore } from "@/state/sessionStore";
 
-// Late binding: the handler resolves the command at trigger time, so
-// a plugin can replace its run() without rewriting the key wiring.
-const COMMAND_BINDINGS: Array<{
-  combo: string;
-  commandId: string;
-  description: string;
-}> = [
-  { combo: "Mod+N", commandId: "chat.new", description: "New chat tab" },
-  { combo: "Mod+W", commandId: "chat.close-tab", description: "Close current tab" },
-  { combo: "Mod+L", commandId: "composer.focus", description: "Focus composer" },
-  { combo: "Mod+B", commandId: "view.toggle-sidebar", description: "Toggle sidebar" },
-  { combo: "Mod+Shift+L", commandId: "settings.toggle-theme", description: "Toggle theme" },
+// Commands that get a global key binding; their combo is read from the catalog
+// (default-commands registers it), so this is just the membership list.
+const GLOBAL_COMMAND_IDS = [
+  "chat.new",
+  "chat.close-tab",
+  "composer.focus",
+  "view.toggle-sidebar",
+  "settings.toggle-theme",
 ];
 
 export default definePlugin({
@@ -27,17 +24,18 @@ export default definePlugin({
   version: "1.0.0",
   requires: ["lyra.builtin.default-commands", "lyra.builtin.shortcuts"],
   setup({ host }) {
-    for (const { combo, commandId, description } of COMMAND_BINDINGS) {
+    for (const id of GLOBAL_COMMAND_IDS) {
+      const cmd = lookupExtensionByKey(COMMAND, id);
+      if (!cmd?.combo) continue;
       host.extensions.contribute(SHORTCUT, {
-        key: combo,
-        description,
+        key: cmd.combo,
+        description: cmd.label,
         // Cmd+combos must fire from inside the composer too — otherwise
         // ⌘W / ⌘N feel broken whenever the user is typing.
         allowInInputs: true,
         handler: (e) => {
           e.preventDefault();
-          const cmd = lookupExtensionByKey(COMMAND, commandId);
-          if (cmd) void cmd.run();
+          void lookupExtensionByKey(COMMAND, id)?.run();
         },
       });
     }

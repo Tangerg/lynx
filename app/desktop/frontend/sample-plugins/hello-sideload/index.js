@@ -41,7 +41,7 @@ function HelloPreview(props) {
 export default definePlugin({
   name: "user.hello-sideload",
   version: "0.1.0",
-  apiVersion: "^1.0.0",
+  apiVersion: "^2.0.0",
   setup({ host }) {
     host.tool.registerPreview("hello", HelloPreview);
 
