@@ -3,7 +3,7 @@
 > **状态：正式契约（canonical, frozen baseline）。** 本文是 Lyra 客户端 ↔ Lyra Runtime 的唯一 wire 契约真相源。
 > 物理传输见同目录 [`TRANSPORT.md`](./TRANSPORT.md)。本文与 `TRANSPORT.md` 自包含、互为配套，不依赖任何其它文档。
 >
-> 类型命名以后端 Go interface（`lyra/rpc/protocol`）为机械 SSOT，经 codegen 派生 TS / 其它语言类型与
+> 类型命名以后端 Go interface（`lyra/internal/delivery/protocol`）为机械 SSOT，经 codegen 派生 TS / 其它语言类型与
 > JSON Schema / OpenRPC 制品（§14）；本文与生成产物**同名零映射层**。
 >
 > `protocolVersion`: **`2026-06-07`**。
@@ -1305,7 +1305,7 @@ interface ClientCapabilities {
 
 ## 14. 机器可读制品 / 漂移闸
 
-后端 Go `lyra/rpc/protocol` 是**机械 SSOT**。为根除"手写两份 wire 类型 + 人工 review 同步"导致的漂移，本协议要求：
+后端 Go `lyra/internal/delivery/protocol` 是**机械 SSOT**。为根除"手写两份 wire 类型 + 人工 review 同步"导致的漂移，本协议要求：
 
 - 从 Go SSOT **导出机器可读制品**：**OpenRPC**（方法表 + 入/出 schema）与 **JSON Schema**（数据类型）。这是非 TS / 非 Go
   客户端的单一对接物，不必读文档手抄。
