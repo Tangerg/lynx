@@ -12,6 +12,12 @@ const ERROR_COPY: Record<string, string> = {
   cwd_unavailable: "That path does not exist on the runtime's disk.",
   vcs_unavailable: "This folder isn't a git repository.",
   provider_error: "The model provider didn't respond — try again.",
+  // docs/613 — B7 code intel / B8 file read / B12 MCP auth (all expected, UI-inline).
+  no_language_server:
+    "No language server for this file type — code intelligence isn't available here.",
+  is_a_directory: "That path is a directory — pick a file to read.",
+  file_too_large: "File is too large to read whole — request a line range instead.",
+  mcp_auth_failed: "Authentication was rejected — check the token and try again.",
 };
 
 /** Friendly copy for a mapped protocol error type; undefined otherwise.
