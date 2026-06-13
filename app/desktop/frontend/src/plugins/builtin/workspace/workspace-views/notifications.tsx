@@ -1,6 +1,7 @@
 // Built-in plugin: "Notifications" workspace view — the persistent feed
 // behind every `host.notify(...)` call.
 
+import { useMemo } from "react";
 import { EmptyState, Icon, IconButton } from "@/components/common";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { formatRelative } from "@/lib/i18n/relativeTime";
@@ -13,9 +14,9 @@ function NotificationsTab() {
   const dismiss = useNotificationStore((s) => s.dismiss);
   const clearAll = useNotificationStore((s) => s.clearAll);
 
-  // Newest first.
-  const entries = [...log].reverse();
-  const visible = entries.filter((e) => !e.dismissed);
+  // Newest first; memoized so a re-render that isn't a log change doesn't re-copy.
+  const entries = useMemo(() => [...log].reverse(), [log]);
+  const visible = useMemo(() => entries.filter((e) => !e.dismissed), [entries]);
 
   return (
     <WorkspaceViewLayout

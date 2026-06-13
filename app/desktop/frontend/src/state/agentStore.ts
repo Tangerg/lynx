@@ -107,7 +107,7 @@ const emptyEntry = (): SessionEntry => ({
 // the unmount cleanup nulling send/stop after the prune subscriber already
 // dropped the tab — must no-op rather than re-seed a ghost entry that prune
 // will never collect again (it only fires on the next tabIds change).
-function patch(
+function patchSession(
   sessions: Record<string, SessionEntry>,
   sessionId: string,
   next: Partial<SessionEntry>,
@@ -123,7 +123,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
     set((s) => {
       const prev = s.sessions[sessionId];
       if (!prev) return s; // session torn down — drop the late event
-      return { sessions: patch(s.sessions, sessionId, { view: reduce(prev.view, event) }) };
+      return { sessions: patchSession(s.sessions, sessionId, { view: reduce(prev.view, event) }) };
     }),
   applyEvents: (sessionId, events) =>
     set((s) => {
@@ -132,7 +132,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
       if (!prev) return s; // session torn down — drop the late batch
       let view = prev.view;
       for (const event of events) view = reduce(view, event);
-      return { sessions: patch(s.sessions, sessionId, { view }) };
+      return { sessions: patchSession(s.sessions, sessionId, { view }) };
     }),
   resetSession: (sessionId) =>
     set((s) => ({ sessions: { ...s.sessions, [sessionId]: emptyEntry() } })),
@@ -142,7 +142,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
   // must keep working without a remount).
   resetView: (sessionId) =>
     set((s) => ({
-      sessions: patch(s.sessions, sessionId, {
+      sessions: patchSession(s.sessions, sessionId, {
         view: emptyEntry().view,
         viewEpoch: (s.sessions[sessionId]?.viewEpoch ?? 0) + 1,
       }),
@@ -156,7 +156,9 @@ export const useAgentStore = create<AgentStore>((set) => ({
       // Nothing to rename, or the streamed item already landed under `toId`.
       if (!has(fromId) || has(toId)) return s;
       const messages = msgs.map((m) => (m.id === fromId ? { ...m, id: toId } : m));
-      return { sessions: patch(s.sessions, sessionId, { view: { ...prev.view, messages } }) };
+      return {
+        sessions: patchSession(s.sessions, sessionId, { view: { ...prev.view, messages } }),
+      };
     }),
   dropSession: (sessionId) =>
     set((s) => {
@@ -166,17 +168,17 @@ export const useAgentStore = create<AgentStore>((set) => ({
       return { sessions: next };
     }),
   setStop: (sessionId, fn) =>
-    set((s) => ({ sessions: patch(s.sessions, sessionId, { stop: fn }) })),
+    set((s) => ({ sessions: patchSession(s.sessions, sessionId, { stop: fn }) })),
   setSend: (sessionId, fn) =>
-    set((s) => ({ sessions: patch(s.sessions, sessionId, { send: fn }) })),
+    set((s) => ({ sessions: patchSession(s.sessions, sessionId, { send: fn }) })),
   setResume: (sessionId, fn) =>
-    set((s) => ({ sessions: patch(s.sessions, sessionId, { resume: fn }) })),
+    set((s) => ({ sessions: patchSession(s.sessions, sessionId, { resume: fn }) })),
   clearError: (sessionId) =>
     set((s) => {
       const prev = s.sessions[sessionId];
       if (!prev) return s;
       return {
-        sessions: patch(s.sessions, sessionId, {
+        sessions: patchSession(s.sessions, sessionId, {
           view: { ...prev.view, error: null },
         }),
       };
@@ -185,7 +187,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
     set((s) => {
       const prev = s.sessions[sessionId];
       if (!prev) return s;
-      return { sessions: patch(s.sessions, sessionId, { view: { ...prev.view, error } }) };
+      return { sessions: patchSession(s.sessions, sessionId, { view: { ...prev.view, error } }) };
     }),
   resolveInterrupt: (sessionId, itemId, settled) =>
     set((s) => {
@@ -225,7 +227,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
           status: settled.decision,
         })(next);
       }
-      return { sessions: patch(s.sessions, sessionId, { view: next }) };
+      return { sessions: patchSession(s.sessions, sessionId, { view: next }) };
     }),
 }));
 

@@ -2,9 +2,7 @@
 // keymap / status chips / model picker / attach / send / kbd hint.
 //
 // Every piece is its own micro-plugin so a fork can drop or replace any
-// single accessory without touching the rest. Migration P6.3 moved
-// these from raw className strings to Tailwind utilities + Radix
-// primitives — see CLAUDE.md "Tailwind first" / "Radix first" rules.
+// single accessory without touching the rest.
 
 import type { IconName } from "@/components/common";
 import type { ReactNode } from "react";

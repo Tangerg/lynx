@@ -60,9 +60,9 @@ import { getOrCreateSlice } from "./stateSlice";
 import { createStorage } from "./storage";
 
 /**
- * Build a Host bound to a specific plugin. `register*` returns Disposables;
- * `setup`'s caller (loadPlugin) collects them so it can dispose on failure
- * or on unload.
+ * Build a Host bound to a specific plugin. `contribute` and the facades return
+ * Disposables; `setup`'s caller (loadPlugin) collects them so it can dispose on
+ * failure or on unload.
  */
 // Monotonic id minter for `multi` extension-point contributions that don't
 // pass an explicit `opts.id` (custom/core event handlers, rpc + log hooks,

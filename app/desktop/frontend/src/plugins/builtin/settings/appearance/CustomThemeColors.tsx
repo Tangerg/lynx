@@ -1,5 +1,5 @@
-// Custom-theme color editor — the three base colors (accent / background /
-// foreground) the "Custom" theme derives its full palette from. Only shown
+// Custom-theme color editor — the background + foreground the "Custom" theme
+// derives its full palette from (accent is edited in AccentSection). Only shown
 // when the Custom theme is active; edits apply live (custom-theme plugin
 // re-derives + re-registers, uiStore re-applies).
 
