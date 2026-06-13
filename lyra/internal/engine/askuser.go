@@ -10,6 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 )
 
 // QuestionPrompt is the payload surfaced to the client when the model calls
@@ -45,7 +46,7 @@ func newAskUserTool() chat.Tool {
 			}
 			// First pass interrupts (bubbles up, parks); resume returns the
 			// human's structured answer at this same call site.
-			res, _, err := hitl.Interrupt[InterruptResolution](ctx, askUserKey(arguments), in)
+			res, _, err := hitl.Interrupt[interrupts.Resolution](ctx, askUserKey(arguments), in)
 			if err != nil {
 				return "", err
 			}

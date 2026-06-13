@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/engine/chat"
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
+	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 	"github.com/Tangerg/lynx/lyra/internal/service/maintenance"
 )
 
@@ -142,7 +143,7 @@ func TestService_PlanMode_ApprovePath(t *testing.T) {
 		case chat.TurnInterrupted:
 			// The turn parked on plan approval (R model). Approve it —
 			// the continuation streams onto the same event channel.
-			if err := svc.Resume(context.Background(), handle, engine.InterruptResolution{Approved: true}); err != nil {
+			if err := svc.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}); err != nil {
 				t.Errorf("Resume: %v", err)
 			}
 		case chat.MessageDelta:
@@ -183,7 +184,7 @@ func TestService_PlanMode_RejectPath(t *testing.T) {
 	for ev := range events {
 		switch e := ev.(type) {
 		case chat.TurnInterrupted:
-			_ = svc.Resume(context.Background(), handle, engine.InterruptResolution{Approved: false})
+			_ = svc.Resume(context.Background(), handle, interrupts.Resolution{Approved: false})
 		case chat.TurnEnd:
 			endReason = e.Reason
 		}
@@ -345,7 +346,7 @@ func TestService_ApprovalGate_AllowOnce(t *testing.T) {
 			} else if p, ok := e.Interrupts[0].Payload.(chat.ApprovalPrompt); !ok || p.ToolName != "bash" {
 				t.Errorf("approval payload = %+v, want bash ApprovalPrompt", e.Interrupts[0].Payload)
 			}
-			if err := svc.Resume(context.Background(), handle, engine.InterruptResolution{Approved: true}); err != nil {
+			if err := svc.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}); err != nil {
 				t.Errorf("Resume: %v", err)
 			}
 		case chat.TurnEnd:
@@ -388,7 +389,7 @@ func TestService_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	for ev := range events {
 		switch e := ev.(type) {
 		case chat.TurnInterrupted:
-			if err := svc.Resume(context.Background(), handle, engine.InterruptResolution{Approved: true}); err != nil {
+			if err := svc.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}); err != nil {
 				t.Errorf("Resume: %v", err)
 			}
 		case chat.TurnEnd:
@@ -445,7 +446,7 @@ func TestService_ApprovalGate_Deny(t *testing.T) {
 	for ev := range events {
 		switch e := ev.(type) {
 		case chat.TurnInterrupted:
-			_ = svc.Resume(context.Background(), handle, engine.InterruptResolution{Approved: false})
+			_ = svc.Resume(context.Background(), handle, interrupts.Resolution{Approved: false})
 		case chat.ToolCallEnd:
 			// Denial flows back as a tool *result* so the model can
 			// recover — Err stays empty, Output carries the reason.

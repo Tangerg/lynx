@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/agent/event"
 	corechat "github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
+	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 )
 
 // turnState holds the per-turn bookkeeping the implementation needs:
@@ -233,7 +234,7 @@ func (s *inMemory) handleWaiting(st *turnState, proc engine.ChatProcess) {
 	// continuation (resumeAndDrive streams the terminal on a resume error
 	// and launches drive otherwise; the returned error is already surfaced
 	// on the channel, so it's safe to drop here).
-	_ = s.resumeAndDrive(st, engine.InterruptResolution{Approved: false})
+	_ = s.resumeAndDrive(st, interrupts.Resolution{Approved: false})
 }
 
 // emitInterrupt marks the turn parked and surfaces the pending HITL

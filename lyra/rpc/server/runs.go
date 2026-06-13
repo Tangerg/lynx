@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/engine/chat"
 	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
@@ -282,19 +281,19 @@ func (s *Server) SubscribeRun(ctx context.Context, runID string) (*protocol.Star
 // ─── helpers ────────────────────────────────────────────────────────
 
 // resolveResolution maps the wire interrupt responses onto the structured
-// [engine.InterruptResolution] the chat service's Resume expects. The agent
+// [interrupts.Resolution] the chat service's Resume expects. The agent
 // runtime parks one awaitable at a time, so a single response drives the
 // continuation. approval → approve/deny; answer → the answers map (and
 // approve unless the plan-review label is reject); toolResult / empty →
 // continue.
-func resolveResolution(responses []protocol.InterruptResponse) (engine.InterruptResolution, error) {
+func resolveResolution(responses []protocol.InterruptResponse) (interrupts.Resolution, error) {
 	for _, r := range responses {
 		switch r.Response.Type {
 		case "approval":
 			// remember{scope:session} keeps the decision for the session; any
 			// other scope isn't persisted yet, so we honor it as one-shot
 			// rather than promise a memory we can't keep (AUX_API §6).
-			res := engine.InterruptResolution{
+			res := interrupts.Resolution{
 				Remember: r.Response.Remember != nil && r.Response.Remember.Scope == "session",
 			}
 			switch r.Response.Decision {
@@ -306,14 +305,14 @@ func resolveResolution(responses []protocol.InterruptResponse) (engine.Interrupt
 				if len(r.Response.EditedArgs) > 0 {
 					b, err := json.Marshal(r.Response.EditedArgs)
 					if err != nil {
-						return engine.InterruptResolution{}, fmt.Errorf("runs.resume: editedArgs: %w", err)
+						return interrupts.Resolution{}, fmt.Errorf("runs.resume: editedArgs: %w", err)
 					}
 					res.Arguments = string(b)
 				}
 			case "deny":
 				res.Approved = false
 			default:
-				return engine.InterruptResolution{}, errors.New(`runs.resume: approval decision must be "approve" | "deny"`)
+				return interrupts.Resolution{}, errors.New(`runs.resume: approval decision must be "approve" | "deny"`)
 			}
 			return res, nil
 		case "answer":
@@ -325,13 +324,13 @@ func resolveResolution(responses []protocol.InterruptResponse) (engine.Interrupt
 			if v := r.Response.Answers[planDecisionField]; len(v) > 0 && v[0] == planDecisionReject {
 				approved = false
 			}
-			return engine.InterruptResolution{Approved: approved, Answer: r.Response.Answers}, nil
+			return interrupts.Resolution{Approved: approved, Answer: r.Response.Answers}, nil
 		case "toolResult":
-			return engine.InterruptResolution{Approved: true}, nil
+			return interrupts.Resolution{Approved: true}, nil
 		}
 	}
 	// No actionable response → treat as continue.
-	return engine.InterruptResolution{Approved: true}, nil
+	return interrupts.Resolution{Approved: true}, nil
 }
 
 // resolveSession verifies sessionID exists, or creates a fresh session

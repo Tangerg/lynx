@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/agent/hitl"
 
 	"github.com/Tangerg/lynx/lyra/internal/engine/toolset"
+	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 )
 
 // chatInput is the typed input to the M1 single-turn chat agent. It
@@ -255,7 +256,7 @@ func (e *Engine) planGate(ctx context.Context, pc *core.ProcessContext, message 
 	// Plan review rides the same interrupt resolution as tool approval —
 	// one HITL mental model. The handler records the approve/deny decision;
 	// the idempotent gate above reads it back on the resuming re-tick.
-	pc.AwaitInput(hitl.NewTypedRequest[string, InterruptResolution](plan, func(r InterruptResolution) core.ResponseImpact {
+	pc.AwaitInput(hitl.NewTypedRequest[string, interrupts.Resolution](plan, func(r interrupts.Resolution) core.ResponseImpact {
 		pc.Blackboard.SetCondition(planApprovedKey, r.Approved)
 		return core.ImpactUpdated
 	}))
