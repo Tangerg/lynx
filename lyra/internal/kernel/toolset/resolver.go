@@ -61,10 +61,13 @@ func BuildWorkdirTools(workdir string, ci *codeintel.Service, tracker *editguard
 
 	// write/edit guard stack, innermost → outermost: diagnostics (type-check
 	// the applied change) → read/staleness guard (gate before the change,
-	// refresh the read stamp after) → path guard (refuse writes into
-	// protected dirs like .git — checked first, before any other work).
-	write := withPathGuard(withWriteGuard(withEditDiagnostics(fs.NewWriteTool(fsExec), ci, workdir), tracker, workdir), workdir)
-	edit := withPathGuard(withEditGuard(withEditDiagnostics(fs.NewEditTool(fsExec), ci, workdir), tracker, workdir), workdir)
+	// refresh the read stamp after) → per-path lock (serialize concurrent
+	// writes to the same file; read-before + write stay atomic) → path guard
+	// (refuse writes into protected dirs like .git — checked first). One locker
+	// is shared by write + edit so they serialize against each other per path.
+	locker := newPathLocker()
+	write := withPathGuard(withPathLock(withWriteGuard(withEditDiagnostics(fs.NewWriteTool(fsExec), ci, workdir), tracker, workdir), locker, workdir), workdir)
+	edit := withPathGuard(withPathLock(withEditGuard(withEditDiagnostics(fs.NewEditTool(fsExec), ci, workdir), tracker, workdir), locker, workdir), workdir)
 
 	return []chat.Tool{
 		withReadTracking(fs.NewReadTool(fsExec), tracker, workdir),

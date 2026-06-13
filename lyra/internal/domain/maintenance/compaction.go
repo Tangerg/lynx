@@ -184,22 +184,33 @@ func estimateTokens(msgs []chat.Message) int {
 // behind a bad summary.
 func (c *Compactor) summarize(ctx context.Context, msgs []chat.Message) (chat.Message, error) {
 	transcript := renderTranscript(msgs)
-	const prompt = `You are summarizing the earlier portion of a coding-agent
-conversation that has grown too long to keep verbatim. Produce a
-compact, faithful summary the agent can use to continue without
-losing key context.
+	const prompt = `You are compacting the earlier portion of a long coding-agent
+conversation into a faithful, STRUCTURED summary the agent will read as part of
+its system prompt to continue WITHOUT losing key context. Be specific; quote
+literal identifiers (file paths, function / type names, commands) so they stay
+greppable.
 
-Format the summary as markdown bullets. Cover:
-- Tasks completed
-- Files / paths touched
-- Open questions or remaining work
-- User preferences / constraints stated
-- Tool invocations of lasting relevance
+Output markdown under EXACTLY these headings (drop a heading only if truly empty):
 
-Be specific and concise. Quote literal identifiers (file names,
-function names) so they remain greppable. Do NOT include the
-preamble or the user message; the agent will receive your bullets
-verbatim as part of its system prompt.`
+## Goal
+The user's original objective(s), in their own framing — quote the key request.
+
+## Progress
+What has been done so far: completed steps, what worked.
+
+## Current state
+Files / paths created or modified (with their paths) + each one's role; key
+identifiers (functions, types, symbols) in play; command results worth keeping.
+
+## Decisions & constraints
+Choices made and WHY; user preferences / constraints stated (style, libraries,
+dos & don'ts); approaches rejected and the reason (so they aren't retried).
+
+## Next steps
+Remaining work + open questions — concrete and ordered.
+
+Do NOT echo this instruction or restate the raw transcript; the agent receives
+your sections verbatim.`
 
 	text, err := askDirect(ctx, c.client, prompt, transcript)
 	if err != nil {
