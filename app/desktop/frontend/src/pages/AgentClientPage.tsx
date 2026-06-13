@@ -1,10 +1,10 @@
 // AgentClientPage — the kernel layout.
 //
-// VS Code-inspired regions: left sidebar + center main area + global
-// overlay. Each region is a named Slot whose body comes from plugin
-// contributions; this file owns no functional code, only the grid.
-// (Run telemetry lives in the composer footer, global indicators in the
-// sidebar footer — there is no bottom status bar.)
+// VS Code-inspired regions: left sidebar + center main area + a full-width
+// status bar along the bottom + global overlay. Each region is a named Slot
+// whose body comes from plugin contributions; this file owns no functional
+// code, only the grid. (The status bar carries persistent run telemetry —
+// DESIGN.md §8; the composer footer keeps input-adjacent session context.)
 
 import { Slot } from "@/plugins/host/Slot";
 import { useUiStore } from "@/state/uiStore";
@@ -29,6 +29,12 @@ export function AgentClientPage() {
           <Slot name="app.main" />
         </main>
       </div>
+      {/* Full-width chrome row below the cards. `contents` keeps the footer
+          transparent to the grid; the wrapper Slot renders the `.statusbar`
+          div that actually occupies the bottom track. */}
+      <footer aria-label="Status bar" className="contents">
+        <Slot name="app.statusbar" wrapper className="statusbar" />
+      </footer>
       <Slot name="app.overlay" />
     </div>
   );
