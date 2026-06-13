@@ -91,7 +91,11 @@ Stripe 是 **CRUD-over-REST 开发体验**的天花板,但我们的 API **只有
 - **复用 `PageQuery`**:`ListModelsRequest`/`MCPListToolsRequest`/`ListRunsRequest`/`ListOpenInterruptsRequest` 从手搓 `cursor`/`limit` 改为 embed `PageQuery`(对齐 `WorkspaceListQuery` 范式,消除分页字段漂移)。
 - **有意未做**:`ProviderType`(适配器集开放,不宜闭合 Valid)、`AgentDoc.Scope`(需 `MemoryScope→Scope` 共享改名)、`Skill.Source`(取值模糊)——低价值,留作触发条件。
 
-至此旁路 API 与核心 API 在参数纪律上**一致**:枚举皆 typed、列表皆 `Page[T]` + `PageQuery`、判别皆单 `type`、能力皆经 `features` map gating。
+**随后又把核心剩余的闭合枚举一并 typed 化(全协议彻底对齐)**:`SafetyClass`、`ContentBlockType`、`PlanStepStatus`、`QuestionFieldType`、`DiffRowType`(items)、`InterruptType`、`InterruptResponseType`、`ApprovalDecision`、`ContextItemType`、`RememberScopeKind`(runs HITL)、`PatchOp`(events state.delta)、`ErrorChannel`(errors);并把生产代码里这些枚举的字面量构造/比较点统一换成 typed 常量(interrupt 翻译、Channel 构造、RememberSession/ContentBlockText 比较),让枚举真正被用上。
+
+**有意保留为开放 string**(设计上可扩展,非闭合):`ProblemData.Type`(symbolic 错误名,第三方 `plugin:<name>/<symbol>` 命名空间)、`Provider.Type`(适配器集随适配器增长)。
+
+至此**核心 + 旁路全协议**在参数纪律上**完全一致**:**每个闭合枚举皆 typed**(client-input 的带 `Valid()`)、列表皆 `Page[T]` + `PageQuery`、判别皆单 typed `type`、能力皆经开放 `features` map gating——端到端的 Stripe/Google-AIP 纪律。全程非破坏(`type X string` ⇒ wire JSON 不变)。
 
 ---
 
