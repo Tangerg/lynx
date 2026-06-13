@@ -18,50 +18,59 @@ const item = (partial: Record<string, unknown>): Item =>
 const runStarted = (id: string, sessionId: string): StreamEvent =>
   ({ type: "run.started", run: { id, sessionId } }) as never;
 const runFinished = (outcome: RunOutcome): StreamEvent => ({ type: "run.finished", outcome });
+// Wrap a synthetic StreamEvent as a FoldEvent — no envelope runId, so the fold
+// treats it as the root run (matching applyEvents' batch shape).
+const fold = (event: StreamEvent) => ({ event });
 
 // Drive the store to a state where `itemId` is an open interrupt of `kind`.
 function seedInterrupt(kind: "approval" | "question", itemId: string): void {
   const store = useAgentStore.getState();
   store.resetSession(SID);
-  store.applyEvents(SID, [
-    runStarted("run_1", SID),
-    kind === "approval"
-      ? started(
-          item({
-            id: itemId,
-            type: "toolCall",
-            tool: { name: "bash", arguments: { command: "rm x" } },
-          }),
-        )
-      : started(
-          item({
-            id: itemId,
-            type: "question",
-            question: { prompt: "Which?", fields: [{ type: "text", name: "f1", label: "Which?" }] },
-          }),
-        ),
-    runFinished({
-      type: "interrupt",
-      interrupts: [
-        kind === "approval"
-          ? {
-              itemId: itemId as never,
-              type: "approval",
-              payload: { tool: { name: "bash", arguments: { command: "rm x" } } },
-            }
-          : {
-              itemId: itemId as never,
+  store.applyEvents(
+    SID,
+    [
+      runStarted("run_1", SID),
+      kind === "approval"
+        ? started(
+            item({
+              id: itemId,
+              type: "toolCall",
+              tool: { name: "bash", arguments: { command: "rm x" } },
+            }),
+          )
+        : started(
+            item({
+              id: itemId,
               type: "question",
-              payload: {
-                question: {
-                  prompt: "Which?",
-                  fields: [{ type: "text", name: "f1", label: "Which?" }],
+              question: {
+                prompt: "Which?",
+                fields: [{ type: "text", name: "f1", label: "Which?" }],
+              },
+            }),
+          ),
+      runFinished({
+        type: "interrupt",
+        interrupts: [
+          kind === "approval"
+            ? {
+                itemId: itemId as never,
+                type: "approval",
+                payload: { tool: { name: "bash", arguments: { command: "rm x" } } },
+              }
+            : {
+                itemId: itemId as never,
+                type: "question",
+                payload: {
+                  question: {
+                    prompt: "Which?",
+                    fields: [{ type: "text", name: "f1", label: "Which?" }],
+                  },
                 },
               },
-            },
-      ],
-    }),
-  ]);
+        ],
+      }),
+    ].map(fold),
+  );
 }
 const started = (i: Item): StreamEvent => ({ type: "item.started", item: i });
 
@@ -105,38 +114,41 @@ describe("agentStore.resolveInterrupt", () => {
   it("resolving one of several interrupts in an envelope keeps the siblings", () => {
     const store = useAgentStore.getState();
     store.resetSession(SID);
-    store.applyEvents(SID, [
-      runStarted("run_1", SID),
-      started(
-        item({
-          id: "t1",
-          type: "toolCall",
-          tool: { name: "bash", arguments: { command: "rm a" } },
+    store.applyEvents(
+      SID,
+      [
+        runStarted("run_1", SID),
+        started(
+          item({
+            id: "t1",
+            type: "toolCall",
+            tool: { name: "bash", arguments: { command: "rm a" } },
+          }),
+        ),
+        started(
+          item({
+            id: "t2",
+            type: "toolCall",
+            tool: { name: "bash", arguments: { command: "rm b" } },
+          }),
+        ),
+        runFinished({
+          type: "interrupt",
+          interrupts: [
+            {
+              itemId: "t1" as never,
+              type: "approval",
+              payload: { tool: { name: "bash", arguments: { command: "rm a" } } },
+            },
+            {
+              itemId: "t2" as never,
+              type: "approval",
+              payload: { tool: { name: "bash", arguments: { command: "rm b" } } },
+            },
+          ],
         }),
-      ),
-      started(
-        item({
-          id: "t2",
-          type: "toolCall",
-          tool: { name: "bash", arguments: { command: "rm b" } },
-        }),
-      ),
-      runFinished({
-        type: "interrupt",
-        interrupts: [
-          {
-            itemId: "t1" as never,
-            type: "approval",
-            payload: { tool: { name: "bash", arguments: { command: "rm a" } } },
-          },
-          {
-            itemId: "t2" as never,
-            type: "approval",
-            payload: { tool: { name: "bash", arguments: { command: "rm b" } } },
-          },
-        ],
-      }),
-    ]);
+      ].map(fold),
+    );
     expect(view().openInterrupts[0]!.interrupts).toHaveLength(2);
 
     useAgentStore.getState().resolveInterrupt(SID, "t1", { decision: "approved" });
@@ -154,7 +166,7 @@ describe("agentStore never resurrects a dropped session", () => {
   // entry (prune won't fire again for an id no longer in tabIds → leak).
   it("applyEvents on an absent session is a no-op (no ghost entry)", () => {
     useAgentStore.getState().dropSession("ses_ghost");
-    useAgentStore.getState().applyEvents("ses_ghost", [runStarted("run_x", "ses_ghost")]);
+    useAgentStore.getState().applyEvents("ses_ghost", [runStarted("run_x", "ses_ghost")].map(fold));
     expect(useAgentStore.getState().sessions["ses_ghost"]).toBeUndefined();
   });
 
@@ -197,7 +209,7 @@ describe("agentStore.relabelMessage", () => {
   it("renames an optimistic placeholder to the server id", () => {
     const store = useAgentStore.getState();
     store.resetSession(SID);
-    store.applyEvents(SID, [userMsg("local-1")]);
+    store.applyEvents(SID, [userMsg("local-1")].map(fold));
     expect(view().messages.map((m) => m.id)).toEqual(["local-1"]);
 
     useAgentStore.getState().relabelMessage(SID, "local-1", "item_real");
@@ -207,7 +219,7 @@ describe("agentStore.relabelMessage", () => {
   it("is a no-op when the target id already exists (streamed item won the race)", () => {
     const store = useAgentStore.getState();
     store.resetSession(SID);
-    store.applyEvents(SID, [userMsg("item_real"), userMsg("local-1")]);
+    store.applyEvents(SID, [userMsg("item_real"), userMsg("local-1")].map(fold));
     expect(view().messages).toHaveLength(2);
 
     useAgentStore.getState().relabelMessage(SID, "local-1", "item_real");

@@ -30,7 +30,7 @@ export async function rehydrateSessionView(sessionId: string): Promise<void> {
   if (data.length > 0) {
     store.applyEvents(
       sessionId,
-      data.map((item) => ({ type: "item.completed" as const, item })),
+      data.map((item) => ({ event: { type: "item.completed" as const, item } })),
     );
   }
 }

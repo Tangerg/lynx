@@ -165,13 +165,30 @@ function materializeInterrupt(
   return state; // toolResult — gated by features.clientTools, not rendered here
 }
 
-// KNOWN LIMITATION (deferred until subagents stream): unlike onRunStarted,
-// this has no spawnedByItemId guard — RunOutcome carries no runId, and the
-// fold receives the unwrapped StreamEvent (RunEvent.runId is dropped before
-// reduce). So a subagent's run.finished would idle the main run and attribute
-// its interrupt's parentRunId to the root run. Fixing it needs the wire runId
-// threaded into the fold; revisit when subagents actually emit run.finished.
-function onRunFinished(state: AgentViewState, outcome: RunOutcome): AgentViewState {
+// A subagent run shares the parent stream (API.md §5.4). RunOutcome carries no
+// id, so we discriminate on the wire (envelope) runId — threaded through
+// `reduce` — against the root run's id (state.run.runId, set by the root's
+// run.started; a subagent's run.started took the spawnedByItemId branch and
+// never overwrote it). A CONFIRMED-different runId ⇒ subagent: record it on the
+// timeline and leave the root run untouched — idling it or running
+// settleOpenInterrupts here would falsely stop the still-in-flight root and drop
+// its live HITL cards.
+//
+// A subagent end is always terminal (completed / error / canceled), never
+// interrupt: the backend surfaces a child parked for HITL as a "waiting" tool
+// result to the *parent* LLM (which re-plans), not as a wire interrupt on the
+// child run — see lynx agent/runtime/agent_tool.go. So there is no subagent
+// interrupt card to materialize here. An unknown runId (synthetic / pre-root
+// events) or a match ⇒ the root/continuation run — full handling below.
+function onRunFinished(state: AgentViewState, outcome: RunOutcome, runId?: string): AgentViewState {
+  if (runId && state.run.runId && runId !== state.run.runId) {
+    return appendTimelineEntry({
+      kind: "run-end",
+      runId,
+      status: outcome.type === "completed" ? "ok" : undefined,
+      summary: "subagent",
+    })(state);
+  }
   const idle: AgentViewState = { ...state, run: { ...state.run, running: false } };
   if (outcome.type === "interrupt") {
     const parentRunId = (state.run.runId ?? "") as OpenInterrupt["parentRunId"];
@@ -347,15 +364,19 @@ function onStateDelta(state: AgentViewState, patch: Operation[]): AgentViewState
 
 function bind<T extends StreamEvent["type"]>(
   type: T,
-  fn: (state: AgentViewState, ev: Extract<StreamEvent, { type: T }>) => AgentViewState,
+  fn: (
+    state: AgentViewState,
+    ev: Extract<StreamEvent, { type: T }>,
+    runId?: string,
+  ) => AgentViewState,
 ): [string, StreamEventHandler] {
-  return [type, (state, ev) => fn(state, ev as Extract<StreamEvent, { type: T }>)];
+  return [type, (state, ev, runId) => fn(state, ev as Extract<StreamEvent, { type: T }>, runId)];
 }
 
 export const HANDLERS: ReadonlyArray<[string, StreamEventHandler]> = [
   bind("run.started", (s, ev) => onRunStarted(s, ev.run)),
   bind("run.progress", (s, ev) => onRunProgress(s, ev.progress)),
-  bind("run.finished", (s, ev) => onRunFinished(s, ev.outcome)),
+  bind("run.finished", (s, ev, runId) => onRunFinished(s, ev.outcome, runId)),
   bind("item.started", (s, ev) => onItemStarted(s, ev.item)),
   bind("item.delta", (s, ev) => onItemDelta(s, ev.itemId, ev.delta)),
   bind("item.completed", (s, ev) => onItemCompleted(s, ev.item)),

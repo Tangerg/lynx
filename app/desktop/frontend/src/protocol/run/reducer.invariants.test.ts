@@ -55,7 +55,7 @@ const delta = (itemId: string, d: Record<string, unknown>): StreamEvent =>
   ({ type: "item.delta", itemId, delta: d }) as StreamEvent;
 
 const foldAll = (events: StreamEvent[]): AgentViewState =>
-  events.reduce(reduce, INITIAL_VIEW_STATE);
+  events.reduce((state, ev) => reduce(state, ev), INITIAL_VIEW_STATE);
 
 // The assistant turn's `time` is wall-clock-stamped when the turn opens (not
 // event data), so compare renders without it.

@@ -34,5 +34,14 @@ export type CustomEventHandler<T = unknown> = (value: T) => StateUpdate | void;
  *
  * Pluginifying these makes "everything is a plugin" literal: even the v2
  * protocol fold is just one (replaceable) plugin's contribution.
+ *
+ * `runId` is the wire (RunEvent envelope) runId that carried this event —
+ * threaded through so run.* handlers can tell a subagent's run from the root's
+ * (RunOutcome itself carries no id). Absent for synthetic events (the optimistic
+ * local bubble, items.list history replay).
  */
-export type StreamEventHandler = (state: AgentViewState, event: StreamEvent) => AgentViewState;
+export type StreamEventHandler = (
+  state: AgentViewState,
+  event: StreamEvent,
+  runId?: string,
+) => AgentViewState;
