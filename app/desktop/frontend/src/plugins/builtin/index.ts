@@ -12,6 +12,7 @@
 
 import type { PluginSpec } from "../sdk";
 import appearance from "./settings/appearance";
+import approvalsPane from "./settings/approvals";
 import personalization from "./settings/personalization";
 import chatSearch from "./chat/chat-search";
 import commandPalette from "./command/command-palette";
@@ -170,6 +171,7 @@ const composer: PluginSpec[] = [
 
 const panes: PluginSpec[] = [
   appearance,
+  approvalsPane,
   personalization,
   connectionSettings,
   pluginsPane,

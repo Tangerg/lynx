@@ -16,6 +16,7 @@ import type {
   McpToolsQuery,
   MCPServer as SidebarMCPServer,
   MemoryQuery,
+  RememberedQuery,
   SidebarProject,
   SidebarSession,
   WorkspaceDiff,
@@ -27,6 +28,7 @@ import type {
   WorkspaceFileChange as RpcFileChange,
 } from "@/rpc";
 import {
+  APPROVAL_MODE_KEY,
   DIFF_KEY,
   FILES_CHANGED_KEY,
   MCP_SERVERS_KEY,
@@ -35,11 +37,12 @@ import {
   MODELS_KEY,
   PROJECTS_KEY,
   PROVIDERS_KEY,
+  REMEMBERED_KEY,
   SESSIONS_KEY,
   SKILLS_KEY,
 } from "@/lib/data/queries";
 import { getContainer } from "@/main/container";
-import { isErrorType } from "@/rpc";
+import { asSessionId, isErrorType } from "@/rpc";
 import { definePlugin } from "@/plugins/sdk";
 import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
 
@@ -268,6 +271,22 @@ export const defaultData = definePlugin({
           type: p.type,
           baseUrl: p.baseUrl ?? "",
           apiKeyMasked: p.apiKeyMasked,
+        })),
+    });
+    // approval.* (B9, docs/613) — global stance + per-session remembered decisions.
+    host.extensions.contribute(DATA_PROVIDER, {
+      key: APPROVAL_MODE_KEY,
+      fetcher: async () => (await client().approval.getMode()).mode,
+    });
+    host.extensions.contribute(DATA_PROVIDER, {
+      key: REMEMBERED_KEY,
+      fetcher: async (params) =>
+        (
+          await client().approval.listRemembered(asSessionId((params as RememberedQuery).sessionId))
+        ).entries.map((e) => ({
+          tool: e.tool,
+          decision: e.decision,
+          rememberedAt: e.rememberedAt,
         })),
     });
   },
