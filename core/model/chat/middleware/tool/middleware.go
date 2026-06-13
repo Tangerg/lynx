@@ -227,9 +227,8 @@ func (m *middleware) executeCallRecursively(ctx context.Context, req *chat.Reque
 	}
 
 	if det != nil {
-		sig := roundSignature(resp.Result.AssistantMessage.CollectToolCalls(), result.toolMessage)
-		if stuck, count := det.observe(sig); stuck {
-			return nil, &LoopDetectedError{Count: count, Threshold: det.threshold, Window: det.window}
+		if err := det.observe(roundSignature(resp.Result.AssistantMessage.CollectToolCalls(), result.toolMessage)); err != nil {
+			return nil, err
 		}
 	}
 
@@ -344,9 +343,8 @@ func (m *middleware) executeStreamRecursively(ctx context.Context, req *chat.Req
 	}
 
 	if det != nil {
-		sig := roundSignature(resp.Result.AssistantMessage.CollectToolCalls(), result.toolMessage)
-		if stuck, count := det.observe(sig); stuck {
-			yield(nil, &LoopDetectedError{Count: count, Threshold: det.threshold, Window: det.window})
+		if err := det.observe(roundSignature(resp.Result.AssistantMessage.CollectToolCalls(), result.toolMessage)); err != nil {
+			yield(nil, err)
 			return
 		}
 	}

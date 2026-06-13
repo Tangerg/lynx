@@ -21,16 +21,16 @@ func TestLoopDetector_TripsOnlyAboveThreshold(t *testing.T) {
 	}
 	const sig = "abc"
 	for i := 1; i <= DefaultLoopThreshold; i++ {
-		if stuck, count := d.observe(sig); stuck {
-			t.Fatalf("occurrence %d tripped (count=%d); threshold is %d", i, count, d.threshold)
+		if err := d.observe(sig); err != nil {
+			t.Fatalf("occurrence %d tripped (%v); threshold is %d", i, err, d.threshold)
 		}
 	}
-	stuck, count := d.observe(sig) // the 6th
-	if !stuck {
-		t.Fatalf("occurrence %d did not trip; want stuck", DefaultLoopThreshold+1)
+	var loopErr *LoopDetectedError
+	if err := d.observe(sig); !errors.As(err, &loopErr) { // the 6th
+		t.Fatalf("occurrence %d did not trip; want *LoopDetectedError, got %v", DefaultLoopThreshold+1, err)
 	}
-	if count != DefaultLoopThreshold+1 {
-		t.Fatalf("count = %d, want %d", count, DefaultLoopThreshold+1)
+	if loopErr.Count != DefaultLoopThreshold+1 {
+		t.Fatalf("Count = %d, want %d", loopErr.Count, DefaultLoopThreshold+1)
 	}
 }
 
@@ -39,9 +39,9 @@ func TestLoopDetector_TripsOnlyAboveThreshold(t *testing.T) {
 func TestLoopDetector_DistinctSignaturesNeverTrip(t *testing.T) {
 	d := newLoopDetector(&LoopDetectionConfig{Window: 4, Threshold: 2})
 	for i := range 20 {
-		// A fresh signature every round.
-		if stuck, _ := d.observe(string(rune('a' + i%26))); stuck && i >= 26 {
-			t.Fatalf("distinct-ish signatures tripped at %d", i)
+		// A fresh signature every round (a..t, all distinct).
+		if err := d.observe(string(rune('a' + i))); err != nil {
+			t.Fatalf("distinct signatures tripped at %d: %v", i, err)
 		}
 	}
 }
@@ -53,8 +53,8 @@ func TestLoopDetector_WindowEvicts(t *testing.T) {
 	d := newLoopDetector(&LoopDetectionConfig{Window: 3, Threshold: 2})
 	seq := []string{"x", "a", "b", "x", "c", "d", "x"} // x's are >2 apart
 	for i, s := range seq {
-		if stuck, count := d.observe(s); stuck {
-			t.Fatalf("evicting window tripped at %d (count=%d)", i, count)
+		if err := d.observe(s); err != nil {
+			t.Fatalf("evicting window tripped at %d: %v", i, err)
 		}
 	}
 }
@@ -64,8 +64,8 @@ func TestLoopDetector_WindowEvicts(t *testing.T) {
 func TestLoopDetector_EmptySignatureIgnored(t *testing.T) {
 	d := newLoopDetector(&LoopDetectionConfig{Window: 2, Threshold: 1})
 	for range 10 {
-		if stuck, count := d.observe(""); stuck || count != 0 {
-			t.Fatalf("empty signature counted: stuck=%v count=%d", stuck, count)
+		if err := d.observe(""); err != nil {
+			t.Fatalf("empty signature counted: %v", err)
 		}
 	}
 }
