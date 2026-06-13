@@ -98,6 +98,10 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	toolCallMW, toolStreamMW := tool.NewMiddleware(tool.Config{
 		FeedbackOnEmptyResponse: true,
 		ParkStore:               cfg.ParkStore,
+		// Halt a stuck agent (same tool + args + result repeating) before it
+		// burns the full iteration cap. Default window/threshold (10 / >5):
+		// six byte-identical rounds is a fixed point, not a retry.
+		LoopDetection: &tool.LoopDetectionConfig{},
 	})
 	platform := agent.NewPlatform(runtime.PlatformConfig{
 		ChatClient: cfg.ChatClient,
