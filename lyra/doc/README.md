@@ -34,7 +34,8 @@
 | [STRUCTURE_REVIEW.md](STRUCTURE_REVIEW.md) | 向 DDD / 整洁架构演进的结构审视（依赖规则 / 限界上下文 / F1 用例归位）+ 执行进度 | ★ 现行结构基准 |
 | [GREENFIELD_ARCHITECTURE.md](GREENFIELD_ARCHITECTURE.md) | "假设从零重写" 的架构师设计稿：单一心智模型（依赖向内）+ 微内核目录树 + 与现状的差异 | 评审稿（供作者评审，非权威） |
 | [NAMING_REVIEW.md](NAMING_REVIEW.md) | `lyra/` 命名 review |
-| [PROTOCOL_ALIGNMENT_REVIEW.md](PROTOCOL_ALIGNMENT_REVIEW.md) | 协议对齐审视（与前端 docs/API.md / TRANSPORT.md 对账） |
+| [PROTOCOL_ALIGNMENT_REVIEW.md](PROTOCOL_ALIGNMENT_REVIEW.md) | 协议对齐审视（与前端 docs/API.md / TRANSPORT.md 对账；wire-shape 债修复账，已基本完成） |
+| [FRONTEND_API_REVIEW.md](FRONTEND_API_REVIEW.md) | 前端 API 体验评审（交互参数设计 vs Stripe 范式记分卡 + 同类对照 + 能力缺口 B7-B12）★ 现行 DX 评审 |
 
 ## D. agent 框架利用 + 外部启发
 
