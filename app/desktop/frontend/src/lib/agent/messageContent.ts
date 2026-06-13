@@ -6,13 +6,15 @@
 import type { Message } from "@/protocol/run/viewState";
 
 /**
- * Best-effort plaintext extraction from a Message's content blocks. Only
- * blocks that carry a `text` field contribute (tool / approval / search
- * blocks fall through — they don't make sense as plain text anyway).
+ * Best-effort plaintext extraction from a Message's content blocks. Only text +
+ * reasoning (the prose-bearing kinds) contribute; tool / approval / question and
+ * other UI-only blocks are dropped — their `text` is a card label (e.g. an
+ * approval's "Run command"), not prose, so it must not leak into copied/exported
+ * plaintext.
  */
 export function flattenText(blocks: Message["blocks"]): string {
   return blocks
-    .map((b) => ("text" in b ? ((b as { text?: string }).text ?? "") : ""))
+    .map((b) => (b.kind === "text" || b.kind === "reasoning" ? b.text : ""))
     .filter(Boolean)
     .join("\n\n");
 }
