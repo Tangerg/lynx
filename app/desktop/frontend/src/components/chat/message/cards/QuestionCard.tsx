@@ -97,7 +97,10 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered 
     });
   };
 
-  const disabled = !parentRunId || !itemId || !allAnswered;
+  // Also disable once the interrupt is no longer open: settleOpenInterrupts
+  // downgrades an unacted question to `incomplete` on run-end so its Submit
+  // can't resume a dead run.
+  const disabled = !parentRunId || !itemId || !allAnswered || status !== "requires-action";
 
   return (
     <HitlCardShell tone="accent" icon="chat" label={t("question.required")}>
