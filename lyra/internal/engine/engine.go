@@ -25,7 +25,7 @@ import (
 //     see chatturn.go / chatprocess.go
 //   - maintenance:    the injected Compactor / Extractor / Planner ports
 //     power [Engine.MaybeCompact] / [Engine.MaybeExtract] / plan mode
-//   - context:        memSvc / workdir feed the system prompt; the Steering
+//   - context:        knowledge / workdir feed the system prompt; the Steering
 //     port flushes a queued steering message into history at turn-end
 //
 // The tool environment (resolver + tools + MCP facade + closers) is assembled
@@ -40,7 +40,7 @@ type Engine struct {
 	// Context inputs (read at SystemPrompt + chat-memory time).
 	tools           []chat.Tool
 	steering        SteeringSink // turn-end steering inject; nil → steering drops
-	memSvc          knowledge.Service
+	knowledge       knowledge.Service
 	workdir         string  // captured from Config.Workdir for the AGENTS.md cascade
 	skillsGlobalDir string  // captured from Config.SkillsGlobalDir for workspace.listSkills
 	pricing         Pricing // optional per-round cost hook; nil → cost stays zero
@@ -124,7 +124,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		compactor:       cfg.Compactor,
 		extractor:       cfg.Extractor,
 		planner:         cfg.Planner,
-		memSvc:          cfg.Knowledge,
+		knowledge:       cfg.Knowledge,
 		workdir:         cfg.Workdir,
 		skillsGlobalDir: cfg.SkillsGlobalDir,
 		pricing:         cfg.Pricing,
