@@ -178,8 +178,12 @@ function ToolMeta({ tool }: { tool: ToolCall }) {
       {tool.exitCode != null && tool.exitCode !== 0 && (
         <span className="text-negative">exit {tool.exitCode}</span>
       )}
-      <span>·</span>
-      <span>{tool.duration}</span>
+      {tool.status === "running" && (
+        <>
+          <span>·</span>
+          <span>LIVE</span>
+        </>
+      )}
     </div>
   );
 }

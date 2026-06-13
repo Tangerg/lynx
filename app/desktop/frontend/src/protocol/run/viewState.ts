@@ -68,7 +68,6 @@ export interface ToolCall {
   fn: string; // tool display name / command
   args: string; // accumulated arg text (toolArguments deltas, pre-parse)
   status: ToolCallStatus;
-  duration: string; // pre-formatted (e.g. "12ms", "LIVE")
   added?: number;
   removed?: number;
   hits?: number;

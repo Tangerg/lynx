@@ -88,7 +88,6 @@ describe("deriveLatestRun", () => {
           fn: "src/auth.ts", // toolLabel(write) = the changed path
           args: "",
           status: "ok",
-          duration: "12ms",
           added: 5,
           removed: 2,
         },
@@ -98,7 +97,6 @@ describe("deriveLatestRun", () => {
           fn: "read",
           args: "src/types.ts",
           status: "ok",
-          duration: "3ms",
         },
         "t-bash": {
           id: "t-bash",
@@ -106,7 +104,6 @@ describe("deriveLatestRun", () => {
           fn: "pnpm test", // toolLabel(bash) = arguments.command
           args: "",
           status: "err",
-          duration: "1.4s",
         },
       },
     });
