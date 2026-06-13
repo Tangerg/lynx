@@ -142,12 +142,12 @@
 | ALL-CAPS 标签（~20 处：区域标题 / 表头 / badge — tools / run-summary / FilesChanged / PlanList / Approval+QuestionCard / Diagnostics / Shortcuts / Timeline / MessageOutline / ToolInspector / projects / tasks） | 用户选 **sentence-case**：去 `uppercase` + 宽 tracking，保留作者原文大小写（多为 sentence-case）。DESIGN.md §10 已更新。顺带删掉 PlanList 的假 `ApprovalNote`。 |
 | 语义色首屏满饱和非暗调 | `globals.css :root` 首屏默认改暗调（`#f85149` 等），消除首屏闪色；主题运行时本就合规（lyra-dark 暗调 / lyra-light 饱和），仅 :root 默认漂移。 |
 
-**待办（真漂移）：**
+**✅ 已了结：**
 
-| 漂移 | 位置 | DESIGN.md 条款 |
-|---|---|---|
-| reasoning block 是 surface-2 填充盒 | `ReasoningBlock.tsx` | §components.reasoning-block「border-left: 2px」（待确认是否也是有意决策） |
-| mode 点击循环非 segmented | `Composer.tsx:141` | §components.segmented-control（并入 G6） |
+| 项 | 处理 |
+|---|---|
+| mode 点击循环非 segmented | 已在 G6 改 `Segmented`（Agent/Ask/Plan 直选）。 |
+| reasoning block 填充盒 vs 左边框 | 重估为**有意设计**——`ReasoningBlock` 是带 hover header + 流式自动展开的 polished 折叠面板，填充 surface-2 盒比左边框更贴合。改 DESIGN.md §components.reasoning-block 名实相符，不动代码。 |
 
 **✅ 已确认为有意决策 — 已改 DESIGN.md 名实相符（不动代码）：**
 
@@ -167,8 +167,8 @@
 - **谁在做**：
   - **codex / crush**：`codex-rs/tui/src/streaming/controller.rs:1-37` + `crush/internal/ui/chat/streaming_markdown.go:10,230` —— **stable-prefix（已提交、永不重渲）+ mutable-tail（每帧重渲尾部）**，只在安全 markdown 边界切分，**表格 holdback 到 finalize**（新行会重排整列）。codex 还把不可变历史写进终端 scrollback（`insert_history.rs:1`）。
   - **opencode**：`message-part.tsx:190-220` 的 `createPacedValue`（按词块匀速揭示）；`tool-status-title.tsx` 的 "Reading…→Read" 共享前缀 width-animation crossfade。
-- **Lyra 现状**：`components/chat/message/MarkdownMessage.tsx` 用 streamdown 块切分 + word-fade/typewriter（已不错）；可补"状态 crossfade"，并复核长文流式是否已是 stable-prefix（避免 O(n²) 重 parse）。
-- **工作量 · 风险**：中 · 中（热路径，受 §5 effect 纪律约束；先量再改）。
+- **Lyra 现状**：`MarkdownMessage.tsx` 用 streamdown 的 `parseMarkdownIntoBlocks` + 块级 memo（"只有尾块每帧重 parse"）——这正是 codex/crush 的 stable-prefix + mutable-tail。
+- **✅ 重估：非缺口。** (a) 流式性能已由 streamdown 解决（块级 memo，尾块才重 parse），无需再造。(b) "Reading…→Read" 动词 crossfade 与 Lyra 工具卡的 **RPC-log 嗓音**（`{fn}` 签名 + 状态字形，DESIGN §8）相冲——opencode 是动词叙述、Lyra 是签名，刻意不同，不强加。
 
 ---
 
@@ -176,9 +176,8 @@
 
 - **是什么**：编辑/重发产生多个分支后，在消息上 `< 2/3 >` 切换查看。
 - **谁在做**：cherry-studio `SiblingNavigator.tsx`；assistant-ui `BranchPickerCount.tsx:7`（`branchNumber`/`branchCount` 一等状态）。
-- **Lyra 现状**：有 edit / fork / regenerate（`components/chat/message/MessageContextMenu.tsx`），但**无 inline 分支切换器**——重发后旧分支不可见。
-- **落地方向**：viewState 记录同源分支链，消息壳加 `< i/N >` 控件（fork 已有数据基础）。
-- **工作量 · 风险**：小 · 低。
+- **Lyra 现状**：`editAndRerunMessage` 走 `sessions.rollback`（**销毁**旧轮次后重跑），`forkFromMessage` 走 `sessions.fork`（**新会话/标签页**）。viewState 无 branch/sibling 概念。
+- **✅ 重估：非缺口（有意的模型差异）。** Lyra 的"分支"= **fork-to-session**（每条探索是独立会话）；cherry/assistant-ui 的 inline `< i/N >` 是**保留同消息兄弟节点**的另一种模型。要在 Lyra 做 inline 分支，需后端**保留**被 rollback 销毁的轮次并按消息暴露兄弟链——既要后端配合、又与 fork-to-session 重复。属深思熟虑的模型选择，不强加；真要做是后端协调特性（届时归 BACKEND-DEPENDENCIES）。
 
 ---
 

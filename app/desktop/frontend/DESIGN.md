@@ -269,15 +269,15 @@ components:
     maxWidth: "{layout.chat-measure}"
     description: Full-width prose. No bubble chrome. Avatar peeks left.
   reasoning-block:
-    backgroundColor: transparent
-    borderLeft: "2px solid {colors.hairline-strong}"
-    paddingLeft: "12px"
+    backgroundColor: "{colors.surface-2}"
+    rounded: "{rounded.sm}"
+    padding: "8px 12px"
     headerTypography: "{typography.caption-mono}"
     headerColor: "{colors.ink-muted}"
     bodyTypography: "{typography.body-sm}"
     bodyColor: "{colors.ink-muted}"
     bodyFontStyle: italic
-    description: Collapsible thinking panel. Header shows "thinking · 12s" or "thought for 12s" in mono lowercase (NEVER "THINKING" all-caps).
+    description: Collapsible thinking panel — a filled surface-2 box (chosen over a left-border: it reads as a distinct, hover-able disclosure with an auto-expand-while-streaming header). Header shows "thinking · 12s" or "thought for 12s" in mono lowercase (NEVER "THINKING" all-caps).
   tool-call-card:
     backgroundColor: "{colors.surface-1}"
     borderColor: "{colors.hairline}"
