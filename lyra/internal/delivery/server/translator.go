@@ -8,7 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
-	"github.com/Tangerg/lynx/lyra/internal/kernel/chat"
+	"github.com/Tangerg/lynx/lyra/internal/kernel/turn"
 )
 
 // resumeBindingFrom extracts the pending approval items' ids (keyed by tool
@@ -257,33 +257,33 @@ func (t *translator) open() []protocol.StreamEvent {
 }
 
 // translate maps one Lyra chat event to zero or more StreamEvents.
-func (t *translator) translate(ev chat.Event) []protocol.StreamEvent {
+func (t *translator) translate(ev turn.Event) []protocol.StreamEvent {
 	switch e := ev.(type) {
-	case chat.TurnStart:
+	case turn.TurnStart:
 		// run.started is emitted by open() at the start of every run segment
 		// (so continuation runs get it too — they carry no chat.TurnStart),
 		// not here. Nothing to do for the chat-level TurnStart.
 		return nil
-	case chat.MessageDelta:
+	case turn.MessageDelta:
 		// Close any open reasoning before emitting text — reasoning and
 		// text cannot be concurrently open (API.md §5: at most one
 		// streaming item at a time).
 		out := t.closeReasoning()
 		return append(out, t.appendText(e.Text)...)
-	case chat.ReasoningDelta:
+	case turn.ReasoningDelta:
 		// Close any open text before emitting reasoning.
 		out := t.closeText()
 		return append(out, t.appendReasoning(e.Text)...)
-	case chat.ToolCallStart:
+	case turn.ToolCallStart:
 		return t.toolStart(e)
-	case chat.ToolCallEnd:
+	case turn.ToolCallEnd:
 		return t.toolEnd(e)
-	case chat.ErrorEvent:
+	case turn.ErrorEvent:
 		t.errMsg = e.Message
 		return nil
-	case chat.TurnInterrupted:
+	case turn.TurnInterrupted:
 		return t.interrupt(e)
-	case chat.TurnEnd:
+	case turn.TurnEnd:
 		return t.turnEnd(e)
 	}
 	return nil

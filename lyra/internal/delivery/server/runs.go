@@ -13,7 +13,7 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/delivery/transport"
 	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/lyra/internal/domain/session"
-	"github.com/Tangerg/lynx/lyra/internal/kernel/chat"
+	"github.com/Tangerg/lynx/lyra/internal/kernel/turn"
 )
 
 // StartRun translates runs.start into the in-process chat.StartTurn
@@ -64,7 +64,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		return nil, nil, fmt.Errorf("%w: unknown mode %q", protocol.ErrInvalidParams, in.Mode)
 	}
 
-	handle, err := s.rt.Chat().StartTurn(ctx, chat.StartTurnRequest{
+	handle, err := s.rt.Chat().StartTurn(ctx, turn.StartTurnRequest{
 		SessionID:  sessionID,
 		Message:    userMsg,
 		Cwd:        sess.Cwd,
@@ -118,9 +118,9 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 		return nil, nil, err
 	}
 
-	handle := chat.TurnHandle{SessionID: pending.SessionID, TurnID: pending.TurnID}
+	handle := turn.TurnHandle{SessionID: pending.SessionID, TurnID: pending.TurnID}
 	if err = s.rt.Chat().Resume(ctx, handle, resolution); err != nil {
-		if !errors.Is(err, chat.ErrTurnNotFound) {
+		if !errors.Is(err, turn.ErrTurnNotFound) {
 			return nil, nil, err
 		}
 		// The live turn is gone (the backend restarted). Rebuild the parked
@@ -164,11 +164,11 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 // Returns the fresh turn handle the continuation streams on, or an error
 // when the interrupt can't be rebuilt (no recorded ProcessID, no
 // ProcessStore, or a missing / non-deployable snapshot).
-func (s *Server) rehydrate(ctx context.Context, pending interrupts.Pending, approved bool) (chat.TurnHandle, error) {
+func (s *Server) rehydrate(ctx context.Context, pending interrupts.Pending, approved bool) (turn.TurnHandle, error) {
 	if pending.ProcessID == "" {
-		return chat.TurnHandle{}, errors.New("server: interrupt has no recorded process id")
+		return turn.TurnHandle{}, errors.New("server: interrupt has no recorded process id")
 	}
-	return s.rt.Chat().Rehydrate(ctx, chat.RehydrateRequest{
+	return s.rt.Chat().Rehydrate(ctx, turn.RehydrateRequest{
 		SessionID: pending.SessionID,
 		ProcessID: pending.ProcessID,
 		Approved:  approved,
@@ -197,7 +197,7 @@ func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) er
 		if err != nil || !found {
 			return protocol.ErrRunNotFound
 		}
-		_ = s.rt.Chat().Cancel(ctx, chat.TurnHandle{SessionID: pending.SessionID, TurnID: pending.TurnID})
+		_ = s.rt.Chat().Cancel(ctx, turn.TurnHandle{SessionID: pending.SessionID, TurnID: pending.TurnID})
 		_ = s.rt.Interrupts().Delete(ctx, in.RunID)
 		return nil
 	}
@@ -206,7 +206,7 @@ func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) er
 	// un-parked run), cancel the run ctx, and stop the underlying turn.
 	_ = s.rt.Interrupts().Delete(ctx, in.RunID)
 	e.cancel()
-	_ = s.rt.Chat().Cancel(ctx, chat.TurnHandle{SessionID: e.sessionID, TurnID: e.turnID})
+	_ = s.rt.Chat().Cancel(ctx, turn.TurnHandle{SessionID: e.sessionID, TurnID: e.turnID})
 	return nil
 }
 

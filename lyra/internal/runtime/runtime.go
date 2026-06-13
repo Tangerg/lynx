@@ -45,8 +45,8 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/infra/a2a"
 	"github.com/Tangerg/lynx/lyra/internal/infra/mcp"
 	"github.com/Tangerg/lynx/lyra/internal/kernel"
-	chatsvc "github.com/Tangerg/lynx/lyra/internal/kernel/chat"
 	"github.com/Tangerg/lynx/lyra/internal/kernel/toolset"
+	"github.com/Tangerg/lynx/lyra/internal/kernel/turn"
 )
 
 // Config is the construction-time bundle for [New]. Engine carries the
@@ -120,7 +120,7 @@ type Config struct {
 // state after construction.
 type Runtime struct {
 	engine     *kernel.Engine
-	chat       chatsvc.Service
+	chat       turn.Service
 	session    sessionsvc.Service
 	tool       toolsvc.Service
 	knowledge  knowledge.Service
@@ -244,7 +244,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	// credentials. A turn with no selection runs the engine's default client.
 	resolver := newClientResolver(providerSvc)
 
-	chatSvc, err := chatsvc.New(eng, approvalSvc, resolver)
+	chatSvc, err := turn.New(eng, approvalSvc, resolver)
 	if err != nil {
 		return nil, fmt.Errorf("runtime: chat service: %w", err)
 	}
@@ -270,7 +270,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 
 // Chat returns the ChatService — the one-turn dispatch surface
 // transport adapters call into for [chatsvc.Service.StartTurn] etc.
-func (r *Runtime) Chat() chatsvc.Service { return r.chat }
+func (r *Runtime) Chat() turn.Service { return r.chat }
 
 // Session returns the SessionService — CRUD over saved sessions.
 func (r *Runtime) Session() sessionsvc.Service { return r.session }

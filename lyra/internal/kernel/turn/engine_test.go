@@ -1,4 +1,4 @@
-package chat_test
+package turn_test
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	corechat "github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/lyra/internal/kernel"
-	"github.com/Tangerg/lynx/lyra/internal/kernel/chat"
+	"github.com/Tangerg/lynx/lyra/internal/kernel/turn"
 )
 
 // stubChatProcess fakes the [engine.ChatProcess] handle without
@@ -133,8 +133,8 @@ func (s *stubEngine) MaybeExtract(_ context.Context, _, _ string) (kernel.Extrac
 func TestStubEngineDrivesTurn(t *testing.T) {
 	stub := &stubEngine{runReply: "hello from stub"}
 
-	svc := mustChat(chat.New(stub, nil, nil))
-	handle, err := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+	svc := mustChat(turn.New(stub, nil, nil))
+	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-1",
 		Message:   "hi",
 	})
@@ -152,9 +152,9 @@ func TestStubEngineDrivesTurn(t *testing.T) {
 	var sawDelta, sawEnd bool
 	for ev := range events {
 		switch ev.(type) {
-		case chat.MessageDelta:
+		case turn.MessageDelta:
 			sawDelta = true
-		case chat.TurnEnd:
+		case turn.TurnEnd:
 			sawEnd = true
 		}
 	}
@@ -176,9 +176,9 @@ func TestStubEngineDrivesTurn(t *testing.T) {
 // "model finished".
 func TestStubEngineBudgetStop(t *testing.T) {
 	stub := &stubEngine{runReply: "partial answer", stopOnBudget: true}
-	svc := mustChat(chat.New(stub, nil, nil))
+	svc := mustChat(turn.New(stub, nil, nil))
 
-	handle, err := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "s",
 		Message:   "go",
 		MaxBudget: 1,
@@ -191,8 +191,8 @@ func TestStubEngineBudgetStop(t *testing.T) {
 	events, _ := svc.Events(ctx, handle)
 
 	for ev := range events {
-		if end, ok := ev.(chat.TurnEnd); ok {
-			if end.Reason != chat.TurnEndBudgetExceeded {
+		if end, ok := ev.(turn.TurnEnd); ok {
+			if end.Reason != turn.TurnEndBudgetExceeded {
 				t.Fatalf("TurnEnd reason = %v, want budget_exceeded", end.Reason)
 			}
 			return
@@ -205,9 +205,9 @@ func TestStubEngineBudgetStop(t *testing.T) {
 // turn without needing a real engine.
 func TestStubEngineCancelsCleanly(t *testing.T) {
 	stub := &slowStubEngine{}
-	svc := mustChat(chat.New(stub, nil, nil))
+	svc := mustChat(turn.New(stub, nil, nil))
 
-	handle, _ := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "s",
 		Message:   "m",
 	})
@@ -226,7 +226,7 @@ func TestStubEngineCancelsCleanly(t *testing.T) {
 		return
 	}
 	for ev := range events {
-		if end, ok := ev.(chat.TurnEnd); ok && end.Reason == chat.TurnEndCanceled {
+		if end, ok := ev.(turn.TurnEnd); ok && end.Reason == turn.TurnEndCanceled {
 			return
 		}
 	}
@@ -242,9 +242,9 @@ func TestStubEngineCancelsCleanly(t *testing.T) {
 // streams the continuation (delta + TurnEnd) on a fresh handle.
 func TestRehydrateResumesRestoredTurn(t *testing.T) {
 	stub := &stubEngine{runReply: "continuation reply"}
-	svc := mustChat(chat.New(stub, nil, nil))
+	svc := mustChat(turn.New(stub, nil, nil))
 
-	handle, err := svc.Rehydrate(context.Background(), chat.RehydrateRequest{
+	handle, err := svc.Rehydrate(context.Background(), turn.RehydrateRequest{
 		SessionID: "sess-restored",
 		ProcessID: "proc-42",
 		Approved:  true,
@@ -268,11 +268,11 @@ func TestRehydrateResumesRestoredTurn(t *testing.T) {
 	var sawDelta, sawEnd bool
 	for ev := range events {
 		switch e := ev.(type) {
-		case chat.MessageDelta:
+		case turn.MessageDelta:
 			sawDelta = true
-		case chat.TurnEnd:
+		case turn.TurnEnd:
 			sawEnd = true
-			if e.Reason != chat.TurnEndCompleted {
+			if e.Reason != turn.TurnEndCompleted {
 				t.Errorf("TurnEnd reason = %s, want completed", e.Reason)
 			}
 		}
@@ -338,8 +338,8 @@ func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 	sentinel, _ := corechat.NewClient(newCapturingModel())
 	resolver := &fakeResolver{client: sentinel}
 
-	svc := mustChat(chat.New(stub, nil, resolver))
-	handle, err := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+	svc := mustChat(turn.New(stub, nil, resolver))
+	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "s",
 		Message:   "hi",
 		Provider:  "some-provider",
@@ -371,8 +371,8 @@ func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 func TestStartTurn_PassesCwd(t *testing.T) {
 	stub := &stubEngine{runReply: "ok"}
 
-	svc := mustChat(chat.New(stub, nil, nil))
-	handle, err := svc.StartTurn(context.Background(), chat.StartTurnRequest{
+	svc := mustChat(turn.New(stub, nil, nil))
+	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "s",
 		Message:   "hi",
 		Cwd:       "/work/project-a",

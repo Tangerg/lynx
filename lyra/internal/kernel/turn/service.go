@@ -1,8 +1,8 @@
-// Package chat defines the ChatService — Lyra's one-turn dispatch
+// Package turn defines the turn-dispatch Service — Lyra's one-turn
 // surface. A turn is the unit of interaction: client sends one
 // message, runtime drives one (possibly multi-tool) round, runtime
 // streams events back, turn ends with a [TurnEnd] event.
-package chat
+package turn
 
 import (
 	"context"

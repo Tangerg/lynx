@@ -8,7 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
-	"github.com/Tangerg/lynx/lyra/internal/kernel/chat"
+	"github.com/Tangerg/lynx/lyra/internal/kernel/turn"
 )
 
 // The run pump: one goroutine per run segment that subscribes to the
@@ -21,7 +21,7 @@ import (
 // pump for one run segment. parentRunID is empty for a root run
 // (runs.start) and set for a continuation (runs.resume) — it rides onto
 // the RunRef and the runEntry so the continuation links back to its parent.
-func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, handle chat.TurnHandle, sessionID string, userInput []protocol.ContentBlock, resume *resumeBinding) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
+func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, handle turn.TurnHandle, sessionID string, userInput []protocol.ContentBlock, resume *resumeBinding) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
 	// Detach the run from the request's cancellation (it must outlive the
 	// request) WITHOUT losing the request's trace context: WithoutCancel
 	// keeps ctx values — including the entry span — so the run's spans are
@@ -61,7 +61,7 @@ func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 //
 // Either way the wire run.finished event is the last thing on the
 // channel before it closes.
-func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle chat.TurnHandle, inner iter.Seq[chat.Event], hub *runHub, userInput []protocol.ContentBlock, resume *resumeBinding) {
+func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle turn.TurnHandle, inner iter.Seq[turn.Event], hub *runHub, userInput []protocol.ContentBlock, resume *resumeBinding) {
 	tr := newTranslator(handle.SessionID, runID, parentRunID, userInput, resume)
 	finished := false
 	parked := false
@@ -154,7 +154,7 @@ func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 // can discover it and runs.resume can map it back to the live turn.
 // drained is the backend-private snapshot of tool items open at park
 // time — see [interrupts.Pending.DrainedTools].
-func (s *Server) recordInterrupt(ctx context.Context, runID string, handle chat.TurnHandle, ints []protocol.Interrupt, drained []interrupts.DrainedTool) {
+func (s *Server) recordInterrupt(ctx context.Context, runID string, handle turn.TurnHandle, ints []protocol.Interrupt, drained []interrupts.DrainedTool) {
 	raw, err := json.Marshal(ints)
 	if err != nil {
 		return

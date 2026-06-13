@@ -1,4 +1,4 @@
-package chat
+package turn
 
 import (
 	"context"
@@ -42,7 +42,7 @@ func newTurnID() string { return turnIDPrefix + uuid.NewString() }
 // every turn on the platform's default client.
 func New(eng engineDep, approvalSvc approval.Service, resolver clientResolver) (Service, error) {
 	if eng == nil {
-		return nil, errors.New("chat: engine is required")
+		return nil, errors.New("turn: engine is required")
 	}
 	return &inMemory{
 		engine:   eng,
@@ -81,10 +81,10 @@ type inMemory struct {
 
 func (s *inMemory) StartTurn(ctx context.Context, req StartTurnRequest) (TurnHandle, error) {
 	if req.SessionID == "" {
-		return TurnHandle{}, errors.New("chat: SessionID is required")
+		return TurnHandle{}, errors.New("turn: SessionID is required")
 	}
 	if req.Message == "" {
-		return TurnHandle{}, errors.New("chat: Message must not be empty")
+		return TurnHandle{}, errors.New("turn: Message must not be empty")
 	}
 
 	handle := TurnHandle{
@@ -302,7 +302,7 @@ func (s *inMemory) ProcessID(_ context.Context, handle TurnHandle) (string, erro
 	}
 	proc := state.process()
 	if proc == nil {
-		return "", errors.New("chat: turn has not dispatched a process yet")
+		return "", errors.New("turn: turn has not dispatched a process yet")
 	}
 	return proc.ID(), nil
 }
@@ -315,7 +315,7 @@ func (s *inMemory) ProcessID(_ context.Context, handle TurnHandle) (string, erro
 // event channel. The caller subscribes via [Events] on the returned handle.
 func (s *inMemory) Rehydrate(ctx context.Context, req RehydrateRequest) (TurnHandle, error) {
 	if req.ProcessID == "" {
-		return TurnHandle{}, errors.New("chat: ProcessID is required")
+		return TurnHandle{}, errors.New("turn: ProcessID is required")
 	}
 	handle := TurnHandle{SessionID: req.SessionID, TurnID: newTurnID()}
 	state := newTurnState(ctx, handle)

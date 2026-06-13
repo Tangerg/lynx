@@ -13,7 +13,7 @@ import (
 	toolsvc "github.com/Tangerg/lynx/lyra/internal/domain/tool"
 	"github.com/Tangerg/lynx/lyra/internal/domain/transcript"
 	"github.com/Tangerg/lynx/lyra/internal/kernel"
-	chatsvc "github.com/Tangerg/lynx/lyra/internal/kernel/chat"
+	"github.com/Tangerg/lynx/lyra/internal/kernel/turn"
 )
 
 // RuntimeServices is the accessor surface the protocol server needs from
@@ -27,7 +27,7 @@ import (
 // root (cmd/lyra) passes the concrete value where a RuntimeServices is
 // expected.
 type RuntimeServices interface {
-	Chat() chatsvc.Service
+	Chat() turn.Service
 	Session() sessionsvc.Service
 	Tool() toolsvc.Service
 	Memory() knowledge.Service

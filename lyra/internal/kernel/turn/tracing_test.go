@@ -1,4 +1,4 @@
-package chat_test
+package turn_test
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/lyra/internal/kernel/chat"
+	"github.com/Tangerg/lynx/lyra/internal/kernel/turn"
 )
 
 // TestStartTurn_PropagatesEntryTrace is the full-link tracing guarantee:
@@ -32,8 +32,8 @@ func TestStartTurn_PropagatesEntryTrace(t *testing.T) {
 	wantTrace := entry.SpanContext().TraceID()
 
 	stub := &stubEngine{runReply: "ok"}
-	svc := mustChat(chat.New(stub, nil, nil))
-	handle, err := svc.StartTurn(entryCtx, chat.StartTurnRequest{SessionID: "s", Message: "hi"})
+	svc := mustChat(turn.New(stub, nil, nil))
+	handle, err := svc.StartTurn(entryCtx, turn.StartTurnRequest{SessionID: "s", Message: "hi"})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
