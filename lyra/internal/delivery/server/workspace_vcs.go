@@ -26,7 +26,7 @@ func (s *Server) WorkspaceListFileChanges(ctx context.Context, in protocol.Works
 	out := make([]protocol.WorkspaceFileChange, 0, len(changes))
 	for _, c := range changes {
 		w := protocol.WorkspaceFileChange{
-			Path: c.Path, Status: string(c.Status), PreviousPath: c.PreviousPath, Binary: c.Binary,
+			Path: c.Path, Status: protocol.FileStatus(c.Status), PreviousPath: c.PreviousPath, Binary: c.Binary,
 		}
 		if !c.Binary {
 			added, removed := c.Added, c.Removed
@@ -101,7 +101,7 @@ func diffFilesToWire(files []workspace.DiffFile, limit int) ([]protocol.FileDiff
 			break
 		}
 		fd := protocol.FileDiff{
-			Path: f.Path, Status: string(f.Status), PreviousPath: f.PreviousPath,
+			Path: f.Path, Status: protocol.FileStatus(f.Status), PreviousPath: f.PreviousPath,
 			Binary: f.Binary, Rows: rowsToWire(f.Rows),
 		}
 		if !f.Binary {

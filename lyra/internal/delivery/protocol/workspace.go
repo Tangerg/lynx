@@ -41,11 +41,21 @@ type WatchSpec struct {
 // the stream, mirroring StartRunResponse's role for runs.
 type WorkspaceSubscribeResponse struct{}
 
+// WorkspaceEventType discriminates the WorkspaceEvent union (AUX_API §3.2).
+type WorkspaceEventType string
+
+const (
+	WorkspaceEventFilesChanged     WorkspaceEventType = "files.changed"
+	WorkspaceEventSkillsChanged    WorkspaceEventType = "skills.changed"
+	WorkspaceEventMCPServerChanged WorkspaceEventType = "mcp.serverChanged"
+	WorkspaceEventResync           WorkspaceEventType = "resync"
+)
+
 // WorkspaceEvent is one non-run workspace event (AUX_API §3.2) — a flat
 // tag-discriminated struct (single `type`, optional fields per tag, §2.1).
 // Types: files.changed | skills.changed | mcp.serverChanged | resync.
 type WorkspaceEvent struct {
-	Type string `json:"type"`
+	Type WorkspaceEventType `json:"type"`
 	// files.changed
 	WatchID string   `json:"watchId,omitempty"`
 	Paths   []string `json:"paths,omitempty"`
@@ -56,7 +66,7 @@ type WorkspaceEvent struct {
 	Cwd string `json:"cwd,omitempty"`
 	// mcp.serverChanged
 	Server    string       `json:"server,omitempty"`
-	Status    string       `json:"status,omitempty"`
+	Status    McpStatus    `json:"status,omitempty"`
 	ToolCount *int         `json:"toolCount,omitempty"`
 	Error     *ProblemData `json:"error,omitempty"`
 }
@@ -133,17 +143,30 @@ type Diff struct {
 	Truncated bool       `json:"truncated,omitempty"`
 }
 
+// FileStatus is the past-tense working-tree status vocabulary shared by
+// WorkspaceFileChange, FileDiff, and FileEdit (§4.5). "untracked" is VCS-only
+// (a tool's FileEdit never produces it).
+type FileStatus string
+
+const (
+	FileStatusAdded     FileStatus = "added"
+	FileStatusModified  FileStatus = "modified"
+	FileStatusDeleted   FileStatus = "deleted"
+	FileStatusRenamed   FileStatus = "renamed"
+	FileStatusUntracked FileStatus = "untracked"
+)
+
 // FileDiff is one file's structured diff (AUX_API §2.3). Added/Removed are
 // omitted for a Binary file (Rows empty) rather than reported as a fake 0;
 // PreviousPath is set only for renames.
 type FileDiff struct {
-	Path         string    `json:"path"`
-	Status       string    `json:"status"` // "added"|"modified"|"deleted"|"renamed"|"untracked"
-	PreviousPath string    `json:"previousPath,omitempty"`
-	Added        *int      `json:"added,omitempty"`
-	Removed      *int      `json:"removed,omitempty"`
-	Binary       bool      `json:"binary,omitempty"`
-	Rows         []DiffRow `json:"rows"`
+	Path         string     `json:"path"`
+	Status       FileStatus `json:"status"` // see FileStatus
+	PreviousPath string     `json:"previousPath,omitempty"`
+	Added        *int       `json:"added,omitempty"`
+	Removed      *int       `json:"removed,omitempty"`
+	Binary       bool       `json:"binary,omitempty"`
+	Rows         []DiffRow  `json:"rows"`
 }
 
 // WorkspaceFileChange is one entry in workspace.listFileChanges (AUX_API §2.2)
@@ -152,12 +175,12 @@ type FileDiff struct {
 // past-tense status vocabulary deliberately (§4.5). Added/Removed are omitted
 // for a Binary file (not a fake 0); PreviousPath is set only for renames.
 type WorkspaceFileChange struct {
-	Path         string `json:"path"`
-	Status       string `json:"status"` // "added"|"modified"|"deleted"|"renamed"|"untracked"
-	PreviousPath string `json:"previousPath,omitempty"`
-	Added        *int   `json:"added,omitempty"`
-	Removed      *int   `json:"removed,omitempty"`
-	Binary       bool   `json:"binary,omitempty"`
+	Path         string     `json:"path"`
+	Status       FileStatus `json:"status"` // see FileStatus
+	PreviousPath string     `json:"previousPath,omitempty"`
+	Added        *int       `json:"added,omitempty"`
+	Removed      *int       `json:"removed,omitempty"`
+	Binary       bool       `json:"binary,omitempty"`
 }
 
 // FileHead is a file preview (API.md §4.5).
@@ -200,12 +223,35 @@ type AgentDoc struct {
 	Scope string `json:"scope"` // "cwd" | "projectRoot" | "home"
 }
 
+// McpStatus is an MCP server's connection state (AUX_API §5.1). Carried on
+// McpServer.Status and the mcp.serverChanged WorkspaceEvent.
+type McpStatus string
+
+const (
+	McpConnecting   McpStatus = "connecting"
+	McpConnected    McpStatus = "connected"
+	McpDisconnected McpStatus = "disconnected"
+	McpFailed       McpStatus = "failed"
+	McpNeedsAuth    McpStatus = "needsAuth"
+)
+
+// McpAuthStatus is an MCP server's auth posture (AUX_API §5.1); omitted when
+// the server tracks no auth.
+type McpAuthStatus string
+
+const (
+	McpAuthNone        McpAuthStatus = "none"
+	McpAuthBearerToken McpAuthStatus = "bearerToken"
+	McpAuthOAuth       McpAuthStatus = "oauth"
+	McpAuthNotLoggedIn McpAuthStatus = "notLoggedIn"
+)
+
 // McpServer is one configured MCP server (API.md §4.10).
 type McpServer struct {
-	Name       string `json:"name"`
-	Status     string `json:"status"` // AUX_API §5.1: connecting|connected|disconnected|failed|needsAuth
-	ToolCount  *int   `json:"toolCount,omitempty"`
-	AuthStatus string `json:"authStatus,omitempty"` // none|bearerToken|oauth|notLoggedIn (omitted when untracked)
+	Name       string        `json:"name"`
+	Status     McpStatus     `json:"status"` // see McpStatus
+	ToolCount  *int          `json:"toolCount,omitempty"`
+	AuthStatus McpAuthStatus `json:"authStatus,omitempty"` // see McpAuthStatus; omitted when untracked
 	// Error carries the reason for a failed server (AUX_API §5.1); set only
 	// when Status is "failed".
 	Error       *ProblemData `json:"error,omitempty"`
