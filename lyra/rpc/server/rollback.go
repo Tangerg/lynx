@@ -3,8 +3,8 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/Tangerg/lynx/lyra/internal/service/transcript"
@@ -18,85 +18,42 @@ import (
 // map a run boundary onto a chat-memory message count, since the message log
 // itself carries no run markers.
 
-// runRecord pairs a parsed wire RunRef with its persisted message watermark.
-type runRecord struct {
-	ref  protocol.RunRef
-	mark int
-}
-
-// isRoot reports whether the run opens a turn (a runs.start run) rather than a
-// continuation (runs.resume → ParentRunID) or a subagent (SpawnedByItemID).
-func (r runRecord) isRoot() bool {
-	return r.ref.ParentRunID == "" && r.ref.SpawnedByItemID == ""
-}
-
-// runTimeline is a session's runs ordered by CreatedAt — the wall-clock turn
-// order sessions.rollback / fork reason about. It owns the boundary math both
-// operate on (newRunTimeline builds it from persisted history runs).
-type runTimeline []runRecord
-
-// newRunTimeline parses persisted runs into a timeline ordered by CreatedAt.
-func newRunTimeline(runs []transcript.Run) (runTimeline, error) {
-	out := make(runTimeline, 0, len(runs))
+// runNodes lifts the structured timeline fields out of each persisted run's
+// opaque wire blob (a marshaled [protocol.RunRef]) so the domain boundary math
+// ([transcript.BoundaryAt]) stays wire-free. It also returns a by-id index of
+// the original RunRefs, because the rollback response reports dropped runs as
+// full wire RunRefs.
+func runNodes(runs []transcript.Run) ([]transcript.RunNode, map[string]protocol.RunRef, error) {
+	nodes := make([]transcript.RunNode, 0, len(runs))
+	byID := make(map[string]protocol.RunRef, len(runs))
 	for _, r := range runs {
 		var ref protocol.RunRef
 		if err := json.Unmarshal(r.Blob, &ref); err != nil {
-			return nil, fmt.Errorf("server: decode run %q: %w", r.RunID, err)
+			return nil, nil, fmt.Errorf("server: decode run %q: %w", r.RunID, err)
 		}
-		out = append(out, runRecord{ref: ref, mark: r.Mark})
+		nodes = append(nodes, transcript.RunNode{
+			ID:              ref.ID,
+			ParentRunID:     ref.ParentRunID,
+			SpawnedByItemID: ref.SpawnedByItemID,
+			CreatedAt:       ref.CreatedAt,
+			Mark:            r.Mark,
+		})
+		byID[ref.ID] = ref
 	}
-	slices.SortStableFunc(out, func(a, b runRecord) int {
-		return a.ref.CreatedAt.Compare(b.ref.CreatedAt)
-	})
-	return out, nil
+	return nodes, byID, nil
 }
 
-// rollbackBoundary is the inclusive-keep split of a timeline at a run:
-//
-//   - KeepMark: the message watermark to keep — the Mark of the kept run's
-//     chain terminal (the last run before the first ROOT run after it), so the
-//     run's own continuation chain is kept. -1 when that watermark is unknown
-//     (in-flight / pre-watermark), which the caller clamps.
-//   - Dropped: the runs at/after the boundary, in timeline order — the next
-//     root run + everything after it (continuations, subagent runs) included.
-//   - BoundaryTime: the first dropped root run's CreatedAt, the cut-off that
-//     attributes subagent child sessions to dropped runs. Zero when nothing is
-//     dropped, or when the whole timeline is dropped.
-type rollbackBoundary struct {
-	KeepMark     int
-	Dropped      []runRecord
-	BoundaryTime time.Time
-}
-
-// boundaryAt computes the inclusive-keep split at runID. runID=="" drops every
-// run (KeepMark 0). requireRoot rejects a non-root runID with invalid_params
-// (rollback addresses root runs only; fork is lax); an unknown runID is
-// run_not_found.
-func (t runTimeline) boundaryAt(runID string, requireRoot bool) (rollbackBoundary, error) {
-	if runID == "" {
-		return rollbackBoundary{Dropped: slices.Clone(t)}, nil
+// wireBoundaryErr maps the transcript boundary sentinels onto their wire errors
+// (the domain layer is protocol-free; the adapter owns the wire mapping).
+func wireBoundaryErr(err error) error {
+	switch {
+	case errors.Is(err, transcript.ErrRunNotFound):
+		return protocol.ErrRunNotFound
+	case errors.Is(err, transcript.ErrNotRoot):
+		return fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
+	default:
+		return err
 	}
-	idx := slices.IndexFunc(t, func(r runRecord) bool { return r.ref.ID == runID })
-	if idx < 0 {
-		return rollbackBoundary{}, protocol.ErrRunNotFound
-	}
-	if requireRoot && !t[idx].isRoot() {
-		return rollbackBoundary{}, fmt.Errorf("%w: run %q is not a root run", protocol.ErrInvalidParams, runID)
-	}
-	for k := idx + 1; k < len(t); k++ {
-		if t[k].isRoot() {
-			// Keep through t[k-1] (runID's chain terminal); drop from the next
-			// root on.
-			return rollbackBoundary{
-				KeepMark:     t[k-1].mark,
-				Dropped:      slices.Clone(t[k:]),
-				BoundaryTime: t[k].ref.CreatedAt,
-			}, nil
-		}
-	}
-	// No root run after runID — its turn (incl. continuations) is the latest,
-	// so there is nothing to drop / everything up to it is copied.
-	return rollbackBoundary{KeepMark: t[len(t)-1].mark}, nil
 }
 
 // hasActiveRun reports whether the session has a run in flight — the
@@ -142,13 +99,13 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	if err != nil {
 		return nil, err
 	}
-	timeline, err := newRunTimeline(runs)
+	nodes, refByID, err := runNodes(runs)
 	if err != nil {
 		return nil, err
 	}
-	b, err := timeline.boundaryAt(in.ToRunID, true)
+	b, err := transcript.BoundaryAt(nodes, in.ToRunID, true)
 	if err != nil {
-		return nil, err
+		return nil, wireBoundaryErr(err)
 	}
 
 	// Files first — for "both" this is the atomicity guarantee: if the working
@@ -178,8 +135,8 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	// Drop each run's durable items + run record, and clear any open interrupt
 	// dangling on it (rollback over a parked run un-parks it).
 	for _, rec := range b.Dropped {
-		_ = s.rt.Transcript().DeleteRun(ctx, in.SessionID, rec.ref.ID)
-		_ = s.rt.Interrupts().Delete(ctx, rec.ref.ID)
+		_ = s.rt.Transcript().DeleteRun(ctx, in.SessionID, rec.ID)
+		_ = s.rt.Interrupts().Delete(ctx, rec.ID)
 	}
 
 	// Purge the subagent child sessions the dropped runs spawned (whole subtree).
@@ -194,7 +151,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	userByRun := openingUserInput(items)
 	out := make([]protocol.DroppedRun, 0, len(b.Dropped))
 	for _, rec := range b.Dropped {
-		out = append(out, protocol.DroppedRun{Run: rec.ref, UserInput: userByRun[rec.ref.ID]})
+		out = append(out, protocol.DroppedRun{Run: refByID[rec.ID], UserInput: userByRun[rec.ID]})
 	}
 	sess := s.sessionToWire(ses)
 	return &protocol.RollbackSessionResponse{Session: &sess, DroppedRuns: out}, nil
