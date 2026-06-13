@@ -14,7 +14,7 @@ export function FilesChanged({ files, activePath, onSelect }: Props) {
 
   return (
     <div>
-      <div className="flex items-center gap-2 px-2.5 py-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-fg-faint">
+      <div className="flex items-center gap-2 px-2.5 py-2 font-mono text-[11px] font-bold text-fg-faint">
         <span>{files.length} files changed</span>
         <span className="ml-auto text-accent">+{totalAdded}</span>
         <span className="text-negative">−{totalRemoved}</span>
@@ -53,15 +53,11 @@ function FileRow({
       )}
     >
       <Icon name="file" size={12} />
-      <span className={cn("font-mono text-[9px] font-bold uppercase tracking-[0.04em]", tagColor)}>
-        {tagLetter}
-      </span>
+      <span className={cn("font-mono text-[9px] font-bold", tagColor)}>{tagLetter}</span>
       <span className="flex-1 truncate font-mono">{file.path}</span>
       {/* Binary files carry no line counts (AUX_API §2.2) — badge instead of fake ±0. */}
       {file.binary ? (
-        <span className="rounded-xs bg-surface-2 px-1 font-mono text-[9px] uppercase text-fg-faint">
-          bin
-        </span>
+        <span className="rounded-xs bg-surface-2 px-1 font-mono text-[9px] text-fg-faint">bin</span>
       ) : (
         <span className="flex gap-1.5 font-mono text-[10px]">
           <span className="text-accent">+{file.added ?? 0}</span>

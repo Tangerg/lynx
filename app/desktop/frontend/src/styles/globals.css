@@ -150,11 +150,15 @@
   --color-divider: #3e3e44;
   --color-app-divider: #23252a;
 
-  /* Semantic — used sparingly per DESIGN.md §9. */
-  --color-negative: #ee0000;
-  --color-warning: #f5a623;
-  --color-info: #0070f3;
-  --color-success: #27a644;
+  /* Semantic — used sparingly per DESIGN.md §9. Dark-tuned per §2: these are
+     the lyra-dark first-paint defaults (the theme re-applies the same values at
+     runtime; lyra-light overrides to the saturated web values that read clean
+     on white). Desaturated + lifted so they don't vibrate on the near-black
+     canvas. */
+  --color-negative: #f85149;
+  --color-warning: #f0a936;
+  --color-info: #58a6ff;
+  --color-success: #3fb950;
 
   /* Fonts — Geist (sans + mono) handles every role; CJK fallbacks
      preserve readability for mixed-script text. */

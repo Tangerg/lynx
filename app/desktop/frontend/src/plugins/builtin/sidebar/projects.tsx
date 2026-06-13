@@ -69,7 +69,7 @@ function AddProjectButton() {
           sideOffset={6}
           className="z-50 w-[300px] rounded-lg border border-line bg-surface p-3 shadow-lg"
         >
-          <div className="mb-2 text-[11px] font-semibold tracking-wider text-fg-faint uppercase">
+          <div className="mb-2 text-[11px] font-semibold text-fg-faint">
             {t("sidebar.addProject.title")}
           </div>
           <input

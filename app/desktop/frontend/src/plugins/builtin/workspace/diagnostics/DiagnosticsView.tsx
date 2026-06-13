@@ -216,7 +216,7 @@ function InstrumentSection({ group }: { group: NameGroup }) {
         )}
       </header>
       <table className="text-[12px]">
-        <thead className="text-[10px] uppercase tracking-wider text-fg-faint">
+        <thead className="text-[10px] text-fg-faint">
           <tr>
             <th className="py-1 pr-3 text-left font-medium">attrs</th>
             <th className="py-1 pr-3 text-right font-medium">count</th>
@@ -283,7 +283,7 @@ function Row({ children, head }: { children: React.ReactNode; head?: boolean }) 
     <div
       className={
         "flex items-center gap-3 px-1 font-mono text-[12px] " +
-        (head ? "text-[10px] uppercase tracking-wider text-fg-faint" : "text-fg hover:bg-surface-2")
+        (head ? "text-[10px] text-fg-faint" : "text-fg hover:bg-surface-2")
       }
     >
       {children}

@@ -46,7 +46,7 @@ export function ShortcutsPane() {
           <div className="px-3 py-6 text-center text-[13px] text-fg-faint">No shortcuts match.</div>
         ) : (
           <table className="w-full border-collapse text-left text-[13px]">
-            <thead className="sticky top-0 bg-surface-2 text-[11.5px] font-semibold uppercase tracking-wider text-fg-faint">
+            <thead className="sticky top-0 bg-surface-2 text-[11.5px] font-semibold text-fg-faint">
               <tr>
                 <th className="px-3 py-1.5">Action</th>
                 <th className="w-[160px] px-3 py-1.5 text-right">Shortcut</th>

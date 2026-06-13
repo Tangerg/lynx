@@ -114,7 +114,7 @@ function RunSummaryTab() {
       <div className="px-4 pb-2 pt-1">
         <span
           className={cn(
-            "inline-flex items-center rounded-sm border px-1.5 py-px font-mono text-[10.5px] font-semibold uppercase tracking-wider",
+            "inline-flex items-center rounded-sm border px-1.5 py-px font-mono text-[10.5px] font-semibold",
             status.cls,
           )}
         >
@@ -173,7 +173,7 @@ function RunSummaryTab() {
             <span className="truncate">{a.command || "(no command)"}</span>
             <span
               className={cn(
-                "ml-auto rounded-xs px-1 text-[10px] font-semibold uppercase tracking-wider",
+                "ml-auto rounded-xs px-1 text-[10px] font-semibold",
                 a.decision === "approved"
                   ? "text-positive"
                   : a.decision === "declined"

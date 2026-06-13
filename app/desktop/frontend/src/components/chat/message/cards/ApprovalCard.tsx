@@ -150,7 +150,7 @@ export function ApprovalCard({
       trailing={
         <span
           className={cn(
-            "rounded-sm border px-1.5 py-px font-mono text-[10px] font-semibold uppercase tracking-wider",
+            "rounded-sm border px-1.5 py-px font-mono text-[10px] font-semibold",
             RISK_BADGE_CLASS[effectiveRisk],
           )}
         >
@@ -170,7 +170,7 @@ export function ApprovalCard({
       {showArgs && (
         <div className="mb-2">
           <div className="mb-1 flex items-center gap-2">
-            <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-fg-faint">
+            <span className="font-mono text-[10px] font-semibold text-fg-faint">
               {t("approval.args.label")}
             </span>
             {!editing && (
@@ -218,7 +218,7 @@ export function ApprovalCard({
             <span
               key={s}
               className={cn(
-                "inline-flex items-center rounded-xs border px-1.5 py-px font-mono text-[10.5px] font-semibold uppercase tracking-wider",
+                "inline-flex items-center rounded-xs border px-1.5 py-px font-mono text-[10.5px] font-semibold",
                 SCOPE_CHIP_CLASS[s] ?? SCOPE_CHIP_DEFAULT,
               )}
             >
@@ -234,7 +234,7 @@ export function ApprovalCard({
           {reversible !== undefined && (
             <span
               className={cn(
-                "inline-flex items-center gap-1 rounded-xs border px-1.5 py-px font-mono text-[10.5px] font-semibold uppercase tracking-wider",
+                "inline-flex items-center gap-1 rounded-xs border px-1.5 py-px font-mono text-[10.5px] font-semibold",
                 reversible
                   ? "border-fg-faint/30 bg-fg-faint/10 text-fg-muted"
                   : "border-negative/40 bg-negative/12 text-negative",

@@ -131,14 +131,19 @@
 
 实现偏离了自己的设计稿。先分清"真漂移（改代码）"与"有意决策（改 spec）"。
 
-**真漂移 — 改代码（待办）：**
+**✅ 已修（本批 G9）：**
+
+| 项 | 处理 |
+|---|---|
+| ALL-CAPS 标签（~20 处：区域标题 / 表头 / badge — tools / run-summary / FilesChanged / PlanList / Approval+QuestionCard / Diagnostics / Shortcuts / Timeline / MessageOutline / ToolInspector / projects / tasks） | 用户选 **sentence-case**：去 `uppercase` + 宽 tracking，保留作者原文大小写（多为 sentence-case）。DESIGN.md §10 已更新。顺带删掉 PlanList 的假 `ApprovalNote`。 |
+| 语义色首屏满饱和非暗调 | `globals.css :root` 首屏默认改暗调（`#f85149` 等），消除首屏闪色；主题运行时本就合规（lyra-dark 暗调 / lyra-light 饱和），仅 :root 默认漂移。 |
+
+**待办（真漂移）：**
 
 | 漂移 | 位置 | DESIGN.md 条款 |
 |---|---|---|
-| ALL-CAPS 标签散落密集视图 | `workspace-views/tools.tsx:25`、`run-summary.tsx:117`、`components/tools/ToolInspector.tsx:58`、`FilesChanged.tsx:17` | §10「Don't use ALL-CAPS labels」→ 改 `caption-mono` lowercase |
-| reasoning block 是 surface-2 填充盒 | `components/chat/message/cards/ReasoningBlock.tsx` | §components.reasoning-block「border-left: 2px」（待确认是否也是有意决策） |
-| 语义色首屏满饱和非暗调 | `styles/globals.css:154-157`（`#ee0000`/`#0070f3`） | §2「Semantic colours are scheme-tuned」（暗调 `#f85149`/`#58a6ff`） |
-| mode 点击循环非 segmented | `components/chat/composer/Composer.tsx:141` | §components.segmented-control（并入 G6 一起做） |
+| reasoning block 是 surface-2 填充盒 | `ReasoningBlock.tsx` | §components.reasoning-block「border-left: 2px」（待确认是否也是有意决策） |
+| mode 点击循环非 segmented | `Composer.tsx:141` | §components.segmented-control（并入 G6） |
 
 **✅ 已确认为有意决策 — 已改 DESIGN.md 名实相符（不动代码）：**
 

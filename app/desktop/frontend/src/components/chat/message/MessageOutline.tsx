@@ -106,7 +106,7 @@ export function MessageOutline({
       className="hidden min-[1408px]:block absolute inset-y-0 left-[calc(100%+16px)] w-44"
     >
       <div className="sticky top-4 max-h-[60vh] overflow-y-auto">
-        <div className="mb-1.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-fg-faint">
+        <div className="mb-1.5 font-mono text-[10px] font-semibold text-fg-faint">
           On this message
         </div>
         <ul className="flex flex-col gap-0.5">

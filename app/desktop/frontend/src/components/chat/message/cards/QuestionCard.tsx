@@ -110,7 +110,7 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered 
           return (
             <div key={q.id} className="flex flex-col gap-2">
               <div className="flex items-center gap-2">
-                <span className="rounded-sm border border-line bg-surface-2 px-1.5 py-px font-mono text-[10px] font-semibold uppercase tracking-wider text-fg-muted">
+                <span className="rounded-sm border border-line bg-surface-2 px-1.5 py-px font-mono text-[10px] font-semibold text-fg-muted">
                   {q.header}
                 </span>
                 {q.multiSelect && (
