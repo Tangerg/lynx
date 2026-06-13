@@ -115,6 +115,11 @@ type Runtime struct {
 	interrupts interrupts.Store
 	transcript transcript.Store
 
+	// conversation is the message-history service the non-turn history ops
+	// (ReadHistory/SeedHistory/MessageCount/TruncateMessages) delegate to
+	// directly — not via the engine (it owns only the steering touchpoint).
+	conversation *conversation.Service
+
 	providers    provider.Service
 	defaultModel string
 }
@@ -145,7 +150,13 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		memStore = memory.NewInMemoryStore()
 		ecfg.MemoryStore = memStore
 	}
-	ecfg.Conversation = conversation.New(memStore)
+	// conv is the message-history service. The engine gets it ONLY as the
+	// turn-end steering sink (engine.InjectUserMessage); the runtime holds it
+	// directly for the non-turn history operations (read/seed/count/truncate,
+	// for fork / rollback / messages.list) rather than proxying them through the
+	// engine. See doc/STRUCTURE_REVIEW.md §3.
+	conv := conversation.New(memStore)
+	ecfg.Steering = conv
 	ecfg.Compactor = maintenance.NewCompactor(memStore, cfg.Engine.ChatClient, maintenance.CompactionConfig{})
 	ecfg.Planner = maintenance.NewPlanner(cfg.Engine.ChatClient)
 	if cfg.Engine.MemoryService != nil {
@@ -209,6 +220,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		approval:     approvalSvc,
 		interrupts:   interruptStore,
 		transcript:   cfg.TranscriptStore,
+		conversation: conv,
 		providers:    providerSvc,
 		defaultModel: cfg.Model,
 	}, nil
@@ -292,28 +304,27 @@ func (r *Runtime) DefaultModel() string { return r.defaultModel }
 
 // ReadHistory returns sessionID's persisted chat history — the
 // messages.list transport surface converts these to wire messages,
-// and ForkSession copies a prefix of them. Delegates to the engine,
-// which owns the chat-memory store.
+// and ForkSession copies a prefix of them.
 func (r *Runtime) ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error) {
-	return r.engine.ReadHistory(ctx, sessionID)
+	return r.conversation.Read(ctx, sessionID)
 }
 
 // SeedHistory copies msgs into sessionID's chat history — used by
 // ForkSession to seed a fresh child with the parent's prefix.
 func (r *Runtime) SeedHistory(ctx context.Context, sessionID string, msgs []chat.Message) error {
-	return r.engine.SeedHistory(ctx, sessionID, msgs)
+	return r.conversation.Seed(ctx, sessionID, msgs)
 }
 
 // MessageCount returns sessionID's chat-memory message count — the per-run
-// watermark sessions.rollback / fork record. Delegates to the engine.
+// watermark sessions.rollback / fork record.
 func (r *Runtime) MessageCount(ctx context.Context, sessionID string) (int, error) {
-	return r.engine.MessageCount(ctx, sessionID)
+	return r.conversation.Count(ctx, sessionID)
 }
 
 // TruncateMessages keeps the first keepN chat-memory messages of sessionID
-// (sessions.rollback). Delegates to the engine.
+// (sessions.rollback).
 func (r *Runtime) TruncateMessages(ctx context.Context, sessionID string, keepN int) error {
-	return r.engine.TruncateMessages(ctx, sessionID, keepN)
+	return r.conversation.Truncate(ctx, sessionID, keepN)
 }
 
 // ListSkills enumerates the skills visible from cwd (project over global) for
