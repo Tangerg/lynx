@@ -22,7 +22,7 @@ export interface ChangedFile {
 
 export interface CommandDigest {
   cmd: string;
-  status: "ok" | "err";
+  status: "running" | "ok" | "err";
 }
 
 export interface RunDigest {
@@ -124,9 +124,9 @@ export function deriveLatestRun(view: AgentViewState): RunDigest | null {
       digest.commands.push({
         // fn IS the command string (toolLabel surfaces arguments.command).
         cmd: tool.fn,
-        // Only a successfully-run command is "ok"; err / denied did not run
-        // to a clean result.
-        status: tool.status === "ok" ? "ok" : "err",
+        // ok = clean exit; running = still in flight (must not flag it red);
+        // err / denied did not run to a clean result.
+        status: tool.status === "ok" ? "ok" : tool.status === "running" ? "running" : "err",
       });
     } else if (category === "fileEdit") {
       // fn is the changed path (single) or "N files" (multi).
