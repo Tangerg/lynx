@@ -176,6 +176,19 @@ export interface FileLine {
   text: string;
 }
 
+// approval.* (B9, docs/613) — the runtime's global approval stance + the
+// per-session "remembered" tool decisions. Mode is mutated in the Approvals
+// pane (lib/agent/approvalConfig); both keys invalidate on mutation.
+export type ApprovalModeValue = "readOnly" | "safe" | "balanced" | "yolo";
+export interface RememberedQuery {
+  sessionId: string;
+}
+export interface RememberedDecisionInfo {
+  tool: string;
+  decision: "approve" | "deny";
+  rememberedAt: string;
+}
+
 // Shared options — these resources rarely change for the mock, so we cache
 // aggressively. Real backends might choose shorter staleTime.
 const STATIC = {
@@ -227,6 +240,8 @@ export const SKILLS_KEY = "skills";
 export const MCP_SERVERS_KEY = "mcp-servers";
 export const MCP_TOOLS_KEY = "mcp-tools";
 export const MEMORY_KEY = "memory";
+export const APPROVAL_MODE_KEY = "approval-mode";
+export const REMEMBERED_KEY = "approval-remembered";
 
 export const useSessions = makeDataQuery<SidebarSession[]>(SESSIONS_KEY);
 export const useProjects = makeDataQuery<SidebarProject[]>(PROJECTS_KEY);
@@ -255,3 +270,7 @@ export const useMemory = makeParamDataQuery<MemoryQuery, MemoryEntryInfo[]>(MEMO
 export const useAgentDocs = makeDataQuery<WorkspaceAgentDoc[]>("agent-docs");
 export const useModels = makeDataQuery<SelectableModel[]>(MODELS_KEY);
 export const useProviders = makeDataQuery<ProviderInfo[]>(PROVIDERS_KEY);
+export const useApprovalMode = makeDataQuery<ApprovalModeValue>(APPROVAL_MODE_KEY);
+export const useRememberedDecisions = makeParamDataQuery<RememberedQuery, RememberedDecisionInfo[]>(
+  REMEMBERED_KEY,
+);
