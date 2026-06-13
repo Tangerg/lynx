@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/core/model/chat"
 	chatmem "github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	"github.com/Tangerg/lynx/lyra/internal/config"
@@ -111,6 +112,23 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		return err
 	}
 
+	// Optional cheaper model for turn-boundary maintenance (compaction /
+	// extraction / planning), on the same provider + credentials as the main
+	// client — only the model id differs. Unset or identical → maintenance
+	// runs on the main client (nil MaintenanceClient).
+	var maintClient *chat.Client
+	if cfg.MaintenanceModel != "" && cfg.MaintenanceModel != cfg.Model {
+		maintClient, _, err = config.BuildClient(config.ClientSpec{
+			Provider: cfg.Provider,
+			Model:    cfg.MaintenanceModel,
+			APIKey:   cfg.APIKey,
+			BaseURL:  cfg.BaseURL,
+		})
+		if err != nil {
+			return fmt.Errorf("build maintenance client: %w", err)
+		}
+	}
+
 	stores, err := buildStores()
 	if err != nil {
 		return err
@@ -142,6 +160,8 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 			ProcessStore: stores.Process,
 			ParkStore:    stores.Park,
 		},
+		// Cheaper maintenance model (nil → maintenance runs on the main client).
+		MaintenanceClient: maintClient,
 		// Tool-environment inputs — the runtime assembles the tool environment
 		// (toolset.Build) from these and injects it into the engine core.
 		Online:         cfg.Online,
