@@ -6,6 +6,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 
 	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/askuser"
+	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/skill"
 	"github.com/Tangerg/lynx/lyra/internal/infra/a2a"
 	"github.com/Tangerg/lynx/lyra/internal/infra/exec"
 	"github.com/Tangerg/lynx/lyra/internal/infra/mcp"
@@ -122,7 +123,7 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 	tools = append(tools, lspTools...)
 	tools = append(tools, shellTools...)
 	tools = append(tools, askUserTool)
-	if skillTool := BuildSkillTool(cfg.Workdir, cfg.SkillsGlobalDir); skillTool != nil {
+	if skillTool := skill.Build(cfg.Workdir, cfg.SkillsGlobalDir); skillTool != nil {
 		tools = append(tools, skillTool)
 	}
 
