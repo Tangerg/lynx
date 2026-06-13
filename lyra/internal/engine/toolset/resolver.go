@@ -58,13 +58,18 @@ func wrapTool(inner chat.Tool, call func(ctx context.Context, arguments string) 
 // result (see withEditDiagnostics). ci may be nil — the wrap is then a no-op.
 func BuildWorkdirTools(workdir string, ci *codeintel.Service, tracker *editguard.Tracker) []chat.Tool {
 	fsExec := fs.NewLocalExecutor(workdir)
+
+	// write/edit guard stack, innermost → outermost: diagnostics (type-check
+	// the applied change) → read/staleness guard (gate before the change,
+	// refresh the read stamp after) → path guard (refuse writes into
+	// protected dirs like .git — checked first, before any other work).
+	write := withPathGuard(withWriteGuard(withEditDiagnostics(fs.NewWriteTool(fsExec), ci, workdir), tracker, workdir), workdir)
+	edit := withPathGuard(withEditGuard(withEditDiagnostics(fs.NewEditTool(fsExec), ci, workdir), tracker, workdir), workdir)
+
 	return []chat.Tool{
 		withReadTracking(fs.NewReadTool(fsExec), tracker, workdir),
-		// write/edit: the LSP diagnostics wrap is inner (runs on the applied
-		// change); the read guard is outer (gates before the change, refreshes
-		// the read stamp after).
-		withWriteGuard(withEditDiagnostics(fs.NewWriteTool(fsExec), ci, workdir), tracker, workdir),
-		withEditGuard(withEditDiagnostics(fs.NewEditTool(fsExec), ci, workdir), tracker, workdir),
+		write,
+		edit,
 		fs.NewGlobTool(fsExec),
 		fs.NewGrepTool(fsExec),
 	}
