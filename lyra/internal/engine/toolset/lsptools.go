@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/turnctx"
 	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
 )
 
@@ -126,7 +127,7 @@ func newLSPPositionTool(name, desc string, run func(ctx context.Context, root, f
 			if in.File == "" {
 				return "", fmt.Errorf("%s: file is required", name)
 			}
-			return run(ctx, TurnCwd(ctx, defaultWorkdir), in.File, in.Line, in.Column)
+			return run(ctx, turnctx.TurnCwd(ctx, defaultWorkdir), in.File, in.Line, in.Column)
 		},
 	)
 	return t
@@ -145,7 +146,7 @@ func newLSPFileTool(name, desc string, run func(ctx context.Context, root, file 
 			if in.File == "" {
 				return "", fmt.Errorf("%s: file is required", name)
 			}
-			return run(ctx, TurnCwd(ctx, defaultWorkdir), in.File)
+			return run(ctx, turnctx.TurnCwd(ctx, defaultWorkdir), in.File)
 		},
 	)
 	return t
@@ -164,7 +165,7 @@ func newLSPQueryTool(name, desc string, run func(ctx context.Context, root, quer
 			if in.Query == "" {
 				return "", fmt.Errorf("%s: query is required", name)
 			}
-			return run(ctx, TurnCwd(ctx, defaultWorkdir), in.Query)
+			return run(ctx, turnctx.TurnCwd(ctx, defaultWorkdir), in.Query)
 		},
 	)
 	return t

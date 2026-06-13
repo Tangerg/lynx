@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/skill"
+	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/turnctx"
 	"github.com/Tangerg/lynx/lyra/internal/infra/exec"
 	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
 	"github.com/Tangerg/lynx/lyra/internal/service/editguard"
@@ -31,27 +32,9 @@ const (
 	ToolRoleSubtask = "subtask"
 )
 
-// CwdBindingKey is the blackboard key the chat action binds (protected)
-// with the turn's working directory — see the [chatInput.Cwd] handling in
-// buildChatAgent. [Resolver] reads it back at tool-resolution time
-// so the filesystem + bash tools operate in the session's project
-// directory. Binding it protected is what carries it to `task` sub-agents:
-// [core.Blackboard.Spawn] copies protected entries onto the child and the
-// typed-action ClearBlackboard preserves them, so a plain Set would be lost
-// when the sub-agent's action clears its inherited blackboard.
-const CwdBindingKey = "lyra:cwd"
-
-// ChatModeBindingKey is the blackboard key the chat action binds (protected)
-// when a turn runs tool-less (runs.start mode=chat). [toolGroup.Tools] reads
-// it back and yields an empty tool set, so the turn is a plain LLM exchange.
-const ChatModeBindingKey = "lyra:chat-mode"
-
-// SessionBindingKey is the blackboard key the chat action binds (protected)
-// with the turn's session id, so the read/edit guards ([editguard.Tracker]) can key
-// file-read state per session — read in the same seam as the working directory
-// (see turnSession / [CwdBindingKey]). Protected so it rides to `task`
-// sub-agents and survives the snapshot/resume round trip.
-const SessionBindingKey = "lyra:session"
+// The per-turn blackboard seam (cwd / session / chat-mode keys + readers) lives
+// in package turnctx — the resolver, the per-tool packages, and the engine's
+// prompt composition all read it inward without coupling to each other.
 
 // wrapTool returns a Tool that runs call while preserving inner's Definition
 // and Metadata — the shared spine of the tool decorators (read/edit guards,
@@ -273,59 +256,7 @@ func (r *Resolver) Resolve(_ context.Context, req core.ToolGroupRequirement) (co
 // workdirFor reads the per-turn working directory, falling back to the
 // engine default.
 func (r *Resolver) workdirFor(ctx context.Context) string {
-	return TurnCwd(ctx, r.defaultWorkdir)
-}
-
-// TurnCwd reads the working directory the running process seeded on its
-// blackboard ([CwdBindingKey]), falling back to fallback when the turn
-// carried none (a sessionless smoke run, or a restored continuation
-// whose snapshot predates cwd seeding). This is THE per-session-cwd
-// seam: the tool resolver, the skill tool, and the system-prompt
-// composition all read the same key, so everything cwd-dependent
-// follows the session together.
-func TurnCwd(ctx context.Context, fallback string) string {
-	p := core.ProcessFrom(ctx)
-	if p == nil {
-		return fallback
-	}
-	if v, ok := p.Blackboard().Get(CwdBindingKey); ok {
-		if cwd, ok := v.(string); ok && cwd != "" {
-			return cwd
-		}
-	}
-	return fallback
-}
-
-// turnSession reads the session id the chat action seeded on the blackboard
-// ([SessionBindingKey]), empty when the turn carried none (a sessionless smoke
-// run). The read/edit guards key per-session file-read state off it.
-func turnSession(ctx context.Context) string {
-	p := core.ProcessFrom(ctx)
-	if p == nil {
-		return ""
-	}
-	if v, ok := p.Blackboard().Get(SessionBindingKey); ok {
-		if id, ok := v.(string); ok {
-			return id
-		}
-	}
-	return ""
-}
-
-// chatModeFrom reports whether the resolving process is a tool-less chat turn
-// (the chat action bound [ChatModeBindingKey]). Read off the same blackboard
-// seam as the working directory (see TurnCwd).
-func chatModeFrom(ctx context.Context) bool {
-	p := core.ProcessFrom(ctx)
-	if p == nil {
-		return false
-	}
-	v, ok := p.Blackboard().Get(ChatModeBindingKey)
-	if !ok {
-		return false
-	}
-	on, _ := v.(bool)
-	return on
+	return turnctx.TurnCwd(ctx, r.defaultWorkdir)
 }
 
 // toolGroup resolves its tool slice lazily at Tools() time so it can read
@@ -343,7 +274,7 @@ func (g *toolGroup) Metadata() core.ToolGroupMetadata {
 func (g *toolGroup) Tools(ctx context.Context) ([]core.AgentTool, error) {
 	// Tool-less chat (runs.start mode=chat): the turn bound ChatModeBindingKey,
 	// so resolve no tools — the model gets a plain single-round exchange.
-	if chatModeFrom(ctx) {
+	if turnctx.ChatModeFrom(ctx) {
 		return nil, nil
 	}
 	workdir := g.resolver.workdirFor(ctx)

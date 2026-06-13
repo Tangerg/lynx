@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/agent/hitl"
 
 	"github.com/Tangerg/lynx/lyra/internal/engine/toolset"
+	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/turnctx"
 	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 )
 
@@ -49,7 +50,7 @@ type chatInput struct {
 	PlanMode bool
 
 	// ChatMode runs the turn tool-less (runs.start mode=chat): the action
-	// binds [toolset.ChatModeBindingKey] so the tool resolver yields an empty tool set,
+	// binds [turnctx.ChatModeBindingKey] so the tool resolver yields an empty tool set,
 	// turning the turn into a plain single-round LLM exchange with no
 	// filesystem / bash / delegation tools. Mutually exclusive with PlanMode
 	// in practice (a tool-less turn has nothing to plan against).
@@ -113,18 +114,18 @@ func (e *Engine) buildChatAgent() *core.Agent {
 				if in.Cwd != "" {
 					// Protected so it rides Blackboard.Spawn down to `task`
 					// sub-agents and survives the typed-action
-					// ClearBlackboard — see the tool resolver / toolset.CwdBindingKey.
-					pc.Blackboard.BindProtected(toolset.CwdBindingKey, in.Cwd)
+					// ClearBlackboard — see the tool resolver / turnctx.CwdBindingKey.
+					pc.Blackboard.BindProtected(turnctx.CwdBindingKey, in.Cwd)
 				}
 				if in.SessionID != "" {
 					// Protected for the same reasons as cwd — the read/edit
 					// guards read it back via turnSession.
-					pc.Blackboard.BindProtected(toolset.SessionBindingKey, in.SessionID)
+					pc.Blackboard.BindProtected(turnctx.SessionBindingKey, in.SessionID)
 				}
 				if in.ChatMode {
 					// Tool-less: the tool group reads this back and yields no tools.
 					// Protected for the same survive-ClearBlackboard reason as cwd.
-					pc.Blackboard.BindProtected(toolset.ChatModeBindingKey, true)
+					pc.Blackboard.BindProtected(turnctx.ChatModeBindingKey, true)
 				}
 				if in.PlanMode {
 					out, done, err := e.planGate(ctx, pc, in.Message)

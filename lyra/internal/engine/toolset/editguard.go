@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
+	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/turnctx"
 	"github.com/Tangerg/lynx/lyra/internal/service/editguard"
 )
 
@@ -37,7 +38,7 @@ func withReadTracking(inner chat.Tool, tr *editguard.Tracker, workdir string) ch
 		}
 		_ = json.Unmarshal([]byte(arguments), &a)
 		if a.Path != "" {
-			tr.Record(turnSession(ctx), resolveAbs(workdir, a.Path), a.Offset > 0 || a.Limit > 0)
+			tr.Record(turnctx.TurnSession(ctx), resolveAbs(workdir, a.Path), a.Offset > 0 || a.Limit > 0)
 		}
 		return out, nil
 	})
@@ -55,7 +56,7 @@ func withEditGuard(inner chat.Tool, tr *editguard.Tracker, workdir string) chat.
 		}
 		_ = json.Unmarshal([]byte(arguments), &a)
 		if a.Path != "" {
-			if msg := tr.Check(turnSession(ctx), resolveAbs(workdir, a.Path), false).Message(a.Path, "editing"); msg != "" {
+			if msg := tr.Check(turnctx.TurnSession(ctx), resolveAbs(workdir, a.Path), false).Message(a.Path, "editing"); msg != "" {
 				return msg, nil // recoverable: the model reads, then retries
 			}
 		}
@@ -64,7 +65,7 @@ func withEditGuard(inner chat.Tool, tr *editguard.Tracker, workdir string) chat.
 			return out, err
 		}
 		if a.Path != "" {
-			tr.Refresh(turnSession(ctx), resolveAbs(workdir, a.Path))
+			tr.Refresh(turnctx.TurnSession(ctx), resolveAbs(workdir, a.Path))
 		}
 		return out, nil
 	})
@@ -86,7 +87,7 @@ func withWriteGuard(inner chat.Tool, tr *editguard.Tracker, workdir string) chat
 		if a.Path != "" && !a.Append {
 			abs := resolveAbs(workdir, a.Path)
 			if isExistingFile(abs) {
-				if msg := tr.Check(turnSession(ctx), abs, true).Message(a.Path, "overwriting"); msg != "" {
+				if msg := tr.Check(turnctx.TurnSession(ctx), abs, true).Message(a.Path, "overwriting"); msg != "" {
 					return msg, nil
 				}
 			}
@@ -96,7 +97,7 @@ func withWriteGuard(inner chat.Tool, tr *editguard.Tracker, workdir string) chat
 			return out, err
 		}
 		if a.Path != "" {
-			tr.Refresh(turnSession(ctx), resolveAbs(workdir, a.Path))
+			tr.Refresh(turnctx.TurnSession(ctx), resolveAbs(workdir, a.Path))
 		}
 		return out, nil
 	})
