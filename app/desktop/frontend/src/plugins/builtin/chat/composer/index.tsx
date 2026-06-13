@@ -277,7 +277,7 @@ function SendButton() {
 
   if (running) {
     return (
-      <Tooltip label="Stop (Esc)">
+      <Tooltip label="Stop">
         <button
           type="button"
           disabled={!stop}
