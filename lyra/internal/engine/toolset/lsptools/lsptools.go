@@ -1,4 +1,4 @@
-package toolset
+package lsptools
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
 )
 
-// BuildLSPTools exposes the code-intelligence service as the agent's
+// Build exposes the code-intelligence service as the agent's
 // language tools (definition / references / hover / symbols / diagnostics).
 // The service is working-directory independent — it keys servers by
 // workspace root internally — so these tools are built ONCE and each reads
@@ -18,7 +18,7 @@ import (
 // per-session-cwd seam as fs / bash). Positions are 1-based at the tool
 // boundary (what a human/LLM reads off a file); the service converts to the
 // LSP 0-based wire form and folds unsupported file types into a plain reply.
-func BuildLSPTools(ci *codeintel.Service, defaultWorkdir string) []chat.Tool {
+func Build(ci *codeintel.Service, defaultWorkdir string) []chat.Tool {
 	return []chat.Tool{
 		newLSPPositionTool(
 			"lsp_definition",
@@ -57,29 +57,6 @@ func BuildLSPTools(ci *codeintel.Service, defaultWorkdir string) []chat.Tool {
 			defaultWorkdir,
 		),
 	}
-}
-
-// withEditDiagnostics wraps a file-mutating tool (write / edit) so a
-// successful edit is immediately type-checked: the code-intelligence service
-// re-analyzes the file and appends any problems the edit INTRODUCED to the
-// tool result, so the model sees the breakage it just caused without a
-// separate lsp_diagnostics call. The baseline-diff, staleness guard, and
-// best-effort semantics live in [codeintel.Service.DiagnoseEdit]; here we
-// only feed it the edit closure. root is the resolved workspace directory
-// for this resolution; the wrapped tool's path argument is relative to it.
-func withEditDiagnostics(inner chat.Tool, ci *codeintel.Service, root string) chat.Tool {
-	if ci == nil {
-		return inner
-	}
-	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
-		var a struct {
-			Path string `json:"path"`
-		}
-		_ = json.Unmarshal([]byte(arguments), &a)
-		return ci.DiagnoseEdit(ctx, root, a.Path, func() (string, error) {
-			return inner.Call(ctx, arguments)
-		})
-	})
 }
 
 // --- input shapes + schemas ---
