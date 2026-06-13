@@ -9,7 +9,7 @@
 // The store is transport-neutral: Items and Runs are carried as opaque
 // wire blobs (marshaled protocol.Item / protocol.RunRef) plus the few
 // fields the store needs to order and group them, so this package depends
-// on neither rpc/protocol nor any backend.
+// on neither delivery/protocol nor any backend.
 package transcript
 
 import (

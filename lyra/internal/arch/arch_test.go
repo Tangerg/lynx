@@ -21,7 +21,7 @@ import (
 //
 // Rings (outer → inner):
 //
-//	delivery       rpc/**                       HTTP+SSE / inprocess transport, dispatch, protocol
+//	delivery       internal/delivery/**         HTTP+SSE / inprocess transport, dispatch, protocol
 //	orchestration  internal/engine/**           use-case core (drives the agent loop; ACL over the agent SDK)
 //	domain         internal/domain/**          bounded contexts: entities + repository ports + domain services
 //	infra          internal/infra/**            sqlite / git / lsp / mcp / exec — driven adapters & frameworks
@@ -118,7 +118,7 @@ func layerOf(rel string) string {
 	switch {
 	case rel == "internal/runtime" || rel == "internal/config" || strings.HasPrefix(rel, "cmd/"):
 		return ringComposition
-	case strings.HasPrefix(rel, "rpc/"):
+	case strings.HasPrefix(rel, "internal/delivery/"):
 		return ringDelivery
 	case rel == "internal/engine" || strings.HasPrefix(rel, "internal/engine/"):
 		return ringOrchestration

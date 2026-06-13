@@ -6,7 +6,7 @@ import (
 	sdka2a "github.com/a2aproject/a2a-go/v2/a2a"
 
 	"github.com/Tangerg/lynx/a2a"
-	"github.com/Tangerg/lynx/lyra/rpc/protocol"
+	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
 )
 
 // a2aRPCPattern is the path the A2A JSON-RPC endpoint is mounted at, surfaced
