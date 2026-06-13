@@ -16,7 +16,10 @@
   - 进程元数据：title / cwd / status(running|exited) / exitCode。
   - 形态上仍走 JSON-RPC（参考 `runs.subscribe` 的流式语义），**不要**新增 RESTy 端点（违反协议边界，见 `TRANSPORT.md §12`）。
 - **给了之后前端补什么**：复用已有的 bash/shell stdout preview 渲染（xterm 或现有 ANSI 渲染），把假 metadata 换成 run/process 派生数据；与 G3 并排面板搭配常驻侧栏。
-- **临时处置**：G8 阶段会把终端视图的**假数据撤掉/标注**，避免它假装能用。
+- **已处置（G8）**：终端视图的 fixture 已撤，改为诚实空态（"Terminal isn't wired up yet"）；
+  连带删掉 `useTerminal` / `TermLine` / `views/Terminal.tsx` 渲染器 / `defaults/data.ts` 的
+  `HTTP_KEYS` escape hatch（terminal 是其唯一用户）。后端就绪后：在 `terminal.tsx` 接订阅流
+  + 复用 bash preview 的 ANSI 渲染。
 
 ---
 
