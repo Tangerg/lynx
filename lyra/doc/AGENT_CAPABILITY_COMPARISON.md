@@ -34,9 +34,9 @@
 ## 2. lyra 现状能力基线（2026-06-14 实测,防止误报缺口）
 
 **单 turn 执行**：agent loop（复用 lynx `agent/runtime` 的 `for{}`）· 工具循环 + **并行工具** · **HITL R 模型**（park-on-interrupt + resume,可持久化/审计/跨重启）· plan 模式 · steering 注入 · **MaxBudget/MaxCostUSD/MaxSteps 上限**。
-**防失控**：**loop detection 已接**（`kernel/engine.go: LoopDetection`,经 agent/tool SDK）· budget/step backstop。
-**上下文**：压缩 **同时按消息数(24) 和 token 估算(100k) 触发** · 整段 wholesale 摘要 + 保留最近 · LYRA.md 长期记忆 + extractor 提取事实。
-**代码能力**：**LSP 6 操作**（definition/references/hover/symbols/diagnostics）· 编辑安全（read-before + stale 守卫）· fs/bash/web（fetch+search）· **model-facing todo（`todo_write`,SQLite 持久化）**。
+**防失控**：**loop detection**（`kernel/engine.go: LoopDetection`,SDK）· budget/step backstop · **todo 校验**（`todo.Validate`）· **`.git` 子路径只读守卫**（`protectedDirs`+`withPathGuard`）· **per-path 写锁**（2026-06-14）。
+**上下文**：压缩 **同时按消息数(24) 和 token 估算(100k) 触发** · wholesale 摘要 + **结构化模板**（2026-06-14）+ 保留最近 · LYRA.md 长期记忆 + extractor 提取事实。
+**代码能力**：**LSP 6 操作**（definition/references/hover/symbols/diagnostics）· 编辑安全（read-before + stale 守卫 + per-path 写锁）· fs/bash/web（fetch+search）· **model-facing todo（`todo_write`,SQLite 持久化）**。
 **会话/状态**：Session→Run→Item · **fork + 影子 git 文件 checkpoint + export/import** 三件套 · per-session cwd。
 **集成**：MCP client（5 态生命周期 + **auth 基座已铺**）· **A2A**(agent-to-agent 跨 runtime) · Skills（project+global） · **多 provider×多 model（38 provider,显式配对）**。
 **委派**：subagent 3 种 spawn 模式（protected-only 作委派默认）。
@@ -115,9 +115,9 @@ wire 的 `ContentBlock{type:image, attachmentId}` + `StartRunRequest.attachments
 AionUi Leader+Teammate 经 **ACP** 并行 + 共享任务板;cline 16 team tools;claude_code teams+SendMessage。lyra 有 `SpawnChildProtectedOnly` 单委派,**无并行团队编排**。
 > 成本:高（新 domain:团队生命周期 + 消息板 + 成本 roll-up）。
 
-**4.6 压缩精修** ❌ —— 现在是整段 wholesale 摘要 + 固定阈值
-缺:① **window-相对 token 触发**（remaining ≤ window*80%,用 CatalogPricing 真 token,而非固定 100k 字符估算,5/5 收敛）;② **microcompaction**（清旧 tool_result 体、留 tool_use + 最近 N;claude_code 还有 API-native `clear_tool_uses`,lyra 默认 Claude 可先评估这条）;③ **结构化摘要模板**（claude_code 9 段 / pi Goal-Constraints-Progress + 文件清单）;④ **condensation-as-event**（OpenHands:压缩=产生不可变事件 + projection 重放,可审计)。
-> 成本:① 触发改写 trivial;②③④ 各中等。
+**4.6 压缩精修** 🟡 —— wholesale 摘要 + 固定阈值（摘要模板已升级）
+✅ **③ 结构化摘要模板已落地（2026-06-14）**:Goal / Progress / Current state / Decisions / Next steps + 标识符（对齐 claude_code 9 段 / pi 格式）。剩:① **window-相对 token 触发**（用模型真 contextWindow 替固定 100k 字符估算;**非 trivial** —— compaction 用 maintenance 模型、触发却该跟 **turn 模型** window,需把 contextWindow plumb 到 turn 边界 [`MaybeCompact` port 加参]）;② **microcompaction**（清旧 tool_result 体留最近 N;lyra 默认 Claude,先评估 API-native `clear_tool_uses`）;④ **condensation-as-event**（OpenHands:压缩=不可变事件 + projection 重放）。
+> 成本:① 中（port + catalog plumbing,**非 trivial**,旧版误估）;②④ 中。
 
 **4.7 语义代码搜索 / repo-map** ❌ —— `rag/` 模块未接进 agent
 plandex tree-sitter 符号图;cursor/windsurf 全库向量。lyra 有 RAG pipeline 但不喂给 agent 选文件。
@@ -129,16 +129,14 @@ plandex per-role model pack;crush Large/Small。lyra 可复用 per-run-model sea
 
 **4.9 OS sandbox** ❌ —— 缓做（审计模型兜底）
 codex（policy→argv 纯函数,3 平台）· OpenHands（Workspace 接口 + LocalWorkspace 无 Docker）· harness9（per-agent Docker）。可移植抽象**确实存在**（三家收敛）。
-> **立即可做、零依赖**:`.git` 子路径强制只读（防 agent 改 `.git/hooks` 提权,codex 范式）。macOS path 便宜（sandbox-exec 字符串,无 cgo);Linux 重（bwrap/seccomp）。
+> ✅ **`.git` 子路径只读已有**（`editguard.go: protectedDirs=[".git"]` + `withPathGuard`,防改 `.git/hooks` 提权,codex 同款 —— 旧版误列为"立即可做"）。sandbox 本体:macOS path 便宜（sandbox-exec 字符串,无 cgo）;Linux 重（bwrap/seccomp）。
 
-**4.10 per-path 工具锁** 🟡 —— 并行已有,缺 fs-写互斥
-claude_code `isConcurrencySafe`·OpenHands `ResourceLockManager`·pi per-realpath 队列·harness9 path_locker（5/5 收敛）。
-> 成本:低（PathLocker 装饰器,串行化同路径写,读/LSP/MCP 不受影响）。
+**4.10 per-path 工具锁** ✅ **已落地（2026-06-14）** —— `pathLocker` + `withPathLock` 串行化同路径并行写（读/glob/grep/LSP/MCP 不受影响;bash 命令不透明,不纳入）。参照 claude_code `isConcurrencySafe`·OpenHands `ResourceLockManager`·pi per-realpath·harness9 path_locker（5/5 收敛）。
 
 ### 第三梯队 —— 防御性 / niche
 
 **4.11 evals 回归框架** ❌ —— harness9 ScriptedProvider（确定性 mock）+ Hard/Soft 断言 + hermetic + CI 闸（golden 用例,失败阻 merge）。lyra 零。成本:中。
-**4.12 防失控补全** ❌ —— lyra 有 loop-detect,缺:stall 检测（harness9:3 turn + todo 完成数不变,~10 行）、anti-cheat-todo（harness9:1 完成/调用硬限,~20 行）、denial-stops-turn（codex/crush:拒绝即停 turn,trivial）。成本:低,~120 行全做。
+**4.12 防失控** —— lyra **已有** loop-detect（SDK）+ budget/step 上限 + **todo 校验**（`todo.Validate`,≈ anti-cheat）。剩:**stall 检测**（N turn 进度不变→软停;**边际** —— 与已有 3 重防护重叠,价值低）;**denial-stops-turn**（codex 拒绝即停）**与 lyra 刻意的"可恢复 denial"设计冲突**（模型看 DenyReason 自适应,loop-detect 兜循环）,**不做**。**本项经第一手核对偏过度 call,降级。**
 **4.13 MCP-as-server / per-workspace MCP** ❌ —— OpenHands/crush 把自己暴露成 MCP server;Proma 每 workspace 独立 MCP/Skills。lyra MCP 是 runtime 全局。成本:中。
 **4.14 proactive 推荐 / monitors** ❌ —— Proma 规则信号→建议定时任务/监控 + 文件/会话/外部事件触发 run。lyra 有 `workspace.subscribe`(文件事件) 但不"事件→触发 run"。niche。
 
@@ -167,20 +165,29 @@ claude_code `isConcurrencySafe`·OpenHands `ResourceLockManager`·pi per-realpat
 
 ## 7. 落地优先级（平台无关 + 价值/成本最优）
 
-| 序 | 项 | 梯队 | 成本 | 为什么 |
+**已落地 / 已校准（2026-06-14 第一手核对）：**
+
+| 状态 | 项 | 备注 |
+|---|---|---|
+| ✅ 落地 | 结构化压缩摘要模板（§4.6③） | Goal/Progress/Current state/Decisions/Next steps |
+| ✅ 落地 | per-path 写锁（§4.10） | `pathLocker`+`withPathLock` |
+| ✅ 早已有 | `.git` 只读守卫（§4.9） | `protectedDirs`+`withPathGuard`（旧版误列"立即可做"） |
+| 🔻 降级 | 防失控"补全"（§4.12） | 已有 loop/budget/step/todo-validate;stall 边际、denial-stop 冲突设计 → 不做 |
+
+**待办（按价值/成本）：**
+
+| 序 | 项 | 梯队 | 成本 | 为什么 / 前置 |
 |---|---|---|---|---|
-| 1 | **调度/自动化运行时** | 1 | 中 | 同品类核心差距,把 agent 变"自主" |
-| 2 | **防失控补全**（stall/anti-cheat/denial-stops）+ **per-path 锁** | 2/3 | 低（~120+ 行） | 极便宜、即时稳健性 |
-| 3 | **`.git` 只读不变量** | 2 | 极低 | 零依赖、防提权,现在就能做 |
-| 4 | **window-相对 token 压缩触发** | 2 | trivial | CatalogPricing 已有,改触发即可 |
-| 5 | **多模态图片输入** | 1 | 低-中 | 接通 model adapter,补最显眼缺口 |
-| 6 | **Hooks（PreToolUse 三合一为核心）** | 1 | 中 | 扩展性地基 |
-| 7 | **远程 IM 桥接（先一个 webhook 入口）** | 1 | 中 | 触达;先飞书/钉钉其一 |
-| 8 | **microcompaction**（先评估 API-native `clear_tool_uses`） | 2 | 低-中 | 长会话质量 |
-| 9 | **per-role 模型分配** | 2 | 中 | 复用 per-run-model seam |
-| 10 | **语义检索 / repo-map** | 2 | 中 | 接 rag |
-| 11 | **多 agent 团队编排** | 2 | 高 | 进阶,需求驱动再做 |
-| 12 | **OS sandbox（macOS first）/ evals / MCP-as-server** | 3 | 中-高 | 防御性 / 触发条件驱动 |
+| 1 | **调度/自动化运行时** | 1 | 中 | 同品类核心差距;后端基座可起步,端到端需前端+RPC |
+| 2 | **多模态图片输入** | 1 | 中 | kernel 现**丢弃** image content;接 model-adapter,wire 不破坏 |
+| 3 | **Hooks（PreToolUse 三合一为核心）** | 1 | 中 | 扩展性地基 |
+| 4 | **远程 IM 桥接（先一个 webhook 入口）** | 1 | 中-高 | 触达;需外部平台凭证 |
+| 5 | **window-相对 token 压缩触发** | 2 | 中（**非 trivial**） | 需 contextWindow plumb 到 turn 边界（`MaybeCompact` port 加参） |
+| 6 | **microcompaction**（先评估 `clear_tool_uses`） | 2 | 低-中 | 长会话质量 |
+| 7 | **per-role 模型分配** | 2 | 中 | 复用 per-run-model seam |
+| 8 | **语义检索 / repo-map** | 2 | 中 | 接 `rag/` |
+| 9 | **多 agent 团队编排** | 2 | 高 | 进阶,需求驱动 |
+| 10 | **OS sandbox（macOS first）/ evals / MCP-as-server** | 3 | 中-高 | 防御性 / 触发条件 |
 
 ---
 
