@@ -60,6 +60,13 @@ type Config struct {
 	// Engine.ChatClient is required.
 	Engine engine.Config
 
+	// MaintenanceClient optionally runs the in-house turn-boundary maintenance
+	// services (compaction / extraction / planning) on a separate — typically
+	// cheaper — model than Engine.ChatClient. nil runs them on the main client.
+	// Only applies to the runtime's own maintenance services; an externally
+	// injected Compactor/Extractor/Planner brings its own client.
+	MaintenanceClient *chat.Client
+
 	// Tool-environment inputs — the runtime reads these to assemble the tool
 	// environment via toolset.Build and inject it into the engine core (which
 	// constructs no capability itself). Workdir / SkillsGlobalDir come from
@@ -169,17 +176,27 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	// so an external provider (e.g. a mem0 / HTTP-bridged compactor or knowledge
 	// store) can be slotted in by setting the corresponding engine.Config field —
 	// the runtime then leaves it untouched. nil → in-house default.
+	// Maintenance (compaction / extraction / planning) may run on a cheaper
+	// model than the main turn — see [Config.MaintenanceClient]. nil falls
+	// back to the engine's client, preserving the single-model default. Only
+	// the in-house services below use it; an externally injected port brings
+	// its own client.
+	maintClient := cfg.MaintenanceClient
+	if maintClient == nil {
+		maintClient = cfg.Engine.ChatClient
+	}
+
 	if ecfg.Steering == nil {
 		ecfg.Steering = conv
 	}
 	if ecfg.Compactor == nil {
-		ecfg.Compactor = maintenance.NewCompactor(memStore, cfg.Engine.ChatClient, maintenance.CompactionConfig{})
+		ecfg.Compactor = maintenance.NewCompactor(memStore, maintClient, maintenance.CompactionConfig{})
 	}
 	if ecfg.Planner == nil {
-		ecfg.Planner = maintenance.NewPlanner(cfg.Engine.ChatClient)
+		ecfg.Planner = maintenance.NewPlanner(maintClient)
 	}
 	if ecfg.Extractor == nil && cfg.Engine.Knowledge != nil {
-		ecfg.Extractor = maintenance.NewExtractor(memStore, cfg.Engine.Knowledge, cfg.Engine.ChatClient)
+		ecfg.Extractor = maintenance.NewExtractor(memStore, cfg.Engine.Knowledge, maintClient)
 	}
 	// Todo list: same nil-default contract — honor a pre-injected engine
 	// Todos (an external task store), else use the runtime-supplied one.
