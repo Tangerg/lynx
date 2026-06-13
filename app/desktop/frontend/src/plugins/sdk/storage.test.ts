@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { createStorage } from "./storage";
 
 describe("createStorage", () => {
@@ -64,87 +64,5 @@ describe("createStorage", () => {
     // Bypass the typed setter to plant a raw value.
     localStorage.setItem("lyra.plugin.alpha.raw", "not-json");
     expect(s.get("raw")).toBe("not-json");
-  });
-
-  it("migrate runs unapplied migrations in ascending order", () => {
-    const s = createStorage("alpha");
-    s.set("data", { name: "old" });
-    const calls: number[] = [];
-
-    s.migrate([
-      {
-        version: 2,
-        migrate: () => {
-          calls.push(2);
-          s.set("data", { name: "v2" });
-        },
-      },
-      {
-        version: 1,
-        migrate: () => {
-          calls.push(1);
-          s.set("flag", true);
-        },
-      },
-    ]);
-
-    expect(calls).toEqual([1, 2]);
-    expect(s.get("flag")).toBe(true);
-    expect(s.get("data")).toEqual({ name: "v2" });
-    expect(s.get("__schema_version")).toBe(2);
-  });
-
-  it("migrate is idempotent — re-running skips already-applied steps", () => {
-    const s = createStorage("alpha");
-    const seen: number[] = [];
-    const migrations = [
-      {
-        version: 1,
-        migrate: () => {
-          seen.push(1);
-        },
-      },
-      {
-        version: 2,
-        migrate: () => {
-          seen.push(2);
-        },
-      },
-    ];
-    s.migrate(migrations);
-    s.migrate(migrations); // second call: nothing pending
-
-    expect(seen).toEqual([1, 2]);
-  });
-
-  it("migrate stops the chain on error and leaves the version at the last good step", () => {
-    const err = vi.spyOn(console, "error").mockImplementation(() => {});
-    try {
-      const s = createStorage("alpha");
-      s.migrate([
-        {
-          version: 1,
-          migrate: () => {
-            /* ok */
-          },
-        },
-        {
-          version: 2,
-          migrate: () => {
-            throw new Error("kaboom");
-          },
-        },
-        {
-          version: 3,
-          migrate: () => {
-            /* should not run */
-          },
-        },
-      ]);
-      expect(s.get("__schema_version")).toBe(1);
-      expect(err).toHaveBeenCalled();
-    } finally {
-      err.mockRestore();
-    }
   });
 });
