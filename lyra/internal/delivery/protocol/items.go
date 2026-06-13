@@ -18,8 +18,7 @@ type Items interface {
 // ListItemsRequest — items.list body.
 type ListItemsRequest struct {
 	SessionID string `json:"sessionId"`
-	Cursor    string `json:"cursor,omitempty"`
-	Limit     int    `json:"limit,omitempty"`
+	PageQuery
 }
 
 // ListItemsResponse — items.list result: a Page[Item] (`data` +
@@ -53,6 +52,57 @@ const (
 	ItemTypeToolCall     ItemType = "toolCall"
 )
 
+// SafetyClass is a tool's mutation risk (API.md §4.4): safe (read-only),
+// write (mutates the workspace), exec (runs arbitrary commands). Carried on a
+// toolCall Item and on a client-supplied ToolSpec.
+type SafetyClass string
+
+const (
+	SafetyClassSafe  SafetyClass = "safe"
+	SafetyClassWrite SafetyClass = "write"
+	SafetyClassExec  SafetyClass = "exec"
+)
+
+// ContentBlockType discriminates a ContentBlock (API.md §4.3).
+type ContentBlockType string
+
+const (
+	ContentBlockText  ContentBlockType = "text"
+	ContentBlockImage ContentBlockType = "image"
+)
+
+// Valid reports whether t is a known content-block type.
+func (t ContentBlockType) Valid() bool { return t == ContentBlockText || t == ContentBlockImage }
+
+// PlanStepStatus is the lifecycle of one PlanStep (API.md §4.3; "running"
+// everywhere per §2.3).
+type PlanStepStatus string
+
+const (
+	PlanStepPending   PlanStepStatus = "pending"
+	PlanStepRunning   PlanStepStatus = "running"
+	PlanStepCompleted PlanStepStatus = "completed"
+	PlanStepFailed    PlanStepStatus = "failed"
+)
+
+// QuestionFieldType is the input shape of a QuestionField (API.md §4.3).
+type QuestionFieldType string
+
+const (
+	QuestionFieldText   QuestionFieldType = "text"
+	QuestionFieldChoice QuestionFieldType = "choice"
+)
+
+// DiffRowType discriminates a structured diff row (API.md §4.5).
+type DiffRowType string
+
+const (
+	DiffRowHunk    DiffRowType = "hunk"
+	DiffRowContext DiffRowType = "context"
+	DiffRowAdded   DiffRowType = "added"
+	DiffRowDeleted DiffRowType = "deleted"
+)
+
 // Item is one durable unit of work inside a run (API.md §4.3). A
 // tag-discriminated union: Type selects which optional fields apply.
 //
@@ -74,7 +124,7 @@ type Item struct {
 	Steps       []PlanStep      `json:"steps,omitempty"`
 	Question    *Question       `json:"question,omitempty"`
 	Tool        *ToolInvocation `json:"tool,omitempty"`
-	SafetyClass string          `json:"safetyClass,omitempty"`
+	SafetyClass SafetyClass     `json:"safetyClass,omitempty"`
 	Error       *ProblemData    `json:"error,omitempty"` // tool-level failure (API.md §4.3)
 }
 
@@ -83,16 +133,16 @@ type Item struct {
 //	text  → Text
 //	image → AttachmentID
 type ContentBlock struct {
-	Type         string `json:"type"` // "text" | "image"
-	Text         string `json:"text,omitempty"`
-	AttachmentID string `json:"attachmentId,omitempty"`
+	Type         ContentBlockType `json:"type"` // see ContentBlockType
+	Text         string           `json:"text,omitempty"`
+	AttachmentID string           `json:"attachmentId,omitempty"`
 }
 
 // PlanStep is one step of a plan Item (API.md §4.3).
 type PlanStep struct {
-	ID     string `json:"id"`
-	Title  string `json:"title"`
-	Status string `json:"status"` // "pending" | "running" | "completed" | "failed"
+	ID     string         `json:"id"`
+	Title  string         `json:"title"`
+	Status PlanStepStatus `json:"status"` // see PlanStepStatus
 }
 
 // Question is a structured clarifying question (API.md §4.3). answers
@@ -107,13 +157,13 @@ type Question struct {
 //	text   → (no extra)
 //	choice → Options, Multiple
 type QuestionField struct {
-	Name     string           `json:"name"`
-	Label    string           `json:"label"`
-	Header   string           `json:"header,omitempty"` // ≤12-char chip
-	Required bool             `json:"required,omitempty"`
-	Type     string           `json:"type"` // "text" | "choice"
-	Options  []QuestionOption `json:"options,omitempty"`
-	Multiple bool             `json:"multiple,omitempty"`
+	Name     string            `json:"name"`
+	Label    string            `json:"label"`
+	Header   string            `json:"header,omitempty"` // ≤12-char chip
+	Required bool              `json:"required,omitempty"`
+	Type     QuestionFieldType `json:"type"` // see QuestionFieldType
+	Options  []QuestionOption  `json:"options,omitempty"`
+	Multiple bool              `json:"multiple,omitempty"`
 }
 
 // QuestionOption is one choice option (API.md §4.3).
@@ -212,11 +262,11 @@ type FileEdit struct {
 //	added   → RightLine, Code
 //	deleted → LeftLine, Code
 type DiffRow struct {
-	Type      string `json:"type"`
-	Text      string `json:"text,omitempty"`
-	LeftLine  int    `json:"leftLine,omitempty"`
-	RightLine int    `json:"rightLine,omitempty"`
-	Code      string `json:"code,omitempty"`
+	Type      DiffRowType `json:"type"` // see DiffRowType
+	Text      string      `json:"text,omitempty"`
+	LeftLine  int         `json:"leftLine,omitempty"`
+	RightLine int         `json:"rightLine,omitempty"`
+	Code      string      `json:"code,omitempty"`
 }
 
 // SearchHit is one LOCAL search hit (API.md §4.5) — used in a grep/glob
