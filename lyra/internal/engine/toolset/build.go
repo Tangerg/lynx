@@ -5,6 +5,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
+	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/askuser"
 	"github.com/Tangerg/lynx/lyra/internal/infra/a2a"
 	"github.com/Tangerg/lynx/lyra/internal/infra/exec"
 	"github.com/Tangerg/lynx/lyra/internal/infra/mcp"
@@ -82,6 +83,11 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 	bg := exec.NewManager()
 	shellTools := BuildShellTools(bg, cfg.Workdir)
 
+	// ask_user is self-contained (SDK HITL + interrupts.Resolution), so it's a
+	// plain build-time tool here, not engine-injected. Coding role only — the
+	// resolver gates it (sub-agents don't supervise sub-process interrupts).
+	askUserTool := askuser.New()
+
 	mcpConns, mcpTools, err := mcp.Dial(ctx, cfg.MCPServers)
 	if err != nil {
 		return Built{}, err
@@ -100,6 +106,7 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 		A2A:             a2aTools,
 		LSP:             lspTools,
 		Shell:           shellTools,
+		AskUser:         askUserTool,
 		CodeIntel:       codeIntel,
 		ReadTracker:     tracker,
 	})
@@ -108,13 +115,13 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 
 	// Canonical tool list for tools.list — metadata (name/schema) is
 	// working-directory independent, so the default-workdir build is faithful.
-	// task / ask_user are appended by the engine (they need the platform / the
-	// HITL contract).
+	// Only `task` is appended by the engine (it needs the platform).
 	tools := append(BuildWorkdirTools(cfg.Workdir, codeIntel, tracker), online...)
 	tools = append(tools, mcpTools...)
 	tools = append(tools, a2aTools...)
 	tools = append(tools, lspTools...)
 	tools = append(tools, shellTools...)
+	tools = append(tools, askUserTool)
 	if skillTool := BuildSkillTool(cfg.Workdir, cfg.SkillsGlobalDir); skillTool != nil {
 		tools = append(tools, skillTool)
 	}
