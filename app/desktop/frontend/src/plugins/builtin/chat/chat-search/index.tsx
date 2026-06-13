@@ -159,6 +159,7 @@ function ChatSearchOverlay() {
         placeholder="Search in chat…"
         className="h-7 w-56 rounded-md border-0 bg-transparent px-2 font-sans text-[13px] text-fg outline-none placeholder:text-fg-faint"
         onKeyDown={(e) => {
+          if (e.nativeEvent.isComposing) return; // let the IME commit its candidate
           if (e.key === "Escape") {
             e.preventDefault();
             setOpen(false);
