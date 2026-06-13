@@ -149,10 +149,10 @@ func (t *translator) toolEnd(e turn.ToolCallEnd) []protocol.StreamEvent {
 		// Denied by the approval verdict — a distinct terminal from a green
 		// success or a generic failure, so the UI can render "denied".
 		item.Status = protocol.ItemStatusIncomplete
-		item.Error = &protocol.ProblemData{Type: "denied_by_user", Channel: "tool", Detail: "tool call denied by user"}
+		item.Error = &protocol.ProblemData{Type: "denied_by_user", Channel: protocol.ErrorChannelTool, Detail: "tool call denied by user"}
 	case e.Err != "":
 		item.Status = protocol.ItemStatusIncomplete
-		item.Error = &protocol.ProblemData{Type: "tool_failed", Channel: "tool", Detail: e.Err}
+		item.Error = &protocol.ProblemData{Type: "tool_failed", Channel: protocol.ErrorChannelTool, Detail: e.Err}
 	}
 	return append(out, protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: item})
 }

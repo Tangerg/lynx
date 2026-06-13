@@ -116,7 +116,7 @@ func (s *Server) reconcileLostRun(r *protocol.RunRef) {
 	r.Status = protocol.RunStatusFinished
 	r.Outcome = &protocol.RunOutcome{
 		Type:   protocol.OutcomeError,
-		Result: &protocol.RunResult{Error: &protocol.ProblemData{Type: "run_lost", Channel: "run", Detail: "run lost on restart"}},
+		Result: &protocol.RunResult{Error: &protocol.ProblemData{Type: "run_lost", Channel: protocol.ErrorChannelRun, Detail: "run lost on restart"}},
 	}
 	if r.FinishedAt.IsZero() {
 		r.FinishedAt = time.Now().UTC()
