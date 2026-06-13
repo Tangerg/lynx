@@ -54,7 +54,6 @@ export interface PluginStoreActions {
   unload: (pluginName: string) => void;
 
   addDeclaredCommand: (pluginName: string, spec: ContributedCommand) => void;
-  removeDeclaredCommand: (pluginName: string, id: string) => void;
   removeDeclaredCommandsBy: (pluginName: string) => void;
 
   addDeclaredView: (pluginName: string, spec: ContributedView) => void;
