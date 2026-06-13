@@ -100,6 +100,18 @@ export type {
   FileLine,
   GrepMatch,
   GrepResult,
+  // Code intelligence (B7) / file browse (B8) — docs/613 proposal
+  CodeQuery,
+  CodePosition,
+  CodeRange,
+  CodeLocation,
+  Hover,
+  SymbolKind,
+  DocumentSymbol,
+  WorkspaceSymbol,
+  Diagnostic,
+  FileEntry,
+  FileContent,
   // Usage / error / context / tools
   Usage,
   ModelUsage,

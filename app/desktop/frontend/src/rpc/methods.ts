@@ -14,16 +14,24 @@ import type {
   AgentDoc,
   Attachment,
   CanceledNotification,
+  CodeLocation,
+  CodePosition,
+  CodeQuery,
   ConfigureProviderRequest,
   CreateSessionRequest,
   CreateUploadUrlRequest,
   CreateUploadUrlResponse,
+  Diagnostic,
   Diff,
+  DocumentSymbol,
   ExportSessionResponse,
   FeedbackRequest,
+  FileContent,
+  FileEntry,
   FileHead,
   ForkSessionRequest,
   GrepResult,
+  Hover,
   ImportSessionResponse,
   InitializeRequest,
   InitializeResponse,
@@ -57,6 +65,7 @@ import type {
   UpdateSessionRequest,
   WorkspaceEvent,
   WorkspaceFileChange,
+  WorkspaceSymbol,
 } from "./shapes";
 import { streamRunEvents, streamRunEventsDeferred, streamWorkspaceEvents } from "./stream";
 import { WORKSPACE_SUBSCRIBE_METHOD } from "./transport";
@@ -148,6 +157,25 @@ export interface Methods {
       path?: string;
       limit?: number;
     }) => Promise<GrepResult>;
+    // General directory listing / glob (B7/B8 → docs/613) — feeds the file tree + @file.
+    // Respects .gitignore + backstop excludes unless includeIgnored; not gated (basic read).
+    listFiles: (params: {
+      cwd?: string;
+      path?: string; // start dir, relative to cwd (default = cwd root)
+      glob?: string; // e.g. "**/*.go"; implies recursive
+      recursive?: boolean; // default false — one level (lazy tree)
+      includeIgnored?: boolean; // default false
+      cursor?: string;
+      limit?: number;
+    }) => Promise<Page<FileEntry>>;
+    // Full-text file read (B8) — startLine/endLine are 1-based inclusive; truncated self-describes.
+    readFile: (params: {
+      path: string;
+      cwd?: string;
+      startLine?: number;
+      endLine?: number;
+      maxBytes?: number;
+    }) => Promise<FileContent>;
     listProjects: () => Promise<Page<Project>>;
     listSkills: (cwd?: string) => Promise<Page<Skill>>;
     listAgentDocs: (cwd?: string) => Promise<Page<AgentDoc>>;
@@ -162,6 +190,23 @@ export interface Methods {
       listServers: () => Promise<Page<McpServer>>;
       listTools: (server?: string) => Promise<Page<McpTool>>;
       reconnect: (server: string) => Promise<void>;
+    };
+    // Code intelligence (B7) — LSP-backed, read-only, gated features.codeIntel. Positions
+    // 0-based / UTF-16 (LSP). No language server for the file type → no_language_server
+    // (non-fatal); indexing/unavailable → empty result (not an error).
+    code: {
+      definition: (params: CodeQuery & CodePosition) => Promise<{ locations: CodeLocation[] }>;
+      references: (
+        params: CodeQuery & CodePosition & { includeDeclaration?: boolean },
+      ) => Promise<Page<CodeLocation>>;
+      hover: (params: CodeQuery & CodePosition) => Promise<Hover>;
+      documentSymbols: (params: CodeQuery) => Promise<{ symbols: DocumentSymbol[] }>;
+      workspaceSymbols: (params: {
+        cwd?: string;
+        query: string;
+        limit?: number;
+      }) => Promise<Page<WorkspaceSymbol>>;
+      diagnostics: (params: CodeQuery) => Promise<{ diagnostics: Diagnostic[] }>;
     };
   };
   providers: {
@@ -254,6 +299,8 @@ export function createMethods(client: RpcClient): Methods {
       getDiff: (params) => client.call<Diff>("workspace.getDiff", params ?? {}),
       getFileHead: (params) => client.call<FileHead>("workspace.getFileHead", params),
       grep: (params) => client.call<GrepResult>("workspace.grep", params),
+      listFiles: (params) => client.call<Page<FileEntry>>("workspace.listFiles", params),
+      readFile: (params) => client.call<FileContent>("workspace.readFile", params),
       listProjects: () => client.call<Page<Project>>("workspace.listProjects"),
       listSkills: (cwd) => client.call<Page<Skill>>("workspace.listSkills", { cwd }),
       listAgentDocs: (cwd) => client.call<Page<AgentDoc>>("workspace.listAgentDocs", { cwd }),
@@ -269,6 +316,19 @@ export function createMethods(client: RpcClient): Methods {
         listTools: (server) =>
           client.call<Page<McpTool>>("workspace.mcp.listTools", server ? { server } : {}),
         reconnect: (server) => client.call<void>("workspace.mcp.reconnect", { server }),
+      },
+      code: {
+        definition: (params) =>
+          client.call<{ locations: CodeLocation[] }>("workspace.code.definition", params),
+        references: (params) =>
+          client.call<Page<CodeLocation>>("workspace.code.references", params),
+        hover: (params) => client.call<Hover>("workspace.code.hover", params),
+        documentSymbols: (params) =>
+          client.call<{ symbols: DocumentSymbol[] }>("workspace.code.documentSymbols", params),
+        workspaceSymbols: (params) =>
+          client.call<Page<WorkspaceSymbol>>("workspace.code.workspaceSymbols", params),
+        diagnostics: (params) =>
+          client.call<{ diagnostics: Diagnostic[] }>("workspace.code.diagnostics", params),
       },
     },
     providers: {

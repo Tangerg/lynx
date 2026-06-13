@@ -72,6 +72,7 @@ export type ServerFeature =
   | "git"
   | "fileWatch"
   | "lsp"
+  | "codeIntel"
   | "subagents"
   | "skills"
   | "mcp"
