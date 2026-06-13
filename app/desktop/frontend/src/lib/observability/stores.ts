@@ -182,8 +182,12 @@ function stableKey(attrs: Attrs): string {
 }
 
 // Estimate P50/P95 from explicit bucket boundaries + counts. Walk in order,
-// return the upper boundary of the bucket the percentile lands in (errs high
-// — fine for "is this slow?" eyeballing).
+// return the upper boundary of the bucket the percentile lands in — errs high
+// for finite buckets. Exception: the unbounded overflow bucket (everything above
+// the last boundary) has no upper boundary, so it returns the last finite
+// boundary as a LOWER bound (under-reports the tail). The histogram keeps only
+// counts, not raw observations, so this can't be made exact — fine for the
+// dev "is this slow?" eyeball, not a precise SLO number.
 function estimatePercentiles(buckets: HistogramValue["buckets"]): { p50: number; p95: number } {
   const total = buckets.counts.reduce((a, b) => a + b, 0);
   if (total === 0) return { p50: 0, p95: 0 };
