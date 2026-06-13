@@ -1,7 +1,7 @@
 // Package git is a thin exec-git capability layer for the workspace VCS
 // surface (workspace.listFileChanges / getDiff). It shells out to the git
 // binary — no embedded git library — and is transport-neutral: it returns
-// plain structs, never rpc/protocol types, so the protocol server maps them
+// plain structs, never delivery/protocol types, so the protocol server maps them
 // to the wire. Missing git binary or a non-repo directory surface as typed
 // errors (ErrUnavailable / ErrNotRepo) rather than empty results, so the
 // caller can keep "no git" / "not a repo" / "clean repo" distinct.
