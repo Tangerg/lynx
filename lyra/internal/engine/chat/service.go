@@ -11,6 +11,7 @@ import (
 
 	corechat "github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
+	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 )
 
 // clientResolver resolves a per-turn chat client for an explicit
@@ -134,12 +135,12 @@ type Service interface {
 	// Resume answers a turn parked on a HITL interrupt (a gated tool
 	// call awaiting approval, a plan awaiting review, or an ask_user
 	// question — all surface as a [TurnInterrupted] event). The structured
-	// [engine.InterruptResolution] carries the decision (approve/deny, with
+	// [interrupts.Resolution] carries the decision (approve/deny, with
 	// optionally edited tool arguments) or the question's answer. The
 	// continuation streams onto the SAME turn's event channel — call
 	// [Events] again after Resume to drain it. Returns [ErrTurnNotFound]
 	// when the turn isn't parked.
-	Resume(ctx context.Context, handle TurnHandle, resolution engine.InterruptResolution) error
+	Resume(ctx context.Context, handle TurnHandle, resolution interrupts.Resolution) error
 
 	// ProcessID returns the agent-process id backing a live (parked) turn
 	// — the snapshot key the runtime records so a restart can rebuild the

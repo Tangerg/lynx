@@ -8,8 +8,8 @@ import (
 	"os/signal"
 	"strings"
 
-	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/engine/chat"
+	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 )
 
 // turnOptions is the per-turn knobs both `chat` and `repl` pass to
@@ -167,7 +167,7 @@ func (r *TurnRunner) handleInterrupt(ctx context.Context, handle chat.TurnHandle
 		}
 	}
 	approved := r.decide()
-	if err := r.app.rt.Chat().Resume(ctx, handle, engine.InterruptResolution{Approved: approved}); err != nil {
+	if err := r.app.rt.Chat().Resume(ctx, handle, interrupts.Resolution{Approved: approved}); err != nil {
 		fmt.Fprintf(r.app.Err, "[lyra] resume: %s\n", err)
 	}
 	if !approved {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
+	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 )
 
 // ChatProcess is the handle [Engine.StartChat] returns. It exposes
@@ -43,11 +44,11 @@ type ChatProcess interface {
 
 	// Resume answers a HITL interrupt the process is parked on
 	// (StatusWaiting) — a plan-mode plan, a gated tool call, or an
-	// ask_user question. It delivers the structured [InterruptResolution]
+	// ask_user question. It delivers the structured [interrupts.Resolution]
 	// to the parked awaitable and continues the process, returning a fresh
 	// Done channel for the resumed run. Only valid while Status is
 	// [core.StatusWaiting].
-	Resume(ctx context.Context, resolution InterruptResolution) (<-chan error, error)
+	Resume(ctx context.Context, resolution interrupts.Resolution) (<-chan error, error)
 
 	// PendingAwaitable returns the HITL request the process is parked
 	// on while StatusWaiting (plan confirmation or tool-approval
@@ -73,7 +74,7 @@ func (cp *chatProcess) Cancel() error {
 	return cp.platform.KillProcess(cp.proc.ID())
 }
 
-func (cp *chatProcess) Resume(ctx context.Context, resolution InterruptResolution) (<-chan error, error) {
+func (cp *chatProcess) Resume(ctx context.Context, resolution interrupts.Resolution) (<-chan error, error) {
 	if _, err := cp.platform.ResumeProcess(cp.proc.ID(), resolution); err != nil {
 		return nil, err
 	}

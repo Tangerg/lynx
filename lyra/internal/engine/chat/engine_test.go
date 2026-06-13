@@ -13,6 +13,7 @@ import (
 	corechat "github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/engine/chat"
+	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 )
 
 // stubChatProcess fakes the [engine.ChatProcess] handle without
@@ -61,7 +62,7 @@ func (cp *stubChatProcess) Cancel() error {
 // approval (Status stays Completed), so runTurn's resume loop doesn't
 // call this — the real plan-mode path is covered by buildPlanService's
 // real-engine tests. Returns an already-fired done for safety.
-func (cp *stubChatProcess) Resume(_ context.Context, _ engine.InterruptResolution) (<-chan error, error) {
+func (cp *stubChatProcess) Resume(_ context.Context, _ interrupts.Resolution) (<-chan error, error) {
 	ch := make(chan error, 1)
 	ch <- nil
 	close(ch)

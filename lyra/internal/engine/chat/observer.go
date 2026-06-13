@@ -10,6 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
+	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 )
 
 // turnObserver bridges the engine's tool observer to the turn's event
@@ -40,7 +41,7 @@ type ApprovalPrompt struct {
 //     InterruptError (the tool loop exits, the action parks at
 //     StatusWaiting, the client answers via runs.resume); on resume the gate
 //     is consulted again at the same pending call and Interrupt returns the
-//     human's [engine.InterruptResolution], so the gate runs / denies /
+//     human's [interrupts.Resolution], so the gate runs / denies /
 //     runs-with-edited-args accordingly.
 //
 // The interrupt key is the stable tool name + arguments (NOT the
@@ -72,7 +73,7 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 
 	// interrupt for human approval (R model). First pass bubbles the
 	// InterruptError up to park; resume delivers the resolution here.
-	res, _, err := hitl.Interrupt[engine.InterruptResolution](ctx,
+	res, _, err := hitl.Interrupt[interrupts.Resolution](ctx,
 		approvalKey(toolName, arguments),
 		ApprovalPrompt{CallID: callID, ToolName: toolName, Arguments: arguments},
 	)

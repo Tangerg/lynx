@@ -11,6 +11,7 @@ import (
 
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/service/approval"
+	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
 )
 
 // turnIDPrefix tags every turn id. A turn id doubles as the root run's
@@ -235,7 +236,7 @@ func (s *inMemory) Cancel(_ context.Context, handle TurnHandle) error {
 // drives the continuation segment onto the same event channel. Returns
 // [ErrTurnNotFound] when the turn isn't parked (unknown / already
 // resumed / terminal).
-func (s *inMemory) Resume(_ context.Context, handle TurnHandle, resolution engine.InterruptResolution) error {
+func (s *inMemory) Resume(_ context.Context, handle TurnHandle, resolution interrupts.Resolution) error {
 	state, err := s.findTurn(handle.TurnID)
 	if err != nil {
 		return err
@@ -252,7 +253,7 @@ func (s *inMemory) Resume(_ context.Context, handle TurnHandle, resolution engin
 // otherwise it starts drive and returns nil. Shared by [Resume]
 // (same-process) and [Rehydrate] (cross-restart) so the resume tail —
 // deliver, on-error-finish, else-drive — stays identical.
-func (s *inMemory) resumeAndDrive(state *turnState, resolution engine.InterruptResolution) error {
+func (s *inMemory) resumeAndDrive(state *turnState, resolution interrupts.Resolution) error {
 	resumed, err := state.process().Resume(state.ctx, resolution)
 	if err != nil {
 		s.emit(state, ErrorEvent{Message: err.Error(), Code: "ENGINE_ERROR"})
@@ -346,7 +347,7 @@ func (s *inMemory) Rehydrate(ctx context.Context, req RehydrateRequest) (TurnHan
 	// the decision and drive the continuation; on a resume error the
 	// terminal is already streamed, so the handle is still returned for the
 	// caller to drain.
-	_ = s.resumeAndDrive(state, engine.InterruptResolution{Approved: req.Approved})
+	_ = s.resumeAndDrive(state, interrupts.Resolution{Approved: req.Approved})
 	return handle, nil
 }
 
