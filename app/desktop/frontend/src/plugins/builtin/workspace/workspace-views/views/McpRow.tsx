@@ -28,6 +28,17 @@ function reconnect(server: string): void {
     .catch((err: unknown) => console.warn("[mcp] reconnect failed:", err));
 }
 
+// Hand the backend a bearer token for a needsAuth server (B12, docs/613).
+// Fire-and-forget like reconnect: the backend reconnects with the token and
+// pushes connecting → (connected | needsAuth | failed) via mcp.serverChanged,
+// so the row re-renders through the lifecycle with no local state.
+function authenticate(server: string, token: string): void {
+  getContainer()
+    .client()
+    .workspace.mcp.authenticate({ server, token })
+    .catch((err: unknown) => console.warn("[mcp] authenticate failed:", err));
+}
+
 // Expanded detail: the server's tool list (workspace.mcp.listTools), fetched
 // lazily on first expand and kept fresh by mcp.serverChanged invalidation.
 function McpToolList({ server }: { server: string }) {
@@ -47,6 +58,43 @@ function McpToolList({ server }: { server: string }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+// Token entry for a needsAuth server — the front half of the OAuth dance (the
+// browser flow, if any) is the user's; lyra only forwards the resulting token.
+function McpAuthForm({ server }: { server: string }) {
+  const [token, setToken] = useState("");
+  const submit = () => {
+    if (!token.trim()) return;
+    authenticate(server, token.trim());
+    setToken("");
+  };
+  return (
+    <div className="flex items-center gap-2 px-4 pb-3 pl-[68px]">
+      <input
+        type="password"
+        aria-label={`${server} access token`}
+        value={token}
+        onChange={(e) => setToken(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && submit()}
+        placeholder="Paste access token…"
+        className="h-8 min-w-0 flex-1 rounded-md border border-line-soft bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint focus:border-accent"
+      />
+      <button
+        type="button"
+        disabled={!token.trim()}
+        onClick={submit}
+        className={cn(
+          "h-8 shrink-0 rounded-md px-3 text-[12px] font-semibold transition-colors",
+          token.trim()
+            ? "bg-accent text-on-accent hover:opacity-90"
+            : "cursor-not-allowed bg-surface-2 text-fg-faint",
+        )}
+      >
+        Authenticate
+      </button>
+    </div>
   );
 }
 
@@ -100,7 +148,12 @@ export function McpRow({ server }: { server: MCPServer }) {
           <Icon name="loop" size={13} />
         </IconButton>
       </div>
-      {open && <McpToolList server={server.id} />}
+      {open &&
+        (server.status === "needsAuth" ? (
+          <McpAuthForm server={server.id} />
+        ) : (
+          <McpToolList server={server.id} />
+        ))}
     </div>
   );
 }
