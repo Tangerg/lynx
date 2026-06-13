@@ -64,6 +64,7 @@ export function CwdMissingBanner() {
                   value={path}
                   onChange={(e) => setPath(e.target.value)}
                   onKeyDown={(e) => {
+                    if (e.nativeEvent.isComposing) return; // let the IME commit its candidate
                     if (e.key === "Enter") void submit();
                     if (e.key === "Escape") setEditing(false);
                   }}

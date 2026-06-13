@@ -44,6 +44,9 @@ export function ShortcutsProvider() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Don't dispatch shortcuts mid-IME-composition: a CJK commit keystroke
+      // (Enter/Space) must reach the input, not fire a plain-key shortcut.
+      if (e.isComposing) return;
       const combo = comboFromEvent(e);
       const spec = lookupExtensionByKey(SHORTCUT, combo);
       if (!spec) return;

@@ -82,6 +82,7 @@ export function SessionRow({ session, active, onSelect, onRename, onFork, onDele
             autoFocus
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing) return; // let the IME commit its candidate
               e.stopPropagation();
               if (e.key === "Escape") setRenaming(false);
               if (e.key === "Enter") {
