@@ -53,14 +53,14 @@ func (s *Server) WorkspaceGetDiff(ctx context.Context, in protocol.GetDiffReques
 	}
 	var base bool
 	switch in.Mode {
-	case "", "worktree":
-	case "base":
+	case "", protocol.DiffModeWorktree:
+	case protocol.DiffModeBase:
 		base = true
 	default:
 		return nil, fmt.Errorf("%w: unknown mode %q", protocol.ErrInvalidParams, in.Mode)
 	}
 
-	if in.Format == "raw" {
+	if in.Format == protocol.DiffFormatRaw {
 		patch, err := workspace.RawDiff(ctx, root, rel, base)
 		if err != nil {
 			return nil, mapGitErr(err)
