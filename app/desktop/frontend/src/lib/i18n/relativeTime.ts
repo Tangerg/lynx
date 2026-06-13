@@ -5,7 +5,7 @@
 // "昨天", "Mar 5" / "3月5日".
 //
 // Threshold layout:
-//   < 45 s   → "now" / "现在"
+//   < 60 s   → "now" / "现在"
 //   < 60 m   → X minute(s) ago
 //   < 24 h   → X hour(s) ago
 //   < 7 d    → X day(s) ago (1 day → "yesterday"/"昨天" via numeric:auto)
@@ -56,9 +56,10 @@ export function formatRelative(input: string | number | Date | undefined | null)
   const diffHour = Math.floor(diffMin / 60);
   const diffDay = Math.floor(diffHour / 24);
 
-  // Under 45s reads as "now" / "现在". Intl's `numeric: "auto"` only
-  // emits "now" for value=0, so floor anything under the cliff to 0.
-  if (diffSec < 45) return relative(0, "second");
+  // Under a minute reads as "now" / "现在". Intl's `numeric: "auto"` only emits
+  // "now" for value=0, so collapse the whole sub-minute window to 0 — a 45s
+  // cliff left 45–59s falling into the minute branch as a stray "this minute".
+  if (diffSec < 60) return relative(0, "second");
   if (diffMin < 60) return relative(-diffMin, "minute");
   if (diffHour < 24) return relative(-diffHour, "hour");
   if (diffDay < 7) return relative(-diffDay, "day");
