@@ -32,7 +32,7 @@ The browser dynamic-imports your file from
   ```
 
 - Declare `apiVersion: "^1.0.0"` in your `definePlugin` call — the host
-  refuses to load incompatible ranges (see `docs/PLUGINS_IMPL.md`).
+  refuses to load incompatible ranges.
 
 ## Available on `window.__LYRA__`
 
@@ -64,5 +64,5 @@ export default definePlugin({
 });
 ```
 
-See `docs/EXTENSION_POINTS.md` (substrate + landed status) and `docs/PLUGINS_IMPL.md`
-(implementation guide + SDK reference) for the full surface and design rationale.
+See `src/plugins/sdk/` (the SDK surface) and `frontend/ARCHITECTURE.md` (the
+plugin substrate) for the full picture.

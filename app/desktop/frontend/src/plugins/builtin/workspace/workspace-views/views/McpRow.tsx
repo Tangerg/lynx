@@ -28,7 +28,7 @@ function reconnect(server: string): void {
     .catch((err: unknown) => console.warn("[mcp] reconnect failed:", err));
 }
 
-// Hand the backend a bearer token for a needsAuth server (B12, docs/613).
+// Hand the backend a bearer token for a needsAuth server (B12, 613).
 // Fire-and-forget like reconnect: the backend reconnects with the token and
 // pushes connecting → (connected | needsAuth | failed) via mcp.serverChanged,
 // so the row re-renders through the lifecycle with no local state.

@@ -176,7 +176,7 @@ export interface FileLine {
   text: string;
 }
 
-// approval.* (B9, docs/613) — the runtime's global approval stance + the
+// approval.* (B9, 613) — the runtime's global approval stance + the
 // per-session "remembered" tool decisions. Mode is mutated in the Approvals
 // pane (lib/agent/approvalConfig); both keys invalidate on mutation.
 export type ApprovalModeValue = "readOnly" | "safe" | "balanced" | "yolo";
@@ -189,7 +189,7 @@ export interface RememberedDecisionInfo {
   rememberedAt: string;
 }
 
-// workspace.listFiles / readFile (B8, docs/613) — the file-tree browser + file
+// workspace.listFiles / readFile (B8, 613) — the file-tree browser + file
 // viewer. Lazy: the tree fetches one directory level per expand. Not gated
 // (basic reads, like getFileHead); a pre-B8 runtime simply errors the query.
 export interface ListFilesQuery {

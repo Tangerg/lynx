@@ -1,4 +1,4 @@
-// Built-in plugin: "Approvals" settings pane (B9, docs/613). Sets the runtime's
+// Built-in plugin: "Approvals" settings pane (B9, 613). Sets the runtime's
 // global approval stance (approval.getMode / setMode) and manages the
 // per-session "remembered" tool decisions (listRemembered / forget).
 //

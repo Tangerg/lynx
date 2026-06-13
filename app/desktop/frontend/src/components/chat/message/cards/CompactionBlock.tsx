@@ -1,4 +1,4 @@
-// CompactionBlock — a context-compaction boundary (B10, docs/613). Renders as a
+// CompactionBlock — a context-compaction boundary (B10, 613). Renders as a
 // slim, centered "⊟ Compacted N earlier messages" divider between turns; when
 // the backend supplies a summary it expands inline on click.
 

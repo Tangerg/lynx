@@ -100,7 +100,7 @@ export type {
   FileLine,
   GrepMatch,
   GrepResult,
-  // Code intelligence (B7) / file browse (B8) — docs/613 proposal
+  // Code intelligence (B7) / file browse (B8) — 613 proposal
   CodeQuery,
   CodePosition,
   CodeRange,
@@ -112,7 +112,7 @@ export type {
   Diagnostic,
   FileEntry,
   FileContent,
-  // Approval control / compaction / todos (B9/B10/B11) — docs/613 proposal
+  // Approval control / compaction / todos (B9/B10/B11) — 613 proposal
   ApprovalMode,
   RememberedDecision,
   CompactionResult,

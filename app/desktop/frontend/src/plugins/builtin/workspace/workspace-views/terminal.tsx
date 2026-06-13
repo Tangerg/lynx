@@ -7,7 +7,7 @@ import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 
 // The agent's command log (G5). Each command's output streams via
-// item.delta{toolOutput} → item.completed — docs/613 confirmed that's already on
+// item.delta{toolOutput} → item.completed — 613 confirmed that's already on
 // the wire (no new API), and the run fold lands it in view.toolCalls. This view
 // just consolidates the command-category tools into one terminal-like surface.
 // (A user-interactive PTY is deliberately out of the runtime's scope, so this is
