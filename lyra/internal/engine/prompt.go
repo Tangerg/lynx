@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/turnctx"
 	"github.com/Tangerg/lynx/lyra/internal/service/agentdoc"
 	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
+	"github.com/Tangerg/lynx/lyra/internal/service/todo"
 )
 
 // basePrompt is the always-on identity / behavioral preamble. It
@@ -47,7 +48,29 @@ task is ambiguous, ask one focused question rather than guess.`
 // built without a memory service simply yield the base prompt +
 // discovered files.
 func (e *Engine) SystemPrompt(ctx context.Context) string {
-	return composePrompt(ctx, e.knowledge, turnctx.TurnCwd(ctx, e.workdir))
+	prompt := composePrompt(ctx, e.knowledge, turnctx.TurnCwd(ctx, e.workdir))
+	return appendTodos(ctx, prompt, e.todos)
+}
+
+// appendTodos appends the turn's session todo list to prompt when a todo
+// service is wired and the session has items. Best-effort: a missing session
+// id or a store error silently skips — the list is a convenience for the
+// model, never a correctness input, so it must never derail prompt assembly.
+// Kept off composePrompt so that function stays focused on the knowledge /
+// AGENTS.md cascade (and its direct unit tests need no todo stub).
+func appendTodos(ctx context.Context, prompt string, todos todo.Service) string {
+	if todos == nil {
+		return prompt
+	}
+	sessionID := turnctx.TurnSession(ctx)
+	if sessionID == "" {
+		return prompt
+	}
+	items, err := todos.List(ctx, sessionID)
+	if err != nil || len(items) == 0 {
+		return prompt
+	}
+	return prompt + "\n\n## Current todo list (you maintain this via todo_write)\n\n" + todo.Render(items)
 }
 
 // composePrompt is the pure form behind [Engine.SystemPrompt],
