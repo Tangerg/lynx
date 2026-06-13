@@ -156,10 +156,23 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	// for fork / rollback / messages.list) rather than proxying them through the
 	// engine. See doc/STRUCTURE_REVIEW.md §3.
 	conv := conversation.New(memStore)
-	ecfg.Steering = conv
-	ecfg.Compactor = maintenance.NewCompactor(memStore, cfg.Engine.ChatClient, maintenance.CompactionConfig{})
-	ecfg.Planner = maintenance.NewPlanner(cfg.Engine.ChatClient)
-	if cfg.Engine.Knowledge != nil {
+
+	// Capability ports are SPIs: the engine consumes interfaces (Steering /
+	// Compactor / Extractor / Planner; Knowledge above). The runtime supplies the
+	// in-house implementations ONLY when the composition root didn't inject one,
+	// so an external provider (e.g. a mem0 / HTTP-bridged compactor or knowledge
+	// store) can be slotted in by setting the corresponding engine.Config field —
+	// the runtime then leaves it untouched. nil → in-house default.
+	if ecfg.Steering == nil {
+		ecfg.Steering = conv
+	}
+	if ecfg.Compactor == nil {
+		ecfg.Compactor = maintenance.NewCompactor(memStore, cfg.Engine.ChatClient, maintenance.CompactionConfig{})
+	}
+	if ecfg.Planner == nil {
+		ecfg.Planner = maintenance.NewPlanner(cfg.Engine.ChatClient)
+	}
+	if ecfg.Extractor == nil && cfg.Engine.Knowledge != nil {
 		ecfg.Extractor = maintenance.NewExtractor(memStore, cfg.Engine.Knowledge, cfg.Engine.ChatClient)
 	}
 
