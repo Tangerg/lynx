@@ -8,7 +8,7 @@
 
 import type { ReactNode } from "react";
 import type { RunDigest } from "@/protocol/run/runDigest";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState, Icon, IconButton } from "@/components/common";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { copyText } from "@/lib/clipboard";
@@ -67,6 +67,10 @@ function RunSummaryTab() {
   );
 
   const [copied, setCopied] = useState(false);
+  // Track + clear the "copied" reset timer so it can't fire setState after the
+  // Run-Summary tab unmounts (same guard ShikiCodeBlock uses for its copy flag).
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(copyTimer.current), []);
 
   if (!digest) {
     return (
@@ -90,7 +94,8 @@ function RunSummaryTab() {
   const onCopy = async () => {
     if (await copyText(buildPlaintext(digest))) {
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      clearTimeout(copyTimer.current);
+      copyTimer.current = setTimeout(() => setCopied(false), 1500);
     }
   };
 
