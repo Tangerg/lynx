@@ -146,7 +146,7 @@ func (s *Server) ListTools(ctx context.Context, _ protocol.PageQuery) (*protocol
 			Name:        t.Name,
 			Description: t.Description,
 			Parameters:  parseSchema(t.Schema),
-			SafetyClass: safetyClassToString(t.SafetyClass),
+			SafetyClass: wireSafetyClass(t.SafetyClass),
 		})
 	}
 	return protocol.NewPage(out), nil
@@ -176,17 +176,17 @@ func parseSchema(raw string) map[string]any {
 	return m
 }
 
-func safetyClassToString(c tool.SafetyClass) string {
+func wireSafetyClass(c tool.SafetyClass) protocol.SafetyClass {
 	switch c {
 	case tool.SafetyClassSafe:
-		return "safe"
+		return protocol.SafetyClassSafe
 	case tool.SafetyClassWrite:
-		return "write"
+		return protocol.SafetyClassWrite
 	case tool.SafetyClassExec:
-		return "exec"
+		return protocol.SafetyClassExec
 	case tool.SafetyClassNetwork:
-		return "network"
+		return protocol.SafetyClassNetwork
 	default:
-		return "safe"
+		return protocol.SafetyClassSafe
 	}
 }

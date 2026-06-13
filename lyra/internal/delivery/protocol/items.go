@@ -53,14 +53,16 @@ const (
 )
 
 // SafetyClass is a tool's mutation risk (API.md §4.4): safe (read-only),
-// write (mutates the workspace), exec (runs arbitrary commands). Carried on a
-// toolCall Item and on a client-supplied ToolSpec.
+// write (mutates the workspace), exec (runs arbitrary commands), network
+// (reaches off-host). Carried on a toolCall Item and on a client-supplied
+// ToolSpec.
 type SafetyClass string
 
 const (
-	SafetyClassSafe  SafetyClass = "safe"
-	SafetyClassWrite SafetyClass = "write"
-	SafetyClassExec  SafetyClass = "exec"
+	SafetyClassSafe    SafetyClass = "safe"
+	SafetyClassWrite   SafetyClass = "write"
+	SafetyClassExec    SafetyClass = "exec"
+	SafetyClassNetwork SafetyClass = "network"
 )
 
 // ContentBlockType discriminates a ContentBlock (API.md §4.3).

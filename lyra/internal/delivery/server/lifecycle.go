@@ -21,7 +21,14 @@ func (s *Server) Initialize(_ context.Context, in protocol.InitializeRequest) (*
 	// treated permissively (surface all) so CLI / in-process callers that
 	// don't negotiate keep working.
 	if len(in.Capabilities.InterruptTypes) > 0 {
-		s.rt.Chat().SetInterruptKinds(in.Capabilities.InterruptTypes)
+		// The kernel's SetInterruptKinds is wire-agnostic ([]string) — translate
+		// the typed wire enum down at this delivery boundary (kernel never imports
+		// the protocol package).
+		kinds := make([]string, len(in.Capabilities.InterruptTypes))
+		for i, t := range in.Capabilities.InterruptTypes {
+			kinds[i] = string(t)
+		}
+		s.rt.Chat().SetInterruptKinds(kinds)
 	}
 	return &protocol.InitializeResponse{
 		ProtocolVersion: protocol.ProtocolVersion, // server's truth — client falls back if needed
