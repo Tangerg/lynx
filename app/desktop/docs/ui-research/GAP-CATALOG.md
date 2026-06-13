@@ -90,6 +90,10 @@
 - **Lyra 现状**：审批卡**内容上是全场最富的**——`components/chat/message/cards/ApprovalCard.tsx` 有可编辑 JSON 参数（`:186-201`）、风险/scope/target/可逆性、"don't ask again" checkbox——但**无键盘快捷键、always-allow 未真正接线**；`Composer.tsx:141` 的 mode 是**点击循环的图标**，非 DESIGN.md `components.segmented-control` 要求的 Agent/Ask/Plan segmented。
 - **为何重要**：keyboard-driven 定位下，审批是高频中断点；快捷键 + 分级授权直接决定流畅度。
 - **落地方向**：(a) 给 ApprovalCard 绑 `⌘↩`/`⇧⌘⌫`（复用 composer 的键位约定）；(b) 把 "don't ask again" 升级成分级 always-allow（session scope 协议已支持 `remember`）；(c) mode 改 `Segmented`（`common/` 已有该原子）。
+- **✅ 已落地（本批）**：
+  - (a) `⌘↩` = 有 open approval 时批准（run 已 parked、无可发送），否则发送；`⇧⌘⌫` = 拒绝。命令式提交走新 `lib/agent/submitPendingApproval`（无卡片版，镜像 `useInterruptResume` 的 resume 调用 + 延迟 `resolveInterrupt` + module 级 in-flight 去重双击）；审批卡按钮加 `⌘↵`/`⇧⌘⌫` 提示。
+  - (b) **always-allow 本就接好**——"don't ask again" checkbox 已转 `remember:{scope:session}`（AUX_API §6，按工具名记忆）；更细的参数级是 v1 不做的规则引擎域，已是协议天花板，无需再做。
+  - (c) mode picker 循环图标 → `Segmented`（Agent/Ask/Plan 直选，DESIGN §components）。
 - **工作量 · 风险**：中 · 低（多为接线 + 换原子；协议 `remember` 已具备）。
 
 ---

@@ -2,7 +2,7 @@ import type { Attachment, ComposerMode } from "@/state/composerStore";
 import type { IconName } from "@/components/common";
 import type { ComposerAttachmentSourceSpec, ComposerModeSpec } from "@/plugins/sdk";
 import { useEffect, useMemo, useRef } from "react";
-import { Chip, Icon, Tooltip } from "@/components/common";
+import { Chip, Segmented } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import {
   COMPOSER_ATTACHMENT_SOURCE,
@@ -131,11 +131,10 @@ export function Composer({
   );
 }
 
-// Icon-only mode toggle — one glyph, no label. Click cycles to the next
-// registered mode; the tooltip names the current mode + what it does. A
-// universal-icon + weak-hint affordance that keeps the toolbar light
-// (DESIGN: "universal icon + weak hint"). With three modes, cycling beats a
-// dropdown for click economy.
+// Mode picker — segmented control (Agent / Ask / Plan), DESIGN §components.
+// Direct selection of any mode (vs the old cycle glyph): the active mode is
+// always visible and one click reaches any target. Labels carry the meaning,
+// so no per-mode icon or tooltip.
 type Mode = ComposerModeSpec;
 
 function ModePicker({
@@ -147,28 +146,14 @@ function ModePicker({
   value: ComposerMode;
   onChange: (v: ComposerMode) => void;
 }) {
-  const idx = modes.findIndex((m) => m.id === value);
-  const active = modes[idx] ?? modes[0];
-  if (!active) return null; // no modes registered — composer shows no picker
-  const cycle = () => {
-    const next = modes[(Math.max(idx, 0) + 1) % modes.length];
-    if (next) onChange(next.id);
-  };
+  if (modes.length === 0) return null; // no modes registered — composer shows no picker
   return (
-    <Tooltip
-      label={
-        active.description ? `${active.label} · ${active.description}` : `Mode: ${active.label}`
-      }
-    >
-      <button
-        type="button"
-        aria-label={`Mode: ${active.label} (click to switch)`}
-        onClick={cycle}
-        className="inline-flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-sm border-0 bg-transparent text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
-      >
-        <Icon name={(active.icon as IconName) ?? "spark"} size={14} />
-      </button>
-    </Tooltip>
+    <Segmented
+      value={value}
+      options={modes.map((m) => ({ value: m.id, label: m.label }))}
+      onChange={onChange}
+      ariaLabel="Composer mode"
+    />
   );
 }
 

@@ -12,6 +12,7 @@ import { submitComposer } from "@/components/chat/composer";
 import { Icon, ProviderIcon, Tooltip } from "@/components/common";
 import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
 import { useChatSend } from "@/lib/agent/useChatSend";
+import { submitPendingApproval } from "@/lib/agent/submitPendingApproval";
 import { useModels, useProjects } from "@/lib/data/queries";
 import { basename } from "@/lib/path";
 import { cn } from "@/lib/utils";
@@ -93,13 +94,23 @@ export const composerKeymap = definePlugin({
         return true;
       },
     });
+    // ⌘↩ answers a pending HITL approval if one is open (the run is parked, so
+    // there's nothing to send), otherwise it sends. ⇧⌘⌫ declines. Both fall
+    // through (return false) when no approval is pending, so the keys keep their
+    // normal meaning the rest of the time.
     host.extensions.contribute(COMPOSER_KEY_BINDING, {
       key: "Mod+Enter",
-      description: "Send message (override)",
+      description: "Approve a pending request, otherwise send",
       handler: ({ submit }) => {
+        if (submitPendingApproval("approved")) return true;
         submit();
         return true;
       },
+    });
+    host.extensions.contribute(COMPOSER_KEY_BINDING, {
+      key: "Mod+Shift+Backspace",
+      description: "Decline a pending request",
+      handler: () => submitPendingApproval("declined"),
     });
     // Esc stops the active run while the composer is focused — the Stop button's
     // "(Esc)" hint. Composer-scoped on purpose: a GLOBAL Escape would fight the
