@@ -249,6 +249,7 @@ export function ApprovalCard({
       <div className="flex items-center gap-2">
         <PillButton variant="accent" size="sm" disabled={disabled} onClick={onApprove}>
           {t("approval.action.approve")}
+          {!disabled && <kbd className="ml-1.5 font-mono text-[10px] opacity-60">⌘↵</kbd>}
         </PillButton>
         <PillButton
           size="sm"
@@ -256,6 +257,7 @@ export function ApprovalCard({
           onClick={() => submit("declined", { rememberForSession: remember })}
         >
           {t("approval.action.decline")}
+          {!disabled && <kbd className="ml-1.5 font-mono text-[10px] opacity-60">⇧⌘⌫</kbd>}
         </PillButton>
         <label className="ml-auto flex cursor-pointer items-center gap-1.5 text-[11.5px] text-fg-muted select-none">
           <Checkbox
