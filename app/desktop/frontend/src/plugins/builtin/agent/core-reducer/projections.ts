@@ -263,21 +263,25 @@ export function toolFields(tool: ToolInvocation | undefined): Partial<ToolCall> 
       };
     case "webSearch":
       return { hits: asArrayLength(result?.results) };
-    case "read":
+    case "read": {
       // ReadResponse carries the text on `content` — pass it through as the
-      // result body (the JSON-stringified envelope is escaped noise).
-      return { result: asString(result?.content) };
+      // result body (the JSON-stringified envelope is escaped noise). Omit the
+      // key when absent so a completed Item without it doesn't clobber the
+      // toolOutput-delta preview (same guard as command / search).
+      const content = asString(result?.content);
+      return content !== undefined ? { result: content } : {};
+    }
     default:
       // Best-effort JSON result → a pretty string the inspector renders as a
-      // JSON tree (formatBody re-parses); plain strings pass through.
-      return {
-        result:
-          tool.result === undefined
-            ? undefined
-            : typeof tool.result === "string"
-              ? tool.result
-              : JSON.stringify(tool.result, null, 2),
-      };
+      // JSON tree (formatBody re-parses); plain strings pass through. Omit the
+      // key when absent so a completed Item without `result` doesn't clobber the
+      // toolOutput-delta preview accumulated while running.
+      return tool.result === undefined
+        ? {}
+        : {
+            result:
+              typeof tool.result === "string" ? tool.result : JSON.stringify(tool.result, null, 2),
+          };
   }
 }
 
