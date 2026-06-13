@@ -160,15 +160,13 @@ type CancelRunRequest struct {
 // ListRunsRequest is the runs.list body.
 type ListRunsRequest struct {
 	SessionID string `json:"sessionId,omitempty"`
-	Cursor    string `json:"cursor,omitempty"`
-	Limit     int    `json:"limit,omitempty"`
+	PageQuery
 }
 
 // ListOpenInterruptsRequest is the runs.listOpenInterrupts body.
 type ListOpenInterruptsRequest struct {
 	SessionID string `json:"sessionId,omitempty"`
-	Cursor    string `json:"cursor,omitempty"`
-	Limit     int    `json:"limit,omitempty"`
+	PageQuery
 }
 
 // ResumeRunRequest is the runs.resume body (API.md §6.1).

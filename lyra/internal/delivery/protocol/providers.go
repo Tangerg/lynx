@@ -23,12 +23,10 @@ type Tools interface {
 }
 
 // ListModelsRequest — models.list body (API.md §7.6). Provider is optional
-// (models are organized by provider; omitted → empty page); Cursor/Limit
-// paginate.
+// (models are organized by provider; omitted → empty page); PageQuery paginates.
 type ListModelsRequest struct {
 	Provider string `json:"provider,omitempty"`
-	Cursor   string `json:"cursor,omitempty"`
-	Limit    int    `json:"limit,omitempty"`
+	PageQuery
 }
 
 // Provider is one configured LLM provider (API.md §4.9). The key is
