@@ -18,8 +18,9 @@ import (
 
 // Open dials a SQLite database at path and applies the migrations
 // every storage type in this package depends on. The returned *sql.DB
-// is safe for concurrent use; callers share it across SessionService
-// + MemoryService.
+// is safe for concurrent use; callers share it across every
+// sqlite-backed store (session / transcript / interrupt / provider /
+// message). Knowledge (LYRA.md) is file-backed, not here.
 //
 // Tuning baked in:
 //   - journal_mode = WAL — concurrent readers don't block the writer

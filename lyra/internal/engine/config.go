@@ -40,10 +40,10 @@ type Config struct {
 	// — fine for tests but loses history on restart.
 	MemoryStore memory.Store
 
-	// MemoryService optionally supplies the LYRA.md cascade reader
-	// the agent injects into every system prompt. nil disables the
-	// injection — the base prompt is used verbatim.
-	MemoryService knowledge.Service
+	// Knowledge optionally supplies the LYRA.md cascade reader the agent
+	// injects into every system prompt. nil disables the injection — the
+	// base prompt is used verbatim. (Wire/API calls this "memory".)
+	Knowledge knowledge.Service
 
 	// Microkernel ports — injected by the composition root (runtime). Each is
 	// optional; a nil port no-ops its capability (every use is nil-guarded), so

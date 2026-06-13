@@ -12,7 +12,7 @@ import (
 )
 
 // memoryFileName is the on-disk file name for both scopes.
-// "LYRA.md" on disk; rendered through MemoryService as a markdown
+// "LYRA.md" on disk; rendered through the knowledge service as a markdown
 // blob the agent reads as project / user knowledge.
 const memoryFileName = "LYRA.md"
 

@@ -135,7 +135,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 			// project skills (<cwd>/.lyra/skills) layer on top of these.
 			SkillsGlobalDir: filepath.Join(stores.Home, "skills"),
 			MemoryStore:     stores.ChatMem,
-			MemoryService:   stores.Memory,
+			Knowledge:       stores.Memory,
 			// ProcessStore auto-snapshots every agent process so a parked
 			// turn survives a restart (cross-restart HITL resume);
 			// ParkStore persists interrupted tool rounds. Both sqlite-backed.
