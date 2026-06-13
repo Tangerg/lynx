@@ -215,11 +215,6 @@ export interface RunRef {
   parentRunId?: RunId; // continuation-of: this Run is a resume/edit continuation
   status?: "running" | "finished";
   outcome?: RunOutcome; // when status=finished
-  // The model + mode this Run executed under. Carried on the RunRef so a
-  // reconnect (runs.subscribe) or history hydration (items.list.runs) that
-  // never saw the originating runs.start request can still attribute the Run.
-  model?: string;
-  mode?: RunMode;
   createdAt?: string;
   finishedAt?: string;
 }
@@ -937,7 +932,7 @@ export interface SubscribeWorkspaceRequest {
 // (re)subscribe is an implicit `resync`. Type names are globally unique
 // across the run/workspace event unions (optOut matches by type name).
 export type WorkspaceEvent =
-  | { type: "files.changed"; paths: string[]; cwd?: string } // the agent's own write/edit tools — precise paths, relative to cwd
+  | { type: "files.changed"; watchId?: string; paths: string[]; cwd?: string } // watchId echoes a registered watch; the agent's own write/edit tools push precise paths relative to cwd
   | { type: "skills.changed" } // cwd-agnostic: any skill dir changed
   | {
       type: "mcp.serverChanged";
