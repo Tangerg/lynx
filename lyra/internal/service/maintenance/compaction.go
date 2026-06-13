@@ -161,12 +161,8 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string) (engine.
 // shouldCompact reports whether msgs has grown past either trigger: the
 // raw message count or the estimated token footprint. The token estimate
 // (see [estimateTokens]) is what catches a short conversation bloated by
-// large tool results, which the message count alone misses. Guards a nil
-// receiver so callers never pre-check.
+// large tool results, which the message count alone misses.
 func (c *Compactor) shouldCompact(msgs []chat.Message) bool {
-	if c == nil {
-		return false
-	}
 	if len(msgs) >= c.maxMessages {
 		return true
 	}

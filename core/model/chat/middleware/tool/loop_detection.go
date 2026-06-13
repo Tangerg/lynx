@@ -87,23 +87,30 @@ func newLoopDetector(cfg *LoopDetectionConfig) *loopDetector {
 	return &loopDetector{window: window, threshold: threshold}
 }
 
-// observe records sig and reports whether it has now occurred more than
-// threshold times within the window. An empty sig (a round that ran no
-// tools) is ignored — there is nothing to compare.
-func (d *loopDetector) observe(sig string) (stuck bool, count int) {
+// observe records sig and returns a [*LoopDetectedError] once sig has occurred
+// more than the threshold within the window — the detector owns the halt
+// decision and assembles its own error, so callers don't reach into its
+// window/threshold to build one. Returns nil when the round is fine; an empty
+// sig (a round that ran no tools) is ignored, also returning nil. The error
+// type is returned through the error interface to avoid a typed-nil pitfall.
+func (d *loopDetector) observe(sig string) error {
 	if sig == "" {
-		return false, 0
+		return nil
 	}
 	d.recent = append(d.recent, sig)
 	if len(d.recent) > d.window {
 		d.recent = d.recent[len(d.recent)-d.window:]
 	}
+	count := 0
 	for _, s := range d.recent {
 		if s == sig {
 			count++
 		}
 	}
-	return count > d.threshold, count
+	if count > d.threshold {
+		return &LoopDetectedError{Count: count, Threshold: d.threshold, Window: d.window}
+	}
+	return nil
 }
 
 // roundSignature hashes one tool round into a stable key: every
