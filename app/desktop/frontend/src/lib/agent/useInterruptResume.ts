@@ -14,12 +14,46 @@ import { useSessionStore } from "@/state/sessionStore";
 //  - the guard — missing ids or already-pending → no-op; absent ids mean the
 //    card is a decorative preview;
 //  - the resume call whose store-level settle (resolveInterrupt) is DEFERRED to
-//    the run-started callback, so a channel-a failure (rejected runs.resume,
-//    §8.1) leaves the interrupt intact and the card retryable.
+//    the run-started callback — see resumeInterrupt below.
 // Each caller supplies, per submit, the pending marker (so the card knows which
 // action is settling), the wire response payload, and the resolveInterrupt patch.
 
-type ResolvePatch = { decision?: "approved" | "declined"; answered?: boolean };
+export type ResolvePatch = { decision?: "approved" | "declined"; answered?: boolean };
+
+/**
+ * Fire a HITL resume for one open interrupt and DEFER the optimistic settle to
+ * the run-started callback: `resolveInterrupt` runs only once `runs.resume` has
+ * actually opened the continuation, so a channel-a failure (rejected resume,
+ * §8.1) leaves the interrupt intact + the card retryable. Returns false (a
+ * no-op) when the session has no resume binding.
+ *
+ * The single source of this deferred-settle semantic — shared by the per-card
+ * `useInterruptResume` hook (optimistic card state) and the keyboard-path
+ * `submitPendingApproval` (no card). `hooks.onSettled` runs after the deferred
+ * settle; `hooks.onError` on a channel-a failure — each caller uses them to
+ * clear its own in-flight latch.
+ */
+export function resumeInterrupt(
+  sessionId: string,
+  parentRunId: string,
+  itemId: string,
+  response: InterruptResponse["response"],
+  settled: ResolvePatch,
+  hooks?: { onSettled?: () => void; onError?: () => void },
+): boolean {
+  const sessionResume = useAgentStore.getState().sessions[sessionId]?.resume;
+  if (!sessionResume) return false;
+  sessionResume(
+    asRunId(parentRunId),
+    [{ itemId: asItemId(itemId), response }],
+    () => {
+      useAgentStore.getState().resolveInterrupt(sessionId, itemId, settled);
+      hooks?.onSettled?.();
+    },
+    () => hooks?.onError?.(),
+  );
+  return true;
+}
 
 export function useInterruptResume<P>(parentRunId?: string, itemId?: string) {
   const [pending, setPending] = useState<P | null>(null);
@@ -35,19 +69,18 @@ export function useInterruptResume<P>(parentRunId?: string, itemId?: string) {
   const resume = useCallback(
     (marker: P, response: InterruptResponse["response"], settled: ResolvePatch) => {
       if (!parentRunId || !itemId || submitted.current) return;
-      const sessionResume = useAgentStore.getState().sessions[sessionId]?.resume;
-      if (!sessionResume) return;
       submitted.current = true;
       setPending(marker);
-      sessionResume(
-        asRunId(parentRunId),
-        [{ itemId: asItemId(itemId), response }],
-        () => useAgentStore.getState().resolveInterrupt(sessionId, itemId, settled),
-        () => {
-          submitted.current = false;
-          setPending(null);
-        },
-      );
+      const rollback = () => {
+        submitted.current = false;
+        setPending(null);
+      };
+      // No resume binding (session torn down) ⇒ never latched; roll back so the
+      // card stays actionable. On success the latch stays (interrupt resolved).
+      if (
+        !resumeInterrupt(sessionId, parentRunId, itemId, response, settled, { onError: rollback })
+      )
+        rollback();
     },
     [parentRunId, itemId, sessionId],
   );
