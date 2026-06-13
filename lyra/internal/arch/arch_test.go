@@ -38,11 +38,11 @@ import (
 // Intentionally NOT forbidden (each is a correct inward / hexagonal edge —
 // documented in STRUCTURE_REVIEW.md §2):
 //
-//	engine            → domain/*    orchestration depends inward on domain
+//	kernel            → domain/*    orchestration depends inward on domain
 //	infra             → domain/*    adapter depends inward on domain entities + repo ports
 //	domain            → infra/*      a domain service may wrap an infra capability
 //	                                 (codeintel↦lsp, workspace↦git+checkpoint)
-//	domain/maintenance → engine     maintenance is a driven adapter of engine's
+//	domain/maintenance → kernel     maintenance is a driven adapter of the kernel's
 //	                                 Compactor/Extractor PORTS; importing the port
 //	                                 owner for its DTOs is the correct hexagonal direction
 //	delivery          → anything inward

@@ -1,5 +1,7 @@
 # EXTENSIBILITY.md — Lyra 的可替换性边界（外部 SPI vs 内部焊死）
 
+> **⚠️ 目录已重命名（2026-06-14，见 [`GREENFIELD_ARCHITECTURE.md`](GREENFIELD_ARCHITECTURE.md) §9）**：`internal/engine→internal/kernel` / `internal/service→internal/domain` / `rpc→internal/delivery` / `engine/chat→kernel/turn`。本文行文中的旧路径名（`engine.Compactor` 等端口仍属 `kernel` 包）指代重命名后的同一目录，未逐处回改。
+
 > **取代** 旧的 `EXTENSION_POINTS.md`（那份是"kernel 不长肉、**所有**能力都是插件、连 agent loop 都是插件"的 aspirational 蓝图，过度抽象，已删）。本文件是**已落地现状 + 判断准则**，不是蓝图。
 > 配套：[`STRUCTURE_REVIEW.md`](STRUCTURE_REVIEW.md)（结构/分层）、[`MICROKERNEL.md`](MICROKERNEL.md)（engine 作核 + 端口注入的机制）。
 

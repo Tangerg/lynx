@@ -1,7 +1,7 @@
 # Greenfield 架构设计 —— 如果从零重写 Lyra
 
 > **日期**：2026-06-14。**视角**：架构师命题作文 —— "假设从零开始写 Lyra，目录结构与架构怎么设计？"
-> **状态**：**提案 / 评审稿**（供库作者评审）。不是现行权威；现行基准仍以 [`../CLAUDE.md`](../CLAUDE.md) + [`LAYERING.md`](LAYERING.md) + [`MICROKERNEL.md`](MICROKERNEL.md) + [`EXTENSIBILITY.md`](EXTENSIBILITY.md) + [`STRUCTURE_REVIEW.md`](STRUCTURE_REVIEW.md) 为准。
+> **状态**：**§6 的目录/命名重构已于 2026-06-14 执行落地**（见文末 §9 执行记录）—— 代码现已按本文的树形组织（kernel/domain/delivery/turn）。本文其余部分（架构本质、port 表、SPI/焊死判据、不做清单）是**现行结构基准**之一，与 [`../CLAUDE.md`](../CLAUDE.md) + [`MICROKERNEL.md`](MICROKERNEL.md) + [`EXTENSIBILITY.md`](EXTENSIBILITY.md) + [`STRUCTURE_REVIEW.md`](STRUCTURE_REVIEW.md) 一致；[`LAYERING.md`](LAYERING.md) 是演进考古层。
 > **方法**：第一手通读 lyra 现状结构（rings / ports / 组合根 / arch_test）+ 对照那几份演进文档，把"用 11 个重构批次、3 次文档互相 supersede 才逼出来的终态"重写成**第一天就刻意设计的起点**。
 >
 > **结论先行**：
@@ -200,7 +200,8 @@ cwd / session id 是"本次 turn 的环境"，不是稳定能力 —— 挂 proc
 ### ① 目录名 = 环名（`engine→kernel`、`service→domain`、`rpc→delivery`）
 
 现状 `arch_test.go` 注释里已经把 `internal/engine` 叫 `orchestration`、`internal/service` 叫 `domain`、`rpc` 叫 `delivery` —— **目录名和环名已经漂移**。从零会让它们一致，读目录树即懂架构。
-> **但存量改不值得**：纯机械 ripple（动几百个 import）、零行为变化，违反"不为省事之外的理由制造 churn"的纪律（`rpc→api` 改名已 PARKED，同理）。**结论：从零这么命名，存量保持现状。** 本条是设计取向，不是重构待办。
+> **存量改的代价**：纯机械 ripple（~170 处 import）、零行为变化。最初评估为"不值这串 churn"（`rpc→api` 曾 PARKED，同理）。
+> **2026-06-14 更新**：在确认"差异极小、纯改名、零架构收益"后，用户仍选择执行以换取"目录名 = 环名"的可读性收益。已分批落地（§9）—— 全程 build/vet/test 全绿、每批可独立 revert。**故此条从"设计取向"转为"已执行"。**
 
 ### ② `delivery/server` 从第一天守住"decode → 调用例 → present"三段
 
@@ -230,4 +231,26 @@ cwd / session id 是"本次 turn 的环境"，不是稳定能力 —— 挂 proc
 
 ## 8. 一句话
 
-从零，我会写的就是现状这套 —— **Clean Arch 依赖规则锁方向、微内核把 engine 收成"定义 port 的核"、限界上下文承载领域、SPI/焊死按"外部会不会来实现"二分、`arch_test` 防腐**。唯一区别是：让**目录名 = 环名**、从第一天用**单一心智模型**写文档、把 adapter/use-case 边界**一开始就画硬**。代码层面 90% 收敛，这个收敛本身就说明现状已经到位；剩下 10% 是把"演进逼出来的终态"变成"刻意设计的起点" —— 而那 10% 在存量上是 churn，不动。
+从零，我会写的就是现状这套 —— **Clean Arch 依赖规则锁方向、微内核把 engine 收成"定义 port 的核"、限界上下文承载领域、SPI/焊死按"外部会不会来实现"二分、`arch_test` 防腐**。唯一区别是：让**目录名 = 环名**、从第一天用**单一心智模型**写文档、把 adapter/use-case 边界**一开始就画硬**。代码层面 90% 收敛，这个收敛本身就说明现状已经到位；剩下 10% 是把"演进逼出来的终态"变成"刻意设计的起点"。
+
+> **后记（2026-06-14）**：那 10% 里的"目录名 = 环名"（§6①）已应用户要求执行落地（§9）；§6② adapter 边界、§6③ 文档单一入口仍是取向，未单独施工。
+
+---
+
+## 9. 执行记录（2026-06-14）
+
+§6① 的目录/命名重构在与用户确认"差异极小、纯改名、零行为变化、零架构收益、可整体 revert"后执行。分批落地，每批 `go build && vet && test ./...` 全绿、单独 commit、可独立 revert：
+
+| 批次 | 内容 | 手段 |
+|---|---|---|
+| 1 | `internal/service/* → internal/domain/*`（15 个限界上下文） | `git mv` + 72 处 import 路径改写 + arch_test 分环 |
+| 2 | `rpc/* → internal/delivery/*`（移入 internal/，无 lyra 外消费者） | `git mv` + 57 处 import + arch_test |
+| 3a | `internal/engine → internal/kernel` | `git mv` + import + `package` 子句 + **AST 安全的 `gofmt -r 'engine.a -> kernel.a'`**（56 文件，不碰 `r.engine` 字段） |
+| 3b | `kernel/chat → kernel/turn` | `git mv` + import + `package` + 按文件 scoped `gofmt -r`（避开 SDK `core/model/chat`）+ 去 `chatsvc` 别名 |
+| 4 | 文档对齐 | 本文 + `../CLAUDE.md` 当前态段 + arch_test 注释 + 根 `CLAUDE.md`；历史 changelog 保留当时路径名 |
+
+**顺手精修**（不改业务逻辑）：修过期路径注释、`doc.go` godoc、`kernel/agent.go` 去可推断的显式类型参数、turn 包的 `"chat:"` 错误前缀 → `"turn:"`（已核 wire 错误分类不依赖该前缀）。
+
+**未做**（仍是取向，等触发）：§6② adapter/use-case 边界硬化、§6③ 把四份演进文档合一份单一入口（仅在各文加了重命名提示横幅）；§7"明确不做"清单整体未动。
+
+**Engine 类型名保留**：包改名 `kernel`，但主类型仍是 `kernel.Engine`（避免 `kernel.Kernel` stutter）；故 prose / 错误前缀里指代 Engine 组件的 "engine" 字样**有意保留**，非遗漏。

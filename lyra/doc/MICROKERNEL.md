@@ -1,5 +1,7 @@
 # Lyra — 微内核架构(engine 作核 + 端口注入)
 
+> **⚠️ 目录已重命名（2026-06-14，见 [`GREENFIELD_ARCHITECTURE.md`](GREENFIELD_ARCHITECTURE.md) §9）**：`internal/engine→internal/kernel`（"engine 作核" 即此 kernel）/ `internal/service→internal/domain` / `rpc→internal/delivery` / `engine/chat→kernel/turn`。本文行文中的旧路径名指代重命名后的同一目录，未逐处回改。
+
 > **日期**:2026-06-12。**状态**:**已采纳,执行中**(M 批次见 §7)。
 > **关系**:这是 [`LAYERING.md`](LAYERING.md) 的**演进**。LAYERING 把内部收敛成单向四层并消除了反向边(已完成)。本文件**修正其中一条**:`engine` 与 `service` **不是上下层关系,而是"核 + 能力"关系** —— engine 是微内核,定义它直接消费的窄 port,能力实现由 `runtime` 注入。其余(infra 仍是最底技术设施、delivery 仍只经 runtime)不变。
 
