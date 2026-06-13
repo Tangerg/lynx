@@ -5,7 +5,7 @@ import { asSessionId, errorDetail, errorType, RpcError } from "@/rpc";
 import { LOCAL_MESSAGE_PREFIX } from "@/protocol/run/viewState";
 import { endSpan, startRunSpan, withSpan } from "@/lib/observability/tracing";
 import { getContainer } from "@/main/container";
-import { useAgentStore } from "./agentStore";
+import { useAgentStore, type FoldEvent } from "./agentStore";
 import { useSessionStore } from "./sessionStore";
 
 // Owns the agent driver lifecycle for one session: build the driver, expose
@@ -53,7 +53,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     // second; without batching each one triggers a store.set + React
     // commit. Coalescing into one flush per animation frame caps that at
     // ~1 commit per frame without changing perceived token latency.
-    let queue: RunEvent["event"][] = [];
+    let queue: FoldEvent[] = [];
     let raf: number | null = null;
     // The queue is stamped with the view epoch it was filled under. An
     // external resetView (sessions.rollback re-hydration) bumps the epoch;
@@ -72,13 +72,13 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       }
       store().applyEvents(sessionId, batch);
     };
-    const enqueue = (event: RunEvent["event"]) => {
+    const enqueue = (event: RunEvent["event"], runId?: string) => {
       const epoch = epochOf();
       if (epoch !== queueEpoch) {
         queue = []; // events queued before the reset are stale too
         queueEpoch = epoch;
       }
-      queue.push(event);
+      queue.push({ event, runId });
       if (raf === null) raf = requestAnimationFrame(flush);
     };
 
@@ -87,7 +87,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       try {
         for await (const ev of stream.events) {
           if (cancelled) break;
-          enqueue(ev.event);
+          enqueue(ev.event, ev.runId);
         }
       } catch (err) {
         if (!cancelled) console.error("[agent] run stream failed:", sessionId, err);
@@ -105,7 +105,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       if (cancelled || interacted || resp.data.length === 0) return;
       store().applyEvents(
         sessionId,
-        resp.data.map((item): RunEvent["event"] => ({ type: "item.completed", item })),
+        resp.data.map((item): FoldEvent => ({ event: { type: "item.completed", item } })),
       );
     };
 
@@ -130,7 +130,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
         return;
       }
       if (cancelled || ctrl.signal.aborted) return;
-      store().applyEvents(sessionId, [{ type: "run.started", run }]);
+      store().applyEvents(sessionId, [{ event: { type: "run.started", run } }]);
       await pump(stream);
     };
 
@@ -154,10 +154,17 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
         for (const oi of open.data) {
           store().applyEvents(sessionId, [
             {
-              type: "run.started",
-              run: { id: oi.parentRunId, sessionId: oi.sessionId, createdAt: oi.createdAt },
+              event: {
+                type: "run.started",
+                run: { id: oi.parentRunId, sessionId: oi.sessionId, createdAt: oi.createdAt },
+              },
             },
-            { type: "run.finished", outcome: { type: "interrupt", interrupts: oi.interrupts } },
+            {
+              event: {
+                type: "run.finished",
+                outcome: { type: "interrupt", interrupts: oi.interrupts },
+              },
+            },
           ]);
         }
         // At most one root run can be in flight (session_busy), so reattach
@@ -236,16 +243,18 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       const localId = `${LOCAL_MESSAGE_PREFIX}${++localSeq}`;
       store().applyEvents(sessionId, [
         {
-          type: "item.completed",
-          item: {
-            id: localId,
-            runId: "",
-            status: "completed",
-            createdAt: new Date().toISOString(),
-            type: "userMessage",
-            content: [{ type: "text", text }],
-          },
-        } as RunEvent["event"],
+          event: {
+            type: "item.completed",
+            item: {
+              id: localId,
+              runId: "",
+              status: "completed",
+              createdAt: new Date().toISOString(),
+              type: "userMessage",
+              content: [{ type: "text", text }],
+            },
+          } as RunEvent["event"],
+        },
       ]);
       begin(
         (signal) => driver.start(text, signal),

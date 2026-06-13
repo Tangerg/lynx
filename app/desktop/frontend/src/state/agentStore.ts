@@ -43,18 +43,28 @@ interface SessionEntry {
   resume: ResumeFn;
 }
 
+/** A StreamEvent + the wire (envelope) runId of the RunEvent that carried it —
+ *  the fold needs the runId to tell a subagent's run.* from the root run's
+ *  (RunOutcome itself has no id). Absent for synthetic events (the optimistic
+ *  local user bubble, items.list history replay). */
+export interface FoldEvent {
+  event: StreamEvent;
+  runId?: string;
+}
+
 interface AgentStore {
   sessions: Record<string, SessionEntry>;
 
-  /** Fold one StreamEvent into the named session's view state. */
-  applyEvent: (sessionId: string, event: StreamEvent) => void;
+  /** Fold one StreamEvent into the named session's view state. `runId` is the
+   *  wire envelope runId (subagent discrimination); omit for synthetic events. */
+  applyEvent: (sessionId: string, event: StreamEvent, runId?: string) => void;
   /**
-   * Fold a batch of StreamEvents into the named session's view state with
-   * a single `set()` — used by the per-frame batcher in useAgentSession so
-   * a burst of streaming item.delta events produces one React commit per
-   * frame instead of one per delta.
+   * Fold a batch of {event, runId} into the named session's view state with a
+   * single `set()` — used by the per-frame batcher in useAgentSession so a
+   * burst of streaming item.delta events produces one React commit per frame
+   * instead of one per delta.
    */
-  applyEvents: (sessionId: string, events: StreamEvent[]) => void;
+  applyEvents: (sessionId: string, events: FoldEvent[]) => void;
   /** Discard a session's state and start clean (e.g. on agent re-mount). */
   resetSession: (sessionId: string) => void;
   resetView: (sessionId: string) => void;
@@ -119,11 +129,13 @@ function patchSession(
 
 export const useAgentStore = create<AgentStore>((set) => ({
   sessions: {},
-  applyEvent: (sessionId, event) =>
+  applyEvent: (sessionId, event, runId) =>
     set((s) => {
       const prev = s.sessions[sessionId];
       if (!prev) return s; // session torn down — drop the late event
-      return { sessions: patchSession(s.sessions, sessionId, { view: reduce(prev.view, event) }) };
+      return {
+        sessions: patchSession(s.sessions, sessionId, { view: reduce(prev.view, event, runId) }),
+      };
     }),
   applyEvents: (sessionId, events) =>
     set((s) => {
@@ -131,7 +143,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
       const prev = s.sessions[sessionId];
       if (!prev) return s; // session torn down — drop the late batch
       let view = prev.view;
-      for (const event of events) view = reduce(view, event);
+      for (const { event, runId } of events) view = reduce(view, event, runId);
       return { sessions: patchSession(s.sessions, sessionId, { view }) };
     }),
   resetSession: (sessionId) =>

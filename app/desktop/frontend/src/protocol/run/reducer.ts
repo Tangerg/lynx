@@ -18,13 +18,17 @@ import type { AgentViewState } from "./viewState";
 import { measureReduce } from "@/lib/metrics";
 import { lookupCustomHandlers, lookupStreamHandlers, reportPluginError } from "@/plugins/sdk";
 
-function applyStreamHandlers(state: AgentViewState, event: StreamEvent): AgentViewState {
+function applyStreamHandlers(
+  state: AgentViewState,
+  event: StreamEvent,
+  runId?: string,
+): AgentViewState {
   const handlers = lookupStreamHandlers(event.type);
   if (handlers.length === 0) return state;
   let next = state;
   for (const { pluginName, handler } of handlers) {
     try {
-      next = handler(next, event);
+      next = handler(next, event, runId);
     } catch (err) {
       console.error(`[plugin] stream handler "${event.type}" (${pluginName}) threw:`, err);
       reportPluginError(pluginName, "events", err, `event: ${event.type}`);
@@ -59,11 +63,12 @@ function applyCustom(
   return next;
 }
 
-export function reduce(state: AgentViewState, ev: StreamEvent): AgentViewState {
+export function reduce(state: AgentViewState, ev: StreamEvent, runId?: string): AgentViewState {
   // `custom` events carry the discriminating name; first-class events use
-  // `type`. Tag the metric with the most specific discriminator.
+  // `type`. Tag the metric with the most specific discriminator. `runId` is the
+  // wire (envelope) runId — lets run.* handlers tell a subagent run from the root.
   const tag = ev.type === "custom" ? ev.name : ev.type;
   return measureReduce(tag, () =>
-    ev.type === "custom" ? applyCustom(state, ev) : applyStreamHandlers(state, ev),
+    ev.type === "custom" ? applyCustom(state, ev) : applyStreamHandlers(state, ev, runId),
   );
 }
