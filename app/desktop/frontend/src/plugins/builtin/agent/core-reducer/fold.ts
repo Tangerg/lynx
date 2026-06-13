@@ -241,7 +241,6 @@ export function foldQuestion(
 export function writeToolCall(
   state: AgentViewState,
   item: ItemOf<"toolCall">,
-  duration: string,
 ): { state: AgentViewState; tool: ToolCall } {
   const withBlock =
     state.toolCalls[item.id] === undefined
@@ -263,7 +262,6 @@ export function writeToolCall(
     args:
       item.status === "running" ? (prev?.args ?? "") || argsText(item.tool) : argsText(item.tool),
     status: toolStatus(item),
-    duration,
     // Keep the accumulated stream preview as the baseline; toolFields then
     // reconciles `result` to the authoritative value once the completed Item
     // carries it (command result.output / generic tool.result). While the

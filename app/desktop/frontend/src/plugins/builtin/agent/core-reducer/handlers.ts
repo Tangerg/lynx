@@ -254,7 +254,7 @@ function onItemStarted(state: AgentViewState, item: Item): AgentViewState {
     case "reasoning":
       return foldReasoning(state, item, blockStatus(item.status));
     case "toolCall": {
-      const { state: next, tool } = writeToolCall(state, item, "LIVE");
+      const { state: next, tool } = writeToolCall(state, item);
       return appendTimelineEntry({ kind: "tool-start", refId: item.id, summary: tool.fn })(next);
     }
     case "question":
@@ -312,7 +312,7 @@ function onItemCompleted(state: AgentViewState, rawItem: Item): AgentViewState {
     case "reasoning":
       return foldReasoning(state, item, blockStatus(item.status));
     case "toolCall": {
-      const { state: next, tool } = writeToolCall(state, item, "");
+      const { state: next, tool } = writeToolCall(state, item);
       return appendTimelineEntry({
         kind: "tool-end",
         refId: item.id,
