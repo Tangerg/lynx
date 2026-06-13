@@ -1,9 +1,11 @@
-// Built-in plugins: tool-meta — header actions and the fn → icon glyph map.
+// Built-in plugins: tool-meta — header actions and the name → icon glyph map.
 //
-// `tool-icons` mirrors the hardcoded fallback in `toolIconFor` (so first
-// paint before plugins load still picks a sensible glyph); this plugin
-// is the source of truth that third-party tools extend.
+// `tool-icons` contributes every entry of DEFAULT_TOOL_ICONS (the shared source
+// of truth in toolIcon.ts) to the TOOL_ICON point, so third-party tools extend
+// the same surface; first paint before this plugin loads falls back to the same
+// table directly (see toolIconFor).
 
+import { DEFAULT_TOOL_ICONS } from "@/components/tools/toolIcon";
 import { copyText } from "@/lib/clipboard";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_ACTION, TOOL_ICON } from "@/plugins/sdk/kernelPoints";
@@ -29,31 +31,10 @@ export const toolIcons = definePlugin({
   name: "lyra.builtin.tool-icons",
   version: "1.0.0",
   setup({ host }) {
-    // Keyed by tool `name` (the routing key, §4.4.2 display conventions).
-    host.extensions.contribute(TOOL_ICON, "terminal", { key: "bash" });
-    host.extensions.contribute(TOOL_ICON, "terminal", { key: "shell" });
-    host.extensions.contribute(TOOL_ICON, "terminal", { key: "run_in_background" });
-    host.extensions.contribute(TOOL_ICON, "terminal", { key: "bash_output" });
-    host.extensions.contribute(TOOL_ICON, "stop", { key: "kill_shell" });
-    host.extensions.contribute(TOOL_ICON, "file", { key: "edit" });
-    host.extensions.contribute(TOOL_ICON, "file", { key: "write" });
-    host.extensions.contribute(TOOL_ICON, "file", { key: "read" });
-    host.extensions.contribute(TOOL_ICON, "search", { key: "grep" });
-    host.extensions.contribute(TOOL_ICON, "search", { key: "glob" });
-    host.extensions.contribute(TOOL_ICON, "globe", { key: "webSearch" });
-    for (const key of [
-      "lsp_definition",
-      "lsp_references",
-      "lsp_hover",
-      "lsp_document_symbols",
-      "lsp_diagnostics",
-      "lsp_workspace_symbols",
-    ]) {
-      host.extensions.contribute(TOOL_ICON, "code", { key });
+    // Keyed by tool `name` (the routing key, §4.4.2). DEFAULT_TOOL_ICONS is the
+    // shared source of truth, so contributions + fallback can't drift.
+    for (const [key, icon] of Object.entries(DEFAULT_TOOL_ICONS)) {
+      host.extensions.contribute(TOOL_ICON, icon, { key });
     }
-    host.extensions.contribute(TOOL_ICON, "sparkle", { key: "skill" });
-    host.extensions.contribute(TOOL_ICON, "spark", { key: "task" });
-    host.extensions.contribute(TOOL_ICON, "spark", { key: "subagent" });
-    host.extensions.contribute(TOOL_ICON, "chat", { key: "ask_user" });
   },
 });
