@@ -5,12 +5,7 @@ import { DataView } from "@/components/common";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useAgentDocs } from "@/lib/data/queries";
 import { defineWorkspaceView } from "./defineWorkspaceView";
-
-const SCOPE_LABEL: Record<string, string> = {
-  cwd: "cwd",
-  projectRoot: "project root",
-  home: "home",
-};
+import { scopeLabel } from "./views/scopeLabel";
 
 function AgentDocsTab() {
   const { data, isLoading, isError } = useAgentDocs();
@@ -51,7 +46,7 @@ function AgentDocsTab() {
                   </div>
                 </div>
                 <span className="rounded-full bg-surface-2 px-1.5 py-px text-[10px] text-fg-muted">
-                  {SCOPE_LABEL[d.scope] ?? d.scope}
+                  {scopeLabel(d.scope)}
                 </span>
               </div>
             ))}

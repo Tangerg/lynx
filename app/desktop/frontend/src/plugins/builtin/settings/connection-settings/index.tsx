@@ -12,6 +12,7 @@ import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { definePlugin, getConfig, setConfig } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
+import { SettingRow } from "../SettingRow";
 
 const CONFIG_KEY = "api.baseUrl";
 const STORAGE_KEY = "api.baseUrl";
@@ -60,11 +61,11 @@ function ConnectionPane() {
 
   return (
     <div>
-      <div className="grid grid-cols-[140px_1fr] items-start gap-4 py-3">
-        <div>
-          <div className="text-[15px] font-semibold text-fg">{t("settings.connection.title")}</div>
-          <div className="mt-0.5 text-[13px] text-fg-muted">{t("settings.connection.sub")}</div>
-        </div>
+      <SettingRow
+        label={t("settings.connection.title")}
+        sub={t("settings.connection.sub")}
+        align="start"
+      >
         <div className="grid gap-2">
           <label htmlFor="runtime-base-url" className="text-[12px] font-semibold text-fg-faint">
             {t("settings.connection.url")}
@@ -111,7 +112,7 @@ function ConnectionPane() {
             </div>
           ) : null}
         </div>
-      </div>
+      </SettingRow>
     </div>
   );
 }

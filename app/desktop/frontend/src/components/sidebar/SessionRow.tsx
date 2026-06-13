@@ -1,7 +1,7 @@
 import type { SidebarSession } from "@/lib/data/queries";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { useState } from "react";
-import { Icon, MENU_CONTENT_CLASSES, MENU_ITEM_CLASSES, StatusDot } from "@/components/common";
+import { Icon, MENU_CONTENT_CLASSES, MenuIconItem, StatusDot } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { formatRelative } from "@/lib/i18n/relativeTime";
 import { cn } from "@/lib/utils";
@@ -125,34 +125,19 @@ export function SessionRow({ session, active, onSelect, onRename, onFork, onDele
       <ContextMenu.Portal>
         <ContextMenu.Content className={cn(MENU_CONTENT_CLASSES, "min-w-[160px]")}>
           {onRename && (
-            <ContextMenu.Item
-              onSelect={() => setRenaming(true)}
-              className={cn(MENU_ITEM_CLASSES, "grid-cols-[14px_minmax(0,1fr)]")}
-            >
-              <Icon name="edit" size={12} />
-              <span className="truncate">Rename</span>
-            </ContextMenu.Item>
+            <MenuIconItem icon="edit" onSelect={() => setRenaming(true)}>
+              Rename
+            </MenuIconItem>
           )}
           {onFork && (
-            <ContextMenu.Item
-              onSelect={() => onFork(session.id)}
-              className={cn(MENU_ITEM_CLASSES, "grid-cols-[14px_minmax(0,1fr)]")}
-            >
-              <Icon name="branch" size={12} />
-              <span className="truncate">Fork</span>
-            </ContextMenu.Item>
+            <MenuIconItem icon="branch" onSelect={() => onFork(session.id)}>
+              Fork
+            </MenuIconItem>
           )}
           {onDelete && (
-            <ContextMenu.Item
-              onSelect={() => onDelete(session.id)}
-              className={cn(
-                MENU_ITEM_CLASSES,
-                "grid-cols-[14px_minmax(0,1fr)] text-negative data-[highlighted]:bg-negative/10 data-[highlighted]:text-negative",
-              )}
-            >
-              <Icon name="trash" size={12} />
-              <span className="truncate">Delete</span>
-            </ContextMenu.Item>
+            <MenuIconItem icon="trash" destructive onSelect={() => onDelete(session.id)}>
+              Delete
+            </MenuIconItem>
           )}
         </ContextMenu.Content>
       </ContextMenu.Portal>
