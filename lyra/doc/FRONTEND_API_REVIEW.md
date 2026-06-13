@@ -67,6 +67,21 @@
 
 > 即:那份 review 的修复清单基本执行完了。**不要据 6/8 的 review 再去"修"这些——它们已经是对的。**
 
+### 2.4 比 Stripe 更优雅?——"最优雅"是形状相对的
+
+Stripe 是 **CRUD-over-REST 开发体验**的天花板,但我们的 API **只有少部分是 CRUD**(sessions / providers / memory)。重心其实是**有状态 + 流式 + 长运行操作(LRO)+ 能力协商**的协议——这是另一种形状,它的优雅天花板由 **LSP / MCP / Google AIP** 定义,**不由 Stripe 定义**。而我们恰好**血缘上就源自 MCP/LSP**,已经坐在那个天花板上。所以"有没有更优雅的"要按坐标分别看:
+
+| 参考设计 | 它在某一轴上比 Stripe 更优雅的点 | 对我们 |
+|---|---|---|
+| **LSP / MCP**(我们的血缘) | 能力协商握手 + request/notification 二元 + progress / partial-result token | ✅ 已具备(`runtime.initialize` 协商、durable/ephemeral、per-run 事件流);**可借鉴**:统一的 **progress-token 约定**让任意长任务报进度,而非只在 run 事件里 |
+| **Google AIP — LRO**(AIP-151) | 长运行操作建模为 Operation 资源(`done` / `metadata` / `response` ∣ `error`) | ✅ 我们的 `run` + `RunOutcome` **就是领域特化的 LRO**——AIP 反过来印证了设计 |
+| **Google AIP — field mask**(AIP-134/157) | **一套机制**同时表达**偏改**(`update_mask`)与**稀疏读**(`read_mask`),比 Stripe `expand[]` 更一般 | ⚠️ 比我们"指针偏改 + 无 expand"理论上更一般;但对象浅、本地 loopback → **YAGNI**,指针偏改已足够优雅 |
+| **Temporal**(start / signal / query / result) | `signal`(不中断地注入)、`query`(无副作用读运行态)是极干净的原语 | ◐ `runs.resume`≈signal;B13a `runs.steer`=signal;**缺一等的 "query 运行态"**(现以 `items.list` / `state.snapshot` 代偿,够用) |
+| **类型态 / 让非法状态不可表达**(Rust/Haskell ethos) | 非法参数组合在类型上**根本无法构造**(不是靠注释约束) | ◐ **wire 契约(TS)已是干净判别联合**;Go 侧扁平 struct(`InterruptResponseValue` 等可表达 `type:approval`+`answers` 这种非法组合)是**有意的 no-codegen 取舍**——wire 优雅、Go 务实 |
+| **GraphQL / JSON:API** | 客户端精确选字段 / 严格统一资源信封 | ✗ 更重、更啰嗦;对单客户端 loopback agent 过度,**不取** |
+
+**结论**:沿"我们这种形状"的坐标,**没有把优雅留在桌上**——能力协商、LRO、durable/ephemeral、判别联合,该有的都在,且血缘正统。理论上"更优雅"的只剩两条:**field mask**(YAGNI,浅对象不值)与**真正的 sum type**(Go 限制,但 wire 上已是干净联合)。Stripe 之外**唯一值得长期内化的一条原则是"让非法状态不可表达"**——它已落在 wire 的 TS 契约上,Go 侧的扁平是不做 codegen 的自觉代价(本仓既定决策)。换句话说:**该向 Stripe 学的我们学到了,该超越 Stripe 的地方(流式/LRO/能力协商)我们走的是更对口的 LSP/MCP/AIP 血脉。**
+
 ---
 
 ## 3. 仍可打磨的参数小项(低优先,非缺陷)
