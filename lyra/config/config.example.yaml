@@ -13,6 +13,12 @@ provider: anthropic
 # (anthropic → claude-3-5-haiku-20241022, openai → gpt-4o-mini).
 model: ""
 
+# Optional cheaper model for turn-boundary maintenance (compaction summaries,
+# fact extraction, plan drafting) on the SAME provider as `model`. Empty runs
+# maintenance on `model`. Use it to code with a strong model while the
+# background summarize/extract/plan calls run on an inexpensive one.
+maintenanceModel: ""
+
 # Provider API key. Overridden by ANTHROPIC_API_KEY / OPENAI_API_KEY /
 # MOONSHOT_API_KEY / DEEPSEEK_API_KEY env if set.
 apiKey: ""

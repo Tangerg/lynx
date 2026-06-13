@@ -81,6 +81,15 @@ type Config struct {
 	// gateways, regional endpoints, and self-hosted OpenAI-compatible servers.
 	BaseURL string
 
+	// MaintenanceModel optionally names a cheaper / faster model for the
+	// turn-boundary maintenance work — compaction summaries, fact extraction,
+	// plan drafting — on the SAME provider (key + BaseURL) as Model. Empty
+	// runs maintenance on the main Model. The point: a session can code with a
+	// strong model (e.g. an Opus-class Model) while its background
+	// summarize/extract/plan calls use an inexpensive one, since those don't
+	// need the headline model's quality.
+	MaintenanceModel string
+
 	// Online optionally enables provider-backed tools.
 	Online engine.OnlineConfig
 
@@ -171,14 +180,15 @@ func Load() (Config, error) {
 	}
 
 	return Config{
-		Provider:   provider,
-		Model:      model,
-		APIKey:     apiKey,
-		BaseURL:    v.GetString("baseURL"),
-		Online:     loadOnline(v),
-		MCPServers: servers,
-		A2AAgents:  a2aAgents,
-		LSPServers: lspServers,
+		Provider:         provider,
+		Model:            model,
+		APIKey:           apiKey,
+		BaseURL:          v.GetString("baseURL"),
+		MaintenanceModel: v.GetString("maintenanceModel"),
+		Online:           loadOnline(v),
+		MCPServers:       servers,
+		A2AAgents:        a2aAgents,
+		LSPServers:       lspServers,
 		Server: ServerConfig{
 			Listen:         v.GetString("server.listen"),
 			NoLocalToken:   v.GetBool("server.noLocalToken"),
