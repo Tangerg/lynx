@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/Tangerg/lynx/lyra/internal/domain/transcript"
 	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/lyra/internal/domain/transcript"
 )
 
 // ListItems returns a session's persisted history as durable Items

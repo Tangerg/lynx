@@ -8,9 +8,9 @@ import (
 
 	chatmodel "github.com/Tangerg/lynx/core/model/chat"
 
-	"github.com/Tangerg/lynx/lyra/internal/engine"
-	"github.com/Tangerg/lynx/lyra/internal/engine/toolset"
 	"github.com/Tangerg/lynx/lyra/internal/domain/tool"
+	"github.com/Tangerg/lynx/lyra/internal/kernel"
+	"github.com/Tangerg/lynx/lyra/internal/kernel/toolset"
 )
 
 // TestService_List enumerates the coding tool set and verifies the
@@ -87,7 +87,7 @@ func buildService(t *testing.T) tool.Service {
 	if err != nil {
 		t.Fatal(err)
 	}
-	eng, err := engine.New(context.Background(), engine.Config{
+	eng, err := kernel.New(context.Background(), kernel.Config{
 		ChatClient:   client,
 		ToolResolver: built.Resolver,
 		Tools:        built.Tools,

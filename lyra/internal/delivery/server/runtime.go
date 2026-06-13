@@ -5,8 +5,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
-	"github.com/Tangerg/lynx/lyra/internal/engine"
-	chatsvc "github.com/Tangerg/lynx/lyra/internal/engine/chat"
 	"github.com/Tangerg/lynx/lyra/internal/domain/approval"
 	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/lyra/internal/domain/knowledge"
@@ -14,6 +12,8 @@ import (
 	sessionsvc "github.com/Tangerg/lynx/lyra/internal/domain/session"
 	toolsvc "github.com/Tangerg/lynx/lyra/internal/domain/tool"
 	"github.com/Tangerg/lynx/lyra/internal/domain/transcript"
+	"github.com/Tangerg/lynx/lyra/internal/kernel"
+	chatsvc "github.com/Tangerg/lynx/lyra/internal/kernel/chat"
 )
 
 // RuntimeServices is the accessor surface the protocol server needs from
@@ -45,17 +45,17 @@ type RuntimeServices interface {
 	ProbeProvider(ctx context.Context, entry providersvc.Provider) error
 	// MCPServerStatuses lists every configured MCP server with its connection
 	// state — connected and boot-failed alike (workspace.mcp.listServers).
-	MCPServerStatuses() []engine.McpServerStatus
+	MCPServerStatuses() []kernel.McpServerStatus
 	// ReconnectMCPServer re-dials a configured MCP server and hot-swaps the
 	// live tool set (workspace.mcp.reconnect). Returns engine.ErrUnknownMCPServer
 	// for an unconfigured name.
 	ReconnectMCPServer(ctx context.Context, name string) error
 	// ListSkills enumerates the skills visible from cwd (project over global) —
 	// backs workspace.listSkills. The engine owns skill sourcing + precedence.
-	ListSkills(ctx context.Context, cwd string) ([]engine.SkillInfo, error)
+	ListSkills(ctx context.Context, cwd string) ([]kernel.SkillInfo, error)
 	// MCPTools lists tools per connected MCP server (server="" = all) —
 	// backs workspace.mcp.listTools. The engine holds the dialed sessions.
-	MCPTools(ctx context.Context, server string) ([]engine.McpToolInfo, error)
+	MCPTools(ctx context.Context, server string) ([]kernel.McpToolInfo, error)
 	// DefaultModel is the runtime's configured default model — used to fill
 	// Session.model for sessions that never explicitly selected one.
 	DefaultModel() string

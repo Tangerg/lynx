@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 
-	"github.com/Tangerg/lynx/lyra/internal/engine"
+	"github.com/Tangerg/lynx/lyra/internal/kernel"
 )
 
 // compactionDefaults govern the auto-compact trigger. Tunable via
@@ -101,16 +101,16 @@ func NewCompactor(store memory.Store, client *chat.Client, cfg CompactionConfig)
 // (no middleware), so it does NOT enter the chat-memory middleware
 // — otherwise the summarisation request itself would be appended
 // to the history and trigger another compaction round.
-func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string) (engine.CompactionResult, error) {
+func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string) (kernel.CompactionResult, error) {
 	if c == nil || sessionID == "" {
-		return engine.CompactionResult{}, nil
+		return kernel.CompactionResult{}, nil
 	}
 	msgs, err := c.store.Read(ctx, sessionID)
 	if err != nil {
-		return engine.CompactionResult{}, fmt.Errorf("compactor: read: %w", err)
+		return kernel.CompactionResult{}, fmt.Errorf("compactor: read: %w", err)
 	}
 	if !c.shouldCompact(msgs) {
-		return engine.CompactionResult{}, nil
+		return kernel.CompactionResult{}, nil
 	}
 
 	before := len(msgs)
@@ -131,7 +131,7 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string) (engine.
 	if cutoff >= len(msgs) {
 		// No clean UserMessage boundary in the trailing segment —
 		// skip this compaction cycle rather than corrupt the history.
-		return engine.CompactionResult{}, nil
+		return kernel.CompactionResult{}, nil
 	}
 
 	older := msgs[:cutoff]
@@ -139,19 +139,19 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string) (engine.
 
 	summary, err := c.summarize(ctx, older)
 	if err != nil {
-		return engine.CompactionResult{}, fmt.Errorf("compactor: summarize: %w", err)
+		return kernel.CompactionResult{}, fmt.Errorf("compactor: summarize: %w", err)
 	}
 
 	if err := c.store.Clear(ctx, sessionID); err != nil {
-		return engine.CompactionResult{}, fmt.Errorf("compactor: clear: %w", err)
+		return kernel.CompactionResult{}, fmt.Errorf("compactor: clear: %w", err)
 	}
 	rewritten := make([]chat.Message, 0, 1+len(recent))
 	rewritten = append(rewritten, summary)
 	rewritten = append(rewritten, recent...)
 	if err := c.store.Write(ctx, sessionID, rewritten...); err != nil {
-		return engine.CompactionResult{}, err
+		return kernel.CompactionResult{}, err
 	}
-	return engine.CompactionResult{
+	return kernel.CompactionResult{
 		Compacted:      true,
 		MessagesBefore: before,
 		MessagesAfter:  len(rewritten),

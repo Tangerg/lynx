@@ -14,11 +14,11 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Tangerg/lynx/lyra/internal/config"
-	"github.com/Tangerg/lynx/lyra/internal/infra/storage"
-	"github.com/Tangerg/lynx/lyra/internal/domain/agentdoc"
-	"github.com/Tangerg/lynx/lyra/internal/domain/workspace"
 	"github.com/Tangerg/lynx/lyra/internal/delivery/server"
 	lyrahttp "github.com/Tangerg/lynx/lyra/internal/delivery/transport/http"
+	"github.com/Tangerg/lynx/lyra/internal/domain/agentdoc"
+	"github.com/Tangerg/lynx/lyra/internal/domain/workspace"
+	"github.com/Tangerg/lynx/lyra/internal/infra/storage"
 )
 
 // ServeCmd is `lyra serve` — boot the JSON-RPC over HTTP transport

@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Tangerg/lynx/lyra/internal/domain/workspace"
 	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/lyra/internal/domain/workspace"
 )
 
 // checkpointHarness extends the rollback harness with a real shadow-git

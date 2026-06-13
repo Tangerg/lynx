@@ -3,9 +3,9 @@ package server
 import (
 	"time"
 
-	"github.com/Tangerg/lynx/lyra/internal/engine/chat"
-	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
+	"github.com/Tangerg/lynx/lyra/internal/kernel/chat"
 )
 
 // interrupt maps a parked turn (HITL) onto its Item(s) + a terminal

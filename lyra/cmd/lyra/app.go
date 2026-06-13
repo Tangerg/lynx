@@ -22,10 +22,6 @@ import (
 	chatmem "github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	"github.com/Tangerg/lynx/lyra/internal/config"
-	"github.com/Tangerg/lynx/lyra/internal/engine"
-	"github.com/Tangerg/lynx/lyra/internal/infra/storage"
-	sqlitestore "github.com/Tangerg/lynx/lyra/internal/infra/storage/sqlite"
-	lyraruntime "github.com/Tangerg/lynx/lyra/internal/runtime"
 	"github.com/Tangerg/lynx/lyra/internal/domain/approval"
 	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/lyra/internal/domain/knowledge"
@@ -33,6 +29,10 @@ import (
 	sessionsvc "github.com/Tangerg/lynx/lyra/internal/domain/session"
 	todosvc "github.com/Tangerg/lynx/lyra/internal/domain/todo"
 	"github.com/Tangerg/lynx/lyra/internal/domain/transcript"
+	"github.com/Tangerg/lynx/lyra/internal/infra/storage"
+	sqlitestore "github.com/Tangerg/lynx/lyra/internal/infra/storage/sqlite"
+	"github.com/Tangerg/lynx/lyra/internal/kernel"
+	lyraruntime "github.com/Tangerg/lynx/lyra/internal/runtime"
 )
 
 // App is the top-level CLI object. It owns the IO streams every
@@ -145,7 +145,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 	rt, err := lyraruntime.New(ctx, lyraruntime.Config{
 		// Engine construction config passes through verbatim (SessionStore
 		// is the runtime's to fill — see runtime.Config.Engine).
-		Engine: engine.Config{
+		Engine: kernel.Config{
 			ChatClient: client,
 			// Catalog-driven cost: price each round by its served model across
 			// every provider, so turns on any provider+model report CostUSD.

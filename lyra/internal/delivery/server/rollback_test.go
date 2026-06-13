@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/lyra/internal/infra/storage/sqlite"
-	"github.com/Tangerg/lynx/lyra/internal/domain/transcript"
 	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/lyra/internal/domain/transcript"
+	"github.com/Tangerg/lynx/lyra/internal/infra/storage/sqlite"
 )
 
 // rollbackHarness wires a Server over a sqlite-backed stub: a real session

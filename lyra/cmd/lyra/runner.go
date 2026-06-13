@@ -8,8 +8,8 @@ import (
 	"os/signal"
 	"strings"
 
-	"github.com/Tangerg/lynx/lyra/internal/engine/chat"
 	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
+	"github.com/Tangerg/lynx/lyra/internal/kernel/chat"
 )
 
 // turnOptions is the per-turn knobs both `chat` and `repl` pass to

@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/Tangerg/lynx/lyra/internal/domain/transcript"
 	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/lyra/internal/domain/transcript"
 )
 
 // persistStreamEvent records the durable side of one stream event to the

@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	sqlitestore "github.com/Tangerg/lynx/lyra/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/lyra/internal/domain/provider"
+	sqlitestore "github.com/Tangerg/lynx/lyra/internal/infra/storage/sqlite"
 )
 
 // TestClientResolver_RejectsUnconfigured verifies an explicit provider that

@@ -5,7 +5,7 @@ import (
 	"iter"
 
 	"github.com/Tangerg/lynx/a2a"
-	"github.com/Tangerg/lynx/lyra/internal/engine"
+	"github.com/Tangerg/lynx/lyra/internal/kernel"
 )
 
 // a2aAgent adapts the engine's one-shot chat turn to the [a2a.Agent] the
@@ -19,14 +19,14 @@ import (
 // RunChat is the simplest faithful bridge. Token-level streaming would adapt
 // the engine's observer and is a follow-up.
 type a2aAgent struct {
-	engine *engine.Engine
+	engine *kernel.Engine
 }
 
 var _ a2a.Agent = a2aAgent{}
 
 func (a a2aAgent) Run(ctx context.Context, input string) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
-		out, err := a.engine.RunChat(ctx, engine.RunChatRequest{Message: input})
+		out, err := a.engine.RunChat(ctx, kernel.RunChatRequest{Message: input})
 		if err != nil {
 			yield("", err)
 			return

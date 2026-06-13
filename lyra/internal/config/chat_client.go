@@ -9,7 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/lyra/internal/engine"
+	"github.com/Tangerg/lynx/lyra/internal/kernel"
 	"github.com/Tangerg/lynx/models/anthropic"
 	"github.com/Tangerg/lynx/models/catalog"
 	"github.com/Tangerg/lynx/models/deepseek"
@@ -33,7 +33,7 @@ type ClientSpec struct {
 // (plus its cost hook), from the loaded config. Thin wrapper over
 // [BuildClient] — the runtime's clientResolver uses BuildClient directly
 // to build other (provider, model) pairs from the provider registry.
-func BuildChatClient(cfg Config) (*chat.Client, engine.Pricing, error) {
+func BuildChatClient(cfg Config) (*chat.Client, kernel.Pricing, error) {
 	return BuildClient(ClientSpec{
 		Provider: cfg.Provider,
 		Model:    cfg.Model,
@@ -54,7 +54,7 @@ func BuildChatClient(cfg Config) (*chat.Client, engine.Pricing, error) {
 // is behind the client. Every case threads spec.BaseURL through — native
 // openai/anthropic via a request option, the delegators via their BaseURL
 // field.
-func BuildClient(spec ClientSpec) (*chat.Client, engine.Pricing, error) {
+func BuildClient(spec ClientSpec) (*chat.Client, kernel.Pricing, error) {
 	opts, err := chat.NewOptions(spec.Model)
 	if err != nil {
 		return nil, nil, fmt.Errorf("config: chat options for %q: %w", spec.Model, err)
@@ -118,7 +118,7 @@ func BuildClient(spec ClientSpec) (*chat.Client, engine.Pricing, error) {
 // when pricing is unknown — the engine then leaves CostUSD at zero rather
 // than guessing. The served-model arg is ignored: one client carries one
 // model, so its rate card applies to every round.
-func pricingFromMetadata(meta chat.ModelMetadata) engine.Pricing {
+func pricingFromMetadata(meta chat.ModelMetadata) kernel.Pricing {
 	if len(meta.Model.Pricing) == 0 {
 		return nil
 	}
@@ -152,7 +152,7 @@ func DefaultModel(p Provider) string {
 // replaces the single-model pricingFromMetadata so a turn on any
 // provider+model reports CostUSD, not just the default one. Unknown models
 // price at zero (cost omitted rather than guessed).
-func CatalogPricing() engine.Pricing {
+func CatalogPricing() kernel.Pricing {
 	providers := SupportedProviders()
 	return func(servedModel string, u *chat.Usage) float64 {
 		for _, p := range providers {

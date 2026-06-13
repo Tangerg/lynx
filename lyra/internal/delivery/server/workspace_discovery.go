@@ -6,9 +6,9 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/lyra/internal/domain/agentdoc"
 	"github.com/Tangerg/lynx/lyra/internal/domain/session"
-	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
 )
 
 // workspace.* discovery reads (API.md §7.5): the distinct-cwd Project view,

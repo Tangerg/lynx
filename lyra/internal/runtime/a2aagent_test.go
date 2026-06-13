@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/lyra/internal/engine"
+	"github.com/Tangerg/lynx/lyra/internal/kernel"
 )
 
 // replyStub is a minimal chat.Model that answers every turn with a fixed
@@ -47,7 +47,7 @@ func TestA2AAgent_RunYieldsReply(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}
-	eng, err := engine.New(context.Background(), engine.Config{ChatClient: client})
+	eng, err := kernel.New(context.Background(), kernel.Config{ChatClient: client})
 	if err != nil {
 		t.Fatalf("engine.New: %v", err)
 	}
