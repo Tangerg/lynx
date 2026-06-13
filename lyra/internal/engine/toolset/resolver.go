@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/skill"
 	"github.com/Tangerg/lynx/lyra/internal/infra/exec"
 	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
 	"github.com/Tangerg/lynx/lyra/internal/service/editguard"
@@ -355,7 +356,7 @@ func (g *toolGroup) Tools(ctx context.Context) ([]core.AgentTool, error) {
 	// The skill tool is working-directory scoped (project skills live under
 	// the turn's cwd), so it is built per resolution like fs/bash and is
 	// available to both coding and subtask roles. nil when no skills exist.
-	if skillTool := BuildSkillTool(workdir, g.resolver.skillsGlobalDir); skillTool != nil {
+	if skillTool := skill.Build(workdir, g.resolver.skillsGlobalDir); skillTool != nil {
 		tools = append(tools, skillTool)
 	}
 	if g.role == ToolRoleCoding {
