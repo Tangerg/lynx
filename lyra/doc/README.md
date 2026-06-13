@@ -14,7 +14,7 @@
 |---|---|---|
 | [LAYERING.md](LAYERING.md) | 分层与单向依赖（delivery→engine→service→infra）+ 重构计划与进度 | ★ CLAUDE.md 重度引用，最权威 |
 | [MICROKERNEL.md](MICROKERNEL.md) | 微内核架构：engine 作核 + 端口注入 | ★ |
-| [EXTENSION_POINTS.md](EXTENSION_POINTS.md) | 「kernel 不长肉」的扩展点底座 | ★ |
+| [EXTENSIBILITY.md](EXTENSIBILITY.md) | 可替换性边界：外部 SPI（memory/压缩/LLM/RAG…可换）vs 内部焊死（核心强耦合）+ 注入方式 | ★ 现行准则 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | CS 架构总览 / transport-agnostic service 接口 | ⚠️ 部分漂移（仍写 gRPC/IPC transport、M0~M7；现状为 http+inprocess、v2 协议、rpc/ 重命名、单向分层 —— **以 LAYERING.md + ../CLAUDE.md 为准**） |
 | [ROADMAP.md](ROADMAP.md) | 路线图 / milestone | ⚠️ 部分漂移（M0~M7 + transport phase 的 gRPC/MCP adapter 与现状不符 —— **以 ../CLAUDE.md「已做过的大重构」为准**） |
 
