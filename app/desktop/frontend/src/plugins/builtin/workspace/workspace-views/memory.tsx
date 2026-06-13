@@ -4,7 +4,7 @@
 // whole-file editor — memory.update writes the full content back.
 
 import type { MemoryEntryInfo } from "@/lib/data/queries";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { DataView, FIELD_CLASSES, Icon, PillButton } from "@/components/common";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { MEMORY_KEY, useMemory } from "@/lib/data/queries";
@@ -22,10 +22,14 @@ function MemoryRow({ entry, cwd }: { entry: MemoryEntryInfo; cwd?: string }) {
   // null = pristine (textarea shows entry.content); a string = user edits.
   const [draft, setDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Synchronous latch — `saving` state lags a render, so a double-click before
+  // the disabled state applies would otherwise fire two memory.update writes.
+  const savingRef = useRef(false);
   const dirty = draft !== null && draft !== entry.content;
 
   const save = (): void => {
-    if (!dirty || saving) return;
+    if (!dirty || savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     getContainer()
       .client()
@@ -41,7 +45,10 @@ function MemoryRow({ entry, cwd }: { entry: MemoryEntryInfo; cwd?: string }) {
           source: "memory",
         });
       })
-      .finally(() => setSaving(false));
+      .finally(() => {
+        savingRef.current = false;
+        setSaving(false);
+      });
   };
 
   return (

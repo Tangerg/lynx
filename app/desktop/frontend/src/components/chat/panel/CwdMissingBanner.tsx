@@ -7,7 +7,7 @@
 // Sits with RunErrorBanner above the message stream. Warning-toned, not
 // negative: the session still works, just degraded.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { FIELD_CLASSES, Icon } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { useActiveSession } from "@/lib/agent/useActiveSession";
@@ -24,14 +24,19 @@ export function CwdMissingBanner() {
   const [editing, setEditing] = useState(false);
   const [path, setPath] = useState("");
   const [busy, setBusy] = useState(false);
+  // Synchronous re-entrancy latch — `busy` state lags a render, so Enter + an
+  // immediate Apply click in one tick would otherwise both fire relocate.
+  const submitting = useRef(false);
 
   if (!session?.cwdMissing) return null;
 
   const submit = async (): Promise<void> => {
     const next = path.trim();
-    if (!next || busy) return;
+    if (!next || submitting.current) return;
+    submitting.current = true;
     setBusy(true);
     const ok = await relocate(session.id, next);
+    submitting.current = false;
     setBusy(false);
     if (ok) {
       setEditing(false);
