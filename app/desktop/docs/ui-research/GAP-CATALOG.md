@@ -129,19 +129,26 @@
 
 ### G9 · 收 spec 漂移 〔P2｜DESIGN.md 多处已要求〕
 
-实现偏离了自己的设计稿，逐项指回 DESIGN.md：
+实现偏离了自己的设计稿。先分清"真漂移（改代码）"与"有意决策（改 spec）"。
+
+**真漂移 — 改代码（待办）：**
 
 | 漂移 | 位置 | DESIGN.md 条款 |
 |---|---|---|
 | ALL-CAPS 标签散落密集视图 | `workspace-views/tools.tsx:25`、`run-summary.tsx:117`、`components/tools/ToolInspector.tsx:58`、`FilesChanged.tsx:17` | §10「Don't use ALL-CAPS labels」→ 改 `caption-mono` lowercase |
-| dark 上重投影 | `styles/layout.css:99-109`（注释自承覆盖了 spec） | §5「no shadow on dark」 |
-| 侧栏默认展开 248px 而非 rail | `styles/layout.css:62`；rail 存在于 `SidebarRail.tsx` | §4「Default state: rail (56px)」 |
-| 会话 tab 在顶栏 | `components/chat/panel/PanelTabBar.tsx:86-99` | §4「Chat session tabs are deprecated from the topbar」 |
-| reasoning block 是 surface-2 填充盒 | `components/chat/message/cards/ReasoningBlock.tsx` | §components.reasoning-block「border-left: 2px」 |
+| reasoning block 是 surface-2 填充盒 | `components/chat/message/cards/ReasoningBlock.tsx` | §components.reasoning-block「border-left: 2px」（待确认是否也是有意决策） |
 | 语义色首屏满饱和非暗调 | `styles/globals.css:154-157`（`#ee0000`/`#0070f3`） | §2「Semantic colours are scheme-tuned」（暗调 `#f85149`/`#58a6ff`） |
-| mode 点击循环非 segmented | `components/chat/composer/Composer.tsx:141` | §components.segmented-control |
+| mode 点击循环非 segmented | `components/chat/composer/Composer.tsx:141` | §components.segmented-control（并入 G6 一起做） |
 
-- **工作量 · 风险**：小–中 · 低。注意：rail-默认 / 会话-tab 两项是**产品决策**，可能实现是有意改的——落地前先确认是"漂移"还是"已推翻 spec"，若后者则**改 DESIGN.md** 而非改代码（第一法则：在源头改对）。
+**✅ 已确认为有意决策 — 已改 DESIGN.md 名实相符（不动代码）：**
+
+| 项 | 决策 | DESIGN.md 已更新 |
+|---|---|---|
+| 侧栏默认展开 248px（非 rail） | 用户确认：session tree 是主导航，默认展开 | §4 Sidebar |
+| 顶栏保留会话 tab（非弃用） | 用户确认：顶栏混排会话 tab + view tab | §4 Tabs |
+| dark 上面板阴影 | 代码注释自承覆盖：cards-on-canvas 让浮起面板阴影可见且有意 | §5 + §10 |
+
+- **工作量 · 风险**：小 · 低。原则（取其精华去其糟粕）：spec 与代码冲突时，先判"漂移 vs 决策"——决策就改 spec、别盲从被推翻的旧 spec。
 
 ---
 

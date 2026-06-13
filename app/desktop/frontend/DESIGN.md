@@ -489,8 +489,8 @@ The full scale is 11 tokens — narrower than the previous 13-step Spotify scale
 
 ### Sidebar
 
-- **Default state: rail** (56px). The expanded mode (260px) is on-demand via `⌘B` or rail hover.
-- This reverses the prior default (expanded) — agent users live in keyboard mode; the sidebar earns its width only when the user reaches for it.
+- **Default state: expanded** (~248px). The project/session tree + search are the primary navigation, so they're visible up front.
+- **Rail** (56px, icon-only) is the on-demand collapsed mode via `⌘B`. (An earlier iteration defaulted to rail; expanded won out — the session tree is central enough to earn its width by default.)
 
 ### Chat measure
 
@@ -500,8 +500,8 @@ The full scale is 11 tokens — narrower than the previous 13-step Spotify scale
 
 ### Tabs
 
-- **Chat session tabs are deprecated from the topbar.** Sessions live in the sidebar as a vertical list (already implemented). The topbar carries only **view tabs** (workspace views the user "opened" into the main area: Files, Diff, Plan, Terminal).
-- When only one chat session is active and no view tabs are open, the topbar is empty (just the drag region).
+- **The topbar tab strip carries both chat-session tabs and view tabs.** Sessions also live in the sidebar tree; the topbar gives the open ones tab affordances (middle-click close, "close others / left / right", `+` new tab). Workspace **view tabs** (Files, Diff, Plan, Terminal) share the same strip, faintly accent-washed to read as "panel view" rather than "session".
+- When nothing is open the strip is empty (just the macOS drag region).
 
 ### Spacing rhythm
 
@@ -516,7 +516,7 @@ Lyra is a **product UI**, not a marketing site. Spacing values from the frontmat
 
 ### Dark mode
 
-**Depth on dark is carried by the surface ladder + hairlines.** Drop shadows on dark backgrounds are nearly invisible and waste GPU on opacity blur. The rule:
+**Depth on dark is carried by the surface ladder + hairlines _and_ a restrained shadow on the lifted panels.** Lyra is cards-on-canvas: panels float on the near-black canvas with 8px gutters, so — unlike a flush-edge layout where dark-on-dark shadows vanish — a subtle multi-layer shadow on a panel reads (there's canvas beneath it, not a same-colored neighbour). _Inside_ a panel, depth still comes from the surface ladder + hairlines, never shadow. The rule:
 
 | Level | Treatment | Use |
 |---|---|---|
@@ -526,7 +526,7 @@ Lyra is a **product UI**, not a marketing site. Spacing values from the frontmat
 | 3 | `surface-3` background | Sub-nav, dropdown |
 | 4 | Stacked subtle shadow (Vercel-style) + inset hairline | The few truly-floating overlays: command palette, mermaid lightbox, plugin toaster |
 
-**Level 4 is the ONLY level on dark where shadow is allowed**, and it's a stacked-subtle (Vercel) shadow, not a single 24px-blur drop. Used for overlays that float above the entire app.
+Two things get shadow on dark: **the lifted panels** (the cards-on-canvas frame — a restrained multi-layer drop + inset top highlight, see `layout.css .panel`) and **truly-floating overlays** (Level 4 — command palette, mermaid lightbox, toaster). Both are stacked-subtle (Vercel-style), never a single 24px-blur drop. Surfaces _inside_ a panel still use the ladder, not shadow.
 
 ### Light mode
 
@@ -635,7 +635,7 @@ When in doubt: **does this surface convey "the agent is alive and live"?** If ye
 - **Don't use ALL-CAPS labels with letter-spacing.** Replace with `caption-mono` lowercase.
 - **Don't use pill-radius CTAs** (`9999px`, `500px`, `100px` on a button). Buttons are `md` 8px.
 - **Don't use weight 700+ for display.** 600 is the ceiling, Linear and Vercel both forbid this.
-- **Don't drop a single heavy `box-shadow` on dark surfaces.** Use surface ladder + hairlines. Stacked-subtle shadow allowed only for Level 4 overlays.
+- **Don't drop a single heavy `box-shadow` on dark surfaces.** Depth _inside_ a panel is surface ladder + hairlines. Stacked-subtle shadow is for the cards-on-canvas panel frame and floating overlays (Level 4) only — never a single 24px-blur drop.
 - **Don't use `#000000` true black as canvas.** `#010102` with the faint blue tint is the right anchor.
 - **Don't introduce a second chromatic accent.** Lyra has one accent + four semantic colors. No more.
 - **Don't use accent decoratively.** Active tab / primary CTA / focus ring / live indicator — that's the entire allowed list.
