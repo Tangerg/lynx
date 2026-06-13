@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 // Terminal output viewer. Inline span runs colored by kind:
 //   prompt  → accent green (the "$" / "❯")
 //   cmd     → default fg (what the user typed)
-//   ok/err/warn/mute → semantic / faint
+//   out     → normal output; ok/err/warn → semantic; mute → faint
 
 const kindClass = (kind: TermLine["kind"]) =>
   kind === "prompt"
@@ -17,7 +17,9 @@ const kindClass = (kind: TermLine["kind"]) =>
           ? "text-negative"
           : kind === "warn"
             ? "text-warning"
-            : /* mute */ "text-fg-faint";
+            : kind === "out"
+              ? "text-fg-soft"
+              : /* mute */ "text-fg-faint";
 
 export function Terminal({ lines, running }: { lines: TermLine[]; running: boolean }) {
   return (
