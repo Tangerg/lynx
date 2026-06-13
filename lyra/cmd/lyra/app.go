@@ -30,6 +30,7 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
 	providersvc "github.com/Tangerg/lynx/lyra/internal/service/provider"
 	sessionsvc "github.com/Tangerg/lynx/lyra/internal/service/session"
+	todosvc "github.com/Tangerg/lynx/lyra/internal/service/todo"
 	"github.com/Tangerg/lynx/lyra/internal/service/transcript"
 )
 
@@ -154,6 +155,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		InterruptStore:  stores.Interrupt,
 		TranscriptStore: stores.History,
 		ProviderService: stores.Provider,
+		TodoService:     stores.Todos,
 		// Default provider+model a turn runs against when it picks no model.
 		Provider: string(cfg.Provider),
 		Model:    cfg.Model,
@@ -216,6 +218,7 @@ func buildStores() (*Stores, error) {
 		Provider:  sqlitestore.NewProviderService(db),
 		ChatMem:   sqlitestore.NewMessageStore(db),
 		Park:      sqlitestore.NewParkStore(db),
+		Todos:     sqlitestore.NewTodoService(db),
 	}, nil
 }
 
@@ -232,6 +235,7 @@ type Stores struct {
 	Provider  providersvc.Service
 	ChatMem   chatmem.Store
 	Park      tool.ParkStore
+	Todos     todosvc.Service
 }
 
 // seedConfiguredProvider ensures the config-file provider is present in the

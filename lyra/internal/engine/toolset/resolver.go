@@ -173,6 +173,7 @@ type Resolver struct {
 	shell           []chat.Tool        // shell tools (bash / bash_output / kill_shell) over the exec.Manager; cwd read per-call
 	task            chat.Tool          // delegation tool; coding role only, nil until set
 	askUser         chat.Tool          // ask_user HITL tool; coding role only (askuser.New, via Deps)
+	todo            chat.Tool          // todo_write task-list tool; both roles, nil when no todo store
 
 	// mcp is the working-directory-independent MCP tool set, held behind an
 	// atomic pointer so a reconnect (B3b-2) can hot-swap the live set without
@@ -194,6 +195,7 @@ type Deps struct {
 	LSP             []chat.Tool        // code-intelligence tools
 	Shell           []chat.Tool        // shell tools (bash / bash_output / kill_shell)
 	AskUser         chat.Tool          // ask_user HITL tool (coding role only)
+	Todo            chat.Tool          // todo_write task-list tool (both roles); nil → omitted
 	CodeIntel       *codeintel.Service // backs the post-edit diagnostics wrap
 	ReadTracker     *editguard.Tracker // backs the read/edit/write guards
 }
@@ -221,6 +223,7 @@ func NewResolver(d Deps) *Resolver {
 		lsp:             d.LSP,
 		shell:           shellTools,
 		askUser:         d.AskUser,
+		todo:            d.Todo,
 		codeIntel:       d.CodeIntel,
 		readTracker:     d.ReadTracker,
 	}
@@ -290,6 +293,12 @@ func (g *toolGroup) Tools(ctx context.Context) ([]core.AgentTool, error) {
 	// available to both coding and subtask roles. nil when no skills exist.
 	if skillTool := skill.Build(workdir, g.resolver.skillsGlobalDir); skillTool != nil {
 		tools = append(tools, skillTool)
+	}
+	// todo_write is working-directory independent (it keys off the session id,
+	// not the cwd), so it's built once and given to both roles — a delegated
+	// subtask tracks its own task list the same way the main agent does.
+	if g.resolver.todo != nil {
+		tools = append(tools, g.resolver.todo)
 	}
 	if g.role == ToolRoleCoding {
 		// Coding role only: the `task` delegation tool (no recursion) and

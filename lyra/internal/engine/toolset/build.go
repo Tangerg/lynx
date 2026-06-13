@@ -9,11 +9,13 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/lsptools"
 	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/shell"
 	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/skill"
+	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/todotool"
 	"github.com/Tangerg/lynx/lyra/internal/infra/a2a"
 	"github.com/Tangerg/lynx/lyra/internal/infra/exec"
 	"github.com/Tangerg/lynx/lyra/internal/infra/mcp"
 	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
 	"github.com/Tangerg/lynx/lyra/internal/service/editguard"
+	"github.com/Tangerg/lynx/lyra/internal/service/todo"
 )
 
 // This file is the tool-assembly entry point. It is the SOLE place that
@@ -51,6 +53,7 @@ type BuildConfig struct {
 	LSPServers      []codeintel.ServerSpec
 	MCPServers      []mcp.ServerConfig
 	A2AAgents       []a2a.ClientConfig
+	Todos           todo.Service // backs todo_write; nil → the tool is omitted
 }
 
 // Built is the assembled tool environment handed to the engine core: the
@@ -91,6 +94,11 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 	// resolver gates it (sub-agents don't supervise sub-process interrupts).
 	askUserTool := askuser.New()
 
+	// todo_write maintains the per-session task list. nil cfg.Todos yields a nil
+	// tool that's simply omitted (feature off). Working-directory independent
+	// (keys off the session id), so built once and given to both roles.
+	todoTool := todotool.New(cfg.Todos)
+
 	mcpConns, mcpTools, err := mcp.Dial(ctx, cfg.MCPServers)
 	if err != nil {
 		return Built{}, err
@@ -110,6 +118,7 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 		LSP:             lspTools,
 		Shell:           shellTools,
 		AskUser:         askUserTool,
+		Todo:            todoTool,
 		CodeIntel:       codeIntel,
 		ReadTracker:     tracker,
 	})
@@ -127,6 +136,9 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 	tools = append(tools, askUserTool)
 	if skillTool := skill.Build(cfg.Workdir, cfg.SkillsGlobalDir); skillTool != nil {
 		tools = append(tools, skillTool)
+	}
+	if todoTool != nil {
+		tools = append(tools, todoTool)
 	}
 
 	return Built{
