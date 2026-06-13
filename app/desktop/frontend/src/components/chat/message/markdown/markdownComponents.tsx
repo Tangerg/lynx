@@ -81,15 +81,13 @@ export const markdownComponents: Components = {
   pre({ children }) {
     return <>{children}</>;
   },
-  code({ className, children, ...rest }) {
+  code({ className, children }) {
     const cls = String(className ?? "");
     const match = /language-([\w+-]+)/.exec(cls);
     if (!match) {
-      return (
-        <code className={cls} {...rest}>
-          {children}
-        </code>
-      );
+      // Don't spread the rest props — react-markdown's passNode puts the hast
+      // `node` in there, which would leak onto the DOM as node="[object Object]".
+      return <code className={cls}>{children}</code>;
     }
     // Regex has a capture group, so match[1] is defined when match is.
     const lang = match[1]!.toLowerCase();
@@ -98,16 +96,19 @@ export const markdownComponents: Components = {
     if (lang === "html" || lang === "htm") return <HtmlArtifact code={codeStr} />;
     return <ShikiCodeBlock lang={lang} code={codeStr} />;
   },
-  table({ children, ...rest }) {
+  table({ children }) {
+    // No rest spread — keep the hast `node` off the DOM (see `code`).
     return (
       <div className="md-table-wrap">
-        <table {...rest}>{children}</table>
+        <table>{children}</table>
       </div>
     );
   },
-  a({ href, children, ...rest }) {
+  a({ href, title, children }) {
+    // Forward only real anchor attrs (href/title); the rest carries the hast
+    // `node`, which must not reach the DOM.
     return (
-      <a href={href} target="_blank" rel="noopener noreferrer" {...rest}>
+      <a href={href} title={title} target="_blank" rel="noopener noreferrer">
         {children}
       </a>
     );
@@ -120,10 +121,14 @@ export const markdownComponents: Components = {
   // passes through unchanged.
   sup({ children, ...rest }) {
     const ds = (rest as { "data-citation"?: string })["data-citation"];
-    if (ds) {
+    const n = Number(ds);
+    // Only the rehypeCitations-emitted numeric data-citation becomes a badge; a
+    // hand-authored `<sup data-citation="abc">` (n=NaN) falls through to plain.
+    if (ds && Number.isInteger(n)) {
       const label = typeof children === "string" ? children : `[${ds}]`;
-      return <CitationBadge n={Number(ds)} label={label} />;
+      return <CitationBadge n={n} label={label} />;
     }
-    return <sup {...rest}>{children}</sup>;
+    // No rest spread — keep the hast `node` off the DOM (see `code`).
+    return <sup>{children}</sup>;
   },
 };
