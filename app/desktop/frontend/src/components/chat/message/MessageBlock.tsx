@@ -13,6 +13,7 @@ import type { Message } from "@/protocol/run/viewState";
 import { memo, useMemo, useRef } from "react";
 import { Icon } from "@/components/common";
 import { Avatar } from "@/components/common/Avatar";
+import { ToolGroup } from "@/components/tools/ToolGroup";
 import { cn } from "@/lib/utils";
 import { MESSAGE_ROLE, useCitationSources, useExtensionByKey } from "@/plugins/sdk";
 import { Slot } from "@/plugins/host/Slot";
@@ -21,7 +22,7 @@ import { MessageContext } from "@/plugins/sdk/messageContext";
 import { CitationContext } from "./CitationContext";
 import { MessageContextMenu } from "./MessageContextMenu";
 import { MessageOutline } from "./MessageOutline";
-import { renderBlock } from "./BlockRenderer";
+import { planRenderUnits, renderBlock } from "./BlockRenderer";
 
 function MessageBlockInner({
   msg,
@@ -131,11 +132,24 @@ function MessageBlockInner({
                     "max-w-[580px] rounded-[14px_14px_4px_14px] bg-surface-2 px-3.5 py-2.5 text-left light:bg-surface-3",
                 )}
               >
-                {msg.blocks.map((block, i) => {
-                  if (block.kind === "text" && block.status === "running" && i !== lastIdx) {
-                    return renderBlock({ ...block, status: "complete" }, i, blockCtx);
+                {planRenderUnits(msg.blocks, blockCtx.toolCalls).map((unit) => {
+                  if (unit.kind === "toolGroup") {
+                    return (
+                      <ToolGroup
+                        key={`group-${unit.tools[0]!.id}`}
+                        tools={unit.tools}
+                        selectedToolId={blockCtx.selectedToolId}
+                        onSelectTool={blockCtx.onSelectTool}
+                        expandedIds={blockCtx.expandedIds}
+                        onToggleExpand={blockCtx.onToggleExpand}
+                      />
+                    );
                   }
-                  return renderBlock(block, i, blockCtx);
+                  const { block, index } = unit;
+                  if (block.kind === "text" && block.status === "running" && index !== lastIdx) {
+                    return renderBlock({ ...block, status: "complete" }, index, blockCtx);
+                  }
+                  return renderBlock(block, index, blockCtx);
                 })}
               </div>
             </div>

@@ -2,8 +2,56 @@ import type { ContentBlock, PlanItem, ToolCall } from "@/protocol/run/viewState"
 import { MarkdownMessage } from "./markdown/MarkdownMessage";
 import { ApprovalCard, PlanBlock, QuestionCard, ReasoningBlock } from "./cards";
 import { ToolCard } from "@/components/tools/ToolCard";
+import { isReadOnlyTool } from "@/components/tools/ToolGroup";
 import { PluginContentBlock } from "@/plugins/host/PluginContentBlock";
 import { openViewForTool } from "@/state/toolRouting";
+
+/**
+ * A unit of rendering: either a single content block (with its ORIGINAL index,
+ * which the caller's streaming-text coercion keys off) or a folded run of
+ * adjacent read-only tool calls.
+ */
+export type RenderUnit =
+  | { kind: "block"; block: ContentBlock; index: number }
+  | { kind: "toolGroup"; tools: ToolCall[] };
+
+/**
+ * Fold a message's blocks into render units, collapsing runs of 2+ adjacent
+ * read-only tool calls (`read` / `grep` / `glob` / `lsp_*`) into one
+ * `toolGroup` so a long agent turn stays scannable instead of flooding the
+ * transcript with a card per read. A lone read-only call, or any
+ * side-effecting tool, stays its own block and renders as a normal card. Pure
+ * and index-preserving — the caller still keys streaming-text coercion off the
+ * original block index.
+ */
+export function planRenderUnits(
+  blocks: ContentBlock[],
+  toolCalls: Record<string, ToolCall>,
+): RenderUnit[] {
+  const units: RenderUnit[] = [];
+  let run: { block: ContentBlock; index: number; tool: ToolCall }[] = [];
+  const flush = () => {
+    if (run.length >= 2) {
+      units.push({ kind: "toolGroup", tools: run.map((r) => r.tool) });
+    } else {
+      for (const r of run) units.push({ kind: "block", block: r.block, index: r.index });
+    }
+    run = [];
+  };
+  blocks.forEach((block, index) => {
+    if (block.kind === "tool") {
+      const tool = toolCalls[block.toolCallId];
+      if (tool && isReadOnlyTool(tool.name)) {
+        run.push({ block, index, tool });
+        return;
+      }
+    }
+    flush(); // a non-grouped block breaks the run
+    units.push({ kind: "block", block, index });
+  });
+  flush();
+  return units;
+}
 
 /**
  * Per-render bag of data threaded into block renderers. Kept narrow —
