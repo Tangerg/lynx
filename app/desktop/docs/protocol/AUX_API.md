@@ -4,7 +4,7 @@
 > checkpoints/回退、审批 scope、MCP 生命周期**，以及一批**移除项**。前后端按本文**并行开工**;落地时各方法并入 `API.md`
 > 对应小节(每条标了落点),本文届时退为导读。
 >
-> 设计依据见 `2026-06-10/` 目录的调研与评审记录(8 家 agent + 四轮评审,已定稿)。本文只写**契约**,不含讨论。
+> 设计经 8 家 agent 调研 + 四轮评审定稿;本文只写**契约**,不含讨论。
 > 约定沿用 `API.md`:id 带类型前缀;list 统一 `Page<T>`(`{data, nextCursor}`);错误用 `ProblemData{type, channel, detail}`,
 > 客户端按 `type`(符号名)判错;能力位走 `ServerCapabilities.features`;下行事件沿用 `notifications.*` 信封。
 > `§x.y` 指 `API.md`。标 **[v1]** 本期交付,**[v2]** 形状已定、暂不实现。
