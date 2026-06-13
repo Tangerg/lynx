@@ -5,9 +5,11 @@
 import { DataView } from "@/components/common";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useSkills } from "@/lib/data/queries";
+import { useServerFeature } from "@/state/runtimeStore";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 
 function SkillsTab() {
+  const skillsEnabled = useServerFeature("skills");
   const { data, isLoading, isError } = useSkills();
   const skills = data ?? [];
 
@@ -16,7 +18,7 @@ function SkillsTab() {
       icon="sparkle"
       titleStrong
       title="Skills"
-      sub={`${skills.length} available`}
+      sub={skillsEnabled ? `${skills.length} available` : "off"}
       scrollClassName="py-1"
     >
       <DataView
@@ -24,11 +26,19 @@ function SkillsTab() {
         isLoading={isLoading}
         isError={isError}
         skeletonCount={4}
-        empty={{
-          icon: "sparkle",
-          title: "No skills",
-          sub: "Skills discovered in this project's working directory show up here.",
-        }}
+        empty={
+          skillsEnabled
+            ? {
+                icon: "sparkle",
+                title: "No skills",
+                sub: "Skills discovered in this project's working directory show up here.",
+              }
+            : {
+                icon: "sparkle",
+                title: "Skills are off",
+                sub: "This runtime doesn't advertise the skills feature.",
+              }
+        }
       >
         {(rows) => (
           <div className="flex flex-col">
