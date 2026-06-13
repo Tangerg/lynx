@@ -15,12 +15,18 @@
 // layout.css), so an idle bar reads as just "● idle" with no dangling pipes.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { StatusDot, Tooltip } from "@/components/common";
+import { Icon, StatusDot, Tooltip } from "@/components/common";
+import { rpcErrorText } from "@/lib/agent/errorCopy";
 import { useActiveSession } from "@/lib/agent/useActiveSession";
 import { SESSIONS_KEY } from "@/lib/data/queries";
 import { queryClient } from "@/lib/data/queryClient";
+import { notifyError } from "@/lib/notify";
+import { getContainer } from "@/main/container";
 import { definePlugin } from "@/plugins/sdk";
+import { asSessionId } from "@/rpc";
 import { useAgentSlice } from "@/state/agentStore";
+import { useServerFeature } from "@/state/runtimeStore";
+import { useSessionStore } from "@/state/sessionStore";
 
 // "1.2k" / "200k" / "1.5M" → number. Conservative; NaN when unparseable so
 // callers fall back gracefully.
@@ -97,6 +103,47 @@ function ContextBudget() {
           {used}/{total} · {ctxPct}%
         </span>
       </span>
+    </Tooltip>
+  );
+}
+
+// One-click context compaction (B10) — summarize earlier messages to reclaim
+// room. Surfaces only when the runtime supports it (features.compaction), a
+// session is active, and context is filling up (a low-context compact is a
+// wasted LLM round-trip). The result streams back as a compaction Item +
+// updated usage, so the bar's ctx% falls on its own — no optimistic patching.
+function CompactButton() {
+  const enabled = useServerFeature("compaction");
+  const ctxPct = useAgentSlice((v) => v.run.ctxPct);
+  const sessionId = useSessionStore((s) => s.activeSessionId);
+  const [busy, setBusy] = useState(false);
+  if (!enabled || !sessionId || (Number(ctxPct) || 0) < 75) return null;
+
+  const compact = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await getContainer()
+        .client()
+        .sessions.compact({ sessionId: asSessionId(sessionId) });
+    } catch (err) {
+      notifyError(rpcErrorText(err) ?? "Couldn't compact the conversation.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Tooltip label="Compact context — summarize earlier messages to free room">
+      <button
+        type="button"
+        className="sb-item text-warning hover:text-fg disabled:opacity-60"
+        onClick={() => void compact()}
+        disabled={busy}
+      >
+        <Icon name="minimize" size={12} />
+        <span>{busy ? "compacting…" : "compact"}</span>
+      </button>
     </Tooltip>
   );
 }
@@ -217,6 +264,7 @@ function StatusBar() {
       <RunStatus />
       <RunId />
       <ContextBudget />
+      <CompactButton />
       <Throughput />
       <SessionCost />
     </>
