@@ -13,7 +13,7 @@
 import type { Message } from "@/protocol/run/viewState";
 import type { ReactNode } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
-import { Icon, MENU_CONTENT_CLASSES, MENU_ITEM_CLASSES } from "@/components/common";
+import { MENU_CONTENT_CLASSES, MenuIconItem } from "@/components/common";
 import {
   editAndRerunMessage,
   editMessageInComposer,
@@ -48,7 +48,7 @@ export function MessageContextMenu({ msg, children }: Props) {
       <ContextMenu.Portal>
         <ContextMenu.Content className={cn(MENU_CONTENT_CLASSES, "min-w-[180px]")}>
           {canCopy && (
-            <Item
+            <MenuIconItem
               icon="copy"
               onSelect={() =>
                 void writeToClipboard(markdown || plain, {
@@ -57,97 +57,77 @@ export function MessageContextMenu({ msg, children }: Props) {
               }
             >
               Copy as markdown
-            </Item>
+            </MenuIconItem>
           )}
           {plain && (
-            <Item
+            <MenuIconItem
               icon="copy"
               onSelect={() =>
                 void writeToClipboard(plain, { successLabel: "Copied as plain text" })
               }
             >
               Copy as plain text
-            </Item>
+            </MenuIconItem>
           )}
           {code && (
-            <Item
+            <MenuIconItem
               icon="code"
               onSelect={() => void writeToClipboard(code, { successLabel: "Code copied" })}
             >
               Copy code only
-            </Item>
+            </MenuIconItem>
           )}
           {isUser && plain && (
             <>
               <Separator />
-              <Item icon="edit" onSelect={() => editMessageInComposer(msg)}>
+              <MenuIconItem icon="edit" onSelect={() => editMessageInComposer(msg)}>
                 Edit in composer
-              </Item>
+              </MenuIconItem>
               {/* Destructive variant: rewinds history to before this turn
                   (sessions.rollback), then prefills the composer. */}
               {msg.runId && (
-                <Item icon="loop" onSelect={() => editAndRerunMessage(msg)}>
+                <MenuIconItem icon="loop" onSelect={() => editAndRerunMessage(msg)}>
                   Edit & rerun from here
-                </Item>
+                </MenuIconItem>
               )}
               {/* Same rewind, but also restores the working tree to the
                   pre-turn shadow-git checkpoint (restoreType:"both"). */}
               {msg.runId && canRestoreFiles && (
-                <Item
+                <MenuIconItem
                   icon="history"
                   onSelect={() => editAndRerunMessage(msg, { restoreFiles: true })}
                 >
                   Edit & rerun, restore files
-                </Item>
+                </MenuIconItem>
               )}
               {/* Non-destructive sibling of Edit & rerun: branch a new
                   session that keeps history through this exchange. */}
               {msg.runId && (
-                <Item icon="branch" onSelect={() => forkFromMessage(msg)}>
+                <MenuIconItem icon="branch" onSelect={() => forkFromMessage(msg)}>
                   Fork up to here
-                </Item>
+                </MenuIconItem>
               )}
             </>
           )}
           {isAssistant && (
             <>
               <Separator />
-              <Item icon="loop" onSelect={() => regenerateMessage(msg)}>
+              <MenuIconItem icon="loop" onSelect={() => regenerateMessage(msg)}>
                 Regenerate
-              </Item>
+              </MenuIconItem>
               {canRestoreFiles && (
-                <Item
+                <MenuIconItem
                   icon="history"
                   onSelect={() => regenerateMessage(msg, { restoreFiles: true })}
                 >
                   Regenerate, restore files
-                </Item>
+                </MenuIconItem>
               )}
             </>
           )}
         </ContextMenu.Content>
       </ContextMenu.Portal>
     </ContextMenu.Root>
-  );
-}
-
-function Item({
-  icon,
-  onSelect,
-  children,
-}: {
-  icon: "copy" | "code" | "edit" | "loop" | "branch" | "history";
-  onSelect: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <ContextMenu.Item
-      onSelect={onSelect}
-      className={cn(MENU_ITEM_CLASSES, "grid-cols-[14px_minmax(0,1fr)]")}
-    >
-      <Icon name={icon} size={12} />
-      <span className="truncate">{children}</span>
-    </ContextMenu.Item>
   );
 }
 

@@ -15,12 +15,7 @@ import { cn } from "@/lib/utils";
 import { getContainer } from "@/main/container";
 import { useServerFeature } from "@/state/runtimeStore";
 import { defineWorkspaceView } from "./defineWorkspaceView";
-
-const SCOPE_LABEL: Record<MemoryEntryInfo["scope"], string> = {
-  cwd: "cwd",
-  projectRoot: "project root",
-  home: "home",
-};
+import { scopeLabel } from "./views/scopeLabel";
 
 function MemoryRow({ entry, cwd }: { entry: MemoryEntryInfo; cwd?: string }) {
   const [open, setOpen] = useState(false);
@@ -64,7 +59,7 @@ function MemoryRow({ entry, cwd }: { entry: MemoryEntryInfo; cwd?: string }) {
         />
         <span className="truncate font-mono text-[12px] text-fg">{entry.path}</span>
         <span className="rounded-full bg-surface-2 px-1.5 py-px text-[10px] text-fg-muted">
-          {SCOPE_LABEL[entry.scope]}
+          {scopeLabel(entry.scope)}
         </span>
       </button>
       {open && (
