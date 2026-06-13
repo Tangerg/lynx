@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { asItemId, asRunId, type InterruptResponse } from "@/rpc";
 import { useAgentStore } from "@/state/agentStore";
 import { useSessionStore } from "@/state/sessionStore";
@@ -24,21 +24,32 @@ type ResolvePatch = { decision?: "approved" | "declined"; answered?: boolean };
 export function useInterruptResume<P>(parentRunId?: string, itemId?: string) {
   const [pending, setPending] = useState<P | null>(null);
   const [sessionId] = useState(() => useSessionStore.getState().activeSessionId);
+  // Synchronous one-shot latch. `pending` state only updates on the next render,
+  // so two submits in the same tick (a fast double-click landing before the card
+  // disables its buttons) would both pass a `pending`-based guard and fire two
+  // runs.resume. The ref closes that window — parity with useAgentSession.send's
+  // `starting` latch. Cleared only on channel-a failure (card stays retryable);
+  // on success it stays latched, since the interrupt is now resolved.
+  const submitted = useRef(false);
 
   const resume = useCallback(
     (marker: P, response: InterruptResponse["response"], settled: ResolvePatch) => {
-      if (!parentRunId || !itemId || pending !== null) return;
+      if (!parentRunId || !itemId || submitted.current) return;
       const sessionResume = useAgentStore.getState().sessions[sessionId]?.resume;
       if (!sessionResume) return;
+      submitted.current = true;
       setPending(marker);
       sessionResume(
         asRunId(parentRunId),
         [{ itemId: asItemId(itemId), response }],
         () => useAgentStore.getState().resolveInterrupt(sessionId, itemId, settled),
-        () => setPending(null),
+        () => {
+          submitted.current = false;
+          setPending(null);
+        },
       );
     },
-    [parentRunId, itemId, pending, sessionId],
+    [parentRunId, itemId, sessionId],
   );
 
   return { pending, resume };
