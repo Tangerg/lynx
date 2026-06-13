@@ -96,13 +96,15 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
   );
 
   const onCopy = () => {
-    void copyText(code);
-    setCopied(true);
-    if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
-    copyTimerRef.current = window.setTimeout(() => {
-      setCopied(false);
-      copyTimerRef.current = null;
-    }, 1500);
+    void copyText(code).then((ok) => {
+      if (!ok) return; // clipboard unavailable — don't flash a false "Copied"
+      setCopied(true);
+      if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = window.setTimeout(() => {
+        setCopied(false);
+        copyTimerRef.current = null;
+      }, 1500);
+    });
   };
 
   // Streaming → raw <pre> fallback; settled → swap to highlighted.
