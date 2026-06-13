@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/shell"
 	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/skill"
 	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/turnctx"
 	"github.com/Tangerg/lynx/lyra/internal/infra/exec"
@@ -50,7 +51,7 @@ func wrapTool(inner chat.Tool, call func(ctx context.Context, arguments string) 
 // the working directory, so they are rebuilt per resolution (cheap structs)
 // rather than captured once. No credentials needed; safe to build
 // unconditionally. (bash is built over the shared exec.Manager in
-// BuildShellTools, not here — it reads cwd per call like bash_output.)
+// shell.Build, not here — it reads cwd per call like bash_output.)
 //
 // write and edit are wrapped so a successful edit is type-checked by the
 // code-intelligence service and any new problems are folded into the tool
@@ -203,14 +204,14 @@ type Deps struct {
 // SetAskUser] (they need the platform / the engine's HITL contract); the MCP
 // tool set is seeded + hot-swapped via [Resolver.SetMCPTools].
 func NewResolver(d Deps) *Resolver {
-	shell := d.Shell
-	if shell == nil {
+	shellTools := d.Shell
+	if shellTools == nil {
 		// Bare resolver (a unit-test engine with no injected tool environment):
 		// own a private exec.Manager so bash and its background companions are
 		// still available. The production path injects shell tools built over the
 		// shared manager whose KillAll is a shutdown closer (toolset.Build); this
 		// private manager has no closer, fine for a process-lifetime test engine.
-		shell = BuildShellTools(exec.NewManager(), d.DefaultWorkdir)
+		shellTools = shell.Build(exec.NewManager(), d.DefaultWorkdir)
 	}
 	return &Resolver{
 		defaultWorkdir:  d.DefaultWorkdir,
@@ -218,7 +219,7 @@ func NewResolver(d Deps) *Resolver {
 		online:          d.Online,
 		a2a:             d.A2A,
 		lsp:             d.LSP,
-		shell:           shell,
+		shell:           shellTools,
 		askUser:         d.AskUser,
 		codeIntel:       d.CodeIntel,
 		readTracker:     d.ReadTracker,

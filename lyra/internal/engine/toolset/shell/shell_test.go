@@ -1,4 +1,4 @@
-package toolset
+package shell
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 // shellTool returns the named tool from a freshly-built shell tool set.
 func shellTool(t *testing.T, mgr *exec.Manager, name string) chat.Tool {
 	t.Helper()
-	for _, tl := range BuildShellTools(mgr, t.TempDir()) {
+	for _, tl := range Build(mgr, t.TempDir()) {
 		if tl.Definition().Name == name {
 			return tl
 		}

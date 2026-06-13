@@ -1,4 +1,4 @@
-package toolset
+package shell
 
 import (
 	"context"
@@ -41,7 +41,7 @@ const (
 	bgShellIDSchema = `{"type":"object","properties":{"shell_id":{"type":"string","description":"Background shell id returned by bash when a long-running command was moved to the background."}},"required":["shell_id"]}`
 )
 
-func BuildShellTools(mgr *exec.Manager, defaultWorkdir string) []chat.Tool {
+func Build(mgr *exec.Manager, defaultWorkdir string) []chat.Tool {
 	bash, _ := chat.NewTool(
 		chat.ToolDefinition{
 			Name: "bash",

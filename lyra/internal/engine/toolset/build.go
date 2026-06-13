@@ -6,6 +6,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 
 	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/askuser"
+	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/shell"
 	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/skill"
 	"github.com/Tangerg/lynx/lyra/internal/infra/a2a"
 	"github.com/Tangerg/lynx/lyra/internal/infra/exec"
@@ -82,7 +83,7 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 	tracker := editguard.NewTracker()
 
 	bg := exec.NewManager()
-	shellTools := BuildShellTools(bg, cfg.Workdir)
+	shellTools := shell.Build(bg, cfg.Workdir)
 
 	// ask_user is self-contained (SDK HITL + interrupts.Resolution), so it's a
 	// plain build-time tool here, not engine-injected. Coding role only — the
