@@ -11,6 +11,7 @@ export { memoryView } from "./memory";
 export { skillsView } from "./skills";
 export { notificationsView } from "./notifications";
 export { planView } from "./plan";
+export { todosView } from "./todos";
 export { runSummaryView } from "./run-summary";
 export { searchView } from "./search";
 export { terminalView } from "./terminal";
