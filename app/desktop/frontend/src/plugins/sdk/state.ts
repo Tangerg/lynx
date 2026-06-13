@@ -96,11 +96,21 @@ export function appendTimelineEntry(
   entry: Omit<TimelineEntry, "id" | "ts" | "runId"> & { runId?: string | null },
 ): StateUpdate {
   return (state) => {
+    const runId = entry.runId ?? state.run.runId;
+    // Idempotent on the natural key (kind + refId, or kind + runId for run-level
+    // entries): the same run-significant event can arrive twice — items.list
+    // history replay and a runs.subscribe reconnect/reload replay are separate
+    // delivery channels, so the stream's seenEventIds can't dedupe across them.
+    // Skip the re-delivery rather than double the Timeline row (+ inflate runDigest).
+    const key = entry.refId ?? runId;
+    if (key && state.timeline.some((e) => e.kind === entry.kind && (e.refId ?? e.runId) === key)) {
+      return state;
+    }
     timelineSeq += 1;
     const full: TimelineEntry = {
       id: `tl:${Date.now()}:${timelineSeq}`,
       ts: Date.now(),
-      runId: entry.runId ?? state.run.runId,
+      runId,
       kind: entry.kind,
       summary: entry.summary,
       refId: entry.refId,
