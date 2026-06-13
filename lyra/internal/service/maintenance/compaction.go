@@ -12,23 +12,36 @@ import (
 )
 
 // compactionDefaults govern the auto-compact trigger. Tunable via
-// [CompactionConfig]; the defaults aim at "comfortably fits in
-// 128k-context models" without doing per-turn token math.
+// [CompactionConfig]. Two independent triggers, OR-composed: a raw
+// message count and an estimated token footprint. The token trigger
+// catches a conversation whose few messages carry large tool outputs (a
+// single file read can outweigh twenty short turns) — which a message
+// count alone misses. The defaults aim at "comfortably fits in
+// 128k-context models".
 const (
-	defaultCompactThreshold  = 24 // total messages before we trigger
-	defaultCompactKeepRecent = 6  // raw messages to preserve verbatim
+	defaultCompactMaxMessages = 24      // message count before we trigger
+	defaultCompactKeepRecent  = 6       // raw messages to preserve verbatim
+	defaultCompactMaxTokens   = 100_000 // estimated token footprint before we trigger
+
+	// charsPerToken is the coarse chars→tokens divisor used ONLY for the
+	// compaction trigger estimate — never for billing. ~4 chars/token is
+	// the usual English rule of thumb; the field (Crush / harness9 / pi)
+	// all drive this decision with a similar cheap heuristic rather than
+	// paying for real tokenization every turn boundary.
+	charsPerToken = 4
 )
 
 // CompactionConfig tunes the auto-compaction heuristic.
 //
-// MaxMessages is the upper bound that triggers a compaction sweep.
-// When the conversation grows past it, the oldest
-// (len - KeepRecent) messages are replaced by a single system
+// A sweep triggers when EITHER bound is breached: MaxMessages (raw
+// message count) or MaxTokens (estimated token footprint). On a sweep the
+// oldest (len - KeepRecent) messages are replaced by a single system
 // message carrying an LLM-generated summary.
 //
 // Zero values fall back to the package defaults.
 type CompactionConfig struct {
-	MaxMessages int // default: defaultCompactThreshold
+	MaxMessages int // default: defaultCompactMaxMessages
+	MaxTokens   int // default: defaultCompactMaxTokens (estimated footprint)
 	KeepRecent  int // default: defaultCompactKeepRecent
 }
 
@@ -36,40 +49,47 @@ type CompactionConfig struct {
 // unless compaction is disabled (negative MaxMessages); a nil
 // Compactor makes [Compactor.MaybeCompact] a silent no-op.
 type Compactor struct {
-	store      memory.Store
-	client     *chat.Client
-	threshold  int
-	keepRecent int
+	store       memory.Store
+	client      *chat.Client
+	maxMessages int
+	maxTokens   int
+	keepRecent  int
 }
 
 // NewCompactor builds a Compactor over the chat-memory store and chat
 // client. Zero / out-of-range config fields fall back to the package
 // defaults.
 func NewCompactor(store memory.Store, client *chat.Client, cfg CompactionConfig) *Compactor {
-	threshold := cfg.MaxMessages
-	if threshold <= 0 {
-		threshold = defaultCompactThreshold
+	maxMessages := cfg.MaxMessages
+	if maxMessages <= 0 {
+		maxMessages = defaultCompactMaxMessages
+	}
+	maxTokens := cfg.MaxTokens
+	if maxTokens <= 0 {
+		maxTokens = defaultCompactMaxTokens
 	}
 	keep := cfg.KeepRecent
 	if keep <= 0 {
 		keep = defaultCompactKeepRecent
 	}
-	// Sanity: keep must be < threshold or compaction would loop on
+	// Sanity: keep must be < maxMessages or compaction would loop on
 	// the same message set.
-	if keep >= threshold {
-		keep = threshold / 2
+	if keep >= maxMessages {
+		keep = maxMessages / 2
 	}
 	return &Compactor{
-		store:      store,
-		client:     client,
-		threshold:  threshold,
-		keepRecent: keep,
+		store:       store,
+		client:      client,
+		maxMessages: maxMessages,
+		maxTokens:   maxTokens,
+		keepRecent:  keep,
 	}
 }
 
-// MaybeCompact inspects sessionID's history. When the message
-// count exceeds the threshold the older slice is summarized and
-// the store is rewritten as [summary, recent...]. The returned
+// MaybeCompact inspects sessionID's history. When either trigger
+// (message count or estimated token footprint, see [shouldCompact]) is
+// breached the older slice is summarized and the store is rewritten as
+// [summary, recent...]. The returned
 // [engine.CompactionResult] reports whether the sweep fired and the
 // before/after message counts so callers can both chain follow-on
 // work (e.g. extraction) and surface an observable boundary event.
@@ -89,7 +109,7 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string) (engine.
 	if err != nil {
 		return engine.CompactionResult{}, fmt.Errorf("compactor: read: %w", err)
 	}
-	if len(msgs) < c.threshold {
+	if !c.shouldCompact(msgs) {
 		return engine.CompactionResult{}, nil
 	}
 
@@ -136,6 +156,30 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string) (engine.
 		MessagesBefore: before,
 		MessagesAfter:  len(rewritten),
 	}, nil
+}
+
+// shouldCompact reports whether msgs has grown past either trigger: the
+// raw message count or the estimated token footprint. The token estimate
+// (see [estimateTokens]) is what catches a short conversation bloated by
+// large tool results, which the message count alone misses. Guards a nil
+// receiver so callers never pre-check.
+func (c *Compactor) shouldCompact(msgs []chat.Message) bool {
+	if c == nil {
+		return false
+	}
+	if len(msgs) >= c.maxMessages {
+		return true
+	}
+	return estimateTokens(msgs) >= c.maxTokens
+}
+
+// estimateTokens approximates the token footprint of msgs from the
+// flattened transcript length ([charsPerToken]). Deliberately coarse — it
+// drives only the compaction trigger, never billing — and reuses
+// [renderTranscript] so tool-result bodies (the bulk of a coding
+// conversation) are counted, not just chat text.
+func estimateTokens(msgs []chat.Message) int {
+	return len(renderTranscript(msgs)) / charsPerToken
 }
 
 // summarize asks the LLM to fold the older messages into a single
