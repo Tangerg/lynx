@@ -219,11 +219,13 @@ export interface RunRef {
 export type RunMode = "agent" | "chat" | "plan";
 
 export type RunOutcome =
-  | { type: "completed"; result: RunResult }
-  | { type: "error"; result: RunResult } // result.error: ProblemData (with detail)
-  | { type: "maxSteps"; result: RunResult; detail?: string } // step ceiling within one Run (counted by step, not turn)
-  | { type: "maxBudget"; result: RunResult; detail?: string } // cost ceiling (incl. subagent subtree); detail like "spent $4.20 / cap $4.00"
-  | { type: "canceled"; result: RunResult; detail?: string } // runs.cancel reason flows here
+  // `result` is `*RunResult` + omitempty on the wire, so a minimal/non-conformant
+  // backend can omit it — consumers must guard (the fold does), never deref blind.
+  | { type: "completed"; result?: RunResult }
+  | { type: "error"; result?: RunResult } // result.error: ProblemData (with detail)
+  | { type: "maxSteps"; result?: RunResult; detail?: string } // step ceiling within one Run (counted by step, not turn)
+  | { type: "maxBudget"; result?: RunResult; detail?: string } // cost ceiling (incl. subagent subtree); detail like "spent $4.20 / cap $4.00"
+  | { type: "canceled"; result?: RunResult; detail?: string } // runs.cancel reason flows here
   | { type: "interrupt"; interrupts: Interrupt[] }; // ★resumable; Run already ended, resources freed
 
 // Total cost reads `usage.costUsd` — there is NO RunResult.costUsd (avoids two
@@ -473,9 +475,11 @@ export interface GenerationParams {
 // (read payload.tool — name+arguments always present). question is
 // self-contained (S1): its payload carries the Question, so no items.list join.
 export type Interrupt =
-  | { type: "approval"; itemId: ItemId; payload: ApprovalPayload }
-  | { type: "question"; itemId: ItemId; payload: { question: Question } }
-  | { type: "toolResult"; itemId: ItemId; payload: ToolResultPayload };
+  // payload is `map[string]any` + omitempty on the wire — guard it (the fold
+  // does) so a minimal/non-conformant backend can't strand an un-actionable card.
+  | { type: "approval"; itemId: ItemId; payload?: ApprovalPayload }
+  | { type: "question"; itemId: ItemId; payload?: { question: Question } }
+  | { type: "toolResult"; itemId: ItemId; payload?: ToolResultPayload };
 
 export interface ApprovalPayload {
   tool: ToolInvocation; // the tool awaiting approval (result not yet present)
