@@ -82,6 +82,17 @@ Stripe 是 **CRUD-over-REST 开发体验**的天花板,但我们的 API **只有
 
 **结论**:沿"我们这种形状"的坐标,**没有把优雅留在桌上**——能力协商、LRO、durable/ephemeral、判别联合,该有的都在,且血缘正统。理论上"更优雅"的只剩两条:**field mask**(YAGNI,浅对象不值)与**真正的 sum type**(Go 限制,但 wire 上已是干净联合)。Stripe 之外**唯一值得长期内化的一条原则是"让非法状态不可表达"**——它已落在 wire 的 TS 契约上,Go 侧的扁平是不做 codegen 的自觉代价(本仓既定决策)。换句话说:**该向 Stripe 学的我们学到了,该超越 Stripe 的地方(流式/LRO/能力协商)我们走的是更对口的 LSP/MCP/AIP 血脉。**
 
+### 2.5 旁路 API 已对齐核心(2026-06-14 落地)
+
+把旁路 API 提到核心同一条 typed-enum + 复用 PageQuery 的纪律线上,**全非破坏**(`type X string` 与 struct embed 的 wire JSON 一字不变),三批落地:
+
+- **输入闭合枚举 typed 化** + `Valid()`:`DiffMode`(worktree|base)、`DiffFormat`(rows|raw)、`FeedbackRating`(positive|negative)——对齐 `RunMode`/`RestoreType`/`ExportFormat`/`MemoryScope`。
+- **响应 status 枚举 typed 化**(对齐核心 `SessionStatus`/`RunStatus`,无 Valid):`FileStatus`(WorkspaceFileChange/FileDiff/FileEdit 共用一套词汇)、`McpStatus`、`McpAuthStatus`、`WorkspaceEventType`。
+- **复用 `PageQuery`**:`ListModelsRequest`/`MCPListToolsRequest`/`ListRunsRequest`/`ListOpenInterruptsRequest` 从手搓 `cursor`/`limit` 改为 embed `PageQuery`(对齐 `WorkspaceListQuery` 范式,消除分页字段漂移)。
+- **有意未做**:`ProviderType`(适配器集开放,不宜闭合 Valid)、`AgentDoc.Scope`(需 `MemoryScope→Scope` 共享改名)、`Skill.Source`(取值模糊)——低价值,留作触发条件。
+
+至此旁路 API 与核心 API 在参数纪律上**一致**:枚举皆 typed、列表皆 `Page[T]` + `PageQuery`、判别皆单 `type`、能力皆经 `features` map gating。
+
 ---
 
 ## 3. 仍可打磨的参数小项(低优先,非缺陷)
