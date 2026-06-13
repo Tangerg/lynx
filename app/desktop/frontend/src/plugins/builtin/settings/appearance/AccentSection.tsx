@@ -3,7 +3,7 @@
 
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { ACCENT, useExtensionPoint } from "@/plugins/sdk";
+import { ACCENT, resolveScheme, useExtensionPoint } from "@/plugins/sdk";
 import { useUiStore } from "@/state/uiStore";
 import { SettingRow } from "../SettingRow";
 
@@ -51,6 +51,11 @@ export function AccentSection() {
   const accents = useExtensionPoint(ACCENT);
   const accent = useUiStore((s) => s.accent);
   const setAccent = useUiStore((s) => s.setAccent);
+  // Swatch must paint the color that ACTUALLY applies in the current scheme:
+  // presets carry a hand-tuned `light` variant applyTheme uses in light themes,
+  // so painting the dark hex would show a color different from the one the app
+  // renders. (The stored key stays the dark hex — the active check is unchanged.)
+  const light = resolveScheme(useUiStore((s) => s.theme)) === "light";
 
   const isCustom = !accents.some((a) => a.dark === accent);
 
@@ -65,7 +70,7 @@ export function AccentSection() {
             title={`${t("settings.accent")}: ${a.label}`}
             aria-label={`${t("settings.accent")}: ${a.label}`}
             aria-pressed={accent === a.dark}
-            style={{ background: a.dark }}
+            style={{ background: light ? (a.light ?? a.dark) : a.dark }}
             className={cn(
               "h-4.5 w-4.5 rounded-full border-2 border-transparent bg-clip-padding p-0 transition-[transform,box-shadow] duration-150 active:scale-95",
               accent === a.dark && "border-surface shadow-[0_0_0_1.5px_var(--color-text)]",
