@@ -38,7 +38,7 @@ function slotKeyOf<T>(point: ExtensionPoint<T>, key: string): string {
   return composeExtensionKey(point.id, point.normalizeKey ? point.normalizeKey(key) : key);
 }
 
-interface Resolved {
+interface FlatContribution {
   key: string;
   order?: number;
   item: unknown;
@@ -70,7 +70,7 @@ function cachedBucketIndex<V>(
   };
 }
 
-const byPoint = cachedBucketIndex<Resolved>((o) => ({
+const byPoint = cachedBucketIndex<FlatContribution>((o) => ({
   key: o.value.point,
   value: { key: o.value.key, order: o.value.order, item: o.value.item },
 }));
@@ -78,7 +78,7 @@ const byPoint = cachedBucketIndex<Resolved>((o) => ({
 // Sort hint precedence: the item's own `order` field wins, then the
 // contribute-time `opts.order`, then a stable default. Array#sort is
 // stable so equal orders keep insertion order.
-function sortKey(e: Resolved): number {
+function sortKey(e: FlatContribution): number {
   const own = (e.item as { order?: number } | null)?.order;
   return own ?? e.order ?? 100;
 }
@@ -93,7 +93,7 @@ export interface ExtensionEntry<T> {
 function resolveEntries(
   extensions: Map<string, Owned<ContributionEntry>>,
   pointId: string,
-): Resolved[] {
+): FlatContribution[] {
   const list = byPoint(extensions).get(pointId) ?? [];
   return [...list].sort((a, b) => sortKey(a) - sortKey(b));
 }
