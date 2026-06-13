@@ -53,6 +53,14 @@ type Config struct {
 	// [chat.FinishReasonInterrupt] response whose tail the caller
 	// re-feeds to resume.
 	ParkStore ParkStore
+
+	// LoopDetection, when non-nil, enables the repeated-tool-round
+	// detector: a round whose (tool, arguments, result) signature recurs
+	// past the configured threshold halts the loop with a
+	// [LoopDetectedError] — well before [MaxIterations]. nil (the
+	// zero-value default) disables it, leaving the loop bounded only by
+	// MaxIterations. See [LoopDetectionConfig].
+	LoopDetection *LoopDetectionConfig
 }
 
 // MaxIterationsError is returned when the tool-calling loop exceeds its
@@ -85,6 +93,7 @@ type middleware struct {
 	maxIterations int
 	feedbackEmpty bool
 	parkStore     ParkStore
+	loopDetection *LoopDetectionConfig
 }
 
 // NewMiddleware constructs the tool-calling middleware pair. Pass an
@@ -104,6 +113,7 @@ func NewMiddleware(config ...Config) (chat.CallMiddleware, chat.StreamMiddleware
 		maxIterations: maxIterations,
 		feedbackEmpty: cfg.FeedbackOnEmptyResponse,
 		parkStore:     cfg.ParkStore,
+		loopDetection: cfg.LoopDetection,
 	}
 	return mw.wrapCallHandler, mw.wrapStreamHandler
 }
@@ -170,7 +180,7 @@ func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next ch
 		return m.resumeCall(ctx, req, point, next, inv)
 	}
 
-	return m.executeCallRecursively(ctx, req, next, inv, loopState{iteration: 1})
+	return m.executeCallRecursively(ctx, req, next, inv, newLoopDetector(m.loopDetection), loopState{iteration: 1})
 }
 
 // executeCallRecursively runs one round of model + tool execution. If
@@ -178,7 +188,7 @@ func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next ch
 // function re-prompts and recurses. state.iteration is the 1-based
 // model-call count; exceeding maxIterations aborts with a
 // [MaxIterationsError].
-func (m *middleware) executeCallRecursively(ctx context.Context, req *chat.Request, next chat.CallHandler, inv *invoker, state loopState) (*chat.Response, error) {
+func (m *middleware) executeCallRecursively(ctx context.Context, req *chat.Request, next chat.CallHandler, inv *invoker, det *loopDetector, state loopState) (*chat.Response, error) {
 	if state.iteration > m.maxIterations {
 		return nil, &MaxIterationsError{Limit: m.maxIterations}
 	}
@@ -192,7 +202,7 @@ func (m *middleware) executeCallRecursively(ctx context.Context, req *chat.Reque
 		if nudgeReq, ok, nudgeErr := m.maybeNudgeEmpty(req, resp, state); nudgeErr != nil {
 			return nil, nudgeErr
 		} else if ok {
-			return m.executeCallRecursively(ctx, nudgeReq, next, inv, state.nudged())
+			return m.executeCallRecursively(ctx, nudgeReq, next, inv, det, state.nudged())
 		}
 		return resp, nil
 	}
@@ -216,11 +226,18 @@ func (m *middleware) executeCallRecursively(ctx context.Context, req *chat.Reque
 		return result.buildReturnResponse()
 	}
 
+	if det != nil {
+		sig := roundSignature(resp.Result.AssistantMessage.CollectToolCalls(), result.toolMessage)
+		if stuck, count := det.observe(sig); stuck {
+			return nil, &LoopDetectedError{Count: count, Threshold: det.threshold, Window: det.window}
+		}
+	}
+
 	nextReq, err := result.buildContinueRequest()
 	if err != nil {
 		return nil, err
 	}
-	return m.executeCallRecursively(ctx, nextReq, next, inv, state.next())
+	return m.executeCallRecursively(ctx, nextReq, next, inv, det, state.next())
 }
 
 // executeStream is the streaming entry point. Same shape as executeCall
@@ -252,7 +269,7 @@ func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next 
 			return
 		}
 
-		m.executeStreamRecursively(ctx, req, next, inv, yield, loopState{iteration: 1})
+		m.executeStreamRecursively(ctx, req, next, inv, newLoopDetector(m.loopDetection), yield, loopState{iteration: 1})
 	}
 }
 
@@ -266,7 +283,7 @@ func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next 
 // the request history. This is the discriminator established in §8.4
 // of MESSAGE_PARTS_DESIGN: each yielded Response has exactly one of
 // Result.AssistantMessage or Result.ToolMessage populated.
-func (m *middleware) executeStreamRecursively(ctx context.Context, req *chat.Request, next chat.StreamHandler, inv *invoker, yield func(*chat.Response, error) bool, state loopState) {
+func (m *middleware) executeStreamRecursively(ctx context.Context, req *chat.Request, next chat.StreamHandler, inv *invoker, det *loopDetector, yield func(*chat.Response, error) bool, state loopState) {
 	if state.iteration > m.maxIterations {
 		yield(nil, &MaxIterationsError{Limit: m.maxIterations})
 		return
@@ -292,7 +309,7 @@ func (m *middleware) executeStreamRecursively(ctx context.Context, req *chat.Req
 		if nudgeReq, ok, nudgeErr := m.maybeNudgeEmpty(req, resp, state); nudgeErr != nil {
 			yield(nil, nudgeErr)
 		} else if ok {
-			m.executeStreamRecursively(ctx, nudgeReq, next, inv, yield, state.nudged())
+			m.executeStreamRecursively(ctx, nudgeReq, next, inv, det, yield, state.nudged())
 		}
 		return
 	}
@@ -326,12 +343,20 @@ func (m *middleware) executeStreamRecursively(ctx context.Context, req *chat.Req
 		}
 	}
 
+	if det != nil {
+		sig := roundSignature(resp.Result.AssistantMessage.CollectToolCalls(), result.toolMessage)
+		if stuck, count := det.observe(sig); stuck {
+			yield(nil, &LoopDetectedError{Count: count, Threshold: det.threshold, Window: det.window})
+			return
+		}
+	}
+
 	nextReq, err := result.buildContinueRequest()
 	if err != nil {
 		yield(nil, err)
 		return
 	}
-	m.executeStreamRecursively(ctx, nextReq, next, inv, yield, state.next())
+	m.executeStreamRecursively(ctx, nextReq, next, inv, det, yield, state.next())
 }
 
 // maybeNudgeEmpty decides whether to re-prompt after an empty model reply.
