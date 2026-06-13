@@ -119,7 +119,7 @@ function toSidebarFileChange(f: RpcFileChange): SidebarFileChange {
   };
 }
 
-// Capability-gated workspace reads (skills / agent docs) return
+// Capability-gated workspace reads (skills / agent docs / mcp) return
 // capability_not_negotiated when the runtime has the feature off (§9). Treat
 // that as "none" (an empty Page) so the view shows its empty state instead of
 // an error toast.
@@ -160,16 +160,20 @@ export const defaultData = definePlugin({
       // — no listServers⨝listTools join here; listTools is only for the
       // detail pane (pagination + inputSchema).
       fetcher: async () =>
-        (await client().workspace.mcp.listServers()).data.map(toSidebarMCPServer),
+        (await client().workspace.mcp.listServers().catch(emptyPageIfUngated)).data.map(
+          toSidebarMCPServer,
+        ),
     });
     host.extensions.contribute(DATA_PROVIDER, {
       key: MCP_TOOLS_KEY,
       // Per-server tool detail for the expanded row (counts ride inline on
       // the server entry; this is the name+description list).
       fetcher: async (params) =>
-        (await client().workspace.mcp.listTools((params as McpToolsQuery).server)).data.map(
-          (t) => ({ name: t.name, description: t.description ?? "" }),
-        ),
+        (
+          await client()
+            .workspace.mcp.listTools((params as McpToolsQuery).server)
+            .catch(emptyPageIfUngated)
+        ).data.map((t) => ({ name: t.name, description: t.description ?? "" })),
     });
     // Parameterized workspace reads — params come from the consumer hook
     // (queries.ts makeParamDataQuery), so each distinct query caches its own
