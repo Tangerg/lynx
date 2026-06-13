@@ -1,6 +1,6 @@
-// Package memory defines the MemoryService — Lyra's long-term memory
-// surface. Memory is the cascade of LYRA.md files (project + user
-// scopes) that get auto-injected into every session's system prompt.
+// Package knowledge defines the long-term knowledge Service — Lyra's
+// durable memory surface. It is the cascade of LYRA.md files (project +
+// user scopes) that get auto-injected into every session's system prompt.
 package knowledge
 
 import (
@@ -33,7 +33,7 @@ type Entry struct {
 	CapturedAt time.Time // when this entry last landed in LYRA.md
 }
 
-// Service is the MemoryService contract. The implementation is
+// Service is the long-term knowledge contract. The implementation is
 // file-backed (internal/storage) — LYRA.md stays a user-editable
 // file by design, the one deliberate exception to the SQLite backend.
 // dir on each method is the project directory [ScopeProject] reads
