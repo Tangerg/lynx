@@ -79,9 +79,9 @@ function ChatSearchOverlay() {
 
   // Listen for the shortcut. Stable handler; mount/unmount once.
   useEffect(() => {
-    const open = () => setOpen(true);
-    window.addEventListener(OPEN_EVENT, open);
-    return () => window.removeEventListener(OPEN_EVENT, open);
+    const onOpen = () => setOpen(true);
+    window.addEventListener(OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_EVENT, onOpen);
   }, []);
 
   // Close on session switch: the held Ranges point into the OLD session's

@@ -1,7 +1,8 @@
-// Wires global keyboard shortcuts to palette commands. CommandSpec's
-// `shortcut` field is display-only; this plugin reads the catalog and
-// registers the bindings. Cmd+1..9 stays here as pure shortcuts —
-// 9 "switch to tab N" entries would drown the palette.
+// Wires global keyboard shortcuts to palette commands. The key combos live in
+// COMMAND_BINDINGS below; CommandSpec.shortcut is only the display glyph shown
+// in the palette. The handler resolves each combo to its command at trigger
+// time (late binding). Cmd+1..9 stays here as pure shortcuts — 9 "switch to
+// tab N" entries would drown the palette.
 
 import { definePlugin, lookupExtensionByKey } from "@/plugins/sdk";
 import { COMMAND, SHORTCUT } from "@/plugins/sdk/kernelPoints";
