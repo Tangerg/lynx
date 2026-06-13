@@ -213,7 +213,7 @@ func (m *middleware) resumeCall(ctx context.Context, req *chat.Request, point *r
 	if err != nil {
 		return nil, err
 	}
-	return m.executeCallRecursively(ctx, nextReq, next, inv, loopState{iteration: point.priorRounds}.next())
+	return m.executeCallRecursively(ctx, nextReq, next, inv, newLoopDetector(m.loopDetection), loopState{iteration: point.priorRounds}.next())
 }
 
 // resumeStream is the streaming analog of [resumeCall]. It surfaces the
@@ -254,5 +254,5 @@ func (m *middleware) resumeStream(ctx context.Context, req *chat.Request, point 
 		yield(nil, err)
 		return
 	}
-	m.executeStreamRecursively(ctx, nextReq, next, inv, yield, loopState{iteration: point.priorRounds}.next())
+	m.executeStreamRecursively(ctx, nextReq, next, inv, newLoopDetector(m.loopDetection), yield, loopState{iteration: point.priorRounds}.next())
 }
