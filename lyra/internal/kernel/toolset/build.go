@@ -23,7 +23,7 @@ import (
 // background exec, MCP, A2A) and wires them into the resolver — so the engine
 // CORE imports none of them; it receives the assembled [Built] from the
 // composition root (runtime). This is the "tools assembled outside the core
-// loop" shape the convergent microkernel design uses (doc/MICROKERNEL.md).
+// loop" shape the convergent microkernel design uses (doc/GREENFIELD_ARCHITECTURE.md §5.1).
 
 // MCP wire projections, re-exported so the engine's MCP facade and the rpc
 // layer name one type without importing infra/mcp.

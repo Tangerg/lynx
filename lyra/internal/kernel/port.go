@@ -7,7 +7,7 @@ import "context"
 // service/* and are injected by the composition root (runtime) via [Config];
 // the engine core imports no concrete service. Every port use is nil-guarded,
 // so an engine built without a given port simply no-ops that capability (used
-// by unit tests that drive only the loop). See doc/MICROKERNEL.md.
+// by unit tests that drive only the loop). See doc/GREENFIELD_ARCHITECTURE.md §5.1.
 
 // CompactionResult reports what a single [Compactor.MaybeCompact] sweep did.
 // Compacted is false (counts zero) when the sweep didn't fire — no session,

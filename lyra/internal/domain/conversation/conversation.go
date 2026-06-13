@@ -4,7 +4,7 @@
 // middleware loads/saves) and owns the operations that read, seed,
 // count, truncate, and inject into that history.
 //
-// This is one of the three distinct "histories" (see doc/LAYERING.md
+// This is one of the three distinct "histories" (see doc/GREENFIELD_ARCHITECTURE.md §5.5
 // §3.1): conversation (here) is what the LLM sees; knowledge is LYRA.md;
 // transcript is the UI items+runs timeline. The engine drives a turn and
 // exposes a thin facade over this service; the domain logic lives here.

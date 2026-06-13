@@ -1,56 +1,44 @@
 # Lyra
 
-**A general-purpose agent runtime — product-grade, transport-agnostic, deployable as either a local process or a remote service.**
+**Lyra Runtime — 产品级通用 agent 运行时后端（Go）。** 实现 Lyra Runtime Protocol（JSON-RPC 2.0，MCP-inspired），经 HTTP+SSE / inprocess 两种 transport 给独立前端（Wails / Web，仓在 `/Users/tangerg/Desktop/lyra/`）用。
 
-> Status: **skeleton (M0)**. See [`doc/ARCHITECTURE.md`](./doc/ARCHITECTURE.md) for the CS-architecture design and [`doc/ROADMAP.md`](./doc/ROADMAP.md) for milestones.
+> 模块级上下文（设计原则 / 分层 / Go idiom / 协议约定）见 [`CLAUDE.md`](./CLAUDE.md)；架构基准见 [`doc/GREENFIELD_ARCHITECTURE.md`](./doc/GREENFIELD_ARCHITECTURE.md)；文档总目录见 [`doc/README.md`](./doc/README.md)。
 
 ---
 
 ## 这是什么
 
-Lyra 是基于 [lynx-agent](../agent) framework 构建的**通用 agent 服务运行时**，采用 **client-server 架构**。Server 端跑业务，client（TUI / Web / Desktop）在独立 repo 实现，通过多 transport 接入。
+基于 [lynx-agent](../agent) 框架的 agent 服务运行时。**协议层薄、业务层厚、传输层可换**：`internal/delivery` 是 wire 契约 + 传输，`internal/kernel` 是驱动 agent loop 的微内核，`internal/domain/*` 按限界上下文切业务，`internal/infra/*` 是技术设施。客户端（前端）在独立仓,经 JSON-RPC over HTTP/SSE 消费。
+
+## 架构（Clean Arch 同心环，依赖向内，`internal/arch` 机器强制）
 
 ```
-┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐
-│   TUI    │  │   Web    │  │ Desktop  │  │   MCP    │   ← clients
-└────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘    (separate
-     │ IPC         │ HTTP+SSE   │ gRPC        │ MCP        repos)
-     └─────────────┴─────────────┴────────────┘
-                         │
-                         ▼
-              ┌──────────────────┐
-              │   Lyra Server    │   ← this repo
-              │   (this module)  │
-              └──────────────────┘
-                         │ depends on
-                         ▼
-              lynx-agent + lynx-core
+delivery (internal/delivery)  协议契约 + HTTP+SSE / inprocess 传输 + dispatch
+   ↓
+kernel   (internal/kernel)    微内核：定义窄 port、驱动 agent loop、装配工具集（含 turn 用例）
+   ↓
+domain   (internal/domain/*)  限界上下文：session / transcript / knowledge / maintenance / codeintel / workspace / …
+   ↓
+infra    (internal/infra/*)   sqlite / git / lsp / mcp / a2a / exec / checkpoint
 ```
 
-## 设计哲学
+详见 [`doc/GREENFIELD_ARCHITECTURE.md`](./doc/GREENFIELD_ARCHITECTURE.md)。
 
-- ✅ **产品级**：不是 framework，不是 SDK，是 long-running server runtime
-- ✅ **transport-agnostic**：HTTP+SSE / gRPC / IPC stdio / MCP 四个 transport 共享同一份 service 接口
-- ✅ **可本地可远端**：embedded（stdio）/ local daemon / network service 三种部署模式
-- ✅ **基于 lynx**：所有 framework 能力来自 lynx-agent，Lyra 只做产品级集成
-- ❌ **不写 client**：TUI / Web / Desktop 在独立 repo，通过 proto IDL 消费
-- ❌ **不是 Go SDK**：业务代码全在 `internal/`，外部不可见
-- ❌ **不向 lynx 反向贡献抽象**（除非沉淀过 3+ 用例）
+## 能力（现状）
 
-## 当前状态（M0）
+agent loop + 并行工具循环 · **HITL R 模型**（park-on-interrupt + resume）· plan 模式 · **LSP 代码智能**（6 操作）· 编辑安全（read-before + stale）· **fork + 影子 git 文件 checkpoint + export/import** · MCP client（+ auth 基座）· **A2A** 跨 runtime · Agent Skills · LYRA.md 长期记忆 + 提取 · model-facing todo · **多 provider × 多 model（38 provider，显式配对）** · token 触发上下文压缩 · loop detection · OTel 三驾马车 → slog。
 
-- `cmd/lyra/main.go` — skeleton 入口
-- `doc/ARCHITECTURE.md` — CS 架构完整设计
-- `doc/ROADMAP.md` — 12 个 milestone（M0→M12，~4.5 个月 v0.1）
+> 与同类（claude_code / codex / OpenHands / Proma / AionUi …）的能力对比 + 缺口见 [`doc/AGENT_CAPABILITY_COMPARISON.md`](./doc/AGENT_CAPABILITY_COMPARISON.md)。
 
-## Quick check
+## 跑起来
 
 ```bash
-cd /Users/tangerg/Desktop/lynx
-go build -o /tmp/lyra-bin ./lyra/cmd/lyra && /tmp/lyra-bin
-# → lyra: skeleton — see lyra/doc/ARCHITECTURE.md
+cd /Users/tangerg/Desktop/lynx/lyra
+go build ./... && go vet ./... && go test ./...        # 全绿
+ANTHROPIC_API_KEY=xxx ./lyra serve                     # 默认 127.0.0.1:17171（匹配前端默认 base），SQLite at $LYRA_HOME/lyra.db
+./lyra agents --show                                   # 看本会话能读到哪些 AGENTS.md
 ```
 
-## 下一步
+## 不做（刻意）
 
-按 [`doc/ROADMAP.md`](./doc/ROADMAP.md) 进 **M1 Protocol Contract**：先冻结 6 个 service 的 proto，让前端 repo 能并行开发。
+不写 client（前端独立仓）· 不做 stdio/gRPC transport（只 HTTP+SSE + inprocess）· 不做用户鉴权/多租户（协议层零 user 概念）· 不向 lynx 反向贡献抽象（除非沉淀过 3+ 用例）。

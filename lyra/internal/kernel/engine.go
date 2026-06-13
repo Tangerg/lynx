@@ -17,7 +17,7 @@ import (
 )
 
 // Engine is the microkernel core: it drives the agent loop and depends on
-// injected ports for the capabilities it consumes (doc/MICROKERNEL.md). It
+// injected ports for the capabilities it consumes (doc/GREENFIELD_ARCHITECTURE.md §5.1). It
 // composes three concerns:
 //
 //   - chat execution: platform + agent drive [Engine.StartChat]

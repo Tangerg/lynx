@@ -1,6 +1,6 @@
 // Package runtime is Lyra's core-runtime façade — one struct that
 // bundles the engine + every Service interface a transport adapter
-// might need. The architecture goal documented in ARCHITECTURE.md is
+// might need. The architecture goal documented in GREENFIELD_ARCHITECTURE.md is
 // "transport-agnostic Service interface": Runtime is that interface,
 // realized in code.
 //
@@ -167,7 +167,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	// turn-end steering sink (engine.InjectUserMessage); the runtime holds it
 	// directly for the non-turn history operations (read/seed/count/truncate,
 	// for fork / rollback / messages.list) rather than proxying them through the
-	// engine. See doc/STRUCTURE_REVIEW.md §3.
+	// engine. See doc/GREENFIELD_ARCHITECTURE.md.
 	conv := conversation.New(memStore)
 
 	// Capability ports are SPIs: the engine consumes interfaces (Steering /

@@ -4,7 +4,7 @@
 > 本文是**第三轮**分析（2026-05-30 增补）。第一轮写于 `agent` 大改之前；第二轮（2026-05-29）整体重写，因 `agent` 落地持久化 / Supervisor / 成本 / 预算 / metrics 而结论反转。**第三轮不整体重写**（§4/§5 实施记录保留），只做：核对真实代码状态（两个 Explore agent 扫 `agent`/`core`/`runtime` + `lyra`，不信文档）+ 拉取 SDK 最新 API（发现 SDK 这半年也长出 background/task/deferred 等新能力）→ 局部更新对照表 + 新增 [§A 第三轮 gap 复盘](#a-第三轮-gap-复盘2026-05-30单方面可补项清零)。
 >
 > **第三轮的四个变化点**（相对第二轮）：(1) 全新 **model metadata catalog**（21 provider / 911 model，banded pricing + reasoning + modalities + limits + 下架日期，`models.dev` 生成器）—— SDK 完全没有这个概念；(2) **cost 端到端（lyra）从 🔴 → ✅** 全通；(3) **durable plan-mode HITL** 从内存 channel → 真 `AwaitInput`→`Waiting`→`Resume`；(4) **跨重启恢复框架前置** 修复（`RestoreProcess` determiner bug）+ 测试证明 restore-Waiting→resume。
-> 配合 [`ARCHITECTURE.md`](./ARCHITECTURE.md) / [`ROADMAP.md`](./ROADMAP.md) 阅读。
+> 配合 [`GREENFIELD_ARCHITECTURE.md`](./GREENFIELD_ARCHITECTURE.md)（架构基准）阅读。
 
 ---
 
