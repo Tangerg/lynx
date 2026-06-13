@@ -1,5 +1,7 @@
 # Lyra — 分层架构与单向依赖（重构计划）
 
+> **⚠️ 目录已重命名（2026-06-14，见 [`GREENFIELD_ARCHITECTURE.md`](GREENFIELD_ARCHITECTURE.md) §9）**：`internal/engine→internal/kernel` / `internal/service→internal/domain` / `rpc→internal/delivery` / `engine/chat→kernel/turn`，目录名 = Clean Arch 环名。本文（演进快照）行文中的旧路径名指代重命名后的同一目录，未逐处回改。
+
 > **⚠️ 演进提示(2026-06-12)**：`engine ↔ service` 的关系已从本文件的「上下层(engine 在上、向下 import service)」**改为「微内核 + 端口注入」** —— 见 [`MICROKERNEL.md`](MICROKERNEL.md)。engine 是核、定义 port,service 实现,runtime 注入。本文件的其余结论(infra 物理归集、各 service 抽取、delivery 经 runtime、反向边消除)仍有效;**唯独 §1 的 engine↔service 方向以 MICROKERNEL.md 为准**。
 >
 > **日期**：2026-06-11。**状态**：目标架构 + 迁移计划（尚未执行）。

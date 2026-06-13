@@ -80,7 +80,7 @@
 
 ### 高内聚低耦合（High Cohesion / Low Coupling）
 
-- **高内聚** = 一个 package / struct 内的东西**为同一个目的服务**。`internal/service/session/` 全是会话生命周期、`agentdoc/` 全是 AGENTS.md 发现 —— 这就是高内聚
+- **高内聚** = 一个 package / struct 内的东西**为同一个目的服务**。`internal/domain/session/` 全是会话生命周期、`agentdoc/` 全是 AGENTS.md 发现 —— 这就是高内聚
 - **低耦合** = **应用层**跨包依赖**通过最小接口**而不是具体类型。lyra chat 服务依赖 `chat.Engine`（5 方法）不直接抱 `*engine.Engine`。（**SDK 库内部例外**：单实现依赖直接用具体类型，见 ISP 段「库 vs 应用」）
 - **二者矛盾时**：宁可包多一点（更高内聚）也别让一个包横跨多个 domain；宁可接口多一点（更低耦合）也别让一个具体类型变成跨包枢纽
 - ❌ 反例：`chat.New(*engine.Engine)` —— 一处改 engine API 整个 chat 测试都得重写

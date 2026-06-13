@@ -1,5 +1,7 @@
 # Lyra 结构审视 —— 向 DDD / 整洁架构演进
 
+> **⚠️ 目录已重命名（2026-06-14，见 [`GREENFIELD_ARCHITECTURE.md`](GREENFIELD_ARCHITECTURE.md) §9）**：`internal/engine→internal/kernel` / `internal/service→internal/domain` / `rpc→internal/delivery` / `engine/chat→kernel/turn`，目录名 = 本文所述 Clean Arch 环名。本文行文中的旧路径名指代重命名后的同一目录，未逐处回改。
+
 > **日期**：2026-06-13。**视角**：纯软件工程（结构 / 分层 / 耦合内聚 / 设计模式），不谈能力面（见 [`AGENT_CAPABILITY_COMPARISON.md`](AGENT_CAPABILITY_COMPARISON.md)）。
 > **North Star**：DDD + 整洁架构（Clean Architecture / Hexagonal）。
 > **方法**：第一手通读结构（文件/struct/方法普查 + 依赖边 + 关键文件 + 符号级 import 分析），对照桌面所有 agent 应用。
