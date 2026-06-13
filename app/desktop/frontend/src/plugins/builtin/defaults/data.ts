@@ -13,9 +13,11 @@ import type {
   FileChangesQuery,
   FileHeadQuery,
   GrepQuery,
+  ListFilesQuery,
   McpToolsQuery,
   MCPServer as SidebarMCPServer,
   MemoryQuery,
+  ReadFileQuery,
   RememberedQuery,
   SidebarProject,
   SidebarSession,
@@ -288,6 +290,27 @@ export const defaultData = definePlugin({
           decision: e.decision,
           rememberedAt: e.rememberedAt,
         })),
+    });
+    // workspace.listFiles / readFile (B8, docs/613) — file-tree browser + viewer.
+    host.extensions.contribute(DATA_PROVIDER, {
+      key: "list-files",
+      fetcher: async (params) => {
+        const q = params as ListFilesQuery;
+        return (await client().workspace.listFiles({ cwd: q.cwd, path: q.path })).data.map((e) => ({
+          path: e.path,
+          name: e.name,
+          type: e.type,
+          sizeBytes: e.sizeBytes,
+        }));
+      },
+    });
+    host.extensions.contribute(DATA_PROVIDER, {
+      key: "read-file",
+      fetcher: async (params) => {
+        const q = params as ReadFileQuery;
+        const r = await client().workspace.readFile({ path: q.path, cwd: q.cwd });
+        return { content: r.content, totalLines: r.totalLines, truncated: r.truncated };
+      },
     });
   },
 });

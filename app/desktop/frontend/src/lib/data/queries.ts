@@ -189,6 +189,29 @@ export interface RememberedDecisionInfo {
   rememberedAt: string;
 }
 
+// workspace.listFiles / readFile (B8, docs/613) — the file-tree browser + file
+// viewer. Lazy: the tree fetches one directory level per expand. Not gated
+// (basic reads, like getFileHead); a pre-B8 runtime simply errors the query.
+export interface ListFilesQuery {
+  cwd?: string;
+  path?: string; // directory to list, relative to cwd (omit = cwd root)
+}
+export interface FileEntryInfo {
+  path: string; // relative to cwd
+  name: string;
+  type: "file" | "dir" | "symlink";
+  sizeBytes?: number;
+}
+export interface ReadFileQuery {
+  path: string;
+  cwd?: string;
+}
+export interface FileContentInfo {
+  content: string;
+  totalLines: number;
+  truncated?: boolean;
+}
+
 // Shared options — these resources rarely change for the mock, so we cache
 // aggressively. Real backends might choose shorter staleTime.
 const STATIC = {
@@ -274,3 +297,5 @@ export const useApprovalMode = makeDataQuery<ApprovalModeValue>(APPROVAL_MODE_KE
 export const useRememberedDecisions = makeParamDataQuery<RememberedQuery, RememberedDecisionInfo[]>(
   REMEMBERED_KEY,
 );
+export const useListFiles = makeParamDataQuery<ListFilesQuery, FileEntryInfo[]>("list-files");
+export const useReadFile = makeParamDataQuery<ReadFileQuery, FileContentInfo>("read-file");
