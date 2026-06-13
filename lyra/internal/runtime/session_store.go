@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/Tangerg/lynx/agent/core"
-	sessionsvc "github.com/Tangerg/lynx/lyra/internal/service/session"
+	sessionsvc "github.com/Tangerg/lynx/lyra/internal/domain/session"
 )
 
 // childSessionStore adapts lyra's [sessionsvc.Service] to the agent runtime's

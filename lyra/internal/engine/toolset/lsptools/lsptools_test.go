@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
+	"github.com/Tangerg/lynx/lyra/internal/domain/codeintel"
 )
 
 // TestLSPToolUnsupportedFile checks the tool-layer contract: a query on a file

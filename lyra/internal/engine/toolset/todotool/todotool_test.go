@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/lyra/internal/service/todo"
+	"github.com/Tangerg/lynx/lyra/internal/domain/todo"
 )
 
 type stubStore struct{ items []todo.Item }

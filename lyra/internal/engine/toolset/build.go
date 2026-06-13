@@ -13,9 +13,9 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/infra/a2a"
 	"github.com/Tangerg/lynx/lyra/internal/infra/exec"
 	"github.com/Tangerg/lynx/lyra/internal/infra/mcp"
-	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
-	"github.com/Tangerg/lynx/lyra/internal/service/editguard"
-	"github.com/Tangerg/lynx/lyra/internal/service/todo"
+	"github.com/Tangerg/lynx/lyra/internal/domain/codeintel"
+	"github.com/Tangerg/lynx/lyra/internal/domain/editguard"
+	"github.com/Tangerg/lynx/lyra/internal/domain/todo"
 )
 
 // This file is the tool-assembly entry point. It is the SOLE place that

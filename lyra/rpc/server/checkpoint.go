@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/Tangerg/lynx/lyra/internal/service/workspace"
+	"github.com/Tangerg/lynx/lyra/internal/domain/workspace"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 

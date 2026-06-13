@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Tangerg/lynx/lyra/internal/service/agentdoc"
+	"github.com/Tangerg/lynx/lyra/internal/domain/agentdoc"
 )
 
 // AgentsCmd is `lyra agents` — print the AGENTS.md files Lyra would

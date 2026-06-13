@@ -9,7 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/lyra/internal/engine/toolset"
 	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/turnctx"
-	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
+	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
 )
 
 // chatInput is the typed input to the M1 single-turn chat agent. It

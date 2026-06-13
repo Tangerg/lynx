@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/lyra/internal/service/todo"
+	"github.com/Tangerg/lynx/lyra/internal/domain/todo"
 )
 
 // TodoService implements todo.Service against SQLite. A session's list is one

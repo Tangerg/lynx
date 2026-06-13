@@ -10,8 +10,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/lyra/internal/engine"
-	"github.com/Tangerg/lynx/lyra/internal/service/approval"
-	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
+	"github.com/Tangerg/lynx/lyra/internal/domain/approval"
+	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
 )
 
 // turnIDPrefix tags every turn id. A turn id doubles as the root run's

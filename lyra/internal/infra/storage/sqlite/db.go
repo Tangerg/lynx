@@ -1,5 +1,5 @@
 // Package sqlite hosts the SQLite-backed implementations of the service
-// interfaces in lyra/internal/service/*. One SQLite file is the single
+// interfaces in lyra/internal/domain/*. One SQLite file is the single
 // durable backend — sessions / process snapshots / interrupts / history /
 // providers each live in their own table, sharing one *sql.DB. (Memory is
 // the deliberate exception: it stays a user-editable LYRA.md file cascade,

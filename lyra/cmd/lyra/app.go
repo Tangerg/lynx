@@ -26,13 +26,13 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/infra/storage"
 	sqlitestore "github.com/Tangerg/lynx/lyra/internal/infra/storage/sqlite"
 	lyraruntime "github.com/Tangerg/lynx/lyra/internal/runtime"
-	"github.com/Tangerg/lynx/lyra/internal/service/approval"
-	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
-	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
-	providersvc "github.com/Tangerg/lynx/lyra/internal/service/provider"
-	sessionsvc "github.com/Tangerg/lynx/lyra/internal/service/session"
-	todosvc "github.com/Tangerg/lynx/lyra/internal/service/todo"
-	"github.com/Tangerg/lynx/lyra/internal/service/transcript"
+	"github.com/Tangerg/lynx/lyra/internal/domain/approval"
+	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
+	"github.com/Tangerg/lynx/lyra/internal/domain/knowledge"
+	providersvc "github.com/Tangerg/lynx/lyra/internal/domain/provider"
+	sessionsvc "github.com/Tangerg/lynx/lyra/internal/domain/session"
+	todosvc "github.com/Tangerg/lynx/lyra/internal/domain/todo"
+	"github.com/Tangerg/lynx/lyra/internal/domain/transcript"
 )
 
 // App is the top-level CLI object. It owns the IO streams every

@@ -7,13 +7,13 @@ import (
 
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	chatsvc "github.com/Tangerg/lynx/lyra/internal/engine/chat"
-	"github.com/Tangerg/lynx/lyra/internal/service/approval"
-	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
-	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
-	providersvc "github.com/Tangerg/lynx/lyra/internal/service/provider"
-	sessionsvc "github.com/Tangerg/lynx/lyra/internal/service/session"
-	toolsvc "github.com/Tangerg/lynx/lyra/internal/service/tool"
-	"github.com/Tangerg/lynx/lyra/internal/service/transcript"
+	"github.com/Tangerg/lynx/lyra/internal/domain/approval"
+	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
+	"github.com/Tangerg/lynx/lyra/internal/domain/knowledge"
+	providersvc "github.com/Tangerg/lynx/lyra/internal/domain/provider"
+	sessionsvc "github.com/Tangerg/lynx/lyra/internal/domain/session"
+	toolsvc "github.com/Tangerg/lynx/lyra/internal/domain/tool"
+	"github.com/Tangerg/lynx/lyra/internal/domain/transcript"
 )
 
 // RuntimeServices is the accessor surface the protocol server needs from

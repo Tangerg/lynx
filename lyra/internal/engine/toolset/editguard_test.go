@@ -9,7 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
-	"github.com/Tangerg/lynx/lyra/internal/service/editguard"
+	"github.com/Tangerg/lynx/lyra/internal/domain/editguard"
 	"github.com/Tangerg/lynx/tools/fs"
 )
 

@@ -10,7 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
-	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
+	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
 )
 
 // turnObserver bridges the engine's tool observer to the turn's event

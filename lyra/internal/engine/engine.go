@@ -12,8 +12,8 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	"github.com/Tangerg/lynx/lyra/internal/engine/toolset"
-	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
-	"github.com/Tangerg/lynx/lyra/internal/service/todo"
+	"github.com/Tangerg/lynx/lyra/internal/domain/knowledge"
+	"github.com/Tangerg/lynx/lyra/internal/domain/todo"
 )
 
 // Engine is the microkernel core: it drives the agent loop and depends on

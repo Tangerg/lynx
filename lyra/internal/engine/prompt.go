@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/turnctx"
-	"github.com/Tangerg/lynx/lyra/internal/service/agentdoc"
-	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
-	"github.com/Tangerg/lynx/lyra/internal/service/todo"
+	"github.com/Tangerg/lynx/lyra/internal/domain/agentdoc"
+	"github.com/Tangerg/lynx/lyra/internal/domain/knowledge"
+	"github.com/Tangerg/lynx/lyra/internal/domain/todo"
 )
 
 // basePrompt is the always-on identity / behavioral preamble. It

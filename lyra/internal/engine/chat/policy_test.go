@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Tangerg/lynx/lyra/internal/service/approval"
+	"github.com/Tangerg/lynx/lyra/internal/domain/approval"
 )
 
 // TestGateFor_Matrix audits the full (tool-class × mode) → action

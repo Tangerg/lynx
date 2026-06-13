@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/lyra/internal/service/skills"
+	"github.com/Tangerg/lynx/lyra/internal/domain/skills"
 )
 
 func writeSkill(t *testing.T, root, name, desc string) {
