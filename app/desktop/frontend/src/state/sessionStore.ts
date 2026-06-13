@@ -282,10 +282,12 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         const cur = get().mainViewTabs;
         const target = cur.find((t) => t.id === id);
         if (!target) return;
-        set({ mainViewTabs: [target], activeMainView: id });
+        // Only `id` survives → a split pane showing any other view loses its tab.
+        const splitViewId = get().splitViewId === id ? get().splitViewId : null;
+        set({ mainViewTabs: [target], activeMainView: id, splitViewId });
       },
       closeMainViewsLeftOf: (id) => {
-        const { mainViewTabs, activeMainView } = get();
+        const { mainViewTabs, activeMainView, splitViewId } = get();
         const idx = mainViewTabs.findIndex((t) => t.id === id);
         if (idx <= 0) return;
         const next = mainViewTabs.slice(idx);
@@ -293,10 +295,11 @@ export const useSessionStore = create<SessionState & SessionActions>()(
           mainViewTabs: next,
           activeMainView:
             activeMainView && next.some((t) => t.id === activeMainView) ? activeMainView : id,
+          splitViewId: next.some((t) => t.id === splitViewId) ? splitViewId : null,
         });
       },
       closeMainViewsRightOf: (id) => {
-        const { mainViewTabs, activeMainView } = get();
+        const { mainViewTabs, activeMainView, splitViewId } = get();
         const idx = mainViewTabs.findIndex((t) => t.id === id);
         if (idx === -1 || idx === mainViewTabs.length - 1) return;
         const next = mainViewTabs.slice(0, idx + 1);
@@ -304,6 +307,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
           mainViewTabs: next,
           activeMainView:
             activeMainView && next.some((t) => t.id === activeMainView) ? activeMainView : id,
+          splitViewId: next.some((t) => t.id === splitViewId) ? splitViewId : null,
         });
       },
       closeAllMainViews: () => {
