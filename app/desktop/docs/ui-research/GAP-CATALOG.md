@@ -75,6 +75,7 @@
 - **Lyra 现状**：**fixture 假数据**。`workspace-views/terminal.tsx:10` 是 `// TODO: surface real process metadata`，标题 "pnpm typecheck" / cwd / "1 error · 1 warning" 全硬编码；`Terminal.tsx:36` 硬编码 "tsc watching for changes…"；`lib/data/data.ts:134` 的 `HTTP_KEYS = ["terminal"]` 是唯一残留的 HTTP-GET stub。
 - **为何重要**：autonomous agent 跑命令是常态，看不到真实输出就无法信任/干预。
 - **落地方向**：依赖后端先能流式 command output（协议层）。前端用 xterm 或复用 bash preview 的渲染思路（已有 bash/shell stdout preview）；把假 metadata 换成 run 派生数据。**与 G3 并排面板天然搭配**（终端常驻侧栏）。
+- **✅ 重估 + 已落地（docs/613）**：613 澄清 agent 命令输出**已在 wire 上**（`item.delta{toolOutput}` → `view.toolCalls`），**无需新 API**；交互式 PTY 是反向不变量、不做。终端视图改成只读"命令日志"——聚合本会话 command 类工具的 命令 + 输出 + exitCode（running 实时 tail）。`views/CommandLog.tsx` + `terminal.tsx`。
 - **工作量 · 风险**：中 · 中（卡后端能力；前端渲染本身不难）。
 
 ---

@@ -8,22 +8,18 @@
 
 ---
 
-## B1（=G5）· 真实终端流
+## B1（=G5）· 真实终端流 — ✅ 已解除（docs/613 澄清，前端已落地）
 
-- **现状**：`workspace-views/terminal.tsx` 是 fixture——标题/cwd/错误数硬编码，`Terminal.tsx:36` 硬编码 "tsc watching…"，数据走 `lib/data/data.ts:134` 的 `HTTP_KEYS=["terminal"]` HTTP-GET stub。
-- **要后端给什么**：
-  - 可订阅的**进程/命令输出流**（长驻进程的 live tail，不只是单次 bash tool 的 toolOutput delta）。
-  - 进程元数据：title / cwd / status(running|exited) / exitCode。
-  - 形态上仍走 JSON-RPC（参考 `runs.subscribe` 的流式语义），**不要**新增 RESTy 端点（违反协议边界，见 `TRANSPORT.md §12`）。
-- **给了之后前端补什么**：复用已有的 bash/shell stdout preview 渲染（xterm 或现有 ANSI 渲染），把假 metadata 换成 run/process 派生数据；与 G3 并排面板搭配常驻侧栏。
-- **已处置（G8）**：终端视图的 fixture 已撤，改为诚实空态（"Terminal isn't wired up yet"）；
-  连带删掉 `useTerminal` / `TermLine` / `views/Terminal.tsx` 渲染器 / `defaults/data.ts` 的
-  `HTTP_KEYS` escape hatch（terminal 是其唯一用户）。后端就绪后：在 `terminal.tsx` 接订阅流
-  + 复用 bash preview 的 ANSI 渲染。
+- **613 结论**：agent 跑的命令输出**早已在 wire 上**——走 `toolCall` 的 `item.delta{toolOutput}` → `item.completed`（API.md §5.2），run fold 落进 `view.toolCalls`，**不需要新 API**。用户自己敲命令的**交互式 PTY** 明确**不在 runtime 职责内**（反向不变量）。
+- **前端已落地**：`workspace-views/terminal.tsx` 改成只读"命令日志"——从 `view.toolCalls` 聚合 command 类工具（命令 + 输出 + exitCode，running 实时 tail）。`views/CommandLog.tsx` + `terminal.tsx`。之前的 fixture 早在 G8 撤掉、"等后端流式"空态本批纠正。
+- **不做**：交互式输入终端（PTY）——后端反向不变量，前端也不造。
 
 ---
 
-## B2（=G4 / G12 数据源）· 工作区文件枚举 + 搜索
+## B2（=G4 / G12 数据源）· 工作区文件枚举 + 搜索 — ✅ 已解除（docs/613 B7/B8）
+
+> 后端已提供 `workspace.listFiles` / `workspace.readFile`（B8）+ `workspace.code.workspaceSymbols` 等（B7），wire 已接入 SDK。G12 文件树 Explorer 已落地（`b0de16d`）；G4 `@`-mention 的 wire 已就绪、UI 待后端 live 再建（@symbol/@file typeahead 需新建 composer 浮层）。下面是当初的依赖描述，留作背景。
+
 
 - **现状**：composer 无 @-mention（仅 slash）；Files 视图只有"changed files"扁平列表，无工作区浏览。
 - **要后端给什么**：一个**工作区文件枚举 / 模糊搜索**协议方法（在 session cwd 下），理想含：
@@ -38,7 +34,10 @@
 
 ---
 
-## B3（=G7 压缩动作）· 对话压缩 / 摘要
+## B3（=G7 压缩动作）· 对话压缩 / 摘要 — ✅ 已解除（docs/613 B10）
+
+> 后端已提供 `sessions.compact`（B10）+ compaction 边界 Item。前端：状态栏一键压缩按钮已落地（`e98f175`），compaction Item 折叠成时间线分隔（`92ca0b2`）。下面是当初的依赖描述，留作背景。
+
 
 - **现状**：上下文占用**可见性**是纯前端（数据已有，G1 状态行会常驻显示 context 预算 + 阈值色）；但"压缩对话"的**动作**没有。
 - **要后端给什么**：一个**压缩 / 摘要当前会话上下文**的协议能力（参考 cline 的 Compact、continue 的 compaction）。可能形态：`sessions.compact` 或 run 级 summarize，产出一个 compaction 边界（后端已有 `CompactBoundary` 内部事件，见 lynx `translator.go:104`——需暴露为可调用动作 + 可观测边界）。
