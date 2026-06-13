@@ -54,6 +54,9 @@ export function openViewForTool(toolId: string): void {
 
   const ui = useSessionStore.getState();
   ui.setSelectedToolId(toolId);
+  // Open the tool's view BESIDE chat (not replacing it) — clicking a tool
+  // while chatting should let you watch its diff / terminal next to the
+  // conversation. routeForTool only returns splittable views (diff/terminal).
   const view = routeForTool(tool);
-  if (view) ui.openMainView(view);
+  if (view) ui.openMainViewBeside(view);
 }

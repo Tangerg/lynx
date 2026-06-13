@@ -24,5 +24,6 @@ export const terminalView = defineWorkspaceView({
   icon: "terminal",
   openByDefault: false,
   order: 10,
+  splittable: true,
   component: TerminalTab,
 });

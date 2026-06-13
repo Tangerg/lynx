@@ -2,8 +2,9 @@
 
 import type { ReactNode } from "react";
 import type { IconName } from "@/components/common";
-import { Icon } from "@/components/common";
+import { Icon, IconButton } from "@/components/common";
 import { cn } from "@/lib/utils";
+import { useViewPlacement } from "@/components/chat/panel/ViewPlacement";
 
 export interface ViewHeaderProps {
   icon: IconName;
@@ -19,6 +20,27 @@ export interface ViewHeaderProps {
 }
 
 export function ViewHeader({ icon, title, sub, actions, titleStrong }: ViewHeaderProps) {
+  // Placement toggle — present only when this view is promoted (ChatPanel
+  // provides the context). Lets the view move full ↔ beside-chat / close from
+  // its own header, leaving the tab strip untouched.
+  const placement = useViewPlacement();
+  let placementControls: ReactNode = null;
+  if (placement?.placement === "split") {
+    // Close the side pane (chat returns to full width). Expand-to-full is
+    // reachable by clicking the view's own tab in the strip (selectMainView).
+    placementControls = (
+      <IconButton title="Close" onClick={placement.onClose}>
+        <Icon name="x" size={14} />
+      </IconButton>
+    );
+  } else if (placement?.placement === "full" && placement.splittable) {
+    placementControls = (
+      <IconButton title="Open beside chat" onClick={placement.onSplit}>
+        <Icon name="panel-r" size={14} />
+      </IconButton>
+    );
+  }
+
   return (
     <div className="grid grid-cols-[28px_1fr_auto] items-center gap-2.5 px-4 py-3.5">
       <div className="grid h-7 w-7 place-items-center rounded-md bg-surface-2 text-fg-muted">
@@ -39,7 +61,12 @@ export function ViewHeader({ icon, title, sub, actions, titleStrong }: ViewHeade
           <div className="mt-0.5 font-mono text-[12px] text-fg-faint">{sub}</div>
         )}
       </div>
-      {actions !== undefined && <div className="flex gap-1">{actions}</div>}
+      {(actions !== undefined || placementControls) && (
+        <div className="flex gap-1">
+          {actions}
+          {placementControls}
+        </div>
+      )}
     </div>
   );
 }

@@ -206,5 +206,6 @@ export const runSummaryView = defineWorkspaceView({
   openByDefault: false,
   // Sits next to Timeline (35) — both are about "what happened".
   order: 36,
+  splittable: true,
   component: RunSummaryTab,
 });

@@ -62,6 +62,12 @@ interface SessionState {
    */
   mainViewTabs: MainViewTab[];
   activeMainView: string | null;
+  /**
+   * A splittable workspace view shown BESIDE the chat stream (resizable),
+   * not replacing it. Mutually exclusive with `activeMainView` (opening one
+   * clears the other). null = no side pane, chat is full-width.
+   */
+  splitViewId: string | null;
 
   /**
    * Draft sessions — real backend sessions (created up front so they can
@@ -114,6 +120,10 @@ interface SessionActions {
   selectMainView: (id: string) => void;
   /** Clear the workspace view focus so the chat session takes over again. */
   selectChat: () => void;
+  /** Open (or focus) a splittable view BESIDE the chat stream (resizable split). */
+  openMainViewBeside: (tab: MainViewTab) => void;
+  /** Close the side-by-side split pane (chat returns to full width). */
+  closeSplit: () => void;
 
   /** Close every workspace-view tab except `id`. */
   closeOtherMainViews: (id: string) => void;
@@ -140,6 +150,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
       tabIds: [],
       mainViewTabs: [],
       activeMainView: null,
+      splitViewId: null,
       draftSessionIds: new Set<string>(),
       pendingMessages: {},
       activeFile: "",
@@ -241,16 +252,28 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         set({
           mainViewTabs: exists ? cur : [...cur, tab],
           activeMainView: tab.id,
+          splitViewId: null, // a full view + a side pane are mutually exclusive
         });
       },
+      openMainViewBeside: (tab) => {
+        const cur = get().mainViewTabs;
+        const exists = cur.some((t) => t.id === tab.id);
+        set({
+          mainViewTabs: exists ? cur : [...cur, tab],
+          splitViewId: tab.id,
+          activeMainView: null, // the chat stream owns the other half
+        });
+      },
+      closeSplit: () => set({ splitViewId: null }),
       closeMainView: (id) => {
         const cur = get().mainViewTabs;
         const next = cur.filter((t) => t.id !== id);
         const activeMainView =
           get().activeMainView === id ? (next.at(-1)?.id ?? null) : get().activeMainView;
-        set({ mainViewTabs: next, activeMainView });
+        const splitViewId = get().splitViewId === id ? null : get().splitViewId;
+        set({ mainViewTabs: next, activeMainView, splitViewId });
       },
-      selectMainView: (id) => set({ activeMainView: id }),
+      selectMainView: (id) => set({ activeMainView: id, splitViewId: null }),
       selectChat: () => set({ activeMainView: null }),
 
       // Same shape as the chat-tab close helpers, scoped to the
@@ -284,7 +307,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         });
       },
       closeAllMainViews: () => {
-        set({ mainViewTabs: [], activeMainView: null });
+        set({ mainViewTabs: [], activeMainView: null, splitViewId: null });
       },
 
       setActiveFile: (path) => set({ activeFile: path }),

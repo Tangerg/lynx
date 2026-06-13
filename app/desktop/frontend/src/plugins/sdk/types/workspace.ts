@@ -39,6 +39,11 @@ export interface WorkspaceViewSpec {
   openByDefault?: boolean;
   /** Sort hint within the default location. Lower comes first. */
   order?: number;
+  /** May this view sit BESIDE the chat stream (resizable split), not just
+   *  replace it? True for workspace panes you watch while chatting
+   *  (diff / files / terminal / plan / timeline); false (default) for
+   *  full-area surfaces like settings / notifications. */
+  splittable?: boolean;
   /** The body component. Receives no props. */
   component: ComponentType;
 }

@@ -46,6 +46,7 @@
 - **Lyra 现状**：view 升进**同一条顶 tab 并替换 chat body**（`components/chat/panel/WorkspaceViewBody.tsx`）——**永远没法"边看 chat 边看 diff"**。shell 是 `layout.css:62` 的 `248px minmax(0,1fr)` 两列网格。
 - **为何重要**：这是"聊天框"与"工作站"的结构性分水岭。agent 改文件时，用户要一边看对话一边盯 diff/终端。
 - **落地方向**：把主区从"chat XOR view"改成可选的"chat | 可拖拽分隔 | view"。kernel 加一个 split 容器（宽度持久化到 uiStore，bump version 丢旧值）；保留"全屏单面板"作为默认/折叠态。用 Radix 无对应组件——可用极小自写 resizer（属 §3 例外，注释说明）。**这是最大改动，建议单独立项、A/B/C 分批。**
+- **✅ 已落地（Approach A — 用户选定）**：splittable 视图（diff/files/terminal/plan/timeline/run-summary/tools）可"在 chat 旁打开"——`chat | 自写 resizer | view` 并排，比例持久化到 uiStore `splitRatio`（0.25–0.75，`.default` 无需 bump version）。状态：sessionStore `splitViewId`（与 `activeMainView` 互斥）+ `openMainViewBeside`/`closeSplit`。触发：点工具卡"在视图打开"→旁开 diff/terminal；视图 header 经 `ViewPlacement` context 拿到"⇿ 在侧打开 / ✕ 关闭"（不动 tab 条）。app 视图（settings/notifications/…）仍全屏替换。
 - **工作量 · 风险**：大 · 中（触 kernel 布局；但不碰协议/对话渲染）。
 
 ---

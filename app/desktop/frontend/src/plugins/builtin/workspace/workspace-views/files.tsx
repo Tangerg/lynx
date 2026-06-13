@@ -75,5 +75,6 @@ export const filesView = defineWorkspaceView({
   icon: "filetext",
   openByDefault: false,
   order: 20,
+  splittable: true,
   component: FilesView,
 });
