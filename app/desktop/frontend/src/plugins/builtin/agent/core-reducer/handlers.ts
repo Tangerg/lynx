@@ -104,7 +104,7 @@ function materializeInterrupt(
     // are always present, no guessing where the command lives. Tolerate a
     // missing tool (malformed payload) so a buggy backend can't crash the fold
     // and leave an un-actionable interrupt.
-    const tool = it.payload.tool as ToolInvocation | undefined;
+    const tool = it.payload?.tool as ToolInvocation | undefined;
     // Upsert — mirror the question branch below. A re-delivered interrupt
     // (reconnect / replay re-seeing the same run.finished) must re-affirm the
     // existing card, not append a second approval block with the same itemId
@@ -127,9 +127,9 @@ function materializeInterrupt(
       parentRunId,
       text: tool ? approvalText(tool) : "Approve this action?",
       command: tool ? commandString(tool) : "",
-      reason: it.payload.reason ?? "",
+      reason: it.payload?.reason ?? "",
       args: tool ? editableArgs(tool) : undefined,
-      risk: it.payload.risk,
+      risk: it.payload?.risk,
     };
     const withBlock = appendToTurn(state, it.itemId, block);
     return appendTimelineEntry({
@@ -159,7 +159,7 @@ function materializeInterrupt(
       status: "requires-action",
       itemId: it.itemId,
       parentRunId,
-      questions: mapQuestion(it.payload.question),
+      questions: mapQuestion(it.payload?.question),
     });
   }
   return state; // toolResult — gated by features.clientTools, not rendered here
@@ -203,7 +203,7 @@ function onRunFinished(state: AgentViewState, outcome: RunOutcome): AgentViewSta
   }
 
   const { result } = outcome;
-  const usage = result.usage;
+  const usage = result?.usage;
   const tokensUsed = (usage?.inputTokens ?? 0) + (usage?.outputTokens ?? 0);
   // Total cost reads usage.costUsd — there is no RunResult.costUsd (§4.2).
   const costUsd = usage?.costUsd;
@@ -215,8 +215,8 @@ function onRunFinished(state: AgentViewState, outcome: RunOutcome): AgentViewSta
   const withRun = settleOpenInterrupts(
     patchRun({
       running: false,
-      step: result.steps ?? state.run.step,
-      totalSteps: result.steps ?? state.run.totalSteps,
+      step: result?.steps ?? state.run.step,
+      totalSteps: result?.steps ?? state.run.totalSteps,
       tokens: { used: String(tokensUsed), total: state.run.tokens.total },
       cost: costUsd !== undefined ? costUsd.toFixed(2) : state.run.cost,
     })(idle),
@@ -226,8 +226,8 @@ function onRunFinished(state: AgentViewState, outcome: RunOutcome): AgentViewSta
     const errored: AgentViewState = {
       ...withRun,
       error: {
-        message: result.error?.detail ?? result.error?.type ?? "run failed",
-        code: result.error?.type,
+        message: result?.error?.detail ?? result?.error?.type ?? "run failed",
+        code: result?.error?.type,
       },
     };
     return appendTimelineEntry({
