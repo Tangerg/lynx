@@ -118,7 +118,7 @@ func rowsToWire(rows []workspace.Row) []protocol.DiffRow {
 	out := make([]protocol.DiffRow, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, protocol.DiffRow{
-			Type: r.Type, Text: r.Text, LeftLine: r.LeftLine, RightLine: r.RightLine, Code: r.Code,
+			Type: protocol.DiffRowType(r.Type), Text: r.Text, LeftLine: r.LeftLine, RightLine: r.RightLine, Code: r.Code,
 		})
 	}
 	return out
