@@ -1,4 +1,4 @@
-// Package history defines the durable Item history — the authoritative
+// Package transcript defines the durable Item history — the authoritative
 // completed-Item log a session's items.list is served from (API.md §7.4
 // / §10.3). It is the protocol's "Item is the only history primitive"
 // (§0.1) made persistent: the runtime records every completed Item and
