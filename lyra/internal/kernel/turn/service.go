@@ -16,7 +16,7 @@ import (
 
 // clientResolver resolves a per-turn chat client for an explicit
 // (provider, model) — the seam the multi-provider runtime plugs in so a turn
-// can run against a model other than the default. Unexported: chat's own
+// can run against a model other than the default. Unexported: turn's own
 // consumer-side abstraction, satisfied implicitly by the runtime's provider
 // registry (nothing outside this package names it). Returns an error when the
 // provider isn't configured / enabled.
@@ -86,12 +86,12 @@ type RehydrateRequest struct {
 	Approved  bool
 }
 
-// Service is the ChatService contract.
+// Service is the turn-dispatch contract.
 //
 // A typical interaction:
 //
-//	handle, err := chat.StartTurn(ctx, req)
-//	events := chat.Events(ctx, handle)
+//	handle, err := turn.StartTurn(ctx, req)
+//	events := turn.Events(ctx, handle)
 //	for ev := range events {
 //	    switch e := ev.(type) {
 //	    case MessageDelta: ui.AppendText(e.Text)
@@ -259,7 +259,7 @@ type ToolCallEnd struct {
 	Err    string
 	// Denied is true when the call ended because the approval verdict
 	// denied it (not an execution failure). The wire layer renders a
-	// distinct "denied" terminal — see [engine.ErrToolDenied].
+	// distinct "denied" terminal — see [kernel.ErrToolDenied].
 	Denied bool
 }
 
@@ -383,8 +383,8 @@ func (r TurnEndReason) String() string {
 }
 
 // TokenUsage is the per-turn token roll-up. Alias for
-// [engine.TokenUsage] — the engine owns the canonical shape and
-// the chat package re-exports it so transport adapters can stay
+// [kernel.TokenUsage] — the engine owns the canonical shape and
+// the turn package re-exports it so transport adapters can stay
 // scoped to one import.
 type TokenUsage = kernel.TokenUsage
 

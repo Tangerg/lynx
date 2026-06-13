@@ -22,7 +22,7 @@ var toolTracer = otel.Tracer("lynx/lyra/tool")
 const attrGenAIToolName = "gen_ai.tool.name"
 
 // source is the narrow surface tool.Service consumes: just a
-// snapshot of the currently-registered chat tools. *engine.Engine
+// snapshot of the currently-registered chat tools. *kernel.Engine
 // satisfies it implicitly via its Tools() accessor; tests pass a
 // stub that returns a fixed slice without needing a real platform.
 type source interface {

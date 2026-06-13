@@ -25,7 +25,7 @@ func newTurnID() string { return turnIDPrefix + uuid.NewString() }
 // single-process — it holds in-memory state about live turns and
 // fans events out to subscribers via per-turn channels.
 //
-// approvalSvc is optional. When non-nil the chat impl reads its mode
+// approvalSvc is optional. When non-nil the turn impl reads its mode
 // at each tool call to decide run / deny / pause-for-approval; on nil
 // every call passes (auto-approve, useful for tests / smoke runs).
 //
@@ -33,7 +33,7 @@ func newTurnID() string { return turnIDPrefix + uuid.NewString() }
 //   - inmemory.go  — Service surface + live-turn registry (this file)
 //   - turn.go      — per-turn state + the runTurn execution loop
 //   - lifecycle.go — terminal-event capture from the agent runtime
-//   - observer.go  — engine tool-observer → chat.Event translation
+//   - observer.go  — engine tool-observer → turn.Event translation
 //
 // The Service interface is stable, so transport adapters don't care
 // which impl they talk to.
@@ -310,7 +310,7 @@ func (s *inMemory) ProcessID(_ context.Context, handle TurnHandle) (string, erro
 // Rehydrate rebuilds a turn from a persisted process snapshot and resumes
 // it — the cross-restart counterpart to [Resume]. It registers a fresh
 // turn (new handle), restores + re-parks the agent process via
-// [engine.RestoreChat] with a fresh observer + lifecycle listener, then
+// [kernel.RestoreChat] with a fresh observer + lifecycle listener, then
 // delivers the decision and drives the continuation onto the new turn's
 // event channel. The caller subscribes via [Events] on the returned handle.
 func (s *inMemory) Rehydrate(ctx context.Context, req RehydrateRequest) (TurnHandle, error) {

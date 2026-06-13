@@ -8,7 +8,7 @@ import (
 
 // turnLifecycle captures the first terminal process event the agent
 // runtime publishes for a turn's ROOT process. The lifecycle listener
-// wires into [engine.RunChatRequest.EventListener] so the runtime fans
+// wires into [kernel.RunChatRequest.EventListener] so the runtime fans
 // every event for the turn through capture; runTurn reads the captured
 // event after proc.Done() to decide the TurnEnd reason.
 //

@@ -51,7 +51,7 @@ func NewTurnRunner(app *App, opts turnOptions) *TurnRunner {
 // and returns the resulting exit code (0 ok / 1 errored).
 //
 // Cancellation: SIGINT during the turn calls
-// [chat.Service.Cancel](handle) so the runtime emits a clean
+// [turn.Service.Cancel](handle) so the runtime emits a clean
 // TurnEnd(Canceled). A second SIGINT escalates to the default
 // kill — for wedged turns.
 func (r *TurnRunner) Run(ctx context.Context, sessionID, message string) int {
@@ -145,7 +145,7 @@ func (r *TurnRunner) dispatch(ctx context.Context, handle turn.TurnHandle, ev tu
 }
 
 // renderPlan prints the proposed plan. The approval prompt itself fires
-// later, on the [chat.TurnInterrupted] that follows once the turn has
+// later, on the [turn.TurnInterrupted] that follows once the turn has
 // actually parked (R model) — see [TurnRunner.handleInterrupt].
 func (r *TurnRunner) renderPlan(e turn.PlanGenerated) {
 	fmt.Fprintln(r.app.Out, "\n---- proposed plan ----")
@@ -156,7 +156,7 @@ func (r *TurnRunner) renderPlan(e turn.PlanGenerated) {
 // handleInterrupt answers a parked turn (HITL R model): it describes the
 // pending request — a gated tool call (prints tool + args) or a plan
 // (already printed by renderPlan) — prompts for approval, and forwards
-// the decision via [chat.Service.Resume]. The continuation streams onto
+// the decision via [turn.Service.Resume]. The continuation streams onto
 // the same event channel the caller is still draining.
 func (r *TurnRunner) handleInterrupt(ctx context.Context, handle turn.TurnHandle, e turn.TurnInterrupted) {
 	for _, in := range e.Interrupts {

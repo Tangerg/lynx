@@ -599,7 +599,7 @@ func baseSeq(ev turn.Event) uint64 {
 }
 
 // ------------------------------------------------------------------
-// Stub model (duplicated from engine package because that one's
+// Stub model (duplicated from kernel package because that one's
 // test-scope; this test lives in a different package).
 // ------------------------------------------------------------------
 
@@ -775,9 +775,9 @@ func isPlanRequest(req *chatmodel.Request) bool {
 	return false
 }
 
-// mustChat unwraps chat.New in test wiring — construction only fails on a
+// mustChat unwraps turn.New in test wiring — construction only fails on a
 // nil engine, which tests never pass. Takes (svc, err) directly so call
-// sites can splice chat.New's multi-value return straight in.
+// sites can splice turn.New's multi-value return straight in.
 func mustChat(svc turn.Service, err error) turn.Service {
 	if err != nil {
 		panic(err)

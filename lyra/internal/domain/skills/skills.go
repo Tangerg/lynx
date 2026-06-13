@@ -4,7 +4,7 @@
 // projects the result for the model (a merged skill source) and for
 // clients (a sorted Info list).
 //
-// It owns the discovery + precedence rules. The engine layer keeps the
+// It owns the discovery + precedence rules. The kernel layer keeps the
 // per-session-cwd resolution and the chat.Tool construction; it asks
 // this service for the merged source / the listing.
 package skills

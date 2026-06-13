@@ -84,7 +84,7 @@ func questionFromPayload(payload map[string]any) *protocol.Question {
 	return &q
 }
 
-// translator converts Lyra's internal [chat.Event] delta stream into
+// translator converts Lyra's internal [turn.Event] delta stream into
 // the v2 [protocol.StreamEvent] / Item model (API.md §5). One
 // translator per run — it carries the in-flight Item state (open
 // agentMessage / reasoning / toolCall items) so the output is

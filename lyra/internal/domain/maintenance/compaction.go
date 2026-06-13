@@ -90,7 +90,7 @@ func NewCompactor(store memory.Store, client *chat.Client, cfg CompactionConfig)
 // (message count or estimated token footprint, see [shouldCompact]) is
 // breached the older slice is summarized and the store is rewritten as
 // [summary, recent...]. The returned
-// [engine.CompactionResult] reports whether the sweep fired and the
+// [kernel.CompactionResult] reports whether the sweep fired and the
 // before/after message counts so callers can both chain follow-on
 // work (e.g. extraction) and surface an observable boundary event.
 //

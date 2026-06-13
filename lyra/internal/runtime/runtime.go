@@ -269,7 +269,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 }
 
 // Chat returns the ChatService — the one-turn dispatch surface
-// transport adapters call into for [chatsvc.Service.StartTurn] etc.
+// transport adapters call into for [turn.Service.StartTurn] etc.
 func (r *Runtime) Chat() turn.Service { return r.chat }
 
 // Session returns the SessionService — CRUD over saved sessions.

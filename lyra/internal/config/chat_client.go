@@ -44,7 +44,7 @@ func BuildChatClient(cfg Config) (*chat.Client, kernel.Pricing, error) {
 
 // BuildClient wires a *chat.Client for one provider+model — picks the right
 // lynx model adapter, plugs in the model id, api key, and optional base URL.
-// It also returns the [engine.Pricing] cost hook derived from the model's
+// It also returns the [kernel.Pricing] cost hook derived from the model's
 // metadata (nil when the model isn't in the pricing catalog), so turns can
 // report CostUSD.
 //
