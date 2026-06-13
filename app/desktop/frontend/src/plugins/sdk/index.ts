@@ -47,6 +47,7 @@ export { usePluginStore } from "./registry";
 // Read side. Plain reads use the generic substrate (use/lookupExtensionPoint,
 // use/lookupExtensionByKey); the rest are selectors with real logic.
 export {
+  executeCommand,
   listRpcAfterHooks,
   listRpcBeforeHooks,
   lookupCommandOwner,

@@ -1,5 +1,5 @@
 // React Query hooks for the cached side panels (sessions, files, diff,
-// terminal, etc.). Each hook owns one query key + return type. The
+// etc.). Each hook owns one query key + return type. The
 // actual fetcher comes from the plugin data-provider registry
 // (`lookupDataProvider(key)`); built-in defaults are registered by
 // `lyra.builtin.default-data`, but a user plugin can replace any of
@@ -99,11 +99,6 @@ export interface ProviderInfo {
   type: string;
   baseUrl: string;
   apiKeyMasked: string;
-}
-
-export interface TermLine {
-  kind: "prompt" | "cmd" | "out" | "err" | "warn" | "mute" | "ok";
-  text: string;
 }
 
 // workspace.getDiff params + result (AUX_API §2.3) — structured rows only;
@@ -250,7 +245,6 @@ export const useFilesChanged = makeParamDataQuery<FileChangesQuery, FileChange[]
   FILES_CHANGED_KEY,
 );
 export const useDiff = makeParamDataQuery<DiffQuery, WorkspaceDiff>(DIFF_KEY);
-export const useTerminal = makeDataQuery<TermLine[]>("terminal");
 export const useGrep = makeParamDataQuery<GrepQuery, GrepResult>("grep");
 export const useFileHead = makeParamDataQuery<FileHeadQuery, FileLine[]>("file-head");
 export const useMCPServers = makeDataQuery<MCPServer[]>(MCP_SERVERS_KEY);

@@ -2,7 +2,7 @@
 // workspace.listFileChanges (AUX_API §2.2). Selecting a row updates the
 // shared active-file state and opens the Diff tab.
 
-import { DataView, Icon, IconButton } from "@/components/common";
+import { DataView } from "@/components/common";
 import { FilesChanged } from "./views/FilesChanged";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useFilesChanged } from "@/lib/data/queries";
@@ -35,16 +35,6 @@ function FilesView() {
       titleStrong
       title="Working tree"
       sub={`${items.length} files · uncommitted`}
-      actions={
-        <>
-          <IconButton title="Stage all">
-            <Icon name="check" size={14} />
-          </IconButton>
-          <IconButton title="More">
-            <Icon name="more" size={14} />
-          </IconButton>
-        </>
-      }
     >
       <DataView
         items={gitEnabled ? items : []}

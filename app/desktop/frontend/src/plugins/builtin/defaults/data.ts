@@ -26,7 +26,6 @@ import type {
   Session,
   WorkspaceFileChange as RpcFileChange,
 } from "@/rpc";
-import { api } from "@/lib/data/http";
 import {
   DIFF_KEY,
   FILES_CHANGED_KEY,
@@ -127,11 +126,6 @@ function emptyPageIfUngated(err: unknown): { data: never[] } {
   if (isErrorType(err, "capability_not_negotiated")) return { data: [] };
   throw err;
 }
-
-// HTTP_KEYS lists the query keys still served over REST GET. Everything else
-// rides the JSON-RPC stack now; `terminal` is a stream (#160). Adding a key
-// in queries without a provider here makes that hook reject.
-const HTTP_KEYS = ["terminal"] as const;
 
 export const defaultData = definePlugin({
   name: "lyra.builtin.default-data",
@@ -276,12 +270,5 @@ export const defaultData = definePlugin({
           apiKeyMasked: p.apiKeyMasked,
         })),
     });
-
-    for (const key of HTTP_KEYS) {
-      host.extensions.contribute(DATA_PROVIDER, {
-        key,
-        fetcher: () => api.get(key).json(),
-      });
-    }
   },
 });
