@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/lyra/internal/service/session"
+	"github.com/Tangerg/lynx/lyra/internal/service/transcript"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 
@@ -139,15 +140,15 @@ func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest
 		if err != nil {
 			return nil, wireSessionErr(err)
 		}
-		timeline, err := newRunTimeline(runs)
+		nodes, _, err := runNodes(runs)
 		if err != nil {
 			return nil, err
 		}
 		// requireRoot=false: fork is lax about the boundary run's kind (the
 		// contract lists only session_not_found / run_not_found).
-		b, err := timeline.boundaryAt(in.FromRunID, false)
+		b, err := transcript.BoundaryAt(nodes, in.FromRunID, false)
 		if err != nil {
-			return nil, err
+			return nil, wireBoundaryErr(err)
 		}
 		copyN = b.KeepMark // -1 (unknown watermark) falls back to a full copy below
 	}
