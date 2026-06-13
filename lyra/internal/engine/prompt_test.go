@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
+	"github.com/Tangerg/lynx/lyra/internal/domain/knowledge"
 )
 
 // TestComposeSystemPrompt_BaseOnly verifies a nil memory service

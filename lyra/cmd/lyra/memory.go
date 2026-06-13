@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
+	"github.com/Tangerg/lynx/lyra/internal/domain/knowledge"
 )
 
 // MemoryCmd is the `lyra memory` group — inspect / edit the

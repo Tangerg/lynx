@@ -8,9 +8,9 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/infra/storage/sqlite"
-	"github.com/Tangerg/lynx/lyra/internal/service/interrupts"
-	"github.com/Tangerg/lynx/lyra/internal/service/session"
-	"github.com/Tangerg/lynx/lyra/internal/service/transcript"
+	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
+	"github.com/Tangerg/lynx/lyra/internal/domain/session"
+	"github.com/Tangerg/lynx/lyra/internal/domain/transcript"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 

@@ -7,8 +7,8 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/config"
-	"github.com/Tangerg/lynx/lyra/internal/service/provider"
-	"github.com/Tangerg/lynx/lyra/internal/service/tool"
+	"github.com/Tangerg/lynx/lyra/internal/domain/provider"
+	"github.com/Tangerg/lynx/lyra/internal/domain/tool"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 	"github.com/Tangerg/lynx/models/catalog"
 )

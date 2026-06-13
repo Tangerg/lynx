@@ -3,7 +3,7 @@ package server
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
+	"github.com/Tangerg/lynx/lyra/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 

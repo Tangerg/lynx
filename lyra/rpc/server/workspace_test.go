@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/lyra/internal/engine"
-	"github.com/Tangerg/lynx/lyra/internal/service/session"
-	"github.com/Tangerg/lynx/lyra/internal/service/workspace"
+	"github.com/Tangerg/lynx/lyra/internal/domain/session"
+	"github.com/Tangerg/lynx/lyra/internal/domain/workspace"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 

@@ -7,7 +7,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	skillstool "github.com/Tangerg/lynx/tools/skills"
 
-	"github.com/Tangerg/lynx/lyra/internal/service/skills"
+	"github.com/Tangerg/lynx/lyra/internal/domain/skills"
 )
 
 // Build assembles the working-directory-scoped skill tool over the merged skill

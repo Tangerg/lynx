@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/lyra/internal/service/session"
-	"github.com/Tangerg/lynx/lyra/internal/service/transcript"
+	"github.com/Tangerg/lynx/lyra/internal/domain/session"
+	"github.com/Tangerg/lynx/lyra/internal/domain/transcript"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 

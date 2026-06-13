@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/lyra/internal/service/provider"
+	"github.com/Tangerg/lynx/lyra/internal/domain/provider"
 )
 
 // ProviderService implements provider.Service against a SQLite database.

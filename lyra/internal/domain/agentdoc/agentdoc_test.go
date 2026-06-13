@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/lyra/internal/service/agentdoc"
+	"github.com/Tangerg/lynx/lyra/internal/domain/agentdoc"
 )
 
 // writeFile is the test helper for laying out an AGENTS.md fixture.

@@ -10,8 +10,8 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/infra/storage/sqlite"
-	"github.com/Tangerg/lynx/lyra/internal/service/session"
-	"github.com/Tangerg/lynx/lyra/internal/service/transcript"
+	"github.com/Tangerg/lynx/lyra/internal/domain/session"
+	"github.com/Tangerg/lynx/lyra/internal/domain/transcript"
 )
 
 func newTempDB(t *testing.T) *sqlite.SessionService {

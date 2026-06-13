@@ -7,7 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/config"
-	"github.com/Tangerg/lynx/lyra/internal/service/provider"
+	"github.com/Tangerg/lynx/lyra/internal/domain/provider"
 )
 
 // clientResolver resolves a per-turn [chat.Client] for an explicit

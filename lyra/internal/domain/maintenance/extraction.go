@@ -10,7 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 
-	"github.com/Tangerg/lynx/lyra/internal/service/knowledge"
+	"github.com/Tangerg/lynx/lyra/internal/domain/knowledge"
 )
 
 // Extractor folds long-term knowledge out of a session and appends

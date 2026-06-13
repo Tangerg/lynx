@@ -3,7 +3,7 @@ package engine
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/lyra/internal/service/skills"
+	"github.com/Tangerg/lynx/lyra/internal/domain/skills"
 )
 
 // SkillInfo is re-exported from the skills service so the engine's accessor

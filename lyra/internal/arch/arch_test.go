@@ -23,7 +23,7 @@ import (
 //
 //	delivery       rpc/**                       HTTP+SSE / inprocess transport, dispatch, protocol
 //	orchestration  internal/engine/**           use-case core (drives the agent loop; ACL over the agent SDK)
-//	domain         internal/service/**          bounded contexts: entities + repository ports + domain services
+//	domain         internal/domain/**          bounded contexts: entities + repository ports + domain services
 //	infra          internal/infra/**            sqlite / git / lsp / mcp / exec — driven adapters & frameworks
 //	composition    internal/runtime,            the "main" component that wires everything; exempt as an importer
 //	               internal/config, cmd/**
@@ -38,11 +38,11 @@ import (
 // Intentionally NOT forbidden (each is a correct inward / hexagonal edge —
 // documented in STRUCTURE_REVIEW.md §2):
 //
-//	engine            → service/*    orchestration depends inward on domain
-//	infra             → service/*    adapter depends inward on domain entities + repo ports
+//	engine            → domain/*    orchestration depends inward on domain
+//	infra             → domain/*    adapter depends inward on domain entities + repo ports
 //	domain            → infra/*      a domain service may wrap an infra capability
 //	                                 (codeintel↦lsp, workspace↦git+checkpoint)
-//	service/maintenance → engine     maintenance is a driven adapter of engine's
+//	domain/maintenance → engine     maintenance is a driven adapter of engine's
 //	                                 Compactor/Extractor PORTS; importing the port
 //	                                 owner for its DTOs is the correct hexagonal direction
 //	delivery          → anything inward
@@ -122,7 +122,7 @@ func layerOf(rel string) string {
 		return ringDelivery
 	case rel == "internal/engine" || strings.HasPrefix(rel, "internal/engine/"):
 		return ringOrchestration
-	case strings.HasPrefix(rel, "internal/service/"):
+	case strings.HasPrefix(rel, "internal/domain/"):
 		return ringDomain
 	case strings.HasPrefix(rel, "internal/infra/"):
 		return ringInfra

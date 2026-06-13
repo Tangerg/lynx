@@ -7,7 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/turnctx"
-	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
+	"github.com/Tangerg/lynx/lyra/internal/domain/codeintel"
 )
 
 // Build exposes the code-intelligence service as the agent's

@@ -15,8 +15,8 @@ import (
 
 	"github.com/Tangerg/lynx/lyra/internal/config"
 	"github.com/Tangerg/lynx/lyra/internal/infra/storage"
-	"github.com/Tangerg/lynx/lyra/internal/service/agentdoc"
-	"github.com/Tangerg/lynx/lyra/internal/service/workspace"
+	"github.com/Tangerg/lynx/lyra/internal/domain/agentdoc"
+	"github.com/Tangerg/lynx/lyra/internal/domain/workspace"
 	"github.com/Tangerg/lynx/lyra/rpc/server"
 	lyrahttp "github.com/Tangerg/lynx/lyra/rpc/transport/http"
 )

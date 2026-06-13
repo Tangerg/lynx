@@ -4,7 +4,7 @@
 // or must pause for user approval. The actual HITL pause/resume is the
 // R model (the agent runtime parks the process on AwaitInput and the
 // client answers via runs.resume) — see internal/engine/chat +
-// internal/service/interrupts. There is no blocking
+// internal/domain/interrupts. There is no blocking
 // register/decide/decision-channel machinery here anymore.
 package approval
 

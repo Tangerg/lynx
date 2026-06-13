@@ -6,8 +6,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Tangerg/lynx/lyra/internal/service/agentdoc"
-	"github.com/Tangerg/lynx/lyra/internal/service/session"
+	"github.com/Tangerg/lynx/lyra/internal/domain/agentdoc"
+	"github.com/Tangerg/lynx/lyra/internal/domain/session"
 	"github.com/Tangerg/lynx/lyra/rpc/protocol"
 )
 

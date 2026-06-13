@@ -11,8 +11,8 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 
 	"github.com/Tangerg/lynx/lyra/internal/engine/toolset/turnctx"
-	"github.com/Tangerg/lynx/lyra/internal/service/codeintel"
-	"github.com/Tangerg/lynx/lyra/internal/service/editguard"
+	"github.com/Tangerg/lynx/lyra/internal/domain/codeintel"
+	"github.com/Tangerg/lynx/lyra/internal/domain/editguard"
 )
 
 // The read/edit/write guards: the LLM-facing presentation of the

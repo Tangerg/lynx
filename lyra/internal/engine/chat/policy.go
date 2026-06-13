@@ -1,6 +1,6 @@
 package chat
 
-import "github.com/Tangerg/lynx/lyra/internal/service/approval"
+import "github.com/Tangerg/lynx/lyra/internal/domain/approval"
 
 // gateAction is the three-way outcome of the per-call permission
 // gate: run it, ask the user, or refuse outright. Replacing the

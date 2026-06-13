@@ -10,7 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/lyra/internal/engine"
 	"github.com/Tangerg/lynx/lyra/internal/engine/toolset"
-	"github.com/Tangerg/lynx/lyra/internal/service/tool"
+	"github.com/Tangerg/lynx/lyra/internal/domain/tool"
 )
 
 // TestService_List enumerates the coding tool set and verifies the
