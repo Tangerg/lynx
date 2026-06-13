@@ -6,7 +6,7 @@ import { TodoList } from "./views/TodoList";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 
-// The model's working checklist (B11, docs/613). Reads live from the agent's
+// The model's working checklist (B11, 613). Reads live from the agent's
 // shared state — the backend pushes the list via state.snapshot{todos} (no new
 // event type), which the fold already lands in view.shared. Gated by
 // features.todos so a runtime without it shows an explicit "unavailable" state

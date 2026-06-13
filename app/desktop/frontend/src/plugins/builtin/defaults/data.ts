@@ -275,7 +275,7 @@ export const defaultData = definePlugin({
           apiKeyMasked: p.apiKeyMasked,
         })),
     });
-    // approval.* (B9, docs/613) — global stance + per-session remembered decisions.
+    // approval.* (B9, 613) — global stance + per-session remembered decisions.
     host.extensions.contribute(DATA_PROVIDER, {
       key: APPROVAL_MODE_KEY,
       fetcher: async () => (await client().approval.getMode()).mode,
@@ -291,7 +291,7 @@ export const defaultData = definePlugin({
           rememberedAt: e.rememberedAt,
         })),
     });
-    // workspace.listFiles / readFile (B8, docs/613) — file-tree browser + viewer.
+    // workspace.listFiles / readFile (B8, 613) — file-tree browser + viewer.
     host.extensions.contribute(DATA_PROVIDER, {
       key: "list-files",
       fetcher: async (params) => {

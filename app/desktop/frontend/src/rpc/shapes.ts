@@ -31,11 +31,11 @@ export interface ServerFeatures {
   fileWatch: boolean; // workspace.subscribe `watches` (git-state watch) available (AUX_API §3.1)
   checkpoints: boolean; // sessions.rollback{restoreType:files|both} — shadow-git file restore (AUX_API §4.3)
   lsp: boolean; // code-intelligence tool set (lsp_*) + post-edit auto typecheck; tools render as ordinary toolCalls
-  // workspace.code.* RPC surface (B7, docs/613) — distinct from `lsp` above, which gates the
+  // workspace.code.* RPC surface (B7, 613) — distinct from `lsp` above, which gates the
   // model's lsp_* TOOLS; this gates the direct RPC methods the UI calls for @symbol / code-nav.
   // Optional: absent until the backend ships it ⇒ reads as false. Folds into API.md §9 on landing.
   codeIntel?: boolean;
-  // todos.list + state.snapshot{todos} (B11) / sessions.compact (B10) — docs/613 proposals,
+  // todos.list + state.snapshot{todos} (B11) / sessions.compact (B10) — 613 proposals,
   // optional until shipped ⇒ read as false. Fold into API.md §9 on landing.
   todos?: boolean;
   compaction?: boolean;
@@ -293,7 +293,7 @@ export type Item =
       safetyClass?: string;
       error?: ProblemData;
     })
-  // A context-compaction boundary (B10, docs/613) — the durable marker that "N
+  // A context-compaction boundary (B10, 613) — the durable marker that "N
   // earlier messages were summarized here". Emitted by autonomous (turn-edge)
   // compaction and explicit sessions.compact alike; folds to a timeline divider.
   | (ItemBase & { type: "compaction"; summary?: string; droppedMessages?: number });
@@ -766,7 +766,7 @@ export interface WorkspaceQuery {
 }
 
 // ---------------------------------------------------------------------------
-// §7.5 — Code intelligence (workspace.code.*) — PROPOSAL, docs/613 B7
+// §7.5 — Code intelligence (workspace.code.*) — PROPOSAL, 613 B7
 // ---------------------------------------------------------------------------
 //
 // LSP-backed, read-only code navigation. Positions are 0-based and `character`
@@ -845,7 +845,7 @@ export interface Diagnostic {
 }
 
 // ---------------------------------------------------------------------------
-// §7.5 — File browse (workspace.listFiles / readFile) — PROPOSAL, docs/613 B8
+// §7.5 — File browse (workspace.listFiles / readFile) — PROPOSAL, 613 B8
 // ---------------------------------------------------------------------------
 
 export interface FileEntry {
@@ -868,7 +868,7 @@ export interface FileContent {
 }
 
 // ---------------------------------------------------------------------------
-// §7.9 / §7.2 / §7.10 — Approval control · compaction · todos — PROPOSAL, docs/613 B9/B10/B11
+// §7.9 / §7.2 / §7.10 — Approval control · compaction · todos — PROPOSAL, 613 B9/B10/B11
 // ---------------------------------------------------------------------------
 
 // B9 — global approval stance (one per Runtime, not per-session). Orthogonal to

@@ -253,8 +253,7 @@ interface McpServer {
 
 ## 8. 实现批次 × 落点（供前后端排期）
 
-> **状态（2026-06-11）：B1–B6 + 去债 后端全部落地、已并入 `API.md`。** 逐方法的 live/off 状态 + 调用方式见权威清单
-> [`2026-06-11/BACKEND_API_REFERENCE.md`](./2026-06-11/BACKEND_API_REFERENCE.md)(取代早期分散的 B1/B2-B6 handoff)。
+> **状态：B1–B6 + 去债 已全部落地、并入 `API.md`。** 逐方法 live/off + 调用方式以 `API.md` 正文 + 后端 `lyra/internal/delivery` 实现为准。
 
 | 批次 | 内容 | API.md 落点 | 前端同轮动作 |
 | --- | --- | --- | --- |
@@ -265,7 +264,7 @@ interface McpServer {
 | **B5** | 审批 `remember{scope:session}` + `editedArgs` | §6.1 | 审批卡加 remember 下拉(本次/本会话两项) |
 | **去债** | 砍 `background.*` | §7.7/§7.8 删 | 删 `BackgroundTask`/`TaskId`/`streamBackgroundUpdates`/methods |
 
-每批后端落地 = 改 `API.md` 正文 + 更新 `2026-06-10/BACKEND_CAPABILITIES.md`(怎么调 + 边界);前端按本表同轮跟进。
+每批后端落地 = 改 `API.md` 正文;前端按本表同轮跟进。
 存量 drift 一并修:`shapes.ts` 补 `ServerCapabilities.streamingMethods` 镜像(§9 已有、前端漏镜像)。
 
 ---

@@ -1,4 +1,4 @@
-// Approval-stance mutations (B9, docs/613) — the global approval mode + the
+// Approval-stance mutations (B9, 613) — the global approval mode + the
 // per-session remembered-decision management. Thin wrappers over the client
 // that invalidate the matching react-query keys so the Approvals pane re-reads.
 // (Mirrors lib/agent/useProviderConfig: mutation lives here, reads in lib/data.)

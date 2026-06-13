@@ -165,7 +165,7 @@ export interface Methods {
       path?: string;
       limit?: number;
     }) => Promise<GrepResult>;
-    // General directory listing / glob (B7/B8 → docs/613) — feeds the file tree + @file.
+    // General directory listing / glob (B7/B8 → 613) — feeds the file tree + @file.
     // Respects .gitignore + backstop excludes unless includeIgnored; not gated (basic read).
     listFiles: (params: {
       cwd?: string;

@@ -2,7 +2,7 @@
 
 > 本文档描述 `frontend/` 这个 React + TypeScript 应用是怎么组织、怎么运行的。
 > 设计系统 / 视觉规范看 `DESIGN.md`；决策透镜 / 工程约定看仓库根的 `CLAUDE.md`；
-> 协议权威定义看 `docs/API.md` + `docs/TRANSPORT.md`；扩展点底座看 `docs/EXTENSION_POINTS.md`。
+> 协议权威定义看 `docs/protocol/API.md` + `docs/protocol/AUX_API.md` + `docs/protocol/TRANSPORT.md`。
 >
 > **分工**：`CLAUDE.md` 讲"怎么判断"（决策与硬约定），本文讲"系统长什么样"（结构与运行）。两者尽量不重述。
 
@@ -305,7 +305,7 @@ export default definePlugin({
 
 #### Host 接口（写路径 + 命令式动作）
 
-`Host`（`src/plugins/sdk/types/host.ts`）是插件能调的"动词"集合。**贡献统一走开放扩展点底座**——权威文档 `docs/EXTENSION_POINTS.md`。
+`Host`（`src/plugins/sdk/types/host.ts`）是插件能调的"动词"集合。**贡献统一走开放扩展点底座**（写路径见下）。
 
 **贡献写路径（绝大多数"注册一个 spec"）**：
 
@@ -653,10 +653,8 @@ declare module "@/protocol/run/viewState" {
 | ------------------------------- | ----------------------------------------------------------------- |
 | 决策透镜 / 工程约定 / 反向不变量 | 仓库根 `CLAUDE.md`                                                |
 | 视觉规范 / 颜色 / 排版          | `frontend/DESIGN.md`                                              |
-| 协议 method 表 / envelope / 语义 | `docs/API.md`                                                     |
-| transport / handshake / 错误码  | `docs/TRANSPORT.md`                                               |
-| 扩展点底座 + Plugin Pack        | `docs/EXTENSION_POINTS.md`                                        |
-| 插件实现细节 / 能力上限         | `docs/PLUGINS_IMPL.md` / `docs/PLUGINS_CEILING.md`               |
+| 协议 method 表 / envelope / 语义 | `docs/protocol/API.md` + `docs/protocol/AUX_API.md`              |
+| transport / handshake / 错误码  | `docs/protocol/TRANSPORT.md`                                     |
 | Host 全部接口                   | `src/plugins/sdk/types/host.ts`                                  |
 | 协议 fold                       | `src/protocol/run/reducer.ts` + `builtin/agent/core-reducer/`    |
 | 一个完整内置插件                | `src/plugins/builtin/agent/rpc-agent/index.ts`                   |
