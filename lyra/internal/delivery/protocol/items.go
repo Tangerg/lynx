@@ -199,9 +199,9 @@ type ToolInvocation struct {
 // state only — see WorkspaceFileChange). Shares the FileEdit/WorkspaceFileChange
 // status vocabulary deliberately (§4.5).
 type FileEdit struct {
-	Path   string    `json:"path"`
-	Status string    `json:"status"` // "added" | "modified" | "deleted" | "renamed"
-	Diff   []DiffRow `json:"diff,omitempty"`
+	Path   string     `json:"path"`
+	Status FileStatus `json:"status"` // see FileStatus ("untracked" is VCS-only, never here)
+	Diff   []DiffRow  `json:"diff,omitempty"`
 }
 
 // DiffRow is one structured row of a unified diff (API.md §4.5). Code

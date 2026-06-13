@@ -20,7 +20,7 @@ func (s *Server) WorkspaceMCPListServers(ctx context.Context, _ protocol.PageQue
 	statuses := s.rt.MCPServerStatuses()
 	out := make([]protocol.McpServer, 0, len(statuses))
 	for _, st := range statuses {
-		entry := protocol.McpServer{Name: st.Name, Status: st.Status}
+		entry := protocol.McpServer{Name: st.Name, Status: protocol.McpStatus(st.Status)}
 		switch st.Status {
 		case "connected":
 			// Inline the tool count so the client needn't ⨝ listTools (AUX_API §5.1).
@@ -108,7 +108,7 @@ func (s *Server) mcpServerChangedEvent(ctx context.Context, server string) proto
 		if st.Name != server {
 			continue
 		}
-		ev.Status = st.Status
+		ev.Status = protocol.McpStatus(st.Status)
 		switch st.Status {
 		case "connected":
 			if tools, err := s.rt.MCPTools(ctx, server); err == nil {
