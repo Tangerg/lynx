@@ -124,7 +124,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		compactor:       cfg.Compactor,
 		extractor:       cfg.Extractor,
 		planner:         cfg.Planner,
-		memSvc:          cfg.MemoryService,
+		memSvc:          cfg.Knowledge,
 		workdir:         cfg.Workdir,
 		skillsGlobalDir: cfg.SkillsGlobalDir,
 		pricing:         cfg.Pricing,
@@ -185,7 +185,7 @@ func (e *Engine) MaybeCompact(ctx context.Context, sessionID string) (Compaction
 // [ExtractionResult] reports whether anything was written and the
 // facts themselves, so callers can surface a memory-updated event.
 //
-// No-op (zero ExtractionResult) when the engine has no MemoryService
+// No-op (zero ExtractionResult) when the engine has no knowledge service
 // or the conversation is too short.
 // cwd is the session's working directory — facts extract into THAT
 // project's LYRA.md; empty falls back to the memory service default.

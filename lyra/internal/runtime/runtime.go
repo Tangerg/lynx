@@ -110,7 +110,7 @@ type Runtime struct {
 	chat       chatsvc.Service
 	session    sessionsvc.Service
 	tool       toolsvc.Service
-	memory     knowledge.Service
+	knowledge  knowledge.Service
 	approval   approval.Service
 	interrupts interrupts.Store
 	transcript transcript.Store
@@ -159,8 +159,8 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	ecfg.Steering = conv
 	ecfg.Compactor = maintenance.NewCompactor(memStore, cfg.Engine.ChatClient, maintenance.CompactionConfig{})
 	ecfg.Planner = maintenance.NewPlanner(cfg.Engine.ChatClient)
-	if cfg.Engine.MemoryService != nil {
-		ecfg.Extractor = maintenance.NewExtractor(memStore, cfg.Engine.MemoryService, cfg.Engine.ChatClient)
+	if cfg.Engine.Knowledge != nil {
+		ecfg.Extractor = maintenance.NewExtractor(memStore, cfg.Engine.Knowledge, cfg.Engine.ChatClient)
 	}
 
 	// Tool environment: assembled outside the core (constructs the code-intel /
@@ -216,7 +216,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		chat:         chatSvc,
 		session:      sessionSvc,
 		tool:         toolSvc,
-		memory:       cfg.Engine.MemoryService,
+		knowledge:    cfg.Engine.Knowledge,
 		approval:     approvalSvc,
 		interrupts:   interruptStore,
 		transcript:   cfg.TranscriptStore,
@@ -236,9 +236,10 @@ func (r *Runtime) Session() sessionsvc.Service { return r.session }
 // Tool returns the ToolService — metadata + manual invocation surface.
 func (r *Runtime) Tool() toolsvc.Service { return r.tool }
 
-// Memory returns the LYRA.md cascade service. Nil when no memory
-// service was configured (cfg.Engine.MemoryService was nil).
-func (r *Runtime) Memory() knowledge.Service { return r.memory }
+// Memory returns the LYRA.md cascade service — the wire/API "memory"
+// surface (memory.get/update/list). Nil when no knowledge service was
+// configured. The accessor keeps the wire term; the field is "knowledge".
+func (r *Runtime) Memory() knowledge.Service { return r.knowledge }
 
 // Approval returns the ApprovalService. Always non-nil — the runtime
 // constructs one regardless of cfg.ApprovalMode (defaults to YOLO).
