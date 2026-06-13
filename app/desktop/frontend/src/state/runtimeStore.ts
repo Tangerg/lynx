@@ -73,6 +73,8 @@ export type ServerFeature =
   | "fileWatch"
   | "lsp"
   | "codeIntel"
+  | "todos"
+  | "compaction"
   | "subagents"
   | "skills"
   | "mcp"

@@ -112,6 +112,11 @@ export type {
   Diagnostic,
   FileEntry,
   FileContent,
+  // Approval control / compaction / todos (B9/B10/B11) — docs/613 proposal
+  ApprovalMode,
+  RememberedDecision,
+  CompactionResult,
+  TodoItem,
   // Usage / error / context / tools
   Usage,
   ModelUsage,

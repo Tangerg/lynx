@@ -35,6 +35,10 @@ export interface ServerFeatures {
   // model's lsp_* TOOLS; this gates the direct RPC methods the UI calls for @symbol / code-nav.
   // Optional: absent until the backend ships it ⇒ reads as false. Folds into API.md §9 on landing.
   codeIntel?: boolean;
+  // todos.list + state.snapshot{todos} (B11) / sessions.compact (B10) — docs/613 proposals,
+  // optional until shipped ⇒ read as false. Fold into API.md §9 on landing.
+  todos?: boolean;
+  compaction?: boolean;
   subagents: boolean;
   skills: boolean;
   sessionExport: boolean;
@@ -862,6 +866,44 @@ export interface FileContent {
   truncated?: boolean; // hit maxBytes (self-describing, no silent cap)
   startLine?: number;
   endLine?: number;
+}
+
+// ---------------------------------------------------------------------------
+// §7.9 / §7.2 / §7.10 — Approval control · compaction · todos — PROPOSAL, docs/613 B9/B10/B11
+// ---------------------------------------------------------------------------
+
+// B9 — global approval stance (one per Runtime, not per-session). Orthogonal to
+// Item.toolCall.safetyClass (per-tool risk): mode is the global policy, the two
+// combine to decide whether a call parks.
+export type ApprovalMode =
+  | "readOnly" // only read-only tools pass; writes/exec park
+  | "safe" // every write/exec tool parks
+  | "balanced" // default: high-risk parks, low-risk passes (by safetyClass)
+  | "yolo"; // everything passes, no parking (automation)
+export interface RememberedDecision {
+  tool: string; // tool name — the remember key (AUX_API §6)
+  decision: "approve" | "deny";
+  rememberedAt: string; // ISO-8601
+}
+
+// B10 — sessions.compact result. The `compaction` Item variant that makes the
+// boundary visible on the timeline is deferred to the fold-layer phase (it
+// touches the Item union + reducer).
+export interface CompactionResult {
+  session: Session; // post-compaction (usage updated)
+  compacted: boolean; // false = under threshold and not forced — nothing done
+  beforeMessages?: number;
+  afterMessages?: number;
+  summaryItemId?: ItemId; // the compaction Item produced, if any
+}
+
+// B11 — the model's working checklist (todo_write), NOT the removed background.*
+// task registry. Live updates ride the existing state.snapshot channel (§5.3) —
+// no new event type; folding it into a view field is deferred to the fold phase.
+export interface TodoItem {
+  id: string;
+  text: string;
+  status: "pending" | "in_progress" | "completed";
 }
 
 // ---------------------------------------------------------------------------

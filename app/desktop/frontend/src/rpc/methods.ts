@@ -12,11 +12,13 @@ import type { RpcClient } from "./client";
 import type { AttachmentId, RunId, SessionId } from "./ids";
 import type {
   AgentDoc,
+  ApprovalMode,
   Attachment,
   CanceledNotification,
   CodeLocation,
   CodePosition,
   CodeQuery,
+  CompactionResult,
   ConfigureProviderRequest,
   CreateSessionRequest,
   CreateUploadUrlRequest,
@@ -48,6 +50,7 @@ import type {
   Project,
   Provider,
   ProviderTestResult,
+  RememberedDecision,
   ResumeRunRequest,
   ResumeRunResponse,
   RollbackSessionRequest,
@@ -61,6 +64,7 @@ import type {
   StartRunRequest,
   StartRunResponse,
   SubscribeWorkspaceRequest,
+  TodoItem,
   ToolSpec,
   UpdateSessionRequest,
   WorkspaceEvent,
@@ -114,6 +118,10 @@ export interface Methods {
     export: (sessionId: SessionId, format?: "md" | "json") => Promise<ExportSessionResponse>;
     // Restore semantics — rebuilds under the artifact's original id (idempotent).
     import: (artifact: SessionArtifact) => Promise<ImportSessionResponse>;
+    // Proactive context compaction (B10) — force:false only compacts past the
+    // internal threshold (same condition as autonomous). Rejected session_busy
+    // while a run is in flight. Internally calls the LLM → may take seconds.
+    compact: (params: { sessionId: SessionId; force?: boolean }) => Promise<CompactionResult>;
   };
   runs: {
     start: (
@@ -190,6 +198,10 @@ export interface Methods {
       listServers: () => Promise<Page<McpServer>>;
       listTools: (server?: string) => Promise<Page<McpTool>>;
       reconnect: (server: string) => Promise<void>;
+      // Hand the backend a bearer token for a needsAuth server (B12). Async like
+      // reconnect — result arrives via the workspace.subscribe mcp.serverChanged push
+      // (connecting → connected|needsAuth|failed). Backend forwards, never stores.
+      authenticate: (params: { server: string; token: string }) => Promise<void>;
     };
     // Code intelligence (B7) — LSP-backed, read-only, gated features.codeIntel. Positions
     // 0-based / UTF-16 (LSP). No language server for the file type → no_language_server
@@ -234,6 +246,19 @@ export interface Methods {
   feedback: {
     create: (params: FeedbackRequest) => Promise<void>;
   };
+  // Approval runtime control (B9) — global stance + remember management. Not gated.
+  approval: {
+    getMode: () => Promise<{ mode: ApprovalMode }>;
+    setMode: (mode: ApprovalMode) => Promise<{ mode: ApprovalMode }>;
+    listRemembered: (sessionId: SessionId) => Promise<{ entries: RememberedDecision[] }>;
+    // Omit `tool` to clear all remembered decisions for the session.
+    forget: (params: { sessionId: SessionId; tool?: string }) => Promise<void>;
+  };
+  // The model's working checklist (B11). Live updates ride state.snapshot (§5.3);
+  // this is the cold read for inactive runs / reopened history.
+  todos: {
+    list: (sessionId: SessionId) => Promise<{ todos: TodoItem[] }>;
+  };
 }
 
 export function createMethods(client: RpcClient): Methods {
@@ -255,6 +280,7 @@ export function createMethods(client: RpcClient): Methods {
       export: (sessionId, format) =>
         client.call<ExportSessionResponse>("sessions.export", { sessionId, format }),
       import: (artifact) => client.call<ImportSessionResponse>("sessions.import", { artifact }),
+      compact: (params) => client.call<CompactionResult>("sessions.compact", params),
     },
     runs: {
       start: async (params, signal) => {
@@ -316,6 +342,7 @@ export function createMethods(client: RpcClient): Methods {
         listTools: (server) =>
           client.call<Page<McpTool>>("workspace.mcp.listTools", server ? { server } : {}),
         reconnect: (server) => client.call<void>("workspace.mcp.reconnect", { server }),
+        authenticate: (params) => client.call<void>("workspace.mcp.authenticate", params),
       },
       code: {
         definition: (params) =>
@@ -356,6 +383,16 @@ export function createMethods(client: RpcClient): Methods {
     },
     feedback: {
       create: (params) => client.call<void>("feedback.create", params),
+    },
+    approval: {
+      getMode: () => client.call<{ mode: ApprovalMode }>("approval.getMode"),
+      setMode: (mode) => client.call<{ mode: ApprovalMode }>("approval.setMode", { mode }),
+      listRemembered: (sessionId) =>
+        client.call<{ entries: RememberedDecision[] }>("approval.listRemembered", { sessionId }),
+      forget: (params) => client.call<void>("approval.forget", params),
+    },
+    todos: {
+      list: (sessionId) => client.call<{ todos: TodoItem[] }>("todos.list", { sessionId }),
     },
   };
 }
