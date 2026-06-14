@@ -322,7 +322,7 @@ func (s *inMemory) Rehydrate(ctx context.Context, req RehydrateRequest) (TurnHan
 	// A rehydrated turn didn't carry its original model selection (the
 	// continuation runs on the default client — see RestoreChat), so the
 	// span/metrics record the default.
-	state.model = modelOr("")
+	state.model = "default"
 	state.ctx, state.span = startTurnSpan(state.ctx, handle.SessionID, handle.TurnID, state.model)
 	observer := &turnObserver{svc: s, st: state}
 	state.lifecycle = &turnLifecycle{}
