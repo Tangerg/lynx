@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
@@ -181,7 +182,7 @@ func (s *Server) emitToolFileChange(cwd string, se protocol.StreamEvent) {
 	if it.Type != protocol.ItemTypeToolCall || it.Status != protocol.ItemStatusCompleted || it.Error != nil || it.Tool == nil {
 		return
 	}
-	if _, ok := fileMutatingTools[it.Tool.Name]; !ok {
+	if _, ok := fileMutatingTools[strings.ToLower(it.Tool.Name)]; !ok {
 		return
 	}
 	path, _ := it.Tool.Arguments["path"].(string)
