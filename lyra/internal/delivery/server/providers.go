@@ -3,14 +3,13 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"slices"
 	"time"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/lyra/internal/config"
 	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/lyra/internal/domain/provider"
 	"github.com/Tangerg/lynx/lyra/internal/domain/tool"
+	"github.com/Tangerg/lynx/lyra/internal/infra/llm"
 	"github.com/Tangerg/lynx/models/catalog"
 )
 
@@ -27,7 +26,7 @@ func (s *Server) ListProviders(ctx context.Context, _ protocol.PageQuery) (*prot
 	for _, p := range configured {
 		byID[p.ID] = p
 	}
-	supported := config.SupportedProviders()
+	supported := llm.SupportedProviders()
 	out := make([]protocol.Provider, 0, len(supported))
 	for _, sp := range supported {
 		id := string(sp)
@@ -44,7 +43,7 @@ func providerToWire(id string, entry provider.Provider) protocol.Provider {
 		Type:            id,
 		BaseURL:         entry.BaseURL,
 		APIKeyMasked:    entry.MaskedAPIKey(),
-		RequiresBaseURL: config.RequiresBaseURL(config.Provider(id)),
+		RequiresBaseURL: llm.RequiresBaseURL(llm.Provider(id)),
 	}
 }
 
@@ -160,7 +159,7 @@ func toWireModalities(in []chat.Modality) []protocol.Modality {
 // isSupportedProvider reports whether id names a provider Lyra has an adapter
 // for — the guard providers.configure uses to reject unknown providers.
 func isSupportedProvider(id string) bool {
-	return slices.Contains(config.SupportedProviders(), config.Provider(id))
+	return llm.IsSupported(llm.Provider(id))
 }
 
 // ListTools surfaces every tool the engine registered — built-in coding

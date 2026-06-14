@@ -6,8 +6,8 @@ import (
 	"sync"
 
 	"github.com/Tangerg/lynx/core/model/chat"
-	"github.com/Tangerg/lynx/lyra/internal/config"
 	"github.com/Tangerg/lynx/lyra/internal/domain/provider"
+	"github.com/Tangerg/lynx/lyra/internal/infra/llm"
 )
 
 // clientResolver resolves a per-turn [chat.Client] for an explicit
@@ -49,8 +49,8 @@ func (r *clientResolver) ResolveClient(ctx context.Context, providerID, model st
 	if c, ok := r.cache[key]; ok {
 		return c, nil
 	}
-	client, _, err := config.BuildClient(config.ClientSpec{
-		Provider: config.Provider(providerID),
+	client, err := llm.BuildClient(llm.ClientSpec{
+		Provider: llm.Provider(providerID),
 		Model:    model,
 		APIKey:   entry.APIKey,
 		BaseURL:  entry.BaseURL,
