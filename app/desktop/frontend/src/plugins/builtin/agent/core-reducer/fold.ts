@@ -156,13 +156,18 @@ export function appendUserMessage(
   // immediately with a local-* id, a round-trip before the runtime streams
   // the real userMessage Item (with its own server id). Upgrade the oldest
   // matching placeholder's id in place rather than appending a duplicate.
-  const placeholder = state.messages.findIndex(
-    (m) =>
-      m.role === "user" &&
-      isLocalMessageId(m.id) &&
-      m.blocks.find((b): b is Extract<ContentBlock, { kind: "text" }> => b.kind === "text")
-        ?.text === text,
-  );
+  const placeholder = state.messages.findIndex((m) => {
+    if (m.role !== "user" || !isLocalMessageId(m.id)) return false;
+    // Normalize a missing text block to "" so an IMAGE-ONLY bubble (no text
+    // block, e.g. paste-and-send a screenshot) reconciles against its image-only
+    // streamed Item (whose contentText is also "") instead of being appended as
+    // a duplicate. The explicit userItemId relabel is the primary reconciler;
+    // this content match is the fallback for a runtime that omits it (§7.3).
+    const localText =
+      m.blocks.find((b): b is Extract<ContentBlock, { kind: "text" }> => b.kind === "text")?.text ??
+      "";
+    return localText === text;
+  });
   if (placeholder !== -1) {
     const messages = state.messages.map((m, i) =>
       i === placeholder ? { ...m, id: item.id, runId: item.runId } : m,
