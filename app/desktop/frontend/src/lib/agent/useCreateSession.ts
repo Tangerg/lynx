@@ -1,3 +1,4 @@
+import type { ContentBlock } from "@/rpc";
 import { useCallback } from "react";
 import { getContainer } from "@/main/container";
 import { invalidateSessions } from "@/lib/data/queries";
@@ -5,8 +6,8 @@ import { useSessionStore } from "@/state/sessionStore";
 import { reportSessionError } from "./reportSessionError";
 
 export interface CreateSessionOptions {
-  /** Queue this as the session's first message (welcome composer). */
-  firstMessage?: string;
+  /** Queue this as the session's first message input (welcome composer). */
+  firstInput?: ContentBlock[];
   /** Create the session in this working directory (sessions.create cwd,
    *  API.md §7.2) — the Projects "+" / project-row entry. Omitted = the
    *  runtime's serve dir. */
@@ -24,7 +25,7 @@ export interface CreateSessionOptions {
  * (an empty draft ready to type into); the welcome composer calls it with
  * the typed text, which the chat flushes on remount (useAgentSession).
  */
-async function createAndOpen({ firstMessage, cwd }: CreateSessionOptions): Promise<string | null> {
+async function createAndOpen({ firstInput, cwd }: CreateSessionOptions): Promise<string | null> {
   try {
     const session = await getContainer()
       .client()
@@ -33,7 +34,7 @@ async function createAndOpen({ firstMessage, cwd }: CreateSessionOptions): Promi
     // Mark draft + queue the message BEFORE selecting, so the remount
     // useAgentSession triggers sees both already in place.
     store.markDraft(session.id);
-    if (firstMessage?.trim()) store.setPendingMessage(session.id, firstMessage);
+    if (firstInput?.length) store.setPendingMessage(session.id, firstInput);
     store.selectTab(session.id); // opens tab + sets active → remounts chat
     // Draft is filtered out of the sidebar; refetch so its graduation
     // (and any backend-assigned title) lands promptly. A cwd create may
@@ -62,8 +63,8 @@ function doCreate(opts: CreateSessionOptions): Promise<string | null> {
 
 /** Imperative create for non-React callers (palette commands, keymap).
  *  React components use {@link useCreateSession}. */
-export function createSession(firstMessage?: string): Promise<string | null> {
-  return doCreate({ firstMessage });
+export function createSession(): Promise<string | null> {
+  return doCreate({});
 }
 
 export function useCreateSession(): (opts?: CreateSessionOptions) => Promise<string | null> {

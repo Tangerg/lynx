@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { Icon } from "@/components/common";
 import { BannerAction } from "./BannerAction";
+import { textInput } from "@/lib/agent/composerInput";
 import { flattenText } from "@/lib/agent/messageContent";
 import { useT } from "@/lib/i18n";
 import { swift } from "@/lib/motion";
@@ -45,7 +46,7 @@ export function RunErrorBanner() {
     const text = findLastUserText();
     if (!text) return;
     clearError(sid);
-    send(text);
+    send(textInput(text));
   };
 
   const canRetry = Boolean(send) && Boolean(findLastUserText());

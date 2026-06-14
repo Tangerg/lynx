@@ -26,8 +26,10 @@ async function withEnterKeymap() {
 }
 
 const baseProps = {
-  attachments: [],
-  onRemoveAttachment: () => {},
+  onClear: () => {},
+  images: [],
+  onRemoveImage: () => {},
+  onAddImages: () => {},
   mode: "agent" as const,
   onModeChange: () => {},
 };
@@ -47,7 +49,7 @@ describe("composer", () => {
     const onChange = vi.fn();
     render(<Composer {...baseProps} value="hello world" onChange={onChange} onSend={onSend} />);
     fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
-    expect(onSend).toHaveBeenCalledWith("hello world");
+    expect(onSend).toHaveBeenCalledWith([{ type: "text", text: "hello world" }]);
   });
 
   it("does not submit when the textarea is empty / whitespace only", async () => {
@@ -58,20 +60,21 @@ describe("composer", () => {
     expect(onSend).not.toHaveBeenCalled();
   });
 
-  it("renders attachment chips when attachments are provided", () => {
+  it("renders image thumbnails when images are staged", () => {
     render(
       <Composer
         {...baseProps}
         value=""
         onChange={() => {}}
         onSend={() => {}}
-        attachments={[
-          { id: "a1", label: "src/app.ts" },
-          { id: "a2", label: "src/auth.ts" },
+        images={[
+          { id: "a1", mime: "image/png", data: "AAAA", name: "shot1.png" },
+          { id: "a2", mime: "image/jpeg", data: "BBBB", name: "shot2.jpg" },
         ]}
       />,
     );
-    expect(screen.getByText("src/app.ts")).toBeTruthy();
-    expect(screen.getByText("src/auth.ts")).toBeTruthy();
+    const imgs = screen.getAllByRole("img");
+    expect(imgs).toHaveLength(2);
+    expect(imgs[0]!.getAttribute("src")).toBe("data:image/png;base64,AAAA");
   });
 });

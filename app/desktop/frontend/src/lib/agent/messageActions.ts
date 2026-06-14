@@ -12,13 +12,29 @@ import { asRunId, asSessionId } from "@/rpc";
 import { getCurrentSessionView, useAgentStore } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
 import { useSessionStore } from "@/state/sessionStore";
+import { buildInput } from "./composerInput";
 import { describeRpcError } from "./errorCopy";
 import { forkSessionAt } from "./useForkSession";
 import { flattenText } from "./messageContent";
 import { rehydrateSessionView } from "./rehydrateSession";
 
-function prefillComposer(text: string): void {
-  useComposerStore.getState().setValue(text);
+// Inlined images from a view message's blocks → composer-image shape (mime +
+// base64), so resend / regenerate / edit-and-rerun keep the images intact.
+function blockImages(msg: Message): { mime: string; data: string }[] {
+  return msg.blocks
+    .filter((b): b is Extract<Message["blocks"][number], { kind: "image" }> => b.kind === "image")
+    .map((b) => ({ mime: b.mime, data: b.data }));
+}
+
+// Load a message's content back into the composer for tweak + resend: its text
+// into the textarea, its inlined images re-staged. Replaces whatever's there.
+function prefillComposer(msg: Message): void {
+  const store = useComposerStore.getState();
+  const text = flattenText(msg.blocks);
+  store.clear(); // wipe current text + staged images first
+  store.setValue(text);
+  const imgs = blockImages(msg);
+  if (imgs.length > 0) store.addImages(imgs);
   const ta = document.querySelector<HTMLTextAreaElement>(".composer-input");
   ta?.focus();
   ta?.setSelectionRange(text.length, text.length);
@@ -92,7 +108,7 @@ export function regenerateMessage(msg: Message, opts?: RollbackActionOptions): v
     const text = flattenText(m.blocks).trim();
     if (!text) return;
     if (!m.runId) {
-      send(text);
+      send(buildInput(text, blockImages(m)));
       return;
     }
     void rollbackToBefore(sid, m.runId, opts?.restoreFiles)
@@ -100,8 +116,8 @@ export function regenerateMessage(msg: Message, opts?: RollbackActionOptions): v
         // Re-read send at resolve time — resetView kept the binding, but the
         // tab could have been torn down while the rollback was in flight.
         const liveSend = useAgentStore.getState().sessions[sid]?.send;
-        if (ok && liveSend) liveSend(text);
-        else if (!ok) send(text); // run unknown to the server — plain resend
+        if (ok && liveSend) liveSend(buildInput(text, blockImages(m)));
+        else if (!ok) send(buildInput(text, blockImages(m))); // run unknown — plain resend
       })
       .catch(reportRollbackError);
     return;
@@ -111,9 +127,9 @@ export function regenerateMessage(msg: Message, opts?: RollbackActionOptions): v
 // Load the message text back into the composer so the user can tweak and
 // re-send. Doesn't mutate history — sending creates a new user turn.
 export function editMessageInComposer(msg: Message): void {
-  const text = flattenText(msg.blocks);
-  if (!text) return;
-  prefillComposer(text);
+  // Nothing to load if the message has neither text nor images.
+  if (!msg.blocks.some((b) => (b.kind === "text" && b.text) || b.kind === "image")) return;
+  prefillComposer(msg);
 }
 
 // Edit-and-rerun for a USER message: rewind history to just before this
@@ -123,16 +139,16 @@ export function editMessageInComposer(msg: Message): void {
 // composer prefill when the message never reconciled to a run.
 export function editAndRerunMessage(msg: Message, opts?: RollbackActionOptions): void {
   const sid = useSessionStore.getState().activeSessionId;
-  const text = flattenText(msg.blocks);
-  if (!sid || !text) return;
+  const hasContent = msg.blocks.some((b) => (b.kind === "text" && b.text) || b.kind === "image");
+  if (!sid || !hasContent) return;
   if (msg.role !== "user" || !msg.runId) {
-    prefillComposer(text);
+    prefillComposer(msg);
     return;
   }
   void rollbackToBefore(sid, msg.runId, opts?.restoreFiles)
     // Run unknown to the server (ok=false) still prefills — the user can at
     // least resend; only a hard failure (busy / transport) aborts with a toast.
-    .then(() => prefillComposer(text))
+    .then(() => prefillComposer(msg))
     .catch(reportRollbackError);
 }
 

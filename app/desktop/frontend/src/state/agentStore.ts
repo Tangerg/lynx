@@ -5,7 +5,7 @@
 // below; they do the active-session lookup + INITIAL_VIEW_STATE
 // fallback that every callsite needs.
 
-import type { InterruptResponse, RunId, StreamEvent } from "@/rpc";
+import type { ContentBlock, InterruptResponse, RunId, StreamEvent } from "@/rpc";
 import type { AgentViewState, RunError } from "@/protocol/run/viewState";
 import { create } from "zustand";
 import { disposeOnHmr } from "@/lib/hmr";
@@ -18,7 +18,7 @@ import { INITIAL_VIEW_STATE } from "@/protocol/run/viewState";
 import { useSessionStore } from "./sessionStore";
 
 type StopFn = (() => void) | null;
-type SendFn = ((text: string) => void) | null;
+type SendFn = ((input: ContentBlock[]) => void) | null;
 // onSettled fires once the continuation run has actually started (channel-a
 // accepted); onStartError fires if runs.resume rejects before any stream
 // opened (API.md §8.1), so the caller can roll back its optimistic UI.

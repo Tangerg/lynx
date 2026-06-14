@@ -262,6 +262,7 @@ export const defaultData = definePlugin({
           id: m.id,
           provider: m.provider,
           label: m.displayName ?? m.id,
+          multimodal: m.capabilities?.multimodal ?? false,
         }));
       },
     });

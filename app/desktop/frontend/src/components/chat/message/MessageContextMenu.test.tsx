@@ -84,7 +84,7 @@ describe("messageContextMenu", () => {
   });
 
   it("Edit in composer loads the message text into composerStore", () => {
-    useComposerStore.setState({ value: "", mode: "agent", attachments: [] });
+    useComposerStore.setState({ value: "", mode: "agent", images: [] });
     render(
       <MessageContextMenu
         msg={buildMessage({

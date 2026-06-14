@@ -4,13 +4,14 @@
 // independently. The chat half's width is the persisted uiStore split ratio.
 
 import type { ViewPlacement } from "./ViewPlacement";
+import type { UserInput } from "@/lib/agent/composerInput";
 import { ChatStream } from "./ChatStream";
 import { SplitResizer } from "./SplitResizer";
 import { ViewPlacementProvider } from "./ViewPlacement";
 import { WorkspaceViewBody } from "./WorkspaceViewBody";
 
 interface Props {
-  onSend: (text: string) => void;
+  onSend: (input: UserInput) => void;
   /** Active session — the chat half's reset key. */
   sessionId: string;
   /** The splittable workspace view shown in the right half. */

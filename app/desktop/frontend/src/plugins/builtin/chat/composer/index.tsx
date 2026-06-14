@@ -7,9 +7,10 @@
 import type { IconName } from "@/components/common";
 import type { ReactNode } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { submitComposer } from "@/components/chat/composer";
 import { Icon, ProviderIcon, Tooltip } from "@/components/common";
+import { fileToInputImage, imageFiles } from "@/lib/agent/composerInput";
 import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
 import { useChatSend } from "@/lib/agent/useChatSend";
 import { submitPendingApproval } from "@/lib/agent/submitPendingApproval";
@@ -278,10 +279,49 @@ function ModelPicker() {
   );
 }
 
-// (No attach button yet: the attachments pipeline — createUploadUrl,
-// StartRunRequest.attachments, image blocks — isn't live on the backend.
-// A button that can't do anything is worse than none; it returns with
-// the upload flow.)
+// Attach images — opens a file picker; the selected image/* files are read to
+// base64 and staged in composerStore (paste / drop go through Composer). Gated
+// by the selected model's `multimodal` capability (the backend also rejects a
+// non-multimodal model with invalid_params, MULTIMODAL_IMAGE_INPUT §4).
+function AttachButton() {
+  const { data: models = [] } = useModels();
+  const provider = useComposerStore((s) => s.provider);
+  const model = useComposerStore((s) => s.model);
+  const addImages = useComposerStore((s) => s.addImages);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const selected = models.find((m) => m.provider === provider && m.id === model) ?? models[0];
+  const canAttach = selected?.multimodal ?? false;
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        aria-label="Attach image"
+        className="hidden"
+        onChange={(e) => {
+          const files = imageFiles(e.target.files);
+          e.target.value = ""; // allow re-picking the same file
+          if (files.length > 0) void Promise.all(files.map(fileToInputImage)).then(addImages);
+        }}
+      />
+      <Tooltip label={canAttach ? "Attach image" : "This model doesn't accept images"}>
+        <button
+          type="button"
+          aria-label="Attach image"
+          disabled={!canAttach}
+          onClick={() => inputRef.current?.click()}
+          className="inline-flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-fg-faint transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+        >
+          <Icon name="image" size={15} />
+        </button>
+      </Tooltip>
+    </>
+  );
+}
 
 export const composerToolbar = definePlugin({
   name: "lyra.builtin.composer-toolbar",
@@ -292,11 +332,17 @@ export const composerToolbar = definePlugin({
       order: 0,
       component: ModelPicker,
     });
+    host.layout.register("composer.toolbar.start", {
+      id: "attach",
+      order: 1,
+      component: AttachButton,
+    });
   },
 });
 
 function SendButton() {
   const value = useComposerStore((s) => s.value);
+  const images = useComposerStore((s) => s.images);
   const clear = useComposerStore((s) => s.clear);
   const send = useChatSend();
   const stop = useAgentAction("stop");
@@ -321,8 +367,8 @@ function SendButton() {
 
   // Enabled whenever there's text — with no active session, send spins up a
   // draft (useChatSend), so the button works on the welcome screen too.
-  const disabled = !value.trim();
-  const onClick = () => submitComposer({ value, clear, sendText: send });
+  const disabled = !value.trim() && images.length === 0;
+  const onClick = () => submitComposer({ value, clear, sendInput: send, images });
 
   return (
     <Tooltip label="Send (⌘↵)">

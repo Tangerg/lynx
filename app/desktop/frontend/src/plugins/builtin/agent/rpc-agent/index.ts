@@ -23,7 +23,7 @@ const WIRE_MODES: ReadonlySet<string> = new Set<RunMode>(["agent", "chat", "plan
 function makeDriver(sessionId: string): AgentDriver {
   const client = () => getContainer().client();
   return {
-    start: (text, signal) => {
+    start: (input, signal) => {
       // provider + model are a pair (API §7.3): send BOTH or NEITHER. Only one
       // → invalid_params. Both null (no enabled provider picked) = runtime
       // default provider+model.
@@ -31,7 +31,7 @@ function makeDriver(sessionId: string): AgentDriver {
       return client().runs.start(
         {
           sessionId: asSessionId(sessionId),
-          input: [{ type: "text", text }],
+          input,
           mode: WIRE_MODES.has(mode) ? (mode as RunMode) : "agent",
           ...(provider && model ? { provider, model } : {}),
         },

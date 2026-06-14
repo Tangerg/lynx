@@ -11,6 +11,7 @@
 //            has no opinion about *how* messages get to the agent.
 
 import type { ComposerMode } from "@/state/composerStore";
+import type { UserInput } from "@/lib/agent/composerInput";
 import type { ViewPlacement } from "./ViewPlacement";
 import { Panel } from "@/components/common";
 import { useSessions } from "@/lib/data/queries";
@@ -24,9 +25,9 @@ import { ViewPlacementProvider } from "./ViewPlacement";
 import { WorkspaceViewBody } from "./WorkspaceViewBody";
 
 interface Props {
-  /** Send a plain user message through the live agent. Supplied by
-   *  kernel-chat (or whatever container owns the agent session). */
-  onSend: (text: string) => void;
+  /** Send the user's message input (text + inlined images) through the live
+   *  agent. Supplied by kernel-chat (or whatever container owns the session). */
+  onSend: (input: UserInput) => void;
 }
 
 export function ChatPanel({ onSend }: Props) {

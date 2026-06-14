@@ -47,14 +47,14 @@ describe("useCreateSession", () => {
     stubCreate(create);
     const { result } = renderHook(() => useCreateSession(), { wrapper });
 
-    const id = await result.current({ firstMessage: "first message" });
+    const id = await result.current({ firstInput: [{ type: "text", text: "first message" }] });
 
     expect(id).toBe("new-1");
     const s = useSessionStore.getState();
     expect(s.activeSessionId).toBe("new-1");
     expect(s.tabIds).toContain("new-1");
     expect(s.draftSessionIds.has("new-1")).toBe(true);
-    expect(s.takePendingMessage("new-1")).toBe("first message");
+    expect(s.takePendingMessage("new-1")).toEqual([{ type: "text", text: "first message" }]);
   });
 
   it("forwards cwd so the session lands in the chosen project directory", async () => {
@@ -84,7 +84,7 @@ describe("useCreateSession", () => {
     stubCreate(vi.fn().mockRejectedValue(new Error("boom")));
     const { result } = renderHook(() => useCreateSession(), { wrapper });
 
-    await expect(result.current({ firstMessage: "x" })).resolves.toBeNull();
+    await expect(result.current({ firstInput: [{ type: "text", text: "x" }] })).resolves.toBeNull();
     expect(useSessionStore.getState().activeSessionId).toBe("");
   });
 
