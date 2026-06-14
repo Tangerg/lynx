@@ -24,6 +24,18 @@ func resumeBindingFrom(pending interrupts.Pending) *resumeBinding {
 		return nil
 	}
 	items := map[string]string{}
+	byName := map[string]string{}
+	// addItem indexes a proposal item both by (name, args) for an exact re-fire
+	// match and by name alone for the edited-args fallback. A name shared by two
+	// proposals is marked ambiguous ("") so the fallback won't guess.
+	addItem := func(name, argsK, itemID string) {
+		items[resumeKey(name, argsK)] = itemID
+		if _, dup := byName[name]; dup {
+			byName[name] = ""
+		} else {
+			byName[name] = itemID
+		}
+	}
 	var questions []resumedQuestion
 	for _, in := range ints {
 		if in.ItemID == "" {
@@ -39,7 +51,7 @@ func resumeBindingFrom(pending interrupts.Pending) *resumeBinding {
 			name, _ := tool["name"].(string)
 			args, _ := tool["arguments"].(map[string]any)
 			if name != "" {
-				items[resumeKey(name, argsKey(args))] = in.ItemID
+				addItem(name, argsKey(args), in.ItemID)
 			}
 		case protocol.InterruptQuestion:
 			// A plan-review question is resolved by the resume answer (no
@@ -55,12 +67,12 @@ func resumeBindingFrom(pending interrupts.Pending) *resumeBinding {
 		if dt.Name == "" || dt.ItemID == "" {
 			continue
 		}
-		items[resumeKey(dt.Name, argsKey(protocol.ParseArgs(dt.Arguments)))] = dt.ItemID
+		addItem(dt.Name, argsKey(protocol.ParseArgs(dt.Arguments)), dt.ItemID)
 	}
 	if len(items) == 0 && len(questions) == 0 {
 		return nil
 	}
-	return &resumeBinding{originRunID: pending.ParentRunID, toolItems: items, questions: questions}
+	return &resumeBinding{originRunID: pending.ParentRunID, toolItems: items, byName: byName, questions: questions}
 }
 
 // questionFromPayload reconstructs the wire Question from an interrupt's
@@ -114,6 +126,7 @@ func questionFromPayload(payload map[string]any) *protocol.Question {
 type resumeBinding struct {
 	originRunID string            // the interrupted run the items were created in
 	toolItems   map[string]string // resumeKey(toolName, arguments) → original item id
+	byName      map[string]string // toolName → original item id; edited-args fallback ("" = ambiguous)
 	questions   []resumedQuestion // plan-review question items awaiting their terminal
 }
 
@@ -210,14 +223,21 @@ func argsKey(args map[string]any) string {
 
 // reuseOrNextItemID returns the original proposal item id + its origin run for
 // a re-fired approved tool (so the continuation completes the SAME item), or a
-// freshly minted id under the current run otherwise. Matching is by
-// (name, arguments); an edited-args approval won't match and cleanly falls
-// back to a new item.
+// freshly minted id under the current run otherwise. Primary match is exact
+// (name, arguments). When the user EDITED the args at approval the re-fire
+// carries different args and misses that key, so it falls back to the unique
+// proposal item for this tool name (the runtime parks one awaitable at a time)
+// — otherwise the original proposal card would never get its terminal
+// item.completed and would hang "in progress" forever.
 func (t *translator) reuseOrNextItemID(toolName, argsJSON string) (id, runID string) {
 	if t.resume != nil {
 		key := resumeKey(toolName, argsKey(protocol.ParseArgs(argsJSON)))
 		if orig, ok := t.resume.toolItems[key]; ok {
 			delete(t.resume.toolItems, key)
+			return orig, t.resume.originRunID
+		}
+		if orig, ok := t.resume.byName[toolName]; ok && orig != "" {
+			delete(t.resume.byName, toolName)
 			return orig, t.resume.originRunID
 		}
 	}
