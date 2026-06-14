@@ -45,7 +45,7 @@
 
 - **Go 1.26.4 统一版本**：所有模块 `go.mod` 同步；用 `iter.Seq2` / `slices.*` / `maps.*` / `atomic.Int32` 等现代 stdlib
 - **依赖接口，不依赖具体类型**：跨包消费一定走 interface，**接口在消费方定义**（不在被消费方）。如果一个新模块要拿到 `*Engine` / `*Platform` / `*Service` 整体，先停下来想能不能拆成只用的几个方法
-- **ISP 切碎接口**：典型例子 `approval.Console` vs `approval.Gate`（lyra），`tool.ToolSource` 一方法接口（lyra）。消费者只 import 自己用的那侧
+- **ISP 切碎接口**：典型例子 `protocol.Runtime` 由 10 个子接口（`Lifecycle`/`Sessions`/`Runs`/`Items`/…）组合、transport/dispatch 各按需依赖其中一片（lyra），`tool.ToolSource` 一方法接口（lyra）。消费者只 import 自己用的那侧
 - **`errors.New` 优先于 `fmt.Errorf("constant")`**。`fmt.Errorf` 只在真要格式化时用，包装其他错误必须 `%w` 才能 `errors.Is/As`
 - **没有 Java 味**：禁 `impl.go` 文件 / `Impl` / `Service` / `Manager` / `Helper` / `Handler` 这种空白后缀 / `GetX/SetX` getter / `NewBuilder().With().Build()` 链。文件名描述内容（`inmemory.go` / `engine.go` / `sqlite/session.go`），struct 名描述本质
 - **现代 Go**：`atomic.Int32` / `atomic.Pointer[T]` / `sync.Map` 优先于自家 atomic wrapper；`slices.*` / `maps.*` 替代手写 loop；`iter.Seq2` 替代 channel-based 流
@@ -105,10 +105,10 @@
 
 ### ISP — Interface Segregation（接口隔离）
 
-- **接口里只放调用方真用的方法**。`approval.Console`（4 方法）给 client side；`approval.Gate`（2 方法）给 producer side；`Service = Console + Gate` union 给 runtime 装配
+- **接口里只放调用方真用的方法**。`protocol.Runtime` 不是一个胖接口，而是 `Lifecycle`/`Sessions`/`Runs`/`Items`/`Workspace`/`Providers`/`Models`/`Tools`/`Memory`/`Feedback` 十个子接口的组合 —— 装配处把它们 union 成 `Runtime`，但消费方各依赖自己那片
 - Rob Pike: "The bigger the interface, the weaker the abstraction." 大接口逼实现方塞 stub、逼 caller 多了解不该知道的
 - **库 vs 应用（关键）**：消费方窄接口是给**应用层**的（lyra：多实现 + 可测 + 跨模块边界）。**SDK 库内部**（agent）的**单实现**依赖直接用具体类型——抽窄接口是 YAGNI 仪式（按「单实现接口→内联」）。例：agent `autonomy` 已从 2 方法 `platform` 窄接口**内联回** `*runtime.Platform`。窄接口在库里只留给**公开 SPI**（`Planner`/`Ranker`/`Extension` 子接口）
-- ❌ 反例：原 `approval.Service` 把 5 方法揉一个接口，chat 只用其中 2 个 —— 已拆 Console / Gate
+- ⚠️ 反向教训（ISP vs KISS）：approval 曾按 ISP 拆成 `Console`/`Gate`，但所有消费方（turn 门禁 + delivery）都用整个 4 方法 stance surface —— 拆是 ceremony，已**收回**成单一 `approval.Service`。单 caller 用全部方法别拆（见「原则冲突时怎么办」ISP vs KISS）
 
 ### DIP — Dependency Inversion（依赖倒置）
 
