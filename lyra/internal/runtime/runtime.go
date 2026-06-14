@@ -220,6 +220,11 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	// exec / MCP / A2A capabilities + the resolver) and injected, so the engine
 	// core builds no capability. ctx flows so a slow MCP/A2A dial can be
 	// canceled during startup.
+	// Approval stance is built early: the toolset's exit_plan_mode tool needs it
+	// (it flips the stance to execute when a plan is approved), and the turn gate
+	// reads it per tool call.
+	approvalSvc := approval.New(cfg.ApprovalMode)
+
 	built, err := toolset.Build(ctx, toolset.BuildConfig{
 		Workdir:         cfg.Engine.Workdir,
 		SkillsGlobalDir: cfg.Engine.SkillsGlobalDir,
@@ -228,6 +233,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		MCPServers:      cfg.MCPServers,
 		A2AAgents:       cfg.A2AAgents,
 		Todos:           ecfg.Todos,
+		Approval:        approvalSvc,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("runtime: build tools: %w", err)
@@ -246,7 +252,6 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	// composition root (cmd/lyra wires sqlite-backed services; tests wire a
 	// sqlite :memory: DB). The runtime keeps no in-memory fallback — there's
 	// a single storage backend now.
-	approvalSvc := approval.New(cfg.ApprovalMode)
 	sessionSvc := cfg.SessionService
 	interruptStore := cfg.InterruptStore
 	providerSvc := cfg.ProviderService

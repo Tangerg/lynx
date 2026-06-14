@@ -181,6 +181,7 @@ type Resolver struct {
 	shell           []chat.Tool        // shell tools (bash / bash_output / kill_shell) over the exec.Manager; cwd read per-call
 	task            chat.Tool          // delegation tool; coding role only, nil until set
 	askUser         chat.Tool          // ask_user HITL tool; coding role only (askuser.New, via Deps)
+	exitPlan        chat.Tool          // exit_plan_mode HITL tool; coding role only (exitplan.New, via Deps); nil when no approval svc
 	todo            chat.Tool          // todo_write task-list tool; both roles, nil when no todo store
 
 	// mcp is the working-directory-independent MCP tool set, held behind an
@@ -203,6 +204,7 @@ type Deps struct {
 	LSP             []chat.Tool        // code-intelligence tools
 	Shell           []chat.Tool        // shell tools (bash / bash_output / kill_shell)
 	AskUser         chat.Tool          // ask_user HITL tool (coding role only)
+	ExitPlan        chat.Tool          // exit_plan_mode HITL tool (coding role only); nil → omitted
 	Todo            chat.Tool          // todo_write task-list tool (both roles); nil → omitted
 	CodeIntel       *codeintel.Service // backs the post-edit diagnostics wrap
 	ReadTracker     *editguard.Tracker // backs the read/edit/write guards
@@ -231,6 +233,7 @@ func NewResolver(d Deps) *Resolver {
 		lsp:             d.LSP,
 		shell:           shellTools,
 		askUser:         d.AskUser,
+		exitPlan:        d.ExitPlan,
 		todo:            d.Todo,
 		codeIntel:       d.CodeIntel,
 		readTracker:     d.ReadTracker,
@@ -318,6 +321,9 @@ func (g *toolGroup) Tools(ctx context.Context) ([]core.AgentTool, error) {
 		}
 		if g.resolver.askUser != nil {
 			tools = append(tools, g.resolver.askUser)
+		}
+		if g.resolver.exitPlan != nil {
+			tools = append(tools, g.resolver.exitPlan)
 		}
 	}
 	return tools, nil
