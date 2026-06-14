@@ -10,6 +10,7 @@
 import type { ToolCall } from "@/protocol/run/viewState";
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 
 interface FormattedBody {
   text: string;
@@ -34,17 +35,16 @@ function formatBody(raw: string | undefined): FormattedBody {
 }
 
 export function ToolInspector({ tool }: { tool: ToolCall }) {
+  const t = useT();
   const args = useMemo(() => formatBody(tool.args), [tool.args]);
   const result = useMemo(() => formatBody(tool.result), [tool.result]);
 
   return (
     <div className="bg-canvas px-3.5 py-2.5">
-      <InspectorSection title="Arguments" body={args} />
-      {result.text && <InspectorSection title="Result" body={result} />}
+      <InspectorSection title={t("toolInspector.arguments")} body={args} />
+      {result.text && <InspectorSection title={t("toolInspector.result")} body={result} />}
       {!result.text && tool.status === "ok" && (
-        <div className="font-mono text-[11px] text-fg-faint">
-          (no result body — tool returned empty)
-        </div>
+        <div className="font-mono text-[11px] text-fg-faint">{t("toolInspector.noResult")}</div>
       )}
     </div>
   );

@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import type { IconName } from "./Icon";
 import { EmptyState } from "./EmptyState";
 import { SkeletonList } from "./Skeleton";
+import { useT } from "@/lib/i18n";
 
 interface EmptyConfig {
   icon?: IconName;
@@ -51,13 +52,14 @@ export function DataView<T>({
   error,
   children,
 }: Props<T>) {
+  const t = useT();
   if (isLoading) return <SkeletonList count={skeletonCount} />;
   if (isError) {
     return (
       <EmptyState
         icon="alert"
-        title="Couldn’t load"
-        sub="The runtime didn’t answer this request. Check the connection and retry."
+        title={t("dataView.error.title")}
+        sub={t("dataView.error.sub")}
         {...error}
       />
     );

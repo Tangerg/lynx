@@ -1,6 +1,7 @@
 import type { SidebarProject } from "@/lib/data/queries";
 import { Icon } from "@/components/common";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 
 // Project group header — the folder node of the sidebar tree (Codex-style:
 // one 项目 tree, sessions nested under their project). The name block is
@@ -25,6 +26,7 @@ export function ProjectRow({
   onToggle: (id: string) => void;
   onNewSession: (project: SidebarProject) => void;
 }) {
+  const t = useT();
   return (
     <div
       className={cn(
@@ -62,14 +64,14 @@ export function ProjectRow({
               name="alert"
               size={11}
               className="shrink-0 text-warning"
-              aria-label="Directory missing on disk"
+              aria-label={t("project.row.missing")}
             />
           )}
         </span>
       </button>
       <button
         type="button"
-        aria-label={`New session in ${project.name}`}
+        aria-label={t("project.row.newSession", { name: project.name })}
         onClick={() => onNewSession(project)}
         className="hidden h-5 w-5 place-items-center rounded-md border-0 bg-transparent text-fg-faint transition-colors group-hover:grid hover:bg-surface-3 hover:text-fg"
       >

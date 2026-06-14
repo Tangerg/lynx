@@ -106,6 +106,20 @@ export const es: Record<string, string> = {
   "tools.preview.viewText": "Ver texto completo",
   "tools.preview.viewReply": "Ver respuesta completa",
 
+  "common.remove": "Eliminar",
+  "sidebar.user.account": "Cuenta",
+  "status.notifications": "Notificaciones",
+  "status.notifications.unread": "{{count}} notificación(es) sin leer",
+  "session.row.titleLabel": "Título de la sesión",
+  "project.row.missing": "Falta el directorio en el disco",
+  "project.row.newSession": "Nueva sesión en {{name}}",
+  "toolInspector.arguments": "Argumentos",
+  "toolInspector.result": "Resultado",
+  "toolInspector.noResult": "(sin cuerpo de resultado — la herramienta no devolvió nada)",
+  "dataView.error.title": "No se pudo cargar",
+  "dataView.error.sub":
+    "El runtime no respondió a esta petición. Comprueba la conexión y reinténtalo.",
+
   "welcome.eyebrow": "agent listo",
   "welcome.title": "¿Qué quieres construir hoy?",
   "welcome.sub": "Inicia una conversación, pega un stack trace o elige una sugerencia.",

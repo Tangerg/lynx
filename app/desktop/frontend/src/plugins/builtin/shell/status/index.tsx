@@ -5,12 +5,14 @@
 // sidebar footer (avatar row) and opens the Notifications view on click.
 
 import { Icon, Tooltip } from "@/components/common";
+import { useT } from "@/lib/i18n";
 import { definePlugin, useNotificationStore } from "@/plugins/sdk";
 import { useSessionStore } from "@/state/sessionStore";
 
 export { statusBar } from "./statusbar";
 
 function NotificationsBadge() {
+  const t = useT();
   const unread = useNotificationStore((s) => s.log.reduce((n, e) => (e.dismissed ? n : n + 1), 0));
 
   const onClick = () => {
@@ -22,11 +24,15 @@ function NotificationsBadge() {
   };
 
   return (
-    <Tooltip label={unread > 0 ? `${unread} unread notification(s)` : "Notifications"}>
+    <Tooltip
+      label={
+        unread > 0 ? t("status.notifications.unread", { count: unread }) : t("status.notifications")
+      }
+    >
       <button
         type="button"
         onClick={onClick}
-        aria-label="Notifications"
+        aria-label={t("status.notifications")}
         className="relative grid h-6.5 w-6.5 place-items-center rounded-md border-0 bg-transparent text-fg-faint transition-[background,color] hover:bg-surface-2 hover:text-fg light:hover:bg-surface-3 active:scale-[0.92]"
       >
         <Icon name="chat" size={14} />

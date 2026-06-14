@@ -107,6 +107,20 @@ export const de: Record<string, string> = {
   "tools.preview.viewText": "Volltext anzeigen",
   "tools.preview.viewReply": "Ganze Antwort anzeigen",
 
+  "common.remove": "Entfernen",
+  "sidebar.user.account": "Konto",
+  "status.notifications": "Benachrichtigungen",
+  "status.notifications.unread": "{{count}} ungelesene Benachrichtigung(en)",
+  "session.row.titleLabel": "Sitzungstitel",
+  "project.row.missing": "Verzeichnis auf der Festplatte fehlt",
+  "project.row.newSession": "Neue Sitzung in {{name}}",
+  "toolInspector.arguments": "Argumente",
+  "toolInspector.result": "Ergebnis",
+  "toolInspector.noResult": "(kein Ergebnistext — Tool lieferte nichts zurück)",
+  "dataView.error.title": "Laden fehlgeschlagen",
+  "dataView.error.sub":
+    "Die Runtime hat auf diese Anfrage nicht geantwortet. Prüfe die Verbindung und versuche es erneut.",
+
   "welcome.eyebrow": "agent bereit",
   "welcome.title": "Was möchtest du heute bauen?",
   "welcome.sub": "Starte ein Gespräch, füge einen Stack-Trace ein oder wähle einen Vorschlag.",
