@@ -43,8 +43,8 @@ describe("useAgentSession send re-entrancy", () => {
 
     act(() => {
       const send = useAgentStore.getState().sessions[SID]!.send!;
-      send("first");
-      send("second"); // blocked by the starting latch — still pre-run.started
+      send([{ type: "text", text: "first" }]);
+      send([{ type: "text", text: "second" }]); // blocked by the starting latch — still pre-run.started
     });
 
     expect(start).toHaveBeenCalledTimes(1);

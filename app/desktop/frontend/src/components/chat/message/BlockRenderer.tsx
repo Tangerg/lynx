@@ -1,6 +1,13 @@
 import type { ContentBlock, PlanItem, ToolCall } from "@/protocol/run/viewState";
 import { MarkdownMessage } from "./markdown/MarkdownMessage";
-import { ApprovalCard, CompactionBlock, PlanBlock, QuestionCard, ReasoningBlock } from "./cards";
+import {
+  ApprovalCard,
+  CompactionBlock,
+  ImageBlock,
+  PlanBlock,
+  QuestionCard,
+  ReasoningBlock,
+} from "./cards";
 import { ToolCard } from "@/components/tools/ToolCard";
 import { isReadOnlyTool } from "@/components/tools/ToolGroup";
 import { PluginContentBlock } from "@/plugins/host/PluginContentBlock";
@@ -113,6 +120,9 @@ export function renderBlock(block: ContentBlock, key: number, ctx: BlockCtx) {
           />
         </div>
       );
+
+    case "image":
+      return <ImageBlock key={key} mime={block.mime} data={block.data} />;
 
     case "tool": {
       const tool = ctx.toolCalls[block.toolCallId];

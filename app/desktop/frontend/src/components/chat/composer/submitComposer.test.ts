@@ -21,20 +21,20 @@ describe("submitComposer", () => {
   it("is a no-op on empty / whitespace-only input", () => {
     const send = vi.fn();
     const clear = vi.fn();
-    submitComposer({ value: "   ", clear, sendText: send });
+    submitComposer({ value: "   ", clear, sendInput: send, images: [] });
     expect(send).not.toHaveBeenCalled();
     expect(clear).not.toHaveBeenCalled();
   });
 
-  it("forwards plain text to sendText then clears", () => {
+  it("forwards plain text as a text ContentBlock to sendInput then clears", () => {
     const send = vi.fn();
     const clear = vi.fn();
-    submitComposer({ value: "hello", clear, sendText: send });
-    expect(send).toHaveBeenCalledWith("hello");
+    submitComposer({ value: "hello", clear, sendInput: send, images: [] });
+    expect(send).toHaveBeenCalledWith([{ type: "text", text: "hello" }]);
     expect(clear).toHaveBeenCalledOnce();
   });
 
-  it("routes a registered slash command to its handler — sendText not called", async () => {
+  it("routes a registered slash command to its handler — sendInput not called", async () => {
     const run = vi.fn();
     await loadPlugin(
       definePlugin({
@@ -47,15 +47,16 @@ describe("submitComposer", () => {
     );
     const send = vi.fn();
     const clear = vi.fn();
-    submitComposer({ value: "/echo hi there", clear, sendText: send });
-    expect(run).toHaveBeenCalledWith({ args: "hi there", send });
+    submitComposer({ value: "/echo hi there", clear, sendInput: send, images: [] });
+    // The slash handler gets a text→input adapter, not sendInput itself.
+    expect(run).toHaveBeenCalledWith({ args: "hi there", send: expect.any(Function) });
     expect(send).not.toHaveBeenCalled();
     expect(clear).toHaveBeenCalledOnce();
   });
 
-  it("falls back to sendText for an unknown slash command", () => {
+  it("falls back to sendInput for an unknown slash command", () => {
     const send = vi.fn();
-    submitComposer({ value: "/unknown args", clear: () => {}, sendText: send });
-    expect(send).toHaveBeenCalledWith("/unknown args");
+    submitComposer({ value: "/unknown args", clear: () => {}, sendInput: send, images: [] });
+    expect(send).toHaveBeenCalledWith([{ type: "text", text: "/unknown args" }]);
   });
 });

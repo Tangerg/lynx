@@ -6,6 +6,7 @@
 // when the user has scrolled away from the tail.
 
 import type { StreamControls } from "./MessageStream";
+import { fileToInputImage, type UserInput } from "@/lib/agent/composerInput";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useModels } from "@/lib/data/queries";
 import { useActiveSession } from "@/lib/agent/useActiveSession";
@@ -22,8 +23,8 @@ import { MessageStream } from "./MessageStream";
 import { RunErrorBanner } from "./RunErrorBanner";
 
 interface Props {
-  /** Send a plain user message through the live agent. */
-  onSend: (text: string) => void;
+  /** Send the user's message input (text + inlined images) through the live agent. */
+  onSend: (input: UserInput) => void;
   /** Active session id — used to reset the error boundary + stream. */
   resetKey: string;
 }
@@ -40,10 +41,12 @@ export function ChatStream({ onSend, resetKey }: Props) {
 
   const composerValue = useComposerStore((s) => s.value);
   const composerMode = useComposerStore((s) => s.mode);
-  const attachments = useComposerStore((s) => s.attachments);
+  const images = useComposerStore((s) => s.images);
   const setComposerValue = useComposerStore((s) => s.setValue);
   const setComposerMode = useComposerStore((s) => s.setMode);
-  const removeAttachment = useComposerStore((s) => s.removeAttachment);
+  const removeImage = useComposerStore((s) => s.removeImage);
+  const clearComposer = useComposerStore((s) => s.clear);
+  const addImages = useComposerStore((s) => s.addImages);
 
   // Assistant header name = this session's model, resolved to its friendly
   // displayName. Resolved ONCE here (both lists are stable react-query data,
@@ -67,6 +70,12 @@ export function ChatStream({ onSend, resetKey }: Props) {
   // user currently at bottom?" to toggle the jump-to-bottom button.
   const [streamControls, setStreamControls] = useState<StreamControls | null>(null);
   const handleControls = useCallback((c: StreamControls) => setStreamControls(c), []);
+
+  // Drop / paste image files → read to base64 off the render path → stage them.
+  const onAddImages = useCallback(
+    (files: File[]) => void Promise.all(files.map(fileToInputImage)).then(addImages),
+    [addImages],
+  );
 
   // Auto-select (but don't expand) the latest tool the first time it
   // streams in — so the inspector pane has something to show without
@@ -157,9 +166,11 @@ export function ChatStream({ onSend, resetKey }: Props) {
           <Composer
             value={composerValue}
             onChange={setComposerValue}
+            onClear={clearComposer}
             onSend={onSend}
-            attachments={attachments}
-            onRemoveAttachment={removeAttachment}
+            images={images}
+            onRemoveImage={removeImage}
+            onAddImages={onAddImages}
             mode={composerMode}
             onModeChange={setComposerMode}
           />

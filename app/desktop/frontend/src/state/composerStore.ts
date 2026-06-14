@@ -2,23 +2,28 @@ import { nanoid } from "nanoid";
 import { create } from "zustand";
 
 // Composer data shapes. Declared here (the data owner) instead of in
-// `components/chat/Composer.tsx` so the store doesn't have to import
-// upward into the presentation layer. The icon field stays a `string`
-// — components cast to their typed IconName union at render time.
+// `components/chat/composer/Composer.tsx` so the store doesn't import upward
+// into the presentation layer.
 export type ComposerMode = string;
-export interface Attachment {
-  /** Stable React-key id. Auto-assigned in `addAttachment` so callers
-   *  don't have to manage it; supplying one explicitly (e.g. when
-   *  hydrating from persistence) is allowed. */
+
+/** One image staged in the composer, ready to inline on send. `data` is raw
+ *  base64 (NO "data:" prefix) — the wire form of an image ContentBlock
+ *  (MULTIMODAL_IMAGE_INPUT, API.md §4.3). */
+export interface ComposerImage {
+  /** Stable React-key id, auto-assigned in `addImages`. */
   id: string;
-  label: string;
-  icon?: string;
+  mime: string;
+  data: string;
+  /** Original file name — thumbnail tooltip / alt text. */
+  name?: string;
 }
 
 interface ComposerState {
   value: string;
   mode: ComposerMode;
-  attachments: Attachment[];
+  /** Images staged for the next send (paste / drop / file-picker), inlined as
+   *  image ContentBlocks. Cleared together with the text on submit. */
+  images: ComposerImage[];
   /** Selected provider + model for the next run; both null = let the runtime
    *  pick its default. They're a pair (API §7.3) — set together by the
    *  composer's model selector (which knows each model's owning provider). */
@@ -30,23 +35,24 @@ interface ComposerActions {
   setValue: (v: string) => void;
   setMode: (m: ComposerMode) => void;
   setModel: (provider: string | null, model: string | null) => void;
+  /** Wipe the text + every staged image (one call per successful submit). */
   clear: () => void;
-  removeAttachment: (i: number) => void;
-  addAttachment: (a: Omit<Attachment, "id"> & Partial<Pick<Attachment, "id">>) => void;
+  /** Stage one or more images (ids auto-assigned). */
+  addImages: (imgs: Omit<ComposerImage, "id">[]) => void;
+  removeImage: (id: string) => void;
 }
 
 export const useComposerStore = create<ComposerState & ComposerActions>((set) => ({
   value: "",
   mode: "agent",
-  attachments: [],
+  images: [],
   provider: null,
   model: null,
   setValue: (value) => set({ value }),
   setMode: (mode) => set({ mode }),
   setModel: (provider, model) => set({ provider, model }),
-  clear: () => set({ value: "" }),
-  removeAttachment: (i) =>
-    set((s) => ({ attachments: s.attachments.filter((_, idx) => idx !== i) })),
-  addAttachment: (a) =>
-    set((s) => ({ attachments: [...s.attachments, { id: a.id ?? nanoid(), ...a }] })),
+  clear: () => set({ value: "", images: [] }),
+  addImages: (imgs) =>
+    set((s) => ({ images: [...s.images, ...imgs.map((i) => ({ id: nanoid(), ...i }))] })),
+  removeImage: (id) => set((s) => ({ images: s.images.filter((i) => i.id !== id) })),
 }));

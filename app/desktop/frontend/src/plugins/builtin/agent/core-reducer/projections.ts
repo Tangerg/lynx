@@ -6,6 +6,7 @@ import type { Item, ItemStatus, PlanStep, Question, ToolInvocation } from "@/rpc
 import type { ContentBlock as WireContentBlock } from "@/rpc";
 import type {
   BlockStatus,
+  ContentBlock,
   MessageRole,
   PlanItem,
   QuestionItem,
@@ -50,6 +51,19 @@ export function contentText(blocks: WireContentBlock[] | undefined): string {
     .filter((b): b is Extract<WireContentBlock, { type: "text" }> => b.type === "text")
     .map((b) => b.text)
     .join("");
+}
+
+// Project a userMessage's wire content into view blocks: the merged text (one
+// block) followed by one image block per inlined image (MULTIMODAL_IMAGE_INPUT,
+// §4.3). A userMessage is atomic, so the text block is always `complete`.
+export function userContentBlocks(content: WireContentBlock[] | undefined): ContentBlock[] {
+  const blocks: ContentBlock[] = [];
+  const text = contentText(content);
+  if (text) blocks.push({ kind: "text", text, status: "complete" });
+  for (const b of content ?? []) {
+    if (b.type === "image") blocks.push({ kind: "image", mime: b.mime, data: b.data });
+  }
+  return blocks;
 }
 
 const PLAN_STATUS: Record<PlanStep["status"], PlanItem["status"]> = {

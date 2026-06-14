@@ -3,7 +3,14 @@
 // component contribution.
 
 import type { ComponentType } from "react";
-import type { InterruptResponse, ItemId, RunEvent, RunId, StreamingResult } from "@/rpc";
+import type {
+  ContentBlock,
+  InterruptResponse,
+  ItemId,
+  RunEvent,
+  RunId,
+  StreamingResult,
+} from "@/rpc";
 
 export type NotificationLevel = "info" | "warn" | "error";
 
@@ -86,11 +93,12 @@ export interface DataProviderSpec<T = unknown, P = unknown> {
  * `useAgentSession`; the driver is just the session-bound RPC surface.
  */
 export interface AgentDriver {
-  /** Start a new run from user text; resolves with the run's event stream.
-   *  `userItemId` is the opening userMessage Item's id — used to reconcile the
-   *  optimistic bubble by exact id (see useAgentSession). */
+  /** Start a new run from the user's message input (text + any inlined image
+   *  blocks); resolves with the run's event stream. `userItemId` is the opening
+   *  userMessage Item's id — used to reconcile the optimistic bubble by exact id
+   *  (see useAgentSession). */
   start: (
-    text: string,
+    input: ContentBlock[],
     signal?: AbortSignal,
   ) => Promise<StreamingResult<{ runId: RunId; userItemId?: ItemId }, RunEvent>>;
   /**

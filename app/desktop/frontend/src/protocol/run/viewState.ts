@@ -123,6 +123,10 @@ export interface BuiltinContentBlockMap {
   // `itemId` ties a streaming text block back to its agentMessage Item so
   // `item.delta{content}` events route to the right block.
   text: { kind: "text"; text: string; status: BlockStatus; itemId?: string };
+  // An inlined image carried by a userMessage's content (MULTIMODAL_IMAGE_INPUT,
+  // API.md §4.3): `mime` + raw base64 `data`, rendered as a thumbnail. No
+  // lifecycle status — a user image is atomic (present in full on arrival).
+  image: { kind: "image"; mime: string; data: string };
   reasoning: { kind: "reasoning"; reasoningId: string; text: string; status: BlockStatus };
   plan: { kind: "plan" };
   tool: { kind: "tool"; toolCallId: string };

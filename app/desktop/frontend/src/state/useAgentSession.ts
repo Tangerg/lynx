@@ -1,5 +1,12 @@
 import type { AgentDriver } from "@/plugins/sdk";
-import type { InterruptResponse, RunEvent, RunId, RunRef, StreamingResult } from "@/rpc";
+import type {
+  ContentBlock,
+  InterruptResponse,
+  RunEvent,
+  RunId,
+  RunRef,
+  StreamingResult,
+} from "@/rpc";
 import { useEffect, useRef } from "react";
 import { asSessionId, errorDetail, errorType, RpcError } from "@/rpc";
 import { LOCAL_MESSAGE_PREFIX } from "@/protocol/run/viewState";
@@ -14,7 +21,7 @@ import { useSessionStore } from "./sessionStore";
 // previous session's view state stays in the store (so switching back shows
 // what was there).
 export interface AgentSession {
-  send: (text: string) => void;
+  send: (input: ContentBlock[]) => void;
   stop: () => void;
 }
 
@@ -232,14 +239,16 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     // moment the run starts (onResult) or fails to start (onStartError).
     let starting = false;
 
-    const send = (text: string): void => {
+    const send = (input: ContentBlock[]): void => {
       if (starting) return;
       starting = true;
       // Optimistically render the user's own bubble with a local id. The
       // runtime DOES stream the userMessage Item back (with its own server id),
       // a round-trip later — so when runs.start resolves we relabel this
       // placeholder to the returned `userItemId`, and the streamed Item then
-      // dedupes by exact id (no duplicate, no content-text heuristic).
+      // dedupes by exact id (no duplicate, no content-text heuristic). The
+      // bubble carries the SAME input the run does, so inlined images show
+      // immediately and survive the relabel (which only swaps the id).
       const localId = `${LOCAL_MESSAGE_PREFIX}${++localSeq}`;
       store().applyEvents(sessionId, [
         {
@@ -251,13 +260,13 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
               status: "completed",
               createdAt: new Date().toISOString(),
               type: "userMessage",
-              content: [{ type: "text", text }],
+              content: input,
             },
           } as RunEvent["event"],
         },
       ]);
       begin(
-        (signal) => driver.start(text, signal),
+        (signal) => driver.start(input, signal),
         (result) => {
           starting = false;
           if (result.userItemId) store().relabelMessage(sessionId, localId, result.userItemId);
@@ -301,7 +310,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     // that the driver for this id is live. Opening a session otherwise does
     // NOT auto-run; replaying history is a separate concern (items.list).
     const pending = useSessionStore.getState().takePendingMessage(sessionId);
-    if (pending) send(pending);
+    if (pending && pending.length > 0) send(pending);
 
     return () => {
       cancelled = true;
@@ -314,7 +323,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
   }, [sessionId]);
 
   return {
-    send: (text: string) => useAgentStore.getState().sessions[sessionId]?.send?.(text),
+    send: (input: ContentBlock[]) => useAgentStore.getState().sessions[sessionId]?.send?.(input),
     stop: () => useAgentStore.getState().sessions[sessionId]?.stop?.(),
   };
 }

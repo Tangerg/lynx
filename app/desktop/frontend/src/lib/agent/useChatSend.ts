@@ -1,3 +1,4 @@
+import type { ContentBlock } from "@/rpc";
 import { useCallback } from "react";
 import { useAgentAction, useAgentSlice } from "@/state/agentStore";
 import { useSessionStore } from "@/state/sessionStore";
@@ -14,15 +15,15 @@ import { useCreateSession } from "./useCreateSession";
  *   - a run is already streaming → no-op (one run per session, §6.11; the
  *     Send button shows Stop in that state).
  */
-export function useChatSend(): (text: string) => void {
+export function useChatSend(): (input: ContentBlock[]) => void {
   const createSession = useCreateSession();
   const send = useAgentAction("send");
   const running = useAgentSlice((v) => v.run.running);
   return useCallback(
-    (text: string) => {
+    (input: ContentBlock[]) => {
       if (running) return;
-      if (useSessionStore.getState().activeSessionId && send) send(text);
-      else void createSession({ firstMessage: text });
+      if (useSessionStore.getState().activeSessionId && send) send(input);
+      else void createSession({ firstInput: input });
     },
     [send, running, createSession],
   );

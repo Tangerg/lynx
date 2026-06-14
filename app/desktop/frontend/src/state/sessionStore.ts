@@ -12,6 +12,7 @@ import { z } from "zod";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { disposeOnHmr } from "@/lib/hmr";
+import type { ContentBlock } from "@/rpc";
 
 // localStorage payload schema. Mirrors `partialize` below — only the
 // two continuity fields. Anything else in storage is dropped on
@@ -79,10 +80,10 @@ interface SessionState {
   /**
    * First message queued for a freshly-created session, keyed by id. When
    * the user types on the welcome screen (no active session), we create a
-   * draft and stash the text here; the chat remounts on the new id and
-   * flushes it. Ephemeral.
+   * draft and stash the input here (text + any inlined images); the chat
+   * remounts on the new id and flushes it. Ephemeral.
    */
-  pendingMessages: Record<string, string>;
+  pendingMessages: Record<string, ContentBlock[]>;
 
   activeFile: string;
   selectedToolId: string;
@@ -98,10 +99,10 @@ interface SessionActions {
   markDraft: (id: string) => void;
   /** Promote a draft to a real session (first message sent). Idempotent. */
   graduateDraft: (id: string) => void;
-  /** Queue the first message for a session id. */
-  setPendingMessage: (id: string, text: string) => void;
-  /** Read + clear the queued first message for a session id. */
-  takePendingMessage: (id: string) => string | undefined;
+  /** Queue the first message input for a session id. */
+  setPendingMessage: (id: string, input: ContentBlock[]) => void;
+  /** Read + clear the queued first message input for a session id. */
+  takePendingMessage: (id: string) => ContentBlock[] | undefined;
 
   /** Close every chat tab except `id`. */
   closeOtherTabs: (id: string) => void;
@@ -201,16 +202,16 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         next.delete(id);
         set({ draftSessionIds: next });
       },
-      setPendingMessage: (id, text) =>
-        set({ pendingMessages: { ...get().pendingMessages, [id]: text } }),
+      setPendingMessage: (id, input) =>
+        set({ pendingMessages: { ...get().pendingMessages, [id]: input } }),
       takePendingMessage: (id) => {
         const { pendingMessages } = get();
-        const text = pendingMessages[id];
-        if (text === undefined) return undefined;
+        const input = pendingMessages[id];
+        if (input === undefined) return undefined;
         const next = { ...pendingMessages };
         delete next[id];
         set({ pendingMessages: next });
-        return text;
+        return input;
       },
 
       // Multi-tab close helpers — all preserve `activeSessionId`

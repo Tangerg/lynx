@@ -20,6 +20,7 @@ import {
   toolFields,
   toolLabel,
   toolStatus,
+  userContentBlocks,
 } from "./projections";
 
 // Message / block mutations
@@ -174,7 +175,7 @@ export function appendUserMessage(
     who: nameForRole("user"),
     time: formatTime(item.createdAt),
     runId: item.runId,
-    blocks: [{ kind: "text", text, status: "complete" }],
+    blocks: userContentBlocks(item.content),
   };
   return { ...state, messages: [...state.messages, msg], turnMessageId: null };
 }

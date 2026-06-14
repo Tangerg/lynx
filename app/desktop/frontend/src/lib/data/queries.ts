@@ -92,6 +92,9 @@ export interface SelectableModel {
   id: string;
   provider: string;
   label: string;
+  /** Accepts image input (Model.capabilities.multimodal) — gates the composer's
+   *  attach affordance. */
+  multimodal: boolean;
 }
 
 export interface ProviderInfo {

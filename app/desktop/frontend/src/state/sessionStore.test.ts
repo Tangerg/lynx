@@ -273,8 +273,10 @@ describe("sessionStore draft lifecycle", () => {
 
   it("takePendingMessage returns then clears the queued first message", () => {
     const s = useSessionStore.getState();
-    s.setPendingMessage("d1", "hello");
-    expect(useSessionStore.getState().takePendingMessage("d1")).toBe("hello");
+    s.setPendingMessage("d1", [{ type: "text", text: "hello" }]);
+    expect(useSessionStore.getState().takePendingMessage("d1")).toEqual([
+      { type: "text", text: "hello" },
+    ]);
     // consumed — second take is undefined
     expect(useSessionStore.getState().takePendingMessage("d1")).toBeUndefined();
   });

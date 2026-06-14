@@ -1,8 +1,9 @@
-import type { Attachment, ComposerMode } from "@/state/composerStore";
+import type { ComposerImage, ComposerMode } from "@/state/composerStore";
+import { imageFiles, type UserInput } from "@/lib/agent/composerInput";
 import type { IconName } from "@/components/common";
 import type { ComposerAttachmentSourceSpec, ComposerModeSpec } from "@/plugins/sdk";
 import { useEffect, useMemo, useRef } from "react";
-import { Chip, Segmented } from "@/components/common";
+import { Chip, Icon, Segmented } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import {
   COMPOSER_ATTACHMENT_SOURCE,
@@ -17,11 +18,15 @@ import { Slot } from "@/plugins/host/Slot";
 import { submitComposer } from "./submitComposer";
 
 interface Props {
-  onSend: (text: string) => void;
+  onSend: (input: UserInput) => void;
   value: string;
   onChange: (v: string) => void;
-  attachments: Attachment[];
-  onRemoveAttachment: (i: number) => void;
+  /** Wipe the textarea + staged images (one call per successful submit). */
+  onClear: () => void;
+  images: ComposerImage[];
+  onRemoveImage: (id: string) => void;
+  /** Stage dropped / pasted image files (filtered to image/* by the caller). */
+  onAddImages: (files: File[]) => void;
   mode: ComposerMode;
   onModeChange: (m: ComposerMode) => void;
 }
@@ -30,8 +35,10 @@ export function Composer({
   onSend,
   value,
   onChange,
-  attachments,
-  onRemoveAttachment,
+  onClear,
+  images,
+  onRemoveImage,
+  onAddImages,
   mode,
   onModeChange,
 }: Props) {
@@ -54,8 +61,9 @@ export function Composer({
   const submit = () =>
     submitComposer({
       value,
-      clear: () => onChange(""),
-      sendText: onSend,
+      clear: onClear,
+      sendInput: onSend,
+      images,
     });
 
   useEffect(() => {
@@ -66,19 +74,21 @@ export function Composer({
   }, [value]);
 
   return (
-    <div className="relative rounded-2xl border border-line-soft bg-surface px-2.5 pb-1.5 pt-2 transition-[border-color,box-shadow] duration-150 focus-within:border-line-soft focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)]">
+    <div
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => {
+        const files = imageFiles(e.dataTransfer?.files);
+        if (files.length === 0) return;
+        e.preventDefault();
+        onAddImages(files);
+      }}
+      className="relative rounded-2xl border border-line-soft bg-surface px-2.5 pb-1.5 pt-2 transition-[border-color,box-shadow] duration-150 focus-within:border-line-soft focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)]"
+    >
       <PluginAttachments sources={attachmentSources} />
-      {attachments.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 px-1 pb-0.5 pt-1">
-          {attachments.map((a, i) => (
-            <Chip
-              key={a.id}
-              icon={(a.icon as IconName | undefined) ?? "file"}
-              title={a.label}
-              onClose={() => onRemoveAttachment(i)}
-            >
-              {a.label}
-            </Chip>
+      {images.length > 0 && (
+        <div className="flex flex-wrap gap-2 px-1 pb-1 pt-1">
+          {images.map((img) => (
+            <ImageThumb key={img.id} image={img} onRemove={() => onRemoveImage(img.id)} />
           ))}
         </div>
       )}
@@ -88,6 +98,12 @@ export function Composer({
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onPaste={(e) => {
+          const files = imageFiles(e.clipboardData?.files);
+          if (files.length === 0) return; // let a normal text paste through
+          e.preventDefault();
+          onAddImages(files);
+        }}
         onKeyDown={(e) => {
           // Ignore keystrokes while an IME composition is active — pressing
           // Enter to commit a CJK candidate must confirm the candidate, not
@@ -185,5 +201,28 @@ function SourceChips({ source }: { source: AttachmentSource }) {
         </Chip>
       ))}
     </>
+  );
+}
+
+// Staged-image thumbnail with a hover remove button. Rebuilds the data URL
+// from the wire form (mime + base64) for the preview.
+function ImageThumb({ image, onRemove }: { image: ComposerImage; onRemove: () => void }) {
+  return (
+    <div className="group relative h-14 w-14 overflow-hidden rounded-md border border-line-soft">
+      <img
+        src={`data:${image.mime};base64,${image.data}`}
+        alt={image.name ?? ""}
+        title={image.name}
+        className="h-full w-full object-cover"
+      />
+      <button
+        type="button"
+        aria-label="Remove image"
+        onClick={onRemove}
+        className="absolute right-0.5 top-0.5 grid h-4 w-4 place-items-center rounded-full border-0 bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100"
+      >
+        <Icon name="x" size={9} />
+      </button>
+    </div>
   );
 }
