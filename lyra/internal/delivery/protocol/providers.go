@@ -33,7 +33,6 @@ type ListModelsRequest struct {
 // returned masked, never reconstructable.
 type Provider struct {
 	ID           string `json:"id"`
-	Type         string `json:"type"` // "openai" | "anthropic" | ...
 	BaseURL      string `json:"baseUrl,omitempty"`
 	APIKeyMasked string `json:"apiKeyMasked"` // "" = unconfigured; e.g. "sk****78"
 	// RequiresBaseURL marks providers with no built-in endpoint — the generic
@@ -49,7 +48,6 @@ type Provider struct {
 // runs.start), not "providerId".
 type ConfigureProviderRequest struct {
 	Provider string `json:"provider"`
-	Type     string `json:"type,omitempty"`
 	BaseURL  string `json:"baseUrl,omitempty"`
 	APIKey   string `json:"apiKey,omitempty"`
 }
