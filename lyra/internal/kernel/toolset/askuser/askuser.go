@@ -12,6 +12,7 @@ package askuser
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"strconv"
@@ -25,7 +26,17 @@ import (
 
 const toolName = "ask_user"
 
-const schema = `{"type":"object","properties":{"question":{"type":"string","description":"The question to ask the user."}},"required":["question"]}`
+const schema = `{"type":"object","properties":{` +
+	`"questions":{"type":"array","minItems":1,"maxItems":4,"description":"The question(s) to ask the user (1-4).","items":{"type":"object","properties":{` +
+	`"question":{"type":"string","description":"The full question text."},` +
+	`"header":{"type":"string","description":"Short (≤12 char) label/chip summarizing the question."},` +
+	`"options":{"type":"array","description":"2-4 choices for a multiple-choice question. Omit for a free-text answer.","items":{"type":"object","properties":{` +
+	`"label":{"type":"string","description":"The choice shown to the user."},` +
+	`"description":{"type":"string","description":"Optional one-line explanation of the choice."}` +
+	`},"required":["label"]}},` +
+	`"multi_select":{"type":"boolean","description":"Allow the user to pick more than one option (only meaningful with options)."}` +
+	`},"required":["question"]}}` +
+	`},"required":["questions"]}`
 
 // New builds the ask_user tool.
 func New() chat.Tool {
@@ -41,13 +52,16 @@ func New() chat.Tool {
 			if err := json.Unmarshal([]byte(arguments), &in); err != nil {
 				return "", fmt.Errorf("ask_user: invalid arguments: %w", err)
 			}
+			if len(in.Questions) == 0 {
+				return "", errors.New("ask_user: at least one question is required")
+			}
 			// First pass interrupts (bubbles up, parks); resume returns the
-			// human's structured answer at this same call site.
+			// human's structured answers at this same call site.
 			res, _, err := hitl.Interrupt[interrupts.Resolution](ctx, key(arguments), in)
 			if err != nil {
 				return "", err
 			}
-			return answerText(res.Answer), nil
+			return answerText(in, res.Answer), nil
 		},
 	)
 	return t
@@ -64,16 +78,22 @@ func key(arguments string) string {
 	return toolName + "." + strconv.FormatUint(h.Sum64(), 16)
 }
 
-// answerText renders the structured answer map as the tool's result text.
-// Prefers the "text" field (joining multi-value answers a line apiece); falls
-// back to a compact JSON rendering.
-func answerText(answer map[string][]string) string {
-	if answer == nil {
-		return ""
+// answerText renders the human's answers as the tool's result text, pairing
+// each question with its answer (keyed by [interrupts.QuestionFieldName]). A
+// single question returns just its answer (no label noise); multiple questions
+// return "header: answer" lines so the model can tell them apart. Multi-select
+// answers are comma-joined.
+func answerText(in interrupts.QuestionPrompt, answer map[string][]string) string {
+	if len(in.Questions) == 1 {
+		return strings.Join(answer[interrupts.QuestionFieldName(0)], "\n")
 	}
-	if v, ok := answer["text"]; ok && len(v) > 0 {
-		return strings.Join(v, "\n")
+	var b strings.Builder
+	for i, q := range in.Questions {
+		label := q.Header
+		if label == "" {
+			label = q.Question
+		}
+		fmt.Fprintf(&b, "%s: %s\n", label, strings.Join(answer[interrupts.QuestionFieldName(i)], ", "))
 	}
-	b, _ := json.Marshal(answer)
-	return string(b)
+	return strings.TrimSpace(b.String())
 }

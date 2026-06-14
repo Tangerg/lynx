@@ -154,26 +154,43 @@ func (t *translator) questionInterrupt(in turn.Interrupt) (protocol.StreamEvent,
 	return ev, entry
 }
 
-// askUserQuestionField is the free-text answer field name the ask_user
-// tool reads back (engine.answerText keys on "text"); the resume "answer"
-// response carries answers["text"].
-const askUserQuestionField = "text"
-
-// askUserInterrupt renders the model's ask_user call as an inProgress
-// question Item carrying the actual question + a single free-text answer
-// field (vs. questionInterrupt's plan Approve/Reject choice). The client
-// answers via runs.resume with an "answer" response carrying the text.
+// askUserInterrupt renders the model's ask_user call as an inProgress question
+// Item: one wire QuestionField per question the model asked — a free-text field,
+// or a multiple-choice field when the question carries options (vs.
+// questionInterrupt's fixed plan Approve/Reject choice). The client answers via
+// runs.resume with an "answer" response keyed by each field's name
+// ([interrupts.QuestionFieldName]).
 func (t *translator) askUserInterrupt(in turn.Interrupt) (protocol.StreamEvent, protocol.Interrupt) {
 	q, _ := in.Payload.(interrupts.QuestionPrompt)
 	id := t.nextItemID()
-	question := &protocol.Question{
-		Prompt: q.Question,
-		Fields: []protocol.QuestionField{{
-			Name:     askUserQuestionField,
-			Label:    q.Question,
+	fields := make([]protocol.QuestionField, len(q.Questions))
+	for i, qq := range q.Questions {
+		f := protocol.QuestionField{
+			Name:     interrupts.QuestionFieldName(i),
+			Label:    qq.Question,
+			Header:   qq.Header,
 			Required: true,
 			Type:     protocol.QuestionFieldText,
-		}},
+		}
+		if len(qq.Options) > 0 {
+			f.Type = protocol.QuestionFieldChoice
+			f.Multiple = qq.MultiSelect
+			f.Options = make([]protocol.QuestionOption, len(qq.Options))
+			for j, o := range qq.Options {
+				f.Options[j] = protocol.QuestionOption{Label: o.Label, Description: o.Description}
+			}
+		}
+		fields[i] = f
+	}
+	// Prompt carries the lone question when there's just one (nicer single-field
+	// rendering); with several, each field's Label carries its own question.
+	prompt := ""
+	if len(q.Questions) == 1 {
+		prompt = q.Questions[0].Question
+	}
+	question := &protocol.Question{
+		Prompt: prompt,
+		Fields: fields,
 	}
 	ev := protocol.StreamEvent{
 		Type: protocol.StreamItemStarted,
