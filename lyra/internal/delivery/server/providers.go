@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"slices"
+	"time"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/config"
@@ -104,25 +105,53 @@ func (s *Server) ListModels(_ context.Context, in protocol.ListModelsRequest) (*
 	return protocol.NewPage(out), nil
 }
 
-// modelToWire maps a catalog model onto the wire Model shape (API.md §4.9).
+// modelToWire maps a catalog model onto the wire Model shape (API.md §4.9),
+// surfacing the full capability set the catalog carries — reasoning support +
+// effort levels, the input/output modalities, tool use, structured output — so
+// a model picker can render exactly what each model can do.
 func modelToWire(providerID string, m chat.ModelInfo) protocol.Model {
 	out := protocol.Model{
 		ID:              m.ID,
 		Provider:        providerID,
 		DisplayName:     m.DisplayName,
 		ContextWindow:   int(m.Limits.ContextWindow),
+		MaxInputTokens:  int(m.Limits.MaxInputTokens),
 		MaxOutputTokens: int(m.Limits.MaxOutputTokens),
+		Deprecated:      m.Deprecated,
 		Capabilities: &protocol.ModelCapabilities{
-			Reasoning:  m.Reasoning.Supported,
-			Multimodal: m.Modalities.AcceptsInput(chat.ModalityImage),
-			ToolUse:    m.ToolCall,
+			Reasoning:             m.Reasoning.Supported,
+			ReasoningLevels:       m.Reasoning.Levels,
+			ReasoningDefaultLevel: m.Reasoning.DefaultLevel,
+			Multimodal:            m.Modalities.AcceptsInput(chat.ModalityImage),
+			InputModalities:       toWireModalities(m.Modalities.Input),
+			OutputModalities:      toWireModalities(m.Modalities.Output),
+			ToolUse:               m.ToolCall,
+			StructuredOutput:      m.StructuredOutput,
 		},
 	}
+	if !m.KnowledgeCutoff.IsZero() {
+		out.KnowledgeCutoff = m.KnowledgeCutoff.Format(time.DateOnly)
+	}
 	if len(m.Pricing) > 0 {
+		p := m.Pricing[0] // base band; banded (threshold) pricing isn't surfaced
 		out.Pricing = &protocol.ModelPricing{
-			InputUsdPerMillionTokens:  m.Pricing[0].InputPer1M,
-			OutputUsdPerMillionTokens: m.Pricing[0].OutputPer1M,
+			InputUsdPerMillionTokens:      p.InputPer1M,
+			OutputUsdPerMillionTokens:     p.OutputPer1M,
+			CacheReadUsdPerMillionTokens:  p.CacheReadPer1M,
+			CacheWriteUsdPerMillionTokens: p.CacheWritePer1M,
 		}
+	}
+	return out
+}
+
+// toWireModalities maps core modalities onto the wire enum (same string values).
+func toWireModalities(in []chat.Modality) []protocol.Modality {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]protocol.Modality, len(in))
+	for i, m := range in {
+		out[i] = protocol.Modality(m)
 	}
 	return out
 }
