@@ -55,6 +55,12 @@ type RunRef struct {
 	SessionID       string      `json:"sessionId"`
 	SpawnedByItemID string      `json:"spawnedByItemId,omitempty"`
 	ParentRunID     string      `json:"parentRunId,omitempty"`
+	// Model is the model id this run ran against (Model.id); empty means the
+	// run used the runtime default (surfaced via Session.model). Mode is the
+	// run's execution mode (agent/chat/plan); empty on a continuation run,
+	// which inherits its parent's mode (see ParentRunID).
+	Model           string      `json:"model,omitempty"`
+	Mode            RunMode     `json:"mode,omitempty"`
 	Status          RunStatus   `json:"status,omitempty"`
 	Outcome         *RunOutcome `json:"outcome,omitempty"`
 	CreatedAt       time.Time   `json:"createdAt,omitzero"`
