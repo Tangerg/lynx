@@ -26,9 +26,8 @@ export interface ComposerKeyBindingSpec {
 }
 
 /**
- * Shape of one chip rendered in the composer attachments row. Mirrors
- * `components/chat/Composer.tsx`'s `Attachment` type — declared here so
- * plugins don't have to import from `components/`.
+ * Shape of one chip rendered in the composer attachments row. Declared here
+ * (the SDK) so plugins don't have to import from `components/`.
  */
 export interface ComposerAttachment {
   /** Display label, e.g. "src/api/auth.ts". */
@@ -44,9 +43,9 @@ export interface ComposerAttachment {
 }
 
 /**
- * A plugin contribution that produces attachment chips. The kernel
- * merges the lists from every source (in `order`) ahead of any
- * user-added items stored in `useComposerStore.attachments`.
+ * A plugin contribution that produces attachment chips. The composer renders
+ * every source's chips (ordered by `order`) in their own row, independent of
+ * the user's staged `images` (which render as separate thumbnails).
  *
  * `useAttachments` is a hook — plugins can derive the list from query
  * data ("recently edited files") or other stores.

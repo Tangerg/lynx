@@ -28,7 +28,6 @@ import {
   MoreHorizontal,
   PanelLeft,
   PanelRight,
-  Paperclip,
   Pause,
   Pencil,
   Play,
@@ -99,7 +98,6 @@ export type IconName =
   | "thumbs-up"
   | "thumbs-down"
   | "edit"
-  | "paperclip"
   | "image"
   | "command"
   | "panel"
@@ -159,7 +157,6 @@ const ICON_MAP: Record<IconName, LucideIcon> = {
   "thumbs-up": ThumbsUp,
   "thumbs-down": ThumbsDown,
   edit: Pencil,
-  paperclip: Paperclip,
   image: ImageIcon,
   command: Command,
   // "panel" + "panel-r" are aliases for the right-side panel layout —
