@@ -71,6 +71,30 @@ func TestTranslator_RunStartedCarriesModelAndMode(t *testing.T) {
 	}
 }
 
+// TestTranslator_EditedArgsReusesProposalItem verifies that when the user edits
+// a tool's args at approval, the re-fired call (with different args) still
+// reuses the ORIGINAL proposal item id — so its card completes instead of being
+// orphaned "in progress" while a duplicate fresh card runs.
+func TestTranslator_EditedArgsReusesProposalItem(t *testing.T) {
+	rb := &resumeBinding{
+		originRunID: "run_1",
+		toolItems:   map[string]string{resumeKey("write", argsKey(map[string]any{"path": "a.txt"})): "item_orig"},
+		byName:      map[string]string{"write": "item_orig"},
+	}
+	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, rb, "", "")
+
+	// Re-fire with EDITED args (different path): the exact (name,args) key misses,
+	// the name-only fallback hits.
+	id, runID := tr.reuseOrNextItemID("write", `{"path":"b.txt"}`)
+	if id != "item_orig" || runID != "run_1" {
+		t.Fatalf("edited-args re-fire = (%q,%q), want (item_orig, run_1) — original item must be reused", id, runID)
+	}
+	// One-shot: a second re-fire of the same name no longer matches (fresh id).
+	if id2, _ := tr.reuseOrNextItemID("write", `{"path":"c.txt"}`); id2 == "item_orig" {
+		t.Errorf("fallback must be one-shot, got %q again", id2)
+	}
+}
+
 // TestTranslator_NoUserMessageOnContinuation verifies a continuation run
 // (runs.resume, nil input) opens with run.started alone — no synthetic user
 // turn, and no chat TurnStart needed (continuations emit none).
