@@ -2,6 +2,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useMemo, useState } from "react";
 import { useDebounce } from "use-debounce";
 import { measureMermaidRender } from "@/lib/metrics";
+import { useT } from "@/lib/i18n";
 import { useUiStore } from "@/state/uiStore";
 
 // `beautiful-mermaid` is heavy (~200KB) and only mounts when an
@@ -44,6 +45,7 @@ function readThemeColors() {
 export function MermaidBlock({ code }: Props) {
   // theme + accent feed into readThemeColors() below via deps so the
   // diagram re-paints when the palette switches.
+  const t = useT();
   const theme = useUiStore((s) => s.theme);
   const accent = useUiStore((s) => s.accent);
   const [debouncedCode] = useDebounce(code, 300);
@@ -106,8 +108,8 @@ export function MermaidBlock({ code }: Props) {
       <Dialog.Root open={zoomed} onOpenChange={setZoomed}>
         <Dialog.Trigger
           type="button"
-          aria-label="Enlarge diagram"
-          title="Click to enlarge"
+          aria-label={t("message.mermaid.enlarge")}
+          title={t("message.mermaid.enlargeHint")}
           // Inline SVG sizes itself; the wrapper provides chrome + zoom
           // affordance. `[&_svg]:` reaches the SVG that
           // dangerouslySetInnerHTML drops in (we can't put utilities on it

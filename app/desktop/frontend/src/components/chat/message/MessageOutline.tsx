@@ -13,6 +13,7 @@
 import type { RefObject } from "react";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 
 interface OutlineItem {
   id: string;
@@ -44,6 +45,7 @@ export function MessageOutline({
    *  outline click to the FIRST message in the stream. */
   scopeId: string;
 }) {
+  const t = useT();
   const [items, setItems] = useState<OutlineItem[]>([]);
 
   useEffect(() => {
@@ -96,7 +98,7 @@ export function MessageOutline({
     // message is in view (sticky climbs to find panel-scroll as the
     // scroll ancestor, not the absolute aside above it).
     <aside
-      aria-label="Message outline"
+      aria-label={t("message.outline.label")}
       // Threshold: chat needs ≥ 760 + 2 × (16 + 176) = 1144px panel
       // width to host the outline. With an expanded 248px sidebar +
       // 16px gaps that means viewport ≥ ~1408px. Using a viewport

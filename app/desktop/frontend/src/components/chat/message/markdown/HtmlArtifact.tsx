@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { Icon } from "@/components/common";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 import { ShikiCodeBlock } from "./ShikiCodeBlock";
 
 interface Props {
@@ -29,6 +30,7 @@ function looksLikeDoc(code: string): boolean {
 }
 
 export function HtmlArtifact({ code }: Props) {
+  const t = useT();
   const [tab, setTab] = useState<Tab>("preview");
 
   if (!looksLikeDoc(code)) {
@@ -43,19 +45,19 @@ export function HtmlArtifact({ code }: Props) {
           <span className="font-mono text-[11px] font-semibold text-fg-faint">HTML artifact</span>
         </div>
         <div className="inline-flex items-center gap-1 rounded bg-surface-2 p-0.5">
-          {(["preview", "source"] as const).map((t) => (
+          {(["preview", "source"] as const).map((id) => (
             <button
-              key={t}
+              key={id}
               type="button"
-              onClick={() => setTab(t)}
+              onClick={() => setTab(id)}
               className={cn(
                 "rounded-sm px-2 py-0.5 text-[11px] font-sans font-medium transition-colors",
-                tab === t
+                tab === id
                   ? "bg-surface text-fg shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
                   : "bg-transparent text-fg-muted hover:text-fg",
               )}
             >
-              {t === "preview" ? "Preview" : "Source"}
+              {id === "preview" ? t("message.html.tab.preview") : t("message.html.tab.source")}
             </button>
           ))}
         </div>
@@ -67,7 +69,7 @@ export function HtmlArtifact({ code }: Props) {
           // we don't want navigation to leave the artifact.
           sandbox="allow-scripts"
           srcDoc={code}
-          title="HTML artifact preview"
+          title={t("message.html.preview")}
           className="block h-[420px] w-full border-0 bg-white"
         />
       ) : (

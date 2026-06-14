@@ -6,9 +6,11 @@
 // (clamped 0.25–0.75) to uiStore so the split holds across sessions/launches.
 
 import type { PointerEvent as ReactPointerEvent } from "react";
+import { useT } from "@/lib/i18n";
 import { useUiStore } from "@/state/uiStore";
 
 export function SplitResizer() {
+  const t = useT();
   const setSplitRatio = useUiStore((s) => s.setSplitRatio);
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -33,7 +35,7 @@ export function SplitResizer() {
       // eslint-disable-next-line jsx-a11y/prefer-tag-over-role
       role="separator"
       aria-orientation="vertical"
-      aria-label="Resize chat / view split"
+      aria-label={t("panel.split.resize")}
       onPointerDown={onPointerDown}
       className="group relative w-2 shrink-0 cursor-col-resize touch-none"
     >

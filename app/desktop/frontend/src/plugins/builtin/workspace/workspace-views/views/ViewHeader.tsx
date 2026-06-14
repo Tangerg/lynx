@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import type { IconName } from "@/components/common";
 import { Icon, IconButton } from "@/components/common";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 import { useViewPlacement } from "@/components/chat/panel/ViewPlacement";
 
 export interface ViewHeaderProps {
@@ -24,23 +25,24 @@ export function ViewHeader({ icon, title, sub, actions, titleStrong }: ViewHeade
   // provides the context). Lets the view move full ↔ beside-chat / close from
   // its own header, leaving the tab strip untouched.
   const placement = useViewPlacement();
+  const t = useT();
   let placementControls: ReactNode = null;
   if (placement?.placement === "split") {
     // Promote the side pane to a full-width tab, or close it (chat returns to
     // full width). Promote sits before close to mirror the tab strip's order.
     placementControls = (
       <div className="flex items-center gap-0.5">
-        <IconButton title="Open as full tab" onClick={placement.onPromote}>
+        <IconButton title={t("workspace.view.promote")} onClick={placement.onPromote}>
           <Icon name="maximize" size={13} />
         </IconButton>
-        <IconButton title="Close" onClick={placement.onClose}>
+        <IconButton title={t("common.close")} onClick={placement.onClose}>
           <Icon name="x" size={14} />
         </IconButton>
       </div>
     );
   } else if (placement?.placement === "full" && placement.splittable) {
     placementControls = (
-      <IconButton title="Open beside chat" onClick={placement.onSplit}>
+      <IconButton title={t("workspace.view.openBeside")} onClick={placement.onSplit}>
         <Icon name="panel-r" size={14} />
       </IconButton>
     );

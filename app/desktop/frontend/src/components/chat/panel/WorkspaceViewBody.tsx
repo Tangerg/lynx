@@ -4,6 +4,7 @@
 // (Settings, Diff, Files, …) into the chat-area tab strip.
 
 import { EmptyState } from "@/components/common";
+import { useT } from "@/lib/i18n";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
 import { useWorkspaceViews } from "@/plugins/sdk";
 
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export function WorkspaceViewBody({ viewId }: Props) {
+  const t = useT();
   const workspaceViews = useWorkspaceViews();
   const Body = workspaceViews.find((v) => v.id === viewId)?.component;
   if (!Body) {
@@ -21,8 +23,8 @@ export function WorkspaceViewBody({ viewId }: Props) {
     return (
       <EmptyState
         icon="alert"
-        title="View unavailable"
-        sub={`The "${viewId}" view isn't registered. Close this tab or re-enable its plugin.`}
+        title={t("workspace.view.unavailable.title")}
+        sub={t("workspace.view.unavailable.body", { id: viewId })}
       />
     );
   }
