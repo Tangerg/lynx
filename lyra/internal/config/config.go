@@ -223,17 +223,17 @@ func parseMCPServers(raw string) ([]mcp.ServerConfig, error) {
 		}
 		eq := strings.IndexByte(p, '=')
 		if eq <= 0 || eq == len(p)-1 {
-			return nil, fmt.Errorf("config.parseMCPServers: entry %q: expected name=value", p)
+			return nil, fmt.Errorf("entry %q: expected name=value", p)
 		}
 		name := strings.TrimSpace(p[:eq])
 		value := strings.TrimSpace(p[eq+1:])
 		if name == "" || value == "" {
-			return nil, fmt.Errorf("config.parseMCPServers: entry %q: name and value must be non-empty", p)
+			return nil, fmt.Errorf("entry %q: name and value must be non-empty", p)
 		}
 
 		srv, err := parseMCPServerValue(name, value)
 		if err != nil {
-			return nil, fmt.Errorf("config.parseMCPServers: entry %q: %w", p, err)
+			return nil, fmt.Errorf("entry %q: %w", p, err)
 		}
 		out = append(out, srv)
 	}
@@ -293,7 +293,7 @@ func parseMCPServerValue(name, value string) (mcp.ServerConfig, error) {
 		}, nil
 	}
 	if !strings.HasPrefix(value, "http://") && !strings.HasPrefix(value, "https://") {
-		return mcp.ServerConfig{}, fmt.Errorf("config.parseMCPServerValue: expected http(s):// URL or stdio: prefix, got %q", value)
+		return mcp.ServerConfig{}, fmt.Errorf("expected http(s):// URL or stdio: prefix, got %q", value)
 	}
 	return mcp.ServerConfig{
 		Name:      name,
