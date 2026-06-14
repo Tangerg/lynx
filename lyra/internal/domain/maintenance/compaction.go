@@ -19,9 +19,21 @@ import (
 // count alone misses. The defaults aim at "comfortably fits in
 // 128k-context models".
 const (
-	defaultCompactMaxMessages = 24      // message count before we trigger
-	defaultCompactKeepRecent  = 6       // raw messages to preserve verbatim
-	defaultCompactMaxTokens   = 100_000 // estimated token footprint before we trigger
+	defaultCompactMaxMessages = 24 // message count before we trigger
+	defaultCompactKeepRecent  = 6  // raw messages to preserve verbatim
+
+	// defaultCompactMaxTokens is the estimated-token-footprint trigger used
+	// ONLY when the model's real context window is unknown (catalog miss). When
+	// the window IS known the trigger is window-relative instead — see
+	// [CompactionConfig.ContextWindow] / [windowTriggerPct].
+	defaultCompactMaxTokens = 100_000
+
+	// windowTriggerPct is the share of the model's context window at which an
+	// estimated footprint triggers compaction — leaving headroom for the
+	// summary output + the next turn. A fixed number is wrong across the 32k…1M
+	// window range; relative tracks the actual model (claude_code / codex /
+	// crush / harness9 / pi all trigger window-relative).
+	windowTriggerPct = 80
 
 	// charsPerToken is the coarse chars→tokens divisor used ONLY for the
 	// compaction trigger estimate — never for billing. ~4 chars/token is
@@ -41,8 +53,13 @@ const (
 // Zero values fall back to the package defaults.
 type CompactionConfig struct {
 	MaxMessages int // default: defaultCompactMaxMessages
-	MaxTokens   int // default: defaultCompactMaxTokens (estimated footprint)
+	MaxTokens   int // explicit token-footprint trigger; overrides the window-relative default
 	KeepRecent  int // default: defaultCompactKeepRecent
+	// ContextWindow is the model's context window in tokens (from the catalog).
+	// When > 0 and MaxTokens is unset, the token trigger becomes
+	// ContextWindow*windowTriggerPct% — relative to the real model instead of a
+	// fixed number. 0 (catalog miss) falls back to defaultCompactMaxTokens.
+	ContextWindow int
 }
 
 // Compactor is the auto-compaction worker. Constructed by the engine
@@ -66,7 +83,14 @@ func NewCompactor(store memory.Store, client *chat.Client, cfg CompactionConfig)
 	}
 	maxTokens := cfg.MaxTokens
 	if maxTokens <= 0 {
-		maxTokens = defaultCompactMaxTokens
+		// Window-relative when the model's context window is known, else a
+		// coarse fixed fallback. Relative tracks the real model across the
+		// 32k…1M range; fixed was wrong at both ends.
+		if cfg.ContextWindow > 0 {
+			maxTokens = cfg.ContextWindow * windowTriggerPct / 100
+		} else {
+			maxTokens = defaultCompactMaxTokens
+		}
 	}
 	keep := cfg.KeepRecent
 	if keep <= 0 {

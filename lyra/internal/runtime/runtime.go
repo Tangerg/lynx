@@ -29,6 +29,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	"github.com/Tangerg/lynx/models/catalog"
 
 	"github.com/Tangerg/lynx/lyra/internal/config"
 	"github.com/Tangerg/lynx/lyra/internal/domain/approval"
@@ -190,7 +191,18 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		ecfg.Steering = conv
 	}
 	if ecfg.Compactor == nil {
-		ecfg.Compactor = maintenance.NewCompactor(memStore, maintClient, maintenance.CompactionConfig{})
+		// Window-relative compaction trigger: resolve the default turn model's
+		// context window from the catalog so compaction fires relative to the
+		// real model (not a fixed 100k that's wrong for a 32k or a 1M window).
+		// Catalog miss → ContextWindow 0 → the compactor's fixed fallback. Uses
+		// the DEFAULT model's window; a turn that picks a smaller per-run model
+		// keeps the default's headroom (documented limitation — compaction also
+		// runs on the default maintenance client, so it stays self-consistent).
+		window := 0
+		if info, ok := catalog.Lookup(cfg.Provider, cfg.Model); ok {
+			window = int(info.Limits.ContextWindow)
+		}
+		ecfg.Compactor = maintenance.NewCompactor(memStore, maintClient, maintenance.CompactionConfig{ContextWindow: window})
 	}
 	if ecfg.Planner == nil {
 		ecfg.Planner = maintenance.NewPlanner(maintClient)
