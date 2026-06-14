@@ -97,11 +97,13 @@ func (s *engineBacked) Invoke(ctx context.Context, name string, arguments string
 // keep the shared rows in sync when adding a built-in tool.
 func defaultSafetyClass(name string) SafetyClass {
 	switch name {
-	case "read", "glob", "grep", "skill", "ask_user":
+	case "read", "glob", "grep", "skill", "ask_user", "exit_plan_mode":
 		// skill is read-only (lists / reads skill files), like read/glob/grep.
 		// ask_user has no side effect — it IS a HITL interrupt itself, so the
 		// gate never prompts for it (see kernel/turn/policy.go safetyClassFor); the
 		// wire metadata must agree or clients would render it as Exec.
+		// exit_plan_mode is the way out of the read-only plan stance — it must
+		// not be gated, or the agent would be trapped in plan mode.
 		return SafetyClassSafe
 	case "write", "edit":
 		return SafetyClassWrite

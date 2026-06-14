@@ -5,6 +5,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
+	"github.com/Tangerg/lynx/lyra/internal/domain/approval"
 	"github.com/Tangerg/lynx/lyra/internal/domain/codeintel"
 	"github.com/Tangerg/lynx/lyra/internal/domain/editguard"
 	"github.com/Tangerg/lynx/lyra/internal/domain/todo"
@@ -12,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/infra/exec"
 	"github.com/Tangerg/lynx/lyra/internal/infra/mcp"
 	"github.com/Tangerg/lynx/lyra/internal/kernel/toolset/askuser"
+	"github.com/Tangerg/lynx/lyra/internal/kernel/toolset/exitplan"
 	"github.com/Tangerg/lynx/lyra/internal/kernel/toolset/lsptools"
 	"github.com/Tangerg/lynx/lyra/internal/kernel/toolset/shell"
 	"github.com/Tangerg/lynx/lyra/internal/kernel/toolset/skill"
@@ -53,7 +55,8 @@ type BuildConfig struct {
 	LSPServers      []codeintel.ServerSpec
 	MCPServers      []mcp.ServerConfig
 	A2AAgents       []a2a.ClientConfig
-	Todos           todo.Service // backs todo_write; nil → the tool is omitted
+	Todos           todo.Service     // backs todo_write; nil → the tool is omitted
+	Approval        approval.Service // backs exit_plan_mode (flips the stance on approval); nil → the tool is omitted
 }
 
 // Built is the assembled tool environment handed to the engine core: the
@@ -94,6 +97,12 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 	// resolver gates it (sub-agents don't supervise sub-process interrupts).
 	askUserTool := askuser.New()
 
+	// exit_plan_mode leaves the read-only plan stance: it presents the model's
+	// plan for approval and, on approval, flips the approval stance to execute.
+	// Self-contained (SDK HITL + the approval service), coding role only. nil
+	// approval service → nil tool, simply omitted.
+	exitPlanTool := exitplan.New(cfg.Approval)
+
 	// todo_write maintains the per-session task list. nil cfg.Todos yields a nil
 	// tool that's simply omitted (feature off). Working-directory independent
 	// (keys off the session id), so built once and given to both roles.
@@ -118,6 +127,7 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 		LSP:             lspTools,
 		Shell:           shellTools,
 		AskUser:         askUserTool,
+		ExitPlan:        exitPlanTool,
 		Todo:            todoTool,
 		CodeIntel:       codeIntel,
 		ReadTracker:     tracker,

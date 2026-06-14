@@ -61,7 +61,9 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	case gatePass:
 		return kernel.ToolApprovalVerdict{}
 	case gateDeny:
-		return kernel.ToolApprovalVerdict{Denied: true, DenyReason: "read-only mode: " + toolName + " is not permitted"}
+		// gateDeny only fires in the read-only plan stance (ModePlan); guide the
+		// model back onto the plan-then-exit path rather than just refusing.
+		return kernel.ToolApprovalVerdict{Denied: true, DenyReason: "plan mode is active (read-only): " + toolName + " is not permitted. Investigate with read-only tools, then call exit_plan_mode to present your plan for approval."}
 	}
 
 	// gatePrompt. A standing session decision short-circuits the prompt; else
