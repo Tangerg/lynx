@@ -184,11 +184,6 @@ const (
 	InterruptResponseToolResult InterruptResponseType = "toolResult"
 )
 
-// Valid reports whether t is a known interrupt-response type.
-func (t InterruptResponseType) Valid() bool {
-	return t == InterruptResponseApproval || t == InterruptResponseAnswer || t == InterruptResponseToolResult
-}
-
 // ApprovalDecision is the verdict on an approval interrupt (API.md §6.1).
 type ApprovalDecision string
 
@@ -196,9 +191,6 @@ const (
 	ApprovalApprove ApprovalDecision = "approve"
 	ApprovalDeny    ApprovalDecision = "deny"
 )
-
-// Valid reports whether d is a known decision.
-func (d ApprovalDecision) Valid() bool { return d == ApprovalApprove || d == ApprovalDeny }
 
 // InterruptResponse answers one open interrupt, keyed by itemId (API.md §6.1).
 // Response is a tag-discriminated union (Type):
@@ -249,8 +241,6 @@ type RememberScope struct {
 	Scope RememberScopeKind `json:"scope"` // see RememberScopeKind (v1 honors session)
 }
 
-// Interrupt is one pending HITL item (API.md §4.8). itemId is the
-// correlation key (the toolCall/question item awaiting resolution).
 // InterruptType discriminates a pending interrupt (API.md §4.8): a tool awaiting
 // approval, a question awaiting an answer, or a client-side tool to run.
 type InterruptType string
@@ -261,6 +251,8 @@ const (
 	InterruptToolResult InterruptType = "toolResult"
 )
 
+// Interrupt is one pending HITL item (API.md §4.8). ItemID is the correlation
+// key (the toolCall/question item awaiting resolution).
 type Interrupt struct {
 	ItemID  string         `json:"itemId"`
 	Type    InterruptType  `json:"type"` // see InterruptType
@@ -275,6 +267,15 @@ type OpenInterrupt struct {
 	CreatedAt   time.Time   `json:"createdAt"`
 }
 
+// ContextItemType discriminates a ContextItem (API.md §4.7).
+type ContextItemType string
+
+const (
+	ContextItemFile      ContextItemType = "file"
+	ContextItemSelection ContextItemType = "selection"
+	ContextItemURL       ContextItemType = "url"
+)
+
 // ContextItem is one piece of side-channel context attached to a run
 // (API.md §4.7). Tag-discriminated by Type:
 //
@@ -287,20 +288,6 @@ type OpenInterrupt struct {
 //
 // Security: file/selection paths relative to cwd; escaping cwd →
 // path_outside_root. URL fetches block loopback / private / metadata.
-// ContextItemType discriminates a ContextItem (API.md §4.7).
-type ContextItemType string
-
-const (
-	ContextItemFile      ContextItemType = "file"
-	ContextItemSelection ContextItemType = "selection"
-	ContextItemURL       ContextItemType = "url"
-)
-
-// Valid reports whether t is a known context-item type.
-func (t ContextItemType) Valid() bool {
-	return t == ContextItemFile || t == ContextItemSelection || t == ContextItemURL
-}
-
 type ContextItem struct {
 	Type  ContextItemType `json:"type"`
 	Path  string          `json:"path,omitempty"`

@@ -84,9 +84,6 @@ const (
 	DiffModeBase     DiffMode = "base"     // vs merge-base with the default branch
 )
 
-// Valid reports whether m is a known diff mode (empty = default worktree).
-func (m DiffMode) Valid() bool { return m == "" || m == DiffModeWorktree || m == DiffModeBase }
-
 // DiffFormat selects the workspace.getDiff result shape (AUX_API §2.3).
 type DiffFormat string
 
@@ -94,9 +91,6 @@ const (
 	DiffFormatRows DiffFormat = "rows" // per-file structured diff (default)
 	DiffFormatRaw  DiffFormat = "raw"  // unified patch string
 )
-
-// Valid reports whether f is a known diff format (empty = default rows).
-func (f DiffFormat) Valid() bool { return f == "" || f == DiffFormatRows || f == DiffFormatRaw }
 
 // GetDiffRequest — workspace.getDiff body (AUX_API §2.3). Mode selects the
 // baseline (worktree=changes vs HEAD incl. untracked; base=vs merge-base with

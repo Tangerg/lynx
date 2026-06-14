@@ -15,11 +15,6 @@ const (
 	FeedbackNegative FeedbackRating = "negative"
 )
 
-// Valid reports whether r is a known rating (empty = unrated).
-func (r FeedbackRating) Valid() bool {
-	return r == "" || r == FeedbackPositive || r == FeedbackNegative
-}
-
 // FeedbackRequest — feedback.create body (API.md §7.7).
 type FeedbackRequest struct {
 	SessionID string         `json:"sessionId,omitempty"`
