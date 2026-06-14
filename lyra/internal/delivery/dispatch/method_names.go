@@ -69,14 +69,11 @@ const (
 	MethodToolsList          = "tools.list"
 	MethodToolsInvoke        = "tools.invoke"
 
-	// Memory / Attachments / Feedback (API.md §7.7).
-	MethodMemoryList              = "memory.list"
-	MethodMemoryGet               = "memory.get"
-	MethodMemoryUpdate            = "memory.update"
-	MethodAttachmentsCreateUpload = "attachments.createUploadUrl"
-	MethodAttachmentsGet          = "attachments.get"
-	MethodAttachmentsDelete       = "attachments.delete"
-	MethodFeedbackCreate          = "feedback.create"
+	// Memory / Feedback (API.md §7.7).
+	MethodMemoryList   = "memory.list"
+	MethodMemoryGet    = "memory.get"
+	MethodMemoryUpdate = "memory.update"
+	MethodFeedbackCreate = "feedback.create"
 
 	// Notifications (API.md §7.8). notifications.canceled is
 	// client→server; the rest are server→client.

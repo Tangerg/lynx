@@ -64,7 +64,6 @@ const (
 	CodeCapabilityNotNeg       = -32006
 	CodeRunAlreadyDone         = -32008
 	CodeCheckpointUnavail      = -32009
-	CodeAttachmentTooLarge     = -32010
 	CodeUnsupportedMime        = -32011
 	CodeToolDenied             = -32012
 	CodePathOutsideRoot        = -32013
@@ -101,7 +100,6 @@ var (
 	ErrCapabilityNotNeg       = errors.New("capability_not_negotiated")
 	ErrRunAlreadyDone         = errors.New("run_already_finished")
 	ErrCheckpointUnavailable  = errors.New("checkpoint_unavailable")
-	ErrAttachmentTooLarge     = errors.New("attachment_too_large")
 	ErrUnsupportedMime        = errors.New("unsupported_mime")
 	ErrToolDenied             = errors.New("tool_denied")
 	ErrPathOutsideRoot        = errors.New("path_outside_root")

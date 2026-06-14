@@ -9,6 +9,7 @@ require (
 	github.com/Tangerg/lynx/mcp v0.0.0-20260612074151-b041faa6c4a2
 	github.com/Tangerg/lynx/models v0.0.0-20260612074151-b041faa6c4a2
 	github.com/Tangerg/lynx/otel v0.0.0-20260612074151-b041faa6c4a2
+	github.com/Tangerg/lynx/pkg v0.0.0-20260612070432-d76a84bc1fc7
 	github.com/Tangerg/lynx/skills v0.0.0-20260612074151-b041faa6c4a2
 	github.com/Tangerg/lynx/tools v0.0.0-20260612074151-b041faa6c4a2
 	github.com/Tangerg/sse v0.0.1
@@ -36,7 +37,6 @@ require (
 
 require (
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
-	github.com/Tangerg/lynx/pkg v0.0.0-20260612070432-d76a84bc1fc7 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/bits-and-blooms/bitset v1.24.5 // indirect
 	github.com/buger/jsonparser v1.2.0 // indirect

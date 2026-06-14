@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
@@ -19,12 +20,13 @@ import (
 const llmCallTimeout = 2 * time.Minute
 
 // runChatTurn drives one streaming chat turn end-to-end: compose the
-// system prompt + user message, run the tool-loop, stream deltas to the
-// observer, record each LLM round into the process budget, and assemble
-// the result. HITL interrupt / resume is handled by the tool
-// middleware's [tool.ParkStore]; when none is configured, the engine
-// intercepts [chat.FinishReasonInterrupt] chunks as a fallback.
-func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, message string, budget turnBudget) (ChatOutput, error) {
+// system prompt + user message (with any image attachments), run the
+// tool-loop, stream deltas to the observer, record each LLM round into the
+// process budget, and assemble the result. HITL interrupt / resume is
+// handled by the tool middleware's [tool.ParkStore]; when none is
+// configured, the engine intercepts [chat.FinishReasonInterrupt] chunks as
+// a fallback.
+func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, message string, images []*media.Media, budget turnBudget) (ChatOutput, error) {
 	ctx, cancel := context.WithTimeout(ctx, llmCallTimeout)
 	defer cancel()
 
@@ -42,10 +44,18 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 		msgs := append([]chat.Message{chat.NewSystemMessage(sysPrompt)}, tail...)
 		stream = req.WithMessages(msgs...).Stream()
 	} else {
-		stream = req.
-			WithSystemPrompt(sysPrompt).
-			WithUserPrompt(message).
-			Stream()
+		req = req.WithSystemPrompt(sysPrompt)
+		// Images attach to the user message via a prompt template (the
+		// text-only path keeps the plain WithUserPrompt). The template
+		// renders the text and carries the media into UserMessage.Media,
+		// which the memory middleware persists and the provider adapter
+		// lowers to image content blocks.
+		if len(images) > 0 {
+			req = req.WithUserPromptTemplate(chat.NewPromptTemplate(message).WithMedia(images...))
+		} else {
+			req = req.WithUserPrompt(message)
+		}
+		stream = req.Stream()
 	}
 
 	var (

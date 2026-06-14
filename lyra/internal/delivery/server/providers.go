@@ -114,7 +114,7 @@ func modelToWire(providerID string, m chat.ModelInfo) protocol.Model {
 		MaxOutputTokens: int(m.Limits.MaxOutputTokens),
 		Capabilities: &protocol.ModelCapabilities{
 			Reasoning:  m.Reasoning.Supported,
-			Multimodal: len(m.Modalities.Input) > 1,
+			Multimodal: m.Modalities.AcceptsInput(chat.ModalityImage),
 			ToolUse:    m.ToolCall,
 		},
 	}

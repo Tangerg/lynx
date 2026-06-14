@@ -158,11 +158,6 @@ var methodTable = map[string]methodHandler{
 	MethodMemoryGet:    (*Dispatcher).handleMemoryGet,
 	MethodMemoryUpdate: (*Dispatcher).handleMemoryUpdate,
 
-	// Attachments.
-	MethodAttachmentsCreateUpload: (*Dispatcher).handleAttachmentsCreateUpload,
-	MethodAttachmentsGet:          (*Dispatcher).handleAttachmentsGet,
-	MethodAttachmentsDelete:       (*Dispatcher).handleAttachmentsDelete,
-
 	// Feedback.
 	MethodFeedbackCreate: (*Dispatcher).handleFeedbackCreate,
 }

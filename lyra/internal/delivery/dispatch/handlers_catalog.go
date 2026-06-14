@@ -63,34 +63,6 @@ func (d *Dispatcher) handleToolsInvoke(ctx context.Context, msg *transport.Reque
 	return reply(msg, out, err)
 }
 
-// ─── Attachments (API.md §7.7) ──────────────────────────────────────
-
-func (d *Dispatcher) handleAttachmentsCreateUpload(ctx context.Context, msg *transport.Request) HandleResult {
-	in, bad := decode[protocol.CreateUploadURLRequest](msg)
-	if bad != nil {
-		return responseError(msg.ID, bad)
-	}
-	out, err := d.api.CreateUploadURL(ctx, in)
-	return reply(msg, out, err)
-}
-
-func (d *Dispatcher) handleAttachmentsGet(ctx context.Context, msg *transport.Request) HandleResult {
-	id, err := decodeStringParam(msg.Params, "attachmentId")
-	if err != nil {
-		return responseError(msg.ID, invalidParams(err.Error()))
-	}
-	out, gErr := d.api.GetAttachment(ctx, id)
-	return reply(msg, out, gErr)
-}
-
-func (d *Dispatcher) handleAttachmentsDelete(ctx context.Context, msg *transport.Request) HandleResult {
-	id, err := decodeStringParam(msg.Params, "attachmentId")
-	if err != nil {
-		return responseError(msg.ID, invalidParams(err.Error()))
-	}
-	return replyDone(msg, d.api.DeleteAttachment(ctx, id))
-}
-
 // ─── Feedback (API.md §7.7) ─────────────────────────────────────────
 
 func (d *Dispatcher) handleFeedbackCreate(ctx context.Context, msg *transport.Request) HandleResult {

@@ -116,7 +116,6 @@ type StartRunRequest struct {
 	Context     []ContextItem  `json:"context,omitempty"`
 	Tools       []ToolSpec     `json:"tools,omitempty"`
 	State       map[string]any `json:"state,omitempty"`
-	Attachments []string       `json:"attachments,omitempty"`
 	// Provider + Model select the model for this run. They are paired: send
 	// both to pick a model, or neither to use the runtime's default. Sending
 	// one without the other is invalid_params — the provider is explicit,
@@ -282,7 +281,9 @@ type OpenInterrupt struct {
 //	file      → Path (relative to Session.cwd)
 //	selection → Path, Range ([startLine, endLine], 1-based inclusive)
 //	url       → URL (runtime fetches; SSRF egress policy applies)
-//	image     → AttachmentID
+//
+// Images aren't context items — they ride the run's input inline as an
+// image ContentBlock (Mime + base64 Data), see StartRunRequest.Input.
 //
 // Security: file/selection paths relative to cwd; escaping cwd →
 // path_outside_root. URL fetches block loopback / private / metadata.
@@ -293,20 +294,18 @@ const (
 	ContextItemFile      ContextItemType = "file"
 	ContextItemSelection ContextItemType = "selection"
 	ContextItemURL       ContextItemType = "url"
-	ContextItemImage     ContextItemType = "image"
 )
 
 // Valid reports whether t is a known context-item type.
 func (t ContextItemType) Valid() bool {
-	return t == ContextItemFile || t == ContextItemSelection || t == ContextItemURL || t == ContextItemImage
+	return t == ContextItemFile || t == ContextItemSelection || t == ContextItemURL
 }
 
 type ContextItem struct {
-	Type         ContextItemType `json:"type"`
-	Path         string          `json:"path,omitempty"`
-	Range        []int           `json:"range,omitempty"`
-	URL          string          `json:"url,omitempty"`
-	AttachmentID string          `json:"attachmentId,omitempty"`
+	Type  ContextItemType `json:"type"`
+	Path  string          `json:"path,omitempty"`
+	Range []int           `json:"range,omitempty"`
+	URL   string          `json:"url,omitempty"`
 }
 
 // ToolSpec is a client-supplied tool descriptor (API.md §4.7).
