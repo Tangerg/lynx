@@ -32,17 +32,17 @@ func Build(ci *codeintel.Service, defaultWorkdir string) []chat.Tool {
 
 type lspInput struct {
 	Operation string `json:"operation"`
-	File      string `json:"file"`
+	FilePath  string `json:"file_path"`
 	Line      int    `json:"line"`
-	Column    int    `json:"column"`
+	Character int    `json:"character"`
 	Query     string `json:"query"`
 }
 
 const lspSchema = `{"type":"object","properties":{` +
 	`"operation":{"type":"string","enum":["definition","references","implementation","hover","incoming_calls","outgoing_calls","document_symbols","workspace_symbols"],"description":"Which language-server query to run."},` +
-	`"file":{"type":"string","description":"File path, relative to the workspace root (or absolute). Required for every operation except workspace_symbols."},` +
+	`"file_path":{"type":"string","description":"File path, relative to the workspace root (or absolute). Required for every operation except workspace_symbols."},` +
 	`"line":{"type":"integer","description":"1-based line of the symbol. Required for definition/references/implementation/hover/incoming_calls/outgoing_calls."},` +
-	`"column":{"type":"integer","description":"1-based column of the symbol on that line. Required with line."},` +
+	`"character":{"type":"integer","description":"1-based character (column) of the symbol on that line. Required with line."},` +
 	`"query":{"type":"string","description":"Symbol name or substring to search for. Required for workspace_symbols."}` +
 	`},"required":["operation"]}`
 
@@ -51,7 +51,7 @@ const lspDesc = "Query the language server (LSP) about code at a position or acr
 	"implementation (concrete implementations of an interface / abstract method) · hover (type signature + docs) · " +
 	"incoming_calls (callers of the function at the position) · outgoing_calls (functions the one at the position calls) · " +
 	"document_symbols (symbols declared in a file) · workspace_symbols (search symbols across the workspace by name). " +
-	"Position operations need file + line + column (1-based); document_symbols needs file; workspace_symbols needs query. " +
+	"Position operations need file_path + line + character (1-based); document_symbols needs file_path; workspace_symbols needs query. " +
 	"(For a file's compile errors / warnings use lsp_diagnostics.)"
 
 func newLSPTool(ci *codeintel.Service, defaultWorkdir string) chat.Tool {
@@ -68,8 +68,8 @@ func newLSPTool(ci *codeintel.Service, defaultWorkdir string) chat.Tool {
 			switch in.Operation {
 			case "definition", "references", "implementation", "hover",
 				"incoming_calls", "outgoing_calls", "document_symbols":
-				if in.File == "" {
-					return "", fmt.Errorf("lsp %s: file is required", in.Operation)
+				if in.FilePath == "" {
+					return "", fmt.Errorf("lsp %s: file_path is required", in.Operation)
 				}
 			case "workspace_symbols":
 				if in.Query == "" {
@@ -82,19 +82,19 @@ func newLSPTool(ci *codeintel.Service, defaultWorkdir string) chat.Tool {
 			root := turnctx.TurnCwd(ctx, defaultWorkdir)
 			switch in.Operation {
 			case "definition":
-				return ci.Definition(ctx, root, in.File, in.Line, in.Column)
+				return ci.Definition(ctx, root, in.FilePath, in.Line, in.Character)
 			case "references":
-				return ci.References(ctx, root, in.File, in.Line, in.Column)
+				return ci.References(ctx, root, in.FilePath, in.Line, in.Character)
 			case "implementation":
-				return ci.Implementation(ctx, root, in.File, in.Line, in.Column)
+				return ci.Implementation(ctx, root, in.FilePath, in.Line, in.Character)
 			case "hover":
-				return ci.Hover(ctx, root, in.File, in.Line, in.Column)
+				return ci.Hover(ctx, root, in.FilePath, in.Line, in.Character)
 			case "incoming_calls":
-				return ci.IncomingCalls(ctx, root, in.File, in.Line, in.Column)
+				return ci.IncomingCalls(ctx, root, in.FilePath, in.Line, in.Character)
 			case "outgoing_calls":
-				return ci.OutgoingCalls(ctx, root, in.File, in.Line, in.Column)
+				return ci.OutgoingCalls(ctx, root, in.FilePath, in.Line, in.Character)
 			case "document_symbols":
-				return ci.DocumentSymbols(ctx, root, in.File)
+				return ci.DocumentSymbols(ctx, root, in.FilePath)
 			default: // workspace_symbols (validated above)
 				return ci.WorkspaceSymbols(ctx, root, in.Query)
 			}
@@ -109,8 +109,8 @@ func newLSPTool(ci *codeintel.Service, defaultWorkdir string) chat.Tool {
 // auto-appends post-edit diagnostics on writes.
 func newDiagnosticsTool(ci *codeintel.Service, defaultWorkdir string) chat.Tool {
 	const schema = `{"type":"object","properties":{` +
-		`"file":{"type":"string","description":"Path to the file, relative to the workspace root (or absolute)."}` +
-		`},"required":["file"]}`
+		`"file_path":{"type":"string","description":"Path to the file, relative to the workspace root (or absolute)."}` +
+		`},"required":["file_path"]}`
 	t, _ := chat.NewTool(
 		chat.ToolDefinition{
 			Name:        "lsp_diagnostics",
@@ -120,15 +120,15 @@ func newDiagnosticsTool(ci *codeintel.Service, defaultWorkdir string) chat.Tool 
 		chat.ToolMetadata{},
 		func(ctx context.Context, arguments string) (string, error) {
 			var in struct {
-				File string `json:"file"`
+				FilePath string `json:"file_path"`
 			}
 			if err := json.Unmarshal([]byte(arguments), &in); err != nil {
 				return "", fmt.Errorf("lsp_diagnostics: invalid arguments: %w", err)
 			}
-			if in.File == "" {
-				return "", errors.New("lsp_diagnostics: file is required")
+			if in.FilePath == "" {
+				return "", errors.New("lsp_diagnostics: file_path is required")
 			}
-			return ci.Diagnostics(ctx, turnctx.TurnCwd(ctx, defaultWorkdir), in.File)
+			return ci.Diagnostics(ctx, turnctx.TurnCwd(ctx, defaultWorkdir), in.FilePath)
 		},
 	)
 	return t

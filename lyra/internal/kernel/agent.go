@@ -178,7 +178,11 @@ func (e *Engine) buildChatAgent() *core.Agent {
 // sub-agent (isolated context, the coding tools minus `task`) and hands
 // back the sub-agent's final reply.
 type taskInput struct {
-	Prompt string `json:"prompt"`
+	// Description is a short (3-5 word) label for the subtask, shown in the UI
+	// while it runs. Display-only: it rides in the tool-call arguments for the
+	// frontend, not consumed server-side (the sub-agent works from Prompt).
+	Description string `json:"description" jsonschema_description:"Short (3-5 word) description of the subtask, shown in the UI while it runs."`
+	Prompt      string `json:"prompt" jsonschema_description:"The full, self-contained instructions for the sub-agent — it does not see the main conversation, so include everything it needs."`
 }
 
 // buildSubtaskAgent constructs the agent behind the `task` delegation

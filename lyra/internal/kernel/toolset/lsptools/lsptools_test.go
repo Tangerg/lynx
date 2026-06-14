@@ -28,7 +28,7 @@ func TestLSPToolUnsupportedFile(t *testing.T) {
 	ci := codeintel.New(nil)
 	t.Cleanup(func() { _ = ci.Close() })
 
-	out, err := lspTool(t, ci).Call(context.Background(), `{"operation":"hover","file":"notes.txt","line":1,"column":1}`)
+	out, err := lspTool(t, ci).Call(context.Background(), `{"operation":"hover","file_path":"notes.txt","line":1,"character":1}`)
 	if err != nil {
 		t.Fatalf("unsupported file should not error: %v", err)
 	}
@@ -50,13 +50,13 @@ func TestLSPToolValidation(t *testing.T) {
 		t.Error("unknown operation must error")
 	}
 	if _, err := lsp.Call(context.Background(), `{"operation":"definition"}`); err == nil {
-		t.Error("definition without file must error")
+		t.Error("definition without file_path must error")
 	}
 	if _, err := lsp.Call(context.Background(), `{"operation":"workspace_symbols"}`); err == nil {
 		t.Error("workspace_symbols without query must error")
 	}
 	for _, op := range []string{"implementation", "incoming_calls", "outgoing_calls"} {
-		out, err := lsp.Call(context.Background(), `{"operation":"`+op+`","file":"notes.txt","line":1,"column":1}`)
+		out, err := lsp.Call(context.Background(), `{"operation":"`+op+`","file_path":"notes.txt","line":1,"character":1}`)
 		if err != nil {
 			t.Errorf("%s should not error on unsupported file: %v", op, err)
 		}

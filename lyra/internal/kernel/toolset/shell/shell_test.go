@@ -88,13 +88,13 @@ func TestBashOutput_Wait(t *testing.T) {
 	if err != nil || !strings.Contains(out, "shell bg_1") {
 		t.Fatalf("bash(bg) = %q err=%v", out, err)
 	}
-	// Without waiting it's still running; with wait it blocks to completion.
-	read, err := output.Call(context.Background(), `{"shell_id":"bg_1","wait":true}`)
+	// Without blocking it's still running; with block it waits to completion.
+	read, err := output.Call(context.Background(), `{"shell_id":"bg_1","block":true}`)
 	if err != nil {
-		t.Fatalf("bash_output(wait) err=%v", err)
+		t.Fatalf("bash_output(block) err=%v", err)
 	}
 	if !strings.Contains(read, "done") || !strings.Contains(read, "finished") {
-		t.Fatalf("bash_output(wait) = %q, want finished output containing 'done'", read)
+		t.Fatalf("bash_output(block) = %q, want finished output containing 'done'", read)
 	}
 }
 
@@ -109,12 +109,12 @@ func TestBashOutput_WaitTimeout(t *testing.T) {
 	if _, err := bash.Call(context.Background(), `{"command":"sleep 30","run_in_background":true}`); err != nil {
 		t.Fatalf("bash(bg) err=%v", err)
 	}
-	read, err := output.Call(context.Background(), `{"shell_id":"bg_1","wait":true,"timeout_seconds":1}`)
+	read, err := output.Call(context.Background(), `{"shell_id":"bg_1","block":true,"timeout":1000}`)
 	if err != nil {
-		t.Fatalf("bash_output(wait,timeout) err=%v, want graceful still-running", err)
+		t.Fatalf("bash_output(block,timeout) err=%v, want graceful still-running", err)
 	}
 	if !strings.Contains(read, "still running") {
-		t.Fatalf("bash_output(wait,timeout) = %q, want a still-running status", read)
+		t.Fatalf("bash_output(block,timeout) = %q, want a still-running status", read)
 	}
 }
 
