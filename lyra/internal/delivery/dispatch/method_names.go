@@ -59,6 +59,8 @@ const (
 	MethodWorkspaceMCPListServers  = "workspace.mcp.listServers"
 	MethodWorkspaceMCPListTools    = "workspace.mcp.listTools"
 	MethodWorkspaceMCPReconnect    = "workspace.mcp.reconnect"
+	MethodWorkspaceGetApprovalMode = "workspace.getApprovalMode"
+	MethodWorkspaceSetApprovalMode = "workspace.setApprovalMode"
 	MethodWorkspaceSubscribe       = "workspace.subscribe"
 
 	// Providers / Models / Tools (API.md §7.6).

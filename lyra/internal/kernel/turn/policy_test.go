@@ -16,16 +16,16 @@ func TestGateFor_Matrix(t *testing.T) {
 		want gateAction
 	}{
 		// Read-only tools never gate, in any mode.
-		{"read", approval.ModeReadOnly, gatePass},
+		{"read", approval.ModePlan, gatePass},
 		{"grep", approval.ModeSafe, gatePass},
 		{"glob", approval.ModeBalanced, gatePass},
 		{"read", approval.ModeYolo, gatePass},
 
-		// ModeReadOnly denies every non-read tool outright.
-		{"write", approval.ModeReadOnly, gateDeny},
-		{"edit", approval.ModeReadOnly, gateDeny},
-		{"bash", approval.ModeReadOnly, gateDeny},
-		{"some_mcp_tool", approval.ModeReadOnly, gateDeny}, // unknown → exec class
+		// ModePlan denies every non-read tool outright (read-only).
+		{"write", approval.ModePlan, gateDeny},
+		{"edit", approval.ModePlan, gateDeny},
+		{"bash", approval.ModePlan, gateDeny},
+		{"some_mcp_tool", approval.ModePlan, gateDeny}, // unknown → exec class
 
 		// ModeSafe prompts on every non-read tool.
 		{"write", approval.ModeSafe, gatePrompt},

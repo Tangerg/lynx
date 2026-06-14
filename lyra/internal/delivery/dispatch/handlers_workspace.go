@@ -78,6 +78,20 @@ func (d *Dispatcher) handleWorkspaceMCPListServers(ctx context.Context, msg *tra
 	return reply(msg, out, err)
 }
 
+func (d *Dispatcher) handleWorkspaceGetApprovalMode(ctx context.Context, msg *transport.Request) HandleResult {
+	out, err := d.api.WorkspaceGetApprovalMode(ctx)
+	return reply(msg, out, err)
+}
+
+func (d *Dispatcher) handleWorkspaceSetApprovalMode(ctx context.Context, msg *transport.Request) HandleResult {
+	in, bad := decode[protocol.SetApprovalModeRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
+	out, err := d.api.WorkspaceSetApprovalMode(ctx, in)
+	return reply(msg, out, err)
+}
+
 func (d *Dispatcher) handleWorkspaceMCPListTools(ctx context.Context, msg *transport.Request) HandleResult {
 	var in protocol.MCPListToolsRequest
 	_ = unmarshal(msg.Params, &in)

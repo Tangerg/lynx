@@ -4,7 +4,7 @@ import "github.com/Tangerg/lynx/lyra/internal/domain/approval"
 
 // gateAction is the three-way outcome of the per-call permission
 // gate: run it, ask the user, or refuse outright. Replacing the
-// older bool ("needs approval?") lets ModeReadOnly express "deny
+// older bool ("needs approval?") lets ModePlan express "deny
 // without prompting" — a stance a bool can't capture.
 type gateAction int
 
@@ -20,7 +20,7 @@ const (
 //   - ModeYolo     → always pass
 //   - ModeBalanced → prompt only on exec class (bash + unknown)
 //   - ModeSafe     → prompt on every write / exec / unknown tool
-//   - ModeReadOnly → deny every write / exec / unknown tool outright
+//   - ModePlan     → deny every write / exec / unknown tool outright (read-only)
 //
 // Pure function so transport adapters and tests can audit the
 // matrix without touching the service impl.
@@ -33,7 +33,7 @@ func gateFor(toolName string, mode approval.Mode) gateAction {
 		return gatePass // read-only tools never gate, in any mode
 	}
 	switch mode {
-	case approval.ModeReadOnly:
+	case approval.ModePlan:
 		return gateDeny
 	case approval.ModeSafe:
 		return gatePrompt // write + exec

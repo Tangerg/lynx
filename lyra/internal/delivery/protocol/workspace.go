@@ -16,6 +16,12 @@ type Workspace interface {
 	WorkspaceMCPListServers(ctx context.Context, q PageQuery) (*Page[McpServer], error)
 	WorkspaceMCPListTools(ctx context.Context, in MCPListToolsRequest) (*Page[McpTool], error)
 	WorkspaceMCPReconnect(ctx context.Context, server string) error
+	// WorkspaceGetApprovalMode returns the current runtime tool-permission stance.
+	WorkspaceGetApprovalMode(ctx context.Context) (*ApprovalModeResult, error)
+	// WorkspaceSetApprovalMode sets the runtime tool-permission stance. plan is
+	// the read-only planning stance (the agent investigates + proposes a plan;
+	// exit_plan_mode flips back to execute).
+	WorkspaceSetApprovalMode(ctx context.Context, in SetApprovalModeRequest) (*ApprovalModeResult, error)
 	// WorkspaceSubscribe opens the non-run workspace event stream (AUX_API §3):
 	// files/skills/mcp changes. Returns an ack + the event channel, closed when
 	// the request ctx ends. Streaming method (in streamingMethods).
@@ -91,6 +97,36 @@ const (
 	DiffFormatRows DiffFormat = "rows" // per-file structured diff (default)
 	DiffFormatRaw  DiffFormat = "raw"  // unified patch string
 )
+
+// ApprovalMode is the runtime tool-permission stance
+// (workspace.getApprovalMode / workspace.setApprovalMode). It mirrors the
+// engine's approval gate:
+//
+//	plan      read-only: write/exec/network tools are DENIED (no prompt) so the
+//	          agent only investigates + drafts a plan; exit_plan_mode presents
+//	          the plan for approval and flips the stance back to execute
+//	safe      every write/exec/network tool prompts for approval
+//	balanced  write/network auto-allowed; only exec (bash) prompts (the default)
+//	yolo      everything auto-allowed
+type ApprovalMode string
+
+const (
+	ApprovalModeSafe     ApprovalMode = "safe"
+	ApprovalModeBalanced ApprovalMode = "balanced"
+	ApprovalModeYolo     ApprovalMode = "yolo"
+	ApprovalModePlan     ApprovalMode = "plan"
+)
+
+// SetApprovalModeRequest — workspace.setApprovalMode body.
+type SetApprovalModeRequest struct {
+	Mode ApprovalMode `json:"mode"`
+}
+
+// ApprovalModeResult — the workspace.getApprovalMode / setApprovalMode reply:
+// the (new) current stance.
+type ApprovalModeResult struct {
+	Mode ApprovalMode `json:"mode"`
+}
 
 // GetDiffRequest — workspace.getDiff body (AUX_API §2.3). Mode selects the
 // baseline (worktree=changes vs HEAD incl. untracked; base=vs merge-base with
