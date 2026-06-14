@@ -47,7 +47,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		return nil, nil, err
 	}
 	if userMsg == "" && len(userMedia) == 0 {
-		return nil, nil, errors.New("runs.start: input must contain a user text or image block")
+		return nil, nil, fmt.Errorf("%w: input must contain a user text or image block", protocol.ErrInvalidParams)
 	}
 
 	// providerId + model are paired: both to pick a model, neither for the
@@ -306,8 +306,9 @@ func (s *Server) SubscribeRun(ctx context.Context, runID string) (*protocol.Star
 // [interrupts.Resolution] the chat service's Resume expects. The agent
 // runtime parks one awaitable at a time, so a single response drives the
 // continuation. approval → approve/deny; answer → the answers map (and
-// approve unless the plan-review label is reject); toolResult / empty →
-// continue.
+// approve unless the plan-review label is reject); toolResult → continue; an
+// empty responses list → continue. An unrecognized response type is
+// invalid_params, never a silent approve.
 func resolveResolution(responses []protocol.InterruptResponse) (interrupts.Resolution, error) {
 	for _, r := range responses {
 		switch r.Response.Type {
@@ -334,7 +335,7 @@ func resolveResolution(responses []protocol.InterruptResponse) (interrupts.Resol
 			case protocol.ApprovalDeny:
 				res.Approved = false
 			default:
-				return interrupts.Resolution{}, errors.New(`runs.resume: approval decision must be "approve" | "deny"`)
+				return interrupts.Resolution{}, fmt.Errorf(`%w: approval decision must be "approve" | "deny"`, protocol.ErrInvalidParams)
 			}
 			return res, nil
 		case protocol.InterruptResponseAnswer:
@@ -349,9 +350,11 @@ func resolveResolution(responses []protocol.InterruptResponse) (interrupts.Resol
 			return interrupts.Resolution{Approved: approved, Answer: r.Response.Answers}, nil
 		case protocol.InterruptResponseToolResult:
 			return interrupts.Resolution{Approved: true}, nil
+		default:
+			return interrupts.Resolution{}, fmt.Errorf("%w: unknown interrupt response type %q", protocol.ErrInvalidParams, r.Response.Type)
 		}
 	}
-	// No actionable response → treat as continue.
+	// No responses → treat as continue.
 	return interrupts.Resolution{Approved: true}, nil
 }
 

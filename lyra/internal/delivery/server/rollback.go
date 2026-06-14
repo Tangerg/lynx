@@ -89,6 +89,13 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	if restoreType == "" {
 		restoreType = protocol.RestoreHistory
 	}
+	switch restoreType {
+	case protocol.RestoreFiles, protocol.RestoreHistory, protocol.RestoreBoth:
+	default:
+		// An unknown restoreType must be rejected, not silently no-op'd into a
+		// success that restores nothing.
+		return nil, fmt.Errorf("%w: unknown restoreType %q", protocol.ErrInvalidParams, restoreType)
+	}
 	doFiles := restoreType == protocol.RestoreFiles || restoreType == protocol.RestoreBoth
 	doHistory := restoreType == protocol.RestoreHistory || restoreType == protocol.RestoreBoth
 	if doFiles && in.ToRunID == "" {
