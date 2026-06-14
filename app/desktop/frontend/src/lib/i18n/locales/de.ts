@@ -29,6 +29,21 @@ export const de: Record<string, string> = {
   "composer.mode": "Editor-Modus",
   "composer.attachFile": "Datei anhängen",
   "composer.switchModel": "Modell wechseln",
+  "composer.attachImage": "Bild anhängen",
+  "composer.attachImage.unsupported": "Dieses Modell akzeptiert keine Bilder",
+  "composer.action.send": "Senden (⌘↵)",
+  "composer.action.stop": "Stopp (Esc)",
+  "composer.execMode.hint": "Ausführungsmodus · Arbeitsbereich · Auto",
+  "composer.gitBranch": "Git-Branch",
+  "composer.slash.heading": "Befehle",
+  "composer.mode.agent": "Agent",
+  "composer.mode.chat": "Fragen",
+  "composer.mode.plan": "Plan",
+  "composer.placeholder.debug":
+    "Füge die Ausgabe eines fehlgeschlagenen Tests ein, ich führe dich durch.",
+  "composer.placeholder.implement":
+    "Was soll umgesetzt werden? Beschreibe die Änderung, ich plane + führe aus.",
+  "composer.placeholder.refactor": "Zeig auf Code, der riecht; ich schlage ein Refactoring vor.",
 
   "chat.error.title": "Render-Fehler",
   "chat.error.retry": "Erneut versuchen",

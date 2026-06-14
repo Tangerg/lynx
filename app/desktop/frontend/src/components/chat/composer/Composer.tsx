@@ -57,7 +57,11 @@ export function Composer({
   // switch after mount won't relocalize the fallback — acceptable for
   // a random hint string.
   const placeholder = useMemo(
-    () => pickComposerPlaceholder()?.text ?? t("composer.placeholder.fallback"),
+    () => {
+      // Placeholder specs now carry an i18n key in `text`; resolve it here.
+      const picked = pickComposerPlaceholder()?.text;
+      return picked ? t(picked) : t("composer.placeholder.fallback");
+    },
     // eslint-disable-next-line react/exhaustive-deps
     [],
   );
@@ -168,13 +172,16 @@ function ModePicker({
   value: ComposerMode;
   onChange: (v: ComposerMode) => void;
 }) {
+  const t = useT();
   if (modes.length === 0) return null; // no modes registered — composer shows no picker
   return (
     <Segmented
       value={value}
-      options={modes.map((m) => ({ value: m.id, label: m.label }))}
+      // m.label is an i18n key (built-in modes) or a literal (third-party) —
+      // t() resolves the former and passes the latter through.
+      options={modes.map((m) => ({ value: m.id, label: t(m.label) }))}
       onChange={onChange}
-      ariaLabel="Composer mode"
+      ariaLabel={t("composer.mode")}
     />
   );
 }

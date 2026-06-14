@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useT } from "@/lib/i18n";
 import { useSlashCommands } from "@/plugins/sdk";
 
 interface Props {
@@ -16,6 +17,7 @@ interface Props {
  * Enter" behavior.
  */
 export function SlashSuggestions({ value, onPick }: Props) {
+  const t = useT();
   const commands = useSlashCommands();
 
   const filtered = useMemo(() => {
@@ -32,7 +34,7 @@ export function SlashSuggestions({ value, onPick }: Props) {
   return (
     <div className="mb-2 overflow-hidden rounded-xl border border-line bg-surface shadow-lg animate-rise-in">
       <div className="px-3.5 pb-1 pt-2 font-mono text-[11px] font-semibold text-fg-faint">
-        Commands
+        {t("composer.slash.heading")}
       </div>
       {filtered.map(({ cmd, spec }) => (
         <button
@@ -44,7 +46,7 @@ export function SlashSuggestions({ value, onPick }: Props) {
           <code className="bg-transparent p-0 font-mono text-[12.5px] font-semibold text-accent border-0">
             {cmd}
           </code>
-          <span className="text-[12.5px] text-fg-muted">{spec.description}</span>
+          <span className="text-[12.5px] text-fg-muted">{t(spec.description)}</span>
         </button>
       ))}
     </div>
