@@ -44,12 +44,11 @@ func (a *App) sessionListCmd() *cobra.Command {
 				fmt.Fprintln(a.Out, "(no sessions)")
 				return nil
 			}
-			fmt.Fprintf(a.Out, "%-36s  %-19s  %5s  %s\n", "ID", "UPDATED", "TURNS", "TITLE")
+			fmt.Fprintf(a.Out, "%-36s  %-19s  %s\n", "ID", "UPDATED", "TITLE")
 			for _, s := range sessions {
-				fmt.Fprintf(a.Out, "%-36s  %-19s  %5d  %s\n",
+				fmt.Fprintf(a.Out, "%-36s  %-19s  %s\n",
 					s.ID,
 					s.UpdatedAt.Format("2006-01-02 15:04:05"),
-					s.TurnCount,
 					s.Title,
 				)
 			}
@@ -112,7 +111,6 @@ func printSession(out io.Writer, sess session.Session) {
 	}
 	fmt.Fprintf(out, "started_at: %s\n", sess.StartedAt.Format("2006-01-02 15:04:05"))
 	fmt.Fprintf(out, "updated_at: %s\n", sess.UpdatedAt.Format("2006-01-02 15:04:05"))
-	fmt.Fprintf(out, "turns:      %d\n", sess.TurnCount)
 	for k, v := range sess.Metadata {
 		fmt.Fprintf(out, "meta.%s: %s\n", k, v)
 	}

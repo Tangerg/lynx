@@ -44,7 +44,7 @@ func rowToSession(scanner interface {
 	)
 	if err := scanner.Scan(
 		&s.ID, &s.Title, &s.Cwd, &s.ParentID,
-		&startedAtNanos, &updatedAtNanos, &s.TurnCount, &metaJSON, &s.Model, &s.Kind,
+		&startedAtNanos, &updatedAtNanos, &metaJSON, &s.Model, &s.Kind,
 	); err != nil {
 		return session.Session{}, err
 	}
@@ -71,7 +71,7 @@ func encodeMetadata(m map[string]any) (string, error) {
 	return string(data), nil
 }
 
-const sessionColumns = `id, title, cwd, parent_id, started_at, updated_at, turn_count, metadata, model, kind`
+const sessionColumns = `id, title, cwd, parent_id, started_at, updated_at, metadata, model, kind`
 
 // ------------------------------------------------------------------
 // session.Service
@@ -142,10 +142,10 @@ func (s *SessionService) Restore(ctx context.Context, sess session.Session) erro
 	}
 	_, err = s.db.ExecContext(ctx,
 		`INSERT OR REPLACE INTO sessions(`+sessionColumns+`)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		sess.ID, sess.Title, sess.Cwd, sess.ParentID,
 		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
-		sess.TurnCount, metaJSON, sess.Model, sess.Kind,
+		metaJSON, sess.Model, sess.Kind,
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: restore session: %w", err)
@@ -327,10 +327,10 @@ func (s *SessionService) execInsert(ctx context.Context, ex execer, sess session
 	}
 	_, err = ex.ExecContext(ctx,
 		`INSERT INTO sessions(`+sessionColumns+`)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		sess.ID, sess.Title, sess.Cwd, sess.ParentID,
 		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
-		sess.TurnCount, metaJSON, sess.Model, sess.Kind,
+		metaJSON, sess.Model, sess.Kind,
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: insert session: %w", err)

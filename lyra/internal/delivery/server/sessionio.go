@@ -144,9 +144,8 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 
 // artifactToSession maps the wire Session carried in an artifact back to the
 // domain session for a verbatim restore. The wire shape omits the
-// delegation-lineage fields (Kind / ParentID) and TurnCount; a restored
-// session is a standalone user-facing conversation, so Kind/ParentID stay
-// empty and TurnCount is approximated by the run count.
+// delegation-lineage fields (Kind / ParentID); a restored session is a
+// standalone user-facing conversation, so Kind/ParentID stay empty.
 func artifactToSession(w protocol.Session) session.Session {
 	return session.Session{
 		ID:        w.ID,

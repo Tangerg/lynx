@@ -45,7 +45,6 @@ type Session struct {
 	Kind      string // "" for a user-facing session (root / fork); KindSubtask for an internal delegation child
 	StartedAt time.Time
 	UpdatedAt time.Time
-	TurnCount int
 	Metadata  map[string]any // free-form, full-replaced by sessions.update (API.md §4.1, an object)
 }
 

@@ -33,7 +33,6 @@ func TestSessionFork(t *testing.T) {
 		Title:     "research",
 		Cwd:       "/work/proj",
 		Model:     "claude-opus-4-8",
-		TurnCount: 9,
 		Metadata:  map[string]any{"k": "v"},
 	}
 
@@ -57,18 +56,15 @@ func TestSessionFork(t *testing.T) {
 	if !child.StartedAt.Equal(now) || !child.UpdatedAt.Equal(now) {
 		t.Errorf("timestamps = %v / %v, want %v", child.StartedAt, child.UpdatedAt, now)
 	}
-	// A fork starts a fresh conversation: parent's model + turn history are not inherited.
+	// A fork starts a fresh conversation: the parent's model is not inherited.
 	if child.Model != "" {
 		t.Errorf("Model = %q, want empty (not inherited)", child.Model)
-	}
-	if child.TurnCount != 0 {
-		t.Errorf("TurnCount = %d, want 0", child.TurnCount)
 	}
 }
 
 func TestSessionNewSubtask(t *testing.T) {
 	now := time.Unix(1700000000, 0).UTC()
-	parent := Session{ID: "ses_parent", Title: "research", Cwd: "/work/proj", Model: "claude-opus-4-8", TurnCount: 9}
+	parent := Session{ID: "ses_parent", Title: "research", Cwd: "/work/proj", Model: "claude-opus-4-8"}
 
 	child := parent.NewSubtask("ses_child", now)
 
@@ -90,8 +86,8 @@ func TestSessionNewSubtask(t *testing.T) {
 	if !child.StartedAt.Equal(now) || !child.UpdatedAt.Equal(now) {
 		t.Errorf("timestamps = %v / %v, want %v", child.StartedAt, child.UpdatedAt, now)
 	}
-	if child.Model != "" || child.TurnCount != 0 {
-		t.Errorf("subtask started fresh? Model=%q TurnCount=%d", child.Model, child.TurnCount)
+	if child.Model != "" {
+		t.Errorf("subtask started fresh? Model=%q", child.Model)
 	}
 
 	// An untitled parent (the id-only stand-in the adapter passes when the
