@@ -33,6 +33,8 @@ type inMemory struct {
 	remembered map[rememberKey]bool // standing decision: approved?
 }
 
+var _ Service = (*inMemory)(nil)
+
 func (s *inMemory) GetMode(_ context.Context) (Mode, error) {
 	return Mode(s.mode.Load()), nil
 }
