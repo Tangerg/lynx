@@ -26,12 +26,17 @@ export function ViewHeader({ icon, title, sub, actions, titleStrong }: ViewHeade
   const placement = useViewPlacement();
   let placementControls: ReactNode = null;
   if (placement?.placement === "split") {
-    // Close the side pane (chat returns to full width). Expand-to-full is
-    // reachable by clicking the view's own tab in the strip (selectMainView).
+    // Promote the side pane to a full-width tab, or close it (chat returns to
+    // full width). Promote sits before close to mirror the tab strip's order.
     placementControls = (
-      <IconButton title="Close" onClick={placement.onClose}>
-        <Icon name="x" size={14} />
-      </IconButton>
+      <div className="flex items-center gap-0.5">
+        <IconButton title="Open as full tab" onClick={placement.onPromote}>
+          <Icon name="maximize" size={13} />
+        </IconButton>
+        <IconButton title="Close" onClick={placement.onClose}>
+          <Icon name="x" size={14} />
+        </IconButton>
+      </div>
     );
   } else if (placement?.placement === "full" && placement.splittable) {
     placementControls = (

@@ -21,6 +21,7 @@ import {
   History,
   Image as ImageIcon,
   List,
+  Maximize2,
   MessageSquare,
   Minimize2,
   Moon,
@@ -108,6 +109,7 @@ export type IconName =
   | "skip-back"
   | "skip-fwd"
   | "minimize"
+  | "maximize"
   | "diff"
   | "list"
   | "lightning"
@@ -170,6 +172,7 @@ const ICON_MAP: Record<IconName, LucideIcon> = {
   "skip-back": SkipBack,
   "skip-fwd": SkipForward,
   minimize: Minimize2,
+  maximize: Maximize2,
   diff: FileDiff,
   list: List,
   lightning: Zap,
@@ -182,8 +185,6 @@ const ICON_MAP: Record<IconName, LucideIcon> = {
   "arrow-down": ArrowDown,
   trash: Trash2,
   alert: AlertTriangle,
-  // Intentionally unused alias kept for forward-compat: "maximize" can
-  // map to Maximize2 if a callsite is added later.
 };
 
 interface Props {

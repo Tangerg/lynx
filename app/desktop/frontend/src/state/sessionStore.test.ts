@@ -135,6 +135,38 @@ describe("sessionStore multi-tab close (workspace-view tabs)", () => {
   });
 });
 
+describe("split (beside) view", () => {
+  beforeEach(reset);
+
+  it("promoteSplitToTab moves the split view to a full tab and clears the split", () => {
+    // v2 is already a known tab; open it beside chat, then promote.
+    useSessionStore.getState().openMainViewBeside({ id: "v2", title: "View 2" });
+    expect(useSessionStore.getState().splitViewId).toBe("v2");
+
+    useSessionStore.getState().promoteSplitToTab();
+    const s = useSessionStore.getState();
+    expect(s.splitViewId).toBeNull();
+    expect(s.activeMainView).toBe("v2");
+    // Promotion reuses the existing tab — no duplicate appended.
+    expect(s.mainViewTabs.map((t) => t.id)).toEqual(["v1", "v2", "v3"]);
+  });
+
+  it("promoteSplitToTab is a no-op when no split is open", () => {
+    useSessionStore.setState({ splitViewId: null, activeMainView: "v2" });
+    useSessionStore.getState().promoteSplitToTab();
+    const s = useSessionStore.getState();
+    expect(s.splitViewId).toBeNull();
+    expect(s.activeMainView).toBe("v2");
+  });
+
+  it("openMainViewBeside and openMainView are mutually exclusive", () => {
+    useSessionStore.getState().openMainViewBeside({ id: "v1", title: "View 1" });
+    expect(useSessionStore.getState().activeMainView).toBeNull();
+    useSessionStore.getState().openMainView({ id: "v1", title: "View 1" });
+    expect(useSessionStore.getState().splitViewId).toBeNull();
+  });
+});
+
 describe("selectTab after empty state", () => {
   beforeEach(reset);
 
