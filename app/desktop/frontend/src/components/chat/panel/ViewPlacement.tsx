@@ -13,6 +13,8 @@ export interface ViewPlacement {
   splittable: boolean;
   /** Move a full view to beside-chat (split). */
   onSplit: () => void;
+  /** Promote a beside-chat (split) view to a full-width main tab. */
+  onPromote: () => void;
   /** Dismiss this view (full → back to chat; split → close the side pane). */
   onClose: () => void;
 }

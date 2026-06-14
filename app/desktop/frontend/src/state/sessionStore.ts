@@ -125,6 +125,9 @@ interface SessionActions {
   openMainViewBeside: (tab: MainViewTab) => void;
   /** Close the side-by-side split pane (chat returns to full width). */
   closeSplit: () => void;
+  /** Promote the split (beside) view to a full-width main tab. Mutually
+   *  exclusive with the split (clears it). No-op when no split is open. */
+  promoteSplitToTab: () => void;
 
   /** Close every workspace-view tab except `id`. */
   closeOtherMainViews: (id: string) => void;
@@ -266,6 +269,11 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         });
       },
       closeSplit: () => set({ splitViewId: null }),
+      promoteSplitToTab: () => {
+        const { splitViewId, mainViewTabs } = get();
+        const tab = splitViewId ? mainViewTabs.find((t) => t.id === splitViewId) : undefined;
+        if (tab) get().openMainView(tab); // openMainView clears splitViewId (mutually exclusive)
+      },
       closeMainView: (id) => {
         const cur = get().mainViewTabs;
         const next = cur.filter((t) => t.id !== id);

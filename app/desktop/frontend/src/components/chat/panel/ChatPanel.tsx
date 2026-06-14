@@ -57,6 +57,7 @@ export function ChatPanel({ onSend }: Props) {
       placement,
       splittable: spec?.splittable ?? false,
       onSplit: () => store().openMainViewBeside(tab),
+      onPromote: () => store().promoteSplitToTab(),
       onClose: () => (placement === "split" ? store().closeSplit() : store().closeMainView(id)),
     };
   };

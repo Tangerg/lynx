@@ -74,6 +74,16 @@ html.theme-light {
   grid-template-columns: 56px minmax(0, 1fr);
 }
 
+/* Split (beside) view open — collapse the sidebar column so chat + split
+   own the full width. Wins over `.app.rail` (both classes can co-occur).
+   The sidebar Slot stays mounted in the zero-width track. */
+.app.split .app-main {
+  grid-template-columns: 0 minmax(0, 1fr);
+  /* No left gutter when the sidebar is collapsed (the 8px gap would read
+     as a stray inset against the canvas edge). */
+  padding-left: 0;
+}
+
 /* Status bar — persistent runtime data row (DESIGN.md §8). Full-bleed chrome
    on the canvas (no card lift), so it reads as app furniture distinct from the
    lifted content cards above. Mono + tnum so digits don't shimmy as telemetry
