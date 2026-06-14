@@ -12,6 +12,7 @@ import { editMessageInComposer, regenerateMessage } from "@/lib/agent/messageAct
 import { flattenCode, flattenMarkdown, flattenText } from "@/lib/agent/messageContent";
 import { writeToClipboard } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 import { getContainer } from "@/main/container";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
 import { asItemId, asRunId, asSessionId } from "@/rpc";
@@ -26,6 +27,7 @@ import { ACTION_BTN_CLASSES } from "./_shared";
 // generated snippets. Code variant hides when the message has none.
 
 function CopyButton() {
+  const t = useT();
   const msg = useCurrentMessage();
   const markdown = flattenMarkdown(msg.blocks);
   const plain = flattenText(msg.blocks);
@@ -34,8 +36,8 @@ function CopyButton() {
 
   return (
     <DropdownMenu.Root>
-      <Tooltip label="Copy message">
-        <DropdownMenu.Trigger aria-label="Copy message" className={ACTION_BTN_CLASSES}>
+      <Tooltip label={t("msgActions.copy")}>
+        <DropdownMenu.Trigger aria-label={t("msgActions.copy")} className={ACTION_BTN_CLASSES}>
           <Icon name="copy" size={11} />
         </DropdownMenu.Trigger>
       </Tooltip>
@@ -46,20 +48,22 @@ function CopyButton() {
           className={cn(MENU_CONTENT_CLASSES, "min-w-[160px]")}
         >
           <CopyItem
-            label="Copy markdown"
-            hint="Headings / fences kept"
-            onSelect={() => writeToClipboard(markdown, { successLabel: "Copied as markdown" })}
+            label={t("msgActions.copyMarkdown")}
+            hint={t("msgActions.copyMarkdownHint")}
+            onSelect={() =>
+              writeToClipboard(markdown, { successLabel: t("msgActions.copiedMarkdown") })
+            }
           />
           <CopyItem
-            label="Copy plain text"
-            hint="Markup stripped"
-            onSelect={() => writeToClipboard(plain, { successLabel: "Copied as plain text" })}
+            label={t("msgActions.copyPlain")}
+            hint={t("msgActions.copyPlainHint")}
+            onSelect={() => writeToClipboard(plain, { successLabel: t("msgActions.copiedPlain") })}
           />
           {code && (
             <CopyItem
-              label="Copy code only"
-              hint="Fenced blocks joined"
-              onSelect={() => writeToClipboard(code, { successLabel: "Code copied" })}
+              label={t("msgActions.copyCode")}
+              hint={t("msgActions.copyCodeHint")}
+              onSelect={() => writeToClipboard(code, { successLabel: t("msgActions.copiedCode") })}
             />
           )}
         </DropdownMenu.Content>
@@ -105,16 +109,17 @@ export const messageCopy = definePlugin({
 // — sending creates a new user turn. ----
 
 function EditButton() {
+  const t = useT();
   const msg = useCurrentMessage();
   if (msg.role !== "user") return null;
   if (!flattenText(msg.blocks)) return null;
 
   return (
-    <Tooltip label="Edit message">
+    <Tooltip label={t("msgActions.edit")}>
       <button
         type="button"
         onClick={() => editMessageInComposer(msg)}
-        aria-label="Edit message"
+        aria-label={t("msgActions.edit")}
         className={ACTION_BTN_CLASSES}
       >
         <Icon name="edit" size={11} />
@@ -139,15 +144,16 @@ export const messageEdit = definePlugin({
 // prompt via the shared regenerateMessage action (lib/agent). ----
 
 function RegenerateButton() {
+  const t = useT();
   const msg = useCurrentMessage();
   if (msg.role !== "assistant") return null;
 
   return (
-    <Tooltip label="Regenerate response">
+    <Tooltip label={t("msgActions.regenerate")}>
       <button
         type="button"
         onClick={() => regenerateMessage(msg)}
-        aria-label="Regenerate response"
+        aria-label={t("msgActions.regenerate")}
         className={ACTION_BTN_CLASSES}
       >
         <Icon name="loop" size={11} />
@@ -177,6 +183,7 @@ export const messageRegenerate = definePlugin({
 const ratedMessages = new Map<string, "positive" | "negative">();
 
 function FeedbackButtons() {
+  const t = useT();
   const msg = useCurrentMessage();
   const [rated, setRated] = useState(() => ratedMessages.get(msg.id));
   if (msg.role !== "assistant") return null;
@@ -205,22 +212,22 @@ function FeedbackButtons() {
 
   return (
     <>
-      <Tooltip label="Good response">
+      <Tooltip label={t("msgActions.good")}>
         <button
           type="button"
           onClick={() => rate("positive")}
-          aria-label="Good response"
+          aria-label={t("msgActions.good")}
           aria-pressed={rated === "positive"}
           className={cn(ACTION_BTN_CLASSES, rated === "positive" && "text-success")}
         >
           <Icon name="thumbs-up" size={11} />
         </button>
       </Tooltip>
-      <Tooltip label="Poor response">
+      <Tooltip label={t("msgActions.poor")}>
         <button
           type="button"
           onClick={() => rate("negative")}
-          aria-label="Poor response"
+          aria-label={t("msgActions.poor")}
           aria-pressed={rated === "negative"}
           className={cn(ACTION_BTN_CLASSES, rated === "negative" && "text-negative")}
         >
