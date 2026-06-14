@@ -61,7 +61,6 @@ func migrate(db *sql.DB) error {
 			parent_id   TEXT    NOT NULL DEFAULT '',
 			started_at  INTEGER NOT NULL,
 			updated_at  INTEGER NOT NULL,
-			turn_count  INTEGER NOT NULL DEFAULT 0,
 			metadata    TEXT    NOT NULL DEFAULT '{}',
 			model       TEXT    NOT NULL DEFAULT '',
 			kind        TEXT    NOT NULL DEFAULT ''
