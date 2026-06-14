@@ -302,6 +302,52 @@ describe("session-scoped view state resets on every session switch", () => {
   });
 });
 
+describe("closing view tabs preserves split / activeMainView mutual exclusivity", () => {
+  beforeEach(reset);
+
+  it("closeMainViewsRightOf on the split tab keeps it AS split, not a full view", () => {
+    useSessionStore.getState().openMainViewBeside({ id: "v2", title: "View 2" });
+    useSessionStore.getState().closeMainViewsRightOf("v2"); // next [v1,v2], v2 survives
+    const s = useSessionStore.getState();
+    expect(s.splitViewId).toBe("v2");
+    expect(s.activeMainView).toBeNull(); // must NOT also be promoted to a full view
+    expect(s.mainViewTabs.map((t) => t.id)).toEqual(["v1", "v2"]);
+  });
+
+  it("closeMainViewsRightOf that drops the split view clears it and focuses the pivot", () => {
+    useSessionStore.getState().openMainViewBeside({ id: "v3", title: "View 3" });
+    useSessionStore.getState().closeMainViewsRightOf("v1"); // next [v1], v3 dropped
+    const s = useSessionStore.getState();
+    expect(s.splitViewId).toBeNull();
+    expect(s.activeMainView).toBe("v1");
+  });
+
+  it("closeMainViewsLeftOf on the split tab keeps it AS split", () => {
+    useSessionStore.getState().openMainViewBeside({ id: "v2", title: "View 2" });
+    useSessionStore.getState().closeMainViewsLeftOf("v2"); // next [v2,v3], v2 survives
+    const s = useSessionStore.getState();
+    expect(s.splitViewId).toBe("v2");
+    expect(s.activeMainView).toBeNull();
+  });
+
+  it("closeOtherMainViews on the split tab keeps it AS split", () => {
+    useSessionStore.getState().openMainViewBeside({ id: "v2", title: "View 2" });
+    useSessionStore.getState().closeOtherMainViews("v2");
+    const s = useSessionStore.getState();
+    expect(s.splitViewId).toBe("v2");
+    expect(s.activeMainView).toBeNull();
+    expect(s.mainViewTabs.map((t) => t.id)).toEqual(["v2"]);
+  });
+
+  it("closeOtherMainViews on a non-split tab focuses it as a full view and clears the split", () => {
+    useSessionStore.getState().openMainViewBeside({ id: "v2", title: "View 2" });
+    useSessionStore.getState().closeOtherMainViews("v1");
+    const s = useSessionStore.getState();
+    expect(s.splitViewId).toBeNull();
+    expect(s.activeMainView).toBe("v1");
+  });
+});
+
 describe("selectTab after empty state", () => {
   beforeEach(reset);
 
@@ -343,10 +389,11 @@ describe("selectTab after empty state", () => {
     // open new ones from the sidebar.
     useSessionStore.setState({ tabIds: ["s1"], activeSessionId: "s1" });
     useSessionStore.getState().closeTab("s1");
-    // activeSessionId intentionally not cleared by closeTab when the
-    // closed tab was the only one — preserves the "what was I last on"
-    // hint for the next selection.
+    // Closing the only tab falls back to "" (welcome screen) — next[0] is
+    // undefined, so activeSessionId is cleared, never left pointing at the
+    // closed session.
     expect(useSessionStore.getState().tabIds).toEqual([]);
+    expect(useSessionStore.getState().activeSessionId).toBe("");
 
     useSessionStore.getState().selectTab("s2");
     expect(useSessionStore.getState().tabIds).toEqual(["s2"]);

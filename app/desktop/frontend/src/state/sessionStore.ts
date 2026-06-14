@@ -317,20 +317,32 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         const cur = get().mainViewTabs;
         const target = cur.find((t) => t.id === id);
         if (!target) return;
-        // Only `id` survives → a split pane showing any other view loses its tab.
-        const splitViewId = get().splitViewId === id ? get().splitViewId : null;
-        set({ mainViewTabs: [target], activeMainView: id, splitViewId });
+        // Only `id` survives. If it was the beside-split, keep it AS the split
+        // (chat owns the other half) — must NOT also set activeMainView, or the
+        // two violate their mutual exclusivity (a full view + a collapsed rail
+        // with no resizer). Otherwise focus it as a full view.
+        const keepSplit = get().splitViewId === id;
+        set({
+          mainViewTabs: [target],
+          splitViewId: keepSplit ? id : null,
+          activeMainView: keepSplit ? null : id,
+        });
       },
       closeMainViewsLeftOf: (id) => {
         const { mainViewTabs, activeMainView, splitViewId } = get();
         const idx = mainViewTabs.findIndex((t) => t.id === id);
         if (idx <= 0) return;
         const next = mainViewTabs.slice(idx);
+        // Derive the two fields JOINTLY: a surviving split keeps activeMainView
+        // null (they're mutually exclusive). Computing them independently lets a
+        // surviving split coexist with activeMainView=id — a phantom full view
+        // over a collapsed sidebar.
+        const keepSplit = splitViewId !== null && next.some((t) => t.id === splitViewId);
+        const keepActive = activeMainView !== null && next.some((t) => t.id === activeMainView);
         set({
           mainViewTabs: next,
-          activeMainView:
-            activeMainView && next.some((t) => t.id === activeMainView) ? activeMainView : id,
-          splitViewId: next.some((t) => t.id === splitViewId) ? splitViewId : null,
+          splitViewId: keepSplit ? splitViewId : null,
+          activeMainView: keepSplit ? null : keepActive ? activeMainView : id,
         });
       },
       closeMainViewsRightOf: (id) => {
@@ -338,11 +350,12 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         const idx = mainViewTabs.findIndex((t) => t.id === id);
         if (idx === -1 || idx === mainViewTabs.length - 1) return;
         const next = mainViewTabs.slice(0, idx + 1);
+        const keepSplit = splitViewId !== null && next.some((t) => t.id === splitViewId);
+        const keepActive = activeMainView !== null && next.some((t) => t.id === activeMainView);
         set({
           mainViewTabs: next,
-          activeMainView:
-            activeMainView && next.some((t) => t.id === activeMainView) ? activeMainView : id,
-          splitViewId: next.some((t) => t.id === splitViewId) ? splitViewId : null,
+          splitViewId: keepSplit ? splitViewId : null,
+          activeMainView: keepSplit ? null : keepActive ? activeMainView : id,
         });
       },
       closeAllMainViews: () => {
