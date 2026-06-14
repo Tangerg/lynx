@@ -106,6 +106,20 @@ export const ja: Record<string, string> = {
   "tools.preview.viewText": "テキスト全体を表示",
   "tools.preview.viewReply": "返信全体を表示",
 
+  "common.remove": "削除",
+  "sidebar.user.account": "アカウント",
+  "status.notifications": "通知",
+  "status.notifications.unread": "未読の通知 {{count}} 件",
+  "session.row.titleLabel": "セッションのタイトル",
+  "project.row.missing": "ディスク上にディレクトリが見つかりません",
+  "project.row.newSession": "{{name}} で新規セッション",
+  "toolInspector.arguments": "引数",
+  "toolInspector.result": "結果",
+  "toolInspector.noResult": "(結果の本文なし — ツールは空を返しました)",
+  "dataView.error.title": "読み込めませんでした",
+  "dataView.error.sub":
+    "ランタイムがこのリクエストに応答しませんでした。接続を確認して再試行してください。",
+
   "welcome.eyebrow": "agent 準備完了",
   "welcome.title": "今日は何を作りましょうか？",
   "welcome.sub": "会話を始めるか、スタックトレースを貼り付けるか、下の提案から選んでください。",

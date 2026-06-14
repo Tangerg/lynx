@@ -156,10 +156,11 @@ function RailSettings() {
 }
 
 function RailUser() {
+  const t = useT();
   return (
     <Tooltip label="You · jdoe@longbridge-inc.com" side="right">
       <div
-        aria-label="Account"
+        aria-label={t("sidebar.user.account")}
         className="mt-1 grid h-9 w-9 place-items-center rounded-full border-2 border-transparent bg-surface-2 font-sans text-[13px] font-semibold text-fg transition-colors hover:border-accent"
       >
         J

@@ -74,7 +74,7 @@ export function SessionRow({ session, active, onSelect, onRename, onFork, onDele
           <input
             type="text"
             defaultValue={session.title}
-            aria-label="Session title"
+            aria-label={t("session.row.titleLabel")}
             // Rename only ever starts from an explicit user action (the
             // context-menu item), so stealing focus here is the expectation,
             // not a surprise — the a11y concern the rule guards against.

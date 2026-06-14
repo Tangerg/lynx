@@ -5,19 +5,21 @@
 import { Icon, noDragClasses, Tooltip } from "@/components/common";
 import { useCreateSession } from "@/lib/agent/useCreateSession";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";
 
 function NewTabButton() {
   // "New session" creates a fresh draft tab — the previous approach of
   // re-opening untabbed sessions silently no-opped when none was free.
   const createSession = useCreateSession();
+  const t = useT();
 
   return (
-    <Tooltip label="New session (⌘N)">
+    <Tooltip label={`${t("sidebar.action.newSession")} (⌘N)`}>
       <button
         type="button"
         onClick={() => void createSession()}
-        aria-label="New session"
+        aria-label={t("sidebar.action.newSession")}
         className={cn(
           "ml-1 mr-0.5 mb-1 grid h-6.5 w-6.5 shrink-0 place-items-center rounded-md border-0 bg-transparent text-fg-muted hover:bg-surface hover:text-fg",
           noDragClasses,

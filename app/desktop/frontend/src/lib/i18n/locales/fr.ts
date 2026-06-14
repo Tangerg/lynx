@@ -106,6 +106,20 @@ export const fr: Record<string, string> = {
   "tools.preview.viewText": "Voir le texte complet",
   "tools.preview.viewReply": "Voir la réponse entière",
 
+  "common.remove": "Supprimer",
+  "sidebar.user.account": "Compte",
+  "status.notifications": "Notifications",
+  "status.notifications.unread": "{{count}} notification(s) non lue(s)",
+  "session.row.titleLabel": "Titre de la session",
+  "project.row.missing": "Répertoire absent du disque",
+  "project.row.newSession": "Nouvelle session dans {{name}}",
+  "toolInspector.arguments": "Arguments",
+  "toolInspector.result": "Résultat",
+  "toolInspector.noResult": "(pas de corps de résultat — l'outil n'a rien renvoyé)",
+  "dataView.error.title": "Échec du chargement",
+  "dataView.error.sub":
+    "Le runtime n'a pas répondu à cette requête. Vérifiez la connexion et réessayez.",
+
   "welcome.eyebrow": "agent prêt",
   "welcome.title": "Que voulez-vous construire aujourd'hui ?",
   "welcome.sub":
