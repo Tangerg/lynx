@@ -29,7 +29,7 @@ export interface ServerFeatures {
   multimodal: boolean;
   git: boolean; // git binary on PATH — gates workspace.getDiff/listFileChanges (AUX_API §1)
   fileWatch: boolean; // workspace.subscribe `watches` (git-state watch) available (AUX_API §3.1)
-  checkpoints: boolean; // sessions.rollback{restoreType:files|both} — shadow-git file restore (AUX_API §4.3)
+  checkpoints: boolean; // sessions.rollback{restoreType:files|both} — shadow-git file restore (AUX_API §4.1)
   lsp: boolean; // code-intelligence tool set (lsp_*) + post-edit auto typecheck; tools render as ordinary toolCalls
   // workspace.code.* RPC surface (B7, 613) — distinct from `lsp` above, which gates the
   // model's lsp_* TOOLS; this gates the direct RPC methods the UI calls for @symbol / code-nav.
