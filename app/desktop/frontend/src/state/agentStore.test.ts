@@ -227,3 +227,31 @@ describe("agentStore.relabelMessage", () => {
     expect(view().messages.map((m) => m.id)).toEqual(["item_real", "local-1"]);
   });
 });
+
+describe("appendUserMessage reconciles an image-only optimistic bubble", () => {
+  const imageUserMsg = (id: string): StreamEvent =>
+    ({
+      type: "item.completed",
+      item: item({
+        id,
+        status: "completed",
+        type: "userMessage",
+        content: [{ type: "image", mime: "image/png", data: "AAAA" }],
+      }),
+    }) as never;
+
+  it("upgrades the local-* image bubble in place instead of appending a duplicate", () => {
+    const store = useAgentStore.getState();
+    store.resetSession(SID);
+    // Optimistic image-only bubble: a local id + an image block, NO text block.
+    store.applyEvents(SID, [imageUserMsg("local-1")].map(fold));
+    expect(view().messages.map((m) => m.id)).toEqual(["local-1"]);
+
+    // Streamed server item (new id, same image-only content). Without a
+    // userItemId relabel, the fold's content match must reconcile by upgrading
+    // the placeholder id — not append a second bubble (regression: an absent
+    // text block read as undefined !== "" and duplicated the image message).
+    store.applyEvents(SID, [imageUserMsg("item_real")].map(fold));
+    expect(view().messages.map((m) => m.id)).toEqual(["item_real"]);
+  });
+});
