@@ -45,10 +45,31 @@ type messageHandler interface {
 type Transport struct {
 	dispatcher messageHandler
 
-	in    chan transport.Message // outbound from Runtime's POV → inbound to client
-	once  sync.Once
-	close chan struct{}
-	gone  atomic.Bool
+	in   chan transport.Message // outbound from Runtime's POV → inbound to client
+	once sync.Once
+
+	// close signals every sender to stop; gone short-circuits new sends.
+	// mu makes "reserve a send slot" and "begin closing" mutually exclusive,
+	// and sending counts in-flight sends so Close waits them out BEFORE
+	// close(in) — otherwise a send (Send / pumpStream) racing close(in) panics
+	// with "send on closed channel" (select doesn't shield a closed-send case).
+	close   chan struct{}
+	gone    atomic.Bool
+	mu      sync.Mutex
+	sending sync.WaitGroup
+}
+
+// reserve registers one in-flight send unless the transport is closing. On true
+// the caller MUST call t.sending.Done() when its send settles; false means the
+// transport is closed and the caller must not touch t.in.
+func (t *Transport) reserve() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.gone.Load() {
+		return false
+	}
+	t.sending.Add(1)
+	return true
 }
 
 // Config bundles the inputs for NewTransport.
@@ -89,12 +110,22 @@ func (t *Transport) Send(ctx context.Context, msg transport.Message) error {
 
 	res := t.dispatcher.Handle(ctx, msg, "")
 	if res.Response != nil {
-		select {
-		case t.in <- res.Response:
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-t.close:
+		if !t.reserve() {
 			return errors.New("inprocess: transport closed")
+		}
+		err := func() error {
+			defer t.sending.Done()
+			select {
+			case t.in <- res.Response:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-t.close:
+				return errors.New("inprocess: transport closed")
+			}
+		}()
+		if err != nil {
+			return err
 		}
 	}
 	if res.EventStream != nil {
@@ -129,6 +160,10 @@ func (t *Transport) tryEmit(msg transport.Message) bool {
 	if msg == nil {
 		return true
 	}
+	if !t.reserve() {
+		return false
+	}
+	defer t.sending.Done()
 	select {
 	case t.in <- msg:
 		return true
@@ -140,11 +175,15 @@ func (t *Transport) tryEmit(msg transport.Message) bool {
 // Recv returns the inbound channel — responses + notifications.
 func (t *Transport) Recv() <-chan transport.Message { return t.in }
 
-// Close drains pending sends and closes the Recv channel. Idempotent.
+// Close signals senders to stop, waits for in-flight sends to settle, then
+// closes the Recv channel. Idempotent and safe to call concurrently with Send.
 func (t *Transport) Close() error {
 	t.once.Do(func() {
+		t.mu.Lock()
 		t.gone.Store(true)
 		close(t.close)
+		t.mu.Unlock()
+		t.sending.Wait() // no send is mid-flight on t.in past this point
 		close(t.in)
 	})
 	return nil

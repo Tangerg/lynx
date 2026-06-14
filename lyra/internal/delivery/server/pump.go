@@ -44,8 +44,9 @@ func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 	events, unsubscribe := hub.Subscribe("")
 	// Drop this caller's subscription when its request ends (client
 	// disconnect or stream completion) — the run keeps running on runCtx
-	// and stays resumable via runs.subscribe. runCtx is Background-rooted
-	// on purpose: the run must outlive the request that started it.
+	// and stays resumable via runs.subscribe. runCtx is rooted on
+	// WithoutCancel(reqCtx) (see above), so it outlives the request that
+	// started it without losing the trace.
 	context.AfterFunc(reqCtx, unsubscribe)
 	go s.pumpRun(runCtx, runID, parentRunID, handle, inner, hub, userInput, resume)
 	return &protocol.StartRunResponse{RunID: runID}, events, nil

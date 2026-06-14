@@ -37,10 +37,8 @@ func (s *Server) Initialize(_ context.Context, in protocol.InitializeRequest) (*
 	}, nil
 }
 
-// Shutdown is best-effort — the in-process runtime doesn't have a
-// per-connection "session" to tear down, so we treat shutdown as a
-// no-op except to record it for telemetry. The transport closes
-// itself after this returns.
+// Shutdown is a no-op — the in-process runtime has no per-connection
+// "session" to tear down. The transport closes itself after this returns.
 func (s *Server) Shutdown(_ context.Context, _ protocol.ShutdownRequest) error {
 	return nil
 }
