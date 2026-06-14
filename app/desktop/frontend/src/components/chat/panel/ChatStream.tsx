@@ -6,7 +6,7 @@
 // when the user has scrolled away from the tail.
 
 import type { StreamControls } from "./MessageStream";
-import { fileToInputImage, type UserInput } from "@/lib/agent/composerInput";
+import type { UserInput } from "@/lib/agent/composerInput";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useModels } from "@/lib/data/queries";
 import { useActiveSession } from "@/lib/agent/useActiveSession";
@@ -46,7 +46,7 @@ export function ChatStream({ onSend, resetKey }: Props) {
   const setComposerMode = useComposerStore((s) => s.setMode);
   const removeImage = useComposerStore((s) => s.removeImage);
   const clearComposer = useComposerStore((s) => s.clear);
-  const addImages = useComposerStore((s) => s.addImages);
+  const addImageFiles = useComposerStore((s) => s.addImageFiles);
 
   // Assistant header name = this session's model, resolved to its friendly
   // displayName. Resolved ONCE here (both lists are stable react-query data,
@@ -70,12 +70,6 @@ export function ChatStream({ onSend, resetKey }: Props) {
   // user currently at bottom?" to toggle the jump-to-bottom button.
   const [streamControls, setStreamControls] = useState<StreamControls | null>(null);
   const handleControls = useCallback((c: StreamControls) => setStreamControls(c), []);
-
-  // Drop / paste image files → read to base64 off the render path → stage them.
-  const onAddImages = useCallback(
-    (files: File[]) => void Promise.all(files.map(fileToInputImage)).then(addImages),
-    [addImages],
-  );
 
   // Auto-select (but don't expand) the latest tool the first time it
   // streams in — so the inspector pane has something to show without
@@ -170,7 +164,7 @@ export function ChatStream({ onSend, resetKey }: Props) {
             onSend={onSend}
             images={images}
             onRemoveImage={removeImage}
-            onAddImages={onAddImages}
+            onAddImages={addImageFiles}
             mode={composerMode}
             onModeChange={setComposerMode}
           />
