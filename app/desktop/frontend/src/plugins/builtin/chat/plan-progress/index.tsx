@@ -28,6 +28,7 @@ import { PlanCheck } from "@/components/chat/message";
 import { Icon, Tooltip } from "@/components/common";
 import { swift } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";
 import { useAgentSlice } from "@/state/agentStore";
 
@@ -38,6 +39,7 @@ function pickCurrent(plan: PlanItem[]): PlanItem | null {
 }
 
 function PlanProgressBanner() {
+  const t = useT();
   const plan = useAgentSlice((v) => v.plan);
   const runId = useAgentSlice((v) => v.run.runId);
   const [dismissedRunId, setDismissedRunId] = useState<string | null>(null);
@@ -94,9 +96,7 @@ function PlanProgressBanner() {
               type="button"
               onClick={() => setExpanded((v) => !v)}
               aria-expanded={expanded}
-              aria-label={
-                expanded ? "Collapse plan list" : `Expand plan (${done}/${total} · ${pct}%)`
-              }
+              aria-label={expanded ? t("plan.collapse") : t("plan.expand", { done, total, pct })}
               className={cn(
                 "flex-1 min-w-0 flex items-center gap-2.5 px-3 py-2.5",
                 "border-0 bg-transparent text-left transition-colors hover:bg-surface-2",
@@ -119,7 +119,7 @@ function PlanProgressBanner() {
                   transition={{ duration: 0.15, ease: "easeOut" }}
                   className="flex-1 min-w-0 truncate text-[13px] leading-[1.4] text-fg"
                 >
-                  {expanded ? `${done} of ${total} complete` : current.text}
+                  {expanded ? t("plan.complete", { done, total }) : current.text}
                 </motion.span>
               </AnimatePresence>
               <span className="shrink-0 font-mono text-[11px] font-medium text-fg-muted">
@@ -131,11 +131,11 @@ function PlanProgressBanner() {
                 className="shrink-0 text-fg-faint"
               />
             </button>
-            <Tooltip label="Dismiss plan">
+            <Tooltip label={t("plan.dismiss")}>
               <button
                 type="button"
                 onClick={dismiss}
-                aria-label="Dismiss plan banner"
+                aria-label={t("plan.dismissAria")}
                 className={cn(
                   "mr-1.5 grid h-7 w-7 shrink-0 place-items-center rounded-md border-0 bg-transparent",
                   "text-fg-faint transition-colors",

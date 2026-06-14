@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon, Tooltip } from "@/components/common";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";
 import { SHORTCUT } from "@/plugins/sdk/kernelPoints";
 import { useSessionStore } from "@/state/sessionStore";
@@ -137,6 +138,7 @@ function ChatSearchOverlay() {
   // Cleanup highlights on unmount.
   useEffect(() => clearHighlights, []);
 
+  const t = useT();
   if (!open) return null;
 
   const total = matches.length;
@@ -153,10 +155,10 @@ function ChatSearchOverlay() {
       <input
         ref={inputRef}
         type="text"
-        aria-label="Search in chat"
+        aria-label={t("chatSearch.label")}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search in chat…"
+        placeholder={t("chatSearch.placeholder")}
         className="h-7 w-56 rounded-md border-0 bg-transparent px-2 font-sans text-[13px] text-fg outline-none placeholder:text-fg-faint"
         onKeyDown={(e) => {
           if (e.nativeEvent.isComposing) return; // let the IME commit its candidate
@@ -173,33 +175,33 @@ function ChatSearchOverlay() {
       <span className="px-1.5 font-mono text-[11px] text-fg-faint">
         {total > 0 ? `${active + 1} / ${total}` : query ? "0 / 0" : ""}
       </span>
-      <Tooltip label="Previous match (⇧⏎)">
+      <Tooltip label={`${t("chatSearch.prev")} (⇧⏎)`}>
         <button
           type="button"
           onClick={prev}
           disabled={total === 0}
-          aria-label="Previous match"
+          aria-label={t("chatSearch.prev")}
           className="grid h-6 w-6 place-items-center rounded border-0 bg-transparent text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Icon name="chevron-up" size={12} />
         </button>
       </Tooltip>
-      <Tooltip label="Next match (⏎)">
+      <Tooltip label={`${t("chatSearch.next")} (⏎)`}>
         <button
           type="button"
           onClick={next}
           disabled={total === 0}
-          aria-label="Next match"
+          aria-label={t("chatSearch.next")}
           className="grid h-6 w-6 place-items-center rounded border-0 bg-transparent text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Icon name="chevron-down" size={12} />
         </button>
       </Tooltip>
-      <Tooltip label="Close (Esc)">
+      <Tooltip label={`${t("common.close")} (Esc)`}>
         <button
           type="button"
           onClick={() => setOpen(false)}
-          aria-label="Close"
+          aria-label={t("common.close")}
           className="grid h-6 w-6 place-items-center rounded border-0 bg-transparent text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg"
         >
           <Icon name="x" size={12} />
