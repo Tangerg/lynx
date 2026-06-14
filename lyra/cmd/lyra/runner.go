@@ -60,7 +60,7 @@ func (r *TurnRunner) Run(ctx context.Context, sessionID, message string) int {
 	// as the runs.start wire path.
 	sess, err := r.app.rt.Session().Get(ctx, sessionID)
 	if err != nil {
-		fmt.Fprintf(r.app.Err, "lyra: %s\n", err)
+		r.app.printErr(err)
 		return 1
 	}
 	handle, err := r.app.rt.Chat().StartTurn(ctx, turn.StartTurnRequest{
@@ -72,12 +72,12 @@ func (r *TurnRunner) Run(ctx context.Context, sessionID, message string) int {
 		MaxCostUSD: r.opts.MaxCostUSD,
 	})
 	if err != nil {
-		fmt.Fprintf(r.app.Err, "lyra: %s\n", err)
+		r.app.printErr(err)
 		return 1
 	}
 	events, err := r.app.rt.Chat().Events(ctx, handle)
 	if err != nil {
-		fmt.Fprintf(r.app.Err, "lyra: %s\n", err)
+		r.app.printErr(err)
 		return 1
 	}
 

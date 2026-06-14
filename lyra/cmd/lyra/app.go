@@ -174,7 +174,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		// InterruptStore persists the open-interrupt registry that
 		// runs.resume looks up — the other half of cross-restart resume.
 		InterruptStore:  stores.Interrupt,
-		TranscriptStore: stores.History,
+		TranscriptStore: stores.Transcript,
 		ProviderService: stores.Provider,
 		TodoService:     stores.Todos,
 		// Default provider+model a turn runs against when it picks no model.
@@ -230,16 +230,16 @@ func buildStores() (*Stores, error) {
 		return nil, fmt.Errorf("memory storage: %w", err)
 	}
 	return &Stores{
-		Home:      home,
-		Session:   sqlitestore.NewSessionService(db),
-		Memory:    mem,
-		Process:   sqlitestore.NewProcessStore(db),
-		Interrupt: sqlitestore.NewInterruptStore(db),
-		History:   sqlitestore.NewTranscriptStore(db),
-		Provider:  sqlitestore.NewProviderService(db),
-		ChatMem:   sqlitestore.NewMessageStore(db),
-		Park:      sqlitestore.NewParkStore(db),
-		Todos:     sqlitestore.NewTodoService(db),
+		Home:       home,
+		Session:    sqlitestore.NewSessionService(db),
+		Memory:     mem,
+		Process:    sqlitestore.NewProcessStore(db),
+		Interrupt:  sqlitestore.NewInterruptStore(db),
+		Transcript: sqlitestore.NewTranscriptStore(db),
+		Provider:   sqlitestore.NewProviderService(db),
+		ChatMem:    sqlitestore.NewMessageStore(db),
+		Park:       sqlitestore.NewParkStore(db),
+		Todos:      sqlitestore.NewTodoService(db),
 	}, nil
 }
 
@@ -247,16 +247,16 @@ func buildStores() (*Stores, error) {
 // storage Home they share (the root for derived paths like the global skills
 // directory).
 type Stores struct {
-	Home      string
-	Session   sessionsvc.Service
-	Memory    knowledge.Service
-	Process   core.ProcessStore
-	Interrupt interrupts.Store
-	History   transcript.Store
-	Provider  providersvc.Service
-	ChatMem   chatmem.Store
-	Park      tool.ParkStore
-	Todos     todosvc.Service
+	Home       string
+	Session    sessionsvc.Service
+	Memory     knowledge.Service
+	Process    core.ProcessStore
+	Interrupt  interrupts.Store
+	Transcript transcript.Store
+	Provider   providersvc.Service
+	ChatMem    chatmem.Store
+	Park       tool.ParkStore
+	Todos      todosvc.Service
 }
 
 // seedConfiguredProvider ensures the config-file provider is present in the
@@ -277,11 +277,16 @@ func seedConfiguredProvider(ctx context.Context, svc providersvc.Service, cfg co
 	})
 }
 
-// fatalErr writes "lyra: <err>" to Err and returns a cobra-friendly
-// error so RunE propagates the non-zero exit code without printing
-// a redundant "Error:" prefix.
-func (a *App) fatalErr(err error) error {
+// printErr writes the standard "lyra: <err>" user-facing error line to Err.
+func (a *App) printErr(err error) {
 	fmt.Fprintf(a.Err, "lyra: %s\n", err)
+}
+
+// fatalErr prints the error and returns a cobra-friendly silenced error so
+// RunE propagates the non-zero exit code without printing a redundant
+// "Error:" prefix.
+func (a *App) fatalErr(err error) error {
+	a.printErr(err)
 	return errSilenced
 }
 
