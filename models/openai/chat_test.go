@@ -11,10 +11,12 @@ import (
 	openaisdk "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 
+	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/model"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/openai"
+	"github.com/Tangerg/lynx/pkg/mime"
 )
 
 func newChatModel(t *testing.T, baseURL, modelID string) *openai.ChatModel {
@@ -144,6 +146,69 @@ func TestChatModel_Metadata(t *testing.T) {
 	m := newChatModel(t, srv.URL, "gpt-4o")
 	if m.Metadata().Provider != openai.Provider {
 		t.Errorf("provider = %q; want %q", m.Metadata().Provider, openai.Provider)
+	}
+}
+
+// TestChatModel_Call_ImageMedia_DataURL guards the image-input lowering: a
+// UserMessage carrying raw base64 image media must reach the wire as a
+// `data:<mime>;base64,<b64>` data URL in image_url.url. The OpenAI API rejects
+// bare base64 there, so passing Media.Data through unchanged was a bug.
+func TestChatModel_Call_ImageMedia_DataURL(t *testing.T) {
+	completion := openaisdk.ChatCompletion{
+		ID: "c", Object: "chat.completion", Model: "gpt-4o", Created: 1,
+		Choices: []openaisdk.ChatCompletionChoice{{
+			FinishReason: "stop",
+			Message:      openaisdk.ChatCompletionMessage{Role: "assistant", Content: "ok"},
+		}},
+	}
+	body, _ := json.Marshal(completion)
+
+	var seenBody []byte
+	srv := testutil.JSONServer(http.StatusOK, string(body), func(r *http.Request) {
+		seenBody, _ = io.ReadAll(r.Body)
+	})
+	t.Cleanup(srv.Close)
+
+	const b64 = "iVBORw0KGgoAAAANSUhEUg=="
+	img, err := media.NewMedia(mime.MustNew("image", "png"), b64)
+	if err != nil {
+		t.Fatalf("NewMedia: %v", err)
+	}
+	msg := chat.NewUserMessage(chat.MessageParams{Text: "what is this", Media: []*media.Media{img}})
+
+	m := newChatModel(t, srv.URL, "gpt-4o")
+	req, err := chat.NewRequest([]chat.Message{msg})
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	if _, err := m.Call(t.Context(), req); err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+
+	var probe struct {
+		Messages []struct {
+			Content []struct {
+				Type     string `json:"type"`
+				ImageURL struct {
+					URL string `json:"url"`
+				} `json:"image_url"`
+			} `json:"content"`
+		} `json:"messages"`
+	}
+	if err := json.Unmarshal(seenBody, &probe); err != nil {
+		t.Fatalf("unmarshal request body: %v", err)
+	}
+
+	var got string
+	for _, m := range probe.Messages {
+		for _, part := range m.Content {
+			if part.Type == "image_url" {
+				got = part.ImageURL.URL
+			}
+		}
+	}
+	if want := "data:image/png;base64," + b64; got != want {
+		t.Errorf("image_url.url = %q; want %q", got, want)
 	}
 }
 

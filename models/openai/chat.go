@@ -6,6 +6,7 @@ import (
 	"errors"
 	"iter"
 	"slices"
+	"strings"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
@@ -120,12 +121,17 @@ func (r *requestHelper) buildUserMsg(msg *chat.UserMessage) openai.ChatCompletio
 		mt := md.MimeType
 
 		if mime.IsImage(mt) {
+			// image_url.url requires a URL — an http(s)/data: URL is passed
+			// through, raw base64 is wrapped into a data URL. The OpenAI API
+			// rejects bare base64 here (per the vision guide).
 			part.OfImageURL = &openai.ChatCompletionContentPartImageParam{
 				ImageURL: openai.ChatCompletionContentPartImageImageURLParam{
-					URL: data,
+					URL: mediaDataURL(mt, data),
 				},
 			}
 		} else if mime.IsAudio(mt) {
+			// input_audio is the exception: it takes RAW base64 with a separate
+			// format field — no data: prefix.
 			part.OfInputAudio = &openai.ChatCompletionContentPartInputAudioParam{
 				InputAudio: openai.ChatCompletionContentPartInputAudioInputAudioParam{
 					Data:   data,
@@ -133,9 +139,10 @@ func (r *requestHelper) buildUserMsg(msg *chat.UserMessage) openai.ChatCompletio
 				},
 			}
 		} else {
+			// file_data, like image_url.url, is a data URL.
 			part.OfFile = &openai.ChatCompletionContentPartFileParam{
 				File: openai.ChatCompletionContentPartFileFileParam{
-					FileData: openai.String(data),
+					FileData: openai.String(mediaDataURL(mt, data)),
 					Filename: openai.String(md.Name),
 					FileID:   openai.String(md.ID),
 				},
@@ -146,6 +153,22 @@ func (r *requestHelper) buildUserMsg(msg *chat.UserMessage) openai.ChatCompletio
 	}
 
 	return openai.UserMessage(parts)
+}
+
+// mediaDataURL renders a media payload for the OpenAI parts whose field is a
+// URL (image_url.url, file file_data): an http(s)/data: URL passes through, and
+// raw base64 is wrapped into a `data:<mime>;base64,<b64>` data URL. The OpenAI
+// API rejects bare base64 in these fields — unlike input_audio.data, which
+// takes raw base64 with a separate format field. mt nil (unknown type) returns
+// data unchanged, since a data URL can't be formed without a media type.
+func mediaDataURL(mt *mime.MIME, data string) string {
+	if mt == nil ||
+		strings.HasPrefix(data, "data:") ||
+		strings.HasPrefix(data, "http://") ||
+		strings.HasPrefix(data, "https://") {
+		return data
+	}
+	return "data:" + mt.TypeAndSubType() + ";base64," + data
 }
 
 func (r *requestHelper) buildAssistantMsg(msg *chat.AssistantMessage) openai.ChatCompletionMessageParamUnion {
