@@ -178,18 +178,32 @@ export const useSessionStore = create<SessionState & SessionActions>()(
           // otherwise accrete every session's ids forever).
           ...(id === activeSessionId
             ? {}
-            : { activeFile: "", selectedToolId: "", expandedToolIds: new Set<string>() }),
+            : {
+                activeFile: "",
+                selectedToolId: "",
+                expandedToolIds: new Set<string>(),
+                // The beside-split shows the CURRENT session's tool detail and
+                // collapses the nav rail; leaving the session must close it, or
+                // the next session inherits a split it never opened (rail stays
+                // hidden). Reset alongside the other session-scoped view state.
+                splitViewId: null,
+              }),
         });
       },
       closeTab: (id) => {
-        const { tabIds, activeSessionId } = get();
+        const { tabIds, activeSessionId, splitViewId } = get();
         const next = tabIds.filter((x) => x !== id);
+        const leavingActive = id === activeSessionId;
         set({
           tabIds: next,
           // Closing the active tab reselects its neighbour, or falls back to
           // "" (welcome screen) when nothing remains — never leave
           // activeSessionId pointing at a closed/deleted session.
-          activeSessionId: id === activeSessionId ? (next[0] ?? "") : activeSessionId,
+          activeSessionId: leavingActive ? (next[0] ?? "") : activeSessionId,
+          // The beside-split belonged to the tab we're leaving — drop it so it
+          // doesn't bleed onto the neighbour (or the welcome screen) with the
+          // nav rail still collapsed.
+          splitViewId: leavingActive ? null : splitViewId,
         });
       },
       openTab: (id) => {
@@ -247,7 +261,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         });
       },
       closeAllTabs: () => {
-        set({ tabIds: [], activeSessionId: "" });
+        set({ tabIds: [], activeSessionId: "", splitViewId: null });
       },
 
       openMainView: (tab) => {

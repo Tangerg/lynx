@@ -22,6 +22,9 @@ function reset() {
     tabIds: [...INITIAL.tabIds],
     mainViewTabs: INITIAL.mainViewTabs.map((t) => ({ ...t })),
     activeMainView: INITIAL.activeMainView,
+    // A leftover split would leak the collapsed-rail state into the next
+    // describe block; baseline it so each test starts from a truly known place.
+    splitViewId: null,
   });
 }
 
@@ -163,6 +166,38 @@ describe("split (beside) view", () => {
     useSessionStore.getState().openMainViewBeside({ id: "v1", title: "View 1" });
     expect(useSessionStore.getState().activeMainView).toBeNull();
     useSessionStore.getState().openMainView({ id: "v1", title: "View 1" });
+    expect(useSessionStore.getState().splitViewId).toBeNull();
+  });
+
+  it("switching to a DIFFERENT session closes the split (rail must not stay hidden on a session that never opened one)", () => {
+    useSessionStore.getState().openMainViewBeside({ id: "v2", title: "View 2" });
+    expect(useSessionStore.getState().splitViewId).toBe("v2");
+    useSessionStore.getState().selectTab("s2");
+    expect(useSessionStore.getState().splitViewId).toBeNull();
+  });
+
+  it("re-selecting the SAME session keeps the split open", () => {
+    // active = s1 (reset baseline)
+    useSessionStore.getState().openMainViewBeside({ id: "v2", title: "View 2" });
+    useSessionStore.getState().selectTab("s1");
+    expect(useSessionStore.getState().splitViewId).toBe("v2");
+  });
+
+  it("closing the active tab drops its split", () => {
+    useSessionStore.getState().openMainViewBeside({ id: "v2", title: "View 2" });
+    useSessionStore.getState().closeTab("s1"); // s1 is active
+    expect(useSessionStore.getState().splitViewId).toBeNull();
+  });
+
+  it("closing a background tab leaves the active session's split intact", () => {
+    useSessionStore.getState().openMainViewBeside({ id: "v2", title: "View 2" });
+    useSessionStore.getState().closeTab("s3"); // s3 is not active (s1 is)
+    expect(useSessionStore.getState().splitViewId).toBe("v2");
+  });
+
+  it("closeAllTabs drops the split (no session left to host a beside-view)", () => {
+    useSessionStore.getState().openMainViewBeside({ id: "v2", title: "View 2" });
+    useSessionStore.getState().closeAllTabs();
     expect(useSessionStore.getState().splitViewId).toBeNull();
   });
 });
