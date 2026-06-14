@@ -43,7 +43,10 @@ func mcpDialFailedProblem(err error) *protocol.ProblemData {
 	if err != nil {
 		detail = err.Error()
 	}
-	return &protocol.ProblemData{Type: "mcp_dial_failed", Channel: "mcp", Detail: detail}
+	// No Channel: an MCP dial failure surfaces via a workspace event, not over
+	// one of the three delivery channels (rpc/run/tool), so it stays
+	// unclassified rather than inventing a 4th ErrorChannel value.
+	return &protocol.ProblemData{Type: "mcp_dial_failed", Detail: detail}
 }
 
 // WorkspaceMCPListTools lists tools advertised by the connected MCP servers,
@@ -89,7 +92,7 @@ func (s *Server) WorkspaceMCPReconnect(ctx context.Context, server string) error
 		return fmt.Errorf("%w: unknown MCP server %q", protocol.ErrInvalidParams, server)
 	}
 
-	s.PublishWorkspaceEvent(protocol.WorkspaceEvent{Type: "mcp.serverChanged", Server: server, Status: "connecting"})
+	s.PublishWorkspaceEvent(protocol.WorkspaceEvent{Type: protocol.WorkspaceEventMCPServerChanged, Server: server, Status: protocol.McpConnecting})
 	bg := context.WithoutCancel(ctx)
 	go func() {
 		_ = s.rt.ReconnectMCPServer(bg, server) // terminal status is read back below
@@ -103,7 +106,7 @@ func (s *Server) WorkspaceMCPReconnect(ctx context.Context, server string) error
 // reason as Error, and a server that vanished from config omits status (AUX_API
 // §5.2: "status omitted = entry no longer exists").
 func (s *Server) mcpServerChangedEvent(ctx context.Context, server string) protocol.WorkspaceEvent {
-	ev := protocol.WorkspaceEvent{Type: "mcp.serverChanged", Server: server}
+	ev := protocol.WorkspaceEvent{Type: protocol.WorkspaceEventMCPServerChanged, Server: server}
 	for _, st := range s.rt.MCPServerStatuses() {
 		if st.Name != server {
 			continue

@@ -64,7 +64,7 @@ func (t *translator) closeText() []protocol.StreamEvent {
 		Status:    protocol.ItemStatusCompleted,
 		Type:      protocol.ItemTypeAgentMessage,
 		CreatedAt: t.text.createdAt,
-		Content:   []protocol.ContentBlock{{Type: "text", Text: t.text.buf.String()}},
+		Content:   []protocol.ContentBlock{{Type: protocol.ContentBlockText, Text: t.text.buf.String()}},
 	}
 	t.text = nil
 	return []protocol.StreamEvent{{Type: protocol.StreamItemCompleted, Item: item}}

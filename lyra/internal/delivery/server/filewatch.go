@@ -77,7 +77,7 @@ func (w *gitWatcher) run() {
 			// Non-fatal (transient overflow / removed ref dir) — keep watching.
 		case <-timer.C:
 			armed = false
-			w.emit(protocol.WorkspaceEvent{Type: "resync"})
+			w.emit(protocol.WorkspaceEvent{Type: protocol.WorkspaceEventResync})
 		}
 	}
 }

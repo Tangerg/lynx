@@ -188,5 +188,5 @@ func (s *Server) emitToolFileChange(cwd string, se protocol.StreamEvent) {
 	if path == "" {
 		return
 	}
-	s.PublishWorkspaceEvent(protocol.WorkspaceEvent{Type: "files.changed", Cwd: cwd, Paths: []string{path}})
+	s.PublishWorkspaceEvent(protocol.WorkspaceEvent{Type: protocol.WorkspaceEventFilesChanged, Cwd: cwd, Paths: []string{path}})
 }

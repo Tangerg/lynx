@@ -311,7 +311,7 @@ func (s *Server) SubscribeRun(ctx context.Context, runID string) (*protocol.Star
 func resolveResolution(responses []protocol.InterruptResponse) (interrupts.Resolution, error) {
 	for _, r := range responses {
 		switch r.Response.Type {
-		case "approval":
+		case protocol.InterruptResponseApproval:
 			// remember{scope:session} keeps the decision for the session; any
 			// other scope isn't persisted yet, so we honor it as one-shot
 			// rather than promise a memory we can't keep (AUX_API §6).
@@ -319,7 +319,7 @@ func resolveResolution(responses []protocol.InterruptResponse) (interrupts.Resol
 				Remember: r.Response.Remember != nil && r.Response.Remember.Scope == protocol.RememberSession,
 			}
 			switch r.Response.Decision {
-			case "approve":
+			case protocol.ApprovalApprove:
 				res.Approved = true
 				// editedArgs overrides the model-regenerated tool args for this
 				// one call (the gate's verdict.Arguments path). One-shot: never
@@ -331,13 +331,13 @@ func resolveResolution(responses []protocol.InterruptResponse) (interrupts.Resol
 					}
 					res.Arguments = string(b)
 				}
-			case "deny":
+			case protocol.ApprovalDeny:
 				res.Approved = false
 			default:
 				return interrupts.Resolution{}, errors.New(`runs.resume: approval decision must be "approve" | "deny"`)
 			}
 			return res, nil
-		case "answer":
+		case protocol.InterruptResponseAnswer:
 			// Plan-review question (see translator.questionInterrupt): the
 			// decision field carries the chosen label (a single-element array,
 			// S8). Anything other than an explicit reject proceeds. ask_user
@@ -347,7 +347,7 @@ func resolveResolution(responses []protocol.InterruptResponse) (interrupts.Resol
 				approved = false
 			}
 			return interrupts.Resolution{Approved: approved, Answer: r.Response.Answers}, nil
-		case "toolResult":
+		case protocol.InterruptResponseToolResult:
 			return interrupts.Resolution{Approved: true}, nil
 		}
 	}

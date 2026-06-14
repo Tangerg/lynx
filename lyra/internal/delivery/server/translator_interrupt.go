@@ -128,7 +128,7 @@ func (t *translator) questionInterrupt(in turn.Interrupt) (protocol.StreamEvent,
 			Label:    "Proceed with this plan?",
 			Header:   "Plan",
 			Required: true,
-			Type:     "choice",
+			Type:     protocol.QuestionFieldChoice,
 			Options: []protocol.QuestionOption{
 				{Label: planDecisionApprove},
 				{Label: planDecisionReject},
@@ -172,7 +172,7 @@ func (t *translator) askUserInterrupt(in turn.Interrupt) (protocol.StreamEvent, 
 			Name:     askUserQuestionField,
 			Label:    q.Question,
 			Required: true,
-			Type:     "text",
+			Type:     protocol.QuestionFieldText,
 		}},
 	}
 	ev := protocol.StreamEvent{

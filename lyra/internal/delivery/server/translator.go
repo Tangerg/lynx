@@ -30,7 +30,7 @@ func resumeBindingFrom(pending interrupts.Pending) *resumeBinding {
 			continue
 		}
 		switch in.Type {
-		case "approval":
+		case protocol.InterruptApproval:
 			// Re-bind straight off payload.tool (API.md §4.8): the
 			// domain-neutral ToolInvocation always carries name + arguments, so
 			// the re-fired approved tool matches THIS proposal item by
@@ -41,7 +41,7 @@ func resumeBindingFrom(pending interrupts.Pending) *resumeBinding {
 			if name != "" {
 				items[resumeKey(name, argsKey(args))] = in.ItemID
 			}
-		case "question":
+		case protocol.InterruptQuestion:
 			// A plan-review question is resolved by the resume answer (no
 			// re-fired event), so the continuation must complete its item.
 			questions = append(questions, resumedQuestion{itemID: in.ItemID, question: questionFromPayload(in.Payload)})
