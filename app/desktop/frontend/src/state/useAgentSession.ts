@@ -185,6 +185,16 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       });
     }
 
+    // Send re-entrancy latch. The steady-state guard (useChatSend's run.running)
+    // only flips true once run.started is FOLDED — a frame after runs.start
+    // resolves (run.started streams in and folds via the rAF batcher). A second
+    // Enter in that window would pass the running guard and fire a second
+    // runs.start (runs.start has no session_busy rejection, API.md §7.3). So the
+    // latch spans the WHOLE window send()→run-settled: set in send(), cleared in
+    // begin()'s finally (run started+streamed, errored, or interrupted). Earlier
+    // (onResult) was too soon and reopened the gap. Unused by resume.
+    let starting = false;
+
     const begin = (
       run: (
         signal: AbortSignal,
@@ -227,17 +237,13 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
           // HITL card pending state) now that we know the run never opened.
           onStartError?.();
         })
-        .finally(() => endSpan(span, failure));
+        .finally(() => {
+          // The run has settled (started+streamed, failed to start, or
+          // interrupted) — release the send re-entrancy latch. No-op for resume.
+          starting = false;
+          endSpan(span, failure);
+        });
     };
-
-    // Synchronous re-entrancy latch for the pre-run.started window. The view's
-    // run.running (the steady-state guard in useChatSend) only flips true when
-    // the run.started event arrives — a full round-trip after send(). Without
-    // this latch a second Enter inside that window passes the running guard and
-    // fires a second runs.start: two optimistic bubbles, two backend runs, and
-    // the first bubble orphaned (its localId never relabeled). Cleared the
-    // moment the run starts (onResult) or fails to start (onStartError).
-    let starting = false;
 
     const send = (input: ContentBlock[]): void => {
       if (starting) return;
@@ -268,11 +274,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       begin(
         (signal) => driver.start(input, signal),
         (result) => {
-          starting = false;
           if (result.userItemId) store().relabelMessage(sessionId, localId, result.userItemId);
-        },
-        () => {
-          starting = false;
         },
       );
       // First message graduates a draft session into the sidebar.
