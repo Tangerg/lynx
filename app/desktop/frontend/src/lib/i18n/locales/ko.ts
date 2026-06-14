@@ -96,6 +96,14 @@ export const ko: Record<string, string> = {
   "plan.dismissAria": "플랜 배너 닫기",
   "plan.complete": "{{total}}개 중 {{done}}개 완료",
 
+  "tools.preview.openTerminal": "터미널에서 열기",
+  "tools.preview.openDiff": "전체 diff 열기",
+  "tools.preview.viewFile": "전체 파일 보기",
+  "tools.preview.viewMatches": "모든 일치 보기",
+  "tools.preview.viewDetails": "세부 정보 보기",
+  "tools.preview.viewText": "전체 텍스트 보기",
+  "tools.preview.viewReply": "전체 답장 보기",
+
   "welcome.eyebrow": "agent 준비됨",
   "welcome.title": "오늘은 무엇을 만들까요?",
   "welcome.sub": "대화를 시작하거나, 스택 트레이스를 붙여넣거나, 아래 제안을 선택하세요.",

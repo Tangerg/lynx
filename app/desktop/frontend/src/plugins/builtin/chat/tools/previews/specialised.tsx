@@ -48,7 +48,7 @@ function LspLocationsPreview({ tool, onOpenView }: ToolPreviewProps) {
         );
       })}
       <Overflow count={rows.length - MAX_ROWS} />
-      <PreviewFoot label="View details" onClick={onOpenView} />
+      <PreviewFoot label="tools.preview.viewDetails" onClick={onOpenView} />
     </div>
   );
 }
@@ -60,7 +60,7 @@ function LspHoverPreview({ tool, onOpenView }: ToolPreviewProps) {
       {text || (
         <span className="text-fg-faint">{tool.status === "running" ? "Querying…" : "(empty)"}</span>
       )}
-      <PreviewFoot label="View details" onClick={onOpenView} />
+      <PreviewFoot label="tools.preview.viewDetails" onClick={onOpenView} />
     </div>
   );
 }
@@ -96,7 +96,7 @@ function LspDiagnosticsPreview({ tool, onOpenView }: ToolPreviewProps) {
         );
       })}
       <Overflow count={rows.length - MAX_ROWS} />
-      <PreviewFoot label="View details" onClick={onOpenView} />
+      <PreviewFoot label="tools.preview.viewDetails" onClick={onOpenView} />
     </div>
   );
 }
@@ -122,7 +122,7 @@ function SkillPreview({ tool, onOpenView }: ToolPreviewProps) {
             (tool.status === "running" ? "Loading…" : "(empty)")}
         </div>
         <Overflow count={lines.length - MAX_ROWS} />
-        <PreviewFoot label="View full text" onClick={onOpenView} />
+        <PreviewFoot label="tools.preview.viewText" onClick={onOpenView} />
       </div>
     );
   }
@@ -137,7 +137,7 @@ function SkillPreview({ tool, onOpenView }: ToolPreviewProps) {
         </div>
       ))}
       <Overflow count={entries.length - MAX_ROWS} />
-      <PreviewFoot label="View details" onClick={onOpenView} />
+      <PreviewFoot label="tools.preview.viewDetails" onClick={onOpenView} />
     </div>
   );
 }
@@ -155,7 +155,7 @@ function TaskPreview({ tool, onOpenView }: ToolPreviewProps) {
           (tool.status === "running" ? "Sub-agent working…" : "(no reply)")}
       </div>
       <Overflow count={lines.length - MAX_ROWS} />
-      <PreviewFoot label="View full reply" onClick={onOpenView} />
+      <PreviewFoot label="tools.preview.viewReply" onClick={onOpenView} />
     </div>
   );
 }
@@ -200,7 +200,7 @@ function GlobPreview({ tool, onOpenView }: ToolPreviewProps) {
       ))}
       <Overflow count={paths.length - MAX_ROWS} />
       {parsed?.truncated === true && <div className="text-fg-faint">… truncated by runtime</div>}
-      <PreviewFoot label="View details" onClick={onOpenView} />
+      <PreviewFoot label="tools.preview.viewDetails" onClick={onOpenView} />
     </div>
   );
 }

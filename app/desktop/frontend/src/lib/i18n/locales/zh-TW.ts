@@ -95,6 +95,14 @@ export const zhTW: Record<string, string> = {
   "plan.dismissAria": "關閉計畫橫幅",
   "plan.complete": "已完成 {{done}} / {{total}}",
 
+  "tools.preview.openTerminal": "在終端機開啟",
+  "tools.preview.openDiff": "開啟完整 diff",
+  "tools.preview.viewFile": "檢視完整檔案",
+  "tools.preview.viewMatches": "檢視所有符合",
+  "tools.preview.viewDetails": "檢視詳情",
+  "tools.preview.viewText": "檢視完整文字",
+  "tools.preview.viewReply": "檢視完整回覆",
+
   "welcome.eyebrow": "agent 已就緒",
   "welcome.title": "今天想建立什麼？",
   "welcome.sub": "開始對話、貼上錯誤堆疊，或從下方建議中挑選。",
