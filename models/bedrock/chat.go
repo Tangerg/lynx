@@ -2,6 +2,7 @@ package bedrock
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"iter"
@@ -229,7 +230,7 @@ func mediaToBlock(m *media.Media) types.ContentBlock {
 	if !ok {
 		return nil
 	}
-	raw, err := m.DataAsBytes()
+	raw, err := mediaBytes(m)
 	if err != nil || len(raw) == 0 {
 		return nil
 	}
@@ -239,6 +240,26 @@ func mediaToBlock(m *media.Media) types.ContentBlock {
 			Source: &types.ImageSourceMemberBytes{Value: raw},
 		},
 	}
+}
+
+// mediaBytes extracts a media payload as raw bytes for the Bedrock image
+// source, which takes the bytes directly. Media.Data may be raw []byte (used as
+// is) or a base64 string (the inline-image transport form — decoded here, after
+// stripping a `data:<mime>;base64,` data-URL prefix if present); other forms
+// return an error. Kept local per the module's "each provider converts its own
+// media" convention — core's DataAsBytes/DataAsString stay strict by design.
+func mediaBytes(m *media.Media) ([]byte, error) {
+	if b, err := m.DataAsBytes(); err == nil {
+		return b, nil
+	}
+	s, err := m.DataAsString()
+	if err != nil {
+		return nil, err
+	}
+	if i := strings.Index(s, ";base64,"); i >= 0 {
+		s = s[i+len(";base64,"):]
+	}
+	return base64.StdEncoding.DecodeString(s)
 }
 
 func bedrockImageFormat(subtype string) (types.ImageFormat, bool) {
