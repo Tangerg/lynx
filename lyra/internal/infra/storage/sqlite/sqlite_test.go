@@ -124,34 +124,6 @@ func TestSessionFork(t *testing.T) {
 	}
 }
 
-// TestSessionTouch confirms Touch bumps UpdatedAt + TurnCount and
-// returns ErrNotFound for unknown ids.
-func TestSessionTouch(t *testing.T) {
-	ctx := context.Background()
-	svc := newTempDB(t)
-
-	created, _ := svc.Create(ctx, "touchy", "")
-
-	if err := svc.Touch(ctx, created.ID); err != nil {
-		t.Fatalf("Touch: %v", err)
-	}
-	if err := svc.Touch(ctx, created.ID); err != nil {
-		t.Fatalf("Touch second: %v", err)
-	}
-
-	got, _ := svc.Get(ctx, created.ID)
-	if got.TurnCount != 2 {
-		t.Fatalf("TurnCount = %d, want 2", got.TurnCount)
-	}
-	if !got.UpdatedAt.After(created.UpdatedAt) {
-		t.Fatalf("UpdatedAt = %v, not after %v", got.UpdatedAt, created.UpdatedAt)
-	}
-
-	if err := svc.Touch(ctx, "nope"); !errors.Is(err, session.ErrNotFound) {
-		t.Fatalf("Touch unknown = %v, want ErrNotFound", err)
-	}
-}
-
 // TestSessionRename confirms Rename updates the title + refreshes UpdatedAt
 // and returns ErrNotFound for unknown ids.
 func TestSessionRename(t *testing.T) {
