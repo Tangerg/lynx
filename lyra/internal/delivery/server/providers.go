@@ -35,12 +35,12 @@ func (s *Server) ListProviders(ctx context.Context, _ protocol.PageQuery) (*prot
 	return protocol.NewPage(out), nil
 }
 
-// providerToWire maps a registry entry onto the wire Provider shape: id
-// doubles as type; the key is masked ("" = unconfigured, the enabled signal).
+// providerToWire maps a registry entry onto the wire Provider shape: the key is
+// masked ("" = unconfigured, the enabled signal); requiresBaseURL tells the
+// client to collect a base URL + free-form model id for endpoint-less providers.
 func providerToWire(id string, entry provider.Provider) protocol.Provider {
 	return protocol.Provider{
 		ID:              id,
-		Type:            id,
 		BaseURL:         entry.BaseURL,
 		APIKeyMasked:    entry.MaskedAPIKey(),
 		RequiresBaseURL: llm.RequiresBaseURL(llm.Provider(id)),
