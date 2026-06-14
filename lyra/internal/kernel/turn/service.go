@@ -9,6 +9,7 @@ import (
 	"iter"
 	"time"
 
+	"github.com/Tangerg/lynx/core/media"
 	corechat "github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/lyra/internal/kernel"
@@ -30,6 +31,12 @@ type clientResolver interface {
 type StartTurnRequest struct {
 	SessionID string
 	Message   string
+
+	// Media carries the turn's image attachments (runs.start input image
+	// blocks). Nil for a text-only turn. They ride the user message to the
+	// model as UserMessage.Media; only models whose catalog modalities accept
+	// image input should be sent them (gated at runs.start).
+	Media []*media.Media
 
 	// Cwd is the session's working directory — the project root the turn's
 	// filesystem + bash tools run in. Resolved from Session.cwd by the

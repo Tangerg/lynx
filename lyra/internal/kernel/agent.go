@@ -6,6 +6,7 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/hitl"
+	"github.com/Tangerg/lynx/core/media"
 
 	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/lyra/internal/kernel/toolset"
@@ -17,6 +18,11 @@ import (
 // session context, tool selection hints, etc.
 type chatInput struct {
 	Message string
+
+	// Media carries the turn's image attachments, attached to the opening
+	// user message as UserMessage.Media. Nil for a text-only turn (and for
+	// `task` sub-agents, whose prompt is text).
+	Media []*media.Media
 
 	// Cwd is the working directory the turn's filesystem + bash tools run
 	// in. The chat action binds it protected on the blackboard so
@@ -133,7 +139,7 @@ func (e *Engine) buildChatAgent() *core.Agent {
 						return out, err
 					}
 				}
-				out, err := e.runChatTurn(ctx, pc, in.Message, turnBudget{MaxTokens: in.MaxBudget, MaxCostUSD: in.MaxCostUSD})
+				out, err := e.runChatTurn(ctx, pc, in.Message, in.Media, turnBudget{MaxTokens: in.MaxBudget, MaxCostUSD: in.MaxCostUSD})
 				if err != nil {
 					// HITL interrupt (R model): a gated tool returned an
 					// agent/hitl.InterruptError that the chat tool loop
@@ -197,7 +203,7 @@ func (e *Engine) buildSubtaskAgent() *core.Agent {
 				// round-boundary budget check (which reads the subtree
 				// total) stops further work once the subtask pushes the
 				// parent over its budget.
-				out, err := e.runChatTurn(ctx, pc, in.Prompt, turnBudget{})
+				out, err := e.runChatTurn(ctx, pc, in.Prompt, nil, turnBudget{})
 				if err != nil {
 					return "", err
 				}

@@ -25,7 +25,6 @@ var sentinelToCode = map[error]int{
 	protocol.ErrCapabilityNotNeg:       protocol.CodeCapabilityNotNeg,
 	protocol.ErrRunAlreadyDone:         protocol.CodeRunAlreadyDone,
 	protocol.ErrCheckpointUnavailable:  protocol.CodeCheckpointUnavail,
-	protocol.ErrAttachmentTooLarge:     protocol.CodeAttachmentTooLarge,
 	protocol.ErrUnsupportedMime:        protocol.CodeUnsupportedMime,
 	protocol.ErrToolDenied:             protocol.CodeToolDenied,
 	protocol.ErrPathOutsideRoot:        protocol.CodePathOutsideRoot,

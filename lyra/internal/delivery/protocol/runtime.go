@@ -32,7 +32,6 @@ type Runtime interface {
 	Models
 	Tools
 	Memory
-	Attachments
 	Feedback
 }
 
@@ -42,9 +41,8 @@ const ProtocolVersion = "2026-06-07"
 
 // Resource id prefixes (API.md §2.2). Server-generated, type-tagged.
 const (
-	IDPrefixSession    = "ses_"
-	IDPrefixRun        = "run_"
-	IDPrefixItem       = "item_"
-	IDPrefixAttachment = "att_"
-	IDPrefixEvent      = "evt_"
+	IDPrefixSession = "ses_"
+	IDPrefixRun     = "run_"
+	IDPrefixItem    = "item_"
+	IDPrefixEvent   = "evt_"
 )

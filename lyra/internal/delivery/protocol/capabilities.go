@@ -34,16 +34,8 @@ type ServerCapabilities struct {
 // (API.md §9): `boolean | { enabled: boolean; … }`. The map is OPEN
 // (symmetric with ClientCapabilities.features) so advertising a new
 // capability is adding a key — old clients ignore unknown keys, the
-// contract isn't bumped. Most known keys are plain bools; `attachments`
-// is the object form (AttachmentLimits).
+// contract isn't bumped. Known keys are plain bools.
 type FeatureFlag = any
-
-// AttachmentLimits is the object-form FeatureFlag for `attachments`.
-type AttachmentLimits struct {
-	Enabled      bool     `json:"enabled"`
-	MaxSizeBytes int64    `json:"maxSizeBytes,omitempty"`
-	MimeTypes    []string `json:"mimeTypes,omitempty"`
-}
 
 // RuntimeLimits — server-side hard caps surfaced to the client.
 type RuntimeLimits struct {

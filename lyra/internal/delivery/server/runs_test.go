@@ -52,6 +52,60 @@ func TestSubscribeRun_StreamsLiveRunFromHub(t *testing.T) {
 	}
 }
 
+// TestCollectUserInput covers the wire-input → (text, media) split that
+// runs.start feeds the turn: text blocks join, image blocks become core media
+// carrying the parsed mime + base64 data, and a malformed image block is a
+// hard error (not silently dropped) so a bad attachment surfaces to the user.
+func TestCollectUserInput(t *testing.T) {
+	const b64 = "iVBORw0KGgoAAAANSUhEUg=="
+
+	// text + image: text joins, one media with mime + base64 carried through.
+	text, imgs, err := collectUserInput([]protocol.ContentBlock{
+		{Type: protocol.ContentBlockText, Text: "look at"},
+		{Type: protocol.ContentBlockText, Text: "this"},
+		{Type: protocol.ContentBlockImage, Mime: "image/png", Data: b64},
+	})
+	if err != nil {
+		t.Fatalf("text+image: %v", err)
+	}
+	if text != "look at\nthis" {
+		t.Fatalf("text = %q, want joined", text)
+	}
+	if len(imgs) != 1 {
+		t.Fatalf("want 1 media, got %d", len(imgs))
+	}
+	if got, _ := imgs[0].DataAsString(); got != b64 {
+		t.Fatalf("media data = %q, want raw base64", got)
+	}
+	if imgs[0].MimeType.TypeAndSubType() != "image/png" {
+		t.Fatalf("media mime = %q, want image/png", imgs[0].MimeType.TypeAndSubType())
+	}
+
+	// image-only: no text is fine (the StartRun guard accepts media-only).
+	if text, imgs, err := collectUserInput([]protocol.ContentBlock{
+		{Type: protocol.ContentBlockImage, Mime: "image/jpeg", Data: b64},
+	}); err != nil || text != "" || len(imgs) != 1 {
+		t.Fatalf("image-only: text=%q imgs=%d err=%v", text, len(imgs), err)
+	}
+
+	// A non-image mime, an unparseable mime, and empty data are all rejected.
+	if _, _, err := collectUserInput([]protocol.ContentBlock{
+		{Type: protocol.ContentBlockImage, Mime: "text/plain", Data: b64},
+	}); !errors.Is(err, protocol.ErrUnsupportedMime) {
+		t.Fatalf("non-image mime: err = %v, want ErrUnsupportedMime", err)
+	}
+	if _, _, err := collectUserInput([]protocol.ContentBlock{
+		{Type: protocol.ContentBlockImage, Mime: "not-a-mime", Data: b64},
+	}); !errors.Is(err, protocol.ErrUnsupportedMime) {
+		t.Fatalf("bad mime: err = %v, want ErrUnsupportedMime", err)
+	}
+	if _, _, err := collectUserInput([]protocol.ContentBlock{
+		{Type: protocol.ContentBlockImage, Mime: "image/png", Data: ""},
+	}); !errors.Is(err, protocol.ErrInvalidParams) {
+		t.Fatalf("empty data: err = %v, want ErrInvalidParams", err)
+	}
+}
+
 // TestResolveResolution covers the approval-response → InterruptResolution
 // mapping the resume path depends on (B5): approve/deny, editedArgs marshaled
 // into the one-shot Arguments override, and remember{scope} honored only for

@@ -172,6 +172,7 @@ func (s *inMemory) runTurn(req StartTurnRequest, st *turnState) {
 	proc := s.engine.StartChat(st.ctx, kernel.RunChatRequest{
 		SessionID:     req.SessionID,
 		Message:       req.Message,
+		Media:         req.Media,
 		Cwd:           req.Cwd,
 		MaxBudget:     req.MaxBudget,
 		MaxCostUSD:    req.MaxCostUSD,

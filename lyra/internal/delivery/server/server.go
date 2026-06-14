@@ -155,12 +155,11 @@ func Capabilities(rt RuntimeServices) protocol.ServerCapabilities {
 			// File checkpoints (restoreType on rollback) ride the shadow-git
 			// store, which needs the git binary — same gate as the git feature.
 			"checkpoints": workspace.GitAvailable(),
+			"multimodal": true, // image input: runs.start input image blocks (Mime + base64 Data)
+			"relocate":   true, // sessions.update cwd-relocate
 			// Off until the corresponding engine support lands:
-			"multimodal":  false,
 			"subagents":   false,
-			"relocate":    true, // sessions.update cwd-relocate
 			"clientTools": false,
-			"attachments": protocol.AttachmentLimits{Enabled: false},
 		},
 		Providers: supportedProviderIDs(),
 		Limits:    protocol.RuntimeLimits{MaxConcurrentRuns: 8},

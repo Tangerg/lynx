@@ -133,11 +133,21 @@ type Item struct {
 // ContentBlock is one block of message content (API.md §4.3).
 //
 //	text  → Text
-//	image → AttachmentID
+//	image → Mime + Data (inline base64)
+//
+// Images are carried inline: Data is the raw base64 of the image bytes
+// (no data: URL prefix) and Mime is its media type ("image/png", …). The
+// pair maps directly onto a core media.Media — Mime parses to the MIME and
+// Data is the base64 payload — so no attachment indirection is needed.
 type ContentBlock struct {
-	Type         ContentBlockType `json:"type"` // see ContentBlockType
-	Text         string           `json:"text,omitempty"`
-	AttachmentID string           `json:"attachmentId,omitempty"`
+	Type ContentBlockType `json:"type"` // see ContentBlockType
+	Text string           `json:"text,omitempty"`
+	// Mime is the image media type ("image/png", "image/jpeg", …). Set on
+	// image blocks; empty otherwise.
+	Mime string `json:"mime,omitempty"`
+	// Data is the base64-encoded image bytes (no "data:…;base64," prefix).
+	// Set on image blocks; empty otherwise.
+	Data string `json:"data,omitempty"`
 }
 
 // PlanStep is one step of a plan Item (API.md §4.3).

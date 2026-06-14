@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
@@ -24,6 +25,10 @@ type RunChatRequest struct {
 
 	// Message is the user's input for this turn.
 	Message string
+
+	// Media carries the turn's image attachments, attached to the opening
+	// user message as UserMessage.Media. Nil for a text-only turn.
+	Media []*media.Media
 
 	// Cwd is the working directory the turn's filesystem + bash tools run
 	// in — the session's project directory. The chat action binds it onto
@@ -87,7 +92,7 @@ type RunChatRequest struct {
 // attaches a process-scope [core.ToolDecorator]; SessionID binds the
 // turn to the chat-memory middleware's keyed conversation.
 func (e *Engine) StartChat(ctx context.Context, req RunChatRequest) ChatProcess {
-	in := chatInput{Message: req.Message, Cwd: req.Cwd, SessionID: req.SessionID, MaxBudget: req.MaxBudget, MaxCostUSD: req.MaxCostUSD, PlanMode: req.PlanMode, ChatMode: req.ChatMode}
+	in := chatInput{Message: req.Message, Media: req.Media, Cwd: req.Cwd, SessionID: req.SessionID, MaxBudget: req.MaxBudget, MaxCostUSD: req.MaxCostUSD, PlanMode: req.PlanMode, ChatMode: req.ChatMode}
 
 	proc, done := e.platform.StartAgent(ctx, e.agent,
 		map[string]any{core.DefaultBindingName: in},
