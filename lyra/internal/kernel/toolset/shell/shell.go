@@ -39,6 +39,11 @@ const (
 		`"auto_background_after":{"type":"integer","description":"Seconds a foreground command may run before it is automatically moved to the background and its shell id returned (default 60). Read the rest of its output with bash_output."}` +
 		`},"required":["command"]}`
 	bgShellIDSchema = `{"type":"object","properties":{"shell_id":{"type":"string","description":"Background shell id returned by bash when a long-running command was moved to the background."}},"required":["shell_id"]}`
+	bashOutputSchema = `{"type":"object","properties":{` +
+		`"shell_id":{"type":"string","description":"Background shell id returned by bash when a long-running command was moved to the background."},` +
+		`"wait":{"type":"boolean","description":"Block until the shell exits (or timeout_seconds elapses) before returning, instead of reading whatever output is available right now. Use to wait for a backgrounded command to finish — event-driven, so prefer it over a bash 'sleep' poll loop. Don't wait on a process that never exits (e.g. a dev server) without a timeout_seconds."},` +
+		`"timeout_seconds":{"type":"integer","description":"With wait, the longest to block before returning the current output with a still-running status. Omit (or 0) to block until the command exits. Ignored without wait."}` +
+		`},"required":["shell_id"]}`
 )
 
 func Build(mgr *exec.Manager, defaultWorkdir string) []chat.Tool {
@@ -100,18 +105,31 @@ func Build(mgr *exec.Manager, defaultWorkdir string) []chat.Tool {
 	output, _ := chat.NewTool(
 		chat.ToolDefinition{
 			Name:        "bash_output",
-			Description: "Read new output from a background shell (only output since the last read). Reports whether it is still running or has exited.",
-			InputSchema: bgShellIDSchema,
+			Description: "Read new output from a background shell (only output since the last read). Reports whether it is still running or has exited. With wait, blocks until the shell exits (or timeout_seconds) — wait for a backgrounded command without a sleep poll loop.",
+			InputSchema: bashOutputSchema,
 		},
 		chat.ToolMetadata{},
-		func(_ context.Context, arguments string) (string, error) {
-			id, err := bgShellID(arguments, "bash_output")
-			if err != nil {
-				return "", err
+		func(ctx context.Context, arguments string) (string, error) {
+			var a struct {
+				ShellID        string `json:"shell_id"`
+				Wait           bool   `json:"wait"`
+				TimeoutSeconds int    `json:"timeout_seconds"`
 			}
+			if err := json.Unmarshal([]byte(arguments), &a); err != nil {
+				return "", fmt.Errorf("bash_output: invalid arguments: %w", err)
+			}
+			if a.ShellID == "" {
+				return "", errors.New("bash_output: shell_id is required")
+			}
+			id := a.ShellID
 			sh, ok := mgr.Get(id)
 			if !ok {
 				return fmt.Sprintf("No background shell %s.", id), nil
+			}
+			if a.Wait {
+				if err := waitForShell(ctx, sh, a.TimeoutSeconds); err != nil {
+					return "", err
+				}
 			}
 			out, dropped := sh.Read()
 			done, info := sh.Status()
@@ -194,4 +212,29 @@ func bgShellID(arguments, tool string) (string, error) {
 		return "", fmt.Errorf("%s: shell_id is required", tool)
 	}
 	return a.ShellID, nil
+}
+
+// waitForShell blocks until sh exits, ctx is canceled, or — when timeoutSec > 0
+// — the timeout elapses. It reuses the same per-shell done channel the bash
+// foreground path selects on (no polling). A timeout is NOT an error: the
+// caller then reports the current still-running output, just as if wait were
+// off. Returns ctx.Err() only on cancellation (turn cancel / budget timeout).
+func waitForShell(ctx context.Context, sh *exec.Shell, timeoutSec int) error {
+	if timeoutSec <= 0 {
+		select {
+		case <-sh.Done():
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		return nil
+	}
+	timer := time.NewTimer(time.Duration(timeoutSec) * time.Second)
+	defer timer.Stop()
+	select {
+	case <-sh.Done():
+	case <-timer.C: // still running — fall through to report current state
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	return nil
 }
