@@ -91,7 +91,7 @@ func (s *engineBacked) Invoke(ctx context.Context, name string, arguments string
 // classification, for the ListTools wire metadata. A future milestone
 // may let users override per-tool via config.
 //
-// NOTE: chat/policy.go's safetyClassFor encodes the same name→class
+// NOTE: kernel/turn/policy.go's safetyClassFor encodes the same name→class
 // mapping for approval GATING. They're deliberately separate (wire
 // metadata vs internal gate, different enum types, may diverge) — but
 // keep the shared rows in sync when adding a built-in tool.
@@ -100,7 +100,7 @@ func defaultSafetyClass(name string) SafetyClass {
 	case "read", "glob", "grep", "skill", "ask_user":
 		// skill is read-only (lists / reads skill files), like read/glob/grep.
 		// ask_user has no side effect — it IS a HITL interrupt itself, so the
-		// gate never prompts for it (see chat/policy.go safetyClassFor); the
+		// gate never prompts for it (see kernel/turn/policy.go safetyClassFor); the
 		// wire metadata must agree or clients would render it as Exec.
 		return SafetyClassSafe
 	case "write", "edit":

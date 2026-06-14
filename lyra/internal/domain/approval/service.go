@@ -3,7 +3,7 @@
 // engine reads the mode to decide whether a tool call runs, is denied,
 // or must pause for user approval. The actual HITL pause/resume is the
 // R model (the agent runtime parks the process on AwaitInput and the
-// client answers via runs.resume) — see internal/engine/chat +
+// client answers via runs.resume) — see internal/kernel/turn +
 // internal/domain/interrupts. There is no blocking
 // register/decide/decision-channel machinery here anymore.
 package approval
