@@ -8,7 +8,7 @@
 // are a *presentation projection* the reducer folds these wire shapes
 // into; this file is the upstream contract.
 
-import type { AttachmentId, ItemId, RunId, SessionId } from "./ids";
+import type { ItemId, RunId, SessionId } from "./ids";
 
 // ---------------------------------------------------------------------------
 // §3 / §9 — Lifecycle + capabilities
@@ -45,7 +45,6 @@ export interface ServerFeatures {
   memory: boolean;
   relocate: boolean;
   clientTools: boolean;
-  attachments: { enabled: boolean; maxSizeBytes?: number; mimeTypes?: string[] };
 }
 
 export interface ServerCapabilities {
@@ -254,7 +253,10 @@ export interface ItemBase {
 
 export type ContentBlock =
   | { type: "text"; text: string }
-  | { type: "image"; attachmentId: AttachmentId };
+  // Image inlined: `mime` = media type (image/png|jpeg|gif|webp), `data` = raw
+  // base64 (NO "data:…;base64," prefix). Backend assembles from mime + data
+  // (MULTIMODAL_IMAGE_INPUT, API.md §4.3).
+  | { type: "image"; mime: string; data: string };
 
 export interface PlanStep {
   id: string;
@@ -454,8 +456,9 @@ export interface ProblemData {
 export type ContextItem =
   | { type: "file"; path: string } // relative to Session.cwd
   | { type: "selection"; path: string; range: [number, number] } // 1-based inclusive
-  | { type: "url"; url: string } // Runtime fetches (SSRF surface)
-  | { type: "image"; attachmentId: AttachmentId };
+  | { type: "url"; url: string }; // Runtime fetches (SSRF surface)
+// Images are NOT context items — they ride inline as image ContentBlocks (mime +
+// base64 data) in runs.start.input (MULTIMODAL_IMAGE_INPUT, API.md §4.7).
 
 export type JsonSchema = Record<string, unknown>;
 
@@ -534,10 +537,15 @@ export interface InterruptResponse {
 // ---------------------------------------------------------------------------
 
 export interface Provider {
+  // `id` is BOTH identity and type discriminator (e.g. "groq" / "openai-compatible") —
+  // there is no separate `type` field (API.md §4.9).
   id: string;
-  type: string; // "openai" | "anthropic" | …
   baseUrl?: string;
   apiKeyMasked: string; // "" = unset; e.g. "sk-…fc78"; never reversible
+  // No built-in endpoint (generic openai/anthropic-compatible passthrough +
+  // Azure): config MUST collect baseUrl, and with no catalog the model is
+  // free-text input (models.list returns empty). API.md §4.9.
+  requiresBaseUrl?: boolean;
 }
 
 export interface Model {
@@ -545,14 +553,40 @@ export interface Model {
   provider: string; // Provider.id
   displayName?: string;
   contextWindow?: number;
+  maxInputTokens?: number;
   maxOutputTokens?: number;
-  capabilities?: { reasoning?: boolean; multimodal?: boolean; toolUse?: boolean };
-  pricing?: { inputUsdPerMillionTokens?: number; outputUsdPerMillionTokens?: number };
+  knowledgeCutoff?: string; // training cutoff (YYYY-MM-DD); omitted when unknown
+  deprecated?: boolean; // provider retired it; client hides or marks
+  capabilities?: ModelCapabilities;
+  pricing?: ModelPricing;
+}
+
+// Media type (input/output modality), same values as the core chat.Modality.
+// Open enum (API.md §4.9).
+export type Modality = "text" | "image" | "audio" | "video" | "pdf";
+
+export interface ModelCapabilities {
+  reasoning?: boolean; // supports extended thinking
+  reasoningLevels?: string[]; // discrete effort tiers (ascending, e.g. ["low","medium","high"]); empty for budget-style / unsupported
+  reasoningDefaultLevel?: string; // default tier when none specified; empty when no tiers
+  multimodal?: boolean; // convenience bit: accepts image input (full set in inputModalities)
+  inputModalities?: Modality[]; // all accepted media types (text first, then image/pdf/audio/…)
+  outputModalities?: Modality[]; // produced media types (chat models = text)
+  toolUse?: boolean; // tool / function calling
+  structuredOutput?: boolean; // native structured-output / JSON-schema
+}
+
+// Headline rate tiers. Cache fields are 0 when the provider doesn't price cache
+// separately; threshold-tiered long-context pricing gives only the base tier.
+export interface ModelPricing {
+  inputUsdPerMillionTokens?: number;
+  outputUsdPerMillionTokens?: number;
+  cacheReadUsdPerMillionTokens?: number;
+  cacheWriteUsdPerMillionTokens?: number;
 }
 
 export interface ConfigureProviderRequest {
   provider: string; // Provider.id / slug — must be a backend-supported provider
-  type?: string;
   baseUrl?: string; // override default endpoint (proxy / gateway / self-hosted)
   apiKey?: string;
 }
@@ -602,14 +636,6 @@ export interface MemoryEntry {
   path: string;
   content: string;
   updatedAt?: string;
-}
-
-export interface Attachment {
-  id: AttachmentId;
-  name: string;
-  mime: string;
-  sizeBytes: number;
-  createdAt: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -710,7 +736,6 @@ export interface StartRunRequest {
   context?: ContextItem[]; // file.path relative to session.cwd (§4.7)
   tools?: ToolSpec[]; // override this run's tool set
   state?: Record<string, unknown>; // initial shared state
-  attachments?: AttachmentId[];
   // provider + model are a PAIR (API §7.3): send both or neither. Only one →
   // invalid_params. provider is NOT inferred from model (same model id can
   // span providers). Both come straight from models.list's Model.{provider,id}.
@@ -860,7 +885,7 @@ export interface FileEntry {
 export interface FileContent {
   path: string;
   content: string; // full text, or the requested line slice
-  encoding: "utf-8"; // text only; binary goes through the attachments domain
+  encoding: "utf-8"; // text only
   totalLines: number; // full-file line count even for a slice (UI shows "12–40 / 320")
   truncated?: boolean; // hit maxBytes (self-describing, no silent cap)
   startLine?: number;
@@ -956,19 +981,8 @@ export interface InvokeToolRequest {
 }
 
 // ---------------------------------------------------------------------------
-// §7.7 — Optional domains (attachments / feedback)
+// §7.7 — Optional domain (feedback)
 // ---------------------------------------------------------------------------
-
-export interface CreateUploadUrlRequest {
-  name: string;
-  mime: string;
-  sizeBytes: number;
-}
-export interface CreateUploadUrlResponse {
-  attachmentId: AttachmentId;
-  uploadUrl: string;
-  expiresAt: string;
-}
 
 export interface FeedbackRequest {
   sessionId?: SessionId;

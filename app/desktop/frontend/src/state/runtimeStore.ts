@@ -63,8 +63,7 @@ export const useRuntimeStore = create<RuntimeState>((set) => ({
 // Keeping this as a string-literal union (rather than `string`) means
 // typos at the callsite are compile-time errors.
 // Boolean feature flags the server advertises via `capabilities.features.*`
-// (API.md §9). `attachments` is an object, not a boolean, so it's excluded
-// here — read `capabilities.features.attachments` directly when needed.
+// (API.md §9).
 export type ServerFeature =
   | "multimodal"
   | "reasoning"

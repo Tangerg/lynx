@@ -18,8 +18,8 @@ export type { PushPullChannel } from "./channel";
 export { createRpcClient } from "./client";
 export type { NotificationHandler, RpcClient } from "./client";
 export { isErrorType, RpcError, RpcTransportError } from "./errors";
-export { asAttachmentId, asEventId, asItemId, asRunId, asSessionId } from "./ids";
-export type { AttachmentId, EventId, ItemId, RunId, SessionId } from "./ids";
+export { asEventId, asItemId, asRunId, asSessionId } from "./ids";
+export type { EventId, ItemId, RunId, SessionId } from "./ids";
 export { createMethods } from "./methods";
 export type { Methods, StreamingResult } from "./methods";
 export { createLyraClient } from "./sdk";
@@ -132,6 +132,9 @@ export type {
   ProviderTestResult,
   ConfigureProviderRequest,
   Model,
+  ModelCapabilities,
+  ModelPricing,
+  Modality,
   // Workspace optional domains
   Skill,
   AgentDoc,
@@ -145,10 +148,7 @@ export type {
   SubscribeWorkspaceRequest,
   WorkspaceEvent,
   WorkspaceEventType,
-  // Attachments / feedback
-  Attachment,
-  CreateUploadUrlRequest,
-  CreateUploadUrlResponse,
+  // Feedback
   FeedbackRequest,
   // Pagination
   Page,
@@ -173,7 +173,6 @@ export type { MemoryTransport } from "./transports/memory";
 export type { Transport } from "./transport";
 export {
   JSONRPC_VERSION,
-  RPC_ATTACHMENT_TOO_LARGE,
   RPC_CAPABILITY_NOT_NEGOTIATED,
   RPC_CHECKPOINT_UNAVAILABLE,
   RPC_CWD_UNAVAILABLE,

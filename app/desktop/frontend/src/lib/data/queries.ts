@@ -96,7 +96,6 @@ export interface SelectableModel {
 
 export interface ProviderInfo {
   id: string;
-  type: string;
   baseUrl: string;
   apiKeyMasked: string;
 }

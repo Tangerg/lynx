@@ -61,10 +61,9 @@ function ProviderRow({ p }: { p: ProviderInfo }) {
   return (
     <div className="rounded-lg border border-line-soft bg-canvas px-3 py-2.5">
       <div className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-3">
-        <ProviderIcon provider={p.type} size={20} />
+        <ProviderIcon provider={p.id} size={20} />
         <div className="min-w-0">
-          <div className="text-[14px] font-semibold capitalize text-fg">{p.type}</div>
-          <div className="truncate font-mono text-[12px] text-fg-faint">{p.id}</div>
+          <div className="truncate text-[14px] font-semibold capitalize text-fg">{p.id}</div>
         </div>
         <span
           className={cn(
@@ -79,7 +78,7 @@ function ProviderRow({ p }: { p: ProviderInfo }) {
       <div className="mt-2.5 grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-2">
         <input
           type="password"
-          aria-label={`${p.type} API key`}
+          aria-label={`${p.id} API key`}
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
           placeholder={enabled ? "Replace API key…" : "API key"}
@@ -87,7 +86,7 @@ function ProviderRow({ p }: { p: ProviderInfo }) {
         />
         <input
           type="text"
-          aria-label={`${p.type} base URL`}
+          aria-label={`${p.id} base URL`}
           value={baseUrl}
           onChange={(e) => setBaseUrl(e.target.value)}
           placeholder="Base URL (optional override)"

@@ -71,7 +71,7 @@ describe("smoke: v2 end-to-end happy path", () => {
       capabilities: {
         protocolVersion: "2026-06-03",
         events: ["run.started", "run.finished", "item.started", "item.delta", "item.completed"],
-        features: { reasoning: true, mcp: true, relocate: true, attachments: { enabled: false } },
+        features: { reasoning: true, mcp: true, relocate: true, multimodal: true },
         providers: ["anthropic"],
         limits: { maxConcurrentRuns: 8 },
       },

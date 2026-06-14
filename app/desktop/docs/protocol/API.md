@@ -135,7 +135,6 @@ interface RPCError { code: number; message: string; data?: ProblemData; }
 | Session | `ses_` | |
 | Run | `run_` | 幂等见 §7；client 不传 |
 | Item | `item_` | HITL 关联键（§6） |
-| Attachment | `att_` | |
 | Background task | `tsk_` | |
 | Event | `evt_` | **单个 root run stream 内单调**，流续传/去重锚 |
 
@@ -229,7 +228,7 @@ runs.start ──▶ run.started ──▶ (item.started → item.delta* → ite
 
 **最小 client 声明**：`ClientCapabilities.events` 只列它认得的事件（如 `["run.started","run.finished","item.started","item.completed","item.delta"]`）、
 `interruptTypes: []`（不处理 HITL）。server **必须**尊重：不产出 client 未声明的事件类型、不产出 client 未声明 type
-的 open interrupt（§6.2、§9）。于是"只实现一个子集"是协议合法状态——HITL / subagents / state / attachments /
+的 open interrupt（§6.2、§9）。于是"只实现一个子集"是协议合法状态——HITL / subagents / state /
 文件监听等全部可后续加，不回头改最小路径。
 
 ---
@@ -334,7 +333,7 @@ type Item =
 ```ts
 type ContentBlock =
   | { type: "text";  text: string }
-  | { type: "image"; attachmentId: string };
+  | { type: "image"; mime: string; data: string };   // 图片内联：mime=媒体类型，data=base64（无 data: 前缀）
 
 interface PlanStep {
   id: string;
@@ -493,8 +492,8 @@ interface FieldError { field: string; detail: string }   // field = 出错字段
 type ContextItem =
   | { type: "file";      path: string }                          // 相对 Session.cwd
   | { type: "selection"; path: string; range: [number, number] } // 1-based 闭区间
-  | { type: "url";       url: string }                           // Runtime 主动 fetch
-  | { type: "image";     attachmentId: string };
+  | { type: "url";       url: string };                          // Runtime 主动 fetch
+// 图片不是 context item —— 直接作为 input 里的 image ContentBlock（mime + base64 data）内联传入
 
 interface ToolSpec {
   name: string;
@@ -546,19 +545,41 @@ interface OpenInterrupt {
 
 ```ts
 interface Provider {
-  id: string;
-  type: string;                        // "openai" | "anthropic" | …
+  id: string;                          // 既是身份也是类型标识（如 "groq" / "openai-compatible"）
   baseUrl?: string;
   apiKeyMasked: string;                // "" = 未配置；如 "sk-…fc78"；永不可逆推（短 key 全打码）
+  requiresBaseUrl?: boolean;           // 无内建 endpoint：通用兼容 passthrough + Azure。配置时必须收集 baseUrl，
+                                       // 且因无 catalog，model 走自由输入（models.list 返回空）
 }
 interface Model {
   id: string;
   provider: string;                    // Provider.id
   displayName?: string;
   contextWindow?: number;
+  maxInputTokens?: number;
   maxOutputTokens?: number;
-  capabilities?: { reasoning?: boolean; multimodal?: boolean; toolUse?: boolean };
-  pricing?: { inputUsdPerMillionTokens?: number; outputUsdPerMillionTokens?: number };
+  knowledgeCutoff?: string;            // 训练知识截止（YYYY-MM-DD），未知时省略
+  deprecated?: boolean;                // provider 已下线该模型；client 隐藏或标记
+  capabilities?: ModelCapabilities;
+  pricing?: ModelPricing;
+}
+// 媒体类型（输入/输出模态），与 core chat.Modality 同值。开放枚举。
+type Modality = "text" | "image" | "audio" | "video" | "pdf";
+interface ModelCapabilities {
+  reasoning?: boolean;                 // 是否支持扩展思考
+  reasoningLevels?: string[];          // 离散思考档位（升序，如 ["low","medium","high"]）；预算式/不支持时为空
+  reasoningDefaultLevel?: string;      // 不指定档位时的默认；无档位时为空
+  multimodal?: boolean;                // 便捷位：是否接受图片输入（完整集见 inputModalities）
+  inputModalities?: Modality[];        // 接受的全部媒体类型（text 在前，再到 image/pdf/audio/…）
+  outputModalities?: Modality[];       // 产出的媒体类型（chat 模型为 text）
+  toolUse?: boolean;                   // 工具/函数调用
+  structuredOutput?: boolean;          // 原生 structured-output / JSON-schema
+}
+interface ModelPricing {               // 主费率档；provider 不单列缓存价时缓存字段为 0；阈值分档的长上下文价仅给 base 档
+  inputUsdPerMillionTokens?: number;
+  outputUsdPerMillionTokens?: number;
+  cacheReadUsdPerMillionTokens?: number;
+  cacheWriteUsdPerMillionTokens?: number;
 }
 ```
 
@@ -581,7 +602,6 @@ interface McpServer{
 interface McpTool  { server: string; name: string; description?: string; inputSchema?: Record<string, unknown> }
 
 interface MemoryEntry { scope: "cwd" | "projectRoot" | "home"; path: string; content: string; updatedAt?: string }
-interface Attachment  { id: string; name: string; mime: string; sizeBytes: number; createdAt: string }
 ```
 
 ### 4.11 分页（所有 list 统一）
@@ -888,11 +908,10 @@ interface SessionArtifact {
   | 字段 | 类型 | 必填 | 说明 |
   | --- | --- | --- | --- |
   | `sessionId` | string | 是 | cwd 从 session 解析；本请求**不带 cwd**、**不带 runId** |
-  | `input` | `ContentBlock[]` | 是 | user 消息正文 |
+  | `input` | `ContentBlock[]` | 是 | user 消息正文；图片作为 image block 内联（mime + base64 data） |
   | `context` | `ContextItem[]` | 否 | 附带上下文；`file.path` 相对 session.cwd（§4.7 安全规则） |
   | `tools` | `ToolSpec[]` | 否 | 覆盖该 run 的默认工具集 |
   | `state` | object | 否 | 初始共享状态 |
-  | `attachments` | `string[]` | 否 | attachmentId（来自 `attachments.createUploadUrl`） |
   | `provider` | string | 否¹ | 选用的 provider（`Provider.id`，来自 `providers.list`）。与 `model` **配对** |
   | `model` | string | 否¹ | 选用的 model（`Model.id`，来自 `models.list`）。与 `provider` **配对** |
   | `mode` | `"agent"\|"chat"\|"plan"` | 否 | |
@@ -1062,9 +1081,10 @@ fd;且我们用不了 fd-廉价的 FSEvents)。改为两路覆盖,跨平台(inot
 #### `providers.list`
 - 入参 `{ cursor?; limit? }`；返回 `Page<Provider>`（§4.9）—— **后端支持的全部 provider**（有 adapter 的），无论是否已配置。
   每条按注册表标注：`apiKeyMasked == ""` 即**未启用**（启用 ⇔ 已配 key），并带已配的 `baseUrl`。
+- **当前 21 个**：19 个具名 vendor（anthropic / openai / google / deepseek / moonshot / alibaba / azureopenai / fireworks / groq / huggingface / minimax / mistral / ollama / openrouter / perplexity / together / xai / xiaomi / zhipu）+ 2 个通用兼容 passthrough（`openai-compatible` / `anthropic-compatible`）。具名 vendor 的 model 走 `models.list` 浏览；`requiresBaseUrl` 的几个（两个通用 passthrough + `azureopenai`）无 catalog，需用户填 `baseUrl` + 自由输入 model。IAM-only 的 amazonbedrock / vertexai 不在列（不符合「填 API key」模型）。
 
 #### `providers.configure`
-- 入参 `{ provider: string; type?: string; baseUrl?: string; apiKey?: string }`；upsert 进**运行态注册表**（持久化），返回 masked `Provider`。`provider` 必须是支持的 provider，否则 `invalid_params`。`baseUrl` 可覆盖默认端点（代理 / 网关 / 自建 OpenAI 兼容端点）。
+- 入参 `{ provider: string; baseUrl?: string; apiKey?: string }`；upsert 进**运行态注册表**（持久化），返回 masked `Provider`。`provider` 必须是支持的 provider，否则 `invalid_params`。`baseUrl` 可覆盖默认端点（代理 / 网关 / 自建 OpenAI 兼容端点）；`requiresBaseUrl` 的 provider 必填 `baseUrl`。
 
 #### `providers.test`
 - 入参 `{ provider: string }`；返回 `{ ok: boolean; error?: ProblemData }`。**真实探活**：用该 provider 默认 model 发一次极小（`maxTokens=1`）请求验证 key + 端点。失败回 `{ ok:false, error }`（**不**报 RPC 错），UI 可内联显示原因（如 401）。
@@ -1092,12 +1112,9 @@ fd;且我们用不了 fd-廉价的 FSEvents)。改为两路覆盖,跨平台(inot
 | `memory.list` | `WorkspaceQuery & { cursor?; limit? }` | `Page<MemoryEntry>` | `memory` |
 | `memory.get` | `{ scope: "cwd"\|"projectRoot"\|"home"; cwd?: string }` | `MemoryEntry` | `memory` |
 | `memory.update` | `{ scope; cwd?; content: string }` | 无 | `memory` |
-| `attachments.createUploadUrl` | `{ name: string; mime: string; sizeBytes: number }` | `{ attachmentId; uploadUrl; expiresAt }` | `attachments` |
-| `attachments.get` | `{ attachmentId: string }` | `Attachment` | `attachments` |
-| `attachments.delete` | `{ attachmentId: string }` | 无 | `attachments` |
 | `feedback.create` | `{ sessionId?; runId?; itemId?; rating?: "positive"\|"negative"; text? }` | 无 | —— |
 
-错误：`attachment_too_large` / `unsupported_mime`（attachments）。
+> **图片输入不走上传域**：图片随 `runs.start.input` 的 image ContentBlock 内联（mime + base64 data）传入——对照八家 agent（opencode / Claude Code / codex …）一致做法，无独立 attachment 上传/引用子系统。`unsupported_mime` 仍用于校验 image block 的 mime（非图片类型或不可解析）。
 
 > **已移除 `background.*`**（list/subscribe/cancel + `notifications.background.update` + `BackgroundTask`，AUX_API §7）：
 > 八家对照 agent 无一有 client 可见的任务注册表；后台子任务 = 子 agent 的 turn，挂在 run 树上随其流式（§5.4）。
@@ -1149,8 +1166,7 @@ fd;且我们用不了 fd-廉价的 FSEvents)。改为两路覆盖,跨平台(inot
 | `-32006` | `capability_not_negotiated` | 方法或能力被关闭 |
 | `-32008` | `run_already_finished` | 操作不能作用于已结束 run（run 二态 running\|finished；故无单独 "not running" 码） |
 | `-32009` | `checkpoint_unavailable` | 编辑 / checkpoint 不可用 |
-| `-32010` | `attachment_too_large` | 附件超限 |
-| `-32011` | `unsupported_mime` | 附件 MIME 不支持 |
+| `-32011` | `unsupported_mime` | image block 的 mime 非图片类型或不可解析（`-32010` 已废，原 `attachment_too_large`） |
 | `-32012` | `tool_denied` | `tools.invoke` 被策略拒绝 |
 | `-32013` | `path_outside_root` | 路径逃出 cwd 根 |
 | `-32014` | `interrupt_not_open` | interrupt 缺失或已 resolve |
@@ -1218,7 +1234,7 @@ interface ClientCapabilities {
 | --- | --- | --- |
 | `reasoning` | bool | 产出 `reasoning` item / delta |
 | `mcp` | bool | MCP 工具 / `workspace.mcp.*` |
-| `multimodal` | bool | image content / attachments 输入 |
+| `multimodal` | bool | 图片输入：`runs.start.input` 的 image ContentBlock（mime + base64，§4.3） |
 | `git` | bool | `workspace.listFileChanges` / `getDiff`（git 二进制在 PATH） |
 | `checkpoints` | bool | `restoreType`（v2 影子 git 文件快照） |
 | `fileWatch` | bool | `workspace.subscribe` 的 `watches` → `files.changed`（fsnotify 文件监听） |
@@ -1228,7 +1244,6 @@ interface ClientCapabilities {
 | `memory` | bool | `memory.*` |
 | `relocate` | bool | `sessions.update` 改 cwd |
 | `clientTools` | bool | `toolResult` interrupt |
-| `attachments` | `{ enabled; maxSizeBytes?; mimeTypes? }` | 附件上传 |
 
 > **提案中的 feature（613，缺省关闭直到后端落地，见附录 C）**：`codeIntel`（`workspace.code.*`）/ `compaction`
 > （`sessions.compact` + `compaction` Item）/ `todos`（`todos.list`）。additive 加 key、老 client 忽略未知 → 不 bump 契约。
@@ -1442,7 +1457,7 @@ interface Diagnostic      { range: CodeRange; severity: "error" | "warning" | "i
 
 ```ts
 interface FileEntry   { path: string; name: string; type: "file" | "dir" | "symlink"; sizeBytes?: number; modifiedAt?: string }  // path 相对 cwd；sizeBytes 仅 file
-interface FileContent { path: string; content: string; encoding: "utf-8"; totalLines: number; truncated?: boolean; startLine?: number; endLine?: number }  // 二进制走 attachments 域；totalLines 是整文件行数（切片也给，UI 显示 "12–40 / 320"）
+interface FileContent { path: string; content: string; encoding: "utf-8"; totalLines: number; truncated?: boolean; startLine?: number; endLine?: number }  // 文本内容；totalLines 是整文件行数（切片也给，UI 显示 "12–40 / 320"）
 ```
 
 ### C.3 B9 · `approval.*`（不门控）—— 全局审批姿态 + 记忆决策

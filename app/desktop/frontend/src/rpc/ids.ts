@@ -4,7 +4,7 @@
 // runtime, but the type checker treats them as distinct.
 //
 // Business resource ids are ALWAYS server-generated and carry a type
-// prefix on the wire: ses_ / run_ / item_ / att_ / evt_. The
+// prefix on the wire: ses_ / run_ / item_ / evt_. The
 // client never mints business ids (§2.2) — only the JSON-RPC envelope id.
 // (An X-Idempotency-Key for retry-safe run creation, §10, is the other
 // client-minted non-business token, but isn't wired yet — see the
@@ -19,17 +19,14 @@
 declare const sessionIdBrand: unique symbol;
 declare const runIdBrand: unique symbol;
 declare const itemIdBrand: unique symbol;
-declare const attachmentIdBrand: unique symbol;
 declare const eventIdBrand: unique symbol;
 
 export type SessionId = string & { readonly [sessionIdBrand]: never };
 export type RunId = string & { readonly [runIdBrand]: never };
 export type ItemId = string & { readonly [itemIdBrand]: never };
-export type AttachmentId = string & { readonly [attachmentIdBrand]: never };
 export type EventId = string & { readonly [eventIdBrand]: never };
 
 export const asSessionId = (s: string): SessionId => s as SessionId;
 export const asRunId = (s: string): RunId => s as RunId;
 export const asItemId = (s: string): ItemId => s as ItemId;
-export const asAttachmentId = (s: string): AttachmentId => s as AttachmentId;
 export const asEventId = (s: string): EventId => s as EventId;

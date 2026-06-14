@@ -270,7 +270,6 @@ export const defaultData = definePlugin({
       fetcher: async () =>
         (await client().providers.list()).data.map((p) => ({
           id: p.id,
-          type: p.type,
           baseUrl: p.baseUrl ?? "",
           apiKeyMasked: p.apiKeyMasked,
         })),
