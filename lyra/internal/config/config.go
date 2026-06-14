@@ -21,45 +21,10 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/Tangerg/lynx/a2a"
+	"github.com/Tangerg/lynx/lyra/internal/infra/llm"
 	"github.com/Tangerg/lynx/lyra/internal/infra/lsp"
 	"github.com/Tangerg/lynx/lyra/internal/kernel"
 	"github.com/Tangerg/lynx/mcp"
-)
-
-// Provider enumerates the LLM provider Lyra talks to.
-type Provider string
-
-const (
-	// Native + OpenAI-/Anthropic-compatible vendors with a catalog (models.list
-	// browses their models). Each routes through its own adapter, which encodes
-	// the vendor endpoint. IAM-only vendors (amazonbedrock, vertexai) are
-	// intentionally absent — they don't fit the "paste an API key" model.
-	ProviderAnthropic   Provider = "anthropic"
-	ProviderOpenAI      Provider = "openai"
-	ProviderMoonshot    Provider = "moonshot" // Kimi (OpenAI-compatible)
-	ProviderDeepSeek    Provider = "deepseek" // DeepSeek (OpenAI-compatible)
-	ProviderAlibaba     Provider = "alibaba"  // Qwen
-	ProviderAzureOpenAI Provider = "azureopenai"
-	ProviderFireworks   Provider = "fireworks"
-	ProviderGoogle      Provider = "google" // Gemini
-	ProviderGroq        Provider = "groq"
-	ProviderHuggingface Provider = "huggingface"
-	ProviderMinimax     Provider = "minimax"
-	ProviderMistral     Provider = "mistral"
-	ProviderOllama      Provider = "ollama" // local
-	ProviderOpenRouter  Provider = "openrouter"
-	ProviderPerplexity  Provider = "perplexity"
-	ProviderTogether    Provider = "together"
-	ProviderXAI         Provider = "xai" // Grok
-	ProviderXiaomi      Provider = "xiaomi"
-	ProviderZhipu       Provider = "zhipu" // GLM
-
-	// Generic "bring-your-own-endpoint" providers: the user supplies the base
-	// URL + key + model id, and the turn runs through the OpenAI- / Anthropic-
-	// wire adapter. They cover any compatible gateway not named above (and have
-	// no catalog — the model id is user-supplied).
-	ProviderOpenAICompat    Provider = "openai-compatible"
-	ProviderAnthropicCompat Provider = "anthropic-compatible"
 )
 
 // ServerConfig holds the `lyra serve` HTTP transport settings. CLI
@@ -80,7 +45,7 @@ type ServerConfig struct {
 
 // Config is the loaded runtime configuration.
 type Config struct {
-	Provider Provider
+	Provider llm.Provider
 	Model    string
 	APIKey   string
 
@@ -149,29 +114,29 @@ func Load() (Config, error) {
 		// No config file — defaults + env only.
 	}
 
-	provider := Provider(v.GetString("provider"))
+	provider := llm.Provider(v.GetString("provider"))
 	if provider == "" {
-		return Config{}, errors.New("config: provider is required — set `provider:` in config/config.yaml or LYRA_PROVIDER (anthropic|openai|moonshot|deepseek)")
+		return Config{}, errors.New("config: provider is required — set `provider:` in config/config.yaml or LYRA_PROVIDER (see providers.list for the supported set)")
 	}
-	info, ok := providerInfo[provider]
-	if !ok {
-		return Config{}, errors.New("config: unknown provider (want anthropic|openai|moonshot|deepseek)")
+	if !llm.IsSupported(provider) {
+		return Config{}, fmt.Errorf("config: unknown provider %q (see providers.list for the supported set)", provider)
 	}
 
 	model := v.GetString("model")
 	if model == "" {
-		model = info.defaultModel
+		model = llm.DefaultModel(provider)
 	}
 
-	// API key: yaml `apiKey`, overridden by the provider's native env
-	// var ({ANTHROPIC,OPENAI,MOONSHOT,DEEPSEEK}_API_KEY) so the old env
-	// workflow still works.
+	// API key: yaml `apiKey`, overridden by the provider's native env var
+	// (e.g. ANTHROPIC_API_KEY / OPENAI_API_KEY — see llm.APIKeyEnv) so the
+	// env workflow still works.
 	apiKey := v.GetString("apiKey")
-	if envKey := os.Getenv(info.apiKeyEnv); envKey != "" {
+	apiKeyEnv := llm.APIKeyEnv(provider)
+	if envKey := os.Getenv(apiKeyEnv); envKey != "" {
 		apiKey = envKey
 	}
 	if apiKey == "" {
-		return Config{}, errors.New("config: apiKey is empty — set it in config/config.yaml or " + info.apiKeyEnv)
+		return Config{}, errors.New("config: apiKey is empty — set it in config/config.yaml or " + apiKeyEnv)
 	}
 
 	servers, err := parseMCPServers(os.Getenv("LYRA_MCP_SERVERS"))

@@ -31,7 +31,6 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/models/catalog"
 
-	"github.com/Tangerg/lynx/lyra/internal/config"
 	"github.com/Tangerg/lynx/lyra/internal/domain/approval"
 	"github.com/Tangerg/lynx/lyra/internal/domain/codeintel"
 	"github.com/Tangerg/lynx/lyra/internal/domain/conversation"
@@ -44,6 +43,7 @@ import (
 	toolsvc "github.com/Tangerg/lynx/lyra/internal/domain/tool"
 	"github.com/Tangerg/lynx/lyra/internal/domain/transcript"
 	"github.com/Tangerg/lynx/lyra/internal/infra/a2a"
+	"github.com/Tangerg/lynx/lyra/internal/infra/llm"
 	"github.com/Tangerg/lynx/lyra/internal/infra/mcp"
 	"github.com/Tangerg/lynx/lyra/internal/kernel"
 	"github.com/Tangerg/lynx/lyra/internal/kernel/toolset"
@@ -333,9 +333,9 @@ func (r *Runtime) Providers() provider.Service { return r.providers }
 // construction. Returns the provider error verbatim so the caller can surface
 // it inline.
 func (r *Runtime) ProbeProvider(ctx context.Context, entry provider.Provider) error {
-	client, _, err := config.BuildClient(config.ClientSpec{
-		Provider: config.Provider(entry.ID),
-		Model:    config.DefaultModel(config.Provider(entry.ID)),
+	client, err := llm.BuildClient(llm.ClientSpec{
+		Provider: llm.Provider(entry.ID),
+		Model:    llm.DefaultModel(llm.Provider(entry.ID)),
 		APIKey:   entry.APIKey,
 		BaseURL:  entry.BaseURL,
 	})

@@ -17,9 +17,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/Tangerg/lynx/lyra/internal/config"
 	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/lyra/internal/domain/workspace"
+	"github.com/Tangerg/lynx/lyra/internal/infra/llm"
 )
 
 // Config bundles construction inputs.
@@ -155,8 +155,8 @@ func Capabilities(rt RuntimeServices) protocol.ServerCapabilities {
 			// File checkpoints (restoreType on rollback) ride the shadow-git
 			// store, which needs the git binary — same gate as the git feature.
 			"checkpoints": workspace.GitAvailable(),
-			"multimodal": true, // image input: runs.start input image blocks (Mime + base64 Data)
-			"relocate":   true, // sessions.update cwd-relocate
+			"multimodal":  true, // image input: runs.start input image blocks (Mime + base64 Data)
+			"relocate":    true, // sessions.update cwd-relocate
 			// Off until the corresponding engine support lands:
 			"subagents":   false,
 			"clientTools": false,
@@ -171,7 +171,7 @@ func Capabilities(rt RuntimeServices) protocol.ServerCapabilities {
 // provider TYPES the runtime supports; per-provider configured/key status
 // is providers.list's job (apiKeyMasked), not the capability snapshot.
 func supportedProviderIDs() []string {
-	supported := config.SupportedProviders()
+	supported := llm.SupportedProviders()
 	out := make([]string, 0, len(supported))
 	for _, p := range supported {
 		out = append(out, string(p))

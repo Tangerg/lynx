@@ -29,6 +29,7 @@ import (
 	sessionsvc "github.com/Tangerg/lynx/lyra/internal/domain/session"
 	todosvc "github.com/Tangerg/lynx/lyra/internal/domain/todo"
 	"github.com/Tangerg/lynx/lyra/internal/domain/transcript"
+	"github.com/Tangerg/lynx/lyra/internal/infra/llm"
 	"github.com/Tangerg/lynx/lyra/internal/infra/storage"
 	sqlitestore "github.com/Tangerg/lynx/lyra/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/lyra/internal/kernel"
@@ -108,7 +109,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 	// The default client is the configured provider+model — the one a turn
 	// runs against when it doesn't pick a model. Per-run model selection
 	// builds other clients on demand from the provider registry.
-	client, _, err := config.BuildChatClient(cfg)
+	client, err := config.BuildChatClient(cfg)
 	if err != nil {
 		return err
 	}
@@ -119,7 +120,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 	// runs on the main client (nil MaintenanceClient).
 	var maintClient *chat.Client
 	if cfg.MaintenanceModel != "" && cfg.MaintenanceModel != cfg.Model {
-		maintClient, _, err = config.BuildClient(config.ClientSpec{
+		maintClient, err = llm.BuildClient(llm.ClientSpec{
 			Provider: cfg.Provider,
 			Model:    cfg.MaintenanceModel,
 			APIKey:   cfg.APIKey,
