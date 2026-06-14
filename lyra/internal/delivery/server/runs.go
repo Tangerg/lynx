@@ -75,12 +75,15 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	// tool-less (a plain single-round exchange). Unknown values are
 	// invalid_params, never silently dropped.
 	planMode, chatMode := false, false
+	runMode := protocol.RunModeAgent
 	switch in.Mode {
 	case "", protocol.RunModeAgent:
 	case protocol.RunModePlan:
 		planMode = true
+		runMode = protocol.RunModePlan
 	case protocol.RunModeChat:
 		chatMode = true
+		runMode = protocol.RunModeChat
 	default:
 		return nil, nil, fmt.Errorf("%w: unknown mode %q", protocol.ErrInvalidParams, in.Mode)
 	}
@@ -112,7 +115,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	// emits it after run.started) — streamed live and persisted through the
 	// same path, so the wire id and the items.list id are one and the same.
 	runID := handle.TurnID
-	out, events, err := s.openSegment(ctx, runID, "", handle, sessionID, in.Input, nil)
+	out, events, err := s.openSegment(ctx, runID, "", handle, sessionID, in.Input, nil, in.Model, runMode)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -174,7 +177,9 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	// carry the resume binding: an approved tool re-fires in this run and
 	// must complete its ORIGINAL proposal item (API.md §5.2 / §6), not a
 	// fresh one.
-	out, events, err := s.openSegment(ctx, contRunID, in.ParentRunID, handle, pending.SessionID, nil, resumeBindingFrom(pending))
+	// A continuation inherits its parent's model/mode (linked via parentRunId),
+	// so its RunRef leaves them empty rather than re-deriving.
+	out, events, err := s.openSegment(ctx, contRunID, in.ParentRunID, handle, pending.SessionID, nil, resumeBindingFrom(pending), "", "")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -246,6 +251,8 @@ func (s *Server) ListRuns(_ context.Context, in protocol.ListRunsRequest) (*prot
 			ID:          e.runID,
 			SessionID:   e.sessionID,
 			ParentRunID: e.parentRunID,
+			Model:       e.model,
+			Mode:        e.mode,
 			Status:      protocol.RunStatusRunning,
 		})
 	}

@@ -85,8 +85,10 @@ type runEntry struct {
 	runID        string
 	sessionID    string
 	turnID       string
-	parentRunID  string // set for continuation runs (runs.resume)
-	cancelReason string // runs.cancel reason → flows to outcome.canceled.detail (S6)
+	parentRunID  string           // set for continuation runs (runs.resume)
+	model        string           // model this run ran against (RunRef.model); empty = default
+	mode         protocol.RunMode // this run's execution mode (RunRef.mode); empty on continuations
+	cancelReason string           // runs.cancel reason → flows to outcome.canceled.detail (S6)
 	cancel       context.CancelFunc
 	hub          *runHub // per-run event fan-out + durable replay (streamable HTTP)
 }
