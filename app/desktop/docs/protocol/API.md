@@ -329,6 +329,7 @@ type Item =
 - `question` 是一等 Item：一个提问可能成为 durable open interrupt，之后由 `runs.resume` 应答。
 - `toolCall.error`（+ `status:"incomplete"`）是**工具级失败的统一结构化落点**。工具失败**通常不终止整个 run** ——
   agent 可据此换方案、继续（§8 通道 b）。
+- **`compaction`（提案 613 B10，见附录 C.4）** —— additive 第 7 变体，标"此处压缩了 N 条更早消息"，后端落地前不在 wire 上。
 
 ```ts
 type ContentBlock =
@@ -428,11 +429,15 @@ type DiffRow =
   | { type: "added";   rightLine: number; code: string }
   | { type: "deleted"; leftLine: number; code: string };
 
-interface Diff { rows: DiffRow[]; truncated?: boolean }   // truncated=true：超 limit 被截，完整看文件（no silent caps）
+// `workspace.getDiff` 结果：sum-type，按请求 `format` 二选一——rows→`files`、raw→`patch`。
+// truncated=超 `limit` 在**文件边界**截断（整文件 rows 要么全在要么不在，无半截 diff；no silent caps）。
+interface Diff     { files?: FileDiff[]; patch?: string; truncated?: boolean }
+interface FileDiff { path: string; status: FileStatus; previousPath?: string; added?: number; removed?: number; binary?: true; rows: DiffRow[] }  // binary：rows=[]、added/removed 省略
 
-// 两个意图不同、但词汇刻意统一的文件类型（§2.1 分类属性用语义名 status，非 kind/type）：
-interface WorkspaceFileChange { path: string; status: "added" | "modified" | "deleted" | "renamed" | "untracked" }  // VCS 工作区扫描态
-interface FileEdit            { path: string; status: "added" | "modified" | "deleted" | "renamed"; diff?: DiffRow[] }  // 一次编辑的应用结果（带 diff；无 untracked）
+// 过去式工作树状态词汇，三个文件类型共用（§2.1 分类属性用语义名 status，非 kind/type）。untracked 仅 VCS 有。
+type FileStatus = "added" | "modified" | "deleted" | "renamed" | "untracked";
+interface WorkspaceFileChange { path: string; status: FileStatus; previousPath?: string; added?: number; removed?: number; binary?: true }  // VCS 工作区扫描态（listFileChanges）；added/removed binary 时省略（不伪造 0），previousPath 仅 renamed
+interface FileEdit            { path: string; status: Exclude<FileStatus, "untracked">; diff?: DiffRow[] }  // 一次编辑的应用结果（带 diff；无 untracked）
 
 interface SearchHit       { path: string; lineNumber?: number; snippet?: string }   // 本地：grep=path+line+snippet；glob=仅 path
 interface WebSearchResult { title?: string; url: string; snippet?: string; faviconUrl?: string }   // 网络检索结果
@@ -443,9 +448,11 @@ interface GrepResult { matches: GrepMatch[]; total: number }       // total ≥ 
 interface GrepMatch  { path: string; lineNumber: number; text: string }
 ```
 
-> **`WorkspaceFileChange` vs `FileEdit`** 是**两件事**，故两个类型：前者是 VCS 工作区扫描的当前状态（`workspace.listFileChanges`，
-> 含 `untracked`）；后者是 agent 一次编辑的应用结果（工具 `result` 约定，§4.4.2，带 `diff`、无 `untracked`）。二者刻意共用同一
-> `status` 词汇（过去式，描述"变更后的态"），只在 `untracked` 与 `diff?` 上有别——消除旧版 `added` vs `add` 的无谓分叉。
+> **三个文件类型共用 `FileStatus` 词汇，但意图不同、故各自独立**：`WorkspaceFileChange`（`workspace.listFileChanges` 的 VCS
+> 工作区扫描态，含 `untracked`）/ `FileDiff`（`workspace.getDiff{format:rows}` 的逐文件结构化 diff，带 `rows`）/ `FileEdit`
+> （agent 一次编辑的应用结果，工具 `result` 约定 §4.4.2，无 `untracked`）。共用过去式 `status`（描述"变更后的态"），消除旧版
+> `added` vs `add` 的无谓分叉。`added`/`removed`（±行）binary 时省略（不伪造 0），`previousPath` 仅 `renamed` 给。
+> **`Diff` 是 sum-type**（`files` ⊕ `patch`，按 `format`），不是松对象同时带两者。
 > **本地搜索命中（`SearchHit`：文件 + 行）与网络检索结果（`WebSearchResult`：url + 标题）是两个互斥类型**，不合并成一个松形状
 > （避免"一个结果同时带 path 和 url"这种非法可表达态）。
 > `FileLine.text` / `DiffRow.code` / `GrepMatch.text` 是**纯文本**（不含 server 端 HTML）；高亮由客户端做。
@@ -833,7 +840,7 @@ server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` 
 - `toRunId` **必须是 root run**（子 agent / 延续 run → `invalid_params`）；未知 → `run_not_found`。
 - **就地销毁**：截断聊天历史、删被丢 run 的 Item/记录、清其悬挂 open interrupt、并**递归 purge 被丢 run 派生的 subagent 子会话整棵子树**。
 - **运行中拒绝**：session 有 run 在跑 → `session_busy`（避免与在 append 的历史竞争）。
-- **`restoreType`（默认 `history`，AUX_API §4.3，门控 `features.checkpoints`）**：
+- **`restoreType`（默认 `history`，AUX_API §4.1，门控 `features.checkpoints`）**：
   - `history` → 只回退聊天历史（不动文件，老行为）。
   - `files` → 只把工作区**文件**还原到 `toRunId` 的影子-git 快照（历史不动）。
   - `both` → 二者，**原子**：files 先行,失败 → 整体失败、history 不动、返 `checkpoint_unavailable`，**绝不静默降级**。
@@ -990,6 +997,9 @@ interface SessionArtifact {
 ### 7.5 workspace.*
 
 所有读方法显式收 `cwd?`（缺省 = serve 目录）。入参基类 `WorkspaceQuery { cwd?: string }`。**返回列表的方法统一 `Page<T>`**。
+
+> 提案中的 workspace 面（`workspace.code.*` / `listFiles` / `readFile` / `mcp.authenticate`，613 批次）见**附录 C**——
+> 形状已定、后端方法表待注册，落地后并入本表。
 
 | 方法 | 入参 | 返回 | 说明 |
 | --- | --- | --- | --- |
@@ -1220,6 +1230,9 @@ interface ClientCapabilities {
 | `clientTools` | bool | `toolResult` interrupt |
 | `attachments` | `{ enabled; maxSizeBytes?; mimeTypes? }` | 附件上传 |
 
+> **提案中的 feature（613，缺省关闭直到后端落地，见附录 C）**：`codeIntel`（`workspace.code.*`）/ `compaction`
+> （`sessions.compact` + `compaction` Item）/ `todos`（`todos.list`）。additive 加 key、老 client 忽略未知 → 不 bump 契约。
+
 规则：
 
 - 缺省 / falsy feature 默认**关闭**。
@@ -1371,6 +1384,115 @@ interface ClientCapabilities {
   正好规避"不知该用哪个"的模糊。
 
 **MCP / JSON-RPC** —— envelope 形态（§1）、capability 协商（§9）、streamable HTTP（TRANSPORT §6）取自此脉络。
+
+---
+
+## 附录 C · 提案面（613 批次 B7–B12，前端已预接、后端待落地）
+
+> **状态：形状已定、后端方法表（`internal/delivery/dispatch/method_names.go`）尚未注册。** 这批是**纯 additive**（§12 同版本号）：
+> 落地时整体并入 §7/§9，wire 不变、契约不 bump。**当前调用这些方法返 `method_not_found`（-32601）**；前端 `rpc/` 已按本附录
+> 形状预接，并把对应 feature 当作未声明（关闭）→ UI 自然降级、不报错。落地 = 后端注册方法 + advertise feature，本附录条目转入正文。
+>
+> 新增 feature 门控（§9 features map，缺省关闭）：`codeIntel`（B7）/ `compaction`（B10）/ `todos`（B11）。
+> B8（文件浏览）属基础读、不门控；B9（审批运行时控制）不门控；B12 归 `mcp` 门控。
+
+### C.1 B7 · `workspace.code.*`（门控 `codeIntel`）—— LSP 支撑的只读代码导航
+
+坐标 **0-based、`character` 计 UTF-16 code unit（LSP 约定）**——与 `workspace.readFile`（C.2）的 1-based 闭区间行号（面向编辑器/人）
+**不可混用**。该文件类型无 language server → `no_language_server`（非致命，UI 退避）；server 正索引 / 不可用 → **空结果**
+（非错误——wire 上"无结果"与"未就绪"不可区分）。
+
+| 方法 | 入参 | 返回 |
+| --- | --- | --- |
+| `workspace.code.definition` | `CodeQuery & CodePosition` | `{ locations: CodeLocation[] }` |
+| `workspace.code.references` | `CodeQuery & CodePosition & { includeDeclaration?: boolean }` | `Page<CodeLocation>` |
+| `workspace.code.hover` | `CodeQuery & CodePosition` | `Hover` |
+| `workspace.code.documentSymbols` | `CodeQuery` | `{ symbols: DocumentSymbol[] }` |
+| `workspace.code.workspaceSymbols` | `{ cwd?; query: string; limit? }` | `Page<WorkspaceSymbol>` |
+| `workspace.code.diagnostics` | `CodeQuery` | `{ diagnostics: Diagnostic[] }` |
+
+```ts
+interface CodeQuery extends WorkspaceQuery { path: string }       // cwd 下工作区路径（jail，§7.5）
+interface CodePosition { line: number; character: number }        // 均 0-based；character 计 UTF-16 code unit
+interface CodeRange    { start: CodePosition; end: CodePosition }
+interface CodeLocation { path: string; range: CodeRange; external?: boolean; preview?: string }  // 外部依赖(GOROOT/node_modules)给绝对路径 + external:true；preview=该行文本，省一次 readFile
+interface Hover        { contents: string; range?: CodeRange }    // contents=markdown（签名 + doc）
+type SymbolKind =
+  | "file" | "module" | "namespace" | "package" | "class" | "method" | "property" | "field" | "constructor"
+  | "enum" | "interface" | "function" | "variable" | "constant" | "string" | "number" | "struct"
+  | "enumMember" | "typeParameter" | (string & {});               // 开放：镜像 LSP SymbolKind，未知值降级默认图标
+interface DocumentSymbol  { name: string; kind: SymbolKind; detail?: string; range: CodeRange; selectionRange: CodeRange; children?: DocumentSymbol[] }
+interface WorkspaceSymbol { name: string; kind: SymbolKind; path: string; range: CodeRange; containerName?: string }
+interface Diagnostic      { range: CodeRange; severity: "error" | "warning" | "info" | "hint"; message: string; source?: string; code?: string }
+```
+
+> 与 `features.lsp` 区分：`lsp` 门控**模型用的 `lsp_*` 工具**（走普通 toolCall 渲染）；`codeIntel` 门控 **UI 直调的 `workspace.code.*`
+> RPC**（@symbol / 代码导航）。两者正交。
+
+### C.2 B8 · `workspace.listFiles` / `workspace.readFile`（基础读，不门控）—— 文件树浏览 + 查看
+
+| 方法 | 入参 | 返回 |
+| --- | --- | --- |
+| `workspace.listFiles` | `{ cwd?; path?; glob?; recursive?; includeIgnored?; cursor?; limit? }` | `Page<FileEntry>` |
+| `workspace.readFile` | `{ path: string; cwd?; startLine?; endLine?; maxBytes? }` | `FileContent` |
+
+- `listFiles`：`path` 起始目录（相对 cwd，缺省根）；`recursive` 缺省 false（单层惰性树）；`glob`（如 `**/*.go`）隐含递归；
+  默认守 `.gitignore` + 兜底排除，除非 `includeIgnored`。
+- `readFile`：`startLine`/`endLine` **1-based 闭区间**（面向编辑器，**不同于** C.1 的 0-based）；`truncated` 自描述触顶 `maxBytes`。
+
+```ts
+interface FileEntry   { path: string; name: string; type: "file" | "dir" | "symlink"; sizeBytes?: number; modifiedAt?: string }  // path 相对 cwd；sizeBytes 仅 file
+interface FileContent { path: string; content: string; encoding: "utf-8"; totalLines: number; truncated?: boolean; startLine?: number; endLine?: number }  // 二进制走 attachments 域；totalLines 是整文件行数（切片也给，UI 显示 "12–40 / 320"）
+```
+
+### C.3 B9 · `approval.*`（不门控）—— 全局审批姿态 + 记忆决策
+
+`ApprovalMode` 是 **每 Runtime 一个的全局策略**（非 per-session），与 `Item.toolCall.safetyClass`（per-tool 风险）正交，二者合决一次调用是否驻留待批。
+
+| 方法 | 入参 | 返回 |
+| --- | --- | --- |
+| `approval.getMode` | —— | `{ mode: ApprovalMode }` |
+| `approval.setMode` | `{ mode: ApprovalMode }` | `{ mode: ApprovalMode }` |
+| `approval.listRemembered` | `{ sessionId }` | `{ entries: RememberedDecision[] }` |
+| `approval.forget` | `{ sessionId; tool? }` | 无（省 `tool` = 清该会话全部记忆决策） |
+
+```ts
+type ApprovalMode = "readOnly" | "safe" | "balanced" | "yolo";  // readOnly=仅只读工具过；safe=所有写/exec 驻留；balanced(默认)=按 safetyClass 高危驻留、低危过；yolo=全过、不驻留（自动化）
+interface RememberedDecision { tool: string; decision: "approve" | "deny"; rememberedAt: string }  // KEY=工具名（AUX_API §6）
+```
+
+> 记忆决策的**写入**面是 HITL 应答里的 `ApprovalResponse.remember`（§6.1 / AUX_API §6）；本组是其**读 + 管理**面。
+
+### C.4 B10 · `sessions.compact` + `compaction` Item（门控 `compaction`）—— 主动上下文压缩
+
+- `sessions.compact{ sessionId; force? }` → `CompactionResult`。`force:false` 仅在超内部阈值时压（与自发压缩同条件）；
+  运行中拒绝（`session_busy`）；内部调 LLM，可能数秒。
+- **`compaction` Item 变体**（§4.3 Item 联合的 additive 第 7 变体）：自发（turn 边界）压缩与显式 `sessions.compact` 都产它，fold 成时间线分隔条。
+
+```ts
+// §4.3 Item 联合 additive 变体：
+| (ItemBase & { type: "compaction"; summary?: string; droppedMessages?: number })
+
+interface CompactionResult { session: Session; compacted: boolean; beforeMessages?: number; afterMessages?: number; summaryItemId?: string }  // compacted:false = 未超阈值且未强制，什么都没做
+```
+
+### C.5 B11 · `todos.list`（门控 `todos`）—— 模型的工作清单
+
+模型的 `todo_write` 清单（**非**已删的 `background.*` 任务注册表）。实时更新走既有 `state.snapshot{todos}` 通道（§5.3，无新事件类型）；
+`todos.list` 是非活跃 run / 重开历史时的冷读。
+
+| 方法 | 入参 | 返回 |
+| --- | --- | --- |
+| `todos.list` | `{ sessionId }` | `{ todos: TodoItem[] }` |
+
+```ts
+interface TodoItem { id: string; text: string; status: "pending" | "in_progress" | "completed" }
+```
+
+### C.6 B12 · `workspace.mcp.authenticate`（门控 `mcp`）—— 向 needsAuth server 递 token
+
+- 入参 `{ server: string; token: string }`；**无同步返回**（异步，同 `reconnect`）。后端拿 token 重连，经 `mcp.serverChanged`
+  推 `connecting → (connected | needsAuth | failed)`。**后端只转发、不存** token；OAuth 浏览器流（若有）是用户侧的事，lyra 只转发结果 token。
 
 ---
 
