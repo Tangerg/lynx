@@ -23,6 +23,8 @@ type SessionService struct {
 	db *sql.DB
 }
 
+var _ session.Service = (*SessionService)(nil)
+
 // NewSessionService wires the given *sql.DB to the session.Service surface.
 // The DB must have been opened via [Open] so the migration ran.
 func NewSessionService(db *sql.DB) *SessionService {

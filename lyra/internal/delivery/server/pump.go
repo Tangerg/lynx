@@ -100,10 +100,11 @@ func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 					}
 				}
 			}
-			// Persist with a background ctx so the durable history (incl.
+			// Persist off a cancel-decoupled ctx so the durable history (incl.
 			// the terminal run.finished synthesized on a canceled run) lands
-			// regardless of run-ctx cancellation.
-			s.persistStreamEvent(context.Background(), runID, handle.SessionID, parentRunID, se)
+			// regardless of run-ctx cancellation — WithoutCancel keeps the
+			// trace span (full-link), unlike context.Background().
+			s.persistStreamEvent(context.WithoutCancel(ctx), runID, handle.SessionID, parentRunID, se)
 			// Tell workspace subscribers a file changed when an agent file tool
 			// completes — precise + fd-free, so the watcher needn't watch the tree.
 			s.emitToolFileChange(cwd, se)

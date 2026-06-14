@@ -3,6 +3,7 @@ package lsptools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -72,7 +73,7 @@ func newLSPTool(ci *codeintel.Service, defaultWorkdir string) chat.Tool {
 				}
 			case "workspace_symbols":
 				if in.Query == "" {
-					return "", fmt.Errorf("lsp workspace_symbols: query is required")
+					return "", errors.New("lsp workspace_symbols: query is required")
 				}
 			default:
 				return "", fmt.Errorf("lsp: unknown operation %q", in.Operation)
@@ -125,7 +126,7 @@ func newDiagnosticsTool(ci *codeintel.Service, defaultWorkdir string) chat.Tool 
 				return "", fmt.Errorf("lsp_diagnostics: invalid arguments: %w", err)
 			}
 			if in.File == "" {
-				return "", fmt.Errorf("lsp_diagnostics: file is required")
+				return "", errors.New("lsp_diagnostics: file is required")
 			}
 			return ci.Diagnostics(ctx, turnctx.TurnCwd(ctx, defaultWorkdir), in.File)
 		},

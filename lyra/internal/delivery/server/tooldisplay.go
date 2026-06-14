@@ -20,7 +20,7 @@ func (t *translator) newToolInvocation(name, argsJSON, outputJSON string) *proto
 	inv := protocol.NewToolInvocation(name, argsJSON, outputJSON)
 	// Apply name-based result shaping for completed tools — the display
 	// convention is server-side knowledge keyed by tool name.
-	if outputJSON != "" && inv.Arguments != nil {
+	if outputJSON != "" {
 		inv.Result = t.shapeToolResult(name, inv.Arguments, outputJSON)
 	}
 	return inv
