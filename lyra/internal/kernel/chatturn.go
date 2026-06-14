@@ -32,8 +32,8 @@ type RunChatRequest struct {
 
 	// Cwd is the working directory the turn's filesystem + bash tools run
 	// in — the session's project directory. The chat action binds it onto
-	// the process blackboard ([cwdBindingKey]) as a protected entry so
-	// [the tool resolver] anchors the tools there, and so `task` sub-agents
+	// the process blackboard (turnctx.CwdBindingKey) as a protected entry so
+	// the tool resolver anchors the tools there, and so `task` sub-agents
 	// inherit it: Blackboard.Spawn copies protected entries to children and
 	// the typed-action ClearBlackboard preserves them. Empty falls back to
 	// the engine's default workdir.

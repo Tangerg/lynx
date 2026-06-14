@@ -34,7 +34,7 @@ type Entry struct {
 }
 
 // Service is the long-term knowledge contract. The implementation is
-// file-backed (internal/storage) — LYRA.md stays a user-editable
+// file-backed (internal/infra/storage) — LYRA.md stays a user-editable
 // file by design, the one deliberate exception to the SQLite backend.
 // dir on each method is the project directory [ScopeProject] reads
 // from / writes to — a session's working directory, so one service

@@ -6,7 +6,7 @@
 //
 // The [Store] interface is the pluggable seam: the runtime depends on
 // it, not on a concrete backend. Lyra backs it with the SQLite store
-// (internal/storage/sqlite), so open interrupts survive a restart and
+// (internal/infra/storage/sqlite), so open interrupts survive a restart and
 // runs.resume rebuilds the parked process from its ProcessStore
 // snapshot (Pending.ProcessID) — same-process resume just drives the
 // retained live process instead.
@@ -55,7 +55,7 @@ type DrainedTool struct {
 // Store is the open-interrupt registry. Implementations must be safe
 // for concurrent use. The interface is the consumer-side abstraction
 // (the runtime + RPC server depend on it); back it with the sqlite
-// store (internal/storage/sqlite) or any persistent implementation.
+// store (internal/infra/storage/sqlite) or any persistent implementation.
 type Store interface {
 	// Put records (or replaces) a pending interrupt keyed by ParentRunID.
 	Put(ctx context.Context, p Pending) error

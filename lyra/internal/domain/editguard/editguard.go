@@ -7,8 +7,8 @@
 //
 // This package is the invariant ONLY — per-session read state, content hashing,
 // and the verdict. Wrapping the read/edit/write TOOLS so the model hits it is
-// presentation and lives in the engine's tool-assembly layer
-// (internal/engine/toolset) — the LLM-facing counterpart to the wire translator.
+// presentation and lives in the kernel's tool-assembly layer
+// (internal/kernel/toolset) — the LLM-facing counterpart to the wire translator.
 package editguard
 
 import (

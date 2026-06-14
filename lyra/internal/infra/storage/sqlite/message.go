@@ -16,9 +16,8 @@ import (
 // conversation, ordered by an autoincrement seq; each [chat.Message] is
 // stored as opaque JSON (round-tripped via [chat.UnmarshalMessage]).
 //
-// Replaces the JSONL file store: history grows unboundedly per conversation,
-// and an INSERT per message is the SQLite analog of the append-only file —
-// O(1) writes, ordered reads, no whole-file rewrite.
+// Append-only: one INSERT per message — O(1) writes, ordered reads, no
+// whole-file rewrite.
 type MessageStore struct {
 	db *sql.DB
 }

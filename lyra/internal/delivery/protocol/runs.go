@@ -226,14 +226,6 @@ type InterruptResponseValue struct {
 	Error      *ProblemData          `json:"error,omitempty"`      // toolResult: client tool failure
 }
 
-// RememberScope is the standing-decision directive on an approval response
-// (AUX_API §6). When present the runtime keeps the approve/deny decision so
-// future calls to the same tool (keyed by tool NAME, not its args) skip the
-// prompt. v1 honors Scope "session" only — in-memory, process lifetime;
-// "project" / "global" need a persistence home and aren't wired, so a client
-// sending them gets one-shot behavior rather than a false promise. editedArgs
-// stays one-shot regardless: remember records "this tool", not "this tool +
-// these args".
 // RememberScopeKind is the persistence scope of a remembered approval (AUX_API
 // §6). v1 honors "session" only; "project"/"global" are accepted but degrade to
 // one-shot (no persistence home yet).
@@ -245,6 +237,14 @@ const (
 	RememberGlobal  RememberScopeKind = "global"
 )
 
+// RememberScope is the standing-decision directive on an approval response
+// (AUX_API §6). When present the runtime keeps the approve/deny decision so
+// future calls to the same tool (keyed by tool NAME, not its args) skip the
+// prompt. v1 honors Scope "session" only — in-memory, process lifetime;
+// "project" / "global" need a persistence home and aren't wired, so a client
+// sending them gets one-shot behavior rather than a false promise. editedArgs
+// stays one-shot regardless: remember records "this tool", not "this tool +
+// these args".
 type RememberScope struct {
 	Scope RememberScopeKind `json:"scope"` // see RememberScopeKind (v1 honors session)
 }
