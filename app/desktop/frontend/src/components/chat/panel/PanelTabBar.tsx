@@ -17,6 +17,7 @@ import * as ContextMenu from "@radix-ui/react-context-menu";
 import { useCallback, useRef } from "react";
 import { dragClasses, Icon, noDragClasses, StatusDot, Tooltip } from "@/components/common";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 import { Slot } from "@/plugins/host/Slot";
 
 export interface ChatTab {
@@ -140,6 +141,7 @@ function TabItem({
   isLast,
   isOnly,
 }: TabItemProps) {
+  const t = useT();
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>
@@ -176,10 +178,10 @@ function TabItem({
           <span className="truncate font-semibold text-[12.5px] leading-tight" title={title}>
             {title}
           </span>
-          <Tooltip label="Close">
+          <Tooltip label={t("common.close")}>
             <button
               type="button"
-              aria-label="Close tab"
+              aria-label={t("panel.tab.close")}
               className="grid h-5.5 w-5.5 place-items-center rounded border-0 bg-transparent text-fg-faint opacity-0 transition-all duration-150 group-hover:opacity-100 hover:bg-surface-3 hover:text-fg active:scale-90"
               onClick={(e) => {
                 e.stopPropagation();
@@ -196,18 +198,18 @@ function TabItem({
           className="z-50 min-w-[180px] rounded-md border border-line bg-surface p-1 text-[12.5px] text-fg shadow-pop"
           collisionPadding={8}
         >
-          <TabMenuItem onSelect={onClose}>Close</TabMenuItem>
+          <TabMenuItem onSelect={onClose}>{t("common.close")}</TabMenuItem>
           <TabMenuItem disabled={isOnly} onSelect={closeActions.onCloseOthers}>
-            Close Others
+            {t("panel.tab.closeOthers")}
           </TabMenuItem>
           <TabMenuItem disabled={isFirst} onSelect={closeActions.onCloseLeft}>
-            Close Tabs to the Left
+            {t("panel.tab.closeLeft")}
           </TabMenuItem>
           <TabMenuItem disabled={isLast} onSelect={closeActions.onCloseRight}>
-            Close Tabs to the Right
+            {t("panel.tab.closeRight")}
           </TabMenuItem>
           <ContextMenu.Separator className="my-1 h-px bg-line" />
-          <TabMenuItem onSelect={closeActions.onCloseAll}>Close All</TabMenuItem>
+          <TabMenuItem onSelect={closeActions.onCloseAll}>{t("panel.tab.closeAll")}</TabMenuItem>
         </ContextMenu.Content>
       </ContextMenu.Portal>
     </ContextMenu.Root>

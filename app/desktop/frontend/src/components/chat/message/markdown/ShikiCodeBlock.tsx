@@ -6,6 +6,7 @@ import { measureShikiHighlight } from "@/lib/metrics";
 import { getHighlighter, resolveLang } from "@/lib/markdown/shiki";
 import { getCachedHighlight, setCachedHighlight } from "@/lib/markdown/shikiCache";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 import { resolveScheme } from "@/plugins/sdk";
 import { useUiStore } from "@/state/uiStore";
 
@@ -26,6 +27,7 @@ interface Props {
 const FOLD_LINE_THRESHOLD = 24;
 
 export function ShikiCodeBlock({ lang, code, file }: Props) {
+  const t = useT();
   const themeId = useUiStore((s) => s.theme);
   // resolveScheme via the registry so third-party light themes ("solarized-
   // light" etc.) also pick the right shiki preset, not just id === "light".
@@ -134,22 +136,22 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
         <button
           type="button"
           onClick={onCopy}
-          title={copied ? "Copied" : "Copy code"}
+          title={copied ? t("message.code.copied") : t("message.code.copy")}
           className="inline-flex items-center gap-1 rounded-md border-0 bg-transparent px-2 py-1 font-mono text-[11px] font-semibold text-fg-faint transition-[opacity,color,background] duration-150 opacity-60 group-hover/code:opacity-100 hover:!text-fg hover:bg-[color-mix(in_srgb,var(--color-text)_8%,transparent)]"
         >
           <Icon name={copied ? "check" : "copy"} size={11} />
-          {copied ? "Copied" : "Copy"}
+          {copied ? t("message.code.copied") : t("message.code.copyLabel")}
         </button>
       </div>
       {folded ? (
         <button
           type="button"
           onClick={() => setExpanded(true)}
-          title="Expand code block"
+          title={t("message.code.expand")}
           className={FOLD_TOGGLE}
         >
           <Icon name="code" size={12} />
-          <span>Show {lineCount} lines</span>
+          <span>{t("message.code.showLines", { count: lineCount })}</span>
         </button>
       ) : (
         <>
@@ -164,14 +166,14 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
             <button
               type="button"
               onClick={() => setExpanded(false)}
-              title="Collapse code block"
+              title={t("message.code.collapse")}
               className={cn(
                 FOLD_TOGGLE,
                 "border-t border-[color-mix(in_srgb,var(--color-text)_7%,transparent)]",
               )}
             >
               <Icon name="minimize" size={12} />
-              <span>Collapse</span>
+              <span>{t("message.code.collapseLabel")}</span>
             </button>
           )}
         </>

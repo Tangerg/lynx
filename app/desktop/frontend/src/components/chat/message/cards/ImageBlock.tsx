@@ -5,8 +5,10 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import { useState } from "react";
+import { useT } from "@/lib/i18n";
 
 export function ImageBlock({ mime, data }: { mime: string; data: string }) {
+  const t = useT();
   const [zoomed, setZoomed] = useState(false);
   const src = `data:${mime};base64,${data}`;
   return (
@@ -14,7 +16,7 @@ export function ImageBlock({ mime, data }: { mime: string; data: string }) {
       <Dialog.Trigger asChild>
         <button
           type="button"
-          aria-label="View attached image"
+          aria-label={t("message.image.view")}
           className="my-1.5 block cursor-zoom-in overflow-hidden rounded-lg border-0 bg-transparent p-0 outline-none focus-visible:shadow-[0_0_0_2px_var(--color-accent)]"
         >
           <img src={src} alt="" className="max-h-64 max-w-full rounded-lg object-contain" />
@@ -26,7 +28,7 @@ export function ImageBlock({ mime, data }: { mime: string; data: string }) {
           onClick={() => setZoomed(false)}
           className="fixed inset-0 z-[201] m-auto h-fit w-fit max-h-[90vh] max-w-[min(1400px,95vw)] cursor-zoom-out overflow-auto rounded-xl border border-line-soft bg-surface p-2 shadow-lg outline-none data-[state=open]:animate-rise-in"
         >
-          <Dialog.Title className="sr-only">Attached image</Dialog.Title>
+          <Dialog.Title className="sr-only">{t("message.image.view")}</Dialog.Title>
           <img src={src} alt="" className="max-h-[86vh] max-w-full rounded-lg object-contain" />
         </Dialog.Content>
       </Dialog.Portal>
