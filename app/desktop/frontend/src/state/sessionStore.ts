@@ -143,6 +143,23 @@ interface SessionActions {
   toggleExpandedTool: (id: string) => void;
 }
 
+// State scoped to the active chat session — the inspected tool (+ its expanded
+// rows), the file the diff view is focused on, and the beside-split (which
+// shows THIS session's tool detail and collapses the nav rail). It all belongs
+// to the session you're looking at, so every action that switches to a
+// DIFFERENT session clears it. Returned as a patch applied in the SAME set() as
+// the activeSessionId change — clearing it via a post-hoc subscription would
+// flash the old session's split/file for a frame. activeMainView is deliberately
+// excluded: promoted view tabs are global, cleared by selectTab on its own rule.
+function clearSessionScopedState() {
+  return {
+    activeFile: "",
+    selectedToolId: "",
+    expandedToolIds: new Set<string>(),
+    splitViewId: null,
+  };
+}
+
 export const useSessionStore = create<SessionState & SessionActions>()(
   persist(
     (set, get) => ({
@@ -172,26 +189,14 @@ export const useSessionStore = create<SessionState & SessionActions>()(
           // Cleared HERE (not per call site): sidebar rows, Cmd+1..9, ⌘N and
           // the tab strip all funnel through selectTab.
           activeMainView: null,
-          // Tool-inspector + file focus are session-scoped. Switching to a
-          // different session must not carry A's selection/expansion into B
-          // (the ids wouldn't match B's items, and expandedToolIds would
-          // otherwise accrete every session's ids forever).
-          ...(id === activeSessionId
-            ? {}
-            : {
-                activeFile: "",
-                selectedToolId: "",
-                expandedToolIds: new Set<string>(),
-                // The beside-split shows the CURRENT session's tool detail and
-                // collapses the nav rail; leaving the session must close it, or
-                // the next session inherits a split it never opened (rail stays
-                // hidden). Reset alongside the other session-scoped view state.
-                splitViewId: null,
-              }),
+          // Switching to a different session drops everything scoped to the one
+          // you left. Cleared HERE (not per call site): sidebar rows, Cmd+1..9,
+          // ⌘N and the tab strip all funnel through selectTab.
+          ...(id === activeSessionId ? {} : clearSessionScopedState()),
         });
       },
       closeTab: (id) => {
-        const { tabIds, activeSessionId, splitViewId } = get();
+        const { tabIds, activeSessionId } = get();
         const next = tabIds.filter((x) => x !== id);
         const leavingActive = id === activeSessionId;
         set({
@@ -200,10 +205,9 @@ export const useSessionStore = create<SessionState & SessionActions>()(
           // "" (welcome screen) when nothing remains — never leave
           // activeSessionId pointing at a closed/deleted session.
           activeSessionId: leavingActive ? (next[0] ?? "") : activeSessionId,
-          // The beside-split belonged to the tab we're leaving — drop it so it
-          // doesn't bleed onto the neighbour (or the welcome screen) with the
-          // nav rail still collapsed.
-          splitViewId: leavingActive ? null : splitViewId,
+          // Leaving the active session drops its inspector / file / split so
+          // they don't bleed onto the neighbour (or the welcome screen).
+          ...(leavingActive ? clearSessionScopedState() : {}),
         });
       },
       openTab: (id) => {
@@ -236,18 +240,24 @@ export const useSessionStore = create<SessionState & SessionActions>()(
       // leftmost remaining tab (or empty string when nothing is
       // left, mirroring the original closeTab semantics).
       closeOtherTabs: (id) => {
-        const { tabIds } = get();
+        const { tabIds, activeSessionId } = get();
         if (!tabIds.includes(id)) return;
-        set({ tabIds: [id], activeSessionId: id });
+        set({
+          tabIds: [id],
+          activeSessionId: id,
+          ...(id === activeSessionId ? {} : clearSessionScopedState()),
+        });
       },
       closeTabsLeftOf: (id) => {
         const { tabIds, activeSessionId } = get();
         const idx = tabIds.indexOf(id);
         if (idx <= 0) return;
         const next = tabIds.slice(idx);
+        const keepsActive = next.includes(activeSessionId);
         set({
           tabIds: next,
-          activeSessionId: next.includes(activeSessionId) ? activeSessionId : id,
+          activeSessionId: keepsActive ? activeSessionId : id,
+          ...(keepsActive ? {} : clearSessionScopedState()),
         });
       },
       closeTabsRightOf: (id) => {
@@ -255,13 +265,15 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         const idx = tabIds.indexOf(id);
         if (idx === -1 || idx === tabIds.length - 1) return;
         const next = tabIds.slice(0, idx + 1);
+        const keepsActive = next.includes(activeSessionId);
         set({
           tabIds: next,
-          activeSessionId: next.includes(activeSessionId) ? activeSessionId : id,
+          activeSessionId: keepsActive ? activeSessionId : id,
+          ...(keepsActive ? {} : clearSessionScopedState()),
         });
       },
       closeAllTabs: () => {
-        set({ tabIds: [], activeSessionId: "", splitViewId: null });
+        set({ tabIds: [], activeSessionId: "", ...clearSessionScopedState() });
       },
 
       openMainView: (tab) => {

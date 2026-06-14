@@ -202,6 +202,106 @@ describe("split (beside) view", () => {
   });
 });
 
+describe("session-scoped view state resets on every session switch", () => {
+  beforeEach(reset);
+
+  // Pretend the user was inspecting a tool in s1: an open file, a selected +
+  // expanded tool, and a beside-split. All four are session-scoped.
+  function seedInspector(activeSessionId = "s1") {
+    useSessionStore.setState({
+      activeSessionId,
+      activeFile: "src/a.ts",
+      selectedToolId: "tool-1",
+      expandedToolIds: new Set(["tool-1"]),
+      splitViewId: "diff",
+    });
+  }
+
+  function expectCleared() {
+    const s = useSessionStore.getState();
+    expect(s.activeFile).toBe("");
+    expect(s.selectedToolId).toBe("");
+    expect(s.expandedToolIds.size).toBe(0);
+    expect(s.splitViewId).toBeNull();
+  }
+
+  function expectPreserved() {
+    const s = useSessionStore.getState();
+    expect(s.activeFile).toBe("src/a.ts");
+    expect(s.selectedToolId).toBe("tool-1");
+    expect(s.expandedToolIds.has("tool-1")).toBe(true);
+    expect(s.splitViewId).toBe("diff");
+  }
+
+  it("selectTab to a different session clears all four fields", () => {
+    seedInspector();
+    useSessionStore.getState().selectTab("s2");
+    expectCleared();
+  });
+
+  it("re-selecting the SAME session preserves them", () => {
+    seedInspector();
+    useSessionStore.getState().selectTab("s1");
+    expectPreserved();
+  });
+
+  it("closing the active tab clears the state of the session left", () => {
+    seedInspector(); // active s1, tabs s1,s2,s3
+    useSessionStore.getState().closeTab("s1");
+    expect(useSessionStore.getState().activeSessionId).toBe("s2");
+    expectCleared();
+  });
+
+  it("closing a BACKGROUND tab keeps the active session's state", () => {
+    seedInspector(); // active s1
+    useSessionStore.getState().closeTab("s3");
+    expect(useSessionStore.getState().activeSessionId).toBe("s1");
+    expectPreserved();
+  });
+
+  it("closeOtherTabs onto a different session clears the state", () => {
+    seedInspector(); // active s1
+    useSessionStore.getState().closeOtherTabs("s2");
+    expect(useSessionStore.getState().activeSessionId).toBe("s2");
+    expectCleared();
+  });
+
+  it("closeOtherTabs on the active tab preserves its state", () => {
+    seedInspector(); // active s1
+    useSessionStore.getState().closeOtherTabs("s1");
+    expect(useSessionStore.getState().activeSessionId).toBe("s1");
+    expectPreserved();
+  });
+
+  it("closeTabsLeftOf that drops the active session clears the state", () => {
+    seedInspector(); // active s1, tabs s1,s2,s3
+    useSessionStore.getState().closeTabsLeftOf("s2"); // drops s1 → active s2
+    expect(useSessionStore.getState().activeSessionId).toBe("s2");
+    expectCleared();
+  });
+
+  it("closeTabsLeftOf that keeps the active session preserves the state", () => {
+    seedInspector("s3"); // active s3, tabs s1,s2,s3
+    useSessionStore.getState().closeTabsLeftOf("s2"); // next [s2,s3], s3 survives
+    expect(useSessionStore.getState().activeSessionId).toBe("s3");
+    expectPreserved();
+  });
+
+  it("closeTabsRightOf that drops the active session clears the state", () => {
+    seedInspector("s3"); // active s3, tabs s1,s2,s3
+    useSessionStore.getState().closeTabsRightOf("s1"); // next [s1], s3 dropped → active s1
+    expect(useSessionStore.getState().activeSessionId).toBe("s1");
+    expectCleared();
+  });
+
+  it("closeAllTabs clears the state (welcome screen is clean)", () => {
+    seedInspector();
+    useSessionStore.getState().closeAllTabs();
+    expect(useSessionStore.getState().activeSessionId).toBe("");
+    expectCleared();
+  });
+});
+
 describe("selectTab after empty state", () => {
   beforeEach(reset);
 
