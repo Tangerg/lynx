@@ -63,17 +63,6 @@ func (s *Store) Snapshot(ctx context.Context, sessionID, cwd, runID string) erro
 	return nil
 }
 
-// Has reports whether a snapshot exists for runID — lets a caller decide
-// whether a files restore is even possible before attempting it.
-func (s *Store) Has(ctx context.Context, sessionID, runID string) bool {
-	gitDir := s.gitDir(sessionID)
-	if !repoExists(gitDir) {
-		return false
-	}
-	_, err := s.git(ctx, gitDir, "", "rev-parse", "-q", "--verify", "refs/tags/"+tagFor(runID))
-	return err == nil
-}
-
 // Restore resets cwd's work tree to the runID snapshot: tracked files are
 // reverted and files created since are removed (ignored files are left alone).
 // The current state is auto-committed first so the restore is itself

@@ -51,10 +51,6 @@ func TestStore_SnapshotRestore(t *testing.T) {
 		t.Fatalf("snapshot run2: %v", err)
 	}
 
-	if !s.Has(ctx, "ses1", "run1") || !s.Has(ctx, "ses1", "run2") {
-		t.Fatal("Has should report both snapshots")
-	}
-
 	if err := s.Restore(ctx, "ses1", cwd, "run1"); err != nil {
 		t.Fatalf("restore run1: %v", err)
 	}
@@ -76,10 +72,6 @@ func TestStore_RestoreUnknownRun(t *testing.T) {
 	}
 	if err := s.Restore(ctx, "ses1", cwd, "ghost"); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("restore ghost = %v, want ErrUnavailable", err)
-	}
-	// A session with no shadow repo is also unavailable, not a crash.
-	if s.Has(ctx, "nope", "run1") {
-		t.Error("Has on an uninitialized session should be false")
 	}
 }
 

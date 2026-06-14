@@ -250,17 +250,6 @@ func (s *SessionService) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-// Touch refreshes UpdatedAt + bumps TurnCount in a single UPDATE. The bump is
-// kept as atomic SQL (turn_count = turn_count + 1) rather than a
-// load-modify-store on the entity, so concurrent turns can't lose a count.
-// Lives off the public interface: it's implementation-detail bookkeeping the
-// engine calls between turns. ErrNotFound for unknown id.
-func (s *SessionService) Touch(ctx context.Context, id string) error {
-	return s.updateByID(ctx, "touch session",
-		`UPDATE sessions SET updated_at = ?, turn_count = turn_count + 1 WHERE id = ?`,
-		time.Now().UTC().UnixNano(), id)
-}
-
 // SetModel records the session's current model + refreshes UpdatedAt in a
 // single UPDATE (see [session.Service.SetModel]). ErrNotFound for unknown id.
 func (s *SessionService) SetModel(ctx context.Context, id, model string) error {
@@ -300,8 +289,8 @@ func (s *SessionService) SetMetadata(ctx context.Context, id string, meta map[st
 
 // updateByID runs a single-row UPDATE keyed on session id and maps "no row
 // matched" to session.ErrNotFound. op labels the operation for error wrapping
-// (e.g. "rename session"). Shared by the Touch / SetModel / Rename field
-// writes, which differ only in their SET clause and bound args.
+// (e.g. "rename session"). Shared by the SetModel / Rename field writes,
+// which differ only in their SET clause and bound args.
 func (s *SessionService) updateByID(ctx context.Context, op, query string, args ...any) error {
 	res, err := s.db.ExecContext(ctx, query, args...)
 	if err != nil {
