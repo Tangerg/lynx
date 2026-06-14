@@ -31,7 +31,7 @@ type GrepRequest struct {
 
 	OutputMode string `json:"output_mode,omitempty" jsonschema_description:"\"content\" (default; matching lines), \"files_with_matches\" (only paths — saves a lot of context), or \"count\" (per-file match counts)."`
 
-	MaxResults int `json:"max_results,omitempty" jsonschema_description:"Cap on result entries. 0 = use default cap (250)."`
+	HeadLimit int `json:"head_limit,omitempty" jsonschema_description:"Cap on the first N result entries (like head). 0 = use default cap (250)."`
 }
 
 // GrepResponse is the LLM-facing return shape. Exactly one of
@@ -95,7 +95,7 @@ func (t *GrepTool) Call(ctx context.Context, arguments string) (string, error) {
 		BeforeContext: req.BeforeContext,
 		AfterContext:  req.AfterContext,
 		OutputMode:    GrepOutputMode(req.OutputMode),
-		MaxResults:    req.MaxResults,
+		MaxResults:    req.HeadLimit,
 	})
 	if err != nil {
 		return "", fmt.Errorf("fs.grep: %w", err)
