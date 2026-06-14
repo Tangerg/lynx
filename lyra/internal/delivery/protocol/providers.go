@@ -36,6 +36,11 @@ type Provider struct {
 	Type         string `json:"type"` // "openai" | "anthropic" | ...
 	BaseURL      string `json:"baseUrl,omitempty"`
 	APIKeyMasked string `json:"apiKeyMasked"` // "" = unconfigured; e.g. "sk****78"
+	// RequiresBaseURL marks providers with no built-in endpoint — the generic
+	// "openai-compatible" / "anthropic-compatible" passthroughs and Azure
+	// (per-resource URL). The client must collect a base URL when configuring
+	// them, and (since they carry no catalog) a free-form model id.
+	RequiresBaseURL bool `json:"requiresBaseUrl,omitempty"`
 }
 
 // ConfigureProviderRequest — providers.configure body. Provider is the
