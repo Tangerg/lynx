@@ -15,6 +15,9 @@
 // handlers) — that's the core "kernel doesn't grow" design, not a leak.
 
 import { execFileSync } from "node:child_process";
+import { closeSync, openSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 // Ordered longest-prefix-first: first match wins. Paths are relative to
 // src/ (how madge reports them when invoked with `src/`).
@@ -111,18 +114,31 @@ const FORBIDDEN = {
 // that are knowingly allowed despite the rule. Empty today.
 const ALLOWED_EDGES = new Set([]);
 
-let raw;
+// Redirect madge's JSON to a temp FILE rather than capturing its stdout pipe.
+// madge calls process.exit() before an async stdout *pipe* finishes draining
+// (Node's classic exit-truncates-piped-stdout bug), so a captured pipe is
+// silently capped at the 64KB buffer once the graph grows past it — which
+// check:circular dodges only because `--circular` output is tiny. A file fd
+// flushes synchronously on close, so the whole graph survives at any size.
+const graphFile = join(tmpdir(), "lyra-check-layers-madge.json");
+let raw = "";
 try {
-  raw = execFileSync(
-    "npx",
-    ["madge", "--extensions", "ts,tsx", "--ts-config", "tsconfig.json", "--json", "src/"],
-    {
-      encoding: "utf8",
-      maxBuffer: 32 * 1024 * 1024,
-    },
-  );
-} catch (err) {
-  raw = err.stdout?.toString() ?? "";
+  const fd = openSync(graphFile, "w");
+  try {
+    execFileSync(
+      "npx",
+      ["madge", "--extensions", "ts,tsx", "--ts-config", "tsconfig.json", "--json", "src/"],
+      { stdio: ["ignore", fd, "inherit"] },
+    );
+  } catch {
+    // madge can exit non-zero on warnings yet still write a full graph — read
+    // whatever landed and let JSON.parse below be the judge.
+  } finally {
+    closeSync(fd);
+  }
+  raw = readFileSync(graphFile, "utf8");
+} finally {
+  rmSync(graphFile, { force: true });
 }
 
 let graph;
