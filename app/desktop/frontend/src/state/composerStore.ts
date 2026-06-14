@@ -1,5 +1,6 @@
 import { nanoid } from "nanoid";
 import { create } from "zustand";
+import { fileToInputImage } from "@/lib/agent/composerInput";
 
 // Composer data shapes. Declared here (the data owner) instead of in
 // `components/chat/composer/Composer.tsx` so the store doesn't import upward
@@ -37,12 +38,16 @@ interface ComposerActions {
   setModel: (provider: string | null, model: string | null) => void;
   /** Wipe the text + every staged image (one call per successful submit). */
   clear: () => void;
-  /** Stage one or more images (ids auto-assigned). */
+  /** Stage one or more already-decoded images (ids auto-assigned). */
   addImages: (imgs: Omit<ComposerImage, "id">[]) => void;
+  /** Read raw image Files (paste / drop / file-picker) to base64 and stage
+   *  them — the File-ingesting counterpart to `addImages`. Fire-and-forget:
+   *  the FileReader decode runs off the caller's path. */
+  addImageFiles: (files: File[]) => void;
   removeImage: (id: string) => void;
 }
 
-export const useComposerStore = create<ComposerState & ComposerActions>((set) => ({
+export const useComposerStore = create<ComposerState & ComposerActions>((set, get) => ({
   value: "",
   mode: "agent",
   images: [],
@@ -54,5 +59,7 @@ export const useComposerStore = create<ComposerState & ComposerActions>((set) =>
   clear: () => set({ value: "", images: [] }),
   addImages: (imgs) =>
     set((s) => ({ images: [...s.images, ...imgs.map((i) => ({ id: nanoid(), ...i }))] })),
+  addImageFiles: (files) =>
+    void Promise.all(files.map(fileToInputImage)).then((imgs) => get().addImages(imgs)),
   removeImage: (id) => set((s) => ({ images: s.images.filter((i) => i.id !== id) })),
 }));
