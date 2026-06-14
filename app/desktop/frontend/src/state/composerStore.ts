@@ -1,6 +1,7 @@
 import { nanoid } from "nanoid";
 import { create } from "zustand";
 import { fileToInputImage } from "@/lib/agent/composerInput";
+import { notifyError } from "@/lib/notify";
 
 // Composer data shapes. Declared here (the data owner) instead of in
 // `components/chat/composer/Composer.tsx` so the store doesn't import upward
@@ -42,24 +43,52 @@ interface ComposerActions {
   addImages: (imgs: Omit<ComposerImage, "id">[]) => void;
   /** Read raw image Files (paste / drop / file-picker) to base64 and stage
    *  them — the File-ingesting counterpart to `addImages`. Fire-and-forget:
-   *  the FileReader decode runs off the caller's path. */
+   *  the decode runs off the caller's path. Per-file tolerant (one unreadable
+   *  file doesn't drop the whole batch; failures are surfaced via notify), and
+   *  dropped entirely if the composer is cleared/submitted mid-decode so a
+   *  late image can't leak into the next message. */
   addImageFiles: (files: File[]) => void;
   removeImage: (id: string) => void;
 }
 
-export const useComposerStore = create<ComposerState & ComposerActions>((set, get) => ({
-  value: "",
-  mode: "agent",
-  images: [],
-  provider: null,
-  model: null,
-  setValue: (value) => set({ value }),
-  setMode: (mode) => set({ mode }),
-  setModel: (provider, model) => set({ provider, model }),
-  clear: () => set({ value: "", images: [] }),
-  addImages: (imgs) =>
-    set((s) => ({ images: [...s.images, ...imgs.map((i) => ({ id: nanoid(), ...i }))] })),
-  addImageFiles: (files) =>
-    void Promise.all(files.map(fileToInputImage)).then((imgs) => get().addImages(imgs)),
-  removeImage: (id) => set((s) => ({ images: s.images.filter((i) => i.id !== id) })),
-}));
+export const useComposerStore = create<ComposerState & ComposerActions>((set, get) => {
+  // Bumped on every clear() (i.e. every submit). addImageFiles captures it when
+  // its decode starts and drops the result if it advanced — so an image still
+  // decoding when the user submits is discarded rather than leaking into the
+  // NEXT message's composer.
+  let stagingGen = 0;
+  return {
+    value: "",
+    mode: "agent",
+    images: [],
+    provider: null,
+    model: null,
+    setValue: (value) => set({ value }),
+    setMode: (mode) => set({ mode }),
+    setModel: (provider, model) => set({ provider, model }),
+    clear: () => {
+      stagingGen++;
+      set({ value: "", images: [] });
+    },
+    addImages: (imgs) =>
+      set((s) => ({ images: [...s.images, ...imgs.map((i) => ({ id: nanoid(), ...i }))] })),
+    addImageFiles: (files) => {
+      const gen = stagingGen;
+      // allSettled, not all: one unreadable file must not discard the whole
+      // batch, and the chain must never reject (there is no global
+      // unhandledrejection handler). Stage every file that decoded; report the
+      // rest. Drop everything if the composer was cleared mid-decode.
+      void Promise.allSettled(files.map(fileToInputImage)).then((results) => {
+        if (gen !== stagingGen) return; // cleared / submitted while decoding
+        const ok = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+        if (ok.length > 0) get().addImages(ok);
+        const failed = results.length - ok.length;
+        if (failed > 0)
+          notifyError(`Couldn't read ${failed} image${failed > 1 ? "s" : ""}`, {
+            source: "composer",
+          });
+      });
+    },
+    removeImage: (id) => set((s) => ({ images: s.images.filter((i) => i.id !== id) })),
+  };
+});

@@ -30,6 +30,7 @@ const baseProps = {
   images: [],
   onRemoveImage: () => {},
   onAddImages: () => {},
+  acceptsImages: true,
   mode: "agent" as const,
   onModeChange: () => {},
 };
