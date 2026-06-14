@@ -36,7 +36,7 @@
 **单 turn 执行**：agent loop（复用 lynx `agent/runtime` 的 `for{}`）· 工具循环 + **并行工具** · **HITL R 模型**（park-on-interrupt + resume,可持久化/审计/跨重启）· plan 模式 · steering 注入 · **MaxBudget/MaxCostUSD/MaxSteps 上限**。
 **防失控**：**loop detection**（`kernel/engine.go: LoopDetection`,SDK）· budget/step backstop · **todo 校验**（`todo.Validate`）· **`.git` 子路径只读守卫**（`protectedDirs`+`withPathGuard`）· **per-path 写锁**（2026-06-14）。
 **上下文**：压缩按消息数(24) **或 window-相对 token 触发**（默认模型 window×80%,catalog miss 回退 100k,2026-06-14）· wholesale 摘要 + **结构化模板**（2026-06-14）+ 保留最近 · LYRA.md 长期记忆 + extractor 提取事实。
-**代码能力**：**LSP 6 操作**（definition/references/hover/symbols/diagnostics）· 编辑安全（read-before + stale 守卫 + per-path 写锁）· fs/bash/web（fetch+search）· **model-facing todo（`todo_write`,SQLite 持久化）**。
+**代码能力**：**LSP 9 操作**（definition/references/implementation/hover/incoming_calls/outgoing_calls/document_symbols/workspace_symbols + diagnostics;合并成单个 `lsp` 工具 + 独立 `lsp_diagnostics`,对齐 opencode/claude_code）· 编辑安全（read-before + stale 守卫 + per-path 写锁）· fs/bash/web（fetch+search）· **model-facing todo（`todo_write`,SQLite 持久化）**。
 **会话/状态**：Session→Run→Item · **fork + 影子 git 文件 checkpoint + export/import** 三件套 · per-session cwd。
 **集成**：MCP client（5 态生命周期 + **auth 基座已铺**）· **A2A**(agent-to-agent 跨 runtime) · Skills（project+global） · **多 provider×多 model（38 provider,显式配对）**。
 **委派**：subagent 3 种 spawn 模式（protected-only 作委派默认）。
@@ -58,7 +58,7 @@
 | loop detection | ✅ | SDK `LoopDetectionConfig` |
 | budget/step 上限 | ✅ | token + cost + steps |
 | 压缩（token 触发） | ✅🟡 | 有触发,**策略待精修**（§4.6） |
-| LSP 代码智能 | ✅ | 6 操作;harness9/pi/codex/OpenHands 零 LSP |
+| LSP 代码智能 | ✅ | 9 操作（含 implementation + call hierarchy,对齐 opencode/claude_code）;harness9/pi/codex/OpenHands 零 LSP |
 | 编辑安全（read-before+stale） | ✅ | claude_code/crush 同款,方向被验证正确 |
 | model-facing todo | ✅ | `todo_write` SQLite |
 | fork + 文件 checkpoint + export/import | ✅ | 三者同时具备,组合罕见 |
@@ -147,7 +147,7 @@ codex（policy→argv 纯函数,3 平台）· OpenHands（Workspace 接口 + Loc
 ## 5. lyra 领先 / 独有（勿误报为缺口）
 
 - **A2A（跨 runtime agent-to-agent 协议）** —— 全部对比里**独有**。
-- **LSP 代码智能（6 操作,内建非外部服务）** —— 第一梯队;harness9/pi/codex/OpenHands 零 LSP。
+- **LSP 代码智能（9 操作,内建非外部服务）** —— 第一梯队,已对齐 opencode/claude_code（含 implementation + call hierarchy);harness9/pi/codex/OpenHands 零 LSP。
 - **多 provider×model 显式配对（38 provider）** —— 广度 + `(provider,model)` 必须成对的显式性,独有。
 - **OTel 三驾马车 → slog（vendor-neutral semconv 去品牌）** —— 独有形态（codex 仅 OTLP / OpenHands 仅 trace / crush PostHog / pi 无）。
 - **fork + 影子 git 文件 checkpoint + inline export/import 三者同时** —— 组合罕见（cline 缺 fork/export 之一）。

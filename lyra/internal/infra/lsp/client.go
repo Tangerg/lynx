@@ -222,6 +222,62 @@ func (c *client) references(ctx context.Context, abs string, pos Position) ([]Lo
 	return parseLocations(raw), nil
 }
 
+func (c *client) implementation(ctx context.Context, abs string, pos Position) ([]Location, error) {
+	if _, err := c.ensureOpen(ctx, abs); err != nil {
+		return nil, err
+	}
+	var raw json.RawMessage
+	if err := c.conn.Call(ctx, "textDocument/implementation", positionParams{
+		TextDocument: textDocumentIdentifier{URI: pathToURI(abs)},
+		Position:     pos,
+	}, &raw); err != nil {
+		return nil, fmt.Errorf("lsp: implementation: %w", err)
+	}
+	return parseLocations(raw), nil
+}
+
+// callHierarchy resolves the symbol at pos to a call-hierarchy item, then
+// queries its callers (incoming) or callees (outgoing) in one shot — the LSP
+// two-step (prepareCallHierarchy → incoming/outgoingCalls) is hidden from the
+// caller. The callers/callees come back as symbols; empty when pos isn't a
+// callable symbol (prepare returns nothing).
+func (c *client) callHierarchy(ctx context.Context, abs string, pos Position, outgoing bool) ([]Symbol, error) {
+	if _, err := c.ensureOpen(ctx, abs); err != nil {
+		return nil, err
+	}
+	var items []callHierarchyItem
+	if err := c.conn.Call(ctx, "textDocument/prepareCallHierarchy", positionParams{
+		TextDocument: textDocumentIdentifier{URI: pathToURI(abs)},
+		Position:     pos,
+	}, &items); err != nil {
+		return nil, fmt.Errorf("lsp: prepareCallHierarchy: %w", err)
+	}
+	if len(items) == 0 {
+		return nil, nil
+	}
+	params := callHierarchyItemParams{Item: items[0]}
+	if outgoing {
+		var calls []callHierarchyOutgoingCall
+		if err := c.conn.Call(ctx, "callHierarchy/outgoingCalls", params, &calls); err != nil {
+			return nil, fmt.Errorf("lsp: outgoingCalls: %w", err)
+		}
+		out := make([]Symbol, 0, len(calls))
+		for _, call := range calls {
+			out = append(out, call.To.symbol())
+		}
+		return out, nil
+	}
+	var calls []callHierarchyIncomingCall
+	if err := c.conn.Call(ctx, "callHierarchy/incomingCalls", params, &calls); err != nil {
+		return nil, fmt.Errorf("lsp: incomingCalls: %w", err)
+	}
+	out := make([]Symbol, 0, len(calls))
+	for _, call := range calls {
+		out = append(out, call.From.symbol())
+	}
+	return out, nil
+}
+
 func (c *client) hover(ctx context.Context, abs string, pos Position) (string, error) {
 	if _, err := c.ensureOpen(ctx, abs); err != nil {
 		return "", err
