@@ -98,6 +98,14 @@ export const en: Record<string, string> = {
   "plan.dismissAria": "Dismiss plan banner",
   "plan.complete": "{{done}} of {{total}} complete",
 
+  "tools.preview.openTerminal": "Open in Terminal",
+  "tools.preview.openDiff": "Open full diff",
+  "tools.preview.viewFile": "View full file",
+  "tools.preview.viewMatches": "View all matches",
+  "tools.preview.viewDetails": "View details",
+  "tools.preview.viewText": "View full text",
+  "tools.preview.viewReply": "View full reply",
+
   "welcome.eyebrow": "agent ready",
   "welcome.title": "What can I help you build today.",
   "welcome.sub": "Start a conversation, paste a stack trace, or pick a suggestion below.",

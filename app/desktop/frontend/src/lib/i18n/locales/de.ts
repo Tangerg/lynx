@@ -99,6 +99,14 @@ export const de: Record<string, string> = {
   "plan.dismissAria": "Plan-Banner ausblenden",
   "plan.complete": "{{done}} von {{total}} erledigt",
 
+  "tools.preview.openTerminal": "Im Terminal öffnen",
+  "tools.preview.openDiff": "Vollständigen Diff öffnen",
+  "tools.preview.viewFile": "Ganze Datei anzeigen",
+  "tools.preview.viewMatches": "Alle Treffer anzeigen",
+  "tools.preview.viewDetails": "Details anzeigen",
+  "tools.preview.viewText": "Volltext anzeigen",
+  "tools.preview.viewReply": "Ganze Antwort anzeigen",
+
   "welcome.eyebrow": "agent bereit",
   "welcome.title": "Was möchtest du heute bauen?",
   "welcome.sub": "Starte ein Gespräch, füge einen Stack-Trace ein oder wähle einen Vorschlag.",

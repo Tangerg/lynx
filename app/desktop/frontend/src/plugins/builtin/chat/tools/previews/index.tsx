@@ -67,7 +67,7 @@ function BashPreview({ tool, onOpenView }: ToolPreviewProps) {
           {tool.outputTruncated && " · output truncated by runtime"}
         </div>
       )}
-      <PreviewFoot label="Open in Terminal" onClick={onOpenView} />
+      <PreviewFoot label="tools.preview.openTerminal" onClick={onOpenView} />
     </div>
   );
 }
@@ -113,7 +113,7 @@ function DiffPreview({ onOpenView }: ToolPreviewProps) {
           </div>
         )}
       </div>
-      <PreviewFoot label="Open full diff" onClick={onOpenView} />
+      <PreviewFoot label="tools.preview.openDiff" onClick={onOpenView} />
     </div>
   );
 }
@@ -139,7 +139,7 @@ function FilePreview({ tool, onOpenView }: ToolPreviewProps) {
           </div>
         ))}
       </div>
-      <PreviewFoot label="View full file" onClick={onOpenView} />
+      <PreviewFoot label="tools.preview.viewFile" onClick={onOpenView} />
     </div>
   );
 }
@@ -211,7 +211,7 @@ function GrepPreview({ tool, onOpenView }: ToolPreviewProps) {
         {overflow > 0 && <div className="pt-1 text-fg-faint">… {overflow} more matches</div>}
         {inline?.truncated && <div className="pt-1 text-fg-faint">… truncated by runtime</div>}
       </div>
-      <PreviewFoot label="View all matches" onClick={onOpenView} />
+      <PreviewFoot label="tools.preview.viewMatches" onClick={onOpenView} />
     </div>
   );
 }

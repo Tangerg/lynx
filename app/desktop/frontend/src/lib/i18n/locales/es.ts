@@ -98,6 +98,14 @@ export const es: Record<string, string> = {
   "plan.dismissAria": "Descartar el aviso del plan",
   "plan.complete": "{{done}} de {{total}} completadas",
 
+  "tools.preview.openTerminal": "Abrir en terminal",
+  "tools.preview.openDiff": "Abrir diff completo",
+  "tools.preview.viewFile": "Ver archivo completo",
+  "tools.preview.viewMatches": "Ver todas las coincidencias",
+  "tools.preview.viewDetails": "Ver detalles",
+  "tools.preview.viewText": "Ver texto completo",
+  "tools.preview.viewReply": "Ver respuesta completa",
+
   "welcome.eyebrow": "agent listo",
   "welcome.title": "¿Qué quieres construir hoy?",
   "welcome.sub": "Inicia una conversación, pega un stack trace o elige una sugerencia.",

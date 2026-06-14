@@ -98,6 +98,14 @@ export const ja: Record<string, string> = {
   "plan.dismissAria": "プランバナーを閉じる",
   "plan.complete": "{{total}} 件中 {{done}} 件完了",
 
+  "tools.preview.openTerminal": "ターミナルで開く",
+  "tools.preview.openDiff": "完全な diff を開く",
+  "tools.preview.viewFile": "ファイル全体を表示",
+  "tools.preview.viewMatches": "すべての一致を表示",
+  "tools.preview.viewDetails": "詳細を表示",
+  "tools.preview.viewText": "テキスト全体を表示",
+  "tools.preview.viewReply": "返信全体を表示",
+
   "welcome.eyebrow": "agent 準備完了",
   "welcome.title": "今日は何を作りましょうか？",
   "welcome.sub": "会話を始めるか、スタックトレースを貼り付けるか、下の提案から選んでください。",

@@ -95,6 +95,14 @@ export const zh: Record<string, string> = {
   "plan.dismissAria": "关闭计划横幅",
   "plan.complete": "已完成 {{done}} / {{total}}",
 
+  "tools.preview.openTerminal": "在终端打开",
+  "tools.preview.openDiff": "打开完整 diff",
+  "tools.preview.viewFile": "查看完整文件",
+  "tools.preview.viewMatches": "查看所有匹配",
+  "tools.preview.viewDetails": "查看详情",
+  "tools.preview.viewText": "查看完整文本",
+  "tools.preview.viewReply": "查看完整回复",
+
   "welcome.eyebrow": "agent 就绪",
   "welcome.title": "今天想构建点什么？",
   "welcome.sub": "开始对话，粘贴一段错误堆栈，或从下方的建议中挑选。",
