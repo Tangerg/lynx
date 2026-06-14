@@ -29,11 +29,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 )
 
-// JSONRPCVersion is the protocol version every message carries
-// (JSON-RPC 2.0 spec). The SDK's [EncodeMessage] embeds it
-// automatically; callers don't normally need to reference it.
-const JSONRPCVersion = "2.0"
-
 // Message is one JSON-RPC 2.0 envelope. Concrete types are
 // [*Request] and [*Response]; type-switch to discriminate.
 //

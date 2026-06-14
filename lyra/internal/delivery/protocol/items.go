@@ -73,9 +73,6 @@ const (
 	ContentBlockImage ContentBlockType = "image"
 )
 
-// Valid reports whether t is a known content-block type.
-func (t ContentBlockType) Valid() bool { return t == ContentBlockText || t == ContentBlockImage }
-
 // PlanStepStatus is the lifecycle of one PlanStep (API.md §4.3; "running"
 // everywhere per §2.3).
 type PlanStepStatus string
