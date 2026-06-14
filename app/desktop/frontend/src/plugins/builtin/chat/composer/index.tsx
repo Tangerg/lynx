@@ -17,6 +17,7 @@ import { useChatSend } from "@/lib/agent/useChatSend";
 import { submitPendingApproval } from "@/lib/agent/submitPendingApproval";
 import { useModels, useProjects } from "@/lib/data/queries";
 import { basename } from "@/lib/path";
+import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import {
@@ -35,7 +36,10 @@ export const composerModes = definePlugin({
   setup({ host }) {
     host.extensions.contribute(COMPOSER_MODE, {
       id: "agent",
-      label: "Agent",
+      // label/description are i18n keys — the render site (ModePicker) resolves
+      // them via t(); a third-party plugin may pass a literal, which t() returns
+      // unchanged. Keep them keys so a locale switch relabels live.
+      label: "composer.mode.agent",
       icon: "spark",
       order: 0,
       description: "Runs tools, edits files, executes commands. Asks before risky actions.",
@@ -45,14 +49,14 @@ export const composerModes = definePlugin({
     // ("read-only, no tool calls") is enforced by the runtime, not just copy.
     host.extensions.contribute(COMPOSER_MODE, {
       id: "chat",
-      label: "Ask",
+      label: "composer.mode.chat",
       icon: "chat",
       order: 1,
       description: "Read-only conversation. No tool calls, no file changes.",
     });
     host.extensions.contribute(COMPOSER_MODE, {
       id: "plan",
-      label: "Plan",
+      label: "composer.mode.plan",
       icon: "list",
       order: 2,
       description: "Produces a plan first. Nothing runs until you switch to Agent.",
@@ -64,21 +68,23 @@ export const composerPlaceholders = definePlugin({
   name: "lyra.builtin.composer-placeholders",
   version: "1.0.0",
   setup({ host }) {
+    // `text` is an i18n key — Composer resolves it via t() at render (so a
+    // locale switch relabels). The "ask" hint reuses the shared fallback key.
     host.extensions.contribute(COMPOSER_PLACEHOLDER, {
       id: "ask",
-      text: "Ask, plan, or paste a stack trace…  /  to run a command",
+      text: "composer.placeholder.fallback",
     });
     host.extensions.contribute(COMPOSER_PLACEHOLDER, {
       id: "debug",
-      text: "Paste a failing test output and I'll walk you through it.",
+      text: "composer.placeholder.debug",
     });
     host.extensions.contribute(COMPOSER_PLACEHOLDER, {
       id: "implement",
-      text: "Implement what? Describe the change and I'll plan + execute.",
+      text: "composer.placeholder.implement",
     });
     host.extensions.contribute(COMPOSER_PLACEHOLDER, {
       id: "refactor",
-      text: "Point at code that smells; I'll suggest a refactor.",
+      text: "composer.placeholder.refactor",
     });
   },
 });
@@ -169,7 +175,10 @@ function IconChip({ icon, hint }: { icon: IconName; hint: string }) {
   );
 }
 
-const ExecModeChip = () => <IconChip icon="shield" hint="Execution mode · Workspace · Auto" />;
+const ExecModeChip = () => {
+  const t = useT();
+  return <IconChip icon="shield" hint={t("composer.execMode.hint")} />;
+};
 
 // Where is this conversation working? Basename in the chip, full path in
 // the tooltip. Hidden until the session (and its cwd) is known.
@@ -187,12 +196,13 @@ function CwdChip() {
 // checkout flows refresh it through the resync invalidation). Hidden when
 // the cwd isn't a known project or has no branch.
 function GitBranchChip() {
+  const t = useT();
   const cwd = useActiveSessionCwd();
   const { data: projects } = useProjects();
   const branch = cwd ? projects?.find((p) => p.id === cwd)?.branch : undefined;
   if (!branch) return null;
   return (
-    <Chip icon="branch" title="Git branch">
+    <Chip icon="branch" title={t("composer.gitBranch")}>
       {branch}
     </Chip>
   );
@@ -225,6 +235,7 @@ export const composerChips = definePlugin({
 // rpc-agent driver from composerStore). Models are identified by provider+id
 // since the same model id can appear under more than one provider.
 function ModelPicker() {
+  const t = useT();
   const { data: models = [] } = useModels();
   const provider = useComposerStore((s) => s.provider);
   const model = useComposerStore((s) => s.model);
@@ -244,7 +255,7 @@ function ModelPicker() {
       <DropdownMenu.Trigger asChild>
         <button
           type="button"
-          aria-label="Switch model"
+          aria-label={t("composer.switchModel")}
           className="mr-1 inline-flex h-6.5 shrink-0 items-center gap-1.5 rounded-full border border-transparent bg-transparent pl-1.5 pr-2.5 font-sans text-[12px] font-semibold text-fg whitespace-nowrap transition-colors hover:bg-surface-2 hover:border-line data-[state=open]:bg-surface-2 data-[state=open]:border-line"
         >
           <ProviderIcon provider={selected.provider} size={16} />
@@ -284,6 +295,7 @@ function ModelPicker() {
 // by the selected model's `multimodal` capability (the backend also rejects a
 // non-multimodal model with invalid_params, MULTIMODAL_IMAGE_INPUT §4).
 function AttachButton() {
+  const t = useT();
   const addImageFiles = useComposerStore((s) => s.addImageFiles);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -296,7 +308,7 @@ function AttachButton() {
         type="file"
         accept="image/*"
         multiple
-        aria-label="Attach image"
+        aria-label={t("composer.attachImage")}
         className="hidden"
         onChange={(e) => {
           const files = imageFiles(e.target.files);
@@ -304,10 +316,12 @@ function AttachButton() {
           if (files.length > 0) addImageFiles(files); // same store path as paste/drop
         }}
       />
-      <Tooltip label={canAttach ? "Attach image" : "This model doesn't accept images"}>
+      <Tooltip
+        label={canAttach ? t("composer.attachImage") : t("composer.attachImage.unsupported")}
+      >
         <button
           type="button"
-          aria-label="Attach image"
+          aria-label={t("composer.attachImage")}
           disabled={!canAttach}
           onClick={() => inputRef.current?.click()}
           className="inline-flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-fg-faint transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
@@ -337,6 +351,7 @@ export const composerToolbar = definePlugin({
 });
 
 function SendButton() {
+  const t = useT();
   const value = useComposerStore((s) => s.value);
   const images = useComposerStore((s) => s.images);
   const clear = useComposerStore((s) => s.clear);
@@ -348,7 +363,7 @@ function SendButton() {
 
   if (running) {
     return (
-      <Tooltip label="Stop (Esc)">
+      <Tooltip label={t("composer.action.stop")}>
         <button
           type="button"
           disabled={!stop}
@@ -367,7 +382,7 @@ function SendButton() {
   const onClick = () => submitComposer({ value, clear, sendInput: send, images });
 
   return (
-    <Tooltip label="Send (⌘↵)">
+    <Tooltip label={t("composer.action.send")}>
       <button
         type="button"
         disabled={disabled}
