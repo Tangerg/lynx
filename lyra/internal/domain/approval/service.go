@@ -10,19 +10,20 @@ package approval
 
 import "context"
 
-// Mode is the runtime-wide permission stance. Set via config; read at
-// each tool call by the chat engine's approval gate.
+// Mode is the runtime-wide permission stance. Set via config or the
+// workspace.setApprovalMode method; read at each tool call by the chat
+// engine's approval gate.
 //
 // Strictness gradient (strictest → loosest):
 //
-//	ModeReadOnly  deny every non-read tool outright (no prompt)
+//	ModePlan      read-only: deny every write / exec / network tool (no prompt)
 //	ModeSafe      prompt on every write / exec / network tool
 //	ModeBalanced  auto-allow write/network; prompt only on exec
 //	ModeYolo      auto-allow everything
 //
-// The const VALUES are not in strictness order — ModeReadOnly is
-// appended (value 3) so the existing zero value (ModeSafe) is
-// unchanged. Order code against the named constants, never the ints.
+// The const VALUES are not in strictness order — ModePlan is appended
+// (value 3) so the existing zero value (ModeSafe) is unchanged. Order
+// code against the named constants, never the ints.
 type Mode int
 
 const (
@@ -32,11 +33,12 @@ const (
 	ModeBalanced
 	// ModeYolo — auto-allow everything (use at your own risk).
 	ModeYolo
-	// ModeReadOnly — strictest: only read-only tools run; every
-	// write / exec / network tool is denied immediately without
-	// prompting, and the model sees the refusal as a tool error so it
-	// can adapt.
-	ModeReadOnly
+	// ModePlan — the read-only planning stance: every write / exec /
+	// network tool is denied outright (no prompt) so the agent can only
+	// investigate and draft a plan; the model sees the refusal as a tool
+	// error and adapts. The exit_plan_mode tool presents the plan for
+	// approval and flips the stance back to execute (ModeBalanced).
+	ModePlan
 )
 
 // Service is the runtime approval stance. Read at each tool call by the
