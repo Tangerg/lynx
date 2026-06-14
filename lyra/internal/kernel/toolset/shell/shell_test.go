@@ -75,6 +75,49 @@ func TestBash_RunInBackground(t *testing.T) {
 	}
 }
 
+// TestBashOutput_Wait blocks until a backgrounded command finishes, then
+// returns its output + a finished status in a single call (the crush wait
+// design — event-driven, no sleep poll loop).
+func TestBashOutput_Wait(t *testing.T) {
+	mgr := exec.NewManager()
+	t.Cleanup(mgr.KillAll)
+	bash := shellTool(t, mgr, "bash")
+	output := shellTool(t, mgr, "bash_output")
+
+	out, err := bash.Call(context.Background(), `{"command":"sleep 0.3; printf done","run_in_background":true}`)
+	if err != nil || !strings.Contains(out, "shell bg_1") {
+		t.Fatalf("bash(bg) = %q err=%v", out, err)
+	}
+	// Without waiting it's still running; with wait it blocks to completion.
+	read, err := output.Call(context.Background(), `{"shell_id":"bg_1","wait":true}`)
+	if err != nil {
+		t.Fatalf("bash_output(wait) err=%v", err)
+	}
+	if !strings.Contains(read, "done") || !strings.Contains(read, "finished") {
+		t.Fatalf("bash_output(wait) = %q, want finished output containing 'done'", read)
+	}
+}
+
+// TestBashOutput_WaitTimeout returns the current still-running output (not an
+// error) when timeout_seconds elapses before the command exits.
+func TestBashOutput_WaitTimeout(t *testing.T) {
+	mgr := exec.NewManager()
+	t.Cleanup(mgr.KillAll)
+	bash := shellTool(t, mgr, "bash")
+	output := shellTool(t, mgr, "bash_output")
+
+	if _, err := bash.Call(context.Background(), `{"command":"sleep 30","run_in_background":true}`); err != nil {
+		t.Fatalf("bash(bg) err=%v", err)
+	}
+	read, err := output.Call(context.Background(), `{"shell_id":"bg_1","wait":true,"timeout_seconds":1}`)
+	if err != nil {
+		t.Fatalf("bash_output(wait,timeout) err=%v, want graceful still-running", err)
+	}
+	if !strings.Contains(read, "still running") {
+		t.Fatalf("bash_output(wait,timeout) = %q, want a still-running status", read)
+	}
+}
+
 // TestBash_AutoBackground checks the promotion path: a command still running
 // after auto_background_after seconds is moved to the background and stays
 // addressable by its shell id.
