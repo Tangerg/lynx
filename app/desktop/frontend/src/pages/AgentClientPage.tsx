@@ -16,7 +16,9 @@ export function AgentClientPage() {
   // While a split (beside) view is open, hand the full window width to
   // chat + split: the `split` modifier collapses the sidebar grid column to
   // 0 (mirroring `.app.rail`). The sidebar Slot stays MOUNTED — only the
-  // track collapses — so closing the split restores it without remount.
+  // track collapses — so closing the split restores it without remount; the
+  // `inert` below keeps its still-rendered buttons out of the tab order +
+  // a11y tree while they're invisible (zero-width).
   const splitOpen = useSessionStore((s) => s.splitViewId !== null);
 
   return (
@@ -29,7 +31,7 @@ export function AgentClientPage() {
             stretch into the cell. Wrapping with a layout-active element
             would steal the cell's height and Panel's `flex flex-col +
             min-h-0` would collapse to 0. */}
-        <aside aria-label="Sidebar" className="contents">
+        <aside aria-label="Sidebar" className="contents" inert={splitOpen}>
           <Slot name="app.sidebar" />
         </aside>
         <main aria-label="Main" className="contents">
