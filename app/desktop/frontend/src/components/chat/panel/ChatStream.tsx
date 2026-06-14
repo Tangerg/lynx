@@ -9,6 +9,7 @@ import type { StreamControls } from "./MessageStream";
 import type { UserInput } from "@/lib/agent/composerInput";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useModels } from "@/lib/data/queries";
+import { useSelectedModel } from "@/lib/agent/useSelectedModel";
 import { useActiveSession } from "@/lib/agent/useActiveSession";
 import { Slot } from "@/plugins/host/Slot";
 import { useAgentSlice } from "@/state/agentStore";
@@ -47,6 +48,9 @@ export function ChatStream({ onSend, resetKey }: Props) {
   const removeImage = useComposerStore((s) => s.removeImage);
   const clearComposer = useComposerStore((s) => s.clear);
   const addImageFiles = useComposerStore((s) => s.addImageFiles);
+  // Gate image staging on the next run's model accepting images — keeps the
+  // paste/drop path consistent with the (disabled) toolbar attach button.
+  const acceptsImages = useSelectedModel()?.multimodal ?? false;
 
   // Assistant header name = this session's model, resolved to its friendly
   // displayName. Resolved ONCE here (both lists are stable react-query data,
@@ -165,6 +169,7 @@ export function ChatStream({ onSend, resetKey }: Props) {
             images={images}
             onRemoveImage={removeImage}
             onAddImages={addImageFiles}
+            acceptsImages={acceptsImages}
             mode={composerMode}
             onModeChange={setComposerMode}
           />

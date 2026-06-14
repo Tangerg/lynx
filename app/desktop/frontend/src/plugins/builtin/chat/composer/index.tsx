@@ -10,7 +10,8 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useEffect, useRef } from "react";
 import { submitComposer } from "@/components/chat/composer";
 import { Icon, ProviderIcon, Tooltip } from "@/components/common";
-import { fileToInputImage, imageFiles } from "@/lib/agent/composerInput";
+import { imageFiles } from "@/lib/agent/composerInput";
+import { useSelectedModel } from "@/lib/agent/useSelectedModel";
 import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
 import { useChatSend } from "@/lib/agent/useChatSend";
 import { submitPendingApproval } from "@/lib/agent/submitPendingApproval";
@@ -153,14 +154,13 @@ function Chip({ icon, title, children }: { icon: IconName; title: string; childr
 }
 
 // Icon-only affordance — the value lives in the tooltip, the glyph keeps
-// the footer light. Click reserved for future state toggles.
-function IconChip({ icon, hint, onClick }: { icon: IconName; hint: string; onClick?: () => void }) {
+// the footer light.
+function IconChip({ icon, hint }: { icon: IconName; hint: string }) {
   return (
     <Tooltip label={hint}>
       <button
         type="button"
         aria-label={hint}
-        onClick={onClick}
         className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm border-0 bg-transparent text-fg-faint transition-colors hover:bg-surface-2 hover:text-fg"
       >
         <Icon name={icon} size={12} />
@@ -284,14 +284,10 @@ function ModelPicker() {
 // by the selected model's `multimodal` capability (the backend also rejects a
 // non-multimodal model with invalid_params, MULTIMODAL_IMAGE_INPUT §4).
 function AttachButton() {
-  const { data: models = [] } = useModels();
-  const provider = useComposerStore((s) => s.provider);
-  const model = useComposerStore((s) => s.model);
-  const addImages = useComposerStore((s) => s.addImages);
+  const addImageFiles = useComposerStore((s) => s.addImageFiles);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const selected = models.find((m) => m.provider === provider && m.id === model) ?? models[0];
-  const canAttach = selected?.multimodal ?? false;
+  const canAttach = useSelectedModel()?.multimodal ?? false;
 
   return (
     <>
@@ -305,7 +301,7 @@ function AttachButton() {
         onChange={(e) => {
           const files = imageFiles(e.target.files);
           e.target.value = ""; // allow re-picking the same file
-          if (files.length > 0) void Promise.all(files.map(fileToInputImage)).then(addImages);
+          if (files.length > 0) addImageFiles(files); // same store path as paste/drop
         }}
       />
       <Tooltip label={canAttach ? "Attach image" : "This model doesn't accept images"}>

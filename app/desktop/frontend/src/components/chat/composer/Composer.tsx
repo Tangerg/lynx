@@ -27,6 +27,9 @@ interface Props {
   onRemoveImage: (id: string) => void;
   /** Stage dropped / pasted image files (filtered to image/* by the caller). */
   onAddImages: (files: File[]) => void;
+  /** Whether the next run's model accepts images — gates paste/drop staging so
+   *  it matches the toolbar attach button (which disables for text-only models). */
+  acceptsImages: boolean;
   mode: ComposerMode;
   onModeChange: (m: ComposerMode) => void;
 }
@@ -39,6 +42,7 @@ export function Composer({
   images,
   onRemoveImage,
   onAddImages,
+  acceptsImages,
   mode,
   onModeChange,
 }: Props) {
@@ -79,7 +83,8 @@ export function Composer({
       onDrop={(e) => {
         const files = imageFiles(e.dataTransfer?.files);
         if (files.length === 0) return;
-        e.preventDefault();
+        e.preventDefault(); // swallow the drop even if the model can't take it
+        if (!acceptsImages) return; // text-only model — toolbar attach is disabled too
         onAddImages(files);
       }}
       className="relative rounded-2xl border border-line-soft bg-surface px-2.5 pb-1.5 pt-2 transition-[border-color,box-shadow] duration-150 focus-within:border-line-soft focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)]"
@@ -102,6 +107,7 @@ export function Composer({
           const files = imageFiles(e.clipboardData?.files);
           if (files.length === 0) return; // let a normal text paste through
           e.preventDefault();
+          if (!acceptsImages) return; // text-only model — don't stage the image
           onAddImages(files);
         }}
         onKeyDown={(e) => {
