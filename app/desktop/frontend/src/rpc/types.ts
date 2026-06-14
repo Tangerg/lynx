@@ -82,8 +82,9 @@ export const RPC_CAPABILITY_NOT_NEGOTIATED = -32006;
 // (running|finished), so "not running" collapses into run_already_finished (§8.2).
 export const RPC_RUN_ALREADY_FINISHED = -32008;
 export const RPC_CHECKPOINT_UNAVAILABLE = -32009;
-export const RPC_ATTACHMENT_TOO_LARGE = -32010;
-export const RPC_UNSUPPORTED_MIME = -32011;
+// -32010 (attachment_too_large) retired with the attachment upload domain
+// (MULTIMODAL_IMAGE_INPUT, 2026-06-14) — left as a hole, never reused.
+export const RPC_UNSUPPORTED_MIME = -32011; // image block mime: not an image type / unparseable
 export const RPC_TOOL_DENIED = -32012;
 export const RPC_PATH_OUTSIDE_ROOT = -32013;
 export const RPC_INTERRUPT_NOT_OPEN = -32014;

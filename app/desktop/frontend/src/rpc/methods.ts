@@ -9,11 +9,10 @@
 // (see ./stream).
 
 import type { RpcClient } from "./client";
-import type { AttachmentId, RunId, SessionId } from "./ids";
+import type { RunId, SessionId } from "./ids";
 import type {
   AgentDoc,
   ApprovalMode,
-  Attachment,
   CanceledNotification,
   CodeLocation,
   CodePosition,
@@ -21,8 +20,6 @@ import type {
   CompactionResult,
   ConfigureProviderRequest,
   CreateSessionRequest,
-  CreateUploadUrlRequest,
-  CreateUploadUrlResponse,
   Diagnostic,
   Diff,
   DocumentSymbol,
@@ -238,11 +235,6 @@ export interface Methods {
     get: (scope: MemoryScope, cwd?: string) => Promise<MemoryEntry>;
     update: (params: { scope: MemoryScope; cwd?: string; content: string }) => Promise<void>;
   };
-  attachments: {
-    createUploadUrl: (params: CreateUploadUrlRequest) => Promise<CreateUploadUrlResponse>;
-    get: (attachmentId: AttachmentId) => Promise<Attachment>;
-    delete: (attachmentId: AttachmentId) => Promise<void>;
-  };
   feedback: {
     create: (params: FeedbackRequest) => Promise<void>;
   };
@@ -374,12 +366,6 @@ export function createMethods(client: RpcClient): Methods {
       list: (cwd) => client.call<Page<MemoryEntry>>("memory.list", { cwd }),
       get: (scope, cwd) => client.call<MemoryEntry>("memory.get", { scope, cwd }),
       update: (params) => client.call<void>("memory.update", params),
-    },
-    attachments: {
-      createUploadUrl: (params) =>
-        client.call<CreateUploadUrlResponse>("attachments.createUploadUrl", params),
-      get: (attachmentId) => client.call<Attachment>("attachments.get", { attachmentId }),
-      delete: (attachmentId) => client.call<void>("attachments.delete", { attachmentId }),
     },
     feedback: {
       create: (params) => client.call<void>("feedback.create", params),

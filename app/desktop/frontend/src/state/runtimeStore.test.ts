@@ -25,7 +25,6 @@ function makeCaps(overrides: Partial<ServerCapabilities> = {}): ServerCapabiliti
       memory: false,
       relocate: true,
       clientTools: false,
-      attachments: { enabled: false },
     },
     providers: ["openai", "anthropic"],
     streamingMethods: ["runs.start", "runs.resume", "runs.subscribe"],

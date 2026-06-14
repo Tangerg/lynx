@@ -386,10 +386,9 @@ InProcess / IPC 没有这种场景（无网络探针、客户端直接持有 run
 
 即：`/v2/info` 内容 = `runtime.initialize` 响应的扁平子集；`/v2/health` 等价于 `runtime.ping`。
 
-> **同理另一个非 JSON-RPC 通道：附件二进制上传。** `attachments.createUploadUrl` 返回的 `uploadUrl`
-> 在 HTTP 上是 `PUT` 二进制端点，在 InProcess/IPC 上是 `file://` / native binding / `[]byte` 句柄。
-> 规律：**非 JSON-RPC 的旁路通道各 transport 用自己的原生形态实现；场景不适用的 transport 由协议内
-> 方法替代。**
+> **规律：非 JSON-RPC 的旁路通道各 transport 用自己的原生形态实现；场景不适用的 transport 由协议内
+> 方法替代。**（图片输入不属于此类——它内联在 `runs.start.input` 的 image ContentBlock 里走常规 JSON-RPC，
+> 无独立二进制上传通道。）
 
 ### 12.1 `GET /v2/health`
 
@@ -418,7 +417,7 @@ InProcess / IPC 没有这种场景（无网络探针、客户端直接持有 run
       "reasoning": true,
       "mcp": true,
       "relocate": true,
-      "attachments": { "enabled": false }
+      "multimodal": true
     },
     "providers": [],
     "limits": { "maxConcurrentRuns": 8 }
