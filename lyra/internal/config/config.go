@@ -30,27 +30,37 @@ import (
 type Provider string
 
 const (
-	ProviderAnthropic Provider = "anthropic"
-	ProviderOpenAI    Provider = "openai"
-	ProviderMoonshot  Provider = "moonshot" // Kimi (OpenAI-compatible)
-	ProviderDeepSeek  Provider = "deepseek" // DeepSeek (OpenAI-compatible)
-)
+	// Native + OpenAI-/Anthropic-compatible vendors with a catalog (models.list
+	// browses their models). Each routes through its own adapter, which encodes
+	// the vendor endpoint. IAM-only vendors (amazonbedrock, vertexai) are
+	// intentionally absent — they don't fit the "paste an API key" model.
+	ProviderAnthropic   Provider = "anthropic"
+	ProviderOpenAI      Provider = "openai"
+	ProviderMoonshot    Provider = "moonshot" // Kimi (OpenAI-compatible)
+	ProviderDeepSeek    Provider = "deepseek" // DeepSeek (OpenAI-compatible)
+	ProviderAlibaba     Provider = "alibaba"  // Qwen
+	ProviderAzureOpenAI Provider = "azureopenai"
+	ProviderFireworks   Provider = "fireworks"
+	ProviderGoogle      Provider = "google" // Gemini
+	ProviderGroq        Provider = "groq"
+	ProviderHuggingface Provider = "huggingface"
+	ProviderMinimax     Provider = "minimax"
+	ProviderMistral     Provider = "mistral"
+	ProviderOllama      Provider = "ollama" // local
+	ProviderOpenRouter  Provider = "openrouter"
+	ProviderPerplexity  Provider = "perplexity"
+	ProviderTogether    Provider = "together"
+	ProviderXAI         Provider = "xai" // Grok
+	ProviderXiaomi      Provider = "xiaomi"
+	ProviderZhipu       Provider = "zhipu" // GLM
 
-// providerInfo is the per-provider metadata table — the single place
-// that knows each provider's default model + the env var its key reads
-// from. A provider is "known" iff it has a row here. Adding one = a row
-// here + a case in BuildChatClient's model construction; the validate /
-// default-model / key-env lookups all read this map instead of each
-// repeating a switch.
-var providerInfo = map[Provider]struct {
-	defaultModel string
-	apiKeyEnv    string
-}{
-	ProviderAnthropic: {"claude-3-5-haiku-20241022", "ANTHROPIC_API_KEY"},
-	ProviderOpenAI:    {"gpt-4o-mini", "OPENAI_API_KEY"},
-	ProviderMoonshot:  {"kimi-k2-0905-preview", "MOONSHOT_API_KEY"},
-	ProviderDeepSeek:  {"deepseek-v4-flash", "DEEPSEEK_API_KEY"},
-}
+	// Generic "bring-your-own-endpoint" providers: the user supplies the base
+	// URL + key + model id, and the turn runs through the OpenAI- / Anthropic-
+	// wire adapter. They cover any compatible gateway not named above (and have
+	// no catalog — the model id is user-supplied).
+	ProviderOpenAICompat    Provider = "openai-compatible"
+	ProviderAnthropicCompat Provider = "anthropic-compatible"
+)
 
 // ServerConfig holds the `lyra serve` HTTP transport settings. CLI
 // flags override these (serve resolves flag-vs-config per field).

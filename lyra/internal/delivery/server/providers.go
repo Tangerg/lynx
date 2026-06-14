@@ -40,10 +40,11 @@ func (s *Server) ListProviders(ctx context.Context, _ protocol.PageQuery) (*prot
 // doubles as type; the key is masked ("" = unconfigured, the enabled signal).
 func providerToWire(id string, entry provider.Provider) protocol.Provider {
 	return protocol.Provider{
-		ID:           id,
-		Type:         id,
-		BaseURL:      entry.BaseURL,
-		APIKeyMasked: entry.MaskedAPIKey(),
+		ID:              id,
+		Type:            id,
+		BaseURL:         entry.BaseURL,
+		APIKeyMasked:    entry.MaskedAPIKey(),
+		RequiresBaseURL: config.RequiresBaseURL(config.Provider(id)),
 	}
 }
 
