@@ -126,6 +126,37 @@ func (m *Manager) References(ctx context.Context, root, file string, pos Positio
 	return c.references(ctx, abs, pos)
 }
 
+// Implementation returns the concrete implementation site(s) of the interface
+// or abstract method at pos.
+func (m *Manager) Implementation(ctx context.Context, root, file string, pos Position) ([]Location, error) {
+	abs := resolve(root, file)
+	c, err := m.clientForFile(root, abs)
+	if err != nil {
+		return nil, err
+	}
+	return c.implementation(ctx, abs, pos)
+}
+
+// IncomingCalls returns the callers of the function/method at pos (who calls
+// it), as symbols. OutgoingCalls returns its callees (what it calls).
+func (m *Manager) IncomingCalls(ctx context.Context, root, file string, pos Position) ([]Symbol, error) {
+	abs := resolve(root, file)
+	c, err := m.clientForFile(root, abs)
+	if err != nil {
+		return nil, err
+	}
+	return c.callHierarchy(ctx, abs, pos, false)
+}
+
+func (m *Manager) OutgoingCalls(ctx context.Context, root, file string, pos Position) ([]Symbol, error) {
+	abs := resolve(root, file)
+	c, err := m.clientForFile(root, abs)
+	if err != nil {
+		return nil, err
+	}
+	return c.callHierarchy(ctx, abs, pos, true)
+}
+
 // Hover returns the server's hover text (signature, doc) at pos, as plain text.
 func (m *Manager) Hover(ctx context.Context, root, file string, pos Position) (string, error) {
 	abs := resolve(root, file)

@@ -8,10 +8,11 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/kernel/toolset"
 )
 
-// TestEngine_RegistersLSPTools verifies the six code-intelligence tools are
-// folded into the engine's tool set (so the model can call them). This is a
-// pure wiring check — no language server is started. The tool-layer behavior
-// (unsupported file, post-edit diagnostics) is tested in internal/engine/toolset.
+// TestEngine_RegistersLSPTools verifies the code-intelligence tools are folded
+// into the engine's tool set (so the model can call them): the combined `lsp`
+// query tool + the separate `lsp_diagnostics`. This is a pure wiring check — no
+// language server is started. The tool-layer behavior (unsupported file,
+// post-edit diagnostics) is tested in internal/kernel/toolset.
 func TestEngine_RegistersLSPTools(t *testing.T) {
 	stub := newStubModel("nop", `{}`, "")
 	client, _ := chat.NewClient(stub)
@@ -22,10 +23,7 @@ func TestEngine_RegistersLSPTools(t *testing.T) {
 	for _, tool := range eng.Tools() {
 		have[tool.Definition().Name] = true
 	}
-	for _, want := range []string{
-		"lsp_definition", "lsp_references", "lsp_hover",
-		"lsp_document_symbols", "lsp_diagnostics", "lsp_workspace_symbols",
-	} {
+	for _, want := range []string{"lsp", "lsp_diagnostics"} {
 		if !have[want] {
 			t.Errorf("tool %q not registered in engine.Tools()", want)
 		}

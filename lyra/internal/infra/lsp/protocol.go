@@ -144,6 +144,46 @@ type workspaceSymbolParams struct {
 	Query string `json:"query"`
 }
 
+// callHierarchyItem is one node in the call graph (a function/method), returned
+// by prepareCallHierarchy and carried back into incoming/outgoingCalls. We type
+// the fields the tool layer renders; the server round-trips the rest opaquely
+// via [json.RawMessage] so an item is handed back byte-for-byte.
+type callHierarchyItem struct {
+	Name           string          `json:"name"`
+	Kind           int             `json:"kind"`
+	URI            string          `json:"uri"`
+	Range          Range           `json:"range"`
+	SelectionRange Range           `json:"selectionRange"`
+	Detail         string          `json:"detail,omitempty"`
+	Data           json.RawMessage `json:"data,omitempty"` // server-private; preserved across the round trip
+}
+
+// symbol maps a call-hierarchy node onto the normalized [Symbol] the tool layer
+// formats — its selection range is the precise name span.
+func (it callHierarchyItem) symbol() Symbol {
+	return Symbol{
+		Name:     it.Name,
+		Kind:     it.Kind,
+		Detail:   it.Detail,
+		Location: Location{URI: it.URI, Range: it.SelectionRange},
+	}
+}
+
+type callHierarchyItemParams struct {
+	Item callHierarchyItem `json:"item"`
+}
+
+// callHierarchyIncomingCall is one caller (`from`) of the queried symbol;
+// outgoing is one callee (`to`). fromRanges (the exact call sites) are not
+// rendered — the caller/callee location suffices for navigation.
+type callHierarchyIncomingCall struct {
+	From callHierarchyItem `json:"from"`
+}
+
+type callHierarchyOutgoingCall struct {
+	To callHierarchyItem `json:"to"`
+}
+
 // publishDiagnosticsParams is the server→client push we cache. Version echoes
 // the document version the server diagnosed, so a post-edit wait can tell
 // fresh diagnostics from stale ones.
@@ -182,8 +222,10 @@ func defaultCapabilities() map[string]any {
 			"synchronization":    map[string]any{"dynamicRegistration": false, "didSave": false},
 			"definition":         map[string]any{},
 			"references":         map[string]any{},
+			"implementation":     map[string]any{},
 			"hover":              map[string]any{"contentFormat": []string{"markdown", "plaintext"}},
 			"documentSymbol":     map[string]any{"hierarchicalDocumentSymbolSupport": false},
+			"callHierarchy":      map[string]any{},
 			"publishDiagnostics": map[string]any{},
 		},
 		"workspace": map[string]any{

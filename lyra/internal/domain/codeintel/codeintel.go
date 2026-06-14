@@ -95,6 +95,53 @@ func (s *Service) References(ctx context.Context, root, file string, line, colum
 	return formatLocations(root, locs, "reference"), nil
 }
 
+// Implementation returns the concrete implementation site(s) of the interface
+// or abstract method at the 1-based (line, column) in file — e.g. every type
+// that implements the interface method under the cursor.
+func (s *Service) Implementation(ctx context.Context, root, file string, line, column int) (string, error) {
+	if s == nil {
+		return noServerMsg, nil
+	}
+	locs, err := s.mgr.Implementation(ctx, root, file, toPosition(line, column))
+	if msg, handled := foldNoServer(err); handled {
+		return msg, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return formatLocations(root, locs, "implementation"), nil
+}
+
+// IncomingCalls lists the callers of the function/method at the 1-based
+// (line, column) in file (who calls it). OutgoingCalls lists its callees.
+func (s *Service) IncomingCalls(ctx context.Context, root, file string, line, column int) (string, error) {
+	if s == nil {
+		return noServerMsg, nil
+	}
+	syms, err := s.mgr.IncomingCalls(ctx, root, file, toPosition(line, column))
+	if msg, handled := foldNoServer(err); handled {
+		return msg, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return formatCalls(root, syms, "incoming calls"), nil
+}
+
+func (s *Service) OutgoingCalls(ctx context.Context, root, file string, line, column int) (string, error) {
+	if s == nil {
+		return noServerMsg, nil
+	}
+	syms, err := s.mgr.OutgoingCalls(ctx, root, file, toPosition(line, column))
+	if msg, handled := foldNoServer(err); handled {
+		return msg, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return formatCalls(root, syms, "outgoing calls"), nil
+}
+
 // Hover returns the hover text (type signature, documentation) for the
 // symbol at the 1-based (line, column) in file.
 func (s *Service) Hover(ctx context.Context, root, file string, line, column int) (string, error) {

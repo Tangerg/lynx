@@ -110,6 +110,15 @@ func formatSymbols(root string, syms []lsp.Symbol) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
+// formatCalls renders call-hierarchy results (the callers/callees, each a
+// symbol) like [formatSymbols], with a call-direction-specific empty message.
+func formatCalls(root string, syms []lsp.Symbol, kind string) string {
+	if len(syms) == 0 {
+		return fmt.Sprintf("No %s found.", kind)
+	}
+	return formatSymbols(root, syms)
+}
+
 // formatDiagnostics echoes the caller's file path (relative or absolute, as
 // the model passed it) in each line.
 func formatDiagnostics(file string, diags []lsp.Diagnostic) string {
