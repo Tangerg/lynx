@@ -21,12 +21,13 @@ import (
 // runTurn receives immediately; status / output / cancel return
 // the values the test wired.
 type stubChatProcess struct {
-	id       string
-	status   atomic.Int32 // core.AgentProcessStatus
-	failure  error
-	output   kernel.ChatOutput
-	done     chan error
-	onCancel func()
+	id        string
+	status    atomic.Int32 // core.AgentProcessStatus
+	failure   error
+	output    kernel.ChatOutput
+	done      chan error
+	onCancel  func()
+	discarded atomic.Bool // set by Discard — asserts terminal snapshot cleanup
 }
 
 func newStubChatProcess(id string, output kernel.ChatOutput) *stubChatProcess {
@@ -73,6 +74,10 @@ func (cp *stubChatProcess) Resume(_ context.Context, _ interrupts.Resolution) (<
 // nothing is ever pending.
 func (cp *stubChatProcess) PendingAwaitable() core.Awaitable { return nil }
 
+// Discard satisfies engine.ChatProcess. The stub holds no platform /
+// snapshot; it just records that terminal cleanup ran.
+func (cp *stubChatProcess) Discard(_ context.Context) { cp.discarded.Store(true) }
+
 // stubEngine satisfies the turn service's (unexported) engine
 // dependency without touching the real platform / chat-memory / MCP
 // wiring. Existence proves the turn service does not depend on
@@ -87,6 +92,8 @@ type stubEngine struct {
 	lastClient *corechat.Client // captures RunChatRequest.ChatClient
 	lastCwd    string           // captures RunChatRequest.Cwd
 	lastCtx    context.Context  // captures the ctx the engine runs under
+
+	lastProc atomic.Pointer[stubChatProcess] // the most recent process StartChat handed back
 }
 
 func (s *stubEngine) StartChat(ctx context.Context, req kernel.RunChatRequest) kernel.ChatProcess {
@@ -99,10 +106,12 @@ func (s *stubEngine) StartChat(ctx context.Context, req kernel.RunChatRequest) k
 	if req.Observer != nil {
 		req.Observer.OnMessageDelta(s.runReply)
 	}
-	return newStubChatProcess("stub-proc-"+req.SessionID, kernel.ChatOutput{
+	proc := newStubChatProcess("stub-proc-"+req.SessionID, kernel.ChatOutput{
 		Reply:           s.runReply,
 		StoppedOnBudget: s.stopOnBudget,
 	})
+	s.lastProc.Store(proc)
+	return proc
 }
 
 // RestoreChat simulates rebuilding a parked turn from a snapshot: it
@@ -167,6 +176,32 @@ func TestStubEngineDrivesTurn(t *testing.T) {
 	}
 	if got := stub.runChatCalls.Load(); got != 1 {
 		t.Errorf("RunChat called %d times, want 1", got)
+	}
+}
+
+// TestService_DiscardsProcessOnTerminal verifies the turn discards its backing
+// process at terminal teardown (endTurn → ChatProcess.Discard) — the seam that
+// deletes the auto-snapshot. Without it every run leaks one process_snapshot
+// row. The events channel closes only after endTurn runs, so reading the flag
+// after the drain loop is race-free.
+func TestService_DiscardsProcessOnTerminal(t *testing.T) {
+	stub := &stubEngine{runReply: "done"}
+	svc := mustChat(turn.New(stub, nil, nil))
+	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{SessionID: "s", Message: "hi"})
+	if err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	events, _ := svc.Events(ctx, handle)
+	for range events { //nolint:revive // drain to terminal (channel closes after endTurn)
+	}
+	proc := stub.lastProc.Load()
+	if proc == nil {
+		t.Fatal("stub engine never produced a process")
+	}
+	if !proc.discarded.Load() {
+		t.Error("process not discarded at terminal teardown — snapshot would leak")
 	}
 }
 
