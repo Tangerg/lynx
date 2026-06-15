@@ -175,8 +175,11 @@ function TabItem({
           }}
         >
           {leading}
-          <span className="truncate font-semibold text-[12.5px] leading-tight" title={title}>
-            {title}
+          {/* View-tab titles are i18n keys (workspace.view.title.*); chat-tab
+              titles are session names. t() translates the former, passes the
+              latter through. */}
+          <span className="truncate font-semibold text-[12.5px] leading-tight" title={t(title)}>
+            {t(title)}
           </span>
           <Tooltip label={t("common.close")}>
             <button
