@@ -22,7 +22,7 @@ export default definePlugin({
   setup({ host }) {
     host.extensions.contribute(SETTINGS_PANE, {
       id: "personalization",
-      label: "Personalization",
+      label: "settings.pane.personalization",
       icon: "user",
       order: 1, // right after Appearance (0)
       component: PersonalizationPane,

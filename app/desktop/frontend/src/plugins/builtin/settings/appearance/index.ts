@@ -13,7 +13,7 @@ export default definePlugin({
   setup({ host }) {
     host.extensions.contribute(SETTINGS_PANE, {
       id: "appearance",
-      label: "Appearance",
+      label: "settings.pane.appearance",
       icon: "spark",
       order: 0,
       component: AppearancePane,

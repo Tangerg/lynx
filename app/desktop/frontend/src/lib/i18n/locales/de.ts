@@ -137,6 +137,9 @@ export const de: Record<string, string> = {
   "settings.pane.appearance": "Darstellung",
   "settings.pane.plugins": "Plugins",
   "settings.pane.language": "Sprache",
+  "settings.pane.personalization": "Personalisierung",
+  "settings.pane.providers": "Anbieter",
+  "settings.pane.approvals": "Freigaben",
   "settings.theme": "Theme",
   "settings.theme.sub":
     "Wähle ein Farbschema. Plugins können weitere registrieren — sie erscheinen automatisch.",
