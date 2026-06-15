@@ -15,6 +15,7 @@ import { Command } from "cmdk";
 import { useMemo } from "react";
 import { create } from "zustand";
 import { Icon } from "@/components/common";
+import { useT } from "@/lib/i18n";
 import {
   definePlugin,
   evalWhen,
@@ -37,6 +38,7 @@ const usePaletteStore = create<PaletteState>((set) => ({
 }));
 
 function CommandPalette() {
+  const t = useT();
   const open = usePaletteStore((s) => s.open);
   const setOpen = usePaletteStore((s) => s.setOpen);
   const commands = useCommands();
@@ -60,14 +62,14 @@ function CommandPalette() {
     <Command.Dialog
       open={open}
       onOpenChange={setOpen}
-      label="Command palette"
+      label={t("commandPalette.label")}
       className="fixed inset-0 z-50 flex items-start justify-center p-24 data-[state=open]:animate-in data-[state=closed]:animate-out [&_[cmdk-overlay]]:fixed [&_[cmdk-overlay]]:inset-0 [&_[cmdk-overlay]]:bg-black/40 [&_[cmdk-overlay]]:backdrop-blur-sm"
     >
       <Command className="relative z-[1] flex w-full max-w-[640px] flex-col overflow-hidden rounded-xl border border-line-soft bg-surface shadow-lg">
         <div className="flex items-center gap-2 border-b border-line-soft px-4 py-3 text-fg-faint">
           <Icon name="search" size={14} />
           <Command.Input
-            placeholder="Type a command…"
+            placeholder={t("commandPalette.placeholder")}
             className="flex-1 bg-transparent text-[14px] text-fg outline-none placeholder:text-fg-faint"
           />
           <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-fg-faint">
@@ -76,7 +78,7 @@ function CommandPalette() {
         </div>
         <Command.List className="max-h-[400px] overflow-y-auto p-1.5">
           <Command.Empty className="px-3 py-6 text-center text-[12px] text-fg-faint">
-            No commands match
+            {t("commandPalette.empty")}
           </Command.Empty>
           {visible.map((cmd) => (
             <Command.Item

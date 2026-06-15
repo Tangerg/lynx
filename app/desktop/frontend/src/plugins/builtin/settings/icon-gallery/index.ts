@@ -6,6 +6,7 @@
 import { IconGallery } from "./IconGallery";
 import { IconShowcase } from "./IconShowcase";
 import { definePlugin } from "@/plugins/sdk";
+import { t } from "@/lib/i18n";
 import { SETTINGS_PANE, WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 
 export default definePlugin({
@@ -14,7 +15,7 @@ export default definePlugin({
   setup({ host }) {
     host.extensions.contribute(WORKSPACE_VIEW, {
       id: "icon-gallery",
-      title: "Icon Gallery",
+      title: "workspace.view.title.iconGallery",
       icon: "spark",
       openByDefault: false,
       order: 60,
@@ -23,7 +24,7 @@ export default definePlugin({
 
     host.extensions.contribute(SETTINGS_PANE, {
       id: "brand-icons",
-      label: "Brand icons",
+      label: t("settings.pane.brandIcons"),
       icon: "spark",
       order: 110,
       component: IconShowcase,

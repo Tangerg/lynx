@@ -3,12 +3,14 @@
 // Tools (MCP) view shape.
 
 import { DataView } from "@/components/common";
+import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useSkills } from "@/lib/data/queries";
 import { useServerFeature } from "@/state/runtimeStore";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 
 function SkillsTab() {
+  const t = useT();
   const skillsEnabled = useServerFeature("skills");
   const { data, isLoading, isError } = useSkills();
   const skills = data ?? [];
@@ -17,8 +19,8 @@ function SkillsTab() {
     <WorkspaceViewLayout
       icon="sparkle"
       titleStrong
-      title="Skills"
-      sub={skillsEnabled ? `${skills.length} available` : "off"}
+      title="skills.title"
+      sub={skillsEnabled ? t("skills.available", { count: skills.length }) : t("skills.off")}
       scrollClassName="py-1"
     >
       <DataView
@@ -30,13 +32,13 @@ function SkillsTab() {
           skillsEnabled
             ? {
                 icon: "sparkle",
-                title: "No skills",
-                sub: "Skills discovered in this project's working directory show up here.",
+                title: t("skills.empty.title"),
+                sub: t("skills.empty.sub"),
               }
             : {
                 icon: "sparkle",
-                title: "Skills are off",
-                sub: "This runtime doesn't advertise the skills feature.",
+                title: t("skills.disabled.title"),
+                sub: t("skills.disabled.sub"),
               }
         }
       >

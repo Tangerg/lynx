@@ -85,7 +85,12 @@ export const en: Record<string, string> = {
   "msgActions.copiedPlain": "Copied as plain text",
   "msgActions.copiedCode": "Code copied",
   "msgActions.edit": "Edit message",
+  "msgActions.editInComposer": "Edit in composer",
+  "msgActions.editRerun": "Edit & rerun from here",
+  "msgActions.editRerunRestore": "Edit & rerun, restore files",
+  "msgActions.fork": "Fork up to here",
   "msgActions.regenerate": "Regenerate response",
+  "msgActions.regenerateRestore": "Regenerate, restore files",
   "msgActions.good": "Good response",
   "msgActions.poor": "Poor response",
   "chatSearch.label": "Search in chat",
@@ -295,4 +300,330 @@ export const en: Record<string, string> = {
 
   "session.status.running": "Running",
   "session.status.waiting": "Needs input",
+
+  // ── Workspace view: Run Summary ──
+  "runSummary.title": "Run summary",
+  "runSummary.noRuns": "No runs yet",
+  "runSummary.empty.title": "Nothing to summarise yet",
+  "runSummary.empty.sub":
+    "When a run finishes, its changes, commands, approvals, and errors collect here.",
+  "runSummary.copy": "Copy summary",
+  "runSummary.copied": "Copied",
+  "runSummary.status.done": "Done",
+  "runSummary.status.errored": "Errored",
+  "runSummary.status.running": "Running",
+  "runSummary.status.unknown": "Unknown",
+  "runSummary.section.changedFiles": "Changed files",
+  "runSummary.section.readFiles": "Read files",
+  "runSummary.section.commands": "Commands",
+  "runSummary.section.approvals": "Approvals",
+  "runSummary.section.errors": "Errors",
+  "runSummary.elapsed": " elapsed",
+  "runSummary.approval.noCommand": "(no command)",
+  "runSummary.approval.approved": "approved",
+  "runSummary.approval.declined": "declined",
+  "runSummary.approval.pending": "pending",
+
+  // ── Workspace view: Timeline ──
+  "timeline.title": "Run timeline",
+  "timeline.jumpToChat": "Jump to chat",
+  "timeline.empty.title": "No activity yet",
+  "timeline.empty.sub":
+    "As the agent runs, every tool call, approval, and run boundary lands here.",
+  "timeline.kind.runStart": "Run started",
+  "timeline.kind.runEnd": "Run finished",
+  "timeline.kind.runError": "Run error",
+  "timeline.kind.toolStart": "Tool",
+  "timeline.kind.toolEnd": "Tool finished",
+  "timeline.kind.approvalRequest": "Approval requested",
+  "timeline.kind.approvalResult": "Approval",
+
+  // ── Workspace view: Notifications ──
+  "notifications.title": "Notifications",
+  "notifications.clearAll": "Clear all",
+  "notifications.dismiss": "Dismiss",
+  "notifications.empty.title": "No notifications",
+  "notifications.empty.sub": "Anything a plugin reports via host.notify() will appear here.",
+
+  // ── Workspace view: Files ──
+  "files.title": "Working tree",
+  "files.empty.title": "Working tree clean",
+  "files.empty.sub": "No uncommitted changes in the current workspace.",
+
+  // ── Workspace view: Search ──
+  "search.title": "Search",
+  "search.placeholder": "Search pattern (regex)…",
+  "search.aria": "Search pattern",
+  "search.noMatches": "regex over the session workspace",
+  "search.empty.title": "No matches",
+  "search.empty.sub": "Nothing in the workspace matches this pattern.",
+
+  // ── Workspace view: Tasks ──
+  "todos.title": "Tasks",
+  "todos.unavailable.title": "Task list unavailable",
+  "todos.unavailable.sub": "This runtime doesn't expose the agent's task list.",
+  "todos.empty.title": "No tasks yet",
+  "todos.empty.sub": "The agent's working checklist appears here as it plans.",
+
+  // ── Workspace view: Terminal ──
+  "terminal.title": "Terminal",
+  "terminal.empty.title": "No commands yet",
+  "terminal.empty.sub": "Commands the agent runs show up here with their output.",
+
+  // ── Workspace view: Plan ──
+  "plan.title": "Plan",
+  "plan.empty.title": "No plan yet",
+  "plan.empty.sub": "When the agent drafts a plan it shows up here.",
+
+  // ── Workspace view: Tools ──
+  "tools.title": "Tools",
+  "tools.builtin": "Built-in tools",
+  "tools.mcp": "MCP servers",
+  "tools.reconnect": "Reconnect",
+  "tools.empty.title": "No MCP servers configured",
+  "tools.empty.sub": "Add a server in {{path}} to expose tools to the agent.",
+  "tools.footer": "Servers expose tools the agent can call. Edit {{path}} to add or remove.",
+  "tools.status.on": "On",
+  "tools.status.off": "Off",
+  "tools.status.error": "Error",
+  "tools.status.login": "Login",
+  "tools.status.connecting": "…",
+  "tools.loadingTools": "Loading tools…",
+  "tools.noTools": "No tools exposed.",
+  "tools.auth.placeholder": "Paste access token…",
+  "tools.auth.submit": "Authenticate",
+  "tools.auth.aria": "{{server}} access token",
+
+  // ── Tool action: Copy command ──
+  "toolAction.copyCommand": "Copy command",
+
+  // ── Approval fallback ──
+  "approval.fallbackText": "Approve this action?",
+
+  // ── Workspace view: Skills ──
+  "skills.title": "Skills",
+  "skills.available": "{{count}} available",
+  "skills.off": "off",
+  "skills.empty.title": "No skills",
+  "skills.empty.sub": "Skills discovered in this project's working directory show up here.",
+  "skills.disabled.title": "Skills are off",
+  "skills.disabled.sub": "This runtime doesn't advertise the skills feature.",
+
+  // ── Workspace view: Memory ──
+  "memory.title": "Memory",
+  "memory.scopes": "{{count}} scopes",
+  "memory.off": "off",
+  "memory.empty.title": "No memory yet",
+  "memory.empty.sub": "LYRA.md files the runtime maintains for the agent show up here.",
+  "memory.disabled.title": "Memory is off",
+  "memory.disabled.sub": "This runtime doesn't advertise the memory feature.",
+  "memory.save": "Save",
+  "memory.saving": "Saving…",
+  "memory.revert": "Revert",
+  "memory.saveError": "Memory save failed",
+  "memory.updated": "updated",
+  "memory.aria": "Memory content for {{path}}",
+
+  // ── Workspace view: Agent docs ──
+  "agentDocs.title": "Agent docs",
+  "agentDocs.found": "{{count}} found",
+  "agentDocs.empty.title": "No agent docs",
+  "agentDocs.empty.sub": "AGENTS.md files found from the working directory upward show up here.",
+
+  // ── Workspace view: File tree ──
+  "filetree.title": "Explorer",
+  "filetree.loading": "Loading…",
+  "filetree.readError": "Couldn't read this file.",
+  "filetree.truncated": "… truncated (file too large to show whole)",
+  "filetree.empty.title": "Nothing to browse",
+  "filetree.empty.sub": "No files in this workspace.",
+
+  // ── Command palette ──
+  "commandPalette.label": "Command palette",
+  "commandPalette.placeholder": "Type a command…",
+  "commandPalette.empty": "No commands match",
+  "commandPalette.open": "Open command palette",
+
+  // ── Keyboard shortcuts ──
+  "shortcuts.title": "Keyboard shortcuts",
+  "shortcuts.sub":
+    "Every keybinding registered by built-in and user plugins. Press a combo anywhere in the app to fire it; binding conflicts always resolve to the last registration.",
+  "shortcuts.filter": "Filter by action or combo…",
+  "shortcuts.filterAria": "Filter shortcuts",
+  "shortcuts.action": "Action",
+  "shortcuts.shortcut": "Shortcut",
+  "shortcuts.empty": "No shortcuts match.",
+
+  // ── Icon gallery ──
+  "iconGallery.clear": "Clear",
+
+  // ── Workspace view: Icon gallery ──
+  "workspace.view.title.iconGallery": "Icon Gallery",
+
+  // ── Settings pane: Brand icons ──
+  "settings.pane.brandIcons": "Brand icons",
+
+  // ── RPC Agent ──
+  "agentSource.rpc": "Runtime Protocol (JSON-RPC)",
+
+  // ── Message roles ──
+  "role.user": "You",
+  "role.assistant": "Assistant",
+  "role.system": "System",
+
+  // ── Composer ──
+  "composer.removeImage": "Remove image",
+
+  // ── Diff view ──
+  "diff.workingTree": "Working tree",
+  "diff.baselineAria": "Diff baseline",
+  "diff.mode.worktree": "Worktree",
+  "diff.mode.branch": "Branch",
+  "diff.error.noBaseline": "No baseline branch",
+  "diff.error.loadFailed": "Couldn't load the diff",
+  "diff.error.noBaselineSub":
+    "The default branch couldn't be resolved (no remote / detached HEAD).",
+  "diff.error.loadFailedSub": "The runtime rejected workspace.getDiff — see Diagnostics.",
+  "diff.empty.title": "Nothing to compare",
+  "diff.empty.sub": "The working tree has no uncommitted changes.",
+  "diff.binary": "Binary file",
+  "diff.truncated": "Diff truncated at the row limit — narrow to a single file for the rest.",
+
+  // ── Command log ──
+  "commandLog.running": "running…",
+  "commandLog.failed": "failed",
+  "commandLog.exit": "exit {{code}}",
+  "commandLog.truncated": "… truncated",
+
+  // ── Plan / Task list headings ──
+  "plan.list.heading": "Task plan",
+  "todos.list.heading": "Task list",
+
+  // ── Files changed ──
+  "files.changed": "{{count}} files changed",
+  "files.binary": "bin",
+
+  // ── Compaction block ──
+  "compaction.compacted": "Context compacted",
+  "compaction.compactedN": "Compacted {{count}} earlier messages",
+
+  // ── Tool card ──
+  "toolCard.expand": "Expand preview",
+  "toolCard.collapse": "Collapse",
+
+  // ── Projects sidebar ──
+  "projects.showMore": "Show {{count}} more",
+  "projects.showLess": "Show less",
+  "projects.empty.title": "No projects",
+  "projects.empty.sub": "Add one to scope sessions to a codebase.",
+  "projects.fallbackName": "Other",
+
+  // ── Status bar ──
+  "statusbar.compact.label": "Compact context — summarize earlier messages to free room",
+  "statusbar.compact.busy": "compacting…",
+  "statusbar.compact.idle": "compact",
+  "statusbar.compact.error": "Couldn't compact the conversation.",
+  "statusbar.ttft.label": "Time to first token",
+  "statusbar.ttft.waiting": "Waiting for first token…",
+  "statusbar.ttft.detail": "TTFT {{ms}}ms · live tokens/sec",
+
+  // ── Conversation export ──
+  "convExport.markdown": "Export conversation as Markdown",
+  "convExport.json": "Export conversation as JSON",
+  "convExport.import": "Import conversation from JSON",
+  "convExport.importUnsupported": "This runtime doesn't support session import.",
+  "convExport.notJson": "Not a JSON file.",
+  "convExport.notLyra":
+    'Not a Lyra session export — pick a JSON exported via "Export conversation".',
+  "convExport.importFailed": "Couldn't import the conversation.",
+  "convExport.importSuccess": 'Imported "{{title}}".',
+
+  // ── Connection settings validation ──
+  "connection.error.urlScheme": "Must start with http:// or https://",
+
+  // ── Chat search shortcut ──
+  "chatSearch.shortcutDesc": "Find in chat",
+
+  // ── Composer mode descriptions ──
+  "composer.mode.agent.desc":
+    "Runs tools, edits files, executes commands. Asks before risky actions.",
+  "composer.mode.chat.desc": "Read-only conversation. No tool calls, no file changes.",
+  "composer.mode.plan.desc": "Produces a plan first. Nothing runs until you switch to Agent.",
+
+  // ── Composer keybinding descriptions ──
+  "composer.key.sendDesc": "Send message",
+  "composer.key.approveDesc": "Approve a pending request, otherwise send",
+  "composer.key.declineDesc": "Decline a pending request",
+  "composer.key.stopDesc": "Stop the running response",
+
+  // ── Slash command hints ──
+  "slash.explain": "Explain a file, function, or selection",
+  "slash.test": "Generate or run tests for the current change",
+  "slash.fix": "Diagnose and fix the failing typecheck",
+  "slash.diff": "Show the working-tree diff inline",
+  "slash.review": "Review pending changes line-by-line",
+  "slash.commit": "Stage, commit, and push the current branch",
+  "slash.search": "Search the codebase for a symbol or pattern",
+  "slash.plan": "Restate or edit the current plan",
+
+  // ── Default command palette labels ──
+  "command.toggleSidebar": "Toggle sidebar rail",
+  "command.toggleTheme": "Toggle dark/light theme",
+  "command.newChat": "New chat tab",
+  "command.closeTab": "Close current tab",
+  "command.focusComposer": "Focus composer",
+  "command.viewPrefix": "View: {{title}}",
+  "command.accentPrefix": "Accent: {{name}}",
+
+  // ── Diagnostics view ──
+  "diagnostics.title": "Diagnostics",
+  "diagnostics.sub":
+    'Live OpenTelemetry — traces / metrics / logs. In-memory only (bounded); the durable record leaves via OTLP. "Clear" resets the buffers.',
+  "diagnostics.signal.traces": "Traces",
+  "diagnostics.signal.metrics": "Metrics",
+  "diagnostics.signal.logs": "Logs",
+  "diagnostics.signal.aria": "Telemetry signal",
+  "diagnostics.clear": "Clear",
+  "diagnostics.traces.empty": "Send a message — run + RPC spans appear here.",
+  "diagnostics.logs.empty": "host.log.* output streams here, span-correlated.",
+  "diagnostics.metrics.empty": "Interact with the chat — reducer / render timings appear here.",
+  "diagnostics.col.span": "span",
+  "diagnostics.col.dur": "dur",
+  "diagnostics.col.status": "status",
+  "diagnostics.col.trace": "trace",
+  "diagnostics.col.lvl": "lvl",
+  "diagnostics.col.message": "message",
+  "diagnostics.col.attrs": "attrs",
+  "diagnostics.col.count": "count",
+  "diagnostics.col.p50": "p50",
+  "diagnostics.col.p95": "p95",
+  "diagnostics.col.avg": "avg",
+  "diagnostics.col.sum": "sum",
+  "diagnostics.col.value": "value",
+  "diagnostics.noData": "No data yet — {{hint}}",
+
+  // ── Icon showcase section titles ──
+  "iconShowcase.frontier": "Frontier labs",
+  "iconShowcase.cloud": "Cloud & enterprise",
+  "iconShowcase.chinese": "Chinese ecosystem",
+  "iconShowcase.local": "Local runtimes & gateways",
+  "iconShowcase.media": "Media generation",
+  "iconShowcase.dev": "Dev tools",
+
+  // ── Tasks sidebar ──
+  "tasks.recentTasks": "Recent tasks",
+  "tasks.runningTasks": "{{count}} running task(s)",
+
+  // ── Reasoning block ──
+  "reasoning.thinking": "Thinking…",
+  "reasoning.thinkingWithTime": "Thinking · {{time}}",
+  "reasoning.thoughtFor": "Thought for {{time}}",
+  "reasoning.thought": "Thought",
+  "reasoning.interrupted": "interrupted",
+
+  // ── VCS gate ──
+  "vcs.gitNotAvailable": "Git not available",
+  "vcs.gitNotAvailableSub": "This runtime has no git binary on its PATH.",
+  "vcs.notARepo": "Not a git repository",
+  "vcs.notARepoSub": "The session's working directory is not under version control.",
 };

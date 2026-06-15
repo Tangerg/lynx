@@ -49,7 +49,7 @@ export const defaultCommands = definePlugin({
   setup({ host }) {
     host.commands.register({
       id: "view.toggle-sidebar",
-      label: "Toggle sidebar rail",
+      label: t("command.toggleSidebar"),
       icon: "panel-l",
       group: "View",
       keywords: ["collapse", "expand"],
@@ -60,7 +60,7 @@ export const defaultCommands = definePlugin({
 
     host.commands.register({
       id: "settings.toggle-theme",
-      label: "Toggle dark/light theme",
+      label: t("command.toggleTheme"),
       icon: "moon",
       group: "Theme",
       order: 0,
@@ -70,7 +70,7 @@ export const defaultCommands = definePlugin({
 
     host.commands.register({
       id: "chat.new",
-      label: "New chat tab",
+      label: t("command.newChat"),
       icon: "plus",
       group: "Chat",
       keywords: ["session", "tab", "open"],
@@ -81,7 +81,7 @@ export const defaultCommands = definePlugin({
 
     host.commands.register({
       id: "chat.close-tab",
-      label: "Close current tab",
+      label: t("command.closeTab"),
       icon: "x",
       group: "Chat",
       keywords: ["dismiss"],
@@ -92,7 +92,7 @@ export const defaultCommands = definePlugin({
 
     host.commands.register({
       id: "composer.focus",
-      label: "Focus composer",
+      label: t("command.focusComposer"),
       icon: "edit",
       group: "Composer",
       keywords: ["input", "write"],
@@ -113,7 +113,7 @@ export const defaultCommands = definePlugin({
         dynamic.push(
           host.commands.register({
             id: `view.open.${view.id}`,
-            label: `View: ${t(view.title)}`,
+            label: t("command.viewPrefix", { title: t(view.title) }),
             icon: view.icon,
             group: "View",
             order: 10,
@@ -133,7 +133,7 @@ export const defaultCommands = definePlugin({
         dynamic.push(
           host.commands.register({
             id: `theme.accent.${accent.id}`,
-            label: `Accent: ${accent.label}`,
+            label: t("command.accentPrefix", { name: accent.label }),
             icon: "spark",
             group: "Theme",
             order: 10,

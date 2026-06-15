@@ -22,6 +22,7 @@ import {
 } from "@/lib/agent/messageActions";
 import { flattenCode, flattenMarkdown, flattenText } from "@/lib/agent/messageContent";
 import { writeToClipboard } from "@/lib/clipboard";
+import { useT } from "@/lib/i18n";
 import { serverFeature } from "@/state/runtimeStore";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +32,7 @@ interface Props {
 }
 
 export function MessageContextMenu({ msg, children }: Props) {
+  const t = useT();
   const markdown = flattenMarkdown(msg.blocks);
   const plain = flattenText(msg.blocks);
   const code = flattenCode(msg.blocks);
@@ -52,42 +54,44 @@ export function MessageContextMenu({ msg, children }: Props) {
               icon="copy"
               onSelect={() =>
                 void writeToClipboard(markdown || plain, {
-                  successLabel: "Copied as markdown",
+                  successLabel: t("msgActions.copiedMarkdown"),
                 })
               }
             >
-              Copy as markdown
+              {t("msgActions.copyMarkdown")}
             </MenuIconItem>
           )}
           {plain && (
             <MenuIconItem
               icon="copy"
               onSelect={() =>
-                void writeToClipboard(plain, { successLabel: "Copied as plain text" })
+                void writeToClipboard(plain, { successLabel: t("msgActions.copiedPlain") })
               }
             >
-              Copy as plain text
+              {t("msgActions.copyPlain")}
             </MenuIconItem>
           )}
           {code && (
             <MenuIconItem
               icon="code"
-              onSelect={() => void writeToClipboard(code, { successLabel: "Code copied" })}
+              onSelect={() =>
+                void writeToClipboard(code, { successLabel: t("msgActions.copiedCode") })
+              }
             >
-              Copy code only
+              {t("msgActions.copyCode")}
             </MenuIconItem>
           )}
           {isUser && plain && (
             <>
               <Separator />
               <MenuIconItem icon="edit" onSelect={() => editMessageInComposer(msg)}>
-                Edit in composer
+                {t("msgActions.editInComposer")}
               </MenuIconItem>
               {/* Destructive variant: rewinds history to before this turn
                   (sessions.rollback), then prefills the composer. */}
               {msg.runId && (
                 <MenuIconItem icon="loop" onSelect={() => editAndRerunMessage(msg)}>
-                  Edit & rerun from here
+                  {t("msgActions.editRerun")}
                 </MenuIconItem>
               )}
               {/* Same rewind, but also restores the working tree to the
@@ -97,14 +101,14 @@ export function MessageContextMenu({ msg, children }: Props) {
                   icon="history"
                   onSelect={() => editAndRerunMessage(msg, { restoreFiles: true })}
                 >
-                  Edit & rerun, restore files
+                  {t("msgActions.editRerunRestore")}
                 </MenuIconItem>
               )}
               {/* Non-destructive sibling of Edit & rerun: branch a new
                   session that keeps history through this exchange. */}
               {msg.runId && (
                 <MenuIconItem icon="branch" onSelect={() => forkFromMessage(msg)}>
-                  Fork up to here
+                  {t("msgActions.fork")}
                 </MenuIconItem>
               )}
             </>
@@ -113,14 +117,14 @@ export function MessageContextMenu({ msg, children }: Props) {
             <>
               <Separator />
               <MenuIconItem icon="loop" onSelect={() => regenerateMessage(msg)}>
-                Regenerate
+                {t("msgActions.regenerate")}
               </MenuIconItem>
               {canRestoreFiles && (
                 <MenuIconItem
                   icon="history"
                   onSelect={() => regenerateMessage(msg, { restoreFiles: true })}
                 >
-                  Regenerate, restore files
+                  {t("msgActions.regenerateRestore")}
                 </MenuIconItem>
               )}
             </>

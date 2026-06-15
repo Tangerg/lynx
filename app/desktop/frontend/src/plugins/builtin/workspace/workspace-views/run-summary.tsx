@@ -18,12 +18,29 @@ import { buildPlaintext, deriveLatestRun, durationText } from "@/protocol/run/ru
 import { INITIAL_VIEW_STATE } from "@/protocol/run/viewState";
 import { useAgentSlice } from "@/state/agentStore";
 
-const STATUS_LABEL: Record<RunDigest["status"], { label: string; cls: string }> = {
-  ok: { label: "Done", cls: "border-positive/40 bg-positive/12 text-positive" },
-  err: { label: "Errored", cls: "border-negative/40 bg-negative/15 text-negative" },
-  running: { label: "Running", cls: "border-accent/40 bg-accent/12 text-accent" },
-  unknown: { label: "Unknown", cls: "border-line bg-surface-2 text-fg-muted" },
-};
+function useStatusLabel(): Record<RunDigest["status"], { label: string; cls: string }> {
+  const t = useT();
+  return {
+    ok: {
+      label: t("runSummary.status.done"),
+      cls: "border-positive/40 bg-positive/12 text-positive",
+    },
+    err: {
+      label: t("runSummary.status.errored"),
+      cls: "border-negative/40 bg-negative/15 text-negative",
+    },
+    running: {
+      label: t("runSummary.status.running"),
+      cls: "border-accent/40 bg-accent/12 text-accent",
+    },
+    unknown: {
+      label: t("runSummary.status.unknown"),
+      cls: "border-line bg-surface-2 text-fg-muted",
+    },
+  };
+}
+
+import { useT } from "@/lib/i18n";
 
 function Section({
   title,
@@ -34,11 +51,12 @@ function Section({
   count: number;
   children: ReactNode;
 }) {
+  const t = useT();
   if (count === 0) return null;
   return (
     <div className="px-4 py-3">
       <div className="mb-1.5 flex items-baseline gap-2">
-        <span className="text-[12px] font-semibold text-fg">{title}</span>
+        <span className="text-[12px] font-semibold text-fg">{t(title)}</span>
         <span className="font-mono text-[11px] text-fg-faint">{count}</span>
       </div>
       <div className="grid gap-1">{children}</div>
@@ -47,6 +65,7 @@ function Section({
 }
 
 function RunSummaryTab() {
+  const t = useT();
   // Subscribe only to the three slices the digest actually depends on.
   // Going through `useAgentSlice((v) => v)` would re-render this tab on
   // every TEXT_MESSAGE_CONTENT during streaming, even though messages
@@ -66,6 +85,7 @@ function RunSummaryTab() {
     [timeline, toolCalls, running],
   );
 
+  const statusLabel = useStatusLabel();
   const [copied, setCopied] = useState(false);
   // Track + clear the "copied" reset timer so it can't fire setState after the
   // Run-Summary tab unmounts (same guard ShikiCodeBlock uses for its copy flag).
@@ -74,21 +94,26 @@ function RunSummaryTab() {
 
   if (!digest) {
     return (
-      <WorkspaceViewLayout icon="check" titleStrong title="Run summary" sub="No runs yet">
+      <WorkspaceViewLayout
+        icon="check"
+        titleStrong
+        title="runSummary.title"
+        sub={t("runSummary.noRuns")}
+      >
         <EmptyState
           icon="check"
-          title="Nothing to summarise yet"
-          sub="When a run finishes, its changes, commands, approvals, and errors collect here."
+          title={t("runSummary.empty.title")}
+          sub={t("runSummary.empty.sub")}
         />
       </WorkspaceViewLayout>
     );
   }
 
-  const status = STATUS_LABEL[digest.status];
+  const status = statusLabel[digest.status];
   const dur = digest.startedAt
     ? digest.endedAt
       ? durationText(digest.startedAt, digest.endedAt)
-      : durationText(digest.startedAt, Date.now()) + " elapsed"
+      : durationText(digest.startedAt, Date.now()) + t("runSummary.elapsed")
     : "";
 
   const onCopy = async () => {
@@ -103,10 +128,10 @@ function RunSummaryTab() {
     <WorkspaceViewLayout
       icon="check"
       titleStrong
-      title="Run summary"
+      title="runSummary.title"
       sub={`run ${digest.runId ?? "—"} · ${dur}`}
       actions={
-        <IconButton title={copied ? "Copied" : "Copy summary"} onClick={onCopy}>
+        <IconButton title={t(copied ? "runSummary.copied" : "runSummary.copy")} onClick={onCopy}>
           <Icon name={copied ? "check" : "copy"} size={14} />
         </IconButton>
       }
@@ -122,7 +147,7 @@ function RunSummaryTab() {
         </span>
       </div>
 
-      <Section title="Changed files" count={digest.changedFiles.length}>
+      <Section title="runSummary.section.changedFiles" count={digest.changedFiles.length}>
         {digest.changedFiles.map((f) => (
           <div
             key={f.path}
@@ -141,7 +166,7 @@ function RunSummaryTab() {
         ))}
       </Section>
 
-      <Section title="Read files" count={digest.readFiles.length}>
+      <Section title="runSummary.section.readFiles" count={digest.readFiles.length}>
         {digest.readFiles.map((p) => (
           <div key={p} className="flex items-baseline gap-2 font-mono text-[12px] text-fg-muted">
             <Icon name="filetext" size={11} className="text-fg-faint" />
@@ -150,7 +175,7 @@ function RunSummaryTab() {
         ))}
       </Section>
 
-      <Section title="Commands" count={digest.commands.length}>
+      <Section title="runSummary.section.commands" count={digest.commands.length}>
         {digest.commands.map((c, i) => (
           <div key={`${c.cmd}:${i}`} className="flex items-baseline gap-2 font-mono text-[12px]">
             <Icon name="terminal" size={11} className="text-fg-faint" />
@@ -163,14 +188,14 @@ function RunSummaryTab() {
         ))}
       </Section>
 
-      <Section title="Approvals" count={digest.approvals.length}>
+      <Section title="runSummary.section.approvals" count={digest.approvals.length}>
         {digest.approvals.map((a, i) => (
           <div
             key={`${a.command}:${i}`}
             className="flex items-baseline gap-2 font-mono text-[12px] text-fg-muted"
           >
             <Icon name="shield" size={11} className="text-fg-faint" />
-            <span className="truncate">{a.command || "(no command)"}</span>
+            <span className="truncate">{a.command || t("runSummary.approval.noCommand")}</span>
             <span
               className={cn(
                 "ml-auto rounded-xs px-1 text-[10px] font-semibold",
@@ -181,13 +206,15 @@ function RunSummaryTab() {
                     : "text-fg-faint",
               )}
             >
-              {a.decision ?? "pending"}
+              {a.decision
+                ? t(`runSummary.approval.${a.decision}`)
+                : t("runSummary.approval.pending")}
             </span>
           </div>
         ))}
       </Section>
 
-      <Section title="Errors" count={digest.errors.length}>
+      <Section title="runSummary.section.errors" count={digest.errors.length}>
         {digest.errors.map((e, i) => (
           <div key={`${e}:${i}`} className="flex items-baseline gap-2 text-[12px] text-negative">
             <Icon name="bug" size={11} />

@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { getContainer } from "@/main/container";
+import { t } from "@/lib/i18n";
 import { errorDetail, type ConfigureProviderRequest } from "@/rpc";
 import { MODELS_KEY, PROVIDERS_KEY } from "@/lib/data/queries";
 import { queryClient } from "@/lib/data/queryClient";
@@ -47,6 +48,9 @@ export interface TestOutcome {
 export function useTestProvider(): (provider: string) => Promise<TestOutcome> {
   return useCallback(async (provider) => {
     const res = await getContainer().client().providers.test(provider);
-    return { ok: res.ok, error: res.ok ? undefined : (errorDetail(res.error) ?? "Test failed") };
+    return {
+      ok: res.ok,
+      error: res.ok ? undefined : (errorDetail(res.error) ?? t("providers.error.test")),
+    };
   }, []);
 }

@@ -4,17 +4,18 @@
 // handlers come from plugins.
 
 import { definePlugin } from "@/plugins/sdk";
+import { t } from "@/lib/i18n";
 import { SLASH_COMMAND } from "@/plugins/sdk/kernelPoints";
 
 const HINTS: Array<[cmd: string, description: string]> = [
-  ["/explain", "Explain a file, function, or selection"],
-  ["/test", "Generate or run tests for the current change"],
-  ["/fix", "Diagnose and fix the failing typecheck"],
-  ["/diff", "Show the working-tree diff inline"],
-  ["/review", "Review pending changes line-by-line"],
-  ["/commit", "Stage, commit, and push the current branch"],
-  ["/search", "Search the codebase for a symbol or pattern"],
-  ["/plan", "Restate or edit the current plan"],
+  ["/explain", t("slash.explain")],
+  ["/test", t("slash.test")],
+  ["/fix", t("slash.fix")],
+  ["/diff", t("slash.diff")],
+  ["/review", t("slash.review")],
+  ["/commit", t("slash.commit")],
+  ["/search", t("slash.search")],
+  ["/plan", t("slash.plan")],
 ];
 
 export default definePlugin({

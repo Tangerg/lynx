@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { DataView, Icon } from "@/components/common";
+import { useT } from "@/lib/i18n";
 import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
 import { useListFiles, useReadFile } from "@/lib/data/queries";
 import { FileTree } from "./views/FileTree";
@@ -12,6 +13,7 @@ import { defineWorkspaceView } from "./defineWorkspaceView";
 // reads — but a pre-B8 runtime errors the query, which DataView surfaces.
 
 function FileViewer({ path, cwd, onBack }: { path: string; cwd?: string; onBack: () => void }) {
+  const t = useT();
   const { data, isLoading, isError } = useReadFile({ path, cwd });
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -24,13 +26,13 @@ function FileViewer({ path, cwd, onBack }: { path: string; cwd?: string; onBack:
         <span className="truncate">{path}</span>
       </button>
       {isLoading ? (
-        <div className="px-3 text-[12px] text-fg-faint">Loading…</div>
+        <div className="px-3 text-[12px] text-fg-faint">{t("filetree.loading")}</div>
       ) : isError || !data ? (
-        <div className="px-3 text-[12px] text-negative">Couldn't read this file.</div>
+        <div className="px-3 text-[12px] text-negative">{t("filetree.readError")}</div>
       ) : (
         <pre className="whitespace-pre-wrap break-words px-3 pb-3 font-mono text-[12px] leading-relaxed text-fg">
           {data.content}
-          {data.truncated ? "\n\n… truncated (file too large to show whole)" : ""}
+          {data.truncated ? `\n\n${t("filetree.truncated")}` : ""}
         </pre>
       )}
     </div>
@@ -38,12 +40,13 @@ function FileViewer({ path, cwd, onBack }: { path: string; cwd?: string; onBack:
 }
 
 function ExplorerView() {
+  const t = useT();
   const cwd = useActiveSessionCwd();
   const [selected, setSelected] = useState<string | null>(null);
   const { data: roots, isLoading, isError } = useListFiles({ cwd });
 
   return (
-    <WorkspaceViewLayout icon="folder" titleStrong title="Explorer">
+    <WorkspaceViewLayout icon="folder" titleStrong title="filetree.title">
       {selected ? (
         <FileViewer path={selected} cwd={cwd} onBack={() => setSelected(null)} />
       ) : (
@@ -52,7 +55,7 @@ function ExplorerView() {
           isLoading={isLoading}
           isError={isError}
           skeletonCount={8}
-          empty={{ icon: "folder", title: "Nothing to browse", sub: "No files in this workspace." }}
+          empty={{ icon: "folder", title: t("filetree.empty.title"), sub: t("filetree.empty.sub") }}
         >
           {(rows) => <FileTree entries={rows} cwd={cwd} onSelectFile={setSelected} />}
         </DataView>

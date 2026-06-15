@@ -70,7 +70,7 @@ export const kernelSettings = definePlugin({
   setup({ host }) {
     host.extensions.contribute(WORKSPACE_VIEW, {
       id: "settings",
-      title: "Settings",
+      title: "settings.title",
       icon: "settings",
       openByDefault: false,
       component: SettingsPage,

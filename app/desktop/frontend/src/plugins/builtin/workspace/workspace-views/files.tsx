@@ -3,6 +3,7 @@
 // shared active-file state and opens the Diff tab.
 
 import { DataView } from "@/components/common";
+import { useT } from "@/lib/i18n";
 import { FilesChanged } from "./views/FilesChanged";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useFilesChanged } from "@/lib/data/queries";
@@ -13,6 +14,7 @@ import { useServerFeature } from "@/state/runtimeStore";
 import { useSessionStore } from "@/state/sessionStore";
 
 function FilesView() {
+  const t = useT();
   const gitEnabled = useServerFeature("git");
   const cwd = useActiveSessionCwd();
   const activeFile = useSessionStore((s) => s.activeFile);
@@ -33,7 +35,7 @@ function FilesView() {
     <WorkspaceViewLayout
       icon="filetext"
       titleStrong
-      title="Working tree"
+      title="files.title"
       sub={`${items.length} files · uncommitted`}
     >
       <DataView
@@ -49,8 +51,8 @@ function FilesView() {
               ? notARepoEmpty("filetext")
               : {
                   icon: "check",
-                  title: "Working tree clean",
-                  sub: "No uncommitted changes in the current workspace.",
+                  title: t("files.empty.title"),
+                  sub: t("files.empty.sub"),
                 }
         }
       >

@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { MarkdownMessage } from "../markdown/MarkdownMessage";
 import { Icon } from "@/components/common";
+import { useT } from "@/lib/i18n";
 import { swift } from "@/lib/motion";
 
 interface Props {
@@ -25,6 +26,7 @@ interface Props {
 // timestamps aren't in the protocol events today and a 50ms render skew on a
 // label that always reads "thought for Xs" is not worth a protocol change.
 export function ReasoningBlock({ text, status }: Props) {
+  const t = useT();
   const streaming = status === "running";
   const [open, setOpen] = useState(true);
   const [userToggled, setUserToggled] = useState(false);
@@ -59,11 +61,11 @@ export function ReasoningBlock({ text, status }: Props) {
   const elapsedLabel = formatElapsed(elapsedMs);
   const label = streaming
     ? elapsedLabel
-      ? `Thinking · ${elapsedLabel}`
-      : "Thinking…"
+      ? t("reasoning.thinkingWithTime", { time: elapsedLabel })
+      : t("reasoning.thinking")
     : elapsedLabel
-      ? `Thought for ${elapsedLabel}`
-      : "Thought";
+      ? t("reasoning.thoughtFor", { time: elapsedLabel })
+      : t("reasoning.thought");
   const preview = streaming ? "" : truncate(text, 80);
 
   return (
@@ -98,7 +100,7 @@ export function ReasoningBlock({ text, status }: Props) {
               <MarkdownMessage text={text} streaming={streaming} />
               {status === "incomplete" && (
                 <div className="mt-1 font-mono text-[11px] text-fg-faint">
-                  <Icon name="x" size={10} /> interrupted
+                  <Icon name="x" size={10} /> {t("reasoning.interrupted")}
                 </div>
               )}
             </div>

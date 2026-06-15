@@ -8,6 +8,7 @@
 
 import { RUNTIME_BASE } from "@/main/config";
 import { definePlugin } from "@/plugins/sdk";
+import { t } from "@/lib/i18n";
 import { ACCENT, MESSAGE_ROLE } from "@/plugins/sdk/kernelPoints";
 
 export { defaultCommands } from "./commands";
@@ -75,7 +76,7 @@ export const defaultRoles = definePlugin({
   setup({ host }) {
     host.extensions.contribute(MESSAGE_ROLE, {
       id: "user",
-      displayName: "You",
+      displayName: t("role.user"),
       icon: "user",
       avatarVariant: "msg-user",
     });
@@ -84,13 +85,13 @@ export const defaultRoles = definePlugin({
       // via models.list) is resolved in ChatStream and passed to MessageBlock.
       // This shows when no model resolves (e.g. before the lists load).
       id: "assistant",
-      displayName: "Assistant",
+      displayName: t("role.assistant"),
       icon: "spark",
       avatarVariant: "msg-agent",
     });
     host.extensions.contribute(MESSAGE_ROLE, {
       id: "system",
-      displayName: "System",
+      displayName: t("role.system"),
       icon: "shield",
       avatarVariant: "msg-agent",
     });

@@ -7,9 +7,11 @@ import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { formatRelative } from "@/lib/i18n/relativeTime";
 import { cn } from "@/lib/utils";
 import { useNotificationStore } from "@/plugins/sdk";
+import { useT } from "@/lib/i18n";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 
 function NotificationsTab() {
+  const t = useT();
   const log = useNotificationStore((s) => s.log);
   const dismiss = useNotificationStore((s) => s.dismiss);
   const clearAll = useNotificationStore((s) => s.clearAll);
@@ -22,11 +24,11 @@ function NotificationsTab() {
     <WorkspaceViewLayout
       icon="chat"
       titleStrong
-      title="Notifications"
+      title="notifications.title"
       sub={`${visible.length} unread · ${entries.length} total`}
       scrollClassName="py-1"
       actions={
-        <IconButton title="Clear all" onClick={clearAll}>
+        <IconButton title={t("notifications.clearAll")} onClick={clearAll}>
           <Icon name="x" size={14} />
         </IconButton>
       }
@@ -34,8 +36,8 @@ function NotificationsTab() {
       {entries.length === 0 && (
         <EmptyState
           icon="chat"
-          title="No notifications"
-          sub="Anything a plugin reports via host.notify() will appear here."
+          title={t("notifications.empty.title")}
+          sub={t("notifications.empty.sub")}
         />
       )}
       {entries.map((e) => (
@@ -71,6 +73,7 @@ const DOT_BG_BY_LEVEL: Record<RowProps["level"], string> = {
 };
 
 function NotificationRow({ level, message, plugin, timestamp, dismissed, onDismiss }: RowProps) {
+  const t = useT();
   return (
     <div
       className={cn(
@@ -86,7 +89,7 @@ function NotificationRow({ level, message, plugin, timestamp, dismissed, onDismi
         </div>
       </div>
       {!dismissed && (
-        <IconButton title="Dismiss" onClick={onDismiss}>
+        <IconButton title={t("notifications.dismiss")} onClick={onDismiss}>
           <Icon name="x" size={12} />
         </IconButton>
       )}

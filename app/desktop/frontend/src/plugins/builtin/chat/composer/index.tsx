@@ -17,7 +17,7 @@ import { useChatSend } from "@/lib/agent/useChatSend";
 import { submitPendingApproval } from "@/lib/agent/submitPendingApproval";
 import { useModels, useProjects } from "@/lib/data/queries";
 import { basename } from "@/lib/path";
-import { useT } from "@/lib/i18n";
+import { t, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import {
@@ -42,7 +42,7 @@ export const composerModes = definePlugin({
       label: "composer.mode.agent",
       icon: "spark",
       order: 0,
-      description: "Runs tools, edits files, executes commands. Asks before risky actions.",
+      description: t("composer.mode.agent.desc"),
     });
     // id is the WIRE RunMode value (API.md: agent | chat | plan) — the driver
     // forwards the selection verbatim on runs.start, so the picker's promise
@@ -52,14 +52,14 @@ export const composerModes = definePlugin({
       label: "composer.mode.chat",
       icon: "chat",
       order: 1,
-      description: "Read-only conversation. No tool calls, no file changes.",
+      description: t("composer.mode.chat.desc"),
     });
     host.extensions.contribute(COMPOSER_MODE, {
       id: "plan",
       label: "composer.mode.plan",
       icon: "list",
       order: 2,
-      description: "Produces a plan first. Nothing runs until you switch to Agent.",
+      description: t("composer.mode.plan.desc"),
     });
   },
 });
@@ -95,7 +95,7 @@ export const composerKeymap = definePlugin({
   setup({ host }) {
     host.extensions.contribute(COMPOSER_KEY_BINDING, {
       key: "Enter",
-      description: "Send message",
+      description: t("composer.key.sendDesc"),
       handler: ({ submit, event }) => {
         if (event.shiftKey) return false; // Shift+Enter inserts a newline.
         submit();
@@ -108,7 +108,7 @@ export const composerKeymap = definePlugin({
     // normal meaning the rest of the time.
     host.extensions.contribute(COMPOSER_KEY_BINDING, {
       key: "Mod+Enter",
-      description: "Approve a pending request, otherwise send",
+      description: t("composer.key.approveDesc"),
       handler: ({ submit }) => {
         if (submitPendingApproval("approved")) return true;
         submit();
@@ -117,7 +117,7 @@ export const composerKeymap = definePlugin({
     });
     host.extensions.contribute(COMPOSER_KEY_BINDING, {
       key: "Mod+Shift+Backspace",
-      description: "Decline a pending request",
+      description: t("composer.key.declineDesc"),
       handler: () => submitPendingApproval("declined"),
     });
     // Esc stops the active run while the composer is focused — the Stop button's
@@ -128,7 +128,7 @@ export const composerKeymap = definePlugin({
     // before this lookup, so Esc-to-cancel an IME candidate never reaches here.
     host.extensions.contribute(COMPOSER_KEY_BINDING, {
       key: "Escape",
-      description: "Stop the running response",
+      description: t("composer.key.stopDesc"),
       handler: () => {
         const sid = useSessionStore.getState().activeSessionId;
         const entry = useAgentStore.getState().sessions[sid];

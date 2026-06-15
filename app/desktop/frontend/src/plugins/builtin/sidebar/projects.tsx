@@ -113,6 +113,7 @@ function ProjectGroupNode({
   onFork: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(true);
   const [showAll, setShowAll] = useState(false);
   const visible = showAll ? group.sessions : group.sessions.slice(0, VISIBLE_CAP);
@@ -149,7 +150,7 @@ function ProjectGroupNode({
               onClick={() => setShowAll((v) => !v)}
               className="rounded-lg border-0 bg-transparent px-2.5 py-1 text-left text-[11.5px] text-fg-faint transition-colors hover:bg-surface-2 hover:text-fg"
             >
-              {hidden > 0 ? `Show ${hidden} more` : "Show less"}
+              {hidden > 0 ? t("projects.showMore", { count: hidden }) : t("projects.showLess")}
             </button>
           )}
         </div>
@@ -195,7 +196,7 @@ function ProjectsSection() {
       result.push({
         project: {
           id: cwd,
-          name: cwd ? basename(cwd) : "Other",
+          name: cwd ? basename(cwd) : t("projects.fallbackName"),
           branch: "",
           sessionCount: list.length,
         },
@@ -203,7 +204,7 @@ function ProjectsSection() {
       });
     }
     return result;
-  }, [projects, sessions, draftIds]);
+  }, [projects, sessions, draftIds, t]);
 
   const openProject = (project: SidebarProject): void => {
     void createSession({ cwd: project.id });
@@ -219,8 +220,8 @@ function ProjectsSection() {
         skeletonCount={3}
         empty={{
           icon: "folder",
-          title: "No projects",
-          sub: "Add one to scope sessions to a codebase.",
+          title: t("projects.empty.title"),
+          sub: t("projects.empty.sub"),
           size: "compact",
         }}
       >

@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon, Tooltip } from "@/components/common";
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/i18n";
+import { t, useT } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";
 import { SHORTCUT } from "@/plugins/sdk/kernelPoints";
 import { useSessionStore } from "@/state/sessionStore";
@@ -222,7 +222,7 @@ export default definePlugin({
     });
     host.extensions.contribute(SHORTCUT, {
       key: "Mod+F",
-      description: "Find in chat",
+      description: t("chatSearch.shortcutDesc"),
       // The shortcut must work even when the composer textarea is
       // focused — that's where users naturally are when reading chat.
       allowInInputs: true,

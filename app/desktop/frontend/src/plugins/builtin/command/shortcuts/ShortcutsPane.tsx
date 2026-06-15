@@ -5,9 +5,11 @@
 
 import { useMemo, useState } from "react";
 import { SHORTCUT, useExtensionPoint } from "@/plugins/sdk";
+import { useT } from "@/lib/i18n";
 import { splitCombo } from "../comboGlyph";
 
 export function ShortcutsPane() {
+  const t = useT();
   const shortcuts = useExtensionPoint(SHORTCUT);
   const [query, setQuery] = useState("");
 
@@ -25,31 +27,30 @@ export function ShortcutsPane() {
   return (
     <div className="flex h-full flex-col gap-3 p-4">
       <div>
-        <div className="text-[15px] font-semibold text-fg">Keyboard shortcuts</div>
-        <div className="mt-0.5 text-[13px] text-fg-muted">
-          Every keybinding registered by built-in and user plugins. Press a combo anywhere in the
-          app to fire it; binding conflicts always resolve to the last registration.
-        </div>
+        <div className="text-[15px] font-semibold text-fg">{t("shortcuts.title")}</div>
+        <div className="mt-0.5 text-[13px] text-fg-muted">{t("shortcuts.sub")}</div>
       </div>
 
       <input
         type="search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Filter by action or combo…"
-        aria-label="Filter shortcuts"
+        placeholder={t("shortcuts.filter")}
+        aria-label={t("shortcuts.filterAria")}
         className="w-full rounded-md border border-line bg-surface-2 px-3 py-2 text-[13px] text-fg placeholder:text-fg-faint outline-none focus-visible:border-line-soft focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)]"
       />
 
       <div className="min-h-0 flex-1 overflow-auto rounded-md border border-line bg-surface">
         {filtered.length === 0 ? (
-          <div className="px-3 py-6 text-center text-[13px] text-fg-faint">No shortcuts match.</div>
+          <div className="px-3 py-6 text-center text-[13px] text-fg-faint">
+            {t("shortcuts.empty")}
+          </div>
         ) : (
           <table className="w-full border-collapse text-left text-[13px]">
             <thead className="sticky top-0 bg-surface-2 text-[11.5px] font-semibold text-fg-faint">
               <tr>
-                <th className="px-3 py-1.5">Action</th>
-                <th className="w-[160px] px-3 py-1.5 text-right">Shortcut</th>
+                <th className="px-3 py-1.5">{t("shortcuts.action")}</th>
+                <th className="w-[160px] px-3 py-1.5 text-right">{t("shortcuts.shortcut")}</th>
               </tr>
             </thead>
             <tbody>

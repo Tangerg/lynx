@@ -7,6 +7,7 @@
 
 import { DEFAULT_TOOL_ICONS } from "@/components/tools/toolIcon";
 import { copyText } from "@/lib/clipboard";
+import { t } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_ACTION, TOOL_ICON } from "@/plugins/sdk/kernelPoints";
 
@@ -17,7 +18,7 @@ export const toolActions = definePlugin({
     host.extensions.contribute(TOOL_ACTION, {
       id: "copy-args",
       icon: "copy",
-      title: "Copy command",
+      title: t("toolAction.copyCommand"),
       order: 0,
       predicate: (tool) => tool.args.trim().length > 0,
       run: async (tool) => {

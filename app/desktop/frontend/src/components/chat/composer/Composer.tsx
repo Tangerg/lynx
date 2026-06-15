@@ -220,6 +220,7 @@ function SourceChips({ source }: { source: AttachmentSource }) {
 // Staged-image thumbnail with a hover remove button. Rebuilds the data URL
 // from the wire form (mime + base64) for the preview.
 function ImageThumb({ image, onRemove }: { image: ComposerImage; onRemove: () => void }) {
+  const t = useT();
   return (
     <div className="group relative h-14 w-14 overflow-hidden rounded-md border border-line-soft">
       <img
@@ -230,7 +231,7 @@ function ImageThumb({ image, onRemove }: { image: ComposerImage; onRemove: () =>
       />
       <button
         type="button"
-        aria-label="Remove image"
+        aria-label={t("composer.removeImage")}
         onClick={onRemove}
         className="absolute right-0.5 top-0.5 grid h-4 w-4 place-items-center rounded-full border-0 bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100"
       >
