@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { buildPlaintext, deriveLatestRun, durationText } from "@/protocol/run/runDigest";
 import { INITIAL_VIEW_STATE } from "@/protocol/run/viewState";
-import { useAgentSlice } from "@/state/agentStore";
+import { useAgentRunning, useAgentTimeline, useAgentToolCalls } from "@/state/agentStore";
 
 function useStatusLabel(): Record<RunDigest["status"], { label: string; cls: string }> {
   const t = useT();
@@ -70,9 +70,9 @@ function RunSummaryTab() {
   // Going through `useAgentSlice((v) => v)` would re-render this tab on
   // every TEXT_MESSAGE_CONTENT during streaming, even though messages
   // don't affect the summary. Timeline is the dominant change driver.
-  const timeline = useAgentSlice((v) => v.timeline);
-  const toolCalls = useAgentSlice((v) => v.toolCalls);
-  const running = useAgentSlice((v) => v.run.running);
+  const timeline = useAgentTimeline();
+  const toolCalls = useAgentToolCalls();
+  const running = useAgentRunning();
 
   const digest = useMemo(
     () =>
