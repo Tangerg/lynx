@@ -299,56 +299,63 @@ export function useAgentAction(kind: "stop" | "send"): StopFn | SendFn {
 /**
  * Granular hooks — subscribe to individual run/view fields so token-stream
  * deltas don't re-render every consumer of the `run` object. Each hook reads
- * only the scalar field it needs; Zustand's default reference equality
- * prevents re-renders when unrelated siblings change.
+ * only the field it needs; Zustand's default reference equality prevents
+ * re-renders when unrelated siblings change.
+ *
+ * The missing-session fallback resolves `view` to the shared INITIAL_VIEW_STATE
+ * (same pattern as getCurrentSessionView) BEFORE field access — never an inline
+ * `?? []` / `?? {}` literal. An inline literal mints a fresh reference on every
+ * render, so getSnapshot is never Object.is-equal → infinite re-render loop
+ * ("Maximum update depth exceeded"). INITIAL_VIEW_STATE.xxx is a stable
+ * module-level reference, so the fallback path is loop-free.
  */
 
 /** Whether the active session has a run in progress. */
 export function useAgentRunning(): boolean {
   const sid = useSessionStore((s) => s.activeSessionId);
-  return useAgentStore((s) => s.sessions[sid]?.view.run.running ?? false);
+  return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).run.running);
 }
 
 /** The active session's run id (null when idle). */
 export function useAgentRunId(): string | null {
   const sid = useSessionStore((s) => s.activeSessionId);
-  return useAgentStore((s) => s.sessions[sid]?.view.run.runId ?? null);
+  return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).run.runId);
 }
 
 /** Token usage for the active run ({ used, total }). */
 export function useAgentRunTokens(): { used: string; total: string } {
   const sid = useSessionStore((s) => s.activeSessionId);
-  return useAgentStore((s) => s.sessions[sid]?.view.run.tokens ?? { used: "0", total: "0" });
+  return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).run.tokens);
 }
 
 /** Context-fill percentage for the active run (0–100). */
 export function useAgentRunCtxPct(): number {
   const sid = useSessionStore((s) => s.activeSessionId);
-  return useAgentStore((s) => s.sessions[sid]?.view.run.ctxPct ?? 0);
+  return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).run.ctxPct);
 }
 
 /** The active session's plan items. */
 export function useAgentPlan(): PlanItem[] {
   const sid = useSessionStore((s) => s.activeSessionId);
-  return useAgentStore((s) => s.sessions[sid]?.view.plan ?? []);
+  return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).plan);
 }
 
 /** The active session's tool calls map. */
 export function useAgentToolCalls(): Record<string, ToolCall> {
   const sid = useSessionStore((s) => s.activeSessionId);
-  return useAgentStore((s) => s.sessions[sid]?.view.toolCalls ?? {});
+  return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).toolCalls);
 }
 
 /** The active session's messages array. */
 export function useAgentMessages(): Message[] {
   const sid = useSessionStore((s) => s.activeSessionId);
-  return useAgentStore((s) => s.sessions[sid]?.view.messages ?? []);
+  return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).messages);
 }
 
 /** The active session's timeline entries. */
 export function useAgentTimeline(): TimelineEntry[] {
   const sid = useSessionStore((s) => s.activeSessionId);
-  return useAgentStore((s) => s.sessions[sid]?.view.timeline ?? []);
+  return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).timeline);
 }
 
 /**
