@@ -52,10 +52,18 @@ func (s *Store) lockFor(sessionID string) *sync.Mutex {
 // doesn't snapshot node_modules on every run.
 const commonExcludes = "node_modules/\n.venv/\nvenv/\n__pycache__/\ndist/\nbuild/\ntarget/\n.next/\n.DS_Store\n"
 
+// maxCheckpointFileSize caps a single file the checkpoint will stage (opencode's
+// 2 MiB guard). A large unignored binary — a dataset, a built artifact a project
+// forgot to .gitignore — would otherwise bloat every snapshot and the shadow
+// repo. Oversize files are left out, so a restore won't revert them: an
+// acceptable trade-off against unbounded growth.
+const maxCheckpointFileSize = 2 << 20
+
 // Snapshot anchors the current state of cwd at the runID boundary: it stages
-// the whole work tree (honoring .gitignore + a backstop exclude list) and tags
-// the commit by run id. An empty commit is allowed so a no-change run still
-// anchors a restorable point. Idempotent per run (the tag is moved).
+// the run's changed files (honoring .gitignore + a backstop exclude list +
+// the size cap) and tags the commit by run id. An empty commit is allowed so a
+// no-change run still anchors a restorable point. Idempotent per run (the tag
+// is moved).
 func (s *Store) Snapshot(ctx context.Context, sessionID, cwd, runID string) error {
 	mu := s.lockFor(sessionID)
 	mu.Lock()
@@ -64,7 +72,7 @@ func (s *Store) Snapshot(ctx context.Context, sessionID, cwd, runID string) erro
 	if err != nil {
 		return err
 	}
-	if _, err := s.git(ctx, gitDir, cwd, "add", "-A"); err != nil {
+	if err := s.stageChanges(ctx, gitDir, cwd); err != nil {
 		return err
 	}
 	if _, err := s.git(ctx, gitDir, cwd, "commit", "-q", "--allow-empty", "-m", "run "+runID); err != nil {
@@ -76,10 +84,52 @@ func (s *Store) Snapshot(ctx context.Context, sessionID, cwd, runID string) erro
 	return nil
 }
 
-// Restore resets cwd's work tree to the runID snapshot: tracked files are
-// reverted and files created since are removed (ignored files are left alone).
-// The current state is auto-committed first so the restore is itself
-// reversible (unrevert). Returns ErrUnavailable when runID has no snapshot.
+// stageChanges stages the work tree's changes into the shadow index, skipping
+// files over [maxCheckpointFileSize]. Only the run's changed / new / removed
+// paths are considered — `git ls-files` honors .gitignore + info/exclude — so
+// the cost scales with the change set, never the whole tree (the reason we no
+// longer `git add -A`, which on a huge / unbounded dir staged everything). The
+// resulting commit still reflects the full tree: the index carries unchanged
+// files forward from the prior commit.
+func (s *Store) stageChanges(ctx context.Context, gitDir, cwd string) error {
+	out, err := s.git(ctx, gitDir, cwd, "ls-files", "-z",
+		"--modified", "--others", "--deleted", "--exclude-standard")
+	if err != nil {
+		return err
+	}
+	var paths []string
+	for p := range strings.SplitSeq(out, "\x00") {
+		if p == "" {
+			continue
+		}
+		// A deletion (Stat fails) is staged so the commit records the removal;
+		// a present file is staged only when it's under the size cap.
+		if info, err := os.Stat(filepath.Join(cwd, p)); err == nil {
+			if info.IsDir() || info.Size() > maxCheckpointFileSize {
+				continue
+			}
+		}
+		paths = append(paths, p)
+	}
+	// Stage in chunks so a large change set can't overflow the arg limit.
+	const chunk = 256
+	for i := 0; i < len(paths); i += chunk {
+		args := append([]string{"add", "--"}, paths[i:min(i+chunk, len(paths))]...)
+		if _, err := s.git(ctx, gitDir, cwd, args...); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Restore resets cwd's work tree to the runID snapshot: tracked files revert,
+// and files created-and-staged since (small enough to be tracked) are removed
+// by the reset. Ignored files AND oversize files (never staged — see
+// [maxCheckpointFileSize]) are left untouched: they're untracked, so the reset
+// doesn't reach them, and we deliberately do NOT `git clean` (that would delete
+// the user's large/ignored files the checkpoint never owned). The current state
+// is auto-committed first so the restore is itself reversible (unrevert).
+// Returns ErrUnavailable when runID has no snapshot.
 func (s *Store) Restore(ctx context.Context, sessionID, cwd, runID string) error {
 	mu := s.lockFor(sessionID)
 	mu.Lock()
@@ -92,14 +142,14 @@ func (s *Store) Restore(ctx context.Context, sessionID, cwd, runID string) error
 		return ErrUnavailable
 	}
 	// Reversibility: capture the pre-restore state as a commit before resetting.
-	if _, err := s.git(ctx, gitDir, cwd, "add", "-A"); err != nil {
+	if err := s.stageChanges(ctx, gitDir, cwd); err != nil {
 		return err
 	}
 	_, _ = s.git(ctx, gitDir, cwd, "commit", "-q", "--allow-empty", "-m", "pre-restore")
+	// reset --hard reverts tracked files + drops tracked files created since the
+	// target. No `git clean`: untracked files (ignored, or oversize and so never
+	// staged) are not the checkpoint's to delete.
 	if _, err := s.git(ctx, gitDir, cwd, "reset", "-q", "--hard", tagFor(runID)); err != nil {
-		return err
-	}
-	if _, err := s.git(ctx, gitDir, cwd, "clean", "-fdq"); err != nil {
 		return err
 	}
 	return nil

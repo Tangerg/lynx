@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -59,6 +60,35 @@ func TestStore_SnapshotRestore(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(cwd, "b.txt")); !os.IsNotExist(err) {
 		t.Error("b.txt should be removed (added after run1)")
+	}
+}
+
+// TestStore_SkipsLargeFiles: a file over maxCheckpointFileSize is left out of
+// the snapshot, so restore neither reverts it (it's not tracked) nor deletes it
+// (no `git clean`). A small sibling still round-trips normally.
+func TestStore_SkipsLargeFiles(t *testing.T) {
+	s, cwd := newTestStore(t)
+	ctx := context.Background()
+
+	write(t, cwd, "small.txt", "v1")
+	write(t, cwd, "big.bin", strings.Repeat("A", maxCheckpointFileSize+1024))
+	if err := s.Snapshot(ctx, "ses1", cwd, "run1"); err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+
+	write(t, cwd, "small.txt", "v2")
+	write(t, cwd, "big.bin", strings.Repeat("B", maxCheckpointFileSize+1024))
+	if err := s.Restore(ctx, "ses1", cwd, "run1"); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+
+	if got := read(t, cwd, "small.txt"); got != "v1" {
+		t.Errorf("small.txt = %q, want v1 (tracked → reverted)", got)
+	}
+	// The oversize file was never snapshotted: it must survive the restore in
+	// its current (post-snapshot) state — neither reverted nor deleted.
+	if got := read(t, cwd, "big.bin"); !strings.HasPrefix(got, "B") {
+		t.Errorf("big.bin should be untouched (over size cap, never tracked); got prefix %.1q", got)
 	}
 }
 
