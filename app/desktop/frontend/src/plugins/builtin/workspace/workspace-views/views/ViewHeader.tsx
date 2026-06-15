@@ -62,7 +62,10 @@ export function ViewHeader({ icon, title, sub, actions, titleStrong }: ViewHeade
               : "font-mono text-[13px]",
           )}
         >
-          {title}
+          {/* A string title is an i18n key (built-in views) or a literal
+              (filenames, third-party) — t() resolves the former, passes the
+              latter through. Non-string titles (ReactNode) render as-is. */}
+          {typeof title === "string" ? t(title) : title}
         </div>
         {sub !== undefined && (
           <div className="mt-0.5 font-mono text-[12px] text-fg-faint">{sub}</div>
