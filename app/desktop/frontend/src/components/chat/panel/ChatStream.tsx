@@ -12,7 +12,7 @@ import { useModels } from "@/lib/data/queries";
 import { useSelectedModel } from "@/lib/agent/useSelectedModel";
 import { useActiveSession } from "@/lib/agent/useActiveSession";
 import { Slot } from "@/plugins/host/Slot";
-import { useAgentSlice } from "@/state/agentStore";
+import { useAgentMessages, useAgentPlan, useAgentToolCalls } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
 import { useSessionStore } from "@/state/sessionStore";
 import { useUiStore } from "@/state/uiStore";
@@ -31,9 +31,9 @@ interface Props {
 }
 
 export function ChatStream({ onSend, resetKey }: Props) {
-  const messages = useAgentSlice((v) => v.messages);
-  const plan = useAgentSlice((v) => v.plan);
-  const toolCalls = useAgentSlice((v) => v.toolCalls);
+  const messages = useAgentMessages();
+  const plan = useAgentPlan();
+  const toolCalls = useAgentToolCalls();
 
   const selectedToolId = useSessionStore((s) => s.selectedToolId);
   const expandedToolIds = useSessionStore((s) => s.expandedToolIds);
