@@ -45,9 +45,12 @@ func (s *Server) persistStreamEvent(ctx context.Context, runID, sessionID, paren
 			Outcome:     se.Outcome,
 			FinishedAt:  time.Now().UTC(),
 		}, mark)
-		// Anchor a file snapshot at this run boundary so a later
-		// rollback{restoreType:files|both} can restore the working tree here.
-		s.snapshotCheckpoint(ctx, sessionID, runID)
+		// NOTE: the file-checkpoint snapshot is deliberately NOT taken here.
+		// It used to run synchronously on this run.finished path, ahead of the
+		// hub append — so a slow `git add` (e.g. a session opened on a huge
+		// dir) blocked the terminal event from reaching the client AND blocked
+		// the pump's teardown, leaving the run stuck "running" forever. It now
+		// runs asynchronously off the critical path in pumpRun's teardown.
 	}
 }
 

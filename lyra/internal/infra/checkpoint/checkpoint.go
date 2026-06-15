@@ -19,6 +19,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // ErrUnavailable means there is no snapshot to restore for the requested run
@@ -26,15 +27,24 @@ import (
 // checkpoint_unavailable.
 var ErrUnavailable = errors.New("checkpoint: no snapshot for run")
 
-// Store manages the shadow repos for every session. Safe for concurrent use
-// across sessions; git serializes operations within one repo via its index
-// lock, and lyra drives at most one run per session at a time.
+// Store manages the shadow repos for every session. Safe for concurrent use:
+// each session's shadow-repo operations are serialized by a per-session mutex
+// (locks), because a run's snapshot now runs asynchronously off the run-finish
+// path — so the next run can start before the previous snapshot finishes, and
+// two concurrent git commands on one repo would otherwise race the index lock.
 type Store struct {
-	root string // base dir holding one shadow GIT_DIR per session
+	root  string   // base dir holding one shadow GIT_DIR per session
+	locks sync.Map // sessionID → *sync.Mutex, serializing that repo's git ops
 }
 
 // NewStore roots the shadow repos at dir (e.g. <LYRA_HOME>/checkpoints).
 func NewStore(dir string) *Store { return &Store{root: dir} }
+
+// lockFor returns the per-session mutex serializing one shadow repo's git ops.
+func (s *Store) lockFor(sessionID string) *sync.Mutex {
+	mu, _ := s.locks.LoadOrStore(sessionID, &sync.Mutex{})
+	return mu.(*sync.Mutex)
+}
 
 // commonExcludes keep a checkpoint from ballooning into dependency / build
 // output in a repo that lacks its own .gitignore. A repo WITH a .gitignore is
@@ -47,6 +57,9 @@ const commonExcludes = "node_modules/\n.venv/\nvenv/\n__pycache__/\ndist/\nbuild
 // the commit by run id. An empty commit is allowed so a no-change run still
 // anchors a restorable point. Idempotent per run (the tag is moved).
 func (s *Store) Snapshot(ctx context.Context, sessionID, cwd, runID string) error {
+	mu := s.lockFor(sessionID)
+	mu.Lock()
+	defer mu.Unlock()
 	gitDir, err := s.ensureRepo(ctx, sessionID, cwd)
 	if err != nil {
 		return err
@@ -68,6 +81,9 @@ func (s *Store) Snapshot(ctx context.Context, sessionID, cwd, runID string) erro
 // The current state is auto-committed first so the restore is itself
 // reversible (unrevert). Returns ErrUnavailable when runID has no snapshot.
 func (s *Store) Restore(ctx context.Context, sessionID, cwd, runID string) error {
+	mu := s.lockFor(sessionID)
+	mu.Lock()
+	defer mu.Unlock()
 	gitDir := s.gitDir(sessionID)
 	if !repoExists(gitDir) {
 		return ErrUnavailable
