@@ -27,7 +27,6 @@ export const en: Record<string, string> = {
   "composer.input.label": "Message composer",
   "composer.placeholder.fallback": "Ask, plan, or paste a stack trace…  /  to run a command",
   "composer.send": "Send",
-  "composer.mode": "Composer mode",
   "composer.attachFile": "Attach file",
   "composer.switchModel": "Switch model",
   "composer.attachImage": "Attach image",
@@ -37,9 +36,6 @@ export const en: Record<string, string> = {
   "composer.execMode.hint": "Execution mode · Workspace · Auto",
   "composer.gitBranch": "Git branch",
   "composer.slash.heading": "Commands",
-  "composer.mode.agent": "Agent",
-  "composer.mode.chat": "Ask",
-  "composer.mode.plan": "Plan",
   "composer.placeholder.debug": "Paste a failing test output and I'll walk you through it.",
   "composer.placeholder.implement": "Implement what? Describe the change and I'll plan + execute.",
   "composer.placeholder.refactor": "Point at code that smells; I'll suggest a refactor.",
@@ -546,10 +542,6 @@ export const en: Record<string, string> = {
   "chatSearch.shortcutDesc": "Find in chat",
 
   // ── Composer mode descriptions ──
-  "composer.mode.agent.desc":
-    "Runs tools, edits files, executes commands. Asks before risky actions.",
-  "composer.mode.chat.desc": "Read-only conversation. No tool calls, no file changes.",
-  "composer.mode.plan.desc": "Produces a plan first. Nothing runs until you switch to Agent.",
 
   // ── Composer keybinding descriptions ──
   "composer.key.sendDesc": "Send message",

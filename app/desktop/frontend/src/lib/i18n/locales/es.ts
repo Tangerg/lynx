@@ -26,7 +26,6 @@ export const es: Record<string, string> = {
   "composer.placeholder.fallback":
     "Pregunta, planifica o pega un stack trace…  /  para ejecutar un comando",
   "composer.send": "Enviar",
-  "composer.mode": "Modo de composición",
   "composer.attachFile": "Adjuntar archivo",
   "composer.switchModel": "Cambiar modelo",
   "composer.attachImage": "Adjuntar imagen",
@@ -36,9 +35,6 @@ export const es: Record<string, string> = {
   "composer.execMode.hint": "Modo de ejecución · Espacio de trabajo · Auto",
   "composer.gitBranch": "Rama de Git",
   "composer.slash.heading": "Comandos",
-  "composer.mode.agent": "Agent",
-  "composer.mode.chat": "Preguntar",
-  "composer.mode.plan": "Plan",
   "composer.placeholder.debug": "Pega la salida de un test que falla y te guío paso a paso.",
   "composer.placeholder.implement":
     "¿Qué implementamos? Describe el cambio y lo planifico y ejecuto.",
@@ -526,12 +522,6 @@ export const es: Record<string, string> = {
   "convExport.importSuccess": "«{{title}}» importada.",
   "connection.error.urlScheme": "Debe comenzar con http:// o https://",
   "chatSearch.shortcutDesc": "Buscar en el chat",
-  "composer.mode.agent.desc":
-    "Ejecuta herramientas, edita archivos, ejecuta comandos. Pregunta antes de acciones arriesgadas.",
-  "composer.mode.chat.desc":
-    "Conversación de solo lectura. Sin llamadas a herramientas, sin cambios de archivos.",
-  "composer.mode.plan.desc":
-    "Primero produce un plan. No se ejecuta nada hasta que cambies a Agent.",
   "composer.key.sendDesc": "Enviar mensaje",
   "composer.key.approveDesc": "Aprobar solicitud pendiente, de lo contrario enviar",
   "composer.key.declineDesc": "Rechazar solicitud pendiente",

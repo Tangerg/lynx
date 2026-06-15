@@ -24,9 +24,7 @@ export function LanguageSection() {
       {/* Dropdown rather than segmented because the locale set
           (8 entries today, more via plugins) doesn't fit a single row.
           Radix DropdownMenu gives keyboard nav + focus management for
-          free; visually mirrors Composer's ModePicker so the same
-          "trigger looks like a button, content drops below" idiom
-          carries between settings + chat. */}
+          free. */}
       <DropdownMenu.Root>
         <DropdownMenu.Trigger
           className="inline-flex w-fit min-w-[180px] items-center justify-between gap-2 rounded-md border border-line bg-surface-2 px-3 py-1.5 text-[13px] font-medium text-fg transition-colors hover:bg-surface-3 data-[state=open]:bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"

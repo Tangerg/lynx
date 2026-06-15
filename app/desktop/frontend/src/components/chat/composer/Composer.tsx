@@ -1,21 +1,20 @@
-// Composer — the chat input surface. Owns the textarea, mode picker (agent /
-// chat / plan), model selector, attachment staging (image paste/drop), and the
-// send/stop button. Composer state lives in composerStore so the footer chips
-// (cwd, branch, mode) and the composer itself share a single source of truth.
-// Plugin-contributed mode labels, placeholders, and keybindings are resolved
-// through the extension-point registry so a third-party plugin can add a new
-// mode or placeholder without touching this file.
-import type { ComposerImage, ComposerMode } from "@/state/composerStore";
+// Composer — the chat input surface. Owns the textarea, model selector,
+// attachment staging (image paste/drop), and the send/stop button. Composer
+// state lives in composerStore so the footer chips (cwd, branch) and the
+// composer itself share a single source of truth. Plugin-contributed
+// placeholders and keybindings are resolved through the extension-point
+// registry so a third-party plugin can extend the composer without touching
+// this file.
+import type { ComposerImage } from "@/state/composerStore";
 import { imageFiles, type UserInput } from "@/lib/agent/composerInput";
 import type { IconName } from "@/components/common";
-import type { ComposerAttachmentSourceSpec, ComposerModeSpec } from "@/plugins/sdk";
+import type { ComposerAttachmentSourceSpec } from "@/plugins/sdk";
 import { useEffect, useMemo, useRef } from "react";
-import { Chip, Icon, Segmented } from "@/components/common";
+import { Chip, Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import {
   COMPOSER_ATTACHMENT_SOURCE,
   COMPOSER_KEY_BINDING,
-  COMPOSER_MODE,
   lookupExtensionByKey,
   pickComposerPlaceholder,
   useExtensionPoint,
@@ -37,8 +36,6 @@ interface Props {
   /** Whether the next run's model accepts images — gates paste/drop staging so
    *  it matches the toolbar attach button (which disables for text-only models). */
   acceptsImages: boolean;
-  mode: ComposerMode;
-  onModeChange: (m: ComposerMode) => void;
 }
 
 export function Composer({
@@ -50,12 +47,9 @@ export function Composer({
   onRemoveImage,
   onAddImages,
   acceptsImages,
-  mode,
-  onModeChange,
 }: Props) {
   const t = useT();
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const modes = useExtensionPoint(COMPOSER_MODE);
   const attachmentSources = useExtensionPoint(COMPOSER_ATTACHMENT_SOURCE);
   // Pick a placeholder once at mount — `pickComposerPlaceholder` is
   // random, so re-running on every render would make the text flicker.
@@ -156,40 +150,10 @@ export function Composer({
       />
       <div className="flex flex-nowrap items-center gap-1 pt-1.5">
         <Slot name="composer.toolbar.start" />
-        {modes.length > 0 && <ModePicker modes={modes} value={mode} onChange={onModeChange} />}
         <div className="flex-1 min-w-2" />
         <Slot name="composer.toolbar.end" />
       </div>
     </div>
-  );
-}
-
-// Mode picker — segmented control (Agent / Ask / Plan), DESIGN §components.
-// Direct selection of any mode (vs the old cycle glyph): the active mode is
-// always visible and one click reaches any target. Labels carry the meaning,
-// so no per-mode icon or tooltip.
-type Mode = ComposerModeSpec;
-
-function ModePicker({
-  modes,
-  value,
-  onChange,
-}: {
-  modes: Mode[];
-  value: ComposerMode;
-  onChange: (v: ComposerMode) => void;
-}) {
-  const t = useT();
-  if (modes.length === 0) return null; // no modes registered — composer shows no picker
-  return (
-    <Segmented
-      value={value}
-      // m.label is an i18n key (built-in modes) or a literal (third-party) —
-      // t() resolves the former and passes the latter through.
-      options={modes.map((m) => ({ value: m.id, label: t(m.label) }))}
-      onChange={onChange}
-      ariaLabel={t("composer.mode")}
-    />
   );
 }
 

@@ -10,7 +10,6 @@
 //            live agent). Kept as a prop so ChatPanel itself
 //            has no opinion about *how* messages get to the agent.
 
-import type { ComposerMode } from "@/state/composerStore";
 import type { UserInput } from "@/lib/agent/composerInput";
 import type { ViewPlacement } from "./ViewPlacement";
 import { Panel } from "@/components/common";
@@ -88,5 +87,3 @@ export function ChatPanel({ onSend }: Props) {
     </Panel>
   );
 }
-
-export type { ComposerMode };

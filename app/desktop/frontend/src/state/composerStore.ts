@@ -6,7 +6,6 @@ import { notifyError } from "@/lib/notify";
 // Composer data shapes. Declared here (the data owner) instead of in
 // `components/chat/composer/Composer.tsx` so the store doesn't import upward
 // into the presentation layer.
-export type ComposerMode = string;
 
 /** One image staged in the composer, ready to inline on send. `data` is raw
  *  base64 (NO "data:" prefix) — the wire form of an image ContentBlock
@@ -22,7 +21,6 @@ export interface ComposerImage {
 
 interface ComposerState {
   value: string;
-  mode: ComposerMode;
   /** Images staged for the next send (paste / drop / file-picker), inlined as
    *  image ContentBlocks. Cleared together with the text on submit. */
   images: ComposerImage[];
@@ -35,7 +33,6 @@ interface ComposerState {
 
 interface ComposerActions {
   setValue: (v: string) => void;
-  setMode: (m: ComposerMode) => void;
   setModel: (provider: string | null, model: string | null) => void;
   /** Wipe the text + every staged image (one call per successful submit). */
   clear: () => void;
@@ -59,12 +56,10 @@ export const useComposerStore = create<ComposerState & ComposerActions>((set, ge
   let stagingGen = 0;
   return {
     value: "",
-    mode: "agent",
     images: [],
     provider: null,
     model: null,
     setValue: (value) => set({ value }),
-    setMode: (mode) => set({ mode }),
     setModel: (provider, model) => set({ provider, model }),
     clear: () => {
       stagingGen++;

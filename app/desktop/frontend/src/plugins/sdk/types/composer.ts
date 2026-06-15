@@ -1,6 +1,6 @@
 // Everything the composer textarea + its surrounding toolbar exposes
-// to plugins: key bindings, attachment chips, placeholders, mode toggles,
-// status chips, slash commands.
+// to plugins: key bindings, attachment chips, placeholders, status chips,
+// slash commands.
 
 import type { ComponentType } from "react";
 
@@ -71,32 +71,6 @@ export interface ComposerPlaceholderSpec {
   text: string;
   /** Selection weight — defaults to 1. Set to 0 to register but skip selection. */
   weight?: number;
-}
-
-/**
- * A composer mode toggle ("Agent" / "Ask" / "Plan" by default — plugins can
- * register more). The active mode is stored on `useComposerStore.mode` so
- * the conversation context (agent vs ask vs plan) can drive runtime
- * behaviour (e.g. a /plan command, or a stricter prompt prefix).
- *
- * Mode ids are free-form strings: built-ins use `agent`, `ask`, `plan`;
- * a third-party plugin could add `code`, `research`, etc.
- */
-export interface ComposerModeSpec {
-  id: string;
-  label: string;
-  icon?: string;
-  /** Sort hint — lower comes first. Built-ins use 0..99. */
-  order?: number;
-  /** Optional tooltip; defaults to "${label} mode". */
-  title?: string;
-  /**
-   * One-line capability blurb shown under the label in the mode dropdown
-   * — e.g. "Read-only", "Plans first, then executes", "Runs tools".
-   * The point is to make permissions/behaviour obvious before the user
-   * picks a mode (UX review: "composer mode semantics aren't visible enough").
-   */
-  description?: string;
 }
 
 /**

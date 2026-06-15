@@ -13,7 +13,6 @@ import type {
   CommandSpec,
   ComposerAttachmentSourceSpec,
   ComposerKeyBindingSpec,
-  ComposerModeSpec,
   ComposerPlaceholderSpec,
   ComposerStatusSpec,
   ContentBlockRenderer,
@@ -92,11 +91,6 @@ export const COMPOSER_PLACEHOLDER = defineExtensionPoint<ComposerPlaceholderSpec
 });
 export const COMPOSER_STATUS = defineExtensionPoint<ComposerStatusSpec>({
   id: "lyra.composer.status",
-  capability: "composer",
-  keying: "single",
-});
-export const COMPOSER_MODE = defineExtensionPoint<ComposerModeSpec>({
-  id: "lyra.composer.mode",
   capability: "composer",
   keying: "single",
 });
