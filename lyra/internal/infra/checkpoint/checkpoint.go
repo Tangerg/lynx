@@ -8,6 +8,12 @@
 // anchored by a lightweight tag named for the run id, so a restore is a reset
 // to that tag. The only OS dependency is the git binary, which lyra already
 // requires for workspace diffs — so this is platform-agnostic.
+//
+// To avoid re-storing a project that git already has, a fresh shadow repo SEEDS
+// itself from the real repo at cwd (see [Store.seedFrom]): it shares the real
+// .git object store via objects/info/alternates and copies its index, so the
+// baseline snapshot references existing blobs and skips re-hashing unchanged
+// files — instead of duplicating the whole working tree on the first run.
 package checkpoint
 
 import (
@@ -15,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -61,9 +68,9 @@ const maxCheckpointFileSize = 2 << 20
 
 // Snapshot anchors the current state of cwd at the runID boundary: it stages
 // the run's changed files (honoring .gitignore + a backstop exclude list +
-// the size cap) and tags the commit by run id. An empty commit is allowed so a
-// no-change run still anchors a restorable point. Idempotent per run (the tag
-// is moved).
+// the size cap) and tags the boundary by run id. A run that changed nothing
+// re-tags the existing HEAD instead of minting an empty commit, so a no-change
+// turn costs one ref and zero objects. Idempotent per run (the tag is moved).
 func (s *Store) Snapshot(ctx context.Context, sessionID, cwd, runID string) error {
 	mu := s.lockFor(sessionID)
 	mu.Lock()
@@ -75,13 +82,33 @@ func (s *Store) Snapshot(ctx context.Context, sessionID, cwd, runID string) erro
 	if err := s.stageChanges(ctx, gitDir, cwd); err != nil {
 		return err
 	}
-	if _, err := s.git(ctx, gitDir, cwd, "commit", "-q", "--allow-empty", "-m", "run "+runID); err != nil {
-		return err
+	// Commit only when the staged tree actually differs from HEAD (or there is
+	// no HEAD yet — the baseline). A no-change run skips the commit and just
+	// re-points its tag at HEAD, so it adds a ref but no empty commit object.
+	if s.shouldCommit(ctx, gitDir, cwd) {
+		if _, err := s.git(ctx, gitDir, cwd, "commit", "-q", "--allow-empty", "-m", "run "+runID); err != nil {
+			return err
+		}
 	}
 	if _, err := s.git(ctx, gitDir, cwd, "tag", "-f", tagFor(runID)); err != nil {
 		return err
 	}
 	return nil
+}
+
+// shouldCommit reports whether the staged index warrants a new commit. The
+// first snapshot (no HEAD yet) always commits the baseline; afterwards a commit
+// is made only when the staged tree differs from HEAD — so a no-change run
+// re-tags the existing HEAD rather than minting an empty commit.
+func (s *Store) shouldCommit(ctx context.Context, gitDir, cwd string) bool {
+	if _, err := s.git(ctx, gitDir, cwd, "rev-parse", "-q", "--verify", "HEAD"); err != nil {
+		return true // no HEAD → the baseline commit
+	}
+	// `diff --cached --quiet HEAD` exits non-zero exactly when the staged tree
+	// differs from HEAD; any error (a real diff, or the rare git failure) is
+	// resolved toward committing, so a boundary is never silently lost.
+	_, err := s.git(ctx, gitDir, cwd, "diff", "--cached", "--quiet", "HEAD")
+	return err != nil
 }
 
 // stageChanges stages the work tree's changes into the shadow index, skipping
@@ -127,9 +154,10 @@ func (s *Store) stageChanges(ctx context.Context, gitDir, cwd string) error {
 // by the reset. Ignored files AND oversize files (never staged — see
 // [maxCheckpointFileSize]) are left untouched: they're untracked, so the reset
 // doesn't reach them, and we deliberately do NOT `git clean` (that would delete
-// the user's large/ignored files the checkpoint never owned). The current state
-// is auto-committed first so the restore is itself reversible (unrevert).
-// Returns ErrUnavailable when runID has no snapshot.
+// the user's large/ignored files the checkpoint never owned). The pre-restore
+// state is captured as a commit first (when it differs from HEAD) so the
+// restore is itself reversible (unrevert). Returns ErrUnavailable when runID
+// has no snapshot.
 func (s *Store) Restore(ctx context.Context, sessionID, cwd, runID string) error {
 	mu := s.lockFor(sessionID)
 	mu.Lock()
@@ -141,11 +169,14 @@ func (s *Store) Restore(ctx context.Context, sessionID, cwd, runID string) error
 	if _, err := s.git(ctx, gitDir, cwd, "rev-parse", "-q", "--verify", "refs/tags/"+tagFor(runID)); err != nil {
 		return ErrUnavailable
 	}
-	// Reversibility: capture the pre-restore state as a commit before resetting.
+	// Reversibility: capture the pre-restore state as a commit before resetting,
+	// but only when there's something to capture (no empty commit otherwise).
 	if err := s.stageChanges(ctx, gitDir, cwd); err != nil {
 		return err
 	}
-	_, _ = s.git(ctx, gitDir, cwd, "commit", "-q", "--allow-empty", "-m", "pre-restore")
+	if s.shouldCommit(ctx, gitDir, cwd) {
+		_, _ = s.git(ctx, gitDir, cwd, "commit", "-q", "-m", "pre-restore")
+	}
 	// reset --hard reverts tracked files + drops tracked files created since the
 	// target. No `git clean`: untracked files (ignored, or oversize and so never
 	// staged) are not the checkpoint's to delete.
@@ -174,10 +205,54 @@ func (s *Store) ensureRepo(ctx context.Context, sessionID, cwd string) (string, 
 	if _, err := s.git(ctx, gitDir, cwd, "init", "-q"); err != nil {
 		return "", err
 	}
+	s.seedFrom(ctx, gitDir, cwd)
 	if err := os.WriteFile(filepath.Join(gitDir, "info", "exclude"), []byte(commonExcludes), 0o644); err != nil {
 		return "", fmt.Errorf("checkpoint: write excludes: %w", err)
 	}
 	return gitDir, nil
+}
+
+// seedFrom wires a freshly-initialized shadow repo to reuse the real repo's
+// object store and index, so the first snapshot doesn't re-store the whole tree
+// (opencode's seeding). Sharing objects/info/alternates lets `git add` resolve
+// every unchanged blob through the real .git instead of writing a copy; seeding
+// the index lets it reuse the existing hashes instead of re-hashing every file
+// (the cost opencode flags on huge checkouts).
+//
+// Best-effort: if cwd isn't a git repo, or anything is missing, the shadow just
+// starts empty and the first `git add` does the full work — correct, only
+// slower. The one trade-off: a shared object pruned from the real repo (only
+// possible once it's unreachable there) would leave a snapshot that referenced
+// it unrestorable — acceptable for a best-effort file checkpoint.
+func (s *Store) seedFrom(ctx context.Context, gitDir, cwd string) {
+	common, err := gitIn(ctx, cwd, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	if err != nil || common == "" {
+		return // not a git repo we can seed from
+	}
+	srcObjects := filepath.Join(common, "objects")
+	if _, err := os.Stat(srcObjects); err != nil {
+		return
+	}
+	// Share the real object DB plus any store it already borrows, keeping only
+	// the ones that still exist so the chain resolves.
+	alternates := []string{srcObjects}
+	if data, err := os.ReadFile(filepath.Join(srcObjects, "info", "alternates")); err == nil {
+		for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
+			if p := strings.TrimSpace(line); p != "" {
+				if _, err := os.Stat(p); err == nil {
+					alternates = append(alternates, p)
+				}
+			}
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(gitDir, "objects", "info"), 0o755); err != nil {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(gitDir, "objects", "info", "alternates"),
+		[]byte(strings.Join(alternates, "\n")+"\n"), 0o644)
+	if src := filepath.Join(common, "index"); fileExists(src) {
+		_ = copyFile(src, filepath.Join(gitDir, "index"))
+	}
 }
 
 // git runs one git command against the shadow GIT_DIR with cwd as the work
@@ -203,6 +278,41 @@ func (s *Store) git(ctx context.Context, gitDir, workTree string, args ...string
 		return "", fmt.Errorf("checkpoint: git %s: %w: %s", args[0], err, strings.TrimSpace(errb.String()))
 	}
 	return strings.TrimSpace(out.String()), nil
+}
+
+// gitIn runs a git query inside the real repo at cwd (no shadow GIT_DIR), used
+// to discover what a new shadow repo can seed from. Returns trimmed stdout.
+func gitIn(ctx context.Context, cwd string, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Dir = cwd
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	if err := cmd.Run(); err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out.String()), nil
+}
+
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
+}
+
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		return err
+	}
+	return out.Close()
 }
 
 func repoExists(gitDir string) bool {
