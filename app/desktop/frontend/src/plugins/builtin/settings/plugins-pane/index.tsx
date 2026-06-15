@@ -13,11 +13,13 @@ import { useState } from "react";
 import { Icon, IconButton, PillButton } from "@/components/common";
 import { copyText } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 import { definePlugin, reloadPlugin, usePluginErrorStore, usePluginStore } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
 import { pluginOrigin } from "@/plugins/host/sideload";
 
 function PluginsPane() {
+  const t = useT();
   const loaded = usePluginStore((s) => s.loaded);
   const log = usePluginErrorStore((s) => s.log);
   const clearFor = usePluginErrorStore((s) => s.clearFor);
@@ -88,11 +90,11 @@ function PluginsPane() {
                     <button
                       type="button"
                       onClick={() => toggle(spec.name)}
-                      title={open ? "Hide error detail" : "Show error detail"}
+                      title={open ? t("plugins.errorDetail.hide") : t("plugins.errorDetail.show")}
                       className="mt-1.5 inline-flex items-center gap-1.5 text-[12px] text-negative hover:opacity-80"
                     >
                       <Icon name="bug" size={12} />
-                      {errCount} error{errCount === 1 ? "" : "s"}
+                      {t("plugins.errors", { count: errCount })}
                       <Icon name={open ? "chevron-up" : "chevron-down"} size={12} />
                     </button>
                   )}
@@ -100,11 +102,11 @@ function PluginsPane() {
                 <div className="flex items-center gap-1.5">
                   {errCount > 0 && (
                     <PillButton variant="outlined" size="sm" onClick={() => clearFor(spec.name)}>
-                      Clear
+                      {t("plugins.clear")}
                     </PillButton>
                   )}
                   <IconButton
-                    title={busy ? "Reloading…" : "Reload plugin"}
+                    title={busy ? t("plugins.reloading") : t("plugins.reload")}
                     onClick={() => handleReload(spec.name)}
                     disabled={busy}
                   >
@@ -146,6 +148,7 @@ const SOURCE_LABEL: Record<PluginErrorSource, string> = {
 };
 
 function ErrorEntry({ err }: { err: PluginError }) {
+  const t = useT();
   const time = new Date(err.timestamp).toLocaleTimeString();
   const copy = () =>
     void copyText(
@@ -162,7 +165,7 @@ function ErrorEntry({ err }: { err: PluginError }) {
         </span>
         <div className="flex items-center gap-1.5">
           <span className="font-mono text-[10.5px] text-fg-faint">{time}</span>
-          <IconButton title="Copy error" onClick={copy}>
+          <IconButton title={t("plugins.copyError")} onClick={copy}>
             <Icon name="copy" size={12} />
           </IconButton>
         </div>
@@ -177,9 +180,14 @@ function ErrorEntry({ err }: { err: PluginError }) {
 }
 
 function OriginBadge({ origin }: { origin: "builtin" | "sideload" }) {
+  const t = useT();
   return (
     <span
-      title={origin === "builtin" ? "Ships with Lyra" : "User-installed"}
+      title={
+        origin === "builtin"
+          ? t("plugins.origin.builtin.title")
+          : t("plugins.origin.sideload.title")
+      }
       className={cn(
         "ml-2 inline-block rounded-full px-1.5 py-px font-mono text-[10px] font-semibold align-middle tracking-normal",
         origin === "builtin"
@@ -187,7 +195,7 @@ function OriginBadge({ origin }: { origin: "builtin" | "sideload" }) {
           : "bg-[rgba(82,157,245,0.14)] text-info",
       )}
     >
-      {origin === "builtin" ? "Built-in" : "Sideload"}
+      {origin === "builtin" ? t("plugins.origin.builtin") : t("plugins.origin.sideload")}
     </span>
   );
 }

@@ -10,12 +10,14 @@ import { DataView, Icon, ProviderIcon } from "@/components/common";
 import { useProviders } from "@/lib/data/queries";
 import { useConfigureProvider, useTestProvider } from "@/lib/agent/useProviderConfig";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
 
 type Probe = { state: "idle" | "busy" } | { state: "ok" } | { state: "error"; reason: string };
 
 function ProviderRow({ p }: { p: ProviderInfo }) {
+  const t = useT();
   const configure = useConfigureProvider();
   const test = useTestProvider();
   const [apiKey, setApiKey] = useState("");
@@ -39,7 +41,10 @@ function ProviderRow({ p }: { p: ProviderInfo }) {
       await configure({ provider: p.id, apiKey: apiKey.trim() || undefined, baseUrl });
       setApiKey(""); // cleared from the field once persisted (it's masked server-side)
     } catch (err) {
-      setProbe({ state: "error", reason: err instanceof Error ? err.message : "Save failed" });
+      setProbe({
+        state: "error",
+        reason: err instanceof Error ? err.message : t("providers.error.save"),
+      });
     } finally {
       setSaving(false);
     }
@@ -51,10 +56,15 @@ function ProviderRow({ p }: { p: ProviderInfo }) {
     try {
       const r = await test(p.id);
       if (probeSeq.current !== token) return; // superseded by a save / newer test
-      setProbe(r.ok ? { state: "ok" } : { state: "error", reason: r.error ?? "Test failed" });
+      setProbe(
+        r.ok ? { state: "ok" } : { state: "error", reason: r.error ?? t("providers.error.test") },
+      );
     } catch (err) {
       if (probeSeq.current !== token) return;
-      setProbe({ state: "error", reason: err instanceof Error ? err.message : "Test failed" });
+      setProbe({
+        state: "error",
+        reason: err instanceof Error ? err.message : t("providers.error.test"),
+      });
     }
   };
 
@@ -71,25 +81,25 @@ function ProviderRow({ p }: { p: ProviderInfo }) {
             enabled ? "bg-accent/15 text-accent" : "bg-surface-2 text-fg-faint",
           )}
         >
-          {enabled ? `key ${p.apiKeyMasked}` : "not configured"}
+          {enabled ? t("providers.key", { masked: p.apiKeyMasked }) : t("providers.notConfigured")}
         </span>
       </div>
 
       <div className="mt-2.5 grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-2">
         <input
           type="password"
-          aria-label={`${p.id} API key`}
+          aria-label={t("providers.apiKey.aria", { provider: p.id })}
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
-          placeholder={enabled ? "Replace API key…" : "API key"}
+          placeholder={enabled ? t("providers.apiKey.replace") : t("providers.apiKey.placeholder")}
           className="h-8 rounded-md border border-line-soft bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint focus:border-accent"
         />
         <input
           type="text"
-          aria-label={`${p.id} base URL`}
+          aria-label={t("providers.baseUrl.aria", { provider: p.id })}
           value={baseUrl}
           onChange={(e) => setBaseUrl(e.target.value)}
-          placeholder="Base URL (optional override)"
+          placeholder={t("providers.baseUrl.placeholder")}
           className="h-8 rounded-md border border-line-soft bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint focus:border-accent"
         />
       </div>
@@ -106,7 +116,7 @@ function ProviderRow({ p }: { p: ProviderInfo }) {
               : "bg-accent text-on-accent hover:opacity-90",
           )}
         >
-          {saving ? "Saving…" : "Save"}
+          {saving ? t("providers.saving") : t("providers.save")}
         </button>
         <button
           type="button"
@@ -119,12 +129,12 @@ function ProviderRow({ p }: { p: ProviderInfo }) {
               : "border-line text-fg-muted hover:bg-surface-2 hover:text-fg",
           )}
         >
-          {probe.state === "busy" ? "Testing…" : "Test"}
+          {probe.state === "busy" ? t("providers.testing") : t("providers.test")}
         </button>
 
         {probe.state === "ok" && (
           <span className="inline-flex items-center gap-1 text-[12px] text-accent">
-            <Icon name="check" size={13} /> Connection OK
+            <Icon name="check" size={13} /> {t("providers.connectionOk")}
           </span>
         )}
         {probe.state === "error" && (
@@ -141,6 +151,7 @@ function ProviderRow({ p }: { p: ProviderInfo }) {
 }
 
 function ProvidersPane() {
+  const t = useT();
   const { data, isLoading, isError } = useProviders();
 
   return (
@@ -151,8 +162,8 @@ function ProvidersPane() {
       skeletonCount={3}
       empty={{
         icon: "spark",
-        title: "No providers",
-        sub: "The runtime reports no supported LLM providers.",
+        title: t("providers.empty"),
+        sub: t("providers.empty.sub"),
       }}
     >
       {(rows) => (
