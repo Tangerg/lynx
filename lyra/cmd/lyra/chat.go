@@ -9,12 +9,10 @@ import (
 
 // ChatCmd is `lyra chat <message...>` — one-shot: it creates a real
 // session (so the turn's history and cwd persist like any other) and
-// runs a single turn against it. With --plan the LLM first drafts a
-// plan and waits for y/N approval; --auto-approve skips the
-// prompt; --verbose disables tool-output truncation.
+// runs a single turn against it. --auto-approve approves gated tool
+// calls without prompting; --verbose disables tool-output truncation.
 func (a *App) ChatCmd() *cobra.Command {
 	var (
-		planMode    bool
 		autoApprove bool
 		verbose     bool
 		maxBudget   int64
@@ -41,7 +39,6 @@ func (a *App) ChatCmd() *cobra.Command {
 				return a.fatalErr(err)
 			}
 			runner := NewTurnRunner(a, turnOptions{
-				PlanMode:    planMode,
 				AutoApprove: autoApprove,
 				Verbose:     verbose,
 				MaxBudget:   maxBudget,
@@ -53,8 +50,7 @@ func (a *App) ChatCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&planMode, "plan", false, "ask the LLM for a plan and prompt to approve before executing")
-	cmd.Flags().BoolVar(&autoApprove, "auto-approve", false, "with --plan: approve the plan without prompting")
+	cmd.Flags().BoolVar(&autoApprove, "auto-approve", false, "approve gated tool calls without prompting")
 	cmd.Flags().BoolVar(&verbose, "verbose", false, "print full tool output (default: truncate after a few lines)")
 	cmd.Flags().Int64Var(&maxBudget, "max-budget", 0, "stop the turn after this many tokens (0 = unlimited)")
 	cmd.Flags().Float64Var(&maxCostUSD, "max-cost", 0, "stop the turn after this many USD (0 = unlimited; needs pricing)")

@@ -14,10 +14,8 @@ import (
 // that item's id:
 //
 //	approval → a toolCall Item (inProgress) for the gated call
-//	question → a question Item (inProgress) for a plan awaiting review
-//
-// (The contract has no "plan" interrupt kind — plan-review rides the
-// generic question mechanism; see questionInterrupt.)
+//	question → a question Item (inProgress) for a tool asking the user
+//	           (ask_user free text / choices, or exit_plan_mode's plan)
 func (t *translator) interrupt(e turn.TurnInterrupted) []protocol.StreamEvent {
 	out := t.closeReasoning()
 	out = append(out, t.closeText()...)
@@ -51,12 +49,8 @@ func (t *translator) interrupt(e turn.TurnInterrupted) []protocol.StreamEvent {
 		switch in.Kind {
 		case "approval":
 			ev, entry = t.approvalInterrupt(in)
-		default: // question — ask_user (free text) or plan review (choice)
-			if _, ok := in.Payload.(interrupts.QuestionPrompt); ok {
-				ev, entry = t.askUserInterrupt(in)
-			} else {
-				ev, entry = t.questionInterrupt(in)
-			}
+		default: // question — ask_user / exit_plan_mode (both QuestionPrompt)
+			ev, entry = t.askUserInterrupt(in)
 		}
 		out = append(out, ev)
 		wire = append(wire, entry)
@@ -102,64 +96,13 @@ func (t *translator) approvalInterrupt(in turn.Interrupt) (protocol.StreamEvent,
 	return ev, entry
 }
 
-// Plan-review interrupt shape. The contract has no "plan" interrupt kind
-// (API.md §6: approval | question | toolResult), so a plan awaiting review
-// surfaces through the generic question mechanism: an inProgress question
-// Item whose prompt is the plan markdown and whose single choice field
-// decides approve / reject. These constants are the single source the
-// resume path (resolveDecision) reads the answer back against.
-const (
-	planDecisionField   = "decision"
-	planDecisionApprove = "Approve"
-	planDecisionReject  = "Reject"
-)
-
-// questionInterrupt renders a plan awaiting review as an inProgress
-// question Item (the plan markdown as the prompt, an Approve/Reject choice)
-// plus the protocol.Interrupt keyed to it. The client answers via
-// runs.resume with an "answer" response carrying the chosen label.
-func (t *translator) questionInterrupt(in turn.Interrupt) (protocol.StreamEvent, protocol.Interrupt) {
-	plan, _ := in.Payload.(string)
-	id := t.nextItemID()
-	question := &protocol.Question{
-		Prompt: plan,
-		Fields: []protocol.QuestionField{{
-			Name:     planDecisionField,
-			Label:    "Proceed with this plan?",
-			Header:   "Plan",
-			Required: true,
-			Type:     protocol.QuestionFieldChoice,
-			Options: []protocol.QuestionOption{
-				{Label: planDecisionApprove},
-				{Label: planDecisionReject},
-			},
-		}},
-	}
-	ev := protocol.StreamEvent{
-		Type: protocol.StreamItemStarted,
-		Item: &protocol.Item{
-			ID:        id,
-			RunID:     t.runID,
-			Status:    protocol.ItemStatusRunning,
-			Type:      protocol.ItemTypeQuestion,
-			CreatedAt: time.Now().UTC(),
-			Question:  question,
-		},
-	}
-	entry := protocol.Interrupt{
-		ItemID:  id,
-		Type:    protocol.InterruptQuestion,
-		Payload: map[string]any{"question": question},
-	}
-	return ev, entry
-}
-
-// askUserInterrupt renders the model's ask_user call as an inProgress question
-// Item: one wire QuestionField per question the model asked — a free-text field,
-// or a multiple-choice field when the question carries options (vs.
-// questionInterrupt's fixed plan Approve/Reject choice). The client answers via
-// runs.resume with an "answer" response keyed by each field's name
-// ([interrupts.QuestionFieldName]).
+// askUserInterrupt renders a tool's structured question (ask_user or
+// exit_plan_mode, both [interrupts.QuestionPrompt]) as an inProgress question
+// Item: one wire QuestionField per question — a free-text field, or a
+// multiple-choice field when the question carries options (exit_plan_mode
+// presents its plan as an Approve / alternatives / Reject choice this way).
+// The client answers via runs.resume with an "answer" response keyed by each
+// field's name ([interrupts.QuestionFieldName]).
 func (t *translator) askUserInterrupt(in turn.Interrupt) (protocol.StreamEvent, protocol.Interrupt) {
 	q, _ := in.Payload.(interrupts.QuestionPrompt)
 	id := t.nextItemID()

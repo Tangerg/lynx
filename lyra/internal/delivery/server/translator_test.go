@@ -14,7 +14,7 @@ import (
 // an id that matches items.list on reload.
 func TestTranslator_OpensUserMessageOnRootRun(t *testing.T) {
 	input := []protocol.ContentBlock{{Type: "text", Text: "hello"}}
-	tr := newTranslator("ses_1", "run_1", "", input, nil, "", "")
+	tr := newTranslator("ses_1", "run_1", "", input, nil, "")
 
 	out := tr.open()
 	if len(out) != 3 {
@@ -57,17 +57,16 @@ func TestTranslator_OpensUserMessageOnRootRun(t *testing.T) {
 	}
 }
 
-// TestTranslator_RunStartedCarriesModelAndMode verifies the run.started RunRef
-// surfaces the run's model + mode so the frontend can label the run (the fields
-// RunRef.model / RunRef.mode).
-func TestTranslator_RunStartedCarriesModelAndMode(t *testing.T) {
-	tr := newTranslator("ses_1", "run_1", "", nil, nil, "claude-opus-4-8", protocol.RunModePlan)
+// TestTranslator_RunStartedCarriesModel verifies the run.started RunRef
+// surfaces the run's model so the frontend can label the run (RunRef.model).
+func TestTranslator_RunStartedCarriesModel(t *testing.T) {
+	tr := newTranslator("ses_1", "run_1", "", nil, nil, "claude-opus-4-8")
 	out := tr.open()
 	if len(out) == 0 || out[0].Type != protocol.StreamRunStarted || out[0].Run == nil {
 		t.Fatalf("first event = %+v, want run.started with a RunRef", out)
 	}
-	if r := out[0].Run; r.Model != "claude-opus-4-8" || r.Mode != protocol.RunModePlan {
-		t.Errorf("RunRef model/mode = %q/%q, want claude-opus-4-8/plan", r.Model, r.Mode)
+	if r := out[0].Run; r.Model != "claude-opus-4-8" {
+		t.Errorf("RunRef model = %q, want claude-opus-4-8", r.Model)
 	}
 }
 
@@ -81,7 +80,7 @@ func TestTranslator_EditedArgsReusesProposalItem(t *testing.T) {
 		toolItems:   map[string]string{resumeKey("write", argsKey(map[string]any{"path": "a.txt"})): "item_orig"},
 		byName:      map[string]string{"write": "item_orig"},
 	}
-	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, rb, "", "")
+	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, rb, "")
 
 	// Re-fire with EDITED args (different path): the exact (name,args) key misses,
 	// the name-only fallback hits.
@@ -99,7 +98,7 @@ func TestTranslator_EditedArgsReusesProposalItem(t *testing.T) {
 // (runs.resume, nil input) opens with run.started alone — no synthetic user
 // turn, and no chat TurnStart needed (continuations emit none).
 func TestTranslator_NoUserMessageOnContinuation(t *testing.T) {
-	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, nil, "", "")
+	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, nil, "")
 	out := tr.open()
 	if len(out) != 1 || out[0].Type != protocol.StreamRunStarted {
 		t.Fatalf("continuation open() = %+v, want run.started only", out)
@@ -121,7 +120,7 @@ func TestTranslator_ResumedToolReusesOriginalItemID(t *testing.T) {
 		originRunID: "run_1",
 		toolItems:   map[string]string{resumeKey("bash", args): origItemID},
 	}
-	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, resume, "", "")
+	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, resume, "")
 
 	itemStarted := func(events []protocol.StreamEvent) *protocol.Item {
 		for _, se := range events {
@@ -166,7 +165,7 @@ func TestTranslator_ResumedToolReusesOriginalItemID(t *testing.T) {
 // distinct terminal (incomplete + denied_by_user error), not a green success
 // — so the UI can render "denied" rather than ✓.
 func TestTranslator_DeniedToolIsDistinct(t *testing.T) {
-	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "")
+	tr := newTranslator("ses_1", "run_1", "", nil, nil, "")
 	tr.translate(turn.ToolCallStart{CallID: "c1", ToolName: "bash", Arguments: `{"command":"rm -rf /"}`})
 	end := tr.translate(turn.ToolCallEnd{CallID: "c1", Output: "tool call denied by user", Denied: true})
 	if len(end) != 1 || end[0].Item == nil {
@@ -181,19 +180,19 @@ func TestTranslator_DeniedToolIsDistinct(t *testing.T) {
 	}
 }
 
-// TestTranslator_ResumedQuestionCompletes verifies a plan-review question
-// item left inProgress at interrupt gets its terminal item.completed in the
-// continuation (right after run.started) — it's resolved by the resume
+// TestTranslator_ResumedQuestionCompletes verifies a question item (ask_user /
+// exit_plan_mode) left inProgress at interrupt gets its terminal item.completed
+// in the continuation (right after run.started) — it's resolved by the resume
 // answer, not a re-fired event, so without this the proposal card stays
 // "LIVE" forever (API.md §5.2). Same id + origin runId, content preserved.
 func TestTranslator_ResumedQuestionCompletes(t *testing.T) {
 	const qItemID = "item_run_1_1"
-	q := &protocol.Question{Prompt: "the plan", Fields: []protocol.QuestionField{{Name: "decision", Type: "choice"}}}
+	q := &protocol.Question{Prompt: "what next?", Fields: []protocol.QuestionField{{Name: "answer", Type: "text"}}}
 	resume := &resumeBinding{
 		originRunID: "run_1",
 		questions:   []resumedQuestion{{itemID: qItemID, question: q}},
 	}
-	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, resume, "", "")
+	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, resume, "")
 
 	out := tr.open()
 	// run.started first, then the question's terminal completion.
@@ -213,7 +212,7 @@ func TestTranslator_ResumedQuestionCompletes(t *testing.T) {
 	if c.Item.Type != protocol.ItemTypeQuestion || c.Item.Status != protocol.ItemStatusCompleted {
 		t.Fatalf("question terminal type/status = %s/%s, want question/completed", c.Item.Type, c.Item.Status)
 	}
-	if c.Item.Question == nil || c.Item.Question.Prompt != "the plan" {
+	if c.Item.Question == nil || c.Item.Question.Prompt != "what next?" {
 		t.Fatalf("question terminal lost its content: %+v", c.Item.Question)
 	}
 
@@ -230,7 +229,7 @@ func TestTranslator_ResumedQuestionCompletes(t *testing.T) {
 // even though the model saw the output (API.md §4.4.2 / §5.2). The domain-
 // neutral envelope carries name + arguments + a best-effort JSON result.
 func TestTranslator_CommandOutputOnCompleted(t *testing.T) {
-	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "")
+	tr := newTranslator("ses_1", "run_1", "", nil, nil, "")
 	tr.translate(turn.ToolCallStart{CallID: "c1", ToolName: "bash", Arguments: `{"command":"echo hi"}`})
 	out := tr.translate(turn.ToolCallEnd{
 		CallID: "c1",
@@ -260,7 +259,7 @@ func TestTranslator_CommandOutputOnCompleted(t *testing.T) {
 	// A command with no output still carries result.output:"" (present, not
 	// omitted) so the client renders an empty terminal rather than falling back
 	// to a stale preview / "(no output)".
-	tr2 := newTranslator("ses_1", "run_2", "", nil, nil, "", "")
+	tr2 := newTranslator("ses_1", "run_2", "", nil, nil, "")
 	tr2.translate(turn.ToolCallStart{CallID: "c2", ToolName: "bash", Arguments: `{"command":"true"}`})
 	out2 := tr2.translate(turn.ToolCallEnd{CallID: "c2", Output: `{"stdout":"","stderr":"","exit_code":0,"duration":"1ms"}`})
 	for _, se := range out2 {
@@ -292,7 +291,7 @@ func TestClassifyRunError(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			tr := newTranslator("", "", "", nil, nil, "", "")
+			tr := newTranslator("", "", "", nil, nil, "")
 			got := tr.classifyRunError(c.msg)
 			if got.Type != c.wantType {
 				t.Fatalf("type = %q, want %q (msg=%q)", got.Type, c.wantType, c.msg)

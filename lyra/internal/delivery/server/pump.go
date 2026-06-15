@@ -21,7 +21,7 @@ import (
 // pump for one run segment. parentRunID is empty for a root run
 // (runs.start) and set for a continuation (runs.resume) — it rides onto
 // the RunRef and the runEntry so the continuation links back to its parent.
-func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, handle turn.TurnHandle, sessionID string, userInput []protocol.ContentBlock, resume *resumeBinding, model string, mode protocol.RunMode) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
+func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, handle turn.TurnHandle, sessionID string, userInput []protocol.ContentBlock, resume *resumeBinding, model string) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
 	// Detach the run from the request's cancellation (it must outlive the
 	// request) WITHOUT losing the request's trace context: WithoutCancel
 	// keeps ctx values — including the entry span — so the run's spans are
@@ -39,7 +39,7 @@ func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 	// fresh subscription; a later runs.subscribe attaches another.
 	hub := newRunHub()
 	s.runMu.Lock()
-	s.runs[runID] = &runEntry{runID: runID, sessionID: sessionID, turnID: handle.TurnID, parentRunID: parentRunID, model: model, mode: mode, cancel: cancel, hub: hub}
+	s.runs[runID] = &runEntry{runID: runID, sessionID: sessionID, turnID: handle.TurnID, parentRunID: parentRunID, model: model, cancel: cancel, hub: hub}
 	s.runMu.Unlock()
 	events, unsubscribe := hub.Subscribe("")
 	// Drop this caller's subscription when its request ends (client
@@ -48,7 +48,7 @@ func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 	// WithoutCancel(reqCtx) (see above), so it outlives the request that
 	// started it without losing the trace.
 	context.AfterFunc(reqCtx, unsubscribe)
-	go s.pumpRun(runCtx, runID, parentRunID, handle, inner, hub, userInput, resume, model, mode)
+	go s.pumpRun(runCtx, runID, parentRunID, handle, inner, hub, userInput, resume, model)
 	return &protocol.StartRunResponse{RunID: runID}, events, nil
 }
 
@@ -62,8 +62,8 @@ func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 //
 // Either way the wire run.finished event is the last thing on the
 // channel before it closes.
-func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle turn.TurnHandle, inner iter.Seq[turn.Event], hub *runHub, userInput []protocol.ContentBlock, resume *resumeBinding, model string, mode protocol.RunMode) {
-	tr := newTranslator(handle.SessionID, runID, parentRunID, userInput, resume, model, mode)
+func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle turn.TurnHandle, inner iter.Seq[turn.Event], hub *runHub, userInput []protocol.ContentBlock, resume *resumeBinding, model string) {
+	tr := newTranslator(handle.SessionID, runID, parentRunID, userInput, resume, model)
 	finished := false
 	parked := false
 	// The session's cwd, resolved once: tool-derived files.changed events carry
@@ -105,7 +105,7 @@ func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 			// the terminal run.finished synthesized on a canceled run) lands
 			// regardless of run-ctx cancellation — WithoutCancel keeps the
 			// trace span (full-link), unlike context.Background().
-			s.persistStreamEvent(context.WithoutCancel(ctx), runID, handle.SessionID, parentRunID, se, model, mode)
+			s.persistStreamEvent(context.WithoutCancel(ctx), runID, handle.SessionID, parentRunID, se, model)
 			// Tell workspace subscribers a file changed when an agent file tool
 			// completes — precise + fd-free, so the watcher needn't watch the tree.
 			s.emitToolFileChange(cwd, se)
@@ -116,7 +116,7 @@ func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 	// run.started leads every segment (root + continuation), independent of
 	// any chat-level TurnStart — continuation runs (runs.resume) carry none,
 	// so emitting here is what gives them a run boundary + parentRunId, and
-	// closes any plan-review question the parked run left open.
+	// closes any question item the parked run left open.
 	emit(tr.open())
 
 	defer func() {

@@ -14,10 +14,10 @@ import (
 // resumeBindingFrom extracts the pending approval items' ids (keyed by tool
 // name + arguments) from a parked run so the continuation translator can
 // reuse them when the approved tools re-fire. Returns nil when there are no
-// approval interrupts (e.g. a plan-review question, which resolves without a
-// re-fired tool). originRunID is the interrupted run the items were created
-// in — the continuation re-emits them under that run so the item's id + runId
-// stay stable across the boundary.
+// approval interrupts (e.g. an ask_user / exit_plan_mode question, which
+// resolves without a re-fired tool). originRunID is the interrupted run the
+// items were created in — the continuation re-emits them under that run so
+// the item's id + runId stay stable across the boundary.
 func resumeBindingFrom(pending interrupts.Pending) *resumeBinding {
 	var ints []protocol.Interrupt
 	if err := json.Unmarshal(pending.Interrupts, &ints); err != nil || len(ints) == 0 {
@@ -54,8 +54,8 @@ func resumeBindingFrom(pending interrupts.Pending) *resumeBinding {
 				addItem(name, argsKey(args), in.ItemID)
 			}
 		case protocol.InterruptQuestion:
-			// A plan-review question is resolved by the resume answer (no
-			// re-fired event), so the continuation must complete its item.
+			// A question (ask_user / exit_plan_mode) is resolved by the resume
+			// answer (no re-fired event), so the continuation must complete its item.
 			questions = append(questions, resumedQuestion{itemID: in.ItemID, question: questionFromPayload(in.Payload)})
 		}
 	}
@@ -113,9 +113,8 @@ func questionFromPayload(payload map[string]any) *protocol.Question {
 //	chat.TurnInterrupted → close open items + interrupt Item(s) + run.finished(outcome:interrupt)
 //	chat.ErrorEvent     → captured, surfaced in run.finished(outcome:error)
 //
-// PlanGenerated / CompactBoundary / MemoryUpdated are not surfaced here:
-// the plan rides the interrupt outcome (TurnInterrupted), and compaction
-// / memory are internal housekeeping outside the durable Item history.
+// CompactBoundary / MemoryUpdated are not surfaced here: compaction /
+// memory are internal housekeeping outside the durable Item history.
 // resumeBinding carries a parked run's pending toolCall item ids into its
 // continuation translator. When a continuation resumes an approved tool, the
 // tool re-fires and the translator reuses its ORIGINAL proposal item id (and
@@ -127,15 +126,15 @@ type resumeBinding struct {
 	originRunID string            // the interrupted run the items were created in
 	toolItems   map[string]string // resumeKey(toolName, arguments) → original item id
 	byName      map[string]string // toolName → original item id; edited-args fallback ("" = ambiguous)
-	questions   []resumedQuestion // plan-review question items awaiting their terminal
+	questions   []resumedQuestion // question items awaiting their terminal
 }
 
-// resumedQuestion is a plan-review question item from the interrupted run.
-// Unlike a toolCall (which re-fires and completes on execution), a question
-// is resolved by the resume answer itself — no event re-fires — so the
-// continuation must emit its terminal item.completed explicitly (API.md §5.2)
-// to close the proposal card. The Question payload is carried so the
-// persisted completed item (items.list) keeps its content.
+// resumedQuestion is a question item from the interrupted run (ask_user /
+// exit_plan_mode). Unlike a toolCall (which re-fires and completes on
+// execution), a question is resolved by the resume answer itself — no event
+// re-fires — so the continuation must emit its terminal item.completed
+// explicitly (API.md §5.2) to close the proposal card. The Question payload
+// is carried so the persisted completed item (items.list) keeps its content.
 type resumedQuestion struct {
 	itemID   string
 	question *protocol.Question
@@ -144,9 +143,8 @@ type resumedQuestion struct {
 type translator struct {
 	runID       string
 	sessionID   string
-	parentRunID string           // non-empty for continuation runs (runs.resume)
-	model       string           // run's model → RunRef.model on run.started
-	mode        protocol.RunMode // run's mode → RunRef.mode on run.started
+	parentRunID string // non-empty for continuation runs (runs.resume)
+	model       string // run's model → RunRef.model on run.started
 	resume      *resumeBinding
 	itemSeq     int
 
@@ -183,13 +181,12 @@ type openTool struct {
 	args      string // raw JSON arguments, replayed to rebuild the invocation at completion
 }
 
-func newTranslator(sessionID, runID, parentRunID string, userInput []protocol.ContentBlock, resume *resumeBinding, model string, mode protocol.RunMode) *translator {
+func newTranslator(sessionID, runID, parentRunID string, userInput []protocol.ContentBlock, resume *resumeBinding, model string) *translator {
 	return &translator{
 		runID:       runID,
 		sessionID:   sessionID,
 		parentRunID: parentRunID,
 		model:       model,
-		mode:        mode,
 		resume:      resume,
 		userInput:   userInput,
 		tools:       map[string]*openTool{},
@@ -262,9 +259,9 @@ func userMessageItemID(runID string) string {
 // continuation alike. It guarantees run.started leads the stream (the
 // client's run boundary; continuation runs carry parentRunId), then the
 // root's opening userMessage Item and, for a resumed run, the terminal
-// item.completed for any plan-review question the parked run left open.
-// Driven by pumpRun before any chat event, so it never depends on a
-// chat-level TurnStart (which continuations don't emit).
+// item.completed for any question the parked run left open. Driven by
+// pumpRun before any chat event, so it never depends on a chat-level
+// TurnStart (which continuations don't emit).
 func (t *translator) open() []protocol.StreamEvent {
 	out := []protocol.StreamEvent{{
 		Type: protocol.StreamRunStarted,
@@ -273,7 +270,6 @@ func (t *translator) open() []protocol.StreamEvent {
 			SessionID:   t.sessionID,
 			ParentRunID: t.parentRunID,
 			Model:       t.model,
-			Mode:        t.mode,
 			Status:      protocol.RunStatusRunning,
 			CreatedAt:   time.Now().UTC(),
 		},
@@ -344,9 +340,9 @@ func (t *translator) openUserMessage() []protocol.StreamEvent {
 	}
 }
 
-// resumeQuestionCompletions terminalizes the plan-review question items the
-// interrupted run left inProgress. A question is resolved by the resume
-// answer (no event re-fires), so the continuation must emit its
+// resumeQuestionCompletions terminalizes the question items (ask_user /
+// exit_plan_mode) the interrupted run left inProgress. A question is resolved
+// by the resume answer (no event re-fires), so the continuation must emit its
 // item.completed itself — otherwise the proposal card stays "LIVE" forever
 // (API.md §5.2). Emitted once, right after run.started; the completed item
 // keeps the original id + origin runId and carries the Question payload so

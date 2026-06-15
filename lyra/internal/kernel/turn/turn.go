@@ -96,8 +96,8 @@ func (st *turnState) setProc(p kernel.ChatProcess) {
 }
 
 // process returns the backing agent process, or nil before the turn has
-// dispatched one (still in plan-mode). The value is stable after the single
-// setProc, so callers may invoke its methods after process() returns.
+// dispatched one. The value is stable after the single setProc, so callers
+// may invoke its methods after process() returns.
 func (st *turnState) process() kernel.ChatProcess {
 	st.mu.Lock()
 	defer st.mu.Unlock()
@@ -176,8 +176,6 @@ func (s *inMemory) runTurn(req StartTurnRequest, st *turnState) {
 		Cwd:           req.Cwd,
 		MaxBudget:     req.MaxBudget,
 		MaxCostUSD:    req.MaxCostUSD,
-		PlanMode:      req.PlanMode,
-		ChatMode:      req.ChatMode,
 		ChatClient:    client,
 		Observer:      observer,
 		EventListener: st.lifecycle.listener(st.handle.TurnID),
@@ -258,11 +256,9 @@ func (s *inMemory) emitInterrupt(st *turnState, proc kernel.ChatProcess) {
 // interruptKind classifies the pending awaitable into the wire interrupt
 // kind (API.md §6: "approval" | "question" | "toolResult"). An
 // [ApprovalPrompt] payload is a gated tool call ("approval"); anything
-// else is a plan awaiting review, which surfaces as a "question" (the
-// contract has no "plan" interrupt kind — plan-review uses the generic
-// question mechanism). Returns "" for a nil awaitable (treated as
-// surfaceable so the defensive empty-interrupt path in emitInterrupt
-// still fires).
+// else is a structured question (ask_user / exit_plan_mode), which surfaces
+// as a "question". Returns "" for a nil awaitable (treated as surfaceable so
+// the defensive empty-interrupt path in emitInterrupt still fires).
 func interruptKind(aw core.Awaitable) string {
 	if aw == nil {
 		return ""
@@ -359,20 +355,18 @@ func planTurnEnd(terminal event.Event, out kernel.ChatOutput, runErr, ctxErr err
 		}
 		return turnEndPlan{reason: TurnEndErrored, errMsg: msg, errCode: "ENGINE_ERROR"}
 	case event.ProcessStuck:
-		return turnEndPlan{reason: TurnEndErrored, errMsg: "agent stuck — planner produced no plan", errCode: "AGENT_STUCK"}
+		return turnEndPlan{reason: TurnEndErrored, errMsg: "agent stuck — no forward progress", errCode: "AGENT_STUCK"}
 	default:
 		return fallbackPlan(out, runErr, ctxErr, status)
 	}
 }
 
 // completedPlan maps a cleanly-completed turn's output to its reason: a
-// rejected plan is a (usage-free) cancellation, a budget stop is its own
-// reason, otherwise a plain completion. Shared by the ProcessCompleted
-// case and the fallback so the mapping lives in one place.
+// budget stop is its own reason, otherwise a plain completion. Shared by
+// the ProcessCompleted case and the fallback so the mapping lives in one
+// place.
 func completedPlan(out kernel.ChatOutput) turnEndPlan {
 	switch {
-	case out.PlanRejected:
-		return turnEndPlan{reason: TurnEndCanceled}
 	case out.StoppedOnBudget:
 		return turnEndPlan{reason: TurnEndBudgetExceeded, withUsage: true}
 	default:

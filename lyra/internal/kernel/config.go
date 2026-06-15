@@ -58,7 +58,6 @@ type Config struct {
 	Steering  SteeringSink // turn-end steering inject (next-turn message)
 	Compactor Compactor    // turn-boundary history compaction
 	Extractor Extractor    // turn-boundary fact extraction → LYRA.md
-	Planner   Planner      // plan-mode plan generation
 
 	// Tool environment — assembled outside the core by [toolset.Build] and
 	// injected by the composition root. The engine registers ToolResolver on

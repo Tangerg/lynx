@@ -13,7 +13,6 @@ import (
 
 	"github.com/Tangerg/lynx/lyra/internal/domain/approval"
 	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
-	"github.com/Tangerg/lynx/lyra/internal/domain/maintenance"
 	"github.com/Tangerg/lynx/lyra/internal/kernel"
 	"github.com/Tangerg/lynx/lyra/internal/kernel/turn"
 )
@@ -113,146 +112,6 @@ func TestService_SeqMonotone(t *testing.T) {
 			t.Errorf("event[%d] seq = %d, want %d (%T)", i, seq, prev+1, ev)
 		}
 		prev = seq
-	}
-}
-
-// TestService_PlanMode_ApprovePath runs the canonical plan-mode flow:
-// the LLM produces a plan → service emits PlanGenerated → test
-// calls Resume(true) → execution proceeds → TurnEnd(Completed).
-func TestService_PlanMode_ApprovePath(t *testing.T) {
-	svc, _ := buildPlanService(t, "1. read file\n2. edit it")
-	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
-		SessionID: "sess-plan",
-		Message:   "do the thing",
-		PlanMode:  true,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	events, _ := svc.Events(context.Background(), handle)
-
-	var (
-		gotPlan      *turn.PlanGenerated
-		gotTurnEnd   *turn.TurnEnd
-		messageDelta bool
-	)
-	for ev := range events {
-		switch e := ev.(type) {
-		case turn.PlanGenerated:
-			gotPlan = &e
-		case turn.TurnInterrupted:
-			// The turn parked on plan approval (R model). Approve it —
-			// the continuation streams onto the same event channel.
-			if err := svc.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}); err != nil {
-				t.Errorf("Resume: %v", err)
-			}
-		case turn.MessageDelta:
-			messageDelta = true
-		case turn.TurnEnd:
-			tmp := e
-			gotTurnEnd = &tmp
-		}
-	}
-
-	if gotPlan == nil {
-		t.Fatal("PlanGenerated never fired")
-	}
-	if !strings.Contains(gotPlan.Plan, "read file") {
-		t.Errorf("plan text missing seed: %q", gotPlan.Plan)
-	}
-	if !messageDelta {
-		t.Error("approve path should run the actual model afterwards (no MessageDelta seen)")
-	}
-	if gotTurnEnd == nil || gotTurnEnd.Reason != turn.TurnEndCompleted {
-		t.Errorf("turn end = %+v, want Completed", gotTurnEnd)
-	}
-}
-
-// TestService_PlanMode_RejectPath verifies Reject short-circuits
-// the turn without ever calling the model for the real reply.
-func TestService_PlanMode_RejectPath(t *testing.T) {
-	svc, stub := buildPlanService(t, "1. step")
-	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
-		SessionID: "sess-reject",
-		Message:   "do",
-		PlanMode:  true,
-	})
-	events, _ := svc.Events(context.Background(), handle)
-
-	priorCalls := stub.callCount()
-	var endReason turn.TurnEndReason
-	for ev := range events {
-		switch e := ev.(type) {
-		case turn.TurnInterrupted:
-			_ = svc.Resume(context.Background(), handle, interrupts.Resolution{Approved: false})
-		case turn.TurnEnd:
-			endReason = e.Reason
-		}
-	}
-
-	if endReason != turn.TurnEndCanceled {
-		t.Errorf("reject path: TurnEnd reason = %s, want canceled", endReason)
-	}
-	// One call total: the plan generation. The real Chat path must not run.
-	if got := stub.callCount() - priorCalls; got != 1 {
-		t.Errorf("stub Call count after reject: %d, want 1 (plan only)", got)
-	}
-}
-
-// TestService_PlanMode_GatedWhenClientCannotHandle covers the anti-deadlock
-// gate: plan-review surfaces as a "question" interrupt, so a client that
-// declared only "approval" can't answer it — the plan-mode turn must
-// auto-deny (reject the plan) instead of surfacing a TurnInterrupted no one
-// can resolve (API.md §6.2).
-func TestService_PlanMode_GatedWhenClientCannotHandle(t *testing.T) {
-	svc, _ := buildPlanService(t, "1. step")
-	svc.SetInterruptKinds([]string{"approval"}) // no "plan"
-
-	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
-		SessionID: "sess-gated",
-		Message:   "do",
-		PlanMode:  true,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	events, _ := svc.Events(context.Background(), handle)
-
-	var sawInterrupt bool
-	var endReason turn.TurnEndReason
-	for ev := range events {
-		switch e := ev.(type) {
-		case turn.TurnInterrupted:
-			sawInterrupt = true
-		case turn.TurnEnd:
-			endReason = e.Reason
-		}
-	}
-	if sawInterrupt {
-		t.Error("plan interrupt should have been gated (auto-denied), not surfaced")
-	}
-	if endReason != turn.TurnEndCanceled {
-		t.Errorf("gated plan should end Canceled (rejected), got %s", endReason)
-	}
-}
-
-// TestService_PlanMode_NoPlanFallthrough verifies a NO_PLAN reply
-// from the LLM skips the approval prompt entirely — the turn
-// runs through to a normal completion without emitting any
-// PlanGenerated event.
-func TestService_PlanMode_NoPlanFallthrough(t *testing.T) {
-	svc, _ := buildPlanService(t, "NO_PLAN")
-	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
-		SessionID: "sess-nop",
-		Message:   "two plus two?",
-		PlanMode:  true,
-	})
-	events, _ := svc.Events(context.Background(), handle)
-
-	for ev := range events {
-		if _, ok := ev.(turn.PlanGenerated); ok {
-			t.Error("NO_PLAN path should not emit PlanGenerated")
-		}
 	}
 }
 
@@ -516,27 +375,6 @@ func buildService(t *testing.T) (turn.Service, *kernel.Engine) {
 	return mustChat(turn.New(eng, nil, nil)), eng
 }
 
-// buildPlanService stands up a service backed by a planAwareStub
-// that answers "produce a plan" prompts with planText and every
-// other prompt with "done". Returned alongside the stub so tests
-// can assert on call counts.
-func buildPlanService(t *testing.T, planText string) (turn.Service, *planAwareStub) {
-	t.Helper()
-	stub := newPlanAwareStub(planText, "done")
-	client, err := chatmodel.NewClient(stub)
-	if err != nil {
-		t.Fatal(err)
-	}
-	eng, err := kernel.New(context.Background(), kernel.Config{
-		ChatClient: client,
-		Planner:    maintenance.NewPlanner(client), // plan mode exercises the planner port
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return mustChat(turn.New(eng, nil, nil)), stub
-}
-
 func drainEvents(events iter.Seq[turn.Event]) []turn.Event {
 	var out []turn.Event
 	for ev := range events {
@@ -713,66 +551,6 @@ func (m *historyAwareStub) Call(_ context.Context, req *chatmodel.Request) (*cha
 func (m *historyAwareStub) Stream(ctx context.Context, req *chatmodel.Request) iter.Seq2[*chatmodel.Response, error] {
 	resp, err := m.Call(ctx, req)
 	return func(yield func(*chatmodel.Response, error) bool) { yield(resp, err) }
-}
-
-// planAwareStub routes Call/Stream on the system-prompt content:
-// requests that look like plan generation (system prompt mentions
-// "draft a brief plan") get planReply; everything else gets the
-// regular chatReply. Tracks the total Call count so tests can
-// assert on how many round-trips happened.
-type planAwareStub struct {
-	planReply string
-	chatReply string
-
-	defaults *chatmodel.Options
-	mu       sync.Mutex
-	calls    int
-}
-
-func newPlanAwareStub(planReply, chatReply string) *planAwareStub {
-	opts, _ := chatmodel.NewOptions("stub-plan")
-	return &planAwareStub{planReply: planReply, chatReply: chatReply, defaults: opts}
-}
-
-func (m *planAwareStub) DefaultOptions() chatmodel.Options { return *m.defaults }
-func (m *planAwareStub) Metadata() chatmodel.ModelMetadata {
-	return chatmodel.ModelMetadata{Provider: "stub"}
-}
-
-func (m *planAwareStub) callCount() int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.calls
-}
-
-func (m *planAwareStub) Call(_ context.Context, req *chatmodel.Request) (*chatmodel.Response, error) {
-	m.mu.Lock()
-	m.calls++
-	m.mu.Unlock()
-	if isPlanRequest(req) {
-		return makeText(m.planReply)
-	}
-	return makeText(m.chatReply)
-}
-
-func (m *planAwareStub) Stream(ctx context.Context, req *chatmodel.Request) iter.Seq2[*chatmodel.Response, error] {
-	resp, err := m.Call(ctx, req)
-	return func(yield func(*chatmodel.Response, error) bool) { yield(resp, err) }
-}
-
-// isPlanRequest returns true when the request's system prompt
-// contains the plan-instructions marker. Identifying by content
-// rather than a side channel keeps the stub agnostic of how the
-// engine composes prompts.
-func isPlanRequest(req *chatmodel.Request) bool {
-	for _, msg := range req.Messages {
-		if sys, ok := msg.(*chatmodel.SystemMessage); ok {
-			if strings.Contains(sys.Text, "draft a brief plan") {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // mustChat unwraps turn.New in test wiring — construction only fails on a

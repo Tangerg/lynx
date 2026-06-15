@@ -48,14 +48,6 @@ type RunChatRequest struct {
 	// [chatInput.MaxCostUSD] — requires a [Config.Pricing] hook.
 	MaxCostUSD float64
 
-	// PlanMode runs the turn behind plan approval — see
-	// [chatInput.PlanMode]. The process parks on AwaitInput after
-	// drafting a plan; drive it back with [ChatProcess.Resume].
-	PlanMode bool
-
-	// ChatMode runs the turn tool-less — see [chatInput.ChatMode].
-	ChatMode bool
-
 	// ChatClient, when non-nil, overrides the model this turn runs against
 	// — registered as a [core.ChatClientProvider] on the process so the
 	// agent runtime uses it instead of the platform's default client. This
@@ -92,7 +84,7 @@ type RunChatRequest struct {
 // attaches a process-scope [core.ToolDecorator]; SessionID binds the
 // turn to the chat-memory middleware's keyed conversation.
 func (e *Engine) StartChat(ctx context.Context, req RunChatRequest) ChatProcess {
-	in := chatInput{Message: req.Message, Media: req.Media, Cwd: req.Cwd, SessionID: req.SessionID, MaxBudget: req.MaxBudget, MaxCostUSD: req.MaxCostUSD, PlanMode: req.PlanMode, ChatMode: req.ChatMode}
+	in := chatInput{Message: req.Message, Media: req.Media, Cwd: req.Cwd, SessionID: req.SessionID, MaxBudget: req.MaxBudget, MaxCostUSD: req.MaxCostUSD}
 
 	proc, done := e.platform.StartAgent(ctx, e.agent,
 		map[string]any{core.DefaultBindingName: in},

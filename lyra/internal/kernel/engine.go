@@ -24,8 +24,8 @@ import (
 //     (async; returns a [ChatProcess] handle backed by a real
 //     [runtime.AgentProcess]) and [Engine.RunChat] (sync wrapper) —
 //     see chatturn.go / chatprocess.go
-//   - maintenance:    the injected Compactor / Extractor / Planner ports
-//     power [Engine.MaybeCompact] / [Engine.MaybeExtract] / plan mode
+//   - maintenance:    the injected Compactor / Extractor ports power
+//     [Engine.MaybeCompact] / [Engine.MaybeExtract]
 //   - context:        knowledge / workdir feed the system prompt; the Steering
 //     port flushes a queued steering message into history at turn-end
 //
@@ -52,7 +52,6 @@ type Engine struct {
 	// composition root; nil when not wired (every use is nil-guarded).
 	compactor Compactor
 	extractor Extractor
-	planner   Planner
 
 	// mcp is the live-MCP-connections facade port (workspace.mcp.* views +
 	// reconnect), assembled in the toolset layer and injected; nil when no MCP
@@ -129,7 +128,6 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		steering:        cfg.Steering,
 		compactor:       cfg.Compactor,
 		extractor:       cfg.Extractor,
-		planner:         cfg.Planner,
 		knowledge:       cfg.Knowledge,
 		todos:           cfg.Todos,
 		workdir:         cfg.Workdir,

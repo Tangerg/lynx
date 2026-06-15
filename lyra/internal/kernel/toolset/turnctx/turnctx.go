@@ -1,8 +1,8 @@
 // Package turnctx is the per-turn context seam: the blackboard keys the chat
-// action binds on a running process (working directory, session id, chat-mode)
-// and the readers that pull them back at tool-resolution / prompt-composition
-// time. It's a leaf — it depends only on the agent SDK's process/blackboard —
-// so every reader (the tool resolver, the per-tool packages, the engine's
+// action binds on a running process (working directory, session id) and the
+// readers that pull them back at tool-resolution / prompt-composition time.
+// It's a leaf — it depends only on the agent SDK's process/blackboard — so
+// every reader (the tool resolver, the per-tool packages, the engine's
 // system-prompt composition) imports it inward without coupling to each other.
 package turnctx
 
@@ -19,11 +19,6 @@ import (
 // child and the typed-action ClearBlackboard preserves them, so a plain Set would
 // be lost when the sub-agent's action clears its inherited blackboard.
 const CwdBindingKey = "lyra:cwd"
-
-// ChatModeBindingKey is the blackboard key the chat action binds (protected) when
-// a turn runs tool-less (runs.start mode=chat). Tool resolution reads it back and
-// yields an empty tool set, so the turn is a plain LLM exchange.
-const ChatModeBindingKey = "lyra:chat-mode"
 
 // SessionBindingKey is the blackboard key the chat action binds (protected) with
 // the turn's session id, so the read/edit guards can key file-read state per
@@ -64,20 +59,4 @@ func TurnSession(ctx context.Context) string {
 		}
 	}
 	return ""
-}
-
-// ChatModeFrom reports whether the resolving process is a tool-less chat turn
-// (the chat action bound [ChatModeBindingKey]). Read off the same blackboard
-// seam as the working directory (see [TurnCwd]).
-func ChatModeFrom(ctx context.Context) bool {
-	p := core.ProcessFrom(ctx)
-	if p == nil {
-		return false
-	}
-	v, ok := p.Blackboard().Get(ChatModeBindingKey)
-	if !ok {
-		return false
-	}
-	on, _ := v.(bool)
-	return on
 }

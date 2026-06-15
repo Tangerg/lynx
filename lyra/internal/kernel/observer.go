@@ -57,12 +57,6 @@ type toolObserver interface {
 	// from final-text chunks so UIs can render thinking separately
 	// (e.g. dimmed, collapsed, or behind a "show reasoning" toggle).
 	OnReasoningDelta(text string)
-
-	// OnPlanGenerated fires once in plan mode when the agent has
-	// drafted a plan and is about to park on approval (AwaitInput).
-	// Implementations surface it so the client can render the plan and
-	// later resume the turn via the approval path.
-	OnPlanGenerated(plan string)
 }
 
 // ToolApprovalVerdict is the decorator's instruction for one gated tool
