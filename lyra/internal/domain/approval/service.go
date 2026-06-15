@@ -11,7 +11,7 @@ package approval
 import "context"
 
 // Mode is the runtime-wide permission stance. Set via config or the
-// workspace.setApprovalMode method; read at each tool call by the chat
+// approval.setMode method; read at each tool call by the chat
 // engine's approval gate.
 //
 // Strictness gradient (strictest → loosest):

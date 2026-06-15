@@ -8,9 +8,9 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/domain/approval"
 )
 
-// WorkspaceGetApprovalMode returns the current runtime tool-permission stance
-// (workspace.getApprovalMode).
-func (s *Server) WorkspaceGetApprovalMode(ctx context.Context) (*protocol.ApprovalModeResult, error) {
+// GetApprovalMode returns the current runtime tool-permission stance
+// (approval.getMode).
+func (s *Server) GetApprovalMode(ctx context.Context) (*protocol.ApprovalModeResult, error) {
 	m, err := s.rt.Approval().GetMode(ctx)
 	if err != nil {
 		return nil, err
@@ -18,9 +18,9 @@ func (s *Server) WorkspaceGetApprovalMode(ctx context.Context) (*protocol.Approv
 	return &protocol.ApprovalModeResult{Mode: approvalModeToWire(m)}, nil
 }
 
-// WorkspaceSetApprovalMode sets the runtime tool-permission stance
-// (workspace.setApprovalMode). plan is the read-only planning stance.
-func (s *Server) WorkspaceSetApprovalMode(ctx context.Context, in protocol.SetApprovalModeRequest) (*protocol.ApprovalModeResult, error) {
+// SetApprovalMode sets the runtime tool-permission stance (approval.setMode).
+// plan is the read-only planning stance.
+func (s *Server) SetApprovalMode(ctx context.Context, in protocol.SetApprovalModeRequest) (*protocol.ApprovalModeResult, error) {
 	mode, ok := approvalModeFromWire(in.Mode)
 	if !ok {
 		return nil, fmt.Errorf("%w: unknown approval mode %q", protocol.ErrInvalidParams, in.Mode)

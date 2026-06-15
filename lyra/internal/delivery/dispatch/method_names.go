@@ -59,9 +59,11 @@ const (
 	MethodWorkspaceMCPListServers  = "workspace.mcp.listServers"
 	MethodWorkspaceMCPListTools    = "workspace.mcp.listTools"
 	MethodWorkspaceMCPReconnect    = "workspace.mcp.reconnect"
-	MethodWorkspaceGetApprovalMode = "workspace.getApprovalMode"
-	MethodWorkspaceSetApprovalMode = "workspace.setApprovalMode"
 	MethodWorkspaceSubscribe       = "workspace.subscribe"
+
+	// Approval (API.md §C.3) — runtime-global tool-permission stance.
+	MethodApprovalGetMode = "approval.getMode"
+	MethodApprovalSetMode = "approval.setMode"
 
 	// Providers / Models / Tools (API.md §7.6).
 	MethodProvidersList      = "providers.list"
