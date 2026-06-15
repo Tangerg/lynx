@@ -1,3 +1,7 @@
+// Tool card — renders one agent tool invocation inline in the message stream.
+// Each card shows the tool name, status, a collapsible preview rendered by the
+// plugin-contributed preview blocks, and header actions (copy, open view).
+// Selected + expanded state lives in sessionStore so it survives tab switches.
 import type { IconName } from "@/components/common";
 import type { ToolCall } from "@/protocol/run/viewState";
 import { AnimatePresence, motion } from "motion/react";

@@ -1,3 +1,10 @@
+// Composer — the chat input surface. Owns the textarea, mode picker (agent /
+// chat / plan), model selector, attachment staging (image paste/drop), and the
+// send/stop button. Composer state lives in composerStore so the footer chips
+// (cwd, branch, mode) and the composer itself share a single source of truth.
+// Plugin-contributed mode labels, placeholders, and keybindings are resolved
+// through the extension-point registry so a third-party plugin can add a new
+// mode or placeholder without touching this file.
 import type { ComposerImage, ComposerMode } from "@/state/composerStore";
 import { imageFiles, type UserInput } from "@/lib/agent/composerInput";
 import type { IconName } from "@/components/common";
