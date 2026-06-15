@@ -13,38 +13,43 @@ import { rpcErrorText } from "@/lib/agent/errorCopy";
 import { useActiveSession } from "@/lib/agent/useActiveSession";
 import { useApprovalMode, useRememberedDecisions } from "@/lib/data/queries";
 import { notifyError } from "@/lib/notify";
+import { useT } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
 import { SettingRow } from "../SettingRow";
 
+// `label` is an i18n key resolved at render (ModeRow's t()); module scope can't
+// call the hook, so the mapping happens inside the component.
 const MODE_OPTIONS: { value: ApprovalModeValue; label: string }[] = [
-  { value: "readOnly", label: "Read-only" },
-  { value: "safe", label: "Safe" },
-  { value: "balanced", label: "Balanced" },
-  { value: "yolo", label: "Auto" },
+  { value: "readOnly", label: "approvals.mode.readOnly" },
+  { value: "safe", label: "approvals.mode.safe" },
+  { value: "balanced", label: "approvals.mode.balanced" },
+  { value: "yolo", label: "approvals.mode.auto" },
 ];
 
 function ModeRow({ mode }: { mode: ApprovalModeValue | undefined }) {
+  const t = useT();
   const onChange = async (next: ApprovalModeValue) => {
     try {
       await setApprovalMode(next);
     } catch (err) {
-      notifyError(rpcErrorText(err) ?? "Couldn't change the approval mode.");
+      notifyError(rpcErrorText(err) ?? t("approvals.error.mode"));
     }
   };
   return (
-    <SettingRow label="Mode" sub="How much the agent may do without asking each time">
+    <SettingRow label={t("approvals.mode")} sub={t("approvals.mode.sub")}>
       <Segmented
         value={mode ?? "balanced"}
-        options={MODE_OPTIONS}
+        options={MODE_OPTIONS.map((o) => ({ value: o.value, label: t(o.label) }))}
         onChange={(v) => void onChange(v)}
-        ariaLabel="Approval mode"
+        ariaLabel={t("approvals.mode.aria")}
       />
     </SettingRow>
   );
 }
 
 function RememberedRow() {
+  const t = useT();
   const sessionId = useActiveSession()?.id;
   const { data, isLoading, isError } = useRememberedDecisions(
     sessionId ? { sessionId } : undefined,
@@ -54,20 +59,20 @@ function RememberedRow() {
     try {
       await forgetDecision(sessionId, tool);
     } catch (err) {
-      notifyError(rpcErrorText(err) ?? "Couldn't clear the decision.");
+      notifyError(rpcErrorText(err) ?? t("approvals.error.forget"));
     }
   };
 
   return (
-    <SettingRow label="Remembered" sub="Tools you set to skip approval this session" align="start">
+    <SettingRow label={t("approvals.remembered")} sub={t("approvals.remembered.sub")} align="start">
       <DataView
         items={data}
         isLoading={isLoading}
         isError={isError}
         empty={{
           icon: "check",
-          title: "Nothing remembered",
-          sub: "Approve or deny with remember to add one.",
+          title: t("approvals.remembered.empty"),
+          sub: t("approvals.remembered.emptySub"),
         }}
       >
         {(rows) => (
@@ -78,7 +83,7 @@ function RememberedRow() {
                 className="text-[12px] text-fg-muted hover:text-fg"
                 onClick={() => void forget()}
               >
-                Clear all
+                {t("approvals.clearAll")}
               </button>
             </div>
             {rows.map((d) => (
@@ -88,13 +93,13 @@ function RememberedRow() {
               >
                 <span className="flex items-center gap-2 font-mono text-[12px] text-fg">
                   <span className={d.decision === "approve" ? "text-accent" : "text-negative"}>
-                    {d.decision === "approve" ? "allow" : "deny"}
+                    {d.decision === "approve" ? t("approvals.allow") : t("approvals.deny")}
                   </span>
                   {d.tool}
                 </span>
                 <button
                   type="button"
-                  aria-label={`Forget ${d.tool}`}
+                  aria-label={t("approvals.forget", { tool: d.tool })}
                   className="text-fg-faint hover:text-fg"
                   onClick={() => void forget(d.tool)}
                 >
@@ -110,13 +115,14 @@ function RememberedRow() {
 }
 
 function ApprovalsPane() {
+  const t = useT();
   const { data: mode, isError } = useApprovalMode();
   if (isError) {
     return (
       <EmptyState
         icon="shield"
-        title="Approval controls unavailable"
-        sub="This runtime doesn't expose approval-mode control."
+        title={t("approvals.unavailable")}
+        sub={t("approvals.unavailable.sub")}
       />
     );
   }
