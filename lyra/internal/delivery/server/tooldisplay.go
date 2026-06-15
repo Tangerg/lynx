@@ -34,7 +34,7 @@ func (t *translator) shapeToolResult(name string, args map[string]any, outputJSO
 		return commandResultFrom(outputJSON)
 	case "grep", "glob":
 		return searchResult{Hits: parseLocalSearchHits(outputJSON)}
-	case "websearch":
+	case "web_search":
 		return webSearchResultSet{Results: parseWebSearchHits(outputJSON)}
 	case "write", "edit":
 		if path := argString(args, "file_path"); path != "" {
