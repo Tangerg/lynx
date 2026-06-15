@@ -166,8 +166,10 @@ type taskInput struct {
 func (e *Engine) buildSubtaskAgent() *core.Agent {
 	return agent.New("task").
 		Description("Delegate a self-contained subtask to a fresh sub-agent that has the coding " +
-			"tools. Use for focused, separable work (investigate a question, draft a file) so the " +
-			"main conversation stays uncluttered. Returns the sub-agent's final answer.").
+			"tools (it cannot delegate further). Use for focused, separable work — investigate a " +
+			"question, draft a file — so the main conversation stays uncluttered. The sub-agent starts " +
+			"with a clean context and cannot see this conversation, so put everything it needs in the " +
+			"prompt. It returns a single final answer; its intermediate work is not shown to the user.").
 		Actions(agent.NewAction("subtask",
 			func(ctx context.Context, pc *core.ProcessContext, in taskInput) (string, error) {
 				// maxBudget=0: a subtask runs without its own token cap.
