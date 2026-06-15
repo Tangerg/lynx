@@ -11,9 +11,9 @@ import (
 
 // WriteRequest is the LLM-facing argument shape for the write tool.
 type WriteRequest struct {
-	Path    string `json:"path" jsonschema:"required" jsonschema_description:"Absolute file path. Parent directories are created automatically."`
-	Content string `json:"content" jsonschema:"required" jsonschema_description:"Full text content. Overwrites the file unless append=true. Must not contain NUL bytes."`
-	Append  bool   `json:"append,omitempty" jsonschema_description:"Append to the file instead of overwriting. Default false."`
+	FilePath string `json:"file_path" jsonschema:"required" jsonschema_description:"Path to the file — absolute, or relative to the workspace root. Parent directories are created automatically."`
+	Content  string `json:"content" jsonschema:"required" jsonschema_description:"Full text content. Overwrites the file unless append=true. Must not contain NUL bytes."`
+	Append   bool   `json:"append,omitempty" jsonschema_description:"Append to the end of the file instead of overwriting. Default false."`
 }
 
 // WriteResponse is the LLM-facing return shape.
@@ -42,8 +42,9 @@ func NewWriteTool(executor Executor) *WriteTool {
 func (t *WriteTool) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{
 		Name: "write",
-		Description: "Create a new text file, overwrite an existing one, or append. " +
-			"Prefer the `edit` tool when changing part of an existing file — it sends only the diff and is cheaper. " +
+		Description: "Create a new file, or overwrite / append to an existing one. " +
+			"Before overwriting a file that already exists you must `read` it first — a blind overwrite is refused. " +
+			"Prefer the `edit` tool when changing part of an existing file: it sends only the diff, and is cheaper and safer. " +
 			"Parent directories are created automatically.",
 		InputSchema: writeToolSchema,
 	}
@@ -57,10 +58,10 @@ func (t *WriteTool) Call(ctx context.Context, arguments string) (string, error) 
 	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
 		return "", fmt.Errorf("fs.write: parse arguments: %w", err)
 	}
-	if req.Path == "" {
+	if req.FilePath == "" {
 		return "", fmt.Errorf("fs.write: %w", ErrEmptyPath)
 	}
-	res, err := t.executor.Write(ctx, WriteInput(req))
+	res, err := t.executor.Write(ctx, WriteInput{Path: req.FilePath, Content: req.Content, Append: req.Append})
 	if err != nil {
 		return "", fmt.Errorf("fs.write: %w", err)
 	}

@@ -11,9 +11,9 @@ import (
 
 // EditRequest is the LLM-facing argument shape for the edit tool.
 type EditRequest struct {
-	Path       string `json:"path" jsonschema:"required" jsonschema_description:"Absolute path to a text file."`
-	OldString  string `json:"old_string" jsonschema:"required" jsonschema_description:"Exact text to find. Keep it small — usually 2-4 lines of unique context is enough. Fails when the match is not unique unless replace_all=true."`
-	NewString  string `json:"new_string" jsonschema:"required" jsonschema_description:"Replacement text. Preserve the surrounding indentation exactly."`
+	FilePath   string `json:"file_path" jsonschema:"required" jsonschema_description:"Path to the file to edit — absolute, or relative to the workspace root."`
+	OldString  string `json:"old_string" jsonschema:"required" jsonschema_description:"Exact text to find, copied verbatim from the file (the read tool returns raw text — there is no line-number prefix to strip). Keep it to the few unique lines needed; fails when the match is not unique unless replace_all=true."`
+	NewString  string `json:"new_string" jsonschema:"required" jsonschema_description:"Replacement text. Preserve the surrounding indentation exactly. Must differ from old_string."`
 	ReplaceAll bool   `json:"replace_all,omitempty" jsonschema_description:"Replace every occurrence. Default false. Use this for renaming a symbol across the file."`
 }
 
@@ -45,7 +45,9 @@ func NewEditTool(executor Executor) *EditTool {
 func (t *EditTool) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{
 		Name: "edit",
-		Description: "Replace exact text in a text file. Keep `old_string` as small as possible — usually 2-4 lines of unique context is enough; larger snippets are more likely to drift on whitespace. " +
+		Description: "Replace exact text in a file. You must `read` the file before editing it — an edit without a prior read is refused. " +
+			"Copy `old_string` verbatim from the file: `read` returns raw text, so there is no line-number prefix to strip. " +
+			"Keep `old_string` to the few unique lines needed — larger snippets drift on whitespace. " +
 			"Pass `replace_all=true` to change every occurrence (use this when renaming a symbol).",
 		InputSchema: editToolSchema,
 	}
@@ -59,10 +61,10 @@ func (t *EditTool) Call(ctx context.Context, arguments string) (string, error) {
 	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
 		return "", fmt.Errorf("fs.edit: parse arguments: %w", err)
 	}
-	if req.Path == "" {
+	if req.FilePath == "" {
 		return "", fmt.Errorf("fs.edit: %w", ErrEmptyPath)
 	}
-	res, err := t.executor.Edit(ctx, EditInput(req))
+	res, err := t.executor.Edit(ctx, EditInput{Path: req.FilePath, OldString: req.OldString, NewString: req.NewString, ReplaceAll: req.ReplaceAll})
 	if err != nil {
 		return "", fmt.Errorf("fs.edit: %w", err)
 	}

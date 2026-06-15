@@ -185,7 +185,7 @@ func (s *Server) emitToolFileChange(cwd string, se protocol.StreamEvent) {
 	if _, ok := fileMutatingTools[strings.ToLower(it.Tool.Name)]; !ok {
 		return
 	}
-	path, _ := it.Tool.Arguments["path"].(string)
+	path, _ := it.Tool.Arguments["file_path"].(string)
 	if path == "" {
 		return
 	}

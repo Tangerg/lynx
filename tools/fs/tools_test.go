@@ -37,7 +37,7 @@ func TestReadTool_OneBasedOffsetTranslation(t *testing.T) {
 	tool := NewReadTool(nil)
 
 	// offset=2 (1-based) means "start at line 2"; limit=2 takes line2,line3
-	body, err := tool.Call(t.Context(), `{"path":"`+path+`","offset":2,"limit":2}`)
+	body, err := tool.Call(t.Context(), `{"file_path":"`+path+`","offset":2,"limit":2}`)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestReadTool_OneBasedOffsetTranslation(t *testing.T) {
 func TestReadTool_OffsetZeroMeansStart(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "a\nb\nc\n")
-	body, err := NewReadTool(nil).Call(t.Context(), `{"path":"`+path+`","offset":0,"limit":1}`)
+	body, err := NewReadTool(nil).Call(t.Context(), `{"file_path":"`+path+`","offset":0,"limit":1}`)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestReadTool_OffsetZeroMeansStart(t *testing.T) {
 }
 
 func TestReadTool_EmptyPath(t *testing.T) {
-	_, err := NewReadTool(nil).Call(t.Context(), `{"path":""}`)
+	_, err := NewReadTool(nil).Call(t.Context(), `{"file_path":""}`)
 	if err == nil {
 		t.Fatal("Call with empty path: want error")
 	}
@@ -80,7 +80,7 @@ func TestReadTool_EmptyPath(t *testing.T) {
 func TestWriteTool_RoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "x.txt")
-	body, err := NewWriteTool(nil).Call(t.Context(), `{"path":"`+path+`","content":"hi"}`)
+	body, err := NewWriteTool(nil).Call(t.Context(), `{"file_path":"`+path+`","content":"hi"}`)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestEditTool_HappyPath(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "alpha beta\n")
 	body, err := NewEditTool(nil).Call(t.Context(),
-		`{"path":"`+path+`","old_string":"beta","new_string":"BETA"}`)
+		`{"file_path":"`+path+`","old_string":"beta","new_string":"BETA"}`)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}

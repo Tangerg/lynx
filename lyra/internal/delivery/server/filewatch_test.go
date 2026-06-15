@@ -83,7 +83,7 @@ func TestEmitToolFileChange(t *testing.T) {
 	completed := func(name, path string, failed bool) protocol.StreamEvent {
 		it := &protocol.Item{
 			Type: protocol.ItemTypeToolCall, Status: protocol.ItemStatusCompleted,
-			Tool: &protocol.ToolInvocation{Name: name, Arguments: map[string]any{"path": path}},
+			Tool: &protocol.ToolInvocation{Name: name, Arguments: map[string]any{"file_path": path}},
 		}
 		if failed {
 			it.Error = &protocol.ProblemData{Type: "tool_failed"}
