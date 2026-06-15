@@ -109,7 +109,7 @@ export function MessageOutline({
     >
       <div className="sticky top-4 max-h-[60vh] overflow-y-auto">
         <div className="mb-1.5 font-mono text-[10px] font-semibold text-fg-faint">
-          On this message
+          {t("message.outline.heading")}
         </div>
         <ul className="flex flex-col gap-0.5">
           {items.map((it) => (

@@ -64,6 +64,7 @@ export const ko: Record<string, string> = {
   "message.code.expand": "코드 블록 펼치기",
   "message.code.collapse": "코드 블록 접기",
   "message.outline.label": "메시지 개요",
+  "message.outline.heading": "이 메시지에서",
   "message.code.copy": "코드 복사",
   "message.code.copied": "복사됨",
   "message.code.copyLabel": "복사",

@@ -66,6 +66,7 @@ export const es: Record<string, string> = {
   "message.code.expand": "Expandir bloque de código",
   "message.code.collapse": "Contraer bloque de código",
   "message.outline.label": "Esquema del mensaje",
+  "message.outline.heading": "En este mensaje",
   "message.code.copy": "Copiar código",
   "message.code.copied": "Copiado",
   "message.code.copyLabel": "Copiar",
