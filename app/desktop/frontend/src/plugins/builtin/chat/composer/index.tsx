@@ -22,47 +22,12 @@ import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import {
   COMPOSER_KEY_BINDING,
-  COMPOSER_MODE,
   COMPOSER_PLACEHOLDER,
   COMPOSER_STATUS,
 } from "@/plugins/sdk/kernelPoints";
 import { useAgentAction, useAgentRunning, useAgentStore } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
 import { useSessionStore } from "@/state/sessionStore";
-
-export const composerModes = definePlugin({
-  name: "lyra.builtin.composer-modes",
-  version: "1.0.0",
-  setup({ host }) {
-    host.extensions.contribute(COMPOSER_MODE, {
-      id: "agent",
-      // label/description are i18n keys — the render site (ModePicker) resolves
-      // them via t(); a third-party plugin may pass a literal, which t() returns
-      // unchanged. Keep them keys so a locale switch relabels live.
-      label: "composer.mode.agent",
-      icon: "spark",
-      order: 0,
-      description: t("composer.mode.agent.desc"),
-    });
-    // id is the WIRE RunMode value (API.md: agent | chat | plan) — the driver
-    // forwards the selection verbatim on runs.start, so the picker's promise
-    // ("read-only, no tool calls") is enforced by the runtime, not just copy.
-    host.extensions.contribute(COMPOSER_MODE, {
-      id: "chat",
-      label: "composer.mode.chat",
-      icon: "chat",
-      order: 1,
-      description: t("composer.mode.chat.desc"),
-    });
-    host.extensions.contribute(COMPOSER_MODE, {
-      id: "plan",
-      label: "composer.mode.plan",
-      icon: "list",
-      order: 2,
-      description: t("composer.mode.plan.desc"),
-    });
-  },
-});
 
 export const composerPlaceholders = definePlugin({
   name: "lyra.builtin.composer-placeholders",

@@ -5,7 +5,6 @@
 // store and owns abort/cancel.
 
 import type { AgentDriver } from "@/plugins/sdk";
-import type { RunMode } from "@/rpc";
 import { definePlugin } from "@/plugins/sdk";
 import { t } from "@/lib/i18n";
 import { AGENT_SOURCE } from "@/plugins/sdk/kernelPoints";
@@ -14,26 +13,20 @@ import { asSessionId } from "@/rpc";
 import { useComposerStore } from "@/state/composerStore";
 import { useSessionStore } from "@/state/sessionStore";
 
-// The built-in composer modes use wire RunMode values as their ids, so the
-// picker selection forwards verbatim. COMPOSER_MODE is an open extension
-// point though — a third-party mode id has no wire meaning, so anything
-// outside the RunMode union falls back to "agent" instead of failing the
-// run with invalid_params.
-const WIRE_MODES: ReadonlySet<string> = new Set<RunMode>(["agent", "chat", "plan"]);
-
 function makeDriver(sessionId: string): AgentDriver {
   const client = () => getContainer().client();
   return {
     start: (input, signal) => {
       // provider + model are a pair (API §7.3): send BOTH or NEITHER. Only one
       // → invalid_params. Both null (no enabled provider picked) = runtime
-      // default provider+model.
-      const { provider, model, mode } = useComposerStore.getState();
+      // default provider+model. There is no run `mode` — the run is always the
+      // agent loop; "plan" is a global approval stance (approval.setMode), not a
+      // per-run mode.
+      const { provider, model } = useComposerStore.getState();
       return client().runs.start(
         {
           sessionId: asSessionId(sessionId),
           input,
-          mode: WIRE_MODES.has(mode) ? (mode as RunMode) : "agent",
           ...(provider && model ? { provider, model } : {}),
         },
         signal,

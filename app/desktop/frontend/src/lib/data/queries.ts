@@ -181,7 +181,7 @@ export interface FileLine {
 // approval.* (B9, 613) — the runtime's global approval stance + the
 // per-session "remembered" tool decisions. Mode is mutated in the Approvals
 // pane (lib/agent/approvalConfig); both keys invalidate on mutation.
-export type ApprovalModeValue = "readOnly" | "safe" | "balanced" | "yolo";
+export type ApprovalModeValue = "plan" | "safe" | "balanced" | "yolo";
 export interface RememberedQuery {
   sessionId: string;
 }

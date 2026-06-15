@@ -144,7 +144,7 @@ export const zh: Record<string, string> = {
   "approvals.mode": "模式",
   "approvals.mode.sub": "agent 每次无需询问即可执行的范围",
   "approvals.mode.aria": "审批模式",
-  "approvals.mode.readOnly": "只读",
+  "approvals.mode.plan": "计划",
   "approvals.mode.safe": "安全",
   "approvals.mode.balanced": "均衡",
   "approvals.mode.auto": "自动",

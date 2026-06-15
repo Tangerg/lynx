@@ -278,7 +278,6 @@ interface RunRef {
   status?: "running" | "finished";
   outcome?: RunOutcome;                // status=finished 时给
   model?: string;                      // 本 Run 用的 model（Model.id）
-  mode?: "agent" | "chat" | "plan";    // 本 Run 的模式
   createdAt?: string;
   finishedAt?: string;
 }
@@ -299,8 +298,10 @@ interface RunResult {
 ```
 
 > `spawnedByItemId`（子）与 `parentRunId`（延续）是**两种不同关系，永不互相复用**。
-> `model` / `mode` 落在 RunRef 上：`runs.subscribe` 重连或 `items.list.runs` 历史还原**没见过原始 `runs.start` 请求**时，
-> 仍能据此标注"这条 Run 用的哪个模型 / 什么模式"。
+> `model` 落在 RunRef 上：`runs.subscribe` 重连或 `items.list.runs` 历史还原**没见过原始 `runs.start` 请求**时，
+> 仍能据此标注"这条 Run 用的哪个模型"。
+> **没有 `mode` 字段**：agent/chat/plan 这套 per-run 模式已移除——run 永远是带工具的 agent 循环，"计划"是
+> 一个**全局审批姿态**（`ApprovalMode = "plan"`，见 §C.3），不是 run 的属性。
 > **非 error 终态的 `detail?`**（S6）：让客户端能区分"被用户取消" vs "被超时取消"、能给 maxBudget 显示花费/上限；
 > `runs.cancel` 的 `reason` 经此回流到 outcome。error 的人读说明仍在 `result.error.detail`（§4.6），不另开第二处。
 
@@ -914,7 +915,6 @@ interface SessionArtifact {
   | `state` | object | 否 | 初始共享状态 |
   | `provider` | string | 否¹ | 选用的 provider（`Provider.id`，来自 `providers.list`）。与 `model` **配对** |
   | `model` | string | 否¹ | 选用的 model（`Model.id`，来自 `models.list`）。与 `provider` **配对** |
-  | `mode` | `"agent"\|"chat"\|"plan"` | 否 | |
   | `maxSteps` | number | 否 | 触顶 → `outcome.maxSteps` |
   | `maxBudgetUsd` | number | 否 | 含子 agent 子树；触顶 → `outcome.maxBudget` |
   | `params` | `GenerationParams` | 否 | |
@@ -922,6 +922,11 @@ interface SessionArtifact {
   ¹ **`provider` + `model` 配对、显式**：要么**都给**，要么**都不给**（用服务端默认）。**只给其一 → `invalid_params`**。
   provider **不从 model 反推**（同名 model 可能跨多 provider；自定义 model 可能不在 catalog）。所选 provider 未配置 key
   （`apiKeyMasked == ""`）时，run 以 `run.finished{outcome:error}`（"set its API key first"）收尾。
+
+  > **没有 `mode` 字段**：agent/chat/plan 这套 per-run 模式已移除。run 永远是带工具的 agent 循环。
+  > "计划"通过**全局审批姿态**实现：先 `approval.setMode{"plan"}`（§C.3，只读门禁——写/exec/network 工具一律拒），
+  > agent 调研完调 `exit_plan_mode` 工具把计划作为一个 `question` interrupt 抛出（§6）；用户批了，姿态自动翻回
+  > `balanced` 执行，拒了留在 `plan`。"chat"（无工具单轮）没有替代——run 总是带工具的。
 
 - 返回 `{ runId: string; userItemId?: string }`；随后流式 `RunEvent`（§5），以 `run.finished{outcome}` 收尾。
   - `userItemId`：本 run 开场 `userMessage` Item 的 id —— 与流上 `item.*` 及 `items.list` 里同一个 id。客户端用它把
@@ -935,7 +940,7 @@ interface SessionArtifact {
   请求
   ```json
   { "jsonrpc": "2.0", "id": "1", "method": "runs.start",
-    "params": { "sessionId": "ses_01", "input": [{ "type": "text", "text": "列出当前目录" }], "mode": "agent" } }
+    "params": { "sessionId": "ses_01", "input": [{ "type": "text", "text": "列出当前目录" }] } }
   ```
   响应（HTTP 上是流的首帧）
   ```json
@@ -1464,19 +1469,24 @@ interface FileContent { path: string; content: string; encoding: "utf-8"; totalL
 
 `ApprovalMode` 是 **每 Runtime 一个的全局策略**（非 per-session），与 `Item.toolCall.safetyClass`（per-tool 风险）正交，二者合决一次调用是否驻留待批。
 
-| 方法 | 入参 | 返回 |
-| --- | --- | --- |
-| `approval.getMode` | —— | `{ mode: ApprovalMode }` |
-| `approval.setMode` | `{ mode: ApprovalMode }` | `{ mode: ApprovalMode }` |
-| `approval.listRemembered` | `{ sessionId }` | `{ entries: RememberedDecision[] }` |
-| `approval.forget` | `{ sessionId; tool? }` | 无（省 `tool` = 清该会话全部记忆决策） |
+> **状态**：`approval.getMode` / `approval.setMode` **已落地**（取代了原 agent/chat/plan 的 per-run `mode`——
+> 见 §4.2 / §7.1）。`approval.listRemembered` / `approval.forget` **仍是提案**（后端方法表未注册）。
+
+| 方法 | 入参 | 返回 | 状态 |
+| --- | --- | --- | --- |
+| `approval.getMode` | —— | `{ mode: ApprovalMode }` | 已落地 |
+| `approval.setMode` | `{ mode: ApprovalMode }` | `{ mode: ApprovalMode }` | 已落地 |
+| `approval.listRemembered` | `{ sessionId }` | `{ entries: RememberedDecision[] }` | 提案 |
+| `approval.forget` | `{ sessionId; tool? }` | 无（省 `tool` = 清该会话全部记忆决策） | 提案 |
 
 ```ts
-type ApprovalMode = "readOnly" | "safe" | "balanced" | "yolo";  // readOnly=仅只读工具过；safe=所有写/exec 驻留；balanced(默认)=按 safetyClass 高危驻留、低危过；yolo=全过、不驻留（自动化）
+type ApprovalMode = "plan" | "safe" | "balanced" | "yolo";  // plan=只读规划姿态：写/exec/network 一律拒（不提示），agent 只调研+出计划，由 exit_plan_mode 工具呈交计划并翻回执行；safe=所有写/exec 驻留；balanced(默认)=按 safetyClass 高危驻留、低危过；yolo=全过、不驻留（自动化）
 interface RememberedDecision { tool: string; decision: "approve" | "deny"; rememberedAt: string }  // KEY=工具名（AUX_API §6）
 ```
 
-> 记忆决策的**写入**面是 HITL 应答里的 `ApprovalResponse.remember`（§6.1 / AUX_API §6）；本组是其**读 + 管理**面。
+> `plan` 是 agent/chat/plan run-mode 移除后"计划"的归宿：它是一个**姿态**而非 run 模式，模型在该姿态下调研完
+> 调 `exit_plan_mode`（一个 `question` interrupt，§6）呈交计划；批准 → 姿态自动翻回 `balanced` 执行，拒绝 → 留在 `plan`。
+> 记忆决策的**写入**面是 HITL 应答里的 `ApprovalResponse.remember`（§6.1 / AUX_API §6）；`listRemembered`/`forget` 是其**读 + 管理**面（提案）。
 
 ### C.4 B10 · `sessions.compact` + `compaction` Item（门控 `compaction`）—— 主动上下文压缩
 

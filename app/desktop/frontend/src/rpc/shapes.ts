@@ -218,8 +218,6 @@ export interface RunRef {
   finishedAt?: string;
 }
 
-export type RunMode = "agent" | "chat" | "plan";
-
 export type RunOutcome =
   // `result` is `*RunResult` + omitempty on the wire, so a minimal/non-conformant
   // backend can omit it — consumers must guard (the fold does), never deref blind.
@@ -741,7 +739,6 @@ export interface StartRunRequest {
   // span providers). Both come straight from models.list's Model.{provider,id}.
   provider?: string;
   model?: string;
-  mode?: "agent" | "chat" | "plan";
   maxSteps?: number; // ceiling → outcome.maxSteps
   maxBudgetUsd?: number; // incl. subagent subtree → outcome.maxBudget
   params?: GenerationParams;
@@ -900,7 +897,7 @@ export interface FileContent {
 // Item.toolCall.safetyClass (per-tool risk): mode is the global policy, the two
 // combine to decide whether a call parks.
 export type ApprovalMode =
-  | "readOnly" // only read-only tools pass; writes/exec park
+  | "plan" // read-only planning stance: write/exec/network denied (no prompt); exit_plan_mode flips back to execute
   | "safe" // every write/exec tool parks
   | "balanced" // default: high-risk parks, low-risk passes (by safetyClass)
   | "yolo"; // everything passes, no parking (automation)

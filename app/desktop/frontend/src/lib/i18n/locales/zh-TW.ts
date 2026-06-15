@@ -144,7 +144,7 @@ export const zhTW: Record<string, string> = {
   "approvals.mode": "模式",
   "approvals.mode.sub": "agent 每次無需詢問即可執行的範圍",
   "approvals.mode.aria": "核准模式",
-  "approvals.mode.readOnly": "唯讀",
+  "approvals.mode.plan": "計畫",
   "approvals.mode.safe": "安全",
   "approvals.mode.balanced": "均衡",
   "approvals.mode.auto": "自動",

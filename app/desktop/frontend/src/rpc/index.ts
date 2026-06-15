@@ -51,7 +51,6 @@ export type {
   ImportSessionResponse,
   // Runs
   RunRef,
-  RunMode,
   RunOutcome,
   RunProgress,
   RunResult,
