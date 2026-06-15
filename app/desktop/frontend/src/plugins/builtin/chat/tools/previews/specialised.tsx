@@ -180,12 +180,27 @@ function AskUserPreview({ tool }: ToolPreviewProps) {
 }
 
 //
-// GlobResponse { paths, truncated? } — a path list, rendered from the
-// call's own result (glob patterns aren't workspace.grep queries, so
-// there's nothing to re-query).
+// glob's result is the §4.4.2 search shape `{ hits: SearchHit[] }` (each hit's
+// `.path`), but tolerate a raw `paths` / `files` string list and `matches` too
+// — the SAME key priority the projection counts for the header badge, so the
+// body list can never disagree with the "N matches" count (the bug where 20
+// matches rendered "(no matches)" was reading only `paths`).
+function globPaths(parsed: Record<string, unknown> | undefined): string[] {
+  const arr = [parsed?.hits, parsed?.matches, parsed?.files, parsed?.paths].find(Array.isArray);
+  if (!arr) return [];
+  return (arr as unknown[]).map(hitPath).filter((p) => p.length > 0);
+}
+
+function hitPath(hit: unknown): string {
+  if (typeof hit === "string") return hit;
+  if (typeof hit === "object" && hit !== null)
+    return String((hit as Record<string, unknown>).path ?? "");
+  return "";
+}
+
 function GlobPreview({ tool, onOpenView }: ToolPreviewProps) {
   const parsed = parseJsonResult(tool.result);
-  const paths = Array.isArray(parsed?.paths) ? parsed.paths.filter(isString) : [];
+  const paths = globPaths(parsed);
   return (
     <div className={PREVIEW_WRAP}>
       {paths.length === 0 && (
@@ -203,10 +218,6 @@ function GlobPreview({ tool, onOpenView }: ToolPreviewProps) {
       <PreviewFoot label="tools.preview.viewDetails" onClick={onOpenView} />
     </div>
   );
-}
-
-function isString(v: unknown): v is string {
-  return typeof v === "string";
 }
 
 // The runtime exposes ONE `lsp` tool (operation in the args) plus a separate

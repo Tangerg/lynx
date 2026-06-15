@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { ToolCall } from "@/protocol/run/viewState";
 import { Icon } from "@/components/common";
 import { cn } from "@/lib/utils";
-import { openViewForTool } from "@/state/toolRouting";
+import { hasToolView, openViewForTool } from "@/state/toolRouting";
 import { ToolCard } from "./ToolCard";
 
 const READONLY_TOOLS = new Set(["read", "grep", "glob", "lsp"]);
@@ -98,7 +98,7 @@ export function ToolGroup({
                 onSelectTool(t.id);
                 onToggleExpand(t.id);
               }}
-              onOpenView={() => openViewForTool(t.id)}
+              onOpenView={hasToolView(t) ? () => openViewForTool(t.id) : undefined}
             />
           ))}
         </div>
