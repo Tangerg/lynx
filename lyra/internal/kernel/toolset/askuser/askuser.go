@@ -43,7 +43,7 @@ func New() chat.Tool {
 	t, _ := chat.NewTool(
 		chat.ToolDefinition{
 			Name:        toolName,
-			Description: "Ask the user a question and wait for their answer. Use when you need a decision, clarification, or information only the user can provide.",
+			Description: "Ask the user a question and wait for their answer. Use when you need a decision, clarification, or information only the user can provide — not for routine progress updates. Give 2-4 `options` for a multiple-choice question (put the recommended one first), or omit `options` for a free-text answer; set `multi_select` when more than one option may apply.",
 			InputSchema: schema,
 		},
 		chat.ToolMetadata{},
