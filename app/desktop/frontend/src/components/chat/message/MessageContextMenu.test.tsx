@@ -47,8 +47,8 @@ describe("messageContextMenu", () => {
     );
     openMenu("user message");
     expect(screen.getByText("Edit in composer")).toBeTruthy();
-    expect(screen.getByText("Copy as plain text")).toBeTruthy();
-    expect(screen.queryByText("Regenerate")).toBeNull();
+    expect(screen.getByText("Copy plain text")).toBeTruthy();
+    expect(screen.queryByText("Regenerate response")).toBeNull();
   });
 
   it("shows Regenerate + copy items for an assistant message", () => {
@@ -58,8 +58,8 @@ describe("messageContextMenu", () => {
       </MessageContextMenu>,
     );
     openMenu("assistant message");
-    expect(screen.getByText("Regenerate")).toBeTruthy();
-    expect(screen.getByText("Copy as plain text")).toBeTruthy();
+    expect(screen.getByText("Regenerate response")).toBeTruthy();
+    expect(screen.getByText("Copy plain text")).toBeTruthy();
     expect(screen.queryByText("Edit in composer")).toBeNull();
   });
 
@@ -78,8 +78,8 @@ describe("messageContextMenu", () => {
     // No copy / edit items — only assistant-side Regenerate would
     // remain, but this is a user message, so the menu has no
     // actionable items.
-    expect(screen.queryByText("Copy as markdown")).toBeNull();
-    expect(screen.queryByText("Copy as plain text")).toBeNull();
+    expect(screen.queryByText("Copy markdown")).toBeNull();
+    expect(screen.queryByText("Copy plain text")).toBeNull();
     expect(screen.queryByText("Edit in composer")).toBeNull();
   });
 
