@@ -14,6 +14,7 @@ import { definePlugin } from "@/plugins/sdk";
 import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { useSessionStore } from "@/state/sessionStore";
 import { useUiStore } from "@/state/uiStore";
+import { useSidebarRail } from "@/state/useSidebarRail";
 import { useDefaultChatSession } from "@/state/useDefaultChatSession";
 
 function KernelChat() {
@@ -25,7 +26,7 @@ function KernelChat() {
 }
 
 function KernelSidebar() {
-  const sidebarRail = useUiStore((s) => s.sidebarRail);
+  const railed = useSidebarRail();
   const activeSession = useSessionStore((s) => s.activeSessionId);
   const selectTab = useSessionStore((s) => s.selectTab);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
@@ -42,7 +43,7 @@ function KernelSidebar() {
       sessions={sessions}
       activeSessionId={activeSession}
       onSelect={selectTab}
-      rail={sidebarRail}
+      rail={railed}
       onToggleRail={toggleSidebar}
     />
   );

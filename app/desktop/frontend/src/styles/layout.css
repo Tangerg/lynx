@@ -70,18 +70,11 @@ html.theme-light {
   min-height: 0;
 }
 
+/* Rail covers both the user's collapse preference and an open split view —
+   "open right → collapse left" forces the rail (see useSidebarRail), so a
+   split shares the canvas with a 56px rail rather than a zero-width column. */
 .app.rail .app-main {
   grid-template-columns: 56px minmax(0, 1fr);
-}
-
-/* Split (beside) view open — collapse the sidebar column so chat + split
-   own the full width. Wins over `.app.rail` (both classes can co-occur).
-   The sidebar Slot stays mounted in the zero-width track. */
-.app.split .app-main {
-  grid-template-columns: 0 minmax(0, 1fr);
-  /* No left gutter when the sidebar is collapsed (the 8px gap would read
-     as a stray inset against the canvas edge). */
-  padding-left: 0;
 }
 
 /* Status bar — persistent runtime data row (DESIGN.md §8). Full-bleed chrome

@@ -1,9 +1,10 @@
 // Floating heading outline for assistant messages. Anchored to the
 // gutter outside the 760px content column so it never compresses
 // content width. Hides itself below MIN_ITEMS (short messages don't
-// need a TOC) and when the chat panel doesn't have a 192px right
-// gutter to host the outline (container query, not viewport — sidebar
-// mode + window width together drive the available width).
+// need a TOC), when the viewport is too narrow to spare a 176px right
+// gutter (the min-[1408px] media query below), and whenever a split
+// (beside) view is open — the chat then only owns a fraction of the
+// width, so the gutter the outline lives in no longer exists.
 //
 // MessageBlock skips mounting this while the message is streaming, so
 // the per-token MutationObserver path below only runs against a settled
@@ -14,6 +15,7 @@ import type { RefObject } from "react";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
+import { useSessionStore } from "@/state/sessionStore";
 
 interface OutlineItem {
   id: string;
@@ -46,6 +48,11 @@ export function MessageOutline({
   scopeId: string;
 }) {
   const t = useT();
+  // A split (beside) view shrinks the chat to a fraction of the row, so the
+  // right gutter this outline is absolutely positioned into would overlap the
+  // split pane. Drop it entirely while a split is open (the boolean only flips
+  // on split open/close, not during streaming, so this stays a cheap read).
+  const splitOpen = useSessionStore((s) => s.splitViewId !== null);
   const [items, setItems] = useState<OutlineItem[]>([]);
 
   useEffect(() => {
@@ -86,7 +93,7 @@ export function MessageOutline({
     };
   }, [target, scopeId]);
 
-  if (items.length < MIN_ITEMS) return null;
+  if (splitOpen || items.length < MIN_ITEMS) return null;
 
   // Indent by heading level relative to the shallowest heading so a
   // message whose top heading is h2 doesn't waste left padding.
