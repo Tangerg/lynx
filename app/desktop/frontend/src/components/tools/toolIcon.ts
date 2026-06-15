@@ -20,31 +20,42 @@ export function toolRoutingKey(tool: ToolCall): string {
   return tool.name;
 }
 
-/** Built-in tool `name` → icon glyph (§4.4.2 display conventions). */
+// Built-in tool `name` → icon glyph (§4.4.2 display conventions). Every tool
+// with bespoke rendering gets a glyph that fits what it DOES — read / write /
+// edit must not collapse to one "file", or a glance can't tell them apart.
+// Tools with no entry fall through to the generic toolbox glyph (`tool`).
 export const DEFAULT_TOOL_ICONS: Record<string, IconName> = {
+  // Shell — terminal is the shared domain glyph; the background ops split out
+  // by what they do (start a process / read its output / kill it).
   bash: "terminal",
   shell: "terminal",
-  run_in_background: "terminal",
-  bash_output: "terminal",
+  run_in_background: "play",
+  bash_output: "list",
   kill_shell: "stop",
-  edit: "file",
-  write: "file",
-  read: "file",
+  // File ops — a distinct verb each so read ≠ write ≠ edit at a glance.
+  read: "eye", // view contents
+  write: "file-plus", // create / overwrite a file
+  edit: "edit", // modify in place (pencil)
+  // Search — content match vs filename pattern.
   grep: "search",
-  glob: "search",
+  glob: "folder-search",
+  // Web — query vs retrieve.
   web_search: "globe",
-  web_fetch: "globe",
+  web_fetch: "download",
+  // Code intelligence.
   lsp: "code",
-  lsp_diagnostics: "code",
+  lsp_diagnostics: "bug", // surfaced problems
+  // Agentic.
   skill: "sparkle",
   task: "spark",
-  subagent: "spark",
+  subagent: "bot", // a spawned sub-agent
   ask_user: "chat",
 };
 
 export function toolIconFor(key: string): IconName {
   const registered = lookupExtensionByKey(TOOL_ICON, key);
   if (registered) return registered as IconName;
-  // Unlisted lsp_* tools still resolve to code; everything else to the generic tool glyph.
+  // Unlisted lsp_* tools still resolve to code; everything else to the generic
+  // toolbox glyph — a tool we don't render specially still reads as "a tool".
   return DEFAULT_TOOL_ICONS[key] ?? (key.startsWith("lsp_") ? "code" : "tool");
 }

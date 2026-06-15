@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   ArrowDown,
   Book,
+  Bot,
   Bug,
   Check,
   ChevronDown,
@@ -11,10 +12,14 @@ import {
   Code,
   Command,
   Copy,
+  Download,
+  Eye,
   File,
   FileDiff,
+  FilePlus,
   FileText,
   Folder,
+  FolderSearch,
   GitBranch,
   GitFork,
   Globe,
@@ -120,7 +125,12 @@ export type IconName =
   | "panel-r"
   | "arrow-down"
   | "trash"
-  | "alert";
+  | "alert"
+  | "eye"
+  | "file-plus"
+  | "folder-search"
+  | "download"
+  | "bot";
 
 // Mapping from our project's icon vocabulary to lucide components.
 // Names on the left are the project's IconName tokens used at every
@@ -182,6 +192,11 @@ const ICON_MAP: Record<IconName, LucideIcon> = {
   "arrow-down": ArrowDown,
   trash: Trash2,
   alert: AlertTriangle,
+  eye: Eye,
+  "file-plus": FilePlus,
+  "folder-search": FolderSearch,
+  download: Download,
+  bot: Bot,
 };
 
 interface Props {
