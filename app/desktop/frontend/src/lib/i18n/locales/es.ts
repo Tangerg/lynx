@@ -136,6 +136,9 @@ export const es: Record<string, string> = {
   "settings.pane.appearance": "Apariencia",
   "settings.pane.plugins": "Plugins",
   "settings.pane.language": "Idioma",
+  "settings.pane.personalization": "Personalización",
+  "settings.pane.providers": "Proveedores",
+  "settings.pane.approvals": "Aprobaciones",
   "settings.theme": "Tema",
   "settings.theme.sub":
     "Elige un tema. Los plugins pueden registrar más — aparecen aquí automáticamente.",

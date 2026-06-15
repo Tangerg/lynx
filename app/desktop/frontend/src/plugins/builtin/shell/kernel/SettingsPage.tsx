@@ -46,7 +46,7 @@ export function SettingsPage() {
             className="flex items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-2 text-left text-[14px] text-fg-muted transition-colors duration-150 hover:bg-surface-3 hover:text-fg data-[state=active]:bg-surface-3 data-[state=active]:text-fg"
           >
             {p.icon && <Icon name={p.icon as IconName} size={15} />}
-            <span>{p.label}</span>
+            <span>{t(p.label)}</span>
           </Tabs.Trigger>
         ))}
       </Tabs.List>

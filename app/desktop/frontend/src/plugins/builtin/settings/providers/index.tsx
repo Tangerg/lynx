@@ -172,7 +172,7 @@ export default definePlugin({
   setup({ host }) {
     host.extensions.contribute(SETTINGS_PANE, {
       id: "providers",
-      label: "Providers",
+      label: "settings.pane.providers",
       icon: "spark",
       order: 50,
       component: ProvidersPane,
