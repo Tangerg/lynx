@@ -164,24 +164,27 @@ function firstLine(v: unknown): string | undefined {
 function nameLabel(tool: ToolInvocation): string | undefined {
   const a = tool.arguments ?? {};
   switch (tool.name) {
-    case "lsp_definition":
-    case "lsp_references":
-    case "lsp_hover": {
-      const file = asString(a.file);
-      return file ? `${file}:${a.line ?? "?"}:${a.column ?? "?"}` : undefined;
+    case "lsp": {
+      // One operation-dispatched tool: operation + file_path/line/character,
+      // or query for workspace_symbols (backend internal/kernel/toolset/lsptools).
+      const op = asString(a.operation);
+      if (op === "workspace_symbols") return asString(a.query);
+      const file = asString(a.file_path);
+      if (op === "document_symbols") return file;
+      return file ? `${file}:${a.line ?? "?"}:${a.character ?? "?"}` : undefined;
     }
-    case "lsp_document_symbols":
     case "lsp_diagnostics":
-      return asString(a.file);
-    case "lsp_workspace_symbols":
-      return asString(a.query);
+      return asString(a.file_path);
     case "skill": {
       const op = asString(a.op);
       const name = asString(a.name);
       return op ? (name ? `${op} ${name}` : op) : undefined;
     }
-    case "ask_user":
-      return firstLine(a.question);
+    case "ask_user": {
+      // Structured questions[] — label off the first question's text.
+      const first = Array.isArray(a.questions) ? asRecord(a.questions[0]) : undefined;
+      return firstLine(first?.question);
+    }
     case "bash_output":
     case "kill_shell":
       return asString(a.shell_id);
@@ -201,7 +204,7 @@ export function toolLabel(tool: ToolInvocation | undefined): string {
     case "command":
       return asString(a.command) || tool.name || "command";
     case "fileEdit": {
-      const path = asString(a.path);
+      const path = asString(a.file_path) ?? asString(a.path);
       if (path) return path;
       const rawChanges = asRecord(tool.result)?.changes;
       const changes = Array.isArray(rawChanges) ? rawChanges : [];
@@ -214,7 +217,7 @@ export function toolLabel(tool: ToolInvocation | undefined): string {
     case "webSearch":
       return asString(a.query) || "search";
     case "read":
-      return asString(a.path) || tool.name;
+      return asString(a.file_path) || asString(a.path) || tool.name;
     case "subagent":
       return firstLine(a.prompt) || firstLine(a.task) || tool.name;
     default:

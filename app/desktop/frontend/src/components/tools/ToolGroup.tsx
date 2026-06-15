@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { openViewForTool } from "@/state/toolRouting";
 import { ToolCard } from "./ToolCard";
 
-const READONLY_TOOLS = new Set(["read", "grep", "glob"]);
+const READONLY_TOOLS = new Set(["read", "grep", "glob", "lsp"]);
 
 /**
  * Read-only tools — safe to fold into a collapsed summary group because they
@@ -13,8 +13,8 @@ const READONLY_TOOLS = new Set(["read", "grep", "glob"]);
  * the wire `ToolInvocation.name` the runtime emits (see the tool-preview
  * registry keys in chat/tools/previews). Conservative on purpose:
  * bash/shell/edit/write/skill/task can mutate state, so each always renders as
- * its own card even when adjacent — only `read` / `grep` / `glob` / `lsp_*`
- * group.
+ * its own card even when adjacent — only `read` / `grep` / `glob` / `lsp` /
+ * `lsp_diagnostics` group.
  */
 export function isReadOnlyTool(name: string): boolean {
   return READONLY_TOOLS.has(name) || name.startsWith("lsp_");
@@ -36,7 +36,7 @@ function summarize(tools: ToolCall[]): string {
   let lookup = 0;
   for (const t of tools) {
     if (t.name === "read") read++;
-    else if (t.name.startsWith("lsp_")) lookup++;
+    else if (t.name === "lsp" || t.name.startsWith("lsp_")) lookup++;
     else search++; // grep / glob
   }
   const parts: string[] = [];
