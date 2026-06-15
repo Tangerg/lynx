@@ -92,6 +92,93 @@ func TestStore_SkipsLargeFiles(t *testing.T) {
 	}
 }
 
+// gitCmd runs a real git command in dir (the source repo a seed test builds),
+// independent of the user's global config.
+func gitCmd(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(),
+		"GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null",
+		"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t",
+		"GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v: %s", args, err, out)
+	}
+}
+
+// TestStore_NoChangeRunReusesHeadCommit: a run that changed nothing must NOT
+// mint an empty commit — it re-tags the existing HEAD, so the commit count is
+// unchanged and both run tags resolve to the same commit. Restore still works.
+func TestStore_NoChangeRunReusesHeadCommit(t *testing.T) {
+	s, cwd := newTestStore(t)
+	ctx := context.Background()
+	gitDir := s.gitDir("ses1")
+
+	write(t, cwd, "a.txt", "v1")
+	if err := s.Snapshot(ctx, "ses1", cwd, "run1"); err != nil {
+		t.Fatalf("snapshot run1: %v", err)
+	}
+	before, _ := s.git(ctx, gitDir, cwd, "rev-list", "--count", "HEAD")
+
+	// run2 changes nothing.
+	if err := s.Snapshot(ctx, "ses1", cwd, "run2"); err != nil {
+		t.Fatalf("snapshot run2: %v", err)
+	}
+	after, _ := s.git(ctx, gitDir, cwd, "rev-list", "--count", "HEAD")
+	if before != after {
+		t.Errorf("commit count %s→%s: a no-change run must not mint an empty commit", before, after)
+	}
+	c1, _ := s.git(ctx, gitDir, cwd, "rev-parse", tagFor("run1"))
+	c2, _ := s.git(ctx, gitDir, cwd, "rev-parse", tagFor("run2"))
+	if c1 != c2 {
+		t.Errorf("run1=%s run2=%s: no-change run2 should re-tag run1's commit", c1, c2)
+	}
+	if err := s.Restore(ctx, "ses1", cwd, "run2"); err != nil {
+		t.Fatalf("restore run2: %v", err)
+	}
+	if got := read(t, cwd, "a.txt"); got != "v1" {
+		t.Errorf("a.txt = %q, want v1", got)
+	}
+}
+
+// TestStore_SeedsFromSourceRepo: when cwd is a real git repo, a fresh shadow
+// repo shares its object store via objects/info/alternates (so the baseline
+// isn't duplicated) and a round-trip restore still works through the shared
+// objects.
+func TestStore_SeedsFromSourceRepo(t *testing.T) {
+	s, cwd := newTestStore(t)
+	ctx := context.Background()
+
+	gitCmd(t, cwd, "init", "-q")
+	write(t, cwd, "committed.txt", "hello")
+	gitCmd(t, cwd, "add", ".")
+	gitCmd(t, cwd, "commit", "-qm", "init")
+
+	if err := s.Snapshot(ctx, "ses1", cwd, "run1"); err != nil {
+		t.Fatalf("snapshot run1: %v", err)
+	}
+	alt, err := os.ReadFile(filepath.Join(s.gitDir("ses1"), "objects", "info", "alternates"))
+	if err != nil {
+		t.Fatalf("shadow repo should seed objects/info/alternates from the real repo: %v", err)
+	}
+	if !strings.Contains(string(alt), "objects") {
+		t.Errorf("alternates %q should point at an object store", alt)
+	}
+
+	// Round-trip through the shared object DB: edit, snapshot, restore the first.
+	write(t, cwd, "committed.txt", "world")
+	if err := s.Snapshot(ctx, "ses1", cwd, "run2"); err != nil {
+		t.Fatalf("snapshot run2: %v", err)
+	}
+	if err := s.Restore(ctx, "ses1", cwd, "run1"); err != nil {
+		t.Fatalf("restore run1: %v", err)
+	}
+	if got := read(t, cwd, "committed.txt"); got != "hello" {
+		t.Errorf("committed.txt = %q, want hello (restored via shared object)", got)
+	}
+}
+
 // TestStore_RestoreUnknownRun reports ErrUnavailable for a run never snapshotted.
 func TestStore_RestoreUnknownRun(t *testing.T) {
 	s, cwd := newTestStore(t)
