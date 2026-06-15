@@ -13,10 +13,9 @@ import (
 )
 
 // turnOptions is the per-turn knobs both `chat` and `repl` pass to
-// [TurnRunner.Run]. Plan-mode + auto-approve drive the plan-mode
-// approval prompt; Verbose disables tool-output truncation.
+// [TurnRunner.Run]. AutoApprove approves gated tool calls without
+// prompting; Verbose disables tool-output truncation.
 type turnOptions struct {
-	PlanMode    bool
 	AutoApprove bool
 	Verbose     bool
 
@@ -67,7 +66,6 @@ func (r *TurnRunner) Run(ctx context.Context, sessionID, message string) int {
 		SessionID:  sessionID,
 		Message:    message,
 		Cwd:        sess.Cwd,
-		PlanMode:   r.opts.PlanMode,
 		MaxBudget:  r.opts.MaxBudget,
 		MaxCostUSD: r.opts.MaxCostUSD,
 	})
@@ -115,8 +113,6 @@ func (r *TurnRunner) dispatch(ctx context.Context, handle turn.TurnHandle, ev tu
 	switch e := ev.(type) {
 	case turn.TurnStart:
 		fmt.Fprintf(r.app.Err, "[lyra] turn %s started (model=%s)\n", e.TurnID[:8], e.Model)
-	case turn.PlanGenerated:
-		r.renderPlan(e)
 	case turn.TurnInterrupted:
 		r.handleInterrupt(ctx, handle, e)
 	case turn.MessageDelta:
@@ -144,20 +140,11 @@ func (r *TurnRunner) dispatch(ctx context.Context, handle turn.TurnHandle, ev tu
 	}
 }
 
-// renderPlan prints the proposed plan. The approval prompt itself fires
-// later, on the [turn.TurnInterrupted] that follows once the turn has
-// actually parked (R model) — see [TurnRunner.handleInterrupt].
-func (r *TurnRunner) renderPlan(e turn.PlanGenerated) {
-	fmt.Fprintln(r.app.Out, "\n---- proposed plan ----")
-	fmt.Fprintln(r.app.Out, e.Plan)
-	fmt.Fprintln(r.app.Out, "-----------------------")
-}
-
 // handleInterrupt answers a parked turn (HITL R model): it describes the
-// pending request — a gated tool call (prints tool + args) or a plan
-// (already printed by renderPlan) — prompts for approval, and forwards
-// the decision via [turn.Service.Resume]. The continuation streams onto
-// the same event channel the caller is still draining.
+// pending request — a gated tool call (prints tool + args) — prompts for
+// approval, and forwards the decision via [turn.Service.Resume]. The
+// continuation streams onto the same event channel the caller is still
+// draining.
 func (r *TurnRunner) handleInterrupt(ctx context.Context, handle turn.TurnHandle, e turn.TurnInterrupted) {
 	for _, in := range e.Interrupts {
 		if in.Kind == "approval" {
@@ -212,7 +199,7 @@ func (r *TurnRunner) renderToolEnd(e turn.ToolCallEnd) {
 
 // decide prompts the user for y/N (default: deny). With AutoApprove the
 // prompt is skipped — convenient for unattended pipelines like
-// `lyra chat --plan --auto-approve "..."`. Returns true on approval.
+// `lyra chat --auto-approve "..."`. Returns true on approval.
 func (r *TurnRunner) decide() bool {
 	if r.opts.AutoApprove {
 		fmt.Fprintln(r.app.Err, "[lyra] auto-approving")

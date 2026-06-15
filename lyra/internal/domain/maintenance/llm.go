@@ -11,8 +11,8 @@ import (
 )
 
 // directCallTimeout caps a single maintenance LLM call (compaction
-// summary / fact extraction / plan draft) so a hung provider connection
-// fails the call instead of blocking turn-boundary housekeeping forever.
+// summary / fact extraction) so a hung provider connection fails the
+// call instead of blocking turn-boundary housekeeping forever.
 // Independent from the engine's turn-level timeout: this bounds a
 // one-shot, middleware-free call, not a full streaming tool-loop, so the
 // two evolve for different reasons.
@@ -21,9 +21,9 @@ const directCallTimeout = 2 * time.Minute
 // askDirect runs one synchronous LLM chat call with the supplied
 // system + user prompts. Crucially, the call goes through
 // [chat.Client.Chat] without any of the platform middleware
-// (chat-memory, tools, guardrails) — compaction, extraction and
-// planning all work outside the normal conversation flow and must not
-// pollute its history.
+// (chat-memory, tools, guardrails) — compaction and extraction both
+// work outside the normal conversation flow and must not pollute its
+// history.
 //
 // nil client surfaces as a plain error rather than a panic — a
 // defensive guard only, since the engine rejects a nil ChatClient

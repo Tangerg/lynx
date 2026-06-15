@@ -287,11 +287,6 @@ func (g *toolGroup) Metadata() core.ToolGroupMetadata {
 }
 
 func (g *toolGroup) Tools(ctx context.Context) ([]core.AgentTool, error) {
-	// Tool-less chat (runs.start mode=chat): the turn bound ChatModeBindingKey,
-	// so resolve no tools — the model gets a plain single-round exchange.
-	if turnctx.ChatModeFrom(ctx) {
-		return nil, nil
-	}
 	workdir := g.resolver.workdirFor(ctx)
 	tools := BuildWorkdirTools(workdir, g.resolver.codeIntel, g.resolver.readTracker)
 	tools = append(tools, g.resolver.online...)

@@ -8,7 +8,6 @@ import (
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/core/media"
 
-	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/lyra/internal/kernel/toolset"
 	"github.com/Tangerg/lynx/lyra/internal/kernel/toolset/turnctx"
 )
@@ -47,20 +46,6 @@ type chatInput struct {
 	// cap. Requires a [Config.Pricing] hook — without one cost stays 0
 	// and this never trips. Either ceiling stops the turn.
 	MaxCostUSD float64
-
-	// PlanMode runs the turn behind plan approval: the action drafts a
-	// plan, parks on [core.ProcessContext.AwaitInput] (→ StatusWaiting,
-	// persisted), and only executes once the process is resumed with an
-	// approval. A rejected plan returns [ChatOutput.PlanRejected]; a
-	// trivial request (planner returns NO_PLAN) executes without parking.
-	PlanMode bool
-
-	// ChatMode runs the turn tool-less (runs.start mode=chat): the action
-	// binds [turnctx.ChatModeBindingKey] so the tool resolver yields an empty tool set,
-	// turning the turn into a plain single-round LLM exchange with no
-	// filesystem / bash / delegation tools. Mutually exclusive with PlanMode
-	// in practice (a tool-less turn has nothing to plan against).
-	ChatMode bool
 }
 
 // ChatOutput is the typed output of one turn. Reply is the assistant's
@@ -88,10 +73,6 @@ type ChatOutput struct {
 	// [chatInput.MaxBudget] rather than the model finishing. Reply
 	// holds whatever text accumulated up to the stop.
 	StoppedOnBudget bool
-
-	// PlanRejected is true when a plan-mode turn ended because the user
-	// rejected the proposed plan (no execution happened). Reply is empty.
-	PlanRejected bool
 }
 
 // buildChatAgent constructs the chat agent owned by this Engine.
@@ -127,17 +108,6 @@ func (e *Engine) buildChatAgent() *core.Agent {
 					// Protected for the same reasons as cwd — the read/edit
 					// guards read it back via turnSession.
 					pc.Blackboard.BindProtected(turnctx.SessionBindingKey, in.SessionID)
-				}
-				if in.ChatMode {
-					// Tool-less: the tool group reads this back and yields no tools.
-					// Protected for the same survive-ClearBlackboard reason as cwd.
-					pc.Blackboard.BindProtected(turnctx.ChatModeBindingKey, true)
-				}
-				if in.PlanMode {
-					out, done, err := e.planGate(ctx, pc, in.Message)
-					if err != nil || done {
-						return out, err
-					}
 				}
 				out, err := e.runChatTurn(ctx, pc, in.Message, in.Media, turnBudget{MaxTokens: in.MaxBudget, MaxCostUSD: in.MaxCostUSD})
 				if err != nil {
@@ -224,52 +194,3 @@ func (e *Engine) buildSubtaskAgent() *core.Agent {
 		Build()
 }
 
-// planApprovedKey is the blackboard condition the plan-mode approval
-// writes (true = approved, false = rejected). Its presence is also the
-// "already decided" signal — see planGate.
-const planApprovedKey = "plan.approved"
-
-// planGate is the plan-mode pre-flight, run INSIDE the agent process so
-// the pause is a real [core.StatusWaiting] the runtime can persist /
-// resume (vs. an out-of-process channel). It returns:
-//
-//   - done=false: proceed to execute (the plan was approved on a prior
-//     tick, or the request is trivial — planner returned NO_PLAN).
-//   - done=true, zero output: the process just parked on AwaitInput; the
-//     typed-action wrapper turns the unproduced output into ActionWaiting.
-//   - done=true, PlanRejected output: the user rejected the plan.
-//
-// On the first tick the blackboard carries no decision, so it drafts a
-// plan, emits it to the observer, and parks. ResumeProcess(approved)
-// writes the decision and re-runs the action, which now sees it.
-func (e *Engine) planGate(ctx context.Context, pc *core.ProcessContext, message string) (ChatOutput, bool, error) {
-	if approved, decided := pc.Blackboard.Condition(planApprovedKey); decided {
-		if !approved {
-			return ChatOutput{PlanRejected: true}, true, nil
-		}
-		return ChatOutput{}, false, nil // approved → execute
-	}
-
-	if e.planner == nil {
-		return ChatOutput{}, false, nil // no planner wired → execute directly
-	}
-	plan, err := e.planner.Plan(ctx, e.SystemPrompt(ctx), message)
-	if err != nil {
-		return ChatOutput{}, false, err
-	}
-	if plan == "" {
-		return ChatOutput{}, false, nil // NO_PLAN → execute directly, no approval
-	}
-
-	if obs := observerFrom(pc.Options); obs != nil {
-		obs.OnPlanGenerated(plan)
-	}
-	// Plan review rides the same interrupt resolution as tool approval —
-	// one HITL mental model. The handler records the approve/deny decision;
-	// the idempotent gate above reads it back on the resuming re-tick.
-	pc.AwaitInput(hitl.NewTypedRequest(plan, func(r interrupts.Resolution) core.ResponseImpact {
-		pc.Blackboard.SetCondition(planApprovedKey, r.Approved)
-		return core.ImpactUpdated
-	}))
-	return ChatOutput{}, true, nil // suspends; typed wrapper → ActionWaiting
-}

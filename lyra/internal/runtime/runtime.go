@@ -62,10 +62,10 @@ type Config struct {
 	Engine kernel.Config
 
 	// MaintenanceClient optionally runs the in-house turn-boundary maintenance
-	// services (compaction / extraction / planning) on a separate — typically
-	// cheaper — model than Engine.ChatClient. nil runs them on the main client.
-	// Only applies to the runtime's own maintenance services; an externally
-	// injected Compactor/Extractor/Planner brings its own client.
+	// services (compaction / extraction) on a separate — typically cheaper —
+	// model than Engine.ChatClient. nil runs them on the main client. Only
+	// applies to the runtime's own maintenance services; an externally injected
+	// Compactor/Extractor brings its own client.
 	MaintenanceClient *chat.Client
 
 	// Tool-environment inputs — the runtime reads these to assemble the tool
@@ -172,16 +172,15 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	conv := conversation.New(memStore)
 
 	// Capability ports are SPIs: the engine consumes interfaces (Steering /
-	// Compactor / Extractor / Planner; Knowledge above). The runtime supplies the
+	// Compactor / Extractor; Knowledge above). The runtime supplies the
 	// in-house implementations ONLY when the composition root didn't inject one,
 	// so an external provider (e.g. a mem0 / HTTP-bridged compactor or knowledge
 	// store) can be slotted in by setting the corresponding engine.Config field —
 	// the runtime then leaves it untouched. nil → in-house default.
-	// Maintenance (compaction / extraction / planning) may run on a cheaper
-	// model than the main turn — see [Config.MaintenanceClient]. nil falls
-	// back to the engine's client, preserving the single-model default. Only
-	// the in-house services below use it; an externally injected port brings
-	// its own client.
+	// Maintenance (compaction / extraction) may run on a cheaper model than the
+	// main turn — see [Config.MaintenanceClient]. nil falls back to the engine's
+	// client, preserving the single-model default. Only the in-house services
+	// below use it; an externally injected port brings its own client.
 	maintClient := cfg.MaintenanceClient
 	if maintClient == nil {
 		maintClient = cfg.Engine.ChatClient
@@ -203,9 +202,6 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 			window = int(info.Limits.ContextWindow)
 		}
 		ecfg.Compactor = maintenance.NewCompactor(memStore, maintClient, maintenance.CompactionConfig{ContextWindow: window})
-	}
-	if ecfg.Planner == nil {
-		ecfg.Planner = maintenance.NewPlanner(maintClient)
 	}
 	if ecfg.Extractor == nil && cfg.Engine.Knowledge != nil {
 		ecfg.Extractor = maintenance.NewExtractor(memStore, cfg.Engine.Knowledge, maintClient)

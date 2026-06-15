@@ -50,9 +50,3 @@ type Compactor interface {
 type Extractor interface {
 	MaybeExtract(ctx context.Context, sessionID, cwd string) (ExtractionResult, error)
 }
-
-// Planner drafts a step-by-step plan for plan-mode turns (returns "" when the
-// request is trivial). Implemented by domain/maintenance.
-type Planner interface {
-	Plan(ctx context.Context, systemPrompt, userMessage string) (string, error)
-}

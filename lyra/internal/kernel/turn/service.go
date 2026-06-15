@@ -26,8 +26,7 @@ type clientResolver interface {
 }
 
 // StartTurnRequest is the input to [Service.StartTurn]. SessionID
-// binds the turn to its conversation; Message is the user's input;
-// PlanMode opts into the [PlanGenerated] preview flow (M6).
+// binds the turn to its conversation; Message is the user's input.
 type StartTurnRequest struct {
 	SessionID string
 	Message   string
@@ -49,16 +48,6 @@ type StartTurnRequest struct {
 	// runs the turn against it. The provider is explicit — never inferred.
 	Provider string
 	Model    string
-
-	// PlanMode requests a plan preview before execution. When true
-	// the runtime emits a [PlanGenerated] event and pauses until
-	// the client either continues the turn (via a separate call,
-	// TBD) or cancels. M6 milestone.
-	PlanMode bool
-
-	// ChatMode runs the turn tool-less (runs.start mode=chat): a plain
-	// single-round LLM exchange with no filesystem / bash / delegation tools.
-	ChatMode bool
 
 	// MaxBudget caps the total tokens (prompt + completion) the turn
 	// may spend across its tool-loop rounds. 0 means unlimited. On
@@ -103,14 +92,13 @@ type RehydrateRequest struct {
 //	    switch e := ev.(type) {
 //	    case MessageDelta: ui.AppendText(e.Text)
 //	    case ToolCallStart: ui.ShowSpinner(e.ToolName)
-//	    case PlanGenerated: ui.ShowPlan(e.Plan)  // plan-mode only
 //	    case TurnEnd: return
 //	    case Error: handleErr(e)
 //	    }
 //	}
 //
-// In plan mode the turn pauses after [PlanGenerated]; call [Resume]
-// with the user's decision — approved=true continues, false rejects.
+// A turn parked on a HITL interrupt pauses after [TurnInterrupted]; call
+// [Resume] with the user's decision to continue the same turn.
 //
 // A turn outlives the ctx that started it: StartTurn derives the turn's
 // own context from a background root so the caller's ctx ending (e.g. the
@@ -140,8 +128,8 @@ type Service interface {
 	InjectSteering(ctx context.Context, handle TurnHandle, message string) error
 
 	// Resume answers a turn parked on a HITL interrupt (a gated tool
-	// call awaiting approval, a plan awaiting review, or an ask_user
-	// question — all surface as a [TurnInterrupted] event). The structured
+	// call awaiting approval, or an ask_user / exit_plan_mode question —
+	// all surface as a [TurnInterrupted] event). The structured
 	// [interrupts.Resolution] carries the decision (approve/deny, with
 	// optionally edited tool arguments) or the question's answer. The
 	// continuation streams onto the SAME turn's event channel — call
@@ -244,19 +232,6 @@ type ToolCallStart struct {
 	Arguments string
 }
 
-// PlanGenerated fires once during a plan-mode turn, after the LLM
-// produces the step-list but before any tool calls run. The turn
-// is paused at this point — the client inspects the plan, then
-// calls [Service.Resume] with approve (true) / reject (false).
-//
-// Plan is the LLM's raw markdown — typically a numbered list. The
-// runtime makes no attempt to parse it into structured steps;
-// downstream consumers render the markdown verbatim.
-type PlanGenerated struct {
-	BaseEvent
-	Plan string
-}
-
 // ToolCallEnd fires when the tool finishes. Output is the tool's
 // returned text; Err is non-empty when the tool failed.
 type ToolCallEnd struct {
@@ -294,10 +269,11 @@ type MemoryUpdated struct {
 }
 
 // TurnInterrupted fires when the turn parks for human input (HITL R
-// model): a gated tool call needs approval, or a plan needs review. The
-// turn does NOT end — it suspends at [core.StatusWaiting]; the client
-// answers via [Service.Resume], which continues the same turn (its
-// events resume on the same channel). Carries the pending interrupt(s).
+// model): a gated tool call needs approval, or a tool (ask_user /
+// exit_plan_mode) asks the user a question. The turn does NOT end — it
+// suspends at [core.StatusWaiting]; the client answers via
+// [Service.Resume], which continues the same turn (its events resume on
+// the same channel). Carries the pending interrupt(s).
 type TurnInterrupted struct {
 	BaseEvent
 	Interrupts []Interrupt
@@ -307,8 +283,8 @@ type TurnInterrupted struct {
 // Kind is the wire interrupt kind (API.md §6: "approval" | "question" |
 // "toolResult") so it lines up with what the client negotiates in
 // ClientCapabilities.InterruptKinds. Payload is the awaitable's prompt —
-// an [ApprovalPrompt] for a gated tool call ("approval"), or the plan
-// markdown string for a plan awaiting review ("question").
+// an [ApprovalPrompt] for a gated tool call ("approval"), or a question
+// prompt for a tool asking the user ("question").
 type Interrupt struct {
 	Kind    string // "approval" | "question"
 	Payload any
@@ -348,7 +324,6 @@ func (e MessageDelta) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
 func (e ReasoningDelta) stamp(b BaseEvent) Event  { e.BaseEvent = b; return e }
 func (e ToolCallStart) stamp(b BaseEvent) Event   { e.BaseEvent = b; return e }
 func (e ToolCallEnd) stamp(b BaseEvent) Event     { e.BaseEvent = b; return e }
-func (e PlanGenerated) stamp(b BaseEvent) Event   { e.BaseEvent = b; return e }
 func (e CompactBoundary) stamp(b BaseEvent) Event { e.BaseEvent = b; return e }
 func (e MemoryUpdated) stamp(b BaseEvent) Event   { e.BaseEvent = b; return e }
 func (e TurnInterrupted) stamp(b BaseEvent) Event { e.BaseEvent = b; return e }

@@ -19,10 +19,10 @@ type Resolution struct {
 	Remember bool
 }
 
-// QuestionPrompt is the payload an ask_user interrupt parks with: one or more
-// structured questions awaiting the human's answers. Shared HITL vocabulary:
-// the ask_user tool produces it, and the protocol adapter type-asserts on it to
-// render each question on the wire (vs a plan-review choice). Classified as a
+// QuestionPrompt is the payload a structured-question interrupt parks with:
+// one or more questions awaiting the human's answers. Shared HITL vocabulary:
+// the ask_user and exit_plan_mode tools produce it, and the protocol adapter
+// type-asserts on it to render each question on the wire. Classified as a
 // "question" interrupt (not "approval") since it is not an ApprovalPrompt.
 type QuestionPrompt struct {
 	Questions []Question `json:"questions"`

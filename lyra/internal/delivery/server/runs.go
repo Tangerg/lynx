@@ -70,24 +70,6 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		}
 	}
 
-	// Mode (agent|chat|plan, API.md §7.1): agent is the default tool loop;
-	// plan threads to the chat service's plan-preview flow; chat runs
-	// tool-less (a plain single-round exchange). Unknown values are
-	// invalid_params, never silently dropped.
-	planMode, chatMode := false, false
-	runMode := protocol.RunModeAgent
-	switch in.Mode {
-	case "", protocol.RunModeAgent:
-	case protocol.RunModePlan:
-		planMode = true
-		runMode = protocol.RunModePlan
-	case protocol.RunModeChat:
-		chatMode = true
-		runMode = protocol.RunModeChat
-	default:
-		return nil, nil, fmt.Errorf("%w: unknown mode %q", protocol.ErrInvalidParams, in.Mode)
-	}
-
 	handle, err := s.rt.Chat().StartTurn(ctx, turn.StartTurnRequest{
 		SessionID:  sessionID,
 		Message:    userMsg,
@@ -95,8 +77,6 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		Cwd:        sess.Cwd,
 		Provider:   in.Provider,
 		Model:      in.Model,
-		PlanMode:   planMode,
-		ChatMode:   chatMode,
 		MaxCostUSD: in.MaxBudgetUSD,
 	})
 	if err != nil {
@@ -115,7 +95,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	// emits it after run.started) — streamed live and persisted through the
 	// same path, so the wire id and the items.list id are one and the same.
 	runID := handle.TurnID
-	out, events, err := s.openSegment(ctx, runID, "", handle, sessionID, in.Input, nil, in.Model, runMode)
+	out, events, err := s.openSegment(ctx, runID, "", handle, sessionID, in.Input, nil, in.Model)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -177,9 +157,9 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	// carry the resume binding: an approved tool re-fires in this run and
 	// must complete its ORIGINAL proposal item (API.md §5.2 / §6), not a
 	// fresh one.
-	// A continuation inherits its parent's model/mode (linked via parentRunId),
-	// so its RunRef leaves them empty rather than re-deriving.
-	out, events, err := s.openSegment(ctx, contRunID, in.ParentRunID, handle, pending.SessionID, nil, resumeBindingFrom(pending), "", "")
+	// A continuation inherits its parent's model (linked via parentRunId), so
+	// its RunRef leaves it empty rather than re-deriving.
+	out, events, err := s.openSegment(ctx, contRunID, in.ParentRunID, handle, pending.SessionID, nil, resumeBindingFrom(pending), "")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -252,7 +232,6 @@ func (s *Server) ListRuns(_ context.Context, in protocol.ListRunsRequest) (*prot
 			SessionID:   e.sessionID,
 			ParentRunID: e.parentRunID,
 			Model:       e.model,
-			Mode:        e.mode,
 			Status:      protocol.RunStatusRunning,
 		})
 	}
@@ -312,10 +291,10 @@ func (s *Server) SubscribeRun(ctx context.Context, runID string) (*protocol.Star
 // resolveResolution maps the wire interrupt responses onto the structured
 // [interrupts.Resolution] the chat service's Resume expects. The agent
 // runtime parks one awaitable at a time, so a single response drives the
-// continuation. approval → approve/deny; answer → the answers map (and
-// approve unless the plan-review label is reject); toolResult → continue; an
-// empty responses list → continue. An unrecognized response type is
-// invalid_params, never a silent approve.
+// continuation. approval → approve/deny; answer → the answers map (the
+// answering tool, e.g. ask_user / exit_plan_mode, interprets it); toolResult
+// → continue; an empty responses list → continue. An unrecognized response
+// type is invalid_params, never a silent approve.
 func resolveResolution(responses []protocol.InterruptResponse) (interrupts.Resolution, error) {
 	for _, r := range responses {
 		switch r.Response.Type {
@@ -346,15 +325,12 @@ func resolveResolution(responses []protocol.InterruptResponse) (interrupts.Resol
 			}
 			return res, nil
 		case protocol.InterruptResponseAnswer:
-			// Plan-review question (see translator.questionInterrupt): the
-			// decision field carries the chosen label (a single-element array,
-			// S8). Anything other than an explicit reject proceeds. ask_user
-			// answers ride the same map.
-			approved := true
-			if v := r.Response.Answers[planDecisionField]; len(v) > 0 && v[0] == planDecisionReject {
-				approved = false
-			}
-			return interrupts.Resolution{Approved: approved, Answer: r.Response.Answers}, nil
+			// A question answer (ask_user / exit_plan_mode): the answers map IS
+			// the resolution — the answering tool reads its chosen label / fields
+			// back and decides what to do (e.g. exit_plan_mode treats a "Reject"
+			// label as "stay in plan mode"). Always continues; the decision lives
+			// in the answer content, not in Approved.
+			return interrupts.Resolution{Approved: true, Answer: r.Response.Answers}, nil
 		case protocol.InterruptResponseToolResult:
 			return interrupts.Resolution{Approved: true}, nil
 		default:

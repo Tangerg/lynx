@@ -20,7 +20,6 @@ import (
 //	/exit     exit the REPL (also: Ctrl+D / EOF)
 //	/help     show available commands
 //	/new      start a fresh session in this REPL
-//	/plan ... run one plan-mode turn
 //	/session  print the current session id
 func (a *App) ReplCmd() *cobra.Command {
 	var sessionID string
@@ -110,24 +109,13 @@ func (r *ReplRunner) Run(ctx context.Context) error {
 }
 
 // handleSlash dispatches one slash command. Returns true when the
-// REPL should exit (/exit, /quit). /plan <msg> spawns a plan-mode
-// TurnRunner since it consumes the rest of the line as the message.
+// REPL should exit (/exit, /quit).
 func (r *ReplRunner) handleSlash(ctx context.Context, line string) (done bool) {
-	if strings.HasPrefix(line, "/plan ") {
-		msg := strings.TrimSpace(strings.TrimPrefix(line, "/plan "))
-		if msg == "" {
-			fmt.Fprintln(r.app.Err, "[lyra] usage: /plan <message>")
-			return false
-		}
-		NewTurnRunner(r.app, turnOptions{PlanMode: true}).Run(ctx, r.sessionID, msg)
-		return false
-	}
-
 	switch line {
 	case "/exit", "/quit":
 		return true
 	case "/help":
-		fmt.Fprintln(r.app.Err, "[lyra] commands: /exit  /help  /new  /plan <msg>  /session")
+		fmt.Fprintln(r.app.Err, "[lyra] commands: /exit  /help  /new  /session")
 	case "/new":
 		cwd, _ := os.Getwd()
 		sess, err := r.app.rt.Session().Create(ctx, "", cwd)

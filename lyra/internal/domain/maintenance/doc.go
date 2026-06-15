@@ -1,14 +1,13 @@
 // Package maintenance holds the turn-boundary domain operations the
 // engine triggers autonomously after a chat turn ends: history
-// compaction, long-term fact extraction, and plan-mode plan
-// generation.
+// compaction and long-term fact extraction.
 //
-// All three work OUTSIDE the normal conversation flow — they call the
+// Both work OUTSIDE the normal conversation flow — they call the
 // chat client directly (via askDirect), bypassing the chat-memory /
 // tool / guardrail middleware so their own LLM calls never pollute the
 // conversation history. They share the transcript-rendering and
 // direct-call helpers in llm.go; each is otherwise an independent,
-// single-responsibility worker (Compactor / Extractor / Planner) in its
+// single-responsibility worker (Compactor / Extractor) in its
 // own file, constructible and testable without the engine.
 //
 // The engine owns construction (any worker may be nil when its feature

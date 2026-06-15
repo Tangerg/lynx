@@ -56,15 +56,12 @@ type RunRef struct {
 	SpawnedByItemID string      `json:"spawnedByItemId,omitempty"`
 	ParentRunID     string      `json:"parentRunId,omitempty"`
 	// Model is the model id this run ran against (Model.id); empty means the
-	// run used the runtime default (surfaced via Session.model). Mode is the
-	// run's execution mode (agent/chat/plan); empty on a continuation run,
-	// which inherits its parent's mode (see ParentRunID).
-	Model           string      `json:"model,omitempty"`
-	Mode            RunMode     `json:"mode,omitempty"`
-	Status          RunStatus   `json:"status,omitempty"`
-	Outcome         *RunOutcome `json:"outcome,omitempty"`
-	CreatedAt       time.Time   `json:"createdAt,omitzero"`
-	FinishedAt      time.Time   `json:"finishedAt,omitzero"`
+	// run used the runtime default (surfaced via Session.model).
+	Model      string      `json:"model,omitempty"`
+	Status     RunStatus   `json:"status,omitempty"`
+	Outcome    *RunOutcome `json:"outcome,omitempty"`
+	CreatedAt  time.Time   `json:"createdAt,omitzero"`
+	FinishedAt time.Time   `json:"finishedAt,omitzero"`
 }
 
 // RunOutcomeType discriminates the RunOutcome union (API.md §4.2).
@@ -104,15 +101,6 @@ type RunResult struct {
 	Error *ProblemData `json:"error,omitempty"` // present when outcome.type=error
 }
 
-// RunMode is the optional execution mode hint (API.md §7.1).
-type RunMode string
-
-const (
-	RunModeAgent RunMode = "agent"
-	RunModeChat  RunMode = "chat"
-	RunModePlan  RunMode = "plan"
-)
-
 // StartRunRequest is the runs.start body (API.md §7.1). No client-supplied
 // runId (idempotency is the X-Idempotency-Key header); no cwd (resolved
 // from the session).
@@ -129,7 +117,6 @@ type StartRunRequest struct {
 	// suffix, mirroring `model` and Model.provider).
 	Provider     string            `json:"provider,omitempty"`
 	Model        string            `json:"model,omitempty"`
-	Mode         RunMode           `json:"mode,omitempty"`
 	MaxSteps     int               `json:"maxSteps,omitempty"`
 	MaxBudgetUSD float64           `json:"maxBudgetUsd,omitempty"`
 	Params       *GenerationParams `json:"params,omitempty"`
