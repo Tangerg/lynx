@@ -1,3 +1,7 @@
+// Message block dispatcher — maps each ContentBlock (text, tool, reasoning,
+// approval, question, plan, compaction, search, code, checkpoint) to its React
+// card. Kept as a lookup table (BLOCK_RENDERERS) so adding a new block kind is
+// one row — no if/elif ladder growing with the protocol.
 import type { ContentBlock, PlanItem, ToolCall } from "@/protocol/run/viewState";
 import { MarkdownMessage } from "./markdown/MarkdownMessage";
 import {

@@ -1,3 +1,7 @@
+// Working-tree file list — the content body of the Files workspace view.
+// Each row shows a file path, its change type (A/D/M), and ± line counts.
+// Binary files show a "bin" badge instead of fake ±0 (AUX_API §2.2).
+// Selecting a row sets the shared activeFile state and opens the Diff view.
 import type { FileChange } from "@/lib/data/queries";
 import { memo } from "react";
 import { Icon } from "@/components/common";

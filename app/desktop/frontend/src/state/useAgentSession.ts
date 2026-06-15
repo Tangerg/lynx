@@ -1,3 +1,11 @@
+// Agent lifecycle hook — bridges the plugin-registered AgentDriver (rpc-agent)
+// to the Zustand agentStore. Owns the run state machine (idle → running → waiting
+// → running → idle), pipes streaming RunEvents into the protocol fold, and
+// provides the imperative send/stop/resume actions the UI binds to buttons.
+//
+// Kept as a plain hook (not a class / state machine library) because the run
+// lifecycle is essentially one rAF-loop subscription + a few transition guards;
+// a formal FSM would be more ceremony than the problem warrants.
 import type { AgentDriver } from "@/plugins/sdk";
 import type {
   ContentBlock,

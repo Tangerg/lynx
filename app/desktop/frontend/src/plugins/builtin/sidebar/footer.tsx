@@ -1,3 +1,6 @@
+// Sidebar footer — pinned at the bottom of the expanded sidebar. Renders the
+// Tools/MCP and Settings buttons as plugin-contributed rail items so they stay
+// reachable regardless of how many sessions/projects are in the scroll area.
 import { Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { Slot } from "@/plugins/host/Slot";

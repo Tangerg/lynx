@@ -1,3 +1,8 @@
+// Run error banner — a dismissible warning strip pinned above the message
+// stream when the agent's last run ended with an error. Offers retry (resume
+// the same run), timeline (open timeline view), diagnostics (open diagnostics
+// view), and dismiss. Dismissing clears the error from the view state; it
+// persists in the timeline regardless.
 import { AnimatePresence, motion } from "motion/react";
 import { Icon } from "@/components/common";
 import { BannerAction } from "./BannerAction";
