@@ -145,7 +145,7 @@ function MemoryTab() {
 
 export const memoryView = defineWorkspaceView({
   id: "memory",
-  title: "Memory",
+  title: "workspace.view.title.memory",
   icon: "filetext",
   openByDefault: false,
   order: 47,

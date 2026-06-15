@@ -18,7 +18,7 @@ function NotificationsBadge() {
   const onClick = () => {
     useSessionStore.getState().openMainView({
       id: "notifications",
-      title: "Notifications",
+      title: "workspace.view.title.notifications",
       icon: "chat",
     });
   };

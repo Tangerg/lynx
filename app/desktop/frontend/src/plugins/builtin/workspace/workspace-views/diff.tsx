@@ -120,7 +120,7 @@ const EMPTY_DIFF = {
 
 export const diffView = defineWorkspaceView({
   id: "diff",
-  title: "Diff",
+  title: "workspace.view.title.diff",
   icon: "diff",
   openByDefault: false,
   order: 0,

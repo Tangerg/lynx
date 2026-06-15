@@ -137,7 +137,7 @@ function TimelineTab() {
 
 export const timelineView = defineWorkspaceView({
   id: "timeline",
-  title: "Timeline",
+  title: "workspace.view.title.timeline",
   icon: "history",
   openByDefault: false,
   // Sits between Diff (10) / Files (20) / Plan (30) and Tools (40).

@@ -44,7 +44,7 @@ function TodosTab() {
 
 export const todosView = defineWorkspaceView({
   id: "todos",
-  title: "Tasks",
+  title: "workspace.view.title.todos",
   icon: "check",
   openByDefault: false,
   order: 32,

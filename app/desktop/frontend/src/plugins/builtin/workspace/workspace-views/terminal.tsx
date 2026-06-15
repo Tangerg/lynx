@@ -40,7 +40,7 @@ function TerminalTab() {
 
 export const terminalView = defineWorkspaceView({
   id: "terminal",
-  title: "Terminal",
+  title: "workspace.view.title.terminal",
   icon: "terminal",
   openByDefault: false,
   order: 10,

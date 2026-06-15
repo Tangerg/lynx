@@ -12,7 +12,7 @@ import { useSessionStore } from "./sessionStore";
 export function openTimelineView(): void {
   useSessionStore.getState().openMainView({
     id: "timeline",
-    title: "Timeline",
+    title: "workspace.view.title.timeline",
     icon: "history",
   });
 }
@@ -20,7 +20,7 @@ export function openTimelineView(): void {
 export function openDiagnosticsView(): void {
   useSessionStore.getState().openMainView({
     id: "diagnostics",
-    title: "Diagnostics",
+    title: "workspace.view.title.diagnostics",
     icon: "spark",
   });
 }
