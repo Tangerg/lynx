@@ -6,7 +6,14 @@
 // fallback that every callsite needs.
 
 import type { ContentBlock, InterruptResponse, RunId, StreamEvent } from "@/rpc";
-import type { AgentViewState, RunError } from "@/protocol/run/viewState";
+import type {
+  AgentViewState,
+  Message,
+  PlanItem,
+  RunError,
+  TimelineEntry,
+  ToolCall,
+} from "@/protocol/run/viewState";
 import { create } from "zustand";
 import { disposeOnHmr } from "@/lib/hmr";
 // Import from the specific SDK module, not the barrel — the barrel re-exports
@@ -287,6 +294,61 @@ export function useAgentAction(kind: "send"): SendFn;
 export function useAgentAction(kind: "stop" | "send"): StopFn | SendFn {
   const sid = useSessionStore((s) => s.activeSessionId);
   return useAgentStore((s) => s.sessions[sid]?.[kind] ?? null);
+}
+
+/**
+ * Granular hooks — subscribe to individual run/view fields so token-stream
+ * deltas don't re-render every consumer of the `run` object. Each hook reads
+ * only the scalar field it needs; Zustand's default reference equality
+ * prevents re-renders when unrelated siblings change.
+ */
+
+/** Whether the active session has a run in progress. */
+export function useAgentRunning(): boolean {
+  const sid = useSessionStore((s) => s.activeSessionId);
+  return useAgentStore((s) => s.sessions[sid]?.view.run.running ?? false);
+}
+
+/** The active session's run id (null when idle). */
+export function useAgentRunId(): string | null {
+  const sid = useSessionStore((s) => s.activeSessionId);
+  return useAgentStore((s) => s.sessions[sid]?.view.run.runId ?? null);
+}
+
+/** Token usage for the active run ({ used, total }). */
+export function useAgentRunTokens(): { used: string; total: string } {
+  const sid = useSessionStore((s) => s.activeSessionId);
+  return useAgentStore((s) => s.sessions[sid]?.view.run.tokens ?? { used: "0", total: "0" });
+}
+
+/** Context-fill percentage for the active run (0–100). */
+export function useAgentRunCtxPct(): number {
+  const sid = useSessionStore((s) => s.activeSessionId);
+  return useAgentStore((s) => s.sessions[sid]?.view.run.ctxPct ?? 0);
+}
+
+/** The active session's plan items. */
+export function useAgentPlan(): PlanItem[] {
+  const sid = useSessionStore((s) => s.activeSessionId);
+  return useAgentStore((s) => s.sessions[sid]?.view.plan ?? []);
+}
+
+/** The active session's tool calls map. */
+export function useAgentToolCalls(): Record<string, ToolCall> {
+  const sid = useSessionStore((s) => s.activeSessionId);
+  return useAgentStore((s) => s.sessions[sid]?.view.toolCalls ?? {});
+}
+
+/** The active session's messages array. */
+export function useAgentMessages(): Message[] {
+  const sid = useSessionStore((s) => s.activeSessionId);
+  return useAgentStore((s) => s.sessions[sid]?.view.messages ?? []);
+}
+
+/** The active session's timeline entries. */
+export function useAgentTimeline(): TimelineEntry[] {
+  const sid = useSessionStore((s) => s.activeSessionId);
+  return useAgentStore((s) => s.sessions[sid]?.view.timeline ?? []);
 }
 
 /**

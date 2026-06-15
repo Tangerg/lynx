@@ -1,6 +1,6 @@
 import type { ContentBlock } from "@/rpc";
 import { useCallback } from "react";
-import { useAgentAction, useAgentSlice } from "@/state/agentStore";
+import { useAgentAction, useAgentRunning } from "@/state/agentStore";
 import { useSessionStore } from "@/state/sessionStore";
 import { useCreateSession } from "./useCreateSession";
 
@@ -18,7 +18,7 @@ import { useCreateSession } from "./useCreateSession";
 export function useChatSend(): (input: ContentBlock[]) => void {
   const createSession = useCreateSession();
   const send = useAgentAction("send");
-  const running = useAgentSlice((v) => v.run.running);
+  const running = useAgentRunning();
   return useCallback(
     (input: ContentBlock[]) => {
       if (running) return;

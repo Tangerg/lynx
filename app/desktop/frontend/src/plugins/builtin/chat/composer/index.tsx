@@ -26,7 +26,7 @@ import {
   COMPOSER_PLACEHOLDER,
   COMPOSER_STATUS,
 } from "@/plugins/sdk/kernelPoints";
-import { useAgentAction, useAgentSlice, useAgentStore } from "@/state/agentStore";
+import { useAgentAction, useAgentRunning, useAgentStore } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
 import { useSessionStore } from "@/state/sessionStore";
 
@@ -359,7 +359,7 @@ function SendButton() {
   const stop = useAgentAction("stop");
   // While a run is streaming, the send affordance becomes a stop button —
   // one active run per session (§6.11), so there's nothing to send mid-run.
-  const running = useAgentSlice((v) => v.run.running);
+  const running = useAgentRunning();
 
   if (running) {
     return (

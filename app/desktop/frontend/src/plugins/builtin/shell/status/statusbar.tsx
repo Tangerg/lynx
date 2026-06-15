@@ -25,7 +25,13 @@ import { notifyError } from "@/lib/notify";
 import { getContainer } from "@/main/container";
 import { definePlugin } from "@/plugins/sdk";
 import { asSessionId } from "@/rpc";
-import { useAgentSlice } from "@/state/agentStore";
+import {
+  useAgentSlice,
+  useAgentRunning,
+  useAgentRunId,
+  useAgentRunTokens,
+  useAgentRunCtxPct,
+} from "@/state/agentStore";
 import { useServerFeature } from "@/state/runtimeStore";
 import { useSessionStore } from "@/state/sessionStore";
 
@@ -47,7 +53,7 @@ const fmtTokens = new Intl.NumberFormat("en", { notation: "compact", maximumFrac
 // Run state — the leading item, always rendered (it owns the `●`). Narrow
 // subscriptions so a token tick doesn't re-render this past the step change.
 function RunStatus() {
-  const running = useAgentSlice((v) => v.run.running);
+  const running = useAgentRunning();
   const step = useAgentSlice((v) => v.run.step);
   const totalSteps = useAgentSlice((v) => v.run.totalSteps);
   const activity = useAgentSlice((v) => v.run.activity);
@@ -74,8 +80,8 @@ function RunStatus() {
 // The active run's id, while it's live — the handle to correlate with backend
 // logs / traces. Hidden when idle (a stale id is noise).
 function RunId() {
-  const running = useAgentSlice((v) => v.run.running);
-  const runId = useAgentSlice((v) => v.run.runId);
+  const running = useAgentRunning();
+  const runId = useAgentRunId();
   if (!running || !runId) return null;
   return (
     <Tooltip label={`Run ${runId}`}>
@@ -90,9 +96,9 @@ function RunId() {
 // The status bar has room for the numbers the cramped footer ring hid in a
 // tooltip. Persists the last run's values between runs; warning-toned past 90%.
 function ContextBudget() {
-  const used = useAgentSlice((v) => v.run.tokens.used);
+  const used = useAgentRunTokens().used;
   const total = useAgentSlice((v) => v.run.tokens.total);
-  const ctxPct = useAgentSlice((v) => v.run.ctxPct);
+  const ctxPct = useAgentRunCtxPct();
   const totalNum = parseShorthand(total);
   if (!Number.isFinite(totalNum) || totalNum <= 0) return null;
   const pct = Math.max(0, Math.min(100, Number(ctxPct) || 0));
@@ -116,7 +122,7 @@ function ContextBudget() {
 function CompactButton() {
   const t = useT();
   const enabled = useServerFeature("compaction");
-  const ctxPct = useAgentSlice((v) => v.run.ctxPct);
+  const ctxPct = useAgentRunCtxPct();
   const sessionId = useSessionStore((s) => s.activeSessionId);
   const [busy, setBusy] = useState(false);
   if (!enabled || !sessionId || (Number(ctxPct) || 0) < 75) return null;
@@ -156,8 +162,8 @@ function CompactButton() {
 // so the first sample's jitter doesn't blow the number up. Refs (not state)
 // for the samples so telemetry ticks don't trigger re-renders just to record.
 function Throughput() {
-  const running = useAgentSlice((v) => v.run.running);
-  const runId = useAgentSlice((v) => v.run.runId);
+  const running = useAgentRunning();
+  const runId = useAgentRunId();
   const used = useAgentSlice((v) => v.run.tokens.used);
   const usedNum = useMemo(() => parseShorthand(used), [used]);
 

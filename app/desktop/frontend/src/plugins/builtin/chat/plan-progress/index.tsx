@@ -30,7 +30,7 @@ import { swift } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";
-import { useAgentSlice } from "@/state/agentStore";
+import { useAgentPlan, useAgentRunId } from "@/state/agentStore";
 
 function pickCurrent(plan: PlanItem[]): PlanItem | null {
   // Prefer the in-flight task; fall back to the next not-yet-done so
@@ -40,8 +40,8 @@ function pickCurrent(plan: PlanItem[]): PlanItem | null {
 
 function PlanProgressBanner() {
   const t = useT();
-  const plan = useAgentSlice((v) => v.plan);
-  const runId = useAgentSlice((v) => v.run.runId);
+  const plan = useAgentPlan();
+  const runId = useAgentRunId();
   const [dismissedRunId, setDismissedRunId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
 
