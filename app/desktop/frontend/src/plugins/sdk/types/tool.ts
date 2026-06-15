@@ -6,8 +6,11 @@ import type { ToolCall } from "@/protocol/run/viewState";
 
 export interface ToolPreviewProps {
   tool: ToolCall;
-  /** Promote the full tool view (terminal / diff / …) into a main-area tab. */
-  onOpenView: () => void;
+  /** Promote this tool's workspace view (terminal / diff) into a main-area tab.
+   *  Absent when the tool has no such view (search / glob / lsp / skill / …) —
+   *  the preview then hides its "view details" foot instead of offering a dead
+   *  button (PreviewFoot self-hides when given no onClick). */
+  onOpenView?: () => void;
 }
 export type ToolPreviewComponent = ComponentType<ToolPreviewProps>;
 

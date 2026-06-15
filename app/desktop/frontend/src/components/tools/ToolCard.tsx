@@ -23,7 +23,7 @@ interface Props {
   selected: boolean;
   expanded: boolean;
   onToggleExpand: () => void;
-  onOpenView: () => void;
+  onOpenView?: () => void;
 }
 
 // Status → text colour. Each state maps to a semantic token; the `run`

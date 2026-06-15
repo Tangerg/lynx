@@ -15,7 +15,7 @@ import {
 import { ToolCard } from "@/components/tools/ToolCard";
 import { isReadOnlyTool } from "@/components/tools/ToolGroup";
 import { PluginContentBlock } from "@/plugins/host/PluginContentBlock";
-import { openViewForTool } from "@/state/toolRouting";
+import { hasToolView, openViewForTool } from "@/state/toolRouting";
 
 /**
  * A unit of rendering: either a single content block (with its ORIGINAL index,
@@ -141,7 +141,7 @@ export function renderBlock(block: ContentBlock, key: number, ctx: BlockCtx) {
             ctx.onSelectTool(block.toolCallId);
             ctx.onToggleExpand(block.toolCallId);
           }}
-          onOpenView={() => openViewForTool(block.toolCallId)}
+          onOpenView={hasToolView(tool) ? () => openViewForTool(block.toolCallId) : undefined}
         />
       );
     }

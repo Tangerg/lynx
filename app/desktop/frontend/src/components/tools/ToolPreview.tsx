@@ -15,7 +15,7 @@ import { toolRoutingKey } from "./toolIcon";
 
 interface Props {
   tool: ToolCall;
-  onOpenView: () => void;
+  onOpenView?: () => void;
 }
 
 export function ToolPreview({ tool, onOpenView }: Props) {

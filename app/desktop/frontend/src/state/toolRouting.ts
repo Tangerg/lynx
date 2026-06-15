@@ -19,29 +19,34 @@ interface ViewRouting {
 // feed it to the diff view's active-file focus.
 const MULTI_FILE_LABEL = /^\d+ files$/;
 
+// The only categories with a dedicated workspace view: command → terminal,
+// fileEdit / read → diff. Everything else (search / glob / webSearch / lsp_* /
+// skill / subagent / generic) is fully presented by its inline preview — it has
+// no "open the full view" target, so the preview's foot button is hidden for it
+// (a foot that promoted an unrelated view, or no-op'd, read as a dead button).
+const VIEWED_CATEGORIES = new Set(["command", "fileEdit", "read"]);
+
+/** Whether the tool has a workspace view to open — the gate for showing the
+ *  preview's "view details" foot. Pure (no side effects), unlike routeForTool. */
+export function hasToolView(tool: ToolCall): boolean {
+  return VIEWED_CATEGORIES.has(toolCategory(tool.name));
+}
+
 // Choose which workspace view to surface for the clicked tool. Routing keys
 // on the WIRE identity (`tool.name` → §4.4.2 category) — `fn` is the display
 // label (the command string for bash, the path for edits), never the tool
 // name, so matching on it would route nothing. Each branch sets up the side
 // effects the view relies on (e.g. active-file path for the diff view).
 function routeForTool(tool: ToolCall): ViewRouting | null {
-  const category = toolCategory(tool.name);
-  if (category === "command") {
+  if (!hasToolView(tool)) return null;
+  if (toolCategory(tool.name) === "command") {
     return { id: "terminal", title: "workspace.view.title.terminal", icon: "terminal" };
   }
-  if (category === "fileEdit" || category === "read") {
-    // For these categories toolLabel surfaces the file path as `fn`.
-    if (tool.fn && !MULTI_FILE_LABEL.test(tool.fn)) {
-      useSessionStore.getState().setActiveFile(tool.fn);
-    }
-    return { id: "diff", title: "workspace.view.title.diff", icon: "diff" };
+  // fileEdit | read — toolLabel surfaces the file path as `fn`.
+  if (tool.fn && !MULTI_FILE_LABEL.test(tool.fn)) {
+    useSessionStore.getState().setActiveFile(tool.fn);
   }
-  // search / webSearch / lsp_* / skill / subagent / generic have no dedicated
-  // detail view — their inline preview (with its "… N more" overflow) is the
-  // whole presentation. Return null so we DON'T promote an unrelated view: this
-  // used to fall through to Diff, opening the git working-tree diff when the
-  // user clicked "View all matches" on a grep / "View details" on an lsp call.
-  return null;
+  return { id: "diff", title: "workspace.view.title.diff", icon: "diff" };
 }
 
 /**
