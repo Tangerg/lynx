@@ -21,5 +21,5 @@ const dotStyles = cva("inline-block h-1.5 w-1.5 shrink-0 rounded-full", {
 type Props = VariantProps<typeof dotStyles> & { className?: string };
 
 export function StatusDot({ tone, className }: Props) {
-  return <span className={cn(dotStyles({ tone }), className)} />;
+  return <span aria-hidden="true" className={cn(dotStyles({ tone }), className)} />;
 }

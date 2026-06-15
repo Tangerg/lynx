@@ -63,6 +63,7 @@ export const zh: Record<string, string> = {
   "message.code.expand": "展开代码块",
   "message.code.collapse": "收起代码块",
   "message.outline.label": "消息大纲",
+  "message.outline.heading": "此消息",
   "message.code.copy": "复制代码",
   "message.code.copied": "已复制",
   "message.code.copyLabel": "复制",

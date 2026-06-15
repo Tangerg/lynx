@@ -66,6 +66,7 @@ export const ja: Record<string, string> = {
   "message.code.expand": "コードブロックを展開",
   "message.code.collapse": "コードブロックを折りたたむ",
   "message.outline.label": "メッセージのアウトライン",
+  "message.outline.heading": "このメッセージ",
   "message.code.copy": "コードをコピー",
   "message.code.copied": "コピーしました",
   "message.code.copyLabel": "コピー",

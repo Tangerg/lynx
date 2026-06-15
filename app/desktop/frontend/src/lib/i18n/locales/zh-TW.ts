@@ -63,6 +63,7 @@ export const zhTW: Record<string, string> = {
   "message.code.expand": "展開程式碼區塊",
   "message.code.collapse": "收合程式碼區塊",
   "message.outline.label": "訊息大綱",
+  "message.outline.heading": "此訊息",
   "message.code.copy": "複製程式碼",
   "message.code.copied": "已複製",
   "message.code.copyLabel": "複製",

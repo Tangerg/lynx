@@ -66,6 +66,7 @@ export const fr: Record<string, string> = {
   "message.code.expand": "Développer le bloc de code",
   "message.code.collapse": "Réduire le bloc de code",
   "message.outline.label": "Plan du message",
+  "message.outline.heading": "Dans ce message",
   "message.code.copy": "Copier le code",
   "message.code.copied": "Copié",
   "message.code.copyLabel": "Copier",
