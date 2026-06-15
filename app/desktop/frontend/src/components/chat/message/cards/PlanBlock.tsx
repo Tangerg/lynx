@@ -1,11 +1,12 @@
 import type { PlanItem } from "@/protocol/run/viewState";
+import { memo } from "react";
 import { Icon } from "@/components/common";
 import { PlanCheck, planItemRow } from "./PlanCheck";
 
 // Plan block — shown when an assistant message describes a multi-step
 // plan. Inline variant; the promoted workspace view uses PlanList. Both
 // share the per-item check + row styling via ./PlanCheck.
-export function PlanBlock({ plan }: { plan: PlanItem[] }) {
+export const PlanBlock = memo(function PlanBlock({ plan }: { plan: PlanItem[] }) {
   const done = plan.filter((p) => p.status === "done").length;
   return (
     <div className="rounded-lg border border-line-soft bg-transparent px-3.5 py-2.5 my-2">
@@ -21,4 +22,4 @@ export function PlanBlock({ plan }: { plan: PlanItem[] }) {
       ))}
     </div>
   );
-}
+});

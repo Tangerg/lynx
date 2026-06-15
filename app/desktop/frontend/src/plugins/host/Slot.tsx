@@ -10,7 +10,7 @@
 // if you want a real `<div data-slot=...>` (e.g. for hit-testing or zone
 // styling).
 
-import { Fragment } from "react";
+import { Fragment, memo } from "react";
 import { useLayoutSlot } from "@/plugins/sdk";
 import { PluginBoundary } from "./PluginBoundary";
 
@@ -22,7 +22,7 @@ interface Props {
   className?: string;
 }
 
-export function Slot({ name, wrapper, className }: Props) {
+export const Slot = memo(function Slot({ name, wrapper, className }: Props) {
   const specs = useLayoutSlot(name);
   if (specs.length === 0) return null;
 
@@ -50,4 +50,4 @@ export function Slot({ name, wrapper, className }: Props) {
     );
   }
   return <Fragment>{children}</Fragment>;
-}
+});
