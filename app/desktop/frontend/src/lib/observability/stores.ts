@@ -59,6 +59,9 @@ export interface SpanRow {
   startMs: number; // epoch ms
   durationMs: number;
   status: "unset" | "ok" | "error";
+  /** Status description — for error spans this is the failure message
+   *  (endSpan sets it from the thrown error). Absent on ok/unset spans. */
+  statusMessage?: string;
   attrs: Attrs;
 }
 

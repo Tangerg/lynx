@@ -104,6 +104,9 @@ export class LocalSpanProcessor implements SpanProcessor {
       startMs: hrToMs(span.startTime),
       durationMs: hrToMs(span.duration),
       status: STATUS_TONE[code] ?? "unset",
+      // The failure message endSpan set via setStatus — the one bit of "why"
+      // the bare status enum can't carry. Empty string → omit.
+      statusMessage: span.status.message || undefined,
       attrs: flattenAttrs(span.attributes),
     });
   }
