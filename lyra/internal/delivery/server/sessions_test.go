@@ -159,6 +159,56 @@ func TestUpdateSession(t *testing.T) {
 	}
 }
 
+// TestDeleteSession_Cascade verifies a deleted session takes its session-scoped
+// data with it: transcript runs+items, chat-memory messages, and open
+// interrupts. Without the cascade the sessions row vanishes but those rows
+// orphan (the bug: items.list / runs.listOpenInterrupts kept resolving a
+// deleted session).
+func TestDeleteSession_Cascade(t *testing.T) {
+	db, err := sqlite.Open(":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := context.Background()
+
+	svc := sqlite.NewSessionService(db)
+	hist := sqlite.NewTranscriptStore(db)
+	ints := sqlite.NewInterruptStore(db)
+	created, _ := svc.Create(ctx, "doomed", "/w")
+	id := created.ID
+
+	// Seed one of every session-scoped row.
+	if err := hist.PutRun(ctx, transcript.Run{SessionID: id, RunID: "run_1", Blob: []byte(`{"id":"run_1"}`)}); err != nil {
+		t.Fatalf("seed run: %v", err)
+	}
+	if err := hist.AppendItem(ctx, transcript.Item{SessionID: id, RunID: "run_1", ItemID: "item_1", Blob: []byte(`{"id":"item_1"}`)}); err != nil {
+		t.Fatalf("seed item: %v", err)
+	}
+	if err := ints.Put(ctx, interrupts.Pending{ParentRunID: "run_1", SessionID: id, Interrupts: []byte(`[]`)}); err != nil {
+		t.Fatalf("seed interrupt: %v", err)
+	}
+	history := map[string][]chat.Message{id: {chat.NewUserMessage("hi")}}
+
+	s := &Server{rt: stubRuntime{sess: svc, hist: hist, interrupts: ints, history: history}}
+	if err := s.DeleteSession(ctx, id); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+
+	if _, err := svc.Get(ctx, id); !errors.Is(err, session.ErrNotFound) {
+		t.Errorf("session still present after delete: err = %v", err)
+	}
+	if items, runs, _ := hist.List(ctx, id); len(items) != 0 || len(runs) != 0 {
+		t.Errorf("transcript not cascaded: %d items, %d runs left", len(items), len(runs))
+	}
+	if pending, _ := ints.List(ctx, id); len(pending) != 0 {
+		t.Errorf("interrupts not cascaded: %d left", len(pending))
+	}
+	if _, ok := history[id]; ok {
+		t.Errorf("chat-memory messages not cascaded: still present")
+	}
+}
+
 // TestForkSession: a full-history fork inherits the parent's cwd, copies its
 // history into the child, and honors a title override; a run-boundary fork
 // (fromRunId) against an unknown run is run_not_found.

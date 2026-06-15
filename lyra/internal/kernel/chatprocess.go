@@ -43,18 +43,29 @@ type ChatProcess interface {
 	Cancel() error
 
 	// Resume answers a HITL interrupt the process is parked on
-	// (StatusWaiting) — a plan-mode plan, a gated tool call, or an
-	// ask_user question. It delivers the structured [interrupts.Resolution]
+	// (StatusWaiting) — a gated tool call or an ask_user / exit_plan_mode
+	// question. It delivers the structured [interrupts.Resolution]
 	// to the parked awaitable and continues the process, returning a fresh
 	// Done channel for the resumed run. Only valid while Status is
 	// [core.StatusWaiting].
 	Resume(ctx context.Context, resolution interrupts.Resolution) (<-chan error, error)
 
 	// PendingAwaitable returns the HITL request the process is parked
-	// on while StatusWaiting (plan confirmation or tool-approval
-	// confirmation), or nil when nothing is parked. Its PromptAny()
-	// payload is what the client renders to make the decision.
+	// on while StatusWaiting (a gated tool call or an ask_user /
+	// exit_plan_mode question), or nil when nothing is parked. Its
+	// PromptAny() payload is what the client renders to make the decision.
 	PendingAwaitable() core.Awaitable
+
+	// Discard releases a TERMINATED process: it removes the process from the
+	// platform registry and deletes its persisted snapshot. With a ProcessStore
+	// wired the runtime auto-snapshots every tick — including terminal
+	// completion — but that snapshot only matters while the process is PARKED
+	// awaiting HITL resume; once the turn reaches a terminal state it is dead
+	// weight, and left behind it accumulates one orphaned snapshot row per run.
+	// Best-effort: cleanup failures don't affect the already-finished turn. Call
+	// exactly once at terminal teardown — NEVER on a parked process, whose
+	// snapshot must survive for resume.
+	Discard(ctx context.Context)
 }
 
 // chatProcess is the canonical [ChatProcess] backed by a real
@@ -82,6 +93,14 @@ func (cp *chatProcess) Resume(ctx context.Context, resolution interrupts.Resolut
 }
 
 func (cp *chatProcess) PendingAwaitable() core.Awaitable { return cp.proc.PendingAwaitable() }
+
+func (cp *chatProcess) Discard(ctx context.Context) {
+	id := cp.proc.ID()
+	_ = cp.platform.RemoveProcess(id) // free the in-memory registry entry
+	if store := cp.platform.ProcessStore(); store != nil {
+		_ = store.Delete(ctx, id) // drop the persisted (terminal) snapshot
+	}
+}
 
 func (cp *chatProcess) Output() (ChatOutput, error) {
 	out, ok := core.ResultOfType[ChatOutput](cp.proc)

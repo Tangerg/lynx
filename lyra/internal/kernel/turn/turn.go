@@ -275,6 +275,15 @@ func interruptKind(aw core.Awaitable) string {
 // closes exactly once no matter which terminal path (drive / finishTurn)
 // reached it. finishTurnSpan has already stamped the outcome.
 func (s *inMemory) endTurn(st *turnState) {
+	// Release the backing process now that the turn is terminal: free its
+	// in-memory registry entry and delete its persisted auto-snapshot, which
+	// only matters while a process is PARKED for HITL resume (endTurn never runs
+	// on a parked turn — handleWaiting leaves it registered). Without this every
+	// run leaks one process_snapshot row. Off a cancel-decoupled ctx so the
+	// delete lands even when the turn ctx was canceled, keeping the trace span.
+	if p := st.process(); p != nil {
+		p.Discard(context.WithoutCancel(st.ctx))
+	}
 	if st.span != nil {
 		st.span.End()
 	}
