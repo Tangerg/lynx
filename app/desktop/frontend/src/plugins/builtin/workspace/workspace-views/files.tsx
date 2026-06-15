@@ -60,7 +60,7 @@ function FilesView() {
             activePath={activeFile}
             onSelect={(p) => {
               setActiveFile(p);
-              openMainView({ id: "diff", title: "Diff", icon: "diff" });
+              openMainView({ id: "diff", title: "workspace.view.title.diff", icon: "diff" });
             }}
           />
         )}
@@ -71,7 +71,7 @@ function FilesView() {
 
 export const filesView = defineWorkspaceView({
   id: "files",
-  title: "Files",
+  title: "workspace.view.title.files",
   icon: "filetext",
   openByDefault: false,
   order: 20,

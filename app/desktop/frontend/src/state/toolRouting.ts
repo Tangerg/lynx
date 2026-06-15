@@ -27,14 +27,14 @@ const MULTI_FILE_LABEL = /^\d+ files$/;
 function routeForTool(tool: ToolCall): ViewRouting | null {
   const category = toolCategory(tool.name);
   if (category === "command") {
-    return { id: "terminal", title: "Terminal", icon: "terminal" };
+    return { id: "terminal", title: "workspace.view.title.terminal", icon: "terminal" };
   }
   if (category === "fileEdit" || category === "read") {
     // For these categories toolLabel surfaces the file path as `fn`.
     if (tool.fn && !MULTI_FILE_LABEL.test(tool.fn)) {
       useSessionStore.getState().setActiveFile(tool.fn);
     }
-    return { id: "diff", title: "Diff", icon: "diff" };
+    return { id: "diff", title: "workspace.view.title.diff", icon: "diff" };
   }
   // search / webSearch / lsp_* / skill / subagent / generic have no dedicated
   // detail view — their inline preview (with its "… N more" overflow) is the

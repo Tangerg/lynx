@@ -15,6 +15,7 @@ import { definePlugin, lookupExtensionPoint, usePluginStore } from "@/plugins/sd
 import { ACCENT, WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { useSessionStore } from "@/state/sessionStore";
 import { useUiStore } from "@/state/uiStore";
+import { t } from "@/lib/i18n";
 
 // "Close the currently-focused tab" — if the user is viewing a workspace
 // view in the main area, close that tab; otherwise close the active chat
@@ -112,7 +113,7 @@ export const defaultCommands = definePlugin({
         dynamic.push(
           host.commands.register({
             id: `view.open.${view.id}`,
-            label: `View: ${view.title}`,
+            label: `View: ${t(view.title)}`,
             icon: view.icon,
             group: "View",
             order: 10,

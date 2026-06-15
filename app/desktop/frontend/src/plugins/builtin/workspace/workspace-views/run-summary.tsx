@@ -201,7 +201,7 @@ function RunSummaryTab() {
 
 export const runSummaryView = defineWorkspaceView({
   id: "run-summary",
-  title: "Run summary",
+  title: "workspace.view.title.runSummary",
   icon: "check",
   openByDefault: false,
   // Sits next to Timeline (35) — both are about "what happened".

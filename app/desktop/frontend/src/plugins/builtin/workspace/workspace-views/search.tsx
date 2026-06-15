@@ -109,7 +109,7 @@ function SearchTab() {
 
 export const searchView = defineWorkspaceView({
   id: "search",
-  title: "Search",
+  title: "workspace.view.title.search",
   icon: "search",
   openByDefault: false,
   order: 48,

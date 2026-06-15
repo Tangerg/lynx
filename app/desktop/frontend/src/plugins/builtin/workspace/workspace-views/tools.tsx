@@ -103,7 +103,7 @@ function ToolsTab() {
 
 export const toolsView = defineWorkspaceView({
   id: "tools",
-  title: "Tools",
+  title: "workspace.view.title.tools",
   icon: "tool",
   openByDefault: false,
   order: 40,
