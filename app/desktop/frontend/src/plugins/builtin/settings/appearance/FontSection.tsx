@@ -32,6 +32,7 @@ interface FontPickerProps {
 }
 
 function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerProps) {
+  const t = useT();
   const fonts = useSystemFonts(mono);
   const customEnabled = value !== "";
   const checkboxId = useId();
@@ -48,11 +49,11 @@ function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerPr
       >
         <Checkbox
           id={checkboxId}
-          ariaLabel={`Use custom ${label.toLowerCase()} font`}
+          ariaLabel={t("font.useCustomAria", { kind: label.toLowerCase() })}
           checked={customEnabled}
           onCheckedChange={(c) => onChange(c ? (fonts[0] ?? "") : "")}
         />
-        <span>Use custom</span>
+        <span>{t("font.useCustom")}</span>
       </label>
       <DropdownMenu.Root>
         <DropdownMenu.Trigger

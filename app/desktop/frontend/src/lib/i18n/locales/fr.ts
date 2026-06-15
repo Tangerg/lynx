@@ -188,6 +188,17 @@ export const fr: Record<string, string> = {
   "plugins.origin.builtin.title": "Fourni avec Lyra",
   "plugins.origin.sideload": "Sideload",
   "plugins.origin.sideload.title": "Installé par l'utilisateur",
+
+  "connection.error.invalidUrl": "URL invalide",
+  "shape.radius.aria": "Rayon des coins",
+  "shape.motion.aria": "Vitesse d'animation",
+  "shape.opt.sharp": "Net",
+  "shape.opt.soft": "Doux",
+  "shape.opt.off": "Désactivé",
+  "shape.opt.fast": "Rapide",
+  "shape.opt.slow": "Lent",
+  "font.useCustom": "Personnaliser",
+  "font.useCustomAria": "Utiliser une police {{kind}} personnalisée",
   "settings.theme": "Thème",
   "settings.theme.sub":
     "Choisissez un thème. Les plugins peuvent en ajouter — ils apparaissent ici automatiquement.",

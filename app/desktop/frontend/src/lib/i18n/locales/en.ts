@@ -185,6 +185,17 @@ export const en: Record<string, string> = {
   "plugins.origin.builtin.title": "Ships with Lyra",
   "plugins.origin.sideload": "Sideload",
   "plugins.origin.sideload.title": "User-installed",
+
+  "connection.error.invalidUrl": "Invalid URL",
+  "shape.radius.aria": "Corner radius",
+  "shape.motion.aria": "Animation speed",
+  "shape.opt.sharp": "Sharp",
+  "shape.opt.soft": "Soft",
+  "shape.opt.off": "Off",
+  "shape.opt.fast": "Fast",
+  "shape.opt.slow": "Slow",
+  "font.useCustom": "Use custom",
+  "font.useCustomAria": "Use custom {{kind}} font",
   "settings.theme": "Theme",
   "settings.theme.sub":
     "Pick a color theme. Plugins can register more — they show up here automatically.",
