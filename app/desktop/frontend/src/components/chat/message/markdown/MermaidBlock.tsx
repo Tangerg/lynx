@@ -57,7 +57,7 @@ export function MermaidBlock({ code }: Props) {
   useEffect(() => {
     let alive = true;
     loadRenderer().then((fn) => {
-      if (alive) setRenderer(() => fn);
+      if (alive) setRenderer(fn);
     });
     return () => {
       alive = false;
