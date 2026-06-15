@@ -207,5 +207,7 @@ function estimatePercentiles(buckets: HistogramValue["buckets"]): { p50: number;
     }
   }
   const last = buckets.boundaries.at(-1) ?? 0;
-  return { p50: p50 || last, p95: last };
+  // Use p50Done to avoid the falsy-value trap: p50 could legitimately be 0
+  // (the first bucket boundary), but `p50 || last` would substitute `last`.
+  return { p50: p50Done ? p50 : last, p95: last };
 }

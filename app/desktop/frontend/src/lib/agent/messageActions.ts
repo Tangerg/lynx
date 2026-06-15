@@ -106,9 +106,12 @@ export function regenerateMessage(msg: Message, opts?: RollbackActionOptions): v
     const m = messages[i]!;
     if (m.role !== "user") continue;
     const text = flattenText(m.blocks).trim();
-    if (!text) return;
+    const imgs = blockImages(m);
+    // A user message with only inlined images and no text is still a valid
+    // turn to regenerate — the early `return` here would silently skip it.
+    if (!text && imgs.length === 0) return;
     if (!m.runId) {
-      send(buildInput(text, blockImages(m)));
+      send(buildInput(text, imgs));
       return;
     }
     void rollbackToBefore(sid, m.runId, opts?.restoreFiles)

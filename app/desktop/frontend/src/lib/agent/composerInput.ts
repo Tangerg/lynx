@@ -44,7 +44,12 @@ export async function fileToInputImage(file: File): Promise<InputImage & { name:
     reader.readAsDataURL(file);
   });
   // Strip the leading "data:<mime>;base64," → raw base64 (the wire form).
-  return { mime: file.type, data: dataUrl.slice(dataUrl.indexOf(",") + 1), name: file.name };
+  // Guard against an unrecognised MIME that produces a data URL without the
+  // expected comma separator — indexOf returns -1, which would otherwise
+  // cause slice(0) to pass the prefix through as base64 data.
+  const comma = dataUrl.indexOf(",");
+  const data = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+  return { mime: file.type, data, name: file.name };
 }
 
 /** Filter a FileList (clipboard / drop / file-picker) down to image/* files. */
