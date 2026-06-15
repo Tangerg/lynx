@@ -40,7 +40,7 @@ func TestWithPathGuard(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			called = false
-			out, err := guarded.Call(context.Background(), `{"path":"`+tc.path+`"}`)
+			out, err := guarded.Call(context.Background(), `{"file_path":"`+tc.path+`"}`)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

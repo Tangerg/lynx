@@ -36,7 +36,7 @@ func withReadTracking(inner chat.Tool, tr *editguard.Tracker, workdir string) ch
 			return out, err
 		}
 		var a struct {
-			Path   string `json:"path"`
+			Path   string `json:"file_path"`
 			Offset int    `json:"offset"`
 			Limit  int    `json:"limit"`
 		}
@@ -56,7 +56,7 @@ func withEditGuard(inner chat.Tool, tr *editguard.Tracker, workdir string) chat.
 	}
 	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
 		var a struct {
-			Path string `json:"path"`
+			Path string `json:"file_path"`
 		}
 		_ = json.Unmarshal([]byte(arguments), &a)
 		if a.Path != "" {
@@ -84,7 +84,7 @@ func withWriteGuard(inner chat.Tool, tr *editguard.Tracker, workdir string) chat
 	}
 	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
 		var a struct {
-			Path   string `json:"path"`
+			Path   string `json:"file_path"`
 			Append bool   `json:"append"`
 		}
 		_ = json.Unmarshal([]byte(arguments), &a)
@@ -122,7 +122,7 @@ func withEditDiagnostics(inner chat.Tool, ci *codeintel.Service, root string) ch
 	}
 	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
 		var a struct {
-			Path string `json:"path"`
+			Path string `json:"file_path"`
 		}
 		_ = json.Unmarshal([]byte(arguments), &a)
 		return ci.DiagnoseEdit(ctx, root, a.Path, func() (string, error) {
@@ -150,7 +150,7 @@ var protectedDirs = []string{".git"}
 func withPathGuard(inner chat.Tool, workdir string) chat.Tool {
 	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
 		var a struct {
-			Path string `json:"path"`
+			Path string `json:"file_path"`
 		}
 		_ = json.Unmarshal([]byte(arguments), &a)
 		if a.Path != "" {
@@ -230,7 +230,7 @@ func withPathLock(inner chat.Tool, locker *pathLocker, workdir string) chat.Tool
 	}
 	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
 		var a struct {
-			Path string `json:"path"`
+			Path string `json:"file_path"`
 		}
 		_ = json.Unmarshal([]byte(arguments), &a)
 		if a.Path == "" {

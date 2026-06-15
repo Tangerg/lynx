@@ -37,7 +37,7 @@ func (t *translator) shapeToolResult(name string, args map[string]any, outputJSO
 	case "websearch":
 		return webSearchResultSet{Results: parseWebSearchHits(outputJSON)}
 	case "write", "edit":
-		if path := argString(args, "path"); path != "" {
+		if path := argString(args, "file_path"); path != "" {
 			return fileChangeResult{Changes: []protocol.FileEdit{{Path: path, Status: "modified"}}}
 		}
 		return protocol.BestEffortJSON(outputJSON)

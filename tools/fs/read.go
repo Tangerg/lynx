@@ -13,9 +13,9 @@ import (
 // Offset is 1-based to match editor / grep / IDE conventions; pass
 // 0 or omit to start at the first line.
 type ReadRequest struct {
-	Path   string `json:"path" jsonschema:"required" jsonschema_description:"Absolute path to a text file."`
-	Offset int    `json:"offset,omitempty" jsonschema_description:"1-based line number to start at. 0 or omitted = start at line 1."`
-	Limit  int    `json:"limit,omitempty" jsonschema_description:"Maximum number of lines to return. 0 = read to end of file."`
+	FilePath string `json:"file_path" jsonschema:"required" jsonschema_description:"Path to the file to read — absolute, or relative to the workspace root."`
+	Offset   int    `json:"offset,omitempty" jsonschema_description:"1-based line number to start reading from. 0 or omitted = start at line 1. Pair with limit to page through a large file."`
+	Limit    int    `json:"limit,omitempty" jsonschema_description:"Maximum number of lines to return. 0 = read to the end of the file."`
 }
 
 // ReadResponse is the LLM-facing return shape. StartLine / EndLine
@@ -49,9 +49,10 @@ func NewReadTool(executor Executor) *ReadTool {
 func (t *ReadTool) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{
 		Name: "read",
-		Description: "Read a text file. Returns the requested line range plus total line count and a truncation flag. " +
-			"By default returns the whole file; for large files pass `offset` (1-based line) and `limit` to page through. " +
-			"Binary files are rejected — use the bash tool for non-text data.",
+		Description: "Read a text file from the filesystem. Returns the requested line range with the total line count and a truncation flag. " +
+			"By default returns the whole file; for a large file pass `offset` (1-based line) and `limit` to page through it. " +
+			"Call this in parallel when you need several files at once. " +
+			"Binary files are rejected — use the bash tool for non-text data, and use glob/grep to locate files or content rather than guessing paths.",
 		InputSchema: readToolSchema,
 	}
 }
@@ -64,7 +65,7 @@ func (t *ReadTool) Call(ctx context.Context, arguments string) (string, error) {
 	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
 		return "", fmt.Errorf("fs.read: parse arguments: %w", err)
 	}
-	if req.Path == "" {
+	if req.FilePath == "" {
 		return "", fmt.Errorf("fs.read: %w", ErrEmptyPath)
 	}
 
@@ -75,7 +76,7 @@ func (t *ReadTool) Call(ctx context.Context, arguments string) (string, error) {
 	}
 
 	res, err := t.executor.Read(ctx, ReadInput{
-		Path:   req.Path,
+		Path:   req.FilePath,
 		Offset: spiOffset,
 		Limit:  req.Limit,
 	})

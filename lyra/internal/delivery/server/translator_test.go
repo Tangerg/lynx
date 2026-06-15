@@ -77,19 +77,19 @@ func TestTranslator_RunStartedCarriesModel(t *testing.T) {
 func TestTranslator_EditedArgsReusesProposalItem(t *testing.T) {
 	rb := &resumeBinding{
 		originRunID: "run_1",
-		toolItems:   map[string]string{resumeKey("write", argsKey(map[string]any{"path": "a.txt"})): "item_orig"},
+		toolItems:   map[string]string{resumeKey("write", argsKey(map[string]any{"file_path": "a.txt"})): "item_orig"},
 		byName:      map[string]string{"write": "item_orig"},
 	}
 	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, rb, "")
 
 	// Re-fire with EDITED args (different path): the exact (name,args) key misses,
 	// the name-only fallback hits.
-	id, runID := tr.reuseOrNextItemID("write", `{"path":"b.txt"}`)
+	id, runID := tr.reuseOrNextItemID("write", `{"file_path":"b.txt"}`)
 	if id != "item_orig" || runID != "run_1" {
 		t.Fatalf("edited-args re-fire = (%q,%q), want (item_orig, run_1) — original item must be reused", id, runID)
 	}
 	// One-shot: a second re-fire of the same name no longer matches (fresh id).
-	if id2, _ := tr.reuseOrNextItemID("write", `{"path":"c.txt"}`); id2 == "item_orig" {
+	if id2, _ := tr.reuseOrNextItemID("write", `{"file_path":"c.txt"}`); id2 == "item_orig" {
 		t.Errorf("fallback must be one-shot, got %q again", id2)
 	}
 }

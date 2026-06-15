@@ -34,16 +34,19 @@ func TestWithEditDiagnostics_AppendsProblems(t *testing.T) {
 		chat.ToolDefinition{Name: "write", Description: "stub", InputSchema: `{"type":"object"}`},
 		chat.ToolMetadata{},
 		func(_ context.Context, arguments string) (string, error) {
-			var a struct{ Path, Content string }
+			var a struct {
+				FilePath string `json:"file_path"`
+				Content  string `json:"content"`
+			}
 			_ = json.Unmarshal([]byte(arguments), &a)
-			if err := os.WriteFile(filepath.Join(root, a.Path), []byte(a.Content), 0o644); err != nil {
+			if err := os.WriteFile(filepath.Join(root, a.FilePath), []byte(a.Content), 0o644); err != nil {
 				return "", err
 			}
-			return "wrote " + a.Path, nil
+			return "wrote " + a.FilePath, nil
 		},
 	)
 	wrapped := withEditDiagnostics(inner, ci, root)
-	args := `{"path":"oops.go","content":"package main\n\nfunc main() {\n\tundefinedXYZ()\n}\n"}`
+	args := `{"file_path":"oops.go","content":"package main\n\nfunc main() {\n\tundefinedXYZ()\n}\n"}`
 
 	// Cold gopls may need more than one settle window; the file content is
 	// stable across retries, so a late diagnostics push is read from cache.
