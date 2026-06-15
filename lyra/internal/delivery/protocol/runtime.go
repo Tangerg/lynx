@@ -28,6 +28,7 @@ type Runtime interface {
 	Runs
 	Items
 	Workspace
+	Approval
 	Providers
 	Models
 	Tools

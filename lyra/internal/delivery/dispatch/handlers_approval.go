@@ -1,0 +1,27 @@
+package dispatch
+
+import (
+	"context"
+
+	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/lyra/internal/delivery/transport"
+)
+
+// ─── Approval (API.md §C.3) ─────────────────────────────────────────
+//
+// The runtime-global tool-permission stance (not per-session): plan is the
+// read-only planning stance the exit_plan_mode tool flips back to execute.
+
+func (d *Dispatcher) handleApprovalGetMode(ctx context.Context, msg *transport.Request) HandleResult {
+	out, err := d.api.GetApprovalMode(ctx)
+	return reply(msg, out, err)
+}
+
+func (d *Dispatcher) handleApprovalSetMode(ctx context.Context, msg *transport.Request) HandleResult {
+	in, bad := decode[protocol.SetApprovalModeRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
+	out, err := d.api.SetApprovalMode(ctx, in)
+	return reply(msg, out, err)
+}
