@@ -13,22 +13,32 @@
 import type { IconName } from "@/components/common";
 import type { TimelineEntry, TimelineEntryKind } from "@/protocol/run/viewState";
 import { EmptyState, Icon, IconButton } from "@/components/common";
+import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { cn } from "@/lib/utils";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { useAgentSlice } from "@/state/agentStore";
 import { useSessionStore } from "@/state/sessionStore";
 
-// kind → icon + display label. Lookup table beats a switch — adding a
-// new TimelineEntryKind is one row here.
-const KIND_META: Record<TimelineEntryKind, { icon: IconName; label: string }> = {
-  "run-start": { icon: "play", label: "Run started" },
-  "run-end": { icon: "check", label: "Run finished" },
-  "run-error": { icon: "bug", label: "Run error" },
-  "tool-start": { icon: "tool", label: "Tool" },
-  "tool-end": { icon: "tool", label: "Tool finished" },
-  "approval-request": { icon: "shield", label: "Approval requested" },
-  "approval-result": { icon: "shield", label: "Approval" },
+// i18n key → icon. Labels are resolved at render via t().
+const KIND_ICON: Record<TimelineEntryKind, IconName> = {
+  "run-start": "play",
+  "run-end": "check",
+  "run-error": "bug",
+  "tool-start": "tool",
+  "tool-end": "tool",
+  "approval-request": "shield",
+  "approval-result": "shield",
+};
+
+const KIND_I18N: Record<TimelineEntryKind, string> = {
+  "run-start": "timeline.kind.runStart",
+  "run-end": "timeline.kind.runEnd",
+  "run-error": "timeline.kind.runError",
+  "tool-start": "timeline.kind.toolStart",
+  "tool-end": "timeline.kind.toolEnd",
+  "approval-request": "timeline.kind.approvalRequest",
+  "approval-result": "timeline.kind.approvalResult",
 };
 
 function timeOfDay(ts: number): string {
@@ -63,13 +73,16 @@ const STATUS_DOT: Record<NonNullable<TimelineEntry["status"]>, string> = {
 };
 
 function TimelineRow({ entry }: { entry: TimelineEntry }) {
-  const meta = KIND_META[entry.kind];
+  const t = useT();
+  const icon = KIND_ICON[entry.kind];
   return (
     <div className="flex items-start gap-2.5 px-3.5 py-1.5">
-      <Icon name={meta.icon} size={12} className="mt-1 shrink-0 text-fg-faint" />
+      <Icon name={icon} size={12} className="mt-1 shrink-0 text-fg-faint" />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
-          <span className="shrink-0 text-[11.5px] font-medium text-fg">{meta.label}</span>
+          <span className="shrink-0 text-[11.5px] font-medium text-fg">
+            {t(KIND_I18N[entry.kind])}
+          </span>
           {entry.summary && (
             // `title=` preserves full text when the inline column
             // truncates a long command / tool name on hover.
@@ -93,6 +106,7 @@ function TimelineRow({ entry }: { entry: TimelineEntry }) {
 }
 
 function TimelineTab() {
+  const t = useT();
   const timeline = useAgentSlice((v) => v.timeline);
   const groups = groupByRun(timeline);
   const runCount = groups.filter((g) => g.runId !== null).length;
@@ -101,11 +115,14 @@ function TimelineTab() {
     <WorkspaceViewLayout
       icon="history"
       titleStrong
-      title="Run timeline"
+      title="timeline.title"
       sub={`${timeline.length} events · ${runCount} run${runCount === 1 ? "" : "s"}`}
       scrollClassName="py-1"
       actions={
-        <IconButton title="Jump to chat" onClick={() => useSessionStore.getState().selectChat()}>
+        <IconButton
+          title={t("timeline.jumpToChat")}
+          onClick={() => useSessionStore.getState().selectChat()}
+        >
           <Icon name="chat" size={14} />
         </IconButton>
       }
@@ -113,8 +130,8 @@ function TimelineTab() {
       {timeline.length === 0 ? (
         <EmptyState
           icon="history"
-          title="No activity yet"
-          sub="As the agent runs, every tool call, approval, and run boundary lands here."
+          title={t("timeline.empty.title")}
+          sub={t("timeline.empty.sub")}
         />
       ) : (
         groups.map((g, gi) => (

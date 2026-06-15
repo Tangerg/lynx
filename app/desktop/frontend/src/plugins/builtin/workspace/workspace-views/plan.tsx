@@ -1,10 +1,12 @@
 import { EmptyState } from "@/components/common";
+import { useT } from "@/lib/i18n";
 import { PlanList } from "./views/PlanList";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { useAgentSlice } from "@/state/agentStore";
 
 function PlanTab() {
+  const t = useT();
   const plan = useAgentSlice((v) => v.plan);
   const done = plan.filter((p) => p.status === "done").length;
 
@@ -12,15 +14,11 @@ function PlanTab() {
     <WorkspaceViewLayout
       icon="list"
       titleStrong
-      title="Plan"
+      title="plan.title"
       sub={plan.length ? `${done} of ${plan.length} complete` : undefined}
     >
       {plan.length === 0 ? (
-        <EmptyState
-          icon="list"
-          title="No plan yet"
-          sub="When the agent drafts a plan it shows up here."
-        />
+        <EmptyState icon="list" title={t("plan.empty.title")} sub={t("plan.empty.sub")} />
       ) : (
         <PlanList plan={plan} />
       )}

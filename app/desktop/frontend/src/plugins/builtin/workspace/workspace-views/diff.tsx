@@ -5,6 +5,7 @@
 import type { DiffQuery, FileDiff } from "@/lib/data/queries";
 import { useState } from "react";
 import { DataView, Segmented } from "@/components/common";
+import { useT } from "@/lib/i18n";
 import { DiffView } from "./views/DiffView";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useDiff } from "@/lib/data/queries";
@@ -16,6 +17,7 @@ import { useServerFeature } from "@/state/runtimeStore";
 import { useSessionStore } from "@/state/sessionStore";
 
 function FileSection({ file, showHeader }: { file: FileDiff; showHeader: boolean }) {
+  const t = useT();
   return (
     <section>
       {showHeader && (
@@ -28,7 +30,7 @@ function FileSection({ file, showHeader }: { file: FileDiff; showHeader: boolean
         </div>
       )}
       {file.binary ? (
-        <p className="m-0 px-3 py-2 font-mono text-[11.5px] text-fg-faint">Binary file</p>
+        <p className="m-0 px-3 py-2 font-mono text-[11.5px] text-fg-faint">{t("diff.binary")}</p>
       ) : (
         <DiffView rows={file.rows} />
       )}
@@ -37,6 +39,7 @@ function FileSection({ file, showHeader }: { file: FileDiff; showHeader: boolean
 }
 
 function DiffViewTab() {
+  const t = useT();
   const gitEnabled = useServerFeature("git");
   const cwd = useActiveSessionCwd();
   const activeFile = useSessionStore((s) => s.activeFile);
@@ -65,16 +68,16 @@ function DiffViewTab() {
   return (
     <WorkspaceViewLayout
       icon="file"
-      title={activeFile || "Working tree"}
+      title={activeFile || t("diff.workingTree")}
       sub={sub}
       actions={
         <Segmented
-          ariaLabel="Diff baseline"
+          ariaLabel={t("diff.baselineAria")}
           value={mode}
           onChange={setMode}
           options={[
-            { value: "worktree", label: "Worktree" },
-            { value: "base", label: "Branch" },
+            { value: "worktree", label: t("diff.mode.worktree") },
+            { value: "base", label: t("diff.mode.branch") },
           ]}
         />
       }
@@ -85,14 +88,17 @@ function DiffViewTab() {
         // A non-repo cwd is an expected state with its own copy, not a failure.
         isError={isError && !notARepo}
         skeletonCount={10}
-        empty={!gitEnabled ? gitOffEmpty("diff") : notARepo ? notARepoEmpty("diff") : EMPTY_DIFF}
+        empty={
+          !gitEnabled
+            ? gitOffEmpty("diff")
+            : notARepo
+              ? notARepoEmpty("diff")
+              : { icon: "diff" as const, title: t("diff.empty.title"), sub: t("diff.empty.sub") }
+        }
         error={{
           icon: "diff",
-          title: mode === "base" ? "No baseline branch" : "Couldn't load the diff",
-          sub:
-            mode === "base"
-              ? "The default branch couldn't be resolved (no remote / detached HEAD)."
-              : "The runtime rejected workspace.getDiff — see Diagnostics.",
+          title: mode === "base" ? t("diff.error.noBaseline") : t("diff.error.loadFailed"),
+          sub: mode === "base" ? t("diff.error.noBaselineSub") : t("diff.error.loadFailedSub"),
         }}
       >
         {(fileDiffs) => (
@@ -102,7 +108,7 @@ function DiffViewTab() {
             ))}
             {data?.truncated && (
               <p className="m-0 px-3 py-2 font-mono text-[11px] text-fg-faint">
-                Diff truncated at the row limit — narrow to a single file for the rest.
+                {t("diff.truncated")}
               </p>
             )}
           </div>
@@ -111,12 +117,6 @@ function DiffViewTab() {
     </WorkspaceViewLayout>
   );
 }
-
-const EMPTY_DIFF = {
-  icon: "diff",
-  title: "Nothing to compare",
-  sub: "The working tree has no uncommitted changes.",
-} as const;
 
 export const diffView = defineWorkspaceView({
   id: "diff",

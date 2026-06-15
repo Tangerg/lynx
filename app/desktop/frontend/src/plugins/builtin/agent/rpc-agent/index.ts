@@ -7,6 +7,7 @@
 import type { AgentDriver } from "@/plugins/sdk";
 import type { RunMode } from "@/rpc";
 import { definePlugin } from "@/plugins/sdk";
+import { t } from "@/lib/i18n";
 import { AGENT_SOURCE } from "@/plugins/sdk/kernelPoints";
 import { getContainer } from "@/main/container";
 import { asSessionId } from "@/rpc";
@@ -49,7 +50,7 @@ export default definePlugin({
   setup({ host }) {
     host.extensions.contribute(AGENT_SOURCE, {
       id: "rpc",
-      label: "Runtime Protocol (JSON-RPC)",
+      label: t("agentSource.rpc"),
       priority: 1,
       factory: () => makeDriver(useSessionStore.getState().activeSessionId || "ses_default"),
     });

@@ -3,11 +3,13 @@
 
 import { DataView } from "@/components/common";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
+import { useT } from "@/lib/i18n";
 import { useAgentDocs } from "@/lib/data/queries";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { scopeLabel } from "./views/scopeLabel";
 
 function AgentDocsTab() {
+  const t = useT();
   const { data, isLoading, isError } = useAgentDocs();
   const docs = data ?? [];
 
@@ -15,8 +17,8 @@ function AgentDocsTab() {
     <WorkspaceViewLayout
       icon="book"
       titleStrong
-      title="Agent docs"
-      sub={`${docs.length} found`}
+      title="agentDocs.title"
+      sub={t("agentDocs.found", { count: docs.length })}
       scrollClassName="py-1"
     >
       <DataView
@@ -26,8 +28,8 @@ function AgentDocsTab() {
         skeletonCount={3}
         empty={{
           icon: "book",
-          title: "No agent docs",
-          sub: "AGENTS.md files found from the working directory upward show up here.",
+          title: t("agentDocs.empty.title"),
+          sub: t("agentDocs.empty.sub"),
         }}
       >
         {(rows) => (

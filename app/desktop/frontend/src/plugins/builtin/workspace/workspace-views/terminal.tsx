@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { EmptyState } from "@/components/common";
+import { useT } from "@/lib/i18n";
 import { toolCategory } from "@/protocol/run/viewState";
 import { useAgentSlice } from "@/state/agentStore";
 import { CommandLog } from "./views/CommandLog";
@@ -13,6 +14,7 @@ import { defineWorkspaceView } from "./defineWorkspaceView";
 // (A user-interactive PTY is deliberately out of the runtime's scope, so this is
 // a read-only log of what the agent ran, not an input terminal.)
 function TerminalTab() {
+  const t = useT();
   const toolCalls = useAgentSlice((v) => v.toolCalls);
   const commands = useMemo(
     () => Object.values(toolCalls).filter((t) => toolCategory(t.name) === "command"),
@@ -22,14 +24,14 @@ function TerminalTab() {
   return (
     <WorkspaceViewLayout
       icon="terminal"
-      title="Terminal"
+      title="terminal.title"
       sub={commands.length ? `${commands.length} commands` : undefined}
     >
       {commands.length === 0 ? (
         <EmptyState
           icon="terminal"
-          title="No commands yet"
-          sub="Commands the agent runs show up here with their output."
+          title={t("terminal.empty.title")}
+          sub={t("terminal.empty.sub")}
         />
       ) : (
         <CommandLog commands={commands} />

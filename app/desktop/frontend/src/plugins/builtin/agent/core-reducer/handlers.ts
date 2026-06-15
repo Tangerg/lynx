@@ -12,6 +12,7 @@
 // `itemId`, reasoning `reasoningId`, tool `toolCallId`, toolCalls map key).
 
 import type { Operation } from "fast-json-patch";
+import { t } from "@/lib/i18n";
 import type {
   Interrupt,
   Item,
@@ -126,7 +127,7 @@ function materializeInterrupt(
       status: "requires-action",
       itemId: it.itemId,
       parentRunId,
-      text: tool ? approvalText(tool) : "Approve this action?",
+      text: tool ? approvalText(tool) : t("approval.fallbackText"),
       command: tool ? commandString(tool) : "",
       reason: it.payload?.reason ?? "",
       args: tool ? editableArgs(tool) : undefined,

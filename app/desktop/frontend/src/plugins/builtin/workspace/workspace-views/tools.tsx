@@ -5,6 +5,7 @@
 
 import { DataView } from "@/components/common";
 import { McpRow } from "./views/McpRow";
+import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useBuiltinTools, useMCPServers } from "@/lib/data/queries";
 import { defineWorkspaceView } from "./defineWorkspaceView";
@@ -20,18 +21,19 @@ const SAFETY_PILL: Record<string, string> = {
   network: "bg-surface-2 text-fg-muted",
 };
 
-function SectionHead({ children }: { children: string }) {
+function SectionHead({ children }: { children: React.ReactNode }) {
   return <div className="px-4 pt-2 pb-1 text-[10px] font-semibold text-fg-faint">{children}</div>;
 }
 
 function BuiltinToolsSection() {
+  const t = useT();
   const { data, isLoading } = useBuiltinTools();
   // No skeleton/error chrome here — the MCP DataView below owns the tab's
   // loading story; this section just appears once the catalog resolves.
   if (isLoading || !data?.length) return null;
   return (
     <div className="pb-1.5">
-      <SectionHead>Built-in tools</SectionHead>
+      <SectionHead>{t("tools.builtin")}</SectionHead>
       {data.map((tool) => (
         <div
           key={tool.name}
@@ -52,12 +54,13 @@ function BuiltinToolsSection() {
           </div>
         </div>
       ))}
-      <SectionHead>MCP servers</SectionHead>
+      <SectionHead>{t("tools.mcp")}</SectionHead>
     </div>
   );
 }
 
 function ToolsTab() {
+  const t = useT();
   const { data, isLoading, isError } = useMCPServers();
   const servers = data ?? [];
   const active = servers.filter((s) => s.status === "connected").length;
@@ -66,7 +69,7 @@ function ToolsTab() {
     <WorkspaceViewLayout
       icon="tool"
       titleStrong
-      title="Tools"
+      title="tools.title"
       sub={`${active} MCP active · ${servers.length} configured`}
       scrollClassName="py-1"
     >
@@ -78,8 +81,8 @@ function ToolsTab() {
         skeletonCount={4}
         empty={{
           icon: "tool",
-          title: "No MCP servers configured",
-          sub: `Add a server in ${CONFIG_PATH} to expose tools to the agent.`,
+          title: t("tools.empty.title"),
+          sub: t("tools.empty.sub", { path: CONFIG_PATH }),
         }}
       >
         {(rows) => (
@@ -88,11 +91,7 @@ function ToolsTab() {
               <McpRow key={s.id} server={s} />
             ))}
             <p className="m-0 px-4 pt-3.5 pb-4.5 text-[11px] leading-[1.5] text-fg-faint">
-              Servers expose tools the agent can call. Edit{" "}
-              <code className="rounded-xs bg-surface-2 px-1.5 py-px font-mono text-fg">
-                {CONFIG_PATH}
-              </code>{" "}
-              to add or remove.
+              {t("tools.footer", { path: CONFIG_PATH })}
             </p>
           </>
         )}

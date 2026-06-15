@@ -1,5 +1,6 @@
 import type { TodoItem } from "@/rpc";
 import { EmptyState } from "@/components/common";
+import { useT } from "@/lib/i18n";
 import { useServerFeature } from "@/state/runtimeStore";
 import { useSharedState } from "@/plugins/sdk";
 import { TodoList } from "./views/TodoList";
@@ -12,6 +13,7 @@ import { defineWorkspaceView } from "./defineWorkspaceView";
 // features.todos so a runtime without it shows an explicit "unavailable" state
 // rather than a perpetually-empty tab.
 function TodosTab() {
+  const t = useT();
   const enabled = useServerFeature("todos");
   const todos = useSharedState<TodoItem[]>("todos") ?? [];
   const done = todos.filter((t) => t.status === "completed").length;
@@ -20,21 +22,17 @@ function TodosTab() {
     <WorkspaceViewLayout
       icon="check"
       titleStrong
-      title="Tasks"
+      title="todos.title"
       sub={todos.length ? `${done} of ${todos.length} done` : undefined}
     >
       {!enabled ? (
         <EmptyState
           icon="check"
-          title="Task list unavailable"
-          sub="This runtime doesn't expose the agent's task list."
+          title={t("todos.unavailable.title")}
+          sub={t("todos.unavailable.sub")}
         />
       ) : todos.length === 0 ? (
-        <EmptyState
-          icon="check"
-          title="No tasks yet"
-          sub="The agent's working checklist appears here as it plans."
-        />
+        <EmptyState icon="check" title={t("todos.empty.title")} sub={t("todos.empty.sub")} />
       ) : (
         <TodoList todos={todos} />
       )}

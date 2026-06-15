@@ -85,7 +85,12 @@ export const es: Record<string, string> = {
   "msgActions.copiedPlain": "Copiado como texto plano",
   "msgActions.copiedCode": "Código copiado",
   "msgActions.edit": "Editar mensaje",
+  "msgActions.editInComposer": "Editar en el compositor",
+  "msgActions.editRerun": "Editar y volver a ejecutar desde aquí",
+  "msgActions.editRerunRestore": "Editar y volver a ejecutar, restaurar archivos",
+  "msgActions.fork": "Bifurcar hasta aquí",
   "msgActions.regenerate": "Regenerar respuesta",
+  "msgActions.regenerateRestore": "Regenerar, restaurar archivos",
   "msgActions.good": "Buena respuesta",
   "msgActions.poor": "Respuesta deficiente",
   "chatSearch.label": "Buscar en el chat",
@@ -296,4 +301,296 @@ export const es: Record<string, string> = {
 
   "session.status.running": "Ejecutando",
   "session.status.waiting": "Esperando entrada",
+
+  // ── Vista de espacio de trabajo: Resumen de ejecución ──
+  "runSummary.title": "Resumen de ejecución",
+  "runSummary.noRuns": "Sin ejecuciones",
+  "runSummary.empty.title": "Nada que resumir",
+  "runSummary.empty.sub":
+    "Cuando una ejecución termina, sus cambios, comandos, aprobaciones y errores se recopilan aquí.",
+  "runSummary.copy": "Copiar resumen",
+  "runSummary.copied": "Copiado",
+  "runSummary.status.done": "Completado",
+  "runSummary.status.errored": "Error",
+  "runSummary.status.running": "Ejecutando",
+  "runSummary.status.unknown": "Desconocido",
+  "runSummary.section.changedFiles": "Archivos modificados",
+  "runSummary.section.readFiles": "Archivos leídos",
+  "runSummary.section.commands": "Comandos",
+  "runSummary.section.approvals": "Aprobaciones",
+  "runSummary.section.errors": "Errores",
+  "runSummary.elapsed": " transcurrido",
+  "runSummary.approval.noCommand": "(sin comando)",
+  "runSummary.approval.approved": "aprobada",
+  "runSummary.approval.declined": "rechazada",
+  "runSummary.approval.pending": "pendiente",
+
+  // ── Vista de espacio de trabajo: Línea de tiempo ──
+  "timeline.title": "Línea de tiempo de ejecución",
+  "timeline.jumpToChat": "Ir al chat",
+  "timeline.empty.title": "Sin actividad aún",
+  "timeline.empty.sub":
+    "Cuando el agent se ejecuta, cada llamada a herramienta, aprobación y límite de ejecución aparece aquí.",
+  "timeline.kind.runStart": "Ejecución iniciada",
+  "timeline.kind.runEnd": "Ejecución finalizada",
+  "timeline.kind.runError": "Error de ejecución",
+  "timeline.kind.toolStart": "Herramienta",
+  "timeline.kind.toolEnd": "Herramienta finalizada",
+  "timeline.kind.approvalRequest": "Aprobación solicitada",
+  "timeline.kind.approvalResult": "Aprobación",
+
+  // ── Vista de espacio de trabajo: Notificaciones ──
+  "notifications.title": "Notificaciones",
+  "notifications.clearAll": "Borrar todo",
+  "notifications.dismiss": "Descartar",
+  "notifications.empty.title": "Sin notificaciones",
+  "notifications.empty.sub":
+    "Todo lo que un plugin informe a través de host.notify() aparece aquí.",
+
+  // ── Vista de espacio de trabajo: Archivos ──
+  "files.title": "Árbol de trabajo",
+  "files.empty.title": "Árbol de trabajo limpio",
+  "files.empty.sub": "No hay cambios sin confirmar en el espacio de trabajo actual.",
+
+  // ── Vista de espacio de trabajo: Búsqueda ──
+  "search.title": "Búsqueda",
+  "search.placeholder": "Patrón de búsqueda (regex)…",
+  "search.aria": "Patrón de búsqueda",
+  "search.noMatches": "Regex sobre el espacio de trabajo de la sesión",
+  "search.empty.title": "Sin coincidencias",
+  "search.empty.sub": "Nada en el espacio de trabajo coincide con este patrón.",
+
+  // ── Vista de espacio de trabajo: Tareas ──
+  "todos.title": "Tareas",
+  "todos.unavailable.title": "Lista de tareas no disponible",
+  "todos.unavailable.sub": "Este runtime no expone la lista de tareas del agent.",
+  "todos.empty.title": "Sin tareas aún",
+  "todos.empty.sub": "La lista de trabajo del agent aparece aquí cuando planifica.",
+
+  // ── Vista de espacio de trabajo: Terminal ──
+  "terminal.title": "Terminal",
+  "terminal.empty.title": "Sin comandos aún",
+  "terminal.empty.sub": "Los comandos que ejecuta el agent aparecen aquí con su salida.",
+
+  // ── Vista de espacio de trabajo: Plan ──
+  "plan.title": "Plan",
+  "plan.empty.title": "Sin plan aún",
+  "plan.empty.sub": "Cuando el agent redacta un plan, aparece aquí.",
+
+  // ── Vista de espacio de trabajo: Herramientas ──
+  "tools.title": "Herramientas",
+  "tools.builtin": "Herramientas integradas",
+  "tools.mcp": "Servidores MCP",
+  "tools.reconnect": "Reconectar",
+  "tools.empty.title": "Sin servidores MCP configurados",
+  "tools.empty.sub": "Añade un servidor en {{path}} para exponer herramientas al agent.",
+  "tools.footer":
+    "Los servidores exponen herramientas que el agent puede llamar. Edita {{path}} para añadir o eliminar.",
+  "tools.status.on": "Activo",
+  "tools.status.off": "Inactivo",
+  "tools.status.error": "Error",
+  "tools.status.login": "Iniciar sesión",
+  "tools.status.connecting": "…",
+  "tools.loadingTools": "Cargando herramientas…",
+  "tools.noTools": "Sin herramientas expuestas.",
+  "tools.auth.placeholder": "Pegar token de acceso…",
+  "tools.auth.submit": "Autenticar",
+  "tools.auth.aria": "Token de acceso de {{server}}",
+  "toolAction.copyCommand": "Copiar comando",
+  "approval.fallbackText": "¿Aprobar esta acción?",
+
+  // ── Vista de espacio de trabajo: Habilidades ──
+  "skills.title": "Habilidades",
+  "skills.available": "{{count}} disponible(s)",
+  "skills.off": "desactivado",
+  "skills.empty.title": "Sin habilidades",
+  "skills.empty.sub":
+    "Las habilidades descubiertas en el directorio de trabajo de este proyecto aparecen aquí.",
+  "skills.disabled.title": "Habilidades desactivadas",
+  "skills.disabled.sub": "Este runtime no ofrece la funcionalidad de habilidades.",
+
+  // ── Vista de espacio de trabajo: Memoria ──
+  "memory.title": "Memoria",
+  "memory.scopes": "{{count}} ámbito(s)",
+  "memory.off": "desactivado",
+  "memory.empty.title": "Sin memoria aún",
+  "memory.empty.sub": "Los archivos LYRA.md que el runtime mantiene para el agent aparecen aquí.",
+  "memory.disabled.title": "Memoria desactivada",
+  "memory.disabled.sub": "Este runtime no ofrece la funcionalidad de memoria.",
+  "memory.save": "Guardar",
+  "memory.saving": "Guardando…",
+  "memory.revert": "Revertir",
+  "memory.saveError": "Error al guardar la memoria",
+  "memory.updated": "actualizado",
+  "memory.aria": "Contenido de memoria para {{path}}",
+
+  // ── Vista de espacio de trabajo: Docs del agent ──
+  "agentDocs.title": "Docs del agent",
+  "agentDocs.found": "{{count}} encontrado(s)",
+  "agentDocs.empty.title": "Sin docs del agent",
+  "agentDocs.empty.sub":
+    "Los archivos AGENTS.md encontrados desde el directorio de trabajo hacia arriba aparecen aquí.",
+
+  // ── Vista de espacio de trabajo: Explorador de archivos ──
+  "filetree.title": "Explorador",
+  "filetree.loading": "Cargando…",
+  "filetree.readError": "No se pudo leer este archivo.",
+  "filetree.truncated": "… truncado (archivo demasiado grande para mostrarlo completo)",
+  "filetree.empty.title": "Nada que explorar",
+  "filetree.empty.sub": "No hay archivos en este espacio de trabajo.",
+
+  // ── Paleta de comandos ──
+  "commandPalette.label": "Paleta de comandos",
+  "commandPalette.placeholder": "Escribe un comando…",
+  "commandPalette.empty": "Sin comandos coincidentes",
+  "commandPalette.open": "Abrir paleta de comandos",
+
+  // ── Atajos de teclado ──
+  "shortcuts.title": "Atajos de teclado",
+  "shortcuts.sub":
+    "Cada combinación de teclas registrada por los plugins integrados y de usuario. Pulsa una combinación en cualquier parte de la app para activarla; los conflictos se resuelven siempre a favor del último registro.",
+  "shortcuts.filter": "Filtrar por acción o combinación…",
+  "shortcuts.filterAria": "Filtrar atajos",
+  "shortcuts.action": "Acción",
+  "shortcuts.shortcut": "Atajo",
+  "shortcuts.empty": "Sin atajos coincidentes.",
+
+  // ── Galería de iconos ──
+  "iconGallery.clear": "Borrar",
+  "workspace.view.title.iconGallery": "Galería de iconos",
+  "settings.pane.brandIcons": "Iconos de marca",
+  "agentSource.rpc": "Protocolo de ejecución (JSON-RPC)",
+  "role.user": "Tú",
+  "role.assistant": "Asistente",
+  "role.system": "Sistema",
+
+  // ── Compositor ──
+  "composer.removeImage": "Eliminar imagen",
+
+  // ── Vista Diff ──
+  "diff.workingTree": "Árbol de trabajo",
+  "diff.baselineAria": "Base del diff",
+  "diff.mode.worktree": "Árbol",
+  "diff.mode.branch": "Rama",
+  "diff.error.noBaseline": "Sin rama de referencia",
+  "diff.error.loadFailed": "No se pudo cargar el diff",
+  "diff.error.noBaselineSub":
+    "No se pudo resolver la rama predeterminada (sin remoto / HEAD separado).",
+  "diff.error.loadFailedSub": "El runtime rechazó workspace.getDiff — consulta Diagnóstico.",
+  "diff.empty.title": "Nada que comparar",
+  "diff.empty.sub": "El árbol de trabajo no tiene cambios sin confirmar.",
+  "diff.binary": "Archivo binario",
+  "diff.truncated":
+    "Diff truncado al límite de líneas — reduce a un solo archivo para ver el resto.",
+
+  // ── Registro de comandos ──
+  "commandLog.running": "ejecutando…",
+  "commandLog.failed": "fallido",
+  "commandLog.exit": "salida {{code}}",
+  "commandLog.truncated": "… truncado",
+
+  // ── Encabezados de Plan / Lista de tareas ──
+  "plan.list.heading": "Plan de tareas",
+  "todos.list.heading": "Lista de tareas",
+
+  // ── Archivos modificados ──
+  "files.changed": "{{count}} archivos modificados",
+  "files.binary": "bin",
+
+  "compaction.compacted": "Contexto compactado",
+  "compaction.compactedN": "{{count}} mensajes anteriores compactados",
+  "toolCard.expand": "Expandir vista previa",
+  "toolCard.collapse": "Contraer",
+  "projects.showMore": "Mostrar {{count}} más",
+  "projects.showLess": "Mostrar menos",
+  "projects.empty.title": "Sin proyectos",
+  "projects.empty.sub": "Añade uno para limitar las sesiones a una base de código.",
+  "projects.fallbackName": "Otro",
+  "statusbar.compact.label":
+    "Compactar contexto — resumir mensajes anteriores para liberar espacio",
+  "statusbar.compact.busy": "compactando…",
+  "statusbar.compact.idle": "compactar",
+  "statusbar.compact.error": "No se pudo compactar la conversación.",
+  "statusbar.ttft.label": "Tiempo hasta el primer token",
+  "statusbar.ttft.waiting": "Esperando el primer token…",
+  "statusbar.ttft.detail": "TTFT {{ms}}ms · tokens/s en vivo",
+  "convExport.markdown": "Exportar conversación como Markdown",
+  "convExport.json": "Exportar conversación como JSON",
+  "convExport.import": "Importar conversación desde JSON",
+  "convExport.importUnsupported": "Este runtime no admite la importación de sesiones.",
+  "convExport.notJson": "No es un archivo JSON.",
+  "convExport.notLyra":
+    "No es una exportación de sesión de Lyra — elige un JSON exportado mediante «Exportar conversación».",
+  "convExport.importFailed": "No se pudo importar la conversación.",
+  "convExport.importSuccess": "«{{title}}» importada.",
+  "connection.error.urlScheme": "Debe comenzar con http:// o https://",
+  "chatSearch.shortcutDesc": "Buscar en el chat",
+  "composer.mode.agent.desc":
+    "Ejecuta herramientas, edita archivos, ejecuta comandos. Pregunta antes de acciones arriesgadas.",
+  "composer.mode.chat.desc":
+    "Conversación de solo lectura. Sin llamadas a herramientas, sin cambios de archivos.",
+  "composer.mode.plan.desc":
+    "Primero produce un plan. No se ejecuta nada hasta que cambies a Agent.",
+  "composer.key.sendDesc": "Enviar mensaje",
+  "composer.key.approveDesc": "Aprobar solicitud pendiente, de lo contrario enviar",
+  "composer.key.declineDesc": "Rechazar solicitud pendiente",
+  "composer.key.stopDesc": "Detener la respuesta en curso",
+  "slash.explain": "Explicar un archivo, función o selección",
+  "slash.test": "Generar o ejecutar pruebas para el cambio actual",
+  "slash.fix": "Diagnosticar y corregir la comprobación de tipos fallida",
+  "slash.diff": "Mostrar el diff del árbol de trabajo en línea",
+  "slash.review": "Revisar cambios pendientes línea por línea",
+  "slash.commit": "Stage, commit y push de la rama actual",
+  "slash.search": "Buscar un símbolo o patrón en el código",
+  "slash.plan": "Reformular o editar el plan actual",
+  "command.toggleSidebar": "Alternar barra lateral",
+  "command.toggleTheme": "Alternar tema oscuro/claro",
+  "command.newChat": "Nueva pestaña de chat",
+  "command.closeTab": "Cerrar pestaña actual",
+  "command.focusComposer": "Enfocar compositor",
+  "command.viewPrefix": "Vista: {{title}}",
+  "command.accentPrefix": "Acento: {{name}}",
+  "diagnostics.title": "Diagnóstico",
+  "diagnostics.sub":
+    'OpenTelemetry en vivo — trazas / métricas / logs. Solo en memoria (limitado); el registro duradero sale por OTLP. "Limpiar" restablece los búferes.',
+  "diagnostics.signal.traces": "Trazas",
+  "diagnostics.signal.metrics": "Métricas",
+  "diagnostics.signal.logs": "Logs",
+  "diagnostics.signal.aria": "Señal de telemetría",
+  "diagnostics.clear": "Limpiar",
+  "diagnostics.traces.empty": "Envía un mensaje — los spans de ejecución y RPC aparecen aquí.",
+  "diagnostics.logs.empty": "La salida de host.log.* se transmite aquí, correlacionada con spans.",
+  "diagnostics.metrics.empty":
+    "Interactúa con el chat — los tiempos de reducer/render aparecen aquí.",
+  "diagnostics.col.span": "span",
+  "diagnostics.col.dur": "dur",
+  "diagnostics.col.status": "estado",
+  "diagnostics.col.trace": "traza",
+  "diagnostics.col.lvl": "nivel",
+  "diagnostics.col.message": "mensaje",
+  "diagnostics.col.attrs": "attrs",
+  "diagnostics.col.count": "cuenta",
+  "diagnostics.col.p50": "p50",
+  "diagnostics.col.p95": "p95",
+  "diagnostics.col.avg": "prom",
+  "diagnostics.col.sum": "suma",
+  "diagnostics.col.value": "valor",
+  "diagnostics.noData": "Sin datos aún — {{hint}}",
+  "iconShowcase.frontier": "Labs pioneros",
+  "iconShowcase.cloud": "Nube y empresa",
+  "iconShowcase.chinese": "Ecosistema chino",
+  "iconShowcase.local": "Runtimes locales y puertas de enlace",
+  "iconShowcase.media": "Generación de medios",
+  "iconShowcase.dev": "Herramientas de desarrollo",
+  "tasks.recentTasks": "Tareas recientes",
+  "tasks.runningTasks": "{{count}} tarea(s) en ejecución",
+  "reasoning.thinking": "Pensando…",
+  "reasoning.thinkingWithTime": "Pensando · {{time}}",
+  "reasoning.thoughtFor": "Pensó durante {{time}}",
+  "reasoning.thought": "Pensamiento",
+  "reasoning.interrupted": "interrumpido",
+  "vcs.gitNotAvailable": "Git no disponible",
+  "vcs.gitNotAvailableSub": "Este runtime no tiene un binario git en su PATH.",
+  "vcs.notARepo": "No es un repositorio Git",
+  "vcs.notARepoSub": "El directorio de trabajo de la sesión no está bajo control de versiones.",
 };

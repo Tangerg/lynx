@@ -16,6 +16,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon, StatusDot, Tooltip } from "@/components/common";
+import { useT } from "@/lib/i18n";
 import { rpcErrorText } from "@/lib/agent/errorCopy";
 import { useActiveSession } from "@/lib/agent/useActiveSession";
 import { SESSIONS_KEY } from "@/lib/data/queries";
@@ -113,6 +114,7 @@ function ContextBudget() {
 // wasted LLM round-trip). The result streams back as a compaction Item +
 // updated usage, so the bar's ctx% falls on its own — no optimistic patching.
 function CompactButton() {
+  const t = useT();
   const enabled = useServerFeature("compaction");
   const ctxPct = useAgentSlice((v) => v.run.ctxPct);
   const sessionId = useSessionStore((s) => s.activeSessionId);
@@ -127,14 +129,14 @@ function CompactButton() {
         .client()
         .sessions.compact({ sessionId: asSessionId(sessionId) });
     } catch (err) {
-      notifyError(rpcErrorText(err) ?? "Couldn't compact the conversation.");
+      notifyError(rpcErrorText(err) ?? t("statusbar.compact.error"));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <Tooltip label="Compact context — summarize earlier messages to free room">
+    <Tooltip label={t("statusbar.compact.label")}>
       <button
         type="button"
         className="sb-item text-warning hover:text-fg disabled:opacity-60"
@@ -142,7 +144,7 @@ function CompactButton() {
         disabled={busy}
       >
         <Icon name="minimize" size={12} />
-        <span>{busy ? "compacting…" : "compact"}</span>
+        <span>{busy ? t("statusbar.compact.busy") : t("statusbar.compact.idle")}</span>
       </button>
     </Tooltip>
   );

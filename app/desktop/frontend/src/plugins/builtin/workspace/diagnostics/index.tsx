@@ -17,7 +17,7 @@ export default definePlugin({
   setup({ host }) {
     host.extensions.contribute(WORKSPACE_VIEW, {
       id: "diagnostics",
-      title: "Diagnostics",
+      title: "workspace.view.title.diagnostics",
       icon: "spark",
       openByDefault: false,
       order: 90,

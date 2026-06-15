@@ -6,6 +6,7 @@
 import type { MemoryEntryInfo } from "@/lib/data/queries";
 import { useRef, useState } from "react";
 import { DataView, FIELD_CLASSES, Icon, PillButton } from "@/components/common";
+import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { MEMORY_KEY, useMemory } from "@/lib/data/queries";
 import { queryClient } from "@/lib/data/queryClient";
@@ -18,6 +19,7 @@ import { defineWorkspaceView } from "./defineWorkspaceView";
 import { scopeLabel } from "./views/scopeLabel";
 
 function MemoryRow({ entry, cwd }: { entry: MemoryEntryInfo; cwd?: string }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   // null = pristine (textarea shows entry.content); a string = user edits.
   const [draft, setDraft] = useState<string | null>(null);
@@ -40,7 +42,7 @@ function MemoryRow({ entry, cwd }: { entry: MemoryEntryInfo; cwd?: string }) {
         void queryClient.invalidateQueries({ queryKey: [MEMORY_KEY] });
       })
       .catch((err: unknown) => {
-        notifyError("Memory save failed", {
+        notifyError(t("memory.saveError"), {
           description: err instanceof Error ? err.message : String(err),
           source: "memory",
         });
@@ -72,7 +74,7 @@ function MemoryRow({ entry, cwd }: { entry: MemoryEntryInfo; cwd?: string }) {
       {open && (
         <div className="flex flex-col gap-2 px-4 pb-3 pl-10">
           <textarea
-            aria-label={`Memory content for ${entry.path}`}
+            aria-label={t("memory.aria", { path: entry.path })}
             value={draft ?? entry.content}
             onChange={(e) => setDraft(e.target.value)}
             spellCheck={false}
@@ -81,14 +83,14 @@ function MemoryRow({ entry, cwd }: { entry: MemoryEntryInfo; cwd?: string }) {
           />
           <div className="flex items-center gap-2">
             <PillButton size="sm" variant="accent" disabled={!dirty || saving} onClick={save}>
-              {saving ? "Saving…" : "Save"}
+              {saving ? t("memory.saving") : t("memory.save")}
             </PillButton>
             <PillButton size="sm" disabled={!dirty || saving} onClick={() => setDraft(null)}>
-              Revert
+              {t("memory.revert")}
             </PillButton>
             {entry.updatedAt && (
               <span className="ml-auto text-[10.5px] text-fg-faint">
-                updated {new Date(entry.updatedAt).toLocaleString()}
+                {t("memory.updated")} {new Date(entry.updatedAt).toLocaleString()}
               </span>
             )}
           </div>
@@ -99,6 +101,7 @@ function MemoryRow({ entry, cwd }: { entry: MemoryEntryInfo; cwd?: string }) {
 }
 
 function MemoryTab() {
+  const t = useT();
   const memoryEnabled = useServerFeature("memory");
   const cwd = useActiveSessionCwd();
   const { data, isLoading, isError } = useMemory(memoryEnabled ? { cwd } : undefined);
@@ -108,8 +111,8 @@ function MemoryTab() {
     <WorkspaceViewLayout
       icon="filetext"
       titleStrong
-      title="Memory"
-      sub={memoryEnabled ? `${entries.length} scopes` : "off"}
+      title="memory.title"
+      sub={memoryEnabled ? t("memory.scopes", { count: entries.length }) : t("memory.off")}
       scrollClassName="py-1"
     >
       <DataView
@@ -121,13 +124,13 @@ function MemoryTab() {
           memoryEnabled
             ? {
                 icon: "filetext",
-                title: "No memory yet",
-                sub: "LYRA.md files the runtime maintains for the agent show up here.",
+                title: t("memory.empty.title"),
+                sub: t("memory.empty.sub"),
               }
             : {
                 icon: "filetext",
-                title: "Memory is off",
-                sub: "This runtime doesn't advertise the memory feature.",
+                title: t("memory.disabled.title"),
+                sub: t("memory.disabled.sub"),
               }
         }
       >

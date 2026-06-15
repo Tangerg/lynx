@@ -2,6 +2,7 @@ import type { IconName } from "@/components/common";
 import type { ToolCall } from "@/protocol/run/viewState";
 import { AnimatePresence, motion } from "motion/react";
 import { Icon } from "@/components/common";
+import { useT } from "@/lib/i18n";
 import { swift } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import {
@@ -36,6 +37,7 @@ const STATUS_TONE = {
 const STATUS_GLYPH = { ok: "✓", err: "✗", run: "", denied: "⊘" } as const;
 
 export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView }: Props) {
+  const t = useT();
   const status: keyof typeof STATUS_TONE = tool.status === "running" ? "run" : tool.status;
   const statusGlyph = STATUS_GLYPH[status];
   // Icon routes by the same key as the preview (kind for typed variants, tool
@@ -130,7 +132,7 @@ export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView 
         ))}
         <button
           type="button"
-          title={expanded ? "Collapse" : "Expand preview"}
+          title={expanded ? t("toolCard.collapse") : t("toolCard.expand")}
           onClick={(e) => {
             e.stopPropagation();
             onToggleExpand();

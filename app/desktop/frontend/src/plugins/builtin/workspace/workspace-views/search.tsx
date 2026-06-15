@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { useDebounce } from "use-debounce";
 import { DataView, Icon } from "@/components/common";
+import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useGrep, type GrepMatch } from "@/lib/data/queries";
 import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
@@ -25,6 +26,7 @@ function groupByFile(matches: GrepMatch[]): [string, GrepMatch[]][] {
 }
 
 function SearchTab() {
+  const t = useT();
   const cwd = useActiveSessionCwd();
   const [input, setInput] = useState("");
   // Debounce keystrokes so each distinct query hits the backend once — every
@@ -40,8 +42,8 @@ function SearchTab() {
     <WorkspaceViewLayout
       icon="search"
       titleStrong
-      title="Search"
-      sub={data ? `${data.total} matches` : "regex over the session workspace"}
+      title="search.title"
+      sub={data ? `${data.total} matches` : t("search.noMatches")}
       scrollClassName="py-1"
     >
       <div className="px-4 pt-1 pb-2">
@@ -51,8 +53,8 @@ function SearchTab() {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Search pattern (regex)…"
-            aria-label="Search pattern"
+            placeholder={t("search.placeholder")}
+            aria-label={t("search.aria")}
             spellCheck={false}
             className="w-full border-0 bg-transparent font-mono text-[12.5px] text-fg outline-none placeholder:text-fg-faint"
           />
@@ -66,8 +68,8 @@ function SearchTab() {
           skeletonCount={4}
           empty={{
             icon: "search",
-            title: "No matches",
-            sub: "Nothing in the workspace matches this pattern.",
+            title: t("search.empty.title"),
+            sub: t("search.empty.sub"),
             size: "compact",
           }}
         >

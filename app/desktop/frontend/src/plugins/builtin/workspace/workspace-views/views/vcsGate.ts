@@ -5,6 +5,7 @@
 
 import type { IconName } from "@/components/common";
 import { isErrorType } from "@/rpc";
+import { t } from "@/lib/i18n";
 
 export function isVcsUnavailable(error: unknown): boolean {
   return isErrorType(error, "vcs_unavailable");
@@ -12,12 +13,12 @@ export function isVcsUnavailable(error: unknown): boolean {
 
 export const gitOffEmpty = (icon: IconName) => ({
   icon,
-  title: "Git not available",
-  sub: "This runtime has no git binary on its PATH.",
+  title: t("vcs.gitNotAvailable"),
+  sub: t("vcs.gitNotAvailableSub"),
 });
 
 export const notARepoEmpty = (icon: IconName) => ({
   icon,
-  title: "Not a git repository",
-  sub: "The session's working directory is not under version control.",
+  title: t("vcs.notARepo"),
+  sub: t("vcs.notARepoSub"),
 });

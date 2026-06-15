@@ -8,7 +8,7 @@
 import { useState } from "react";
 import { z } from "zod";
 import { RUNTIME_BASE } from "@/main/config";
-import { useT } from "@/lib/i18n";
+import { t, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { definePlugin, getConfig, setConfig } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
@@ -21,7 +21,7 @@ const STORAGE_KEY = "api.baseUrl";
 // trailing path, plain text) would silently break ky's baseUrl handling
 // at the next request — reject on input instead.
 const UrlSchema = z.url().refine((v) => v.startsWith("http://") || v.startsWith("https://"), {
-  message: "Must start with http:// or https://",
+  message: t("connection.error.urlScheme"),
 });
 
 function ConnectionPane() {

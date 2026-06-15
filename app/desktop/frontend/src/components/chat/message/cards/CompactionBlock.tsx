@@ -4,6 +4,7 @@
 
 import { useState } from "react";
 import { Icon } from "@/components/common";
+import { useT } from "@/lib/i18n";
 
 export function CompactionBlock({
   summary,
@@ -12,11 +13,12 @@ export function CompactionBlock({
   summary?: string;
   droppedMessages?: number;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const label =
     droppedMessages && droppedMessages > 0
-      ? `Compacted ${droppedMessages} earlier message${droppedMessages === 1 ? "" : "s"}`
-      : "Context compacted";
+      ? t("compaction.compactedN", { count: droppedMessages })
+      : t("compaction.compacted");
 
   const pill =
     "flex items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 font-mono text-[11px] tracking-tight text-fg-faint light:bg-surface-3";

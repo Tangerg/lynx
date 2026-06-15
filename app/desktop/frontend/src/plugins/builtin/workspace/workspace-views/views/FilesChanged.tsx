@@ -1,5 +1,6 @@
 import type { FileChange } from "@/lib/data/queries";
 import { Icon } from "@/components/common";
+import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -9,13 +10,14 @@ interface Props {
 }
 
 export function FilesChanged({ files, activePath, onSelect }: Props) {
+  const t = useT();
   const totalAdded = files.reduce((s, f) => s + (f.added ?? 0), 0);
   const totalRemoved = files.reduce((s, f) => s + (f.removed ?? 0), 0);
 
   return (
     <div>
       <div className="flex items-center gap-2 px-2.5 py-2 font-mono text-[11px] font-bold text-fg-faint">
-        <span>{files.length} files changed</span>
+        <span>{t("files.changed", { count: files.length })}</span>
         <span className="ml-auto text-accent">+{totalAdded}</span>
         <span className="text-negative">−{totalRemoved}</span>
       </div>
@@ -41,6 +43,7 @@ function FileRow({
   active: boolean;
   onSelect: (p: string) => void;
 }) {
+  const t = useT();
   const { color: tagColor, letter: tagLetter } = CHANGE_TAG[file.change];
   return (
     <button
@@ -57,7 +60,9 @@ function FileRow({
       <span className="flex-1 truncate font-mono">{file.path}</span>
       {/* Binary files carry no line counts (AUX_API §2.2) — badge instead of fake ±0. */}
       {file.binary ? (
-        <span className="rounded-xs bg-surface-2 px-1 font-mono text-[9px] text-fg-faint">bin</span>
+        <span className="rounded-xs bg-surface-2 px-1 font-mono text-[9px] text-fg-faint">
+          {t("files.binary")}
+        </span>
       ) : (
         <span className="flex gap-1.5 font-mono text-[10px]">
           <span className="text-accent">+{file.added ?? 0}</span>

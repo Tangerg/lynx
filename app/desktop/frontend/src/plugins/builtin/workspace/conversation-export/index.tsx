@@ -22,6 +22,7 @@ import type { SessionArtifact } from "@/rpc";
 import { toast } from "sonner";
 import { z } from "zod";
 import { notifyError } from "@/lib/notify";
+import { t } from "@/lib/i18n";
 import { asSessionId } from "@/rpc";
 import { definePlugin } from "@/plugins/sdk";
 import { getContainer } from "@/main/container";
@@ -163,7 +164,7 @@ function pickFile(): Promise<string | null> {
  *  session that's currently mounted we rebuild its view from the server. */
 async function importConversation(): Promise<void> {
   if (!serverFeature("sessionExport")) {
-    notifyError("This runtime doesn't support session import.", { source: "import" });
+    notifyError(t("convExport.importUnsupported"), { source: "import" });
     return;
   }
   const text = await pickFile();
@@ -172,11 +173,11 @@ async function importConversation(): Promise<void> {
   try {
     raw = JSON.parse(text);
   } catch {
-    notifyError("Not a JSON file.", { source: "import" });
+    notifyError(t("convExport.notJson"), { source: "import" });
     return;
   }
   if (!artifactEnvelope.safeParse(raw).success) {
-    notifyError("Not a Lyra session export — pick a JSON exported via “Export conversation”.", {
+    notifyError(t("convExport.notLyra"), {
       source: "import",
     });
     return;
@@ -192,10 +193,10 @@ async function importConversation(): Promise<void> {
     useSessionStore.getState().selectTab(session.id);
     // projects too: the restored session's cwd may mint a project node.
     void invalidateSessions({ projects: true });
-    toast.success(`Imported “${session.title ?? session.id}”.`);
+    toast.success(t("convExport.importSuccess", { title: session.title ?? session.id }));
   } catch (err) {
     console.error("[import] sessions.import failed:", err);
-    notifyError("Couldn't import the conversation.", { source: "import" });
+    notifyError(t("convExport.importFailed"), { source: "import" });
   }
 }
 
@@ -205,7 +206,7 @@ export default definePlugin({
   setup({ host }) {
     host.commands.register({
       id: "chat.export.markdown",
-      label: "Export conversation as Markdown",
+      label: t("convExport.markdown"),
       icon: "filetext",
       group: "Chat",
       keywords: ["save", "download", "export"],
@@ -215,7 +216,7 @@ export default definePlugin({
     });
     host.commands.register({
       id: "chat.export.json",
-      label: "Export conversation as JSON",
+      label: t("convExport.json"),
       icon: "code",
       group: "Chat",
       keywords: ["save", "download", "export", "archive"],
@@ -225,7 +226,7 @@ export default definePlugin({
     });
     host.commands.register({
       id: "chat.import.json",
-      label: "Import conversation from JSON",
+      label: t("convExport.import"),
       icon: "history",
       group: "Chat",
       keywords: ["restore", "load", "import"],
