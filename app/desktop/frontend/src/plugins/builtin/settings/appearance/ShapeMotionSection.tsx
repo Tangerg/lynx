@@ -16,17 +16,19 @@ import { useT } from "@/lib/i18n";
 import { useUiStore } from "@/state/uiStore";
 import { SettingRow } from "../SettingRow";
 
+// `label` holds an i18n key; ShapeMotionSection resolves it via t() at render
+// (module scope can't call the hook). "Default" reuses settings.font.default.
 const RADIUS_OPTIONS: SegmentedOption<number>[] = [
-  { value: 0.6, label: "Sharp" },
-  { value: 1, label: "Default" },
-  { value: 1.4, label: "Soft" },
+  { value: 0.6, label: "shape.opt.sharp" },
+  { value: 1, label: "settings.font.default" },
+  { value: 1.4, label: "shape.opt.soft" },
 ];
 
 const MOTION_OPTIONS: SegmentedOption<number>[] = [
-  { value: 0, label: "Off" },
-  { value: 0.6, label: "Fast" },
-  { value: 1, label: "Default" },
-  { value: 1.5, label: "Slow" },
+  { value: 0, label: "shape.opt.off" },
+  { value: 0.6, label: "shape.opt.fast" },
+  { value: 1, label: "settings.font.default" },
+  { value: 1.5, label: "shape.opt.slow" },
 ];
 
 export function ShapeMotionSection() {
@@ -41,17 +43,17 @@ export function ShapeMotionSection() {
       <SettingRow label={t("settings.radius")} sub={t("settings.radius.sub")} align="start">
         <Segmented
           value={radiusScale}
-          options={RADIUS_OPTIONS}
+          options={RADIUS_OPTIONS.map((o) => ({ ...o, label: t(o.label) }))}
           onChange={setRadiusScale}
-          ariaLabel="Corner radius"
+          ariaLabel={t("shape.radius.aria")}
         />
       </SettingRow>
       <SettingRow label={t("settings.motion")} sub={t("settings.motion.sub")} align="start">
         <Segmented
           value={motionScale}
-          options={MOTION_OPTIONS}
+          options={MOTION_OPTIONS.map((o) => ({ ...o, label: t(o.label) }))}
           onChange={setMotionScale}
-          ariaLabel="Animation speed"
+          ariaLabel={t("shape.motion.aria")}
         />
       </SettingRow>
     </>

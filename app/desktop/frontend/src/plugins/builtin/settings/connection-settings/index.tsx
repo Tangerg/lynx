@@ -45,7 +45,7 @@ function ConnectionPane() {
     }
     const result = UrlSchema.safeParse(trimmed);
     if (!result.success) {
-      setError(result.error.issues[0]?.message ?? "Invalid URL");
+      setError(result.error.issues[0]?.message ?? t("connection.error.invalidUrl"));
       return;
     }
     setConfig(CONFIG_KEY, result.data);
