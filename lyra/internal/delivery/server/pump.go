@@ -141,6 +141,16 @@ func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 			delete(s.runs, runID)
 		}
 		s.runMu.Unlock()
+		// Anchor the file checkpoint for this run boundary AFTER teardown and
+		// OFF the run.finished path: async + best-effort, so a slow snapshot
+		// (or none, for a non-git dir — gated in workspace.Snapshot) never
+		// holds up the terminal event or the run's teardown. Only on a true
+		// terminal (a parked run is resumable, not a boundary). WithoutCancel
+		// detaches from the run ctx the cancel() above just fired; the Store
+		// serializes per session so it can't race the next run's snapshot.
+		if !parked {
+			go s.snapshotCheckpoint(context.WithoutCancel(ctx), handle.SessionID, runID)
+		}
 	}()
 
 	for ev := range inner {

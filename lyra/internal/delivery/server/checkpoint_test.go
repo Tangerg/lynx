@@ -23,6 +23,13 @@ func checkpointHarness(t *testing.T) (*Server, string, string) {
 	s, rt := rollbackHarness(t)
 	s.workspace = workspace.New(t.TempDir())
 	cwd := t.TempDir()
+	// Checkpoints only fire in a real git repo now (workspace.Snapshot's gate,
+	// mirroring opencode): a repo's .gitignore is what bounds the whole-tree
+	// stage, so a non-repo dir is never snapshotted. Make cwd a repo so the
+	// rollback path is exercised.
+	if out, err := exec.Command("git", "-C", cwd, "init", "-q").CombinedOutput(); err != nil {
+		t.Fatalf("git init cwd: %v: %s", err, out)
+	}
 	ses, err := rt.sess.Create(context.Background(), "ckpt", cwd)
 	if err != nil {
 		t.Fatalf("create session: %v", err)
