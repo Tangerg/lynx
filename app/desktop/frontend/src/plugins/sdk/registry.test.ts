@@ -12,7 +12,6 @@ import {
   COMMAND,
   COMPOSER_ATTACHMENT_SOURCE,
   COMPOSER_KEY_BINDING,
-  COMPOSER_MODE,
   COMPOSER_PLACEHOLDER,
   COMPOSER_STATUS,
   DATA_PROVIDER,
@@ -498,20 +497,6 @@ describe("plugin registry", () => {
     d.dispose();
     slice.set("c.ts");
     expect(listener).toHaveBeenCalledTimes(2);
-  });
-
-  it("composer.registerMode stores a mode", () => {
-    const sink: Disposable[] = [];
-    const host = createHost("alpha", sink);
-    host.extensions.contribute(COMPOSER_MODE, {
-      id: "research",
-      label: "Research",
-      icon: "search",
-      order: 5,
-    });
-
-    expect(lookupExtensionPoint(COMPOSER_MODE).length).toBe(1);
-    expect(lookupExtensionByKey(COMPOSER_MODE, "research")?.label).toBe("Research");
   });
 
   it("pickAgentSource picks the highest-priority registration", () => {

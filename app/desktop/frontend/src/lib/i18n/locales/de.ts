@@ -26,7 +26,6 @@ export const de: Record<string, string> = {
   "composer.placeholder.fallback":
     "Frage, plane oder füge einen Stack-Trace ein…  /  für einen Befehl",
   "composer.send": "Senden",
-  "composer.mode": "Editor-Modus",
   "composer.attachFile": "Datei anhängen",
   "composer.switchModel": "Modell wechseln",
   "composer.attachImage": "Bild anhängen",
@@ -36,9 +35,6 @@ export const de: Record<string, string> = {
   "composer.execMode.hint": "Ausführungsmodus · Arbeitsbereich · Auto",
   "composer.gitBranch": "Git-Branch",
   "composer.slash.heading": "Befehle",
-  "composer.mode.agent": "Agent",
-  "composer.mode.chat": "Fragen",
-  "composer.mode.plan": "Plan",
   "composer.placeholder.debug":
     "Füge die Ausgabe eines fehlgeschlagenen Tests ein, ich führe dich durch.",
   "composer.placeholder.implement":
@@ -526,11 +522,6 @@ export const de: Record<string, string> = {
   "convExport.importSuccess": '"{{title}}" importiert.',
   "connection.error.urlScheme": "Muss mit http:// oder https:// beginnen",
   "chatSearch.shortcutDesc": "Im Chat suchen",
-  "composer.mode.agent.desc":
-    "Führt Werkzeuge aus, bearbeitet Dateien, führt Befehle aus. Fragt vor riskanten Aktionen.",
-  "composer.mode.chat.desc": "Nur-Lese-Konversation. Keine Werkzeugaufrufe, keine Dateiänderungen.",
-  "composer.mode.plan.desc":
-    "Erstellt zuerst einen Plan. Nichts wird ausgeführt, bis du zu Agent wechselst.",
   "composer.key.sendDesc": "Nachricht senden",
   "composer.key.approveDesc": "Ausstehende Anfrage genehmigen, sonst senden",
   "composer.key.declineDesc": "Ausstehende Anfrage ablehnen",

@@ -41,10 +41,8 @@ export function ChatStream({ onSend, resetKey }: Props) {
   const toggleExpandedTool = useSessionStore((s) => s.toggleExpandedTool);
 
   const composerValue = useComposerStore((s) => s.value);
-  const composerMode = useComposerStore((s) => s.mode);
   const images = useComposerStore((s) => s.images);
   const setComposerValue = useComposerStore((s) => s.setValue);
-  const setComposerMode = useComposerStore((s) => s.setMode);
   const removeImage = useComposerStore((s) => s.removeImage);
   const clearComposer = useComposerStore((s) => s.clear);
   const addImageFiles = useComposerStore((s) => s.addImageFiles);
@@ -170,8 +168,6 @@ export function ChatStream({ onSend, resetKey }: Props) {
             onRemoveImage={removeImage}
             onAddImages={addImageFiles}
             acceptsImages={acceptsImages}
-            mode={composerMode}
-            onModeChange={setComposerMode}
           />
           <ComposerFooter />
         </div>

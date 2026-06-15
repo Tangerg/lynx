@@ -1,6 +1,6 @@
 // Composer placeholder picker — the one composer read with real logic. Plain
-// reads (status / modes / attachment sources / key binding) go through the
-// generic substrate: `useExtensionPoint(COMPOSER_MODE)` etc.
+// reads (status / attachment sources / key binding) go through the generic
+// substrate: `useExtensionPoint(COMPOSER_ATTACHMENT_SOURCE)` etc.
 
 import type { ComposerPlaceholderSpec } from "../types";
 import { COMPOSER_PLACEHOLDER } from "../kernelPoints";

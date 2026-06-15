@@ -99,7 +99,6 @@ export type {
   ComposerAttachmentSourceSpec,
   ComposerKeyBindingSpec,
   ComposerKeyContext,
-  ComposerModeSpec,
   ComposerPlaceholderSpec,
   ComposerStatusSpec,
   Citation,

@@ -26,7 +26,6 @@ export const ja: Record<string, string> = {
   "composer.placeholder.fallback":
     "質問、計画、またはスタックトレースを貼り付け…  / でコマンド実行",
   "composer.send": "送信",
-  "composer.mode": "入力モード",
   "composer.attachFile": "ファイルを添付",
   "composer.switchModel": "モデルを切替",
   "composer.attachImage": "画像を添付",
@@ -36,9 +35,6 @@ export const ja: Record<string, string> = {
   "composer.execMode.hint": "実行モード · ワークスペース · 自動",
   "composer.gitBranch": "Git ブランチ",
   "composer.slash.heading": "コマンド",
-  "composer.mode.agent": "Agent",
-  "composer.mode.chat": "質問",
-  "composer.mode.plan": "プラン",
   "composer.placeholder.debug": "失敗したテスト出力を貼り付けてください。一緒に原因を追います。",
   "composer.placeholder.implement":
     "何を実装しますか？変更内容を説明してくれれば、計画して実行します。",
@@ -520,10 +516,6 @@ export const ja: Record<string, string> = {
   "convExport.importSuccess": "「{{title}}」をインポートしました。",
   "connection.error.urlScheme": "http:// または https:// で始める必要があります",
   "chatSearch.shortcutDesc": "チャット内を検索",
-  "composer.mode.agent.desc":
-    "ツールを実行し、ファイルを編集し、コマンドを実行します。リスクのある操作の前に確認します。",
-  "composer.mode.chat.desc": "読み取り専用の会話。ツール呼び出しやファイル変更はありません。",
-  "composer.mode.plan.desc": "最初に計画を生成します。Agent に切り替えるまで何も実行されません。",
   "composer.key.sendDesc": "メッセージを送信",
   "composer.key.approveDesc": "保留中のリクエストを承認、それ以外は送信",
   "composer.key.declineDesc": "保留中のリクエストを拒否",
