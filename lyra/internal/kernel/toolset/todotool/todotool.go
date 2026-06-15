@@ -17,6 +17,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/model/chat"
+	pkgjson "github.com/Tangerg/lynx/pkg/json"
 
 	"github.com/Tangerg/lynx/lyra/internal/domain/todo"
 	"github.com/Tangerg/lynx/lyra/internal/kernel/toolset/turnctx"
@@ -35,34 +36,28 @@ not a delta). Rules, enforced by the runtime:
     and complete them ONE AT A TIME — do not flip several to completed in one call.
 Skip this tool for trivial single-step requests; it is for real multi-step work.`
 
-const inputSchema = `{
-  "type": "object",
-  "properties": {
-    "todos": {
-      "type": "array",
-      "description": "The complete task list, in order. Replaces the stored list.",
-      "items": {
-        "type": "object",
-        "properties": {
-          "content": {
-            "type": "string",
-            "description": "Imperative description of the task (e.g. \"Add the retry guard to fetch()\")."
-          },
-          "status": {
-            "type": "string",
-            "enum": ["pending", "in_progress", "completed"],
-            "description": "pending = not started; in_progress = actively working (at most one); completed = fully done."
-          }
-        },
-        "required": ["content", "status"]
-      }
-    }
-  },
-  "required": ["todos"]
-}`
-
+// writeArgs is the model-facing argument shape; it drives the JSON schema
+// ([inputSchema]) so the parsed struct and the advertised schema can't drift.
+// The items mirror [todo.Item] with the LLM-facing descriptions kept here (out
+// of the domain type); the handler maps them across.
 type writeArgs struct {
-	Todos []todo.Item `json:"todos"`
+	Todos []todoItemArg `json:"todos" jsonschema:"required" jsonschema_description:"The complete task list, in order. Replaces the stored list."`
+}
+
+type todoItemArg struct {
+	Content string `json:"content" jsonschema:"required" jsonschema_description:"Imperative description of the task (e.g. \"Add the retry guard to fetch()\")."`
+	Status  string `json:"status" jsonschema:"required,enum=pending,enum=in_progress,enum=completed" jsonschema_description:"pending = not started; in_progress = actively working (at most one); completed = fully done."`
+}
+
+var inputSchema = pkgjson.MustStringDefSchemaOf(writeArgs{})
+
+// items maps the parsed args to the domain type.
+func (a writeArgs) items() []todo.Item {
+	out := make([]todo.Item, len(a.Todos))
+	for i, t := range a.Todos {
+		out[i] = todo.Item{Content: t.Content, Status: todo.Status(t.Status)}
+	}
+	return out
 }
 
 // New builds the todo_write tool over svc. It returns nil when svc is nil so
@@ -85,11 +80,12 @@ func New(svc todo.Service) chat.Tool {
 			if sessionID == "" {
 				return "error: no active session — cannot maintain a todo list", nil
 			}
+			items := a.items()
 			prev, err := svc.List(ctx, sessionID)
 			if err != nil {
 				return "", err
 			}
-			if err := todo.Validate(prev, a.Todos); err != nil {
+			if err := todo.Validate(prev, items); err != nil {
 				if errors.Is(err, todo.ErrInvalid) {
 					// Recoverable: surface the rule the model broke so it fixes
 					// the list and retries, rather than aborting the run.
@@ -97,10 +93,10 @@ func New(svc todo.Service) chat.Tool {
 				}
 				return "", err
 			}
-			if err := svc.Replace(ctx, sessionID, a.Todos); err != nil {
+			if err := svc.Replace(ctx, sessionID, items); err != nil {
 				return "", err
 			}
-			if rendered := todo.Render(a.Todos); rendered != "" {
+			if rendered := todo.Render(items); rendered != "" {
 				return "Todo list updated:\n" + rendered, nil
 			}
 			return "Todo list cleared.", nil

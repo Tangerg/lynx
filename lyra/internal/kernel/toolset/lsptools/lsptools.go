@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/model/chat"
+	pkgjson "github.com/Tangerg/lynx/pkg/json"
 
 	"github.com/Tangerg/lynx/lyra/internal/domain/codeintel"
 	"github.com/Tangerg/lynx/lyra/internal/kernel/toolset/turnctx"
@@ -30,21 +31,19 @@ func Build(ci *codeintel.Service, defaultWorkdir string) []chat.Tool {
 	}
 }
 
+// lspInput is the model-facing argument shape; it also drives the JSON schema
+// ([lspSchema]) so the parsed struct and the advertised schema can't drift.
+// Only `operation` is structurally required — which operand each operation
+// needs is validated per-operation in the handler.
 type lspInput struct {
-	Operation string `json:"operation"`
-	FilePath  string `json:"file_path"`
-	Line      int    `json:"line"`
-	Character int    `json:"character"`
-	Query     string `json:"query"`
+	Operation string `json:"operation" jsonschema:"required,enum=definition,enum=references,enum=implementation,enum=hover,enum=incoming_calls,enum=outgoing_calls,enum=document_symbols,enum=workspace_symbols" jsonschema_description:"Which language-server query to run."`
+	FilePath  string `json:"file_path,omitempty" jsonschema_description:"File path, relative to the workspace root (or absolute). Required for every operation except workspace_symbols."`
+	Line      int    `json:"line,omitempty" jsonschema_description:"1-based line of the symbol. Required for definition/references/implementation/hover/incoming_calls/outgoing_calls."`
+	Character int    `json:"character,omitempty" jsonschema_description:"1-based character (column) of the symbol on that line. Required with line."`
+	Query     string `json:"query,omitempty" jsonschema_description:"Symbol name or substring to search for. Required for workspace_symbols."`
 }
 
-const lspSchema = `{"type":"object","properties":{` +
-	`"operation":{"type":"string","enum":["definition","references","implementation","hover","incoming_calls","outgoing_calls","document_symbols","workspace_symbols"],"description":"Which language-server query to run."},` +
-	`"file_path":{"type":"string","description":"File path, relative to the workspace root (or absolute). Required for every operation except workspace_symbols."},` +
-	`"line":{"type":"integer","description":"1-based line of the symbol. Required for definition/references/implementation/hover/incoming_calls/outgoing_calls."},` +
-	`"character":{"type":"integer","description":"1-based character (column) of the symbol on that line. Required with line."},` +
-	`"query":{"type":"string","description":"Symbol name or substring to search for. Required for workspace_symbols."}` +
-	`},"required":["operation"]}`
+var lspSchema = pkgjson.MustStringDefSchemaOf(lspInput{})
 
 const lspDesc = "Query the language server (LSP) about code at a position or across the workspace. " +
 	"operation selects: definition (where a symbol is declared) · references (all use sites) · " +
@@ -107,21 +106,22 @@ func newLSPTool(ci *codeintel.Service, defaultWorkdir string) chat.Tool {
 // separate from the `lsp` query tool (as opencode / claude_code do): it's a
 // whole-file problem list, not a position/symbol query, and the same engine
 // auto-appends post-edit diagnostics on writes.
+type lspDiagnosticsInput struct {
+	FilePath string `json:"file_path" jsonschema:"required" jsonschema_description:"Path to the file, relative to the workspace root (or absolute)."`
+}
+
+var lspDiagnosticsSchema = pkgjson.MustStringDefSchemaOf(lspDiagnosticsInput{})
+
 func newDiagnosticsTool(ci *codeintel.Service, defaultWorkdir string) chat.Tool {
-	const schema = `{"type":"object","properties":{` +
-		`"file_path":{"type":"string","description":"Path to the file, relative to the workspace root (or absolute)."}` +
-		`},"required":["file_path"]}`
 	t, _ := chat.NewTool(
 		chat.ToolDefinition{
 			Name:        "lsp_diagnostics",
 			Description: "Get the language server's current problems (compile errors, warnings) for a file.",
-			InputSchema: schema,
+			InputSchema: lspDiagnosticsSchema,
 		},
 		chat.ToolMetadata{},
 		func(ctx context.Context, arguments string) (string, error) {
-			var in struct {
-				FilePath string `json:"file_path"`
-			}
+			var in lspDiagnosticsInput
 			if err := json.Unmarshal([]byte(arguments), &in); err != nil {
 				return "", fmt.Errorf("lsp_diagnostics: invalid arguments: %w", err)
 			}
