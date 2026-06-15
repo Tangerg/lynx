@@ -148,7 +148,7 @@ export const es: Record<string, string> = {
   "approvals.mode": "Modo",
   "approvals.mode.sub": "Cuánto puede hacer el agent sin preguntar cada vez",
   "approvals.mode.aria": "Modo de aprobación",
-  "approvals.mode.readOnly": "Solo lectura",
+  "approvals.mode.plan": "Plan",
   "approvals.mode.safe": "Seguro",
   "approvals.mode.balanced": "Equilibrado",
   "approvals.mode.auto": "Automático",

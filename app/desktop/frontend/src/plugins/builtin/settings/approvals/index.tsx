@@ -21,7 +21,7 @@ import { SettingRow } from "../SettingRow";
 // `label` is an i18n key resolved at render (ModeRow's t()); module scope can't
 // call the hook, so the mapping happens inside the component.
 const MODE_OPTIONS: { value: ApprovalModeValue; label: string }[] = [
-  { value: "readOnly", label: "approvals.mode.readOnly" },
+  { value: "plan", label: "approvals.mode.plan" },
   { value: "safe", label: "approvals.mode.safe" },
   { value: "balanced", label: "approvals.mode.balanced" },
   { value: "yolo", label: "approvals.mode.auto" },

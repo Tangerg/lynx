@@ -148,7 +148,7 @@ export const ja: Record<string, string> = {
   "approvals.mode": "モード",
   "approvals.mode.sub": "毎回確認せずに agent が実行できる範囲",
   "approvals.mode.aria": "承認モード",
-  "approvals.mode.readOnly": "読み取り専用",
+  "approvals.mode.plan": "プラン",
   "approvals.mode.safe": "安全",
   "approvals.mode.balanced": "バランス",
   "approvals.mode.auto": "自動",

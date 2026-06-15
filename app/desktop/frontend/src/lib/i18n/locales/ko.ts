@@ -145,7 +145,7 @@ export const ko: Record<string, string> = {
   "approvals.mode": "모드",
   "approvals.mode.sub": "agent가 매번 묻지 않고 수행할 수 있는 범위",
   "approvals.mode.aria": "승인 모드",
-  "approvals.mode.readOnly": "읽기 전용",
+  "approvals.mode.plan": "플랜",
   "approvals.mode.safe": "안전",
   "approvals.mode.balanced": "균형",
   "approvals.mode.auto": "자동",

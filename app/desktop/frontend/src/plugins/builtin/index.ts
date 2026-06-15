@@ -19,7 +19,6 @@ import commandPalette from "./command/command-palette";
 import {
   composerChips,
   composerKeymap,
-  composerModes,
   composerPlaceholders,
   composerSend,
   composerToolbar,
@@ -161,7 +160,6 @@ const toolRendering: PluginSpec[] = [
 const composer: PluginSpec[] = [
   slashHints,
   composerChips,
-  composerModes,
   composerToolbar,
   composerPlaceholders,
   composerKeymap,

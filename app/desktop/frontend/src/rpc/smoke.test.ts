@@ -102,7 +102,6 @@ describe("smoke: v2 end-to-end happy path", () => {
     const startPromise = methods.runs.start({
       sessionId: asSessionId("ses_1"),
       input: [{ type: "text", text: "list files" }],
-      mode: "agent",
     });
     const startReq = await waitForRequest(transport, "runs.start");
     expect(startReq.params).toMatchObject({ sessionId: "ses_1" });
