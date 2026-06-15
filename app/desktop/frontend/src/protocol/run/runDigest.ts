@@ -51,7 +51,7 @@ function argPath(args: string): string {
   if (t[0] === "{") {
     try {
       const o = JSON.parse(t) as Record<string, unknown>;
-      const p = o.path ?? o.file ?? o.filename;
+      const p = o.file_path ?? o.path ?? o.file ?? o.filename;
       if (typeof p === "string") return p;
     } catch {
       /* not JSON — fall through */

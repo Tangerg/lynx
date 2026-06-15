@@ -2,8 +2,8 @@
 // shapes (lynx/lyra tool implementations), not just the §4.4.2 conventions:
 // bash returns {stdout, stderr, exit_code}, grep one of matches/files/counts,
 // glob {paths}, edit/write {replacements}/{bytes_written} (no diff rows),
-// and the specialised tools (lsp_* / skill / task / ask_user / bash_output /
-// kill_shell) label by name.
+// and the specialised tools (lsp / lsp_diagnostics / skill / task / ask_user /
+// bash_output / kill_shell) label by name.
 
 import type { ToolInvocation } from "@/rpc";
 import { describe, expect, it } from "vitest";
@@ -13,22 +13,33 @@ const tool = (name: string, args: Record<string, unknown>, result?: unknown): To
   ({ name, arguments: args, result }) as ToolInvocation;
 
 describe("toolLabel — name-keyed specialised tools", () => {
-  it("lsp position tools label file:line:column", () => {
-    expect(toolLabel(tool("lsp_definition", { file: "main.go", line: 42, column: 3 }))).toBe(
-      "main.go:42:3",
+  it("lsp position operations label file:line:character", () => {
+    expect(
+      toolLabel(
+        tool("lsp", { operation: "definition", file_path: "main.go", line: 42, character: 3 }),
+      ),
+    ).toBe("main.go:42:3");
+    expect(
+      toolLabel(tool("lsp", { operation: "hover", file_path: "a.ts", line: 1, character: 5 })),
+    ).toBe("a.ts:1:5");
+  });
+
+  it("lsp file/query operations label by their key argument", () => {
+    expect(toolLabel(tool("lsp", { operation: "document_symbols", file_path: "main.go" }))).toBe(
+      "main.go",
     );
-    expect(toolLabel(tool("lsp_hover", { file: "a.ts", line: 1, column: 5 }))).toBe("a.ts:1:5");
+    expect(toolLabel(tool("lsp", { operation: "workspace_symbols", query: "ReadTool" }))).toBe(
+      "ReadTool",
+    );
+    expect(toolLabel(tool("lsp_diagnostics", { file_path: "main.go" }))).toBe("main.go");
   });
 
-  it("lsp file/query tools label by their key argument", () => {
-    expect(toolLabel(tool("lsp_diagnostics", { file: "main.go" }))).toBe("main.go");
-    expect(toolLabel(tool("lsp_workspace_symbols", { query: "ReadTool" }))).toBe("ReadTool");
-  });
-
-  it("skill labels op + name; ask_user labels the question", () => {
+  it("skill labels op + name; ask_user labels the first question", () => {
     expect(toolLabel(tool("skill", { op: "load", name: "review" }))).toBe("load review");
     expect(toolLabel(tool("skill", { op: "list" }))).toBe("list");
-    expect(toolLabel(tool("ask_user", { question: "Deploy now?\ndetails…" }))).toBe("Deploy now?");
+    expect(
+      toolLabel(tool("ask_user", { questions: [{ question: "Deploy now?\ndetails…" }] })),
+    ).toBe("Deploy now?");
   });
 
   it("task (subagent category) labels the prompt's first line", () => {
@@ -88,7 +99,9 @@ describe("toolFields — runtime wire shapes", () => {
 
 describe("argsText — fn-baked tools suppress the raw JSON echo", () => {
   it("name-labelled tools return empty args text", () => {
-    expect(argsText(tool("lsp_definition", { file: "a.go", line: 1, column: 1 }))).toBe("");
+    expect(
+      argsText(tool("lsp", { operation: "definition", file_path: "a.go", line: 1, character: 1 })),
+    ).toBe("");
     expect(argsText(tool("skill", { op: "list" }))).toBe("");
   });
 

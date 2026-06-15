@@ -28,7 +28,7 @@ export type RenderUnit =
 
 /**
  * Fold a message's blocks into render units, collapsing runs of 2+ adjacent
- * read-only tool calls (`read` / `grep` / `glob` / `lsp_*`) into one
+ * read-only tool calls (`read` / `grep` / `glob` / `lsp` / `lsp_diagnostics`) into one
  * `toolGroup` so a long agent turn stays scannable instead of flooding the
  * transcript with a card per read. A lone read-only call, or any
  * side-effecting tool, stays its own block and renders as a normal card. Pure

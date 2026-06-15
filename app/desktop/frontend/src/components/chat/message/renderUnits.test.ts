@@ -54,9 +54,9 @@ describe("planRenderUnits", () => {
     ]);
   });
 
-  it("groups lsp_* lookups", () => {
+  it("groups lsp lookups", () => {
     const blocks = [tb("a"), tb("b")];
-    const tools = { a: tool("a", "lsp_definition"), b: tool("b", "lsp_references") };
+    const tools = { a: tool("a", "lsp"), b: tool("b", "lsp_diagnostics") };
     expect(planRenderUnits(blocks, tools)).toEqual([
       { kind: "toolGroup", tools: [tools.a, tools.b] },
     ]);

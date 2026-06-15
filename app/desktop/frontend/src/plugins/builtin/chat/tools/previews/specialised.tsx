@@ -1,5 +1,5 @@
 // Built-in plugins: inline previews for the runtime's specialised tools —
-// lsp_* (code intelligence), skill, task (sub-agent), ask_user, glob.
+// lsp / lsp_diagnostics (code intelligence), skill, task (sub-agent), ask_user, glob.
 // Each renders the tool call's OWN result (these tools return their data
 // inline, no aux-API re-query needed). Same registration surface as the
 // previews in index.tsx.
@@ -18,7 +18,7 @@ function Overflow({ count }: { count: number }) {
   return <div className="text-fg-faint">… {count} more</div>;
 }
 
-// ---- lsp_definition / lsp_references / lsp_document_symbols /
+// ---- lsp (operation-dispatched) ----
 //
 // Result is one line per hit: `path:line:col` (locations) or
 // `kind Name (in Container) — path:line:col` (symbols), or a
@@ -209,19 +209,25 @@ function isString(v: unknown): v is string {
   return typeof v === "string";
 }
 
+// The runtime exposes ONE `lsp` tool (operation in the args) plus a separate
+// `lsp_diagnostics`. Pick the hover renderer for hover, locations for every
+// other operation; default to locations when the operation isn't visible (args
+// are suppressed once the call has a label — see projections.argsText).
+function LspPreview(props: ToolPreviewProps) {
+  let op = "";
+  try {
+    op = String((JSON.parse(props.tool.args || "{}") as Record<string, unknown>).operation ?? "");
+  } catch {
+    /* partial / empty args — fall through to the locations renderer */
+  }
+  return op === "hover" ? <LspHoverPreview {...props} /> : <LspLocationsPreview {...props} />;
+}
+
 export const lspPreviews = definePlugin({
   name: "lyra.builtin.lsp-previews",
   version: "1.0.0",
   setup({ host }) {
-    for (const key of [
-      "lsp_definition",
-      "lsp_references",
-      "lsp_document_symbols",
-      "lsp_workspace_symbols",
-    ]) {
-      host.extensions.contribute(TOOL_PREVIEW, LspLocationsPreview, { key });
-    }
-    host.extensions.contribute(TOOL_PREVIEW, LspHoverPreview, { key: "lsp_hover" });
+    host.extensions.contribute(TOOL_PREVIEW, LspPreview, { key: "lsp" });
     host.extensions.contribute(TOOL_PREVIEW, LspDiagnosticsPreview, { key: "lsp_diagnostics" });
   },
 });

@@ -33,13 +33,13 @@ const TOOL_CATEGORY: Record<string, ToolCategory> = {
   write: "fileEdit",
   grep: "search",
   glob: "search",
-  webSearch: "webSearch",
+  web_search: "webSearch",
   read: "read",
   subagent: "subagent",
   task: "subagent", // the runtime's subagent tool (spawns a child run, returns its reply)
 };
-// lsp_* / skill / ask_user / bash_output / kill_shell stay "generic" on
-// purpose: their labels, icons, and previews key on the tool NAME
+// lsp / lsp_diagnostics / skill / ask_user / bash_output / kill_shell stay
+// "generic" on purpose: their labels, icons, and previews key on the tool NAME
 // (projections.toolLabel + TOOL_ICON + TOOL_PREVIEW), and their results are
 // plain text the generic field projection already passes through.
 
