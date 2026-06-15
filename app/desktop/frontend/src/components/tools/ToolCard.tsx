@@ -88,17 +88,31 @@ export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView 
         >
           <Icon name={toolIcon} size={14} />
         </div>
+        {/* One line, ellipsis on overflow — every tool card is the same
+            height regardless of how long a command / path is. The long text
+            sits in `fn` only when the key arg is baked in (command / path /
+            query, §4.4.2) and there are no separate args; let `fn` truncate
+            then. When args ARE present `fn` is just the short tool name, so
+            keep it whole (shrink-0) and truncate the args instead. */}
         <div className="flex items-baseline gap-2 min-w-0">
-          <span className="font-mono text-[12px] font-semibold text-fg tracking-[-0.005em]">
+          <span
+            title={tool.fn}
+            className={cn(
+              "font-mono text-[12px] font-semibold text-fg tracking-[-0.005em]",
+              tool.args ? "shrink-0" : "min-w-0 truncate",
+            )}
+          >
             {tool.fn}
           </span>
           {/* Args rendered as a parens-wrapped argument list, mono, so the
-              full line reads as a function signature: `read({…})`. Tools whose
-              key arg is baked into `fn` (command / fileEdit / search / webSearch
-              / read, §4.4.2) carry no separate args — skip the parens entirely
-              rather than print an empty `()`. */}
+              full line reads as a function signature: `read({…})`. The
+              expanded preview shows OUTPUT, not the invocation, so `title`
+              is how the full (truncated) command / args stays readable. */}
           {tool.args && (
-            <span className="truncate font-mono text-[11.5px] text-fg-faint tracking-[-0.005em]">
+            <span
+              title={tool.args}
+              className="min-w-0 truncate font-mono text-[11.5px] text-fg-faint tracking-[-0.005em]"
+            >
               ({tool.args})
             </span>
           )}
