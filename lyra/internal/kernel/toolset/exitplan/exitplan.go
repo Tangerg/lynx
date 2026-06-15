@@ -20,6 +20,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/core/model/chat"
+	pkgjson "github.com/Tangerg/lynx/pkg/json"
 
 	"github.com/Tangerg/lynx/lyra/internal/domain/approval"
 	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
@@ -31,10 +32,24 @@ const (
 	rejectLabel  = "Reject"
 )
 
-const schema = `{"type":"object","properties":{` +
-	`"plan":{"type":"string","description":"The plan to present for approval — a concise, ordered list of the steps you intend to take. Markdown is fine."},` +
-	`"options":{"type":"array","description":"Optional alternative approaches (2-3) for the user to choose among. The chosen one is returned to you on approval.","items":{"type":"object","properties":{"label":{"type":"string"},"description":{"type":"string"}},"required":["label"]}}` +
-	`},"required":["plan"]}`
+// exitPlanArgs is the model-facing argument shape; it drives the JSON schema
+// ([schema]) so the parsed struct and the advertised schema can't drift. The
+// options mirror [interrupts.Option] with the LLM-facing copy kept here.
+type exitPlanArgs struct {
+	Plan    string      `json:"plan" jsonschema:"required" jsonschema_description:"The plan to present for approval — a concise, ordered list of the steps you intend to take. Markdown is fine."`
+	Options []optionArg `json:"options,omitempty" jsonschema_description:"Optional alternative approaches (2-3) for the user to choose among. The chosen one is returned to you on approval."`
+}
+
+type optionArg struct {
+	Label       string `json:"label" jsonschema:"required" jsonschema_description:"The approach shown to the user."`
+	Description string `json:"description,omitempty" jsonschema_description:"Optional one-line explanation of the approach."`
+}
+
+var schema = pkgjson.MustStringDefSchemaOf(exitPlanArgs{})
+
+func (o optionArg) toInterrupt() interrupts.Option {
+	return interrupts.Option{Label: o.Label, Description: o.Description}
+}
 
 // New builds the exit_plan_mode tool over the approval service (it flips the
 // stance to execute on approval). A nil service yields a nil tool (omitted).
@@ -50,10 +65,7 @@ func New(appr approval.Service) chat.Tool {
 		},
 		chat.ToolMetadata{},
 		func(ctx context.Context, arguments string) (string, error) {
-			var in struct {
-				Plan    string              `json:"plan"`
-				Options []interrupts.Option `json:"options"`
-			}
+			var in exitPlanArgs
 			if err := json.Unmarshal([]byte(arguments), &in); err != nil {
 				return "", fmt.Errorf("exit_plan_mode: invalid arguments: %w", err)
 			}
@@ -72,7 +84,9 @@ func New(appr approval.Service) chat.Tool {
 			// Reject keeps plan mode; anything else approves and names the chosen
 			// approach. Reuses the structured-question HITL path (same as ask_user).
 			opts := []interrupts.Option{{Label: approveLabel, Description: "Proceed with this plan"}}
-			opts = append(opts, in.Options...)
+			for _, o := range in.Options {
+				opts = append(opts, o.toInterrupt())
+			}
 			opts = append(opts, interrupts.Option{Label: rejectLabel, Description: "Don't proceed; refine the plan"})
 			prompt := interrupts.QuestionPrompt{Questions: []interrupts.Question{{
 				Question: in.Plan,

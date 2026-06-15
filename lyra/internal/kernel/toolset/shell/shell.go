@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/model/chat"
+	pkgjson "github.com/Tangerg/lynx/pkg/json"
 
 	"github.com/Tangerg/lynx/lyra/internal/infra/exec"
 	"github.com/Tangerg/lynx/lyra/internal/kernel/toolset/turnctx"
@@ -31,20 +32,31 @@ import (
 // auto_background_after.
 const defaultAutoBackgroundSeconds = 60
 
-const (
-	bashSchema = `{"type":"object","properties":{` +
-		`"command":{"type":"string","description":"Shell command line, run by /bin/sh -c. Each call starts a fresh shell — cd, exported vars, and shell options do not persist between calls."},` +
-		`"description":{"type":"string","description":"Short (5-10 word) active-voice summary of what this command does, shown in the UI. E.g. \"Run the test suite\", \"Install dependencies\"."},` +
-		`"timeout":{"type":"integer","description":"Optional hard timeout in milliseconds; the command is killed when it elapses. 0 = no hard timeout."},` +
-		`"run_in_background":{"type":"boolean","description":"Start the command in the background and return its shell id immediately, without waiting. Use for dev servers / watchers you intend to keep running."},` +
-		`"auto_background_after":{"type":"integer","description":"Seconds a foreground command may run before it is automatically moved to the background and its shell id returned (default 60). Read the rest of its output with bash_output."}` +
-		`},"required":["command"]}`
-	bgShellIDSchema = `{"type":"object","properties":{"shell_id":{"type":"string","description":"Background shell id returned by bash when a long-running command was moved to the background."}},"required":["shell_id"]}`
-	bashOutputSchema = `{"type":"object","properties":{` +
-		`"shell_id":{"type":"string","description":"Background shell id returned by bash when a long-running command was moved to the background."},` +
-		`"block":{"type":"boolean","description":"Block until the shell exits (or timeout elapses) before returning, instead of reading whatever output is available right now. Use to wait for a backgrounded command to finish — event-driven, so prefer it over a bash 'sleep' poll loop. Don't block on a process that never exits (e.g. a dev server) without a timeout."},` +
-		`"timeout":{"type":"integer","description":"With block, the longest to wait in milliseconds before returning the current output with a still-running status. Omit (or 0) to block until the command exits. Ignored without block."}` +
-		`},"required":["shell_id"]}`
+// The argument shapes double as the JSON schema source (via [pkgjson]) and the
+// unmarshal target in each handler, so the parsed struct and the advertised
+// schema can't drift.
+type bashArgs struct {
+	Command             string `json:"command" jsonschema:"required" jsonschema_description:"Shell command line, run by /bin/sh -c. Each call starts a fresh shell — cd, exported vars, and shell options do not persist between calls."`
+	Description         string `json:"description,omitempty" jsonschema_description:"Short (5-10 word) active-voice summary of what this command does, shown in the UI. E.g. \"Run the test suite\", \"Install dependencies\"."`
+	Timeout             int    `json:"timeout,omitempty" jsonschema_description:"Optional hard timeout in milliseconds; the command is killed when it elapses. 0 = no hard timeout."`
+	RunInBackground     bool   `json:"run_in_background,omitempty" jsonschema_description:"Start the command in the background and return its shell id immediately, without waiting. Use for dev servers / watchers you intend to keep running."`
+	AutoBackgroundAfter int    `json:"auto_background_after,omitempty" jsonschema_description:"Seconds a foreground command may run before it is automatically moved to the background and its shell id returned (default 60). Read the rest of its output with bash_output."`
+}
+
+type bashOutputArgs struct {
+	ShellID string `json:"shell_id" jsonschema:"required" jsonschema_description:"Background shell id returned by bash when a long-running command was moved to the background."`
+	Block   bool   `json:"block,omitempty" jsonschema_description:"Block until the shell exits (or timeout elapses) before returning, instead of reading whatever output is available right now. Use to wait for a backgrounded command to finish — event-driven, so prefer it over a bash 'sleep' poll loop. Don't block on a process that never exits (e.g. a dev server) without a timeout."`
+	Timeout int    `json:"timeout,omitempty" jsonschema_description:"With block, the longest to wait in milliseconds before returning the current output with a still-running status. Omit (or 0) to block until the command exits. Ignored without block."`
+}
+
+type shellIDArgs struct {
+	ShellID string `json:"shell_id" jsonschema:"required" jsonschema_description:"Background shell id returned by bash when a long-running command was moved to the background."`
+}
+
+var (
+	bashSchema       = pkgjson.MustStringDefSchemaOf(bashArgs{})
+	bashOutputSchema = pkgjson.MustStringDefSchemaOf(bashOutputArgs{})
+	bgShellIDSchema  = pkgjson.MustStringDefSchemaOf(shellIDArgs{})
 )
 
 func Build(mgr *exec.Manager, defaultWorkdir string) []chat.Tool {
@@ -59,12 +71,7 @@ func Build(mgr *exec.Manager, defaultWorkdir string) []chat.Tool {
 		},
 		chat.ToolMetadata{},
 		func(ctx context.Context, arguments string) (string, error) {
-			var a struct {
-				Command             string `json:"command"`
-				Timeout             int    `json:"timeout"`
-				RunInBackground     bool   `json:"run_in_background"`
-				AutoBackgroundAfter int    `json:"auto_background_after"`
-			}
+			var a bashArgs
 			if err := json.Unmarshal([]byte(arguments), &a); err != nil {
 				return "", fmt.Errorf("bash: invalid arguments: %w", err)
 			}
@@ -111,11 +118,7 @@ func Build(mgr *exec.Manager, defaultWorkdir string) []chat.Tool {
 		},
 		chat.ToolMetadata{},
 		func(ctx context.Context, arguments string) (string, error) {
-			var a struct {
-				ShellID string `json:"shell_id"`
-				Block   bool   `json:"block"`
-				Timeout int    `json:"timeout"` // milliseconds
-			}
+			var a bashOutputArgs
 			if err := json.Unmarshal([]byte(arguments), &a); err != nil {
 				return "", fmt.Errorf("bash_output: invalid arguments: %w", err)
 			}
