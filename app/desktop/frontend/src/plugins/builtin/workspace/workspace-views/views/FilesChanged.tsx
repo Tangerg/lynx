@@ -1,4 +1,5 @@
 import type { FileChange } from "@/lib/data/queries";
+import { memo } from "react";
 import { Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -9,7 +10,7 @@ interface Props {
   onSelect: (path: string) => void;
 }
 
-export function FilesChanged({ files, activePath, onSelect }: Props) {
+export const FilesChanged = memo(function FilesChanged({ files, activePath, onSelect }: Props) {
   const t = useT();
   const totalAdded = files.reduce((s, f) => s + (f.added ?? 0), 0);
   const totalRemoved = files.reduce((s, f) => s + (f.removed ?? 0), 0);
@@ -26,7 +27,7 @@ export function FilesChanged({ files, activePath, onSelect }: Props) {
       ))}
     </div>
   );
-}
+});
 
 const CHANGE_TAG: Record<FileChange["change"], { color: string; letter: string }> = {
   add: { color: "text-accent", letter: "A" },
@@ -34,7 +35,7 @@ const CHANGE_TAG: Record<FileChange["change"], { color: string; letter: string }
   mod: { color: "text-warning", letter: "M" },
 };
 
-function FileRow({
+const FileRow = memo(function FileRow({
   file,
   active,
   onSelect,
@@ -71,4 +72,4 @@ function FileRow({
       )}
     </button>
   );
-}
+});

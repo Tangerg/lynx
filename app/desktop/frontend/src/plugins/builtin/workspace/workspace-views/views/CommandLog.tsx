@@ -1,11 +1,12 @@
 import type { ToolCall } from "@/protocol/run/viewState";
+import { memo } from "react";
 import { useT } from "@/lib/i18n";
 
 // Consolidated command log (G5): the agent's command executions for the active
 // session. Output streams in via item.delta{toolOutput} → item.completed and is
 // landed in the run fold's toolCalls — a running command tails live, a finished
 // one keeps its full output + exit code.
-export function CommandLog({ commands }: { commands: ToolCall[] }) {
+export const CommandLog = memo(function CommandLog({ commands }: { commands: ToolCall[] }) {
   const t = useT();
   return (
     <div className="flex flex-col gap-3 px-3 py-3 font-mono text-[12px] leading-relaxed">
@@ -36,4 +37,4 @@ export function CommandLog({ commands }: { commands: ToolCall[] }) {
       ))}
     </div>
   );
-}
+});
