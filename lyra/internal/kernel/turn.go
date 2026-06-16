@@ -10,21 +10,21 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// llmCallTimeout caps a single chat turn's LLM work so a hung provider
-// connection — no response, or a stream the client can't parse (e.g. the
-// error body a no-access model returns on a streaming request) — fails
-// the turn instead of blocking the run forever. The ctx deadline also
-// lets Go's HTTP stack interrupt a stuck tls.Read. This is a hang
-// backstop, not a turn budget: keep it generous (use MaxBudget /
-// MaxCostUSD to bound normal work).
+// llmIdleTimeout is a STALL backstop on a chat turn's streaming work: the
+// deadline resets on every streamed chunk (see [runChatTurn]), so the turn
+// runs as long as it keeps making progress — reasoning tokens, tool rounds —
+// and only a provider that goes SILENT this long (a real hang: no response, or
+// an unparseable stream like the error body a no-access model returns) fails
+// it. The ctx cancel also lets Go's HTTP stack interrupt a stuck tls.Read.
 //
-// It wraps the WHOLE turn (every tool-loop round), and a delegated `task`
-// sub-agent runs a full multi-round task inside one turn — so a tight cap
-// kills healthy long work, not just hangs. 10 min matches Claude Code's
-// total ceiling (MAX_TIMEOUT_MS=600s); codex is even looser (a 5-min IDLE
-// timeout that resets per stream chunk). The earlier 2-min cap cut reasoning
-// models off mid-stream (run.outcome=errored "context deadline exceeded").
-const llmCallTimeout = 10 * time.Minute
+// This is codex's model (stream_idle_timeout), deliberately NOT a total
+// wall-clock cap: the turn wraps the WHOLE tool-loop, and a delegated `task`
+// sub-agent runs a full multi-round task inside one turn, so a total cap kills
+// healthy long work (the earlier 2-min total cap cut reasoning models off
+// mid-stream — run.outcome=errored "context deadline exceeded"). 5 min matches
+// codex's default idle window. Normal work stays bounded by MaxBudget /
+// MaxCostUSD, never this backstop.
+const llmIdleTimeout = 5 * time.Minute
 
 // runChatTurn drives one streaming chat turn end-to-end: compose the
 // system prompt + user message (with any image attachments), run the
@@ -34,8 +34,14 @@ const llmCallTimeout = 10 * time.Minute
 // configured, the engine intercepts [chat.FinishReasonInterrupt] chunks as
 // a fallback.
 func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, message string, images []*media.Media, budget turnBudget) (ChatOutput, error) {
-	ctx, cancel := context.WithTimeout(ctx, llmCallTimeout)
+	// Stall watchdog: cancel the turn only if the stream goes silent for
+	// llmIdleTimeout. Each chunk received in the loop below pushes the deadline
+	// out (stall.Reset), so a healthy long turn never trips it — only a hung
+	// provider does. AfterFunc's cancel is idempotent + safe to reschedule.
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	stall := time.AfterFunc(llmIdleTimeout, cancel)
+	defer stall.Stop()
 
 	req, err := pc.ChatWithActionTools(ctx)
 	if err != nil {
@@ -78,6 +84,7 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 		roundUsage, roundModel = nil, ""
 	}
 	for chunk, streamErr := range stream.Response(ctx) {
+		stall.Reset(llmIdleTimeout) // progress — push the silence deadline out
 		if streamErr != nil {
 			recordRound()
 			return ChatOutput{}, streamErr
