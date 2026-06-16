@@ -535,6 +535,8 @@ export const de: Record<string, string> = {
   "slash.search": "Codebasis nach Symbol oder Muster durchsuchen",
   "slash.plan": "Aktuellen Plan neu formulieren oder bearbeiten",
   "command.toggleSidebar": "Seitenleiste umschalten",
+  "command.openPalette": "Befehlspalette öffnen",
+  "statusbar.copied": "Kopiert",
   "command.toggleTheme": "Dunkles/Helles Theme umschalten",
   "command.newChat": "Neuer Chat-Tab",
   "command.closeTab": "Aktuellen Tab schließen",

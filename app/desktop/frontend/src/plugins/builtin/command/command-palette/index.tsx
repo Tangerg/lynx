@@ -15,7 +15,7 @@ import { Command } from "cmdk";
 import { useMemo } from "react";
 import { create } from "zustand";
 import { Icon } from "@/components/common";
-import { useT } from "@/lib/i18n";
+import { t, useT } from "@/lib/i18n";
 import {
   definePlugin,
   evalWhen,
@@ -144,7 +144,7 @@ export default definePlugin({
     // reaching into this plugin's private open-state store.
     host.commands.register({
       id: "command.open",
-      label: "Open command palette",
+      label: t("command.openPalette"),
       icon: "command",
       group: "General",
       keywords: ["palette", "search", "command"],

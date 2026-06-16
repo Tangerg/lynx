@@ -30,6 +30,11 @@ function scaled(seconds: number): Transition {
 
 export const swift: Transition = scaled(0.22);
 
+// Faster reveal for inline, in-place content (e.g. a tool card expanding) —
+// 220ms reads as "leisurely" once the eye has already moved on. swift stays for
+// modals / side panels where the larger surface earns the longer settle.
+export const snappy: Transition = scaled(0.14);
+
 // Soft enter from a few px below — for new chat messages.
 export const enterUp = {
   initial: { opacity: 0, y: 6 },

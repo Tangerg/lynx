@@ -519,6 +519,8 @@ export const zhTW: Record<string, string> = {
   "slash.search": "在程式碼庫中搜尋符號或模式",
   "slash.plan": "重述或編輯目前計畫",
   "command.toggleSidebar": "切換側欄收合",
+  "command.openPalette": "開啟命令面板",
+  "statusbar.copied": "已複製",
   "command.toggleTheme": "切換深色/淺色佈景",
   "command.newChat": "新增聊天分頁",
   "command.closeTab": "關閉目前分頁",
