@@ -62,6 +62,19 @@ describe("planRenderUnits", () => {
     ]);
   });
 
+  it("drops a HITL-question tool's shadow row when its question block is present", () => {
+    const q: ContentBlock = { kind: "question", status: "complete", questions: [] };
+    const blocks = [tb("ask"), q];
+    const tools = { ask: tool("ask", "ask_user", "err") }; // drained → incomplete → err
+    expect(planRenderUnits(blocks, tools)).toEqual([{ kind: "block", block: q, index: 1 }]);
+  });
+
+  it("keeps a HITL-question tool row when no question block accompanies it", () => {
+    const blocks = [tb("ask")];
+    const tools = { ask: tool("ask", "ask_user", "ok") }; // non-parking runtime
+    expect(planRenderUnits(blocks, tools)).toEqual([{ kind: "block", block: blocks[0], index: 0 }]);
+  });
+
   it("treats an unresolved tool block as a plain block", () => {
     const blocks = [tb("a"), tb("missing")];
     const tools = { a: tool("a", "read") };

@@ -47,6 +47,17 @@ export function toolCategory(name: string): ToolCategory {
   return TOOL_CATEGORY[name] ?? "generic";
 }
 
+// HITL question tools: ask_user / exit_plan_mode call hitl.Interrupt from inside
+// their own Call, so the runtime emits BOTH a toolCall Item (started, then
+// drained to `incomplete` when the turn parks — §5.2) AND a question Item. The
+// QuestionCard is the real representation; the tool row is its redundant shadow
+// (and reads as a red ✗ via the incomplete→err mapping), so the renderer drops
+// it whenever the question block is present.
+const QUESTION_TOOLS = new Set(["ask_user", "exit_plan_mode"]);
+export function isQuestionTool(name: string): boolean {
+  return QUESTION_TOOLS.has(name);
+}
+
 // Tool-call display state, derived from toolCall Item status + error.
 // `denied` is a user decision (HITL decline → error.type "denied_by_user"),
 // NOT a failure — it gets a neutral treatment, not the alarming "err" red.
