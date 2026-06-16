@@ -132,8 +132,8 @@ func (e *Engine) buildChatAgent() *core.Agent {
 				// Transient errors are already retried inside the model SDK;
 				// permanent ones (no-access model, bad key, invalid request)
 				// and ctx timeouts won't improve on retry. The default 5
-				// attempts × llmCallTimeout is exactly what made a failed run
-				// hang for minutes instead of surfacing run/closed{error}.
+				// attempts × the per-turn stall timeout is exactly what made a
+				// failed run hang for minutes instead of surfacing run/closed{error}.
 				QoS: core.ActionQoS{MaxAttempts: 1},
 			},
 		)).
