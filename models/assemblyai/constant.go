@@ -22,7 +22,7 @@ const (
 
 	// DefaultPollTimeout caps the total wait for one Call. Long audio
 	// (hour-scale lectures, podcasts) plus model warm-up can take a
-	// while, so we set the ceiling generously; callers wanting a
+	// while, so the ceiling is set generously; callers wanting a
 	// tighter SLA should pass a ctx with their own deadline.
 	DefaultPollTimeout = 30 * time.Minute
 )

@@ -100,8 +100,9 @@ func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (string, []*genai.C
 
 	// Voice routes onto SpeechConfig.VoiceConfig.PrebuiltVoiceConfig.VoiceName.
 	// If the caller already threaded a richer SpeechConfig through Extra
-	// (multi-speaker dialog, language code, replicated voice) we keep
-	// it; we only fill the prebuilt-voice slot when the caller did not.
+	// (multi-speaker dialog, language code, replicated voice) it is
+	// kept; the prebuilt-voice slot is only filled when the caller
+	// did not supply one.
 	if mergedOpts.Voice != "" {
 		if cfg.SpeechConfig == nil {
 			cfg.SpeechConfig = &genai.SpeechConfig{}

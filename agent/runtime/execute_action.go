@@ -75,7 +75,7 @@ func (p *AgentProcess) executeAction(ctx context.Context, action core.Action) (c
 	})
 
 	if status == core.ActionSucceeded {
-		// hasRun gates non-rerunnable actions; we set it only on success so
+		// hasRun gates non-rerunnable actions; set only on success so
 		// retrying after a future re-plan remains possible.
 		p.blackboard.SetCondition(meta.EffectiveRunKey(), true)
 	}
@@ -209,7 +209,7 @@ func (p *AgentProcess) recordActionFailure(actionName string, err error) {
 }
 
 // buildProcessContext assembles a fresh ProcessContext for one tick. The
-// fields all live on AgentProcess; we re-create the context every tick so
+// fields all live on AgentProcess; the context is re-created every tick so
 // per-action state (lastErr, etc.) doesn't leak. actionToolGroups is
 // the currently-executing action's declared requirements; threading it
 // in so [core.ProcessContext.ActionTools] can resolve them lazily.

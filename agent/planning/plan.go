@@ -14,7 +14,7 @@ type Plan struct {
 	Goal    *core.Goal
 }
 
-// IsComplete reports "we don't need to do any more work for this goal".
+// IsComplete reports whether no more work is needed for this goal.
 func (p *Plan) IsComplete() bool {
 	return p == nil || len(p.Actions) == 0
 }

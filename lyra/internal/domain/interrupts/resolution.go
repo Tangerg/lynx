@@ -4,10 +4,9 @@ import "strconv"
 
 // Resolution is the human's structured answer to a HITL interrupt — the payload
 // runs.resume delivers back into the parked tool call (tool approval, plan
-// review, or an ask_user question). It lives in this leaf package (not engine)
-// so every HITL participant shares one vocabulary without importing the others:
-// the engine + chat turn loop park on it, the protocol adapter builds it from
-// the wire response, and the ask_user tool resumes on it.
+// review, or an ask_user question). Defined in this leaf package so every HITL
+// participant — engine, turn loop, protocol adapter, ask_user tool — shares one
+// vocabulary without importing each other.
 type Resolution struct {
 	Approved  bool
 	Arguments string

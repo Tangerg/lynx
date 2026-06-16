@@ -175,8 +175,8 @@ func (a *Autonomy) Run(
 
 // targetGoalApprover is the per-process [core.GoalApprover] Autonomy
 // installs to lock the planner onto the chosen goal. The runtime
-// runs every approver on every goal-selection call; we approve only
-// the target name and reject everything else.
+// runs every approver on every goal-selection call; only the
+// target name is approved and everything else is rejected.
 type targetGoalApprover struct {
 	name       string
 	targetGoal string

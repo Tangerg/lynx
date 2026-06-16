@@ -9,7 +9,7 @@
 // # Parameter mapping
 //
 // [webfetch.Request] → Exa request:
-//   - URL    → urls=[<single>] (Exa accepts batches; we send one)
+//   - URL    → urls=[<single>] (Exa accepts batches; a single URL is sent)
 //   - Format → text.includeHtmlTags: true when FormatHTML is asked,
 //     false otherwise. Exa returns the page as a single `text`
 //     field — HTML markup is inlined into it when includeHtmlTags is

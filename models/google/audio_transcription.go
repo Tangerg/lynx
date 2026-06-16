@@ -124,8 +124,8 @@ func (a *AudioTranscriptionModel) buildTranscriptionResponse(apiResp *genai.Gene
 	var text strings.Builder
 	for _, part := range apiResp.Candidates[0].Content.Parts {
 		// Skip thought-flagged parts: Gemini 2.5 may emit reasoning
-		// before producing the transcript and we don't want it pasted
-		// into the output text.
+		// before producing the transcript; reasoning text must not be
+		// pasted into the output.
 		if part.Thought {
 			continue
 		}

@@ -1,5 +1,5 @@
 // Package runtime is Lyra's core-runtime façade — one struct that
-// bundles the engine + every Service interface a transport adapter
+// bundles the kernel + every domain service a transport adapter
 // might need. The architecture goal documented in GREENFIELD_ARCHITECTURE.md is
 // "transport-agnostic Service interface": Runtime is that interface,
 // realized in code.
@@ -13,12 +13,12 @@
 //	           ▲                 (HTTP, IPC, gRPC, MCP)
 //	           │ owns
 //	           ▼
-//	    engine + service/*  (in-process implementations)
+//	    kernel + domain/*  (in-process implementations)
 //
 // Today the runtime + all transports live in the same Go process. The
 // boundary still matters: transports depend on runtime, not on the
 // concrete service constructors, so a future "remote" runtime impl
-// (one process for the engine, another for the transport) only needs
+// (one process for the kernel, another for the transport) only needs
 // to satisfy [Runtime]'s accessor surface.
 package runtime
 

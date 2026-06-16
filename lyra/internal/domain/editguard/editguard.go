@@ -1,9 +1,9 @@
 // Package editguard enforces the read-before-edit invariant: a file must be
 // READ before it is edited, and must not have CHANGED since (a user or a tool —
 // e.g. a formatter — may have rewritten it), or the modification is refused with
-// a message telling the agent to re-read. This is the reliability rule the
-// mature Claude-optimized agent (Claude Code) relies on instead of a patch
-// format: re-read rather than blindly clobber stale content.
+// a message telling the agent to re-read. This is the reliability rule mature
+// coding agents rely on instead of a patch format: re-read rather than blindly
+// clobber stale content.
 //
 // This package is the invariant ONLY — per-session read state, content hashing,
 // and the verdict. Wrapping the read/edit/write TOOLS so the model hits it is
@@ -22,7 +22,7 @@ import (
 // time, so an edit/write can be refused when the file was never read or has
 // changed since. Keyed by session so one session reading a file doesn't license
 // another to edit it. In-memory and per-engine: lost on restart (the agent just
-// re-reads, exactly as Claude Code's per-session cache behaves). Content hash,
+// re-reads, as a per-session in-memory cache. Content hash,
 // not mtime — mtime is coarse and unreliable across filesystems, and the file
 // content is read anyway. The zero value is not usable; build one with
 // [NewTracker].

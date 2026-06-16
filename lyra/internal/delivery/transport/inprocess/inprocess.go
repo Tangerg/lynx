@@ -14,7 +14,7 @@
 //
 //  2. Through Transport (for middleware symmetry). Wrap the api in
 //     an InProcessTransport and treat it like any other transport.
-//     Messages are dispatched through rpc/dispatch.Dispatcher so
+//     Messages are dispatched through delivery/dispatch.Dispatcher so
 //     codepaths stay uniform with HTTP.
 //
 // The second mode is mostly for tests; production TUI code uses #1.

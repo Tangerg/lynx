@@ -5,7 +5,7 @@ import "github.com/modelcontextprotocol/go-sdk/jsonrpc"
 // JSON-RPC standard error codes, re-exported from the SDK. These are
 // the only codes the transport layer knows by name — it stays
 // business-agnostic (CLAUDE.md: transport 对业务零感知). The Lyra
-// business band (-32001..-32016) lives in rpc/protocol (the SSOT for
+// business band (-32001..-32016) lives in delivery/protocol (the SSOT for
 // error semantics, API.md §8.2); the dispatch bridge maps protocol
 // sentinels onto {code, ProblemData{type}} and passes the numeric code
 // through to [NewError]/[NewErrorWithMessage].

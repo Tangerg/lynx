@@ -48,7 +48,7 @@ func (p *AgentProcess) tickConcurrent(ctx context.Context, worldState core.World
 // per-action failure is captured in the structured replans / results
 // slices, not bubbled as an error — there's nothing for errgroup to
 // fan in. Cancellation is honored by [executeAction] via the supplied
-// ctx, so we don't need errgroup's auto-cancel-on-error either.
+// ctx, so errgroup's auto-cancel-on-error is unnecessary.
 func (p *AgentProcess) runActionsInParallel(ctx context.Context, actions []core.Action) ([]core.ActionStatus, []*core.ReplanRequest) {
 	results := make([]core.ActionStatus, len(actions))
 	replans := make([]*core.ReplanRequest, len(actions))
@@ -95,7 +95,7 @@ func filterAchievable(actions []core.Action, worldState core.WorldState) []core.
 }
 
 // mergeStatuses collapses a parallel result vector into one process status:
-// failed/waiting/paused dominate; otherwise we keep running.
+// failed/waiting/paused dominate; otherwise the process keeps running.
 func mergeStatuses(statuses []core.ActionStatus) core.AgentProcessStatus {
 	for _, s := range statuses {
 		if s == core.ActionFailed {

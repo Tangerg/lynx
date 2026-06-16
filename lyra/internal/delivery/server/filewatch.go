@@ -23,9 +23,9 @@ const gitWatchDebounce = 200 * time.Millisecond
 // It deliberately does NOT watch the working tree. On macOS Go's fsnotify uses
 // kqueue, which opens a file descriptor per watched file — a recursive watch of
 // a real project tree exhausts the process's FDs and takes the server down
-// (the bug this replaces). The peers that can't use FSEvents avoid tree-watch
-// the same way: codex watches only requested paths, Claude Code watches just
-// the .git signal set + diffs on demand. The agent's OWN edits don't need a
+// (the bug this replaces). Agents that can't use platform-specific file
+// notification APIs avoid tree-watch the same way: watching only requested
+// paths or the .git signal set plus diffs on demand. The agent's OWN edits don't need a
 // watcher at all — they're emitted as files.changed straight from its
 // file-mutating tools (see runs.go emitToolFileChange).
 type gitWatcher struct {

@@ -272,7 +272,7 @@ func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 // using an isolated converter instance.
 //
 // This method is crucial for maintaining proper condition scoping in nested expressions.
-// By creating a new converter for each nested expression, we ensure that:
+// By creating a new converter for each nested expression, the approach ensures:
 //   - Logical operators (AND/OR) maintain separate Must/Should/MustNot lists
 //   - Conditions don't leak between different parts of the expression tree
 //   - Complex nested expressions are properly isolated

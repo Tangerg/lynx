@@ -17,8 +17,8 @@
 //   - BlockedDomains → inlined into q as `-site:foo.com -site:bar.com`
 //   - Recency        → tbs=qdr:h|d|w|m|y
 //
-// Serper has no native include/exclude domain fields, so we rewrite
-// the query with Google's site:/-site: operators. The trade-off is
+// Serper has no native include/exclude domain fields, so the query
+// is rewritten with Google's site:/-site: operators. The trade-off is
 // that the operator count counts against Google's per-query token
 // budget.
 //
@@ -34,7 +34,7 @@
 //     like "2 days ago" become zero time)
 //
 // Knowledge graph, answer box, people-also-ask, and related searches
-// are ignored — we only surface organic results.
+// are ignored — only organic results are surfaced.
 //
 // # Native API
 //

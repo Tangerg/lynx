@@ -12,7 +12,7 @@
 // The dispatcher gates business methods behind a successful
 // runtime.initialize call — pre-handshake requests get
 // capability_not_negotiated. The /v2/info + /v2/health sidecars don't
-// go through this dispatcher (flat REST handled by rpc/transport/http).
+// go through this dispatcher (flat REST handled by delivery/transport/http).
 package dispatch
 
 // JSON-RPC method names — single source for everywhere that needs to

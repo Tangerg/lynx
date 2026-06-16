@@ -213,7 +213,7 @@ func (p *Planner) decompose(
 	}
 
 	// Snapshot once so all method-applicability probes share the same
-	// view (and we don't pay one defensive map copy per method).
+	// view without paying one defensive map copy per method.
 	stateMap := state.State()
 
 	for _, method := range task.Methods {

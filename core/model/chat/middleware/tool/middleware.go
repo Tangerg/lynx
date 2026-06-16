@@ -333,7 +333,7 @@ func (m *middleware) executeStreamRecursively(ctx context.Context, req *chat.Req
 
 	// Tool round-trip is happening in the middle of the loop. Surface
 	// the ToolMessage to the stream consumer so the on-the-wire
-	// timeline matches the message history we will hand the next
+	// timeline matches the message history handed to the next
 	// model turn.
 	if result.toolMessage != nil {
 		toolResp, wrapErr := newToolMessageResponse(result.toolMessage)
@@ -426,8 +426,8 @@ func (m *middleware) restorePark(ctx context.Context, req *chat.Request) (*chat.
 // (assistant + Done tool returns) onto the request's messages
 // so [parseResumePoint] detects it and resumes at the pending call.
 // The engine always adds a user message on every turn — on resume
-// the memory middleware replays the full history, so we strip the
-// trailing user message and replace it with the tail.
+// the memory middleware replays the full history, so the trailing
+// user message is stripped and replaced with the tail.
 //
 // Failures degrade gracefully (the Done returns are dropped / the
 // original request is kept — the run proceeds, only re-running work),

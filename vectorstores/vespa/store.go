@@ -291,8 +291,8 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 // `selection` parameter on the Document API.
 //
 // Vespa selection expressions live under their own mini language;
-// rather than translate the AST a second way, we route through a
-// YQL search to enumerate ids, then delete them.
+// rather than translate the AST a second way, the approach routes
+// through a YQL search to enumerate ids, then deletes them.
 func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
 	if err = req.Validate(); err != nil {
 		return fmt.Errorf("vespa: invalid delete request: %w", err)

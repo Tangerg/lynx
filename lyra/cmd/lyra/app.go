@@ -226,7 +226,7 @@ func buildStores() (*Stores, error) {
 	}
 	mem, err := storage.NewFileKnowledgeService()
 	if err != nil {
-		_ = db.Close() // we opened it; don't leak the handle on the error path
+		_ = db.Close() // close the db handle opened above on this error path
 		return nil, fmt.Errorf("memory storage: %w", err)
 	}
 	return &Stores{

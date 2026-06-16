@@ -22,9 +22,9 @@ import (
 	"strings"
 )
 
-// DefaultMaxBytes caps the rendered blob — same 32 KiB threshold
-// kimi-code uses. Generous enough for several layers of nested
-// AGENTS.md, tight enough to not blow the system prompt budget.
+// DefaultMaxBytes caps the rendered blob — 32 KiB, generous enough
+// for several layers of nested AGENTS.md, tight enough to not blow the
+// system prompt budget.
 const DefaultMaxBytes = 32 * 1024
 
 // File is one discovered AGENTS.md (or agents.md) with its absolute

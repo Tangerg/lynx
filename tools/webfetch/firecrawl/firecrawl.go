@@ -338,8 +338,8 @@ func (c *Client) Fetch(ctx context.Context, req *webfetch.Request) (*webfetch.Re
 }
 
 // pickContent selects the field matching the caller's requested
-// format. Firecrawl returns multiple formats simultaneously; we read
-// the one the user asked for.
+// format. Firecrawl returns multiple formats simultaneously; the field
+// matching the caller's requested format is selected.
 func pickContent(d *ResponseData, format webfetch.ResponseFormat) string {
 	switch format {
 	case webfetch.FormatHTML:

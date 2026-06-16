@@ -160,7 +160,7 @@ func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 
 // visitLikeExpr maps LIKE onto Azure AI Search's wildcard syntax via
 // search.ismatch. The full Lucene wildcard syntax `*` / `?` is what
-// AI Search expects; we forward SQL's `%` / `_` mapping.
+// AI Search expects; SQL's `%` / `_` are forwarded accordingly.
 func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 	field, err := fieldName(expr.Left)
 	if err != nil {

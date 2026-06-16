@@ -89,7 +89,7 @@ func ReportProgress(ctx context.Context, progress float64, total *float64, messa
 	}
 	token := progressTokenFromContext(ctx)
 	if token == nil {
-		// Client did not opt in; per spec we must stay silent.
+		// Client did not opt in; per spec the handler stays silent.
 		return nil
 	}
 
@@ -181,8 +181,8 @@ func LogToClient(ctx context.Context, level slog.Level, message string, data any
 	return session.Log(ctx, params)
 }
 
-// slogLevelToMCP mirrors the SDK's mapping but is kept private to the
-// package so we are not bound to the SDK's unexported helper. The
+// slogLevelToMCP mirrors the SDK's mapping but is private to avoid
+// coupling to the SDK's unexported helper. The
 // SDK exposes slog-style level constants; map by the closest numeric
 // ordering used in the SDK's mcp/logging.go. Levels at or below
 // LevelDebug map to "debug"; everything above LevelAlert falls through

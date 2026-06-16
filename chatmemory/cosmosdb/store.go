@@ -187,8 +187,8 @@ func (s *Store) Conversations(ctx context.Context) (ids []string, err error) {
 }
 
 // Clear deletes every document for conversationID. Cosmos has no
-// bulk-delete for a partition, so we enumerate ids and issue
-// individual DeleteItem calls — fine for chat-memory sizes.
+// bulk-delete for a partition, so each id is enumerated and
+// deleted individually — fine for chat-memory sizes.
 func (s *Store) Clear(ctx context.Context, conversationID string) (err error) {
 	if err = ctx.Err(); err != nil {
 		return err

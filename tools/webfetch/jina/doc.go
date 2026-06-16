@@ -9,7 +9,7 @@
 // Authentication is a bearer token in the Authorization header.
 // Format selection happens through headers:
 //   - X-Return-Format: markdown | html | text
-//   - X-Retain-Images: none (we strip images by default — agents
+//   - X-Retain-Images: none (images are stripped by default — agents
 //     rarely need them and they bloat the LLM context)
 //
 // # Parameter mapping

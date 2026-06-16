@@ -92,8 +92,8 @@ func (s *processSignals) registerToolCallCancel(cancel context.CancelFunc) (rele
 	cell := &cancel
 	s.toolCallCancel.Store(cell)
 	return func() {
-		// Only clear if we still own the slot — a newer registration
-		// would have replaced us, and we mustn't stomp it.
+		// Only clear if the slot is still owned — a newer registration
+		// would have replaced the current owner, which must not be stomped.
 		s.toolCallCancel.CompareAndSwap(cell, nil)
 	}
 }

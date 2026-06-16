@@ -61,8 +61,10 @@ const (
 // gating. Unknown tools (incl. `task` delegation, MCP, online tools)
 // fall into ExecClass — fail-conservative, since they may do anything.
 //
-// NOTE: tool/engine.go's defaultSafetyClass encodes the same name→class
-// mapping for ListTools metadata; keep the shared rows in sync.
+// Two separate name→class mappings exist — this one for the approval gate
+// and the one in [tool.defaultSafetyClass] for the ListTools metadata.
+// They use different enum types but share the same rows; keep them
+// in sync when adding tools.
 func safetyClassFor(name string) safetyClass {
 	switch name {
 	case "read", "grep", "glob", "skill", "ask_user", "exit_plan_mode":

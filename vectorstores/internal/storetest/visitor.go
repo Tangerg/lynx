@@ -78,8 +78,8 @@ func VisitorConformance(t *testing.T, build BuildFn, opts ...Options) {
 		src  string
 		// hint is an optional substring expected in the error message.
 		// Empty hint means "any error is acceptable" — useful when
-		// vendors wrap with their own prefixes and we don't want to
-		// over-couple to wording.
+		// vendors wrap with their own prefixes and the test suite
+		// should avoid over-coupling to wording.
 		hint string
 	}{
 		// Parser unwraps single-element parens to a bare literal, so

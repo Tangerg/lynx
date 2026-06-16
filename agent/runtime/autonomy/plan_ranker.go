@@ -105,7 +105,7 @@ func (r *LLMPlanRanker) Rank(ctx context.Context, plans []*planning.Plan, ws cor
 }
 
 // buildUserPrompt renders the per-plan listing the LLM sees. The
-// "id" we ask the model to echo back is "plan_<index>" so a duplicate
+// "id" the model echoes back is "plan_<index>" so a duplicate
 // goal name across plans doesn't collide.
 func (r *LLMPlanRanker) buildUserPrompt(plans []*planning.Plan, ws core.WorldState) string {
 	var b strings.Builder

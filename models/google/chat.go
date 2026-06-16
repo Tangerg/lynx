@@ -326,8 +326,8 @@ func (r *responseHelper) buildMeta(modelName string, resp *genai.GenerateContent
 func (r *responseHelper) buildChatResponse(modelName string, resp *genai.GenerateContentResponse) (*chat.Response, error) {
 	// Gemini returns Candidates[] sized by GenerationConfig.CandidateCount
 	// (default 1). The chat surface is single-completion by design — see
-	// chat.Response — so we take Candidates[0] and ignore extras. Callers
-	// needing N>1 should drop down to the genai SDK directly.
+	// chat.Response — so Candidates[0] is taken and extras are
+	// ignored. Callers needing N>1 should use the genai SDK directly.
 	if len(resp.Candidates) == 0 {
 		return nil, errors.New("google: no candidates in response")
 	}

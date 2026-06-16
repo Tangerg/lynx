@@ -38,7 +38,7 @@ func NewConditionWorldState(state map[string]core.Determination) *ConditionWorld
 func EmptyWorldState() *ConditionWorldState { return NewConditionWorldState(nil) }
 
 // State returns a defensive copy of the underlying map — A* mutates
-// result maps elsewhere, so we never hand out the live one.
+// result maps elsewhere, so the live map is never handed out.
 func (w *ConditionWorldState) State() map[string]core.Determination {
 	out := make(map[string]core.Determination, len(w.stateMap))
 	maps.Copy(out, w.stateMap)

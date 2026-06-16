@@ -404,7 +404,7 @@ func (c *ChatModel) Call(ctx context.Context, req *chat.Request) (*chat.Response
 // carrying ONLY that event's delta. The upstream
 // [chat.ResponseAccumulator] stitches deltas together.
 //
-// Bedrock doesn't ship an SDK accumulator, so we write our own. The
+// Bedrock doesn't ship an SDK accumulator, so a custom one is written here.
 // only cross-event state needed is tool-call ID routing:
 //
 //   - blockToToolID: maps Bedrock's content_block_index → the

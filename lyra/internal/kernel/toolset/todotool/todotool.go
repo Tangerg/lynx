@@ -1,7 +1,7 @@
 // Package todotool exposes the model-facing todo_write tool over a
 // [todo.Service]. It is named todotool (not todo) to avoid colliding with the
-// service/todo domain package it builds on — the same disambiguation the
-// lsptools package uses against service/codeintel + infra/lsp.
+// domain/todo domain package it builds on — the same disambiguation the
+// lsptools package uses against domain/codeintel + infra/lsp.
 //
 // The tool is the LLM-facing presentation of the todo domain: it parses the
 // model's full-list replacement, runs the domain's progress-integrity check

@@ -94,7 +94,7 @@ func (a *API) TextToSpeechStream(ctx context.Context, voiceID, outputFormat stri
 		return nil, nil, fmt.Errorf("elevenlabs: request failed: %w", err)
 	}
 	if !resp.IsSuccess() {
-		// Drain + close so we can surface the error body to the caller.
+		// Drain + close to surface the error body to the caller.
 		raw := resp.RawBody()
 		errBody, _ := io.ReadAll(raw)
 		_ = raw.Close()

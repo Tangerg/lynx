@@ -31,7 +31,7 @@ func (c APIConfig) Validate() error {
 // not map cleanly onto the OpenAI-shaped chat surface, and Cohere's
 // chat models lag behind OpenAI/Anthropic/Google in capability. For
 // embeddings — multilingual retrieval especially — Cohere remains
-// competitive, so that's the slice we expose.
+// competitive, so that's the slice exposed here.
 type API struct {
 	v2 *cohereclientv2.Client
 }

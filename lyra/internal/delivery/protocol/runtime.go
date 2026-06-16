@@ -1,7 +1,7 @@
 // Package protocol is the single source of truth for the Lyra Runtime
 // Protocol v2 — the typed Go interface every transport and every
 // implementation agrees on. Wire formats (JSON-RPC over HTTP / IPC /
-// InProcess) are derived from this surface; rpc/server realizes it on
+// InProcess) are derived from this surface; delivery/server realizes it on
 // top of Lyra's internal kernel + domain layer.
 //
 // docs/API.md describes the wire contract; every method on [Runtime]
@@ -20,7 +20,7 @@
 package protocol
 
 // Runtime is the runtime's public surface — the union of every method
-// group exposed over the wire. Construct via rpc/server.New(...) and
+// group exposed over the wire. Construct via delivery/server.New(...) and
 // pass to any transport adapter.
 type Runtime interface {
 	Lifecycle

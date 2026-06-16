@@ -8,10 +8,9 @@
 // auto-background window, removing the job ([Manager.Remove]) if it finishes in
 // time and otherwise leaving it running and addressable by its shell id. So one
 // mechanism backs both the synchronous bash result and the bash_output /
-// kill_shell tools — the crush auto-background design.
+// kill_shell tools — the auto-background design.
 //
-// No PTY (matching claude_code / opencode; only codex uses one, at a heavy
-// platform cost): plain pipes into a bounded ring buffer. Cross-platform with
+// No PTY: plain pipes into a bounded ring buffer. Cross-platform with
 // no platform-specific features — kill is a plain process kill, so a command
 // that itself forks grandchildren may leave them, acceptable for the local
 // single-user runtime.

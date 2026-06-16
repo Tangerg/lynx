@@ -7,8 +7,8 @@
 // Authentication is a bearer token in the Authorization header.
 // Two extra headers shape the response:
 //   - Accept: application/json
-//   - X-Respond-With: no-content (skip page bodies; we only want
-//     the result list for search)
+//   - X-Respond-With: no-content (skip page bodies; only the
+//     result list is needed for search)
 //
 // # Parameter mapping
 //

@@ -150,7 +150,7 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	// Continuation gets a fresh wire runId linked to the parent. handle.TurnID
 	// is the original turn for a same-process resume, or the freshly rebuilt
 	// turn for a cross-restart one — and already carries the run_ prefix, so
-	// we suffix it (not re-prefix) to derive a distinct continuation id.
+	// suffix it (not re-prefix) to derive a distinct continuation id.
 	contRunID := handle.TurnID + "_" + strconv.FormatInt(time.Now().UnixNano(), 36)
 	// A continuation carries no new user turn — the decision is delivered
 	// out-of-band via runs.resume, so no opening userMessage Item. It DOES

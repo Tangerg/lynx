@@ -463,7 +463,7 @@ func (s *Store) scanDestToDocument(dest []any, minScore float64) (*document.Docu
 //
 // Cassandra doesn't allow filter-based DELETE without a primary-key
 // equality clause; the SAI path supports it only via secondary
-// indexes. To stay portable we look up matching primary keys first,
+// indexes. To stay portable, matching primary keys are looked up first,
 // then issue per-row DELETEs.
 func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
 	if err = req.Validate(); err != nil {

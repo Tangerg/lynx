@@ -4,9 +4,9 @@
 //
 // One [Transport] interface, two implementations:
 //
-//   - rpc/transport/inprocess — Go ↔ Go in the same binary, business
+//   - delivery/transport/inprocess — Go ↔ Go in the same binary, business
 //     path bypasses JSON serialization entirely.
-//   - rpc/transport/http      — JSON-RPC over streamable HTTP (POST
+//   - delivery/transport/http      — JSON-RPC over streamable HTTP (POST
 //     /v2/rpc/{method}; a streaming method's events ride its own
 //     text/event-stream response) + sidecar /v2/info, /v2/health.
 //

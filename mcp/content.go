@@ -120,7 +120,7 @@ func schemaToString(schema any) (string, error) {
 // stringSchemaToAny adapts a ToolDefinition.InputSchema (always a
 // JSON string) to the heterogeneous sdkmcp.Tool.InputSchema field
 // (declared `any`). The SDK accepts json.RawMessage on the low-level
-// AddTool path, which is exactly what we have.
+// AddTool path, the exact form that is available here.
 func stringSchemaToAny(schema string) (any, error) {
 	if schema == "" {
 		return json.RawMessage(emptyObjectSchema), nil

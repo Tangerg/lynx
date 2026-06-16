@@ -150,7 +150,7 @@ func (p *Provider) refresh(ctx context.Context) ([]chat.Tool, error) {
 	defer p.refreshMu.Unlock()
 
 	// Double-checked: another goroutine may have populated the cache
-	// while we were waiting on the lock.
+	// while waiting on the lock.
 	if cached := p.cache.Load(); cached != nil {
 		return *cached, nil
 	}

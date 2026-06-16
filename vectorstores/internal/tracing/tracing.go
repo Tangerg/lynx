@@ -12,7 +12,7 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore"
 )
 
-// OTel DB semantic-convention attribute keys we emit on every vector
+// OTel DB semantic-convention attribute keys emitted on every vector
 // store span. The one non-semconv key (rag.doc_count) uses a bare
 // domain prefix — no brand (no lynx.*) — per the observability convention.
 const (

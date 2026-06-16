@@ -3,10 +3,9 @@
 // tools are denied, so the agent can only investigate and draft a plan; it then
 // calls exit_plan_mode to present the plan for approval. On approval the stance
 // flips to ModeBalanced (execute) and the loop continues with full tools; on
-// rejection it stays in plan mode with the user's feedback. This mirrors how the
-// peers exit plan mode (claude_code ExitPlanMode / kimi ExitPlanMode /
-// opencode plan_exit): a tool that presents the plan, gets approval, and lifts
-// the read-only restriction in the same loop.
+// rejection it stays in plan mode with the user's feedback. The pattern —
+// a tool that presents the plan, gets approval, and lifts the read-only
+// restriction — is the standard exit-plan-mechanism used by coding agents.
 package exitplan
 
 import (

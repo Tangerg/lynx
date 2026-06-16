@@ -166,7 +166,7 @@ func (c *PromptCondition) Evaluate(ctx context.Context, env *ConditionEnv) Deter
 // trimmed so "Yes." / "No," still classify cleanly.
 //
 // The leniency is intentional: LLMs often answer "Yes, because ..."
-// — we accept the first word and ignore the rest. For stricter
+// — the first word is accepted and the rest ignored. For stricter
 // shapes (structured JSON / scored Feedback) write a custom parser.
 func ParseYesNoDetermination(text string) Determination {
 	fields := strings.Fields(strings.ToLower(strings.TrimSpace(text)))

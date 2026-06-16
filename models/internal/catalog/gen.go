@@ -74,7 +74,7 @@ var providerMap = map[string]string{
 	"xiaomi":         "xiaomi",
 }
 
-// apiModel mirrors the subset of a models.dev model spec we consume.
+// apiModel mirrors the subset of a models.dev model spec consumed here.
 type apiModel struct {
 	ID               string `json:"id"`
 	Name             string `json:"name"`
@@ -221,7 +221,7 @@ func toModelInfo(m apiModel, aug augEntry) chat.ModelInfo {
 // toPricing maps a models.dev [cost] block to a banded rate card: the
 // base band (threshold 0) plus a band per context tier, sorted ascending
 // by threshold (CostOf scans back to front). Non-context tiers are
-// skipped — we only model prompt-size repricing. Returns nil when there's
+// skipped — only prompt-size repricing is modeled. Returns nil when there's
 // no input rate (unknown pricing).
 func toPricing(c apiCost) []chat.Pricing {
 	if c.Input == 0 && c.Output == 0 {

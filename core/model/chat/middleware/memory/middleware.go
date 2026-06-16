@@ -145,7 +145,7 @@ func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next ch
 // naturally.
 //
 // Early consumer cancellation (the caller breaks out of the iter loop) and
-// a stream error both abandon the round: we persist nothing, because a
+// a stream error both abandon the round: nothing is persisted, because a
 // half-streamed reply saved as history would lie to the next turn about
 // what the model actually said.
 func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next chat.StreamHandler) iter.Seq2[*chat.Response, error] {
