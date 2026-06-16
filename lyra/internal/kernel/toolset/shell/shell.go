@@ -22,13 +22,13 @@ import (
 // auto-background window: finishing in time yields its output inline and the
 // job is removed; outliving the window leaves it running, addressable by the
 // same shell id, so bash_output / kill_shell work on it unchanged. This is the
-// crush auto-background design — lyra selects on the per-shell done channel
+// auto-background design — lyra selects on the per-shell done channel
 // instead of polling. cwd is read per call (turnctx.TurnCwd) so a command runs in the
 // session's working directory.
 
 // defaultAutoBackgroundSeconds is how long a foreground bash command may run
 // before it is moved to the background (so the turn isn't blocked on a build /
-// dev server). Mirrors crush's 60s default; overridable per call via
+// dev server). Overridable per call via
 // auto_background_after.
 const defaultAutoBackgroundSeconds = 60
 

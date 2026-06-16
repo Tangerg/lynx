@@ -305,8 +305,8 @@ func (r *responseHelper) buildMeta(req *anthropicsdk.MessageNewParams, resp *ant
 	// Surface Anthropic's prompt-cache breakdown when ephemeral caching
 	// is in use. The SDK returns 0 when the field is absent from the
 	// response payload, so a 0 value is indistinguishable from "the
-	// provider did not surface this dimension"; we treat any non-zero
-	// count as an explicit signal worth surfacing. Both fields are
+	// provider did not surface this dimension"; any non-zero count
+	// is treated as an explicit signal worth surfacing. Both fields are
 	// subsets of InputTokens (= PromptTokens above).
 	if v := resp.Usage.CacheReadInputTokens; v > 0 {
 		usage.CacheReadInputTokens = &v

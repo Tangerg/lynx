@@ -20,7 +20,7 @@ type APIConfig struct {
 
 	// AWSConfig lets callers thread a pre-built aws.Config (with their
 	// own credentials provider, retryer, HTTP client, custom endpoint
-	// resolver, etc.). When nil we load defaults via LoadDefaultConfig.
+	// resolver, etc.). When nil, defaults are loaded via LoadDefaultConfig.
 	AWSConfig *aws.Config
 }
 

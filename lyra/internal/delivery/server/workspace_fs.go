@@ -100,7 +100,7 @@ func (s *Server) WorkspaceGrep(ctx context.Context, in protocol.GrepRequest) (*p
 		// The capped content search hid some hits; a count-mode pass gives the
 		// honest total so the client sees total > len(matches) and knows to
 		// narrow the query. Best-effort: if the count pass fails, fall back to
-		// "at least one more" so we never claim completeness we don't have.
+		// "at least one more" so the total is never overstated.
 		if n, cerr := grepTotal(ctx, exec, in.Query, searchRoot); cerr == nil && n > total {
 			total = n
 		} else if total == limit {

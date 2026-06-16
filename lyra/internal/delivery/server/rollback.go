@@ -11,7 +11,7 @@ import (
 	"github.com/Tangerg/lynx/lyra/internal/domain/transcript"
 )
 
-// B4 turn-granular checkpoints (AUX_API §4): sessions.rollback truncates a
+// sessions.rollback truncates a
 // session's history at a run boundary in place; sessions.fork{fromRunId}
 // truncate-copies it into a child. Both reason over the per-run message
 // watermark (transcript.Run.Mark, recorded at run.finished — see transcript.go) to

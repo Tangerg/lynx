@@ -101,8 +101,8 @@ func (l *LocalExecutor) Run(ctx context.Context, in Input) (Output, error) {
 // so [boundedBuffer.finalize] can append a truncation marker.
 //
 // Reporting len(p), nil for writes that are partially or fully
-// dropped is deliberate: we don't want to break the child's stdio
-// pipe (which would surface as a confusing write error). The
+// dropped is deliberate: breaking the child's stdio pipe would surface
+// as a confusing write error, which is avoided. The
 // trade-off is that a runaway command keeps running until the
 // command's own timeout / outer ctx fires.
 type boundedBuffer struct {

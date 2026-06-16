@@ -98,7 +98,7 @@ func (i *ImageModel) buildAPIRequest(req *image.Request) (*GenerateRequest, erro
 		apiReq.OutputFormat = mergedOpts.OutputFormat.SubType()
 	}
 
-	// Force JSON mode so we get FinishReason / Seed echoed back.
+	// Force JSON mode to get FinishReason / Seed echoed back.
 	apiReq.Mode = ResponseModeJSON
 
 	return apiReq, nil

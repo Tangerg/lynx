@@ -16,8 +16,8 @@
 //   - Recency        → freshness=pd/pw/pm/py (hour collapses to "pd"
 //     since Brave's minimum granularity is "past day")
 //
-// Brave has no native allow/block-domain fields, so we rewrite the
-// query with site:/-site: like the Serper provider does.
+// Brave has no native allow/block-domain fields, so the query is
+// rewritten with site:/-site: like the Serper provider does.
 //
 // # Response mapping
 //

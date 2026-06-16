@@ -26,8 +26,8 @@ func generate(req *Request) (*Response, error) {
 	month := monthForLookup(target, coords.Latitude, knownCity)
 
 	// Daily mean for the (zone, month). For a date-only query this
-	// IS the day's representative reading — we deliberately do NOT
-	// apply diurnal variation, because that would put every
+	// IS the day's representative reading — diurnal variation is deliberately
+	// NOT applied, because that would put every
 	// midnight-stamped query at the bottom of the daily curve.
 	mean := profile.mean[month-1]
 
@@ -139,8 +139,8 @@ func newRng(location string, date time.Time) *rand.Rand {
 }
 
 // monthForLookup decides which month to feed into the climate-profile
-// table. For a known city in the southern hemisphere we flip months
-// (so July reads as January temps). For unknown locations we use the
+// table. For a known city in the southern hemisphere, months are flipped
+// (so July reads as January temps). For unknown locations, the lookup uses the
 // month as-is — the previous algorithm pseudo-randomly assigned
 // southern hemispheres to unknown cities, which produced "summer is
 // freezing" reports.

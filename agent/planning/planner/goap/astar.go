@@ -366,7 +366,8 @@ func (s *search) goalReachable() bool {
 // backwardOptimize walks the plan in reverse, keeping only actions whose
 // effects contribute to a still-needed condition. Tracks a "needed" set
 // initialized from goal preconditions not yet satisfied at start; for each
-// action we check whether it establishes any needed condition, drop it if
+// action, each action is checked for whether it establishes any needed
+// condition; actions that contribute nothing are dropped and the needed set
 // not, and otherwise update needed to (needed - effects) ∪ preconditions.
 //
 // This catches plans where A* picked a redundant action that happens to
@@ -392,7 +393,7 @@ func (s *search) backwardOptimize(actions []core.Action) []core.Action {
 	for i := len(actions) - 1; i >= 0; i-- {
 		meta := actions[i].Metadata()
 
-		// Does this action establish anything we still need?
+		// Does this action establish any still-needed condition?
 		contributes := false
 		for key, value := range meta.Effects {
 			if want, ok := needed[key]; ok && want == value {

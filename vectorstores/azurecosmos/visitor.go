@@ -184,7 +184,7 @@ func (v *Visitor) visitLikeExpr(expr *ast.BinaryExpr) error {
 	if !ok {
 		return fmt.Errorf("azurecosmos: LIKE requires a string pattern, got %T", value)
 	}
-	// Strip leading/trailing % so we get a substring match.
+	// Strip leading/trailing % for a substring match.
 	pattern = strings.TrimPrefix(pattern, "%")
 	pattern = strings.TrimSuffix(pattern, "%")
 	param := v.bindParam(pattern)

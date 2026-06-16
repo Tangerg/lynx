@@ -287,8 +287,8 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 }
 
 // Delete removes documents matching the filter expression. The
-// service has no filter-based delete, so we enumerate matching ids
-// first and then issue a delete batch.
+// service has no filter-based delete, so matching ids are enumerated
+// first and then deleted in a batch.
 func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
 	if err = req.Validate(); err != nil {
 		return fmt.Errorf("azureaisearch: invalid delete request: %w", err)

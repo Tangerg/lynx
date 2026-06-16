@@ -7,7 +7,7 @@
 //   - the /compatible-mode/v1 path which speaks the OpenAI
 //     chat-completions / embeddings spec.
 //
-// This package uses the compatible-mode endpoint so we can route
+// This package uses the compatible-mode endpoint to route
 // through the [openai] provider facade. DashScope-specific knobs
 // (enable_thinking, enable_search, web search citations, etc.) ride
 // through the Extra-threaded openai params.

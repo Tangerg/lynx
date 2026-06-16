@@ -24,7 +24,7 @@ const (
 
 	// DefaultTTSPollTimeoutSeconds is the wall-clock cap on a TTS
 	// job. Bark and especially Tortoise-TTS can spend a long time
-	// on cold starts plus generation, so we cap higher than image.
+	// on cold starts plus generation, so the cap is set higher than image.
 	DefaultTTSPollTimeoutSeconds = 300
 )
 

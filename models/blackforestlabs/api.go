@@ -45,8 +45,8 @@ func NewAPI(cfg APIConfig) (*API, error) {
 
 // GenerateRequest is the union of fields the various Flux endpoints
 // accept. Each Flux model (flux-pro-1.1, flux-pro-1.1-ultra,
-// flux-kontext-pro, ...) has its own endpoint path; we forward
-// everything and let the API reject unknown fields.
+// flux-kontext-pro, ...) has its own endpoint path; all fields are
+// forwarded and the API rejects unknown ones.
 type GenerateRequest struct {
 	Prompt           string `json:"prompt"`
 	ImagePrompt      string `json:"image_prompt,omitempty"`

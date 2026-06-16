@@ -22,8 +22,8 @@ import (
 //
 // Run after a compaction sweep so the LLM sees a manageable slice
 // of recent history. Failure is non-fatal — the conversation has
-// already been compacted; we'd rather skip the extraction than
-// undo that.
+// already been compacted; skipping the extraction is preferable
+// to undoing a successful compaction.
 type Extractor struct {
 	store   memory.Store
 	memSvc  knowledge.Service

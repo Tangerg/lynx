@@ -94,7 +94,7 @@ func (l *LocalExecutor) lockPath(path string) func() {
 
 // Read does not lock — concurrent reads are fine and a slightly stale
 // read while another goroutine writes is acceptable (atomic-rename in
-// Write means we either see the old file in full or the new file in
+// Write means the caller sees either the old file in full or the new file in
 // full, never a torn write).
 func (l *LocalExecutor) Read(_ context.Context, in ReadInput) (ReadOutput, error) {
 	path, err := l.resolve(in.Path)
@@ -501,7 +501,7 @@ func parseGrepCounts(out []byte) []GrepFileCount {
 // ---------------------------------------------------------------- helpers
 
 // binarySniffLen matches git's heuristic — a NUL in the first 8 KiB
-// means we treat the file as binary.
+// means the file is treated as binary.
 const binarySniffLen = 8192
 
 func looksBinary(data []byte) bool {

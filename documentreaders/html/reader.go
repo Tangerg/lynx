@@ -169,8 +169,8 @@ func (r *Reader) buildMetadata(page pageInfo, selector string) map[string]any {
 }
 
 func (r *Reader) extractText(sel *goquery.Selection) string {
-	// Drop script / style / noscript / template content so we don't pick
-	// up code or hidden text in embeddings.
+	// Drop script / style / noscript / template content so code and
+	// hidden text don't end up in embeddings.
 	clone := sel.Clone()
 	clone.Find("script, style, noscript, template, head").Remove()
 	text := clone.Text()

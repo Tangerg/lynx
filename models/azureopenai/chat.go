@@ -60,9 +60,9 @@ func NewChatModel(cfg ChatModelConfig) (*openai.ChatModel, error) {
 }
 
 // buildAzureRequestOptions wires azure.WithEndpoint + azure.WithAPIKey
-// into the RequestOptions slice. When APIKey is nil we still need to
-// satisfy openai.*ModelConfig's non-nil APIKey check, so we synthesize
-// a placeholder; the actual auth header (Bearer or API-Key) is set by
+// into the RequestOptions slice. When APIKey is nil the config still
+// needs to satisfy openai.*ModelConfig's non-nil APIKey check, so a
+// placeholder is synthesized; the actual auth header (Bearer or API-Key) is set by
 // the Azure middleware in RequestOptions.
 func buildAzureRequestOptions(apiKey model.APIKey, endpoint, apiVersion string, extra []option.RequestOption) (model.APIKey, []option.RequestOption) {
 	version := cmp.Or(apiVersion, DefaultAPIVersion)

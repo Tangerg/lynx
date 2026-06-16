@@ -19,7 +19,7 @@ func (p *AgentProcess) run(ctx context.Context) error {
 	ctx = normalizeContext(ctx)
 
 	// makeRunning is a CAS — if the process is already running (e.g.
-	// a double StartAgent call), it returns false and we silently no-op.
+	// a double StartAgent call), it returns false and the call silently no-ops.
 	if !p.state.makeRunning() {
 		return nil
 	}
@@ -81,7 +81,7 @@ func (p *AgentProcess) maybeAutoSnapshot(ctx context.Context) {
 
 // validateAgentForRun checks the agent definition against the configured
 // planner. The goap planner needs at least one goal to plan toward;
-// without one we'd loop forever returning empty plans. Other planners
+// with no goal the planner would loop forever returning empty plans.
 // (htn, reactive) may have stricter rules of their own — those are
 // reported by PlanToGoal at tick time.
 func (p *AgentProcess) validateAgentForRun() error {
@@ -363,8 +363,8 @@ func actionFailureError(name string) error {
 }
 
 // handleStuck is invoked when the planner returned no plan. If the agent
-// supplied a StuckPolicy that resolves the situation we re-loop;
-// otherwise we transition to Stuck.
+// supplied a StuckPolicy that resolves the situation, re-loop;
+// otherwise, transition to Stuck.
 func (p *AgentProcess) handleStuck(ctx context.Context, worldState core.WorldState) error {
 	if handler := p.agent.StuckPolicy; handler != nil {
 		if result := handler.Recover(ctx, p); result.Code == core.StuckReplan {

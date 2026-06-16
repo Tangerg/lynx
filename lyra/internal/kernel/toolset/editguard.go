@@ -18,7 +18,7 @@ import (
 
 // The read/edit/write guards: the LLM-facing presentation of the
 // [editguard.Tracker] invariant (read-before-edit + staleness). The invariant
-// itself lives in service/editguard; these wrappers parse the tool's arguments,
+// itself lives in domain/editguard; these wrappers parse the tool's arguments,
 // resolve the path against the turn's working directory, read the session id off
 // the blackboard, and turn a refused check into a model-facing message. They are
 // to the editguard domain what the wire translator is to a domain event —
@@ -135,7 +135,7 @@ func withEditDiagnostics(inner chat.Tool, ci *codeintel.Service, root string) ch
 // when they sit inside the workspace. Writing under .git (a hook, the
 // config) is a remote-code-execution / repo-hijack vector, so the VCS
 // metadata directory is carved read-only regardless of approval mode — the
-// same invariant codex enforces on its writable roots. A model that needs
+// standard invariant enforced on writable roots. A model that needs
 // to change version-control state uses the shell/git tooling, not a raw
 // file write. Kept as a list so other state dirs can join if a need arises.
 var protectedDirs = []string{".git"}

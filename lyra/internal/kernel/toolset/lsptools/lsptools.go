@@ -14,9 +14,9 @@ import (
 )
 
 // Build exposes the code-intelligence service as the agent's language tools: a
-// single `lsp` tool whose `operation` selects the query (the shape opencode and
-// claude_code converged on), plus a separate `lsp_diagnostics` (a whole-file
-// problem list — a different interaction both peers also keep apart).
+// single `lsp` tool whose `operation` selects the query, plus a separate
+// `lsp_diagnostics` (a whole-file problem list — a different interaction that
+// benefits from a distinct tool).
 //
 // The service is working-directory independent — it keys servers by workspace
 // root internally — so these tools are built ONCE and read the turn's cwd off
@@ -103,7 +103,7 @@ func newLSPTool(ci *codeintel.Service, defaultWorkdir string) chat.Tool {
 }
 
 // newDiagnosticsTool exposes lsp_diagnostics — a file's current problems. Kept
-// separate from the `lsp` query tool (as opencode / claude_code do): it's a
+// separate from the `lsp` query tool: it's a
 // whole-file problem list, not a position/symbol query, and the same engine
 // auto-appends post-edit diagnostics on writes.
 type lspDiagnosticsInput struct {

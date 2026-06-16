@@ -5,7 +5,7 @@
 // POST https://api.exa.ai/search
 //
 // Authentication uses the x-api-key header. (Exa also accepts
-// Authorization: Bearer; we use the x-api-key form for clarity.)
+// Authorization: Bearer; the x-api-key form is used for clarity.)
 //
 // # Parameter mapping
 //

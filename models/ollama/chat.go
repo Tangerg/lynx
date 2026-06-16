@@ -86,7 +86,7 @@ func (c *NativeChatModel) buildAPIRequest(req *chat.Request, stream bool) (*olla
 		apiReq.Options = map[string]any{}
 	}
 	// Ollama merges sampling knobs into the flat "options" map. Only
-	// write keys the caller actually set so we don't clobber values
+	// write keys the caller actually set, without clobbering values
 	// the Extra-threaded request already placed there.
 	if mergedOpts.Temperature != nil {
 		apiReq.Options["temperature"] = float32(*mergedOpts.Temperature)

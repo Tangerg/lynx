@@ -59,8 +59,8 @@ func (s *Store) lockFor(sessionID string) *sync.Mutex {
 // doesn't snapshot node_modules on every run.
 const commonExcludes = "node_modules/\n.venv/\nvenv/\n__pycache__/\ndist/\nbuild/\ntarget/\n.next/\n.DS_Store\n"
 
-// maxCheckpointFileSize caps a single file the checkpoint will stage (opencode's
-// 2 MiB guard). A large unignored binary — a dataset, a built artifact a project
+// maxCheckpointFileSize caps a single file the checkpoint will stage (2 MiB
+// guard). A large unignored binary — a dataset, a built artifact a project
 // forgot to .gitignore — would otherwise bloat every snapshot and the shadow
 // repo. Oversize files are left out, so a restore won't revert them: an
 // acceptable trade-off against unbounded growth.
@@ -213,11 +213,11 @@ func (s *Store) ensureRepo(ctx context.Context, sessionID, cwd string) (string, 
 }
 
 // seedFrom wires a freshly-initialized shadow repo to reuse the real repo's
-// object store and index, so the first snapshot doesn't re-store the whole tree
-// (opencode's seeding). Sharing objects/info/alternates lets `git add` resolve
+// object store and index, so the first snapshot doesn't re-store the whole tree.
+// Sharing objects/info/alternates lets `git add` resolve
 // every unchanged blob through the real .git instead of writing a copy; seeding
-// the index lets it reuse the existing hashes instead of re-hashing every file
-// (the cost opencode flags on huge checkouts).
+// the index reuses the existing hashes instead of re-hashing every file — the
+// cost that becomes significant on large checkouts.
 //
 // Best-effort: if cwd isn't a git repo, or anything is missing, the shadow just
 // starts empty and the first `git add` does the full work — correct, only

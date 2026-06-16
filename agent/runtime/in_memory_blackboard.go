@@ -122,7 +122,7 @@ func (b *inMemoryBlackboard) findLatestVisible() (any, bool) {
 }
 
 // isHidden does a linear scan via DeepEqual; hidden lists are tiny in
-// practice and we need DeepEqual because Go map keys can't accept
+// practice and DeepEqual is required because Go map keys can't accept
 // unhashable struct types.
 func (b *inMemoryBlackboard) isHidden(v any) bool {
 	for _, h := range b.hidden {

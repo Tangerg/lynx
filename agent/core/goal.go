@@ -109,7 +109,7 @@ func (g *Goal) Preconditions() Effects {
 }
 
 // IsSatisfiedBy reports whether ws meets every goal precondition.
-// Used by planners as the "are we done?" check.
+// Used by planners to check whether the goal is already met.
 func (g *Goal) IsSatisfiedBy(ws WorldState) bool {
 	if g == nil || ws == nil {
 		return false

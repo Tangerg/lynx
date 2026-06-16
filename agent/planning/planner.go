@@ -8,7 +8,7 @@ import (
 )
 
 // Options carries per-call planner knobs. ExcludedActions is the
-// runtime's "ignore this recently-replanned action so we don't loop"
+// runtime's "ignore this recently-replanned action to avoid looping"
 // signal; MaxIterations caps internal search iteration count.
 type Options struct {
 	ExcludedActions map[string]struct{}
@@ -103,7 +103,7 @@ func BestValuePlan(
 // Prune returns a copy of system whose Actions slice is filtered
 // down to actions referenced by at least one plan reachable from
 // start. Goals and Conditions are kept verbatim — the dead-code
-// signal we care about is "this action can never participate in
+// signal is "this action can never participate in
 // any plan", not "this goal is unreachable".
 //
 // Use cases (prune unreachable actions):

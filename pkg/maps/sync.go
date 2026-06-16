@@ -611,7 +611,7 @@ func (s *StdSyncMap[K, V]) Compute(key K, remappingFunc func(K, V, bool) (V, boo
 				// Value was changed by another goroutine, retry
 				continue
 			}
-			// Key doesn't exist and we don't want to put anything
+			// Key doesn't exist — nothing to put, return zero value.
 			var zero V
 			return zero, false
 		}

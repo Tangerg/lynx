@@ -14,9 +14,9 @@ import (
 )
 
 // turnObserver bridges the engine's tool observer to the turn's event
-// channel. The engine fires Approve / Start / End for every tool
-// the model invokes; we translate each into a Lyra ToolCall*
-// event so transport adapters surface them verbatim.
+// channel. Each Approve / Start / End notification is translated into a
+// ToolCallStart / ToolCallEnd event so transport adapters surface them
+// verbatim.
 type turnObserver struct {
 	svc *inMemory
 	st  *turnState

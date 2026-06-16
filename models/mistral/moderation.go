@@ -32,7 +32,7 @@ var _ moderation.Model = (*ModerationModel)(nil)
 // ModerationModel wraps Mistral's /moderations endpoint. Mistral
 // reports a custom category set (sexual / hate_and_discrimination /
 // violence_and_threats / dangerous_and_criminal_content / selfharm /
-// health / financial / law / pii); we map them onto lynx's typed
+// health / financial / law / pii); each category is mapped onto
 // [moderation.Categories] slots so callers writing provider-agnostic
 // policy code still see flags / scores in the standard fields.
 type ModerationModel struct {

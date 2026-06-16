@@ -100,7 +100,7 @@ func (s *Service) Snapshot(ctx context.Context, sessionID, cwd, runID string) er
 	if !s.CheckpointsEnabled() {
 		return nil
 	}
-	// Only checkpoint a real git repo — opencode's gate (state.vcs === "git").
+	// Only checkpoint a real git repo — state tracking requires git.
 	// A repo's own .gitignore bounds what the whole-tree `git add` stages; a
 	// non-repo dir (e.g. a session opened on the home directory) has no such
 	// bound, so snapshotting it would try to stage the entire tree — minutes of

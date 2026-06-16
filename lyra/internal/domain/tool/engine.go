@@ -91,10 +91,10 @@ func (s *engineBacked) Invoke(ctx context.Context, name string, arguments string
 // classification, for the ListTools wire metadata. A future milestone
 // may let users override per-tool via config.
 //
-// NOTE: kernel/turn/policy.go's safetyClassFor encodes the same name→class
-// mapping for approval GATING. They're deliberately separate (wire
-// metadata vs internal gate, different enum types, may diverge) — but
-// keep the shared rows in sync when adding a built-in tool.
+// Two separate name→class mappings exist — this one for the ListTools
+// wire metadata and [turn.safetyClassFor] for the approval gate. They
+// are deliberately separate (wire metadata vs gate policy, different
+// enum types) but share the same rows; keep them in sync when adding tools.
 func defaultSafetyClass(name string) SafetyClass {
 	switch name {
 	case "read", "glob", "grep", "skill", "ask_user", "exit_plan_mode":

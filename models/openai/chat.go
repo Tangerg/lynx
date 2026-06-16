@@ -173,8 +173,8 @@ func mediaDataURL(mt *mime.MIME, data string) string {
 
 func (r *requestHelper) buildAssistantMsg(msg *chat.AssistantMessage) openai.ChatCompletionMessageParamUnion {
 	// Parts → flat (content + tool_calls). The OpenAI Chat Completions
-	// API does not support interleaved text/tool_use blocks; we project
-	// all TextParts into a single content string (in order) and emit
+	// API does not support interleaved text/tool_use blocks; all
+	// TextParts are projected into a single content string (in order) and
 	// tool_calls as a separate array. ReasoningParts are dropped here —
 	// the API doesn't accept reasoning content on the request side.
 	message := openai.AssistantMessage(msg.JoinedText())
@@ -342,8 +342,8 @@ func (r *responseHelper) buildMeta(req *openai.ChatCompletionNewParams, resp *op
 	}
 	// Surface o-series reasoning token breakdown when present. The SDK
 	// returns 0 when the field is absent from the response payload, so a
-	// 0 value is indistinguishable from "not exposed"; we treat any
-	// non-zero count as an explicit signal worth surfacing.
+	// 0 value is indistinguishable from "not exposed"; any non-zero
+	// count is treated as an explicit signal worth surfacing.
 	if rt := resp.Usage.CompletionTokensDetails.ReasoningTokens; rt > 0 {
 		usage.ReasoningTokens = &rt
 	}
@@ -472,7 +472,7 @@ func (c *ChatModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*ch
 		// Per-chunk accumulator: spin up a fresh one each iteration so
 		// the resulting ChatCompletion reflects ONLY this chunk's
 		// delta content. The SDK accumulator gives us a non-streaming
-		// ChatCompletion shape we can hand to the existing
+		// ChatCompletion shape that feeds into the existing
 		// buildChatResponse, while delta semantics are preserved for
 		// the upstream chat.ResponseAccumulator (which does the
 		// stream-wide stitching).

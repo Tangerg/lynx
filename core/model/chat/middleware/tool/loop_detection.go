@@ -10,9 +10,8 @@ import (
 
 // Loop-detection defaults. A round-signature that recurs more than
 // [DefaultLoopThreshold] times within the last [DefaultLoopWindow]
-// rounds is treated as a stuck loop. The values mirror the thresholds
-// proven in the field (Charmbracelet Crush): six byte-identical rounds
-// inside a ten-round window is a fixed point, not a retry.
+// rounds is treated as a stuck loop. The values mirror proven thresholds:
+// six byte-identical rounds inside a ten-round window is a fixed point, not a retry.
 const (
 	DefaultLoopWindow    = 10
 	DefaultLoopThreshold = 5

@@ -19,7 +19,7 @@ import (
 // count alone misses. The defaults aim at "comfortably fits in
 // 128k-context models".
 const (
-	defaultCompactMaxMessages = 24 // message count before we trigger
+	defaultCompactMaxMessages = 24 // message count trigger threshold
 	defaultCompactKeepRecent  = 6  // raw messages to preserve verbatim
 
 	// defaultCompactMaxTokens is the estimated-token-footprint trigger used
@@ -31,14 +31,14 @@ const (
 	// windowTriggerPct is the share of the model's context window at which an
 	// estimated footprint triggers compaction — leaving headroom for the
 	// summary output + the next turn. A fixed number is wrong across the 32k…1M
-	// window range; relative tracks the actual model (claude_code / codex /
-	// crush / harness9 / pi all trigger window-relative).
+	// window range; a relative trigger tracks the actual model's context
+	// window rather than a fixed number that's wrong at either extreme.
 	windowTriggerPct = 80
 
 	// charsPerToken is the coarse chars→tokens divisor used ONLY for the
 	// compaction trigger estimate — never for billing. ~4 chars/token is
-	// the usual English rule of thumb; the field (Crush / harness9 / pi)
-	// all drive this decision with a similar cheap heuristic rather than
+	// the usual English rule of thumb; mature agent runtimes drive this
+	// decision with a similar cheap heuristic rather than
 	// paying for real tokenization every turn boundary.
 	charsPerToken = 4
 )

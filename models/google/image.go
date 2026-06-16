@@ -108,8 +108,8 @@ func (i *ImageModel) buildAPIRequest(req *image.Request) (string, string, *genai
 func (i *ImageModel) buildResponse(apiResp *genai.GenerateImagesResponse) (*image.Response, error) {
 	// Imagen returns GeneratedImages sized by NumberOfImages (default 4
 	// when unset). The image surface is single-result by design — see
-	// image.Response — so we take the first generated image and ignore
-	// extras. Callers needing N>1 should drop down to the genai SDK.
+	// image.Response — so the first generated image is taken and
+	// extras are ignored. Callers needing N>1 should use the genai SDK.
 	if len(apiResp.GeneratedImages) == 0 {
 		return nil, errors.New("google: image response has no generated images")
 	}

@@ -9,9 +9,9 @@
 // # Parameter mapping
 //
 // [webfetch.Request] → Tavily request:
-//   - URL    → urls=[<single>] (Tavily accepts batches; we send one)
+//   - URL    → urls=[<single>] (Tavily accepts batches; a single URL is sent)
 //   - Format → format. Tavily's enum only supports "markdown" and
-//     "text". When the caller asks for HTML we silently map to
+//     "text". When the caller asks for HTML, the provider silently maps to
 //     markdown and report the effective format in the response.
 //
 // Hardcoded: extract_depth="basic" (1 credit per 5 URLs; "advanced"
@@ -22,8 +22,8 @@
 //
 //	results[0].raw_content → [webfetch.Response.Content]
 //
-// When the requested URL fails, failed_results[] is populated and we
-// surface the error message.
+// When the requested URL fails, failed_results[] is populated and the
+// error message is surfaced.
 //
 // # Native API
 //

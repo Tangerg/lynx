@@ -221,7 +221,7 @@ func (s *Store) Retrieve(ctx context.Context, req *vectorstore.RetrievalRequest)
 
 // Delete removes documents matching the filter via Vectara's
 // document-level delete endpoint. Vectara has no bulk filter-delete,
-// so we enumerate ids first then DELETE one-by-one.
+// so matching ids are enumerated first, then deleted one-by-one.
 func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err error) {
 	if err = req.Validate(); err != nil {
 		return fmt.Errorf("vectara: invalid delete request: %w", err)

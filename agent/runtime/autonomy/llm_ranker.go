@@ -89,7 +89,7 @@ func (r *LLMRanker) Rank(ctx context.Context, userInput string, candidates []Can
 // buildUserPrompt composes the candidate listing the LLM sees. Each
 // row is "<agent>:<goal> — <description>" plus optional Tags /
 // Examples blocks pulled from [core.Goal]; the trailing instruction
-// pins the JSON format we'll parse.
+// pins the JSON format the ranker parses.
 func (r *LLMRanker) buildUserPrompt(userInput string, candidates []Candidate) string {
 	var b strings.Builder
 	if header := r.cfg.PromptHeader; header != "" {

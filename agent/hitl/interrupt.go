@@ -9,9 +9,7 @@ import (
 )
 
 // InterruptError is the guard error any step returns to suspend the run for
-// human input — the Go-ecosystem interrupt model (LangGraph's
-// GraphInterrupt, eino's InterruptSignal, trpc-agent-go's InterruptError;
-// Go returns an error, Python raises). It carries a stable Key (the
+// human input — the Go-ecosystem interrupt model. It carries a stable Key (the
 // interrupt's identity, stable across the resuming re-run) and a
 // user-facing Value (the payload surfaced to the client). It satisfies
 // [chat.ToolHalt] with Abort() == false, so the chat tool loop exits

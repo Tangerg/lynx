@@ -30,8 +30,8 @@ const (
 // identPattern matches the standard SQL unquoted-identifier shape — a
 // leading letter or underscore followed by letters / digits /
 // underscores. Schema names, table names and index names are all
-// interpolated into DDL/queries, so we reject anything that doesn't
-// match before issuing SQL.
+// interpolated into DDL/queries, so anything that doesn't match
+// is rejected before issuing SQL.
 var identPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // StoreConfig configures [NewStore]. Only [StoreConfig.Pool] is

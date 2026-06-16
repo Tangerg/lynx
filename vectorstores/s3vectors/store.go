@@ -264,7 +264,7 @@ func (s *Store) Delete(ctx context.Context, req *vectorstore.DeleteRequest) (err
 	}
 
 	// Use a placeholder embedding to drive the filter scan — the
-	// vector itself doesn't matter when we discard the distance.
+	// vector itself doesn't matter when the distance is discarded.
 	probe := make([]float32, 0)
 	if dim := embedding.GetDimensions(ctx, s.embeddingModel); dim > 0 {
 		probe = make([]float32, dim)

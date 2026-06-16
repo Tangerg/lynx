@@ -49,8 +49,8 @@ type ImageGenerateRequest struct {
 	Prompt      string `json:"prompt"`
 	AspectRatio string `json:"aspect_ratio,omitempty"`
 	Model       string `json:"model,omitempty"`
-	// ImageRef is an array of {url, weight}; we keep it as map[string]any
-	// so callers can thread richer refs via Extra without us prescribing
+	// ImageRef is an array of {url, weight}; kept as map[string]any
+	// so callers can thread richer refs via Extra without prescribing
 	// the exact wire shape.
 	ImageRef       []map[string]any `json:"image_ref,omitzero"`
 	StyleRef       []map[string]any `json:"style_ref,omitzero"`

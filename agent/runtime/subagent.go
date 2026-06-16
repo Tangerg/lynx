@@ -113,7 +113,7 @@ func AsChatToolFromAgent[In, Out any](platform *Platform, agentDef *core.Agent) 
 //	server := sdkmcp.NewServer(impl, nil)
 //	mcp.RegisterTools(server, runtime.AsMCPTool[Topic, Brief](platform, "BriefingAgent"))
 //
-// Target per-call form is ergonomic enough that we don't ship a
+// Target per-call form is ergonomic enough on its own without a
 // separate batch helper.
 //
 // Suspended (HITL) runs surface the same JSON "status: waiting"
