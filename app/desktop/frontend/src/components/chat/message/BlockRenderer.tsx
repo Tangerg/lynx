@@ -3,6 +3,7 @@
 // card. Kept as a lookup table (BLOCK_RENDERERS) so adding a new block kind is
 // one row — no if/elif ladder growing with the protocol.
 import type { ContentBlock, PlanItem, ToolCall } from "@/protocol/run/viewState";
+import { isQuestionTool } from "@/protocol/run/viewState";
 import { MarkdownMessage } from "./markdown/MarkdownMessage";
 import {
   ApprovalCard,
@@ -40,6 +41,11 @@ export function planRenderUnits(
   toolCalls: Record<string, ToolCall>,
 ): RenderUnit[] {
   const units: RenderUnit[] = [];
+  // A HITL-question tool's toolCall row is the redundant shadow of its question
+  // block (see isQuestionTool) — drop it, but only when that question block is
+  // actually present, so a non-parking runtime that returns ask_user as a plain
+  // tool result still renders its card.
+  const hasQuestion = blocks.some((b) => b.kind === "question");
   let run: { block: ContentBlock; index: number; tool: ToolCall }[] = [];
   const flush = () => {
     if (run.length >= 2) {
@@ -54,6 +60,10 @@ export function planRenderUnits(
       const tool = toolCalls[block.toolCallId];
       if (tool && isReadOnlyTool(tool.name)) {
         run.push({ block, index, tool });
+        return;
+      }
+      if (tool && hasQuestion && isQuestionTool(tool.name)) {
+        flush(); // shadow of the question block — render nothing, break the run
         return;
       }
     }
