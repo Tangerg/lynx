@@ -17,7 +17,14 @@ import (
 // lets Go's HTTP stack interrupt a stuck tls.Read. This is a hang
 // backstop, not a turn budget: keep it generous (use MaxBudget /
 // MaxCostUSD to bound normal work).
-const llmCallTimeout = 2 * time.Minute
+//
+// It wraps the WHOLE turn (every tool-loop round), and a delegated `task`
+// sub-agent runs a full multi-round task inside one turn — so a tight cap
+// kills healthy long work, not just hangs. 10 min matches Claude Code's
+// total ceiling (MAX_TIMEOUT_MS=600s); codex is even looser (a 5-min IDLE
+// timeout that resets per stream chunk). The earlier 2-min cap cut reasoning
+// models off mid-stream (run.outcome=errored "context deadline exceeded").
+const llmCallTimeout = 10 * time.Minute
 
 // runChatTurn drives one streaming chat turn end-to-end: compose the
 // system prompt + user message (with any image attachments), run the
