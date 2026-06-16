@@ -529,6 +529,8 @@ export const ja: Record<string, string> = {
   "slash.search": "コードベースでシンボルまたはパターンを検索",
   "slash.plan": "現在の計画を再表示または編集",
   "command.toggleSidebar": "サイドバーレールを切り替え",
+  "command.openPalette": "コマンドパレットを開く",
+  "statusbar.copied": "コピーしました",
   "command.toggleTheme": "ダーク/ライトテーマを切り替え",
   "command.newChat": "新しいチャットタブ",
   "command.closeTab": "現在のタブを閉じる",

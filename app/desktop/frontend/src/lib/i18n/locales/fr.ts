@@ -534,6 +534,8 @@ export const fr: Record<string, string> = {
   "slash.search": "Rechercher un symbole ou un motif dans le code",
   "slash.plan": "Reformuler ou modifier le plan actuel",
   "command.toggleSidebar": "Basculer la barre latérale",
+  "command.openPalette": "Ouvrir la palette de commandes",
+  "statusbar.copied": "Copié",
   "command.toggleTheme": "Basculer thème sombre/clair",
   "command.newChat": "Nouvel onglet de chat",
   "command.closeTab": "Fermer l'onglet actuel",

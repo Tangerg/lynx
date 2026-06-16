@@ -133,8 +133,9 @@ html.theme-light .tool-card.running::before {
   min-height: 0;
   box-shadow:
     /* Inset top-edge highlight — picks up "light from above" so the
-       card reads as having an actual top face. */
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+       card reads as having an actual top face. 4% is invisible on most
+       panels; 6% reads as a faint-but-present top facet without distracting. */
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
     /* Drop shadow ladder — small contact + wider ambient. Tuned against
        canvas #010102; on a slightly-lighter neighbour the shadow stays
        visible without being theatrical. */

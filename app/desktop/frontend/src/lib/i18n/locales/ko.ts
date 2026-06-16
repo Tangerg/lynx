@@ -522,6 +522,8 @@ export const ko: Record<string, string> = {
   "slash.search": "코드베이스에서 심볼 또는 패턴 검색",
   "slash.plan": "현재 계획 다시 설명 또는 편집",
   "command.toggleSidebar": "사이드바 레일 전환",
+  "command.openPalette": "명령 팔레트 열기",
+  "statusbar.copied": "복사됨",
   "command.toggleTheme": "다크/라이트 테마 전환",
   "command.newChat": "새 채팅 탭",
   "command.closeTab": "현재 탭 닫기",

@@ -7,7 +7,7 @@ import type { ToolCall } from "@/protocol/run/viewState";
 import { AnimatePresence, motion } from "motion/react";
 import { Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
-import { swift } from "@/lib/motion";
+import { snappy } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import {
   lookupToolActionOwner,
@@ -59,7 +59,12 @@ export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView 
         // expressible cleanly in Tailwind. Everything else here is utilities.
         "tool-card group relative my-1.5 overflow-hidden rounded-md border border-transparent transition-[background,border-color,transform] duration-150",
         !selected && "hover:bg-line hover:border-line-soft",
-        selected && "bg-line border-line-soft",
+        // Selected drives the inspector pane — mark it with a 2px accent left
+        // edge (inset shadow, so it doesn't fight the border) so "which tool is
+        // being inspected" reads at a glance. The one spot the accent's scarcity
+        // relaxes: the selected tool IS the live data panel's entry point.
+        selected &&
+          "bg-line border-line-soft shadow-[inset_2px_0_0_color-mix(in_srgb,var(--color-accent)_55%,transparent)]",
         running && "running",
       )}
     >
@@ -174,7 +179,7 @@ export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView 
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={swift}
+            transition={snappy}
             style={{ overflow: "hidden" }}
           >
             <ToolPreview tool={tool} onOpenView={onOpenView} />

@@ -17,6 +17,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon, StatusDot, Tooltip } from "@/components/common";
 import { useT } from "@/lib/i18n";
+import { writeToClipboard } from "@/lib/clipboard";
 import { rpcErrorText } from "@/lib/agent/errorCopy";
 import { useActiveSession } from "@/lib/agent/useActiveSession";
 import { SESSIONS_KEY } from "@/lib/data/queries";
@@ -80,14 +81,21 @@ function RunStatus() {
 // The active run's id, while it's live — the handle to correlate with backend
 // logs / traces. Hidden when idle (a stale id is noise).
 function RunId() {
+  const t = useT();
   const running = useAgentRunning();
   const runId = useAgentRunId();
   if (!running || !runId) return null;
+  // The run id is the handle for grepping backend logs / traces — click to copy
+  // it. cursor + hover-brighten advertise that this dense datum is actionable.
   return (
     <Tooltip label={`Run ${runId}`}>
-      <span className="sb-item text-fg-faint">
+      <button
+        type="button"
+        onClick={() => void writeToClipboard(runId, { successLabel: t("statusbar.copied") })}
+        className="sb-item cursor-pointer border-0 bg-transparent text-fg-faint transition-colors hover:text-fg"
+      >
         <span className="max-w-[160px] truncate">{runId}</span>
-      </span>
+      </button>
     </Tooltip>
   );
 }

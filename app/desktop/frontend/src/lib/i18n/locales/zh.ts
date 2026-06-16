@@ -519,6 +519,8 @@ export const zh: Record<string, string> = {
   "slash.search": "在代码库中搜索符号或模式",
   "slash.plan": "重述或编辑当前计划",
   "command.toggleSidebar": "切换侧栏折叠",
+  "command.openPalette": "打开命令面板",
+  "statusbar.copied": "已复制",
   "command.toggleTheme": "切换深色/浅色主题",
   "command.newChat": "新建聊天标签页",
   "command.closeTab": "关闭当前标签页",

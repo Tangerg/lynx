@@ -561,6 +561,8 @@ export const en: Record<string, string> = {
 
   // ── Default command palette labels ──
   "command.toggleSidebar": "Toggle sidebar rail",
+  "command.openPalette": "Open command palette",
+  "statusbar.copied": "Copied",
   "command.toggleTheme": "Toggle dark/light theme",
   "command.newChat": "New chat tab",
   "command.closeTab": "Close current tab",
