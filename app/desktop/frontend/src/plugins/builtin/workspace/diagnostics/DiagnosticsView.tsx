@@ -4,13 +4,16 @@
 // Perf: telemetry volume is high, so spans/logs are bounded ring buffers in
 // the store and rendered with @tanstack/react-virtual (only on-screen rows
 // mount). Each panel subscribes to ONLY its signal's slice, so switching
-// tabs / a metrics flush never re-renders the trace or log list.
+// tabs / a metrics flush never re-renders the trace or log list. The Traces
+// tab + its span-detail rows live in ./TracesPanel; shared list chrome (Row /
+// Cell / Empty / VirtualList) in ./primitives.
 
-import type { MetricRow, SpanRow } from "@/lib/observability/stores";
+import type { MetricRow } from "@/lib/observability/stores";
 import { useTelemetryStore } from "@/lib/observability/stores";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { Fragment, useCallback, useMemo, useRef, useState } from "react";
-import { Icon, Segmented } from "@/components/common";
+import { useMemo, useState } from "react";
+import { Segmented } from "@/components/common";
+import { Cell, Empty, Row, VirtualList } from "./primitives";
+import { TracesPanel } from "./TracesPanel";
 
 type Signal = "traces" | "metrics" | "logs";
 
@@ -54,153 +57,6 @@ export function DiagnosticsView() {
       {signal === "traces" && <TracesPanel />}
       {signal === "metrics" && <MetricsPanel />}
       {signal === "logs" && <LogsPanel />}
-    </div>
-  );
-}
-
-// ── Traces ──────────────────────────────────────────────────────────────
-function TracesPanel() {
-  const spans = useTelemetryStore((s) => s.spans);
-  // Newest first. spans changes only once per flush (~500ms) so the reverse
-  // copy is cheap and memoized on the (stable-between-flushes) array ref.
-  const ordered = useMemo(() => spans.slice().reverse(), [spans]);
-  // Expanded span ids — keyed by stable spanId so it survives the next flush
-  // (incoming spans don't disturb which rows the user opened).
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
-  const toggle = useCallback((id: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
-
-  if (ordered.length === 0) return <Empty hint="Send a message — run + RPC spans appear here." />;
-
-  return (
-    <VirtualList
-      count={ordered.length}
-      rowHeight={32}
-      header={
-        <Row head>
-          <Cell className="w-4" />
-          <Cell className="grow">span</Cell>
-          <Cell className="w-16 text-right">dur</Cell>
-          <Cell className="w-16">status</Cell>
-          <Cell className="w-28">trace</Cell>
-        </Row>
-      }
-      renderRow={(i) => {
-        const s = ordered[i]!;
-        return <SpanRowItem span={s} open={expanded.has(s.id)} onToggle={() => toggle(s.id)} />;
-      }}
-    />
-  );
-}
-
-const STATUS_TONE: Record<SpanRow["status"], string> = {
-  error: "text-negative",
-  ok: "text-positive",
-  unset: "text-fg-faint",
-};
-
-function StatusTag({ status }: { status: SpanRow["status"] }) {
-  return <span className={STATUS_TONE[status]}>{status}</span>;
-}
-
-// One trace row: a click target that toggles a detail panel below it. The
-// detail is where the "why" lives — status.message (the failure text) plus the
-// span's ids / timing / attributes — so an error reads as more than a red tag.
-function SpanRowItem({
-  span,
-  open,
-  onToggle,
-}: {
-  span: SpanRow;
-  open: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <div>
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        className="flex min-h-8 w-full cursor-pointer items-center gap-3 bg-transparent px-1 font-mono text-[12px] text-fg hover:bg-surface-2"
-      >
-        <span className="flex w-4 shrink-0 justify-center">
-          <Icon
-            name="chevron-down"
-            size={11}
-            className={"text-fg-faint transition-transform " + (open ? "" : "-rotate-90")}
-          />
-        </span>
-        <span className="grow min-w-0 truncate text-left">{span.name}</span>
-        <span className="w-16 shrink-0 text-right tabular-nums">
-          {span.durationMs.toFixed(1)}ms
-        </span>
-        <span className="w-16 shrink-0 text-left">
-          <StatusTag status={span.status} />
-        </span>
-        <span className="w-28 shrink-0 truncate text-left text-fg-faint">
-          {span.traceId.slice(0, 12)}
-        </span>
-      </button>
-      {open && <SpanDetail span={span} />}
-    </div>
-  );
-}
-
-// Expanded span detail — mono key/value block. Error message first (the thing
-// the collapsed row can't carry), then ids/timing, then any attributes.
-function SpanDetail({ span }: { span: SpanRow }) {
-  const meta: [string, string][] = [
-    ["trace", span.traceId],
-    ["span", span.id],
-    ["parent", span.parentSpanId ?? "—"],
-    ["kind", span.kind],
-    ["start", new Date(span.startMs).toISOString()],
-    ["dur", `${span.durationMs.toFixed(1)}ms`],
-  ];
-  const attrs = Object.entries(span.attrs);
-  return (
-    <div className="mx-1 mb-1.5 grid gap-2 rounded-md bg-surface-2 px-3 py-2 font-mono text-[11.5px]">
-      {span.statusMessage && (
-        <Field label="error">
-          <span className="whitespace-pre-wrap break-words text-negative select-text">
-            {span.statusMessage}
-          </span>
-        </Field>
-      )}
-      <KeyValues rows={meta} />
-      {attrs.length > 0 && (
-        <Field label="attributes">
-          <KeyValues rows={attrs.map(([k, v]) => [k, String(v)])} />
-        </Field>
-      )}
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="grid gap-0.5">
-      <div className="text-[10px] uppercase tracking-wide text-fg-faint">{label}</div>
-      {children}
-    </div>
-  );
-}
-
-function KeyValues({ rows }: { rows: [string, string][] }) {
-  return (
-    <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5">
-      {rows.map(([k, v]) => (
-        <Fragment key={k}>
-          <div className="text-fg-faint">{k}</div>
-          <div className="break-all text-fg-muted select-text">{v}</div>
-        </Fragment>
-      ))}
     </div>
   );
 }
@@ -366,82 +222,4 @@ function fmt(n: number | undefined, unit: string): string {
   if (n === undefined) return "—";
   const rounded = n < 10 ? n.toFixed(1) : Math.round(n).toString();
   return unit ? `${rounded} ${unit}` : rounded;
-}
-
-// ── Shared list primitives ────────────────────────────────────────────────
-function Empty({ hint }: { hint: string }) {
-  return <div className="text-[13px] text-fg-faint">No data yet — {hint}</div>;
-}
-
-function Row({
-  children,
-  head,
-  className,
-}: {
-  children: React.ReactNode;
-  head?: boolean;
-  className?: string;
-}) {
-  return (
-    <div
-      className={
-        "flex items-center gap-3 px-1 font-mono text-[12px] " +
-        (head ? "text-[10px] text-fg-faint" : "text-fg hover:bg-surface-2") +
-        (className ? " " + className : "")
-      }
-    >
-      {children}
-    </div>
-  );
-}
-
-function Cell({ className, children }: { className: string; children?: React.ReactNode }) {
-  return <div className={`min-w-0 ${className}`}>{children}</div>;
-}
-
-// Virtualized list — only on-screen rows mount, so a 500-row span buffer
-// renders a dozen DOM nodes. `rowHeight` is just the pre-measure estimate;
-// each row's real height is measured via `measureElement` so a row that
-// expands (the span detail panel) grows in place and pushes the rest down,
-// no fixed-height assumption. `position: absolute` per row is the standard
-// react-virtual pattern (allowed by the no-absolute rule for this).
-function VirtualList({
-  count,
-  rowHeight,
-  header,
-  renderRow,
-}: {
-  count: number;
-  rowHeight: number;
-  header: React.ReactNode;
-  renderRow: (index: number) => React.ReactNode;
-}) {
-  const parentRef = useRef<HTMLDivElement>(null);
-  const virt = useVirtualizer({
-    count,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => rowHeight,
-    overscan: 12,
-  });
-
-  return (
-    <div className="flex flex-1 min-h-0 flex-col">
-      {header}
-      <div ref={parentRef} className="flex-1 min-h-0 overflow-y-auto">
-        <div className="relative w-full" style={{ height: virt.getTotalSize() }}>
-          {virt.getVirtualItems().map((vi) => (
-            <div
-              key={vi.key}
-              data-index={vi.index}
-              ref={virt.measureElement}
-              className="absolute left-0 top-0 w-full"
-              style={{ transform: `translateY(${vi.start}px)` }}
-            >
-              {renderRow(vi.index)}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
 }
