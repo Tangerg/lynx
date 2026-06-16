@@ -187,6 +187,7 @@ export function renderBlock(block: ContentBlock, key: number, ctx: BlockCtx) {
           itemId={block.itemId}
           questions={block.questions}
           answered={block.answered}
+          answers={block.answers}
         />
       );
 

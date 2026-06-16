@@ -27,6 +27,7 @@ import {
   Image as ImageIcon,
   List,
   Maximize2,
+  MessageCircleQuestion,
   MessageSquare,
   Minimize2,
   Moon,
@@ -130,7 +131,8 @@ export type IconName =
   | "file-plus"
   | "folder-search"
   | "download"
-  | "bot";
+  | "bot"
+  | "question";
 
 // Mapping from our project's icon vocabulary to lucide components.
 // Names on the left are the project's IconName tokens used at every
@@ -197,6 +199,7 @@ const ICON_MAP: Record<IconName, LucideIcon> = {
   "folder-search": FolderSearch,
   download: Download,
   bot: Bot,
+  question: MessageCircleQuestion,
 };
 
 interface Props {

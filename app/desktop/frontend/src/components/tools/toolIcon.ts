@@ -49,7 +49,7 @@ export const DEFAULT_TOOL_ICONS: Record<string, IconName> = {
   skill: "sparkle",
   task: "spark",
   subagent: "bot", // a spawned sub-agent
-  ask_user: "chat",
+  ask_user: "question", // asking the human a question, not generic chat
 };
 
 export function toolIconFor(key: string): IconName {

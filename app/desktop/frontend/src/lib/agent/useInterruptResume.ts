@@ -18,7 +18,12 @@ import { useSessionStore } from "@/state/sessionStore";
 // Each caller supplies, per submit, the pending marker (so the card knows which
 // action is settling), the wire response payload, and the resolveInterrupt patch.
 
-export type ResolvePatch = { decision?: "approved" | "declined"; answered?: boolean };
+export type ResolvePatch = {
+  decision?: "approved" | "declined";
+  answered?: boolean;
+  /** Question answers to echo on the settled card, keyed by QuestionItem.id. */
+  answers?: Record<string, string[]>;
+};
 
 /**
  * Fire a HITL resume for one open interrupt and DEFER the optimistic settle to

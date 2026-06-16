@@ -160,6 +160,11 @@ export interface BuiltinContentBlockMap {
     questions: QuestionItem[];
     /** Stamped true once the answer is submitted — flips to settled state. */
     answered?: boolean;
+    /** The submitted answer, keyed by QuestionItem.id (each a string[] — the
+     *  wire AnswerResponse shape). Stamped optimistically on submit so the
+     *  settled card can echo what was chosen instead of a bare "answered".
+     *  Absent on history replay (the runtime doesn't send it back). */
+    answers?: Record<string, string[]>;
   };
   /** A context-compaction boundary (B10) — renders as a collapsed
    *  "⊟ compacted N messages" divider. The containing message carries the

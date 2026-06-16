@@ -23,7 +23,13 @@ export function useQuestionAnswer(parentRunId?: string, itemId?: string): Questi
       for (const [name, value] of Object.entries(answers)) {
         wireAnswers[name] = Array.isArray(value) ? value : [value];
       }
-      resume(true, { type: "answer", answers: wireAnswers }, { answered: true });
+      // Stamp wireAnswers onto the settled block too, so the collapsed card can
+      // echo what was chosen (the runtime never sends the answer back).
+      resume(
+        true,
+        { type: "answer", answers: wireAnswers },
+        { answered: true, answers: wireAnswers },
+      );
     },
     [resume],
   );
