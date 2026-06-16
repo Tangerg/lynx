@@ -1,6 +1,6 @@
 import type { BlockStatus, QuestionItem } from "@/protocol/run/viewState";
 import { useMemo, useState } from "react";
-import { PillButton } from "@/components/common";
+import { Icon, PillButton } from "@/components/common";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
 import { useQuestionAnswer, type QuestionAnswers } from "@/lib/agent/useQuestionAnswer";
@@ -17,6 +17,9 @@ interface Props {
   questions: QuestionItem[];
   /** Set once the answer is submitted (optimistic) / the run resolves. */
   answered?: boolean;
+  /** The submitted answer (QuestionItem.id → labels), echoed on the settled
+   *  card. Absent on history replay → the card falls back to a bare row. */
+  answers?: Record<string, string[]>;
 }
 
 // Per-question working state: chosen option labels + an optional free-text
@@ -33,6 +36,14 @@ function emptyDraft(questions: QuestionItem[]): Draft {
 
 function isAnswered(entry: { selected: string[]; text: string }): boolean {
   return entry.selected.length > 0 || entry.text.trim().length > 0;
+}
+
+// Flatten one question's answer (string | string[], from either the block or a
+// freshly-projected draft) into a single display line.
+function answerText(answers: QuestionAnswers, id: string): string {
+  const v = answers[id];
+  if (v == null) return "";
+  return (Array.isArray(v) ? v : [v]).filter(Boolean).join(", ");
 }
 
 // Project the working draft into the wire shape: question.id → label(s).
@@ -60,7 +71,7 @@ function toAnswers(questions: QuestionItem[], draft: Draft): QuestionAnswers {
 //      block (status="requires-action") bound to { parentRunId, itemId }
 //   2. User selects / types → useQuestionAnswer starts a continuation Run
 //      via runs.resume + optimistically settles the card (resolveInterrupt)
-export function QuestionCard({ status, parentRunId, itemId, questions, answered }: Props) {
+export function QuestionCard({ status, parentRunId, itemId, questions, answered, answers }: Props) {
   const t = useT();
   const { submit, pending } = useQuestionAnswer(parentRunId, itemId);
   const [draft, setDraft] = useState<Draft>(() => emptyDraft(questions));
@@ -72,7 +83,26 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered 
   );
 
   if (settled || pending) {
-    return <HitlSettledRow label={t("question.settled.answered")} />;
+    // Echo what was answered: the stamped block answers (survive remount) or,
+    // in the brief pre-settle window, the local draft. Replayed-from-history
+    // questions carry neither → a bare "answered" row.
+    const shown: QuestionAnswers | undefined =
+      answers ?? (allAnswered ? toAnswers(questions, draft) : undefined);
+    if (!shown) return <HitlSettledRow label={t("question.settled.answered")} />;
+    return (
+      <div className="my-3 flex flex-col gap-2 rounded-xl border border-line bg-surface-2 px-4 py-3">
+        <div className="flex items-center gap-1.5 font-mono text-[10px] font-semibold text-fg-faint">
+          <Icon name="check" size={11} strokeWidth={3} />
+          <span>{t("question.settled.answered")}</span>
+        </div>
+        {questions.map((q) => (
+          <div key={q.id} className="flex flex-col gap-0.5">
+            <div className="text-[12.5px] leading-snug text-fg-muted">{q.question}</div>
+            <div className="text-[13px] font-medium text-fg">{answerText(shown, q.id) || "—"}</div>
+          </div>
+        ))}
+      </div>
+    );
   }
 
   const toggleOption = (q: QuestionItem, label: string) => {
@@ -103,7 +133,7 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered 
   const disabled = !parentRunId || !itemId || !allAnswered || status !== "requires-action";
 
   return (
-    <HitlCardShell tone="accent" icon="chat" label={t("question.required")}>
+    <HitlCardShell tone="accent" icon="question" label={t("question.required")}>
       <div className="flex flex-col gap-4">
         {questions.map((q) => {
           const cur = draft[q.id] ?? { selected: [], text: "" };

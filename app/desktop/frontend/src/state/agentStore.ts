@@ -106,7 +106,11 @@ interface AgentStore {
   resolveInterrupt: (
     sessionId: string,
     itemId: string,
-    settled: { decision?: "approved" | "declined"; answered?: boolean },
+    settled: {
+      decision?: "approved" | "declined";
+      answered?: boolean;
+      answers?: Record<string, string[]>;
+    },
   ) => void;
 }
 
@@ -222,7 +226,12 @@ export const useAgentStore = create<AgentStore>((set) => ({
             if (b.kind === "approval")
               return { ...b, status: "complete" as const, decision: settled.decision };
             if (b.kind === "question")
-              return { ...b, status: "complete" as const, answered: settled.answered ?? true };
+              return {
+                ...b,
+                status: "complete" as const,
+                answered: settled.answered ?? true,
+                answers: settled.answers ?? b.answers,
+              };
             return b;
           }),
         };

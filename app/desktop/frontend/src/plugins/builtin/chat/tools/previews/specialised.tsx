@@ -160,11 +160,32 @@ function TaskPreview({ tool, onOpenView }: ToolPreviewProps) {
   );
 }
 
+// The answer may arrive as plain text, `{ answer }`, or the wire answers map
+// (QuestionField.name → string[]) — flatten any of them to one readable line.
+// (ask_user usually renders as the interactive QuestionCard, not here; this is
+// the fallback for a runtime that returns it as a plain tool result instead.)
+function askUserAnswer(result: string | undefined): string {
+  const text = result?.trim();
+  if (!text) return "";
+  const parsed = parseJsonResult(result);
+  if (!parsed) return text; // plain-text answer
+  const direct = parsed.answer ?? parsed.response;
+  if (typeof direct === "string") return direct;
+  const parts = Object.values(parsed).map((v) =>
+    typeof v === "string"
+      ? v
+      : Array.isArray(v)
+        ? v.filter((x) => typeof x === "string").join(", ")
+        : "",
+  );
+  return parts.filter(Boolean).join(" · ") || text;
+}
+
 //
 // The question rides the card title (fn); the result is the human's answer
 // once the HITL interrupt resolves.
 function AskUserPreview({ tool }: ToolPreviewProps) {
-  const answer = tool.result?.trim();
+  const answer = askUserAnswer(tool.result);
   return (
     <div className={cn(PREVIEW_WRAP, "whitespace-pre-wrap break-words")}>
       {answer ? (
