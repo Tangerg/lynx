@@ -6,6 +6,7 @@
 
 import type { ToolPreviewProps } from "@/plugins/sdk";
 import { PreviewFoot } from "@/components/tools/previews/PreviewFoot";
+import { PreviewPlaceholder } from "@/components/tools/previews/PreviewPlaceholder";
 import { useDiff, useFileHead, useGrep } from "@/lib/data/queries";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
@@ -57,9 +58,7 @@ function BashPreview({ tool, onOpenView }: ToolPreviewProps) {
       {lines.length > 0 ? (
         lines.slice(0, MAX_TERM_LINES).map((text, i) => <div key={i}>{text || " "}</div>)
       ) : (
-        <div className="text-fg-faint">
-          {tool.status === "running" ? "Running…" : "(no output)"}
-        </div>
+        <PreviewPlaceholder status={tool.status} pending="Running…" idle="(no output)" />
       )}
       {(hiddenLines > 0 || tool.outputTruncated) && (
         <div className="text-fg-faint">

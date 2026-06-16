@@ -6,6 +6,7 @@
 
 import type { ToolPreviewProps } from "@/plugins/sdk";
 import { PreviewFoot } from "@/components/tools/previews/PreviewFoot";
+import { PreviewPlaceholder } from "@/components/tools/previews/PreviewPlaceholder";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
@@ -29,7 +30,7 @@ function LspLocationsPreview({ tool, onOpenView }: ToolPreviewProps) {
   return (
     <div className={PREVIEW_WRAP}>
       {rows.length === 0 && (
-        <div className="text-fg-faint">{tool.status === "running" ? "Querying…" : "(empty)"}</div>
+        <PreviewPlaceholder status={tool.status} pending="Querying…" idle="(empty)" />
       )}
       {rows.slice(0, MAX_ROWS).map((row, i) => {
         const sep = row.lastIndexOf(" — ");
@@ -57,9 +58,7 @@ function LspHoverPreview({ tool, onOpenView }: ToolPreviewProps) {
   const text = tool.result?.trim();
   return (
     <div className={cn(PREVIEW_WRAP, "whitespace-pre-wrap break-words text-fg-soft")}>
-      {text || (
-        <span className="text-fg-faint">{tool.status === "running" ? "Querying…" : "(empty)"}</span>
-      )}
+      {text || <PreviewPlaceholder status={tool.status} pending="Querying…" idle="(empty)" />}
       <PreviewFoot label="tools.preview.viewDetails" onClick={onOpenView} />
     </div>
   );
@@ -225,9 +224,7 @@ function GlobPreview({ tool, onOpenView }: ToolPreviewProps) {
   return (
     <div className={PREVIEW_WRAP}>
       {paths.length === 0 && (
-        <div className="text-fg-faint">
-          {tool.status === "running" ? "Matching…" : "(no matches)"}
-        </div>
+        <PreviewPlaceholder status={tool.status} pending="Matching…" idle="(no matches)" />
       )}
       {paths.slice(0, MAX_ROWS).map((p) => (
         <div key={p} className="truncate py-0.5 text-fg-soft">
