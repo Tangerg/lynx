@@ -10,21 +10,33 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// llmIdleTimeout is a STALL backstop on a chat turn's streaming work: the
-// deadline resets on every streamed chunk (see [runChatTurn]), so the turn
-// runs as long as it keeps making progress — reasoning tokens, tool rounds —
-// and only a provider that goes SILENT this long (a real hang: no response, or
-// an unparseable stream like the error body a no-access model returns) fails
-// it. The ctx cancel also lets Go's HTTP stack interrupt a stuck tls.Read.
+// llmIdleTimeout is the silence window of a chat turn's hang backstop (see
+// [stallContext]): as long as the stream keeps producing — reasoning tokens,
+// tool rounds — the turn runs; only a provider gone SILENT this long (a real
+// hang: no response, or an unparseable stream like the error body a no-access
+// model returns) ends it, and the ctx cancel lets Go's HTTP stack interrupt a
+// stuck tls.Read.
 //
-// This is codex's model (stream_idle_timeout), deliberately NOT a total
-// wall-clock cap: the turn wraps the WHOLE tool-loop, and a delegated `task`
-// sub-agent runs a full multi-round task inside one turn, so a total cap kills
-// healthy long work (the earlier 2-min total cap cut reasoning models off
-// mid-stream — run.outcome=errored "context deadline exceeded"). 5 min matches
-// codex's default idle window. Normal work stays bounded by MaxBudget /
-// MaxCostUSD, never this backstop.
+// Codex's model (stream_idle_timeout), deliberately NOT a total wall-clock cap:
+// the turn wraps the WHOLE tool-loop and a delegated `task` sub-agent runs a
+// full multi-round task inside one turn, so a total cap kills healthy long work
+// (the earlier 2-min total cap cut reasoning models off mid-stream —
+// run.outcome=errored "context deadline exceeded"). 5 min matches codex's
+// default idle window. Normal work stays bounded by MaxBudget / MaxCostUSD,
+// never this backstop.
 const llmIdleTimeout = 5 * time.Minute
+
+// stallContext derives a context cancelled when no progress is reported for
+// idle — the silence watchdog behind [llmIdleTimeout]. keepAlive pushes the
+// deadline out: call it on every unit of progress (each streamed chunk). stop
+// releases the timer + context. Cancellation is idempotent, so a fired watchdog
+// and an explicit stop coexist safely. Mirrors [context.WithCancel]'s
+// (ctx, cancel) shape with an extra keepAlive.
+func stallContext(parent context.Context, idle time.Duration) (ctx context.Context, keepAlive, stop func()) {
+	ctx, cancel := context.WithCancel(parent)
+	t := time.AfterFunc(idle, cancel)
+	return ctx, func() { t.Reset(idle) }, func() { t.Stop(); cancel() }
+}
 
 // runChatTurn drives one streaming chat turn end-to-end: compose the
 // system prompt + user message (with any image attachments), run the
@@ -34,14 +46,10 @@ const llmIdleTimeout = 5 * time.Minute
 // configured, the engine intercepts [chat.FinishReasonInterrupt] chunks as
 // a fallback.
 func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, message string, images []*media.Media, budget turnBudget) (ChatOutput, error) {
-	// Stall watchdog: cancel the turn only if the stream goes silent for
-	// llmIdleTimeout. Each chunk received in the loop below pushes the deadline
-	// out (stall.Reset), so a healthy long turn never trips it — only a hung
-	// provider does. AfterFunc's cancel is idempotent + safe to reschedule.
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	stall := time.AfterFunc(llmIdleTimeout, cancel)
-	defer stall.Stop()
+	// A silent provider ends the turn (llmIdleTimeout); every chunk below calls
+	// keepAlive to push the deadline out, so a healthy long turn never trips it.
+	ctx, keepAlive, stop := stallContext(ctx, llmIdleTimeout)
+	defer stop()
 
 	req, err := pc.ChatWithActionTools(ctx)
 	if err != nil {
@@ -84,7 +92,7 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 		roundUsage, roundModel = nil, ""
 	}
 	for chunk, streamErr := range stream.Response(ctx) {
-		stall.Reset(llmIdleTimeout) // progress — push the silence deadline out
+		keepAlive() // progress — push the silence deadline out
 		if streamErr != nil {
 			recordRound()
 			return ChatOutput{}, streamErr
