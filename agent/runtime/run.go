@@ -101,14 +101,18 @@ func (p *AgentProcess) failProcess(err error) {
 	p.state.setStatus(core.StatusFailed)
 }
 
-// markCancelled records context cancellation as a kill.
+// markCancelled records context cancellation as a kill. Publishes ProcessKilled
+// only if it won the terminal transition — an external KillProcess racing the
+// ctx-cancel path must not double-publish (setStatus is the first-terminal-wins
+// gate).
 func (p *AgentProcess) markCancelled(err error) {
 	p.state.setFailure(err)
-	p.state.setStatus(core.StatusKilled)
-	p.publishEvent(event.ProcessKilled{
-		BaseEvent: p.baseEvent(),
-		Reason:    err.Error(),
-	})
+	if p.state.setStatus(core.StatusKilled) {
+		p.publishEvent(event.ProcessKilled{
+			BaseEvent: p.baseEvent(),
+			Reason:    err.Error(),
+		})
+	}
 }
 
 // checkEarlyTermination asks every applicable [core.EarlyTerminationPolicy]
@@ -126,11 +130,12 @@ func (p *AgentProcess) checkEarlyTermination() bool {
 		if !stop {
 			continue
 		}
-		p.state.setStatus(core.StatusTerminated)
-		p.publishEvent(event.ProcessTerminated{
-			BaseEvent: p.baseEvent(),
-			Reason:    reason,
-		})
+		if p.state.setStatus(core.StatusTerminated) {
+			p.publishEvent(event.ProcessTerminated{
+				BaseEvent: p.baseEvent(),
+				Reason:    reason,
+			})
+		}
 		return true
 	}
 	return false
@@ -202,12 +207,13 @@ func (p *AgentProcess) observe(ctx context.Context, span trace.Span) core.WorldS
 func (p *AgentProcess) handleTerminationSignal(sig core.TerminationSignal) error {
 	switch sig.Scope {
 	case core.TerminationScopeAgent:
-		p.state.setStatus(core.StatusTerminated)
-		p.publishEvent(event.ProcessTerminated{
-			BaseEvent: p.baseEvent(),
-			Reason:    sig.Reason,
-			Scope:     core.TerminationScopeAgent,
-		})
+		if p.state.setStatus(core.StatusTerminated) {
+			p.publishEvent(event.ProcessTerminated{
+				BaseEvent: p.baseEvent(),
+				Reason:    sig.Reason,
+				Scope:     core.TerminationScopeAgent,
+			})
+		}
 
 	case core.TerminationScopeAction:
 		p.publishEvent(event.ReplanRequested{
@@ -309,9 +315,13 @@ func (p *AgentProcess) formulatePlan(ctx context.Context, worldState core.WorldS
 }
 
 // completeForGoal flips the process to Completed and publishes the goal
-// achievement event.
+// achievement event. A no-op when a racing kill already terminated the process
+// — first terminal wins, so the run loop can't clobber a Killed back to
+// Completed (which would also double-publish a terminal at the loop's exit).
 func (p *AgentProcess) completeForGoal(g *core.Goal) {
-	p.state.setStatus(core.StatusCompleted)
+	if !p.state.setStatus(core.StatusCompleted) {
+		return
+	}
 	p.state.setGoal(g)
 	p.publishEvent(event.GoalAchieved{
 		BaseEvent: p.baseEvent(),
@@ -342,11 +352,12 @@ func (p *AgentProcess) translateActionStatus(action core.Action, status core.Act
 	case core.ActionSucceeded:
 		// Stay running — the next tick re-plans.
 	case core.ActionFailed:
-		p.state.setStatus(core.StatusFailed)
-		// Don't overwrite a failure already recorded by an earlier action
-		// — the first failure is the root cause worth surfacing.
-		if p.Failure() == nil {
-			p.state.setFailure(actionFailureError(action.Metadata().Name))
+		if p.state.setStatus(core.StatusFailed) {
+			// Don't overwrite a failure already recorded by an earlier action
+			// — the first failure is the root cause worth surfacing.
+			if p.Failure() == nil {
+				p.state.setFailure(actionFailureError(action.Metadata().Name))
+			}
 		}
 	case core.ActionWaiting:
 		p.state.setStatus(core.StatusWaiting)
@@ -373,10 +384,11 @@ func (p *AgentProcess) handleStuck(ctx context.Context, worldState core.WorldSta
 		}
 	}
 
-	p.state.setStatus(core.StatusStuck)
-	p.publishEvent(event.ProcessStuck{
-		BaseEvent: p.baseEvent(),
-		LastWorld: worldState,
-	})
+	if p.state.setStatus(core.StatusStuck) {
+		p.publishEvent(event.ProcessStuck{
+			BaseEvent: p.baseEvent(),
+			LastWorld: worldState,
+		})
+	}
 	return nil
 }
