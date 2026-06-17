@@ -257,6 +257,10 @@ func prepareChild(
 		return nil, fmt.Errorf("spawn child %q: create: %w", agentDef.Name, err)
 	}
 	if err := linkChildSession(ctx, platform, child, parentProc, agentDef); err != nil {
+		// CreateChildProcess already registered the child; linking its session
+		// failed, so unregister it. Left behind it leaks — a never-started
+		// child sits at StatusNotStarted, which PruneTerminalProcesses skips.
+		_ = platform.RemoveProcess(child.ID())
 		return nil, fmt.Errorf("spawn child %q: link session: %w", agentDef.Name, err)
 	}
 	if in != nil {
