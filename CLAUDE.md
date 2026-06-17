@@ -1,6 +1,6 @@
 # CLAUDE.md — lynx monorepo 项目级上下文
 
-> Go monorepo，14 个 sub-module 各自有 `go.mod`：`core` / `agent` / `models` / `vectorstores` / `tools` / `pkg` / `rag` / `chatmemory` / `documentreaders` / `mcp` / `a2a` / `skills` / `otel` / `lyra`。每个模块的具体形态见各自的 `CLAUDE.md`，本文件只放**跨模块共用**的约定。
+> Go monorepo，多个 sub-module 各自有 `go.mod`。本文件只放**跨模块共用的法则 —— 只宏观、不写具体**（具体案例、符号、文件名活在代码 / git / 各模块自己的 `CLAUDE.md` 里，会随演化变动，不进本则）。设计哲学的"为什么"见 [`DESIGN_PHILOSOPHY.md`](DESIGN_PHILOSOPHY.md)，落手重构的标尺见 [`REFACTORING.md`](REFACTORING.md)。
 
 ---
 
@@ -8,256 +8,106 @@
 
 > **最高优先级，凌驾于本文件其余所有约定之上。**
 
-**项目处于快速开发 / 试错阶段，没有历史债务、也没有外部兼容包袱** —— store schema、暴露的 API（exported 函数 / 类型 / 字段 / 协议 wire shape）、命名，**全都可以调整**。正因如此：
+项目处于快速开发 / 试错阶段，没有历史债务、也没有外部兼容包袱 —— store schema、暴露的 API（exported 函数 / 类型 / 字段 / 协议 wire shape）、命名，全都可以调整。正因如此：
 
 - ❌ **绝不为"少改几处 / 降低前期开发量 / 避免迁移 / 赶进度"留下任何历史债务** —— 迁就外部库或旧名字的命名、为兼容留的字段、推测性 shim、"以后再清"的 TODO，一律不留。
 - ✅ **发现设计不对，就在源头改对**，不在错的设计上叠补丁。**现在改成本最低，往后只会更贵。**
-- 命名 / shape 按**本质第一性**决定；参考业界（Anthropic / Codex 等）**只取思想、不作命名锚** —— 名字恰好相同，只因它在独立评估下最优，不为兼容或省迁移。
+- 命名 / shape 按**本质第一性**决定；参考业界**只取思想、不作命名锚** —— 名字恰好相同，只因它在独立评估下最优，不为兼容或省迁移。
 - **唯一允许背的"债"是"设计还没想清楚"本身**；绝不允许"明知更好、却为省事不改"。
-- 这条**不豁免**"破坏性公开 API 改动须先咨询用户"的约定（见下）：**先咨询，但默认倾向改对、而非将就。**
+- 这条**不豁免**"破坏性公开 API 改动须先咨询用户"的约定：**先咨询，但默认倾向改对、而非将就。**
 
 ---
 
 ## 第二法则 —— 修理问题必须治本，绝不治标
 
-> **与第一法则并列的最高优先级，凌驾于本文件其余所有约定之上。** 第一法则管"别欠债"，第二法则管"修就修到根"。
+> **与第一法则并列的最高优先级。** 第一法则管"别欠债"，第二法则管"修就修到根"。
 
-**修任何 bug / 问题，都在它的根因和正确的层上修，绝不在症状点打补丁、绝不 hacky。** 一个 workaround 让现象消失，但根因还在 —— 那不是修复，是把债（第一法则）藏进了"看起来修好了"的假象里，下一个相邻 bug 会从同一个根因再冒出来。
+修任何 bug / 问题，都在它的**根因和正确的层**上修，绝不在症状点打补丁、绝不 hacky。一个 workaround 让现象消失但根因还在 —— 那不是修复，是把债（第一法则）藏进"看起来修好了"的假象里，下一个相邻 bug 会从同一个根因再冒出来。
 
-- ❌ **绝不治标**：在症状点加 if 绕过、只在消费侧 workaround 而留源头不动、"加行日志/别吞错误就算修了"、reactive 地 coerce / retry / 兜底去掩盖上游的错误状态、把不变量交给"调用方记得别犯错"。
-- ✅ **治本**：找到根因落在哪一层，就在那一层改对。典型（本仓真实案例）：
-  - 持久化对 `any`/接口丢类型 → 在**持久化层**做类型保真（快照类型标签 + 类型表），而不是在读取处把 map 硬 coerce 回结构体。
-  - HITL resume 不幂等（best-effort delete 留陈旧记录）→ 改成**原子 Consume**（`DELETE … RETURNING`），而不是"删除失败就记个日志"。
-  - kill 会 clobber 终态 / 重复发事件 → 在 `KillProcess` **原语**加原子 CAS 守卫（源头），而不是只在某个调用方加"只 kill 非-Running"的绕过。
-  - 派生态无法 round-trip → **不持久化**它（`json:"-"`，restore 时重导出），而不是给它编一套假的序列化。
-- **根因常在更下/更内的层**（SDK 原语、接口契约、store schema），治本往往要动公开 API 或 schema —— 这正是第一法则允许的（dev 阶段可改）。**先按"破坏性公开 API 改动须先咨询用户"咨询，但默认倾向治本、而非在上层将就。**
-- **判据一句话**：问"根因消除了吗，还是只是这个现象不出现了？" —— 只让现象消失的，是治标，打回重修。
+- ❌ **绝不治标**：症状点加 if 绕过、只在消费侧 workaround 而留源头不动、"加行日志 / 别吞错误就算修了"、reactive 地 coerce / retry / 兜底去掩盖上游的错误状态、把不变量交给"调用方记得别犯错"。
+- ✅ **治本**：找到根因落在哪一层，就在那一层改对。根因常在更下 / 更内的层（SDK 原语、接口契约、store schema），治本往往要动公开 API 或 schema —— 这正是第一法则允许的；**先按"破坏性公开 API 改动须先咨询"咨询，但默认倾向治本、而非在上层将就。**
+- **判据一句话**：问"根因消除了吗，还是只是这个现象不出现了？"—— 只让现象消失的，是治标，打回重修。
 
 ---
 
-## 一句话定位
+## 定位与导览
 
-`lynx` 是一套**面向 AI agent / RAG / LLM 集成的 Go 基础设施**：`core` 定义协议、`models` 适配 38 个 LLM provider、`vectorstores` 适配 27 个向量库、`tools` 提供工具集、`agent` 跑 planner 驱动的 agent runtime、`lyra` 是 in-house 的 backend runtime（实现 Lyra Runtime Protocol）。所有模块共享一套**设计原则 + 重构节奏 + Go idiom 纪律**，下文规约。
+`lynx` 是一套面向 AI agent / RAG / LLM 集成的 Go 基础设施：`core` 定协议、`models` 适配 LLM provider、`vectorstores` 适配向量库、`tools` 提供工具集、`agent` 跑 planner 驱动的 runtime、`lyra` 是 in-house backend runtime；其余模块（`pkg` / `rag` / `chatmemory` / `mcp` / `a2a` / `skills` / `documentreaders` / `otel`）各司一域。每个 sub-module 的形态、关键类型、模块特有反向不变量见其自己的 `CLAUDE.md`。所有模块共享下文这套法则。
 
-## 子模块导览
-
-| 模块 | LOC | 角色 |
-|---|---|---|
-| [`core/`](core/CLAUDE.md) | ~13k | Document / Message / Store / CallHandler 协议层 |
-| [`agent/`](agent/CLAUDE.md) | ~13k | Planner / Blackboard / Runtime / Workflow |
-| [`models/`](models/CLAUDE.md) | ~15k | 38 个 LLM provider 适配器 |
-| [`vectorstores/`](vectorstores/CLAUDE.md) | ~21k | 27 个向量 DB 后端 |
-| [`tools/`](tools/CLAUDE.md) | ~7k | LLM-callable 工具集 |
-| [`pkg/`](pkg/CLAUDE.md) | ~9k | Generics / 并发 / 流式 工具库 |
-| [`rag/`](rag/CLAUDE.md) | ~1.6k | 5 阶段 RAG pipeline |
-| [`chatmemory/`](chatmemory/CLAUDE.md) | ~1.6k | Chat history DB 后端 |
-| [`mcp/`](mcp/CLAUDE.md) | ~1.3k | MCP client + server 桥 |
-| [`a2a/`](a2a/CLAUDE.md) | ~0.5k | A2A (Agent-to-Agent) client + server 桥（wraps a2a-go SDK） |
-| [`skills/`](skills/CLAUDE.md) | ~0.3k | Agent Skills (SKILL.md) 解析 / 取用基础能力（`tools/skills` 薄封装成 tool） |
-| [`documentreaders/`](documentreaders/CLAUDE.md) | ~0.7k | Markdown / HTML / PDF readers |
-| [`otel/`](otel/CLAUDE.md) | ~0.3k | OTel dev exporter |
-| [`lyra/`](lyra/CLAUDE.md) | ~10k | Lyra Runtime backend |
+---
 
 ## 共用强约定（违反 = 回归）
 
-- **Go 1.26.4 统一版本**：所有模块 `go.mod` 同步；用 `iter.Seq2` / `slices.*` / `maps.*` / `atomic.Int32` 等现代 stdlib
-- **依赖接口，不依赖具体类型**：跨包消费一定走 interface，**接口在消费方定义**（不在被消费方）。如果一个新模块要拿到 `*Engine` / `*Platform` / `*Service` 整体，先停下来想能不能拆成只用的几个方法
-- **ISP 切碎接口**：典型例子 `protocol.Runtime` 由 10 个子接口（`Lifecycle`/`Sessions`/`Runs`/`Items`/…）组合、transport/dispatch 各按需依赖其中一片（lyra），`tool.ToolSource` 一方法接口（lyra）。消费者只 import 自己用的那侧
-- **`errors.New` 优先于 `fmt.Errorf("constant")`**。`fmt.Errorf` 只在真要格式化时用，包装其他错误必须 `%w` 才能 `errors.Is/As`
-- **没有 Java 味**：禁 `impl.go` 文件 / `Impl` / `Service` / `Manager` / `Helper` / `Handler` 这种空白后缀 / `GetX/SetX` getter / `NewBuilder().With().Build()` 链。文件名描述内容（`inmemory.go` / `engine.go` / `sqlite/session.go`），struct 名描述本质
-- **现代 Go**：`atomic.Int32` / `atomic.Pointer[T]` / `sync.Map` 优先于自家 atomic wrapper；`slices.*` / `maps.*` 替代手写 loop；`iter.Seq2` 替代 channel-based 流
-- **可观测性走 OTel 三驾马车，全部 sink 到 `log/slog`（2026-06，vendor-neutral）**：观测 = **Traces（span）+ Metrics（instrument）**,用全局 `otel.Tracer("lynx/...")` / `otel.Meter("lynx/...")`,零 DI。全局 provider 在 app startup（`lyra/cmd/lyra/observability.go::setupObservability`）一次绑到 `otel/slog` 的三个 exporter（`NewSpanExporter` / `NewMetricExporter` / `NewLogExporter`）+ W3C propagator。规约：
-  - **不在业务代码里撒 `slog`**——一个事件该被观测,就开 span（带 attr）/ 记 metric,**不是**加一行 `slog.InfoContext`。Span 经 sink 渲染成日志行,已覆盖"Logs"那一驾。错误走 `span.RecordError` + `SetStatus(codes.Error)`。这条对**库和应用一视同仁**（lyra 也不撒）。
-  - **Logs 仍是一等 OTel 信号**：`slog.Default` 经 contrib `otelslog` bridge → `LoggerProvider` → `NewLogExporter`。意义是**可替换性**——生产把 exporter 换 OTLP（→ Datadog 等）即把 span/metric/log 全导到云,业务零改;同时兜住 stdlib `log` 重定向与第三方 slog。**不是**邀请你到处 `slog.InfoContext`。
-  - **attr key 去品牌**：semconv 优先（`gen_ai.*` / `db.*` / `rpc.method`），否则裸 domain（`run.*` / `agent.*` / `rag.*`），无 `lynx.*` / `lyra.*` 前缀。instrumentation scope 名（`otel.Tracer("lynx/lyra/...")`）保留 `lynx/` 路径——那是库标识不是数据。
-  - **全链路**：trace_id 在入口（HTTP transport）生成（提 W3C traceparent → 开 server span），脱钩后台 goroutine 用 `context.WithoutCancel` 保住 span（不是 `context.Background()`）。
-  - **例外**：(a) `otel/slog/` 子包本身是 OTel→slog 的 bridge;(b) 公开 API 接受 `slog.Level` 等 stdlib 类型作入参（如 `mcp.LogToClient`）;(c) `core/model/chat/middleware.NewSlogLogger` 是给用户的 optional convenience provider。
-  - 详见 [`doc/OBSERVABILITY.md`](doc/OBSERVABILITY.md) + [`otel/CLAUDE.md`](otel/CLAUDE.md)。**旧规则"禁 `slog.Default()`"已废（slog 是 sink,blessed）;但"观测优先用 span 而非 slog 行"这条仍然成立。**
-- **设计原则**（高内聚低耦合 / KISS / DRY / SOLID / YAGNI）—— 是判断标准，详见下方"## 设计原则"段
-- **目前开发阶段，公开 API 可以调整**：不写 legacy 兼容代码、不写 migration、schema / exported type / 函数签名变了直接换；注释里不提"Legacy …"。**但任何破坏性公开 API 改动必须先咨询用户**（不只是大重构 —— 改一个 exported 函数签名 / 删一个 exported 类型 / 改 struct field 也算），列清楚 scope + 影响面 + 备选方案，等用户确认再动手。这条规则适用于**所有 sub-module**
-- **加文档？先问** —— 每个 sub-module 已有 `CLAUDE.md`，本根级也已有。其他默认不写
+- **统一 Go 版本**：所有模块 `go.mod` 同步；用当前版本的现代 stdlib（`iter.Seq2` / `slices.*` / `maps.*` / 类型化 atomic 等）。
+- **依赖接口、不依赖具体类型**：跨包消费走 interface，且**接口在消费方定义**（不在被消费方）。要拿整个 `*Engine` / `*Platform` / `*Service` 时，先停下来想能不能只依赖用到的那几个方法。
+- **ISP 切碎接口**：接口只放调用方真用的方法；胖接口拆成按需组合的子接口，装配处 union、消费者各依赖自己那片。
+- **错误**：`errors.New` 优先于 `fmt.Errorf("常量")`；`fmt.Errorf` 只在真要格式化时用，包装错误一律 `%w`（才能 `errors.Is/As`）。
+- **没有 Java 味**：禁空白后缀类型名（`Impl` / `Service` / `Manager` / `Helper` / `Handler`）、禁泛文件名（`impl.go` 等）、禁 `GetX/SetX` getter、禁 builder 链。文件名描述内容、struct 名描述本质。
+- **现代 Go**：类型化 atomic / `sync.Map`（write-rare）优先于自家 wrapper；`slices.*` / `maps.*` 替手写 loop；`iter.Seq2` 替 channel 流。
+- **可观测性 = OTel 三驾马车，sink 到 `log/slog`（vendor-neutral）**：观测 = Traces（span）+ Metrics（instrument）+ Logs，用全局 `otel.Tracer` / `otel.Meter`、零 DI，组合根在启动时一次性绑定 exporter + W3C propagator。规约：
+  - **不在业务代码里撒 `slog`** —— 一个事件该被观测，就开 span（带 attr）/ 记 metric，而非加一行日志行；错误走 `span.RecordError` + `SetStatus`。库和应用一视同仁。
+  - **Logs 仍是一等 OTel 信号**（slog 经 bridge 进 LoggerProvider）—— 意义是**可替换性**（生产换 OTLP exporter 即把 span/metric/log 全导云端、业务零改），不是邀请到处写日志。
+  - **attr key 去品牌**：semconv 优先，否则裸 domain 名，无项目前缀（instrumentation scope 名保留库路径 —— 那是库标识不是数据）。
+  - **全链路**：trace_id 在入口生成，脱钩的后台 goroutine 用 `context.WithoutCancel` 保住 span（不是 `context.Background()`）。
+  - 细节见 [`doc/OBSERVABILITY.md`](doc/OBSERVABILITY.md) + [`otel/CLAUDE.md`](otel/CLAUDE.md)。
+- **设计原则**（高内聚低耦合 / SOLID / DRY / KISS / YAGNI）见下「设计原则」段 —— 是判断标准，不是口号。
+- **公开 API 可调、但不可擅自调**：dev 阶段不写 legacy 兼容 / 不写 migration、schema·exported type·签名变了直接换、注释不留"Legacy …"；**但任何破坏性公开 API 改动（含改一个签名 / 删一个类型 / 改一个字段）必须先咨询用户**，列清 scope + 影响面 + 备选方案，等确认再动。适用所有 sub-module。
+- **加文档先问**：每个 sub-module 已有 `CLAUDE.md`，其他默认不写。
 
 ## 共用强反向不变量（已知错的方向）
 
-- ❌ **加 retry layer**：SDK 内部已有 retry 就够，不在 `pkg/retry` 引入 Transient / NonTransient 分类
-- ❌ **structured output 自己开 converter 链**：`chat.JSONParser[T]` / `ListParser` / `MapParser` 已覆盖 spring-ai converter family，Reasoning 是 first-class
-- ❌ **`DefaultOptions` 返回 `*Options` 指针**：必须返值（intentional immutability）
-- ❌ **手写 `fmt.Errorf("xxx is nil")`**：换 `errors.New`。包装 err 一律 `%w`
-- ❌ **新增模块直接 import `*Engine` / `*Platform` / `*Service` 整体**：定义自己包内的窄接口
-- ❌ **接口里塞所有 method**：subscriber 只用 3 个、producer 用另外 2 个 —— 拆 ISP
-- ❌ **复制公共类型**（典型：enum 双份）：留一份，import 一下
-- ❌ **stub interface placeholder**（`// M5 wires this` 这种）：真要做时再定义；当前删
-- ❌ **给 LLM provider 加 OAuth / token refresh**：用户填 API key、err 401 让 UI 提示重填
+- ❌ 加 retry layer / Transient·NonTransient 分类 —— SDK 内部已有 retry 就够。
+- ❌ structured output 另起 converter 链 —— 既有 parser family 已覆盖，Reasoning 是 first-class。
+- ❌ 让本应返值的不可变构造器返指针。
+- ❌ 手写 `fmt.Errorf("xxx is nil")` —— 用 `errors.New`；包装一律 `%w`。
+- ❌ 新模块直接 import 整个 `*Engine` / `*Platform` / `*Service` —— 定义自己包内的窄接口。
+- ❌ 胖接口塞所有方法 —— 按消费者拆 ISP。
+- ❌ 复制公共类型（典型 enum 双份）—— 留一份 import。
+- ❌ stub interface / 推测性占位（"以后接"）—— 真要做时再定义。
+- ❌ 给 LLM provider 加 OAuth / token refresh —— 用户填 key，401 让 UI 提示重填。
 
 ## 设计原则
 
-判断"这段代码该不该这么写 / 这个 PR 该不该 merge"的硬尺子。每条都配 lynx 真实命中的例子。
+判断"这段代码该不该这么写 / 这个 PR 该不该 merge"的硬尺子。**背后的"为什么"（薄核 + 三形态变体 + 窄腰 + 一个扩展机制 + 库优于框架）见 [`DESIGN_PHILOSOPHY.md`](DESIGN_PHILOSOPHY.md)；落手重构的标尺见 [`REFACTORING.md`](REFACTORING.md)。**
 
-> **本段是速查红线版。** 这些原则背后的**组织哲学 + 包设计规范 + 编码规范的"为什么"**(薄核 + 三形态变体 + 窄腰 + 一个扩展机制 + 库优于框架,经 embabel convergent design 与 Go 团队 MCP SDK 双重印证)见 [`DESIGN_PHILOSOPHY.md`](DESIGN_PHILOSOPHY.md)。设计新能力 / 新包 / 改公开 API 前,先用它的 §1 试金石与 §6 自检清单过一遍。
+- **高内聚低耦合**：一个 package / struct 内的东西为同一个目的服务（高内聚）；应用层跨包依赖走最小接口而非具体类型（低耦合）。二者矛盾时宁可包多一点、接口多一点，也别让一个包横跨多个 domain、或一个具体类型变成跨包枢纽。
+- **SRP（单一职责）**：一个 struct / 函数只有一个变化的理由。信号：字段过多 + 方法过多 / 函数过长 / 文件过大 —— 通常是 SRP 信号；但先判断是不是固有复杂度（是则用字段分区注释表达，而非硬拆）。
+- **OCP（开放扩展、关闭修改）**：加新能力靠加新类型，不靠改老 dispatch loop。Go 里用 interface + 类型断言 / 泛型类型分发实现，不用继承。
+- **LSP（可替换）**：实现一个接口就要完整满足其语义与**行为契约**（不只是签名），不能某些方法 / 参数实现某些不实现。用编译期断言 + stub 双重保证。
+- **ISP（接口隔离）**：接口只放调用方真用的方法。**库 vs 应用（关键）**：消费方窄接口是给**应用层**（多实现 + 可测 + 跨模块边界）的；**SDK 库内部单实现依赖直接用具体类型** —— 抽窄接口是 YAGNI 仪式。窄接口在库里只留给公开 SPI。
+- **DIP（依赖倒置）**：高层依赖抽象、不依赖低层具体类型；接口定义放消费方，不放被消费方。
+- **DRY**：同样的逻辑 / 类型 / 字符串出现 **3 次以上**才考虑抽象（更少时抽象比重复糟）。DRY 是消除"改一处要连改 N 处"的脆性，不是单纯消字符 —— 会因不同原因独立演化的相似代码**不要 DRY**（虚假 DRY 比重复贵）。
+- **KISS**：简单 > 巧妙（维护占 90% 时间）。信号：嵌套泛型 > 2 层 / 反射 / `interface{}` / type-switch 长尾 / 闭包深嵌 —— 常是"能写"但不该写。
+- **YAGNI**：不为不存在的需求做抽象 / 留 hook / 加配置 / 留接口。信号：推测性占位、单实现且不打算多的接口、永不改的默认字段 —— 删 / 内联。但 YAGNI ≠ 永不为未来打算：**已发生过多次的扩展是预见、不是推测**。
+- **Go-specific**：accept interfaces, return structs；make zero values useful；composition over inheritance（embed 是 has-a，慎用）；smaller interfaces are better（1 方法接口常最有用）；接口在消费方定义。
 
-### 高内聚低耦合（High Cohesion / Low Coupling）
+**原则冲突时**：DRY vs 低耦合 —— 抽 helper 引入不想要的跨包依赖时宁可重复；ISP vs KISS —— 看调用方实际数（1 个 caller 用全部方法别拆，多个 caller 各用一片该拆）；YAGNI vs OCP —— 扩展是否已真实发生过（发生过 = 保留扩展点，只是猜 = 删）。**判断基线**：永远倾向"现在这样写没问题、要扩展时再改"，而非"现在多写一层、万一以后用得上" —— 未来可重构，过度抽象难逆转。
 
-- **高内聚** = 一个 package / struct 内的东西**为同一个目的服务**。`internal/domain/session/` 全是会话生命周期、`agentdoc/` 全是 AGENTS.md 发现 —— 这就是高内聚
-- **低耦合** = **应用层**跨包依赖**通过最小接口**而不是具体类型。lyra chat 服务依赖 `chat.Engine`（5 方法）不直接抱 `*engine.Engine`。（**SDK 库内部例外**：单实现依赖直接用具体类型，见 ISP 段「库 vs 应用」）
-- **二者矛盾时**：宁可包多一点（更高内聚）也别让一个包横跨多个 domain；宁可接口多一点（更低耦合）也别让一个具体类型变成跨包枢纽
-- ❌ 反例：`chat.New(*engine.Engine)` —— 一处改 engine API 整个 chat 测试都得重写
+## 重构
 
-### SRP — Single Responsibility（单一职责）
+**重构是节奏，不是可选项**，分两档：
 
-- 一个 struct / 一个函数**只有一个变化的理由**。`compactor` 只在 compaction 算法变时改；`extractor` 只在 LYRA.md 提取规则变时改；`planner` 只在 plan 生成 prompt 变时改 —— engine 把它们组合，不自己实现
-- 信号：struct field > 8 + method > 10 / 函数 > 80 行 / 文件 > 500 行 —— 通常 SRP 信号，考虑拆
-- ❌ 反例：原 `ProcessContext` 把 chat client / guardrails / tool resolver / cancel hook 等 11 个字段混在一起 —— 分析后是 inherent complexity，用**字段分区**注释表达 SRP 而非物理拆分
+- **小型（每几轮 feature）**：聚焦最近改动的文件，扫超长文件 / 局部重复 / 死注释 / 命名漂移 / 新增 exported API 是否破坏既有抽象 —— 产出小（净变化小、touch 少）；无破坏性公开 API 时直接做完跑全绿 commit。
+- **大型（每十几~二十轮 feature）**：跨模块扫死代码 / 超大文件拆 SRP / 跨包重复 / god struct / 具体类型跨包暴露该不该收窄 / 包拆合 —— 产出 multi-batch 计划，用户确认后逐批 commit、每批之间全绿。
 
-### OCP — Open/Closed（开放扩展、关闭修改）
-
-- **加新能力靠加新类型，不靠改老 dispatch loop**。`runtime.collectExtensions[T any]([]Extension)` 是范例：要加新 ToolDecorator / ActionMiddleware / GoalApprover —— 实现接口就自动被 dispatch 发现
-- Go 里通常用 **interface + type assertion / generic 类型分发** 实现 OCP，不用继承
-- ❌ 反例：想拆掉 `EarlyTerminationPolicy` 的 `Extension` embed —— 后来发现 embed 是承重的（`collectExtensions` 靠它），删了反而要新加注册路径，**OCP 反而被破坏** → audit 误判，保留
-
-### LSP — Liskov Substitution（可替换）
-
-- 实现一个接口就要**完整满足语义**，不能某些方法实现某些不实现 / 某些参数支持某些不支持
-- Go 里用 `var _ Iface = (*Impl)(nil)` 编译期断言（如 lyra `var _ memory.Service = (*FileMemoryService)(nil)`）+ 测试用 stub 实现接口双重保证
-- ❌ 反例：`Service.Update(ctx, x)` 实现里悄悄忽略 ctx —— 调用方 cancel 不生效。LSP 不只看签名，还看行为契约
-
-### ISP — Interface Segregation（接口隔离）
-
-- **接口里只放调用方真用的方法**。`protocol.Runtime` 不是一个胖接口，而是 `Lifecycle`/`Sessions`/`Runs`/`Items`/`Workspace`/`Providers`/`Models`/`Tools`/`Memory`/`Feedback` 十个子接口的组合 —— 装配处把它们 union 成 `Runtime`，但消费方各依赖自己那片
-- Rob Pike: "The bigger the interface, the weaker the abstraction." 大接口逼实现方塞 stub、逼 caller 多了解不该知道的
-- **库 vs 应用（关键）**：消费方窄接口是给**应用层**的（lyra：多实现 + 可测 + 跨模块边界）。**SDK 库内部**（agent）的**单实现**依赖直接用具体类型——抽窄接口是 YAGNI 仪式（按「单实现接口→内联」）。例：agent `autonomy` 已从 2 方法 `platform` 窄接口**内联回** `*runtime.Platform`。窄接口在库里只留给**公开 SPI**（`Planner`/`Ranker`/`Extension` 子接口）
-- ⚠️ 反向教训（ISP vs KISS）：approval 曾按 ISP 拆成 `Console`/`Gate`，但所有消费方（turn 门禁 + delivery）都用整个 4 方法 stance surface —— 拆是 ceremony，已**收回**成单一 `approval.Service`。单 caller 用全部方法别拆（见「原则冲突时怎么办」ISP vs KISS）
-
-### DIP — Dependency Inversion（依赖倒置）
-
-- **高层模块依赖抽象，不依赖低层具体类型**。chat → `chat.Engine` interface（在 chat 包内定义）→ `*engine.Engine` 隐式满足。chat 包**不 import** engine 包的具体类型（除了共享 wire types）
-- 接口定义**放消费方**，不放被消费方（典型 Go idiom）
-- ❌ 反例（**应用层**）：lyra chat / tool 曾直接 import `*engine.Engine` 整体 —— 已改窄接口。（**SDK 库内部反而有意**直接用 `*runtime.Platform`：见 ISP 段「库 vs 应用」）
-
-### DRY — Don't Repeat Yourself
-
-- 同样的逻辑 / 类型 / 字符串出现 **3 次以上**才考虑抽象（小于 3 次抽象比重复更糟，参考 KISS）
-- DRY 的目的是消除"改一处必须连改 N 处"的脆性，**不是单纯消除字符**。如果两段相似代码会因不同原因独立演化，**不要 DRY**（虚假 DRY 比重复更糟）
-- ✅ 例：`config.MCPTransport` 和 `engine.MCPTransport` enum 双定义 → 合一份；`fmt.Errorf("constant")` 58 处 → `errors.New(...)`
-- ❌ 反例：把所有 provider adapter 的 `requestHelper` 强行抽公共基类 —— SDK shape 差异 > 相似度，会成累赘
-
-### KISS — Keep It Simple, Stupid
-
-- **简单 > 巧妙**。读代码的人 90% 时间在维护，写代码的人 10% 时间在创造
-- 信号：嵌套泛型 > 2 层 / 反射 / `interface{}` / type-switch 长尾 / 函数闭包嵌套 —— 通常都是"我可以这么写"但不该这么写
-- ✅ 例：SDK 库内部不为单实现依赖抽窄接口（agent `autonomy` 直接持 `*runtime.Platform`，而非引入 2 方法 `platform` 接口）—— 少一层就少一层
-- ❌ 反例：approval 的 `atomicMode{value int32}` 自家 wrapper —— `atomic.Int32` 一句话搞定（已删）
-
-### YAGNI — You Aren't Gonna Need It
-
-- **不为未来不存在的需求做抽象 / 留 hook / 加配置 / 留接口**。每个推测性"为以后扩展留的"位都是债
-- 信号：`// TODO: M5 wires this` / `// stub for later` / `Service` interface 只有一个 impl 且不打算多 / 配置字段 default = 永远不改 —— **删 / 内联 / 删字段**
-- ✅ 例：删 `trace.Service` 整个 stub 包；删 `Platform()` / `ChatAgent()` 零调用方 getter；`ServiceProvider` modernize 提案 —— 一看零 caller，整个 modernize 都不值得做
-- 风险：YAGNI ≠ "永远不为未来打算"。**已经发生过 3 次的扩展需求 ≠ 推测**，那叫预见
-
-### Go-specific 几条
-
-- **Accept interfaces, return structs**：函数入参用接口（最大兼容性）、返回值用具体类型（最大信息量）。`chat.New(eng Engine, ...) Service` —— 入接口出接口是因为这是 service 边界
-- **Make zero values useful**：struct 零值能用就别要构造函数。`bytes.Buffer{}` / `sync.Mutex{}` 都是范例
-- **Composition over inheritance**：Go 没有继承，只有 embed + interface。embed 是 has-a 不是 is-a，慎用（容易让方法集变得难追）
-- **Smaller interfaces are better**（Rob Pike）：1 方法的 interface 经常是最有用的。`io.Reader` / `io.Writer` / `tool.ToolSource`（1 方法）都是这条
-- **接口在消费方定义**（不在被消费方）：chat 包定义 `Engine` interface 给自己用；engine 包**不主动 export** 任何"给 chat 用的接口"。这条跟 DIP 配对
-
-### 原则冲突时怎么办
-
-- **DRY vs 低耦合**：抽公共 helper 引入了不想要的跨包依赖时，**宁可重复**（虚假 DRY 比重复贵）
-- **ISP vs KISS**：拆 2 个接口 vs 接口里多 1 个方法 —— 看调用方实际数。1 个 caller 用 5 方法别拆；3 个 caller 各用 2 方法该拆
-- **YAGNI vs OCP**：留扩展点 vs 不为未来抽象 —— 扩展是不是已经发生过？发生过 = OCP（保留）；只是猜 = YAGNI（删）
-- **判断标准**：永远倾向"现在这样写没问题，要扩展时改"而不是"现在多写一层，万一以后用得上"。**未来可以重构，过度抽象很难逆转**
-
-## 重构策略（参考前端 CLAUDE.md，Go 化）
-
-> **重构要求的泛化规范见 [`REFACTORING.md`](REFACTORING.md)** —— 命名 / 注释 / 指针vs值 / nil 守卫 / 自由函数vs方法 / 卫语句降圈复杂度 / 现代 Go / 就近原则组织 / Go idiom 硬规则 / 节奏纪律,全部抽象表述、跨模块通用。重构前先过一遍它。本段保留本仓特有的**两档节奏 + 触发信号 + Fowler 式清单**作为补充。
-
-**重构是节奏，不是可选项 —— 分两档**：
-
-- **小型重构（每 3-5 轮 feature）**：聚焦最近改动的那几个文件。扫一遍：
-  - 单文件超 300 行没？
-  - 局部 3+ 重复 pattern？
-  - 最近加的注释里有 what-说明可删？
-  - 最近 rename 漂移没（两个名字指同一个东西）？
-  - 最近新增的 exported API 破坏既有抽象没？
-  - **产出**：抽 1-2 个 helper / 删几条死注释 / 精修 1-2 个名字 / 改 1 个文件的字段分区 —— **净变化 < 100 LOC、touch < 5 文件**
-  - **不需要咨询用户**（除非碰到破坏性公开 API），直接做完跑 `go build && go vet && go test ./...` 全绿 commit
-
-- **大型重构（每 15-20 轮 feature）**：跨整个模块扫，参考 lyra A-E / agent A-D 范例
-  - 跑 `go vet ./...` + `staticcheck ./...`（如装了）找未引用的 exports / dead branches
-  - 找 > 500 行的文件考虑拆 SRP
-  - 找跨包的 3+ 重复（不只是局部）—— typical 例子：MCP enum 双定义、`fmt.Errorf("constant")` 散落
-  - 找 god struct（field > 8 + method > 10）考虑组合化
-  - 找具体类型跨包暴露 —— 是不是应该收窄成 interface
-  - 考虑是否要拆 / 合 package
-  - **产出**：multi-batch 重构计划（A/B/C/D/E），用户确认后逐批 commit；每批之间跑 `go build && go vet && go test ./...` 全绿
-
-- **共同做法**（lyra / agent 重构 session 验证过）：
-  - 上来**先深度审计**（grep / Explore agent / 读文件），不要直接动手
-  - 把发现分类（Java-isms / coupling / cohesion / SOLID / DRY / 命名 / 现代 Go），按 impact 排序
-  - 给 3-5 项候选 batch + 每项的"动 vs 不动"权衡
-  - **等用户确认再动**，每批一个 commit、可独立 revert
-  - 重构跑完**承认 audit 过度 call 的项**（lyra C+E、agent C+E 都最终 skip 了，因为深入看发现 audit 误判）—— 这是正常 false positive，不是失败
-  - 每批 commit message 写清"why"，把 audit 的发现 + skip 理由都记下来
-
-- **目的**：小型重构防局部熵增（每个文件不至于失控），大型重构防架构熵增（整体不至于尾大不掉）
-
-- **触发信号**（任何一项命中就该考虑）：
-  - 单文件 > 500 行（god file）
-  - 同 struct field > 8 + method > 10（god object）
-  - 一个 type 的方法被多个包消费、但消费方各自只用 2-3 个（→ 该收窄成 interface）
-  - `addXxx / removeXxx` 或 `getXxx / setXxx` 模式 > 3 处未抽象
-  - 命名漂移（两个名字指同一个东西，或一个名字指两个东西）
-  - 最近 commit 里有反复改同一段代码（说明抽象方向错了）
-  - 加新 feature 需要改多个文件的同一类样板代码（说明缺一层抽象）
-  - `// TODO: M5 wires this` / `// stub for later` 这种推测性占位（YAGNI 信号）
-
-**重构清单**（Fowler《重构》的 Go 实践版，每轮扫的不止拆分还包含）：
-
-- **(a) 死代码清理** —— 跑 `go vet` + `staticcheck`（如装了）+ 全文 grep 一遍 exported 符号的调用方。零调用方 = 删，**不留"将来可能用"**（`ServiceProvider`、`Platform()` getter 都是这条命中删的）
-- **(b) 卫语句替代嵌套 if** —— `if !ok { return }` 比层层缩进的 if/else 链可读 10 倍
-- **(c) 查表法替代条件链** —— 3+ `switch case` 或嵌套 `if/else if` 通常应该是 `map[K]V` 查表（除非用 generic 类型分发，如 `collectExtensions[T]`）
-- **(d) 精准命名** —— `idCounter` → `nextCompositeKeyId`；`x` / `tmp` / `data` / `result` / `obj` 不算名字；文件名 `impl.go` 是 Java 味（→ `inmemory.go` / `engine.go` / `sqlite.go`）
-- **(e) 注释清理** —— 大段解释 what 的删（代码自身说明）；过期的迁移注释删（"Legacy …" 这种）；误导性的"为什么这样写"（实际不再这样了）删。留下来的只解释 _why_ 而不是 _what_。`// M5 wires this` 这种推测性占位删
-- **(f) 现代 Go 扫描** —— `sync/atomic` 用 `atomic.Int32` 不用手写 wrapper / `sync.Map` 替代 `mutex + map`（适合 write-rare）/ `slices.*` `maps.*` helper 替代手写 loop / `iter.Seq2` 替代 channel-based 流 / `errors.New("...")` 替代 `fmt.Errorf("constant")` / `%w` 包装错误
-- **(g) 接口收窄扫描** —— **仅应用层 / 多实现**：跨模块传递的具体类型（lyra `*engine.Engine` 等），消费方只用几个方法就收窄成自定义窄接口。**SDK 库内部单实现依赖不收窄**（YAGNI，见设计原则 ISP「库 vs 应用」；agent `autonomy` 已把 `platform` 窄接口内联回 `*runtime.Platform`）
-- **(h) 性能扫描** —— 热路径上 `sync.RWMutex` vs `sync.Map` 是否合适？循环里有 N² `slices.Index` / `Contains`？大 struct 是 copy 还是 pointer 传递？SSE / stream 路径有没有 buffering 把 flush 搞砸？
+**目的**：小型防局部熵增（每个文件不失控），大型防架构熵增（整体不尾大不掉）。**触发信号、Fowler 式重构清单（死代码 / 卫语句 / 查表 / 接口收窄 / 性能扫描…）、命名·注释·指针vs值·nil 守卫·就近组织·节奏纪律的完整标尺见 [`REFACTORING.md`](REFACTORING.md)** —— 重构前先过一遍。
 
 ## 注释纪律：轻易不要写注释
 
-优先让代码通过**命名、结构和抽象**自解释；想写注释时先问"能不能改个名字 / 抽个函数 / 调整结构让它不言自明"，能就别写。注释是代码表达力用尽后的**最后手段**，不是第一反应。只有以下情况**应该**写（写的是代码无法表达的信息）：
+优先让代码通过**命名、结构、抽象**自解释；想写注释先问"能不能改名 / 抽函数 / 调结构让它不言自明"。注释是表达力用尽后的**最后手段**。只在以下情况写（写的是代码无法表达的信息）：
 
-1. **接口定义**：语义、参数、返回值、异常（error 语义 / sentinel errors）、副作用与调用约束。Go 里这条就是 **godoc**：exported 符号的 doc comment 是公开契约的一部分，按惯例写（以符号名开头的完整句、说明 error 何时返回、并发安全性）；unexported 的才适用"轻易不写"。
-2. **特殊约定**：业务规则、历史原因、兼容要求、外部系统约束（协议条款、LLM provider SDK 的怪癖、向量库 API 限制）——这些不在代码里，只在上下文里。
-3. **特殊算法**：算法思路、边界条件、复杂度与非显然优化（看得懂每一行 ≠ 看得懂为什么这样算）。
-4. **反直觉实现**：为什么**不能**用更常见、更简单的写法（防止下一个人"好心"改回去——设计原则段里的 ❌ 反例条目就是这类注释的文件级版本，如 `Extension` embed 是承重的、`DefaultOptions` 必须返值）。
-5. **并发 / 事务 / 安全等关键约束**：goroutine 所有权与生命周期、锁的持有顺序、channel 关闭方、ctx 取消语义、信任边界——违反不报编译错、只在生产炸。
+1. **接口定义（godoc）**：语义、参数、返回值、error 语义 / sentinel、副作用与调用约束、并发安全 —— exported 符号的 doc comment 是公开契约；unexported 才适用"轻易不写"。
+2. **特殊约定**：业务规则、历史原因、兼容要求、外部系统约束（协议条款、第三方 SDK 怪癖）—— 不在代码里、只在上下文里。
+3. **特殊算法**：思路、边界条件、复杂度、非显然优化。
+4. **反直觉实现**：为什么**不能**用更常见更简单的写法（防下一个人"好心"改回去）。
+5. **并发 / 事务 / 安全约束**：goroutine 所有权与生命周期、锁持有顺序、channel 关闭方、ctx 取消语义、信任边界 —— 违反不报编译错、只在生产炸。
 
-- **判据一句话**：注释只写 _why_ 与_约束_，不写 _what_ 与 _how_——what/how 该由代码自己说；复述代码的注释在代码变更时必然腐烂成误导。
-- **配套要求**：改了代码必须同步改注释，宁可删掉也不留过期的；注释对着**下一个读者**说话，不对 reviewer 说话（"此处修复 bug X"、"按 review 意见调整"一类一律不写）。与重构清单 (e) 注释清理、YAGNI 的"推测性占位注释删"同源。
-
-## Go idiom 纪律（写代码 / review 时必看）
-
-近期重构沉淀的硬规则：
-
-- **错误构造**：`fmt.Errorf("constant string")` 是浪费 → `errors.New("...")`。错误包装一律 `%w`，没有 `%v`
-- **接口在消费方定义**：典型例子 `chat.Engine` 定义在 chat 包内，`*engine.Engine` 隐式满足。被消费的具体类型**不主动暴露接口**给消费者 import —— 消费者自己写
-- **应用层测试用 stub 接口**（多实现 + 隔离），编译期断言 `var _ Iface = (*Impl)(nil)` 防接口漂移。**SDK 库内部用真实具体依赖测**——agent `autonomy` 测试直接构造 `*runtime.Platform`，不为测试抽窄接口
-- **`impl.go` 是 Java 味**：实现文件按本质命名 —— `inmemory.go`（单进程内存实现）/ `engine.go`（engine-backed）/ `sqlite/session.go`（特定 backend）
-- **`atomic.Int32` 直接用**，别再包一层 `atomicXxx` wrapper（`Store(int32(v))` / `Load()` 就够）
-- **结构体字段超过 6 个**：用注释 `// --- xxx ---` 分区。读起来一目了然
-- **跨包用 generic 类型分发**：`runtime.collectExtensions[T any]([]Extension)` 是 lynx codebase 的核心 pattern。需要类型路由的场景优先用 generic，不用 type switch
-- **dead code 立刻删**：发现 `Platform()` 这种零调用方的 exported getter —— 删。哪天真需要时再加，那时已经知道签名该长什么样
-- **`sync.Map` 适合 write-once / read-many**：`FileMessageStore` 的 per-conversation lock 是典型场景。不适合 write-heavy
-- **不要测一个具体类型有没有实现接口**：编译期断言 `var _ Service = (*inMemory)(nil)` 比运行时检查好
+- **判据一句话**：注释只写 _why_ 与_约束_，不写 _what_ 与 _how_ —— 复述代码的注释在代码变更时必然腐烂成误导。
+- 改代码必同步改注释，宁可删不留过期；注释对**下一个读者**说话，不对 reviewer 说话（"此处修复 bug X" / "按 review 调整"一律不写）。
 
 ## 沟通约定
 
-- **中文回复**（用户偏好）
-- 代码 / 注释保持英文
-- 大重构前先给批次方案 + 权衡，等用户确认再动；每批一个 commit，可独立 revert
-- **公开 API 改动前先咨询用户**（exported 函数 / 类型 / 字段签名变化，跨包消费者会受影响）—— dev 阶段允许改，但不允许"擅自"改。列出 scope + 影响面 + 备选方案，等"动"再动
-- 改动后跑 `go build && go vet && go test ./...` 全绿才 commit
-- commit message 写清"why"而不仅是"what"
-- commit trailer 用 `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`
+- **中文回复**（用户偏好）；代码 / 注释保持英文。
+- 破坏性或结构性改动前先给 scope + 影响面 + 备选方案，等用户确认再动；每批一个可独立 revert 的 commit。
+- 改动后 `go build && go vet && go test ./...` 全绿才 commit；commit message 写清 _why_ 而非仅 _what_；commit 后默认推送。
+- commit trailer：`Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`。
