@@ -196,14 +196,21 @@ func (p *Platform) ResumeProcess(id string, response any) (core.ResponseImpact, 
 	return impact, nil
 }
 
-// KillProcess terminates a running process. Returns an error when
-// the id is unknown.
+// KillProcess terminates a process: it transitions to [core.StatusKilled] and
+// publishes [event.ProcessKilled]. Idempotent and safe on any process — an
+// already-terminal one is left untouched (no-op), so a kill racing a natural
+// completion can't clobber a clean Completed/Failed into Killed or fire a
+// spurious / duplicate ProcessKilled. The check-and-set is atomic
+// ([processState.markKilled]); the event publishes only on a real transition.
+// Returns an error when the id is unknown.
 func (p *Platform) KillProcess(id string) error {
 	proc, ok := p.ProcessByID(id)
 	if !ok {
 		return processNotFoundError("kill process", id)
 	}
-	proc.state.setStatus(core.StatusKilled)
+	if !proc.state.markKilled() {
+		return nil
+	}
 	p.publish(event.ProcessKilled{
 		BaseEvent: event.NewBaseEvent(id),
 		Reason:    "kill requested",
