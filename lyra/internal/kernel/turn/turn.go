@@ -224,6 +224,15 @@ func (s *inMemory) drive(st *turnState, doneCh <-chan error) {
 // deadlocked interrupt (API.md §6.2) the turn auto-denies (via the shared
 // [inMemory.resumeAndDrive]) and the continuation runs to a real terminal.
 func (s *inMemory) handleWaiting(st *turnState, proc kernel.ChatProcess) {
+	// Canceled while the process was parking: Cancel cancels st.ctx but skips
+	// killing a process that still read Running, so a turn that parks just
+	// afterwards lands here with a dead ctx. Don't surface an interrupt nobody
+	// will answer — terminate the suspended process and emit the terminal.
+	if st.ctx.Err() != nil {
+		_ = proc.Cancel()
+		s.finishTurn(st, TurnEndCanceled)
+		return
+	}
 	aw := proc.PendingAwaitable()
 	if aw == nil || s.canSurface(interruptKind(aw)) {
 		s.emitInterrupt(st, proc)

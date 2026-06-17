@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/lyra/internal/domain/approval"
 	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/lyra/internal/kernel"
@@ -202,13 +203,15 @@ func (s *inMemory) InjectSteering(_ context.Context, handle TurnHandle, message 
 	return nil
 }
 
-// Cancel routes through the agent runtime when the chat process has
-// already dispatched — Platform.KillProcess flips the process to
-// StatusKilled and the run loop exits at its next checkpoint. The
-// ctx cancel still fires too so any in-flight LLM stream (which
-// reads ctx.Done()) aborts promptly. For turns still in plan-mode
-// (proc not yet populated), only the ctx cancel applies — runTurn
-// observes ctx.Done() during waitDecision and emits TurnEndCanceled.
+// Cancel stops a turn. The ctx cancel is the primary signal: it aborts any
+// in-flight LLM stream (which reads ctx.Done()) and drives a RUNNING process's
+// run loop to its own terminal via markCancelled — the single ProcessKilled
+// publisher. KillProcess is reserved for a process that ISN'T looping
+// (parked/suspended on a HITL interrupt, or not yet started): there's no loop
+// to observe the ctx cancel, so it's terminated explicitly. Killing a Running
+// process here instead would clobber its status — dropping a continuation a
+// racing Resume just started (the approved tool never runs) — and publish a
+// duplicate ProcessKilled alongside markCancelled.
 func (s *inMemory) Cancel(_ context.Context, handle TurnHandle) error {
 	state, err := s.findTurn(handle.TurnID)
 	if err != nil {
@@ -219,7 +222,9 @@ func (s *inMemory) Cancel(_ context.Context, handle TurnHandle) error {
 	// suspended turn (whoever flips it false wins).
 	proc := state.process()
 	claimed := state.claimPark()
-	if proc != nil {
+	if proc != nil && proc.Status() != core.StatusRunning {
+		// Not actively looping (parked / not-yet-started): the ctx cancel
+		// won't drive it to a terminal, so kill it explicitly.
 		_ = proc.Cancel()
 	}
 	if claimed {
@@ -373,6 +378,22 @@ func (s *inMemory) emit(st *turnState, ev Event) {
 		Seq:       st.seq.Add(1),
 		Timestamp: time.Now(),
 	})
+	// Prefer delivery: when the buffer has room the event lands regardless of
+	// whether the turn ctx was already canceled. This is what makes a canceled
+	// turn's TERMINAL event (TurnEnd / the ErrorEvent before it) reach a
+	// consumer still draining the stream — Cancel cancels st.ctx *before* the
+	// finishTurn / drive path emits the terminal, so a bare select would race
+	// the terminal into the ctx.Done() escape and drop it (a lost TurnEnd
+	// misreports the outcome as canceled, or as no end at all). A keeping-up
+	// consumer has drained the buffer by terminal time, so the fast path lands
+	// it; only a backed-up buffer falls through to the escape below.
+	select {
+	case st.events <- stamped:
+		return
+	default:
+	}
+	// Buffer full: block until the consumer drains, or bail when the turn ctx
+	// is canceled so a producer never wedges on an abandoned channel.
 	select {
 	case st.events <- stamped:
 	case <-st.ctx.Done():
