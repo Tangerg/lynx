@@ -73,10 +73,11 @@ func (t *GrepTool) Definition() chat.ToolDefinition {
 	}
 }
 
-// Metadata marks grep Parallel: a read-only content search has no conflict.
-func (t *GrepTool) Metadata() chat.ToolMetadata {
-	return chat.ToolMetadata{Concurrency: chat.ToolConcurrencyParallel}
-}
+func (t *GrepTool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
+
+// ConcurrencyKey opts grep into parallel execution — a read-only content
+// search has no conflict (the tool loop's optional concurrency contract).
+func (t *GrepTool) ConcurrencyKey(string) (key string, concurrent bool) { return "", true }
 
 func (t *GrepTool) Call(ctx context.Context, arguments string) (string, error) {
 	_ = ctx

@@ -24,10 +24,7 @@ type EditResponse struct {
 
 var editToolSchema, _ = pkgjson.StringDefSchemaOf(EditRequest{})
 
-var (
-	_ chat.Tool           = (*EditTool)(nil)
-	_ chat.ConcurrentTool = (*EditTool)(nil)
-)
+var _ chat.Tool = (*EditTool)(nil)
 
 // EditTool is the thin LLM-facing adapter for [Executor.Edit]. The
 // match-and-replace logic lives in the executor so a backend upgrade
@@ -56,23 +53,18 @@ func (t *EditTool) Definition() chat.ToolDefinition {
 	}
 }
 
-// Metadata marks edit Keyed on its target file: the tool loop runs edits to
-// DISTINCT files in parallel and serializes edits to the SAME file (see
-// [ConcurrencyKey]).
-func (t *EditTool) Metadata() chat.ToolMetadata {
-	return chat.ToolMetadata{Concurrency: chat.ToolConcurrencyKeyed}
-}
+func (t *EditTool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
 
-// ConcurrencyKey returns the file path this edit touches so the loop driver
-// serializes same-file edits while parallelizing distinct-file ones. An
-// unparseable / empty path yields "" (no known conflict); the call still fails
-// its own validation in Call.
-func (t *EditTool) ConcurrencyKey(arguments string) string {
+// ConcurrencyKey opts edit into concurrent execution keyed on its target file
+// — the tool loop's optional concurrency contract (a tool reports per call
+// whether it may overlap others and the resource it conflicts on). The loop
+// parallelizes edits to DISTINCT files and serializes edits to the SAME file.
+// An unparseable / empty path yields no key (no known conflict); the call still
+// fails its own validation in Call.
+func (t *EditTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
 	var req EditRequest
-	if json.Unmarshal([]byte(arguments), &req) != nil {
-		return ""
-	}
-	return req.FilePath
+	_ = json.Unmarshal([]byte(arguments), &req)
+	return req.FilePath, true
 }
 
 func (t *EditTool) Call(ctx context.Context, arguments string) (string, error) {

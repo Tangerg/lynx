@@ -23,10 +23,7 @@ type WriteResponse struct {
 
 var writeToolSchema, _ = pkgjson.StringDefSchemaOf(WriteRequest{})
 
-var (
-	_ chat.Tool           = (*WriteTool)(nil)
-	_ chat.ConcurrentTool = (*WriteTool)(nil)
-)
+var _ chat.Tool = (*WriteTool)(nil)
 
 // WriteTool is the thin LLM-facing adapter for [Executor.Write].
 type WriteTool struct {
@@ -53,21 +50,16 @@ func (t *WriteTool) Definition() chat.ToolDefinition {
 	}
 }
 
-// Metadata marks write Keyed on its target file: distinct-file writes run in
-// parallel, same-file writes serialize (see [ConcurrencyKey]).
-func (t *WriteTool) Metadata() chat.ToolMetadata {
-	return chat.ToolMetadata{Concurrency: chat.ToolConcurrencyKeyed}
-}
+func (t *WriteTool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
 
-// ConcurrencyKey returns the file path this write touches so the loop driver
-// serializes same-file writes while parallelizing distinct-file ones. An
-// unparseable / empty path yields "" (no known conflict).
-func (t *WriteTool) ConcurrencyKey(arguments string) string {
+// ConcurrencyKey opts write into concurrent execution keyed on its target file
+// (the tool loop's optional concurrency contract): distinct-file writes run in
+// parallel, same-file writes serialize. An unparseable / empty path yields no
+// key (no known conflict).
+func (t *WriteTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
 	var req WriteRequest
-	if json.Unmarshal([]byte(arguments), &req) != nil {
-		return ""
-	}
-	return req.FilePath
+	_ = json.Unmarshal([]byte(arguments), &req)
+	return req.FilePath, true
 }
 
 func (t *WriteTool) Call(ctx context.Context, arguments string) (string, error) {

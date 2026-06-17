@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/core/model/chat"
+	chattool "github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
 
 	"github.com/Tangerg/lynx/lyra/internal/domain/codeintel"
@@ -25,9 +26,12 @@ import (
 // off a file); the service converts to the LSP 0-based wire form and folds an
 // unsupported file type into a plain reply.
 func Build(ci *codeintel.Service, defaultWorkdir string) []chat.Tool {
+	// LSP queries are read-only, so opt them into parallel execution. They're
+	// built via chat.NewTool and can't declare the concurrency contract on
+	// their own type, so wrap with AsParallelTool.
 	return []chat.Tool{
-		newLSPTool(ci, defaultWorkdir),
-		newDiagnosticsTool(ci, defaultWorkdir),
+		chattool.AsParallelTool(newLSPTool(ci, defaultWorkdir)),
+		chattool.AsParallelTool(newDiagnosticsTool(ci, defaultWorkdir)),
 	}
 }
 
@@ -56,9 +60,7 @@ const lspDesc = "Query the language server (LSP) about code at a position or acr
 func newLSPTool(ci *codeintel.Service, defaultWorkdir string) chat.Tool {
 	t, _ := chat.NewTool(
 		chat.ToolDefinition{Name: "lsp", Description: lspDesc, InputSchema: lspSchema},
-		// Read-only code-intelligence query → safe to run concurrently with
-		// other parallel tools (and several lsp calls at once).
-		chat.ToolMetadata{Concurrency: chat.ToolConcurrencyParallel},
+		chat.ToolMetadata{},
 		func(ctx context.Context, arguments string) (string, error) {
 			var in lspInput
 			if err := json.Unmarshal([]byte(arguments), &in); err != nil {
@@ -121,9 +123,7 @@ func newDiagnosticsTool(ci *codeintel.Service, defaultWorkdir string) chat.Tool 
 			Description: "Get the language server's current problems (compile errors, warnings) for a file.",
 			InputSchema: lspDiagnosticsSchema,
 		},
-		// Read-only code-intelligence query → safe to run concurrently with
-		// other parallel tools (and several lsp calls at once).
-		chat.ToolMetadata{Concurrency: chat.ToolConcurrencyParallel},
+		chat.ToolMetadata{},
 		func(ctx context.Context, arguments string) (string, error) {
 			var in lspDiagnosticsInput
 			if err := json.Unmarshal([]byte(arguments), &in); err != nil {

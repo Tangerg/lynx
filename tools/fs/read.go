@@ -57,11 +57,12 @@ func (t *ReadTool) Definition() chat.ToolDefinition {
 	}
 }
 
-// Metadata marks read Parallel: a pure read has no resource conflict, so the
+func (t *ReadTool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
+
+// ConcurrencyKey opts read into parallel execution — a pure read has no
+// resource conflict (the tool loop's optional concurrency contract), so the
 // loop runs several reads (and reads alongside other parallel tools) at once.
-func (t *ReadTool) Metadata() chat.ToolMetadata {
-	return chat.ToolMetadata{Concurrency: chat.ToolConcurrencyParallel}
-}
+func (t *ReadTool) ConcurrencyKey(string) (key string, concurrent bool) { return "", true }
 
 func (t *ReadTool) Call(ctx context.Context, arguments string) (string, error) {
 	_ = ctx
