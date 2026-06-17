@@ -143,3 +143,19 @@ func (s *processState) makeRunning() bool {
 	s.status = core.StatusRunning
 	return true
 }
+
+// markKilled atomically transitions to StatusKilled unless the process is
+// already terminal, reporting whether THIS call performed the transition. The
+// check-and-set is one critical section so a racing kill can't clobber a clean
+// Completed/Failed into Killed, and the caller publishes ProcessKilled only
+// when it actually won the transition (never a spurious / duplicate terminal).
+func (s *processState) markKilled() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.status.IsTerminal() {
+		return false
+	}
+	s.status = core.StatusKilled
+	return true
+}
