@@ -72,8 +72,9 @@ func (s *Service) Count(ctx context.Context, sessionID string) (int, error) {
 
 // Truncate keeps the first keepN messages of sessionID and drops the rest
 // (sessions.rollback). keepN >= current count is a no-op; keepN <= 0 clears the
-// session. Store-agnostic — read / clear / re-write the kept prefix — so it
-// works for any memory.Store backend (the seq renumbering on re-write is
+// session. Store-agnostic — read the prefix, then atomically replace the
+// history with it via [memory.Replace], so a transactional backend can't be
+// left wiped if the rewrite fails (the seq renumbering on re-write is
 // immaterial; rollback doesn't depend on stable seqs).
 func (s *Service) Truncate(ctx context.Context, sessionID string, keepN int) error {
 	if sessionID == "" {
@@ -86,13 +87,8 @@ func (s *Service) Truncate(ctx context.Context, sessionID string, keepN int) err
 	if keepN >= len(msgs) {
 		return nil
 	}
-	if err := s.store.Clear(ctx, sessionID); err != nil {
-		return err
-	}
-	if keepN <= 0 {
-		return nil
-	}
-	return s.store.Write(ctx, sessionID, msgs[:keepN]...)
+	// keepN <= 0 replaces with nothing, which clears the session.
+	return memory.Replace(ctx, s.store, sessionID, msgs[:max(keepN, 0)]...)
 }
 
 // InjectUser appends a synthetic user message to sessionID's history — it

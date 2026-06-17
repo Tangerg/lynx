@@ -22,7 +22,10 @@ type MessageStore struct {
 	db *sql.DB
 }
 
-var _ memory.Store = (*MessageStore)(nil)
+var (
+	_ memory.Store    = (*MessageStore)(nil)
+	_ memory.Replacer = (*MessageStore)(nil)
+)
 
 // NewMessageStore binds the chat-memory store to db. db must have been
 // opened via [Open] so the migration ran.
@@ -95,6 +98,48 @@ func (s *MessageStore) Write(ctx context.Context, conversationID string, message
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("sqlite: commit messages: %w", err)
+	}
+	return nil
+}
+
+// Replace atomically sets conversationID's history to exactly messages — a
+// single transaction that DELETEs the existing rows then INSERTs the new ones,
+// so a failed rewrite rolls back and leaves the prior history intact (the
+// [memory.Replacer] contract). Empty messages clears the conversation.
+// Retention (truncate / compaction) uses this instead of Clear+Write, which
+// would lose the conversation if the Write failed after the Clear committed.
+func (s *MessageStore) Replace(ctx context.Context, conversationID string, messages ...chat.Message) error {
+	if conversationID == "" {
+		return fmt.Errorf("sqlite: invalid conversation id %q", conversationID)
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("sqlite: begin replace messages: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // commit overrides; rollback on early return
+
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM messages WHERE conversation_id = ?`, conversationID,
+	); err != nil {
+		return fmt.Errorf("sqlite: replace clear messages: %w", err)
+	}
+	for _, msg := range messages {
+		if msg == nil {
+			continue
+		}
+		data, err := json.Marshal(msg)
+		if err != nil {
+			return fmt.Errorf("sqlite: marshal message: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO messages(conversation_id, message) VALUES (?, ?)`,
+			conversationID, string(data),
+		); err != nil {
+			return fmt.Errorf("sqlite: replace append message: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("sqlite: commit replace messages: %w", err)
 	}
 	return nil
 }

@@ -69,6 +69,14 @@ func (m *MessageWindowStore) Write(ctx context.Context, conversationID string, m
 	return m.store.Write(ctx, conversationID, messages...)
 }
 
+// Replace delegates to the underlying store via [Replace], inheriting its
+// atomicity (the wrapped store's [Replacer] when it has one). The sliding
+// window is a read-side projection, so a full replace passes straight
+// through — the wrapped store holds the authoritative history.
+func (m *MessageWindowStore) Replace(ctx context.Context, conversationID string, messages ...chat.Message) error {
+	return Replace(ctx, m.store, conversationID, messages...)
+}
+
 // Read returns the windowed view: merged system messages first, then
 // the most recent non-system messages up to the configured limit.
 func (m *MessageWindowStore) Read(ctx context.Context, conversationID string) ([]chat.Message, error) {

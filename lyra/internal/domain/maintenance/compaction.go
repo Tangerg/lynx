@@ -166,14 +166,14 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string) (kernel.
 		return kernel.CompactionResult{}, fmt.Errorf("compactor: summarize: %w", err)
 	}
 
-	if err := c.store.Clear(ctx, sessionID); err != nil {
-		return kernel.CompactionResult{}, fmt.Errorf("compactor: clear: %w", err)
-	}
 	rewritten := make([]chat.Message, 0, 1+len(recent))
 	rewritten = append(rewritten, summary)
 	rewritten = append(rewritten, recent...)
-	if err := c.store.Write(ctx, sessionID, rewritten...); err != nil {
-		return kernel.CompactionResult{}, err
+	// Atomically swap the history for [summary, ...recent] via memory.Replace —
+	// a transactional backend rolls back on a failed rewrite, so a crash can't
+	// leave the conversation cleared-but-not-rewritten (losing `recent` too).
+	if err := memory.Replace(ctx, c.store, sessionID, rewritten...); err != nil {
+		return kernel.CompactionResult{}, fmt.Errorf("compactor: replace: %w", err)
 	}
 	return kernel.CompactionResult{
 		Compacted:      true,
