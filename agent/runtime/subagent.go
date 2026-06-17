@@ -151,6 +151,7 @@ func newTypedAgentTool[In, Out any](
 ) chat.Tool {
 	var inSample In
 	return &agentTool{
+		platform: platform,
 		def: chat.ToolDefinition{
 			Name:        agentDef.Name,
 			Description: agentDef.Description,
