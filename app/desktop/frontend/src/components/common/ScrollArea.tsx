@@ -39,7 +39,7 @@ export const ScrollArea = forwardRef<HTMLDivElement, Props>(
         ref={ref}
         className={cn(
           hideScrollbar
-            ? "flex-1 min-h-0 overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            ? "flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             : "panel-scroll",
           className,
         )}

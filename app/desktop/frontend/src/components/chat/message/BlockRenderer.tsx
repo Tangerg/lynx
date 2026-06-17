@@ -143,7 +143,11 @@ export function renderBlock(block: ContentBlock, key: number, ctx: BlockCtx) {
       if (!tool) return null;
       return (
         <ToolCard
-          key={key}
+          // Identity key, NOT the block index — same reasoning as the HITL
+          // cards below: ToolCard owns an expand animation + selection, and a
+          // stable per-tool key keeps React from reusing one card's instance
+          // for a different tool should block order ever shift.
+          key={block.toolCallId}
           tool={tool}
           selected={ctx.selectedToolId === block.toolCallId}
           expanded={ctx.expandedIds.has(block.toolCallId)}

@@ -115,12 +115,21 @@ export function regenerateMessage(msg: Message, opts?: RollbackActionOptions): v
       return;
     }
     void rollbackToBefore(sid, m.runId, opts?.restoreFiles)
-      .then((ok) => {
-        // Re-read send at resolve time — resetView kept the binding, but the
-        // tab could have been torn down while the rollback was in flight.
+      .then(() => {
+        // resetView kept the binding, but the tab could have been torn down —
+        // or merely switched away, which nulls send via useAgentSession's
+        // cleanup — while the rollback was in flight. No live binding ⇒ we
+        // can't resend; surface it instead of dropping the regenerate silently.
         const liveSend = useAgentStore.getState().sessions[sid]?.send;
-        if (ok && liveSend) liveSend(buildInput(text, blockImages(m)));
-        else if (!ok) send(buildInput(text, blockImages(m))); // run unknown — plain resend
+        if (!liveSend) {
+          notifyInfo("Switched away before regenerate finished — nothing was resent.", {
+            source: "session",
+          });
+          return;
+        }
+        // ok: history rewound to before the prompt. !ok: run unknown to the
+        // server, so this is a plain resend appended below the old turn.
+        liveSend(buildInput(text, blockImages(m)));
       })
       .catch(reportRollbackError);
     return;

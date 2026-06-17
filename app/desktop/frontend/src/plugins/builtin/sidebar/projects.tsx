@@ -215,8 +215,12 @@ function ProjectsSection() {
       <SectionLabel trailing={<AddProjectButton />}>{t("sidebar.section.projects")}</SectionLabel>
       <DataView
         items={groups}
-        isLoading={projectsLoading || sessionsLoading}
-        isError={projectsError || sessionsError}
+        // Mirror the data we actually have, not the worst of the two queries:
+        // once EITHER resolves `groups` is defined, so a partial failure (e.g.
+        // projects errors but sessions loaded) still renders the available
+        // sessions instead of blanking the list to a skeleton / error state.
+        isLoading={(projectsLoading || sessionsLoading) && !groups}
+        isError={(projectsError || sessionsError) && !groups}
         skeletonCount={3}
         empty={{
           icon: "folder",
