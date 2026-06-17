@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/lyra/internal/domain/transcript"
 )
@@ -64,13 +66,19 @@ func (s *Server) persistItem(ctx context.Context, sessionID string, item *protoc
 	if err != nil {
 		return
 	}
-	_ = store.AppendItem(ctx, transcript.Item{
+	if err := store.AppendItem(ctx, transcript.Item{
 		SessionID: sessionID,
 		RunID:     item.RunID,
 		ItemID:    item.ID,
 		CreatedAt: item.CreatedAt,
 		Blob:      blob,
-	})
+	}); err != nil {
+		// Best-effort: a dropped item never fails the live stream, but record it
+		// on the run's trace span (ctx keeps the span, full-link) so the loss is
+		// observable instead of silent — items.list would otherwise just be
+		// short a record with no signal why.
+		trace.SpanFromContext(ctx).RecordError(err)
+	}
 }
 
 // persistRun upserts one RunRef into the history store. mark is the per-run
@@ -84,11 +92,16 @@ func (s *Server) persistRun(ctx context.Context, sessionID string, run *protocol
 	if err != nil {
 		return
 	}
-	_ = store.PutRun(ctx, transcript.Run{
+	if err := store.PutRun(ctx, transcript.Run{
 		SessionID: sessionID,
 		RunID:     run.ID,
 		UpdatedAt: time.Now().UTC(),
 		Blob:      blob,
 		Mark:      mark,
-	})
+	}); err != nil {
+		// Best-effort like persistItem: don't fail the stream, but surface the
+		// loss on the span — a missing RunRef means runs.subscribe can't replay
+		// this run, which is worth a trace signal rather than silence.
+		trace.SpanFromContext(ctx).RecordError(err)
+	}
 }

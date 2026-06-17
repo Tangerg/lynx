@@ -1,6 +1,7 @@
 package exec
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -14,7 +15,7 @@ func TestManager_RunReadKill(t *testing.T) {
 	t.Cleanup(mgr.KillAll)
 
 	// A quick command: capture output + completion.
-	id := mgr.Launch("", "printf hello", 0)
+	id := mgr.Launch(context.Background(), "", "printf hello", 0)
 	waitDone(t, mgr, id)
 	out, _ := mustShell(t, mgr, id).Read()
 	if !strings.Contains(out, "hello") {
@@ -30,7 +31,7 @@ func TestManager_RunReadKill(t *testing.T) {
 	}
 
 	// A long-running command: kill it.
-	longID := mgr.Launch("", "sleep 30", 0)
+	longID := mgr.Launch(context.Background(), "", "sleep 30", 0)
 	running, ok := mgr.Kill(longID)
 	if !ok || !running {
 		t.Fatalf("kill = (running=%v ok=%v), want a running shell stopped", running, ok)
@@ -47,7 +48,7 @@ func TestManager_TimeoutKills(t *testing.T) {
 	mgr := NewManager()
 	t.Cleanup(mgr.KillAll)
 
-	id := mgr.Launch("", "sleep 30", 200*time.Millisecond)
+	id := mgr.Launch(context.Background(), "", "sleep 30", 200*time.Millisecond)
 	sh := mustShell(t, mgr, id)
 	select {
 	case <-sh.Done():

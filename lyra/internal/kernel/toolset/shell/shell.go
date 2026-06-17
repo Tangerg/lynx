@@ -79,7 +79,7 @@ func Build(mgr *exec.Manager, defaultWorkdir string) []chat.Tool {
 				return "", errors.New("bash: command is required")
 			}
 
-			id := mgr.Launch(turnctx.TurnCwd(ctx, defaultWorkdir), a.Command, time.Duration(a.Timeout)*time.Millisecond)
+			id := mgr.Launch(ctx, turnctx.TurnCwd(ctx, defaultWorkdir), a.Command, time.Duration(a.Timeout)*time.Millisecond)
 			if a.RunInBackground {
 				return backgroundedJSON(id), nil
 			}
@@ -105,8 +105,19 @@ func Build(mgr *exec.Manager, defaultWorkdir string) []chat.Tool {
 			case <-timer.C:
 				return backgroundedJSON(id), nil // still running — leave it
 			case <-ctx.Done():
-				mgr.Kill(id)
-				return "", ctx.Err()
+				// The command may have finished in the same instant the turn was
+				// canceled; select picks a ready case at random, so check Done()
+				// before discarding a completed result the user can still use.
+				select {
+				case <-sh.Done():
+					out, dropped := sh.Read()
+					code, killed, dur := sh.Outcome()
+					mgr.Remove(id)
+					return completedJSON(out, dropped, code, killed, dur), nil
+				default:
+					mgr.Kill(id)
+					return "", ctx.Err()
+				}
 			}
 		},
 	)

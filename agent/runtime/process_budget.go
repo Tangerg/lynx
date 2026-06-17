@@ -78,6 +78,17 @@ func (b *processBudget) addChild(child *AgentProcess) {
 	b.children = append(b.children, child)
 }
 
+// removeChild drops child from the rollup — the inverse of addChild, for when
+// a child that was registered fails to fully spawn (e.g. its session link
+// fails) and is unregistered: without this the parent's children slice keeps a
+// stale reference for the parent's whole life. (The stale child contributes 0
+// to usage since it never ran, so this is a leak fix, not an accounting fix.)
+func (b *processBudget) removeChild(child *AgentProcess) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	b.children = slices.DeleteFunc(b.children, func(c *AgentProcess) bool { return c == child })
+}
+
 // usage returns the subtree-aggregated totals plus this process's own
 // action count (passed in by AgentProcess.Usage which has the history).
 func (b *processBudget) usage(ownActions int) (cost float64, tokens int, actions int) {
