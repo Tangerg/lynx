@@ -28,7 +28,7 @@ const gitWatchDebounce = 200 * time.Millisecond
 // notification APIs avoid tree-watch the same way: watching only requested
 // paths or the .git signal set plus diffs on demand. The agent's OWN edits don't need a
 // watcher at all — they're emitted as files.changed straight from its
-// file-mutating tools (see runs.go emitToolFileChange).
+// file-mutating tools (see emitToolFileChange in workspace_stream.go).
 type gitWatcher struct {
 	fsw       *fsnotify.Watcher
 	emit      func(protocol.WorkspaceEvent)
