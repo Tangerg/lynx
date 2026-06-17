@@ -53,12 +53,14 @@ func NewLocalExecutor(root string) *LocalExecutor {
 	return &LocalExecutor{Root: root}
 }
 
-// resolve combines the executor's Root with a relative path. Absolute
-// paths pass through. Empty path is rejected.
+// resolve combines the executor's Root with a relative path. A leading ~ is
+// expanded to the home dir first; absolute paths pass through. Empty path is
+// rejected.
 func (l *LocalExecutor) resolve(p string) (string, error) {
 	if p == "" {
 		return "", ErrEmptyPath
 	}
+	p = expandHome(p)
 	if l.Root == "" || filepath.IsAbs(p) {
 		return p, nil
 	}
@@ -66,9 +68,30 @@ func (l *LocalExecutor) resolve(p string) (string, error) {
 }
 
 // rootDir returns the directory bulk queries (Glob/Grep) should start
-// from. Precedence: caller-supplied Root → executor's Root → CWD.
+// from. Precedence: caller-supplied Root → executor's Root → CWD. A leading
+// ~ in the chosen dir is expanded to the home dir.
 func (l *LocalExecutor) rootDir(callerRoot string) string {
-	return cmp.Or(callerRoot, l.Root, ".")
+	return expandHome(cmp.Or(callerRoot, l.Root, "."))
+}
+
+// expandHome expands a leading ~ — the shell convention an LLM routinely emits
+// — to the current user's home dir: "~" or "~/" → home, "~/x" → home/x. Any
+// other form (a plain relative path, an absolute path, or "~user") is returned
+// unchanged. Best-effort: if the home dir can't be resolved the path is left
+// as-is. Without this, "~/x" anchors literally under Root as ".../~/x" and the
+// open fails with "no such file or directory".
+func expandHome(p string) string {
+	if p != "~" && !strings.HasPrefix(p, "~/") {
+		return p
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return p
+	}
+	if p == "~" {
+		return home
+	}
+	return filepath.Join(home, p[len("~/"):])
 }
 
 // lockPath returns a per-path mutex unlock func. Used to serialize
