@@ -127,10 +127,8 @@ func (p *AgentProcess) runWithRetry(
 		attempts++
 
 		// On a retry (any attempt after the first), clear this action's
-		// declared effect conditions so a half-applied effect from the
-		// failed attempt doesn't poison the next one. On retry, clear the
-		// false) } when retryCount > 0). The hasRun key is only promoted on
-		// success after the loop, so clearing it here is a harmless no-op.
+		// declared effect conditions so a half-applied effect from the failed
+		// attempt doesn't carry into the next one.
 		if attempts > 1 {
 			for key := range effects {
 				p.blackboard.SetCondition(key, false)
