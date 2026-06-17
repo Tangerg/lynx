@@ -118,6 +118,8 @@ export const ja: Record<string, string> = {
   "toolInspector.arguments": "引数",
   "toolInspector.result": "結果",
   "toolInspector.noResult": "(結果の本文なし — ツールは空を返しました)",
+  "runtime.unsupported.title": "このランタイムでは利用できません",
+  "runtime.unsupported.sub": "接続中のランタイムはこの機能にまだ対応していません。",
   "dataView.error.title": "読み込めませんでした",
   "dataView.error.sub":
     "ランタイムがこのリクエストに応答しませんでした。接続を確認して再試行してください。",

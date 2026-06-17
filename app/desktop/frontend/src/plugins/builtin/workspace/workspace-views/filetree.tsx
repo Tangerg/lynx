@@ -2,6 +2,7 @@ import { useState } from "react";
 import { DataView, Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
+import { isUnsupportedMethod } from "@/lib/agent/errorCopy";
 import { useListFiles, useReadFile } from "@/lib/data/queries";
 import { FileTree } from "./views/FileTree";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
@@ -43,7 +44,7 @@ function ExplorerView() {
   const t = useT();
   const cwd = useActiveSessionCwd();
   const [selected, setSelected] = useState<string | null>(null);
-  const { data: roots, isLoading, isError } = useListFiles({ cwd });
+  const { data: roots, isLoading, isError, error } = useListFiles({ cwd });
 
   return (
     <WorkspaceViewLayout icon="folder" titleStrong title="filetree.title">
@@ -54,6 +55,17 @@ function ExplorerView() {
           items={roots}
           isLoading={isLoading}
           isError={isError}
+          // A runtime without workspace.listFiles (pre-B8) errors the query —
+          // show a calm "unavailable here" state, not the generic load error.
+          error={
+            isUnsupportedMethod(error)
+              ? {
+                  icon: "folder",
+                  title: t("runtime.unsupported.title"),
+                  sub: t("runtime.unsupported.sub"),
+                }
+              : undefined
+          }
           skeletonCount={8}
           empty={{ icon: "folder", title: t("filetree.empty.title"), sub: t("filetree.empty.sub") }}
         >

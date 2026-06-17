@@ -9,7 +9,7 @@
 import type { ApprovalModeValue } from "@/lib/data/queries";
 import { DataView, EmptyState, Icon, Segmented } from "@/components/common";
 import { forgetDecision, setApprovalMode } from "@/lib/agent/approvalConfig";
-import { rpcErrorText } from "@/lib/agent/errorCopy";
+import { isUnsupportedMethod, rpcErrorText } from "@/lib/agent/errorCopy";
 import { useActiveSession } from "@/lib/agent/useActiveSession";
 import { useApprovalMode, useRememberedDecisions } from "@/lib/data/queries";
 import { notifyError } from "@/lib/notify";
@@ -51,7 +51,7 @@ function ModeRow({ mode }: { mode: ApprovalModeValue | undefined }) {
 function RememberedRow() {
   const t = useT();
   const sessionId = useActiveSession()?.id;
-  const { data, isLoading, isError } = useRememberedDecisions(
+  const { data, isLoading, isError, error } = useRememberedDecisions(
     sessionId ? { sessionId } : undefined,
   );
   const forget = async (tool?: string) => {
@@ -69,6 +69,17 @@ function RememberedRow() {
         items={data}
         isLoading={isLoading}
         isError={isError}
+        // listRemembered is a B9 proposal method; a runtime with approval-mode
+        // but not remembered-management errors here — degrade calmly.
+        error={
+          isUnsupportedMethod(error)
+            ? {
+                icon: "shield",
+                title: t("runtime.unsupported.title"),
+                sub: t("runtime.unsupported.sub"),
+              }
+            : undefined
+        }
         empty={{
           icon: "check",
           title: t("approvals.remembered.empty"),
