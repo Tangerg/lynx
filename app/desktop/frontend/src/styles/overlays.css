@@ -10,9 +10,9 @@
   gap: 4px;
   margin: 8px 0;
   padding: 10px 12px;
-  border: 1px solid rgba(243, 114, 127, 0.32);
+  border: 1px solid color-mix(in srgb, var(--color-negative) 32%, transparent);
   border-radius: 8px;
-  background: rgba(243, 114, 127, 0.06);
+  background: color-mix(in srgb, var(--color-negative) 6%, transparent);
   color: var(--color-negative);
   font-size: 12px;
   line-height: 1.4;
