@@ -58,7 +58,11 @@ Search hygiene:
 - For official docs, restrict with allowed_domains (e.g. ["nodejs.org"]) — far less noise than open web
 - If the first query returns weak hits, refine keywords and search again rather than guessing`
 
-func (t *Tool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
+// Metadata marks web_search Parallel: a read-only search has no local resource
+// conflict, so the loop runs several searches at once.
+func (t *Tool) Metadata() chat.ToolMetadata {
+	return chat.ToolMetadata{Concurrency: chat.ToolConcurrencyParallel}
+}
 
 func (t *Tool) Call(ctx context.Context, arguments string) (string, error) {
 	_ = ctx

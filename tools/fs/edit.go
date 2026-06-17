@@ -24,7 +24,10 @@ type EditResponse struct {
 
 var editToolSchema, _ = pkgjson.StringDefSchemaOf(EditRequest{})
 
-var _ chat.Tool = (*EditTool)(nil)
+var (
+	_ chat.Tool           = (*EditTool)(nil)
+	_ chat.ConcurrentTool = (*EditTool)(nil)
+)
 
 // EditTool is the thin LLM-facing adapter for [Executor.Edit]. The
 // match-and-replace logic lives in the executor so a backend upgrade
@@ -53,7 +56,24 @@ func (t *EditTool) Definition() chat.ToolDefinition {
 	}
 }
 
-func (t *EditTool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
+// Metadata marks edit Keyed on its target file: the tool loop runs edits to
+// DISTINCT files in parallel and serializes edits to the SAME file (see
+// [ConcurrencyKey]).
+func (t *EditTool) Metadata() chat.ToolMetadata {
+	return chat.ToolMetadata{Concurrency: chat.ToolConcurrencyKeyed}
+}
+
+// ConcurrencyKey returns the file path this edit touches so the loop driver
+// serializes same-file edits while parallelizing distinct-file ones. An
+// unparseable / empty path yields "" (no known conflict); the call still fails
+// its own validation in Call.
+func (t *EditTool) ConcurrencyKey(arguments string) string {
+	var req EditRequest
+	if json.Unmarshal([]byte(arguments), &req) != nil {
+		return ""
+	}
+	return req.FilePath
+}
 
 func (t *EditTool) Call(ctx context.Context, arguments string) (string, error) {
 	_ = ctx

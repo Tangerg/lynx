@@ -39,11 +39,38 @@ const (
 
 // wrapTool returns a Tool that runs call while preserving inner's Definition
 // and Metadata — the shared spine of the tool decorators (read/edit guards,
-// post-edit diagnostics). A valid inner yields a valid definition, so the
-// chat.NewTool error is impossible and discarded.
+// post-edit diagnostics). It also forwards inner's [chat.ConcurrencyKey] when
+// inner is a [chat.ConcurrentTool] (a keyed file tool), so the keyed-conflict
+// class survives the whole decorator stack and the tool loop still serializes
+// same-path writes while parallelizing distinct-path ones.
 func wrapTool(inner chat.Tool, call func(ctx context.Context, arguments string) (string, error)) chat.Tool {
-	t, _ := chat.NewTool(inner.Definition(), inner.Metadata(), call)
-	return t
+	return &decoratedTool{inner: inner, call: call}
+}
+
+// decoratedTool is the backing type for [wrapTool]: it overrides Call while
+// delegating Definition / Metadata / ConcurrencyKey to the wrapped tool, so a
+// stack of decorators preserves the inner tool's full contract — including its
+// per-call concurrency key.
+type decoratedTool struct {
+	inner chat.Tool
+	call  func(ctx context.Context, arguments string) (string, error)
+}
+
+func (d *decoratedTool) Definition() chat.ToolDefinition { return d.inner.Definition() }
+func (d *decoratedTool) Metadata() chat.ToolMetadata     { return d.inner.Metadata() }
+
+func (d *decoratedTool) Call(ctx context.Context, arguments string) (string, error) {
+	return d.call(ctx, arguments)
+}
+
+// ConcurrencyKey forwards the wrapped tool's key (file-mutating tools are
+// [chat.ConcurrencyKeyed]); a wrapped tool that isn't keyed reports "" (no
+// conflict), which the loop driver ignores for non-keyed classes.
+func (d *decoratedTool) ConcurrencyKey(arguments string) string {
+	if c, ok := d.inner.(chat.ConcurrentTool); ok {
+		return c.ConcurrencyKey(arguments)
+	}
+	return ""
 }
 
 // BuildWorkdirTools instantiates the working-directory-bound filesystem tools,
