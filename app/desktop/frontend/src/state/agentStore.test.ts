@@ -81,6 +81,41 @@ beforeEach(async () => {
   await loadPlugin(spec);
 });
 
+describe("agentStore.cancelRun", () => {
+  it("settles a user-stopped run locally — running off, tokens kept, canceled on the timeline", () => {
+    const store = useAgentStore.getState();
+    store.resetSession(SID);
+    store.applyEvents(
+      SID,
+      [
+        runStarted("run_1", SID),
+        {
+          type: "run.progress",
+          progress: { usage: { inputTokens: 1000, outputTokens: 200 } },
+        } as StreamEvent,
+      ].map(fold),
+    );
+    expect(view().run.running).toBe(true);
+    const used = view().run.tokens.used; // "1200" — the live readout
+
+    useAgentStore.getState().cancelRun(SID);
+
+    expect(view().run.running).toBe(false);
+    // A synthetic run.finished{canceled} (no result) would zero this; the
+    // local settle must preserve what the run actually consumed.
+    expect(view().run.tokens.used).toBe(used);
+    expect(view().timeline.at(-1)).toMatchObject({ kind: "run-end", summary: "canceled" });
+  });
+
+  it("is a no-op once the run has already settled (no state churn)", () => {
+    const store = useAgentStore.getState();
+    store.resetSession(SID);
+    const before = view(); // run.running is false in a fresh slice
+    useAgentStore.getState().cancelRun(SID);
+    expect(view()).toBe(before); // same reference — set() bailed
+  });
+});
+
 describe("agentStore.resolveInterrupt", () => {
   it("settles an approval, drops the open interrupt, and stamps approval-result", () => {
     seedInterrupt("approval", "tool_1");

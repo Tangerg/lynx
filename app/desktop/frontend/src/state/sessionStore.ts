@@ -197,14 +197,17 @@ export const useSessionStore = create<SessionState & SessionActions>()(
       },
       closeTab: (id) => {
         const { tabIds, activeSessionId } = get();
+        const idx = tabIds.indexOf(id);
         const next = tabIds.filter((x) => x !== id);
         const leavingActive = id === activeSessionId;
         set({
           tabIds: next,
-          // Closing the active tab reselects its neighbour, or falls back to
-          // "" (welcome screen) when nothing remains — never leave
-          // activeSessionId pointing at a closed/deleted session.
-          activeSessionId: leavingActive ? (next[0] ?? "") : activeSessionId,
+          // Closing the active tab reselects the ADJACENT tab — the one that
+          // shifts into this slot (`next[idx]`), or the new last tab when the
+          // rightmost closed (`next.at(-1)`) — falling back to "" (welcome
+          // screen) when nothing remains. Never the always-leftmost `next[0]`
+          // (that yanks focus across the strip), and never a closed/deleted id.
+          activeSessionId: leavingActive ? (next[idx] ?? next.at(-1) ?? "") : activeSessionId,
           // Leaving the active session drops its inspector / file / split so
           // they don't bleed onto the neighbour (or the welcome screen).
           ...(leavingActive ? clearSessionScopedState() : {}),
