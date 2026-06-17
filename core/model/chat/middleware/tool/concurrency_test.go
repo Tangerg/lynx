@@ -3,6 +3,7 @@ package tool
 import (
 	"context"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -104,6 +105,48 @@ func TestInvoker_KeyedConflict(t *testing.T) {
 	}
 	if got := max2.Load(); got < 2 {
 		t.Fatalf("distinct-key peak concurrency = %d, want >= 2 (distinct resources parallelize)", got)
+	}
+}
+
+// panicTool is a parallel tool that always panics — it exercises the loop's
+// panic containment. A tool runs arbitrary code, and in a parallel batch it
+// runs in a goroutine the loop spawns, so an escaping panic would crash the
+// whole process rather than fail one call.
+type panicTool struct{ name string }
+
+func (p *panicTool) Definition() chat.ToolDefinition {
+	return chat.ToolDefinition{Name: p.name, Description: "stub", InputSchema: "{}"}
+}
+func (p *panicTool) Metadata() chat.ToolMetadata          { return chat.ToolMetadata{} }
+func (p *panicTool) ConcurrencyKey(string) (string, bool) { return "", true }
+func (p *panicTool) Call(context.Context, string) (string, error) {
+	panic("boom")
+}
+
+// TestInvoker_ToolPanicContained pins that a panic in a parallel-batch tool is
+// contained at the tool boundary instead of escaping its goroutine and
+// crashing the process: it comes back as a recoverable tool result (so the
+// model can route around the broken tool), and a sibling call in the same
+// batch still completes. Without containment this test would crash the binary.
+func TestInvoker_ToolPanicContained(t *testing.T) {
+	var cur, max atomic.Int32
+	inv := newInvoker()
+	inv.register(&panicTool{name: "boom"})
+	inv.register(&concTool{name: "ok", concurrent: true, cur: &cur, max: &max})
+
+	res, err := inv.invokeToolCalls(context.Background(), concCalls("boom", "ok"))
+	if err != nil {
+		t.Fatalf("invokeToolCalls returned error (a panic must be recoverable, not fatal): %v", err)
+	}
+	byName := make(map[string]string, len(res.toolMessage.ToolReturns))
+	for _, r := range res.toolMessage.ToolReturns {
+		byName[r.Name] = r.Result
+	}
+	if got := byName["boom"]; !strings.Contains(got, "panic") {
+		t.Fatalf("panicking tool result = %q, want it to surface the panic", got)
+	}
+	if got, want := byName["ok"], "ok"; got != want {
+		t.Fatalf("sibling result = %q, want %q (a sibling's panic must not drop it)", got, want)
 	}
 }
 
