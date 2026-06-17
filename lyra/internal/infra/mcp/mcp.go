@@ -89,6 +89,7 @@ type Connections struct {
 	servers []*server
 	client  *sdkmcp.Client
 	onTools func([]chat.Tool) // tool sink; nil until SetToolSink
+	closed  bool              // set by Close; Reconnect checks it after dialing
 
 	// reconnectMu serializes Reconnect so two concurrent calls can't both dial
 	// and leak the loser's freshly-dialed session (the winner overwrites
@@ -268,6 +269,17 @@ func (c *Connections) Reconnect(ctx context.Context, name string) error {
 	}
 
 	c.mu.Lock()
+	if c.closed {
+		// Close ran while we were dialing outside the lock: it niled c.servers
+		// (so this ms is detached) and closed every session. Storing the fresh
+		// session here would strand it past Close's sweep — a connection leak.
+		// Drop it instead. Mirrors lsp.Manager.clientFor's closed re-check.
+		c.mu.Unlock()
+		if session != nil {
+			_ = session.Close()
+		}
+		return err
+	}
 	if err != nil {
 		ms.session, ms.status, ms.lastErr = nil, dialStatus(err), err
 	} else {
@@ -329,6 +341,7 @@ func (c *Connections) Close() error {
 	var errs []error
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.closed = true // so a Reconnect dialing outside the lock drops its session
 	for _, ms := range c.servers {
 		if ms.session == nil {
 			continue
