@@ -9,8 +9,9 @@ import (
 )
 
 var (
-	_ Store  = (*InMemoryStore)(nil)
-	_ Lister = (*InMemoryStore)(nil)
+	_ Store    = (*InMemoryStore)(nil)
+	_ Lister   = (*InMemoryStore)(nil)
+	_ Replacer = (*InMemoryStore)(nil)
 )
 
 // InMemoryStore is an [Store] implementation backed by an in-process map
@@ -76,6 +77,25 @@ func (m *InMemoryStore) Conversations(ctx context.Context) ([]string, error) {
 		ids = append(ids, id)
 	}
 	return ids, nil
+}
+
+// Replace atomically sets conversationID's messages to a copy of messages,
+// dropping any already stored — the [Replacer] contract. Empty messages
+// clears the conversation. The swap happens under the write lock, so a reader
+// sees either the old set or the new one, never a half-cleared conversation.
+func (m *InMemoryStore) Replace(ctx context.Context, conversationID string, messages ...chat.Message) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(messages) == 0 {
+		delete(m.store, conversationID)
+		return nil
+	}
+	m.store[conversationID] = slices.Clone(messages)
+	return nil
 }
 
 // Clear drops every message stored under conversationID. Unknown ids

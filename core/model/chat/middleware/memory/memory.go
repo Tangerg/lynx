@@ -60,3 +60,31 @@ type Store interface {
 	Writer
 	Clearer
 }
+
+// Replacer atomically replaces a conversation's stored messages in one
+// operation. Retention operations (truncation, compaction) need it: they
+// read a conversation, derive a smaller rewrite, and persist it — a
+// separate Clear then Write would LOSE the whole conversation if the Write
+// failed after the Clear committed. Kept OUT of [Store] like [Lister]: it
+// is not the per-turn hot path, and a backend that can't replace atomically
+// still satisfies Store. Consumers reach for it via [Replace].
+type Replacer interface {
+	// Replace atomically sets conversationID's messages to exactly messages,
+	// dropping any already stored. An empty messages clears the conversation.
+	Replace(ctx context.Context, conversationID string, messages ...chat.Message) error
+}
+
+// Replace atomically replaces conversationID's messages via store's [Replacer]
+// capability, falling back to a (non-atomic) Clear-then-Write when the backend
+// doesn't implement it. Retention callers use this so an atomic backend never
+// loses history to a rewrite that fails mid-way; a non-atomic backend keeps
+// its best-effort behavior.
+func Replace(ctx context.Context, store Store, conversationID string, messages ...chat.Message) error {
+	if r, ok := store.(Replacer); ok {
+		return r.Replace(ctx, conversationID, messages...)
+	}
+	if err := store.Clear(ctx, conversationID); err != nil {
+		return err
+	}
+	return store.Write(ctx, conversationID, messages...)
+}
