@@ -66,9 +66,13 @@ func (p *AgentProcess) Snapshot() core.ProcessSnapshot {
 	}
 
 	// Type assertion on a nil interface returns (zero, false) — no
-	// guard needed before the assertion.
+	// guard needed before the assertion. Values are type-tagged so a JSON
+	// round-trip through the store reconstructs their concrete Go types on
+	// restore (see core.TagBlackboard) rather than decoding into bare maps.
 	if s, ok := p.blackboard.(BlackboardSnapshotter); ok {
-		snap.Blackboard, snap.Conditions, snap.Objects = s.Snapshot()
+		named, conditions, objects := s.Snapshot()
+		snap.Blackboard, snap.Objects = core.TagBlackboard(named, objects)
+		snap.Conditions = conditions
 	}
 	return snap
 }
@@ -175,9 +179,14 @@ func (p *Platform) RestoreFromSnapshot(snap core.ProcessSnapshot, options core.P
 
 	proc.budget.restore(snap.Cost, snap.Tokens, snap.LLMInvocations, snap.EmbeddingInvocations)
 
-	// Re-populate blackboard when the implementation supports it.
+	// Re-populate blackboard when the implementation supports it. The
+	// tagged values decode back to their concrete Go types via the type
+	// table the agent's action I/O bindings declare (see
+	// core.UntagBlackboard) — so a restored typed-action input is the
+	// original struct, not the map JSON would otherwise yield.
 	if r, ok := blackboard.(BlackboardRestorer); ok {
-		r.Restore(snap.Blackboard, snap.Conditions, snap.Objects)
+		named, objects := core.UntagBlackboard(snap.Blackboard, snap.Objects, agentDef)
+		r.Restore(named, snap.Conditions, objects)
 	}
 
 	p.procs.register(proc)

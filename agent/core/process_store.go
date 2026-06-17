@@ -74,10 +74,15 @@ type ProcessSnapshot struct {
 	// restore from the agent's goal set.
 	GoalName string `json:"goal_name,omitempty"`
 
-	// LastWorld is the snapshot of [WorldState] the planner most
-	// recently observed. The planner re-runs after restore so
-	// this is informational; restoring without it still works.
-	LastWorld WorldState `json:"last_world,omitempty"`
+	// LastWorld is the [WorldState] the planner most recently observed.
+	// It is DERIVED, re-observed state — the planner re-runs on the first
+	// post-restore tick and rebuilds it — so it is deliberately NOT
+	// serialized: WorldState is an interface and JSON can't round-trip it
+	// back (decoding an object into an interface field fails, which would
+	// break Load for every ticked process). In-memory stores keep it (the
+	// struct is copied as-is); persistent stores drop it and the planner
+	// re-derives. Restoring without it always works (see RestoreFromSnapshot).
+	LastWorld WorldState `json:"-"`
 
 	// History is the full action-invocation history captured at
 	// snapshot time. Restore replays it for diagnostics; the
@@ -99,22 +104,23 @@ type ProcessSnapshot struct {
 	LLMInvocations       []LLMInvocation       `json:"llm_invocations,omitempty"`
 	EmbeddingInvocations []EmbeddingInvocation `json:"embedding_invocations,omitempty"`
 
-	// Blackboard captures the named bindings + conditions of the
-	// process's blackboard. Function values are dropped (see
-	// package-level note). Custom blackboard implementations may
-	// extend this map with provider-specific keys.
-	Blackboard map[string]any `json:"blackboard,omitempty"`
+	// Blackboard captures the named bindings of the process's
+	// blackboard, each tagged with its concrete Go type (see
+	// [TaggedValue]) so a JSON round-trip reconstructs the original
+	// type instead of a generic map. Function values are dropped (see
+	// package-level note).
+	Blackboard map[string]TaggedValue `json:"blackboard,omitempty"`
 
 	// Conditions captures explicit boolean state set via
 	// [BlackboardWriter.SetCondition]. Kept separate from
 	// Blackboard because conditions have their own truth-value
-	// semantics.
+	// semantics — and bools round-trip without type tagging.
 	Conditions map[string]bool `json:"conditions,omitempty"`
 
 	// Objects captures the ordered "anonymous artifacts" list
-	// produced by [BlackboardWriter.AddObject]. Same JSON-only
-	// constraint as Blackboard.
-	Objects []any `json:"objects,omitempty"`
+	// produced by [BlackboardWriter.AddObject], type-tagged like
+	// Blackboard.
+	Objects []TaggedValue `json:"objects,omitempty"`
 }
 
 // SnapshotActionInvocation is the portable form of one action

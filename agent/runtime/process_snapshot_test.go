@@ -2,6 +2,7 @@ package runtime_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent"
@@ -205,6 +206,53 @@ func TestPlatform_RestoreWaitingProcess_ResumesToCompletion(t *testing.T) {
 	out, ok := core.ResultOfType[ssWordCount](restored)
 	if !ok || out.Count != 42 {
 		t.Fatalf("result = %+v ok=%v, want Count=42", out, ok)
+	}
+}
+
+// TestSnapshot_JSONRoundTrip_PreservesConcreteType pins the cross-restart
+// resume fix: a typed struct binding must survive a FULL snapshot round-trip
+// through JSON — exactly what a persistent store (SQLite) does — as its
+// concrete Go type, not the map[string]any JSON otherwise decodes into.
+// Before type-tagging the restored value was a bare map, so a resumed
+// typed-action failed its input assertion and the turn errored. The
+// in-memory-store tests above don't catch this: they never marshal the whole
+// snapshot, only its tagged values.
+func TestSnapshot_JSONRoundTrip_PreservesConcreteType(t *testing.T) {
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	mustDeploy(t, platform, buildSnapshotAgent())
+
+	proc, err := platform.RunAgent(context.Background(), buildSnapshotAgent(),
+		map[string]any{core.DefaultBindingName: ssWord{Text: "lynx"}}, core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	// Marshal the snapshot to JSON and back — exactly what SQLite's
+	// json.Marshal/Unmarshal does across a process restart.
+	raw, err := json.Marshal(proc.Snapshot())
+	if err != nil {
+		t.Fatalf("marshal snapshot: %v", err)
+	}
+	var snap core.ProcessSnapshot
+	if err := json.Unmarshal(raw, &snap); err != nil {
+		t.Fatalf("unmarshal snapshot: %v", err)
+	}
+
+	platform2 := agent.NewPlatform(runtime.PlatformConfig{})
+	mustDeploy(t, platform2, buildSnapshotAgent())
+	restored, err := platform2.RestoreFromSnapshot(snap, core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+
+	// The produced output must come back as the concrete ssWordCount, not a
+	// map — proving the type survived the JSON boundary.
+	out, ok := core.ResultOfType[ssWordCount](restored)
+	if !ok {
+		t.Fatal("restored blackboard lost the concrete ssWordCount type after a JSON round-trip")
+	}
+	if out.Count != len("lynx") {
+		t.Errorf("ssWordCount.Count = %d, want %d", out.Count, len("lynx"))
 	}
 }
 
