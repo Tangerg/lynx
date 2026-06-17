@@ -77,10 +77,23 @@ func (s *processState) historyLen() int {
 	return len(s.history)
 }
 
-func (s *processState) setStatus(st core.AgentProcessStatus) {
+// setStatus transitions to st unless the process is ALREADY terminal —
+// terminal is final, so neither a racing kill nor a natural completion can be
+// clobbered by a later write (e.g. the run loop reaching completeForGoal after
+// KillProcess won, or translateActionStatus parking a process that was just
+// killed). Reports whether THIS call performed the transition, so a caller that
+// also publishes a terminal event fires it only when it actually won — never a
+// duplicate / conflicting terminal. This is the single "first terminal wins"
+// gate for every status write except the NotStarted/Waiting/Paused → Running
+// entry, which goes through makeRunning's own CAS.
+func (s *processState) setStatus(st core.AgentProcessStatus) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.status.IsTerminal() {
+		return false
+	}
 	s.status = st
+	return true
 }
 
 func (s *processState) setGoal(g *core.Goal) {
@@ -144,18 +157,12 @@ func (s *processState) makeRunning() bool {
 	return true
 }
 
-// markKilled atomically transitions to StatusKilled unless the process is
-// already terminal, reporting whether THIS call performed the transition. The
-// check-and-set is one critical section so a racing kill can't clobber a clean
-// Completed/Failed into Killed, and the caller publishes ProcessKilled only
-// when it actually won the transition (never a spurious / duplicate terminal).
+// markKilled transitions to StatusKilled unless the process is already
+// terminal, reporting whether THIS call performed the transition — the external
+// kill ([Platform.KillProcess]) side of the shared "first terminal wins" gate.
+// It is exactly setStatus(StatusKilled): a kill racing a natural completion (or
+// vice versa) can't clobber the other's terminal, and the caller publishes
+// ProcessKilled only when it actually won (never a spurious / duplicate one).
 func (s *processState) markKilled() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.status.IsTerminal() {
-		return false
-	}
-	s.status = core.StatusKilled
-	return true
+	return s.setStatus(core.StatusKilled)
 }
