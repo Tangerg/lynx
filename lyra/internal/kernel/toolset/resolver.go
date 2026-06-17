@@ -39,9 +39,9 @@ const (
 
 // wrapTool returns a Tool that runs call while preserving inner's Definition
 // and Metadata — the shared spine of the tool decorators (read/edit guards,
-// post-edit diagnostics). It also forwards inner's [chat.ConcurrencyKey] when
-// inner is a [chat.ConcurrentTool] (a keyed file tool), so the keyed-conflict
-// class survives the whole decorator stack and the tool loop still serializes
+// post-edit diagnostics). It also forwards inner's concurrency declaration (the
+// tool loop's optional ConcurrencyKey contract) so a keyed file tool's per-path
+// conflict class survives the whole decorator stack — the loop still serializes
 // same-path writes while parallelizing distinct-path ones.
 func wrapTool(inner chat.Tool, call func(ctx context.Context, arguments string) (string, error)) chat.Tool {
 	return &decoratedTool{inner: inner, call: call}
@@ -50,7 +50,7 @@ func wrapTool(inner chat.Tool, call func(ctx context.Context, arguments string) 
 // decoratedTool is the backing type for [wrapTool]: it overrides Call while
 // delegating Definition / Metadata / ConcurrencyKey to the wrapped tool, so a
 // stack of decorators preserves the inner tool's full contract — including its
-// per-call concurrency key.
+// per-call concurrency declaration.
 type decoratedTool struct {
 	inner chat.Tool
 	call  func(ctx context.Context, arguments string) (string, error)
@@ -63,14 +63,17 @@ func (d *decoratedTool) Call(ctx context.Context, arguments string) (string, err
 	return d.call(ctx, arguments)
 }
 
-// ConcurrencyKey forwards the wrapped tool's key (file-mutating tools are
-// [chat.ConcurrencyKeyed]); a wrapped tool that isn't keyed reports "" (no
-// conflict), which the loop driver ignores for non-keyed classes.
-func (d *decoratedTool) ConcurrencyKey(arguments string) string {
-	if c, ok := d.inner.(chat.ConcurrentTool); ok {
+// ConcurrencyKey forwards the wrapped tool's concurrency declaration (matched
+// structurally so this package needn't import the loop driver), so a keyed file
+// tool keeps its per-path key through the decorator stack. A wrapped tool that
+// declares nothing is exclusive (concurrent=false).
+func (d *decoratedTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
+	if c, ok := d.inner.(interface {
+		ConcurrencyKey(string) (string, bool)
+	}); ok {
 		return c.ConcurrencyKey(arguments)
 	}
-	return ""
+	return "", false
 }
 
 // BuildWorkdirTools instantiates the working-directory-bound filesystem tools,

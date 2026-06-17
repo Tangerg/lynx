@@ -10,23 +10,25 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// concTool is a stub tool with a configurable concurrency class + key. Its Call
-// records the peak number of overlapping executions (via a shared counter) and
-// holds briefly so concurrent calls actually overlap — letting a test tell
-// parallel execution from serial.
+// concTool is a stub tool that declares its concurrency via the optional
+// [ConcurrentTool] capability. Its Call records the peak number of overlapping
+// executions (via a shared counter) and holds briefly so concurrent calls
+// actually overlap — letting a test tell parallel execution from serial.
 type concTool struct {
-	name  string
-	class chat.ToolConcurrency
-	key   string
-	cur   *atomic.Int32
-	max   *atomic.Int32
+	name       string
+	concurrent bool
+	key        string
+	cur        *atomic.Int32
+	max        *atomic.Int32
 }
 
 func (c *concTool) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{Name: c.name, Description: "stub", InputSchema: "{}"}
 }
-func (c *concTool) Metadata() chat.ToolMetadata  { return chat.ToolMetadata{Concurrency: c.class} }
-func (c *concTool) ConcurrencyKey(string) string { return c.key }
+func (c *concTool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }
+
+// ConcurrencyKey is the [ConcurrentTool] opt-in: (key, concurrent).
+func (c *concTool) ConcurrencyKey(string) (string, bool) { return c.key, c.concurrent }
 
 func (c *concTool) Call(context.Context, string) (string, error) {
 	n := c.cur.Add(1)
@@ -57,14 +59,14 @@ func resultNames(res *invocationResult) []string {
 	return out
 }
 
-// TestInvoker_ParallelToolsRunConcurrently pins that several Parallel-class
-// calls in one round overlap, and that results are still returned in call order
-// regardless of completion order.
+// TestInvoker_ParallelToolsRunConcurrently pins that several parallel
+// (concurrent, no-conflict) calls in one round overlap, and that results are
+// still returned in call order regardless of completion order.
 func TestInvoker_ParallelToolsRunConcurrently(t *testing.T) {
 	var cur, max atomic.Int32
 	inv := newInvoker()
 	for _, n := range []string{"a", "b", "c"} {
-		inv.register(&concTool{name: n, class: chat.ToolConcurrencyParallel, cur: &cur, max: &max})
+		inv.register(&concTool{name: n, concurrent: true, cur: &cur, max: &max})
 	}
 
 	res, err := inv.invokeToolCalls(context.Background(), concCalls("a", "b", "c"))
@@ -79,13 +81,13 @@ func TestInvoker_ParallelToolsRunConcurrently(t *testing.T) {
 	}
 }
 
-// TestInvoker_KeyedConflict pins the resource-conflict rule: two keyed calls on
-// the SAME key serialize; on DISTINCT keys they run in parallel.
+// TestInvoker_KeyedConflict pins the resource-conflict rule: two concurrent
+// calls reporting the SAME key serialize; DISTINCT keys run in parallel.
 func TestInvoker_KeyedConflict(t *testing.T) {
 	var cur, max atomic.Int32
 	inv := newInvoker()
-	inv.register(&concTool{name: "e1", class: chat.ToolConcurrencyKeyed, key: "same", cur: &cur, max: &max})
-	inv.register(&concTool{name: "e2", class: chat.ToolConcurrencyKeyed, key: "same", cur: &cur, max: &max})
+	inv.register(&concTool{name: "e1", concurrent: true, key: "same", cur: &cur, max: &max})
+	inv.register(&concTool{name: "e2", concurrent: true, key: "same", cur: &cur, max: &max})
 	if _, err := inv.invokeToolCalls(context.Background(), concCalls("e1", "e2")); err != nil {
 		t.Fatalf("same-key invoke: %v", err)
 	}
@@ -95,8 +97,8 @@ func TestInvoker_KeyedConflict(t *testing.T) {
 
 	var cur2, max2 atomic.Int32
 	inv2 := newInvoker()
-	inv2.register(&concTool{name: "f1", class: chat.ToolConcurrencyKeyed, key: "k1", cur: &cur2, max: &max2})
-	inv2.register(&concTool{name: "f2", class: chat.ToolConcurrencyKeyed, key: "k2", cur: &cur2, max: &max2})
+	inv2.register(&concTool{name: "f1", concurrent: true, key: "k1", cur: &cur2, max: &max2})
+	inv2.register(&concTool{name: "f2", concurrent: true, key: "k2", cur: &cur2, max: &max2})
 	if _, err := inv2.invokeToolCalls(context.Background(), concCalls("f1", "f2")); err != nil {
 		t.Fatalf("distinct-key invoke: %v", err)
 	}
@@ -105,14 +107,14 @@ func TestInvoker_KeyedConflict(t *testing.T) {
 	}
 }
 
-// TestInvoker_ExclusiveDefaultSerial pins the conservative default: an untagged
-// tool is Exclusive, so calls run strictly one at a time — the behavior every
-// tool had before opting into a concurrency class.
+// TestInvoker_ExclusiveDefaultSerial pins the conservative default: a tool that
+// reports concurrent=false (the behavior of a tool not implementing
+// ConcurrentTool) runs strictly one at a time.
 func TestInvoker_ExclusiveDefaultSerial(t *testing.T) {
 	var cur, max atomic.Int32
 	inv := newInvoker()
 	for _, n := range []string{"x", "y"} {
-		inv.register(&concTool{name: n, cur: &cur, max: &max}) // class zero value = Exclusive
+		inv.register(&concTool{name: n, concurrent: false, cur: &cur, max: &max})
 	}
 	if _, err := inv.invokeToolCalls(context.Background(), concCalls("x", "y")); err != nil {
 		t.Fatalf("invokeToolCalls: %v", err)

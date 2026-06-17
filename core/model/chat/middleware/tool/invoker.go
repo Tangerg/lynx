@@ -291,12 +291,13 @@ func (i *invoker) interruptsToolLoop(err error) bool {
 // it. One child span per tool call under the parent chat span carries the
 // `gen_ai.tool.*` attributes — see [toolTracer] / doc/OBSERVABILITY.md §4.5.
 //
-// Concurrency policy ([chat.ToolConcurrency]): a tool is Exclusive by default
-// (serial, the conservative class); reads / network / sub-agents are Parallel
-// (no conflict); file-mutating tools are Keyed (conflict only on the same path
-// — distinct files run in parallel). HITL-interrupting and aborting tools are
-// Exclusive, so a parked / aborted call is always alone in its segment and the
-// interrupt's done-set is well defined.
+// Concurrency policy ([ConcurrentTool]): a tool is exclusive by default
+// (serial, the conservative class) — it runs alone; reads / network /
+// sub-agents declare themselves parallel (no conflict); file-mutating tools
+// declare a per-call key (conflict only on the same path — distinct files run
+// in parallel). HITL-interrupting and aborting tools are exclusive, so a parked
+// / aborted call is always alone in its segment and the interrupt's done-set is
+// well defined.
 func (i *invoker) invokeToolCalls(ctx context.Context, calls []*chat.ToolCallPart) (*invocationResult, error) {
 	returns := make([]*chat.ToolReturn, len(calls))
 	direct := make([]bool, len(calls))
@@ -342,21 +343,21 @@ func (i *invoker) invokeToolCalls(ctx context.Context, calls []*chat.ToolCallPar
 // (it must serialize against it). A single exclusive call yields a one-element
 // segment.
 func (i *invoker) segmentEnd(calls []*chat.ToolCallPart, start int) int {
-	class, key := i.concurrencyOf(calls[start])
-	if class == chat.ToolConcurrencyExclusive {
+	concurrent, key := i.concurrencyOf(calls[start])
+	if !concurrent {
 		return start + 1
 	}
 	claimed := map[string]struct{}{}
-	if class == chat.ToolConcurrencyKeyed && key != "" {
+	if key != "" {
 		claimed[key] = struct{}{}
 	}
 	end := start + 1
 	for end < len(calls) {
-		class, key = i.concurrencyOf(calls[end])
-		if class == chat.ToolConcurrencyExclusive {
+		concurrent, key = i.concurrencyOf(calls[end])
+		if !concurrent {
 			break
 		}
-		if class == chat.ToolConcurrencyKeyed && key != "" {
+		if key != "" {
 			if _, dup := claimed[key]; dup {
 				break
 			}
@@ -367,22 +368,20 @@ func (i *invoker) segmentEnd(calls []*chat.ToolCallPart, start int) int {
 	return end
 }
 
-// concurrencyOf reports a call's concurrency class and, for a keyed tool, the
-// resource key its arguments touch. An unregistered tool is treated as
-// exclusive (run alone) — it will produce the unknown-tool result.
-func (i *invoker) concurrencyOf(call *chat.ToolCallPart) (chat.ToolConcurrency, string) {
+// concurrencyOf reports whether a call may run concurrently with others and the
+// resource key it conflicts on, read from the tool's optional [ConcurrentTool]
+// capability. A tool that doesn't implement it — or an unregistered one — is
+// exclusive (run alone).
+func (i *invoker) concurrencyOf(call *chat.ToolCallPart) (concurrent bool, key string) {
 	t, ok := i.registry.find(call.Name)
 	if !ok {
-		return chat.ToolConcurrencyExclusive, ""
+		return false, ""
 	}
-	class := t.Metadata().Concurrency
-	if class != chat.ToolConcurrencyKeyed {
-		return class, ""
+	if c, ok := t.(ConcurrentTool); ok {
+		key, concurrent = c.ConcurrencyKey(call.Arguments)
+		return concurrent, key
 	}
-	if c, ok := t.(chat.ConcurrentTool); ok {
-		return class, c.ConcurrencyKey(call.Arguments)
-	}
-	return class, ""
+	return false, ""
 }
 
 // runSegment executes calls[start:end] — a one-element segment inline, a
