@@ -5,6 +5,7 @@ import { useCallback, useEffect } from "react";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import { enterUp } from "@/lib/motion";
 import { Slot } from "@/plugins/host/Slot";
+import { useAgentRunning } from "@/state/agentStore";
 import { MessageBlock } from "../message";
 
 // Chat scroll surface, backed by use-stick-to-bottom. `resetKey`
@@ -48,6 +49,12 @@ function ControlsRelay({ onChange }: { onChange?: (c: StreamControls) => void })
 }
 
 export function MessageStream({ messages, ctx, assistantName, resetKey, onControlsChange }: Props) {
+  // While a run streams, content grows continuously; the default `resize`
+  // spring (stiffness 0.05 / mass 1.25) is too sluggish to track it and the
+  // tail scrolls out of view (D2). Hard-pin to the bottom during generation,
+  // and keep the smooth catch-up only when idle (re-open / history load).
+  // `running` flips only at run boundaries, so this never churns per token.
+  const running = useAgentRunning();
   if (messages.length === 0) {
     return (
       <StickToBottom key={resetKey} className="msg-scroll-frame" initial="smooth" resize="smooth">
@@ -67,7 +74,7 @@ export function MessageStream({ messages, ctx, assistantName, resetKey, onContro
       key={resetKey}
       className="panel-scroll msg-scroll"
       initial="smooth"
-      resize="smooth"
+      resize={running ? "instant" : "smooth"}
     >
       <StickToBottom.Content
         scrollClassName="panel-scroll"
