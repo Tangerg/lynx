@@ -7,6 +7,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"sync"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -14,7 +15,14 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
+	pkgSync "github.com/Tangerg/lynx/pkg/sync"
 )
+
+// maxConcurrentToolCalls bounds how many concurrency-safe tool calls run at
+// once within one round's parallel batch. A round rarely emits more than a
+// handful of parallelizable calls; the cap keeps a model that fans out wide
+// (many `task` sub-agents, many reads) from stampeding provider rate limits.
+const maxConcurrentToolCalls = 8
 
 // invocationResult is what the tool-calling middleware emits after
 // running the LLM-requested tool calls. It captures the inline results
@@ -274,79 +282,214 @@ func (i *invoker) interruptsToolLoop(err error) bool {
 	return ok && !h.Abort()
 }
 
-// invokeToolCalls runs every requested tool in order and collects the
-// results into a single [*chat.ToolMessage]. One child span per tool call
-// is emitted under the parent chat span, tagged with `gen_ai.tool.*`
-// attributes — see [toolTracer] / doc/OBSERVABILITY.md §4.5.
+// invokeToolCalls runs a round's tool calls and collects the results into a
+// single [*chat.ToolMessage]. Calls run in segments: a maximal run of
+// non-conflicting calls executes CONCURRENTLY (bounded by
+// [maxConcurrentToolCalls]), while an exclusive call — or one whose resource
+// conflicts with a call already in the batch — runs alone. Segments execute in
+// the model's call order; results land by index so the tool message preserves
+// it. One child span per tool call under the parent chat span carries the
+// `gen_ai.tool.*` attributes — see [toolTracer] / doc/OBSERVABILITY.md §4.5.
+//
+// Concurrency policy ([chat.ToolConcurrency]): a tool is Exclusive by default
+// (serial, the conservative class); reads / network / sub-agents are Parallel
+// (no conflict); file-mutating tools are Keyed (conflict only on the same path
+// — distinct files run in parallel). HITL-interrupting and aborting tools are
+// Exclusive, so a parked / aborted call is always alone in its segment and the
+// interrupt's done-set is well defined.
 func (i *invoker) invokeToolCalls(ctx context.Context, calls []*chat.ToolCallPart) (*invocationResult, error) {
-	allReturnDirect := true
-	returns := make([]*chat.ToolReturn, 0, len(calls))
+	returns := make([]*chat.ToolReturn, len(calls))
+	direct := make([]bool, len(calls))
 
-	for _, call := range calls {
-		t, exists := i.registry.find(call.Name)
-		if !exists {
-			// The model named a tool that isn't registered. Answer the call
-			// with an error result so it can self-correct, and force a
-			// follow-up round — never abort the run over a hallucinated name.
-			allReturnDirect = false
-			returns = append(returns, &chat.ToolReturn{
-				ID:     call.ID,
-				Name:   call.Name,
-				Result: i.unknownToolResult(call.Name),
-			})
-			continue
+	for pos := 0; pos < len(calls); {
+		end := i.segmentEnd(calls, pos)
+		interrupt, abort := i.runSegment(ctx, calls, pos, end, returns, direct)
+		if abort != nil {
+			return nil, abort
 		}
-
-		content, err := i.invokeOne(ctx, t, call)
-		if err != nil {
-			if i.interruptsToolLoop(err) {
-				// HITL: this call halts the round pending human input. Stop here
-				// and report the results produced so far plus the cause; the
-				// middleware turns this into a FinishReasonInterrupt response (the
-				// resumable tail) and propagates the cause so the caller parks.
-				// On resume the loop re-enters at the still-pending calls — it
-				// does NOT re-run this round's already-done calls or re-invoke the
-				// model. Checked before the abort / feedback carve-outs so
-				// interrupt wins.
-				return &invocationResult{
-					interrupt: &roundInterrupt{done: returns, cause: err},
-				}, nil
-			}
-			if i.abortsToolLoop(err) {
-				return nil, fmt.Errorf("tool.invoker.invokeToolCalls: tool %q failed: %w", call.Name, err)
-			}
-			// Recoverable failure: feed it back to the model as the tool's
-			// result so it can adjust and continue, rather than aborting the
-			// run. This is the unconditional default — only control-flow errors
-			// (HITL interrupt above, context cancel / ToolHalt-abort here) stop
-			// the loop. The failure is also recorded out-of-band on the
-			// tool-call item (via the tool observer) — see engine.
-			allReturnDirect = false
-			returns = append(returns, &chat.ToolReturn{
-				ID:     call.ID,
-				Name:   call.Name,
-				Result: i.toolErrorResult(call.Name, err),
-			})
-			continue
+		if interrupt != nil {
+			// HITL: a call halted the round. Report the results already
+			// produced (any segment's completed calls, in any order — resume
+			// matches done ↔ pending by tool-call id, not position) plus the
+			// cause; the middleware turns this into a FinishReasonInterrupt
+			// response and parks. On resume the loop re-enters at the pending
+			// calls — never re-running a done call or re-invoking the model.
+			return &invocationResult{
+				interrupt: &roundInterrupt{done: filledReturns(returns), cause: interrupt},
+			}, nil
 		}
-
-		allReturnDirect = allReturnDirect && t.Metadata().ReturnDirect
-		returns = append(returns, &chat.ToolReturn{
-			ID:     call.ID,
-			Name:   call.Name,
-			Result: content,
-		})
+		pos = end
 	}
 
+	allReturnDirect := true
+	for _, d := range direct {
+		allReturnDirect = allReturnDirect && d
+	}
 	toolMsg, err := chat.NewToolMessage(returns)
 	if err != nil {
 		return nil, fmt.Errorf("tool.invoker.invokeToolCalls: %w", err)
 	}
-
 	return &invocationResult{
 		toolMessage:     toolMsg,
 		allReturnDirect: allReturnDirect,
 	}, nil
+}
+
+// segmentEnd returns the exclusive upper bound of the segment starting at
+// start: the longest run of consecutive calls that may execute together. The
+// run stops at the first exclusive call (which runs alone) and at the first
+// keyed call whose resource is already claimed by an earlier call in the run
+// (it must serialize against it). A single exclusive call yields a one-element
+// segment.
+func (i *invoker) segmentEnd(calls []*chat.ToolCallPart, start int) int {
+	class, key := i.concurrencyOf(calls[start])
+	if class == chat.ToolConcurrencyExclusive {
+		return start + 1
+	}
+	claimed := map[string]struct{}{}
+	if class == chat.ToolConcurrencyKeyed && key != "" {
+		claimed[key] = struct{}{}
+	}
+	end := start + 1
+	for end < len(calls) {
+		class, key = i.concurrencyOf(calls[end])
+		if class == chat.ToolConcurrencyExclusive {
+			break
+		}
+		if class == chat.ToolConcurrencyKeyed && key != "" {
+			if _, dup := claimed[key]; dup {
+				break
+			}
+			claimed[key] = struct{}{}
+		}
+		end++
+	}
+	return end
+}
+
+// concurrencyOf reports a call's concurrency class and, for a keyed tool, the
+// resource key its arguments touch. An unregistered tool is treated as
+// exclusive (run alone) — it will produce the unknown-tool result.
+func (i *invoker) concurrencyOf(call *chat.ToolCallPart) (chat.ToolConcurrency, string) {
+	t, ok := i.registry.find(call.Name)
+	if !ok {
+		return chat.ToolConcurrencyExclusive, ""
+	}
+	class := t.Metadata().Concurrency
+	if class != chat.ToolConcurrencyKeyed {
+		return class, ""
+	}
+	if c, ok := t.(chat.ConcurrentTool); ok {
+		return class, c.ConcurrencyKey(call.Arguments)
+	}
+	return class, ""
+}
+
+// runSegment executes calls[start:end] — a one-element segment inline, a
+// multi-element segment concurrently (bounded by [maxConcurrentToolCalls]) —
+// writing each call's result into returns[idx] / direct[idx]. It returns the
+// lowest-index HITL interrupt and the lowest-index abort among the segment's
+// calls; abort takes precedence (the caller propagates it), an interrupt parks
+// the round. Both nil on a clean segment. By policy only an exclusive call
+// (its own segment) interrupts or aborts, but a parallel batch tolerates either
+// defensively.
+func (i *invoker) runSegment(ctx context.Context, calls []*chat.ToolCallPart, start, end int, returns []*chat.ToolReturn, direct []bool) (interrupt, abort error) {
+	if end-start == 1 {
+		out, err := i.runOne(ctx, calls[start])
+		if err != nil {
+			if i.abortsToolLoop(err) {
+				return nil, fmt.Errorf("tool.invoker.invokeToolCalls: tool %q failed: %w", calls[start].Name, err)
+			}
+			return err, nil // HITL interrupt — interruptsToolLoop checked by the caller's classification
+		}
+		returns[start], direct[start] = out.ret, out.direct
+		return nil, nil
+	}
+
+	// Parallel batch. Cancel siblings on the first abort so a torn-down run
+	// stops promptly; HITL interrupts do NOT cancel (the other calls finish so
+	// their results join the done-set).
+	bctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	lim := pkgSync.NewLimiter(maxConcurrentToolCalls)
+	var wg sync.WaitGroup
+	interrupts := make([]error, end-start)
+	aborts := make([]error, end-start)
+	for idx := start; idx < end; idx++ {
+		lim.Acquire()
+		wg.Go(func() {
+			defer lim.Release()
+			out, err := i.runOne(bctx, calls[idx])
+			if err != nil {
+				if i.abortsToolLoop(err) {
+					aborts[idx-start] = err
+					cancel()
+					return
+				}
+				interrupts[idx-start] = err
+				return
+			}
+			returns[idx], direct[idx] = out.ret, out.direct
+		})
+	}
+	wg.Wait()
+
+	for off := range aborts {
+		if aborts[off] != nil {
+			return nil, fmt.Errorf("tool.invoker.invokeToolCalls: tool %q failed: %w", calls[start+off].Name, aborts[off])
+		}
+	}
+	for off := range interrupts {
+		if interrupts[off] != nil {
+			return interrupts[off], nil
+		}
+	}
+	return nil, nil
+}
+
+// toolOutcome is one completed tool call's result plus whether it is eligible
+// for return-direct. A control-flow signal (HITL interrupt / abort) is returned
+// as runOne's error, not here.
+type toolOutcome struct {
+	ret    *chat.ToolReturn
+	direct bool
+}
+
+// runOne executes one tool call and classifies the result. A nil error means
+// ret is set: a normal result, a recoverable-failure result (fed back so the
+// model adapts), or the unknown-tool result. A non-nil error is a control-flow
+// signal the caller classifies — a HITL interrupt ([invoker.interruptsToolLoop])
+// or an abort ([invoker.abortsToolLoop], context cancel / ToolHalt-abort).
+func (i *invoker) runOne(ctx context.Context, call *chat.ToolCallPart) (toolOutcome, error) {
+	t, exists := i.registry.find(call.Name)
+	if !exists {
+		// The model named a tool that isn't registered. Answer with an error
+		// result so it can self-correct — never abort over a hallucinated name.
+		return toolOutcome{ret: &chat.ToolReturn{ID: call.ID, Name: call.Name, Result: i.unknownToolResult(call.Name)}}, nil
+	}
+	content, err := i.invokeOne(ctx, t, call)
+	if err != nil {
+		if i.interruptsToolLoop(err) || i.abortsToolLoop(err) {
+			return toolOutcome{}, err // control flow: caller decides park vs propagate
+		}
+		// Recoverable failure: fold it into the result so the model can adjust.
+		// Also recorded out-of-band on the tool-call item (the tool observer).
+		return toolOutcome{ret: &chat.ToolReturn{ID: call.ID, Name: call.Name, Result: i.toolErrorResult(call.Name, err)}}, nil
+	}
+	return toolOutcome{ret: &chat.ToolReturn{ID: call.ID, Name: call.Name, Result: content}, direct: t.Metadata().ReturnDirect}, nil
+}
+
+// filledReturns drops the nil holes a parked round leaves in the indexed
+// results slice (the pending calls that didn't complete), yielding the
+// done-set in call order.
+func filledReturns(returns []*chat.ToolReturn) []*chat.ToolReturn {
+	out := make([]*chat.ToolReturn, 0, len(returns))
+	for _, r := range returns {
+		if r != nil {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 // invokeOne dispatches a single tool call under its own OTel span.

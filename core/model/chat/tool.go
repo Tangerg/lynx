@@ -20,6 +20,34 @@ type ToolDefinition struct {
 	InputSchema string
 }
 
+// ToolConcurrency classifies how a tool call may run relative to the OTHER
+// calls the model emitted in the same assistant message. A loop driver (the
+// bundled [core/model/chat/middleware/tool]) uses it to run non-conflicting
+// calls concurrently while keeping conflicting / opaque ones serial.
+type ToolConcurrency int8
+
+const (
+	// ToolConcurrencyExclusive (the zero value, the safe default) runs the call
+	// ALONE — never overlapping another call in the round. It is the right
+	// class for opaque side effects (a shell command), shared mutable state,
+	// and human-in-the-loop tools that pause the round. Until a tool opts into
+	// another class every call is exclusive, so the loop stays fully serial.
+	ToolConcurrencyExclusive ToolConcurrency = iota
+
+	// ToolConcurrencyParallel runs the call concurrently with ANY other
+	// non-exclusive call — it has no resource conflict (a pure read, a network
+	// fetch, an isolated sub-agent). Reads, greps, code-intelligence queries,
+	// and delegated sub-agents are parallel.
+	ToolConcurrencyParallel
+
+	// ToolConcurrencyKeyed runs the call concurrently with others EXCEPT those
+	// touching the same resource: two keyed calls conflict (and serialize) only
+	// when their [ConcurrentTool.ConcurrencyKey] matches. Different keys run in
+	// parallel. File-mutating tools are keyed on the path they write, so edits
+	// to distinct files parallelize while edits to the same file serialize.
+	ToolConcurrencyKeyed
+)
+
 // ToolMetadata controls how the framework treats a tool's result after
 // execution.
 type ToolMetadata struct {
@@ -28,6 +56,27 @@ type ToolMetadata struct {
 	// notifications. False (the default) sends the result back to the
 	// LLM for integration into the next reply.
 	ReturnDirect bool
+
+	// Concurrency classifies whether this tool's calls may overlap other calls
+	// in the same round (see [ToolConcurrency]). The zero value
+	// ([ToolConcurrencyExclusive]) keeps a tool serial — the conservative
+	// default, so adding the field changes no existing tool's behavior until it
+	// opts in.
+	Concurrency ToolConcurrency
+}
+
+// ConcurrentTool is the optional capability a [ToolConcurrencyKeyed] tool
+// implements to declare, per call, the resource its arguments touch. The loop
+// driver serializes two keyed calls only when their keys match (e.g. two edits
+// to the same file path), running different-key calls in parallel. A tool whose
+// [ToolMetadata.Concurrency] is not Keyed need not implement this.
+type ConcurrentTool interface {
+	Tool
+
+	// ConcurrencyKey returns the resource key the call described by arguments
+	// touches — the file path for a file-mutating tool. An empty key means "no
+	// known conflict" (treated as parallel for this call).
+	ConcurrencyKey(arguments string) string
 }
 
 // Tool is the executable contract every tool exposes — describable to

@@ -38,7 +38,15 @@ type agentTool struct {
 }
 
 func (t *agentTool) Definition() chat.ToolDefinition { return t.def }
-func (t *agentTool) Metadata() chat.ToolMetadata     { return chat.ToolMetadata{} }
+
+// Metadata marks an agent-as-tool Parallel: each call spawns an ISOLATED child
+// process (its own blackboard + session, no shared mutable state), and a child
+// that parks for HITL surfaces as a {"status":"waiting"} result rather than
+// interrupting the parent round — so the loop driver may run several sub-agent
+// delegations (e.g. `task`) concurrently.
+func (t *agentTool) Metadata() chat.ToolMetadata {
+	return chat.ToolMetadata{Concurrency: chat.ToolConcurrencyParallel}
+}
 
 func (t *agentTool) Call(ctx context.Context, arguments string) (string, error) {
 	in, err := t.decode(arguments)
