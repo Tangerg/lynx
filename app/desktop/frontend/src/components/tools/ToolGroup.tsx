@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { ToolCall } from "@/protocol/run/viewState";
-import { Icon } from "@/components/common";
+import { Collapsible, Icon } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { hasToolView, openViewForTool } from "@/state/toolRouting";
 import { ToolCard } from "./ToolCard";
@@ -65,13 +65,6 @@ export function ToolGroup({
   // a boolean = the user has pinned it that way.
   const [pinned, setPinned] = useState<boolean | null>(null);
   const expanded = pinned ?? needsAttention;
-  // Keep children mounted once shown so the auto-collapse (last running tool
-  // settling → needsAttention false) animates closed instead of snapping their
-  // rows out of the DOM (matches ToolCard's reveal pattern).
-  const [revealed, setRevealed] = useState(expanded);
-  useEffect(() => {
-    if (expanded) setRevealed(true);
-  }, [expanded]);
 
   return (
     <div className="my-1.5">
@@ -93,35 +86,23 @@ export function ToolGroup({
         <span className="ml-auto font-mono text-[10px] text-fg-faint">{tools.length} calls</span>
         <Icon name={expanded ? "minimize" : "more"} size={12} className="text-fg-faint" />
       </button>
-      {/* Grid-rows collapse (no height measurement, like ToolCard) so the
-          auto-collapse when the last tool settles animates instead of snapping,
-          and the gradual height change doesn't trip the chat scroller (D1). */}
-      <div
-        className={cn(
-          "grid transition-[grid-template-rows] duration-150 ease-out",
-          expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
-        )}
-      >
-        <div className="min-h-0 overflow-hidden">
-          {(expanded || revealed) && (
-            <div className="pl-3">
-              {tools.map((t) => (
-                <ToolCard
-                  key={t.id}
-                  tool={t}
-                  selected={selectedToolId === t.id}
-                  expanded={expandedIds.has(t.id)}
-                  onToggleExpand={() => {
-                    onSelectTool(t.id);
-                    onToggleExpand(t.id);
-                  }}
-                  onOpenView={hasToolView(t) ? () => openViewForTool(t.id) : undefined}
-                />
-              ))}
-            </div>
-          )}
+      <Collapsible open={expanded}>
+        <div className="pl-3">
+          {tools.map((t) => (
+            <ToolCard
+              key={t.id}
+              tool={t}
+              selected={selectedToolId === t.id}
+              expanded={expandedIds.has(t.id)}
+              onToggleExpand={() => {
+                onSelectTool(t.id);
+                onToggleExpand(t.id);
+              }}
+              onOpenView={hasToolView(t) ? () => openViewForTool(t.id) : undefined}
+            />
+          ))}
         </div>
-      </div>
+      </Collapsible>
     </div>
   );
 }

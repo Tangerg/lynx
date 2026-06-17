@@ -4,8 +4,7 @@
 // Selected + expanded state lives in sessionStore so it survives tab switches.
 import type { IconName } from "@/components/common";
 import type { ToolCall } from "@/protocol/run/viewState";
-import { useEffect, useState } from "react";
-import { Icon } from "@/components/common";
+import { Collapsible, Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import {
@@ -48,12 +47,6 @@ export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView 
   const toolIcon = toolIconFor(toolRoutingKey(tool));
   const actions = useExtensionPoint(TOOL_ACTION).filter((a) => !a.predicate || a.predicate(tool));
   const running = tool.status === "running";
-  // Mount the preview once opened and keep it mounted (hidden by the collapsed
-  // grid row) so the close animates too, without re-mounting the preview.
-  const [revealed, setRevealed] = useState(expanded);
-  useEffect(() => {
-    if (expanded) setRevealed(true);
-  }, [expanded]);
 
   return (
     <div
@@ -177,23 +170,9 @@ export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView 
           {tool.error}
         </div>
       )}
-      {/* Expand via grid-template-rows 0fr↔1fr — a NO-measurement open/close.
-          FM's `height: "auto"` measures by briefly inflating to natural height
-          then restoring, which the chat scroller's use-stick-to-bottom
-          ResizeObserver could mis-read as a content shrink and clamp the view to
-          the top (D1). The grid row's gradual grow/shrink is a REAL size change
-          the sticky-bottom follows correctly. `min-h-0` lets the row collapse
-          below its content height. */}
-      <div
-        className={cn(
-          "grid overflow-hidden transition-[grid-template-rows] duration-150 ease-out",
-          expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
-        )}
-      >
-        <div className="min-h-0 overflow-hidden">
-          {(expanded || revealed) && <ToolPreview tool={tool} onOpenView={onOpenView} />}
-        </div>
-      </div>
+      <Collapsible open={expanded}>
+        <ToolPreview tool={tool} onOpenView={onOpenView} />
+      </Collapsible>
     </div>
   );
 }

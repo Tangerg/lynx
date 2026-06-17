@@ -104,7 +104,7 @@ export interface Methods {
   sessions: {
     list: (query?: PageQuery) => Promise<Page<Session>>;
     get: (sessionId: SessionId) => Promise<Session>;
-    create: (params?: CreateSessionRequest) => Promise<Session>;
+    create: (params?: CreateSessionRequest, signal?: AbortSignal) => Promise<Session>;
     update: (params: UpdateSessionRequest) => Promise<Session>;
     delete: (sessionId: SessionId) => Promise<void>;
     fork: (params: ForkSessionRequest) => Promise<Session>;
@@ -264,7 +264,7 @@ export function createMethods(client: RpcClient): Methods {
     sessions: {
       list: (query) => client.call<Page<Session>>("sessions.list", query ?? {}),
       get: (sessionId) => client.call<Session>("sessions.get", { sessionId }),
-      create: (params) => client.call<Session>("sessions.create", params ?? {}),
+      create: (params, signal) => client.call<Session>("sessions.create", params ?? {}, signal),
       update: (params) => client.call<Session>("sessions.update", params),
       delete: (sessionId) => client.call<void>("sessions.delete", { sessionId }),
       fork: (params) => client.call<Session>("sessions.fork", params),

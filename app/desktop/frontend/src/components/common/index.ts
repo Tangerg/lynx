@@ -1,5 +1,6 @@
 export { Checkbox } from "./Checkbox";
 export { Chip } from "./Chip";
+export { Collapsible } from "./Collapsible";
 export { DataView } from "./DataView";
 export { Divider } from "./Divider";
 export { dragClasses, DragStrip, noDragClasses } from "./DragRegion";
