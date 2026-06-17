@@ -304,6 +304,10 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
 
     const stop = (): void => {
       abort?.abort();
+      // The abort closes the event channel, so the backend's run.finished
+      // {canceled} never reaches the fold — settle the run locally or the view
+      // stays stuck "running" (Stop button latched, next send blocked).
+      store().cancelRun(sessionId);
       if (currentRunId)
         void getContainer()
           .client()
