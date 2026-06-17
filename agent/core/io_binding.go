@@ -22,6 +22,13 @@ const (
 type IOBinding struct {
 	Name string
 	Type string
+
+	// goType is the concrete reflect.Type the binding was declared with,
+	// retained so a snapshot round-trip can reconstruct the original Go type
+	// rather than the generic map JSON decodes into (see snapshotTypeTable).
+	// Set only by NewIOBinding[T]; nil for bindings parsed from their string
+	// form (ParseIOBinding) — those carry no recoverable type information.
+	goType reflect.Type
 }
 
 // String renders the canonical "name:Type" form. An empty Name normalizes to
@@ -47,9 +54,15 @@ func NewIOBinding[T any](name string) IOBinding {
 		name = DefaultBindingName
 	}
 
+	rt := reflect.TypeFor[T]()
+	elem := rt
+	for elem.Kind() == reflect.Pointer {
+		elem = elem.Elem()
+	}
 	return IOBinding{
-		Name: name,
-		Type: typeFullName(reflect.TypeFor[T]()),
+		Name:   name,
+		Type:   typeFullName(rt),
+		goType: elem, // unwrapped to match Type's pointer-normalized name
 	}
 }
 
