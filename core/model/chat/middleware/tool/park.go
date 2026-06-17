@@ -16,10 +16,14 @@ type ParkState struct {
 	Done      []*chat.ToolReturn     `json:"done,omitempty"`
 }
 
-// ParkReader loads a parked round for a conversation, or (nil, nil)
-// when nothing is parked.
-type ParkReader interface {
-	Read(ctx context.Context, conversationID string) (*ParkState, error)
+// ParkConsumer atomically loads AND removes the parked round for a
+// conversation, returning (nil, nil) when nothing is parked. Read-and-remove
+// is ONE operation by design: a separate clear that failed after a successful
+// read would leave a stale round that the next turn — possibly a brand-new
+// one on the same conversation — re-injects, wrongly resuming onto a dead
+// tail. Atomic consumption makes resume idempotent.
+type ParkConsumer interface {
+	Consume(ctx context.Context, conversationID string) (*ParkState, error)
 }
 
 // ParkWriter persists a parked round.
@@ -27,18 +31,12 @@ type ParkWriter interface {
 	Write(ctx context.Context, conversationID string, state *ParkState) error
 }
 
-// ParkClearer drops a consumed parked round.
-type ParkClearer interface {
-	Clear(ctx context.Context, conversationID string) error
-}
-
-// ParkStore is the union of [ParkReader], [ParkWriter], and
-// [ParkClearer] — the complete park-state surface. Pass it to
-// [Config.ParkStore]; nil means the middleware falls back to
-// [buildInterruptResponse] (the conversation-based tail
-// path that the engine intercepts).
+// ParkStore is the resumable-round persistence surface: atomically consume a
+// parked round on resume ([ParkConsumer]), write one on interrupt
+// ([ParkWriter]). Pass it to [Config.ParkStore]; nil means the middleware
+// falls back to [buildInterruptResponse] (the conversation-based tail path
+// that the engine intercepts).
 type ParkStore interface {
-	ParkReader
+	ParkConsumer
 	ParkWriter
-	ParkClearer
 }

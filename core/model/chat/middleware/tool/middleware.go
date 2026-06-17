@@ -401,12 +401,16 @@ func newToolMessageResponse(tm *chat.ToolMessage) (*chat.Response, error) {
 
 // ─── ParkStore helpers ──────────────────────────────────────────
 
-// restorePark loads (and clears) any parked round for the request's
-// conversation and injects its tail so [parseResumePoint] detects it
-// and resumes at the pending call. A malformed conversation id fails
-// the request — parked rounds are keyed by it, so guessing would
-// resume the wrong conversation. Returns the request unchanged when
-// no ParkStore is configured or nothing is parked.
+// restorePark atomically consumes any parked round for the request's
+// conversation and injects its tail so [parseResumePoint] detects it and
+// resumes at the pending call. Consume reads AND removes in one operation, so
+// the round can never linger to hijack a later fresh turn on this
+// conversation (the bug a read-then-best-effort-clear had when the clear
+// failed). A malformed conversation id, or a consume failure, fails the
+// request — parked rounds are keyed by the id, so guessing would resume the
+// wrong conversation, and resuming onto a half-consumed tail is worse than
+// surfacing the error. Returns the request unchanged when no ParkStore is
+// configured or nothing is parked.
 func (m *middleware) restorePark(ctx context.Context, req *chat.Request) (*chat.Request, error) {
 	parkID, err := req.ConversationID()
 	if err != nil {
@@ -415,9 +419,12 @@ func (m *middleware) restorePark(ctx context.Context, req *chat.Request) (*chat.
 	if parkID == "" || m.parkStore == nil {
 		return req, nil
 	}
-	if state, _ := m.parkStore.Read(ctx, parkID); state != nil {
+	state, err := m.parkStore.Consume(ctx, parkID)
+	if err != nil {
+		return nil, fmt.Errorf("tool: consume parked round: %w", err)
+	}
+	if state != nil {
 		req = injectParkTail(ctx, req, state)
-		_ = m.parkStore.Clear(ctx, parkID)
 	}
 	return req, nil
 }

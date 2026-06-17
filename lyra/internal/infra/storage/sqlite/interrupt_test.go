@@ -69,3 +69,43 @@ func TestInterruptStore_PutGetListDelete(t *testing.T) {
 		t.Fatal("Get after Delete: still present")
 	}
 }
+
+// TestInterruptStore_ConsumeIsAtomic pins the resume-idempotency fix: Consume
+// reads AND deletes the pending interrupt in one statement, so two concurrent
+// resumes can't both claim it (the second gets ok=false and backs off, instead
+// of both rebuilding the parked process and re-firing the approved tool). Also
+// exercises that modernc SQLite supports DELETE ... RETURNING.
+func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
+	ctx := context.Background()
+	store := newInterruptStore(t)
+
+	// Nothing recorded → ok=false.
+	if _, ok, err := store.Consume(ctx, "run_x"); err != nil || ok {
+		t.Fatalf("Consume(empty) = ok=%v err=%v, want ok=false", ok, err)
+	}
+
+	if err := store.Put(ctx, interrupts.Pending{
+		ParentRunID: "run_1",
+		SessionID:   "ses_a",
+		ProcessID:   "proc_1",
+		Interrupts:  json.RawMessage(`[{"kind":"approval"}]`),
+		CreatedAt:   time.Unix(7, 0).UTC(),
+	}); err != nil {
+		t.Fatalf("Put: %v", err)
+	}
+
+	// First consume returns the full record.
+	got, ok, err := store.Consume(ctx, "run_1")
+	if err != nil || !ok {
+		t.Fatalf("Consume: ok=%v err=%v", ok, err)
+	}
+	if got.ProcessID != "proc_1" || string(got.Interrupts) != `[{"kind":"approval"}]` {
+		t.Fatalf("Consume returned %+v", got)
+	}
+
+	// Second consume finds nothing — the record was removed atomically with
+	// the read, so a racing resume can't re-fire the tool.
+	if _, ok, err := store.Consume(ctx, "run_1"); err != nil || ok {
+		t.Fatalf("second Consume = ok=%v err=%v, want ok=false — record must be gone", ok, err)
+	}
+}
