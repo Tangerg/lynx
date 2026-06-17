@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"sync"
@@ -14,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/core/model/chat"
+	pkgSafe "github.com/Tangerg/lynx/pkg/safe"
 	pkgSlices "github.com/Tangerg/lynx/pkg/slices"
 	pkgSync "github.com/Tangerg/lynx/pkg/sync"
 )
@@ -393,57 +395,58 @@ func (i *invoker) concurrencyOf(call *chat.ToolCallPart) (concurrent bool, key s
 // (its own segment) interrupts or aborts, but a parallel batch tolerates either
 // defensively.
 func (i *invoker) runSegment(ctx context.Context, calls []*chat.ToolCallPart, start, end int, returns []*chat.ToolReturn, direct []bool) (interrupt, abort error) {
-	if end-start == 1 {
-		out, err := i.runOne(ctx, calls[start])
+	// run executes one call into its result slot, returning a control-flow
+	// signal (HITL interrupt or abort) when the call produced no result. runOne
+	// folds a recoverable failure into the result itself, so a non-nil return
+	// here is always interrupt-or-abort.
+	run := func(ctx context.Context, idx int) error {
+		out, err := i.runOne(ctx, calls[idx])
 		if err != nil {
-			if i.abortsToolLoop(err) {
-				return nil, fmt.Errorf("tool.invoker.invokeToolCalls: tool %q failed: %w", calls[start].Name, err)
-			}
-			return err, nil // HITL interrupt — interruptsToolLoop checked by the caller's classification
+			return err
 		}
-		returns[start], direct[start] = out.ret, out.direct
-		return nil, nil
+		returns[idx], direct[idx] = out.ret, out.direct
+		return nil
 	}
 
-	// Parallel batch. Cancel siblings on the first abort so a torn-down run
-	// stops promptly; HITL interrupts do NOT cancel (the other calls finish so
-	// their results join the done-set).
-	bctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	lim := pkgSync.NewLimiter(maxConcurrentToolCalls)
-	var wg sync.WaitGroup
-	interrupts := make([]error, end-start)
-	aborts := make([]error, end-start)
-	for idx := start; idx < end; idx++ {
-		lim.Acquire()
-		wg.Go(func() {
-			defer lim.Release()
-			out, err := i.runOne(bctx, calls[idx])
-			if err != nil {
-				if i.abortsToolLoop(err) {
-					aborts[idx-start] = err
-					cancel()
-					return
+	errs := make([]error, end-start) // control-flow signal per call; nil = produced a result
+	if len(errs) == 1 {
+		errs[0] = run(ctx, start) // exclusive call: inline, no goroutine
+	} else {
+		// Parallel batch, bounded by maxConcurrentToolCalls. Cancel siblings on
+		// the first abort so a torn-down run stops promptly; a HITL interrupt
+		// does NOT cancel — the other calls finish and their results join the
+		// done-set.
+		bctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		lim := pkgSync.NewLimiter(maxConcurrentToolCalls)
+		var wg sync.WaitGroup
+		for idx := start; idx < end; idx++ {
+			lim.Acquire()
+			wg.Go(func() {
+				defer lim.Release()
+				if err := run(bctx, idx); err != nil {
+					errs[idx-start] = err
+					if i.abortsToolLoop(err) {
+						cancel()
+					}
 				}
-				interrupts[idx-start] = err
-				return
-			}
-			returns[idx], direct[idx] = out.ret, out.direct
-		})
+			})
+		}
+		wg.Wait()
 	}
-	wg.Wait()
 
-	for off := range aborts {
-		if aborts[off] != nil {
-			return nil, fmt.Errorf("tool.invoker.invokeToolCalls: tool %q failed: %w", calls[start+off].Name, aborts[off])
+	// Classify in call order: an abort takes precedence (the run can't
+	// continue); otherwise the lowest-index HITL interrupt parks the round.
+	for off, err := range errs {
+		switch {
+		case err == nil:
+		case i.abortsToolLoop(err):
+			return nil, fmt.Errorf("tool.invoker.invokeToolCalls: tool %q failed: %w", calls[start+off].Name, err)
+		case interrupt == nil:
+			interrupt = err
 		}
 	}
-	for off := range interrupts {
-		if interrupts[off] != nil {
-			return interrupts[off], nil
-		}
-	}
-	return nil, nil
+	return interrupt, nil
 }
 
 // toolOutcome is one completed tool call's result plus whether it is eligible
@@ -491,12 +494,19 @@ func filledReturns(returns []*chat.ToolReturn) []*chat.ToolReturn {
 	return out
 }
 
-// invokeOne dispatches a single tool call under its own OTel span.
-// The span emits `gen_ai.tool.name` / `gen_ai.tool.call.id`; an error
-// adds the error to the span and sets span status before
-// re-throwing the underlying error to the caller. No-op overhead
-// when no TracerProvider is configured.
-func (i *invoker) invokeOne(ctx context.Context, t chat.Tool, call *chat.ToolCallPart) (string, error) {
+// invokeOne dispatches a single tool call under its own OTel span. The span
+// emits `gen_ai.tool.name` / `gen_ai.tool.call.id`; an error (or a recovered
+// panic) is recorded on the span and its status set before the error is handed
+// back to the caller. No-op overhead when no TracerProvider is configured.
+//
+// A tool runs arbitrary code, and in a parallel batch it runs in a goroutine
+// this package spawns — an escaping panic there has no ancestor recover on its
+// stack and would crash the whole process. So the panic is contained HERE, at
+// the tool boundary: the full stack lands on the span, and the loop receives a
+// concise error. A panic is neither a [chat.ToolHalt] nor a context error, so
+// it flows back as an ordinary recoverable failure (folded into the tool result
+// and fed to the model) — the loop's default for any non-control-flow error.
+func (i *invoker) invokeOne(ctx context.Context, t chat.Tool, call *chat.ToolCallPart) (content string, err error) {
 	ctx, span := toolTracer.Start(ctx, "tool.invoke "+call.Name,
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -506,20 +516,28 @@ func (i *invoker) invokeOne(ctx context.Context, t chat.Tool, call *chat.ToolCal
 	)
 	defer span.End()
 
-	content, err := t.Call(ctx, call.Arguments)
-
-	if err != nil {
-		if i.interruptsToolLoop(err) {
+	// Runs before span.End (defers are LIFO) so the outcome lands on the span.
+	defer func() {
+		if r := recover(); r != nil {
+			span.RecordError(pkgSafe.NewPanicError(r, debug.Stack()))
+			span.SetStatus(codes.Error, "tool panicked")
+			err = fmt.Errorf("panic: %v", r)
+			return
+		}
+		switch {
+		case err == nil:
+		case i.interruptsToolLoop(err):
 			// HITL interrupt: the tool asked to pause for human input — normal
 			// control flow, not a failure. Record it as an event but leave the
 			// span status unset (no false error-rate alerts on every approval).
 			span.AddEvent("tool_loop.interrupted")
-		} else {
+		default:
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 		}
-	}
-	return content, err
+	}()
+
+	return t.Call(ctx, call.Arguments)
 }
 
 // invoke is the orchestrator: validate, run, attach context.
