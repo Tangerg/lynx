@@ -1,7 +1,7 @@
 // Locks the per-tool display projections against the RUNTIME's actual wire
 // shapes (lynx/lyra tool implementations), not just the §4.4.2 conventions:
 // bash returns {stdout, stderr, exit_code}, grep one of matches/files/counts,
-// glob {paths}, edit/write {replacements}/{bytes_written} (no diff rows),
+// glob {paths}, edit/write {changes:[{path,status}]} (no per-file diff rows),
 // and the specialised tools (lsp / lsp_diagnostics / skill / task / ask_user /
 // bash_output / kill_shell) label by name.
 
@@ -85,9 +85,17 @@ describe("toolFields — runtime wire shapes", () => {
   });
 
   it("edit: no fabricated ±0 counts when the result has no diff rows", () => {
-    const f = toolFields(tool("edit", { path: "a.go" }, { replacements: 2 }));
+    // The runtime's ACTUAL write/edit shape (tooldisplay.go): file entries with
+    // status but no per-file `diff` — must NOT render "+0 −0".
+    const f = toolFields(
+      tool("edit", { file_path: "a.go" }, { changes: [{ path: "a.go", status: "modified" }] }),
+    );
     expect(f.added).toBeUndefined();
     expect(f.removed).toBeUndefined();
+    // A result with no `changes` key at all stays {} too.
+    const g = toolFields(tool("write", { file_path: "b.go" }, { bytes_written: 12 }));
+    expect(g.added).toBeUndefined();
+    expect(g.removed).toBeUndefined();
   });
 
   it("read: passes the content through as the result body", () => {

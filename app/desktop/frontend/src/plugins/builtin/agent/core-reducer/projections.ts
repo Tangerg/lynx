@@ -136,8 +136,12 @@ function asArrayLength(v: unknown): number | undefined {
 }
 
 /** result.changes (FileEdit[]) → +added / −removed line counts (§4.4.2 edit).
- *  The runtime's edit/write return `{replacements}` / `{bytes_written}` —
- *  no diff rows — so absent `changes` yields {} (no fabricated "+0 −0"). */
+ *  The runtime's write/edit return `{changes:[{path,status}]}` — file entries
+ *  with NO per-file `diff` rows (tooldisplay.go fileChangeResult) — and other
+ *  shapes carry no `changes` at all. Either way there are no line counts to
+ *  show, so return {} rather than a fabricated "+0 −0" on every edit card
+ *  (ToolMeta renders `+{added}` whenever `added != null`, and `0 != null`).
+ *  Counts only surface if a runtime ever ships actual diff rows. */
 function editLineCounts(result: unknown): Partial<ToolCall> {
   const changes = asRecord(result)?.changes;
   if (!Array.isArray(changes)) return {};
@@ -145,6 +149,7 @@ function editLineCounts(result: unknown): Partial<ToolCall> {
     const diff = asRecord(c)?.diff;
     return Array.isArray(diff) ? diff : [];
   });
+  if (rows.length === 0) return {}; // {path,status} entries, no diff rows → nothing to count
   const isType = (r: unknown, t: string) => asRecord(r)?.type === t;
   return {
     added: rows.filter((r) => isType(r, "added")).length,
