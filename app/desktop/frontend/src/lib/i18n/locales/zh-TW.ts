@@ -115,6 +115,8 @@ export const zhTW: Record<string, string> = {
   "toolInspector.arguments": "參數",
   "toolInspector.result": "結果",
   "toolInspector.noResult": "(無結果內容 —— 工具回傳為空)",
+  "runtime.unsupported.title": "目前的執行環境不支援",
+  "runtime.unsupported.sub": "已連線的執行環境尚未提供此功能。",
   "dataView.error.title": "載入失敗",
   "dataView.error.sub": "執行時未回應此請求。請檢查連線後重試。",
 

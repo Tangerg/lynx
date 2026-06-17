@@ -116,6 +116,8 @@ export const ko: Record<string, string> = {
   "toolInspector.arguments": "인수",
   "toolInspector.result": "결과",
   "toolInspector.noResult": "(결과 본문 없음 — 도구가 빈 값을 반환함)",
+  "runtime.unsupported.title": "이 런타임에서 지원되지 않음",
+  "runtime.unsupported.sub": "연결된 런타임이 아직 이 기능을 제공하지 않습니다.",
   "dataView.error.title": "불러오지 못함",
   "dataView.error.sub": "런타임이 이 요청에 응답하지 않았습니다. 연결을 확인하고 다시 시도하세요.",
 

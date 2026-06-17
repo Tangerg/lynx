@@ -118,6 +118,8 @@ export const en: Record<string, string> = {
   "toolInspector.arguments": "Arguments",
   "toolInspector.result": "Result",
   "toolInspector.noResult": "(no result body — tool returned empty)",
+  "runtime.unsupported.title": "Not supported by this runtime",
+  "runtime.unsupported.sub": "The connected runtime doesn’t expose this capability yet.",
   "dataView.error.title": "Couldn’t load",
   "dataView.error.sub": "The runtime didn’t answer this request. Check the connection and retry.",
 

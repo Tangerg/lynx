@@ -115,6 +115,8 @@ export const zh: Record<string, string> = {
   "toolInspector.arguments": "参数",
   "toolInspector.result": "结果",
   "toolInspector.noResult": "(无结果内容 —— 工具返回为空)",
+  "runtime.unsupported.title": "当前运行时不支持",
+  "runtime.unsupported.sub": "已连接的运行时尚未提供该能力。",
   "dataView.error.title": "加载失败",
   "dataView.error.sub": "运行时未响应此请求。请检查连接后重试。",
 

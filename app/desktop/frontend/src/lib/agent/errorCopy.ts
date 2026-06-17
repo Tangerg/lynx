@@ -4,7 +4,7 @@
 // error type changes BEHAVIOR (retry, keep-input-open); this table only
 // owns the words.
 
-import { errorDetail, errorType, RpcError } from "@/rpc";
+import { errorDetail, errorType, RPC_METHOD_NOT_FOUND, RpcError, RpcTransportError } from "@/rpc";
 
 const ERROR_COPY: Record<string, string> = {
   session_busy: "Session is busy — wait for the current run to finish.",
@@ -34,4 +34,19 @@ export function describeRpcError(err: unknown): string | undefined {
 export function rpcErrorText(err: unknown): string | undefined {
   if (!(err instanceof RpcError)) return undefined;
   return describeRpcError(err) ?? errorDetail(err.data) ?? err.message;
+}
+
+/** True when a call failed because the connected runtime doesn't implement the
+ *  method — an unregistered RPC, e.g. a 613 proposal-surface method (file-tree
+ *  browse, remembered-approval management) the backend hasn't shipped yet. lynx
+ *  answers an unknown method with HTTP 404 + a -32601 envelope, so the HTTP
+ *  transport surfaces it as a RpcTransportError(status 404); an in-process
+ *  transport would surface the JSON-RPC -32601 directly as an RpcError. Lets a
+ *  panel for a not-yet-supported feature render a calm "unavailable on this
+ *  runtime" state instead of a hard error. */
+export function isUnsupportedMethod(err: unknown): boolean {
+  return (
+    (err instanceof RpcTransportError && err.status === 404) ||
+    (err instanceof RpcError && err.code === RPC_METHOD_NOT_FOUND)
+  );
 }

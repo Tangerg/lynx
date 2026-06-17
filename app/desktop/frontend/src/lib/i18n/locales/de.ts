@@ -119,6 +119,8 @@ export const de: Record<string, string> = {
   "toolInspector.arguments": "Argumente",
   "toolInspector.result": "Ergebnis",
   "toolInspector.noResult": "(kein Ergebnistext — Tool lieferte nichts zurück)",
+  "runtime.unsupported.title": "Von dieser Runtime nicht unterstützt",
+  "runtime.unsupported.sub": "Die verbundene Runtime stellt diese Funktion noch nicht bereit.",
   "dataView.error.title": "Laden fehlgeschlagen",
   "dataView.error.sub":
     "Die Runtime hat auf diese Anfrage nicht geantwortet. Prüfe die Verbindung und versuche es erneut.",

@@ -118,6 +118,8 @@ export const fr: Record<string, string> = {
   "toolInspector.arguments": "Arguments",
   "toolInspector.result": "Résultat",
   "toolInspector.noResult": "(pas de corps de résultat — l'outil n'a rien renvoyé)",
+  "runtime.unsupported.title": "Non pris en charge par ce runtime",
+  "runtime.unsupported.sub": "Le runtime connecté n’expose pas encore cette fonctionnalité.",
   "dataView.error.title": "Échec du chargement",
   "dataView.error.sub":
     "Le runtime n'a pas répondu à cette requête. Vérifiez la connexion et réessayez.",

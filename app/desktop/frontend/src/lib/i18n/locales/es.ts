@@ -118,6 +118,8 @@ export const es: Record<string, string> = {
   "toolInspector.arguments": "Argumentos",
   "toolInspector.result": "Resultado",
   "toolInspector.noResult": "(sin cuerpo de resultado — la herramienta no devolvió nada)",
+  "runtime.unsupported.title": "No compatible con este runtime",
+  "runtime.unsupported.sub": "El runtime conectado aún no expone esta función.",
   "dataView.error.title": "No se pudo cargar",
   "dataView.error.sub":
     "El runtime no respondió a esta petición. Comprueba la conexión y reinténtalo.",
