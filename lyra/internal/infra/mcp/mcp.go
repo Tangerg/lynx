@@ -89,6 +89,13 @@ type Connections struct {
 	servers []*server
 	client  *sdkmcp.Client
 	onTools func([]chat.Tool) // tool sink; nil until SetToolSink
+
+	// reconnectMu serializes Reconnect so two concurrent calls can't both dial
+	// and leak the loser's freshly-dialed session (the winner overwrites
+	// ms.session). Separate from mu — held across the dial I/O, which mu (the
+	// hot-path registry lock) must not be. Reconnect is a rare admin op, so
+	// serializing across servers is fine.
+	reconnectMu sync.Mutex
 }
 
 // SetToolSink registers the callback Reconnect invokes with the rebuilt
@@ -227,6 +234,11 @@ func (c *Connections) Tools(ctx context.Context, server string) ([]ToolInfo, err
 // walks connecting → (connected | failed). Returns [ErrUnknownServer] for an
 // unconfigured name.
 func (c *Connections) Reconnect(ctx context.Context, name string) error {
+	// Serialize reconnects: without this, two concurrent calls for the same
+	// server both dial and the loser's session is overwritten + leaked.
+	c.reconnectMu.Lock()
+	defer c.reconnectMu.Unlock()
+
 	c.mu.Lock()
 	ms := c.find(name)
 	if ms == nil {

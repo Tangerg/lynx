@@ -3,6 +3,7 @@ package server
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -29,10 +30,11 @@ const gitWatchDebounce = 200 * time.Millisecond
 // watcher at all — they're emitted as files.changed straight from its
 // file-mutating tools (see runs.go emitToolFileChange).
 type gitWatcher struct {
-	fsw    *fsnotify.Watcher
-	emit   func(protocol.WorkspaceEvent)
-	done   chan struct{}
-	exited chan struct{}
+	fsw       *fsnotify.Watcher
+	emit      func(protocol.WorkspaceEvent)
+	done      chan struct{}
+	exited    chan struct{}
+	closeOnce sync.Once
 }
 
 // startGitWatcher watches the signal files of each distinct .git directory.
@@ -84,11 +86,14 @@ func (w *gitWatcher) run() {
 
 // Close stops the run goroutine and waits for it to exit before closing the
 // underlying watcher, so no emit is in flight when the subscription channel is
-// closed.
+// closed. Idempotent via sync.Once — a second call is a no-op rather than a
+// panic on the already-closed done channel.
 func (w *gitWatcher) Close() {
-	close(w.done)
-	<-w.exited
-	_ = w.fsw.Close()
+	w.closeOnce.Do(func() {
+		close(w.done)
+		<-w.exited
+		_ = w.fsw.Close()
+	})
 }
 
 // gitDirOf returns the .git directory for root, or ok=false when root isn't a
