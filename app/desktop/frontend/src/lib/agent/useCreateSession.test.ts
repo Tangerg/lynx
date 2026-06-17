@@ -64,7 +64,8 @@ describe("useCreateSession", () => {
 
     await result.current({ cwd: "/tmp/proj" });
 
-    expect(create).toHaveBeenCalledWith({ cwd: "/tmp/proj" });
+    // Second arg is the AbortSignal.timeout guard (CREATE_TIMEOUT_MS).
+    expect(create).toHaveBeenCalledWith({ cwd: "/tmp/proj" }, expect.any(AbortSignal));
   });
 
   it("creates an empty draft (no message) for the New button", async () => {

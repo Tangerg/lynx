@@ -25,11 +25,18 @@ export interface CreateSessionOptions {
  * (an empty draft ready to type into); the welcome composer calls it with
  * the typed text, which the chat flushes on remount (useAgentSession).
  */
+// Hard ceiling on a single sessions.create round-trip. The create is a quick
+// unary call; if the runtime accepts the connection but never responds (socket
+// stays open, so no fetch-level error fires), the inflight latch below would
+// otherwise wedge every future "New" forever. AbortSignal.timeout rejects the
+// call → the catch reports it and the finally clears the latch, so New recovers.
+const CREATE_TIMEOUT_MS = 30_000;
+
 async function createAndOpen({ firstInput, cwd }: CreateSessionOptions): Promise<string | null> {
   try {
     const session = await getContainer()
       .client()
-      .sessions.create(cwd ? { cwd } : {});
+      .sessions.create(cwd ? { cwd } : {}, AbortSignal.timeout(CREATE_TIMEOUT_MS));
     const store = useSessionStore.getState();
     // Mark draft + queue the message BEFORE selecting, so the remount
     // useAgentSession triggers sees both already in place.
