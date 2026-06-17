@@ -111,16 +111,24 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 // agent process, and the continuation streams under a new runId linked
 // back via RunRef.parentRunId.
 func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
-	pending, ok, err := s.rt.Interrupts().Get(ctx, in.ParentRunID)
+	// Validate the decision BEFORE claiming the interrupt — a malformed
+	// response shouldn't consume the (still-resumable) record.
+	resolution, err := resolveResolution(in.Responses)
+	if err != nil {
+		return nil, nil, err
+	}
+	// Atomically claim the interrupt (read-and-remove in one op). This makes
+	// resume idempotent: a second, concurrent resume of the same parentRunId
+	// finds nothing here and backs off, so the parked process is never
+	// rebuilt twice and the approved (possibly non-idempotent) tool never
+	// re-fires. The claim commits us to resolving it — there's no leftover
+	// record to re-resume whether resolution succeeds or fails.
+	pending, ok, err := s.rt.Interrupts().Consume(ctx, in.ParentRunID)
 	if err != nil {
 		return nil, nil, err
 	}
 	if !ok {
 		return nil, nil, protocol.ErrInterruptNotOpen
-	}
-	resolution, err := resolveResolution(in.Responses)
-	if err != nil {
-		return nil, nil, err
 	}
 
 	handle := turn.TurnHandle{SessionID: pending.SessionID, TurnID: pending.TurnID}
@@ -132,20 +140,13 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 		// process from its persisted snapshot and resume the continuation on
 		// a fresh turn. Needs a recorded ProcessID + a configured durable
 		// ProcessStore; if either is missing the interrupt is genuinely
-		// unresumable, so drop it (API.md §6.2 anti-dangling).
+		// unresumable (and already claimed above, so nothing to drop).
 		rebuilt, rerr := s.rehydrate(ctx, pending, resolution.Approved)
 		if rerr != nil {
-			// Best-effort: rehydrate failed; drop the unresumable
-			// interrupt record so it won't show up in list queries.
-			_ = s.rt.Interrupts().Delete(ctx, in.ParentRunID)
 			return nil, nil, protocol.ErrRunNotFound
 		}
 		handle = rebuilt
 	}
-	// Best-effort: the interrupt is now answered — drop the
-	// open-interrupt record. If this fails, a dangling record
-	// surfaces on the next list and can be re-resumed safely.
-	_ = s.rt.Interrupts().Delete(ctx, in.ParentRunID)
 
 	// Continuation gets a fresh wire runId linked to the parent. handle.TurnID
 	// is the original turn for a same-process resume, or the freshly rebuilt

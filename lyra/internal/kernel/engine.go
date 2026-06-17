@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
@@ -60,6 +61,13 @@ type Engine struct {
 	// handed over, run in [Engine.Close].
 	mcp     toolset.MCPControl
 	closers []func() error
+
+	// closeOnce guards Close so concurrent / repeated calls run the closers
+	// exactly once (a non-idempotent closer — e.g. closing an MCP session —
+	// double-fired could panic). closeErr caches the joined result for callers
+	// after the first.
+	closeOnce sync.Once
+	closeErr  error
 }
 
 // New constructs an engine. Returns an error when required deps
@@ -204,20 +212,25 @@ func (e *Engine) Tools() []chat.Tool { return e.tools }
 
 // Close releases the per-engine external resources the toolset assembly opened
 // (code-intelligence servers, background processes, MCP / A2A sessions) by
-// running the capability closers it handed over. Safe to call multiple times; a
-// nil/empty closer slice makes the second call a no-op.
+// running the capability closers it handed over. Goroutine-safe and idempotent
+// via sync.Once: concurrent or repeated calls run the closers exactly once and
+// return the same joined result (running a closer twice could panic on a
+// non-idempotent resource like an already-closed session).
 //
 // Errors from individual closures are collected and returned together so the
 // caller can log them; partial failure does not stop subsequent closes.
 func (e *Engine) Close() error {
-	var errs []error
-	for _, closeFn := range e.closers {
-		if err := closeFn(); err != nil {
-			errs = append(errs, err)
+	e.closeOnce.Do(func() {
+		var errs []error
+		for _, closeFn := range e.closers {
+			if err := closeFn(); err != nil {
+				errs = append(errs, err)
+			}
 		}
-	}
-	e.closers = nil
-	return errors.Join(errs...)
+		e.closers = nil
+		e.closeErr = errors.Join(errs...)
+	})
+	return e.closeErr
 }
 
 // InjectUserMessage delivers mid-turn steering: chat.Service flushes a queued

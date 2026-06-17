@@ -101,6 +101,26 @@ func (s *InterruptStore) Get(ctx context.Context, parentRunID string) (interrupt
 	return p, true, nil
 }
 
+// Consume atomically reads AND deletes the pending interrupt for parentRunID
+// (one DELETE ... RETURNING), or returns ok=false when none is recorded — the
+// [interrupts.Store] claim contract. A single statement means two concurrent
+// resumes can't both observe the same open interrupt: one claims it, the other
+// gets ok=false, so a non-idempotent tool never re-fires.
+func (s *InterruptStore) Consume(ctx context.Context, parentRunID string) (interrupts.Pending, bool, error) {
+	row := s.db.QueryRowContext(ctx,
+		`DELETE FROM interrupts WHERE parent_run_id = ?
+		 RETURNING parent_run_id, session_id, turn_id, process_id, interrupts, drained_tools, created_at`,
+		parentRunID)
+	p, err := scanPending(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return interrupts.Pending{}, false, nil
+	}
+	if err != nil {
+		return interrupts.Pending{}, false, err
+	}
+	return p, true, nil
+}
+
 func (s *InterruptStore) Delete(ctx context.Context, parentRunID string) error {
 	if _, err := s.db.ExecContext(ctx,
 		`DELETE FROM interrupts WHERE parent_run_id = ?`, parentRunID,

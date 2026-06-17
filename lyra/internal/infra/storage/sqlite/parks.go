@@ -25,19 +25,22 @@ func NewParkStore(db *sql.DB) tool.ParkStore {
 	return &parkStore{db: db}
 }
 
-// Read returns the parked round for a conversation, or (nil, nil) when
-// nothing is parked — the [tool.ParkReader] contract.
-func (s *parkStore) Read(ctx context.Context, conversationID string) (*tool.ParkState, error) {
+// Consume atomically reads AND deletes the parked round for a conversation
+// (a single DELETE ... RETURNING), or returns (nil, nil) when nothing is
+// parked — the [tool.ParkConsumer] contract. One statement means there is no
+// read-succeeds-then-delete-fails window that could leave a stale round to
+// hijack a later turn.
+func (s *parkStore) Consume(ctx context.Context, conversationID string) (*tool.ParkState, error) {
 	var assistant, done sql.NullString
 	err := s.db.QueryRowContext(ctx,
-		`SELECT assistant, done FROM tool_parks WHERE conversation_id = ?`,
+		`DELETE FROM tool_parks WHERE conversation_id = ? RETURNING assistant, done`,
 		conversationID,
 	).Scan(&assistant, &done)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("sqlite: read tool park: %w", err)
+		return nil, fmt.Errorf("sqlite: consume tool park: %w", err)
 	}
 	state := &tool.ParkState{}
 	if err := json.Unmarshal([]byte(assistant.String), &state.Assistant); err != nil {
@@ -73,13 +76,6 @@ func (s *parkStore) Write(ctx context.Context, conversationID string, state *too
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: write tool park: %w", err)
-	}
-	return nil
-}
-
-func (s *parkStore) Clear(ctx context.Context, conversationID string) error {
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM tool_parks WHERE conversation_id = ?`, conversationID); err != nil {
-		return fmt.Errorf("sqlite: clear tool park: %w", err)
 	}
 	return nil
 }

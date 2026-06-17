@@ -68,7 +68,17 @@ type Store interface {
 	// none is recorded (resolved / unknown).
 	Get(ctx context.Context, parentRunID string) (Pending, bool, error)
 
-	// Delete removes the entry for parentRunID. Resolving (resume) or
-	// abandoning (cancel) a run calls this; absent entries are a no-op.
+	// Consume atomically returns AND removes the pending interrupt for
+	// parentRunID (ok=false when none is recorded). It is the resume path's
+	// claim: read-and-remove in one operation makes resuming idempotent — a
+	// second, concurrent resume of the same interrupt finds nothing and backs
+	// off, so a non-idempotent tool can't re-fire. Distinct from [Store.Delete]
+	// (a fire-and-forget drop that needs no prior read), used by cancel /
+	// rollback / session cleanup.
+	Consume(ctx context.Context, parentRunID string) (Pending, bool, error)
+
+	// Delete removes the entry for parentRunID. Abandoning (cancel) or
+	// sweeping (rollback / session delete) a run calls this; absent entries
+	// are a no-op.
 	Delete(ctx context.Context, parentRunID string) error
 }
