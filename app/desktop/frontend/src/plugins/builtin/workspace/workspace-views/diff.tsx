@@ -3,7 +3,7 @@
 // scopes to that path; otherwise it shows the whole working tree.
 
 import type { DiffQuery, FileDiff } from "@/lib/data/queries";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DataView, Segmented } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { DiffView } from "./views/DiffView";
@@ -55,6 +55,20 @@ function DiffViewTab() {
   const removed = files?.reduce((s, f) => s + (f.removed ?? 0), 0) ?? 0;
   const notARepo = isVcsUnavailable(error);
 
+  // Open the diff at the BOTTOM (latest hunks), not the top. Once per mount,
+  // right after the diff content first renders — a later mode/file switch must
+  // not yank a user who has since scrolled up; reopening the view remounts this
+  // component, which re-anchors.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const anchoredRef = useRef(false);
+  useEffect(() => {
+    if (anchoredRef.current || !files || files.length === 0) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    anchoredRef.current = true;
+  }, [files]);
+
   const sub = (
     <>
       <span className="text-accent">+{added}</span>
@@ -70,6 +84,7 @@ function DiffViewTab() {
       icon="file"
       title={activeFile || t("diff.workingTree")}
       sub={sub}
+      scrollRef={scrollRef}
       actions={
         <Segmented
           ariaLabel={t("diff.baselineAria")}
