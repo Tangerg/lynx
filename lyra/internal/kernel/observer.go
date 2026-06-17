@@ -129,6 +129,23 @@ type observedTool struct {
 func (o *observedTool) Definition() chat.ToolDefinition { return o.inner.Definition() }
 func (o *observedTool) Metadata() chat.ToolMetadata     { return o.inner.Metadata() }
 
+// ConcurrencyKey forwards the wrapped tool's concurrency declaration (the tool
+// loop's optional ConcurrentTool contract), matched structurally so the kernel
+// needn't import the loop driver. This MUST be forwarded: this decorator wraps
+// EVERY tool the agent resolves, so dropping the method would strip every
+// tool's declaration and force the loop to run all calls exclusively (serial),
+// silently defeating parallel tool execution — e.g. concurrent `task`
+// sub-agents or distinct-file edits. A wrapped tool that declares nothing stays
+// exclusive (concurrent=false).
+func (o *observedTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
+	if c, ok := o.inner.(interface {
+		ConcurrencyKey(string) (string, bool)
+	}); ok {
+		return c.ConcurrencyKey(arguments)
+	}
+	return "", false
+}
+
 func (o *observedTool) Call(ctx context.Context, arguments string) (string, error) {
 	callID := uuid.NewString()
 	name := o.inner.Definition().Name
