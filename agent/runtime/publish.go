@@ -107,6 +107,7 @@ func newDynamicAgentTool(
 	}
 
 	return &agentTool{
+		platform: platform,
 		def: chat.ToolDefinition{
 			Name:        goal.Name,
 			Description: description,
