@@ -13,13 +13,14 @@
 import type { UserInput } from "@/lib/agent/composerInput";
 import type { ViewPlacement } from "./ViewPlacement";
 import { Panel } from "@/components/common";
+import { cn } from "@/lib/utils";
 import { useSessions } from "@/lib/data/queries";
 import { useWorkspaceViews } from "@/plugins/sdk";
 import { useSessionStore } from "@/state/sessionStore";
 import { useUiStore } from "@/state/uiStore";
 import { ChatStream } from "./ChatStream";
-import { MainSplit } from "./MainSplit";
 import { PanelHeader } from "./PanelHeader";
+import { SplitResizer } from "./SplitResizer";
 import { ViewPlacementProvider } from "./ViewPlacement";
 import { WorkspaceViewBody } from "./WorkspaceViewBody";
 
@@ -73,16 +74,34 @@ export function ChatPanel({ onSend }: Props) {
         <ViewPlacementProvider value={placementFor(activeMainView, "full")}>
           <WorkspaceViewBody viewId={activeMainView} />
         </ViewPlacementProvider>
-      ) : splitViewId ? (
-        <MainSplit
-          onSend={onSend}
-          sessionId={activeSessionId}
-          viewId={splitViewId}
-          placement={placementFor(splitViewId, "split")}
-          ratio={splitRatio}
-        />
       ) : (
-        <ChatStream onSend={onSend} resetKey={activeSessionId} />
+        // Chat lives at a STABLE tree position whether or not a split view is
+        // open — only the pane's width and the resizer/view siblings change.
+        // Swapping <ChatStream> for a differently-nested layout (the old
+        // MainSplit) unmounted + remounted the stream on every split toggle, so
+        // its StickToBottom (initial="smooth") replayed top→bottom each time.
+        // The split layout (chat | resizer | view, G3) is inlined here so the
+        // ChatStream element never changes position.
+        <div className="flex min-h-0 flex-1">
+          <div
+            className={cn("relative flex min-h-0 min-w-0 flex-col", !splitViewId && "flex-1")}
+            // flexBasis is the persisted, drag-continuous split ratio (truly
+            // dynamic — the one sanctioned inline style); omitted when full-width.
+            style={splitViewId ? { flexBasis: `${splitRatio * 100}%` } : undefined}
+          >
+            <ChatStream onSend={onSend} resetKey={activeSessionId} />
+          </div>
+          {splitViewId && (
+            <>
+              <SplitResizer />
+              <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+                <ViewPlacementProvider value={placementFor(splitViewId, "split")}>
+                  <WorkspaceViewBody viewId={splitViewId} />
+                </ViewPlacementProvider>
+              </div>
+            </>
+          )}
+        </div>
       )}
     </Panel>
   );
