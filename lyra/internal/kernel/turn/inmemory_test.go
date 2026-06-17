@@ -283,6 +283,52 @@ func TestService_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	}
 }
 
+// TestService_Cancel_ParkedTurn_DeliversTurnEnd verifies a canceled turn
+// emits its terminal TurnEnd to a still-draining consumer rather than only
+// closing the channel. Cancel cancels the turn ctx before finishTurn emits the
+// terminal, so the event must not be lost to the emit ctx-escape: emit prefers
+// delivery whenever the buffer has room. The turn parks on a balanced-mode
+// approval gate; cancelling it (instead of approving) must surface
+// TurnEnd{Canceled}.
+func TestService_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
+	client, _ := chatmodel.NewClient(newStubChatModel())
+	eng, _ := kernel.New(context.Background(), kernel.Config{ChatClient: client})
+	svc := mustChat(turn.New(eng, approval.New(approval.ModeBalanced), nil))
+
+	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
+		SessionID: "sess-cancel-parked",
+		Message:   "echo lyra",
+	})
+	events, _ := svc.Events(context.Background(), handle)
+
+	var (
+		sawInterrupt bool
+		sawEnd       bool
+		endReason    turn.TurnEndReason
+	)
+	for ev := range events {
+		switch e := ev.(type) {
+		case turn.TurnInterrupted:
+			sawInterrupt = true
+			if err := svc.Cancel(context.Background(), handle); err != nil {
+				t.Errorf("Cancel: %v", err)
+			}
+		case turn.TurnEnd:
+			sawEnd = true
+			endReason = e.Reason
+		}
+	}
+	if !sawInterrupt {
+		t.Fatal("turn never parked on the approval gate")
+	}
+	if !sawEnd {
+		t.Fatal("Cancel must deliver a terminal TurnEnd, not just close the channel")
+	}
+	if endReason != turn.TurnEndCanceled {
+		t.Errorf("TurnEnd.Reason = %s, want canceled", endReason)
+	}
+}
+
 // TestService_ApprovalGate_Deny — denying via Resume(false) makes the
 // tool short-circuit with the denial fed back to the model as a
 // recoverable result; the model emits its final reply and the turn
