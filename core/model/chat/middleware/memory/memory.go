@@ -88,3 +88,29 @@ func Replace(ctx context.Context, store Store, conversationID string, messages .
 	}
 	return store.Write(ctx, conversationID, messages...)
 }
+
+// Counter reports a conversation's stored message count without materializing
+// the messages. Kept OUT of [Store] like [Lister] / [Replacer]: counting is
+// not the per-turn hot path, and a backend that can't count cheaply still
+// satisfies Store. Consumers reach for it via [Count].
+type Counter interface {
+	// Count returns the number of messages stored for conversationID. An
+	// unknown conversation is 0, not an error.
+	Count(ctx context.Context, conversationID string) (int, error)
+}
+
+// Count returns conversationID's message count via store's [Counter]
+// capability, falling back to len(Read) when the backend can't count without
+// loading. Callers that need only the cardinality (e.g. a rollback watermark)
+// use this so a backend able to do a cheap count — SELECT COUNT(*) — doesn't
+// pay to materialize and unmarshal the whole history just to take its length.
+func Count(ctx context.Context, store Store, conversationID string) (int, error) {
+	if c, ok := store.(Counter); ok {
+		return c.Count(ctx, conversationID)
+	}
+	msgs, err := store.Read(ctx, conversationID)
+	if err != nil {
+		return 0, err
+	}
+	return len(msgs), nil
+}

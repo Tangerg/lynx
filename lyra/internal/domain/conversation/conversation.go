@@ -63,11 +63,11 @@ func (s *Service) Count(ctx context.Context, sessionID string) (int, error) {
 	if sessionID == "" {
 		return 0, errors.New("conversation: sessionID is required")
 	}
-	msgs, err := s.store.Read(ctx, sessionID)
-	if err != nil {
-		return 0, err
-	}
-	return len(msgs), nil
+	// memory.Count uses the store's Counter capability (SQLite: SELECT COUNT(*))
+	// when present, so this hot run.finished watermark read doesn't load and
+	// unmarshal the entire history just to count it; it falls back to len(Read)
+	// for backends that can't count cheaply.
+	return memory.Count(ctx, s.store, sessionID)
 }
 
 // Truncate keeps the first keepN messages of sessionID and drops the rest

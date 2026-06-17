@@ -48,3 +48,37 @@ func TestMessageStore_ReplaceIsTransactional(t *testing.T) {
 		t.Fatalf("after empty Replace len = %d, want 0", len(got))
 	}
 }
+
+// TestMessageStore_CountMatchesReadLength pins the Counter capability: Count
+// returns the stored message count via COUNT(*) — equal to len(Read) — so a
+// watermark read doesn't load and unmarshal the whole history. Unknown
+// conversation is 0, not an error.
+func TestMessageStore_CountMatchesReadLength(t *testing.T) {
+	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	store := sqlite.NewMessageStore(db)
+	ctx := context.Background()
+
+	if n, err := store.Count(ctx, "conv"); err != nil || n != 0 {
+		t.Fatalf("Count of empty = (%d, %v), want (0, nil)", n, err)
+	}
+
+	if err := store.Write(ctx, "conv",
+		chat.NewUserMessage("one"), chat.NewUserMessage("two"), chat.NewUserMessage("three")); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	got, err := store.Read(ctx, "conv")
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	n, err := store.Count(ctx, "conv")
+	if err != nil {
+		t.Fatalf("Count: %v", err)
+	}
+	if n != len(got) || n != 3 {
+		t.Fatalf("Count = %d, len(Read) = %d, want both 3", n, len(got))
+	}
+}

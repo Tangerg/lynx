@@ -37,3 +37,37 @@ func TestReplace_AtomicSetsExact(t *testing.T) {
 		t.Fatalf("after empty Replace len = %d, want 0", len(got))
 	}
 }
+
+// counterStore is a Store that also implements Counter, returning a canned
+// count so the test can tell memory.Count dispatched to the capability rather
+// than falling back to len(Read).
+type counterStore struct {
+	memory.Store
+	n int
+}
+
+func (c counterStore) Count(context.Context, string) (int, error) { return c.n, nil }
+
+// TestCount_PrefersCounterElseFallsBackToRead pins the optional-capability
+// dispatch: memory.Count uses a backend's Counter when present (so a backend
+// able to COUNT(*) doesn't materialize the whole history), and falls back to
+// len(Read) for one that can't.
+func TestCount_PrefersCounterElseFallsBackToRead(t *testing.T) {
+	ctx := context.Background()
+
+	// Fallback path: InMemoryStore has no Counter, so Count returns len(Read).
+	plain := memory.NewInMemoryStore()
+	if err := plain.Write(ctx, "c", chat.NewUserMessage("a"), chat.NewUserMessage("b")); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	if n, err := memory.Count(ctx, plain, "c"); err != nil || n != 2 {
+		t.Fatalf("fallback Count = (%d, %v), want (2, nil)", n, err)
+	}
+
+	// Capability path: a Counter-implementing store is asked directly — the
+	// canned value (not the 0 messages it holds) proves Count didn't fall back.
+	cs := counterStore{Store: memory.NewInMemoryStore(), n: 99}
+	if n, err := memory.Count(ctx, cs, "anything"); err != nil || n != 99 {
+		t.Fatalf("capability Count = (%d, %v), want (99, nil)", n, err)
+	}
+}

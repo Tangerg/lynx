@@ -25,6 +25,7 @@ type MessageStore struct {
 var (
 	_ memory.Store    = (*MessageStore)(nil)
 	_ memory.Replacer = (*MessageStore)(nil)
+	_ memory.Counter  = (*MessageStore)(nil)
 )
 
 // NewMessageStore binds the chat-memory store to db. db must have been
@@ -142,6 +143,25 @@ func (s *MessageStore) Replace(ctx context.Context, conversationID string, messa
 		return fmt.Errorf("sqlite: commit replace messages: %w", err)
 	}
 	return nil
+}
+
+// Count returns conversationID's message count via a COUNT(*) query — the
+// [memory.Counter] capability — so a watermark read (sessions.rollback /
+// fork{fromRunId}) doesn't load and unmarshal the whole history just to take
+// its length. Unknown conversation → 0. COUNT(*) tallies stored rows; Read
+// skips any that fail to unmarshal, but Write only persists marshalable
+// messages, so in practice the two agree.
+func (s *MessageStore) Count(ctx context.Context, conversationID string) (int, error) {
+	if conversationID == "" {
+		return 0, fmt.Errorf("sqlite: invalid conversation id %q", conversationID)
+	}
+	var n int
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM messages WHERE conversation_id = ?`, conversationID,
+	).Scan(&n); err != nil {
+		return 0, fmt.Errorf("sqlite: count messages: %w", err)
+	}
+	return n, nil
 }
 
 // Clear drops every message for conversationID. Idempotent — unknown id is
