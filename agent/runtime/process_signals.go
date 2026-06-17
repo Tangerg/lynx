@@ -98,15 +98,24 @@ func (s *processSignals) registerToolCallCancel(cancel context.CancelFunc) (rele
 	}
 }
 
-// parkAwaitable stores the request as the pending awaitable. Returns
-// [core.ActionWaiting] on success or [core.ActionFailed] for nil
-// requests. The caller is responsible for publishing
-// [event.ProcessWaiting].
+// parkAwaitable stores req as the pending awaitable, returning
+// [core.ActionWaiting]. It REFUSES (returns [core.ActionFailed]) for a nil
+// request OR when an awaitable is already pending: the slot holds exactly one
+// interrupt, so a second concurrent park — two interrupting actions in one
+// [core.ProcessConcurrent] tick — must fail loudly rather than silently clobber
+// the first, which would lose an interrupt that could never be answered. The
+// caller publishes [event.ProcessWaiting] only on success.
 func (s *processSignals) parkAwaitable(req core.Awaitable) core.ActionStatus {
 	if req == nil {
 		return core.ActionFailed
 	}
-	s.pendingAwaitable.Store(&awaitSlot{awaitable: req})
+	// CompareAndSwap from nil: the first park wins the slot; a second while one
+	// is still pending fails instead of overwriting. deliverResponse Swaps the
+	// slot back to nil, so the normal sequential park → resume cycle (and a
+	// multi-step resume that re-parks after the swap) is unaffected.
+	if !s.pendingAwaitable.CompareAndSwap(nil, &awaitSlot{awaitable: req}) {
+		return core.ActionFailed
+	}
 	return core.ActionWaiting
 }
 

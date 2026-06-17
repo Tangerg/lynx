@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -254,6 +255,14 @@ func (p *AgentProcess) AwaitInput(req core.Awaitable) core.ActionStatus {
 	status := p.signals.parkAwaitable(req)
 	if status == core.ActionWaiting {
 		p.publishEvent(event.ProcessWaiting{BaseEvent: p.baseEvent(), Awaitable: req})
+		return status
+	}
+	if req != nil {
+		// parkAwaitable refused a non-nil request: an awaitable is already
+		// pending (two AwaitInput in one tick — e.g. ProcessConcurrent with two
+		// interrupting actions). Record the reason so the run loop surfaces it
+		// rather than the generic "action failed without an error".
+		p.state.setFailure(errors.New("runtime: an awaitable is already pending; one HITL interrupt per process (concurrent interrupts unsupported)"))
 	}
 	return status
 }
