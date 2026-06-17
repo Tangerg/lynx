@@ -104,11 +104,24 @@ func (st *turnState) process() kernel.ChatProcess {
 	return st.proc
 }
 
-// park marks the turn suspended on a HITL interrupt awaiting Resume.
-func (st *turnState) park() {
+// parkIfLive marks the turn suspended on a HITL interrupt awaiting Resume,
+// unless its ctx was already canceled — the atomic guard that closes the
+// Cancel-vs-parking race. A Cancel racing a turn that's about to park either
+// (a) runs claimPark after parked is set here, so its claim wins and it
+// finishes the turn, or (b) cancels the ctx before this acquires mu, so this
+// returns false and the caller finishes instead. Because both this and
+// claimPark hold st.mu, they can't interleave, so exactly one path drives the
+// turn to a terminal — never an orphan parked turn on a dead ctx that no one
+// finishes. Returns false when the turn must NOT park (already canceled), true
+// when it is now parked.
+func (st *turnState) parkIfLive() bool {
 	st.mu.Lock()
 	defer st.mu.Unlock()
+	if st.ctx.Err() != nil {
+		return false
+	}
 	st.parked = true
+	return true
 }
 
 // claimPark atomically tests-and-clears the parked flag, reporting whether
@@ -250,7 +263,15 @@ func (s *inMemory) handleWaiting(st *turnState, proc kernel.ChatProcess) {
 // its events channel open; [inMemory.Resume] drives the next segment.
 func (s *inMemory) emitInterrupt(st *turnState, proc kernel.ChatProcess) {
 	aw := proc.PendingAwaitable()
-	st.park()
+	if !st.parkIfLive() {
+		// Canceled between handleWaiting's top ctx check and here: don't surface
+		// an interrupt nobody will answer — terminate like the canceled path so
+		// the turn can't linger parked on a dead ctx. (handleWaiting's top check
+		// catches cancel-before-handleWaiting; this closes the cancel-during gap.)
+		_ = proc.Cancel()
+		s.finishTurn(st, TurnEndCanceled)
+		return
+	}
 	if aw == nil {
 		// Defensive: Waiting without a parked awaitable shouldn't happen;
 		// surface an empty interrupt rather than silently dropping it.

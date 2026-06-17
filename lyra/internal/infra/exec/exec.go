@@ -64,14 +64,18 @@ type Shell struct {
 	duration time.Duration // wall time from launch to completion
 }
 
-// Launch starts command under cwd in the background, detached from any
-// tool-call context so it outlives the turn, and returns its shell id. A
-// positive timeout hard-kills the command when it elapses (0 = no hard
-// timeout; the command runs until it exits or is killed).
-func (m *Manager) Launch(cwd, command string, timeout time.Duration) string {
-	runCtx, cancel := context.WithCancel(context.Background())
+// Launch starts command under cwd in the background and returns its shell id.
+// It is detached from the tool-call's CANCELLATION so it outlives the turn —
+// via context.WithoutCancel(ctx), which drops cancellation but KEEPS ctx's
+// values, so the launching turn's trace span still propagates (full-link)
+// rather than being severed by a bare context.Background(). A positive timeout
+// hard-kills the command when it elapses (0 = no hard timeout; the command
+// runs until it exits or is killed).
+func (m *Manager) Launch(ctx context.Context, cwd, command string, timeout time.Duration) string {
+	base := context.WithoutCancel(ctx)
+	runCtx, cancel := context.WithCancel(base)
 	if timeout > 0 {
-		runCtx, cancel = context.WithTimeout(context.Background(), timeout)
+		runCtx, cancel = context.WithTimeout(base, timeout)
 	}
 	cmd := exec.CommandContext(runCtx, "/bin/sh", "-c", command)
 	cmd.Dir = cwd

@@ -54,8 +54,11 @@ const initializeTimeout = 30 * time.Second
 // startClient launches spec's server with its working directory at root,
 // wires its stdio to a JSON-RPC connection, and completes the LSP initialize
 // handshake. The returned client is ready for queries; the caller owns it and
-// must call close.
-func startClient(spec ServerSpec, root string) (*client, error) {
+// must call close. ctx scopes only the synchronous handshake; the connection's
+// own read loop is detached from it (it must outlive the call that started it —
+// the server stays warm for the engine's lifetime) while keeping ctx's trace
+// span via context.WithoutCancel.
+func startClient(ctx context.Context, spec ServerSpec, root string) (*client, error) {
 	cmd := exec.Command(spec.Command, spec.Args...)
 	cmd.Dir = root
 	cmd.Stderr = io.Discard // server logs are noise; failures surface as call errors
@@ -72,7 +75,10 @@ func startClient(spec ServerSpec, root string) (*client, error) {
 		return nil, fmt.Errorf("lsp: start %s: %w", spec.Command, err)
 	}
 
-	connCtx, cancel := context.WithCancel(context.Background())
+	// WithoutCancel: the read loop outlives this call (the connection is cached
+	// and reused) so it must not die when ctx ends, but keeping ctx's values
+	// preserves the trace span instead of severing it with context.Background().
+	connCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	c := &client{
 		spec:    spec,
 		root:    root,
@@ -85,7 +91,10 @@ func startClient(spec ServerSpec, root string) (*client, error) {
 	stream := jsonrpc2.NewBufferedStream(&pipeRWC{out: stdout, in: stdin}, jsonrpc2.VSCodeObjectCodec{})
 	c.conn = jsonrpc2.NewConn(connCtx, stream, jsonrpc2.AsyncHandler(c))
 
-	initCtx, initCancel := context.WithTimeout(context.Background(), initializeTimeout)
+	// The handshake is synchronous within this call, so it rides ctx directly —
+	// keeping the trace span and honoring caller cancellation — bounded by the
+	// initialize timeout.
+	initCtx, initCancel := context.WithTimeout(ctx, initializeTimeout)
 	defer initCancel()
 	if err := c.initialize(initCtx); err != nil {
 		_ = c.close()

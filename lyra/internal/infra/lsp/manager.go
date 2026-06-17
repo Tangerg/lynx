@@ -51,19 +51,20 @@ func clientKey(root, name string) string { return root + "\x00" + name }
 
 // clientForFile resolves the server for abs's extension and returns its
 // connection for root, starting it if needed.
-func (m *Manager) clientForFile(root, abs string) (*client, error) {
+func (m *Manager) clientForFile(ctx context.Context, root, abs string) (*client, error) {
 	spec, ok := m.table.forFile(abs)
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", ErrNoServer, filepath.Ext(abs))
 	}
-	return m.clientFor(root, spec)
+	return m.clientFor(ctx, root, spec)
 }
 
 // clientFor returns the connection for (root, spec), starting it on first use.
 // The handshake runs outside the lock so a slow server start doesn't stall
 // other languages' queries; a concurrent loser of the start race closes its
-// surplus client and returns the winner.
-func (m *Manager) clientFor(root string, spec ServerSpec) (*client, error) {
+// surplus client and returns the winner. ctx scopes the (first-use) handshake
+// and carries the trace span onto the launched connection.
+func (m *Manager) clientFor(ctx context.Context, root string, spec ServerSpec) (*client, error) {
 	key := clientKey(root, spec.Name)
 
 	m.mu.Lock()
@@ -77,7 +78,7 @@ func (m *Manager) clientFor(root string, spec ServerSpec) (*client, error) {
 	}
 	m.mu.Unlock()
 
-	c, err := startClient(spec, root)
+	c, err := startClient(ctx, spec, root)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +109,7 @@ func resolve(root, file string) string {
 // as on the wire. file may be absolute or relative to root.
 func (m *Manager) Definition(ctx context.Context, root, file string, pos Position) ([]Location, error) {
 	abs := resolve(root, file)
-	c, err := m.clientForFile(root, abs)
+	c, err := m.clientForFile(ctx, root, abs)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +120,7 @@ func (m *Manager) Definition(ctx context.Context, root, file string, pos Positio
 // declaration.
 func (m *Manager) References(ctx context.Context, root, file string, pos Position) ([]Location, error) {
 	abs := resolve(root, file)
-	c, err := m.clientForFile(root, abs)
+	c, err := m.clientForFile(ctx, root, abs)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +131,7 @@ func (m *Manager) References(ctx context.Context, root, file string, pos Positio
 // or abstract method at pos.
 func (m *Manager) Implementation(ctx context.Context, root, file string, pos Position) ([]Location, error) {
 	abs := resolve(root, file)
-	c, err := m.clientForFile(root, abs)
+	c, err := m.clientForFile(ctx, root, abs)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +142,7 @@ func (m *Manager) Implementation(ctx context.Context, root, file string, pos Pos
 // it), as symbols. OutgoingCalls returns its callees (what it calls).
 func (m *Manager) IncomingCalls(ctx context.Context, root, file string, pos Position) ([]Symbol, error) {
 	abs := resolve(root, file)
-	c, err := m.clientForFile(root, abs)
+	c, err := m.clientForFile(ctx, root, abs)
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +151,7 @@ func (m *Manager) IncomingCalls(ctx context.Context, root, file string, pos Posi
 
 func (m *Manager) OutgoingCalls(ctx context.Context, root, file string, pos Position) ([]Symbol, error) {
 	abs := resolve(root, file)
-	c, err := m.clientForFile(root, abs)
+	c, err := m.clientForFile(ctx, root, abs)
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +161,7 @@ func (m *Manager) OutgoingCalls(ctx context.Context, root, file string, pos Posi
 // Hover returns the server's hover text (signature, doc) at pos, as plain text.
 func (m *Manager) Hover(ctx context.Context, root, file string, pos Position) (string, error) {
 	abs := resolve(root, file)
-	c, err := m.clientForFile(root, abs)
+	c, err := m.clientForFile(ctx, root, abs)
 	if err != nil {
 		return "", err
 	}
@@ -170,7 +171,7 @@ func (m *Manager) Hover(ctx context.Context, root, file string, pos Position) (s
 // DocumentSymbols returns the symbols declared in file.
 func (m *Manager) DocumentSymbols(ctx context.Context, root, file string) ([]Symbol, error) {
 	abs := resolve(root, file)
-	c, err := m.clientForFile(root, abs)
+	c, err := m.clientForFile(ctx, root, abs)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +188,7 @@ func (m *Manager) WorkspaceSymbols(ctx context.Context, root, query string) ([]S
 	}
 	var out []Symbol
 	for _, spec := range specs {
-		c, err := m.clientFor(root, spec)
+		c, err := m.clientFor(ctx, root, spec)
 		if err != nil {
 			continue // one language's server failing shouldn't sink the rest
 		}
@@ -204,7 +205,7 @@ func (m *Manager) WorkspaceSymbols(ctx context.Context, root, query string) ([]S
 // and waiting briefly for a fresh analysis.
 func (m *Manager) Diagnostics(ctx context.Context, root, file string) ([]Diagnostic, error) {
 	abs := resolve(root, file)
-	c, err := m.clientForFile(root, abs)
+	c, err := m.clientForFile(ctx, root, abs)
 	if err != nil {
 		return nil, err
 	}
