@@ -6,6 +6,8 @@ import (
 	"iter"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/Tangerg/lynx/lyra/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/lyra/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/lyra/internal/kernel/turn"
@@ -174,9 +176,15 @@ func (s *Server) recordInterrupt(ctx context.Context, runID string, handle turn.
 	// Best-effort: persist the interrupt record so the run can be
 	// resumed across restarts. If Put fails, same-process resume still
 	// works (the process is parked in-memory), but cross-restart resume
-	// will not find this interrupt.
-	processID, _ := s.rt.Chat().ProcessID(ctx, handle)
-	_ = s.rt.Interrupts().Put(ctx, interrupts.Pending{
+	// will not find this interrupt — so record both errors on the run's span
+	// (ctx keeps it, full-link) rather than dropping them silently, mirroring
+	// persistItem / persistRun. A missing ProcessID also makes a later
+	// rehydrate fail far from here, so it's worth the breadcrumb too.
+	processID, perr := s.rt.Chat().ProcessID(ctx, handle)
+	if perr != nil {
+		trace.SpanFromContext(ctx).RecordError(perr)
+	}
+	if err := s.rt.Interrupts().Put(ctx, interrupts.Pending{
 		ParentRunID:  runID,
 		SessionID:    handle.SessionID,
 		TurnID:       handle.TurnID,
@@ -184,7 +192,9 @@ func (s *Server) recordInterrupt(ctx context.Context, runID string, handle turn.
 		Interrupts:   raw,
 		DrainedTools: drained,
 		CreatedAt:    time.Now().UTC(),
-	})
+	}); err != nil {
+		trace.SpanFromContext(ctx).RecordError(err)
+	}
 }
 
 // cancelReasonFor returns the runs.cancel reason recorded for a run, or ""

@@ -75,7 +75,14 @@ func (w *gitWatcher) run() {
 				timer.Reset(gitWatchDebounce)
 				armed = true
 			}
-		case <-w.fsw.Errors:
+		case _, ok := <-w.fsw.Errors:
+			if !ok {
+				// fsnotify closes Events AND Errors together when its read loop
+				// dies; without this ok-check a closed Errors channel stays
+				// perpetually ready and the select busy-spins. Exit like the
+				// Events-closed case.
+				return
+			}
 			// Non-fatal (transient overflow / removed ref dir) — keep watching.
 		case <-timer.C:
 			armed = false
