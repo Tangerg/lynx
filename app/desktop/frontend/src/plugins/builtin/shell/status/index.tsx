@@ -10,6 +10,7 @@ import { definePlugin, useNotificationStore } from "@/plugins/sdk";
 import { useSessionStore } from "@/state/sessionStore";
 
 export { statusBar } from "./statusbar";
+export { completionNotify } from "./completionNotify";
 
 function NotificationsBadge() {
   const t = useT();
