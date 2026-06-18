@@ -3,7 +3,7 @@
 > 配套文档：
 > - [`README.md`](./README.md) — 5 行 quick-start
 > - [`EXTENSION_DESIGN.md`](./EXTENSION_DESIGN.md) — Extension / SPI 系统当前形态
-> - [`EMBABEL_COMPARISON.md`](./EMBABEL_COMPARISON.md) — 与 embabel-agent 的多角度对比
+> - [`EMBABEL_DEEP_COMPARISON.md`](./EMBABEL_DEEP_COMPARISON.md) — 与 embabel-agent 的源码级深度对比（2026-06 刷新）
 > - 本文档 — **架构 + 实现 + 使用 + 构建上层库**
 
 ---
@@ -337,7 +337,7 @@ core.NewStaticToolGroupResolver()          // map[role]ToolGroup
 |---|---|
 | `TerminationScopeAgent` | 整个 process 终止 |
 | `TerminationScopeAction` | 跳过当前 action，重新规划 |
-| `TerminationScopeToolCall` | 取消 in-flight tool 调用，action body 继续（**注意：lynx 把取消 ctx 铺好了，但 tool loop runner 还没实现**——参见 [`EMBABEL_COMPARISON.md`](./EMBABEL_COMPARISON.md) gap 清单 ToolLoop） |
+| `TerminationScopeToolCall` | 取消 in-flight tool 调用，action body 继续（tool loop 已实现于 `core/model/chat/middleware/tool/`，含 max-iter / loop-detection / 并行 / 错误恢复，详见 [`EMBABEL_DEEP_COMPARISON.md`](./EMBABEL_DEEP_COMPARISON.md) §6） |
 
 ---
 
@@ -968,7 +968,7 @@ func RouterAction(specialists map[string]*core.Agent) core.Action {
 }
 ```
 
-> **未来更好的方案**：等 SupervisorAgent 模式（参见 [`EMBABEL_COMPARISON.md`](./EMBABEL_COMPARISON.md)）落地后，把这个抽到 `agent/orchestration` 子包标准化。
+> **更好的方案**：`workflow.Supervisor[In,Out]`（`workflow/supervisor.go`，详见 [`EMBABEL_DEEP_COMPARISON.md`](./EMBABEL_DEEP_COMPARISON.md) §7.2）已落地为 LLM-orchestration over sub-agents，可把手写 sub-agent 编排迁到它之上标准化。
 
 ## V.6 测试基础设施
 
@@ -1192,5 +1192,5 @@ event.NewBaseEvent(processID) event.BaseEvent
 
 - [`README.md`](./README.md) — 5 行 quick-start
 - [`EXTENSION_DESIGN.md`](./EXTENSION_DESIGN.md) — Extension / SPI 系统当前形态
-- [`EMBABEL_COMPARISON.md`](./EMBABEL_COMPARISON.md) — 与 embabel-agent 多角度对比 + gap 清单
+- [`EMBABEL_DEEP_COMPARISON.md`](./EMBABEL_DEEP_COMPARISON.md) — 与 embabel-agent 源码级深度对比 + gap 闭合总表（2026-06 刷新）
 - [`../examples/`](../examples/) — 可跑的 hello / blog 示例

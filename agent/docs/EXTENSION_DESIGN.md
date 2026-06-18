@@ -2,7 +2,7 @@
 
 > **状态：已落地**。代码见 `agent/core/extension.go`、`agent/runtime/extension.go`、`agent/runtime/dispatch.go`、`agent/runtime/platform.go`、`agent/core/process_options.go`，测试见 `agent/runtime/extension_test.go`。
 >
-> 配套文档：[`./README.md`](./README.md) / [`./GUIDE.md`](./GUIDE.md) / [`./EMBABEL_COMPARISON.md`](./EMBABEL_COMPARISON.md)
+> 配套文档：[`./README.md`](./README.md) / [`./GUIDE.md`](./GUIDE.md) / [`./EMBABEL_DEEP_COMPARISON.md`](./EMBABEL_DEEP_COMPARISON.md)
 
 ---
 
