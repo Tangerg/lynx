@@ -366,7 +366,7 @@ Lyra is an agent client — a desktop application (Wails / React) that streams L
 
 The system is dark-first by deliberate choice — agent users spend long sessions in front of the surface, and dark reduces eye fatigue. Light mode is supported with full parity (no second-class treatment).
 
-**Synthesis sources** — this system borrows specific elements from two reference systems analyzed at `frontend/linear.md` and `frontend/vercel.md`:
+**Synthesis sources** — this system borrows specific elements from two reference systems, Linear and Vercel:
 
 - **From Linear**: the color system (canvas `#010102`, four-step surface ladder, three-step hairline ladder, scarce single accent), the "depth via surface + hairlines, never shadow on dark" rule, and the strict accent-usage policy.
 - **From Vercel**: the typography system (Geist + Geist Mono), the mono-as-eyebrow convention (replaces ALL-CAPS labels), sentence-case headlines, stacked-subtle elevation for the rare floating overlay, and the light-theme palette.
@@ -653,8 +653,8 @@ Accent stays the same green in light mode (no need to dim — `#1ed760` reads we
 
 ## 12. References
 
-- `frontend/linear.md` — source for canvas / surface ladder / hairline ladder / accent policy.
-- `frontend/vercel.md` — source for typography (Geist), mono-as-eyebrow, stacked elevation, light palette.
+- **Linear** — source for canvas / surface ladder / hairline ladder / accent policy.
+- **Vercel** — source for typography (Geist), mono-as-eyebrow, stacked elevation, light palette.
 - Lyra Runtime Protocol — `frontend/src/protocol/run/` + `frontend/src/rpc/` — drives the shape of the data this UI renders.
 
 ## 13. Iteration guide

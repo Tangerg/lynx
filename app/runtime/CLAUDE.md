@@ -5,7 +5,7 @@
 >
 > 项目级约定（设计原则 / 重构策略 / Go idiom / 共用反向不变量 / 沟通约定）见 `../CLAUDE.md`。本文件只放 lyra 模块特有内容。
 >
-> **目录命名（2026-06-14 重构落地）**：`engine→kernel` / `service→domain` / `rpc→internal/delivery` / `engine/chat→kernel/turn`，目录名 = Clean Arch 环名（架构基准见 [`doc/GREENFIELD_ARCHITECTURE.md`](doc/GREENFIELD_ARCHITECTURE.md)）。重构历史流水账见 [`doc/REFACTORING_LOG.md`](doc/REFACTORING_LOG.md)（保留各条目**当时**的路径名，历史记录，勿据以定位当前代码）。
+> **目录命名（2026-06-14 重构落地）**：`engine→kernel` / `service→domain` / `rpc→internal/delivery` / `engine/chat→kernel/turn`，目录名 = Clean Arch 环名（架构基准见 [`doc/GREENFIELD_ARCHITECTURE.md`](doc/GREENFIELD_ARCHITECTURE.md)）。
 
 ---
 
@@ -125,7 +125,7 @@ lyra/
 │       │   └── sqlite/
 │       └── git/ lsp/ checkpoint/ exec/ mcp/ a2a/   git / LSP client / 影子 git / 进程执行 / MCP / A2A
 │
-└── doc/                            GREENFIELD_ARCHITECTURE.md（架构基准）/ EXTENSIBILITY.md / FRONTEND_API_REVIEW.md / AGENT_CAPABILITY_COMPARISON.md / REFACTORING_LOG.md / ...
+└── doc/                            GREENFIELD_ARCHITECTURE.md（架构基准）/ EXTENSIBILITY.md / ARCHITECTURE_REVIEW.md / GREENFIELD_DESIGN.md
 ```
 
 ## 常用命令
@@ -162,4 +162,4 @@ curl -H "Authorization: Bearer $(cat ~/.lyra/local-token)" \
 
 ## 已经做过的大重构
 
-> 历史大重构流水账(避免重复讨论)已移至 [`doc/REFACTORING_LOG.md`](doc/REFACTORING_LOG.md)。
+> 历史大重构流水账见 git log。
