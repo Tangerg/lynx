@@ -2,14 +2,14 @@
 .vscode
 
 # Lyra local config (holds API keys) — keep config.example.yaml only.
-lyra/config/config.yaml
+app/runtime/config/config.yaml
 
 # Lyra dev binary (built via `go build -o lyra ./cmd/lyra`).
-lyra/lyra
+app/runtime/lyra
 
 # Lyra dev-server runtime artifacts (written by `make restart` / `make start`).
-lyra/lyra.log
-lyra/lyra.pid
+app/runtime/lyra.log
+app/runtime/lyra.pid
 
-# Lyra runtime-generated memory (written to cwd when serving from lyra/).
-lyra/LYRA.md
+# Lyra runtime-generated memory (written to cwd when serving from app/runtime/).
+app/runtime/LYRA.md
