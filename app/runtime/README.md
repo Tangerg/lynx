@@ -28,8 +28,6 @@ infra    (internal/infra/*)   sqlite / git / lsp / mcp / a2a / exec / checkpoint
 
 agent loop + 并行工具循环 · **HITL R 模型**（park-on-interrupt + resume）· plan 模式 · **LSP 代码智能**（6 操作）· 编辑安全（read-before + stale）· **fork + 影子 git 文件 checkpoint + export/import** · MCP client（+ auth 基座）· **A2A** 跨 runtime · Agent Skills · LYRA.md 长期记忆 + 提取 · model-facing todo · **多 provider × 多 model（38 provider，显式配对）** · token 触发上下文压缩 · loop detection · OTel 三驾马车 → slog。
 
-> 与同类（claude_code / codex / OpenHands / Proma / AionUi …）的能力对比 + 缺口见 [`doc/AGENT_CAPABILITY_COMPARISON.md`](./doc/AGENT_CAPABILITY_COMPARISON.md)。
-
 ## 跑起来
 
 ```bash

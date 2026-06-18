@@ -1,8 +1,6 @@
 # Lynx 文档
 
-> Go 语言的 LLM 框架，对标 Spring AI / langchain4j，但坚持 Go 风格、克制设计。
->
-> **基线**：HEAD `4da6a37`（main，已含 reasoning 一等公民、MCP v1 桥接、Usage cache tokens）。
+> Go 语言的 LLM / agent / RAG 基础设施，对标 Spring AI / langchain4j，但坚持 Go 风格、克制设计。
 
 ---
 
@@ -10,54 +8,38 @@
 
 ```
 lynx/
-├── core/          抽象 + 协议（chat / embedding / image / audio / moderation / RAG / vectorstore 接口 / document pipeline / tokenizer）
-├── pkg/           通用工具库（23 个子包：collections / encoding / sync / retry / ptr ...）
-├── models/        Provider 适配器（anthropic / openai / google）
-├── vectorstores/  向量库适配器（qdrant / milvus / pinecone / weaviate / chroma）
-├── tools/         Tool 实现（fakeweatherquery 示例）
-├── mcp/           Model Context Protocol 桥接（v1，单包）
-└── otelbridge/    OpenTelemetry SpanExporter（slog / stdlib log 两种）
+├── core/            抽象 + 协议（chat / embedding / image / audio / moderation / RAG / vectorstore 接口 / document pipeline / tokenizer）
+├── pkg/             通用工具库（collections / encoding / sync / retry / ptr ...）
+├── models/          LLM provider 适配器（anthropic / openai / google / 兼容端点）
+├── vectorstores/    向量库适配器（qdrant / milvus / pinecone / weaviate / chroma ...）
+├── tools/           Tool 实现
+├── mcp/             Model Context Protocol 桥接
+├── a2a/             Agent-to-Agent 协议桥接
+├── chatmemory/      会话记忆后端
+├── documentreaders/ 文档读取器（html / markdown / pdf）
+├── skills/          Agent Skills 基础能力（只读 SKILL.md 仓）
+├── otel/            OpenTelemetry 开发导出器
+├── agent/           planner-driven agent 运行时（库：core 原语 + runtime 引擎 + planning 策略 + Extension SPI）
+└── app/
+    ├── runtime/     Lyra Runtime 后端（消费 agent，JSON-RPC over HTTP+SSE）
+    └── desktop/     Wails 桌面壳 + 前端（独立工作区）
 ```
 
-**依赖方向**：外层 → core → pkg。重依赖（OTel SDK、MCP SDK、provider SDK、vector DB driver）全部走外挂模块，core 保持最小。
+**依赖方向**：外层 → core → pkg。重依赖（OTel / MCP / provider SDK、vector DB driver）全部走外挂模块，core 保持最小。
 
 ---
 
-## 文档索引
+## 文档地图
 
-### 顶层文档
+**治理规范（全仓适用，判断"该不该这么写"的硬尺子）**
+- [`../CLAUDE.md`](../CLAUDE.md) — 跨模块法则：两条最高法则（不留债 / 治本）+ 设计原则（SOLID / DRY / KISS / YAGNI）+ 共用强约定
+- [`../DESIGN_PHILOSOPHY.md`](../DESIGN_PHILOSOPHY.md) — 设计哲学的"为什么"：薄核 + 三形态变体 + 窄腰 + 一个扩展机制 + 库优于框架
+- [`../REFACTORING.md`](../REFACTORING.md) — 落手重构的标尺（触发信号 + Fowler 式清单 + 节奏纪律）
 
-| 文档 | 主题 |
-|-----|------|
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | 系统架构、核心抽象、分层、可扩展性、已知技术债 |
-| [MCP.md](./MCP.md) | MCP 桥接设计与实现、与 Spring AI MCP 的对比 |
-| [REASONING.md](./REASONING.md) | Reasoning 一等公民设计、provider 映射、多轮回放 |
-| [MIDDLEWARE.md](./MIDDLEWARE.md) | 中间件框架现状、Call/Stream 双写痛点、AroundMiddleware 提案 |
-| [OBSERVABILITY.md](./OBSERVABILITY.md) | 可观测性设计（直接用 OTel）、语义规范、埋点清单、桥接 exporter |
-| [SPRING_AI_COMPARISON.md](./SPRING_AI_COMPARISON.md) | 与 Spring AI 的多角度对比（哲学 / 范式 / API / 生态 / 中间件 / 子系统深入 / 集成 / 可观测 / 战略 gap） |
+**框架设计（本目录）**
+- [`OBSERVABILITY.md`](./OBSERVABILITY.md) — 可观测性设计：OTel 三驾马车 → `log/slog`、语义规范、埋点清单、桥接 exporter
 
-### 评审与排查报告
-
-| 文档 | 主题 |
-|-----|------|
-| [bug-analysis-lyra-agent.md](./bug-analysis-lyra-agent.md) | lyra + agent 两模块全代码 bug 深度排查报告（排除 pkg/） |
-| [design-patterns-analysis.md](./design-patterns-analysis.md) | lynx 仓 13 个代码模块的设计模式调研分析（排除 pkg/） |
-
-### 子目录
-
-| 目录 | 主题 |
-|-----|------|
-| [agent/](./agent/) | Agent 框架设计文档（embabel-agent 的 Go 移植；运行时已落地在 `/agent/`，含 HTN / Reactive / GOAP 三套 planner） |
-| [embabel-architecture-analysis/](./embabel-architecture-analysis/) | 上游 embabel-agent 框架的架构分析（参考材料） |
-
----
-
-## 阅读建议
-
-- **想了解整体设计** → `ARCHITECTURE.md`
-- **要接 MCP server / 做 agentic 工具** → `MCP.md`
-- **关心 reasoning / thinking 模型支持** → `REASONING.md`
-- **想写自定义中间件** → `MIDDLEWARE.md`
-- **要做生产可观测性** → `OBSERVABILITY.md`
-- **评估与 Spring AI 的对比 / gap** → `SPRING_AI_COMPARISON.md`
-- **关心 agent 框架** → `agent/README.md`（设计文档）+ `/agent/`（运行时实现）
+**各模块上下文**：每个 sub-module 自带 `CLAUDE.md`（形态 / 关键类型 / 模块特有反向不变量）。
+- agent 框架（库）→ [`../agent/docs/`](../agent/docs/)：`GUIDE` / `EXTENSION_DESIGN`（SPI）/ `ARCHITECTURE_REVIEW` + `GREENFIELD_DESIGN`（架构体检）/ `EMBABEL_*`（与上游对照）
+- Lyra Runtime（应用）→ [`../app/runtime/doc/`](../app/runtime/doc/)：`GREENFIELD_ARCHITECTURE`（唯一架构基准）+ `EXTENSIBILITY` + 架构体检
+- 桌面前端 → [`../app/desktop/`](../app/desktop/)：`CLAUDE.md` / `frontend/DESIGN.md`（视觉规范）/ `docs/protocol/`（Lyra Runtime Protocol 契约：API / TRANSPORT / AUX_API）
