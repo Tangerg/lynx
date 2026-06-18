@@ -1,9 +1,11 @@
 import type { ApprovalDecision } from "@/lib/agent/useApprovalSubmit";
 import type { BlockStatus } from "@/protocol/run/viewState";
-import { useState } from "react";
+import type { ApprovalActions } from "@/lib/agent/approvalActions";
+import { useEffect, useRef, useState } from "react";
 import { Checkbox, Divider, Icon, PillButton } from "@/components/common";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
+import { registerApprovalActions } from "@/lib/agent/approvalActions";
 import { useApprovalSubmit } from "@/lib/agent/useApprovalSubmit";
 import { cn } from "@/lib/utils";
 import { ApprovalArgsEditor, useApprovalArgsEditor } from "./ApprovalArgsEditor";
@@ -114,6 +116,23 @@ export function ApprovalCard({
     }
     submit("approved", { editedArgs, rememberForSession: remember });
   };
+  const onDecline = () => submit("declined", { rememberForSession: remember });
+
+  // Bridge the ⌘↩ / ⇧⌘⌫ keyboard path (submitPendingApproval) to THIS card's
+  // submit — so the shortcut applies the edited args + remember exactly like the
+  // buttons. Register a stable thunk that reads the latest handlers via a ref;
+  // only while the card is actionable. (The ref keeps the registration stable
+  // across re-renders while still calling the current closure.)
+  const actionsRef = useRef<ApprovalActions>({ approve: onApprove, decline: onDecline });
+  actionsRef.current = { approve: onApprove, decline: onDecline };
+  const resumable = Boolean(parentRunId && itemId && status === "requires-action");
+  useEffect(() => {
+    if (!resumable || !itemId) return;
+    return registerApprovalActions(itemId, {
+      approve: () => actionsRef.current.approve(),
+      decline: () => actionsRef.current.decline(),
+    });
+  }, [resumable, itemId]);
 
   const finalised = status === "complete" ? decision : pending;
   if (finalised === "approved") {
@@ -204,11 +223,7 @@ export function ApprovalCard({
           {t("approval.action.approve")}
           {!disabled && <kbd className="ml-1.5 font-mono text-[10px] opacity-60">⌘↵</kbd>}
         </PillButton>
-        <PillButton
-          size="sm"
-          disabled={disabled}
-          onClick={() => submit("declined", { rememberForSession: remember })}
-        >
+        <PillButton size="sm" disabled={disabled} onClick={onDecline}>
           {t("approval.action.decline")}
           {!disabled && <kbd className="ml-1.5 font-mono text-[10px] opacity-60">⇧⌘⌫</kbd>}
         </PillButton>

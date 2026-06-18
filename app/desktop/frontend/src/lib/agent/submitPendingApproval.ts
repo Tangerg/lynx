@@ -13,6 +13,7 @@
 
 import { useAgentStore } from "@/state/agentStore";
 import { useSessionStore } from "@/state/sessionStore";
+import { getApprovalActions } from "./approvalActions";
 import { type ApprovalDecision, WIRE_DECISION } from "./hitlDecision";
 import { resumeInterrupt } from "./useInterruptResume";
 
@@ -29,6 +30,17 @@ export function submitPendingApproval(decision: ApprovalDecision): boolean {
   if (!oi || !interrupt) return false;
 
   const itemId = interrupt.itemId;
+  // Prefer the mounted card's own submit so the shortcut applies its edited
+  // args + remember exactly like its buttons (its optimistic settle removes the
+  // open interrupt, so a repeat press finds nothing and falls through). Bare
+  // resume below is only for the no-card-mounted fallback.
+  const actions = getApprovalActions(itemId);
+  if (actions) {
+    if (decision === "approved") actions.approve();
+    else actions.decline();
+    return true;
+  }
+
   if (inFlight.has(itemId)) return true; // already submitting — swallow the repeat press
   inFlight.add(itemId);
   const clear = () => inFlight.delete(itemId);
