@@ -2,7 +2,7 @@
 
 > 定位:**只谈一条轴 —— 架构组织哲学**。两个框架(lynx `agent` / embabel-agent)各自如何把"sub-agent / workflow / agent-as-tool / consensus …"这些能力**组织**起来?是各造一套机器,还是全部归约到同一个核心?组合 vs 继承 vs 框架反转?窄腰在哪?
 >
-> **分工**:维度级对比(GOAP 算法 / 类型系统 / ToolLoop SPI / Determination / 事件 / 生态 / 移植保真度 bug)已在 [`EMBABEL_DEEP_COMPARISON.md`](./EMBABEL_DEEP_COMPARISON.md) 和 [`EMBABEL_COMPARISON.md`](./EMBABEL_COMPARISON.md) 写透,本篇**不重复**。本篇是它们**没有系统覆盖**的"组织/为什么这么组织"层。
+> **分工**:维度级对比(GOAP 算法 / 类型系统 / ToolLoop SPI / Determination / 事件 / 生态 / 移植保真度 bug)已在 [`EMBABEL_DEEP_COMPARISON.md`](./EMBABEL_DEEP_COMPARISON.md) 写透,本篇**不重复**。本篇是它**没有系统覆盖**的"组织/为什么这么组织"层。
 > 配套:lynx 侧的内部自举见 [`./SELF_BOOTSTRAP.md`](./SELF_BOOTSTRAP.md);扩展机制细节见 [`EXTENSION_DESIGN.md`](./EXTENSION_DESIGN.md)。约定见 [`../CLAUDE.md`](../CLAUDE.md)。
 > 结论基于 2026-06 对两边源码的重新核对(embabel 给 `module/package` 路径,lynx 给 `file:line`,与既有两篇风格一致)。
 

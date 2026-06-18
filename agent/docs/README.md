@@ -7,8 +7,21 @@ GOAP (Goal-Oriented Action Planning) agent runtime for Go — a port of
 Implemented and `go test -race ./...` is green. See
 [`GUIDE.md`](./GUIDE.md) for the deep guide,
 [`EXTENSION_DESIGN.md`](./EXTENSION_DESIGN.md) for the SPI surface,
-and [`EMBABEL_COMPARISON.md`](./EMBABEL_COMPARISON.md) for the comparison
-against embabel-agent.
+[`EMBABEL_DEEP_COMPARISON.md`](./EMBABEL_DEEP_COMPARISON.md) for the
+canonical source-level comparison against embabel-agent (2026-06 refresh:
+lynx closed most old capability gaps — parallel tool loop, max-iter +
+loop-detection, tool-error recovery, Supervisor, best-of-N, metrics,
+per-call events, durable persistence — ToolLoop dimension flipped from
+"embabel leads" to "lynx leads"; embabel's edge returns to its framework
+niche), [`EMBABEL_FEATURE_DIFF.md`](./EMBABEL_FEATURE_DIFF.md) for the
+bidirectional "who has what" checklist (embabel-only / lynx-only, tagged
+real-gap vs by-design-skip vs framework-niche),
+[`EMBABEL_ORGANIZING_PRINCIPLES.md`](./EMBABEL_ORGANIZING_PRINCIPLES.md)
+for the convergent-design organizing-philosophy axis, and
+[`ARCHITECTURE_REVIEW.md`](./ARCHITECTURE_REVIEW.md) for a senior-architect
+architecture health check (clean-arch/DDD verdict for agent-as-library:
+grade B+→A-, real debts = no `arch_test.go` + `core/` polluted by
+`core/model/chat`, with a prioritized landing list).
 
 ## Structure
 

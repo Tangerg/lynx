@@ -14,6 +14,7 @@
 |---|---|
 | [GREENFIELD_ARCHITECTURE.md](GREENFIELD_ARCHITECTURE.md) | ★ **唯一架构基准**：依赖向内（Clean Arch）+ 微内核（kernel 定义 port、runtime 注入）+ 限界上下文（domain）+ SPI/焊死判据 + 不做清单 + §9 执行记录（kernel/domain/delivery/turn 重命名） |
 | [ARCHITECTURE_REVIEW.md](ARCHITECTURE_REVIEW.md) | 现状体检（B+→A-）：资深架构师视角逐条裁决与教科书 Clean Arch/DDD 的偏差 + DDD 该做 vs 仪式裁决 + 唯一真债（`delivery/server` 的 pump/rollback 编排应回 kernel）+ P0/P1 落地清单 |
+| [GREENFIELD_DESIGN.md](GREENFIELD_DESIGN.md) | greenfield 重审（2026-06-18）：如果从零写 lyra 的应然设计 + 跨模块接缝（lyra 定义 `AgentRuntime` 窄接口消费 agent / tool loop 归属 / 事件桥 / 持久化分工）+ `adapter/` 新环 + pump/rollback 编排回 kernel。与 GREENFIELD_ARCHITECTURE 互补不取代，与 agent 侧 [`GREENFIELD_DESIGN.md`](../../agent/docs/GREENFIELD_DESIGN.md) 配套 |
 | [EXTENSIBILITY.md](EXTENSIBILITY.md) | 可替换性边界：外部 SPI（memory / 压缩 / LLM / RAG…可换）vs 内部焊死（核心强耦合）+ nil-default 注入方式 |
 
 ## B. 子系统设计基准
@@ -47,4 +48,4 @@
 
 ---
 
-> **变更记录**：2026-06-18 新增 [`ARCHITECTURE_REVIEW.md`](ARCHITECTURE_REVIEW.md)（现状体检，A 类）。2026-06-14 大清理（折叠架构演进切片 → GREENFIELD、删 FAT_SERVICES/NAMING_REVIEW/PLANDEX/MIMOCODE_REVIEW、抽 REFACTORING_LOG、重写 AGENT_CAPABILITY_COMPARISON）。2026-06-13 建索引。
+> **变更记录**：2026-06-18 新增 [`GREENFIELD_DESIGN.md`](GREENFIELD_DESIGN.md)（greenfield 重审 + 跨模块接缝，A 类）+ [`ARCHITECTURE_REVIEW.md`](ARCHITECTURE_REVIEW.md)（现状体检，A 类）。2026-06-14 大清理（折叠架构演进切片 → GREENFIELD、删 FAT_SERVICES/NAMING_REVIEW/PLANDEX/MIMOCODE_REVIEW、抽 REFACTORING_LOG、重写 AGENT_CAPABILITY_COMPARISON）。2026-06-13 建索引。
