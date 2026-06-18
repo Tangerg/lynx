@@ -24,6 +24,7 @@ import {
   composerToolbar,
 } from "./chat/composer";
 import connectionSettings from "./settings/connection-settings";
+import { composerQueue } from "./chat/composer-queue";
 import previewBlocks from "./chat/preview-blocks";
 import bootstrap from "./agent/bootstrap";
 import conversationExport from "./workspace/conversation-export";
@@ -164,6 +165,7 @@ const composer: PluginSpec[] = [
   composerPlaceholders,
   composerKeymap,
   composerSend,
+  composerQueue,
 ];
 
 // Settings panes + workspace views (each spec is independent).
