@@ -212,6 +212,11 @@ export interface RunRef {
   sessionId: SessionId;
   spawnedByItemId?: ItemId; // child-of: this Run is a subagent spawned by that toolCall Item
   parentRunId?: RunId; // continuation-of: this Run is a resume/edit continuation
+  // The model id this Run ran against (Model.id); absent = runtime default
+  // (surfaced via Session.model). Rides RunRef so a reconnect (runs.subscribe)
+  // or history restore (items.list.runs) — which never saw the originating
+  // runs.start — can still label which model the Run used (API.md §4.2).
+  model?: string;
   status?: "running" | "finished";
   outcome?: RunOutcome; // when status=finished
   createdAt?: string;
