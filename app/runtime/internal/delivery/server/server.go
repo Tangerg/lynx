@@ -133,6 +133,7 @@ func Capabilities(rt RuntimeServices) protocol.ServerCapabilities {
 		ProtocolVersion: protocol.ProtocolVersion,
 		Events: []protocol.StreamEventType{
 			protocol.StreamRunStarted,
+			protocol.StreamRunProgress,
 			protocol.StreamRunFinished,
 			protocol.StreamItemStarted,
 			protocol.StreamItemDelta,
