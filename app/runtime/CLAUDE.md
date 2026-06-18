@@ -77,7 +77,7 @@
 - ❌ **SSE 写自己的 frame 编码**：用 `github.com/Tangerg/sse`（auto-flush + spec compliance）。手写 `fmt.Fprintf(w, "data: %s\n\n", body)` 在 body 含 `\n` 时会破坏帧
 - ❌ **`/v2/rpc` 不带 method**（裸路径）：v2 协议 greenfield 决议，单一形态 `POST /v2/rpc/{method}`，裸路径 404
 - ❌ **协议 envelope 装 transport 元数据**（session id / auth token / trace id / idempotency key）：走 Go `context.Context` 或 HTTP header，永不进 message body
-- ❌ **退回"常开的 server→client 通知通道"**（独立 `GET /v2/rpc/stream` + `X-Conn-Id` 连接路由 + 全局/广播 fan-out）：已被 streamable HTTP 取代 —— 每个流式调用的事件走它**自己那条 POST 响应流**，事件源是 per-run hub（`rpc/server/hub.go`），无连接身份簿记。重连是 per-run（`runs.subscribe{runId}` + `Last-Event-Id`），不是"重连那条共享流"。真要 server 主动推送（多客户端同步等，API.md §12 当前不做），按 `../desktop/docs/protocol/TRANSPORT.md` §6.1 的退路**增量**加一条可选 GET 流，别把旧模型整套搬回来
+- ❌ **退回"常开的 server→client 通知通道"**（独立 `GET /v2/rpc/stream` + `X-Conn-Id` 连接路由 + 全局/广播 fan-out）：已被 streamable HTTP 取代 —— 每个流式调用的事件走它**自己那条 POST 响应流**，事件源是 per-run hub（`internal/delivery/server/hub.go`），无连接身份簿记。重连是 per-run（`runs.subscribe{runId}` + `Last-Event-Id`），不是"重连那条共享流"。真要 server 主动推送（多客户端同步等，API.md §12 当前不做），按 `../desktop/docs/protocol/TRANSPORT.md` §6.1 的退路**增量**加一条可选 GET 流，别把旧模型整套搬回来
 
 ## 关键目录
 
