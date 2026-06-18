@@ -1,0 +1,32 @@
+import type { TodoItem } from "@/rpc";
+import { PlanCheck, planItemRow } from "@/components/chat/message";
+import { useT } from "@/lib/i18n";
+
+// TodoItem.status → the plan-row visual vocabulary. PlanCheck / planItemRow are
+// shared with the Plan view + inline PlanBlock, so the agent's working checklist
+// (B11) renders identically to a plan — same check glyph, same row styling.
+const TODO_STATUS = {
+  completed: "done",
+  in_progress: "doing",
+  pending: "todo",
+} as const;
+
+export function TodoList({ todos }: { todos: TodoItem[] }) {
+  const t = useT();
+  return (
+    <div className="px-4.5 py-3.5">
+      <div className="mb-3 font-mono text-[11px] font-bold text-fg-faint">
+        {t("todos.list.heading")}
+      </div>
+      {todos.map((t) => {
+        const status = TODO_STATUS[t.status];
+        return (
+          <div key={t.id} className={planItemRow(status)}>
+            <PlanCheck status={status} />
+            <div>{t.text}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}

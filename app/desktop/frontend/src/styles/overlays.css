@@ -1,0 +1,88 @@
+/* Surviving overlay primitives:
+     .plugin-boundary-error — PluginBoundary fallback (raw class)
+     .fade-in               — per-word streaming animation (className
+                              emitted as a string by rehype-fade-in) */
+
+/* Plugin error boundary — inline notice when a plugin throws. */
+.plugin-boundary-error {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--color-negative) 32%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-negative) 6%, transparent);
+  color: var(--color-negative);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.plugin-boundary-error code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  background: transparent;
+  padding: 0;
+  border: none;
+}
+
+/* Per-word fade-in for streaming text. Layout-neutral on purpose: no
+   filter / transform / inline-block (those expand the line-box in
+   WKWebView and cause vertical jitter when new spans mount mid-line).
+   Pure opacity is GPU-composited. */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.fade-in {
+  animation: fadeIn 0.7s ease-in-out both;
+}
+
+/* Typewriter-mode tail caret (rehypeStreamCaret). A small accent dot glued to
+   the last glyph of the streaming block, blinking on a terminal step cadence.
+   Accent is the sanctioned "live indicator" surface (DESIGN.md §9). */
+.type-caret {
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  margin-left: 0.12em;
+  vertical-align: baseline;
+  border-radius: 9999px;
+  background: var(--color-accent);
+  animation: lyra-caret-blink 1.05s step-end infinite;
+}
+@keyframes lyra-caret-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Apple spatial-motion rule: Radix poppers scale out from their trigger edge,
+   not uniformly from below. Radix sets `--radix-popper-transform-origin` on the
+   popper wrapper per side/align; apply it to the animated content child so the
+   shared `animate-rise-in` (scale 0.97→1) emanates from the trigger. Non-popper
+   overlays (cmdk palette, SlashSuggestions) aren't wrapped, so they keep the
+   default centre origin — which is correct for a centred modal. */
+[data-radix-popper-content-wrapper] > * {
+  transform-origin: var(--radix-popper-transform-origin, center);
+}
+
+/* Chat search hit painting (chat-search plugin). Uses CSS Custom
+   Highlight API — Range objects painted by `CSS.highlights.set(name, ...)`
+   pick up these pseudo-class rules. */
+::highlight(chat-search) {
+  background: color-mix(in oklab, var(--color-warning) 32%, transparent);
+  color: var(--color-text);
+}
+::highlight(chat-search-active) {
+  background: var(--color-warning);
+  color: #000;
+}

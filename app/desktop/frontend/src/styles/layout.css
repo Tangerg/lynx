@@ -1,0 +1,207 @@
+/* App shell — cards-on-canvas grid + macOS titlebar shim. */
+
+* {
+  box-sizing: border-box;
+}
+
+/* Hard minimum viewport: 760 (chat-measure) + 248 (sidebar) + gutters
+   round up to ~1180. Below this the two columns overlap, so the page
+   scrolls instead of squashing. */
+:root {
+  --app-min-width: 1180px;
+  --app-min-height: 720px;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  min-width: var(--app-min-width);
+  min-height: var(--app-min-height);
+  /* Hard-lock the outer scrollers — without this, WKWebView interprets a
+     trackpad pan / click-drag on body content as scroll-the-page, which
+     looks like "the whole UI can be dragged around inside the window".
+     The kernel's min-width/height + Wails' window MinWidth/MinHeight
+     already guarantee panels fit; any internal scrolling happens inside
+     panel-scroll / msg-scroll-frame, not at the document level. */
+  overflow: hidden;
+}
+#root {
+  height: 100vh;
+}
+
+/* Default colour scheme — switched by uiStore.applyTheme via the
+   .theme-light class. */
+html {
+  color-scheme: dark;
+}
+html.theme-light {
+  color-scheme: light;
+}
+
+/* Light-mode glow tweak — slightly tighter than dark since light
+   backgrounds make halos read more loudly. */
+html.theme-light {
+  --shadow-glow: 0 0 10px color-mix(in oklab, var(--color-accent) 35%, transparent);
+}
+
+/* Kernel grid — cards-on-canvas: .app paints the canvas, .app-main
+   pads it so panels read as lifted cards. */
+.app {
+  display: grid;
+  /* Row 1: the cards-on-canvas main area. Row 2: the full-width status bar.
+     The overlay Slot's children are position:fixed, so they claim no track. */
+  grid-template-rows: 1fr auto;
+  height: 100vh;
+  min-width: var(--app-min-width);
+  min-height: var(--app-min-height);
+  background: var(--color-bg);
+}
+
+.app-main {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  /* Gap + padding expose the canvas around lifted panels on all four
+     sides. The 8px value matches --radius-md so corners and gutters
+     rhyme. */
+  gap: 8px;
+  padding: 8px;
+  min-height: 0;
+}
+
+/* Rail covers both the user's collapse preference and an open split view —
+   "open right → collapse left" forces the rail (see useSidebarRail), so a
+   split shares the canvas with a 56px rail rather than a zero-width column. */
+.app.rail .app-main {
+  grid-template-columns: 56px minmax(0, 1fr);
+}
+
+/* Status bar — persistent runtime data row (DESIGN.md §8). Full-bleed chrome
+   on the canvas (no card lift), so it reads as app furniture distinct from the
+   lifted content cards above. Mono + tnum so digits don't shimmy as telemetry
+   ticks. Items self-omit; the pipe separator is drawn only between rendered
+   `.sb-item`s, so an idle bar has no dangling pipes. */
+.statusbar {
+  display: flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 12px;
+  background: var(--color-bg);
+  color: var(--color-fg-muted);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  user-select: none;
+}
+.statusbar .sb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.statusbar .sb-item:not(:first-child)::before {
+  content: "│";
+  margin: 0 10px;
+  color: var(--color-border-soft);
+}
+
+/* Running tool card border — full accent gradient is too loud on white;
+   pull saturation down + tighten the visible arc. (Paired with the
+   `.tool-card.running::before` rule in tool.css.) */
+html.theme-light .tool-card.running::before {
+  background: conic-gradient(
+    from var(--tc-angle),
+    var(--color-accent) 0deg,
+    rgba(21, 136, 62, 0) 70deg,
+    rgba(21, 136, 62, 0) 290deg,
+    var(--color-accent) 360deg
+  );
+}
+
+/* Panels — lifted cards on canvas. Multi-layer drop shadow + inset
+   top highlight give a "lit from above" feel. (Overrides DESIGN.md
+   §5's "no shadow on dark"; that rule assumed flush-edge layout
+   where shadows would be invisible against same-colored neighbours.) */
+.panel {
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  box-shadow:
+    /* Inset top-edge highlight — picks up "light from above" so the
+       card reads as having an actual top face. 4% is invisible on most
+       panels; 6% reads as a faint-but-present top facet without distracting. */
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    /* Drop shadow ladder — small contact + wider ambient. Tuned against
+       canvas #010102; on a slightly-lighter neighbour the shadow stays
+       visible without being theatrical. */
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    0 8px 16px -4px rgba(0, 0, 0, 0.28),
+    0 16px 32px -8px rgba(0, 0, 0, 0.2);
+}
+
+/* ---------- Scroll containers ---------- */
+.panel-scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  /* No rubber-band glow / scroll-chaining at the edges — a native pane stops
+     dead at its bounds, it doesn't bounce or hand the scroll to a parent.
+     `.panel-scroll` is THE scroller everywhere (panels + the chat's inner
+     stick-to-bottom div via scrollClassName), so this covers both. */
+  overscroll-behavior: contain;
+  /* Intentionally no `overflow-x: hidden` here — adding it broke
+     use-stick-to-bottom during streaming (rapid content-height changes
+     interacted badly with WebKit's scrollbar-recompute path, causing
+     the chat to snap back to the top). Any element that could overflow
+     horizontally (e.g. MessageOutline in the gutter) hides itself via
+     a container query before it gets the chance — see ChatPanel's
+     `@container/chat` + MessageOutline's `@[1144px]/chat:block`. The
+     enclosing `.panel` clips anything that still escapes. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-soft) transparent;
+}
+.panel-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+.panel-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-border-soft);
+  border-radius: var(--radius-pill);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.panel-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-soft);
+  background-clip: content-box;
+}
+
+/* StickToBottom outer wrapper. The lib renders its own scrolling div
+   inside, so the outer is just a flex-sized frame; `position: relative`
+   gives any future overlay (e.g. a sticky reply hint) a coordinate
+   origin. The actual scroll styles (.panel-scroll) live on the inner
+   div via scrollClassName. */
+.msg-scroll-frame {
+  flex: 1 1 0;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* macOS titlebar shim — push sidebar header below the traffic-light
+   controls. The drag region is a dedicated absolutely-positioned strip
+   added by SidebarExpanded / SidebarRail (see those files), not the
+   whole sidebar — making the entire column drag would catch every
+   div-based row (SessionRow, ProjectRow, footer card) and let the
+   window be moved by clicking on them. */
+.sidebar {
+  padding-top: 48px;
+  position: relative;
+}
+.sidebar.rail {
+  padding-top: 36px;
+}
