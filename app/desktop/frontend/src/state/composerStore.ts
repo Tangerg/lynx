@@ -50,6 +50,16 @@ interface ComposerState {
   drafts: Record<string, Draft>;
   /** The session id `value`/`images` currently mirror. */
   activeSid: string;
+  /** Per-session sent-message history (newest last, capped) for ↑/↓ recall.
+   *  In-memory only — the transcript already survives reload; this is just the
+   *  shell-style input ring for the current app session. */
+  history: Record<string, string[]>;
+  /** Recall cursor into the active session's history: -1 = not navigating, 0 =
+   *  most recent, 1 = next older … Reset whenever the user types or switches. */
+  histIndex: number;
+  /** The in-progress text saved when history recall began, so stepping back
+   *  past the newest entry (↓) restores what was being typed. */
+  histDraft: string;
 }
 
 interface ComposerActions {
@@ -72,7 +82,20 @@ interface ComposerActions {
   /** Drop drafts whose session tab closed (mirrors agentStore's view prune) so
    *  the archive can't grow unbounded; the scratch ("") + active draft survive. */
   pruneDrafts: (liveSids: Set<string>) => void;
+  /** Record a submitted message in the active session's recall history. */
+  pushHistory: (text: string) => void;
+  /** Step to the previous (older) history entry, saving the in-progress draft on
+   *  the first step. Returns false when there's no history to recall (so the key
+   *  falls through to normal cursor movement). */
+  historyPrev: () => boolean;
+  /** Step to the next (newer) entry, restoring the saved draft past the newest.
+   *  Returns false when not currently navigating history. */
+  historyNext: () => boolean;
 }
+
+// Per-session recall ring depth — enough to step back through a working
+// session, bounded so it can't grow without limit.
+const HISTORY_CAP = 50;
 
 // Persisted shape (trust boundary, validated on rehydrate): text-only drafts.
 const persistSchema = z.object({
@@ -94,9 +117,13 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
         model: null,
         drafts: {},
         activeSid: "",
+        history: {},
+        histIndex: -1,
+        histDraft: "",
         setValue: (value) =>
           set((s) => ({
             value,
+            histIndex: -1, // editing leaves history-recall mode
             drafts: { ...s.drafts, [s.activeSid]: { value, images: s.images } },
           })),
         setModel: (provider, model) => set({ provider, model }),
@@ -105,6 +132,7 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
           set((s) => ({
             value: "",
             images: [],
+            histIndex: -1,
             drafts: { ...s.drafts, [s.activeSid]: emptyDraft() },
           }));
         },
@@ -137,16 +165,63 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
           set((s) => {
             if (sid === s.activeSid) return s;
             const next = s.drafts[sid] ?? emptyDraft();
-            return { activeSid: sid, value: next.value, images: next.images };
+            return {
+              activeSid: sid,
+              value: next.value,
+              images: next.images,
+              histIndex: -1,
+              histDraft: "",
+            };
           }),
         pruneDrafts: (liveSids) =>
           set((s) => {
             const drafts: Record<string, Draft> = {};
-            for (const k in s.drafts) {
-              if (k === "" || k === s.activeSid || liveSids.has(k)) drafts[k] = s.drafts[k]!;
-            }
-            return { drafts };
+            const history: Record<string, string[]> = {};
+            const keep = (k: string) => k === "" || k === s.activeSid || liveSids.has(k);
+            for (const k in s.drafts) if (keep(k)) drafts[k] = s.drafts[k]!;
+            for (const k in s.history) if (keep(k)) history[k] = s.history[k]!;
+            return { drafts, history };
           }),
+        pushHistory: (text) =>
+          set((s) => {
+            const t = text.trim();
+            if (!t) return s;
+            const list = s.history[s.activeSid] ?? [];
+            if (list[list.length - 1] === t) return { histIndex: -1 }; // dedupe consecutive
+            return {
+              history: { ...s.history, [s.activeSid]: [...list, t].slice(-HISTORY_CAP) },
+              histIndex: -1,
+            };
+          }),
+        historyPrev: () => {
+          const s = get();
+          const list = s.history[s.activeSid] ?? [];
+          if (list.length === 0) return false;
+          const idx = s.histIndex === -1 ? 0 : Math.min(s.histIndex + 1, list.length - 1);
+          const value = list[list.length - 1 - idx]!;
+          const histDraft = s.histIndex === -1 ? s.value : s.histDraft;
+          set((st) => ({
+            value,
+            histIndex: idx,
+            histDraft,
+            drafts: { ...st.drafts, [st.activeSid]: { value, images: st.images } },
+          }));
+          return true;
+        },
+        historyNext: () => {
+          const s = get();
+          if (s.histIndex === -1) return false; // not navigating
+          const list = s.history[s.activeSid] ?? [];
+          const idx = s.histIndex - 1;
+          // Past the newest entry → restore the draft that recall began from.
+          const value = idx < 0 ? s.histDraft : list[list.length - 1 - idx]!;
+          set((st) => ({
+            value,
+            histIndex: idx < 0 ? -1 : idx,
+            drafts: { ...st.drafts, [st.activeSid]: { value, images: st.images } },
+          }));
+          return true;
+        },
       };
     },
     {

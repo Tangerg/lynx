@@ -54,6 +54,17 @@ export const composerPlaceholders = definePlugin({
   },
 });
 
+// After a history recall swaps the textarea value (async, via the store), park
+// the caret at the end on the next frame: repeated ↑ then steps further back
+// (single-line entries) or navigates within a recalled multi-line entry before
+// recalling the next one — the editor-like "history at the boundary" behavior.
+function caretToEnd(ta: HTMLTextAreaElement): void {
+  requestAnimationFrame(() => {
+    const end = ta.value.length;
+    ta.setSelectionRange(end, end);
+  });
+}
+
 export const composerKeymap = definePlugin({
   name: "lyra.builtin.composer-keymap",
   version: "1.0.0",
@@ -99,6 +110,34 @@ export const composerKeymap = definePlugin({
         const entry = useAgentStore.getState().sessions[sid];
         if (!entry?.view.run.running) return false;
         entry.stop?.();
+        return true;
+      },
+    });
+    // ↑/↓ recall previously-sent messages (shell-style), but only at the
+    // composer's edge: ↑ recalls when the caret can't move further up (no
+    // earlier line), ↓ when it can't move further down — otherwise the arrows
+    // move within a multi-line draft as usual. A text selection falls through.
+    host.extensions.contribute(COMPOSER_KEY_BINDING, {
+      key: "ArrowUp",
+      description: t("composer.key.historyPrevDesc"),
+      handler: ({ event }) => {
+        const ta = event.target as HTMLTextAreaElement | null;
+        if (!ta || ta.selectionStart !== ta.selectionEnd) return false;
+        if (ta.value.slice(0, ta.selectionStart).includes("\n")) return false;
+        if (!useComposerStore.getState().historyPrev()) return false;
+        caretToEnd(ta);
+        return true;
+      },
+    });
+    host.extensions.contribute(COMPOSER_KEY_BINDING, {
+      key: "ArrowDown",
+      description: t("composer.key.historyNextDesc"),
+      handler: ({ event }) => {
+        const ta = event.target as HTMLTextAreaElement | null;
+        if (!ta || ta.selectionStart !== ta.selectionEnd) return false;
+        if (ta.value.slice(ta.selectionEnd).includes("\n")) return false;
+        if (!useComposerStore.getState().historyNext()) return false;
+        caretToEnd(ta);
         return true;
       },
     });

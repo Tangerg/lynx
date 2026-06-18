@@ -550,6 +550,8 @@ export const en: Record<string, string> = {
   "composer.key.approveDesc": "Approve a pending request, otherwise send",
   "composer.key.declineDesc": "Decline a pending request",
   "composer.key.stopDesc": "Stop the running response",
+  "composer.key.historyPrevDesc": "Recall the previous message",
+  "composer.key.historyNextDesc": "Recall the next message",
 
   // ── Slash command hints ──
   "slash.explain": "Explain a file, function, or selection",

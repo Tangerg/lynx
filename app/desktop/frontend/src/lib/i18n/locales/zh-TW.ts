@@ -512,6 +512,8 @@ export const zhTW: Record<string, string> = {
   "composer.key.approveDesc": "核准待處理請求，否則傳送",
   "composer.key.declineDesc": "拒絕待處理請求",
   "composer.key.stopDesc": "停止正在執行的回應",
+  "composer.key.historyPrevDesc": "叫出上一則訊息",
+  "composer.key.historyNextDesc": "叫出下一則訊息",
   "slash.explain": "解釋檔案、函式或選取範圍",
   "slash.test": "為目前變更產生或執行測試",
   "slash.fix": "診斷並修復失敗的型別檢查",
