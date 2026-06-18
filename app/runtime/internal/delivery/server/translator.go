@@ -147,6 +147,7 @@ type translator struct {
 	model       string // run's model → RunRef.model on run.started
 	resume      *resumeBinding
 	itemSeq     int
+	step        int // tool-call ordinal, surfaced as run.progress.step (API.md §5)
 
 	// userInput is the run's opening user message, emitted as the first
 	// Item (userMessage) right after run.started. Set only for root runs

@@ -90,6 +90,17 @@ func (t *translator) toolStart(e turn.ToolCallStart) []protocol.StreamEvent {
 	out := t.closeReasoning()
 	out = append(out, t.closeText()...)
 
+	// Mid-run progress (API.md §5, ephemeral): a tool call is a meaningful
+	// activity boundary, so surface "what's happening now" + the running tool
+	// ordinal. Text/reasoning deltas are their OWN activity signal, so
+	// run.progress fires only here — not per high-frequency delta.
+	t.step++
+	step := t.step
+	out = append(out, protocol.StreamEvent{
+		Type:     protocol.StreamRunProgress,
+		Progress: &protocol.RunProgress{Step: &step, Activity: activityVerb(e.ToolName)},
+	})
+
 	id, runID := t.reuseOrNextItemID(e.ToolName, e.Arguments)
 	ref := &openTool{id: id, runID: runID, createdAt: time.Now().UTC(), name: e.ToolName, args: e.Arguments}
 	t.tools[e.CallID] = ref
@@ -155,6 +166,42 @@ func (t *translator) toolEnd(e turn.ToolCallEnd) []protocol.StreamEvent {
 		item.Error = &protocol.ProblemData{Type: "tool_failed", Channel: protocol.ErrorChannelTool, Detail: e.Err}
 	}
 	return append(out, protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: item})
+}
+
+// activityVerb maps a tool name to a human-readable mid-run activity line for
+// run.progress (API.md §5) — the "what's happening now" a client shows while
+// the tool runs. A small first-party verb map with a generic "Calling <name>"
+// fallback (covers MCP "<server>.<tool>" and any dynamic / lsp_* tool).
+func activityVerb(name string) string {
+	switch name {
+	case "bash", "shell", "run_in_background":
+		return "Running command"
+	case "bash_output":
+		return "Reading command output"
+	case "kill_shell":
+		return "Stopping command"
+	case "read":
+		return "Reading file"
+	case "write":
+		return "Writing file"
+	case "edit":
+		return "Editing file"
+	case "grep":
+		return "Searching"
+	case "glob":
+		return "Finding files"
+	case "web_search":
+		return "Searching the web"
+	case "web_fetch":
+		return "Fetching a page"
+	case "task", "subagent":
+		return "Delegating to a sub-agent"
+	case "ask_user":
+		return "Waiting for your answer"
+	case "todo_write":
+		return "Updating the plan"
+	}
+	return "Calling " + name
 }
 
 // turnEnd closes any open items (so the wire ends balanced) then emits
