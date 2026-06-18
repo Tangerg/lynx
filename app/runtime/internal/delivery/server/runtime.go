@@ -59,6 +59,11 @@ type RuntimeServices interface {
 	// DefaultModel is the runtime's configured default model — used to fill
 	// Session.model for sessions that never explicitly selected one.
 	DefaultModel() string
+	// GenerateTitle derives a short session title from a conversation's opening
+	// user message (auto-naming an untitled session). Best-effort: "" (no error)
+	// when titling isn't possible. The runtime owns it because it owns the
+	// maintenance LLM client.
+	GenerateTitle(ctx context.Context, firstMessage string) (string, error)
 	ReadHistory(ctx context.Context, sessionID string) ([]chat.Message, error)
 	SeedHistory(ctx context.Context, sessionID string, msgs []chat.Message) error
 	// MessageCount / TruncateMessages back the chat-memory side of

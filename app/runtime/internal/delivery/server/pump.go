@@ -152,6 +152,10 @@ func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 		// serializes per session so it can't race the next run's snapshot.
 		if !parked {
 			go s.snapshotCheckpoint(context.WithoutCancel(ctx), handle.SessionID, runID)
+			// Auto-name an untitled session from its first user message — async +
+			// best-effort off the terminal path, same discipline as the snapshot
+			// above (an LLM call must never hold up the run's teardown).
+			go s.maybeTitleSession(context.WithoutCancel(ctx), handle.SessionID, parentRunID, userInput)
 		}
 	}()
 
