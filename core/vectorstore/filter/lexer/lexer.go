@@ -40,52 +40,38 @@ func NewLexer(input string) (*Lexer, error) {
 	}, nil
 }
 
-// markTokenStart snapshots the cursor as the start of the next token.
-// The column is rolled back by one because [consumeChar] has already
-// stepped past the first character of the token.
 func (l *Lexer) markTokenStart() {
 	l.startPosition = l.cursor
 	l.startPosition.Column = max(l.startPosition.Column-1, 1)
 }
 
-// emitEOF synthesizes an EOF token at the current position.
 func (l *Lexer) emitEOF() token.Token {
 	l.markTokenStart()
 	return token.OfEOF(l.startPosition)
 }
 
-// emitError wraps a low-level read error into an ERROR token.
 func (l *Lexer) emitError(err error) token.Token {
 	l.markTokenStart()
 	return token.OfError(err, l.startPosition)
 }
 
-// emitIllegal surfaces an unexpected character as an ILLEGAL token.
 func (l *Lexer) emitIllegal() token.Token {
 	l.markTokenStart()
 	return token.OfIllegal(l.currentChar, l.startPosition)
 }
 
-// emitKind builds a fixed-shape token (operators, punctuation,
-// keywords) using the start/cursor span.
 func (l *Lexer) emitKind(kind token.Kind) token.Token {
 	return token.OfKind(kind, l.startPosition, l.cursor)
 }
 
-// emitLiteral builds a value-bearing token (NUMBER/STRING) using the
-// current span.
 func (l *Lexer) emitLiteral(kind token.Kind, literal string) token.Token {
 	return token.OfLiteral(kind, literal, l.startPosition, l.cursor)
 }
 
-// emitIdent builds an IDENT token using the current span.
 func (l *Lexer) emitIdent(literal string) token.Token {
 	return token.OfIdent(literal, l.startPosition, l.cursor)
 }
 
-// peekNextChar returns the next rune without advancing. Returns
-// (0, io.EOF) at end of input. Internally reads-then-unreads so the
-// underlying reader's position is preserved.
 func (l *Lexer) peekNextChar() (rune, error) {
 	next, _, err := l.reader.ReadRune()
 	if err != nil {
@@ -97,8 +83,6 @@ func (l *Lexer) peekNextChar() (rune, error) {
 	return next, nil
 }
 
-// consumeChar advances by one rune, updating line/column. Newlines
-// reset the column. Returns io.EOF at end of input.
 func (l *Lexer) consumeChar() error {
 	char, _, err := l.reader.ReadRune()
 	if err != nil {
@@ -116,15 +100,10 @@ func (l *Lexer) consumeChar() error {
 	return nil
 }
 
-// bufferCurrentChar appends the rune just consumed to the value
-// buffer. Used during string / number / identifier scanning.
 func (l *Lexer) bufferCurrentChar() {
 	l.valueBuffer.WriteRune(l.currentChar)
 }
 
-// consumeExpected consumes one rune that must match expected. It
-// panics on mismatch — the caller is required to peek first, so a
-// mismatch indicates a lexer-internal bug, not bad user input.
 func (l *Lexer) consumeExpected(expected rune) {
 	if err := l.consumeChar(); err != nil {
 		panic(fmt.Errorf("lexer.consumeExpected: read %q: %w", expected, err))
@@ -134,8 +113,6 @@ func (l *Lexer) consumeExpected(expected rune) {
 	}
 }
 
-// skipWhitespace advances past any run of unicode whitespace and
-// leaves the cursor on the next significant rune.
 func (l *Lexer) skipWhitespace() error {
 	for {
 		if err := l.consumeChar(); err != nil {
@@ -147,10 +124,6 @@ func (l *Lexer) skipWhitespace() error {
 	}
 }
 
-// resolveEscape turns the rune following a backslash into its actual
-// value. Unknown sequences pass through unchanged — same as Go's
-// strconv behavior for an unrecognized escape inside a quoted
-// string.
 func (l *Lexer) resolveEscape(char rune) rune {
 	switch char {
 	case 'n':
@@ -168,9 +141,6 @@ func (l *Lexer) resolveEscape(char rune) rune {
 	}
 }
 
-// scanString tokenizes a single-quoted string. The opening quote is
-// the current char; the closing quote is consumed but not buffered.
-// Backslash escapes are honored.
 func (l *Lexer) scanString() token.Token {
 	defer l.valueBuffer.Reset()
 
@@ -197,8 +167,6 @@ func (l *Lexer) scanString() token.Token {
 	return l.emitLiteral(token.STRING, l.valueBuffer.String())
 }
 
-// collectDigits reads consecutive ASCII digits into the buffer.
-// Stops on first non-digit (peeked, not consumed) or EOF.
 func (l *Lexer) collectDigits() error {
 	for {
 		next, err := l.peekNextChar()
@@ -217,9 +185,6 @@ func (l *Lexer) collectDigits() error {
 	}
 }
 
-// scanNumber tokenizes an integer or decimal number. The first digit
-// must be the current char. A decimal point requires at least one
-// digit after it.
 func (l *Lexer) scanNumber() token.Token {
 	defer l.valueBuffer.Reset()
 
@@ -254,8 +219,6 @@ func (l *Lexer) scanNumber() token.Token {
 	return l.emitLiteral(token.NUMBER, l.valueBuffer.String())
 }
 
-// scanNegativeNumber tokenizes a number that begins with '-'. The
-// minus must be immediately followed by a digit.
 func (l *Lexer) scanNegativeNumber() token.Token {
 	if err := l.consumeChar(); err != nil {
 		return l.emitError(err)
@@ -271,9 +234,6 @@ func (l *Lexer) scanNegativeNumber() token.Token {
 	return l.emitLiteral(token.NUMBER, "-"+number.Literal)
 }
 
-// scanIdentifier tokenizes an identifier or a keyword. The first
-// letter is the current char. A keyword match returns a canonical
-// fixed-kind token; everything else returns IDENT preserving case.
 func (l *Lexer) scanIdentifier() token.Token {
 	defer l.valueBuffer.Reset()
 
@@ -303,8 +263,6 @@ func (l *Lexer) scanIdentifier() token.Token {
 	return l.emitIdent(value)
 }
 
-// scanOptionalSecondChar handles operators where the second character
-// is optional — `<` / `<=`, `>` / `>=`. Peeks one ahead to decide.
 func (l *Lexer) scanOptionalSecondChar(secondChar rune, single, paired token.Kind) token.Token {
 	next, err := l.peekNextChar()
 	if err != nil {
@@ -322,8 +280,6 @@ func (l *Lexer) scanOptionalSecondChar(secondChar rune, single, paired token.Kin
 	return l.emitKind(paired)
 }
 
-// scanRequiredSecondChar handles operators where the second character
-// is mandatory — `==` / `!=`. Mismatch yields ILLEGAL.
 func (l *Lexer) scanRequiredSecondChar(secondChar rune, kind token.Kind) token.Token {
 	if err := l.consumeChar(); err != nil {
 		return l.emitError(err)
@@ -334,9 +290,6 @@ func (l *Lexer) scanRequiredSecondChar(secondChar rune, kind token.Kind) token.T
 	return l.emitKind(kind)
 }
 
-// dispatchToken inspects the current rune and routes to the right
-// scanner. The first switch covers fixed punctuation/operators; then
-// digits and letters fall through to multi-char scanners.
 func (l *Lexer) dispatchToken() token.Token {
 	switch l.currentChar {
 	case '=':
@@ -373,8 +326,6 @@ func (l *Lexer) dispatchToken() token.Token {
 	return l.emitIllegal()
 }
 
-// Scan returns the next token. EOF and read errors are surfaced as
-// EOF / ERROR tokens — callers never see plain io errors.
 func (l *Lexer) Scan() token.Token {
 	if err := l.skipWhitespace(); err != nil {
 		if errors.Is(err, io.EOF) {
@@ -387,9 +338,6 @@ func (l *Lexer) Scan() token.Token {
 	return l.dispatchToken()
 }
 
-// Token returns an iterator over [Lexer.Scan]. The iterator yields
-// indefinitely — consumers stop by returning false. EOF tokens are
-// included so consumers can detect end-of-input themselves.
 func (l *Lexer) Token() iter.Seq[token.Token] {
 	return func(yield func(token.Token) bool) {
 		for {
@@ -400,12 +348,6 @@ func (l *Lexer) Token() iter.Seq[token.Token] {
 	}
 }
 
-// Tokens consumes the entire input and returns every token, EOF
-// included. Convenient for tests and small inputs; for large inputs
-// prefer [Lexer.Scan] or [Lexer.Token] to avoid buffering everything.
-//
-// The capacity hint is sized so most realistic filter expressions
-// avoid reslicing.
 func (l *Lexer) Tokens() []token.Token {
 	tokens := make([]token.Token, 0, len(l.input)/4+8)
 	for tk := range l.Token() {
@@ -417,9 +359,6 @@ func (l *Lexer) Tokens() []token.Token {
 	return tokens
 }
 
-// Reset rewinds to the start of input and clears all per-scan state
-// — positions, the current rune, the value buffer. The input string
-// itself is preserved so the same instance can be reused.
 func (l *Lexer) Reset() {
 	l.startPosition.Reset()
 	l.cursor.Reset()

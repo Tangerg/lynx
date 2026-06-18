@@ -20,9 +20,6 @@ import (
 // emitted here are zero-cost by default — see doc/OBSERVABILITY.md §5.
 var embedTracer = otel.Tracer("lynx/gen_ai/embeddings")
 
-// OpenTelemetry GenAI semconv attribute keys for embedding spans —
-// only the subset the embedding operation populates. The set is a
-// strict subset of the chat keys.
 const (
 	attrEmbedGenAISystem        = "gen_ai.system"
 	attrEmbedGenAIOperationName = "gen_ai.operation.name"
@@ -37,12 +34,9 @@ const (
 	attrEmbedInputCount = "embeddings.input.count"
 )
 
-// startEmbeddingSpan opens one span for an embedding call following
-// the OpenTelemetry GenAI semconv. Span name uses the canonical
+// Span name uses the canonical
 // `embeddings <model>` shape (e.g. `embeddings text-embedding-3-small`);
 // when the model id is empty the span name is just `embeddings`.
-//
-// Span kind is Client.
 func startEmbeddingSpan(ctx context.Context, model Model, req *Request) (context.Context, trace.Span) {
 	modelID := ""
 	if req != nil && req.Options != nil {
@@ -73,8 +67,6 @@ func startEmbeddingSpan(ctx context.Context, model Model, req *Request) (context
 	)
 }
 
-// finishEmbeddingSpan records response-side attributes (resolved
-// model id, input token usage) and ends the span.
 func finishEmbeddingSpan(span trace.Span, resp *Response, err error) {
 	if err != nil {
 		span.RecordError(err)
@@ -100,9 +92,6 @@ func finishEmbeddingSpan(span trace.Span, resp *Response, err error) {
 	span.End()
 }
 
-// recordEmbeddingMetrics emits the GenAI client metrics (input token
-// usage + operation duration) for one embedding call. Call it once per
-// call, passing the start time captured before [startEmbeddingSpan].
 // Embeddings produce no completion tokens, so only the input dimension
 // of [model.MetricGenAIClientTokenUsage] is recorded. No-op until a
 // MeterProvider is configured.

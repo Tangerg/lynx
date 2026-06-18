@@ -23,8 +23,6 @@ type CompositeEvaluator struct {
 	evaluators []Evaluator
 }
 
-// NewCompositeEvaluator builds a [CompositeEvaluator] over the given
-// children. Returns an error when no evaluators are supplied.
 func NewCompositeEvaluator(evaluators ...Evaluator) (*CompositeEvaluator, error) {
 	if len(evaluators) == 0 {
 		return nil, errors.New("evaluation.NewCompositeEvaluator: at least one evaluator is required")
@@ -32,8 +30,6 @@ func NewCompositeEvaluator(evaluators ...Evaluator) (*CompositeEvaluator, error)
 	return &CompositeEvaluator{evaluators: evaluators}, nil
 }
 
-// Evaluate runs each child in order, short-circuiting on the first
-// error, and returns the merged verdict.
 func (c *CompositeEvaluator) Evaluate(ctx context.Context, req *Request) (*Response, error) {
 	if req == nil {
 		return nil, errors.New("evaluation.CompositeEvaluator.Evaluate: request must not be nil")

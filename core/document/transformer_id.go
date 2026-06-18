@@ -7,17 +7,12 @@ import (
 	"github.com/Tangerg/lynx/core/document/id"
 )
 
-// IDAssignerConfig configures an [IDAssigner].
 type IDAssignerConfig struct {
-	// Generator produces each document's id. Required.
 	Generator id.Generator
 
-	// Overwrite re-generates ids for documents that already have one.
-	// Defaults to false (only documents with an empty ID are assigned).
 	Overwrite bool
 }
 
-// Validate returns an error when required fields are missing.
 func (c IDAssignerConfig) Validate() error {
 	if c.Generator == nil {
 		return errors.New("document.IDAssignerConfig: Generator is required")
@@ -40,8 +35,6 @@ type IDAssigner struct {
 	overwrite bool
 }
 
-// NewIDAssigner builds an [IDAssigner]. Returns an error when the
-// configuration is invalid.
 func NewIDAssigner(config IDAssignerConfig) (*IDAssigner, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
@@ -52,7 +45,6 @@ func NewIDAssigner(config IDAssignerConfig) (*IDAssigner, error) {
 	}, nil
 }
 
-// Transform assigns an id to each document and returns the same slice.
 func (a *IDAssigner) Transform(ctx context.Context, docs []*Document) ([]*Document, error) {
 	for _, doc := range docs {
 		if err := ctx.Err(); err != nil {

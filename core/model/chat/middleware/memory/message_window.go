@@ -64,7 +64,6 @@ func NewMessageWindowStore(storage Store, limit ...int) (*MessageWindowStore, er
 	}, nil
 }
 
-// Write delegates to the underlying store.
 func (m *MessageWindowStore) Write(ctx context.Context, conversationID string, messages ...chat.Message) error {
 	return m.store.Write(ctx, conversationID, messages...)
 }
@@ -87,9 +86,6 @@ func (m *MessageWindowStore) Read(ctx context.Context, conversationID string) ([
 	return m.applySlidingWindow(all), nil
 }
 
-// applySlidingWindow merges system messages, then trims non-system
-// messages to the most-recent maximumMessages-1 entries (so the merged
-// system message and the trimmed tail together fit the budget).
 func (m *MessageWindowStore) applySlidingWindow(all []chat.Message) []chat.Message {
 	out := make([]chat.Message, 0, m.maximumMessages)
 
@@ -120,7 +116,6 @@ func (m *MessageWindowStore) Conversations(ctx context.Context) ([]string, error
 	return lister.Conversations(ctx)
 }
 
-// Clear delegates to the underlying store.
 func (m *MessageWindowStore) Clear(ctx context.Context, conversationID string) error {
 	return m.store.Clear(ctx, conversationID)
 }

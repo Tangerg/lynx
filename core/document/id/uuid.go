@@ -13,11 +13,8 @@ var _ Generator = (*UUIDGenerator)(nil)
 // for identical content.
 type UUIDGenerator struct{}
 
-// NewUUIDGenerator returns a stateless [UUIDGenerator]. The struct has
-// no fields; sharing one across goroutines is fine.
 func NewUUIDGenerator() *UUIDGenerator { return &UUIDGenerator{} }
 
-// Generate returns a new v4 UUID. The objects argument is ignored.
 func (u *UUIDGenerator) Generate(_ context.Context, _ ...any) (string, error) {
 	return uuid.New().String(), nil
 }

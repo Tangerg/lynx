@@ -52,7 +52,6 @@ func NewAPIKey(value string) APIKey {
 	return &staticAPIKey{value: value}
 }
 
-// Get returns the immutable key supplied at construction.
 func (k *staticAPIKey) Get() string {
 	return k.value
 }

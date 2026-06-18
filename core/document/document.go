@@ -13,8 +13,6 @@ import (
 // score, a metadata map, and the formatter used to render it for
 // downstream consumers.
 type Document struct {
-	// ID identifies the document within its source. Often a hash of the
-	// content; the [id] subpackage offers ready-made generators.
 	ID string `json:"id,omitempty"`
 
 	// Score is the retrieval relevance score. 0 when the document was
@@ -24,7 +22,6 @@ type Document struct {
 	// Text is the textual content. May be empty if Media is set.
 	Text string `json:"text,omitempty"`
 
-	// Media is the optional non-text payload (image, audio, ...).
 	Media *media.Media `json:"media,omitempty"`
 
 	// Formatter renders the document for downstream consumers (LLM
@@ -34,8 +31,6 @@ type Document struct {
 	// [NewDocument] or set Formatter explicitly after Unmarshal.
 	Formatter Formatter `json:"-"`
 
-	// Metadata carries free-form annotations (source URL, page index,
-	// section heading, ...).
 	Metadata map[string]any `json:"metadata,omitzero"`
 }
 
@@ -80,7 +75,6 @@ func (d *Document) EnsureID(ctx context.Context, generator id.Generator) error {
 	return nil
 }
 
-// Format renders the document with all metadata included.
 func (d *Document) Format() string {
 	if d == nil {
 		return ""
@@ -88,8 +82,6 @@ func (d *Document) Format() string {
 	return d.FormatByMetadataMode(MetadataModeAll)
 }
 
-// FormatByMetadataMode renders the document with the supplied metadata
-// mode using the document's installed [Formatter].
 func (d *Document) FormatByMetadataMode(mode MetadataMode) string {
 	if d == nil {
 		return ""

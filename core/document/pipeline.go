@@ -6,7 +6,6 @@ import "context"
 // origin. Concrete readers live alongside this interface
 // ([reader_text.go], [reader_json.go]).
 type Reader interface {
-	// Read returns the documents discovered at the underlying source.
 	Read(ctx context.Context) ([]*Document, error)
 }
 
@@ -29,7 +28,6 @@ type MetadataMode string
 func (m MetadataMode) String() string { return string(m) }
 
 const (
-	// MetadataModeAll includes every metadata key.
 	MetadataModeAll MetadataMode = "all"
 
 	// MetadataModeEmbed includes only metadata appropriate for vector
@@ -40,14 +38,12 @@ const (
 	// the model at prompt time.
 	MetadataModeInference MetadataMode = "inference"
 
-	// MetadataModeNone strips every metadata key — body only.
 	MetadataModeNone MetadataMode = "none"
 )
 
 // Formatter renders a document as a string. Implementations must
 // handle nil documents gracefully and respect the supplied mode.
 type Formatter interface {
-	// Format renders doc honoring the metadata mode.
 	Format(doc *Document, mode MetadataMode) string
 }
 
@@ -55,7 +51,6 @@ type Formatter interface {
 // splitting, filtering, enriching, deduplicating, etc. The output
 // length may differ from the input length.
 type Transformer interface {
-	// Transform processes docs and returns the transformed slice.
 	Transform(ctx context.Context, docs []*Document) ([]*Document, error)
 }
 

@@ -22,34 +22,17 @@ const (
 	// among its siblings (counts only emitted, non-empty chunks).
 	MetadataKeyChunkIndex = "chunk_index"
 
-	// MetadataKeyChunkTotal holds the total number of chunks produced
-	// from the source document.
-	MetadataKeyChunkTotal = "chunk_total"
+MetadataKeyChunkTotal = "chunk_total"
 )
 
-// SplitterConfig configures a [Splitter]. SplitFunc is required;
-// CopyFormatter copies the parent document's formatter to each chunk
-// so downstream rendering stays consistent.
 type SplitterConfig struct {
-	// CopyFormatter copies the source document's [Formatter] to each
-	// split chunk. Defaults to false (chunks get the no-op formatter).
 	CopyFormatter bool
 
-	// SplitFunc carves a document's text into chunks. Required.
-	// Implementations can use any strategy (fixed-size, sentence,
-	// token-aware) — see [transformer_text_splitter.go] and
-	// [transformer_token_splitter.go] for ready-made strategies.
 	SplitFunc func(ctx context.Context, text string) ([]string, error)
 
-	// IDGenerator, when set, assigns an id to every chunk via
-	// [Document.EnsureID] (after lineage metadata is stamped, so
-	// content-addressable generators distinguish sibling chunks by
-	// their differing chunk_index). nil leaves chunk IDs empty — assign
-	// them later with an [IDAssigner] stage if needed.
 	IDGenerator id.Generator
 }
 
-// validate returns a descriptive error when required fields are missing.
 func (c SplitterConfig) Validate() error {
 	if c.SplitFunc == nil {
 		return errors.New("document.SplitterConfig: SplitFunc is required")
@@ -71,8 +54,6 @@ type Splitter struct {
 	idGenerator   id.Generator
 }
 
-// NewSplitter builds a [Splitter] from config. Returns an error when
-// the configuration is invalid.
 func NewSplitter(config SplitterConfig) (*Splitter, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
@@ -99,10 +80,6 @@ func (s *Splitter) Transform(ctx context.Context, docs []*Document) ([]*Document
 	return out, nil
 }
 
-// splitOne splits one document, clones metadata onto each chunk, and
-// stamps chunk-lineage keys. Empty chunks are dropped first — they
-// would just inflate the result without adding information, and would
-// throw off chunk_index / chunk_total which count only emitted chunks.
 func (s *Splitter) splitOne(ctx context.Context, doc *Document) ([]*Document, error) {
 	chunks, err := s.splitFunc(ctx, doc.Text)
 	if err != nil {

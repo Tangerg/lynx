@@ -32,9 +32,6 @@ type JSONReader struct {
 	bufferSize int
 }
 
-// NewJSONReader builds a [JSONReader]. Optional sizes[0] overrides the
-// default 8 KiB read buffer; non-positive values fall back to the
-// default.
 func NewJSONReader(reader io.Reader, sizes ...int) (*JSONReader, error) {
 	if reader == nil {
 		return nil, errors.New("document.NewJSONReader: reader must not be nil")
@@ -48,9 +45,6 @@ func NewJSONReader(reader io.Reader, sizes ...int) (*JSONReader, error) {
 	return &JSONReader{reader: reader, bufferSize: bufferSize}, nil
 }
 
-// Read consumes the underlying reader, decodes the JSON, and returns
-// one document per array element (when the payload is an array) or a
-// single document otherwise.
 func (j *JSONReader) Read(_ context.Context) ([]*Document, error) {
 	data, err := pkgio.ReadAll(j.reader, j.bufferSize)
 	if err != nil {
@@ -77,8 +71,6 @@ func (j *JSONReader) Read(_ context.Context) ([]*Document, error) {
 	return []*Document{doc}, nil
 }
 
-// looksLikeArray returns true when data, after whitespace trimming,
-// starts with '[' and ends with ']'.
 func (j *JSONReader) looksLikeArray(data []byte) bool {
 	trimmed := bytes.TrimFunc(data, unicode.IsSpace)
 	if len(trimmed) < 2 {
@@ -87,9 +79,6 @@ func (j *JSONReader) looksLikeArray(data []byte) bool {
 	return trimmed[0] == '[' && trimmed[len(trimmed)-1] == ']'
 }
 
-// parseAsArray decodes data as an array of arbitrary JSON values and
-// returns one document per element, with each element re-encoded back
-// to its JSON-string form for Document.Text.
 func (j *JSONReader) parseAsArray(data []byte) ([]*Document, error) {
 	var items []any
 	if err := json.Unmarshal(data, &items); err != nil {

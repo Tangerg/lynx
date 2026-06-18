@@ -5,8 +5,6 @@ import (
 	"fmt"
 )
 
-// MarshalJSON encodes the message in the canonical [MessageParams]
-// shape.
 func (s *SystemMessage) MarshalJSON() ([]byte, error) {
 	return json.Marshal(MessageParams{
 		Type:     MessageTypeSystem,
@@ -15,7 +13,6 @@ func (s *SystemMessage) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// UnmarshalJSON decodes from the [MessageParams] wire shape.
 func (s *SystemMessage) UnmarshalJSON(data []byte) error {
 	var p MessageParams
 	if err := json.Unmarshal(data, &p); err != nil {
@@ -26,8 +23,6 @@ func (s *SystemMessage) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// MarshalJSON encodes the message in the canonical [MessageParams]
-// shape.
 func (u *UserMessage) MarshalJSON() ([]byte, error) {
 	return json.Marshal(MessageParams{
 		Type:     MessageTypeUser,
@@ -37,7 +32,6 @@ func (u *UserMessage) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// UnmarshalJSON decodes from the [MessageParams] wire shape.
 func (u *UserMessage) UnmarshalJSON(data []byte) error {
 	var p MessageParams
 	if err := json.Unmarshal(data, &p); err != nil {
@@ -96,8 +90,6 @@ func (a *AssistantMessage) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// MarshalJSON encodes the message in the canonical [MessageParams]
-// shape.
 func (t *ToolMessage) MarshalJSON() ([]byte, error) {
 	return json.Marshal(MessageParams{
 		Type:        MessageTypeTool,
@@ -106,7 +98,6 @@ func (t *ToolMessage) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// UnmarshalJSON decodes from the [MessageParams] wire shape.
 func (t *ToolMessage) UnmarshalJSON(data []byte) error {
 	var p MessageParams
 	if err := json.Unmarshal(data, &p); err != nil {

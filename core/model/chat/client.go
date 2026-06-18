@@ -11,8 +11,6 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 )
 
-// Type aliases threading the chat-specific Request/Response into the
-// generic [model] handler/middleware machinery.
 type (
 	CallHandler       = model.CallHandler[*Request, *Response]
 	StreamHandler     = model.StreamHandler[*Request, *Response]
@@ -171,9 +169,6 @@ func (r *ClientRequest) Clone() *ClientRequest {
 	}
 }
 
-// resolveOptions returns the effective [Options] for this call —
-// request-level options when supplied, otherwise a clone of the model's
-// defaults so the caller never mutates the model's state.
 func (r *ClientRequest) resolveOptions() *Options {
 	if r.options != nil {
 		return r.options.Clone()
@@ -229,8 +224,6 @@ func (r *ClientRequest) seedMessage() (Message, error) {
 	return nil, errors.New("chat.ClientRequest: request must carry at least one message or a user-prompt template")
 }
 
-// buildRequest assembles the [Request] sent through the middleware chain
-// to the underlying model.
 func (r *ClientRequest) buildRequest() (*Request, error) {
 	msgs, err := r.resolveMessages()
 	if err != nil {
@@ -348,7 +341,6 @@ func (s *ClientStreamer) runStream(ctx context.Context, parser StructuredParser[
 	}
 }
 
-// Response streams full [*Response] chunks as they arrive.
 func (s *ClientStreamer) Response(ctx context.Context) iter.Seq2[*Response, error] {
 	return s.runStream(ctx, nil)
 }
@@ -394,8 +386,6 @@ func (c *ClientCaller) call(ctx context.Context, req *Request) (*Response, error
 	return resp, err
 }
 
-// runCall is the shared entry point: build the request, optionally
-// inject parser instructions, then call.
 func (c *ClientCaller) runCall(ctx context.Context, parser StructuredParser[any]) (*Response, error) {
 	req, err := c.request.buildRequest()
 	if err != nil {
@@ -409,14 +399,10 @@ func (c *ClientCaller) runCall(ctx context.Context, parser StructuredParser[any]
 	return c.call(ctx, req)
 }
 
-// Response runs the call and returns the raw [*Response].
 func (c *ClientCaller) Response(ctx context.Context) (*Response, error) {
 	return c.runCall(ctx, nil)
 }
 
-// Text runs the call and returns the assistant's plain-text reply
-// alongside the full response (kept so callers can still inspect
-// usage / metadata).
 func (c *ClientCaller) Text(ctx context.Context) (string, *Response, error) {
 	resp, err := c.runCall(ctx, nil)
 	if err != nil {

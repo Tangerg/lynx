@@ -76,7 +76,6 @@ func MergeSystemMessages(messages []Message) *SystemMessage {
 	})
 }
 
-// MergeUserMessages collapses every [UserMessage] in messages into one.
 func MergeUserMessages(messages []Message) *UserMessage {
 	users := FilterMessagesByMessageTypes(messages, MessageTypeUser)
 
@@ -106,7 +105,6 @@ func MergeUserMessages(messages []Message) *UserMessage {
 	})
 }
 
-// MergeToolMessages collapses every [ToolMessage] in messages into one.
 func MergeToolMessages(messages []Message) (*ToolMessage, error) {
 	tools := FilterMessagesByMessageTypes(messages, MessageTypeTool)
 
@@ -258,7 +256,6 @@ func MessageToString(message Message) string {
 	return b.String()
 }
 
-// MessagesToStrings maps [MessageToString] over messages.
 func MessagesToStrings(messages []Message) []string {
 	out := make([]string, 0, len(messages))
 	for _, msg := range messages {

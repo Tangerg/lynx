@@ -42,8 +42,6 @@ func AsParallelTool(t chat.Tool) chat.Tool {
 	return parallelTool{Tool: t}
 }
 
-// parallelTool forwards the wrapped tool's Definition / Metadata / Call and
-// adds a no-conflict ConcurrencyKey.
 type parallelTool struct{ chat.Tool }
 
 func (parallelTool) ConcurrencyKey(string) (key string, concurrent bool) { return "", true }

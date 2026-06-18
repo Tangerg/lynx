@@ -21,8 +21,6 @@ type Sha256Generator struct {
 	salt []byte
 }
 
-// NewSha256Generator returns a generator that mixes salt into every
-// hash. Pass nil for an unsalted generator.
 func NewSha256Generator(salt []byte) *Sha256Generator {
 	return &Sha256Generator{salt: salt}
 }

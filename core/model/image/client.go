@@ -8,8 +8,6 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 )
 
-// Type aliases threading image's *Request / *Response into the generic
-// [model] handler/middleware machinery.
 type (
 	Handler           = model.CallHandler[*Request, *Response]
 	HandlerFunc       = model.CallHandlerFunc[*Request, *Response]
@@ -17,9 +15,7 @@ type (
 	MiddlewareManager = model.MiddlewareManager[*Request, *Response]
 )
 
-// NewMiddlewareManager returns an empty [MiddlewareManager] keyed to
-// image's *Request / *Response pair. The stream side is unused (image
-// generation has no stream endpoint).
+// The stream side is unused (image generation has no stream endpoint).
 func NewMiddlewareManager() *MiddlewareManager {
 	return model.NewMiddlewareManager[*Request, *Response]()
 }
@@ -36,7 +32,7 @@ type ClientRequest struct {
 	params            map[string]any
 }
 
-// NewClientRequest builds a [ClientRequest] for model. Returns an error
+// Returns an error
 // when model is nil.
 func NewClientRequest(model Model) (*ClientRequest, error) {
 	if model == nil {
@@ -45,7 +41,6 @@ func NewClientRequest(model Model) (*ClientRequest, error) {
 	return &ClientRequest{model: model}, nil
 }
 
-// WithMiddlewares replaces the entire middleware chain.
 func (r *ClientRequest) WithMiddlewares(middlewares ...Middleware) *ClientRequest {
 	if len(middlewares) > 0 {
 		r.middlewareManager = NewMiddlewareManager().UseCallMiddlewares(middlewares...)
@@ -53,7 +48,7 @@ func (r *ClientRequest) WithMiddlewares(middlewares ...Middleware) *ClientReques
 	return r
 }
 
-// WithOptions sets the per-request [Options]. nil is ignored.
+// nil is ignored.
 func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 	if options != nil {
 		r.options = options
@@ -61,7 +56,7 @@ func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 	return r
 }
 
-// WithPrompt sets the prompt text. Empty input is ignored.
+// Empty input is ignored.
 func (r *ClientRequest) WithPrompt(prompt string) *ClientRequest {
 	if prompt != "" {
 		r.prompt = prompt
@@ -69,7 +64,7 @@ func (r *ClientRequest) WithPrompt(prompt string) *ClientRequest {
 	return r
 }
 
-// WithParams replaces the side-channel params map. Empty input is
+// Empty input is
 // ignored. The map is cloned so caller mutations don't leak.
 func (r *ClientRequest) WithParams(params map[string]any) *ClientRequest {
 	if len(params) > 0 {
@@ -78,8 +73,6 @@ func (r *ClientRequest) WithParams(params map[string]any) *ClientRequest {
 	return r
 }
 
-// MiddlewareManager returns the active manager, lazily allocating one
-// if none has been set yet.
 func (r *ClientRequest) MiddlewareManager() *MiddlewareManager {
 	if r.middlewareManager == nil {
 		r.middlewareManager = NewMiddlewareManager()
@@ -87,7 +80,6 @@ func (r *ClientRequest) MiddlewareManager() *MiddlewareManager {
 	return r.middlewareManager
 }
 
-// Clone returns a deep copy.
 func (r *ClientRequest) Clone() *ClientRequest {
 	return &ClientRequest{
 		model:             r.model,
@@ -98,9 +90,6 @@ func (r *ClientRequest) Clone() *ClientRequest {
 	}
 }
 
-// resolveOptions returns the effective [Options] for this call —
-// request-level options when supplied, otherwise a clone of the model's
-// defaults.
 func (r *ClientRequest) resolveOptions() *Options {
 	if r.options != nil {
 		return r.options.Clone()
@@ -109,8 +98,6 @@ func (r *ClientRequest) resolveOptions() *Options {
 	return defaults.Clone()
 }
 
-// buildRequest assembles the [*Request] sent through the middleware
-// chain to the underlying model.
 func (r *ClientRequest) buildRequest() (*Request, error) {
 	req, err := NewRequest(r.prompt)
 	if err != nil {
@@ -121,8 +108,6 @@ func (r *ClientRequest) buildRequest() (*Request, error) {
 	return req, nil
 }
 
-// Call returns a [ClientCaller] for executing the request.
-//
 // Example:
 //
 //	img, _, err := client.Generate().WithPrompt("a duck").Call().Image(ctx)
@@ -130,13 +115,10 @@ func (r *ClientRequest) Call() *ClientCaller {
 	return &ClientCaller{request: r}
 }
 
-// ClientCaller drives the synchronous image-generation path.
 type ClientCaller struct {
 	request *ClientRequest
 }
 
-// Response runs the call through the middleware chain and returns the
-// raw [*Response].
 func (c *ClientCaller) Response(ctx context.Context) (*Response, error) {
 	req, err := c.request.buildRequest()
 	if err != nil {
@@ -148,8 +130,6 @@ func (c *ClientCaller) Response(ctx context.Context) (*Response, error) {
 		Call(ctx, req)
 }
 
-// Image runs the call and returns the generated image alongside the
-// full response.
 func (c *ClientCaller) Image(ctx context.Context) (*Image, *Response, error) {
 	resp, err := c.Response(ctx)
 	if err != nil {
@@ -164,8 +144,6 @@ type Client struct {
 	defaultRequest *ClientRequest
 }
 
-// NewClient is a one-step constructor: build a default [ClientRequest]
-// for model, then wrap it as a [Client]. The common path.
 func NewClient(model Model) (*Client, error) {
 	req, err := NewClientRequest(model)
 	if err != nil {
@@ -174,8 +152,7 @@ func NewClient(model Model) (*Client, error) {
 	return NewClientFromRequest(req)
 }
 
-// NewClientFromRequest wraps an existing [ClientRequest] as a sticky
-// default — use this when the request already carries default
+// Use this when the request already carries default
 // middlewares / options the [Client] should keep applying.
 func NewClientFromRequest(request *ClientRequest) (*Client, error) {
 	if request == nil {
@@ -184,13 +161,10 @@ func NewClientFromRequest(request *ClientRequest) (*Client, error) {
 	return &Client{defaultRequest: request}, nil
 }
 
-// Generate returns a fresh clone of the default request.
 func (c *Client) Generate() *ClientRequest {
 	return c.defaultRequest.Clone()
 }
 
-// GenerateWithRequest seeds a clone with the prompt, options, and
-// params from req.
 func (c *Client) GenerateWithRequest(req *Request) *ClientRequest {
 	return c.Generate().
 		WithPrompt(req.Prompt).
@@ -198,7 +172,6 @@ func (c *Client) GenerateWithRequest(req *Request) *ClientRequest {
 		WithParams(req.Params)
 }
 
-// GenerateWithPrompt is the most common shortcut.
 func (c *Client) GenerateWithPrompt(prompt string) *ClientRequest {
 	return c.Generate().WithPrompt(prompt)
 }

@@ -37,30 +37,17 @@ var _ Evaluator = (*RelevancyEvaluator)(nil)
 // is required; PromptTemplate falls back to a scored default;
 // Threshold defaults to [DefaultPassThreshold].
 type RelevancyEvaluatorConfig struct {
-	// ChatModel scores the response against the context. Required.
 	ChatModel chat.Model
-
-	// PromptTemplate is the LLM prompt. Defaults to
-	// [relevancyDefaultTemplate]. Custom templates must declare the
-	// variables {{.Query}}, {{.Response}}, {{.Context}} and instruct
-	// the model to emit a number in [0, 1].
 	PromptTemplate *chat.PromptTemplate
-
-	// Threshold is the score boundary at which [Response.Pass] flips
-	// from false to true. Zero falls back to [DefaultPassThreshold].
 	Threshold float64
 }
 
-// ApplyDefaults fills PromptTemplate when nil.
 func (c *RelevancyEvaluatorConfig) ApplyDefaults() {
 	if c.PromptTemplate == nil {
 		c.PromptTemplate = chat.NewPromptTemplate(relevancyDefaultTemplate)
 	}
 }
 
-// Validate returns an error when required fields are missing or the
-// template lacks the expected variables. Pure check — pair with
-// [RelevancyEvaluatorConfig.ApplyDefaults].
 func (c *RelevancyEvaluatorConfig) Validate() error {
 	if c.ChatModel == nil {
 		return errors.New("evaluation.RelevancyEvaluatorConfig: ChatModel is required")
@@ -84,7 +71,6 @@ type RelevancyEvaluator struct {
 	*llmEvaluator
 }
 
-// NewRelevancyEvaluator builds a [RelevancyEvaluator] from config.
 func NewRelevancyEvaluator(config RelevancyEvaluatorConfig) (*RelevancyEvaluator, error) {
 	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {

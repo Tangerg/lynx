@@ -97,8 +97,6 @@ type MessageParams struct {
 	ToolReturns []*ToolReturn `json:"tool_returns,omitzero"`
 }
 
-// NewMessage dispatches to the matching message-type constructor based
-// on params.Type.
 func NewMessage(params MessageParams) (Message, error) {
 	switch params.Type {
 	case MessageTypeSystem:
@@ -130,7 +128,6 @@ type AssistantMessage struct {
 
 func (a *AssistantMessage) message() {}
 
-// Type reports MessageTypeAssistant.
 func (a *AssistantMessage) Type() MessageType { return MessageTypeAssistant }
 
 // Meta returns the metadata map, allocating it on first access.
@@ -141,17 +138,14 @@ func (a *AssistantMessage) Meta() map[string]any {
 	return a.Metadata
 }
 
-// TextParts iterates the [TextPart]s in this message, in order.
 func (a *AssistantMessage) TextParts() iter.Seq[*TextPart] {
 	return partsOf[*TextPart](a)
 }
 
-// ReasoningParts iterates the [ReasoningPart]s in this message, in order.
 func (a *AssistantMessage) ReasoningParts() iter.Seq[*ReasoningPart] {
 	return partsOf[*ReasoningPart](a)
 }
 
-// ToolCalls iterates the [ToolCallPart]s in this message, in order.
 func (a *AssistantMessage) ToolCalls() iter.Seq[*ToolCallPart] {
 	return partsOf[*ToolCallPart](a)
 }
@@ -176,15 +170,10 @@ func (a *AssistantMessage) CollectToolCalls() []*ToolCallPart {
 	return slices.Collect(a.ToolCalls())
 }
 
-// JoinedText concatenates the text bodies of every [TextPart] (no
-// separator). Use when downstream just needs "the final string the
-// user sees".
 func (a *AssistantMessage) JoinedText() string {
 	return joinTexts(a.TextParts(), func(p *TextPart) string { return p.Text })
 }
 
-// JoinedReasoning concatenates the text bodies of every
-// [ReasoningPart] (no separator).
 func (a *AssistantMessage) JoinedReasoning() string {
 	return joinTexts(a.ReasoningParts(), func(p *ReasoningPart) string { return p.Text })
 }
@@ -197,7 +186,6 @@ func joinTexts[T any](seq iter.Seq[T], getText func(T) string) string {
 	return b.String()
 }
 
-// HasToolCalls reports whether any [ToolCallPart] is present.
 func (a *AssistantMessage) HasToolCalls() bool {
 	if a == nil {
 		return false
@@ -208,7 +196,6 @@ func (a *AssistantMessage) HasToolCalls() bool {
 	})
 }
 
-// HasReasoning reports whether the message carries any non-empty reasoning text.
 func (a *AssistantMessage) HasReasoning() bool {
 	if a == nil {
 		return false
@@ -263,8 +250,6 @@ func NewAssistantMessage[T string | []OutputPart | []*ToolCallPart | map[string]
 	}
 }
 
-// paramsFromAssistantInput unpacks the polymorphic input into a single
-// MessageParams so NewAssistantMessage can stay focused on field setup.
 func paramsFromAssistantInput[T string | []OutputPart | []*ToolCallPart | map[string]any | MessageParams](param T) MessageParams {
 	var out MessageParams
 	switch typed := any(param).(type) {
@@ -306,7 +291,6 @@ type SystemMessage struct {
 
 func (s *SystemMessage) message() {}
 
-// Type reports MessageTypeSystem.
 func (s *SystemMessage) Type() MessageType { return MessageTypeSystem }
 
 // Meta returns the metadata map, allocating it on first access.
@@ -342,7 +326,6 @@ type UserMessage struct {
 
 func (u *UserMessage) message() {}
 
-// Type reports MessageTypeUser.
 func (u *UserMessage) Type() MessageType { return MessageTypeUser }
 
 // Meta returns the metadata map, allocating it on first access.
@@ -353,7 +336,6 @@ func (u *UserMessage) Meta() map[string]any {
 	return u.Metadata
 }
 
-// HasMedia reports whether any attachments are present.
 func (u *UserMessage) HasMedia() bool { return u != nil && len(u.Media) > 0 }
 
 // NewUserMessage builds a [UserMessage] from a raw text string, media
@@ -388,7 +370,6 @@ type ToolMessage struct {
 
 func (t *ToolMessage) message() {}
 
-// Type reports MessageTypeTool.
 func (t *ToolMessage) Type() MessageType { return MessageTypeTool }
 
 // Meta returns the metadata map, allocating it on first access.

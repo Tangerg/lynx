@@ -68,8 +68,6 @@ func NewRequest(messages []Message) (*Request, error) {
 	}, nil
 }
 
-// ensureParams lazily allocates Params. Used by [Request.Set] only —
-// reads must NOT mutate state since Get can be invoked concurrently.
 func (r *Request) ensureParams() {
 	if r.Params == nil {
 		r.Params = make(map[string]any)
@@ -95,8 +93,6 @@ func (r *Request) ConversationID() (string, error) {
 	return id, nil
 }
 
-// Get returns the Params value for key plus an existence flag. Safe
-// to call concurrently with other Get calls; concurrent with Set is not.
 func (r *Request) Get(key string) (any, bool) {
 	if r == nil || r.Params == nil {
 		return nil, false
@@ -105,7 +101,6 @@ func (r *Request) Get(key string) (any, bool) {
 	return value, exists
 }
 
-// Set stores value under key in Params.
 func (r *Request) Set(key string, value any) {
 	r.ensureParams()
 	r.Params[key] = value

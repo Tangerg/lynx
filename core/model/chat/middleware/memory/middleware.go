@@ -114,7 +114,6 @@ func (m *middleware) persist(ctx context.Context, id string, toPersist []chat.Me
 	return m.store.Write(ctx, id, msgs...)
 }
 
-// executeCall is the synchronous flow: splice → call → save.
 func (m *middleware) executeCall(ctx context.Context, req *chat.Request, next chat.CallHandler) (*chat.Response, error) {
 	id, err := req.ConversationID()
 	if err != nil {
@@ -188,14 +187,12 @@ func (m *middleware) executeStream(ctx context.Context, req *chat.Request, next 
 	}
 }
 
-// wrapCallHandler is the call-side adapter.
 func (m *middleware) wrapCallHandler(next chat.CallHandler) chat.CallHandler {
 	return chat.CallHandlerFunc(func(ctx context.Context, req *chat.Request) (*chat.Response, error) {
 		return m.executeCall(ctx, req, next)
 	})
 }
 
-// wrapStreamHandler is the stream-side adapter.
 func (m *middleware) wrapStreamHandler(next chat.StreamHandler) chat.StreamHandler {
 	return chat.StreamHandlerFunc(func(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
 		return m.executeStream(ctx, req, next)

@@ -28,11 +28,8 @@ import (
 // applied and shares untouched sub-trees.
 type Optimizer struct{}
 
-// NewOptimizer returns an [Optimizer].
 func NewOptimizer() *Optimizer { return &Optimizer{} }
 
-// Optimize returns a simplified, equivalent expression. A nil input
-// yields nil.
 func (o *Optimizer) Optimize(expr ast.Expr) ast.Expr {
 	if expr == nil {
 		return nil
@@ -53,10 +50,6 @@ func (o *Optimizer) rewrite(expr ast.Expr) ast.Expr {
 	}
 }
 
-// rewriteUnary simplifies the operand first, then collapses a NOT whose
-// operand is itself a NOT (NOT NOT x → x). Applied bottom-up, this
-// reduces any run of NOTs to zero or one: even-length runs vanish,
-// odd-length runs leave a single NOT.
 func (o *Optimizer) rewriteUnary(u *ast.UnaryExpr) ast.Expr {
 	right := o.rewrite(u.Right)
 
@@ -67,7 +60,7 @@ func (o *Optimizer) rewriteUnary(u *ast.UnaryExpr) ast.Expr {
 	}
 
 	if right == u.Right {
-		return u // operand unchanged — share the node
+		return u
 	}
 	// right came from rewriting a ComputedExpr operand, so it stays one.
 	if computed, ok := right.(ast.ComputedExpr); ok {
@@ -76,10 +69,6 @@ func (o *Optimizer) rewriteUnary(u *ast.UnaryExpr) ast.Expr {
 	return u
 }
 
-// rewriteBinary folds logical operators (AND/OR) via the idempotent and
-// absorption laws after simplifying both operands. Non-logical operators
-// (comparison / IN / LIKE / IS) have field/literal operands with nothing
-// to fold and are returned unchanged.
 func (o *Optimizer) rewriteBinary(b *ast.BinaryExpr) ast.Expr {
 	if !b.Op.Kind.IsLogicalOperator() {
 		return b
@@ -88,14 +77,10 @@ func (o *Optimizer) rewriteBinary(b *ast.BinaryExpr) ast.Expr {
 	left := o.rewrite(b.Left)
 	right := o.rewrite(b.Right)
 
-	// Idempotent: x AND x → x, x OR x → x.
-	if exprEqual(left, right) {
+		if exprEqual(left, right) {
 		return left
 	}
 
-	// Absorption: x AND (x OR y) → x ; x OR (x AND y) → x. The inner
-	// operator is the dual of the outer one. Either operand may be the
-	// "x" or the enclosing dual expression.
 	dual := token.OR
 	if b.Op.Kind.Is(token.OR) {
 		dual = token.AND
@@ -108,13 +93,11 @@ func (o *Optimizer) rewriteBinary(b *ast.BinaryExpr) ast.Expr {
 	}
 
 	if left == b.Left && right == b.Right {
-		return b // nothing changed — share the node
+		return b
 	}
 	return &ast.BinaryExpr{Left: left, Op: b.Op, Right: right}
 }
 
-// absorbs reports whether outer is a binary expression with operator op
-// that has x as one of its operands — i.e. x absorbs (x op y).
 func absorbs(x, outer ast.Expr, op token.Kind) bool {
 	bin, ok := outer.(*ast.BinaryExpr)
 	if !ok || !bin.Op.Kind.Is(op) {
@@ -123,11 +106,6 @@ func absorbs(x, outer ast.Expr, op token.Kind) bool {
 	return exprEqual(x, bin.Left) || exprEqual(x, bin.Right)
 }
 
-// exprEqual reports whether two expressions are structurally identical:
-// same node type, same operator kind, same identifier / literal text,
-// recursively. It is intentionally syntactic — it does not treat
-// commutative operands as equal (a AND b ≠ b AND a), which keeps it
-// cheap and the rewrites conservative.
 func exprEqual(a, b ast.Expr) bool {
 	switch x := a.(type) {
 	case *ast.Ident:

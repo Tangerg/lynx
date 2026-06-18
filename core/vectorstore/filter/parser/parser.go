@@ -11,15 +11,10 @@ import (
 // ParseError is returned when parsing fails. It carries the offending
 // token so callers can produce position-aware diagnostics.
 type ParseError struct {
-	// Message is a human-readable description of the failure.
 	Message string
-
-	// Token is the token at which parsing stopped.
 	Token token.Token
 }
 
-// Error formats a [ParseError] including the token text and source
-// position.
 func (e *ParseError) Error() string {
 	return fmt.Sprintf("parser: %s (at %s, token %q)",
 		e.Message, e.Token.Start.String(), e.Token.Literal)
@@ -67,7 +62,6 @@ func NewParser[I string | *lexer.Lexer](input I) (*Parser, error) {
 		return nil, err
 	}
 
-	// Atoms — anything that can start an expression.
 	p.addPrefixHandler(token.IDENT, p.parseIdent)
 	p.addPrefixHandler(token.NUMBER, p.parseLiteral)
 	p.addPrefixHandler(token.STRING, p.parseLiteral)
@@ -79,7 +73,6 @@ func NewParser[I string | *lexer.Lexer](input I) (*Parser, error) {
 	p.addPrefixHandler(token.NOT, p.parseUnaryExpr)
 	p.addInfixHandler(token.NOT, p.parseNotInfix)
 
-	// Binary.
 	p.addInfixHandler(token.AND, p.parseBinaryExpr)
 	p.addInfixHandler(token.OR, p.parseBinaryExpr)
 	p.addInfixHandler(token.EQ, p.parseBinaryExpr)
@@ -92,15 +85,12 @@ func NewParser[I string | *lexer.Lexer](input I) (*Parser, error) {
 	p.addInfixHandler(token.LIKE, p.parseBinaryExpr)
 	p.addInfixHandler(token.IS, p.parseIsExpr)
 
-	// Grouping / indexing.
 	p.addPrefixHandler(token.LPAREN, p.parseParen)
 	p.addInfixHandler(token.LBRACK, p.parseIndexExpr)
 
 	return p, nil
 }
 
-// checkTokenError surfaces a lexer ERROR token as a [ParseError].
-// Other token kinds are passed through unchanged.
 func (p *Parser) checkTokenError() error {
 	if p.currentToken.Kind.Is(token.ERROR) {
 		return &ParseError{
@@ -111,28 +101,19 @@ func (p *Parser) checkTokenError() error {
 	return nil
 }
 
-// addPrefixHandler registers a handler for tokens that can start an
-// expression.
 func (p *Parser) addPrefixHandler(kind token.Kind, fn func() (ast.Expr, error)) {
 	p.prefixHandlers[kind] = fn
 }
 
-// addInfixHandler registers a handler for tokens that can sit between
-// two expressions.
 func (p *Parser) addInfixHandler(kind token.Kind, fn func(ast.Expr) (ast.Expr, error)) {
 	p.infixHandlers[kind] = fn
 }
 
-// consumeToken advances by one token. Lexer ERROR tokens surface as
-// [ParseError].
 func (p *Parser) consumeToken() error {
 	p.currentToken = p.lexer.Scan()
 	return p.checkTokenError()
 }
 
-// expectKind asserts the current token has the given kind, then
-// advances. Returns the consumed token. Mismatch produces a
-// [ParseError].
 func (p *Parser) expectKind(kind token.Kind) (token.Token, error) {
 	if err := p.checkTokenError(); err != nil {
 		return p.currentToken, err
@@ -153,8 +134,6 @@ func (p *Parser) expectKind(kind token.Kind) (token.Token, error) {
 	return consumed, nil
 }
 
-// Parse parses one complete expression and verifies the input is
-// fully consumed.
 func (p *Parser) Parse() (ast.Expr, error) {
 	if err := p.checkTokenError(); err != nil {
 		return nil, err
@@ -179,10 +158,6 @@ func (p *Parser) Parse() (ast.Expr, error) {
 	return expr, nil
 }
 
-// parseExpr is the Pratt-style precedence-climbing core. It picks a
-// prefix handler for the current token, then loops over infix
-// handlers as long as their precedence beats the binding level
-// passed in.
 func (p *Parser) parseExpr(precedence int) (ast.Expr, error) {
 	if err := p.checkTokenError(); err != nil {
 		return nil, err
@@ -227,7 +202,6 @@ func (p *Parser) parseExpr(precedence int) (ast.Expr, error) {
 	return left, nil
 }
 
-// parseIdent consumes an IDENT token and produces an [*ast.Ident].
 func (p *Parser) parseIdent() (ast.Expr, error) {
 	tok, err := p.expectKind(token.IDENT)
 	if err != nil {
@@ -240,8 +214,6 @@ func (p *Parser) parseIdent() (ast.Expr, error) {
 	}, nil
 }
 
-// parseLiteral consumes a literal token (NUMBER / STRING / TRUE /
-// FALSE) and produces an [*ast.Literal].
 func (p *Parser) parseLiteral() (ast.Expr, error) {
 	if err := p.checkTokenError(); err != nil {
 		return nil, err
@@ -266,9 +238,6 @@ func (p *Parser) parseLiteral() (ast.Expr, error) {
 	}, nil
 }
 
-// parseParen handles a leading `(`. It picks between grouping (one
-// expression then `)`) and a list literal (multiple comma-separated
-// literals) based on what follows the first sub-expression.
 func (p *Parser) parseParen() (ast.Expr, error) {
 	lparen, err := p.expectKind(token.LPAREN)
 	if err != nil {
@@ -305,8 +274,8 @@ func (p *Parser) parseParen() (ast.Expr, error) {
 	}
 }
 
-// parseListLiteral builds an [*ast.ListLiteral]. The opening paren
-// and the first element have already been consumed by [parseParen].
+// The opening paren and the first element have already been consumed
+// by [parseParen].
 // Elements must be literals of one shared kind; trailing commas are
 // rejected.
 func (p *Parser) parseListLiteral(lparen token.Token, firstExpr ast.Expr) (ast.Expr, error) {
@@ -361,9 +330,6 @@ func (p *Parser) parseListLiteral(lparen token.Token, firstExpr ast.Expr) (ast.E
 	}, nil
 }
 
-// parseUnaryExpr handles prefix operators (NOT today). The operand
-// must be a computed expression — a bare identifier or literal can't
-// be negated.
 func (p *Parser) parseUnaryExpr() (ast.Expr, error) {
 	op := p.currentToken
 	if !op.Kind.IsUnaryOperator() {
@@ -397,10 +363,6 @@ func (p *Parser) parseUnaryExpr() (ast.Expr, error) {
 	}, nil
 }
 
-// parseBinaryExpr handles infix operators. The left operand is the
-// expression produced so far; the right operand is parsed at this
-// operator's precedence so right-side operators of the same level
-// are left-associative.
 func (p *Parser) parseBinaryExpr(left ast.Expr) (ast.Expr, error) {
 	op := p.currentToken
 	if !op.Kind.IsBinaryOperator() {
@@ -426,12 +388,6 @@ func (p *Parser) parseBinaryExpr(left ast.Expr) (ast.Expr, error) {
 	}, nil
 }
 
-// parseNotInfix handles `<field> NOT IN (...)` in infix position. It
-// reuses the two existing tokens (NOT + IN) rather than introducing a
-// dedicated NIN: the IN handler builds `<field> IN (...)` and the result
-// is wrapped in the existing NOT [ast.UnaryExpr], so every backend's NOT
-// + IN handling renders NOT IN for free. Only NOT IN is accepted here;
-// any other token after an infix NOT is a parse error.
 func (p *Parser) parseNotInfix(left ast.Expr) (ast.Expr, error) {
 	notTok, err := p.expectKind(token.NOT)
 	if err != nil {
@@ -461,12 +417,6 @@ func (p *Parser) parseNotInfix(left ast.Expr) (ast.Expr, error) {
 	return &ast.UnaryExpr{Op: notTok, Right: computed}, nil
 }
 
-// parseIsExpr handles the postfix null test `<field> IS NULL` and
-// `<field> IS NOT NULL`. It deliberately reuses existing AST shapes:
-// the test is an [ast.BinaryExpr] with the IS operator and a NULL
-// literal on the right, and the negated form wraps that in the existing
-// NOT [ast.UnaryExpr] — so every backend's NOT handling renders
-// `NOT (x IS NULL)` as `x IS NOT NULL` without a dedicated node.
 func (p *Parser) parseIsExpr(left ast.Expr) (ast.Expr, error) {
 	isTok, err := p.expectKind(token.IS)
 	if err != nil {
@@ -499,10 +449,6 @@ func (p *Parser) parseIsExpr(left ast.Expr) (ast.Expr, error) {
 	return &ast.UnaryExpr{Op: notTok, Right: test}, nil
 }
 
-// parseIndexExpr handles `expr[index]`. The index must be a
-// non-boolean literal (number for arrays, string for objects).
-// Left-associativity falls out naturally from the Pratt loop, so
-// `a[0][1]` parses as `Index(Index(a,0),1)`.
 func (p *Parser) parseIndexExpr(left ast.Expr) (ast.Expr, error) {
 	lbrack, err := p.expectKind(token.LBRACK)
 	if err != nil {
@@ -535,9 +481,6 @@ func (p *Parser) parseIndexExpr(left ast.Expr) (ast.Expr, error) {
 	}, nil
 }
 
-// Parse is the convenience entry point: build a parser from input
-// and return the resulting [ast.Expr]. Equivalent to
-// [NewParser] followed by [Parser.Parse].
 func Parse(input string) (ast.Expr, error) {
 	p, err := NewParser(input)
 	if err != nil {

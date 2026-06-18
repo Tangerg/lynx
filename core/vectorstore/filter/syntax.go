@@ -8,9 +8,6 @@ import (
 	"github.com/Tangerg/lynx/pkg/math"
 )
 
-// newKindToken builds a token of the given kind with no position
-// information — used by the AST factories below, which produce nodes
-// detached from any source text.
 func newKindToken(kind token.Kind) token.Token {
 	return token.OfKind(kind, token.NoPosition, token.NoPosition)
 }
@@ -22,9 +19,6 @@ type identType interface {
 	string | *ast.Ident
 }
 
-// newIdent is the runtime worker behind [NewIdent]. The generic wrapper
-// guarantees the type switch is exhaustive — a default branch error
-// only fires if a caller bypasses the constraint.
 func newIdent(value any) (*ast.Ident, error) {
 	switch typed := value.(type) {
 	case string:
@@ -58,9 +52,6 @@ type literalType interface {
 	math.NumericType | string | bool | *ast.Literal
 }
 
-// newLiteral is the runtime worker behind [NewLiteral]. Numbers route
-// through [token.OfNumericLiteral] for canonical formatting; bools
-// become TRUE/FALSE keyword tokens; strings become STRING tokens.
 func newLiteral(value any) (*ast.Literal, error) {
 	switch typed := value.(type) {
 	case int, int8, int16, int32, int64,
@@ -97,9 +88,6 @@ func newLiteral(value any) (*ast.Literal, error) {
 	}
 }
 
-// NewLiteral builds an [*ast.Literal] from a Go value. Numeric types
-// produce NUMBER tokens; bools produce TRUE/FALSE; strings produce
-// STRING. An existing [*ast.Literal] is returned unchanged.
 func NewLiteral[T literalType](value T) *ast.Literal {
 	lit, err := newLiteral(value)
 	if err != nil {
@@ -109,7 +97,6 @@ func NewLiteral[T literalType](value T) *ast.Literal {
 	return lit
 }
 
-// NewLiterals maps a slice of Go values through [NewLiteral].
 func NewLiterals[T literalType](values []T) []*ast.Literal {
 	literals := make([]*ast.Literal, 0, len(values))
 	for _, v := range values {
@@ -128,9 +115,6 @@ type listLiteralType interface {
 		[]*ast.Literal | *ast.ListLiteral
 }
 
-// newListLiteral is the runtime worker behind [NewListLiteral].
-// Existing list nodes pass through; raw slices are mapped element-wise
-// through [NewLiterals].
 func newListLiteral(value any) (*ast.ListLiteral, error) {
 	if list, ok := value.(*ast.ListLiteral); ok {
 		return list, nil
@@ -192,10 +176,6 @@ func NewListLiteral[T listLiteralType](value T) *ast.ListLiteral {
 	return list
 }
 
-// identOrIndex resolves an `any` left operand to either an
-// [*ast.IndexExpr] (passed through) or a freshly built [*ast.Ident].
-// Used by both the `any`-typed [ExprBuilder] entry points and (via
-// [leftOperand]) the generic helpers in this file.
 func identOrIndex(l any) (ast.Expr, error) {
 	if ix, ok := l.(*ast.IndexExpr); ok {
 		return ix, nil
@@ -203,17 +183,11 @@ func identOrIndex(l any) (ast.Expr, error) {
 	return newIdent(l)
 }
 
-// leftOperand is the generic shim around [identOrIndex] for [compare],
-// [In], and [Like]. The constraint guarantees the input is always
-// resolvable, so the error is unreachable.
 func leftOperand[L identType | *ast.IndexExpr](l L) ast.Expr {
 	expr, _ := identOrIndex(l)
 	return expr
 }
 
-// compare is the shared body of [EQ] / [NE] / [LT] / [LE] / [GT] /
-// [GE]. The left operand is either an identifier (string or
-// [*ast.Ident]) or an [*ast.IndexExpr]; the right is any literal.
 func compare[L identType | *ast.IndexExpr, R literalType](l L, r R, op token.Kind) *ast.BinaryExpr {
 	return &ast.BinaryExpr{
 		Left:  leftOperand(l),
@@ -256,7 +230,6 @@ func GE[L identType | *ast.IndexExpr, R math.NumericType | *ast.Literal](l L, r 
 	return compare(l, r, token.GE)
 }
 
-// logic is the shared body of [And] and [Or].
 func logic[L ast.ComputedExpr, R ast.ComputedExpr](l L, r R, op token.Kind) *ast.BinaryExpr {
 	return &ast.BinaryExpr{
 		Left:  l,

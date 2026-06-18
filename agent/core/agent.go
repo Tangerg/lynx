@@ -46,8 +46,6 @@ type AgentConfig struct {
 	PlannerName string
 }
 
-// defaultVersion is the implicit Agent version when
-// AgentConfig.Version is nil.
 var defaultVersion = semver.MustParse("1.0.0")
 
 // Agent is the deployable bundle the planner reasons over. The configured
@@ -196,10 +194,6 @@ func (a *Agent) CheckGoalsReachable() []error {
 	return problems
 }
 
-// validateUniqueNamed checks one named-element slice for "≥1 entry
-// when require, no nils, no empty names, no duplicate names". Lifts
-// the dedup loop the three (action / goal / condition) callsites used
-// to copy-paste.
 func validateUniqueNamed(
 	agentName, kind string,
 	count int,

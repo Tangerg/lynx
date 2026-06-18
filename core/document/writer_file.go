@@ -23,20 +23,9 @@ const (
 	metadataKeyEndPageNumber   = "end_page_number"
 )
 
-// FileWriterConfig configures a [FileWriter].
 type FileWriterConfig struct {
-	// Path is the destination file. Required.
 	Path string
-
-	// WithDocumentMarkers prepends each document with a header line:
-	//
-	//	### Index: 0, Pages:[1,5]
-	//
-	// The Pages segment appears only when both start_page_number and
-	// end_page_number live in the document's metadata.
 	WithDocumentMarkers bool
-
-	// AppendMode appends to an existing file instead of truncating it.
 	AppendMode bool
 }
 
@@ -67,8 +56,6 @@ type FileWriter struct {
 	appendMode          bool
 }
 
-// NewFileWriter builds a [FileWriter]. Returns an error when config is
-// nil or invalid.
 func NewFileWriter(config FileWriterConfig) (*FileWriter, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
@@ -100,8 +87,6 @@ func (f *FileWriter) Write(_ context.Context, docs []*Document) (err error) {
 	return nil
 }
 
-// openFlags returns the appropriate os.OpenFile flags for the
-// configured mode (truncate vs append).
 func (f *FileWriter) openFlags() int {
 	if f.appendMode {
 		return os.O_CREATE | os.O_WRONLY | os.O_APPEND
@@ -109,9 +94,6 @@ func (f *FileWriter) openFlags() int {
 	return os.O_CREATE | os.O_WRONLY | os.O_TRUNC
 }
 
-// writeBatched buffers fileWriterBatchSize documents at a time, then
-// flushes to disk and Syncs at the end so the caller can rely on
-// durability.
 func (f *FileWriter) writeBatched(docs []*Document, file *os.File) error {
 	var buf strings.Builder
 
@@ -134,8 +116,6 @@ func (f *FileWriter) writeBatched(docs []*Document, file *os.File) error {
 	return file.Sync()
 }
 
-// renderDocument formats one document, optionally prefixing the marker
-// header.
 func (f *FileWriter) renderDocument(index int, doc *Document) string {
 	var buf strings.Builder
 
@@ -158,8 +138,6 @@ func (f *FileWriter) renderDocument(index int, doc *Document) string {
 	return buf.String()
 }
 
-// pageRange returns the start/end page from doc.Metadata when both
-// fields are present and non-empty.
 func (f *FileWriter) pageRange(doc *Document) (string, string, bool) {
 	if doc.Metadata == nil {
 		return "", "", false

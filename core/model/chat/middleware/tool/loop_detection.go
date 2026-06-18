@@ -69,8 +69,6 @@ type loopDetector struct {
 	recent    []string // most-recent round signatures, oldest first, capped at window
 }
 
-// newLoopDetector returns a detector for cfg, or nil when cfg is nil
-// (detection disabled). Zero-value fields fall back to the defaults.
 func newLoopDetector(cfg *LoopDetectionConfig) *loopDetector {
 	if cfg == nil {
 		return nil

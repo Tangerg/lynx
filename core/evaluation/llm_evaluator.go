@@ -8,19 +8,8 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
-// ErrNilRequest is returned by every evaluator when the request
-// pointer is nil. Callers can match with [errors.Is] to distinguish
-// caller-side input errors from chat-model failures.
 var ErrNilRequest = errors.New("evaluation: request must not be nil")
 
-// llmEvaluator is the scored LLM-driven evaluator shared by
-// [RelevancyEvaluator] and [FactCheckingEvaluator]. Concrete evaluators
-// wrap it with the right default template plus a per-request variable
-// binder; the call/response/scoring pipeline is identical.
-//
-// The prompt asks the model for a continuous score in [0, 1]; the
-// resulting [Response.Score] is the parsed value and [Response.Pass]
-// is derived as score >= threshold.
 type llmEvaluator struct {
 	chatClient     *chat.Client
 	promptTemplate *chat.PromptTemplate
@@ -28,8 +17,6 @@ type llmEvaluator struct {
 	threshold      float64
 }
 
-// newLLMEvaluator builds a base evaluator. model + template + bind are
-// required; threshold defaults to [DefaultPassThreshold] when 0.
 func newLLMEvaluator(
 	model chat.Model,
 	template *chat.PromptTemplate,
@@ -51,8 +38,6 @@ func newLLMEvaluator(
 	}, nil
 }
 
-// Evaluate renders the prompt with bindVariables(req), runs it through
-// the chat client, and parses the scored answer into a [*Response].
 func (e *llmEvaluator) Evaluate(ctx context.Context, req *Request) (*Response, error) {
 	if req == nil {
 		return nil, ErrNilRequest

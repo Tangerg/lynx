@@ -37,16 +37,12 @@ type ToolMetadata struct {
 	Extra map[string]any
 }
 
-// ensureExtra lazily allocates Extra. Used by [ToolMetadata.Set]
-// only — Get must not mutate state.
 func (m *ToolMetadata) ensureExtra() {
 	if m.Extra == nil {
 		m.Extra = make(map[string]any)
 	}
 }
 
-// Get returns the Extra value for key plus an existence flag. Safe
-// to call concurrently with other Get calls; concurrent with Set is not.
 func (m *ToolMetadata) Get(key string) (any, bool) {
 	if m == nil || m.Extra == nil {
 		return nil, false
@@ -55,7 +51,6 @@ func (m *ToolMetadata) Get(key string) (any, bool) {
 	return value, exists
 }
 
-// Set stores value under key in Extra.
 func (m *ToolMetadata) Set(key string, value any) {
 	m.ensureExtra()
 	m.Extra[key] = value

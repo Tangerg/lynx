@@ -76,7 +76,6 @@ type OperationMetrics struct {
 	// the model did not surface a provider.
 	System string
 
-	// RequestModel is the model id the caller requested.
 	RequestModel string
 
 	// ResponseModel is the model id the provider actually served. Empty

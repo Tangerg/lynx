@@ -18,31 +18,31 @@ type Kind int
 // range and are NOT themselves kinds.
 const (
 	kindBegin Kind = iota
-	ERROR          // Lexical error sentinel.
-	EOF            // End-of-input marker.
-	IDENT          // User-supplied identifier (field/variable name).
-	NUMBER         // Numeric literal: 123 or 1.5.
-	STRING         // String literal: 'abc'.
-	TRUE           // Boolean literal: true.
-	FALSE          // Boolean literal: false.
-	EQ             // Equality: ==
-	NE             // Inequality: !=
-	LT             // Less than: <
-	LE             // Less or equal: <=
-	GT             // Greater than: >
-	GE             // Greater or equal: >=
-	AND            // Logical AND.
-	OR             // Logical OR.
-	NOT            // Logical NOT.
-	IN             // Membership: x IN (...).
-	LIKE           // Pattern match: x LIKE 'foo%'.
-	IS             // Null test: x IS NULL / x IS NOT NULL.
-	NULL           // Null keyword (only valid as the right operand of IS).
-	LPAREN         // Left paren: (
-	RPAREN         // Right paren: )
-	LBRACK         // Left bracket: [
-	RBRACK         // Right bracket: ]
-	COMMA          // List separator: ,
+	ERROR
+	EOF
+	IDENT
+	NUMBER
+	STRING
+	TRUE
+	FALSE
+	EQ
+	NE
+	LT
+	LE
+	GT
+	GE
+	AND
+	OR
+	NOT
+	IN
+	LIKE
+	IS
+	NULL
+	LPAREN
+	RPAREN
+	LBRACK
+	RBRACK
+	COMMA
 	kindEnd
 )
 
@@ -63,7 +63,6 @@ const (
 	catDelimiter                       // (, ), [, ], comma.
 )
 
-// kindMetadata is the per-kind data table. Indexed by Kind.
 // Precedence defaults to [PrecedenceLowest]; Categories defaults to 0.
 var kindMetadata = [...]*struct {
 	Name       string
@@ -128,19 +127,14 @@ var keywordKinds = sync.OnceValues(func() (map[string]Kind, struct{}) {
 	return m, struct{}{}
 })
 
-// IsValid reports whether k is a real token kind (not the sentinel
-// boundaries).
 func (k Kind) IsValid() bool { return k > kindBegin && k < kindEnd }
 
-// ensureValid panics on invalid kinds — fail-fast for programmer error.
 func (k Kind) ensureValid() {
 	if !k.IsValid() {
 		panic("token.Kind: invalid value " + strconv.Itoa(int(k)))
 	}
 }
 
-// Name returns the human-readable name (used in error messages and
-// debug output).
 func (k Kind) Name() string {
 	k.ensureValid()
 	return kindMetadata[k].Name
@@ -153,16 +147,10 @@ func (k Kind) Literal() string {
 	return kindMetadata[k].Literal
 }
 
-// String returns the kind's name — same as [Kind.Name], provided so
-// kinds format reasonably in %v / log output.
 func (k Kind) String() string { return k.Name() }
 
-// Is reports whether k equals other — sugar for `k == other` that
-// reads better in switch-style chains.
 func (k Kind) Is(other Kind) bool { return k == other }
 
-// IsLiteral reports whether the kind is a literal value (string,
-// number, true, false).
 func (k Kind) IsLiteral() bool { return k.hasCategory(catLiteral) }
 
 // IsKeyword reports whether the kind is a reserved keyword (cannot
@@ -172,23 +160,18 @@ func (k Kind) IsKeyword() bool {
 	return kindMetadata[k].IsKeyword
 }
 
-// IsEqualityOperator reports whether the kind is == or !=.
 func (k Kind) IsEqualityOperator() bool { return k.hasCategory(catEqualityOp) }
 
-// IsOrderingOperator reports whether the kind is <, <=, >, or >=.
 func (k Kind) IsOrderingOperator() bool { return k.hasCategory(catOrderingOp) }
 
 // IsComparisonOperator is the union of equality and ordering — every
 // operator that compares two values and yields a boolean.
 func (k Kind) IsComparisonOperator() bool { return k.hasCategory(catEqualityOp | catOrderingOp) }
 
-// IsLogicalOperator reports whether the kind is AND or OR.
 func (k Kind) IsLogicalOperator() bool { return k.hasCategory(catLogicalOp) }
 
-// IsMatchingOperator reports whether the kind is IN or LIKE.
 func (k Kind) IsMatchingOperator() bool { return k.hasCategory(catMatchingOp) }
 
-// IsNullOperator reports whether the kind is the IS null-test operator.
 func (k Kind) IsNullOperator() bool { return k.hasCategory(catNullOp) }
 
 // IsBinaryOperator reports whether the kind takes two operands —
@@ -215,17 +198,14 @@ func (k Kind) IsDelimiter() bool { return k.hasCategory(catDelimiter) }
 // table — higher values bind tighter.
 const (
 	PrecedenceLowest = iota
-	PrecedenceOR     // 1: OR (loosest binding).
-	PrecedenceAND    // 2: AND.
-	PrecedenceNOT    // 3: NOT.
-	PrecedenceCMP    // 4: ==, !=, <, <=, >, >=.
-	PrecedenceMatch  // 5: LIKE, IN.
-	PrecedenceIndex  // 6: [] (tightest binding).
+	PrecedenceOR
+	PrecedenceAND
+	PrecedenceNOT
+	PrecedenceCMP
+	PrecedenceMatch
+	PrecedenceIndex
 )
 
-// Precedence returns the operator's precedence level. Non-operators
-// (and invalid kinds) return [PrecedenceLowest] so callers can use
-// Precedence as a uniform priority key.
 func (k Kind) Precedence() int {
 	if !k.IsValid() {
 		return PrecedenceLowest
@@ -252,8 +232,6 @@ func KindOf(ident string) Kind {
 	return IDENT
 }
 
-// hasUpperASCII reports whether s contains any A–Z byte. Cheap test
-// for the all-lowercase fast path in [KindOf].
 func hasUpperASCII(s string) bool {
 	for i := range len(s) {
 		if c := s[i]; c >= 'A' && c <= 'Z' {
@@ -263,12 +241,8 @@ func hasUpperASCII(s string) bool {
 	return false
 }
 
-// IsKeyword reports whether ident is a reserved keyword.
 func IsKeyword(ident string) bool { return KindOf(ident).IsKeyword() }
 
-// IsIdentifier reports whether ident can serve as a user-supplied
-// identifier — non-empty, not a keyword, made entirely of letters,
-// digits, and underscores.
 func IsIdentifier(ident string) bool {
 	if ident == "" || IsKeyword(ident) {
 		return false
@@ -282,8 +256,6 @@ func IsIdentifier(ident string) bool {
 	return true
 }
 
-// IsLiteralChar reports whether r may appear inside an identifier —
-// any Unicode letter, any Unicode digit, or '_'.
 func IsLiteralChar(r rune) bool {
 	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'
 }
