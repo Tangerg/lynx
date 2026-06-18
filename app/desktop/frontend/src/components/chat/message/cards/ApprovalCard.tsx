@@ -6,6 +6,7 @@ import { Checkbox, Divider, Icon, PillButton } from "@/components/common";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
 import { registerApprovalActions } from "@/lib/agent/approvalActions";
+import { dangerHints } from "@/lib/agent/dangerPatterns";
 import { useApprovalSubmit } from "@/lib/agent/useApprovalSubmit";
 import { cn } from "@/lib/utils";
 import { ApprovalArgsEditor, useApprovalArgsEditor } from "./ApprovalArgsEditor";
@@ -148,6 +149,11 @@ export function ApprovalCard({
   // run-end precisely so its buttons can't resume a dead run.
   const disabled = !parentRunId || !itemId || pending !== null || status !== "requires-action";
   const effectiveRisk: Risk = risk ?? "medium";
+  // Client-side destructive-command heuristic (§T2.5) — flags rm -rf / sudo /
+  // curl|sh / dd / mkfs / chmod 777 / fork bomb / force-push regardless of the
+  // backend's risk field, so a dangerous command always carries a visible "are
+  // you sure?" cue.
+  const dangers = cmd.trim() ? dangerHints(cmd) : [];
   return (
     <HitlCardShell
       tone="warning"
@@ -172,6 +178,14 @@ export function ApprovalCard({
         <code className="my-2 block whitespace-pre-wrap break-all rounded-sm bg-warning/14 px-3 py-2 font-mono text-[13px] text-fg">
           $ {cmd}
         </code>
+      )}
+      {dangers.length > 0 && (
+        <div className="my-2 flex items-start gap-2 rounded-sm border border-negative/50 bg-negative/12 px-2.5 py-1.5 text-[12px] leading-[1.5] text-negative">
+          <Icon name="alert" size={13} className="mt-px shrink-0" />
+          <span>
+            <span className="font-semibold">{t("approval.danger")}</span> {dangers.join(" · ")}
+          </span>
+        </div>
       )}
       {showArgs && (
         <ApprovalArgsEditor

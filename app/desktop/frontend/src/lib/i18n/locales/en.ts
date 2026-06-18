@@ -266,6 +266,7 @@ export const en: Record<string, string> = {
   "approval.settled.approved": "Approved",
   "approval.settled.declined": "Declined",
   "approval.required": "Approval required",
+  "approval.danger": "Potentially destructive:",
   "approval.action.approve": "Approve",
   "approval.action.decline": "Decline",
   "approval.remember": "Don't ask again this session",

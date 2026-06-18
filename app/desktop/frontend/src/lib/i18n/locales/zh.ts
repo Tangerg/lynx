@@ -261,6 +261,7 @@ export const zh: Record<string, string> = {
   "approval.settled.approved": "已批准",
   "approval.settled.declined": "已拒绝",
   "approval.required": "需要审批",
+  "approval.danger": "可能具破坏性:",
   "approval.action.approve": "批准",
   "approval.action.decline": "拒绝",
   "approval.remember": "本会话不再询问",
