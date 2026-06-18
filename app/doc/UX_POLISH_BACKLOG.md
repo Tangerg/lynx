@@ -16,22 +16,22 @@
 
 ## Tier 1 —— 便宜 + 高频痛点(建议优先整批)
 
-### ☐ T1.1　失焦完成通知(OS 通知 + 窗口标题 + 可选声音)　【desktop · S】
+### ✅ T1.1　失焦完成通知(OS 通知 + 窗口标题 + 可选声音)　【desktop · S】　**已实现**(OS 通知部分;窗口标题/声音留作后续)
 - **竞品**:**全员**同一套 focus-gated 模式——只在窗口**失焦**时通知,子 agent 永不打扰。opencode `packages/tui/src/attention.ts` `focusSkip(when∈{always,blurred,focused})`(通知默认 `blurred`、声音默认 `always`、subagent 永不);crush `internal/ui/model/ui.go shouldSendNotification`(要求 focus-reporting 且窗口**未聚焦**)+ `internal/ui/notification/`(Native/OSC99→OSC777/Bell/Noop 自动降级);Claude Code `hooks/useNotifyAfterTimeout.ts`(交互时间戳门控 + 6s 阈值);Kimi `terminal-notification.ts`(per-event-id 去重 + `condition:'unfocused'`)。
 - **我方**:**完全没有**——无 `Notification` API、不改 `document.title`、无音效(自审 D15)。后台跑完的 run 静默无声。
 - **改法**:Wails/浏览器 `Notification` + `document.visibilityState` 门控(仅失焦弹)+ run.finished/interrupt 触发;标题加 `●` working 指示;音效可选、默认关。**根 agent 才通知,子 agent 不**。
 
-### ☐ T1.2　运行中实时反馈(`run.progress`:活动 / 成本 / 步数 / 计时)　【runtime + desktop · M】
+### ✅ T1.2　运行中实时反馈(`run.progress`:活动 / 成本 / 步数 / 计时)　【runtime + desktop · M】　**已实现**(activity + step + elapsed 计时器;mid-run cost 待 engine 改)
 - **竞品**:Claude Code `✻ Percolating…(12s · ↓1.2k tokens · thought for 5s)`(token 30s 后才显、缓动计数、3s 无 token 渐红);codex 弹性分块 + `(12m 45s • ESC to interrupt)`;Kimi 本地插值 1s 计时器(`lastSnapshot + (now-observedAt)`,`.unref()`,仅活跃时跑);crush 活动动词作 label。
 - **我方**:**runtime 从不发 `run.progress`**——类型全定义(`delivery/protocol/events.go:82-90`)、translator 零 emit(`translator.go:282-312`)、`Capabilities().Events` 都不广播(`server.go:134-140`);前端 `RunState.cost` reducer 算了**就丢、无组件读**,**无 elapsed 计时器**(自审 D10/D11)。
 - **改法**:**runtime**(头号 lever,自审 R1)——在每个工具起点/回合边界 emit `run.progress{activity,usage,step}` 并加进 `Capabilities().Events`;顺带把 `maxSteps` 真正 plumb 进 turn(现在 `runs.start` 只传 `MaxCostUSD`,accept 了但不 enforce/surface)。**desktop**——渲染运行成本 + 本地 elapsed 计时器(`run.started` 起算,槽位已在 `RunStatus()`)。
 
-### ☐ T1.3　Composer 草稿持久化 + ↑ 历史回溯　【desktop · S-M】
+### ✅ T1.3　Composer 草稿持久化 + ↑ 历史回溯　【desktop · S-M】　**已实现**(per-session 草稿 + 持久化 + ↑/↓ 历史)
 - **竞品**:全员 per-cwd/session 历史(Kimi `md5(cwd)` keyed JSONL、consecutive-dedup;codex `chat_composer_history.rs` 召回置光标 EOL + Ctrl+R 反搜)+ 切会话保草稿(opencode `prompt/stash.tsx` 带 `DRAFT_RETENTION_MIN_CHARS` 阈值;codex `input_restore.rs` 连图片 URL 一起 rehydrate)。光标在首/末行才触发历史。
 - **我方**:`composerStore` 是**单个全局、不持久**——切 tab 丢字/串字、刷新即没、**无 ↑ 回溯**(自审 D9:"actively loses user work")。
 - **改法**:draft store 改 **per-session keyed + 持久化**;加 ↑/↓ 历史(光标 offset 0 才上、末尾才下),进出保存/恢复当前草稿。
 
-### ☐ T1.4　首条消息自动起会话标题　【runtime · S】
+### ✅ T1.4　首条消息自动起会话标题　【runtime · S】　**已实现**
 - **竞品**:Claude Code/Kimi 用便宜模型一次性从首条消息生成,可 `/rename` 覆盖。
 - **我方**:runtime **从不命名**——`domain/session/service.go:41,126-130` 注释说"auto-generated from the first user message",但 `Rename` 只在 `sessions.update`(手动)/`sessions.fork`(显式)被调;维护用 LLM 管线现成却没接。
 - **改法**:首回合结束后异步派生标题调 `Rename`,纯后端、无协议改动。
