@@ -1,4 +1,4 @@
-module lyra
+module github.com/Tangerg/lynx/app/desktop
 
 go 1.24.4
 
