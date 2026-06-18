@@ -3,13 +3,13 @@ go 1.26.4
 use (
 	./a2a
 	./agent
+	./app/runtime
 	./chatmemory
 	./core
 	./documentreaders
 	./documentreaders/html
 	./documentreaders/markdown
 	./documentreaders/pdf
-	./lyra
 	./mcp
 	./models
 	./otel
