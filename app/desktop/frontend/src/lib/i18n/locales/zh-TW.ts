@@ -261,6 +261,7 @@ export const zhTW: Record<string, string> = {
   "approval.settled.approved": "已核可",
   "approval.settled.declined": "已拒絕",
   "approval.required": "需要核可",
+  "approval.danger": "可能具破壞性:",
   "approval.action.approve": "核可",
   "approval.action.decline": "拒絕",
   "approval.remember": "本對話不再詢問",
