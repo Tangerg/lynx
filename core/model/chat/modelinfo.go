@@ -33,8 +33,6 @@ type ModelMetadata struct {
 // source; ModelMetadata carries the instance's default model's info as a
 // convenience.
 type ModelInfo struct {
-	// --- identity ---
-
 	// ID is the model identifier (e.g. "claude-sonnet-4-6").
 	ID string `json:"id,omitempty"`
 
@@ -57,15 +55,11 @@ type ModelInfo struct {
 	// the old id — so consumers can hide or flag it rather than lose it.
 	Deprecated bool `json:"deprecated,omitempty"`
 
-	// --- pricing ---
-
 	// Pricing is the per-1M-token rate card as one or more bands (see
 	// [Pricing]) — usually a single band, more for long-context models
 	// that reprice past a token threshold. Nil when unknown. Use [CostOf]
 	// to price a call across the bands.
 	Pricing []Pricing `json:"pricing,omitempty"`
-
-	// --- capabilities ---
 
 	// Reasoning describes extended-thinking support, zero (IsZero) when
 	// the model can't reason.
@@ -81,8 +75,6 @@ type ModelInfo struct {
 	// StructuredOutput reports whether the model supports a native
 	// structured-output / JSON-schema feature.
 	StructuredOutput bool `json:"structured_output,omitempty"`
-
-	// --- limits ---
 
 	// Limits is the model's token limits (context window, max input /
 	// output), zero (IsZero) when unknown.
@@ -136,7 +128,6 @@ type Pricing struct {
 	CacheWritePer1M float64 `json:"cache_write_per_1m,omitempty"`
 }
 
-// IsZero reports whether this band carries no rates.
 func (p Pricing) IsZero() bool { return p == Pricing{} }
 
 // CostOf computes the USD cost of one call from a [Usage] breakdown,
@@ -232,7 +223,6 @@ type Limits struct {
 	MaxOutputTokens int64 `json:"max_output_tokens,omitempty"`
 }
 
-// IsZero reports whether no limits are known.
 func (l Limits) IsZero() bool { return l == Limits{} }
 
 // Modality is a media type a model takes as input or produces as output.
@@ -261,17 +251,14 @@ type Modalities struct {
 	Output []Modality `json:"output,omitempty"`
 }
 
-// IsZero reports whether no modalities are known.
 func (m Modalities) IsZero() bool {
 	return len(m.Input) == 0 && len(m.Output) == 0
 }
 
-// AcceptsInput reports whether the model takes the given input modality.
 func (m Modalities) AcceptsInput(x Modality) bool {
 	return slices.Contains(m.Input, x)
 }
 
-// EmitsOutput reports whether the model produces the given output modality.
 func (m Modalities) EmitsOutput(x Modality) bool {
 	return slices.Contains(m.Output, x)
 }

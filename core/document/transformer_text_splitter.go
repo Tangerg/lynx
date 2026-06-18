@@ -7,11 +7,7 @@ import (
 	"github.com/Tangerg/lynx/core/document/id"
 )
 
-// TextSplitterConfig configures a [TextSplitter] — the simple
-// string-separator splitter.
 type TextSplitterConfig struct {
-	// Separator splits the text. Common values: "\n" (lines),
-	// "\n\n" (paragraphs), ". " (sentences). Defaults to "\n".
 	Separator string
 
 	// CopyFormatter copies the source document's [Formatter] to each
@@ -39,16 +35,12 @@ type TextSplitter struct {
 	splitter *Splitter
 }
 
-// ApplyDefaults fills zero fields with package defaults. Empty
-// Separator falls back to "\n" (line-by-line).
 func (c *TextSplitterConfig) ApplyDefaults() {
 	if c.Separator == "" {
 		c.Separator = "\n"
 	}
 }
 
-// NewTextSplitter builds a [TextSplitter]. Zero-value config falls
-// back to line-by-line splitting.
 func NewTextSplitter(config TextSplitterConfig) *TextSplitter {
 	config.ApplyDefaults()
 	splitter, _ := NewSplitter(SplitterConfig{
@@ -61,7 +53,6 @@ func NewTextSplitter(config TextSplitterConfig) *TextSplitter {
 	return &TextSplitter{splitter: splitter}
 }
 
-// Transform delegates to the wrapped [Splitter].
 func (t *TextSplitter) Transform(ctx context.Context, docs []*Document) ([]*Document, error) {
 	return t.splitter.Transform(ctx, docs)
 }

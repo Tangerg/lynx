@@ -10,7 +10,6 @@ import (
 // estimate is allowed to skip full tokenization — implementations
 // commonly trade accuracy for speed (e.g. char-count divided by 4).
 type TextEstimator interface {
-	// EstimateText returns the approximate token count for text.
 	EstimateText(ctx context.Context, text string) (int, error)
 }
 
@@ -33,11 +32,9 @@ type Estimator interface {
 
 // Encoder converts text into the model's numerical token IDs.
 type Encoder interface {
-	// Encode tokenizes text and returns the resulting token IDs.
 	Encode(ctx context.Context, text string) ([]int, error)
 }
 
-// Decoder converts token IDs back to text.
 type Decoder interface {
 	// Decode reconstructs text from token IDs. The reconstruction is
 	// faithful when the implementation is BPE-style — losing only

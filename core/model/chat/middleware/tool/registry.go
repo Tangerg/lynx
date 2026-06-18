@@ -15,8 +15,6 @@ type registry struct {
 	tools map[string]chat.Tool
 }
 
-// newRegistry builds an empty registry. capacityHint, if positive,
-// preallocates the backing map.
 func newRegistry(capacityHint ...int) *registry {
 	capacity, _ := pkgSlices.First(capacityHint)
 	if capacity < 0 {
@@ -45,7 +43,6 @@ func (r *registry) register(tools ...chat.Tool) {
 	}
 }
 
-// find looks up a tool by name.
 func (r *registry) find(name string) (chat.Tool, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -53,7 +50,6 @@ func (r *registry) find(name string) (chat.Tool, bool) {
 	return t, exists
 }
 
-// names returns a snapshot of every registered tool name.
 func (r *registry) names() []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

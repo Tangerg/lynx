@@ -13,12 +13,7 @@ import (
 // corresponding mode — useful for keeping internal ids or timestamps
 // out of embeddings while still surfacing them at inference time.
 type SimpleFormatterConfig struct {
-	// ExcludedInferenceMetadataKeys names metadata keys to drop when
-	// rendering in [MetadataModeInference].
 	ExcludedInferenceMetadataKeys []string
-
-	// ExcludedEmbedMetadataKeys names metadata keys to drop when
-	// rendering in [MetadataModeEmbed].
 	ExcludedEmbedMetadataKeys []string
 }
 
@@ -71,10 +66,6 @@ func (s *SimpleFormatter) Format(doc *Document, mode MetadataMode) string {
 	return strings.Join(entries, "\n") + "\n\n" + doc.Text
 }
 
-// filterMetadataByMode returns a defensively-cloned copy of metadata
-// with the appropriate keys removed for the supplied mode. Always
-// returns a fresh map so caller-side mutations cannot corrupt the
-// document.
 func (s *SimpleFormatter) filterMetadataByMode(metadata map[string]any, mode MetadataMode) map[string]any {
 	switch mode {
 	case MetadataModeAll:

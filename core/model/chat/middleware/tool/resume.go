@@ -167,9 +167,6 @@ func priorModelRounds(msgs []chat.Message) int {
 	return n
 }
 
-// allReturnDirect reports whether every tool referenced in returns is
-// registered AND return-direct — the resume-path analog of the allReturnDirect
-// bit invokeToolCalls computes inline.
 func (i *invoker) allReturnDirect(returns []*chat.ToolReturn) bool {
 	for _, ret := range returns {
 		t, exists := i.registry.find(ret.Name)

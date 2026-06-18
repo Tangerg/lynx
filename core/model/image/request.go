@@ -22,7 +22,6 @@ const (
 
 func (r ResponseFormat) String() string { return string(r) }
 
-// Valid reports whether r is one of the recognized formats.
 func (r ResponseFormat) Valid() bool {
 	switch r {
 	case ResponseFormatURL, ResponseFormatB64JSON:
@@ -68,7 +67,7 @@ type Options struct {
 	Extra map[string]any `json:"extra,omitzero"`
 }
 
-// NewOptions builds Options for the given model id. Returns an error
+// Returns an error
 // when model is empty.
 func NewOptions(model string) (*Options, error) {
 	if model == "" {
@@ -83,8 +82,6 @@ func (o *Options) ensureExtra() {
 	}
 }
 
-// Get returns the Extra value for key plus an existence flag. See
-// [chat.Options.Get] for the concurrency contract.
 func (o *Options) Get(key string) (any, bool) {
 	if o == nil || o.Extra == nil {
 		return nil, false
@@ -93,7 +90,6 @@ func (o *Options) Get(key string) (any, bool) {
 	return value, exists
 }
 
-// Set stores value under key in Extra.
 func (o *Options) Set(key string, value any) {
 	o.ensureExtra()
 	o.Extra[key] = value
@@ -136,7 +132,6 @@ func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
 	return merged, nil
 }
 
-// applyOverride mutates the receiver in place with the non-zero fields of src.
 func (o *Options) applyOverride(src *Options) {
 	if src.NegativePrompt != "" {
 		o.NegativePrompt = src.NegativePrompt
@@ -179,14 +174,13 @@ type Request struct {
 	// Prompt is the natural-language description of the desired image.
 	Prompt string `json:"prompt"`
 
-	// Options carries model-specific parameters.
 	Options *Options `json:"options,omitempty"`
 
 	// Params is per-request metadata middlewares can read.
 	Params map[string]any `json:"params,omitzero"`
 }
 
-// NewRequest builds a Request from prompt. Returns an error when prompt
+// Returns an error when prompt
 // is empty.
 func NewRequest(prompt string) (*Request, error) {
 	if prompt == "" {
@@ -201,8 +195,6 @@ func (r *Request) ensureParams() {
 	}
 }
 
-// Get returns the Params value for key plus an existence flag. See
-// [chat.Options.Get] for the concurrency contract.
 func (r *Request) Get(key string) (any, bool) {
 	if r == nil || r.Params == nil {
 		return nil, false
@@ -211,7 +203,6 @@ func (r *Request) Get(key string) (any, bool) {
 	return value, exists
 }
 
-// Set stores value under key in Params.
 func (r *Request) Set(key string, value any) {
 	r.ensureParams()
 	r.Params[key] = value

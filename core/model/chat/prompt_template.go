@@ -39,13 +39,11 @@ func NewPromptTemplate(template string) *PromptTemplate {
 	return p
 }
 
-// WithTemplate replaces the underlying template string.
 func (p *PromptTemplate) WithTemplate(template string) *PromptTemplate {
 	p.renderer.WithTemplate(template)
 	return p
 }
 
-// WithVariable sets one variable.
 func (p *PromptTemplate) WithVariable(name string, value any) *PromptTemplate {
 	p.renderer.WithVariable(name, value)
 	return p

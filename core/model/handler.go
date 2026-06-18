@@ -29,7 +29,6 @@ type CallHandler[Request any, Response any] interface {
 // interface, mirroring [net/http.HandlerFunc].
 type CallHandlerFunc[Request any, Response any] func(ctx context.Context, req Request) (Response, error)
 
-// Call implements [CallHandler] by invoking the underlying function.
 func (f CallHandlerFunc[Request, Response]) Call(ctx context.Context, req Request) (Response, error) {
 	return f(ctx, req)
 }
@@ -61,7 +60,6 @@ type StreamHandler[Request any, Response any] interface {
 // interface, mirroring [CallHandlerFunc].
 type StreamHandlerFunc[Request any, Response any] func(ctx context.Context, req Request) iter.Seq2[Response, error]
 
-// Stream implements [StreamHandler] by invoking the underlying function.
 func (f StreamHandlerFunc[Request, Response]) Stream(ctx context.Context, req Request) iter.Seq2[Response, error] {
 	return f(ctx, req)
 }

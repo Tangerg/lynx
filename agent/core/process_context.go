@@ -113,14 +113,13 @@ type ProcessContextConfig struct {
 // through the typed methods), per-action state + per-tick scratch at
 // the bottom.
 type ProcessContext struct {
-	// --- Public per-process state. ---
 	Process       Process
 	Blackboard    Blackboard
 	Options       *ProcessOptions
 	OutputChannel OutputChannel
 	Services      *ServiceProvider
 
-	// --- Platform-wired hooks. Private so action bodies go through
+	// Platform-wired hooks. Private so action bodies go through
 	// the typed methods (Chat / Publish / ResolveTools / ...) instead
 	// of touching the underlying client / closure directly.
 	chatClient     *chat.Client
@@ -129,7 +128,6 @@ type ProcessContext struct {
 	resolveTools   ToolResolver
 	toolCallCancel ToolCallCancelFunc
 
-	// --- Per-action state + per-tick scratch. ---
 	actionToolGroups []ToolGroupRequirement
 
 	// inputAwaited flips when the action calls [AwaitInput]; the
@@ -370,8 +368,6 @@ func (pc *ProcessContext) ExecuteSafely(ctx context.Context, a Action) (status A
 // recordError stashes err for the runtime to detect [ReplanRequest].
 func (pc *ProcessContext) recordError(err error) { pc.lastErr = err }
 
-// recordPanic converts a recovered panic value into an error and
-// stashes it. Used by [ExecuteSafely].
 func (pc *ProcessContext) recordPanic(panicValue any) {
 	err, ok := panicValue.(error)
 	if !ok {

@@ -21,16 +21,12 @@ import (
 //	}
 type Analyzer struct{}
 
-// NewAnalyzer returns an [Analyzer] ready to walk an AST.
 func NewAnalyzer() *Analyzer { return &Analyzer{} }
 
-// Visit walks the whole tree rooted at expr and returns the first
-// violation found, or nil.
 func (a *Analyzer) Visit(expr ast.Expr) error {
 	return a.visit(expr)
 }
 
-// visit dispatches by node type. Returns the first error encountered.
 func (a *Analyzer) visit(expr ast.Expr) error {
 	if expr == nil {
 		return errors.New("visitors.Analyzer: expression is nil")
@@ -55,8 +51,6 @@ func (a *Analyzer) visit(expr ast.Expr) error {
 	}
 }
 
-// visitIdent verifies the token kind matches IDENT and the lexeme is
-// not a reserved keyword.
 func (a *Analyzer) visitIdent(ident *ast.Ident) error {
 	if !ident.Token.Kind.Is(token.IDENT) {
 		return fmt.Errorf("visitors.Analyzer: expected IDENT token, got %s(%s) at %s",
@@ -69,8 +63,6 @@ func (a *Analyzer) visitIdent(ident *ast.Ident) error {
 	return nil
 }
 
-// visitLiteral verifies a literal is one of the supported kinds and
-// (for numbers and booleans) parses successfully.
 func (a *Analyzer) visitLiteral(lit *ast.Literal) error {
 	pos := lit.Start().String()
 
@@ -92,8 +84,6 @@ func (a *Analyzer) visitLiteral(lit *ast.Literal) error {
 		lit.Token.Literal, lit.Token.Kind.Name(), pos)
 }
 
-// visitListLiteral verifies non-empty and type-homogeneous lists, then
-// recurses into each element.
 func (a *Analyzer) visitListLiteral(list *ast.ListLiteral) error {
 	pos := list.Start().String()
 
@@ -116,8 +106,6 @@ func (a *Analyzer) visitListLiteral(list *ast.ListLiteral) error {
 	return nil
 }
 
-// visitUnaryExpr verifies the operator is unary (NOT today) and
-// recurses into the operand.
 func (a *Analyzer) visitUnaryExpr(unary *ast.UnaryExpr) error {
 	if !unary.Op.Kind.IsUnaryOperator() {
 		return fmt.Errorf("visitors.Analyzer: unsupported unary operator %s(%s) at %s",
@@ -126,9 +114,6 @@ func (a *Analyzer) visitUnaryExpr(unary *ast.UnaryExpr) error {
 	return a.visit(unary.Right)
 }
 
-// visitBinaryExpr is the dispatcher for the four binary-operator
-// families (logical / equality / ordering / matching), each with its
-// own type-shape rules.
 func (a *Analyzer) visitBinaryExpr(binary *ast.BinaryExpr) error {
 	if binary.Op.Kind.IsLogicalOperator() {
 		return a.visitLogicalOperation(binary)
@@ -160,10 +145,6 @@ func (a *Analyzer) visitBinaryExpr(binary *ast.BinaryExpr) error {
 		binary.Op.Literal, binary.Op.Kind.Name(), binary.Start().String())
 }
 
-// visitNullTest validates `<field> IS NULL`. The left side is already
-// constrained to an identifier or index expression by visitBinaryExpr;
-// the right side must be the NULL literal (the parser guarantees this,
-// but the analyzer re-checks so a hand-built AST can't slip through).
 func (a *Analyzer) visitNullTest(binary *ast.BinaryExpr) error {
 	lit, ok := binary.Right.(*ast.Literal)
 	if !ok || !lit.IsNull() {
@@ -173,9 +154,6 @@ func (a *Analyzer) visitNullTest(binary *ast.BinaryExpr) error {
 	return nil
 }
 
-// visitLogicalOperation validates AND/OR — both operands must be
-// computed expressions (i.e. boolean-shaped sub-expressions, not
-// bare identifiers or literals).
 func (a *Analyzer) visitLogicalOperation(binary *ast.BinaryExpr) error {
 	pos := binary.Start().String()
 	op := binary.Op.Literal
@@ -195,8 +173,6 @@ func (a *Analyzer) visitLogicalOperation(binary *ast.BinaryExpr) error {
 	return a.visit(binary.Right)
 }
 
-// visitEqualityOperation validates ==/!= — the right operand must be a
-// literal of any type.
 func (a *Analyzer) visitEqualityOperation(binary *ast.BinaryExpr) error {
 	if _, ok := binary.Right.(*ast.Literal); !ok {
 		return fmt.Errorf("visitors.Analyzer: %s(%s) requires literal on the right, got %T at %s",
@@ -209,8 +185,6 @@ func (a *Analyzer) visitEqualityOperation(binary *ast.BinaryExpr) error {
 	return a.visit(binary.Right)
 }
 
-// visitOrderingOperation validates <, <=, >, >= — the right operand
-// must be a numeric literal.
 func (a *Analyzer) visitOrderingOperation(binary *ast.BinaryExpr) error {
 	pos := binary.Start().String()
 
@@ -231,8 +205,6 @@ func (a *Analyzer) visitOrderingOperation(binary *ast.BinaryExpr) error {
 	return a.visit(binary.Right)
 }
 
-// visitInOperation validates IN — the right operand must be a list
-// literal, or a single literal (treated as a one-element list).
 func (a *Analyzer) visitInOperation(binary *ast.BinaryExpr) error {
 	pos := binary.Start().String()
 
@@ -249,8 +221,6 @@ func (a *Analyzer) visitInOperation(binary *ast.BinaryExpr) error {
 	return a.visit(binary.Right)
 }
 
-// visitLikeOperation validates LIKE — the right operand must be a
-// string literal.
 func (a *Analyzer) visitLikeOperation(binary *ast.BinaryExpr) error {
 	pos := binary.Start().String()
 
@@ -271,9 +241,6 @@ func (a *Analyzer) visitLikeOperation(binary *ast.BinaryExpr) error {
 	return a.visit(binary.Right)
 }
 
-// visitIndexExpr validates index access — the indexed value must be
-// an identifier or another index expression; the index itself must be
-// a numeric or string literal.
 func (a *Analyzer) visitIndexExpr(index *ast.IndexExpr) error {
 	pos := index.Start().String()
 

@@ -14,8 +14,6 @@ func (m *ResultMetadata) ensureExtra() {
 	}
 }
 
-// Get returns the Extra value for key plus an existence flag. See
-// [chat.Options.Get] for the concurrency contract.
 func (m *ResultMetadata) Get(key string) (any, bool) {
 	if m == nil || m.Extra == nil {
 		return nil, false
@@ -24,7 +22,6 @@ func (m *ResultMetadata) Get(key string) (any, bool) {
 	return value, exists
 }
 
-// Set stores value under key in Extra.
 func (m *ResultMetadata) Set(key string, value any) {
 	m.ensureExtra()
 	m.Extra[key] = value
@@ -42,7 +39,7 @@ type Result struct {
 	Metadata *ResultMetadata `json:"metadata,omitempty"`
 }
 
-// NewResult builds a [Result]. Returns an error when speech is empty
+// Returns an error when speech is empty
 // or metadata is nil.
 func NewResult(speech []byte, metadata *ResultMetadata) (*Result, error) {
 	if len(speech) == 0 {
@@ -72,8 +69,6 @@ func (m *ResponseMetadata) ensureExtra() {
 	}
 }
 
-// Get returns the Extra value for key plus an existence flag. See
-// [chat.Options.Get] for the concurrency contract.
 func (m *ResponseMetadata) Get(key string) (any, bool) {
 	if m == nil || m.Extra == nil {
 		return nil, false
@@ -82,7 +77,6 @@ func (m *ResponseMetadata) Get(key string) (any, bool) {
 	return value, exists
 }
 
-// Set stores value under key in Extra.
 func (m *ResponseMetadata) Set(key string, value any) {
 	m.ensureExtra()
 	m.Extra[key] = value
@@ -99,7 +93,7 @@ type Response struct {
 	Metadata *ResponseMetadata `json:"metadata,omitempty"`
 }
 
-// NewResponse builds a [Response] from a non-nil result and metadata.
+// from a non-nil result and metadata.
 func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error) {
 	if result == nil {
 		return nil, errors.New("tts.NewResponse: result must not be nil")

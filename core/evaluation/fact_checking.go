@@ -33,30 +33,17 @@ var _ Evaluator = (*FactCheckingEvaluator)(nil)
 // ChatModel is required; PromptTemplate falls back to a scored default;
 // Threshold defaults to [DefaultPassThreshold].
 type FactCheckingEvaluatorConfig struct {
-	// ChatModel scores the claim against the document. Required.
 	ChatModel chat.Model
-
-	// PromptTemplate is the LLM prompt. Defaults to
-	// [factCheckingDefaultTemplate]. Custom templates must declare
-	// {{.Document}} and {{.Claim}} and instruct the model to emit a
-	// number in [0, 1].
 	PromptTemplate *chat.PromptTemplate
-
-	// Threshold is the score boundary at which [Response.Pass] flips
-	// from false to true. Zero falls back to [DefaultPassThreshold].
 	Threshold float64
 }
 
-// ApplyDefaults fills PromptTemplate when nil.
 func (c *FactCheckingEvaluatorConfig) ApplyDefaults() {
 	if c.PromptTemplate == nil {
 		c.PromptTemplate = chat.NewPromptTemplate(factCheckingDefaultTemplate)
 	}
 }
 
-// Validate returns an error when required fields are missing or the
-// template lacks the expected variables. Pure check — pair with
-// [FactCheckingEvaluatorConfig.ApplyDefaults].
 func (c *FactCheckingEvaluatorConfig) Validate() error {
 	if c.ChatModel == nil {
 		return errors.New("evaluation.FactCheckingEvaluatorConfig: ChatModel is required")
@@ -79,9 +66,6 @@ type FactCheckingEvaluator struct {
 	*llmEvaluator
 }
 
-// NewFactCheckingEvaluator builds a [FactCheckingEvaluator] from
-// config. Returns an error when the configuration fails validation or
-// the chat client can't be constructed.
 func NewFactCheckingEvaluator(config FactCheckingEvaluatorConfig) (*FactCheckingEvaluator, error) {
 	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {

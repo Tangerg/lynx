@@ -58,20 +58,9 @@ const (
 //	req, err := vectorstore.NewRetrievalRequest("hello world")
 //	req.WithTopK(20).WithMinScore(0.7).WithFilter(myFilter)
 type RetrievalRequest struct {
-	// Query is the search text. Required.
 	Query string `json:"query,omitempty"`
-
-	// TopK caps the number of results. Defaults to [DefaultTopK]; must
-	// be > 0.
 	TopK int `json:"top_k,omitempty"`
-
-	// MinScore filters out results below this similarity threshold.
-	// Range [0.0, 1.0]. Use [AcceptAllScores] to disable.
 	MinScore float64 `json:"min_score,omitempty"`
-
-	// Filter is an optional AST expression for metadata filtering.
-	// Excluded from JSON: the AST is a compiled tree; callers serialize
-	// the source text separately and re-Parse it after Unmarshal.
 	Filter ast.Expr `json:"-"`
 }
 
@@ -116,8 +105,6 @@ func (r *RetrievalRequest) WithFilter(filter ast.Expr) *RetrievalRequest {
 	return r
 }
 
-// Validate enforces the request invariants and runs static analysis on
-// the filter expression. The first failure is returned.
 func (r *RetrievalRequest) Validate() error {
 	if r == nil {
 		return ErrNilRequest
@@ -156,12 +143,9 @@ type Retriever interface {
 // CreateRequest is the input to [Creator.Create]: the documents to
 // embed, index, and store.
 type CreateRequest struct {
-	// Documents is the list to ingest. Required, non-empty.
 	Documents []*document.Document `json:"documents,omitzero"`
 }
 
-// NewCreateRequest builds a [CreateRequest]. Returns an error when
-// validation fails.
 func NewCreateRequest(docs []*document.Document) (*CreateRequest, error) {
 	req := &CreateRequest{Documents: docs}
 	if err := req.Validate(); err != nil {
@@ -170,7 +154,6 @@ func NewCreateRequest(docs []*document.Document) (*CreateRequest, error) {
 	return req, nil
 }
 
-// Validate enforces the request invariants.
 func (r *CreateRequest) Validate() error {
 	if r == nil {
 		return ErrNilRequest
@@ -195,14 +178,9 @@ type Creator interface {
 // DeleteRequest is the input to [Deleter.Delete]: a metadata filter
 // expression selecting the documents to remove.
 type DeleteRequest struct {
-	// Filter selects the documents to delete. Required.
-	// Excluded from JSON for the same reason as
-	// [RetrievalRequest.Filter] — the AST is a compiled tree.
 	Filter ast.Expr `json:"-"`
 }
 
-// NewDeleteRequest builds a [DeleteRequest]. Returns an error when
-// validation fails.
 func NewDeleteRequest(filter ast.Expr) (*DeleteRequest, error) {
 	req := &DeleteRequest{Filter: filter}
 	if err := req.Validate(); err != nil {
@@ -211,8 +189,6 @@ func NewDeleteRequest(filter ast.Expr) (*DeleteRequest, error) {
 	return req, nil
 }
 
-// Validate enforces the request invariants and runs static analysis on
-// the filter expression.
 func (r *DeleteRequest) Validate() error {
 	if r == nil {
 		return ErrNilRequest
@@ -266,20 +242,12 @@ type Store interface {
 // gives callers access to provider-specific operations the framework
 // doesn't surface.
 type StoreMetadata struct {
-	// NativeClient is the underlying provider client (e.g.
-	// *pinecone.Client, *weaviate.Client, *qdrant.Client). Excluded
-	// from JSON: opaque runtime handle that cannot round-trip.
 	NativeClient any `json:"-"`
-
-	// Provider names the backend ("pinecone", "qdrant", "weaviate", ...)
-	// — lowercase by convention.
 	Provider string `json:"provider,omitempty"`
 }
 
-// writeFunc is the function-shaped adapter used by [NewDocumentWriter].
 type writeFunc func(ctx context.Context, docs []*document.Document) error
 
-// Write implements [document.Writer] for [writeFunc].
 func (w writeFunc) Write(ctx context.Context, docs []*document.Document) error {
 	return w(ctx, docs)
 }

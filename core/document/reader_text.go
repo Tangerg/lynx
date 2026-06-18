@@ -23,9 +23,6 @@ type TextReader struct {
 	bufferSize int
 }
 
-// NewTextReader builds a [TextReader] over reader. Optional sizes[0]
-// overrides the default 8 KiB read buffer; non-positive values fall
-// back to the default.
 func NewTextReader(reader io.Reader, sizes ...int) (*TextReader, error) {
 	if reader == nil {
 		return nil, errors.New("document.NewTextReader: reader must not be nil")
@@ -39,8 +36,6 @@ func NewTextReader(reader io.Reader, sizes ...int) (*TextReader, error) {
 	return &TextReader{reader: reader, bufferSize: bufferSize}, nil
 }
 
-// Read consumes the underlying reader fully and returns one [*Document]
-// wrapping the textual content.
 func (t *TextReader) Read(_ context.Context) ([]*Document, error) {
 	data, err := pkgio.ReadAll(t.reader, t.bufferSize)
 	if err != nil {

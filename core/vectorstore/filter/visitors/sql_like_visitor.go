@@ -24,23 +24,15 @@ type SQLLikeVisitor struct {
 	buffer strings.Builder
 }
 
-// NewSQLLikeVisitor returns an empty [SQLLikeVisitor] ready to walk an
-// AST.
 func NewSQLLikeVisitor() *SQLLikeVisitor { return &SQLLikeVisitor{} }
 
-// SQL returns the rendered output. Call it after [SQLLikeVisitor.Visit]
-// finishes the traversal.
 func (s *SQLLikeVisitor) SQL() string { return s.buffer.String() }
 
-// Visit walks the whole tree rooted at expr and returns the first
-// error encountered, or nil.
 func (s *SQLLikeVisitor) Visit(expr ast.Expr) error {
 	s.visit(expr)
 	return s.err
 }
 
-// visit is the internal dispatch used recursively by handlers. Halts on
-// the first error and treats nil expressions as a programmer mistake.
 func (s *SQLLikeVisitor) visit(expr ast.Expr) {
 	if s.err != nil {
 		return
@@ -66,8 +58,6 @@ func (s *SQLLikeVisitor) visit(expr ast.Expr) {
 	}
 }
 
-// visitUnaryExpr renders "<op> (<operand>)" — the operand is always
-// parenthesized so precedence ambiguities never sneak in.
 func (s *SQLLikeVisitor) visitUnaryExpr(expr *ast.UnaryExpr) {
 	s.buffer.WriteString(expr.Op.Literal)
 	s.buffer.WriteString(" (")
@@ -75,15 +65,10 @@ func (s *SQLLikeVisitor) visitUnaryExpr(expr *ast.UnaryExpr) {
 	s.buffer.WriteString(")")
 }
 
-// precedenced is the local view of any node that exposes a numeric
-// precedence — both [ast.UnaryExpr] and [ast.BinaryExpr] satisfy it.
-// Used by [needsParens] to decide whether to wrap a child operand.
 type precedenced interface {
 	Precedence() int
 }
 
-// needsParens reports whether child binds looser than parent and
-// therefore requires parentheses when rendered next to it.
 func needsParens(parent precedenced, child ast.Expr) bool {
 	c, ok := child.(precedenced)
 	if !ok {
@@ -92,9 +77,6 @@ func needsParens(parent precedenced, child ast.Expr) bool {
 	return c.Precedence() < parent.Precedence()
 }
 
-// visitBinaryExpr renders "left op right", parenthesizing each operand
-// only when its precedence is lower than the parent — produces clean
-// output without redundant parens.
 func (s *SQLLikeVisitor) visitBinaryExpr(expr *ast.BinaryExpr) {
 	leftWraps := needsParens(expr, expr.Left)
 	if leftWraps {
@@ -119,7 +101,6 @@ func (s *SQLLikeVisitor) visitBinaryExpr(expr *ast.BinaryExpr) {
 	}
 }
 
-// visitIndexExpr renders "left[index]".
 func (s *SQLLikeVisitor) visitIndexExpr(expr *ast.IndexExpr) {
 	s.visit(expr.Left)
 	s.buffer.WriteString(expr.LBrack.Literal)
@@ -127,7 +108,6 @@ func (s *SQLLikeVisitor) visitIndexExpr(expr *ast.IndexExpr) {
 	s.buffer.WriteString(expr.RBrack.Literal)
 }
 
-// visitIdent renders an identifier verbatim.
 func (s *SQLLikeVisitor) visitIdent(expr *ast.Ident) {
 	s.buffer.WriteString(expr.Value)
 }
@@ -145,8 +125,6 @@ var stringEscaper = strings.NewReplacer(
 	"\r", `\r`,
 )
 
-// visitLiteral renders a literal — strings get single quotes with
-// their content re-escaped, other kinds are emitted as-is.
 func (s *SQLLikeVisitor) visitLiteral(expr *ast.Literal) {
 	if expr.IsString() {
 		s.buffer.WriteString("'")
@@ -157,8 +135,6 @@ func (s *SQLLikeVisitor) visitLiteral(expr *ast.Literal) {
 	s.buffer.WriteString(expr.Value)
 }
 
-// visitListLiteral renders "(v1,v2,v3)" — comma-separated, no spaces
-// (matches the most-restrictive SQL flavor that still parses).
 func (s *SQLLikeVisitor) visitListLiteral(expr *ast.ListLiteral) {
 	s.buffer.WriteString(expr.Lparen.Literal)
 	for i, value := range expr.Values {

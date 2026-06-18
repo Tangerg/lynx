@@ -67,7 +67,6 @@ type TextPart struct {
 	Text string `json:"text"`
 }
 
-// Kind reports [PartKindText].
 func (p *TextPart) Kind() PartKind { return PartKindText }
 
 func (p *TextPart) appendDelta(d OutputPart) bool {
@@ -94,7 +93,6 @@ type ReasoningPart struct {
 	Signature []byte `json:"signature,omitempty"`
 }
 
-// Kind reports [PartKindReasoning].
 func (p *ReasoningPart) Kind() PartKind { return PartKindReasoning }
 
 func (p *ReasoningPart) appendDelta(d OutputPart) bool {
@@ -132,7 +130,6 @@ type ToolCallPart struct {
 	Arguments string `json:"arguments,omitempty"` // JSON-encoded; grows with deltas
 }
 
-// Kind reports [PartKindToolCall].
 func (p *ToolCallPart) Kind() PartKind { return PartKindToolCall }
 
 func (p *ToolCallPart) appendDelta(d OutputPart) bool {

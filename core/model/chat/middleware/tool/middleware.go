@@ -140,15 +140,12 @@ func (s loopState) nudged() loopState {
 	return s
 }
 
-// wrapCallHandler is the call-side adapter — turns the middleware body
-// into a [chat.CallHandler] decorator.
 func (m *middleware) wrapCallHandler(next chat.CallHandler) chat.CallHandler {
 	return chat.CallHandlerFunc(func(ctx context.Context, req *chat.Request) (*chat.Response, error) {
 		return m.executeCall(ctx, req, next)
 	})
 }
 
-// wrapStreamHandler is the stream-side adapter.
 func (m *middleware) wrapStreamHandler(next chat.StreamHandler) chat.StreamHandler {
 	return chat.StreamHandlerFunc(func(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
 		return m.executeStream(ctx, req, next)
@@ -398,8 +395,6 @@ func newToolMessageResponse(tm *chat.ToolMessage) (*chat.Response, error) {
 	}
 	return chat.NewResponse(result, &chat.ResponseMetadata{})
 }
-
-// ─── ParkStore helpers ──────────────────────────────────────────
 
 // restorePark atomically consumes any parked round for the request's
 // conversation and injects its tail so [parseResumePoint] detects it and

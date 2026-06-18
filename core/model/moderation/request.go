@@ -14,7 +14,7 @@ type Options struct {
 	Extra map[string]any `json:"extra,omitzero"`
 }
 
-// NewOptions builds Options for the given model id. Returns an error
+// Returns an error
 // when model is empty.
 func NewOptions(model string) (*Options, error) {
 	if model == "" {
@@ -29,8 +29,6 @@ func (o *Options) ensureExtra() {
 	}
 }
 
-// Get returns the Extra value for key plus an existence flag. See
-// [chat.Options.Get] for the concurrency contract.
 func (o *Options) Get(key string) (any, bool) {
 	if o == nil || o.Extra == nil {
 		return nil, false
@@ -39,7 +37,6 @@ func (o *Options) Get(key string) (any, bool) {
 	return value, exists
 }
 
-// Set stores value under key in Extra.
 func (o *Options) Set(key string, value any) {
 	o.ensureExtra()
 	o.Extra[key] = value
@@ -87,14 +84,13 @@ type Request struct {
 	// Texts is the input list. Each entry is moderated independently.
 	Texts []string `json:"texts,omitzero"`
 
-	// Options carries model-specific parameters.
 	Options *Options `json:"options,omitempty"`
 
 	// Params is per-request metadata middlewares can read.
 	Params map[string]any `json:"params,omitzero"`
 }
 
-// NewRequest builds a Request from texts. Returns an error when texts
+// Returns an error when texts
 // is empty.
 func NewRequest(texts []string) (*Request, error) {
 	if len(texts) == 0 {
@@ -109,8 +105,6 @@ func (r *Request) ensureParams() {
 	}
 }
 
-// Get returns the Params value for key plus an existence flag. See
-// [chat.Options.Get] for the concurrency contract.
 func (r *Request) Get(key string) (any, bool) {
 	if r == nil || r.Params == nil {
 		return nil, false
@@ -119,7 +113,6 @@ func (r *Request) Get(key string) (any, bool) {
 	return value, exists
 }
 
-// Set stores value under key in Params.
 func (r *Request) Set(key string, value any) {
 	r.ensureParams()
 	r.Params[key] = value

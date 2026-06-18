@@ -28,6 +28,5 @@ type Model interface {
 // ModelMetadata holds identity metadata for a [Model] instance. Provider
 // names are conventionally lowercase ("openai", "stability", ...).
 type ModelMetadata struct {
-	// Provider names the image-generation LLM vendor.
 	Provider string `json:"provider"`
 }

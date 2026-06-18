@@ -7,6 +7,5 @@ import "context"
 // ...) and return a [*Response] with the verdict plus any feedback the
 // caller should surface.
 type Evaluator interface {
-	// Evaluate scores the response inside req.
 	Evaluate(ctx context.Context, req *Request) (*Response, error)
 }

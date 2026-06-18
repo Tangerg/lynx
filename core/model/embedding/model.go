@@ -38,6 +38,5 @@ type Model interface {
 // ModelMetadata holds identity metadata for a [Model] instance. Provider
 // names are conventionally lowercase ("openai", "cohere", ...).
 type ModelMetadata struct {
-	// Provider names the embedding LLM vendor.
 	Provider string `json:"provider"`
 }

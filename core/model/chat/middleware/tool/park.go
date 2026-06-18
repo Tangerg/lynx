@@ -26,7 +26,6 @@ type ParkConsumer interface {
 	Consume(ctx context.Context, conversationID string) (*ParkState, error)
 }
 
-// ParkWriter persists a parked round.
 type ParkWriter interface {
 	Write(ctx context.Context, conversationID string, state *ParkState) error
 }

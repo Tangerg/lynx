@@ -23,7 +23,7 @@ type Options struct {
 	Extra map[string]any `json:"extra,omitzero"`
 }
 
-// NewOptions builds Options for the given model id. Returns an error
+// Returns an error
 // when model is empty.
 func NewOptions(model string) (*Options, error) {
 	if model == "" {
@@ -38,8 +38,6 @@ func (o *Options) ensureExtra() {
 	}
 }
 
-// Get returns the Extra value for key plus an existence flag. See
-// [chat.Options.Get] for the concurrency contract.
 func (o *Options) Get(key string) (any, bool) {
 	if o == nil || o.Extra == nil {
 		return nil, false
@@ -48,7 +46,6 @@ func (o *Options) Get(key string) (any, bool) {
 	return value, exists
 }
 
-// Set stores value under key in Extra.
 func (o *Options) Set(key string, value any) {
 	o.ensureExtra()
 	o.Extra[key] = value
@@ -109,14 +106,13 @@ type Request struct {
 	// Text is the prompt converted to speech.
 	Text string `json:"text"`
 
-	// Options carries model-specific parameters.
 	Options *Options `json:"options,omitempty"`
 
 	// Params is per-request metadata middlewares can read.
 	Params map[string]any `json:"params,omitzero"`
 }
 
-// NewRequest builds a Request from text. Returns an error when text
+// Returns an error when text
 // is empty.
 func NewRequest(text string) (*Request, error) {
 	if text == "" {

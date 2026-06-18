@@ -106,7 +106,6 @@ func (r *invocationResult) buildReturnResponse() (*chat.Response, error) {
 	return chat.NewResponse(result, r.response.Metadata)
 }
 
-// validate ensures the result has the inline tool message populated.
 func (r *invocationResult) validate() error {
 	if r.request == nil {
 		return errors.New("tool.invocationResult: original request is missing")
@@ -139,13 +138,10 @@ type invoker struct {
 	registry *registry
 }
 
-// newInvoker builds an invoker backed by a fresh registry.
-// capacityHint, if positive, preallocates the registry's backing map.
 func newInvoker(capacityHint ...int) *invoker {
 	return &invoker{registry: newRegistry(capacityHint...)}
 }
 
-// register adds tools to the loop's registry, keyed by definition name.
 func (i *invoker) register(tools ...chat.Tool) {
 	i.registry.register(tools...)
 }
@@ -540,7 +536,6 @@ func (i *invoker) invokeOne(ctx context.Context, t chat.Tool, call *chat.ToolCal
 	return t.Call(ctx, call.Arguments)
 }
 
-// invoke is the orchestrator: validate, run, attach context.
 func (i *invoker) invoke(ctx context.Context, req *chat.Request, resp *chat.Response) (*invocationResult, error) {
 	if !i.canInvokeToolCalls(resp) {
 		return nil, errors.New("tool.invoker.invoke: response has no valid tool calls")

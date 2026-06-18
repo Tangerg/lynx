@@ -88,8 +88,6 @@ func (pr *PromptRunner) WithoutActionTools() *PromptRunner {
 	return pr
 }
 
-// buildClientRequest assembles the underlying [*chat.ClientRequest]
-// the Generate / Stream / GenerateObject methods drive.
 func (pr *PromptRunner) buildClientRequest(ctx context.Context) (*chat.ClientRequest, error) {
 	if pr.pc == nil {
 		return nil, errors.New("agent.PromptRunner: ProcessContext is nil")
@@ -118,8 +116,6 @@ func (pr *PromptRunner) buildClientRequest(ctx context.Context) (*chat.ClientReq
 	return req, nil
 }
 
-// resolveTools combines explicit WithTools entries with the action's
-// tool groups (unless WithoutActionTools was called).
 func (pr *PromptRunner) resolveTools(ctx context.Context) ([]chat.Tool, error) {
 	if pr.skipActionTools {
 		return slices.Clone(pr.extraTools), nil

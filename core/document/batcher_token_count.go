@@ -15,33 +15,14 @@ const (
 	defaultBatcherReservePercentage  = 0.1
 )
 
-// TokenCountBatcherConfig configures a [TokenCountBatcher].
 type TokenCountBatcherConfig struct {
-	// TokenCountEstimator counts tokens for each formatted document.
-	// Required.
 	TokenCountEstimator tokenizer.Estimator
-
-	// MaxInputTokenCount is the per-batch token ceiling.
-	// Defaults to 8191 (matches OpenAI text-embedding-ada-002).
 	MaxInputTokenCount int
-
-	// ReservePercentage holds back this fraction of the budget for
-	// metadata / special tokens / estimation slop. Must be in [0, 1).
-	// Defaults to 0.1.
 	ReservePercentage float64
-
-	// Formatter renders each document before counting tokens.
-	// Required.
 	Formatter Formatter
-
-	// MetadataMode controls which metadata keys appear in the formatted
-	// rendering. Required; must be one of MetadataModeAll/Embed/
-	// Inference/None.
 	MetadataMode MetadataMode
 }
 
-// Validate returns an error when required fields are missing or
-// numerically out of range.
 func (c *TokenCountBatcherConfig) Validate() error {
 	if c.TokenCountEstimator == nil {
 		return errors.New("document.TokenCountBatcherConfig: TokenCountEstimator is required")
@@ -65,9 +46,6 @@ func (c *TokenCountBatcherConfig) Validate() error {
 	return nil
 }
 
-// ApplyDefaults fills zero fields. MaxInputTokenCount defaults to
-// [defaultBatcherMaxInputTokenCount]; ReservePercentage defaults to
-// [defaultBatcherReservePercentage].
 func (c *TokenCountBatcherConfig) ApplyDefaults() {
 	if c.MaxInputTokenCount == 0 {
 		c.MaxInputTokenCount = defaultBatcherMaxInputTokenCount
@@ -94,8 +72,6 @@ type TokenCountBatcher struct {
 	metadataMode        MetadataMode
 }
 
-// NewTokenCountBatcher builds a [TokenCountBatcher]. The effective
-// per-batch budget is MaxInputTokenCount * (1 - ReservePercentage).
 func NewTokenCountBatcher(config TokenCountBatcherConfig) (*TokenCountBatcher, error) {
 	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {
@@ -111,7 +87,6 @@ func NewTokenCountBatcher(config TokenCountBatcherConfig) (*TokenCountBatcher, e
 	}, nil
 }
 
-// Batch carves docs into batches that fit the configured token budget.
 func (b *TokenCountBatcher) Batch(ctx context.Context, docs []*Document) ([][]*Document, error) {
 	type sized struct {
 		document *Document

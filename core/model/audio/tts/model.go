@@ -29,6 +29,5 @@ type Model interface {
 
 // ModelMetadata holds identity metadata for a [Model] instance.
 type ModelMetadata struct {
-	// Provider names the TTS LLM vendor (lowercase by convention).
 	Provider string `json:"provider"`
 }

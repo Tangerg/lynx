@@ -19,43 +19,18 @@ const (
 	defaultTokenMaxChunkCount  = 10_000
 )
 
-// TokenSplitterConfig configures a [TokenSplitter]. The Tokenizer is
-// required; the rest fall back to sensible defaults.
 type TokenSplitterConfig struct {
-	// Tokenizer encodes/decodes text. Use the same vocabulary as the
-	// embedding model that will consume the chunks. Required.
 	Tokenizer tokenizer.Tokenizer
 
-	// ChunkSize targets a max tokens-per-chunk. Defaults to 800.
 	ChunkSize int
-
-	// MinChunkSize is the minimum size in characters at which the
-	// splitter will attempt to break at a sentence boundary.
-	// Defaults to 350.
 	MinChunkSize int
-
-	// MinEmbedLength filters out chunks shorter than this many
-	// characters. Defaults to 5.
 	MinEmbedLength int
-
-	// MaxChunkCount caps how many chunks one document may produce —
-	// guard against pathological inputs. Defaults to 10000.
 	MaxChunkCount int
-
-	// KeepSeparator preserves newlines instead of collapsing them to
-	// spaces. Defaults to false (cleaner one-line chunks).
 	KeepSeparator bool
-
-	// CopyFormatter copies the source document's [Formatter] to each
-	// chunk. Defaults to false.
 	CopyFormatter bool
-
-	// IDGenerator, when set, assigns an id to every emitted chunk.
-	// nil leaves chunk IDs empty. See [SplitterConfig.IDGenerator].
 	IDGenerator id.Generator
 }
 
-// Validate returns an error when required fields are missing.
 func (c *TokenSplitterConfig) Validate() error {
 	if c.Tokenizer == nil {
 		return errors.New("document.TokenSplitterConfig: Tokenizer is required")
@@ -63,8 +38,6 @@ func (c *TokenSplitterConfig) Validate() error {
 	return nil
 }
 
-// ApplyDefaults fills zero or non-positive fields with package
-// defaults.
 func (c *TokenSplitterConfig) ApplyDefaults() {
 	if c.ChunkSize <= 0 {
 		c.ChunkSize = defaultTokenChunkSize
@@ -97,8 +70,6 @@ type TokenSplitter struct {
 	splitter       *Splitter
 }
 
-// NewTokenSplitter builds a [TokenSplitter]. Returns an error when
-// config is nil or invalid.
 func NewTokenSplitter(config TokenSplitterConfig) (*TokenSplitter, error) {
 	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {
@@ -122,7 +93,6 @@ func NewTokenSplitter(config TokenSplitterConfig) (*TokenSplitter, error) {
 	return ts, nil
 }
 
-// splitByTokens implements the algorithm documented on [TokenSplitter].
 func (t *TokenSplitter) splitByTokens(ctx context.Context, text string) ([]string, error) {
 	if strings.TrimSpace(text) == "" {
 		return []string{}, nil
@@ -153,7 +123,6 @@ func (t *TokenSplitter) splitByTokens(ctx context.Context, text string) ([]strin
 			continue
 		}
 
-		// Try to end at the last sentence boundary inside the window.
 		lastPunct := lastSentenceEnd(windowText)
 		if lastPunct != -1 && lastPunct > t.minChunkSize {
 			windowText = windowText[:lastPunct+1]
@@ -164,8 +133,6 @@ func (t *TokenSplitter) splitByTokens(ctx context.Context, text string) ([]strin
 			chunks = append(chunks, final)
 		}
 
-		// Re-encode the (possibly trimmed) chunk to know how many tokens
-		// to consume.
 		consumedTokens, err := t.tokenizer.Encode(ctx, windowText)
 		if err != nil {
 			return nil, err
@@ -189,9 +156,6 @@ func (t *TokenSplitter) splitByTokens(ctx context.Context, text string) ([]strin
 	return chunks, nil
 }
 
-// cleanChunk trims surrounding whitespace and, unless separators are
-// kept, collapses newlines to spaces. Both the windowed chunks and the
-// trailing remainder run through it so they normalize identically.
 func (t *TokenSplitter) cleanChunk(s string) string {
 	if !t.keepSeparator {
 		s = strings.ReplaceAll(s, "\n", " ")
@@ -199,8 +163,6 @@ func (t *TokenSplitter) cleanChunk(s string) string {
 	return strings.TrimSpace(s)
 }
 
-// lastSentenceEnd returns the highest byte index of any of ., ?, !, \n
-// in s, or -1 if none are present.
 func lastSentenceEnd(s string) int {
 	return max(
 		strings.LastIndex(s, "."),
@@ -210,7 +172,6 @@ func lastSentenceEnd(s string) int {
 	)
 }
 
-// Transform delegates to the wrapped [Splitter].
 func (t *TokenSplitter) Transform(ctx context.Context, docs []*Document) ([]*Document, error) {
 	return t.splitter.Transform(ctx, docs)
 }

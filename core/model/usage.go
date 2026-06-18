@@ -55,20 +55,14 @@ func (u *Usage) TotalTokens() int64 {
 	return u.PromptTokens + u.CompletionTokens
 }
 
-// HasReasoningTokens reports whether the provider surfaced a chain-of-
-// thought breakdown for this request.
 func (u *Usage) HasReasoningTokens() bool {
 	return u != nil && u.ReasoningTokens != nil
 }
 
-// HasCacheReadInputTokens reports whether the provider surfaced a
-// prompt-cache hit count for this request.
 func (u *Usage) HasCacheReadInputTokens() bool {
 	return u != nil && u.CacheReadInputTokens != nil
 }
 
-// HasCacheWriteInputTokens reports whether the provider surfaced a
-// prompt-cache write count for this request.
 func (u *Usage) HasCacheWriteInputTokens() bool {
 	return u != nil && u.CacheWriteInputTokens != nil
 }
@@ -78,21 +72,10 @@ func (u *Usage) HasCacheWriteInputTokens() bool {
 // best-effort: providers vary in which they populate, so callers should
 // treat zero values as "unknown" rather than "exhausted".
 type RateLimit struct {
-	// RequestsLimit is the maximum requests allowed in the current window.
-	RequestsLimit int64 `json:"requests_limit"`
-
-	// RequestsRemaining is the request count still available in the window.
-	RequestsRemaining int64 `json:"requests_remaining"`
-
-	// RequestsReset is the time until the request quota resets.
-	RequestsReset time.Duration `json:"requests_reset"`
-
-	// TokensLimit is the maximum tokens allowed in the current window.
-	TokensLimit int64 `json:"tokens_limit"`
-
-	// TokensRemaining is the token count still available in the window.
-	TokensRemaining int64 `json:"tokens_remaining"`
-
-	// TokensReset is the time until the token quota resets.
-	TokensReset time.Duration `json:"tokens_reset"`
+	RequestsLimit     int64         `json:"requests_limit"`
+	RequestsRemaining int64         `json:"requests_remaining"`
+	RequestsReset     time.Duration `json:"requests_reset"`
+	TokensLimit       int64         `json:"tokens_limit"`
+	TokensRemaining   int64         `json:"tokens_remaining"`
+	TokensReset       time.Duration `json:"tokens_reset"`
 }

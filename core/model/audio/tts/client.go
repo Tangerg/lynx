@@ -9,9 +9,6 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 )
 
-// Type aliases threading TTS's *Request / *Response into the generic
-// [model] handler/middleware machinery. Both call and stream sides are
-// exposed; concrete providers may implement either or both.
 type (
 	CallHandler       = model.CallHandler[*Request, *Response]
 	StreamHandler     = model.StreamHandler[*Request, *Response]
@@ -22,8 +19,6 @@ type (
 	MiddlewareManager = model.MiddlewareManager[*Request, *Response]
 )
 
-// NewMiddlewareManager returns an empty [MiddlewareManager] keyed to
-// TTS's *Request / *Response pair.
 func NewMiddlewareManager() *MiddlewareManager {
 	return model.NewMiddlewareManager[*Request, *Response]()
 }
@@ -39,8 +34,7 @@ type ClientRequest struct {
 	params            map[string]any
 }
 
-// NewClientRequest builds a [ClientRequest] for model. Returns an error
-// when model is nil.
+// Returns an error when model is nil.
 func NewClientRequest(model Model) (*ClientRequest, error) {
 	if model == nil {
 		return nil, errors.New("tts.NewClientRequest: model must not be nil")
@@ -58,7 +52,7 @@ func (r *ClientRequest) WithMiddlewares(middlewares ...any) *ClientRequest {
 	return r
 }
 
-// WithOptions sets the per-request [Options]. nil is ignored.
+// nil is ignored.
 func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 	if options != nil {
 		r.options = options
@@ -66,7 +60,7 @@ func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 	return r
 }
 
-// WithText sets the prompt text. Empty input is ignored.
+// Empty input is ignored.
 func (r *ClientRequest) WithText(text string) *ClientRequest {
 	if text != "" {
 		r.text = text
@@ -74,7 +68,7 @@ func (r *ClientRequest) WithText(text string) *ClientRequest {
 	return r
 }
 
-// WithParams replaces the side-channel params map. Empty input is
+// Empty input is
 // ignored. The map is cloned so caller mutations don't leak.
 func (r *ClientRequest) WithParams(params map[string]any) *ClientRequest {
 	if len(params) > 0 {
@@ -83,8 +77,6 @@ func (r *ClientRequest) WithParams(params map[string]any) *ClientRequest {
 	return r
 }
 
-// MiddlewareManager returns the active manager, lazily allocating one
-// if none has been set yet.
 func (r *ClientRequest) MiddlewareManager() *MiddlewareManager {
 	if r.middlewareManager == nil {
 		r.middlewareManager = NewMiddlewareManager()
@@ -92,7 +84,6 @@ func (r *ClientRequest) MiddlewareManager() *MiddlewareManager {
 	return r.middlewareManager
 }
 
-// Clone returns a deep copy.
 func (r *ClientRequest) Clone() *ClientRequest {
 	return &ClientRequest{
 		model:             r.model,
@@ -103,9 +94,6 @@ func (r *ClientRequest) Clone() *ClientRequest {
 	}
 }
 
-// resolveOptions returns the effective [Options] for this call —
-// request-level options when supplied, otherwise a clone of the model's
-// defaults.
 func (r *ClientRequest) resolveOptions() *Options {
 	if r.options != nil {
 		return r.options.Clone()
@@ -114,8 +102,6 @@ func (r *ClientRequest) resolveOptions() *Options {
 	return defaults.Clone()
 }
 
-// buildRequest assembles the [*Request] sent through the middleware
-// chain to the underlying model.
 func (r *ClientRequest) buildRequest() (*Request, error) {
 	req, err := NewRequest(r.text)
 	if err != nil {
@@ -126,8 +112,6 @@ func (r *ClientRequest) buildRequest() (*Request, error) {
 	return req, nil
 }
 
-// Call returns a [ClientCaller] for synchronous generation.
-//
 // Example:
 //
 //	audio, _, err := client.Synthesize().WithText("hi").Call().Speech(ctx)
@@ -135,8 +119,6 @@ func (r *ClientRequest) Call() *ClientCaller {
 	return &ClientCaller{request: r}
 }
 
-// Stream returns a [ClientStreamer] for incremental generation.
-//
 // Example:
 //
 //	for chunk, err := range client.Synthesize().WithText("hi").Stream().Speech(ctx) {
@@ -147,13 +129,10 @@ func (r *ClientRequest) Stream() *ClientStreamer {
 	return &ClientStreamer{request: r}
 }
 
-// ClientCaller drives the synchronous TTS path.
 type ClientCaller struct {
 	request *ClientRequest
 }
 
-// Response runs the call through the middleware chain and returns the
-// raw [*Response].
 func (c *ClientCaller) Response(ctx context.Context) (*Response, error) {
 	req, err := c.request.buildRequest()
 	if err != nil {
@@ -165,8 +144,6 @@ func (c *ClientCaller) Response(ctx context.Context) (*Response, error) {
 		Call(ctx, req)
 }
 
-// Speech runs the call and returns the first audio chunk alongside the
-// full response.
 func (c *ClientCaller) Speech(ctx context.Context) ([]byte, *Response, error) {
 	resp, err := c.Response(ctx)
 	if err != nil {
@@ -175,12 +152,10 @@ func (c *ClientCaller) Speech(ctx context.Context) ([]byte, *Response, error) {
 	return resp.Result.Speech, resp, nil
 }
 
-// ClientStreamer drives the streaming TTS path.
 type ClientStreamer struct {
 	request *ClientRequest
 }
 
-// stream feeds the request through the middleware chain into the model.
 func (s *ClientStreamer) stream(ctx context.Context, req *Request) iter.Seq2[*Response, error] {
 	return s.request.
 		MiddlewareManager().
@@ -188,7 +163,6 @@ func (s *ClientStreamer) stream(ctx context.Context, req *Request) iter.Seq2[*Re
 		Stream(ctx, req)
 }
 
-// Response yields full [*Response] chunks as they arrive.
 func (s *ClientStreamer) Response(ctx context.Context) iter.Seq2[*Response, error] {
 	return func(yield func(*Response, error) bool) {
 		req, err := s.request.buildRequest()
@@ -209,8 +183,7 @@ func (s *ClientStreamer) Response(ctx context.Context) iter.Seq2[*Response, erro
 	}
 }
 
-// Speech yields just the audio bytes — convenient when the caller wants
-// to pipe directly to a player or file.
+// Convenient when the caller wants to pipe directly to a player or file.
 func (s *ClientStreamer) Speech(ctx context.Context) iter.Seq2[[]byte, error] {
 	return func(yield func([]byte, error) bool) {
 		for resp, err := range s.Response(ctx) {
@@ -231,8 +204,6 @@ type Client struct {
 	defaultRequest *ClientRequest
 }
 
-// NewClient is a one-step constructor: build a default [ClientRequest]
-// for model, then wrap it as a [Client]. The common path.
 func NewClient(model Model) (*Client, error) {
 	req, err := NewClientRequest(model)
 	if err != nil {
@@ -241,8 +212,7 @@ func NewClient(model Model) (*Client, error) {
 	return NewClientFromRequest(req)
 }
 
-// NewClientFromRequest wraps an existing [ClientRequest] as a sticky
-// default — use this when the request already carries default
+// Use this when the request already carries default
 // middlewares / options the [Client] should keep applying.
 func NewClientFromRequest(request *ClientRequest) (*Client, error) {
 	if request == nil {
@@ -251,13 +221,10 @@ func NewClientFromRequest(request *ClientRequest) (*Client, error) {
 	return &Client{defaultRequest: request}, nil
 }
 
-// Synthesize returns a fresh clone of the default request.
 func (c *Client) Synthesize() *ClientRequest {
 	return c.defaultRequest.Clone()
 }
 
-// SynthesizeWithRequest seeds a clone with the text, options, and
-// params from req.
 func (c *Client) SynthesizeWithRequest(req *Request) *ClientRequest {
 	return c.Synthesize().
 		WithText(req.Text).
@@ -265,7 +232,6 @@ func (c *Client) SynthesizeWithRequest(req *Request) *ClientRequest {
 		WithParams(req.Params)
 }
 
-// SynthesizeWithText is the most common shortcut.
 func (c *Client) SynthesizeWithText(text string) *ClientRequest {
 	return c.Synthesize().WithText(text)
 }

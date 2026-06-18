@@ -88,7 +88,7 @@ type Categories struct {
 	IllicitViolent Verdict `json:"illicit_violent"`
 }
 
-// Flagged reports whether any category fired. Useful when callers only
+// Useful when callers only
 // need a yes/no decision without inspecting individual scores.
 func (c *Categories) Flagged() bool {
 	if c == nil {
@@ -126,8 +126,6 @@ func (m *ResultMetadata) ensureExtra() {
 	}
 }
 
-// Get returns the Extra value for key plus an existence flag. See
-// [chat.Options.Get] for the concurrency contract.
 func (m *ResultMetadata) Get(key string) (any, bool) {
 	if m == nil || m.Extra == nil {
 		return nil, false
@@ -136,7 +134,6 @@ func (m *ResultMetadata) Get(key string) (any, bool) {
 	return value, exists
 }
 
-// Set stores value under key in Extra.
 func (m *ResultMetadata) Set(key string, value any) {
 	m.ensureExtra()
 	m.Extra[key] = value
@@ -151,7 +148,7 @@ type Result struct {
 	Metadata *ResultMetadata `json:"metadata,omitempty"`
 }
 
-// NewResult builds a [Result]. Returns an error when categories or
+// Returns an error when categories or
 // metadata is nil.
 func NewResult(categories *Categories, metadata *ResultMetadata) (*Result, error) {
 	if categories == nil {
@@ -184,8 +181,6 @@ func (m *ResponseMetadata) ensureExtra() {
 	}
 }
 
-// Get returns the Extra value for key plus an existence flag. See
-// [chat.Options.Get] for the concurrency contract.
 func (m *ResponseMetadata) Get(key string) (any, bool) {
 	if m == nil || m.Extra == nil {
 		return nil, false
@@ -194,7 +189,6 @@ func (m *ResponseMetadata) Get(key string) (any, bool) {
 	return value, exists
 }
 
-// Set stores value under key in Extra.
 func (m *ResponseMetadata) Set(key string, value any) {
 	m.ensureExtra()
 	m.Extra[key] = value
@@ -210,8 +204,7 @@ type Response struct {
 	Metadata *ResponseMetadata `json:"metadata,omitempty"`
 }
 
-// NewResponse builds a [Response] from at least one result and a
-// non-nil metadata.
+// from at least one result and a non-nil metadata.
 func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error) {
 	if len(results) == 0 {
 		return nil, errors.New("moderation.NewResponse: at least one Result is required")
@@ -222,7 +215,6 @@ func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, erro
 	return &Response{Results: results, Metadata: metadata}, nil
 }
 
-// Result returns the first verdict — the common single-input shortcut.
 // Returns nil when Results is empty.
 func (r *Response) Result() *Result {
 	if r == nil || len(r.Results) == 0 {

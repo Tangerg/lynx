@@ -28,16 +28,10 @@ type Tiktoken struct {
 	encoding *tiktoken.Tiktoken
 }
 
-// NewDefaultTiktoken returns a [Tiktoken] preset to the CL100K_BASE
-// encoding (gpt-3.5-turbo and gpt-4 family). Returns an error if the
-// encoding cannot be loaded — that typically indicates a corrupt
-// build, not a runtime fault.
 func NewDefaultTiktoken() (*Tiktoken, error) {
 	return NewTiktoken(tiktoken.MODEL_CL100K_BASE)
 }
 
-// NewTiktoken loads encoder encodingName via tiktoken-go. Returns an
-// error when the encoding name is unknown.
 func NewTiktoken(encodingName string) (*Tiktoken, error) {
 	encoding, err := tiktoken.GetEncoding(encodingName)
 	if err != nil {
@@ -46,13 +40,10 @@ func NewTiktoken(encodingName string) (*Tiktoken, error) {
 	return &Tiktoken{encoding: encoding}, nil
 }
 
-// EstimateText counts tokens for a plain text string. Faster than
-// [Tiktoken.EstimateMedia] for the common no-MIME, no-JSON case.
 func (t *Tiktoken) EstimateText(_ context.Context, text string) (int, error) {
 	return len(t.encoding.Encode(text, nil, nil)), nil
 }
 
-// EstimateMedia sums per-item token estimates. Empty input returns 0.
 func (t *Tiktoken) EstimateMedia(ctx context.Context, items ...*media.Media) (int, error) {
 	if len(items) == 0 {
 		return 0, nil
@@ -106,12 +97,10 @@ func payloadAsText(data any) (string, bool) {
 	}
 }
 
-// Encode tokenizes text into tiktoken IDs.
 func (t *Tiktoken) Encode(_ context.Context, text string) ([]int, error) {
 	return t.encoding.Encode(text, nil, nil), nil
 }
 
-// Decode reconstructs text from tiktoken IDs.
 func (t *Tiktoken) Decode(_ context.Context, tokens []int) (string, error) {
 	return t.encoding.Decode(tokens), nil
 }

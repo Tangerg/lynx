@@ -59,16 +59,12 @@ func NewOptions(model string) (*Options, error) {
 	}, nil
 }
 
-// ensureExtra lazily allocates Extra. Used by [Options.Set] only —
-// reads must NOT mutate state since Get can be invoked concurrently.
 func (o *Options) ensureExtra() {
 	if o.Extra == nil {
 		o.Extra = make(map[string]any)
 	}
 }
 
-// Get returns the Extra value for key plus an existence flag. Safe to
-// call concurrently with other Get calls; concurrent with Set is not.
 func (o *Options) Get(key string) (any, bool) {
 	if o == nil || o.Extra == nil {
 		return nil, false
@@ -77,7 +73,6 @@ func (o *Options) Get(key string) (any, bool) {
 	return value, exists
 }
 
-// Set stores value under key in Extra, allocating the map if needed.
 func (o *Options) Set(key string, value any) {
 	o.ensureExtra()
 	o.Extra[key] = value

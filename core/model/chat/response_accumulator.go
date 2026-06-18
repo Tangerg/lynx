@@ -26,8 +26,6 @@ type ResponseAccumulator struct {
 	parts partAccumulator
 }
 
-// NewResponseAccumulator returns an empty accumulator ready to receive
-// chunks via [ResponseAccumulator.AddChunk].
 func NewResponseAccumulator() *ResponseAccumulator {
 	return &ResponseAccumulator{}
 }
@@ -60,8 +58,6 @@ func (r *ResponseAccumulator) accumulateMetadata(other *ResponseMetadata) {
 	maps.Copy(r.Metadata.Extra, other.Extra)
 }
 
-// accumulateResult merges one chunk's Result into the accumulated state —
-// assistant message, metadata, and tool message in turn.
 func (r *ResponseAccumulator) accumulateResult(other *Result) {
 	if other == nil {
 		return
@@ -128,7 +124,6 @@ func (a *partAccumulator) add(delta OutputPart) {
 	a.parts = append(a.parts, delta.clone())
 }
 
-// addAll is the batch form of [partAccumulator.add].
 func (a *partAccumulator) addAll(deltas []OutputPart) {
 	for _, d := range deltas {
 		a.add(d)

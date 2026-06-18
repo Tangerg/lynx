@@ -12,21 +12,10 @@ import (
 	"github.com/Tangerg/lynx/core/vectorstore/filter/visitors"
 )
 
-// Parse turns a textual filter expression into an [ast.Expr]. The
-// returned tree is syntactically valid but not yet semantically
-// checked — call [Analyze] (or [ParseAndAnalyze]) before passing it to
-// a vector store.
-//
-// Example:
-//
-//	expr, err := filter.Parse(`category = "tech" AND year >= 2020`)
 func Parse(input string) (ast.Expr, error) {
 	return parser.Parse(input)
 }
 
-// Analyze performs semantic checks on a parsed expression — type
-// compatibility, valid operator/operand pairings, etc. Returns the
-// first violation found.
 func Analyze(expr ast.Expr) error {
 	return visitors.NewAnalyzer().Visit(expr)
 }

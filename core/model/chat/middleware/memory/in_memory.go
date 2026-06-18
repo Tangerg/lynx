@@ -22,7 +22,6 @@ type InMemoryStore struct {
 	store map[string][]chat.Message
 }
 
-// NewInMemoryStore returns an empty [InMemoryStore].
 func NewInMemoryStore() *InMemoryStore {
 	return &InMemoryStore{
 		store: make(map[string][]chat.Message),

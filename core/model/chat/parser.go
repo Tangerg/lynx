@@ -57,8 +57,7 @@ var _ StructuredParser[[]string] = (*ListParser)(nil)
 //	items, _ := parser.Parse(text) // ["apple","banana","cherry","date","elderberry"]
 type ListParser struct{}
 
-// NewListParser returns a [ListParser]. The struct is stateless; sharing
-// one across goroutines is fine.
+// The struct is stateless; sharing one across goroutines is fine.
 func NewListParser() *ListParser { return &ListParser{} }
 
 // Instructions returns prompt text that asks the model for raw
@@ -96,7 +95,7 @@ var _ StructuredParser[map[string]any] = (*MapParser)(nil)
 // the schema is dynamic or when you only care about a few fields.
 type MapParser struct{}
 
-// NewMapParser returns a [MapParser]. The struct is stateless.
+// The struct is stateless.
 func NewMapParser() *MapParser { return &MapParser{} }
 
 // Instructions returns prompt text that asks the model for a bare JSON
@@ -189,7 +188,6 @@ Raw JSON object matching the schema above.`
 	return fmt.Sprintf(tmpl, schema)
 }
 
-// Instructions returns the cached prompt fragment.
 func (j *JSONParser[T]) Instructions() string { return j.cachedInstructions }
 
 // Parse decodes raw output into T. Markdown fences are stripped first;
@@ -222,10 +220,8 @@ type AnyParser struct {
 	ParseFunction func(rawLLMOutput string) (any, error)
 }
 
-// Instructions returns FormatInstructions verbatim.
 func (a *AnyParser) Instructions() string { return a.FormatInstructions }
 
-// Parse runs ParseFunction; returns an error when it is nil.
 func (a *AnyParser) Parse(rawLLMOutput string) (any, error) {
 	if a.ParseFunction == nil {
 		return nil, errors.New("chat.AnyParser.Parse: ParseFunction is not initialized")
