@@ -1,0 +1,40 @@
+# Frontend CI — runs the same gate as `npm run check` locally
+# (typecheck + oxlint + prettier --check + vitest + knip). Keep this in
+# lockstep with the `check` script in `frontend/package.json`; if a new
+# step is added there, add it here too (or just keep relying on
+# `npm run check`).
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel superseded runs on the same ref (e.g. force-pushes to a PR).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: frontend check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      # `legacy-peer-deps=true` lives in frontend/.npmrc; npm picks it up
+      # automatically from the working directory.
+      - run: npm ci
+
+      - run: npm run check

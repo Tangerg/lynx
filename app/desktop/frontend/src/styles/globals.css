@@ -1,0 +1,446 @@
+/* Tailwind 4 entry + design-token bridge + global polish.
+ *
+ * This file used to be just the Tailwind entry; the small "merge into
+ * globals once we stop opening new CSS files" CLAUDE.md mandate finally
+ * cashed in — `tokens.css`, `reset.css`, `theme.css`, `chat.css` all
+ * folded in here. The remaining standalone files (`markdown.css`,
+ * `layout.css`, `overlays.css`, `tool.css`) carry rules that legitimately
+ * can't live in Tailwind utilities: rehype-emitted DOM, pseudo-element
+ * scrollbars, `@property` conic-gradient masks, `::highlight()` ranges.
+ *
+ * The @theme inline block aliases our `--color-bg / --color-text / …`
+ * tokens into Tailwind's utility names so theme plugins (which write
+ * to `:root.style` at runtime) propagate to every `bg-canvas` /
+ * `text-fg` callsite live.
+ */
+
+/* Fonts are self-hosted and bundled via main.tsx (@fontsource-variable/geist
+   + geist-mono) — no CDN @import here. See NATIVE_FEEL.md §A. */
+@import "tailwindcss";
+
+/* Scheme variants. `theme-light` / `theme-dark` are written to <html>
+   by uiStore.applyTheme. */
+@custom-variant dark (&:where(.theme-dark, .theme-dark *));
+@custom-variant light (&:where(.theme-light, .theme-light *));
+
+@theme inline {
+  /* Surface ladder */
+  --color-canvas: var(--color-bg);
+  --color-surface: var(--color-surface);
+  --color-surface-2: var(--color-surface-2);
+  --color-surface-3: var(--color-surface-3);
+
+  /* Ink ladder */
+  --color-fg: var(--color-text);
+  --color-fg-soft: var(--color-text-soft);
+  --color-fg-muted: var(--color-text-muted);
+  --color-fg-faint: var(--color-text-faint);
+  --color-on-accent: var(--color-text-on-accent);
+
+  /* Accent — only the base is exposed as a utility; -border / -press
+     stay raw CSS vars (consumed by CTA defaults via var()). */
+  --color-accent: var(--color-accent);
+
+  /* Semantic */
+  --color-negative: var(--color-negative);
+  --color-warning: var(--color-warning);
+  --color-info: var(--color-info);
+  --color-success: var(--color-success);
+
+  /* Borders — default hairline / emphasized stroke / deepest contrast. */
+  --color-line: var(--color-border);
+  --color-line-soft: var(--color-border-soft);
+  --color-divider: var(--color-divider);
+
+  /* Radius — md (8px) is the default button radius. */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 9999px;
+
+  /* Fonts */
+  --font-sans: "Geist Variable", "Geist", "Inter", system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, Menlo, monospace;
+
+  /* Animations — `animate-shimmer` powers Skeleton, `animate-pulse-dot`
+     the running indicator, `animate-rise-in` popover entry. */
+  --animate-shimmer: lyra-shimmer 1.4s linear infinite;
+  --animate-pulse-dot: lyra-pulse 1.6s ease-in-out infinite;
+  --animate-rise-in: lyra-rise-in 140ms cubic-bezier(0.3, 0, 0, 1);
+}
+
+@keyframes lyra-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+@keyframes lyra-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(0.9);
+  }
+}
+@keyframes lyra-rise-in {
+  from {
+    transform: scale(0.97) translateY(4px);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+/* =========================================================================
+ *  Design tokens — first-paint defaults. Theme plugins overwrite these
+ *  at runtime via :root.style. See DESIGN.md for the spec.
+ * ========================================================================= */
+:root {
+  /* Brand — single accent, see DESIGN.md §9 for the strict usage policy. */
+  --color-accent: #1ed760;
+  --color-accent-border: #1db954;
+  --color-accent-press: #169c46;
+
+  /* Surface ladder — canvas + surface are manual anchors; -2/-3/-4
+     derive via color-mix() so the direction flips automatically per
+     scheme (deeper = lighter on dark, deeper = darker on light).
+     Themes can pin surface-2/3/4 explicitly when their canonical
+     palette has a non-linear ladder. */
+  --color-bg: #010102; /* canvas — faint blue tint, NOT #000000 */
+  --color-surface: #181a1d;
+  --depth-step: 5%;
+  --color-surface-2: color-mix(
+    in oklab,
+    var(--color-text) calc(var(--depth-step) * 1),
+    var(--color-surface)
+  );
+  --color-surface-3: color-mix(
+    in oklab,
+    var(--color-text) calc(var(--depth-step) * 2),
+    var(--color-surface)
+  );
+  --color-surface-4: color-mix(
+    in oklab,
+    var(--color-text) calc(var(--depth-step) * 3),
+    var(--color-surface)
+  );
+
+  /* Ink — see DESIGN.md §2 for the role hierarchy. */
+  --color-text: #f7f8f8;
+  --color-text-bright: #ffffff;
+  --color-text-soft: #d0d6e0;
+  --color-text-muted: #8a8f98;
+  --color-text-faint: #62666d;
+  --color-text-on-accent: #000000;
+
+  /* Hairlines — literal hex (DESIGN.md §2: semi-transparent borders
+     shift across surface lifts and read as "approximate"). */
+  --color-border: #23252a;
+  --color-border-soft: #34343a;
+  --color-divider: #3e3e44;
+  --color-app-divider: #23252a;
+
+  /* Semantic — used sparingly per DESIGN.md §9. Dark-tuned per §2: these are
+     the lyra-dark first-paint defaults (the theme re-applies the same values at
+     runtime; lyra-light overrides to the saturated web values that read clean
+     on white). Desaturated + lifted so they don't vibrate on the near-black
+     canvas. */
+  --color-negative: #f85149;
+  --color-warning: #f0a936;
+  --color-info: #58a6ff;
+  --color-success: #3fb950;
+
+  /* Fonts — Geist (sans + mono) handles every role; CJK fallbacks
+     preserve readability for mixed-script text. */
+  --font-ui:
+    "Geist Variable", "Geist", "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
+    "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, "MS Gothic", sans-serif;
+  --font-mono:
+    "Geist Mono Variable", "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
+    Consolas, monospace;
+
+  /* Primary CTA — decoupled from --color-accent so themes can have
+     accent drive "live state" while CTA is something else (e.g. Vercel
+     Light's black-on-white). */
+  --color-cta: var(--color-accent);
+  --color-cta-hover: var(--color-accent-border);
+  --color-cta-text: var(--color-text-on-accent);
+
+  /* Type scale (DESIGN.md §3). The px comments are nominal — actual
+     value resolves against the root 16px (we DO NOT set <html>
+     font-size; see the html block below for why). */
+  --fs-display-xl: 2rem; /* 32px */
+  --fs-display-lg: 1.5rem; /* 24px */
+  --fs-display-md: 1.25rem; /* 20px */
+  --fs-display-sm: 1rem; /* 16px */
+  --fs-body-lg: 0.94rem; /* 15px */
+  --fs-body-md: 0.88rem; /* 14px */
+  --fs-body-sm: 0.81rem; /* 13px */
+  --fs-body-xs: 0.75rem; /* 12px */
+  --fs-caption: 0.72rem; /* 11.5px */
+
+  /* 600 is the display ceiling — hierarchy via size + weight contrast,
+     not heavier weights (DESIGN.md §3). */
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+
+  --tracking-display: -0.02em;
+  --tracking-display-tight: -0.03em;
+  --leading-tight: 1.1;
+  --leading-snug: 1.3;
+  --leading-body: 1.55;
+
+  /* Radius (DESIGN.md §6) — md (8px) is the default button radius.
+     All radii multiply through `--radius-scale` so the user can pick
+     a global shape preset (Sharp / Default / Soft) from Settings.
+     Themes can also override `--radius-scale` to ship their own
+     baseline (e.g. a maximalist theme might default to 1.4). */
+  --radius-scale: 1;
+  --radius-xs: calc(4px * var(--radius-scale));
+  --radius-sm: calc(6px * var(--radius-scale));
+  --radius-md: calc(8px * var(--radius-scale));
+  --radius-lg: calc(12px * var(--radius-scale));
+  --radius-xl: calc(16px * var(--radius-scale));
+  /* Pill / circle are conceptual ("fully round") — not scaled. */
+  --radius-pill: 9999px;
+  --radius-circle: 50%;
+
+  /* Motion — same curves as motion/react via lib/motion.ts. Duration
+     tokens multiply through `--motion-scale` so a user preference
+     (Settings → Motion) can globally slow / speed / silence the
+     CSS-controlled animations + the motion/react presets that read
+     the scale via lib/motion.ts. */
+  --motion-scale: 1;
+  --ease-out: cubic-bezier(0.3, 0, 0, 1);
+  --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
+  /* Emphasized decel — bigger, slower tail. Large surface moves only. */
+  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --dur-instant: calc(80ms * var(--motion-scale));
+  --dur-fast: calc(140ms * var(--motion-scale));
+  --dur-med: calc(220ms * var(--motion-scale));
+  --dur-slow: calc(360ms * var(--motion-scale));
+
+  --polish-fast: var(--dur-fast) var(--ease-out);
+  --polish-med: var(--dur-med) var(--ease-out);
+
+  /* Shadows (DESIGN.md §5). Dark mode collapses xs/sm/md/card/soft to
+     none; only the overlay layer (-lg / -dialog / -pop) gets a real
+     stacked drop. Light themes re-enable the full ladder via
+     defineThemePlugin's `shadows` section. */
+  --shadow-xs: none;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 1px 2px rgba(0, 0, 0, 0.4),
+    0 8px 16px -4px rgba(0, 0, 0, 0.5), 0 24px 32px -8px rgba(0, 0, 0, 0.6),
+    inset 0 0 0 1px var(--color-border);
+  --shadow-glow: 0 0 12px color-mix(in oklab, var(--color-accent) 50%, transparent);
+  --shadow-card: none;
+  --shadow-dialog: var(--shadow-lg);
+  --shadow-soft: none;
+  --shadow-pop: var(--shadow-lg);
+
+  /* Input focus ring — accent halo + soft-border inset, used by
+     .side-search and any input that wants the same affordance. */
+  --shadow-input-focus:
+    0 0 0 2px color-mix(in oklab, var(--color-accent) 30%, transparent),
+    inset 0 0 0 1px var(--color-border-soft);
+}
+
+/* IMPORTANT: do not set `font-size` on <html>. It anchors `rem` for
+   the whole document; setting it to a rem token (which is itself
+   relative to <html>) would self-reference and shrink every rem-based
+   token by the same factor. <body> alone carries the UI baseline. */
+html {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Native subtractions (NATIVE_FEEL.md §A): no grey tap-flash on press, no
+     long-press callout/magnifier. Inherited, so this covers the whole tree. */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+/* Icons/images can't be drag-ghosted out of the window as a file — a desktop
+   surface doesn't hand you its glyphs. (NATIVE_FEEL.md §A.) */
+img,
+svg {
+  -webkit-user-drag: none;
+}
+body {
+  font-size: var(--fs-body-md);
+  font-weight: var(--fw-regular);
+  line-height: var(--leading-body);
+}
+
+/* Mono is the technical / data voice (DESIGN.md §3) — bake tabular figures into
+   the face itself so every ID / duration / count / token meter / code digit
+   aligns by default, without each call site re-declaring `tabular-nums`. */
+.font-mono {
+  font-variant-numeric: tabular-nums;
+}
+
+/* =========================================================================
+ *  Selection scope — IDE-like. Chrome (tabs, sidebar, composer toolbar,
+ *  status bar, headers) is non-selectable so accidental drags don't
+ *  leave stray highlights mid-conversation. The `.msg-content` subtree
+ *  re-enables selection so the actual reply (text, code, tables,
+ *  reasoning, alerts) stays copy-pastable. Form controls (input /
+ *  textarea) ignore inherited `user-select: none` per the spec, so the
+ *  composer keeps working without an explicit override.
+ * ========================================================================= */
+body {
+  user-select: none;
+  -webkit-user-select: none;
+}
+.msg-content,
+.msg-content * {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Accent-tinted text selection — reads as a deliberate UI affordance
+   instead of the OS default blue bleeding through. */
+::selection {
+  background: color-mix(in oklab, var(--color-accent) 30%, transparent);
+  color: var(--color-text);
+}
+
+/* =========================================================================
+ *  Cross-cutting polish — keyboard focus + reduced-motion opt-out + the
+ *  one residual structural rule for selected tool cards.
+ * ========================================================================= */
+
+/* Lifted-surface inner highlight on selected tool cards. DESIGN.md §5
+   decorative depth: a barely-visible white top edge gives the dark
+   surface a faint "pixel rendered" feel (Linear's signature touch).
+   `.tool-card.selected` is still raw className inside ToolCard.tsx
+   because the running-border animation also keys on `.tool-card`. */
+.tool-card.selected {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+html.theme-light .tool-card.selected {
+  /* Light surfaces don't need / can't show a white top highlight. */
+  box-shadow: none;
+}
+
+/* Keyboard-only focus ring. :focus-visible avoids summoning the halo
+   on mouse clicks. Solid 2px accent outline (no opacity haze) reads
+   crisp against both dark and light surfaces; an extra accent-tinted
+   `outline + box-shadow` halo at low alpha softens the edge without
+   blurring the position. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--color-accent) 22%, transparent);
+}
+/* Inputs already get an inset focus stroke from --shadow-input-focus —
+   skip the outline so the two effects don't double up. */
+input:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* `prefers-reduced-motion` opt-out — every transition/animation tones
+   down to near-instant so vestibular users don't get bounced around.
+   Opacity-only fade-in keyframes still run (those are benign and convey
+   information). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* Same treatment when the user explicitly picks "Motion: Off" in
+   Settings — needed because Tailwind utilities like `duration-150` emit
+   literal millisecond values that the `--motion-scale` token can't
+   reach by multiplication. The blanket rule is the only honest way to
+   silence them. */
+:root[data-motion="off"] *,
+:root[data-motion="off"] *::before,
+:root[data-motion="off"] *::after {
+  transition-duration: 1ms !important;
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+}
+
+/* =========================================================================
+ *  Light-theme overrides — rules that can't ride the @theme inline token
+ *  bridge: panel chrome shape, scrollbar tint, colour spans emitted by
+ *  HTML-string renderers (highlight.ts / FilePreview) which Tailwind
+ *  utilities can't reach.
+ * ========================================================================= */
+html.theme-light,
+html.theme-light body {
+  background: var(--color-bg);
+}
+html.theme-light .app {
+  background: var(--color-bg);
+}
+
+/* Panel chrome — stacked shadow, no border, no inset top highlight
+   (white-on-white can't show one). */
+html.theme-light .panel {
+  border: none;
+  /* Three-layer umbra/penumbra/ambient — matches LIGHT_SHADOWS `md` so panel
+     chrome and token-driven elevation read from the same light model. */
+  box-shadow:
+    0 1px 2px -0.5px rgba(15, 15, 15, 0.06),
+    0 4px 8px -2px rgba(15, 15, 15, 0.07),
+    0 12px 20px -4px rgba(15, 15, 15, 0.08);
+}
+
+/* Quieter scrollbar on light — the dark thumb tokens overshoot. */
+html.theme-light .panel-scroll {
+  scrollbar-color: #cdcdcc transparent;
+}
+html.theme-light .panel-scroll::-webkit-scrollbar-thumb {
+  background: #d4d4d3;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+html.theme-light .panel-scroll::-webkit-scrollbar-thumb:hover {
+  background: #b8b8b7;
+  background-clip: content-box;
+}
+
+/* Markdown body overrides — .msg-content keeps the className because
+   migrating every markdownComponents child to Tailwind isn't worth it. */
+html.theme-light .msg-content {
+  color: var(--color-text-soft);
+}
+html.theme-light .msg-content code {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  padding: 1px 5px;
+}
+
+/* =========================================================================
+ *  Surviving standalone files — kept separate because each carries a
+ *  big rule set keyed off DOM the JSX layer never owns (rehype output,
+ *  scrollbar pseudo-elements, conic-gradient @property masks, range
+ *  highlights).
+ * ========================================================================= */
+@import "./layout.css";
+@import "./markdown.css";
+@import "./overlays.css";
+@import "./tool.css";

@@ -1,0 +1,311 @@
+/* Markdown body — selectors target HTML rehype emits (no JSX nodes
+   to hang Tailwind utilities on). Borders use color-mix on text
+   instead of the hard --color-border so they sit gently against the
+   message background. */
+.md {
+  display: block;
+}
+.md > :first-child {
+  margin-top: 0;
+}
+.md > :last-child {
+  margin-bottom: 0;
+}
+
+.md p {
+  margin: 0 0 12px 0;
+  letter-spacing: -0.003em;
+}
+.md p:last-child {
+  margin-bottom: 0;
+}
+
+/* Headings — calibrated for the 15px body. Each level is a real step:
+   gaps 4 / 2 / 2 / 1 / 0 (h6 = body). Color also steps down so the
+   weight + size + tone all carry hierarchy: h1-h3 are -bright (the
+   LLM's emphatic claims), h4 is body ink, h5/h6 are -soft (closer to
+   running prose, where the LLM uses them as light dividers).
+   The 15-body / 24-h1 ratio gives a clear "page heading" feel for
+   long-form replies without making h1 dominate every short answer. */
+.md h1,
+.md h2,
+.md h3,
+.md h4,
+.md h5,
+.md h6 {
+  margin: 22px 0 10px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.012em;
+  color: var(--color-text-bright);
+}
+.md h1 {
+  font-size: 24px;
+  letter-spacing: -0.022em;
+  line-height: 1.2;
+}
+.md h2 {
+  font-size: 20px;
+  letter-spacing: -0.018em;
+}
+.md h3 {
+  font-size: 18px;
+}
+.md h4 {
+  font-size: 16px;
+  color: var(--color-text);
+}
+.md h5,
+.md h6 {
+  font-size: 15px;
+  color: var(--color-text-soft);
+}
+/* Tighten the gap when a heading is immediately followed by a list /
+   paragraph — common Markdown-from-LLM pattern. */
+.md h1 + p,
+.md h2 + p,
+.md h3 + p,
+.md h4 + p,
+.md h1 + ul,
+.md h2 + ul,
+.md h3 + ul,
+.md h1 + ol,
+.md h2 + ol,
+.md h3 + ol {
+  margin-top: 4px;
+}
+
+/* Lists — accent the marker, tighten indent, allow nested with
+   slightly reduced inner spacing. */
+.md ul,
+.md ol {
+  margin: 8px 0 12px 0;
+  padding-left: 22px;
+}
+.md ul ul,
+.md ul ol,
+.md ol ul,
+.md ol ol {
+  margin: 4px 0 4px 0;
+}
+.md li {
+  margin: 4px 0;
+}
+.md li::marker {
+  color: var(--color-text-faint);
+}
+.md li > p {
+  margin: 0;
+}
+.md li > p + p {
+  margin-top: 6px;
+}
+
+/* GFM task-list checkboxes — kill the default OS chrome and draw our
+   own. Both `task-list-item` and the input itself get aligned. */
+.md ul:has(input[type="checkbox"]) {
+  list-style: none;
+  padding-left: 4px;
+}
+.md li.task-list-item {
+  padding-left: 2px;
+}
+.md li.task-list-item > input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  margin: 0 8px 0 0;
+  vertical-align: -2px;
+  border-radius: 4px;
+  border: 1.5px solid color-mix(in oklab, var(--color-text) 22%, transparent);
+  background: color-mix(in oklab, var(--color-text) 4%, transparent);
+  cursor: default;
+  position: relative;
+  transition:
+    border-color var(--polish-fast),
+    background var(--polish-fast);
+}
+.md li.task-list-item > input[type="checkbox"]:checked {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+.md li.task-list-item > input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><polyline points='3 7.5 6 10.5 11.5 4.5'/></svg>");
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+/* Blockquote — accent-tinted bar, no fill bg, the muted text does the
+   demarcation. Cleaner than the previous tinted-surface look. */
+.md blockquote {
+  margin: 12px 0;
+  padding: 2px 0 2px 14px;
+  border-left: 2px solid color-mix(in oklab, var(--color-accent) 55%, transparent);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+.md blockquote p {
+  margin: 4px 0;
+}
+
+.md a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--color-accent) 35%, transparent);
+  text-underline-offset: 2px;
+  transition: text-decoration-color var(--polish-fast);
+}
+.md a:hover {
+  text-decoration-color: var(--color-accent);
+}
+
+.md hr {
+  border: 0;
+  border-top: 1px solid color-mix(in oklab, var(--color-text) 10%, transparent);
+  margin: 18px 0;
+}
+
+/* Tables — wrapper handles horizontal overflow; shrinks to
+   fit-content otherwise so narrow tables don't leave dead space. */
+.md-table-wrap {
+  margin: 12px 0;
+  max-width: 100%;
+  width: fit-content;
+  overflow-x: auto;
+}
+.md-table-wrap::-webkit-scrollbar {
+  height: 8px;
+}
+.md-table-wrap::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--color-text) 14%, transparent);
+  border-radius: var(--radius-pill);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.md-table-wrap > table {
+  margin: 0;
+}
+.md table {
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 13px; /* two steps below body (15) so rows stay dense */
+  width: auto;
+  border: 1px solid color-mix(in oklab, var(--color-text) 10%, transparent);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.md table th,
+.md table td {
+  padding: 7px 12px;
+  text-align: left;
+  border-bottom: 1px solid color-mix(in oklab, var(--color-text) 7%, transparent);
+}
+.md table tr:last-child td {
+  border-bottom: 0;
+}
+.md table th {
+  background: color-mix(in oklab, var(--color-text) 5%, transparent);
+  color: var(--color-text-bright);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0;
+  font-family: var(--font-mono);
+  text-transform: none;
+}
+.md table tbody tr:hover td {
+  background: color-mix(in oklab, var(--color-text) 3%, transparent);
+}
+
+/* Inline code — flat tinted background, no border (would compete with
+   fade-in span outlines on streaming text). */
+.md code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  padding: 1px 6px;
+  background: color-mix(in oklab, var(--color-text) 8%, transparent);
+  border-radius: 4px;
+  color: var(--color-text);
+  letter-spacing: 0;
+}
+.md strong {
+  color: var(--color-text-bright);
+  font-weight: 600;
+}
+.md em {
+  font-style: italic;
+}
+
+/* Shiki code block — rules below target the `<pre class="shiki">` +
+   `<code>` Shiki emits as a string. Outer card chrome is Tailwind on
+   ShikiCodeBlock.tsx. */
+.shiki-block .shiki,
+.shiki-block .shiki-fallback {
+  margin: 0;
+  padding: 12px 16px;
+  line-height: 1.55;
+  overflow-x: auto;
+  max-height: 360px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: transparent !important;
+}
+/* `font-size: inherit` pins block code to the parent .shiki size —
+   otherwise `.md code { font-size: 0.88em }` would shrink it further. */
+.shiki-block .shiki code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+}
+.shiki-block .shiki-fallback {
+  color: var(--color-text-soft);
+  white-space: pre;
+}
+.shiki-block .shiki::-webkit-scrollbar,
+.shiki-block .shiki-fallback::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+.shiki-block .shiki::-webkit-scrollbar-thumb,
+.shiki-block .shiki-fallback::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--color-text) 14%, transparent);
+  border-radius: var(--radius-pill);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+/* ===== GitHub Alerts ($remark-github-blockquote-alert) =====
+   Their default alert.css uses prefers-color-scheme + GitHub brand
+   hexes. Override the CSS vars they read so alerts pick up OUR
+   semantic tokens (info/warning/negative/success/accent) and track
+   theme switches via our .theme-{scheme} class instead of the OS. */
+.md .markdown-alert {
+  --color-border-default: var(--color-border);
+  --color-accent-fg: var(--color-info);
+  --color-accent-emphasis: var(--color-info);
+  --color-danger-fg: var(--color-negative);
+  --color-danger-emphasis: var(--color-negative);
+  --color-attention-fg: var(--color-warning);
+  --color-attention-emphasis: var(--color-warning);
+  --color-done-fg: var(--color-accent);
+  --color-done-emphasis: var(--color-accent);
+  --color-success-fg: var(--color-success);
+  --color-success-emphasis: var(--color-success);
+
+  margin: 16px 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, var(--color-text) 3%, transparent);
+}
+.md .markdown-alert .markdown-alert-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}

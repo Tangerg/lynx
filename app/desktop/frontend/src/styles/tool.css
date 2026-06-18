@@ -1,0 +1,52 @@
+/* Two orthogonal concerns:
+   - .tool-card.running rotating border (@property + conic + mask, not
+     Tailwind-expressible);
+   - .lazy-activator marker for the LazyActivator placeholder. */
+
+/* Running animation */
+@property --tc-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+.tool-card.running {
+  position: relative;
+  isolation: isolate;
+  border-color: transparent;
+}
+.tool-card.running::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--tc-angle),
+    var(--color-accent) 0deg,
+    transparent 90deg,
+    transparent 270deg,
+    var(--color-accent) 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: tc-spin 2.4s linear infinite;
+}
+@keyframes tc-spin {
+  to {
+    --tc-angle: 360deg;
+  }
+}
+
+/* Lazy-activator slot placeholder */
+.lazy-activator {
+  display: grid;
+  place-items: center;
+  padding: 48px 16px;
+  color: var(--color-text-faint);
+  font-size: 12px;
+  letter-spacing: 0;
+}

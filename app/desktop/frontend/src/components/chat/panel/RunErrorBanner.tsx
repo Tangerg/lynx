@@ -1,0 +1,113 @@
+// Run error banner — a dismissible warning strip pinned above the message
+// stream when the agent's last run ended with an error. Offers retry (resume
+// the same run), timeline (open timeline view), diagnostics (open diagnostics
+// view), and dismiss. Dismissing clears the error from the view state; it
+// persists in the timeline regardless.
+import { AnimatePresence, motion } from "motion/react";
+import { Icon } from "@/components/common";
+import { BannerAction } from "./BannerAction";
+import { textInput } from "@/lib/agent/composerInput";
+import { flattenText } from "@/lib/agent/messageContent";
+import { useT } from "@/lib/i18n";
+import { swift } from "@/lib/motion";
+import {
+  getCurrentSessionView,
+  useAgentAction,
+  useAgentSlice,
+  useAgentStore,
+} from "@/state/agentStore";
+import { openDiagnosticsView, openTimelineView } from "@/state/deeplinks";
+import { useSessionStore } from "@/state/sessionStore";
+
+// Best-effort: find the most recent user-message plaintext so Retry can
+// replay it. Returns "" if no usable text exists — Retry hides in that
+// case (there's nothing to resend).
+function findLastUserText(): string {
+  const { messages } = getCurrentSessionView();
+  const last = messages.findLast((m) => m.role === "user" && flattenText(m.blocks).trim() !== "");
+  return last ? flattenText(last.blocks).trim() : "";
+}
+
+// RunErrorBanner — surfaces an run error.
+//
+// The reducer parks the error message on `state.error` until the next
+// RUN_STARTED clears it, or until the user dismisses it explicitly.
+// Sits above the message stream so a render error inside MessageStream
+// doesn't take the error notice down with it. Tinted with --color-negative
+// so it reads as a stoppable problem, not a passing notice.
+//
+// UX review §3.3: error must not be a dead end — gives the user a
+// concrete next step (Retry / Open timeline / Open diagnostics) instead
+// of forcing them to scroll up and figure out the recovery themselves.
+export function RunErrorBanner() {
+  const t = useT();
+  const error = useAgentSlice((v) => v.error);
+  const sid = useSessionStore((s) => s.activeSessionId);
+  const clearError = useAgentStore((s) => s.clearError);
+  const send = useAgentAction("send");
+
+  const onRetry = () => {
+    if (!send) return;
+    const text = findLastUserText();
+    if (!text) return;
+    clearError(sid);
+    send(textInput(text));
+  };
+
+  const canRetry = Boolean(send) && Boolean(findLastUserText());
+
+  return (
+    <AnimatePresence initial={false}>
+      {error && (
+        <motion.div
+          role="alert"
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={swift}
+          className="grid grid-cols-[auto_1fr_auto] items-start gap-2.5 mx-4 mt-2.5 mb-1 rounded-lg px-3 py-2.5 bg-negative/12 border border-negative/35 text-fg font-sans"
+        >
+          <Icon name="bug" size={14} className="text-negative mt-0.5" />
+          <div className="min-w-0">
+            <div className="text-[13px] font-semibold text-negative mb-0.5">
+              {t("runError.title")}
+              {error.code ? ` · ${error.code}` : ""}
+            </div>
+            <div className="text-[14px] text-fg-soft whitespace-pre-wrap break-words">
+              {error.message}
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {canRetry && (
+                <BannerAction
+                  icon="loop"
+                  label={t("runError.action.retry")}
+                  onClick={onRetry}
+                  primary
+                />
+              )}
+              <BannerAction
+                icon="history"
+                label={t("runError.action.timeline")}
+                onClick={openTimelineView}
+              />
+              <BannerAction
+                icon="spark"
+                label={t("runError.action.diagnostics")}
+                onClick={openDiagnosticsView}
+              />
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => clearError(sid)}
+            title={t("runError.action.dismiss")}
+            aria-label={t("runError.action.dismiss")}
+            className="grid h-5.5 w-5.5 place-items-center rounded text-fg-faint bg-transparent border-0 transition-all duration-150 hover:bg-[color-mix(in_srgb,var(--color-text)_10%,transparent)] hover:text-fg active:scale-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            <Icon name="x" size={12} />
+          </button>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}

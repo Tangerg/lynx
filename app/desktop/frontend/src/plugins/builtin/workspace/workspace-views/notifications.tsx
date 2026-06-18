@@ -1,0 +1,107 @@
+// Built-in plugin: "Notifications" workspace view — the persistent feed
+// behind every `host.notify(...)` call.
+
+import { useMemo } from "react";
+import { EmptyState, Icon, IconButton } from "@/components/common";
+import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
+import { formatRelative } from "@/lib/i18n/relativeTime";
+import { cn } from "@/lib/utils";
+import { useNotificationStore } from "@/plugins/sdk";
+import { useT } from "@/lib/i18n";
+import { defineWorkspaceView } from "./defineWorkspaceView";
+
+function NotificationsTab() {
+  const t = useT();
+  const log = useNotificationStore((s) => s.log);
+  const dismiss = useNotificationStore((s) => s.dismiss);
+  const clearAll = useNotificationStore((s) => s.clearAll);
+
+  // Newest first; memoized so a re-render that isn't a log change doesn't re-copy.
+  const entries = useMemo(() => [...log].reverse(), [log]);
+  const visible = useMemo(() => entries.filter((e) => !e.dismissed), [entries]);
+
+  return (
+    <WorkspaceViewLayout
+      icon="chat"
+      titleStrong
+      title="notifications.title"
+      sub={`${visible.length} unread · ${entries.length} total`}
+      scrollClassName="py-1"
+      actions={
+        <IconButton title={t("notifications.clearAll")} onClick={clearAll}>
+          <Icon name="x" size={14} />
+        </IconButton>
+      }
+    >
+      {entries.length === 0 && (
+        <EmptyState
+          icon="chat"
+          title={t("notifications.empty.title")}
+          sub={t("notifications.empty.sub")}
+        />
+      )}
+      {entries.map((e) => (
+        <NotificationRow
+          key={e.id}
+          level={e.level}
+          message={e.message}
+          plugin={e.plugin}
+          timestamp={e.timestamp}
+          dismissed={e.dismissed}
+          onDismiss={() => dismiss(e.id)}
+        />
+      ))}
+    </WorkspaceViewLayout>
+  );
+}
+
+interface RowProps {
+  level: "info" | "warn" | "error";
+  message: string;
+  plugin: string;
+  timestamp: number;
+  dismissed?: boolean;
+  onDismiss: () => void;
+}
+
+// Level → dot color. Lookup table beats a nested ternary and makes
+// adding a new level (e.g. "success") a one-line edit.
+const DOT_BG_BY_LEVEL: Record<RowProps["level"], string> = {
+  error: "bg-negative",
+  warn: "bg-warning",
+  info: "bg-fg-faint",
+};
+
+function NotificationRow({ level, message, plugin, timestamp, dismissed, onDismiss }: RowProps) {
+  const t = useT();
+  return (
+    <div
+      className={cn(
+        "flex items-start gap-2.5 px-3.5 py-2 border-b border-line-soft",
+        dismissed && "opacity-50",
+      )}
+    >
+      <div className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", DOT_BG_BY_LEVEL[level])} />
+      <div className="min-w-0 flex-1">
+        <div className="whitespace-pre-wrap break-words text-[12px] text-fg">{message}</div>
+        <div className="mt-0.5 text-[10px] text-fg-faint">
+          {plugin} · {formatRelative(timestamp)}
+        </div>
+      </div>
+      {!dismissed && (
+        <IconButton title={t("notifications.dismiss")} onClick={onDismiss}>
+          <Icon name="x" size={12} />
+        </IconButton>
+      )}
+    </div>
+  );
+}
+
+export const notificationsView = defineWorkspaceView({
+  id: "notifications",
+  title: "workspace.view.title.notifications",
+  icon: "chat",
+  openByDefault: false,
+  order: 50,
+  component: NotificationsTab,
+});

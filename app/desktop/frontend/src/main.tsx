@@ -1,0 +1,24 @@
+import { createRoot } from "react-dom/client";
+import App from "./App";
+// Self-hosted UI fonts (NATIVE_FEEL.md §A): bundled as assets, not fetched
+// from Google's CDN — a desktop app ships its fonts, so they work offline,
+// don't block first paint, and don't leak the launch to a third party.
+import "@fontsource-variable/geist/index.css";
+import "@fontsource-variable/geist-mono/index.css";
+import "./styles/globals.css";
+
+// NOTE: deliberately not wrapped in StrictMode.
+//
+// StrictMode double-invokes effects in dev. With our stack (Zustand persist
+// rehydrate + AbstractAgent subscribe + plugin loader sequencing), the
+// double-invoke surfaces benign-but-confusing "Maximum update depth" warnings
+// from React's safety net. The bundle ships without StrictMode in production
+// regardless, so removing it here matches what real users see.
+//
+// Re-enable when we're ready to harden the effect lifecycle (idempotent
+// agent subscribe, ref-counted plugin loader, etc.) for true double-invoke
+// safety.
+
+const container = document.getElementById("root");
+const root = createRoot(container!);
+root.render(<App />);
