@@ -1,7 +1,7 @@
 # CLAUDE.md — lyra module
 
 > **Lyra Runtime** — Go agent runtime backend. 实现 Lyra Runtime Protocol
-> （JSON-RPC 2.0, MCP-inspired）给 Wails / Web frontend 用（前端在 `/Users/tangerg/Desktop/lyra/`）。协议规范在前端仓 `docs/API.md` / `docs/TRANSPORT.md`。
+> （JSON-RPC 2.0, MCP-inspired）给 Wails / Web frontend 用（前端是同仓独立模块 [`../desktop`](../desktop)）。协议规范在 `../desktop/docs/protocol/API.md` / `../desktop/docs/protocol/TRANSPORT.md`。
 >
 > 项目级约定（设计原则 / 重构策略 / Go idiom / 共用反向不变量 / 沟通约定）见 `../CLAUDE.md`。本文件只放 lyra 模块特有内容。
 >
@@ -70,14 +70,14 @@
 
 跨模块共用反向不变量见 [`../CLAUDE.md`](../CLAUDE.md)。下面是 lyra 协议层独有的：
 
-- ❌ **Stdio transport**（CLI 给 LLM 用那种）：协议层有意不实现（前端 docs/API.md §1.1）。Web 走 HTTP loopback、TUI 走 inprocess
+- ❌ **Stdio transport**（CLI 给 LLM 用那种）：协议层有意不实现（`../desktop/docs/protocol/API.md` §1.1）。Web 走 HTTP loopback、TUI 走 inprocess
 - ❌ **后端做用户鉴权 / 账号 / 订阅 / 多租户**：Runtime 协议层零 user 概念，鉴权由更外层（OS 信任、本地进程门禁 token、未来 facade）解决
-- ❌ **业务方法的 RESTy read-only shadow**：业务调用一律 `POST /v2/rpc/{method}`。详见前端 docs/API.md §9.3
+- ❌ **业务方法的 RESTy read-only shadow**：业务调用一律 `POST /v2/rpc/{method}`。详见 `../desktop/docs/protocol/API.md` §9.3
 - ❌ **HTTP transport 换 gin / echo / fiber**：它们用自家 ctx / ResponseWriter，把 SSE 的 buffer/flush 搞砸过。**chi 是例外、已采用**：它就是标准 `net/http` handler（SSE flush 与 stdlib 一致），且 `go-chi/cors` 直接替掉了手写 CORS（见 §技术栈 + §已做过的大重构）。所以"换 router"≠"换 chi"
 - ❌ **SSE 写自己的 frame 编码**：用 `github.com/Tangerg/sse`（auto-flush + spec compliance）。手写 `fmt.Fprintf(w, "data: %s\n\n", body)` 在 body 含 `\n` 时会破坏帧
 - ❌ **`/v2/rpc` 不带 method**（裸路径）：v2 协议 greenfield 决议，单一形态 `POST /v2/rpc/{method}`，裸路径 404
 - ❌ **协议 envelope 装 transport 元数据**（session id / auth token / trace id / idempotency key）：走 Go `context.Context` 或 HTTP header，永不进 message body
-- ❌ **退回"常开的 server→client 通知通道"**（独立 `GET /v2/rpc/stream` + `X-Conn-Id` 连接路由 + 全局/广播 fan-out）：已被 streamable HTTP 取代 —— 每个流式调用的事件走它**自己那条 POST 响应流**，事件源是 per-run hub（`rpc/server/hub.go`），无连接身份簿记。重连是 per-run（`runs.subscribe{runId}` + `Last-Event-Id`），不是"重连那条共享流"。真要 server 主动推送（多客户端同步等，API.md §12 当前不做），按前端 docs/TRANSPORT §6.1 的退路**增量**加一条可选 GET 流，别把旧模型整套搬回来
+- ❌ **退回"常开的 server→client 通知通道"**（独立 `GET /v2/rpc/stream` + `X-Conn-Id` 连接路由 + 全局/广播 fan-out）：已被 streamable HTTP 取代 —— 每个流式调用的事件走它**自己那条 POST 响应流**，事件源是 per-run hub（`rpc/server/hub.go`），无连接身份簿记。重连是 per-run（`runs.subscribe{runId}` + `Last-Event-Id`），不是"重连那条共享流"。真要 server 主动推送（多客户端同步等，API.md §12 当前不做），按 `../desktop/docs/protocol/TRANSPORT.md` §6.1 的退路**增量**加一条可选 GET 流，别把旧模型整套搬回来
 
 ## 关键目录
 
@@ -152,7 +152,7 @@ curl -H "Authorization: Bearer $(cat ~/.lyra/local-token)" \
 
 ## 修改任何东西之前
 
-1. **`internal/delivery/protocol/`**：动了协议契约 —— 前后端都要同步，先在前端仓 `docs/API.md` 对一遍
+1. **`internal/delivery/protocol/`**：动了协议契约 —— 前后端都要同步，先在 `../desktop/docs/protocol/API.md` 对一遍
 2. **`internal/delivery/transport/http/`**：动了 transport —— 跑 `server_test.go` + `auth_cors_test.go` + `sidecar_test.go` 三个文件全套
 3. **`internal/kernel/`**：动了编排 / turn 循环 —— 跑 `internal/kernel/...`（含 `kernel/turn` 的 stub-engine 测试 + `domain/maintenance` 压缩测试）
 4. **`internal/domain/<name>/`**：动 service interface —— 跑该包测试。如果改 interface 形状，搜下游 consumer
