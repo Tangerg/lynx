@@ -512,6 +512,8 @@ export const zh: Record<string, string> = {
   "composer.key.approveDesc": "批准待处理请求，否则发送",
   "composer.key.declineDesc": "拒绝待处理请求",
   "composer.key.stopDesc": "停止正在运行的响应",
+  "composer.key.historyPrevDesc": "调出上一条消息",
+  "composer.key.historyNextDesc": "调出下一条消息",
   "slash.explain": "解释文件、函数或选区",
   "slash.test": "为当前更改生成或运行测试",
   "slash.fix": "诊断并修复失败的类型检查",

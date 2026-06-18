@@ -9,6 +9,7 @@ import {
   reportPluginError,
   SLASH_COMMAND,
 } from "@/plugins/sdk";
+import { useComposerStore } from "@/state/composerStore";
 
 export interface SubmitDeps {
   /** Current textarea contents. */
@@ -26,6 +27,10 @@ export function submitComposer({ value, clear, sendInput, images }: SubmitDeps):
   const text = value.trim();
   // An image-only send (a screenshot with no caption) is valid.
   if (!text && images.length === 0) return;
+
+  // Record the submitted text for ↑/↓ recall (slash commands included — they're
+  // worth re-running too). Image-only sends have no text to recall.
+  if (text) useComposerStore.getState().pushHistory(text);
 
   // Slash routing applies only to a text command — an attached image isn't a
   // command argument. A "/cmd" still routes as the command (images dropped:
