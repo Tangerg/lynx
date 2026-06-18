@@ -51,13 +51,46 @@ function parseShorthand(input: string | undefined): number {
 
 const fmtTokens = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
 
+// Compact wall-clock: "12s" / "1m 05s" / "1h 02m". Seconds/minutes are
+// zero-padded so the readout doesn't jitter in width as it ticks.
+function formatElapsed(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${String(s % 60).padStart(2, "0")}s`;
+  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
+}
+
+// Live elapsed for the active run — ticks once/second while running, resets on
+// each new run (runId change, so a HITL-resume continuation restarts cleanly).
+// Local-only: the start edge is when this client saw `running` flip true, which
+// is within a frame of runs.start resolving (no backend run-start timestamp on
+// the wire). The 1s setState re-renders only RunStatus, not the whole bar.
+function useRunElapsed(running: boolean, runId: string | null): string {
+  const [elapsed, setElapsed] = useState("");
+  useEffect(() => {
+    if (!running) {
+      setElapsed("");
+      return;
+    }
+    const start = performance.now();
+    const tick = () => setElapsed(formatElapsed(performance.now() - start));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [running, runId]);
+  return elapsed;
+}
+
 // Run state — the leading item, always rendered (it owns the `●`). Narrow
 // subscriptions so a token tick doesn't re-render this past the step change.
 function RunStatus() {
   const running = useAgentRunning();
+  const runId = useAgentRunId();
   const step = useAgentSlice((v) => v.run.step);
   const totalSteps = useAgentSlice((v) => v.run.totalSteps);
   const activity = useAgentSlice((v) => v.run.activity);
+  const elapsed = useRunElapsed(running, runId);
   if (!running) {
     return (
       <span className="sb-item">
@@ -69,11 +102,23 @@ function RunStatus() {
   return (
     <span className="sb-item text-accent">
       <StatusDot tone="running" />
-      <span>
-        {step}/{totalSteps}
-      </span>
-      <span className="text-fg-faint">·</span>
+      {/* Step counter only when a ceiling is known (maxSteps); otherwise a bare
+          "3/0" is noise — the activity + elapsed carry the signal. */}
+      {totalSteps > 0 && (
+        <>
+          <span>
+            {step}/{totalSteps}
+          </span>
+          <span className="text-fg-faint">·</span>
+        </>
+      )}
       <span className="text-fg">{activity || "working"}</span>
+      {elapsed && (
+        <>
+          <span className="text-fg-faint">·</span>
+          <span className="text-fg-faint tabular-nums">{elapsed}</span>
+        </>
+      )}
     </span>
   );
 }
