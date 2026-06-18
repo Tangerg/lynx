@@ -136,6 +136,11 @@ type Runtime struct {
 
 	providers    provider.Service
 	defaultModel string
+
+	// titler auto-names an untitled session from its first user message — a
+	// turn-boundary maintenance op (like the Compactor) on the maintenance
+	// client, triggered by the delivery layer off a finished root run.
+	titler *maintenance.Titler
 }
 
 // New assembles a Runtime from cfg. Returns an error when a required
@@ -278,6 +283,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		conversation: conv,
 		providers:    providerSvc,
 		defaultModel: cfg.Model,
+		titler:       maintenance.NewTitler(maintClient),
 	}, nil
 }
 
@@ -357,6 +363,15 @@ func (r *Runtime) ProbeProvider(ctx context.Context, entry provider.Provider) er
 // Session.model for sessions that never explicitly selected a model, so the
 // wire always carries a real model name. May be empty if unconfigured.
 func (r *Runtime) DefaultModel() string { return r.defaultModel }
+
+// GenerateTitle derives a short session title from a conversation's opening
+// user message — auto-naming an untitled session (the wire Session.title).
+// Best-effort: returns "" (no error) when titling isn't possible. Lives here,
+// like [Runtime.ProbeProvider], because the runtime owns the maintenance LLM
+// client; the delivery layer triggers it off a finished root run.
+func (r *Runtime) GenerateTitle(ctx context.Context, firstMessage string) (string, error) {
+	return r.titler.Generate(ctx, firstMessage)
+}
 
 // ReadHistory returns sessionID's persisted chat history — the
 // messages.list transport surface converts these to wire messages,
