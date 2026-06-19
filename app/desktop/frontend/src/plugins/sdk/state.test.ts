@@ -74,12 +74,12 @@ describe("setPlan", () => {
 
 describe("patchRun", () => {
   it("merges into run state", () => {
-    const update = patchRun({ activity: "scanning", ctxPct: 42 });
+    const update = patchRun({ activity: "scanning", step: 42 });
     const next = update(INITIAL_VIEW_STATE);
     expect(next.run.activity).toBe("scanning");
-    expect(next.run.ctxPct).toBe(42);
+    expect(next.run.step).toBe(42);
     // Untouched fields keep their values.
-    expect(next.run.tokens).toEqual(INITIAL_VIEW_STATE.run.tokens);
+    expect(next.run.cost).toBe(INITIAL_VIEW_STATE.run.cost);
   });
 });
 

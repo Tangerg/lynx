@@ -81,17 +81,12 @@ function onRunStarted(state: AgentViewState, run: RunRef): AgentViewState {
 // updates the same readout.
 function onRunProgress(state: AgentViewState, progress: RunProgress): AgentViewState {
   const usage = progress.usage;
-  const tokensUsed =
-    usage !== undefined ? (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0) : undefined;
   // Cost reads usage.costUsd — there is no separate RunProgress.costUsd (§5).
   const costUsd = usage?.costUsd;
   return patchRun({
     ...(progress.step !== undefined ? { step: progress.step } : {}),
     ...(progress.maxSteps !== undefined ? { totalSteps: progress.maxSteps } : {}),
     ...(progress.activity !== undefined ? { activity: progress.activity } : {}),
-    ...(tokensUsed !== undefined
-      ? { tokens: { used: String(tokensUsed), total: state.run.tokens.total } }
-      : {}),
     ...(costUsd !== undefined ? { cost: costUsd.toFixed(2) } : {}),
   })(state);
 }
@@ -223,7 +218,6 @@ function onRunFinished(state: AgentViewState, outcome: RunOutcome, runId?: strin
 
   const { result } = outcome;
   const usage = result?.usage;
-  const tokensUsed = (usage?.inputTokens ?? 0) + (usage?.outputTokens ?? 0);
   // Total cost reads usage.costUsd — there is no RunResult.costUsd (§4.2).
   const costUsd = usage?.costUsd;
   // A terminal end (completed / error / canceled / maxSteps) means any
@@ -236,7 +230,6 @@ function onRunFinished(state: AgentViewState, outcome: RunOutcome, runId?: strin
       running: false,
       step: result?.steps ?? state.run.step,
       totalSteps: result?.steps ?? state.run.totalSteps,
-      tokens: { used: String(tokensUsed), total: state.run.tokens.total },
       cost: costUsd !== undefined ? costUsd.toFixed(2) : state.run.cost,
     })(idle),
   );
