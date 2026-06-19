@@ -79,7 +79,9 @@ function DiffViewTab() {
     anchoredRef.current = true;
   }, [files]);
 
-  const sub = (
+  // Only show the +/−/files tally once data exists — otherwise the header
+  // would assert "+0 · −0 · 0 files" while the body is still a skeleton.
+  const sub = data ? (
     <>
       <span className="text-accent">+{added}</span>
       <span className="mx-1">·</span>
@@ -87,7 +89,7 @@ function DiffViewTab() {
       <span className="mx-2">·</span>
       <span>{files?.length ?? 0} files</span>
     </>
-  );
+  ) : undefined;
 
   return (
     <WorkspaceViewLayout

@@ -78,7 +78,7 @@ function MemoryRow({ entry, cwd }: { entry: MemoryEntryInfo; cwd?: string }) {
             value={draft ?? entry.content}
             onChange={(e) => setDraft(e.target.value)}
             spellCheck={false}
-            rows={Math.min(18, Math.max(6, (draft ?? entry.content).split("\n").length + 1))}
+            rows={12}
             className={cn(FIELD_CLASSES, "w-full resize-y px-3 py-2.5 leading-[1.55] text-fg-soft")}
           />
           <div className="flex items-center gap-2">
