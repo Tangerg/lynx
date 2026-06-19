@@ -16,7 +16,14 @@ import { useServerFeature } from "@/state/runtimeStore";
 import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
 import { parseJsonResult, PREVIEW_WRAP } from "./shared";
 
-export { askUserPreview, globPreview, lspPreviews, skillPreview, taskPreview } from "./specialised";
+export {
+  askUserPreview,
+  globPreview,
+  lspPreviews,
+  skillPreview,
+  taskPreview,
+  webSearchPreview,
+} from "./specialised";
 
 const MAX_TERM_LINES = 9;
 const MAX_DIFF_ROWS = 8;

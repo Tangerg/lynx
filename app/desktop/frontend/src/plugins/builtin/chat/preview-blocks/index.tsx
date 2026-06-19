@@ -1,19 +1,18 @@
-// Preview blocks — content-block kinds whose UI is ready but which the v2
-// fold does NOT yet emit: `search` (search tool), `code` (standalone code /
-// edit tool), `checkpoint`. Quarantined into this one folder + declared via
+// Preview blocks — content-block kinds whose UI is ready but which the v2 fold
+// does NOT emit as message-body blocks. `code` (standalone code / edit tool)
+// and `checkpoint` have no emitter; `search` reuses the shared SearchResults
+// card whose LIVE surface is now the web_search tool preview (chat/tools/
+// previews) — this block stays for the [n] citation source + a future
+// cards-in-prose surface. Quarantined into this one folder + declared via
 // CustomContentBlockMap augmentation (viewBlocks.ts) so the kernel stays
-// ignorant of them. When the backend starts emitting these (or never does),
-// keep or delete the whole folder — nothing in the kernel references it.
-//
-// The `search` block also contributes its results as the per-message citation
-// source (MESSAGE_CITATION_SOURCE), so the [n] citation registry is owned here
-// too — delete the folder and citations cleanly disappear.
+// ignorant of them; deleting the folder cleanly removes the kinds + citations.
 
 import type { CitationSource, ContentBlockRendererProps } from "@/plugins/sdk";
 import { ShikiCodeBlock } from "@/components/chat/message";
+import { SearchResults } from "@/components/tools/previews/SearchResults";
 import { definePlugin, MESSAGE_CITATION_SOURCE } from "@/plugins/sdk";
 import { Checkpoint } from "./Checkpoint";
-import { SearchResults } from "./SearchResults";
+import "./viewBlocks"; // side-effect: CustomContentBlockMap augmentation for the kinds below
 
 // Flatten every `search` block on a message into citations. Index continuity
 // across sources is the kernel's job (MessageBlock re-indexes), so we just

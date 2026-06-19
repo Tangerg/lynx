@@ -80,6 +80,7 @@ import {
   lspPreviews,
   skillPreview,
   taskPreview,
+  webSearchPreview,
 } from "./chat/tools/previews";
 import topbarNewTab from "./shell/topbar-new-tab";
 import welcomeScreen from "./shell/welcome-screen";
@@ -153,6 +154,7 @@ const toolRendering: PluginSpec[] = [
   skillPreview,
   taskPreview,
   askUserPreview,
+  webSearchPreview,
   toolActions,
   toolIcons,
 ];
