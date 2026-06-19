@@ -19,6 +19,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -194,10 +195,7 @@ func dirsRootToLeaf(cwd, root string) []string {
 		current = parent
 	}
 	chain = append(chain, root)
-	// Reverse → root first.
-	for i, j := 0, len(chain)-1; i < j; i, j = i+1, j-1 {
-		chain[i], chain[j] = chain[j], chain[i]
-	}
+	slices.Reverse(chain)
 	return chain
 }
 
