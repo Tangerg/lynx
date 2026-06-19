@@ -127,6 +127,36 @@ func ListChanges(ctx context.Context, dir string) ([]FileChange, error) {
 	return out, nil
 }
 
+// ListFiles lists the non-ignored files under dir, honoring .gitignore: tracked
+// files (--cached) plus untracked-but-not-ignored ones (--others
+// --exclude-standard). Optionally scoped to relPath (a pathspec relative to
+// dir). Paths are relative to dir, recursive, slash-separated; -z keeps odd
+// names (spaces/newlines) intact. Returns ErrNotRepo when dir isn't a repo, so
+// the caller can fall back to a plain filesystem walk.
+func ListFiles(ctx context.Context, dir, relPath string) ([]string, error) {
+	if !Available() {
+		return nil, ErrUnavailable
+	}
+	if !IsRepo(ctx, dir) {
+		return nil, ErrNotRepo
+	}
+	args := []string{"ls-files", "--cached", "--others", "--exclude-standard", "-z"}
+	if relPath != "" && relPath != "." {
+		args = append(args, "--", relPath)
+	}
+	out, err := run(ctx, dir, args...)
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	for p := range strings.SplitSeq(out, "\x00") {
+		if p != "" {
+			files = append(files, p)
+		}
+	}
+	return files, nil
+}
+
 // parseStatusZ parses `git status --porcelain=v1 -z`. Each record is "XY path"
 // (NUL-terminated); a rename adds a second NUL-terminated field (the original
 // path). Returns a path→change map plus the encounter order.

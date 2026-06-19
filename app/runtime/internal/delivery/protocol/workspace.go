@@ -10,6 +10,7 @@ type Workspace interface {
 	WorkspaceGetDiff(ctx context.Context, in GetDiffRequest) (*Diff, error)
 	WorkspaceGetFileHead(ctx context.Context, in GetFileHeadRequest) (*FileHead, error)
 	WorkspaceGrep(ctx context.Context, in GrepRequest) (*GrepResult, error)
+	WorkspaceListFiles(ctx context.Context, in ListFilesRequest) (*Page[FileEntry], error)
 	WorkspaceListProjects(ctx context.Context, q PageQuery) (*Page[Project], error)
 	WorkspaceListSkills(ctx context.Context, in WorkspaceListQuery) (*Page[Skill], error)
 	WorkspaceListAgentDocs(ctx context.Context, in WorkspaceListQuery) (*Page[AgentDoc], error)
@@ -118,6 +119,41 @@ type GrepRequest struct {
 	Query string `json:"query"`
 	Path  string `json:"path,omitempty"`
 	Limit int    `json:"limit,omitempty"`
+}
+
+// ListFilesRequest — workspace.listFiles body (API.md §7.5). Lists files under
+// Path (relative to Cwd, jailed). Recursive (or a Glob) yields a flat subtree
+// file list — the @file / fuzzy source; otherwise the immediate children — the
+// lazy file-tree level. .gitignore + backstop excludes apply unless
+// IncludeIgnored. PageQuery carries the limit (cursor unused — bounded list).
+type ListFilesRequest struct {
+	Cwd            string `json:"cwd,omitempty"`
+	Path           string `json:"path,omitempty"`
+	Glob           string `json:"glob,omitempty"`
+	Recursive      bool   `json:"recursive,omitempty"`
+	IncludeIgnored bool   `json:"includeIgnored,omitempty"`
+	PageQuery
+}
+
+// FileEntryType is a listed entry's kind (workspace.listFiles, API.md §7.5).
+type FileEntryType string
+
+const (
+	FileEntryFile    FileEntryType = "file"
+	FileEntryDir     FileEntryType = "dir"
+	FileEntrySymlink FileEntryType = "symlink"
+)
+
+// FileEntry is one entry in workspace.listFiles (API.md §7.5). Path is relative
+// to the workspace root. SizeBytes/ModifiedAt are optional and currently
+// unpopulated — the consumers (file tree + @file) don't need them and statting
+// every entry of a recursive list would dominate the call.
+type FileEntry struct {
+	Path       string        `json:"path"`
+	Name       string        `json:"name"`
+	Type       FileEntryType `json:"type"`
+	SizeBytes  int64         `json:"sizeBytes,omitempty"`
+	ModifiedAt string        `json:"modifiedAt,omitempty"`
 }
 
 // MCPListToolsRequest — workspace.mcp.listTools body.

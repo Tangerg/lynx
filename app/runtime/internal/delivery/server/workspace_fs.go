@@ -7,11 +7,47 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/workspace"
 	"github.com/Tangerg/lynx/tools/fs"
 )
 
-// workspace.* filesystem-backed reads (API.md §7.5): file preview + grep,
-// both jailed to the workspace root.
+// workspace.* filesystem-backed reads (API.md §7.5): file listing, file
+// preview, and grep — all jailed to the workspace root.
+
+// WorkspaceListFiles lists files under a cwd-relative path (API.md §7.5),
+// jailed to the workspace root. Recursive (or a glob) yields a flat subtree
+// file list — the @file / fuzzy source; otherwise the immediate children — the
+// lazy file-tree level. gitignore-aware in a repo, backstop-filtered otherwise.
+// Not gated: a basic read like getFileHead. A capped result is simply returned
+// at the limit (the Page wire carries no truncation flag; consumers narrow via
+// path / glob).
+func (s *Server) WorkspaceListFiles(ctx context.Context, in protocol.ListFilesRequest) (*protocol.Page[protocol.FileEntry], error) {
+	root, err := s.workspaceRoot(in.Cwd)
+	if err != nil {
+		return nil, err
+	}
+	relPath := ""
+	if in.Path != "" {
+		if relPath, err = resolveInRoot(root, in.Path); err != nil {
+			return nil, err
+		}
+	}
+	entries, _, err := workspace.ListFiles(ctx, root, workspace.ListFilesOptions{
+		Path:           relPath,
+		Glob:           in.Glob,
+		Recursive:      in.Recursive,
+		IncludeIgnored: in.IncludeIgnored,
+		Limit:          in.Limit,
+	})
+	if err != nil {
+		return nil, err
+	}
+	data := make([]protocol.FileEntry, 0, len(entries))
+	for _, e := range entries {
+		data = append(data, protocol.FileEntry{Path: e.Path, Name: e.Name, Type: protocol.FileEntryType(e.Kind)})
+	}
+	return protocol.NewPage(data), nil
+}
 
 // defaultFileHeadLines caps a workspace.getFileHead preview when the client
 // gives no (or a non-positive) line count.

@@ -38,6 +38,13 @@ func (d *Dispatcher) handleWorkspaceGetFileHead(ctx context.Context, msg *transp
 	return reply(msg, out, err)
 }
 
+func (d *Dispatcher) handleWorkspaceListFiles(ctx context.Context, msg *transport.Request) HandleResult {
+	var in protocol.ListFilesRequest
+	_ = unmarshal(msg.Params, &in)
+	out, err := d.api.WorkspaceListFiles(ctx, in)
+	return reply(msg, out, err)
+}
+
 func (d *Dispatcher) handleWorkspaceGrep(ctx context.Context, msg *transport.Request) HandleResult {
 	in, bad := decode[protocol.GrepRequest](msg)
 	if bad != nil {

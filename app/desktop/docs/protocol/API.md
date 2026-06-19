@@ -1022,8 +1022,8 @@ interface SessionArtifact {
 
 所有读方法显式收 `cwd?`（缺省 = serve 目录）。入参基类 `WorkspaceQuery { cwd?: string }`。**返回列表的方法统一 `Page<T>`**。
 
-> 提案中的 workspace 面（`workspace.code.*` / `listFiles` / `readFile` / `mcp.authenticate`，613 批次）见**附录 C**——
-> 形状已定、后端方法表待注册，落地后并入本表。
+> 提案中的 workspace 面（`workspace.code.*` / `readFile` / `mcp.authenticate`，613 批次）见**附录 C**——
+> 形状已定、后端方法表待注册，落地后并入本表。（`workspace.listFiles` 已落地——见附录 C.2 状态注。）
 
 | 方法 | 入参 | 返回 | 说明 |
 | --- | --- | --- | --- |
@@ -1450,6 +1450,12 @@ interface Diagnostic      { range: CodeRange; severity: "error" | "warning" | "i
 > RPC**（@symbol / 代码导航）。两者正交。
 
 ### C.2 B8 · `workspace.listFiles` / `workspace.readFile`（基础读，不门控）—— 文件树浏览 + 查看
+
+> **状态**：`workspace.listFiles` **已落地**——gitignore-aware（repo 用 `git ls-files --cached --others
+> --exclude-standard`，非 repo 走兜底 walk + 排除 `.git`/`node_modules` 等）；`path`/`recursive`/`glob`/
+> `includeIgnored`/`limit` 全支持（`cursor` 暂未真正分页——结果在 `limit` 处截断，消费方靠 path/glob 收窄）；
+> `FileEntry.sizeBytes`/`modifiedAt` **暂不填充**（消费方——文件树 + @file——不需要，递归列举逐个 stat 会拖慢调用）。
+> `workspace.readFile` **仍是提案**（后端方法表未注册）。
 
 | 方法 | 入参 | 返回 |
 | --- | --- | --- |

@@ -53,6 +53,7 @@ const (
 	MethodWorkspaceGetDiff         = "workspace.getDiff"
 	MethodWorkspaceGetFileHead     = "workspace.getFileHead"
 	MethodWorkspaceGrep            = "workspace.grep"
+	MethodWorkspaceListFiles       = "workspace.listFiles"
 	MethodWorkspaceListProjects    = "workspace.listProjects"
 	MethodWorkspaceListSkills      = "workspace.listSkills"
 	MethodWorkspaceListAgentDocs   = "workspace.listAgentDocs"
