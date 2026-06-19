@@ -111,6 +111,15 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		// burns the full iteration cap. Default window/threshold (10 / >5):
 		// six byte-identical rounds is a fixed point, not a retry.
 		LoopDetection: &tool.LoopDetectionConfig{},
+		// Mid-run steering: drain the active turn's SteerSource (stashed on the
+		// context by runChatTurn) before each continuation round, injecting any
+		// queued user messages into the loop. nil source → no-op.
+		BeforeRound: func(ctx context.Context) []chat.Message {
+			if s := steerSourceFrom(ctx); s != nil {
+				return s()
+			}
+			return nil
+		},
 	})
 	platform := agent.NewPlatform(runtime.PlatformConfig{
 		ChatClient: cfg.ChatClient,

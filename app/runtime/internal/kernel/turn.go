@@ -46,6 +46,14 @@ func stallContext(parent context.Context, idle time.Duration) (ctx context.Conte
 // configured, the engine intercepts [chat.FinishReasonInterrupt] chunks as
 // a fallback.
 func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, message string, images []*media.Media, budget turnBudget) (ChatOutput, error) {
+	// Mid-run steering: stash the turn's SteerSource (attached as a process
+	// extension by StartChat) on the context the stream runs under, so the tool
+	// loop's BeforeRound hook can drain it between rounds. Owning the context
+	// here makes the handoff a guarantee, not a bet on platform propagation.
+	if steer := steerFrom(pc.Options); steer != nil {
+		ctx = withSteerSource(ctx, steer)
+	}
+
 	// A silent provider ends the turn (llmIdleTimeout); every chunk below calls
 	// keepAlive to push the deadline out, so a healthy long turn never trips it.
 	ctx, keepAlive, stop := stallContext(ctx, llmIdleTimeout)

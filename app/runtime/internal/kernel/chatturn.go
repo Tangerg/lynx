@@ -59,6 +59,12 @@ type RunChatRequest struct {
 	// notifications. May be nil — the turn still runs.
 	Observer toolObserver
 
+	// Steer, when non-nil, is drained before each continuation tool round and
+	// its messages injected into the running loop (mid-run steering, API.md §6)
+	// — so a user message sent while the turn is mid-tool-loop reaches the model
+	// on the next round, not the next turn. nil disables mid-run injection.
+	Steer SteerSource
+
 	// EventListener, when non-nil, is registered as a process-scope
 	// extension. Values that also implement [event.Listener] (i.e.
 	// have OnEvent) receive every agent runtime event for this turn
@@ -86,9 +92,16 @@ type RunChatRequest struct {
 func (e *Engine) StartChat(ctx context.Context, req RunChatRequest) ChatProcess {
 	in := chatInput{Message: req.Message, Media: req.Media, Cwd: req.Cwd, SessionID: req.SessionID, MaxBudget: req.MaxBudget, MaxCostUSD: req.MaxCostUSD}
 
+	opts := chatProcessOptions(req.SessionID, req.Observer, req.EventListener, req.ChatClient)
+	if req.Steer != nil {
+		// Carried as a process-scope extension (not the serializable blackboard
+		// — it's a live func): runChatTurn resolves it and stashes it on the
+		// per-round context for the tool loop's BeforeRound hook.
+		opts.Extensions = append(opts.Extensions, steerExtension{source: req.Steer})
+	}
 	proc, done := e.platform.StartAgent(ctx, e.agent,
 		map[string]any{core.DefaultBindingName: in},
-		chatProcessOptions(req.SessionID, req.Observer, req.EventListener, req.ChatClient),
+		opts,
 	)
 	return &chatProcess{proc: proc, done: done, platform: e.platform}
 }
