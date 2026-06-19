@@ -116,7 +116,7 @@ function PlanProgressBanner() {
                   initial={{ opacity: 0, y: 3 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -3 }}
-                  transition={{ duration: 0.15, ease: "easeOut" }}
+                  transition={swift}
                   className="flex-1 min-w-0 truncate text-[13px] leading-[1.4] text-fg"
                 >
                   {expanded ? t("plan.complete", { done, total }) : current.text}
@@ -154,7 +154,7 @@ function PlanProgressBanner() {
               smooth height transition without measuring layout. */}
           <div
             className={cn(
-              "grid transition-[grid-template-rows] duration-200 ease-out",
+              "grid transition-[grid-template-rows] duration-150 ease-out",
               expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
             )}
           >

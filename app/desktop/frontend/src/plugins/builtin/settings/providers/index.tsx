@@ -92,7 +92,7 @@ function ProviderRow({ p }: { p: ProviderInfo }) {
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
           placeholder={enabled ? t("providers.apiKey.replace") : t("providers.apiKey.placeholder")}
-          className="h-8 rounded-md border border-line-soft bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint focus:border-accent"
+          className="h-8 rounded-md border border-line-soft bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint focus:border-accent focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)]"
         />
         <input
           type="text"
@@ -100,7 +100,7 @@ function ProviderRow({ p }: { p: ProviderInfo }) {
           value={baseUrl}
           onChange={(e) => setBaseUrl(e.target.value)}
           placeholder={t("providers.baseUrl.placeholder")}
-          className="h-8 rounded-md border border-line-soft bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint focus:border-accent"
+          className="h-8 rounded-md border border-line-soft bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint focus:border-accent focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)]"
         />
       </div>
 

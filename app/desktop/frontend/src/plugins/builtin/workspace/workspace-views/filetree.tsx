@@ -69,7 +69,14 @@ function ExplorerView() {
           skeletonCount={8}
           empty={{ icon: "folder", title: t("filetree.empty.title"), sub: t("filetree.empty.sub") }}
         >
-          {(rows) => <FileTree entries={rows} cwd={cwd} onSelectFile={setSelected} />}
+          {(rows) => (
+            <FileTree
+              entries={rows}
+              cwd={cwd}
+              selectedPath={selected ?? undefined}
+              onSelectFile={setSelected}
+            />
+          )}
         </DataView>
       )}
     </WorkspaceViewLayout>

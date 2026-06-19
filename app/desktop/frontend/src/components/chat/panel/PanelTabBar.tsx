@@ -185,7 +185,7 @@ function TabItem({
             <button
               type="button"
               aria-label={t("panel.tab.close")}
-              className="grid h-5.5 w-5.5 place-items-center rounded border-0 bg-transparent text-fg-faint opacity-0 transition-all duration-150 group-hover:opacity-100 hover:bg-surface-3 hover:text-fg active:scale-90"
+              className="grid h-5.5 w-5.5 place-items-center rounded border-0 bg-transparent text-fg-faint opacity-0 transition-[opacity,background-color,color,transform] duration-150 group-hover:opacity-100 hover:bg-surface-3 hover:text-fg active:scale-90"
               onClick={(e) => {
                 e.stopPropagation();
                 onClose();

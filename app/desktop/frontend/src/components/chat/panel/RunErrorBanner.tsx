@@ -132,7 +132,7 @@ export function RunErrorBanner() {
             onClick={() => clearError(sid)}
             title={t("runError.action.dismiss")}
             aria-label={t("runError.action.dismiss")}
-            className="grid h-5.5 w-5.5 place-items-center rounded text-fg-faint bg-transparent border-0 transition-all duration-150 hover:bg-[color-mix(in_srgb,var(--color-text)_10%,transparent)] hover:text-fg active:scale-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            className="grid h-5.5 w-5.5 place-items-center rounded text-fg-faint bg-transparent border-0 transition-[background-color,color,transform] duration-150 hover:bg-[color-mix(in_srgb,var(--color-text)_10%,transparent)] hover:text-fg active:scale-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           >
             <Icon name="x" size={12} />
           </button>
