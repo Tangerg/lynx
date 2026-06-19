@@ -26,7 +26,12 @@ func (n *Nop) Read(_ context.Context) ([]*Document, error) { return nil, nil }
 
 func (n *Nop) Write(_ context.Context, _ []*Document) error { return nil }
 
-func (n *Nop) Format(doc *Document, _ MetadataMode) string { return doc.Text }
+func (n *Nop) Format(doc *Document, _ MetadataMode) string {
+	if doc == nil {
+		return ""
+	}
+	return doc.Text
+}
 
 func (n *Nop) Transform(_ context.Context, docs []*Document) ([]*Document, error) {
 	return docs, nil

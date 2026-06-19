@@ -54,6 +54,9 @@ func NewSimpleFormatter(config SimpleFormatterConfig) *SimpleFormatter {
 // followed by a blank line and the document text. With no metadata
 // (filtered empty), the output is just doc.Text — no leading newlines.
 func (s *SimpleFormatter) Format(doc *Document, mode MetadataMode) string {
+	if doc == nil {
+		return ""
+	}
 	filtered := s.filterMetadataByMode(doc.Metadata, mode)
 	if len(filtered) == 0 {
 		return doc.Text

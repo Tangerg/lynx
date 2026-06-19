@@ -494,8 +494,8 @@ func injectParkTail(ctx context.Context, req *chat.Request, state *ParkState) *c
 		return req
 	}
 	next.Options = req.Options.Clone()
-	next.Tools = req.Tools
-	next.Params = req.Params
+	next.Tools = slices.Clone(req.Tools)
+	next.Params = maps.Clone(req.Params)
 	return next
 }
 
