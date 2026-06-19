@@ -230,6 +230,10 @@ type ToolCallStart struct {
 	CallID    string
 	ToolName  string
 	Arguments string
+	// SafetyClass is the tool's wire safety class ("safe"|"write"|"exec"),
+	// stamped on the live toolCall Item so a client shows its risk class
+	// without joining tools.list.
+	SafetyClass string
 }
 
 // ToolCallEnd fires when the tool finishes. Output is the tool's
