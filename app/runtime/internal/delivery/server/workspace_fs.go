@@ -76,6 +76,46 @@ func (s *Server) WorkspaceGetFileHead(ctx context.Context, in protocol.GetFileHe
 	return &protocol.FileHead{Path: in.Path, Lines: fileLines(out)}, nil
 }
 
+// WorkspaceReadFile returns a cwd-relative file's text (API.md §7.5), jailed to
+// the workspace root. Reads the whole file, or the StartLine..EndLine window
+// (1-based inclusive) when given; TotalLines is the whole-file count regardless.
+// Binary files surface fs.ErrBinaryFile. Not gated — a basic read like
+// getFileHead.
+func (s *Server) WorkspaceReadFile(ctx context.Context, in protocol.ReadFileRequest) (*protocol.FileContent, error) {
+	root, err := s.workspaceRoot(in.Cwd)
+	if err != nil {
+		return nil, err
+	}
+	rel, err := resolveInRoot(root, in.Path)
+	if err != nil {
+		return nil, err
+	}
+	read := fs.ReadInput{Path: rel}
+	windowed := in.StartLine > 0
+	if windowed {
+		read.Offset = in.StartLine - 1
+		if in.EndLine >= in.StartLine {
+			read.Limit = in.EndLine - in.StartLine + 1
+		}
+	}
+	out, err := fs.NewLocalExecutor(root).Read(ctx, read)
+	if err != nil {
+		return nil, err
+	}
+	fc := &protocol.FileContent{
+		Path:       in.Path,
+		Content:    out.Content,
+		Encoding:   "utf-8",
+		TotalLines: out.TotalLines,
+		Truncated:  out.Truncated,
+	}
+	if windowed {
+		fc.StartLine = out.StartLine + 1 // ReadOutput line indices are 0-based
+		fc.EndLine = out.EndLine + 1
+	}
+	return fc, nil
+}
+
 // fileLines splits a Read result into numbered preview lines. StartLine is
 // 0-based; the wire LineNumber is 1-based. A read that windowed nothing (an
 // empty file) yields no lines rather than one spurious blank.

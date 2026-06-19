@@ -45,6 +45,18 @@ func (d *Dispatcher) handleWorkspaceListFiles(ctx context.Context, msg *transpor
 	return reply(msg, out, err)
 }
 
+func (d *Dispatcher) handleWorkspaceReadFile(ctx context.Context, msg *transport.Request) HandleResult {
+	in, bad := decode[protocol.ReadFileRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
+	if in.Path == "" {
+		return responseError(msg.ID, invalidParams("path is required"))
+	}
+	out, err := d.api.WorkspaceReadFile(ctx, in)
+	return reply(msg, out, err)
+}
+
 func (d *Dispatcher) handleWorkspaceGrep(ctx context.Context, msg *transport.Request) HandleResult {
 	in, bad := decode[protocol.GrepRequest](msg)
 	if bad != nil {

@@ -11,6 +11,7 @@ type Workspace interface {
 	WorkspaceGetFileHead(ctx context.Context, in GetFileHeadRequest) (*FileHead, error)
 	WorkspaceGrep(ctx context.Context, in GrepRequest) (*GrepResult, error)
 	WorkspaceListFiles(ctx context.Context, in ListFilesRequest) (*Page[FileEntry], error)
+	WorkspaceReadFile(ctx context.Context, in ReadFileRequest) (*FileContent, error)
 	WorkspaceListProjects(ctx context.Context, q PageQuery) (*Page[Project], error)
 	WorkspaceListSkills(ctx context.Context, in WorkspaceListQuery) (*Page[Skill], error)
 	WorkspaceListAgentDocs(ctx context.Context, in WorkspaceListQuery) (*Page[AgentDoc], error)
@@ -133,6 +134,32 @@ type ListFilesRequest struct {
 	Recursive      bool   `json:"recursive,omitempty"`
 	IncludeIgnored bool   `json:"includeIgnored,omitempty"`
 	PageQuery
+}
+
+// ReadFileRequest — workspace.readFile body (API.md §7.5). Reads the whole
+// file, or the StartLine..EndLine window (1-based inclusive, editor-facing)
+// when given. MaxBytes caps an over-large read (the executor self-describes the
+// cut via FileContent.Truncated).
+type ReadFileRequest struct {
+	Cwd       string `json:"cwd,omitempty"`
+	Path      string `json:"path"`
+	StartLine int    `json:"startLine,omitempty"`
+	EndLine   int    `json:"endLine,omitempty"`
+	MaxBytes  int    `json:"maxBytes,omitempty"`
+}
+
+// FileContent is the workspace.readFile result (API.md §7.5). TotalLines is the
+// whole-file line count even for a windowed read (so the UI can show "12–40 /
+// 320"). StartLine/EndLine echo the served window (1-based inclusive), set only
+// when a range was requested.
+type FileContent struct {
+	Path       string `json:"path"`
+	Content    string `json:"content"`
+	Encoding   string `json:"encoding"` // always "utf-8" (binary files error)
+	TotalLines int    `json:"totalLines"`
+	Truncated  bool   `json:"truncated,omitempty"`
+	StartLine  int    `json:"startLine,omitempty"`
+	EndLine    int    `json:"endLine,omitempty"`
 }
 
 // FileEntryType is a listed entry's kind (workspace.listFiles, API.md §7.5).
