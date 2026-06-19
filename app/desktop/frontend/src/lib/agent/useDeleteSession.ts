@@ -1,7 +1,9 @@
 import { useCallback } from "react";
+import type { SidebarSession } from "@/lib/data/queries";
 import { getContainer } from "@/main/container";
 import { asSessionId } from "@/rpc";
-import { invalidateSessions } from "@/lib/data/queries";
+import { queryClient } from "@/lib/data/queryClient";
+import { invalidateSessions, SESSIONS_KEY } from "@/lib/data/queries";
 import { useSessionStore } from "@/state/sessionStore";
 import { reportSessionError } from "./reportSessionError";
 
@@ -12,11 +14,18 @@ import { reportSessionError } from "./reportSessionError";
  */
 export function useDeleteSession(): (id: string) => Promise<void> {
   return useCallback(async (id) => {
+    // Optimistic: drop the row immediately; otherwise it lingers until the
+    // delete RPC and the list refetch both complete. Snapshot for rollback.
+    const prev = queryClient.getQueryData<SidebarSession[]>([SESSIONS_KEY]);
+    queryClient.setQueryData<SidebarSession[]>([SESSIONS_KEY], (old) =>
+      old?.filter((s) => s.id !== id),
+    );
     try {
       await getContainer().client().sessions.delete(asSessionId(id));
       useSessionStore.getState().closeTab(id);
       void invalidateSessions();
     } catch (err) {
+      if (prev) queryClient.setQueryData([SESSIONS_KEY], prev);
       reportSessionError("delete", err);
     }
   }, []);

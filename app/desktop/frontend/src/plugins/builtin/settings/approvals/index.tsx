@@ -45,12 +45,19 @@ function ModeRow({ mode }: { mode: ApprovalModeValue | undefined }) {
   };
   return (
     <SettingRow label={t("approvals.mode")} sub={t("approvals.mode.sub")}>
-      <Segmented
-        value={mode ?? "balanced"}
-        options={MODE_OPTIONS.map((o) => ({ value: o.value, label: t(o.label) }))}
-        onChange={(v) => void onChange(v)}
-        ariaLabel={t("approvals.mode.aria")}
-      />
+      {mode === undefined ? (
+        // Until the saved stance loads, show a quiet placeholder rather than
+        // defaulting the control to "balanced" — a fake selection that could
+        // contradict the real mode for a frame.
+        <div className="h-7 w-[260px] rounded-md bg-surface-2 opacity-50" aria-hidden />
+      ) : (
+        <Segmented
+          value={mode}
+          options={MODE_OPTIONS.map((o) => ({ value: o.value, label: t(o.label) }))}
+          onChange={(v) => void onChange(v)}
+          ariaLabel={t("approvals.mode.aria")}
+        />
+      )}
     </SettingRow>
   );
 }

@@ -240,7 +240,7 @@ export const composerChips = definePlugin({
 // since the same model id can appear under more than one provider.
 function ModelPicker() {
   const t = useT();
-  const { data: models = [] } = useModels();
+  const { data: models = [], isLoading } = useModels();
   const provider = useComposerStore((s) => s.provider);
   const model = useComposerStore((s) => s.model);
   const setModel = useComposerStore((s) => s.setModel);
@@ -251,7 +251,22 @@ function ModelPicker() {
     if (!model && models.length > 0) setModel(models[0]!.provider, models[0]!.id);
   }, [model, models, setModel]);
 
-  if (models.length === 0) return null; // no enabled provider yet — nothing to pick
+  if (models.length === 0) {
+    // Cold start: reserve the trigger's footprint with a quiet placeholder so
+    // the picker doesn't pop in and shove the toolbar once models resolve. A
+    // genuinely empty list (no provider configured) still collapses to nothing
+    // — the welcome / settings flow handles first-run setup.
+    if (!isLoading) return null;
+    return (
+      <div
+        className="mr-1 inline-flex h-6.5 shrink-0 items-center gap-1.5 rounded-full pl-1.5 pr-2.5 opacity-60"
+        aria-hidden
+      >
+        <span className="h-4 w-4 rounded-full bg-surface-2" />
+        <span className="h-3 w-16 rounded bg-surface-2" />
+      </div>
+    );
+  }
   const selected = models.find((m) => m.provider === provider && m.id === model) ?? models[0]!;
 
   return (
