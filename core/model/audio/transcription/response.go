@@ -37,7 +37,7 @@ type Result struct {
 	Metadata *ResultMetadata `json:"metadata,omitempty"`
 }
 
-// Text may be empty; metadata is required.
+// NewResult builds a [Result]. Text may be empty; metadata is required.
 func NewResult(text string, metadata *ResultMetadata) (*Result, error) {
 	if metadata == nil {
 		return nil, errors.New("transcription.NewResult: metadata must not be nil")

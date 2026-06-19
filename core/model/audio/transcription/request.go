@@ -147,7 +147,7 @@ type Request struct {
 	Params map[string]any `json:"params,omitzero"`
 }
 
-// Returns an error
+// NewRequest builds a Request from an audio payload. Returns an error
 // when audio is nil.
 func NewRequest(audio *media.Media) (*Request, error) {
 	if audio == nil {

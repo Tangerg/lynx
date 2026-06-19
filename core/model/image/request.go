@@ -67,7 +67,7 @@ type Options struct {
 	Extra map[string]any `json:"extra,omitzero"`
 }
 
-// Returns an error
+// NewOptions builds Options for the given model id. Returns an error
 // when model is empty.
 func NewOptions(model string) (*Options, error) {
 	if model == "" {
@@ -180,7 +180,7 @@ type Request struct {
 	Params map[string]any `json:"params,omitzero"`
 }
 
-// Returns an error when prompt
+// NewRequest builds a Request from prompt. Returns an error when prompt
 // is empty.
 func NewRequest(prompt string) (*Request, error) {
 	if prompt == "" {

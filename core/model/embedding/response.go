@@ -67,7 +67,7 @@ type Result struct {
 	Metadata *ResultMetadata `json:"metadata,omitempty"`
 }
 
-// Returns an error when the embedding is
+// NewResult builds a [Result]. Returns an error when the embedding is
 // empty or metadata is nil.
 func NewResult(embedding []float64, metadata *ResultMetadata) (*Result, error) {
 	if len(embedding) == 0 {
@@ -127,7 +127,8 @@ type Response struct {
 	Metadata *ResponseMetadata `json:"metadata,omitempty"`
 }
 
-// from at least one result and a non-nil metadata.
+// NewResponse builds a [Response] from at least one result and a
+// non-nil metadata.
 func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error) {
 	if len(results) == 0 {
 		return nil, errors.New("embedding.NewResponse: at least one Result is required")
@@ -138,7 +139,8 @@ func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, erro
 	return &Response{Results: results, Metadata: metadata}, nil
 }
 
-// Returns nil when Results is empty.
+// Result returns the first generation alternative — the common
+// "give me the embedding" shortcut. Returns nil when Results is empty.
 func (r *Response) Result() *Result {
 	if r == nil || len(r.Results) == 0 {
 		return nil

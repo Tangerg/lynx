@@ -34,7 +34,8 @@ type ClientRequest struct {
 	params            map[string]any
 }
 
-// Returns an error when model is nil.
+// NewClientRequest builds a [ClientRequest] for model. Returns an error
+// when model is nil.
 func NewClientRequest(model Model) (*ClientRequest, error) {
 	if model == nil {
 		return nil, errors.New("tts.NewClientRequest: model must not be nil")
@@ -52,7 +53,7 @@ func (r *ClientRequest) WithMiddlewares(middlewares ...any) *ClientRequest {
 	return r
 }
 
-// nil is ignored.
+// WithOptions sets the per-request [Options]. nil is ignored.
 func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 	if options != nil {
 		r.options = options
@@ -60,7 +61,7 @@ func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 	return r
 }
 
-// Empty input is ignored.
+// WithText sets the prompt text. Empty input is ignored.
 func (r *ClientRequest) WithText(text string) *ClientRequest {
 	if text != "" {
 		r.text = text
@@ -68,7 +69,7 @@ func (r *ClientRequest) WithText(text string) *ClientRequest {
 	return r
 }
 
-// Empty input is
+// WithParams replaces the side-channel params map. Empty input is
 // ignored. The map is cloned so caller mutations don't leak.
 func (r *ClientRequest) WithParams(params map[string]any) *ClientRequest {
 	if len(params) > 0 {
@@ -112,6 +113,8 @@ func (r *ClientRequest) buildRequest() (*Request, error) {
 	return req, nil
 }
 
+// Call returns a [ClientCaller] for synchronous generation.
+//
 // Example:
 //
 //	audio, _, err := client.Synthesize().WithText("hi").Call().Speech(ctx)
@@ -119,6 +122,8 @@ func (r *ClientRequest) Call() *ClientCaller {
 	return &ClientCaller{request: r}
 }
 
+// Stream returns a [ClientStreamer] for incremental generation.
+//
 // Example:
 //
 //	for chunk, err := range client.Synthesize().WithText("hi").Stream().Speech(ctx) {
@@ -183,7 +188,8 @@ func (s *ClientStreamer) Response(ctx context.Context) iter.Seq2[*Response, erro
 	}
 }
 
-// Convenient when the caller wants to pipe directly to a player or file.
+// Speech yields just the audio bytes — convenient when the caller wants
+// to pipe directly to a player or file.
 func (s *ClientStreamer) Speech(ctx context.Context) iter.Seq2[[]byte, error] {
 	return func(yield func([]byte, error) bool) {
 		for resp, err := range s.Response(ctx) {
@@ -212,7 +218,8 @@ func NewClient(model Model) (*Client, error) {
 	return NewClientFromRequest(req)
 }
 
-// Use this when the request already carries default
+// NewClientFromRequest wraps an existing [ClientRequest] as a sticky
+// default — use this when the request already carries default
 // middlewares / options the [Client] should keep applying.
 func NewClientFromRequest(request *ClientRequest) (*Client, error) {
 	if request == nil {
