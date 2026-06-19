@@ -18,7 +18,7 @@ func TestNew_NilApproval(t *testing.T) {
 // TestExitPlan_Validation: malformed args and an empty plan are model-facing
 // errors raised before the call parks.
 func TestExitPlan_Validation(t *testing.T) {
-	tool := New(approval.New(approval.ModePlan))
+	tool := New(approval.New(approval.ModePlan, nil))
 	if _, err := tool.Call(context.Background(), `not json`); err == nil {
 		t.Error("invalid JSON must error")
 	}
@@ -30,7 +30,7 @@ func TestExitPlan_Validation(t *testing.T) {
 // TestExitPlan_NotInPlanMode: calling exit_plan_mode outside the plan stance is
 // a no-op message (not an error, no park) — it only applies in plan mode.
 func TestExitPlan_NotInPlanMode(t *testing.T) {
-	tool := New(approval.New(approval.ModeBalanced)) // not plan
+	tool := New(approval.New(approval.ModeBalanced, nil)) // not plan
 	out, err := tool.Call(context.Background(), `{"plan":"do the thing"}`)
 	if err != nil {
 		t.Fatalf("err=%v, want a graceful not-in-plan message", err)

@@ -105,6 +105,11 @@ type Config struct {
 	// when this field is the zero value.
 	ApprovalMode approval.Mode
 
+	// ApprovalRuleStore persists fine-grained "remember this decision" rules
+	// (AUX_API §6). nil → no rules are remembered (Decide never matches); the
+	// composition root injects the sqlite-backed store.
+	ApprovalRuleStore approval.RuleStore
+
 	// Provider / Model name the runtime's DEFAULT provider+model — the one a
 	// turn runs against when it doesn't pick a model. providers.list /
 	// models.list are served from the registry + catalog, not these.
@@ -224,7 +229,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	// Approval stance is built early: the toolset's exit_plan_mode tool needs it
 	// (it flips the stance to execute when a plan is approved), and the turn gate
 	// reads it per tool call.
-	approvalSvc := approval.New(cfg.ApprovalMode)
+	approvalSvc := approval.New(cfg.ApprovalMode, cfg.ApprovalRuleStore)
 
 	built, err := toolset.Build(ctx, toolset.BuildConfig{
 		Workdir:         cfg.Engine.Workdir,

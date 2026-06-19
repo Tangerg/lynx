@@ -18,9 +18,6 @@ import (
 	"path/filepath"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/core/model/chat"
-	chatmem "github.com/Tangerg/lynx/core/model/chat/middleware/memory"
-	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
@@ -34,6 +31,9 @@ import (
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
+	"github.com/Tangerg/lynx/core/model/chat"
+	chatmem "github.com/Tangerg/lynx/core/model/chat/middleware/memory"
+	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 )
 
 // App is the top-level CLI object. It owns the IO streams every
@@ -187,6 +187,10 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		// EVERY write + exec), which floods a coding session with approvals.
 		// Operators flip the mode at runtime; safe/readonly/yolo are opt-in.
 		ApprovalMode: approval.ModeBalanced,
+		// Persistent fine-grained approval rules (AUX_API §6). nil-default in the
+		// runtime treats a missing store as "no remembered rules"; production
+		// always wires the sqlite-backed one.
+		ApprovalRuleStore: stores.ApprovalRules,
 	})
 	if err != nil {
 		return err
@@ -230,16 +234,17 @@ func buildStores() (*Stores, error) {
 		return nil, fmt.Errorf("memory storage: %w", err)
 	}
 	return &Stores{
-		Home:       home,
-		Session:    sqlitestore.NewSessionService(db),
-		Memory:     mem,
-		Process:    sqlitestore.NewProcessStore(db),
-		Interrupt:  sqlitestore.NewInterruptStore(db),
-		Transcript: sqlitestore.NewTranscriptStore(db),
-		Provider:   sqlitestore.NewProviderService(db),
-		ChatMem:    sqlitestore.NewMessageStore(db),
-		Park:       sqlitestore.NewParkStore(db),
-		Todos:      sqlitestore.NewTodoService(db),
+		Home:          home,
+		Session:       sqlitestore.NewSessionService(db),
+		Memory:        mem,
+		Process:       sqlitestore.NewProcessStore(db),
+		Interrupt:     sqlitestore.NewInterruptStore(db),
+		Transcript:    sqlitestore.NewTranscriptStore(db),
+		Provider:      sqlitestore.NewProviderService(db),
+		ChatMem:       sqlitestore.NewMessageStore(db),
+		Park:          sqlitestore.NewParkStore(db),
+		Todos:         sqlitestore.NewTodoService(db),
+		ApprovalRules: sqlitestore.NewApprovalRuleStore(db),
 	}, nil
 }
 
@@ -247,16 +252,17 @@ func buildStores() (*Stores, error) {
 // storage Home they share (the root for derived paths like the global skills
 // directory).
 type Stores struct {
-	Home       string
-	Session    sessionsvc.Service
-	Memory     knowledge.Service
-	Process    core.ProcessStore
-	Interrupt  interrupts.Store
-	Transcript transcript.Store
-	Provider   providersvc.Service
-	ChatMem    chatmem.Store
-	Park       tool.ParkStore
-	Todos      todosvc.Service
+	Home          string
+	Session       sessionsvc.Service
+	Memory        knowledge.Service
+	Process       core.ProcessStore
+	Interrupt     interrupts.Store
+	Transcript    transcript.Store
+	Provider      providersvc.Service
+	ChatMem       chatmem.Store
+	Park          tool.ParkStore
+	Todos         todosvc.Service
+	ApprovalRules approval.RuleStore
 }
 
 // seedConfiguredProvider ensures the config-file provider is present in the

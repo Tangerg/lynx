@@ -116,7 +116,7 @@ func TestResolveResolution(t *testing.T) {
 		return []protocol.InterruptResponse{{Response: v}}
 	}
 
-	// approve + editedArgs + remember{session}: approved, args marshaled, remembered.
+	// approve + editedArgs + remember{session}: approved, args marshaled, scope carried.
 	res, err := resolveResolution(approval(protocol.InterruptResponseValue{
 		Decision:   "approve",
 		EditedArgs: map[string]any{"cmd": "ls -la"},
@@ -125,8 +125,8 @@ func TestResolveResolution(t *testing.T) {
 	if err != nil {
 		t.Fatalf("approve: %v", err)
 	}
-	if !res.Approved || !res.Remember || res.Arguments != `{"cmd":"ls -la"}` {
-		t.Fatalf("approve = %+v, want approved+remember+args", res)
+	if !res.Approved || res.RememberScope != "session" || res.Arguments != `{"cmd":"ls -la"}` {
+		t.Fatalf("approve = %+v, want approved+remember{session}+args", res)
 	}
 
 	// deny + remember{session}: a remembered denial is valid.
@@ -134,17 +134,23 @@ func TestResolveResolution(t *testing.T) {
 		Decision: "deny",
 		Remember: &protocol.RememberScope{Scope: "session"},
 	}))
-	if res.Approved || !res.Remember {
-		t.Fatalf("deny+remember = %+v, want !approved && remember", res)
+	if res.Approved || res.RememberScope != "session" {
+		t.Fatalf("deny+remember = %+v, want !approved && scope=session", res)
 	}
 
-	// Unhonored scope (not "session") is one-shot, not a false promise.
+	// project / global scopes are now honored (persisted as rules), carried verbatim.
 	res, _ = resolveResolution(approval(protocol.InterruptResponseValue{
 		Decision: "approve",
 		Remember: &protocol.RememberScope{Scope: "global"},
 	}))
-	if res.Remember {
-		t.Fatal("scope=global must not set Remember (not persisted in v1)")
+	if res.RememberScope != "global" {
+		t.Fatalf("scope=global = %q, want carried verbatim", res.RememberScope)
+	}
+
+	// No remember directive → empty scope (don't persist).
+	res, _ = resolveResolution(approval(protocol.InterruptResponseValue{Decision: "approve"}))
+	if res.RememberScope != "" {
+		t.Fatalf("no-remember = %q, want empty scope", res.RememberScope)
 	}
 
 	// Bad decision → error.
