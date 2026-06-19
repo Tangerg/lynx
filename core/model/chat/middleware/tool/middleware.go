@@ -142,14 +142,7 @@ func (m *middleware) applyBeforeRound(ctx context.Context, next *chat.Request) (
 	if len(extra) == 0 {
 		return next, nil
 	}
-	out, err := chat.NewRequest(append(slices.Clone(next.Messages), extra...))
-	if err != nil {
-		return nil, err
-	}
-	out.Options = next.Options.Clone()
-	out.Tools = slices.Clone(next.Tools)
-	out.Params = maps.Clone(next.Params)
-	return out, nil
+	return continueRequest(next, extra...)
 }
 
 // loopState carries the per-loop bookkeeping threaded through the
