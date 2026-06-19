@@ -56,7 +56,8 @@
 - **我方**:@file **全无**、输出里 file:line **不可点**(markdown `a()` 只开新 tab)、大文本粘贴直接灌输入框(只拦了 `image/*`)(自审 D8)。
 - **改法**:主要 **desktop**。注意依赖:@file 的文件列表源需 runtime `workspace.listFiles`(目前是 613 提案、方法表未注册)——要么先推该方法,要么前端临时用现有 grep/已读文件兜底。可点 file:line + 大段粘贴转附件可独立先做。
 
-### ✅ T2.4　限流 / 429 退避　【runtime + desktop · M】　**已实现**(runtime 填 `retryable`+`retryAfterSeconds`(429/5xx/timeout)、desktop 倒计时 + 退避感知 Retry 禁用;`provider_error` 符号拆分是 wire-value 变更,待用户签发,暂只做 additive 字段)
+### ✅ T2.4　限流 / 429 退避　【runtime + desktop · M】　**已实现**(runtime 填 `retryable`+`retryAfterSeconds`、desktop 倒计时 + 退避感知 Retry 禁用 + `provider_error` 符号按模式拆分)
+> 符号拆分补完(用户签发,彻底治本):`classifyRunError` 现按失败模式给每类一个稳定 run 级符号 —— `rate_limited`(429,retryable)/`invalid_api_key`(401·403,不可重试)/`timeout`(超时·连接,retryable)/`provider_unavailable`(5xx,retryable)/`provider_rejected`(400,不可重试;与 RPC 级 `invalid_request` 同名不同物,靠 `channel` 区分),其余落 `internal_error`。客户端只按 `type`(+`retryable`)分支,不再 substring-match `detail`。前端 `errorCopy` 给每个符号文案,API.md §8.4 列入。
 - **竞品**:Claude Code `withRetry`(前 3 次重试不打扰、第 4 次起才显倒计时)+ 过载透明换模型(`query.ts:894` Opus→Sonnet,非阻塞提示);codex `rate_limits.rs` 75/90/95% 阶梯警告 + 换模型 nudge("永不再提");opencode `session-retry.tsx` 行内倒计时重试卡(非 toast)。
 - **我方**:wire 有 `retryAfterSeconds`+`retryable`(`delivery/protocol/errors.go:34-38`)但**两端零消费**;runtime 也**从不填**(自审 R7),429/认证/超时全塌成一个 `provider_error` 靠 `detail` free-text 区分。
 - **改法**:**runtime** 在 `infra/llm` 解析 provider `Retry-After` → 填 `retryable`+`retryAfterSeconds`,并把 `provider_error` 拆成稳定符号(`rate_limited`/`invalid_api_key`/`timeout`);**desktop** 据此做倒计时 + 退避感知的 Retry 禁用。

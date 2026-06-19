@@ -65,33 +65,38 @@ func (t *translator) classifyRunError(msg string) *protocol.ProblemData {
 		}
 		return false
 	}
-	provider := func(detail string) *protocol.ProblemData {
-		return &protocol.ProblemData{Type: "provider_error", Channel: protocol.ErrorChannelRun, Detail: detail}
+	// problem builds a run-channel ProblemData under a stable wire symbol. The
+	// symbol — not the free-text detail — is what the client branches on: each
+	// distinct failure mode gets its own symbol so no consumer ever has to
+	// substring-match `detail` (or lean on the retryable flag) to tell two
+	// failures apart.
+	problem := func(symbol, detail string) *protocol.ProblemData {
+		return &protocol.ProblemData{Type: symbol, Channel: protocol.ErrorChannelRun, Detail: detail}
 	}
-	// retryable marks a transient provider failure (worth retrying) and carries
-	// a best-effort backoff hint parsed from the message — so the client can
-	// gate / count down its retry instead of hammering. Type stays
-	// "provider_error" (no wire-symbol split here); only the additive
-	// retryable/retryAfterSeconds fields are populated.
-	retryable := func(detail string) *protocol.ProblemData {
-		p := provider(detail)
+	// retryable marks a transient failure (worth retrying) and carries a
+	// best-effort backoff hint parsed from the message — so the client can gate
+	// / count down its retry instead of hammering.
+	retryable := func(symbol, detail string) *protocol.ProblemData {
+		p := problem(symbol, detail)
 		p.Retryable = true
 		p.RetryAfterSeconds = parseRetryAfter(msg)
 		return p
 	}
 	switch {
 	case contains("429", "too many requests", "rate limit", "overloaded", "quota"):
-		return retryable("the model provider rate-limited the request; retry shortly")
+		return retryable("rate_limited", "the model provider rate-limited the request; retry shortly")
 	case contains(" 401", " 403", "unauthorized", "forbidden", "invalid_api_key", "api key"):
 		// Not retryable: resending won't help until the key is fixed.
-		return provider("the model provider rejected the credentials; check the provider API key")
-	case contains(" 500", " 502", " 503", " 504", "bad gateway", "service unavailable", "internal server error"):
-		return retryable("the model provider is temporarily unavailable; retry shortly")
+		return problem("invalid_api_key", "the model provider rejected the credentials; check the provider API key")
 	case contains("deadline exceeded", "timeout", "timed out", "client.timeout", "connection refused", "no such host", "i/o timeout", "eof", "connection reset"):
-		return retryable("the model provider request timed out or the connection failed; retry shortly")
+		return retryable("timeout", "the model provider request timed out or the connection failed; retry shortly")
+	case contains(" 500", " 502", " 503", " 504", "bad gateway", "service unavailable", "internal server error"):
+		return retryable("provider_unavailable", "the model provider is temporarily unavailable; retry shortly")
 	case contains(" 400", "invalid_request_error", "bad request"):
-		// Not retryable: the request itself is malformed.
-		return provider("the model provider rejected the request as invalid")
+		// Not retryable: the request itself is malformed. Distinct from the
+		// RPC-level `invalid_request` (-32600, a bad JSON-RPC envelope) — this is
+		// the provider rejecting the model request we sent.
+		return problem("provider_rejected", "the model provider rejected the request as invalid")
 	default:
 		return protocol.InternalErrorProblem()
 	}
