@@ -36,7 +36,22 @@ func (t *translator) shapeToolResult(name string, args map[string]any, outputJSO
 		return searchResult{Hits: parseLocalSearchHits(outputJSON)}
 	case "web_search":
 		return webSearchResultSet{Results: parseWebSearchHits(outputJSON)}
-	case "write", "edit":
+	case "edit":
+		if path := argString(args, "file_path"); path != "" {
+			// Call-scoped diff (§12.1 C): the literal old→new patch this edit
+			// applied, so the card shows exactly what changed — not a re-queried
+			// whole-worktree diff.
+			return fileChangeResult{Changes: []protocol.FileEdit{{
+				Path:   path,
+				Status: "modified",
+				Diff:   editDiffRows(argString(args, "old_string"), argString(args, "new_string")),
+			}}}
+		}
+		return protocol.BestEffortJSON(outputJSON)
+	case "write":
+		// No call-scoped diff: the new content is in args, but the prior file
+		// content isn't available here, so a diff would be misleadingly
+		// all-added on an overwrite. The client shows the worktree diff instead.
 		if path := argString(args, "file_path"); path != "" {
 			return fileChangeResult{Changes: []protocol.FileEdit{{Path: path, Status: "modified"}}}
 		}
