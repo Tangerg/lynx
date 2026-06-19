@@ -1,11 +1,9 @@
 import type { Highlighter } from "shiki";
 import type { DiffRow } from "@/lib/data/queries";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { intraLineDiff } from "@/lib/diff/intraLineDiff";
-import { getHighlighter } from "@/lib/markdown/shiki";
+import { stripCodeWrapper, useCodeHighlighter } from "@/lib/markdown/useCodeHighlight";
 import { cn } from "@/lib/utils";
-import { resolveScheme } from "@/plugins/sdk";
-import { useUiStore } from "@/state/uiStore";
 
 /** Unified (one column, +/− interleaved) vs split (old left, new right). */
 export type DiffLayout = "unified" | "split";
@@ -37,18 +35,20 @@ const WD_ADD_STYLE = "background-color:rgba(30,215,96,0.3);border-radius:2px";
 
 type WordDecoration = { start: number; end: number; properties: { style: string } };
 
-// Strip Shiki's <pre><code>…</code></pre> wrapper so the inner token spans can
-// be injected inline into our grid row. `decorations` wrap the changed
-// sub-range; Shiki splits the syntax token spans at the range bounds so the
-// word tint composites over the syntax colours rather than replacing them.
+// Highlight one line for inline injection into a grid row. `decorations` wrap
+// the changed sub-range; Shiki splits the syntax token spans at the range
+// bounds so the word tint composites over the syntax colours rather than
+// replacing them.
 function highlightInline(
   h: Highlighter,
   code: string,
   theme: string,
   decorations: WordDecoration[],
 ): string {
-  const html = h.codeToHtml(code || " ", { lang: "typescript", theme, decorations });
-  return html.match(/<code[^>]*>([\s\S]*)<\/code>/)?.[1] ?? code;
+  return stripCodeWrapper(
+    h.codeToHtml(code || " ", { lang: "typescript", theme, decorations }),
+    code,
+  );
 }
 
 // Map each replaced line to its changed sub-range (word-level diff). Walks the
@@ -90,19 +90,7 @@ function CodeCell({ code, html }: { code: string; html: string | undefined }) {
 }
 
 export function DiffView({ rows, layout = "unified" }: { rows: DiffRow[]; layout?: DiffLayout }) {
-  const themeId = useUiStore((s) => s.theme);
-  const shikiTheme = resolveScheme(themeId) === "light" ? "github-light" : "github-dark";
-  const [highlighter, setHighlighter] = useState<Highlighter | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void getHighlighter().then((h) => {
-      if (!cancelled) setHighlighter(h);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { highlighter, theme: shikiTheme } = useCodeHighlighter();
 
   const wordRanges = useMemo(() => computeWordRanges(rows), [rows]);
   const highlighted = useMemo(() => {

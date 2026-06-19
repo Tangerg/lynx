@@ -1,9 +1,7 @@
 import type { Highlighter } from "shiki";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { getHighlighter } from "@/lib/markdown/shiki";
+import { useEffect, useMemo, useRef } from "react";
+import { stripCodeWrapper, useCodeHighlighter } from "@/lib/markdown/useCodeHighlight";
 import { cn } from "@/lib/utils";
-import { resolveScheme } from "@/plugins/sdk";
-import { useUiStore } from "@/state/uiStore";
 
 // Whole-file viewer (workspace.readFile) — the target of a clickable file:line
 // reference. The file is highlighted in ONE Shiki pass and split into per-line
@@ -15,25 +13,11 @@ import { useUiStore } from "@/state/uiStore";
 // Split a full highlight into per-line inner HTML by stripping the <pre><code>
 // wrapper and splitting on the newlines Shiki places between line spans.
 function highlightLines(h: Highlighter, code: string, theme: string): string[] {
-  const html = h.codeToHtml(code, { lang: "typescript", theme });
-  const inner = html.match(/<code[^>]*>([\s\S]*)<\/code>/)?.[1] ?? "";
-  return inner.split("\n");
+  return stripCodeWrapper(h.codeToHtml(code, { lang: "typescript", theme }), "").split("\n");
 }
 
 export function FileView({ content, targetLine }: { content: string; targetLine: number }) {
-  const themeId = useUiStore((s) => s.theme);
-  const shikiTheme = resolveScheme(themeId) === "light" ? "github-light" : "github-dark";
-  const [highlighter, setHighlighter] = useState<Highlighter | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void getHighlighter().then((h) => {
-      if (!cancelled) setHighlighter(h);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { highlighter, theme: shikiTheme } = useCodeHighlighter();
 
   // Plain lines drive the gutter + the fallback render; the highlighted variant
   // (when ready) renders inline. Both have the same length, so they align.

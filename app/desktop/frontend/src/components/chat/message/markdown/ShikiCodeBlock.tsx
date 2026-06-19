@@ -5,10 +5,9 @@ import { copyText } from "@/lib/clipboard";
 import { measureShikiHighlight } from "@/lib/metrics";
 import { getHighlighter, resolveLang } from "@/lib/markdown/shiki";
 import { getCachedHighlight, setCachedHighlight } from "@/lib/markdown/shikiCache";
+import { useShikiTheme } from "@/lib/markdown/useCodeHighlight";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
-import { resolveScheme } from "@/plugins/sdk";
-import { useUiStore } from "@/state/uiStore";
 
 interface Props {
   lang: string;
@@ -28,11 +27,7 @@ const FOLD_LINE_THRESHOLD = 24;
 
 export function ShikiCodeBlock({ lang, code, file }: Props) {
   const t = useT();
-  const themeId = useUiStore((s) => s.theme);
-  // resolveScheme via the registry so third-party light themes ("solarized-
-  // light" etc.) also pick the right shiki preset, not just id === "light".
-  const scheme = resolveScheme(themeId);
-  const shikiTheme = scheme === "light" ? "github-light" : "github-dark";
+  const shikiTheme = useShikiTheme();
 
   const [debouncedCode] = useDebounce(code, 120);
   const isSettling = code !== debouncedCode;
