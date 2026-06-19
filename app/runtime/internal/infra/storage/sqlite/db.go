@@ -130,6 +130,21 @@ func migrate(db *sql.DB) error {
 			items      TEXT    NOT NULL,
 			updated_at INTEGER NOT NULL
 		)`,
+		// Persistent fine-grained approval rules (AUX_API §6). id is
+		// deterministic over (scope, scope_key, tool, subject) so re-remembering
+		// the same rule upserts the decision; scope_key is the session id /
+		// project dir / '' for global.
+		`CREATE TABLE IF NOT EXISTS approval_rules (
+			id         TEXT    PRIMARY KEY,
+			scope      TEXT    NOT NULL,
+			scope_key  TEXT    NOT NULL DEFAULT '',
+			tool       TEXT    NOT NULL,
+			subject    TEXT    NOT NULL DEFAULT '',
+			decision   TEXT    NOT NULL,
+			created_at INTEGER NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_approval_rules_scope
+			ON approval_rules(scope, scope_key)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {

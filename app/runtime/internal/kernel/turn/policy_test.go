@@ -49,25 +49,29 @@ func TestGateFor_Matrix(t *testing.T) {
 }
 
 // TestApproveToolCall_RememberedShortCircuit verifies the gate consults a
-// standing session decision BEFORE prompting (B5): a remembered approve passes
-// without an interrupt, a remembered deny refuses without one. Both paths
-// avoid hitl.Interrupt, so no agent process context is needed.
+// standing rule BEFORE prompting (B5): a remembered allow passes without an
+// interrupt, a remembered deny refuses without one. Both paths avoid
+// hitl.Interrupt, so no agent process context is needed.
 func TestApproveToolCall_RememberedShortCircuit(t *testing.T) {
 	ctx := context.Background()
-	appr := approval.New(approval.ModeSafe) // bash gates → would prompt
+	appr := approval.New(approval.ModeSafe, approval.NewMemoryStore()) // bash gates → would prompt
 	obs := &turnObserver{
 		svc: &inMemory{approval: appr},
 		st:  &turnState{handle: TurnHandle{SessionID: "s1"}},
 	}
 
-	// Remembered approve → verdict runs (no interrupt, not denied).
-	_ = appr.Remember(ctx, "s1", "bash", true)
+	// Remembered allow → verdict runs (no interrupt, not denied).
+	_ = appr.Remember(ctx, approval.RememberRequest{
+		Scope: approval.ScopeSession, SessionID: "s1", Tool: "bash", Arguments: "{}", Decision: approval.Allow,
+	})
 	if v := obs.ApproveToolCall(ctx, "c1", "bash", "{}"); v.Interrupt != nil || v.Denied {
-		t.Fatalf("remembered approve = %+v, want a clean run verdict", v)
+		t.Fatalf("remembered allow = %+v, want a clean run verdict", v)
 	}
 
 	// Remembered deny → verdict denies (no interrupt).
-	_ = appr.Remember(ctx, "s1", "write", false)
+	_ = appr.Remember(ctx, approval.RememberRequest{
+		Scope: approval.ScopeSession, SessionID: "s1", Tool: "write", Arguments: "{}", Decision: approval.Deny,
+	})
 	if v := obs.ApproveToolCall(ctx, "c2", "write", "{}"); v.Interrupt != nil || !v.Denied {
 		t.Fatalf("remembered deny = %+v, want a denied verdict", v)
 	}

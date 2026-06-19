@@ -11,11 +11,13 @@ type Resolution struct {
 	Approved  bool
 	Arguments string
 	Answer    map[string][]string
-	// Remember asks the runtime to keep this approve/deny decision for the
-	// session, so future calls to the same tool skip the prompt (AUX_API §6).
-	// The chat gate records it keyed by tool name; honored only for the
-	// "session" scope (the wire's only v1 scope).
-	Remember bool
+	// RememberScope, when non-empty, asks the runtime to persist this
+	// approve/deny decision as a rule so matching future calls skip the prompt
+	// (AUX_API §6). The value is the wire scope — "session" | "project" |
+	// "global"; empty means "don't remember". A plain string (not the approval
+	// domain's Scope type) because this leaf must not import a sibling domain;
+	// the chat gate maps it across.
+	RememberScope string
 }
 
 // QuestionPrompt is the payload a structured-question interrupt parks with:

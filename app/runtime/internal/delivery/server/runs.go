@@ -300,11 +300,12 @@ func resolveResolution(responses []protocol.InterruptResponse) (interrupts.Resol
 	for _, r := range responses {
 		switch r.Response.Type {
 		case protocol.InterruptResponseApproval:
-			// remember{scope:session} keeps the decision for the session; any
-			// other scope isn't persisted yet, so we honor it as one-shot
-			// rather than promise a memory we can't keep (AUX_API §6).
-			res := interrupts.Resolution{
-				Remember: r.Response.Remember != nil && r.Response.Remember.Scope == protocol.RememberSession,
+			// remember{scope} persists this decision as a rule at the chosen
+			// scope (session / project / global); the chat gate maps the scope
+			// across and keys the rule (AUX_API §6). Empty = don't remember.
+			res := interrupts.Resolution{}
+			if r.Response.Remember != nil {
+				res.RememberScope = string(r.Response.Remember.Scope)
 			}
 			switch r.Response.Decision {
 			case protocol.ApprovalApprove:

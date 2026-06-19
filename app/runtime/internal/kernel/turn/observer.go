@@ -9,6 +9,7 @@ import (
 	corechat "github.com/Tangerg/lynx/core/model/chat"
 
 	"github.com/Tangerg/lynx/agent/hitl"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 )
@@ -66,11 +67,15 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 		return kernel.ToolApprovalVerdict{Denied: true, DenyReason: "plan mode is active (read-only): " + toolName + " is not permitted. Investigate with read-only tools, then call exit_plan_mode to present your plan for approval."}
 	}
 
-	// gatePrompt. A standing session decision short-circuits the prompt; else
-	// interrupt for human approval and record the answer if "remember".
+	// gatePrompt. A matching standing rule short-circuits the prompt; else
+	// interrupt for human approval and persist a rule if "remember".
 	sessionID := t.st.handle.SessionID
-	if v, ok := t.rememberedVerdict(ctx, sessionID, toolName); ok {
-		return v
+	query := approval.Query{SessionID: sessionID, ProjectDir: t.st.cwd, Tool: toolName, Arguments: arguments}
+	if d, ok, _ := t.svc.approval.Decide(ctx, query); ok {
+		if d == approval.Deny {
+			return kernel.ToolApprovalVerdict{Denied: true, DenyReason: "tool call denied by a remembered rule"}
+		}
+		return kernel.ToolApprovalVerdict{} // remembered allow
 	}
 
 	// interrupt for human approval (R model). First pass bubbles the
@@ -82,10 +87,19 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	if err != nil {
 		return kernel.ToolApprovalVerdict{Interrupt: err}
 	}
-	// "remember" keeps this decision for the session so the next call to the
-	// same tool auto-resolves the same way — recorded for approve AND deny.
-	if res.Remember {
-		_ = t.svc.approval.Remember(ctx, sessionID, toolName, res.Approved)
+	// "remember{scope}" persists this decision as a rule so matching future
+	// calls auto-resolve the same way — recorded for approve AND deny. Keyed on
+	// the ORIGINAL arguments (the model regenerates calls like this one); any
+	// editedArgs override stays one-shot, never folded into the rule.
+	if res.RememberScope != "" {
+		_ = t.svc.approval.Remember(ctx, approval.RememberRequest{
+			Scope:      approval.Scope(res.RememberScope),
+			SessionID:  sessionID,
+			ProjectDir: t.st.cwd,
+			Tool:       toolName,
+			Arguments:  arguments,
+			Decision:   decisionOf(res.Approved),
+		})
 	}
 	if !res.Approved {
 		return kernel.ToolApprovalVerdict{Denied: true, DenyReason: "tool call denied by user"}
@@ -93,20 +107,12 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	return kernel.ToolApprovalVerdict{Arguments: res.Arguments}
 }
 
-// rememberedVerdict resolves a gated tool call from a standing session decision
-// the user previously made with "approve/deny + remember", short-circuiting the
-// prompt — the whole point of remember is to stop re-asking (AUX_API §6). ok is
-// false when nothing is remembered (the caller then prompts). A remembered deny
-// is as binding as a remembered approve.
-func (t *turnObserver) rememberedVerdict(ctx context.Context, sessionID, toolName string) (kernel.ToolApprovalVerdict, bool) {
-	approved, ok, _ := t.svc.approval.Remembered(ctx, sessionID, toolName)
-	if !ok {
-		return kernel.ToolApprovalVerdict{}, false
-	}
+// decisionOf maps an approve/deny boolean to the approval domain's verdict.
+func decisionOf(approved bool) approval.Decision {
 	if approved {
-		return kernel.ToolApprovalVerdict{}, true
+		return approval.Allow
 	}
-	return kernel.ToolApprovalVerdict{Denied: true, DenyReason: "tool call denied for this session (remembered)"}, true
+	return approval.Deny
 }
 
 // approvalKey is the interrupt key for one gated tool call. Keyed by tool
