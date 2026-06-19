@@ -69,29 +69,29 @@
 
 ## Tier 3 —— 锦上添花 / 多为 runtime 一行级
 
-### ☐ T3.1　压缩上 wire　【runtime · S】
-runtime 已算 `CompactBoundary`(前后条数,`turn/service.go:248-269`)却被 translator **直接丢**(`translator.go:116-117`);前端 `CompactionBlock` **就绪等着渲染**。只差 runtime 投影成 `compaction` Item 或 `custom` 事件(Kimi/Claude Code 显示 before→after tokens)。顺带 `MemoryUpdated`(已算的"存了笔记")也一起丢了,可做友好 `custom` 信号。
+### ✅ T3.1　压缩上 wire　【runtime · S】　**已实现**
+translator 现把 `turn.CompactBoundary` 投影成 `compaction` Item(`item.started`+`item.completed`,`droppedMessages`=压缩前后净减条数),前端 `foldCompaction` 直接接住渲染分隔条;新增 `protocol.ItemTypeCompaction` + Item 的 `summary`/`droppedMessages` 字段(API.md §4.3 已同步)。`MemoryUpdated` 仍内部消化 —— 前端无消费方,按 YAGNI 不发推测性 `custom` 信号。
 
-### ☐ T3.2　loop/stuck 别拍平成 internal_error　【runtime · XS】
-runtime 已知 `AGENT_STUCK`(`turn/turn.go:396-397`),但 `classifyRunError`(`translator_outcome.go:31-58`)无匹配 → 落 `internal_error`,用户看到"内部错误"。加一个 `type:"agent_stuck"` 或透传 errCode,一行级。
+### ✅ T3.2　loop/stuck 别拍平成 internal_error　【runtime · XS】　**已实现**
+`classifyRunError` 现读 translator 透传的 `errCode`(经 `ErrorEvent.Code` 捕获):`AGENT_STUCK` → 稳定 wire 符号 `agent_stuck`(治本,按 code 判别而非 message 文本),不再塌成 `internal_error`;其余 engine error 仍走 provider-pattern 分类。前端 `errorCopy` 给了友好文案,API.md §8.4 列入 run 级错误类型。
 
-### ☐ T3.3　session live status 别硬编码 idle　【runtime · S】
-`sessionToWire`(`delivery/server/sessions.go:218-233`)硬编码 `SessionStatusIdle`;runtime 其实知道(track `s.runs` + open interrupts)。改成真实 running/waiting/idle,前端即可在会话树显示"运行中/等你审批"徽标。
+### ✅ T3.3　session live status 别硬编码 idle　【runtime · S】　**已实现**
+`sessionToWire` 现收 caller 算好的 status:running 来自 in-memory run 注册表,waiting 来自 open interrupts。`ListSessions` 批量取(一次 interrupts 查询 + 一次锁),单会话路径用 `liveStatus`,避免 N+1。前端 `SessionRow` 早已渲染 `StatusDot`+"Running/Needs input";statusbar 在 run 起始边也 invalidate sessions 列表,让"运行中"徽标即时亮起。
 
-### ☐ T3.4　终态补 duration + maxBudget detail　【runtime · XS】
-`TurnEnd.Duration` 被捕获(`turn/turn.go:335,356`)却**无 wire 字段承载、丢弃**;`OutcomeMaxBudget` 产出时 **无 `detail`**(spec 的"花了 $4.20 / 上限 $4.00"从不填)。两个值都在手,补上即可。
+### ✅ T3.4　终态补 duration + maxBudget detail　【runtime · XS】　**已实现**
+`RunResult` 新增 `durationMs`(承载 `TurnEnd.Duration`,任一终态可显"took 12.4s");`OutcomeMaxBudget` 现填 `detail`("spent $X of $Y budget",`TurnEnd` 回带 MaxBudget/MaxCostUSD 让文案精确)。前端 run-end 时间线优先显 `outcome.detail` 而非裸 type;API.md 同步 `RunResult.durationMs`。run-summary 早有客户端推导的耗时,wire 值更准且供任意消费方。
 
-### ☐ T3.5　消息列表虚拟化　【desktop · M】
-`MessageStream.tsx` 全量 `messages.map` 进 DOM(自审 D13,§12.2 说是刻意)——长会话扩展悬崖。需虚拟化 + 滚出视口暂停动画(可借 Claude Code `OffscreenFreeze` 思路)。
+### ✅ T3.5　消息列表虚拟化　【desktop · M】　**已实现**(content-visibility,非 react-virtual)
+真虚拟化(react-virtual,已装却不用)会拆 DOM,而 ⌘F(走 `.msg-content` TreeWalker + CSS Custom Highlight + scrollIntoView)、copy-all、stick-to-bottom 高度测量全依赖完整 DOM —— 拆了就回归这些既有强项(正是 §12.2 标"刻意"的原因)。改用 `content-visibility:auto` + `contain-intrinsic-size:auto 220px`:浏览器跳过视口外消息的 layout+paint(消长会话悬崖),但节点**留在 DOM 且可被 find-in-page 命中**(不同于 `hidden`),⌘F/复制/滚动锚定全照常;`auto` 记住首渲后的真实高度,滚动高度保持准确。老 webview 自动降级回当前行为。
 
-### ☐ T3.6　web_search 富卡片接死代码　【desktop · S】
-`SearchResults` 卡(及 `code`/`checkpoint` block)**已写好但 v2 fold 从不 emit** kind(§12.1 B),现退化成 JSON dump。让 fold 产出对应 block 即可。
+### ✅ T3.6　web_search 富卡片接死代码　【desktop · S】　**已实现**(走 tool preview,非 fold-emit block)
+真有生产者:`web_search` 工具(Tavily,opt-in)+ runtime 已 shape 成 `{results: WebSearchResult[]}`,只是退化成 JSON dump。fold-emit 一个 `search` content block 是错的层(kernel reducer 不该知道 chat 插件的 block 形状);工具结果走 `TOOL_PREVIEW`(同 bash/grep/edit)才对 —— 加 `web_search` 预览渲染卡片网格(url 推 domain)。`SearchResults`+类型移到共享组件层(`@/components/tools/previews`),live tool preview 与休眠的 `search` content block 共用一份;推测性 `time` 字段(wire 无来源)删除,改用 url 做 key。`code`/`checkpoint` content block 暂留作 cards-in-prose + citation 的将来面(无 emitter)。
 
-### ☐ T3.7　首次启动引导　【desktop · M】
-无 first-run wizard——keyless 新用户撞错误 banner 而非"先配 provider"(provider 设置已存在,只是埋在 Settings,自审 D14)。crush 的 750ms 最小 spinner、Kimi/crush 的 device-code 自动开浏览器 + 可复制 code 可借鉴。
+### ✅ T3.7　首次启动引导　【desktop · M】　**已实现**(API-key 引导,非 device-code)
+welcome 屏检测 keyless(`useProviders` → 无 saved key),用一张 setup 卡替掉那些死路建议:"接入一个模型 provider" + 按钮深链直达 Settings 的 providers pane。`SettingsPage` 新增一次性 `settingsPane` target(transient、不持久的 sessionStore 字段),mount 时消费并清除,之后手动开仍落第一个 pane。runtime 用 API key(无 OAuth,§6.2),故是"贴 key"而非 device-code 流;文案覆盖 8 个 locale。
 
-### ☐ T3.8　流式平滑(runtime 侧)　【runtime · M】
-runtime 1-token-1-SSE **无合批**(`turn/observer.go:150-153`),且 `hub.Append` 对慢订阅者**丢事件**而非节流(`hub.go:48-63`,超 `liveHeadroom=256`)——lossy-drop 比抖动更像"卡顿/跳跃"。可加 min-flush-interval 合批 + 重新评估背压策略(权衡 durable/ephemeral 契约)。前端 `useStreamReveal` 已够好,主要是 runtime 侧。
+### ✅ T3.8　流式平滑(runtime 侧)　【runtime · M】　**已实现**(机会式合批,未动背压契约)
+`Events()` 迭代器现把**已缓冲在 turn channel 上**的同类文本 delta(MessageDelta/ReasoningDelta)合并成一个再 yield —— 非阻塞 drain + 一格 lookahead(中途取到异类事件 park 进 `spill`,下一轮 yield,保序)。效果:负载下(生产者快过 SSE 消费者)1-token-1-frame 量塌缩 → hub 丢事件率降 → 少"跳";涓流仍逐 token 即时 yield(零延迟,只合并已排队的);durable transcript 不变(item.completed 仍带全文,delta 本就 ephemeral 无 SSE id)。**有意不动** hub 的 drop-on-slow 策略 —— reconnect-to-recover(durable replay + items.list backstop)是设计,这里打的是驱动丢弃的"量"而非策略。
 
 ---
 
@@ -102,8 +102,8 @@ runtime 1-token-1-SSE **无合批**(`turn/observer.go:150-153`),且 `hub.Append`
 | emit `run.progress`(activity/usage/step)+ plumb maxSteps | 定义了从不 emit | 解锁实时活动/成本/步数(T1.2) | M |
 | 首条消息自动标题 | 注释承诺、无代码 | 纯赢、无协议改(T1.4) | S |
 | toolCall Item 上盖 `safetyClass` + 填 `ApprovalPayload.risk/reason` | 值已算、从不盖在 live Item | 审批卡/工具卡无需 join `tools.list` 即可显风险 | S |
-| 投影 compaction / MemoryUpdated | 已算 CompactBoundary 却丢(T3.1) | 前端 CompactionBlock 就绪 | S |
-| stuck 信号透传(T3.2) / live session status(T3.3) / duration + maxBudget detail(T3.4) | 都已知却丢/拍平 | 多为一行级 | XS-S |
+| 投影 compaction Item(T3.1) | ✅ 已 emit;MemoryUpdated 仍内部消化(无消费方) | 前端 CompactionBlock 接住 | S |
+| stuck 信号透传(T3.2) / live session status(T3.3) / duration + maxBudget detail(T3.4) | ✅ 全部已透传/已填 | 多为一行级 | XS-S |
 | 填 retryable/retryAfterSeconds + 拆 provider_error 符号(T2.4) | 字段在、从不填 | 客户端做正确退避 | M |
 | 投影 todos 到 `state.snapshot{todos}` | todo_write 仅 model-facing | 任务清单成一等面板(现仅 plan 一等) | M |
 
