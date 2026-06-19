@@ -62,6 +62,11 @@ type StartTurnRequest struct {
 	// tokens (0 = no cap). Needs a configured pricing hook; same
 	// TurnEndBudgetExceeded stop. Also not (yet) on the wire.
 	MaxCostUSD float64
+
+	// MaxSteps caps the turn's tool-call rounds (model turns); 0 = unlimited.
+	// On overrun the turn stops cleanly after the round with
+	// Reason=[TurnEndStepsExceeded] (distinct from the token/cost budget).
+	MaxSteps int
 }
 
 // TurnHandle uniquely identifies an in-flight turn. Returned by
@@ -305,12 +310,13 @@ type TurnEnd struct {
 	UsageByModel []ModelUsage // per-model breakdown; one entry for a single-model turn
 	CostUSD      float64      // turn cost; zero unless a pricing hook is configured (engine.Config.Pricing)
 	Duration     time.Duration
-	// MaxBudget / MaxCostUSD echo the turn's configured caps so a
-	// Reason=TurnEndBudgetExceeded terminal can be described precisely
-	// ("spent $4.20 of $4.00 budget" / "reached the 8000-token budget"). Zero
-	// when uncapped.
+	// MaxBudget / MaxCostUSD / MaxSteps echo the turn's configured caps so a
+	// Reason=TurnEndBudgetExceeded / TurnEndStepsExceeded terminal can be
+	// described precisely ("spent $4.20 of $4.00 budget" / "reached the
+	// 8000-token budget" / "reached the 8-step limit"). Zero when uncapped.
 	MaxBudget  int64
 	MaxCostUSD float64
+	MaxSteps   int
 }
 
 // ErrorEvent fires when an unrecoverable error aborts the turn. The
@@ -392,6 +398,11 @@ const (
 	// partial reply already streamed; TokenUsage reflects what was
 	// spent.
 	TurnEndBudgetExceeded
+	// TurnEndStepsExceeded — the turn hit [StartTurnRequest.MaxSteps] (the
+	// tool-call-round cap) and stopped cleanly after the round. Not an error;
+	// distinct from the token/cost budget so the wire can surface the dedicated
+	// maxSteps outcome.
+	TurnEndStepsExceeded
 )
 
 func (r TurnEndReason) String() string {
@@ -404,6 +415,8 @@ func (r TurnEndReason) String() string {
 		return "errored"
 	case TurnEndBudgetExceeded:
 		return "budget_exceeded"
+	case TurnEndStepsExceeded:
+		return "steps_exceeded"
 	default:
 		return "unknown"
 	}

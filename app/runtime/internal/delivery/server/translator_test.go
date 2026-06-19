@@ -468,6 +468,20 @@ func TestTranslator_OutcomeDurationAndBudget(t *testing.T) {
 	}
 }
 
+// TestTranslator_OutcomeMaxSteps verifies a step-capped terminal maps to the
+// dedicated maxSteps outcome with a precise "reached the N-step limit" detail
+// (Lever 3).
+func TestTranslator_OutcomeMaxSteps(t *testing.T) {
+	tr := newTranslator("ses_1", "run_1", "", nil, nil, "")
+	oc := tr.outcome(turn.TurnEnd{Reason: turn.TurnEndStepsExceeded, MaxSteps: 8})
+	if oc.Type != protocol.OutcomeMaxSteps {
+		t.Fatalf("type = %s, want maxSteps", oc.Type)
+	}
+	if !strings.Contains(oc.Detail, "8-step") {
+		t.Fatalf("maxSteps detail = %q, want it to mention the 8-step limit", oc.Detail)
+	}
+}
+
 func TestParseRetryAfter(t *testing.T) {
 	cases := []struct {
 		msg  string

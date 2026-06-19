@@ -21,6 +21,8 @@ func (t *translator) outcome(e turn.TurnEnd) *protocol.RunOutcome {
 		return &protocol.RunOutcome{Type: protocol.OutcomeCanceled, Result: res}
 	case turn.TurnEndBudgetExceeded:
 		return &protocol.RunOutcome{Type: protocol.OutcomeMaxBudget, Result: res, Detail: budgetDetail(e)}
+	case turn.TurnEndStepsExceeded:
+		return &protocol.RunOutcome{Type: protocol.OutcomeMaxSteps, Result: res, Detail: stepDetail(e)}
 	case turn.TurnEndErrored:
 		res.Error = t.classifyRunError(t.errMsg)
 		return &protocol.RunOutcome{Type: protocol.OutcomeError, Result: res}
@@ -41,6 +43,16 @@ func budgetDetail(e turn.TurnEnd) string {
 	default:
 		return "reached the configured budget"
 	}
+}
+
+// stepDetail describes a maxSteps-terminated run for RunOutcome.detail
+// (e.g. "reached the 8-step limit"). Falls back to a generic note if the cap
+// wasn't echoed.
+func stepDetail(e turn.TurnEnd) string {
+	if e.MaxSteps > 0 {
+		return fmt.Sprintf("reached the %d-step limit", e.MaxSteps)
+	}
+	return "reached the configured step limit"
 }
 
 // classifyRunError maps a failed run's error message onto a wire

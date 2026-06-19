@@ -43,11 +43,12 @@ type ModelUsage struct {
 // engine never invents cost numbers.
 type Pricing func(model string, usage *chat.Usage) float64
 
-// turnBudget caps one turn by tokens and/or dollars. A zero field means
-// no cap on that dimension; the zero value is unbounded.
+// turnBudget caps one turn by tokens, dollars, and/or tool-call rounds. A zero
+// field means no cap on that dimension; the zero value is unbounded.
 type turnBudget struct {
 	MaxTokens  int64
 	MaxCostUSD float64
+	MaxSteps   int
 }
 
 // exceeded reports whether the turn has hit either ceiling, reading the
