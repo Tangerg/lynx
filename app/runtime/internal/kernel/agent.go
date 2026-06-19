@@ -46,6 +46,12 @@ type chatInput struct {
 	// cap. Requires a [Config.Pricing] hook — without one cost stays 0
 	// and this never trips. Either ceiling stops the turn.
 	MaxCostUSD float64
+
+	// MaxSteps caps the number of tool-call rounds (model turns) the turn may
+	// run. 0 means unlimited (bounded only by the tool loop's own iteration
+	// cap). When reached the action stops cleanly after the round — before the
+	// next LLM call — with [ChatOutput.StoppedOnSteps] set.
+	MaxSteps int
 }
 
 // ChatOutput is the typed output of one turn. Reply is the assistant's
@@ -73,6 +79,11 @@ type ChatOutput struct {
 	// [chatInput.MaxBudget] rather than the model finishing. Reply
 	// holds whatever text accumulated up to the stop.
 	StoppedOnBudget bool
+
+	// StoppedOnSteps is true when the turn ended because it hit
+	// [chatInput.MaxSteps] (the tool-call-round cap) rather than the model
+	// finishing. Reply holds whatever text accumulated up to the stop.
+	StoppedOnSteps bool
 }
 
 // buildChatAgent constructs the chat agent owned by this Engine.
@@ -109,7 +120,7 @@ func (e *Engine) buildChatAgent() *core.Agent {
 					// guards read it back via turnSession.
 					pc.Blackboard.BindProtected(turnctx.SessionBindingKey, in.SessionID)
 				}
-				out, err := e.runChatTurn(ctx, pc, in.Message, in.Media, turnBudget{MaxTokens: in.MaxBudget, MaxCostUSD: in.MaxCostUSD})
+				out, err := e.runChatTurn(ctx, pc, in.Message, in.Media, turnBudget{MaxTokens: in.MaxBudget, MaxCostUSD: in.MaxCostUSD, MaxSteps: in.MaxSteps})
 				if err != nil {
 					// HITL interrupt (R model): a gated tool returned an
 					// agent/hitl.InterruptError that the chat tool loop

@@ -65,6 +65,7 @@ type turnState struct {
 	// budget-exceeded terminal precisely. Zero when uncapped.
 	maxBudget  int64
 	maxCostUSD float64
+	maxSteps   int
 
 	// lifecycle captures the process's authoritative terminal event;
 	// retained across interrupt→resume so the eventual TurnEnd reads it.
@@ -196,6 +197,7 @@ func (s *inMemory) steerSource(st *turnState) kernel.SteerSource {
 func (s *inMemory) runTurn(req StartTurnRequest, st *turnState) {
 	st.maxBudget = req.MaxBudget
 	st.maxCostUSD = req.MaxCostUSD
+	st.maxSteps = req.MaxSteps
 	s.emit(st, TurnStart{Model: st.model})
 
 	// Resolve a per-turn client when the run picked a provider+model and a
@@ -221,6 +223,7 @@ func (s *inMemory) runTurn(req StartTurnRequest, st *turnState) {
 		Cwd:           req.Cwd,
 		MaxBudget:     req.MaxBudget,
 		MaxCostUSD:    req.MaxCostUSD,
+		MaxSteps:      req.MaxSteps,
 		ChatClient:    client,
 		Observer:      observer,
 		EventListener: st.lifecycle.listener(st.handle.TurnID),
@@ -388,7 +391,7 @@ func (s *inMemory) emitTurnEnd(st *turnState, proc kernel.ChatProcess, terminal 
 	if plan.errMsg != "" {
 		s.emit(st, ErrorEvent{Message: plan.errMsg, Code: plan.errCode})
 	}
-	end := TurnEnd{Reason: plan.reason, Duration: duration, MaxBudget: st.maxBudget, MaxCostUSD: st.maxCostUSD}
+	end := TurnEnd{Reason: plan.reason, Duration: duration, MaxBudget: st.maxBudget, MaxCostUSD: st.maxCostUSD, MaxSteps: st.maxSteps}
 	if plan.withUsage {
 		end.TokenUsage = out.Usage
 		end.UsageByModel = out.UsageByModel
@@ -441,6 +444,8 @@ func planTurnEnd(terminal event.Event, out kernel.ChatOutput, runErr, ctxErr err
 // place.
 func completedPlan(out kernel.ChatOutput) turnEndPlan {
 	switch {
+	case out.StoppedOnSteps:
+		return turnEndPlan{reason: TurnEndStepsExceeded, withUsage: true}
 	case out.StoppedOnBudget:
 		return turnEndPlan{reason: TurnEndBudgetExceeded, withUsage: true}
 	default:

@@ -93,6 +93,7 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 		roundModel     string
 		cumulative     TokenUsage
 		cumulativeCost float64
+		steps          int // tool-call rounds completed, for the MaxSteps cap
 	)
 	recordRound := func() {
 		if roundUsage == nil {
@@ -128,6 +129,14 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 			recordRound()
 			if budget.exceeded(pc) {
 				return chatOutput(pc, accumulated.String(), true), nil
+			}
+			// Per-run step cap: stop cleanly once MaxSteps tool-call rounds have
+			// run — before paying for the next LLM call. Distinct from the token
+			// / cost budget; surfaces as the maxSteps run outcome.
+			if steps++; budget.MaxSteps > 0 && steps >= budget.MaxSteps {
+				out := chatOutput(pc, accumulated.String(), false)
+				out.StoppedOnSteps = true
+				return out, nil
 			}
 		}
 		if chunk != nil && chunk.Metadata != nil {

@@ -78,6 +78,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		Provider:   in.Provider,
 		Model:      in.Model,
 		MaxCostUSD: in.MaxBudgetUSD,
+		MaxSteps:   in.MaxSteps,
 	})
 	if err != nil {
 		return nil, nil, err
