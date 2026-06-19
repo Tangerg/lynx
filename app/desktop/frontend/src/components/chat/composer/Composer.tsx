@@ -5,12 +5,13 @@
 // placeholders and keybindings are resolved through the extension-point
 // registry so a third-party plugin can extend the composer without touching
 // this file.
-import type { ComposerImage } from "@/state/composerStore";
+import type { ComposerImage, PastedText } from "@/state/composerStore";
 import { imageFiles, type UserInput } from "@/lib/agent/composerInput";
+import { isLargePaste } from "@/lib/agent/largePaste";
 import type { IconName } from "@/components/common";
 import type { ComposerAttachmentSourceSpec } from "@/plugins/sdk";
 import { useEffect, useMemo, useRef } from "react";
-import { Chip, Icon } from "@/components/common";
+import { Chip, Icon, Tooltip } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import {
   COMPOSER_ATTACHMENT_SOURCE,
@@ -33,6 +34,11 @@ interface Props {
   onRemoveImage: (id: string) => void;
   /** Stage dropped / pasted image files (filtered to image/* by the caller). */
   onAddImages: (files: File[]) => void;
+  /** Large pasted-text attachments + their handlers — a big paste collapses
+   *  into a removable chip instead of flooding the textarea (T2.3). */
+  pastes: PastedText[];
+  onRemovePaste: (id: string) => void;
+  onAddPaste: (text: string) => void;
   /** Whether the next run's model accepts images — gates paste/drop staging so
    *  it matches the toolbar attach button (which disables for text-only models). */
   acceptsImages: boolean;
@@ -46,6 +52,9 @@ export function Composer({
   images,
   onRemoveImage,
   onAddImages,
+  pastes,
+  onRemovePaste,
+  onAddPaste,
   acceptsImages,
 }: Props) {
   const t = useT();
@@ -102,6 +111,13 @@ export function Composer({
           ))}
         </div>
       )}
+      {pastes.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 px-1 pb-1 pt-1">
+          {pastes.map((p) => (
+            <PasteChip key={p.id} paste={p} onRemove={() => onRemovePaste(p.id)} />
+          ))}
+        </div>
+      )}
       <textarea
         ref={inputRef}
         aria-label={t("composer.input.label")}
@@ -110,10 +126,19 @@ export function Composer({
         onChange={(e) => onChange(e.target.value)}
         onPaste={(e) => {
           const files = imageFiles(e.clipboardData?.files);
-          if (files.length === 0) return; // let a normal text paste through
-          e.preventDefault();
-          if (!acceptsImages) return; // text-only model — don't stage the image
-          onAddImages(files);
+          if (files.length > 0) {
+            e.preventDefault();
+            if (acceptsImages) onAddImages(files); // text-only model — don't stage
+            return;
+          }
+          // A large text paste collapses into a removable chip instead of
+          // flooding the textarea; a small one falls through to the native
+          // textarea so it stays inline + editable.
+          const text = e.clipboardData?.getData("text") ?? "";
+          if (isLargePaste(text)) {
+            e.preventDefault();
+            onAddPaste(text);
+          }
         }}
         onKeyDown={(e) => {
           // Ignore keystrokes while an IME composition is active — pressing
@@ -209,5 +234,33 @@ function ImageThumb({ image, onRemove }: { image: ComposerImage; onRemove: () =>
         <Icon name="x" size={9} />
       </button>
     </div>
+  );
+}
+
+// A large pasted blob as a removable chip (T2.3) — the full text is re-inlined
+// into the message on send. Hover shows a short preview so the user can confirm
+// what's attached without it occupying the composer.
+function PasteChip({ paste, onRemove }: { paste: PastedText; onRemove: () => void }) {
+  const t = useT();
+  const preview = paste.text.slice(0, 160) + (paste.text.length > 160 ? "…" : "");
+  const label =
+    paste.lines > 1
+      ? t("composer.paste.lines", { count: paste.lines })
+      : t("composer.paste.chars", { count: paste.text.length });
+  return (
+    <Tooltip label={preview}>
+      <span className="group inline-flex h-6 max-w-[220px] items-center gap-1.5 rounded-md border border-line-soft bg-surface-2 pl-2 pr-1 font-mono text-[11.5px] text-fg-muted">
+        <Icon name="filetext" size={11} className="shrink-0 text-fg-faint" />
+        <span className="truncate">{label}</span>
+        <button
+          type="button"
+          aria-label={t("composer.paste.remove")}
+          onClick={onRemove}
+          className="grid h-4 w-4 shrink-0 place-items-center rounded-full border-0 bg-transparent text-fg-faint transition-colors hover:text-fg"
+        >
+          <Icon name="x" size={9} />
+        </button>
+      </span>
+    </Tooltip>
   );
 }

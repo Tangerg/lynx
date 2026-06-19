@@ -25,16 +25,22 @@ export interface SubmitDeps {
 /** Run the composer submit pipeline. Safe to call on empty text + no images. */
 export function submitComposer({ value, clear, sendInput, images }: SubmitDeps): void {
   const text = value.trim();
-  // An image-only send (a screenshot with no caption) is valid.
-  if (!text && images.length === 0) return;
+  // Large pasted blobs ride alongside the typed text as attachment chips (T2.3)
+  // — read them off the active draft and fold them into the outgoing message
+  // below the typed text. They're not part of slash parsing or ↑/↓ recall
+  // (those see the typed text only).
+  const pastes = useComposerStore.getState().pastes;
+  // An image-only / paste-only send (a screenshot or a dropped blob with no
+  // caption) is valid.
+  if (!text && images.length === 0 && pastes.length === 0) return;
 
   // Record the submitted text for ↑/↓ recall (slash commands included — they're
-  // worth re-running too). Image-only sends have no text to recall.
+  // worth re-running too). Image-/paste-only sends have no typed text to recall.
   if (text) useComposerStore.getState().pushHistory(text);
 
-  // Slash routing applies only to a text command — an attached image isn't a
-  // command argument. A "/cmd" still routes as the command (images dropped:
-  // commands take plain string args, §slash).
+  // Slash routing applies only to a text command — an attached image / paste
+  // isn't a command argument. A "/cmd" still routes as the command (attachments
+  // dropped: commands take plain string args, §slash).
   const slash = text ? parseSlash(text) : null;
   if (slash) {
     const spec = lookupExtensionByKey(SLASH_COMMAND, slash.cmd);
@@ -50,7 +56,8 @@ export function submitComposer({ value, clear, sendInput, images }: SubmitDeps):
       return;
     }
   }
-  sendInput(buildInput(text, images));
+  const body = [text, ...pastes.map((p) => p.text)].filter(Boolean).join("\n\n");
+  sendInput(buildInput(body, images));
   clear();
 }
 
