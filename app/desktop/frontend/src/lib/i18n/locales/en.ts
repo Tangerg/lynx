@@ -210,6 +210,7 @@ export const en: Record<string, string> = {
 
   "workspace.view.title.files": "Files",
   "workspace.view.title.diff": "Diff",
+  "workspace.view.title.file": "File",
   "workspace.view.title.changes": "Changes",
   "workspace.view.title.filetree": "Explorer",
   "workspace.view.title.plan": "Plan",
@@ -495,6 +496,12 @@ export const en: Record<string, string> = {
   "diff.error.noBaselineSub":
     "The default branch couldn't be resolved (no remote / detached HEAD).",
   "diff.error.loadFailedSub": "The runtime rejected workspace.getDiff — see Diagnostics.",
+  "file.lines": "{{count}} lines",
+  "file.truncated": "truncated",
+  "file.empty.title": "No file open",
+  "file.empty.sub": "Click a file reference in the conversation to open it here.",
+  "file.error.title": "Couldn't open file",
+  "file.error.sub": "It may have moved, be binary, or live outside the workspace.",
   "diff.empty.title": "Nothing to compare",
   "diff.empty.sub": "The working tree has no uncommitted changes.",
   "diff.binary": "Binary file",

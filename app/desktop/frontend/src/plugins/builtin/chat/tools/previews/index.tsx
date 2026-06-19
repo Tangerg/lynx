@@ -5,6 +5,7 @@
 // adding a new tool fn means writing a similar plugin — no special-casing.
 
 import type { ToolPreviewProps } from "@/plugins/sdk";
+import { LinkedText } from "@/components/chat/message/LinkedText";
 import { PreviewFoot } from "@/components/tools/previews/PreviewFoot";
 import { PreviewPlaceholder } from "@/components/tools/previews/PreviewPlaceholder";
 import { useDiff, useFileHead, useGrep } from "@/lib/data/queries";
@@ -56,7 +57,11 @@ function BashPreview({ tool, onOpenView }: ToolPreviewProps) {
   return (
     <div className={cn(PREVIEW_WRAP, "whitespace-pre-wrap break-all text-fg-soft")}>
       {lines.length > 0 ? (
-        lines.slice(0, MAX_TERM_LINES).map((text, i) => <div key={i}>{text || " "}</div>)
+        lines.slice(0, MAX_TERM_LINES).map((text, i) => (
+          <div key={i}>
+            <LinkedText text={text || " "} />
+          </div>
+        ))
       ) : (
         <PreviewPlaceholder status={tool.status} pending="Running…" idle="(no output)" />
       )}
@@ -207,7 +212,9 @@ function GrepPreview({ tool, onOpenView }: ToolPreviewProps) {
             key={i}
             className="grid grid-cols-[200px_1fr] gap-3 py-0.5 whitespace-nowrap overflow-hidden"
           >
-            <span className="truncate text-[11px] text-fg-faint">{r.loc}</span>
+            <span className="truncate text-[11px] text-fg-faint">
+              <LinkedText text={r.loc} />
+            </span>
             <span className="truncate text-fg">{r.text}</span>
           </div>
         ))}
