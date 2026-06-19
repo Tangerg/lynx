@@ -142,7 +142,6 @@ func (p *Platform) NewBlackboard() core.Blackboard { return p.resolveBlackboard(
 // Agents returns a snapshot of registered agents.
 func (p *Platform) Agents() []*core.Agent { return p.agents.list() }
 
-// FindAgent does a name lookup.
 func (p *Platform) FindAgent(name string) (*core.Agent, bool) { return p.agents.find(name) }
 
 // findAgent looks the agent up by name for agent-as-tool constructors
@@ -174,7 +173,6 @@ func (p *Platform) validateAgent(label string, agentDef *core.Agent) error {
 	return nil
 }
 
-// ProcessByID looks up a process by id.
 func (p *Platform) ProcessByID(id string) (*AgentProcess, bool) { return p.procs.get(id) }
 
 // ActiveProcesses returns a snapshot of all currently registered

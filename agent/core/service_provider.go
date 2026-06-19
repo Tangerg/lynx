@@ -19,12 +19,10 @@ type ServiceProvider struct {
 	services map[string]any
 }
 
-// NewServiceProvider returns an empty registry.
 func NewServiceProvider() *ServiceProvider {
 	return &ServiceProvider{services: map[string]any{}}
 }
 
-// Get returns the value registered at key plus an ok flag.
 func (p *ServiceProvider) Get(key string) (any, bool) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -32,7 +30,6 @@ func (p *ServiceProvider) Get(key string) (any, bool) {
 	return v, ok
 }
 
-// Set registers (or replaces) the value at key.
 func (p *ServiceProvider) Set(key string, value any) {
 	p.mu.Lock()
 	defer p.mu.Unlock()

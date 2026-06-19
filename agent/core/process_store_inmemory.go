@@ -10,7 +10,6 @@ type InMemoryProcessStore struct {
 	kv *inMemoryKV[ProcessSnapshot]
 }
 
-// NewInMemoryProcessStore returns an empty in-memory store ready for use.
 func NewInMemoryProcessStore() *InMemoryProcessStore {
 	return &InMemoryProcessStore{
 		kv: newInMemoryKV[ProcessSnapshot]("in-memory process store", ErrSnapshotNotFound),

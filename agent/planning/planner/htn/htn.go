@@ -99,7 +99,6 @@ func (l *Library) MustAdd(t *Task) {
 	}
 }
 
-// Lookup returns the task registered under name, or (nil, false).
 func (l *Library) Lookup(name string) (*Task, bool) {
 	t, ok := l.tasks[name]
 	return t, ok

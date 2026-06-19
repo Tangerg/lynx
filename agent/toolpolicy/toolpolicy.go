@@ -94,7 +94,6 @@ type UnlockCondition func(ctx context.Context, arguments string) (allowed bool, 
 //     bound on the blackboard
 //   - tools that are part of a playbook step-machine
 //
-// PlaybookTool + UnlockCondition semantics.
 // Returns an error when tool or condition is nil — caller decides
 // whether to surface or panic.
 func Unlocked(tool chat.Tool, condition UnlockCondition) (chat.Tool, error) {
