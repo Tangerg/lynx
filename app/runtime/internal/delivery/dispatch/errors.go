@@ -56,7 +56,7 @@ func errorToRPC(err error) *transport.Error {
 			return problemError(code, sentinel.Error(), err.Error())
 		}
 	}
-	return problemError(protocol.CodeInternalError, "internal_error", err.Error())
+	return problemError(protocol.CodeInternalError, protocol.ProblemInternalError, err.Error())
 }
 
 // problemError builds an Error carrying a ProblemData{type, detail}.

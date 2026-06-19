@@ -162,10 +162,10 @@ func (t *translator) toolEnd(e turn.ToolCallEnd) []protocol.StreamEvent {
 		// Denied by the approval verdict — a distinct terminal from a green
 		// success or a generic failure, so the UI can render "denied".
 		item.Status = protocol.ItemStatusIncomplete
-		item.Error = &protocol.ProblemData{Type: "denied_by_user", Channel: protocol.ErrorChannelTool, Detail: "tool call denied by user"}
+		item.Error = &protocol.ProblemData{Type: protocol.ProblemDeniedByUser, Channel: protocol.ErrorChannelTool, Detail: "tool call denied by user"}
 	case e.Err != "":
 		item.Status = protocol.ItemStatusIncomplete
-		item.Error = &protocol.ProblemData{Type: "tool_failed", Channel: protocol.ErrorChannelTool, Detail: e.Err}
+		item.Error = &protocol.ProblemData{Type: protocol.ProblemToolFailed, Channel: protocol.ErrorChannelTool, Detail: e.Err}
 	}
 	return append(out, protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: item})
 }
@@ -179,12 +179,7 @@ func (t *translator) usageProgress(e turn.UsageReported) []protocol.StreamEvent 
 		Type: protocol.StreamRunProgress,
 		Progress: &protocol.RunProgress{
 			Usage: &protocol.Usage{
-				ModelUsage: protocol.ModelUsage{
-					InputTokens:     e.TokenUsage.PromptTokens,
-					OutputTokens:    e.TokenUsage.CompletionTokens,
-					ReasoningTokens: e.TokenUsage.ReasoningTokens,
-					CostUSD:         optCostUSD(e.CostUSD),
-				},
+				ModelUsage: modelUsageFrom(e.TokenUsage.PromptTokens, e.TokenUsage.CompletionTokens, e.TokenUsage.ReasoningTokens, e.CostUSD),
 			},
 		},
 	}}

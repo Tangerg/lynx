@@ -66,7 +66,7 @@ func (t *translator) classifyRunError(msg string) *protocol.ProblemData {
 	// through the provider-pattern classification below (their message is
 	// usually a wrapped provider failure worth a retry hint).
 	if t.errCode == "AGENT_STUCK" {
-		return &protocol.ProblemData{Type: "agent_stuck", Channel: protocol.ErrorChannelRun, Detail: msg}
+		return &protocol.ProblemData{Type: protocol.ProblemAgentStuck, Channel: protocol.ErrorChannelRun, Detail: msg}
 	}
 	m := strings.ToLower(msg)
 	contains := func(subs ...string) bool {
@@ -96,19 +96,19 @@ func (t *translator) classifyRunError(msg string) *protocol.ProblemData {
 	}
 	switch {
 	case contains("429", "too many requests", "rate limit", "overloaded", "quota"):
-		return retryable("rate_limited", "the model provider rate-limited the request; retry shortly")
+		return retryable(protocol.ProblemRateLimited, "the model provider rate-limited the request; retry shortly")
 	case contains(" 401", " 403", "unauthorized", "forbidden", "invalid_api_key", "api key"):
 		// Not retryable: resending won't help until the key is fixed.
-		return problem("invalid_api_key", "the model provider rejected the credentials; check the provider API key")
+		return problem(protocol.ProblemInvalidAPIKey, "the model provider rejected the credentials; check the provider API key")
 	case contains("deadline exceeded", "timeout", "timed out", "client.timeout", "connection refused", "no such host", "i/o timeout", "eof", "connection reset"):
-		return retryable("timeout", "the model provider request timed out or the connection failed; retry shortly")
+		return retryable(protocol.ProblemTimeout, "the model provider request timed out or the connection failed; retry shortly")
 	case contains(" 500", " 502", " 503", " 504", "bad gateway", "service unavailable", "internal server error"):
-		return retryable("provider_unavailable", "the model provider is temporarily unavailable; retry shortly")
+		return retryable(protocol.ProblemProviderUnavailable, "the model provider is temporarily unavailable; retry shortly")
 	case contains(" 400", "invalid_request_error", "bad request"):
 		// Not retryable: the request itself is malformed. Distinct from the
 		// RPC-level `invalid_request` (-32600, a bad JSON-RPC envelope) — this is
 		// the provider rejecting the model request we sent.
-		return problem("provider_rejected", "the model provider rejected the request as invalid")
+		return problem(protocol.ProblemProviderRejected, "the model provider rejected the request as invalid")
 	default:
 		return protocol.InternalErrorProblem()
 	}
@@ -136,24 +136,29 @@ func parseRetryAfter(msg string) int {
 // turnUsage maps the engine's per-turn token roll-up onto wire Usage.
 func (t *translator) turnUsage(e turn.TurnEnd) *protocol.Usage {
 	u := &protocol.Usage{
-		ModelUsage: protocol.ModelUsage{
-			InputTokens:     e.TokenUsage.PromptTokens,
-			OutputTokens:    e.TokenUsage.CompletionTokens,
-			ReasoningTokens: e.TokenUsage.ReasoningTokens,
-			CostUSD:         optCostUSD(e.CostUSD),
-		},
+		ModelUsage: modelUsageFrom(e.TokenUsage.PromptTokens, e.TokenUsage.CompletionTokens, e.TokenUsage.ReasoningTokens, e.CostUSD),
 	}
 	if len(e.UsageByModel) > 0 {
 		u.ByModel = make(map[string]protocol.ModelUsage, len(e.UsageByModel))
 		for _, m := range e.UsageByModel {
-			u.ByModel[m.Model] = protocol.ModelUsage{
-				InputTokens:  m.PromptTokens,
-				OutputTokens: m.CompletionTokens,
-				CostUSD:      optCostUSD(m.CostUSD),
-			}
+			// Per-model rows carry no reasoning split.
+			u.ByModel[m.Model] = modelUsageFrom(m.PromptTokens, m.CompletionTokens, 0, m.CostUSD)
 		}
 	}
 	return u
+}
+
+// modelUsageFrom builds the wire ModelUsage from a token roll-up + cost — the
+// one mapping shared by the run-final usage (turnUsage) and the mid-run usage
+// preview (usageProgress), so a future usage field is added in one place. cost
+// folds through optCostUSD (omitted when ≤ 0).
+func modelUsageFrom(prompt, completion, reasoning int64, cost float64) protocol.ModelUsage {
+	return protocol.ModelUsage{
+		InputTokens:     prompt,
+		OutputTokens:    completion,
+		ReasoningTokens: reasoning,
+		CostUSD:         optCostUSD(cost),
+	}
 }
 
 // optCostUSD returns &c only when c > 0, else nil (API.md §4.2).

@@ -230,8 +230,9 @@ type InterruptResponseValue struct {
 }
 
 // RememberScopeKind is the persistence scope of a remembered approval (AUX_API
-// §6). v1 honors "session" only; "project"/"global" are accepted but degrade to
-// one-shot (no persistence home yet).
+// §6): the decision is stored as a rule reaching one session, one project
+// directory, or everywhere. All three persist (sqlite-backed) and auto-resolve
+// matching future calls.
 type RememberScopeKind string
 
 const (
@@ -241,15 +242,14 @@ const (
 )
 
 // RememberScope is the standing-decision directive on an approval response
-// (AUX_API §6). When present the runtime keeps the approve/deny decision so
-// future calls to the same tool (keyed by tool NAME, not its args) skip the
-// prompt. v1 honors Scope "session" only — in-memory, process lifetime;
-// "project" / "global" need a persistence home and aren't wired, so a client
-// sending them gets one-shot behavior rather than a false promise. editedArgs
-// stays one-shot regardless: remember records "this tool", not "this tool +
-// these args".
+// (AUX_API §6). When present the runtime persists the approve/deny decision as
+// a fine-grained rule so matching future calls skip the prompt. The rule is
+// keyed by tool NAME + the call's per-tool subject (a bash command, an edited
+// file's path) at the chosen Scope (session / project / global). editedArgs
+// stays one-shot regardless: a remembered rule matches by subject, never by a
+// one-off arg rewrite.
 type RememberScope struct {
-	Scope RememberScopeKind `json:"scope"` // see RememberScopeKind (v1 honors session)
+	Scope RememberScopeKind `json:"scope"` // see RememberScopeKind
 }
 
 // InterruptType discriminates a pending interrupt (API.md §4.8): a tool awaiting
