@@ -465,6 +465,9 @@ export const zhTW: Record<string, string> = {
   // ── Diff 檢視 ──
   "diff.workingTree": "工作樹",
   "diff.baselineAria": "Diff 基準",
+  "diff.layoutAria": "Diff 版面",
+  "diff.layout.unified": "統一",
+  "diff.layout.split": "分欄",
   "diff.mode.worktree": "工作樹",
   "diff.mode.branch": "分支",
   "diff.error.noBaseline": "無基線分支",
