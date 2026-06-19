@@ -93,6 +93,4 @@ func (e *SpanExporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnl
 	return nil
 }
 
-// Shutdown releases any resources held by the exporter.
-// This implementation is stateless and always returns nil.
 func (e *SpanExporter) Shutdown(ctx context.Context) error { return nil }
