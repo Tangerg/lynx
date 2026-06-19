@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -56,6 +57,16 @@ type RuntimeServices interface {
 	// MCPTools lists tools per connected MCP server (server="" = all) —
 	// backs workspace.mcp.listTools. The engine holds the dialed sessions.
 	MCPTools(ctx context.Context, server string) ([]kernel.McpToolInfo, error)
+	// MCP-server registry — the editable configuration workspace.mcp.
+	// listConfigs / configure / remove / setEnabled drive (distinct from the
+	// read-only listServers status). Configure/Remove/SetEnabled persist the
+	// change and reflect it into the live connections; TestMCPServer probes a
+	// candidate config without persisting.
+	MCPRegistry() mcpserver.Service
+	ConfigureMCPServer(ctx context.Context, srv mcpserver.Server) error
+	RemoveMCPServer(ctx context.Context, name string) error
+	SetMCPServerEnabled(ctx context.Context, name string, enabled bool) error
+	TestMCPServer(ctx context.Context, srv mcpserver.Server) error
 	// DefaultModel is the runtime's configured default model — used to fill
 	// Session.model for sessions that never explicitly selected one.
 	DefaultModel() string
