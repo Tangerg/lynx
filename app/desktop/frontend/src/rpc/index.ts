@@ -113,6 +113,7 @@ export type {
   FileContent,
   // Approval control / compaction / todos (B9/B10/B11)
   ApprovalMode,
+  ApprovalScope,
   ApprovalRule,
   CompactionResult,
   TodoItem,

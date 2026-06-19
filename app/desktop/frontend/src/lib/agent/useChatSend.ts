@@ -1,7 +1,7 @@
 import type { ContentBlock } from "@/rpc";
 import { useCallback } from "react";
 import { getContainer } from "@/main/container";
-import { asRunId, errorType, RpcError } from "@/rpc";
+import { asRunId, isErrorType } from "@/rpc";
 import { useAgentAction, useAgentRunId, useAgentRunning } from "@/state/agentStore";
 import { useSessionStore } from "@/state/sessionStore";
 import { useCreateSession } from "./useCreateSession";
@@ -38,7 +38,7 @@ export function useChatSend(): (input: ContentBlock[]) => void {
             .client()
             .runs.steer(asRunId(runId), text)
             .catch((err) => {
-              if (isRunNotFound(err) && send) send(input); // run ended → fresh turn
+              if (isErrorType(err, "run_not_found") && send) send(input); // run ended → fresh turn
             });
           return;
         }
@@ -58,8 +58,4 @@ function steerText(input: ContentBlock[]): string {
     .map((b) => ("text" in b ? b.text : ""))
     .join("\n")
     .trim();
-}
-
-function isRunNotFound(err: unknown): boolean {
-  return err instanceof RpcError && errorType(err.data) === "run_not_found";
 }
