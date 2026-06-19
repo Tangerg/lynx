@@ -134,6 +134,9 @@ export interface Methods {
       signal?: AbortSignal,
     ) => Promise<StreamingResult<{ runId: RunId }, RunEvent>>;
     cancel: (runId: RunId, reason?: string) => Promise<void>;
+    // Mid-run steering (§6): inject a user message into the running run so the
+    // model reads it next tool round. run_not_found if no longer actively running.
+    steer: (runId: RunId, message: string) => Promise<void>;
     // Running runs only (§7.3); finished/interrupted via listOpenInterrupts or items history.
     list: (sessionId?: SessionId) => Promise<Page<RunRef>>;
     // Durable HITL discovery — resumable interrupted runs (§7.3 / §10.2).
@@ -306,6 +309,7 @@ export function createMethods(client: RpcClient): Methods {
         return { result, events: stream.events };
       },
       cancel: (runId, reason) => client.call<void>("runs.cancel", { runId, reason }),
+      steer: (runId, message) => client.call<void>("runs.steer", { runId, message }),
       list: (sessionId) => client.call<Page<RunRef>>("runs.list", sessionId ? { sessionId } : {}),
       listOpenInterrupts: (sessionId) =>
         client.call<Page<OpenInterrupt>>("runs.listOpenInterrupts", sessionId ? { sessionId } : {}),
