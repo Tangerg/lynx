@@ -133,6 +133,10 @@ export const en: Record<string, string> = {
   "welcome.eyebrow": "agent ready",
   "welcome.title": "What can I help you build today.",
   "welcome.sub": "Start a conversation, paste a stack trace, or pick a suggestion below.",
+  "welcome.setup.title": "Connect a model provider",
+  "welcome.setup.sub":
+    "Add an API key to start chatting — the agent needs a model provider to talk to.",
+  "welcome.setup.action": "Add a provider key",
   "welcome.suggest.refactor": "Plan a refactor",
   "welcome.suggest.refactor.prompt": "Help me plan a refactor of ",
   "welcome.suggest.search": "Search the codebase",
