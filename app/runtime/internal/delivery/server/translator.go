@@ -308,6 +308,8 @@ func (t *translator) translate(ev turn.Event) []protocol.StreamEvent {
 		return t.usageProgress(e)
 	case turn.SteerMessage:
 		return t.steerMessage(e)
+	case turn.TodosUpdated:
+		return t.todosSnapshot(e)
 	case turn.ErrorEvent:
 		t.errMsg = e.Message
 		t.errCode = e.Code
@@ -403,6 +405,21 @@ func (t *translator) steerMessage(e turn.SteerMessage) []protocol.StreamEvent {
 		protocol.StreamEvent{Type: protocol.StreamItemStarted, Item: item(protocol.ItemStatusRunning)},
 		protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: item(protocol.ItemStatusCompleted)},
 	)
+}
+
+// todosSnapshot projects the model's task list onto a state.snapshot under the
+// "todos" key (the frontend reads shared["todos"]). The list is replaced whole,
+// so the id is positional. Maps the domain Item (Content/Status) to the wire
+// TodoSnapshot (text/status); status strings already match the wire vocab.
+func (t *translator) todosSnapshot(e turn.TodosUpdated) []protocol.StreamEvent {
+	todos := make([]protocol.TodoSnapshot, len(e.Todos))
+	for i, it := range e.Todos {
+		todos[i] = protocol.TodoSnapshot{ID: strconv.Itoa(i), Text: it.Content, Status: string(it.Status)}
+	}
+	return []protocol.StreamEvent{{
+		Type:  protocol.StreamStateSnapshot,
+		State: map[string]any{"todos": todos},
+	}}
 }
 
 // resumeQuestionCompletions terminalizes the question items (ask_user /

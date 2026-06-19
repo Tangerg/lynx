@@ -12,8 +12,17 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 )
+
+// todoLister reads a session's current todo list — narrow consumer view of the
+// todo service (the turn only reads, never writes). The turn projects the list
+// to state.snapshot{todos} after a todo_write so a client renders the task
+// panel. nil disables the projection.
+type todoLister interface {
+	List(ctx context.Context, sessionID string) ([]todo.Item, error)
+}
 
 // turnIDPrefix tags every turn id. A turn id doubles as the root run's
 // wire id (runs.start returns it as runId), so it carries the run_ type
@@ -41,7 +50,7 @@ func newTurnID() string { return turnIDPrefix + uuid.NewString() }
 // resolver is optional. When non-nil and a turn carries a Model, the impl
 // resolves a per-turn client for that model; nil (or an empty Model) runs
 // every turn on the platform's default client.
-func New(eng engineDep, approvalSvc approval.Service, resolver clientResolver) (Service, error) {
+func New(eng engineDep, approvalSvc approval.Service, resolver clientResolver, todos todoLister) (Service, error) {
 	if eng == nil {
 		return nil, errors.New("turn: engine is required")
 	}
@@ -49,6 +58,7 @@ func New(eng engineDep, approvalSvc approval.Service, resolver clientResolver) (
 		engine:   eng,
 		approval: approvalSvc,
 		resolver: resolver,
+		todos:    todos,
 		turns:    map[string]*turnState{},
 	}, nil
 }
@@ -60,6 +70,7 @@ type inMemory struct {
 	engine   engineDep
 	approval approval.Service // optional — nil = auto-approve every tool
 	resolver clientResolver   // optional — nil = always use the default model
+	todos    todoLister       // optional — nil = no state.snapshot{todos} projection
 
 	// mu guards the live-turn registry + interruptKinds; each turn owns the
 	// synchronization of its own cross-goroutine state (see turnState.mu).

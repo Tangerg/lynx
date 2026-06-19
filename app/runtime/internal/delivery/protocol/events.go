@@ -89,6 +89,16 @@ type RunProgress struct {
 	Activity string `json:"activity,omitempty"` // human-readable current action
 }
 
+// TodoSnapshot is one entry of the model's task list, projected to
+// state.snapshot under the "todos" key (AUX_API §3.x). The list is replaced
+// whole each todo_write, so ID is positional — a stable key within a snapshot,
+// not a durable identity. Status is "pending" | "in_progress" | "completed".
+type TodoSnapshot struct {
+	ID     string `json:"id"`
+	Text   string `json:"text"`
+	Status string `json:"status"`
+}
+
 // ItemDeltaType discriminates the ItemDelta union (API.md §5.1).
 type ItemDeltaType string
 

@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/core/media"
 	corechat "github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 )
 
@@ -332,6 +333,15 @@ type UsageReported struct {
 	CostUSD    float64
 }
 
+// TodosUpdated fires after the model rewrites its task list (the todo_write
+// tool) with the full new list, so transport can project it to a
+// state.snapshot{todos} and a client renders the task panel — the model's
+// checklist becomes a first-class surface, not a model-only side effect.
+type TodosUpdated struct {
+	BaseEvent
+	Todos []todo.Item
+}
+
 // SteerMessage fires when a mid-run steering message (injected via
 // [Service.InjectSteering] while the turn was looping) is consumed into the
 // running loop — between the round that just finished and the next one. The
@@ -363,6 +373,7 @@ func (e TurnEnd) stamp(b BaseEvent) Event         { e.BaseEvent = b; return e }
 func (e ErrorEvent) stamp(b BaseEvent) Event      { e.BaseEvent = b; return e }
 func (e UsageReported) stamp(b BaseEvent) Event   { e.BaseEvent = b; return e }
 func (e SteerMessage) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
+func (e TodosUpdated) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
 
 // TurnEndReason enumerates why a turn ended.
 type TurnEndReason int

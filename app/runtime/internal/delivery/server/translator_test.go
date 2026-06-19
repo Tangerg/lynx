@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
@@ -414,6 +415,27 @@ func TestTranslator_SteerMessage(t *testing.T) {
 	}
 	if !completed.IsDurable() {
 		t.Fatal("steer userMessage item must be durable (it's a real conversation turn)")
+	}
+}
+
+// TestTranslator_TodosSnapshot verifies the model's task list projects to a
+// state.snapshot{todos} mapping domain Content/Status → wire text/status with a
+// positional id (Lever 2).
+func TestTranslator_TodosSnapshot(t *testing.T) {
+	tr := newTranslator("ses_1", "run_1", "", nil, nil, "")
+	out := tr.translate(turn.TodosUpdated{Todos: []todo.Item{
+		{Content: "write tests", Status: todo.StatusInProgress},
+		{Content: "ship it", Status: todo.StatusPending},
+	}})
+	if len(out) != 1 || out[0].Type != protocol.StreamStateSnapshot {
+		t.Fatalf("TodosUpdated → %+v, want one state.snapshot", out)
+	}
+	todos, ok := out[0].State["todos"].([]protocol.TodoSnapshot)
+	if !ok || len(todos) != 2 {
+		t.Fatalf("state.todos = %+v, want 2 TodoSnapshot", out[0].State["todos"])
+	}
+	if todos[0] != (protocol.TodoSnapshot{ID: "0", Text: "write tests", Status: "in_progress"}) {
+		t.Fatalf("todo[0] = %+v, want {0, write tests, in_progress}", todos[0])
 	}
 }
 

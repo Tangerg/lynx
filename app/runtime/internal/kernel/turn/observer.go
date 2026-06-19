@@ -147,7 +147,7 @@ func (t *turnObserver) OnToolCallStart(callID, toolName, arguments string) {
 	})
 }
 
-func (t *turnObserver) OnToolCallEnd(callID, _ string, output string, err error) {
+func (t *turnObserver) OnToolCallEnd(callID, toolName, output string, err error) {
 	// HITL interrupt (chat.ToolHalt with Abort()==false): the tool
 	// paused for human input. Not a failure — skip the ToolCallEnd
 	// event. The turn-park handler drains the in-flight tool item
@@ -163,6 +163,17 @@ func (t *turnObserver) OnToolCallEnd(callID, _ string, output string, err error)
 		end.Err = err.Error()
 	}
 	t.svc.emit(t.st, end)
+
+	// After a successful todo_write, project the model's (whole-replaced) task
+	// list so a client renders the task panel (state.snapshot{todos}); the tool
+	// result itself is model-facing only. Read the canonical list from the
+	// store rather than the tool args, so the projection can't drift from the
+	// arg schema.
+	if err == nil && toolName == "todo_write" && t.svc.todos != nil {
+		if items, lerr := t.svc.todos.List(t.st.ctx, t.st.handle.SessionID); lerr == nil {
+			t.svc.emit(t.st, TodosUpdated{Todos: items})
+		}
+	}
 }
 
 func (t *turnObserver) OnMessageDelta(text string) {
