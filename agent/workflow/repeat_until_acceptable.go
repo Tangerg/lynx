@@ -60,8 +60,7 @@ type RepeatUntilAcceptableConfig[In, Out any] struct {
 // records every (output, feedback) pair in an [AttemptHistory], and
 // produces the highest-scoring attempt rather than merely the last
 // accepted one — so a later, worse attempt never overwrites an earlier,
-// better one. Follows best-of-N semantics — a later, worse attempt
-// never overwrites an earlier, better one.
+// better one (best-of-N semantics).
 //
 // Per iteration the action: runs Task (which sees prior outputs for
 // revision), scores it via Evaluator, records the pair, binds the latest

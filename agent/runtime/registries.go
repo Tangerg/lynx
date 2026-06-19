@@ -53,7 +53,6 @@ func (r *agentRegistry) list() []*core.Agent {
 	return slices.Collect(maps.Values(r.agents))
 }
 
-// find does a name lookup.
 func (r *agentRegistry) find(name string) (*core.Agent, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -115,7 +114,6 @@ func (r *processRegistry) pruneWhere(predicate func(*AgentProcess) bool) []strin
 	return removed
 }
 
-// get looks up a process by id.
 func (r *processRegistry) get(id string) (*AgentProcess, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

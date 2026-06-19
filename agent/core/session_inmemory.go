@@ -10,7 +10,6 @@ type InMemorySessionStore struct {
 	kv *inMemoryKV[Session]
 }
 
-// NewInMemorySessionStore returns an empty store ready for use.
 func NewInMemorySessionStore() *InMemorySessionStore {
 	return &InMemorySessionStore{
 		kv: newInMemoryKV[Session]("in-memory session store", ErrSessionNotFound),
