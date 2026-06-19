@@ -273,21 +273,22 @@ func TestTranslator_CommandOutputOnCompleted(t *testing.T) {
 	}
 }
 
-// TestClassifyRunError buckets provider/transient failures into provider_error
-// (with a clean, non-leaking detail) and leaves the rest internal_error — so
-// the client can react (back off / re-key) instead of opaque-retrying, and the
-// raw message (URL / Go call path) never reaches the wire.
+// TestClassifyRunError maps each provider/transient failure onto its own stable
+// wire symbol (with a clean, non-leaking detail) and leaves the rest
+// internal_error — so the client branches on the symbol (back off / re-key /
+// retry) without ever substring-matching detail, and the raw message (URL / Go
+// call path) never reaches the wire.
 func TestClassifyRunError(t *testing.T) {
 	cases := []struct {
 		name, msg, wantType string
-		wantRetryable       bool   // transient (429 / 5xx / timeout) → retryable; auth / 400 → not
+		wantRetryable       bool   // transient (rate-limit / 5xx / timeout) → retryable; auth / 400 → not
 		leakFragment        string // must NOT appear in the wire detail
 	}{
-		{"rate limit", `engine: run chat: POST "https://api.deepseek.com/v1": 429 Too Many Requests {"x"}`, "provider_error", true, "deepseek.com"},
-		{"auth", `POST "https://api.deepseek.com": 401 Unauthorized`, "provider_error", false, "api.deepseek.com"},
-		{"provider 5xx", `POST "https://api.x": 503 Service Unavailable`, "provider_error", true, "api.x"},
-		{"timeout", `Post "https://api.x": context deadline exceeded`, "provider_error", true, "api.x"},
-		{"bad request", `POST "https://api.x": 400 Bad Request invalid_request_error`, "provider_error", false, "api.x"},
+		{"rate limit", `engine: run chat: POST "https://api.deepseek.com/v1": 429 Too Many Requests {"x"}`, "rate_limited", true, "deepseek.com"},
+		{"auth", `POST "https://api.deepseek.com": 401 Unauthorized`, "invalid_api_key", false, "api.deepseek.com"},
+		{"provider 5xx", `POST "https://api.x": 503 Service Unavailable`, "provider_unavailable", true, "api.x"},
+		{"timeout", `Post "https://api.x": context deadline exceeded`, "timeout", true, "api.x"},
+		{"bad request", `POST "https://api.x": 400 Bad Request invalid_request_error`, "provider_rejected", false, "api.x"},
 		{"genuine internal", `engine: deploy chat agent: blackboard nil pointer`, "internal_error", false, ""},
 		{"empty", ``, "internal_error", false, ""},
 	}

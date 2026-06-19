@@ -1164,7 +1164,7 @@ fd;且我们用不了 fd-廉价的 FSEvents)。改为两路覆盖,跨平台(inot
 | `-32601` | `method_not_found` | 未知方法 |
 | `-32602` | `invalid_params` | params 校验失败 |
 | `-32603` | `internal_error` | 运行时意外失败 |
-| `-32001` | `provider_error` | provider 请求失败（含限流 / 超时） |
+| `-32001` | `provider_error` | provider 请求失败（RPC 级兜底；run 级按模式拆 `rate_limited`/`invalid_api_key`/`timeout`/`provider_unavailable`/`provider_rejected`，见 §8.4） |
 | `-32002` | `session_not_found` | session 不存在 |
 | `-32003` | `run_not_found` | run 不存在 |
 | `-32004` | `item_not_found` | item 不存在 |
@@ -1194,7 +1194,7 @@ fd;且我们用不了 fd-廉价的 FSEvents)。改为两路覆盖,跨平台(inot
 
 - **`channel`** —— 自描述错误属于 rpc/run/tool 哪条通道（§8.1）。
 - **`docUrl`** —— 可选，指向该 `type` 的文档页（对标 Stripe `doc_url`）；缺省时客户端按 §8.2 符号名查表即可。
-- **`retryAfterSeconds`** —— 可重试错误（典型 `provider_error` 限流）回传的最早重试时机；client 退避以此为准。
+- **`retryAfterSeconds`** —— 可重试错误（典型 `rate_limited`）回传的最早重试时机；client 退避以此为准。
 - **`errors: FieldError[]`** —— 字段级校验错误（典型 `invalid_params`、provider 配置 / `question` 答案表单）；
   `field` = 出错 params key，UI 可逐字段标红。
 
@@ -1206,8 +1206,15 @@ error `type` 是 §2.6 命名空间的一个实例：first-party 用裸 `snake_c
 **first-party `type` 分两类**：
 - **RPC 级**（通道 a）：§8.2 数字码表里的那些（带 `error.code`）。
 - **run 级 / 执行期**（通道 b/c，**无数字码**，仅 `ProblemData.type`）：`tool_failed`（工具执行失败）、`denied_by_user`
-  （HITL 用户拒绝该工具，§6）、`timeout`、`agent_stuck`（agent loop 无前进进度被守卫终止 —— run 终态错误，区别于落 `internal_error` 的意外失败）等。**与 §8.2 的 `tool_denied` 区分**——后者是**策略**拒绝 `tools.invoke`
-  （RPC 级，带码 `-32012`），前者 `denied_by_user` 是**用户**在 HITL 里拒绝（item 级，无码）。
+  （HITL 用户拒绝该工具，§6）、`agent_stuck`（agent loop 无前进进度被守卫终止 —— run 终态错误，区别于落 `internal_error` 的意外失败），以及 **provider 失败按模式拆出的稳定符号**（落在 `run.finished` 终态 `result.error`，`channel:"run"`）：
+  - `rate_limited` —— 被限流（429 / overloaded / quota），`retryable:true` + `retryAfterSeconds`。
+  - `invalid_api_key` —— 凭证被拒（401 / 403），**不可重试**，UI 引导改 key。
+  - `timeout` —— 请求超时 / 连接失败，`retryable:true`。
+  - `provider_unavailable` —— provider 临时不可用（5xx），`retryable:true`。
+  - `provider_rejected` —— provider 判定请求非法（400），**不可重试**；与 §8.2 RPC 级 `invalid_request`（-32600，坏 envelope）**同名不同物**，靠 `channel` 区分。
+  - `provider_error` —— 兜底的未归类 provider 失败（也是 §8.2 RPC 级 `-32001` 的符号）。
+  客户端**只按 `type`（+ `retryable`）分支**，绝不 substring-match `detail`。**与 §8.2 的 `tool_denied` 区分**——后者是**策略**拒绝 `tools.invoke`
+  （RPC 级，带码 `-32012`），`denied_by_user` 是**用户**在 HITL 里拒绝（item 级，无码）。
 
 ---
 

@@ -11,6 +11,14 @@ const ERROR_COPY: Record<string, string> = {
   checkpoint_unavailable: "No file checkpoint for that turn — nothing was changed.",
   cwd_unavailable: "That path does not exist on the runtime's disk.",
   vcs_unavailable: "This folder isn't a git repository.",
+  // Provider failures, one stable symbol per mode (API.md §8.4) so copy +
+  // behavior branch on the symbol, never on free-text detail. provider_error
+  // stays as the generic fallback for an uncategorized provider failure.
+  rate_limited: "The model provider is rate-limiting requests — wait a moment, then retry.",
+  invalid_api_key: "The provider rejected the API key — check it in provider settings.",
+  timeout: "The request to the model provider timed out — check your connection and retry.",
+  provider_unavailable: "The model provider is temporarily unavailable — retry shortly.",
+  provider_rejected: "The model provider rejected the request as invalid.",
   provider_error: "The model provider didn't respond — try again.",
   agent_stuck: "The agent stopped making progress — try rephrasing or narrowing the task.",
   // 613 — B7 code intel / B8 file read / B12 MCP auth (all expected, UI-inline).
