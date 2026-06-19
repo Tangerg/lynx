@@ -284,7 +284,14 @@ export function toolFields(tool: ToolInvocation | undefined): Partial<ToolCall> 
           : {}),
       };
     case "webSearch":
-      return { hits: asArrayLength(result?.results) };
+      // Carry the raw result alongside the hit count so the web_search preview
+      // can render the result cards (same passthrough as grep/glob above).
+      return {
+        hits: asArrayLength(result?.results),
+        ...(tool.result !== undefined
+          ? { result: typeof tool.result === "string" ? tool.result : JSON.stringify(tool.result) }
+          : {}),
+      };
     case "read": {
       // ReadResponse carries the text on `content` — pass it through as the
       // result body (the JSON-stringified envelope is escaped noise). Omit the

@@ -1,18 +1,21 @@
 // Built-in plugins: inline previews for the runtime's specialised tools —
-// lsp / lsp_diagnostics (code intelligence), skill, task (sub-agent), ask_user, glob.
-// Each renders the tool call's OWN result (these tools return their data
-// inline, no aux-API re-query needed). Same registration surface as the
-// previews in index.tsx.
+// lsp / lsp_diagnostics (code intelligence), skill, task (sub-agent), ask_user,
+// glob, web_search. Each renders the tool call's OWN result (these tools return
+// their data inline, no aux-API re-query needed). Same registration surface as
+// the previews in index.tsx.
 
+import type { SearchResult } from "@/components/tools/previews/SearchResults";
 import type { ToolPreviewProps } from "@/plugins/sdk";
 import { PreviewFoot } from "@/components/tools/previews/PreviewFoot";
 import { PreviewPlaceholder } from "@/components/tools/previews/PreviewPlaceholder";
+import { SearchResults } from "@/components/tools/previews/SearchResults";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
 import { parseJsonResult, PREVIEW_WRAP, resultLines } from "./shared";
 
 const MAX_ROWS = 9;
+const MAX_WEB_RESULTS = 8;
 
 function Overflow({ count }: { count: number }) {
   if (count <= 0) return null;
@@ -291,5 +294,61 @@ export const globPreview = definePlugin({
   version: "1.0.0",
   setup({ host }) {
     host.extensions.contribute(TOOL_PREVIEW, GlobPreview, { key: "glob" });
+  },
+});
+
+// web_search returns the §4.4.2 shape `{ results: WebSearchResult[] }`
+// ({ title, url, snippet, faviconUrl }); we project each to a SearchResult card
+// (domain derived from the url) and render the shared grid. The favicon-letter
+// badge keeps it offline-friendly — no external favicon fetch.
+function domainOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
+function webSearchResults(result: string | undefined): SearchResult[] {
+  const arr = parseJsonResult(result)?.results;
+  if (!Array.isArray(arr)) return [];
+  return arr.flatMap((r) => {
+    const o = typeof r === "object" && r !== null ? (r as Record<string, unknown>) : undefined;
+    const url = typeof o?.url === "string" ? o.url : "";
+    if (!url) return [];
+    return [
+      {
+        url,
+        domain: domainOf(url),
+        title: typeof o?.title === "string" && o.title ? o.title : url,
+        snippet: typeof o?.snippet === "string" ? o.snippet : "",
+      },
+    ];
+  });
+}
+
+function WebSearchPreview({ tool, onOpenView }: ToolPreviewProps) {
+  const results = webSearchResults(tool.result);
+  if (results.length === 0) {
+    return (
+      <div className={PREVIEW_WRAP}>
+        <PreviewPlaceholder status={tool.status} pending="Searching…" idle="(no results)" />
+      </div>
+    );
+  }
+  return (
+    <div className="bg-canvas px-3.5 pt-2.5 pb-2">
+      <SearchResults results={results.slice(0, MAX_WEB_RESULTS)} />
+      <Overflow count={results.length - MAX_WEB_RESULTS} />
+      <PreviewFoot label="tools.preview.viewDetails" onClick={onOpenView} />
+    </div>
+  );
+}
+
+export const webSearchPreview = definePlugin({
+  name: "lyra.builtin.web-search-preview",
+  version: "1.0.0",
+  setup({ host }) {
+    host.extensions.contribute(TOOL_PREVIEW, WebSearchPreview, { key: "web_search" });
   },
 });

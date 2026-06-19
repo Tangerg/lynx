@@ -3,13 +3,13 @@
 // so the v2 fold's emitted set stays minimal and this whole folder is
 // removable: drop the folder → these kinds leave the ContentBlock union and
 // no kernel code references them. See README.md.
+//
+// `SearchResult` (the card shape) lives in the shared component layer: the LIVE
+// web_search rendering is the tool preview (chat/tools/previews); this `search`
+// content block reuses the same shape for the [n] citation source + a future
+// cards-in-prose surface (no emitter yet — see README).
 
-export interface SearchResult {
-  domain: string;
-  title: string;
-  time: string;
-  snippet: string;
-}
+import type { SearchResult } from "@/components/tools/previews/SearchResults";
 
 declare module "@/protocol/run/viewState" {
   interface CustomContentBlockMap {
