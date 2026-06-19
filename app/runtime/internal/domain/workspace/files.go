@@ -85,9 +85,11 @@ func ListFiles(ctx context.Context, root string, opts ListFilesOptions) ([]FileE
 	}
 
 	if opts.Recursive || opts.Glob != "" {
-		return recursiveFiles(files, opts.Glob, limit, walkTrunc)
+		entries, truncated := recursiveFiles(files, opts.Glob, limit, walkTrunc)
+		return entries, truncated, nil
 	}
-	return levelEntries(files, sub, limit, walkTrunc)
+	entries, truncated := levelEntries(files, sub, limit, walkTrunc)
+	return entries, truncated, nil
 }
 
 // candidateFiles returns every non-ignored file under sub (relative to root),
@@ -135,7 +137,7 @@ func walkFiles(root, sub string, includeIgnored bool) ([]string, bool, error) {
 
 // recursiveFiles turns the flat candidate paths into file entries, applying the
 // glob filter and the limit.
-func recursiveFiles(files []string, glob string, limit int, walkTrunc bool) ([]FileEntry, bool, error) {
+func recursiveFiles(files []string, glob string, limit int, walkTrunc bool) ([]FileEntry, bool) {
 	out := make([]FileEntry, 0, min(len(files), limit))
 	truncated := walkTrunc
 	for _, f := range files {
@@ -148,13 +150,13 @@ func recursiveFiles(files []string, glob string, limit int, walkTrunc bool) ([]F
 		}
 		out = append(out, FileEntry{Path: f, Name: path.Base(f), Kind: EntryFile})
 	}
-	return out, truncated, nil
+	return out, truncated
 }
 
 // levelEntries derives the immediate children of sub from the flat candidate
 // paths: direct files become file entries, and any deeper path contributes its
 // first path segment as a dir entry (deduped). Dirs sort before files.
-func levelEntries(files []string, sub string, limit int, walkTrunc bool) ([]FileEntry, bool, error) {
+func levelEntries(files []string, sub string, limit int, walkTrunc bool) ([]FileEntry, bool) {
 	prefix := ""
 	if sub != "" {
 		prefix = sub + "/"
@@ -188,7 +190,7 @@ func levelEntries(files []string, sub string, limit int, walkTrunc bool) ([]File
 		entries = entries[:limit]
 		truncated = true
 	}
-	return entries, truncated, nil
+	return entries, truncated
 }
 
 // matchGlob matches a doublestar-ish pattern against a slash path. Covers the
