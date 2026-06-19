@@ -218,6 +218,21 @@ func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) er
 	return nil
 }
 
+// SteerRun injects a user message into an actively-running run so the model
+// reads it on its next tool round (runs.steer, API.md §6). Only an
+// actively-pumping run is steerable — a parked run (waiting on an interrupt)
+// is answered via runs.resume, and a finished one can't be steered — so a
+// miss in the live run registry is run_not_found.
+func (s *Server) SteerRun(ctx context.Context, in protocol.SteerRunRequest) error {
+	s.runMu.Lock()
+	e, ok := s.runs[in.RunID]
+	s.runMu.Unlock()
+	if !ok {
+		return protocol.ErrRunNotFound
+	}
+	return s.rt.Chat().InjectSteering(ctx, turn.TurnHandle{SessionID: e.sessionID, TurnID: e.turnID}, in.Message)
+}
+
 // ListRuns returns the currently running runs as a Page (API.md §7.3).
 // The set is in-process and bounded, so the page carries no cursor.
 func (s *Server) ListRuns(_ context.Context, in protocol.ListRunsRequest) (*protocol.Page[protocol.RunRef], error) {

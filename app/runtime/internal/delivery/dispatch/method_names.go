@@ -42,6 +42,7 @@ const (
 	MethodRunsResume             = "runs.resume"
 	MethodRunsSubscribe          = "runs.subscribe"
 	MethodRunsCancel             = "runs.cancel"
+	MethodRunsSteer              = "runs.steer"
 	MethodRunsList               = "runs.list"
 	MethodRunsListOpenInterrupts = "runs.listOpenInterrupts"
 

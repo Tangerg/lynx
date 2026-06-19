@@ -126,6 +126,7 @@ var methodTable = map[string]methodHandler{
 	MethodRunsResume:             (*Dispatcher).handleRunsResume,
 	MethodRunsSubscribe:          (*Dispatcher).handleRunsSubscribe,
 	MethodRunsCancel:             (*Dispatcher).handleRunsCancel,
+	MethodRunsSteer:              (*Dispatcher).handleRunsSteer,
 	MethodRunsList:               (*Dispatcher).handleRunsList,
 	MethodRunsListOpenInterrupts: (*Dispatcher).handleRunsListOpenInterrupts,
 

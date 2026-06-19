@@ -992,6 +992,13 @@ interface SessionArtifact {
 - 入参 `{ runId: string; reason?: string }`；返回无。run 以 `outcome:canceled` 收尾（`reason` 回流到 `outcome.detail`，§4.2）。
   错误：`run_not_found`（不存在）/ `run_already_finished`（已收尾——run 二态 running|finished，interrupt outcome 亦属 finished）。
 
+#### `runs.steer`
+把一条用户消息**注入正在跑的 run**，模型在**下一个工具轮**读到它（mid-run steering，§6）—— 区别于 `runs.resume`（应答 interrupt）和 `runs.start`（开新回合）。引擎在每个延续轮的请求里把该消息追加在最新工具结果之后（memory 中间件随即持久化进历史），所以它落在正确位置、且后续轮 + 下一回合都可见。
+
+- 入参 `{ runId: string; message: string }`；返回无。
+- 仅对**正在跑**（actively pumping）的 run 有效：驻留中（等 interrupt，应走 `runs.resume`）或已结束的 run 报 `run_not_found`。
+- 时机是 best-effort：若 run 已无后续工具轮（正出最终答复），该消息落到下一回合（与既有 next-turn steering 回退一致），不丢。
+
 #### `runs.list`
 - 入参 `{ sessionId?: string; cursor?: string; limit?: number }`；返回 `Page<RunRef>` —— **仅在跑的 run**。已结束/被中断的 run 经 `listOpenInterrupts` 或 item 历史发现。
 
