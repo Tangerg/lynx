@@ -300,6 +300,12 @@ type TurnEnd struct {
 	UsageByModel []ModelUsage // per-model breakdown; one entry for a single-model turn
 	CostUSD      float64      // turn cost; zero unless a pricing hook is configured (engine.Config.Pricing)
 	Duration     time.Duration
+	// MaxBudget / MaxCostUSD echo the turn's configured caps so a
+	// Reason=TurnEndBudgetExceeded terminal can be described precisely
+	// ("spent $4.20 of $4.00 budget" / "reached the 8000-token budget"). Zero
+	// when uncapped.
+	MaxBudget  int64
+	MaxCostUSD float64
 }
 
 // ErrorEvent fires when an unrecoverable error aborts the turn. The

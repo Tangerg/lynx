@@ -126,7 +126,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	if !doHistory || len(b.Dropped) == 0 {
 		// History stays (files-only rollback), or ToRunID is already the latest
 		// turn so there's nothing after it to drop.
-		out := s.sessionToWire(ses)
+		out := s.sessionToWire(ses, s.liveStatus(ctx, ses.ID))
 		return &protocol.RollbackSessionResponse{Session: &out, DroppedRuns: []protocol.DroppedRun{}}, nil
 	}
 
@@ -160,7 +160,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	for _, rec := range b.Dropped {
 		out = append(out, protocol.DroppedRun{Run: refByID[rec.ID], UserInput: userByRun[rec.ID]})
 	}
-	sess := s.sessionToWire(ses)
+	sess := s.sessionToWire(ses, s.liveStatus(ctx, ses.ID))
 	return &protocol.RollbackSessionResponse{Session: &sess, DroppedRuns: out}, nil
 }
 

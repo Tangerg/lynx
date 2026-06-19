@@ -3,6 +3,7 @@ package server
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
@@ -307,6 +308,84 @@ func TestClassifyRunError(t *testing.T) {
 				t.Fatalf("detail leaked %q: %q", c.leakFragment, got.Detail)
 			}
 		})
+	}
+}
+
+// TestClassifyRunError_AgentStuck verifies a stuck-agent terminal surfaces
+// under its own wire symbol (keyed on the turn errCode) rather than collapsing
+// to internal_error (T3.2). The classification reads errCode, not the message,
+// so a provider error that merely mentions "stuck" is unaffected.
+func TestClassifyRunError_AgentStuck(t *testing.T) {
+	tr := newTranslator("", "", "", nil, nil, "")
+	tr.errCode = "AGENT_STUCK"
+	got := tr.classifyRunError("agent stuck — no forward progress")
+	if got.Type != "agent_stuck" {
+		t.Fatalf("type = %q, want agent_stuck", got.Type)
+	}
+	if got.Channel != protocol.ErrorChannelRun {
+		t.Fatalf("channel = %q, want run", got.Channel)
+	}
+
+	// Without the code, the same loop-detection wording stays a generic
+	// internal error — the symbol is gated on the code, not the text.
+	plain := newTranslator("", "", "", nil, nil, "")
+	if got := plain.classifyRunError("the agent got stuck somewhere"); got.Type != "internal_error" {
+		t.Fatalf("uncoded 'stuck' message classified as %q, want internal_error", got.Type)
+	}
+}
+
+// TestTranslator_Compaction verifies a CompactBoundary folds onto a compaction
+// Item pair (item.started + item.completed, one id) carrying the net dropped
+// count, so the client can render a "context compacted" divider (T3.1).
+func TestTranslator_Compaction(t *testing.T) {
+	tr := newTranslator("ses_1", "run_1", "", nil, nil, "")
+	out := tr.translate(turn.CompactBoundary{MessagesBefore: 20, MessagesAfter: 6})
+	if len(out) != 2 {
+		t.Fatalf("CompactBoundary → %d events, want 2 (item.started + item.completed)", len(out))
+	}
+	started, completed := out[0], out[1]
+	if started.Type != protocol.StreamItemStarted || completed.Type != protocol.StreamItemCompleted {
+		t.Fatalf("compaction events = (%s, %s), want (item.started, item.completed)", started.Type, completed.Type)
+	}
+	for _, se := range out {
+		if se.Item == nil || se.Item.Type != protocol.ItemTypeCompaction {
+			t.Fatalf("compaction item missing or wrong type: %+v", se.Item)
+		}
+		if se.Item.DroppedMessages != 14 {
+			t.Fatalf("droppedMessages = %d, want 14 (20 − 6)", se.Item.DroppedMessages)
+		}
+	}
+	if started.Item.ID != completed.Item.ID {
+		t.Fatalf("compaction started/completed ids differ (%q vs %q) — must be one Item", started.Item.ID, completed.Item.ID)
+	}
+}
+
+// TestTranslator_OutcomeDurationAndBudget verifies the terminal outcome carries
+// the run's wall-clock duration on every result, and a budget-exceeded terminal
+// gets a precise "spent $X / $Y" detail (T3.4).
+func TestTranslator_OutcomeDurationAndBudget(t *testing.T) {
+	tr := newTranslator("ses_1", "run_1", "", nil, nil, "")
+	oc := tr.outcome(turn.TurnEnd{
+		Reason:     turn.TurnEndBudgetExceeded,
+		Duration:   1500 * time.Millisecond,
+		CostUSD:    4.2,
+		MaxCostUSD: 4.0,
+	})
+	if oc.Type != protocol.OutcomeMaxBudget {
+		t.Fatalf("type = %s, want maxBudget", oc.Type)
+	}
+	if oc.Result == nil || oc.Result.DurationMs != 1500 {
+		t.Fatalf("durationMs = %v, want 1500", oc.Result)
+	}
+	if !strings.Contains(oc.Detail, "$4.20") || !strings.Contains(oc.Detail, "$4.00") {
+		t.Fatalf("maxBudget detail = %q, want it to mention $4.20 and $4.00", oc.Detail)
+	}
+
+	// A clean completion still carries the duration (the client shows "took
+	// 0.8s"), with no budget detail.
+	done := tr.outcome(turn.TurnEnd{Reason: turn.TurnEndCompleted, Duration: 800 * time.Millisecond})
+	if done.Type != protocol.OutcomeCompleted || done.Result.DurationMs != 800 || done.Detail != "" {
+		t.Fatalf("completed outcome = %+v (result %+v), want completed/800ms/no-detail", done, done.Result)
 	}
 }
 

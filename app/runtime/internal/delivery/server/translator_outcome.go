@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -14,12 +15,12 @@ import (
 // This file changes when the outcome contract does.
 
 func (t *translator) outcome(e turn.TurnEnd) *protocol.RunOutcome {
-	res := &protocol.RunResult{Usage: t.turnUsage(e)}
+	res := &protocol.RunResult{Usage: t.turnUsage(e), DurationMs: int(e.Duration.Milliseconds())}
 	switch e.Reason {
 	case turn.TurnEndCanceled:
 		return &protocol.RunOutcome{Type: protocol.OutcomeCanceled, Result: res}
 	case turn.TurnEndBudgetExceeded:
-		return &protocol.RunOutcome{Type: protocol.OutcomeMaxBudget, Result: res}
+		return &protocol.RunOutcome{Type: protocol.OutcomeMaxBudget, Result: res, Detail: budgetDetail(e)}
 	case turn.TurnEndErrored:
 		res.Error = t.classifyRunError(t.errMsg)
 		return &protocol.RunOutcome{Type: protocol.OutcomeError, Result: res}
@@ -28,9 +29,33 @@ func (t *translator) outcome(e turn.TurnEnd) *protocol.RunOutcome {
 	}
 }
 
+// budgetDetail describes which configured cap a budget-exceeded run hit, for
+// RunOutcome.detail (e.g. "spent $4.20 of $4.00 budget" / "reached the
+// 8000-token budget"). Falls back to a generic note when neither cap is echoed.
+func budgetDetail(e turn.TurnEnd) string {
+	switch {
+	case e.MaxCostUSD > 0:
+		return fmt.Sprintf("spent $%.2f of $%.2f budget", e.CostUSD, e.MaxCostUSD)
+	case e.MaxBudget > 0:
+		return fmt.Sprintf("reached the %d-token budget", e.MaxBudget)
+	default:
+		return "reached the configured budget"
+	}
+}
+
 // classifyRunError maps a failed run's error message onto a wire
 // ProblemData, classifying by provider-visible patterns.
 func (t *translator) classifyRunError(msg string) *protocol.ProblemData {
+	// A stuck agent (the loop's no-forward-progress guard tripped) is a
+	// distinct, stable failure — surface it under its own wire symbol rather
+	// than letting it fall through to internal_error. Keyed on the turn-layer
+	// error code, not the message text, so it can't be confused with a provider
+	// error that merely mentions "stuck". Other engine errors keep flowing
+	// through the provider-pattern classification below (their message is
+	// usually a wrapped provider failure worth a retry hint).
+	if t.errCode == "AGENT_STUCK" {
+		return &protocol.ProblemData{Type: "agent_stuck", Channel: protocol.ErrorChannelRun, Detail: msg}
+	}
 	m := strings.ToLower(msg)
 	contains := func(subs ...string) bool {
 		for _, s := range subs {

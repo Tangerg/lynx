@@ -239,6 +239,7 @@ export interface RunResult {
   usage?: Usage;
   steps?: number;
   error?: ProblemData; // when outcome.type=error
+  durationMs?: number; // run wall-clock (spans interrupt/resume); a final "took 12.4s" on any terminal
 }
 
 // ---------------------------------------------------------------------------

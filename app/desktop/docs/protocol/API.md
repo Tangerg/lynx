@@ -294,6 +294,7 @@ interface RunResult {
   usage?: Usage;                       // 总成本读 usage.costUsd（不另设 RunResult.costUsd，避免两处总成本不一致）
   steps?: number;
   error?: ProblemData;                 // outcome.type=error 时给
+  durationMs?: number;                 // run 墙钟耗时（跨 interrupt/resume）；任一终态可显示 "took 12.4s"
 }
 ```
 
@@ -329,7 +330,7 @@ type Item =
 - `question` 是一等 Item：一个提问可能成为 durable open interrupt，之后由 `runs.resume` 应答。
 - `toolCall.error`（+ `status:"incomplete"`）是**工具级失败的统一结构化落点**。工具失败**通常不终止整个 run** ——
   agent 可据此换方案、继续（§8 通道 b）。
-- **`compaction`（提案 613 B10，见附录 C.4）** —— additive 第 7 变体，标"此处压缩了 N 条更早消息"，后端落地前不在 wire 上。
+- **`compaction`** —— additive 第 7 变体，标"此处压缩了 N 条更早消息"。turn 边界的**自动压缩已落地**：产出该 Item（`item.started` + `item.completed`，带 `droppedMessages` = 压缩前后净减条数），fold 成时间线分隔条。显式 `sessions.compact` RPC 仍是提案（613 B10，见附录 C.4）。
 
 ```ts
 type ContentBlock =
@@ -1204,8 +1205,8 @@ error `type` 是 §2.6 命名空间的一个实例：first-party 用裸 `snake_c
 
 **first-party `type` 分两类**：
 - **RPC 级**（通道 a）：§8.2 数字码表里的那些（带 `error.code`）。
-- **工具级 / 执行期**（通道 b/c，**无数字码**，仅 `ProblemData.type`）：`tool_failed`（工具执行失败）、`denied_by_user`
-  （HITL 用户拒绝该工具，§6）、`timeout` 等。**与 §8.2 的 `tool_denied` 区分**——后者是**策略**拒绝 `tools.invoke`
+- **run 级 / 执行期**（通道 b/c，**无数字码**，仅 `ProblemData.type`）：`tool_failed`（工具执行失败）、`denied_by_user`
+  （HITL 用户拒绝该工具，§6）、`timeout`、`agent_stuck`（agent loop 无前进进度被守卫终止 —— run 终态错误，区别于落 `internal_error` 的意外失败）等。**与 §8.2 的 `tool_denied` 区分**——后者是**策略**拒绝 `tools.invoke`
   （RPC 级，带码 `-32012`），前者 `denied_by_user` 是**用户**在 HITL 里拒绝（item 级，无码）。
 
 ---
@@ -1250,8 +1251,8 @@ interface ClientCapabilities {
 | `relocate` | bool | `sessions.update` 改 cwd |
 | `clientTools` | bool | `toolResult` interrupt |
 
-> **提案中的 feature（613，缺省关闭直到后端落地，见附录 C）**：`codeIntel`（`workspace.code.*`）/ `compaction`
-> （`sessions.compact` + `compaction` Item）/ `todos`（`todos.list`）。additive 加 key、老 client 忽略未知 → 不 bump 契约。
+> **提案中的 feature（613，缺省关闭直到后端落地，见附录 C）**：`codeIntel`（`workspace.code.*`）/ `todos`（`todos.list`）/
+> `compaction` 的**显式 `sessions.compact` RPC**（自动压缩的 `compaction` Item 已落地，无需协商，见附录 C.4）。additive 加 key、老 client 忽略未知 → 不 bump 契约。
 
 规则：
 
@@ -1413,8 +1414,8 @@ interface ClientCapabilities {
 > 落地时整体并入 §7/§9，wire 不变、契约不 bump。**当前调用这些方法返 `method_not_found`（-32601）**；前端 `rpc/` 已按本附录
 > 形状预接，并把对应 feature 当作未声明（关闭）→ UI 自然降级、不报错。落地 = 后端注册方法 + advertise feature，本附录条目转入正文。
 >
-> 新增 feature 门控（§9 features map，缺省关闭）：`codeIntel`（B7）/ `compaction`（B10）/ `todos`（B11）。
-> B8（文件浏览）属基础读、不门控；B9（审批运行时控制）不门控；B12 归 `mcp` 门控。
+> 新增 feature 门控（§9 features map，缺省关闭）：`codeIntel`（B7）/ `todos`（B11）/ `compaction` 的显式 `sessions.compact` RPC（B10 —
+> 自动压缩的 `compaction` Item 已落地、不门控）。B8（文件浏览）属基础读、不门控；B9（审批运行时控制）不门控；B12 归 `mcp` 门控。
 
 ### C.1 B7 · `workspace.code.*`（门控 `codeIntel`）—— LSP 支撑的只读代码导航
 
@@ -1495,11 +1496,10 @@ interface RememberedDecision { tool: string; decision: "approve" | "deny"; remem
 > 调 `exit_plan_mode`（一个 `question` interrupt，§6）呈交计划；批准 → 姿态自动翻回 `balanced` 执行，拒绝 → 留在 `plan`。
 > 记忆决策的**写入**面是 HITL 应答里的 `ApprovalResponse.remember`（§6.1 / AUX_API §6）；`listRemembered`/`forget` 是其**读 + 管理**面（提案）。
 
-### C.4 B10 · `sessions.compact` + `compaction` Item（门控 `compaction`）—— 主动上下文压缩
+### C.4 B10 · `sessions.compact` + `compaction` Item（部分落地）—— 主动上下文压缩
 
-- `sessions.compact{ sessionId; force? }` → `CompactionResult`。`force:false` 仅在超内部阈值时压（与自发压缩同条件）；
-  运行中拒绝（`session_busy`）；内部调 LLM，可能数秒。
-- **`compaction` Item 变体**（§4.3 Item 联合的 additive 第 7 变体）：自发（turn 边界）压缩与显式 `sessions.compact` 都产它，fold 成时间线分隔条。
+- **`compaction` Item 变体已落地**（§4.3 Item 联合的 additive 第 7 变体）：turn 边界的**自发压缩**现产出它（`item.started` + `item.completed`，`droppedMessages` = 压缩前后净减条数），fold 成时间线分隔条。`summary` 暂留空（摘要文本已折进重写后的历史）。
+- **`sessions.compact` RPC 仍是提案**：`sessions.compact{ sessionId; force? }` → `CompactionResult`，`force:false` 仅在超内部阈值时压（与自发压缩同条件）、运行中拒绝（`session_busy`）、内部调 LLM 可能数秒 —— 后端尚未实现这条显式入口。
 
 ```ts
 // §4.3 Item 联合 additive 变体：
