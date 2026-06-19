@@ -90,7 +90,9 @@ function SearchTab() {
                         <span className="text-right text-[11px] text-fg-faint select-none">
                           {m.lineNumber}
                         </span>
-                        <span className="truncate text-fg-soft">{m.text}</span>
+                        <span className="truncate text-fg-soft" title={m.text}>
+                          {m.text}
+                        </span>
                       </div>
                     ))}
                   </div>
