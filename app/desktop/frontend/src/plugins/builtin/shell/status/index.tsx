@@ -11,6 +11,7 @@ import { useSessionStore } from "@/state/sessionStore";
 
 export { statusBar } from "./statusbar";
 export { completionNotify } from "./completionNotify";
+export { windowTitle } from "./windowTitle";
 
 function NotificationsBadge() {
   const t = useT();

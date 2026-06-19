@@ -13,10 +13,12 @@
 // load (while the window is focused, so the prompt is allowed).
 
 import type { AgentViewState } from "@/protocol/run/viewState";
+import { playCompletionChime } from "@/lib/chime";
 import { disposeOnHmr } from "@/lib/hmr";
 import { ensureOsNotifyPermission, osNotify } from "@/lib/osNotify";
 import { definePlugin } from "@/plugins/sdk";
 import { useAgentStore } from "@/state/agentStore";
+import { useUiStore } from "@/state/uiStore";
 
 // Per-session last-seen `running`, so we act only on the true→false edge (the
 // run settled) rather than on every streaming store mutation.
@@ -39,6 +41,8 @@ function onSettled(sessionId: string, view: AgentViewState): void {
   // tag per session: a session that finishes several runs while you're away
   // replaces its own notification instead of stacking a pile.
   osNotify(title, { body, tag: `run:${sessionId}` });
+  // Optional audible companion, same blurred-only gate as the notification.
+  if (useUiStore.getState().completionSound) playCompletionChime();
 }
 
 const unsubscribe = useAgentStore.subscribe((state) => {

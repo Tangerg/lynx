@@ -40,6 +40,8 @@ const uiPersistSchema = z.object({
   // .default keeps older blobs (no splitRatio) parsing — no version bump.
   splitRatio: z.number().default(0.5),
   sidebarRail: z.boolean(),
+  // .default keeps older blobs (no completionSound) parsing — no version bump.
+  completionSound: z.boolean().default(false),
 });
 
 /**
@@ -107,6 +109,9 @@ interface UiState {
   splitRatio: number;
   /** True = collapsed rail. False = expanded sidebar. */
   sidebarRail: boolean;
+  /** Play a soft chime when a run settles while the window is unfocused —
+   *  the audible companion to the OS completion notification. Default off. */
+  completionSound: boolean;
 }
 
 interface UiActions {
@@ -132,6 +137,7 @@ interface UiActions {
   setStreamReveal: (mode: "smooth" | "typewriter") => void;
   setSplitRatio: (ratio: number) => void;
   toggleSidebar: () => void;
+  setCompletionSound: (on: boolean) => void;
 }
 
 export const useUiStore = create<UiState & UiActions>()(
@@ -151,6 +157,7 @@ export const useUiStore = create<UiState & UiActions>()(
       streamReveal: "smooth",
       splitRatio: 0.5,
       sidebarRail: true,
+      completionSound: false,
 
       setTheme: (theme) => set({ theme }),
       toggleTheme: () => {
@@ -177,6 +184,7 @@ export const useUiStore = create<UiState & UiActions>()(
       setStreamReveal: (streamReveal) => set({ streamReveal }),
       setSplitRatio: (splitRatio) => set({ splitRatio }),
       toggleSidebar: () => set((s) => ({ sidebarRail: !s.sidebarRail })),
+      setCompletionSound: (completionSound) => set({ completionSound }),
     }),
     {
       name: "lyra.ui",

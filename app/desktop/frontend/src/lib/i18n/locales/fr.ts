@@ -256,6 +256,10 @@ export const fr: Record<string, string> = {
   "settings.streamReveal.sub": "Comment les réponses apparaissent au fil du streaming.",
   "settings.streamReveal.smooth": "Fluide",
   "settings.streamReveal.typewriter": "Machine à écrire",
+  "settings.completionSound": "Son de fin",
+  "settings.completionSound.sub":
+    "Jouer un son lorsqu'une exécution se termine alors que l'application est en arrière-plan.",
+  "settings.completionSound.toggle": "Jouer un son",
   "settings.language.label": "Langue",
   "settings.language.sub": "Langue de l'interface. D'autres peuvent être ajoutées via plugins.",
 

@@ -65,7 +65,7 @@ import {
   sidebarSearch,
 } from "./sidebar";
 import slashHints from "./chat/slash-hints";
-import { completionNotify, statusBar, statusNotifications } from "./shell/status";
+import { completionNotify, statusBar, statusNotifications, windowTitle } from "./shell/status";
 import { tasksPill } from "./workspace/tasks";
 import { themesPack } from "./theme";
 import toaster from "./shell/toaster";
@@ -224,6 +224,7 @@ const overlays: PluginSpec[] = [
   tasksPill,
   statusNotifications,
   completionNotify,
+  windowTitle,
   welcomeScreen,
   topbarNewTab,
   shortcuts,

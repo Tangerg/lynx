@@ -1,9 +1,11 @@
-// Personalization preference rows — message style + streaming reveal style.
-// Both are binary picks rendered as a Segmented control. Live here (not in the
-// Appearance plugin) because the Personalization pane is their only consumer;
-// the shared `SettingRow` primitive sits at the settings-domain root.
+// Personalization preference rows — message style + streaming reveal style +
+// completion sound. Binary picks rendered as a Segmented / Checkbox control.
+// Live here (not in the Appearance plugin) because the Personalization pane is
+// their only consumer; the shared `SettingRow` primitive sits at the
+// settings-domain root.
 
-import { Segmented } from "@/components/common";
+import { useId } from "react";
+import { Checkbox, Segmented } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { useUiStore } from "@/state/uiStore";
 import { SettingRow } from "../SettingRow";
@@ -24,6 +26,30 @@ export function MessageStyleSection() {
         onChange={setMessageStyle}
         ariaLabel={t("settings.messageStyle")}
       />
+    </SettingRow>
+  );
+}
+
+export function CompletionSoundSection() {
+  const t = useT();
+  const completionSound = useUiStore((s) => s.completionSound);
+  const setCompletionSound = useUiStore((s) => s.setCompletionSound);
+  const id = useId();
+
+  return (
+    <SettingRow label={t("settings.completionSound")} sub={t("settings.completionSound.sub")}>
+      <label
+        htmlFor={id}
+        className="inline-flex cursor-pointer items-center gap-1.5 text-[12.5px] text-fg-muted"
+      >
+        <Checkbox
+          id={id}
+          checked={completionSound}
+          onCheckedChange={setCompletionSound}
+          ariaLabel={t("settings.completionSound")}
+        />
+        <span>{t("settings.completionSound.toggle")}</span>
+      </label>
     </SettingRow>
   );
 }
