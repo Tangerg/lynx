@@ -328,6 +328,17 @@ type UsageReported struct {
 	CostUSD    float64
 }
 
+// SteerMessage fires when a mid-run steering message (injected via
+// [Service.InjectSteering] while the turn was looping) is consumed into the
+// running loop — between the round that just finished and the next one. The
+// transport surfaces it as a userMessage Item so the steered turn shows on the
+// timeline and lands in the durable transcript, exactly like the opening user
+// turn (it's also already in the model's context, injected into the loop).
+type SteerMessage struct {
+	BaseEvent
+	Text string
+}
+
 // stamp implementations — concrete events return themselves with
 // the BaseEvent header replaced wholesale. Value-typed events are
 // the right idiom here: the dispatcher (emit, in inmemory.go) takes
@@ -347,6 +358,7 @@ func (e TurnInterrupted) stamp(b BaseEvent) Event { e.BaseEvent = b; return e }
 func (e TurnEnd) stamp(b BaseEvent) Event         { e.BaseEvent = b; return e }
 func (e ErrorEvent) stamp(b BaseEvent) Event      { e.BaseEvent = b; return e }
 func (e UsageReported) stamp(b BaseEvent) Event   { e.BaseEvent = b; return e }
+func (e SteerMessage) stamp(b BaseEvent) Event    { e.BaseEvent = b; return e }
 
 // TurnEndReason enumerates why a turn ended.
 type TurnEndReason int

@@ -305,6 +305,8 @@ func (t *translator) translate(ev turn.Event) []protocol.StreamEvent {
 		return t.toolEnd(e)
 	case turn.UsageReported:
 		return t.usageProgress(e)
+	case turn.SteerMessage:
+		return t.steerMessage(e)
 	case turn.ErrorEvent:
 		t.errMsg = e.Message
 		t.errCode = e.Code
@@ -373,6 +375,33 @@ func (t *translator) openUserMessage() []protocol.StreamEvent {
 		{Type: protocol.StreamItemStarted, Item: item(protocol.ItemStatusRunning)},
 		{Type: protocol.StreamItemCompleted, Item: item(protocol.ItemStatusCompleted)},
 	}
+}
+
+// steerMessage surfaces a mid-run steering turn as its own userMessage Item: a
+// fresh id per steer (not the run's fixed opening id) so repeated steers don't
+// collide, with any open assistant text / reasoning closed first so the user
+// turn never nests inside one. The injected message is already in the model's
+// context (the loop appended it after the latest tool result); this is its
+// timeline + durable-transcript record, shaped exactly like the opening turn.
+func (t *translator) steerMessage(e turn.SteerMessage) []protocol.StreamEvent {
+	out := t.closeReasoning()
+	out = append(out, t.closeText()...)
+	id := t.nextItemID()
+	now := time.Now().UTC()
+	item := func(status protocol.ItemStatus) *protocol.Item {
+		return &protocol.Item{
+			ID:        id,
+			RunID:     t.runID,
+			Status:    status,
+			Type:      protocol.ItemTypeUserMessage,
+			CreatedAt: now,
+			Content:   []protocol.ContentBlock{{Type: protocol.ContentBlockText, Text: e.Text}},
+		}
+	}
+	return append(out,
+		protocol.StreamEvent{Type: protocol.StreamItemStarted, Item: item(protocol.ItemStatusRunning)},
+		protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: item(protocol.ItemStatusCompleted)},
+	)
 }
 
 // resumeQuestionCompletions terminalizes the question items (ask_user /

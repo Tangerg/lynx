@@ -392,6 +392,31 @@ func TestTranslator_UsageProgress(t *testing.T) {
 	}
 }
 
+// TestTranslator_SteerMessage verifies a mid-run steer surfaces as a durable
+// userMessage Item, closing any open assistant text first (T2.1).
+func TestTranslator_SteerMessage(t *testing.T) {
+	tr := newTranslator("ses_1", "run_1", "", nil, nil, "")
+	tr.translate(turn.MessageDelta{Text: "thinking…"}) // opens an assistant text item
+	out := tr.translate(turn.SteerMessage{Text: "also check the tests"})
+	if len(out) < 3 {
+		t.Fatalf("SteerMessage → %d events, want close-text + item.started + item.completed", len(out))
+	}
+	started, completed := out[len(out)-2], out[len(out)-1]
+	if started.Type != protocol.StreamItemStarted || completed.Type != protocol.StreamItemCompleted {
+		t.Fatalf("steer events = (%s, %s), want (item.started, item.completed)", started.Type, completed.Type)
+	}
+	it := completed.Item
+	if it == nil || it.Type != protocol.ItemTypeUserMessage {
+		t.Fatalf("steer item = %+v, want userMessage", it)
+	}
+	if len(it.Content) != 1 || it.Content[0].Text != "also check the tests" {
+		t.Fatalf("steer content = %+v, want the steered text", it.Content)
+	}
+	if !completed.IsDurable() {
+		t.Fatal("steer userMessage item must be durable (it's a real conversation turn)")
+	}
+}
+
 // TestTranslator_OutcomeDurationAndBudget verifies the terminal outcome carries
 // the run's wall-clock duration on every result, and a budget-exceeded terminal
 // gets a precise "spent $X / $Y" detail (T3.4).
