@@ -1,10 +1,8 @@
 import type { BlockStatus } from "@/protocol/run/viewState";
-import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { MarkdownMessage } from "../markdown/MarkdownMessage";
-import { Icon } from "@/components/common";
+import { Collapsible, Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
-import { swift } from "@/lib/motion";
 
 interface Props {
   text: string;
@@ -86,27 +84,19 @@ export function ReasoningBlock({ text, status }: Props) {
           <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-[0_0_6px_var(--color-accent)] animate-pulse-dot" />
         )}
       </button>
-      <AnimatePresence initial={false}>
-        {isOpen && (
-          <motion.div
-            key="body"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={swift}
-            style={{ overflow: "hidden" }}
-          >
-            <div className="whitespace-pre-wrap px-0 pb-1 pt-1.5 text-[14px] italic leading-[1.6] text-fg-muted">
-              <MarkdownMessage text={text} streaming={streaming} />
-              {status === "incomplete" && (
-                <div className="mt-1 font-mono text-[11px] text-fg-faint">
-                  <Icon name="x" size={10} /> {t("reasoning.interrupted")}
-                </div>
-              )}
+      {/* Collapsible (grid-rows), not a height:auto tween — this block lives
+          inside the message stream, where FM's auto-measure makes
+          use-stick-to-bottom clamp the chat to the top (see Collapsible). */}
+      <Collapsible open={isOpen}>
+        <div className="whitespace-pre-wrap px-0 pb-1 pt-1.5 text-[14px] italic leading-[1.6] text-fg-muted">
+          <MarkdownMessage text={text} streaming={streaming} />
+          {status === "incomplete" && (
+            <div className="mt-1 font-mono text-[11px] text-fg-faint">
+              <Icon name="x" size={10} /> {t("reasoning.interrupted")}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </div>
+      </Collapsible>
     </div>
   );
 }
