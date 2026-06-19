@@ -24,30 +24,24 @@ type Nop struct{}
 // so allocating per caller would just produce garbage.
 var nopSingleton = &Nop{}
 
-// NewNop returns the shared singleton.
 func NewNop() *Nop { return nopSingleton }
 
-// Expand wraps the input query in a single-element slice.
 func (n *Nop) Expand(_ context.Context, query *Query) ([]*Query, error) {
 	return []*Query{query}, nil
 }
 
-// Retrieve returns nil — no documents.
 func (n *Nop) Retrieve(_ context.Context, _ *Query) ([]*document.Document, error) {
 	return nil, nil
 }
 
-// Transform passes the query through unchanged.
 func (n *Nop) Transform(_ context.Context, query *Query) (*Query, error) {
 	return query, nil
 }
 
-// Augment passes the query through unchanged.
 func (n *Nop) Augment(_ context.Context, query *Query, _ []*document.Document) (*Query, error) {
 	return query, nil
 }
 
-// Refine passes the documents through unchanged.
 func (n *Nop) Refine(_ context.Context, _ *Query, documents []*document.Document) ([]*document.Document, error) {
 	return documents, nil
 }

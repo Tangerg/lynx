@@ -153,14 +153,12 @@ func withAugmentedUserText(req *chat.Request, text string) *chat.Request {
 	return &out
 }
 
-// wrapCallHandler is the call-side adapter.
 func (m *pipelineMiddleware) wrapCallHandler(next chat.CallHandler) chat.CallHandler {
 	return chat.CallHandlerFunc(func(ctx context.Context, req *chat.Request) (*chat.Response, error) {
 		return m.executeCall(ctx, req, next)
 	})
 }
 
-// wrapStreamHandler is the stream-side adapter.
 func (m *pipelineMiddleware) wrapStreamHandler(next chat.StreamHandler) chat.StreamHandler {
 	return chat.StreamHandlerFunc(func(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
 		return m.executeStream(ctx, req, next)
