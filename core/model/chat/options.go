@@ -104,7 +104,7 @@ func (o *Options) Clone() *Options {
 // last-write-wins.
 //
 // Returns an error when base is nil so callers don't accidentally produce
-// a Options without a model id.
+// an Options without a model id.
 //
 // Example:
 //
