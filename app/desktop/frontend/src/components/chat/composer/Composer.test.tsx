@@ -1,8 +1,18 @@
+import type { ReactElement } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { definePlugin, loadPlugin } from "@/plugins/sdk";
 import { COMPOSER_KEY_BINDING } from "@/plugins/sdk/kernelPoints";
 import { Composer } from "./Composer";
+
+// Composer now reads the workspace file list (useFileMentions → useListFiles)
+// via React Query, so renders need a provider. Retries off so a missing
+// provider/fetcher fails fast rather than hanging the test.
+function wrap(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
 
 // Composer relies on a built-in composer-keymap registration to bind
 // Enter → submit. Set up a tiny in-test plugin that mirrors it.
@@ -41,7 +51,7 @@ const baseProps = {
 describe("composer", () => {
   it("calls onChange as the user types", () => {
     const onChange = vi.fn();
-    render(<Composer {...baseProps} value="" onChange={onChange} onSend={() => {}} />);
+    wrap(<Composer {...baseProps} value="" onChange={onChange} onSend={() => {}} />);
     const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
     fireEvent.change(textarea, { target: { value: "hi" } });
     expect(onChange).toHaveBeenCalledWith("hi");
@@ -51,7 +61,7 @@ describe("composer", () => {
     await withEnterKeymap();
     const onSend = vi.fn();
     const onChange = vi.fn();
-    render(<Composer {...baseProps} value="hello world" onChange={onChange} onSend={onSend} />);
+    wrap(<Composer {...baseProps} value="hello world" onChange={onChange} onSend={onSend} />);
     fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
     expect(onSend).toHaveBeenCalledWith([{ type: "text", text: "hello world" }]);
   });
@@ -59,13 +69,13 @@ describe("composer", () => {
   it("does not submit when the textarea is empty / whitespace only", async () => {
     await withEnterKeymap();
     const onSend = vi.fn();
-    render(<Composer {...baseProps} value="   " onChange={() => {}} onSend={onSend} />);
+    wrap(<Composer {...baseProps} value="   " onChange={() => {}} onSend={onSend} />);
     fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
     expect(onSend).not.toHaveBeenCalled();
   });
 
   it("renders image thumbnails when images are staged", () => {
-    render(
+    wrap(
       <Composer
         {...baseProps}
         value=""

@@ -296,7 +296,14 @@ export const defaultData = definePlugin({
       key: "list-files",
       fetcher: async (params) => {
         const q = params as ListFilesQuery;
-        return (await client().workspace.listFiles({ cwd: q.cwd, path: q.path })).data.map((e) => ({
+        return (
+          await client().workspace.listFiles({
+            cwd: q.cwd,
+            path: q.path,
+            recursive: q.recursive,
+            limit: q.limit,
+          })
+        ).data.map((e) => ({
           path: e.path,
           name: e.name,
           type: e.type,
