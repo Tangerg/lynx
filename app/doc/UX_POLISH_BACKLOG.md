@@ -41,7 +41,8 @@
 
 ## Tier 2 —— 中等投入、明显拉开体验
 
-### ✅ T2.1　边跑边排队 + 插话(steer)　【desktop · M】　**已实现**(运行中排队 + clean-settle 自动发 + 可删队列 chip;真正的 mid-run steer 仍需 engine 注入,留作后续)
+### ✅ T2.1　边跑边排队 + 插话(steer)　【desktop · M】　**已实现**(真·mid-run steer:运行中发消息注入活跃 turn,模型下一轮即读到)
+> 真·steer 补完(用户签发,彻底治本,取代客户端排队):**core SDK** 给 tool-loop 加了一个通用 additive 钩子 `tool.Config.BeforeRound`(每个延续轮前调用,返回的消息追加在该轮请求里 —— 落在最新工具结果之后,memory 中间件随即持久化进历史;这是唯一正确的位点,注入 loaded history 会错序到 in-flight tool_call 之前)。**runtime**:turn 经 RunChatRequest.Steer 提供 SteerSource(进程 extension → runChatTurn 把它塞进交给 stream 的 ctx,保证送达,不赌平台 ctx-value 传播);drain 时发 `turn.SteerMessage` → translator 投影成 userMessage Item(实时显示 + 落 durable transcript,与 chat-memory 一致);新 wire `runs.steer{runId,message}`。**desktop**:运行中 Enter → `runs.steer` 注入当前 turn(run 已结束则 run_not_found 回退发新回合);**删掉**客户端 queueStore/chips/auto-drain(steer 严格更优,排队是后端没能力时的 stopgap)。next-turn flushSteering 仍作"最后一轮之后才到"的回退。
 - **竞品**:**全员都有**。codex `chatwidget/input_queue.rs` 三层队列(下个工具后注入 / 回合末 / 排队),Esc 立即发;Kimi `Ctrl-S` 把队列+输入折成一批 `session.steer()` 注入当前回合,↑ 召回最后一条;crush `agent/agent.go drainQueueForStep` 把无 RunID 的排队折进当前回合;可编辑队列 chip。
 - **我方**:`useChatSend.ts` 硬 `if(running) return;`(自审 D5 第 1 大 gap)——**只能停、再发**。
 - **改法**:**desktop 先做** "运行中排队 + `run.finished` 后自动发"(纯前端,即可消掉最大痛点)。真正的 mid-run steer 需 **runtime/engine** 支持把用户输入注入活跃 turn——当前是 R 模型(park/resume),需评估 lynx-agent loop 能否接 steer;这步较重,先验证可行性再排期。
