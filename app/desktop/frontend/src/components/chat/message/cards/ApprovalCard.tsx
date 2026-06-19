@@ -102,7 +102,6 @@ export function ApprovalCard({
   // renders, useApprovalArgsEditor owns the editing lifecycle + validation).
   const hasArgs = args !== undefined;
   const originalArgs = hasArgs ? JSON.stringify(args, null, 2) : "";
-  const showArgs = hasArgs;
   const argsEditor = useApprovalArgsEditor({ originalArgs });
 
   // "Don't ask again this session"
@@ -187,7 +186,7 @@ export function ApprovalCard({
           </span>
         </div>
       )}
-      {showArgs && (
+      {hasArgs && (
         <ApprovalArgsEditor
           editing={argsEditor.editing}
           argsText={argsEditor.argsText}

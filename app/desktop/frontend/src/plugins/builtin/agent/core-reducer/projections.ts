@@ -151,7 +151,7 @@ function editLineCounts(result: unknown): Partial<ToolCall> {
   if (rows.length === 0) return {}; // {path,status} entries, no diff rows → nothing to count
   const isType = (r: unknown, t: string) => asRecord(r)?.type === t;
   return {
-    diff: rows as unknown as DiffRow[],
+    diff: rows as DiffRow[],
     added: rows.filter((r) => isType(r, "added")).length,
     removed: rows.filter((r) => isType(r, "deleted")).length,
   };
