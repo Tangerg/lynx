@@ -46,8 +46,8 @@ type Options struct {
 	Extra map[string]any `json:"extra,omitzero"`
 }
 
-// NewOptions Returns an error
-// when model is empty.
+// NewOptions builds Options for the given model id. Returns an error when
+// model is empty.
 func NewOptions(model string) (*Options, error) {
 	if model == "" {
 		return nil, errors.New("transcription.NewOptions: model id must not be empty")
