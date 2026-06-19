@@ -86,6 +86,9 @@ interface SessionState {
   pendingMessages: Record<string, ContentBlock[]>;
 
   activeFile: string;
+  /** The file + 1-based line the FileView shows, set by a clickable file:line
+   *  reference (0 = no specific line). Null = nothing open. Session-scoped. */
+  fileViewer: { path: string; line: number } | null;
   selectedToolId: string;
   expandedToolIds: Set<string>;
 }
@@ -139,6 +142,9 @@ interface SessionActions {
   closeAllMainViews: () => void;
 
   setActiveFile: (path: string) => void;
+  /** Open the file viewer on `path` (optionally at a 1-based `line`) and promote
+   *  the FileView tab — the target of a clickable file:line reference. */
+  openFileViewer: (path: string, line?: number) => void;
   setSelectedToolId: (id: string) => void;
   toggleExpandedTool: (id: string) => void;
 }
@@ -154,6 +160,7 @@ interface SessionActions {
 function clearSessionScopedState() {
   return {
     activeFile: "",
+    fileViewer: null,
     selectedToolId: "",
     expandedToolIds: new Set<string>(),
     splitViewId: null,
@@ -175,6 +182,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
       draftSessionIds: new Set<string>(),
       pendingMessages: {},
       activeFile: "",
+      fileViewer: null,
       selectedToolId: "",
       expandedToolIds: new Set<string>(),
 
@@ -366,6 +374,10 @@ export const useSessionStore = create<SessionState & SessionActions>()(
       },
 
       setActiveFile: (path) => set({ activeFile: path }),
+      openFileViewer: (path, line) => {
+        get().openMainView({ id: "file", title: "workspace.view.title.file", icon: "filetext" });
+        set({ fileViewer: { path, line: line ?? 0 } });
+      },
       setSelectedToolId: (id) => set({ selectedToolId: id }),
       toggleExpandedTool: (id) => {
         const next = new Set(get().expandedToolIds);
