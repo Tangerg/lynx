@@ -138,6 +138,7 @@ var methodTable = map[string]methodHandler{
 	MethodWorkspaceGetFileHead:     (*Dispatcher).handleWorkspaceGetFileHead,
 	MethodWorkspaceGrep:            (*Dispatcher).handleWorkspaceGrep,
 	MethodWorkspaceListFiles:       (*Dispatcher).handleWorkspaceListFiles,
+	MethodWorkspaceReadFile:        (*Dispatcher).handleWorkspaceReadFile,
 	MethodWorkspaceListProjects:    (*Dispatcher).handleWorkspaceListProjects,
 	MethodWorkspaceListSkills:      (*Dispatcher).handleWorkspaceListSkills,
 	MethodWorkspaceListAgentDocs:   (*Dispatcher).handleWorkspaceListAgentDocs,
