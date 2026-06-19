@@ -63,9 +63,12 @@ const (
 	MethodWorkspaceMCPReconnect    = "workspace.mcp.reconnect"
 	MethodWorkspaceSubscribe       = "workspace.subscribe"
 
-	// Approval (API.md §C.3) — runtime-global tool-permission stance.
-	MethodApprovalGetMode = "approval.getMode"
-	MethodApprovalSetMode = "approval.setMode"
+	// Approval (API.md §C.3) — runtime-global tool-permission stance + the
+	// persistent fine-grained "remember this decision" rules.
+	MethodApprovalGetMode    = "approval.getMode"
+	MethodApprovalSetMode    = "approval.setMode"
+	MethodApprovalListRules  = "approval.listRules"
+	MethodApprovalForgetRule = "approval.forgetRule"
 
 	// Providers / Models / Tools (API.md §7.6).
 	MethodProvidersList      = "providers.list"

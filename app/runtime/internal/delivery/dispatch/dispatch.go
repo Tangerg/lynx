@@ -148,8 +148,10 @@ var methodTable = map[string]methodHandler{
 	MethodWorkspaceSubscribe:       (*Dispatcher).handleWorkspaceSubscribe,
 
 	// Approval.
-	MethodApprovalGetMode: (*Dispatcher).handleApprovalGetMode,
-	MethodApprovalSetMode: (*Dispatcher).handleApprovalSetMode,
+	MethodApprovalGetMode:    (*Dispatcher).handleApprovalGetMode,
+	MethodApprovalSetMode:    (*Dispatcher).handleApprovalSetMode,
+	MethodApprovalListRules:  (*Dispatcher).handleApprovalListRules,
+	MethodApprovalForgetRule: (*Dispatcher).handleApprovalForgetRule,
 
 	// Providers / Models / Tools.
 	MethodProvidersList:      (*Dispatcher).handleProvidersList,

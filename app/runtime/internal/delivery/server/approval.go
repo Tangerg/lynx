@@ -31,6 +31,51 @@ func (s *Server) SetApprovalMode(ctx context.Context, in protocol.SetApprovalMod
 	return &protocol.ApprovalModeResult{Mode: in.Mode}, nil
 }
 
+// ListApprovalRules lists the persisted rules visible from a session
+// (approval.listRules) — its session rules, its project's rules, and all
+// global rules. The session id resolves the project directory; an unknown
+// session degrades to session + global only (cwd stays empty).
+func (s *Server) ListApprovalRules(ctx context.Context, in protocol.ListApprovalRulesRequest) (*protocol.ListApprovalRulesResult, error) {
+	cwd := ""
+	if in.SessionID != "" {
+		if ses, err := s.rt.Session().Get(ctx, in.SessionID); err == nil {
+			cwd = ses.Cwd
+		}
+	}
+	rules, err := s.rt.Approval().Rules(ctx, in.SessionID, cwd)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]protocol.ApprovalRule, 0, len(rules))
+	for _, r := range rules {
+		out = append(out, approvalRuleToWire(r))
+	}
+	return &protocol.ListApprovalRulesResult{Rules: out}, nil
+}
+
+// ForgetApprovalRule removes one persisted approval rule by id
+// (approval.forgetRule). A missing id is not an error.
+func (s *Server) ForgetApprovalRule(ctx context.Context, in protocol.ForgetApprovalRuleRequest) error {
+	return s.rt.Approval().Forget(ctx, in.ID)
+}
+
+// approvalRuleToWire maps a domain rule to its wire shape. The project
+// directory is surfaced only for project-scoped rules (the UI shows where they
+// apply); session/global rules carry no dir.
+func approvalRuleToWire(r approval.Rule) protocol.ApprovalRule {
+	wire := protocol.ApprovalRule{
+		ID:       r.ID,
+		Scope:    string(r.Scope),
+		Tool:     r.Tool,
+		Subject:  r.Subject,
+		Decision: string(r.Decision),
+	}
+	if r.Scope == approval.ScopeProject {
+		wire.Dir = r.ScopeKey
+	}
+	return wire
+}
+
 // approvalModeToWire maps the engine stance to its wire name. An unknown value
 // maps to balanced (the documented default execute stance).
 func approvalModeToWire(m approval.Mode) protocol.ApprovalMode {

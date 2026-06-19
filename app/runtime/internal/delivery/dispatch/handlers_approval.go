@@ -25,3 +25,20 @@ func (d *Dispatcher) handleApprovalSetMode(ctx context.Context, msg *transport.R
 	out, err := d.api.SetApprovalMode(ctx, in)
 	return reply(msg, out, err)
 }
+
+func (d *Dispatcher) handleApprovalListRules(ctx context.Context, msg *transport.Request) HandleResult {
+	in, bad := decode[protocol.ListApprovalRulesRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
+	out, err := d.api.ListApprovalRules(ctx, in)
+	return reply(msg, out, err)
+}
+
+func (d *Dispatcher) handleApprovalForgetRule(ctx context.Context, msg *transport.Request) HandleResult {
+	in, bad := decode[protocol.ForgetApprovalRuleRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
+	return replyDone(msg, d.api.ForgetApprovalRule(ctx, in))
+}

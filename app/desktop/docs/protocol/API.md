@@ -749,7 +749,7 @@ interface InterruptResponse {
 }
 interface ApprovalResponse  {
   type: "approval"; decision: "approve" | "deny";
-  remember?: { scope: "session" };       // 记住这个决策（approve 或 deny），同会话该工具后续免提示（AUX_API §6）
+  remember?: { scope: "session" | "project" | "global" };  // 记住这个决策（approve 或 deny），匹配的后续调用免提示（AUX_API §6）
   editedArgs?: Record<string, unknown>;  // 批准前一次性改写工具入参（不进 remember）
   reason?: string;
 }
@@ -759,9 +759,11 @@ interface ToolResultResponse{ type: "toolResult"; result?: unknown; error?: Prob
 
 > `answers` 值一律 `string[]`（单选也是单元素数组）——消费端形状统一、不用每次判 `string | string[]`（S8）。
 
-> **`remember`（审批 scope，AUX_API §6）**：KEY = **工具名**（按参数匹配是 v1 不做的规则引擎域）。`decision:"deny" + remember`
-> 合法 = 记住拒绝。`editedArgs` 是**一次性**的(记的是「这个工具」而非「工具+这次的参数」)。v1 `scope` 仅 `session`
-> （内存、重启重置）；`project|global` 未持久化、未进枚举——发了也只当本次（不假装记住）。
+> **`remember`（审批 scope，AUX_API §6）**：持久化成一条**细粒度规则**（`ApprovalRule`，§C.3）。规则按 `(scope, tool, subject)`
+> 命中：`subject` 是后端按工具从被批准调用里提取的子主题（bash 的 command / 文件工具的 file_path），所以记的是
+> 「`npm run *` 在本 project」而非笼统「整个 bash」。`decision:"deny" + remember` 合法 = 记住拒绝。`editedArgs` 仍是
+> **一次性**的（不折进规则）。三个 `scope` **全部持久**（SQLite）：`session` 键到会话、`project` 键到会话 cwd、`global`
+> 处处生效；最具体的命中胜出（session > project > global，再 exact > glob > 任意），同特异度冲突取 deny。
 
 ### 6.2 防挂死（协议级硬约束）
 
@@ -1484,24 +1486,31 @@ interface FileContent { path: string; content: string; encoding: "utf-8"; totalL
 
 `ApprovalMode` 是 **每 Runtime 一个的全局策略**（非 per-session），与 `Item.toolCall.safetyClass`（per-tool 风险）正交，二者合决一次调用是否驻留待批。
 
-> **状态**：`approval.getMode` / `approval.setMode` **已落地**（取代了原 agent/chat/plan 的 per-run `mode`——
-> 见 §4.2 / §7.1）。`approval.listRemembered` / `approval.forget` **仍是提案**（后端方法表未注册）。
+> **状态**：四个方法**全部已落地**。`approval.getMode` / `approval.setMode` 取代了原 agent/chat/plan 的 per-run
+> `mode`（见 §4.2 / §7.1）；`approval.listRules` / `approval.forgetRule` 是持久细粒度规则的读 + 管理面。
 
 | 方法 | 入参 | 返回 | 状态 |
 | --- | --- | --- | --- |
 | `approval.getMode` | —— | `{ mode: ApprovalMode }` | 已落地 |
 | `approval.setMode` | `{ mode: ApprovalMode }` | `{ mode: ApprovalMode }` | 已落地 |
-| `approval.listRemembered` | `{ sessionId }` | `{ entries: RememberedDecision[] }` | 提案 |
-| `approval.forget` | `{ sessionId; tool? }` | 无（省 `tool` = 清该会话全部记忆决策） | 提案 |
+| `approval.listRules` | `{ sessionId }` | `{ rules: ApprovalRule[] }`（该会话可见：session + 其 project + global） | 已落地 |
+| `approval.forgetRule` | `{ id }` | 无（按规则 id 删一条；清空 = 逐 id 调用） | 已落地 |
 
 ```ts
 type ApprovalMode = "plan" | "safe" | "balanced" | "yolo";  // plan=只读规划姿态：写/exec/network 一律拒（不提示），agent 只调研+出计划，由 exit_plan_mode 工具呈交计划并翻回执行；safe=所有写/exec 驻留；balanced(默认)=按 safetyClass 高危驻留、低危过；yolo=全过、不驻留（自动化）
-interface RememberedDecision { tool: string; decision: "approve" | "deny"; rememberedAt: string }  // KEY=工具名（AUX_API §6）
+interface ApprovalRule {           // 一条持久"记住这个决策"规则（AUX_API §6）
+  id: string;                      // 稳定 id（domain 内对 scope+key+tool+subject 哈希），forgetRule 用
+  scope: "session" | "project" | "global";
+  tool: string;                    // 工具名，如 "bash"
+  subject?: string;                // 命中该工具的子主题 glob（bash 的 command / 文件工具的 file_path）；省略 = 该工具任意参数
+  dir?: string;                    // project scope 的目录（仅展示；session/global 省略）
+  decision: "allow" | "deny";
+}
 ```
 
 > `plan` 是 agent/chat/plan run-mode 移除后"计划"的归宿：它是一个**姿态**而非 run 模式，模型在该姿态下调研完
 > 调 `exit_plan_mode`（一个 `question` interrupt，§6）呈交计划；批准 → 姿态自动翻回 `balanced` 执行，拒绝 → 留在 `plan`。
-> 记忆决策的**写入**面是 HITL 应答里的 `ApprovalResponse.remember`（§6.1 / AUX_API §6）；`listRemembered`/`forget` 是其**读 + 管理**面（提案）。
+> 规则的**写入**面是 HITL 应答里的 `ApprovalResponse.remember{scope}`（§6.1 / AUX_API §6）——`subject` 由后端按工具从被批准调用的参数中提取；`listRules`/`forgetRule` 是其**读 + 管理**面。最具体的命中规则胜出（session > project > global，再 exact > glob > 任意），同特异度冲突取 deny。
 
 ### C.4 B10 · `sessions.compact` + `compaction` Item（部分落地）—— 主动上下文压缩
 
