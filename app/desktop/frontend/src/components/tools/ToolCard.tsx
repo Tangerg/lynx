@@ -56,13 +56,13 @@ export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView 
         // animation defined in tool.css — it uses @property + mask, not
         // expressible cleanly in Tailwind. Everything else here is utilities.
         "tool-card group relative my-1.5 overflow-hidden rounded-md border border-transparent transition-[background,border-color,transform] duration-150",
-        !selected && "hover:bg-line hover:border-line-soft",
+        !selected && "hover:bg-surface-2 hover:border-line-soft",
         // Selected drives the inspector pane — mark it with a 2px accent left
         // edge (inset shadow, so it doesn't fight the border) so "which tool is
         // being inspected" reads at a glance. The one spot the accent's scarcity
         // relaxes: the selected tool IS the live data panel's entry point.
         selected &&
-          "bg-line border-line-soft shadow-[inset_2px_0_0_color-mix(in_srgb,var(--color-accent)_55%,transparent)]",
+          "bg-surface-2 border-line-soft shadow-[inset_2px_0_0_color-mix(in_srgb,var(--color-accent)_55%,transparent)]",
         running && "running",
       )}
     >
@@ -184,7 +184,7 @@ const ACTION_BTN =
 function ToolMeta({ tool }: { tool: ToolCall }) {
   return (
     <div className="flex items-center gap-2.5 font-mono text-[10px] text-fg-faint tracking-normal normal-case">
-      {tool.added != null && <span className="text-accent">+{tool.added}</span>}
+      {tool.added != null && <span className="text-success">+{tool.added}</span>}
       {tool.removed != null && <span className="text-negative">−{tool.removed}</span>}
       {tool.hits != null && <span>{tool.hits} matches</span>}
       {tool.exitCode != null && tool.exitCode !== 0 && (
@@ -193,7 +193,7 @@ function ToolMeta({ tool }: { tool: ToolCall }) {
       {tool.status === "running" && (
         <>
           <span>·</span>
-          <span>LIVE</span>
+          <span>live</span>
         </>
       )}
     </div>

@@ -78,7 +78,7 @@ function ProviderRow({ p }: { p: ProviderInfo }) {
         <span
           className={cn(
             "rounded-full px-2 py-0.5 text-[11px] font-medium",
-            enabled ? "bg-accent/15 text-accent" : "bg-surface-2 text-fg-faint",
+            enabled ? "bg-success/12 text-success" : "bg-surface-2 text-fg-faint",
           )}
         >
           {enabled ? t("providers.key", { masked: p.apiKeyMasked }) : t("providers.notConfigured")}

@@ -21,9 +21,9 @@ export const FilesChanged = memo(function FilesChanged({ files, activePath, onSe
 
   return (
     <div>
-      <div className="flex items-center gap-2 px-2.5 py-2 font-mono text-[11px] font-bold text-fg-faint">
+      <div className="flex items-center gap-2 px-2.5 py-2 font-mono text-[11px] font-semibold text-fg-faint">
         <span>{t("files.changed", { count: files.length })}</span>
-        <span className="ml-auto text-accent">+{totalAdded}</span>
+        <span className="ml-auto text-success">+{totalAdded}</span>
         <span className="text-negative">−{totalRemoved}</span>
       </div>
       {files.map((f) => (
@@ -34,7 +34,7 @@ export const FilesChanged = memo(function FilesChanged({ files, activePath, onSe
 });
 
 const CHANGE_TAG: Record<FileChange["change"], { color: string; letter: string }> = {
-  add: { color: "text-accent", letter: "A" },
+  add: { color: "text-success", letter: "A" },
   del: { color: "text-negative", letter: "D" },
   mod: { color: "text-warning", letter: "M" },
 };
@@ -61,7 +61,7 @@ const FileRow = memo(function FileRow({
       )}
     >
       <Icon name="file" size={12} />
-      <span className={cn("font-mono text-[9px] font-bold", tagColor)}>{tagLetter}</span>
+      <span className={cn("font-mono text-[9px] font-semibold", tagColor)}>{tagLetter}</span>
       <span className="flex-1 truncate font-mono">{file.path}</span>
       {/* Binary files carry no line counts (AUX_API §2.2) — badge instead of fake ±0. */}
       {file.binary ? (

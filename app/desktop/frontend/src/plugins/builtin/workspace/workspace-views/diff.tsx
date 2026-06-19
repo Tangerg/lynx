@@ -83,7 +83,7 @@ function DiffViewTab() {
   // would assert "+0 · −0 · 0 files" while the body is still a skeleton.
   const sub = data ? (
     <>
-      <span className="text-accent">+{added}</span>
+      <span className="text-success">+{added}</span>
       <span className="mx-1">·</span>
       <span className="text-negative">−{removed}</span>
       <span className="mx-2">·</span>

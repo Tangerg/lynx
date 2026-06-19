@@ -127,8 +127,8 @@ function RulesRow() {
                 </span>
                 <span
                   className={cn(
-                    "shrink-0 text-[11px] font-semibold uppercase",
-                    r.decision === "deny" ? "text-negative" : "text-accent",
+                    "shrink-0 text-[11px] font-semibold",
+                    r.decision === "deny" ? "text-negative" : "text-success",
                   )}
                 >
                   {r.decision === "deny" ? t("approvals.deny") : t("approvals.allow")}

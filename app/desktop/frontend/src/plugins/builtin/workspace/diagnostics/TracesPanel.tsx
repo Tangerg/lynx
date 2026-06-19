@@ -51,7 +51,7 @@ export function TracesPanel() {
 
 const STATUS_TONE: Record<SpanRow["status"], string> = {
   error: "text-negative",
-  ok: "text-positive",
+  ok: "text-success",
   unset: "text-fg-faint",
 };
 
@@ -136,7 +136,7 @@ function SpanDetail({ span }: { span: SpanRow }) {
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="grid gap-0.5">
-      <div className="text-[10px] uppercase tracking-wide text-fg-faint">{label}</div>
+      <div className="text-[10px] text-fg-faint">{label}</div>
       {children}
     </div>
   );
