@@ -69,6 +69,31 @@ export interface McpToolsQuery {
   server: string;
 }
 
+// One entry in the EDITABLE MCP registry (workspace.mcp.listConfigs) — the
+// full persisted config the MCP-servers settings pane reads, edits, and writes
+// back. Distinct from the read-only `MCPServer` sidebar row above (status-only,
+// no editable fields). Mirrors the wire McpServerConfig 1:1 so the pane never
+// imports @/rpc; `authorizationMasked` is the never-reversible token echo
+// ("" = none), the raw token only travels on the write hooks.
+export type MCPTransport = "stdio" | "http";
+export interface MCPServerConfigInfo {
+  name: string;
+  transport: MCPTransport;
+  enabled: boolean;
+  description?: string;
+  url?: string;
+  authorizationMasked?: string;
+  command?: string;
+  args?: string[];
+  env?: string[]; // "KEY=value" strings
+  dir?: string;
+  disabledTools?: string[];
+  autoApproveTools?: string[];
+  status?: "connecting" | "connected" | "disconnected" | "failed" | "needsAuth";
+  toolCount?: number;
+  errorDetail?: string; // flattened from wire ProblemData for the row tooltip
+}
+
 // One built-in (non-MCP) tool from the runtime's catalog (tools.list).
 export interface BuiltinToolInfo {
   name: string;
@@ -276,6 +301,7 @@ export const FILES_CHANGED_KEY = "files-changed";
 export const DIFF_KEY = "diff";
 export const SKILLS_KEY = "skills";
 export const MCP_SERVERS_KEY = "mcp-servers";
+export const MCP_CONFIGS_KEY = "mcp-configs";
 export const MCP_TOOLS_KEY = "mcp-tools";
 export const MEMORY_KEY = "memory";
 export const APPROVAL_MODE_KEY = "approval-mode";
@@ -301,6 +327,7 @@ export const useDiff = makeParamDataQuery<DiffQuery, WorkspaceDiff>(DIFF_KEY);
 export const useGrep = makeParamDataQuery<GrepQuery, GrepResult>("grep");
 export const useFileHead = makeParamDataQuery<FileHeadQuery, FileLine[]>("file-head");
 export const useMCPServers = makeDataQuery<MCPServer[]>(MCP_SERVERS_KEY);
+export const useMCPConfigs = makeDataQuery<MCPServerConfigInfo[]>(MCP_CONFIGS_KEY);
 export const useBuiltinTools = makeDataQuery<BuiltinToolInfo[]>("builtin-tools");
 export const useMCPTools = makeParamDataQuery<McpToolsQuery, McpToolInfo[]>(MCP_TOOLS_KEY);
 export const useSkills = makeDataQuery<WorkspaceSkill[]>(SKILLS_KEY);

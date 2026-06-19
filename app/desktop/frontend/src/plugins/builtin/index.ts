@@ -40,6 +40,7 @@ import diagnostics from "./workspace/diagnostics";
 import workspaceEvents from "./workspace/events";
 import globalKeymap from "./command/global-keymap";
 import iconGallery from "./settings/icon-gallery";
+import mcpServersPane from "./settings/mcp-servers";
 import rpcAgent from "./agent/rpc-agent";
 import { kernelChat, kernelSettings, kernelSidebar } from "./shell/kernel";
 import nativeShell from "./shell/native-shell";
@@ -178,6 +179,7 @@ const panes: PluginSpec[] = [
   connectionSettings,
   pluginsPane,
   providersPane,
+  mcpServersPane,
   diffView,
   fileView,
   terminalView,

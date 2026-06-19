@@ -17,6 +17,7 @@ import type {
   McpToolsQuery,
   ApprovalRulesQuery,
   MCPServer as SidebarMCPServer,
+  MCPServerConfigInfo,
   MemoryQuery,
   ReadFileQuery,
   SidebarProject,
@@ -25,6 +26,7 @@ import type {
 } from "@/lib/data/queries";
 import type {
   McpServer as RpcMCPServer,
+  McpServerConfig as RpcMCPServerConfig,
   Project as RpcProject,
   Session,
   WorkspaceFileChange as RpcFileChange,
@@ -34,6 +36,7 @@ import {
   APPROVAL_RULES_KEY,
   DIFF_KEY,
   FILES_CHANGED_KEY,
+  MCP_CONFIGS_KEY,
   MCP_SERVERS_KEY,
   MCP_TOOLS_KEY,
   MEMORY_KEY,
@@ -90,6 +93,30 @@ function toSidebarMCPServer(s: RpcMCPServer): SidebarMCPServer {
     status: s.status,
     errorDetail: s.error ? (s.error.detail ?? s.error.type) : undefined,
     icon: MCP_ICON[s.name] ?? "tool",
+  };
+}
+
+// `mcp-configs` — the editable registry behind the MCP-servers settings pane.
+// Wire McpServerConfig carries the full persisted config + a best-effort live
+// status; flatten the wire ProblemData to a string for the row tooltip (the UI
+// type carries no protocol shapes — same boundary as the sidebar row above).
+function toMcpConfigInfo(c: RpcMCPServerConfig): MCPServerConfigInfo {
+  return {
+    name: c.name,
+    transport: c.transport,
+    enabled: c.enabled,
+    description: c.description,
+    url: c.url,
+    authorizationMasked: c.authorizationMasked,
+    command: c.command,
+    args: c.args,
+    env: c.env,
+    dir: c.dir,
+    disabledTools: c.disabledTools,
+    autoApproveTools: c.autoApproveTools,
+    status: c.status,
+    toolCount: c.toolCount,
+    errorDetail: c.error ? (c.error.detail ?? c.error.type) : undefined,
   };
 }
 
@@ -161,6 +188,15 @@ export const defaultData = definePlugin({
       fetcher: async () =>
         (await client().workspace.mcp.listServers().catch(emptyPageIfUngated)).data.map(
           toSidebarMCPServer,
+        ),
+    });
+    host.extensions.contribute(DATA_PROVIDER, {
+      key: MCP_CONFIGS_KEY,
+      // The editable registry (settings pane) — full config + best-effort live
+      // status per entry. Capability-gated like the other MCP reads.
+      fetcher: async () =>
+        (await client().workspace.mcp.listConfigs().catch(emptyPageIfUngated)).data.map(
+          toMcpConfigInfo,
         ),
     });
     host.extensions.contribute(DATA_PROVIDER, {

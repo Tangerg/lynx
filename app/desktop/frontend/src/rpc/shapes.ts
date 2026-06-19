@@ -635,6 +635,75 @@ export interface McpTool {
   inputSchema?: Record<string, unknown>;
 }
 
+// How a configured MCP server is reached: a local subprocess (stdio) or a
+// remote streamable-HTTP endpoint. The two transports gate disjoint config
+// fields (command/args/env/dir vs url/authorization), §4.10.
+export type McpTransport = "stdio" | "http";
+
+// One entry in the editable MCP registry (workspace.mcp.listConfigs /
+// configure). Carries the persisted config PLUS a best-effort live status the
+// list view tints — status/toolCount/error are absent until the runtime has
+// (re)connected the server. `authorizationMasked` is the never-reversible echo
+// of an http server's stored bearer token ("" / absent = none); the raw token
+// only travels on ConfigureMCPServerRequest (write side).
+export interface McpServerConfig {
+  name: string;
+  transport: McpTransport;
+  enabled: boolean;
+  description?: string;
+  // http transport
+  url?: string;
+  authorizationMasked?: string;
+  // stdio transport — env entries are "KEY=value" strings (not a map).
+  command?: string;
+  args?: string[];
+  env?: string[];
+  dir?: string;
+  // Per-tool gating (§4.10): disabledTools is a blacklist (tool name → hidden
+  // from the agent); autoApproveTools is a whitelist (tool name → skips the
+  // approval prompt). Both key on the bare tool name (NOT "<server>.<tool>").
+  disabledTools?: string[];
+  autoApproveTools?: string[];
+  // Live status — best-effort, absent until first (re)connect.
+  status?: McpStatus;
+  toolCount?: number;
+  error?: ProblemData;
+}
+
+// workspace.mcp.configure — upsert by `name`. `authorization` is the RAW bearer
+// token (NOT the masked echo): omitted/empty KEEPS the already-stored token, so
+// editing a non-secret field never forces a token re-entry. The runtime returns
+// the resulting McpServerConfig with the token re-masked.
+export interface ConfigureMCPServerRequest {
+  name: string;
+  transport: McpTransport;
+  enabled: boolean;
+  description?: string;
+  url?: string;
+  authorization?: string;
+  command?: string;
+  args?: string[];
+  env?: string[];
+  dir?: string;
+  disabledTools?: string[];
+  autoApproveTools?: string[];
+}
+
+// workspace.mcp.setEnabled — flip a registered server's enablement without
+// re-sending its whole config.
+export interface SetMCPEnabledRequest {
+  name: string;
+  enabled: boolean;
+}
+
+// workspace.mcp.test — live connection probe (dry-run, NOT persisted). A
+// failed probe comes back as `{ ok:false, error }` (a ProblemData), never an
+// RPC error, so the pane renders the reason inline (mirrors ProviderTestResult).
+export interface McpTestResult {
+  ok: boolean;
+  error?: ProblemData;
+}
+
 export type MemoryScope = "cwd" | "projectRoot" | "home";
 export interface MemoryEntry {
   scope: MemoryScope;

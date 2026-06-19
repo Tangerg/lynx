@@ -19,6 +19,7 @@ import { queryClient } from "@/lib/data/queryClient";
 import {
   DIFF_KEY,
   FILES_CHANGED_KEY,
+  MCP_CONFIGS_KEY,
   MCP_SERVERS_KEY,
   MCP_TOOLS_KEY,
   SESSIONS_KEY,
@@ -50,8 +51,9 @@ function handle(ev: WorkspaceEvent): void {
       invalidate(SKILLS_KEY);
       return;
     case "mcp.serverChanged":
-      // Reconnect hot-swaps the tool set, so the expanded detail refetches too.
-      invalidate(MCP_SERVERS_KEY, MCP_TOOLS_KEY);
+      // Reconnect hot-swaps the tool set, so the expanded detail refetches too;
+      // the editable registry (settings pane) folds the same live status.
+      invalidate(MCP_SERVERS_KEY, MCP_CONFIGS_KEY, MCP_TOOLS_KEY);
       return;
     case "resync":
       // Watched cwd's git state changed (commit / stage / checkout / merge)

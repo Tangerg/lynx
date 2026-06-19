@@ -385,9 +385,8 @@ export const ko: Record<string, string> = {
   "tools.mcp": "MCP 서버",
   "tools.reconnect": "재연결",
   "tools.empty.title": "MCP 서버가 구성되지 않음",
-  "tools.empty.sub": "{{path}}에 서버를 추가하여 agent에 도구를 노출하세요.",
-  "tools.footer":
-    "서버는 agent가 호출할 수 있는 도구를 노출합니다. {{path}}를 편집하여 추가하거나 제거하세요.",
+  "tools.empty.sub": "MCP 설정에서 서버를 추가하여 agent에 도구를 노출하세요.",
+  "tools.footer": "설정에서 MCP 서버 관리",
   "tools.status.on": "켜짐",
   "tools.status.off": "꺼짐",
   "tools.status.error": "오류",
@@ -395,9 +394,7 @@ export const ko: Record<string, string> = {
   "tools.status.connecting": "…",
   "tools.loadingTools": "도구 로딩 중…",
   "tools.noTools": "노출된 도구가 없습니다.",
-  "tools.auth.placeholder": "액세스 토큰 붙여넣기…",
-  "tools.auth.submit": "인증",
-  "tools.auth.aria": "{{server}} 액세스 토큰",
+  "tools.auth.configure": "MCP 설정에서 {{server}}의 인증을 구성하세요",
   "toolAction.copyCommand": "명령 복사",
   "approval.fallbackText": "이 작업을 승인하시겠습니까?",
 

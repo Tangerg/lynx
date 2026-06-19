@@ -390,9 +390,8 @@ export const ja: Record<string, string> = {
   "tools.mcp": "MCP サーバー",
   "tools.reconnect": "再接続",
   "tools.empty.title": "MCP サーバーが設定されていません",
-  "tools.empty.sub": "{{path}} にサーバーを追加して agent にツールを公開します。",
-  "tools.footer":
-    "サーバーは agent が呼び出せるツールを公開します。{{path}} を編集して追加または削除します。",
+  "tools.empty.sub": "MCP 設定でサーバーを追加して agent にツールを公開します。",
+  "tools.footer": "設定で MCP サーバーを管理",
   "tools.status.on": "オン",
   "tools.status.off": "オフ",
   "tools.status.error": "エラー",
@@ -400,9 +399,7 @@ export const ja: Record<string, string> = {
   "tools.status.connecting": "…",
   "tools.loadingTools": "ツールを読み込み中…",
   "tools.noTools": "公開されているツールはありません。",
-  "tools.auth.placeholder": "アクセストークンを貼り付け…",
-  "tools.auth.submit": "認証",
-  "tools.auth.aria": "{{server}} アクセストークン",
+  "tools.auth.configure": "MCP 設定で {{server}} の認証を構成",
   "toolAction.copyCommand": "コマンドをコピー",
   "approval.fallbackText": "この操作を承認しますか？",
 

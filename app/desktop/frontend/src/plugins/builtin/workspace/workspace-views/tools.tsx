@@ -3,14 +3,13 @@
 // tools (tools.list — static per runtime build) and the connected MCP
 // servers (workspace.mcp.* — live 5-state lifecycle, expandable rows).
 
-import { DataView } from "@/components/common";
+import { DataView, Icon } from "@/components/common";
 import { McpRow } from "./views/McpRow";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useBuiltinTools, useMCPServers } from "@/lib/data/queries";
+import { useSessionStore } from "@/state/sessionStore";
 import { defineWorkspaceView } from "./defineWorkspaceView";
-
-const CONFIG_PATH = "~/.lyra/mcp.json";
 
 // Safety class → pill tint. Unknown classes fall back to the neutral pill
 // (forward-compat: the enum is open on the wire).
@@ -61,6 +60,11 @@ function BuiltinToolsSection() {
   );
 }
 
+function openMcpSettings(title: string): void {
+  useSessionStore.getState().setSettingsPane("mcp-servers");
+  useSessionStore.getState().openMainView({ id: "settings", title, icon: "settings" });
+}
+
 function ToolsTab() {
   const t = useT();
   const { data, isLoading, isError } = useMCPServers();
@@ -84,7 +88,7 @@ function ToolsTab() {
         empty={{
           icon: "tool",
           title: t("tools.empty.title"),
-          sub: t("tools.empty.sub", { path: CONFIG_PATH }),
+          sub: t("tools.empty.sub"),
         }}
       >
         {(rows) => (
@@ -92,9 +96,14 @@ function ToolsTab() {
             {rows.map((s) => (
               <McpRow key={s.id} server={s} />
             ))}
-            <p className="m-0 px-4 pt-3.5 pb-4.5 text-[11px] leading-[1.5] text-fg-faint">
-              {t("tools.footer", { path: CONFIG_PATH })}
-            </p>
+            <button
+              type="button"
+              onClick={() => openMcpSettings(t("settings.title"))}
+              className="m-0 flex items-center gap-1.5 px-4 pt-3.5 pb-4.5 text-[11px] leading-[1.5] text-fg-muted hover:text-fg"
+            >
+              <Icon name="settings" size={12} />
+              {t("tools.footer")}
+            </button>
           </>
         )}
       </DataView>

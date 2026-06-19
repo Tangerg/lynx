@@ -394,9 +394,8 @@ export const es: Record<string, string> = {
   "tools.mcp": "Servidores MCP",
   "tools.reconnect": "Reconectar",
   "tools.empty.title": "Sin servidores MCP configurados",
-  "tools.empty.sub": "Añade un servidor en {{path}} para exponer herramientas al agent.",
-  "tools.footer":
-    "Los servidores exponen herramientas que el agent puede llamar. Edita {{path}} para añadir o eliminar.",
+  "tools.empty.sub": "Añade un servidor en los ajustes de MCP para exponer herramientas al agent.",
+  "tools.footer": "Gestiona los servidores MCP en ajustes",
   "tools.status.on": "Activo",
   "tools.status.off": "Inactivo",
   "tools.status.error": "Error",
@@ -404,9 +403,7 @@ export const es: Record<string, string> = {
   "tools.status.connecting": "…",
   "tools.loadingTools": "Cargando herramientas…",
   "tools.noTools": "Sin herramientas expuestas.",
-  "tools.auth.placeholder": "Pegar token de acceso…",
-  "tools.auth.submit": "Autenticar",
-  "tools.auth.aria": "Token de acceso de {{server}}",
+  "tools.auth.configure": "Configura la autorización de {{server}} en los ajustes de MCP",
   "toolAction.copyCommand": "Copiar comando",
   "approval.fallbackText": "¿Aprobar esta acción?",
 
