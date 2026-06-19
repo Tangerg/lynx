@@ -76,7 +76,6 @@ func (c *AgentToolConfig) ApplyDefaults() {
 	}
 }
 
-// NewAgentTool builds a [chat.Tool] from cfg.
 func NewAgentTool(cfg AgentToolConfig) (*AgentTool, error) {
 	cfg.ApplyDefaults()
 	if err := cfg.Validate(); err != nil {

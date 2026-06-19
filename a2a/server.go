@@ -50,7 +50,7 @@ func (c *ServerConfig) ApplyDefaults() {
 	}
 }
 
-// NewHTTPHandler builds an http.Handler serving the A2A protocol for a the framework
+// NewHTTPHandler builds an http.Handler serving the A2A protocol for a lynx
 // [Agent]: the JSON-RPC method endpoint at RPCPattern and the AgentCard at
 // [a2asrv.WellKnownAgentCardPath]. Mount it on a server, or compose it into
 // a larger mux.
