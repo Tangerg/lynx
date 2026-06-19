@@ -9,14 +9,17 @@ export type { ApprovalDecision };
 // the guard, and the deferred settle). This hook only builds the approval-
 // specific wire payload (editedArgs / remember) and decision patch.
 
+export type RememberScope = "session" | "project" | "global";
+
 export interface ApprovalSubmitOptions {
   /** Forwarded only when the user tweaked the tool's arguments before
    *  approving (approve-with-modified-args, §6.1) — omitted otherwise so the
    *  runtime executes the original args. One-shot: never part of remember. */
   editedArgs?: Record<string, unknown>;
-  /** Remember this decision (approve OR deny) for the rest of the session,
-   *  keyed by tool name (AUX_API §6) — the runtime stops asking for it. */
-  rememberForSession?: boolean;
+  /** Persist this decision (approve OR deny) as a rule at the given scope
+   *  (AUX_API §6) — the runtime stops asking for matching calls. Omitted = this
+   *  once only. */
+  rememberScope?: RememberScope;
 }
 
 export interface ApprovalSubmit {
@@ -35,7 +38,7 @@ export function useApprovalSubmit(parentRunId?: string, itemId?: string): Approv
           type: "approval",
           decision: WIRE_DECISION[decision],
           ...(opts?.editedArgs ? { editedArgs: opts.editedArgs } : {}),
-          ...(opts?.rememberForSession ? { remember: { scope: "session" as const } } : {}),
+          ...(opts?.rememberScope ? { remember: { scope: opts.rememberScope } } : {}),
         },
         { decision },
       );

@@ -1,8 +1,8 @@
-import type { ApprovalDecision } from "@/lib/agent/useApprovalSubmit";
+import type { ApprovalDecision, RememberScope } from "@/lib/agent/useApprovalSubmit";
 import type { BlockStatus } from "@/protocol/run/viewState";
 import type { ApprovalActions } from "@/lib/agent/approvalActions";
 import { useEffect, useRef, useState } from "react";
-import { Checkbox, Divider, Icon, PillButton } from "@/components/common";
+import { Checkbox, Divider, Icon, PillButton, Segmented } from "@/components/common";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
 import { registerApprovalActions } from "@/lib/agent/approvalActions";
@@ -104,8 +104,12 @@ export function ApprovalCard({
   const originalArgs = hasArgs ? JSON.stringify(args, null, 2) : "";
   const argsEditor = useApprovalArgsEditor({ originalArgs });
 
-  // "Don't ask again this session"
+  // "Don't ask again" + the scope the rule is remembered at (session by default;
+  // project keys it to this cwd, global everywhere). Scope is ignored unless
+  // remember is on.
   const [remember, setRemember] = useState(false);
+  const [rememberScope, setRememberScope] = useState<RememberScope>("session");
+  const submitScope = remember ? rememberScope : undefined;
 
   const onApprove = () => {
     let editedArgs: Record<string, unknown> | undefined;
@@ -114,9 +118,9 @@ export function ApprovalCard({
       if (result === null) return; // malformed JSON — block approve
       editedArgs = result; // undefined = unchanged, object = edited
     }
-    submit("approved", { editedArgs, rememberForSession: remember });
+    submit("approved", { editedArgs, rememberScope: submitScope });
   };
-  const onDecline = () => submit("declined", { rememberForSession: remember });
+  const onDecline = () => submit("declined", { rememberScope: submitScope });
 
   // Bridge the ⌘↩ / ⇧⌘⌫ keyboard path (submitPendingApproval) to THIS card's
   // submit — so the shortcut applies the edited args + remember exactly like the
@@ -249,6 +253,22 @@ export function ApprovalCard({
           {t("approval.remember")}
         </label>
       </div>
+      {/* Scope picker — only meaningful once "don't ask again" is on. Session
+          keys the rule to this session, project to this folder, global everywhere. */}
+      {remember && (
+        <div className="mt-2 flex justify-end">
+          <Segmented
+            value={rememberScope}
+            options={[
+              { value: "session", label: t("approvals.scope.session") },
+              { value: "project", label: t("approvals.scope.project") },
+              { value: "global", label: t("approvals.scope.global") },
+            ]}
+            onChange={setRememberScope}
+            ariaLabel={t("approval.remember.scope")}
+          />
+        </div>
+      )}
     </HitlCardShell>
   );
 }

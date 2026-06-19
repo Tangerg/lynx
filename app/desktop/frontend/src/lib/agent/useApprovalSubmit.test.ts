@@ -74,16 +74,16 @@ describe("useApprovalSubmit", () => {
     );
   });
 
-  it("forwards remember{scope:session} when rememberForSession is set (AUX_API §6)", () => {
+  it("forwards remember{scope} when rememberScope is set (AUX_API §6)", () => {
     const resume = bindResume();
     const { result } = renderHook(() => useApprovalSubmit("run_1", "item_r"));
-    act(() => result.current.submit("declined", { rememberForSession: true }));
+    act(() => result.current.submit("declined", { rememberScope: "project" }));
     expect(resume).toHaveBeenCalledWith(
       "run_1",
       [
         {
           itemId: "item_r",
-          response: { type: "approval", decision: "deny", remember: { scope: "session" } },
+          response: { type: "approval", decision: "deny", remember: { scope: "project" } },
         },
       ],
       expect.any(Function),

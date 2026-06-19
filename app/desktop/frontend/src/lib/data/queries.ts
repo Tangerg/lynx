@@ -178,17 +178,20 @@ export interface FileLine {
   text: string;
 }
 
-// approval.* (B9, 613) — the runtime's global approval stance + the
-// per-session "remembered" tool decisions. Mode is mutated in the Approvals
+// approval.* (B9) — the runtime's global approval stance + the persistent
+// fine-grained "remember this decision" rules. Mode is mutated in the Approvals
 // pane (lib/agent/approvalConfig); both keys invalidate on mutation.
 export type ApprovalModeValue = "plan" | "safe" | "balanced" | "yolo";
-export interface RememberedQuery {
+export interface ApprovalRulesQuery {
   sessionId: string;
 }
-export interface RememberedDecisionInfo {
+export interface ApprovalRuleInfo {
+  id: string;
+  scope: "session" | "project" | "global";
   tool: string;
-  decision: "approve" | "deny";
-  rememberedAt: string;
+  subject?: string;
+  dir?: string;
+  decision: "allow" | "deny";
 }
 
 // workspace.listFiles / readFile (B8, 613) — the file-tree browser + file
@@ -268,7 +271,7 @@ export const MCP_SERVERS_KEY = "mcp-servers";
 export const MCP_TOOLS_KEY = "mcp-tools";
 export const MEMORY_KEY = "memory";
 export const APPROVAL_MODE_KEY = "approval-mode";
-export const REMEMBERED_KEY = "approval-remembered";
+export const APPROVAL_RULES_KEY = "approval-rules";
 
 export const useSessions = makeDataQuery<SidebarSession[]>(SESSIONS_KEY);
 export const useProjects = makeDataQuery<SidebarProject[]>(PROJECTS_KEY);
@@ -298,8 +301,8 @@ export const useAgentDocs = makeDataQuery<WorkspaceAgentDoc[]>("agent-docs");
 export const useModels = makeDataQuery<SelectableModel[]>(MODELS_KEY);
 export const useProviders = makeDataQuery<ProviderInfo[]>(PROVIDERS_KEY);
 export const useApprovalMode = makeDataQuery<ApprovalModeValue>(APPROVAL_MODE_KEY);
-export const useRememberedDecisions = makeParamDataQuery<RememberedQuery, RememberedDecisionInfo[]>(
-  REMEMBERED_KEY,
+export const useApprovalRules = makeParamDataQuery<ApprovalRulesQuery, ApprovalRuleInfo[]>(
+  APPROVAL_RULES_KEY,
 );
 export const useListFiles = makeParamDataQuery<ListFilesQuery, FileEntryInfo[]>("list-files");
 export const useReadFile = makeParamDataQuery<ReadFileQuery, FileContentInfo>("read-file");

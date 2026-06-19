@@ -515,10 +515,11 @@ export interface OpenInterrupt {
 export interface ApprovalResponse {
   type: "approval";
   decision: "approve" | "deny";
-  // Remember this decision for the rest of the session, keyed by TOOL NAME
-  // (AUX_API §6) — works for deny too. Omitted = this once only. v1 scope is
-  // session-only (in-memory); project|global join additively once persisted.
-  remember?: { scope: "session" };
+  // Remember this decision (works for deny too) as a persistent fine-grained
+  // rule (AUX_API §6) — the runtime keys it by tool + the call's per-tool
+  // subject (bash command / file path), scoped to the session, the project
+  // dir, or globally. Omitted = this once only.
+  remember?: { scope: "session" | "project" | "global" };
   editedArgs?: Record<string, unknown>; // one-shot input rewrite — NOT part of remember
   reason?: string;
 }
@@ -907,10 +908,15 @@ export type ApprovalMode =
   | "safe" // every write/exec tool parks
   | "balanced" // default: high-risk parks, low-risk passes (by safetyClass)
   | "yolo"; // everything passes, no parking (automation)
-export interface RememberedDecision {
-  tool: string; // tool name — the remember key (AUX_API §6)
-  decision: "approve" | "deny";
-  rememberedAt: string; // ISO-8601
+// One persisted fine-grained approval rule (approval.listRules, AUX_API §6).
+// A rule auto-resolves a gated call when scope + tool + subject all match.
+export interface ApprovalRule {
+  id: string; // stable id (forgetRule key)
+  scope: "session" | "project" | "global";
+  tool: string; // tool name, e.g. "bash"
+  subject?: string; // command/path glob the rule matches; omitted = any arguments
+  dir?: string; // project-scope directory (display only; omitted for session/global)
+  decision: "allow" | "deny";
 }
 
 // B10 — sessions.compact result. The `compaction` Item variant that makes the
