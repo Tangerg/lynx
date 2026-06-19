@@ -4,7 +4,7 @@
 // Items are the wire primitive; this grouping (one assistant turn = one
 // bubble with many blocks) is purely a UI concern.
 
-import type { OpenInterrupt } from "@/rpc";
+import type { DiffRow, OpenInterrupt } from "@/rpc";
 
 // Narrow view-side roles. userMessage → "user", everything the agent
 // produces → "assistant", protocol notes → "system".
@@ -81,6 +81,10 @@ export interface ToolCall {
   status: ToolCallStatus;
   added?: number;
   removed?: number;
+  /** Call-scoped structured diff for an edit tool (FileEdit.diff, §12.1 C) —
+   *  the literal patch THIS edit applied, rendered inline instead of
+   *  re-querying the whole worktree. Absent for write / non-edit tools. */
+  diff?: DiffRow[];
   hits?: number;
   /** command-category (`bash`/`shell`) exit code, from result.exitCode (§4.4.2).
    *  Surfaced for visibility; a non-zero exit is shown but does NOT force the

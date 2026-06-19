@@ -2,7 +2,7 @@
 // map a v2 Item (or its pieces) into the shapes the chat UI renders. The
 // stateful folds that place these into AgentViewState live in `fold.ts`.
 
-import type { Item, ItemStatus, PlanStep, Question, ToolInvocation } from "@/rpc";
+import type { DiffRow, Item, ItemStatus, PlanStep, Question, ToolInvocation } from "@/rpc";
 import type { ContentBlock as WireContentBlock } from "@/rpc";
 import type {
   BlockStatus,
@@ -135,13 +135,12 @@ function asArrayLength(v: unknown): number | undefined {
   return Array.isArray(v) ? v.length : undefined;
 }
 
-/** result.changes (FileEdit[]) → +added / −removed line counts (§4.4.2 edit).
- *  The runtime's write/edit return `{changes:[{path,status}]}` — file entries
- *  with NO per-file `diff` rows (tooldisplay.go fileChangeResult) — and other
- *  shapes carry no `changes` at all. Either way there are no line counts to
- *  show, so return {} rather than a fabricated "+0 −0" on every edit card
- *  (ToolMeta renders `+{added}` whenever `added != null`, and `0 != null`).
- *  Counts only surface if a runtime ever ships actual diff rows. */
+/** result.changes (FileEdit[]) → the call-scoped diff rows + their +added /
+ *  −removed line counts (§4.4.2 edit / §12.1 C). An `edit` now ships actual
+ *  per-file `diff` rows (tooldisplay.go editDiffRows), so the card renders THIS
+ *  edit's patch inline and shows real counts; a `write` (or any shape without
+ *  `diff` rows) carries none, so we return {} rather than a fabricated "+0 −0"
+ *  on every card (ToolMeta renders `+{added}` whenever `added != null`). */
 function editLineCounts(result: unknown): Partial<ToolCall> {
   const changes = asRecord(result)?.changes;
   if (!Array.isArray(changes)) return {};
@@ -152,6 +151,7 @@ function editLineCounts(result: unknown): Partial<ToolCall> {
   if (rows.length === 0) return {}; // {path,status} entries, no diff rows → nothing to count
   const isType = (r: unknown, t: string) => asRecord(r)?.type === t;
   return {
+    diff: rows as unknown as DiffRow[],
     added: rows.filter((r) => isType(r, "added")).length,
     removed: rows.filter((r) => isType(r, "deleted")).length,
   };
