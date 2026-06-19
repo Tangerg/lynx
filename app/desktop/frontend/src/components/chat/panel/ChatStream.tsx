@@ -46,6 +46,9 @@ export function ChatStream({ onSend, resetKey }: Props) {
   const removeImage = useComposerStore((s) => s.removeImage);
   const clearComposer = useComposerStore((s) => s.clear);
   const addImageFiles = useComposerStore((s) => s.addImageFiles);
+  const pastes = useComposerStore((s) => s.pastes);
+  const removePaste = useComposerStore((s) => s.removePaste);
+  const addPaste = useComposerStore((s) => s.addPaste);
   // Gate image staging on the next run's model accepting images — keeps the
   // paste/drop path consistent with the (disabled) toolbar attach button.
   const acceptsImages = useSelectedModel()?.multimodal ?? false;
@@ -167,6 +170,9 @@ export function ChatStream({ onSend, resetKey }: Props) {
             images={images}
             onRemoveImage={removeImage}
             onAddImages={addImageFiles}
+            pastes={pastes}
+            onRemovePaste={removePaste}
+            onAddPaste={addPaste}
             acceptsImages={acceptsImages}
           />
           <ComposerFooter />

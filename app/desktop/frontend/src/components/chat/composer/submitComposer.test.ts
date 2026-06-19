@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { definePlugin, loadPlugin } from "@/plugins/sdk";
 import { SLASH_COMMAND } from "@/plugins/sdk/kernelPoints";
+import { useComposerStore } from "@/state/composerStore";
 import { parseSlash, submitComposer } from "./submitComposer";
 
 describe("parseSlash", () => {
@@ -18,6 +19,10 @@ describe("parseSlash", () => {
 });
 
 describe("submitComposer", () => {
+  // Pastes are read off the composer store; reset after each so the cases that
+  // assume no attachments aren't polluted by a prior test.
+  afterEach(() => useComposerStore.setState({ pastes: [] }));
+
   it("is a no-op on empty / whitespace-only input", () => {
     const send = vi.fn();
     const clear = vi.fn();
@@ -58,5 +63,21 @@ describe("submitComposer", () => {
     const send = vi.fn();
     submitComposer({ value: "/unknown args", clear: () => {}, sendInput: send, images: [] });
     expect(send).toHaveBeenCalledWith([{ type: "text", text: "/unknown args" }]);
+  });
+
+  it("folds pasted-text attachments into the message below the typed text", () => {
+    useComposerStore.setState({ pastes: [{ id: "p1", text: "PASTED BLOB", lines: 1 }] });
+    const send = vi.fn();
+    const clear = vi.fn();
+    submitComposer({ value: "look at this", clear, sendInput: send, images: [] });
+    expect(send).toHaveBeenCalledWith([{ type: "text", text: "look at this\n\nPASTED BLOB" }]);
+    expect(clear).toHaveBeenCalledOnce();
+  });
+
+  it("allows a paste-only send (no typed text)", () => {
+    useComposerStore.setState({ pastes: [{ id: "p1", text: "ONLY PASTE", lines: 1 }] });
+    const send = vi.fn();
+    submitComposer({ value: "   ", clear: () => {}, sendInput: send, images: [] });
+    expect(send).toHaveBeenCalledWith([{ type: "text", text: "ONLY PASTE" }]);
   });
 });

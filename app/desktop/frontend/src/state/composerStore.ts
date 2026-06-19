@@ -3,6 +3,7 @@ import { z } from "zod";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { fileToInputImage } from "@/lib/agent/composerInput";
+import { countLines } from "@/lib/agent/largePaste";
 import { disposeOnHmr } from "@/lib/hmr";
 import { notifyError } from "@/lib/notify";
 import { useSessionStore } from "./sessionStore";
@@ -23,23 +24,36 @@ export interface ComposerImage {
   name?: string;
 }
 
+/** A large pasted text blob, collapsed into a removable composer attachment
+ *  chip instead of flooding the textarea (T2.3). The full `text` is re-inlined
+ *  into the outgoing message on send; `lines` drives the chip's label. */
+export interface PastedText {
+  /** Stable React-key id, auto-assigned in `addPaste`. */
+  id: string;
+  text: string;
+  lines: number;
+}
+
 /** One conversation's unsent composer content, kept PER SESSION so switching
  *  tabs never shows — or clobbers — another conversation's half-written
- *  message. Only `value` (text) is durable; staged images are transient (meant
- *  to be sent immediately, and heavy as base64), so they're dropped on reload. */
+ *  message. Only `value` (text) is durable; staged images + pastes are
+ *  transient (meant to be sent immediately, and heavy), so they're dropped on
+ *  reload. */
 interface Draft {
   value: string;
   images: ComposerImage[];
+  pastes: PastedText[];
 }
-const emptyDraft = (): Draft => ({ value: "", images: [] });
+const emptyDraft = (): Draft => ({ value: "", images: [], pastes: [] });
 
 interface ComposerState {
-  // value/images MIRROR the active session's draft so existing selectors
+  // value/images/pastes MIRROR the active session's draft so existing selectors
   // (`useComposerStore(s => s.value)`) keep working unchanged; `drafts` is the
   // per-session archive, swapped into the mirror by loadSession on the
   // active-session edge.
   value: string;
   images: ComposerImage[];
+  pastes: PastedText[];
   // provider/model are a GLOBAL sticky preference — the picked model carries
   // across sessions (it's not per-conversation work) — so they stay top-level
   // and unmirrored. Not persisted: ModelPicker re-defaults to the first model.
@@ -75,6 +89,10 @@ interface ComposerActions {
    *  mid-decode so a late image can't leak into the next message. */
   addImageFiles: (files: File[]) => void;
   removeImage: (id: string) => void;
+  /** Stash a large pasted blob as a removable attachment chip, kept out of the
+   *  textarea and re-inlined into the message on send (T2.3, large-paste). */
+  addPaste: (text: string) => void;
+  removePaste: (id: string) => void;
   /** Swap the mirrored draft to session `sid` — driven by the active-session
    *  subscription below. Mutations keep drafts[activeSid] current, so this only
    *  loads the target (nothing to archive). */
@@ -102,20 +120,22 @@ const persistSchema = z.object({
   drafts: z.record(z.string(), z.object({ value: z.string() })),
 });
 
-// Write `draft` to the active session in one shot — both the live mirror
-// (value/images, which existing `s.value` selectors read) and its archive
-// entry `drafts[activeSid]`. The "value/images === drafts[activeSid]"
-// invariant lives HERE, so every mutation that changes the draft routes
-// through it instead of re-spelling the spread (and risking a desync).
+// Patch the active session's draft in one shot: apply `patch` over the current
+// mirror, then write the result to BOTH the live mirror (value/images/pastes,
+// which existing `s.value` selectors read) and its archive entry
+// `drafts[activeSid]`. The "mirror === drafts[activeSid]" invariant lives HERE,
+// so every mutation routes through it — passing only the fields it changes —
+// instead of re-spelling the spread (and risking a desync).
 function mirror(
-  s: Pick<ComposerState, "activeSid" | "drafts">,
-  draft: Draft,
-): Pick<ComposerState, "value" | "images" | "drafts"> {
-  return {
-    value: draft.value,
-    images: draft.images,
-    drafts: { ...s.drafts, [s.activeSid]: draft },
+  s: Pick<ComposerState, "activeSid" | "drafts" | "value" | "images" | "pastes">,
+  patch: Partial<Draft>,
+): Pick<ComposerState, "value" | "images" | "pastes" | "drafts"> {
+  const draft: Draft = {
+    value: patch.value ?? s.value,
+    images: patch.images ?? s.images,
+    pastes: patch.pastes ?? s.pastes,
   };
+  return { ...draft, drafts: { ...s.drafts, [s.activeSid]: draft } };
 }
 
 export const useComposerStore = create<ComposerState & ComposerActions>()(
@@ -129,6 +149,7 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
       return {
         value: "",
         images: [],
+        pastes: [],
         provider: null,
         model: null,
         drafts: {},
@@ -137,8 +158,7 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
         histIndex: -1,
         histDraft: "",
         // Editing (and clearing) exits history-recall mode (histIndex: -1).
-        setValue: (value) =>
-          set((s) => ({ ...mirror(s, { value, images: s.images }), histIndex: -1 })),
+        setValue: (value) => set((s) => ({ ...mirror(s, { value }), histIndex: -1 })),
         setModel: (provider, model) => set({ provider, model }),
         clear: () => {
           stagingGen++;
@@ -146,10 +166,7 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
         },
         addImages: (imgs) =>
           set((s) =>
-            mirror(s, {
-              value: s.value,
-              images: [...s.images, ...imgs.map((i) => ({ id: nanoid(), ...i }))],
-            }),
+            mirror(s, { images: [...s.images, ...imgs.map((i) => ({ id: nanoid(), ...i }))] }),
           ),
         addImageFiles: (files) => {
           const gen = stagingGen;
@@ -166,8 +183,12 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
               });
           });
         },
-        removeImage: (id) =>
-          set((s) => mirror(s, { value: s.value, images: s.images.filter((i) => i.id !== id) })),
+        removeImage: (id) => set((s) => mirror(s, { images: s.images.filter((i) => i.id !== id) })),
+        addPaste: (text) =>
+          set((s) =>
+            mirror(s, { pastes: [...s.pastes, { id: nanoid(), text, lines: countLines(text) }] }),
+          ),
+        removePaste: (id) => set((s) => mirror(s, { pastes: s.pastes.filter((p) => p.id !== id) })),
         loadSession: (sid) =>
           set((s) => {
             if (sid === s.activeSid) return s;
@@ -176,6 +197,7 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
               activeSid: sid,
               value: next.value,
               images: next.images,
+              pastes: next.pastes,
               histIndex: -1,
               histDraft: "",
             };
@@ -207,7 +229,7 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
           const idx = s.histIndex === -1 ? 0 : Math.min(s.histIndex + 1, list.length - 1);
           const value = list[list.length - 1 - idx]!;
           const histDraft = s.histIndex === -1 ? s.value : s.histDraft;
-          set((st) => ({ ...mirror(st, { value, images: st.images }), histIndex: idx, histDraft }));
+          set((st) => ({ ...mirror(st, { value }), histIndex: idx, histDraft }));
           return true;
         },
         historyNext: () => {
@@ -217,10 +239,7 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
           const idx = s.histIndex - 1;
           // Past the newest entry → restore the draft that recall began from.
           const value = idx < 0 ? s.histDraft : list[list.length - 1 - idx]!;
-          set((st) => ({
-            ...mirror(st, { value, images: st.images }),
-            histIndex: idx < 0 ? -1 : idx,
-          }));
+          set((st) => ({ ...mirror(st, { value }), histIndex: idx < 0 ? -1 : idx }));
           return true;
         },
       };
@@ -242,7 +261,7 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
         if (!parsed.success) return current; // corrupt blob → empty drafts
         const drafts: Record<string, Draft> = {};
         for (const [k, d] of Object.entries(parsed.data.drafts))
-          drafts[k] = { value: d.value, images: [] };
+          drafts[k] = { value: d.value, images: [], pastes: [] };
         return { ...current, drafts };
       },
     },
