@@ -6,7 +6,7 @@
 // them (fixture data, IPC, in-memory mock, …).
 
 import type { UseQueryResult } from "@tanstack/react-query";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { lookupDataProvider } from "@/plugins/sdk";
 import { queryClient } from "./queryClient";
 
@@ -246,12 +246,20 @@ function makeDataQuery<T>(key: string): () => UseQueryResult<T> {
 // Parameterized variant — params join the query key (each distinct params
 // object caches independently) and flow into the provider. `undefined`
 // params disables the query (the caller has nothing to ask yet).
+//
+// keepPreviousData: when the params change (the active session's cwd, a
+// diff mode toggle, a different file path), the key changes and the entry
+// is a cache miss. Without this, the panel would drop to its skeleton on
+// every such switch; with it, the last resolved data stays on screen until
+// the new data arrives (isPlaceholderData flags the in-between). First open
+// — no prior data — still shows the skeleton.
 function makeParamDataQuery<P, T>(key: string): (params: P | undefined) => UseQueryResult<T> {
   return (params) =>
     useQuery({
       queryKey: [key, params],
       queryFn: resolve<T, P>(key, params),
       enabled: params !== undefined,
+      placeholderData: keepPreviousData,
       ...STATIC,
     });
 }
