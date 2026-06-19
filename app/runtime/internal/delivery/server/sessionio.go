@@ -36,7 +36,7 @@ func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionReq
 	if format == protocol.ExportFormatMarkdown {
 		return &protocol.ExportSessionResponse{
 			Format:   format,
-			Markdown: renderSessionMarkdown(s.sessionToWire(ses), items),
+			Markdown: renderSessionMarkdown(s.sessionToWire(ses, s.liveStatus(ctx, ses.ID)), items),
 		}, nil
 	}
 
@@ -70,7 +70,7 @@ func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionReq
 		Format: format,
 		Artifact: &protocol.SessionArtifact{
 			Version:  protocol.SessionArtifactVersion,
-			Session:  s.sessionToWire(ses),
+			Session:  s.sessionToWire(ses, s.liveStatus(ctx, ses.ID)),
 			Messages: msgBlobs,
 			Runs:     artRuns,
 			Items:    artItems,
@@ -138,7 +138,7 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
-	out := s.sessionToWire(ses)
+	out := s.sessionToWire(ses, s.liveStatus(ctx, ses.ID))
 	return &protocol.ImportSessionResponse{Session: &out}, nil
 }
 

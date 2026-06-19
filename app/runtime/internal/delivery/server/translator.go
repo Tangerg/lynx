@@ -112,9 +112,10 @@ func questionFromPayload(payload map[string]any) *protocol.Question {
 //	chat.TurnEnd        → close open items + run.finished(outcome)
 //	chat.TurnInterrupted → close open items + interrupt Item(s) + run.finished(outcome:interrupt)
 //	chat.ErrorEvent     → captured, surfaced in run.finished(outcome:error)
+//	chat.CompactBoundary → compaction Item (item.started + item.completed)
 //
-// CompactBoundary / MemoryUpdated are not surfaced here: compaction /
-// memory are internal housekeeping outside the durable Item history.
+// MemoryUpdated is not surfaced here: extracted long-term memory is internal
+// housekeeping with no client-facing surface (nothing folds a memory event).
 // resumeBinding carries a parked run's pending toolCall item ids into its
 // continuation translator. When a continuation resumes an approved tool, the
 // tool re-fires and the translator reuses its ORIGINAL proposal item id (and
@@ -165,7 +166,8 @@ type translator struct {
 	// bookkeeping — see [interrupts.Pending.DrainedTools].
 	parkDrained []interrupts.DrainedTool
 
-	errMsg string
+	errMsg  string
+	errCode string // turn-layer error code (AGENT_STUCK / ENGINE_ERROR / …) — classifies the run error
 }
 
 type openText struct {
@@ -303,13 +305,43 @@ func (t *translator) translate(ev turn.Event) []protocol.StreamEvent {
 		return t.toolEnd(e)
 	case turn.ErrorEvent:
 		t.errMsg = e.Message
+		t.errCode = e.Code
 		return nil
+	case turn.CompactBoundary:
+		return t.compaction(e)
 	case turn.TurnInterrupted:
 		return t.interrupt(e)
 	case turn.TurnEnd:
 		return t.turnEnd(e)
 	}
 	return nil
+}
+
+// compaction surfaces a post-turn auto-compaction as a standalone compaction
+// Item (item.started + item.completed, one durable id) so the client folds it
+// into a "context compacted — N messages dropped" divider between turns
+// (API.md §4.3). DroppedMessages is the net history reduction (before − after,
+// clamped ≥0); the summary text stays server-side — it's already folded into
+// the rewritten history. Emitted from drive() before TurnEnd, so the divider
+// lands after this turn's content and ahead of run.finished.
+func (t *translator) compaction(e turn.CompactBoundary) []protocol.StreamEvent {
+	dropped := max(e.MessagesBefore-e.MessagesAfter, 0)
+	id := t.nextItemID()
+	now := time.Now().UTC()
+	item := func(status protocol.ItemStatus) *protocol.Item {
+		return &protocol.Item{
+			ID:              id,
+			RunID:           t.runID,
+			Status:          status,
+			Type:            protocol.ItemTypeCompaction,
+			CreatedAt:       now,
+			DroppedMessages: dropped,
+		}
+	}
+	return []protocol.StreamEvent{
+		{Type: protocol.StreamItemStarted, Item: item(protocol.ItemStatusRunning)},
+		{Type: protocol.StreamItemCompleted, Item: item(protocol.ItemStatusCompleted)},
+	}
 }
 
 // openUserMessage emits the run's opening user turn as a userMessage Item

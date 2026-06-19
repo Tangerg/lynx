@@ -284,13 +284,15 @@ function Throughput() {
 
 // Cumulative session usage (wire Session.usage) — the lifetime "what has this
 // conversation cost me" readout. Run-scoped items reset each run; this only
-// moves when a run settles, so the running→idle edge refetches the sessions
-// list (its 5-minute staleTime is tuned for the sidebar, too slow here).
+// moves when a run settles. Both run-state EDGES refetch the sessions list (its
+// 5-minute staleTime is tuned for the sidebar, too slow here): the start edge
+// flips the sidebar's live status badge to "running" promptly, the settle edge
+// refreshes both the cost and the running→idle/waiting badge.
 function SessionCost() {
   const running = useAgentSlice((v) => v.run.running);
   const prevRunning = useRef(running);
   useEffect(() => {
-    if (prevRunning.current && !running) {
+    if (prevRunning.current !== running) {
       void queryClient.invalidateQueries({ queryKey: [SESSIONS_KEY] });
     }
     prevRunning.current = running;

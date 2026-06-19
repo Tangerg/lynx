@@ -257,10 +257,14 @@ function onRunFinished(state: AgentViewState, outcome: RunOutcome, runId?: strin
       summary: errored.error?.message,
     })(errored);
   }
+  // Non-completed terminals (maxBudget / maxSteps / canceled) carry a
+  // human-readable detail ("spent $4.20 of $4.00 budget", the cancel reason);
+  // prefer it over the bare outcome type so the timeline reads precisely.
+  const detail = "detail" in outcome ? outcome.detail : undefined;
   return appendTimelineEntry({
     kind: "run-end",
     status: outcome.type === "completed" ? "ok" : undefined,
-    summary: outcome.type === "completed" ? undefined : outcome.type,
+    summary: outcome.type === "completed" ? undefined : (detail ?? outcome.type),
   })(withRun);
 }
 

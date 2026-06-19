@@ -12,6 +12,7 @@ const ERROR_COPY: Record<string, string> = {
   cwd_unavailable: "That path does not exist on the runtime's disk.",
   vcs_unavailable: "This folder isn't a git repository.",
   provider_error: "The model provider didn't respond — try again.",
+  agent_stuck: "The agent stopped making progress — try rephrasing or narrowing the task.",
   // 613 — B7 code intel / B8 file read / B12 MCP auth (all expected, UI-inline).
   no_language_server:
     "No language server for this file type — code intelligence isn't available here.",

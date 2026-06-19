@@ -60,6 +60,12 @@ type turnState struct {
 	// duration that spans any interrupt/resume cycles.
 	startedAt time.Time
 
+	// maxBudget / maxCostUSD echo the turn's configured caps (from the
+	// StartTurnRequest), stashed once in runTurn so emitTurnEnd can describe a
+	// budget-exceeded terminal precisely. Zero when uncapped.
+	maxBudget  int64
+	maxCostUSD float64
+
 	// lifecycle captures the process's authoritative terminal event;
 	// retained across interrupt→resume so the eventual TurnEnd reads it.
 	// Written once before the turn goroutine reads it; not mu-guarded.
@@ -164,6 +170,8 @@ func (st *turnState) drainSteering() []string {
 // state. Later segments are driven by [inMemory.Resume] through the
 // shared [drive] loop. st.ctx (the turn's own lifetime) bounds the run.
 func (s *inMemory) runTurn(req StartTurnRequest, st *turnState) {
+	st.maxBudget = req.MaxBudget
+	st.maxCostUSD = req.MaxCostUSD
 	s.emit(st, TurnStart{Model: st.model})
 
 	// Resolve a per-turn client when the run picked a provider+model and a
@@ -353,7 +361,7 @@ func (s *inMemory) emitTurnEnd(st *turnState, proc kernel.ChatProcess, terminal 
 	if plan.errMsg != "" {
 		s.emit(st, ErrorEvent{Message: plan.errMsg, Code: plan.errCode})
 	}
-	end := TurnEnd{Reason: plan.reason, Duration: duration}
+	end := TurnEnd{Reason: plan.reason, Duration: duration, MaxBudget: st.maxBudget, MaxCostUSD: st.maxCostUSD}
 	if plan.withUsage {
 		end.TokenUsage = out.Usage
 		end.UsageByModel = out.UsageByModel

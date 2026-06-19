@@ -50,6 +50,7 @@ const (
 	ItemTypePlan         ItemType = "plan"
 	ItemTypeQuestion     ItemType = "question"
 	ItemTypeToolCall     ItemType = "toolCall"
+	ItemTypeCompaction   ItemType = "compaction"
 )
 
 // SafetyClass is a tool's mutation risk (API.md §4.4): safe (read-only),
@@ -110,6 +111,7 @@ const (
 //	plan                       → Steps
 //	question                   → Question
 //	toolCall                   → Tool, SafetyClass, Error
+//	compaction                 → Summary, DroppedMessages
 type Item struct {
 	ID        string     `json:"id"`
 	RunID     string     `json:"runId"`
@@ -125,6 +127,12 @@ type Item struct {
 	Tool        *ToolInvocation `json:"tool,omitempty"`
 	SafetyClass SafetyClass     `json:"safetyClass,omitempty"`
 	Error       *ProblemData    `json:"error,omitempty"` // tool-level failure (API.md §4.3)
+	// Summary / DroppedMessages describe a compaction Item — the post-turn
+	// auto-compaction boundary. DroppedMessages is the net history reduction
+	// (messages before − after); Summary is an optional human note (currently
+	// left empty — the summary text is folded into the rewritten history).
+	Summary         string `json:"summary,omitempty"`         // compaction
+	DroppedMessages int    `json:"droppedMessages,omitempty"` // compaction
 }
 
 // ContentBlock is one block of message content (API.md §4.3).

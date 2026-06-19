@@ -99,6 +99,11 @@ type RunResult struct {
 	Usage *Usage       `json:"usage,omitempty"`
 	Steps *int         `json:"steps,omitempty"`
 	Error *ProblemData `json:"error,omitempty"` // present when outcome.type=error
+	// DurationMs is the run's wall-clock duration in milliseconds (spans any
+	// interrupt/resume cycles). Lets the client show a final "took 12.4s" on
+	// any terminal — distinct from the live elapsed timer (which stops at the
+	// terminal event). Omitted when zero / unmeasured.
+	DurationMs int `json:"durationMs,omitempty"`
 }
 
 // StartRunRequest is the runs.start body (API.md §7.1). No client-supplied

@@ -93,7 +93,9 @@ func newSessionServer(t *testing.T) (*Server, session.Service) {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	svc := sqlite.NewSessionService(db)
-	return &Server{rt: stubRuntime{sess: svc, model: "default-model"}}, svc
+	// Interrupts is always wired in production (runtime composition root) and
+	// the wire status now reads it (liveStatus) — give the stub a real store.
+	return &Server{rt: stubRuntime{sess: svc, model: "default-model", interrupts: sqlite.NewInterruptStore(db)}}, svc
 }
 
 func TestUpdateSession(t *testing.T) {
