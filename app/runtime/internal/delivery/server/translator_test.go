@@ -360,6 +360,37 @@ func TestTranslator_Compaction(t *testing.T) {
 	}
 }
 
+// TestTranslator_UsageProgress verifies a per-round UsageReported becomes an
+// ephemeral run.progress carrying cumulative usage (input/output/reasoning +
+// cost), with cost omitted when no pricing is configured (T1.2).
+func TestTranslator_UsageProgress(t *testing.T) {
+	tr := newTranslator("ses_1", "run_1", "", nil, nil, "")
+	out := tr.translate(turn.UsageReported{
+		TokenUsage: turn.TokenUsage{PromptTokens: 1200, CompletionTokens: 80, ReasoningTokens: 30},
+		CostUSD:    0.0125,
+	})
+	if len(out) != 1 || out[0].Type != protocol.StreamRunProgress {
+		t.Fatalf("UsageReported → %+v, want one run.progress", out)
+	}
+	u := out[0].Progress.Usage
+	if u == nil || u.InputTokens != 1200 || u.OutputTokens != 80 || u.ReasoningTokens != 30 {
+		t.Fatalf("usage = %+v, want 1200/80/30", u)
+	}
+	if u.CostUSD == nil || *u.CostUSD != 0.0125 {
+		t.Fatalf("costUsd = %v, want 0.0125", u.CostUSD)
+	}
+	// run.progress is ephemeral — it must not be replayed/persisted.
+	if out[0].IsDurable() {
+		t.Fatal("run.progress usage preview must be ephemeral (IsDurable=false)")
+	}
+
+	// No pricing configured (cost 0) → costUsd omitted, never a fabricated $0.
+	free := tr.translate(turn.UsageReported{TokenUsage: turn.TokenUsage{PromptTokens: 10}})
+	if free[0].Progress.Usage.CostUSD != nil {
+		t.Fatalf("costUsd = %v, want nil when cost is 0", free[0].Progress.Usage.CostUSD)
+	}
+}
+
 // TestTranslator_OutcomeDurationAndBudget verifies the terminal outcome carries
 // the run's wall-clock duration on every result, and a budget-exceeded terminal
 // gets a precise "spent $X / $Y" detail (T3.4).

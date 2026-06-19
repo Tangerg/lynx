@@ -303,6 +303,8 @@ func (t *translator) translate(ev turn.Event) []protocol.StreamEvent {
 		return t.toolStart(e)
 	case turn.ToolCallEnd:
 		return t.toolEnd(e)
+	case turn.UsageReported:
+		return t.usageProgress(e)
 	case turn.ErrorEvent:
 		t.errMsg = e.Message
 		t.errCode = e.Code

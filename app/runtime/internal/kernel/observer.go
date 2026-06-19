@@ -57,6 +57,15 @@ type toolObserver interface {
 	// from final-text chunks so UIs can render thinking separately
 	// (e.g. dimmed, collapsed, or behind a "show reasoning" toggle).
 	OnReasoningDelta(text string)
+
+	// OnUsage is invoked once per completed LLM round (right after the
+	// round's tokens are recorded into the process budget), carrying the
+	// turn's cumulative token roll-up and cost so far. This is the mid-run
+	// usage signal — a live "tokens / cost spent" readout — distinct from the
+	// final per-turn total that lands on TurnEnd. costUSD is zero when no
+	// pricing hook is configured (the wire layer omits it rather than showing
+	// a fabricated $0).
+	OnUsage(usage TokenUsage, costUSD float64)
 }
 
 // ToolApprovalVerdict is the decorator's instruction for one gated tool

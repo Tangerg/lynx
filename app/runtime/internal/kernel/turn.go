@@ -80,16 +80,26 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 	}
 
 	var (
-		accumulated strings.Builder
-		roundUsage  *chat.Usage
-		roundModel  string
+		accumulated    strings.Builder
+		roundUsage     *chat.Usage
+		roundModel     string
+		cumulative     TokenUsage
+		cumulativeCost float64
 	)
 	recordRound := func() {
 		if roundUsage == nil {
 			return
 		}
-		pc.RecordLLMInvocation(e.invocationFrom(roundModel, roundUsage))
+		inv := e.invocationFrom(roundModel, roundUsage)
+		pc.RecordLLMInvocation(inv)
+		// Fold into the running roll-up the same way chatOutput sums the ledger,
+		// so the mid-run readout matches the final TurnEnd total exactly.
+		cumulative.add(inv)
+		cumulativeCost += inv.CostUSD
 		roundUsage, roundModel = nil, ""
+		if observer != nil {
+			observer.OnUsage(cumulative, cumulativeCost)
+		}
 	}
 	for chunk, streamErr := range stream.Response(ctx) {
 		keepAlive() // progress — push the silence deadline out
