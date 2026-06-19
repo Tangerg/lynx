@@ -267,7 +267,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	// credentials. A turn with no selection runs the engine's default client.
 	resolver := newClientResolver(providerSvc)
 
-	chatSvc, err := turn.New(eng, approvalSvc, resolver)
+	chatSvc, err := turn.New(eng, approvalSvc, resolver, ecfg.Todos)
 	if err != nil {
 		return nil, fmt.Errorf("runtime: chat service: %w", err)
 	}

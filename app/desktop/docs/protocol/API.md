@@ -714,6 +714,8 @@ completed item 一样必发权威终值。
 
 无共享状态时 `state.snapshot` 可省略。
 
+**first-party 共享 key**：`todos` —— 模型的任务清单（`todo_write` 工具全量替换后投影），值是 `TodoSnapshot[]`（`{ id, text, status: "pending"|"in_progress"|"completed" }`，id 为位置序、随整表替换而非持久身份）。客户端读 `shared.todos` 渲染任务面板，无需 join 工具结果（`todo_write` 结果本身仅面向模型）。第三方 key 遵 §2.6 命名空间。
+
 ### 5.4 Run 树
 
 一条 root run 流包含**整棵 run 树**的事件（根 + 所有子孙 subagent run）：
