@@ -36,8 +36,6 @@ func NewQuery(text string) (*Query, error) {
 	return &Query{Text: text}, nil
 }
 
-// ensureExtra lazily allocates Extra. Used by [Query.Set] only — Get
-// must not mutate state since concurrent reads are valid.
 func (q *Query) ensureExtra() {
 	if q.Extra == nil {
 		q.Extra = make(map[string]any)
@@ -54,7 +52,6 @@ func (q *Query) Get(key string) (any, bool) {
 	return value, exists
 }
 
-// Set stores value under key in Extra.
 func (q *Query) Set(key string, value any) {
 	q.ensureExtra()
 	q.Extra[key] = value
