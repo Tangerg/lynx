@@ -15,8 +15,6 @@ import (
 // schema — the fallback whenever a tool advertises no input schema.
 const emptyObjectSchema = `{"type":"object"}`
 
-// textOfContent returns the Text body of c, or "" when c has no textual
-// representation (image / audio / embedded resource).
 func textOfContent(c sdkmcp.Content) string {
 	if t, ok := c.(*sdkmcp.TextContent); ok {
 		return t.Text
@@ -63,8 +61,6 @@ func flattenContent(items []sdkmcp.Content) (string, error) {
 	return string(encoded), nil
 }
 
-// firstTextOrFallback returns the first non-empty Text body in items, or
-// fallback. Used to render a human-readable message for an MCP tool error.
 func firstTextOrFallback(items []sdkmcp.Content, fallback string) string {
 	for _, item := range items {
 		if t := textOfContent(item); t != "" {
@@ -74,8 +70,6 @@ func firstTextOrFallback(items []sdkmcp.Content, fallback string) string {
 	return fallback
 }
 
-// decodeArguments parses the JSON argument blob into the typeless form
-// [sdkmcp.CallToolParams.Arguments] accepts. Empty input becomes {}.
 func decodeArguments(arguments string) (any, error) {
 	if arguments == "" {
 		return map[string]any{}, nil

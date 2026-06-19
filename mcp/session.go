@@ -7,7 +7,7 @@ import (
 )
 
 // sessionKey is the unexported context-key type for the per-call MCP
-// server session. The session is stamped onto the context by the 
+// server session. The session is stamped onto the context by the
 // tool dispatcher ([serverHandler]) and retrieved by tool authors via
 // [ServerSessionFromContext].
 type sessionKey struct{}
