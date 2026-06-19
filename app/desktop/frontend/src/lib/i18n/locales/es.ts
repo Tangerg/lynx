@@ -127,6 +127,10 @@ export const es: Record<string, string> = {
   "welcome.eyebrow": "agent listo",
   "welcome.title": "¿Qué quieres construir hoy?",
   "welcome.sub": "Inicia una conversación, pega un stack trace o elige una sugerencia.",
+  "welcome.setup.title": "Conecta un proveedor de modelos",
+  "welcome.setup.sub":
+    "Añade una clave de API para empezar — el agente necesita un proveedor de modelos.",
+  "welcome.setup.action": "Añadir clave de proveedor",
   "welcome.suggest.refactor": "Planificar una refactorización",
   "welcome.suggest.refactor.prompt": "Ayúdame a planificar una refactorización de ",
   "welcome.suggest.search": "Buscar en el código",

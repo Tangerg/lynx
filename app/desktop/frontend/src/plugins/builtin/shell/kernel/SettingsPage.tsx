@@ -4,19 +4,29 @@
 
 import type { IconName } from "@/components/common";
 import * as Tabs from "@radix-ui/react-tabs";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
 import { useSettingsPanes } from "@/plugins/sdk";
+import { useSessionStore } from "@/state/sessionStore";
 
 export function SettingsPage() {
   const t = useT();
   const panes = useSettingsPanes();
   // `selectedId` is the user's explicit choice. If they haven't picked
   // one (or their pick has since been unregistered), fall back to the
-  // first pane via a derived value — no useEffect/setState loop.
-  const [selectedId, setSelectedId] = useState<string | undefined>();
+  // first pane via a derived value — no useEffect/setState loop. The initial
+  // value honors a one-shot deep-link target (settingsPane, e.g. "providers"
+  // from the keyless first-run onboarding), consumed + cleared on mount so a
+  // later manual open starts at the first pane again.
+  const setSettingsPane = useSessionStore((s) => s.setSettingsPane);
+  const [selectedId, setSelectedId] = useState<string | undefined>(
+    () => useSessionStore.getState().settingsPane ?? undefined,
+  );
+  useEffect(() => {
+    if (useSessionStore.getState().settingsPane) setSettingsPane(null);
+  }, [setSettingsPane]);
   const activeId = selectedId && panes.some((p) => p.id === selectedId) ? selectedId : panes[0]?.id;
 
   return (

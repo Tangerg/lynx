@@ -127,6 +127,10 @@ export const ja: Record<string, string> = {
   "welcome.eyebrow": "agent 準備完了",
   "welcome.title": "今日は何を作りましょうか？",
   "welcome.sub": "会話を始めるか、スタックトレースを貼り付けるか、下の提案から選んでください。",
+  "welcome.setup.title": "モデルプロバイダーを接続",
+  "welcome.setup.sub":
+    "API キーを追加すると会話を開始できます — エージェントにはモデルプロバイダーが必要です。",
+  "welcome.setup.action": "プロバイダーキーを追加",
   "welcome.suggest.refactor": "リファクタリングを計画",
   "welcome.suggest.refactor.prompt": "リファクタリングの計画を手伝って: ",
   "welcome.suggest.search": "コードベースを検索",

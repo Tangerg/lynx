@@ -128,6 +128,10 @@ export const fr: Record<string, string> = {
   "welcome.title": "Que voulez-vous construire aujourd'hui ?",
   "welcome.sub":
     "Démarrez une conversation, collez une trace d'erreur, ou choisissez une suggestion.",
+  "welcome.setup.title": "Connecter un fournisseur de modèle",
+  "welcome.setup.sub":
+    "Ajoutez une clé API pour commencer — l'agent a besoin d'un fournisseur de modèle.",
+  "welcome.setup.action": "Ajouter une clé de fournisseur",
   "welcome.suggest.refactor": "Planifier un refactoring",
   "welcome.suggest.refactor.prompt": "Aide-moi à planifier un refactoring de ",
   "welcome.suggest.search": "Rechercher dans le code",

@@ -124,6 +124,10 @@ export const ko: Record<string, string> = {
   "welcome.eyebrow": "agent 준비됨",
   "welcome.title": "오늘은 무엇을 만들까요?",
   "welcome.sub": "대화를 시작하거나, 스택 트레이스를 붙여넣거나, 아래 제안을 선택하세요.",
+  "welcome.setup.title": "모델 제공자 연결",
+  "welcome.setup.sub":
+    "API 키를 추가하면 대화를 시작할 수 있습니다 — 에이전트에는 모델 제공자가 필요합니다.",
+  "welcome.setup.action": "제공자 키 추가",
   "welcome.suggest.refactor": "리팩토링 계획",
   "welcome.suggest.refactor.prompt": "리팩토링 계획을 도와줘: ",
   "welcome.suggest.search": "코드베이스 검색",

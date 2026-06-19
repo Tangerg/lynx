@@ -64,6 +64,13 @@ interface SessionState {
   mainViewTabs: MainViewTab[];
   activeMainView: string | null;
   /**
+   * One-shot deep-link target for the Settings view: the pane id to open it
+   * at (e.g. "providers" from the keyless first-run onboarding). SettingsPage
+   * consumes it once on mount and clears it, so a later manual open starts at
+   * the first pane. null = open at the first pane. Ephemeral (not persisted).
+   */
+  settingsPane: string | null;
+  /**
    * A splittable workspace view shown BESIDE the chat stream (resizable),
    * not replacing it. Mutually exclusive with `activeMainView` (opening one
    * clears the other). null = no side pane, chat is full-width.
@@ -116,6 +123,8 @@ interface SessionActions {
   /** Close every chat tab. */
   closeAllTabs: () => void;
 
+  /** Set the one-shot pane the Settings view opens at (null = first pane). */
+  setSettingsPane: (pane: string | null) => void;
   /** Add (if absent) and focus a workspace view in the chat-area tab strip. */
   openMainView: (tab: MainViewTab) => void;
   /** Remove a workspace view tab; falls back to chat if it was active. */
@@ -178,6 +187,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
       tabIds: [],
       mainViewTabs: [],
       activeMainView: null,
+      settingsPane: null,
       splitViewId: null,
       draftSessionIds: new Set<string>(),
       pendingMessages: {},
@@ -287,6 +297,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         set({ tabIds: [], activeSessionId: "", ...clearSessionScopedState() });
       },
 
+      setSettingsPane: (pane) => set({ settingsPane: pane }),
       openMainView: (tab) => {
         const cur = get().mainViewTabs;
         const exists = cur.some((t) => t.id === tab.id);
