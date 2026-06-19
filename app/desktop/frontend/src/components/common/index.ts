@@ -20,4 +20,5 @@ export { Segmented } from "./Segmented";
 export type { SegmentedOption } from "./Segmented";
 export { Slider } from "./Slider";
 export { StatusDot } from "./StatusDot";
+export { Switch } from "./Switch";
 export { Tooltip } from "./Tooltip";

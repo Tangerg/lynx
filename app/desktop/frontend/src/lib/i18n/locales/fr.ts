@@ -394,9 +394,8 @@ export const fr: Record<string, string> = {
   "tools.mcp": "Serveurs MCP",
   "tools.reconnect": "Reconnecter",
   "tools.empty.title": "Aucun serveur MCP configuré",
-  "tools.empty.sub": "Ajoutez un serveur dans {{path}} pour exposer des outils à l'agent.",
-  "tools.footer":
-    "Les serveurs exposent des outils que l'agent peut appeler. Modifiez {{path}} pour en ajouter ou en supprimer.",
+  "tools.empty.sub": "Ajoutez un serveur dans les réglages MCP pour exposer des outils à l'agent.",
+  "tools.footer": "Gérez les serveurs MCP dans les réglages",
   "tools.status.on": "Actif",
   "tools.status.off": "Inactif",
   "tools.status.error": "Erreur",
@@ -404,9 +403,7 @@ export const fr: Record<string, string> = {
   "tools.status.connecting": "…",
   "tools.loadingTools": "Chargement des outils…",
   "tools.noTools": "Aucun outil exposé.",
-  "tools.auth.placeholder": "Coller le jeton d'accès…",
-  "tools.auth.submit": "Authentifier",
-  "tools.auth.aria": "Jeton d'accès {{server}}",
+  "tools.auth.configure": "Configurez l'autorisation de {{server}} dans les réglages MCP",
   "toolAction.copyCommand": "Copier la commande",
   "approval.fallbackText": "Approuver cette action ?",
 

@@ -5,6 +5,7 @@ import { Icon, IconButton } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { useMCPTools } from "@/lib/data/queries";
 import { getContainer } from "@/main/container";
+import { useSessionStore } from "@/state/sessionStore";
 import { cn } from "@/lib/utils";
 
 // MCP server row — appears in the Tools workspace view. Status pill mirrors
@@ -31,17 +32,6 @@ function reconnect(server: string): void {
     .client()
     .workspace.mcp.reconnect(server)
     .catch((err: unknown) => console.warn("[mcp] reconnect failed:", err));
-}
-
-// Hand the backend a bearer token for a needsAuth server (B12, 613).
-// Fire-and-forget like reconnect: the backend reconnects with the token and
-// pushes connecting → (connected | needsAuth | failed) via mcp.serverChanged,
-// so the row re-renders through the lifecycle with no local state.
-function authenticate(server: string, token: string): void {
-  getContainer()
-    .client()
-    .workspace.mcp.authenticate({ server, token })
-    .catch((err: unknown) => console.warn("[mcp] authenticate failed:", err));
 }
 
 // Expanded detail: the server's tool list (workspace.mcp.listTools), fetched
@@ -75,39 +65,29 @@ function McpToolList({ server }: { server: string }) {
   );
 }
 
-// Token entry for a needsAuth server — the front half of the OAuth dance (the
-// browser flow, if any) is the user's; lyra only forwards the resulting token.
-function McpAuthForm({ server }: { server: string }) {
+// A needsAuth server needs a bearer token, which is part of its persisted
+// config now (set as `authorization` via workspace.mcp.configure) — not a
+// separate one-shot handoff. So this row just routes the user to the MCP
+// settings pane, deep-linked, rather than holding its own token field.
+function McpAuthGuide({ server }: { server: string }) {
   const t = useT();
-  const [token, setToken] = useState("");
-  const submit = () => {
-    if (!token.trim()) return;
-    authenticate(server, token.trim());
-    setToken("");
+  const openConfig = () => {
+    useSessionStore.getState().setSettingsPane("mcp-servers");
+    useSessionStore.getState().openMainView({
+      id: "settings",
+      title: t("settings.title"),
+      icon: "settings",
+    });
   };
   return (
     <div className="flex items-center gap-2 px-4 pb-3 pl-[68px]">
-      <input
-        type="password"
-        aria-label={t("tools.auth.aria", { server })}
-        value={token}
-        onChange={(e) => setToken(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && submit()}
-        placeholder={t("tools.auth.placeholder")}
-        className="h-8 min-w-0 flex-1 rounded-md border border-line-soft bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint focus:border-accent"
-      />
       <button
         type="button"
-        disabled={!token.trim()}
-        onClick={submit}
-        className={cn(
-          "h-8 shrink-0 rounded-md px-3 text-[12px] font-semibold transition-colors",
-          token.trim()
-            ? "bg-accent text-on-accent hover:opacity-90"
-            : "cursor-not-allowed bg-surface-2 text-fg-faint",
-        )}
+        onClick={openConfig}
+        className="inline-flex items-center gap-1.5 text-[12px] text-fg-muted hover:text-fg"
       >
-        {t("tools.auth.submit")}
+        <Icon name="settings" size={13} />
+        {t("tools.auth.configure", { server })}
       </button>
     </div>
   );
@@ -166,7 +146,7 @@ export function McpRow({ server }: { server: MCPServer }) {
       </div>
       {open &&
         (server.status === "needsAuth" ? (
-          <McpAuthForm server={server.id} />
+          <McpAuthGuide server={server.id} />
         ) : (
           <McpToolList server={server.id} />
         ))}

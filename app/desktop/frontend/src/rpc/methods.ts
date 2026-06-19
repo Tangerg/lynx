@@ -19,6 +19,7 @@ import type {
   CodePosition,
   CodeQuery,
   CompactionResult,
+  ConfigureMCPServerRequest,
   ConfigureProviderRequest,
   CreateSessionRequest,
   Diagnostic,
@@ -38,6 +39,8 @@ import type {
   InvokeToolRequest,
   ListItemsResponse,
   McpServer,
+  McpServerConfig,
+  McpTestResult,
   McpTool,
   MemoryEntry,
   MemoryScope,
@@ -195,13 +198,21 @@ export interface Methods {
       signal?: AbortSignal,
     ) => Promise<StreamingResult<Record<string, never>, WorkspaceEvent>>;
     mcp: {
+      // The editable registry (configure/remove/setEnabled) PLUS a best-effort
+      // live status folded into each entry. listServers is the lighter
+      // status-only view; listConfigs carries the full persisted config.
+      listConfigs: (query?: PageQuery) => Promise<Page<McpServerConfig>>;
+      // Upsert by name. authorization is the RAW token; omitted = keep the
+      // stored one. Returns the entry with the token re-masked.
+      configure: (params: ConfigureMCPServerRequest) => Promise<McpServerConfig>;
+      remove: (name: string) => Promise<void>;
+      setEnabled: (name: string, enabled: boolean) => Promise<void>;
+      // Dry-run connection probe (NOT persisted). A failed probe is
+      // `{ ok:false, error }`, never an RPC error (mirrors providers.test).
+      test: (params: ConfigureMCPServerRequest) => Promise<McpTestResult>;
       listServers: () => Promise<Page<McpServer>>;
       listTools: (server?: string) => Promise<Page<McpTool>>;
       reconnect: (server: string) => Promise<void>;
-      // Hand the backend a bearer token for a needsAuth server (B12). Async like
-      // reconnect — result arrives via the workspace.subscribe mcp.serverChanged push
-      // (connecting → connected|needsAuth|failed). Backend forwards, never stores.
-      authenticate: (params: { server: string; token: string }) => Promise<void>;
     };
     // Code intelligence (B7) — LSP-backed, read-only, gated features.codeIntel. Positions
     // 0-based / UTF-16 (LSP). No language server for the file type → no_language_server
@@ -336,11 +347,17 @@ export function createMethods(client: RpcClient): Methods {
         return { result, events: stream.events };
       },
       mcp: {
+        listConfigs: (query) =>
+          client.call<Page<McpServerConfig>>("workspace.mcp.listConfigs", query ?? {}),
+        configure: (params) => client.call<McpServerConfig>("workspace.mcp.configure", params),
+        remove: (name) => client.call<void>("workspace.mcp.remove", { name }),
+        setEnabled: (name, enabled) =>
+          client.call<void>("workspace.mcp.setEnabled", { name, enabled }),
+        test: (params) => client.call<McpTestResult>("workspace.mcp.test", params),
         listServers: () => client.call<Page<McpServer>>("workspace.mcp.listServers"),
         listTools: (server) =>
           client.call<Page<McpTool>>("workspace.mcp.listTools", server ? { server } : {}),
         reconnect: (server) => client.call<void>("workspace.mcp.reconnect", { server }),
-        authenticate: (params) => client.call<void>("workspace.mcp.authenticate", params),
       },
       code: {
         definition: (params) =>
