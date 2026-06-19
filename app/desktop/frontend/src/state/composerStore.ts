@@ -102,6 +102,22 @@ const persistSchema = z.object({
   drafts: z.record(z.string(), z.object({ value: z.string() })),
 });
 
+// Write `draft` to the active session in one shot — both the live mirror
+// (value/images, which existing `s.value` selectors read) and its archive
+// entry `drafts[activeSid]`. The "value/images === drafts[activeSid]"
+// invariant lives HERE, so every mutation that changes the draft routes
+// through it instead of re-spelling the spread (and risking a desync).
+function mirror(
+  s: Pick<ComposerState, "activeSid" | "drafts">,
+  draft: Draft,
+): Pick<ComposerState, "value" | "images" | "drafts"> {
+  return {
+    value: draft.value,
+    images: draft.images,
+    drafts: { ...s.drafts, [s.activeSid]: draft },
+  };
+}
+
 export const useComposerStore = create<ComposerState & ComposerActions>()(
   persist(
     (set, get) => {
@@ -120,27 +136,21 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
         history: {},
         histIndex: -1,
         histDraft: "",
+        // Editing (and clearing) exits history-recall mode (histIndex: -1).
         setValue: (value) =>
-          set((s) => ({
-            value,
-            histIndex: -1, // editing leaves history-recall mode
-            drafts: { ...s.drafts, [s.activeSid]: { value, images: s.images } },
-          })),
+          set((s) => ({ ...mirror(s, { value, images: s.images }), histIndex: -1 })),
         setModel: (provider, model) => set({ provider, model }),
         clear: () => {
           stagingGen++;
-          set((s) => ({
-            value: "",
-            images: [],
-            histIndex: -1,
-            drafts: { ...s.drafts, [s.activeSid]: emptyDraft() },
-          }));
+          set((s) => ({ ...mirror(s, emptyDraft()), histIndex: -1 }));
         },
         addImages: (imgs) =>
-          set((s) => {
-            const images = [...s.images, ...imgs.map((i) => ({ id: nanoid(), ...i }))];
-            return { images, drafts: { ...s.drafts, [s.activeSid]: { value: s.value, images } } };
-          }),
+          set((s) =>
+            mirror(s, {
+              value: s.value,
+              images: [...s.images, ...imgs.map((i) => ({ id: nanoid(), ...i }))],
+            }),
+          ),
         addImageFiles: (files) => {
           const gen = stagingGen;
           // allSettled, not all: one unreadable file must not discard the whole
@@ -157,10 +167,7 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
           });
         },
         removeImage: (id) =>
-          set((s) => {
-            const images = s.images.filter((i) => i.id !== id);
-            return { images, drafts: { ...s.drafts, [s.activeSid]: { value: s.value, images } } };
-          }),
+          set((s) => mirror(s, { value: s.value, images: s.images.filter((i) => i.id !== id) })),
         loadSession: (sid) =>
           set((s) => {
             if (sid === s.activeSid) return s;
@@ -200,12 +207,7 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
           const idx = s.histIndex === -1 ? 0 : Math.min(s.histIndex + 1, list.length - 1);
           const value = list[list.length - 1 - idx]!;
           const histDraft = s.histIndex === -1 ? s.value : s.histDraft;
-          set((st) => ({
-            value,
-            histIndex: idx,
-            histDraft,
-            drafts: { ...st.drafts, [st.activeSid]: { value, images: st.images } },
-          }));
+          set((st) => ({ ...mirror(st, { value, images: st.images }), histIndex: idx, histDraft }));
           return true;
         },
         historyNext: () => {
@@ -216,9 +218,8 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
           // Past the newest entry → restore the draft that recall began from.
           const value = idx < 0 ? s.histDraft : list[list.length - 1 - idx]!;
           set((st) => ({
-            value,
+            ...mirror(st, { value, images: st.images }),
             histIndex: idx < 0 ? -1 : idx,
-            drafts: { ...st.drafts, [st.activeSid]: { value, images: st.images } },
           }));
           return true;
         },
