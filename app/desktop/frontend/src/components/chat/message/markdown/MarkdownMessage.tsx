@@ -15,6 +15,7 @@ import { ensureKatexCss } from "@/lib/markdown/katexCss";
 import { measureMarkdownRepair } from "@/lib/metrics";
 import { rehypeCitations } from "@/lib/markdown/rehypeCitations";
 import { rehypeFadeIn } from "@/lib/markdown/rehypeFadeIn";
+import { rehypeFileRefs } from "@/lib/markdown/rehypeFileRefs";
 import { rehypeStreamCaret } from "@/lib/markdown/rehypeStreamCaret";
 import { useStreamReveal } from "@/lib/agent/streamReveal";
 import "remark-github-blockquote-alert/alert.css";
@@ -104,21 +105,28 @@ const MarkdownBlock = memo(function MarkdownBlock({ text, instant, streaming, ty
   }, [hasMath]);
 
   // Pipeline: rehypeRaw (parse inline HTML) → rehypeCitations (swap
-  // `[n]` markers for <sup> badges) → rehypeFadeIn (per-word streaming
-  // animation, non-instant only — CSS runs once per span mount, so
-  // settled blocks animate on first paint then stay inert) →
-  // rehypeKatex. rehypeRaw must come first so later plugins see the
+  // `[n]` markers for <sup> badges) → rehypeFileRefs (linkify file:line) →
+  // rehypeFadeIn (per-word streaming animation, non-instant only — CSS runs
+  // once per span mount, so settled blocks animate on first paint then stay
+  // inert) → rehypeKatex. rehypeRaw must come first so later plugins see the
   // expanded tree. Typewriter mode drops rehypeFadeIn — the char-by-char
   // reveal is the animation, a per-word fade on top would muddy it — and adds
   // a blinking accent caret on the streaming tail block instead.
+  //
+  // rehypeFileRefs runs only on a SETTLED block (never the streaming tail): a
+  // half-arrived path would flash as a link, and it must precede rehypeFadeIn
+  // so it sees whole text nodes, not per-word spans. Instant (user-typed)
+  // blocks are settled by definition, so they always linkify.
   const rehypePlugins = useMemo(() => {
-    if (instant) return [rehypeRaw, rehypeCitations, rehypeKatex];
+    if (instant) return [rehypeRaw, rehypeCitations, rehypeFileRefs, rehypeKatex];
     if (typewriter) {
       return streaming
         ? [rehypeRaw, rehypeCitations, rehypeKatex, rehypeStreamCaret]
-        : [rehypeRaw, rehypeCitations, rehypeKatex];
+        : [rehypeRaw, rehypeCitations, rehypeFileRefs, rehypeKatex];
     }
-    return [rehypeRaw, rehypeCitations, rehypeFadeIn, rehypeKatex];
+    return streaming
+      ? [rehypeRaw, rehypeCitations, rehypeFadeIn, rehypeKatex]
+      : [rehypeRaw, rehypeCitations, rehypeFileRefs, rehypeFadeIn, rehypeKatex];
   }, [instant, typewriter, streaming]);
 
   return (

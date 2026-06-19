@@ -2,6 +2,7 @@ import type { Components } from "react-markdown";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { useEffect, useRef } from "react";
 import { useCitations } from "../CitationContext";
+import { FileRefLink } from "../FileRefLink";
 import { HtmlArtifact } from "./HtmlArtifact";
 import { MermaidBlock } from "./MermaidBlock";
 import { ShikiCodeBlock } from "./ShikiCodeBlock";
@@ -104,7 +105,14 @@ export const markdownComponents: Components = {
       </div>
     );
   },
-  a({ href, title, children }) {
+  a({ href, title, children, ...rest }) {
+    // A `data-file-ref` anchor is emitted by rehypeFileRefs (not a real link) —
+    // render it as a FileRefLink that opens the file viewer instead of
+    // navigating. `data-file-line` is "0" / absent when no line was parsed.
+    const r = rest as { "data-file-ref"?: string; "data-file-line"?: string };
+    if (r["data-file-ref"]) {
+      return <FileRefLink path={r["data-file-ref"]} line={Number(r["data-file-line"]) || 0} />;
+    }
     // Forward only real anchor attrs (href/title); the rest carries the hast
     // `node`, which must not reach the DOM.
     return (
