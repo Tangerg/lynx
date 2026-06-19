@@ -3,7 +3,6 @@ package runtime
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/planning"
@@ -28,7 +27,7 @@ func (p *AgentProcess) Snapshot() core.ProcessSnapshot {
 		ID:                   p.ID(),
 		ParentID:             p.ParentID(),
 		StartedAt:            p.StartedAt(),
-		CapturedAt:           time.Now(),
+		CapturedAt:           core.Now(),
 		Status:               p.Status(),
 		LastWorld:            p.LastWorldState(),
 		LLMInvocations:       p.LLMInvocations(),

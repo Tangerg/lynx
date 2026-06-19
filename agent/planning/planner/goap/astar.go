@@ -365,10 +365,10 @@ func (s *search) goalReachable() bool {
 
 // backwardOptimize walks the plan in reverse, keeping only actions whose
 // effects contribute to a still-needed condition. Tracks a "needed" set
-// initialized from goal preconditions not yet satisfied at start; for each
-// action, each action is checked for whether it establishes any needed
-// condition; actions that contribute nothing are dropped and the needed set
-// not, and otherwise update needed to (needed - effects) ∪ preconditions.
+// initialized from goal preconditions not yet satisfied at start; each
+// action that establishes a still-needed condition updates needed to
+// (needed - effects) ∪ preconditions, while actions that contribute
+// nothing are dropped.
 //
 // This catches plans where A* picked a redundant action that happens to
 // have a low-cost path through it but doesn't actually produce anything

@@ -174,7 +174,7 @@ func DerivedTypeKey(v any) string {
 }
 
 // InspectBlackboard helps custom Blackboard implementations format consistent
-// debug strings. Exposed as a helper because the runtime uses it for tests.
+// debug strings; the in-memory blackboard's Inspect delegates to it.
 func InspectBlackboard(bb BlackboardReader, verbose bool) string {
 	if bb == nil {
 		return "<nil blackboard>"
