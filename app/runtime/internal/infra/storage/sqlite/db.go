@@ -112,6 +112,23 @@ func migrate(db *sql.DB) error {
 			api_key   TEXT NOT NULL DEFAULT '',
 			base_url  TEXT NOT NULL DEFAULT ''
 		)`,
+		// MCP-server registry (workspace.mcp.configure). One row per server
+		// name; the []string columns (args/env/disabled_tools/auto_approve_tools)
+		// are JSON. transport is "stdio" | "http".
+		`CREATE TABLE IF NOT EXISTS mcp_servers (
+			name               TEXT    PRIMARY KEY,
+			transport          TEXT    NOT NULL,
+			enabled            INTEGER NOT NULL DEFAULT 1,
+			description        TEXT    NOT NULL DEFAULT '',
+			url                TEXT    NOT NULL DEFAULT '',
+			authorization      TEXT    NOT NULL DEFAULT '',
+			command            TEXT    NOT NULL DEFAULT '',
+			args               TEXT    NOT NULL DEFAULT '',
+			env                TEXT    NOT NULL DEFAULT '',
+			dir                TEXT    NOT NULL DEFAULT '',
+			disabled_tools     TEXT    NOT NULL DEFAULT '',
+			auto_approve_tools TEXT    NOT NULL DEFAULT ''
+		)`,
 		`CREATE TABLE IF NOT EXISTS messages (
 			seq             INTEGER PRIMARY KEY AUTOINCREMENT,
 			conversation_id TEXT    NOT NULL,
