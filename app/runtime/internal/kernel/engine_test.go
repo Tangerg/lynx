@@ -532,7 +532,7 @@ func TestEngine_RunChat_NoSessionIDDoesNotPersist(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		if _, err := eng.RunChat(context.Background(), RunChatRequest{
 			Message: "hello",
 		}); err != nil {

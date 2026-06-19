@@ -39,7 +39,7 @@ func TestCompactor_Compacts(t *testing.T) {
 	store := memory.NewInMemoryStore()
 	const sessID = "sess-compact"
 	const total = 20
-	for i := 0; i < total; i++ {
+	for range total {
 		_ = store.Write(context.Background(), sessID, chat.NewUserMessage("msg"))
 	}
 
