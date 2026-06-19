@@ -41,7 +41,6 @@ describe("reducer — run.progress (mid-run live readout)", () => {
       activity: "calling tool: ls -la",
       cost: "0.01",
     });
-    expect(s.run.tokens.used).toBe("1280");
   });
 
   it("run.finished totals are authoritative over the last progress preview", () => {
@@ -57,7 +56,6 @@ describe("reducer — run.progress (mid-run live readout)", () => {
     );
     expect(s.run.running).toBe(false);
     expect(s.run.step).toBe(3);
-    expect(s.run.tokens.used).toBe("1280");
     expect(s.run.cost).toBe("0.50");
   });
 

@@ -1,6 +1,5 @@
 // Built-in plugins: status contributors.
 //
-// `statusBar` is the persistent app-bottom runtime data row (its own file).
 // `statusNotifications` is the unread-count badge that lives in the
 // sidebar footer (avatar row) and opens the Notifications view on click.
 
@@ -9,7 +8,6 @@ import { useT } from "@/lib/i18n";
 import { definePlugin, useNotificationStore } from "@/plugins/sdk";
 import { useSessionStore } from "@/state/sessionStore";
 
-export { statusBar } from "./statusbar";
 export { completionNotify } from "./completionNotify";
 export { windowTitle } from "./windowTitle";
 

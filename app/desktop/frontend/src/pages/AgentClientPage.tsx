@@ -35,12 +35,6 @@ export function AgentClientPage() {
           <Slot name="app.main" />
         </main>
       </div>
-      {/* Full-width chrome row below the cards. `contents` keeps the footer
-          transparent to the grid; the wrapper Slot renders the `.statusbar`
-          div that actually occupies the bottom track. */}
-      <footer aria-label="Status bar" className="contents">
-        <Slot name="app.statusbar" wrapper className="statusbar" />
-      </footer>
       <Slot name="app.overlay" />
     </div>
   );

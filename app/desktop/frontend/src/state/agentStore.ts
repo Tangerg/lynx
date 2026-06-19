@@ -353,18 +353,6 @@ export function useAgentRunId(): string | null {
   return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).run.runId);
 }
 
-/** Token usage for the active run ({ used, total }). */
-export function useAgentRunTokens(): { used: string; total: string } {
-  const sid = useSessionStore((s) => s.activeSessionId);
-  return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).run.tokens);
-}
-
-/** Context-fill percentage for the active run (0–100). */
-export function useAgentRunCtxPct(): number {
-  const sid = useSessionStore((s) => s.activeSessionId);
-  return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).run.ctxPct);
-}
-
 /** The active session's plan items. */
 export function useAgentPlan(): PlanItem[] {
   const sid = useSessionStore((s) => s.activeSessionId);

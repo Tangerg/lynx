@@ -225,8 +225,6 @@ export interface RunState {
   step: number;
   totalSteps: number;
   activity: string;
-  tokens: { used: string; total: string };
-  ctxPct: number;
   cost: string;
 }
 
@@ -309,8 +307,6 @@ export const INITIAL_VIEW_STATE: AgentViewState = {
     step: 0,
     totalSteps: 0,
     activity: "",
-    tokens: { used: "0", total: "0" },
-    ctxPct: 0,
     cost: "0.00",
   },
   error: null,
