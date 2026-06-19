@@ -82,7 +82,7 @@ func TestRunInScope_ReusesSyntheticAgent(t *testing.T) {
 		Name:   "scope:reuse",
 		Agents: []*core.Agent{scopeAgentA(), scopeAgentB()},
 	}
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		if _, err := platform.RunInScope(
 			context.Background(), cfg,
 			map[string]any{core.DefaultBindingName: scopeRaw{Text: "ab"}},
