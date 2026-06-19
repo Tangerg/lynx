@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
 // workspace.mcp.* — MCP is runtime-global, so these take no cwd (API.md §7.5).
@@ -124,4 +125,148 @@ func (s *Server) mcpServerChangedEvent(ctx context.Context, server string) proto
 		break
 	}
 	return ev
+}
+
+// workspace.mcp registry CRUD — the editable configuration the settings pane
+// drives. listConfigs returns the registry (with the bearer token masked and
+// the best-effort live status); configure/remove/setEnabled persist + apply to
+// the live connections (then publish mcp.serverChanged so the status view
+// updates); test probes a candidate config without persisting.
+
+// WorkspaceMCPListConfigs returns every registered MCP server's editable
+// configuration, each annotated with its best-effort live connection status.
+func (s *Server) WorkspaceMCPListConfigs(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.McpServerConfig], error) {
+	servers, err := s.rt.MCPRegistry().List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]protocol.McpServerConfig, 0, len(servers))
+	for _, srv := range servers {
+		out = append(out, s.mcpConfigWire(ctx, srv))
+	}
+	return protocol.NewPage(out), nil
+}
+
+// WorkspaceMCPConfigure upserts a server in the registry and applies it to the
+// live connections, returning the stored configuration (token masked). A blank
+// Authorization preserves the existing server's token (see the request doc).
+func (s *Server) WorkspaceMCPConfigure(ctx context.Context, in protocol.ConfigureMCPServerRequest) (*protocol.McpServerConfig, error) {
+	if in.Name == "" {
+		return nil, protocol.ErrInvalidParams
+	}
+	srv := s.mcpServerFromRequest(ctx, in)
+	if err := srv.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
+	}
+	if err := s.rt.ConfigureMCPServer(ctx, srv); err != nil {
+		return nil, err
+	}
+	s.PublishWorkspaceEvent(s.mcpServerChangedEvent(ctx, in.Name))
+	out := s.mcpConfigWire(ctx, srv)
+	return &out, nil
+}
+
+// WorkspaceMCPRemove deletes a server from the registry + the live set. The
+// follow-up mcp.serverChanged frame omits status (entry no longer exists).
+func (s *Server) WorkspaceMCPRemove(ctx context.Context, name string) error {
+	if name == "" {
+		return protocol.ErrInvalidParams
+	}
+	if err := s.rt.RemoveMCPServer(ctx, name); err != nil {
+		return err
+	}
+	s.PublishWorkspaceEvent(s.mcpServerChangedEvent(ctx, name))
+	return nil
+}
+
+// WorkspaceMCPSetEnabled flips a server's enablement (enable → dial, disable →
+// drop from the live set) and publishes the resulting status.
+func (s *Server) WorkspaceMCPSetEnabled(ctx context.Context, in protocol.SetMCPEnabledRequest) error {
+	if in.Name == "" {
+		return protocol.ErrInvalidParams
+	}
+	if err := s.rt.SetMCPServerEnabled(ctx, in.Name, in.Enabled); err != nil {
+		return err
+	}
+	s.PublishWorkspaceEvent(s.mcpServerChangedEvent(ctx, in.Name))
+	return nil
+}
+
+// WorkspaceMCPTest probes a candidate configuration (a throwaway dial + tools
+// list) without persisting — the connection-test button. A blank Authorization
+// reuses the stored token, so testing an edit needn't re-enter the secret.
+func (s *Server) WorkspaceMCPTest(ctx context.Context, in protocol.ConfigureMCPServerRequest) (*protocol.McpTestResult, error) {
+	srv := s.mcpServerFromRequest(ctx, in)
+	if err := srv.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
+	}
+	if err := s.rt.TestMCPServer(ctx, srv); err != nil {
+		return &protocol.McpTestResult{OK: false, Error: mcpDialFailedProblem(err)}, nil
+	}
+	return &protocol.McpTestResult{OK: true}, nil
+}
+
+// mcpServerFromRequest maps a configure/test request to a registry entry,
+// preserving the existing stored token when Authorization is blank.
+func (s *Server) mcpServerFromRequest(ctx context.Context, in protocol.ConfigureMCPServerRequest) mcpserver.Server {
+	auth := in.Authorization
+	if auth == "" {
+		if cur, ok, err := s.rt.MCPRegistry().Get(ctx, in.Name); err == nil && ok {
+			auth = cur.Authorization
+		}
+	}
+	return mcpserver.Server{
+		Name:             in.Name,
+		Transport:        in.Transport,
+		Enabled:          in.Enabled,
+		Description:      in.Description,
+		URL:              in.URL,
+		Authorization:    auth,
+		Command:          in.Command,
+		Args:             in.Args,
+		Env:              in.Env,
+		Dir:              in.Dir,
+		DisabledTools:    in.DisabledTools,
+		AutoApproveTools: in.AutoApproveTools,
+	}
+}
+
+// mcpConfigWire projects a registry entry to the wire (token masked) and
+// annotates it with the best-effort live connection status (only meaningful for
+// an enabled, dialed server).
+func (s *Server) mcpConfigWire(ctx context.Context, srv mcpserver.Server) protocol.McpServerConfig {
+	out := protocol.McpServerConfig{
+		Name:                srv.Name,
+		Transport:           srv.Transport,
+		Enabled:             srv.Enabled,
+		Description:         srv.Description,
+		URL:                 srv.URL,
+		AuthorizationMasked: srv.MaskedAuthorization(),
+		Command:             srv.Command,
+		Args:                srv.Args,
+		Env:                 srv.Env,
+		Dir:                 srv.Dir,
+		DisabledTools:       srv.DisabledTools,
+		AutoApproveTools:    srv.AutoApproveTools,
+	}
+	if !srv.Enabled {
+		return out
+	}
+	for _, st := range s.rt.MCPServerStatuses() {
+		if st.Name != srv.Name {
+			continue
+		}
+		out.Status = protocol.McpStatus(st.Status)
+		switch st.Status {
+		case "connected":
+			if tools, err := s.rt.MCPTools(ctx, srv.Name); err == nil {
+				count := len(tools)
+				out.ToolCount = &count
+			}
+		case "failed":
+			out.Error = mcpDialFailedProblem(st.Err)
+		}
+		break
+	}
+	return out
 }

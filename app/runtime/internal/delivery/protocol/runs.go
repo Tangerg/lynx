@@ -57,10 +57,10 @@ const (
 //
 // The two are never reused for each other's meaning.
 type RunRef struct {
-	ID              string      `json:"id"`
-	SessionID       string      `json:"sessionId"`
-	SpawnedByItemID string      `json:"spawnedByItemId,omitempty"`
-	ParentRunID     string      `json:"parentRunId,omitempty"`
+	ID              string `json:"id"`
+	SessionID       string `json:"sessionId"`
+	SpawnedByItemID string `json:"spawnedByItemId,omitempty"`
+	ParentRunID     string `json:"parentRunId,omitempty"`
 	// Model is the model id this run ran against (Model.id); empty means the
 	// run used the runtime default (surfaced via Session.model).
 	Model      string      `json:"model,omitempty"`
@@ -116,11 +116,11 @@ type RunResult struct {
 // runId (idempotency is the X-Idempotency-Key header); no cwd (resolved
 // from the session).
 type StartRunRequest struct {
-	SessionID   string         `json:"sessionId"`
-	Input       []ContentBlock `json:"input"`
-	Context     []ContextItem  `json:"context,omitempty"`
-	Tools       []ToolSpec     `json:"tools,omitempty"`
-	State       map[string]any `json:"state,omitempty"`
+	SessionID string         `json:"sessionId"`
+	Input     []ContentBlock `json:"input"`
+	Context   []ContextItem  `json:"context,omitempty"`
+	Tools     []ToolSpec     `json:"tools,omitempty"`
+	State     map[string]any `json:"state,omitempty"`
 	// Provider + Model select the model for this run. They are paired: send
 	// both to pick a model, or neither to use the runtime's default. Sending
 	// one without the other is invalid_params — the provider is explicit,

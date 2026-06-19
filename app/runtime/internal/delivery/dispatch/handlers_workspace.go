@@ -112,6 +112,53 @@ func (d *Dispatcher) handleWorkspaceMCPReconnect(ctx context.Context, msg *trans
 	return replyDone(msg, d.api.WorkspaceMCPReconnect(ctx, server))
 }
 
+func (d *Dispatcher) handleWorkspaceMCPListConfigs(ctx context.Context, msg *transport.Request) HandleResult {
+	var q protocol.PageQuery
+	_ = unmarshal(msg.Params, &q)
+	out, err := d.api.WorkspaceMCPListConfigs(ctx, q)
+	return reply(msg, out, err)
+}
+
+func (d *Dispatcher) handleWorkspaceMCPConfigure(ctx context.Context, msg *transport.Request) HandleResult {
+	in, bad := decode[protocol.ConfigureMCPServerRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
+	if in.Name == "" {
+		return responseError(msg.ID, invalidParams("name is required"))
+	}
+	out, err := d.api.WorkspaceMCPConfigure(ctx, in)
+	return reply(msg, out, err)
+}
+
+func (d *Dispatcher) handleWorkspaceMCPRemove(ctx context.Context, msg *transport.Request) HandleResult {
+	name, err := decodeStringParam(msg.Params, "name")
+	if err != nil {
+		return responseError(msg.ID, invalidParams(err.Error()))
+	}
+	return replyDone(msg, d.api.WorkspaceMCPRemove(ctx, name))
+}
+
+func (d *Dispatcher) handleWorkspaceMCPSetEnabled(ctx context.Context, msg *transport.Request) HandleResult {
+	in, bad := decode[protocol.SetMCPEnabledRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
+	if in.Name == "" {
+		return responseError(msg.ID, invalidParams("name is required"))
+	}
+	return replyDone(msg, d.api.WorkspaceMCPSetEnabled(ctx, in))
+}
+
+func (d *Dispatcher) handleWorkspaceMCPTest(ctx context.Context, msg *transport.Request) HandleResult {
+	in, bad := decode[protocol.ConfigureMCPServerRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
+	out, err := d.api.WorkspaceMCPTest(ctx, in)
+	return reply(msg, out, err)
+}
+
 // handleWorkspaceSubscribe opens the workspace event stream (AUX_API §3.1) and
 // adapts its WorkspaceEvents into ephemeral StreamFrames.
 func (d *Dispatcher) handleWorkspaceSubscribe(ctx context.Context, msg *transport.Request) HandleResult {

@@ -146,6 +146,11 @@ var methodTable = map[string]methodHandler{
 	MethodWorkspaceMCPListServers:  (*Dispatcher).handleWorkspaceMCPListServers,
 	MethodWorkspaceMCPListTools:    (*Dispatcher).handleWorkspaceMCPListTools,
 	MethodWorkspaceMCPReconnect:    (*Dispatcher).handleWorkspaceMCPReconnect,
+	MethodWorkspaceMCPListConfigs:  (*Dispatcher).handleWorkspaceMCPListConfigs,
+	MethodWorkspaceMCPConfigure:    (*Dispatcher).handleWorkspaceMCPConfigure,
+	MethodWorkspaceMCPRemove:       (*Dispatcher).handleWorkspaceMCPRemove,
+	MethodWorkspaceMCPSetEnabled:   (*Dispatcher).handleWorkspaceMCPSetEnabled,
+	MethodWorkspaceMCPTest:         (*Dispatcher).handleWorkspaceMCPTest,
 	MethodWorkspaceSubscribe:       (*Dispatcher).handleWorkspaceSubscribe,
 
 	// Approval.

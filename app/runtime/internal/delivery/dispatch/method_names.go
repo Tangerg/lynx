@@ -62,6 +62,11 @@ const (
 	MethodWorkspaceMCPListServers  = "workspace.mcp.listServers"
 	MethodWorkspaceMCPListTools    = "workspace.mcp.listTools"
 	MethodWorkspaceMCPReconnect    = "workspace.mcp.reconnect"
+	MethodWorkspaceMCPListConfigs  = "workspace.mcp.listConfigs"
+	MethodWorkspaceMCPConfigure    = "workspace.mcp.configure"
+	MethodWorkspaceMCPRemove       = "workspace.mcp.remove"
+	MethodWorkspaceMCPSetEnabled   = "workspace.mcp.setEnabled"
+	MethodWorkspaceMCPTest         = "workspace.mcp.test"
 	MethodWorkspaceSubscribe       = "workspace.subscribe"
 
 	// Approval (API.md §C.3) — runtime-global tool-permission stance + the
@@ -80,9 +85,9 @@ const (
 	MethodToolsInvoke        = "tools.invoke"
 
 	// Memory / Feedback (API.md §7.7).
-	MethodMemoryList   = "memory.list"
-	MethodMemoryGet    = "memory.get"
-	MethodMemoryUpdate = "memory.update"
+	MethodMemoryList     = "memory.list"
+	MethodMemoryGet      = "memory.get"
+	MethodMemoryUpdate   = "memory.update"
 	MethodFeedbackCreate = "feedback.create"
 
 	// Notifications (API.md §7.8). notifications.canceled is

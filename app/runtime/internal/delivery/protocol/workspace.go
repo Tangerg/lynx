@@ -18,6 +18,13 @@ type Workspace interface {
 	WorkspaceMCPListServers(ctx context.Context, q PageQuery) (*Page[McpServer], error)
 	WorkspaceMCPListTools(ctx context.Context, in MCPListToolsRequest) (*Page[McpTool], error)
 	WorkspaceMCPReconnect(ctx context.Context, server string) error
+	// MCP-server registry CRUD (the editable configuration the settings pane
+	// drives, distinct from the read-only listServers status).
+	WorkspaceMCPListConfigs(ctx context.Context, q PageQuery) (*Page[McpServerConfig], error)
+	WorkspaceMCPConfigure(ctx context.Context, in ConfigureMCPServerRequest) (*McpServerConfig, error)
+	WorkspaceMCPRemove(ctx context.Context, name string) error
+	WorkspaceMCPSetEnabled(ctx context.Context, in SetMCPEnabledRequest) error
+	WorkspaceMCPTest(ctx context.Context, in ConfigureMCPServerRequest) (*McpTestResult, error)
 	// WorkspaceSubscribe opens the non-run workspace event stream (AUX_API §3):
 	// files/skills/mcp changes. Returns an ack + the event channel, closed when
 	// the request ctx ends. Streaming method (in streamingMethods).
@@ -340,4 +347,60 @@ type McpTool struct {
 	Name        string         `json:"name"`
 	Description string         `json:"description,omitempty"`
 	InputSchema map[string]any `json:"inputSchema,omitempty"`
+}
+
+// McpServerConfig is one entry in the MCP-server registry — the editable
+// configuration (workspace.mcp.listConfigs / configure), distinct from McpServer
+// (the live status from listServers). The bearer token is returned masked;
+// Status / ToolCount / Error are the best-effort live state, present when the
+// server is enabled and has been dialed.
+type McpServerConfig struct {
+	Name                string       `json:"name"`
+	Transport           string       `json:"transport"` // "stdio" | "http"
+	Enabled             bool         `json:"enabled"`
+	Description         string       `json:"description,omitempty"`
+	URL                 string       `json:"url,omitempty"`                 // http transport
+	AuthorizationMasked string       `json:"authorizationMasked,omitempty"` // http; "" = none
+	Command             string       `json:"command,omitempty"`             // stdio transport
+	Args                []string     `json:"args,omitempty"`
+	Env                 []string     `json:"env,omitempty"` // KEY=value, replaces subprocess env
+	Dir                 string       `json:"dir,omitempty"`
+	DisabledTools       []string     `json:"disabledTools,omitempty"`    // hidden from the model
+	AutoApproveTools    []string     `json:"autoApproveTools,omitempty"` // skip the approval gate
+	Status              McpStatus    `json:"status,omitempty"`           // live, when enabled+dialed
+	ToolCount           *int         `json:"toolCount,omitempty"`
+	Error               *ProblemData `json:"error,omitempty"`
+}
+
+// ConfigureMCPServerRequest — workspace.mcp.configure / test body (the editable
+// fields of McpServerConfig). Authorization is the RAW bearer token (http only);
+// an empty Authorization when (re)configuring or testing an EXISTING server
+// preserves its stored token, so editing other fields needn't re-enter the
+// secret — clear a token by removing the server, not by blanking it.
+type ConfigureMCPServerRequest struct {
+	Name             string   `json:"name"`
+	Transport        string   `json:"transport"`
+	Enabled          bool     `json:"enabled"`
+	Description      string   `json:"description,omitempty"`
+	URL              string   `json:"url,omitempty"`
+	Authorization    string   `json:"authorization,omitempty"`
+	Command          string   `json:"command,omitempty"`
+	Args             []string `json:"args,omitempty"`
+	Env              []string `json:"env,omitempty"`
+	Dir              string   `json:"dir,omitempty"`
+	DisabledTools    []string `json:"disabledTools,omitempty"`
+	AutoApproveTools []string `json:"autoApproveTools,omitempty"`
+}
+
+// SetMCPEnabledRequest — workspace.mcp.setEnabled body.
+type SetMCPEnabledRequest struct {
+	Name    string `json:"name"`
+	Enabled bool   `json:"enabled"`
+}
+
+// McpTestResult — workspace.mcp.test result (a connection probe; mirrors
+// ProviderTestResult).
+type McpTestResult struct {
+	OK    bool         `json:"ok"`
+	Error *ProblemData `json:"error,omitempty"`
 }
