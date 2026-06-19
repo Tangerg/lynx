@@ -1,6 +1,7 @@
 import type { Highlighter } from "shiki";
 import type { DiffRow } from "@/lib/data/queries";
 import { useEffect, useMemo, useState } from "react";
+import { intraLineDiff } from "@/lib/diff/intraLineDiff";
 import { getHighlighter } from "@/lib/markdown/shiki";
 import { cn } from "@/lib/utils";
 import { resolveScheme } from "@/plugins/sdk";
@@ -29,11 +30,51 @@ const ROW_STYLE: Record<
   context: { tone: "", meta: "text-fg-faint", sign: " " },
 };
 
-// Strip Shiki's <pre><code>…</code></pre> wrapper so the inner token spans
-// can be injected inline into our grid row.
-function highlightInline(h: Highlighter, code: string, theme: string): string {
-  const html = h.codeToHtml(code || " ", { lang: "typescript", theme });
+// Word-level change tint — semi-transparent so the syntax foreground shows
+// through. Applied to the exact changed sub-range of a replaced line (T2.2).
+const WD_DEL_STYLE = "background-color:rgba(243,114,127,0.3);border-radius:2px";
+const WD_ADD_STYLE = "background-color:rgba(30,215,96,0.3);border-radius:2px";
+
+type WordDecoration = { start: number; end: number; properties: { style: string } };
+
+// Strip Shiki's <pre><code>…</code></pre> wrapper so the inner token spans can
+// be injected inline into our grid row. `decorations` wrap the changed
+// sub-range; Shiki splits the syntax token spans at the range bounds so the
+// word tint composites over the syntax colours rather than replacing them.
+function highlightInline(
+  h: Highlighter,
+  code: string,
+  theme: string,
+  decorations: WordDecoration[],
+): string {
+  const html = h.codeToHtml(code || " ", { lang: "typescript", theme, decorations });
   return html.match(/<code[^>]*>([\s\S]*)<\/code>/)?.[1] ?? code;
+}
+
+// Map each replaced line to its changed sub-range (word-level diff). Walks the
+// flat rows pairing a run of deletes with the following run of adds
+// row-for-row (the common edit shape); unpaired overflow lines get no mark.
+function computeWordRanges(rows: DiffRow[]): Map<DiffRow, [number, number]> {
+  const ranges = new Map<DiffRow, [number, number]>();
+  let dels: Extract<DiffRow, { type: "deleted" }>[] = [];
+  let adds: Extract<DiffRow, { type: "added" }>[] = [];
+  const flush = () => {
+    const n = Math.min(dels.length, adds.length);
+    for (let i = 0; i < n; i++) {
+      const { del, add } = intraLineDiff(dels[i]!.code, adds[i]!.code);
+      if (del) ranges.set(dels[i]!, del);
+      if (add) ranges.set(adds[i]!, add);
+    }
+    dels = [];
+    adds = [];
+  };
+  for (const row of rows) {
+    if (row.type === "deleted") dels.push(row);
+    else if (row.type === "added") adds.push(row);
+    else flush(); // hunk / context ends the run
+  }
+  flush();
+  return ranges;
 }
 
 // The code cell — Shiki-highlighted token spans when ready, else the plain
@@ -63,15 +104,21 @@ export function DiffView({ rows, layout = "unified" }: { rows: DiffRow[]; layout
     };
   }, []);
 
+  const wordRanges = useMemo(() => computeWordRanges(rows), [rows]);
   const highlighted = useMemo(() => {
     if (!highlighter) return null;
-    const out = new Map<string, string>();
+    const out = new Map<DiffRow, string>();
     for (const row of rows) {
-      if (row.type !== "hunk")
-        out.set(row.code, highlightInline(highlighter, row.code, shikiTheme));
+      if (row.type === "hunk") continue;
+      const range = wordRanges.get(row);
+      const style =
+        row.type === "deleted" ? WD_DEL_STYLE : row.type === "added" ? WD_ADD_STYLE : "";
+      const decorations: WordDecoration[] =
+        range && style ? [{ start: range[0], end: range[1], properties: { style } }] : [];
+      out.set(row, highlightInline(highlighter, row.code, shikiTheme, decorations));
     }
     return out;
-  }, [highlighter, rows, shikiTheme]);
+  }, [highlighter, rows, shikiTheme, wordRanges]);
 
   if (layout === "split") {
     return <SplitDiff rows={rows} highlighted={highlighted} />;
@@ -90,7 +137,7 @@ export function DiffView({ rows, layout = "unified" }: { rows: DiffRow[]; layout
             <span className={cn("text-center text-[11px] select-none", style.meta)}>
               {style.sign}
             </span>
-            <CodeCell code={row.code} html={highlighted?.get(row.code)} />
+            <CodeCell code={row.code} html={highlighted?.get(row)} />
           </div>
         );
       })}
@@ -154,7 +201,7 @@ function SplitDiff({
   highlighted,
 }: {
   rows: DiffRow[];
-  highlighted: Map<string, string> | null;
+  highlighted: Map<DiffRow, string> | null;
 }) {
   const split = useMemo(() => toSplitRows(rows), [rows]);
   return (
@@ -179,7 +226,7 @@ function DiffSide({
 }: {
   row: Half;
   side: "left" | "right";
-  highlighted: Map<string, string> | null;
+  highlighted: Map<DiffRow, string> | null;
 }) {
   // Absent counterpart — a faint "no line here" fill so the eye reads the row
   // as one-sided rather than as an edit to a blank line.
@@ -200,7 +247,7 @@ function DiffSide({
     <div className={cn("grid grid-cols-[34px_16px_minmax(0,1fr)] gap-1.5 px-3", style.tone)}>
       <span className={cn("text-right text-[11px] select-none", style.meta)}>{lnum}</span>
       <span className={cn("text-center text-[11px] select-none", style.meta)}>{sign}</span>
-      <CodeCell code={row.code} html={highlighted?.get(row.code)} />
+      <CodeCell code={row.code} html={highlighted?.get(row)} />
     </div>
   );
 }
