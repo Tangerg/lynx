@@ -8,8 +8,6 @@ import (
 	sdka2a "github.com/a2aproject/a2a-go/v2/a2a"
 )
 
-// userMessage builds an A2A user message carrying a single text part — the
-// shape a caller sends when delegating to a remote agent.
 func userMessage(text string) *sdka2a.Message {
 	return sdka2a.NewMessage(sdka2a.MessageRoleUser, sdka2a.NewTextPart(text))
 }

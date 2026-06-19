@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// Agent is the the framework-side capability exposed over A2A. It is intentionally
+// Agent is the lynx-side capability exposed over A2A. It is intentionally
 // narrow — text in, streamed text out — so the consumer (an agent
 // runtime) implements it without this package depending on those layers.
 // The interface lives here, in the consumer, per the convention: the
