@@ -71,18 +71,22 @@ function BashPreview({ tool, onOpenView }: ToolPreviewProps) {
   );
 }
 
-function DiffPreview({ onOpenView }: ToolPreviewProps) {
+function DiffPreview({ tool, onOpenView }: ToolPreviewProps) {
   // Whole-worktree diff of the active session's cwd (the tool ran there);
-  // never called without git.
+  // never called without git. Hooks run unconditionally; the source is chosen
+  // below.
   const gitEnabled = useServerFeature("git");
   const cwd = useActiveSessionCwd();
   const { data } = useDiff(gitEnabled ? { cwd } : undefined);
-  // Flatten per-file diffs for the glance view — each file's path becomes a
-  // hunk-style separator row so MAX_DIFF_ROWS stays one simple slice.
-  const rows = (data?.files ?? []).flatMap((f) => [
-    { type: "hunk" as const, text: f.path },
-    ...f.rows,
-  ]);
+  // Prefer THIS edit's call-scoped patch (FileEdit.diff, §12.1 C) — exactly
+  // what the edit changed. Fall back to the whole-worktree diff for a `write`
+  // (no call-scoped diff) or until the completed item carries one; each file's
+  // path becomes a hunk-style separator row so MAX_DIFF_ROWS stays one slice.
+  const callScoped = tool.diff;
+  const rows = callScoped
+    ? callScoped
+    : (data?.files ?? []).flatMap((f) => [{ type: "hunk" as const, text: f.path }, ...f.rows]);
+  const truncated = callScoped ? false : Boolean(data?.truncated);
   const hiddenRows = rows.length - MAX_DIFF_ROWS;
   return (
     <div className={PREVIEW_WRAP}>
@@ -105,10 +109,10 @@ function DiffPreview({ onOpenView }: ToolPreviewProps) {
             </div>
           );
         })}
-        {(hiddenRows > 0 || data?.truncated) && (
+        {(hiddenRows > 0 || truncated) && (
           <div className="text-fg-faint">
             {hiddenRows > 0 && `… ${hiddenRows} more rows`}
-            {data?.truncated && " · truncated by runtime"}
+            {truncated && " · truncated by runtime"}
           </div>
         )}
       </div>
