@@ -30,6 +30,15 @@ import (
 // connections without importing the lynx mcp module directly.
 type ServerConfig = lynxmcp.ServerConfig
 
+// Transport and its values are re-exported alongside ServerConfig so the
+// composition layer builds configs without importing the lynx mcp module.
+type Transport = lynxmcp.Transport
+
+const (
+	TransportHTTP  = lynxmcp.TransportHTTP
+	TransportStdio = lynxmcp.TransportStdio
+)
+
 // ErrUnknownServer is returned by [Connections.Reconnect] for a name that was
 // never configured — the delivery layer maps it to invalid_params.
 var ErrUnknownServer = errors.New("mcp: unknown server")
@@ -111,8 +120,11 @@ func (c *Connections) SetToolSink(sink func([]chat.Tool)) { c.onTools = sink }
 // FATAL (validated before any dial); a reachability failure is TOLERATED
 // (recorded "failed" and skipped). An empty config yields a nil Connections.
 func Dial(ctx context.Context, servers []ServerConfig) (*Connections, []chat.Tool, error) {
+	// Always carry a client, even with zero servers: the registry starts empty
+	// and the common path is a 0-server boot followed by a runtime Configure,
+	// which re-dials with this client.
 	if len(servers) == 0 {
-		return &Connections{}, nil, nil
+		return &Connections{client: newClient()}, nil, nil
 	}
 
 	// Validate config before dialing: duplicate names collide tool prefixes and
@@ -131,8 +143,8 @@ func Dial(ctx context.Context, servers []ServerConfig) (*Connections, []chat.Too
 
 	// One client identity for every server — none of lyra's connections need
 	// per-server handlers (sampling / list-changed), so they share it. Retained
-	// so Reconnect can re-dial with it.
-	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "runtime", Version: "v0.1.0"}, nil)
+	// so Reconnect / Configure can re-dial with it.
+	client := newClient()
 	c := &Connections{client: client}
 
 	ctx, span := tracer.Start(ctx, "mcp.dial_servers",
@@ -404,6 +416,12 @@ func Probe(ctx context.Context, cfg ServerConfig) error {
 		return err
 	}
 	return nil
+}
+
+// newClient builds the shared MCP client identity used for every server's
+// session (and re-dials). No per-server handlers are needed, so one suffices.
+func newClient() *sdkmcp.Client {
+	return sdkmcp.NewClient(&sdkmcp.Implementation{Name: "runtime", Version: "v0.1.0"}, nil)
 }
 
 // find returns the server with the given name, or nil. Caller holds mu.

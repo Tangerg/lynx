@@ -32,6 +32,7 @@ import (
 type (
 	MCPToolInfo     = mcp.ToolInfo
 	MCPServerStatus = mcp.ServerStatus
+	MCPServerConfig = mcp.ServerConfig
 )
 
 // ErrUnknownMCPServer is returned by [MCPControl.Reconnect] for an
@@ -44,6 +45,10 @@ type MCPControl interface {
 	Statuses() []MCPServerStatus
 	Tools(ctx context.Context, server string) ([]MCPToolInfo, error)
 	Reconnect(ctx context.Context, name string) error
+	// Configure adds or re-dials a server at runtime; Remove drops one from the
+	// live set. Both hot-swap the refreshed model-facing tool set.
+	Configure(ctx context.Context, cfg MCPServerConfig) error
+	Remove(ctx context.Context, name string)
 }
 
 // BuildConfig is the tool-environment construction input (the working-directory

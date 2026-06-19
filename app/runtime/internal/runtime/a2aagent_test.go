@@ -5,8 +5,8 @@ import (
 	"iter"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 // replyStub is a minimal chat.Model that answers every turn with a fixed

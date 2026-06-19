@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
+	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 // clientResolver resolves a per-turn [chat.Client] for an explicit

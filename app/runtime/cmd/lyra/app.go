@@ -22,6 +22,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
+	mcpserversvc "github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	todosvc "github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
@@ -142,6 +143,11 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 	if err = seedConfiguredProvider(ctx, stores.Provider, cfg); err != nil {
 		return err
 	}
+	// Seed env-sourced MCP servers (LYRA_MCP_SERVERS) into the registry on
+	// first run; a persisted workspace.mcp.configure for the same name wins.
+	if err = lyraruntime.SeedMCPServers(ctx, stores.MCPServers, cfg.MCPServers); err != nil {
+		return err
+	}
 
 	rt, err := lyraruntime.New(ctx, lyraruntime.Config{
 		// Engine construction config passes through verbatim (SessionStore
@@ -167,7 +173,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		// Tool-environment inputs — the runtime assembles the tool environment
 		// (toolset.Build) from these and injects it into the engine core.
 		Online:         cfg.Online,
-		MCPServers:     cfg.MCPServers,
+		MCPRegistry:    stores.MCPServers,
 		A2AAgents:      cfg.A2AAgents,
 		LSPServers:     cfg.LSPServers, // nil → toolset uses codeintel.DefaultServers()
 		SessionService: stores.Session,
@@ -241,6 +247,7 @@ func buildStores() (*Stores, error) {
 		Interrupt:     sqlitestore.NewInterruptStore(db),
 		Transcript:    sqlitestore.NewTranscriptStore(db),
 		Provider:      sqlitestore.NewProviderService(db),
+		MCPServers:    sqlitestore.NewMCPServerService(db),
 		ChatMem:       sqlitestore.NewMessageStore(db),
 		Park:          sqlitestore.NewParkStore(db),
 		Todos:         sqlitestore.NewTodoService(db),
@@ -259,6 +266,7 @@ type Stores struct {
 	Interrupt     interrupts.Store
 	Transcript    transcript.Store
 	Provider      providersvc.Service
+	MCPServers    mcpserversvc.Service
 	ChatMem       chatmem.Store
 	Park          tool.ParkStore
 	Todos         todosvc.Service
