@@ -253,6 +253,10 @@ export const ja: Record<string, string> = {
   "settings.streamReveal.sub": "応答がストリーミングされる際の表示のされ方。",
   "settings.streamReveal.smooth": "スムーズ",
   "settings.streamReveal.typewriter": "タイプライター",
+  "settings.completionSound": "完了サウンド",
+  "settings.completionSound.sub":
+    "アプリがバックグラウンドのときに実行が完了したらサウンドを再生します。",
+  "settings.completionSound.toggle": "サウンドを再生",
   "settings.language.label": "言語",
   "settings.language.sub": "UI 言語。プラグインで追加できます。",
 

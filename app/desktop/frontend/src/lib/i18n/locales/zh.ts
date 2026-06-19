@@ -256,6 +256,9 @@ export const zh: Record<string, string> = {
   "settings.streamReveal.sub": "助手回复在流式输出时的呈现方式。",
   "settings.streamReveal.smooth": "平滑",
   "settings.streamReveal.typewriter": "打字机",
+  "settings.completionSound": "完成提示音",
+  "settings.completionSound.sub": "当应用在后台时,运行结束播放提示音。",
+  "settings.completionSound.toggle": "播放提示音",
   "settings.language.label": "语言",
   "settings.language.sub": "界面语言。可以通过插件添加更多语言。",
 

@@ -256,6 +256,9 @@ export const zhTW: Record<string, string> = {
   "settings.streamReveal.sub": "助手回覆在串流輸出時的呈現方式。",
   "settings.streamReveal.smooth": "平滑",
   "settings.streamReveal.typewriter": "打字機",
+  "settings.completionSound": "完成提示音",
+  "settings.completionSound.sub": "當應用程式在背景時,執行結束時播放提示音。",
+  "settings.completionSound.toggle": "播放提示音",
   "settings.language.label": "語言",
   "settings.language.sub": "介面語言。可以透過外掛新增更多語言。",
 

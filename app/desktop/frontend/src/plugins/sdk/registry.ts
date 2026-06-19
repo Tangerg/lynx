@@ -128,11 +128,15 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
 
     setWindowTitle(text) {
       set({ windowTitle: text });
-      syncDocumentTitle(text, get().windowBadge);
+      syncDocumentTitle(text, get().windowBadge, get().windowWorking);
     },
     setWindowBadge(n) {
       set({ windowBadge: n });
-      syncDocumentTitle(get().windowTitle, n);
+      syncDocumentTitle(get().windowTitle, n, get().windowWorking);
+    },
+    setWindowWorking(on) {
+      set({ windowWorking: on });
+      syncDocumentTitle(get().windowTitle, get().windowBadge, on);
     },
 
     // Open extension points. The host computes `outerKey` from the point's
@@ -162,12 +166,14 @@ export const usePluginStore = create<PluginStoreState & PluginStoreActions>((set
 });
 
 // Side-effect: keep `document.title` in sync with the registry's title +
-// badge. Run only in DOM environments — test runs without a document just
-// skip the assignment.
-function syncDocumentTitle(base: string, badge: number): void {
+// badge + working state — the single composer of the document title, so a
+// "working" indicator and a count badge can't clobber each other. Run only in
+// DOM environments — test runs without a document just skip the assignment.
+function syncDocumentTitle(base: string, badge: number, working: boolean): void {
   if (typeof document === "undefined") return;
-  const prefix = badge > 0 ? `(${badge}) ` : "";
-  document.title = `${prefix}${base || "Lyra"}`;
+  const dot = working ? "● " : "";
+  const count = badge > 0 ? `(${badge}) ` : "";
+  document.title = `${dot}${count}${base || "Lyra"}`;
 }
 
 // Modifier aliases → canonical name. `mod` collapses Cmd (Mac) / Ctrl

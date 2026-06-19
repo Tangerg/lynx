@@ -47,6 +47,7 @@ export interface PluginStoreState {
   extensions: Map<string, Owned<ContributionEntry>>;
   windowTitle: string;
   windowBadge: number;
+  windowWorking: boolean;
 }
 
 export interface PluginStoreActions {
@@ -82,6 +83,7 @@ export interface PluginStoreActions {
 
   setWindowTitle: (text: string) => void;
   setWindowBadge: (n: number) => void;
+  setWindowWorking: (on: boolean) => void;
 
   /**
    * Wipe the registry back to a fresh state. Only used by the test
@@ -101,5 +103,6 @@ export function freshState(): PluginStoreState {
     appReady: false,
     windowTitle: "",
     windowBadge: 0,
+    windowWorking: false,
   };
 }

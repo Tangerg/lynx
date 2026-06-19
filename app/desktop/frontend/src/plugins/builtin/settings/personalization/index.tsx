@@ -3,7 +3,7 @@
 // with the message bubble style (moved out of Appearance). Future
 // personalization knobs land here too.
 
-import { MessageStyleSection, StreamRevealSection } from "./PrefSections";
+import { CompletionSoundSection, MessageStyleSection, StreamRevealSection } from "./PrefSections";
 import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
 
@@ -12,6 +12,7 @@ function PersonalizationPane() {
     <div>
       <MessageStyleSection />
       <StreamRevealSection />
+      <CompletionSoundSection />
     </div>
   );
 }

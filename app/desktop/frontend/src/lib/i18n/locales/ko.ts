@@ -250,6 +250,9 @@ export const ko: Record<string, string> = {
   "settings.streamReveal.sub": "응답이 스트리밍될 때 나타나는 방식.",
   "settings.streamReveal.smooth": "부드럽게",
   "settings.streamReveal.typewriter": "타자기",
+  "settings.completionSound": "완료 소리",
+  "settings.completionSound.sub": "앱이 백그라운드에 있을 때 실행이 끝나면 소리를 재생합니다.",
+  "settings.completionSound.toggle": "소리 재생",
   "settings.language.label": "언어",
   "settings.language.sub": "UI 언어. 플러그인으로 추가할 수 있습니다.",
 
