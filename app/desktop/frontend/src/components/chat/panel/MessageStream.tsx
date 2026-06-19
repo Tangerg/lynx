@@ -87,7 +87,20 @@ export function MessageStream({ messages, ctx, assistantName, resetKey, onContro
             // (avatar included) bobble while streaming. enterUp is
             // enough: first paint slides in, then the block grows
             // naturally with the DOM.
-            <motion.div key={m.id} {...enterUp}>
+            //
+            // `content-visibility:auto` lets the browser skip layout+paint for
+            // off-screen messages (the long-conversation scaling cliff) while
+            // keeping every node IN the DOM — so ⌘F's TreeWalker + CSS-highlight
+            // search, copy-all, and stick-to-bottom's height all still work
+            // (true virtualization would unmount nodes and break those). The
+            // `auto` intrinsic-size remembers each message's real height after
+            // its first render, so the scroll height stays accurate; the 220px
+            // fallback only covers never-yet-rendered messages far below.
+            <motion.div
+              key={m.id}
+              {...enterUp}
+              className="[content-visibility:auto] [contain-intrinsic-size:auto_220px]"
+            >
               <MessageBlock msg={m} ctx={ctx} assistantName={assistantName} />
             </motion.div>
           ))}
