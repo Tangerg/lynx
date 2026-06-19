@@ -293,6 +293,119 @@ func (c *Connections) Reconnect(ctx context.Context, name string) error {
 	return err
 }
 
+// Configure adds a new server or re-dials an existing one with the given
+// config, then refreshes the model-facing tool set so the model immediately
+// sees the (re)connected server. It is the runtime-mutable counterpart to the
+// boot-time [Dial]: workspace.mcp.configure / enabling a server routes here.
+// Serialized with [Reconnect] (both dial + swap a session). Nil-safe only on a
+// nil receiver is NOT supported — Configure mutates and a nil here is a wiring
+// bug, so callers hold a real *Connections.
+func (c *Connections) Configure(ctx context.Context, cfg ServerConfig) error {
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("mcp: invalid server %q: %w", cfg.Name, err)
+	}
+	c.reconnectMu.Lock()
+	defer c.reconnectMu.Unlock()
+
+	c.mu.Lock()
+	ms := c.find(cfg.Name)
+	if ms == nil {
+		ms = &server{config: cfg}
+		c.servers = append(c.servers, ms)
+	}
+	old := ms.session
+	ms.config = cfg
+	ms.session = nil
+	ms.status = statusConnecting
+	ms.lastErr = nil
+	c.mu.Unlock()
+
+	if old != nil {
+		_ = old.Close()
+	}
+
+	session, err := lynxmcp.Dial(ctx, c.client, cfg)
+	if err == nil {
+		if _, terr := sourceTools(ctx, lynxmcp.Source{Name: cfg.Name, Session: session}); terr != nil {
+			_ = session.Close()
+			err, session = terr, nil
+		}
+	}
+
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		if session != nil {
+			_ = session.Close()
+		}
+		return err
+	}
+	if err != nil {
+		ms.session, ms.status, ms.lastErr = nil, dialStatus(err), err
+	} else {
+		ms.session, ms.status, ms.lastErr = session, statusConnected, nil
+	}
+	c.mu.Unlock()
+
+	c.refreshTools(ctx)
+	return err
+}
+
+// Remove drops a server from the live set, closing its session, and refreshes
+// the model-facing tool set. Removing an unknown name is a no-op (the registry
+// is the source of truth; the live set may legitimately lag it). Disabling a
+// server routes here too — it stays in the registry but leaves the live set.
+func (c *Connections) Remove(ctx context.Context, name string) {
+	if c == nil {
+		return
+	}
+	c.reconnectMu.Lock()
+	defer c.reconnectMu.Unlock()
+
+	c.mu.Lock()
+	var old *sdkmcp.ClientSession
+	kept := c.servers[:0]
+	for _, ms := range c.servers {
+		if ms.name() == name {
+			old = ms.session
+			continue
+		}
+		kept = append(kept, ms)
+	}
+	c.servers = kept
+	c.mu.Unlock()
+
+	if old != nil {
+		_ = old.Close()
+	}
+	c.refreshTools(ctx)
+}
+
+// Probe dials cfg with a throwaway client, proves its tools are listable, and
+// closes the session — a connection test that touches no live state. Used by
+// workspace.mcp.test before persisting a configuration. Returns nil on success.
+func Probe(ctx context.Context, cfg ServerConfig) error {
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+	ctx, span := tracer.Start(ctx, "mcp.probe",
+		trace.WithAttributes(attribute.String("mcp.server.name", cfg.Name)))
+	defer span.End()
+
+	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "runtime-probe", Version: "v0.1.0"}, nil)
+	session, err := lynxmcp.Dial(ctx, client, cfg)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	defer session.Close()
+	if _, err := sourceTools(ctx, lynxmcp.Source{Name: cfg.Name, Session: session}); err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
 // find returns the server with the given name, or nil. Caller holds mu.
 func (c *Connections) find(name string) *server {
 	for _, ms := range c.servers {

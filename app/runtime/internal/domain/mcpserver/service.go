@@ -1,0 +1,137 @@
+// Package mcpserver is Lyra's MCP-server registry — the runtime-mutable set
+// of MCP servers Lyra dials for tools, each carrying the transport descriptor
+// a connection needs plus its enablement and per-tool gating.
+//
+// It mirrors the provider registry ([internal/domain/provider]): a persisted,
+// runtime-editable set seeded at startup (from the LYRA_MCP_SERVERS env) and
+// edited at runtime via workspace.mcp.configure / remove / setEnabled. Persisted
+// backends (sqlite) keep runtime edits across restarts. Unlike providers there
+// is no "supported set" to seed — every entry is a user-defined server, so the
+// registry is a plain create/update/delete set, not a seeded catalog.
+package mcpserver
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/Tangerg/lynx/core/model"
+)
+
+// Transport names the connection mode in the wire / Claude-Desktop vocabulary
+// (the ubiquitous `mcpServers` config map). Lyra supports the two transports
+// the mcp module dials: a local subprocess (stdio) and Streamable HTTP. Legacy
+// two-endpoint SSE is intentionally not supported.
+const (
+	TransportStdio = "stdio"
+	TransportHTTP  = "http"
+)
+
+// Server is one registry entry: an MCP server descriptor plus its enablement
+// and per-tool gating. Name is the primary key and the prefix that namespaces
+// the server's tools ("<name>_<tool>") across servers.
+type Server struct {
+	// Name identifies the server and namespaces its tools. Required, unique.
+	Name string
+
+	// Transport is [TransportStdio] or [TransportHTTP]. Required.
+	Transport string
+
+	// Enabled gates whether the server is dialed. A disabled server stays in
+	// the registry (so the UI can list + re-enable it) but contributes no tools.
+	Enabled bool
+
+	// Description is an optional human note shown in the UI.
+	Description string
+
+	// URL is the Streamable HTTP endpoint. Used when Transport == [TransportHTTP].
+	URL string
+
+	// Authorization, when set, is sent as the HTTP `Authorization` header
+	// (typically "Bearer <token>") — HTTP transport only. Stored raw, masked at
+	// the wire boundary, never logged.
+	Authorization string
+
+	// Command is the executable to spawn. Used when Transport == [TransportStdio].
+	Command string
+
+	// Args are the command arguments (stdio).
+	Args []string
+
+	// Env REPLACES the subprocess environment as KEY=value entries (stdio); it
+	// does not extend the parent env.
+	Env []string
+
+	// Dir sets the subprocess working directory; empty inherits the parent's (stdio).
+	Dir string
+
+	// DisabledTools hides these tools from the model entirely (a blacklist —
+	// every other tool the server advertises stays available, so new tools are
+	// exposed by default).
+	DisabledTools []string
+
+	// AutoApproveTools lists tools whose calls skip the HITL approval gate (a
+	// whitelist — MCP tools otherwise follow normal approval, since a remote
+	// server's tools are arbitrary capability that shouldn't auto-run by default).
+	AutoApproveTools []string
+}
+
+// Validate reports whether the server is well-formed for its transport: the
+// chosen transport's required field is set and the other transport's fields
+// are blank, mirroring [mcp.ServerConfig.Validate] at the registry boundary.
+func (s Server) Validate() error {
+	if s.Name == "" {
+		return errors.New("mcpserver: Name is required")
+	}
+	switch s.Transport {
+	case TransportHTTP:
+		if s.URL == "" {
+			return fmt.Errorf("mcpserver %q: URL is required for http transport", s.Name)
+		}
+		if s.Command != "" {
+			return fmt.Errorf("mcpserver %q: Command must be empty for http transport", s.Name)
+		}
+	case TransportStdio:
+		if s.Command == "" {
+			return fmt.Errorf("mcpserver %q: Command is required for stdio transport", s.Name)
+		}
+		if s.URL != "" {
+			return fmt.Errorf("mcpserver %q: URL must be empty for stdio transport", s.Name)
+		}
+		if s.Authorization != "" {
+			return fmt.Errorf("mcpserver %q: Authorization applies to http transport only", s.Name)
+		}
+	default:
+		return fmt.Errorf("mcpserver %q: unknown transport %q (want %q or %q)", s.Name, s.Transport, TransportStdio, TransportHTTP)
+	}
+	return nil
+}
+
+// MaskedAuthorization renders the bearer token for the wire: "" when unset,
+// otherwise the redacted form. Reuses [core/model.APIKey]'s masking so secrets
+// share one rule across every log / JSON site.
+func (s Server) MaskedAuthorization() string {
+	if s.Authorization == "" {
+		return ""
+	}
+	return model.NewAPIKey(s.Authorization).String()
+}
+
+// Service is the MCP-server registry. All methods are safe for concurrent use.
+type Service interface {
+	// List returns every registered server, enabled or not, sorted by Name.
+	List(ctx context.Context) ([]Server, error)
+
+	// Get returns one server by name; ok is false when unknown.
+	Get(ctx context.Context, name string) (Server, bool, error)
+
+	// Configure upserts a server by Name, persisting the change. Used both to
+	// seed at startup and to apply a runtime workspace.mcp.configure.
+	Configure(ctx context.Context, s Server) error
+
+	// Remove deletes a server by name. Removing an unknown name is a no-op.
+	Remove(ctx context.Context, name string) error
+
+	// SetEnabled flips a server's enablement by name, persisting the change.
+	SetEnabled(ctx context.Context, name string, enabled bool) error
+}
