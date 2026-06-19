@@ -6,6 +6,7 @@ import type { DiffQuery, FileDiff } from "@/lib/data/queries";
 import { useEffect, useRef, useState } from "react";
 import { DataView, Segmented } from "@/components/common";
 import { useT } from "@/lib/i18n";
+import type { DiffLayout } from "./views/DiffView";
 import { DiffView } from "./views/DiffView";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useDiff } from "@/lib/data/queries";
@@ -16,7 +17,15 @@ import { defineWorkspaceView } from "./defineWorkspaceView";
 import { useServerFeature } from "@/state/runtimeStore";
 import { useSessionStore } from "@/state/sessionStore";
 
-function FileSection({ file, showHeader }: { file: FileDiff; showHeader: boolean }) {
+function FileSection({
+  file,
+  showHeader,
+  layout,
+}: {
+  file: FileDiff;
+  showHeader: boolean;
+  layout: DiffLayout;
+}) {
   const t = useT();
   return (
     <section>
@@ -32,7 +41,7 @@ function FileSection({ file, showHeader }: { file: FileDiff; showHeader: boolean
       {file.binary ? (
         <p className="m-0 px-3 py-2 font-mono text-[11.5px] text-fg-faint">{t("diff.binary")}</p>
       ) : (
-        <DiffView rows={file.rows} />
+        <DiffView rows={file.rows} layout={layout} />
       )}
     </section>
   );
@@ -47,6 +56,7 @@ function DiffViewTab() {
   // branch's merge-base (AUX_API §2.3) — the "what does this branch change"
   // review view.
   const [mode, setMode] = useState<NonNullable<DiffQuery["mode"]>>("worktree");
+  const [layout, setLayout] = useState<DiffLayout>("unified");
   const { data, isLoading, isError, error } = useDiff(
     gitEnabled ? { cwd, mode, path: activeFile || undefined } : undefined,
   );
@@ -86,15 +96,26 @@ function DiffViewTab() {
       sub={sub}
       scrollRef={scrollRef}
       actions={
-        <Segmented
-          ariaLabel={t("diff.baselineAria")}
-          value={mode}
-          onChange={setMode}
-          options={[
-            { value: "worktree", label: t("diff.mode.worktree") },
-            { value: "base", label: t("diff.mode.branch") },
-          ]}
-        />
+        <div className="flex items-center gap-2">
+          <Segmented
+            ariaLabel={t("diff.layoutAria")}
+            value={layout}
+            onChange={setLayout}
+            options={[
+              { value: "unified", label: t("diff.layout.unified") },
+              { value: "split", label: t("diff.layout.split") },
+            ]}
+          />
+          <Segmented
+            ariaLabel={t("diff.baselineAria")}
+            value={mode}
+            onChange={setMode}
+            options={[
+              { value: "worktree", label: t("diff.mode.worktree") },
+              { value: "base", label: t("diff.mode.branch") },
+            ]}
+          />
+        </div>
       }
     >
       <DataView
@@ -119,7 +140,12 @@ function DiffViewTab() {
         {(fileDiffs) => (
           <div className={cn(data?.truncated && "pb-1")}>
             {fileDiffs.map((f) => (
-              <FileSection key={f.path} file={f} showHeader={fileDiffs.length > 1} />
+              <FileSection
+                key={f.path}
+                file={f}
+                showHeader={fileDiffs.length > 1}
+                layout={layout}
+              />
             ))}
             {data?.truncated && (
               <p className="m-0 px-3 py-2 font-mono text-[11px] text-fg-faint">

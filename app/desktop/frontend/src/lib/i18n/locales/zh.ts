@@ -464,6 +464,9 @@ export const zh: Record<string, string> = {
   // ── Diff 视图 ──
   "diff.workingTree": "工作树",
   "diff.baselineAria": "Diff 基准",
+  "diff.layoutAria": "Diff 布局",
+  "diff.layout.unified": "统一",
+  "diff.layout.split": "分栏",
   "diff.mode.worktree": "工作树",
   "diff.mode.branch": "分支",
   "diff.error.noBaseline": "无基线分支",

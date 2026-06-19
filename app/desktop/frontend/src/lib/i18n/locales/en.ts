@@ -484,6 +484,9 @@ export const en: Record<string, string> = {
   // ── Diff view ──
   "diff.workingTree": "Working tree",
   "diff.baselineAria": "Diff baseline",
+  "diff.layoutAria": "Diff layout",
+  "diff.layout.unified": "Unified",
+  "diff.layout.split": "Split",
   "diff.mode.worktree": "Worktree",
   "diff.mode.branch": "Branch",
   "diff.error.noBaseline": "No baseline branch",
