@@ -8,10 +8,13 @@
 import type { ComposerImage, PastedText } from "@/state/composerStore";
 import { imageFiles, type UserInput } from "@/lib/agent/composerInput";
 import { isLargePaste } from "@/lib/agent/largePaste";
+import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
+import { useFileMentions } from "@/lib/agent/useFileMentions";
 import type { IconName } from "@/components/common";
 import type { ComposerAttachmentSourceSpec } from "@/plugins/sdk";
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Chip, Icon, Tooltip } from "@/components/common";
+import { FileMentionPopup } from "./FileMentionPopup";
 import { useT } from "@/lib/i18n";
 import {
   COMPOSER_ATTACHMENT_SOURCE,
@@ -60,6 +63,27 @@ export function Composer({
   const t = useT();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const attachmentSources = useExtensionPoint(COMPOSER_ATTACHMENT_SOURCE);
+
+  // @file autocomplete — caret-aware mention detection + a fuzzy file picker
+  // that splices a path into the text. `caret` mirrors the textarea selection
+  // so the hook knows which `@token` (if any) is being typed.
+  const cwd = useActiveSessionCwd();
+  const [caret, setCaret] = useState(0);
+  const applyMention = useCallback(
+    (text: string, next: number) => {
+      onChange(text);
+      requestAnimationFrame(() => {
+        const ta = inputRef.current;
+        if (ta) {
+          ta.focus();
+          ta.setSelectionRange(next, next);
+        }
+        setCaret(next);
+      });
+    },
+    [onChange],
+  );
+  const mentions = useFileMentions({ value, caret, cwd, apply: applyMention });
   // Pick a placeholder once at mount — `pickComposerPlaceholder` is
   // random, so re-running on every render would make the text flicker.
   // Falls back to the localized "ask…" string if no placeholder plugin
@@ -103,6 +127,14 @@ export function Composer({
       }}
       className="relative rounded-2xl border border-line-soft bg-surface px-2.5 pb-1.5 pt-2 transition-[border-color,box-shadow] duration-150 focus-within:border-line-soft focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)]"
     >
+      {mentions.active && (
+        <FileMentionPopup
+          items={mentions.items}
+          index={mentions.index}
+          onPick={mentions.accept}
+          onHover={mentions.setIndex}
+        />
+      )}
       <PluginAttachments sources={attachmentSources} />
       {images.length > 0 && (
         <div className="flex flex-wrap gap-2 px-1 pb-1 pt-1">
@@ -123,7 +155,11 @@ export function Composer({
         aria-label={t("composer.input.label")}
         placeholder={placeholder}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setCaret(e.target.selectionStart ?? e.target.value.length);
+        }}
+        onSelect={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
         onPaste={(e) => {
           const files = imageFiles(e.clipboardData?.files);
           if (files.length > 0) {
@@ -145,6 +181,12 @@ export function Composer({
           // Enter to commit a CJK candidate must confirm the candidate, not
           // trigger Enter→submit (which double-committed / sent mid-compose).
           if (e.nativeEvent.isComposing) return;
+          // The @file picker owns ↑/↓/Enter/Tab/Esc while it's open — let it
+          // claim the key before the normal composer keymap (submit / history).
+          if (mentions.handleKeyDown(e)) {
+            e.preventDefault();
+            return;
+          }
           // Resolve the pressed combo to its canonical form and ask the
           // plugin registry for a binding. The built-in "composer-keymap"
           // plugin registers Enter→submit; user plugins can add more

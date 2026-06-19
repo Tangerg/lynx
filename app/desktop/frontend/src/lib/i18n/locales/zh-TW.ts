@@ -37,6 +37,7 @@ export const zhTW: Record<string, string> = {
   "composer.paste.lines": "已貼上 · {{count}} 行",
   "composer.paste.chars": "已貼上 · {{count}} 字元",
   "composer.paste.remove": "移除貼上的文字",
+  "composer.mention.heading": "檔案",
   "composer.execMode.hint": "執行模式 · 工作區 · 自動",
   "composer.gitBranch": "Git 分支",
   "composer.slash.heading": "命令",

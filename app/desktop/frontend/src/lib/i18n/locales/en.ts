@@ -39,6 +39,7 @@ export const en: Record<string, string> = {
   "composer.paste.lines": "Pasted · {{count}} lines",
   "composer.paste.chars": "Pasted · {{count}} chars",
   "composer.paste.remove": "Remove pasted text",
+  "composer.mention.heading": "Files",
   "composer.execMode.hint": "Execution mode · Workspace · Auto",
   "composer.gitBranch": "Git branch",
   "composer.slash.heading": "Commands",

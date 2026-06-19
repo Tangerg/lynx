@@ -197,6 +197,8 @@ export interface RememberedDecisionInfo {
 export interface ListFilesQuery {
   cwd?: string;
   path?: string; // directory to list, relative to cwd (omit = cwd root)
+  recursive?: boolean; // flat subtree file list (the @file source) vs one level (tree)
+  limit?: number;
 }
 export interface FileEntryInfo {
   path: string; // relative to cwd

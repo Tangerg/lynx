@@ -37,6 +37,7 @@ export const zh: Record<string, string> = {
   "composer.paste.lines": "已粘贴 · {{count}} 行",
   "composer.paste.chars": "已粘贴 · {{count}} 字符",
   "composer.paste.remove": "移除粘贴的文本",
+  "composer.mention.heading": "文件",
   "composer.execMode.hint": "执行模式 · 工作区 · 自动",
   "composer.gitBranch": "Git 分支",
   "composer.slash.heading": "命令",
