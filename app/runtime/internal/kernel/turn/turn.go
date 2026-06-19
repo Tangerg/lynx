@@ -165,6 +165,25 @@ func (st *turnState) drainSteering() []string {
 	return out
 }
 
+// drainSteerMessages drains the pending steering queue into user messages for
+// MID-RUN injection — the engine's tool loop calls this (via the SteerSource it
+// got on RunChatRequest) before each continuation round, so a message sent
+// while the turn is mid-tool-loop reaches the model on the next round. Anything
+// that arrives after the last round drains to nothing here and is picked up by
+// the next-turn [inMemory.flushSteering] fallback instead. Same mutex-guarded
+// queue, so the two drains never double-handle a message.
+func (st *turnState) drainSteerMessages() []corechat.Message {
+	queue := st.drainSteering()
+	if len(queue) == 0 {
+		return nil
+	}
+	out := make([]corechat.Message, len(queue))
+	for i, m := range queue {
+		out[i] = corechat.NewUserMessage(m)
+	}
+	return out
+}
+
 // runTurn starts the turn's agent process and drives its first run
 // segment to a suspension point — a HITL interrupt (park) or a terminal
 // state. Later segments are driven by [inMemory.Resume] through the
@@ -200,6 +219,9 @@ func (s *inMemory) runTurn(req StartTurnRequest, st *turnState) {
 		ChatClient:    client,
 		Observer:      observer,
 		EventListener: st.lifecycle.listener(st.handle.TurnID),
+		// Mid-run steering: drained before each continuation round (with the
+		// next-turn flushSteering as the after-last-round fallback).
+		Steer: st.drainSteerMessages,
 	})
 	// Record the root process id so the lifecycle gate keeps subtask
 	// terminals (which fire first) from being mistaken for the turn's end.

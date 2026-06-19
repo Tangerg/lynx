@@ -61,6 +61,16 @@ type Config struct {
 	// zero-value default) disables it, leaving the loop bounded only by
 	// MaxIterations. See [LoopDetectionConfig].
 	LoopDetection *LoopDetectionConfig
+
+	// BeforeRound, when non-nil, is invoked before each CONTINUATION model
+	// round — after a tool result is fed back, before the next model call;
+	// never before the FIRST round. Any messages it returns are appended to
+	// that round's request (after the tool result), so a caller can inject a
+	// turn into a running loop without restarting it — e.g. "mid-run steering",
+	// where a user message reaches the model on the next round. Returning nil
+	// (the common case) leaves the round unchanged. The hook must not block.
+	// Default nil.
+	BeforeRound func(ctx context.Context) []chat.Message
 }
 
 // MaxIterationsError is returned when the tool-calling loop exceeds its
@@ -94,6 +104,7 @@ type middleware struct {
 	feedbackEmpty bool
 	parkStore     ParkStore
 	loopDetection *LoopDetectionConfig
+	beforeRound   func(ctx context.Context) []chat.Message
 }
 
 // NewMiddleware constructs the tool-calling middleware pair. Pass an
@@ -114,8 +125,31 @@ func NewMiddleware(config ...Config) (chat.CallMiddleware, chat.StreamMiddleware
 		feedbackEmpty: cfg.FeedbackOnEmptyResponse,
 		parkStore:     cfg.ParkStore,
 		loopDetection: cfg.LoopDetection,
+		beforeRound:   cfg.BeforeRound,
 	}
 	return mw.wrapCallHandler, mw.wrapStreamHandler
+}
+
+// applyBeforeRound appends any messages the BeforeRound hook supplies to a
+// continuation request (after the tool result that round carries) — the seam
+// for injecting a turn into a running loop. A nil hook or empty return leaves
+// the request untouched. Options / Tools / Params are carried over unchanged.
+func (m *middleware) applyBeforeRound(ctx context.Context, next *chat.Request) (*chat.Request, error) {
+	if m.beforeRound == nil {
+		return next, nil
+	}
+	extra := m.beforeRound(ctx)
+	if len(extra) == 0 {
+		return next, nil
+	}
+	out, err := chat.NewRequest(append(slices.Clone(next.Messages), extra...))
+	if err != nil {
+		return nil, err
+	}
+	out.Options = next.Options.Clone()
+	out.Tools = slices.Clone(next.Tools)
+	out.Params = maps.Clone(next.Params)
+	return out, nil
 }
 
 // loopState carries the per-loop bookkeeping threaded through the
@@ -233,6 +267,10 @@ func (m *middleware) executeCallRecursively(ctx context.Context, req *chat.Reque
 	if err != nil {
 		return nil, err
 	}
+	nextReq, err = m.applyBeforeRound(ctx, nextReq)
+	if err != nil {
+		return nil, err
+	}
 	return m.executeCallRecursively(ctx, nextReq, next, inv, det, state.next())
 }
 
@@ -347,6 +385,11 @@ func (m *middleware) executeStreamRecursively(ctx context.Context, req *chat.Req
 	}
 
 	nextReq, err := result.buildContinueRequest()
+	if err != nil {
+		yield(nil, err)
+		return
+	}
+	nextReq, err = m.applyBeforeRound(ctx, nextReq)
 	if err != nil {
 		yield(nil, err)
 		return
