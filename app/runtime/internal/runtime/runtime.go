@@ -37,6 +37,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/maintenance"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
@@ -44,7 +45,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/a2a"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/mcp"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
@@ -73,9 +73,14 @@ type Config struct {
 	// constructs no capability itself). Workdir / SkillsGlobalDir come from
 	// Engine (the engine also needs them for the prompt cascade / listSkills).
 	Online     kernel.OnlineConfig    // network-tool credentials
-	MCPServers []mcp.ServerConfig     // external MCP servers to dial
 	A2AAgents  []a2a.ClientConfig     // remote A2A agents to dial
 	LSPServers []codeintel.ServerSpec // language-server table (nil → defaults)
+
+	// MCPRegistry is the runtime-mutable MCP-server registry. The enabled
+	// entries are dialed at boot (the env seed lands here first, in the
+	// composition root) and the registry is the source for runtime
+	// workspace.mcp.configure / remove / setEnabled. Required.
+	MCPRegistry mcpserver.Service
 
 	// SessionService persists Lyra sessions. Required — the composition
 	// root injects the sqlite-backed service (tests use a sqlite :memory: DB).
@@ -140,6 +145,7 @@ type Runtime struct {
 	conversation *conversation.Service
 
 	providers    provider.Service
+	mcpRegistry  mcpserver.Service
 	defaultModel string
 
 	// titler auto-names an untitled session from its first user message — a
@@ -231,12 +237,20 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	// reads it per tool call.
 	approvalSvc := approval.New(cfg.ApprovalMode, cfg.ApprovalRuleStore)
 
+	// Boot MCP set = the registry's enabled servers (the env seed already
+	// landed there in the composition root). A registry read failure is fatal —
+	// MCP is part of the tool environment.
+	mcpConfigs, err := enabledConfigs(ctx, cfg.MCPRegistry)
+	if err != nil {
+		return nil, fmt.Errorf("runtime: load mcp registry: %w", err)
+	}
+
 	built, err := toolset.Build(ctx, toolset.BuildConfig{
 		Workdir:         cfg.Engine.Workdir,
 		SkillsGlobalDir: cfg.Engine.SkillsGlobalDir,
 		Online:          cfg.Online,
 		LSPServers:      cfg.LSPServers,
-		MCPServers:      cfg.MCPServers,
+		MCPServers:      mcpConfigs,
 		A2AAgents:       cfg.A2AAgents,
 		Todos:           ecfg.Todos,
 		Approval:        approvalSvc,
@@ -287,6 +301,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		transcript:   cfg.TranscriptStore,
 		conversation: conv,
 		providers:    providerSvc,
+		mcpRegistry:  cfg.MCPRegistry,
 		defaultModel: cfg.Model,
 		titler:       maintenance.NewTitler(maintClient),
 	}, nil

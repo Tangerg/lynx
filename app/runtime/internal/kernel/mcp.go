@@ -50,3 +50,23 @@ func (e *Engine) ReconnectMCPServer(ctx context.Context, name string) error {
 	}
 	return e.mcp.Reconnect(ctx, name)
 }
+
+// ConfigureMCPServer adds or re-dials a server in the live connection set and
+// hot-swaps the refreshed model-facing tool set. A dial failure is returned but
+// the server is still tracked (recorded "failed", reconnectable). Nil MCP
+// (no servers wired) is a wiring bug for a configure, so it errors.
+func (e *Engine) ConfigureMCPServer(ctx context.Context, cfg toolset.MCPServerConfig) error {
+	if e.mcp == nil {
+		return ErrUnknownMCPServer
+	}
+	return e.mcp.Configure(ctx, cfg)
+}
+
+// RemoveMCPServer drops a server from the live connection set (closing its
+// session) and hot-swaps the refreshed tool set. Unknown name is a no-op.
+func (e *Engine) RemoveMCPServer(ctx context.Context, name string) {
+	if e.mcp == nil {
+		return
+	}
+	e.mcp.Remove(ctx, name)
+}
