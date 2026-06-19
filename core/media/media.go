@@ -102,7 +102,7 @@ func (m *Media) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// Both mimeType and data are required.
+// NewMedia builds a [Media]. Both mimeType and data are required.
 //
 // Example:
 //
@@ -123,7 +123,8 @@ func NewMedia(mimeType *mime.MIME, data any) (*Media, error) {
 	}, nil
 }
 
-// Returns an error when Data is nil or holds a non-bytes value.
+// DataAsBytes returns the payload as []byte. Returns an error when Data
+// is nil or holds a non-bytes value.
 func (m *Media) DataAsBytes() ([]byte, error) {
 	if m == nil || m.Data == nil {
 		return nil, errors.New("media.DataAsBytes: data is nil")
@@ -136,7 +137,7 @@ func (m *Media) DataAsBytes() ([]byte, error) {
 	return data, nil
 }
 
-// Returns an error when
+// DataAsString returns the payload as a string. Returns an error when
 // Data is nil or holds a non-string value.
 func (m *Media) DataAsString() (string, error) {
 	if m == nil || m.Data == nil {

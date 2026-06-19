@@ -15,7 +15,9 @@ type (
 	MiddlewareManager = model.MiddlewareManager[*Request, *Response]
 )
 
-// The stream side is unused (image generation has no stream endpoint).
+// NewMiddlewareManager returns an empty [MiddlewareManager] keyed to
+// image's *Request / *Response pair. The stream side is unused (image
+// generation has no stream endpoint).
 func NewMiddlewareManager() *MiddlewareManager {
 	return model.NewMiddlewareManager[*Request, *Response]()
 }
@@ -32,7 +34,7 @@ type ClientRequest struct {
 	params            map[string]any
 }
 
-// Returns an error
+// NewClientRequest builds a [ClientRequest] for model. Returns an error
 // when model is nil.
 func NewClientRequest(model Model) (*ClientRequest, error) {
 	if model == nil {
@@ -48,7 +50,7 @@ func (r *ClientRequest) WithMiddlewares(middlewares ...Middleware) *ClientReques
 	return r
 }
 
-// nil is ignored.
+// WithOptions sets the per-request [Options]. nil is ignored.
 func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 	if options != nil {
 		r.options = options
@@ -56,7 +58,7 @@ func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 	return r
 }
 
-// Empty input is ignored.
+// WithPrompt sets the prompt text. Empty input is ignored.
 func (r *ClientRequest) WithPrompt(prompt string) *ClientRequest {
 	if prompt != "" {
 		r.prompt = prompt
@@ -64,7 +66,7 @@ func (r *ClientRequest) WithPrompt(prompt string) *ClientRequest {
 	return r
 }
 
-// Empty input is
+// WithParams replaces the side-channel params map. Empty input is
 // ignored. The map is cloned so caller mutations don't leak.
 func (r *ClientRequest) WithParams(params map[string]any) *ClientRequest {
 	if len(params) > 0 {
@@ -108,6 +110,8 @@ func (r *ClientRequest) buildRequest() (*Request, error) {
 	return req, nil
 }
 
+// Call returns a [ClientCaller] for executing the request.
+//
 // Example:
 //
 //	img, _, err := client.Generate().WithPrompt("a duck").Call().Image(ctx)
@@ -152,7 +156,8 @@ func NewClient(model Model) (*Client, error) {
 	return NewClientFromRequest(req)
 }
 
-// Use this when the request already carries default
+// NewClientFromRequest wraps an existing [ClientRequest] as a sticky
+// default — use this when the request already carries default
 // middlewares / options the [Client] should keep applying.
 func NewClientFromRequest(request *ClientRequest) (*Client, error) {
 	if request == nil {

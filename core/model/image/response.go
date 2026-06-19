@@ -13,7 +13,7 @@ type Image struct {
 	B64JSON string `json:"b64_json"`
 }
 
-// At least one
+// NewImage builds an [Image] from a URL or base64 payload. At least one
 // must be supplied — both empty returns an error.
 func NewImage(url, b64JSON string) (*Image, error) {
 	if url == "" && b64JSON == "" {
@@ -56,7 +56,8 @@ type Result struct {
 	Metadata *ResultMetadata `json:"metadata,omitempty"`
 }
 
-// Returns an error when image or metadata is nil.
+// NewResult builds a [Result]. Returns an error when image or metadata
+// is nil.
 func NewResult(image *Image, metadata *ResultMetadata) (*Result, error) {
 	if image == nil {
 		return nil, errors.New("image.NewResult: image must not be nil")

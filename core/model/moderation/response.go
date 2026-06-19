@@ -88,7 +88,7 @@ type Categories struct {
 	IllicitViolent Verdict `json:"illicit_violent"`
 }
 
-// Useful when callers only
+// Flagged reports whether any category fired. Useful when callers only
 // need a yes/no decision without inspecting individual scores.
 func (c *Categories) Flagged() bool {
 	if c == nil {
@@ -148,7 +148,7 @@ type Result struct {
 	Metadata *ResultMetadata `json:"metadata,omitempty"`
 }
 
-// Returns an error when categories or
+// NewResult builds a [Result]. Returns an error when categories or
 // metadata is nil.
 func NewResult(categories *Categories, metadata *ResultMetadata) (*Result, error) {
 	if categories == nil {
@@ -204,7 +204,8 @@ type Response struct {
 	Metadata *ResponseMetadata `json:"metadata,omitempty"`
 }
 
-// from at least one result and a non-nil metadata.
+// NewResponse builds a [Response] from at least one result and a
+// non-nil metadata.
 func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error) {
 	if len(results) == 0 {
 		return nil, errors.New("moderation.NewResponse: at least one Result is required")
@@ -215,6 +216,7 @@ func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, erro
 	return &Response{Results: results, Metadata: metadata}, nil
 }
 
+// Result returns the first verdict — the common single-input shortcut.
 // Returns nil when Results is empty.
 func (r *Response) Result() *Result {
 	if r == nil || len(r.Results) == 0 {

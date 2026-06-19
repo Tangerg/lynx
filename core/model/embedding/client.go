@@ -18,7 +18,9 @@ type (
 	MiddlewareManager = model.MiddlewareManager[*Request, *Response]
 )
 
-// The stream side is unused (embedding has no stream endpoint).
+// NewMiddlewareManager returns an empty [MiddlewareManager] keyed to
+// embedding's *Request / *Response pair. The stream side is unused
+// (embedding has no stream endpoint).
 func NewMiddlewareManager() *MiddlewareManager {
 	return model.NewMiddlewareManager[*Request, *Response]()
 }
@@ -36,7 +38,7 @@ type ClientRequest struct {
 	params            map[string]any
 }
 
-// Returns an error
+// NewClientRequest builds a [ClientRequest] for model. Returns an error
 // when model is nil.
 func NewClientRequest(model Model) (*ClientRequest, error) {
 	if model == nil {
@@ -52,7 +54,7 @@ func (r *ClientRequest) WithMiddlewares(middlewares ...Middleware) *ClientReques
 	return r
 }
 
-// nil is ignored.
+// WithOptions sets the per-request [Options]. nil is ignored.
 func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 	if options != nil {
 		r.options = options
@@ -60,7 +62,7 @@ func (r *ClientRequest) WithOptions(options *Options) *ClientRequest {
 	return r
 }
 
-// Empty input is ignored. The
+// WithTexts replaces the input list. Empty input is ignored. The
 // slice is cloned so caller mutations don't leak into the request.
 func (r *ClientRequest) WithTexts(texts []string) *ClientRequest {
 	if len(texts) > 0 {
@@ -69,7 +71,7 @@ func (r *ClientRequest) WithTexts(texts []string) *ClientRequest {
 	return r
 }
 
-// Empty input is
+// WithParams replaces the side-channel params map. Empty input is
 // ignored. The map is cloned so caller mutations don't leak.
 func (r *ClientRequest) WithParams(params map[string]any) *ClientRequest {
 	if len(params) > 0 {
@@ -85,7 +87,7 @@ func (r *ClientRequest) MiddlewareManager() *MiddlewareManager {
 	return r.middlewareManager
 }
 
-// Middleware chain, options, texts, and
+// Clone returns a deep copy. Middleware chain, options, texts, and
 // params are all duplicated so the caller can mutate independently.
 func (r *ClientRequest) Clone() *ClientRequest {
 	return &ClientRequest{
@@ -115,6 +117,8 @@ func (r *ClientRequest) buildRequest() (*Request, error) {
 	return req, nil
 }
 
+// Call returns a [ClientCaller] for executing the request.
+//
 // Example:
 //
 //	resp, err := client.Embed().WithTexts([]string{"hi"}).Call().Response(ctx)
@@ -126,6 +130,9 @@ type ClientCaller struct {
 	request *ClientRequest
 }
 
+// Response runs the call through the middleware chain and returns the
+// raw [*Response].
+//
 // One OTel span is started per call following the GenAI semconv —
 // see [startEmbeddingSpan] / [finishEmbeddingSpan] for the attribute
 // set. No-op overhead when no TracerProvider is configured.
@@ -190,7 +197,8 @@ func NewClient(model Model) (*Client, error) {
 	return NewClientFromRequest(req)
 }
 
-// Use this when the request already carries default
+// NewClientFromRequest wraps an existing [ClientRequest] as a sticky
+// default — use this when the request already carries default
 // middlewares / options the [Client] should keep applying.
 func NewClientFromRequest(request *ClientRequest) (*Client, error) {
 	if request == nil {
@@ -203,7 +211,8 @@ func (c *Client) Embed() *ClientRequest {
 	return c.defaultRequest.Clone()
 }
 
-// Useful when the caller already has an assembled [Request].
+// EmbedWithRequest seeds a clone with the texts, options, and params
+// from req — useful when the caller already has an assembled [Request].
 func (c *Client) EmbedWithRequest(req *Request) *ClientRequest {
 	return c.Embed().
 		WithTexts(req.Texts).

@@ -39,7 +39,7 @@ type Result struct {
 	Metadata *ResultMetadata `json:"metadata,omitempty"`
 }
 
-// Returns an error when speech is empty
+// NewResult builds a [Result]. Returns an error when speech is empty
 // or metadata is nil.
 func NewResult(speech []byte, metadata *ResultMetadata) (*Result, error) {
 	if len(speech) == 0 {
@@ -93,7 +93,7 @@ type Response struct {
 	Metadata *ResponseMetadata `json:"metadata,omitempty"`
 }
 
-// from a non-nil result and metadata.
+// NewResponse builds a [Response] from a non-nil result and metadata.
 func NewResponse(result *Result, metadata *ResponseMetadata) (*Response, error) {
 	if result == nil {
 		return nil, errors.New("tts.NewResponse: result must not be nil")

@@ -57,7 +57,8 @@ var _ StructuredParser[[]string] = (*ListParser)(nil)
 //	items, _ := parser.Parse(text) // ["apple","banana","cherry","date","elderberry"]
 type ListParser struct{}
 
-// The struct is stateless; sharing one across goroutines is fine.
+// NewListParser returns a [ListParser]. The struct is stateless; sharing
+// one across goroutines is fine.
 func NewListParser() *ListParser { return &ListParser{} }
 
 // Instructions returns prompt text that asks the model for raw
@@ -95,7 +96,7 @@ var _ StructuredParser[map[string]any] = (*MapParser)(nil)
 // the schema is dynamic or when you only care about a few fields.
 type MapParser struct{}
 
-// The struct is stateless.
+// NewMapParser returns a [MapParser]. The struct is stateless.
 func NewMapParser() *MapParser { return &MapParser{} }
 
 // Instructions returns prompt text that asks the model for a bare JSON
