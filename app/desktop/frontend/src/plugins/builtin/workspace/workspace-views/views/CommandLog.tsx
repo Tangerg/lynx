@@ -14,7 +14,9 @@ export const CommandLog = memo(function CommandLog({ commands }: { commands: Too
         <div key={c.id}>
           <div className="flex items-baseline gap-2">
             <span className="shrink-0 text-fg-faint">$</span>
-            <span className="min-w-0 break-all text-fg">{c.fn}</span>
+            <span className="min-w-0 truncate text-fg" title={c.fn}>
+              {c.fn}
+            </span>
             {c.status === "running" && (
               <span className="shrink-0 text-accent">{t("commandLog.running")}</span>
             )}

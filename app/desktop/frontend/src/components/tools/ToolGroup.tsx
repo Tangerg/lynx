@@ -74,7 +74,7 @@ export function ToolGroup({
         aria-expanded={expanded}
         className={cn(
           "flex w-full items-center gap-2.5 rounded-md border border-transparent px-3 py-1.5 text-left",
-          "transition-[background,border-color] hover:border-line-soft hover:bg-line",
+          "transition-[background,border-color] hover:border-line-soft hover:bg-surface-2",
         )}
       >
         <div className="grid h-5 w-5 shrink-0 place-items-center rounded-xs text-fg-faint">

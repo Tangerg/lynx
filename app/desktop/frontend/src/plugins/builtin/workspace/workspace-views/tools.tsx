@@ -43,7 +43,9 @@ function BuiltinToolsSection() {
             {tool.name}
           </code>
           <div className="flex min-w-0 items-baseline gap-2">
-            <span className="truncate text-[11.5px] text-fg-faint">{tool.description}</span>
+            <span className="truncate text-[11.5px] text-fg-faint" title={tool.description}>
+              {tool.description}
+            </span>
             {tool.safetyClass && (
               <span
                 className={`shrink-0 rounded-xs px-1.5 py-0.5 font-mono text-[10px] ${SAFETY_PILL[tool.safetyClass] ?? "bg-surface-2 text-fg-muted"}`}

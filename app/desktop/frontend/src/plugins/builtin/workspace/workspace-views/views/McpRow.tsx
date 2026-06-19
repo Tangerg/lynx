@@ -66,7 +66,9 @@ function McpToolList({ server }: { server: string }) {
           <code className="shrink-0 rounded-xs bg-surface-2 px-1 font-mono text-[11px] text-fg">
             {tool.name}
           </code>
-          <span className="truncate text-[11.5px] text-fg-faint">{tool.description}</span>
+          <span className="truncate text-[11.5px] text-fg-faint" title={tool.description}>
+            {tool.description}
+          </span>
         </li>
       ))}
     </ul>

@@ -23,7 +23,7 @@ function useStatusLabel(): Record<RunDigest["status"], { label: string; cls: str
   return {
     ok: {
       label: t("runSummary.status.done"),
-      cls: "border-positive/40 bg-positive/12 text-positive",
+      cls: "border-success/40 bg-success/12 text-success",
     },
     err: {
       label: t("runSummary.status.errored"),
@@ -157,7 +157,7 @@ function RunSummaryTab() {
             <span className="truncate text-fg">{f.path}</span>
             {(f.added != null || f.removed != null) && (
               <span className="ml-auto text-[11px]">
-                <span className="text-positive">+{f.added ?? 0}</span>
+                <span className="text-success">+{f.added ?? 0}</span>
                 {" / "}
                 <span className="text-negative">-{f.removed ?? 0}</span>
               </span>
@@ -200,7 +200,7 @@ function RunSummaryTab() {
               className={cn(
                 "ml-auto rounded-xs px-1 text-[10px] font-semibold",
                 a.decision === "approved"
-                  ? "text-positive"
+                  ? "text-success"
                   : a.decision === "declined"
                     ? "text-warning"
                     : "text-fg-faint",

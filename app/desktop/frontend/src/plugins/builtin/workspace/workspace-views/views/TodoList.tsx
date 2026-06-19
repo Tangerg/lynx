@@ -15,7 +15,7 @@ export function TodoList({ todos }: { todos: TodoItem[] }) {
   const t = useT();
   return (
     <div className="px-4.5 py-3.5">
-      <div className="mb-3 font-mono text-[11px] font-bold text-fg-faint">
+      <div className="mb-3 font-mono text-[11px] font-semibold text-fg-faint">
         {t("todos.list.heading")}
       </div>
       {todos.map((t) => {

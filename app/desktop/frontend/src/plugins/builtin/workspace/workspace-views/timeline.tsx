@@ -66,9 +66,9 @@ function groupByRun(entries: TimelineEntry[]): { runId: string | null; items: Ti
 }
 
 const STATUS_DOT: Record<NonNullable<TimelineEntry["status"]>, string> = {
-  ok: "bg-positive",
+  ok: "bg-success",
   err: "bg-negative",
-  approved: "bg-positive",
+  approved: "bg-success",
   declined: "bg-warning",
 };
 

@@ -75,12 +75,7 @@ const DOT_BG_BY_LEVEL: Record<RowProps["level"], string> = {
 function NotificationRow({ level, message, plugin, timestamp, dismissed, onDismiss }: RowProps) {
   const t = useT();
   return (
-    <div
-      className={cn(
-        "flex items-start gap-2.5 px-3.5 py-2 border-b border-line-soft",
-        dismissed && "opacity-50",
-      )}
-    >
+    <div className={cn("flex items-start gap-2.5 px-3.5 py-2", dismissed && "opacity-50")}>
       <div className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", DOT_BG_BY_LEVEL[level])} />
       <div className="min-w-0 flex-1">
         <div className="whitespace-pre-wrap break-words text-[12px] text-fg">{message}</div>
