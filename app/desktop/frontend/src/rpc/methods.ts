@@ -13,6 +13,7 @@ import type { RunId, SessionId } from "./ids";
 import type {
   AgentDoc,
   ApprovalMode,
+  ApprovalRule,
   CanceledNotification,
   CodeLocation,
   CodePosition,
@@ -47,7 +48,6 @@ import type {
   Project,
   Provider,
   ProviderTestResult,
-  RememberedDecision,
   ResumeRunRequest,
   ResumeRunResponse,
   RollbackSessionRequest,
@@ -242,9 +242,11 @@ export interface Methods {
   approval: {
     getMode: () => Promise<{ mode: ApprovalMode }>;
     setMode: (mode: ApprovalMode) => Promise<{ mode: ApprovalMode }>;
-    listRemembered: (sessionId: SessionId) => Promise<{ entries: RememberedDecision[] }>;
-    // Omit `tool` to clear all remembered decisions for the session.
-    forget: (params: { sessionId: SessionId; tool?: string }) => Promise<void>;
+    // Rules visible from the session: its session rules + its project's rules
+    // + all global rules (the runtime resolves the session cwd).
+    listRules: (sessionId: SessionId) => Promise<{ rules: ApprovalRule[] }>;
+    // Remove one rule by id; clear-all = loop the visible ids.
+    forgetRule: (id: string) => Promise<void>;
   };
   // The model's working checklist (B11). Live updates ride state.snapshot (§5.3);
   // this is the cold read for inactive runs / reopened history.
@@ -373,9 +375,9 @@ export function createMethods(client: RpcClient): Methods {
     approval: {
       getMode: () => client.call<{ mode: ApprovalMode }>("approval.getMode"),
       setMode: (mode) => client.call<{ mode: ApprovalMode }>("approval.setMode", { mode }),
-      listRemembered: (sessionId) =>
-        client.call<{ entries: RememberedDecision[] }>("approval.listRemembered", { sessionId }),
-      forget: (params) => client.call<void>("approval.forget", params),
+      listRules: (sessionId) =>
+        client.call<{ rules: ApprovalRule[] }>("approval.listRules", { sessionId }),
+      forgetRule: (id) => client.call<void>("approval.forgetRule", { id }),
     },
     todos: {
       list: (sessionId) => client.call<{ todos: TodoItem[] }>("todos.list", { sessionId }),

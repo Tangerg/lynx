@@ -1,22 +1,29 @@
-// Built-in plugin: "Approvals" settings pane (B9, 613). Sets the runtime's
-// global approval stance (approval.getMode / setMode) and manages the
-// per-session "remembered" tool decisions (listRemembered / forget).
+// Built-in plugin: "Approvals" settings pane (B9). Sets the runtime's global
+// approval stance (approval.getMode / setMode) and manages the persistent
+// fine-grained approval rules (approval.listRules / forgetRule).
 //
 // Approval is a core capability (not feature-gated per the backend), but the
 // approval.* methods only exist on a B9 runtime — a pre-B9 one rejects getMode,
 // so the whole pane degrades to an inert "unavailable" state.
 
-import type { ApprovalModeValue } from "@/lib/data/queries";
+import type { ApprovalModeValue, ApprovalRuleInfo } from "@/lib/data/queries";
 import { DataView, EmptyState, Icon, Segmented } from "@/components/common";
-import { forgetDecision, setApprovalMode } from "@/lib/agent/approvalConfig";
+import { forgetRule, setApprovalMode } from "@/lib/agent/approvalConfig";
 import { isUnsupportedMethod, rpcErrorText } from "@/lib/agent/errorCopy";
 import { useActiveSession } from "@/lib/agent/useActiveSession";
-import { useApprovalMode, useRememberedDecisions } from "@/lib/data/queries";
+import { useApprovalMode, useApprovalRules } from "@/lib/data/queries";
 import { notifyError } from "@/lib/notify";
 import { useT } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
 import { SettingRow } from "../SettingRow";
+
+const SCOPE_CHIP: Record<ApprovalRuleInfo["scope"], string> = {
+  session: "border-line bg-surface-2 text-fg-muted",
+  project: "border-accent/30 bg-accent/10 text-accent",
+  global: "border-warning/30 bg-warning/12 text-warning",
+};
 
 // `label` is an i18n key resolved at render (ModeRow's t()); module scope can't
 // call the hook, so the mapping happens inside the component.
@@ -48,29 +55,30 @@ function ModeRow({ mode }: { mode: ApprovalModeValue | undefined }) {
   );
 }
 
-function RememberedRow() {
+function RulesRow() {
   const t = useT();
   const sessionId = useActiveSession()?.id;
-  const { data, isLoading, isError, error } = useRememberedDecisions(
+  const { data, isLoading, isError, error } = useApprovalRules(
     sessionId ? { sessionId } : undefined,
   );
-  const forget = async (tool?: string) => {
-    if (!sessionId) return;
+  const forget = async (id: string) => {
     try {
-      await forgetDecision(sessionId, tool);
+      await forgetRule(id);
     } catch (err) {
       notifyError(rpcErrorText(err) ?? t("approvals.error.forget"));
     }
   };
+  // Clear-all loops the visible ids — the wire forgets one rule at a time.
+  const forgetAll = async (rows: ApprovalRuleInfo[]) => {
+    for (const r of rows) await forget(r.id);
+  };
 
   return (
-    <SettingRow label={t("approvals.remembered")} sub={t("approvals.remembered.sub")} align="start">
+    <SettingRow label={t("approvals.rules")} sub={t("approvals.rules.sub")} align="start">
       <DataView
         items={data}
         isLoading={isLoading}
         isError={isError}
-        // listRemembered is a B9 proposal method; a runtime with approval-mode
-        // but not remembered-management errors here — degrade calmly.
         error={
           isUnsupportedMethod(error)
             ? {
@@ -82,8 +90,8 @@ function RememberedRow() {
         }
         empty={{
           icon: "check",
-          title: t("approvals.remembered.empty"),
-          sub: t("approvals.remembered.emptySub"),
+          title: t("approvals.rules.empty"),
+          sub: t("approvals.rules.emptySub"),
         }}
       >
         {(rows) => (
@@ -92,27 +100,42 @@ function RememberedRow() {
               <button
                 type="button"
                 className="text-[12px] text-fg-muted hover:text-fg"
-                onClick={() => void forget()}
+                onClick={() => void forgetAll(rows)}
               >
                 {t("approvals.clearAll")}
               </button>
             </div>
-            {rows.map((d) => (
+            {rows.map((r) => (
               <div
-                key={d.tool}
-                className="flex items-center justify-between rounded-md bg-surface-2 px-2.5 py-1.5 light:bg-surface-3"
+                key={r.id}
+                className="flex items-center gap-2 rounded-md bg-surface-2 px-2.5 py-1.5 light:bg-surface-3"
               >
-                <span className="flex items-center gap-2 font-mono text-[12px] text-fg">
-                  <span className={d.decision === "approve" ? "text-accent" : "text-negative"}>
-                    {d.decision === "approve" ? t("approvals.allow") : t("approvals.deny")}
-                  </span>
-                  {d.tool}
+                <span
+                  className={cn(
+                    "shrink-0 rounded-xs border px-1.5 py-px font-mono text-[10px] font-semibold",
+                    SCOPE_CHIP[r.scope],
+                  )}
+                >
+                  {t(`approvals.scope.${r.scope}`)}
+                </span>
+                <span
+                  className={cn(
+                    "shrink-0 text-[11px] font-semibold uppercase",
+                    r.decision === "deny" ? "text-negative" : "text-accent",
+                  )}
+                >
+                  {r.decision === "deny" ? t("approvals.deny") : t("approvals.allow")}
+                </span>
+                <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-fg">
+                  {r.tool}
+                  {r.subject ? <span className="text-fg-muted"> · {r.subject}</span> : null}
+                  {r.dir ? <span className="text-fg-faint"> — {r.dir}</span> : null}
                 </span>
                 <button
                   type="button"
-                  aria-label={t("approvals.forget", { tool: d.tool })}
-                  className="text-fg-faint hover:text-fg"
-                  onClick={() => void forget(d.tool)}
+                  aria-label={t("approvals.forget", { tool: r.tool })}
+                  className="shrink-0 text-fg-faint hover:text-fg"
+                  onClick={() => void forget(r.id)}
                 >
                   <Icon name="x" size={13} />
                 </button>
@@ -140,7 +163,7 @@ function ApprovalsPane() {
   return (
     <div>
       <ModeRow mode={mode} />
-      <RememberedRow />
+      <RulesRow />
     </div>
   );
 }

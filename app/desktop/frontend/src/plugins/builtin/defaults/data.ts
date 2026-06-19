@@ -15,10 +15,10 @@ import type {
   GrepQuery,
   ListFilesQuery,
   McpToolsQuery,
+  ApprovalRulesQuery,
   MCPServer as SidebarMCPServer,
   MemoryQuery,
   ReadFileQuery,
-  RememberedQuery,
   SidebarProject,
   SidebarSession,
   WorkspaceDiff,
@@ -31,6 +31,7 @@ import type {
 } from "@/rpc";
 import {
   APPROVAL_MODE_KEY,
+  APPROVAL_RULES_KEY,
   DIFF_KEY,
   FILES_CHANGED_KEY,
   MCP_SERVERS_KEY,
@@ -39,7 +40,6 @@ import {
   MODELS_KEY,
   PROJECTS_KEY,
   PROVIDERS_KEY,
-  REMEMBERED_KEY,
   SESSIONS_KEY,
   SKILLS_KEY,
 } from "@/lib/data/queries";
@@ -281,15 +281,10 @@ export const defaultData = definePlugin({
       fetcher: async () => (await client().approval.getMode()).mode,
     });
     host.extensions.contribute(DATA_PROVIDER, {
-      key: REMEMBERED_KEY,
+      key: APPROVAL_RULES_KEY,
       fetcher: async (params) =>
-        (
-          await client().approval.listRemembered(asSessionId((params as RememberedQuery).sessionId))
-        ).entries.map((e) => ({
-          tool: e.tool,
-          decision: e.decision,
-          rememberedAt: e.rememberedAt,
-        })),
+        (await client().approval.listRules(asSessionId((params as ApprovalRulesQuery).sessionId)))
+          .rules,
     });
     // workspace.listFiles / readFile (B8, 613) — file-tree browser + viewer.
     host.extensions.contribute(DATA_PROVIDER, {
