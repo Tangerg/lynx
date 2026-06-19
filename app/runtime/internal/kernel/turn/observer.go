@@ -162,3 +162,12 @@ func (t *turnObserver) OnReasoningDelta(text string) {
 		Text: text,
 	})
 }
+
+// OnUsage forwards the per-round cumulative usage as a [UsageReported] event —
+// the mid-run token / cost readout (transport maps it to run.progress).
+func (t *turnObserver) OnUsage(usage kernel.TokenUsage, costUSD float64) {
+	t.svc.emit(t.st, UsageReported{
+		TokenUsage: usage,
+		CostUSD:    costUSD,
+	})
+}

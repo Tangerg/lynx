@@ -709,6 +709,10 @@ func (r *recordingObserver) OnMessageDelta(text string) {
 // in chat/impl_test.go cover the propagation path.
 func (r *recordingObserver) OnReasoningDelta(_ string) {}
 
+// OnUsage is a no-op here — the mid-run usage signal is asserted at the
+// transport layer (translator_test.go), not the engine level.
+func (r *recordingObserver) OnUsage(TokenUsage, float64) {}
+
 func (r *recordingObserver) starts() []startCall {
 	r.mu.Lock()
 	defer r.mu.Unlock()

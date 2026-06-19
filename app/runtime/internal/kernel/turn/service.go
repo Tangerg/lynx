@@ -317,6 +317,17 @@ type ErrorEvent struct {
 	Code    string // stable error code; see errors.go
 }
 
+// UsageReported fires once per completed LLM round with the turn's
+// cumulative token roll-up + cost so far — the mid-run "tokens / cost spent"
+// readout (the live preview whose authoritative final lands on [TurnEnd]).
+// Ephemeral by nature; transport maps it to a run.progress usage preview.
+// CostUSD is zero unless a pricing hook is configured.
+type UsageReported struct {
+	BaseEvent
+	TokenUsage TokenUsage
+	CostUSD    float64
+}
+
 // stamp implementations — concrete events return themselves with
 // the BaseEvent header replaced wholesale. Value-typed events are
 // the right idiom here: the dispatcher (emit, in inmemory.go) takes
@@ -335,6 +346,7 @@ func (e MemoryUpdated) stamp(b BaseEvent) Event   { e.BaseEvent = b; return e }
 func (e TurnInterrupted) stamp(b BaseEvent) Event { e.BaseEvent = b; return e }
 func (e TurnEnd) stamp(b BaseEvent) Event         { e.BaseEvent = b; return e }
 func (e ErrorEvent) stamp(b BaseEvent) Event      { e.BaseEvent = b; return e }
+func (e UsageReported) stamp(b BaseEvent) Event   { e.BaseEvent = b; return e }
 
 // TurnEndReason enumerates why a turn ended.
 type TurnEndReason int

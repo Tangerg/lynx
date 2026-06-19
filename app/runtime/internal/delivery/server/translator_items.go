@@ -168,6 +168,26 @@ func (t *translator) toolEnd(e turn.ToolCallEnd) []protocol.StreamEvent {
 	return append(out, protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: item})
 }
 
+// usageProgress surfaces a per-round cumulative usage report as a run.progress
+// preview (API.md §5, ephemeral) — the live "tokens / cost spent" readout. Only
+// the usage field is carried; step/activity ride the tool-call boundary above.
+// The authoritative final total still lands on run.finished.result (§5.2).
+func (t *translator) usageProgress(e turn.UsageReported) []protocol.StreamEvent {
+	return []protocol.StreamEvent{{
+		Type: protocol.StreamRunProgress,
+		Progress: &protocol.RunProgress{
+			Usage: &protocol.Usage{
+				ModelUsage: protocol.ModelUsage{
+					InputTokens:     e.TokenUsage.PromptTokens,
+					OutputTokens:    e.TokenUsage.CompletionTokens,
+					ReasoningTokens: e.TokenUsage.ReasoningTokens,
+					CostUSD:         optCostUSD(e.CostUSD),
+				},
+			},
+		},
+	}}
+}
+
 // activityVerb maps a tool name to a human-readable mid-run activity line for
 // run.progress (API.md §5) — the "what's happening now" a client shows while
 // the tool runs. A small first-party verb map with a generic "Calling <name>"
