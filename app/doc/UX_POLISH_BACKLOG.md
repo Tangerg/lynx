@@ -40,27 +40,27 @@
 
 ## Tier 2 —— 中等投入、明显拉开体验
 
-### ☐ T2.1　边跑边排队 + 插话(steer)　【desktop 先做 + runtime/engine】
+### ✅ T2.1　边跑边排队 + 插话(steer)　【desktop · M】　**已实现**(运行中排队 + clean-settle 自动发 + 可删队列 chip;真正的 mid-run steer 仍需 engine 注入,留作后续)
 - **竞品**:**全员都有**。codex `chatwidget/input_queue.rs` 三层队列(下个工具后注入 / 回合末 / 排队),Esc 立即发;Kimi `Ctrl-S` 把队列+输入折成一批 `session.steer()` 注入当前回合,↑ 召回最后一条;crush `agent/agent.go drainQueueForStep` 把无 RunID 的排队折进当前回合;可编辑队列 chip。
 - **我方**:`useChatSend.ts` 硬 `if(running) return;`(自审 D5 第 1 大 gap)——**只能停、再发**。
 - **改法**:**desktop 先做** "运行中排队 + `run.finished` 后自动发"(纯前端,即可消掉最大痛点)。真正的 mid-run steer 需 **runtime/engine** 支持把用户输入注入活跃 turn——当前是 R 模型(park/resume),需评估 lynx-agent loop 能否接 steer;这步较重,先验证可行性再排期。
 
-### ☐ T2.2　Diff 三件套:call-scoped + 行内 word-level + 行内语法高亮　【runtime + desktop · M-L】
+### ✅ T2.2　Diff 三件套:call-scoped + 行内 word-level + 行内语法高亮　【runtime + desktop · M-L】　**已实现**(runtime 填 call-scoped `FileEdit.diff`(go-difflib);desktop 行内卡 + 全屏 Shiki 高亮 + unified/split 切换 + word-level via Shiki `decorations`)
 - **竞品**:Claude Code `StructuredDiff/Fallback.tsx generateWordDiffElements`(双色行内 word diff,`CHANGE_THRESHOLD=0.4` >40% 改动放弃词级,非选中 gutter);crush `diffview/` + `xchroma/chroma.go`(强制把 chroma 前景叠到 diff 背景上,高亮不和红绿打架;>120 列自动 unified→split);codex `diff_render.rs`(512KB/10000 行高亮护栏);Kimi `diff-preview.ts renderDiffLinesClustered`(客户端 LCS 聚簇 + gap 省略 + **流式时压住删除行/全删,直到 newText 到达,不闪红**)。
 - **我方**:行内 `DiffPreview`(`chat/tools/previews/index.tsx`)**无语法高亮、无 @@ 头**;全屏 `views/DiffView.tsx` **只 unified、不能折叠/分栏**;且 diff **非 call-scoped**——edit/write 卡显示**整树** `useDiff()` 不是这次的 patch,read 卡是 re-query(§12.1 B/C 仍开放)。
 - **改法**:**runtime** 填 `FileEdit.diff`(call-scoped,§12.1 C);**desktop** 行内加语法高亮 + word-level + 大 diff 护栏 + 全屏 split 切换。流式 edit 务必抄 Kimi 的"压删除行直到 newText"。
 
-### ☐ T2.3　@file 提及 + 可点 file:line + 大段粘贴转附件　【desktop(+runtime 依赖)· M】
+### ✅ T2.3　@file 提及 + 可点 file:line + 大段粘贴转附件　【desktop + runtime · M】　**已实现**(runtime `workspace.listFiles`/`readFile` 落地;desktop @file fuzzy 补全 + 大段粘贴转 chip + 可点 file:line→文件查看器;markdown 散文 linkify 留作后续 rehype 一轮)
 - **竞品**:全员 @file 自动补全。crush `completions/completions.go applyNamePriorityFilter`(fuzzy 之上再按 exactName>prefix>pathSegment>fallback 四级稳定排序);Kimi `scoreCandidate`(100/80/50/30 + 目录加权 + dirs-first)+ delimiter-bounded @(含 `=`/引号)+ `@"带空格路径"` 自动加引号;`@file#L10-20` 行范围语法多家都有;大段粘贴 >N 行转 `[Pasted…]` 附件。
 - **我方**:@file **全无**、输出里 file:line **不可点**(markdown `a()` 只开新 tab)、大文本粘贴直接灌输入框(只拦了 `image/*`)(自审 D8)。
 - **改法**:主要 **desktop**。注意依赖:@file 的文件列表源需 runtime `workspace.listFiles`(目前是 613 提案、方法表未注册)——要么先推该方法,要么前端临时用现有 grep/已读文件兜底。可点 file:line + 大段粘贴转附件可独立先做。
 
-### ☐ T2.4　限流 / 429 退避　【runtime + desktop · M】
+### ✅ T2.4　限流 / 429 退避　【runtime + desktop · M】　**已实现**(runtime 填 `retryable`+`retryAfterSeconds`(429/5xx/timeout)、desktop 倒计时 + 退避感知 Retry 禁用;`provider_error` 符号拆分是 wire-value 变更,待用户签发,暂只做 additive 字段)
 - **竞品**:Claude Code `withRetry`(前 3 次重试不打扰、第 4 次起才显倒计时)+ 过载透明换模型(`query.ts:894` Opus→Sonnet,非阻塞提示);codex `rate_limits.rs` 75/90/95% 阶梯警告 + 换模型 nudge("永不再提");opencode `session-retry.tsx` 行内倒计时重试卡(非 toast)。
 - **我方**:wire 有 `retryAfterSeconds`+`retryable`(`delivery/protocol/errors.go:34-38`)但**两端零消费**;runtime 也**从不填**(自审 R7),429/认证/超时全塌成一个 `provider_error` 靠 `detail` free-text 区分。
 - **改法**:**runtime** 在 `infra/llm` 解析 provider `Retry-After` → 填 `retryable`+`retryAfterSeconds`,并把 `provider_error` 拆成稳定符号(`rate_limited`/`invalid_api_key`/`timeout`);**desktop** 据此做倒计时 + 退避感知的 Retry 禁用。
 
-### ☐ T2.5　审批增强:⌘↩ bug 修复 + 持久 allow-RULE + 危险命令 banner　【desktop(+runtime)】
+### ✅ T2.5　审批增强:⌘↩ bug 修复 + 持久 allow-RULE + 危险命令 banner　【desktop(+runtime)】　**已实现**(⌘↩/⇧⌘⌫ 带 editedArgs+remember 的 bug 修复 + 客户端危险命令 banner;持久 allow-RULE 接 runtime 规则引擎,留作后续一轮)
 - **竞品**:Claude Code 批准按钮上**可编辑 allow 规则**(`bashToolUseOptions.tsx`:`Yes, and don't ask again for: [npm run:*]` 预填可改)+ 拒绝带反馈("tell Claude what to do differently");crush `PermissionKey{session,tool,action,dir}`(按目录记,不是只按工具名);Kimi `DANGER_PATTERNS` **客户端危险命令 banner**(`rm -rf`/`sudo`/`curl|sh`/`dd of=`/`mkfs`/`chmod 777`,独立于后端);codex 拒绝时把自定义 decline 键和 Esc 撞键剥离,Esc 永远是稳定取消。
 - **我方**:审批卡已强,但 **⌘↩ 快捷批准丢 edited-args + remember**(`submitPendingApproval.ts` 用裸 `{type:"approval",decision}` resume,自审 D6 实锤);remember 仅本会话、无持久 allow/deny 规则;无危险命令提示。
 - **改法**:**⌘↩ bug 快修**(让键盘路径也带 editedArgs + remember,now 即可);**危险命令 banner**(纯前端正则、可移植 Kimi 列表);**持久 allow-RULE** 接 [`RUNTIME_COMPARISON.md`](./RUNTIME_COMPARISON.md) "细粒度权限规则"那条(runtime 出规则引擎、desktop 出配置 UI)。
