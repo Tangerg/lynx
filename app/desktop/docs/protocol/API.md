@@ -524,8 +524,8 @@ type Interrupt =
 
 interface ApprovalPayload {
   tool: ToolInvocation;                // 待批工具（此时 result 尚无；name+arguments 在）
-  risk?: "low" | "medium" | "high";    // 可选；后端暂无风险引擎时留空
-  reason?: string;                     // 可选；为何需要批准
+  risk?: "low" | "medium" | "high";    // 由门禁按工具安全类派生（write→medium / exec→high）；客户端无需 join tools.list
+  reason?: string;                     // 为何需要批准（一行）
 }
 interface ToolResultPayload {
   tool: ToolInvocation;                // 要客户端执行的工具（client-side tools）；结果经 runs.resume 回传

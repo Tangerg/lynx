@@ -83,3 +83,29 @@ func safetyClassFor(name string) safetyClass {
 		return safetyClassExec
 	}
 }
+
+// safetyClassName is the wire string for a tool's class (API.md §4.4 SafetyClass
+// vocab: "safe" | "write" | "exec"), stamped on the live toolCall Item so a
+// client shows the risk class without joining tools.list. The turn layer owns
+// the policy vocab; the transport passes it through.
+func safetyClassName(name string) string {
+	switch safetyClassFor(name) {
+	case safetyClassSafe:
+		return "safe"
+	case safetyClassWrite:
+		return "write"
+	default:
+		return "exec"
+	}
+}
+
+// approvalRisk maps a gated tool to the (risk, reason) an approval card shows —
+// a coarser low/medium/high read of its safety class plus a one-line why. Only
+// write / exec tools ever reach an approval prompt (safe never gates), so this
+// is defined for those two classes.
+func approvalRisk(name string) (risk, reason string) {
+	if safetyClassFor(name) == safetyClassWrite {
+		return "medium", "Modifies files in the workspace."
+	}
+	return "high", "Runs commands or accesses the network."
+}

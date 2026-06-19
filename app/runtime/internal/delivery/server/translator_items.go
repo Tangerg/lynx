@@ -102,17 +102,18 @@ func (t *translator) toolStart(e turn.ToolCallStart) []protocol.StreamEvent {
 	})
 
 	id, runID := t.reuseOrNextItemID(e.ToolName, e.Arguments)
-	ref := &openTool{id: id, runID: runID, createdAt: time.Now().UTC(), name: e.ToolName, args: e.Arguments}
+	ref := &openTool{id: id, runID: runID, createdAt: time.Now().UTC(), name: e.ToolName, args: e.Arguments, safetyClass: e.SafetyClass}
 	t.tools[e.CallID] = ref
 	out = append(out, protocol.StreamEvent{
 		Type: protocol.StreamItemStarted,
 		Item: &protocol.Item{
-			ID:        ref.id,
-			RunID:     ref.runID,
-			Status:    protocol.ItemStatusRunning,
-			Type:      protocol.ItemTypeToolCall,
-			CreatedAt: ref.createdAt,
-			Tool:      t.newToolInvocation(e.ToolName, e.Arguments, ""),
+			ID:          ref.id,
+			RunID:       ref.runID,
+			Status:      protocol.ItemStatusRunning,
+			Type:        protocol.ItemTypeToolCall,
+			CreatedAt:   ref.createdAt,
+			Tool:        t.newToolInvocation(e.ToolName, e.Arguments, ""),
+			SafetyClass: protocol.SafetyClass(e.SafetyClass),
 		},
 	})
 	if e.Arguments != "" {
@@ -148,12 +149,13 @@ func (t *translator) toolEnd(e turn.ToolCallEnd) []protocol.StreamEvent {
 	}
 
 	item := &protocol.Item{
-		ID:        ref.id,
-		RunID:     ref.runID,
-		Status:    protocol.ItemStatusCompleted,
-		Type:      protocol.ItemTypeToolCall,
-		CreatedAt: ref.createdAt,
-		Tool:      t.newToolInvocation(ref.name, ref.args, e.Output),
+		ID:          ref.id,
+		RunID:       ref.runID,
+		Status:      protocol.ItemStatusCompleted,
+		Type:        protocol.ItemTypeToolCall,
+		CreatedAt:   ref.createdAt,
+		Tool:        t.newToolInvocation(ref.name, ref.args, e.Output),
+		SafetyClass: protocol.SafetyClass(ref.safetyClass),
 	}
 	switch {
 	case e.Denied:

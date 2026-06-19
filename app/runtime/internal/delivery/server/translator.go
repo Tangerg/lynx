@@ -177,11 +177,12 @@ type openText struct {
 }
 
 type openTool struct {
-	id        string
-	runID     string // the run the item belongs to (origin run for a resumed tool)
-	createdAt time.Time
-	name      string
-	args      string // raw JSON arguments, replayed to rebuild the invocation at completion
+	id          string
+	runID       string // the run the item belongs to (origin run for a resumed tool)
+	createdAt   time.Time
+	name        string
+	args        string // raw JSON arguments, replayed to rebuild the invocation at completion
+	safetyClass string // wire SafetyClass, carried so item.completed matches item.started
 }
 
 func newTranslator(sessionID, runID, parentRunID string, userInput []protocol.ContentBlock, resume *resumeBinding, model string) *translator {

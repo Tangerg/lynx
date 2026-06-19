@@ -75,13 +75,24 @@ func (t *translator) approvalInterrupt(in turn.Interrupt) (protocol.StreamEvent,
 	ev := protocol.StreamEvent{
 		Type: protocol.StreamItemStarted,
 		Item: &protocol.Item{
-			ID:        id,
-			RunID:     t.runID,
-			Status:    protocol.ItemStatusRunning,
-			Type:      protocol.ItemTypeToolCall,
-			CreatedAt: time.Now().UTC(),
-			Tool:      inv,
+			ID:          id,
+			RunID:       t.runID,
+			Status:      protocol.ItemStatusRunning,
+			Type:        protocol.ItemTypeToolCall,
+			CreatedAt:   time.Now().UTC(),
+			Tool:        inv,
+			SafetyClass: protocol.SafetyClass(p.SafetyClass),
 		},
+	}
+	// payload carries the self-contained tool (API.md §4.8 ApprovalPayload.tool)
+	// plus the gated call's risk + a one-line reason — so the approval card
+	// shows them directly, without joining tools.list.
+	payload := map[string]any{"tool": inv}
+	if p.Risk != "" {
+		payload["risk"] = p.Risk
+	}
+	if p.Reason != "" {
+		payload["reason"] = p.Reason
 	}
 	entry := protocol.Interrupt{
 		ItemID: id,
@@ -91,7 +102,7 @@ func (t *translator) approvalInterrupt(in turn.Interrupt) (protocol.StreamEvent,
 		// server re-binds the re-fired approved tool to THIS proposal item
 		// across the resume boundary straight off payload.tool (resumeKey on
 		// name + canonical arguments) — no backend-internal `_resume` tuple.
-		Payload: map[string]any{"tool": inv},
+		Payload: payload,
 	}
 	return ev, entry
 }

@@ -30,6 +30,12 @@ type ApprovalPrompt struct {
 	CallID    string `json:"callId"`
 	ToolName  string `json:"toolName"`
 	Arguments string `json:"arguments"`
+	// SafetyClass / Risk / Reason describe the gated call so the approval card
+	// shows the risk + a one-line why without joining tools.list. SafetyClass
+	// is the wire class ("write"|"exec"); Risk is the coarse low/medium/high.
+	SafetyClass string `json:"safetyClass"`
+	Risk        string `json:"risk"`
+	Reason      string `json:"reason"`
 }
 
 // ApproveToolCall is the non-blocking gate the engine consults BEFORE
@@ -79,10 +85,15 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	}
 
 	// interrupt for human approval (R model). First pass bubbles the
-	// InterruptError up to park; resume delivers the resolution here.
+	// InterruptError up to park; resume delivers the resolution here. The
+	// prompt carries the gated tool's risk so the approval card shows it.
+	risk, reason := approvalRisk(toolName)
 	res, _, err := hitl.Interrupt[interrupts.Resolution](ctx,
 		approvalKey(toolName, arguments),
-		ApprovalPrompt{CallID: callID, ToolName: toolName, Arguments: arguments},
+		ApprovalPrompt{
+			CallID: callID, ToolName: toolName, Arguments: arguments,
+			SafetyClass: safetyClassName(toolName), Risk: risk, Reason: reason,
+		},
 	)
 	if err != nil {
 		return kernel.ToolApprovalVerdict{Interrupt: err}
@@ -129,9 +140,10 @@ func approvalKey(toolName, arguments string) string {
 
 func (t *turnObserver) OnToolCallStart(callID, toolName, arguments string) {
 	t.svc.emit(t.st, ToolCallStart{
-		CallID:    callID,
-		ToolName:  toolName,
-		Arguments: arguments,
+		CallID:      callID,
+		ToolName:    toolName,
+		Arguments:   arguments,
+		SafetyClass: safetyClassName(toolName),
 	})
 }
 
