@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import type { ApprovalScope } from "@/rpc";
 import { WIRE_DECISION, type ApprovalDecision } from "./hitlDecision";
 import { useInterruptResume } from "./useInterruptResume";
 
@@ -9,7 +10,10 @@ export type { ApprovalDecision };
 // the guard, and the deferred settle). This hook only builds the approval-
 // specific wire payload (editedArgs / remember) and decision patch.
 
-export type RememberScope = "session" | "project" | "global";
+// The scope at which to persist an approve/deny decision — the wire
+// ApprovalScope, re-exposed under the agent-layer name the ApprovalCard uses
+// (so the component stays off @/rpc).
+export type RememberScope = ApprovalScope;
 
 export interface ApprovalSubmitOptions {
   /** Forwarded only when the user tweaked the tool's arguments before

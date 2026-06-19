@@ -519,7 +519,7 @@ export interface ApprovalResponse {
   // rule (AUX_API §6) — the runtime keys it by tool + the call's per-tool
   // subject (bash command / file path), scoped to the session, the project
   // dir, or globally. Omitted = this once only.
-  remember?: { scope: "session" | "project" | "global" };
+  remember?: { scope: ApprovalScope };
   editedArgs?: Record<string, unknown>; // one-shot input rewrite — NOT part of remember
   reason?: string;
 }
@@ -908,11 +908,15 @@ export type ApprovalMode =
   | "safe" // every write/exec tool parks
   | "balanced" // default: high-risk parks, low-risk passes (by safetyClass)
   | "yolo"; // everything passes, no parking (automation)
+// How far a remembered approval rule reaches (AUX_API §6): one session, one
+// project directory, or everywhere.
+export type ApprovalScope = "session" | "project" | "global";
+
 // One persisted fine-grained approval rule (approval.listRules, AUX_API §6).
 // A rule auto-resolves a gated call when scope + tool + subject all match.
 export interface ApprovalRule {
   id: string; // stable id (forgetRule key)
-  scope: "session" | "project" | "global";
+  scope: ApprovalScope;
   tool: string; // tool name, e.g. "bash"
   subject?: string; // command/path glob the rule matches; omitted = any arguments
   dir?: string; // project-scope directory (display only; omitted for session/global)
