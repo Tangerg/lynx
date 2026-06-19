@@ -17,7 +17,6 @@ type Summary struct {
 	Description string
 }
 
-// Summary projects the skill onto its metadata view.
 func (s *Skill) Summary() Summary {
 	return Summary{Name: s.Name, Description: s.Description}
 }

@@ -41,12 +41,10 @@ type FS struct {
 	fsys fs.FS
 }
 
-// NewFS adapts an fs.FS into a [Source].
 func NewFS(fsys fs.FS) *FS {
 	return &FS{fsys: fsys}
 }
 
-// Dir is the convenience constructor over a real directory path.
 func Dir(root string) *FS {
 	return &FS{fsys: os.DirFS(root)}
 }
