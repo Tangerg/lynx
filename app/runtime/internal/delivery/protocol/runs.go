@@ -28,6 +28,12 @@ type Runs interface {
 	// CancelRun hard-stops a running run (outcome:canceled).
 	CancelRun(ctx context.Context, in CancelRunRequest) error
 
+	// SteerRun injects a user message into an actively-running run so the model
+	// reads it on its next tool round (mid-run steering, API.md §6) — distinct
+	// from runs.resume (which answers an interrupt) and runs.start (a new turn).
+	// Errors run_not_found when the run isn't actively running (parked / done).
+	SteerRun(ctx context.Context, in SteerRunRequest) error
+
 	// ListRuns returns only running runs (API.md §7.3), as a Page.
 	ListRuns(ctx context.Context, in ListRunsRequest) (*Page[RunRef], error)
 
@@ -152,6 +158,13 @@ type GenerationParams struct {
 type CancelRunRequest struct {
 	RunID  string `json:"runId"`
 	Reason string `json:"reason,omitempty"`
+}
+
+// SteerRunRequest is the runs.steer body — a user message to inject into the
+// running run identified by RunID.
+type SteerRunRequest struct {
+	RunID   string `json:"runId"`
+	Message string `json:"message"`
 }
 
 // ListRunsRequest is the runs.list body.

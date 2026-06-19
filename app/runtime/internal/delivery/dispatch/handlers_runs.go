@@ -73,6 +73,17 @@ func (d *Dispatcher) handleRunsCancel(ctx context.Context, msg *transport.Reques
 	return replyDone(msg, d.api.CancelRun(ctx, in))
 }
 
+func (d *Dispatcher) handleRunsSteer(ctx context.Context, msg *transport.Request) HandleResult {
+	in, bad := decode[protocol.SteerRunRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
+	if in.RunID == "" || in.Message == "" {
+		return responseError(msg.ID, invalidParams("runId and message are required"))
+	}
+	return replyDone(msg, d.api.SteerRun(ctx, in))
+}
+
 func (d *Dispatcher) handleRunsList(ctx context.Context, msg *transport.Request) HandleResult {
 	var in protocol.ListRunsRequest
 	_ = unmarshal(msg.Params, &in) // empty params is valid
