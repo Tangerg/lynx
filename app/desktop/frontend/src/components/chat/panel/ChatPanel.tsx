@@ -78,9 +78,10 @@ export function ChatPanel({ onSend }: Props) {
         // Chat lives at a STABLE tree position whether or not a split view is
         // open — only the pane's width and the resizer/view siblings change.
         // Swapping <ChatStream> for a differently-nested layout (the old
-        // MainSplit) unmounted + remounted the stream on every split toggle, so
-        // its StickToBottom (initial="smooth") replayed top→bottom each time.
-        // The split layout (chat | resizer | view, G3) is inlined here so the
+        // MainSplit) unmounted + remounted the stream on every split toggle,
+        // which re-ran StickToBottom's initial bottom-anchor (yanking the user
+        // back down) and threw away any scroll-up position they held. The
+        // split layout (chat | resizer | view, G3) is inlined here so the
         // ChatStream element never changes position.
         <div className="flex min-h-0 flex-1">
           <div

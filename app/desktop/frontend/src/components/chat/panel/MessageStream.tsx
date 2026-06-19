@@ -10,7 +10,12 @@ import { MessageBlock } from "../message";
 
 // Chat scroll surface, backed by use-stick-to-bottom. `resetKey`
 // re-keys the subtree on session switch so a new thread lands at the
-// bottom. Follow state surfaces to the parent via ControlsRelay below.
+// bottom. That landing is `initial="instant"` (a jump, not an animation):
+// a smooth initial replays a visible top→bottom scroll through the whole
+// history on every mount / session switch / remount — which reads as the
+// chat "auto-scrolling on open" and flashes content-visibility gaps as it
+// flies past unrendered messages. Only the resize catch-up below stays
+// smooth. Follow state surfaces to the parent via ControlsRelay below.
 
 export interface StreamControls {
   isAtBottom: boolean;
@@ -57,7 +62,7 @@ export function MessageStream({ messages, ctx, assistantName, resetKey, onContro
   const running = useAgentRunning();
   if (messages.length === 0) {
     return (
-      <StickToBottom key={resetKey} className="msg-scroll-frame" initial="smooth" resize="smooth">
+      <StickToBottom key={resetKey} className="msg-scroll-frame" initial="instant" resize="smooth">
         <StickToBottom.Content
           scrollClassName="panel-scroll"
           className="relative mx-auto flex w-full max-w-[760px] flex-col gap-7 px-6 pt-6 pb-[220px]"
@@ -73,7 +78,7 @@ export function MessageStream({ messages, ctx, assistantName, resetKey, onContro
     <StickToBottom
       key={resetKey}
       className="panel-scroll msg-scroll"
-      initial="smooth"
+      initial="instant"
       resize={running ? "instant" : "smooth"}
     >
       <StickToBottom.Content
