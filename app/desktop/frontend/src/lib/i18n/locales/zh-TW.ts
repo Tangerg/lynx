@@ -292,6 +292,7 @@ export const zhTW: Record<string, string> = {
 
   "runError.title": "Agent 錯誤",
   "runError.action.retry": "重試",
+  "runError.action.retryIn": "{{seconds}} 秒後可重試",
   "runError.action.timeline": "開啟時間軸",
   "runError.action.diagnostics": "診斷",
   "runError.action.dismiss": "關閉",

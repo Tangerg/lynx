@@ -21,6 +21,7 @@ export function BannerAction({
   onClick,
   primary,
   tone = "negative",
+  disabled,
 }: {
   icon?: IconName;
   label: string;
@@ -28,16 +29,20 @@ export function BannerAction({
   primary?: boolean;
   /** The owning banner's severity — tints the primary variant. */
   tone?: "negative" | "warning";
+  /** Inert + dimmed (e.g. a retry still counting down its backoff). */
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       className={cn(
         "inline-flex h-6 items-center gap-1 rounded-md border px-2 font-sans text-[11.5px] transition-colors",
         primary
           ? cn("font-semibold", PRIMARY_TONE[tone])
           : "border-line-soft bg-transparent text-fg-muted hover:bg-surface-2 hover:text-fg",
+        "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent",
         FOCUS_RING,
       )}
     >

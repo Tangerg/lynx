@@ -232,6 +232,13 @@ export interface RunState {
 export interface RunError {
   message: string;
   code?: string;
+  /** Transient failure worth retrying (429 / 5xx / timeout) — gates the banner's
+   *  Retry affordance off (a permanent error like bad-credentials / invalid
+   *  params isn't fixed by resending). From ProblemData.retryable. */
+  retryable?: boolean;
+  /** Provider-requested backoff in seconds (ProblemData.retryAfterSeconds) —
+   *  drives the Retry countdown. Absent when the provider sent none. */
+  retryAfterSeconds?: number;
 }
 
 /** One entry on the per-session event timeline. Drives the Run Timeline

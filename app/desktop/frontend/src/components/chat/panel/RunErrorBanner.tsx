@@ -3,6 +3,7 @@
 // the same run), timeline (open timeline view), diagnostics (open diagnostics
 // view), and dismiss. Dismissing clears the error from the view state; it
 // persists in the timeline regardless.
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Icon } from "@/components/common";
 import { BannerAction } from "./BannerAction";
@@ -46,15 +47,39 @@ export function RunErrorBanner() {
   const clearError = useAgentStore((s) => s.clearError);
   const send = useAgentAction("send");
 
+  // Provider-requested backoff countdown (rate-limit / overload). Ticks down
+  // from error.retryAfterSeconds; re-armed whenever the error changes. While
+  // counting, Retry is shown but inert — don't hammer a provider that just
+  // asked us to wait.
+  const retryAfter = error?.retryAfterSeconds ?? 0;
+  const errKey = error ? (error.code ?? error.message) : null;
+  const [retryIn, setRetryIn] = useState(0);
+  useEffect(() => {
+    if (retryAfter <= 0) {
+      setRetryIn(0);
+      return;
+    }
+    const started = performance.now();
+    setRetryIn(retryAfter);
+    const id = setInterval(() => {
+      const rem = Math.max(0, Math.ceil(retryAfter - (performance.now() - started) / 1000));
+      setRetryIn(rem);
+      if (rem <= 0) clearInterval(id);
+    }, 250);
+    return () => clearInterval(id);
+  }, [retryAfter, errKey]);
+
   const onRetry = () => {
-    if (!send) return;
+    if (retryIn > 0 || !send) return;
     const text = findLastUserText();
     if (!text) return;
     clearError(sid);
     send(textInput(text));
   };
 
-  const canRetry = Boolean(send) && Boolean(findLastUserText());
+  // Offer Retry only when there's text to resend AND the error isn't a
+  // permanent one (bad credentials / invalid params): resending won't fix those.
+  const canRetry = Boolean(send) && Boolean(findLastUserText()) && error?.retryable !== false;
 
   return (
     <AnimatePresence initial={false}>
@@ -80,8 +105,13 @@ export function RunErrorBanner() {
               {canRetry && (
                 <BannerAction
                   icon="loop"
-                  label={t("runError.action.retry")}
+                  label={
+                    retryIn > 0
+                      ? t("runError.action.retryIn", { seconds: retryIn })
+                      : t("runError.action.retry")
+                  }
                   onClick={onRetry}
+                  disabled={retryIn > 0}
                   primary
                 />
               )}

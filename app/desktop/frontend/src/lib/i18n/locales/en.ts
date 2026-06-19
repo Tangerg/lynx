@@ -297,6 +297,7 @@ export const en: Record<string, string> = {
 
   "runError.title": "Agent error",
   "runError.action.retry": "Retry",
+  "runError.action.retryIn": "Retry in {{seconds}}s",
   "runError.action.timeline": "Open timeline",
   "runError.action.diagnostics": "Diagnostics",
   "runError.action.dismiss": "Dismiss",

@@ -291,6 +291,7 @@ export const zh: Record<string, string> = {
 
   "runError.title": "Agent 报错",
   "runError.action.retry": "重试",
+  "runError.action.retryIn": "{{seconds}} 秒后可重试",
   "runError.action.timeline": "查看时间线",
   "runError.action.diagnostics": "诊断",
   "runError.action.dismiss": "忽略",

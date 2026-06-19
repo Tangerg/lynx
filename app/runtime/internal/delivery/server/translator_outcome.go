@@ -1,6 +1,8 @@
 package server
 
 import (
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -41,20 +43,52 @@ func (t *translator) classifyRunError(msg string) *protocol.ProblemData {
 	provider := func(detail string) *protocol.ProblemData {
 		return &protocol.ProblemData{Type: "provider_error", Channel: protocol.ErrorChannelRun, Detail: detail}
 	}
+	// retryable marks a transient provider failure (worth retrying) and carries
+	// a best-effort backoff hint parsed from the message — so the client can
+	// gate / count down its retry instead of hammering. Type stays
+	// "provider_error" (no wire-symbol split here); only the additive
+	// retryable/retryAfterSeconds fields are populated.
+	retryable := func(detail string) *protocol.ProblemData {
+		p := provider(detail)
+		p.Retryable = true
+		p.RetryAfterSeconds = parseRetryAfter(msg)
+		return p
+	}
 	switch {
 	case contains("429", "too many requests", "rate limit", "overloaded", "quota"):
-		return provider("the model provider rate-limited the request; retry shortly")
+		return retryable("the model provider rate-limited the request; retry shortly")
 	case contains(" 401", " 403", "unauthorized", "forbidden", "invalid_api_key", "api key"):
+		// Not retryable: resending won't help until the key is fixed.
 		return provider("the model provider rejected the credentials; check the provider API key")
 	case contains(" 500", " 502", " 503", " 504", "bad gateway", "service unavailable", "internal server error"):
-		return provider("the model provider is temporarily unavailable; retry shortly")
+		return retryable("the model provider is temporarily unavailable; retry shortly")
 	case contains("deadline exceeded", "timeout", "timed out", "client.timeout", "connection refused", "no such host", "i/o timeout", "eof", "connection reset"):
-		return provider("the model provider request timed out or the connection failed; retry shortly")
+		return retryable("the model provider request timed out or the connection failed; retry shortly")
 	case contains(" 400", "invalid_request_error", "bad request"):
+		// Not retryable: the request itself is malformed.
 		return provider("the model provider rejected the request as invalid")
 	default:
 		return protocol.InternalErrorProblem()
 	}
+}
+
+// retryAfterRe pulls a backoff hint out of a provider error message — a
+// Retry-After header echoed into the text or a "try again in N seconds" phrase.
+// Most providers don't include one, so a miss (0) is the common case.
+var retryAfterRe = regexp.MustCompile(`(?i)(?:retry[- ]?after|try again in)[:\s]+(\d+)`)
+
+// parseRetryAfter returns the provider's requested backoff in whole seconds, or
+// 0 when the message carries none. Capped at one hour as a sanity bound.
+func parseRetryAfter(msg string) int {
+	m := retryAfterRe.FindStringSubmatch(msg)
+	if len(m) < 2 {
+		return 0
+	}
+	n, err := strconv.Atoi(m[1])
+	if err != nil || n < 0 || n > 3600 {
+		return 0
+	}
+	return n
 }
 
 // turnUsage maps the engine's per-turn token roll-up onto wire Usage.
