@@ -13,6 +13,45 @@ type Approval interface {
 	// read-only planning stance (the agent investigates + proposes a plan;
 	// exit_plan_mode flips back to execute).
 	SetApprovalMode(ctx context.Context, in SetApprovalModeRequest) (*ApprovalModeResult, error)
+
+	// ListApprovalRules lists the persisted "remember this decision" rules
+	// visible from a session — its session rules, its project's rules, and all
+	// global rules (AUX_API §6). The session id resolves the project directory.
+	ListApprovalRules(ctx context.Context, in ListApprovalRulesRequest) (*ListApprovalRulesResult, error)
+
+	// ForgetApprovalRule removes one persisted approval rule by id. Removing a
+	// missing id is not an error.
+	ForgetApprovalRule(ctx context.Context, in ForgetApprovalRuleRequest) error
+}
+
+// ApprovalRule is one persisted fine-grained approval rule (AUX_API §6). The
+// rule auto-resolves a gated tool call when the call's scope matches, the tool
+// matches, and the call's per-tool subject (a bash command, an edited file's
+// path) matches the Subject glob — so a rule reads "allow `npm run *` in this
+// project", not the blunt whole-tool grant.
+type ApprovalRule struct {
+	ID       string `json:"id"`
+	Scope    string `json:"scope"`             // "session" | "project" | "global"
+	Tool     string `json:"tool"`              // tool name, e.g. "bash"
+	Subject  string `json:"subject,omitempty"` // command / path glob; "" = any arguments
+	Dir      string `json:"dir,omitempty"`     // project-scope directory (display only; omitted otherwise)
+	Decision string `json:"decision"`          // "allow" | "deny"
+}
+
+// ListApprovalRulesRequest — approval.listRules body. SessionID anchors which
+// session + project rules are visible (global rules always are).
+type ListApprovalRulesRequest struct {
+	SessionID string `json:"sessionId"`
+}
+
+// ListApprovalRulesResult — the approval.listRules reply.
+type ListApprovalRulesResult struct {
+	Rules []ApprovalRule `json:"rules"`
+}
+
+// ForgetApprovalRuleRequest — approval.forgetRule body.
+type ForgetApprovalRuleRequest struct {
+	ID string `json:"id"`
 }
 
 // ApprovalMode is the runtime tool-permission stance
