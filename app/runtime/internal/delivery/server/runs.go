@@ -321,7 +321,11 @@ func resolveResolution(responses []protocol.InterruptResponse) (interrupts.Resol
 			// across and keys the rule (AUX_API §6). Empty = don't remember.
 			res := interrupts.Resolution{}
 			if r.Response.Remember != nil {
-				res.RememberScope = string(r.Response.Remember.Scope)
+				scope, ok := rememberScopeFromWire(r.Response.Remember.Scope)
+				if !ok {
+					return interrupts.Resolution{}, fmt.Errorf("%w: remember scope must be %q | %q | %q", protocol.ErrInvalidParams, protocol.RememberSession, protocol.RememberProject, protocol.RememberGlobal)
+				}
+				res.RememberScope = scope
 			}
 			switch r.Response.Decision {
 			case protocol.ApprovalApprove:

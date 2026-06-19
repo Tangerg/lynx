@@ -49,6 +49,29 @@ type FieldError struct {
 	Detail string `json:"detail"`
 }
 
+// First-party ProblemData.Type symbols for the run and tool channels (API.md
+// §8.2). ProblemData.Type stays an open string — the RPC-channel symbols (the
+// Err* sentinels below) and plugin-namespaced `plugin:<name>/<symbol>` types
+// also ride it — so these are named constants for the first-party set, not a
+// closed enum: the wire value is the string itself; production assigns the
+// constant (no typo drift), tests assert the literal (pins the wire value).
+const (
+	// ProblemInternalError is the unclassified-failure fallback on every channel
+	// (run outcome:error, RPC error, tool error); the full error rides the span,
+	// never the wire.
+	ProblemInternalError = "internal_error"
+	// Run channel (run.finished outcome:error) — how a failed run is classified.
+	ProblemAgentStuck          = "agent_stuck"          // the loop's no-forward-progress guard tripped
+	ProblemRateLimited         = "rate_limited"         // provider 429 / quota — retryable
+	ProblemInvalidAPIKey       = "invalid_api_key"      // provider 401 / 403 — not retryable
+	ProblemTimeout             = "timeout"              // provider request timed out / connection failed — retryable
+	ProblemProviderUnavailable = "provider_unavailable" // provider 5xx — retryable
+	ProblemProviderRejected    = "provider_rejected"    // provider 400, request rejected as invalid — not retryable
+	// Tool channel (toolCall.error) — how a tool call failed.
+	ProblemDeniedByUser = "denied_by_user" // denied by the approval verdict
+	ProblemToolFailed   = "tool_failed"    // tool execution returned an error
+)
+
 // Error code <-> symbolic name table (API.md §8.2). Numeric codes are
 // v2-fresh; the dispatch maps these sentinels onto {code, data.type}.
 const (
@@ -80,7 +103,7 @@ const (
 // server-side span, never the wire (API.md §8.2).
 func InternalErrorProblem() *ProblemData {
 	return &ProblemData{
-		Type:    "internal_error",
+		Type:    ProblemInternalError,
 		Channel: ErrorChannelRun,
 		Detail:  "the run failed due to an internal error",
 	}

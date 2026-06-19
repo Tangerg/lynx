@@ -83,7 +83,12 @@ func (se StreamEvent) IsDurable() bool {
 // event (API.md §5). Ephemeral — its terminal values land on
 // run.finished.result (usage incl. costUsd / steps).
 type RunProgress struct {
-	Step     *int   `json:"step,omitempty"`
+	Step *int `json:"step,omitempty"`
+	// MaxSteps would complete a "step N of M" counter, but no producer sets it
+	// yet: Step counts tool CALLS while the run cap (StartRun.maxSteps) counts
+	// tool ROUNDS, so emitting M here would mismatch N until the units align.
+	// The cap is still enforced — it terminates the run (outcome:maxSteps)
+	// rather than streaming a live countdown. Staged, not an oversight.
 	MaxSteps *int   `json:"maxSteps,omitempty"`
 	Usage    *Usage `json:"usage,omitempty"`
 	Activity string `json:"activity,omitempty"` // human-readable current action

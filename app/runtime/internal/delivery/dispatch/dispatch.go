@@ -204,7 +204,7 @@ func (d *Dispatcher) handleNotification(ctx context.Context, msg *transport.Requ
 func responseResult(id transport.ID, result any) HandleResult {
 	resp, err := transport.NewResponseResult(id, result)
 	if err != nil {
-		return responseError(id, problemError(protocol.CodeInternalError, "internal_error", err.Error()))
+		return responseError(id, problemError(protocol.CodeInternalError, protocol.ProblemInternalError, err.Error()))
 	}
 	return HandleResult{Response: resp}
 }

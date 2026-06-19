@@ -324,6 +324,17 @@ func (t *translator) translate(ev turn.Event) []protocol.StreamEvent {
 	return nil
 }
 
+// itemPair emits the started + completed pair for a single durable item whose
+// content is fully known up front (no streaming deltas) — the shape shared by
+// the opening userMessage, a mid-run steer, and a compaction divider. build
+// stamps the same id / type / content under each status.
+func itemPair(build func(protocol.ItemStatus) *protocol.Item) []protocol.StreamEvent {
+	return []protocol.StreamEvent{
+		{Type: protocol.StreamItemStarted, Item: build(protocol.ItemStatusRunning)},
+		{Type: protocol.StreamItemCompleted, Item: build(protocol.ItemStatusCompleted)},
+	}
+}
+
 // compaction surfaces a post-turn auto-compaction as a standalone compaction
 // Item (item.started + item.completed, one durable id) so the client folds it
 // into a "context compacted — N messages dropped" divider between turns
@@ -345,10 +356,7 @@ func (t *translator) compaction(e turn.CompactBoundary) []protocol.StreamEvent {
 			DroppedMessages: dropped,
 		}
 	}
-	return []protocol.StreamEvent{
-		{Type: protocol.StreamItemStarted, Item: item(protocol.ItemStatusRunning)},
-		{Type: protocol.StreamItemCompleted, Item: item(protocol.ItemStatusCompleted)},
-	}
+	return itemPair(item)
 }
 
 // openUserMessage emits the run's opening user turn as a userMessage Item
@@ -374,10 +382,7 @@ func (t *translator) openUserMessage() []protocol.StreamEvent {
 			Content:   input,
 		}
 	}
-	return []protocol.StreamEvent{
-		{Type: protocol.StreamItemStarted, Item: item(protocol.ItemStatusRunning)},
-		{Type: protocol.StreamItemCompleted, Item: item(protocol.ItemStatusCompleted)},
-	}
+	return itemPair(item)
 }
 
 // steerMessage surfaces a mid-run steering turn as its own userMessage Item: a
@@ -401,10 +406,7 @@ func (t *translator) steerMessage(e turn.SteerMessage) []protocol.StreamEvent {
 			Content:   []protocol.ContentBlock{{Type: protocol.ContentBlockText, Text: e.Text}},
 		}
 	}
-	return append(out,
-		protocol.StreamEvent{Type: protocol.StreamItemStarted, Item: item(protocol.ItemStatusRunning)},
-		protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: item(protocol.ItemStatusCompleted)},
-	)
+	return append(out, itemPair(item)...)
 }
 
 // todosSnapshot projects the model's task list onto a state.snapshot under the
