@@ -22,8 +22,11 @@ type typedAction[In, Out any] struct {
 
 func (a *typedAction[In, Out]) Metadata() ActionMetadata { return a.metadata }
 
-// Retries are NOT handled here — that is the runtime's executeAction loop,
-// which understands ActionStatus and the QoS policy.
+// Execute is the runtime entry point. It pulls the In value from the
+// blackboard (using the bound input variable name + type), invokes the typed
+// function, and writes the output back. Retries are NOT handled here — that
+// is the runtime's executeAction loop, which understands ActionStatus and
+// the QoS policy.
 func (a *typedAction[In, Out]) Execute(ctx context.Context, pc *ProcessContext) ActionStatus {
 	if pc == nil {
 		return ActionFailed
