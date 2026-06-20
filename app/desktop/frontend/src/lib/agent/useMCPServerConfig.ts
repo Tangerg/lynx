@@ -51,6 +51,18 @@ export function useSetMCPServerEnabled(): (name: string, enabled: boolean) => Pr
   }, []);
 }
 
+/**
+ * Start the interactive OAuth sign-in for a server (workspace.mcp.authorize) —
+ * opens the system browser; the connection outcome arrives via mcp.serverChanged
+ * (the events plugin re-invalidates the MCP views), so this just kicks it off.
+ */
+export function useAuthorizeMCPServer(): (name: string) => Promise<void> {
+  return useCallback(async (name) => {
+    await getContainer().client().workspace.mcp.authorize(name);
+    await invalidateMcp();
+  }, []);
+}
+
 export interface MCPTestOutcome {
   ok: boolean;
   /** Human-readable failure reason (already flattened from ProblemData). */

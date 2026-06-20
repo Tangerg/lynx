@@ -103,7 +103,7 @@ function toSidebarMCPServer(s: RpcMCPServer): SidebarMCPServer {
 function toMcpConfigInfo(c: RpcMCPServerConfig): MCPServerConfigInfo {
   return {
     name: c.name,
-    transport: c.transport,
+    type: c.type,
     enabled: c.enabled,
     description: c.description,
     url: c.url,

@@ -638,7 +638,9 @@ export interface McpTool {
 // How a configured MCP server is reached: a local subprocess (stdio) or a
 // remote streamable-HTTP endpoint. The two transports gate disjoint config
 // fields (command/args/env/dir vs url/authorization), §4.10.
-export type McpTransport = "stdio" | "http";
+// Transport in the standard `mcpServers` vocabulary (the config every client
+// pastes). stdio = local subprocess; streamableHttp = remote Streamable HTTP.
+export type McpTransport = "stdio" | "streamableHttp";
 
 // One entry in the editable MCP registry (workspace.mcp.listConfigs /
 // configure). Carries the persisted config PLUS a best-effort live status the
@@ -648,7 +650,7 @@ export type McpTransport = "stdio" | "http";
 // only travels on ConfigureMCPServerRequest (write side).
 export interface McpServerConfig {
   name: string;
-  transport: McpTransport;
+  type: McpTransport;
   enabled: boolean;
   description?: string;
   // http transport. `headers` is an extra static request-header map (e.g.
@@ -681,7 +683,7 @@ export interface McpServerConfig {
 // the resulting McpServerConfig with the token re-masked.
 export interface ConfigureMCPServerRequest {
   name: string;
-  transport: McpTransport;
+  type: McpTransport;
   enabled: boolean;
   description?: string;
   url?: string;

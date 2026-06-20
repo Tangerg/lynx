@@ -75,10 +75,10 @@ export interface McpToolsQuery {
 // no editable fields). Mirrors the wire McpServerConfig 1:1 so the pane never
 // imports @/rpc; `authorizationMasked` is the never-reversible token echo
 // ("" = none), the raw token only travels on the write hooks.
-export type MCPTransport = "stdio" | "http";
+export type MCPTransport = "stdio" | "streamableHttp";
 export interface MCPServerConfigInfo {
   name: string;
-  transport: MCPTransport;
+  type: MCPTransport;
   enabled: boolean;
   description?: string;
   url?: string;
