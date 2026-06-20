@@ -2,6 +2,8 @@ package runtime
 
 import (
 	"context"
+	"slices"
+	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/mcp"
@@ -115,19 +117,22 @@ func SeedMCPServers(ctx context.Context, svc mcpserver.Service, env []mcp.Server
 
 // configFromServer maps a registry entry to a dial descriptor. Tool-level
 // gating (DisabledTools / AutoApproveTools) is applied at toolset build /
-// approval, not at dial, so it has no place here.
+// approval, not at dial, so it has no place here. Env is flattened from the
+// registry's KEY→value map to the dial layer's "KEY=value" slice (Go exec's
+// native shape).
 func configFromServer(s mcpserver.Server) mcp.ServerConfig {
-	cfg := mcp.ServerConfig{Name: s.Name}
+	cfg := mcp.ServerConfig{Name: s.Name, Timeout: s.Timeout}
 	switch s.Transport {
 	case mcpserver.TransportHTTP:
 		cfg.Transport = mcp.TransportHTTP
 		cfg.Endpoint = s.URL
 		cfg.Authorization = s.Authorization
+		cfg.Headers = s.Headers
 	case mcpserver.TransportStdio:
 		cfg.Transport = mcp.TransportStdio
 		cfg.Command = s.Command
 		cfg.Args = s.Args
-		cfg.Env = s.Env
+		cfg.Env = envMapToSlice(s.Env)
 		cfg.Dir = s.Dir
 	}
 	return cfg
@@ -180,20 +185,52 @@ func (r *Runtime) refreshMCPGating(ctx context.Context) error {
 }
 
 // serverFromConfig maps an env-sourced dial descriptor to a registry entry
-// (enabled, no tool-level gating) for first-run seeding.
+// (enabled, no tool-level gating) for first-run seeding. Env is parsed from the
+// dial layer's "KEY=value" slice back to the registry's KEY→value map.
 func serverFromConfig(c mcp.ServerConfig) mcpserver.Server {
-	s := mcpserver.Server{Name: c.Name, Enabled: true}
+	s := mcpserver.Server{Name: c.Name, Enabled: true, Timeout: c.Timeout}
 	switch c.Transport {
 	case mcp.TransportHTTP:
 		s.Transport = mcpserver.TransportHTTP
 		s.URL = c.Endpoint
 		s.Authorization = c.Authorization
+		s.Headers = c.Headers
 	case mcp.TransportStdio:
 		s.Transport = mcpserver.TransportStdio
 		s.Command = c.Command
 		s.Args = c.Args
-		s.Env = c.Env
+		s.Env = envSliceToMap(c.Env)
 		s.Dir = c.Dir
 	}
 	return s
+}
+
+// envMapToSlice flattens a KEY→value map to the "KEY=value" slice exec wants,
+// sorted by key so the dialed env is deterministic (stable across restarts and
+// in tests). nil/empty yields nil.
+func envMapToSlice(m map[string]string) []string {
+	if len(m) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(m))
+	for k, v := range m {
+		out = append(out, k+"="+v)
+	}
+	slices.Sort(out)
+	return out
+}
+
+// envSliceToMap parses "KEY=value" entries back into a map, splitting on the
+// FIRST '=' so a value may itself contain '='. An entry with no '=' becomes a
+// bare key with an empty value. nil/empty yields nil.
+func envSliceToMap(s []string) map[string]string {
+	if len(s) == 0 {
+		return nil
+	}
+	m := make(map[string]string, len(s))
+	for _, kv := range s {
+		k, v, _ := strings.Cut(kv, "=")
+		m[k] = v
+	}
+	return m
 }

@@ -355,21 +355,23 @@ type McpTool struct {
 // Status / ToolCount / Error are the best-effort live state, present when the
 // server is enabled and has been dialed.
 type McpServerConfig struct {
-	Name                string       `json:"name"`
-	Transport           string       `json:"transport"` // "stdio" | "http"
-	Enabled             bool         `json:"enabled"`
-	Description         string       `json:"description,omitempty"`
-	URL                 string       `json:"url,omitempty"`                 // http transport
-	AuthorizationMasked string       `json:"authorizationMasked,omitempty"` // http; "" = none
-	Command             string       `json:"command,omitempty"`             // stdio transport
-	Args                []string     `json:"args,omitempty"`
-	Env                 []string     `json:"env,omitempty"` // KEY=value, replaces subprocess env
-	Dir                 string       `json:"dir,omitempty"`
-	DisabledTools       []string     `json:"disabledTools,omitempty"`    // hidden from the model
-	AutoApproveTools    []string     `json:"autoApproveTools,omitempty"` // skip the approval gate
-	Status              McpStatus    `json:"status,omitempty"`           // live, when enabled+dialed
-	ToolCount           *int         `json:"toolCount,omitempty"`
-	Error               *ProblemData `json:"error,omitempty"`
+	Name                string            `json:"name"`
+	Transport           string            `json:"transport"` // "stdio" | "http"
+	Enabled             bool              `json:"enabled"`
+	Description         string            `json:"description,omitempty"`
+	URL                 string            `json:"url,omitempty"`                 // http transport
+	AuthorizationMasked string            `json:"authorizationMasked,omitempty"` // http; "" = none
+	Headers             map[string]string `json:"headers,omitempty"`             // http; extra request headers (not masked)
+	Command             string            `json:"command,omitempty"`             // stdio transport
+	Args                []string          `json:"args,omitempty"`
+	Env                 map[string]string `json:"env,omitempty"` // stdio; KEY→value, replaces subprocess env
+	Dir                 string            `json:"dir,omitempty"`
+	TimeoutSeconds      int               `json:"timeoutSeconds,omitempty"`   // connect-handshake bound; 0 = unbounded
+	DisabledTools       []string          `json:"disabledTools,omitempty"`    // hidden from the model
+	AutoApproveTools    []string          `json:"autoApproveTools,omitempty"` // skip the approval gate
+	Status              McpStatus         `json:"status,omitempty"`           // live, when enabled+dialed
+	ToolCount           *int              `json:"toolCount,omitempty"`
+	Error               *ProblemData      `json:"error,omitempty"`
 }
 
 // ConfigureMCPServerRequest — workspace.mcp.configure / test body (the editable
@@ -378,18 +380,20 @@ type McpServerConfig struct {
 // preserves its stored token, so editing other fields needn't re-enter the
 // secret — clear a token by removing the server, not by blanking it.
 type ConfigureMCPServerRequest struct {
-	Name             string   `json:"name"`
-	Transport        string   `json:"transport"`
-	Enabled          bool     `json:"enabled"`
-	Description      string   `json:"description,omitempty"`
-	URL              string   `json:"url,omitempty"`
-	Authorization    string   `json:"authorization,omitempty"`
-	Command          string   `json:"command,omitempty"`
-	Args             []string `json:"args,omitempty"`
-	Env              []string `json:"env,omitempty"`
-	Dir              string   `json:"dir,omitempty"`
-	DisabledTools    []string `json:"disabledTools,omitempty"`
-	AutoApproveTools []string `json:"autoApproveTools,omitempty"`
+	Name             string            `json:"name"`
+	Transport        string            `json:"transport"`
+	Enabled          bool              `json:"enabled"`
+	Description      string            `json:"description,omitempty"`
+	URL              string            `json:"url,omitempty"`
+	Authorization    string            `json:"authorization,omitempty"`
+	Headers          map[string]string `json:"headers,omitempty"`
+	Command          string            `json:"command,omitempty"`
+	Args             []string          `json:"args,omitempty"`
+	Env              map[string]string `json:"env,omitempty"`
+	Dir              string            `json:"dir,omitempty"`
+	TimeoutSeconds   int               `json:"timeoutSeconds,omitempty"`
+	DisabledTools    []string          `json:"disabledTools,omitempty"`
+	AutoApproveTools []string          `json:"autoApproveTools,omitempty"`
 }
 
 // SetMCPEnabledRequest — workspace.mcp.setEnabled body.

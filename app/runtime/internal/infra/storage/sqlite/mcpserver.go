@@ -6,14 +6,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
 // MCPServerService implements mcpserver.Service against a SQLite database.
-// One row per server name; Configure is an upsert. The []string columns
-// (args / env / disabled_tools / auto_approve_tools) are JSON-encoded. The DB
-// must have been opened via [Open] so the mcp_servers table exists.
+// One row per server name; Configure is an upsert. The list columns (args /
+// disabled_tools / auto_approve_tools) and the map columns (env / headers) are
+// JSON-encoded; timeout is stored as nanoseconds. The DB must have been opened
+// via [Open] so the mcp_servers table exists.
 type MCPServerService struct {
 	db *sql.DB
 }
@@ -25,11 +27,14 @@ func NewMCPServerService(db *sql.DB) *MCPServerService {
 	return &MCPServerService{db: db}
 }
 
+// mcpColumns is the column list shared by List and Get so the two reads and
+// scanMCPServer stay in lockstep.
+const mcpColumns = `name, transport, enabled, description, url, authorization, headers,
+	        command, args, env, dir, timeout, disabled_tools, auto_approve_tools`
+
 func (s *MCPServerService) List(ctx context.Context) ([]mcpserver.Server, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT name, transport, enabled, description, url, authorization,
-		        command, args, env, dir, disabled_tools, auto_approve_tools
-		 FROM mcp_servers ORDER BY name`)
+		`SELECT `+mcpColumns+` FROM mcp_servers ORDER BY name`)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list mcp servers: %w", err)
 	}
@@ -48,9 +53,7 @@ func (s *MCPServerService) List(ctx context.Context) ([]mcpserver.Server, error)
 
 func (s *MCPServerService) Get(ctx context.Context, name string) (mcpserver.Server, bool, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT name, transport, enabled, description, url, authorization,
-		        command, args, env, dir, disabled_tools, auto_approve_tools
-		 FROM mcp_servers WHERE name = ?`, name)
+		`SELECT `+mcpColumns+` FROM mcp_servers WHERE name = ?`, name)
 	srv, err := scanMCPServer(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return mcpserver.Server{}, false, nil
@@ -64,18 +67,20 @@ func (s *MCPServerService) Get(ctx context.Context, name string) (mcpserver.Serv
 func (s *MCPServerService) Configure(ctx context.Context, srv mcpserver.Server) error {
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO mcp_servers
-		   (name, transport, enabled, description, url, authorization,
-		    command, args, env, dir, disabled_tools, auto_approve_tools)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		   (name, transport, enabled, description, url, authorization, headers,
+		    command, args, env, dir, timeout, disabled_tools, auto_approve_tools)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(name) DO UPDATE SET
 		    transport = excluded.transport, enabled = excluded.enabled,
 		    description = excluded.description, url = excluded.url,
-		    authorization = excluded.authorization, command = excluded.command,
-		    args = excluded.args, env = excluded.env, dir = excluded.dir,
+		    authorization = excluded.authorization, headers = excluded.headers,
+		    command = excluded.command, args = excluded.args, env = excluded.env,
+		    dir = excluded.dir, timeout = excluded.timeout,
 		    disabled_tools = excluded.disabled_tools,
 		    auto_approve_tools = excluded.auto_approve_tools`,
 		srv.Name, srv.Transport, srv.Enabled, srv.Description, srv.URL, srv.Authorization,
-		srv.Command, encodeStrings(srv.Args), encodeStrings(srv.Env), srv.Dir,
+		encodeStringMap(srv.Headers), srv.Command, encodeStrings(srv.Args),
+		encodeStringMap(srv.Env), srv.Dir, int64(srv.Timeout),
 		encodeStrings(srv.DisabledTools), encodeStrings(srv.AutoApproveTools))
 	if err != nil {
 		return fmt.Errorf("sqlite: configure mcp server: %w", err)
@@ -99,23 +104,28 @@ func (s *MCPServerService) SetEnabled(ctx context.Context, name string, enabled 
 }
 
 // scanMCPServer reads one row via the given Scan func (works for both
-// *sql.Row and *sql.Rows), decoding the JSON []string columns.
+// *sql.Row and *sql.Rows), decoding the JSON list/map columns and the
+// nanosecond timeout. Column order must match [mcpColumns].
 func scanMCPServer(scan func(...any) error) (mcpserver.Server, error) {
 	var (
-		srv                           mcpserver.Server
-		args, env, disabled, autoAppr string
+		srv                                 mcpserver.Server
+		headers, args, env, disabled, autoA string
+		timeoutNS                           int64
 	)
 	if err := scan(&srv.Name, &srv.Transport, &srv.Enabled, &srv.Description, &srv.URL,
-		&srv.Authorization, &srv.Command, &args, &env, &srv.Dir, &disabled, &autoAppr); err != nil {
+		&srv.Authorization, &headers, &srv.Command, &args, &env, &srv.Dir, &timeoutNS,
+		&disabled, &autoA); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return mcpserver.Server{}, err
 		}
 		return mcpserver.Server{}, fmt.Errorf("sqlite: scan mcp server: %w", err)
 	}
+	srv.Headers = decodeStringMap(headers)
 	srv.Args = decodeStrings(args)
-	srv.Env = decodeStrings(env)
+	srv.Env = decodeStringMap(env)
+	srv.Timeout = time.Duration(timeoutNS)
 	srv.DisabledTools = decodeStrings(disabled)
-	srv.AutoApproveTools = decodeStrings(autoAppr)
+	srv.AutoApproveTools = decodeStrings(autoA)
 	return srv, nil
 }
 
@@ -142,4 +152,29 @@ func decodeStrings(s string) []string {
 		return nil
 	}
 	return v
+}
+
+// encodeStringMap JSON-encodes a string map for a TEXT column; a nil/empty map
+// stores "" (decoded back to nil) so empty and absent read identically.
+func encodeStringMap(m map[string]string) string {
+	if len(m) == 0 {
+		return ""
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
+// decodeStringMap reverses encodeStringMap; a blank or malformed column yields nil.
+func decodeStringMap(s string) map[string]string {
+	if s == "" {
+		return nil
+	}
+	var m map[string]string
+	if json.Unmarshal([]byte(s), &m) != nil {
+		return nil
+	}
+	return m
 }
