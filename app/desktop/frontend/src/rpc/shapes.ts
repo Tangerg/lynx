@@ -433,6 +433,27 @@ export interface Usage extends ModelUsage {
   byModel?: Record<string, ModelUsage>; // per-model split (not recursive); entries are the same shape (incl. cache)
 }
 
+// usage.summary (§7.7) — cross-session spend report, summed from the durable
+// run history. Buckets sum whole runs so the breakdowns reconcile with `total`.
+export interface UsageSummaryRequest {
+  sinceDays?: number; // limit to runs finished in the last N days; omit/0 = all time
+}
+
+// One grouped slice of usage — a provider id, model id, or day (YYYY-MM-DD).
+export interface UsageBucket extends ModelUsage {
+  key: string;
+  runs?: number; // runs that contributed
+}
+
+export interface UsageSummary {
+  total: ModelUsage;
+  byProvider?: UsageBucket[]; // spend-ranked
+  byModel?: UsageBucket[]; // spend-ranked
+  byDay?: UsageBucket[]; // chronological
+  sessions?: number; // user-facing sessions with recorded spend
+  runs?: number; // finished runs counted
+}
+
 // Field-level error inside ProblemData.errors (§8.3) — `field` is the
 // offending params key, so a form can flag it inline.
 export interface FieldError {

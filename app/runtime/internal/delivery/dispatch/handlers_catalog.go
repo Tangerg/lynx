@@ -77,6 +77,24 @@ func (d *Dispatcher) handleToolsInvoke(ctx context.Context, msg *transport.Reque
 	return reply(msg, out, err)
 }
 
+// ─── Usage reporting (API.md §7.7) ──────────────────────────────────
+
+func (d *Dispatcher) handleUsageSession(ctx context.Context, msg *transport.Request) HandleResult {
+	id, err := decodeStringParam(msg.Params, "sessionId")
+	if err != nil {
+		return responseError(msg.ID, invalidParams(err.Error()))
+	}
+	out, uErr := d.api.SessionUsage(ctx, id)
+	return reply(msg, out, uErr)
+}
+
+func (d *Dispatcher) handleUsageSummary(ctx context.Context, msg *transport.Request) HandleResult {
+	var in protocol.UsageSummaryRequest
+	_ = unmarshal(msg.Params, &in) // all fields optional (empty → all-time)
+	out, err := d.api.UsageSummary(ctx, in)
+	return reply(msg, out, err)
+}
+
 // ─── Feedback (API.md §7.7) ─────────────────────────────────────────
 
 func (d *Dispatcher) handleFeedbackCreate(ctx context.Context, msg *transport.Request) HandleResult {

@@ -50,7 +50,7 @@ func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 	// WithoutCancel(reqCtx) (see above), so it outlives the request that
 	// started it without losing the trace.
 	context.AfterFunc(reqCtx, unsubscribe)
-	go s.pumpRun(runCtx, runID, parentRunID, handle, inner, hub, userInput, resume, model)
+	go s.pumpRun(runCtx, runID, parentRunID, handle, inner, hub, userInput, resume, provider, model)
 	return &protocol.StartRunResponse{RunID: runID}, events, nil
 }
 
@@ -64,8 +64,8 @@ func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 //
 // Either way the wire run.finished event is the last thing on the
 // channel before it closes.
-func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle turn.TurnHandle, inner iter.Seq[turn.Event], hub *runHub, userInput []protocol.ContentBlock, resume *resumeBinding, model string) {
-	tr := newTranslator(handle.SessionID, runID, parentRunID, userInput, resume, model)
+func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle turn.TurnHandle, inner iter.Seq[turn.Event], hub *runHub, userInput []protocol.ContentBlock, resume *resumeBinding, provider, model string) {
+	tr := newTranslator(handle.SessionID, runID, parentRunID, userInput, resume, provider, model)
 	finished := false
 	parked := false
 	// The session's cwd, resolved once: tool-derived files.changed events carry
@@ -107,7 +107,7 @@ func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 			// the terminal run.finished synthesized on a canceled run) lands
 			// regardless of run-ctx cancellation — WithoutCancel keeps the
 			// trace span (full-link), unlike context.Background().
-			s.persistStreamEvent(context.WithoutCancel(ctx), runID, handle.SessionID, parentRunID, se, model)
+			s.persistStreamEvent(context.WithoutCancel(ctx), runID, handle.SessionID, parentRunID, se, provider, model)
 			// Tell workspace subscribers a file changed when an agent file tool
 			// completes — precise + fd-free, so the watcher needn't watch the tree.
 			s.emitToolFileChange(cwd, se)

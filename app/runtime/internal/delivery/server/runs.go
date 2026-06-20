@@ -159,9 +159,10 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	// carry the resume binding: an approved tool re-fires in this run and
 	// must complete its ORIGINAL proposal item (API.md §5.2 / §6), not a
 	// fresh one.
-	// A continuation inherits its parent's model (linked via parentRunId), so
-	// its RunRef leaves it empty rather than re-deriving.
-	out, events, err := s.openSegment(ctx, contRunID, in.ParentRunID, handle, pending.SessionID, nil, resumeBindingFrom(pending), "", "")
+	// A continuation runs against the parked run's same provider+model — stamp
+	// them so the continuation's RunRef (and its persisted usage) is
+	// self-describing, rather than forcing consumers to chase parentRunId.
+	out, events, err := s.openSegment(ctx, contRunID, in.ParentRunID, handle, pending.SessionID, nil, resumeBindingFrom(pending), pending.Provider, pending.Model)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -250,6 +251,7 @@ func (s *Server) ListRuns(_ context.Context, in protocol.ListRunsRequest) (*prot
 			ID:          e.runID,
 			SessionID:   e.sessionID,
 			ParentRunID: e.parentRunID,
+			Provider:    e.provider,
 			Model:       e.model,
 			Status:      protocol.RunStatusRunning,
 		})

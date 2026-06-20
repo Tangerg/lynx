@@ -73,6 +73,10 @@ type RuntimeServices interface {
 	// DefaultModel is the runtime's configured default model — used to fill
 	// Session.model for sessions that never explicitly selected one.
 	DefaultModel() string
+	// DefaultProvider is the runtime's configured default provider — used by
+	// usage.summary to attribute default-model runs (whose RunRef carries no
+	// provider) to the real provider.
+	DefaultProvider() string
 	// UtilityRole reports the (provider, model) the in-house maintenance
 	// services run on — empty when unset (they run on the main model). Backs
 	// models.getUtilityRole.

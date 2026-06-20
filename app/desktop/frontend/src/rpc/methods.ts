@@ -67,6 +67,9 @@ import type {
   TodoItem,
   ToolSpec,
   UpdateSessionRequest,
+  Usage,
+  UsageSummary,
+  UsageSummaryRequest,
   UtilityRole,
   WorkspaceEvent,
   WorkspaceFileChange,
@@ -253,6 +256,11 @@ export interface Methods {
     list: () => Promise<Page<ToolSpec>>;
     invoke: (params: InvokeToolRequest) => Promise<unknown>;
   };
+  // Read-only spend reporting aggregated from the durable run history (§7.7).
+  usage: {
+    session: (sessionId: SessionId) => Promise<Usage>;
+    summary: (params?: UsageSummaryRequest) => Promise<UsageSummary>;
+  };
   memory: {
     list: (cwd?: string) => Promise<Page<MemoryEntry>>;
     get: (scope: MemoryScope, cwd?: string) => Promise<MemoryEntry>;
@@ -396,6 +404,10 @@ export function createMethods(client: RpcClient): Methods {
     tools: {
       list: () => client.call<Page<ToolSpec>>("tools.list"),
       invoke: (params) => client.call<unknown>("tools.invoke", params),
+    },
+    usage: {
+      session: (sessionId) => client.call<Usage>("usage.session", { sessionId }),
+      summary: (params) => client.call<UsageSummary>("usage.summary", params ?? {}),
     },
     memory: {
       list: (cwd) => client.call<Page<MemoryEntry>>("memory.list", { cwd }),

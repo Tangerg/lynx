@@ -34,6 +34,7 @@ type Runtime interface {
 	Tools
 	Memory
 	Feedback
+	UsageReports
 }
 
 // ProtocolVersion is the wire version this build implements (API.md

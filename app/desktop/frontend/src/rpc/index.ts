@@ -120,6 +120,9 @@ export type {
   // Usage / error / context / tools
   Usage,
   ModelUsage,
+  UsageSummary,
+  UsageBucket,
+  UsageSummaryRequest,
   ProblemData,
   FieldError,
   ContextItem,

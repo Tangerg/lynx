@@ -277,7 +277,9 @@ interface RunRef {
   parentRunId?: string;                // continuation-of：本 Run 是 resume/edit 的延续
   status?: "running" | "finished";
   outcome?: RunOutcome;                // status=finished 时给
-  model?: string;                      // 本 Run 用的 model（Model.id）
+  model?: string;                      // 本 Run 用的 model（Model.id）；空=运行时默认
+  provider?: string;                   // 本 Run 用的 provider（Provider.id），与 model 配对；空=默认。
+                                       // 盖在 Run 上使其自描述：usage.summary 按 provider 归因免去 model→provider 反推
   createdAt?: string;
   finishedAt?: string;
 }
@@ -1127,6 +1129,24 @@ fd;且我们用不了 fd-廉价的 FSEvents)。改为两路覆盖,跨平台(inot
 
 - 入参 `{ name: string; arguments: Record<string, unknown>; cwd?: string }`；返回 `unknown`（工具原始输出，best-effort JSON）。
 - 错误：`tool_denied` / `path_outside_root`。
+
+#### `usage.session` / `usage.summary`
+只读花费报表,从持久化的 run 历史(`history_runs`)**sum-on-read** 聚合 —— 无 denormalize 计数器要维护,rollback/fork 丢弃的 run 自然反映(没了就不计)。每个 finished run 已带终态计量(`RunResult.usage`,**subtree 聚合**:子 agent 花费已计入父 root run)。
+
+- **`usage.session`** 入参 `{ sessionId: string }`;返回 `Usage`(§4.6)——该会话所有 finished run 的累计 token + 成本(含 `byModel`)。
+- **`usage.summary`** 入参 `{ sinceDays?: number }`(省略/0=全时段);返回 `UsageSummary`:
+  ```ts
+  interface UsageSummary {
+    total: ModelUsage;                 // 总计(成本 via costUsd,未定价则省略)
+    byProvider?: UsageBucket[];        // 按花费降序
+    byModel?: UsageBucket[];           // 按花费降序
+    byDay?: UsageBucket[];             // 按日期升序(YYYY-MM-DD)
+    sessions?: number; runs?: number;  // 计入的用户会话数 / finished run 数
+  }
+  interface UsageBucket extends ModelUsage { key: string; runs?: number }
+  ```
+- **不重复计数**:`summary` 只遍历用户可见会话(子 agent 子会话被 `sessions.list` 排除),父 root run 的 subtree 聚合已覆盖子 agent 花费。
+- **归因粒度 = run**:byProvider/byDay 按整 run 折叠(与 total 对账);byModel 优先用 run 自带的 `byModel` 拆分(能捕捉一个 run 触及的 utility / 子 agent model),否则落在该 run 的 headline model。
 
 ---
 
