@@ -259,6 +259,38 @@ describe("agentStore.relabelMessage", () => {
   });
 });
 
+describe("agentStore.dropMessage", () => {
+  const userMsg = (id: string): StreamEvent =>
+    ({
+      type: "item.completed",
+      item: item({
+        id,
+        status: "completed",
+        type: "userMessage",
+        content: [{ type: "text", text: "hi" }],
+      }),
+    }) as never;
+
+  it("removes a single message by id (optimistic steer rollback)", () => {
+    const store = useAgentStore.getState();
+    store.resetSession(SID);
+    store.applyEvents(SID, [userMsg("item_real"), userMsg("local-steer-1")].map(fold));
+    expect(view().messages.map((m) => m.id)).toEqual(["item_real", "local-steer-1"]);
+
+    useAgentStore.getState().dropMessage(SID, "local-steer-1");
+    expect(view().messages.map((m) => m.id)).toEqual(["item_real"]);
+  });
+
+  it("is a no-op for an unknown id", () => {
+    const store = useAgentStore.getState();
+    store.resetSession(SID);
+    store.applyEvents(SID, [userMsg("item_real")].map(fold));
+    const before = view().messages;
+    useAgentStore.getState().dropMessage(SID, "nope");
+    expect(view().messages).toBe(before); // same reference — no churn
+  });
+});
+
 describe("appendUserMessage reconciles an image-only optimistic bubble", () => {
   const imageUserMsg = (id: string): StreamEvent =>
     ({
