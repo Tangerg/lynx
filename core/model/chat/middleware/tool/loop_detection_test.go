@@ -21,13 +21,13 @@ func TestLoopDetector_TripsOnlyAboveThreshold(t *testing.T) {
 	}
 	const sig = "abc"
 	for i := 1; i <= DefaultLoopThreshold; i++ {
-		if err := d.observe(sig); err != nil {
-			t.Fatalf("occurrence %d tripped (%v); threshold is %d", i, err, d.threshold)
+		if halt, _ := d.observe(sig); halt != nil {
+			t.Fatalf("occurrence %d tripped (%v); threshold is %d", i, halt, d.threshold)
 		}
 	}
 	var loopErr *LoopDetectedError
-	if err := d.observe(sig); !errors.As(err, &loopErr) { // the 6th
-		t.Fatalf("occurrence %d did not trip; want *LoopDetectedError, got %v", DefaultLoopThreshold+1, err)
+	if halt, _ := d.observe(sig); !errors.As(halt, &loopErr) { // the 6th
+		t.Fatalf("occurrence %d did not trip; want *LoopDetectedError, got %v", DefaultLoopThreshold+1, halt)
 	}
 	if loopErr.Count != DefaultLoopThreshold+1 {
 		t.Fatalf("Count = %d, want %d", loopErr.Count, DefaultLoopThreshold+1)
@@ -40,8 +40,8 @@ func TestLoopDetector_DistinctSignaturesNeverTrip(t *testing.T) {
 	d := newLoopDetector(&LoopDetectionConfig{Window: 4, Threshold: 2})
 	for i := range 20 {
 		// A fresh signature every round (a..t, all distinct).
-		if err := d.observe(string(rune('a' + i))); err != nil {
-			t.Fatalf("distinct signatures tripped at %d: %v", i, err)
+		if halt, _ := d.observe(string(rune('a' + i))); halt != nil {
+			t.Fatalf("distinct signatures tripped at %d: %v", i, halt)
 		}
 	}
 }
@@ -53,8 +53,8 @@ func TestLoopDetector_WindowEvicts(t *testing.T) {
 	d := newLoopDetector(&LoopDetectionConfig{Window: 3, Threshold: 2})
 	seq := []string{"x", "a", "b", "x", "c", "d", "x"} // x's are >2 apart
 	for i, s := range seq {
-		if err := d.observe(s); err != nil {
-			t.Fatalf("evicting window tripped at %d: %v", i, err)
+		if halt, _ := d.observe(s); halt != nil {
+			t.Fatalf("evicting window tripped at %d: %v", i, halt)
 		}
 	}
 }
@@ -64,9 +64,36 @@ func TestLoopDetector_WindowEvicts(t *testing.T) {
 func TestLoopDetector_EmptySignatureIgnored(t *testing.T) {
 	d := newLoopDetector(&LoopDetectionConfig{Window: 2, Threshold: 1})
 	for range 10 {
-		if err := d.observe(""); err != nil {
-			t.Fatalf("empty signature counted: %v", err)
+		if halt, _ := d.observe(""); halt != nil {
+			t.Fatalf("empty signature counted: %v", halt)
 		}
+	}
+}
+
+// TestLoopDetector_NudgesOnceBeforeHalt pins the escalation: the same signature
+// returns nudge=true exactly once (at the nudge threshold) before the hard halt,
+// so a stuck model gets one corrective reminder rather than an immediate stop.
+func TestLoopDetector_NudgesOnceBeforeHalt(t *testing.T) {
+	d := newLoopDetector(&LoopDetectionConfig{}) // window 10, threshold 5, nudge 3
+	const sig = "abc"
+	nudges := 0
+	for i := 1; i <= DefaultLoopThreshold; i++ { // occurrences 1..5, none halt
+		halt, nudge := d.observe(sig)
+		if halt != nil {
+			t.Fatalf("occurrence %d halted early: %v", i, halt)
+		}
+		if nudge {
+			nudges++
+			if i != DefaultLoopNudgeThreshold {
+				t.Fatalf("nudge fired at occurrence %d, want %d", i, DefaultLoopNudgeThreshold)
+			}
+		}
+	}
+	if nudges != 1 {
+		t.Fatalf("nudged %d times, want exactly 1", nudges)
+	}
+	if halt, _ := d.observe(sig); halt == nil { // the 6th still halts
+		t.Fatal("did not halt after the nudge window")
 	}
 }
 

@@ -15,6 +15,12 @@ import (
 const (
 	DefaultLoopWindow    = 10
 	DefaultLoopThreshold = 5
+	// DefaultLoopNudgeThreshold is the recurrence count at which the detector
+	// first injects a corrective <system-reminder> (once per signature) instead
+	// of halting — giving the model a chance to break out of the repetition
+	// before the hard stop at [DefaultLoopThreshold]. Must be ≤ the halt
+	// threshold; a value ≥ it disables the nudge (straight to halt).
+	DefaultLoopNudgeThreshold = 3
 )
 
 // LoopDetectionConfig tunes the repeated-tool-round detector. It is
@@ -38,6 +44,13 @@ type LoopDetectionConfig struct {
 	// signature count EXCEEDS this (so a threshold of 5 trips on the 6th
 	// identical round). <= 0 falls back to [DefaultLoopThreshold].
 	Threshold int
+
+	// NudgeThreshold is the recurrence count at which a corrective
+	// <system-reminder> is injected once (per signature) BEFORE the halt, so a
+	// model stuck repeating gets a chance to change approach or stop on its own.
+	// <= 0 falls back to [DefaultLoopNudgeThreshold]; a value >= Threshold
+	// disables the nudge (the detector goes straight to the halt).
+	NudgeThreshold int
 }
 
 // LoopDetectedError is returned when the tool-calling loop repeats an
@@ -66,7 +79,9 @@ func (e *LoopDetectedError) Error() string {
 type loopDetector struct {
 	window    int
 	threshold int
-	recent    []string // most-recent round signatures, oldest first, capped at window
+	nudgeAt   int
+	recent    []string        // most-recent round signatures, oldest first, capped at window
+	nudged    map[string]bool // signatures already nudged once, so the reminder fires at most once per loop
 }
 
 func newLoopDetector(cfg *LoopDetectionConfig) *loopDetector {
@@ -81,18 +96,24 @@ func newLoopDetector(cfg *LoopDetectionConfig) *loopDetector {
 	if threshold <= 0 {
 		threshold = DefaultLoopThreshold
 	}
-	return &loopDetector{window: window, threshold: threshold}
+	nudgeAt := cfg.NudgeThreshold
+	if nudgeAt <= 0 {
+		nudgeAt = DefaultLoopNudgeThreshold
+	}
+	return &loopDetector{window: window, threshold: threshold, nudgeAt: nudgeAt, nudged: map[string]bool{}}
 }
 
-// observe records sig and returns a [*LoopDetectedError] once sig has occurred
-// more than the threshold within the window — the detector owns the halt
-// decision and assembles its own error, so callers don't reach into its
-// window/threshold to build one. Returns nil when the round is fine; an empty
-// sig (a round that ran no tools) is ignored, also returning nil. The error
-// type is returned through the error interface to avoid a typed-nil pitfall.
-func (d *loopDetector) observe(sig string) error {
+// observe records sig and decides what to do about repetition. It returns a
+// [*LoopDetectedError] (through the error interface, to avoid a typed-nil
+// pitfall) once sig has occurred MORE than the threshold within the window — the
+// detector owns the halt decision and assembles its own error. Before that, when
+// sig first reaches the nudge threshold, it returns nudge=true ONCE (per
+// signature) so the caller injects a corrective reminder and lets the model try
+// to recover. A fine round, or an empty sig (a round that ran no tools), returns
+// (nil, false).
+func (d *loopDetector) observe(sig string) (halt error, nudge bool) {
 	if sig == "" {
-		return nil
+		return nil, false
 	}
 	d.recent = append(d.recent, sig)
 	if len(d.recent) > d.window {
@@ -105,9 +126,13 @@ func (d *loopDetector) observe(sig string) error {
 		}
 	}
 	if count > d.threshold {
-		return &LoopDetectedError{Count: count, Threshold: d.threshold, Window: d.window}
+		return &LoopDetectedError{Count: count, Threshold: d.threshold, Window: d.window}, false
 	}
-	return nil
+	if count >= d.nudgeAt && !d.nudged[sig] {
+		d.nudged[sig] = true
+		return nil, true
+	}
+	return nil, false
 }
 
 // roundSignature hashes one tool round into a stable key: every

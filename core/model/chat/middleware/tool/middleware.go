@@ -22,6 +22,11 @@ const DefaultMaxIterations = 50
 // empty reply and [Config.FeedbackOnEmptyResponse] is enabled.
 const emptyResponseNudge = "Your previous reply was empty. Please provide a complete answer, or call one of the available tools."
 
+// loopNudge is injected once when the loop detector first sees a tool round
+// repeat (same calls AND results) up to the nudge threshold — a chance for the
+// model to break the repetition before the hard halt at the loop threshold.
+const loopNudge = "<system-reminder>You have repeated the same tool call(s) and gotten the same result(s) several times. Repeating it again will not change the outcome. Change your approach — try a different tool, different arguments, or a different strategy — or stop and explain what's blocking you.</system-reminder>"
+
 // Config tunes [NewMiddleware]. Every field is optional; the zero
 // value yields the default loop (cap = [DefaultMaxIterations]).
 //
@@ -250,15 +255,23 @@ func (m *middleware) executeCallRecursively(ctx context.Context, req *chat.Reque
 		return result.buildReturnResponse()
 	}
 
+	nudge := false
 	if det != nil {
-		if err := det.observe(roundSignature(resp.Result.AssistantMessage.CollectToolCalls(), result.toolMessage)); err != nil {
-			return nil, err
+		halt, n := det.observe(roundSignature(resp.Result.AssistantMessage.CollectToolCalls(), result.toolMessage))
+		if halt != nil {
+			return nil, halt
 		}
+		nudge = n
 	}
 
 	nextReq, err := result.buildContinueRequest()
 	if err != nil {
 		return nil, err
+	}
+	if nudge {
+		if nextReq, err = continueRequest(nextReq, chat.NewUserMessage(loopNudge)); err != nil {
+			return nil, err
+		}
 	}
 	nextReq, err = m.applyBeforeRound(ctx, nextReq)
 	if err != nil {
@@ -370,17 +383,26 @@ func (m *middleware) executeStreamRecursively(ctx context.Context, req *chat.Req
 		}
 	}
 
+	nudge := false
 	if det != nil {
-		if err := det.observe(roundSignature(resp.Result.AssistantMessage.CollectToolCalls(), result.toolMessage)); err != nil {
-			yield(nil, err)
+		halt, n := det.observe(roundSignature(resp.Result.AssistantMessage.CollectToolCalls(), result.toolMessage))
+		if halt != nil {
+			yield(nil, halt)
 			return
 		}
+		nudge = n
 	}
 
 	nextReq, err := result.buildContinueRequest()
 	if err != nil {
 		yield(nil, err)
 		return
+	}
+	if nudge {
+		if nextReq, err = continueRequest(nextReq, chat.NewUserMessage(loopNudge)); err != nil {
+			yield(nil, err)
+			return
+		}
 	}
 	nextReq, err = m.applyBeforeRound(ctx, nextReq)
 	if err != nil {
