@@ -72,11 +72,16 @@ func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 	// it so a workspace subscriber can scope the (cwd-relative) paths.
 	cwd := s.sessionCwd(ctx, handle.SessionID)
 
-	// emit assigns each StreamEvent its eventId, persists the durable
-	// side to history, and appends to the hub. hub.Append is non-blocking
-	// (it drops on a slow subscriber, never stalls the run), so unlike the
-	// old per-connection channel there is no client-disconnect backpressure
-	// here — the run streams to the hub regardless of who is listening.
+	// emit assigns each StreamEvent its eventId, appends it to the hub (live
+	// delivery + in-memory replay backlog), then persists the durable side to
+	// history. Append is non-blocking (it drops on a slow subscriber, never
+	// stalls the run), and it runs BEFORE the durable persist so a slow DB write
+	// (SQLite single-writer contention — e.g. a concurrent compaction holding the
+	// connection) can't delay the terminal run.finished reaching live subscribers
+	// or the pump teardown. Live reconnect replays from the hub backlog, not the
+	// persist; the persist feeds items.list + cross-restart only. Exception: the
+	// interrupt record is written before the append (see below) because a client
+	// can resume the instant it sees run.finished{interrupt}.
 	emit := func(events []protocol.StreamEvent) {
 		for _, se := range events {
 			re := protocol.RunEvent{
@@ -103,15 +108,19 @@ func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 					}
 				}
 			}
+			// Live first: deliver to subscribers + retain in the hub's in-memory
+			// replay backlog. recordInterrupt (the interrupt branch above) already
+			// ran, so a resume triggered by this event finds its record.
+			hub.Append(re)
 			// Persist off a cancel-decoupled ctx so the durable history (incl.
 			// the terminal run.finished synthesized on a canceled run) lands
 			// regardless of run-ctx cancellation — WithoutCancel keeps the
-			// trace span (full-link), unlike context.Background().
+			// trace span (full-link), unlike context.Background(). After the
+			// append so the DB never gates live delivery (see emit's doc).
 			s.persistStreamEvent(context.WithoutCancel(ctx), runID, handle.SessionID, parentRunID, se, provider, model)
 			// Tell workspace subscribers a file changed when an agent file tool
 			// completes — precise + fd-free, so the watcher needn't watch the tree.
 			s.emitToolFileChange(cwd, se)
-			hub.Append(re)
 		}
 	}
 

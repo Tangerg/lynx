@@ -20,6 +20,8 @@ import { asSessionId, errorDetail, errorType, RpcError } from "@/rpc";
 import { LOCAL_MESSAGE_PREFIX } from "@/protocol/run/viewState";
 import { endSpan, startRunSpan, withSpan } from "@/lib/observability/tracing";
 import { getContainer } from "@/main/container";
+import { queryClient } from "@/lib/data/queryClient";
+import { USAGE_SESSION_KEY } from "@/lib/data/useUsage";
 import { useAgentStore, type FoldEvent } from "./agentStore";
 import { useSessionStore } from "./sessionStore";
 
@@ -86,6 +88,15 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
         return; // stale batch from before a view reset
       }
       store().applyEvents(sessionId, batch);
+      // A finished run changed this session's durable metering — refetch its
+      // cumulative usage chip. Fired for the exact session that finished (works
+      // for a background session too), on the authoritative wire signal rather
+      // than an active-session running-flag transition. The local persist of the
+      // run blob completes well before this invalidate's refetch round-trips to
+      // the server, so usage.session reads the finished run.
+      if (batch.some((e) => e.event.type === "run.finished")) {
+        void queryClient.invalidateQueries({ queryKey: [USAGE_SESSION_KEY, sessionId] });
+      }
     };
     const enqueue = (event: RunEvent["event"], runId?: string) => {
       const epoch = epochOf();

@@ -148,6 +148,38 @@ func TestSessionRename(t *testing.T) {
 	}
 }
 
+// TestSessionRenameIfUntitled confirms the auto-titler's atomic write only
+// lands on a still-untitled session and is a no-op (nil) otherwise — the
+// clobber protection against a concurrent user rename.
+func TestSessionRenameIfUntitled(t *testing.T) {
+	ctx := context.Background()
+	svc := newTempDB(t)
+
+	// Untitled → sets.
+	untitled, _ := svc.Create(ctx, "", "")
+	if err := svc.RenameIfUntitled(ctx, untitled.ID, "auto"); err != nil {
+		t.Fatalf("RenameIfUntitled: %v", err)
+	}
+	if got, _ := svc.Get(ctx, untitled.ID); got.Title != "auto" {
+		t.Fatalf("Title = %q, want auto", got.Title)
+	}
+
+	// Already titled (the user renamed during generation) → no-op, keeps the
+	// user's title, no error.
+	titled, _ := svc.Create(ctx, "mine", "")
+	if err := svc.RenameIfUntitled(ctx, titled.ID, "auto"); err != nil {
+		t.Fatalf("RenameIfUntitled titled = %v, want nil", err)
+	}
+	if got, _ := svc.Get(ctx, titled.ID); got.Title != "mine" {
+		t.Fatalf("Title = %q, want the user's title preserved", got.Title)
+	}
+
+	// Unknown id → no-op nil (best-effort, not ErrNotFound).
+	if err := svc.RenameIfUntitled(ctx, "nope", "x"); err != nil {
+		t.Fatalf("RenameIfUntitled unknown = %v, want nil", err)
+	}
+}
+
 func TestSessionFavorite(t *testing.T) {
 	ctx := context.Background()
 	svc := newTempDB(t)
