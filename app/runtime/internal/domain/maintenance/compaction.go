@@ -125,7 +125,7 @@ func NewCompactor(store memory.Store, client ClientFunc, cfg CompactionConfig) *
 // (no middleware), so it does NOT enter the chat-memory middleware
 // — otherwise the summarisation request itself would be appended
 // to the history and trigger another compaction round.
-func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string) (kernel.CompactionResult, error) {
+func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string, preCompact func(context.Context) bool) (kernel.CompactionResult, error) {
 	if c == nil || sessionID == "" {
 		return kernel.CompactionResult{}, nil
 	}
@@ -143,6 +143,13 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string) (kernel.
 	// bloated by a few large tool results, where len(msgs) < keepRecent. Skip —
 	// you can't compact messages you must keep.
 	if len(msgs) <= c.keepRecent {
+		return kernel.CompactionResult{}, nil
+	}
+
+	// PreCompact hook gate: compaction is now committed (triggers + guards
+	// passed), so this fires exactly when a compaction would run — a hook may
+	// veto it. nil = always proceed.
+	if preCompact != nil && !preCompact(ctx) {
 		return kernel.CompactionResult{}, nil
 	}
 

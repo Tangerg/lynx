@@ -35,6 +35,6 @@ type engineDep interface {
 	// re-parked [kernel.ChatProcess] ready for Resume(approved).
 	RestoreChat(ctx context.Context, processID string, req kernel.RestoreChatRequest) (kernel.ChatProcess, error)
 	InjectUserMessage(ctx context.Context, sessionID, text string) error
-	MaybeCompact(ctx context.Context, sessionID string) (kernel.CompactionResult, error)
+	MaybeCompact(ctx context.Context, sessionID string, preCompact func(context.Context) bool) (kernel.CompactionResult, error)
 	MaybeExtract(ctx context.Context, sessionID, cwd string) (kernel.ExtractionResult, error)
 }
