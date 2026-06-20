@@ -20,8 +20,8 @@ const hooksRelPath = ".lyra/hooks.json"
 // the [Runner]'s deterministic combine (first-block / first-rewrite wins) favors
 // the user's own global hooks over a repo's.
 //
-//	1. ~/.lyra/hooks.json                          → ScopeGlobal
-//	2. {dir}/.lyra/hooks.json for dir in root…cwd  → ScopeProject
+//  1. ~/.lyra/hooks.json                          → ScopeGlobal
+//  2. {dir}/.lyra/hooks.json for dir in root…cwd  → ScopeProject
 //
 // Trust is NOT enforced here — Load reports provenance; the caller drops
 // ScopeProject hooks for an untrusted project (a cloned repo's hooks must not

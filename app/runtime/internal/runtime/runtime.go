@@ -35,6 +35,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/maintenance"
@@ -121,6 +122,12 @@ type Config struct {
 	// models.list are served from the registry + catalog, not these.
 	Provider string
 	Model    string
+
+	// HooksResolver resolves user-configured lifecycle hooks for a turn's cwd.
+	// nil (or a nil *hooks.Resolver) disables hooks — the turn no-ops every
+	// hook seam. The composition root builds it from the storage home + the
+	// project-trust store.
+	HooksResolver *hooks.Resolver
 }
 
 // Runtime is the bundle. Construct once via [New]; share the
@@ -355,7 +362,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	sessionSvc := cfg.SessionService
 	interruptStore := cfg.InterruptStore
 
-	chatSvc, err := turn.New(eng, approvalSvc, resolver, ecfg.Todos, mcpAutoApprove)
+	chatSvc, err := turn.New(eng, approvalSvc, resolver, ecfg.Todos, mcpAutoApprove, cfg.HooksResolver)
 	if err != nil {
 		_ = eng.Close()
 		return nil, fmt.Errorf("runtime: chat service: %w", err)

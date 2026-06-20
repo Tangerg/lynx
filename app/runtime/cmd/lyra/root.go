@@ -16,6 +16,7 @@ func (a *App) RootCmd() *cobra.Command {
 	root.AddCommand(
 		a.AgentsCmd(),
 		a.ChatCmd(),
+		a.HooksCmd(),
 		a.ReplCmd(),
 		a.MemoryCmd(),
 		a.ServeCmd(),

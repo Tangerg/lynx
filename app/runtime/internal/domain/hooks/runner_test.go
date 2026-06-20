@@ -80,7 +80,7 @@ func TestRunner_RewriteArguments(t *testing.T) {
 func TestRunner_NonBlockingErrorProceeds(t *testing.T) {
 	var mu sync.Mutex
 	var errs []string
-	r := NewRunner(func(_ string, err error) {
+	r := NewRunner(func(_ context.Context, _ string, err error) {
 		mu.Lock()
 		errs = append(errs, err.Error())
 		mu.Unlock()
@@ -98,7 +98,7 @@ func TestRunner_NonBlockingErrorProceeds(t *testing.T) {
 
 func TestRunner_TimeoutIsNonBlocking(t *testing.T) {
 	var got error
-	r := NewRunner(func(_ string, err error) { got = err })
+	r := NewRunner(func(_ context.Context, _ string, err error) { got = err })
 	hooks := []Hook{{Event: PreToolUse, Command: `sleep 5`, TimeoutMs: 40}}
 	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "bash"}})
 	if dec.Block {

@@ -3,6 +3,7 @@ package turn
 import (
 	"context"
 	"errors"
+	"fmt"
 	"iter"
 	"sync"
 	"time"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
@@ -56,7 +58,14 @@ func newTurnID() string { return turnIDPrefix + uuid.NewString() }
 // names ("<server>_<tool>") whose calls skip the approval prompt — a per-server
 // whitelist the runtime recomputes on every MCP registry change. nil disables
 // it (no MCP tool auto-approves).
-func New(eng engineDep, approvalSvc approval.Service, resolver clientResolver, todos todoLister, mcpAutoApprove func() map[string]struct{}) (Service, error) {
+// hookResolver resolves the lifecycle hooks bound to a working directory.
+// Implemented by [hooks.Resolver]; nil disables hooks. Narrow consumer view so
+// the turn doesn't depend on the resolver's construction.
+type hookResolver interface {
+	For(ctx context.Context, cwd string) *hooks.Bound
+}
+
+func New(eng engineDep, approvalSvc approval.Service, resolver clientResolver, todos todoLister, mcpAutoApprove func() map[string]struct{}, hr hookResolver) (Service, error) {
 	if eng == nil {
 		return nil, errors.New("turn: engine is required")
 	}
@@ -66,7 +75,9 @@ func New(eng engineDep, approvalSvc approval.Service, resolver clientResolver, t
 		resolver:       resolver,
 		todos:          todos,
 		mcpAutoApprove: mcpAutoApprove,
+		hooks:          hr,
 		turns:          map[string]*turnState{},
+		seenSessions:   map[string]struct{}{},
 	}, nil
 }
 
@@ -86,10 +97,19 @@ type inMemory struct {
 	// deny; it only spares a prompt the user would otherwise see. nil = off.
 	mcpAutoApprove func() map[string]struct{}
 
-	// mu guards the live-turn registry + interruptKinds; each turn owns the
-	// synchronization of its own cross-goroutine state (see turnState.mu).
+	// hooks resolves the lifecycle-hook set for a turn's cwd. nil = no hooks.
+	hooks hookResolver
+
+	// mu guards the live-turn registry + interruptKinds + seenSessions; each
+	// turn owns the synchronization of its own cross-goroutine state (see
+	// turnState.mu).
 	mu    sync.Mutex
 	turns map[string]*turnState // turn_id → state
+
+	// seenSessions tracks which sessions this process has already opened a turn
+	// for, so the SessionStart hook fires once per session per process (not on
+	// every turn). Guarded by mu.
+	seenSessions map[string]struct{}
 
 	// interruptKinds is the allowlist of HITL kinds the connected client
 	// declared it can answer (ClientCapabilities.InterruptKinds). nil means
@@ -126,6 +146,22 @@ func (s *inMemory) StartTurn(ctx context.Context, req StartTurnRequest) (TurnHan
 	// newTurnState's WithoutCancel, so this span is its child.
 	state.ctx, state.span = startTurnSpan(state.ctx, handle.SessionID, handle.TurnID, state.model)
 
+	// Resolve this turn's lifecycle hooks (trust-filtered for the cwd). The
+	// UserPromptSubmit / SessionStart hooks run BEFORE the turn launches so they
+	// can inject context into the prompt or block it; a block ends the span we
+	// just opened and fails the start.
+	if s.hooks != nil {
+		state.hooks = s.hooks.For(state.ctx, req.Cwd)
+	}
+	if !state.hooks.Empty() {
+		msg, err := s.runPromptHooks(state.ctx, req, state)
+		if err != nil {
+			state.span.End()
+			return TurnHandle{}, err
+		}
+		req.Message = msg
+	}
+
 	s.mu.Lock()
 	s.turns[handle.TurnID] = state
 	s.mu.Unlock()
@@ -133,6 +169,54 @@ func (s *inMemory) StartTurn(ctx context.Context, req StartTurnRequest) (TurnHan
 	go s.runTurn(req, state)
 
 	return handle, nil
+}
+
+// runPromptHooks fires SessionStart (once per session per process) + the
+// UserPromptSubmit hook before a turn starts. It returns the (possibly
+// context-prefixed) message, or an error wrapping [ErrPromptBlocked] when a hook
+// blocked the prompt.
+func (s *inMemory) runPromptHooks(ctx context.Context, req StartTurnRequest, st *turnState) (string, error) {
+	var blocked bool
+	var reason, inject string
+	add := func(d hooks.Decision) {
+		if d.Block && !blocked {
+			blocked, reason = true, d.Reason
+		}
+		if d.InjectContext != "" {
+			if inject != "" {
+				inject += "\n"
+			}
+			inject += d.InjectContext
+		}
+	}
+	if s.firstTurnForSession(req.SessionID) {
+		add(st.hooks.Run(ctx, hooks.Input{Event: hooks.SessionStart, SessionID: req.SessionID, Cwd: req.Cwd}))
+	}
+	add(st.hooks.Run(ctx, hooks.Input{
+		Event: hooks.UserPromptSubmit, SessionID: req.SessionID, Cwd: req.Cwd, Prompt: req.Message,
+	}))
+	if blocked {
+		if reason == "" {
+			reason = "blocked by a hook"
+		}
+		return "", fmt.Errorf("%w: %s", ErrPromptBlocked, reason)
+	}
+	if inject != "" {
+		return "<hook-context>\n" + inject + "\n</hook-context>\n\n" + req.Message, nil
+	}
+	return req.Message, nil
+}
+
+// firstTurnForSession reports whether this is the first turn the process has
+// opened for sessionID (and records it) — the SessionStart fire-once gate.
+func (s *inMemory) firstTurnForSession(sessionID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.seenSessions[sessionID]; ok {
+		return false
+	}
+	s.seenSessions[sessionID] = struct{}{}
+	return true
 }
 
 // modelOr returns the model name for display / observability, falling
