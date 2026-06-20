@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
@@ -222,10 +223,12 @@ func (s *Server) mcpServerFromRequest(ctx context.Context, in protocol.Configure
 		Description:      in.Description,
 		URL:              in.URL,
 		Authorization:    auth,
+		Headers:          in.Headers,
 		Command:          in.Command,
 		Args:             in.Args,
 		Env:              in.Env,
 		Dir:              in.Dir,
+		Timeout:          time.Duration(in.TimeoutSeconds) * time.Second,
 		DisabledTools:    in.DisabledTools,
 		AutoApproveTools: in.AutoApproveTools,
 	}
@@ -242,10 +245,12 @@ func (s *Server) mcpConfigWire(ctx context.Context, srv mcpserver.Server) protoc
 		Description:         srv.Description,
 		URL:                 srv.URL,
 		AuthorizationMasked: srv.MaskedAuthorization(),
+		Headers:             srv.Headers,
 		Command:             srv.Command,
 		Args:                srv.Args,
 		Env:                 srv.Env,
 		Dir:                 srv.Dir,
+		TimeoutSeconds:      int(srv.Timeout / time.Second),
 		DisabledTools:       srv.DisabledTools,
 		AutoApproveTools:    srv.AutoApproveTools,
 	}

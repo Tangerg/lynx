@@ -192,25 +192,36 @@ func DialCommand(
 	return client.Connect(ctx, transport, nil)
 }
 
-// authHTTPClient returns an *http.Client that adds a static Authorization
-// header to every request — how [ServerConfig.Authorization] reaches an
-// access-controlled Streamable HTTP server. It wraps http.DefaultTransport so
-// TLS / proxy / redirect behavior is unchanged.
-func authHTTPClient(authorization string) *http.Client {
-	return &http.Client{Transport: &authRoundTripper{authorization: authorization, base: http.DefaultTransport}}
+// headerHTTPClient returns an *http.Client that adds static request headers to
+// every request — how [ServerConfig.Headers] / [ServerConfig.Authorization]
+// reach an access-controlled Streamable HTTP server. It wraps
+// http.DefaultTransport so TLS / proxy / redirect behavior is unchanged.
+// Returns nil when there is nothing to add (caller then uses the default client).
+func headerHTTPClient(authorization string, headers map[string]string) *http.Client {
+	if authorization == "" && len(headers) == 0 {
+		return nil
+	}
+	return &http.Client{Transport: &headerRoundTripper{authorization: authorization, headers: headers, base: http.DefaultTransport}}
 }
 
-// authRoundTripper sets the Authorization header on each request, cloning it
-// first so the caller's request is never mutated (the [http.RoundTripper]
-// contract).
-type authRoundTripper struct {
+// headerRoundTripper sets static headers on each request, cloning it first so
+// the caller's request is never mutated (the [http.RoundTripper] contract). The
+// dedicated authorization wins over any "Authorization" in headers, so the
+// bearer field is always authoritative.
+type headerRoundTripper struct {
 	authorization string
+	headers       map[string]string
 	base          http.RoundTripper
 }
 
-func (t *authRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+func (t *headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	r := req.Clone(req.Context())
-	r.Header.Set("Authorization", t.authorization)
+	for k, v := range t.headers {
+		r.Header.Set(k, v)
+	}
+	if t.authorization != "" {
+		r.Header.Set("Authorization", t.authorization)
+	}
 	return t.base.RoundTrip(r)
 }
 
@@ -267,8 +278,22 @@ type ServerConfig struct {
 	// every request to a [TransportHTTP] server — typically "Bearer <token>".
 	// It authenticates the client to an access-controlled MCP server. HTTP
 	// transport only ([Validate] rejects it for stdio, where a subprocess
-	// authenticates through Env, not an HTTP header).
+	// authenticates through Env, not an HTTP header). When both this and a
+	// [Headers] "Authorization" entry are present, this wins.
 	Authorization string
+
+	// Headers carries extra static HTTP request headers sent on every request
+	// to a [TransportHTTP] server — e.g. an "X-API-Key" some servers require
+	// instead of (or alongside) a bearer token. HTTP transport only ([Validate]
+	// rejects it for stdio, which has no request headers).
+	Headers map[string]string
+
+	// Timeout bounds the connection handshake (the MCP initialize round-trip),
+	// applied to both transports. Zero leaves the handshake bounded only by the
+	// caller's ctx. It does NOT bound the live session — the session outlives
+	// the handshake ctx, so a short timeout can't kill an established
+	// connection.
+	Timeout time.Duration
 }
 
 // Validate reports whether exactly one transport is fully specified and
@@ -295,6 +320,9 @@ func (c ServerConfig) Validate() error {
 		if c.Authorization != "" {
 			return fmt.Errorf("mcp.ServerConfig %q: Authorization applies to HTTP transport only (a stdio subprocess authenticates via Env)", c.Name)
 		}
+		if len(c.Headers) > 0 {
+			return fmt.Errorf("mcp.ServerConfig %q: Headers apply to HTTP transport only (a stdio subprocess has no request headers)", c.Name)
+		}
 	default:
 		return fmt.Errorf("mcp.ServerConfig %q: unknown transport %d (set TransportHTTP or TransportStdio)", c.Name, c.Transport)
 	}
@@ -314,13 +342,19 @@ func Dial(ctx context.Context, client *sdkmcp.Client, cfg ServerConfig) (*sdkmcp
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
+	// Bound the initialize handshake — not the live session, which the SDK runs
+	// independently of this ctx (so the defer cancel can't sever an established
+	// connection).
+	if cfg.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, cfg.Timeout)
+		defer cancel()
+	}
 	switch cfg.Transport {
 	case TransportHTTP:
-		opts := HTTPClientOptions{}
-		if cfg.Authorization != "" {
-			opts.HTTPClient = authHTTPClient(cfg.Authorization)
-		}
-		return DialStreamableHTTP(ctx, client, cfg.Endpoint, opts)
+		return DialStreamableHTTP(ctx, client, cfg.Endpoint, HTTPClientOptions{
+			HTTPClient: headerHTTPClient(cfg.Authorization, cfg.Headers),
+		})
 	case TransportStdio:
 		return DialCommand(ctx, client, cfg.Command, cfg.Args, CommandClientOptions{Env: cfg.Env, Dir: cfg.Dir})
 	default:

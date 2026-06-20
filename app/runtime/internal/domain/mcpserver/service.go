@@ -14,6 +14,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/Tangerg/lynx/core/model"
 )
@@ -49,8 +50,15 @@ type Server struct {
 
 	// Authorization, when set, is sent as the HTTP `Authorization` header
 	// (typically "Bearer <token>") — HTTP transport only. Stored raw, masked at
-	// the wire boundary, never logged.
+	// the wire boundary, never logged. The dedicated bearer wins over any
+	// "Authorization" entry in [Server.Headers].
 	Authorization string
+
+	// Headers carries extra static HTTP request headers (e.g. "X-API-Key") sent
+	// on every request — HTTP transport only. Unlike Authorization these are not
+	// masked (they're treated as non-secret config, matching how the ecosystem
+	// surfaces a headers map); put a bearer token in Authorization, not here.
+	Headers map[string]string
 
 	// Command is the executable to spawn. Used when Transport == [TransportStdio].
 	Command string
@@ -58,12 +66,16 @@ type Server struct {
 	// Args are the command arguments (stdio).
 	Args []string
 
-	// Env REPLACES the subprocess environment as KEY=value entries (stdio); it
-	// does not extend the parent env.
-	Env []string
+	// Env REPLACES the subprocess environment (stdio) as a KEY→value map; it does
+	// not extend the parent env. The dial layer flattens it to "KEY=value".
+	Env map[string]string
 
 	// Dir sets the subprocess working directory; empty inherits the parent's (stdio).
 	Dir string
+
+	// Timeout bounds the connection handshake (both transports); zero leaves it
+	// unbounded beyond the caller's ctx.
+	Timeout time.Duration
 
 	// DisabledTools hides these tools from the model entirely (a blacklist —
 	// every other tool the server advertises stays available, so new tools are
@@ -100,6 +112,9 @@ func (s Server) Validate() error {
 		}
 		if s.Authorization != "" {
 			return fmt.Errorf("mcpserver %q: Authorization applies to http transport only", s.Name)
+		}
+		if len(s.Headers) > 0 {
+			return fmt.Errorf("mcpserver %q: Headers apply to http transport only", s.Name)
 		}
 	default:
 		return fmt.Errorf("mcpserver %q: unknown transport %q (want %q or %q)", s.Name, s.Transport, TransportStdio, TransportHTTP)
