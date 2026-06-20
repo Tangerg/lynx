@@ -16,6 +16,8 @@ interface Props {
   onFork?: (id: string) => void;
   /** When set, right-click reveals a Delete action. */
   onDelete?: (id: string) => void;
+  /** When set, right-click reveals a Pin / Unpin action (favorite toggle). */
+  onToggleFavorite?: (id: string, favorite: boolean) => void;
 }
 
 // Session row — sidebar list item.
@@ -25,7 +27,15 @@ interface Props {
 // text to fg. Only the 3px accent indicator bar on the left
 // distinguishes "currently selected" from "just hovering" — a single
 // visual cue carries the active state, no fighting tone steps.
-export function SessionRow({ session, active, onSelect, onRename, onFork, onDelete }: Props) {
+export function SessionRow({
+  session,
+  active,
+  onSelect,
+  onRename,
+  onFork,
+  onDelete,
+  onToggleFavorite,
+}: Props) {
   // Inline rename: the context menu flips this on; the title swaps for an
   // input until Enter (commit) or Escape/blur-without-change (cancel).
   const [renaming, setRenaming] = useState(false);
@@ -63,11 +73,16 @@ export function SessionRow({ session, active, onSelect, onRename, onFork, onDele
     >
       <div
         className={cn(
-          "grid h-4.5 w-4.5 place-items-center text-fg-muted transition-colors group-hover:text-fg",
-          active && "text-fg",
+          "grid h-4.5 w-4.5 place-items-center transition-colors",
+          // A favorited row swaps the chat glyph for an accent star — the
+          // pin indicator lives in the existing leading slot, so it adds no
+          // width to the title line (the row deliberately has no right column).
+          session.favorite
+            ? "text-accent"
+            : cn("text-fg-muted group-hover:text-fg", active && "text-fg"),
         )}
       >
-        <Icon name="chat" size={14} />
+        <Icon name={session.favorite ? "star" : "chat"} size={14} />
       </div>
       <div className="min-w-0">
         {renaming ? (
@@ -119,12 +134,20 @@ export function SessionRow({ session, active, onSelect, onRename, onFork, onDele
     </button>
   );
 
-  if (!onDelete && !onFork && !onRename) return row;
+  if (!onDelete && !onFork && !onRename && !onToggleFavorite) return row;
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>{row}</ContextMenu.Trigger>
       <ContextMenu.Portal>
         <ContextMenu.Content className={cn(MENU_CONTENT_CLASSES, "min-w-[160px]")}>
+          {onToggleFavorite && (
+            <MenuIconItem
+              icon="star"
+              onSelect={() => onToggleFavorite(session.id, !session.favorite)}
+            >
+              {session.favorite ? "Unpin" : "Pin to top"}
+            </MenuIconItem>
+          )}
           {onRename && (
             <MenuIconItem icon="edit" onSelect={() => setRenaming(true)}>
               Rename

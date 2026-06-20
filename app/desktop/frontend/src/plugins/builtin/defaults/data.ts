@@ -68,6 +68,7 @@ function toSidebarSession(s: Session): SidebarSession {
           costUsd: s.usage.costUsd,
         }
       : undefined,
+    favorite: s.favorite,
     time: s.updatedAt || s.createdAt,
   };
 }

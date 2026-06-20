@@ -18,6 +18,7 @@ import { useCreateSession } from "@/lib/agent/useCreateSession";
 import { useDeleteSession } from "@/lib/agent/useDeleteSession";
 import { useForkSession } from "@/lib/agent/useForkSession";
 import { useRenameSession } from "@/lib/agent/useRenameSession";
+import { useToggleFavorite } from "@/lib/agent/useToggleFavorite";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { SIDEBAR_SECTION } from "@/plugins/sdk/kernelPoints";
@@ -104,6 +105,7 @@ function ProjectGroupNode({
   onRename,
   onFork,
   onDelete,
+  onToggleFavorite,
 }: {
   group: ProjectGroup;
   activeCwd: string | undefined;
@@ -116,6 +118,7 @@ function ProjectGroupNode({
   onRename: (id: string, title: string) => void;
   onFork: (id: string) => void;
   onDelete: (id: string) => void;
+  onToggleFavorite: (id: string, favorite: boolean) => void;
 }) {
   const t = useT();
   const [open, setOpen] = useState(true);
@@ -147,6 +150,7 @@ function ProjectGroupNode({
               onRename={onRename}
               onFork={onFork}
               onDelete={onDelete}
+              onToggleFavorite={onToggleFavorite}
             />
           ))}
           {(hidden > 0 || showAll) && (
@@ -175,6 +179,7 @@ function ProjectsSection() {
   const deleteSession = useDeleteSession();
   const forkSession = useForkSession();
   const renameSession = useRenameSession();
+  const toggleFavorite = useToggleFavorite();
   const activeCwd = useActiveSessionCwd();
 
   // Project nodes + their sessions (drafts hidden until first message, as
@@ -191,7 +196,14 @@ function ProjectsSection() {
       if (list) list.push(s);
       else byCwd.set(key, [s]);
     }
-    for (const list of byCwd.values()) list.sort((a, b) => (a.time < b.time ? 1 : -1));
+    // Favorited sessions pin to the top of their project group; the rest stay
+    // newest-updated first.
+    for (const list of byCwd.values()) {
+      list.sort((a, b) => {
+        if (Boolean(a.favorite) !== Boolean(b.favorite)) return a.favorite ? -1 : 1;
+        return a.time < b.time ? 1 : -1;
+      });
+    }
     const result: ProjectGroup[] = (projects ?? []).map((p) => {
       const own = byCwd.get(p.id) ?? [];
       byCwd.delete(p.id);
@@ -287,6 +299,7 @@ function ProjectsSection() {
                 onRename={(id, title) => void renameSession(id, title)}
                 onFork={forkSession}
                 onDelete={deleteSession}
+                onToggleFavorite={(id, fav) => void toggleFavorite(id, fav)}
               />
             ))}
           </div>

@@ -103,6 +103,7 @@ export interface Session {
   createdAt: string;
   updatedAt: string;
   usage?: Usage; // cumulative for this session
+  favorite?: boolean; // user-pinned: sorts ahead in the session list
   metadata: Record<string, unknown>;
 }
 
@@ -129,6 +130,7 @@ export interface UpdateSessionRequest {
   cwd?: string; // changing cwd = relocate (features.relocate)
   model?: string;
   metadata?: Record<string, unknown>; // full replace
+  favorite?: boolean; // pin / unpin in the session list
 }
 
 export interface ForkSessionRequest {
