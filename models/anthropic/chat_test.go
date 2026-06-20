@@ -1,6 +1,7 @@
 package anthropic_test
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"strings"
@@ -431,9 +432,84 @@ func TestChatModel_Call_PreservesPreStagedSystemForCaching(t *testing.T) {
 	}
 
 	// 3. Pre-staged tool with cache_control must survive.
-	idxStaticTool := strings.Index(body, `"name":"search"`)
-	if idxStaticTool < 0 {
+	if !strings.Contains(body, `"name":"search"`) {
 		t.Fatalf("pre-staged tool missing: %s", body)
+	}
+
+	// 4. Auto-placement must defer to the caller: with cache_control already
+	//    staged, the adapter adds none of its own, so the ONLY breakpoints in
+	//    the body are the two the caller staged (system + tool).
+	if got := strings.Count(body, `"cache_control":{"type":"ephemeral"}`); got != 2 {
+		t.Fatalf("caller-staged caching must not be augmented: cache_control count = %d, want 2 (staged system+tool only): %s", got, body)
+	}
+}
+
+func newTestTool(t *testing.T) chat.Tool {
+	t.Helper()
+	tool, err := chat.NewTool(
+		chat.ToolDefinition{
+			Name:        "weather",
+			Description: "look up weather",
+			InputSchema: `{"type":"object","properties":{"city":{"type":"string"}}}`,
+		},
+		chat.ToolMetadata{},
+		func(context.Context, string) (string, error) { return "sunny", nil },
+	)
+	if err != nil {
+		t.Fatalf("NewTool: %v", err)
+	}
+	return tool
+}
+
+// A tool-bearing request is an agentic turn whose prompt prefix is replayed
+// every round, so the adapter stamps default cache_control breakpoints — one
+// on the tools+system prefix, one rolling on the conversation tail.
+func TestChatModel_Call_AutoCachesToolBearingRequest(t *testing.T) {
+	var seenBody []byte
+	srv := testutil.JSONServer(http.StatusOK, anthropicResponseJSON, func(r *http.Request) {
+		seenBody, _ = io.ReadAll(r.Body)
+	})
+	t.Cleanup(srv.Close)
+
+	m := newChatModel(t, srv.URL, "claude-3-5-sonnet-20241022")
+	req, _ := chat.NewRequest([]chat.Message{
+		chat.NewSystemMessage("you are concise"),
+		chat.NewUserMessage("weather in 北京?"),
+	})
+	req.Tools = []chat.Tool{newTestTool(t)}
+
+	if _, err := m.Call(t.Context(), req); err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+
+	if got := strings.Count(string(seenBody), `"cache_control":{"type":"ephemeral"}`); got != 2 {
+		t.Fatalf("auto cache_control breakpoints = %d, want 2 (tools prefix + conversation tail): %s", got, seenBody)
+	}
+}
+
+// A toolless request is a one-shot utility call (compaction / titling /
+// extraction via askDirect) whose transcript is never replayed — caching it
+// would only levy Anthropic's cache-write surcharge. The adapter must place
+// no breakpoints.
+func TestChatModel_Call_SkipsCacheForToollessOneShot(t *testing.T) {
+	var seenBody []byte
+	srv := testutil.JSONServer(http.StatusOK, anthropicResponseJSON, func(r *http.Request) {
+		seenBody, _ = io.ReadAll(r.Body)
+	})
+	t.Cleanup(srv.Close)
+
+	m := newChatModel(t, srv.URL, "claude-3-5-sonnet-20241022")
+	req, _ := chat.NewRequest([]chat.Message{
+		chat.NewSystemMessage("summarize the following transcript"),
+		chat.NewUserMessage("a long transcript ..."),
+	})
+
+	if _, err := m.Call(t.Context(), req); err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+
+	if strings.Contains(string(seenBody), "cache_control") {
+		t.Fatalf("toolless one-shot must not be cached: %s", seenBody)
 	}
 }
 
