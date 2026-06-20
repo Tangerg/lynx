@@ -169,6 +169,14 @@ type Service interface {
 	// given. Returns ErrNotFound for an unknown id.
 	Rename(ctx context.Context, id, title string) error
 
+	// RenameIfUntitled sets the title only if the session currently has none
+	// (an empty title), in one atomic UPDATE — the auto-titler's write, which
+	// must not clobber a title the user set concurrently during the (slow,
+	// async) title generation. A no-op (returns nil, not ErrNotFound) when the
+	// session is already titled or unknown: titling is best-effort, so "nothing
+	// to do" is success.
+	RenameIfUntitled(ctx context.Context, id, title string) error
+
 	// SetCwd relocates the session's working-directory identity (API.md §7.2
 	// relocate): subsequent runs resolve tools and memory against the new cwd;
 	// existing history is untouched. The caller validates the cwd exists

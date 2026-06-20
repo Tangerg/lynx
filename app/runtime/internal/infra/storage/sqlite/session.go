@@ -270,6 +270,22 @@ func (s *SessionService) Rename(ctx context.Context, id, title string) error {
 		title, time.Now().UTC().UnixNano(), id)
 }
 
+// RenameIfUntitled sets the title only on a session that has none, atomically
+// (see [session.Service.RenameIfUntitled]). The WHERE guard collapses the
+// titler's check-and-set into one statement so a concurrent user rename can't be
+// clobbered across the async title generation. 0 rows affected (already titled
+// or unknown id) is a no-op success, NOT ErrNotFound — so it can't use
+// updateByID.
+func (s *SessionService) RenameIfUntitled(ctx context.Context, id, title string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE sessions SET title = ?, updated_at = ? WHERE id = ? AND title = ''`,
+		title, time.Now().UTC().UnixNano(), id)
+	if err != nil {
+		return fmt.Errorf("sqlite: rename-if-untitled session: %w", err)
+	}
+	return nil
+}
+
 // SetCwd relocates the session (see [session.Service.SetCwd]) + refreshes
 // UpdatedAt in a single UPDATE. ErrNotFound for unknown id.
 func (s *SessionService) SetCwd(ctx context.Context, id, cwd string) error {

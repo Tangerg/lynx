@@ -15,7 +15,10 @@ import { reportSessionError } from "./reportSessionError";
 export function useDeleteSession(): (id: string) => Promise<void> {
   return useCallback(async (id) => {
     // Optimistic: drop the row immediately; otherwise it lingers until the
-    // delete RPC and the list refetch both complete. Snapshot for rollback.
+    // delete RPC and the list refetch both complete. Cancel any in-flight
+    // refetch first so it can't resolve with the (still-present) row and undo
+    // the optimistic removal; snapshot after cancelling for rollback.
+    await queryClient.cancelQueries({ queryKey: [SESSIONS_KEY] });
     const prev = queryClient.getQueryData<SidebarSession[]>([SESSIONS_KEY]);
     queryClient.setQueryData<SidebarSession[]>([SESSIONS_KEY], (old) =>
       old?.filter((s) => s.id !== id),

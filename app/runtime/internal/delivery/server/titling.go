@@ -25,15 +25,20 @@ func (s *Server) maybeTitleSession(ctx context.Context, sessionID, parentRunID s
 	if prompt == "" {
 		return
 	}
-	sess, err := s.rt.Session().Get(ctx, sessionID)
-	if err != nil || strings.TrimSpace(sess.Title) != "" {
+	// Cheap pre-check to skip the LLM call when already titled; the authoritative
+	// guard is the atomic RenameIfUntitled below — between this read and that
+	// write the title generation runs (an LLM round-trip, seconds), during which
+	// the user may rename, so the final write must not clobber unconditionally.
+	if sess, err := s.rt.Session().Get(ctx, sessionID); err != nil || strings.TrimSpace(sess.Title) != "" {
 		return
 	}
 	title, err := s.rt.GenerateTitle(ctx, prompt)
 	if err != nil || title == "" {
 		return
 	}
-	_ = s.rt.Session().Rename(ctx, sessionID, title)
+	// Only lands if the session is still untitled — a user rename during
+	// generation wins (RenameIfUntitled is a no-op then).
+	_ = s.rt.Session().RenameIfUntitled(ctx, sessionID, title)
 }
 
 // userMessageText flattens a run's opening user input to plain text for the
