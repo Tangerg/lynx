@@ -228,7 +228,75 @@ func (r *requestHelper) buildAPIChatRequest(req *chat.Request) (*anthropicsdk.Me
 	params.System = append(params.System, r.buildSystem(req.Messages)...)
 	params.Messages = append(params.Messages, r.buildMsgs(req.Messages)...)
 
+	r.applyPromptCaching(params)
+
 	return params, nil
+}
+
+// applyPromptCaching stamps default ephemeral cache_control breakpoints on
+// the stable prefix of an assembled request so multi-round / multi-turn
+// agentic work hits Anthropic's prompt cache (a cache read bills at ~10% of
+// a fresh input token). Two breakpoints, the documented multi-turn pattern:
+//
+//   - the tail of the tools+system prefix — byte-identical on every call in
+//     a session, so it is written once and read thereafter;
+//   - the last block of the conversation — a rolling breakpoint that turns
+//     each round's history into the next round's cached prefix (the cascade
+//     that pays off most inside long tool loops).
+//
+// It is skipped in two cases, both deliberate:
+//
+//   - No tools. A toolless request is a one-shot utility call — compaction,
+//     titling, extraction via askDirect — whose large transcript is summarized
+//     once and never replayed. Caching it would only levy Anthropic's +25%
+//     cache-WRITE surcharge on a prefix that is never read back. Tool presence
+//     cleanly separates the looping main turn from those one-shots.
+//   - The caller already staged a cache_control of their own (via
+//     Options.Extra). Caching is then theirs to own; adding more risks
+//     blowing Anthropic's four-breakpoint ceiling.
+func (r *requestHelper) applyPromptCaching(params *anthropicsdk.MessageNewParams) {
+	if len(params.Tools) == 0 || hasCacheControl(params) {
+		return
+	}
+
+	if cc := params.Tools[len(params.Tools)-1].GetCacheControl(); cc != nil {
+		*cc = anthropicsdk.NewCacheControlEphemeralParam()
+	}
+
+	if n := len(params.Messages); n > 0 {
+		content := params.Messages[n-1].Content
+		if m := len(content); m > 0 {
+			if cc := content[m-1].GetCacheControl(); cc != nil {
+				*cc = anthropicsdk.NewCacheControlEphemeralParam()
+			}
+		}
+	}
+}
+
+// hasCacheControl reports whether any block in the assembled request already
+// carries a cache_control breakpoint — meaning a caller staged caching via
+// Options.Extra and applyPromptCaching must not second-guess it. lynx-derived
+// blocks never carry one until applyPromptCaching runs, so any hit here is
+// the caller's.
+func hasCacheControl(params *anthropicsdk.MessageNewParams) bool {
+	for i := range params.System {
+		if !param.IsOmitted(params.System[i].CacheControl) {
+			return true
+		}
+	}
+	for i := range params.Tools {
+		if cc := params.Tools[i].GetCacheControl(); cc != nil && !param.IsOmitted(*cc) {
+			return true
+		}
+	}
+	for i := range params.Messages {
+		for j := range params.Messages[i].Content {
+			if cc := params.Messages[i].Content[j].GetCacheControl(); cc != nil && !param.IsOmitted(*cc) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 type responseHelper struct{}
