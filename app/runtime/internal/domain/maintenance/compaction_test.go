@@ -167,6 +167,35 @@ func TestCompactor_TokenTrigger(t *testing.T) {
 	}
 }
 
+// TestCompactor_TokenTriggerShortHistory is the regression for the negative-cutoff
+// panic: the token trigger fires on a conversation with FEWER messages than
+// keepRecent (a couple of huge tool results). cutoff = len-keepRecent would be
+// negative; MaybeCompact must skip cleanly (nothing older to summarize), not
+// panic with an out-of-range index.
+func TestCompactor_TokenTriggerShortHistory(t *testing.T) {
+	store := memory.NewInMemoryStore()
+	const sessID = "sess-short"
+
+	big := strings.Repeat("x", 50_000)
+	huge, _ := chat.NewToolMessage([]*chat.ToolReturn{{ID: "c1", Name: "read", Result: big}})
+	// 3 messages < keepRecent (6, the production default).
+	_ = store.Write(context.Background(), sessID,
+		chat.NewUserMessage("read the file"),
+		chat.NewAssistantMessage(""),
+		huge,
+	)
+
+	client, _ := chat.NewClient(newTextStubModel("BULLETS"))
+	c := NewCompactor(store, constClient(client), CompactionConfig{MaxMessages: 1000, MaxTokens: 10_000, KeepRecent: 6})
+	res, err := c.MaybeCompact(context.Background(), sessID) // must not panic
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Compacted {
+		t.Fatal("expected no compaction when the whole history is within keepRecent")
+	}
+}
+
 // ------------------------------------------------------------------
 // helpers
 // ------------------------------------------------------------------
