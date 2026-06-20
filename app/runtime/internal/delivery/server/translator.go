@@ -145,6 +145,7 @@ type translator struct {
 	runID       string
 	sessionID   string
 	parentRunID string // non-empty for continuation runs (runs.resume)
+	provider    string // run's provider → RunRef.provider on run.started
 	model       string // run's model → RunRef.model on run.started
 	resume      *resumeBinding
 	itemSeq     int
@@ -185,11 +186,12 @@ type openTool struct {
 	safetyClass string // wire SafetyClass, carried so item.completed matches item.started
 }
 
-func newTranslator(sessionID, runID, parentRunID string, userInput []protocol.ContentBlock, resume *resumeBinding, model string) *translator {
+func newTranslator(sessionID, runID, parentRunID string, userInput []protocol.ContentBlock, resume *resumeBinding, provider, model string) *translator {
 	return &translator{
 		runID:       runID,
 		sessionID:   sessionID,
 		parentRunID: parentRunID,
+		provider:    provider,
 		model:       model,
 		resume:      resume,
 		userInput:   userInput,
@@ -273,6 +275,7 @@ func (t *translator) open() []protocol.StreamEvent {
 			ID:          t.runID,
 			SessionID:   t.sessionID,
 			ParentRunID: t.parentRunID,
+			Provider:    t.provider,
 			Model:       t.model,
 			Status:      protocol.RunStatusRunning,
 			CreatedAt:   time.Now().UTC(),

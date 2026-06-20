@@ -170,6 +170,10 @@ var methodTable = map[string]methodHandler{
 	MethodToolsList:            (*Dispatcher).handleToolsList,
 	MethodToolsInvoke:          (*Dispatcher).handleToolsInvoke,
 
+	// Usage reporting.
+	MethodUsageSession: (*Dispatcher).handleUsageSession,
+	MethodUsageSummary: (*Dispatcher).handleUsageSummary,
+
 	// Memory.
 	MethodMemoryList:   (*Dispatcher).handleMemoryList,
 	MethodMemoryGet:    (*Dispatcher).handleMemoryGet,

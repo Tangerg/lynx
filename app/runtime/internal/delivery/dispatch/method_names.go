@@ -87,6 +87,10 @@ const (
 	MethodToolsList            = "tools.list"
 	MethodToolsInvoke          = "tools.invoke"
 
+	// Usage reporting (API.md §7.7).
+	MethodUsageSession = "usage.session"
+	MethodUsageSummary = "usage.summary"
+
 	// Memory / Feedback (API.md §7.7).
 	MethodMemoryList     = "memory.list"
 	MethodMemoryGet      = "memory.get"

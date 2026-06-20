@@ -17,7 +17,7 @@ import (
 // finish (finished + outcome). Best-effort — persistence errors never fail
 // the live stream. The nil guard only covers test stubs; the real runtime
 // always supplies a history store.
-func (s *Server) persistStreamEvent(ctx context.Context, runID, sessionID, parentRunID string, se protocol.StreamEvent, model string) {
+func (s *Server) persistStreamEvent(ctx context.Context, runID, sessionID, parentRunID string, se protocol.StreamEvent, provider, model string) {
 	if s.rt.Transcript() == nil {
 		return
 	}
@@ -42,6 +42,7 @@ func (s *Server) persistStreamEvent(ctx context.Context, runID, sessionID, paren
 			ID:          runID,
 			SessionID:   sessionID,
 			ParentRunID: parentRunID,
+			Provider:    provider,
 			Model:       model,
 			Status:      protocol.RunStatusFinished,
 			Outcome:     se.Outcome,

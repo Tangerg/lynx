@@ -55,7 +55,9 @@ import {
 import planProgress from "./chat/plan-progress";
 import pluginsPane from "./settings/plugins-pane";
 import providersPane from "./settings/providers";
+import sessionUsage from "./chat/session-usage";
 import shortcuts from "./command/shortcuts";
+import usagePane from "./settings/usage";
 import {
   sidebarFooter,
   sidebarProjects,
@@ -179,6 +181,7 @@ const panes: PluginSpec[] = [
   connectionSettings,
   pluginsPane,
   providersPane,
+  usagePane,
   mcpServersPane,
   diffView,
   fileView,
@@ -230,6 +233,7 @@ const overlays: PluginSpec[] = [
   globalKeymap,
   iconGallery,
   planProgress,
+  sessionUsage,
   conversationExport,
 ];
 

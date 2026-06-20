@@ -155,7 +155,8 @@ type Runtime struct {
 	// exists — hence a pointer. See [mcpGating] and [Runtime.refreshMCPGating].
 	mcpGating *atomic.Pointer[mcpGating]
 
-	defaultModel string
+	defaultProvider string
+	defaultModel    string
 
 	// titler auto-names an untitled session from its first user message — a
 	// turn-boundary maintenance op (like the Compactor) on the utility model,
@@ -354,23 +355,24 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	}
 
 	return &Runtime{
-		engine:       eng,
-		chat:         chatSvc,
-		session:      sessionSvc,
-		tool:         toolSvc,
-		knowledge:    cfg.Engine.Knowledge,
-		approval:     approvalSvc,
-		interrupts:   interruptStore,
-		transcript:   cfg.TranscriptStore,
-		conversation: conv,
-		providers:    providerSvc,
-		mcpRegistry:  cfg.MCPRegistry,
-		mcpGating:    mcpGate,
-		defaultModel: cfg.Model,
-		titler:       maintenance.NewTitler(resolveUtility),
-		utility:      utilCell,
-		resolver:     resolver,
-		utilStore:    cfg.UtilityRoleStore,
+		engine:          eng,
+		chat:            chatSvc,
+		session:         sessionSvc,
+		tool:            toolSvc,
+		knowledge:       cfg.Engine.Knowledge,
+		approval:        approvalSvc,
+		interrupts:      interruptStore,
+		transcript:      cfg.TranscriptStore,
+		conversation:    conv,
+		providers:       providerSvc,
+		mcpRegistry:     cfg.MCPRegistry,
+		mcpGating:       mcpGate,
+		defaultProvider: cfg.Provider,
+		defaultModel:    cfg.Model,
+		titler:          maintenance.NewTitler(resolveUtility),
+		utility:         utilCell,
+		resolver:        resolver,
+		utilStore:       cfg.UtilityRoleStore,
 	}, nil
 }
 
@@ -458,6 +460,11 @@ func (r *Runtime) ProbeProvider(ctx context.Context, entry provider.Provider) er
 // Session.model for sessions that never explicitly selected a model, so the
 // wire always carries a real model name. May be empty if unconfigured.
 func (r *Runtime) DefaultModel() string { return r.defaultModel }
+
+// DefaultProvider is the provider a turn runs against when a run names none
+// (paired with DefaultModel). usage.summary uses it to attribute default-model
+// runs (whose RunRef carries no provider) to the real provider. May be empty.
+func (r *Runtime) DefaultProvider() string { return r.defaultProvider }
 
 // GenerateTitle derives a short session title from a conversation's opening
 // user message — auto-naming an untitled session (the wire Session.title).

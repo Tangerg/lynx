@@ -6,6 +6,7 @@ import {
   Book,
   Bot,
   Bug,
+  ChartColumn,
   Check,
   ChevronDown,
   ChevronUp,
@@ -117,6 +118,7 @@ export type IconName =
   | "maximize"
   | "diff"
   | "list"
+  | "chart"
   | "lightning"
   | "bug"
   | "shield"
@@ -186,6 +188,7 @@ const ICON_MAP: Record<IconName, LucideIcon> = {
   maximize: Maximize2,
   diff: FileDiff,
   list: List,
+  chart: ChartColumn,
   lightning: Zap,
   bug: Bug,
   shield: Shield,

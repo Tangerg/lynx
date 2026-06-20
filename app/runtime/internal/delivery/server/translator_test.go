@@ -16,7 +16,7 @@ import (
 // an id that matches items.list on reload.
 func TestTranslator_OpensUserMessageOnRootRun(t *testing.T) {
 	input := []protocol.ContentBlock{{Type: "text", Text: "hello"}}
-	tr := newTranslator("ses_1", "run_1", "", input, nil, "")
+	tr := newTranslator("ses_1", "run_1", "", input, nil, "", "")
 
 	out := tr.open()
 	if len(out) != 3 {
@@ -62,7 +62,7 @@ func TestTranslator_OpensUserMessageOnRootRun(t *testing.T) {
 // TestTranslator_RunStartedCarriesModel verifies the run.started RunRef
 // surfaces the run's model so the frontend can label the run (RunRef.model).
 func TestTranslator_RunStartedCarriesModel(t *testing.T) {
-	tr := newTranslator("ses_1", "run_1", "", nil, nil, "claude-opus-4-8")
+	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "claude-opus-4-8")
 	out := tr.open()
 	if len(out) == 0 || out[0].Type != protocol.StreamRunStarted || out[0].Run == nil {
 		t.Fatalf("first event = %+v, want run.started with a RunRef", out)
@@ -82,7 +82,7 @@ func TestTranslator_EditedArgsReusesProposalItem(t *testing.T) {
 		toolItems:   map[string]string{resumeKey("write", argsKey(map[string]any{"file_path": "a.txt"})): "item_orig"},
 		byName:      map[string]string{"write": "item_orig"},
 	}
-	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, rb, "")
+	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, rb, "", "")
 
 	// Re-fire with EDITED args (different path): the exact (name,args) key misses,
 	// the name-only fallback hits.
@@ -100,7 +100,7 @@ func TestTranslator_EditedArgsReusesProposalItem(t *testing.T) {
 // (runs.resume, nil input) opens with run.started alone — no synthetic user
 // turn, and no chat TurnStart needed (continuations emit none).
 func TestTranslator_NoUserMessageOnContinuation(t *testing.T) {
-	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, nil, "")
+	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, nil, "", "")
 	out := tr.open()
 	if len(out) != 1 || out[0].Type != protocol.StreamRunStarted {
 		t.Fatalf("continuation open() = %+v, want run.started only", out)
@@ -122,7 +122,7 @@ func TestTranslator_ResumedToolReusesOriginalItemID(t *testing.T) {
 		originRunID: "run_1",
 		toolItems:   map[string]string{resumeKey("bash", args): origItemID},
 	}
-	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, resume, "")
+	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, resume, "", "")
 
 	itemStarted := func(events []protocol.StreamEvent) *protocol.Item {
 		for _, se := range events {
@@ -167,7 +167,7 @@ func TestTranslator_ResumedToolReusesOriginalItemID(t *testing.T) {
 // distinct terminal (incomplete + denied_by_user error), not a green success
 // — so the UI can render "denied" rather than ✓.
 func TestTranslator_DeniedToolIsDistinct(t *testing.T) {
-	tr := newTranslator("ses_1", "run_1", "", nil, nil, "")
+	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "")
 	tr.translate(turn.ToolCallStart{CallID: "c1", ToolName: "bash", Arguments: `{"command":"rm -rf /"}`})
 	end := tr.translate(turn.ToolCallEnd{CallID: "c1", Output: "tool call denied by user", Denied: true})
 	if len(end) != 1 || end[0].Item == nil {
@@ -194,7 +194,7 @@ func TestTranslator_ResumedQuestionCompletes(t *testing.T) {
 		originRunID: "run_1",
 		questions:   []resumedQuestion{{itemID: qItemID, question: q}},
 	}
-	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, resume, "")
+	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, resume, "", "")
 
 	out := tr.open()
 	// run.started first, then the question's terminal completion.
@@ -231,7 +231,7 @@ func TestTranslator_ResumedQuestionCompletes(t *testing.T) {
 // even though the model saw the output (API.md §4.4.2 / §5.2). The domain-
 // neutral envelope carries name + arguments + a best-effort JSON result.
 func TestTranslator_CommandOutputOnCompleted(t *testing.T) {
-	tr := newTranslator("ses_1", "run_1", "", nil, nil, "")
+	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "")
 	tr.translate(turn.ToolCallStart{CallID: "c1", ToolName: "bash", Arguments: `{"command":"echo hi"}`})
 	out := tr.translate(turn.ToolCallEnd{
 		CallID: "c1",
@@ -261,7 +261,7 @@ func TestTranslator_CommandOutputOnCompleted(t *testing.T) {
 	// A command with no output still carries result.output:"" (present, not
 	// omitted) so the client renders an empty terminal rather than falling back
 	// to a stale preview / "(no output)".
-	tr2 := newTranslator("ses_1", "run_2", "", nil, nil, "")
+	tr2 := newTranslator("ses_1", "run_2", "", nil, nil, "", "")
 	tr2.translate(turn.ToolCallStart{CallID: "c2", ToolName: "bash", Arguments: `{"command":"true"}`})
 	out2 := tr2.translate(turn.ToolCallEnd{CallID: "c2", Output: `{"stdout":"","stderr":"","exit_code":0,"duration":"1ms"}`})
 	for _, se := range out2 {
@@ -295,7 +295,7 @@ func TestClassifyRunError(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			tr := newTranslator("", "", "", nil, nil, "")
+			tr := newTranslator("", "", "", nil, nil, "", "")
 			got := tr.classifyRunError(c.msg)
 			if got.Type != c.wantType {
 				t.Fatalf("type = %q, want %q (msg=%q)", got.Type, c.wantType, c.msg)
@@ -318,7 +318,7 @@ func TestClassifyRunError(t *testing.T) {
 // to internal_error (T3.2). The classification reads errCode, not the message,
 // so a provider error that merely mentions "stuck" is unaffected.
 func TestClassifyRunError_AgentStuck(t *testing.T) {
-	tr := newTranslator("", "", "", nil, nil, "")
+	tr := newTranslator("", "", "", nil, nil, "", "")
 	tr.errCode = "AGENT_STUCK"
 	got := tr.classifyRunError("agent stuck — no forward progress")
 	if got.Type != "agent_stuck" {
@@ -330,7 +330,7 @@ func TestClassifyRunError_AgentStuck(t *testing.T) {
 
 	// Without the code, the same loop-detection wording stays a generic
 	// internal error — the symbol is gated on the code, not the text.
-	plain := newTranslator("", "", "", nil, nil, "")
+	plain := newTranslator("", "", "", nil, nil, "", "")
 	if got := plain.classifyRunError("the agent got stuck somewhere"); got.Type != "internal_error" {
 		t.Fatalf("uncoded 'stuck' message classified as %q, want internal_error", got.Type)
 	}
@@ -340,7 +340,7 @@ func TestClassifyRunError_AgentStuck(t *testing.T) {
 // Item pair (item.started + item.completed, one id) carrying the net dropped
 // count, so the client can render a "context compacted" divider (T3.1).
 func TestTranslator_Compaction(t *testing.T) {
-	tr := newTranslator("ses_1", "run_1", "", nil, nil, "")
+	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "")
 	out := tr.translate(turn.CompactBoundary{MessagesBefore: 20, MessagesAfter: 6})
 	if len(out) != 2 {
 		t.Fatalf("CompactBoundary → %d events, want 2 (item.started + item.completed)", len(out))
@@ -366,7 +366,7 @@ func TestTranslator_Compaction(t *testing.T) {
 // ephemeral run.progress carrying cumulative usage (input/output/reasoning +
 // cost), with cost omitted when no pricing is configured (T1.2).
 func TestTranslator_UsageProgress(t *testing.T) {
-	tr := newTranslator("ses_1", "run_1", "", nil, nil, "")
+	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "")
 	out := tr.translate(turn.UsageReported{
 		TokenUsage: turn.TokenUsage{PromptTokens: 1200, CompletionTokens: 80, ReasoningTokens: 30},
 		CostUSD:    0.0125,
@@ -396,7 +396,7 @@ func TestTranslator_UsageProgress(t *testing.T) {
 // TestTranslator_SteerMessage verifies a mid-run steer surfaces as a durable
 // userMessage Item, closing any open assistant text first (T2.1).
 func TestTranslator_SteerMessage(t *testing.T) {
-	tr := newTranslator("ses_1", "run_1", "", nil, nil, "")
+	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "")
 	tr.translate(turn.MessageDelta{Text: "thinking…"}) // opens an assistant text item
 	out := tr.translate(turn.SteerMessage{Text: "also check the tests"})
 	if len(out) < 3 {
@@ -422,7 +422,7 @@ func TestTranslator_SteerMessage(t *testing.T) {
 // state.snapshot{todos} mapping domain Content/Status → wire text/status with a
 // positional id (Lever 2).
 func TestTranslator_TodosSnapshot(t *testing.T) {
-	tr := newTranslator("ses_1", "run_1", "", nil, nil, "")
+	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "")
 	out := tr.translate(turn.TodosUpdated{Todos: []todo.Item{
 		{Content: "write tests", Status: todo.StatusInProgress},
 		{Content: "ship it", Status: todo.StatusPending},
@@ -443,7 +443,7 @@ func TestTranslator_TodosSnapshot(t *testing.T) {
 // the run's wall-clock duration on every result, and a budget-exceeded terminal
 // gets a precise "spent $X / $Y" detail (T3.4).
 func TestTranslator_OutcomeDurationAndBudget(t *testing.T) {
-	tr := newTranslator("ses_1", "run_1", "", nil, nil, "")
+	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "")
 	oc := tr.outcome(turn.TurnEnd{
 		Reason:     turn.TurnEndBudgetExceeded,
 		Duration:   1500 * time.Millisecond,
@@ -472,7 +472,7 @@ func TestTranslator_OutcomeDurationAndBudget(t *testing.T) {
 // dedicated maxSteps outcome with a precise "reached the N-step limit" detail
 // (Lever 3).
 func TestTranslator_OutcomeMaxSteps(t *testing.T) {
-	tr := newTranslator("ses_1", "run_1", "", nil, nil, "")
+	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "")
 	oc := tr.outcome(turn.TurnEnd{Reason: turn.TurnEndStepsExceeded, MaxSteps: 8})
 	if oc.Type != protocol.OutcomeMaxSteps {
 		t.Fatalf("type = %s, want maxSteps", oc.Type)

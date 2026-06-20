@@ -63,7 +63,13 @@ type RunRef struct {
 	ParentRunID     string `json:"parentRunId,omitempty"`
 	// Model is the model id this run ran against (Model.id); empty means the
 	// run used the runtime default (surfaced via Session.model).
-	Model      string      `json:"model,omitempty"`
+	Model string `json:"model,omitempty"`
+	// Provider is the provider id this run ran against (Provider.id), paired
+	// with Model. Empty means the runtime default. Stamped so a finished run is
+	// self-describing — usage.summary attributes spend by provider without
+	// re-deriving the model→provider mapping (which isn't 1:1 across compat
+	// providers).
+	Provider   string      `json:"provider,omitempty"`
 	Status     RunStatus   `json:"status,omitempty"`
 	Outcome    *RunOutcome `json:"outcome,omitempty"`
 	CreatedAt  time.Time   `json:"createdAt,omitzero"`

@@ -11,6 +11,7 @@ import { useEffect, useRef } from "react";
 import { submitComposer } from "@/components/chat/composer";
 import { Icon, MENU_CONTENT_CLASSES, ProviderIcon, Tooltip } from "@/components/common";
 import { imageFiles } from "@/lib/agent/composerInput";
+import { fmtTokens } from "@/lib/format";
 import { useSelectedModel } from "@/lib/agent/useSelectedModel";
 import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
 import { useChatSend } from "@/lib/agent/useChatSend";
@@ -216,17 +217,6 @@ function GitBranchChip() {
       {branch}
     </Chip>
   );
-}
-
-// Compact token count — 1234 → "1.2k", 1_200_000 → "1.2M". Whole thousands
-// drop the ".0" ("12k", not "12.0k"); sub-1k stays exact.
-function fmtTokens(n: number): string {
-  if (n < 1000) return String(n);
-  if (n < 1_000_000) {
-    const k = n / 1000;
-    return `${k % 1 === 0 ? k : k.toFixed(1)}k`;
-  }
-  return `${(n / 1_000_000).toFixed(1)}M`;
 }
 
 // Color ramp for context-window occupancy: calm until ~70%, warn approaching
