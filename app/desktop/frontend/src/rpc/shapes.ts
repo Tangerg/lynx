@@ -651,14 +651,19 @@ export interface McpServerConfig {
   transport: McpTransport;
   enabled: boolean;
   description?: string;
-  // http transport
+  // http transport. `headers` is an extra static request-header map (e.g.
+  // X-API-Key) — NOT masked (treated as non-secret config); a bearer token
+  // belongs in authorization, which stays masked.
   url?: string;
   authorizationMasked?: string;
-  // stdio transport — env entries are "KEY=value" strings (not a map).
+  headers?: Record<string, string>;
+  // stdio transport — env is a KEY→value map (replaces the subprocess env).
   command?: string;
   args?: string[];
-  env?: string[];
+  env?: Record<string, string>;
   dir?: string;
+  // Connection-handshake timeout in seconds; 0/absent = unbounded.
+  timeoutSeconds?: number;
   // Per-tool gating (§4.10): disabledTools is a blacklist (tool name → hidden
   // from the agent); autoApproveTools is a whitelist (tool name → skips the
   // approval prompt). Both key on the bare tool name (NOT "<server>.<tool>").
@@ -681,10 +686,12 @@ export interface ConfigureMCPServerRequest {
   description?: string;
   url?: string;
   authorization?: string;
+  headers?: Record<string, string>;
   command?: string;
   args?: string[];
-  env?: string[];
+  env?: Record<string, string>;
   dir?: string;
+  timeoutSeconds?: number;
   disabledTools?: string[];
   autoApproveTools?: string[];
 }
