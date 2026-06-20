@@ -43,6 +43,7 @@ func providerToWire(id string, entry provider.Provider) protocol.Provider {
 		ID:              id,
 		BaseURL:         entry.BaseURL,
 		APIKeyMasked:    entry.MaskedAPIKey(),
+		KeySource:       string(entry.KeySource),
 		RequiresBaseURL: llm.RequiresBaseURL(llm.Provider(id)),
 	}
 }

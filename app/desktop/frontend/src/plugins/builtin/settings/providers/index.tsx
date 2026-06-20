@@ -42,6 +42,9 @@ function ProviderRow({ p }: { p: ProviderInfo }) {
   const probeSeq = useRef(0);
 
   const enabled = p.apiKeyMasked !== "";
+  // Key picked up from the environment (read-only): the row stays editable so a
+  // typed key overrides it (stored > env), but the badge + placeholder say so.
+  const fromEnv = p.keySource === "env";
   const dirty = apiKey.trim() !== "" || baseUrl !== p.baseUrl;
 
   const onSave = async () => {
@@ -87,12 +90,21 @@ function ProviderRow({ p }: { p: ProviderInfo }) {
           <div className="truncate text-[14px] font-semibold capitalize text-fg">{p.id}</div>
         </div>
         <span
+          title={fromEnv ? p.apiKeyMasked : undefined}
           className={cn(
             "rounded-full px-2 py-0.5 text-[11px] font-medium",
-            enabled ? "bg-success/12 text-success" : "bg-surface-2 text-fg-faint",
+            fromEnv
+              ? "bg-accent/12 text-accent"
+              : enabled
+                ? "bg-success/12 text-success"
+                : "bg-surface-2 text-fg-faint",
           )}
         >
-          {enabled ? t("providers.key", { masked: p.apiKeyMasked }) : t("providers.notConfigured")}
+          {fromEnv
+            ? t("providers.fromEnv")
+            : enabled
+              ? t("providers.key", { masked: p.apiKeyMasked })
+              : t("providers.notConfigured")}
         </span>
       </div>
 
@@ -102,7 +114,13 @@ function ProviderRow({ p }: { p: ProviderInfo }) {
           aria-label={t("providers.apiKey.aria", { provider: p.id })}
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
-          placeholder={enabled ? t("providers.apiKey.replace") : t("providers.apiKey.placeholder")}
+          placeholder={
+            fromEnv
+              ? t("providers.apiKey.envPlaceholder")
+              : enabled
+                ? t("providers.apiKey.replace")
+                : t("providers.apiKey.placeholder")
+          }
           className={cn(
             "h-8 rounded-md border border-line-soft bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint",
             INPUT_FOCUS_RING,

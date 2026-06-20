@@ -51,6 +51,11 @@ type Provider struct {
 	ID           string `json:"id"`
 	BaseURL      string `json:"baseUrl,omitempty"`
 	APIKeyMasked string `json:"apiKeyMasked"` // "" = unconfigured; e.g. "sk****78"
+	// KeySource is the provenance of the key: "stored" (set via
+	// providers.configure, editable) or "env" (read from the provider's
+	// environment variable, read-only — shown as "from env"). Omitted when the
+	// provider is unconfigured (apiKeyMasked is also "").
+	KeySource string `json:"keySource,omitempty"`
 	// RequiresBaseURL marks providers with no built-in endpoint — the generic
 	// "openai-compatible" / "anthropic-compatible" passthroughs and Azure
 	// (per-resource URL). The client must collect a base URL when configuring

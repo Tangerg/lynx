@@ -27,6 +27,7 @@ import (
 	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	todosvc "github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
@@ -117,11 +118,19 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	// Provider registry with the stored>env credential fallback: a provider with
+	// no stored key falls back to its environment variable (ANTHROPIC_API_KEY,
+	// OPENAI_API_KEY, …), so a developer with keys in their shell gets those
+	// providers enabled out of the box. Read once — the environment is static for
+	// the process. Everything downstream (resolver, providers.list, test) goes
+	// through this wrapped service, so they share one stored>env truth.
+	providerSvc := providersvc.WithEnvKeys(stores.Provider, llm.EnvKeys())
 	// Seed the registry with the configured provider's credentials (if not
-	// already persisted from a prior providers.configure), so the default
-	// provider is enabled out of the box. Other supported providers stay
-	// unconfigured until the user sets their keys.
-	if err = seedConfiguredProvider(ctx, stores.Provider, cfg); err != nil {
+	// already enabled), so the default provider works out of the box. Seeding
+	// through the wrapped service means an env-sourced default isn't redundantly
+	// persisted — it stays surfaced as "from env" rather than copied to "stored".
+	// Other supported providers stay unconfigured until the user sets their keys.
+	if err = seedConfiguredProvider(ctx, providerSvc, cfg); err != nil {
 		return err
 	}
 	// Seed the config-file utility model into its store on first run, so the
@@ -170,7 +179,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		// runs.resume looks up — the other half of cross-restart resume.
 		InterruptStore:  stores.Interrupt,
 		TranscriptStore: stores.Transcript,
-		ProviderService: stores.Provider,
+		ProviderService: providerSvc,
 		TodoService:     stores.Todos,
 		// Default provider+model a turn runs against when it picks no model.
 		Provider: string(cfg.Provider),

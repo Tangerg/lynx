@@ -31,7 +31,30 @@ type Provider struct {
 
 	// BaseURL optionally overrides the provider's default API endpoint.
 	BaseURL string
+
+	// KeySource is the provenance of APIKey — where the effective credential
+	// came from. The bare registry leaves it zero ([KeyNone] / [KeyStored] is
+	// derivable from APIKey); the env-fallback decorator ([WithEnvKeys]) is what
+	// distinguishes a stored key from one read from the environment, so the wire
+	// can show "from env". Not persisted — it's resolved per read.
+	KeySource KeySource
 }
+
+// KeySource is where a provider's effective API key came from. It rides on the
+// wire (Provider.keySource) so the UI can tell a stored key (set via
+// providers.configure, editable + persisted) from one picked up from the
+// environment (read-only, shown as "from env").
+type KeySource string
+
+const (
+	// KeyNone — no key; the provider is unconfigured and not enabled.
+	KeyNone KeySource = ""
+	// KeyStored — key set via providers.configure (persisted in the registry).
+	KeyStored KeySource = "stored"
+	// KeyEnv — key read from the provider's environment variable (not persisted;
+	// surfaced by [WithEnvKeys]). A stored key always takes precedence.
+	KeyEnv KeySource = "env"
+)
 
 // Enabled reports whether the provider is usable — i.e. it has an API key.
 // A seeded-but-unconfigured provider is listed (so the UI can offer it) but

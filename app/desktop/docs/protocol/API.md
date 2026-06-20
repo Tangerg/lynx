@@ -550,6 +550,9 @@ interface Provider {
   id: string;                          // 既是身份也是类型标识（如 "groq" / "openai-compatible"）
   baseUrl?: string;
   apiKeyMasked: string;                // "" = 未配置；如 "sk-…fc78"；永不可逆推（短 key 全打码）
+  keySource?: "stored" | "env";        // key 来源：stored=providers.configure 设置（可编辑/持久化）；
+                                       // env=从该 provider 的环境变量读取（只读，UI 显示「from env」）。
+                                       // 未配置时省略（apiKeyMasked 同为 ""）。stored > env。
   requiresBaseUrl?: boolean;           // 无内建 endpoint：通用兼容 passthrough + Azure。配置时必须收集 baseUrl，
                                        // 且因无 catalog，model 走自由输入（models.list 返回空）
 }
@@ -1099,6 +1102,7 @@ fd;且我们用不了 fd-廉价的 FSEvents)。改为两路覆盖,跨平台(inot
 #### `providers.list`
 - 入参 `{ cursor?; limit? }`；返回 `Page<Provider>`（§4.9）—— **后端支持的全部 provider**（有 adapter 的），无论是否已配置。
   每条按注册表标注：`apiKeyMasked == ""` 即**未启用**（启用 ⇔ 已配 key），并带已配的 `baseUrl`。
+- **env 回退（stored > env）**：未存 key 的 provider 若环境里有它的 key 环境变量（`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / …），即视为启用，`keySource: "env"`（只读，UI 显示「from env」）；显式 `providers.configure` 的 key 永远优先（`keySource: "stored"`）。需 `baseUrl` 的 provider（azure / 两个通用 passthrough）不参与 env 回退——光有 key 到不了端点。env 只读一次（进程内静态），不入库。
 - **当前 21 个**：19 个具名 vendor（anthropic / openai / google / deepseek / moonshot / alibaba / azureopenai / fireworks / groq / huggingface / minimax / mistral / ollama / openrouter / perplexity / together / xai / xiaomi / zhipu）+ 2 个通用兼容 passthrough（`openai-compatible` / `anthropic-compatible`）。具名 vendor 的 model 走 `models.list` 浏览；`requiresBaseUrl` 的几个（两个通用 passthrough + `azureopenai`）无 catalog，需用户填 `baseUrl` + 自由输入 model。IAM-only 的 amazonbedrock / vertexai 不在列（不符合「填 API key」模型）。
 
 #### `providers.configure`

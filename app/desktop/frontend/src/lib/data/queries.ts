@@ -134,6 +134,9 @@ export interface ProviderInfo {
   id: string;
   baseUrl: string;
   apiKeyMasked: string;
+  // "env" ⇒ the key was picked up from the provider's environment variable
+  // (read-only); "stored" ⇒ set via providers.configure; undefined ⇒ unconfigured.
+  keySource?: "stored" | "env";
 }
 
 // workspace.getDiff params + result (AUX_API §2.3) — structured rows only;
