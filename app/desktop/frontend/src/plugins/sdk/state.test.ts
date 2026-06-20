@@ -79,7 +79,7 @@ describe("patchRun", () => {
     expect(next.run.activity).toBe("scanning");
     expect(next.run.step).toBe(42);
     // Untouched fields keep their values.
-    expect(next.run.cost).toBe(INITIAL_VIEW_STATE.run.cost);
+    expect(next.run.usage).toBe(INITIAL_VIEW_STATE.run.usage);
   });
 });
 
@@ -87,11 +87,11 @@ describe("compose", () => {
   it("applies updates left-to-right", () => {
     const update = compose(
       setPlan([{ id: 1, pid: "T-1", status: "todo", text: "a" }]),
-      patchRun({ cost: "9.99" }),
+      patchRun({ activity: "building" }),
     );
     const next = update(INITIAL_VIEW_STATE);
     expect(next.plan).toHaveLength(1);
-    expect(next.run.cost).toBe("9.99");
+    expect(next.run.activity).toBe("building");
   });
 
   it("returns the original state when called with zero updates", () => {

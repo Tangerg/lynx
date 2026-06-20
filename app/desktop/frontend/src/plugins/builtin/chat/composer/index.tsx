@@ -25,7 +25,12 @@ import {
   COMPOSER_PLACEHOLDER,
   COMPOSER_STATUS,
 } from "@/plugins/sdk/kernelPoints";
-import { useAgentAction, useAgentRunning, useAgentStore } from "@/state/agentStore";
+import {
+  useAgentAction,
+  useAgentRunning,
+  useAgentRunUsage,
+  useAgentStore,
+} from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
 import { useSessionStore } from "@/state/sessionStore";
 
@@ -212,6 +217,39 @@ function GitBranchChip() {
   );
 }
 
+// Compact token count — 1234 → "1.2k", 1_200_000 → "1.2M". Whole thousands
+// drop the ".0" ("12k", not "12.0k"); sub-1k stays exact.
+function fmtTokens(n: number): string {
+  if (n < 1000) return String(n);
+  if (n < 1_000_000) {
+    const k = n / 1000;
+    return `${k % 1 === 0 ? k : k.toFixed(1)}k`;
+  }
+  return `${(n / 1_000_000).toFixed(1)}M`;
+}
+
+// Live token + cost readout for the current/last run (RunState.usage, the
+// cumulative-over-rounds total). Hidden until a run has reported usage, so a
+// fresh session shows nothing rather than a bare "↑0 ↓0". Cost is shown only
+// when the served model is priced (costUsd present) — never a fabricated $0.00.
+function UsageChip() {
+  const t = useT();
+  const usage = useAgentRunUsage();
+  if (usage.inputTokens + usage.outputTokens === 0) return null;
+  return (
+    <span
+      title={t("composer.usage.hint")}
+      className="inline-flex h-6 items-center gap-1.5 rounded-sm px-2 font-mono text-[11.5px] font-normal text-fg-muted tracking-tight whitespace-nowrap tabular-nums"
+    >
+      <span>↑{fmtTokens(usage.inputTokens)}</span>
+      <span>↓{fmtTokens(usage.outputTokens)}</span>
+      {usage.costUsd !== undefined && (
+        <span className="text-fg-faint">·&nbsp;${usage.costUsd.toFixed(2)}</span>
+      )}
+    </span>
+  );
+}
+
 export const composerChips = definePlugin({
   name: "lyra.builtin.composer-chips",
   version: "1.0.0",
@@ -230,6 +268,11 @@ export const composerChips = definePlugin({
       id: "git-branch",
       order: 2,
       component: GitBranchChip,
+    });
+    host.extensions.contribute(COMPOSER_STATUS, {
+      id: "usage",
+      order: 3,
+      component: UsageChip,
     });
   },
 });

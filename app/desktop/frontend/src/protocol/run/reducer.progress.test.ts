@@ -39,7 +39,7 @@ describe("reducer — run.progress (mid-run live readout)", () => {
       step: 2,
       totalSteps: 8,
       activity: "calling tool: ls -la",
-      cost: "0.01",
+      usage: { inputTokens: 1200, outputTokens: 80, cacheReadTokens: 0, costUsd: 0.0123 },
     });
   });
 
@@ -56,7 +56,12 @@ describe("reducer — run.progress (mid-run live readout)", () => {
     );
     expect(s.run.running).toBe(false);
     expect(s.run.step).toBe(3);
-    expect(s.run.cost).toBe("0.50");
+    expect(s.run.usage).toEqual({
+      inputTokens: 1200,
+      outputTokens: 80,
+      cacheReadTokens: 0,
+      costUsd: 0.5,
+    });
   });
 
   it("a progress event carrying only `activity` patches just that field", () => {

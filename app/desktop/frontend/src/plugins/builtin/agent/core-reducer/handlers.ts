@@ -23,9 +23,10 @@ import type {
   RunRef,
   StreamEvent,
   ToolInvocation,
+  Usage,
 } from "@/rpc";
 import type { StreamEventHandler } from "@/plugins/sdk";
-import type { AgentViewState, ContentBlock } from "@/protocol/run/viewState";
+import type { AgentViewState, ContentBlock, RunUsage } from "@/protocol/run/viewState";
 import { applyPatch, deepClone } from "fast-json-patch";
 import { appendTimelineEntry, patchRun, setPlan } from "@/plugins/sdk";
 import {
@@ -70,9 +71,29 @@ function onRunStarted(state: AgentViewState, run: RunRef): AgentViewState {
   const next: AgentViewState = {
     ...state,
     error: null,
-    run: { ...state.run, running: true, runId: run.id, sessionId: run.sessionId },
+    run: {
+      ...state.run,
+      running: true,
+      runId: run.id,
+      sessionId: run.sessionId,
+      // Fresh run → fresh token/cost readout (else the chip shows the prior
+      // run's totals until this run's first progress event lands).
+      usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
+    },
   };
   return appendTimelineEntry({ kind: "run-start", runId: run.id })(next);
+}
+
+// Project a wire Usage (API.md §4.6) onto the view's RunUsage readout. Tokens
+// default to 0 (a partial progress event may omit fields); costUsd is left
+// undefined when absent so the chip shows tokens without a fabricated price.
+function mapUsage(u: Usage): RunUsage {
+  return {
+    inputTokens: u.inputTokens ?? 0,
+    outputTokens: u.outputTokens ?? 0,
+    cacheReadTokens: u.cacheReadTokens ?? 0,
+    ...(u.costUsd !== undefined ? { costUsd: u.costUsd } : {}),
+  };
 }
 
 // Live progress preview (ephemeral). Mirrors the run.finished mapping but only
@@ -80,14 +101,11 @@ function onRunStarted(state: AgentViewState, run: RunRef): AgentViewState {
 // on run.finished (§5.2). Subagent progress (no way to tell here) harmlessly
 // updates the same readout.
 function onRunProgress(state: AgentViewState, progress: RunProgress): AgentViewState {
-  const usage = progress.usage;
-  // Cost reads usage.costUsd — there is no separate RunProgress.costUsd (§5).
-  const costUsd = usage?.costUsd;
   return patchRun({
     ...(progress.step !== undefined ? { step: progress.step } : {}),
     ...(progress.maxSteps !== undefined ? { totalSteps: progress.maxSteps } : {}),
     ...(progress.activity !== undefined ? { activity: progress.activity } : {}),
-    ...(costUsd !== undefined ? { cost: costUsd.toFixed(2) } : {}),
+    ...(progress.usage ? { usage: mapUsage(progress.usage) } : {}),
   })(state);
 }
 
@@ -218,8 +236,6 @@ function onRunFinished(state: AgentViewState, outcome: RunOutcome, runId?: strin
 
   const { result } = outcome;
   const usage = result?.usage;
-  // Total cost reads usage.costUsd — there is no RunResult.costUsd (§4.2).
-  const costUsd = usage?.costUsd;
   // A terminal end (completed / error / canceled / maxSteps) means any
   // interrupt still open was never resolved by the user — the run that owned
   // it is done (canceled, errored, or auto-resolved server-side). Drop those
@@ -230,7 +246,8 @@ function onRunFinished(state: AgentViewState, outcome: RunOutcome, runId?: strin
       running: false,
       step: result?.steps ?? state.run.step,
       totalSteps: result?.steps ?? state.run.totalSteps,
-      cost: costUsd !== undefined ? costUsd.toFixed(2) : state.run.cost,
+      // run.finished totals are authoritative over the last progress preview.
+      ...(usage ? { usage: mapUsage(usage) } : {}),
     })(idle),
   );
 
