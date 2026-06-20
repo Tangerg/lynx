@@ -173,7 +173,9 @@ function JsonImport() {
         rows={6}
         spellCheck={false}
         aria-label={t("mcp.import.hint")}
-        placeholder={'{"mcpServers": {"my-server": {"command": "npx", "args": ["..."]}}}'}
+        placeholder={
+          '{"mcpServers": {"my-server": {"type": "streamableHttp", "url": "https://example.com/mcp"}}}'
+        }
         className="w-full resize-y rounded-md border border-line-soft bg-surface px-2.5 py-1.5 font-mono text-[12px] leading-[1.5] text-fg outline-none placeholder:text-fg-faint focus:border-accent"
       />
       {error && (
