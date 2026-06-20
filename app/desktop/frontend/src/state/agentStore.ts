@@ -11,6 +11,7 @@ import type {
   Message,
   PlanItem,
   RunError,
+  RunUsage,
   TimelineEntry,
   ToolCall,
 } from "@/protocol/run/viewState";
@@ -351,6 +352,12 @@ export function useAgentRunning(): boolean {
 export function useAgentRunId(): string | null {
   const sid = useSessionStore((s) => s.activeSessionId);
   return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).run.runId);
+}
+
+/** The active session's current/last-run token + cost readout. */
+export function useAgentRunUsage(): RunUsage {
+  const sid = useSessionStore((s) => s.activeSessionId);
+  return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).run.usage);
 }
 
 /** The active session's plan items. */

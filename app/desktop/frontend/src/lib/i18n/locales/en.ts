@@ -39,6 +39,7 @@ export const en: Record<string, string> = {
   "composer.mention.heading": "Files",
   "composer.execMode.hint": "Execution mode · Workspace · Auto",
   "composer.gitBranch": "Git branch",
+  "composer.usage.hint": "Token usage — input ↑ / output ↓ (this run)",
   "composer.slash.heading": "Commands",
   "composer.placeholder.debug": "Paste a failing test output and I'll walk you through it.",
   "composer.placeholder.implement": "Implement what? Describe the change and I'll plan + execute.",

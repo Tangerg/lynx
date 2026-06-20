@@ -218,6 +218,18 @@ export interface Message {
 export const LOCAL_MESSAGE_PREFIX = "local-";
 export const isLocalMessageId = (id: string): boolean => id.startsWith(LOCAL_MESSAGE_PREFIX);
 
+/** Token + cost readout for the current/last run (API.md §4.6 Usage, the
+ *  cumulative-over-rounds total). Tokens are inclusive totals — inputTokens
+ *  already counts the cacheRead portion. costUsd is ABSENT (not 0) when the
+ *  served model isn't in the pricing table, so the UI shows tokens without a
+ *  fabricated price. */
+export interface RunUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  costUsd?: number;
+}
+
 export interface RunState {
   running: boolean;
   sessionId: string | null;
@@ -225,7 +237,7 @@ export interface RunState {
   step: number;
   totalSteps: number;
   activity: string;
-  cost: string;
+  usage: RunUsage;
 }
 
 /** Last error reported by the run — RunOutcome.type="error" (or a tool-level
@@ -307,7 +319,7 @@ export const INITIAL_VIEW_STATE: AgentViewState = {
     step: 0,
     totalSteps: 0,
     activity: "",
-    cost: "0.00",
+    usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
   },
   error: null,
   turnMessageId: null,
