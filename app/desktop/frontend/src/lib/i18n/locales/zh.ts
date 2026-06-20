@@ -10,6 +10,8 @@ export const zh: Record<string, string> = {
   "sidebar.search.placeholder": "搜索 · 文件 · 命令",
   "sidebar.search.label": "搜索文件和命令",
   "sidebar.section.projects": "项目",
+  "sidebar.sessionFilter.placeholder": "筛选会话…",
+  "sidebar.sessionFilter.empty": "无匹配会话",
   "sidebar.action.addProject": "添加项目",
   "sidebar.addProject.title": "在目录中新建会话",
   "sidebar.addProject.placeholder": "绝对路径",

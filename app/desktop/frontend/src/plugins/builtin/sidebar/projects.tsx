@@ -98,6 +98,7 @@ function ProjectGroupNode({
   group,
   activeCwd,
   activeSessionId,
+  forceExpand,
   onNewSession,
   onSelect,
   onRename,
@@ -107,6 +108,9 @@ function ProjectGroupNode({
   group: ProjectGroup;
   activeCwd: string | undefined;
   activeSessionId: string;
+  /** While a filter is active: force the group open and show every match
+   *  (ignore the collapse + VISIBLE_CAP fold), so results are never hidden. */
+  forceExpand?: boolean;
   onNewSession: (project: SidebarProject) => void;
   onSelect: (id: string) => void;
   onRename: (id: string, title: string) => void;
@@ -116,7 +120,8 @@ function ProjectGroupNode({
   const t = useT();
   const [open, setOpen] = useState(true);
   const [showAll, setShowAll] = useState(false);
-  const visible = showAll ? group.sessions : group.sessions.slice(0, VISIBLE_CAP);
+  const expanded = forceExpand || open;
+  const visible = forceExpand || showAll ? group.sessions : group.sessions.slice(0, VISIBLE_CAP);
   const hidden = group.sessions.length - visible.length;
 
   return (
@@ -125,13 +130,13 @@ function ProjectGroupNode({
         project={group.project}
         // The accent bar marks the group only while it's collapsed — when
         // open, the nested session row carries the active state itself.
-        active={group.project.id === activeCwd && !open}
-        open={open}
+        active={group.project.id === activeCwd && !expanded}
+        open={expanded}
         count={group.sessions.length}
         onToggle={() => setOpen((v) => !v)}
         onNewSession={onNewSession}
       />
-      {open && group.sessions.length > 0 && (
+      {expanded && group.sessions.length > 0 && (
         <div className="flex flex-col gap-0.5 pl-4">
           {visible.map((s) => (
             <SessionRow
@@ -210,11 +215,46 @@ function ProjectsSection() {
     void createSession({ cwd: project.id });
   };
 
+  // In-sidebar session filter: a case-insensitive match on session title (and
+  // the project name, so "lynx" surfaces every session under that project).
+  // Empty query = the full tree. There was no session search anywhere before
+  // (the ⌘K palette indexes commands, not sessions), so a busy history had no
+  // way to find an old conversation but scrolling.
+  const [query, setQuery] = useState("");
+  const filtering = query.trim() !== "";
+  const filteredGroups = useMemo<ProjectGroup[] | undefined>(() => {
+    if (!filtering || !groups) return groups;
+    const q = query.trim().toLowerCase();
+    const out: ProjectGroup[] = [];
+    for (const g of groups) {
+      if (g.project.name.toLowerCase().includes(q)) {
+        out.push(g);
+        continue;
+      }
+      const sessions = g.sessions.filter((s) => s.title.toLowerCase().includes(q));
+      if (sessions.length > 0) out.push({ ...g, sessions });
+    }
+    return out;
+  }, [filtering, groups, query]);
+
   return (
     <>
       <SectionLabel trailing={<AddProjectButton />}>{t("sidebar.section.projects")}</SectionLabel>
+      {groups && groups.length > 0 && (
+        <div className="px-1 pb-1.5">
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("sidebar.sessionFilter.placeholder")}
+            aria-label={t("sidebar.sessionFilter.placeholder")}
+            spellCheck={false}
+            className={cn(FIELD_CLASSES, "h-7 w-full px-2 text-[12px] text-fg")}
+          />
+        </div>
+      )}
       <DataView
-        items={groups}
+        items={filteredGroups}
         // Mirror the data we actually have, not the worst of the two queries:
         // once EITHER resolves `groups` is defined, so a partial failure (e.g.
         // projects errors but sessions loaded) still renders the available
@@ -222,12 +262,16 @@ function ProjectsSection() {
         isLoading={(projectsLoading || sessionsLoading) && !groups}
         isError={(projectsError || sessionsError) && !groups}
         skeletonCount={3}
-        empty={{
-          icon: "folder",
-          title: t("projects.empty.title"),
-          sub: t("projects.empty.sub"),
-          size: "compact",
-        }}
+        empty={
+          filtering
+            ? { icon: "search", title: t("sidebar.sessionFilter.empty"), size: "compact" }
+            : {
+                icon: "folder",
+                title: t("projects.empty.title"),
+                sub: t("projects.empty.sub"),
+                size: "compact",
+              }
+        }
       >
         {(items) => (
           <div className={sideListClasses}>
@@ -237,6 +281,7 @@ function ProjectsSection() {
                 group={g}
                 activeCwd={activeCwd}
                 activeSessionId={activeSessionId}
+                forceExpand={filtering}
                 onNewSession={openProject}
                 onSelect={selectTab}
                 onRename={(id, title) => void renameSession(id, title)}
