@@ -7,6 +7,7 @@
 
 import type { UseQueryResult } from "@tanstack/react-query";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import type { UtilityRole } from "@/rpc";
 import { lookupDataProvider } from "@/plugins/sdk";
 import { queryClient } from "./queryClient";
 
@@ -312,6 +313,7 @@ export const MCP_TOOLS_KEY = "mcp-tools";
 export const MEMORY_KEY = "memory";
 export const APPROVAL_MODE_KEY = "approval-mode";
 export const APPROVAL_RULES_KEY = "approval-rules";
+export const UTILITY_ROLE_KEY = "utility-role";
 
 export const useSessions = makeDataQuery<SidebarSession[]>(SESSIONS_KEY);
 export const useProjects = makeDataQuery<SidebarProject[]>(PROJECTS_KEY);
@@ -342,6 +344,7 @@ export const useAgentDocs = makeDataQuery<WorkspaceAgentDoc[]>("agent-docs");
 export const useModels = makeDataQuery<SelectableModel[]>(MODELS_KEY);
 export const useProviders = makeDataQuery<ProviderInfo[]>(PROVIDERS_KEY);
 export const useApprovalMode = makeDataQuery<ApprovalModeValue>(APPROVAL_MODE_KEY);
+export const useUtilityRole = makeDataQuery<UtilityRole>(UTILITY_ROLE_KEY);
 export const useApprovalRules = makeParamDataQuery<ApprovalRulesQuery, ApprovalRuleInfo[]>(
   APPROVAL_RULES_KEY,
 );

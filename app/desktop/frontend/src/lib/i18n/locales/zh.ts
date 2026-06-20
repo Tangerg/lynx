@@ -249,6 +249,11 @@ export const zh: Record<string, string> = {
   "providers.error.test": "测试失败",
   "providers.empty": "暂无提供方",
   "providers.empty.sub": "运行时报告没有受支持的 LLM 提供方。",
+  "providers.utility.title": "辅助模型",
+  "providers.utility.desc":
+    "用更便宜的模型跑后台工作——摘要、标题、事实提取。未设置时回落到主模型。",
+  "providers.utility.main": "使用主模型",
+  "providers.utility.error": "设置辅助模型失败。",
   "plugins.errorDetail.show": "显示错误详情",
   "plugins.errorDetail.hide": "隐藏错误详情",
   "plugins.errors": "{{count}} 个错误",

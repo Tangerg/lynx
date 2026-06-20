@@ -45,6 +45,7 @@ import {
   PROVIDERS_KEY,
   SESSIONS_KEY,
   SKILLS_KEY,
+  UTILITY_ROLE_KEY,
 } from "@/lib/data/queries";
 import { getContainer } from "@/main/container";
 import { asSessionId, isErrorType } from "@/rpc";
@@ -316,6 +317,12 @@ export const defaultData = definePlugin({
     host.extensions.contribute(DATA_PROVIDER, {
       key: APPROVAL_MODE_KEY,
       fetcher: async () => (await client().approval.getMode()).mode,
+    });
+    // The utility-model role (compaction / extraction / titling). Empty model
+    // ⇔ unset → that work runs on the main turn model.
+    host.extensions.contribute(DATA_PROVIDER, {
+      key: UTILITY_ROLE_KEY,
+      fetcher: () => client().models.getUtilityRole(),
     });
     host.extensions.contribute(DATA_PROVIDER, {
       key: APPROVAL_RULES_KEY,

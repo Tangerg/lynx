@@ -135,6 +135,7 @@ export type {
   ModelCapabilities,
   ModelPricing,
   Modality,
+  UtilityRole,
   // Workspace optional domains
   Skill,
   AgentDoc,
