@@ -11,9 +11,10 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
-	corechat "github.com/Tangerg/lynx/core/model/chat"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	corechat "github.com/Tangerg/lynx/core/model/chat"
 )
 
 // turnState holds the per-turn bookkeeping the implementation needs:
@@ -38,6 +39,11 @@ type turnState struct {
 	// memory service then falls back to its default dir) and for
 	// rehydrated turns (the snapshot predates the live request).
 	cwd string
+
+	// hooks is the resolved (trust-filtered) lifecycle-hook set for this turn's
+	// cwd, bound once at the entry point. Nil when no hooks apply; every seam
+	// calls st.hooks.Run(...) unguarded (the nil Bound no-ops).
+	hooks *hooks.Bound
 
 	// ctx is the turn's own lifetime context — derived via
 	// context.WithoutCancel from the entry ctx so it outlives the
@@ -348,6 +354,14 @@ func (s *inMemory) emitInterrupt(st *turnState, proc kernel.ChatProcess) {
 	kind := interruptKind(aw)
 	recordInterruptMetric(st.ctx, kind)
 	s.emit(st, TurnInterrupted{Interrupts: []Interrupt{{Kind: kind, Payload: aw.PromptAny()}}})
+	// Notification hooks (observe-only): the turn is waiting on the user — fire
+	// so a user script can route it (desktop / Slack / …). The kind ("approval"
+	// | "question") rides as the reason.
+	if !st.hooks.Empty() {
+		_ = st.hooks.Run(st.ctx, hooks.Input{
+			Event: hooks.Notification, SessionID: st.handle.SessionID, Cwd: st.cwd, Reason: kind,
+		})
+	}
 }
 
 // interruptKind classifies the pending awaitable into the wire interrupt
@@ -427,6 +441,20 @@ func (s *inMemory) emitTurnEnd(st *turnState, proc kernel.ChatProcess, terminal 
 		end.CostUSD = out.CostUSD
 	}
 	s.emit(st, end)
+	// Stop hooks (observe-only): fire after the terminal is emitted (the client
+	// already saw run.finished) — for notify / chain / cleanup. Bounded by the
+	// hook timeout; it precedes only the turn's teardown, not the client signal.
+	s.fireStop(st, plan.errMsg)
+}
+
+// fireStop runs the Stop lifecycle hooks for a terminated turn (observe-only).
+func (s *inMemory) fireStop(st *turnState, detail string) {
+	if st.hooks.Empty() {
+		return
+	}
+	_ = st.hooks.Run(st.ctx, hooks.Input{
+		Event: hooks.Stop, SessionID: st.handle.SessionID, Cwd: st.cwd, Reason: detail,
+	})
 }
 
 // turnEndPlan is the decision emitTurnEnd derives before emitting: the

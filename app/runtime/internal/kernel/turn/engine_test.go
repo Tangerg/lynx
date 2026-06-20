@@ -142,7 +142,7 @@ func (s *stubEngine) MaybeExtract(_ context.Context, _, _ string) (kernel.Extrac
 func TestStubEngineDrivesTurn(t *testing.T) {
 	stub := &stubEngine{runReply: "hello from stub"}
 
-	svc := mustChat(turn.New(stub, nil, nil, nil, nil))
+	svc := mustChat(turn.New(stub, nil, nil, nil, nil, nil))
 	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-1",
 		Message:   "hi",
@@ -186,7 +186,7 @@ func TestStubEngineDrivesTurn(t *testing.T) {
 // after the drain loop is race-free.
 func TestService_DiscardsProcessOnTerminal(t *testing.T) {
 	stub := &stubEngine{runReply: "done"}
-	svc := mustChat(turn.New(stub, nil, nil, nil, nil))
+	svc := mustChat(turn.New(stub, nil, nil, nil, nil, nil))
 	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{SessionID: "s", Message: "hi"})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -211,7 +211,7 @@ func TestService_DiscardsProcessOnTerminal(t *testing.T) {
 // "model finished".
 func TestStubEngineBudgetStop(t *testing.T) {
 	stub := &stubEngine{runReply: "partial answer", stopOnBudget: true}
-	svc := mustChat(turn.New(stub, nil, nil, nil, nil))
+	svc := mustChat(turn.New(stub, nil, nil, nil, nil, nil))
 
 	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "s",
@@ -240,7 +240,7 @@ func TestStubEngineBudgetStop(t *testing.T) {
 // turn without needing a real engine.
 func TestStubEngineCancelsCleanly(t *testing.T) {
 	stub := &slowStubEngine{}
-	svc := mustChat(turn.New(stub, nil, nil, nil, nil))
+	svc := mustChat(turn.New(stub, nil, nil, nil, nil, nil))
 
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "s",
@@ -277,7 +277,7 @@ func TestStubEngineCancelsCleanly(t *testing.T) {
 // streams the continuation (delta + TurnEnd) on a fresh handle.
 func TestRehydrateResumesRestoredTurn(t *testing.T) {
 	stub := &stubEngine{runReply: "continuation reply"}
-	svc := mustChat(turn.New(stub, nil, nil, nil, nil))
+	svc := mustChat(turn.New(stub, nil, nil, nil, nil, nil))
 
 	handle, err := svc.Rehydrate(context.Background(), turn.RehydrateRequest{
 		SessionID: "sess-restored",
@@ -373,7 +373,7 @@ func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 	sentinel, _ := corechat.NewClient(newCapturingModel())
 	resolver := &fakeResolver{client: sentinel}
 
-	svc := mustChat(turn.New(stub, nil, resolver, nil, nil))
+	svc := mustChat(turn.New(stub, nil, resolver, nil, nil, nil))
 	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "s",
 		Message:   "hi",
@@ -406,7 +406,7 @@ func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 func TestStartTurn_PassesCwd(t *testing.T) {
 	stub := &stubEngine{runReply: "ok"}
 
-	svc := mustChat(turn.New(stub, nil, nil, nil, nil))
+	svc := mustChat(turn.New(stub, nil, nil, nil, nil, nil))
 	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "s",
 		Message:   "hi",

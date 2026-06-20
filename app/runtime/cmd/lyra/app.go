@@ -17,9 +17,12 @@ import (
 	"os"
 	"path/filepath"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	mcpserversvc "github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
@@ -145,6 +148,21 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		return err
 	}
 
+	// User lifecycle hooks: global hooks live at ~/.lyra/hooks.json; a project's
+	// at <repo>/.lyra/hooks.json but run only once the project is trusted (a
+	// cloned repo's hooks must not auto-execute). Broken hooks are recorded on
+	// the turn span. userHome "" (rare) → global hooks just won't be found.
+	userHome, _ := os.UserHomeDir()
+	hookResolver := hooks.NewResolver(userHome,
+		func(projectRoot string) bool {
+			ok, _ := stores.Trust.IsTrusted(context.Background(), projectRoot)
+			return ok
+		},
+		func(hctx context.Context, source string, herr error) {
+			trace.SpanFromContext(hctx).RecordError(fmt.Errorf("hook %s: %w", source, herr))
+		},
+	)
+
 	rt, err := lyraruntime.New(ctx, lyraruntime.Config{
 		// Engine construction config passes through verbatim (SessionStore
 		// is the runtime's to fill — see runtime.Config.Engine).
@@ -184,6 +202,8 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		// Default provider+model a turn runs against when it picks no model.
 		Provider: string(cfg.Provider),
 		Model:    cfg.Model,
+		// User lifecycle hooks (global + trusted-project), resolved per turn cwd.
+		HooksResolver: hookResolver,
 		// Default approval stance: Balanced — auto-allow file writes /
 		// network (the agent's normal work; the user sees the diffs), prompt
 		// only on shell exec (bash), the genuinely dangerous class. Must be
@@ -251,6 +271,7 @@ func buildStores() (*Stores, error) {
 		Todos:         sqlitestore.NewTodoService(db),
 		ApprovalRules: sqlitestore.NewApprovalRuleStore(db),
 		UtilityRole:   sqlitestore.NewUtilityRoleStore(db),
+		Trust:         sqlitestore.NewTrustStore(db),
 	}, nil
 }
 
@@ -271,6 +292,7 @@ type Stores struct {
 	Todos         todosvc.Service
 	ApprovalRules approval.RuleStore
 	UtilityRole   lyraruntime.UtilityRoleStore
+	Trust         *sqlitestore.TrustStore
 }
 
 // seedConfiguredProvider ensures the config-file provider is present in the

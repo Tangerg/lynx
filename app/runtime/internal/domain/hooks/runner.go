@@ -28,14 +28,14 @@ const blockExitCode = 2
 // trust-filtered) hook list — discovery + trust gating happen above it.
 type Runner struct {
 	// onError, when set, is called for a hook that failed to run (spawn error,
-	// timeout, or a non-blocking non-zero exit) so the caller can record it on a
-	// span. nil = swallow. The hooks domain never logs directly (observability is
-	// the caller's span).
-	onError func(source string, err error)
+	// timeout, or a non-blocking non-zero exit) so the caller can record it on
+	// the turn's span (ctx carries it). nil = swallow. The hooks domain never
+	// imports OTel — observability is the caller's, via this ctx-carrying hook.
+	onError func(ctx context.Context, source string, err error)
 }
 
 // NewRunner builds a Runner. onError may be nil.
-func NewRunner(onError func(source string, err error)) *Runner {
+func NewRunner(onError func(ctx context.Context, source string, err error)) *Runner {
 	return &Runner{onError: onError}
 }
 
@@ -65,7 +65,7 @@ func (r *Runner) Run(ctx context.Context, hooks []Hook, in Input) Decision {
 func (r *Runner) runOne(ctx context.Context, h Hook, in Input, dec *Decision) {
 	stdin, err := json.Marshal(in)
 	if err != nil {
-		r.fail(h.Source, err)
+		r.fail(ctx, h.Source, err)
 		return
 	}
 	timeout := DefaultTimeout
@@ -88,7 +88,7 @@ func (r *Runner) runOne(ctx context.Context, h Hook, in Input, dec *Decision) {
 
 	runErr := cmd.Run()
 	if cctx.Err() == context.DeadlineExceeded {
-		r.fail(h.Source, errors.New("hook timed out"))
+		r.fail(ctx, h.Source, errors.New("hook timed out"))
 		return
 	}
 
@@ -115,13 +115,13 @@ func (r *Runner) runOne(ctx context.Context, h Hook, in Input, dec *Decision) {
 	default:
 		// Any other non-zero exit (or spawn failure): a broken hook. Non-blocking
 		// — the action proceeds — but surfaced via onError so it's observable.
-		r.fail(h.Source, hookError(exit, stderr.String(), runErr))
+		r.fail(ctx, h.Source, hookError(exit, stderr.String(), runErr))
 	}
 }
 
-func (r *Runner) fail(source string, err error) {
+func (r *Runner) fail(ctx context.Context, source string, err error) {
 	if r.onError != nil {
-		r.onError(source, err)
+		r.onError(ctx, source, err)
 	}
 }
 

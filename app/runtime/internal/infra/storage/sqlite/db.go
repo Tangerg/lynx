@@ -177,6 +177,14 @@ func migrate(db *sql.DB) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_approval_rules_scope
 			ON approval_rules(scope, scope_key)`,
+		// Projects whose .lyra/hooks.json is trusted to run. A cloned repo's
+		// project-scope hooks must NOT auto-execute (supply-chain RCE); the user
+		// trusts a project explicitly and the grant is recorded here. Global
+		// (~/.lyra) hooks need no entry — they're the user's own.
+		`CREATE TABLE IF NOT EXISTS trusted_projects (
+			project_root TEXT    PRIMARY KEY,
+			trusted_at   INTEGER NOT NULL
+		)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {

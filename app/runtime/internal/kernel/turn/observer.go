@@ -10,9 +10,20 @@ import (
 
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 )
+
+// firstNonEmptyStr returns the first non-empty argument, or "".
+func firstNonEmptyStr(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
 
 // turnObserver bridges the engine's tool observer to the turn's event
 // channel. Each Approve / Start / End notification is translated into a
@@ -57,16 +68,41 @@ type ApprovalPrompt struct {
 // re-presented on resume. This is the one interrupt mental model shared by
 // every HITL flavor.
 func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, arguments string) kernel.ToolApprovalVerdict {
+	// PreToolUse hooks run first (HITL R model is unaffected): a hook may DENY
+	// the call (final), REWRITE its arguments (flows to the gate + the tool), or
+	// ASK — escalate a call the gate would pass into a human prompt. A rewrite
+	// rides through on the allow paths via verdict.Arguments.
+	var rewritten string
+	forcePrompt := false
+	if !t.st.hooks.Empty() {
+		dec := t.st.hooks.Run(ctx, hooks.Input{
+			Event: hooks.PreToolUse, SessionID: t.st.handle.SessionID, Cwd: t.st.cwd,
+			Tool: &hooks.ToolInput{Name: toolName, Arguments: arguments},
+		})
+		if dec.Block {
+			return kernel.ToolApprovalVerdict{Denied: true, DenyReason: firstNonEmptyStr(dec.Reason, "denied by a PreToolUse hook")}
+		}
+		if dec.RewriteArguments != "" {
+			rewritten = dec.RewriteArguments
+			arguments = rewritten
+		}
+		forcePrompt = dec.Ask
+	}
+
 	if t.svc.approval == nil {
-		return kernel.ToolApprovalVerdict{} // run
+		return kernel.ToolApprovalVerdict{Arguments: rewritten} // run (rewritten "" → no override)
 	}
 	mode, err := t.svc.approval.GetMode(ctx)
 	if err != nil {
 		return kernel.ToolApprovalVerdict{Denied: true, DenyReason: "approval mode unavailable"}
 	}
-	switch gateFor(toolName, mode) {
+	action := gateFor(toolName, mode)
+	if forcePrompt && action == gatePass {
+		action = gatePrompt // a PreToolUse hook escalated this call to human review
+	}
+	switch action {
 	case gatePass:
-		return kernel.ToolApprovalVerdict{}
+		return kernel.ToolApprovalVerdict{Arguments: rewritten}
 	case gateDeny:
 		// gateDeny only fires in the read-only plan stance (ModePlan); guide the
 		// model back onto the plan-then-exit path rather than just refusing.
@@ -81,7 +117,7 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 		if d == approval.Deny {
 			return kernel.ToolApprovalVerdict{Denied: true, DenyReason: "tool call denied by a remembered rule"}
 		}
-		return kernel.ToolApprovalVerdict{} // remembered allow
+		return kernel.ToolApprovalVerdict{Arguments: rewritten} // remembered allow
 	}
 
 	// No standing rule. A per-server auto-approve whitelist entry skips the
@@ -92,7 +128,7 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	// "<server>_<tool>" the runtime derives from the MCP registry.
 	if t.svc.mcpAutoApprove != nil {
 		if _, ok := t.svc.mcpAutoApprove()[toolName]; ok {
-			return kernel.ToolApprovalVerdict{}
+			return kernel.ToolApprovalVerdict{Arguments: rewritten}
 		}
 	}
 
@@ -127,7 +163,9 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	if !res.Approved {
 		return kernel.ToolApprovalVerdict{Denied: true, DenyReason: "tool call denied by user"}
 	}
-	return kernel.ToolApprovalVerdict{Arguments: res.Arguments}
+	// The human's edited args win over a hook rewrite; fall back to the rewrite
+	// when they approved without editing.
+	return kernel.ToolApprovalVerdict{Arguments: firstNonEmptyStr(res.Arguments, rewritten)}
 }
 
 // decisionOf maps an approve/deny boolean to the approval domain's verdict.
@@ -185,6 +223,20 @@ func (t *turnObserver) OnToolCallEnd(callID, toolName, output string, err error)
 		if items, lerr := t.svc.todos.List(t.st.ctx, t.st.handle.SessionID); lerr == nil {
 			t.svc.emit(t.st, TodosUpdated{Todos: items})
 		}
+	}
+
+	// PostToolUse hooks (observe-only in v1): fire after the result so a user
+	// script can audit / notify / integrate. Result-injection isn't plumbed yet
+	// — the result already streamed to the model — so the Decision is ignored.
+	if !t.st.hooks.Empty() {
+		errStr := ""
+		if err != nil {
+			errStr = err.Error()
+		}
+		_ = t.st.hooks.Run(t.st.ctx, hooks.Input{
+			Event: hooks.PostToolUse, SessionID: t.st.handle.SessionID, Cwd: t.st.cwd,
+			Tool: &hooks.ToolInput{Name: toolName, Result: output}, Reason: errStr,
+		})
 	}
 }
 
