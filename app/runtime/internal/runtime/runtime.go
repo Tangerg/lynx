@@ -335,8 +335,14 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 
 	eng, err := kernel.New(ctx, ecfg)
 	if err != nil {
+		// toolset.Build already dialed MCP/A2A + launched LSP/exec backends into
+		// built.Closers; kernel.New didn't take ownership (no engine to Close), so
+		// release them here rather than leaking the sessions/processes.
+		runClosers(built.Closers)
 		return nil, fmt.Errorf("runtime: engine: %w", err)
 	}
+	// From here the engine owns built.Closers (eng.Close runs them), so a later
+	// construction failure tears down via eng.Close.
 
 	// session / interrupt / provider are required and injected by the
 	// composition root (cmd/lyra wires sqlite-backed services; tests wire a
@@ -347,10 +353,12 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 
 	chatSvc, err := turn.New(eng, approvalSvc, resolver, ecfg.Todos, mcpAutoApprove)
 	if err != nil {
+		_ = eng.Close()
 		return nil, fmt.Errorf("runtime: chat service: %w", err)
 	}
 	toolSvc, err := toolsvc.New(eng)
 	if err != nil {
+		_ = eng.Close()
 		return nil, fmt.Errorf("runtime: tool service: %w", err)
 	}
 
@@ -374,6 +382,17 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		resolver:        resolver,
 		utilStore:       cfg.UtilityRoleStore,
 	}, nil
+}
+
+// runClosers runs capability shutdown hooks best-effort — used to release a
+// half-built tool environment when runtime construction fails before the engine
+// (which would otherwise own them) is created.
+func runClosers(closers []func() error) {
+	for _, closeFn := range closers {
+		if closeFn != nil {
+			_ = closeFn()
+		}
+	}
 }
 
 // Chat returns the ChatService — the one-turn dispatch surface

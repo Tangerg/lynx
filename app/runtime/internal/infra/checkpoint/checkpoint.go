@@ -175,7 +175,13 @@ func (s *Store) Restore(ctx context.Context, sessionID, cwd, runID string) error
 		return err
 	}
 	if s.shouldCommit(ctx, gitDir, cwd) {
-		_, _ = s.git(ctx, gitDir, cwd, "commit", "-q", "-m", "pre-restore")
+		// The pre-restore commit is what makes the restore reversible (unrevert).
+		// If it fails, do NOT proceed to the destructive reset below — that would
+		// discard the working-tree state with no recovery point, turning a
+		// "reversible" restore irreversible. Fail instead.
+		if _, err := s.git(ctx, gitDir, cwd, "commit", "-q", "-m", "pre-restore"); err != nil {
+			return err
+		}
 	}
 	// reset --hard reverts tracked files + drops tracked files created since the
 	// target. No `git clean`: untracked files (ignored, or oversize and so never

@@ -67,7 +67,12 @@ const (
 // in sync when adding tools.
 func safetyClassFor(name string) safetyClass {
 	switch name {
-	case "read", "grep", "glob", "skill", "ask_user", "exit_plan_mode":
+	case "read", "grep", "glob", "lsp", "lsp_diagnostics", "skill", "ask_user", "exit_plan_mode":
+		// lsp / lsp_diagnostics are read-only code-intelligence queries
+		// (definition / references / hover / symbols / diagnostics — no side
+		// effects), so they belong with read/grep/glob. Without this they fall to
+		// the exec default → DENIED in plan mode (where code investigation is the
+		// whole point) and needlessly approval-prompted in safe mode.
 		// skill only reads skill files (list / load / load_resource) — read-only
 		// discovery, so it never needs an approval gate.
 		// ask_user has no side effect — it IS a HITL interrupt itself (the

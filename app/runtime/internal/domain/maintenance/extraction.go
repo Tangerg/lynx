@@ -118,23 +118,43 @@ Otherwise output ONLY the bullets, no preamble or trailing text.`
 // mergeMemory appends new facts to the existing memory under a
 // stable "## Lyra-extracted facts" heading so manually edited
 // content and auto-extracted content stay visually separated.
-// Idempotency: if existing already ends with the same fact body,
-// no append happens (a small guard against retry loops appending
-// duplicates).
+// Idempotency is PER-LINE: each bullet already present verbatim is
+// dropped, the rest are appended. A whole-blob check (does existing
+// contain the new block?) would discard the ENTIRE block whenever a
+// single bullet recurred — losing the genuinely-new facts alongside it.
 func mergeMemory(existing, facts string) string {
 	const header = "## Lyra-extracted facts"
 	facts = strings.TrimSpace(facts)
-	if strings.Contains(existing, facts) {
+	if facts == "" {
 		return existing
 	}
+	// Exact-line membership of what's already saved (trimmed), so a recurring
+	// bullet is skipped while new bullets in the same block survive.
+	seen := make(map[string]bool)
+	for line := range strings.SplitSeq(existing, "\n") {
+		if t := strings.TrimSpace(line); t != "" {
+			seen[t] = true
+		}
+	}
+	var fresh []string
+	for line := range strings.SplitSeq(facts, "\n") {
+		if t := strings.TrimSpace(line); t != "" && seen[t] {
+			continue
+		}
+		fresh = append(fresh, line)
+	}
+	merged := strings.TrimSpace(strings.Join(fresh, "\n"))
+	if merged == "" {
+		return existing // every new bullet was already present
+	}
 	if existing == "" {
-		return header + "\n\n" + facts + "\n"
+		return header + "\n\n" + merged + "\n"
 	}
 	if !strings.HasSuffix(existing, "\n") {
 		existing += "\n"
 	}
 	if !strings.Contains(existing, header) {
-		return existing + "\n" + header + "\n\n" + facts + "\n"
+		return existing + "\n" + header + "\n\n" + merged + "\n"
 	}
-	return existing + facts + "\n"
+	return existing + merged + "\n"
 }

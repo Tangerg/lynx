@@ -115,7 +115,13 @@ func Build(mgr *exec.Manager, defaultWorkdir string) []chat.Tool {
 					mgr.Remove(id)
 					return completedJSON(out, dropped, code, killed, dur), nil
 				default:
+					// Canceled mid-run: kill AND remove. A killed-and-discarded
+					// foreground command is not a background job the model will
+					// query later, so leaving it in the manager map (as the other
+					// terminal paths Remove theirs) just leaks a dead entry until
+					// engine shutdown.
 					mgr.Kill(id)
+					mgr.Remove(id)
 					return "", ctx.Err()
 				}
 			}
