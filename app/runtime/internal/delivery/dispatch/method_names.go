@@ -78,12 +78,14 @@ const (
 	MethodApprovalForgetRule = "approval.forgetRule"
 
 	// Providers / Models / Tools (API.md §7.6).
-	MethodProvidersList      = "providers.list"
-	MethodProvidersConfigure = "providers.configure"
-	MethodProvidersTest      = "providers.test"
-	MethodModelsList         = "models.list"
-	MethodToolsList          = "tools.list"
-	MethodToolsInvoke        = "tools.invoke"
+	MethodProvidersList        = "providers.list"
+	MethodProvidersConfigure   = "providers.configure"
+	MethodProvidersTest        = "providers.test"
+	MethodModelsList           = "models.list"
+	MethodModelsGetUtilityRole = "models.getUtilityRole"
+	MethodModelsSetUtilityRole = "models.setUtilityRole"
+	MethodToolsList            = "tools.list"
+	MethodToolsInvoke          = "tools.invoke"
 
 	// Memory / Feedback (API.md §7.7).
 	MethodMemoryList     = "memory.list"

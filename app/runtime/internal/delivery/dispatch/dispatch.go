@@ -161,12 +161,14 @@ var methodTable = map[string]methodHandler{
 	MethodApprovalForgetRule: (*Dispatcher).handleApprovalForgetRule,
 
 	// Providers / Models / Tools.
-	MethodProvidersList:      (*Dispatcher).handleProvidersList,
-	MethodProvidersConfigure: (*Dispatcher).handleProvidersConfigure,
-	MethodProvidersTest:      (*Dispatcher).handleProvidersTest,
-	MethodModelsList:         (*Dispatcher).handleModelsList,
-	MethodToolsList:          (*Dispatcher).handleToolsList,
-	MethodToolsInvoke:        (*Dispatcher).handleToolsInvoke,
+	MethodProvidersList:        (*Dispatcher).handleProvidersList,
+	MethodProvidersConfigure:   (*Dispatcher).handleProvidersConfigure,
+	MethodProvidersTest:        (*Dispatcher).handleProvidersTest,
+	MethodModelsList:           (*Dispatcher).handleModelsList,
+	MethodModelsGetUtilityRole: (*Dispatcher).handleModelsGetUtilityRole,
+	MethodModelsSetUtilityRole: (*Dispatcher).handleModelsSetUtilityRole,
+	MethodToolsList:            (*Dispatcher).handleToolsList,
+	MethodToolsInvoke:          (*Dispatcher).handleToolsInvoke,
 
 	// Memory.
 	MethodMemoryList:   (*Dispatcher).handleMemoryList,

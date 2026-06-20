@@ -62,12 +62,12 @@ type Config struct {
 	// Engine.ChatClient is required.
 	Engine kernel.Config
 
-	// UtilityClient optionally runs the in-house turn-boundary maintenance
-	// services (compaction / extraction / titling) on a separate — typically
-	// cheaper — model than Engine.ChatClient. nil runs them on the main client.
-	// Only applies to the runtime's own maintenance services; an externally
-	// injected Compactor/Extractor brings its own client.
-	UtilityClient *chat.Client
+	// UtilityRoleStore persists the global utility-model role — the (provider,
+	// model) the in-house maintenance services (compaction / extraction /
+	// titling) run on. nil disables persistence: the role stays unset and those
+	// services run on the main turn model. The composition root injects the
+	// sqlite-backed store and seeds it from config on first run.
+	UtilityRoleStore UtilityRoleStore
 
 	// Tool-environment inputs — the runtime reads these to assemble the tool
 	// environment via toolset.Build and inject it into the engine core (which
@@ -158,9 +158,17 @@ type Runtime struct {
 	defaultModel string
 
 	// titler auto-names an untitled session from its first user message — a
-	// turn-boundary maintenance op (like the Compactor) on the maintenance
-	// client, triggered by the delivery layer off a finished root run.
+	// turn-boundary maintenance op (like the Compactor) on the utility model,
+	// triggered by the delivery layer off a finished root run.
 	titler *maintenance.Titler
+
+	// utility holds the live utility-model role (provider, model) the
+	// maintenance services resolve against; SetUtilityRole repoints it. resolver
+	// builds + caches the client for a (provider, model); utilStore persists the
+	// role across restarts. See utility.go.
+	utility   *atomic.Pointer[utilityRole]
+	resolver  *clientResolver
+	utilStore UtilityRoleStore
 }
 
 // New assembles a Runtime from cfg. Returns an error when a required
@@ -202,13 +210,40 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	// so an external provider (e.g. a mem0 / HTTP-bridged compactor or knowledge
 	// store) can be slotted in by setting the corresponding engine.Config field —
 	// the runtime then leaves it untouched. nil → in-house default.
-	// Maintenance (compaction / extraction / titling) may run on a cheaper model
-	// than the main turn — see [Config.UtilityClient]. nil falls back to the
-	// engine's client, preserving the single-model default. Only the in-house
-	// services below use it; an externally injected port brings its own client.
-	utilClient := cfg.UtilityClient
-	if utilClient == nil {
-		utilClient = cfg.Engine.ChatClient
+	// The clientResolver builds a chat client for an explicit (provider, model)
+	// from that provider's registry credentials, caching by the credential
+	// tuple. A turn uses it to honor a per-run model; the maintenance services
+	// below use it to honor the utility-model role.
+	providerSvc := cfg.ProviderService
+	resolver := newClientResolver(providerSvc)
+
+	// Utility-model role: the (provider, model) the in-house maintenance
+	// services run on, loaded from its persistent store into an atomic cell so
+	// models.setUtilityRole can repoint it live. resolveUtility reads the cell
+	// per call (re-read, never captured) and resolves the client, falling back
+	// to the main turn client when the role is unset or unresolvable — those
+	// services degrade to the main model rather than failing.
+	var role utilityRole
+	if cfg.UtilityRoleStore != nil {
+		p, m, lerr := cfg.UtilityRoleStore.LoadUtilityRole(ctx)
+		if lerr != nil {
+			return nil, fmt.Errorf("runtime: load utility role: %w", lerr)
+		}
+		role = utilityRole{provider: p, model: m}
+	}
+	utilCell := &atomic.Pointer[utilityRole]{}
+	utilCell.Store(&role)
+	mainClient := cfg.Engine.ChatClient
+	resolveUtility := func(ctx context.Context) *chat.Client {
+		role := utilCell.Load()
+		if role == nil || role.model == "" {
+			return mainClient
+		}
+		c, rerr := resolver.ResolveClient(ctx, role.provider, role.model)
+		if rerr != nil || c == nil {
+			return mainClient
+		}
+		return c
 	}
 
 	if ecfg.Steering == nil {
@@ -226,10 +261,10 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		if info, ok := catalog.Lookup(cfg.Provider, cfg.Model); ok {
 			window = int(info.Limits.ContextWindow)
 		}
-		ecfg.Compactor = maintenance.NewCompactor(memStore, utilClient, maintenance.CompactionConfig{ContextWindow: window})
+		ecfg.Compactor = maintenance.NewCompactor(memStore, resolveUtility, maintenance.CompactionConfig{ContextWindow: window})
 	}
 	if ecfg.Extractor == nil && cfg.Engine.Knowledge != nil {
-		ecfg.Extractor = maintenance.NewExtractor(memStore, cfg.Engine.Knowledge, utilClient)
+		ecfg.Extractor = maintenance.NewExtractor(memStore, cfg.Engine.Knowledge, resolveUtility)
 	}
 	// Todo list: same nil-default contract — honor a pre-injected engine
 	// Todos (an external task store), else use the runtime-supplied one.
@@ -308,12 +343,6 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	// a single storage backend now.
 	sessionSvc := cfg.SessionService
 	interruptStore := cfg.InterruptStore
-	providerSvc := cfg.ProviderService
-
-	// The resolver lets a turn pick its model: given an explicit
-	// (provider, model) it builds the client from that provider's registry
-	// credentials. A turn with no selection runs the engine's default client.
-	resolver := newClientResolver(providerSvc)
 
 	chatSvc, err := turn.New(eng, approvalSvc, resolver, ecfg.Todos, mcpAutoApprove)
 	if err != nil {
@@ -338,7 +367,10 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		mcpRegistry:  cfg.MCPRegistry,
 		mcpGating:    mcpGate,
 		defaultModel: cfg.Model,
-		titler:       maintenance.NewTitler(utilClient),
+		titler:       maintenance.NewTitler(resolveUtility),
+		utility:      utilCell,
+		resolver:     resolver,
+		utilStore:    cfg.UtilityRoleStore,
 	}, nil
 }
 

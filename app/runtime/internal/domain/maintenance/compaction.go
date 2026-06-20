@@ -67,16 +67,16 @@ type CompactionConfig struct {
 // Compactor makes [Compactor.MaybeCompact] a silent no-op.
 type Compactor struct {
 	store       memory.Store
-	client      *chat.Client
+	client      ClientFunc
 	maxMessages int
 	maxTokens   int
 	keepRecent  int
 }
 
-// NewCompactor builds a Compactor over the chat-memory store and chat
-// client. Zero / out-of-range config fields fall back to the package
-// defaults.
-func NewCompactor(store memory.Store, client *chat.Client, cfg CompactionConfig) *Compactor {
+// NewCompactor builds a Compactor over the chat-memory store and a
+// per-call chat-client resolver. Zero / out-of-range config fields fall back
+// to the package defaults.
+func NewCompactor(store memory.Store, client ClientFunc, cfg CompactionConfig) *Compactor {
 	maxMessages := cfg.MaxMessages
 	if maxMessages <= 0 {
 		maxMessages = defaultCompactMaxMessages
@@ -236,7 +236,11 @@ Remaining work + open questions — concrete and ordered.
 Do NOT echo this instruction or restate the raw transcript; the agent receives
 your sections verbatim.`
 
-	text, err := askDirect(ctx, c.client, prompt, transcript)
+	var client *chat.Client
+	if c.client != nil {
+		client = c.client(ctx)
+	}
+	text, err := askDirect(ctx, client, prompt, transcript)
 	if err != nil {
 		return nil, err
 	}
