@@ -213,6 +213,9 @@ export interface Methods {
       listServers: () => Promise<Page<McpServer>>;
       listTools: (server?: string) => Promise<Page<McpTool>>;
       reconnect: (server: string) => Promise<void>;
+      // Interactive OAuth sign-in (opens the browser; the outcome rides
+      // mcp.serverChanged, same as reconnect). For servers that auth via OAuth.
+      authorize: (server: string) => Promise<void>;
     };
     // Code intelligence (B7) — LSP-backed, read-only, gated features.codeIntel. Positions
     // 0-based / UTF-16 (LSP). No language server for the file type → no_language_server
@@ -358,6 +361,7 @@ export function createMethods(client: RpcClient): Methods {
         listTools: (server) =>
           client.call<Page<McpTool>>("workspace.mcp.listTools", server ? { server } : {}),
         reconnect: (server) => client.call<void>("workspace.mcp.reconnect", { server }),
+        authorize: (server) => client.call<void>("workspace.mcp.authorize", { server }),
       },
       code: {
         definition: (params) =>

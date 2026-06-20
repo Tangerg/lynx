@@ -102,7 +102,7 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
   const isEdit = server !== undefined;
 
   const [name, setName] = useState(server?.name ?? "");
-  const [transport, setTransport] = useState<MCPTransport>(server?.transport ?? "stdio");
+  const [transport, setTransport] = useState<MCPTransport>(server?.type ?? "stdio");
   const [description, setDescription] = useState(server?.description ?? "");
   // stdio
   const [command, setCommand] = useState(server?.command ?? "");
@@ -137,7 +137,7 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
     const secs = parseInt(timeoutSec, 10);
     const base: ConfigureMCPServerRequest = {
       name: name.trim(),
-      transport,
+      type: transport,
       enabled: server?.enabled ?? true,
       description: description.trim() || undefined,
       timeoutSeconds: Number.isFinite(secs) && secs > 0 ? secs : undefined,
@@ -231,7 +231,7 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
           value={transport}
           options={[
             { value: "stdio", label: t("mcp.transport.stdio") },
-            { value: "http", label: t("mcp.transport.http") },
+            { value: "streamableHttp", label: t("mcp.transport.http") },
           ]}
           onChange={setTransport}
           ariaLabel={t("mcp.form.transport.aria")}

@@ -32,7 +32,11 @@ const envSchema = z
   });
 
 const serverSchema = z.object({
-  type: z.enum(["stdio", "http", "sse"]).optional(),
+  // Standard mcpServers vocab — accept it all (stdio | streamableHttp | http |
+  // sse | anything). stdio stays stdio; every url-based type collapses onto our
+  // one remote transport (streamableHttp). Lenient string, not an enum, so a
+  // novel type value pastes in rather than failing.
+  type: z.string().optional(),
   command: z.string().optional(),
   args: z.array(z.string()).optional(),
   env: envSchema,
@@ -89,23 +93,24 @@ export function parseMcpImport(text: string): McpImportResult {
   }
   const configs: ConfigureMCPServerRequest[] = [];
   for (const [name, s] of Object.entries(parsed.data.mcpServers)) {
-    // sse collapses to http on our side (one streamable-HTTP transport).
-    const transport = s.type
+    // stdio stays stdio; any other (http / streamableHttp / sse / …) or a bare
+    // url collapses onto streamableHttp — our one remote transport.
+    const type = s.type
       ? s.type === "stdio"
         ? "stdio"
-        : "http"
+        : "streamableHttp"
       : s.command
         ? "stdio"
         : s.url
-          ? "http"
+          ? "streamableHttp"
           : undefined;
-    if (transport === undefined) {
-      throw new Error(`Server "${name}" has neither a command (stdio) nor a url (http)`);
+    if (type === undefined) {
+      throw new Error(`Server "${name}" has neither a command (stdio) nor a url (streamableHttp)`);
     }
-    if (transport === "stdio") {
+    if (type === "stdio") {
       configs.push({
         name,
-        transport,
+        type,
         enabled: true,
         command: s.command,
         args: s.args,
@@ -116,7 +121,7 @@ export function parseMcpImport(text: string): McpImportResult {
     } else {
       configs.push({
         name,
-        transport,
+        type,
         enabled: true,
         url: s.url,
         authorization: bearerFrom(s),

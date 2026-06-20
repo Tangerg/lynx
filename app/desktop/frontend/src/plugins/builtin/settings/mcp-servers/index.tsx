@@ -13,7 +13,11 @@ import type { MCPServerConfigInfo, MCPTransport } from "@/lib/data/queries";
 import { useState } from "react";
 import { DataView, Icon, PillButton, StatusDot, Switch } from "@/components/common";
 import { useMCPConfigs } from "@/lib/data/queries";
-import { useConfigureMCPServer, useSetMCPServerEnabled } from "@/lib/agent/useMCPServerConfig";
+import {
+  useAuthorizeMCPServer,
+  useConfigureMCPServer,
+  useSetMCPServerEnabled,
+} from "@/lib/agent/useMCPServerConfig";
 import { notifyError, notifyInfo } from "@/lib/notify";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
@@ -46,6 +50,7 @@ function TransportBadge({ transport }: { transport: MCPTransport }) {
 function ServerRow({ s }: { s: MCPServerConfigInfo }) {
   const t = useT();
   const setEnabled = useSetMCPServerEnabled();
+  const authorize = useAuthorizeMCPServer();
   const [editing, setEditing] = useState(false);
 
   const onToggle = async (enabled: boolean) => {
@@ -53,6 +58,14 @@ function ServerRow({ s }: { s: MCPServerConfigInfo }) {
       await setEnabled(s.name, enabled);
     } catch (err) {
       notifyError(err instanceof Error ? err.message : t("mcp.error.toggle"), { source: "mcp" });
+    }
+  };
+
+  const onSignIn = async () => {
+    try {
+      await authorize(s.name);
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : t("mcp.error.signIn"), { source: "mcp" });
     }
   };
 
@@ -67,7 +80,7 @@ function ServerRow({ s }: { s: MCPServerConfigInfo }) {
           <span className="truncate text-[14px] font-semibold text-fg" title={s.name}>
             {s.name}
           </span>
-          <TransportBadge transport={s.transport} />
+          <TransportBadge transport={s.type} />
           {s.status === "failed" && s.errorDetail && (
             <span className="truncate text-[11px] text-negative" title={s.errorDetail}>
               {s.errorDetail}
@@ -79,6 +92,11 @@ function ServerRow({ s }: { s: MCPServerConfigInfo }) {
             <span className="font-mono text-[11px] tabular-nums text-fg-faint">
               {t("mcp.toolCount", { count: s.toolCount ?? 0 })}
             </span>
+          )}
+          {s.status === "needsAuth" && (
+            <PillButton variant="accent" size="sm" onClick={() => void onSignIn()}>
+              {t("mcp.signIn")}
+            </PillButton>
           )}
           <Switch
             checked={s.enabled}
