@@ -48,6 +48,7 @@ import {
   SkipForward,
   Sparkle,
   Sparkles,
+  Star,
   ThumbsDown,
   ThumbsUp,
   Square,
@@ -132,7 +133,8 @@ export type IconName =
   | "folder-search"
   | "download"
   | "bot"
-  | "question";
+  | "question"
+  | "star";
 
 // Mapping from our project's icon vocabulary to lucide components.
 // Names on the left are the project's IconName tokens used at every
@@ -200,6 +202,7 @@ const ICON_MAP: Record<IconName, LucideIcon> = {
   download: Download,
   bot: Bot,
   question: MessageCircleQuestion,
+  star: Star,
 };
 
 interface Props {

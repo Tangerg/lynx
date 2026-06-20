@@ -27,6 +27,7 @@ export interface SidebarSession {
   /** Cumulative session usage (wire Session.usage). costUsd stays absent
    *  when the model isn't in the pricing table — never fabricate 0. */
   usage?: { inputTokens?: number; outputTokens?: number; costUsd?: number };
+  favorite?: boolean; // user-pinned: sorts ahead of the rest within its project group
   time: string;
 }
 
