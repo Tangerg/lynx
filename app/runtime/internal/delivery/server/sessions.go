@@ -140,6 +140,11 @@ func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionReq
 			return nil, wireSessionErr(err)
 		}
 	}
+	if in.Favorite != nil {
+		if err := s.rt.Session().SetFavorite(ctx, in.SessionID, *in.Favorite); err != nil {
+			return nil, wireSessionErr(err)
+		}
+	}
 
 	ses, err := s.rt.Session().Get(ctx, in.SessionID)
 	if err != nil {
@@ -233,6 +238,7 @@ func (s *Server) sessionToWire(ses session.Session, status protocol.SessionStatu
 		Status:    status,
 		CreatedAt: ses.StartedAt,
 		UpdatedAt: ses.UpdatedAt,
+		Favorite:  ses.Favorite,
 		Metadata:  meta,
 	}
 }

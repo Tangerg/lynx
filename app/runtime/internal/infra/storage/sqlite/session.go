@@ -41,15 +41,17 @@ func rowToSession(scanner interface {
 		startedAtNanos int64
 		updatedAtNanos int64
 		metaJSON       string
+		favoriteInt    int64
 	)
 	if err := scanner.Scan(
 		&s.ID, &s.Title, &s.Cwd, &s.ParentID,
-		&startedAtNanos, &updatedAtNanos, &metaJSON, &s.Model, &s.Kind,
+		&startedAtNanos, &updatedAtNanos, &metaJSON, &s.Model, &s.Kind, &favoriteInt,
 	); err != nil {
 		return session.Session{}, err
 	}
 	s.StartedAt = time.Unix(0, startedAtNanos).UTC()
 	s.UpdatedAt = time.Unix(0, updatedAtNanos).UTC()
+	s.Favorite = favoriteInt != 0
 	if metaJSON != "" && metaJSON != "{}" {
 		if err := json.Unmarshal([]byte(metaJSON), &s.Metadata); err != nil {
 			return session.Session{}, fmt.Errorf("sqlite: decode metadata: %w", err)
@@ -71,7 +73,7 @@ func encodeMetadata(m map[string]any) (string, error) {
 	return string(data), nil
 }
 
-const sessionColumns = `id, title, cwd, parent_id, started_at, updated_at, metadata, model, kind`
+const sessionColumns = `id, title, cwd, parent_id, started_at, updated_at, metadata, model, kind, favorite`
 
 // ------------------------------------------------------------------
 // session.Service
@@ -142,10 +144,10 @@ func (s *SessionService) Restore(ctx context.Context, sess session.Session) erro
 	}
 	_, err = s.db.ExecContext(ctx,
 		`INSERT OR REPLACE INTO sessions(`+sessionColumns+`)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		sess.ID, sess.Title, sess.Cwd, sess.ParentID,
 		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
-		metaJSON, sess.Model, sess.Kind,
+		metaJSON, sess.Model, sess.Kind, sess.Favorite,
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: restore session: %w", err)
@@ -289,6 +291,14 @@ func (s *SessionService) SetMetadata(ctx context.Context, id string, meta map[st
 		metaJSON, time.Now().UTC().UnixNano(), id)
 }
 
+// SetFavorite pins / unpins the session (see [session.Service.SetFavorite]) +
+// refreshes UpdatedAt. ErrNotFound for unknown id.
+func (s *SessionService) SetFavorite(ctx context.Context, id string, favorite bool) error {
+	return s.updateByID(ctx, "set session favorite",
+		`UPDATE sessions SET favorite = ?, updated_at = ? WHERE id = ?`,
+		favorite, time.Now().UTC().UnixNano(), id)
+}
+
 // updateByID runs a single-row UPDATE keyed on session id and maps "no row
 // matched" to session.ErrNotFound. op labels the operation for error wrapping
 // (e.g. "rename session"). Shared by the SetModel / Rename field writes,
@@ -327,10 +337,10 @@ func (s *SessionService) execInsert(ctx context.Context, ex execer, sess session
 	}
 	_, err = ex.ExecContext(ctx,
 		`INSERT INTO sessions(`+sessionColumns+`)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		sess.ID, sess.Title, sess.Cwd, sess.ParentID,
 		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
-		metaJSON, sess.Model, sess.Kind,
+		metaJSON, sess.Model, sess.Kind, sess.Favorite,
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: insert session: %w", err)

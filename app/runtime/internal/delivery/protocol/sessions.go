@@ -27,6 +27,7 @@ type Session struct {
 	CreatedAt   time.Time      `json:"createdAt"`
 	UpdatedAt   time.Time      `json:"updatedAt"`
 	Usage       *Usage         `json:"usage,omitempty"`
+	Favorite    bool           `json:"favorite,omitempty"` // user-pinned; sorts ahead in the session list
 	Metadata    map[string]any `json:"metadata"`
 }
 
@@ -83,6 +84,7 @@ type UpdateSessionRequest struct {
 	Cwd       *string         `json:"cwd,omitempty"`
 	Model     *string         `json:"model,omitempty"`
 	Metadata  *map[string]any `json:"metadata,omitempty"`
+	Favorite  *bool           `json:"favorite,omitempty"`
 }
 
 // ForkSessionRequest — sessions.fork body (AUX_API §4.2). Omit fromRunId for a

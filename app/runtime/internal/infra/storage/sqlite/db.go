@@ -63,7 +63,8 @@ func migrate(db *sql.DB) error {
 			updated_at  INTEGER NOT NULL,
 			metadata    TEXT    NOT NULL DEFAULT '{}',
 			model       TEXT    NOT NULL DEFAULT '',
-			kind        TEXT    NOT NULL DEFAULT ''
+			kind        TEXT    NOT NULL DEFAULT '',
+			favorite    INTEGER NOT NULL DEFAULT 0
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_sessions_updated_at
 			ON sessions(updated_at DESC)`,
