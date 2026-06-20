@@ -143,6 +143,12 @@ func (s *TranscriptStore) List(ctx context.Context, sessionID string) ([]transcr
 	return items, runs, nil
 }
 
+// ListRuns returns just the session's run records (no item blobs) — the cheap
+// path for usage aggregation, which only needs the runs.
+func (s *TranscriptStore) ListRuns(ctx context.Context, sessionID string) ([]transcript.Run, error) {
+	return s.listRuns(ctx, sessionID)
+}
+
 func (s *TranscriptStore) listItems(ctx context.Context, sessionID string) ([]transcript.Item, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT session_id, run_id, item_id, created_at, item

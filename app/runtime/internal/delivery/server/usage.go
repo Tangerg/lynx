@@ -27,7 +27,7 @@ func (s *Server) SessionUsage(ctx context.Context, sessionID string) (*protocol.
 	if store == nil {
 		return &protocol.Usage{}, nil
 	}
-	_, runs, err := store.List(ctx, sessionID)
+	runs, err := store.ListRuns(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +70,7 @@ func (s *Server) UsageSummary(ctx context.Context, in protocol.UsageSummaryReque
 	byDay := map[string]*usageAcc{}
 	sessionCount := 0
 	for _, sess := range sessions {
-		_, runs, lerr := store.List(ctx, sess.ID)
+		runs, lerr := store.ListRuns(ctx, sess.ID)
 		if lerr != nil {
 			return nil, lerr
 		}

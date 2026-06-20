@@ -119,8 +119,8 @@ type RunResult struct {
 }
 
 // StartRunRequest is the runs.start body (API.md §7.1). No client-supplied
-// runId (idempotency is the X-Idempotency-Key header); no cwd (resolved
-// from the session).
+// runId; no cwd (resolved from the session). (The X-Idempotency-Key retry
+// dedup is reserved but not yet implemented — see API.md §7.1.)
 type StartRunRequest struct {
 	SessionID string         `json:"sessionId"`
 	Input     []ContentBlock `json:"input"`

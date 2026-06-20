@@ -4,7 +4,7 @@
 // constant). Lives in lib/ so panes/components reach the runtime through a hook,
 // never @/rpc or the container directly (layer rule).
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { Usage, UsageSummary } from "@/rpc";
 import { asSessionId } from "@/rpc";
 import { getContainer } from "@/main/container";
@@ -42,5 +42,8 @@ export function useUsageSummary(sinceDays: number) {
       getContainer()
         .client()
         .usage.summary(sinceDays > 0 ? { sinceDays } : {}),
+    // Keep the previous range's dashboard on screen while a new range loads, so
+    // switching All/30d/7d doesn't flash the populated view back to "Loading…".
+    placeholderData: keepPreviousData,
   });
 }

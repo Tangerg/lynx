@@ -45,13 +45,15 @@ function PlanProgressBanner() {
   const [dismissedRunId, setDismissedRunId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
 
-  // Reset both expand + dismiss when a fresh plan ref lands. The
-  // reducer creates a new array on any plan content change, which is
-  // exactly when we want the banner to re-surface + re-collapse.
+  // Collapse the banner when a NEW run starts — NOT on every plan change. The
+  // reducer creates a fresh plan array on each step-status tick, so a [plan] dep
+  // fired every tick: a user who expanded the list got it snapped shut (or a
+  // dismissed banner reappeared) the moment the agent flipped a step. Dismiss is
+  // already run-scoped via `runId === dismissedRunId`, so a new run re-surfaces
+  // it without an explicit reset here.
   useEffect(() => {
-    setDismissedRunId(null);
     setExpanded(false);
-  }, [plan]);
+  }, [runId]);
 
   const hasPlan = plan.some((p) => p.status !== "done");
   const total = plan.length;

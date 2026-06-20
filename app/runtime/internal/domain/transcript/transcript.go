@@ -63,6 +63,11 @@ type Store interface {
 	// those items belong to (for run-tree reconstruction, §10.3).
 	List(ctx context.Context, sessionID string) ([]Item, []Run, error)
 
+	// ListRuns returns just sessionID's RunRefs (no items) — the cheap path for
+	// consumers that only need the run records (e.g. usage aggregation), so they
+	// don't load every item blob just to discard it.
+	ListRuns(ctx context.Context, sessionID string) ([]Run, error)
+
 	// DeleteRun removes one run's record and its items (sessions.rollback drops
 	// runs after the kept boundary). Idempotent — unknown run is not an error.
 	DeleteRun(ctx context.Context, sessionID, runID string) error
