@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	corechat "github.com/Tangerg/lynx/core/model/chat"
 )
 
 // todoLister reads a session's current todo list — narrow consumer view of the
@@ -411,10 +412,22 @@ func (s *inMemory) Rehydrate(ctx context.Context, req RehydrateRequest) (TurnHan
 	}
 	handle := TurnHandle{SessionID: req.SessionID, TurnID: newTurnID()}
 	state := newTurnState(ctx, handle)
-	// A rehydrated turn didn't carry its original model selection (the
-	// continuation runs on the default client — see RestoreChat), so the
-	// span/metrics record the default.
-	state.model = "default"
+	// Re-resolve the parked run's per-run client from the persisted
+	// provider+model so the continuation runs against the SAME model (mirrors
+	// the StartTurn path). No selection / no resolver / a provider since removed
+	// → nil client = platform default, and the span records "default".
+	var client *corechat.Client
+	if req.Provider != "" && req.Model != "" && s.resolver != nil {
+		c, err := s.resolver.ResolveClient(state.ctx, req.Provider, req.Model)
+		if err != nil {
+			state.cancel()
+			return TurnHandle{}, err
+		}
+		client = c
+		state.model = req.Model
+	} else {
+		state.model = "default"
+	}
 	state.ctx, state.span = startTurnSpan(state.ctx, handle.SessionID, handle.TurnID, state.model)
 	observer := &turnObserver{svc: s, st: state}
 	state.lifecycle = &turnLifecycle{}
@@ -423,6 +436,7 @@ func (s *inMemory) Rehydrate(ctx context.Context, req RehydrateRequest) (TurnHan
 		SessionID:     req.SessionID,
 		Observer:      observer,
 		EventListener: state.lifecycle.listener(handle.TurnID),
+		ChatClient:    client,
 	})
 	if err != nil {
 		state.cancel()

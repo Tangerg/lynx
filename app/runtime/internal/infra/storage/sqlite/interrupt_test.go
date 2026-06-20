@@ -29,6 +29,8 @@ func TestInterruptStore_PutGetListDelete(t *testing.T) {
 		ParentRunID: "run_1",
 		SessionID:   "ses_a",
 		TurnID:      "turn_1",
+		Provider:    "anthropic",
+		Model:       "claude-opus-4-8",
 		Interrupts:  json.RawMessage(`[{"kind":"plan"}]`),
 		CreatedAt:   time.Unix(5, 0).UTC(),
 	}
@@ -47,6 +49,11 @@ func TestInterruptStore_PutGetListDelete(t *testing.T) {
 	}
 	if got.SessionID != "ses_b" || string(got.Interrupts) != `[{"kind":"plan"}]` || !got.CreatedAt.Equal(time.Unix(5, 0).UTC()) {
 		t.Fatalf("Get returned %+v", got)
+	}
+	// Per-run model selection round-trips (T1.4 — cross-restart rehydrate rebuilds
+	// the SAME model client instead of dropping to the default).
+	if got.Provider != "anthropic" || got.Model != "claude-opus-4-8" {
+		t.Fatalf("Get provider/model = %q/%q, want anthropic/claude-opus-4-8", got.Provider, got.Model)
 	}
 
 	if list, _ := store.List(ctx, "ses_b"); len(list) != 1 {

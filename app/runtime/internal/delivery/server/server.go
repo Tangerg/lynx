@@ -86,6 +86,7 @@ type runEntry struct {
 	sessionID    string
 	turnID       string
 	parentRunID  string // set for continuation runs (runs.resume)
+	provider     string // provider this run ran against; persisted on park for cross-restart rehydrate
 	model        string // model this run ran against (RunRef.model); empty = default
 	cancelReason string // runs.cancel reason → flows to outcome.canceled.detail (S6)
 	cancel       context.CancelFunc

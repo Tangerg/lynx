@@ -23,7 +23,7 @@ import (
 // pump for one run segment. parentRunID is empty for a root run
 // (runs.start) and set for a continuation (runs.resume) — it rides onto
 // the RunRef and the runEntry so the continuation links back to its parent.
-func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, handle turn.TurnHandle, sessionID string, userInput []protocol.ContentBlock, resume *resumeBinding, model string) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
+func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, handle turn.TurnHandle, sessionID string, userInput []protocol.ContentBlock, resume *resumeBinding, provider, model string) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
 	// Detach the run from the request's cancellation (it must outlive the
 	// request) WITHOUT losing the request's trace context: WithoutCancel
 	// keeps ctx values — including the entry span — so the run's spans are
@@ -41,7 +41,7 @@ func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 	// fresh subscription; a later runs.subscribe attaches another.
 	hub := newRunHub()
 	s.runMu.Lock()
-	s.runs[runID] = &runEntry{runID: runID, sessionID: sessionID, turnID: handle.TurnID, parentRunID: parentRunID, model: model, cancel: cancel, hub: hub}
+	s.runs[runID] = &runEntry{runID: runID, sessionID: sessionID, turnID: handle.TurnID, parentRunID: parentRunID, provider: provider, model: model, cancel: cancel, hub: hub}
 	s.runMu.Unlock()
 	events, unsubscribe := hub.Subscribe("")
 	// Drop this caller's subscription when its request ends (client
@@ -188,11 +188,23 @@ func (s *Server) recordInterrupt(ctx context.Context, runID string, handle turn.
 	if perr != nil {
 		trace.SpanFromContext(ctx).RecordError(perr)
 	}
+	// Carry the run's per-run model selection onto the interrupt so a
+	// cross-restart rehydrate rebuilds the SAME model client (the live process
+	// holds it in memory; the persisted record is the only place it survives a
+	// restart). Read from the still-live runEntry under the runs lock.
+	s.runMu.Lock()
+	var provider, model string
+	if e := s.runs[runID]; e != nil {
+		provider, model = e.provider, e.model
+	}
+	s.runMu.Unlock()
 	if err := s.rt.Interrupts().Put(ctx, interrupts.Pending{
 		ParentRunID:  runID,
 		SessionID:    handle.SessionID,
 		TurnID:       handle.TurnID,
 		ProcessID:    processID,
+		Provider:     provider,
+		Model:        model,
 		Interrupts:   raw,
 		DrainedTools: drained,
 		CreatedAt:    time.Now().UTC(),

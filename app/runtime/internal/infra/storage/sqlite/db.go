@@ -79,6 +79,8 @@ func migrate(db *sql.DB) error {
 			session_id    TEXT    NOT NULL DEFAULT '',
 			turn_id       TEXT    NOT NULL DEFAULT '',
 			process_id    TEXT    NOT NULL DEFAULT '',
+			provider      TEXT    NOT NULL DEFAULT '',
+			model         TEXT    NOT NULL DEFAULT '',
 			interrupts    TEXT    NOT NULL DEFAULT '',
 			drained_tools TEXT    NOT NULL DEFAULT '',
 			created_at    INTEGER NOT NULL
