@@ -848,6 +848,7 @@ server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` 
   | `cwd` | string | 否 | **改 cwd = relocate**；受 `features.relocate` 门控 |
   | `model` | string | 否 | |
   | `metadata` | object | 否 | 全替换 |
+  | `favorite` | bool | 否 | 置顶/取消置顶；favorited 会话在列表里排在前面 |
 
 - 返回 `Session`。错误 `session_not_found` / `capability_not_negotiated`（relocate 关闭时改 cwd）/ `cwd_unavailable`。
 
