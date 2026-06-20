@@ -18,13 +18,44 @@ import (
 // mismatched names.
 type NamingFunc func(sourceName string, tool *sdkmcp.Tool) string
 
-// DefaultNaming returns "<sourceName>_<toolName>", or the bare tool name
-// when sourceName is empty. Used when ProviderConfig.Naming is left nil.
+// DefaultNaming returns "<sourceName>_<toolName>" (or the bare tool name when
+// sourceName is empty), sanitized to the tool-name charset LLM providers
+// accept. Used when ProviderConfig.Naming is left nil.
+//
+// MCP places no charset constraint on tool / server names, but the model
+// providers do — Anthropic and OpenAI both require function names to match
+// ^[a-zA-Z0-9_-]{1,64}$. An un-sanitized name (e.g. a server named
+// "html.to.design" → "html.to.design_import-url", with dots) makes the WHOLE
+// chat request invalid, so the provider rejects every turn. Mapping the public
+// label onto the provider charset is the client's job; the call still routes by
+// the raw MCP tool name ([Tool.Call] uses the descriptor, not this label), so
+// the remote tool is unaffected.
 func DefaultNaming(sourceName string, tool *sdkmcp.Tool) string {
 	if sourceName == "" {
-		return tool.Name
+		return sanitizeToolName(tool.Name)
 	}
-	return sourceName + "_" + tool.Name
+	return sanitizeToolName(sourceName + "_" + tool.Name)
+}
+
+// sanitizeToolName maps name onto the provider-accepted tool-name charset
+// (^[a-zA-Z0-9_-]{1,64}$): every other byte becomes '_', and the result is
+// capped at 64. Deterministic (NamingFunc's contract); the output is pure
+// ASCII so the length cap can't split a rune.
+func sanitizeToolName(name string) string {
+	b := make([]byte, 0, len(name))
+	for i := 0; i < len(name); i++ {
+		c := name[i]
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9', c == '_', c == '-':
+			b = append(b, c)
+		default:
+			b = append(b, '_')
+		}
+	}
+	if len(b) > 64 {
+		b = b[:64]
+	}
+	return string(b)
 }
 
 // Source binds an initialized MCP client session to a logical name used
