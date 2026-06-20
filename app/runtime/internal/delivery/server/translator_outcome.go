@@ -141,13 +141,13 @@ func parseRetryAfter(msg string) int {
 // turnUsage maps the engine's per-turn token roll-up onto wire Usage.
 func (t *translator) turnUsage(e turn.TurnEnd) *protocol.Usage {
 	u := &protocol.Usage{
-		ModelUsage: modelUsageFrom(e.TokenUsage.PromptTokens, e.TokenUsage.CompletionTokens, e.TokenUsage.ReasoningTokens, e.CostUSD),
+		ModelUsage: modelUsageFrom(e.TokenUsage.PromptTokens, e.TokenUsage.CompletionTokens, e.TokenUsage.ReasoningTokens, e.TokenUsage.CacheReadTokens, e.TokenUsage.CacheWriteTokens, e.CostUSD),
 	}
 	if len(e.UsageByModel) > 0 {
 		u.ByModel = make(map[string]protocol.ModelUsage, len(e.UsageByModel))
 		for _, m := range e.UsageByModel {
 			// Per-model rows carry no reasoning split.
-			u.ByModel[m.Model] = modelUsageFrom(m.PromptTokens, m.CompletionTokens, 0, m.CostUSD)
+			u.ByModel[m.Model] = modelUsageFrom(m.PromptTokens, m.CompletionTokens, 0, m.CacheReadTokens, m.CacheWriteTokens, m.CostUSD)
 		}
 	}
 	return u
@@ -157,12 +157,14 @@ func (t *translator) turnUsage(e turn.TurnEnd) *protocol.Usage {
 // one mapping shared by the run-final usage (turnUsage) and the mid-run usage
 // preview (usageProgress), so a future usage field is added in one place. cost
 // folds through optCostUSD (omitted when ≤ 0).
-func modelUsageFrom(prompt, completion, reasoning int64, cost float64) protocol.ModelUsage {
+func modelUsageFrom(prompt, completion, reasoning, cacheRead, cacheWrite int64, cost float64) protocol.ModelUsage {
 	return protocol.ModelUsage{
-		InputTokens:     prompt,
-		OutputTokens:    completion,
-		ReasoningTokens: reasoning,
-		CostUSD:         optCostUSD(cost),
+		InputTokens:      prompt,
+		OutputTokens:     completion,
+		ReasoningTokens:  reasoning,
+		CacheReadTokens:  cacheRead,
+		CacheWriteTokens: cacheWrite,
+		CostUSD:          optCostUSD(cost),
 	}
 }
 

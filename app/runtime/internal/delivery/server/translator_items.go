@@ -177,7 +177,7 @@ func (t *translator) toolEnd(e turn.ToolCallEnd) []protocol.StreamEvent {
 func (t *translator) usageProgress(e turn.UsageReported) []protocol.StreamEvent {
 	progress := &protocol.RunProgress{
 		Usage: &protocol.Usage{
-			ModelUsage: modelUsageFrom(e.TokenUsage.PromptTokens, e.TokenUsage.CompletionTokens, e.TokenUsage.ReasoningTokens, e.CostUSD),
+			ModelUsage: modelUsageFrom(e.TokenUsage.PromptTokens, e.TokenUsage.CompletionTokens, e.TokenUsage.ReasoningTokens, e.TokenUsage.CacheReadTokens, e.TokenUsage.CacheWriteTokens, e.CostUSD),
 		},
 	}
 	// Live context occupancy = this round's prompt size. Omit a zero (a provider

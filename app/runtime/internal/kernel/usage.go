@@ -7,11 +7,15 @@ import (
 
 // TokenUsage is a token roll-up. ReasoningTokens is the chain-of-thought
 // subset of CompletionTokens (not an addition), so total counts only
-// prompt + completion.
+// prompt + completion. CacheReadTokens / CacheWriteTokens are the
+// (non-overlapping-on-the-wire) cache sub-items of PromptTokens — carried so
+// the wire Usage can report a cache breakdown (API.md §4.6), not just totals.
 type TokenUsage struct {
 	PromptTokens     int64
 	CompletionTokens int64
 	ReasoningTokens  int64
+	CacheReadTokens  int64
+	CacheWriteTokens int64
 }
 
 // total is prompt + completion — the figure a token budget caps.
@@ -24,6 +28,8 @@ func (t *TokenUsage) add(inv core.LLMInvocation) {
 	t.PromptTokens += inv.PromptTokens
 	t.CompletionTokens += inv.CompletionTokens
 	t.ReasoningTokens += inv.ReasoningTokens
+	t.CacheReadTokens += inv.CacheReadInputTokens
+	t.CacheWriteTokens += inv.CacheWriteInputTokens
 }
 
 // ModelUsage is one model's slice of a turn's tokens + cost — the lynx
