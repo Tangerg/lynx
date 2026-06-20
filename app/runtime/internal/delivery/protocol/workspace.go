@@ -357,7 +357,7 @@ type McpTool struct {
 // server is enabled and has been dialed.
 type McpServerConfig struct {
 	Name                string            `json:"name"`
-	Transport           string            `json:"transport"` // "stdio" | "http"
+	Transport           string            `json:"type"` // "stdio" | "streamableHttp" (standard mcpServers vocab)
 	Enabled             bool              `json:"enabled"`
 	Description         string            `json:"description,omitempty"`
 	URL                 string            `json:"url,omitempty"`                 // http transport
@@ -382,7 +382,7 @@ type McpServerConfig struct {
 // secret — clear a token by removing the server, not by blanking it.
 type ConfigureMCPServerRequest struct {
 	Name             string            `json:"name"`
-	Transport        string            `json:"transport"`
+	Transport        string            `json:"type"`
 	Enabled          bool              `json:"enabled"`
 	Description      string            `json:"description,omitempty"`
 	URL              string            `json:"url,omitempty"`
