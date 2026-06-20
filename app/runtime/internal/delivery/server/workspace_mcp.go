@@ -128,6 +128,37 @@ func (s *Server) WorkspaceMCPReconnect(ctx context.Context, server string) error
 	return nil
 }
 
+// WorkspaceMCPAuthorize starts the interactive OAuth sign-in for an HTTP MCP
+// server (workspace.mcp.authorize). Like reconnect it is fire-and-forget: the
+// name is validated synchronously (unknown → invalid_params), the connecting
+// frame is published, then the flow — open the browser, catch the loopback
+// redirect, exchange the code — runs off the request ctx (the human-in-the-loop
+// flow far outlives one RPC) and the terminal mcp.serverChanged frame is
+// published when it settles.
+func (s *Server) WorkspaceMCPAuthorize(ctx context.Context, server string) error {
+	if server == "" {
+		return protocol.ErrInvalidParams
+	}
+	known := false
+	for _, st := range s.rt.MCPServerStatuses() {
+		if st.Name == server {
+			known = true
+			break
+		}
+	}
+	if !known {
+		return fmt.Errorf("%w: unknown MCP server %q", protocol.ErrInvalidParams, server)
+	}
+
+	s.PublishWorkspaceEvent(protocol.WorkspaceEvent{Type: protocol.WorkspaceEventMCPServerChanged, Server: server, Status: protocol.McpConnecting})
+	bg := context.WithoutCancel(ctx)
+	go func() {
+		_ = s.rt.AuthorizeMCPServer(bg, server) // terminal status is read back below
+		s.PublishWorkspaceEvent(s.mcpServerChangedEvent(bg, server))
+	}()
+	return nil
+}
+
 // mcpServerChangedEvent builds the terminal mcp.serverChanged frame from a
 // server's current state: connected inlines its tool count, failed carries its
 // reason as Error, and a server that vanished from config omits status (AUX_API

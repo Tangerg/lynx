@@ -51,6 +51,9 @@ type RuntimeServices interface {
 	// live tool set (workspace.mcp.reconnect). Returns engine.ErrUnknownMCPServer
 	// for an unconfigured name.
 	ReconnectMCPServer(ctx context.Context, name string) error
+	// AuthorizeMCPServer runs the interactive OAuth sign-in for an HTTP MCP
+	// server (workspace.mcp.authorize) and connects it on success.
+	AuthorizeMCPServer(ctx context.Context, name string) error
 	// ListSkills enumerates the skills visible from cwd (project over global) —
 	// backs workspace.listSkills. The engine owns skill sourcing + precedence.
 	ListSkills(ctx context.Context, cwd string) ([]kernel.SkillInfo, error)

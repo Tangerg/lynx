@@ -112,6 +112,14 @@ func (d *Dispatcher) handleWorkspaceMCPReconnect(ctx context.Context, msg *trans
 	return replyDone(msg, d.api.WorkspaceMCPReconnect(ctx, server))
 }
 
+func (d *Dispatcher) handleWorkspaceMCPAuthorize(ctx context.Context, msg *transport.Request) HandleResult {
+	server, err := decodeStringParam(msg.Params, "server")
+	if err != nil {
+		return responseError(msg.ID, invalidParams(err.Error()))
+	}
+	return replyDone(msg, d.api.WorkspaceMCPAuthorize(ctx, server))
+}
+
 func (d *Dispatcher) handleWorkspaceMCPListConfigs(ctx context.Context, msg *transport.Request) HandleResult {
 	var q protocol.PageQuery
 	_ = unmarshal(msg.Params, &q)

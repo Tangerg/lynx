@@ -45,6 +45,9 @@ type MCPControl interface {
 	Statuses() []MCPServerStatus
 	Tools(ctx context.Context, server string) ([]MCPToolInfo, error)
 	Reconnect(ctx context.Context, name string) error
+	// Authorize runs the interactive OAuth sign-in for an HTTP server and, on
+	// success, connects it with the obtained (session-lived) credentials.
+	Authorize(ctx context.Context, name string) error
 	// Configure adds or re-dials a server at runtime; Remove drops one from the
 	// live set. Both hot-swap the refreshed model-facing tool set.
 	Configure(ctx context.Context, cfg MCPServerConfig) error

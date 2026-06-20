@@ -51,6 +51,16 @@ func (e *Engine) ReconnectMCPServer(ctx context.Context, name string) error {
 	return e.mcp.Reconnect(ctx, name)
 }
 
+// AuthorizeMCPServer runs the interactive OAuth sign-in for an HTTP server and
+// hot-swaps the refreshed tool set on success. Returns [ErrUnknownMCPServer]
+// for an unconfigured name.
+func (e *Engine) AuthorizeMCPServer(ctx context.Context, name string) error {
+	if e.mcp == nil {
+		return ErrUnknownMCPServer
+	}
+	return e.mcp.Authorize(ctx, name)
+}
+
 // ConfigureMCPServer adds or re-dials a server in the live connection set and
 // hot-swaps the refreshed model-facing tool set. A dial failure is returned but
 // the server is still tracked (recorded "failed", reconnectable). Nil MCP
