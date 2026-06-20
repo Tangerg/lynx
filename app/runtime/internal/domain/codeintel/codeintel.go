@@ -21,9 +21,6 @@ import (
 // yaml/config layer unmarshals into the identical underlying type.
 type ServerSpec = lsp.ServerSpec
 
-// DefaultServers is the built-in language-server table (gopls + typescript).
-func DefaultServers() []ServerSpec { return lsp.DefaultServers() }
-
 // noServerMsg is returned (with a nil error) when no language server
 // handles the target file type, so an unsupported file informs the model
 // instead of halting the tool loop.
