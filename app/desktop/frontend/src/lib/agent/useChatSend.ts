@@ -1,8 +1,9 @@
-import type { ContentBlock } from "@/rpc";
+import type { ContentBlock, RunEvent } from "@/rpc";
 import { useCallback } from "react";
 import { getContainer } from "@/main/container";
 import { asRunId, isErrorType } from "@/rpc";
-import { useAgentAction, useAgentRunId, useAgentRunning } from "@/state/agentStore";
+import { useAgentAction, useAgentRunId, useAgentRunning, useAgentStore } from "@/state/agentStore";
+import { LOCAL_MESSAGE_PREFIX } from "@/protocol/run/viewState";
 import { useSessionStore } from "@/state/sessionStore";
 import { useCreateSession } from "./useCreateSession";
 
@@ -16,10 +17,14 @@ import { useCreateSession } from "./useCreateSession";
  *     flushes it.
  *   - a run is already streaming → STEER the running turn (runs.steer): the
  *     message injects into the active loop and the model reads it on its next
- *     tool round (true mid-run steer, T2.1). The runtime surfaces it as a user
- *     turn, so it renders like any other message. If the run finished between
- *     typing and sending (run_not_found), it's no longer steerable — fall back
- *     to starting a fresh turn so the message is never lost.
+ *     tool round (true mid-run steer). The steered message is rendered
+ *     OPTIMISTICALLY (a local-* user bubble) the moment it's sent, so the user
+ *     sees their input land immediately instead of waiting for the next round
+ *     boundary; the runtime streams the real userMessage Item back when it
+ *     drains the steer, and the fold reconciles the placeholder by content. If
+ *     the run finished between typing and sending (run_not_found), the steer is
+ *     no longer deliverable — roll the optimistic bubble back and fall back to a
+ *     fresh turn so the message is never lost (and never duplicated).
  */
 export function useChatSend(): (input: ContentBlock[]) => void {
   const createSession = useCreateSession();
@@ -34,11 +39,18 @@ export function useChatSend(): (input: ContentBlock[]) => void {
         // Steering is text-only; an image-only compose mid-run falls through to
         // the normal path (which a busy session rejects — a rare edge).
         if (text) {
+          const localId = mintSteerBubble(sid, input);
           void getContainer()
             .client()
             .runs.steer(asRunId(runId), text)
             .catch((err) => {
-              if (isErrorType(err, "run_not_found") && send) send(input); // run ended → fresh turn
+              if (isErrorType(err, "run_not_found")) {
+                // Run ended → the steer can't land. Drop the optimistic bubble
+                // (else the fallback send would mint a second one and leave this
+                // orphaned) and restart as a fresh turn.
+                useAgentStore.getState().dropMessage(sid, localId);
+                if (send) send(input);
+              }
             });
           return;
         }
@@ -48,6 +60,32 @@ export function useChatSend(): (input: ContentBlock[]) => void {
     },
     [send, running, runId, createSession],
   );
+}
+
+// Optimistic steer bubble: render the user's steered message immediately under a
+// local-* id (a distinct "steer-" suffix so it can't collide with send()'s own
+// local-N counter). The fold reconciles it against the streamed userMessage Item
+// by content match (appendUserMessage) once the runtime drains the steer — no
+// explicit relabel, since runs.steer returns no item id.
+let steerSeq = 0;
+function mintSteerBubble(sessionId: string, input: ContentBlock[]): string {
+  const id = `${LOCAL_MESSAGE_PREFIX}steer-${++steerSeq}`;
+  useAgentStore.getState().applyEvents(sessionId, [
+    {
+      event: {
+        type: "item.completed",
+        item: {
+          id,
+          runId: "",
+          status: "completed",
+          createdAt: new Date().toISOString(),
+          type: "userMessage",
+          content: input,
+        },
+      } as RunEvent["event"],
+    },
+  ]);
+  return id;
 }
 
 // steerText flattens the composer's text blocks into one message — steering

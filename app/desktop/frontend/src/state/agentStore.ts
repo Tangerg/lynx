@@ -84,6 +84,10 @@ interface AgentStore {
    * item won).
    */
   relabelMessage: (sessionId: string, fromId: string, toId: string) => void;
+  /** Remove one message by id. Used to roll back an optimistic steer bubble
+   *  when the run ended mid-type (run_not_found) and the send falls back to a
+   *  fresh turn that mints its own bubble. No-op if the id is gone. */
+  dropMessage: (sessionId: string, id: string) => void;
   /** Remove a session entry entirely (closing the tab — frees view state). */
   dropSession: (sessionId: string) => void;
   /** Bind / unbind the imperative stop action for a session. */
@@ -190,6 +194,15 @@ export const useAgentStore = create<AgentStore>((set) => ({
       // Nothing to rename, or the streamed item already landed under `toId`.
       if (!has(fromId) || has(toId)) return s;
       const messages = msgs.map((m) => (m.id === fromId ? { ...m, id: toId } : m));
+      return {
+        sessions: patchSession(s.sessions, sessionId, { view: { ...prev.view, messages } }),
+      };
+    }),
+  dropMessage: (sessionId, id) =>
+    set((s) => {
+      const prev = s.sessions[sessionId];
+      if (!prev || !prev.view.messages.some((m) => m.id === id)) return s;
+      const messages = prev.view.messages.filter((m) => m.id !== id);
       return {
         sessions: patchSession(s.sessions, sessionId, { view: { ...prev.view, messages } }),
       };
