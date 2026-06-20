@@ -148,6 +148,34 @@ func TestSessionRename(t *testing.T) {
 	}
 }
 
+func TestSessionFavorite(t *testing.T) {
+	ctx := context.Background()
+	svc := newTempDB(t)
+
+	created, _ := svc.Create(ctx, "s", "")
+	if created.Favorite {
+		t.Fatal("new session must not be favorited")
+	}
+
+	if err := svc.SetFavorite(ctx, created.ID, true); err != nil {
+		t.Fatalf("SetFavorite: %v", err)
+	}
+	if got, _ := svc.Get(ctx, created.ID); !got.Favorite {
+		t.Fatal("Favorite = false after SetFavorite(true)")
+	}
+
+	if err := svc.SetFavorite(ctx, created.ID, false); err != nil {
+		t.Fatalf("SetFavorite(false): %v", err)
+	}
+	if got, _ := svc.Get(ctx, created.ID); got.Favorite {
+		t.Fatal("Favorite = true after SetFavorite(false)")
+	}
+
+	if err := svc.SetFavorite(ctx, "nope", true); !errors.Is(err, session.ErrNotFound) {
+		t.Fatalf("SetFavorite unknown = %v, want ErrNotFound", err)
+	}
+}
+
 // TestSessionPersistAcrossReopen confirms data survives a DB close +
 // reopen — durability is the whole point of moving off in-memory.
 func TestSessionPersistAcrossReopen(t *testing.T) {

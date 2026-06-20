@@ -46,6 +46,7 @@ type Session struct {
 	StartedAt time.Time
 	UpdatedAt time.Time
 	Metadata  map[string]any // free-form, full-replaced by sessions.update (API.md §4.1, an object)
+	Favorite  bool           // user-pinned: sorts ahead of the rest in the session list
 }
 
 // EffectiveModel returns the model the session should report on the wire.
@@ -179,4 +180,9 @@ type Service interface {
 	// — "全替换") and refreshes UpdatedAt. A nil map clears it. Returns
 	// ErrNotFound for an unknown id.
 	SetMetadata(ctx context.Context, id string, meta map[string]any) error
+
+	// SetFavorite pins / unpins the session — a favorited session sorts ahead
+	// of the rest in the session list. Backs sessions.update's favorite toggle.
+	// Returns ErrNotFound for an unknown id.
+	SetFavorite(ctx context.Context, id string, favorite bool) error
 }
