@@ -19,13 +19,15 @@ import (
 	"github.com/Tangerg/lynx/core/model"
 )
 
-// Transport names the connection mode in the wire / Claude-Desktop vocabulary
-// (the ubiquitous `mcpServers` config map). Lyra supports the two transports
-// the mcp module dials: a local subprocess (stdio) and Streamable HTTP. Legacy
-// two-endpoint SSE is intentionally not supported.
+// Transport names the connection mode in the standard `mcpServers` vocabulary
+// (the ubiquitous config map every client pastes — Cline / Cursor / Claude
+// Desktop). The values match that format verbatim so a config copies straight
+// in; lyra supports the two transports the mcp module dials: a local subprocess
+// (stdio) and Streamable HTTP. Legacy two-endpoint SSE is not supported (the
+// import maps an "sse"/"http" entry onto streamableHttp).
 const (
-	TransportStdio = "stdio"
-	TransportHTTP  = "http"
+	TransportStdio          = "stdio"
+	TransportStreamableHTTP = "streamableHttp"
 )
 
 // Server is one registry entry: an MCP server descriptor plus its enablement
@@ -35,7 +37,7 @@ type Server struct {
 	// Name identifies the server and namespaces its tools. Required, unique.
 	Name string
 
-	// Transport is [TransportStdio] or [TransportHTTP]. Required.
+	// Transport is [TransportStdio] or [TransportStreamableHTTP]. Required.
 	Transport string
 
 	// Enabled gates whether the server is dialed. A disabled server stays in
@@ -96,12 +98,12 @@ func (s Server) Validate() error {
 		return errors.New("mcpserver: Name is required")
 	}
 	switch s.Transport {
-	case TransportHTTP:
+	case TransportStreamableHTTP:
 		if s.URL == "" {
-			return fmt.Errorf("mcpserver %q: URL is required for http transport", s.Name)
+			return fmt.Errorf("mcpserver %q: URL is required for streamableHttp transport", s.Name)
 		}
 		if s.Command != "" {
-			return fmt.Errorf("mcpserver %q: Command must be empty for http transport", s.Name)
+			return fmt.Errorf("mcpserver %q: Command must be empty for streamableHttp transport", s.Name)
 		}
 	case TransportStdio:
 		if s.Command == "" {
@@ -117,7 +119,7 @@ func (s Server) Validate() error {
 			return fmt.Errorf("mcpserver %q: Headers apply to http transport only", s.Name)
 		}
 	default:
-		return fmt.Errorf("mcpserver %q: unknown transport %q (want %q or %q)", s.Name, s.Transport, TransportStdio, TransportHTTP)
+		return fmt.Errorf("mcpserver %q: unknown transport %q (want %q or %q)", s.Name, s.Transport, TransportStdio, TransportStreamableHTTP)
 	}
 	return nil
 }

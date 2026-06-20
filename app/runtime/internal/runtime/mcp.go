@@ -123,7 +123,7 @@ func SeedMCPServers(ctx context.Context, svc mcpserver.Service, env []mcp.Server
 func configFromServer(s mcpserver.Server) mcp.ServerConfig {
 	cfg := mcp.ServerConfig{Name: s.Name, Timeout: s.Timeout}
 	switch s.Transport {
-	case mcpserver.TransportHTTP:
+	case mcpserver.TransportStreamableHTTP:
 		cfg.Transport = mcp.TransportHTTP
 		cfg.Endpoint = s.URL
 		cfg.Authorization = s.Authorization
@@ -191,7 +191,7 @@ func serverFromConfig(c mcp.ServerConfig) mcpserver.Server {
 	s := mcpserver.Server{Name: c.Name, Enabled: true, Timeout: c.Timeout}
 	switch c.Transport {
 	case mcp.TransportHTTP:
-		s.Transport = mcpserver.TransportHTTP
+		s.Transport = mcpserver.TransportStreamableHTTP
 		s.URL = c.Endpoint
 		s.Authorization = c.Authorization
 		s.Headers = c.Headers
