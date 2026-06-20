@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
@@ -14,6 +15,16 @@ import (
 // reconnect (runs.subscribe replays the durable backlog; items.list is
 // the ultimate backstop, API.md §5.2).
 const liveHeadroom = 256
+
+// terminalSendTimeout bounds how long Append blocks delivering the terminal
+// run.finished to a live subscriber. The terminal is the last event before
+// Close, and a dropped one strands the client (after teardown the run leaves
+// s.runs, so runs.subscribe returns run_not_found and items.list carries no run
+// outcome — the client can't recover the terminal). So unlike every other event
+// (non-blocking, drop → reconnect), the terminal is delivered with a blocking
+// send — bounded by this timeout so a vanished consumer mid-disconnect (its
+// cancel() parked on h.mu behind us) can't wedge the run.
+const terminalSendTimeout = 2 * time.Second
 
 // runHub is the per-run event fan-out + durable replay buffer behind
 // streamable-HTTP delivery (TRANSPORT §6.4 / §9.2). One hub per root run,
@@ -42,9 +53,15 @@ func newRunHub() *runHub {
 }
 
 // Append fans ev out to every live subscriber and, when ev is durable,
-// retains it for replay. Per-subscriber delivery is non-blocking: a full
+// retains it for replay. Per-subscriber delivery is non-blocking — a full
 // channel drops the event so one slow consumer can't stall the run or the
-// other subscribers — the consumer recovers by reconnecting.
+// other subscribers (the consumer recovers by reconnecting) — EXCEPT the
+// terminal run.finished, which is delivered with a bounded blocking send so it
+// can't be the one event a backpressured consumer loses (see
+// [terminalSendTimeout]). The blocking send holds h.mu, which is safe: Close and
+// a subscriber's cancel() also take h.mu, so the channel can't be closed under
+// us (no send-on-closed panic); a consumer that's actively draining frees a slot
+// immediately, and only a vanished one waits out the timeout.
 func (h *runHub) Append(ev protocol.RunEvent) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -54,10 +71,18 @@ func (h *runHub) Append(ev protocol.RunEvent) {
 	if ev.Event.IsDurable() {
 		h.durable = append(h.durable, ev)
 	}
+	terminal := ev.Event.Type == protocol.StreamRunFinished
 	for _, ch := range h.subs {
+		if !terminal {
+			select {
+			case ch <- ev:
+			default:
+			}
+			continue
+		}
 		select {
 		case ch <- ev:
-		default:
+		case <-time.After(terminalSendTimeout):
 		}
 	}
 }

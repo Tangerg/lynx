@@ -134,6 +134,13 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 
 	handle := turn.TurnHandle{SessionID: pending.SessionID, TurnID: pending.TurnID}
 	if err = s.rt.Chat().Resume(ctx, handle, resolution); err != nil {
+		if errors.Is(err, turn.ErrParkClaimed) {
+			// A concurrent runs.cancel claimed the parked turn and is driving it
+			// to canceled — don't rehydrate (that would resurrect the turn and
+			// fire its pending tool). The interrupt is already consumed above, so
+			// report it as no-longer-open; the cancel wins the race.
+			return nil, nil, protocol.ErrInterruptNotOpen
+		}
 		if !errors.Is(err, turn.ErrTurnNotFound) {
 			return nil, nil, err
 		}
@@ -214,11 +221,15 @@ func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) er
 		return nil
 	}
 
-	// Actively pumping: drop any open interrupt record (no-op for an
-	// un-parked run), cancel the run ctx, and stop the underlying turn.
-	_ = s.rt.Interrupts().Delete(ctx, in.RunID)
+	// Actively pumping: tear down the turn FIRST (cancel the run ctx + stop the
+	// underlying turn), THEN drop any open interrupt record — the same
+	// cancel-then-delete order as the parked branch above. The inverse (delete
+	// first) briefly leaves the record gone while the turn is still being torn
+	// down, so a teardown failure would orphan a still-live turn with no
+	// resumable record. Delete is a no-op for an un-parked run.
 	e.cancel()
 	_ = s.rt.Chat().Cancel(ctx, turn.TurnHandle{SessionID: e.sessionID, TurnID: e.turnID})
+	_ = s.rt.Interrupts().Delete(ctx, in.RunID)
 	return nil
 }
 
@@ -234,7 +245,18 @@ func (s *Server) SteerRun(ctx context.Context, in protocol.SteerRunRequest) erro
 	if !ok {
 		return protocol.ErrRunNotFound
 	}
-	return s.rt.Chat().InjectSteering(ctx, turn.TurnHandle{SessionID: e.sessionID, TurnID: e.turnID}, in.Message)
+	// The run can finish between the registry read and the inject — or its
+	// steering queue can close as the turn terminates (the run is still in
+	// s.runs while the pump drains). InjectSteering reports both as
+	// ErrTurnNotFound; map it to the wire run_not_found symbol so the client
+	// retries the message as a fresh send rather than seeing it silently dropped.
+	if err := s.rt.Chat().InjectSteering(ctx, turn.TurnHandle{SessionID: e.sessionID, TurnID: e.turnID}, in.Message); err != nil {
+		if errors.Is(err, turn.ErrTurnNotFound) {
+			return protocol.ErrRunNotFound
+		}
+		return err
+	}
+	return nil
 }
 
 // ListRuns returns the currently running runs as a Page (API.md §7.3).

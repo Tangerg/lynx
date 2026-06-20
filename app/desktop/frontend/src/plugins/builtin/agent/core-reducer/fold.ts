@@ -10,7 +10,7 @@ import type {
   Message,
   ToolCall,
 } from "@/protocol/run/viewState";
-import { isLocalMessageId } from "@/protocol/run/viewState";
+import { isLocalMessageId, isLocalSteerMessageId } from "@/protocol/run/viewState";
 import {
   argsText,
   contentText,
@@ -152,22 +152,28 @@ export function appendUserMessage(
   // replay / history hydration) → no-op.
   if (state.messages.some((m) => m.id === item.id)) return state;
   const text = contentText(item.content);
-  // Reconcile the optimistic placeholder: send() renders the user's bubble
-  // immediately with a local-* id, a round-trip before the runtime streams
-  // the real userMessage Item (with its own server id). Upgrade the oldest
-  // matching placeholder's id in place rather than appending a duplicate.
-  const placeholder = state.messages.findIndex((m) => {
-    if (m.role !== "user" || !isLocalMessageId(m.id)) return false;
-    // Normalize a missing text block to "" so an IMAGE-ONLY bubble (no text
-    // block, e.g. paste-and-send a screenshot) reconciles against its image-only
-    // streamed Item (whose contentText is also "") instead of being appended as
-    // a duplicate. The explicit userItemId relabel is the primary reconciler;
-    // this content match is the fallback for a runtime that omits it (§7.3).
-    const localText =
-      m.blocks.find((b): b is Extract<ContentBlock, { kind: "text" }> => b.kind === "text")?.text ??
-      "";
-    return localText === text;
-  });
+  // Reconcile the optimistic placeholder: send()/steer render the user's bubble
+  // immediately with a local-* id, a round-trip before the runtime streams the
+  // real userMessage Item (with its own server id). Upgrade the matching
+  // placeholder's id in place rather than appending a duplicate.
+  //
+  // Normalize a missing text block to "" so an IMAGE-ONLY bubble (no text block,
+  // e.g. paste-and-send a screenshot) reconciles against its image-only streamed
+  // Item (whose contentText is also "").
+  const localText = (m: Message): string =>
+    m.blocks.find((b): b is Extract<ContentBlock, { kind: "text" }> => b.kind === "text")?.text ??
+    "";
+  // Prefer a STEER placeholder: a steered message has no id reconciler (content
+  // is its only key), whereas a send placeholder is relabeled to its server id
+  // BEFORE its Item streams — so a steer item must not steal a same-text send
+  // placeholder. Only when no steer bubble matches do we fall back to any local
+  // placeholder (the send content-match fallback for a runtime that omits the
+  // userItemId relabel, §7.3).
+  const matches = (m: Message): boolean => m.role === "user" && localText(m) === text;
+  let placeholder = state.messages.findIndex((m) => isLocalSteerMessageId(m.id) && matches(m));
+  if (placeholder === -1) {
+    placeholder = state.messages.findIndex((m) => isLocalMessageId(m.id) && matches(m));
+  }
   if (placeholder !== -1) {
     const messages = state.messages.map((m, i) =>
       i === placeholder ? { ...m, id: item.id, runId: item.runId } : m,
