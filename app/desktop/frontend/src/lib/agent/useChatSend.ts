@@ -3,7 +3,7 @@ import { useCallback } from "react";
 import { getContainer } from "@/main/container";
 import { asRunId, isErrorType } from "@/rpc";
 import { useAgentAction, useAgentRunId, useAgentRunning, useAgentStore } from "@/state/agentStore";
-import { LOCAL_MESSAGE_PREFIX } from "@/protocol/run/viewState";
+import { LOCAL_STEER_PREFIX } from "@/protocol/run/viewState";
 import { useSessionStore } from "@/state/sessionStore";
 import { useCreateSession } from "./useCreateSession";
 
@@ -69,7 +69,7 @@ export function useChatSend(): (input: ContentBlock[]) => void {
 // explicit relabel, since runs.steer returns no item id.
 let steerSeq = 0;
 function mintSteerBubble(sessionId: string, input: ContentBlock[]): string {
-  const id = `${LOCAL_MESSAGE_PREFIX}steer-${++steerSeq}`;
+  const id = `${LOCAL_STEER_PREFIX}${++steerSeq}`;
   useAgentStore.getState().applyEvents(sessionId, [
     {
       event: {

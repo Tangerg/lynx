@@ -91,6 +91,13 @@ type turnState struct {
 	// store after the turn ends so the messages land in conversation
 	// history for the next turn.
 	steering []string
+
+	// flushed marks the steering queue closed — the turn has committed to
+	// terminating and run its final flushSteering, so no future round will drain
+	// the queue again. Once set, appendSteering rejects (ErrTurnNotFound): a
+	// steer that races turn-end must bounce back to the client (which retries it
+	// as a fresh send) rather than be queued into a turn nothing will ever drain.
+	flushed bool
 }
 
 // setProc records the agent process backing this turn. runTurn / Rehydrate
@@ -146,21 +153,42 @@ func (st *turnState) claimPark() bool {
 	return true
 }
 
-// appendSteering pushes one user message onto the pending-steering queue.
-func (st *turnState) appendSteering(message string) {
+// appendSteering pushes one user message onto the pending-steering queue, or
+// returns [ErrTurnNotFound] when the queue is already closed (the turn is
+// terminating — see [turnState.flushed]) so the caller treats it like steering a
+// turn that has ended.
+func (st *turnState) appendSteering(message string) error {
 	st.mu.Lock()
 	defer st.mu.Unlock()
+	if st.flushed {
+		return ErrTurnNotFound
+	}
 	st.steering = append(st.steering, message)
+	return nil
 }
 
 // drainSteering returns the queued steering messages and clears the queue,
-// or nil when none is pending.
+// or nil when none is pending. Used by the mid-run steerSource (the queue stays
+// open for further rounds); the terminal flush uses closeAndDrainSteering.
 func (st *turnState) drainSteering() []string {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	if len(st.steering) == 0 {
 		return nil
 	}
+	out := st.steering
+	st.steering = nil
+	return out
+}
+
+// closeAndDrainSteering closes the queue (the turn is terminating; no later
+// round will drain it) and returns the pending messages — atomically, so a
+// steer racing turn-end is either captured by this final drain or rejected by
+// the now-closed appendSteering, never queued into a turn nothing will drain.
+func (st *turnState) closeAndDrainSteering() []string {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	st.flushed = true
 	out := st.steering
 	st.steering = nil
 	return out
@@ -474,7 +502,7 @@ func fallbackPlan(out kernel.ChatOutput, runErr, ctxErr error, status core.Agent
 // dropping steering is preferable to wrecking an otherwise
 // successful turn.
 func (s *inMemory) flushSteering(ctx context.Context, st *turnState, sessionID string) {
-	queue := st.drainSteering()
+	queue := st.closeAndDrainSteering()
 	if sessionID == "" || len(queue) == 0 {
 		return
 	}

@@ -287,8 +287,10 @@ func (s *inMemory) InjectSteering(_ context.Context, handle TurnHandle, message 
 	if err != nil {
 		return err
 	}
-	state.appendSteering(message)
-	return nil
+	// Rejects with ErrTurnNotFound if the turn has closed its steering queue
+	// (terminating) — same signal as a vanished turn, so SteerRun maps both to
+	// run_not_found and the client retries as a fresh send.
+	return state.appendSteering(message)
 }
 
 // Cancel stops a turn. The ctx cancel is the primary signal: it aborts any
@@ -335,7 +337,10 @@ func (s *inMemory) Resume(_ context.Context, handle TurnHandle, resolution inter
 		return err
 	}
 	if !state.claimPark() {
-		return ErrTurnNotFound
+		// The turn exists but its park was already claimed — a concurrent Cancel
+		// is finishing it. Report it distinctly from ErrTurnNotFound (turn gone /
+		// restart) so the caller doesn't rehydrate and resurrect a canceled turn.
+		return ErrParkClaimed
 	}
 	return s.resumeAndDrive(state, resolution)
 }
