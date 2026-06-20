@@ -13,12 +13,13 @@
 import type { Message } from "@/protocol/run/viewState";
 import type { ReactNode } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
-import { MENU_CONTENT_CLASSES, MenuIconItem } from "@/components/common";
+import { Icon, MENU_CONTENT_CLASSES, MENU_ITEM_CLASSES, MenuIconItem } from "@/components/common";
 import {
   editAndRerunMessage,
   editMessageInComposer,
   forkFromMessage,
   regenerateMessage,
+  restoreCheckpoint,
 } from "@/lib/agent/messageActions";
 import { flattenCode, flattenMarkdown, flattenText } from "@/lib/agent/messageContent";
 import { writeToClipboard } from "@/lib/clipboard";
@@ -103,6 +104,50 @@ export function MessageContextMenu({ msg, children }: Props) {
                 >
                   {t("msgActions.editRerunRestore")}
                 </MenuIconItem>
+              )}
+              {/* Pure restore (no resend, unlike Edit & rerun): rewind to the
+                  state BEFORE this turn and stop. Conversation-only always; the
+                  file/both variants need the pre-turn shadow-git snapshot. */}
+              {msg.runId && (
+                <ContextMenu.Sub>
+                  <ContextMenu.SubTrigger
+                    className={cn(MENU_ITEM_CLASSES, "grid-cols-[14px_minmax(0,1fr)_12px]")}
+                  >
+                    <Icon name="history" size={12} />
+                    <span className="truncate">{t("msgActions.restore")}</span>
+                    <Icon name="chevron-down" size={12} className="-rotate-90 text-fg-faint" />
+                  </ContextMenu.SubTrigger>
+                  <ContextMenu.Portal>
+                    <ContextMenu.SubContent
+                      className={cn(MENU_CONTENT_CLASSES, "min-w-[170px]")}
+                      sideOffset={2}
+                      alignOffset={-4}
+                    >
+                      <MenuIconItem
+                        icon="skip-back"
+                        onSelect={() => restoreCheckpoint(msg, "history")}
+                      >
+                        {t("msgActions.restoreConversation")}
+                      </MenuIconItem>
+                      {canRestoreFiles && (
+                        <MenuIconItem
+                          icon="folder"
+                          onSelect={() => restoreCheckpoint(msg, "files")}
+                        >
+                          {t("msgActions.restoreFiles")}
+                        </MenuIconItem>
+                      )}
+                      {canRestoreFiles && (
+                        <MenuIconItem
+                          icon="history"
+                          onSelect={() => restoreCheckpoint(msg, "both")}
+                        >
+                          {t("msgActions.restoreBoth")}
+                        </MenuIconItem>
+                      )}
+                    </ContextMenu.SubContent>
+                  </ContextMenu.Portal>
+                </ContextMenu.Sub>
               )}
               {/* Non-destructive sibling of Edit & rerun: branch a new
                   session that keeps history through this exchange. */}

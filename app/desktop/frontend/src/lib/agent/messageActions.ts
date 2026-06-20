@@ -40,19 +40,23 @@ function prefillComposer(msg: Message): void {
   ta?.setSelectionRange(text.length, text.length);
 }
 
-// Truncate the session's history to just BEFORE the given root run
-// (sessions.rollback, inclusive-keep semantics — we pass the preceding root
-// run's id, or nothing when it was the first), then rebuild the view from
-// the truncated server history (rehydrateSessionView).
-//
-// `restoreFiles` upgrades the rollback to restoreType:"both" (atomic file +
-// history restore to the kept run's shadow-git snapshot, features.checkpoints).
-// Rolling back before the FIRST run has no kept run to snapshot from —
-// files/both require toRunId — so that case degrades to history-only, loudly.
+// What a checkpoint restore rewinds (mirrors the wire RestoreType, AUX_API §4.3).
+//   - "history": truncate chat to before the turn; working tree untouched.
+//   - "files":   restore the working tree to the pre-turn snapshot; chat kept.
+//   - "both":    both, atomically.
+// "files"/"both" need the pre-turn shadow-git snapshot (toRunId) + features.
+// checkpoints; rolling back before the FIRST run has no snapshot to restore from.
+export type RestoreType = "history" | "files" | "both";
+
+// Roll the session back to just BEFORE the given root run (sessions.rollback,
+// inclusive-keep — we pass the preceding root run's id as the kept boundary, or
+// nothing when it was the first), then rebuild the view from the (possibly
+// truncated) server history. `restoreType` selects what's rewound; "files"/
+// "both" degrade to history-only (loudly) when there's no pre-turn snapshot.
 async function rollbackToBefore(
   sessionId: string,
   runId: string,
-  restoreFiles = false,
+  restoreType: RestoreType = "history",
 ): Promise<boolean> {
   const client = getContainer().client();
   const sid = asSessionId(sessionId);
@@ -61,7 +65,8 @@ async function rollbackToBefore(
   const idx = roots.findIndex((r) => r.id === runId);
   if (idx < 0) return false;
   const keep = idx > 0 ? roots[idx - 1]!.id : undefined;
-  if (restoreFiles && !keep) {
+  const wantsFiles = restoreType !== "history";
+  if (wantsFiles && !keep) {
     notifyInfo("No checkpoint before the first turn — files left as they are.", {
       source: "session",
     });
@@ -69,7 +74,7 @@ async function rollbackToBefore(
   await client.sessions.rollback({
     sessionId: sid,
     ...(keep ? { toRunId: asRunId(keep) } : {}),
-    ...(restoreFiles && keep ? { restoreType: "both" as const } : {}),
+    ...(wantsFiles && keep ? { restoreType } : {}),
   });
   await rehydrateSessionView(sessionId);
   return true;
@@ -114,7 +119,7 @@ export function regenerateMessage(msg: Message, opts?: RollbackActionOptions): v
       send(buildInput(text, imgs));
       return;
     }
-    void rollbackToBefore(sid, m.runId, opts?.restoreFiles)
+    void rollbackToBefore(sid, m.runId, opts?.restoreFiles ? "both" : "history")
       .then(() => {
         // resetView kept the binding, but the tab could have been torn down —
         // or merely switched away, which nulls send via useAgentSession's
@@ -157,11 +162,38 @@ export function editAndRerunMessage(msg: Message, opts?: RollbackActionOptions):
     prefillComposer(msg);
     return;
   }
-  void rollbackToBefore(sid, msg.runId, opts?.restoreFiles)
+  void rollbackToBefore(sid, msg.runId, opts?.restoreFiles ? "both" : "history")
     // Run unknown to the server (ok=false) still prefills — the user can at
     // least resend; only a hard failure (busy / transport) aborts with a toast.
     .then(() => prefillComposer(msg))
     .catch(reportRollbackError);
+}
+
+// Pure restore to a checkpoint: rewind to just BEFORE this user message's turn
+// and STOP — no resend, no composer prefill (unlike edit-and-rerun / regenerate,
+// which always re-drive the turn). This is cline's "Restore checkpoint": go back
+// to a known-good state and decide what to do next yourself. `restoreType`
+// chooses what's rewound (conversation / working-tree files / both). No-op for a
+// message that never reconciled to a server run.
+export function restoreCheckpoint(msg: Message, restoreType: RestoreType): void {
+  const sid = useSessionStore.getState().activeSessionId;
+  if (!sid || msg.role !== "user" || !msg.runId) return;
+  void rollbackToBefore(sid, msg.runId, restoreType)
+    .then((ok) => {
+      if (ok) notifyInfo(restoreCopy(restoreType), { source: "session" });
+    })
+    .catch(reportRollbackError);
+}
+
+function restoreCopy(restoreType: RestoreType): string {
+  switch (restoreType) {
+    case "files":
+      return "Working tree restored to this checkpoint.";
+    case "both":
+      return "Conversation and files restored to this checkpoint.";
+    default:
+      return "Conversation rewound to this checkpoint.";
+  }
 }
 
 // Branch the conversation up to AND INCLUDING this message's run
