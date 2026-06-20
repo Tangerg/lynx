@@ -28,10 +28,17 @@ import (
 // DrainedTools is the backend-private half of the park: resume
 // bookkeeping the client never sees.
 type Pending struct {
-	ParentRunID  string
-	SessionID    string
-	TurnID       string
-	ProcessID    string
+	ParentRunID string
+	SessionID   string
+	TurnID      string
+	ProcessID   string
+	// Provider + Model are the parked run's per-run model selection (the
+	// runs.start{providerId, model} pair). Persisted so a cross-restart
+	// rehydrate rebuilds the SAME model client instead of silently dropping to
+	// the platform default — both empty means the run used the default. The live
+	// process holds its client in memory, so same-process resume ignores these.
+	Provider     string
+	Model        string
 	Interrupts   json.RawMessage
 	DrainedTools []DrainedTool
 	CreatedAt    time.Time

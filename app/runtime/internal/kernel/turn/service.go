@@ -86,6 +86,13 @@ type RehydrateRequest struct {
 	SessionID string
 	ProcessID string
 	Approved  bool
+
+	// Provider + Model are the parked run's per-run model selection, persisted
+	// on the interrupt. Both set re-resolves that client so the continuation
+	// runs against the SAME model it parked on; both empty (or no resolver)
+	// runs on the platform default. The provider is explicit — never inferred.
+	Provider string
+	Model    string
 }
 
 // Service is the turn-dispatch contract.

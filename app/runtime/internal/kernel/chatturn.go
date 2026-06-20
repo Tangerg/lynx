@@ -157,6 +157,13 @@ type RestoreChatRequest struct {
 	// EventListener captures the restored process's terminal event so the
 	// resumed turn can map it onto a TurnEnd reason. May be nil.
 	EventListener core.Extension
+
+	// ChatClient, when non-nil, overrides the model the restored continuation
+	// runs against — the per-run model the parked turn used, re-resolved from
+	// the interrupt's persisted provider+model. nil runs on the platform default
+	// (a run that didn't pick a model, or one whose provider is no longer
+	// configured). Same seam as [RunChatRequest.ChatClient] on a fresh turn.
+	ChatClient *chat.Client
 }
 
 // RestoreChat rebuilds the agent process identified by processID from the
@@ -172,10 +179,11 @@ type RestoreChatRequest struct {
 // Errors when no ProcessStore is configured, the snapshot is missing, the
 // agent is not deployed under the snapshot's name, or the re-tick fails.
 func (e *Engine) RestoreChat(ctx context.Context, processID string, req RestoreChatRequest) (ChatProcess, error) {
-	// A restored continuation runs on the platform's default client. Per-run
-	// model fidelity across a restart would need the model persisted with the
-	// interrupt — a follow-up; resume is rare and uses the default model.
-	opts := chatProcessOptions(req.SessionID, req.Observer, req.EventListener, nil)
+	// The restored continuation runs against req.ChatClient — the per-run model
+	// re-resolved from the interrupt's persisted provider+model — so a restart
+	// mid-run keeps the model the turn parked on. nil (no selection / provider
+	// gone) falls back to the platform default.
+	opts := chatProcessOptions(req.SessionID, req.Observer, req.EventListener, req.ChatClient)
 	proc, err := e.platform.RestoreProcess(ctx, processID, opts)
 	if err != nil {
 		return nil, fmt.Errorf("engine: restore chat: %w", err)

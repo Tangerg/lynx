@@ -96,7 +96,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	// emits it after run.started) — streamed live and persisted through the
 	// same path, so the wire id and the items.list id are one and the same.
 	runID := handle.TurnID
-	out, events, err := s.openSegment(ctx, runID, "", handle, sessionID, in.Input, nil, in.Model)
+	out, events, err := s.openSegment(ctx, runID, "", handle, sessionID, in.Input, nil, in.Provider, in.Model)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -161,7 +161,7 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	// fresh one.
 	// A continuation inherits its parent's model (linked via parentRunId), so
 	// its RunRef leaves it empty rather than re-deriving.
-	out, events, err := s.openSegment(ctx, contRunID, in.ParentRunID, handle, pending.SessionID, nil, resumeBindingFrom(pending), "")
+	out, events, err := s.openSegment(ctx, contRunID, in.ParentRunID, handle, pending.SessionID, nil, resumeBindingFrom(pending), "", "")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -181,6 +181,8 @@ func (s *Server) rehydrate(ctx context.Context, pending interrupts.Pending, appr
 		SessionID: pending.SessionID,
 		ProcessID: pending.ProcessID,
 		Approved:  approved,
+		Provider:  pending.Provider,
+		Model:     pending.Model,
 	})
 }
 
