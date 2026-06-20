@@ -45,7 +45,7 @@ func stallContext(parent context.Context, idle time.Duration) (ctx context.Conte
 // handled by the tool middleware's [tool.ParkStore]; when none is
 // configured, the engine intercepts [chat.FinishReasonInterrupt] chunks as
 // a fallback.
-func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, message string, images []*media.Media, budget turnBudget) (ChatOutput, error) {
+func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, provider, message string, images []*media.Media, budget turnBudget) (ChatOutput, error) {
 	// Mid-run steering: stash the turn's SteerSource (attached as a process
 	// extension by StartChat) on the context the stream runs under, so the tool
 	// loop's BeforeRound hook can drain it between rounds. Owning the context
@@ -99,7 +99,7 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 		if roundUsage == nil {
 			return
 		}
-		inv := e.invocationFrom(roundModel, roundUsage)
+		inv := e.invocationFrom(provider, roundModel, roundUsage)
 		pc.RecordLLMInvocation(inv)
 		// Fold into the running roll-up the same way chatOutput sums the ledger,
 		// so the mid-run readout matches the final TurnEnd total exactly.

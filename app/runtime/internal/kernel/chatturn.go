@@ -26,6 +26,11 @@ type RunChatRequest struct {
 	// Message is the user's input for this turn.
 	Message string
 
+	// Provider is the turn's provider id (the per-run selection; empty for a
+	// default turn). Carried only so per-round cost pricing attributes spend to
+	// the right provider — the client itself is supplied via ChatClient below.
+	Provider string
+
 	// Media carries the turn's image attachments, attached to the opening
 	// user message as UserMessage.Media. Nil for a text-only turn.
 	Media []*media.Media
@@ -94,7 +99,7 @@ type RunChatRequest struct {
 // attaches a process-scope [core.ToolDecorator]; SessionID binds the
 // turn to the chat-memory middleware's keyed conversation.
 func (e *Engine) StartChat(ctx context.Context, req RunChatRequest) ChatProcess {
-	in := chatInput{Message: req.Message, Media: req.Media, Cwd: req.Cwd, SessionID: req.SessionID, MaxBudget: req.MaxBudget, MaxCostUSD: req.MaxCostUSD, MaxSteps: req.MaxSteps}
+	in := chatInput{Message: req.Message, Provider: req.Provider, Media: req.Media, Cwd: req.Cwd, SessionID: req.SessionID, MaxBudget: req.MaxBudget, MaxCostUSD: req.MaxCostUSD, MaxSteps: req.MaxSteps}
 
 	opts := chatProcessOptions(req.SessionID, req.Observer, req.EventListener, req.ChatClient)
 	if req.Steer != nil {

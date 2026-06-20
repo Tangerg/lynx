@@ -21,16 +21,27 @@ func BuildChatClient(cfg Config) (*chat.Client, error) {
 	})
 }
 
-// CatalogPricing is the runtime's per-round cost hook: it prices the SERVED
-// model (the id the round reported) from the models catalog, scanning the
-// supported providers for that model, so a turn on any provider+model reports
-// CostUSD. Unknown models price at zero (cost omitted rather than guessed).
-// It's wired here (composition) rather than in [llm] because it depends on the
-// kernel cost-hook type, which infra must not import.
+// CatalogPricing is the runtime's per-round cost hook: it prices the round's
+// (provider, served model) from the models catalog, so a turn on any
+// provider+model reports CostUSD. Pricing keys on the PROVIDER, not just the
+// model id — the same id (e.g. gpt-4o) is priced differently across providers
+// (openai vs azureopenai), so a model-id-only lookup would mis-attribute the
+// rate. A provider whose catalog lacks the served model (a custom / compat
+// model, or a provider-routed fallback) prices at zero — no price beats a wrong
+// price from another provider's catalog. It's wired here (composition) rather
+// than in [llm] because it depends on the kernel cost-hook type, which infra
+// must not import.
 func CatalogPricing() kernel.Pricing {
-	providers := llm.SupportedProviders()
-	return func(servedModel string, u *chat.Usage) float64 {
-		for _, p := range providers {
+	return func(provider, servedModel string, u *chat.Usage) float64 {
+		if provider != "" {
+			if info, ok := catalog.Lookup(provider, servedModel); ok {
+				return chat.CostOf(info.Pricing, u)
+			}
+			return 0
+		}
+		// No provider supplied (no per-run selection and no configured default) —
+		// last-resort scan so an otherwise-unattributable round still prices.
+		for _, p := range llm.SupportedProviders() {
 			if info, ok := catalog.Lookup(string(p), servedModel); ok {
 				return chat.CostOf(info.Pricing, u)
 			}

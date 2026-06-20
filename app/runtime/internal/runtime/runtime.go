@@ -188,6 +188,10 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	// session recorded so the parent→child lineage is durably queryable.
 	ecfg := cfg.Engine
 	ecfg.SessionStore = newChildSessionStore(cfg.SessionService)
+	// The default provider id — the engine's pricing fallback for a default /
+	// subtask turn that names no provider (so its cost attributes to the right
+	// provider rather than an alphabetical catalog guess).
+	ecfg.Provider = cfg.Provider
 
 	// Microkernel port wiring: the runtime is the composition root that builds
 	// the capability implementations and injects them into the engine core
