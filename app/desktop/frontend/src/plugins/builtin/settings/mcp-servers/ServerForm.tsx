@@ -8,7 +8,7 @@
 import type { MCPServerConfigInfo, MCPTransport } from "@/lib/data/queries";
 import type { ConfigureMCPServerRequest } from "@/rpc";
 import { useRef, useState } from "react";
-import { Icon, PillButton, Segmented } from "@/components/common";
+import { Icon, INPUT_FOCUS_RING, PillButton, Segmented } from "@/components/common";
 import {
   useConfigureMCPServer,
   useRemoveMCPServer,
@@ -20,10 +20,14 @@ import { ToolControls } from "./ToolControls";
 
 type Probe = { state: "idle" | "busy" } | { state: "ok" } | { state: "error"; reason: string };
 
-const FIELD =
-  "h-8 w-full rounded-md border border-line-soft bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint focus:border-accent focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)]";
-const AREA =
-  "w-full resize-y rounded-md border border-line-soft bg-surface px-2.5 py-1.5 font-mono text-[12px] leading-[1.5] text-fg outline-none placeholder:text-fg-faint focus:border-accent focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)]";
+const FIELD = cn(
+  "h-8 w-full rounded-md border border-line-soft bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint",
+  INPUT_FOCUS_RING,
+);
+const AREA = cn(
+  "w-full resize-y rounded-md border border-line-soft bg-surface px-2.5 py-1.5 font-mono text-[12px] leading-[1.5] text-fg outline-none placeholder:text-fg-faint",
+  INPUT_FOCUS_RING,
+);
 
 function linesToList(text: string): string[] | undefined {
   const list = text

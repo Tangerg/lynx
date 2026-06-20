@@ -7,7 +7,13 @@
 import type { ProviderInfo } from "@/lib/data/queries";
 import { useRef, useState } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { DataView, Icon, ProviderIcon } from "@/components/common";
+import {
+  DataView,
+  Icon,
+  INPUT_FOCUS_RING,
+  MENU_CONTENT_CLASSES,
+  ProviderIcon,
+} from "@/components/common";
 import { useModels, useProviders, useUtilityRole } from "@/lib/data/queries";
 import {
   setUtilityRole,
@@ -97,7 +103,10 @@ function ProviderRow({ p }: { p: ProviderInfo }) {
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
           placeholder={enabled ? t("providers.apiKey.replace") : t("providers.apiKey.placeholder")}
-          className="h-8 rounded-md border border-line-soft bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint focus:border-accent focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)]"
+          className={cn(
+            "h-8 rounded-md border border-line-soft bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint",
+            INPUT_FOCUS_RING,
+          )}
         />
         <input
           type="text"
@@ -105,7 +114,10 @@ function ProviderRow({ p }: { p: ProviderInfo }) {
           value={baseUrl}
           onChange={(e) => setBaseUrl(e.target.value)}
           placeholder={t("providers.baseUrl.placeholder")}
-          className="h-8 rounded-md border border-line-soft bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint focus:border-accent focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)]"
+          className={cn(
+            "h-8 rounded-md border border-line-soft bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint",
+            INPUT_FOCUS_RING,
+          )}
         />
       </div>
 
@@ -212,7 +224,7 @@ function UtilityModelSection() {
             <DropdownMenu.Content
               align="end"
               sideOffset={6}
-              className="z-50 max-h-[320px] min-w-[220px] overflow-y-auto overflow-x-hidden rounded-md border border-line-soft bg-surface p-1 shadow-lg animate-rise-in"
+              className={cn(MENU_CONTENT_CLASSES, "max-h-[320px] min-w-[220px] overflow-y-auto")}
             >
               <DropdownMenu.Item
                 onSelect={() => void pick(null)}
