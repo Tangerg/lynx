@@ -18,6 +18,11 @@ import (
 type chatInput struct {
 	Message string
 
+	// Provider is the turn's provider id (the per-run selection; empty for a
+	// default turn). Carried so per-round cost pricing can attribute spend to
+	// the right provider — a model id alone is ambiguous across providers.
+	Provider string
+
 	// Media carries the turn's image attachments, attached to the opening
 	// user message as UserMessage.Media. Nil for a text-only turn (and for
 	// `task` sub-agents, whose prompt is text).
@@ -120,7 +125,7 @@ func (e *Engine) buildChatAgent() *core.Agent {
 					// guards read it back via turnSession.
 					pc.Blackboard.BindProtected(turnctx.SessionBindingKey, in.SessionID)
 				}
-				out, err := e.runChatTurn(ctx, pc, in.Message, in.Media, turnBudget{MaxTokens: in.MaxBudget, MaxCostUSD: in.MaxCostUSD, MaxSteps: in.MaxSteps})
+				out, err := e.runChatTurn(ctx, pc, in.Provider, in.Message, in.Media, turnBudget{MaxTokens: in.MaxBudget, MaxCostUSD: in.MaxCostUSD, MaxSteps: in.MaxSteps})
 				if err != nil {
 					// HITL interrupt (R model): a gated tool returned an
 					// agent/hitl.InterruptError that the chat tool loop
@@ -190,7 +195,10 @@ func (e *Engine) buildSubtaskAgent() *core.Agent {
 				// round-boundary budget check (which reads the subtree
 				// total) stops further work once the subtask pushes the
 				// parent over its budget.
-				out, err := e.runChatTurn(ctx, pc, in.Prompt, nil, turnBudget{})
+				// Subtask runs against the default provider/model (no per-run
+				// selection), so pass "" — invocationFrom falls back to the engine
+				// default for pricing.
+				out, err := e.runChatTurn(ctx, pc, "", in.Prompt, nil, turnBudget{})
 				if err != nil {
 					return "", err
 				}

@@ -333,7 +333,7 @@ func TestEngine_RunChat_PricingFillsCost(t *testing.T) {
 		chat.Usage{PromptTokens: 20, CompletionTokens: 7, ReasoningTokens: &reasoning},
 	)
 	client, _ := chat.NewClient(stub)
-	pricing := func(_ string, u *chat.Usage) float64 {
+	pricing := func(_, _ string, u *chat.Usage) float64 {
 		return float64(u.PromptTokens + u.CompletionTokens)
 	}
 	eng, err := New(context.Background(), Config{ChatClient: client, Pricing: pricing})
@@ -391,7 +391,7 @@ func TestEngine_RunChat_StopsOnCostBudget(t *testing.T) {
 		chat.Usage{PromptTokens: 99, CompletionTokens: 99}, // round 2 → must NOT run
 	)
 	client, _ := chat.NewClient(stub)
-	pricing := func(_ string, u *chat.Usage) float64 {
+	pricing := func(_, _ string, u *chat.Usage) float64 {
 		return float64(u.PromptTokens + u.CompletionTokens)
 	}
 	eng, err := New(context.Background(), Config{ChatClient: client, Pricing: pricing})

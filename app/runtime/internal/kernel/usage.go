@@ -1,6 +1,8 @@
 package kernel
 
 import (
+	"cmp"
+
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
@@ -40,14 +42,14 @@ type ModelUsage struct {
 	CostUSD float64
 }
 
-// Pricing computes the USD cost of one LLM round from the served model
-// and its full token usage (cache breakdown included). Supply via
-// [Config.Pricing] to populate cost on invocations / ChatOutput /
-// TurnEnd; nil leaves cost at zero. lyra builds it from the chat model's
-// [chat.ModelMetadata].Pricing (see config.BuildChatClient); the rate
-// table behind that lives in the model adapters' pricing catalog — the
-// engine never invents cost numbers.
-type Pricing func(model string, usage *chat.Usage) float64
+// Pricing computes the USD cost of one LLM round from the round's PROVIDER +
+// served model and its full token usage (cache breakdown included). The
+// provider is required because a model id is not unique across providers (e.g.
+// gpt-4o is priced differently by openai vs azureopenai) — pricing by model id
+// alone mis-attributes the rate. Supply via [Config.Pricing] to populate cost on
+// invocations / ChatOutput / TurnEnd; nil leaves cost at zero. The rate table
+// lives in the model adapters' pricing catalog — the engine never invents cost.
+type Pricing func(provider, model string, usage *chat.Usage) float64
 
 // turnBudget caps one turn by tokens, dollars, and/or tool-call rounds. A zero
 // field means no cap on that dimension; the zero value is unbounded.
@@ -70,10 +72,13 @@ func (b turnBudget) exceeded(pc *core.ProcessContext) bool {
 // invocationFrom maps a streamed round's usage + served model to the
 // framework's [core.LLMInvocation]. Cost is filled from the engine's
 // [Pricing] hook when configured (else zero — the chat layer gets no
-// dollar figure from the provider). An empty model name (provider
-// didn't report one) falls back to "unknown" so the per-model roll-up
-// doesn't grow a blank-keyed entry.
-func (e *Engine) invocationFrom(model string, u *chat.Usage) core.LLMInvocation {
+// dollar figure from the provider). provider is the round's provider (the
+// turn's selection), falling back to the engine default for a default /
+// subtask turn that named none — pricing needs it to disambiguate a model id
+// shared across providers. An empty model name (provider didn't report one)
+// falls back to "unknown" so the per-model roll-up doesn't grow a blank-keyed
+// entry.
+func (e *Engine) invocationFrom(provider, model string, u *chat.Usage) core.LLMInvocation {
 	if model == "" {
 		model = "unknown"
 	}
@@ -93,7 +98,7 @@ func (e *Engine) invocationFrom(model string, u *chat.Usage) core.LLMInvocation 
 		inv.CacheWriteInputTokens = *u.CacheWriteInputTokens
 	}
 	if e.pricing != nil {
-		inv.CostUSD = e.pricing(model, u)
+		inv.CostUSD = e.pricing(cmp.Or(provider, e.defaultProvider), model, u)
 	}
 	return inv
 }

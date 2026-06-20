@@ -69,11 +69,17 @@ type Config struct {
 	MCP          toolset.MCPControl // live-MCP-connections facade
 	Closers      []func() error     // capability shutdown hooks
 
-	// Pricing optionally computes per-round USD cost from the served
-	// model + token usage. nil leaves cost at zero (the chat path gets
-	// no dollar figure from providers). Supply a rate table to surface
+	// Pricing optionally computes per-round USD cost from the round's
+	// provider + served model + token usage. nil leaves cost at zero (the chat
+	// path gets no dollar figure from providers). Supply a rate table to surface
 	// CostUSD on ChatOutput / TurnEnd. See [Pricing].
 	Pricing Pricing
+
+	// Provider is the runtime's DEFAULT provider id — the provider a turn runs
+	// against when it names none (default / subtask turns). Pricing uses it to
+	// attribute a default turn's cost to the right provider (a model id alone is
+	// ambiguous across providers). Empty when no default is configured.
+	Provider string
 
 	// ProcessStore, when non-nil, makes the platform auto-snapshot every
 	// agent process per tick to a durable backend (audit trail + the

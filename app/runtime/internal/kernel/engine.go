@@ -47,6 +47,7 @@ type Engine struct {
 	workdir         string       // captured from Config.Workdir for the AGENTS.md cascade
 	skillsGlobalDir string       // captured from Config.SkillsGlobalDir for workspace.listSkills
 	pricing         Pricing      // optional per-round cost hook; nil → cost stays zero
+	defaultProvider string       // default provider id; pricing fallback for a default/subtask turn
 	parkStore       tool.ParkStore
 
 	// Maintenance ports (turn-boundary autonomous ops) — injected by the
@@ -152,6 +153,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		workdir:         cfg.Workdir,
 		skillsGlobalDir: cfg.SkillsGlobalDir,
 		pricing:         cfg.Pricing,
+		defaultProvider: cfg.Provider,
 		parkStore:       cfg.ParkStore,
 		mcp:             cfg.MCP,
 		closers:         cfg.Closers,
