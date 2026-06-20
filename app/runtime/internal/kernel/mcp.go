@@ -61,6 +61,17 @@ func (e *Engine) AuthorizeMCPServer(ctx context.Context, name string) error {
 	return e.mcp.Authorize(ctx, name)
 }
 
+// ProbeMCPServer tests a candidate config (workspace.mcp.test). It routes
+// through the live connections so an active OAuth sign-in for the same-named
+// server is reused — otherwise an authorized server would 401 on the anonymous
+// probe and read as "unauthorized".
+func (e *Engine) ProbeMCPServer(ctx context.Context, cfg toolset.MCPServerConfig) error {
+	if e.mcp == nil {
+		return ErrUnknownMCPServer
+	}
+	return e.mcp.Probe(ctx, cfg)
+}
+
 // ConfigureMCPServer adds or re-dials a server in the live connection set and
 // hot-swaps the refreshed model-facing tool set. A dial failure is returned but
 // the server is still tracked (recorded "failed", reconnectable). Nil MCP

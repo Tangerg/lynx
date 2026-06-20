@@ -500,10 +500,27 @@ func (c *Connections) Remove(ctx context.Context, name string) {
 	c.refreshTools(ctx)
 }
 
-// Probe dials cfg with a throwaway client, proves its tools are listable, and
-// closes the session — a connection test that touches no live state. Used by
-// workspace.mcp.test before persisting a configuration. Returns nil on success.
-func Probe(ctx context.Context, cfg ServerConfig) error {
+// Probe tests cfg with a throwaway client (workspace.mcp.test). It reuses an
+// active OAuth sign-in for the same-named server this session, because an
+// anonymous probe of an OAuth-protected server would always 401 even though the
+// live connection is authorized — the probe must carry the session's token to
+// reflect reality. Falls back to a stateless (anonymous / bearer / headers)
+// probe when there's no live handler. Nil receiver is supported (no live set).
+func (c *Connections) Probe(ctx context.Context, cfg ServerConfig) error {
+	if cfg.OAuthHandler == nil && c != nil {
+		c.mu.Lock()
+		if ms := c.find(cfg.Name); ms != nil {
+			cfg.OAuthHandler = ms.oauth
+		}
+		c.mu.Unlock()
+	}
+	return probe(ctx, cfg)
+}
+
+// probe dials cfg with a throwaway client, proves its tools are listable, and
+// closes the session — a connection test that touches no live state. Honors any
+// cfg.OAuthHandler so a probe can be authorized. Returns nil on success.
+func probe(ctx context.Context, cfg ServerConfig) error {
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
