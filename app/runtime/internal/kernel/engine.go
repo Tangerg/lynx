@@ -108,8 +108,10 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 		FeedbackOnEmptyResponse: true,
 		ParkStore:               cfg.ParkStore,
 		// Halt a stuck agent (same tool + args + result repeating) before it
-		// burns the full iteration cap. Default window/threshold (10 / >5):
-		// six byte-identical rounds is a fixed point, not a retry.
+		// burns the full iteration cap. Defaults (window 10, nudge 3, halt >5):
+		// a corrective <system-reminder> is injected once at the 3rd identical
+		// round (a chance to break out), and six byte-identical rounds is a fixed
+		// point that hard-stops.
 		LoopDetection: &tool.LoopDetectionConfig{},
 		// Mid-run steering: drain the active turn's SteerSource (stashed on the
 		// context by runChatTurn) before each continuation round, injecting any
