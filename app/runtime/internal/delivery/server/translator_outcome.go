@@ -15,7 +15,12 @@ import (
 // This file changes when the outcome contract does.
 
 func (t *translator) outcome(e turn.TurnEnd) *protocol.RunOutcome {
-	res := &protocol.RunResult{Usage: t.turnUsage(e), DurationMs: int(e.Duration.Milliseconds())}
+	// steps lands the run's final step count durably (API.md §5.2): it's the
+	// authoritative home of the ephemeral run.progress.step, so a client that
+	// dropped the progress deltas can still read it off the terminal. t.step is
+	// the live ordinal the translator emitted on run.progress.
+	steps := t.step
+	res := &protocol.RunResult{Usage: t.turnUsage(e), Steps: &steps, DurationMs: int(e.Duration.Milliseconds())}
 	switch e.Reason {
 	case turn.TurnEndCanceled:
 		return &protocol.RunOutcome{Type: protocol.OutcomeCanceled, Result: res}

@@ -97,7 +97,9 @@ func (s *engineBacked) Invoke(ctx context.Context, name string, arguments string
 // enum types) but share the same rows; keep them in sync when adding tools.
 func defaultSafetyClass(name string) SafetyClass {
 	switch name {
-	case "read", "glob", "grep", "skill", "ask_user", "exit_plan_mode":
+	case "read", "glob", "grep", "lsp", "lsp_diagnostics", "skill", "ask_user", "exit_plan_mode":
+		// lsp / lsp_diagnostics are read-only code-intelligence queries — same
+		// class as read/glob/grep (kept in sync with kernel/turn/policy.go).
 		// skill is read-only (lists / reads skill files), like read/glob/grep.
 		// ask_user has no side effect — it IS a HITL interrupt itself, so the
 		// gate never prompts for it (see kernel/turn/policy.go safetyClassFor); the
