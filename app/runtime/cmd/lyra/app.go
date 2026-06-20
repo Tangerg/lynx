@@ -116,19 +116,19 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 	}
 
 	// Optional cheaper model for turn-boundary maintenance (compaction /
-	// extraction / planning), on the same provider + credentials as the main
-	// client — only the model id differs. Unset or identical → maintenance
-	// runs on the main client (nil MaintenanceClient).
-	var maintClient *chat.Client
-	if cfg.MaintenanceModel != "" && cfg.MaintenanceModel != cfg.Model {
-		maintClient, err = llm.BuildClient(llm.ClientSpec{
+	// extraction / titling), on the same provider + credentials as the main
+	// client — only the model id differs. Unset or identical → that work
+	// runs on the main client (nil UtilityClient).
+	var utilClient *chat.Client
+	if cfg.UtilityModel != "" && cfg.UtilityModel != cfg.Model {
+		utilClient, err = llm.BuildClient(llm.ClientSpec{
 			Provider: cfg.Provider,
-			Model:    cfg.MaintenanceModel,
+			Model:    cfg.UtilityModel,
 			APIKey:   cfg.APIKey,
 			BaseURL:  cfg.BaseURL,
 		})
 		if err != nil {
-			return fmt.Errorf("build maintenance client: %w", err)
+			return fmt.Errorf("build utility client: %w", err)
 		}
 	}
 
@@ -168,8 +168,8 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 			ProcessStore: stores.Process,
 			ParkStore:    stores.Park,
 		},
-		// Cheaper maintenance model (nil → maintenance runs on the main client).
-		MaintenanceClient: maintClient,
+		// Cheaper utility model (nil → maintenance work runs on the main client).
+		UtilityClient: utilClient,
 		// Tool-environment inputs — the runtime assembles the tool environment
 		// (toolset.Build) from these and injects it into the engine core.
 		Online:         cfg.Online,

@@ -62,12 +62,12 @@ type Config struct {
 	// Engine.ChatClient is required.
 	Engine kernel.Config
 
-	// MaintenanceClient optionally runs the in-house turn-boundary maintenance
-	// services (compaction / extraction) on a separate — typically cheaper —
-	// model than Engine.ChatClient. nil runs them on the main client. Only
-	// applies to the runtime's own maintenance services; an externally injected
-	// Compactor/Extractor brings its own client.
-	MaintenanceClient *chat.Client
+	// UtilityClient optionally runs the in-house turn-boundary maintenance
+	// services (compaction / extraction / titling) on a separate — typically
+	// cheaper — model than Engine.ChatClient. nil runs them on the main client.
+	// Only applies to the runtime's own maintenance services; an externally
+	// injected Compactor/Extractor brings its own client.
+	UtilityClient *chat.Client
 
 	// Tool-environment inputs — the runtime reads these to assemble the tool
 	// environment via toolset.Build and inject it into the engine core (which
@@ -202,13 +202,13 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	// so an external provider (e.g. a mem0 / HTTP-bridged compactor or knowledge
 	// store) can be slotted in by setting the corresponding engine.Config field —
 	// the runtime then leaves it untouched. nil → in-house default.
-	// Maintenance (compaction / extraction) may run on a cheaper model than the
-	// main turn — see [Config.MaintenanceClient]. nil falls back to the engine's
-	// client, preserving the single-model default. Only the in-house services
-	// below use it; an externally injected port brings its own client.
-	maintClient := cfg.MaintenanceClient
-	if maintClient == nil {
-		maintClient = cfg.Engine.ChatClient
+	// Maintenance (compaction / extraction / titling) may run on a cheaper model
+	// than the main turn — see [Config.UtilityClient]. nil falls back to the
+	// engine's client, preserving the single-model default. Only the in-house
+	// services below use it; an externally injected port brings its own client.
+	utilClient := cfg.UtilityClient
+	if utilClient == nil {
+		utilClient = cfg.Engine.ChatClient
 	}
 
 	if ecfg.Steering == nil {
@@ -221,15 +221,15 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		// Catalog miss → ContextWindow 0 → the compactor's fixed fallback. Uses
 		// the DEFAULT model's window; a turn that picks a smaller per-run model
 		// keeps the default's headroom (documented limitation — compaction also
-		// runs on the default maintenance client, so it stays self-consistent).
+		// runs on the default utility client, so it stays self-consistent).
 		window := 0
 		if info, ok := catalog.Lookup(cfg.Provider, cfg.Model); ok {
 			window = int(info.Limits.ContextWindow)
 		}
-		ecfg.Compactor = maintenance.NewCompactor(memStore, maintClient, maintenance.CompactionConfig{ContextWindow: window})
+		ecfg.Compactor = maintenance.NewCompactor(memStore, utilClient, maintenance.CompactionConfig{ContextWindow: window})
 	}
 	if ecfg.Extractor == nil && cfg.Engine.Knowledge != nil {
-		ecfg.Extractor = maintenance.NewExtractor(memStore, cfg.Engine.Knowledge, maintClient)
+		ecfg.Extractor = maintenance.NewExtractor(memStore, cfg.Engine.Knowledge, utilClient)
 	}
 	// Todo list: same nil-default contract — honor a pre-injected engine
 	// Todos (an external task store), else use the runtime-supplied one.
@@ -338,7 +338,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		mcpRegistry:  cfg.MCPRegistry,
 		mcpGating:    mcpGate,
 		defaultModel: cfg.Model,
-		titler:       maintenance.NewTitler(maintClient),
+		titler:       maintenance.NewTitler(utilClient),
 	}, nil
 }
 
