@@ -943,7 +943,11 @@ interface SessionArtifact {
   - `userItemId`：本 run 开场 `userMessage` Item 的 id —— 与流上 `item.*` 及 `items.list` 里同一个 id。客户端用它把
     乐观气泡按精确 id 对账（不按内容文本启发式匹配）。`runs.resume` 无开场 user 回合，故为空。
 - 幂等：经 `X-Idempotency-Key` 头（见 TRANSPORT §10），重复键重新接上既有 run、不新建。
-- 错误（通道 a，§8.1）：`session_not_found` / `cwd_unavailable` / `invalid_params`（含 `provider`/`model` 只给其一）。
+- **一会话一 run（`session_busy`）**：该 session 已有 run 在跑（**正在 pump 或 parked 在 HITL interrupt 上**）时拒绝——
+  两个 run 同时写一条会话的消息日志会被 turn 末压缩（整段重写）吞掉彼此的消息。继续既有 run 用 `runs.resume`、
+  插话用 `runs.steer`,而非再开一个 `runs.start`。（注:开 run 的「检查—注册」非单一临界区,多客户端同瞬并发 start 仍有
+  极窄 TOCTOU；单客户端被 `starting` 闩串行化,不触发。）
+- 错误（通道 a，§8.1）：`session_not_found` / `cwd_unavailable` / `invalid_params`（含 `provider`/`model` 只给其一）/ `session_busy`。
   执行期错误（通道 b）：`run.finished{outcome:error}` / 工具级 `toolCall.error`。
 
 - **示例**：
