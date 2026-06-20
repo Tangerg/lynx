@@ -61,13 +61,15 @@ func (r *Runtime) SetMCPServerEnabled(ctx context.Context, name string, enabled 
 }
 
 // TestMCPServer dials srv with a throwaway client and proves its tools list —
-// a connection test that touches neither the registry nor the live set. Returns
-// the dial / tools-list error, or nil on success.
+// a connection test that touches neither the registry nor the live set, EXCEPT
+// it reuses an active OAuth sign-in for the same-named server (so an authorized
+// OAuth server tests as connected, not "unauthorized"). Returns the dial /
+// tools-list error, or nil on success.
 func (r *Runtime) TestMCPServer(ctx context.Context, srv mcpserver.Server) error {
 	if err := srv.Validate(); err != nil {
 		return err
 	}
-	return mcp.Probe(ctx, configFromServer(srv))
+	return r.engine.ProbeMCPServer(ctx, configFromServer(srv))
 }
 
 // applyMCPServer reflects a registry entry into the live connections: enabled →

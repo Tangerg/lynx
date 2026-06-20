@@ -48,6 +48,10 @@ type MCPControl interface {
 	// Authorize runs the interactive OAuth sign-in for an HTTP server and, on
 	// success, connects it with the obtained (session-lived) credentials.
 	Authorize(ctx context.Context, name string) error
+	// Probe tests a candidate config (dry-run dial + tools list), reusing an
+	// active OAuth sign-in for the same-named server so an authorized server
+	// doesn't spuriously read as unauthorized.
+	Probe(ctx context.Context, cfg MCPServerConfig) error
 	// Configure adds or re-dials a server at runtime; Remove drops one from the
 	// live set. Both hot-swap the refreshed model-facing tool set.
 	Configure(ctx context.Context, cfg MCPServerConfig) error
