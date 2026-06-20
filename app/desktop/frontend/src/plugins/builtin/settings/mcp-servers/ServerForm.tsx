@@ -1,6 +1,7 @@
 // Add / edit form for one MCP server. Transport segmented control switches the
 // dynamic field set: stdio = command + args (one per line) + env (KEY=value per
-// line) + dir; http = url + authorization (password, "leave blank to keep").
+// line) + dir; http = url + authorization (password, "leave blank to keep") +
+// headers (KEY=value per line). A shared timeout (seconds) applies to both.
 // Save → configure; Test → live probe with an inline ok/err chip; Delete on an
 // existing server. Mirrors the providers pane's save/test/probe-token flow.
 
@@ -32,6 +33,30 @@ function linesToList(text: string): string[] | undefined {
   return list.length ? list : undefined;
 }
 
+// linesToMap parses "KEY=value" lines (env / headers) into a map, splitting on
+// the FIRST '=' so a value may contain '='. Blank lines are skipped; a line with
+// no '=' becomes a bare key. Empty → undefined (omit from the wire).
+function linesToMap(text: string): Record<string, string> | undefined {
+  const out: Record<string, string> = {};
+  for (const raw of text.split("\n")) {
+    const line = raw.trim();
+    if (!line) continue;
+    const i = line.indexOf("=");
+    if (i === -1) out[line] = "";
+    else out[line.slice(0, i)] = line.slice(i + 1);
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+// mapToLines renders a KEY→value map back to "KEY=value" lines for the editor.
+function mapToLines(m: Record<string, string> | undefined): string {
+  return m
+    ? Object.entries(m)
+        .map(([k, v]) => `${k}=${v}`)
+        .join("\n")
+    : "";
+}
+
 interface Props {
   /** Existing server to edit, or undefined for the "add server" form. */
   server?: MCPServerConfigInfo;
@@ -53,11 +78,17 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
   // stdio
   const [command, setCommand] = useState(server?.command ?? "");
   const [args, setArgs] = useState((server?.args ?? []).join("\n"));
-  const [env, setEnv] = useState((server?.env ?? []).join("\n"));
+  const [env, setEnv] = useState(mapToLines(server?.env));
   const [dir, setDir] = useState(server?.dir ?? "");
   // http
   const [url, setUrl] = useState(server?.url ?? "");
   const [authorization, setAuthorization] = useState("");
+  const [headers, setHeaders] = useState(mapToLines(server?.headers));
+  // Connection-handshake timeout in seconds (both transports); "" = unbounded.
+  // Named *Sec to avoid shadowing the global setTimeout.
+  const [timeoutSec, setTimeoutSec] = useState(
+    server?.timeoutSeconds ? String(server.timeoutSeconds) : "",
+  );
   // Per-tool gating (edited via ToolControls for an existing server). Sparse:
   // an absent tool = enabled + not auto-approved.
   const [disabledTools, setDisabledTools] = useState<string[]>(server?.disabledTools ?? []);
@@ -74,11 +105,13 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
   const hasAuthStored = (server?.authorizationMasked ?? "") !== "";
 
   const buildRequest = (): ConfigureMCPServerRequest => {
+    const secs = parseInt(timeoutSec, 10);
     const base: ConfigureMCPServerRequest = {
       name: name.trim(),
       transport,
       enabled: server?.enabled ?? true,
       description: description.trim() || undefined,
+      timeoutSeconds: Number.isFinite(secs) && secs > 0 ? secs : undefined,
       // Per-tool gating, edited below via ToolControls (existing server only).
       // Sparse — omit empty lists so the wire carries only non-default entries.
       disabledTools: disabledTools.length ? disabledTools : undefined,
@@ -89,7 +122,7 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
         ...base,
         command: command.trim() || undefined,
         args: linesToList(args),
-        env: linesToList(env),
+        env: linesToMap(env),
         dir: dir.trim() || undefined,
       };
     }
@@ -98,6 +131,7 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
       url: url.trim() || undefined,
       // Empty = keep the stored token (the runtime treats omitted as "keep").
       authorization: authorization.trim() || undefined,
+      headers: linesToMap(headers),
     };
   };
 
@@ -234,8 +268,33 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
             placeholder={hasAuthStored ? t("mcp.form.auth.keep") : t("mcp.form.auth.placeholder")}
             className={FIELD}
           />
+          <label className="flex flex-col gap-1 text-[11px] text-fg-muted">
+            {t("mcp.form.headers")}
+            <textarea
+              value={headers}
+              onChange={(e) => setHeaders(e.target.value)}
+              rows={2}
+              aria-label={t("mcp.form.headers")}
+              placeholder={t("mcp.form.headers.placeholder")}
+              className={AREA}
+            />
+          </label>
         </>
       )}
+
+      <label className="flex flex-col gap-1 text-[11px] text-fg-muted">
+        {t("mcp.form.timeout")}
+        <input
+          type="number"
+          min={0}
+          inputMode="numeric"
+          aria-label={t("mcp.form.timeout")}
+          value={timeoutSec}
+          onChange={(e) => setTimeoutSec(e.target.value)}
+          placeholder={t("mcp.form.timeout.placeholder")}
+          className={cn(FIELD, "tabular-nums")}
+        />
+      </label>
 
       <input
         type="text"

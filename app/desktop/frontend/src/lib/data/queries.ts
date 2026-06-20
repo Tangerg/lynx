@@ -83,10 +83,12 @@ export interface MCPServerConfigInfo {
   description?: string;
   url?: string;
   authorizationMasked?: string;
+  headers?: Record<string, string>; // http; extra request headers (not masked)
   command?: string;
   args?: string[];
-  env?: string[]; // "KEY=value" strings
+  env?: Record<string, string>; // stdio; KEY→value, replaces subprocess env
   dir?: string;
+  timeoutSeconds?: number; // connection-handshake bound; 0/absent = unbounded
   disabledTools?: string[];
   autoApproveTools?: string[];
   status?: "connecting" | "connected" | "disconnected" | "failed" | "needsAuth";

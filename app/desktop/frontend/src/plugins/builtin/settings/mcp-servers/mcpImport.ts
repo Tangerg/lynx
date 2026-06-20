@@ -5,23 +5,31 @@
 //
 // Accepted per-server shape (lenient — different tools emit subsets):
 //   { "command": "...", "args": [...], "env": {KEY:val} | ["KEY=val"], "type"? }
-//   { "url": "...", "type"?, "headers"? | "authorization"? }
-// `type` is optional: absent → inferred (command ⇒ stdio, url ⇒ http).
+//   { "url": "...", "type"?, "headers"? | "authorization"?, "timeout"? }
+// `type` is optional: absent → inferred (command ⇒ stdio, url ⇒ http). An
+// Authorization header is split out to the dedicated bearer field; every OTHER
+// header is preserved (no silent drop).
 
 import { z } from "zod";
 import type { ConfigureMCPServerRequest } from "@/rpc";
 
-// env may be a map ({KEY: "val"}) or already the "KEY=value" array we store.
+// env may be a map ({KEY:"val"}) or a "KEY=value" array; both normalize to the
+// KEY→value map our wire now carries (split on the FIRST '=' so a value may
+// itself contain '=').
 const envSchema = z
   .union([z.record(z.string(), z.string()), z.array(z.string())])
   .optional()
-  .transform((env) =>
-    env === undefined
-      ? undefined
-      : Array.isArray(env)
-        ? env
-        : Object.entries(env).map(([k, v]) => `${k}=${v}`),
-  );
+  .transform((env) => {
+    if (env === undefined) return undefined;
+    if (!Array.isArray(env)) return env;
+    const out: Record<string, string> = {};
+    for (const kv of env) {
+      const i = kv.indexOf("=");
+      if (i === -1) out[kv] = "";
+      else out[kv.slice(0, i)] = kv.slice(i + 1);
+    }
+    return out;
+  });
 
 const serverSchema = z.object({
   type: z.enum(["stdio", "http", "sse"]).optional(),
@@ -31,20 +39,32 @@ const serverSchema = z.object({
   dir: z.string().optional(),
   cwd: z.string().optional(), // Claude Desktop's name for the working dir
   url: z.string().optional(),
-  // A bearer token may arrive bare or wrapped in a Headers map; pull the
-  // Authorization header and strip a leading "Bearer ".
+  // A bearer token may arrive bare or as a Headers "Authorization" entry; it's
+  // pulled into the dedicated bearer field, the rest of headers is preserved.
   authorization: z.string().optional(),
   headers: z.record(z.string(), z.string()).optional(),
+  timeout: z.number().optional(), // seconds (Cherry-style); 0/absent = unbounded
 });
 
-const rootSchema = z.object({
-  mcpServers: z.record(z.string(), serverSchema),
-});
+type ParsedServer = z.infer<typeof serverSchema>;
 
-function bearerFrom(s: z.infer<typeof serverSchema>): string | undefined {
+function bearerFrom(s: ParsedServer): string | undefined {
   const raw = s.authorization ?? s.headers?.Authorization ?? s.headers?.authorization ?? undefined;
   if (raw === undefined) return undefined;
   return raw.replace(/^Bearer\s+/i, "");
+}
+
+// headersExceptAuth keeps every imported header EXCEPT Authorization (which goes
+// to the dedicated bearer field). Returns undefined when nothing remains, so an
+// Authorization-only headers block doesn't store an empty map.
+function headersExceptAuth(s: ParsedServer): Record<string, string> | undefined {
+  if (!s.headers) return undefined;
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(s.headers)) {
+    if (k.toLowerCase() === "authorization") continue;
+    out[k] = v;
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 export interface McpImportResult {
@@ -63,7 +83,7 @@ export function parseMcpImport(text: string): McpImportResult {
   } catch {
     throw new Error("Not valid JSON");
   }
-  const parsed = rootSchema.safeParse(raw);
+  const parsed = z.object({ mcpServers: z.record(z.string(), serverSchema) }).safeParse(raw);
   if (!parsed.success) {
     throw new Error('Expected {"mcpServers": { "<name>": { … } }}');
   }
@@ -91,6 +111,7 @@ export function parseMcpImport(text: string): McpImportResult {
         args: s.args,
         env: s.env,
         dir: s.dir ?? s.cwd,
+        timeoutSeconds: s.timeout,
       });
     } else {
       configs.push({
@@ -99,6 +120,8 @@ export function parseMcpImport(text: string): McpImportResult {
         enabled: true,
         url: s.url,
         authorization: bearerFrom(s),
+        headers: headersExceptAuth(s),
+        timeoutSeconds: s.timeout,
       });
     }
   }
