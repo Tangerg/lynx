@@ -122,6 +122,10 @@ export interface SelectableModel {
   /** Accepts image input (Model.capabilities.multimodal) — gates the composer's
    *  attach affordance. */
   multimodal: boolean;
+  /** Total context window in tokens (Model.contextWindow), or undefined when the
+   *  catalog doesn't report it. Denominator for the composer's context-occupancy
+   *  gauge (run.progress.contextTokens / contextWindow). */
+  contextWindow?: number;
 }
 
 export interface ProviderInfo {

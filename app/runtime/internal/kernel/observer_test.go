@@ -18,7 +18,7 @@ func (noopObserver) OnToolCallStart(string, string, string)      {}
 func (noopObserver) OnToolCallEnd(string, string, string, error) {}
 func (noopObserver) OnMessageDelta(string)                       {}
 func (noopObserver) OnReasoningDelta(string)                     {}
-func (noopObserver) OnUsage(TokenUsage, float64)                 {}
+func (noopObserver) OnUsage(TokenUsage, float64, int64)          {}
 
 // keyedTool implements the loop's optional ConcurrencyKey contract as a keyed,
 // concurrent tool (the shape of a per-path file edit).

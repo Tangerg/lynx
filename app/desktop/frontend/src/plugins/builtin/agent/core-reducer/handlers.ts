@@ -106,6 +106,7 @@ function onRunProgress(state: AgentViewState, progress: RunProgress): AgentViewS
     ...(progress.maxSteps !== undefined ? { totalSteps: progress.maxSteps } : {}),
     ...(progress.activity !== undefined ? { activity: progress.activity } : {}),
     ...(progress.usage ? { usage: mapUsage(progress.usage) } : {}),
+    ...(progress.contextTokens !== undefined ? { contextTokens: progress.contextTokens } : {}),
   })(state);
 }
 

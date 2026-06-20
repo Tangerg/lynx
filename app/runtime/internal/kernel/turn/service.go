@@ -344,6 +344,10 @@ type UsageReported struct {
 	BaseEvent
 	TokenUsage TokenUsage
 	CostUSD    float64
+	// ContextTokens is this round's prompt-token count — the live context-window
+	// occupancy (not the cumulative roll-up in TokenUsage). Transport maps it to
+	// run.progress.contextTokens for the client's occupancy gauge.
+	ContextTokens int64
 }
 
 // TodosUpdated fires after the model rewrites its task list (the todo_write

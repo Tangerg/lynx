@@ -107,7 +107,9 @@ func (e *Engine) runChatTurn(ctx context.Context, pc *core.ProcessContext, messa
 		cumulativeCost += inv.CostUSD
 		roundUsage, roundModel = nil, ""
 		if observer != nil {
-			observer.OnUsage(cumulative, cumulativeCost)
+			// inv.PromptTokens is THIS round's prompt size — the live context
+			// occupancy — not the cumulative roll-up.
+			observer.OnUsage(cumulative, cumulativeCost, inv.PromptTokens)
 		}
 	}
 	for chunk, streamErr := range stream.Response(ctx) {

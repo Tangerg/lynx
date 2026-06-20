@@ -773,6 +773,7 @@ export interface RunProgress {
   step?: number; // agent steps elapsed so far
   maxSteps?: number; // ceiling, when the Run was started with one
   usage?: Usage; // cumulative usage so far (cost via usage.costUsd)
+  contextTokens?: number; // latest round's prompt size = live context-window occupancy (vs cumulative usage.inputTokens); pair with model.contextWindow for a gauge
   activity?: string; // human-readable current action ("calling tool: bash")
 }
 

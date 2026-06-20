@@ -175,14 +175,18 @@ func (t *translator) toolEnd(e turn.ToolCallEnd) []protocol.StreamEvent {
 // the usage field is carried; step/activity ride the tool-call boundary above.
 // The authoritative final total still lands on run.finished.result (§5.2).
 func (t *translator) usageProgress(e turn.UsageReported) []protocol.StreamEvent {
-	return []protocol.StreamEvent{{
-		Type: protocol.StreamRunProgress,
-		Progress: &protocol.RunProgress{
-			Usage: &protocol.Usage{
-				ModelUsage: modelUsageFrom(e.TokenUsage.PromptTokens, e.TokenUsage.CompletionTokens, e.TokenUsage.ReasoningTokens, e.CostUSD),
-			},
+	progress := &protocol.RunProgress{
+		Usage: &protocol.Usage{
+			ModelUsage: modelUsageFrom(e.TokenUsage.PromptTokens, e.TokenUsage.CompletionTokens, e.TokenUsage.ReasoningTokens, e.CostUSD),
 		},
-	}}
+	}
+	// Live context occupancy = this round's prompt size. Omit a zero (a provider
+	// that didn't report prompt tokens) rather than show an empty gauge.
+	if e.ContextTokens > 0 {
+		ct := e.ContextTokens
+		progress.ContextTokens = &ct
+	}
+	return []protocol.StreamEvent{{Type: protocol.StreamRunProgress, Progress: progress}}
 }
 
 // activityVerb maps a tool name to a human-readable mid-run activity line for

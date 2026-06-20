@@ -27,6 +27,7 @@ import {
 } from "@/plugins/sdk/kernelPoints";
 import {
   useAgentAction,
+  useAgentRunContextTokens,
   useAgentRunning,
   useAgentRunUsage,
   useAgentStore,
@@ -228,14 +229,32 @@ function fmtTokens(n: number): string {
   return `${(n / 1_000_000).toFixed(1)}M`;
 }
 
+// Color ramp for context-window occupancy: calm until ~70%, warn approaching
+// the limit, alarm once compaction is imminent (>90%).
+function ctxTone(pct: number): string {
+  if (pct >= 90) return "text-negative";
+  if (pct >= 70) return "text-warning";
+  return "text-fg-faint";
+}
+
 // Live token + cost readout for the current/last run (RunState.usage, the
-// cumulative-over-rounds total). Hidden until a run has reported usage, so a
-// fresh session shows nothing rather than a bare "↑0 ↓0". Cost is shown only
-// when the served model is priced (costUsd present) — never a fabricated $0.00.
+// cumulative-over-rounds total) PLUS the context-window occupancy (the latest
+// round's prompt size over the served model's contextWindow — how full the
+// window is right now, distinct from the summed usage). Hidden until a run has
+// reported usage, so a fresh session shows nothing rather than a bare "↑0 ↓0".
+// Cost shows only when the model is priced; the % only when the model's window
+// is known — never a fabricated number.
 function UsageChip() {
   const t = useT();
   const usage = useAgentRunUsage();
+  const contextTokens = useAgentRunContextTokens();
+  const model = useSelectedModel();
   if (usage.inputTokens + usage.outputTokens === 0) return null;
+  const window = model?.contextWindow;
+  const pct =
+    contextTokens !== undefined && window
+      ? Math.min(100, Math.round((contextTokens / window) * 100))
+      : undefined;
   return (
     <span
       title={t("composer.usage.hint")}
@@ -245,6 +264,11 @@ function UsageChip() {
       <span>↓{fmtTokens(usage.outputTokens)}</span>
       {usage.costUsd !== undefined && (
         <span className="text-fg-faint">·&nbsp;${usage.costUsd.toFixed(2)}</span>
+      )}
+      {pct !== undefined && (
+        <span className={ctxTone(pct)} title={t("composer.usage.context")}>
+          ·&nbsp;{pct}%
+        </span>
       )}
     </span>
   );

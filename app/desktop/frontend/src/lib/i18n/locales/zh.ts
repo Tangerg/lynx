@@ -38,6 +38,7 @@ export const zh: Record<string, string> = {
   "composer.execMode.hint": "执行模式 · 工作区 · 自动",
   "composer.gitBranch": "Git 分支",
   "composer.usage.hint": "Token 用量 — 输入 ↑ / 输出 ↓（本次运行）",
+  "composer.usage.context": "上下文窗口占用",
   "composer.slash.heading": "命令",
   "composer.placeholder.debug": "粘贴一段失败的测试输出，我带你逐步排查。",
   "composer.placeholder.implement": "要实现什么？描述改动，我来规划并执行。",
