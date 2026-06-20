@@ -31,7 +31,7 @@ func (r *Runtime) ConfigureMCPServer(ctx context.Context, srv mcpserver.Server) 
 		return err
 	}
 	r.applyMCPServer(ctx, srv)
-	return nil
+	return r.refreshMCPGating(ctx)
 }
 
 // RemoveMCPServer deletes a server from the registry and drops it from the live
@@ -41,7 +41,7 @@ func (r *Runtime) RemoveMCPServer(ctx context.Context, name string) error {
 		return err
 	}
 	r.engine.RemoveMCPServer(ctx, name)
-	return nil
+	return r.refreshMCPGating(ctx)
 }
 
 // SetMCPServerEnabled flips a server's enablement in the registry and applies
@@ -55,7 +55,7 @@ func (r *Runtime) SetMCPServerEnabled(ctx context.Context, name string, enabled 
 		return err
 	}
 	r.applyMCPServer(ctx, srv)
-	return nil
+	return r.refreshMCPGating(ctx)
 }
 
 // TestMCPServer dials srv with a throwaway client and proves its tools list —
@@ -131,6 +131,52 @@ func configFromServer(s mcpserver.Server) mcp.ServerConfig {
 		cfg.Dir = s.Dir
 	}
 	return cfg
+}
+
+// mcpGating is the per-call MCP tool gating derived from the registry's enabled
+// servers, both keyed on the model-facing qualified name "<server>_<tool>":
+// disabled tools are hidden from the model (resolver filter) and auto-approved
+// tools skip the approval prompt (turn gate). Held behind an atomic pointer the
+// runtime swaps on every registry change; the resolver and the gate read it via
+// the closures handed to them at construction. Treated immutable after a store.
+type mcpGating struct {
+	disabled    map[string]struct{}
+	autoApprove map[string]struct{}
+}
+
+// buildMCPGating reads the registry and projects its ENABLED servers' per-tool
+// gating lists into the two qualified-name sets. Disabled servers contribute
+// nothing — their tools aren't in the live set anyway.
+func buildMCPGating(ctx context.Context, svc mcpserver.Service) (*mcpGating, error) {
+	servers, err := svc.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	g := &mcpGating{disabled: map[string]struct{}{}, autoApprove: map[string]struct{}{}}
+	for _, s := range servers {
+		if !s.Enabled {
+			continue
+		}
+		for _, tool := range s.DisabledTools {
+			g.disabled[mcp.QualifiedToolName(s.Name, tool)] = struct{}{}
+		}
+		for _, tool := range s.AutoApproveTools {
+			g.autoApprove[mcp.QualifiedToolName(s.Name, tool)] = struct{}{}
+		}
+	}
+	return g, nil
+}
+
+// refreshMCPGating recomputes the gating sets from the (just-mutated) registry
+// and swaps them in atomically, so a configure/remove/enable takes effect for
+// the next tool resolution and the next approval gate without a restart.
+func (r *Runtime) refreshMCPGating(ctx context.Context) error {
+	g, err := buildMCPGating(ctx, r.mcpRegistry)
+	if err != nil {
+		return err
+	}
+	r.mcpGating.Store(g)
+	return nil
 }
 
 // serverFromConfig maps an env-sourced dial descriptor to a registry entry

@@ -76,3 +76,38 @@ func TestApproveToolCall_RememberedShortCircuit(t *testing.T) {
 		t.Fatalf("remembered deny = %+v, want a denied verdict", v)
 	}
 }
+
+// TestApproveToolCall_MCPAutoApprove verifies the per-server auto-approve
+// whitelist: a listed MCP tool skips the prompt that its (unknown → exec class)
+// name would otherwise trigger, but the whitelist sits BELOW standing rules (a
+// remembered deny still wins) and is scoped to the gatePrompt path (plan-mode's
+// gateDeny is never reached, since that's a separate switch case above).
+func TestApproveToolCall_MCPAutoApprove(t *testing.T) {
+	ctx := context.Background()
+	appr := approval.New(approval.ModeSafe, approval.NewMemoryStore()) // unknown tool → exec → would prompt
+	autoApprove := map[string]struct{}{"srv_read": {}}
+	obs := &turnObserver{
+		svc: &inMemory{
+			approval:       appr,
+			mcpAutoApprove: func() map[string]struct{} { return autoApprove },
+		},
+		st: &turnState{handle: TurnHandle{SessionID: "s1"}},
+	}
+
+	// Whitelisted MCP tool → passes without an interrupt (no standing rule).
+	if v := obs.ApproveToolCall(ctx, "c1", "srv_read", "{}"); v.Interrupt != nil || v.Denied {
+		t.Fatalf("auto-approved tool = %+v, want a clean run verdict", v)
+	}
+
+	// A remembered DENY on the same tool wins — the whitelist is consulted only
+	// AFTER rules, so an explicit deny is never silently overridden. (A
+	// non-whitelisted tool still gates; that prompt path needs real HITL
+	// plumbing and is covered by the TestService_ApprovalGate_* integration
+	// tests, not this bare-construction unit test.)
+	_ = appr.Remember(ctx, approval.RememberRequest{
+		Scope: approval.ScopeSession, SessionID: "s1", Tool: "srv_read", Arguments: "{}", Decision: approval.Deny,
+	})
+	if v := obs.ApproveToolCall(ctx, "c2", "srv_read", "{}"); v.Interrupt != nil || !v.Denied {
+		t.Fatalf("remembered deny over auto-approve = %+v, want a denied verdict", v)
+	}
+}

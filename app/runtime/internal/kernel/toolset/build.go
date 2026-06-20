@@ -62,6 +62,12 @@ type BuildConfig struct {
 	A2AAgents       []a2a.ClientConfig
 	Todos           todo.Service     // backs todo_write; nil → the tool is omitted
 	Approval        approval.Service // backs exit_plan_mode (flips the stance on approval); nil → the tool is omitted
+
+	// MCPDisabled returns the model-facing MCP tool names the configured servers
+	// hide from the model (per-server blacklist; nil → no filtering). The runtime
+	// recomputes it on every registry change; the resolver reads it per
+	// resolution so a disable takes effect mid-session.
+	MCPDisabled func() map[string]struct{}
 }
 
 // Built is the assembled tool environment handed to the engine core: the
@@ -136,6 +142,7 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 		Todo:            todoTool,
 		CodeIntel:       codeIntel,
 		ReadTracker:     tracker,
+		MCPDisabled:     cfg.MCPDisabled,
 	})
 	resolver.SetMCPTools(mcpTools)             // seed the hot-swappable MCP set
 	mcpConns.SetToolSink(resolver.SetMCPTools) // reconnect hot-swaps the refreshed set in

@@ -220,6 +220,15 @@ type Resolver struct {
 	// reconnect does one atomic store. The model therefore always sees the
 	// currently-connected servers' tools, even mid-session.
 	mcp atomic.Pointer[[]chat.Tool]
+
+	// mcpDisabled returns the model-facing names ("<server>_<tool>") the
+	// configured servers hide from the model — a per-server blacklist the
+	// runtime recomputes on every registry change. Read per resolution (not
+	// folded into SetMCPTools) so it stays correct under the two independent
+	// hot-swaps: the live tool set (reconnect) and the disabled set (configure).
+	// nil — or an empty set — means no filtering. The set is owned upstream and
+	// only read here, never mutated.
+	mcpDisabled func() map[string]struct{}
 }
 
 // Deps bundles the working-directory-independent inputs the resolver captures
@@ -238,6 +247,11 @@ type Deps struct {
 	Todo            chat.Tool          // todo_write task-list tool (both roles); nil → omitted
 	CodeIntel       *codeintel.Service // backs the post-edit diagnostics wrap
 	ReadTracker     *editguard.Tracker // backs the read/edit/write guards
+
+	// MCPDisabled returns the model-facing MCP tool names the configured servers
+	// hide from the model (per-server blacklist; nil → no filtering). Read per
+	// resolution; see [Resolver.mcpDisabled].
+	MCPDisabled func() map[string]struct{}
 }
 
 // NewResolver builds the platform-scope tool resolver from its
@@ -267,6 +281,7 @@ func NewResolver(d Deps) *Resolver {
 		todo:            d.Todo,
 		codeIntel:       d.CodeIntel,
 		readTracker:     d.ReadTracker,
+		mcpDisabled:     d.MCPDisabled,
 	}
 }
 
@@ -274,12 +289,33 @@ func NewResolver(d Deps) *Resolver {
 // builds it after the platform exists (it spawns a sub-agent on the platform).
 func (r *Resolver) SetTask(t chat.Tool) { r.task = t }
 
-// mcpTools returns the current MCP tool set (nil before the first store).
+// mcpTools returns the current MCP tool set (nil before the first store) minus
+// any tools the configured servers disable. The disabled set is read here, not
+// at SetMCPTools, so it stays correct regardless of which hot-swap fired last
+// (a reconnect that swaps tools vs. a configure that swaps the disabled set).
+// The common case (nothing disabled) returns the stored slice unchanged — no
+// per-resolution copy.
 func (r *Resolver) mcpTools() []chat.Tool {
-	if p := r.mcp.Load(); p != nil {
-		return *p
+	p := r.mcp.Load()
+	if p == nil {
+		return nil
 	}
-	return nil
+	tools := *p
+	if r.mcpDisabled == nil {
+		return tools
+	}
+	disabled := r.mcpDisabled()
+	if len(disabled) == 0 {
+		return tools
+	}
+	out := make([]chat.Tool, 0, len(tools))
+	for _, t := range tools {
+		if _, hide := disabled[t.Definition().Name]; hide {
+			continue
+		}
+		out = append(out, t)
+	}
+	return out
 }
 
 // SetMCPTools swaps in a freshly-built MCP tool set (boot + each reconnect).

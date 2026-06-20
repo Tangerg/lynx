@@ -84,6 +84,18 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 		return kernel.ToolApprovalVerdict{} // remembered allow
 	}
 
+	// No standing rule. A per-server auto-approve whitelist entry skips the
+	// prompt for this MCP tool — a coarser "trust this server's tool" than a
+	// remembered rule, so it is consulted AFTER rules (an explicit remembered
+	// deny above still wins) and only on this gatePrompt path (it never reaches
+	// the read-only plan-mode gateDeny). The set is keyed on the model-facing
+	// "<server>_<tool>" the runtime derives from the MCP registry.
+	if t.svc.mcpAutoApprove != nil {
+		if _, ok := t.svc.mcpAutoApprove()[toolName]; ok {
+			return kernel.ToolApprovalVerdict{}
+		}
+	}
+
 	// interrupt for human approval (R model). First pass bubbles the
 	// InterruptError up to park; resume delivers the resolution here. The
 	// prompt carries the gated tool's risk so the approval card shows it.

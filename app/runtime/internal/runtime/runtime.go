@@ -26,6 +26,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
@@ -144,8 +145,16 @@ type Runtime struct {
 	// directly — not via the engine (it owns only the steering touchpoint).
 	conversation *conversation.Service
 
-	providers    provider.Service
-	mcpRegistry  mcpserver.Service
+	providers   provider.Service
+	mcpRegistry mcpserver.Service
+
+	// mcpGating holds the current per-call MCP tool gating (disabled / auto-
+	// approve sets), recomputed on every registry change. The resolver (disabled
+	// filter) and the turn gate (auto-approve skip) read it via closures that
+	// close over this same cell, captured at construction before the Runtime
+	// exists — hence a pointer. See [mcpGating] and [Runtime.refreshMCPGating].
+	mcpGating *atomic.Pointer[mcpGating]
+
 	defaultModel string
 
 	// titler auto-names an untitled session from its first user message — a
@@ -237,6 +246,30 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	// reads it per tool call.
 	approvalSvc := approval.New(cfg.ApprovalMode, cfg.ApprovalRuleStore)
 
+	// Per-call MCP tool gating, derived from the registry. The cell is created
+	// up front so the two reader closures below — the resolver's disabled filter
+	// and the turn gate's auto-approve skip — close over the SAME atomic the
+	// Runtime later swaps on every registry change. A read failure is fatal: the
+	// gating is part of the tool environment's contract.
+	mcpGate := &atomic.Pointer[mcpGating]{}
+	g0, err := buildMCPGating(ctx, cfg.MCPRegistry)
+	if err != nil {
+		return nil, fmt.Errorf("runtime: load mcp gating: %w", err)
+	}
+	mcpGate.Store(g0)
+	mcpDisabled := func() map[string]struct{} {
+		if g := mcpGate.Load(); g != nil {
+			return g.disabled
+		}
+		return nil
+	}
+	mcpAutoApprove := func() map[string]struct{} {
+		if g := mcpGate.Load(); g != nil {
+			return g.autoApprove
+		}
+		return nil
+	}
+
 	// Boot MCP set = the registry's enabled servers (the env seed already
 	// landed there in the composition root). A registry read failure is fatal —
 	// MCP is part of the tool environment.
@@ -254,6 +287,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		A2AAgents:       cfg.A2AAgents,
 		Todos:           ecfg.Todos,
 		Approval:        approvalSvc,
+		MCPDisabled:     mcpDisabled,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("runtime: build tools: %w", err)
@@ -281,7 +315,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	// credentials. A turn with no selection runs the engine's default client.
 	resolver := newClientResolver(providerSvc)
 
-	chatSvc, err := turn.New(eng, approvalSvc, resolver, ecfg.Todos)
+	chatSvc, err := turn.New(eng, approvalSvc, resolver, ecfg.Todos, mcpAutoApprove)
 	if err != nil {
 		return nil, fmt.Errorf("runtime: chat service: %w", err)
 	}
@@ -302,6 +336,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		conversation: conv,
 		providers:    providerSvc,
 		mcpRegistry:  cfg.MCPRegistry,
+		mcpGating:    mcpGate,
 		defaultModel: cfg.Model,
 		titler:       maintenance.NewTitler(maintClient),
 	}, nil

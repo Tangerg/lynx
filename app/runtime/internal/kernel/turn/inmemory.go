@@ -50,16 +50,22 @@ func newTurnID() string { return turnIDPrefix + uuid.NewString() }
 // resolver is optional. When non-nil and a turn carries a Model, the impl
 // resolves a per-turn client for that model; nil (or an empty Model) runs
 // every turn on the platform's default client.
-func New(eng engineDep, approvalSvc approval.Service, resolver clientResolver, todos todoLister) (Service, error) {
+//
+// mcpAutoApprove is optional. When non-nil it returns the model-facing MCP tool
+// names ("<server>_<tool>") whose calls skip the approval prompt — a per-server
+// whitelist the runtime recomputes on every MCP registry change. nil disables
+// it (no MCP tool auto-approves).
+func New(eng engineDep, approvalSvc approval.Service, resolver clientResolver, todos todoLister, mcpAutoApprove func() map[string]struct{}) (Service, error) {
 	if eng == nil {
 		return nil, errors.New("turn: engine is required")
 	}
 	return &inMemory{
-		engine:   eng,
-		approval: approvalSvc,
-		resolver: resolver,
-		todos:    todos,
-		turns:    map[string]*turnState{},
+		engine:         eng,
+		approval:       approvalSvc,
+		resolver:       resolver,
+		todos:          todos,
+		mcpAutoApprove: mcpAutoApprove,
+		turns:          map[string]*turnState{},
 	}, nil
 }
 
@@ -71,6 +77,13 @@ type inMemory struct {
 	approval approval.Service // optional — nil = auto-approve every tool
 	resolver clientResolver   // optional — nil = always use the default model
 	todos    todoLister       // optional — nil = no state.snapshot{todos} projection
+
+	// mcpAutoApprove returns the model-facing MCP tool names whose calls skip the
+	// approval prompt — a per-server whitelist the runtime recomputes on every
+	// MCP registry change. Consulted on the gatePrompt path only, AFTER standing
+	// rules, so it never overrides a remembered deny or the read-only plan-mode
+	// deny; it only spares a prompt the user would otherwise see. nil = off.
+	mcpAutoApprove func() map[string]struct{}
 
 	// mu guards the live-turn registry + interruptKinds; each turn owns the
 	// synchronization of its own cross-goroutine state (see turnState.mu).
