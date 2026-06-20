@@ -562,7 +562,17 @@ func (s *inMemory) flushSteering(ctx context.Context, st *turnState, sessionID s
 // extra LLM call, so we amortize it onto the moments where the
 // runtime had to summarize anyway.
 func (s *inMemory) postTurnMaintenance(ctx context.Context, st *turnState, sessionID string) {
-	compaction, err := s.engine.MaybeCompact(ctx, sessionID)
+	// PreCompact hooks fire from inside MaybeCompact — exactly when a compaction
+	// is committed (after its triggers + guards), never on a turn that won't
+	// compact. A hook may veto (Block) the compaction; observe-only otherwise.
+	preCompact := func(hctx context.Context) bool {
+		if st.hooks.Empty() {
+			return true
+		}
+		dec := st.hooks.Run(hctx, hooks.Input{Event: hooks.PreCompact, SessionID: sessionID, Cwd: st.cwd})
+		return !dec.Block
+	}
+	compaction, err := s.engine.MaybeCompact(ctx, sessionID, preCompact)
 	if err != nil {
 		s.emit(st, ErrorEvent{
 			Message: "auto-compaction failed: " + err.Error(),

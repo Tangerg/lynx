@@ -28,7 +28,7 @@ func TestCompactor_NopBelowThreshold(t *testing.T) {
 		chat.NewAssistantMessage("b"),
 	)
 	c := NewCompactor(store, nil /* never called */, CompactionConfig{MaxMessages: 10})
-	res, err := c.MaybeCompact(context.Background(), sessID)
+	res, err := c.MaybeCompact(context.Background(), sessID, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestCompactor_Compacts(t *testing.T) {
 	client, _ := chat.NewClient(newTextStubModel("BULLETS"))
 
 	c := NewCompactor(store, constClient(client), CompactionConfig{MaxMessages: total, KeepRecent: 4})
-	res, err := c.MaybeCompact(context.Background(), sessID)
+	res, err := c.MaybeCompact(context.Background(), sessID, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestCompactor_CutBoundary(t *testing.T) {
 
 	client, _ := chat.NewClient(newTextStubModel("BULLETS"))
 	c := NewCompactor(store, constClient(client), CompactionConfig{MaxMessages: 6, KeepRecent: 4})
-	res, err := c.MaybeCompact(context.Background(), sessID)
+	res, err := c.MaybeCompact(context.Background(), sessID, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestCompactor_TokenTrigger(t *testing.T) {
 	// Message bound far out of reach; token bound below the tool result —
 	// so only the token trigger can fire.
 	c := NewCompactor(store, constClient(client), CompactionConfig{MaxMessages: 1000, MaxTokens: 10_000, KeepRecent: 2})
-	res, err := c.MaybeCompact(context.Background(), sessID)
+	res, err := c.MaybeCompact(context.Background(), sessID, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,12 +187,44 @@ func TestCompactor_TokenTriggerShortHistory(t *testing.T) {
 
 	client, _ := chat.NewClient(newTextStubModel("BULLETS"))
 	c := NewCompactor(store, constClient(client), CompactionConfig{MaxMessages: 1000, MaxTokens: 10_000, KeepRecent: 6})
-	res, err := c.MaybeCompact(context.Background(), sessID) // must not panic
+	res, err := c.MaybeCompact(context.Background(), sessID, nil) // must not panic
 	if err != nil {
 		t.Fatal(err)
 	}
 	if res.Compacted {
 		t.Fatal("expected no compaction when the whole history is within keepRecent")
+	}
+}
+
+// TestCompactor_PreCompactVeto confirms a PreCompact callback returning false
+// vetoes a compaction that would otherwise fire — and that it's only consulted
+// once the sweep is committed (it must see a would-compact history).
+func TestCompactor_PreCompactVeto(t *testing.T) {
+	store := memory.NewInMemoryStore()
+	const sessID = "sess-veto"
+	const total = 20
+	for range total {
+		_ = store.Write(context.Background(), sessID, chat.NewUserMessage("msg"))
+	}
+	client, _ := chat.NewClient(newTextStubModel("BULLETS"))
+	c := NewCompactor(store, constClient(client), CompactionConfig{MaxMessages: total, KeepRecent: 4})
+
+	called := false
+	res, err := c.MaybeCompact(context.Background(), sessID, func(context.Context) bool {
+		called = true
+		return false // veto
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !called {
+		t.Fatal("preCompact should be consulted when a compaction is committed")
+	}
+	if res.Compacted {
+		t.Fatal("a vetoing preCompact must prevent compaction")
+	}
+	if after, _ := store.Read(context.Background(), sessID); len(after) != total {
+		t.Fatalf("history changed despite veto: len = %d, want %d", len(after), total)
 	}
 }
 

@@ -127,7 +127,7 @@ func (s *stubEngine) RestoreChat(_ context.Context, processID string, req kernel
 
 func (s *stubEngine) InjectUserMessage(_ context.Context, _, _ string) error { return nil }
 
-func (s *stubEngine) MaybeCompact(_ context.Context, _ string) (kernel.CompactionResult, error) {
+func (s *stubEngine) MaybeCompact(_ context.Context, _ string, _ func(context.Context) bool) (kernel.CompactionResult, error) {
 	return kernel.CompactionResult{}, nil
 }
 

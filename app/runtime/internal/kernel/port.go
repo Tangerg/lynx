@@ -40,9 +40,11 @@ type SteeringSink interface {
 }
 
 // Compactor folds an over-long history into a summary at a turn boundary.
-// Implemented by domain/maintenance.
+// Implemented by domain/maintenance. preCompact, when non-nil, is consulted
+// once the sweep is committed (triggers + guards passed) and just before the
+// summary — returning false vetoes the compaction (the PreCompact hook seam).
 type Compactor interface {
-	MaybeCompact(ctx context.Context, sessionID string) (CompactionResult, error)
+	MaybeCompact(ctx context.Context, sessionID string, preCompact func(context.Context) bool) (CompactionResult, error)
 }
 
 // Extractor mines the recent conversation for facts worth keeping in the

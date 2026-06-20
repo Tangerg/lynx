@@ -194,11 +194,11 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 //   - sessionID is empty (single-turn / no chat-memory path)
 //   - the configured Compaction.MaxMessages is negative (disabled)
 //   - the current history is shorter than the threshold
-func (e *Engine) MaybeCompact(ctx context.Context, sessionID string) (CompactionResult, error) {
+func (e *Engine) MaybeCompact(ctx context.Context, sessionID string, preCompact func(context.Context) bool) (CompactionResult, error) {
 	if e.compactor == nil {
 		return CompactionResult{}, nil
 	}
-	return e.compactor.MaybeCompact(ctx, sessionID)
+	return e.compactor.MaybeCompact(ctx, sessionID, preCompact)
 }
 
 // MaybeExtract mines the recent conversation for facts worth
