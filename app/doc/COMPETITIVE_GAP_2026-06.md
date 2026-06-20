@@ -11,7 +11,7 @@
 - T1.3 ✅ 纯三选 Restore(`restoreCheckpoint` + MessageContextMenu 子菜单)
 - T1.4 ✅ 修 per-run model 重启丢失(interrupt 持久化 provider+model → Rehydrate 重解析 client)
 
-**T2:5 项做完、2 项设计性非差距、2 项延后:**
+**T2:全部 9 项收口(7 项做完、2 项设计性非差距):**
 - T2.0 ✅ context 占用条(后端 `OnUsage` +contextTokens → run.progress;chip 显示 `N%` 染色)
 - T2.1 ✅ 模糊编辑回退(`fs/editmatch.go`,whitespace-tolerant + 歧义拒绝)
 - T2.6 ✅ diff 按文件语言高亮(`langFromPath`;DiffView 原本已 Shiki,只是写死 TS)
@@ -19,10 +19,8 @@
 - T2.8 ✅ 侧栏会话筛选(projects 树上加 fuzzy filter;排序/收藏留后续)
 - T2.4 ⊘ **设计性非差距**:我们 `@file` 是引用式(插路径,agentic 模型用工具按需读),cline 的 @problems/@diff/@terminal 是内容内联——对 tool-using 模型会胀 prompt 且重复工具能力,且内联易过期。判定为有意分歧(同 provider-OAuth 不抄)。
 - T2.5 ⊘ **已覆盖**:`MessageStream` 已用 `use-stick-to-bottom`(跟随+让位+resize+jump 按钮)。唯一缺的"滚过用户消息吸顶 header"是边际 polish,不值得加复杂度。
-- T2.2 ⏸ **延后(架构级)**:缓存友好微压缩需动 chat-memory/compaction SDK 内部,接近 T3 规模,不在自主低预算时硬上。
-- T2.3 ⏸ **延后(架构级)**:多模型角色路由(planner/coder/fast + fallback)需 config+resolver+turn-loop 大改;且"context-overflow 自动换大模型"邻近被禁的 retry-layer 反不变量。已有 main+maintenance 双档覆盖了便宜后台调用。
-
-> T2.2 / T2.3 建议下轮单独开,各自先出方案再落。
+- T2.2 ✅ **重框为真省钱杠杆**:不是另起微压缩(我们已有主动 compaction),真差是 **Anthropic 历史零 prompt 缓存**。改为在 anthropic adapter 自动放 `cache_control` 断点(tools+system 静态前缀 + 对话尾巴滚动断点);**仅对带 tools 的请求**(一次性 utility 调用不缓存,免 +25% 写费)。缓存读 ~10% 价。
+- T2.3 ✅ **拆解后:fast=已有 maintenance、planner/auto-continue=YAGNI、fallback=撞 no-retry**;真差只在 UI。落地=① 把 maintenance model 角色重命名为 `utility`(破坏性 config 改动,已咨询);② runtime-mutable + 持久化(单行 `utility_role` 表 + atomic cell + `models.get/setUtilityRole` RPC + Providers 面板 picker)。维护服务改为 per-call `ClientFunc` 解析,设置改动下个 turn 边界生效、无需重启。
 
 
 ## 基线纠正(读代码核实,记忆曾漂移)

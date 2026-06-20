@@ -1109,6 +1109,11 @@ fd;且我们用不了 fd-廉价的 FSEvents)。改为两路覆盖,跨平台(inot
 #### `models.list`
 - 入参 `{ provider?: string; cursor?; limit? }`；返回 `Page<Model>`（§4.9）。直读后端内置 model catalog —— **不需要 key、不受启用门控**（解决"没填 key 就拿不到 model 列表"的死结）。`provider` 省略时返回空页（model 按 provider 组织）。
 
+#### `models.getUtilityRole` / `models.setUtilityRole`
+- **utility model role** —— 后端跑 turn 边界维护工作（压缩 / 提取 / 起标题）所用的那个（通常更便宜的）model，区别于 headline 主 model。
+- `getUtilityRole`：无入参；返回 `UtilityRole = { provider?: string; model?: string }`。空 `model` ⇔ 未设置 → 那些工作跑在主 model 上。
+- `setUtilityRole`：入参 `UtilityRole`（空 `model` 清除回主 model）；返回存下的 `UtilityRole`。后端**解析该 client 来校验**——未配置的 provider / 未知 model 在此报 RPC 错（UI 内联显示），不会留到下次压缩才静默退化。持久化（跨重启保留）。
+
 #### `tools.list`
 - 入参 `{ cursor?; limit? }`；返回 `Page<ToolSpec>`。
 
