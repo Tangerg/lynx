@@ -295,6 +295,11 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
         (result) => {
           if (result.userItemId) store().relabelMessage(sessionId, localId, result.userItemId);
         },
+        // The run never opened (channel-a error, e.g. session_busy because the
+        // session has a run in flight / an open interrupt) — drop the optimistic
+        // bubble so it doesn't strand below an error banner for a message that
+        // wasn't accepted. The banner (set in begin's catch) carries the reason.
+        () => store().dropMessage(sessionId, localId),
       );
       // First message graduates a draft session into the sidebar.
       useSessionStore.getState().graduateDraft(sessionId);

@@ -57,6 +57,26 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		return nil, nil, protocol.ErrInvalidParams
 	}
 
+	// One run per session (session_busy, API.md §7.3): reject a new run while
+	// the session already has one in flight — actively pumping OR parked on a
+	// HITL interrupt. Two runs on one session both mutate its chat-memory log,
+	// and a turn-end compaction rewrites the whole log, so an overlapping run's
+	// messages could be silently dropped (and rollback/fork watermarks computed
+	// against a mutating log). The log can't enforce single-writer itself, so the
+	// run entry point does. A parked run leaves s.runs, so the open-interrupt
+	// registry is the second half of the check. (Continue an existing run with
+	// runs.resume / steer it with runs.steer — not a fresh runs.start.)
+	if s.hasActiveRun(sessionID) {
+		return nil, nil, fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, sessionID)
+	}
+	open, err := s.rt.Interrupts().List(ctx, sessionID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(open) > 0 {
+		return nil, nil, fmt.Errorf("%w: session %q is awaiting a response to an open interrupt", protocol.ErrSessionBusy, sessionID)
+	}
+
 	// Image capability gate: when the run names an explicit provider+model,
 	// refuse image input the model can't accept (catalog modalities) so the
 	// user gets a clear error up front instead of a provider 400 mid-stream.
