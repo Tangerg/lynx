@@ -79,6 +79,15 @@ type ServerStatus struct {
 	Err    error
 }
 
+// QualifiedToolName is the model-facing name an MCP tool is exposed under —
+// "<server>_<tool>". It delegates to the lynx mcp provider's DefaultNaming (the
+// one lyra always dials with — sourceTools builds providers without a custom
+// Naming), so the per-server tool-gating sets the runtime keys on this name
+// can never drift from the names the model actually emits.
+func QualifiedToolName(server, tool string) string {
+	return lynxmcp.DefaultNaming(server, &sdkmcp.Tool{Name: tool})
+}
+
 // server is the live state of one configured MCP server. Mutated only by
 // [Connections.Reconnect] after boot; access guarded by Connections.mu.
 type server struct {
