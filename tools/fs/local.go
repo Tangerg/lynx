@@ -226,19 +226,35 @@ func (l *LocalExecutor) Edit(_ context.Context, in EditInput) (EditOutput, error
 
 	content, hadBOM, hadCRLF := normalizeText(data)
 	occurrences := strings.Count(content, in.OldString)
-	if occurrences == 0 {
-		return EditOutput{}, fmt.Errorf("fs.LocalExecutor.Edit: old_string not found in %s", in.Path)
-	}
-	if occurrences > 1 && !in.ReplaceAll {
-		return EditOutput{}, fmt.Errorf("fs.LocalExecutor.Edit: old_string matches %d times in %s — set replace_all=true to confirm", occurrences, in.Path)
-	}
 
-	// strings.Replace with n=-1 is ReplaceAll; n=1 is single-shot.
-	n := 1
-	if in.ReplaceAll {
-		n = -1
+	var updated string
+	replacements := 1
+	switch {
+	case occurrences == 0:
+		// Exact match failed — fall back to a whitespace-tolerant match so a
+		// snippet that drifted on indentation / trailing whitespace still edits,
+		// but ONLY when it's unambiguous: a near-match that hits several regions
+		// is refused, never guessed (a wrong edit is worse than a clear failure).
+		start, end, matches := fuzzyEditRegion(content, in.OldString)
+		switch matches {
+		case 0:
+			return EditOutput{}, fmt.Errorf("fs.LocalExecutor.Edit: old_string not found in %s", in.Path)
+		case 1:
+			updated = content[:start] + in.NewString + content[end:]
+		default:
+			return EditOutput{}, fmt.Errorf("fs.LocalExecutor.Edit: old_string not found exactly in %s; %d regions match apart from whitespace — copy it verbatim (or add surrounding lines to disambiguate)", in.Path, matches)
+		}
+	case occurrences > 1 && !in.ReplaceAll:
+		return EditOutput{}, fmt.Errorf("fs.LocalExecutor.Edit: old_string matches %d times in %s — set replace_all=true to confirm", occurrences, in.Path)
+	default:
+		// strings.Replace with n=-1 is ReplaceAll; n=1 is single-shot.
+		n := 1
+		if in.ReplaceAll {
+			n = -1
+			replacements = occurrences
+		}
+		updated = strings.Replace(content, in.OldString, in.NewString, n)
 	}
-	updated := strings.Replace(content, in.OldString, in.NewString, n)
 
 	mode := os.FileMode(0o644)
 	if info, err := os.Stat(path); err == nil {
@@ -248,11 +264,6 @@ func (l *LocalExecutor) Edit(_ context.Context, in EditInput) (EditOutput, error
 	out := restoreFormat(updated, hadBOM, hadCRLF)
 	if err := atomicWriteFile(path, out, mode); err != nil {
 		return EditOutput{}, err
-	}
-
-	replacements := 1
-	if in.ReplaceAll {
-		replacements = occurrences
 	}
 	return EditOutput{Replacements: replacements}, nil
 }
