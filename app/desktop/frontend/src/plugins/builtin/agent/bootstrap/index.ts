@@ -8,47 +8,19 @@
 // off" — so a failed handshake just means no capability gating, not a
 // broken app.
 
-import { CLIENT_INFO, PROTOCOL_VERSION } from "@/main/config";
+import { CLIENT_INFO } from "@/main/config";
 import { getContainer } from "@/main/container";
+import { performHandshake } from "@/main/handshake";
 import { definePlugin } from "@/plugins/sdk";
 import { getConfig } from "@/plugins/sdk/config";
-import type { ClientCapabilities } from "@/rpc";
-import { useRuntimeStore } from "@/state/runtimeStore";
-
-// The StreamEvent types the reducer renders — declared so the server can
-// avoid emitting events we'd drop (API.md §9). `interruptTypes` is the HITL
-// switch: declaring approval / question tells the server we can render +
-// answer them, so it won't strand an unresolvable open interrupt (§6.2).
-const CLIENT_CAPABILITIES: ClientCapabilities = {
-  events: [
-    "run.started",
-    "run.progress",
-    "run.finished",
-    "item.started",
-    "item.delta",
-    "item.completed",
-    "state.snapshot",
-    "state.delta",
-    // The reducer routes `custom` StreamEvents to host.events.onCustom
-    // handlers (third-party content blocks / preview-blocks). Declare it so a
-    // spec-strict server (§9: "won't emit event types outside the negotiated
-    // set") actually sends them.
-    "custom",
-  ],
-  features: { multimodal: true },
-  interruptTypes: ["approval", "question"],
-};
 
 async function handshake(): Promise<void> {
   const { sidecar, client } = getContainer();
   // Best-effort liveness probe; ignored if the sidecar isn't implemented.
   await sidecar.info().catch(() => undefined);
-  const result = await client().runtime.initialize({
-    protocolVersion: PROTOCOL_VERSION,
-    clientInfo: CLIENT_INFO,
-    capabilities: CLIENT_CAPABILITIES,
-  });
-  useRuntimeStore.getState().setHandshake(result);
+  // The negotiation itself lives in main/handshake so the auto-recovery path
+  // (rpc reinit decorator) re-runs the exact same thing on a lost session.
+  await performHandshake(client().rpc);
 }
 
 // Install the OTel triad once, early + always-on (mirror of the backend's

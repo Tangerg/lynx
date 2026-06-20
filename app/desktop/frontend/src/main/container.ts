@@ -4,6 +4,7 @@
 // plugin setup) calls these too; tests inject fakes via `setContainer()`.
 
 import { PROTOCOL_VERSION, RUNTIME_BASE } from "@/main/config";
+import { performHandshake } from "@/main/handshake";
 import { getConfig } from "@/plugins/sdk/config";
 import type { LyraClient, ShellClient, SidecarClient } from "@/rpc";
 import {
@@ -54,6 +55,11 @@ function defaultContainer(): Container {
           localToken: getConfig<string>("api.localToken") ?? undefined,
           protocolVersion: PROTOCOL_VERSION,
         }),
+        // Auto-recover a lost session: if a call hits capability_not_negotiated
+        // (backend restarted / never handshook), re-run runtime.initialize and
+        // retry. This is what makes a backend restart transparent — the
+        // workspace-events resubscribe loop and any business call self-heal.
+        { reinit: performHandshake },
       )),
     sidecar: createSidecarClient({ baseUrl }),
     shell: createShellClient({ baseUrl }),

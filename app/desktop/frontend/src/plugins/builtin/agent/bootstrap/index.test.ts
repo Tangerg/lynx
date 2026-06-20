@@ -12,10 +12,20 @@ import bootstrap from "./index";
 
 const fakeCapabilities = { protocolVersion: "2026-06-03", features: {}, providers: [], events: [] };
 
+// Bootstrap handshakes via the low-level rpc.call (so the auto-recovery path
+// shares the exact negotiation), so the fake routes runtime.initialize there.
 function stubContainer(initialize: Methods["runtime"]["initialize"]) {
   setContainer({
     sidecar: { info: vi.fn().mockResolvedValue({}) } as unknown as Container["sidecar"],
-    client: () => ({ runtime: { initialize } }) as unknown as LyraClient,
+    client: () =>
+      ({
+        rpc: {
+          call: (method: string, params?: unknown) =>
+            method === "runtime.initialize"
+              ? initialize(params as never)
+              : Promise.reject(new Error(`unexpected method ${method}`)),
+        },
+      }) as unknown as LyraClient,
   });
 }
 
