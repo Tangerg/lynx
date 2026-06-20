@@ -136,6 +136,15 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string) (kernel.
 	if !c.shouldCompact(msgs) {
 		return kernel.CompactionResult{}, nil
 	}
+	// The whole history is within keep-recent — nothing OLDER to summarize, and
+	// computing a cutoff here would go negative (len-keepRecent < 0 → an
+	// out-of-range index in the boundary scan below). This is reachable: the
+	// token-footprint trigger ([shouldCompact]) fires on a SHORT conversation
+	// bloated by a few large tool results, where len(msgs) < keepRecent. Skip —
+	// you can't compact messages you must keep.
+	if len(msgs) <= c.keepRecent {
+		return kernel.CompactionResult{}, nil
+	}
 
 	before := len(msgs)
 	cutoff := len(msgs) - c.keepRecent
