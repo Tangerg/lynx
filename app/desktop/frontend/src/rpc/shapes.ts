@@ -549,6 +549,10 @@ export interface Provider {
   id: string;
   baseUrl?: string;
   apiKeyMasked: string; // "" = unset; e.g. "sk-…fc78"; never reversible
+  // Provenance of the key: "stored" (set via providers.configure, editable) or
+  // "env" (read from the provider's env var, read-only — shown as "from env").
+  // Omitted when unconfigured (apiKeyMasked is also ""). API.md §4.9.
+  keySource?: "stored" | "env";
   // No built-in endpoint (generic openai/anthropic-compatible passthrough +
   // Azure): config MUST collect baseUrl, and with no catalog the model is
   // free-text input (models.list returns empty). API.md §4.9.

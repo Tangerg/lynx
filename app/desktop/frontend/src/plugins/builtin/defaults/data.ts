@@ -312,6 +312,7 @@ export const defaultData = definePlugin({
           id: p.id,
           baseUrl: p.baseUrl ?? "",
           apiKeyMasked: p.apiKeyMasked,
+          keySource: p.keySource,
         })),
     });
     // approval.* (B9, 613) — global stance + per-session remembered decisions.

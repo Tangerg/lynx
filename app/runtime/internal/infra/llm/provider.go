@@ -11,7 +11,10 @@
 // configured right now".
 package llm
 
-import "slices"
+import (
+	"os"
+	"slices"
+)
 
 // Provider identifies an LLM vendor Lyra supports. The string values are the
 // wire ids (Provider.id on the protocol, runs.start{provider}) and the catalog
@@ -87,4 +90,27 @@ func APIKeyEnv(p Provider) string {
 // renders a base URL field + free-form model input for these.
 func RequiresBaseURL(p Provider) bool {
 	return providerInfo[p].requiresBaseURL
+}
+
+// EnvKeys reads the environment once and returns the API keys present for the
+// providers a key alone makes usable — keyed by provider id, value the key. It
+// backs the provider registry's stored>env credential fallback (a developer
+// with ANTHROPIC_API_KEY / OPENAI_API_KEY / … in their shell gets those
+// providers enabled out of the box).
+//
+// Providers that require a caller-supplied base URL (Azure, the generic
+// compat passthroughs) are excluded: an env key alone can't reach their
+// endpoint, so surfacing them as "enabled from env" would be a lie. The
+// environment is process-static, so callers read this once at startup.
+func EnvKeys() map[string]string {
+	out := make(map[string]string)
+	for p, entry := range providerInfo {
+		if entry.requiresBaseURL || entry.apiKeyEnv == "" {
+			continue
+		}
+		if v := os.Getenv(entry.apiKeyEnv); v != "" {
+			out[string(p)] = v
+		}
+	}
+	return out
 }
