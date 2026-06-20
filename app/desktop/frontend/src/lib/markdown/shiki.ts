@@ -62,6 +62,66 @@ export function getHighlighter(): Promise<Highlighter> {
   return promise;
 }
 
+// Map a file path to a Shiki language tag by extension (or a bare basename like
+// "Dockerfile" / "Makefile"). Returns "text" for anything unrecognized; pass the
+// result through [resolveLang] before use so an un-bundled tag still degrades
+// cleanly. Used by the diff view to highlight each file in its OWN language
+// rather than assuming one.
+export function langFromPath(path: string): string {
+  const base = path.slice(path.lastIndexOf("/") + 1);
+  const byName: Record<string, string> = {
+    Dockerfile: "dockerfile",
+    Makefile: "bash", // close enough for tab-indented recipes
+  };
+  if (byName[base]) return byName[base]!;
+  const ext = base.slice(base.lastIndexOf(".") + 1).toLowerCase();
+  const byExt: Record<string, string> = {
+    ts: "typescript",
+    tsx: "tsx",
+    mts: "typescript",
+    cts: "typescript",
+    js: "javascript",
+    mjs: "javascript",
+    cjs: "javascript",
+    jsx: "jsx",
+    py: "python",
+    go: "go",
+    rs: "rust",
+    java: "java",
+    c: "c",
+    h: "c",
+    cc: "cpp",
+    cpp: "cpp",
+    cxx: "cpp",
+    hpp: "cpp",
+    cs: "csharp",
+    rb: "ruby",
+    php: "php",
+    swift: "swift",
+    kt: "kotlin",
+    kts: "kotlin",
+    sh: "bash",
+    bash: "bash",
+    zsh: "bash",
+    json: "json",
+    jsonc: "json",
+    yaml: "yaml",
+    yml: "yaml",
+    toml: "toml",
+    html: "html",
+    htm: "html",
+    css: "css",
+    scss: "scss",
+    md: "markdown",
+    markdown: "markdown",
+    sql: "sql",
+    graphql: "graphql",
+    gql: "graphql",
+    xml: "xml",
+  };
+  return byExt[ext] ?? "text";
+}
+
 // Pick the closest loaded language for a tag — Shiki throws on unknown
 // langs, so we degrade to plain "text" if the model emits something we
 // don't bundle (e.g., `kdl`, `nix`).

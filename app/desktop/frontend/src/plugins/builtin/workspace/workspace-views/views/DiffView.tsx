@@ -3,6 +3,7 @@ import type { DiffRow } from "@/lib/data/queries";
 import { useMemo } from "react";
 import { intraLineDiff } from "@/lib/diff/intraLineDiff";
 import { stripCodeWrapper, useCodeHighlighter } from "@/lib/markdown/useCodeHighlight";
+import { langFromPath, resolveLang } from "@/lib/markdown/shiki";
 import { cn } from "@/lib/utils";
 
 /** Unified (one column, +/− interleaved) vs split (old left, new right). */
@@ -43,12 +44,10 @@ function highlightInline(
   h: Highlighter,
   code: string,
   theme: string,
+  lang: string,
   decorations: WordDecoration[],
 ): string {
-  return stripCodeWrapper(
-    h.codeToHtml(code || " ", { lang: "typescript", theme, decorations }),
-    code,
-  );
+  return stripCodeWrapper(h.codeToHtml(code || " ", { lang, theme, decorations }), code);
 }
 
 // Map each replaced line to its changed sub-range (word-level diff). Walks the
@@ -89,12 +88,23 @@ function CodeCell({ code, html }: { code: string; html: string | undefined }) {
   );
 }
 
-export function DiffView({ rows, layout = "unified" }: { rows: DiffRow[]; layout?: DiffLayout }) {
+export function DiffView({
+  rows,
+  layout = "unified",
+  path,
+}: {
+  rows: DiffRow[];
+  layout?: DiffLayout;
+  /** The diffed file's path — highlights each file in its OWN language
+   *  (langFromPath) instead of assuming TypeScript. Omitted → "text". */
+  path?: string;
+}) {
   const { highlighter, theme: shikiTheme } = useCodeHighlighter();
 
   const wordRanges = useMemo(() => computeWordRanges(rows), [rows]);
   const highlighted = useMemo(() => {
     if (!highlighter) return null;
+    const lang = resolveLang(highlighter, path ? langFromPath(path) : "text");
     const out = new Map<DiffRow, string>();
     for (const row of rows) {
       if (row.type === "hunk") continue;
@@ -103,10 +113,10 @@ export function DiffView({ rows, layout = "unified" }: { rows: DiffRow[]; layout
         row.type === "deleted" ? WD_DEL_STYLE : row.type === "added" ? WD_ADD_STYLE : "";
       const decorations: WordDecoration[] =
         range && style ? [{ start: range[0], end: range[1], properties: { style } }] : [];
-      out.set(row, highlightInline(highlighter, row.code, shikiTheme, decorations));
+      out.set(row, highlightInline(highlighter, row.code, shikiTheme, lang, decorations));
     }
     return out;
-  }, [highlighter, rows, shikiTheme, wordRanges]);
+  }, [highlighter, rows, shikiTheme, wordRanges, path]);
 
   if (layout === "split") {
     return <SplitDiff rows={rows} highlighted={highlighted} />;

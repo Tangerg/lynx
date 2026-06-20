@@ -41,7 +41,7 @@ function FileSection({
       {file.binary ? (
         <p className="m-0 px-3 py-2 font-mono text-[11.5px] text-fg-faint">{t("diff.binary")}</p>
       ) : (
-        <DiffView rows={file.rows} layout={layout} />
+        <DiffView rows={file.rows} layout={layout} path={file.path} />
       )}
     </section>
   );
