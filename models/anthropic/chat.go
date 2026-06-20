@@ -364,7 +364,7 @@ func (r *responseHelper) buildResult(resp *anthropicsdk.Message) (*chat.Result, 
 	})
 }
 
-func (r *responseHelper) buildMeta(req *anthropicsdk.MessageNewParams, resp *anthropicsdk.Message) *chat.ResponseMetadata {
+func (r *responseHelper) buildMeta(resp *anthropicsdk.Message) *chat.ResponseMetadata {
 	usage := &chat.Usage{
 		PromptTokens:     resp.Usage.InputTokens,
 		CompletionTokens: resp.Usage.OutputTokens,
@@ -396,13 +396,13 @@ func (r *responseHelper) buildMeta(req *anthropicsdk.MessageNewParams, resp *ant
 	return meta
 }
 
-func (r *responseHelper) buildChatResponse(req *anthropicsdk.MessageNewParams, resp *anthropicsdk.Message) (*chat.Response, error) {
+func (r *responseHelper) buildChatResponse(resp *anthropicsdk.Message) (*chat.Response, error) {
 	result, err := r.buildResult(resp)
 	if err != nil {
 		return nil, err
 	}
 
-	meta := r.buildMeta(req, resp)
+	meta := r.buildMeta(resp)
 
 	return chat.NewResponse(result, meta)
 }
@@ -620,7 +620,7 @@ func (c *ChatModel) Call(ctx context.Context, req *chat.Request) (*chat.Response
 		return nil, err
 	}
 
-	return c.respHelper.buildChatResponse(apiReq, apiResp)
+	return c.respHelper.buildChatResponse(apiResp)
 }
 
 func (c *ChatModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
