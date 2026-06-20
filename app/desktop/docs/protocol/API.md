@@ -942,7 +942,9 @@ interface SessionArtifact {
 - 返回 `{ runId: string; userItemId?: string }`；随后流式 `RunEvent`（§5），以 `run.finished{outcome}` 收尾。
   - `userItemId`：本 run 开场 `userMessage` Item 的 id —— 与流上 `item.*` 及 `items.list` 里同一个 id。客户端用它把
     乐观气泡按精确 id 对账（不按内容文本启发式匹配）。`runs.resume` 无开场 user 回合，故为空。
-- 幂等：经 `X-Idempotency-Key` 头（见 TRANSPORT §10），重复键重新接上既有 run、不新建。
+- 幂等：**尚未实现**（`X-Idempotency-Key` 头当前未被读取；`idempotency_conflict`/`-32015` 为预留码、暂不产生）。
+  目前重复键不会重连既有 run —— 原 run 还在跑则新请求得 `session_busy`（下条），已结束则会另起一个新 run。
+  设计意图是「重复键重连既有 run」，待实现；当前真正防重的是下面的「一会话一 run」守卫。
 - **一会话一 run（`session_busy`）**：该 session 已有 run 在跑（**正在 pump 或 parked 在 HITL interrupt 上**）时拒绝——
   两个 run 同时写一条会话的消息日志会被 turn 末压缩（整段重写）吞掉彼此的消息。继续既有 run 用 `runs.resume`、
   插话用 `runs.steer`,而非再开一个 `runs.start`。（注:开 run 的「检查—注册」非单一临界区,多客户端同瞬并发 start 仍有

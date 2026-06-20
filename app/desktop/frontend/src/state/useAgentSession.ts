@@ -91,9 +91,12 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       // A finished run changed this session's durable metering — refetch its
       // cumulative usage chip. Fired for the exact session that finished (works
       // for a background session too), on the authoritative wire signal rather
-      // than an active-session running-flag transition. The local persist of the
-      // run blob completes well before this invalidate's refetch round-trips to
-      // the server, so usage.session reads the finished run.
+      // than an active-session running-flag transition. Ordering note: the server
+      // persists the run blob AFTER it appends run.finished to the hub (pump
+      // reorder), but that persist is a sub-ms local DB write that completes long
+      // before this invalidate's usage.session HTTP refetch round-trips back to
+      // the server — so the refetch reads the finished run. If it ever lost that
+      // race, the next refetch (staleTime / a later run) heals it.
       if (batch.some((e) => e.event.type === "run.finished")) {
         void queryClient.invalidateQueries({ queryKey: [USAGE_SESSION_KEY, sessionId] });
       }
@@ -207,10 +210,13 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     // Send re-entrancy latch. The steady-state guard (useChatSend's run.running)
     // only flips true once run.started is FOLDED — a frame after runs.start
     // resolves (run.started streams in and folds via the rAF batcher). A second
-    // Enter in that window would pass the running guard and fire a second
-    // runs.start (runs.start has no session_busy rejection, API.md §7.3). So the
-    // latch spans the WHOLE window send()→run-settled: set in send(), cleared in
-    // begin()'s finally (run started+streamed, errored, or interrupted). Earlier
+    // Enter in that window would fire a second runs.start; the backend now
+    // rejects it with session_busy (one run per session, API.md §7.3), but the
+    // latch still matters — it avoids the wasted round-trip + the
+    // optimistic-bubble-then-rollback churn for that in-flight-but-not-yet-folded
+    // window. So the latch spans the WHOLE window send()→run-settled: set in
+    // send(), cleared in begin()'s finally (run started+streamed, errored, or
+    // interrupted). Earlier
     // (onResult) was too soon and reopened the gap. Unused by resume.
     let starting = false;
 

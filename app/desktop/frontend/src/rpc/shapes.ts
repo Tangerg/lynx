@@ -219,6 +219,10 @@ export interface RunRef {
   // or history restore (items.list.runs) — which never saw the originating
   // runs.start — can still label which model the Run used (API.md §4.2).
   model?: string;
+  // The provider id this Run ran against (Provider.id), paired with model;
+  // absent = runtime default. Stamped so a finished Run is self-describing
+  // (usage.summary attributes spend by provider). API.md §4.2.
+  provider?: string;
   status?: "running" | "finished";
   outcome?: RunOutcome; // when status=finished
   createdAt?: string;
