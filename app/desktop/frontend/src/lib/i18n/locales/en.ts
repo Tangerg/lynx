@@ -40,6 +40,7 @@ export const en: Record<string, string> = {
   "composer.execMode.hint": "Execution mode · Workspace · Auto",
   "composer.gitBranch": "Git branch",
   "composer.usage.hint": "Token usage — input ↑ / output ↓ (this run)",
+  "composer.usage.context": "Context window used",
   "composer.slash.heading": "Commands",
   "composer.placeholder.debug": "Paste a failing test output and I'll walk you through it.",
   "composer.placeholder.implement": "Implement what? Describe the change and I'll plan + execute.",

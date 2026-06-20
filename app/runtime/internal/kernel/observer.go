@@ -65,7 +65,13 @@ type toolObserver interface {
 	// final per-turn total that lands on TurnEnd. costUSD is zero when no
 	// pricing hook is configured (the wire layer omits it rather than showing
 	// a fabricated $0).
-	OnUsage(usage TokenUsage, costUSD float64)
+	//
+	// contextTokens is THIS round's prompt-token count (not cumulative) — the
+	// size of the context the model was just sent, i.e. how full the window is
+	// right now. It grows across rounds/turns as history accumulates and drops
+	// after a compaction, so the client can render a live context-occupancy
+	// gauge (distinct from the summed usage, which only ever grows).
+	OnUsage(usage TokenUsage, costUSD float64, contextTokens int64)
 }
 
 // ToolApprovalVerdict is the decorator's instruction for one gated tool

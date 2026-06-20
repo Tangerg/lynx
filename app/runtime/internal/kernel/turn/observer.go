@@ -206,9 +206,11 @@ func (t *turnObserver) OnReasoningDelta(text string) {
 
 // OnUsage forwards the per-round cumulative usage as a [UsageReported] event —
 // the mid-run token / cost readout (transport maps it to run.progress).
-func (t *turnObserver) OnUsage(usage kernel.TokenUsage, costUSD float64) {
+// contextTokens is this round's prompt size (the live context occupancy).
+func (t *turnObserver) OnUsage(usage kernel.TokenUsage, costUSD float64, contextTokens int64) {
 	t.svc.emit(t.st, UsageReported{
-		TokenUsage: usage,
-		CostUSD:    costUSD,
+		TokenUsage:    usage,
+		CostUSD:       costUSD,
+		ContextTokens: contextTokens,
 	})
 }

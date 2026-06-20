@@ -238,6 +238,12 @@ export interface RunState {
   totalSteps: number;
   activity: string;
   usage: RunUsage;
+  /** Live context-window occupancy = the latest round's prompt-token count
+   *  (RunProgress.contextTokens), distinct from the cumulative `usage`. Unlike
+   *  usage it PERSISTS across runs in a session (the context doesn't shrink when
+   *  a new run starts) — only a compaction drops it. Undefined until the first
+   *  round reports it; pair with the served model's contextWindow for a gauge. */
+  contextTokens?: number;
 }
 
 /** Last error reported by the run — RunOutcome.type="error" (or a tool-level

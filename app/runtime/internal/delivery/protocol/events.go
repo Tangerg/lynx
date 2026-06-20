@@ -91,7 +91,13 @@ type RunProgress struct {
 	// rather than streaming a live countdown. Staged, not an oversight.
 	MaxSteps *int   `json:"maxSteps,omitempty"`
 	Usage    *Usage `json:"usage,omitempty"`
-	Activity string `json:"activity,omitempty"` // human-readable current action
+	// ContextTokens is the latest round's prompt-token count — the live
+	// context-window occupancy (how full the window is right now), distinct from
+	// the cumulative-over-rounds Usage.inputTokens (which only grows). Pair it
+	// with the served model's contextWindow (models.list) for an occupancy gauge;
+	// it drops after a compaction. Ephemeral, like the rest of RunProgress.
+	ContextTokens *int64 `json:"contextTokens,omitempty"`
+	Activity      string `json:"activity,omitempty"` // human-readable current action
 }
 
 // TodoSnapshot is one entry of the model's task list, projected to

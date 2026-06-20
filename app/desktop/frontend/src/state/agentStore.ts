@@ -373,6 +373,13 @@ export function useAgentRunUsage(): RunUsage {
   return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).run.usage);
 }
 
+/** Live context-window occupancy (latest round's prompt tokens), or undefined
+ *  until a round reports it. Persists across runs in the session. */
+export function useAgentRunContextTokens(): number | undefined {
+  const sid = useSessionStore((s) => s.activeSessionId);
+  return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).run.contextTokens);
+}
+
 /** The active session's plan items. */
 export function useAgentPlan(): PlanItem[] {
   const sid = useSessionStore((s) => s.activeSessionId);
