@@ -4,6 +4,27 @@
 > 本文件是**可执行清单**,按难度分 T1<T2<T3,从低到高逐项做,每项一个独立 commit、做完全绿。
 > 设计哲学/反不变量见根 `CLAUDE.md`;**明确不抄**的方向见文末。
 
+## 执行状态 — 2026-06-20 自主一轮(全部 commit+push,逐项全绿)
+**T1 全部完成(4/4):**
+- T1.1 ✅ composer token+成本 chip(`RunState.usage`,删死字段 `cost`)
+- T1.2 ✅ steer 乐观气泡(`useChatSend` mint `local-steer-*` + `dropMessage` 回退)
+- T1.3 ✅ 纯三选 Restore(`restoreCheckpoint` + MessageContextMenu 子菜单)
+- T1.4 ✅ 修 per-run model 重启丢失(interrupt 持久化 provider+model → Rehydrate 重解析 client)
+
+**T2:5 项做完、2 项设计性非差距、2 项延后:**
+- T2.0 ✅ context 占用条(后端 `OnUsage` +contextTokens → run.progress;chip 显示 `N%` 染色)
+- T2.1 ✅ 模糊编辑回退(`fs/editmatch.go`,whitespace-tolerant + 歧义拒绝)
+- T2.6 ✅ diff 按文件语言高亮(`langFromPath`;DiffView 原本已 Shiki,只是写死 TS)
+- T2.7 ✅ loop 渐进提醒(SDK `tool` 中间件:第3轮注入 `<system-reminder>`,第6轮硬停)
+- T2.8 ✅ 侧栏会话筛选(projects 树上加 fuzzy filter;排序/收藏留后续)
+- T2.4 ⊘ **设计性非差距**:我们 `@file` 是引用式(插路径,agentic 模型用工具按需读),cline 的 @problems/@diff/@terminal 是内容内联——对 tool-using 模型会胀 prompt 且重复工具能力,且内联易过期。判定为有意分歧(同 provider-OAuth 不抄)。
+- T2.5 ⊘ **已覆盖**:`MessageStream` 已用 `use-stick-to-bottom`(跟随+让位+resize+jump 按钮)。唯一缺的"滚过用户消息吸顶 header"是边际 polish,不值得加复杂度。
+- T2.2 ⏸ **延后(架构级)**:缓存友好微压缩需动 chat-memory/compaction SDK 内部,接近 T3 规模,不在自主低预算时硬上。
+- T2.3 ⏸ **延后(架构级)**:多模型角色路由(planner/coder/fast + fallback)需 config+resolver+turn-loop 大改;且"context-overflow 自动换大模型"邻近被禁的 retry-layer 反不变量。已有 main+maintenance 双档覆盖了便宜后台调用。
+
+> T2.2 / T2.3 建议下轮单独开,各自先出方案再落。
+
+
 ## 基线纠正(读代码核实,记忆曾漂移)
 - MCP **已有完整 OAuth 2.1**(DCR+PKCE+loopback),非"bearer no-OAuth"。
 - **Planner 不存在**(配置注释是死的);maintenance 双模型(compaction/title/extract)在。
