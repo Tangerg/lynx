@@ -57,6 +57,35 @@ function mapToLines(m: Record<string, string> | undefined): string {
     : "";
 }
 
+// LinesField is a labeled multi-line text field — the shared shape of the args /
+// env / headers editors (one entry per line). The label doubles as the aria
+// label since each is self-describing.
+function LinesField({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <label className="flex flex-col gap-1 text-[11px] text-fg-muted">
+      {label}
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={2}
+        aria-label={label}
+        placeholder={placeholder}
+        className={AREA}
+      />
+    </label>
+  );
+}
+
 interface Props {
   /** Existing server to edit, or undefined for the "add server" form. */
   server?: MCPServerConfigInfo;
@@ -219,28 +248,18 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
             placeholder={t("mcp.form.command.placeholder")}
             className={FIELD}
           />
-          <label className="flex flex-col gap-1 text-[11px] text-fg-muted">
-            {t("mcp.form.args")}
-            <textarea
-              value={args}
-              onChange={(e) => setArgs(e.target.value)}
-              rows={2}
-              aria-label={t("mcp.form.args")}
-              placeholder={t("mcp.form.args.placeholder")}
-              className={AREA}
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-[11px] text-fg-muted">
-            {t("mcp.form.env")}
-            <textarea
-              value={env}
-              onChange={(e) => setEnv(e.target.value)}
-              rows={2}
-              aria-label={t("mcp.form.env")}
-              placeholder={t("mcp.form.env.placeholder")}
-              className={AREA}
-            />
-          </label>
+          <LinesField
+            label={t("mcp.form.args")}
+            value={args}
+            onChange={setArgs}
+            placeholder={t("mcp.form.args.placeholder")}
+          />
+          <LinesField
+            label={t("mcp.form.env")}
+            value={env}
+            onChange={setEnv}
+            placeholder={t("mcp.form.env.placeholder")}
+          />
           <input
             type="text"
             aria-label={t("mcp.form.dir.aria")}
@@ -268,17 +287,12 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
             placeholder={hasAuthStored ? t("mcp.form.auth.keep") : t("mcp.form.auth.placeholder")}
             className={FIELD}
           />
-          <label className="flex flex-col gap-1 text-[11px] text-fg-muted">
-            {t("mcp.form.headers")}
-            <textarea
-              value={headers}
-              onChange={(e) => setHeaders(e.target.value)}
-              rows={2}
-              aria-label={t("mcp.form.headers")}
-              placeholder={t("mcp.form.headers.placeholder")}
-              className={AREA}
-            />
-          </label>
+          <LinesField
+            label={t("mcp.form.headers")}
+            value={headers}
+            onChange={setHeaders}
+            placeholder={t("mcp.form.headers.placeholder")}
+          />
         </>
       )}
 

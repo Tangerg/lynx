@@ -51,6 +51,31 @@ func mcpDialFailedProblem(err error) *protocol.ProblemData {
 	return &protocol.ProblemData{Type: "mcp_dial_failed", Detail: detail}
 }
 
+// mcpLiveStatus folds a server's best-effort connection state into the wire triple
+// — its status, the tool count inlined when connected, and the failure reason
+// when failed — matched by name against the live statuses. ok is false when the
+// server has no live entry (the caller then omits status). Shared by the
+// serverChanged event and the registry-config projection.
+func (s *Server) mcpLiveStatus(ctx context.Context, name string) (status protocol.McpStatus, toolCount *int, problem *protocol.ProblemData, ok bool) {
+	for _, st := range s.rt.MCPServerStatuses() {
+		if st.Name != name {
+			continue
+		}
+		status = protocol.McpStatus(st.Status)
+		switch st.Status {
+		case "connected":
+			if tools, err := s.rt.MCPTools(ctx, name); err == nil {
+				count := len(tools)
+				toolCount = &count
+			}
+		case "failed":
+			problem = mcpDialFailedProblem(st.Err)
+		}
+		return status, toolCount, problem, true
+	}
+	return "", nil, nil, false
+}
+
 // WorkspaceMCPListTools lists tools advertised by the connected MCP servers,
 // scoped to in.Server when set (empty = all). Each tool's bare name + the
 // server it belongs to are kept separate on the wire (the model sees them as
@@ -109,21 +134,8 @@ func (s *Server) WorkspaceMCPReconnect(ctx context.Context, server string) error
 // §5.2: "status omitted = entry no longer exists").
 func (s *Server) mcpServerChangedEvent(ctx context.Context, server string) protocol.WorkspaceEvent {
 	ev := protocol.WorkspaceEvent{Type: protocol.WorkspaceEventMCPServerChanged, Server: server}
-	for _, st := range s.rt.MCPServerStatuses() {
-		if st.Name != server {
-			continue
-		}
-		ev.Status = protocol.McpStatus(st.Status)
-		switch st.Status {
-		case "connected":
-			if tools, err := s.rt.MCPTools(ctx, server); err == nil {
-				count := len(tools)
-				ev.ToolCount = &count
-			}
-		case "failed":
-			ev.Error = mcpDialFailedProblem(st.Err)
-		}
-		break
+	if status, toolCount, problem, ok := s.mcpLiveStatus(ctx, server); ok {
+		ev.Status, ev.ToolCount, ev.Error = status, toolCount, problem
 	}
 	return ev
 }
@@ -254,24 +266,11 @@ func (s *Server) mcpConfigWire(ctx context.Context, srv mcpserver.Server) protoc
 		DisabledTools:       srv.DisabledTools,
 		AutoApproveTools:    srv.AutoApproveTools,
 	}
-	if !srv.Enabled {
-		return out
-	}
-	for _, st := range s.rt.MCPServerStatuses() {
-		if st.Name != srv.Name {
-			continue
+	// Live status only matters for an enabled, dialed server.
+	if srv.Enabled {
+		if status, toolCount, problem, ok := s.mcpLiveStatus(ctx, srv.Name); ok {
+			out.Status, out.ToolCount, out.Error = status, toolCount, problem
 		}
-		out.Status = protocol.McpStatus(st.Status)
-		switch st.Status {
-		case "connected":
-			if tools, err := s.rt.MCPTools(ctx, srv.Name); err == nil {
-				count := len(tools)
-				out.ToolCount = &count
-			}
-		case "failed":
-			out.Error = mcpDialFailedProblem(st.Err)
-		}
-		break
 	}
 	return out
 }
