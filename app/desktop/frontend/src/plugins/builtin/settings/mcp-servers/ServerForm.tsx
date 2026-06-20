@@ -15,6 +15,7 @@ import {
 } from "@/lib/agent/useMCPServerConfig";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
+import { ToolControls } from "./ToolControls";
 
 type Probe = { state: "idle" | "busy" } | { state: "ok" } | { state: "error"; reason: string };
 
@@ -57,6 +58,12 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
   // http
   const [url, setUrl] = useState(server?.url ?? "");
   const [authorization, setAuthorization] = useState("");
+  // Per-tool gating (edited via ToolControls for an existing server). Sparse:
+  // an absent tool = enabled + not auto-approved.
+  const [disabledTools, setDisabledTools] = useState<string[]>(server?.disabledTools ?? []);
+  const [autoApproveTools, setAutoApproveTools] = useState<string[]>(
+    server?.autoApproveTools ?? [],
+  );
 
   const [saving, setSaving] = useState(false);
   const [probe, setProbe] = useState<Probe>({ state: "idle" });
@@ -72,11 +79,10 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
       transport,
       enabled: server?.enabled ?? true,
       description: description.trim() || undefined,
-      // Preserve the tool gating lists across an edit — the form doesn't edit
-      // them (per-tool gating UI is a deferred follow-up, see the pane header),
-      // so round-trip whatever the server already carries rather than wiping it.
-      disabledTools: server?.disabledTools,
-      autoApproveTools: server?.autoApproveTools,
+      // Per-tool gating, edited below via ToolControls (existing server only).
+      // Sparse — omit empty lists so the wire carries only non-default entries.
+      disabledTools: disabledTools.length ? disabledTools : undefined,
+      autoApproveTools: autoApproveTools.length ? autoApproveTools : undefined,
     };
     if (transport === "stdio") {
       return {
@@ -239,6 +245,21 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
         placeholder={t("mcp.form.description.placeholder")}
         className={FIELD}
       />
+
+      {server && (
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[11px] text-fg-muted">{t("mcp.tools.manage")}</span>
+          <ToolControls
+            server={server.name}
+            disabledTools={disabledTools}
+            autoApproveTools={autoApproveTools}
+            onChange={(next) => {
+              setDisabledTools(next.disabledTools);
+              setAutoApproveTools(next.autoApproveTools);
+            }}
+          />
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <PillButton

@@ -4,10 +4,10 @@
 // the Providers pane's list + per-row save/test/probe shape; the live status
 // dot folds the best-effort connection state the runtime reports per entry.
 //
-// Per-tool gating (disabledTools / autoApproveTools) is carried by the wire
-// config but not exposed here yet — its enforcement (hiding a tool from the
-// model / skipping the approval gate) threads through the tool resolver and
-// the safety-critical approval gate, landing as a dedicated follow-up.
+// Per-tool gating (disabledTools / autoApproveTools) is edited inside each
+// server's edit form (ServerForm → ToolControls): the runtime enforces it by
+// hiding disabled tools from the model and letting auto-approved ones skip the
+// approval gate, recomputed live on every configure.
 
 import type { MCPServerConfigInfo, MCPTransport } from "@/lib/data/queries";
 import { useState } from "react";
