@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/modelcontextprotocol/go-sdk/auth"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -83,6 +84,12 @@ type HTTPClientOptions struct {
 	// optional). Leave false unless the server rejects GET or the
 	// client only does request/response.
 	DisableStandaloneSSE bool
+
+	// OAuthHandler, when set, authorizes requests via OAuth 2.1: the SDK reads
+	// its TokenSource for every request and, on a 401/403, calls its Authorize
+	// to run the auth flow and retries. nil means no OAuth (static
+	// Authorization / Headers, or anonymous). Optional.
+	OAuthHandler auth.OAuthHandler
 }
 
 // DialStreamableHTTP connects client to a Streamable HTTP MCP server
@@ -119,6 +126,7 @@ func DialStreamableHTTP(
 		HTTPClient:           opts.HTTPClient,
 		MaxRetries:           opts.MaxRetries,
 		DisableStandaloneSSE: opts.DisableStandaloneSSE,
+		OAuthHandler:         opts.OAuthHandler,
 	}
 
 	return client.Connect(ctx, transport, nil)
@@ -294,6 +302,13 @@ type ServerConfig struct {
 	// the handshake ctx, so a short timeout can't kill an established
 	// connection.
 	Timeout time.Duration
+
+	// OAuthHandler, when set, authorizes a [TransportHTTP] connection via OAuth
+	// 2.1 instead of a static token: the SDK reads its TokenSource per request
+	// and runs its Authorize flow on a 401/403. HTTP transport only. Unlike the
+	// other fields this is a live handler, not declarative config — set it at
+	// dial time, not as part of a persisted descriptor.
+	OAuthHandler auth.OAuthHandler
 }
 
 // Validate reports whether exactly one transport is fully specified and
@@ -322,6 +337,9 @@ func (c ServerConfig) Validate() error {
 		}
 		if len(c.Headers) > 0 {
 			return fmt.Errorf("mcp.ServerConfig %q: Headers apply to HTTP transport only (a stdio subprocess has no request headers)", c.Name)
+		}
+		if c.OAuthHandler != nil {
+			return fmt.Errorf("mcp.ServerConfig %q: OAuth applies to HTTP transport only", c.Name)
 		}
 	default:
 		return fmt.Errorf("mcp.ServerConfig %q: unknown transport %d (set TransportHTTP or TransportStdio)", c.Name, c.Transport)
@@ -353,7 +371,8 @@ func Dial(ctx context.Context, client *sdkmcp.Client, cfg ServerConfig) (*sdkmcp
 	switch cfg.Transport {
 	case TransportHTTP:
 		return DialStreamableHTTP(ctx, client, cfg.Endpoint, HTTPClientOptions{
-			HTTPClient: headerHTTPClient(cfg.Authorization, cfg.Headers),
+			HTTPClient:   headerHTTPClient(cfg.Authorization, cfg.Headers),
+			OAuthHandler: cfg.OAuthHandler,
 		})
 	case TransportStdio:
 		return DialCommand(ctx, client, cfg.Command, cfg.Args, CommandClientOptions{Env: cfg.Env, Dir: cfg.Dir})

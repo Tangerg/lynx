@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/modelcontextprotocol/go-sdk/auth"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -95,6 +96,13 @@ type server struct {
 	session *sdkmcp.ClientSession // nil when not connected
 	status  string
 	lastErr error
+
+	// oauth is the live OAuth handler obtained by a successful [Connections.
+	// Authorize] this session. nil until the user signs in (an OAuth server with
+	// no handler dials anonymously → 401 → needsAuth). Reused on reconnect /
+	// reconfigure so a signed-in session stays authorized without re-prompting;
+	// not persisted, so a restart clears it.
+	oauth auth.OAuthHandler
 }
 
 func (s *server) name() string { return s.config.Name }
@@ -272,6 +280,7 @@ func (c *Connections) Reconnect(ctx context.Context, name string) error {
 	ms.status = statusConnecting
 	ms.lastErr = nil
 	cfg := ms.config
+	cfg.OAuthHandler = ms.oauth // reuse this session's sign-in (nil for non-OAuth)
 	c.mu.Unlock()
 
 	// Close the old session outside the lock — Close may block on I/O.
@@ -339,6 +348,7 @@ func (c *Connections) Configure(ctx context.Context, cfg ServerConfig) error {
 	ms.session = nil
 	ms.status = statusConnecting
 	ms.lastErr = nil
+	cfg.OAuthHandler = ms.oauth // reuse this session's sign-in across a reconfigure
 	c.mu.Unlock()
 
 	if old != nil {
@@ -370,6 +380,94 @@ func (c *Connections) Configure(ctx context.Context, cfg ServerConfig) error {
 
 	c.refreshTools(ctx)
 	return err
+}
+
+// Authorize runs the interactive OAuth sign-in for an HTTP server: it opens the
+// system browser to the authorization URL, catches the redirect on a loopback
+// callback, and (via the go-sdk) discovers + dynamically registers + exchanges
+// the code. On success the live OAuth handler is kept on the server (reused by
+// later reconnects this session, auto-refreshing) and the server connects. The
+// handler is NOT persisted — a restart re-prompts. Blocks until the user
+// completes the browser flow or [oauthFlowTimeout] elapses. Returns
+// [ErrUnknownServer] for an unconfigured name. Serialized with the other dials.
+func (c *Connections) Authorize(ctx context.Context, name string) error {
+	c.reconnectMu.Lock()
+	defer c.reconnectMu.Unlock()
+
+	c.mu.Lock()
+	ms := c.find(name)
+	if ms == nil {
+		c.mu.Unlock()
+		return fmt.Errorf("%w: %q", ErrUnknownServer, name)
+	}
+	if ms.config.Transport != TransportHTTP {
+		c.mu.Unlock()
+		return errors.New("mcp: OAuth applies to HTTP servers only")
+	}
+	old := ms.session
+	ms.session = nil
+	ms.status = statusConnecting
+	ms.lastErr = nil
+	cfg := ms.config
+	c.mu.Unlock()
+
+	if old != nil {
+		_ = old.Close()
+	}
+
+	// Bound the human-in-the-loop flow here; clear the per-server handshake
+	// timeout so it can't abort the browser wait mid-sign-in.
+	ctx, cancel := context.WithTimeout(ctx, oauthFlowTimeout)
+	defer cancel()
+	cfg.Timeout = 0
+
+	flow, err := newOAuthFlow()
+	if err != nil {
+		c.setStatus(ms, statusFailed, err)
+		return err
+	}
+	defer flow.close()
+	handler, err := newOAuthHandler(flow)
+	if err != nil {
+		c.setStatus(ms, statusFailed, err)
+		return err
+	}
+	cfg.OAuthHandler = handler
+
+	session, err := lynxmcp.Dial(ctx, c.client, cfg)
+	if err == nil {
+		if _, terr := sourceTools(ctx, lynxmcp.Source{Name: name, Session: session}); terr != nil {
+			_ = session.Close()
+			err, session = terr, nil
+		}
+	}
+
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		if session != nil {
+			_ = session.Close()
+		}
+		return err
+	}
+	if err != nil {
+		ms.session, ms.status, ms.lastErr = nil, dialStatus(err), err
+	} else {
+		ms.session, ms.status, ms.lastErr = session, statusConnected, nil
+		ms.oauth = handler // keep the authorized handler for this session's reconnects
+	}
+	c.mu.Unlock()
+
+	c.refreshTools(ctx)
+	return err
+}
+
+// setStatus records a terminal dial outcome on one server under the lock — the
+// shared tail for the early-failure paths that don't reach the dial.
+func (c *Connections) setStatus(ms *server, status string, err error) {
+	c.mu.Lock()
+	ms.session, ms.status, ms.lastErr = nil, status, err
+	c.mu.Unlock()
 }
 
 // Remove drops a server from the live set, closing its session, and refreshes

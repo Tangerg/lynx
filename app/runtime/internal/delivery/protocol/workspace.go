@@ -18,6 +18,7 @@ type Workspace interface {
 	WorkspaceMCPListServers(ctx context.Context, q PageQuery) (*Page[McpServer], error)
 	WorkspaceMCPListTools(ctx context.Context, in MCPListToolsRequest) (*Page[McpTool], error)
 	WorkspaceMCPReconnect(ctx context.Context, server string) error
+	WorkspaceMCPAuthorize(ctx context.Context, server string) error
 	// MCP-server registry CRUD (the editable configuration the settings pane
 	// drives, distinct from the read-only listServers status).
 	WorkspaceMCPListConfigs(ctx context.Context, q PageQuery) (*Page[McpServerConfig], error)

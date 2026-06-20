@@ -62,6 +62,7 @@ const (
 	MethodWorkspaceMCPListServers  = "workspace.mcp.listServers"
 	MethodWorkspaceMCPListTools    = "workspace.mcp.listTools"
 	MethodWorkspaceMCPReconnect    = "workspace.mcp.reconnect"
+	MethodWorkspaceMCPAuthorize    = "workspace.mcp.authorize"
 	MethodWorkspaceMCPListConfigs  = "workspace.mcp.listConfigs"
 	MethodWorkspaceMCPConfigure    = "workspace.mcp.configure"
 	MethodWorkspaceMCPRemove       = "workspace.mcp.remove"

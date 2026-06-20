@@ -383,6 +383,14 @@ func (r *Runtime) ReconnectMCPServer(ctx context.Context, name string) error {
 	return r.engine.ReconnectMCPServer(ctx, name)
 }
 
+// AuthorizeMCPServer runs the interactive OAuth sign-in for an HTTP MCP server
+// (workspace.mcp.authorize) — opens the system browser, catches the loopback
+// redirect, and connects on success. Delegates to the engine, which owns the
+// sessions. The credentials live for the process only (re-prompt after restart).
+func (r *Runtime) AuthorizeMCPServer(ctx context.Context, name string) error {
+	return r.engine.AuthorizeMCPServer(ctx, name)
+}
+
 // Providers returns the provider registry — the runtime-mutable set of
 // providers + credentials that providers.list / configure / test operate on.
 // Always non-nil.
