@@ -16,7 +16,7 @@
 - T2.1 ✅ 模糊编辑回退(`fs/editmatch.go`,whitespace-tolerant + 歧义拒绝)
 - T2.6 ✅ diff 按文件语言高亮(`langFromPath`;DiffView 原本已 Shiki,只是写死 TS)
 - T2.7 ✅ loop 渐进提醒(SDK `tool` 中间件:第3轮注入 `<system-reminder>`,第6轮硬停)
-- T2.8 ✅ 侧栏会话筛选(projects 树上加 fuzzy filter;排序/收藏留后续)
+- T2.8 ✅ history 富化,分三块结账:① fuzzy 搜索 ✅(侧栏会话筛选)② **收藏/置顶** ✅(first-class `session.favorite`:sqlite 列 + wire + `sessions.update` toggle;侧栏右键 Pin/Unpin + accent 星标 + 组内置顶排序,乐观更新)③ 每会话成本展示 + 按成本排序 ⊘ **不做(代价不成比例 + 撞设计)**:per-run 成本已由 composer chip 实时显示;每会话**累计**成本 `Session.Usage` 从未被填充,要新建用量聚合子系统(run-finalize denormalize + session usage 列 + rollback/fork 递减语义),却只为往刻意精简的会话行塞个数字;排序还要侧栏没有的排序 UI,价值边际。同 T2.4/T2.5 的 HistoryView 式分歧。
 - T2.4 ⊘ **设计性非差距**:我们 `@file` 是引用式(插路径,agentic 模型用工具按需读),cline 的 @problems/@diff/@terminal 是内容内联——对 tool-using 模型会胀 prompt 且重复工具能力,且内联易过期。判定为有意分歧(同 provider-OAuth 不抄)。
 - T2.5 ⊘ **已覆盖**:`MessageStream` 已用 `use-stick-to-bottom`(跟随+让位+resize+jump 按钮)。唯一缺的"滚过用户消息吸顶 header"是边际 polish,不值得加复杂度。
 - T2.2 ✅ **重框为真省钱杠杆**:不是另起微压缩(我们已有主动 compaction),真差是 **Anthropic 历史零 prompt 缓存**。改为在 anthropic adapter 自动放 `cache_control` 断点(tools+system 静态前缀 + 对话尾巴滚动断点);**仅对带 tools 的请求**(一次性 utility 调用不缓存,免 +25% 写费)。缓存读 ~10% 价。
