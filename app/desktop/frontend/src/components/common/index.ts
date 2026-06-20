@@ -5,7 +5,7 @@ export { DataView } from "./DataView";
 export { Divider } from "./Divider";
 export { dragClasses, DragStrip, noDragClasses } from "./DragRegion";
 export { EmptyState } from "./EmptyState";
-export { FIELD_CLASSES } from "./fieldClasses";
+export { FIELD_CLASSES, INPUT_FOCUS_RING } from "./fieldClasses";
 export { Icon } from "./Icon";
 export type { IconName } from "./Icon";
 export { IconButton } from "./IconButton";

@@ -9,7 +9,7 @@ import type { ReactNode } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useEffect, useRef } from "react";
 import { submitComposer } from "@/components/chat/composer";
-import { Icon, ProviderIcon, Tooltip } from "@/components/common";
+import { Icon, MENU_CONTENT_CLASSES, ProviderIcon, Tooltip } from "@/components/common";
 import { imageFiles } from "@/lib/agent/composerInput";
 import { useSelectedModel } from "@/lib/agent/useSelectedModel";
 import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
@@ -355,7 +355,7 @@ function ModelPicker() {
         <DropdownMenu.Content
           align="start"
           sideOffset={6}
-          className="z-50 min-w-[200px] overflow-hidden rounded-md border border-line-soft bg-surface p-1 shadow-lg animate-rise-in"
+          className={cn(MENU_CONTENT_CLASSES, "min-w-[200px]")}
         >
           {models.map((m) => (
             <DropdownMenu.Item
