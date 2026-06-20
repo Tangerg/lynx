@@ -67,6 +67,7 @@ import type {
   TodoItem,
   ToolSpec,
   UpdateSessionRequest,
+  UtilityRole,
   WorkspaceEvent,
   WorkspaceFileChange,
   WorkspaceSymbol,
@@ -242,6 +243,11 @@ export interface Methods {
   };
   models: {
     list: (provider?: string) => Promise<Page<Model>>;
+    // The (provider, model) the in-house maintenance work (compaction /
+    // extraction / titling) runs on. Empty model = unset → it runs on the main
+    // turn model. setUtilityRole validates by resolving the client server-side.
+    getUtilityRole: () => Promise<UtilityRole>;
+    setUtilityRole: (params: UtilityRole) => Promise<UtilityRole>;
   };
   tools: {
     list: () => Promise<Page<ToolSpec>>;
@@ -384,6 +390,8 @@ export function createMethods(client: RpcClient): Methods {
     },
     models: {
       list: (provider) => client.call<Page<Model>>("models.list", provider ? { provider } : {}),
+      getUtilityRole: () => client.call<UtilityRole>("models.getUtilityRole"),
+      setUtilityRole: (params) => client.call<UtilityRole>("models.setUtilityRole", params),
     },
     tools: {
       list: () => client.call<Page<ToolSpec>>("tools.list"),

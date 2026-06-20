@@ -601,6 +601,14 @@ export interface ProviderTestResult {
   error?: ProblemData;
 }
 
+// The (provider, model) the in-house maintenance work (compaction / extraction
+// / titling) runs on (models.getUtilityRole / setUtilityRole). Empty model =
+// unset → that work runs on the main turn model. `provider` is a Provider.id.
+export interface UtilityRole {
+  provider?: string;
+  model?: string;
+}
+
 // ---------------------------------------------------------------------------
 // §4.10 — Workspace / optional-domain types
 // ---------------------------------------------------------------------------

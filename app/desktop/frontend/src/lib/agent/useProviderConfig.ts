@@ -1,8 +1,8 @@
 import { useCallback } from "react";
 import { getContainer } from "@/main/container";
 import { t } from "@/lib/i18n";
-import { errorDetail, type ConfigureProviderRequest } from "@/rpc";
-import { MODELS_KEY, PROVIDERS_KEY } from "@/lib/data/queries";
+import { errorDetail, RpcError, type ConfigureProviderRequest, type UtilityRole } from "@/rpc";
+import { MODELS_KEY, PROVIDERS_KEY, UTILITY_ROLE_KEY } from "@/lib/data/queries";
 import { queryClient } from "@/lib/data/queryClient";
 
 // Provider configuration mutations (providers.configure / providers.test).
@@ -32,6 +32,29 @@ export function useConfigureProvider(): (input: SaveProviderInput) => Promise<vo
       queryClient.invalidateQueries({ queryKey: [MODELS_KEY] }),
     ]);
   }, []);
+}
+
+/**
+ * Point the maintenance work (compaction / extraction / titling) at a
+ * (provider, model) — an empty model clears it back to the main turn model
+ * (models.setUtilityRole). The runtime validates by resolving the client, so
+ * an unconfigured provider / unknown model fails server-side; we flatten that
+ * to `{ ok:false, error }` here (mirroring useTestProvider) so the pane —
+ * which must not import @/rpc — renders the reason inline. On success the
+ * utility-role query is refetched so the pane reflects the stored value.
+ */
+export async function setUtilityRole(role: UtilityRole): Promise<TestOutcome> {
+  try {
+    await getContainer().client().models.setUtilityRole(role);
+    await queryClient.invalidateQueries({ queryKey: [UTILITY_ROLE_KEY] });
+    return { ok: true };
+  } catch (e) {
+    const detail = e instanceof RpcError ? errorDetail(e.data) : undefined;
+    return {
+      ok: false,
+      error: detail ?? (e instanceof Error ? e.message : t("providers.utility.error")),
+    };
+  }
 }
 
 export interface TestOutcome {

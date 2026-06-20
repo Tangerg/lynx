@@ -6,9 +6,14 @@
 
 import type { ProviderInfo } from "@/lib/data/queries";
 import { useRef, useState } from "react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { DataView, Icon, ProviderIcon } from "@/components/common";
-import { useProviders } from "@/lib/data/queries";
-import { useConfigureProvider, useTestProvider } from "@/lib/agent/useProviderConfig";
+import { useModels, useProviders, useUtilityRole } from "@/lib/data/queries";
+import {
+  setUtilityRole,
+  useConfigureProvider,
+  useTestProvider,
+} from "@/lib/agent/useProviderConfig";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";
@@ -150,30 +155,122 @@ function ProviderRow({ p }: { p: ProviderInfo }) {
   );
 }
 
+// Global "utility model" picker: the cheaper model the runtime runs its
+// turn-boundary maintenance work (compaction / extraction / titling) on,
+// instead of the headline model. Empty = use the main model. Sits atop the
+// per-provider rows since it's one global choice across providers; its options
+// come from whichever providers are configured (models.list per enabled one).
+function UtilityModelSection() {
+  const t = useT();
+  const { data: role } = useUtilityRole();
+  const { data: models = [] } = useModels();
+  const [error, setError] = useState<string | null>(null);
+
+  const isSet = Boolean(role?.model);
+  const selected = isSet
+    ? (models.find((m) => m.provider === role?.provider && m.id === role?.model) ?? null)
+    : null;
+
+  const pick = async (next: { provider: string; model: string } | null): Promise<void> => {
+    setError(null);
+    const res = await setUtilityRole(next ?? {});
+    if (!res.ok) setError(res.error ?? t("providers.utility.error"));
+  };
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg bg-surface-2 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="text-[12.5px] font-semibold text-fg">
+            {t("providers.utility.title")}
+          </span>
+          <span className="text-[11.5px] leading-snug text-fg-faint">
+            {t("providers.utility.desc")}
+          </span>
+        </div>
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger asChild>
+            <button
+              type="button"
+              aria-label={t("providers.utility.title")}
+              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface pl-2 pr-2.5 text-[12px] font-semibold text-fg whitespace-nowrap transition-colors hover:bg-surface-3 data-[state=open]:bg-surface-3"
+            >
+              {isSet && selected ? (
+                <>
+                  <ProviderIcon provider={selected.provider} size={14} />
+                  <span className="max-w-[160px] truncate font-mono text-[11.5px]">
+                    {selected.label}
+                  </span>
+                </>
+              ) : (
+                <span className="text-fg-muted">{t("providers.utility.main")}</span>
+              )}
+              <Icon name="chevron-down" size={10} className="text-fg-faint opacity-70" />
+            </button>
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content
+              align="end"
+              sideOffset={6}
+              className="z-50 max-h-[320px] min-w-[220px] overflow-y-auto overflow-x-hidden rounded-md border border-line-soft bg-surface p-1 shadow-lg animate-rise-in"
+            >
+              <DropdownMenu.Item
+                onSelect={() => void pick(null)}
+                className="grid grid-cols-[16px_minmax(0,1fr)_14px] items-center gap-2 rounded-sm px-2 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
+              >
+                <span />
+                <span className="truncate">{t("providers.utility.main")}</span>
+                {!isSet && <Icon name="check" size={12} className="text-accent" />}
+              </DropdownMenu.Item>
+              {models.map((m) => (
+                <DropdownMenu.Item
+                  key={`${m.provider}:${m.id}`}
+                  onSelect={() => void pick({ provider: m.provider, model: m.id })}
+                  className="grid grid-cols-[16px_minmax(0,1fr)_14px] items-center gap-2 rounded-sm px-2 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
+                >
+                  <ProviderIcon provider={m.provider} size={16} />
+                  <span className="truncate">{m.label}</span>
+                  {role?.provider === m.provider && role?.model === m.id && (
+                    <Icon name="check" size={12} className="text-accent" />
+                  )}
+                </DropdownMenu.Item>
+              ))}
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+      </div>
+      {error && <p className="text-[11px] leading-snug text-negative">{error}</p>}
+    </div>
+  );
+}
+
 function ProvidersPane() {
   const t = useT();
   const { data, isLoading, isError } = useProviders();
 
   return (
-    <DataView
-      items={data}
-      isLoading={isLoading}
-      isError={isError}
-      skeletonCount={3}
-      empty={{
-        icon: "spark",
-        title: t("providers.empty"),
-        sub: t("providers.empty.sub"),
-      }}
-    >
-      {(rows) => (
-        <div className="flex flex-col gap-2">
-          {rows.map((p) => (
-            <ProviderRow key={p.id} p={p} />
-          ))}
-        </div>
-      )}
-    </DataView>
+    <div className="flex flex-col gap-3">
+      <UtilityModelSection />
+      <DataView
+        items={data}
+        isLoading={isLoading}
+        isError={isError}
+        skeletonCount={3}
+        empty={{
+          icon: "spark",
+          title: t("providers.empty"),
+          sub: t("providers.empty.sub"),
+        }}
+      >
+        {(rows) => (
+          <div className="flex flex-col gap-2">
+            {rows.map((p) => (
+              <ProviderRow key={p.id} p={p} />
+            ))}
+          </div>
+        )}
+      </DataView>
+    </div>
   );
 }
 
