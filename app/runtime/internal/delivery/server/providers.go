@@ -105,6 +105,25 @@ func (s *Server) ListModels(_ context.Context, in protocol.ListModelsRequest) (*
 	return protocol.NewPage(out), nil
 }
 
+// GetUtilityRole reports the (provider, model) the in-house maintenance
+// services run on — empty model when unset, meaning they run on the main turn
+// model (models.getUtilityRole).
+func (s *Server) GetUtilityRole(_ context.Context) (*protocol.UtilityRole, error) {
+	p, m := s.rt.UtilityRole()
+	return &protocol.UtilityRole{Provider: p, Model: m}, nil
+}
+
+// SetUtilityRole points the maintenance services at a (provider, model),
+// validated by building its client; an empty model clears the role back to the
+// main turn model (models.setUtilityRole). Returns the stored role.
+func (s *Server) SetUtilityRole(ctx context.Context, in protocol.UtilityRole) (*protocol.UtilityRole, error) {
+	if err := s.rt.SetUtilityRole(ctx, in.Provider, in.Model); err != nil {
+		return nil, err
+	}
+	p, m := s.rt.UtilityRole()
+	return &protocol.UtilityRole{Provider: p, Model: m}, nil
+}
+
 // modelToWire maps a catalog model onto the wire Model shape (API.md §4.9),
 // surfacing the full capability set the catalog carries — reasoning support +
 // effort levels, the input/output modalities, tool use, structured output — so

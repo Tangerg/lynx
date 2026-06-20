@@ -3,8 +3,6 @@ package maintenance
 import (
 	"context"
 	"strings"
-
-	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 // titleMaxInputChars caps the slice of the opening user message fed to the
@@ -19,14 +17,14 @@ const titleMaxRunes = 80
 // Titler generates a short, human-readable session title from a conversation's
 // opening user message — the auto-name a client shows in its session list
 // instead of an empty entry. Like the [Compactor]'s summary it is a one-shot,
-// middleware-free LLM call ([askDirect]) on the (typically cheaper)
-// maintenance client. A nil Titler / client makes [Titler.Generate] a no-op.
+// middleware-free LLM call ([askDirect]) on the (typically cheaper) utility
+// model. A nil Titler / resolver makes [Titler.Generate] a no-op.
 type Titler struct {
-	client *chat.Client
+	client ClientFunc
 }
 
-// NewTitler builds a Titler over the maintenance chat client.
-func NewTitler(client *chat.Client) *Titler {
+// NewTitler builds a Titler over a per-call chat-client resolver.
+func NewTitler(client ClientFunc) *Titler {
 	return &Titler{client: client}
 }
 
@@ -52,7 +50,11 @@ func (t *Titler) Generate(ctx context.Context, firstMessage string) (string, err
 	if len(msg) > titleMaxInputChars {
 		msg = msg[:titleMaxInputChars]
 	}
-	text, err := askDirect(ctx, t.client, titlePrompt, msg)
+	client := t.client(ctx)
+	if client == nil {
+		return "", nil
+	}
+	text, err := askDirect(ctx, client, titlePrompt, msg)
 	if err != nil {
 		return "", err
 	}

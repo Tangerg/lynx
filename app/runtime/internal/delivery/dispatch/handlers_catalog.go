@@ -44,6 +44,20 @@ func (d *Dispatcher) handleModelsList(ctx context.Context, msg *transport.Reques
 	return reply(msg, out, err)
 }
 
+func (d *Dispatcher) handleModelsGetUtilityRole(ctx context.Context, msg *transport.Request) HandleResult {
+	out, err := d.api.GetUtilityRole(ctx)
+	return reply(msg, out, err)
+}
+
+func (d *Dispatcher) handleModelsSetUtilityRole(ctx context.Context, msg *transport.Request) HandleResult {
+	in, bad := decode[protocol.UtilityRole](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
+	out, err := d.api.SetUtilityRole(ctx, in)
+	return reply(msg, out, err)
+}
+
 func (d *Dispatcher) handleToolsList(ctx context.Context, msg *transport.Request) HandleResult {
 	var q protocol.PageQuery
 	_ = unmarshal(msg.Params, &q)

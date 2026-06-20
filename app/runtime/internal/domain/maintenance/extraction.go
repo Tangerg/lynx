@@ -27,13 +27,13 @@ import (
 type Extractor struct {
 	store   memory.Store
 	memSvc  knowledge.Service
-	client  *chat.Client
+	client  ClientFunc
 	minMsgs int
 }
 
 // NewExtractor builds an Extractor over the chat-memory store, the
-// long-term LYRA.md service, and the chat client.
-func NewExtractor(store memory.Store, memSvc knowledge.Service, client *chat.Client) *Extractor {
+// long-term LYRA.md service, and a per-call chat-client resolver.
+func NewExtractor(store memory.Store, memSvc knowledge.Service, client ClientFunc) *Extractor {
 	return &Extractor{
 		store:   store,
 		memSvc:  memSvc,
@@ -100,7 +100,11 @@ respond with exactly: NO_FACTS
 
 Otherwise output ONLY the bullets, no preamble or trailing text.`
 
-	text, err := askDirect(ctx, e.client, prompt, transcript)
+	var client *chat.Client
+	if e.client != nil {
+		client = e.client(ctx)
+	}
+	text, err := askDirect(ctx, client, prompt, transcript)
 	if err != nil {
 		return "", err
 	}

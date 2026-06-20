@@ -10,6 +10,13 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 )
 
+// constClient adapts a fixed client to the per-call [ClientFunc] the
+// maintenance services take — these tests don't exercise the runtime's
+// utility-role swap, just a stable stub model.
+func constClient(c *chat.Client) ClientFunc {
+	return func(context.Context) *chat.Client { return c }
+}
+
 // TestCompactor_NopBelowThreshold doesn't talk to a real LLM —
 // confirms the early-return path when there aren't enough
 // messages to bother compacting.
@@ -45,7 +52,7 @@ func TestCompactor_Compacts(t *testing.T) {
 
 	client, _ := chat.NewClient(newTextStubModel("BULLETS"))
 
-	c := NewCompactor(store, client, CompactionConfig{MaxMessages: total, KeepRecent: 4})
+	c := NewCompactor(store, constClient(client), CompactionConfig{MaxMessages: total, KeepRecent: 4})
 	res, err := c.MaybeCompact(context.Background(), sessID)
 	if err != nil {
 		t.Fatal(err)
@@ -110,7 +117,7 @@ func TestCompactor_CutBoundary(t *testing.T) {
 	}
 
 	client, _ := chat.NewClient(newTextStubModel("BULLETS"))
-	c := NewCompactor(store, client, CompactionConfig{MaxMessages: 6, KeepRecent: 4})
+	c := NewCompactor(store, constClient(client), CompactionConfig{MaxMessages: 6, KeepRecent: 4})
 	res, err := c.MaybeCompact(context.Background(), sessID)
 	if err != nil {
 		t.Fatal(err)
@@ -150,7 +157,7 @@ func TestCompactor_TokenTrigger(t *testing.T) {
 	client, _ := chat.NewClient(newTextStubModel("BULLETS"))
 	// Message bound far out of reach; token bound below the tool result —
 	// so only the token trigger can fire.
-	c := NewCompactor(store, client, CompactionConfig{MaxMessages: 1000, MaxTokens: 10_000, KeepRecent: 2})
+	c := NewCompactor(store, constClient(client), CompactionConfig{MaxMessages: 1000, MaxTokens: 10_000, KeepRecent: 2})
 	res, err := c.MaybeCompact(context.Background(), sessID)
 	if err != nil {
 		t.Fatal(err)

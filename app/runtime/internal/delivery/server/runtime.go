@@ -73,6 +73,14 @@ type RuntimeServices interface {
 	// DefaultModel is the runtime's configured default model — used to fill
 	// Session.model for sessions that never explicitly selected one.
 	DefaultModel() string
+	// UtilityRole reports the (provider, model) the in-house maintenance
+	// services run on — empty when unset (they run on the main model). Backs
+	// models.getUtilityRole.
+	UtilityRole() (provider, model string)
+	// SetUtilityRole points the maintenance services at a (provider, model),
+	// validated by resolving the client; an empty model clears it back to the
+	// main model. Persisted. Backs models.setUtilityRole.
+	SetUtilityRole(ctx context.Context, provider, model string) error
 	// GenerateTitle derives a short session title from a conversation's opening
 	// user message (auto-naming an untitled session). Best-effort: "" (no error)
 	// when titling isn't possible. The runtime owns it because it owns the

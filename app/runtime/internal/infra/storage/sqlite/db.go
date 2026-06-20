@@ -114,6 +114,15 @@ func migrate(db *sql.DB) error {
 			api_key   TEXT NOT NULL DEFAULT '',
 			base_url  TEXT NOT NULL DEFAULT ''
 		)`,
+		// Global utility-model role (models.setUtilityRole): the (provider, model)
+		// the in-house maintenance services — compaction / extraction / titling —
+		// run on. Single row, pinned by CHECK(id = 1); empty model = unset (those
+		// run on the main turn model).
+		`CREATE TABLE IF NOT EXISTS utility_role (
+			id        INTEGER PRIMARY KEY CHECK (id = 1),
+			provider  TEXT NOT NULL DEFAULT '',
+			model     TEXT NOT NULL DEFAULT ''
+		)`,
 		// MCP-server registry (workspace.mcp.configure). One row per server
 		// name; the list columns (args/disabled_tools/auto_approve_tools) and the
 		// map columns (env/headers) are JSON; timeout is nanoseconds. transport is

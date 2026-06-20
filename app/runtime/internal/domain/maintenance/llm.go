@@ -10,6 +10,15 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
+// ClientFunc resolves the chat client the maintenance services run on. It is
+// read per call — not captured once at construction — so a runtime change to
+// the utility model (models.setUtilityRole) takes effect at the next turn
+// boundary. The runtime's implementation never returns nil (it falls back to
+// the main turn client); a nil ClientFunc, or one that returns nil, leaves the
+// owning service unable to call and surfaces as [askDirect]'s missing-client
+// error (or a no-op, for the best-effort [Titler]).
+type ClientFunc func(context.Context) *chat.Client
+
 // directCallTimeout caps a single maintenance LLM call (compaction
 // summary / fact extraction) so a hung provider connection fails the
 // call instead of blocking turn-boundary housekeeping forever.

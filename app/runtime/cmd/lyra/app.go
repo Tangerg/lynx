@@ -27,12 +27,10 @@ import (
 	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	todosvc "github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 	lyraruntime "github.com/Tangerg/lynx/app/runtime/internal/runtime"
-	"github.com/Tangerg/lynx/core/model/chat"
 	chatmem "github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 )
@@ -115,23 +113,6 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		return err
 	}
 
-	// Optional cheaper model for turn-boundary maintenance (compaction /
-	// extraction / titling), on the same provider + credentials as the main
-	// client — only the model id differs. Unset or identical → that work
-	// runs on the main client (nil UtilityClient).
-	var utilClient *chat.Client
-	if cfg.UtilityModel != "" && cfg.UtilityModel != cfg.Model {
-		utilClient, err = llm.BuildClient(llm.ClientSpec{
-			Provider: cfg.Provider,
-			Model:    cfg.UtilityModel,
-			APIKey:   cfg.APIKey,
-			BaseURL:  cfg.BaseURL,
-		})
-		if err != nil {
-			return fmt.Errorf("build utility client: %w", err)
-		}
-	}
-
 	stores, err := buildStores()
 	if err != nil {
 		return err
@@ -141,6 +122,12 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 	// provider is enabled out of the box. Other supported providers stay
 	// unconfigured until the user sets their keys.
 	if err = seedConfiguredProvider(ctx, stores.Provider, cfg); err != nil {
+		return err
+	}
+	// Seed the config-file utility model into its store on first run, so the
+	// cheaper maintenance model is honored out of the box; a persisted
+	// models.setUtilityRole for the same role wins (runtime edits over config).
+	if err = seedUtilityRole(ctx, stores.UtilityRole, cfg); err != nil {
 		return err
 	}
 	// Seed env-sourced MCP servers (LYRA_MCP_SERVERS) into the registry on
@@ -168,8 +155,10 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 			ProcessStore: stores.Process,
 			ParkStore:    stores.Park,
 		},
-		// Cheaper utility model (nil → maintenance work runs on the main client).
-		UtilityClient: utilClient,
+		// Cheaper utility model for compaction / extraction / titling — the
+		// runtime resolves it per call from this persisted role (seeded from
+		// config.UtilityModel above), falling back to the main client when unset.
+		UtilityRoleStore: stores.UtilityRole,
 		// Tool-environment inputs — the runtime assembles the tool environment
 		// (toolset.Build) from these and injects it into the engine core.
 		Online:         cfg.Online,
@@ -252,6 +241,7 @@ func buildStores() (*Stores, error) {
 		Park:          sqlitestore.NewParkStore(db),
 		Todos:         sqlitestore.NewTodoService(db),
 		ApprovalRules: sqlitestore.NewApprovalRuleStore(db),
+		UtilityRole:   sqlitestore.NewUtilityRoleStore(db),
 	}, nil
 }
 
@@ -271,6 +261,7 @@ type Stores struct {
 	Park          tool.ParkStore
 	Todos         todosvc.Service
 	ApprovalRules approval.RuleStore
+	UtilityRole   lyraruntime.UtilityRoleStore
 }
 
 // seedConfiguredProvider ensures the config-file provider is present in the
@@ -289,6 +280,23 @@ func seedConfiguredProvider(ctx context.Context, svc providersvc.Service, cfg co
 		APIKey:  cfg.APIKey,
 		BaseURL: cfg.BaseURL,
 	})
+}
+
+// seedUtilityRole writes the config-file utility model into the store on first
+// run (when no row exists yet), pinned to the default provider. A role already
+// persisted via models.setUtilityRole is left untouched — runtime edits win
+// over the config file. An empty / identical-to-main UtilityModel seeds
+// nothing (maintenance then runs on the main model).
+func seedUtilityRole(ctx context.Context, store lyraruntime.UtilityRoleStore, cfg config.Config) error {
+	if _, model, err := store.LoadUtilityRole(ctx); err != nil {
+		return err
+	} else if model != "" {
+		return nil
+	}
+	if cfg.UtilityModel == "" || cfg.UtilityModel == cfg.Model {
+		return nil
+	}
+	return store.SaveUtilityRole(ctx, string(cfg.Provider), cfg.UtilityModel)
 }
 
 // printErr writes the standard "lyra: <err>" user-facing error line to Err.
