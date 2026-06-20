@@ -61,6 +61,29 @@ func startServerWithEcho(t *testing.T, ctx context.Context) (*sdkmcp.ClientSessi
 	return cs, srv, cleanup
 }
 
+// TestDefaultNaming_SanitizesForProviderCharset locks the bridge that maps an
+// MCP server/tool name onto the provider-accepted function-name charset
+// (^[a-zA-Z0-9_-]{1,64}$). A server like "html.to.design" must NOT yield a
+// dotted public name — that makes the whole chat request invalid and the
+// provider rejects every turn.
+func TestDefaultNaming_SanitizesForProviderCharset(t *testing.T) {
+	cases := []struct {
+		source string
+		tool   string
+		want   string
+	}{
+		{"html.to.design", "import-url", "html_to_design_import-url"},
+		{"srv", "ok_tool-1", "srv_ok_tool-1"}, // already valid → unchanged
+		{"", "bare.tool", "bare_tool"},        // empty source → sanitized bare name
+		{"a b", "c/d", "a_b_c_d"},             // spaces + slash → underscores
+	}
+	for _, c := range cases {
+		got := lynxmcp.DefaultNaming(c.source, &sdkmcp.Tool{Name: c.tool})
+		assert.Equal(t, c.want, got)
+		assert.Regexp(t, `^[a-zA-Z0-9_-]{1,64}$`, got)
+	}
+}
+
 func TestProvider_DiscoversAndCallsTool(t *testing.T) {
 	ctx := context.Background()
 	cs, _, cleanup := startServerWithEcho(t, ctx)
