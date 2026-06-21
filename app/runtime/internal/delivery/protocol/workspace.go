@@ -14,6 +14,7 @@ type Workspace interface {
 	WorkspaceReadFile(ctx context.Context, in ReadFileRequest) (*FileContent, error)
 	WorkspaceListProjects(ctx context.Context, q PageQuery) (*Page[Project], error)
 	WorkspaceListSkills(ctx context.Context, in WorkspaceListQuery) (*Page[Skill], error)
+	WorkspaceListRecipes(ctx context.Context, in WorkspaceListQuery) (*Page[Recipe], error)
 	WorkspaceListAgentDocs(ctx context.Context, in WorkspaceListQuery) (*Page[AgentDoc], error)
 	WorkspaceMCPListServers(ctx context.Context, q PageQuery) (*Page[McpServer], error)
 	WorkspaceMCPListTools(ctx context.Context, in MCPListToolsRequest) (*Page[McpTool], error)

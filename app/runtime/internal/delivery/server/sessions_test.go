@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
@@ -21,6 +22,7 @@ type stubRuntime struct {
 	sess        session.Service
 	model       string
 	skills      []kernel.SkillInfo
+	recipes     []recipes.Recipe
 	mcpTools    []kernel.McpToolInfo
 	mcpStatuses []kernel.McpServerStatus
 	history     map[string][]chat.Message // per-session chat history (fork copies it)
@@ -68,6 +70,9 @@ func (s stubRuntime) SeedHistory(_ context.Context, id string, msgs []chat.Messa
 }
 func (s stubRuntime) ListSkills(context.Context, string) ([]kernel.SkillInfo, error) {
 	return s.skills, nil
+}
+func (s stubRuntime) ListRecipes(context.Context, string) ([]recipes.Recipe, error) {
+	return s.recipes, nil
 }
 
 // MCPTools echoes the canned set, applying the same server filter the real

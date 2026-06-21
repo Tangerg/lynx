@@ -78,6 +78,34 @@ func (s *Server) WorkspaceListSkills(ctx context.Context, in protocol.WorkspaceL
 	return protocol.NewPage(out), nil
 }
 
+// WorkspaceListRecipes enumerates the prompt recipes visible from cwd — project
+// recipes (<cwd>/.lyra/recipes) layered over the global directory, project
+// winning on a name collision. Each entry carries its full Body so the client
+// can expand ($ARGUMENTS / $1..$9) and send it. cwd defaults to the serve
+// directory (workspace.recipes.list, API.md §7.5).
+func (s *Server) WorkspaceListRecipes(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.Recipe], error) {
+	root, err := s.workspaceRoot(in.Cwd)
+	if err != nil {
+		return nil, err
+	}
+	found, err := s.rt.ListRecipes(ctx, root)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]protocol.Recipe, 0, len(found))
+	for _, r := range found {
+		out = append(out, protocol.Recipe{
+			Name:         r.Name,
+			Description:  r.Description,
+			ArgumentHint: r.ArgumentHint,
+			Body:         r.Body,
+			Scope:        protocol.RecipeScope(r.Scope),
+			Source:       r.Source,
+		})
+	}
+	return protocol.NewPage(out), nil
+}
+
 // WorkspaceListAgentDocs lists the AGENTS.md files discovered from cwd
 // (or the serve cwd) up to home — the same cascade the engine injects
 // into the system prompt (API.md §7.5).

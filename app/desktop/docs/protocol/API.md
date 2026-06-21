@@ -1057,6 +1057,7 @@ interface SessionArtifact {
 | `workspace.grep` | `WorkspaceQuery & { query: string; path?: string; limit?: number }` | `GrepResult` | `{ matches, total }`（total 反映截断） |
 | `workspace.listProjects` | `{ cursor?; limit? }` | `Page<Project>` | distinct-cwd 派生视图 |
 | `workspace.listSkills` | `WorkspaceQuery & { cursor?; limit? }` | `Page<Skill>` | |
+| `workspace.recipes.list` | `WorkspaceQuery` | `Page<Recipe>` | 该 cwd 发现的提示 recipe（全局 + 项目，项目同名胜）；客户端展开 body 后作为一个 turn 发送；见下 |
 | `workspace.listAgentDocs` | `WorkspaceQuery & { cursor?; limit? }` | `Page<AgentDoc>` | 从 cwd 向上发现的 AGENTS.md |
 | `workspace.mcp.listServers` | `{ cursor?; limit? }` | `Page<McpServer>` | MCP 全局，不收 cwd；含 boot 失败的 server（status:"failed" + error） |
 | `workspace.mcp.listTools` | `{ server?: string; cursor?; limit? }` | `Page<McpTool>` | |
@@ -1098,6 +1099,27 @@ fd;且我们用不了 fd-廉价的 FSEvents)。改为两路覆盖,跨平台(inot
 
 > `getDiff` / `getFileHead` / `grep` 返回的是**单一聚合结果**（非集合列表），故保留专用 shape、不套 `Page<T>`；但仍守
 > "no silent caps"——截断都**自描述**：`grep` 由 `GrepResult.total ≥ matches.length`、`getDiff` 由 `Diff.truncated`。
+
+#### 提示 recipes（`workspace.recipes.list`）
+
+recipe 是**用户触发的参数化提示模板** —— skills（面向模型、渐进披露）的只读姊妹，但面向人。来自两层目录，**与 skills 同款级联**（两个 flat 目录，项目同名胜，非 hooks/AGENTS.md 的逐层级联）：全局 `~/.lyra/recipes/*.md` + 项目 `<cwd>/.lyra/recipes/*.md`。每个 `*.md` 文件 = 一个 recipe，文件名（去 `.md`）即 recipe 名与调用它的 slash 命令（`review.md` → `/review`）。
+
+文件 = 可选 YAML frontmatter（`description` / `argumentHint`，两者皆可省）+ Markdown body（提示模板）。**展开在客户端做**：body 里的 `$ARGUMENTS`（全部尾随文本）/ `$1..$9`（按空白分词的位置参数）由客户端用用户输入替换后，作为普通 prompt 发一个 turn —— 运行时只负责发现，故 `body` 随列表下发（recipe 体积小）。
+
+**无信任门（与 hooks 的关键区别）**：recipe 是注入对话的**惰性文本**，自身不执行任何东西；clone 来的仓库其 recipe 只是预填一个用户主动选择且看得见的 prompt，由此产生的工具调用仍走 approval 门。故无 `setTrust`、无 sqlite 状态。
+
+```ts
+interface Recipe {
+  name: string;          // 文件名去 .md —— 即 slash 命令（review → /review）
+  description?: string;  // frontmatter：slash 菜单 / 命令面板里显示
+  argumentHint?: string; // frontmatter：slash 自动补全的占位提示，如 "[focus area]"
+  body: string;          // 提示模板（$ARGUMENTS / $1..$9 占位符）
+  scope: "project" | "global";
+  source: string;        // 来源 .md 文件的绝对路径
+}
+```
+
+错误：同其它读方法，cwd 解析不到 → `cwd_unavailable`。
 
 #### 生命周期 hooks 管理（`workspace.hooks.*`）
 
