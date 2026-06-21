@@ -156,6 +156,7 @@ export const zh: Record<string, string> = {
   "settings.pane.usage": "用量",
   "settings.pane.approvals": "审批",
   "settings.pane.mcpServers": "MCP 服务器",
+  "settings.pane.hooks": "钩子",
   "usage.session.label": "本会话",
   "usage.session.hint": "本会话所有运行的累计 token 与成本",
   "usage.range.all": "全部",
@@ -249,6 +250,22 @@ export const zh: Record<string, string> = {
   "approvals.unavailable.sub": "此运行时未提供审批模式控制。",
   "approvals.error.mode": "无法更改审批模式。",
   "approvals.error.forget": "无法清除该决定。",
+
+  "hooks.intro":
+    "钩子在一个 turn 的固定时点跑你自己的命令——工具执行前、prompt 提交后、压缩前。全局钩子（~/.lyra）始终运行；项目的钩子只在你信任它后才运行。",
+  "hooks.trust": "信任此项目的钩子",
+  "hooks.trust.sub":
+    "此项目的钩子会在你的机器上执行 shell 命令。只对你信任的仓库启用。下一个 turn 起生效。",
+  "hooks.trust.aria": "信任此项目的钩子",
+  "hooks.matcher": "工具匹配器",
+  "hooks.kind.inject": "注入",
+  "hooks.inactive": "未启用",
+  "hooks.inactive.hint": "信任此项目以启用其钩子。",
+  "hooks.empty": "未配置钩子",
+  "hooks.empty.sub": "在 ~/.lyra/hooks.json（全局）或 <项目>/.lyra/hooks.json 中添加钩子。",
+  "hooks.unavailable": "钩子不可用",
+  "hooks.unavailable.sub": "此运行时未提供钩子管理。",
+  "hooks.error.trust": "无法更改项目钩子信任。",
 
   "providers.apiKey.replace": "替换 API 密钥…",
   "providers.apiKey.placeholder": "API 密钥",

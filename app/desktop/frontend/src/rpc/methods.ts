@@ -32,6 +32,7 @@ import type {
   FileHead,
   ForkSessionRequest,
   GrepResult,
+  HooksListResult,
   Hover,
   ImportSessionResponse,
   InitializeRequest,
@@ -201,6 +202,14 @@ export interface Methods {
       params?: SubscribeWorkspaceRequest,
       signal?: AbortSignal,
     ) => Promise<StreamingResult<Record<string, never>, WorkspaceEvent>>;
+    // Lifecycle hooks (§7.5): list the hooks discovered for a cwd (global +
+    // project, each marked active = does-it-currently-run) and toggle whether a
+    // project's hooks are trusted to run. A cloned repo's project hooks stay
+    // inert until trusted; the toggle takes effect on the next turn.
+    hooks: {
+      list: (cwd?: string) => Promise<HooksListResult>;
+      setTrust: (projectRoot: string, trusted: boolean) => Promise<void>;
+    };
     mcp: {
       // The editable registry (configure/remove/setEnabled) PLUS a best-effort
       // live status folded into each entry. listServers is the lighter
@@ -362,6 +371,11 @@ export function createMethods(client: RpcClient): Methods {
           client.call<Record<string, never>>(WORKSPACE_SUBSCRIBE_METHOD, params ?? {}, signal),
         );
         return { result, events: stream.events };
+      },
+      hooks: {
+        list: (cwd) => client.call<HooksListResult>("workspace.hooks.list", { cwd }),
+        setTrust: (projectRoot, trusted) =>
+          client.call<void>("workspace.hooks.setTrust", { projectRoot, trusted }),
       },
       mcp: {
         listConfigs: (query) =>

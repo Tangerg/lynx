@@ -752,6 +752,43 @@ export interface McpTestResult {
   error?: ProblemData;
 }
 
+// Lifecycle-hook events the runtime fires at fixed turn boundaries (§7.5). A
+// hook matches one event; PreToolUse/PostToolUse additionally gate on a
+// tool-name `matcher`.
+export type HookEvent =
+  | "PreToolUse"
+  | "PostToolUse"
+  | "UserPromptSubmit"
+  | "SessionStart"
+  | "PreCompact"
+  | "Stop"
+  | "Notification";
+
+// One discovered hook (workspace.hooks.list), for review before trusting.
+// `command` (shown so the user can audit a project's hooks) and `inject` (the
+// declarative no-exec context alternative) are mutually exclusive. `active`
+// reports whether it currently runs: global hooks always do, project hooks only
+// once the project is trusted.
+export interface HookInfo {
+  event: HookEvent;
+  matcher?: string;
+  command?: string;
+  inject?: string;
+  scope: "global" | "project";
+  source: string; // absolute path of the hooks.json it came from
+  active: boolean;
+}
+
+// workspace.hooks.list result — the discovered hooks plus the project's trust
+// status. projectRoot is the trust key (the nearest .git ancestor of the cwd);
+// projectTrusted reports whether its project-scope hooks are enabled. A cloned
+// repo's project hooks stay inert (active:false) until the user trusts it.
+export interface HooksListResult {
+  projectRoot?: string;
+  projectTrusted: boolean;
+  hooks: HookInfo[];
+}
+
 export type MemoryScope = "cwd" | "projectRoot" | "home";
 export interface MemoryEntry {
   scope: MemoryScope;

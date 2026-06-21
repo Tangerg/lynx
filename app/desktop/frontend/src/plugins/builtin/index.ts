@@ -39,6 +39,7 @@ import {
 import diagnostics from "./workspace/diagnostics";
 import workspaceEvents from "./workspace/events";
 import globalKeymap from "./command/global-keymap";
+import hooksPane from "./settings/hooks";
 import iconGallery from "./settings/icon-gallery";
 import mcpServersPane from "./settings/mcp-servers";
 import rpcAgent from "./agent/rpc-agent";
@@ -183,6 +184,7 @@ const panes: PluginSpec[] = [
   providersPane,
   usagePane,
   mcpServersPane,
+  hooksPane,
   diffView,
   fileView,
   terminalView,
