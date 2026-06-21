@@ -170,6 +170,11 @@ var methodTable = map[string]methodHandler{
 	MethodSchedulesDelete: (*Dispatcher).handleSchedulesDelete,
 	MethodSchedulesRunNow: (*Dispatcher).handleSchedulesRunNow,
 
+	// Codebase.
+	MethodCodebaseSearch:  (*Dispatcher).handleCodebaseSearch,
+	MethodCodebaseStatus:  (*Dispatcher).handleCodebaseStatus,
+	MethodCodebaseReindex: (*Dispatcher).handleCodebaseReindex,
+
 	// Providers / Models / Tools.
 	MethodProvidersList:        (*Dispatcher).handleProvidersList,
 	MethodProvidersConfigure:   (*Dispatcher).handleProvidersConfigure,

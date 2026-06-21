@@ -78,6 +78,12 @@ type Provider struct {
 	// (per-resource URL). The client must collect a base URL when configuring
 	// them, and (since they carry no catalog) a free-form model id.
 	RequiresBaseURL bool `json:"requiresBaseUrl,omitempty"`
+	// EmbeddingCapable marks providers with an embeddings adapter — the set the
+	// @codebase embedding-role picker offers (models.setEmbeddingRole).
+	// DefaultEmbeddingModel is a sensible default model id to prefill ("" when
+	// the id is user-supplied, e.g. an Azure deployment).
+	EmbeddingCapable      bool   `json:"embeddingCapable,omitempty"`
+	DefaultEmbeddingModel string `json:"defaultEmbeddingModel,omitempty"`
 }
 
 // ConfigureProviderRequest — providers.configure body. Provider is the

@@ -41,11 +41,13 @@ func (s *Server) ListProviders(ctx context.Context, _ protocol.PageQuery) (*prot
 // client to collect a base URL + free-form model id for endpoint-less providers.
 func providerToWire(id string, entry provider.Provider) protocol.Provider {
 	return protocol.Provider{
-		ID:              id,
-		BaseURL:         entry.BaseURL,
-		APIKeyMasked:    entry.MaskedAPIKey(),
-		KeySource:       string(entry.KeySource),
-		RequiresBaseURL: llm.RequiresBaseURL(llm.Provider(id)),
+		ID:                    id,
+		BaseURL:               entry.BaseURL,
+		APIKeyMasked:          entry.MaskedAPIKey(),
+		KeySource:             string(entry.KeySource),
+		RequiresBaseURL:       llm.RequiresBaseURL(llm.Provider(id)),
+		EmbeddingCapable:      llm.EmbeddingCapable(llm.Provider(id)),
+		DefaultEmbeddingModel: llm.DefaultEmbeddingModel(llm.Provider(id)),
 	}
 }
 
