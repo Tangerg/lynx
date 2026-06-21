@@ -6,6 +6,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
@@ -100,6 +101,13 @@ type RuntimeServices interface {
 	// validated by resolving the client; an empty model clears it back to the
 	// main model. Persisted. Backs models.setUtilityRole.
 	SetUtilityRole(ctx context.Context, provider, model string) error
+	// EmbeddingRole reports / SetEmbeddingRole points the @codebase semantic
+	// index's embedding model (provider, model) — empty when unset (the feature
+	// is off). Backs models.getEmbeddingRole / setEmbeddingRole. CodebaseIndex is
+	// the index service the codebase.* methods drive (nil when unconfigured).
+	EmbeddingRole() (provider, model string)
+	SetEmbeddingRole(ctx context.Context, provider, model string) error
+	CodebaseIndex() codebaseindex.Service
 	// GenerateTitle derives a short session title from a conversation's opening
 	// user message (auto-naming an untitled session). Best-effort: "" (no error)
 	// when titling isn't possible. The runtime owns it because it owns the

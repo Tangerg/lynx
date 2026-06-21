@@ -20,12 +20,29 @@ type Models interface {
 	// validated by resolving the client; an empty model clears it back to the
 	// main turn model. Persisted across restarts.
 	SetUtilityRole(ctx context.Context, in UtilityRole) (*UtilityRole, error)
+	// GetEmbeddingRole reports the (provider, model) the @codebase semantic index
+	// embeds with — empty model when unset (the index feature is off).
+	GetEmbeddingRole(ctx context.Context) (*EmbeddingRole, error)
+	// SetEmbeddingRole points the index at an (embedding-capable provider, model),
+	// validated by building the embedding client; an empty model clears it. A new
+	// model invalidates a project's vectors (re-embedded on next use). Persisted.
+	SetEmbeddingRole(ctx context.Context, in EmbeddingRole) (*EmbeddingRole, error)
 }
 
 // UtilityRole is the (provider, model) the in-house maintenance services run
 // on (models.getUtilityRole / setUtilityRole). Empty model = unset → those run
 // on the main turn model. Provider must be a configured provider id.
 type UtilityRole struct {
+	Provider string `json:"provider,omitempty"`
+	Model    string `json:"model,omitempty"`
+}
+
+// EmbeddingRole is the (provider, model) the @codebase semantic index embeds
+// with (models.getEmbeddingRole / setEmbeddingRole). Empty model = unset → the
+// index feature is off. Provider must be a configured, embedding-capable
+// provider. A distinct type from [UtilityRole] (same shape, different domain —
+// under the rule-of-three for sharing).
+type EmbeddingRole struct {
 	Provider string `json:"provider,omitempty"`
 	Model    string `json:"model,omitempty"`
 }
