@@ -51,6 +51,7 @@ import {
   SESSIONS_KEY,
   SKILLS_KEY,
   UTILITY_ROLE_KEY,
+  EMBEDDING_ROLE_KEY,
 } from "@/lib/data/queries";
 import { getContainer } from "@/main/container";
 import { asSessionId, isErrorType } from "@/rpc";
@@ -318,6 +319,8 @@ export const defaultData = definePlugin({
           baseUrl: p.baseUrl ?? "",
           apiKeyMasked: p.apiKeyMasked,
           keySource: p.keySource,
+          embeddingCapable: p.embeddingCapable,
+          defaultEmbeddingModel: p.defaultEmbeddingModel,
         })),
     });
     // approval.* (B9, 613) — global stance + per-session remembered decisions.
@@ -330,6 +333,15 @@ export const defaultData = definePlugin({
     host.extensions.contribute(DATA_PROVIDER, {
       key: UTILITY_ROLE_KEY,
       fetcher: () => client().models.getUtilityRole(),
+    });
+    // The @codebase embedding-model role + per-cwd index status.
+    host.extensions.contribute(DATA_PROVIDER, {
+      key: EMBEDDING_ROLE_KEY,
+      fetcher: () => client().models.getEmbeddingRole(),
+    });
+    host.extensions.contribute(DATA_PROVIDER, {
+      key: "codebase-status",
+      fetcher: (params) => client().codebase.status((params as { cwd?: string } | undefined)?.cwd),
     });
     host.extensions.contribute(DATA_PROVIDER, {
       key: APPROVAL_RULES_KEY,

@@ -14,8 +14,9 @@ import {
   MENU_CONTENT_CLASSES,
   ProviderIcon,
 } from "@/components/common";
-import { useModels, useProviders, useUtilityRole } from "@/lib/data/queries";
+import { useEmbeddingRole, useModels, useProviders, useUtilityRole } from "@/lib/data/queries";
 import {
+  setEmbeddingRole,
   setUtilityRole,
   useConfigureProvider,
   useTestProvider,
@@ -274,6 +275,96 @@ function UtilityModelSection() {
   );
 }
 
+// Global "embedding model" picker: the (embedding-capable provider, model) the
+// @codebase semantic index embeds with. Empty = off (no codebase_search tool).
+// Options are the embedding-capable providers (Provider.embeddingCapable);
+// selecting one uses its default embedding model.
+function EmbeddingModelSection() {
+  const t = useT();
+  const { data: role } = useEmbeddingRole();
+  const { data: providers = [] } = useProviders();
+  const [error, setError] = useState<string | null>(null);
+
+  const capable = providers.filter((p) => p.embeddingCapable);
+  const isSet = Boolean(role?.model);
+
+  const pick = async (p: ProviderInfo | null): Promise<void> => {
+    setError(null);
+    const res = await setEmbeddingRole(
+      p ? { provider: p.id, model: p.defaultEmbeddingModel || "" } : {},
+    );
+    if (!res.ok) setError(res.error ?? t("providers.embedding.error"));
+  };
+
+  const itemClass =
+    "grid grid-cols-[16px_minmax(0,1fr)_14px] items-center gap-2 rounded-sm px-2 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg";
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg bg-surface-2 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="text-[12.5px] font-semibold text-fg">
+            {t("providers.embedding.title")}
+          </span>
+          <span className="text-[11.5px] leading-snug text-fg-faint">
+            {t("providers.embedding.desc")}
+          </span>
+        </div>
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger asChild>
+            <button
+              type="button"
+              aria-label={t("providers.embedding.title")}
+              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface pl-2 pr-2.5 text-[12px] font-semibold text-fg whitespace-nowrap transition-colors hover:bg-surface-3 data-[state=open]:bg-surface-3"
+            >
+              {isSet && role?.provider ? (
+                <>
+                  <ProviderIcon provider={role.provider} size={14} />
+                  <span className="max-w-[160px] truncate font-mono text-[11.5px]">
+                    {role.model}
+                  </span>
+                </>
+              ) : (
+                <span className="text-fg-muted">{t("providers.embedding.off")}</span>
+              )}
+              <Icon name="chevron-down" size={10} className="text-fg-faint opacity-70" />
+            </button>
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content
+              align="end"
+              sideOffset={6}
+              className={cn(MENU_CONTENT_CLASSES, "max-h-[320px] min-w-[220px] overflow-y-auto")}
+            >
+              <DropdownMenu.Item onSelect={() => void pick(null)} className={itemClass}>
+                <span />
+                <span className="truncate">{t("providers.embedding.off")}</span>
+                {!isSet && <Icon name="check" size={12} className="text-accent" />}
+              </DropdownMenu.Item>
+              {capable.map((p) => (
+                <DropdownMenu.Item key={p.id} onSelect={() => void pick(p)} className={itemClass}>
+                  <ProviderIcon provider={p.id} size={16} />
+                  <span className="truncate">
+                    {p.id}
+                    {p.defaultEmbeddingModel ? ` · ${p.defaultEmbeddingModel}` : ""}
+                  </span>
+                  {role?.provider === p.id && (
+                    <Icon name="check" size={12} className="text-accent" />
+                  )}
+                </DropdownMenu.Item>
+              ))}
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+      </div>
+      {capable.length === 0 && (
+        <p className="text-[11px] leading-snug text-fg-faint">{t("providers.embedding.none")}</p>
+      )}
+      {error && <p className="text-[11px] leading-snug text-negative">{error}</p>}
+    </div>
+  );
+}
+
 function ProvidersPane() {
   const t = useT();
   const { data, isLoading, isError } = useProviders();
@@ -281,6 +372,7 @@ function ProvidersPane() {
   return (
     <div className="flex flex-col gap-3">
       <UtilityModelSection />
+      <EmbeddingModelSection />
       <DataView
         items={data}
         isLoading={isLoading}

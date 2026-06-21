@@ -240,6 +240,13 @@ export const en: Record<string, string> = {
     "Cheaper model for background work — summaries, titles, fact extraction. Falls back to the main model.",
   "providers.utility.main": "Use main model",
   "providers.utility.error": "Couldn't set the utility model.",
+  "providers.embedding.title": "Embedding model",
+  "providers.embedding.desc":
+    "Powers @codebase semantic search. Pick an embedding-capable provider (OpenAI, or a local Ollama for zero cost). Off disables it.",
+  "providers.embedding.off": "Off",
+  "providers.embedding.none":
+    "No embedding-capable provider configured yet — add one (e.g. OpenAI, or Ollama) above.",
+  "providers.embedding.error": "Couldn't set the embedding model.",
 
   "mcp.add": "Add server",
   "mcp.save": "Save",
@@ -333,6 +340,7 @@ export const en: Record<string, string> = {
   "workspace.view.title.terminal": "Terminal",
   "workspace.view.title.skills": "Skills",
   "workspace.view.title.recipes": "Recipes",
+  "workspace.view.title.codebase": "Codebase",
   "workspace.view.title.memory": "Memory",
   "workspace.view.title.tools": "Tools",
   "workspace.view.title.todos": "Tasks",
@@ -564,6 +572,22 @@ export const en: Record<string, string> = {
   "schedules.preset.daily": "Daily 9am",
   "schedules.preset.weekdays": "Weekdays 9am",
   "schedules.preset.weekly": "Weekly Mon",
+
+  "codebase.title": "Codebase",
+  "codebase.status": "{{state}} · {{files}} files · {{chunks}} chunks",
+  "codebase.state.ready": "Indexed",
+  "codebase.state.indexing": "Indexing…",
+  "codebase.state.error": "Index error",
+  "codebase.state.none": "Not indexed",
+  "codebase.search.placeholder": "Describe the code you're looking for…",
+  "codebase.search.go": "Search",
+  "codebase.searching": "Searching…",
+  "codebase.reindex": "Rebuild index",
+  "codebase.empty": "No semantically similar code found.",
+  "codebase.error": "Search failed.",
+  "codebase.disabled.title": "Embedding model not set",
+  "codebase.disabled.sub":
+    "Pick an embedding model in Settings → Providers to enable semantic code search.",
 
   // ── Workspace view: Memory ──
   "memory.title": "Memory",
