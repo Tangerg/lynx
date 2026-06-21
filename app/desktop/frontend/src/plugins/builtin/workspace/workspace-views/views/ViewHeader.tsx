@@ -68,7 +68,16 @@ export function ViewHeader({ icon, title, sub, actions, titleStrong }: ViewHeade
           {typeof title === "string" ? t(title) : title}
         </div>
         {sub !== undefined && (
-          <div className="mt-0.5 font-mono text-[12px] text-fg-faint">{sub}</div>
+          // Label views get a sans subtitle (descriptive text); filename /
+          // process views keep mono (the sub is a path / stat there).
+          <div
+            className={cn(
+              "mt-0.5 text-[12px] text-fg-faint",
+              titleStrong ? "font-sans" : "font-mono",
+            )}
+          >
+            {sub}
+          </div>
         )}
       </div>
       {(actions !== undefined || placementControls) && (
