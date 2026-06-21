@@ -88,97 +88,117 @@ function delay(ms: number, signal: AbortSignal): Promise<void> {
   });
 }
 
-// The cwd the current subscription watches, and the per-iteration abort
-// that lets a cwd change close the stream for an immediate, backoff-free
-// resubscribe (changing the watch set = close + resubscribe, AUX_API §3.1).
-let watchCwd: string | undefined;
-let iterAbort: AbortController | null = null;
-let resubscribe = false;
-
-/** Point the git-state watch at the active session's cwd. The sessions list
- *  cache is tried first; a cache miss falls back to one sessions.get. A
- *  change closes the current stream — the loop reopens it with the new
- *  watch immediately (no backoff). */
-function retargetWatch(): void {
-  const id = useSessionStore.getState().activeSessionId;
-  if (!id) return; // keep the last known cwd — better than dropping to serve dir
-  const list = queryClient.getQueryData<{ id: string; cwd?: string }[]>([SESSIONS_KEY]);
-  const cached = list?.find((s) => s.id === id)?.cwd;
-  // The sessions.get fallback only covers the boot window where the list
-  // hasn't been fetched at all. Once the list IS cached, a missing entry/cwd
-  // resolves to undefined (no-op) — this runs on every sessions-cache event,
-  // so falling back there would turn cache churn into RPC spam.
-  const resolved =
-    cached !== undefined || list !== undefined
-      ? Promise.resolve(cached)
-      : getContainer()
-          .client()
-          .sessions.get(asSessionId(id))
-          .then((sess) => sess.cwd)
-          .catch(() => undefined);
-  void Promise.resolve(resolved).then((cwd) => {
-    if (cwd === undefined || cwd === watchCwd) return;
-    watchCwd = cwd;
-    resubscribe = true;
-    iterAbort?.abort();
-  });
-}
-
-async function subscribeLoop(signal: AbortSignal): Promise<void> {
-  let attempt = 0;
-  while (!signal.aborted) {
-    // Per-iteration controller so a watch retarget can end JUST this stream
-    // while the outer signal still owns plugin-lifetime teardown.
-    const iter = new AbortController();
-    iterAbort = iter;
-    const onOuterAbort = () => iter.abort();
-    signal.addEventListener("abort", onOuterAbort, { once: true });
-    try {
-      // One watch on the ACTIVE SESSION's cwd = git-state monitoring
-      // (AUX_API §3.1 watch model — NOT recursive file watching): git
-      // changes arrive as debounced `resync`, the agent's own edits as
-      // precise files.changed. Bare subscription (skills/mcp) works
-      // regardless of fileWatch; cwd omitted = serve dir.
-      const fileWatch = serverFeature("fileWatch");
-      const { events } = await getContainer()
-        .client()
-        .workspace.subscribe(
-          fileWatch ? { watches: [{ watchId: "active-session", cwd: watchCwd }] } : undefined,
-          iter.signal,
-        );
-      attempt = 0;
-      // (Re)connected = implicit resync: anything that changed while we were
-      // dark is unknown, so refetch before trusting the cache again.
-      invalidateAll();
-      for await (const ev of events) handle(ev);
-    } catch (err) {
-      if (!signal.aborted && !resubscribe) {
-        console.warn("[workspace-events] subscribe failed:", err);
-      }
-    } finally {
-      signal.removeEventListener("abort", onOuterAbort);
-      if (iterAbort === iter) iterAbort = null;
-    }
-    if (signal.aborted) return;
-    if (resubscribe) {
-      // Intentional close (watch retarget) — reopen immediately.
-      resubscribe = false;
-      attempt = 0;
-      continue;
-    }
-    // Exponential backoff, capped — covers both call failures and stream
-    // ends (the for-await exits when the POST stream dies, see STREAM_DOWN).
-    await delay(Math.min(RECONNECT_BASE_MS * 2 ** attempt, RECONNECT_CAP_MS), signal);
-    attempt += 1;
-  }
-}
-
 export default definePlugin({
   name: "lyra.builtin.workspace-events",
   version: "1.0.0",
   setup() {
     const controller = new AbortController();
     let started = false;
+
+    // Watch state is instance-scoped (lives and dies with this setup()), not
+    // module-level: a module-level controller let an HMR reload's second loop
+    // fight the first, and made the resubscribe intent a cross-await global.
+    //
+    // watchCwd     — the cwd the current subscription watches.
+    // iterAbort    — the live stream's per-iteration controller, so a retarget
+    //                can close JUST that stream (changing the watch set = close
+    //                + resubscribe, AUX_API §3.1).
+    // retargetGen  — monotonic token guarding retargetWatch's async resolve
+    //                against a faster session switch resolving out of order.
+    // RETARGET     — abort reason marking an intentional retarget close, read
+    //                back PER ITERATION so a genuine stream death is never
+    //                mistaken for one (a shared flag raced: a retarget
+    //                coinciding with a real death skipped the backoff).
+    let watchCwd: string | undefined;
+    let iterAbort: AbortController | null = null;
+    let retargetGen = 0;
+    const RETARGET = Symbol("workspace-events.retarget");
+
+    // Point the git-state watch at the active session's cwd. The sessions list
+    // cache is tried first; a cache miss falls back to one sessions.get. A
+    // change closes the current stream — the loop reopens it with the new watch
+    // immediately (no backoff).
+    const retargetWatch = (): void => {
+      const id = useSessionStore.getState().activeSessionId;
+      if (!id) return; // keep the last known cwd — better than dropping to serve dir
+      const myGen = ++retargetGen;
+      const list = queryClient.getQueryData<{ id: string; cwd?: string }[]>([SESSIONS_KEY]);
+      const cached = list?.find((s) => s.id === id)?.cwd;
+      // The sessions.get fallback only covers the boot window where the list
+      // hasn't been fetched at all. Once the list IS cached, a missing entry/cwd
+      // resolves to undefined (no-op) — this runs on every sessions-cache event,
+      // so falling back there would turn cache churn into RPC spam.
+      const resolved =
+        cached !== undefined || list !== undefined
+          ? Promise.resolve(cached)
+          : getContainer()
+              .client()
+              .sessions.get(asSessionId(id))
+              .then((sess) => sess.cwd)
+              .catch(() => undefined);
+      void Promise.resolve(resolved).then((cwd) => {
+        // Drop a stale resolve: a newer retarget superseded this one (a fast
+        // tab switch during the async sessions.get), or the plugin was torn
+        // down. Without the generation guard an out-of-order resolve could pin
+        // the watch to the previous session's cwd.
+        if (myGen !== retargetGen || controller.signal.aborted) return;
+        if (cwd === undefined || cwd === watchCwd) return;
+        watchCwd = cwd;
+        iterAbort?.abort(RETARGET);
+      });
+    };
+
+    const subscribeLoop = async (signal: AbortSignal): Promise<void> => {
+      let attempt = 0;
+      while (!signal.aborted) {
+        // Per-iteration controller so a watch retarget can end JUST this stream
+        // while the outer signal still owns plugin-lifetime teardown.
+        const iter = new AbortController();
+        iterAbort = iter;
+        const onOuterAbort = () => iter.abort();
+        signal.addEventListener("abort", onOuterAbort, { once: true });
+        try {
+          // One watch on the ACTIVE SESSION's cwd = git-state monitoring
+          // (AUX_API §3.1 watch model — NOT recursive file watching): git
+          // changes arrive as debounced `resync`, the agent's own edits as
+          // precise files.changed. Bare subscription (skills/mcp) works
+          // regardless of fileWatch; cwd omitted = serve dir.
+          const fileWatch = serverFeature("fileWatch");
+          const { events } = await getContainer()
+            .client()
+            .workspace.subscribe(
+              fileWatch ? { watches: [{ watchId: "active-session", cwd: watchCwd }] } : undefined,
+              iter.signal,
+            );
+          attempt = 0;
+          // (Re)connected = implicit resync: anything that changed while we were
+          // dark is unknown, so refetch before trusting the cache again.
+          invalidateAll();
+          for await (const ev of events) handle(ev);
+        } catch (err) {
+          // A retarget close is intentional (this iter's signal carries
+          // RETARGET) — only warn on a genuine failure.
+          if (!signal.aborted && iter.signal.reason !== RETARGET) {
+            console.warn("[workspace-events] subscribe failed:", err);
+          }
+        } finally {
+          signal.removeEventListener("abort", onOuterAbort);
+          if (iterAbort === iter) iterAbort = null;
+        }
+        if (signal.aborted) return;
+        if (iter.signal.reason === RETARGET) {
+          // Intentional close (watch retarget) — reopen immediately, no backoff.
+          // The intent is read from THIS iteration's signal, so a genuine death
+          // (signal not aborted with RETARGET) still backs off correctly.
+          attempt = 0;
+          continue;
+        }
+        // Exponential backoff, capped — covers both call failures and stream
+        // ends (the for-await exits when the POST stream dies, see STREAM_DOWN).
+        await delay(Math.min(RECONNECT_BASE_MS * 2 ** attempt, RECONNECT_CAP_MS), signal);
+        attempt += 1;
+      }
+    };
 
     const startIfAdvertised = (): void => {
       if (started || controller.signal.aborted) return;
