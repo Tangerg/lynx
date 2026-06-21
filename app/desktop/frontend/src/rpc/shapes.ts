@@ -649,6 +649,19 @@ export interface Skill {
   description?: string;
   source?: string;
 }
+// A recipe is a user-invoked, parameterized prompt template (workspace.recipes.
+// list). The client expands the body's $ARGUMENTS / $1..$9 with the user's input
+// and sends the result as a turn; body travels with the listing (recipes are
+// small). name doubles as the slash command (review → /review).
+export type RecipeScope = "project" | "global";
+export interface Recipe {
+  name: string;
+  description?: string;
+  argumentHint?: string;
+  body: string;
+  scope: RecipeScope;
+  source: string;
+}
 export interface AgentDoc {
   path: string;
   title?: string;

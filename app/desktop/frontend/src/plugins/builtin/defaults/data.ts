@@ -21,6 +21,7 @@ import type {
   MCPServerConfigInfo,
   MemoryQuery,
   ReadFileQuery,
+  RecipesQuery,
   SidebarProject,
   SidebarSession,
   WorkspaceDiff,
@@ -45,6 +46,7 @@ import {
   MODELS_KEY,
   PROJECTS_KEY,
   PROVIDERS_KEY,
+  RECIPES_KEY,
   SESSIONS_KEY,
   SKILLS_KEY,
   UTILITY_ROLE_KEY,
@@ -340,6 +342,18 @@ export const defaultData = definePlugin({
     host.extensions.contribute(DATA_PROVIDER, {
       key: HOOKS_KEY,
       fetcher: (params) => client().workspace.hooks.list((params as HooksQuery | undefined)?.cwd),
+    });
+    // Prompt recipes (workspace.recipes.list). Swallowed when unsupported (like
+    // skills): recipes drive silent slash-command registration, so an old
+    // runtime should yield no recipes, not an error toast / broken slash.
+    host.extensions.contribute(DATA_PROVIDER, {
+      key: RECIPES_KEY,
+      fetcher: async (params) =>
+        (
+          await client()
+            .workspace.recipes.list((params as RecipesQuery | undefined)?.cwd)
+            .catch(emptyPageIfUngated)
+        ).data,
     });
     // workspace.listFiles / readFile (B8, 613) — file-tree browser + viewer.
     host.extensions.contribute(DATA_PROVIDER, {

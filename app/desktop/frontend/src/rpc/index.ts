@@ -141,6 +141,8 @@ export type {
   UtilityRole,
   // Workspace optional domains
   Skill,
+  Recipe,
+  RecipeScope,
   AgentDoc,
   McpServer,
   McpStatus,

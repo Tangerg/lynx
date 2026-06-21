@@ -7,7 +7,7 @@
 
 import type { UseQueryResult } from "@tanstack/react-query";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import type { HooksListResult, UtilityRole } from "@/rpc";
+import type { HooksListResult, Recipe, UtilityRole } from "@/rpc";
 import { lookupDataProvider } from "@/plugins/sdk";
 import { queryClient } from "./queryClient";
 
@@ -319,6 +319,7 @@ export const APPROVAL_MODE_KEY = "approval-mode";
 export const APPROVAL_RULES_KEY = "approval-rules";
 export const UTILITY_ROLE_KEY = "utility-role";
 export const HOOKS_KEY = "hooks";
+export const RECIPES_KEY = "recipes";
 
 export const useSessions = makeDataQuery<SidebarSession[]>(SESSIONS_KEY);
 export const useProjects = makeDataQuery<SidebarProject[]>(PROJECTS_KEY);
@@ -361,5 +362,13 @@ export interface HooksQuery {
   cwd?: string;
 }
 export const useHooks = makeParamDataQuery<HooksQuery, HooksListResult>(HOOKS_KEY);
+// Prompt recipes for a cwd (workspace.recipes.list) — project over global.
+// cwd-parameterized like hooks: the active session's cwd scopes which project's
+// recipes resolve. Reuses the wire Recipe directly (body travels with it so the
+// slash handler can expand without a second call).
+export interface RecipesQuery {
+  cwd?: string;
+}
+export const useRecipes = makeParamDataQuery<RecipesQuery, Recipe[]>(RECIPES_KEY);
 export const useListFiles = makeParamDataQuery<ListFilesQuery, FileEntryInfo[]>("list-files");
 export const useReadFile = makeParamDataQuery<ReadFileQuery, FileContentInfo>("read-file");
