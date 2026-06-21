@@ -253,11 +253,9 @@
   --shadow-soft: none;
   --shadow-pop: var(--shadow-lg);
 
-  /* Input focus ring — accent halo + soft-border inset, used by
-     .side-search and any input that wants the same affordance. */
-  --shadow-input-focus:
-    0 0 0 2px color-mix(in oklab, var(--color-accent) 30%, transparent),
-    inset 0 0 0 1px var(--color-border-soft);
+  /* Input focus — a quiet stronger inset border, no accent glow halo
+     (the bright ring read as cheap, esp. flashing on click). */
+  --shadow-input-focus: inset 0 0 0 1px var(--color-border-soft);
 }
 
 /* IMPORTANT: do not set `font-size` on <html>. It anchors `rem` for
@@ -338,15 +336,13 @@ html.theme-light .tool-card.selected {
   box-shadow: none;
 }
 
-/* Keyboard-only focus ring. :focus-visible avoids summoning the halo
-   on mouse clicks. Solid 2px accent outline (no opacity haze) reads
-   crisp against both dark and light surfaces; an extra accent-tinted
-   `outline + box-shadow` halo at low alpha softens the edge without
-   blurring the position. */
+/* Keyboard-only focus ring. Kept quiet on purpose: a single thin accent
+   stroke, no bright box-shadow halo. The old 2px-outline + 4px-halo double
+   ring read as cheap — and WebView sometimes shows :focus-visible after a
+   plain click, so the loud version flashed a bright edge on interaction. */
 :focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-  box-shadow: 0 0 0 4px color-mix(in oklab, var(--color-accent) 22%, transparent);
+  outline: 1.5px solid color-mix(in oklab, var(--color-accent) 50%, transparent);
+  outline-offset: 1px;
 }
 /* Inputs already get an inset focus stroke from --shadow-input-focus —
    skip the outline so the two effects don't double up. */
