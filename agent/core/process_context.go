@@ -137,8 +137,11 @@ type ProcessContext struct {
 
 	// lastErr captures the most recent error from a typed-action body so
 	// the runtime can extract a ReplanRequest. ProcessContext is built
-	// fresh per tick (see runtime.buildProcessContext) and never shared
-	// across goroutines, so no synchronization is needed.
+	// fresh per tick (see runtime.buildProcessContext) and owned by a single
+	// goroutine, so these two scratch fields need no synchronization. A
+	// concurrent fan-out (the workflow ScatterGather / Consensus generators)
+	// preserves that invariant by handing each branch its own copy via
+	// [ProcessContext.ForParallelBranch] rather than sharing one.
 	lastErr error
 }
 
@@ -158,6 +161,24 @@ func NewProcessContext(config ProcessContextConfig) *ProcessContext {
 		resolveTools:     config.ResolveTools,
 		toolCallCancel:   config.ToolCallCancel,
 	}
+}
+
+// ForParallelBranch returns a sibling-safe copy of pc for a goroutine running
+// concurrently with other branches of the SAME action — the workflow fan-out
+// builders (ScatterGather / Consensus / Parallel) hand one to each generator.
+//
+// It shares the process-level state (Process / Blackboard / Services) and the
+// platform hooks — all safe for concurrent use — but gets its OWN per-invocation
+// scratch (inputAwaited / lastErr), the two plain unsynchronized fields a single
+// goroutine is assumed to own. Without this, N branches sharing one
+// ProcessContext would race those fields (e.g. two generators calling
+// AwaitInput). The runtime's per-tick path uses [NewProcessContext] for the same
+// "one ProcessContext per goroutine" guarantee.
+func (pc *ProcessContext) ForParallelBranch() *ProcessContext {
+	branch := *pc
+	branch.inputAwaited = false
+	branch.lastErr = nil
+	return &branch
 }
 
 // Tracer returns the framework's OTel tracer so actions can mint custom

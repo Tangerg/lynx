@@ -77,7 +77,12 @@ func ScatterGather[In, Element, Result any](spec ScatterGatherConfig[In, Element
 			}
 			for i, gen := range spec.Generators {
 				g.Go(func() error {
-					out, err := gen(gctx, pc, in)
+					// Each generator runs in its own goroutine, so hand it a
+					// sibling-safe ProcessContext branch — sharing one pc would
+					// race its per-invocation scratch (e.g. two generators
+					// calling AwaitInput). The process / blackboard the branch
+					// shares are themselves concurrency-safe.
+					out, err := gen(gctx, pc.ForParallelBranch(), in)
 					if err != nil {
 						return fmt.Errorf("scatter generator %d: %w", i, err)
 					}
