@@ -226,7 +226,7 @@ export const ko: Record<string, string> = {
   "settings.accent.sub": "기능 하이라이트 — 실행 / 활성 / 주요 동작.",
   "settings.accent.custom": "사용자 색상 선택",
   "settings.font": "폰트",
-  "settings.font.sub": "글꼴 + 크기. 비우면 내장 Geist 사용.",
+  "settings.font.sub": "글꼴 + 크기. 비우면 시스템 기본값 사용.",
   "settings.font.ui": "UI",
   "settings.font.code": "코드",
   "settings.font.size": "크기",

@@ -229,7 +229,7 @@ export const ja: Record<string, string> = {
   "settings.accent.sub": "機能ハイライト色 — 実行 / アクティブ / CTA。",
   "settings.accent.custom": "カラーを選択",
   "settings.font": "フォント",
-  "settings.font.sub": "書体とサイズ。空欄で内蔵の Geist。",
+  "settings.font.sub": "書体とサイズ。空欄でシステム既定。",
   "settings.font.ui": "UI",
   "settings.font.code": "コード",
   "settings.font.size": "サイズ",

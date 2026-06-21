@@ -230,7 +230,7 @@ export const es: Record<string, string> = {
   "settings.accent.sub": "Color de resaltado — ejecutar / activo / acción principal.",
   "settings.accent.custom": "Elige un color personalizado",
   "settings.font": "Fuente",
-  "settings.font.sub": "Tipografía y tamaño. Vacío = Geist incluida.",
+  "settings.font.sub": "Tipografía y tamaño. Vacío = predeterminado del sistema.",
   "settings.font.ui": "UI",
   "settings.font.code": "Código",
   "settings.font.size": "Tamaño",

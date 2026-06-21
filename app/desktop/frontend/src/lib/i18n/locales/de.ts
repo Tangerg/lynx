@@ -232,7 +232,7 @@ export const de: Record<string, string> = {
   "settings.accent.sub": "Funktionale Hervorhebung — Ausführen / Aktiv / CTA.",
   "settings.accent.custom": "Eigene Farbe wählen",
   "settings.font": "Schriftart",
-  "settings.font.sub": "Schrift + Größe. Leer = mitgelieferte Geist.",
+  "settings.font.sub": "Schrift + Größe. Leer = Systemstandard.",
   "settings.font.ui": "UI",
   "settings.font.code": "Code",
   "settings.font.size": "Größe",

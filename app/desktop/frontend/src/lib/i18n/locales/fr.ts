@@ -232,7 +232,7 @@ export const fr: Record<string, string> = {
   "settings.accent.sub": "Couleur de surbrillance — exécuter / actif / CTA.",
   "settings.accent.custom": "Choisir une couleur",
   "settings.font": "Police",
-  "settings.font.sub": "Typographie et taille. Vide = Geist intégrée.",
+  "settings.font.sub": "Typographie et taille. Vide = valeur système par défaut.",
   "settings.font.ui": "UI",
   "settings.font.code": "Code",
   "settings.font.size": "Taille",
