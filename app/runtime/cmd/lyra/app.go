@@ -210,6 +210,10 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		RecipesGlobalDir: filepath.Join(stores.Home, "recipes"),
 		// Scheduled runs (schedules.*) the scheduler worker fires while serving.
 		ScheduleStore: stores.Schedules,
+		// @codebase semantic index: the embedding-model role + the persisted
+		// vector index (codebase_search tool + codebase.* RPC).
+		EmbeddingRoleStore: stores.EmbeddingRole,
+		CodebaseStore:      stores.Codebase,
 		// Default approval stance: Balanced — auto-allow file writes /
 		// network (the agent's normal work; the user sees the diffs), prompt
 		// only on shell exec (bash), the genuinely dangerous class. Must be
@@ -279,6 +283,8 @@ func buildStores() (*Stores, error) {
 		UtilityRole:   sqlitestore.NewUtilityRoleStore(db),
 		Trust:         sqlitestore.NewTrustStore(db),
 		Schedules:     sqlitestore.NewScheduleStore(db),
+		EmbeddingRole: sqlitestore.NewEmbeddingRoleStore(db),
+		Codebase:      sqlitestore.NewCodebaseIndexStore(db),
 	}, nil
 }
 
@@ -301,6 +307,8 @@ type Stores struct {
 	UtilityRole   lyraruntime.UtilityRoleStore
 	Trust         *sqlitestore.TrustStore
 	Schedules     *sqlitestore.ScheduleStore
+	EmbeddingRole *sqlitestore.EmbeddingRoleStore
+	Codebase      *sqlitestore.CodebaseIndexStore
 }
 
 // seedConfiguredProvider ensures the config-file provider is present in the

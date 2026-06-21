@@ -177,6 +177,8 @@ var methodTable = map[string]methodHandler{
 	MethodModelsList:           (*Dispatcher).handleModelsList,
 	MethodModelsGetUtilityRole: (*Dispatcher).handleModelsGetUtilityRole,
 	MethodModelsSetUtilityRole: (*Dispatcher).handleModelsSetUtilityRole,
+	MethodModelsGetEmbedRole:   (*Dispatcher).handleModelsGetEmbeddingRole,
+	MethodModelsSetEmbedRole:   (*Dispatcher).handleModelsSetEmbeddingRole,
 	MethodToolsList:            (*Dispatcher).handleToolsList,
 	MethodToolsInvoke:          (*Dispatcher).handleToolsInvoke,
 

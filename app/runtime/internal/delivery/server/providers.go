@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -123,6 +124,35 @@ func (s *Server) SetUtilityRole(ctx context.Context, in protocol.UtilityRole) (*
 	}
 	p, m := s.rt.UtilityRole()
 	return &protocol.UtilityRole{Provider: p, Model: m}, nil
+}
+
+// GetEmbeddingRole reports the (provider, model) the @codebase semantic index
+// embeds with — empty model when unset (the feature is off)
+// (models.getEmbeddingRole).
+func (s *Server) GetEmbeddingRole(_ context.Context) (*protocol.EmbeddingRole, error) {
+	p, m := s.rt.EmbeddingRole()
+	return &protocol.EmbeddingRole{Provider: p, Model: m}, nil
+}
+
+// SetEmbeddingRole points the index at an (embedding-capable provider, model),
+// validated by building the embedding client; an empty model clears it
+// (models.setEmbeddingRole). A non-embedding-capable provider is invalid_params.
+func (s *Server) SetEmbeddingRole(ctx context.Context, in protocol.EmbeddingRole) (*protocol.EmbeddingRole, error) {
+	if err := s.rt.SetEmbeddingRole(ctx, in.Provider, in.Model); err != nil {
+		return nil, mapEmbeddingRoleErr(err)
+	}
+	p, m := s.rt.EmbeddingRole()
+	return &protocol.EmbeddingRole{Provider: p, Model: m}, nil
+}
+
+// mapEmbeddingRoleErr surfaces a failed embedding-role set as invalid_params —
+// every failure is a client-input problem (unknown/non-embedding provider,
+// unconfigured key, unbuildable model) the user must correct.
+func mapEmbeddingRoleErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: %s", protocol.ErrInvalidParams, err.Error())
 }
 
 // modelToWire maps a catalog model onto the wire Model shape (API.md §4.9),

@@ -6,6 +6,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/editguard"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
@@ -13,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/mcp"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset/askuser"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset/codebasesearch"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset/exitplan"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset/lsptools"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset/shell"
@@ -69,6 +71,10 @@ type BuildConfig struct {
 	A2AAgents       []a2a.ClientConfig
 	Todos           todo.Service     // backs todo_write; nil → the tool is omitted
 	Approval        approval.Service // backs exit_plan_mode (flips the stance on approval); nil → the tool is omitted
+
+	// CodebaseIndex backs codebase_search (semantic code search). nil — or a
+	// service with no embedding model configured — omits the tool.
+	CodebaseIndex codebaseindex.Service
 
 	// MCPDisabled returns the model-facing MCP tool names the configured servers
 	// hide from the model (per-server blacklist; nil → no filtering). The runtime
@@ -150,6 +156,7 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 		CodeIntel:       codeIntel,
 		ReadTracker:     tracker,
 		MCPDisabled:     cfg.MCPDisabled,
+		CodebaseIndex:   cfg.CodebaseIndex,
 	})
 	resolver.SetMCPTools(mcpTools)             // seed the hot-swappable MCP set
 	mcpConns.SetToolSink(resolver.SetMCPTools) // reconnect hot-swaps the refreshed set in
@@ -168,6 +175,11 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 	}
 	if todoTool != nil {
 		tools = append(tools, todoTool)
+	}
+	// codebase_search appears in the catalog only when an embedding model is
+	// configured (the index is usable); the resolver gates it the same way per turn.
+	if cfg.CodebaseIndex != nil && cfg.CodebaseIndex.Available(ctx) {
+		tools = append(tools, codebasesearch.New(cfg.CodebaseIndex))
 	}
 
 	return Built{

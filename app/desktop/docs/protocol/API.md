@@ -1177,6 +1177,11 @@ interface HooksListResult {
 - `getUtilityRole`：无入参；返回 `UtilityRole = { provider?: string; model?: string }`。空 `model` ⇔ 未设置 → 那些工作跑在主 model 上。
 - `setUtilityRole`：入参 `UtilityRole`（空 `model` 清除回主 model）；返回存下的 `UtilityRole`。后端**解析该 client 来校验**——未配置的 provider / 未知 model 在此报 RPC 错（UI 内联显示），不会留到下次压缩才静默退化。持久化（跨重启保留）。
 
+#### `models.getEmbeddingRole` / `models.setEmbeddingRole`
+- **embedding model role** —— `@codebase` 语义索引嵌入代码用的 (provider, model)。区别于 chat / utility model;**provider 必须是已配置且支持 embedding 的**(OpenAI / Azure OpenAI / Google / Mistral / Ollama / Zhipu / Alibaba;Anthropic 无 embedding API,可用本地 Ollama 零成本兜底)。
+- `getEmbeddingRole`：无入参;返回 `EmbeddingRole = { provider?: string; model?: string }`。空 `model` ⇔ 未设置 → `@codebase` 功能关闭(不挂 `codebase_search` 工具)。
+- `setEmbeddingRole`：入参 `EmbeddingRole`(空 `model` 清除);返回存下的 `EmbeddingRole`。后端**构建该 embedding client 来校验**——provider 不支持 embedding / 未配置 key / model 建不出 → `invalid_params`(UI 内联显示)。**换 model 会让各项目已存的向量失效**(下次用到时按新 model 重嵌)。持久化(跨重启保留)。
+
 #### `tools.list`
 - 入参 `{ cursor?; limit? }`；返回 `Page<ToolSpec>`。
 

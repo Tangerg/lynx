@@ -94,6 +94,8 @@ const (
 	MethodModelsList           = "models.list"
 	MethodModelsGetUtilityRole = "models.getUtilityRole"
 	MethodModelsSetUtilityRole = "models.setUtilityRole"
+	MethodModelsGetEmbedRole   = "models.getEmbeddingRole"
+	MethodModelsSetEmbedRole   = "models.setEmbeddingRole"
 	MethodToolsList            = "tools.list"
 	MethodToolsInvoke          = "tools.invoke"
 

@@ -58,6 +58,20 @@ func (d *Dispatcher) handleModelsSetUtilityRole(ctx context.Context, msg *transp
 	return reply(msg, out, err)
 }
 
+func (d *Dispatcher) handleModelsGetEmbeddingRole(ctx context.Context, msg *transport.Request) HandleResult {
+	out, err := d.api.GetEmbeddingRole(ctx)
+	return reply(msg, out, err)
+}
+
+func (d *Dispatcher) handleModelsSetEmbeddingRole(ctx context.Context, msg *transport.Request) HandleResult {
+	in, bad := decode[protocol.EmbeddingRole](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
+	out, err := d.api.SetEmbeddingRole(ctx, in)
+	return reply(msg, out, err)
+}
+
 func (d *Dispatcher) handleToolsList(ctx context.Context, msg *transport.Request) HandleResult {
 	var q protocol.PageQuery
 	_ = unmarshal(msg.Params, &q)

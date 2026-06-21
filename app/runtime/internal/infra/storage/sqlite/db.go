@@ -203,6 +203,46 @@ func migrate(db *sql.DB) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_schedules_due
 			ON schedules(enabled, next_run_at)`,
+		// Embedding-model role (models.setEmbeddingRole): the (provider, model)
+		// the @codebase semantic index embeds with. Single row, pinned by
+		// CHECK(id = 1); empty model = unset (the index feature is off). Mirrors
+		// utility_role; the credential comes from the provider registry.
+		`CREATE TABLE IF NOT EXISTS embedding_role (
+			id        INTEGER PRIMARY KEY CHECK (id = 1),
+			provider  TEXT NOT NULL DEFAULT '',
+			model     TEXT NOT NULL DEFAULT ''
+		)`,
+		// @codebase semantic index, keyed by project cwd. codebase_index is the
+		// per-project meta (which embedding model the vectors were built with, so
+		// a model change invalidates them; counts + timestamp for status).
+		// codebase_files holds per-file content hashes for incremental re-index;
+		// codebase_chunks holds the chunk text + its embedding (little-endian
+		// float32 BLOB — half the size of float64, ample for cosine).
+		`CREATE TABLE IF NOT EXISTS codebase_index (
+			cwd         TEXT    PRIMARY KEY,
+			model_id    TEXT    NOT NULL DEFAULT '',
+			indexed_at  INTEGER NOT NULL DEFAULT 0,
+			file_count  INTEGER NOT NULL DEFAULT 0,
+			chunk_count INTEGER NOT NULL DEFAULT 0,
+			truncated   INTEGER NOT NULL DEFAULT 0
+		)`,
+		`CREATE TABLE IF NOT EXISTS codebase_files (
+			cwd  TEXT NOT NULL,
+			path TEXT NOT NULL,
+			hash TEXT NOT NULL,
+			PRIMARY KEY (cwd, path)
+		)`,
+		`CREATE TABLE IF NOT EXISTS codebase_chunks (
+			id         INTEGER PRIMARY KEY AUTOINCREMENT,
+			cwd        TEXT    NOT NULL,
+			path       TEXT    NOT NULL,
+			start_line INTEGER NOT NULL,
+			end_line   INTEGER NOT NULL,
+			text       TEXT    NOT NULL,
+			embedding  BLOB    NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_codebase_chunks_cwd
+			ON codebase_chunks(cwd)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {

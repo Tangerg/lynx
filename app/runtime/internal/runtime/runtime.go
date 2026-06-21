@@ -33,6 +33,7 @@ import (
 	"github.com/Tangerg/lynx/models/catalog"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
@@ -145,6 +146,13 @@ type Config struct {
 	// scheduler worker fires from. nil disables scheduling — schedules.* fails and
 	// the worker no-ops. The composition root injects the sqlite-backed store.
 	ScheduleStore schedule.Service
+
+	// EmbeddingRoleStore persists the embedding-model role the @codebase index
+	// uses (models.setEmbeddingRole). nil disables persistence. CodebaseStore
+	// persists the index itself; nil disables the @codebase feature entirely
+	// (no tool, no RPC). The composition root injects the sqlite-backed stores.
+	EmbeddingRoleStore EmbeddingRoleStore
+	CodebaseStore      codebaseindex.Store
 }
 
 // HookTrustStore mutates project hook trust for the workspace.hooks.setTrust
@@ -215,6 +223,15 @@ type Runtime struct {
 	// schedules is the scheduled-run registry (schedules.* + the scheduler
 	// worker). nil when scheduling is unconfigured.
 	schedules schedule.Service
+
+	// @codebase semantic index: embeddingCell holds the live embedding role,
+	// embeddings builds+caches embedders from it, embeddingStore persists it, and
+	// codebaseIndex is the index service (nil when no CodebaseStore). See
+	// embedding.go.
+	embeddingCell  *atomic.Pointer[embeddingRole]
+	embeddings     *embeddingResolver
+	embeddingStore EmbeddingRoleStore
+	codebaseIndex  codebaseindex.Service
 }
 
 // New assembles a Runtime from cfg. Returns an error when a required
@@ -296,6 +313,34 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		return c
 	}
 
+	// Embedding-model role + the @codebase semantic index. The role (provider,
+	// model) is loaded into an atomic cell so models.setEmbeddingRole repoints it
+	// live; resolveEmbedder reads the cell per call and builds the embedder from
+	// the provider registry, returning ErrNoEmbeddingModel when unset (the index
+	// feature is then off). The index service is built only when a store is wired.
+	embeddings := newEmbeddingResolver(providerSvc)
+	embCell := &atomic.Pointer[embeddingRole]{}
+	var erole embeddingRole
+	if cfg.EmbeddingRoleStore != nil {
+		p, m, lerr := cfg.EmbeddingRoleStore.LoadEmbeddingRole(ctx)
+		if lerr != nil {
+			return nil, fmt.Errorf("runtime: load embedding role: %w", lerr)
+		}
+		erole = embeddingRole{provider: p, model: m}
+	}
+	embCell.Store(&erole)
+	resolveEmbedder := func(ctx context.Context) (codebaseindex.Embedder, error) {
+		role := embCell.Load()
+		if role == nil || role.model == "" {
+			return nil, codebaseindex.ErrNoEmbeddingModel
+		}
+		return embeddings.resolve(ctx, role.provider, role.model)
+	}
+	var codebaseIdx codebaseindex.Service
+	if cfg.CodebaseStore != nil {
+		codebaseIdx = codebaseindex.New(cfg.CodebaseStore, resolveEmbedder)
+	}
+
 	if ecfg.Steering == nil {
 		ecfg.Steering = conv
 	}
@@ -373,6 +418,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		Todos:           ecfg.Todos,
 		Approval:        approvalSvc,
 		MCPDisabled:     mcpDisabled,
+		CodebaseIndex:   codebaseIdx,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("runtime: build tools: %w", err)
@@ -434,6 +480,10 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		hookTrust:        cfg.HookTrustStore,
 		recipesGlobalDir: cfg.RecipesGlobalDir,
 		schedules:        cfg.ScheduleStore,
+		embeddingCell:    embCell,
+		embeddings:       embeddings,
+		embeddingStore:   cfg.EmbeddingRoleStore,
+		codebaseIndex:    codebaseIdx,
 	}, nil
 }
 
