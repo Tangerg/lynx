@@ -330,6 +330,7 @@ export const APPROVAL_MODE_KEY = "approval-mode";
 export const APPROVAL_RULES_KEY = "approval-rules";
 export const UTILITY_ROLE_KEY = "utility-role";
 export const EMBEDDING_ROLE_KEY = "embedding-role";
+export const CODEBASE_STATUS_KEY = "codebase-status";
 export const HOOKS_KEY = "hooks";
 export const RECIPES_KEY = "recipes";
 export const SCHEDULES_KEY = "schedules";
@@ -370,7 +371,7 @@ export interface CodebaseStatusQuery {
   cwd?: string;
 }
 export const useCodebaseStatus = makeParamDataQuery<CodebaseStatusQuery, CodebaseStatus>(
-  "codebase-status",
+  CODEBASE_STATUS_KEY,
 );
 export const useApprovalRules = makeParamDataQuery<ApprovalRulesQuery, ApprovalRuleInfo[]>(
   APPROVAL_RULES_KEY,

@@ -52,6 +52,7 @@ import {
   SKILLS_KEY,
   UTILITY_ROLE_KEY,
   EMBEDDING_ROLE_KEY,
+  CODEBASE_STATUS_KEY,
 } from "@/lib/data/queries";
 import { getContainer } from "@/main/container";
 import { asSessionId, isErrorType } from "@/rpc";
@@ -340,7 +341,7 @@ export const defaultData = definePlugin({
       fetcher: () => client().models.getEmbeddingRole(),
     });
     host.extensions.contribute(DATA_PROVIDER, {
-      key: "codebase-status",
+      key: CODEBASE_STATUS_KEY,
       fetcher: (params) => client().codebase.status((params as { cwd?: string } | undefined)?.cwd),
     });
     host.extensions.contribute(DATA_PROVIDER, {

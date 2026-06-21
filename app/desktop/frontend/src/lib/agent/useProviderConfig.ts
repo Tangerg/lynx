@@ -9,6 +9,7 @@ import {
   type UtilityRole,
 } from "@/rpc";
 import {
+  CODEBASE_STATUS_KEY,
   EMBEDDING_ROLE_KEY,
   MODELS_KEY,
   PROVIDERS_KEY,
@@ -80,7 +81,7 @@ export async function setEmbeddingRole(role: EmbeddingRole): Promise<TestOutcome
     await getContainer().client().models.setEmbeddingRole(role);
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: [EMBEDDING_ROLE_KEY] }),
-      queryClient.invalidateQueries({ queryKey: ["codebase-status"] }),
+      queryClient.invalidateQueries({ queryKey: [CODEBASE_STATUS_KEY] }),
     ]);
     return { ok: true };
   } catch (e) {
