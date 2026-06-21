@@ -24,7 +24,6 @@ export const zh: Record<string, string> = {
   "sidebar.action.searchHint": "搜索 (⌘K)",
   "sidebar.action.tools": "工具 / MCP",
   "sidebar.action.settings": "设置",
-  "sidebar.user.menuLabel": "账号菜单",
 
   "composer.input.label": "消息输入框",
   "composer.placeholder.fallback": "提问、规划，或粘贴一段错误堆栈…  斜杠 / 运行命令",
@@ -120,7 +119,6 @@ export const zh: Record<string, string> = {
   "tools.preview.viewReply": "查看完整回复",
 
   "common.remove": "移除",
-  "sidebar.user.account": "账号",
   "status.notifications": "通知",
   "status.notifications.unread": "{{count}} 条未读通知",
   "session.row.titleLabel": "会话标题",

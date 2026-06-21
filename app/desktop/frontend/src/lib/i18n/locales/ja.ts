@@ -20,7 +20,6 @@ export const ja: Record<string, string> = {
   "sidebar.action.searchHint": "検索 (⌘K)",
   "sidebar.action.tools": "ツール / MCP",
   "sidebar.action.settings": "設定",
-  "sidebar.user.menuLabel": "アカウントメニュー",
 
   "composer.input.label": "メッセージ入力欄",
   "composer.placeholder.fallback":
@@ -109,7 +108,6 @@ export const ja: Record<string, string> = {
   "tools.preview.viewReply": "返信全体を表示",
 
   "common.remove": "削除",
-  "sidebar.user.account": "アカウント",
   "status.notifications": "通知",
   "status.notifications.unread": "未読の通知 {{count}} 件",
   "session.row.titleLabel": "セッションのタイトル",

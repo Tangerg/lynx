@@ -20,7 +20,6 @@ export const zhTW: Record<string, string> = {
   "sidebar.action.searchHint": "搜尋 (⌘K)",
   "sidebar.action.tools": "工具 / MCP",
   "sidebar.action.settings": "設定",
-  "sidebar.user.menuLabel": "帳號選單",
 
   "composer.input.label": "訊息輸入框",
   "composer.placeholder.fallback": "提問、規劃，或貼上一段錯誤堆疊…  斜線 / 執行命令",
@@ -110,7 +109,6 @@ export const zhTW: Record<string, string> = {
   "tools.preview.viewReply": "檢視完整回覆",
 
   "common.remove": "移除",
-  "sidebar.user.account": "帳號",
   "status.notifications": "通知",
   "status.notifications.unread": "{{count}} 則未讀通知",
   "session.row.titleLabel": "工作階段標題",
