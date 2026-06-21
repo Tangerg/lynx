@@ -390,6 +390,13 @@ Confirmed direction:
 Everything else (token bridge, plugin-contributed chrome, accent *scarcity*,
 tabular numerals, focus-ring discipline, reduced-motion) carries over unchanged.
 
+**Status (branch `ui-redesign`)** — landed batches: ① design tokens + flush
+layout + dual-theme palette · ② first-class sidebar nav (Workspace group, for
+discoverability) · ③ centered welcome hero · ④ sans speaker names (mono kept for
+data) · ⑤ grouped settings rail (self-declared `group`) · ⑥ sans subtitles on
+label-titled views. The frontmatter + §1–§13 below are **not yet rewritten** to
+match — do that once the new look is visually confirmed in `wails dev`.
+
 ---
 
 ## 1. Overview
