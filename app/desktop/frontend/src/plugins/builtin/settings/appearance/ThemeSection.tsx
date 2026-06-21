@@ -1,6 +1,8 @@
 // Theme picker. Rows come from the live theme registry — adding a
 // theme plugin makes it show up here with no further wiring.
 
+import type { ReactNode } from "react";
+import type { IconName } from "@/components/common";
 import type { ThemeSpec } from "@/plugins/sdk";
 import { Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
@@ -27,55 +29,22 @@ function previewTokens(spec: ThemeSpec): { bg: string; surface: string; accent: 
   };
 }
 
-function ThemeRow({
-  spec,
+// Shared shell for a theme-option row — both the registered presets and the
+// "System" option are the same control (preview swatch · label · scheme tag ·
+// check), so the shell lives here once; only `preview` + `sub` vary.
+function ThemeOption({
   active,
   onSelect,
+  preview,
+  label,
+  sub,
 }: {
-  spec: ThemeSpec;
   active: boolean;
-  onSelect: (id: string) => void;
+  onSelect: () => void;
+  preview: ReactNode;
+  label: string;
+  sub: ReactNode;
 }) {
-  const preview = previewTokens(spec);
-  return (
-    <button
-      type="button"
-      onClick={() => onSelect(spec.id)}
-      aria-pressed={active}
-      className={cn(
-        "grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-line bg-surface px-3 py-2.5 text-left transition-[background,border-color] duration-150 hover:bg-surface-2",
-        active && "bg-surface-2 border-accent",
-      )}
-    >
-      <div
-        className="relative h-8 w-12 shrink-0 overflow-hidden rounded-sm border border-line"
-        style={{ background: preview.bg }}
-      >
-        <div
-          className="absolute inset-x-2 top-2 bottom-1 rounded-[2px]"
-          style={{ background: preview.surface }}
-        />
-        <div
-          className="absolute right-1 bottom-1 h-1.5 w-1.5 rounded-full"
-          style={{ background: preview.accent }}
-        />
-      </div>
-      <div className="grid min-w-0 gap-0.5">
-        <div className="truncate text-[14px] font-semibold leading-[1.2] text-fg">{spec.label}</div>
-        <div className="inline-flex items-center gap-1 font-mono text-[11px] text-fg-faint lowercase tracking-normal">
-          <Icon name={spec.scheme === "dark" ? "moon" : "sun"} size={10} className="shrink-0" />
-          {spec.scheme}
-        </div>
-      </div>
-      {active && <Icon name="check" size={14} className="shrink-0 text-accent" />}
-    </button>
-  );
-}
-
-// "System" follows the OS appearance (the default). It isn't a registered
-// THEME spec, so it gets its own row with a split dark/light preview.
-function SystemRow({ active, onSelect }: { active: boolean; onSelect: () => void }) {
-  const t = useT();
   return (
     <button
       type="button"
@@ -87,26 +56,83 @@ function SystemRow({ active, onSelect }: { active: boolean; onSelect: () => void
       )}
     >
       <div className="relative h-8 w-12 shrink-0 overflow-hidden rounded-sm border border-line">
-        <div
-          className="absolute inset-y-0 left-0 w-1/2"
-          style={{ background: FALLBACK_TOKENS.dark.bg }}
-        />
-        <div
-          className="absolute inset-y-0 right-0 w-1/2"
-          style={{ background: FALLBACK_TOKENS.light.bg }}
-        />
+        {preview}
       </div>
       <div className="grid min-w-0 gap-0.5">
-        <div className="truncate text-[14px] font-semibold leading-[1.2] text-fg">
-          {t("settings.theme.system")}
-        </div>
-        <div className="inline-flex items-center gap-1 font-mono text-[11px] text-fg-faint lowercase tracking-normal">
-          <Icon name="settings" size={10} className="shrink-0" />
-          {t("settings.theme.systemSub")}
-        </div>
+        <div className="truncate text-[14px] font-semibold leading-[1.2] text-fg">{label}</div>
+        {sub}
       </div>
       {active && <Icon name="check" size={14} className="shrink-0 text-accent" />}
     </button>
+  );
+}
+
+// The scheme tag under a theme option — mono (a technical scheme label).
+function OptionSub({ icon, children }: { icon: IconName; children: ReactNode }) {
+  return (
+    <div className="inline-flex items-center gap-1 font-mono text-[11px] tracking-normal text-fg-faint">
+      <Icon name={icon} size={10} className="shrink-0" />
+      {children}
+    </div>
+  );
+}
+
+function ThemeRow({
+  spec,
+  active,
+  onSelect,
+}: {
+  spec: ThemeSpec;
+  active: boolean;
+  onSelect: (id: string) => void;
+}) {
+  const preview = previewTokens(spec);
+  return (
+    <ThemeOption
+      active={active}
+      onSelect={() => onSelect(spec.id)}
+      label={spec.label}
+      sub={<OptionSub icon={spec.scheme === "dark" ? "moon" : "sun"}>{spec.scheme}</OptionSub>}
+      preview={
+        <>
+          <div className="absolute inset-0" style={{ background: preview.bg }} />
+          <div
+            className="absolute inset-x-2 top-2 bottom-1 rounded-[2px]"
+            style={{ background: preview.surface }}
+          />
+          <div
+            className="absolute right-1 bottom-1 h-1.5 w-1.5 rounded-full"
+            style={{ background: preview.accent }}
+          />
+        </>
+      }
+    />
+  );
+}
+
+// "System" follows the OS appearance (the default). Not a registered THEME
+// spec, so it renders here with a split dark/light preview.
+function SystemRow({ active, onSelect }: { active: boolean; onSelect: () => void }) {
+  const t = useT();
+  return (
+    <ThemeOption
+      active={active}
+      onSelect={onSelect}
+      label={t("settings.theme.system")}
+      sub={<OptionSub icon="settings">{t("settings.theme.systemSub")}</OptionSub>}
+      preview={
+        <>
+          <div
+            className="absolute inset-y-0 left-0 w-1/2"
+            style={{ background: FALLBACK_TOKENS.dark.bg }}
+          />
+          <div
+            className="absolute inset-y-0 right-0 w-1/2"
+            style={{ background: FALLBACK_TOKENS.light.bg }}
+          />
+        </>
+      }
+    />
   );
 }
 
