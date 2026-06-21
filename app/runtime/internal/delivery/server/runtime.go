@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
@@ -35,6 +36,9 @@ type RuntimeServices interface {
 	Tool() toolsvc.Service
 	Memory() knowledge.Service
 	Approval() approval.Service
+	// Schedules is the scheduled-run registry the scheduler worker fires from
+	// and schedules.* manages.
+	Schedules() schedule.Service
 	Interrupts() interrupts.Store
 	Transcript() transcript.Store
 	// Providers is the provider registry — credentials + enablement that

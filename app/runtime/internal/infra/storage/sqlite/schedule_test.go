@@ -1,0 +1,127 @@
+package sqlite_test
+
+import (
+	"context"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+)
+
+func newScheduleStore(t *testing.T) *sqlite.ScheduleStore {
+	t.Helper()
+	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	return sqlite.NewScheduleStore(db)
+}
+
+// TestScheduleCRUD covers create (id assigned, persisted verbatim), get, the
+// next-due query, mark-fired, update, and delete.
+func TestScheduleCRUD(t *testing.T) {
+	ctx := context.Background()
+	s := newScheduleStore(t)
+
+	past := time.Now().Add(-time.Hour).UTC().Truncate(time.Millisecond)
+	created, err := s.Create(ctx, schedule.Schedule{
+		Title: "standup", Prompt: "summarize the diff", Cwd: "/proj",
+		Cron: "0 9 * * 1-5", Enabled: true, NextRunAt: past,
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if created.ID == "" {
+		t.Fatal("create did not assign an id")
+	}
+	if created.CreatedAt.IsZero() {
+		t.Error("create did not stamp CreatedAt")
+	}
+
+	got, err := s.Get(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.Prompt != "summarize the diff" || got.Cron != "0 9 * * 1-5" || !got.Enabled {
+		t.Errorf("get round-trip mismatch: %+v", got)
+	}
+	if !got.NextRunAt.Equal(past) {
+		t.Errorf("NextRunAt = %v, want %v", got.NextRunAt, past)
+	}
+	if !got.LastRunAt.IsZero() {
+		t.Errorf("LastRunAt = %v, want zero (never fired)", got.LastRunAt)
+	}
+
+	// Due: the past nextRunAt is in (0, now], so it's returned.
+	due, err := s.Due(ctx, time.Now())
+	if err != nil {
+		t.Fatalf("due: %v", err)
+	}
+	if len(due) != 1 || due[0].ID != created.ID {
+		t.Fatalf("due = %+v, want the one past-due schedule", due)
+	}
+
+	// MarkFired records lastRunAt + advances nextRunAt to the future → no longer due.
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	future := now.Add(24 * time.Hour)
+	if err := s.MarkFired(ctx, created.ID, now, future); err != nil {
+		t.Fatalf("markFired: %v", err)
+	}
+	due, _ = s.Due(ctx, time.Now())
+	if len(due) != 0 {
+		t.Errorf("due after markFired = %+v, want none", due)
+	}
+	got, _ = s.Get(ctx, created.ID)
+	if !got.LastRunAt.Equal(now) {
+		t.Errorf("LastRunAt = %v, want %v", got.LastRunAt, now)
+	}
+
+	// Update: disabling clears the due index (NextRunAt zero) → never due.
+	got.Enabled = false
+	got.NextRunAt = time.Time{}
+	got.Title = "renamed"
+	if _, err := s.Update(ctx, got); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	reread, _ := s.Get(ctx, created.ID)
+	if reread.Enabled || reread.Title != "renamed" || !reread.NextRunAt.IsZero() {
+		t.Errorf("update not applied: %+v", reread)
+	}
+
+	if err := s.Delete(ctx, created.ID); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if _, err := s.Get(ctx, created.ID); err != schedule.ErrNotFound {
+		t.Errorf("get after delete err = %v, want ErrNotFound", err)
+	}
+}
+
+// TestScheduleUpdateNotFound: updating an unknown id reports ErrNotFound.
+func TestScheduleUpdateNotFound(t *testing.T) {
+	s := newScheduleStore(t)
+	_, err := s.Update(context.Background(), schedule.Schedule{ID: "sch_nope", Prompt: "x", Cron: "@daily"})
+	if err != schedule.ErrNotFound {
+		t.Errorf("update unknown id err = %v, want ErrNotFound", err)
+	}
+}
+
+// TestScheduleDueSkipsDisabled: a disabled schedule never shows as due even if
+// its NextRunAt is in the past.
+func TestScheduleDueSkipsDisabled(t *testing.T) {
+	ctx := context.Background()
+	s := newScheduleStore(t)
+	past := time.Now().Add(-time.Hour)
+	if _, err := s.Create(ctx, schedule.Schedule{Prompt: "p", Cron: "@daily", Enabled: false, NextRunAt: past}); err != nil {
+		t.Fatal(err)
+	}
+	due, err := s.Due(ctx, time.Now())
+	if err != nil {
+		t.Fatalf("due: %v", err)
+	}
+	if len(due) != 0 {
+		t.Errorf("due = %+v, want none (disabled)", due)
+	}
+}

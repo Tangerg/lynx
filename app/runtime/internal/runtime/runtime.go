@@ -42,6 +42,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -139,6 +140,11 @@ type Config struct {
 	// workspace.recipes.list discovery layers under a project's .lyra/recipes.
 	// Empty → only project recipes are listed. The composition root sets it.
 	RecipesGlobalDir string
+
+	// ScheduleStore persists scheduled runs (schedules.*) and is the registry the
+	// scheduler worker fires from. nil disables scheduling — schedules.* fails and
+	// the worker no-ops. The composition root injects the sqlite-backed store.
+	ScheduleStore schedule.Service
 }
 
 // HookTrustStore mutates project hook trust for the workspace.hooks.setTrust
@@ -205,6 +211,10 @@ type Runtime struct {
 	// recipesGlobalDir is the global recipes directory the workspace.recipes.list
 	// discovery layers under a project's .lyra/recipes. Empty → project-only.
 	recipesGlobalDir string
+
+	// schedules is the scheduled-run registry (schedules.* + the scheduler
+	// worker). nil when scheduling is unconfigured.
+	schedules schedule.Service
 }
 
 // New assembles a Runtime from cfg. Returns an error when a required
@@ -423,6 +433,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		hookResolver:     cfg.HooksResolver,
 		hookTrust:        cfg.HookTrustStore,
 		recipesGlobalDir: cfg.RecipesGlobalDir,
+		schedules:        cfg.ScheduleStore,
 	}, nil
 }
 
@@ -481,6 +492,10 @@ func (r *Runtime) Memory() knowledge.Service { return r.knowledge }
 // Approval returns the ApprovalService. Always non-nil — the runtime
 // constructs one regardless of cfg.ApprovalMode (defaults to YOLO).
 func (r *Runtime) Approval() approval.Service { return r.approval }
+
+// Schedules returns the scheduled-run registry (schedules.* + the scheduler
+// worker). nil when scheduling is unconfigured.
+func (r *Runtime) Schedules() schedule.Service { return r.schedules }
 
 // Interrupts returns the open-interrupt registry (R-model HITL resume
 // discovery). Always non-nil.

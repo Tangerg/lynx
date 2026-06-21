@@ -29,6 +29,7 @@ type Runtime interface {
 	Items
 	Workspace
 	Approval
+	Schedules
 	Providers
 	Models
 	Tools

@@ -1078,9 +1078,10 @@ interface SessionArtifact {
 ```ts
 interface WatchSpec     { watchId: string; cwd?: string; path?: string }   // path 当前未用;cwd 默认 serve 目录
 interface WorkspaceEvent {
-  type: "files.changed" | "skills.changed" | "mcp.serverChanged" | "resync";
+  type: "files.changed" | "skills.changed" | "mcp.serverChanged" | "schedules.fired" | "resync";
   paths?: string[]; cwd?: string;                           // files.changed：变更文件(相对 cwd)+ 所属 cwd
   server?: string; status?: string; toolCount?: number; error?: ProblemData;  // mcp.serverChanged
+  scheduleId?: string;                                       // schedules.fired：刚触发的 schedule(新 run 落在新会话,客户端刷新会话列表)
 }
 ```
 
@@ -1226,9 +1227,43 @@ interface HooksListResult {
 | Notification | params | 何时 |
 | --- | --- | --- |
 | `notifications.run.event` | `RunEvent` | run 期间每个事件（run/item/state/custom） |
-| `notifications.workspace.event` | `WorkspaceEvent` | 非-run 工作区变化（files/skills/mcp.serverChanged/resync），经 `workspace.subscribe` 流（§7.5） |
+| `notifications.workspace.event` | `WorkspaceEvent` | 非-run 工作区变化（files/skills/mcp.serverChanged/**schedules.fired**/resync），经 `workspace.subscribe` 流（§7.5） |
 
 > `notifications.canceled` 是 **client→server**（§7.1），不在此表。
+
+---
+
+### 7.9 schedules.*
+
+定时（cron）触发的 **headless run**：到点时运行时用存好的 prompt 在指定 cwd 起一个新会话跑完、落库,**无需客户端在场**。调度器是 `lyra serve` 内的常驻 worker（每分钟扫一次到点的 schedule),serve 进程不在时不触发(下次起来对错过的只补跑一次、然后跳到下一个未来时点,不回放每个错过的槽)。一个 schedule 存**最终 prompt 文本**(客户端可"从 recipe 填充",但调度器与 recipes 解耦——删/改名 recipe 不会破坏 schedule)。
+
+每次触发产生一条 `schedules.fired{scheduleId}` 工作区事件(§7.5 流),客户端据此刷新会话列表(新 run 落在一个新会话里)。
+
+| method | params | result | 备注 |
+| --- | --- | --- | --- |
+| `schedules.list` | —— | `{ schedules: Schedule[] }` | 全部 schedule,最新创建在前 |
+| `schedules.create` | `{ title?; prompt; cwd?; provider?; model?; cron }` | `Schedule` | 新建即 enabled;`prompt`+`cron` 必填,`provider`/`model` 成对(都填选模型、都不填用默认);从 cron 算出首个 `nextRunAt` |
+| `schedules.update` | `{ id; title?; prompt; cwd?; provider?; model?; cron; enabled }` | `Schedule` | 全替换可编辑字段并按(新)cron 重算 `nextRunAt`;disable 即清空 `nextRunAt`(worker 跳过) |
+| `schedules.delete` | `{ id }` | 无 | 幂等 |
+| `schedules.runNow` | `{ id }` | 无 | 立即额外触发一次,记录触发但不移动下次到点时间 |
+
+```ts
+interface Schedule {
+  id: string;
+  title: string;
+  prompt: string;          // 作为 run 输入发送的最终文本
+  cwd?: string;            // headless run 的工具锚定目录;空 = serve 目录
+  provider?: string;       // 与 model 成对;空 = 运行时默认
+  model?: string;
+  cron: string;            // 5 段标准 cron："min hour dom month dow"（如 "0 9 * * 1-5"）
+  enabled: boolean;
+  lastRunAt?: string;      // 从未触发则省略
+  nextRunAt?: string;      // disabled 则省略
+  createdAt: string;
+}
+```
+
+错误：`prompt` / `cron` 为空或 cron 不可解析、`provider`/`model` 未成对 → `invalid_params`;未知 `id`(update / runNow)→ `invalid_params`(detail 说明)。
 
 ---
 
