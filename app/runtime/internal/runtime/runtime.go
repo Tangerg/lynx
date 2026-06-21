@@ -128,6 +128,18 @@ type Config struct {
 	// hook seam. The composition root builds it from the storage home + the
 	// project-trust store.
 	HooksResolver *hooks.Resolver
+
+	// HookTrustStore backs the workspace.hooks.* trust toggle (a GUI granting a
+	// project's hooks). nil → trust is read-only (CLI / file only); the resolver
+	// still reads trust through its own checker.
+	HookTrustStore HookTrustStore
+}
+
+// HookTrustStore mutates project hook trust for the workspace.hooks.setTrust
+// surface. The sqlite TrustStore implements it.
+type HookTrustStore interface {
+	Trust(ctx context.Context, projectRoot string) error
+	Untrust(ctx context.Context, projectRoot string) error
 }
 
 // Runtime is the bundle. Construct once via [New]; share the
@@ -177,6 +189,12 @@ type Runtime struct {
 	utility   *atomic.Pointer[utilityRole]
 	resolver  *clientResolver
 	utilStore UtilityRoleStore
+
+	// hookResolver inspects lifecycle hooks for a cwd (workspace.hooks.list);
+	// hookTrust mutates project trust (workspace.hooks.setTrust). Both nil when
+	// hooks are unconfigured.
+	hookResolver *hooks.Resolver
+	hookTrust    HookTrustStore
 }
 
 // New assembles a Runtime from cfg. Returns an error when a required
@@ -392,7 +410,27 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		utility:         utilCell,
 		resolver:        resolver,
 		utilStore:       cfg.UtilityRoleStore,
+		hookResolver:    cfg.HooksResolver,
+		hookTrust:       cfg.HookTrustStore,
 	}, nil
+}
+
+// InspectHooks returns the lifecycle hooks discovered for cwd plus the project's
+// trust status (workspace.hooks.list). Empty when hooks are unconfigured.
+func (r *Runtime) InspectHooks(ctx context.Context, cwd string) hooks.Inspection {
+	return r.hookResolver.Inspect(ctx, cwd)
+}
+
+// SetProjectHookTrust trusts (or revokes) a project's hooks (workspace.hooks.
+// setTrust). No-op when no trust store is wired.
+func (r *Runtime) SetProjectHookTrust(ctx context.Context, projectRoot string, trusted bool) error {
+	if r.hookTrust == nil {
+		return nil
+	}
+	if trusted {
+		return r.hookTrust.Trust(ctx, projectRoot)
+	}
+	return r.hookTrust.Untrust(ctx, projectRoot)
 }
 
 // runClosers runs capability shutdown hooks best-effort — used to release a

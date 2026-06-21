@@ -1061,6 +1061,8 @@ interface SessionArtifact {
 | `workspace.mcp.listServers` | `{ cursor?; limit? }` | `Page<McpServer>` | MCP 全局，不收 cwd；含 boot 失败的 server（status:"failed" + error） |
 | `workspace.mcp.listTools` | `{ server?: string; cursor?; limit? }` | `Page<McpTool>` | |
 | `workspace.mcp.reconnect` | `{ server: string }` | 无（异步） | 结果走推送，见下 |
+| `workspace.hooks.list` | `WorkspaceQuery` | `HooksListResult` | 该 cwd 发现的生命周期 hook（全局 + 项目）+ 项目信任态；见下 |
+| `workspace.hooks.setTrust` | `{ projectRoot: string; trusted: boolean }` | 无 | 信任 / 撤销某项目的 hook（下一个 turn 生效）；见下 |
 | `workspace.subscribe` — Stream | `{ watches?: WatchSpec[] }` | Stream（`notifications.workspace.event`，params `WorkspaceEvent`） | 流式方法（在 `streamingMethods`）；`watches` 受 `features.fileWatch` |
 
 错误：读方法可返 `cwd_unavailable` / `path_outside_root`。git 方法(`listFileChanges` / `getDiff`)按**三态分离**:
@@ -1096,6 +1098,31 @@ fd;且我们用不了 fd-廉价的 FSEvents)。改为两路覆盖,跨平台(inot
 
 > `getDiff` / `getFileHead` / `grep` 返回的是**单一聚合结果**（非集合列表），故保留专用 shape、不套 `Page<T>`；但仍守
 > "no silent caps"——截断都**自描述**：`grep` 由 `GrepResult.total ≥ matches.length`、`getDiff` 由 `Diff.truncated`。
+
+#### 生命周期 hooks 管理（`workspace.hooks.*`）
+
+运行时在固定的 turn 生命周期点跑用户自写的 hook（外部命令，事件 JSON 走 stdin，按 exit code 决策；或声明式 `inject` 零进程注入上下文）。hook 来自两层 `hooks.json`：**全局 `~/.lyra/hooks.json`（永远信任）** 与**项目 `<root>/.lyra/hooks.json`**。**信任模型（安全要点）**：clone 来的仓库其项目 hook **默认不跑**（防供应链 RCE），须经 `workspace.hooks.setTrust` 显式信任后、下一个 turn 起生效。
+
+`workspace.hooks.list` 列出该 cwd 发现的**全部** hook（含未信任的项目 hook，便于审阅 `command` 后再决定信任），`active` 标注它当前是否真的会跑（全局恒 `true`；项目仅在 `projectTrusted` 时 `true`）。
+
+```ts
+interface HookInfo {
+  event: "PreToolUse" | "PostToolUse" | "UserPromptSubmit" | "SessionStart" | "PreCompact" | "Stop" | "Notification";
+  matcher?: string;   // tool-name glob（仅 PreToolUse/PostToolUse 用），缺省 = 全匹配
+  command?: string;   // 要跑的 shell 命令（展示出来供用户审阅项目 hook）
+  inject?: string;    // 声明式无-exec 上下文注入（与 command 二选一）
+  scope: "global" | "project";
+  source: string;     // 来源 hooks.json 的绝对路径
+  active: boolean;    // 当前是否会跑：全局恒真；项目仅在已信任时真
+}
+interface HooksListResult {
+  projectRoot?: string;     // 信任键（cwd 最近的 .git 祖先）
+  projectTrusted: boolean;  // 该项目的 project-scope hook 是否已启用
+  hooks: HookInfo[];
+}
+```
+
+错误：`workspace.hooks.list` 同其它读方法可返 `cwd_unavailable`；`setTrust` 的 `projectRoot` 为空 → `invalid_params`。
 
 ---
 

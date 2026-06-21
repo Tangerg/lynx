@@ -203,7 +203,8 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		Provider: string(cfg.Provider),
 		Model:    cfg.Model,
 		// User lifecycle hooks (global + trusted-project), resolved per turn cwd.
-		HooksResolver: hookResolver,
+		HooksResolver:  hookResolver,
+		HookTrustStore: stores.Trust,
 		// Default approval stance: Balanced — auto-allow file writes /
 		// network (the agent's normal work; the user sees the diffs), prompt
 		// only on shell exec (bash), the genuinely dangerous class. Must be

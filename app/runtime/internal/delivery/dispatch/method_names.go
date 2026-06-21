@@ -68,6 +68,8 @@ const (
 	MethodWorkspaceMCPRemove       = "workspace.mcp.remove"
 	MethodWorkspaceMCPSetEnabled   = "workspace.mcp.setEnabled"
 	MethodWorkspaceMCPTest         = "workspace.mcp.test"
+	MethodWorkspaceListHooks       = "workspace.hooks.list"
+	MethodWorkspaceSetHookTrust    = "workspace.hooks.setTrust"
 	MethodWorkspaceSubscribe       = "workspace.subscribe"
 
 	// Approval (API.md §C.3) — runtime-global tool-permission stance + the

@@ -26,6 +26,10 @@ type Workspace interface {
 	WorkspaceMCPRemove(ctx context.Context, name string) error
 	WorkspaceMCPSetEnabled(ctx context.Context, in SetMCPEnabledRequest) error
 	WorkspaceMCPTest(ctx context.Context, in ConfigureMCPServerRequest) (*McpTestResult, error)
+	// Lifecycle-hooks management (workspace.hooks.*): list the discovered hooks
+	// for a cwd (global + project, with trust status) and toggle project trust.
+	WorkspaceListHooks(ctx context.Context, in ListHooksRequest) (*HooksListResult, error)
+	WorkspaceSetHookTrust(ctx context.Context, in SetHookTrustRequest) error
 	// WorkspaceSubscribe opens the non-run workspace event stream (AUX_API §3):
 	// files/skills/mcp changes. Returns an ack + the event channel, closed when
 	// the request ctx ends. Streaming method (in streamingMethods).
