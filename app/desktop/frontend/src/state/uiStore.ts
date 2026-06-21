@@ -75,10 +75,10 @@ interface UiState {
   /** Global UI contrast 0–100. Drives the surface-ladder depth (`--depth-step`)
    *  across all themes, and the full derived ladders of the custom theme. */
   contrast: number;
-  /** Empty string = use the bundled Geist default. Anything else overrides
+  /** Empty string = the native system default. Anything else overrides
    *  `--font-sans` on :root and propagates via Tailwind's `font-sans`. */
   uiFont: string;
-  /** Empty string = use the bundled Geist Mono default. */
+  /** Empty string = the native system mono default. */
   codeFont: string;
   /** Pixel font-size on <html>. Null = browser default (16px) so existing
    *  rem tokens stay calibrated. Range: 13–18 in the picker. */
@@ -144,7 +144,7 @@ export const useUiStore = create<UiState & UiActions>()(
   persist(
     (set, get) => ({
       theme: "dark",
-      accent: "#1ed760",
+      accent: "#6c97ff",
       customTheme: { bg: "#0f1117", fg: "#e6e8ee" },
       contrast: 60,
       uiFont: "",
@@ -190,7 +190,7 @@ export const useUiStore = create<UiState & UiActions>()(
       name: "lyra.ui",
       storage: createJSONStorage(() => localStorage),
       // v3: added customTheme (3-color custom theme) + fontSmoothing.
-      version: 3,
+      version: 4,
       merge: (persisted, current) => {
         const parsed = uiPersistSchema.safeParse(persisted);
         if (!parsed.success) {
@@ -299,14 +299,17 @@ function applyFonts(
   root.style.setProperty("-webkit-font-smoothing", fontSmoothing ? "antialiased" : "auto");
   root.style.setProperty("-moz-osx-font-smoothing", fontSmoothing ? "grayscale" : "auto");
   if (uiFont) {
-    root.style.setProperty("--font-sans", `"${uiFont}", "Geist", "Inter", system-ui, sans-serif`);
+    root.style.setProperty(
+      "--font-sans",
+      `"${uiFont}", -apple-system, system-ui, "PingFang SC", sans-serif`,
+    );
   } else {
     root.style.removeProperty("--font-sans");
   }
   if (codeFont) {
     root.style.setProperty(
       "--font-mono",
-      `"${codeFont}", "Geist Mono", "JetBrains Mono", ui-monospace, Menlo, monospace`,
+      `"${codeFont}", ui-monospace, "SF Mono", Menlo, monospace`,
     );
   } else {
     root.style.removeProperty("--font-mono");

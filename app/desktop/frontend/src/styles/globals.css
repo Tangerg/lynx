@@ -14,8 +14,9 @@
  * `text-fg` callsite live.
  */
 
-/* Fonts are self-hosted and bundled via main.tsx (@fontsource-variable/geist
-   + geist-mono) — no CDN @import here. See NATIVE_FEEL.md §A. */
+/* Fonts: the native system stack (SF Pro / PingFang on macOS, the app's
+   primary target) — no bundled webfont, no CDN @import. The OS face is the
+   premium, native default; it loads instantly and renders CJK best. */
 @import "tailwindcss";
 
 /* Scheme variants. `theme-light` / `theme-dark` are written to <html>
@@ -60,9 +61,13 @@
   --radius-xl: 16px;
   --radius-pill: 9999px;
 
-  /* Fonts */
-  --font-sans: "Geist Variable", "Geist", "Inter", system-ui, sans-serif;
-  --font-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, Menlo, monospace;
+  /* Fonts — native system stack: SF Pro + PingFang on macOS (primary target),
+     graceful fallbacks elsewhere. The single source of truth for both the html
+     base and every `font-sans` / `font-mono` utility. */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, "PingFang SC",
+    "Hiragino Sans", "Microsoft YaHei", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, "Cascadia Code", Consolas, monospace;
 
   /* Animations — `animate-shimmer` powers Skeleton, `animate-pulse-dot`
      the running indicator, `animate-rise-in` popover entry. */
@@ -161,14 +166,8 @@
   --color-info: #58a6ff;
   --color-success: #3fb950;
 
-  /* Fonts — Geist (sans + mono) handles every role; CJK fallbacks
-     preserve readability for mixed-script text. */
-  --font-ui:
-    "Geist Variable", "Geist", "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
-    "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, "MS Gothic", sans-serif;
-  --font-mono:
-    "Geist Mono Variable", "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
-    Consolas, monospace;
+  /* Fonts live in the @theme block above (the system stack); --font-sans /
+     --font-mono are the single source of truth (html base + utilities). */
 
   /* Primary CTA — decoupled from --color-accent so themes can have
      accent drive "live state" while CTA is something else (e.g. Vercel
@@ -265,7 +264,7 @@
 html {
   background: var(--color-bg);
   color: var(--color-text);
-  font-family: var(--font-ui);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   /* Native subtractions (NATIVE_FEEL.md §A): no grey tap-flash on press, no

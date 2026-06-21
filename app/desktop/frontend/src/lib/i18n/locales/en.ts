@@ -360,7 +360,7 @@ export const en: Record<string, string> = {
   "settings.accent.sub": "Functional highlight color — play / active / CTA.",
   "settings.accent.custom": "Pick a custom color",
   "settings.font": "Font",
-  "settings.font.sub": "Typeface + size. Empty = bundled Geist.",
+  "settings.font.sub": "Typeface + size. Empty = system default.",
   "settings.font.ui": "UI",
   "settings.font.code": "Code",
   "settings.font.size": "Size",
