@@ -1272,6 +1272,39 @@ interface Schedule {
 
 ---
 
+### 7.10 codebase.*
+
+**@codebase 语义索引** —— 按语义(而非字面文本)检索项目代码。后端把代码分块嵌入成向量,存 sqlite(float32 BLOB),查询时 Go 内暴力 cosine top-k(单仓库几千 chunk,微秒级,零外部依赖)。首次用到时懒构建、按文件 hash 增量刷新。**需先配置 embedding role**(`models.setEmbeddingRole`);未配则功能关闭。agent 走 `codebase_search` 工具,client 走这里(`@codebase` mention / 状态面 / 手动重建)。
+
+| method | params | result | 备注 |
+| --- | --- | --- | --- |
+| `codebase.search` | `{ cwd?; query; limit? }` | `{ hits: CodebaseHit[] }` | 语义检索;首次/陈旧时先(增量)构建索引。无 embedding model → `invalid_params`(detail 提示去配置) |
+| `codebase.status` | `{ cwd? }` | `CodebaseStatus` | 该 cwd 索引状态(状态面轮询用) |
+| `codebase.reindex` | `{ cwd? }` | 无 | **后台**全量重建(立即返回);状态面轮询 `codebase.status` 看进度。无 embedding model → `invalid_params` |
+
+```ts
+interface CodebaseHit {
+  path: string;          // 相对 cwd
+  startLine: number;     // 1-based
+  endLine: number;
+  snippet: string;       // 命中代码片段
+  score: number;         // cosine 相似度 [0,1]
+}
+interface CodebaseStatus {
+  state: "none" | "indexing" | "ready" | "error";
+  modelId?: string;      // 向量所用 "provider:model"(换 model 即失效重建)
+  fileCount: number;
+  chunkCount: number;
+  indexedAt?: string;    // RFC3339
+  truncated?: boolean;   // 命中索引上限(部分索引)
+  error?: string;        // 末次构建失败原因
+}
+```
+
+embedding-capable provider 由 `providers.list` 的 `Provider.embeddingCapable` / `defaultEmbeddingModel` 标注(`@codebase` 的 embedding-role picker 据此筛选)。
+
+---
+
 ## 8. 错误
 
 ### 8.1 投递通道（流式场景必读）+ 落点决策表

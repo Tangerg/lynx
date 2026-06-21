@@ -30,6 +30,7 @@ type Runtime interface {
 	Workspace
 	Approval
 	Schedules
+	Codebase
 	Providers
 	Models
 	Tools

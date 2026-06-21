@@ -87,6 +87,11 @@ const (
 	MethodSchedulesDelete = "schedules.delete"
 	MethodSchedulesRunNow = "schedules.runNow"
 
+	// Codebase (API.md §7.10) — the @codebase semantic index.
+	MethodCodebaseSearch  = "codebase.search"
+	MethodCodebaseStatus  = "codebase.status"
+	MethodCodebaseReindex = "codebase.reindex"
+
 	// Providers / Models / Tools (API.md §7.6).
 	MethodProvidersList        = "providers.list"
 	MethodProvidersConfigure   = "providers.configure"
