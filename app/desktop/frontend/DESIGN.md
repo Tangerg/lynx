@@ -394,7 +394,11 @@ tabular numerals, focus-ring discipline, reduced-motion) carries over unchanged.
 layout + dual-theme palette · ② first-class sidebar nav (Workspace group, for
 discoverability) · ③ centered welcome hero · ④ sans speaker names (mono kept for
 data) · ⑤ grouped settings rail (self-declared `group`) · ⑥ sans subtitles on
-label-titled views. The frontmatter + §1–§13 below are **not yet rewritten** to
+label-titled views · ⑦ quiet focus (no bright accent halo/glow on click — the
+composer + global :focus-visible + input rings) · ⑧ native system font (SF Pro /
+PingFang; Geist webfont dropped) + fixed the accent default (uiStore was still
+writing green; now blue, persist version bumped) · ⑨ removed the fake account
+chip from the rail. The frontmatter + §1–§13 below are **not yet rewritten** to
 match — do that once the new look is visually confirmed in `wails dev`.
 
 ---
