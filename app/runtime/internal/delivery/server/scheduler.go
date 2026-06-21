@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -52,22 +53,39 @@ func (s *Server) fireDueSchedules(ctx context.Context) {
 	now := time.Now()
 	due, err := s.rt.Schedules().Due(ctx, now)
 	if err != nil {
-		_, span := schedulerTracer.Start(ctx, "scheduler.tick")
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "due query failed")
-		span.End()
+		recordSchedulerError(ctx, "due query failed", err)
 		return
 	}
 	for _, sc := range due {
 		next, nerr := schedule.NextRun(sc.Cron, now)
 		if nerr != nil {
-			next = time.Time{} // unparseable cron (validated on write) → stop firing it
+			// Cron is validated on write, so a parse failure here is a corrupted
+			// record. Zeroing next disables it (rather than re-firing every tick);
+			// recorded so the corruption isn't silent.
+			recordSchedulerError(ctx, "unparseable cron", fmt.Errorf("schedule %s: %w", sc.ID, nerr))
+			next = time.Time{}
 		}
-		_, _ = s.fireSchedule(ctx, sc) // errors recorded on the per-fire span
+		_, _ = s.fireSchedule(ctx, sc) // fire errors are recorded on the per-fire span
 		// Advance regardless of fire outcome so a persistently-failing schedule
-		// doesn't re-fire every tick (its run lands in the session as a failure).
-		_ = s.rt.Schedules().MarkFired(ctx, sc.ID, now, next)
+		// waits for its next slot instead of re-firing every tick (its run lands in
+		// the session as a failure). A failed advance leaves it due, so surface it —
+		// a silently-swallowed MarkFired error is exactly what turns into a re-fire
+		// loop every tick.
+		if err := s.rt.Schedules().MarkFired(ctx, sc.ID, now, next); err != nil {
+			recordSchedulerError(ctx, "mark fired failed", fmt.Errorf("schedule %s: %w", sc.ID, err))
+		}
 	}
+}
+
+// recordSchedulerError opens a one-shot span carrying err. The scheduler worker
+// fires on a timer with no request/response to surface failures on, so an otel
+// span is how a background error that would otherwise be swallowed (a failed
+// due-query, an unparseable cron, a failed fired-marker) stays observable.
+func recordSchedulerError(ctx context.Context, msg string, err error) {
+	_, span := schedulerTracer.Start(ctx, "scheduler.error")
+	span.RecordError(err)
+	span.SetStatus(codes.Error, msg)
+	span.End()
 }
 
 // fireSchedule starts one schedule's saved prompt as a headless run in a fresh
