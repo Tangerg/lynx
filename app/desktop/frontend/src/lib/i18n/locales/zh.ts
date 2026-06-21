@@ -150,6 +150,11 @@ export const zh: Record<string, string> = {
   "welcome.suggest.checklist.prompt": "起草清单: ",
 
   "settings.title": "设置",
+  "settings.group.general": "通用",
+  "settings.group.models": "模型",
+  "settings.group.agent": "代理",
+  "settings.group.integrations": "集成",
+  "settings.group.advanced": "高级",
   "settings.pane.appearance": "外观",
   "settings.pane.plugins": "插件",
   "settings.pane.language": "语言",

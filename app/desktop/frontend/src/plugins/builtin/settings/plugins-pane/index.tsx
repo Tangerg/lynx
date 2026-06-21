@@ -207,6 +207,7 @@ export default definePlugin({
     host.extensions.contribute(SETTINGS_PANE, {
       id: "plugins",
       label: "settings.pane.plugins",
+      group: "integrations",
       icon: "tool",
       order: 99,
       component: PluginsPane,
