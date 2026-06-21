@@ -354,6 +354,8 @@ export const en: Record<string, string> = {
   "workspace.view.title.search": "Search",
   "workspace.view.title.diagnostics": "Diagnostics",
   "settings.theme": "Theme",
+  "settings.theme.system": "System",
+  "settings.theme.systemSub": "follows your OS",
   "settings.theme.sub":
     "Pick a color theme. Plugins can register more — they show up here automatically.",
   "settings.accent": "Accent",

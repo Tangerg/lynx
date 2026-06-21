@@ -14,5 +14,13 @@ import { lookupExtensionByKey } from "./extensions";
  * id against `"light"` — custom ids like `"solarized-dark"` would mis-classify.
  */
 export function resolveScheme(themeId: string): "dark" | "light" {
+  // "system" follows the OS appearance (matches uiStore's resolveThemeId).
+  if (themeId === "system") {
+    return typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  }
   return lookupExtensionByKey(THEME, themeId)?.scheme ?? "dark";
 }

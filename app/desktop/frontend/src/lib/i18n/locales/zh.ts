@@ -348,6 +348,8 @@ export const zh: Record<string, string> = {
   "workspace.view.title.search": "搜索",
   "workspace.view.title.diagnostics": "诊断",
   "settings.theme": "主题",
+  "settings.theme.system": "系统",
+  "settings.theme.systemSub": "跟随系统外观",
   "settings.theme.sub": "选择一个配色方案。插件可以注册更多主题——会自动出现在这里。",
   "settings.accent": "强调色",
   "settings.accent.sub": "功能性高亮——运行、激活、主要操作。",

@@ -143,7 +143,7 @@ interface UiActions {
 export const useUiStore = create<UiState & UiActions>()(
   persist(
     (set, get) => ({
-      theme: "dark",
+      theme: "system",
       accent: "#6c97ff",
       customTheme: { bg: "#0f1117", fg: "#e6e8ee" },
       contrast: 60,
@@ -161,7 +161,7 @@ export const useUiStore = create<UiState & UiActions>()(
 
       setTheme: (theme) => set({ theme }),
       toggleTheme: () => {
-        const cur = get().theme;
+        const cur = resolveThemeId(get().theme);
         const curSpec = lookupExtensionByKey(THEME, cur);
         const curScheme = curSpec?.scheme ?? (cur === "light" ? "light" : "dark");
         const target = curScheme === "dark" ? "light" : "dark";
@@ -218,6 +218,19 @@ function lookupLightVariant(darkHex: string): string {
   return colord(darkHex).darken(0.2).toHex();
 }
 
+// `theme: "system"` follows the OS appearance — resolve it to the primary
+// theme of the current prefers-color-scheme. Any other id is used as-is.
+function prefersDark(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches
+  );
+}
+function resolveThemeId(theme: Theme): Theme {
+  return theme === "system" ? (prefersDark() ? "dark" : "light") : theme;
+}
+
 // Track every CSS variable the last theme set on :root.style so we can
 // remove it before applying the next theme. Without this, a theme that
 // pins surface-2/3/4 (Catppuccin, Tokyo Night, Atom One) leaves those
@@ -228,11 +241,12 @@ let appliedTokenNames: string[] = [];
 
 function applyTheme(theme: Theme, accent: string) {
   const root = document.documentElement;
-  const spec = lookupExtensionByKey(THEME, theme);
+  const resolved = resolveThemeId(theme);
+  const spec = lookupExtensionByKey(THEME, resolved);
 
   // Scheme drives the structural class. Fallback to id when the spec
   // isn't registered yet — for built-in ids ("dark"/"light") still right.
-  const scheme = spec?.scheme ?? (theme === "light" ? "light" : "dark");
+  const scheme = spec?.scheme ?? (resolved === "light" ? "light" : "dark");
   root.classList.remove("theme-light", "theme-dark");
   root.classList.add(`theme-${scheme}`);
 
@@ -380,4 +394,19 @@ const unsubPlugins = usePluginStore.subscribe((state, prev) => {
   }
 });
 
-disposeOnHmr(unsubUi, unsubPlugins);
+// Follow the OS appearance while theme === "system": re-apply on scheme flip
+// so a system-mode user tracks light/dark live, without a manual toggle.
+let unsubScheme = () => {};
+if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+  const mq = window.matchMedia("(prefers-color-scheme: dark)");
+  const onSchemeChange = () => {
+    if (useUiStore.getState().theme === "system") {
+      const { theme, accent } = useUiStore.getState();
+      applyTheme(theme, accent);
+    }
+  };
+  mq.addEventListener("change", onSchemeChange);
+  unsubScheme = () => mq.removeEventListener("change", onSchemeChange);
+}
+
+disposeOnHmr(unsubUi, unsubPlugins, unsubScheme);
