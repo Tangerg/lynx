@@ -353,7 +353,7 @@ export const zh: Record<string, string> = {
   "settings.accent.sub": "功能性高亮——运行、激活、主要操作。",
   "settings.accent.custom": "自定义颜色",
   "settings.font": "字体",
-  "settings.font.sub": "字体 + 字号。留空使用内置 Geist。",
+  "settings.font.sub": "字体 + 字号。留空使用系统默认。",
   "settings.font.ui": "界面",
   "settings.font.code": "代码",
   "settings.font.size": "字号",
