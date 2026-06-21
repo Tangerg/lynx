@@ -1,13 +1,15 @@
-// Lyra Light — Vercel-inspired bright canvas + white surface. Pure
-// black-on-white CTA so the green accent stays reserved for live state.
+// Lyra Light — clean white main area + subtle gray chrome (flush layout).
+// Pure black-on-white CTA, so the blue accent stays reserved for live state.
 
 import { defineThemePlugin } from "../kit/defineThemePlugin";
 
 const c = {
-  green: "#15883e",
+  // Restrained blue accent (near-monochrome direction); the CTA stays black.
+  accent: "#2563eb",
 
-  canvas: "#fafafa",
-  surface1: "#ffffff",
+  // Flush layout: canvas = clean white main area, surface = subtle gray chrome.
+  canvas: "#ffffff",
+  surface1: "#f6f7f8",
 
   // Calibrated to clear WCAG AA on 11-12px text against canvas.
   inkBright: "#000000",
@@ -28,7 +30,7 @@ export default defineThemePlugin({
   order: 1,
 
   brand: {
-    accent: c.green,
+    accent: c.accent,
     textOnAccent: "#ffffff",
   },
   surfaces: {
