@@ -39,23 +39,20 @@ func (r *Runtime) EmbeddingRole() (providerID, model string) {
 
 // SetEmbeddingRole repoints the @codebase index at (provider, model), persists
 // it, and swaps the live cell. An empty model clears the role (turns the index
-// off). A non-empty model is validated first — the provider must be
-// embedding-capable AND configured — so a bad role fails here rather than at the
-// next search. Backs models.setEmbeddingRole.
+// off). A non-empty model is validated by building its embedding client, so an
+// unbuildable role fails here rather than at the next search. The caller is
+// expected to have already rejected a non-embedding-capable or unconfigured
+// provider (the delivery layer does, as invalid_params), so a failure here is an
+// internal one. Backs models.setEmbeddingRole.
 func (r *Runtime) SetEmbeddingRole(ctx context.Context, providerID, model string) error {
 	if model == "" {
 		providerID = "" // a cleared role carries no provider
-	} else {
-		if !llm.EmbeddingCapable(llm.Provider(providerID)) {
-			return fmt.Errorf("%w: provider %q has no embeddings adapter", errUnsupportedEmbeddingProvider, providerID)
-		}
-		if _, err := r.embeddings.resolve(ctx, providerID, model); err != nil {
-			return fmt.Errorf("runtime: embedding model %q on %q: %w", model, providerID, err)
-		}
+	} else if _, err := r.embeddings.resolve(ctx, providerID, model); err != nil {
+		return fmt.Errorf("runtime: build embedding model %q on %q: %w", model, providerID, err)
 	}
 	if r.embeddingStore != nil {
 		if err := r.embeddingStore.SaveEmbeddingRole(ctx, providerID, model); err != nil {
-			return err
+			return fmt.Errorf("runtime: persist embedding role: %w", err)
 		}
 	}
 	r.embeddingCell.Store(&embeddingRole{provider: providerID, model: model})
@@ -66,10 +63,6 @@ func (r *Runtime) SetEmbeddingRole(ctx context.Context, providerID, model string
 func (r *Runtime) CodebaseIndex() codebaseindex.Service {
 	return r.codebaseIndex
 }
-
-// errUnsupportedEmbeddingProvider lets the server map a bad provider to
-// invalid_params (errors.Is) rather than internal_error.
-var errUnsupportedEmbeddingProvider = fmt.Errorf("unsupported embedding provider")
 
 // embeddingResolver builds + caches embedding clients from provider-registry
 // credentials, keyed by everything that changes the built client (so a

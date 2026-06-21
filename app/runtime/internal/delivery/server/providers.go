@@ -136,25 +136,41 @@ func (s *Server) GetEmbeddingRole(_ context.Context) (*protocol.EmbeddingRole, e
 	return &protocol.EmbeddingRole{Provider: p, Model: m}, nil
 }
 
-// SetEmbeddingRole points the index at an (embedding-capable provider, model),
-// validated by building the embedding client; an empty model clears it
-// (models.setEmbeddingRole). A non-embedding-capable provider is invalid_params.
+// SetEmbeddingRole points the index at an (embedding-capable provider, model);
+// an empty model clears it (models.setEmbeddingRole). The user-correctable
+// preconditions are checked here as invalid_params; the runtime then builds the
+// client + persists the role (a failure there is internal_error).
 func (s *Server) SetEmbeddingRole(ctx context.Context, in protocol.EmbeddingRole) (*protocol.EmbeddingRole, error) {
+	if err := s.validateEmbeddingRole(ctx, in); err != nil {
+		return nil, err
+	}
 	if err := s.rt.SetEmbeddingRole(ctx, in.Provider, in.Model); err != nil {
-		return nil, mapEmbeddingRoleErr(err)
+		return nil, err
 	}
 	p, m := s.rt.EmbeddingRole()
 	return &protocol.EmbeddingRole{Provider: p, Model: m}, nil
 }
 
-// mapEmbeddingRoleErr surfaces a failed embedding-role set as invalid_params —
-// every failure is a client-input problem (unknown/non-embedding provider,
-// unconfigured key, unbuildable model) the user must correct.
-func mapEmbeddingRoleErr(err error) error {
-	if err == nil {
+// validateEmbeddingRole enforces the user-correctable preconditions for
+// models.setEmbeddingRole (mirrors validateScheduleInput): a non-empty model
+// needs an embedding-capable, configured provider — both invalid_params. Clearing
+// the role (empty model) needs no provider. Building the client + persisting are
+// left to the runtime, which classifies its own failures.
+func (s *Server) validateEmbeddingRole(ctx context.Context, in protocol.EmbeddingRole) error {
+	if in.Model == "" {
 		return nil
 	}
-	return fmt.Errorf("%w: %s", protocol.ErrInvalidParams, err.Error())
+	if !llm.EmbeddingCapable(llm.Provider(in.Provider)) {
+		return fmt.Errorf("%w: provider %q has no embeddings adapter", protocol.ErrInvalidParams, in.Provider)
+	}
+	entry, ok, err := s.rt.Providers().Get(ctx, in.Provider)
+	if err != nil {
+		return err
+	}
+	if !ok || !entry.Enabled() {
+		return fmt.Errorf("%w: provider %q is not configured (set its API key first)", protocol.ErrInvalidParams, in.Provider)
+	}
+	return nil
 }
 
 // modelToWire maps a catalog model onto the wire Model shape (API.md §4.9),
