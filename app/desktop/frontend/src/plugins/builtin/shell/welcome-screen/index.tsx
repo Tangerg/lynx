@@ -102,11 +102,11 @@ function WelcomeScreen() {
   const keyless = providers !== undefined && !providers.some((p) => p.apiKeyMasked !== "");
 
   return (
-    // Centered hero (Codex / ChatGPT empty-state voice): the column is
-    // horizontally centered and pulled toward the upper-middle, so the title +
-    // suggestions read as one group above the bottom-anchored composer.
+    // Centered hero (Codex / ChatGPT empty-state voice). ChatStream renders this
+    // in a vertically-centered column directly above the composer, so the
+    // positioning lives there — here it's just the centered content group.
     // Sentence-case + period per DESIGN.md §3.
-    <div className="mx-auto flex w-full max-w-[600px] flex-col items-center gap-4 px-6 pt-[15vh] pb-56 text-center">
+    <div className="mx-auto flex w-full max-w-[600px] flex-col items-center gap-4 text-center">
       {/* Eyebrow — terminal-style "ready" mark with an accent dot. */}
       <div className="inline-flex items-center gap-2 font-mono text-[11px] text-fg-faint tracking-normal [font-feature-settings:'tnum'] before:content-[''] before:h-1.5 before:w-1.5 before:rounded-full before:bg-accent before:shadow-[0_0_6px_var(--color-accent)]">
         {t("welcome.eyebrow")}

@@ -120,6 +120,48 @@ export function ChatStream({ onSend, resetKey }: Props) {
     ],
   );
 
+  // The composer surface (status + slash hints + input + footer) — shared by
+  // the empty-state centered layout and the normal bottom-anchored one.
+  const composer = (
+    <>
+      <Slot name="chat.status" />
+      <SlashSuggestions value={composerValue} onPick={setComposerValue} />
+      <Composer
+        value={composerValue}
+        onChange={setComposerValue}
+        onClear={clearComposer}
+        onSend={onSend}
+        images={images}
+        onRemoveImage={removeImage}
+        onAddImages={addImageFiles}
+        pastes={pastes}
+        onRemovePaste={removePaste}
+        onAddPaste={addPaste}
+        acceptsImages={acceptsImages}
+      />
+      <ComposerFooter />
+    </>
+  );
+
+  // Empty state (Codex / ChatGPT voice): the hero + composer are ONE
+  // vertically-centered group. No MessageStream / StickToBottom here — nothing
+  // is streaming yet, so the delicate sticky-scroll path only mounts once there
+  // are messages, and the composer "drops" to the bottom on the first send.
+  if (messages.length === 0) {
+    return (
+      <>
+        <CwdMissingBanner key={resetKey} />
+        <RunErrorBanner />
+        <div className="panel-scroll flex flex-1 flex-col overflow-y-auto px-6">
+          <div className="m-auto w-full max-w-[720px] py-10">
+            <Slot name="chat.empty" />
+            <div className="mt-7">{composer}</div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       {/* Keyed on the session so the relocate input never carries a
@@ -160,22 +202,7 @@ export function ChatStream({ onSend, resetKey }: Props) {
             composer's outer edge lines up with the message text
             column above it (instead of the raw 760px column edge). */}
         <div className="pointer-events-auto relative z-[2] mx-auto w-full max-w-[760px] px-6">
-          <Slot name="chat.status" />
-          <SlashSuggestions value={composerValue} onPick={setComposerValue} />
-          <Composer
-            value={composerValue}
-            onChange={setComposerValue}
-            onClear={clearComposer}
-            onSend={onSend}
-            images={images}
-            onRemoveImage={removeImage}
-            onAddImages={addImageFiles}
-            pastes={pastes}
-            onRemovePaste={removePaste}
-            onAddPaste={addPaste}
-            acceptsImages={acceptsImages}
-          />
-          <ComposerFooter />
+          {composer}
         </div>
       </div>
     </>
