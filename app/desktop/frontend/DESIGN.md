@@ -1,18 +1,19 @@
 ---
 version: 1.0
 name: lyra-design-analysis
-description: "Lyra is an agent client — a desktop chat shell that streams Lyra Runtime Protocol events from a Go runtime. The design is dark-first, dense, keyboard-driven; built for engineers reading streaming markdown, inspecting tool calls, and approving actions. Visually a synthesis of Linear (canvas / surface ladder / hairline-defined regions / single accent) and Vercel (Geist typography / mono-as-eyebrow / stacked subtle elevation / sentence-case headlines). The system replaces the previous Spotify-inspired vocabulary (pill geometry / ALL-CAPS labels / 700+ display weight / heavy dark shadows) which read as a consumer media app and clashed with the engineering posture of an agent runtime."
+description: "Lyra is an agent client — a desktop chat shell that streams Lyra Runtime Protocol events from a Go runtime. The design is calm, airy, premium-minimal (the Codex / Linear-app reference): a flush edge-to-edge layout (no cards-on-canvas gutters), a near-monochrome palette with one restrained blue accent, full light/dark parity that follows the OS by default, the native system font (SF Pro / PingFang on macOS), and sans-first labels (mono reserved for code / IDs / paths). Built for engineers reading streaming markdown, inspecting tool calls, and approving actions — but reading as a refined product surface, not a dense console. (Replaced an earlier dense, dark-first, green-accent, Geist-on-cards-on-canvas system.)"
 
 colors:
-  # ---- Brand / accent ----
-  # Single chromatic accent — used scarcely. Allowed surfaces: active tab
-  # indicator, primary CTA, focus ring, live indicator (streaming dot,
-  # running pill). Forbidden as section background, card fill, or
-  # decorative tint.
-  primary: "#1ed760"            # Lyra signature green — kept from prior identity
-  primary-hover: "#3fe57a"
-  primary-pressed: "#169c46"
-  on-primary: "#000000"
+  # ---- Accent ----
+  # One restrained, near-monochrome chromatic accent — used scarcely. Allowed
+  # surfaces: active tab indicator, primary CTA, focus ring (a single thin
+  # stroke, no bright halo), live indicator (streaming dot, running pill).
+  # Forbidden as section background, card fill, or decorative tint. The hue is
+  # user-selectable; the default is a calm blue (green is now just one option).
+  accent: "#6c97ff"             # default accent — calm blue (dark); #2563eb on light
+  accent-border: "#5b86f0"
+  accent-pressed: "#4a72d8"
+  on-accent: "#ffffff"
 
   # ---- Ink (text) ----
   ink: "#f7f8f8"                # Headlines + emphasized body
@@ -20,14 +21,15 @@ colors:
   ink-muted: "#8a8f98"           # Secondary / inactive nav / meta
   ink-faint: "#62666d"           # Tertiary / disabled / footnotes
 
-  # ---- Surface ladder (Linear-derived) ----
-  # Four steps above canvas. Depth comes from this ladder + hairlines —
-  # never from drop shadows on dark.
-  canvas: "#010102"              # Page background. NOT #000000 — faint blue tint
-  surface-1: "#0f1011"           # Cards, sidebar, message bubble
-  surface-2: "#141516"           # Hover / active row, raised surface
-  surface-3: "#18191a"           # Sub-nav, dropdown, popover
-  surface-4: "#191a1b"           # Deepest lifted surface
+  # ---- Surface ladder ----
+  # Flush layout: canvas IS the main reading area; surface is the one lifted
+  # chrome step (sidebar, cards, bubbles), divided from canvas by a hairline.
+  # -2/-3/-4 derive via color-mix so the contrast slider moves them per scheme.
+  canvas: "#0c0d0f"              # Main reading surface (dark). Light: #ffffff
+  surface: "#16181b"             # Lifted chrome — sidebar / cards / bubble. Light: #f6f7f8
+  surface-2: "#1c1e21"           # Hover / active row, raised surface (derived)
+  surface-3: "#212327"           # Sub-nav, dropdown, popover (derived)
+  surface-4: "#26282c"           # Deepest lifted surface (derived)
 
   # ---- Hairlines ----
   hairline: "#23252a"            # Default 1px border
@@ -45,49 +47,47 @@ colors:
   negative: "#f85149"            # Errors (RUN_ERROR banner, tool failure)
   info: "#58a6ff"                # Inline links, info badges
 
-  # ---- Light theme (Vercel-derived) ----
-  light-canvas: "#ffffff"
-  light-surface-1: "#fafafa"
-  light-surface-2: "#f5f5f5"
-  light-surface-3: "#ececed"
+  # ---- Light theme (full parity, not second-class) ----
+  light-canvas: "#ffffff"        # clean white main reading area
+  light-surface: "#f6f7f8"       # subtle gray chrome — sidebar / cards
   light-hairline: "#ebebeb"
-  light-hairline-strong: "#a1a1a1"
+  light-hairline-strong: "#d4d4d6"
   light-ink: "#171717"
   light-ink-soft: "#4d4d4d"
-  light-ink-muted: "#888888"
+  light-ink-muted: "#5e5e5e"
+  light-accent: "#2563eb"        # accent reads crisp on white
 
 typography:
   # ---- Font families ----
-  # Sans: Geist — sharp geometric, the agent-tool consensus (Linear / Vercel
-  # / Cursor all use it or Inter as fallback). Webfont loaded from Vercel CDN.
-  # Mono: Geist Mono — every numeric / ID / timestamp / eyebrow / code snippet.
-  # CJK fallback chain preserves Hiragino / Meiryo so mixed-script renders.
-  #
-  # Webfonts loaded in tokens.css via @import.
+  # Sans: the native OS UI face (SF Pro on macOS via -apple-system, PingFang
+  # for CJK) — the crisp, premium, native default; no bundled webfont.
+  # Mono: the native OS monospace (SF Mono / Menlo) — code / IDs / timestamps /
+  # paths only (NOT every eyebrow). Single --font-sans / --font-mono token in
+  # globals.css; the user can override either in Settings → Appearance.
 
   # ---- Display ----
   # 600 is the display ceiling. Both Linear and Vercel forbid 700+.
   # Negative tracking on display, near-zero on body.
   display-xl:
-    fontFamily: Geist, Inter, system-ui, -apple-system, sans-serif
+    fontFamily: -apple-system, BlinkMacSystemFont, SF Pro Text, system-ui, PingFang SC, sans-serif
     fontSize: 32px
     fontWeight: 600
     lineHeight: 1.10
     letterSpacing: -0.96px
   display-lg:
-    fontFamily: Geist, Inter, system-ui, -apple-system, sans-serif
+    fontFamily: -apple-system, BlinkMacSystemFont, SF Pro Text, system-ui, PingFang SC, sans-serif
     fontSize: 24px
     fontWeight: 600
     lineHeight: 1.15
     letterSpacing: -0.6px
   display-md:
-    fontFamily: Geist, Inter, system-ui, -apple-system, sans-serif
+    fontFamily: -apple-system, BlinkMacSystemFont, SF Pro Text, system-ui, PingFang SC, sans-serif
     fontSize: 20px
     fontWeight: 600
     lineHeight: 1.20
     letterSpacing: -0.4px
   display-sm:
-    fontFamily: Geist, Inter, system-ui, -apple-system, sans-serif
+    fontFamily: -apple-system, BlinkMacSystemFont, SF Pro Text, system-ui, PingFang SC, sans-serif
     fontSize: 16px
     fontWeight: 600
     lineHeight: 1.25
@@ -95,25 +95,25 @@ typography:
 
   # ---- Body ----
   body-lg:
-    fontFamily: Geist, Inter, system-ui, -apple-system, sans-serif
+    fontFamily: -apple-system, BlinkMacSystemFont, SF Pro Text, system-ui, PingFang SC, sans-serif
     fontSize: 15px
     fontWeight: 400
     lineHeight: 1.65
     letterSpacing: -0.1px
   body-md:
-    fontFamily: Geist, Inter, system-ui, -apple-system, sans-serif
+    fontFamily: -apple-system, BlinkMacSystemFont, SF Pro Text, system-ui, PingFang SC, sans-serif
     fontSize: 14px
     fontWeight: 400
     lineHeight: 1.55
     letterSpacing: -0.05px
   body-sm:
-    fontFamily: Geist, Inter, system-ui, -apple-system, sans-serif
+    fontFamily: -apple-system, BlinkMacSystemFont, SF Pro Text, system-ui, PingFang SC, sans-serif
     fontSize: 13px
     fontWeight: 400
     lineHeight: 1.50
     letterSpacing: 0
   body-xs:
-    fontFamily: Geist, Inter, system-ui, -apple-system, sans-serif
+    fontFamily: -apple-system, BlinkMacSystemFont, SF Pro Text, system-ui, PingFang SC, sans-serif
     fontSize: 12px
     fontWeight: 400
     lineHeight: 1.45
@@ -121,13 +121,13 @@ typography:
 
   # ---- Button label ----
   button-md:
-    fontFamily: Geist, Inter, system-ui, -apple-system, sans-serif
+    fontFamily: -apple-system, BlinkMacSystemFont, SF Pro Text, system-ui, PingFang SC, sans-serif
     fontSize: 13px
     fontWeight: 500
     lineHeight: 1.20
     letterSpacing: 0
   button-sm:
-    fontFamily: Geist, Inter, system-ui, -apple-system, sans-serif
+    fontFamily: -apple-system, BlinkMacSystemFont, SF Pro Text, system-ui, PingFang SC, sans-serif
     fontSize: 12px
     fontWeight: 500
     lineHeight: 1.20
@@ -136,22 +136,22 @@ typography:
   # ---- Caption / mono eyebrow ----
   # Replaces every ALL-CAPS + letter-spacing label from the previous system.
   # Mono signals "technical / observable / data" — used for reasoning headers,
-  # tool-call signatures, file paths, durations, IDs, status-bar items.
+  # tool-call signatures, file paths, durations, IDs (data only — not labels).
   caption:
-    fontFamily: Geist, Inter, system-ui, -apple-system, sans-serif
+    fontFamily: -apple-system, BlinkMacSystemFont, SF Pro Text, system-ui, PingFang SC, sans-serif
     fontSize: 12px
     fontWeight: 400
     lineHeight: 1.40
     letterSpacing: 0
   caption-mono:
-    fontFamily: Geist Mono, JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, monospace
+    fontFamily: ui-monospace, SF Mono, SFMono-Regular, Menlo, monospace
     fontSize: 11.5px
     fontWeight: 400
     lineHeight: 1.40
     letterSpacing: 0
     fontFeatureSettings: "\"tnum\""
   code:
-    fontFamily: Geist Mono, JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, monospace
+    fontFamily: ui-monospace, SF Mono, SFMono-Regular, Menlo, monospace
     fontSize: 12.5px
     fontWeight: 400
     lineHeight: 1.55
@@ -185,11 +185,12 @@ spacing:
 # ---- Lyra-specific layout constants ----
 layout:
   chat-measure: 760px      # Max reading width for chat content — cap to keep lines ≤80 chars
-  sidebar-rail: 56px       # Collapsed sidebar (default state)
-  sidebar-expanded: 260px  # Expanded sidebar (on demand)
-  topbar-height: 36px      # Chat tab strip — drag region on macOS
-  statusbar-height: 24px   # Bottom status bar — dense data row
-  app-divider: 1px         # Gap between flush panels — Linear hairline color shows through
+  sidebar-expanded: 248px  # Expanded sidebar (default state)
+  sidebar-rail: 56px       # Collapsed icon rail (on demand, ⌘B)
+  topbar-height: 36px      # Chat/view tab strip — drag region on macOS
+  app-divider: 1px         # The single hairline between flush sidebar + main (no gutter)
+  # No bottom status bar — run telemetry lives in the composer footer, global
+  # status/notifications in the sidebar footer.
 
 motion:
   ease-out: cubic-bezier(0.3, 0, 0, 1)
@@ -324,18 +325,6 @@ components:
     itemTypography: "{typography.body-sm}"
     description: ⌘K overlay. Surface-2 + hairline-strong + backdrop blur + Level 5 stacked shadow (the rare floating element where shadow is allowed).
 
-  # ---- Status bar ----
-  statusbar:
-    backgroundColor: "{colors.canvas}"
-    height: "{layout.statusbar-height}"
-    typography: "{typography.caption-mono}"
-    color: "{colors.ink-muted}"
-    description: |
-      Dense data row at app bottom. Slots, separated by hairline pipes:
-      [● status] [branch] [run_8f3a2c] [tokens 12,847 / 200,000 (6.4%)]
-      [$0.0234] [↑ 18.2 t/s]. Each value mono with tnum. The accent dot
-      pulses while running.
-
   # ---- Overlays ----
   toast:
     backgroundColor: "{colors.surface-2}"
@@ -360,66 +349,50 @@ components:
     description: Run-error surface. Lives above the message stream, dismissible. Cleared automatically when the next run starts.
 ---
 
-## 0. Redesign 2026-06 (in progress) — supersedes the rules below where they conflict
+## 0. Design language (the five pillars)
 
-The visual language is being reworked from a **dense, dark-first engineering
-console** toward a **calm, airy, premium-minimal product surface** (the Codex /
-Linear-app reference). The frontmatter + §1–§13 below still describe the prior
-system; until they're rewritten batch-by-batch, **this section wins on conflict.**
+The whole system reduces to five decisions. Everything below elaborates them.
 
-Confirmed direction:
+1. **Flush, edge-to-edge layout** — no cards-on-canvas. The sidebar + main run to
+   the window edge, separated by a single hairline. The sidebar is the one
+   half-step-lifted surface; the main area paints on the canvas. No gutters, no
+   panel drop shadows (dark _or_ light).
+2. **Near-monochrome, one restrained accent** — overall black/white/grey; the
+   accent (a calm **blue**, `#6c97ff` dark / `#2563eb` light by default,
+   user-selectable) appears only on live / CTA / focus, and focus is a single
+   thin stroke — never a bright halo or glow on click.
+3. **Dual-theme parity, follows the OS** — light and dark are both first-class
+   and polished; the default theme is "system" and tracks `prefers-color-scheme`
+   live.
+4. **Native system font** — SF Pro / PingFang on macOS (the OS UI face), no
+   bundled webfont. Sans-first labels everywhere; mono is reserved for genuine
+   data (code / IDs / timestamps / paths), not every eyebrow.
+5. **Airy + discoverable** — generous whitespace, calm rhythm; features are
+   first-class grouped entries in the sidebar + settings (not buried in the
+   command palette). The topbar session/view tab strip (multi-tab) stays.
 
-- **Flush, edge-to-edge layout** — no cards-on-canvas. The sidebar + main run to
-  the window edge, separated by a single hairline. The sidebar is a half-step
-  lifted surface; the main area paints on the canvas. No gutters, no panel drop
-  shadows (dark *or* light). **Supersedes §5 (cards-on-canvas) + §4's gutter model.**
-- **Near-monochrome, restrained accent** — overall black/white/grey; the accent
-  (a calm **blue**, `#6c97ff` dark / `#2563eb` light by default, user-selectable)
-  appears only on live / CTA / focus. **Supersedes the green `#1ed760` brand
-  accent** in the frontmatter + §9 (the policy of scarcity stays; the hue changes).
-- **Dual-theme parity, system-default** — light and dark are both first-class and
-  polished; the app follows the OS by default. **Supersedes §1's "dark-first".**
-- **Airier rhythm + sans-first labels** — generous whitespace, wider breathing
-  room; mono is pulled back to genuine code / IDs / durations only (not every
-  eyebrow). **Relaxes §3's mono-as-eyebrow-everywhere + §4's "product-dense" spacing.**
-- **Discoverability** — features that today hide behind the command palette /
-  tool clicks (codebase / schedules / recipes / hooks / mcp / diagnostics …) get
-  first-class, grouped sidebar entries.
-- **Multi-tab stays** — the topbar session/view tab strip is kept (restyled).
-
-Everything else (token bridge, plugin-contributed chrome, accent *scarcity*,
-tabular numerals, focus-ring discipline, reduced-motion) carries over unchanged.
-
-**Status (branch `ui-redesign`)** — landed batches: ① design tokens + flush
-layout + dual-theme palette · ② first-class sidebar nav (Workspace group, for
-discoverability) · ③ centered welcome hero · ④ sans speaker names (mono kept for
-data) · ⑤ grouped settings rail (self-declared `group`) · ⑥ sans subtitles on
-label-titled views · ⑦ quiet focus (no bright accent halo/glow on click — the
-composer + global :focus-visible + input rings) · ⑧ native system font (SF Pro /
-PingFang; Geist webfont dropped) + fixed the accent default (uiStore was still
-writing green; now blue, persist version bumped) · ⑨ removed the fake account
-chip from the rail. The frontmatter + §1–§13 below are **not yet rewritten** to
-match — do that once the new look is visually confirmed in `wails dev`.
+Constant across all of it: the `@theme` token bridge, plugin-contributed chrome,
+accent _scarcity_, tabular numerals, keyboard-focus discipline, reduced-motion.
 
 ---
 
 ## 1. Overview
 
-Lyra is an agent client — a desktop application (Wails / React) that streams Lyra Runtime Protocol events from a Go runtime and renders them as a chat surface with inline tool calls, code, diagrams, and approval flows. The frontend is a **view onto a runtime**, not the runtime itself; the visual language reflects that posture: dense, observable, keyboard-driven.
+Lyra is an agent client — a desktop application (Wails / React) that streams Lyra Runtime Protocol events from a Go runtime and renders them as a chat surface with inline tool calls, code, diagrams, and approval flows. The frontend is a **view onto a runtime**, not the runtime itself — but it presents as a refined, calm product surface, not a dense console.
 
-The system is dark-first by deliberate choice — agent users spend long sessions in front of the surface, and dark reduces eye fatigue. Light mode is supported with full parity (no second-class treatment).
+Light and dark are **equal first-class themes**; the default follows the OS (`prefers-color-scheme`) and tracks it live. Neither scheme is second-class.
 
-**Synthesis sources** — this system borrows specific elements from two reference systems, Linear and Vercel:
+**Reference** — the calm, airy, premium-minimal direction draws on OpenAI's Codex desktop app and the Linear-app aesthetic:
 
-- **From Linear**: the color system (canvas `#010102`, four-step surface ladder, three-step hairline ladder, scarce single accent), the "depth via surface + hairlines, never shadow on dark" rule, and the strict accent-usage policy.
-- **From Vercel**: the typography system (Geist + Geist Mono), the mono-as-eyebrow convention (replaces ALL-CAPS labels), sentence-case headlines, stacked-subtle elevation for the rare floating overlay, and the light-theme palette.
+- **From Codex**: the flush edge-to-edge layout, the calm centered empty-state (hero + composer as one group), generous whitespace, and grouped, discoverable navigation.
+- **From Linear**: the scarce single-accent policy, the surface-step + hairline approach to depth (no decorative shadow), and sentence-case labels.
 
-**Explicitly rejected** from the previous "Sonance" / Spotify-derived system:
-- Pill-radius CTAs (500-9999px)
-- ALL-CAPS labels with positive letter-spacing
-- 700+ display weight
-- Heavy drop shadows on dark surfaces
-- Accent color used decoratively across 100+ surfaces
+**Explicitly rejected** (the prior dense / dark-first / "Spotify-derived" vocabulary, _and_ the interim Linear+Vercel-synthesis pass it replaced):
+- Cards-on-canvas gutters + panel drop shadows (the layout is flush)
+- A green brand accent + mono-as-eyebrow-everywhere (accent is a restrained blue; mono is data-only)
+- A bundled webfont (Geist) where the native OS face reads more premium
+- Pill-radius CTAs, ALL-CAPS letter-spaced labels, 700+ display weight, accent used decoratively
+- Bright focus halos/glows that flash on click (focus is a single quiet stroke)
 
 ## 2. Color
 
@@ -429,15 +402,17 @@ Color carries information, not decoration. The system uses **one chromatic accen
 
 ### Surface ladder
 
-| Token | Hex | Use |
+| Token | Hex (dark / light) | Use |
 |---|---|---|
-| `canvas` | `#010102` | Page background. The faint blue tint is deliberate — pure `#000000` reads as void; this reads as "deep dark". |
-| `surface-1` | `#0f1011` | Default lifted surface — cards, sidebar, message bubble, tool-call card. |
-| `surface-2` | `#141516` | Hovered / active row, raised surface, command palette, **inset reading pane** (e.g. settings content area inside a workspace view — distinct from the outer chrome). |
-| `surface-3` | `#18191a` | Sub-nav, dropdown, popover. |
-| `surface-4` | `#191a1b` | Deepest lifted surface (rare). |
+| `canvas` | `#0c0d0f` / `#ffffff` | **The main reading area** in the flush layout — chat stream, view bodies. The sidebar sits a half-step above it. |
+| `surface` | `#16181b` / `#f6f7f8` | The one lifted chrome step — sidebar, cards, message bubble, tool-call card. Divided from canvas by a hairline, not a gutter. |
+| `surface-2` | derived | Hovered / active row, raised surface, command palette, **inset reading pane** (settings content area — distinct from the outer chrome). |
+| `surface-3` | derived | Sub-nav, dropdown, popover. |
+| `surface-4` | derived (rare) | Deepest lifted surface. |
 
-**Inset-pane rule** — when a workspace view has its own internal nav rail + content split (e.g. the settings page), keep the rail on `surface` (same as the outer sidebar — consistent chrome) and lift the content area to `surface-2`. This reverses the naïve "nav darker / content lighter" guess from web-app conventions; the chrome stays uniform, and the reading area gets the distinct surface so it reads as the focus zone.
+`surface-2/3/4` derive from `surface` via `color-mix(--depth-step)` so the global contrast slider moves the whole ladder per scheme — they're never pinned inline.
+
+**Inset-pane rule** — when a workspace view has its own internal nav rail + content split (e.g. the settings page), keep the rail on the canvas/chrome and lift the content area to `surface-2` so the reading zone reads as the focus.
 
 ### Hairlines
 
@@ -453,14 +428,16 @@ Color carries information, not decoration. The system uses **one chromatic accen
 
 ### Accent policy
 
-The single accent (`primary: #1ed760`) is reserved for **exactly four surfaces**:
+The single accent (default `#6c97ff` dark / `#2563eb` light, a calm blue;
+user-selectable, with green / pink / orange as alternates) is reserved for
+**exactly four surfaces**:
 
 1. Active tab indicator (2px underline on `chat-tab.active`)
 2. Primary CTA fill (`button-primary`, Send button)
-3. Focus ring (`:focus-visible` outline)
+3. Focus ring (`:focus-visible` — a single thin stroke, **no halo / glow**)
 4. Live indicator (streaming dot, running pill, `tab-dot.running`)
 
-Forbidden surfaces for accent: section background, card fill, avatar background, decorative borders, status icons that are not "live".
+Forbidden surfaces for accent: section background, card fill, avatar background, decorative borders, status icons that are not "live". And **no bright accent ring on input focus or click** — inputs/composer strengthen their border quietly instead (the loud halo read as cheap).
 
 ### Semantic palette
 
@@ -482,14 +459,12 @@ semantic tones and are left untouched.
 
 ### Font families
 
-Two real webfonts, two fallback chains:
+The **native OS font**, no bundled webfont — the system face reads more premium
+and native than any shipped font, loads instantly, and renders mixed CJK best:
 
-- **`Geist`** (sans) — primary UI face. Sharp geometric sans, the agent-tool consensus (Linear, Vercel, Cursor, Raycast all use it or Inter as fallback). Loaded from Vercel CDN. Weights 400 / 500 / 600.
-- **`Geist Mono`** (mono) — every numeric / ID / timestamp / eyebrow / code snippet / file path. Weight 400 only.
-- **Fallback sans**: Inter, system-ui, -apple-system, then CJK chain.
-- **Fallback mono**: JetBrains Mono, ui-monospace, SFMono-Regular, Menlo.
-
-The previous `--font-title` / `--font-ui` split is **removed** — display and body share one face, weight does the hierarchy work.
+- **Sans** (`--font-sans`) — SF Pro on macOS (via `-apple-system` / `BlinkMacSystemFont` / `system-ui`), Segoe UI / Roboto elsewhere, **PingFang SC** (+ Hiragino / Microsoft YaHei) for CJK. The primary UI face; display + body share it, weight does the hierarchy.
+- **Mono** (`--font-mono`) — SF Mono / Menlo (`ui-monospace`). Used for genuine data only: code, IDs, timestamps, file paths, tool signatures.
+- A single `--font-sans` / `--font-mono` token (no `--font-ui` split); the user can override either in Settings → Appearance.
 
 ### Scale
 
@@ -499,7 +474,7 @@ The full scale is 11 tokens — narrower than the previous 13-step Spotify scale
 
 ### Principles
 
-1. **Mono is the technical voice.** All eyebrows, IDs, durations, timestamps, file paths, tool signatures, status-bar items render in `caption-mono` or `code`. This replaces every ALL-CAPS + letter-spacing label from the prior system.
+1. **Sans-first; mono is the _data_ voice only.** Labels, section headings, nav, speaker names, view titles + subtitles are **sans**. Mono (`caption-mono` / `code`) is reserved for genuine data — IDs, durations, timestamps, file paths, tool-call signatures. (The earlier "mono as eyebrow everywhere" read as an engineering console; pulled back.)
 
 2. **600 is the display ceiling.** Never use 700, 800, 900. Hierarchy comes from size + weight contrast (400 vs 600), not from going heavier.
 
@@ -515,25 +490,29 @@ The full scale is 11 tokens — narrower than the previous 13-step Spotify scale
 
 ### App shell
 
+Flush, edge-to-edge — a single hairline divides the sidebar from the main area;
+no gutters, no bottom status bar:
+
 ```
-┌──────┬─────────────────────────────────────────────────────────┐
-│      │ Topbar — chat-tab strip + slot for plugin actions       │ 36px
-│ Rail │─────────────────────────────────────────────────────────│
-│  56  │                                                          │
-│   /  │             Message stream (max-width 760)              │ 1fr
-│ Side │                                                          │
-│ 260  │  ┌───────────────────────────────────────┐              │
-│      │  │  Composer (max-width 760)             │              │
-│      │  └───────────────────────────────────────┘              │
-├──────┴─────────────────────────────────────────────────────────┤
-│ Statusbar — dense data row, mono                                │ 24px
-└─────────────────────────────────────────────────────────────────┘
+┌────────────┬────────────────────────────────────────────────┐
+│ Sidebar    │ Topbar — chat/view tab strip + plugin actions   │ 36px
+│ 248        │────────────────────────────────────────────────│
+│  · new     │                                                 │
+│  · search  │           Message stream (max-width 760)        │ 1fr
+│  Workspace │                                                 │
+│  Projects  │  ┌──────────────────────────────────────────┐   │
+│  …         │  │  Composer (max-width 760)                │   │
+│  ⚙ settings │  └──────────────────────────────────────────┘   │
+└────────────┴────────────────────────────────────────────────┘
+   ↑ surface (chrome)        ↑ canvas (main reading area)
+   one hairline between them — no gap, no shadow
 ```
 
 ### Sidebar
 
-- **Default state: expanded** (~248px). The project/session tree + search are the primary navigation, so they're visible up front.
-- **Rail** (56px, icon-only) is the on-demand collapsed mode via `⌘B`. (An earlier iteration defaulted to rail; expanded won out — the session tree is central enough to earn its width by default.)
+- **Default state: expanded** (248px). The primary-nav group (New chat / Search + a "Workspace" group of feature destinations) and the project/session tree are the navigation, visible up front. Features that used to hide behind the palette get first-class grouped entries here.
+- **Rail** (56px, icon-only) is the on-demand collapsed mode via `⌘B`.
+- The sidebar is the one lifted `surface`; the main area is `canvas`. They're flush, divided by a single hairline (`.panel.sidebar` border-right).
 
 ### Chat measure
 
@@ -557,23 +536,25 @@ Lyra is a **product UI**, not a marketing site. Spacing values from the frontmat
 
 ## 5. Elevation & Depth
 
-### Dark mode
-
-**Depth on dark is carried by the surface ladder + hairlines _and_ a restrained shadow on the lifted panels.** Lyra is cards-on-canvas: panels float on the near-black canvas with 8px gutters, so — unlike a flush-edge layout where dark-on-dark shadows vanish — a subtle multi-layer shadow on a panel reads (there's canvas beneath it, not a same-colored neighbour). _Inside_ a panel, depth still comes from the surface ladder + hairlines, never shadow. The rule:
+**Flush, so depth is the surface step + hairlines — not gutters or panel shadows.**
+The layout has no cards-on-canvas frame: the sidebar (`surface`) meets the main
+area (`canvas`) at a single hairline, and neither casts a shadow (dark _or_
+light). The only elements that get a real shadow are **truly-floating overlays**
+(command palette, mermaid lightbox, toaster) — a stacked-subtle drop, never a
+single 24px blur. Everything else builds depth from the ladder:
 
 | Level | Treatment | Use |
 |---|---|---|
-| 0 | No border, no shadow | Body text, message body |
-| 1 | `surface-1` background + 1px `hairline` border | Default card, tool-call card, message bubble |
-| 2 | `surface-2` background + 1px `hairline-strong` | Active row, hovered card, command palette base |
+| 0 | No border, no shadow | Body text, message body, the main area |
+| 1 | `surface` background + 1px `hairline` border | Default card, tool-call card, message bubble, sidebar |
+| 2 | `surface-2` background | Active / hovered row, raised surface, inset reading pane |
 | 3 | `surface-3` background | Sub-nav, dropdown |
-| 4 | Stacked subtle shadow (Vercel-style) + inset hairline | The few truly-floating overlays: command palette, mermaid lightbox, plugin toaster |
+| 4 | Stacked-subtle shadow + inset hairline | The few truly-floating overlays only |
 
-Two things get shadow on dark: **the lifted panels** (the cards-on-canvas frame — a restrained multi-layer drop + inset top highlight, see `layout.css .panel`) and **truly-floating overlays** (Level 4 — command palette, mermaid lightbox, toaster). Both are stacked-subtle (Vercel-style), never a single 24px-blur drop. Surfaces _inside_ a panel still use the ladder, not shadow.
-
-### Light mode
-
-Light uses the full Vercel-style stacked-shadow ladder (5 levels). On light, shadows are visible and necessary.
+This holds identically in **both schemes** — light also drops panel/card shadows
+(flush), reserving stacked shadows for floating overlays. (The earlier
+cards-on-canvas model — floating panels with 8px gutters + multi-layer drop
+shadows, and light's full 5-level shadow ladder — is gone.)
 
 ## 6. Shapes
 
@@ -581,7 +562,7 @@ Light uses the full Vercel-style stacked-shadow ladder (5 levels). On light, sha
 
 | Token | Value | Use |
 |---|---|---|
-| `none` | 0px | Full-bleed bars (topbar, statusbar) |
+| `none` | 0px | Full-bleed bars (topbar) |
 | `xs` | 4px | Badges, status pills, file chips |
 | `sm` | 6px | Inputs, small buttons, icon button square |
 | `md` | 8px | **Default button**, card chrome, dialog corners |
@@ -624,15 +605,9 @@ read_file(path: "src/auth.ts")            ✓ 12ms · 1,247 lines
 
 This single change carries more "agent-tool" feel than any other component decision.
 
-### Status bar — the data row
+### No bottom status bar
 
-Bottom 24px row, mono caption throughout. Plugins contribute slots; default set:
-
-```
-[● running] [main] [run_8f3a2c] [12,847 / 200k · 6.4%] [$0.0234] [↑ 18.2 t/s]
-```
-
-Each value is mono with tnum. Separators are hairline pipes (` │ `). The leading `●` is the agent state dot, pulsing accent while running.
+There is no dense bottom data row. Run telemetry (tokens / cost / rate) lives in the **composer footer**; global status + notifications live in the **sidebar footer**. A persistent mono data strip read as "console" — the chrome stays calm.
 
 ### Reasoning block — mono header, no caps
 
@@ -644,19 +619,20 @@ The composer's hover-revealed cheatsheet **derives rows from `useCommands()`**. 
 
 ## 9. Accent Usage Policy (strict)
 
-Accent (`#1ed760`) appears in:
+Accent (default `#6c97ff` dark / `#2563eb` light, user-selectable) appears in:
 
 1. **Active tab indicator** — 2px underline on `chat-tab.active::after`
 2. **Primary CTA fill** — `button-primary` background, send button
-3. **Focus ring** — `:focus-visible { outline: 2px solid color-mix(primary 55%, transparent) }`
+3. **Focus ring** — `:focus-visible`, a single thin accent stroke (**no halo / glow**, and never on plain mouse-focus of inputs)
 4. **Live indicator** — streaming `tab-dot.running`, status pill while `run.running === true`, the reasoning block's pulse dot
 
 That's the entire list. Accent does **not** appear in:
-- Avatar backgrounds (use `surface-3` + `ink-muted`)
+- Avatar backgrounds (use `surface-2/3` + `ink-muted`)
 - Section headers (use `ink`)
-- Active-state list rows (use `surface-2` + `ink`)
+- Active-state list rows (use `surface-2/3` + `ink`)
 - Iconography (icons are `ink-muted` → `ink` on hover)
-- Tool-call success status (use `success` `#27a644`, not primary)
+- Tool-call success status (use `success`, not the accent)
+- Input / composer focus (a quiet border strengthen — no accent ring)
 
 When in doubt: **does this surface convey "the agent is alive and live"?** If yes, accent. If no, grey.
 
@@ -664,13 +640,13 @@ When in doubt: **does this surface convey "the agent is alive and live"?** If ye
 
 ### Do
 
-- Render every eyebrow / label / ID / duration / file path in `caption-mono`.
+- Render IDs / durations / file paths / tool signatures in mono; labels, headings + names in **sans**.
 - Cap chat content (message stream + composer) at `chat-measure: 760px`, centered.
-- Use literal hex hairlines (`#23252a` / `#34343a` / `#3e3e44`) — not `color-mix(text X%, transparent)`.
+- Use literal hex hairlines — not `color-mix(text X%, transparent)`.
 - Set every interactive element with `:hover`, `:active`, `:focus-visible`.
 - Use `font-feature-settings: "tnum"` on every numeric display.
-- Default sidebar to rail (56px). Expand on demand.
-- Render tool calls as RPC logs (mono signature + duration line).
+- Default sidebar to **expanded** (248px); collapse to the rail (56px) on demand (⌘B).
+- Render tool calls as RPC logs (mono signature + duration line — the one place mono stays).
 - Pair display weight 600 with body weight 400. Hierarchy via size + weight contrast, never weight 700+.
 
 ### Don't
@@ -678,8 +654,9 @@ When in doubt: **does this surface convey "the agent is alive and live"?** If ye
 - **Don't use ALL-CAPS labels with letter-spacing.** Section labels / eyebrows / table heads are **sentence-case** (mono for dense technical labels like `args` / `attrs`); the ALL-CAPS + wide-tracking eyebrow is the rejected Sonance vocabulary.
 - **Don't use pill-radius CTAs** (`9999px`, `500px`, `100px` on a button). Buttons are `md` 8px.
 - **Don't use weight 700+ for display.** 600 is the ceiling, Linear and Vercel both forbid this.
-- **Don't drop a single heavy `box-shadow` on dark surfaces.** Depth _inside_ a panel is surface ladder + hairlines. Stacked-subtle shadow is for the cards-on-canvas panel frame and floating overlays (Level 4) only — never a single 24px-blur drop.
-- **Don't use `#000000` true black as canvas.** `#010102` with the faint blue tint is the right anchor.
+- **Don't add panel / card drop shadows.** The layout is flush — depth is the surface step + hairlines. Stacked-subtle shadow is for truly-floating overlays (Level 4) only, in BOTH schemes. No cards-on-canvas, no gutters.
+- **Don't use pure `#000000` or a harsh near-black canvas.** Dark canvas is `#0c0d0f` — a soft, comfortable dark for a full reading surface.
+- **Don't flash a bright accent ring/halo on focus or click.** Keyboard focus is one thin stroke; inputs/composer just strengthen their border. The loud glow read as cheap.
 - **Don't introduce a second chromatic accent.** Lyra has one accent + four semantic colors. No more.
 - **Don't use accent decoratively.** Active tab / primary CTA / focus ring / live indicator — that's the entire allowed list.
 - **Don't set body paragraphs in mono.** Mono is for the technical layer only.
@@ -688,22 +665,20 @@ When in doubt: **does this surface convey "the agent is alive and live"?** If ye
 
 ## 11. Light theme
 
-Light mode targets full parity with dark. Surfaces invert: canvas `#ffffff`, surface-1 `#fafafa`, surface-2 `#f5f5f5`, surface-3 `#ececed`. Hairlines invert to `#ebebeb` / `#a1a1a1`. Ink inverts to `#171717` / `#4d4d4d` / `#888888`.
+Light is full parity, not second-class — and the **default theme follows the OS** (`prefers-color-scheme`, live). Surfaces: canvas `#ffffff` (the white main reading area), surface `#f6f7f8` (gray chrome). Hairlines `#ebebeb` / `#d4d4d6`. Ink `#171717` / `#4d4d4d` / `#5e5e5e`. The accent is the blue's light variant `#2563eb`; the CTA stays black-on-white.
 
-Light mode **does** use stacked shadows (Vercel-style level 1-5). This is the only place the dark/light symmetry breaks.
-
-Accent stays the same green in light mode (no need to dim — `#1ed760` reads well on white).
+Light is **flush too** — no card/panel shadow ladder. Like dark, only truly-floating overlays get a stacked-subtle shadow. The two schemes are symmetric.
 
 ## 12. References
 
-- **Linear** — source for canvas / surface ladder / hairline ladder / accent policy.
-- **Vercel** — source for typography (Geist), mono-as-eyebrow, stacked elevation, light palette.
+- **Codex desktop (OpenAI)** — the flush layout, the calm centered empty-state (hero + composer as one group), generous whitespace, grouped discoverable nav.
+- **Linear-app** — the scarce single-accent policy, surface-step + hairline depth (no decorative shadow), sentence-case labels.
 - Lyra Runtime Protocol — `frontend/src/protocol/run/` + `frontend/src/rpc/` — drives the shape of the data this UI renders.
 
 ## 13. Iteration guide
 
 1. When adding a new surface, reference its component spec in the frontmatter `components:` block. If none exists, propose one (commit + this doc together).
-2. Default to the dark theme. Verify light parity before merging visual changes.
+2. Verify BOTH schemes (the default follows the OS) before merging visual changes.
 3. Run `npx tsc --noEmit && npx vitest run` after any token change.
 4. Visually verify in `wails dev` — type/spacing changes especially.
 5. Treat the accent as scarce: ask "is this live?" — if no, use grey.
