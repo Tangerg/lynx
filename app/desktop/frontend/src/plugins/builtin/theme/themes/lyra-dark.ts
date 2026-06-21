@@ -5,13 +5,13 @@
 import { defineThemePlugin } from "../kit/defineThemePlugin";
 
 const c = {
-  // Brand — Lyra signature green. accentBorder/Press derived by
-  // defineThemePlugin via colord.darken().
-  green: "#1ed760",
+  // Accent — restrained blue (near-monochrome direction). accentBorder/Press
+  // derived by defineThemePlugin via colord.darken().
+  accent: "#6c97ff",
 
-  // Surface anchors
-  canvas: "#010102", // page background — faint blue tint, not pure black
-  surface1: "#181a1d", // panel / sidebar / message bubble
+  // Surface anchors (flush layout: canvas = main reading area, surface = chrome)
+  canvas: "#0c0d0f", // main reading surface — soft near-black, not pure black
+  surface1: "#16181b", // sidebar / cards / message bubble — a half-step lifted
 
   // Ink
   inkBright: "#ffffff",
@@ -34,8 +34,8 @@ export default defineThemePlugin({
   order: 0,
 
   brand: {
-    accent: c.green,
-    textOnAccent: "#000000", // black ink reads on bright green
+    accent: c.accent,
+    textOnAccent: "#ffffff", // white ink reads on the blue accent
   },
   surfaces: {
     bg: c.canvas,

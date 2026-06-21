@@ -24,6 +24,7 @@ export default definePlugin({
     host.extensions.contribute(SETTINGS_PANE, {
       id: "personalization",
       label: "settings.pane.personalization",
+      group: "general",
       icon: "user",
       order: 1, // right after Appearance (0)
       component: PersonalizationPane,

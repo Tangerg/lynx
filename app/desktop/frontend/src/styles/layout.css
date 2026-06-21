@@ -4,11 +4,11 @@
   box-sizing: border-box;
 }
 
-/* Hard minimum viewport: 760 (chat-measure) + 248 (sidebar) + gutters
-   round up to ~1180. Below this the two columns overlap, so the page
-   scrolls instead of squashing. */
+/* Hard minimum viewport: sidebar (248) + a comfortable main column. The
+   flush layout drops the gutters, so the floor is lower than the old
+   cards-on-canvas value. Below this the columns squash instead of scrolling. */
 :root {
-  --app-min-width: 1180px;
+  --app-min-width: 940px;
   --app-min-height: 720px;
 }
 
@@ -46,12 +46,12 @@ html.theme-light {
   --shadow-glow: 0 0 10px color-mix(in oklab, var(--color-accent) 35%, transparent);
 }
 
-/* Kernel grid — cards-on-canvas: .app paints the canvas, .app-main
-   pads it so panels read as lifted cards. */
+/* Kernel grid — flush, edge-to-edge. .app paints the canvas; the two
+   columns run to the window edge with no gutters. */
 .app {
   display: grid;
-  /* Single row: the cards-on-canvas main area. The overlay Slot's children
-     are position:fixed, so they claim no track. */
+  /* Single row: the main area. The overlay Slot's children are
+     position:fixed, so they claim no track. */
   grid-template-rows: 1fr;
   height: 100vh;
   min-width: var(--app-min-width);
@@ -62,11 +62,9 @@ html.theme-light {
 .app-main {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
-  /* Gap + padding expose the canvas around lifted panels on all four
-     sides. The 8px value matches --radius-md so corners and gutters
-     rhyme. */
-  gap: 8px;
-  padding: 8px;
+  /* No gap / padding: the sidebar and main area are flush to the window
+     edge, separated by a single hairline (.panel.sidebar border-right).
+     Depth comes from the surface step + divider, not gutters + shadow. */
   min-height: 0;
 }
 
@@ -90,28 +88,22 @@ html.theme-light .tool-card.running::before {
   );
 }
 
-/* Panels — lifted cards on canvas. Multi-layer drop shadow + inset
-   top highlight give a "lit from above" feel. (Overrides DESIGN.md
-   §5's "no shadow on dark"; that rule assumed flush-edge layout
-   where shadows would be invisible against same-colored neighbours.) */
+/* Panels — flush, flat regions (no radius, no shadow). The main column
+   paints on the canvas; the sidebar is the one lifted chrome surface. */
 .panel {
-  background: var(--color-surface);
-  border-radius: var(--radius-md);
+  background: var(--color-bg);
   overflow: hidden;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  box-shadow:
-    /* Inset top-edge highlight — picks up "light from above" so the
-       card reads as having an actual top face. 4% is invisible on most
-       panels; 6% reads as a faint-but-present top facet without distracting. */
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    /* Drop shadow ladder — small contact + wider ambient. Tuned against
-       canvas #010102; on a slightly-lighter neighbour the shadow stays
-       visible without being theatrical. */
-    0 1px 2px rgba(0, 0, 0, 0.35),
-    0 8px 16px -4px rgba(0, 0, 0, 0.28),
-    0 16px 32px -8px rgba(0, 0, 0, 0.2);
+}
+
+/* Sidebar — a half-step off the canvas (surface), divided from the main
+   column by a single hairline. The whole "lifted" read is this step +
+   divider, not a gutter or a drop shadow. */
+.panel.sidebar {
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-app-divider);
 }
 
 /* ---------- Scroll containers ---------- */

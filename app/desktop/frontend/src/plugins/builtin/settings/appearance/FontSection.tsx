@@ -152,14 +152,14 @@ export function FontSection() {
           mono={false}
           value={uiFont}
           onChange={setUiFont}
-          defaultLabel="Default (Geist)"
+          defaultLabel="Default (System)"
         />
         <FontPicker
           label={t("settings.font.code")}
           mono={true}
           value={codeFont}
           onChange={setCodeFont}
-          defaultLabel="Default (Geist Mono)"
+          defaultLabel="Default (System mono)"
         />
         <FontSizeField
           label={t("settings.font.size")}

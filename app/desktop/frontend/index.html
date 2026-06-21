@@ -7,22 +7,23 @@
     <!-- First-paint theme class sync.
          Reads the persisted theme id from the same localStorage key the
          Zustand store uses (`lyra.ui`) and toggles `theme-{scheme}` on
-         <html> BEFORE any CSS parses. This prevents the brief flash of
-         structural dark-mode styles for light-theme users on cold boot.
-         We only know the scheme for the two built-ins ("dark" / "light");
-         custom theme ids default to dark until the plugin loads and the
-         JS-side `applyTheme()` corrects the class. -->
+         <html> BEFORE any CSS parses, preventing a flash of the wrong scheme.
+         "system" (the default) + a missing value follow prefers-color-scheme;
+         "light"/"dark" are explicit; custom theme ids default to dark until
+         the JS-side `applyTheme()` corrects the class. -->
     <script>
       (function () {
-        var scheme = "dark";
+        var systemDark =
+          !window.matchMedia || window.matchMedia("(prefers-color-scheme: dark)").matches;
+        var scheme = systemDark ? "dark" : "light";
         try {
           var raw = localStorage.getItem("lyra.ui");
-          if (raw) {
-            var id = JSON.parse(raw)?.state?.theme;
-            scheme = id === "light" ? "light" : "dark";
-          }
+          var id = raw ? JSON.parse(raw)?.state?.theme : null;
+          if (id === "light") scheme = "light";
+          else if (id && id !== "system") scheme = "dark"; // "dark" + custom ids
+          // "system" / missing → keep the prefers-color-scheme default above.
         } catch (_) {
-          /* localStorage blocked, malformed JSON — fall back to default dark */
+          /* localStorage blocked, malformed JSON — keep the system default */
         }
         var root = document.documentElement;
         root.classList.add("theme-" + scheme);
@@ -33,9 +34,8 @@
         root.style.backgroundColor = scheme === "light" ? "#ffffff" : "#121212";
       })();
     </script>
-    <!-- Fonts (Geist + Geist Mono) are self-hosted and bundled via
-         src/main.tsx (@fontsource-variable). A desktop app ships its fonts —
-         no Google CDN <link> here. See NATIVE_FEEL.md §A. -->
+    <!-- Fonts: the native OS stack (SF Pro / PingFang on macOS) — see
+         globals.css --font-sans. No bundled webfont, no CDN <link>. -->
   </head>
   <body>
     <div id="root"></div>

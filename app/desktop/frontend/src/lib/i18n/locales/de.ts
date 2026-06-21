@@ -20,7 +20,6 @@ export const de: Record<string, string> = {
   "sidebar.action.searchHint": "Suchen (⌘K)",
   "sidebar.action.tools": "Werkzeuge / MCP",
   "sidebar.action.settings": "Einstellungen",
-  "sidebar.user.menuLabel": "Kontomenü",
 
   "composer.input.label": "Nachrichteneditor",
   "composer.placeholder.fallback":
@@ -110,7 +109,6 @@ export const de: Record<string, string> = {
   "tools.preview.viewReply": "Ganze Antwort anzeigen",
 
   "common.remove": "Entfernen",
-  "sidebar.user.account": "Konto",
   "status.notifications": "Benachrichtigungen",
   "status.notifications.unread": "{{count}} ungelesene Benachrichtigung(en)",
   "session.row.titleLabel": "Sitzungstitel",
@@ -234,7 +232,7 @@ export const de: Record<string, string> = {
   "settings.accent.sub": "Funktionale Hervorhebung — Ausführen / Aktiv / CTA.",
   "settings.accent.custom": "Eigene Farbe wählen",
   "settings.font": "Schriftart",
-  "settings.font.sub": "Schrift + Größe. Leer = mitgelieferte Geist.",
+  "settings.font.sub": "Schrift + Größe. Leer = Systemstandard.",
   "settings.font.ui": "UI",
   "settings.font.code": "Code",
   "settings.font.size": "Größe",
