@@ -160,6 +160,7 @@ export const en: Record<string, string> = {
   "settings.pane.usage": "Usage",
   "settings.pane.approvals": "Approvals",
   "settings.pane.mcpServers": "MCP servers",
+  "settings.pane.hooks": "Hooks",
   "usage.session.label": "Session",
   "usage.session.hint": "This session's cumulative tokens and cost across all its runs",
   "usage.range.all": "All",
@@ -198,6 +199,22 @@ export const en: Record<string, string> = {
   "approvals.unavailable.sub": "This runtime doesn't expose approval-mode control.",
   "approvals.error.mode": "Couldn't change the approval mode.",
   "approvals.error.forget": "Couldn't clear the decision.",
+
+  "hooks.intro":
+    "Hooks run your own command at fixed points in a turn — before a tool runs, after a prompt, on compaction. Global hooks (~/.lyra) always run; a project's hooks run only after you trust it.",
+  "hooks.trust": "Trust this project's hooks",
+  "hooks.trust.sub":
+    "This project's hooks run shell commands on your machine. Only enable for repositories you trust. Takes effect on the next turn.",
+  "hooks.trust.aria": "Trust this project's hooks",
+  "hooks.matcher": "Tool matcher",
+  "hooks.kind.inject": "inject",
+  "hooks.inactive": "inactive",
+  "hooks.inactive.hint": "Trust this project to enable its hooks.",
+  "hooks.empty": "No hooks configured",
+  "hooks.empty.sub": "Add hooks to ~/.lyra/hooks.json (global) or <project>/.lyra/hooks.json.",
+  "hooks.unavailable": "Hooks unavailable",
+  "hooks.unavailable.sub": "This runtime doesn't expose hook management.",
+  "hooks.error.trust": "Couldn't change project hook trust.",
 
   "providers.apiKey.replace": "Replace API key…",
   "providers.apiKey.placeholder": "API key",

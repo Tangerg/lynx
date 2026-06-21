@@ -13,6 +13,7 @@ import type {
   FileChangesQuery,
   FileHeadQuery,
   GrepQuery,
+  HooksQuery,
   ListFilesQuery,
   McpToolsQuery,
   ApprovalRulesQuery,
@@ -36,6 +37,7 @@ import {
   APPROVAL_RULES_KEY,
   DIFF_KEY,
   FILES_CHANGED_KEY,
+  HOOKS_KEY,
   MCP_CONFIGS_KEY,
   MCP_SERVERS_KEY,
   MCP_TOOLS_KEY,
@@ -331,6 +333,13 @@ export const defaultData = definePlugin({
       fetcher: async (params) =>
         (await client().approval.listRules(asSessionId((params as ApprovalRulesQuery).sessionId)))
           .rules,
+    });
+    // Lifecycle hooks (workspace.hooks.list). NOT swallowed when unsupported —
+    // an old runtime rejects the method and the pane shows "unavailable" (like
+    // approvals), rather than a misleading empty list.
+    host.extensions.contribute(DATA_PROVIDER, {
+      key: HOOKS_KEY,
+      fetcher: (params) => client().workspace.hooks.list((params as HooksQuery | undefined)?.cwd),
     });
     // workspace.listFiles / readFile (B8, 613) — file-tree browser + viewer.
     host.extensions.contribute(DATA_PROVIDER, {
