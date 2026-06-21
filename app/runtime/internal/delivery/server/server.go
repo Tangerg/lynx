@@ -84,6 +84,7 @@ func (s *Server) nextEventID() string {
 type runEntry struct {
 	runID        string
 	sessionID    string
+	cwd          string // canonical working tree (fspath.Canonical of the session cwd); "" when none. Keyed by the cwd-aware busy guard a file rollback uses.
 	turnID       string
 	parentRunID  string // set for continuation runs (runs.resume)
 	provider     string // provider this run ran against; persisted on park for cross-restart rehydrate

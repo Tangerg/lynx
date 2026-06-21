@@ -5,10 +5,11 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"path/filepath"
 	"slices"
 	"sync"
 	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/fspath"
 )
 
 // rescanDebounce bounds how long a freshly-reconciled corpus is trusted before
@@ -67,7 +68,7 @@ func (ix *Indexer) Search(ctx context.Context, cwd, query string, topK int) ([]H
 	if topK <= 0 {
 		topK = defaultTopK
 	}
-	cwd = canonicalCwd(cwd)
+	cwd = fspath.Canonical(cwd)
 	if err := ix.EnsureIndexed(ctx, cwd); err != nil {
 		return nil, err
 	}
@@ -99,7 +100,7 @@ func (ix *Indexer) EnsureIndexed(ctx context.Context, cwd string) error {
 	if err != nil {
 		return err
 	}
-	cwd = canonicalCwd(cwd)
+	cwd = fspath.Canonical(cwd)
 	modelID := emb.ID()
 	if ix.fresh(cwd, modelID) {
 		return nil
@@ -120,7 +121,7 @@ func (ix *Indexer) Reindex(ctx context.Context, cwd string) error {
 	if err != nil {
 		return err
 	}
-	cwd = canonicalCwd(cwd)
+	cwd = fspath.Canonical(cwd)
 	lock := ix.cwdLock(cwd)
 	lock.Lock()
 	defer lock.Unlock()
@@ -130,7 +131,7 @@ func (ix *Indexer) Reindex(ctx context.Context, cwd string) error {
 // Status reports cwd's current index state — the live in-memory status, falling
 // back to the persisted meta on a cold process.
 func (ix *Indexer) Status(ctx context.Context, cwd string) (Status, error) {
-	cwd = canonicalCwd(cwd)
+	cwd = fspath.Canonical(cwd)
 	ix.mu.Lock()
 	s, ok := ix.status[cwd]
 	ix.mu.Unlock()
@@ -161,25 +162,6 @@ func (ix *Indexer) fresh(cwd, modelID string) bool {
 	defer ix.mu.Unlock()
 	c := ix.corpus[cwd]
 	return c != nil && c.modelID == modelID && time.Since(c.scannedAt) < rescanDebounce
-}
-
-// canonicalCwd normalizes a working-directory path to a stable key: absolute +
-// symlinks resolved. Every map in the Indexer (locks / corpus / status) and the
-// store are keyed by cwd, so different spellings of one project (trailing slash,
-// relative path, a symlinked root) must collapse to one key — otherwise two
-// callers build duplicate indexes under different keys, and their per-cwd build
-// locks fail to serialize concurrent reconciles of the same project. Falls back
-// to the cleaned absolute path when the dir can't be resolved (e.g. not yet
-// created), and to the input as a last resort.
-func canonicalCwd(cwd string) string {
-	abs, err := filepath.Abs(cwd)
-	if err != nil {
-		return filepath.Clean(cwd)
-	}
-	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
-		return resolved
-	}
-	return abs
 }
 
 func (ix *Indexer) cwdLock(cwd string) *sync.Mutex {

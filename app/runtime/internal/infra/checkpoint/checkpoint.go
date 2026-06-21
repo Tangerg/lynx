@@ -27,6 +27,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/fspath"
 )
 
 // ErrUnavailable means there is no snapshot to restore for the requested run
@@ -35,21 +37,29 @@ import (
 var ErrUnavailable = errors.New("checkpoint: no snapshot for run")
 
 // Store manages the shadow repos for every session. Safe for concurrent use:
-// each session's shadow-repo operations are serialized by a per-session mutex
-// (locks), because a run's snapshot now runs asynchronously off the run-finish
-// path — so the next run can start before the previous snapshot finishes, and
-// two concurrent git commands on one repo would otherwise race the index lock.
+// git ops are serialized by a per-WORKING-TREE mutex (locks), keyed by the
+// canonical cwd — not the session id. The shadow GIT_DIR is per session, but the
+// resource a git command mutates is the WORK TREE at cwd, and sessions can share
+// one: a fork inherits its parent's cwd, and two sessions can open the same dir.
+// A `reset --hard` (Restore) writing the tree must exclude another session's
+// snapshot reading it, so the lock keys on the shared resource (the tree). A
+// per-session key would let two sessions race one tree; it also still serializes
+// a single session (one session → one cwd → one lock), which is what the async
+// snapshot needs (a run's snapshot now runs off the run-finish path, so the next
+// run can start before it finishes, and two git commands on one tree would
+// otherwise race the index lock).
 type Store struct {
 	root  string   // base dir holding one shadow GIT_DIR per session
-	locks sync.Map // sessionID → *sync.Mutex, serializing that repo's git ops
+	locks sync.Map // canonical cwd → *sync.Mutex, serializing that work tree's git ops
 }
 
 // NewStore roots the shadow repos at dir (e.g. <LYRA_HOME>/checkpoints).
 func NewStore(dir string) *Store { return &Store{root: dir} }
 
-// lockFor returns the per-session mutex serializing one shadow repo's git ops.
-func (s *Store) lockFor(sessionID string) *sync.Mutex {
-	mu, _ := s.locks.LoadOrStore(sessionID, &sync.Mutex{})
+// lockFor returns the mutex serializing git ops on one working tree (keyed by
+// the canonical cwd, the shared resource — see [Store]).
+func (s *Store) lockFor(cwd string) *sync.Mutex {
+	mu, _ := s.locks.LoadOrStore(fspath.Canonical(cwd), &sync.Mutex{})
 	return mu.(*sync.Mutex)
 }
 
@@ -72,7 +82,7 @@ const maxCheckpointFileSize = 2 << 20
 // re-tags the existing HEAD instead of minting an empty commit, so a no-change
 // turn costs one ref and zero objects. Idempotent per run (the tag is moved).
 func (s *Store) Snapshot(ctx context.Context, sessionID, cwd, runID string) error {
-	mu := s.lockFor(sessionID)
+	mu := s.lockFor(cwd)
 	mu.Lock()
 	defer mu.Unlock()
 	gitDir, err := s.ensureRepo(ctx, sessionID, cwd)
@@ -159,7 +169,7 @@ func (s *Store) stageChanges(ctx context.Context, gitDir, cwd string) error {
 // restore is itself reversible (unrevert). Returns ErrUnavailable when runID
 // has no snapshot.
 func (s *Store) Restore(ctx context.Context, sessionID, cwd, runID string) error {
-	mu := s.lockFor(sessionID)
+	mu := s.lockFor(cwd)
 	mu.Lock()
 	defer mu.Unlock()
 	gitDir := s.gitDir(sessionID)
