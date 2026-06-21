@@ -9,6 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/fspath"
 )
 
 // sessions.rollback truncates a
@@ -70,6 +71,27 @@ func (s *Server) hasActiveRun(sessionID string) bool {
 	return false
 }
 
+// hasActiveRunSharingCwd returns the id of an in-flight run's session whose
+// canonical working tree is cwd, or "" when none. The broader busy guard a file
+// restore needs: its `git reset --hard` WRITES the working tree, which a sibling
+// session sharing the cwd would race (a fork inherits its parent's cwd; two
+// sessions can open one dir) — and that sibling's tool writes never go through
+// the checkpoint lock. An empty cwd matches nothing (a session with no cwd has
+// no checkpoint tree). cwd must already be canonical (runEntry.cwd is).
+func (s *Server) hasActiveRunSharingCwd(cwd string) string {
+	if cwd == "" {
+		return ""
+	}
+	s.runMu.Lock()
+	defer s.runMu.Unlock()
+	for _, e := range s.runs {
+		if e.cwd == cwd {
+			return e.sessionID
+		}
+	}
+	return ""
+}
+
 // RollbackSession discards the runs after the kept boundary, truncating the
 // session in place at a run granularity (AUX_API §4.1). Destructive: it
 // truncates the chat-memory log to the kept watermark, deletes the dropped
@@ -100,6 +122,18 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	doHistory := restoreType == protocol.RestoreHistory || restoreType == protocol.RestoreBoth
 	if doFiles && in.ToRunID == "" {
 		return nil, fmt.Errorf("%w: restoreType %q requires toRunId", protocol.ErrInvalidParams, restoreType)
+	}
+
+	// A file restore's `git reset --hard` writes the working tree, which a sibling
+	// session sharing this cwd (a fork inherits the parent's cwd; two sessions can
+	// open one dir) would race — and that sibling's tool writes never take the
+	// checkpoint lock. The per-session guard above only covers THIS session, so
+	// widen it to the whole tree for file restores. (History-only rollback touches
+	// just this session's log, so the per-session guard suffices.)
+	if doFiles {
+		if busy := s.hasActiveRunSharingCwd(fspath.Canonical(ses.Cwd)); busy != "" {
+			return nil, fmt.Errorf("%w: session %q shares this working tree and has a run in flight", protocol.ErrSessionBusy, busy)
+		}
 	}
 
 	items, runs, err := s.rt.Transcript().List(ctx, in.SessionID)

@@ -10,6 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/fspath"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
@@ -40,8 +41,12 @@ func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 	// §6.4/§9.2). The pump appends to it; this caller streams from a
 	// fresh subscription; a later runs.subscribe attaches another.
 	hub := newRunHub()
+	// The canonical working tree this run mutates — the key the cwd-aware busy
+	// guard (a file rollback) uses to find sibling sessions sharing the tree.
+	// Resolved here so the guard never does a session lookup under runMu.
+	cwd := fspath.Canonical(s.sessionCwd(reqCtx, sessionID))
 	s.runMu.Lock()
-	s.runs[runID] = &runEntry{runID: runID, sessionID: sessionID, turnID: handle.TurnID, parentRunID: parentRunID, provider: provider, model: model, cancel: cancel, hub: hub}
+	s.runs[runID] = &runEntry{runID: runID, sessionID: sessionID, cwd: cwd, turnID: handle.TurnID, parentRunID: parentRunID, provider: provider, model: model, cancel: cancel, hub: hub}
 	s.runMu.Unlock()
 	events, unsubscribe := hub.Subscribe("")
 	// Drop this caller's subscription when its request ends (client
