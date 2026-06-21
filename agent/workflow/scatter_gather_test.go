@@ -74,6 +74,49 @@ func TestScatterGather_RunsAllGeneratorsAndJoins(t *testing.T) {
 	}
 }
 
+// TestScatterGather_GeneratorsGetIsolatedContext guards the data race fixed by
+// handing each parallel generator its own ProcessContext branch: a shared pc
+// would let concurrent generators race its per-invocation scratch. Each
+// generator here writes that scratch (ResetError writes the lastErr field);
+// with one shared pc this is a write-write race `go test -race` flags, with a
+// per-generator branch it's clean.
+func TestScatterGather_GeneratorsGetIsolatedContext(t *testing.T) {
+	probe := func(_ context.Context, pc *core.ProcessContext, _ sgIn) (sgElement, error) {
+		pc.ResetError() // touch the per-invocation scratch from this branch
+		return sgElement{Score: 1}, nil
+	}
+	gens := make([]func(context.Context, *core.ProcessContext, sgIn) (sgElement, error), 8)
+	for i := range gens {
+		gens[i] = probe
+	}
+
+	a, err := workflow.ScatterGather(workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
+		Name:       "isolated",
+		Generators: gens,
+		Joiner: func(_ context.Context, _ *core.ProcessContext, items []sgElement) (sgResult, error) {
+			return sgResult{Total: len(items)}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("ScatterGather: %v", err)
+	}
+
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	if err := platform.Deploy(a); err != nil {
+		t.Fatalf("deploy: %v", err)
+	}
+	proc, err := platform.RunAgent(t.Context(), a,
+		map[string]any{core.DefaultBindingName: sgIn{Topic: "x"}},
+		core.ProcessOptions{},
+	)
+	if err != nil {
+		t.Fatalf("RunAgent: %v", err)
+	}
+	if proc.Status() != core.StatusCompleted {
+		t.Fatalf("status = %s; failure = %v", proc.Status(), proc.Failure())
+	}
+}
+
 func TestScatterGather_GeneratorErrorPropagates(t *testing.T) {
 	a, err := workflow.ScatterGather(workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
 		Name: "fanout-err",

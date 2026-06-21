@@ -86,6 +86,12 @@ type BlackboardWriter interface {
 // runtime uses [Blackboard.Spawn] to produce a fresh, isolated
 // instance for every new process. The registered value itself is the
 // prototype — it is never read from or written to directly.
+//
+// Implementations MUST be safe for concurrent use. A process's parallel
+// actions (the runtime's concurrent tick) and the workflow fan-out builders'
+// generators read and write one shared Blackboard from several goroutines at
+// once; the built-in in-memory Blackboard is mutex-guarded, but a custom
+// implementation that isn't would silently race under any parallel plan.
 type Blackboard interface {
 	Extension
 	BlackboardReader
