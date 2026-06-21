@@ -84,11 +84,22 @@ func (s *ScheduleStore) Due(ctx context.Context, now time.Time) ([]schedule.Sche
 		 ORDER BY next_run_at DESC`, now.UnixMilli())
 }
 
-func (s *ScheduleStore) MarkFired(ctx context.Context, id string, lastRunAt, nextRunAt time.Time) error {
+func (s *ScheduleStore) MarkFired(ctx context.Context, id string, ranAt, nextRunAt time.Time) error {
 	if _, err := s.db.ExecContext(ctx,
 		`UPDATE schedules SET last_run_at = ?, next_run_at = ? WHERE id = ?`,
-		toMillis(lastRunAt), toMillis(nextRunAt), id); err != nil {
+		toMillis(ranAt), toMillis(nextRunAt), id); err != nil {
 		return fmt.Errorf("sqlite: mark schedule fired: %w", err)
+	}
+	return nil
+}
+
+// RecordRun moves only last_run_at; next_run_at is left as-is so a manual
+// run-now never rewinds the cron cursor (see [schedule.Service.RecordRun]).
+func (s *ScheduleStore) RecordRun(ctx context.Context, id string, ranAt time.Time) error {
+	if _, err := s.db.ExecContext(ctx,
+		`UPDATE schedules SET last_run_at = ? WHERE id = ?`,
+		toMillis(ranAt), id); err != nil {
+		return fmt.Errorf("sqlite: record schedule run: %w", err)
 	}
 	return nil
 }

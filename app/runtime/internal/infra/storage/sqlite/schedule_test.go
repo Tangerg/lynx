@@ -99,6 +99,47 @@ func TestScheduleCRUD(t *testing.T) {
 	}
 }
 
+// TestScheduleRecordRunLeavesCursor: a manual run-now (RecordRun) updates
+// LastRunAt but must NOT touch NextRunAt. Re-stamping a cursor value read before
+// the worker advanced it would rewind the schedule and re-fire it every tick —
+// the bug RecordRun (vs MarkFired) exists to prevent.
+func TestScheduleRecordRunLeavesCursor(t *testing.T) {
+	ctx := context.Background()
+	s := newScheduleStore(t)
+
+	past := time.Now().Add(-time.Hour).UTC().Truncate(time.Millisecond)
+	created, err := s.Create(ctx, schedule.Schedule{
+		Prompt: "p", Cron: "@daily", Enabled: true, NextRunAt: past,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The worker fires and advances the cursor into the future → no longer due.
+	future := time.Now().Add(24 * time.Hour).UTC().Truncate(time.Millisecond)
+	if err := s.MarkFired(ctx, created.ID, time.Now().UTC(), future); err != nil {
+		t.Fatalf("markFired: %v", err)
+	}
+
+	// A manual run-now lands afterwards. It must leave the advanced cursor alone.
+	ranAt := time.Now().UTC().Truncate(time.Millisecond)
+	if err := s.RecordRun(ctx, created.ID, ranAt); err != nil {
+		t.Fatalf("recordRun: %v", err)
+	}
+
+	got, _ := s.Get(ctx, created.ID)
+	if !got.NextRunAt.Equal(future) {
+		t.Errorf("RecordRun rewound NextRunAt to %v, want %v (cursor untouched)", got.NextRunAt, future)
+	}
+	if !got.LastRunAt.Equal(ranAt) {
+		t.Errorf("LastRunAt = %v, want %v", got.LastRunAt, ranAt)
+	}
+	due, _ := s.Due(ctx, time.Now())
+	if len(due) != 0 {
+		t.Errorf("due after RecordRun = %+v, want none (cursor still in the future)", due)
+	}
+}
+
 // TestScheduleUpdateNotFound: updating an unknown id reports ErrNotFound.
 func TestScheduleUpdateNotFound(t *testing.T) {
 	s := newScheduleStore(t)

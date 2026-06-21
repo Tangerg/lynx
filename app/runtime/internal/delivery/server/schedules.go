@@ -102,7 +102,7 @@ func (s *Server) RunScheduleNow(ctx context.Context, in protocol.RunScheduleNowR
 	if _, err := s.fireSchedule(ctx, sc); err != nil {
 		return err
 	}
-	return s.rt.Schedules().MarkFired(ctx, sc.ID, time.Now().UTC(), sc.NextRunAt)
+	return s.rt.Schedules().RecordRun(ctx, sc.ID, time.Now().UTC())
 }
 
 // validateScheduleInput enforces the create/update preconditions: a prompt and
