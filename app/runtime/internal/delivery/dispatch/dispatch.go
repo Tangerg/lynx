@@ -152,6 +152,8 @@ var methodTable = map[string]methodHandler{
 	MethodWorkspaceMCPRemove:       (*Dispatcher).handleWorkspaceMCPRemove,
 	MethodWorkspaceMCPSetEnabled:   (*Dispatcher).handleWorkspaceMCPSetEnabled,
 	MethodWorkspaceMCPTest:         (*Dispatcher).handleWorkspaceMCPTest,
+	MethodWorkspaceListHooks:       (*Dispatcher).handleWorkspaceListHooks,
+	MethodWorkspaceSetHookTrust:    (*Dispatcher).handleWorkspaceSetHookTrust,
 	MethodWorkspaceSubscribe:       (*Dispatcher).handleWorkspaceSubscribe,
 
 	// Approval.

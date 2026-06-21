@@ -6,6 +6,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
@@ -77,6 +78,11 @@ type RuntimeServices interface {
 	// usage.summary to attribute default-model runs (whose RunRef carries no
 	// provider) to the real provider.
 	DefaultProvider() string
+	// InspectHooks lists the lifecycle hooks discovered for a cwd + the
+	// project's trust status (workspace.hooks.list); SetProjectHookTrust toggles
+	// project trust (workspace.hooks.setTrust).
+	InspectHooks(ctx context.Context, cwd string) hooks.Inspection
+	SetProjectHookTrust(ctx context.Context, projectRoot string, trusted bool) error
 	// UtilityRole reports the (provider, model) the in-house maintenance
 	// services run on — empty when unset (they run on the main model). Backs
 	// models.getUtilityRole.

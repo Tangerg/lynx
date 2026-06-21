@@ -167,6 +167,24 @@ func (d *Dispatcher) handleWorkspaceMCPTest(ctx context.Context, msg *transport.
 	return reply(msg, out, err)
 }
 
+func (d *Dispatcher) handleWorkspaceListHooks(ctx context.Context, msg *transport.Request) HandleResult {
+	var in protocol.ListHooksRequest
+	_ = unmarshal(msg.Params, &in)
+	out, err := d.api.WorkspaceListHooks(ctx, in)
+	return reply(msg, out, err)
+}
+
+func (d *Dispatcher) handleWorkspaceSetHookTrust(ctx context.Context, msg *transport.Request) HandleResult {
+	in, bad := decode[protocol.SetHookTrustRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
+	if in.ProjectRoot == "" {
+		return responseError(msg.ID, invalidParams("projectRoot is required"))
+	}
+	return replyDone(msg, d.api.WorkspaceSetHookTrust(ctx, in))
+}
+
 // handleWorkspaceSubscribe opens the workspace event stream (AUX_API §3.1) and
 // adapts its WorkspaceEvents into ephemeral StreamFrames.
 func (d *Dispatcher) handleWorkspaceSubscribe(ctx context.Context, msg *transport.Request) HandleResult {
