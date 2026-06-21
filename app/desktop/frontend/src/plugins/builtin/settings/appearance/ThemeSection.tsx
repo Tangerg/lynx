@@ -14,8 +14,8 @@ import { useUiStore } from "@/state/uiStore";
 // returns the inner object as a typed struct (not Record<string,string>,
 // which under noUncheckedIndexedAccess returns string | undefined).
 const FALLBACK_TOKENS: Record<"dark" | "light", { bg: string; surface: string; accent: string }> = {
-  dark: { bg: "#010102", surface: "#181a1d", accent: "#1ed760" },
-  light: { bg: "#fafafa", surface: "#ffffff", accent: "#15883e" },
+  dark: { bg: "#0c0d0f", surface: "#16181b", accent: "#6c97ff" },
+  light: { bg: "#ffffff", surface: "#f6f7f8", accent: "#2563eb" },
 };
 
 function previewTokens(spec: ThemeSpec): { bg: string; surface: string; accent: string } {
@@ -43,7 +43,7 @@ function ThemeRow({
       onClick={() => onSelect(spec.id)}
       aria-pressed={active}
       className={cn(
-        "grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-line bg-surface px-3 py-2.5 text-left transition-[background,border-color] duration-150 hover:bg-surface-2 focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_22%,transparent)]",
+        "grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-line bg-surface px-3 py-2.5 text-left transition-[background,border-color] duration-150 hover:bg-surface-2",
         active && "bg-surface-2 border-accent",
       )}
     >
@@ -72,6 +72,41 @@ function ThemeRow({
   );
 }
 
+// "System" follows the OS appearance (the default). It isn't a registered
+// THEME spec, so it gets its own row with a split dark/light preview.
+function SystemRow({ active, onSelect }: { active: boolean; onSelect: () => void }) {
+  const t = useT();
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={active}
+      className={cn(
+        "grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-line bg-surface px-3 py-2.5 text-left transition-[background,border-color] duration-150 hover:bg-surface-2",
+        active && "bg-surface-2 border-accent",
+      )}
+    >
+      <div className="relative h-8 w-12 shrink-0 overflow-hidden rounded-sm border border-line">
+        <div className="absolute inset-y-0 left-0 w-1/2" style={{ background: FALLBACK_TOKENS.dark.bg }} />
+        <div
+          className="absolute inset-y-0 right-0 w-1/2"
+          style={{ background: FALLBACK_TOKENS.light.bg }}
+        />
+      </div>
+      <div className="grid min-w-0 gap-0.5">
+        <div className="truncate text-[14px] font-semibold leading-[1.2] text-fg">
+          {t("settings.theme.system")}
+        </div>
+        <div className="inline-flex items-center gap-1 font-mono text-[11px] text-fg-faint lowercase tracking-normal">
+          <Icon name="settings" size={10} className="shrink-0" />
+          {t("settings.theme.systemSub")}
+        </div>
+      </div>
+      {active && <Icon name="check" size={14} className="shrink-0 text-accent" />}
+    </button>
+  );
+}
+
 export function ThemeSection() {
   const t = useT();
   const themes = useExtensionPoint(THEME);
@@ -87,6 +122,7 @@ export function ThemeSection() {
         <div className="mt-0.5 text-[13px] text-fg-muted">{t("settings.theme.sub")}</div>
       </div>
       <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
+        <SystemRow active={theme === "system"} onSelect={() => setTheme("system")} />
         {themes.map((spec) => (
           <ThemeRow key={spec.id} spec={spec} active={theme === spec.id} onSelect={setTheme} />
         ))}
