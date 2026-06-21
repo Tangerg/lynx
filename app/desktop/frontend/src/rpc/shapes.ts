@@ -662,6 +662,32 @@ export interface Recipe {
   scope: RecipeScope;
   source: string;
 }
+// A scheduled run (schedules.*): a saved prompt fired on a cron trigger as a
+// headless run. cron is a 5-field standard expression ("min hour dom month dow").
+// lastRunAt is absent until first fired; nextRunAt is absent when disabled.
+export interface Schedule {
+  id: string;
+  title: string;
+  prompt: string;
+  cwd?: string;
+  provider?: string;
+  model?: string;
+  cron: string;
+  enabled: boolean;
+  lastRunAt?: string;
+  nextRunAt?: string;
+  createdAt: string;
+}
+// The editable fields a schedules.create / update carries (create is always
+// enabled; update adds id + enabled).
+export interface ScheduleInput {
+  title?: string;
+  prompt: string;
+  cwd?: string;
+  provider?: string;
+  model?: string;
+  cron: string;
+}
 export interface AgentDoc {
   path: string;
   title?: string;
@@ -1147,6 +1173,7 @@ export type WorkspaceEvent =
       toolCount?: number;
       error?: ProblemData;
     } // status absent = entry removed
+  | { type: "schedules.fired"; scheduleId?: string } // a scheduled run started; refetch the session list
   | { type: "resync" }; // watched cwd's git state changed, or events were lost — refetch
 
 export type WorkspaceEventType = WorkspaceEvent["type"];

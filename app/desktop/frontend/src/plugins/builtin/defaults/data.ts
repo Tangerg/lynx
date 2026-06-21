@@ -47,6 +47,7 @@ import {
   PROJECTS_KEY,
   PROVIDERS_KEY,
   RECIPES_KEY,
+  SCHEDULES_KEY,
   SESSIONS_KEY,
   SKILLS_KEY,
   UTILITY_ROLE_KEY,
@@ -342,6 +343,13 @@ export const defaultData = definePlugin({
     host.extensions.contribute(DATA_PROVIDER, {
       key: HOOKS_KEY,
       fetcher: (params) => client().workspace.hooks.list((params as HooksQuery | undefined)?.cwd),
+    });
+    // Scheduled runs (schedules.list). NOT swallowed when unsupported — an old
+    // runtime rejects the method and the pane shows "unavailable" (like hooks),
+    // rather than a misleading empty list.
+    host.extensions.contribute(DATA_PROVIDER, {
+      key: SCHEDULES_KEY,
+      fetcher: async () => (await client().schedules.list()).schedules,
     });
     // Prompt recipes (workspace.recipes.list). Swallowed when unsupported (like
     // skills): recipes drive silent slash-command registration, so an old

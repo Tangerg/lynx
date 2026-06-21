@@ -59,6 +59,8 @@ import type {
   RunEvent,
   Recipe,
   RunRef,
+  Schedule,
+  ScheduleInput,
   Session,
   SessionArtifact,
   ShutdownRequest,
@@ -295,6 +297,15 @@ export interface Methods {
     // Remove one rule by id; clear-all = loop the visible ids.
     forgetRule: (id: string) => Promise<void>;
   };
+  // Scheduled runs (§7.9): cron-triggered headless runs of a saved prompt,
+  // fired by the runtime's scheduler worker while serving.
+  schedules: {
+    list: () => Promise<{ schedules: Schedule[] }>;
+    create: (params: ScheduleInput) => Promise<Schedule>;
+    update: (params: ScheduleInput & { id: string; enabled: boolean }) => Promise<Schedule>;
+    delete: (id: string) => Promise<void>;
+    runNow: (id: string) => Promise<void>;
+  };
   // The model's working checklist (B11). Live updates ride state.snapshot (§5.3);
   // this is the cold read for inactive runs / reopened history.
   todos: {
@@ -447,6 +458,13 @@ export function createMethods(client: RpcClient): Methods {
       listRules: (sessionId) =>
         client.call<{ rules: ApprovalRule[] }>("approval.listRules", { sessionId }),
       forgetRule: (id) => client.call<void>("approval.forgetRule", { id }),
+    },
+    schedules: {
+      list: () => client.call<{ schedules: Schedule[] }>("schedules.list"),
+      create: (params) => client.call<Schedule>("schedules.create", params),
+      update: (params) => client.call<Schedule>("schedules.update", params),
+      delete: (id) => client.call<void>("schedules.delete", { id }),
+      runNow: (id) => client.call<void>("schedules.runNow", { id }),
     },
     todos: {
       list: (sessionId) => client.call<{ todos: TodoItem[] }>("todos.list", { sessionId }),

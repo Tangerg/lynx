@@ -55,6 +55,11 @@ function handle(ev: WorkspaceEvent): void {
       // the editable registry (settings pane) folds the same live status.
       invalidate(MCP_SERVERS_KEY, MCP_CONFIGS_KEY, MCP_TOOLS_KEY);
       return;
+    case "schedules.fired":
+      // A scheduled run just opened a fresh session — refresh the sidebar list
+      // so it appears live (no run stream is subscribed for a headless run).
+      invalidate(SESSIONS_KEY);
+      return;
     case "resync":
       // Watched cwd's git state changed (commit / stage / checkout / merge)
       // OR the lossy channel dropped events — either way the contract says
