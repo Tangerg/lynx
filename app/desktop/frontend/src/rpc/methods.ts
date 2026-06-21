@@ -37,6 +37,9 @@ import type {
   ImportSessionResponse,
   InitializeRequest,
   InitializeResponse,
+  CodebaseHit,
+  CodebaseStatus,
+  EmbeddingRole,
   InvokeToolRequest,
   ListItemsResponse,
   McpServer,
@@ -269,6 +272,20 @@ export interface Methods {
     // turn model. setUtilityRole validates by resolving the client server-side.
     getUtilityRole: () => Promise<UtilityRole>;
     setUtilityRole: (params: UtilityRole) => Promise<UtilityRole>;
+    // The (embedding-capable provider, model) the @codebase index embeds with.
+    // Empty model = unset → the feature is off. setEmbeddingRole validates by
+    // building the embedding client server-side.
+    getEmbeddingRole: () => Promise<EmbeddingRole>;
+    setEmbeddingRole: (params: EmbeddingRole) => Promise<EmbeddingRole>;
+  };
+  // The @codebase semantic index (codebase.*): semantic code search, index
+  // status, and a background reindex. Needs a configured embedding role.
+  codebase: {
+    search: (params: { cwd?: string; query: string; limit?: number }) => Promise<{
+      hits: CodebaseHit[];
+    }>;
+    status: (cwd?: string) => Promise<CodebaseStatus>;
+    reindex: (cwd?: string) => Promise<void>;
   };
   tools: {
     list: () => Promise<Page<ToolSpec>>;
@@ -435,6 +452,13 @@ export function createMethods(client: RpcClient): Methods {
       list: (provider) => client.call<Page<Model>>("models.list", provider ? { provider } : {}),
       getUtilityRole: () => client.call<UtilityRole>("models.getUtilityRole"),
       setUtilityRole: (params) => client.call<UtilityRole>("models.setUtilityRole", params),
+      getEmbeddingRole: () => client.call<EmbeddingRole>("models.getEmbeddingRole"),
+      setEmbeddingRole: (params) => client.call<EmbeddingRole>("models.setEmbeddingRole", params),
+    },
+    codebase: {
+      search: (params) => client.call<{ hits: CodebaseHit[] }>("codebase.search", params),
+      status: (cwd) => client.call<CodebaseStatus>("codebase.status", { cwd }),
+      reindex: (cwd) => client.call<void>("codebase.reindex", { cwd }),
     },
     tools: {
       list: () => client.call<Page<ToolSpec>>("tools.list"),

@@ -139,6 +139,10 @@ export type {
   ModelPricing,
   Modality,
   UtilityRole,
+  EmbeddingRole,
+  CodebaseHit,
+  CodebaseStatus,
+  CodebaseState,
   // Workspace optional domains
   Skill,
   Recipe,

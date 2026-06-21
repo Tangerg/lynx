@@ -582,6 +582,10 @@ export interface Provider {
   // Azure): config MUST collect baseUrl, and with no catalog the model is
   // free-text input (models.list returns empty). API.md §4.9.
   requiresBaseUrl?: boolean;
+  // Has an embeddings adapter → offered in the @codebase embedding-role picker;
+  // defaultEmbeddingModel prefills a sensible model id ("" = user-supplied).
+  embeddingCapable?: boolean;
+  defaultEmbeddingModel?: string;
 }
 
 export interface Model {
@@ -638,6 +642,33 @@ export interface ProviderTestResult {
 export interface UtilityRole {
   provider?: string;
   model?: string;
+}
+
+// The (embedding-capable provider, model) the @codebase semantic index embeds
+// with (models.getEmbeddingRole / setEmbeddingRole). Empty model = unset → the
+// @codebase feature is off. `provider` is an embedding-capable Provider.id.
+export interface EmbeddingRole {
+  provider?: string;
+  model?: string;
+}
+
+// @codebase semantic index (codebase.*).
+export type CodebaseState = "none" | "indexing" | "ready" | "error";
+export interface CodebaseHit {
+  path: string; // relative to cwd
+  startLine: number;
+  endLine: number;
+  snippet: string;
+  score: number; // cosine similarity [0,1]
+}
+export interface CodebaseStatus {
+  state: CodebaseState;
+  modelId?: string;
+  fileCount: number;
+  chunkCount: number;
+  indexedAt?: string; // RFC3339
+  truncated?: boolean;
+  error?: string;
 }
 
 // ---------------------------------------------------------------------------
