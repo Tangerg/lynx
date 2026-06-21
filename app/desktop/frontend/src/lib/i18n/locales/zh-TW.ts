@@ -229,7 +229,7 @@ export const zhTW: Record<string, string> = {
   "settings.accent.sub": "功能性高亮——執行、啟用、主要操作。",
   "settings.accent.custom": "自訂顏色",
   "settings.font": "字型",
-  "settings.font.sub": "字型 + 大小。留空使用內建 Geist。",
+  "settings.font.sub": "字型 + 大小。留空使用系統預設。",
   "settings.font.ui": "介面",
   "settings.font.code": "程式碼",
   "settings.font.size": "大小",
