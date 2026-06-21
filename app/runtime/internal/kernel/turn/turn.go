@@ -398,6 +398,14 @@ func (s *inMemory) endTurn(st *turnState) {
 	if st.span != nil {
 		st.span.End()
 	}
+	// close(st.events) is safe only because every emit happens-before it: the
+	// run-loop emitters (the tool observer, steerSource) all complete before
+	// proc.Done() fires, and drive reads Done() before reaching endTurn; the
+	// teardown emitters (Cancel / finishTurn) run on this same goroutine,
+	// serialized against a racing Resume by claimPark. The lifecycle listener
+	// runs on a DETACHED agent goroutine, so it must only CAPTURE the terminal
+	// event, never emit — an emit from any goroutine lacking that happens-before
+	// would race this close and panic (send on a closed channel).
 	close(st.events)
 	s.mu.Lock()
 	delete(s.turns, st.handle.TurnID)
