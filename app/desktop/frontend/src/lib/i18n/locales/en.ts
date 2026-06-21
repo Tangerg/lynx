@@ -26,7 +26,6 @@ export const en: Record<string, string> = {
   "sidebar.action.searchHint": "Search (⌘K)",
   "sidebar.action.tools": "Tools / MCP",
   "sidebar.action.settings": "Settings",
-  "sidebar.user.menuLabel": "Account menu",
 
   "composer.input.label": "Message composer",
   "composer.placeholder.fallback": "Ask, plan, or paste a stack trace…  /  to run a command",
@@ -123,7 +122,6 @@ export const en: Record<string, string> = {
   "tools.preview.viewReply": "View full reply",
 
   "common.remove": "Remove",
-  "sidebar.user.account": "Account",
   "status.notifications": "Notifications",
   "status.notifications.unread": "{{count}} unread notification(s)",
   "session.row.titleLabel": "Session title",

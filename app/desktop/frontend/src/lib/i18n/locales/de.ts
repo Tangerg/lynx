@@ -20,7 +20,6 @@ export const de: Record<string, string> = {
   "sidebar.action.searchHint": "Suchen (⌘K)",
   "sidebar.action.tools": "Werkzeuge / MCP",
   "sidebar.action.settings": "Einstellungen",
-  "sidebar.user.menuLabel": "Kontomenü",
 
   "composer.input.label": "Nachrichteneditor",
   "composer.placeholder.fallback":
@@ -110,7 +109,6 @@ export const de: Record<string, string> = {
   "tools.preview.viewReply": "Ganze Antwort anzeigen",
 
   "common.remove": "Entfernen",
-  "sidebar.user.account": "Konto",
   "status.notifications": "Benachrichtigungen",
   "status.notifications.unread": "{{count}} ungelesene Benachrichtigung(en)",
   "session.row.titleLabel": "Sitzungstitel",
