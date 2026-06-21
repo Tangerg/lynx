@@ -12,6 +12,8 @@ export const en: Record<string, string> = {
   "sidebar.search.placeholder": "Search · files · commands",
   "sidebar.search.label": "Search files and commands",
   "sidebar.section.projects": "Projects",
+  "sidebar.section.workspace": "Workspace",
+  "sidebar.nav.newChat": "New chat",
   "sidebar.sessionFilter.placeholder": "Filter sessions…",
   "sidebar.sessionFilter.empty": "No matching sessions",
   "sidebar.action.addProject": "Add project",
