@@ -143,6 +143,8 @@ export type {
   Skill,
   Recipe,
   RecipeScope,
+  Schedule,
+  ScheduleInput,
   AgentDoc,
   McpServer,
   McpStatus,

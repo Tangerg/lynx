@@ -7,7 +7,7 @@
 
 import type { UseQueryResult } from "@tanstack/react-query";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import type { HooksListResult, Recipe, UtilityRole } from "@/rpc";
+import type { HooksListResult, Recipe, Schedule, UtilityRole } from "@/rpc";
 import { lookupDataProvider } from "@/plugins/sdk";
 import { queryClient } from "./queryClient";
 
@@ -320,6 +320,7 @@ export const APPROVAL_RULES_KEY = "approval-rules";
 export const UTILITY_ROLE_KEY = "utility-role";
 export const HOOKS_KEY = "hooks";
 export const RECIPES_KEY = "recipes";
+export const SCHEDULES_KEY = "schedules";
 
 export const useSessions = makeDataQuery<SidebarSession[]>(SESSIONS_KEY);
 export const useProjects = makeDataQuery<SidebarProject[]>(PROJECTS_KEY);
@@ -370,5 +371,8 @@ export interface RecipesQuery {
   cwd?: string;
 }
 export const useRecipes = makeParamDataQuery<RecipesQuery, Recipe[]>(RECIPES_KEY);
+// Scheduled runs (schedules.list) — runtime-global (not cwd-scoped), like the
+// MCP registry. Reuses the wire Schedule directly.
+export const useSchedules = makeDataQuery<Schedule[]>(SCHEDULES_KEY);
 export const useListFiles = makeParamDataQuery<ListFilesQuery, FileEntryInfo[]>("list-files");
 export const useReadFile = makeParamDataQuery<ReadFileQuery, FileContentInfo>("read-file");
