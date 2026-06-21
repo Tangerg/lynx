@@ -325,6 +325,7 @@ export const zh: Record<string, string> = {
   "workspace.view.title.timeline": "时间线",
   "workspace.view.title.terminal": "终端",
   "workspace.view.title.skills": "技能",
+  "workspace.view.title.recipes": "Recipes",
   "workspace.view.title.memory": "记忆",
   "workspace.view.title.tools": "工具",
   "workspace.view.title.todos": "任务",
@@ -515,6 +516,11 @@ export const zh: Record<string, string> = {
   "skills.empty.sub": "在此项目工作目录中发现的技能会显示在这里。",
   "skills.disabled.title": "技能已关闭",
   "skills.disabled.sub": "此运行时未声明技能功能。",
+  "recipes.title": "Recipes",
+  "recipes.available": "{{count}} 个可用",
+  "recipes.empty.title": "暂无 recipe",
+  "recipes.empty.sub":
+    "在 .lyra/recipes（项目）或 ~/.lyra/recipes（全局）放一个 .md 文件 —— 文件名即一个 /slash 命令。",
 
   // ── 工作区视图：记忆 ──
   "memory.title": "记忆",

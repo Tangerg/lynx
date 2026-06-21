@@ -57,6 +57,7 @@ import type {
   RollbackSessionRequest,
   RollbackSessionResponse,
   RunEvent,
+  Recipe,
   RunRef,
   Session,
   SessionArtifact,
@@ -202,6 +203,12 @@ export interface Methods {
       params?: SubscribeWorkspaceRequest,
       signal?: AbortSignal,
     ) => Promise<StreamingResult<Record<string, never>, WorkspaceEvent>>;
+    // Prompt recipes (§7.5): the parameterized prompt templates discovered for a
+    // cwd (project over global). The client expands a chosen recipe's body and
+    // sends it as a turn — read-only discovery.
+    recipes: {
+      list: (cwd?: string) => Promise<Page<Recipe>>;
+    };
     // Lifecycle hooks (§7.5): list the hooks discovered for a cwd (global +
     // project, each marked active = does-it-currently-run) and toggle whether a
     // project's hooks are trusted to run. A cloned repo's project hooks stay
@@ -371,6 +378,9 @@ export function createMethods(client: RpcClient): Methods {
           client.call<Record<string, never>>(WORKSPACE_SUBSCRIBE_METHOD, params ?? {}, signal),
         );
         return { result, events: stream.events };
+      },
+      recipes: {
+        list: (cwd) => client.call<Page<Recipe>>("workspace.recipes.list", { cwd }),
       },
       hooks: {
         list: (cwd) => client.call<HooksListResult>("workspace.hooks.list", { cwd }),

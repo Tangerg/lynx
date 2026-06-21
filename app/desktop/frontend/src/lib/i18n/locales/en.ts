@@ -331,6 +331,7 @@ export const en: Record<string, string> = {
   "workspace.view.title.timeline": "Timeline",
   "workspace.view.title.terminal": "Terminal",
   "workspace.view.title.skills": "Skills",
+  "workspace.view.title.recipes": "Recipes",
   "workspace.view.title.memory": "Memory",
   "workspace.view.title.tools": "Tools",
   "workspace.view.title.todos": "Tasks",
@@ -531,6 +532,11 @@ export const en: Record<string, string> = {
   "skills.empty.sub": "Skills discovered in this project's working directory show up here.",
   "skills.disabled.title": "Skills are off",
   "skills.disabled.sub": "This runtime doesn't advertise the skills feature.",
+  "recipes.title": "Recipes",
+  "recipes.available": "{{count}} available",
+  "recipes.empty.title": "No recipes",
+  "recipes.empty.sub":
+    "Drop a .md file in .lyra/recipes (project) or ~/.lyra/recipes (global) — its name becomes a /slash command.",
 
   // ── Workspace view: Memory ──
   "memory.title": "Memory",

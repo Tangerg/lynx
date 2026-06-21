@@ -54,6 +54,7 @@ import {
   messageRegenerate,
 } from "./chat/message-actions";
 import planProgress from "./chat/plan-progress";
+import recipesSlash from "./chat/recipes";
 import pluginsPane from "./settings/plugins-pane";
 import providersPane from "./settings/providers";
 import sessionUsage from "./chat/session-usage";
@@ -96,6 +97,7 @@ import {
   memoryView,
   notificationsView,
   planView,
+  recipesView,
   runSummaryView,
   searchView,
   skillsView,
@@ -166,6 +168,9 @@ const toolRendering: PluginSpec[] = [
 
 const composer: PluginSpec[] = [
   slashHints,
+  // After slashHints so a user recipe named like a built-in hint wins the
+  // shared slash key (it carries a real run handler; the hint is display-only).
+  recipesSlash,
   composerChips,
   composerToolbar,
   composerPlaceholders,
@@ -196,6 +201,7 @@ const panes: PluginSpec[] = [
   runSummaryView,
   toolsView,
   skillsView,
+  recipesView,
   searchView,
   agentDocsView,
   memoryView,
