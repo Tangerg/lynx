@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
 	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
@@ -58,6 +59,10 @@ type RuntimeServices interface {
 	// ListSkills enumerates the skills visible from cwd (project over global) —
 	// backs workspace.listSkills. The engine owns skill sourcing + precedence.
 	ListSkills(ctx context.Context, cwd string) ([]kernel.SkillInfo, error)
+	// ListRecipes enumerates the prompt recipes visible from cwd (project over
+	// global) — backs workspace.recipes.list. Recipes are user-invoked prompt
+	// templates the client expands; the runtime only discovers them.
+	ListRecipes(ctx context.Context, cwd string) ([]recipes.Recipe, error)
 	// MCPTools lists tools per connected MCP server (server="" = all) —
 	// backs workspace.mcp.listTools. The engine holds the dialed sessions.
 	MCPTools(ctx context.Context, server string) ([]kernel.McpToolInfo, error)

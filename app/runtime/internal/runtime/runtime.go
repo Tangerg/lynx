@@ -41,6 +41,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/maintenance"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
 	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -133,6 +134,11 @@ type Config struct {
 	// project's hooks). nil → trust is read-only (CLI / file only); the resolver
 	// still reads trust through its own checker.
 	HookTrustStore HookTrustStore
+
+	// RecipesGlobalDir is the global recipes directory (<LYRA_HOME>/recipes) the
+	// workspace.recipes.list discovery layers under a project's .lyra/recipes.
+	// Empty → only project recipes are listed. The composition root sets it.
+	RecipesGlobalDir string
 }
 
 // HookTrustStore mutates project hook trust for the workspace.hooks.setTrust
@@ -195,6 +201,10 @@ type Runtime struct {
 	// hooks are unconfigured.
 	hookResolver *hooks.Resolver
 	hookTrust    HookTrustStore
+
+	// recipesGlobalDir is the global recipes directory the workspace.recipes.list
+	// discovery layers under a project's .lyra/recipes. Empty → project-only.
+	recipesGlobalDir string
 }
 
 // New assembles a Runtime from cfg. Returns an error when a required
@@ -392,26 +402,27 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	}
 
 	return &Runtime{
-		engine:          eng,
-		chat:            chatSvc,
-		session:         sessionSvc,
-		tool:            toolSvc,
-		knowledge:       cfg.Engine.Knowledge,
-		approval:        approvalSvc,
-		interrupts:      interruptStore,
-		transcript:      cfg.TranscriptStore,
-		conversation:    conv,
-		providers:       providerSvc,
-		mcpRegistry:     cfg.MCPRegistry,
-		mcpGating:       mcpGate,
-		defaultProvider: cfg.Provider,
-		defaultModel:    cfg.Model,
-		titler:          maintenance.NewTitler(resolveUtility),
-		utility:         utilCell,
-		resolver:        resolver,
-		utilStore:       cfg.UtilityRoleStore,
-		hookResolver:    cfg.HooksResolver,
-		hookTrust:       cfg.HookTrustStore,
+		engine:           eng,
+		chat:             chatSvc,
+		session:          sessionSvc,
+		tool:             toolSvc,
+		knowledge:        cfg.Engine.Knowledge,
+		approval:         approvalSvc,
+		interrupts:       interruptStore,
+		transcript:       cfg.TranscriptStore,
+		conversation:     conv,
+		providers:        providerSvc,
+		mcpRegistry:      cfg.MCPRegistry,
+		mcpGating:        mcpGate,
+		defaultProvider:  cfg.Provider,
+		defaultModel:     cfg.Model,
+		titler:           maintenance.NewTitler(resolveUtility),
+		utility:          utilCell,
+		resolver:         resolver,
+		utilStore:        cfg.UtilityRoleStore,
+		hookResolver:     cfg.HooksResolver,
+		hookTrust:        cfg.HookTrustStore,
+		recipesGlobalDir: cfg.RecipesGlobalDir,
 	}, nil
 }
 
@@ -431,6 +442,14 @@ func (r *Runtime) SetProjectHookTrust(ctx context.Context, projectRoot string, t
 		return r.hookTrust.Trust(ctx, projectRoot)
 	}
 	return r.hookTrust.Untrust(ctx, projectRoot)
+}
+
+// ListRecipes enumerates the prompt recipes visible from cwd — project recipes
+// (<cwd>/.lyra/recipes) layered over the global directory, project winning on a
+// name collision (workspace.recipes.list). The client expands a chosen recipe's
+// body and sends it as a turn; the runtime only discovers them.
+func (r *Runtime) ListRecipes(ctx context.Context, cwd string) ([]recipes.Recipe, error) {
+	return recipes.List(ctx, recipes.ProjectDir(cwd), r.recipesGlobalDir)
 }
 
 // runClosers runs capability shutdown hooks best-effort — used to release a

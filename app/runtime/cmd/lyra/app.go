@@ -205,6 +205,9 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		// User lifecycle hooks (global + trusted-project), resolved per turn cwd.
 		HooksResolver:  hookResolver,
 		HookTrustStore: stores.Trust,
+		// User-scope prompt recipes under the storage home; per-session project
+		// recipes (<cwd>/.lyra/recipes) layer on top of these.
+		RecipesGlobalDir: filepath.Join(stores.Home, "recipes"),
 		// Default approval stance: Balanced — auto-allow file writes /
 		// network (the agent's normal work; the user sees the diffs), prompt
 		// only on shell exec (bash), the genuinely dangerous class. Must be

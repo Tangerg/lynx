@@ -83,6 +83,13 @@ func (d *Dispatcher) handleWorkspaceListSkills(ctx context.Context, msg *transpo
 	return reply(msg, out, err)
 }
 
+func (d *Dispatcher) handleWorkspaceListRecipes(ctx context.Context, msg *transport.Request) HandleResult {
+	var in protocol.WorkspaceListQuery
+	_ = unmarshal(msg.Params, &in)
+	out, err := d.api.WorkspaceListRecipes(ctx, in)
+	return reply(msg, out, err)
+}
+
 func (d *Dispatcher) handleWorkspaceListAgentDocs(ctx context.Context, msg *transport.Request) HandleResult {
 	var in protocol.WorkspaceListQuery
 	_ = unmarshal(msg.Params, &in)

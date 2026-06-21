@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
@@ -141,6 +142,32 @@ func TestWorkspaceListSkills(t *testing.T) {
 	}
 	if len(got.Data) != 2 || got.Data[0].Name != "pdf" || got.Data[0].Source != "project" || got.Data[1].Source != "global" {
 		t.Fatalf("skills = %+v, want pdf(project) + web(global)", got.Data)
+	}
+}
+
+// TestWorkspaceListRecipes maps the runtime's discovered recipes onto the wire,
+// carrying scope + body through, and defaults cwd to the serve dir.
+func TestWorkspaceListRecipes(t *testing.T) {
+	dir := t.TempDir()
+	s := &Server{
+		serverInfo: protocol.ServerInfo{Cwd: dir},
+		rt: stubRuntime{recipes: []recipes.Recipe{
+			{Name: "review", Description: "review diff", Body: "Review $ARGUMENTS", Scope: "project", Source: "/p/review.md"},
+			{Name: "commit", Body: "Write a commit", Scope: "global", Source: "/g/commit.md"},
+		}},
+	}
+	got, err := s.WorkspaceListRecipes(context.Background(), protocol.WorkspaceListQuery{})
+	if err != nil {
+		t.Fatalf("listRecipes: %v", err)
+	}
+	if len(got.Data) != 2 {
+		t.Fatalf("recipes = %+v, want 2", got.Data)
+	}
+	if got.Data[0].Name != "review" || got.Data[0].Scope != "project" || got.Data[0].Body != "Review $ARGUMENTS" {
+		t.Errorf("recipe[0] = %+v, want review(project) with body", got.Data[0])
+	}
+	if got.Data[1].Scope != "global" {
+		t.Errorf("recipe[1].Scope = %q, want global", got.Data[1].Scope)
 	}
 }
 

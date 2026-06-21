@@ -58,6 +58,7 @@ const (
 	MethodWorkspaceReadFile        = "workspace.readFile"
 	MethodWorkspaceListProjects    = "workspace.listProjects"
 	MethodWorkspaceListSkills      = "workspace.listSkills"
+	MethodWorkspaceListRecipes     = "workspace.recipes.list"
 	MethodWorkspaceListAgentDocs   = "workspace.listAgentDocs"
 	MethodWorkspaceMCPListServers  = "workspace.mcp.listServers"
 	MethodWorkspaceMCPListTools    = "workspace.mcp.listTools"
