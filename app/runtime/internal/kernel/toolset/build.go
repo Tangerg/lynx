@@ -176,9 +176,13 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 	if todoTool != nil {
 		tools = append(tools, todoTool)
 	}
-	// codebase_search appears in the catalog only when an embedding model is
-	// configured (the index is usable); the resolver gates it the same way per turn.
-	if cfg.CodebaseIndex != nil && cfg.CodebaseIndex.Available(ctx) {
+	// codebase_search is in the catalog whenever the index is wired — the tool's
+	// metadata is meaningful regardless of the live embedding model, and the
+	// per-turn resolver is the single live gate (it omits the tool until an
+	// embedding model resolves). Gating the static catalog on Available() instead
+	// would both miss a model configured after startup and resolve an embedding
+	// client at construction.
+	if cfg.CodebaseIndex != nil {
 		tools = append(tools, codebasesearch.New(cfg.CodebaseIndex))
 	}
 
