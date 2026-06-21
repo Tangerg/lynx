@@ -87,7 +87,10 @@ function SystemRow({ active, onSelect }: { active: boolean; onSelect: () => void
       )}
     >
       <div className="relative h-8 w-12 shrink-0 overflow-hidden rounded-sm border border-line">
-        <div className="absolute inset-y-0 left-0 w-1/2" style={{ background: FALLBACK_TOKENS.dark.bg }} />
+        <div
+          className="absolute inset-y-0 left-0 w-1/2"
+          style={{ background: FALLBACK_TOKENS.dark.bg }}
+        />
         <div
           className="absolute inset-y-0 right-0 w-1/2"
           style={{ background: FALLBACK_TOKENS.light.bg }}
