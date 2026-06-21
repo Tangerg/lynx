@@ -63,6 +63,7 @@ const (
 	WorkspaceEventFilesChanged     WorkspaceEventType = "files.changed"
 	WorkspaceEventSkillsChanged    WorkspaceEventType = "skills.changed"
 	WorkspaceEventMCPServerChanged WorkspaceEventType = "mcp.serverChanged"
+	WorkspaceEventSchedulesFired   WorkspaceEventType = "schedules.fired"
 	WorkspaceEventResync           WorkspaceEventType = "resync"
 )
 
@@ -84,6 +85,9 @@ type WorkspaceEvent struct {
 	Status    McpStatus    `json:"status,omitempty"`
 	ToolCount *int         `json:"toolCount,omitempty"`
 	Error     *ProblemData `json:"error,omitempty"`
+	// schedules.fired — a scheduled run just started; the client refetches its
+	// session list (the run lives in a fresh session).
+	ScheduleID string `json:"scheduleId,omitempty"`
 }
 
 // WorkspaceQuery is the common cwd input for workspace reads (API.md §7.5).

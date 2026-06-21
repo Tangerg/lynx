@@ -185,6 +185,24 @@ func migrate(db *sql.DB) error {
 			project_root TEXT    PRIMARY KEY,
 			trusted_at   INTEGER NOT NULL
 		)`,
+		// Scheduled runs (schedules.*): a saved prompt fired on a cron trigger as
+		// a headless run. last_run_at / next_run_at are unix millis (0 = never /
+		// unscheduled); next_run_at is the worker's due index.
+		`CREATE TABLE IF NOT EXISTS schedules (
+			id          TEXT    PRIMARY KEY,
+			title       TEXT    NOT NULL DEFAULT '',
+			prompt      TEXT    NOT NULL,
+			cwd         TEXT    NOT NULL DEFAULT '',
+			provider    TEXT    NOT NULL DEFAULT '',
+			model       TEXT    NOT NULL DEFAULT '',
+			cron        TEXT    NOT NULL,
+			enabled     INTEGER NOT NULL DEFAULT 1,
+			last_run_at INTEGER NOT NULL DEFAULT 0,
+			next_run_at INTEGER NOT NULL DEFAULT 0,
+			created_at  INTEGER NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_schedules_due
+			ON schedules(enabled, next_run_at)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {

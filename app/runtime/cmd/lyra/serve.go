@@ -98,7 +98,7 @@ Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 			if token != nil {
 				tokenValue = token.Value
 			}
-			httpServer, err := a.buildHTTPServer(srv, tokenValue)
+			httpServer, api, err := a.buildHTTPServer(srv, tokenValue)
 			if err != nil {
 				return a.fatalErr(err)
 			}
@@ -111,7 +111,7 @@ Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 					return a.fatalErr(err)
 				}
 			}
-			return a.runServer(cmd.Context(), httpServer, srv.Listen, token, a2aServer)
+			return a.runServer(cmd.Context(), httpServer, api, srv.Listen, token, a2aServer)
 		},
 	}
 	cmd.Flags().StringVar(&addr, "listen", "",
@@ -133,7 +133,7 @@ Stdio transport is intentionally not supported — see docs/API.md §1.1.`,
 // session's default working dir, home anchors ~-scoped lookups; both
 // default to the user's home), and a runtime health probe. tokenValue is
 // the local-process gate token ("" when the gate is disabled).
-func (a *App) buildHTTPServer(srv config.ServerConfig, tokenValue string) (*lyrahttp.Server, error) {
+func (a *App) buildHTTPServer(srv config.ServerConfig, tokenValue string) (*lyrahttp.Server, *server.Server, error) {
 	info := lyrahttp.ServerInfoOrDefault()
 	if home, err := os.UserHomeDir(); err == nil {
 		info.Cwd = home
@@ -154,11 +154,11 @@ func (a *App) buildHTTPServer(srv config.ServerConfig, tokenValue string) (*lyra
 		Workspace:  workspace.New(checkpointDir),
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	caps := server.Capabilities(a.runtime())
-	return lyrahttp.NewServer(lyrahttp.Config{
+	httpServer, err := lyrahttp.NewServer(lyrahttp.Config{
 		Runtime:         api,
 		Addr:            srv.Listen,
 		ServerInfo:      info,
@@ -179,6 +179,10 @@ func (a *App) buildHTTPServer(srv config.ServerConfig, tokenValue string) (*lyra
 		},
 		AgentDocsLister: agentDocsLister(),
 	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return httpServer, api, nil
 }
 
 // agentDocsLister returns an AgentDocsLister wired to the server's
@@ -212,9 +216,14 @@ func agentDocsLister() lyrahttp.AgentDocsLister {
 
 // runServer launches the server, blocks until it returns or a
 // shutdown signal arrives, then drains with a 10s budget.
-func (a *App) runServer(ctx context.Context, server *lyrahttp.Server, addr string, token *lyrahttp.LocalToken, a2aServer *http.Server) error {
+func (a *App) runServer(ctx context.Context, httpServer *lyrahttp.Server, api *server.Server, addr string, token *lyrahttp.LocalToken, a2aServer *http.Server) error {
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	// The scheduled-run worker shares the serve lifetime: it fires due schedules
+	// as headless runs and stops when the signal ctx is canceled. No-op when
+	// scheduling is unconfigured.
+	go api.RunScheduler(ctx)
 
 	// Buffered for both listeners so a failing one never blocks on send.
 	errs := make(chan error, 2)
@@ -228,7 +237,7 @@ func (a *App) runServer(ctx context.Context, server *lyrahttp.Server, addr strin
 		} else {
 			fmt.Fprintln(a.Err, "[lyra] local-token gate disabled (--no-local-token)")
 		}
-		errs <- server.Start()
+		errs <- httpServer.Start()
 	}()
 
 	if a2aServer != nil {
@@ -251,7 +260,7 @@ func (a *App) runServer(ctx context.Context, server *lyrahttp.Server, addr strin
 	if a2aServer != nil {
 		_ = a2aServer.Shutdown(shutdownCtx)
 	}
-	if err := server.Shutdown(shutdownCtx); err != nil {
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		return a.fatalErr(err)
 	}
 	return nil

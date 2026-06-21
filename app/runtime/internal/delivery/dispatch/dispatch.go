@@ -163,6 +163,13 @@ var methodTable = map[string]methodHandler{
 	MethodApprovalListRules:  (*Dispatcher).handleApprovalListRules,
 	MethodApprovalForgetRule: (*Dispatcher).handleApprovalForgetRule,
 
+	// Schedules.
+	MethodSchedulesList:   (*Dispatcher).handleSchedulesList,
+	MethodSchedulesCreate: (*Dispatcher).handleSchedulesCreate,
+	MethodSchedulesUpdate: (*Dispatcher).handleSchedulesUpdate,
+	MethodSchedulesDelete: (*Dispatcher).handleSchedulesDelete,
+	MethodSchedulesRunNow: (*Dispatcher).handleSchedulesRunNow,
+
 	// Providers / Models / Tools.
 	MethodProvidersList:        (*Dispatcher).handleProvidersList,
 	MethodProvidersConfigure:   (*Dispatcher).handleProvidersConfigure,

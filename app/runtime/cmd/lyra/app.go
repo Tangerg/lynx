@@ -208,6 +208,8 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		// User-scope prompt recipes under the storage home; per-session project
 		// recipes (<cwd>/.lyra/recipes) layer on top of these.
 		RecipesGlobalDir: filepath.Join(stores.Home, "recipes"),
+		// Scheduled runs (schedules.*) the scheduler worker fires while serving.
+		ScheduleStore: stores.Schedules,
 		// Default approval stance: Balanced — auto-allow file writes /
 		// network (the agent's normal work; the user sees the diffs), prompt
 		// only on shell exec (bash), the genuinely dangerous class. Must be
@@ -276,6 +278,7 @@ func buildStores() (*Stores, error) {
 		ApprovalRules: sqlitestore.NewApprovalRuleStore(db),
 		UtilityRole:   sqlitestore.NewUtilityRoleStore(db),
 		Trust:         sqlitestore.NewTrustStore(db),
+		Schedules:     sqlitestore.NewScheduleStore(db),
 	}, nil
 }
 
@@ -297,6 +300,7 @@ type Stores struct {
 	ApprovalRules approval.RuleStore
 	UtilityRole   lyraruntime.UtilityRoleStore
 	Trust         *sqlitestore.TrustStore
+	Schedules     *sqlitestore.ScheduleStore
 }
 
 // seedConfiguredProvider ensures the config-file provider is present in the

@@ -93,8 +93,10 @@ type runEntry struct {
 	hub          *runHub // per-run event fan-out + durable replay (streamable HTTP)
 }
 
-// New builds a Server. Returns an error when Runtime is nil.
-func New(cfg Config) (protocol.Runtime, error) {
+// New builds a Server. Returns an error when Runtime is nil. The concrete
+// *Server is returned (it satisfies [protocol.Runtime]) so the composition root
+// can also reach server-owned background workers like RunScheduler.
+func New(cfg Config) (*Server, error) {
 	if cfg.Runtime == nil {
 		return nil, errors.New("server: Runtime is required")
 	}

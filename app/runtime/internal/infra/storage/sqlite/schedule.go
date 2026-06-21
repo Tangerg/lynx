@@ -1,0 +1,159 @@
+package sqlite
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
+)
+
+// ScheduleStore implements schedule.Service against SQLite — the persistent home
+// for scheduled runs. The DB must have been opened via [Open] so the schedules
+// table exists.
+type ScheduleStore struct {
+	db *sql.DB
+}
+
+var _ schedule.Service = (*ScheduleStore)(nil)
+
+// NewScheduleStore wires the given *sql.DB to the schedule.Service surface.
+func NewScheduleStore(db *sql.DB) *ScheduleStore {
+	return &ScheduleStore{db: db}
+}
+
+func (s *ScheduleStore) Create(ctx context.Context, sc schedule.Schedule) (schedule.Schedule, error) {
+	sc.ID = schedule.IDPrefix + uuid.NewString()
+	sc.CreatedAt = time.Now().UTC()
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO schedules (id, title, prompt, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		sc.ID, sc.Title, sc.Prompt, sc.Cwd, sc.Provider, sc.Model, sc.Cron,
+		boolToInt(sc.Enabled), toMillis(sc.LastRunAt), toMillis(sc.NextRunAt), sc.CreatedAt.UnixMilli())
+	if err != nil {
+		return schedule.Schedule{}, fmt.Errorf("sqlite: create schedule: %w", err)
+	}
+	return sc, nil
+}
+
+func (s *ScheduleStore) Update(ctx context.Context, sc schedule.Schedule) (schedule.Schedule, error) {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE schedules
+		 SET title = ?, prompt = ?, cwd = ?, provider = ?, model = ?, cron = ?, enabled = ?, next_run_at = ?
+		 WHERE id = ?`,
+		sc.Title, sc.Prompt, sc.Cwd, sc.Provider, sc.Model, sc.Cron,
+		boolToInt(sc.Enabled), toMillis(sc.NextRunAt), sc.ID)
+	if err != nil {
+		return schedule.Schedule{}, fmt.Errorf("sqlite: update schedule: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return schedule.Schedule{}, schedule.ErrNotFound
+	}
+	return s.Get(ctx, sc.ID)
+}
+
+func (s *ScheduleStore) Get(ctx context.Context, id string) (schedule.Schedule, error) {
+	row := s.db.QueryRowContext(ctx,
+		`SELECT id, title, prompt, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at
+		 FROM schedules WHERE id = ?`, id)
+	sc, err := scanSchedule(row.Scan)
+	if errors.Is(err, sql.ErrNoRows) {
+		return schedule.Schedule{}, schedule.ErrNotFound
+	}
+	if err != nil {
+		return schedule.Schedule{}, fmt.Errorf("sqlite: get schedule: %w", err)
+	}
+	return sc, nil
+}
+
+func (s *ScheduleStore) List(ctx context.Context) ([]schedule.Schedule, error) {
+	return s.query(ctx,
+		`SELECT id, title, prompt, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at
+		 FROM schedules ORDER BY created_at DESC`)
+}
+
+func (s *ScheduleStore) Due(ctx context.Context, now time.Time) ([]schedule.Schedule, error) {
+	return s.query(ctx,
+		`SELECT id, title, prompt, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at
+		 FROM schedules
+		 WHERE enabled = 1 AND next_run_at > 0 AND next_run_at <= ?
+		 ORDER BY next_run_at DESC`, now.UnixMilli())
+}
+
+func (s *ScheduleStore) MarkFired(ctx context.Context, id string, lastRunAt, nextRunAt time.Time) error {
+	if _, err := s.db.ExecContext(ctx,
+		`UPDATE schedules SET last_run_at = ?, next_run_at = ? WHERE id = ?`,
+		toMillis(lastRunAt), toMillis(nextRunAt), id); err != nil {
+		return fmt.Errorf("sqlite: mark schedule fired: %w", err)
+	}
+	return nil
+}
+
+func (s *ScheduleStore) Delete(ctx context.Context, id string) error {
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM schedules WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("sqlite: delete schedule: %w", err)
+	}
+	return nil
+}
+
+func (s *ScheduleStore) query(ctx context.Context, q string, args ...any) ([]schedule.Schedule, error) {
+	rows, err := s.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("sqlite: list schedules: %w", err)
+	}
+	defer rows.Close()
+	var out []schedule.Schedule
+	for rows.Next() {
+		sc, err := scanSchedule(rows.Scan)
+		if err != nil {
+			return nil, fmt.Errorf("sqlite: scan schedule: %w", err)
+		}
+		out = append(out, sc)
+	}
+	return out, rows.Err()
+}
+
+// scanSchedule decodes one row via the given Scan func (sql.Row or sql.Rows
+// share the signature), converting the int-millis time columns back to
+// time.Time (0 ⇒ zero time).
+func scanSchedule(scan func(...any) error) (schedule.Schedule, error) {
+	var sc schedule.Schedule
+	var enabled, lastMs, nextMs, createdMs int64
+	if err := scan(&sc.ID, &sc.Title, &sc.Prompt, &sc.Cwd, &sc.Provider, &sc.Model, &sc.Cron,
+		&enabled, &lastMs, &nextMs, &createdMs); err != nil {
+		return schedule.Schedule{}, err
+	}
+	sc.Enabled = enabled != 0
+	sc.LastRunAt = fromMillis(lastMs)
+	sc.NextRunAt = fromMillis(nextMs)
+	sc.CreatedAt = time.UnixMilli(createdMs).UTC()
+	return sc, nil
+}
+
+// toMillis encodes a time as unix millis, mapping the zero time to 0 (the
+// "never / unscheduled" sentinel) rather than time.Time{}'s huge negative.
+func toMillis(t time.Time) int64 {
+	if t.IsZero() {
+		return 0
+	}
+	return t.UnixMilli()
+}
+
+// fromMillis is toMillis's inverse: 0 ⇒ the zero time.
+func fromMillis(ms int64) time.Time {
+	if ms == 0 {
+		return time.Time{}
+	}
+	return time.UnixMilli(ms).UTC()
+}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}

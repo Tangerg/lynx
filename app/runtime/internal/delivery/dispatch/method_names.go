@@ -80,6 +80,13 @@ const (
 	MethodApprovalListRules  = "approval.listRules"
 	MethodApprovalForgetRule = "approval.forgetRule"
 
+	// Schedules (API.md §7.9) — cron-triggered headless runs of a saved prompt.
+	MethodSchedulesList   = "schedules.list"
+	MethodSchedulesCreate = "schedules.create"
+	MethodSchedulesUpdate = "schedules.update"
+	MethodSchedulesDelete = "schedules.delete"
+	MethodSchedulesRunNow = "schedules.runNow"
+
 	// Providers / Models / Tools (API.md §7.6).
 	MethodProvidersList        = "providers.list"
 	MethodProvidersConfigure   = "providers.configure"
