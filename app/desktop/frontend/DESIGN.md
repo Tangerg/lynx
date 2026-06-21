@@ -360,6 +360,38 @@ components:
     description: Run-error surface. Lives above the message stream, dismissible. Cleared automatically when the next run starts.
 ---
 
+## 0. Redesign 2026-06 (in progress) — supersedes the rules below where they conflict
+
+The visual language is being reworked from a **dense, dark-first engineering
+console** toward a **calm, airy, premium-minimal product surface** (the Codex /
+Linear-app reference). The frontmatter + §1–§13 below still describe the prior
+system; until they're rewritten batch-by-batch, **this section wins on conflict.**
+
+Confirmed direction:
+
+- **Flush, edge-to-edge layout** — no cards-on-canvas. The sidebar + main run to
+  the window edge, separated by a single hairline. The sidebar is a half-step
+  lifted surface; the main area paints on the canvas. No gutters, no panel drop
+  shadows (dark *or* light). **Supersedes §5 (cards-on-canvas) + §4's gutter model.**
+- **Near-monochrome, restrained accent** — overall black/white/grey; the accent
+  (a calm **blue**, `#6c97ff` dark / `#2563eb` light by default, user-selectable)
+  appears only on live / CTA / focus. **Supersedes the green `#1ed760` brand
+  accent** in the frontmatter + §9 (the policy of scarcity stays; the hue changes).
+- **Dual-theme parity, system-default** — light and dark are both first-class and
+  polished; the app follows the OS by default. **Supersedes §1's "dark-first".**
+- **Airier rhythm + sans-first labels** — generous whitespace, wider breathing
+  room; mono is pulled back to genuine code / IDs / durations only (not every
+  eyebrow). **Relaxes §3's mono-as-eyebrow-everywhere + §4's "product-dense" spacing.**
+- **Discoverability** — features that today hide behind the command palette /
+  tool clicks (codebase / schedules / recipes / hooks / mcp / diagnostics …) get
+  first-class, grouped sidebar entries.
+- **Multi-tab stays** — the topbar session/view tab strip is kept (restyled).
+
+Everything else (token bridge, plugin-contributed chrome, accent *scarcity*,
+tabular numerals, focus-ring discipline, reduced-motion) carries over unchanged.
+
+---
+
 ## 1. Overview
 
 Lyra is an agent client — a desktop application (Wails / React) that streams Lyra Runtime Protocol events from a Go runtime and renders them as a chat surface with inline tool calls, code, diagrams, and approval flows. The frontend is a **view onto a runtime**, not the runtime itself; the visual language reflects that posture: dense, observable, keyboard-driven.

@@ -106,18 +106,19 @@
  *  at runtime via :root.style. See DESIGN.md for the spec.
  * ========================================================================= */
 :root {
-  /* Brand — single accent, see DESIGN.md §9 for the strict usage policy. */
-  --color-accent: #1ed760;
-  --color-accent-border: #1db954;
-  --color-accent-press: #169c46;
+  /* Accent — restrained, near-monochrome. A calm blue used only for live /
+     CTA / focus (DESIGN.md §9). Themes + the user's accent pick override it. */
+  --color-accent: #6c97ff;
+  --color-accent-border: #5b86f0;
+  --color-accent-press: #4a72d8;
 
   /* Surface ladder — canvas + surface are manual anchors; -2/-3/-4
      derive via color-mix() so the direction flips automatically per
      scheme (deeper = lighter on dark, deeper = darker on light).
      Themes can pin surface-2/3/4 explicitly when their canonical
      palette has a non-linear ladder. */
-  --color-bg: #010102; /* canvas — faint blue tint, NOT #000000 */
-  --color-surface: #181a1d;
+  --color-bg: #0c0d0f; /* canvas — the main reading surface (flush layout) */
+  --color-surface: #16181b; /* lifted chrome — sidebar, cards, bubbles */
   --depth-step: 5%;
   --color-surface-2: color-mix(
     in oklab,
@@ -396,16 +397,11 @@ html.theme-light .app {
   background: var(--color-bg);
 }
 
-/* Panel chrome — stacked shadow, no border, no inset top highlight
-   (white-on-white can't show one). */
+/* Panel chrome — flush layout, no card shadow on light either. The
+   sidebar/main split is the same hairline (.panel.sidebar border-right). */
 html.theme-light .panel {
   border: none;
-  /* Three-layer umbra/penumbra/ambient — matches LIGHT_SHADOWS `md` so panel
-     chrome and token-driven elevation read from the same light model. */
-  box-shadow:
-    0 1px 2px -0.5px rgba(15, 15, 15, 0.06),
-    0 4px 8px -2px rgba(15, 15, 15, 0.07),
-    0 12px 20px -4px rgba(15, 15, 15, 0.08);
+  box-shadow: none;
 }
 
 /* Quieter scrollbar on light — the dark thumb tokens overshoot. */

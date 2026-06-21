@@ -39,17 +39,17 @@ export const defaultAccents = definePlugin({
   version: "1.0.0",
   setup({ host }) {
     host.extensions.contribute(ACCENT, {
+      id: "blue",
+      label: "Blue",
+      dark: "#6c97ff",
+      light: "#2563eb",
+      order: 0,
+    });
+    host.extensions.contribute(ACCENT, {
       id: "green",
       label: "Green",
       dark: "#1ed760",
       light: "#169c46",
-      order: 0,
-    });
-    host.extensions.contribute(ACCENT, {
-      id: "blue",
-      label: "Blue",
-      dark: "#82cfff",
-      light: "#2563eb",
       order: 1,
     });
     host.extensions.contribute(ACCENT, {
