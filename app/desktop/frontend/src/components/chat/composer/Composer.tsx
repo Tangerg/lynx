@@ -125,7 +125,7 @@ export function Composer({
         if (!acceptsImages) return; // text-only model — toolbar attach is disabled too
         onAddImages(files);
       }}
-      className="relative rounded-2xl border border-line-soft bg-surface px-2.5 pb-1.5 pt-2 transition-[border-color,box-shadow] duration-150 focus-within:border-line-soft focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)]"
+      className="relative rounded-2xl border border-line bg-surface px-2.5 pb-1.5 pt-2 transition-colors duration-150 focus-within:border-line-soft"
     >
       {mentions.active && (
         <FileMentionPopup

@@ -301,6 +301,7 @@ export default definePlugin({
     host.extensions.contribute(SETTINGS_PANE, {
       id: "schedules",
       label: "settings.pane.schedules",
+      group: "agent",
       icon: "command",
       // After Hooks (57) — both extend "what runs around the agent" off the
       // main chat loop; schedules are the time-triggered surface.

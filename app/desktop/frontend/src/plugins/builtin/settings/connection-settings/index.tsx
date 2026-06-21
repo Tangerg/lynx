@@ -137,6 +137,7 @@ export default definePlugin({
     host.extensions.contribute(SETTINGS_PANE, {
       id: "connection",
       label: "settings.pane.connection",
+      group: "general",
       icon: "globe",
       order: 5,
       component: ConnectionPane,

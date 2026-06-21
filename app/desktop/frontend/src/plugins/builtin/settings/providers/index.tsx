@@ -403,6 +403,7 @@ export default definePlugin({
     host.extensions.contribute(SETTINGS_PANE, {
       id: "providers",
       label: "settings.pane.providers",
+      group: "models",
       icon: "spark",
       order: 50,
       component: ProvidersPane,

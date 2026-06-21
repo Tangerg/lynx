@@ -3,7 +3,7 @@
 // rail slot — keeping them in one file because they share no code with
 // the expanded sidebar and only with each other.
 
-import { Icon, IconButton, Tooltip } from "@/components/common";
+import { Icon, IconButton } from "@/components/common";
 import { useCreateSession } from "@/lib/agent/useCreateSession";
 import { useT } from "@/lib/i18n";
 import { useSessions } from "@/lib/data/queries";
@@ -155,20 +155,6 @@ function RailSettings() {
   );
 }
 
-function RailUser() {
-  const t = useT();
-  return (
-    <Tooltip label="You · jdoe@longbridge-inc.com" side="right">
-      <div
-        aria-label={t("sidebar.user.account")}
-        className="mt-1 grid h-9 w-9 place-items-center rounded-full border-2 border-transparent bg-surface-2 font-sans text-[13px] font-semibold text-fg transition-colors hover:border-accent"
-      >
-        J
-      </div>
-    </Tooltip>
-  );
-}
-
 export const sidebarRailBottom = definePlugin({
   name: "lyra.builtin.sidebar-rail-bottom",
   version: "1.0.0",
@@ -187,11 +173,6 @@ export const sidebarRailBottom = definePlugin({
       id: "rail-settings",
       order: 910,
       component: RailSettings,
-    });
-    host.extensions.contribute(SIDEBAR_RAIL_ITEM, {
-      id: "rail-user",
-      order: 920,
-      component: RailUser,
     });
   },
 });

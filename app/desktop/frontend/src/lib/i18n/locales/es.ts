@@ -20,7 +20,6 @@ export const es: Record<string, string> = {
   "sidebar.action.searchHint": "Buscar (⌘K)",
   "sidebar.action.tools": "Herramientas / MCP",
   "sidebar.action.settings": "Ajustes",
-  "sidebar.user.menuLabel": "Menú de cuenta",
 
   "composer.input.label": "Compositor de mensajes",
   "composer.placeholder.fallback":
@@ -109,7 +108,6 @@ export const es: Record<string, string> = {
   "tools.preview.viewReply": "Ver respuesta completa",
 
   "common.remove": "Eliminar",
-  "sidebar.user.account": "Cuenta",
   "status.notifications": "Notificaciones",
   "status.notifications.unread": "{{count}} notificación(es) sin leer",
   "session.row.titleLabel": "Título de la sesión",
@@ -232,7 +230,7 @@ export const es: Record<string, string> = {
   "settings.accent.sub": "Color de resaltado — ejecutar / activo / acción principal.",
   "settings.accent.custom": "Elige un color personalizado",
   "settings.font": "Fuente",
-  "settings.font.sub": "Tipografía y tamaño. Vacío = Geist incluida.",
+  "settings.font.sub": "Tipografía y tamaño. Vacío = predeterminado del sistema.",
   "settings.font.ui": "UI",
   "settings.font.code": "Código",
   "settings.font.size": "Tamaño",

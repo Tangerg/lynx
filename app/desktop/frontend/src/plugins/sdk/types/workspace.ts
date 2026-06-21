@@ -13,6 +13,10 @@ export interface SettingsPaneSpec {
   icon?: string;
   /** Sort hint — lower comes first. Built-ins use 0..99; plugins ≥ 100. */
   order?: number;
+  /** Group the pane sorts under in the settings rail (a group id the
+   *  SettingsPage knows: general / models / agent / integrations / advanced).
+   *  Omitted / unknown falls into the trailing group, so nothing is dropped. */
+  group?: string;
   /** The pane content. Receives no props in v1. */
   component: ComponentType;
 }

@@ -114,12 +114,9 @@ function MessageBlockInner({
             <div
               className={cn("flex min-w-0 flex-col gap-0.5 leading-tight", bubble && "items-end")}
             >
-              <div
-                className={cn(
-                  "flex items-center gap-1.5 text-fg text-[13px] font-semibold tracking-normal",
-                  isAgent && "font-mono",
-                )}
-              >
+              {/* Sans for the speaker name (a name, not code) — the redesign
+                  keeps mono for genuine data (the timestamp below, IDs, code). */}
+              <div className="flex items-center gap-1.5 text-fg text-[13px] font-semibold tracking-normal">
                 <span className="truncate">{displayName}</span>
                 <Slot name="message.header.end" />
               </div>

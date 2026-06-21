@@ -63,6 +63,7 @@ import shortcuts from "./command/shortcuts";
 import usagePane from "./settings/usage";
 import {
   sidebarFooter,
+  sidebarNav,
   sidebarProjects,
   sidebarRailActions,
   sidebarRailBottom,
@@ -221,6 +222,7 @@ const kernel: PluginSpec[] = [kernelSidebar, kernelChat, kernelSettings];
 
 const sidebar: PluginSpec[] = [
   sidebarSearch,
+  sidebarNav,
   sidebarProjects,
   sidebarFooter,
   sidebarRailActions,

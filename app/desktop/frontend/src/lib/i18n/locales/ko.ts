@@ -20,7 +20,6 @@ export const ko: Record<string, string> = {
   "sidebar.action.searchHint": "검색 (⌘K)",
   "sidebar.action.tools": "도구 / MCP",
   "sidebar.action.settings": "설정",
-  "sidebar.user.menuLabel": "계정 메뉴",
 
   "composer.input.label": "메시지 입력란",
   "composer.placeholder.fallback": "질문, 계획, 스택 트레이스 붙여넣기…  / 로 명령 실행",
@@ -107,7 +106,6 @@ export const ko: Record<string, string> = {
   "tools.preview.viewReply": "전체 답장 보기",
 
   "common.remove": "제거",
-  "sidebar.user.account": "계정",
   "status.notifications": "알림",
   "status.notifications.unread": "읽지 않은 알림 {{count}}건",
   "session.row.titleLabel": "세션 제목",
@@ -228,7 +226,7 @@ export const ko: Record<string, string> = {
   "settings.accent.sub": "기능 하이라이트 — 실행 / 활성 / 주요 동작.",
   "settings.accent.custom": "사용자 색상 선택",
   "settings.font": "폰트",
-  "settings.font.sub": "글꼴 + 크기. 비우면 내장 Geist 사용.",
+  "settings.font.sub": "글꼴 + 크기. 비우면 시스템 기본값 사용.",
   "settings.font.ui": "UI",
   "settings.font.code": "코드",
   "settings.font.size": "크기",

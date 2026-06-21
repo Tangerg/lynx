@@ -256,6 +256,7 @@ export default definePlugin({
     host.extensions.contribute(SETTINGS_PANE, {
       id: "mcp-servers",
       label: "settings.pane.mcpServers",
+      group: "integrations",
       icon: "tool",
       // After Providers (50) and Approvals (55) — both are "what the agent can
       // reach"; MCP servers extend that surface.

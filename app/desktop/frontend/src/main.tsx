@@ -1,10 +1,8 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
-// Self-hosted UI fonts (NATIVE_FEEL.md §A): bundled as assets, not fetched
-// from Google's CDN — a desktop app ships its fonts, so they work offline,
-// don't block first paint, and don't leak the launch to a third party.
-import "@fontsource-variable/geist/index.css";
-import "@fontsource-variable/geist-mono/index.css";
+// Fonts: the native OS stack (SF Pro / PingFang on macOS) — see globals.css
+// --font-sans. No bundled webfont; the system face is the premium, native
+// default, loads instantly, and renders mixed CJK best.
 import "./styles/globals.css";
 
 // NOTE: deliberately not wrapped in StrictMode.

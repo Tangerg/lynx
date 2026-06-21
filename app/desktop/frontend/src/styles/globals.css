@@ -14,8 +14,9 @@
  * `text-fg` callsite live.
  */
 
-/* Fonts are self-hosted and bundled via main.tsx (@fontsource-variable/geist
-   + geist-mono) — no CDN @import here. See NATIVE_FEEL.md §A. */
+/* Fonts: the native system stack (SF Pro / PingFang on macOS, the app's
+   primary target) — no bundled webfont, no CDN @import. The OS face is the
+   premium, native default; it loads instantly and renders CJK best. */
 @import "tailwindcss";
 
 /* Scheme variants. `theme-light` / `theme-dark` are written to <html>
@@ -60,9 +61,13 @@
   --radius-xl: 16px;
   --radius-pill: 9999px;
 
-  /* Fonts */
-  --font-sans: "Geist Variable", "Geist", "Inter", system-ui, sans-serif;
-  --font-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, Menlo, monospace;
+  /* Fonts — native system stack: SF Pro + PingFang on macOS (primary target),
+     graceful fallbacks elsewhere. The single source of truth for both the html
+     base and every `font-sans` / `font-mono` utility. */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, "PingFang SC",
+    "Hiragino Sans", "Microsoft YaHei", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, "Cascadia Code", Consolas, monospace;
 
   /* Animations — `animate-shimmer` powers Skeleton, `animate-pulse-dot`
      the running indicator, `animate-rise-in` popover entry. */
@@ -106,18 +111,19 @@
  *  at runtime via :root.style. See DESIGN.md for the spec.
  * ========================================================================= */
 :root {
-  /* Brand — single accent, see DESIGN.md §9 for the strict usage policy. */
-  --color-accent: #1ed760;
-  --color-accent-border: #1db954;
-  --color-accent-press: #169c46;
+  /* Accent — restrained, near-monochrome. A calm blue used only for live /
+     CTA / focus (DESIGN.md §9). Themes + the user's accent pick override it. */
+  --color-accent: #6c97ff;
+  --color-accent-border: #5b86f0;
+  --color-accent-press: #4a72d8;
 
   /* Surface ladder — canvas + surface are manual anchors; -2/-3/-4
      derive via color-mix() so the direction flips automatically per
      scheme (deeper = lighter on dark, deeper = darker on light).
      Themes can pin surface-2/3/4 explicitly when their canonical
      palette has a non-linear ladder. */
-  --color-bg: #010102; /* canvas — faint blue tint, NOT #000000 */
-  --color-surface: #181a1d;
+  --color-bg: #0c0d0f; /* canvas — the main reading surface (flush layout) */
+  --color-surface: #16181b; /* lifted chrome — sidebar, cards, bubbles */
   --depth-step: 5%;
   --color-surface-2: color-mix(
     in oklab,
@@ -160,14 +166,8 @@
   --color-info: #58a6ff;
   --color-success: #3fb950;
 
-  /* Fonts — Geist (sans + mono) handles every role; CJK fallbacks
-     preserve readability for mixed-script text. */
-  --font-ui:
-    "Geist Variable", "Geist", "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
-    "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, "MS Gothic", sans-serif;
-  --font-mono:
-    "Geist Mono Variable", "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
-    Consolas, monospace;
+  /* Fonts live in the @theme block above (the system stack); --font-sans /
+     --font-mono are the single source of truth (html base + utilities). */
 
   /* Primary CTA — decoupled from --color-accent so themes can have
      accent drive "live state" while CTA is something else (e.g. Vercel
@@ -252,11 +252,9 @@
   --shadow-soft: none;
   --shadow-pop: var(--shadow-lg);
 
-  /* Input focus ring — accent halo + soft-border inset, used by
-     .side-search and any input that wants the same affordance. */
-  --shadow-input-focus:
-    0 0 0 2px color-mix(in oklab, var(--color-accent) 30%, transparent),
-    inset 0 0 0 1px var(--color-border-soft);
+  /* Input focus — a quiet stronger inset border, no accent glow halo
+     (the bright ring read as cheap, esp. flashing on click). */
+  --shadow-input-focus: inset 0 0 0 1px var(--color-border-soft);
 }
 
 /* IMPORTANT: do not set `font-size` on <html>. It anchors `rem` for
@@ -266,7 +264,7 @@
 html {
   background: var(--color-bg);
   color: var(--color-text);
-  font-family: var(--font-ui);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   /* Native subtractions (NATIVE_FEEL.md §A): no grey tap-flash on press, no
@@ -337,15 +335,13 @@ html.theme-light .tool-card.selected {
   box-shadow: none;
 }
 
-/* Keyboard-only focus ring. :focus-visible avoids summoning the halo
-   on mouse clicks. Solid 2px accent outline (no opacity haze) reads
-   crisp against both dark and light surfaces; an extra accent-tinted
-   `outline + box-shadow` halo at low alpha softens the edge without
-   blurring the position. */
+/* Keyboard-only focus ring. Kept quiet on purpose: a single thin accent
+   stroke, no bright box-shadow halo. The old 2px-outline + 4px-halo double
+   ring read as cheap — and WebView sometimes shows :focus-visible after a
+   plain click, so the loud version flashed a bright edge on interaction. */
 :focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-  box-shadow: 0 0 0 4px color-mix(in oklab, var(--color-accent) 22%, transparent);
+  outline: 1.5px solid color-mix(in oklab, var(--color-accent) 50%, transparent);
+  outline-offset: 1px;
 }
 /* Inputs already get an inset focus stroke from --shadow-input-focus —
    skip the outline so the two effects don't double up. */
@@ -396,16 +392,11 @@ html.theme-light .app {
   background: var(--color-bg);
 }
 
-/* Panel chrome — stacked shadow, no border, no inset top highlight
-   (white-on-white can't show one). */
+/* Panel chrome — flush layout, no card shadow on light either. The
+   sidebar/main split is the same hairline (.panel.sidebar border-right). */
 html.theme-light .panel {
   border: none;
-  /* Three-layer umbra/penumbra/ambient — matches LIGHT_SHADOWS `md` so panel
-     chrome and token-driven elevation read from the same light model. */
-  box-shadow:
-    0 1px 2px -0.5px rgba(15, 15, 15, 0.06),
-    0 4px 8px -2px rgba(15, 15, 15, 0.07),
-    0 12px 20px -4px rgba(15, 15, 15, 0.08);
+  box-shadow: none;
 }
 
 /* Quieter scrollbar on light — the dark thumb tokens overshoot. */

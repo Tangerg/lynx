@@ -75,10 +75,10 @@ interface UiState {
   /** Global UI contrast 0–100. Drives the surface-ladder depth (`--depth-step`)
    *  across all themes, and the full derived ladders of the custom theme. */
   contrast: number;
-  /** Empty string = use the bundled Geist default. Anything else overrides
+  /** Empty string = the native system default. Anything else overrides
    *  `--font-sans` on :root and propagates via Tailwind's `font-sans`. */
   uiFont: string;
-  /** Empty string = use the bundled Geist Mono default. */
+  /** Empty string = the native system mono default. */
   codeFont: string;
   /** Pixel font-size on <html>. Null = browser default (16px) so existing
    *  rem tokens stay calibrated. Range: 13–18 in the picker. */
@@ -143,8 +143,8 @@ interface UiActions {
 export const useUiStore = create<UiState & UiActions>()(
   persist(
     (set, get) => ({
-      theme: "dark",
-      accent: "#1ed760",
+      theme: "system",
+      accent: "#6c97ff",
       customTheme: { bg: "#0f1117", fg: "#e6e8ee" },
       contrast: 60,
       uiFont: "",
@@ -161,7 +161,7 @@ export const useUiStore = create<UiState & UiActions>()(
 
       setTheme: (theme) => set({ theme }),
       toggleTheme: () => {
-        const cur = get().theme;
+        const cur = resolveThemeId(get().theme);
         const curSpec = lookupExtensionByKey(THEME, cur);
         const curScheme = curSpec?.scheme ?? (cur === "light" ? "light" : "dark");
         const target = curScheme === "dark" ? "light" : "dark";
@@ -190,7 +190,7 @@ export const useUiStore = create<UiState & UiActions>()(
       name: "lyra.ui",
       storage: createJSONStorage(() => localStorage),
       // v3: added customTheme (3-color custom theme) + fontSmoothing.
-      version: 3,
+      version: 4,
       merge: (persisted, current) => {
         const parsed = uiPersistSchema.safeParse(persisted);
         if (!parsed.success) {
@@ -218,6 +218,19 @@ function lookupLightVariant(darkHex: string): string {
   return colord(darkHex).darken(0.2).toHex();
 }
 
+// `theme: "system"` follows the OS appearance — resolve it to the primary
+// theme of the current prefers-color-scheme. Any other id is used as-is.
+function prefersDark(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches
+  );
+}
+function resolveThemeId(theme: Theme): Theme {
+  return theme === "system" ? (prefersDark() ? "dark" : "light") : theme;
+}
+
 // Track every CSS variable the last theme set on :root.style so we can
 // remove it before applying the next theme. Without this, a theme that
 // pins surface-2/3/4 (Catppuccin, Tokyo Night, Atom One) leaves those
@@ -228,11 +241,12 @@ let appliedTokenNames: string[] = [];
 
 function applyTheme(theme: Theme, accent: string) {
   const root = document.documentElement;
-  const spec = lookupExtensionByKey(THEME, theme);
+  const resolved = resolveThemeId(theme);
+  const spec = lookupExtensionByKey(THEME, resolved);
 
   // Scheme drives the structural class. Fallback to id when the spec
   // isn't registered yet — for built-in ids ("dark"/"light") still right.
-  const scheme = spec?.scheme ?? (theme === "light" ? "light" : "dark");
+  const scheme = spec?.scheme ?? (resolved === "light" ? "light" : "dark");
   root.classList.remove("theme-light", "theme-dark");
   root.classList.add(`theme-${scheme}`);
 
@@ -299,14 +313,17 @@ function applyFonts(
   root.style.setProperty("-webkit-font-smoothing", fontSmoothing ? "antialiased" : "auto");
   root.style.setProperty("-moz-osx-font-smoothing", fontSmoothing ? "grayscale" : "auto");
   if (uiFont) {
-    root.style.setProperty("--font-sans", `"${uiFont}", "Geist", "Inter", system-ui, sans-serif`);
+    root.style.setProperty(
+      "--font-sans",
+      `"${uiFont}", -apple-system, system-ui, "PingFang SC", sans-serif`,
+    );
   } else {
     root.style.removeProperty("--font-sans");
   }
   if (codeFont) {
     root.style.setProperty(
       "--font-mono",
-      `"${codeFont}", "Geist Mono", "JetBrains Mono", ui-monospace, Menlo, monospace`,
+      `"${codeFont}", ui-monospace, "SF Mono", Menlo, monospace`,
     );
   } else {
     root.style.removeProperty("--font-mono");
@@ -377,4 +394,19 @@ const unsubPlugins = usePluginStore.subscribe((state, prev) => {
   }
 });
 
-disposeOnHmr(unsubUi, unsubPlugins);
+// Follow the OS appearance while theme === "system": re-apply on scheme flip
+// so a system-mode user tracks light/dark live, without a manual toggle.
+let unsubScheme = () => {};
+if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+  const mq = window.matchMedia("(prefers-color-scheme: dark)");
+  const onSchemeChange = () => {
+    if (useUiStore.getState().theme === "system") {
+      const { theme, accent } = useUiStore.getState();
+      applyTheme(theme, accent);
+    }
+  };
+  mq.addEventListener("change", onSchemeChange);
+  unsubScheme = () => mq.removeEventListener("change", onSchemeChange);
+}
+
+disposeOnHmr(unsubUi, unsubPlugins, unsubScheme);
