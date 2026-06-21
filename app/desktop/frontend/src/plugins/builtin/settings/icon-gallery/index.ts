@@ -25,6 +25,7 @@ export default definePlugin({
     host.extensions.contribute(SETTINGS_PANE, {
       id: "brand-icons",
       label: t("settings.pane.brandIcons"),
+      group: "advanced",
       icon: "spark",
       order: 110,
       component: IconShowcase,

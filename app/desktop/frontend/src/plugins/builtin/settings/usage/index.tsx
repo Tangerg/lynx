@@ -148,6 +148,7 @@ export default definePlugin({
     host.extensions.contribute(SETTINGS_PANE, {
       id: "usage",
       label: "settings.pane.usage",
+      group: "models",
       icon: "chart",
       order: 55, // just after Providers (50)
       component: UsagePane,

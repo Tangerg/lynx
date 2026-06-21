@@ -154,6 +154,11 @@ export const en: Record<string, string> = {
   "welcome.suggest.checklist.prompt": "Draft a checklist for ",
 
   "settings.title": "Settings",
+  "settings.group.general": "General",
+  "settings.group.models": "Models",
+  "settings.group.agent": "Agent",
+  "settings.group.integrations": "Integrations",
+  "settings.group.advanced": "Advanced",
   "settings.pane.appearance": "Appearance",
   "settings.pane.plugins": "Plugins",
   "settings.pane.language": "Language",

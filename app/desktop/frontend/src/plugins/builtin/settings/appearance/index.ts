@@ -14,6 +14,7 @@ export default definePlugin({
     host.extensions.contribute(SETTINGS_PANE, {
       id: "appearance",
       label: "settings.pane.appearance",
+      group: "general",
       icon: "spark",
       order: 0,
       component: AppearancePane,

@@ -147,6 +147,7 @@ export default definePlugin({
     host.extensions.contribute(SETTINGS_PANE, {
       id: "hooks",
       label: "settings.pane.hooks",
+      group: "agent",
       icon: "lightning",
       // After MCP servers (56) — both extend "what runs around the agent";
       // hooks are the lifecycle-command surface.

@@ -182,6 +182,7 @@ export default definePlugin({
     host.extensions.contribute(SETTINGS_PANE, {
       id: "approvals",
       label: "settings.pane.approvals",
+      group: "agent",
       icon: "shield",
       order: 55,
       component: ApprovalsPane,
