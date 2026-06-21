@@ -153,7 +153,9 @@ export function ChatStream({ onSend, resetKey }: Props) {
         <CwdMissingBanner key={resetKey} />
         <RunErrorBanner />
         <div className="panel-scroll flex flex-1 flex-col overflow-y-auto px-6">
-          <div className="m-auto w-full max-w-[720px] py-10">
+          {/* Hero + composer share one centered column (same width) so they
+              read as a single focused group, not two stacked blocks. */}
+          <div className="m-auto w-full max-w-[680px] py-10">
             <Slot name="chat.empty" />
             <div className="mt-7">{composer}</div>
           </div>

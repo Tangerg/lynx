@@ -106,7 +106,7 @@ function WelcomeScreen() {
     // in a vertically-centered column directly above the composer, so the
     // positioning lives there — here it's just the centered content group.
     // Sentence-case + period per DESIGN.md §3.
-    <div className="mx-auto flex w-full max-w-[600px] flex-col items-center gap-4 text-center">
+    <div className="mx-auto flex w-full flex-col items-center gap-4 text-center">
       {/* Eyebrow — terminal-style "ready" mark with an accent dot. */}
       <div className="inline-flex items-center gap-2 font-mono text-[11px] text-fg-faint tracking-normal [font-feature-settings:'tnum'] before:content-[''] before:h-1.5 before:w-1.5 before:rounded-full before:bg-accent before:shadow-[0_0_6px_var(--color-accent)]">
         {t("welcome.eyebrow")}
@@ -131,7 +131,7 @@ function WelcomeScreen() {
                 // the composer, so the user can preview what the suggestion
                 // will do (the visible label is intentionally short).
                 title={t(s.promptKey)}
-                className="group inline-flex items-center gap-2.5 rounded-md border border-line bg-surface px-3.5 py-3 font-sans text-[14px] font-medium text-fg-soft text-left transition-[background,border-color,color,transform] duration-150 hover:bg-surface-2 hover:border-line-soft hover:text-fg active:scale-[0.98]"
+                className="group inline-flex items-center gap-2.5 rounded-lg border border-line bg-surface px-4 py-3.5 font-sans text-[14px] font-medium text-fg-soft text-left transition-[background,border-color,color,transform] duration-150 hover:bg-surface-2 hover:border-line-soft hover:text-fg active:scale-[0.98]"
               >
                 <Icon
                   name={s.icon}
