@@ -32,8 +32,7 @@ func (r *Runtime) ConfigureMCPServer(ctx context.Context, srv mcpserver.Server) 
 	if err := r.mcpRegistry.Configure(ctx, srv); err != nil {
 		return err
 	}
-	r.applyMCPServer(ctx, srv)
-	return r.refreshMCPGating(ctx)
+	return r.applyAndGate(ctx, srv)
 }
 
 // RemoveMCPServer deletes a server from the registry and drops it from the live
@@ -42,6 +41,10 @@ func (r *Runtime) RemoveMCPServer(ctx context.Context, name string) error {
 	if err := r.mcpRegistry.Remove(ctx, name); err != nil {
 		return err
 	}
+	// Shrink the live set before the gating (the disable direction of the
+	// applyAndGate rule): dropping tools can't expose a hidden one, but
+	// shrinking the gating first would leave the about-to-be-dropped tools
+	// briefly live and ungated.
 	r.engine.RemoveMCPServer(ctx, name)
 	return r.refreshMCPGating(ctx)
 }
@@ -55,6 +58,30 @@ func (r *Runtime) SetMCPServerEnabled(ctx context.Context, name string, enabled 
 	srv, ok, err := r.mcpRegistry.Get(ctx, name)
 	if err != nil || !ok {
 		return err
+	}
+	return r.applyAndGate(ctx, srv)
+}
+
+// applyAndGate reflects a just-persisted registry entry into BOTH the live tool
+// set (engine) and the gating sets (atomic cell), ordered so a tool that should
+// be hidden is never momentarily visible to the model. The two are read together
+// at tool-resolution time but published here in two steps, so the order matters
+// by direction:
+//   - enabling: the server's tools are about to APPEAR, so the gating that hides
+//     some of them must publish first (refresh → apply);
+//   - disabling: the tools are about to be DROPPED, so the live set shrinks first,
+//     then the gating (apply → refresh).
+//
+// Either reversal would leave a window where a disabled tool is live but ungated.
+// The caller has already mutated the registry, so refreshMCPGating reads the new
+// gating lists.
+func (r *Runtime) applyAndGate(ctx context.Context, srv mcpserver.Server) error {
+	if srv.Enabled {
+		if err := r.refreshMCPGating(ctx); err != nil {
+			return err
+		}
+		r.applyMCPServer(ctx, srv)
+		return nil
 	}
 	r.applyMCPServer(ctx, srv)
 	return r.refreshMCPGating(ctx)
