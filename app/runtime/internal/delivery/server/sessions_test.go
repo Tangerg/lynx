@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 	"github.com/Tangerg/lynx/core/model/chat"
 )
 
@@ -56,6 +57,14 @@ func (s stubRuntime) TruncateMessages(_ context.Context, id string, keepN int) e
 // sequencing is what the server test exercises, and it builds those frames from
 // MCPServerStatuses (above), not from this call's side effects.
 func (s stubRuntime) ReconnectMCPServer(context.Context, string) error { return nil }
+
+// chatStub satisfies turn.Service by embedding it; only ForgetSession (invoked
+// by the session-delete cascade) is implemented — these tests never drive a turn.
+type chatStub struct{ turn.Service }
+
+func (chatStub) ForgetSession(string) {}
+
+func (s stubRuntime) Chat() turn.Service { return chatStub{} }
 
 func (s stubRuntime) Session() session.Service { return s.sess }
 func (s stubRuntime) DefaultModel() string     { return s.model }

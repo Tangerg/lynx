@@ -219,6 +219,15 @@ func (s *inMemory) firstTurnForSession(sessionID string) bool {
 	return true
 }
 
+// ForgetSession drops sessionID's SessionStart fire-once marker on session
+// delete, so the gate set doesn't leak one entry per session over the process
+// lifetime. See [Service.ForgetSession].
+func (s *inMemory) ForgetSession(sessionID string) {
+	s.mu.Lock()
+	delete(s.seenSessions, sessionID)
+	s.mu.Unlock()
+}
+
 // modelOr returns the model name for display / observability, falling
 // back to "default" when the turn didn't pick one.
 func modelOr(model string) string {

@@ -89,6 +89,7 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 	_ = s.rt.TruncateMessages(ctx, id, 0)        // chat-memory messages (keepN=0 clears)
 	s.dropSessionInterrupts(ctx, id)             // durable open interrupts
 	s.dropCheckpoints(id)                        // file snapshots (shadow git)
+	s.rt.Chat().ForgetSession(id)                // process-local SessionStart gate
 	return nil
 }
 

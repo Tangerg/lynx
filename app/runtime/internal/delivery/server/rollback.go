@@ -247,4 +247,5 @@ func (s *Server) purgeSession(ctx context.Context, sessionID string) {
 	_ = s.rt.TruncateMessages(ctx, sessionID, 0) // clear chat-memory
 	_ = s.rt.Transcript().DeleteSession(ctx, sessionID)
 	_ = s.rt.Session().Delete(ctx, sessionID)
+	s.rt.Chat().ForgetSession(sessionID) // process-local SessionStart gate
 }

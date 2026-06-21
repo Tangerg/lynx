@@ -176,6 +176,13 @@ type Service interface {
 	// (API.md §6.2 anti-deadlock). An empty set gates every kind; never
 	// calling it leaves the permissive default (surface all kinds).
 	SetInterruptKinds(kinds []string)
+
+	// ForgetSession releases the process-local state the service keeps keyed by
+	// a session — currently the SessionStart fire-once gate. Call it when a
+	// session is deleted: its id (a UUID) never returns, so the gate entry is
+	// dead weight, and without eviction the set grows by one entry per session
+	// the process ever ran a turn for. A no-op for a session never seen.
+	ForgetSession(sessionID string)
 }
 
 // ------------------------------------------------------------------
