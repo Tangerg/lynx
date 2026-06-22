@@ -30,7 +30,6 @@ export const ko: Record<string, string> = {
   "composer.attachImage.unsupported": "이 모델은 이미지를 지원하지 않습니다",
   "composer.action.send": "전송 (⌘↵)",
   "composer.action.stop": "중지 (Esc)",
-  "composer.execMode.hint": "실행 모드 · 작업 공간 · 자동",
   "composer.gitBranch": "Git 브랜치",
   "composer.slash.heading": "명령",
   "composer.placeholder.debug": "실패한 테스트 출력을 붙여넣으면 단계별로 안내해 드릴게요.",

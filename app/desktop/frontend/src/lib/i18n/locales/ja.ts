@@ -31,7 +31,6 @@ export const ja: Record<string, string> = {
   "composer.attachImage.unsupported": "このモデルは画像に対応していません",
   "composer.action.send": "送信 (⌘↵)",
   "composer.action.stop": "停止 (Esc)",
-  "composer.execMode.hint": "実行モード · ワークスペース · 自動",
   "composer.gitBranch": "Git ブランチ",
   "composer.slash.heading": "コマンド",
   "composer.placeholder.debug": "失敗したテスト出力を貼り付けてください。一緒に原因を追います。",
