@@ -547,11 +547,16 @@ func (s *inMemory) Rehydrate(ctx context.Context, req RehydrateRequest) (TurnHan
 	s.turns[handle.TurnID] = state
 	s.mu.Unlock()
 
-	// The restored process is re-parked (RestoreChat re-ticked it). Deliver
-	// the decision and drive the continuation; on a resume error the
-	// terminal is already streamed, so the handle is still returned for the
-	// caller to drain.
-	_ = s.resumeAndDrive(state, interrupts.Resolution{Approved: req.Approved})
+	// The restored process is re-parked (RestoreChat re-ticked it). Deliver the
+	// decision and drive the continuation. On a resume error resumeAndDrive has
+	// already torn the turn down (finishTurn), so there is no live turn for the
+	// caller to subscribe to — return the error rather than a handle to a dead
+	// turn (ResumeRun maps it to run_not_found instead of leaking ErrTurnNotFound
+	// when its openSegment then can't find the turn). A nil error means the
+	// continuation is driving and the caller subscribes via [Events].
+	if err := s.resumeAndDrive(state, interrupts.Resolution{Approved: req.Approved}); err != nil {
+		return TurnHandle{}, err
+	}
 	return handle, nil
 }
 

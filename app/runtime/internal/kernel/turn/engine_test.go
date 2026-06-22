@@ -27,6 +27,7 @@ type stubChatProcess struct {
 	output    kernel.ChatOutput
 	done      chan error
 	onCancel  func()
+	resumeErr error       // when set, Resume fails with it (covers the resume-error path)
 	discarded atomic.Bool // set by Discard — asserts terminal snapshot cleanup
 }
 
@@ -64,6 +65,9 @@ func (cp *stubChatProcess) Cancel() error {
 // call this — the real plan-mode path is covered by buildPlanService's
 // real-engine tests. Returns an already-fired done for safety.
 func (cp *stubChatProcess) Resume(_ context.Context, _ interrupts.Resolution) (<-chan error, error) {
+	if cp.resumeErr != nil {
+		return nil, cp.resumeErr
+	}
 	ch := make(chan error, 1)
 	ch <- nil
 	close(ch)
@@ -83,10 +87,11 @@ func (cp *stubChatProcess) Discard(_ context.Context) { cp.discarded.Store(true)
 // wiring. Existence proves the turn service does not depend on
 // *kernel.Engine directly — only on the narrow interface.
 type stubEngine struct {
-	runChatCalls atomic.Int32
-	restoreCalls atomic.Int32
-	runReply     string
-	stopOnBudget bool // when true the produced ChatOutput sets StoppedOnBudget
+	runChatCalls     atomic.Int32
+	restoreCalls     atomic.Int32
+	runReply         string
+	stopOnBudget     bool  // when true the produced ChatOutput sets StoppedOnBudget
+	restoreResumeErr error // when set, a RestoreChat'd process fails its Resume with it
 
 	mu         sync.Mutex
 	lastClient *corechat.Client // captures RunChatRequest.ChatClient
@@ -122,7 +127,9 @@ func (s *stubEngine) RestoreChat(_ context.Context, processID string, req kernel
 	if req.Observer != nil {
 		req.Observer.OnMessageDelta(s.runReply)
 	}
-	return newStubChatProcess(processID, kernel.ChatOutput{Reply: s.runReply}), nil
+	cp := newStubChatProcess(processID, kernel.ChatOutput{Reply: s.runReply})
+	cp.resumeErr = s.restoreResumeErr
+	return cp, nil
 }
 
 func (s *stubEngine) InjectUserMessage(_ context.Context, _, _ string) error { return nil }
@@ -317,6 +324,31 @@ func TestRehydrateResumesRestoredTurn(t *testing.T) {
 	}
 	if !sawEnd {
 		t.Error("rehydrated turn never reached TurnEnd")
+	}
+}
+
+// TestRehydrate_ResumeError_ReturnsError: when the restored process fails to
+// resume, Rehydrate has already torn the turn down, so it must surface the
+// error rather than hand back a handle to a dead turn (which would leave the
+// caller's openSegment leaking ErrTurnNotFound instead of a clean run_not_found).
+func TestRehydrate_ResumeError_ReturnsError(t *testing.T) {
+	stub := &stubEngine{runReply: "x", restoreResumeErr: errors.New("resume boom")}
+	svc := mustChat(turn.New(stub, nil, nil, nil, nil, nil))
+
+	handle, err := svc.Rehydrate(context.Background(), turn.RehydrateRequest{
+		SessionID: "sess-restored",
+		ProcessID: "proc-99",
+		Approved:  true,
+	})
+	if err == nil {
+		t.Fatal("Rehydrate returned nil error despite a failed resume; want the resume error surfaced")
+	}
+	if handle.TurnID != "" {
+		t.Errorf("Rehydrate returned a handle (%q) for a torn-down turn; want the zero handle", handle.TurnID)
+	}
+	// The torn-down turn must not linger in the registry.
+	if _, evErr := svc.Events(context.Background(), turn.TurnHandle{TurnID: handle.TurnID}); evErr == nil {
+		t.Error("Events resolved a turn that should have been torn down")
 	}
 }
 
