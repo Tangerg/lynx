@@ -8,6 +8,7 @@
 
 import type { ApprovalModeValue, ApprovalRuleInfo } from "@/lib/data/queries";
 import { DataView, EmptyState, Icon, Segmented } from "@/components/common";
+import { APPROVAL_MODES } from "@/lib/agent/approvalModes";
 import { forgetRule, setApprovalMode } from "@/lib/agent/approvalConfig";
 import { isUnsupportedMethod, rpcErrorText } from "@/lib/agent/errorCopy";
 import { useActiveSession } from "@/lib/agent/useActiveSession";
@@ -24,15 +25,6 @@ const SCOPE_CHIP: Record<ApprovalRuleInfo["scope"], string> = {
   project: "border-accent/30 bg-accent/10 text-accent",
   global: "border-warning/30 bg-warning/12 text-warning",
 };
-
-// `label` is an i18n key resolved at render (ModeRow's t()); module scope can't
-// call the hook, so the mapping happens inside the component.
-const MODE_OPTIONS: { value: ApprovalModeValue; label: string }[] = [
-  { value: "plan", label: "approvals.mode.plan" },
-  { value: "safe", label: "approvals.mode.safe" },
-  { value: "balanced", label: "approvals.mode.balanced" },
-  { value: "yolo", label: "approvals.mode.auto" },
-];
 
 function ModeRow({ mode }: { mode: ApprovalModeValue | undefined }) {
   const t = useT();
@@ -53,7 +45,7 @@ function ModeRow({ mode }: { mode: ApprovalModeValue | undefined }) {
       ) : (
         <Segmented
           value={mode}
-          options={MODE_OPTIONS.map((o) => ({ value: o.value, label: t(o.label) }))}
+          options={APPROVAL_MODES.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
           onChange={(v) => void onChange(v)}
           ariaLabel={t("approvals.mode.aria")}
         />
