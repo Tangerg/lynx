@@ -31,7 +31,6 @@ export const fr: Record<string, string> = {
   "composer.attachImage.unsupported": "Ce modèle n'accepte pas les images",
   "composer.action.send": "Envoyer (⌘↵)",
   "composer.action.stop": "Arrêter (Esc)",
-  "composer.execMode.hint": "Mode d'exécution · Espace de travail · Auto",
   "composer.gitBranch": "Branche Git",
   "composer.slash.heading": "Commandes",
   "composer.placeholder.debug": "Colle la sortie d'un test en échec et je te guide pas à pas.",

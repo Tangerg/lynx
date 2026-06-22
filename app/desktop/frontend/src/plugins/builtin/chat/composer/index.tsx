@@ -151,11 +151,6 @@ export const composerKeymap = definePlugin({
   },
 });
 
-//
-// cwd + branch read live session/project state. ExecModeChip is the one
-// hold-out: the protocol has no approval-policy surface yet, so its hint
-// stays a static placeholder until one exists.
-
 // Readable chip — icon + label, no affordance glyph. Used where the
 // value itself carries meaning the user wants to read (e.g. branch name).
 function Chip({ icon, title, children }: { icon: IconName; title: string; children: ReactNode }) {
@@ -169,27 +164,6 @@ function Chip({ icon, title, children }: { icon: IconName; title: string; childr
     </span>
   );
 }
-
-// Icon-only affordance — the value lives in the tooltip, the glyph keeps
-// the footer light.
-function IconChip({ icon, hint }: { icon: IconName; hint: string }) {
-  return (
-    <Tooltip label={hint}>
-      <button
-        type="button"
-        aria-label={hint}
-        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm border-0 bg-transparent text-fg-faint transition-colors hover:bg-surface-2 hover:text-fg"
-      >
-        <Icon name={icon} size={12} />
-      </button>
-    </Tooltip>
-  );
-}
-
-const ExecModeChip = () => {
-  const t = useT();
-  return <IconChip icon="shield" hint={t("composer.execMode.hint")} />;
-};
 
 // Where is this conversation working? Basename in the chip, full path in
 // the tooltip. Hidden until the session (and its cwd) is known.
@@ -272,11 +246,6 @@ export const composerChips = definePlugin({
       id: "cwd",
       order: 0,
       component: CwdChip,
-    });
-    host.extensions.contribute(COMPOSER_STATUS, {
-      id: "exec-mode",
-      order: 1,
-      component: ExecModeChip,
     });
     host.extensions.contribute(COMPOSER_STATUS, {
       id: "git-branch",
@@ -437,7 +406,24 @@ function SendButton() {
   // one active run per session (§6.11), so there's nothing to send mid-run.
   const running = useAgentRunning();
 
+  // Mid-run, a message doesn't open a new turn — it STEERS the active one
+  // (useChatSend → runs.steer). Surface that as an explicit Steer button while
+  // there's text to send, so the capability isn't keyboard-only; fall back to
+  // the Stop button when the composer is empty (Esc stops in either case).
   if (running) {
+    if (value.trim()) {
+      return (
+        <Tooltip label={t("composer.action.steer")}>
+          <button
+            type="button"
+            onClick={() => submitComposer({ value, clear, sendInput: send, images })}
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 bg-accent text-on-accent transition-transform duration-150 active:scale-95"
+          >
+            <Icon name="send-arrow" size={14} strokeWidth={2.5} />
+          </button>
+        </Tooltip>
+      );
+    }
     return (
       <Tooltip label={t("composer.action.stop")}>
         <button

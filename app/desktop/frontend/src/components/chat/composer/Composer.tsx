@@ -6,6 +6,7 @@
 // registry so a third-party plugin can extend the composer without touching
 // this file.
 import type { ComposerImage, PastedText } from "@/state/composerStore";
+import { useAgentRunning } from "@/state/agentStore";
 import { imageFiles, type UserInput } from "@/lib/agent/composerInput";
 import { isLargePaste } from "@/lib/agent/largePaste";
 import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
@@ -90,7 +91,7 @@ export function Composer({
   // is registered (or the random pick rolls a 0-weight pool). Locale
   // switch after mount won't relocalize the fallback — acceptable for
   // a random hint string.
-  const placeholder = useMemo(
+  const basePlaceholder = useMemo(
     () => {
       // Placeholder specs now carry an i18n key in `text`; resolve it here.
       const picked = pickComposerPlaceholder()?.text;
@@ -99,6 +100,11 @@ export function Composer({
     // eslint-disable-next-line react/exhaustive-deps
     [],
   );
+  // While a run streams, a sent message steers it (SendButton + useChatSend)
+  // rather than opening a new turn — invite that from an empty composer so the
+  // capability is discoverable, not keyboard-only.
+  const running = useAgentRunning();
+  const placeholder = running ? t("composer.placeholder.steer") : basePlaceholder;
 
   const submit = () =>
     submitComposer({

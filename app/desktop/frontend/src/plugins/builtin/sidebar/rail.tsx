@@ -8,7 +8,7 @@ import { useCreateSession } from "@/lib/agent/useCreateSession";
 import { useT } from "@/lib/i18n";
 import { useSessions } from "@/lib/data/queries";
 import { cn } from "@/lib/utils";
-import { COMMAND, definePlugin, lookupExtensionByKey } from "@/plugins/sdk";
+import { definePlugin } from "@/plugins/sdk";
 import { SIDEBAR_RAIL_ITEM } from "@/plugins/sdk/kernelPoints";
 import { useSessionStore } from "@/state/sessionStore";
 
@@ -37,7 +37,7 @@ function SearchBtn() {
     <IconButton
       variant="rail"
       title={t("sidebar.action.searchHint")}
-      onClick={() => void lookupExtensionByKey(COMMAND, "command.open")?.run()}
+      onClick={() => openView("search", "workspace.view.title.search", "search")}
     >
       <Icon name="search" size={16} />
     </IconButton>

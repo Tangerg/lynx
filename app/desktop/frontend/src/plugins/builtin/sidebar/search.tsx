@@ -1,12 +1,20 @@
 import { Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { definePlugin, executeCommand } from "@/plugins/sdk";
+import { definePlugin } from "@/plugins/sdk";
+import { useSessionStore } from "@/state/sessionStore";
 
-// A search affordance that opens the ⌘K command palette — the real search /
-// navigation surface — through the registry's `command.open` command. Not a
-// live text input: there's no in-sidebar search index yet, and a box that
-// can't search is worse than a button that opens the one that can.
+// The sidebar search affordance — opens the workspace full-text (grep) search
+// view. It is NOT a live inline input: the cross-session / message search index
+// isn't built yet (ENTRY_POINTS_BACKLOG T3.1). Until it is, this routes to the
+// real grep surface rather than pretending to search inline (or opening the
+// command palette, which doesn't search content at all).
+
+function openSearchView(): void {
+  useSessionStore
+    .getState()
+    .openMainView({ id: "search", title: "workspace.view.title.search", icon: "search" });
+}
 
 function SidebarSearch() {
   const t = useT();
@@ -14,7 +22,7 @@ function SidebarSearch() {
     <div className="mx-1 mb-3.5">
       <button
         type="button"
-        onClick={() => void executeCommand("command.open")}
+        onClick={openSearchView}
         aria-label={t("sidebar.search.label")}
         className={cn(
           "flex w-full items-center gap-2 rounded-sm border-0 bg-surface-2 py-2 pl-3 pr-2.5 text-left font-sans text-[13px] text-fg-faint transition-colors hover:text-fg-muted",
@@ -24,9 +32,6 @@ function SidebarSearch() {
       >
         <Icon name="search" size={14} className="shrink-0" />
         <span className="flex-1 truncate">{t("sidebar.search.placeholder")}</span>
-        <span className="rounded-[4px] bg-surface-2 px-1.5 py-px font-mono text-[11px] tracking-normal text-fg-faint light:bg-surface-3">
-          ⌘K
-        </span>
       </button>
     </div>
   );
