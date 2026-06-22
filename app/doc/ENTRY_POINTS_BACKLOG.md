@@ -57,7 +57,8 @@
 
 > 纯前端、低风险，基本是侧栏/路由/命令注册层的调整。**功能都在，只是给个可见入口。**
 
-### ☐ T1.1　7+ 个 workspace view 只有 ⌘K 一条路　【desktop · S】
+### ✅ T1.1　7+ 个 workspace view 只有 ⌘K 一条路　【desktop · S】
+> ✅ 已交付：侧栏新增 "Session" 组（Explorer/Files/Plan/Tasks）；打开 view 改传 i18n key（修了切语言时 view tab 标题不重译的潜伏 bug）。Search 由搜索框承载（见 T1.2），未在组内重复。`explorer` id 漂移有意不动（id 与显示名 "Explorer" 一致，真正"漂"的只是文件名 `filetree.tsx`，改它成本更高且会让 id≠显示名）。
 - **我方**：命令面板给每个 view 自动生成 `view.open.<id>`（`plugins/builtin/defaults/commands.ts:104-131`，无排除），所以**不是不可达**——但下列**无 nav 行、无按钮、无 badge、无 tool-click**，对不住在面板里的用户等于隐形：
 
   | 功能 | view id | 备注 |
@@ -74,16 +75,19 @@
 - **竞品**：Proma 把 Automations/Skills 做成**侧栏一键全屏 takeover**（`automation/AutomationsListView.tsx`、`agent-skills/AgentSkillsView.tsx`），不藏进子页。
 - **改法**：把高频的（files/explorer/search/plan/todos）提进侧栏 Workspace 组（`sidebar/nav.tsx` 的 `WORKSPACE_DESTINATIONS`）或一个"+"溢出菜单；run-summary/agent-docs 可挂在 run 横幅/会话菜单。顺手修 id 漂移（`explorer`/`agent-docs`）。
 
-### ☐ T1.2　搜索这条线整个是断的 + 假入口　【desktop · S-M】
+### ✅ T1.2　搜索这条线整个是断的 + 假入口　【desktop · S-M】
+> ✅ 已交付：侧栏搜索框 + 折叠 rail 放大镜都改为打开真正的工作区 grep view（`search`），去掉误导的 ⌘K 假徽标。命令面板仍可经全局 ⌘K 快捷键 + 欢迎页提示触达。跨会话「消息内容」搜索属 T3.1b（需后端，未做）。
 - **我方**：**侧栏搜索框**（`sidebar/search.tsx`："Search… ⌘K"）和**折叠 rail 放大镜**（`sidebar/rail.tsx:34`）**都只是开命令面板**——而面板**不做内容搜索**；真正的工作区 grep view（`search`）反而藏在 ⌘K。三处指向都错位。`⌘F`（`chat-search/`）只在当前对话做 DOM 高亮，无跨会话。
 - **竞品**：Proma `SearchDialog`（⌘⇧F，搜会话标题+消息内容，还有 Agent 语义搜索）；LobeChat CMDK 跨实体搜索（消息/话题/agent/文件，加权排序）；Cherry SearchPopup + ContentSearch。
 - **改法**：让侧栏搜索框真的搜（会话+消息），或直连 grep view；命令面板加搜索源（见 T3.1）。**至少先让放大镜/搜索框不再是假入口。**
 
-### ☐ T1.3　死的 "Execution mode" chip　【desktop · S】（与 T2.1 同根）
+### ✅ T1.3　死的 "Execution mode" chip　【desktop · S】（与 T2.1 同根）
+> ✅ 已交付：删掉死 chip + 仅它使用的 IconChip + 孤儿 i18n 键。该 footer slot 由 T2.1 的真选择器接管。
 - **我方**：composer 页脚有个盾牌 chip "Workspace · Auto"（`chat/composer/index.tsx:155`），看着像审批模式开关，**无点击、无后端字段**，纯死。审批模式实际只能去 Settings→Agent→Approvals 配。
 - **改法**：要么删掉（消除误导），要么按 T2.1 做成真的权限模式选择器（**推荐后者**）。
 
-### ☐ T1.4　mid-run steer 完全无 UI　【desktop · S】
+### ✅ T1.4　mid-run steer 完全无 UI　【desktop · S】
+> ✅ 已交付：运行中有文字时发送键变成显式 **Steer** 按钮；空输入框的占位文案改为「发送以引导当前运行」。Esc 两态都仍可停止。已 steer 的消息原本就乐观显示在时间线。
 - **我方**：运行中发消息会 steer 当前 turn（`runs.steer`，`lib/agent/useChatSend.ts`）——**无按钮、无指示、无队列 UI**，用户不知道这能力存在，也看不到自己 steer 了。
 - **竞品**：见 UX_POLISH_BACKLOG 的"边跑边排队/插话"——多数竞品有可见的排队/steer 反馈。
 - **改法**：运行中给 composer 一个"插话/steer"态指示 + 已 steer 的消息在时间线上可见（SteerMessage 事件已有）。
@@ -92,7 +96,8 @@
 
 ## 4. Tier 2 —— composer 缺的能力入口（对标 Proma，后端大多已支持）
 
-### ☐ T2.1　权限/计划模式选择器（把死 chip 变活）　【desktop · M】　**价值最高的单点**
+### ✅ T2.1　权限/计划模式选择器（把死 chip 变活）　【desktop · M】　**价值最高的单点**
+> ✅ 已交付：footer 原 slot 放真正的 Radix 审批模式下拉。**关键认知**：后端无 per-run 模式（刻意设计，`StartRunRequest` 无 mode 字段，stance 每次 tool gate 实时读取）——所以这是全局 stance 的就近第二入口（与设置页同源 `approval.setMode`），运行中改也即时生效；非 per-turn，勿再提"加 per-run mode 字段"（=破坏既定设计）。四个 mode 抽到 `lib/agent/approvalModes.ts` 单源；Auto/yolo warning 着色。HITL 保持 inline 时间线，**不**迁浮动 banner。
 - **竞品**：Proma `PermissionModeSelector.tsx` 就在输入框上——Auto / BypassPermissions / Plan，外加 in-flow 的 PermissionBanner / AskUserBanner / **ExitPlanModeBanner** 浮在 composer 上方（控制面出现在注意力所在处，而非模态弹窗）。
 - **我方**：后端有 approval mode + plan + HITL（`domain/approval`、exit_plan_mode），前端只有那个死 chip + Settings 里的全局/规则配置。运行中无 per-turn 模式入口。
 - **改法**：死 chip → 真选择器（按 turn 选 Auto/Plan/…）；HITL 确认做成贴近输入框的 banner（若现在是别处）。
@@ -117,6 +122,10 @@
 - **竞品**：LobeChat CMDK（`features/CommandMenu/`）= 命令 + **跨实体搜索**（消息/话题/agent/文件，tRPC，去抖、上下文加权）+ **上下文感知**（在 settings 里就出 settings 子页命令）+ **AI 模式**（Tab 问 AI）。一个 ⌘K 覆盖导航/搜索/设置子页/AI。
 - **我方**：只索引 command，无搜索/会话/最近/文件源。
 - **改法**：分步——先加**会话+消息搜索源**（补上整条断掉的搜索线，见 T1.2），再考虑上下文感知子页命令。**这是补全局搜索的最省力路径。**
+> 🔎 调研结论（拆 a/b）：
+> - **T3.1a 会话导航源 = 纯前端可做**：`sessions.list` 已返回全部会话+标题，⌘K 受控输入 + 标题模糊匹配 + 跳转即可（限量、空查询不展开）。
+> - **T3.1b 跨会话「消息内容」全文搜索 = 需后端**：后端只有 `items.list`（单会话）+ `codebase.search`（语义代码），无消息全文 RPC；要做需新增 `messages/sessions.search` RPC + 消息索引（additive 协议 + 实质后端工作 → 先咨询设计）。
+> - **状态**：用户选择 T3 整体押后（2026-06-22），a/b 均未动。
 
 ### ☐ T3.2　常驻右侧 inspector（agent 在干什么）　【desktop · M-L】
 - **竞品**：Proma 右栏 = 会话文件 / 工作区文件 / **改动 diff** 三 tab（`agent/SidePanel.tsx`）；LobeChat 双 inspector——WorkingSidebar（Space/Review-diff/Files/Params）+ Portal（制品/文档/工具输出/线程栈）。**agent 输出就地可检视，不用切去单独目的地。**
@@ -148,9 +157,9 @@
 
 ## 7. 建议优先级
 
-1. **Tier 1 全做**（T1.1–T1.4，纯前端 / 低风险 / S）——直接消除"藏得深"，让已有功能浮出来。
-2. **T2.1 权限/计划模式选择器**——把死 chip 变活，价值最高的单点，后端已支持。
-3. **T3.1 命令面板加搜索源**——补全整条断掉的搜索线（与 T1.2 同根）。
+1. ✅ **Tier 1 全做**（T1.1–T1.4，纯前端 / 低风险 / S）——**已交付 2026-06-22**。
+2. ✅ **T2.1 权限/计划模式选择器**——**已交付 2026-06-22**（落地为全局 stance 的就近入口，非 per-run，见 T2.1 备注）。
+3. 🟡 **T3.1 命令面板加搜索源**——**押后**（用户决定）。a=会话源纯前端可做、b=消息全文需后端，见 §5 T3.1 调研结论。
 4. 其余（T2.2/T2.3 composer 能力、T3.2 右侧 inspector、T3.3 全局唤起、T3.4 可配置侧栏）按需，触发条件到了再做。
 
 > 落手前若涉及结构性改动（右侧 inspector / 导航模型），先按 `app/desktop/CLAUDE.md` 出 scope + 影响面 + 备选，确认再动。
