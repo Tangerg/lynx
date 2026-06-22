@@ -5,18 +5,23 @@
 // single accessory without touching the rest.
 
 import type { IconName } from "@/components/common";
+import type { ApprovalModeValue } from "@/lib/data/queries";
 import type { ReactNode } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useEffect, useRef } from "react";
 import { submitComposer } from "@/components/chat/composer";
 import { Icon, MENU_CONTENT_CLASSES, ProviderIcon, Tooltip } from "@/components/common";
+import { APPROVAL_MODES } from "@/lib/agent/approvalModes";
+import { setApprovalMode } from "@/lib/agent/approvalConfig";
 import { imageFiles } from "@/lib/agent/composerInput";
+import { rpcErrorText } from "@/lib/agent/errorCopy";
 import { fmtTokens } from "@/lib/format";
 import { useSelectedModel } from "@/lib/agent/useSelectedModel";
 import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
 import { useChatSend } from "@/lib/agent/useChatSend";
 import { submitPendingApproval } from "@/lib/agent/submitPendingApproval";
-import { useModels, useProjects } from "@/lib/data/queries";
+import { notifyError } from "@/lib/notify";
+import { useApprovalMode, useModels, useProjects } from "@/lib/data/queries";
 import { basename } from "@/lib/path";
 import { t, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -193,6 +198,72 @@ function GitBranchChip() {
   );
 }
 
+// The composer-side entry to the runtime's global approval stance
+// (approval.setMode) — the same control as the Approvals settings pane, surfaced
+// at the point of attention. The stance is read live at every tool gate, so a
+// switch here lands on the next gated call, even mid-run. It is GLOBAL, not
+// per-turn (like the model picker, it sticks until changed) — there is no
+// per-run mode in the protocol by design. Hidden when the runtime predates the
+// approval RPCs (getMode errors) or before the stance has loaded.
+function ApprovalModeChip() {
+  const t = useT();
+  const { data: mode, isError } = useApprovalMode();
+  if (isError || mode === undefined) return null;
+  const current = APPROVAL_MODES.find((m) => m.value === mode) ?? APPROVAL_MODES[2]!;
+  const onSelect = async (next: ApprovalModeValue) => {
+    if (next === mode) return;
+    try {
+      await setApprovalMode(next);
+    } catch (err) {
+      notifyError(rpcErrorText(err) ?? t("approvals.error.mode"));
+    }
+  };
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button
+          type="button"
+          aria-label={t("approvals.mode.aria")}
+          className="inline-flex h-6 items-center gap-1.5 rounded-sm border-0 bg-transparent px-2 font-mono text-[11.5px] font-normal tracking-tight whitespace-nowrap text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg data-[state=open]:bg-surface-2 data-[state=open]:text-fg"
+        >
+          <Icon
+            name="shield"
+            size={11}
+            className={cn("shrink-0", mode === "yolo" ? "text-warning" : "text-fg-faint")}
+          />
+          {/* Warn-tint the unprompted "Auto" stance so it can't run silently
+              unnoticed; the other stances stay neutral. */}
+          <span className={cn(mode === "yolo" && "text-warning")}>{t(current.labelKey)}</span>
+          <Icon name="chevron-down" size={9} className="text-fg-faint opacity-70" />
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          align="start"
+          sideOffset={6}
+          className={cn(MENU_CONTENT_CLASSES, "min-w-[248px]")}
+        >
+          {APPROVAL_MODES.map((m) => (
+            <DropdownMenu.Item
+              key={m.value}
+              onSelect={() => void onSelect(m.value)}
+              className="grid grid-cols-[minmax(0,1fr)_14px] items-start gap-2 rounded-sm px-2 py-1.5 outline-none data-[highlighted]:bg-surface-2"
+            >
+              <span className="min-w-0">
+                <span className="block text-[12.5px] font-semibold text-fg">{t(m.labelKey)}</span>
+                <span className="block text-[11.5px] leading-snug text-fg-muted">
+                  {t(m.descKey)}
+                </span>
+              </span>
+              {m.value === mode && <Icon name="check" size={12} className="mt-0.5 text-accent" />}
+            </DropdownMenu.Item>
+          ))}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  );
+}
+
 // Color ramp for context-window occupancy: calm until ~70%, warn approaching
 // the limit, alarm once compaction is imminent (>90%).
 function ctxTone(pct: number): string {
@@ -246,6 +317,11 @@ export const composerChips = definePlugin({
       id: "cwd",
       order: 0,
       component: CwdChip,
+    });
+    host.extensions.contribute(COMPOSER_STATUS, {
+      id: "approval-mode",
+      order: 1,
+      component: ApprovalModeChip,
     });
     host.extensions.contribute(COMPOSER_STATUS, {
       id: "git-branch",
