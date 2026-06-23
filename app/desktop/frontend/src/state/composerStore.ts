@@ -86,7 +86,8 @@ interface ComposerActions {
   /** Read raw image Files (paste / drop / file-picker) to base64 and stage
    *  them — the File-ingesting counterpart to `addImages`. Fire-and-forget;
    *  per-file tolerant; dropped entirely if the composer is cleared/submitted
-   *  mid-decode so a late image can't leak into the next message. */
+   *  OR the active session switches mid-decode, so a late image can't leak into
+   *  the next message or another conversation's draft. */
   addImageFiles: (files: File[]) => void;
   removeImage: (id: string) => void;
   /** Stash a large pasted blob as a removable attachment chip, kept out of the
@@ -170,10 +171,15 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
           ),
         addImageFiles: (files) => {
           const gen = stagingGen;
+          const sid = get().activeSid;
           // allSettled, not all: one unreadable file must not discard the whole
           // batch, and the chain must never reject (no global rejection handler).
           void Promise.allSettled(files.map(fileToInputImage)).then((results) => {
-            if (gen !== stagingGen) return; // cleared / submitted while decoding
+            // Discard if the composer was cleared/submitted (gen bumped) OR the
+            // active session changed during decode — a late image must leak
+            // neither into the next message NOR into another conversation's
+            // draft (addImages writes the CURRENT activeSid's mirror).
+            if (gen !== stagingGen || get().activeSid !== sid) return;
             const ok = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
             if (ok.length > 0) get().addImages(ok);
             const failed = results.length - ok.length;

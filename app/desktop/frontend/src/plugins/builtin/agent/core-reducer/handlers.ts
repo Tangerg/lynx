@@ -98,9 +98,16 @@ function mapUsage(u: Usage): RunUsage {
 
 // Live progress preview (ephemeral). Mirrors the run.finished mapping but only
 // patches the fields the event carries — the authoritative totals still settle
-// on run.finished (§5.2). Subagent progress (no way to tell here) harmlessly
-// updates the same readout.
-function onRunProgress(state: AgentViewState, progress: RunProgress): AgentViewState {
+// on run.finished (§5.2). A subagent run shares the parent stream, so its
+// progress must NOT overwrite the root run's readout — especially contextTokens,
+// which persists across runs and drives the context-window gauge. Discriminate
+// by runId exactly as onRunFinished does.
+function onRunProgress(
+  state: AgentViewState,
+  progress: RunProgress,
+  runId?: string,
+): AgentViewState {
+  if (runId && state.run.runId && runId !== state.run.runId) return state;
   return patchRun({
     ...(progress.step !== undefined ? { step: progress.step } : {}),
     ...(progress.maxSteps !== undefined ? { totalSteps: progress.maxSteps } : {}),
@@ -398,7 +405,7 @@ function bind<T extends StreamEvent["type"]>(
 
 export const HANDLERS: ReadonlyArray<[string, StreamEventHandler]> = [
   bind("run.started", (s, ev) => onRunStarted(s, ev.run)),
-  bind("run.progress", (s, ev) => onRunProgress(s, ev.progress)),
+  bind("run.progress", (s, ev, runId) => onRunProgress(s, ev.progress, runId)),
   bind("run.finished", (s, ev, runId) => onRunFinished(s, ev.outcome, runId)),
   bind("item.started", (s, ev) => onItemStarted(s, ev.item)),
   bind("item.delta", (s, ev) => onItemDelta(s, ev.itemId, ev.delta)),
