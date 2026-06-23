@@ -89,9 +89,12 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       }
       store().applyEvents(sessionId, batch);
       // A finished run changed this session's durable metering — refetch its
-      // cumulative usage chip. Fired for the exact session that finished (works
-      // for a background session too), on the authoritative wire signal rather
-      // than an active-session running-flag transition. Ordering note: the server
+      // cumulative usage chip, on the authoritative wire signal rather than an
+      // active-session running-flag transition. Fires only for a session whose
+      // stream is live here (the active one, or one re-subscribed on return); a
+      // run that finishes while its session is purely backgrounded has no live
+      // subscription, so its chip refreshes on the next visit, not instantly.
+      // Ordering note: the server
       // persists the run blob AFTER it appends run.finished to the hub (pump
       // reorder), but that persist is a sub-ms local DB write that completes long
       // before this invalidate's usage.session HTTP refetch round-trips back to
