@@ -73,6 +73,15 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 	if id == "" {
 		return protocol.ErrSessionNotFound
 	}
+	// Refuse to delete a session with a run in flight (actively pumping or
+	// mid-admission). The cascade below clears chat-memory and drops the shadow
+	// checkpoint repo — doing that under a live run orphans its writes and races
+	// its boundary snapshot. Stop the run first (runs.cancel), then delete.
+	// Mirrors the rollback session_busy guard; a parked run (no active pump) is
+	// still deletable — its interrupt is dropped in the cascade.
+	if s.hasActiveRun(id) {
+		return fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, id)
+	}
 	if err := s.rt.Session().Delete(ctx, id); err != nil {
 		return wireSessionErr(err)
 	}
