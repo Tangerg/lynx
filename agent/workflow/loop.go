@@ -105,7 +105,12 @@ func Loop[In, Out any](
 		if history.Count() >= maxIter {
 			return core.True
 		}
-		in, _ := core.Last[In](env.Blackboard)
+		// Read the ORIGINAL loop input via loopInput, not core.Last[In]: when
+		// In==Out the per-iteration outputs would shadow the input.
+		var in In
+		if li, ok := core.Last[loopInput[In]](env.Blackboard); ok {
+			in = li.value
+		}
 		if spec.Until(ctx, in, last) {
 			return core.True
 		}
@@ -121,6 +126,12 @@ func Loop[In, Out any](
 			if !ok {
 				history = &History[Out]{}
 				pc.Blackboard.Bind(history)
+				// First iteration: `in` is the original input — stash it so later
+				// iterations feed the SAME input to Body even when In==Out (else the
+				// framework binds `in` from the latest Out).
+				pc.Blackboard.Bind(loopInput[In]{value: in})
+			} else if li, ok := core.Last[loopInput[In]](pc.Blackboard); ok {
+				in = li.value
 			}
 
 			child, err := runtime.SpawnChildFresh(ctx, platform, spec.Body, in)

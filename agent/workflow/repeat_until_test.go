@@ -13,6 +13,65 @@ import (
 type ruIn struct{ Target int }
 type ruOut struct{ Value int }
 
+// refine is used as BOTH In and Out to exercise the In==Out refinement-loop
+// shape, where each iteration's output would otherwise shadow the original
+// input on the blackboard.
+type refine struct {
+	Tag string
+	N   int
+}
+
+// TestRepeatUntil_InEqualsOut guards the In==Out shadowing bug: when the loop's
+// input and output are the same Go type (the canonical "refine a draft until
+// good enough"), the per-iteration outputs must NOT shadow the original input —
+// both Task and Accept must keep seeing the ORIGINAL input, not the latest
+// attempt. With the bug, iteration 2+ saw the previous attempt as `in`.
+func TestRepeatUntil_InEqualsOut(t *testing.T) {
+	var taskInputs, acceptInputs []string
+	a, err := workflow.RepeatUntil(workflow.RepeatUntilConfig[refine, refine]{
+		Name:          "refine-loop",
+		MaxIterations: 5,
+		Task: func(_ context.Context, _ *core.ProcessContext, in refine, h *workflow.History[refine]) (refine, error) {
+			taskInputs = append(taskInputs, in.Tag)
+			return refine{Tag: "attempt", N: h.Count() + 1}, nil
+		},
+		Accept: func(_ context.Context, in refine, _ refine, h *workflow.History[refine]) bool {
+			acceptInputs = append(acceptInputs, in.Tag)
+			return h.Count() >= 3 // stop after 3 attempts
+		},
+	})
+	if err != nil {
+		t.Fatalf("RepeatUntil: %v", err)
+	}
+	platform := agent.NewPlatform(runtime.PlatformConfig{})
+	if err := platform.Deploy(a); err != nil {
+		t.Fatalf("deploy: %v", err)
+	}
+	proc, err := platform.RunAgent(t.Context(), a,
+		map[string]any{core.DefaultBindingName: refine{Tag: "orig"}},
+		core.ProcessOptions{},
+	)
+	if err != nil {
+		t.Fatalf("RunAgent: %v", err)
+	}
+	if proc.Status() != core.StatusCompleted {
+		t.Fatalf("status = %s; failure = %v", proc.Status(), proc.Failure())
+	}
+	if len(taskInputs) < 2 {
+		t.Fatalf("expected ≥2 task iterations to exercise shadowing, got %d", len(taskInputs))
+	}
+	for i, tag := range taskInputs {
+		if tag != "orig" {
+			t.Errorf("Task iteration %d saw in.Tag=%q, want \"orig\" (output shadowed the In==Out input)", i, tag)
+		}
+	}
+	for i, tag := range acceptInputs {
+		if tag != "orig" {
+			t.Errorf("Accept call %d saw in.Tag=%q, want \"orig\" (In==Out shadowing)", i, tag)
+		}
+	}
+}
+
 func TestRepeatUntil_LoopsUntilAccept(t *testing.T) {
 	// Task increments by 1 each call. Accept stops once value ≥ Target.
 	a, err := workflow.RepeatUntil(workflow.RepeatUntilConfig[ruIn, ruOut]{

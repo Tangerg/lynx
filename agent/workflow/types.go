@@ -27,6 +27,17 @@ type Feedback struct {
 // "accept when score ≥ 0.7" check inside an [RepeatUntilConfig.Accept].
 func (f Feedback) Acceptable(threshold float64) bool { return f.Score >= threshold }
 
+// loopInput tags a loop's ORIGINAL input on the blackboard so RepeatUntil /
+// Loop can recover it distinctly from the per-iteration outputs. When In and
+// Out are the SAME Go type — the canonical refinement loop ("improve this Draft
+// until it's good enough") — every iteration's Out binding shadows the input,
+// so the framework's typed In binding (and core.Last[In]) would return the
+// latest ATTEMPT, not the original input. loopInput[T] is a distinct type from
+// T, so looking it up never picks up an attempt. Bound once on the first
+// iteration; the task + the accept/until condition read the input back through
+// it. See [RepeatUntil] / [Loop].
+type loopInput[T any] struct{ value T }
+
 // History tracks every attempt produced by a [RepeatUntilConfig.Task]
 // in the order they ran. The Accept callback receives a *History so
 // it can inspect prior attempts (e.g., compute "is the score still

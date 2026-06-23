@@ -85,7 +85,12 @@ func RepeatUntil[In, Out any](spec RepeatUntilConfig[In, Out]) (*core.Agent, err
 		if history.Count() >= maxIter {
 			return core.True
 		}
-		in, _ := core.Last[In](env.Blackboard)
+		// Read the ORIGINAL loop input via loopInput, not core.Last[In]: when
+		// In==Out the per-iteration outputs would shadow the input.
+		var in In
+		if li, ok := core.Last[loopInput[In]](env.Blackboard); ok {
+			in = li.value
+		}
 		if spec.Accept(ctx, in, last, history) {
 			return core.True
 		}
@@ -99,6 +104,14 @@ func RepeatUntil[In, Out any](spec RepeatUntilConfig[In, Out]) (*core.Agent, err
 			if !ok {
 				history = &History[Out]{}
 				pc.Blackboard.Bind(history)
+				// First iteration: `in` IS the original input (no Out bound yet to
+				// shadow it). Stash it so later iterations + Accept recover it even
+				// when In==Out.
+				pc.Blackboard.Bind(loopInput[In]{value: in})
+			} else if li, ok := core.Last[loopInput[In]](pc.Blackboard); ok {
+				// Later iterations: the framework binds `in` from Last[In], which is
+				// the latest Out when In==Out — restore the original.
+				in = li.value
 			}
 			out, err := spec.Task(ctx, pc, in, history)
 			if err != nil {
