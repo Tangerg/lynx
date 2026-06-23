@@ -255,7 +255,7 @@ func BestEffortJSON(raw string) any {
 //   - Tool-level failure does NOT go in Result — it rides the toolCall
 //     Item's Error + status:"incomplete" (§4.3 / §8).
 type ToolInvocation struct {
-	Name      string         `json:"name"`             // tool identity (stable); MCP uses "<server>.<tool>"
+	Name      string         `json:"name"`             // tool identity (stable); MCP uses "<server>_<tool>" (underscore; dots sanitized out, see mcp.DefaultNaming)
 	Arguments map[string]any `json:"arguments"`        // parsed JSON object (always present; never a JSON string)
 	Result    any            `json:"result,omitempty"` // best-effort JSON; absent on item.started, authoritative on item.completed
 }
