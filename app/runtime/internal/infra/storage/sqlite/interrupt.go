@@ -124,7 +124,7 @@ func (s *InterruptStore) Consume(ctx context.Context, parentRunID string) (inter
 }
 
 func (s *InterruptStore) Delete(ctx context.Context, parentRunID string) error {
-	if _, err := s.db.ExecContext(ctx,
+	if _, err := conn(ctx, s.db).ExecContext(ctx,
 		`DELETE FROM interrupts WHERE parent_run_id = ?`, parentRunID,
 	); err != nil {
 		return fmt.Errorf("sqlite: delete interrupt: %w", err)

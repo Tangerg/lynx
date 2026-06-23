@@ -120,4 +120,10 @@ type RuntimeServices interface {
 	// truncate the message log to a kept boundary.
 	MessageCount(ctx context.Context, sessionID string) (int, error)
 	TruncateMessages(ctx context.Context, sessionID string, keepN int) error
+
+	// RunInTx runs fn inside one storage transaction, so a multi-step
+	// destructive write-set (sessions.import / rollback) commits atomically —
+	// a mid-sequence failure leaves no partial state. The store methods the
+	// closure calls join the transaction through the context.
+	RunInTx(ctx context.Context, fn func(context.Context) error) error
 }

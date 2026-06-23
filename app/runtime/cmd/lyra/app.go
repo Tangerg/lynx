@@ -214,6 +214,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		// vector index (codebase_search tool + codebase.* RPC).
 		EmbeddingRoleStore: stores.EmbeddingRole,
 		CodebaseStore:      stores.Codebase,
+		Transactor:         lyraruntime.Transactor(stores.Tx),
 		// Default approval stance: Balanced — auto-allow file writes /
 		// network (the agent's normal work; the user sees the diffs), prompt
 		// only on shell exec (bash), the genuinely dangerous class. Must be
@@ -268,7 +269,13 @@ func buildStores() (*Stores, error) {
 		return nil, fmt.Errorf("memory storage: %w", err)
 	}
 	return &Stores{
-		Home:          home,
+		Home: home,
+		// One transaction spanning the shared *sql.DB, for the cross-store
+		// write-sets (sessions.import / rollback) that must be atomic. Stores
+		// route their statements through it via the context (sqlite.conn).
+		Tx: func(ctx context.Context, fn func(context.Context) error) error {
+			return sqlitestore.RunInTx(ctx, db, fn)
+		},
 		Session:       sqlitestore.NewSessionService(db),
 		Memory:        mem,
 		Process:       sqlitestore.NewProcessStore(db),
@@ -292,7 +299,11 @@ func buildStores() (*Stores, error) {
 // storage Home they share (the root for derived paths like the global skills
 // directory).
 type Stores struct {
-	Home          string
+	Home string
+	// Tx runs fn inside one transaction across the shared sqlite *sql.DB
+	// (sessions.import / rollback atomicity). Wired into the Runtime as its
+	// Transactor.
+	Tx func(context.Context, func(context.Context) error) error
 	Session       sessionsvc.Service
 	Memory        knowledge.Service
 	Process       core.ProcessStore
