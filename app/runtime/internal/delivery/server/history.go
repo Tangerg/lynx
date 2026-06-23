@@ -46,7 +46,11 @@ func (s *Server) persistStreamEvent(ctx context.Context, runID, sessionID, paren
 			Model:       model,
 			Status:      protocol.RunStatusFinished,
 			Outcome:     se.Outcome,
-			FinishedAt:  time.Now().UTC(),
+			// Carry the run's start time forward: the terminal RunRef replaces the
+			// whole stored blob, so without this CreatedAt persists as zero and the
+			// rollback/fork boundary math (+ runs.list) loses the run's timeline key.
+			CreatedAt:  s.runCreatedAt(runID),
+			FinishedAt: time.Now().UTC(),
 		}, mark)
 		// NOTE: the file-checkpoint snapshot is deliberately NOT taken here.
 		// It used to run synchronously on this run.finished path, ahead of the
