@@ -153,6 +153,13 @@ type Config struct {
 	// (no tool, no RPC). The composition root injects the sqlite-backed stores.
 	EmbeddingRoleStore EmbeddingRoleStore
 	CodebaseStore      codebaseindex.Store
+
+	// Transactor runs a write-set inside one storage transaction, so the
+	// cross-store operations (sessions.import / rollback) commit atomically. nil
+	// → [Runtime.RunInTx] runs the function directly (no atomicity), keeping
+	// non-sqlite / test runtimes working. The composition root wires the
+	// sqlite-backed transactor.
+	Transactor Transactor
 }
 
 // HookTrustStore mutates project hook trust for the workspace.hooks.setTrust
@@ -232,6 +239,27 @@ type Runtime struct {
 	embeddings     *embeddingResolver
 	embeddingStore EmbeddingRoleStore
 	codebaseIndex  codebaseindex.Service
+
+	// transactor runs a write-set inside one storage transaction so the
+	// cross-store operations (sessions.import / rollback) are atomic; nil → run
+	// directly (RunInTx). See [Transactor].
+	transactor Transactor
+}
+
+// Transactor runs fn inside a single storage transaction — the seam the
+// composition root uses to give the Runtime cross-store atomicity without
+// coupling it to the sqlite backend.
+type Transactor func(ctx context.Context, fn func(context.Context) error) error
+
+// RunInTx runs fn inside one storage transaction (commit on success, rollback
+// on error), so a multi-step write-set across the domain services commits
+// atomically. Falls back to running fn directly when no transactor is wired (a
+// non-sqlite / test runtime) — correct but without all-or-nothing.
+func (r *Runtime) RunInTx(ctx context.Context, fn func(context.Context) error) error {
+	if r == nil || r.transactor == nil {
+		return fn(ctx)
+	}
+	return r.transactor(ctx, fn)
 }
 
 // New assembles a Runtime from cfg. Returns an error when a required
@@ -484,6 +512,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		embeddings:       embeddings,
 		embeddingStore:   cfg.EmbeddingRoleStore,
 		codebaseIndex:    codebaseIdx,
+		transactor:       cfg.Transactor,
 	}, nil
 }
 

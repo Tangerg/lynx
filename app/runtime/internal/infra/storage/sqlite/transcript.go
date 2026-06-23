@@ -39,7 +39,7 @@ func (s *TranscriptStore) AppendItem(ctx context.Context, it transcript.Item) er
 	// incomplete toolCall that a resumed HITL round later completes with
 	// the same id) atomically updates in place, keeping its original seq —
 	// items.list surfaces the latest state at the item's original position.
-	_, err := s.db.ExecContext(ctx,
+	_, err := conn(ctx, s.db).ExecContext(ctx,
 		`INSERT INTO history_items(session_id, run_id, item_id, created_at, item)
 		 VALUES (?, ?, ?, ?, ?)
 		 ON CONFLICT(item_id) DO UPDATE SET
@@ -58,7 +58,7 @@ func (s *TranscriptStore) PutRun(ctx context.Context, r transcript.Run) error {
 	if r.SessionID == "" || r.RunID == "" {
 		return errors.New("sqlite: history run sessionId/runId are required")
 	}
-	_, err := s.db.ExecContext(ctx,
+	_, err := conn(ctx, s.db).ExecContext(ctx,
 		`INSERT INTO history_runs(run_id, session_id, updated_at, run, message_mark)
 		 VALUES (?, ?, ?, ?, ?)
 		 ON CONFLICT(run_id) DO UPDATE SET
@@ -81,26 +81,20 @@ func (s *TranscriptStore) DeleteRun(ctx context.Context, sessionID, runID string
 	if sessionID == "" || runID == "" {
 		return errors.New("sqlite: delete history run requires sessionId + runId")
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("sqlite: begin delete history run: %w", err)
-	}
-	defer tx.Rollback() //nolint:errcheck // commit overrides; rollback on early return
-
-	if _, err := tx.ExecContext(ctx,
-		`DELETE FROM history_items WHERE session_id = ? AND run_id = ?`, sessionID, runID,
-	); err != nil {
-		return fmt.Errorf("sqlite: delete run items: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx,
-		`DELETE FROM history_runs WHERE run_id = ?`, runID,
-	); err != nil {
-		return fmt.Errorf("sqlite: delete run: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("sqlite: commit delete history run: %w", err)
-	}
-	return nil
+	return RunInTx(ctx, s.db, func(ctx context.Context) error {
+		q := conn(ctx, s.db)
+		if _, err := q.ExecContext(ctx,
+			`DELETE FROM history_items WHERE session_id = ? AND run_id = ?`, sessionID, runID,
+		); err != nil {
+			return fmt.Errorf("sqlite: delete run items: %w", err)
+		}
+		if _, err := q.ExecContext(ctx,
+			`DELETE FROM history_runs WHERE run_id = ?`, runID,
+		); err != nil {
+			return fmt.Errorf("sqlite: delete run: %w", err)
+		}
+		return nil
+	})
 }
 
 // DeleteSession removes every item + run for a session (sessions.rollback
@@ -109,26 +103,20 @@ func (s *TranscriptStore) DeleteSession(ctx context.Context, sessionID string) e
 	if sessionID == "" {
 		return errors.New("sqlite: delete history session requires sessionId")
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("sqlite: begin delete history session: %w", err)
-	}
-	defer tx.Rollback() //nolint:errcheck // commit overrides; rollback on early return
-
-	if _, err := tx.ExecContext(ctx,
-		`DELETE FROM history_items WHERE session_id = ?`, sessionID,
-	); err != nil {
-		return fmt.Errorf("sqlite: delete session items: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx,
-		`DELETE FROM history_runs WHERE session_id = ?`, sessionID,
-	); err != nil {
-		return fmt.Errorf("sqlite: delete session runs: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("sqlite: commit delete history session: %w", err)
-	}
-	return nil
+	return RunInTx(ctx, s.db, func(ctx context.Context) error {
+		q := conn(ctx, s.db)
+		if _, err := q.ExecContext(ctx,
+			`DELETE FROM history_items WHERE session_id = ?`, sessionID,
+		); err != nil {
+			return fmt.Errorf("sqlite: delete session items: %w", err)
+		}
+		if _, err := q.ExecContext(ctx,
+			`DELETE FROM history_runs WHERE session_id = ?`, sessionID,
+		); err != nil {
+			return fmt.Errorf("sqlite: delete session runs: %w", err)
+		}
+		return nil
+	})
 }
 
 func (s *TranscriptStore) List(ctx context.Context, sessionID string) ([]transcript.Item, []transcript.Run, error) {

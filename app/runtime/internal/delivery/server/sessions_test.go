@@ -41,6 +41,12 @@ func (s stubRuntime) Interrupts() interrupts.Store { return s.interrupts }
 func (s stubRuntime) MessageCount(_ context.Context, id string) (int, error) {
 	return len(s.history[id]), nil
 }
+
+// RunInTx in the stub just runs fn — the in-memory stub has no real
+// transaction; production wires the sqlite-backed transactor.
+func (s stubRuntime) RunInTx(ctx context.Context, fn func(context.Context) error) error {
+	return fn(ctx)
+}
 func (s stubRuntime) TruncateMessages(_ context.Context, id string, keepN int) error {
 	msgs := s.history[id]
 	if keepN <= 0 {

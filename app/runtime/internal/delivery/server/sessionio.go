@@ -104,34 +104,45 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 	}
 
 	id := art.Session.ID
-	if err := s.rt.Session().Restore(ctx, artifactToSession(art.Session)); err != nil {
-		return nil, err
-	}
-
-	// Replace any existing history so an import-over restores rather than
-	// appends: drop the old items/runs and clear the chat log before re-seeding.
-	if err := s.rt.Transcript().DeleteSession(ctx, id); err != nil {
-		return nil, err
-	}
-	if err := s.rt.TruncateMessages(ctx, id, 0); err != nil {
-		return nil, err
-	}
-	if err := s.rt.SeedHistory(ctx, id, msgs); err != nil {
-		return nil, err
-	}
-	for _, r := range art.Runs {
-		if err := s.rt.Transcript().PutRun(ctx, transcript.Run{
-			SessionID: id, RunID: r.RunID, UpdatedAt: r.UpdatedAt, Blob: r.Run, Mark: r.Mark,
-		}); err != nil {
-			return nil, err
+	// Restore the whole session as ONE transaction: the session row, the
+	// transcript replace (drop old items/runs), the chat-log clear + re-seed,
+	// and the runs/items re-persist all commit or roll back together. Without
+	// this, a mid-sequence failure (DB IO error after the destructive
+	// DeleteSession/Truncate) would leave the session row live but its history
+	// half-destroyed — importing OVER an existing session would lose the prior
+	// history with nothing to replace it.
+	if err := s.rt.RunInTx(ctx, func(ctx context.Context) error {
+		if err := s.rt.Session().Restore(ctx, artifactToSession(art.Session)); err != nil {
+			return err
 		}
-	}
-	for _, it := range art.Items {
-		if err := s.rt.Transcript().AppendItem(ctx, transcript.Item{
-			SessionID: id, RunID: it.RunID, ItemID: it.ItemID, CreatedAt: it.CreatedAt, Blob: it.Item,
-		}); err != nil {
-			return nil, err
+		// Replace any existing history so an import-over restores rather than
+		// appends: drop the old items/runs and clear the chat log before re-seeding.
+		if err := s.rt.Transcript().DeleteSession(ctx, id); err != nil {
+			return err
 		}
+		if err := s.rt.TruncateMessages(ctx, id, 0); err != nil {
+			return err
+		}
+		if err := s.rt.SeedHistory(ctx, id, msgs); err != nil {
+			return err
+		}
+		for _, r := range art.Runs {
+			if err := s.rt.Transcript().PutRun(ctx, transcript.Run{
+				SessionID: id, RunID: r.RunID, UpdatedAt: r.UpdatedAt, Blob: r.Run, Mark: r.Mark,
+			}); err != nil {
+				return err
+			}
+		}
+		for _, it := range art.Items {
+			if err := s.rt.Transcript().AppendItem(ctx, transcript.Item{
+				SessionID: id, RunID: it.RunID, ItemID: it.ItemID, CreatedAt: it.CreatedAt, Blob: it.Item,
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
 	ses, err := s.rt.Session().Get(ctx, id)

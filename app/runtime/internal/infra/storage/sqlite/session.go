@@ -142,7 +142,7 @@ func (s *SessionService) Restore(ctx context.Context, sess session.Session) erro
 	if err != nil {
 		return err
 	}
-	_, err = s.db.ExecContext(ctx,
+	_, err = conn(ctx, s.db).ExecContext(ctx,
 		`INSERT OR REPLACE INTO sessions(`+sessionColumns+`)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		sess.ID, sess.Title, sess.Cwd, sess.ParentID,
@@ -340,12 +340,8 @@ func (s *SessionService) insert(ctx context.Context, sess session.Session) error
 	return s.execInsert(ctx, s.db, sess)
 }
 
-// execInsert is shared by Create and Fork. The execer interface
+// execInsert is shared by Create and Fork; the shared [execer] (see tx.go)
 // accepts either *sql.DB or *sql.Tx.
-type execer interface {
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-}
-
 func (s *SessionService) execInsert(ctx context.Context, ex execer, sess session.Session) error {
 	metaJSON, err := encodeMetadata(sess.Metadata)
 	if err != nil {

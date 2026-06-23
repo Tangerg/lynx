@@ -203,20 +203,33 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 		return &protocol.RollbackSessionResponse{Session: &out, DroppedRuns: []protocol.DroppedRun{}}, nil
 	}
 
-	// Truncate the chat-memory log to the kept watermark. An unknown (-1) mark
-	// (chain terminal still in-flight / pre-watermark) clamps to the current
-	// count — keep what's there rather than guess at a boundary we never recorded.
-	if b.KeepMark >= 0 {
-		if err := s.rt.TruncateMessages(ctx, in.SessionID, b.KeepMark); err != nil {
-			return nil, err
+	// Truncate the chat-memory log to the kept watermark AND drop each dropped
+	// run's items/record + dangling interrupt as ONE transaction, so a failure
+	// can't leave runs whose messages were already truncated away (an orphan run
+	// inconsistent with the conversation). An unknown (-1) mark (chain terminal
+	// still in-flight / pre-watermark) clamps to the current count — keep what's
+	// there rather than guess at a boundary we never recorded.
+	if err := s.rt.RunInTx(ctx, func(ctx context.Context) error {
+		if b.KeepMark >= 0 {
+			if err := s.rt.TruncateMessages(ctx, in.SessionID, b.KeepMark); err != nil {
+				return err
+			}
 		}
-	}
-
-	// Drop each run's durable items + run record, and clear any open interrupt
-	// dangling on it (rollback over a parked run un-parks it).
-	for _, rec := range b.Dropped {
-		_ = s.rt.Transcript().DeleteRun(ctx, in.SessionID, rec.ID)
-		_ = s.rt.Interrupts().Delete(ctx, rec.ID)
+		// Drop each run's durable items + run record, and clear any open interrupt
+		// dangling on it (rollback over a parked run un-parks it). Surfaced (not
+		// swallowed): after the truncate above commits, a failed DeleteRun would
+		// otherwise leave a run record past the boundary whose messages are gone.
+		for _, rec := range b.Dropped {
+			if err := s.rt.Transcript().DeleteRun(ctx, in.SessionID, rec.ID); err != nil {
+				return err
+			}
+			if err := s.rt.Interrupts().Delete(ctx, rec.ID); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
 	// Purge the subagent child sessions the dropped runs spawned (whole subtree).

@@ -42,7 +42,7 @@ func (s *MessageStore) Read(ctx context.Context, conversationID string) ([]chat.
 	if conversationID == "" {
 		return nil, fmt.Errorf("sqlite: invalid conversation id %q", conversationID)
 	}
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := conn(ctx, s.db).QueryContext(ctx,
 		`SELECT message FROM messages WHERE conversation_id = ? ORDER BY seq`, conversationID)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: read messages: %w", err)
@@ -76,31 +76,28 @@ func (s *MessageStore) Write(ctx context.Context, conversationID string, message
 	if len(messages) == 0 {
 		return nil
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("sqlite: begin write messages: %w", err)
-	}
-	defer tx.Rollback() //nolint:errcheck // commit overrides; rollback on early return
-
-	for _, msg := range messages {
-		if msg == nil {
-			continue
+	// RunInTx so the batch is atomic standalone, and folds into a caller's
+	// cross-store transaction (sessions.import seeds history inside one) instead
+	// of opening its own — which would deadlock under MaxOpenConns(1).
+	return RunInTx(ctx, s.db, func(ctx context.Context) error {
+		q := conn(ctx, s.db)
+		for _, msg := range messages {
+			if msg == nil {
+				continue
+			}
+			data, err := json.Marshal(msg)
+			if err != nil {
+				return fmt.Errorf("sqlite: marshal message: %w", err)
+			}
+			if _, err := q.ExecContext(ctx,
+				`INSERT INTO messages(conversation_id, message) VALUES (?, ?)`,
+				conversationID, string(data),
+			); err != nil {
+				return fmt.Errorf("sqlite: append message: %w", err)
+			}
 		}
-		data, err := json.Marshal(msg)
-		if err != nil {
-			return fmt.Errorf("sqlite: marshal message: %w", err)
-		}
-		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO messages(conversation_id, message) VALUES (?, ?)`,
-			conversationID, string(data),
-		); err != nil {
-			return fmt.Errorf("sqlite: append message: %w", err)
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("sqlite: commit messages: %w", err)
-	}
-	return nil
+		return nil
+	})
 }
 
 // Replace atomically sets conversationID's history to exactly messages — a
@@ -113,36 +110,30 @@ func (s *MessageStore) Replace(ctx context.Context, conversationID string, messa
 	if conversationID == "" {
 		return fmt.Errorf("sqlite: invalid conversation id %q", conversationID)
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("sqlite: begin replace messages: %w", err)
-	}
-	defer tx.Rollback() //nolint:errcheck // commit overrides; rollback on early return
-
-	if _, err := tx.ExecContext(ctx,
-		`DELETE FROM messages WHERE conversation_id = ?`, conversationID,
-	); err != nil {
-		return fmt.Errorf("sqlite: replace clear messages: %w", err)
-	}
-	for _, msg := range messages {
-		if msg == nil {
-			continue
-		}
-		data, err := json.Marshal(msg)
-		if err != nil {
-			return fmt.Errorf("sqlite: marshal message: %w", err)
-		}
-		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO messages(conversation_id, message) VALUES (?, ?)`,
-			conversationID, string(data),
+	return RunInTx(ctx, s.db, func(ctx context.Context) error {
+		q := conn(ctx, s.db)
+		if _, err := q.ExecContext(ctx,
+			`DELETE FROM messages WHERE conversation_id = ?`, conversationID,
 		); err != nil {
-			return fmt.Errorf("sqlite: replace append message: %w", err)
+			return fmt.Errorf("sqlite: replace clear messages: %w", err)
 		}
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("sqlite: commit replace messages: %w", err)
-	}
-	return nil
+		for _, msg := range messages {
+			if msg == nil {
+				continue
+			}
+			data, err := json.Marshal(msg)
+			if err != nil {
+				return fmt.Errorf("sqlite: marshal message: %w", err)
+			}
+			if _, err := q.ExecContext(ctx,
+				`INSERT INTO messages(conversation_id, message) VALUES (?, ?)`,
+				conversationID, string(data),
+			); err != nil {
+				return fmt.Errorf("sqlite: replace append message: %w", err)
+			}
+		}
+		return nil
+	})
 }
 
 // Count returns conversationID's message count via a COUNT(*) query — the
@@ -156,7 +147,7 @@ func (s *MessageStore) Count(ctx context.Context, conversationID string) (int, e
 		return 0, fmt.Errorf("sqlite: invalid conversation id %q", conversationID)
 	}
 	var n int
-	if err := s.db.QueryRowContext(ctx,
+	if err := conn(ctx, s.db).QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM messages WHERE conversation_id = ?`, conversationID,
 	).Scan(&n); err != nil {
 		return 0, fmt.Errorf("sqlite: count messages: %w", err)
@@ -170,7 +161,7 @@ func (s *MessageStore) Clear(ctx context.Context, conversationID string) error {
 	if conversationID == "" {
 		return fmt.Errorf("sqlite: invalid conversation id %q", conversationID)
 	}
-	if _, err := s.db.ExecContext(ctx,
+	if _, err := conn(ctx, s.db).ExecContext(ctx,
 		`DELETE FROM messages WHERE conversation_id = ?`, conversationID,
 	); err != nil {
 		return fmt.Errorf("sqlite: clear messages: %w", err)
