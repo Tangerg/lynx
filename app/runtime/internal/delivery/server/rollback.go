@@ -59,16 +59,55 @@ func wireBoundaryErr(err error) error {
 
 // hasActiveRun reports whether the session has a run in flight — the
 // session_busy guard: rolling back under a live run would race its history
-// append (AUX_API §4.1).
+// append (AUX_API §4.1). Includes an in-progress admission (claimed but not yet
+// registered) so a rollback can't slip in alongside a starting run.
 func (s *Server) hasActiveRun(sessionID string) bool {
 	s.runMu.Lock()
 	defer s.runMu.Unlock()
+	return s.activeForSessionLocked(sessionID)
+}
+
+// activeForSessionLocked reports whether the session has a run in flight OR an
+// admission in progress (a runs.start / runs.resume that claimed the session
+// but hasn't registered its run yet). Caller holds runMu.
+func (s *Server) activeForSessionLocked(sessionID string) bool {
+	if _, ok := s.claiming[sessionID]; ok {
+		return true
+	}
 	for _, e := range s.runs {
 		if e.sessionID == sessionID {
 			return true
 		}
 	}
 	return false
+}
+
+// claimSession atomically reserves the session's single-writer slot for an
+// admitting run, returning false when the session already has a run in flight
+// or another admission in progress. It closes the TOCTOU gap between the busy
+// check and the run's registration in s.runs (openSegment): under one runMu
+// hold it both checks and reserves. Pair every true return with a
+// releaseSession (deferred), which is safe to run after openSegment has
+// registered the run — at that point s.runs marks the session active, so there
+// is never an instant where neither the claim nor s.runs holds it.
+func (s *Server) claimSession(sessionID string) bool {
+	s.runMu.Lock()
+	defer s.runMu.Unlock()
+	if s.activeForSessionLocked(sessionID) {
+		return false
+	}
+	if s.claiming == nil { // a Server built as a bare literal (tests) — keep the zero value useful
+		s.claiming = map[string]struct{}{}
+	}
+	s.claiming[sessionID] = struct{}{}
+	return true
+}
+
+// releaseSession drops a claimSession reservation.
+func (s *Server) releaseSession(sessionID string) {
+	s.runMu.Lock()
+	delete(s.claiming, sessionID)
+	s.runMu.Unlock()
 }
 
 // hasActiveRunSharingCwd returns the id of an in-flight run's session whose
