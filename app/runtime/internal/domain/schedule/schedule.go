@@ -82,10 +82,15 @@ type Service interface {
 	// newest-due first — the worker's per-tick work list.
 	Due(ctx context.Context, now time.Time) ([]Schedule, error)
 	// MarkFired records a scheduled firing: the run time (LastRunAt) and the
-	// advanced next due time. Only the worker calls it — it always advances the
-	// cron cursor to the next occurrence. A manual run-now uses [Service.RecordRun]
-	// instead, so the two never write NextRunAt with conflicting intent.
-	MarkFired(ctx context.Context, id string, ranAt, nextRunAt time.Time) error
+	// advanced next due time. Only the worker calls it. prevNextRunAt is the
+	// NextRunAt the worker saw when it picked this schedule as due — the cursor is
+	// advanced only if it still holds, so a concurrent [Service.Update] that
+	// rescheduled (new cron → new NextRunAt) between that read and now wins instead
+	// of being clobbered with a value computed from the stale cron. If the guard
+	// misses, the firing is still recorded (LastRunAt) without rewinding the
+	// cursor. A manual run-now uses [Service.RecordRun] instead, so the two never
+	// write NextRunAt with conflicting intent.
+	MarkFired(ctx context.Context, id string, ranAt, prevNextRunAt, nextRunAt time.Time) error
 	// RecordRun records an off-cycle run (schedules.runNow): it updates LastRunAt
 	// and leaves NextRunAt untouched. Separate from MarkFired so a manual run can
 	// never rewind the cron cursor — re-stamping a cursor value read before the

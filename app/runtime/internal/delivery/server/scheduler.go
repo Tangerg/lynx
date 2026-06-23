@@ -71,7 +71,7 @@ func (s *Server) fireDueSchedules(ctx context.Context) {
 		// the session as a failure). A failed advance leaves it due, so surface it —
 		// a silently-swallowed MarkFired error is exactly what turns into a re-fire
 		// loop every tick.
-		if err := s.rt.Schedules().MarkFired(ctx, sc.ID, now, next); err != nil {
+		if err := s.rt.Schedules().MarkFired(ctx, sc.ID, now, sc.NextRunAt, next); err != nil {
 			recordSchedulerError(ctx, "mark fired failed", fmt.Errorf("schedule %s: %w", sc.ID, err))
 		}
 	}

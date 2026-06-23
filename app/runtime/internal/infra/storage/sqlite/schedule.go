@@ -84,11 +84,21 @@ func (s *ScheduleStore) Due(ctx context.Context, now time.Time) ([]schedule.Sche
 		 ORDER BY next_run_at DESC`, now.UnixMilli())
 }
 
-func (s *ScheduleStore) MarkFired(ctx context.Context, id string, ranAt, nextRunAt time.Time) error {
-	if _, err := s.db.ExecContext(ctx,
-		`UPDATE schedules SET last_run_at = ?, next_run_at = ? WHERE id = ?`,
-		toMillis(ranAt), toMillis(nextRunAt), id); err != nil {
+func (s *ScheduleStore) MarkFired(ctx context.Context, id string, ranAt, prevNextRunAt, nextRunAt time.Time) error {
+	// CAS the cursor: advance next_run_at only if it's still the value the worker
+	// saw at Due time. A concurrent schedules.Update that rescheduled (new cron →
+	// new next_run_at) between that read and now must win, not be overwritten with
+	// a value computed from the stale cron. If the guard misses (rescheduled, or
+	// the row was deleted), the run still fired — record last_run_at without
+	// rewinding the cursor.
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE schedules SET last_run_at = ?, next_run_at = ? WHERE id = ? AND next_run_at = ?`,
+		toMillis(ranAt), toMillis(nextRunAt), id, toMillis(prevNextRunAt))
+	if err != nil {
 		return fmt.Errorf("sqlite: mark schedule fired: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return s.RecordRun(ctx, id, ranAt)
 	}
 	return nil
 }

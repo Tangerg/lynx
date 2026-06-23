@@ -67,7 +67,7 @@ func TestScheduleCRUD(t *testing.T) {
 	// MarkFired records lastRunAt + advances nextRunAt to the future → no longer due.
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	future := now.Add(24 * time.Hour)
-	if err := s.MarkFired(ctx, created.ID, now, future); err != nil {
+	if err := s.MarkFired(ctx, created.ID, now, created.NextRunAt, future); err != nil {
 		t.Fatalf("markFired: %v", err)
 	}
 	due, _ = s.Due(ctx, time.Now())
@@ -117,7 +117,7 @@ func TestScheduleRecordRunLeavesCursor(t *testing.T) {
 
 	// The worker fires and advances the cursor into the future → no longer due.
 	future := time.Now().Add(24 * time.Hour).UTC().Truncate(time.Millisecond)
-	if err := s.MarkFired(ctx, created.ID, time.Now().UTC(), future); err != nil {
+	if err := s.MarkFired(ctx, created.ID, time.Now().UTC(), created.NextRunAt, future); err != nil {
 		t.Fatalf("markFired: %v", err)
 	}
 
@@ -137,6 +137,48 @@ func TestScheduleRecordRunLeavesCursor(t *testing.T) {
 	due, _ := s.Due(ctx, time.Now())
 	if len(due) != 0 {
 		t.Errorf("due after RecordRun = %+v, want none (cursor still in the future)", due)
+	}
+}
+
+// TestScheduleMarkFiredCASLosesToReschedule: MarkFired advances the cursor only
+// if next_run_at is still what the worker saw at Due time. A concurrent
+// schedules.Update that rescheduled (new cron → new next_run_at) between the
+// worker's Due read and its MarkFired write must WIN — the worker must not
+// clobber the new cursor with a value computed from the stale cron. The firing
+// is still recorded (last_run_at) so the run isn't lost.
+func TestScheduleMarkFiredCASLosesToReschedule(t *testing.T) {
+	ctx := context.Background()
+	s := newScheduleStore(t)
+
+	past := time.Now().Add(-time.Hour).UTC().Truncate(time.Millisecond)
+	created, err := s.Create(ctx, schedule.Schedule{Prompt: "p", Cron: "@daily", Enabled: true, NextRunAt: past})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// A user reschedules (new cron) between the worker's Due read (which saw
+	// `past`) and its MarkFired write: next_run_at is now `rescheduled`.
+	rescheduled := time.Now().Add(48 * time.Hour).UTC().Truncate(time.Millisecond)
+	got, _ := s.Get(ctx, created.ID)
+	got.NextRunAt = rescheduled
+	if _, err := s.Update(ctx, got); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+
+	// The worker now fires with the STALE prev (`past`) + a stale-cron next. The
+	// CAS must miss: the rescheduled cursor stays, but last_run_at is recorded.
+	ranAt := time.Now().UTC().Truncate(time.Millisecond)
+	staleNext := time.Now().Add(24 * time.Hour).UTC().Truncate(time.Millisecond)
+	if err := s.MarkFired(ctx, created.ID, ranAt, past, staleNext); err != nil {
+		t.Fatalf("markFired: %v", err)
+	}
+
+	reread, _ := s.Get(ctx, created.ID)
+	if !reread.NextRunAt.Equal(rescheduled) {
+		t.Errorf("NextRunAt = %v, want %v (reschedule must win the stale advance)", reread.NextRunAt, rescheduled)
+	}
+	if !reread.LastRunAt.Equal(ranAt) {
+		t.Errorf("LastRunAt = %v, want %v (the firing must still be recorded)", reread.LastRunAt, ranAt)
 	}
 }
 
