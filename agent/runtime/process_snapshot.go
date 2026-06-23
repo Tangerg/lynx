@@ -188,7 +188,13 @@ func (p *Platform) RestoreFromSnapshot(snap core.ProcessSnapshot, options core.P
 		r.Restore(named, snap.Conditions, objects)
 	}
 
-	p.procs.register(proc)
+	// Restore keeps the snapshot's ORIGINAL process id, so refuse to clobber an
+	// id still held by a live process (e.g. an auto-snapshot re-restoring while
+	// the original ticks) — that would split the id across two objects. A
+	// terminal / absent slot replaces cleanly.
+	if !p.procs.registerNew(proc) {
+		return nil, fmt.Errorf("runtime: cannot restore process %s: a live process with that id is already running", proc.id)
+	}
 	return proc, nil
 }
 
