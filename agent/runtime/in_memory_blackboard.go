@@ -204,9 +204,14 @@ func (b *inMemoryBlackboard) Condition(key string) (bool, bool) {
 	return value, ok
 }
 
-// Spawn produces a child blackboard. Default behavior copies named keys,
-// protected entries, conditions, and the objects list — but NOT hidden
-// markers (the child re-derives visibility on its own).
+// Spawn produces a child blackboard inheriting the parent's full state: named
+// keys, protected entries, conditions, the objects list — AND the hidden
+// markers. Copying objects WITHOUT their hidden markers would un-hide them in
+// the child: an object the parent deliberately hid (so actions stop discovering
+// / re-binding it) would reappear via the child's findLatestByType, giving the
+// child a different view of the same data than the parent had. Visibility is
+// part of the inherited state, so it comes along. (Snapshot/Restore drop hidden
+// instead — there it's a transient view filter with no portable wire form.)
 func (b *inMemoryBlackboard) Spawn() core.Blackboard {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
@@ -216,6 +221,7 @@ func (b *inMemoryBlackboard) Spawn() core.Blackboard {
 	maps.Copy(child.protected, b.protected)
 	maps.Copy(child.conditions, b.conditions)
 	child.objects = append(child.objects, b.objects...)
+	child.hidden = append(child.hidden, b.hidden...)
 	return child
 }
 

@@ -78,11 +78,28 @@ func newProcessRegistry() processRegistry {
 }
 
 // register adds a process. Called by Platform.createProcess after the
-// AgentProcess is fully wired.
+// AgentProcess is fully wired (a freshly-minted, unique id — no collision).
 func (r *processRegistry) register(p *AgentProcess) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.procs[p.id] = p
+}
+
+// registerNew adds p only when its id isn't already held by a still-live
+// (non-terminal) process — the path RestoreFromSnapshot takes, where the
+// snapshot keeps the ORIGINAL id. Overwriting a running process would split its
+// id across two independently-locked objects: ProcessByID / KillProcess /
+// ResumeProcess would act on the restored copy while the original keeps
+// ticking, and neither's terminal gate could protect the other. A terminal or
+// absent slot is safe to replace. Returns false when refused.
+func (r *processRegistry) registerNew(p *AgentProcess) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if existing, ok := r.procs[p.id]; ok && !existing.Status().IsTerminal() {
+		return false
+	}
+	r.procs[p.id] = p
+	return true
 }
 
 // unregister removes the process at id. Returns false when the id is
