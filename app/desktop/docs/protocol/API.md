@@ -414,7 +414,7 @@ JSON 树兜底渲染（`arguments` 必为对象 → 树；`result` 是 JSON → 
 
 | name（约定） | arguments（取值键） | result（取值键） | 富渲染卡片 |
 | --- | --- | --- | --- |
-| `bash` / `shell` | `command` | `{ exitCode, output, outputTruncated? }` | 命令卡片（output = 合并 stdout+stderr 全文；截断置 `outputTruncated`） |
+| `shell` | `command` | `{ exitCode, output, outputTruncated? }` | 命令卡片（output = 合并 stdout+stderr 全文；截断置 `outputTruncated`） |
 | `edit` / `write` | `path`, … | `{ changes: FileEdit[] }` | diff 卡片 |
 | `grep` / `glob` | `query` / `pattern` | `{ hits: SearchHit[] }` | 本地搜索卡片 |
 | `webSearch` | `query` | `{ results: WebSearchResult[] }` | 网络结果卡片 |
@@ -658,7 +658,7 @@ interface RunProgress {
   step?: number;          // 已走的 agent 步数
   maxSteps?: number;      // 上限（run 起时设了才有）
   usage?: Usage;          // 至此累计用量（成本读 usage.costUsd）
-  activity?: string;      // 人读的当前动作（"calling tool: bash"）
+  activity?: string;      // 人读的当前动作（"calling tool: shell"）
 }
 
 type JsonPatch = Array<{ op: "add"|"remove"|"replace"|"move"|"copy"|"test"; path: string; value?: unknown; from?: string }>;
@@ -772,8 +772,8 @@ interface ToolResultResponse{ type: "toolResult"; result?: unknown; error?: Prob
 > `answers` 值一律 `string[]`（单选也是单元素数组）——消费端形状统一、不用每次判 `string | string[]`（S8）。
 
 > **`remember`（审批 scope，AUX_API §6）**：持久化成一条**细粒度规则**（`ApprovalRule`，§C.3）。规则按 `(scope, tool, subject)`
-> 命中：`subject` 是后端按工具从被批准调用里提取的子主题（bash 的 command / 文件工具的 file_path），所以记的是
-> 「`npm run *` 在本 project」而非笼统「整个 bash」。`decision:"deny" + remember` 合法 = 记住拒绝。`editedArgs` 仍是
+> 命中：`subject` 是后端按工具从被批准调用里提取的子主题（shell 的 command / 文件工具的 file_path），所以记的是
+> 「`npm run *` 在本 project」而非笼统「整个 shell」。`decision:"deny" + remember` 合法 = 记住拒绝。`editedArgs` 仍是
 > **一次性**的（不折进规则）。三个 `scope` **全部持久**（SQLite）：`session` 键到会话、`project` 键到会话 cwd、`global`
 > 处处生效；最具体的命中胜出（session > project > global，再 exact > glob > 任意），同特异度冲突取 deny。
 
@@ -1097,7 +1097,7 @@ fd;且我们用不了 fd-廉价的 FSEvents)。改为两路覆盖,跨平台(inot
   (commit/暂存/checkout/branch/merge,任何进程所为)发去抖 `resync` → client 重拉 `workspace.getDiff`/`listFileChanges`。
   非 git 仓的 cwd → 该 watch 静默无效(getDiff 本身也会 `vcs_unavailable`)。
 - **`files.changed{cwd, paths}`** —— **agent 自己的文件编辑**(write/edit 工具)由运行时从 run 流**精确推送**:工具一完成就发
-  变更文件路径(相对 `cwd`)。无需 watch、无竞态。`bash` 的文件改动不发(参数无法判定;若是 git 操作则走上面的 `.git` 监视)。
+  变更文件路径(相对 `cwd`)。无需 watch、无竞态。`shell` 的文件改动不发(参数无法判定;若是 git 操作则走上面的 `.git` 监视)。
   纯外部进程编辑(非 git、非 agent)不实时,降级到下次 git 操作 / 手动刷新(同 Claude Code 取舍)。
 - 客户端用 `cwd` 区分 `files.changed` 属于哪个项目;`resync` 无 paths,语义是"该 cwd 重拉"。
 - **`workspace.mcp.reconnect`** 无同步返回 —— 结果经 `mcp.serverChanged` 投递,**保证顺序 `connecting → (connected | failed)`**
@@ -1528,7 +1528,7 @@ interface ClientCapabilities {
   本基线消除的两类历史 bug（`items` vs `data` 字段名漂移、completed 缺权威落点）正是这层测试当场能抓的。
 - CI 卡 drift：生成的 TS / schema 与 SSOT 不一致即红。
 
-> **这是迁移的硬前置项，不是"以后再补"**。§4.4 去领域化后，富 `result` 形状（§4.4.2 的 `bash`→`{exitCode,output,outputTruncated}`、
+> **这是迁移的硬前置项，不是"以后再补"**。§4.4 去领域化后，富 `result` 形状（§4.4.2 的 `shell`→`{exitCode,output,outputTruncated}`、
 > `grep`→`{hits}` 等约定）**不再被 wire 联合机器保证**——它们是非规范展示约定。唯一能阻止这些约定在前后端间无声漂移的，
 > 就是黄金样本 + 从 SSOT 导出的 schema。**故迁移前必须先立起这层闸**，否则正好放任 G1 本想消除的那类约定漂移 bug。
 
@@ -1673,8 +1673,8 @@ type ApprovalMode = "plan" | "safe" | "balanced" | "yolo";  // plan=只读规划
 interface ApprovalRule {           // 一条持久"记住这个决策"规则（AUX_API §6）
   id: string;                      // 稳定 id（domain 内对 scope+key+tool+subject 哈希），forgetRule 用
   scope: "session" | "project" | "global";
-  tool: string;                    // 工具名，如 "bash"
-  subject?: string;                // 命中该工具的子主题 glob（bash 的 command / 文件工具的 file_path）；省略 = 该工具任意参数
+  tool: string;                    // 工具名，如 "shell"
+  subject?: string;                // 命中该工具的子主题 glob（shell 的 command / 文件工具的 file_path）；省略 = 该工具任意参数
   dir?: string;                    // project scope 的目录（仅展示；session/global 省略）
   decision: "allow" | "deny";
 }

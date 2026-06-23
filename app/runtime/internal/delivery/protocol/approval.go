@@ -26,13 +26,13 @@ type Approval interface {
 
 // ApprovalRule is one persisted fine-grained approval rule (AUX_API §6). The
 // rule auto-resolves a gated tool call when the call's scope matches, the tool
-// matches, and the call's per-tool subject (a bash command, an edited file's
+// matches, and the call's per-tool subject (a shell command, an edited file's
 // path) matches the Subject glob — so a rule reads "allow `npm run *` in this
 // project", not the blunt whole-tool grant.
 type ApprovalRule struct {
 	ID       string `json:"id"`
 	Scope    string `json:"scope"`             // "session" | "project" | "global"
-	Tool     string `json:"tool"`              // tool name, e.g. "bash"
+	Tool     string `json:"tool"`              // tool name, e.g. "shell"
 	Subject  string `json:"subject,omitempty"` // command / path glob; "" = any arguments
 	Dir      string `json:"dir,omitempty"`     // project-scope directory (display only; omitted otherwise)
 	Decision string `json:"decision"`          // "allow" | "deny"
@@ -61,7 +61,7 @@ type ForgetApprovalRuleRequest struct {
 //	          agent only investigates + drafts a plan; exit_plan_mode presents
 //	          the plan for approval and flips the stance back to execute
 //	safe      every write/exec/network tool prompts for approval
-//	balanced  write/network auto-allowed; only exec (bash) prompts (the default)
+//	balanced  write/network auto-allowed; only exec (shell) prompts (the default)
 //	yolo      everything auto-allowed
 type ApprovalMode string
 

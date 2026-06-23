@@ -39,7 +39,7 @@ type StartTurnRequest struct {
 	Media []*media.Media
 
 	// Cwd is the session's working directory — the project root the turn's
-	// filesystem + bash tools run in. Resolved from Session.cwd by the
+	// filesystem + shell tools run in. Resolved from Session.cwd by the
 	// caller (runs.start). Empty falls back to the engine's default workdir.
 	Cwd string
 

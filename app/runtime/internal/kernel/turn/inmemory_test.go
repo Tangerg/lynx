@@ -18,7 +18,7 @@ import (
 )
 
 // TestService_StartTurn_EmitsExpectedEvents drives a full turn
-// against a stub LLM that asks for `bash` (echo lyra). The service
+// against a stub LLM that asks for `shell` (echo lyra). The service
 // must emit the canonical sequence:
 //
 //	TurnStart → ToolCallStart → ToolCallEnd → MessageDelta → TurnEnd
@@ -31,7 +31,7 @@ func TestService_StartTurn_EmitsExpectedEvents(t *testing.T) {
 
 	handle, err := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-1",
-		Message:   "say lyra via bash",
+		Message:   "say lyra via shell",
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -60,8 +60,8 @@ func TestService_StartTurn_EmitsExpectedEvents(t *testing.T) {
 				t.Error("TurnStart.TurnID is empty")
 			}
 		case turn.ToolCallStart:
-			if e.ToolName != "bash" {
-				t.Errorf("ToolCallStart.ToolName = %q, want bash", e.ToolName)
+			if e.ToolName != "shell" {
+				t.Errorf("ToolCallStart.ToolName = %q, want shell", e.ToolName)
 			}
 			if !strings.Contains(e.Arguments, "echo lyra") {
 				t.Errorf("ToolCallStart.Arguments missing command: %q", e.Arguments)
@@ -184,7 +184,7 @@ func TestService_InjectSteering_UnknownTurn(t *testing.T) {
 func TestService_ApprovalGate_AllowOnce(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
 	eng, _ := kernel.New(context.Background(), kernel.Config{ChatClient: client})
-	svc := mustChat(turn.New(eng, approval.New(approval.ModeBalanced, nil), nil, nil, nil, nil)) // bash → gate
+	svc := mustChat(turn.New(eng, approval.New(approval.ModeBalanced, nil), nil, nil, nil, nil)) // shell → gate
 
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-approve",
@@ -202,8 +202,8 @@ func TestService_ApprovalGate_AllowOnce(t *testing.T) {
 			sawInterrupt = true
 			if len(e.Interrupts) != 1 || e.Interrupts[0].Kind != "approval" {
 				t.Errorf("interrupts = %+v, want one approval", e.Interrupts)
-			} else if p, ok := e.Interrupts[0].Payload.(turn.ApprovalPrompt); !ok || p.ToolName != "bash" {
-				t.Errorf("approval payload = %+v, want bash ApprovalPrompt", e.Interrupts[0].Payload)
+			} else if p, ok := e.Interrupts[0].Payload.(turn.ApprovalPrompt); !ok || p.ToolName != "shell" {
+				t.Errorf("approval payload = %+v, want shell ApprovalPrompt", e.Interrupts[0].Payload)
 			}
 			if err := svc.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}); err != nil {
 				t.Errorf("Resume: %v", err)
@@ -236,7 +236,7 @@ func TestService_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	client, _ := chatmodel.NewClient(model)
 	store := memory.NewInMemoryStore()
 	eng, _ := kernel.New(context.Background(), kernel.Config{ChatClient: client, MemoryStore: store})
-	svc := mustChat(turn.New(eng, approval.New(approval.ModeBalanced, nil), nil, nil, nil, nil)) // bash → gate
+	svc := mustChat(turn.New(eng, approval.New(approval.ModeBalanced, nil), nil, nil, nil, nil)) // shell → gate
 
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-rmodel",
@@ -503,7 +503,7 @@ func (m *stubChatModel) Call(_ context.Context, req *chatmodel.Request) (*chatmo
 	if hasToolMsg(req.Messages) {
 		return makeText("I ran echo and got lyra.")
 	}
-	return makeToolCall("bash", `{"command":"echo lyra"}`)
+	return makeToolCall("shell", `{"command":"echo lyra"}`)
 }
 
 func (m *stubChatModel) Stream(ctx context.Context, req *chatmodel.Request) iter.Seq2[*chatmodel.Response, error] {
@@ -511,8 +511,8 @@ func (m *stubChatModel) Stream(ctx context.Context, req *chatmodel.Request) iter
 	return func(yield func(*chatmodel.Response, error) bool) { yield(resp, err) }
 }
 
-// countingStubModel runs the same two-round bash dance as stubChatModel
-// (round 1 → bash tool call, round 2 → final text) but counts model
+// countingStubModel runs the same two-round shell dance as stubChatModel
+// (round 1 → shell tool call, round 2 → final text) but counts model
 // invocations so a test can assert a HITL resume continues the turn
 // rather than re-running it from the first round.
 type countingStubModel struct {
@@ -530,7 +530,7 @@ func (m *countingStubModel) Call(_ context.Context, req *chatmodel.Request) (*ch
 	if hasToolMsg(req.Messages) {
 		return makeText("I ran echo and got lyra.")
 	}
-	return makeToolCall("bash", `{"command":"echo lyra"}`)
+	return makeToolCall("shell", `{"command":"echo lyra"}`)
 }
 
 func (m *countingStubModel) Stream(ctx context.Context, req *chatmodel.Request) iter.Seq2[*chatmodel.Response, error] {

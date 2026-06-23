@@ -15,7 +15,7 @@ import (
 
 // newToolInvocation constructs a wire ToolInvocation. For completed tools
 // (outputJSON non-empty), the result is shaped per the display convention
-// keyed by Name (§4.4.2: bash→{exitCode,output,…}, grep/glob→{hits}, …).
+// keyed by Name (§4.4.2: shell→{exitCode,output,…}, grep/glob→{hits}, …).
 func (t *translator) newToolInvocation(name, argsJSON, outputJSON string) *protocol.ToolInvocation {
 	inv := protocol.NewToolInvocation(name, argsJSON, outputJSON)
 	// Apply name-based result shaping for completed tools — the display
@@ -30,7 +30,7 @@ func (t *translator) newToolInvocation(name, argsJSON, outputJSON string) *proto
 // convention keyed by tool name. Unknown tools fall back to generic JSON.
 func (t *translator) shapeToolResult(name string, args map[string]any, outputJSON string) any {
 	switch strings.ToLower(name) {
-	case "bash", "shell":
+	case "shell":
 		return commandResultFrom(outputJSON)
 	case "grep", "glob":
 		return searchResult{Hits: parseLocalSearchHits(outputJSON)}
@@ -66,7 +66,7 @@ func (t *translator) shapeToolResult(name string, args map[string]any, outputJSO
 // isCommandTool reports whether a tool name is a shell/command tool.
 func isCommandTool(name string) bool {
 	switch strings.ToLower(name) {
-	case "bash", "shell":
+	case "shell":
 		return true
 	default:
 		return false

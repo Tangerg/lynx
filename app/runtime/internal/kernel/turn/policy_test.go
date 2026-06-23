@@ -24,21 +24,21 @@ func TestGateFor_Matrix(t *testing.T) {
 		// ModePlan denies every non-read tool outright (read-only).
 		{"write", approval.ModePlan, gateDeny},
 		{"edit", approval.ModePlan, gateDeny},
-		{"bash", approval.ModePlan, gateDeny},
+		{"shell", approval.ModePlan, gateDeny},
 		{"some_mcp_tool", approval.ModePlan, gateDeny}, // unknown → exec class
 
 		// ModeSafe prompts on every non-read tool.
 		{"write", approval.ModeSafe, gatePrompt},
-		{"bash", approval.ModeSafe, gatePrompt},
+		{"shell", approval.ModeSafe, gatePrompt},
 
 		// ModeBalanced prompts only on exec; write/network auto-pass.
 		{"write", approval.ModeBalanced, gatePass},
 		{"edit", approval.ModeBalanced, gatePass},
-		{"bash", approval.ModeBalanced, gatePrompt},
+		{"shell", approval.ModeBalanced, gatePrompt},
 		{"unknown_tool", approval.ModeBalanced, gatePrompt}, // unknown → exec class
 
 		// ModeYolo passes everything.
-		{"bash", approval.ModeYolo, gatePass},
+		{"shell", approval.ModeYolo, gatePass},
 		{"write", approval.ModeYolo, gatePass},
 	}
 	for _, c := range cases {
@@ -54,7 +54,7 @@ func TestGateFor_Matrix(t *testing.T) {
 // hitl.Interrupt, so no agent process context is needed.
 func TestApproveToolCall_RememberedShortCircuit(t *testing.T) {
 	ctx := context.Background()
-	appr := approval.New(approval.ModeSafe, approval.NewMemoryStore()) // bash gates → would prompt
+	appr := approval.New(approval.ModeSafe, approval.NewMemoryStore()) // shell gates → would prompt
 	obs := &turnObserver{
 		svc: &inMemory{approval: appr},
 		st:  &turnState{handle: TurnHandle{SessionID: "s1"}},
@@ -62,9 +62,9 @@ func TestApproveToolCall_RememberedShortCircuit(t *testing.T) {
 
 	// Remembered allow → verdict runs (no interrupt, not denied).
 	_ = appr.Remember(ctx, approval.RememberRequest{
-		Scope: approval.ScopeSession, SessionID: "s1", Tool: "bash", Arguments: "{}", Decision: approval.Allow,
+		Scope: approval.ScopeSession, SessionID: "s1", Tool: "shell", Arguments: "{}", Decision: approval.Allow,
 	})
-	if v := obs.ApproveToolCall(ctx, "c1", "bash", "{}"); v.Interrupt != nil || v.Denied {
+	if v := obs.ApproveToolCall(ctx, "c1", "shell", "{}"); v.Interrupt != nil || v.Denied {
 		t.Fatalf("remembered allow = %+v, want a clean run verdict", v)
 	}
 

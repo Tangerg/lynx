@@ -42,10 +42,10 @@ describe("planRenderUnits", () => {
   it("breaks a run on a side-effecting tool and preserves original indices", () => {
     const blocks = [tb("x"), tb("a"), tb("b"), tb("y")];
     const tools = {
-      x: tool("x", "bash"),
+      x: tool("x", "shell"),
       a: tool("a", "read"),
       b: tool("b", "read"),
-      y: tool("y", "bash"),
+      y: tool("y", "shell"),
     };
     expect(planRenderUnits(blocks, tools)).toEqual([
       { kind: "block", block: blocks[0], index: 0 },

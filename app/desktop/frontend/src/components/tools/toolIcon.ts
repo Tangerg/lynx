@@ -27,11 +27,10 @@ export function toolRoutingKey(tool: ToolCall): string {
 export const DEFAULT_TOOL_ICONS: Record<string, IconName> = {
   // Shell — terminal is the shared domain glyph; the background ops split out
   // by what they do (start a process / read its output / kill it).
-  bash: "terminal",
   shell: "terminal",
   run_in_background: "play",
-  bash_output: "list",
-  kill_shell: "stop",
+  shell_output: "list",
+  shell_kill: "stop",
   // File ops — a distinct verb each so read ≠ write ≠ edit at a glance.
   read: "eye", // view contents
   write: "file-plus", // create / overwrite a file

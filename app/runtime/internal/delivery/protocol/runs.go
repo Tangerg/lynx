@@ -250,7 +250,7 @@ const (
 // RememberScope is the standing-decision directive on an approval response
 // (AUX_API §6). When present the runtime persists the approve/deny decision as
 // a fine-grained rule so matching future calls skip the prompt. The rule is
-// keyed by tool NAME + the call's per-tool subject (a bash command, an edited
+// keyed by tool NAME + the call's per-tool subject (a shell command, an edited
 // file's path) at the chosen Scope (session / project / global). editedArgs
 // stays one-shot regardless: a remembered rule matches by subject, never by a
 // one-off arg rewrite.

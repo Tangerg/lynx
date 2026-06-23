@@ -18,7 +18,7 @@ const (
 // the strictness gradient documented on [approval.Mode]:
 //
 //   - ModeYolo     → always pass
-//   - ModeBalanced → prompt only on exec class (bash + unknown)
+//   - ModeBalanced → prompt only on exec class (shell + unknown)
 //   - ModeSafe     → prompt on every write / exec / unknown tool
 //   - ModePlan     → deny every write / exec / unknown tool outright (read-only)
 //
@@ -54,7 +54,7 @@ type safetyClass int
 const (
 	safetyClassSafe  safetyClass = iota // read-only (read / grep / glob)
 	safetyClassWrite                    // mutates the workspace (write / edit)
-	safetyClassExec                     // runs arbitrary code / network (bash / httpreq)
+	safetyClassExec                     // runs arbitrary code / network (shell / httpreq)
 )
 
 // safetyClassFor maps a built-in tool name to its class, for approval

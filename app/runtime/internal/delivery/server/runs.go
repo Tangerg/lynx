@@ -34,7 +34,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		return nil, nil, err
 	}
 
-	// The turn's filesystem + bash tools run in the session's project cwd
+	// The turn's filesystem + shell tools run in the session's project cwd
 	// (API.md §0.2). Resolve it here so the engine anchors them per session
 	// rather than at the single serve-time workdir.
 	sess, err := s.rt.Session().Get(ctx, sessionID)

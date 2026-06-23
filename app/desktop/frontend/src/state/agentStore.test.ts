@@ -35,7 +35,7 @@ function seedInterrupt(kind: "approval" | "question", itemId: string): void {
             item({
               id: itemId,
               type: "toolCall",
-              tool: { name: "bash", arguments: { command: "rm x" } },
+              tool: { name: "shell", arguments: { command: "rm x" } },
             }),
           )
         : started(
@@ -55,7 +55,7 @@ function seedInterrupt(kind: "approval" | "question", itemId: string): void {
             ? {
                 itemId: itemId as never,
                 type: "approval",
-                payload: { tool: { name: "bash", arguments: { command: "rm x" } } },
+                payload: { tool: { name: "shell", arguments: { command: "rm x" } } },
               }
             : {
                 itemId: itemId as never,
@@ -153,14 +153,14 @@ describe("agentStore.resolveInterrupt", () => {
           item({
             id: "t1",
             type: "toolCall",
-            tool: { name: "bash", arguments: { command: "rm a" } },
+            tool: { name: "shell", arguments: { command: "rm a" } },
           }),
         ),
         started(
           item({
             id: "t2",
             type: "toolCall",
-            tool: { name: "bash", arguments: { command: "rm b" } },
+            tool: { name: "shell", arguments: { command: "rm b" } },
           }),
         ),
         runFinished({
@@ -169,12 +169,12 @@ describe("agentStore.resolveInterrupt", () => {
             {
               itemId: "t1" as never,
               type: "approval",
-              payload: { tool: { name: "bash", arguments: { command: "rm a" } } },
+              payload: { tool: { name: "shell", arguments: { command: "rm a" } } },
             },
             {
               itemId: "t2" as never,
               type: "approval",
-              payload: { tool: { name: "bash", arguments: { command: "rm b" } } },
+              payload: { tool: { name: "shell", arguments: { command: "rm b" } } },
             },
           ],
         }),

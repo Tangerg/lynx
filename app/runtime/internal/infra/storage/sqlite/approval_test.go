@@ -31,7 +31,7 @@ func TestApprovalRuleStore_VisibleScopes(t *testing.T) {
 			t.Fatalf("put: %v", err)
 		}
 	}
-	put(approval.Rule{ID: "s", Scope: approval.ScopeSession, ScopeKey: "sess1", Tool: "bash", Decision: approval.Allow})
+	put(approval.Rule{ID: "s", Scope: approval.ScopeSession, ScopeKey: "sess1", Tool: "shell", Decision: approval.Allow})
 	put(approval.Rule{ID: "p", Scope: approval.ScopeProject, ScopeKey: "/proj/a", Tool: "write", Decision: approval.Deny})
 	put(approval.Rule{ID: "g", Scope: approval.ScopeGlobal, Tool: "read", Decision: approval.Allow})
 
@@ -66,7 +66,7 @@ func TestApprovalRuleStore_VisibleScopes(t *testing.T) {
 func TestApprovalRuleStore_UpsertAndDelete(t *testing.T) {
 	ctx := context.Background()
 	store := newApprovalStore(t)
-	r := approval.Rule{ID: "x", Scope: approval.ScopeGlobal, Tool: "bash", Subject: "npm run *", Decision: approval.Allow}
+	r := approval.Rule{ID: "x", Scope: approval.ScopeGlobal, Tool: "shell", Subject: "npm run *", Decision: approval.Allow}
 	if err := store.Put(ctx, r); err != nil {
 		t.Fatalf("put: %v", err)
 	}

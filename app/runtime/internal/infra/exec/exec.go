@@ -3,12 +3,12 @@
 // the model can read it incrementally, and kills them on demand. It is pure
 // infra — no domain knowledge, no upward dependency.
 //
-// Every command the engine's bash tool runs starts here as a detached job:
+// Every command the engine's shell tool runs starts here as a detached job:
 // the foreground path races the command's completion ([Shell.Done]) against an
 // auto-background window, removing the job ([Manager.Remove]) if it finishes in
 // time and otherwise leaving it running and addressable by its shell id. So one
-// mechanism backs both the synchronous bash result and the bash_output /
-// kill_shell tools — the auto-background design.
+// mechanism backs both the synchronous shell result and the shell_output /
+// shell_kill tools — the auto-background design.
 //
 // No PTY: plain pipes into a bounded ring buffer. Cross-platform with
 // no platform-specific features — kill is a plain process kill, so a command
@@ -31,7 +31,7 @@ const maxBuffer = 256 * 1024
 
 // Manager runs shell commands in the background and lets callers poll their
 // output and stop them — the long-running-command counterpart to a synchronous
-// bash executor. The process handles + output buffers live here. The zero
+// shell executor. The process handles + output buffers live here. The zero
 // value is not usable; build one with [NewManager].
 type Manager struct {
 	mu     sync.Mutex
@@ -141,7 +141,7 @@ func (m *Manager) Kill(id string) (running, ok bool) {
 }
 
 // Remove drops a shell from the manager without killing it. The foreground
-// bash race calls it once a command completes within the auto-background
+// shell race calls it once a command completes within the auto-background
 // window, so a finished command isn't left behind as a phantom background job.
 // Killing instead would cancel the already-exited process context needlessly.
 func (m *Manager) Remove(id string) {
@@ -179,7 +179,7 @@ func (s *Shell) finish(info string, code int, killed bool) {
 	close(s.done)
 }
 
-// Done is closed when the process finishes — the foreground bash race selects
+// Done is closed when the process finishes — the foreground shell race selects
 // on it to detect completion without polling.
 func (s *Shell) Done() <-chan struct{} { return s.done }
 

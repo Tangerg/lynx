@@ -39,7 +39,7 @@ task is ambiguous, ask one focused question rather than guess.`
 //
 // The project side anchors to the TURN's working directory — the
 // session cwd seeded on the process blackboard ([turnCwd]), the same
-// seam the fs/bash/skill tools follow — so a session opened on
+// seam the fs/shell/skill tools follow — so a session opened on
 // project A briefs the model about project A regardless of where
 // `lyra serve` was started.
 //

@@ -28,12 +28,12 @@ beforeEach(async () => {
   await loadPlugin(spec);
 });
 
-// A `bash` tool (§4.4.2): identity `name`, `arguments.command`, and the
+// A `shell` tool (§4.4.2): identity `name`, `arguments.command`, and the
 // settled `result` ({ output, exitCode, outputTruncated }) on completion. The
 // `result` fields land in `result`, not on the tool root (domain-neutral
 // envelope, API.md §4.4).
 const cmd = (result: Record<string, unknown>) => ({
-  name: "bash",
+  name: "shell",
   arguments: { command: "pwd" },
   ...(Object.keys(result).length > 0 ? { result } : {}),
 });

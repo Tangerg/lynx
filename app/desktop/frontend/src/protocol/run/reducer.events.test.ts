@@ -103,7 +103,7 @@ describe("reducer — item fold", () => {
         item({
           id: "t1",
           type: "toolCall",
-          tool: { name: "bash", arguments: { command: "pnpm test" } },
+          tool: { name: "shell", arguments: { command: "pnpm test" } },
         }),
       ),
     );
@@ -120,7 +120,7 @@ describe("reducer — item fold", () => {
           id: "t1",
           type: "toolCall",
           status: "completed",
-          tool: { name: "bash", arguments: { command: "pnpm test" }, result: { exitCode: 0 } },
+          tool: { name: "shell", arguments: { command: "pnpm test" }, result: { exitCode: 0 } },
         }),
       ),
     );
@@ -245,7 +245,11 @@ describe("reducer — item fold", () => {
     s = reduce(
       s,
       started(
-        item({ id: "t1", type: "toolCall", tool: { name: "bash", arguments: { command: "bad" } } }),
+        item({
+          id: "t1",
+          type: "toolCall",
+          tool: { name: "shell", arguments: { command: "bad" } },
+        }),
       ),
     );
     s = reduce(
@@ -255,7 +259,7 @@ describe("reducer — item fold", () => {
           id: "t1",
           type: "toolCall",
           status: "incomplete",
-          tool: { name: "bash", arguments: { command: "bad" } },
+          tool: { name: "shell", arguments: { command: "bad" } },
           error: { type: "tool_failed", detail: "boom" },
         }),
       ),
@@ -274,7 +278,7 @@ describe("reducer — item fold", () => {
         item({
           id: "t1",
           type: "toolCall",
-          tool: { name: "bash", arguments: { command: "bash" } },
+          tool: { name: "shell", arguments: { command: "shell" } },
         }),
       ),
     );
@@ -285,7 +289,7 @@ describe("reducer — item fold", () => {
           id: "t1",
           type: "toolCall",
           status: "incomplete",
-          tool: { name: "bash", arguments: { command: "bash" } },
+          tool: { name: "shell", arguments: { command: "shell" } },
           error: { type: "denied_by_user", detail: "tool call denied by user" },
         }),
       ),
@@ -346,7 +350,7 @@ describe("reducer — HITL interrupt", () => {
         item({
           id: "tool_1",
           type: "toolCall",
-          tool: { name: "bash", arguments: { command: "rm -rf x" } },
+          tool: { name: "shell", arguments: { command: "rm -rf x" } },
         }),
       ),
     );
@@ -358,7 +362,7 @@ describe("reducer — HITL interrupt", () => {
           {
             itemId: "tool_1" as never,
             type: "approval",
-            payload: { tool: { name: "bash", arguments: { command: "rm -rf x" } } },
+            payload: { tool: { name: "shell", arguments: { command: "rm -rf x" } } },
           },
         ],
       }),
@@ -423,7 +427,7 @@ describe("reducer — HITL interrupt", () => {
         item({
           id: "tool_1",
           type: "toolCall",
-          tool: { name: "bash", arguments: { command: "rm x" } },
+          tool: { name: "shell", arguments: { command: "rm x" } },
         }),
       ),
     );
@@ -435,7 +439,7 @@ describe("reducer — HITL interrupt", () => {
           {
             itemId: "tool_1" as never,
             type: "approval",
-            payload: { tool: { name: "bash", arguments: { command: "rm x" } } },
+            payload: { tool: { name: "shell", arguments: { command: "rm x" } } },
           },
         ],
       }),
@@ -465,7 +469,7 @@ describe("reducer — interrupt idempotency + terminal cleanup", () => {
         {
           itemId: itemId as never,
           type: "approval",
-          payload: { tool: { name: "bash", arguments: { command } } },
+          payload: { tool: { name: "shell", arguments: { command } } },
         },
       ],
     });
@@ -478,7 +482,7 @@ describe("reducer — interrupt idempotency + terminal cleanup", () => {
         item({
           id: "tool_1",
           type: "toolCall",
-          tool: { name: "bash", arguments: { command: "rm x" } },
+          tool: { name: "shell", arguments: { command: "rm x" } },
         }),
       ),
     );

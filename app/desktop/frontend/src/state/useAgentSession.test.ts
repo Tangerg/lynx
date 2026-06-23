@@ -65,7 +65,7 @@ describe("useAgentSession durable recovery", () => {
   const approvalInterrupt = {
     type: "approval" as const,
     itemId: "item_appr",
-    payload: { tool: { name: "bash", arguments: { command: "rm -rf build" } } },
+    payload: { tool: { name: "shell", arguments: { command: "rm -rf build" } } },
   };
 
   function stubClient(overrides: Record<string, unknown> = {}) {

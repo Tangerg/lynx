@@ -26,7 +26,7 @@ func TestLoad_TagsGlobalAndProjectScope(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeHooks(t, home, `{"hooks":[{"event":"SessionStart","inject":"global-ctx"}]}`)
-	writeHooks(t, cwd, `{"hooks":[{"event":"PreToolUse","matcher":"bash","command":"true"}]}`)
+	writeHooks(t, cwd, `{"hooks":[{"event":"PreToolUse","matcher":"shell","command":"true"}]}`)
 
 	hooks, err := Load(context.Background(), cwd, home, nil)
 	if err != nil {

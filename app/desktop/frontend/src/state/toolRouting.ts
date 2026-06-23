@@ -34,7 +34,7 @@ export function hasToolView(tool: ToolCall): boolean {
 
 // Choose which workspace view to surface for the clicked tool. Routing keys
 // on the WIRE identity (`tool.name` → §4.4.2 category) — `fn` is the display
-// label (the command string for bash, the path for edits), never the tool
+// label (the command string for shell, the path for edits), never the tool
 // name, so matching on it would route nothing. Each branch sets up the side
 // effects the view relies on (e.g. active-file path for the diff view).
 function routeForTool(tool: ToolCall): ViewRouting | null {

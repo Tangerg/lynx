@@ -45,7 +45,7 @@
 - **⌘K 命令面板**（`command/command-palette/`，cmdk，模糊匹配 label+desc+group+keywords）——机制在，差的是**源**（见 T3.1），不是面板本身。
 - **Codex 式项目→会话树 + 侧栏会话过滤 + per-session 状态点**（`sidebar/projects.tsx`）。
 - **统一 tab 条**（chat tab 与 view tab 同条）+ **split-beside view**（chat | resizer | view，可拖拽、比例持久）+ **⌘1–9 切 tab** + tab 右键（关闭/关其他/左/右/全部）。
-- **tool-click 路由**（`state/toolRouting.ts`：bash/command 卡 → terminal beside；fileEdit/read 卡 → diff beside）——这是 lynx 已有、competitor 多数没有的"从工具卡进检视面"的好入口。
+- **tool-click 路由**（`state/toolRouting.ts`：shell/command 卡 → terminal beside；fileEdit/read 卡 → diff beside）——这是 lynx 已有、competitor 多数没有的"从工具卡进检视面"的好入口。
 - **分组设置**（12 面板，general/models/agent/integrations/advanced）+ 首启 keyless setup 卡深链 Providers。
 - **per-message / per-session 操作**（复制 MD/Plain/Code、编辑回填、重生成、fork、pin、rename、delete）。
 - **审批能力**（全局模式 + 持久细粒度规则，`settings/approvals/`）——比多数竞品强；**但运行时入口缺**（见 T2.1）。

@@ -33,7 +33,11 @@ describe("reducer — timeline accumulator", () => {
     s = reduce(
       s,
       started(
-        item({ id: "tc1", type: "toolCall", tool: { name: "bash", arguments: { command: "ls" } } }),
+        item({
+          id: "tc1",
+          type: "toolCall",
+          tool: { name: "shell", arguments: { command: "ls" } },
+        }),
       ),
     );
     s = reduce(
@@ -43,7 +47,7 @@ describe("reducer — timeline accumulator", () => {
           id: "tc1",
           type: "toolCall",
           status: "completed",
-          tool: { name: "bash", arguments: { command: "ls" } },
+          tool: { name: "shell", arguments: { command: "ls" } },
         }),
       ),
     );
@@ -69,7 +73,7 @@ describe("reducer — timeline accumulator", () => {
         item({
           id: "tc1",
           type: "toolCall",
-          tool: { name: "bash", arguments: { command: "psql" } },
+          tool: { name: "shell", arguments: { command: "psql" } },
         }),
       ),
     );
@@ -81,7 +85,7 @@ describe("reducer — timeline accumulator", () => {
           {
             itemId: "tc1" as never,
             type: "approval",
-            payload: { tool: { name: "bash", arguments: { command: "psql" } } },
+            payload: { tool: { name: "shell", arguments: { command: "psql" } } },
           },
         ],
       },

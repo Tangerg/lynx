@@ -22,7 +22,7 @@ type Config struct {
 	// Workdir is the DEFAULT working directory — the fallback for
 	// turns that carry no session cwd. A turn that does carry one
 	// (runs.start resolves Session.Cwd) overrides it everywhere
-	// cwd-dependent: fs/bash tools, project skills, and the system
+	// cwd-dependent: fs/shell tools, project skills, and the system
 	// prompt's project LYRA.md + AGENTS.md cascade (see turnCwd).
 	// Empty disables tool path scoping (LocalExecutor permits any
 	// path) — fine for tests, not recommended for production.

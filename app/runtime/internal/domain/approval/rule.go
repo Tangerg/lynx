@@ -23,7 +23,7 @@ import (
 func subjectOf(tool, argsJSON string) string {
 	var field string
 	switch tool {
-	case "bash", "shell", "run_in_background":
+	case "shell", "run_in_background":
 		field = "command"
 	case "read", "write", "edit":
 		field = "file_path"

@@ -35,7 +35,7 @@ type RunChatRequest struct {
 	// user message as UserMessage.Media. Nil for a text-only turn.
 	Media []*media.Media
 
-	// Cwd is the working directory the turn's filesystem + bash tools run
+	// Cwd is the working directory the turn's filesystem + shell tools run
 	// in — the session's project directory. The chat action binds it onto
 	// the process blackboard (turnctx.CwdBindingKey) as a protected entry so
 	// the tool resolver anchors the tools there, and so `task` sub-agents

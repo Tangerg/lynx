@@ -164,7 +164,7 @@ func (s *Server) sessionCwd(ctx context.Context, sessionID string) string {
 
 // fileMutatingTools are the agent tools whose completed call means a specific
 // file changed — their path argument names it exactly, so a workspace
-// subscriber can refresh without watching the working tree. bash is excluded
+// subscriber can refresh without watching the working tree. shell is excluded
 // (its file effects aren't knowable from arguments); git-affecting commands
 // surface via the .git watch instead.
 var fileMutatingTools = map[string]struct{}{"write": {}, "edit": {}}

@@ -28,7 +28,7 @@ type chatInput struct {
 	// `task` sub-agents, whose prompt is text).
 	Media []*media.Media
 
-	// Cwd is the working directory the turn's filesystem + bash tools run
+	// Cwd is the working directory the turn's filesystem + shell tools run
 	// in. The chat action binds it protected on the blackboard so
 	// the tool resolver anchors the tools there and `task` sub-agents inherit
 	// it. Empty falls back to the engine's default workdir.
@@ -101,7 +101,7 @@ type ChatOutput struct {
 // [core.ProcessContext.ChatWithActionTools] which composes the
 // tool.NewMiddleware tool-loop on top of platform guardrails.
 // The model can therefore call read / write / edit / glob / grep /
-// bash freely within one turn.
+// shell freely within one turn.
 //
 // The body uses Stream rather than Call so each text chunk surfaces
 // to [toolObserver.OnMessageDelta] as it arrives — transport

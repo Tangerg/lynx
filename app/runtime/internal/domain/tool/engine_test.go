@@ -29,7 +29,7 @@ func TestService_List(t *testing.T) {
 		"grep":  tool.SafetyClassSafe,
 		"write": tool.SafetyClassWrite,
 		"edit":  tool.SafetyClassWrite,
-		"bash":  tool.SafetyClassExec,
+		"shell":  tool.SafetyClassExec,
 	}
 
 	got := map[string]tool.SafetyClass{}
@@ -50,12 +50,12 @@ func TestService_List(t *testing.T) {
 	}
 }
 
-// TestService_Invoke_Bash runs `bash` directly (no agent loop) and
+// TestService_Invoke_Shell runs `shell` directly (no agent loop) and
 // asserts the output reflects the command we asked for. Useful as a
 // smoke test of the headless-invocation path.
-func TestService_Invoke_Bash(t *testing.T) {
+func TestService_Invoke_Shell(t *testing.T) {
 	svc := buildService(t)
-	out, err := svc.Invoke(context.Background(), "bash", `{"command":"echo lyra"}`)
+	out, err := svc.Invoke(context.Background(), "shell", `{"command":"echo lyra"}`)
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}

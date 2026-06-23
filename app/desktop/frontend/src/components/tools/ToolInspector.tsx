@@ -22,7 +22,7 @@ function formatBody(raw: string | undefined): FormattedBody {
   const trimmed = raw.trim();
   if (!trimmed) return { text: "", isJson: false };
   // Only attempt JSON parse if the text looks like a structure; saves
-  // us from parsing a 5KB bash stdout that starts with a `{` and fails
+  // us from parsing a 5KB shell stdout that starts with a `{` and fails
   // halfway.
   if (trimmed[0] === "{" || trimmed[0] === "[") {
     try {

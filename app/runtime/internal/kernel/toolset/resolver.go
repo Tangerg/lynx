@@ -82,8 +82,8 @@ func (d *decoratedTool) ConcurrencyKey(arguments string) (key string, concurrent
 // all anchored at workdir. These are the only tools whose behavior depends on
 // the working directory, so they are rebuilt per resolution (cheap structs)
 // rather than captured once. No credentials needed; safe to build
-// unconditionally. (bash is built over the shared exec.Manager in
-// shell.Build, not here — it reads cwd per call like bash_output.)
+// unconditionally. (the shell tool is built over the shared exec.Manager in
+// shell.Build, not here — it reads cwd per call like shell_output.)
 //
 // write and edit are wrapped so a successful edit is type-checked by the
 // code-intelligence service and any new problems are folded into the tool
@@ -196,7 +196,7 @@ func appendIfBuilt(tools []chat.Tool, cond bool, label string, build func() (cha
 // Resolver is the platform-scope [core.ToolGroupResolver] for the
 // coding + subtask roles. The working-directory-independent tools (online
 // providers, MCP servers, the `task` delegation tool) are built once at
-// engine construction and captured here; the filesystem + bash tools are
+// engine construction and captured here; the filesystem + shell tools are
 // rebuilt per resolution against the working directory the resolving
 // process carries on its blackboard ([CwdBindingKey]), falling back to
 // defaultWorkdir. That is what lets a single engine serve many sessions —
@@ -210,7 +210,7 @@ type Resolver struct {
 	lsp             []chat.Tool        // code-intelligence tools; cwd read per-call (service keys servers by root)
 	codeIntel       *codeintel.Service // backs the write/edit diagnostics wrap (rebuilt per resolution with the turn's cwd)
 	readTracker     *editguard.Tracker // backs the read-before-edit + stale guards on read/edit/write
-	shell           []chat.Tool        // shell tools (bash / bash_output / kill_shell) over the exec.Manager; cwd read per-call
+	shell           []chat.Tool        // shell tools (shell / shell_output / shell_kill) over the exec.Manager; cwd read per-call
 	task            chat.Tool          // delegation tool; coding role only, nil until set
 	askUser         chat.Tool          // ask_user HITL tool; coding role only (askuser.New, via Deps)
 	exitPlan        chat.Tool          // exit_plan_mode HITL tool; coding role only (exitplan.New, via Deps); nil when no approval svc
@@ -239,7 +239,7 @@ type Resolver struct {
 }
 
 // Deps bundles the working-directory-independent inputs the resolver captures
-// at construction. The fs/bash/lsp/skill tools are rebuilt per resolution
+// at construction. The fs/shell/lsp/skill tools are rebuilt per resolution
 // against the turn's cwd; the online / A2A sets and the code-intelligence
 // service are built once and held.
 type Deps struct {
@@ -248,7 +248,7 @@ type Deps struct {
 	Online          []chat.Tool           // network tools (webfetch/websearch/httpreq)
 	A2A             []chat.Tool           // remote A2A delegation tools
 	LSP             []chat.Tool           // code-intelligence tools
-	Shell           []chat.Tool           // shell tools (bash / bash_output / kill_shell)
+	Shell           []chat.Tool           // shell tools (shell / shell_output / shell_kill)
 	AskUser         chat.Tool             // ask_user HITL tool (coding role only)
 	ExitPlan        chat.Tool             // exit_plan_mode HITL tool (coding role only); nil → omitted
 	Todo            chat.Tool             // todo_write task-list tool (both roles); nil → omitted
@@ -271,7 +271,7 @@ func NewResolver(d Deps) *Resolver {
 	shellTools := d.Shell
 	if shellTools == nil {
 		// Bare resolver (a unit-test engine with no injected tool environment):
-		// own a private exec.Manager so bash and its background companions are
+		// own a private exec.Manager so the shell tool and its background companions are
 		// still available. The production path injects shell tools built over the
 		// shared manager whose KillAll is a shutdown closer (toolset.Build); this
 		// private manager has no closer, fine for a process-lifetime test engine.
@@ -370,7 +370,7 @@ func (g *toolGroup) Tools(ctx context.Context) ([]core.AgentTool, error) {
 	tools = append(tools, g.resolver.lsp...)
 	tools = append(tools, g.resolver.shell...)
 	// The skill tool is working-directory scoped (project skills live under
-	// the turn's cwd), so it is built per resolution like fs/bash and is
+	// the turn's cwd), so it is built per resolution like fs/shell and is
 	// available to both coding and subtask roles. nil when no skills exist.
 	if skillTool := skill.Build(workdir, g.resolver.skillsGlobalDir); skillTool != nil {
 		tools = append(tools, skillTool)

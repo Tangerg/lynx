@@ -46,7 +46,11 @@ describe("reducer — HITL resume preserves toolOutput on result", () => {
     s = reduce(
       s,
       started(
-        item({ id: TOOL, type: "toolCall", tool: { name: "bash", arguments: { command: "pwd" } } }),
+        item({
+          id: TOOL,
+          type: "toolCall",
+          tool: { name: "shell", arguments: { command: "pwd" } },
+        }),
       ),
     );
     s = reduce(
@@ -57,7 +61,7 @@ describe("reducer — HITL resume preserves toolOutput on result", () => {
           {
             itemId: TOOL,
             type: "approval",
-            payload: { tool: { name: "bash", arguments: { command: "pwd" } } },
+            payload: { tool: { name: "shell", arguments: { command: "pwd" } } },
           },
         ],
       } as never),
@@ -69,7 +73,11 @@ describe("reducer — HITL resume preserves toolOutput on result", () => {
     s = reduce(
       s,
       started(
-        item({ id: TOOL, type: "toolCall", tool: { name: "bash", arguments: { command: "pwd" } } }),
+        item({
+          id: TOOL,
+          type: "toolCall",
+          tool: { name: "shell", arguments: { command: "pwd" } },
+        }),
       ),
     );
     s = reduce(s, delta(TOOL, { type: "toolArguments", argumentsTextDelta: '{"command": "pwd"}' }));
@@ -81,7 +89,7 @@ describe("reducer — HITL resume preserves toolOutput on result", () => {
           id: TOOL,
           status: "completed",
           type: "toolCall",
-          tool: { name: "bash", arguments: { command: "pwd" }, result: { exitCode: 0 } },
+          tool: { name: "shell", arguments: { command: "pwd" }, result: { exitCode: 0 } },
         }),
       ),
     );

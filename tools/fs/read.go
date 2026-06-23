@@ -52,7 +52,7 @@ func (t *ReadTool) Definition() chat.ToolDefinition {
 		Description: "Read a text file from the filesystem. Returns the requested line range with the total line count and a truncation flag. " +
 			"By default returns the whole file; for a large file pass `offset` (1-based line) and `limit` to page through it. " +
 			"Call this in parallel when you need several files at once. " +
-			"Binary files are rejected — use the bash tool for non-text data, and use glob/grep to locate files or content rather than guessing paths.",
+			"Binary files are rejected — use the shell tool for non-text data, and use glob/grep to locate files or content rather than guessing paths.",
 		InputSchema: readToolSchema,
 	}
 }

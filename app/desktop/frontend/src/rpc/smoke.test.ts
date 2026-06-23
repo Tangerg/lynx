@@ -138,7 +138,7 @@ describe("smoke: v2 end-to-end happy path", () => {
           status: "running",
           createdAt: "2026-06-03T00:00:00Z",
           type: "toolCall",
-          tool: { name: "bash", arguments: { command: "ls" } },
+          tool: { name: "shell", arguments: { command: "ls" } },
         },
       });
       // R-model HITL: the run ENDS with an interrupt for the tool approval.
@@ -148,7 +148,7 @@ describe("smoke: v2 end-to-end happy path", () => {
           {
             itemId: asItemId("item_tool"),
             type: "approval",
-            payload: { tool: { name: "bash", arguments: { command: "ls" } } },
+            payload: { tool: { name: "shell", arguments: { command: "ls" } } },
           },
         ],
       });

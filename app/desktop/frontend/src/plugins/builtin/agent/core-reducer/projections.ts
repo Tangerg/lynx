@@ -190,8 +190,8 @@ function nameLabel(tool: ToolInvocation): string | undefined {
       const first = Array.isArray(a.questions) ? asRecord(a.questions[0]) : undefined;
       return firstLine(first?.question);
     }
-    case "bash_output":
-    case "kill_shell":
+    case "shell_output":
+    case "shell_kill":
       return asString(a.shell_id);
     default:
       return undefined;
@@ -245,7 +245,7 @@ export function toolFields(tool: ToolInvocation | undefined): Partial<ToolCall> 
       // into `result` while running; absent output here (the started shell)
       // omits the key so that preview stands until completed reconciles it.
       // Three wire dialects: the §4.4.2 convention `{exitCode, output}`, the
-      // runtime's raw bash response `{exit_code, stdout, stderr}` — stderr
+      // runtime's raw shell response `{exit_code, stdout, stderr}` — stderr
       // appended after stdout so failures aren't silently blank — and the
       // plain-string ack of run_in_background ("Started background shell …").
       const stdout = asString(result?.stdout);

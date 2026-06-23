@@ -50,9 +50,9 @@
 
 | 工具 | 是什么 | 什么场景用 |
 |---|---|---|
-| `bash` | 跑一条 shell 命令（每次全新 shell，cd/export 不保留） | build / test / git / 装依赖 / 跑脚本；超时自动转后台返回 shell_id |
-| `bash_output` | 读后台 shell 的新增输出（可阻塞等待） | 看长 build / dev server / 长任务的进度与结果 |
-| `kill_shell` | 停掉一个后台 shell | 结束 dev server、掐掉跑飞的任务 |
+| `shell` | 跑一条 shell 命令（每次全新 shell，cd/export 不保留） | build / test / git / 装依赖 / 跑脚本；超时自动转后台返回 shell_id |
+| `shell_output` | 读后台 shell 的新增输出（可阻塞等待） | 看长 build / dev server / 长任务的进度与结果 |
+| `shell_kill` | 停掉一个后台 shell | 结束 dev server、掐掉跑飞的任务 |
 
 ### 搜索 / 代码智能
 
@@ -98,7 +98,7 @@
 | **停止 / 取消** | 中止当前运行 | 跑偏了立刻停（Esc / 停止按钮） |
 | **HITL 恢复** | 审批/提问后从**暂停点**继续，不重跑 | `ask_user`/审批/`exit_plan_mode` 回答后无缝接上 |
 | **审批模式 + 持久规则** | 全局审批姿态 **Plan / Safe / Balanced / Auto(yolo)** + 细粒度记忆规则 | 控制 agent 不经询问能做多少；"这个命令以后总允许/总拒绝"（按会话/项目/全局 scope）。模式每次 tool gate 实时读取，运行中改也即时生效 |
-| **检查点 + 回滚** | 整仓 shadow-git 快照，一键回滚（`sessions.rollback`） | agent 改飞了，回到运行前状态（覆盖 agent 的 bash 改动，不只编辑过的文件） |
+| **检查点 + 回滚** | 整仓 shadow-git 快照，一键回滚（`sessions.rollback`） | agent 改飞了，回到运行前状态（覆盖 agent 的 shell 改动，不只编辑过的文件） |
 | **@codebase 语义索引** | 代码库向量索引（建/查/重建 `codebase.*`） | `codebase_search` 的底座；大仓里按意思找代码 |
 | **定时任务 scheduler** | cron 定时触发**无人值守**运行某 prompt | 每天/定期巡检、生成报告、跑例行任务 |
 | **配方 recipes** | `/slash` 参数化提示模板（`$ARGUMENTS`/`$1..$9`） | 把常用提示沉淀成命令，一键带参展开 |
@@ -120,13 +120,13 @@
 把上面的原语串成实际工作流——这才是"什么场景用"的答案。
 
 **A. 修一个 bug**
-`codebase_search`/`grep` 定位 → `read` 看上下文 → `lsp`(引用/定义) 评估影响面 → `edit` 改 → `bash`(跑 test) → `lsp_diagnostics` 确认无类型错。改飞了用**检查点回滚**兜底。
+`codebase_search`/`grep` 定位 → `read` 看上下文 → `lsp`(引用/定义) 评估影响面 → `edit` 改 → `shell`(跑 test) → `lsp_diagnostics` 确认无类型错。改飞了用**检查点回滚**兜底。
 
 **B. 实现一个 feature（先计划后动手）**
-切 **Plan 模式**（只读）→ 调研（`read`/`grep`/`lsp`/`codebase_search`）→ `exit_plan_mode` 提交计划等你批 → 批准自动转 **Balanced** 执行 → `todo_write` 跟多步进度 → `edit`/`write` + `bash` 验证。
+切 **Plan 模式**（只读）→ 调研（`read`/`grep`/`lsp`/`codebase_search`）→ `exit_plan_mode` 提交计划等你批 → 批准自动转 **Balanced** 执行 → `todo_write` 跟多步进度 → `edit`/`write` + `shell` 验证。
 
 **C. 无人值守的例行任务**
-**scheduler** 定时触发 headless 运行某 **recipe** → agent 用 `bash`/`web_search`/`grep` 干活 → 结果落到新会话（侧栏可见）。适合每日巡检/报告。
+**scheduler** 定时触发 headless 运行某 **recipe** → agent 用 `shell`/`web_search`/`grep` 干活 → 结果落到新会话（侧栏可见）。适合每日巡检/报告。
 
 **D. 接入团队系统**
 **MCP 配置** 注册 GitHub/Slack server（按需开关工具）→ agent 用 `github_*`/`slack_*` 建 issue、发通知；高风险工具用**审批模式/钩子**把关。
@@ -135,7 +135,7 @@
 主 agent 用 `task` 派多个子 agent，各自在**干净上下文**里改一块（互不污染）→ 主 agent 汇总。配 **Safe/Plan 模式** + **检查点** 控制风险。
 
 **F. 查最新文档并落地**
-`web_search` 找资料 → `web_fetch` 读原文 → `edit` 落地代码 → `bash` 验证。结果按 [标题](URL) 标来源。
+`web_search` 找资料 → `web_fetch` 读原文 → `edit` 落地代码 → `shell` 验证。结果按 [标题](URL) 标来源。
 
 ---
 

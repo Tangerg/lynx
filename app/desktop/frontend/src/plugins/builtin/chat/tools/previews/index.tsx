@@ -53,7 +53,7 @@ const ROW_STYLE: Record<
   context: { tone: "", meta: "text-fg-faint", codeTone: "text-fg-soft", sign: " " },
 };
 
-function BashPreview({ tool, onOpenView }: ToolPreviewProps) {
+function ShellPreview({ tool, onOpenView }: ToolPreviewProps) {
   // Render THIS call's stdout from `tool.result` — the authoritative merged
   // output reconciled from the completed Item's tool.result.output, with
   // the toolOutput delta stream as the live preview while running (see
@@ -235,17 +235,16 @@ function GrepPreview({ tool, onOpenView }: ToolPreviewProps) {
 
 // Previews are keyed by the tool ROUTING KEY = the wire tool `name` (§4.4 /
 // §4.4.2 display conventions).
-export const bash = definePlugin({
-  name: "lyra.builtin.bash",
+export const shellPreview = definePlugin({
+  name: "lyra.builtin.shell",
   version: "1.0.0",
   setup({ host }) {
-    host.extensions.contribute(TOOL_PREVIEW, BashPreview, { key: "bash" });
-    host.extensions.contribute(TOOL_PREVIEW, BashPreview, { key: "shell" });
+    host.extensions.contribute(TOOL_PREVIEW, ShellPreview, { key: "shell" });
     // Background-shell family: all three return terminal-style plain text
     // (start ack / incremental output + status line / kill confirmation).
-    host.extensions.contribute(TOOL_PREVIEW, BashPreview, { key: "run_in_background" });
-    host.extensions.contribute(TOOL_PREVIEW, BashPreview, { key: "bash_output" });
-    host.extensions.contribute(TOOL_PREVIEW, BashPreview, { key: "kill_shell" });
+    host.extensions.contribute(TOOL_PREVIEW, ShellPreview, { key: "run_in_background" });
+    host.extensions.contribute(TOOL_PREVIEW, ShellPreview, { key: "shell_output" });
+    host.extensions.contribute(TOOL_PREVIEW, ShellPreview, { key: "shell_kill" });
   },
 });
 

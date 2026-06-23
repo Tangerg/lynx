@@ -31,7 +31,7 @@ var toolSchema, _ = pkgjson.StringDefSchemaOf(Request{})
 const toolDescription = "Discover and read Agent Skills — reusable, on-demand instruction packs. " +
 	"Call with op=\"list\" to see which skills exist (name + description); when one is relevant, op=\"load\" name=<skill> to pull in its full instructions; " +
 	"op=\"load_resource\" name=<skill> path=<file> to read a bundled reference, asset, or script the instructions point to. " +
-	"Load a skill only when the task matches its description; then follow the returned instructions, running any scripts with your own bash/file tools."
+	"Load a skill only when the task matches its description; then follow the returned instructions, running any scripts with your own shell/file tools."
 
 var _ chat.Tool = (*Tool)(nil)
 

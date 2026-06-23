@@ -42,7 +42,7 @@ describe("openViewForTool routes a clicked tool BESIDE chat (split), never as a 
   });
 
   it("opens a command tool beside chat as the terminal split, leaving activeMainView null", () => {
-    seedTool(toolCall({ id: "t1", name: "bash", fn: "ls -la" }));
+    seedTool(toolCall({ id: "t1", name: "shell", fn: "ls -la" }));
     openViewForTool("t1");
     const s = useSessionStore.getState();
     expect(s.splitViewId).toBe("terminal");
@@ -77,7 +77,7 @@ describe("openViewForTool routes a clicked tool BESIDE chat (split), never as a 
   });
 
   it("is a no-op when the tool id is not in the current session view", () => {
-    seedTool(toolCall({ id: "t1", name: "bash" }));
+    seedTool(toolCall({ id: "t1", name: "shell" }));
     openViewForTool("missing");
     expect(useSessionStore.getState().splitViewId).toBeNull();
   });

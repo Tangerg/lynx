@@ -11,5 +11,5 @@
 //   - load_resource — a bundled file under a skill (references/, assets/, scripts/)
 //
 // Scripts bundled with a skill are NOT executed here — the model runs them
-// with its own bash/file tools after reading the instructions.
+// with its own shell/file tools after reading the instructions.
 package skills

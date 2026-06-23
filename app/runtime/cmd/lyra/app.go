@@ -217,7 +217,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		Transactor:         lyraruntime.Transactor(stores.Tx),
 		// Default approval stance: Balanced — auto-allow file writes /
 		// network (the agent's normal work; the user sees the diffs), prompt
-		// only on shell exec (bash), the genuinely dangerous class. Must be
+		// only on shell exec, the genuinely dangerous class. Must be
 		// set explicitly: approval.Mode's zero value is ModeSafe (prompts on
 		// EVERY write + exec), which floods a coding session with approvals.
 		// Operators flip the mode at runtime; safe/readonly/yolo are opt-in.

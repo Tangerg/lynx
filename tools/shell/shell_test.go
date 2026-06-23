@@ -1,4 +1,4 @@
-package bash
+package shell
 
 import (
 	"bytes"
@@ -129,14 +129,14 @@ func TestLocalExecutor_OutputCap(t *testing.T) {
 
 func TestTool_Definition(t *testing.T) {
 	def := NewTool(nil).Definition()
-	if def.Name != "bash" {
-		t.Errorf("Name = %q, want %q", def.Name, "bash")
+	if def.Name != "shell" {
+		t.Errorf("Name = %q, want %q", def.Name, "shell")
 	}
 	if def.InputSchema == "" {
 		t.Error("InputSchema is empty")
 	}
-	if !strings.Contains(def.Description, "bash") {
-		t.Errorf("Description missing 'bash': %q", def.Description)
+	if !strings.Contains(def.Description, "shell") {
+		t.Errorf("Description missing 'shell': %q", def.Description)
 	}
 }
 

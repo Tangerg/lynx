@@ -1,9 +1,9 @@
 // Locks the per-tool display projections against the RUNTIME's actual wire
 // shapes (lynx/lyra tool implementations), not just the §4.4.2 conventions:
-// bash returns {stdout, stderr, exit_code}, grep one of matches/files/counts,
+// shell returns {stdout, stderr, exit_code}, grep one of matches/files/counts,
 // glob {paths}, edit/write {changes:[{path,status}]} (no per-file diff rows),
 // and the specialised tools (lsp / lsp_diagnostics / skill / task / ask_user /
-// bash_output / kill_shell) label by name.
+// shell_output / shell_kill) label by name.
 
 import type { ToolInvocation } from "@/rpc";
 import { describe, expect, it } from "vitest";
@@ -50,22 +50,22 @@ describe("toolLabel — name-keyed specialised tools", () => {
 
   it("background-shell tools: run_in_background labels the command, pollers the shell id", () => {
     expect(toolLabel(tool("run_in_background", { command: "npm run dev" }))).toBe("npm run dev");
-    expect(toolLabel(tool("bash_output", { shell_id: "bg_1" }))).toBe("bg_1");
-    expect(toolLabel(tool("kill_shell", { shell_id: "bg_2" }))).toBe("bg_2");
+    expect(toolLabel(tool("shell_output", { shell_id: "bg_1" }))).toBe("bg_1");
+    expect(toolLabel(tool("shell_kill", { shell_id: "bg_2" }))).toBe("bg_2");
   });
 });
 
 describe("toolFields — runtime wire shapes", () => {
-  it("bash: merges stdout+stderr and reads snake_case exit_code", () => {
+  it("shell: merges stdout+stderr and reads snake_case exit_code", () => {
     const f = toolFields(
-      tool("bash", { command: "go test" }, { stdout: "ok", stderr: "warn", exit_code: 1 }),
+      tool("shell", { command: "go test" }, { stdout: "ok", stderr: "warn", exit_code: 1 }),
     );
     expect(f.result).toBe("ok\nwarn");
     expect(f.exitCode).toBe(1);
   });
 
-  it("bash: still honors the §4.4.2 {output, exitCode} convention", () => {
-    const f = toolFields(tool("bash", {}, { output: "done", exitCode: 0 }));
+  it("shell: still honors the §4.4.2 {output, exitCode} convention", () => {
+    const f = toolFields(tool("shell", {}, { output: "done", exitCode: 0 }));
     expect(f.result).toBe("done");
     expect(f.exitCode).toBe(0);
   });

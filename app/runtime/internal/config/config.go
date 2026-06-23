@@ -38,7 +38,7 @@ type ServerConfig struct {
 	// A2AListen is the bind address for the A2A (Agent-to-Agent) endpoint
 	// that exposes this Lyra agent to other agents. Empty disables it —
 	// A2A serving is opt-in because it hands a remote caller the full
-	// coding agent (filesystem + bash tools). Separate listener: the A2A
+	// coding agent (filesystem + shell tools). Separate listener: the A2A
 	// protocol is distinct from the Lyra Runtime Protocol on Listen.
 	A2AListen string
 }

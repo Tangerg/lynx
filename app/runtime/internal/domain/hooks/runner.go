@@ -76,7 +76,7 @@ func (r *Runner) runOne(ctx context.Context, h Hook, in Input, dec *Decision) {
 	defer cancel()
 
 	// sh -c so a hook can be a one-liner or a script path with args, like the
-	// shell the user already configures the bash tool with.
+	// shell the user already configures the shell tool with.
 	cmd := exec.CommandContext(cctx, "sh", "-c", h.Command)
 	cmd.Stdin = bytes.NewReader(stdin)
 	if in.Cwd != "" {

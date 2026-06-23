@@ -27,7 +27,7 @@ const (
 	SafetyClassSafe SafetyClass = iota
 	// SafetyClassWrite — writes files in cwd. Prompts in `safe` mode.
 	SafetyClassWrite
-	// SafetyClassExec — executes arbitrary commands (Bash). Prompts
+	// SafetyClassExec — executes arbitrary commands (Shell). Prompts
 	// in `safe` and `balanced` modes.
 	SafetyClassExec
 	// SafetyClassNetwork — reaches off-host network. Prompts when

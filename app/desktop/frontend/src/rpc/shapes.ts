@@ -544,7 +544,7 @@ export interface ApprovalResponse {
   decision: "approve" | "deny";
   // Remember this decision (works for deny too) as a persistent fine-grained
   // rule (AUX_API §6) — the runtime keys it by tool + the call's per-tool
-  // subject (bash command / file path), scoped to the session, the project
+  // subject (shell command / file path), scoped to the session, the project
   // dir, or globally. Omitted = this once only.
   remember?: { scope: ApprovalScope };
   editedArgs?: Record<string, unknown>; // one-shot input rewrite — NOT part of remember
@@ -920,7 +920,7 @@ export interface RunProgress {
   maxSteps?: number; // ceiling, when the Run was started with one
   usage?: Usage; // cumulative usage so far (cost via usage.costUsd)
   contextTokens?: number; // latest round's prompt size = live context-window occupancy (vs cumulative usage.inputTokens); pair with model.contextWindow for a gauge
-  activity?: string; // human-readable current action ("calling tool: bash")
+  activity?: string; // human-readable current action ("calling tool: shell")
 }
 
 export type StreamEventType = StreamEvent["type"];
@@ -1142,7 +1142,7 @@ export type ApprovalScope = "session" | "project" | "global";
 export interface ApprovalRule {
   id: string; // stable id (forgetRule key)
   scope: ApprovalScope;
-  tool: string; // tool name, e.g. "bash"
+  tool: string; // tool name, e.g. "shell"
   subject?: string; // command/path glob the rule matches; omitted = any arguments
   dir?: string; // project-scope directory (display only; omitted for session/global)
   decision: "allow" | "deny";

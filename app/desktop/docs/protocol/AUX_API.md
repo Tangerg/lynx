@@ -143,7 +143,7 @@ type WorkspaceEvent =
 1. 带 `watches` → 监视该 cwd 的 `.git` 信号集（HEAD / index / refs/heads / ORIG_HEAD / MERGE_HEAD）。git 状态一变（commit / 暂存 /
    checkout / branch / merge，任何进程所为）发去抖 **`resync`** → 客户端重拉 `getDiff` / `listFileChanges`。
 2. **agent 自身的文件编辑**（write / edit 工具）由运行时从 run 流**精确推 `files.changed{ cwd, paths }`**——无需 watch、无竞态。
-   `bash` 的文件改动不发（参数无法判定；若是 git 操作则走 `.git` 监视）；纯外部进程编辑不实时，降级到下次 git 操作 / 手动刷新。
+   `shell` 的文件改动不发（参数无法判定；若是 git 操作则走 `.git` 监视）；纯外部进程编辑不实时，降级到下次 git 操作 / 手动刷新。
 
 客户端常态按事件 `type` 局部失效（各域一个缓存 key）、`resync` 全量兜底；**无 seq**。`optOutNotificationMethods` 按事件 `type`
 抑制（如 `["mcp.serverChanged"]`）。**不变量**：事件 `type` 名在 run（`API.md §5`）/ workspace 两个事件联合内**全局唯一**，供

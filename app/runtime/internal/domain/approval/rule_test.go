@@ -23,13 +23,13 @@ func TestModeGetSet(t *testing.T) {
 
 func TestSubjectOf(t *testing.T) {
 	cases := []struct{ tool, args, want string }{
-		{"bash", `{"command":"npm run build"}`, "npm run build"},
+		{"shell", `{"command":"npm run build"}`, "npm run build"},
 		{"run_in_background", `{"command":"sleep 1"}`, "sleep 1"},
 		{"edit", `{"file_path":"src/a.go","old":"x"}`, "src/a.go"},
 		{"read", `{"file_path":"go.mod"}`, "go.mod"},
 		{"grep", `{"pattern":"foo"}`, ""}, // no per-tool subject → whole-tool
-		{"bash", `not json`, ""},          // unparseable → whole-tool
-		{"bash", `{"timeout":5}`, ""},     // missing field → empty subject
+		{"shell", `not json`, ""},          // unparseable → whole-tool
+		{"shell", `{"timeout":5}`, ""},     // missing field → empty subject
 	}
 	for _, c := range cases {
 		if got := subjectOf(c.tool, c.args); got != c.want {
@@ -61,12 +61,12 @@ func TestSubjectMatches(t *testing.T) {
 // TestDecidePrecedence: the most specific matching rule wins — scope dominates
 // (session > project > global), then subject (exact > glob > any).
 func TestDecidePrecedence(t *testing.T) {
-	q := Query{SessionID: "s1", ProjectDir: "/p", Tool: "bash", Arguments: `{"command":"rm -rf /"}`}
+	q := Query{SessionID: "s1", ProjectDir: "/p", Tool: "shell", Arguments: `{"command":"rm -rf /"}`}
 
 	// A broad session allow vs a narrow (exact-subject) session deny → deny wins.
 	rules := []Rule{
-		{Scope: ScopeSession, Tool: "bash", Subject: "", Decision: Allow},
-		{Scope: ScopeSession, Tool: "bash", Subject: "rm -rf /", Decision: Deny},
+		{Scope: ScopeSession, Tool: "shell", Subject: "", Decision: Allow},
+		{Scope: ScopeSession, Tool: "shell", Subject: "rm -rf /", Decision: Deny},
 	}
 	if d, ok := decide(rules, q); !ok || d != Deny {
 		t.Fatalf("exact deny over broad allow = (%v,%v), want (deny,true)", d, ok)
@@ -74,8 +74,8 @@ func TestDecidePrecedence(t *testing.T) {
 
 	// A global deny vs a session allow (both whole-tool) → session allow wins.
 	rules = []Rule{
-		{Scope: ScopeGlobal, Tool: "bash", Subject: "", Decision: Deny},
-		{Scope: ScopeSession, Tool: "bash", Subject: "", Decision: Allow},
+		{Scope: ScopeGlobal, Tool: "shell", Subject: "", Decision: Deny},
+		{Scope: ScopeSession, Tool: "shell", Subject: "", Decision: Allow},
 	}
 	if d, ok := decide(rules, q); !ok || d != Allow {
 		t.Fatalf("session allow over global deny = (%v,%v), want (allow,true)", d, ok)
@@ -83,38 +83,38 @@ func TestDecidePrecedence(t *testing.T) {
 
 	// Wrong tool / no rules → miss.
 	if _, ok := decide([]Rule{{Scope: ScopeSession, Tool: "write", Decision: Allow}}, q); ok {
-		t.Fatal("a write rule matched a bash call")
+		t.Fatal("a write rule matched a shell call")
 	}
 }
 
 // TestDecideConflictDeny: two equally-specific rules disagree → deny wins (a
 // remembered deny must not be overridden by an equally-specific allow).
 func TestDecideConflictDeny(t *testing.T) {
-	q := Query{SessionID: "s1", Tool: "bash", Arguments: `{}`}
+	q := Query{SessionID: "s1", Tool: "shell", Arguments: `{}`}
 	rules := []Rule{
-		{Scope: ScopeSession, Tool: "bash", Subject: "", Decision: Allow},
-		{Scope: ScopeSession, Tool: "bash", Subject: "", Decision: Deny},
+		{Scope: ScopeSession, Tool: "shell", Subject: "", Decision: Allow},
+		{Scope: ScopeSession, Tool: "shell", Subject: "", Decision: Deny},
 	}
 	if d, ok := decide(rules, q); !ok || d != Deny {
 		t.Fatalf("conflict = (%v,%v), want (deny,true)", d, ok)
 	}
 }
 
-// TestServiceRememberDecide: a remembered bash command auto-resolves a matching
+// TestServiceRememberDecide: a remembered shell command auto-resolves a matching
 // future call; a different command still misses (subject granularity).
 func TestServiceRememberDecide(t *testing.T) {
 	ctx := context.Background()
 	svc := New(ModeSafe, NewMemoryStore())
 	build := `{"command":"npm run build"}`
 	_ = svc.Remember(ctx, RememberRequest{
-		Scope: ScopeSession, SessionID: "s1", Tool: "bash", Arguments: build, Decision: Allow,
+		Scope: ScopeSession, SessionID: "s1", Tool: "shell", Arguments: build, Decision: Allow,
 	})
 
-	if d, ok, _ := svc.Decide(ctx, Query{SessionID: "s1", Tool: "bash", Arguments: build}); !ok || d != Allow {
+	if d, ok, _ := svc.Decide(ctx, Query{SessionID: "s1", Tool: "shell", Arguments: build}); !ok || d != Allow {
 		t.Fatalf("matching call = (%v,%v), want (allow,true)", d, ok)
 	}
 	// A different command isn't covered by the remembered one.
-	if _, ok, _ := svc.Decide(ctx, Query{SessionID: "s1", Tool: "bash", Arguments: `{"command":"rm -rf /"}`}); ok {
+	if _, ok, _ := svc.Decide(ctx, Query{SessionID: "s1", Tool: "shell", Arguments: `{"command":"rm -rf /"}`}); ok {
 		t.Fatal("a remembered `npm run build` rule matched `rm -rf /`")
 	}
 }
@@ -156,7 +156,7 @@ func TestRememberDropsUnkeyable(t *testing.T) {
 	ctx := context.Background()
 	svc := New(ModeSafe, NewMemoryStore())
 	_ = svc.Remember(ctx, RememberRequest{
-		Scope: ScopeProject, ProjectDir: "", Tool: "bash", Arguments: `{}`, Decision: Allow,
+		Scope: ScopeProject, ProjectDir: "", Tool: "shell", Arguments: `{}`, Decision: Allow,
 	})
 	if rules, _ := svc.Rules(ctx, "s1", ""); len(rules) != 0 {
 		t.Fatalf("unkeyable project rule stored: %+v", rules)
@@ -167,10 +167,10 @@ func TestRememberDropsUnkeyable(t *testing.T) {
 func TestNilStore(t *testing.T) {
 	ctx := context.Background()
 	svc := New(ModeSafe, nil)
-	if err := svc.Remember(ctx, RememberRequest{Scope: ScopeGlobal, Tool: "bash", Decision: Allow}); err != nil {
+	if err := svc.Remember(ctx, RememberRequest{Scope: ScopeGlobal, Tool: "shell", Decision: Allow}); err != nil {
 		t.Fatalf("Remember on nil store: %v", err)
 	}
-	if _, ok, _ := svc.Decide(ctx, Query{Tool: "bash"}); ok {
+	if _, ok, _ := svc.Decide(ctx, Query{Tool: "shell"}); ok {
 		t.Fatal("nil store matched a rule")
 	}
 	if rules, _ := svc.Rules(ctx, "s1", "/p"); rules != nil {
