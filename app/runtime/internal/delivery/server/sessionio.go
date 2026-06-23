@@ -56,7 +56,7 @@ func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionReq
 	artRuns := make([]protocol.ArtifactRun, 0, len(runs))
 	for _, r := range runs {
 		artRuns = append(artRuns, protocol.ArtifactRun{
-			RunID: r.RunID, UpdatedAt: r.UpdatedAt, Mark: r.Mark, Run: r.Blob,
+			RunID: r.RunID, UpdatedAt: r.UpdatedAt, MessageMark: r.Mark, Run: r.Blob,
 		})
 	}
 	artItems := make([]protocol.ArtifactItem, 0, len(items))
@@ -128,7 +128,7 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 		}
 		for _, r := range art.Runs {
 			if err := s.rt.Transcript().PutRun(ctx, transcript.Run{
-				SessionID: id, RunID: r.RunID, UpdatedAt: r.UpdatedAt, Blob: r.Run, Mark: r.Mark,
+				SessionID: id, RunID: r.RunID, UpdatedAt: r.UpdatedAt, Blob: r.Run, Mark: r.MessageMark,
 			}); err != nil {
 				return err
 			}
