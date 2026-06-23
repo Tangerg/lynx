@@ -16,9 +16,13 @@ export const USAGE_SUMMARY_KEY = "usage.summary";
  * A session's cumulative token usage + cost, summed server-side over its
  * finished runs. Freshness is driven by the run pump: the run driver
  * (useAgentSession) invalidates [USAGE_SESSION_KEY, sessionId] when a
- * run.finished folds for that session — including a session running in the
- * background — so the chip updates on the authoritative "metering durable"
- * signal rather than guessing from the active session's running flag.
+ * run.finished folds — on the authoritative "metering durable" signal rather
+ * than guessing from the active session's running flag. Only the live stream
+ * (the active session, or one re-subscribed via runs.subscribe on return) folds
+ * run.finished; a session that finishes a run purely in the background has no
+ * live subscription, so its chip refreshes when it next becomes active (the
+ * re-subscribe replays the terminal, or the history rehydrate refetches), not
+ * the instant the background run ends.
  */
 export function useSessionUsage(sessionId: string | undefined) {
   return useQuery<Usage>({
