@@ -164,8 +164,10 @@ type ExportSessionResponse struct {
 }
 
 // SessionArtifactVersion is the artifact schema version. Import rejects an
-// artifact it doesn't recognize, so a future breaking change bumps this.
-const SessionArtifactVersion = 1
+// artifact it doesn't recognize, so a breaking change bumps this. v2 renamed
+// ArtifactRun.mark → messageMark (self-describing on the wire); a v1 artifact
+// is rejected rather than silently read with the field absent.
+const SessionArtifactVersion = 2
 
 // SessionArtifact is the portable, round-trippable form of a session: its
 // metadata plus the full conversation — chat messages (the model's context),
@@ -183,10 +185,10 @@ type SessionArtifact struct {
 // ArtifactRun is one run record in a SessionArtifact — the wire RunRef blob
 // plus the storage-side fields (watermark, updatedAt) not carried in RunRef.
 type ArtifactRun struct {
-	RunID     string          `json:"runId"`
-	UpdatedAt time.Time       `json:"updatedAt"`
-	Mark      int             `json:"mark"` // chat-memory watermark for rollback/fork boundaries (-1 = unknown)
-	Run       json.RawMessage `json:"run"`  // protocol.RunRef blob
+	RunID       string          `json:"runId"`
+	UpdatedAt   time.Time       `json:"updatedAt"`
+	MessageMark int             `json:"messageMark"` // chat-memory message watermark for rollback/fork boundaries (-1 = unknown)
+	Run         json.RawMessage `json:"run"`         // protocol.RunRef blob
 }
 
 // ArtifactItem is one item record in a SessionArtifact — the wire Item blob

@@ -116,8 +116,13 @@ interface RPCError { code: number; message: string; data?: ProblemData; }
 ### 2.2 字段与枚举
 
 - 字段名、枚举值一律 **camelCase**。
-- 缩写**白名单**（写死，其余全词）：`id` / `url` / `mime` / `cwd`。
-- 单位用显式后缀全词：`maxBudgetUsd`、`expiresAt`（ISO-8601 串）、`sizeBytes`。
+- 缩写**白名单**（写死，其余全词）：`id` / `url` / `mime` / `cwd` / `api`（如 `apiKey` / `apiKeyMasked`）。不在表内的缩写一律展开成全词。
+- 单位用显式后缀，**后缀集也写死**（新单位先在此登记，杜绝随意缩写）：
+  - `Usd`（货币）：`maxBudgetUsd` / `inputUsdPerMillionTokens`
+  - `Ms`（毫秒）：`durationMs`
+  - `Seconds`：`timeoutSeconds`
+  - `Bytes`：`sizeBytes` / `maxBytes`
+  - `At`（ISO-8601 时刻串）：`createdAt` / `expiresAt` / `finishedAt`
 
 ### 2.3 开放 vs 闭合枚举（原则）
 
@@ -894,10 +899,10 @@ interface DroppedRun { run: RunRef; userInput?: ContentBlock[] }
 
 ```ts
 interface SessionArtifact {
-  version: number               // artifact schema 版本（当前 1）；import 不识别即 invalid_params
+  version: number               // artifact schema 版本（当前 2）；import 不识别即 invalid_params
   session: Session              // 会话元数据（wire 形态）
   messages: unknown[]           // chat 消息 blob（模型上下文）
-  runs:  { runId: string; updatedAt: string; mark: number; run: RunRef }[]
+  runs:  { runId: string; updatedAt: string; messageMark: number; run: RunRef }[]  // messageMark：rollback/fork 边界水位（-1=未知）
   items: { runId: string; itemId: string; createdAt: string; item: Item }[]
 }
 ```
