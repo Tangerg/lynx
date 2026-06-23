@@ -46,7 +46,7 @@ func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 	// Resolved here so the guard never does a session lookup under runMu.
 	cwd := fspath.Canonical(s.sessionCwd(reqCtx, sessionID))
 	s.runMu.Lock()
-	s.runs[runID] = &runEntry{runID: runID, sessionID: sessionID, cwd: cwd, turnID: handle.TurnID, parentRunID: parentRunID, provider: provider, model: model, cancel: cancel, hub: hub}
+	s.runs[runID] = &runEntry{runID: runID, sessionID: sessionID, cwd: cwd, createdAt: time.Now().UTC(), turnID: handle.TurnID, parentRunID: parentRunID, provider: provider, model: model, cancel: cancel, hub: hub}
 	s.runMu.Unlock()
 	events, unsubscribe := hub.Subscribe("")
 	// Drop this caller's subscription when its request ends (client
@@ -236,4 +236,20 @@ func (s *Server) cancelReasonFor(runID string) string {
 		return e.cancelReason
 	}
 	return ""
+}
+
+// runCreatedAt returns the run's start time (segment open). The terminal RunRef
+// carries it as CreatedAt so the persisted run keeps its authoritative timeline
+// key — the finish event has no start time of its own, and the synthesized
+// terminal RunRef replaces the whole stored blob (PutRun upsert), so omitting it
+// would zero CreatedAt for every consumer (runs.list + the rollback/fork
+// boundary math, which then over-purges). The runEntry is still live at finish:
+// emit (and this persist) run before the pump's teardown deletes s.runs.
+func (s *Server) runCreatedAt(runID string) time.Time {
+	s.runMu.Lock()
+	defer s.runMu.Unlock()
+	if e, ok := s.runs[runID]; ok {
+		return e.createdAt
+	}
+	return time.Time{}
 }

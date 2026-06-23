@@ -202,6 +202,18 @@ func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
+	// The child row is now committed, but seeding its history + rename are
+	// separate store calls. If any of them fails, roll the child back rather
+	// than leaving an orphan — an empty/partial fork that shows up in
+	// sessions.list as a phantom the user never saw succeed. (Fork itself
+	// deletes nothing so it needs no busy-guard, but its multi-step seed does
+	// need cleanup-on-failure.) Set in the deferred check below via the named err.
+	forked := false
+	defer func() {
+		if !forked {
+			s.purgeSession(ctx, child.ID) // best-effort: drop the orphan + its subtree
+		}
+	}()
 
 	// Copy the parent's history prefix into the fresh child so its next turn
 	// continues with the same context. The child was just created (empty), so
@@ -225,6 +237,7 @@ func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest
 	}
 
 	// A freshly forked child has no run of its own yet — idle.
+	forked = true // committed: the deferred rollback is now a no-op
 	out := s.sessionToWire(child, protocol.SessionStatusIdle)
 	return &out, nil
 }

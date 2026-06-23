@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/workspace"
@@ -94,7 +95,8 @@ func (s *Server) nextEventID() string {
 type runEntry struct {
 	runID        string
 	sessionID    string
-	cwd          string // canonical working tree (fspath.Canonical of the session cwd); "" when none. Keyed by the cwd-aware busy guard a file rollback uses.
+	cwd          string    // canonical working tree (fspath.Canonical of the session cwd); "" when none. Keyed by the cwd-aware busy guard a file rollback uses.
+	createdAt    time.Time // run start (segment open); the authoritative RunRef.CreatedAt the terminal RunRef carries so the persisted timeline key isn't lost
 	turnID       string
 	parentRunID  string // set for continuation runs (runs.resume)
 	provider     string // provider this run ran against; persisted on park for cross-restart rehydrate
