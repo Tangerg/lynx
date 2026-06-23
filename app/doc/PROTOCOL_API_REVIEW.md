@@ -44,7 +44,7 @@
 
 这些是 lynx 相对两家的**真实设计优势**,均与项目"薄核 / 三形态变体 / 窄腰 / 一个扩展机制 / 库优于框架"哲学一致:
 
-1. **领域中立核心 `ToolInvocation` + 客户端展示注册表**(§4.4 / §13):Codex 把 `commandExecution`/`fileChange`/`mcpToolCall`/… 做成 wire 一等强类型变体——**每加一种工具就动协议**。lynx 核心只认中立信封,富渲染(bash 的 `{exitCode,output}`、grep 的 `{hits}`、diff)走前端展示注册表——**新工具零协议改动**。这是更纯的薄核,扩展性更好。**但有前提**:富 `result` 形状成了"非规范展示约定",其前后端一致性不再被 wire 机器保证——只有 §14 的黄金样本闸能防漂(见 §3.1)。
+1. **领域中立核心 `ToolInvocation` + 客户端展示注册表**(§4.4 / §13):Codex 把 `commandExecution`/`fileChange`/`mcpToolCall`/… 做成 wire 一等强类型变体——**每加一种工具就动协议**。lynx 核心只认中立信封,富渲染(shell 的 `{exitCode,output}`、grep 的 `{hits}`、diff)走前端展示注册表——**新工具零协议改动**。这是更纯的薄核,扩展性更好。**但有前提**:富 `result` 形状成了"非规范展示约定",其前后端一致性不再被 wire 机器保证——只有 §14 的黄金样本闸能防漂(见 §3.1)。
 2. **durable/ephemeral 协议级不变量**(§5.2):"丢弃每个 ephemeral 事件,客户端仍必得正确终态"+ 一张 `event.type → durable → 权威落点` 推导表 + "新增无落点的 ephemeral = 协议违规"硬规则。两家都没成文化这层——这是 lynx 独有的、根除"回放/重连/opt-out 丢内容"那类 bug 的设计。
 3. **`type` 唯一判别(kind 禁上 wire)**(§2.1):消除"这看 type、那看 kind"的认知税与拼错判别字段的无声 bug。两家用 `type` 但无此无例外硬规则。
 4. **HITL R 模型**(§6,无 server→client RPC):Codex 用 server→client request 等客户端应答——多 client 下"server 在等哪个 client"是其自审都点名的耦合点。lynx 的 run park-on-interrupt + durable interrupt + 任意 client `runs.resume`,在多 client / 重连 / 重启下更干净。**这是设计优势,不是缺失。**

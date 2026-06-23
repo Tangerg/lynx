@@ -12,7 +12,7 @@ const READONLY_TOOLS = new Set(["read", "grep", "glob", "lsp"]);
  * have no side effects, so the user rarely needs to inspect each one. Names are
  * the wire `ToolInvocation.name` the runtime emits (see the tool-preview
  * registry keys in chat/tools/previews). Conservative on purpose:
- * bash/shell/edit/write/skill/task can mutate state, so each always renders as
+ * shell/edit/write/skill/task can mutate state, so each always renders as
  * its own card even when adjacent — only `read` / `grep` / `glob` / `lsp` /
  * `lsp_diagnostics` group.
  */

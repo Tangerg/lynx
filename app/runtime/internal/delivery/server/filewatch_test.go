@@ -73,7 +73,7 @@ func TestWorkspaceSubscribe_NonRepoInert(t *testing.T) {
 }
 
 // TestEmitToolFileChange: a completed write/edit tool call publishes a
-// files.changed naming the exact (cwd-relative) path; bash, errored, and
+// files.changed naming the exact (cwd-relative) path; shell, errored, and
 // non-tool items publish nothing.
 func TestEmitToolFileChange(t *testing.T) {
 	s := &Server{wsHub: newWorkspaceHub()}
@@ -102,8 +102,8 @@ func TestEmitToolFileChange(t *testing.T) {
 		t.Fatal("write tool call must publish files.changed")
 	}
 
-	// bash, errored write, and a non-tool item → nothing.
-	s.emitToolFileChange("/proj", completed("bash", "whatever", false))
+	// shell, errored write, and a non-tool item → nothing.
+	s.emitToolFileChange("/proj", completed("shell", "whatever", false))
 	s.emitToolFileChange("/proj", completed("write", "src/b.go", true))
 	s.emitToolFileChange("/proj", protocol.StreamEvent{Type: protocol.StreamItemCompleted, Item: &protocol.Item{Type: protocol.ItemTypeAgentMessage}})
 	select {

@@ -120,7 +120,7 @@ func TestTranslator_ResumedToolReusesOriginalItemID(t *testing.T) {
 	const args = `{"command":"ls"}`
 	resume := &resumeBinding{
 		originRunID: "run_1",
-		toolItems:   map[string]string{resumeKey("bash", args): origItemID},
+		toolItems:   map[string]string{resumeKey("shell", args): origItemID},
 	}
 	tr := newTranslator("ses_1", "run_1_cont", "run_1", nil, resume, "", "")
 
@@ -133,7 +133,7 @@ func TestTranslator_ResumedToolReusesOriginalItemID(t *testing.T) {
 		return nil
 	}
 
-	start := itemStarted(tr.translate(turn.ToolCallStart{CallID: "call_x", ToolName: "bash", Arguments: args}))
+	start := itemStarted(tr.translate(turn.ToolCallStart{CallID: "call_x", ToolName: "shell", Arguments: args}))
 	if start == nil {
 		t.Fatal("no item.started for the resumed tool")
 	}
@@ -154,7 +154,7 @@ func TestTranslator_ResumedToolReusesOriginalItemID(t *testing.T) {
 
 	// A non-matching call (different args) gets a fresh id under the
 	// continuation run — the binding is consumed once, no false reuse.
-	other := itemStarted(tr.translate(turn.ToolCallStart{CallID: "call_y", ToolName: "bash", Arguments: `{"command":"pwd"}`}))
+	other := itemStarted(tr.translate(turn.ToolCallStart{CallID: "call_y", ToolName: "shell", Arguments: `{"command":"pwd"}`}))
 	if other == nil || other.ID == origItemID {
 		t.Fatalf("non-matching tool reused the original id: %+v", other)
 	}
@@ -168,7 +168,7 @@ func TestTranslator_ResumedToolReusesOriginalItemID(t *testing.T) {
 // — so the UI can render "denied" rather than ✓.
 func TestTranslator_DeniedToolIsDistinct(t *testing.T) {
 	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "")
-	tr.translate(turn.ToolCallStart{CallID: "c1", ToolName: "bash", Arguments: `{"command":"rm -rf /"}`})
+	tr.translate(turn.ToolCallStart{CallID: "c1", ToolName: "shell", Arguments: `{"command":"rm -rf /"}`})
 	end := tr.translate(turn.ToolCallEnd{CallID: "c1", Output: "tool call denied by user", Denied: true})
 	if len(end) != 1 || end[0].Item == nil {
 		t.Fatalf("toolEnd = %+v, want one item.completed", end)
@@ -232,7 +232,7 @@ func TestTranslator_ResumedQuestionCompletes(t *testing.T) {
 // neutral envelope carries name + arguments + a best-effort JSON result.
 func TestTranslator_CommandOutputOnCompleted(t *testing.T) {
 	tr := newTranslator("ses_1", "run_1", "", nil, nil, "", "")
-	tr.translate(turn.ToolCallStart{CallID: "c1", ToolName: "bash", Arguments: `{"command":"echo hi"}`})
+	tr.translate(turn.ToolCallStart{CallID: "c1", ToolName: "shell", Arguments: `{"command":"echo hi"}`})
 	out := tr.translate(turn.ToolCallEnd{
 		CallID: "c1",
 		Output: `{"stdout":"hi\n","stderr":"oops","exit_code":0,"duration":"5ms"}`,
@@ -247,8 +247,8 @@ func TestTranslator_CommandOutputOnCompleted(t *testing.T) {
 	if completed == nil || completed.Tool == nil {
 		t.Fatalf("no completed toolCall item: %+v", out)
 	}
-	if completed.Tool.Name != "bash" {
-		t.Fatalf("tool name = %q, want bash (name is the sole identity, §4.4)", completed.Tool.Name)
+	if completed.Tool.Name != "shell" {
+		t.Fatalf("tool name = %q, want shell (name is the sole identity, §4.4)", completed.Tool.Name)
 	}
 	res, ok := completed.Tool.Result.(commandResult)
 	if !ok {
@@ -262,7 +262,7 @@ func TestTranslator_CommandOutputOnCompleted(t *testing.T) {
 	// omitted) so the client renders an empty terminal rather than falling back
 	// to a stale preview / "(no output)".
 	tr2 := newTranslator("ses_1", "run_2", "", nil, nil, "", "")
-	tr2.translate(turn.ToolCallStart{CallID: "c2", ToolName: "bash", Arguments: `{"command":"true"}`})
+	tr2.translate(turn.ToolCallStart{CallID: "c2", ToolName: "shell", Arguments: `{"command":"true"}`})
 	out2 := tr2.translate(turn.ToolCallEnd{CallID: "c2", Output: `{"stdout":"","stderr":"","exit_code":0,"duration":"1ms"}`})
 	for _, se := range out2 {
 		if se.Type == protocol.StreamItemCompleted {

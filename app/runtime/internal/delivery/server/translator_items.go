@@ -195,11 +195,11 @@ func (t *translator) usageProgress(e turn.UsageReported) []protocol.StreamEvent 
 // fallback (covers MCP "<server>.<tool>" and any dynamic / lsp_* tool).
 func activityVerb(name string) string {
 	switch name {
-	case "bash", "shell", "run_in_background":
+	case "shell", "run_in_background":
 		return "Running command"
-	case "bash_output":
+	case "shell_output":
 		return "Reading command output"
-	case "kill_shell":
+	case "shell_kill":
 		return "Stopping command"
 	case "read":
 		return "Reading file"

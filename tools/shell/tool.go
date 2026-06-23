@@ -1,4 +1,4 @@
-package bash
+package shell
 
 import (
 	"context"
@@ -49,9 +49,9 @@ func NewTool(executor Executor) *Tool {
 
 func (t *Tool) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{
-		Name: "bash",
+		Name: "shell",
 		Description: "Execute a shell command via /bin/sh -c. Returns stdout, stderr, exit code, and duration. " +
-			"Avoid using `find`, `grep`, `cat`, `head`, `tail`, `sed`, `awk` here — use the dedicated `glob`, `grep`, `read`, `edit` tools instead. Reserve bash for shell-only operations (build commands, git, package managers, etc.). " +
+			"Avoid using `find`, `grep`, `cat`, `head`, `tail`, `sed`, `awk` here — use the dedicated `glob`, `grep`, `read`, `edit` tools instead. Reserve `shell` for operations that genuinely need a shell (build commands, git, package managers, etc.). " +
 			"Each invocation starts a fresh shell — `cd`, exported variables, and shell options do not persist between calls.",
 		InputSchema: toolSchema,
 	}
@@ -63,14 +63,14 @@ func (t *Tool) Call(ctx context.Context, arguments string) (string, error) {
 	_ = ctx
 	var req Request
 	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
-		return "", fmt.Errorf("bash.tool: parse arguments: %w", err)
+		return "", fmt.Errorf("shell.tool: parse arguments: %w", err)
 	}
 	res, err := t.executor.Run(ctx, Input{
 		Cmd:     req.Command,
 		Timeout: time.Duration(req.Timeout) * time.Millisecond,
 	})
 	if err != nil {
-		return "", fmt.Errorf("bash.tool: run: %w", err)
+		return "", fmt.Errorf("shell.tool: run: %w", err)
 	}
 	body, err := json.Marshal(Response{
 		Stdout:   string(res.Stdout),
@@ -80,7 +80,7 @@ func (t *Tool) Call(ctx context.Context, arguments string) (string, error) {
 		Duration: res.Duration.String(),
 	})
 	if err != nil {
-		return "", fmt.Errorf("bash.tool: marshal: %w", err)
+		return "", fmt.Errorf("shell.tool: marshal: %w", err)
 	}
 	return string(body), nil
 }

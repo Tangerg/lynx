@@ -38,7 +38,7 @@ describe("deriveLatestRun", () => {
         entry({ kind: "run-start", runId: "r1" }),
         entry({ kind: "run-end", runId: "r1" }),
         entry({ kind: "run-start", runId: "r2" }),
-        entry({ kind: "tool-start", runId: "r2", refId: "t1", summary: "bash" }),
+        entry({ kind: "tool-start", runId: "r2", refId: "t1", summary: "shell" }),
       ],
     });
     const d = deriveLatestRun(v);
@@ -78,7 +78,7 @@ describe("deriveLatestRun", () => {
         entry({ kind: "run-start", runId: "r1" }),
         entry({ kind: "tool-start", refId: "t-write", summary: "write_file" }),
         entry({ kind: "tool-start", refId: "t-read", summary: "read_file" }),
-        entry({ kind: "tool-start", refId: "t-bash", summary: "bash" }),
+        entry({ kind: "tool-start", refId: "t-shell", summary: "shell" }),
         entry({ kind: "run-end", runId: "r1" }),
       ],
       toolCalls: {
@@ -98,10 +98,10 @@ describe("deriveLatestRun", () => {
           args: "src/types.ts",
           status: "ok",
         },
-        "t-bash": {
-          id: "t-bash",
-          name: "bash", // command category (§4.4.2)
-          fn: "pnpm test", // toolLabel(bash) = arguments.command
+        "t-shell": {
+          id: "t-shell",
+          name: "shell", // command category (§4.4.2)
+          fn: "pnpm test", // toolLabel(shell) = arguments.command
           args: "",
           status: "err",
         },

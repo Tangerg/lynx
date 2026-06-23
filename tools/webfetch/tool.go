@@ -44,7 +44,7 @@ const webFetchDescription = `Fetch and read a single web page, returning the con
 - Returns the page content rendered to the requested format (markdown by default)
 - Use this after web_search when result snippets don't contain enough detail
 - Use this when the user gives you a specific URL
-- For JS-heavy / SPA pages, prefer this tool over bash + curl — the provider handles rendering
+- For JS-heavy / SPA pages, prefer this tool over shell + curl — the provider handles rendering
 
 Format options:
 - "markdown" (default) — best for LLM context; structure preserved
@@ -55,7 +55,7 @@ Usage notes:
 - The tool is read-only; it never modifies files
 - HTTP URLs are upgraded to HTTPS automatically by most providers
 - This tool WILL FAIL on authenticated or private URLs (Google Docs, Confluence, Jira, internal wikis) — look for a specialized MCP tool that does authenticated access
-- For GitHub URLs, prefer bash + the gh CLI (gh pr view / gh issue view / gh api) — it handles auth and pagination properly
+- For GitHub URLs, prefer shell + the gh CLI (gh pr view / gh issue view / gh api) — it handles auth and pagination properly
 - If you get a redirect or 4xx error, the URL is likely wrong, gated, or expired — don't retry blindly`
 
 func (t *Tool) Metadata() chat.ToolMetadata { return chat.ToolMetadata{} }

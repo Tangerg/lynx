@@ -100,7 +100,7 @@ func TestCompactor_CutBoundary(t *testing.T) {
 	asst := func(text string) chat.Message { return chat.NewAssistantMessage(text) }
 	user := func(text string) chat.Message { return chat.NewUserMessage(text) }
 	tool := func(id, result string) chat.Message {
-		m, _ := chat.NewToolMessage([]*chat.ToolReturn{{ID: id, Name: "bash", Result: result}})
+		m, _ := chat.NewToolMessage([]*chat.ToolReturn{{ID: id, Name: "shell", Result: result}})
 		return m
 	}
 

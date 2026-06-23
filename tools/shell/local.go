@@ -1,4 +1,4 @@
-package bash
+package shell
 
 import (
 	"bytes"
@@ -24,7 +24,7 @@ type LocalExecutor struct {
 
 	// Dir is the working directory commands run in. "" inherits the
 	// host process's cwd (os/exec's default). Set it to confine a
-	// command's relative-path resolution to a project root — the bash
+	// command's relative-path resolution to a project root — the shell
 	// analog of [fs.LocalExecutor.Root]. It does NOT jail the command
 	// (a command can still cd / touch absolute paths); jailing is the
 	// caller's job via OS sandbox / container.

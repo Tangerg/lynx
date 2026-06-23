@@ -14,7 +14,7 @@
 **格局**:这 6 个 peer **全部是 ReAct/loop 或 staged-state-machine** 架构;`app/runtime` 是其中**唯一 planner-driven(GOAP/HTN)**的引擎。在"agent loop 健壮性、并行工具、上下文/持久化、多 provider、可观测性、代码智能"几条主线上,`app/runtime` 已处于第一梯队(与 codex / Claude Code 同档,普遍领先 opencode/kimi/crush/plandex)。
 
 **真正的能力差(2026-06-23 刷新后)只剩 ~1.5 处,且都不是框架味:**
-1. **OS 级命令沙箱** —— codex(Seatbelt/Landlock+seccomp/Win Restricted-Token)、Claude Code(sandbox-runtime)有;`app/runtime` 与 opencode/kimi/crush 一样**没有**,bash 直接在工作区跑。**这是唯一的硬 gap**。
+1. **OS 级命令沙箱** —— codex(Seatbelt/Landlock+seccomp/Win Restricted-Token)、Claude Code(sandbox-runtime)有;`app/runtime` 与 opencode/kimi/crush 一样**没有**,shell 直接在工作区跑。**这是唯一的硬 gap**。
 2. ~~**细粒度权限规则 + hooks 系统**~~ —— **已基本补齐(06-20/06-21)**:落地了 `Rule{scope,tool,subject,decision}`+sqlite 审批规则 + 用户级子进程 hooks(6/7 seam)+ cron 调度。**残留只是"广度"差**(claude code 的规则 DSL 含显式 `ask`+企业 MDM、hook 18+ 事件含 PreCompact;我方 6/7、缺 PreCompact)——见 §0.5。
 
 其余 peer 独有项(codex 的 Guardian/code_mode/Realtime、plandex 的 per-plan git、多前端全家桶、V4A apply_patch)要么是值得借鉴的"思想"、要么是框架味/已被 lyra 等价能力覆盖的 by-design skip。详见 §0.5 + §10。
@@ -45,7 +45,7 @@
 - LSP 现也是 config-driven(`lsp.servers`),与我方同档(非旧说的 plugin-only);仍无 lyra 的多 provider 广度(Anthropic-only,Bedrock/Vertex 仅网关)。
 
 **④ NET 当前差距(对 codex / Claude Code):**
-1. **OS 命令沙箱 —— 唯一硬 gap**(两家均生产级;我方 bash 仍裸跑 cwd,仅靠 approval+hooks PreToolUse 做**非 OS 层**门控)。
+1. **OS 命令沙箱 —— 唯一硬 gap**(两家均生产级;我方 shell 仍裸跑 cwd,仅靠 approval+hooks PreToolUse 做**非 OS 层**门控)。
 2. **权限/hooks 的"广度"(minor)**:核心已补,残留为 claude code 的规则 DSL(显式 ask + MDM)与 hook 事件数(18+ vs 6/7,缺 PreCompact)更宽。
 3. **几个 situational/minor**:子 agent **worktree 隔离**(并行写隔离)、**ToolSearch 工具延迟加载**(MCP 池大时)、**暴露为 MCP server**(`mcp serve`,A2A 已覆盖大半)、**Guardian 式 LLM 自动审批**(可选,需谨慎防过度信任)。
 
@@ -134,7 +134,7 @@
 | Kimi | ❌(经 Kaos 抽象,支持 SSH 远程但无 OS 隔离) | ✅BackgroundManager |
 | crush | ❌in-process shell 直跑工作区 | ✅auto-background(60s)+job_output/kill |
 | plandex | 🟡best-effort Linux cgroup/进程组(其余 OS no-op) | ✅daemon 后台任务 |
-| **app/runtime** | ❌**bash 直接在 Session.cwd 跑,无 OS 隔离** | ✅block+timeout(无 PTY) |
+| **app/runtime** | ❌**shell 直接在 Session.cwd 跑,无 OS 隔离** | ✅block+timeout(无 PTY) |
 
 **裁决:OS 沙箱是真 gap,值得学,且与项目哲学不冲突**(安全是核心关注,不是框架仪式)。codex/Claude Code 的做法是统一抽象 —— macOS Seatbelt(`sandbox-exec`)+ Linux Landlock+seccomp,配 `WorkspaceWrite{writable_roots, network}` 策略。lyra 已有 `infra/exec` 执行层,加一层 OS 沙箱包装是干净的下沉。**注意:多数 peer(opencode/kimi/crush)也没有,所以这是"追平头部"而非"补齐及格线"——优先级看 lyra 是否要支持高自主/无人值守运行。**
 
@@ -201,7 +201,7 @@
 
 | 优先级 | 学什么 | 来源 | 怎么落地(lyra 方式) | 为什么值得 |
 |---|---|---|---|---|
-| **高** | **OS 命令沙箱**(唯一硬 gap) | codex / Claude Code | 在 `infra/exec` 下加一层 OS 沙箱包装:macOS `sandbox-exec`(Seatbelt)+ Linux Landlock+seccomp,配 `WorkspaceWrite{writable_roots, network}` 策略;沙箱拒绝时经 approval 升级 | bash 裸跑工作区,**已有 scheduler 做无人值守**,高自主运行有真实风险。安全是核心关注非框架仪式 |
+| **高** | **OS 命令沙箱**(唯一硬 gap) | codex / Claude Code | 在 `infra/exec` 下加一层 OS 沙箱包装:macOS `sandbox-exec`(Seatbelt)+ Linux Landlock+seccomp,配 `WorkspaceWrite{writable_roots, network}` 策略;沙箱拒绝时经 approval 升级 | shell 裸跑工作区,**已有 scheduler 做无人值守**,高自主运行有真实风险。安全是核心关注非框架仪式 |
 | **低** | **补 hooks 广度(PreCompact 等)+ 规则的显式 `ask`** | Claude Code | 给 hooks 加 PreCompact seam;规则 `decision` 加 `ask`(现由 Mode 兜底) | 核心已齐,把广度补到 claude code 档,增量小 |
 | **低** | **子 agent worktree 隔离** + **ToolSearch 工具延迟加载** | Claude Code | 并行子 agent 各自 git worktree(避免并行写冲突,现靠 ConcurrencyKey+checkpoint 缓解);MCP 工具池大时按需加载工具 | situational:前者利于并行写安全,后者在 MCP 工具多时省 prompt |
 | **低** | **Guardian 式 LLM 自动审批** + **lyra-as-MCP-server** | codex | 可选 LLM reviewer 在 on-request 审批自动裁决(fail-closed+断路器);把 lyra 暴露成 MCP 工具 | Guardian 减少无人值守打断(谨慎防过度信任);MCP-server 让 lyra 被别 agent 复用(A2A 已覆盖大半) |

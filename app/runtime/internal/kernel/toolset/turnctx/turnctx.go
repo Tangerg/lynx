@@ -13,7 +13,7 @@ import (
 )
 
 // CwdBindingKey is the blackboard key the chat action binds (protected) with the
-// turn's working directory. The resolver reads it so the filesystem + bash tools
+// turn's working directory. The resolver reads it so the filesystem + shell tools
 // operate in the session's project directory. Binding it protected carries it to
 // `task` sub-agents: [core.Blackboard.Spawn] copies protected entries onto the
 // child and the typed-action ClearBlackboard preserves them, so a plain Set would

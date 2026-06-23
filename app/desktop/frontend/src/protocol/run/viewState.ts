@@ -17,7 +17,7 @@ export type MessageRole = "user" | "assistant" | "system";
 // contribution), never a protocol change. Unknown names → "generic" (JSON tree
 // fallback). Used by the fold (projections), runDigest, and tool icon routing.
 export type ToolCategory =
-  | "command" // bash / shell / run_in_background → { command } + { exitCode, output, outputTruncated? } or a plain-string ack
+  | "command" // shell / run_in_background → { command } + { exitCode, output, outputTruncated? } or a plain-string ack
   | "fileEdit" // edit / write → { path } + { changes: FileEdit[] }
   | "search" // grep / glob → { query|pattern } + { hits: SearchHit[] }
   | "webSearch" // webSearch → { query } + { results: WebSearchResult[] }
@@ -26,9 +26,8 @@ export type ToolCategory =
   | "generic"; // MCP "<server>.<tool>" / anything unknown → JSON tree
 
 const TOOL_CATEGORY: Record<string, ToolCategory> = {
-  bash: "command",
   shell: "command",
-  run_in_background: "command", // bg counterpart of bash: { command } in, plain-string ack out
+  run_in_background: "command", // bg counterpart of shell: { command } in, plain-string ack out
   edit: "fileEdit",
   write: "fileEdit",
   grep: "search",
@@ -38,7 +37,7 @@ const TOOL_CATEGORY: Record<string, ToolCategory> = {
   subagent: "subagent",
   task: "subagent", // the runtime's subagent tool (spawns a child run, returns its reply)
 };
-// lsp / lsp_diagnostics / skill / ask_user / bash_output / kill_shell stay
+// lsp / lsp_diagnostics / skill / ask_user / shell_output / shell_kill stay
 // "generic" on purpose: their labels, icons, and previews key on the tool NAME
 // (projections.toolLabel + TOOL_ICON + TOOL_PREVIEW), and their results are
 // plain text the generic field projection already passes through.
@@ -86,7 +85,7 @@ export interface ToolCall {
    *  re-querying the whole worktree. Absent for write / non-edit tools. */
   diff?: DiffRow[];
   hits?: number;
-  /** command-category (`bash`/`shell`) exit code, from result.exitCode (§4.4.2).
+  /** command-category (`shell`) exit code, from result.exitCode (§4.4.2).
    *  Surfaced for visibility; a non-zero exit is shown but does NOT force the
    *  status red (exit≠0 isn't always failure — e.g. grep "no match"). Real
    *  failures set the toolCall Item's `error`. */

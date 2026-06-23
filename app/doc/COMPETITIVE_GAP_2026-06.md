@@ -86,7 +86,7 @@
 LSP 深度(且 edit 结果已折入诊断,editguard decorator)、MCP OAuth(比 crush/continue 广)、shadow-git 整库 checkpoint(比 claude_code 内容快照/goose fork 强,只差前端)、持久化细粒度审批规则(多数竞品仅 session-only)、工具组折叠、@file、记忆抽取→LYRA.md、durable cross-restart resume、multimodal image。
 
 ## 明确不抄(撞已定法则)
-- Sleep 工具(选了 `bash_output` block)。
+- Sleep 工具(选了 `shell_output` block)。
 - retry layer(SDK 内置够)。
 - provider OAuth / token refresh(用户填 key;撞反不变量)。
 - 结构化输出 converter 链(已 closed,Reasoning first-class)。

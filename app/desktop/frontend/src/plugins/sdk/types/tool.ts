@@ -17,7 +17,7 @@ export type ToolPreviewComponent = ComponentType<ToolPreviewProps>;
 /**
  * A button rendered on every ToolCard's header, before the expand button.
  * The optional `predicate` lets a plugin scope the action to a subset of
- * tool calls (e.g. only `bash` tools, only completed tools).
+ * tool calls (e.g. only `shell` tools, only completed tools).
  *
  * Common use cases: copy-command, rerun, open-file, view-stderr.
  */

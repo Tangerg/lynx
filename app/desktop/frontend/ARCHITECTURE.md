@@ -366,7 +366,7 @@ protocol        → core-reducer
 infrastructure  → defaultConfig / bootstrap / defaultData / rpcAgent / defaultTitle /
                   defaultAccents / themesPack / localesPack / mainRoute
 messageRendering→ defaultRoles / messageCopy+Edit+Regenerate / previewBlocks
-toolRendering   → bash / diff / file / grep / toolActions / toolIcons
+toolRendering   → shellPreview / diff / file / grep / toolActions / toolIcons
 composer        → slashHints / chips / modes / toolbar / placeholders / keymap / send
 panes           → appearance / personalization / connection / pluginsPane / providers /
                   workspace views（diff/terminal/files/plan/timeline/runSummary/tools/skills/agentDocs/notifications）/ diagnostics

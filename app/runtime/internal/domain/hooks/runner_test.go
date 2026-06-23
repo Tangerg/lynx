@@ -41,7 +41,7 @@ func TestRunner_StdoutDenyBlocks(t *testing.T) {
 		Event:   PreToolUse,
 		Command: `echo '{"decision":"deny","reason":"no rm allowed"}'`,
 	}}
-	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "bash"}})
+	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "shell"}})
 	if !dec.Block || dec.Reason != "no rm allowed" {
 		t.Fatalf("got block=%v reason=%q, want deny", dec.Block, dec.Reason)
 	}
@@ -53,7 +53,7 @@ func TestRunner_Exit2Blocks(t *testing.T) {
 		Event:   PreToolUse,
 		Command: `echo "blocked by policy" >&2; exit 2`,
 	}}
-	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "bash"}})
+	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "shell"}})
 	if !dec.Block || dec.Reason != "blocked by policy" {
 		t.Fatalf("got block=%v reason=%q, want exit-2 block w/ stderr reason", dec.Block, dec.Reason)
 	}
@@ -62,7 +62,7 @@ func TestRunner_Exit2Blocks(t *testing.T) {
 func TestRunner_AskEscalates(t *testing.T) {
 	r := NewRunner(nil)
 	hooks := []Hook{{Event: PreToolUse, Command: `echo '{"decision":"ask","reason":"review"}'`}}
-	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "bash"}})
+	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "shell"}})
 	if dec.Block || !dec.Ask {
 		t.Fatalf("got block=%v ask=%v, want ask", dec.Block, dec.Ask)
 	}
@@ -87,7 +87,7 @@ func TestRunner_NonBlockingErrorProceeds(t *testing.T) {
 	})
 	// exit 3 (not the block code 2) → broken hook → non-blocking, reported.
 	hooks := []Hook{{Event: PreToolUse, Command: `echo "boom" >&2; exit 3`}}
-	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "bash"}})
+	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "shell"}})
 	if dec.Block {
 		t.Error("a non-2 exit must NOT block (broken hook can't brick the agent)")
 	}
@@ -100,7 +100,7 @@ func TestRunner_TimeoutIsNonBlocking(t *testing.T) {
 	var got error
 	r := NewRunner(func(_ context.Context, _ string, err error) { got = err })
 	hooks := []Hook{{Event: PreToolUse, Command: `sleep 5`, TimeoutMs: 40}}
-	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "bash"}})
+	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "shell"}})
 	if dec.Block {
 		t.Error("a timed-out hook must not block")
 	}
@@ -111,16 +111,16 @@ func TestRunner_TimeoutIsNonBlocking(t *testing.T) {
 
 func TestRunner_MatcherGatesByToolName(t *testing.T) {
 	r := NewRunner(nil)
-	// Only fires for bash; a read tool must not trigger it.
-	hooks := []Hook{{Event: PreToolUse, Matcher: "bash", Command: `echo '{"decision":"deny","reason":"x"}'`}}
+	// Only fires for shell; a read tool must not trigger it.
+	hooks := []Hook{{Event: PreToolUse, Matcher: "shell", Command: `echo '{"decision":"deny","reason":"x"}'`}}
 
-	denied := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "bash"}})
+	denied := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "shell"}})
 	if !denied.Block {
-		t.Error("matcher bash should fire for bash")
+		t.Error("matcher shell should fire for shell")
 	}
 	passed := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "read"}})
 	if passed.Block {
-		t.Error("matcher bash must NOT fire for read")
+		t.Error("matcher shell must NOT fire for read")
 	}
 }
 
@@ -132,7 +132,7 @@ func TestRunner_FirstBlockWins_ContextConcatenated(t *testing.T) {
 		{Event: PostToolUse, Command: `echo '{"decision":"deny","reason":"second"}'`},
 		{Event: PostToolUse, Inject: "ctx-b"},
 	}
-	dec := r.Run(ctxBG(), hooks, Input{Event: PostToolUse, Tool: &ToolInput{Name: "bash"}})
+	dec := r.Run(ctxBG(), hooks, Input{Event: PostToolUse, Tool: &ToolInput{Name: "shell"}})
 	if dec.Reason != "first" {
 		t.Errorf("Reason = %q, want first-block-wins", dec.Reason)
 	}
@@ -144,7 +144,7 @@ func TestRunner_FirstBlockWins_ContextConcatenated(t *testing.T) {
 func TestRunner_WrongEventDoesNotFire(t *testing.T) {
 	r := NewRunner(nil)
 	hooks := []Hook{{Event: Stop, Command: `echo '{"decision":"deny"}'`}}
-	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "bash"}})
+	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "shell"}})
 	if dec.Block {
 		t.Error("a Stop hook must not fire on PreToolUse")
 	}

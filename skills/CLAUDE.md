@@ -7,7 +7,7 @@
 
 ## 一句话定位
 
-把"一个装着 `SKILL.md`（YAML frontmatter + Markdown 指令）+ 可选 `references/` `assets/` `scripts/` 资源的目录"读出来的**纯基础能力层**。只解析、校验、按需取用内容;**不执行脚本**（agent 用自己的 bash/fs 工具跑），**不认识 `chat` / tool**（工具封装在 `tools/skills`）。是 tools 模块"两层 SPI"里的 backend 层 —— 与 `bash.Executor` / `fs.Executor` 同位。
+把"一个装着 `SKILL.md`（YAML frontmatter + Markdown 指令）+ 可选 `references/` `assets/` `scripts/` 资源的目录"读出来的**纯基础能力层**。只解析、校验、按需取用内容;**不执行脚本**（agent 用自己的 shell/fs 工具跑），**不认识 `chat` / tool**（工具封装在 `tools/skills`）。是 tools 模块"两层 SPI"里的 backend 层 —— 与 `shell.Executor` / `fs.Executor` 同位。
 
 ## 技术栈
 
@@ -38,7 +38,7 @@
 ## 强约定
 
 - **规范即真理**：`name` 1-64 小写字母数字 + 单连字符（无首尾/连续连字符，正则 `^[a-z0-9]+(-[a-z0-9]+)*$`）、`description` 1-1024、`compatibility` ≤500、`name` 必须等于目录名（`Load` 强制 `ErrNameMismatch`）
-- **不执行 `scripts/`**：本模块只把脚本**内容**通过 `LoadResource` 交出去;真正运行由 agent 的 bash/fs 工具负责（KISS + 不重复造 bash + 安全）
+- **不执行 `scripts/`**：本模块只把脚本**内容**通过 `LoadResource` 交出去;真正运行由 agent 的 shell/fs 工具负责（KISS + 不重复造 shell + 安全）
 - **`allowed-tools` 解析不强制**：实验字段,各家都这么处理;`AllowedToolList()` 给愿意自己执行的 caller
 - **路径不可逃逸**：`LoadResource` 用 `path.Join(name, resource)` + 前缀校验,`..` 穿透出 skill 目录 → `ErrResourcePath`;`validName` 挡住 name 里的 `/` `\` `..`
 - **`List` 跳过非法项不报错**：非目录 / 无 `SKILL.md` / 校验失败的目录直接 skip,不让一个坏 skill 拖垮整张列表（同 ecosystem 行为）

@@ -15,7 +15,7 @@ import (
 // winning). It returns nil when neither directory exists, so a session that
 // ships no skills gets no skill tool at all.
 //
-// Rebuilt per resolution like fs/bash, because the project directory depends on
+// Rebuilt per resolution like fs/shell, because the project directory depends on
 // the turn's working directory; the merged source just wraps os.DirFS, so the
 // cost is negligible.
 func Build(workdir, globalDir string) chat.Tool {

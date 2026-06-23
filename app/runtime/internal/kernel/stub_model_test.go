@@ -43,7 +43,7 @@ func (m *delegatingStubModel) Stream(ctx context.Context, req *chat.Request) ite
 
 // cwdDelegatingStubModel is delegatingStubModel's cwd-aware cousin: the main
 // turn delegates via `task`, and the sub-agent (instead of replying text)
-// asks bash to create a marker file with a RELATIVE path. The marker lands in
+// asks shell to create a marker file with a RELATIVE path. The marker lands in
 // whatever working directory the sub-agent's tools run in — so a test can
 // assert the sub-agent inherited the turn's Cwd by checking where the file
 // appeared.
@@ -63,7 +63,7 @@ func (m *cwdDelegatingStubModel) Call(_ context.Context, req *chat.Request) (*ch
 	switch {
 	case hasToolMessage(req.Messages):
 		// Round 2 — distinguish the main turn (delegated via task) from
-		// the sub-agent turn (ran bash) by inspecting tool calls in the
+		// the sub-agent turn (ran shell) by inspecting tool calls in the
 		// conversation. The tool-loop middleware strips user messages
 		// between rounds (§invoker.nextRoundRequest), so we use the
 		// assistant tool calls on the wire instead.
@@ -76,7 +76,7 @@ func (m *cwdDelegatingStubModel) Call(_ context.Context, req *chat.Request) (*ch
 	default:
 		// Sub-agent's first round: write a marker via a relative path so
 		// where it lands reflects the inherited working directory.
-		return responseWithToolCall("bash", `{"command":"touch subtask_was_here.txt"}`)
+		return responseWithToolCall("shell", `{"command":"touch subtask_was_here.txt"}`)
 	}
 }
 
@@ -148,7 +148,7 @@ func (m *subtaskMemoryStub) Call(_ context.Context, req *chat.Request) (*chat.Re
 	case hasToolCall(req.Messages, "task"):
 		// Main turn, round 2: echo back whatever the subtask reported.
 		return responseWithText("main: " + toolResult(req.Messages, "task"))
-	case hasToolCall(req.Messages, "bash"):
+	case hasToolCall(req.Messages, "shell"):
 		// Sub-agent turn, round 2: the secret is only visible if the child's
 		// memory middleware spliced round 1's prompt back in.
 		if userMessagesContain(req.Messages, subtaskSecret) {
@@ -160,7 +160,7 @@ func (m *subtaskMemoryStub) Call(_ context.Context, req *chat.Request) (*chat.Re
 		return responseWithToolCall("task", `{"prompt":"the secret is `+subtaskSecret+`; run a command then echo the secret back to me"}`)
 	default:
 		// Sub-agent turn, round 1: run a tool so a round 2 happens.
-		return responseWithToolCall("bash", `{"command":"echo working"}`)
+		return responseWithToolCall("shell", `{"command":"echo working"}`)
 	}
 }
 
@@ -340,7 +340,7 @@ func responseWithToolCall(name, args string) (*chat.Response, error) {
 	)
 }
 
-// usageStubModel runs the same two-round bash dance as stubModel but
+// usageStubModel runs the same two-round shell dance as stubModel but
 // stamps a configurable Usage on each round's Response so per-turn
 // usage accumulation can be asserted end-to-end.
 type usageStubModel struct {
@@ -365,7 +365,7 @@ func (m *usageStubModel) Call(_ context.Context, req *chat.Request) (*chat.Respo
 	if hasToolMessage(req.Messages) {
 		resp, err = responseWithTextAndUsage("done", m.round2Usage)
 	} else {
-		resp, err = responseWithToolCallAndUsage("bash", `{"command":"echo lyra"}`, m.round1Usage)
+		resp, err = responseWithToolCallAndUsage("shell", `{"command":"echo lyra"}`, m.round1Usage)
 	}
 	// Stamp the served model so per-model usage roll-up is exercised.
 	if resp != nil && resp.Metadata != nil {

@@ -21,7 +21,7 @@ type Tool struct {
 }
 
 // NewTool builds a [Tool] backed by provider. Returns an error if
-// provider is nil — unlike the bash/fs tools, there is no sensible
+// provider is nil — unlike the shell/fs tools, there is no sensible
 // local fallback.
 func NewTool(provider Provider) (*Tool, error) {
 	if provider == nil {

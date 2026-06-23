@@ -22,7 +22,7 @@ import (
 func memoryNewInMemoryStore() memory.Store { return memory.NewInMemoryStore() }
 
 // TestEngine_RunChat_ToolCallObserved drives the engine with a stub
-// model that asks for a `bash` tool call (echo lyra), then returns a
+// model that asks for a `shell` tool call (echo lyra), then returns a
 // final text mentioning the captured output. The observer must see
 // one OnToolCallStart / OnToolCallEnd pair; the returned reply must
 // be the stub's FinalText.
@@ -32,7 +32,7 @@ func memoryNewInMemoryStore() memory.Store { return memory.NewInMemoryStore() }
 // → observedTool → toolObserver is wired end-to-end without any
 // real LLM in the loop.
 func TestEngine_RunChat_ToolCallObserved(t *testing.T) {
-	stub := newStubModel("bash", `{"command":"echo lyra"}`, "I ran echo and got lyra.")
+	stub := newStubModel("shell", `{"command":"echo lyra"}`, "I ran echo and got lyra.")
 	client, err := chat.NewClient(stub)
 	if err != nil {
 		t.Fatalf("chat client: %v", err)
@@ -45,7 +45,7 @@ func TestEngine_RunChat_ToolCallObserved(t *testing.T) {
 
 	rec := &recordingObserver{}
 	out, err := eng.RunChat(context.Background(), RunChatRequest{
-		Message:  "say lyra via bash",
+		Message:  "say lyra via shell",
 		Observer: rec,
 	})
 	if err != nil {
@@ -62,8 +62,8 @@ func TestEngine_RunChat_ToolCallObserved(t *testing.T) {
 	if len(starts) != 1 {
 		t.Fatalf("OnToolCallStart count = %d, want 1; got %#v", len(starts), starts)
 	}
-	if starts[0].toolName != "bash" {
-		t.Errorf("start tool name = %q, want bash", starts[0].toolName)
+	if starts[0].toolName != "shell" {
+		t.Errorf("start tool name = %q, want shell", starts[0].toolName)
 	}
 	if !strings.Contains(starts[0].arguments, "echo lyra") {
 		t.Errorf("start arguments missing command: %q", starts[0].arguments)
@@ -88,7 +88,7 @@ func TestEngine_RunChat_ToolCallObserved(t *testing.T) {
 // engine still drives the tool loop, just without firing any
 // notifications.
 func TestEngine_RunChat_NoObserver(t *testing.T) {
-	stub := newStubModel("bash", `{"command":"echo lyra"}`, "done")
+	stub := newStubModel("shell", `{"command":"echo lyra"}`, "done")
 	client, _ := chat.NewClient(stub)
 	eng, err := New(context.Background(), Config{ChatClient: client})
 	if err != nil {
@@ -155,7 +155,7 @@ func TestEngine_RunChat_TaskDelegation(t *testing.T) {
 }
 
 // TestEngine_RunChat_ToolsRunInCwd proves the per-run working directory
-// reaches the filesystem + bash tools: a turn started with Cwd=dir runs
+// reaches the filesystem + shell tools: a turn started with Cwd=dir runs
 // `ls` and must see a file that only exists in dir. Without the cwd seam
 // the tools would run in the engine's default workdir (the test process
 // cwd) and the file wouldn't appear.
@@ -164,7 +164,7 @@ func TestEngine_RunChat_ToolsRunInCwd(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "sentinel.txt"), []byte("x"), 0o644); err != nil {
 		t.Fatalf("seed sentinel: %v", err)
 	}
-	stub := newStubModel("bash", `{"command":"ls"}`, "done")
+	stub := newStubModel("shell", `{"command":"ls"}`, "done")
 	client, _ := chat.NewClient(stub)
 	eng, err := New(context.Background(), Config{ChatClient: client})
 	if err != nil {
@@ -185,12 +185,12 @@ func TestEngine_RunChat_ToolsRunInCwd(t *testing.T) {
 		t.Fatalf("tool end count = %d, want 1", len(ends))
 	}
 	if !strings.Contains(ends[0].output, "sentinel.txt") {
-		t.Errorf("bash `ls` output %q does not list the file in Cwd %q — tools didn't run in the per-run cwd", ends[0].output, dir)
+		t.Errorf("shell `ls` output %q does not list the file in Cwd %q — tools didn't run in the per-run cwd", ends[0].output, dir)
 	}
 }
 
 // TestEngine_RunChat_SubtaskInheritsCwd proves the working directory reaches
-// `task` sub-agents: the main turn delegates, the sub-agent's bash creates a
+// `task` sub-agents: the main turn delegates, the sub-agent's shell creates a
 // marker with a RELATIVE path, and it must land in the turn's Cwd. The
 // sub-agent runs on a fresh blackboard that keeps the parent's protected
 // entries (SpawnChildProtectedOnly) — so it both does real work (its goal
@@ -215,7 +215,7 @@ func TestEngine_RunChat_SubtaskInheritsCwd(t *testing.T) {
 		t.Fatalf("reply = %q, want the post-delegation answer", out.Reply)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "subtask_was_here.txt")); err != nil {
-		t.Errorf("subtask's bash did not create the marker in Cwd %q — the sub-agent didn't run or didn't inherit the working dir: %v", dir, err)
+		t.Errorf("subtask's shell did not create the marker in Cwd %q — the sub-agent didn't run or didn't inherit the working dir: %v", dir, err)
 	}
 }
 
@@ -552,14 +552,14 @@ func TestEngine_RunChat_NoSessionIDDoesNotPersist(t *testing.T) {
 // always-on coding tool set when no Online credentials are
 // configured. Provider-backed tools must NOT appear.
 func TestEngine_Tools_OfflineOnly(t *testing.T) {
-	stub := newStubModel("bash", `{}`, "")
+	stub := newStubModel("shell", `{}`, "")
 	client, _ := chat.NewClient(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
 	tools := eng.Tools()
-	// 5 filesystem coding tools + 3 shell tools (bash + its bash_output /
-	// kill_shell companions) + 2 always-on LSP tools (the combined `lsp` query
+	// 5 filesystem coding tools + 3 shell tools (shell + its shell_output /
+	// shell_kill companions) + 2 always-on LSP tools (the combined `lsp` query
 	// tool + `lsp_diagnostics`) + the `task` delegation tool + the ask_user HITL
 	// tool. (LSP tools advertise unconditionally; they return a no-server message
 	// at call time when no language server applies.)
@@ -569,9 +569,9 @@ func TestEngine_Tools_OfflineOnly(t *testing.T) {
 
 	names := toolNames(tools)
 	for _, want := range []string{
-		"read", "write", "edit", "glob", "grep", "bash", "task", "ask_user",
+		"read", "write", "edit", "glob", "grep", "shell", "task", "ask_user",
 		"lsp", "lsp_diagnostics",
-		"bash_output", "kill_shell",
+		"shell_output", "shell_kill",
 	} {
 		if !names[want] {
 			t.Errorf("missing tool %q in %v", want, names)
@@ -610,7 +610,7 @@ func mustEngineWith(t *testing.T, client *chat.Client, bc toolset.BuildConfig) *
 // TestEngine_Tools_OnlineEnabled verifies provider-backed tools
 // arrive when their credentials are supplied.
 func TestEngine_Tools_OnlineEnabled(t *testing.T) {
-	stub := newStubModel("bash", `{}`, "")
+	stub := newStubModel("shell", `{}`, "")
 	client, _ := chat.NewClient(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{
 		Online: OnlineConfig{
@@ -637,7 +637,7 @@ func TestEngine_Tools_OnlineEnabled(t *testing.T) {
 // independent — supplying only one credential registers only one
 // extra tool.
 func TestEngine_Tools_PartialOnline(t *testing.T) {
-	stub := newStubModel("bash", `{}`, "")
+	stub := newStubModel("shell", `{}`, "")
 	client, _ := chat.NewClient(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{Online: OnlineConfig{JinaAPIKey: "k"}})
 	defer eng.Close()

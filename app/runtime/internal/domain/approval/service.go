@@ -9,9 +9,9 @@
 //   - Rules: persistent, fine-grained "remember this decision" rules. A rule
 //     gates a (tool, subject) pair under a scope (session / project / global),
 //     so the user can approve once and not be re-asked for matching calls. The
-//     subject is the per-tool part that actually matters — a bash command, an
+//     subject is the per-tool part that actually matters — a shell command, an
 //     edited file's path — so a rule is "allow `npm run *` in this project",
-//     not the blunt "allow every bash call ever".
+//     not the blunt "allow every shell call ever".
 package approval
 
 import "context"
@@ -76,7 +76,7 @@ type Rule struct {
 	ID       string   // deterministic over (Scope, ScopeKey, Tool, Subject)
 	Scope    Scope    // session | project | global
 	ScopeKey string   // session id | project dir | "" for global
-	Tool     string   // tool name, e.g. "bash"
+	Tool     string   // tool name, e.g. "shell"
 	Subject  string   // glob over the call's subject (command / path); "" = any
 	Decision Decision // allow | deny
 }

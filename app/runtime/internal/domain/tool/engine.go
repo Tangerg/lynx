@@ -109,7 +109,7 @@ func defaultSafetyClass(name string) SafetyClass {
 		return SafetyClassSafe
 	case "write", "edit":
 		return SafetyClassWrite
-	case "bash":
+	case "shell":
 		return SafetyClassExec
 	default:
 		// Unknown tool — treat as Exec until proven otherwise.

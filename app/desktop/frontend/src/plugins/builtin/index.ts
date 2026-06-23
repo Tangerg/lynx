@@ -78,7 +78,7 @@ import toaster from "./shell/toaster";
 import { toolActions, toolIcons } from "./chat/tools/meta";
 import {
   askUserPreview,
-  bash,
+  shellPreview,
   diff,
   file,
   globPreview,
@@ -153,7 +153,7 @@ const messageRendering: PluginSpec[] = [
 // Tool rendering — previews, header actions, icon glyph map.
 
 const toolRendering: PluginSpec[] = [
-  bash,
+  shellPreview,
   diff,
   file,
   grep,
