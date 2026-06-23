@@ -134,6 +134,34 @@ func TestRollbackSession_Busy(t *testing.T) {
 	}
 }
 
+// TestClaimSession is the single-writer-per-session admission guard that closes
+// the runs.start / runs.resume check-then-register TOCTOU: a second claim is
+// rejected while the first is outstanding (even though no run is in s.runs yet),
+// a claimed session reads as active to the rollback/start busy check, and a
+// release reopens the slot.
+func TestClaimSession(t *testing.T) {
+	s, _ := rollbackHarness(t)
+	if !s.claimSession("s1") {
+		t.Fatal("first claim must succeed")
+	}
+	if s.claimSession("s1") {
+		t.Fatal("second claim on the same session must fail while the first is outstanding")
+	}
+	if !s.claimSession("s2") {
+		t.Fatal("a different session must claim independently")
+	}
+	if !s.hasActiveRun("s1") {
+		t.Fatal("a claimed (not-yet-registered) session must read as active")
+	}
+	s.releaseSession("s1")
+	if s.hasActiveRun("s1") {
+		t.Fatal("a released session must no longer read as active")
+	}
+	if !s.claimSession("s1") {
+		t.Fatal("claim must succeed again after release")
+	}
+}
+
 // TestForkSession_FromRun truncate-copies the parent's history up to and
 // including the named run's watermark into the child.
 func TestForkSession_FromRun(t *testing.T) {

@@ -63,12 +63,19 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	// and a turn-end compaction rewrites the whole log, so an overlapping run's
 	// messages could be silently dropped (and rollback/fork watermarks computed
 	// against a mutating log). The log can't enforce single-writer itself, so the
-	// run entry point does. A parked run leaves s.runs, so the open-interrupt
-	// registry is the second half of the check. (Continue an existing run with
-	// runs.resume / steer it with runs.steer — not a fresh runs.start.)
-	if s.hasActiveRun(sessionID) {
+	// run entry point does. (Continue an existing run with runs.resume / steer it
+	// with runs.steer — not a fresh runs.start.)
+	//
+	// claimSession reserves the slot atomically with the busy check and holds it
+	// (deferred release) through the run's registration in openSegment — the busy
+	// check and that registration are otherwise separate runMu sections with I/O
+	// between, a TOCTOU two concurrent starts could both pass. A parked run left
+	// s.runs but its durable interrupt still marks the session busy: the second
+	// half of the check below.
+	if !s.claimSession(sessionID) {
 		return nil, nil, fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, sessionID)
 	}
+	defer s.releaseSession(sessionID)
 	open, err := s.rt.Interrupts().List(ctx, sessionID)
 	if err != nil {
 		return nil, nil, err
@@ -132,18 +139,32 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 // agent process, and the continuation streams under a new runId linked
 // back via RunRef.parentRunId.
 func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
-	// Validate the decision BEFORE claiming the interrupt — a malformed
+	// Validate the decision BEFORE touching the interrupt — a malformed
 	// response shouldn't consume the (still-resumable) record.
 	resolution, err := resolveResolution(in.Responses)
 	if err != nil {
 		return nil, nil, err
 	}
-	// Atomically claim the interrupt (read-and-remove in one op). This makes
-	// resume idempotent: a second, concurrent resume of the same parentRunId
-	// finds nothing here and backs off, so the parked process is never
-	// rebuilt twice and the approved (possibly non-idempotent) tool never
-	// re-fires. The claim commits us to resolving it — there's no leftover
-	// record to re-resume whether resolution succeeds or fails.
+	// Peek the interrupt to learn its session, then claim the session's
+	// single-writer slot BEFORE consuming the record. Consume removes the only
+	// busy-marker a parked run has (it already left s.runs), so without the claim
+	// a concurrent runs.start could slip into the window between Consume and the
+	// continuation's openSegment. The claim is held through openSegment (released
+	// on return). A concurrent resume of the same interrupt loses the claim and
+	// is reported busy; Consume's atomic read-and-remove is the backstop so the
+	// parked process is never rebuilt twice (the approved, possibly
+	// non-idempotent, tool never re-fires).
+	peek, found, err := s.rt.Interrupts().Get(ctx, in.ParentRunID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !found {
+		return nil, nil, protocol.ErrInterruptNotOpen
+	}
+	if !s.claimSession(peek.SessionID) {
+		return nil, nil, fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, peek.SessionID)
+	}
+	defer s.releaseSession(peek.SessionID)
 	pending, ok, err := s.rt.Interrupts().Consume(ctx, in.ParentRunID)
 	if err != nil {
 		return nil, nil, err

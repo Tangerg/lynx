@@ -50,8 +50,18 @@ type Server struct {
 
 	// runRegistry tracks live runs so CancelRun / ListRuns can find them
 	// by id. Wired through chat.Service on the in-process path.
-	runMu sync.Mutex
-	runs  map[string]*runEntry
+	//
+	// claiming holds sessions an admitting run (runs.start / runs.resume) has
+	// reserved but not yet registered in `runs`. The single-writer-per-session
+	// invariant is a check-then-act: the busy check and the run's registration
+	// (openSegment) sit in separate runMu sections with I/O between them, so a
+	// second starter could slip through the gap — and a resume's gap after the
+	// interrupt record is consumed but before the continuation registers. The
+	// claim closes both: claimed under the same lock as the check, released only
+	// once the run is in `runs` (or on early exit). Guarded by runMu.
+	runMu    sync.Mutex
+	runs     map[string]*runEntry
+	claiming map[string]struct{}
 
 	// eventSeq is the server-wide monotonic source for RunEvent ids
 	// (TRANSPORT.md §9.1). A single counter across all runs is strictly
@@ -115,6 +125,7 @@ func New(cfg Config) (*Server, error) {
 		rt:         cfg.Runtime,
 		serverInfo: cfg.ServerInfo,
 		runs:       map[string]*runEntry{},
+		claiming:   map[string]struct{}{},
 		wsHub:      newWorkspaceHub(),
 		workspace:  ws,
 	}, nil
