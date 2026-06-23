@@ -3,7 +3,7 @@
 > **对比对象**:`app/runtime`(Lyra Runtime,本仓后端)对 6 个主流编码 agent 的**后端/引擎能力**:
 > **codex**(OpenAI,Rust)· **Claude Code**(Anthropic,TS)· **opencode**(sst,TS)· **Kimi Code**(Moonshot,TS)· **crush**(charmbracelet,**Go**)· **plandex**(**Go**)。
 >
-> **方法**:源码级核实(非文档/记忆)。各 peer 的能力均经其桌面源码(`~/Desktop/<name>`)第一手核对,带 file 证据;Claude Code 闭源,经反编译 TS 快照 + npm 发行版核实。基线截至 **2026-06-19**。排除库/框架(langchain/spring-ai/eino/adk-go/trpc-agent-go 等)。
+> **方法**:源码级核实(非文档/记忆)。各 peer 的能力均经其桌面源码(`~/Desktop/<name>`)第一手核对,带 file 证据;Claude Code 闭源,经反编译 TS 快照 + npm 发行版核实。基线 **2026-06-19**,**codex + Claude Code 于 2026-06-23 重核刷新(见 §0.5)**。排除库/框架(langchain/spring-ai/eino/adk-go/trpc-agent-go 等)。
 > **桌面前端形态**(GUI/插件/原生体验)的对比见 [`DESKTOP_COMPARISON.md`](DESKTOP_COMPARISON.md);本篇只谈 runtime/引擎。
 > **方法论**:对照 [`../../DESIGN_PHILOSOPHY.md`](../../DESIGN_PHILOSOPHY.md) 与 [`../../CLAUDE.md`](../../CLAUDE.md) 的"库优于框架 / 薄核 / YAGNI / 不抄框架味"立场裁决"该不该学",而非见特性就抄。
 
@@ -13,11 +13,43 @@
 
 **格局**:这 6 个 peer **全部是 ReAct/loop 或 staged-state-machine** 架构;`app/runtime` 是其中**唯一 planner-driven(GOAP/HTN)**的引擎。在"agent loop 健壮性、并行工具、上下文/持久化、多 provider、可观测性、代码智能"几条主线上,`app/runtime` 已处于第一梯队(与 codex / Claude Code 同档,普遍领先 opencode/kimi/crush/plandex)。
 
-**真正的能力差只集中在两处,且都不是框架味:**
-1. **OS 级命令沙箱** —— codex(Seatbelt/Landlock+seccomp)、Claude Code(sandbox-runtime)有;`app/runtime` 与 opencode/kimi/crush 一样**没有**,bash 直接在工作区跑。**这是最实在的真 gap**。
-2. **细粒度权限规则 + hooks 系统** —— Claude Code/kimi/crush/opencode 都有 `allow/deny/ask` 规则 DSL + 生命周期 hooks;`app/runtime` 的 approval 是单一 `Mode` stance,偏粗。
+**真正的能力差(2026-06-23 刷新后)只剩 ~1.5 处,且都不是框架味:**
+1. **OS 级命令沙箱** —— codex(Seatbelt/Landlock+seccomp/Win Restricted-Token)、Claude Code(sandbox-runtime)有;`app/runtime` 与 opencode/kimi/crush 一样**没有**,bash 直接在工作区跑。**这是唯一的硬 gap**。
+2. ~~**细粒度权限规则 + hooks 系统**~~ —— **已基本补齐(06-20/06-21)**:落地了 `Rule{scope,tool,subject,decision}`+sqlite 审批规则 + 用户级子进程 hooks(6/7 seam)+ cron 调度。**残留只是"广度"差**(claude code 的规则 DSL 含显式 `ask`+企业 MDM、hook 18+ 事件含 PreCompact;我方 6/7、缺 PreCompact)——见 §0.5。
 
-其余 peer 独有项(codex 的 Guardian/code_mode、plandex 的 per-plan git、多前端全家桶、V4A apply_patch、cron)要么是值得借鉴的"思想"、要么是框架味/已被 lyra 等价能力覆盖的 by-design skip。详见 §10。
+其余 peer 独有项(codex 的 Guardian/code_mode/Realtime、plandex 的 per-plan git、多前端全家桶、V4A apply_patch)要么是值得借鉴的"思想"、要么是框架味/已被 lyra 等价能力覆盖的 by-design skip。详见 §0.5 + §10。
+
+---
+
+## 0.5 2026-06-23 刷新 —— 差距从"2 处"收窄到"1.5 处"
+
+> 上次基线 06-19。期间我方落地 3 项,直接改写下方多处结论;codex / Claude Code 也以当前源码(`~/Desktop/{codex,claude_code}`)重核。**本节为最新口径,与下文旧结论冲突处以本节为准。**
+
+**① 自上次基线后我方已补(原 gap #2 大半关闭):**
+- **细粒度持久审批规则**:`Rule{scope(session/project/global), tool, subject-glob, decision(allow/deny)}` + sqlite,`approval.listRules/forgetRule`。从"单一 Mode stance"升级为 **4 模式(plan/safe/balanced/yolo)+ 声明式规则表**。
+- **用户级 hooks**:子进程契约(exit-code / stdin-JSON,**无内嵌 VM**),配置级联(`~/.lyra` + 受信项目),**6/7 seam** 已接(PreToolUse deny/rewrite/ask + UserPromptSubmit/SessionStart 注入 + Post/Stop/Notification 观测;**PreCompact 暂缺**)。
+- **定时调度**:cron 触发的无人值守 headless 运行(`schedules.*` + worker)——原 §10"cron 归外层"的 by-design skip 已被真实需求推翻并落地。
+
+**② codex 当前重核 —— 领先项仍集中在沙箱,其余多为实验 / 非编码核心:**
+- **OS 沙箱**(硬实力):Seatbelt(mac)/ Landlock+seccomp+bwrap(Linux)/ Restricted-Token(Win);`FileSystemSandboxPolicy`(glob deny、`:workspace_roots` 等特殊路径、`.git/.codex` 元数据保护)、网络策略、拒绝可经审批升级。
+- hooks 与我方同档(SessionStart/UserPromptSubmit/Pre·PostToolUse/PermissionRequest/Stop)。
+- 新增/独有多为实验或非核心:**Guardian/AutoReview**(LLM 自动审批子 agent)、**code_mode**(模型写代码调工具,实验)、**Realtime WebRTC**(语音/实时)、**Profiles V2**、**app-server V2 协议**、**agent-graph-store**(SQLite 子 agent 拓扑 + thread-spawn 谱系)。
+- 仍**无 LSP**、provider **OpenAI-centric** —— 我方此二项领先依旧。
+
+**③ Claude Code 当前重核 —— 权限 / hooks / 可扩展最广:**
+- **沙箱**:`@anthropic-ai/sandbox-runtime`(seatbelt / bubblewrap+landlock / WSL2),settings 驱动 fs/network allow·deny + git worktree 处理 + settings.json/.claude 写保护。
+- **权限最细**:5 模式(default/plan/acceptEdits/bypassPermissions/dontAsk)+ 规则 DSL(`Bash(npm:*)`/`Edit(/src/**)`,含**显式 `ask`**)+ **多源**(policy-MDM/user/project/local/cli/session)。比我方多"显式 ask 规则 + 企业 MDM 源"。
+- **hooks 最广**:18+ 事件(含 **PreCompact/PostCompact、SubagentStart、Elicitation、FileChanged、Worktree、Task 事件**)——比我方 6/7 更宽。
+- **子 agent**:前台/后台 + **git worktree 隔离** + 自定义 `.claude/agents` + teams/coordinator + 跨 agent SendMessage。我方有 planner+并行+A2A+workflow+Supervisor,但**无 worktree 隔离**(靠 ConcurrencyKey + checkpoint 缓解)。
+- **ToolSearch 工具延迟加载**(大工具池按需加载) —— 我方全量加载,MCP 工具多时可借鉴。
+- LSP 现也是 config-driven(`lsp.servers`),与我方同档(非旧说的 plugin-only);仍无 lyra 的多 provider 广度(Anthropic-only,Bedrock/Vertex 仅网关)。
+
+**④ NET 当前差距(对 codex / Claude Code):**
+1. **OS 命令沙箱 —— 唯一硬 gap**(两家均生产级;我方 bash 仍裸跑 cwd,仅靠 approval+hooks PreToolUse 做**非 OS 层**门控)。
+2. **权限/hooks 的"广度"(minor)**:核心已补,残留为 claude code 的规则 DSL(显式 ask + MDM)与 hook 事件数(18+ vs 6/7,缺 PreCompact)更宽。
+3. **几个 situational/minor**:子 agent **worktree 隔离**(并行写隔离)、**ToolSearch 工具延迟加载**(MCP 池大时)、**暴露为 MCP server**(`mcp serve`,A2A 已覆盖大半)、**Guardian 式 LLM 自动审批**(可选,需谨慎防过度信任)。
+
+> 一句话:**唯一的硬差距是 OS 沙箱**;原"权限规则+hooks"差距已补到核心齐备、只差广度;我方在 LSP / ~40 provider / planner / A2A / 资源键并行上对这两家仍领先。下方 §1 矩阵与 §6/§10 的旧结论按本节修正(已就地标注)。
 
 ---
 
@@ -33,9 +65,9 @@
 | **工具错误恢复** | ✅fold 回模型 | ✅is_error | ✅catch 回模型 | ✅in-band | ✅文本错误 | 🟡validate-fix | ✅framework default(默认开) |
 | **编辑安全** | V4A apply_patch | ✅read-before+stale(mtime) | ✅read-before+byte-stale | 🟡prompt-only | ✅read-before+stale | lazy-edit+builder | ✅read-before+stale(editguard) |
 | **OS 沙箱** | ★✅Seatbelt/Landlock/Win | ★✅sandbox-runtime | ❌ | ❌ | ❌ | 🟡cgroup best-effort | ❌ **(真 gap)** |
-| **代码智能 LSP** | ❌ | 🟡LSP(plugin-only,9op) | ❌(V2 未移植) | ❌ | ✅LSP(powernap) | 🟡tree-sitter map(无 LSP) | ★✅**LSP(6op,config-driven server 表)** |
-| **HITL/权限** | 多级 + ★Guardian(LLM 审批) | ★模式+allow/deny/ask+26 hooks | rule DSL + question | policy chain + rule DSL + hooks | allowlist+safe-bypass+hooks | 5 级 autonomy(batch) | R 模型 park/resume + approval `Mode` 🟡偏粗 |
-| **hooks 系统** | ✅(pre/post/compact/stop) | ★✅26 事件(可 block/rewrite) | ✅plugin hooks | ✅lifecycle hooks | ✅PreToolUse | ❌ | ❌ **(gap)** |
+| **代码智能 LSP** | ❌ | 🟡LSP(config/plugin,9op) | ❌(V2 未移植) | ❌ | ✅LSP(powernap) | 🟡tree-sitter map(无 LSP) | ★✅**LSP(单 lsp 工具/8 操作 + lsp_diagnostics,config-driven server 表)** |
+| **HITL/权限** | 多级 + ★Guardian(LLM 审批) | ★5 模式+allow/deny/ask(含 MDM) | rule DSL + question | policy chain + rule DSL + hooks | allowlist+safe-bypass+hooks | 5 级 autonomy(batch) | ✅R 模型 park/resume + 4 模式 + 规则表(scope/tool/subject,06-20) |
+| **hooks 系统** | ✅(pre/post/compact/stop) | ★✅18+ 事件(可 block/rewrite) | ✅plugin hooks | ✅lifecycle hooks | ✅PreToolUse | ❌ | ✅子进程契约,6/7 seam(缺 PreCompact,06-21) |
 | **多 agent/subagent** | ✅成熟(2 代协议,CSV fan-out) | ★✅深(subagent+teams/swarm) | 🟡弱(mention,无并行) | ✅swarm(128 并行,resumable) | 🟡并行但单类型(TODO) | 🟡model roles(无自主) | ✅**planner+并行(4 档 spawn)+workflow+Supervisor+A2A** |
 | **上下文压缩+记忆** | ✅compact+memory pipeline+AGENTS.md | ✅93%+CLAUDE.md+session memory | ✅compact+★Context Epoch+AGENTS.md | ✅compact+memory file | ✅summarize+多 memory 文件 | ★smart sliding window | ✅token 压缩+LYRA.md+提取+AGENTS.md+todo |
 | **持久化/resume** | ✅rollout(SQLite FTS,fork) | ✅JSONL+resume+file rewind | ✅sqlite+resume(checkpoint TODO) | ✅jsonl replay+fork+export | ✅sqlite+resume(无 checkpoint) | ★PG+per-plan git(branch/rewind) | ✅SQLite+resume+影子 git checkpoint+fork+export |
@@ -108,9 +140,11 @@
 
 ---
 
-## 6. HITL / 权限 / hooks —— `app/runtime` 偏粗,peer 的"规则 + hooks"值得借鉴
+## 6. HITL / 权限 / hooks —— ✅ 核心已补齐(06-20/06-21),残留只是广度
 
-`app/runtime` 的 HITL **模型**很强(R 模型:park-on-interrupt + 跨重启 resume + 在 pending tool call 处续 + atomic Consume 幂等),`Interrupt[R]` 单泛型也比 peer 的 sealed 子型层级干净。**但权限/审批的粒度偏粗**:lyra 是单一 approval `Mode` stance(+ EXTENSIBILITY 的 GoalApprover SPI),peer 普遍更细:
+> **更新**:本节旧结论"lyra 偏粗 / 无 hooks"已过时——见 §0.5 ①。lyra 现有 **4 模式 + `Rule{scope,tool,subject,decision}` 规则表 + 用户级子进程 hooks(6/7 seam)**。下文保留 peer 细节作对照,裁决已改写。
+
+`app/runtime` 的 HITL **模型**很强(R 模型:park-on-interrupt + 跨重启 resume + 在 pending tool call 处续 + atomic Consume 幂等),`Interrupt[R]` 单泛型也比 peer 的 sealed 子型层级干净。**权限/审批已从单一 `Mode` stance 升级为"4 模式 + 声明式规则表"**;peer 细节对照:
 
 - **Claude Code**:5 种模式(default/acceptEdits/plan/bypass/dontAsk)+ `allow/deny/ask` 规则(`Bash(npm:*)` 形态,policy/user/project/local 多源)+ **26 种 hooks**(PreToolUse 可 **block 或 rewrite** 工具调用)+ MDM 企业策略。
 - **Kimi**:`manual/auto/yolo` 3 模式 + 首匹配 policy 管线 + 规则 DSL(`Read(/etc/**)`)+ 会话级"本次会话批准"缓存 + lifecycle hooks。
@@ -118,10 +152,10 @@
 - **opencode**:`Rule{action,resource,effect:allow|deny|ask}` 有序规则 + reject-with-feedback 转成模型 steering。
 - **codex**:`AskForApproval` 多级 + **Guardian**(独立 LLM 会话自动裁决审批,新颖)。
 
-**裁决:两条值得学(都不是框架味)——**
-1. **细粒度权限规则**(per-tool `allow/deny/ask` + 路径/命令模式 + 会话级缓存):lyra 当前靠 Mode + UI 逐次确认,补一个声明式规则层能显著降低高自主运行的打断。注意 lyra 已有意把 approval 保持为**单一 Service**(不拆 Console/Gate),所以增量应是"规则表"而非"拆接口"。
-2. **用户可配 hooks**(PreToolUse/PostToolUse 能 block/rewrite/注入 context):lyra 现在只有**库级 Extension SPI**(给开发者),没有**用户级 hooks**(给使用者配 `.lyra/hooks`)。这是真能力差。
-- crush 的"**安全只读命令免审批**"(`safeCommands` 白名单)是个低成本高收益的小改进,可直接借鉴。
+**裁决:原"两条值得学"已落地(06-20/06-21),只剩广度残留——**
+1. ~~细粒度权限规则~~ **已做**:`Rule{scope(session/project/global), tool, subject-glob, decision}` + sqlite,且保持 approval **单一 Service**(未拆 Console/Gate)。残留:claude code 有**显式 `ask` 规则 + 企业 MDM 源**,我方暂只 allow/deny(ask 由 Mode 兜底)。
+2. ~~用户可配 hooks~~ **已做**:用户级子进程 hooks(`~/.lyra` + 受信项目,exit-code/stdin-JSON,可 block/rewrite/注入),6/7 seam。残留:claude code 18+ 事件更宽,**PreCompact 暂缺**(可补)。
+- crush 的"**安全只读命令免审批**"(`safeCommands` 白名单)仍是低成本小改进,可作为规则表的内置默认借鉴。
 
 ---
 
@@ -153,38 +187,40 @@
 - **arch_test 机器防腐** —— 全部 6 个 peer 都没有。
 - **协议优先 + 独立富 GUI** —— opencode 形态最近,但 lyra 协议层更薄更纯。
 
-**peer 独有 / 领先(`app/runtime` 没有):**
-- **OS 沙箱**(codex/Claude Code)—— 真 gap。
-- **细粒度权限规则 + 用户 hooks**(Claude Code/kimi/crush/opencode)—— 真能力差。
-- **Guardian LLM 自动审批**(codex)—— 新颖思想。
-- **code_mode**(codex,模型写代码调工具)、**CSV fan-out**(codex)、**128-swarm**(kimi)、**per-plan git 版本控制**(plandex)、**Context Epoch 缓存稳定**(opencode)、**session 全文搜索**(codex SQLite FTS)、**cron 自调度**(kimi/Claude Code)。
+**peer 独有 / 领先(`app/runtime` 没有,2026-06-23 口径):**
+- **OS 沙箱**(codex/Claude Code)—— **唯一硬 gap**。
+- **权限/hooks 的广度**:claude code 规则 DSL 含**显式 `ask` + 企业 MDM**、hooks **18+ 事件(含 PreCompact)**;我方核心已补(规则表 + 6/7 seam),差在广度(见 §0.5)。
+- **子 agent worktree 隔离 / ToolSearch 工具延迟加载**(Claude Code)、**Guardian LLM 自动审批**(codex)—— situational / 新颖思想。
+- **code_mode / Realtime WebRTC**(codex 实验)、**CSV fan-out / 128-swarm**(codex/kimi)、**per-plan git**(plandex)、**Context Epoch**(opencode)、**session 全文搜索**(codex SQLite FTS)、**暴露为 MCP server**(codex/Claude Code `mcp serve`)。
 
 ---
 
-## 10. 该学什么 —— 批判性裁决
+## 10. 该学什么 —— 批判性裁决(2026-06-23 刷新)
 
-按"真能力差 + 不违背库哲学"筛,真正值得 `app/runtime` 动手的就 3 项:
+原 3 项里**中优先级的"细粒度权限规则 + 用户 hooks"已落地**(见 §0.5 ①),当前只剩:
 
 | 优先级 | 学什么 | 来源 | 怎么落地(lyra 方式) | 为什么值得 |
 |---|---|---|---|---|
-| **高** | **OS 命令沙箱** | codex / Claude Code | 在 `infra/exec` 下加一层 OS 沙箱包装:macOS `sandbox-exec`(Seatbelt)+ Linux Landlock+seccomp,配 `WorkspaceWrite{writable_roots, network}` 策略;沙箱拒绝时经 approval 升级 | bash 当前裸跑工作区,高自主/无人值守运行有真实风险。安全是核心关注非框架仪式 |
-| **中** | **细粒度权限规则 + 用户 hooks** | Claude Code / kimi / crush | ① 给 approval 加声明式规则表(`allow/deny/ask` × tool × 路径/命令模式 + 会话级缓存 + 安全只读命令免审批);② 加用户级 `PreToolUse/PostToolUse` hooks(可 block/rewrite/注入)。**保持 approval 单一 Service,只加规则层,不拆接口** | lyra HITL 模型强但权限粒度粗;规则+hooks 显著降低高自主运行的打断,且是使用者(非开发者)可配的能力 |
-| **低** | **Guardian 式 LLM 自动审批** + **lyra-as-MCP-server** | codex | Guardian:可选的 LLM reviewer,在"on-request"审批时自动裁决(fail-closed + 断路器);MCP-server:把 lyra 暴露成 MCP 工具 | Guardian 对无人值守运行减少打断(新颖但需谨慎,易过度信任);MCP-server 让 lyra 被别的 agent 复用,但 A2A 已覆盖大部分场景 |
+| **高** | **OS 命令沙箱**(唯一硬 gap) | codex / Claude Code | 在 `infra/exec` 下加一层 OS 沙箱包装:macOS `sandbox-exec`(Seatbelt)+ Linux Landlock+seccomp,配 `WorkspaceWrite{writable_roots, network}` 策略;沙箱拒绝时经 approval 升级 | bash 裸跑工作区,**已有 scheduler 做无人值守**,高自主运行有真实风险。安全是核心关注非框架仪式 |
+| **低** | **补 hooks 广度(PreCompact 等)+ 规则的显式 `ask`** | Claude Code | 给 hooks 加 PreCompact seam;规则 `decision` 加 `ask`(现由 Mode 兜底) | 核心已齐,把广度补到 claude code 档,增量小 |
+| **低** | **子 agent worktree 隔离** + **ToolSearch 工具延迟加载** | Claude Code | 并行子 agent 各自 git worktree(避免并行写冲突,现靠 ConcurrencyKey+checkpoint 缓解);MCP 工具池大时按需加载工具 | situational:前者利于并行写安全,后者在 MCP 工具多时省 prompt |
+| **低** | **Guardian 式 LLM 自动审批** + **lyra-as-MCP-server** | codex | 可选 LLM reviewer 在 on-request 审批自动裁决(fail-closed+断路器);把 lyra 暴露成 MCP 工具 | Guardian 减少无人值守打断(谨慎防过度信任);MCP-server 让 lyra 被别 agent 复用(A2A 已覆盖大半) |
 
 **明确不学(框架味 / 已有等价 / by-design / 低需求):**
 - **code_mode**(codex):实验性、复杂(沙箱 JS 解释器),YAGNI。
+- **Realtime WebRTC / 语音**(codex):非编码 agent 核心,YAGNI。
 - **多前端全家桶**(opencode 的 Slack/web/VSCode + codex 的 cloud):lyra 协议已支持多 client,真出需求再加前端即可,不为对齐而做。
 - **V4A apply_patch**(codex/opencode):editguard 已保证编辑安全,V4A 是另一种表达非安全增益。
 - **per-plan git / staged 状态机**(plandex):lyra 的 planner + 影子 git checkpoint 已覆盖其"可回溯、可分支"的价值,且 lyra 的 ReAct-free planner 更通用。
-- **cron 自调度**(kimi/Claude Code):调度归更外层(lyra 协议层零调度概念,by-design)。
 - **Context Epoch**(opencode):是 token 成本优化,可作为未来 compaction 的参考思路,但非能力 gap。
+- 注:**cron 自调度**原列"不学",但真实需求推翻——lyra 已落地 `schedules.*`(见 §0.5 ①)。
 
 ---
 
 ## 一句话定档
 
-**`app/runtime` 在 agent loop 健壮性、并行工具(资源键)、代码智能(LSP)、多 agent(planner+A2A)、多 provider(~40)、可观测性(OTel 三驾马车)上已是第一梯队,且是全场唯一 planner-driven 引擎。真正的能力差只在两处——OS 命令沙箱(真 gap,值得追平 codex/Claude Code)和细粒度权限规则+用户 hooks(值得借鉴,但保持 approval 单一 Service)。其余 peer 独有项多为框架味或已被 lyra 等价能力覆盖,继续巩固"协议优先 + 薄核 + planner-driven"的差异化,不追 framework 全家桶。**
+**(2026-06-23 刷新)`app/runtime` 在 agent loop 健壮性、并行工具(资源键)、代码智能(LSP)、多 agent(planner+A2A)、多 provider(~40)、可观测性(OTel 三驾马车)上已是第一梯队,且是全场唯一 planner-driven 引擎。原两处能力差已收窄到 ~1.5 处:唯一硬 gap 是 OS 命令沙箱(值得追平 codex/Claude Code,尤其已落地 scheduler 做无人值守);原"细粒度权限规则 + 用户 hooks"已落地核心(规则表 + 子进程 hooks + 调度),只差 claude code 的广度(显式 ask / 企业 MDM / PreCompact / 18+ 事件)。其余 peer 独有项多为框架味或已被等价覆盖,继续巩固"协议优先 + 薄核 + planner-driven"的差异化,不追 framework 全家桶。**
 
 ---
 
-*对比基线截至 2026-06-19。各 peer 能力经其桌面源码第一手核实(file 级证据存于审计过程),Claude Code 经反编译 TS 快照 + npm 发行版核实。本篇对应桌面前端形态对比 [`DESKTOP_COMPARISON.md`](DESKTOP_COMPARISON.md)。*
+*对比基线 2026-06-19;**codex + Claude Code 于 2026-06-23 以当前桌面源码(`~/Desktop/{codex,claude_code}`)重核刷新**(见 §0.5),其余 peer 仍为 06-19 口径。各 peer 能力经其桌面源码第一手核实,Claude Code 经反编译 TS 快照核实(部分区域中等置信)。本篇对应桌面前端形态对比 [`DESKTOP_COMPARISON.md`](DESKTOP_COMPARISON.md)。*
