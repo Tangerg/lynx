@@ -193,8 +193,13 @@ type Service interface {
 // Concrete event types implement this marker so callers can type-switch.
 //
 // All events carry [BaseEvent] for routing — SessionID + TurnID + Seq
-// + Timestamp. Seq is monotone within a turn so clients can detect
-// gaps after reconnects (Phase 2).
+// + Timestamp. Seq is a gapless per-turn counter assigned atomically at
+// emit — but it is NOT an arrival-order guarantee: parallel tool calls emit
+// from concurrent goroutines, so two can take Seq n and n+1 and then send in
+// either order. The durable, arrival-ordered identity is the wire eventId the
+// single-consumer pump assigns (the Last-Event-Id / gap-detection authority);
+// Seq is for intra-turn correlation, not for detecting gaps across reordered
+// arrivals.
 //
 // Concrete event types implement [stamp] so the runtime replaces
 // the full BaseEvent header in one call. Call sites construct

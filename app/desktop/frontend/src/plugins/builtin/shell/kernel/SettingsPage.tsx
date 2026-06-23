@@ -36,7 +36,20 @@ export function SettingsPage() {
     () => useSessionStore.getState().settingsPane ?? undefined,
   );
   useEffect(() => {
+    // Consume the INITIAL deep-link (read into selectedId above), then keep
+    // following LATER ones while this singleton view stays mounted. Settings is
+    // a singleton workspace tab: a re-target (e.g. "configure MCP" from the
+    // Tools view does setSettingsPane("mcp-servers") + openMainView) only
+    // REFOCUSES Settings, never remounts it — so a mount-only consume would drop
+    // the new target and leave settingsPane stale (a phantom jump on the next
+    // fresh open). Subscribe so a deep-link applies while open.
     if (useSessionStore.getState().settingsPane) setSettingsPane(null);
+    return useSessionStore.subscribe((s, prev) => {
+      if (s.settingsPane && s.settingsPane !== prev.settingsPane) {
+        setSelectedId(s.settingsPane);
+        setSettingsPane(null);
+      }
+    });
   }, [setSettingsPane]);
   const activeId = selectedId && panes.some((p) => p.id === selectedId) ? selectedId : panes[0]?.id;
 
