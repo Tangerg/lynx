@@ -247,4 +247,3 @@ func openingUserInput(items []transcript.Item) map[string][]protocol.ContentBloc
 	}
 	return out
 }
-
