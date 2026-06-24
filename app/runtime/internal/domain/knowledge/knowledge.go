@@ -1,6 +1,10 @@
 // Package knowledge defines the long-term knowledge Service — Lyra's
 // durable memory surface. It is the cascade of LYRA.md files (project +
 // user scopes) that get auto-injected into every session's system prompt.
+//
+// Deliberately storage + retrieval of the editable LYRA.md files only: prompt
+// composition (which scopes, in what order) lives in internal/kernel/prompt,
+// not here.
 package knowledge
 
 import (

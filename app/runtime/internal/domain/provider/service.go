@@ -9,6 +9,11 @@
 // becomes "enabled" once it has an API key — set from config at boot or via
 // providers.configure at runtime. Persisted backends (file / sqlite) keep
 // runtime edits across restarts.
+//
+// Deliberately a data-only registry (credentials + enablement + CRUD): model
+// metadata/pricing live in the models catalog and per-turn client construction
+// in the composition root, so there is no richer domain behavior to add — keep
+// domain logic out of this registry.
 package provider
 
 import (
