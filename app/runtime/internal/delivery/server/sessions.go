@@ -82,37 +82,19 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 	if s.hasActiveRun(id) {
 		return fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, id)
 	}
-	if err := s.rt.Session().Delete(ctx, id); err != nil {
+	// Delete the session row + cascade its session-scoped storage (history,
+	// chat-memory, open interrupts, process-local gate) via the lifecycle
+	// coordinator: the cascade runs AFTER the authoritative delete and is
+	// best-effort, so a partial cascade leaves harmless orphans, never a
+	// half-deleted session. (Process snapshots aren't dropped — a finished turn
+	// discards its own at teardown, [chatProcess.Discard]; a still-parked one
+	// rides its interrupt, dropped in the cascade.) File checkpoints (shadow git)
+	// are a workspace concern, dropped here after the storage cascade.
+	if err := s.coordinator().DeleteSession(ctx, id); err != nil {
 		return wireSessionErr(err)
 	}
-	// Cascade: a deleted session must take its session-scoped data with it.
-	// Without this the sessions row is gone but the transcript / chat-memory /
-	// open interrupts still resolve for that id (items.list, runs.resume, …),
-	// leaving orphans that bloat storage and surface dangling in the UI. Run
-	// AFTER the authoritative session delete and best-effort: a partial cascade
-	// leaves harmless orphans, never a half-deleted session. (Process snapshots
-	// aren't dropped here — a finished turn discards its own at teardown,
-	// [chatProcess.Discard]; a still-parked one rides its interrupt, dropped
-	// below.)
-	_ = s.rt.Transcript().DeleteSession(ctx, id) // history runs + items
-	_ = s.rt.TruncateMessages(ctx, id, 0)        // chat-memory messages (keepN=0 clears)
-	s.dropSessionInterrupts(ctx, id)             // durable open interrupts
-	s.dropCheckpoints(id)                        // file snapshots (shadow git)
-	s.rt.Chat().ForgetSession(id)                // process-local SessionStart gate
+	s.dropCheckpoints(id) // file snapshots (shadow git)
 	return nil
-}
-
-// dropSessionInterrupts removes every open-interrupt record for a session —
-// the cascade arm for runs.listOpenInterrupts. Best-effort: a failed list or
-// delete leaves a resumable record that can be cleared on a later pass.
-func (s *Server) dropSessionInterrupts(ctx context.Context, sessionID string) {
-	pending, err := s.rt.Interrupts().List(ctx, sessionID)
-	if err != nil {
-		return
-	}
-	for _, p := range pending {
-		_ = s.rt.Interrupts().Delete(ctx, p.ParentRunID)
-	}
 }
 
 // UpdateSession applies a sessions.update edit: title (rename), model,
@@ -211,7 +193,7 @@ func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest
 	forked := false
 	defer func() {
 		if !forked {
-			s.purgeSession(ctx, child.ID) // best-effort: drop the orphan + its subtree
+			s.coordinator().PurgeSubtree(ctx, child.ID) // best-effort: drop the orphan + its subtree
 		}
 	}()
 
