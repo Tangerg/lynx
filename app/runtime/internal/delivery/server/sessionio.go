@@ -104,44 +104,27 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 	}
 
 	id := art.Session.ID
-	// Restore the whole session as ONE transaction: the session row, the
-	// transcript replace (drop old items/runs), the chat-log clear + re-seed,
-	// and the runs/items re-persist all commit or roll back together. Without
-	// this, a mid-sequence failure (DB IO error after the destructive
-	// DeleteSession/Truncate) would leave the session row live but its history
-	// half-destroyed — importing OVER an existing session would lose the prior
-	// history with nothing to replace it.
-	if err := s.rt.RunInTx(ctx, func(ctx context.Context) error {
-		if err := s.rt.Session().Restore(ctx, artifactToSession(art.Session)); err != nil {
-			return err
-		}
-		// Replace any existing history so an import-over restores rather than
-		// appends: drop the old items/runs and clear the chat log before re-seeding.
-		if err := s.rt.Transcript().DeleteSession(ctx, id); err != nil {
-			return err
-		}
-		if err := s.rt.TruncateMessages(ctx, id, 0); err != nil {
-			return err
-		}
-		if err := s.rt.SeedHistory(ctx, id, msgs); err != nil {
-			return err
-		}
-		for _, r := range art.Runs {
-			if err := s.rt.Transcript().PutRun(ctx, transcript.Run{
-				SessionID: id, RunID: r.RunID, UpdatedAt: r.UpdatedAt, Blob: r.Run, Mark: r.MessageMark,
-			}); err != nil {
-				return err
-			}
-		}
-		for _, it := range art.Items {
-			if err := s.rt.Transcript().AppendItem(ctx, transcript.Item{
-				SessionID: id, RunID: it.RunID, ItemID: it.ItemID, CreatedAt: it.CreatedAt, Blob: it.Item,
-			}); err != nil {
-				return err
-			}
-		}
-		return nil
-	}); err != nil {
+	// Map the wire artifact's runs/items into domain records (the wire→domain
+	// decode is the adapter's job), then hand the restore to the lifecycle
+	// coordinator. It commits the whole thing as ONE transaction — upsert the
+	// session row, replace existing history (drop old items/runs + clear the chat
+	// log), re-seed the messages, re-persist runs+items — so a mid-sequence
+	// failure after the destructive delete/truncate can't leave the session row
+	// live but its history half-destroyed (an import-over losing the prior
+	// history with nothing to replace it).
+	runs := make([]transcript.Run, 0, len(art.Runs))
+	for _, r := range art.Runs {
+		runs = append(runs, transcript.Run{
+			SessionID: id, RunID: r.RunID, UpdatedAt: r.UpdatedAt, Blob: r.Run, Mark: r.MessageMark,
+		})
+	}
+	items := make([]transcript.Item, 0, len(art.Items))
+	for _, it := range art.Items {
+		items = append(items, transcript.Item{
+			SessionID: id, RunID: it.RunID, ItemID: it.ItemID, CreatedAt: it.CreatedAt, Blob: it.Item,
+		})
+	}
+	if err := s.coordinator().RestoreSession(ctx, artifactToSession(art.Session), msgs, runs, items); err != nil {
 		return nil, err
 	}
 

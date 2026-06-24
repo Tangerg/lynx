@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
@@ -203,41 +202,19 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 		return &protocol.RollbackSessionResponse{Session: &out, DroppedRuns: []protocol.DroppedRun{}}, nil
 	}
 
-	// Truncate the chat-memory log to the kept watermark AND drop each dropped
-	// run's items/record + dangling interrupt as ONE transaction, so a failure
-	// can't leave runs whose messages were already truncated away (an orphan run
-	// inconsistent with the conversation). An unknown (-1) mark (chain terminal
-	// still in-flight / pre-watermark) clamps to the current count — keep what's
-	// there rather than guess at a boundary we never recorded.
-	if err := s.rt.RunInTx(ctx, func(ctx context.Context) error {
-		if b.KeepMark >= 0 {
-			if err := s.rt.TruncateMessages(ctx, in.SessionID, b.KeepMark); err != nil {
-				return err
-			}
-		}
-		// Drop each run's durable items + run record, and clear any open interrupt
-		// dangling on it (rollback over a parked run un-parks it). Surfaced (not
-		// swallowed): after the truncate above commits, a failed DeleteRun would
-		// otherwise leave a run record past the boundary whose messages are gone.
-		for _, rec := range b.Dropped {
-			if err := s.rt.Transcript().DeleteRun(ctx, in.SessionID, rec.ID); err != nil {
-				return err
-			}
-			if err := s.rt.Interrupts().Delete(ctx, rec.ID); err != nil {
-				return err
-			}
-		}
-		return nil
-	}); err != nil {
+	// The boundary is decided (wire-coupled: it decodes the stored RunRefs); the
+	// destructive write-set is the coordinator's. It truncates the chat-memory
+	// log to the kept watermark + drops each dropped run's items/record + dangling
+	// interrupt as ONE transaction (a failure can't leave a run whose messages
+	// were already truncated away), then purges the subagent subtree those runs
+	// spawned. A -1 KeepMark leaves the log untouched.
+	dropIDs := make([]string, len(b.Dropped))
+	for i, rec := range b.Dropped {
+		dropIDs[i] = rec.ID
+	}
+	if err := s.coordinator().Rollback(ctx, in.SessionID, b.KeepMark, dropIDs, b.BoundaryTime); err != nil {
 		return nil, err
 	}
-
-	// Purge the subagent child sessions the dropped runs spawned (whole subtree).
-	// Attribution is by spawn time: a subtask of a kept run started before the
-	// drop boundary, one of a dropped run at/after it. This is exact because a
-	// session runs its turns sequentially and rollback requires it idle (the
-	// session_busy guard above), so run windows don't overlap.
-	s.purgeSubtasksAfter(ctx, in.SessionID, b.BoundaryTime)
 
 	// Each dropped run reports its opening user input so the client can
 	// re-populate the composer.
@@ -271,33 +248,3 @@ func openingUserInput(items []transcript.Item) map[string][]protocol.ContentBloc
 	return out
 }
 
-// purgeSubtasksAfter purges the subagent child sessions of parentID that were
-// spawned at/after boundary (a zero boundary purges all children — the drop-all
-// rollback). See RollbackSession for why spawn time is exact attribution.
-func (s *Server) purgeSubtasksAfter(ctx context.Context, parentID string, boundary time.Time) {
-	children, err := s.rt.Session().Children(ctx, parentID)
-	if err != nil {
-		return
-	}
-	for _, child := range children {
-		if !boundary.IsZero() && child.StartedAt.Before(boundary) {
-			continue
-		}
-		s.purgeSession(ctx, child.ID)
-	}
-}
-
-// purgeSession deletes a session and its whole descendant subtree depth-first:
-// chat-memory messages, durable history (items + runs), and the session row.
-// Best-effort — a partial failure still removes the leaves it reached.
-func (s *Server) purgeSession(ctx context.Context, sessionID string) {
-	if children, err := s.rt.Session().Children(ctx, sessionID); err == nil {
-		for _, c := range children {
-			s.purgeSession(ctx, c.ID)
-		}
-	}
-	_ = s.rt.TruncateMessages(ctx, sessionID, 0) // clear chat-memory
-	_ = s.rt.Transcript().DeleteSession(ctx, sessionID)
-	_ = s.rt.Session().Delete(ctx, sessionID)
-	s.rt.Chat().ForgetSession(sessionID) // process-local SessionStart gate
-}

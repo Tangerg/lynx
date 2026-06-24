@@ -21,6 +21,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 )
 
 // Config bundles construction inputs.
@@ -132,6 +133,15 @@ func New(cfg Config) (*Server, error) {
 		workspace:  ws,
 	}, nil
 }
+
+// coordinator returns the lifecycle coordinator for the cross-domain atomic
+// write-sets (rollback truncation, session-delete cascade, import/restore,
+// subtree purge). The handlers keep the wire decode + boundary decision + busy
+// guards and delegate the multi-domain mutation here, so delivery stays a thin
+// protocol layer. The Coordinator is stateless, so it's built on demand from rt
+// — which keeps a bare &Server{rt: …} (tests) fully usable without a separate
+// construction step.
+func (s *Server) coordinator() *lifecycle.Coordinator { return lifecycle.New(s.rt) }
 
 // Capabilities returns this Server's capability snapshot (API.md §9),
 // delegating to the package-level [Capabilities] so the /v2/info

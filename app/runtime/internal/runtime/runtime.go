@@ -557,6 +557,12 @@ func runClosers(closers []func() error) {
 // transport adapters call into for [turn.Service.StartTurn] etc.
 func (r *Runtime) Chat() turn.Service { return r.chat }
 
+// ForgetSession releases the turn service's process-local state for a session
+// being removed (the SessionStart gate). A runtime-level passthrough so the
+// lifecycle coordinator can clear it as part of the delete / purge write-sets
+// without depending on the whole turn.Service.
+func (r *Runtime) ForgetSession(sessionID string) { r.chat.ForgetSession(sessionID) }
+
 // Session returns the SessionService — CRUD over saved sessions.
 func (r *Runtime) Session() sessionsvc.Service { return r.session }
 

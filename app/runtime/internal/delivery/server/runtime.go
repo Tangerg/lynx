@@ -120,6 +120,10 @@ type RuntimeServices interface {
 	// truncate the message log to a kept boundary.
 	MessageCount(ctx context.Context, sessionID string) (int, error)
 	TruncateMessages(ctx context.Context, sessionID string, keepN int) error
+	// ForgetSession releases the turn service's process-local state keyed by a
+	// session being removed (the SessionStart gate). Part of the delete /
+	// rollback / purge write-sets the lifecycle coordinator runs.
+	ForgetSession(sessionID string)
 
 	// RunInTx runs fn inside one storage transaction, so a multi-step
 	// destructive write-set (sessions.import / rollback) commits atomically —

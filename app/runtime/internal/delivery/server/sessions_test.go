@@ -64,13 +64,16 @@ func (s stubRuntime) TruncateMessages(_ context.Context, id string, keepN int) e
 // MCPServerStatuses (above), not from this call's side effects.
 func (s stubRuntime) ReconnectMCPServer(context.Context, string) error { return nil }
 
-// chatStub satisfies turn.Service by embedding it; only ForgetSession (invoked
-// by the session-delete cascade) is implemented — these tests never drive a turn.
+// chatStub satisfies turn.Service by embedding it — these tests never drive a
+// turn, so no method is implemented.
 type chatStub struct{ turn.Service }
 
-func (chatStub) ForgetSession(string) {}
-
 func (s stubRuntime) Chat() turn.Service { return chatStub{} }
+
+// ForgetSession is the no-op the session-delete / rollback / purge cascades call
+// (via the lifecycle coordinator) to release a removed session's process-local
+// gate — these tests have no live turn state to forget.
+func (stubRuntime) ForgetSession(string) {}
 
 func (s stubRuntime) Session() session.Service { return s.sess }
 func (s stubRuntime) DefaultModel() string     { return s.model }
