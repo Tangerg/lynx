@@ -178,28 +178,9 @@ func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest
 		copyN = b.KeepMark // -1 (unknown watermark) falls back to a full copy below
 	}
 
-	// Fork records the branch lineage (parent id, inherited cwd); atMessageID
-	// is empty because lineage is run-based now, not message-based.
-	child, err := s.rt.Session().Fork(ctx, in.SessionID, "")
-	if err != nil {
-		return nil, wireSessionErr(err)
-	}
-	// The child row is now committed, but seeding its history + rename are
-	// separate store calls. If any of them fails, roll the child back rather
-	// than leaving an orphan — an empty/partial fork that shows up in
-	// sessions.list as a phantom the user never saw succeed. (Fork itself
-	// deletes nothing so it needs no busy-guard, but its multi-step seed does
-	// need cleanup-on-failure.) Set in the deferred check below via the named err.
-	forked := false
-	defer func() {
-		if !forked {
-			s.coordinator().PurgeSubtree(ctx, child.ID) // best-effort: drop the orphan + its subtree
-		}
-	}()
-
-	// Copy the parent's history prefix into the fresh child so its next turn
-	// continues with the same context. The child was just created (empty), so
-	// the append-only seed can't double up.
+	// Read the parent's history and truncate to the resolved boundary — the
+	// wire-coupled half of the fork (boundary off decoded RunRefs). copyN < 0
+	// (no boundary / unknown watermark) copies the whole history.
 	msgs, err := s.rt.ReadHistory(ctx, in.SessionID)
 	if err != nil {
 		return nil, wireSessionErr(err)
@@ -207,19 +188,16 @@ func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest
 	if copyN >= 0 && copyN < len(msgs) {
 		msgs = msgs[:copyN]
 	}
-	if err := s.rt.SeedHistory(ctx, child.ID, msgs); err != nil {
-		return nil, err
-	}
 
-	if in.Title != "" {
-		if err := s.rt.Session().Rename(ctx, child.ID, in.Title); err != nil {
-			return nil, wireSessionErr(err)
-		}
-		child.Title = in.Title
+	// Atomic write-set: create the child, seed the history prefix, and rename
+	// in one transaction. A failure rolls the fork back entirely — no orphan
+	// cleanup is needed because the write-set commits atomically, unlike the
+	// multi-call sequence (with a compensating purge) it replaces.
+	child, err := s.coordinator().Fork(ctx, in.SessionID, msgs, in.Title)
+	if err != nil {
+		return nil, wireSessionErr(err)
 	}
-
 	// A freshly forked child has no run of its own yet — idle.
-	forked = true // committed: the deferred rollback is now a no-op
 	out := s.sessionToWire(child, protocol.SessionStatusIdle)
 	return &out, nil
 }
