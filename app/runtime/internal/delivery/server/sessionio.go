@@ -98,7 +98,7 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 	for i, blob := range art.Messages {
 		m, err := chat.UnmarshalMessage(blob)
 		if err != nil {
-			return nil, fmt.Errorf("%w: artifact.messages[%d]: %v", protocol.ErrInvalidParams, i, err)
+			return nil, fmt.Errorf("%w: artifact.messages[%d]: %w", protocol.ErrInvalidParams, i, err)
 		}
 		msgs = append(msgs, m)
 	}

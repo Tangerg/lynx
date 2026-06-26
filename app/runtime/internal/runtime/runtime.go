@@ -553,8 +553,8 @@ func runClosers(closers []func() error) {
 	}
 }
 
-// Chat returns the ChatService — the one-turn dispatch surface
-// transport adapters call into for [turn.Service.StartTurn] etc.
+// Chat returns the one-turn dispatch surface transport adapters call
+// into for [turn.Service.StartTurn].
 func (r *Runtime) Chat() turn.Service { return r.chat }
 
 // ForgetSession releases the turn service's process-local state for a session
@@ -563,10 +563,10 @@ func (r *Runtime) Chat() turn.Service { return r.chat }
 // without depending on the whole turn.Service.
 func (r *Runtime) ForgetSession(sessionID string) { r.chat.ForgetSession(sessionID) }
 
-// Session returns the SessionService — CRUD over saved sessions.
+// Session returns the saved-session CRUD surface (sessions.*).
 func (r *Runtime) Session() sessionsvc.Service { return r.session }
 
-// Tool returns the ToolService — metadata + manual invocation surface.
+// Tool returns the tool metadata + manual-invocation surface.
 func (r *Runtime) Tool() toolsvc.Service { return r.tool }
 
 // Memory returns the LYRA.md cascade service — the wire/API "memory"

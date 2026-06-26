@@ -484,7 +484,7 @@ func collectUserInput(blocks []protocol.ContentBlock) (string, []*media.Media, e
 			// read back via Media.DataAsString.
 			m, err := media.NewMedia(mt, blk.Data)
 			if err != nil {
-				return "", nil, fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
+				return "", nil, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 			}
 			images = append(images, m)
 		}

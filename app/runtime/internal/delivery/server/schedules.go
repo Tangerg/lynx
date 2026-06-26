@@ -119,7 +119,7 @@ func validateScheduleInput(prompt, cronExpr, provider, model string) error {
 		return fmt.Errorf("%w: provider and model must be set together", protocol.ErrInvalidParams)
 	}
 	if err := schedule.ValidateCron(cronExpr); err != nil {
-		return fmt.Errorf("%w: %s", protocol.ErrInvalidParams, err.Error())
+		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	}
 	return nil
 }

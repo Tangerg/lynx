@@ -200,7 +200,7 @@ func (s *Server) WorkspaceMCPConfigure(ctx context.Context, in protocol.Configur
 	}
 	srv := s.mcpServerFromRequest(ctx, in)
 	if err := srv.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
+		return nil, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	}
 	if err := s.rt.ConfigureMCPServer(ctx, srv); err != nil {
 		return nil, err
@@ -242,7 +242,7 @@ func (s *Server) WorkspaceMCPSetEnabled(ctx context.Context, in protocol.SetMCPE
 func (s *Server) WorkspaceMCPTest(ctx context.Context, in protocol.ConfigureMCPServerRequest) (*protocol.McpTestResult, error) {
 	srv := s.mcpServerFromRequest(ctx, in)
 	if err := srv.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
+		return nil, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	}
 	if err := s.rt.TestMCPServer(ctx, srv); err != nil {
 		return &protocol.McpTestResult{OK: false, Error: mcpDialFailedProblem(err)}, nil
