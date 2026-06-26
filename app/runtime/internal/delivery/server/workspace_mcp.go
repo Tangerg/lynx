@@ -178,7 +178,8 @@ func (s *Server) mcpServerChangedEvent(ctx context.Context, server string) proto
 // updates); test probes a candidate config without persisting.
 
 // WorkspaceMCPListConfigs returns every registered MCP server's editable
-// configuration, each annotated with its best-effort live connection status.
+// configuration (token masked). Live connection state is not included — read it
+// from workspace.mcp.listServers (McpServer), keyed by name.
 func (s *Server) WorkspaceMCPListConfigs(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.McpServerConfig], error) {
 	servers, err := s.rt.MCPRegistry().List(ctx)
 	if err != nil {
@@ -277,9 +278,9 @@ func (s *Server) mcpServerFromRequest(ctx context.Context, in protocol.Configure
 	}
 }
 
-// mcpConfigWire projects a registry entry to the wire (token masked) and
-// annotates it with the best-effort live connection status (only meaningful for
-// an enabled, dialed server).
+// mcpConfigWire projects a registry entry to the wire: the editable config with
+// the bearer token masked. Live connection state is not included — it lives on
+// McpServer (workspace.mcp.listServers), keyed by name.
 func (s *Server) mcpConfigWire(ctx context.Context, srv mcpserver.Server) protocol.McpServerConfig {
 	out := protocol.McpServerConfig{
 		Name:                srv.Name,
@@ -296,12 +297,6 @@ func (s *Server) mcpConfigWire(ctx context.Context, srv mcpserver.Server) protoc
 		TimeoutSeconds:      int(srv.Timeout / time.Second),
 		DisabledTools:       srv.DisabledTools,
 		AutoApproveTools:    srv.AutoApproveTools,
-	}
-	// Live status only matters for an enabled, dialed server.
-	if srv.Enabled {
-		if status, toolCount, problem, ok := s.mcpLiveStatus(ctx, srv.Name); ok {
-			out.Status, out.ToolCount, out.Error = status, toolCount, problem
-		}
 	}
 	return out
 }
