@@ -13,7 +13,7 @@ import (
 func TestFileMemoryService_UpdateAndGet(t *testing.T) {
 	t.Setenv("LYRA_HOME", t.TempDir())
 
-	svc, err := storage.NewFileKnowledgeService()
+	svc, err := storage.NewFileKnowledgeStore()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +34,7 @@ func TestFileMemoryService_UpdateAndGet(t *testing.T) {
 
 func TestFileMemoryService_GetEmptyOnFreshHome(t *testing.T) {
 	t.Setenv("LYRA_HOME", t.TempDir())
-	svc, _ := storage.NewFileKnowledgeService()
+	svc, _ := storage.NewFileKnowledgeStore()
 	got, err := svc.Get(context.Background(), knowledge.ScopeUser, "")
 	if err != nil {
 		t.Fatal(err)
@@ -47,10 +47,10 @@ func TestFileMemoryService_GetEmptyOnFreshHome(t *testing.T) {
 func TestFileMemoryService_PersistsAcrossInstances(t *testing.T) {
 	t.Setenv("LYRA_HOME", t.TempDir())
 
-	first, _ := storage.NewFileKnowledgeService()
+	first, _ := storage.NewFileKnowledgeStore()
 	_ = first.Update(context.Background(), knowledge.ScopeUser, "", "remember me")
 
-	second, _ := storage.NewFileKnowledgeService()
+	second, _ := storage.NewFileKnowledgeStore()
 	got, _ := second.Get(context.Background(), knowledge.ScopeUser, "")
 	if got != "remember me" {
 		t.Errorf("after restart got %q", got)
@@ -59,7 +59,7 @@ func TestFileMemoryService_PersistsAcrossInstances(t *testing.T) {
 
 func TestFileMemoryService_List_SkipsEmptyScopes(t *testing.T) {
 	t.Setenv("LYRA_HOME", t.TempDir())
-	svc, _ := storage.NewFileKnowledgeService()
+	svc, _ := storage.NewFileKnowledgeStore()
 	ctx := context.Background()
 
 	_ = svc.Update(ctx, knowledge.ScopeUser, "", "only user")
@@ -94,7 +94,7 @@ func TestFileMemoryService_ProjectScopeUsesCwd(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	svc, _ := storage.NewFileKnowledgeService()
+	svc, _ := storage.NewFileKnowledgeStore()
 	ctx := context.Background()
 	_ = svc.Update(ctx, knowledge.ScopeProject, "", "project body")
 
@@ -113,9 +113,9 @@ func TestFileMemoryService_ProjectScopeUsesCwd(t *testing.T) {
 // empty dir falls back to the construction-time default.
 func TestFileMemoryService_ProjectScopeFollowsDir(t *testing.T) {
 	t.Setenv("LYRA_HOME", t.TempDir())
-	svc, err := storage.NewFileKnowledgeService()
+	svc, err := storage.NewFileKnowledgeStore()
 	if err != nil {
-		t.Fatalf("NewFileKnowledgeService: %v", err)
+		t.Fatalf("NewFileKnowledgeStore: %v", err)
 	}
 
 	dirA, dirB := t.TempDir(), t.TempDir()

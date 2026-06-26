@@ -16,7 +16,7 @@ import (
 // blob the agent reads as project / user knowledge.
 const memoryFileName = "LYRA.md"
 
-// FileKnowledgeService persists [knowledge.Service] state to markdown
+// FileKnowledgeStore persists [knowledge.Service] state to markdown
 // files:
 //
 //   - <dir>/LYRA.md    — project scope (per-repo knowledge); dir is
@@ -27,21 +27,21 @@ const memoryFileName = "LYRA.md"
 // Files are created lazily on first Update; Get returns "" until
 // that point. Concurrent writes are serialized so `lyra memory edit`
 // racing with the agent's auto-extract doesn't truncate either side.
-type FileKnowledgeService struct {
+type FileKnowledgeStore struct {
 	defaultDir string // fallback project dir for calls without one; empty if unavailable
 	home       string // resolved from storage.Home()
 
 	mu sync.Mutex // protects the file writes (paths differ but a single mutex is plenty for this volume)
 }
 
-// Compile-time tripwire: NewFileKnowledgeService returns the concrete type,
+// Compile-time tripwire: NewFileKnowledgeStore returns the concrete type,
 // so nothing checks knowledge.Service conformance until this assertion.
-var _ knowledge.Service = (*FileKnowledgeService)(nil)
+var _ knowledge.Service = (*FileKnowledgeStore)(nil)
 
-// NewFileKnowledgeService captures the process working directory (the
+// NewFileKnowledgeStore captures the process working directory (the
 // per-call fallback project dir) and the storage home. Callers with a
 // session in hand pass that session's cwd per call instead.
-func NewFileKnowledgeService() (*FileKnowledgeService, error) {
+func NewFileKnowledgeStore() (*FileKnowledgeStore, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		// Non-fatal: the default project scope simply stays unavailable.
@@ -51,14 +51,14 @@ func NewFileKnowledgeService() (*FileKnowledgeService, error) {
 	if err != nil {
 		return nil, fmt.Errorf("memory store: %w", err)
 	}
-	return &FileKnowledgeService{defaultDir: cwd, home: home}, nil
+	return &FileKnowledgeStore{defaultDir: cwd, home: home}, nil
 }
 
 // pathFor maps a (scope, dir) pair to its absolute filesystem path.
 // Empty dir falls back to the construction-time default. Returns an
 // empty string when the scope is unavailable (project scope with
 // neither a dir nor a resolvable default) so callers can skip cleanly.
-func (s *FileKnowledgeService) pathFor(scope knowledge.Scope, dir string) string {
+func (s *FileKnowledgeStore) pathFor(scope knowledge.Scope, dir string) string {
 	switch scope {
 	case knowledge.ScopeProject:
 		if dir == "" {
@@ -78,7 +78,7 @@ func (s *FileKnowledgeService) pathFor(scope knowledge.Scope, dir string) string
 // knowledge.Service
 // ------------------------------------------------------------------
 
-func (s *FileKnowledgeService) Get(_ context.Context, scope knowledge.Scope, dir string) (string, error) {
+func (s *FileKnowledgeStore) Get(_ context.Context, scope knowledge.Scope, dir string) (string, error) {
 	path := s.pathFor(scope, dir)
 	if path == "" {
 		return "", nil
@@ -93,7 +93,7 @@ func (s *FileKnowledgeService) Get(_ context.Context, scope knowledge.Scope, dir
 	return string(data), nil
 }
 
-func (s *FileKnowledgeService) Update(_ context.Context, scope knowledge.Scope, dir string, content string) error {
+func (s *FileKnowledgeStore) Update(_ context.Context, scope knowledge.Scope, dir string, content string) error {
 	path := s.pathFor(scope, dir)
 	if path == "" {
 		return fmt.Errorf("memory store: scope %d unavailable", scope)
@@ -121,7 +121,7 @@ func (s *FileKnowledgeService) Update(_ context.Context, scope knowledge.Scope, 
 // List returns one [knowledge.Entry] per scope that has content. Empty
 // scopes are skipped — the UI shouldn't render placeholder entries
 // for files that don't exist yet.
-func (s *FileKnowledgeService) List(ctx context.Context, dir string) ([]knowledge.Entry, error) {
+func (s *FileKnowledgeStore) List(ctx context.Context, dir string) ([]knowledge.Entry, error) {
 	out := make([]knowledge.Entry, 0, 2)
 	for _, scope := range []knowledge.Scope{knowledge.ScopeProject, knowledge.ScopeUser} {
 		content, err := s.Get(ctx, scope, dir)

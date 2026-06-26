@@ -14,7 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
-func newTempDB(t *testing.T) *sqlite.SessionService {
+func newTempDB(t *testing.T) *sqlite.SessionStore {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "lyra.db")
 	db, err := sqlite.Open(path)
@@ -22,7 +22,7 @@ func newTempDB(t *testing.T) *sqlite.SessionService {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return sqlite.NewSessionService(db)
+	return sqlite.NewSessionStore(db)
 }
 
 // TestSessionCRUD exercises the full mutate / read cycle of session.Service
@@ -219,7 +219,7 @@ func TestSessionPersistAcrossReopen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open 1: %v", err)
 	}
-	svc1 := sqlite.NewSessionService(db1)
+	svc1 := sqlite.NewSessionStore(db1)
 	created, _ := svc1.Create(ctx, "persistent", "")
 	_ = db1.Close()
 
@@ -228,7 +228,7 @@ func TestSessionPersistAcrossReopen(t *testing.T) {
 		t.Fatalf("Open 2: %v", err)
 	}
 	defer db2.Close()
-	svc2 := sqlite.NewSessionService(db2)
+	svc2 := sqlite.NewSessionStore(db2)
 
 	got, err := svc2.Get(ctx, created.ID)
 	if err != nil {

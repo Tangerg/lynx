@@ -11,28 +11,28 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 )
 
-// TodoService implements todo.Service against SQLite. A session's list is one
+// TodoStore implements todo.Service against SQLite. A session's list is one
 // row keyed by session id, the items a JSON array — the list is always read
 // and written whole (a model-owned full replace), so a single row plus one
 // UPSERT is the entire story; there are no per-item rows to reconcile.
 //
 // Safe for concurrent use; the *sql.DB serializes writes (MaxOpenConns 1, see
 // [Open]).
-type TodoService struct {
+type TodoStore struct {
 	db *sql.DB
 }
 
-var _ todo.Service = (*TodoService)(nil)
+var _ todo.Service = (*TodoStore)(nil)
 
-// NewTodoService wires the *sql.DB (opened via [Open], so the migration ran)
+// NewTodoStore wires the *sql.DB (opened via [Open], so the migration ran)
 // to the todo.Service surface.
-func NewTodoService(db *sql.DB) *TodoService {
-	return &TodoService{db: db}
+func NewTodoStore(db *sql.DB) *TodoStore {
+	return &TodoStore{db: db}
 }
 
 // List returns the session's items, or nil when the session has no list yet
 // (an unknown session is not an error — see [todo.Service]).
-func (s *TodoService) List(ctx context.Context, sessionID string) ([]todo.Item, error) {
+func (s *TodoStore) List(ctx context.Context, sessionID string) ([]todo.Item, error) {
 	var itemsJSON string
 	err := s.db.QueryRowContext(ctx,
 		`SELECT items FROM todos WHERE session_id = ?`, sessionID).Scan(&itemsJSON)
@@ -55,7 +55,7 @@ func (s *TodoService) List(ctx context.Context, sessionID string) ([]todo.Item, 
 // Replace overwrites the session's list wholesale (INSERT OR REPLACE). A nil
 // slice is stored as an empty array, so a cleared list round-trips as empty
 // rather than NULL.
-func (s *TodoService) Replace(ctx context.Context, sessionID string, items []todo.Item) error {
+func (s *TodoStore) Replace(ctx context.Context, sessionID string, items []todo.Item) error {
 	if items == nil {
 		items = []todo.Item{}
 	}
