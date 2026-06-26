@@ -361,9 +361,10 @@ type McpTool struct {
 
 // McpServerConfig is one entry in the MCP-server registry — the editable
 // configuration (workspace.mcp.listConfigs / configure), distinct from McpServer
-// (the live status from listServers). The bearer token is returned masked;
-// Status / ToolCount / Error are the best-effort live state, present when the
-// server is enabled and has been dialed.
+// (the live status from listServers). The bearer token is returned masked. Live
+// connection state (status / toolCount / error) is intentionally NOT carried
+// here — read it from workspace.mcp.listServers (McpServer), keyed by name, so
+// the editable and observed shapes don't cross-contaminate.
 type McpServerConfig struct {
 	Name                string            `json:"name"`
 	Transport           string            `json:"type"` // "stdio" | "streamableHttp" (standard mcpServers vocab)
@@ -379,9 +380,6 @@ type McpServerConfig struct {
 	TimeoutSeconds      int               `json:"timeoutSeconds,omitempty"`   // connect-handshake bound; 0 = unbounded
 	DisabledTools       []string          `json:"disabledTools,omitempty"`    // hidden from the model
 	AutoApproveTools    []string          `json:"autoApproveTools,omitempty"` // skip the approval gate
-	Status              McpStatus         `json:"status,omitempty"`           // live, when enabled+dialed
-	ToolCount           *int              `json:"toolCount,omitempty"`
-	Error               *ProblemData      `json:"error,omitempty"`
 }
 
 // ConfigureMCPServerRequest — workspace.mcp.configure / test body (the editable

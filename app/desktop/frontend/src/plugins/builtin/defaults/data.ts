@@ -106,10 +106,11 @@ function toSidebarMCPServer(s: RpcMCPServer): SidebarMCPServer {
 }
 
 // `mcp-configs` — the editable registry behind the MCP-servers settings pane.
-// Wire McpServerConfig carries the full persisted config + a best-effort live
-// status; flatten the wire ProblemData to a string for the row tooltip (the UI
-// type carries no protocol shapes — same boundary as the sidebar row above).
-function toMcpConfigInfo(c: RpcMCPServerConfig): MCPServerConfigInfo {
+// Config comes from listConfigs, live status (status/toolCount/error) from
+// listServers, joined by server name; flatten the wire ProblemData to a string
+// for the row tooltip (the UI type carries no protocol shapes — same boundary
+// as the sidebar row above).
+function toMcpConfigInfo(c: RpcMCPServerConfig, live?: RpcMCPServer): MCPServerConfigInfo {
   return {
     name: c.name,
     type: c.type,
@@ -123,9 +124,9 @@ function toMcpConfigInfo(c: RpcMCPServerConfig): MCPServerConfigInfo {
     dir: c.dir,
     disabledTools: c.disabledTools,
     autoApproveTools: c.autoApproveTools,
-    status: c.status,
-    toolCount: c.toolCount,
-    errorDetail: c.error ? (c.error.detail ?? c.error.type) : undefined,
+    status: live?.status,
+    toolCount: live?.toolCount,
+    errorDetail: live?.error ? (live.error.detail ?? live.error.type) : undefined,
   };
 }
 
@@ -201,12 +202,16 @@ export const defaultData = definePlugin({
     });
     host.extensions.contribute(DATA_PROVIDER, {
       key: MCP_CONFIGS_KEY,
-      // The editable registry (settings pane) — full config + best-effort live
-      // status per entry. Capability-gated like the other MCP reads.
-      fetcher: async () =>
-        (await client().workspace.mcp.listConfigs().catch(emptyPageIfUngated)).data.map(
-          toMcpConfigInfo,
-        ),
+      // The editable registry (settings pane) — config from listConfigs, live
+      // status from listServers, joined by server name.
+      fetcher: async () => {
+        const [cfgs, srvs] = await Promise.all([
+          client().workspace.mcp.listConfigs().catch(emptyPageIfUngated),
+          client().workspace.mcp.listServers().catch(emptyPageIfUngated),
+        ]);
+        const live = new Map<string, RpcMCPServer>(srvs.data.map((s) => [s.name, s]));
+        return cfgs.data.map((c) => toMcpConfigInfo(c, live.get(c.name)));
+      },
     });
     host.extensions.contribute(DATA_PROVIDER, {
       key: MCP_TOOLS_KEY,

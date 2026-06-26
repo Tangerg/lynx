@@ -752,11 +752,12 @@ export interface McpTool {
 export type McpTransport = "stdio" | "streamableHttp";
 
 // One entry in the editable MCP registry (workspace.mcp.listConfigs /
-// configure). Carries the persisted config PLUS a best-effort live status the
-// list view tints — status/toolCount/error are absent until the runtime has
-// (re)connected the server. `authorizationMasked` is the never-reversible echo
-// of an http server's stored bearer token ("" / absent = none); the raw token
-// only travels on ConfigureMCPServerRequest (write side).
+// configure). Carries the persisted config only — live status
+// (status/toolCount/error) comes from workspace.mcp.listServers
+// (McpServer), joined by server name.
+// `authorizationMasked` is the never-reversible echo of an http server's
+// stored bearer token ("" / absent = none); the raw token only travels on
+// ConfigureMCPServerRequest (write side).
 export interface McpServerConfig {
   name: string;
   type: McpTransport;
@@ -780,10 +781,6 @@ export interface McpServerConfig {
   // approval prompt). Both key on the bare tool name (NOT "<server>.<tool>").
   disabledTools?: string[];
   autoApproveTools?: string[];
-  // Live status — best-effort, absent until first (re)connect.
-  status?: McpStatus;
-  toolCount?: number;
-  error?: ProblemData;
 }
 
 // workspace.mcp.configure — upsert by `name`. `authorization` is the RAW bearer
