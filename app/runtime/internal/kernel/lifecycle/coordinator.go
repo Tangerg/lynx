@@ -91,6 +91,37 @@ func (c *Coordinator) Rollback(ctx context.Context, sessionID string, keepMark i
 	return nil
 }
 
+// Fork creates a child of parentID, seeds it with the supplied chat-memory
+// prefix, and renames it — as ONE transaction, so a mid-sequence failure rolls
+// the whole fork back rather than leaving an orphaned child the user never saw
+// succeed. The caller owns the wire-coupled half — decoding the stored RunRefs,
+// computing the boundary ([transcript.BoundaryAt]), and reading + truncating the
+// parent's history to that boundary — and passes only the resolved message
+// prefix here. title == "" leaves the default "<parent> (fork)".
+func (c *Coordinator) Fork(ctx context.Context, parentID string, msgs []chat.Message, title string) (session.Session, error) {
+	var child session.Session
+	if err := c.s.RunInTx(ctx, func(ctx context.Context) error {
+		ch, err := c.s.Session().Fork(ctx, parentID, "")
+		if err != nil {
+			return err
+		}
+		if err := c.s.SeedHistory(ctx, ch.ID, msgs); err != nil {
+			return err
+		}
+		if title != "" {
+			if err := c.s.Session().Rename(ctx, ch.ID, title); err != nil {
+				return err
+			}
+			ch.Title = title
+		}
+		child = ch
+		return nil
+	}); err != nil {
+		return session.Session{}, err
+	}
+	return child, nil
+}
+
 // DeleteSession removes the session row (authoritative) then best-effort
 // cascades the session-scoped storage: durable history, chat-memory, open
 // interrupts, and the process-local resume gate. The cascade runs AFTER the
