@@ -9,14 +9,14 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
-func newTodoStore(t *testing.T) *sqlite.TodoService {
+func newTodoStore(t *testing.T) *sqlite.TodoStore {
 	t.Helper()
 	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return sqlite.NewTodoService(db)
+	return sqlite.NewTodoStore(db)
 }
 
 func TestTodoStore_RoundTrip(t *testing.T) {

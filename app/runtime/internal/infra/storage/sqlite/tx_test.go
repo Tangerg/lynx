@@ -24,7 +24,7 @@ func TestRunInTx_AtomicAcrossStores(t *testing.T) {
 		t.Fatalf("open: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	sess := sqlite.NewSessionService(db)
+	sess := sqlite.NewSessionStore(db)
 	msg := sqlite.NewMessageStore(db)
 	ctx := context.Background()
 

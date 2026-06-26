@@ -263,7 +263,7 @@ func buildStores() (*Stores, error) {
 	if err != nil {
 		return nil, err
 	}
-	mem, err := storage.NewFileKnowledgeService()
+	mem, err := storage.NewFileKnowledgeStore()
 	if err != nil {
 		_ = db.Close() // close the db handle opened above on this error path
 		return nil, fmt.Errorf("memory storage: %w", err)
@@ -276,16 +276,16 @@ func buildStores() (*Stores, error) {
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlitestore.RunInTx(ctx, db, fn)
 		},
-		Session:       sqlitestore.NewSessionService(db),
+		Session:       sqlitestore.NewSessionStore(db),
 		Memory:        mem,
 		Process:       sqlitestore.NewProcessStore(db),
 		Interrupt:     sqlitestore.NewInterruptStore(db),
 		Transcript:    sqlitestore.NewTranscriptStore(db),
-		Provider:      sqlitestore.NewProviderService(db),
-		MCPServers:    sqlitestore.NewMCPServerService(db),
+		Provider:      sqlitestore.NewProviderStore(db),
+		MCPServers:    sqlitestore.NewMCPServerStore(db),
 		ChatMem:       sqlitestore.NewMessageStore(db),
 		Park:          sqlitestore.NewParkStore(db),
-		Todos:         sqlitestore.NewTodoService(db),
+		Todos:         sqlitestore.NewTodoStore(db),
 		ApprovalRules: sqlitestore.NewApprovalRuleStore(db),
 		UtilityRole:   sqlitestore.NewUtilityRoleStore(db),
 		Trust:         sqlitestore.NewTrustStore(db),

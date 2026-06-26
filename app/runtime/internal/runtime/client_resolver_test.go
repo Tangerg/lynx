@@ -17,7 +17,7 @@ func TestClientResolver_RejectsUnconfigured(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ps := sqlitestore.NewProviderService(db) // empty: deepseek not configured
+	ps := sqlitestore.NewProviderStore(db) // empty: deepseek not configured
 	r := newClientResolver(ps)
 
 	_, err = r.ResolveClient(t.Context(), "deepseek", "deepseek-v4-pro")

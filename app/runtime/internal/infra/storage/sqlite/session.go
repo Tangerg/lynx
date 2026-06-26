@@ -13,22 +13,22 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-// SessionService implements session.Service against a SQLite database.
+// SessionStore implements session.Service against a SQLite database.
 // Mutations are single-row INSERT / UPDATE / DELETE, so each operation is
 // atomic on its own — no multi-step rollback handling needed.
 //
 // All methods are safe for concurrent use; the underlying *sql.DB serializes
 // writes when MaxOpenConns is 1 (see [Open]).
-type SessionService struct {
+type SessionStore struct {
 	db *sql.DB
 }
 
-var _ session.Service = (*SessionService)(nil)
+var _ session.Service = (*SessionStore)(nil)
 
-// NewSessionService wires the given *sql.DB to the session.Service surface.
+// NewSessionStore wires the given *sql.DB to the session.Service surface.
 // The DB must have been opened via [Open] so the migration ran.
-func NewSessionService(db *sql.DB) *SessionService {
-	return &SessionService{db: db}
+func NewSessionStore(db *sql.DB) *SessionStore {
+	return &SessionStore{db: db}
 }
 
 // rowToSession decodes one DB row into a session.Session. metadata is
@@ -82,7 +82,7 @@ const sessionColumns = `id, title, cwd, parent_id, started_at, updated_at, metad
 // List returns user-facing sessions (roots and forks), newest-updated first.
 // Internal subtask-delegation sessions ([session.KindSubtask]) are excluded so
 // they never clutter the session list — query the lineage via [Children].
-func (s *SessionService) List(ctx context.Context) ([]session.Session, error) {
+func (s *SessionStore) List(ctx context.Context) ([]session.Session, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT `+sessionColumns+` FROM sessions WHERE kind != ? ORDER BY updated_at DESC`,
 		session.KindSubtask)
@@ -105,7 +105,7 @@ func (s *SessionService) List(ctx context.Context) ([]session.Session, error) {
 	return out, nil
 }
 
-func (s *SessionService) Get(ctx context.Context, id string) (session.Session, error) {
+func (s *SessionStore) Get(ctx context.Context, id string) (session.Session, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT `+sessionColumns+` FROM sessions WHERE id = ?`, id)
 	sess, err := rowToSession(row)
@@ -118,7 +118,7 @@ func (s *SessionService) Get(ctx context.Context, id string) (session.Session, e
 	return sess, nil
 }
 
-func (s *SessionService) Create(ctx context.Context, title, cwd string) (session.Session, error) {
+func (s *SessionStore) Create(ctx context.Context, title, cwd string) (session.Session, error) {
 	now := time.Now().UTC()
 	sess := session.Session{
 		ID:        session.IDPrefix + uuid.NewString(),
@@ -137,7 +137,7 @@ func (s *SessionService) Create(ctx context.Context, title, cwd string) (session
 // of sessions.import. It preserves the supplied id and all fields, overwriting
 // any existing row with that id (restore semantics). See
 // [session.Service.Restore].
-func (s *SessionService) Restore(ctx context.Context, sess session.Session) error {
+func (s *SessionStore) Restore(ctx context.Context, sess session.Session) error {
 	metaJSON, err := encodeMetadata(sess.Metadata)
 	if err != nil {
 		return err
@@ -158,7 +158,7 @@ func (s *SessionService) Restore(ctx context.Context, sess session.Session) erro
 // Fork checks the parent exists and inserts the child in a single
 // transaction so a concurrent Delete on the parent can't race against
 // the fork.
-func (s *SessionService) Fork(ctx context.Context, parentID, atMessageID string) (session.Session, error) {
+func (s *SessionStore) Fork(ctx context.Context, parentID, atMessageID string) (session.Session, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return session.Session{}, fmt.Errorf("sqlite: begin fork tx: %w", err)
@@ -192,7 +192,7 @@ func (s *SessionService) Fork(ctx context.Context, parentID, atMessageID string)
 // parentID and marked [session.KindSubtask]. It inherits the parent's working
 // directory and derives a title from it. Idempotent: a session already present
 // under id is returned unchanged, so a re-driven spawn doesn't error.
-func (s *SessionService) CreateSubtask(ctx context.Context, id, parentID string) (session.Session, error) {
+func (s *SessionStore) CreateSubtask(ctx context.Context, id, parentID string) (session.Session, error) {
 	if existing, err := s.Get(ctx, id); err == nil {
 		return existing, nil
 	} else if !errors.Is(err, session.ErrNotFound) {
@@ -220,7 +220,7 @@ func (s *SessionService) CreateSubtask(ctx context.Context, id, parentID string)
 // Children returns the sessions whose parent_id is parentID — the
 // delegation / fork lineage under a session, newest-updated first. Includes
 // KindSubtask children (which List hides).
-func (s *SessionService) Children(ctx context.Context, parentID string) ([]session.Session, error) {
+func (s *SessionStore) Children(ctx context.Context, parentID string) ([]session.Session, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT `+sessionColumns+` FROM sessions WHERE parent_id = ? ORDER BY updated_at DESC`,
 		parentID)
@@ -245,7 +245,7 @@ func (s *SessionService) Children(ctx context.Context, parentID string) ([]sessi
 
 // Delete is idempotent — deleting an unknown id is not an error
 // (matches session.Service contract).
-func (s *SessionService) Delete(ctx context.Context, id string) error {
+func (s *SessionStore) Delete(ctx context.Context, id string) error {
 	if _, err := s.db.ExecContext(ctx,
 		`DELETE FROM sessions WHERE id = ?`, id,
 	); err != nil {
@@ -256,7 +256,7 @@ func (s *SessionService) Delete(ctx context.Context, id string) error {
 
 // SetModel records the session's current model + refreshes UpdatedAt in a
 // single UPDATE (see [session.Service.SetModel]). ErrNotFound for unknown id.
-func (s *SessionService) SetModel(ctx context.Context, id, model string) error {
+func (s *SessionStore) SetModel(ctx context.Context, id, model string) error {
 	return s.updateByID(ctx, "set session model",
 		`UPDATE sessions SET model = ?, updated_at = ? WHERE id = ?`,
 		model, time.Now().UTC().UnixNano(), id)
@@ -264,7 +264,7 @@ func (s *SessionService) SetModel(ctx context.Context, id, model string) error {
 
 // Rename updates the session's title + refreshes UpdatedAt in a single UPDATE
 // (see [session.Service.Rename]). ErrNotFound for unknown id.
-func (s *SessionService) Rename(ctx context.Context, id, title string) error {
+func (s *SessionStore) Rename(ctx context.Context, id, title string) error {
 	return s.updateByID(ctx, "rename session",
 		`UPDATE sessions SET title = ?, updated_at = ? WHERE id = ?`,
 		title, time.Now().UTC().UnixNano(), id)
@@ -276,7 +276,7 @@ func (s *SessionService) Rename(ctx context.Context, id, title string) error {
 // clobbered across the async title generation. 0 rows affected (already titled
 // or unknown id) is a no-op success, NOT ErrNotFound — so it can't use
 // updateByID.
-func (s *SessionService) RenameIfUntitled(ctx context.Context, id, title string) error {
+func (s *SessionStore) RenameIfUntitled(ctx context.Context, id, title string) error {
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE sessions SET title = ?, updated_at = ? WHERE id = ? AND title = ''`,
 		title, time.Now().UTC().UnixNano(), id)
@@ -288,7 +288,7 @@ func (s *SessionService) RenameIfUntitled(ctx context.Context, id, title string)
 
 // SetCwd relocates the session (see [session.Service.SetCwd]) + refreshes
 // UpdatedAt in a single UPDATE. ErrNotFound for unknown id.
-func (s *SessionService) SetCwd(ctx context.Context, id, cwd string) error {
+func (s *SessionStore) SetCwd(ctx context.Context, id, cwd string) error {
 	return s.updateByID(ctx, "relocate session",
 		`UPDATE sessions SET cwd = ?, updated_at = ? WHERE id = ?`,
 		cwd, time.Now().UTC().UnixNano(), id)
@@ -297,7 +297,7 @@ func (s *SessionService) SetCwd(ctx context.Context, id, cwd string) error {
 // SetMetadata full-replaces the session's metadata (see
 // [session.Service.SetMetadata]) + refreshes UpdatedAt. ErrNotFound for
 // unknown id.
-func (s *SessionService) SetMetadata(ctx context.Context, id string, meta map[string]any) error {
+func (s *SessionStore) SetMetadata(ctx context.Context, id string, meta map[string]any) error {
 	metaJSON, err := encodeMetadata(meta)
 	if err != nil {
 		return err
@@ -309,7 +309,7 @@ func (s *SessionService) SetMetadata(ctx context.Context, id string, meta map[st
 
 // SetFavorite pins / unpins the session (see [session.Service.SetFavorite]) +
 // refreshes UpdatedAt. ErrNotFound for unknown id.
-func (s *SessionService) SetFavorite(ctx context.Context, id string, favorite bool) error {
+func (s *SessionStore) SetFavorite(ctx context.Context, id string, favorite bool) error {
 	return s.updateByID(ctx, "set session favorite",
 		`UPDATE sessions SET favorite = ?, updated_at = ? WHERE id = ?`,
 		favorite, time.Now().UTC().UnixNano(), id)
@@ -319,7 +319,7 @@ func (s *SessionService) SetFavorite(ctx context.Context, id string, favorite bo
 // matched" to session.ErrNotFound. op labels the operation for error wrapping
 // (e.g. "rename session"). Shared by the SetModel / Rename field writes,
 // which differ only in their SET clause and bound args.
-func (s *SessionService) updateByID(ctx context.Context, op, query string, args ...any) error {
+func (s *SessionStore) updateByID(ctx context.Context, op, query string, args ...any) error {
 	res, err := s.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("sqlite: %s: %w", op, err)
@@ -336,13 +336,13 @@ func (s *SessionService) updateByID(ctx context.Context, op, query string, args 
 
 // insert is the one-shot path used by Create. Fork goes through
 // execInsert so it can run inside its own transaction.
-func (s *SessionService) insert(ctx context.Context, sess session.Session) error {
+func (s *SessionStore) insert(ctx context.Context, sess session.Session) error {
 	return s.execInsert(ctx, s.db, sess)
 }
 
 // execInsert is shared by Create and Fork; the shared [execer] (see tx.go)
 // accepts either *sql.DB or *sql.Tx.
-func (s *SessionService) execInsert(ctx context.Context, ex execer, sess session.Session) error {
+func (s *SessionStore) execInsert(ctx context.Context, ex execer, sess session.Session) error {
 	metaJSON, err := encodeMetadata(sess.Metadata)
 	if err != nil {
 		return err

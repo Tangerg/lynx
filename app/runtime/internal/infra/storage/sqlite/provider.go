@@ -9,21 +9,21 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
 
-// ProviderService implements provider.Service against a SQLite database.
+// ProviderStore implements provider.Service against a SQLite database.
 // One row per provider id; Configure is an upsert. The DB must have been
 // opened via [Open] so the providers table exists.
-type ProviderService struct {
+type ProviderStore struct {
 	db *sql.DB
 }
 
-var _ provider.Service = (*ProviderService)(nil)
+var _ provider.Service = (*ProviderStore)(nil)
 
-// NewProviderService wires the given *sql.DB to the provider.Service surface.
-func NewProviderService(db *sql.DB) *ProviderService {
-	return &ProviderService{db: db}
+// NewProviderStore wires the given *sql.DB to the provider.Service surface.
+func NewProviderStore(db *sql.DB) *ProviderStore {
+	return &ProviderStore{db: db}
 }
 
-func (s *ProviderService) List(ctx context.Context) ([]provider.Provider, error) {
+func (s *ProviderStore) List(ctx context.Context) ([]provider.Provider, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, api_key, base_url FROM providers ORDER BY id`)
 	if err != nil {
@@ -42,7 +42,7 @@ func (s *ProviderService) List(ctx context.Context) ([]provider.Provider, error)
 	return out, rows.Err()
 }
 
-func (s *ProviderService) Get(ctx context.Context, id string) (provider.Provider, bool, error) {
+func (s *ProviderStore) Get(ctx context.Context, id string) (provider.Provider, bool, error) {
 	var p provider.Provider
 	err := s.db.QueryRowContext(ctx,
 		`SELECT id, api_key, base_url FROM providers WHERE id = ?`, id).
@@ -56,7 +56,7 @@ func (s *ProviderService) Get(ctx context.Context, id string) (provider.Provider
 	return p, true, nil
 }
 
-func (s *ProviderService) Configure(ctx context.Context, p provider.Provider) error {
+func (s *ProviderStore) Configure(ctx context.Context, p provider.Provider) error {
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO providers (id, api_key, base_url) VALUES (?, ?, ?)
 		 ON CONFLICT(id) DO UPDATE SET api_key = excluded.api_key, base_url = excluded.base_url`,

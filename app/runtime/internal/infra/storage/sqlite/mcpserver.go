@@ -11,20 +11,20 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
-// MCPServerService implements mcpserver.Service against a SQLite database.
+// MCPServerStore implements mcpserver.Service against a SQLite database.
 // One row per server name; Configure is an upsert. The list columns (args /
 // disabled_tools / auto_approve_tools) and the map columns (env / headers) are
 // JSON-encoded; timeout is stored as nanoseconds. The DB must have been opened
 // via [Open] so the mcp_servers table exists.
-type MCPServerService struct {
+type MCPServerStore struct {
 	db *sql.DB
 }
 
-var _ mcpserver.Service = (*MCPServerService)(nil)
+var _ mcpserver.Service = (*MCPServerStore)(nil)
 
-// NewMCPServerService wires the given *sql.DB to the mcpserver.Service surface.
-func NewMCPServerService(db *sql.DB) *MCPServerService {
-	return &MCPServerService{db: db}
+// NewMCPServerStore wires the given *sql.DB to the mcpserver.Service surface.
+func NewMCPServerStore(db *sql.DB) *MCPServerStore {
+	return &MCPServerStore{db: db}
 }
 
 // mcpColumns is the column list shared by List and Get so the two reads and
@@ -32,7 +32,7 @@ func NewMCPServerService(db *sql.DB) *MCPServerService {
 const mcpColumns = `name, transport, enabled, description, url, authorization, headers,
 	        command, args, env, dir, timeout, disabled_tools, auto_approve_tools`
 
-func (s *MCPServerService) List(ctx context.Context) ([]mcpserver.Server, error) {
+func (s *MCPServerStore) List(ctx context.Context) ([]mcpserver.Server, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT `+mcpColumns+` FROM mcp_servers ORDER BY name`)
 	if err != nil {
@@ -51,7 +51,7 @@ func (s *MCPServerService) List(ctx context.Context) ([]mcpserver.Server, error)
 	return out, rows.Err()
 }
 
-func (s *MCPServerService) Get(ctx context.Context, name string) (mcpserver.Server, bool, error) {
+func (s *MCPServerStore) Get(ctx context.Context, name string) (mcpserver.Server, bool, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT `+mcpColumns+` FROM mcp_servers WHERE name = ?`, name)
 	srv, err := scanMCPServer(row.Scan)
@@ -64,7 +64,7 @@ func (s *MCPServerService) Get(ctx context.Context, name string) (mcpserver.Serv
 	return srv, true, nil
 }
 
-func (s *MCPServerService) Configure(ctx context.Context, srv mcpserver.Server) error {
+func (s *MCPServerStore) Configure(ctx context.Context, srv mcpserver.Server) error {
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO mcp_servers
 		   (name, transport, enabled, description, url, authorization, headers,
@@ -88,14 +88,14 @@ func (s *MCPServerService) Configure(ctx context.Context, srv mcpserver.Server) 
 	return nil
 }
 
-func (s *MCPServerService) Remove(ctx context.Context, name string) error {
+func (s *MCPServerStore) Remove(ctx context.Context, name string) error {
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM mcp_servers WHERE name = ?`, name); err != nil {
 		return fmt.Errorf("sqlite: remove mcp server: %w", err)
 	}
 	return nil
 }
 
-func (s *MCPServerService) SetEnabled(ctx context.Context, name string, enabled bool) error {
+func (s *MCPServerStore) SetEnabled(ctx context.Context, name string, enabled bool) error {
 	if _, err := s.db.ExecContext(ctx,
 		`UPDATE mcp_servers SET enabled = ? WHERE name = ?`, enabled, name); err != nil {
 		return fmt.Errorf("sqlite: set mcp server enabled: %w", err)

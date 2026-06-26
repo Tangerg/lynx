@@ -115,7 +115,7 @@ func newSessionServer(t *testing.T) (*Server, session.Service) {
 		t.Fatalf("open: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	svc := sqlite.NewSessionService(db)
+	svc := sqlite.NewSessionStore(db)
 	// Interrupts is always wired in production (runtime composition root) and
 	// the wire status now reads it (liveStatus) — give the stub a real store.
 	return &Server{rt: stubRuntime{sess: svc, model: "default-model", interrupts: sqlite.NewInterruptStore(db)}}, svc
@@ -197,7 +197,7 @@ func TestDeleteSession_Cascade(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
-	svc := sqlite.NewSessionService(db)
+	svc := sqlite.NewSessionStore(db)
 	hist := sqlite.NewTranscriptStore(db)
 	ints := sqlite.NewInterruptStore(db)
 	created, _ := svc.Create(ctx, "doomed", "/w")
@@ -243,7 +243,7 @@ func TestForkSession(t *testing.T) {
 		t.Fatalf("open: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	svc := sqlite.NewSessionService(db)
+	svc := sqlite.NewSessionStore(db)
 	ctx := context.Background()
 	parent, _ := svc.Create(ctx, "research", "/work/proj")
 
