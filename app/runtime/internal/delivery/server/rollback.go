@@ -50,7 +50,7 @@ func wireBoundaryErr(err error) error {
 	case errors.Is(err, transcript.ErrRunNotFound):
 		return protocol.ErrRunNotFound
 	case errors.Is(err, transcript.ErrNotRoot):
-		return fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
+		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	default:
 		return err
 	}

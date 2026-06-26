@@ -8,6 +8,13 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 )
 
+// chatRunner is the narrow slice of *kernel.Engine the A2A adapter needs —
+// just the one-shot turn. Defined here (consumer side) so the adapter doesn't
+// pin the whole engine; *kernel.Engine satisfies it structurally.
+type chatRunner interface {
+	RunChat(ctx context.Context, req kernel.RunChatRequest) (kernel.ChatOutput, error)
+}
+
 // a2aAgent adapts the engine's one-shot chat turn to the [a2a.Agent] the
 // A2A server bridge expects: an inbound A2A message (flattened to text by
 // the executor) runs as a fresh chat turn, and the assistant's reply is
@@ -19,7 +26,7 @@ import (
 // RunChat is the simplest faithful bridge. Token-level streaming would adapt
 // the engine's observer and is a follow-up.
 type a2aAgent struct {
-	engine *kernel.Engine
+	engine chatRunner
 }
 
 var _ a2a.Agent = a2aAgent{}
