@@ -8,7 +8,7 @@ require (
 	github.com/gammazero/workerpool v1.2.1
 	github.com/invopop/jsonschema v0.14.0
 	github.com/panjf2000/ants/v2 v2.12.1
-	github.com/sourcegraph/conc v0.3.0
+	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8
 	github.com/spf13/cast v1.10.0
 	github.com/stretchr/testify v1.11.1
 )
@@ -21,8 +21,7 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/rogpeppe/go-internal v1.14.1 // indirect
-	go.uber.org/multierr v1.11.0 // indirect
+	github.com/rogpeppe/go-internal v1.15.0 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.5 // indirect
 	golang.org/x/sync v0.21.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect

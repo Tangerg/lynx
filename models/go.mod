@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.53.5
 	github.com/cohere-ai/cohere-go/v2 v2.18.0
 	github.com/go-resty/resty/v2 v2.17.2
-	github.com/ollama/ollama v0.30.8
+	github.com/ollama/ollama v0.30.11
 	github.com/openai/openai-go/v3 v3.39.0
 	github.com/spf13/cast v1.10.0
 )
@@ -42,6 +42,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.22.0 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/pkoukk/tiktoken-go v0.1.8 // indirect
+	github.com/rogpeppe/go-internal v1.15.0 // indirect
 	github.com/standard-webhooks/standard-webhooks/libraries v0.0.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0 // indirect
@@ -50,7 +51,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.44.0 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.5 // indirect
 	google.golang.org/api v0.284.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260511170946-3700d4141b60 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260610212136-7ab31c22f7ad // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 

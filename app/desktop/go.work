@@ -4,6 +4,6 @@
 // Wails/CGO deps the backend workspace must not absorb. Without this file, a
 // build here walks up to ../../go.work — which does not list this module — and
 // fails with "directory ... does not contain modules listed in go.work".
-go 1.24.4
+go 1.25.0
 
 use .
