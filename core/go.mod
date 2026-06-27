@@ -3,7 +3,7 @@ module github.com/Tangerg/lynx/core
 go 1.26.4
 
 require (
-	github.com/Tangerg/lynx/pkg v0.0.0-20260612070432-d76a84bc1fc7
+	github.com/Tangerg/lynx/pkg v0.0.0-20260627110629-977ea6791375
 	github.com/google/uuid v1.6.0
 	github.com/pkoukk/tiktoken-go v0.1.8
 	github.com/spf13/cast v1.10.0
@@ -28,10 +28,9 @@ require (
 	github.com/invopop/jsonschema v0.14.0 // indirect
 	github.com/panjf2000/ants/v2 v2.12.1 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
-	github.com/rogpeppe/go-internal v1.15.0 // indirect
 	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.yaml.in/yaml/v4 v4.0.0-rc.5 // indirect
+	go.yaml.in/yaml/v4 v4.0.0-rc.6 // indirect
 	golang.org/x/sync v0.21.0 // indirect
 	golang.org/x/sys v0.46.0 // indirect
 )
