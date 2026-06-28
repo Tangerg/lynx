@@ -27,7 +27,7 @@ export function ComposerFooter() {
   const end = items.filter((it) => it.align === "end");
 
   return (
-    <div className="relative z-[3] flex items-center gap-2 px-1 pb-1 pt-2.5">
+    <div className="relative z-[3] flex items-center gap-2 px-1 pb-0.5 pt-1.5">
       <div className="flex min-w-0 flex-wrap items-center gap-1">
         {start.map((it) => (
           <Chip key={it.id} it={it} />
