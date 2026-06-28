@@ -58,10 +58,10 @@ function NavRow({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-2.5 rounded-lg border-0 bg-transparent px-2.5 py-1.5 text-left",
-        "font-sans text-[13px] text-fg-muted transition-colors active:scale-[0.99]",
-        "hover:bg-surface-2 hover:text-fg light:hover:bg-surface-3",
-        active && "bg-surface-2 text-fg light:bg-surface-3",
+        "flex w-full items-center gap-2.5 rounded-md border-0 bg-transparent px-2 py-1.5 text-left",
+        "font-sans text-[13px] text-fg-muted transition-[background-color,transform] duration-75 active:scale-[0.99]",
+        "hover:bg-fg/[0.02] hover:text-fg",
+        active && "bg-fg/[0.03] text-fg",
       )}
     >
       <Icon name={icon} size={15} className="shrink-0 text-fg-faint" />
@@ -104,7 +104,7 @@ function SidebarNav() {
   const activeMainView = useSessionStore((s) => s.activeMainView);
 
   return (
-    <div className="flex flex-col gap-0.5 px-1">
+    <div className="flex flex-col gap-0.5">
       <NavRow icon="edit" label={t("sidebar.nav.newChat")} onClick={() => void createSession()} />
       <NavGroup
         label={t("sidebar.section.workspace")}

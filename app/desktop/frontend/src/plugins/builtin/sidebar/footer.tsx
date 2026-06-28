@@ -24,7 +24,7 @@ function SidebarFooter() {
   // thin action row — plugin status badges (notifications / background tasks)
   // on the left, settings on the right.
   return (
-    <div className="flex items-center justify-between gap-1 rounded-lg px-2 py-1.5">
+    <div className="flex items-center justify-between gap-1 rounded-md px-2 py-1.5">
       <Slot name="sidebar.footer.status" className="flex items-center gap-0.5" />
       <button
         type="button"

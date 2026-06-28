@@ -15,8 +15,8 @@ const styles = cva(
     variants: {
       variant: {
         ghost: "h-8 w-8 rounded-full hover:bg-surface-2",
-        rail: "h-10 w-10 rounded-lg hover:bg-surface",
-        "rail-primary": "h-10 w-10 rounded-lg bg-surface-2 text-fg hover:bg-surface-3",
+        rail: "h-10 w-10 rounded-md hover:bg-fg/[0.02]",
+        "rail-primary": "h-10 w-10 rounded-md bg-surface-2 text-fg hover:bg-surface-3",
       },
       active: {
         true: "",
