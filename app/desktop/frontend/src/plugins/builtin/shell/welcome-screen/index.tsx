@@ -68,7 +68,7 @@ function SetupCard() {
     });
   };
   return (
-    <div className="w-full rounded-lg border border-accent/30 bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)] px-4 py-4 text-left">
+    <div className="w-full rounded-md border border-accent/25 bg-accent/[0.06] px-4 py-3.5 text-left">
       <div className="flex items-start gap-3">
         <Icon name="spark" size={16} className="mt-0.5 shrink-0 text-accent" />
         <div className="flex flex-col items-start gap-2">
@@ -106,15 +106,15 @@ function WelcomeScreen() {
     // in a vertically-centered column directly above the composer, so the
     // positioning lives there — here it's just the centered content group.
     // Sentence-case + period per DESIGN.md §3.
-    <div className="mx-auto flex w-full flex-col items-center gap-4 text-center">
+    <div className="mx-auto flex w-full flex-col items-center gap-3.5 text-center">
       {/* Eyebrow — terminal-style "ready" mark with an accent dot. */}
       <div className="inline-flex items-center gap-2 font-mono text-[11px] text-fg-faint tracking-normal [font-feature-settings:'tnum'] before:content-[''] before:h-1.5 before:w-1.5 before:rounded-full before:bg-accent before:shadow-[0_0_6px_var(--color-accent)]">
         {t("welcome.eyebrow")}
       </div>
-      <h1 className="m-0 text-[30px] font-semibold leading-[1.2] tracking-[-0.02em] text-fg">
+      <h1 className="m-0 text-[28px] font-semibold leading-[1.2] tracking-[-0.02em] text-fg">
         {t("welcome.title")}
       </h1>
-      <p className="m-0 mb-2 max-w-[440px] text-[14.5px] leading-[1.6] text-fg-muted">
+      <p className="m-0 mb-1 max-w-[440px] text-[14.5px] leading-[1.6] text-fg-muted">
         {t("welcome.sub")}
       </p>
       {keyless ? (
@@ -131,7 +131,7 @@ function WelcomeScreen() {
                 // the composer, so the user can preview what the suggestion
                 // will do (the visible label is intentionally short).
                 title={t(s.promptKey)}
-                className="group inline-flex items-center gap-2.5 rounded-lg border border-line bg-surface px-4 py-3.5 font-sans text-[14px] font-medium text-fg-soft text-left transition-[background,border-color,color,transform] duration-150 hover:bg-surface-2 hover:border-line-soft hover:text-fg active:scale-[0.98]"
+                className="group inline-flex items-center gap-2.5 rounded-md border border-line/60 bg-surface px-3.5 py-3 font-sans text-[14px] font-medium text-fg-soft text-left transition-[background,border-color,color,transform] duration-150 hover:bg-surface-2 hover:border-line hover:text-fg active:scale-[0.98]"
               >
                 <Icon
                   name={s.icon}
@@ -143,7 +143,7 @@ function WelcomeScreen() {
             ))}
           </div>
           {hints.length > 0 && (
-            <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 font-mono text-[11px] text-fg-faint">
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 font-mono text-[11px] text-fg-faint">
               {hints.map((c) => (
                 <span key={c.id} className="inline-flex items-center gap-1.5">
                   <kbd className="rounded border border-line bg-surface-2 px-1.5 py-0.5 text-[10.5px] not-italic text-fg-muted">
