@@ -110,10 +110,15 @@ func (f *oauthFlow) fetch(ctx context.Context, args *auth.AuthorizationArgs) (*a
 	}
 }
 
-func (f *oauthFlow) close() {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(context.Background()), time.Second)
+// close tears the loopback callback server down. The flow ctx is done by the
+// time close runs (the deferred cancel fired, or the flow timed out), so we
+// detach cancellation with WithoutCancel — which keeps the trace span/baggage
+// (full-link observability, unlike a bare context.Background) — and bound the
+// graceful Shutdown with its own 1s timeout.
+func (f *oauthFlow) close(ctx context.Context) {
+	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
 	defer cancel()
-	_ = f.server.Shutdown(ctx)
+	_ = f.server.Shutdown(shutdownCtx)
 }
 
 // newOAuthHandler builds the interactive authorization-code handler for one
