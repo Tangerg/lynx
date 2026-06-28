@@ -44,10 +44,10 @@ interface ShellProps {
 
 export function HitlCardShell({ tone, icon, label, trailing, children }: ShellProps) {
   return (
-    <div className={cn("my-3 rounded-xl border px-4 py-3.5", TONE_CARD[tone])}>
+    <div className={cn("my-2 rounded-xl border px-3.5 py-3", TONE_CARD[tone])}>
       <div
         className={cn(
-          "mb-2 flex items-center gap-2 font-mono text-[11px] font-semibold",
+          "mb-1.5 flex items-center gap-2 font-mono text-[11px] font-semibold",
           TONE_TEXT[tone],
         )}
       >

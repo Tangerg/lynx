@@ -155,7 +155,7 @@ export function ChatStream({ onSend, resetKey }: Props) {
         <div className="panel-scroll flex flex-1 flex-col overflow-y-auto px-6">
           {/* Hero + composer share one centered column (same width) so they
               read as a single focused group, not two stacked blocks. */}
-          <div className="m-auto w-full max-w-[680px] py-10">
+          <div className="m-auto w-full max-w-[840px] px-5 py-8">
             <Slot name="chat.empty" />
             <div className="mt-7">{composer}</div>
           </div>
@@ -176,7 +176,7 @@ export function ChatStream({ onSend, resetKey }: Props) {
           container, not this one). Plan-progress is the only built-in
           contributor today; the slot is open so plugins can stack
           their own "above the stream" banners here. */}
-      <div className="pointer-events-auto mx-auto w-full max-w-[760px] px-6">
+      <div className="pointer-events-auto mx-auto w-full max-w-[840px] px-5">
         <Slot name="chat.banner.top" />
       </div>
       <ChatErrorBoundary resetKey={resetKey} label={`session:${resetKey}`}>
@@ -200,10 +200,9 @@ export function ChatStream({ onSend, resetKey }: Props) {
           visible={streamControls ? !streamControls.isAtBottom : false}
           onClick={() => streamControls?.scrollToBottom()}
         />
-        {/* px-6 mirrors msg-stream's 24px content padding so the
-            composer's outer edge lines up with the message text
-            column above it (instead of the raw 760px column edge). */}
-        <div className="pointer-events-auto relative z-[2] mx-auto w-full max-w-[760px] px-6">
+        {/* px-5 mirrors msg-stream's content padding so the composer's
+            outer edge lines up with the message text column above it. */}
+        <div className="pointer-events-auto relative z-[2] mx-auto w-full max-w-[840px] px-5">
           {composer}
         </div>
       </div>

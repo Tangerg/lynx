@@ -67,13 +67,13 @@ export function ToolGroup({
   const expanded = pinned ?? needsAttention;
 
   return (
-    <div className="my-1.5">
+    <div className="my-1">
       <button
         type="button"
         onClick={() => setPinned(!expanded)}
         aria-expanded={expanded}
         className={cn(
-          "flex w-full items-center gap-2.5 rounded-md border border-transparent px-3 py-1.5 text-left",
+          "flex w-full items-center gap-2 rounded-md border border-transparent px-2.5 py-1 text-left",
           "transition-[background,border-color] hover:border-line-soft hover:bg-surface-2",
         )}
       >

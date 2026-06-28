@@ -55,7 +55,7 @@ export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView 
         // `.tool-card.running::before` rotating conic-gradient border
         // animation defined in tool.css — it uses @property + mask, not
         // expressible cleanly in Tailwind. Everything else here is utilities.
-        "tool-card group relative my-1.5 overflow-hidden rounded-md border border-transparent transition-[background,border-color,transform] duration-150",
+        "tool-card group relative my-1 overflow-hidden rounded-md border border-transparent transition-[background,border-color,transform] duration-150",
         !selected && "hover:bg-surface-2 hover:border-line-soft",
         // Selected drives the inspector pane — mark it with a 2px accent left
         // edge (inset shadow, so it doesn't fight the border) so "which tool is
@@ -74,7 +74,7 @@ export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView 
         role="button"
         tabIndex={0}
         aria-expanded={expanded}
-        className="grid grid-cols-[28px_minmax(0,1fr)_auto_auto_auto] items-center gap-2.5 px-3 py-1.5 focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_var(--color-accent)]"
+        className="grid grid-cols-[28px_minmax(0,1fr)_auto_auto_auto] items-center gap-2 px-2.5 py-1 focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_var(--color-accent)]"
         onClick={onToggleExpand}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
@@ -183,9 +183,21 @@ const ACTION_BTN =
 
 function ToolMeta({ tool }: { tool: ToolCall }) {
   return (
-    <div className="flex items-center gap-2.5 font-mono text-[10px] text-fg-faint tracking-normal normal-case">
-      {tool.added != null && <span className="text-success">+{tool.added}</span>}
-      {tool.removed != null && <span className="text-negative">−{tool.removed}</span>}
+    <div className="flex items-center gap-2 font-mono text-[10px] text-fg-faint tracking-normal normal-case">
+      {tool.added != null && (
+        <span className="px-1.5 py-0.5 rounded-[4px] bg-[color-mix(in_oklab,var(--color-success)_5%,var(--color-bg))] shadow-tinted text-success text-[10px] font-medium"
+          style={{ '--shadow-tint-color': 'var(--color-success)' } as React.CSSProperties}
+        >
+          +{tool.added}
+        </span>
+      )}
+      {tool.removed != null && (
+        <span className="px-1.5 py-0.5 rounded-[4px] bg-[color-mix(in_oklab,var(--color-negative)_5%,var(--color-bg))] shadow-tinted text-negative text-[10px] font-medium"
+          style={{ '--shadow-tint-color': 'var(--color-negative)' } as React.CSSProperties}
+        >
+          −{tool.removed}
+        </span>
+      )}
       {tool.hits != null && <span>{tool.hits} matches</span>}
       {tool.exitCode != null && tool.exitCode !== 0 && (
         <span className="text-negative">exit {tool.exitCode}</span>
