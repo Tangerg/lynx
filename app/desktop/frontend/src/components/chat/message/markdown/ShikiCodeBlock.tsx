@@ -113,29 +113,33 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
     // `<pre class="shiki">` + child `<code>` Shiki emits as a string.
     <div
       className={cn(
-        "shiki-block group/code my-3.5 overflow-hidden rounded-lg font-mono text-[13px]",
-        "border border-[color-mix(in_srgb,var(--color-text)_10%,transparent)]",
-        "bg-[color-mix(in_srgb,var(--color-text)_3%,transparent)]",
+        "shiki-block group/code my-3 overflow-hidden rounded-md font-mono text-[13px]",
+        "border border-line bg-surface-2",
         folded && "folded",
       )}
     >
-      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2.5 border-b border-[color-mix(in_srgb,var(--color-text)_7%,transparent)] pl-3.5 pr-3 py-2">
-        <span className="font-sans text-[10px] font-semibold text-fg-faint tracking-normal normal-case">
+      {/* Header — craft-aligned: flex row, lang left, copy right, subtle surface step. */}
+      <div className="flex items-center justify-between gap-3 border-b border-line bg-surface-3 px-3 py-1.5">
+        <span className="font-mono text-[10px] font-medium text-fg-faint uppercase tracking-wider">
           {lang || "text"}
         </span>
-        {file ? (
-          <span className="truncate font-mono text-[11.5px] text-fg-muted">{file}</span>
-        ) : (
-          <span aria-hidden="true" />
+        {file && (
+          <span className="truncate font-mono text-[11px] text-fg-muted flex-1 text-center">
+            {file}
+          </span>
         )}
         <button
           type="button"
           onClick={onCopy}
           title={copied ? t("message.code.copied") : t("message.code.copy")}
-          className="inline-flex items-center gap-1 rounded-md border-0 bg-transparent px-2 py-1 font-mono text-[11px] font-semibold text-fg-faint transition-[opacity,color,background] duration-150 opacity-60 group-hover/code:opacity-100 hover:!text-fg hover:bg-[color-mix(in_srgb,var(--color-text)_8%,transparent)]"
+          className={cn(
+            "grid h-6 w-6 place-items-center rounded border-0 bg-transparent transition-[opacity,color,background] duration-150",
+            copied
+              ? "text-success opacity-100"
+              : "text-fg-faint opacity-0 group-hover/code:opacity-100 hover:text-fg hover:bg-fg/[0.05]",
+          )}
         >
-          <Icon name={copied ? "check" : "copy"} size={11} />
-          {copied ? t("message.code.copied") : t("message.code.copyLabel")}
+          <Icon name={copied ? "check" : "copy"} size={13} />
         </button>
       </div>
       {folded ? (
@@ -162,10 +166,7 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
               type="button"
               onClick={() => setExpanded(false)}
               title={t("message.code.collapse")}
-              className={cn(
-                FOLD_TOGGLE,
-                "border-t border-[color-mix(in_srgb,var(--color-text)_7%,transparent)]",
-              )}
+              className={cn(FOLD_TOGGLE, "border-t border-line")}
             >
               <Icon name="minimize" size={12} />
               <span>{t("message.code.collapseLabel")}</span>
@@ -178,4 +179,4 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
 }
 
 const FOLD_TOGGLE =
-  "flex w-full items-center justify-center gap-1.5 border-0 bg-transparent px-4 py-2.5 font-sans text-[11.5px] font-semibold text-fg-muted tracking-normal transition-[background,color] duration-150 hover:bg-[color-mix(in_srgb,var(--color-text)_4%,transparent)] hover:text-fg";
+  "flex w-full items-center justify-center gap-1.5 border-0 bg-transparent px-4 py-2 font-sans text-[11.5px] font-medium text-fg-muted tracking-normal transition-[background,color] duration-150 hover:bg-fg/[0.02] hover:text-fg";
