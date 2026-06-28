@@ -56,7 +56,7 @@ func (s *engineBacked) List(_ context.Context) ([]Tool, error) {
 			Name:        def.Name,
 			Description: def.Description,
 			Schema:      def.InputSchema,
-			SafetyClass: defaultSafetyClass(def.Name),
+			SafetyClass: SafetyClassFor(def.Name),
 		})
 	}
 	return out, nil
@@ -87,32 +87,38 @@ func (s *engineBacked) Invoke(ctx context.Context, name string, arguments string
 	return "", err
 }
 
-// defaultSafetyClass maps a tool name to its built-in default safety
-// classification, for the ListTools wire metadata. A future milestone
+// SafetyClassFor maps a built-in tool name to its side-effect safety class. It
+// is the single source of truth for the name→class mapping — consumed here for
+// the tools.list wire metadata AND by the approval gate ([approval.GateFor]) —
+// so the two views never drift apart. Unknown tools (shell, task, MCP, online)
+// fall to Exec (fail-conservative: they may do anything). A future milestone
 // may let users override per-tool via config.
-//
-// Two separate name→class mappings exist — this one for the ListTools
-// wire metadata and [turn.safetyClassFor] for the approval gate. They
-// are deliberately separate (wire metadata vs gate policy, different
-// enum types) but share the same rows; keep them in sync when adding tools.
-func defaultSafetyClass(name string) SafetyClass {
+func SafetyClassFor(name string) SafetyClass {
 	switch name {
 	case "read", "glob", "grep", "lsp", "lsp_diagnostics", "skill", "ask_user", "exit_plan_mode":
 		// lsp / lsp_diagnostics are read-only code-intelligence queries — same
-		// class as read/glob/grep (kept in sync with kernel/turn/policy.go).
-		// skill is read-only (lists / reads skill files), like read/glob/grep.
-		// ask_user has no side effect — it IS a HITL interrupt itself, so the
-		// gate never prompts for it (see kernel/turn/policy.go safetyClassFor); the
-		// wire metadata must agree or clients would render it as Exec.
+		// class as read/glob/grep. skill only reads skill files. ask_user has no
+		// side effect (it IS a HITL interrupt, so gating it would double-prompt).
 		// exit_plan_mode is the way out of the read-only plan stance — it must
-		// not be gated, or the agent would be trapped in plan mode.
+		// stay Safe or the agent would be trapped in plan mode.
 		return SafetyClassSafe
 	case "write", "edit":
 		return SafetyClassWrite
-	case "shell":
-		return SafetyClassExec
 	default:
-		// Unknown tool — treat as Exec until proven otherwise.
 		return SafetyClassExec
+	}
+}
+
+// ClassName is the wire vocabulary (API.md §4.4 SafetyClass: "safe" | "write" |
+// "exec") for a class — the canonical string a client renders, stamped on the
+// live toolCall Item and the approval prompt.
+func ClassName(c SafetyClass) string {
+	switch c {
+	case SafetyClassSafe:
+		return "safe"
+	case SafetyClassWrite:
+		return "write"
+	default:
+		return "exec"
 	}
 }

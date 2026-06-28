@@ -92,7 +92,7 @@ type inMemory struct {
 
 	// mcpAutoApprove returns the model-facing MCP tool names whose calls skip the
 	// approval prompt — a per-server whitelist the runtime recomputes on every
-	// MCP registry change. Consulted on the gatePrompt path only, AFTER standing
+	// MCP registry change. Consulted on the GatePrompt path only, AFTER standing
 	// rules, so it never overrides a remembered deny or the read-only plan-mode
 	// deny; it only spares a prompt the user would otherwise see. nil = off.
 	mcpAutoApprove func() map[string]struct{}
