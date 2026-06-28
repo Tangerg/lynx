@@ -78,7 +78,7 @@ export function PanelTabBar({
   const isOnly = total === 1;
 
   return (
-    <div className={cn("flex min-h-9 items-center gap-1 bg-surface px-4", dragClasses)}>
+    <div className={cn("flex min-h-9 items-center gap-1 bg-surface px-3", dragClasses)}>
       <div
         ref={stripRef}
         onWheel={onWheel}

@@ -53,6 +53,21 @@
   --color-line-soft: var(--color-border-soft);
   --color-divider: var(--color-divider);
 
+  /* Fine foreground ramp — mapped into Tailwind utilities */
+  --color-text-2: var(--color-text-2);
+  --color-text-3: var(--color-text-3);
+  --color-text-5: var(--color-text-5);
+  --color-text-10: var(--color-text-10);
+  --color-text-20: var(--color-text-20);
+  --color-text-30: var(--color-text-30);
+  --color-text-40: var(--color-text-40);
+  --color-text-50: var(--color-text-50);
+  --color-text-60: var(--color-text-60);
+  --color-text-70: var(--color-text-70);
+  --color-text-80: var(--color-text-80);
+  --color-text-90: var(--color-text-90);
+  --color-text-95: var(--color-text-95);
+
   /* Radius — md (8px) is the default button radius. */
   --radius-xs: 4px;
   --radius-sm: 6px;
@@ -255,6 +270,64 @@
   /* Input focus — a quiet stronger inset border, no accent glow halo
      (the bright ring read as cheap, esp. flashing on click). */
   --shadow-input-focus: inset 0 0 0 1px var(--color-border-soft);
+
+  /* -------------------------------------------------------------------------
+   *  Craft-aligned shadow system — 5-tier + tinted
+   *  ------------------------------------------------------------------------- */
+  --shadow-border-opacity: 0.15;
+  --shadow-blur-opacity: 0.12;
+
+  /* Fine foreground ramp (color-mix toward bg) — 20-step for subtle
+     surface tints, hover states, and depth layering. */
+  --color-text-2: color-mix(in oklch, var(--color-text) 2%, var(--color-bg));
+  --color-text-3: color-mix(in oklch, var(--color-text) 3%, var(--color-bg));
+  --color-text-5: color-mix(in oklch, var(--color-text) 5%, var(--color-bg));
+  --color-text-10: color-mix(in oklch, var(--color-text) 10%, var(--color-bg));
+  --color-text-20: color-mix(in oklch, var(--color-text) 20%, var(--color-bg));
+  --color-text-30: color-mix(in oklch, var(--color-text) 30%, var(--color-bg));
+  --color-text-40: color-mix(in oklch, var(--color-text) 40%, var(--color-bg));
+  --color-text-50: color-mix(in oklch, var(--color-text) 50%, var(--color-bg));
+  --color-text-60: color-mix(in oklch, var(--color-text) 60%, var(--color-bg));
+  --color-text-70: color-mix(in oklch, var(--color-text) 70%, var(--color-bg));
+  --color-text-80: color-mix(in oklch, var(--color-text) 80%, var(--color-bg));
+  --color-text-90: color-mix(in oklch, var(--color-text) 90%, var(--color-bg));
+  --color-text-95: color-mix(in oklch, var(--color-text) 95%, var(--color-bg));
+
+  /* Reusable shadow values (used by utility classes below). */
+  --shadow-minimal:
+    rgba(0, 0, 0, 0) 0px 0px 0px 0px,
+    rgba(0, 0, 0, 0) 0px 0px 0px 0px,
+    color-mix(in oklab, var(--color-text) calc(var(--shadow-border-opacity) * 40%), transparent) 0px 0px 0px 1px,
+    rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 1px 1px -0.5px,
+    rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 3px 3px -1.5px;
+
+  --shadow-middle:
+    rgba(0, 0, 0, 0) 0px 0px 0px 0px,
+    rgba(0, 0, 0, 0) 0px 0px 0px 0px,
+    color-mix(in oklab, var(--color-text) calc(var(--shadow-border-opacity) * 40%), transparent) 0px 0px 0px 1px,
+    rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 1px 1px -0.5px,
+    rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 3px 3px -1.5px,
+    rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 6px 6px -3px;
+
+  --shadow-medium:
+    rgba(0, 0, 0, 0) 0px 0px 0px 0px,
+    rgba(0, 0, 0, 0) 0px 0px 0px 0px,
+    color-mix(in oklab, var(--color-text) calc(var(--shadow-border-opacity) * 40%), transparent) 0px 0px 0px 1px,
+    rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 1px 1px -0.5px,
+    rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 3px 3px -1.5px,
+    rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 6px 6px -3px,
+    rgba(0, 0, 0, calc(var(--shadow-blur-opacity) * 0.67)) 0px 12px 12px -6px;
+
+  --shadow-hero:
+    rgba(0, 0, 0, 0) 0px 0px 0px 0px,
+    rgba(0, 0, 0, 0) 0px 0px 0px 0px,
+    color-mix(in oklab, var(--color-text) calc(var(--shadow-border-opacity) * 40%), transparent) 0px 0px 0px 1px,
+    rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 1px 1px -0.5px,
+    rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 3px 3px -1.5px,
+    rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 6px 6px -3px,
+    rgba(0, 0, 0, calc(var(--shadow-blur-opacity) * 0.67)) 0px 12px 12px -6px,
+    rgba(0, 0, 0, calc(var(--shadow-blur-opacity) * 0.5)) 0px 24px 32px -12px,
+    rgba(0, 0, 0, calc(var(--shadow-blur-opacity) * 0.33)) 0px 48px 64px -24px;
 }
 
 /* IMPORTANT: do not set `font-size` on <html>. It anchors `rem` for
@@ -393,10 +466,16 @@ html.theme-light .app {
 }
 
 /* Panel chrome — flush layout, no card shadow on light either. The
-   sidebar/main split is the same hairline (.panel.sidebar border-right). */
+    sidebar/main split is the same hairline (.panel.sidebar border-right). */
 html.theme-light .panel {
   border: none;
   box-shadow: none;
+}
+
+/* Light mode: subtler shadow opacity (craft's 0.08 / 0.06 vs dark 0.15 / 0.12) */
+html.theme-light {
+  --shadow-border-opacity: 0.08;
+  --shadow-blur-opacity: 0.06;
 }
 
 /* Quieter scrollbar on light — the dark thumb tokens overshoot. */
@@ -423,6 +502,44 @@ html.theme-light .msg-content code {
   color: var(--color-text);
   border: 1px solid var(--color-border);
   padding: 1px 5px;
+}
+
+/* =========================================================================
+ *  Craft-aligned shadow utilities — 5-tier + tinted
+ * ========================================================================= */
+@layer utilities {
+  .shadow-minimal {
+    box-shadow: var(--shadow-minimal);
+  }
+  .shadow-middle {
+    box-shadow: var(--shadow-middle);
+  }
+  .shadow-medium {
+    box-shadow: var(--shadow-medium);
+  }
+  .shadow-hero {
+    box-shadow: var(--shadow-hero);
+  }
+  .shadow-tinted {
+    --shadow-tint-color: var(--color-text);
+    box-shadow:
+      color-mix(in oklab, var(--shadow-tint-color) 0%, transparent) 0px 0px 0px 0px,
+      color-mix(in oklab, var(--shadow-tint-color) 0%, transparent) 0px 0px 0px 0px,
+      color-mix(in oklab, var(--shadow-tint-color) calc(var(--shadow-border-opacity) * 150%), transparent) 0px 0px 0px 1px,
+      color-mix(in oklab, var(--shadow-tint-color) var(--shadow-border-opacity), transparent) 0px 1px 1px -0.5px,
+      color-mix(in oklab, var(--shadow-tint-color) var(--shadow-blur-opacity), transparent) 0px 3px 3px -1.5px,
+      color-mix(in oklab, var(--shadow-tint-color) calc(var(--shadow-blur-opacity) * 0.67), transparent) 0px 6px 6px -3px;
+  }
+  /* Light mode: outline only, no blur glow, stronger border */
+  html.theme-light .shadow-tinted {
+    box-shadow:
+      color-mix(in oklab, var(--shadow-tint-color) 0%, transparent) 0px 0px 0px 0px,
+      color-mix(in oklab, var(--shadow-tint-color) 0%, transparent) 0px 0px 0px 0px,
+      color-mix(in oklab, var(--shadow-tint-color) calc(var(--shadow-border-opacity) * 300%), transparent) 0px 0px 0px 1px,
+      color-mix(in oklab, var(--shadow-tint-color) 0%, transparent) 0px 1px 1px -0.5px,
+      color-mix(in oklab, var(--shadow-tint-color) 0%, transparent) 0px 3px 3px -1.5px,
+      color-mix(in oklab, var(--shadow-tint-color) 0%, transparent) 0px 6px 6px -3px;
+  }
 }
 
 /* =========================================================================

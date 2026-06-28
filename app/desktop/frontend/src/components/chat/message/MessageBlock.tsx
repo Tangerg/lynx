@@ -103,7 +103,7 @@ function MessageBlockInner({
             width — without it, a wide child (e.g. a ReasoningBlock with
             a long preview line) stretches the whole row past the
             intended msg-stream column. */}
-        <div className="relative grid grid-cols-[minmax(0,1fr)] gap-2">
+        <div className="relative grid grid-cols-[minmax(0,1fr)] gap-1.5">
           {/* Header: avatar paired with a vertical (title / time) stack.
               User-bubble flips the row so the avatar lands on the right
               and the stack right-aligns its rows. */}
@@ -140,7 +140,7 @@ function MessageBlockInner({
                   // every other content surface size off this.
                   "msg-content min-w-0 text-fg text-[15px] leading-[1.68] tracking-[-0.003em] font-normal",
                   bubble &&
-                    "max-w-[580px] rounded-[14px_14px_4px_14px] bg-surface-2 px-3.5 py-2.5 text-left light:bg-surface-3",
+                    "max-w-[80%] rounded-2xl bg-surface-2 px-5 py-3.5 text-left light:bg-surface-3",
                 )}
               >
                 {planRenderUnits(msg.blocks, blockCtx.toolCalls).map((unit) => {

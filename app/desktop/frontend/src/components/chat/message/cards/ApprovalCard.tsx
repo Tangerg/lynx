@@ -178,12 +178,12 @@ export function ApprovalCard({
           tools have no `cmd` (their payload is just args), so skip the box
           instead of rendering a lonely "$". */}
       {cmd.trim() && (
-        <code className="my-2 block whitespace-pre-wrap break-all rounded-sm bg-warning/14 px-3 py-2 font-mono text-[13px] text-fg">
+        <code className="my-1.5 block whitespace-pre-wrap break-all rounded-sm bg-warning/14 px-2.5 py-1.5 font-mono text-[13px] text-fg">
           $ {cmd}
         </code>
       )}
       {dangers.length > 0 && (
-        <div className="my-2 flex items-start gap-2 rounded-sm border border-negative/50 bg-negative/12 px-2.5 py-1.5 text-[12px] leading-[1.5] text-negative">
+        <div className="my-1.5 flex items-start gap-2 rounded-sm border border-negative/50 bg-negative/12 px-2.5 py-1.5 text-[12px] leading-[1.5] text-negative">
           <Icon name="alert" size={13} className="mt-px shrink-0" />
           <span>
             <span className="font-semibold">{t("approval.danger")}</span> {dangers.join(" · ")}
@@ -234,7 +234,7 @@ export function ApprovalCard({
           )}
         </div>
       )}
-      <div className="mb-3 text-[13px] leading-[1.55] text-fg-muted">{reason}</div>
+      <div className="mb-2 text-[13px] leading-[1.55] text-fg-muted">{reason}</div>
       <div className="flex items-center gap-2">
         <PillButton variant="accent" size="sm" disabled={disabled} onClick={onApprove}>
           {t("approval.action.approve")}
