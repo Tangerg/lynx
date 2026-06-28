@@ -90,7 +90,7 @@ export function RunErrorBanner() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={swift}
-          className="grid grid-cols-[auto_1fr_auto] items-start gap-2.5 mx-4 mt-2.5 mb-1 rounded-lg px-3 py-2.5 bg-negative/12 border border-negative/35 text-fg font-sans"
+          className="grid grid-cols-[auto_1fr_auto] items-start gap-2.5 mx-4 mt-2.5 mb-1 rounded-md px-3 py-2 bg-negative/12 border border-negative/35 text-fg font-sans"
         >
           <Icon name="bug" size={14} className="text-negative mt-0.5" />
           <div className="min-w-0">
@@ -132,7 +132,7 @@ export function RunErrorBanner() {
             onClick={() => clearError(sid)}
             title={t("runError.action.dismiss")}
             aria-label={t("runError.action.dismiss")}
-            className="grid h-5.5 w-5.5 place-items-center rounded text-fg-faint bg-transparent border-0 transition-[background-color,color,transform] duration-150 hover:bg-[color-mix(in_srgb,var(--color-text)_10%,transparent)] hover:text-fg active:scale-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            className="grid h-5.5 w-5.5 place-items-center rounded text-fg-faint bg-transparent border-0 transition-[background-color,color,transform] duration-150 hover:bg-fg/[0.05] hover:text-fg active:scale-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           >
             <Icon name="x" size={12} />
           </button>

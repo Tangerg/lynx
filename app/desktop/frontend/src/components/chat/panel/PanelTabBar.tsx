@@ -150,11 +150,11 @@ function TabItem({
           aria-selected={active}
           tabIndex={0}
           className={cn(
-            "group relative inline-grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 rounded-t-md px-3 py-1.5 pr-2 text-[12.5px] text-fg-muted min-w-[110px] max-w-[200px] transition-[color,background-color,transform] duration-150 ease-out focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_var(--color-accent)] active:scale-[0.98] active:duration-75",
+            "group relative inline-grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 rounded-md px-3 py-1.5 pr-2 text-[12.5px] text-fg-muted min-w-[110px] max-w-[200px] transition-[color,background-color,transform] duration-75 ease-out focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_var(--color-accent)] active:scale-[0.98] active:duration-75",
             noDragClasses,
-            "hover:bg-[color-mix(in_srgb,var(--color-text)_4%,transparent)] hover:text-fg",
+            "hover:bg-fg/[0.02] hover:text-fg",
             active && [
-              "bg-[color-mix(in_srgb,var(--color-text)_4%,transparent)] text-fg",
+              "bg-fg/[0.03] text-fg",
               "after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-accent after:pointer-events-none",
             ],
           )}
@@ -178,7 +178,7 @@ function TabItem({
           {/* View-tab titles are i18n keys (workspace.view.title.*); chat-tab
               titles are session names. t() translates the former, passes the
               latter through. */}
-          <span className="truncate font-semibold text-[12.5px] leading-tight" title={t(title)}>
+          <span className="truncate font-medium text-[12.5px] leading-tight" title={t(title)}>
             {t(title)}
           </span>
           <Tooltip label={t("common.close")}>
@@ -198,7 +198,7 @@ function TabItem({
       </ContextMenu.Trigger>
       <ContextMenu.Portal>
         <ContextMenu.Content
-          className="z-50 min-w-[180px] rounded-md border border-line bg-surface p-1 text-[12.5px] text-fg shadow-pop"
+          className="z-50 min-w-[180px] rounded-md border border-line bg-surface p-1 text-[12.5px] text-fg shadow-medium"
           collisionPadding={8}
         >
           <TabMenuItem onSelect={onClose}>{t("common.close")}</TabMenuItem>

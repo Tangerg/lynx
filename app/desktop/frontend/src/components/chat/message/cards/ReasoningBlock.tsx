@@ -67,11 +67,11 @@ export function ReasoningBlock({ text, status }: Props) {
   const preview = streaming ? "" : truncate(text, 80);
 
   return (
-    <div className="my-1.5 rounded-sm bg-surface-2 px-2.5 py-1.5">
+    <div className="my-1.5 rounded-md bg-surface px-2.5 py-1.5">
       <button
         type="button"
         onClick={toggle}
-        className="inline-flex max-w-full items-center gap-2 rounded-md bg-transparent border-0 px-2 py-1 font-mono text-[12px] font-semibold text-fg-faint transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--color-text)_6%,transparent)] hover:text-fg active:bg-[color-mix(in_srgb,var(--color-text)_10%,transparent)]"
+        className="inline-flex max-w-full items-center gap-2 rounded-sm border-0 px-2 py-1 font-mono text-[12px] font-medium text-fg-faint transition-colors duration-150 hover:bg-fg/[0.02] hover:text-fg active:bg-fg/[0.04]"
       >
         <Icon name="sparkle" size={11} />
         <span className="shrink-0 [font-feature-settings:'tnum']">{label}</span>
@@ -88,7 +88,7 @@ export function ReasoningBlock({ text, status }: Props) {
           inside the message stream, where FM's auto-measure makes
           use-stick-to-bottom clamp the chat to the top (see Collapsible). */}
       <Collapsible open={isOpen}>
-        <div className="whitespace-pre-wrap px-0 pb-1 pt-1.5 text-[14px] italic leading-[1.6] text-fg-muted">
+        <div className="whitespace-pre-wrap px-0 pb-1 pt-1.5 text-[13px] italic leading-[1.6] text-fg-muted">
           <MarkdownMessage text={text} streaming={streaming} />
           {status === "incomplete" && (
             <div className="mt-1 font-mono text-[11px] text-fg-faint">
