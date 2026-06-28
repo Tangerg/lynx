@@ -17,7 +17,7 @@ interface Props {
 export function FileMentionPopup({ items, index, onPick, onHover }: Props) {
   const t = useT();
   return (
-    <div className="absolute bottom-full left-2 right-2 z-10 mb-2 overflow-hidden rounded-xl border border-line bg-surface shadow-lg animate-rise-in">
+    <div className="absolute bottom-full left-2 right-2 z-10 mb-2 overflow-hidden rounded-xl border border-line bg-surface shadow-medium animate-rise-in">
       <div className="px-3.5 pb-1 pt-2 font-mono text-[11px] font-semibold text-fg-faint">
         {t("composer.mention.heading")}
       </div>

@@ -32,7 +32,7 @@ export function SlashSuggestions({ value, onPick }: Props) {
   if (filtered.length === 0) return null;
 
   return (
-    <div className="mb-2 overflow-hidden rounded-xl border border-line bg-surface shadow-lg animate-rise-in">
+    <div className="mb-2 overflow-hidden rounded-xl border border-line bg-surface shadow-medium animate-rise-in">
       <div className="px-3.5 pb-1 pt-2 font-mono text-[11px] font-semibold text-fg-faint">
         {t("composer.slash.heading")}
       </div>

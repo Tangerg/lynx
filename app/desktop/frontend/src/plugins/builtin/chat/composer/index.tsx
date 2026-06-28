@@ -377,7 +377,7 @@ function ModelPicker() {
         <button
           type="button"
           aria-label={t("composer.switchModel")}
-          className="mr-1 inline-flex h-6.5 shrink-0 items-center gap-1.5 rounded-full border border-transparent bg-transparent pl-1.5 pr-2.5 font-sans text-[12px] font-semibold text-fg whitespace-nowrap transition-colors hover:bg-surface-2 hover:border-line data-[state=open]:bg-surface-2 data-[state=open]:border-line"
+          className="mr-1 inline-flex h-6.5 shrink-0 items-center gap-1.5 rounded-full border border-line/40 bg-transparent pl-1.5 pr-2.5 font-sans text-[12px] font-semibold text-fg whitespace-nowrap transition-colors hover:bg-surface-2 hover:border-line data-[state=open]:bg-surface-2 data-[state=open]:border-line"
         >
           <ProviderIcon provider={selected.provider} size={16} />
           <span className="font-mono text-[11.5px] font-semibold tracking-[0.01em]">
@@ -445,7 +445,7 @@ function AttachButton() {
           aria-label={t("composer.attachImage")}
           disabled={!canAttach}
           onClick={() => inputRef.current?.click()}
-          className="inline-flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-fg-faint transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+          className="inline-flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-fg-faint/70 transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-transparent"
         >
           <Icon name="image" size={15} />
         </button>
@@ -493,7 +493,7 @@ function SendButton() {
           <button
             type="button"
             onClick={() => submitComposer({ value, clear, sendInput: send, images })}
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 bg-accent text-on-accent transition-transform duration-150 active:scale-95"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 bg-accent text-on-accent shadow-minimal transition-transform duration-150 active:scale-95"
           >
             <Icon name="send-arrow" size={14} strokeWidth={2.5} />
           </button>
@@ -506,7 +506,7 @@ function SendButton() {
           type="button"
           disabled={!stop}
           onClick={() => stop?.()}
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 bg-surface-3 text-fg transition-transform duration-150 active:scale-95"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 bg-surface-3 text-fg-muted transition-colors duration-150 hover:bg-surface-4 hover:text-fg active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Icon name="stop" size={13} />
         </button>
@@ -526,10 +526,10 @@ function SendButton() {
         disabled={disabled}
         onClick={onClick}
         className={cn(
-          "grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 transition-transform duration-150",
+          "grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 transition-all duration-150",
           disabled
-            ? "bg-surface-3 text-fg-faint cursor-not-allowed"
-            : "bg-accent text-on-accent active:scale-95",
+            ? "bg-transparent text-fg-faint/30 cursor-not-allowed"
+            : "bg-accent text-on-accent shadow-minimal active:scale-95",
         )}
       >
         <Icon name="send-arrow" size={14} strokeWidth={2.5} />

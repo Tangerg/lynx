@@ -131,7 +131,7 @@ export function Composer({
         if (!acceptsImages) return; // text-only model — toolbar attach is disabled too
         onAddImages(files);
       }}
-      className="relative rounded-xl border border-line bg-surface shadow-minimal px-3 pb-2 pt-2.5 transition-colors duration-150 focus-within:border-line-soft"
+      className="relative rounded-xl border border-line bg-surface shadow-minimal px-3 pb-2 pt-2.5 transition-[border-color,box-shadow] duration-150 focus-within:border-fg-muted/20 focus-within:shadow-middle"
     >
       {mentions.active && (
         <FileMentionPopup
@@ -143,14 +143,14 @@ export function Composer({
       )}
       <PluginAttachments sources={attachmentSources} />
       {images.length > 0 && (
-        <div className="flex flex-wrap gap-2 px-1 pb-1 pt-1">
+        <div className="flex flex-wrap gap-2 pb-1 pt-1">
           {images.map((img) => (
             <ImageThumb key={img.id} image={img} onRemove={() => onRemoveImage(img.id)} />
           ))}
         </div>
       )}
       {pastes.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 px-1 pb-1 pt-1">
+        <div className="flex flex-wrap gap-1.5 pb-1 pt-1">
           {pastes.map((p) => (
             <PasteChip key={p.id} paste={p} onRemove={() => onRemovePaste(p.id)} />
           ))}
@@ -219,9 +219,9 @@ export function Composer({
         /* The `composer-input` class is a DOM-target hook (no styles) so
            the `composer.focus` command in defaults/commands.ts can find
            this textarea without threading a ref through the tree. */
-        className="composer-input w-full resize-none border-0 bg-transparent px-1 py-2 font-sans text-[15px] leading-[1.55] tracking-[-0.003em] text-fg outline-none min-h-5.5 max-h-40 placeholder:text-fg-faint placeholder:tracking-normal"
+        className="composer-input w-full resize-none border-0 bg-transparent px-0.5 py-2 font-sans text-[15px] leading-[1.55] tracking-[-0.003em] text-fg outline-none min-h-5.5 max-h-40 placeholder:text-fg-faint/60 placeholder:tracking-normal"
       />
-      <div className="flex flex-nowrap items-center gap-1 pt-1.5">
+      <div className="flex flex-nowrap items-center gap-1.5 pt-2 min-h-7">
         <Slot name="composer.toolbar.start" />
         <div className="flex-1 min-w-2" />
         <Slot name="composer.toolbar.end" />
@@ -237,7 +237,7 @@ type AttachmentSource = ComposerAttachmentSourceSpec;
 function PluginAttachments({ sources }: { sources: AttachmentSource[] }) {
   if (sources.length === 0) return null;
   return (
-    <div className="flex flex-wrap gap-1.5 px-1 pb-0.5 pt-1">
+    <div className="flex flex-wrap gap-1.5 pb-0.5 pt-1">
       {sources.map((s) => (
         <SourceChips key={s.id} source={s} />
       ))}
