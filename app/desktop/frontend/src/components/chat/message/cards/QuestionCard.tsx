@@ -90,8 +90,8 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered,
       answers ?? (allAnswered ? toAnswers(questions, draft) : undefined);
     if (!shown) return <HitlSettledRow label={t("question.settled.answered")} />;
     return (
-      <div className="my-3 flex flex-col gap-2 rounded-xl border border-line bg-surface-2 px-4 py-3">
-        <div className="flex items-center gap-1.5 font-mono text-[10px] font-semibold text-fg-faint">
+      <div className="my-3 flex flex-col gap-2 rounded-md border border-line/60 bg-surface px-4 py-3">
+        <div className="flex items-center gap-1.5 font-mono text-[10px] font-medium text-fg-faint">
           <Icon name="check" size={11} strokeWidth={3} />
           <span>{t("question.settled.answered")}</span>
         </div>
@@ -161,7 +161,7 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered,
                       aria-pressed={active}
                       onClick={() => toggleOption(q, opt.label)}
                       className={cn(
-                        "flex flex-col gap-0.5 rounded-lg border px-3 py-2 text-left transition-colors duration-150",
+                        "flex flex-col gap-0.5 rounded-md border px-3 py-2 text-left transition-colors duration-150",
                         active
                           ? "border-accent/60 bg-accent/10"
                           : "border-line bg-surface-2 hover:border-line-soft hover:bg-surface-3",
@@ -190,7 +190,7 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered,
                   aria-label={q.question}
                   placeholder={t("question.freetext.placeholder")}
                   onChange={(e) => setText(q, e.target.value)}
-                  className="rounded-lg border border-line bg-surface-2 px-3 py-2 font-sans text-[13px] text-fg placeholder:text-fg-faint focus:border-accent/60 focus:outline-none"
+                  className="rounded-md border border-line bg-surface-2 px-3 py-2 font-sans text-[13px] text-fg placeholder:text-fg-faint focus:border-accent/60 focus:outline-none"
                 />
               )}
             </div>

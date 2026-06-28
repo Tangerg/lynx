@@ -21,7 +21,7 @@ export function CompactionBlock({
       : t("compaction.compacted");
 
   const pill =
-    "flex items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 font-mono text-[11px] tracking-tight text-fg-faint light:bg-surface-3";
+    "flex items-center gap-1.5 rounded-md border border-line/60 bg-surface px-2.5 py-1 font-mono text-[11px] tracking-tight text-fg-faint light:bg-surface-2";
 
   if (!summary) {
     return (
@@ -47,7 +47,7 @@ export function CompactionBlock({
         <Icon name={open ? "chevron-up" : "chevron-down"} size={12} />
       </button>
       {open && (
-        <div className="max-w-[640px] rounded-lg bg-surface-2 px-3 py-2 text-[13px] leading-relaxed text-fg-muted light:bg-surface-3">
+        <div className="max-w-[640px] rounded-md border border-line/60 bg-surface px-3 py-2 text-[13px] leading-relaxed text-fg-muted">
           {summary}
         </div>
       )}

@@ -9,8 +9,8 @@ import { PlanCheck, planItemRow } from "./PlanCheck";
 export const PlanBlock = memo(function PlanBlock({ plan }: { plan: PlanItem[] }) {
   const done = plan.filter((p) => p.status === "done").length;
   return (
-    <div className="rounded-lg border border-line-soft bg-transparent px-3.5 py-2.5 my-2">
-      <div className="mb-2.5 flex items-center gap-2 font-mono text-[11px] font-semibold text-fg-faint">
+    <div className="rounded-md border border-line/60 bg-surface px-3 py-2 my-2">
+      <div className="mb-2 flex items-center gap-2 font-mono text-[11px] font-medium text-fg-faint">
         <Icon name="list" size={12} />
         Plan · {done} of {plan.length} complete
       </div>

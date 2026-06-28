@@ -21,7 +21,7 @@ const root = cva(
   },
 );
 
-const iconWrap = cva("grid place-items-center rounded-full bg-surface-2 text-fg-muted", {
+const iconWrap = cva("grid place-items-center rounded-md bg-surface text-fg-muted", {
   variants: {
     size: {
       compact: "h-7 w-7",
