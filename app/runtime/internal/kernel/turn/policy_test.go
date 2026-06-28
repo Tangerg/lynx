@@ -7,47 +7,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 )
 
-// TestGateFor_Matrix audits the full (tool-class × mode) → action
-// matrix. gateFor is a pure function, so the table is the spec.
-func TestGateFor_Matrix(t *testing.T) {
-	cases := []struct {
-		tool string
-		mode approval.Mode
-		want gateAction
-	}{
-		// Read-only tools never gate, in any mode.
-		{"read", approval.ModePlan, gatePass},
-		{"grep", approval.ModeSafe, gatePass},
-		{"glob", approval.ModeBalanced, gatePass},
-		{"read", approval.ModeYolo, gatePass},
-
-		// ModePlan denies every non-read tool outright (read-only).
-		{"write", approval.ModePlan, gateDeny},
-		{"edit", approval.ModePlan, gateDeny},
-		{"shell", approval.ModePlan, gateDeny},
-		{"some_mcp_tool", approval.ModePlan, gateDeny}, // unknown → exec class
-
-		// ModeSafe prompts on every non-read tool.
-		{"write", approval.ModeSafe, gatePrompt},
-		{"shell", approval.ModeSafe, gatePrompt},
-
-		// ModeBalanced prompts only on exec; write/network auto-pass.
-		{"write", approval.ModeBalanced, gatePass},
-		{"edit", approval.ModeBalanced, gatePass},
-		{"shell", approval.ModeBalanced, gatePrompt},
-		{"unknown_tool", approval.ModeBalanced, gatePrompt}, // unknown → exec class
-
-		// ModeYolo passes everything.
-		{"shell", approval.ModeYolo, gatePass},
-		{"write", approval.ModeYolo, gatePass},
-	}
-	for _, c := range cases {
-		if got := gateFor(c.tool, c.mode); got != c.want {
-			t.Errorf("gateFor(%q, %v) = %d, want %d", c.tool, c.mode, got, c.want)
-		}
-	}
-}
-
 // TestApproveToolCall_RememberedShortCircuit verifies the gate consults a
 // standing rule BEFORE prompting (B5): a remembered allow passes without an
 // interrupt, a remembered deny refuses without one. Both paths avoid
@@ -80,8 +39,8 @@ func TestApproveToolCall_RememberedShortCircuit(t *testing.T) {
 // TestApproveToolCall_MCPAutoApprove verifies the per-server auto-approve
 // whitelist: a listed MCP tool skips the prompt that its (unknown → exec class)
 // name would otherwise trigger, but the whitelist sits BELOW standing rules (a
-// remembered deny still wins) and is scoped to the gatePrompt path (plan-mode's
-// gateDeny is never reached, since that's a separate switch case above).
+// remembered deny still wins) and is scoped to the GatePrompt path (plan-mode's
+// GateDeny is never reached, since that's a separate switch case above).
 func TestApproveToolCall_MCPAutoApprove(t *testing.T) {
 	ctx := context.Background()
 	appr := approval.New(approval.ModeSafe, approval.NewMemoryStore()) // unknown tool → exec → would prompt

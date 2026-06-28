@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 )
@@ -96,20 +97,21 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	if err != nil {
 		return kernel.ToolApprovalVerdict{Denied: true, DenyReason: "approval mode unavailable"}
 	}
-	action := gateFor(toolName, mode)
-	if forcePrompt && action == gatePass {
-		action = gatePrompt // a PreToolUse hook escalated this call to human review
+	cls := tool.SafetyClassFor(toolName)
+	action := approval.GateFor(cls, mode)
+	if forcePrompt && action == approval.GatePass {
+		action = approval.GatePrompt // a PreToolUse hook escalated this call to human review
 	}
 	switch action {
-	case gatePass:
+	case approval.GatePass:
 		return kernel.ToolApprovalVerdict{Arguments: rewritten}
-	case gateDeny:
-		// gateDeny only fires in the read-only plan stance (ModePlan); guide the
+	case approval.GateDeny:
+		// GateDeny only fires in the read-only plan stance (ModePlan); guide the
 		// model back onto the plan-then-exit path rather than just refusing.
 		return kernel.ToolApprovalVerdict{Denied: true, DenyReason: "plan mode is active (read-only): " + toolName + " is not permitted. Investigate with read-only tools, then call exit_plan_mode to present your plan for approval."}
 	}
 
-	// gatePrompt. A matching standing rule short-circuits the prompt; else
+	// GatePrompt. A matching standing rule short-circuits the prompt; else
 	// interrupt for human approval and persist a rule if "remember".
 	sessionID := t.st.handle.SessionID
 	query := approval.Query{SessionID: sessionID, ProjectDir: t.st.cwd, Tool: toolName, Arguments: arguments}
@@ -123,8 +125,8 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	// No standing rule. A per-server auto-approve whitelist entry skips the
 	// prompt for this MCP tool — a coarser "trust this server's tool" than a
 	// remembered rule, so it is consulted AFTER rules (an explicit remembered
-	// deny above still wins) and only on this gatePrompt path (it never reaches
-	// the read-only plan-mode gateDeny). The set is keyed on the model-facing
+	// deny above still wins) and only on this GatePrompt path (it never reaches
+	// the read-only plan-mode GateDeny). The set is keyed on the model-facing
 	// "<server>_<tool>" the runtime derives from the MCP registry.
 	if t.svc.mcpAutoApprove != nil {
 		if _, ok := t.svc.mcpAutoApprove()[toolName]; ok {
@@ -135,12 +137,12 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	// interrupt for human approval (R model). First pass bubbles the
 	// InterruptError up to park; resume delivers the resolution here. The
 	// prompt carries the gated tool's risk so the approval card shows it.
-	risk, reason := approvalRisk(toolName)
+	risk, reason := approval.RiskFor(cls)
 	res, _, err := hitl.Interrupt[interrupts.Resolution](ctx,
 		approvalKey(toolName, arguments),
 		ApprovalPrompt{
 			CallID: callID, ToolName: toolName, Arguments: arguments,
-			SafetyClass: safetyClassName(toolName), Risk: risk, Reason: reason,
+			SafetyClass: tool.ClassName(cls), Risk: risk, Reason: reason,
 		},
 	)
 	if err != nil {
@@ -193,7 +195,7 @@ func (t *turnObserver) OnToolCallStart(callID, toolName, arguments string) {
 		CallID:      callID,
 		ToolName:    toolName,
 		Arguments:   arguments,
-		SafetyClass: safetyClassName(toolName),
+		SafetyClass: tool.ClassName(tool.SafetyClassFor(toolName)),
 	})
 }
 
