@@ -19,13 +19,13 @@ function openSearchView(): void {
 function SidebarSearch() {
   const t = useT();
   return (
-    <div className="mx-1 mb-3.5">
+    <div className="mb-3">
       <button
         type="button"
         onClick={openSearchView}
         aria-label={t("sidebar.search.label")}
         className={cn(
-          "flex w-full items-center gap-2 rounded-sm border-0 bg-surface-2 py-2 pl-3 pr-2.5 text-left font-sans text-[13px] text-fg-faint transition-colors hover:text-fg-muted",
+          "flex w-full items-center gap-2 rounded-md border-0 bg-surface-2 py-1.5 pl-2.5 pr-2 text-left font-sans text-[13px] text-fg-faint transition-colors hover:text-fg-muted",
           "shadow-[var(--shadow-input)]",
           "light:border light:border-line light:shadow-none",
         )}

@@ -253,7 +253,7 @@ function ProjectsSection() {
     <>
       <SectionLabel trailing={<AddProjectButton />}>{t("sidebar.section.projects")}</SectionLabel>
       {groups && groups.length > 0 && (
-        <div className="px-1 pb-1.5">
+        <div className="pb-1.5">
           <input
             type="text"
             value={query}

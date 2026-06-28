@@ -21,7 +21,7 @@ export function SidebarExpanded({ onToggleRail }: Props) {
     // titlebar padding + Wails drag region opt-outs). All visual styling
     // is Tailwind here. `pt-9` reserves the titlebar / traffic-lights
     // row so the search box doesn't ride up against the window edge.
-    <Panel className="sidebar relative gap-2 px-3 pb-3 pt-9">
+    <Panel className="sidebar relative gap-1.5 px-2 pb-3 pt-9">
       {/* macOS drag-region strip — invisible 36px band over the
           titlebar row so the window can be dragged by its top edge.
           The collapse button below sits inside the same band but opts

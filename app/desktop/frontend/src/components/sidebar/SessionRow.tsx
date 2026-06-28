@@ -22,11 +22,10 @@ interface Props {
 
 // Session row — sidebar list item.
 //
-// Hover === active background (CLAUDE.md "tab hover === active" rule
-// extended to sidebar lists): both states lift to surface-2 + bump
-// text to fg. Only the 3px accent indicator bar on the left
-// distinguishes "currently selected" from "just hovering" — a single
-// visual cue carries the active state, no fighting tone steps.
+// Craft-aligned: subtle foreground-opacity tints for hover/active (2–3%),
+// fast 75 ms transition, 8 px radius, 2 px accent indicator bar. The
+// outer wrapper carries the selection bar so it sits flush at the left
+// edge; the button is a flex row with a leading icon + content column.
 export function SessionRow({
   session,
   active,
@@ -57,82 +56,84 @@ export function SessionRow({
         ? t("session.status.waiting")
         : formatRelative(session.time);
 
-  const row = (
-    <button
-      type="button"
-      onClick={() => onSelect(session.id)}
-      aria-current={active ? "page" : undefined}
-      aria-label={session.title}
-      className={cn(
-        "group relative grid w-full grid-cols-[18px_minmax(0,1fr)] items-center gap-2.5 rounded-lg border-0 bg-transparent px-2.5 py-2 text-left transition-colors duration-150 hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
-        active && [
-          "bg-surface-2",
-          "before:content-[''] before:absolute before:-left-1 before:top-2 before:bottom-2 before:w-[3px] before:bg-accent before:rounded-full",
-        ],
+  const inner = (
+    <>
+      {active && (
+        <div className="absolute left-0 inset-y-0 w-[2px] bg-accent rounded-full" />
       )}
-    >
-      <div
+      <button
+        type="button"
+        onClick={() => onSelect(session.id)}
+        aria-current={active ? "page" : undefined}
+        aria-label={session.title}
         className={cn(
-          "grid h-4.5 w-4.5 place-items-center transition-colors",
-          // A favorited row swaps the chat glyph for an accent star — the
-          // pin indicator lives in the existing leading slot, so it adds no
-          // width to the title line (the row deliberately has no right column).
-          session.favorite
-            ? "text-accent"
-            : cn("text-fg-muted group-hover:text-fg", active && "text-fg"),
+          "flex w-full items-start gap-2.5 rounded-md border-0 bg-transparent px-2 py-2.5 text-left transition-[background-color] duration-75 hover:bg-fg/[0.02] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+          active && "bg-fg/[0.03]",
         )}
       >
-        <Icon name={session.favorite ? "star" : "chat"} size={14} />
-      </div>
-      <div className="min-w-0">
-        {renaming ? (
-          <input
-            type="text"
-            defaultValue={session.title}
-            aria-label={t("session.row.titleLabel")}
-            // Rename only ever starts from an explicit user action (the
-            // context-menu item), so stealing focus here is the expectation,
-            // not a surprise — the a11y concern the rule guards against.
-            // eslint-disable-next-line jsx-a11y/no-autofocus
-            autoFocus
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => {
-              if (e.nativeEvent.isComposing) return; // let the IME commit its candidate
-              e.stopPropagation();
-              if (e.key === "Escape") setRenaming(false);
-              if (e.key === "Enter") {
+        <div
+          className={cn(
+            "shrink-0 flex items-center justify-center h-4.5 w-4.5 transition-colors",
+            session.favorite
+              ? "text-accent"
+              : "text-fg-muted group-hover:text-fg",
+            active && !session.favorite && "text-fg",
+          )}
+        >
+          <Icon name={session.favorite ? "star" : "chat"} size={14} />
+        </div>
+        <div className="flex flex-col gap-1 min-w-0 flex-1">
+          {renaming ? (
+            <input
+              type="text"
+              defaultValue={session.title}
+              aria-label={t("session.row.titleLabel")}
+              // Rename only ever starts from an explicit user action (the
+              // context-menu item), so stealing focus here is the expectation,
+              // not a surprise — the a11y concern the rule guards against.
+              // eslint-disable-next-line jsx-a11y/no-autofocus
+              autoFocus
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                if (e.nativeEvent.isComposing) return; // let the IME commit its candidate
+                e.stopPropagation();
+                if (e.key === "Escape") setRenaming(false);
+                if (e.key === "Enter") {
+                  const next = e.currentTarget.value.trim();
+                  if (next && next !== session.title) onRename?.(session.id, next);
+                  setRenaming(false);
+                }
+              }}
+              onBlur={(e) => {
                 const next = e.currentTarget.value.trim();
                 if (next && next !== session.title) onRename?.(session.id, next);
                 setRenaming(false);
-              }
-            }}
-            onBlur={(e) => {
-              const next = e.currentTarget.value.trim();
-              if (next && next !== session.title) onRename?.(session.id, next);
-              setRenaming(false);
-            }}
-            className="w-full rounded-xs border-0 bg-surface-3 px-1 py-0 text-[13px] font-semibold leading-[1.5] text-fg outline-none focus-visible:shadow-[inset_0_0_0_1.5px_var(--color-accent)]"
-          />
-        ) : (
+              }}
+              className="w-full rounded-xs border-0 bg-surface-3 px-1 py-0 text-[13px] font-medium leading-[1.5] text-fg outline-none focus-visible:shadow-[inset_0_0_0_1.5px_var(--color-accent)]"
+            />
+          ) : (
+            <div
+              className={cn(
+                "text-[13px] font-medium leading-[1.3] truncate transition-colors text-fg-muted group-hover:text-fg",
+                active && "text-fg",
+              )}
+            >
+              {session.title}
+            </div>
+          )}
           <div
-            className={cn(
-              "text-[13px] font-semibold leading-[1.3] truncate transition-colors text-fg-muted group-hover:text-fg",
-              active && "text-fg",
-            )}
+            className="flex items-center gap-1.5 text-[11px] leading-[1.2] text-fg-faint"
+            title={session.status === "idle" ? session.time : undefined}
           >
-            {session.title}
+            <StatusDot tone={session.status} />
+            <span className="truncate">{subText}</span>
           </div>
-        )}
-        <div
-          className="mt-0.5 flex items-center gap-1.5 text-[11px] leading-[1.2] text-fg-faint"
-          title={session.status === "idle" ? session.time : undefined}
-        >
-          <StatusDot tone={session.status} />
-          <span className="truncate">{subText}</span>
         </div>
-      </div>
-    </button>
+      </button>
+    </>
   );
+
+  const row = <div className="relative group select-none pl-2">{inner}</div>;
 
   if (!onDelete && !onFork && !onRename && !onToggleFavorite) return row;
   return (

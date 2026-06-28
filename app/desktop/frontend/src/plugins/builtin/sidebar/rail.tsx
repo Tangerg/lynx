@@ -87,17 +87,13 @@ function RailSessions() {
             title={s.title}
             onClick={() => selectTab(s.id)}
             className={cn(
-              // Dark: surface at rest, surface-2 on hover/active. Light
-              // reads the same ladder but starts one tone deeper because
-              // the panel itself is white.
-              "relative grid h-9 w-9 place-items-center rounded-lg border-0 font-sans text-[13px] font-semibold transition-[background,color,transform]",
-              "bg-surface text-fg-muted light:bg-surface-2",
-              "hover:bg-surface-2 hover:text-fg light:hover:bg-surface-3",
+              "relative grid h-10 w-10 place-items-center rounded-md border-0 font-sans text-[13px] font-medium transition-[background-color,color,transform] duration-75",
+              "text-fg-muted hover:bg-fg/[0.02] hover:text-fg",
               s.id === activeSessionId &&
-                "bg-surface-2 text-fg light:bg-surface-3 before:content-[''] before:absolute before:-left-2 before:top-2 before:bottom-2 before:w-[3px] before:rounded-full before:bg-accent",
+                "bg-fg/[0.03] text-fg before:content-[''] before:absolute before:left-0 before:inset-y-0 before:w-[2px] before:bg-accent before:rounded-full",
             )}
           >
-            <span className="font-sans text-[14px] font-semibold">
+            <span className="font-sans text-[14px] font-medium">
               {s.title.slice(0, 1).toUpperCase()}
             </span>
             {s.status === "running" && (
