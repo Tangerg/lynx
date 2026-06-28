@@ -426,7 +426,7 @@ func (c *Connections) Authorize(ctx context.Context, name string) error {
 		c.setStatus(ms, statusFailed, err)
 		return err
 	}
-	defer flow.close()
+	defer flow.close(ctx)
 	handler, err := newOAuthHandler(flow)
 	if err != nil {
 		c.setStatus(ms, statusFailed, err)
