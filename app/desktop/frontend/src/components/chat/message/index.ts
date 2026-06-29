@@ -4,8 +4,8 @@
 // sub-module, and the content-block card renderers.
 //
 // This is the module's only public API. Everything else (BlockRenderer
-// internals, MessageOutline, MessageContextMenu, CitationContext, the
-// markdown renderer + components, HitlCard) is private to the folder. The
+// internals, MessageContextMenu, CitationContext, the markdown renderer +
+// components, HitlCard) is private to the folder. The
 // stream/panel chrome consumes MessageBlock + renderBlock; the content-block
 // plugins consume the card renderers + ShikiCodeBlock.
 

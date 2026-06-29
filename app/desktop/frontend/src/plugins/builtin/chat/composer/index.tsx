@@ -297,9 +297,7 @@ function UsageChip() {
     >
       <span>↑{fmtTokens(usage.inputTokens)}</span>
       <span>↓{fmtTokens(usage.outputTokens)}</span>
-      {usage.costUsd !== undefined && (
-        <span>·&nbsp;${usage.costUsd.toFixed(2)}</span>
-      )}
+      {usage.costUsd !== undefined && <span>·&nbsp;${usage.costUsd.toFixed(2)}</span>}
       {pct !== undefined && (
         <span className={ctxTone(pct)} title={t("composer.usage.context")}>
           ·&nbsp;{pct}%
@@ -381,9 +379,7 @@ function ModelPicker() {
           data-slot="composer-model"
         >
           <ProviderIcon provider={selected.provider} size={16} />
-          <span className="font-sans text-[12px] font-medium">
-            {selected.label}
-          </span>
+          <span className="font-sans text-[12px] font-medium">{selected.label}</span>
           <Icon name="chevron-down" size={10} className="text-fg-faint opacity-70" />
         </button>
       </DropdownMenu.Trigger>

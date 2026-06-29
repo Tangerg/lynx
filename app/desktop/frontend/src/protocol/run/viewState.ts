@@ -200,6 +200,10 @@ export interface Message {
   role: MessageRole;
   who: string; // display name
   time: string; // formatted timestamp
+  /** Raw ISO-8601 created-at for turn-separator formatting. Populated for
+   *  user messages and compaction boundaries; absent on assistant turns
+   *  which have no single Item timestamp. */
+  createdAt?: string;
   /** Owning root Run (Item.runId) — anchors run-boundary actions
    *  (edit-and-rerun via sessions.rollback, fork-from-run). Absent on
    *  optimistic local bubbles until the real Item reconciles, and on

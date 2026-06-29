@@ -65,8 +65,7 @@ export function ChatPanel({ onSend }: Props) {
     // No `container-type: inline-size` here — it implicitly enables layout
     // containment, which interacted badly with use-stick-to-bottom (the lib's
     // ResizeObserver + scroll-anchor path lost position during streaming and
-    // snapped the chat to the top). MessageOutline's visibility keys off a
-    // viewport media query instead of a container query — see MessageOutline.
+    // snapped the chat to the top).
     <Panel className="relative">
       {/* macOS drag region — the tab strip that used to own this is gone,
           so a thin strip preserves the ability to drag the window from the

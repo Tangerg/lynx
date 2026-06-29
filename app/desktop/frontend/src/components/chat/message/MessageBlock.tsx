@@ -1,29 +1,23 @@
 // MessageBlock — one chat turn.
 //
-// Craft-aligned asymmetric layout:
-//   • User = right-aligned gray bubble (input), no avatar/header chrome.
-//   • Assistant = document surface (ResponseCard-style), no per-message header;
-//     prose + inline tool rows sit inside a subtle lifted surface.
+// OpenAI-restrained asymmetric layout:
+//   • User = right-aligned bubble (input), no avatar/header chrome.
+//   • Assistant = unboxed prose directly on the canvas, no surface / header.
 
 import type { Citation } from "./CitationContext";
 import type { BlockCtx } from "./BlockRenderer";
 import type { Message } from "@/protocol/run/viewState";
-import { memo, useMemo, useRef } from "react";
+import { memo, useMemo } from "react";
 import { ToolGroup } from "@/components/tools/ToolGroup";
 import { useCitationSources } from "@/plugins/sdk";
 import { Slot } from "@/plugins/host/Slot";
 import { MessageContext } from "@/plugins/sdk/messageContext";
 import { CitationContext } from "./CitationContext";
 import { MessageContextMenu } from "./MessageContextMenu";
-import { MessageOutline } from "./MessageOutline";
 import { planRenderUnits, renderBlock } from "./BlockRenderer";
 
 function MessageBlockInner({ msg, ctx }: { msg: Message; ctx: BlockCtx }) {
   const isUser = msg.role === "user";
-  const isAgent = msg.role === "assistant";
-
-  // Outline target — only consumed by assistant messages (MessageOutline).
-  const contentRef = useRef<HTMLDivElement>(null);
 
   // Citation registry — gathered from the MESSAGE_CITATION_SOURCE
   // contributions (the search-block plugin maps its results in; with no such
@@ -46,7 +40,7 @@ function MessageBlockInner({ msg, ctx }: { msg: Message; ctx: BlockCtx }) {
   if (msg.role === "system") {
     return (
       <MessageContext.Provider value={msg}>
-        <div className="msg-content">
+        <div className="msg-content" data-slot="message-system">
           {msg.blocks.map((block, index) => renderBlock(block, index, ctx))}
         </div>
       </MessageContext.Provider>
@@ -57,13 +51,6 @@ function MessageBlockInner({ msg, ctx }: { msg: Message; ctx: BlockCtx }) {
   // a caret at the end of every intermediate text block (the reducer
   // leaves them all running until TEXT_MESSAGE_END).
   const lastIdx = msg.blocks.length - 1;
-
-  // True while any block on this message is still streaming. Gates the
-  // MessageOutline mount so the per-token MutationObserver inside doesn't
-  // fire while content is in motion.
-  const isStreaming = msg.blocks.some(
-    (b) => (b.kind === "text" || b.kind === "reasoning") && b.status === "running",
-  );
 
   // Skip the stream-reveal + fade-in pipeline for user messages — they
   // already saw what they typed; replaying it adds latency for no gain.
@@ -98,52 +85,37 @@ function MessageBlockInner({ msg, ctx }: { msg: Message; ctx: BlockCtx }) {
             intended msg-stream column. */}
         <div className="relative grid grid-cols-[minmax(0,1fr)] gap-1.5">
           {isUser ? (
-            <>
-              {/* User = right-aligned gray bubble; no avatar, no header. */}
+            <div className="group flex flex-col items-end" data-slot="message-user">
               <MessageContextMenu msg={msg}>
-                <div className="flex justify-end">
-                  <div
-                    ref={contentRef}
-                    className="msg-content min-w-0 max-w-[80%] rounded-2xl bg-surface-2 px-5 py-3.5 text-left light:bg-surface-3 text-fg text-[15px] leading-[1.68] tracking-[-0.003em] font-normal"
-                  >
-                    {content}
-                  </div>
+                <div className="msg-content min-w-0 max-w-[80%] rounded-xl bg-surface-2 px-4 py-2.5 text-left text-fg text-[15px] leading-relaxed">
+                  {content}
                 </div>
               </MessageContextMenu>
-              <div className="flex justify-end">
+              {/* Hover-reveal action bar — icon-only, rounded-full to match
+                  the bubble language. */}
+              <div
+                className="mt-1 flex opacity-0 transition-opacity duration-[--dur-fast] group-hover:opacity-100 focus-within:opacity-100"
+                data-slot="message-actions"
+              >
                 <Slot name="message.actions" />
               </div>
-            </>
+            </div>
           ) : (
-            <>
-              {/* Assistant = document surface (craft-style ResponseCard).
-                  No per-message header chrome; prose + inline tool rows sit
-                  inside a subtle lifted surface so they read as a generated
-                  document, not chat lines on the canvas. Actions surface only
-                  on hover. */}
+            <div className="group" data-slot="message-assistant">
               <MessageContextMenu msg={msg}>
-                <div
-                  ref={contentRef}
-                  className="msg-content group/msg min-w-0 rounded-md bg-surface shadow-minimal px-5 py-4 text-fg text-[15px] leading-[1.68] tracking-[-0.003em] font-normal"
-                >
+                <div className="msg-content min-w-0 max-w-[--content-max] text-fg-soft text-[15px] leading-relaxed">
                   {content}
-                  {/* Hover-only action bar — appears when the user hovers the
-                      document surface. Kept inside the surface so it doesn't
-                      float over adjacent messages. */}
-                  <div className="mt-2 flex justify-end opacity-0 transition-opacity duration-150 group-hover/msg:opacity-100">
-                    <Slot name="message.actions" />
-                  </div>
                 </div>
               </MessageContextMenu>
-
-              {/* Right-gutter outline. Hidden on narrow viewports where no
-                  gutter is available. Skipped while *any* block on the message
-                  is still streaming — the outline is a "jump to a finished
-                  heading" affordance, and the per-token DOM mutations from
-                  streaming compete with use-stick-to-bottom, causing the
-                  chat to snap back. */}
-              {isAgent && !isStreaming && <MessageOutline target={contentRef} scopeId={msg.id} />}
-            </>
+              {/* Hover-reveal action bar — icon-only, rounded-md for quieter
+                  assistant chrome. */}
+              <div
+                className="mt-1 flex opacity-0 transition-opacity duration-[--dur-fast] group-hover:opacity-100 focus-within:opacity-100"
+                data-slot="message-actions"
+              >
+                <Slot name="message.actions" />
+              </div>
+            </div>
           )}
         </div>
       </CitationContext.Provider>
