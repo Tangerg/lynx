@@ -40,7 +40,7 @@ export function ToolInspector({ tool }: { tool: ToolCall }) {
   const result = useMemo(() => formatBody(tool.result), [tool.result]);
 
   return (
-    <div>
+    <div className="bg-canvas px-3.5 py-2.5">
       <InspectorSection title={t("toolInspector.arguments")} body={args} />
       {result.text && <InspectorSection title={t("toolInspector.result")} body={result} />}
       {!result.text && tool.status === "ok" && (

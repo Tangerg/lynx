@@ -121,24 +121,6 @@
   }
 }
 
-/* Atmospheric layer — a slow, heavily-blurred ambient drift that kills
-   the flat-canvas feel. Two oversized radial gradients in accent-adjacent
-   hues, barely perceptible (~5-8% opacity), drifting over 25s. */
-@keyframes lyra-atmosphere-drift {
-  0% {
-    transform: translate(-4%, -3%) scale(1);
-  }
-  33% {
-    transform: translate(3%, 2%) scale(1.05);
-  }
-  66% {
-    transform: translate(2%, -4%) scale(1.02);
-  }
-  100% {
-    transform: translate(-4%, -3%) scale(1);
-  }
-}
-
 /* =========================================================================
  *  Design tokens — first-paint defaults. Theme plugins overwrite these
  *  at runtime via :root.style. See DESIGN.md for the spec.
@@ -470,87 +452,6 @@ textarea:focus-visible {
 }
 
 /* =========================================================================
- *  Premium-dark atmosphere + glass utilities
- * ========================================================================= */
-
-/* Atmospheric layer — fixed behind everything, a single heavily-blurred
-    radial gradient for ambient depth. Desaturated cool gray, positioned
-    in the top corner so it never bleeds behind readable text / composer.
-    Barely perceptible (~8% opacity); its job is atmosphere, not decoration. */
-.lyra-atmosphere {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-.lyra-atmosphere__orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(120px);
-  opacity: 0.08;
-  animation: lyra-atmosphere-drift 25s ease-in-out infinite;
-}
-/* Single orb: neutral cool gray, top-right framing. No bottom orb —
-   that read as a screen defect / backlight bleed behind the composer. */
-.lyra-atmosphere__orb--a {
-  width: 50vw;
-  height: 50vw;
-  top: -15vh;
-  right: -10vw;
-  left: auto;
-  background: radial-gradient(circle, oklch(0.5 0.02 260) 0%, transparent 70%);
-  animation-delay: 0s;
-}
-
-/* Reduced motion: freeze the atmosphere (no drift), keep the static
-   color wash so the depth isn't lost. */
-@media (prefers-reduced-motion: reduce) {
-  .lyra-atmosphere__orb {
-    animation: none;
-  }
-}
-
-/* Glass utility — frosted pane. backdrop-blur + alpha bg + hairline
-   border. Used on composer, sidebar, document-card. */
-@layer utilities {
-  .glass {
-    background: rgba(255, 255, 255, 0.03);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    border: 1px solid rgba(255, 255, 255, 0.07);
-  }
-  .glass-strong {
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(40px);
-    -webkit-backdrop-filter: blur(40px);
-    border: 1px solid rgba(255, 255, 255, 0.09);
-  }
-}
-
-/* =========================================================================
- *  Dark-theme overrides — glass is pointless over near-black (nothing to
- *  blur, just muddies text edges + perf cost). Switch to solid opaque
- *  surfaces with visible borders and a subtle inset top highlight (lip).
- * ========================================================================= */
-html.theme-dark .glass,
-html.theme-dark .glass-strong {
-  background: var(--color-surface);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  border: 1px solid var(--color-border);
-  /* Subtle "lip" — a barely-there white top edge that lifts the surface
-     above the canvas like a physical pane. */
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-html.theme-dark .panel.sidebar {
-  background: var(--color-surface);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  border-right: 1px solid var(--color-border);
-}
-
-/* =========================================================================
  *  Light-theme overrides — rules that can't ride the @theme inline token
  *  bridge: panel chrome shape, scrollbar tint, colour spans emitted by
  *  HTML-string renderers (highlight.ts / FilePreview) which Tailwind
@@ -569,27 +470,6 @@ html.theme-light .app {
 html.theme-light .panel {
   border: none;
   box-shadow: none;
-}
-/* Light mode: sidebar reverts to solid surface (glass + backdrop-blur
-   reads as dirty smear on light backgrounds). */
-html.theme-light .panel.sidebar {
-  background: var(--color-surface);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  border-right: 1px solid var(--color-app-divider);
-}
-/* Light mode: glass utilities revert to solid surfaces. */
-html.theme-light .glass,
-html.theme-light .glass-strong {
-  background: var(--color-surface);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  border: 1px solid var(--color-border);
-}
-
-/* Light mode: atmosphere orbs hidden (they're a dark-mood effect). */
-html.theme-light .lyra-atmosphere {
-  display: none;
 }
 
 /* Light mode: subtler shadow opacity (craft's 0.08 / 0.06 vs dark 0.15 / 0.12) */

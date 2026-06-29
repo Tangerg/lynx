@@ -133,7 +133,7 @@ export function Composer({
         if (!acceptsImages) return; // text-only model — toolbar attach is disabled too
         onAddImages(files);
       }}
-      className="relative rounded-xl glass px-3 pb-2 pt-2.5 transition-[box-shadow,border-color] duration-150 focus-within:shadow-middle focus-within:border-white/[0.12]"
+      className="relative rounded-xl bg-surface shadow-minimal px-3 pb-2 pt-2.5 transition-[box-shadow] duration-150 focus-within:shadow-middle"
     >
       {mentions.active && (
         <FileMentionPopup

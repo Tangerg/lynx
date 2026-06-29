@@ -59,10 +59,7 @@ export function SessionRow({
   const inner = (
     <>
       {active && (
-        <div
-          className="absolute left-0 inset-y-0 w-[2px] bg-accent rounded-full"
-          style={{ boxShadow: "0 0 8px color-mix(in oklab, var(--color-accent) 50%, transparent)" }}
-        />
+        <div className="absolute left-0 inset-y-0 w-[2px] bg-accent rounded-full" />
       )}
       <button
         type="button"
@@ -70,8 +67,8 @@ export function SessionRow({
         aria-current={active ? "page" : undefined}
         aria-label={session.title}
         className={cn(
-          "flex w-full items-start gap-2.5 rounded-md border-0 bg-transparent px-2 py-2.5 text-left transition-[background-color] duration-75 hover:bg-white/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
-          active && "bg-white/[0.08]",
+          "flex w-full items-start gap-2.5 rounded-md border-0 bg-transparent px-2 py-2.5 text-left transition-[background-color] duration-75 hover:bg-fg/[0.02] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+          active && "bg-fg/[0.03]",
         )}
       >
         <div

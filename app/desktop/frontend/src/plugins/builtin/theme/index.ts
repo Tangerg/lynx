@@ -16,7 +16,6 @@ import catppuccinMacchiato from "./themes/catppuccin-macchiato";
 import catppuccinMocha from "./themes/catppuccin-mocha";
 import lyraDark from "./themes/lyra-dark";
 import lyraLight from "./themes/lyra-light";
-import premiumDark from "./themes/premium-dark";
 import solarizedDark from "./themes/solarized-dark";
 import solarizedLight from "./themes/solarized-light";
 import tokyoNightLight from "./themes/tokyo-night-light";
@@ -25,7 +24,6 @@ import tokyoNightStorm from "./themes/tokyo-night-storm";
 const builtinThemes: PluginSpec[] = [
   lyraDark,
   lyraLight,
-  premiumDark,
   atomOneDark,
   atomOneLight,
   tokyoNightStorm,
