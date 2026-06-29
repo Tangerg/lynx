@@ -25,8 +25,6 @@ export interface StreamControls {
 interface Props {
   messages: Message[];
   ctx: BlockCtx;
-  /** Live model name for assistant turns (resolved in ChatStream). */
-  assistantName?: string;
   /** Re-key on change to reset scroll position + follow state. */
   resetKey: string;
   /** Receives the latest controls; called on any change. ChatPanel
@@ -53,7 +51,7 @@ function ControlsRelay({ onChange }: { onChange?: (c: StreamControls) => void })
   return null;
 }
 
-export function MessageStream({ messages, ctx, assistantName, resetKey, onControlsChange }: Props) {
+export function MessageStream({ messages, ctx, resetKey, onControlsChange }: Props) {
   // While a run streams, content grows continuously; the default `resize`
   // spring (stiffness 0.05 / mass 1.25) is too sluggish to track it and the
   // tail scrolls out of view (D2). Hard-pin to the bottom during generation,
@@ -106,7 +104,7 @@ export function MessageStream({ messages, ctx, assistantName, resetKey, onContro
               {...enterUp}
               className="[content-visibility:auto] [contain-intrinsic-size:auto_220px]"
             >
-              <MessageBlock msg={m} ctx={ctx} assistantName={assistantName} />
+              <MessageBlock msg={m} ctx={ctx} />
             </motion.div>
           ))}
         </AnimatePresence>

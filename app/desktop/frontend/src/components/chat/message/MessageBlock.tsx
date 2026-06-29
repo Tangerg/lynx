@@ -2,18 +2,15 @@
 //
 // Craft-aligned asymmetric layout:
 //   • User = right-aligned gray bubble (input), no avatar/header chrome.
-//   • Assistant = left-aligned document (output), minimal avatar+name header,
-//     prose sits unboxed directly on the canvas.
+//   • Assistant = document surface (ResponseCard-style), no per-message header;
+//     prose + inline tool rows sit inside a subtle lifted surface.
 
 import type { Citation } from "./CitationContext";
 import type { BlockCtx } from "./BlockRenderer";
-import type { IconName } from "@/components/common";
 import type { Message } from "@/protocol/run/viewState";
 import { memo, useMemo, useRef } from "react";
-import { Icon } from "@/components/common";
-import { Avatar } from "@/components/common/Avatar";
 import { ToolGroup } from "@/components/tools/ToolGroup";
-import { MESSAGE_ROLE, useCitationSources, useExtensionByKey } from "@/plugins/sdk";
+import { useCitationSources } from "@/plugins/sdk";
 import { Slot } from "@/plugins/host/Slot";
 import { MessageContext } from "@/plugins/sdk/messageContext";
 import { CitationContext } from "./CitationContext";
@@ -24,15 +21,10 @@ import { planRenderUnits, renderBlock } from "./BlockRenderer";
 function MessageBlockInner({
   msg,
   ctx,
-  assistantName,
 }: {
   msg: Message;
   ctx: BlockCtx;
-  /** Live model name for assistant turns (resolved once in ChatStream from the
-   *  session's model). Falls back to the role's neutral displayName. */
-  assistantName?: string;
 }) {
-  const role = useExtensionByKey(MESSAGE_ROLE, msg.role);
   const isUser = msg.role === "user";
   const isAgent = msg.role === "assistant";
 
@@ -66,12 +58,6 @@ function MessageBlockInner({
       </MessageContext.Provider>
     );
   }
-
-  const displayName = (isAgent && assistantName) || role?.displayName || msg.who;
-  const avatarVariant = (role?.avatarVariant ?? (isUser ? "msg-user" : "msg-agent")) as
-    | "msg-user"
-    | "msg-agent";
-  const iconName = (role?.icon ?? (isUser ? "user" : "spark")) as IconName;
 
   // Only the last text block keeps `status === "running"` so we don't draw
   // a caret at the end of every intermediate text block (the reducer
@@ -136,35 +122,25 @@ function MessageBlockInner({
             </>
           ) : (
             <>
-              {/* Assistant = minimal header (small avatar + name), then
-                  unboxed prose that sits directly on the canvas. */}
-              <div className="flex items-center gap-2.5">
-                <Avatar variant={avatarVariant}>
-                  <Icon name={iconName} size={14} />
-                </Avatar>
-                <div className="flex min-w-0 flex-col gap-0.5 leading-tight">
-                  {/* Sans for the speaker name (a name, not code) — the redesign
-                      keeps mono for genuine data (the timestamp below, IDs, code). */}
-                  <div className="flex items-center gap-1.5 text-fg text-[13px] font-semibold tracking-normal">
-                    <span className="truncate">{displayName}</span>
-                    <Slot name="message.header.end" />
-                  </div>
-                  <span className="font-mono text-[11px] text-fg-faint">{msg.time}</span>
-                </div>
-              </div>
-
+              {/* Assistant = document surface (craft-style ResponseCard).
+                  No per-message header chrome; prose + inline tool rows sit
+                  inside a subtle lifted surface so they read as a generated
+                  document, not chat lines on the canvas. Actions surface only
+                  on hover. */}
               <MessageContextMenu msg={msg}>
                 <div
                   ref={contentRef}
-                  className="msg-content min-w-0 text-fg text-[15px] leading-[1.68] tracking-[-0.003em] font-normal"
+                  className="msg-content group/msg min-w-0 rounded-md bg-surface shadow-minimal px-5 py-4 text-fg text-[15px] leading-[1.68] tracking-[-0.003em] font-normal"
                 >
                   {content}
+                  {/* Hover-only action bar — appears when the user hovers the
+                      document surface. Kept inside the surface so it doesn't
+                      float over adjacent messages. */}
+                  <div className="mt-2 flex justify-end opacity-0 transition-opacity duration-150 group-hover/msg:opacity-100">
+                    <Slot name="message.actions" />
+                  </div>
                 </div>
               </MessageContextMenu>
-
-              <div>
-                <Slot name="message.actions" />
-              </div>
 
               {/* Right-gutter outline. Hidden on narrow viewports where no
                   gutter is available. Skipped while *any* block on the message

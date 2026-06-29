@@ -8,9 +8,7 @@
 import type { StreamControls } from "./MessageStream";
 import type { UserInput } from "@/lib/agent/composerInput";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useModels } from "@/lib/data/queries";
 import { useSelectedModel } from "@/lib/agent/useSelectedModel";
-import { useActiveSession } from "@/lib/agent/useActiveSession";
 import { Slot } from "@/plugins/host/Slot";
 import { useAgentMessages, useAgentPlan, useAgentToolCalls } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
@@ -52,18 +50,6 @@ export function ChatStream({ onSend, resetKey }: Props) {
   // Gate image staging on the next run's model accepting images — keeps the
   // paste/drop path consistent with the (disabled) toolbar attach button.
   const acceptsImages = useSelectedModel()?.multimodal ?? false;
-
-  // Assistant header name = this session's model, resolved to its friendly
-  // displayName. Resolved ONCE here (both lists are stable react-query data,
-  // not per-token state) and threaded down — never per-message subscriptions
-  // (CLAUDE.md §5). Falls back to the raw model id, then the role's neutral
-  // "Assistant" in MessageBlock.
-  const { data: models } = useModels();
-  const sessionModelId = useActiveSession()?.model ?? "";
-  const assistantName = useMemo(() => {
-    if (!sessionModelId) return undefined;
-    return models?.find((m) => m.id === sessionModelId)?.label ?? sessionModelId;
-  }, [sessionModelId, models]);
 
   // Global streaming-reveal preference. Read once here (stable string) and
   // threaded through ctx so MarkdownMessage stays prop-driven — no per-block
@@ -122,6 +108,8 @@ export function ChatStream({ onSend, resetKey }: Props) {
 
   // The composer surface (status + slash hints + input + footer) — shared by
   // the empty-state centered layout and the normal bottom-anchored one.
+  // Context chips (ComposerFooter) are rendered INSIDE the composer container
+  // so the input + pills + toolbar form one unified surface (craft-style).
   const composer = (
     <>
       <Slot name="chat.status" />
@@ -138,8 +126,11 @@ export function ChatStream({ onSend, resetKey }: Props) {
         onRemovePaste={removePaste}
         onAddPaste={addPaste}
         acceptsImages={acceptsImages}
-      />
-      <ComposerFooter />
+      >
+        <div className="-mx-3 -mb-2 mt-1 px-3 pb-1 pt-1.5">
+          <ComposerFooter />
+        </div>
+      </Composer>
     </>
   );
 
@@ -183,7 +174,6 @@ export function ChatStream({ onSend, resetKey }: Props) {
         <MessageStream
           messages={messages}
           ctx={ctx}
-          assistantName={assistantName}
           resetKey={resetKey}
           onControlsChange={handleControls}
         />

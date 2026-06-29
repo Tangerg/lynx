@@ -29,9 +29,34 @@ interface Props {
   onOpenView?: () => void;
 }
 
-export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView }: Props) {
+function formatToolIntent(tool: ToolCall): { label: string; detail?: string } {
+  const labelMap: Record<string, string> = {
+    _: "Shell",
+    shell: "Shell",
+    bash: "Shell",
+    read: "Read",
+    edit: "Edit",
+    write: "Write",
+    grep: "Grep",
+    glob: "Glob",
+    lsp: "LSP",
+  };
+  let detail: string | undefined;
+  try {
+    const args = JSON.parse(tool.args ?? "{}") as Record<string, unknown>;
+    if (args.command) detail = String(args.command);
+    else if (args.file_path) detail = String(args.file_path);
+    else if (args.path) detail = String(args.path);
+    else if (args.query) detail = String(args.query);
+    else if (args.pattern) detail = String(args.pattern);
+  } catch { /* ignore */ }
+  return { label: labelMap[tool.fn] ?? tool.fn, detail };
+}
+
+export function ToolCard({ tool, selected: _selected, expanded, onToggleExpand, onOpenView: _onOpenView }: Props) {
   const running = tool.status === "running";
   const actions = useExtensionPoint(TOOL_ACTION).filter((a) => !a.predicate || a.predicate(tool));
+  const intent = formatToolIntent(tool);
 
   return (
     <div
@@ -40,15 +65,15 @@ export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView 
         running && "running",
       )}
     >
-      {/* Collapsed / expanded row — clickable to toggle. */}
+      {/* Collapsed / expanded row — a single bare text line, no bg, no
+          border, no surface. Reads like a log entry on the canvas. */}
       <button
         type="button"
         aria-expanded={expanded}
         onClick={onToggleExpand}
         className={cn(
-          "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition-[background-color] duration-75",
-          "hover:bg-fg/[0.02] focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_var(--color-accent)]",
-          selected && "bg-fg/[0.03]",
+          "flex w-full items-center gap-2 px-2 py-0.5 text-left",
+          "focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_var(--color-accent)]",
         )}
       >
         {/* Chevron — muted, rotates on expand. No chevron-right in the
@@ -65,23 +90,23 @@ export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView 
         {/* Status icon — spinner/dot/check/x depending on state. */}
         <StatusIcon status={tool.status} tool={tool} />
 
-        {/* Label + args — one line, truncate overflow. */}
+        {/* Label + detail — one line, truncate overflow. */}
         <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
           <span
-            title={tool.fn}
+            title={intent.label}
             className={cn(
               "truncate text-[13px] font-medium text-fg-muted",
-              tool.args && "shrink-0",
+              intent.detail && "shrink-0",
             )}
           >
-            {tool.fn}
+            {intent.label}
           </span>
-          {tool.args && (
+          {intent.detail && (
             <span
-              title={tool.args}
+              title={intent.detail}
               className="min-w-0 truncate font-mono text-[12px] text-fg-faint"
             >
-              {tool.args}
+              {intent.detail}
             </span>
           )}
         </div>
@@ -117,17 +142,11 @@ export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView 
         </div>
       )}
 
-      {/* Expanded inline preview — indented beneath the row. */}
+      {/* Expanded inline preview — plain text/code under the row, zero
+          chrome (no card, no surface, no action buttons). */}
       <Collapsible open={expanded}>
         <div className="pl-6 pr-2 pb-1">
-          <div
-            className={cn(
-              "rounded-md border border-line/40 bg-surface px-3 py-2",
-              selected && "border-line/60",
-            )}
-          >
-            <ToolPreview tool={tool} onOpenView={onOpenView} />
-          </div>
+          <ToolPreview tool={tool} />
         </div>
       </Collapsible>
     </div>
