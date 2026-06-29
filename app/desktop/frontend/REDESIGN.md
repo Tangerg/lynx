@@ -222,7 +222,7 @@ DESIGN.md 随重构**就地演进**（非冻结基线）。下列决策是相对
 
 ### Phase 4 — 消息层
 
-#### Step 4a — assistant 无框化 + user 气泡 + action bar hover  `[x]`  lane: des-1  **commit: TBD**
+#### Step 4a — assistant 无框化 + user 气泡 + action bar hover  `[x]`  lane: des-1  **commit: `0e59dfa8`**
 **做什么**：移除 assistant 的 glass document 表面 + per-message header（avatar/model/ts）+ `MessageOutline` 右栏；assistant 纯文 `max-w-720`；user 气泡 `rounded-xl`(20px) `bg-surface-2 max-w-80%` 右对齐；action bar `opacity-0 group-hover:opacity-100`。
 **改文件**：`src/components/chat/message/MessageBlock.tsx`、`MessageStream.tsx`、`MessageContextMenu.tsx`、`MessageOutline.tsx`（可能删）、action bar slot 贡献者
 **验证**：全绿 + 视觉；轮次间居中时间戳分隔（Codex 细节补进）。
