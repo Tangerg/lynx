@@ -230,7 +230,7 @@ DESIGN.md 随重构**就地演进**（非冻结基线）。下列决策是相对
 
 ### Phase 5 — Tool / Reasoning / HITL（含真痛点修复）
 
-#### Step 5a — Reasoning 流式自动跟随 + 渐隐（真 UX bug）  `[ ]`  lane: des-1
+#### Step 5a — Reasoning 流式自动跟随 + 渐隐（真 UX bug）  `[x]`  lane: des-1  **commit: `f64b26c0`**
 **做什么**：移植 assistant-ui canonical `reasoning.tsx` 的**技术**（非组件）：`ResizeObserver` 钉底滚 + 顶/底渐隐遮罩，适配我们 token。
 **改文件**：`src/components/chat/message/cards/ReasoningBlock.tsx`
 **验证**：全绿 + 流式时新 token 自动可见、不沉底。
