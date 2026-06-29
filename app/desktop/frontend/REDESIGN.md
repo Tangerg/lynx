@@ -214,7 +214,7 @@ DESIGN.md 随重构**就地演进**（非冻结基线）。下列决策是相对
 
 ### Phase 3 — Composer 锚（视觉重头戏）
 
-#### Step 3a — Composer 重做  `[x]`  lane: des-1  **commit: `PENDING`**
+#### Step 3a — Composer 重做  `[x]`  lane: des-1  **commit: `a3e0b4b4`**
 **做什么**：composer 变 OpenAI 式锚——大圆角、subtle border（light）/透明（dark）、唯一阴影（light）；圆形 ghost attach；model pill + tools dropdown 入 composer；send 实心圆 `bg-fg`；context chips 入 composer 内。
 **改文件**：`src/components/chat/composer/Composer.tsx` + `src/plugins/builtin/chat/composer/index.tsx`（send/attach/model/tools 各 plugin）+ `globals.css`（`--shadow-composer`）
 **验证**：全绿 + `wails dev` composer 视觉对标 Codex 截图；send 在 streaming+steer 时仍可显 accent（唯一例外）。
