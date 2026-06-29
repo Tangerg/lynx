@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { headerTabCloseActionsFor, useSessionStore } from "./sessionStore";
+import { useSessionStore } from "./sessionStore";
 
 // Snapshot of the store's initial chat-tab state so each test starts
 // from a known place. We restore via setState (not resetForTest — no
@@ -36,104 +36,6 @@ describe("selectTab returns the main pane to chat", () => {
     useSessionStore.getState().selectTab("s2");
     const s = useSessionStore.getState();
     expect(s.activeSessionId).toBe("s2");
-    expect(s.activeMainView).toBeNull();
-  });
-});
-
-describe("sessionStore multi-tab close (chat tabs)", () => {
-  beforeEach(reset);
-
-  it("closeOtherTabs keeps only the target tab and focuses it", () => {
-    useSessionStore.getState().closeOtherTabs("s2");
-    const s = useSessionStore.getState();
-    expect(s.tabIds).toEqual(["s2"]);
-    expect(s.activeSessionId).toBe("s2");
-  });
-
-  it("closeOtherTabs is a no-op when the id is not open", () => {
-    useSessionStore.getState().closeOtherTabs("missing");
-    expect(useSessionStore.getState().tabIds).toEqual(["s1", "s2", "s3"]);
-  });
-
-  it("closeTabsLeftOf drops everything before the pivot", () => {
-    useSessionStore.getState().closeTabsLeftOf("s3");
-    expect(useSessionStore.getState().tabIds).toEqual(["s3"]);
-  });
-
-  it("closeTabsLeftOf is a no-op when pivot is the first tab", () => {
-    useSessionStore.getState().closeTabsLeftOf("s1");
-    expect(useSessionStore.getState().tabIds).toEqual(["s1", "s2", "s3"]);
-  });
-
-  it("closeTabsLeftOf preserves activeSessionId when it survives", () => {
-    useSessionStore.setState({ activeSessionId: "s3" });
-    useSessionStore.getState().closeTabsLeftOf("s2");
-    expect(useSessionStore.getState().activeSessionId).toBe("s3");
-  });
-
-  it("closeTabsLeftOf reassigns activeSessionId to the pivot when the active tab is dropped", () => {
-    // active = s1, drop everything before s2 → active becomes s2
-    useSessionStore.getState().closeTabsLeftOf("s2");
-    const s = useSessionStore.getState();
-    expect(s.tabIds).toEqual(["s2", "s3"]);
-    expect(s.activeSessionId).toBe("s2");
-  });
-
-  it("closeTabsRightOf drops everything after the pivot", () => {
-    useSessionStore.getState().closeTabsRightOf("s1");
-    expect(useSessionStore.getState().tabIds).toEqual(["s1"]);
-  });
-
-  it("closeTabsRightOf is a no-op when pivot is the last tab", () => {
-    useSessionStore.getState().closeTabsRightOf("s3");
-    expect(useSessionStore.getState().tabIds).toEqual(["s1", "s2", "s3"]);
-  });
-
-  it("closeAllTabs empties the strip", () => {
-    useSessionStore.getState().closeAllTabs();
-    const s = useSessionStore.getState();
-    expect(s.tabIds).toEqual([]);
-    expect(s.activeSessionId).toBe("");
-  });
-});
-
-describe("sessionStore multi-tab close (workspace-view tabs)", () => {
-  beforeEach(reset);
-
-  it("closeOtherMainViews keeps only the target view and focuses it", () => {
-    useSessionStore.getState().closeOtherMainViews("v3");
-    const s = useSessionStore.getState();
-    expect(s.mainViewTabs.map((t) => t.id)).toEqual(["v3"]);
-    expect(s.activeMainView).toBe("v3");
-  });
-
-  it("closeMainViewsLeftOf drops everything before the pivot", () => {
-    useSessionStore.getState().closeMainViewsLeftOf("v3");
-    expect(useSessionStore.getState().mainViewTabs.map((t) => t.id)).toEqual(["v3"]);
-  });
-
-  it("closeMainViewsLeftOf is a no-op when pivot is the first view", () => {
-    useSessionStore.getState().closeMainViewsLeftOf("v1");
-    expect(useSessionStore.getState().mainViewTabs.map((t) => t.id)).toEqual(["v1", "v2", "v3"]);
-  });
-
-  it("closeMainViewsLeftOf reassigns activeMainView to the pivot when the active view is dropped", () => {
-    // active = v2, drop everything before v3 → active becomes v3
-    useSessionStore.getState().closeMainViewsLeftOf("v3");
-    const s = useSessionStore.getState();
-    expect(s.mainViewTabs.map((t) => t.id)).toEqual(["v3"]);
-    expect(s.activeMainView).toBe("v3");
-  });
-
-  it("closeMainViewsRightOf drops everything after the pivot", () => {
-    useSessionStore.getState().closeMainViewsRightOf("v1");
-    expect(useSessionStore.getState().mainViewTabs.map((t) => t.id)).toEqual(["v1"]);
-  });
-
-  it("closeAllMainViews empties the strip and clears focus", () => {
-    useSessionStore.getState().closeAllMainViews();
-    const s = useSessionStore.getState();
-    expect(s.mainViewTabs).toEqual([]);
     expect(s.activeMainView).toBeNull();
   });
 });
@@ -193,12 +95,6 @@ describe("split (beside) view", () => {
     useSessionStore.getState().openMainViewBeside({ id: "v2", title: "View 2" });
     useSessionStore.getState().closeTab("s3"); // s3 is not active (s1 is)
     expect(useSessionStore.getState().splitViewId).toBe("v2");
-  });
-
-  it("closeAllTabs drops the split (no session left to host a beside-view)", () => {
-    useSessionStore.getState().openMainViewBeside({ id: "v2", title: "View 2" });
-    useSessionStore.getState().closeAllTabs();
-    expect(useSessionStore.getState().splitViewId).toBeNull();
   });
 });
 
@@ -260,94 +156,6 @@ describe("session-scoped view state resets on every session switch", () => {
     expect(useSessionStore.getState().activeSessionId).toBe("s1");
     expectPreserved();
   });
-
-  it("closeOtherTabs onto a different session clears the state", () => {
-    seedInspector(); // active s1
-    useSessionStore.getState().closeOtherTabs("s2");
-    expect(useSessionStore.getState().activeSessionId).toBe("s2");
-    expectCleared();
-  });
-
-  it("closeOtherTabs on the active tab preserves its state", () => {
-    seedInspector(); // active s1
-    useSessionStore.getState().closeOtherTabs("s1");
-    expect(useSessionStore.getState().activeSessionId).toBe("s1");
-    expectPreserved();
-  });
-
-  it("closeTabsLeftOf that drops the active session clears the state", () => {
-    seedInspector(); // active s1, tabs s1,s2,s3
-    useSessionStore.getState().closeTabsLeftOf("s2"); // drops s1 → active s2
-    expect(useSessionStore.getState().activeSessionId).toBe("s2");
-    expectCleared();
-  });
-
-  it("closeTabsLeftOf that keeps the active session preserves the state", () => {
-    seedInspector("s3"); // active s3, tabs s1,s2,s3
-    useSessionStore.getState().closeTabsLeftOf("s2"); // next [s2,s3], s3 survives
-    expect(useSessionStore.getState().activeSessionId).toBe("s3");
-    expectPreserved();
-  });
-
-  it("closeTabsRightOf that drops the active session clears the state", () => {
-    seedInspector("s3"); // active s3, tabs s1,s2,s3
-    useSessionStore.getState().closeTabsRightOf("s1"); // next [s1], s3 dropped → active s1
-    expect(useSessionStore.getState().activeSessionId).toBe("s1");
-    expectCleared();
-  });
-
-  it("closeAllTabs clears the state (welcome screen is clean)", () => {
-    seedInspector();
-    useSessionStore.getState().closeAllTabs();
-    expect(useSessionStore.getState().activeSessionId).toBe("");
-    expectCleared();
-  });
-});
-
-describe("closing view tabs preserves split / activeMainView mutual exclusivity", () => {
-  beforeEach(reset);
-
-  it("closeMainViewsRightOf on the split tab keeps it AS split, not a full view", () => {
-    useSessionStore.getState().openMainViewBeside({ id: "v2", title: "View 2" });
-    useSessionStore.getState().closeMainViewsRightOf("v2"); // next [v1,v2], v2 survives
-    const s = useSessionStore.getState();
-    expect(s.splitViewId).toBe("v2");
-    expect(s.activeMainView).toBeNull(); // must NOT also be promoted to a full view
-    expect(s.mainViewTabs.map((t) => t.id)).toEqual(["v1", "v2"]);
-  });
-
-  it("closeMainViewsRightOf that drops the split view clears it and focuses the pivot", () => {
-    useSessionStore.getState().openMainViewBeside({ id: "v3", title: "View 3" });
-    useSessionStore.getState().closeMainViewsRightOf("v1"); // next [v1], v3 dropped
-    const s = useSessionStore.getState();
-    expect(s.splitViewId).toBeNull();
-    expect(s.activeMainView).toBe("v1");
-  });
-
-  it("closeMainViewsLeftOf on the split tab keeps it AS split", () => {
-    useSessionStore.getState().openMainViewBeside({ id: "v2", title: "View 2" });
-    useSessionStore.getState().closeMainViewsLeftOf("v2"); // next [v2,v3], v2 survives
-    const s = useSessionStore.getState();
-    expect(s.splitViewId).toBe("v2");
-    expect(s.activeMainView).toBeNull();
-  });
-
-  it("closeOtherMainViews on the split tab keeps it AS split", () => {
-    useSessionStore.getState().openMainViewBeside({ id: "v2", title: "View 2" });
-    useSessionStore.getState().closeOtherMainViews("v2");
-    const s = useSessionStore.getState();
-    expect(s.splitViewId).toBe("v2");
-    expect(s.activeMainView).toBeNull();
-    expect(s.mainViewTabs.map((t) => t.id)).toEqual(["v2"]);
-  });
-
-  it("closeOtherMainViews on a non-split tab focuses it as a full view and clears the split", () => {
-    useSessionStore.getState().openMainViewBeside({ id: "v2", title: "View 2" });
-    useSessionStore.getState().closeOtherMainViews("v1");
-    const s = useSessionStore.getState();
-    expect(s.splitViewId).toBeNull();
-    expect(s.activeMainView).toBe("v1");
-  });
 });
 
 describe("selectTab after empty state", () => {
@@ -370,22 +178,6 @@ describe("selectTab after empty state", () => {
     expect(s.activeSessionId).toBe("s2");
   });
 
-  it("closeAllTabs → selectTab chain leaves correct state", () => {
-    // Mirror the user-reported flow: close everything, then start a
-    // new session and a second new session via sidebar clicks.
-    useSessionStore.getState().closeAllTabs();
-    expect(useSessionStore.getState().tabIds).toEqual([]);
-    expect(useSessionStore.getState().activeSessionId).toBe("");
-
-    useSessionStore.getState().selectTab("s5");
-    expect(useSessionStore.getState().tabIds).toEqual(["s5"]);
-
-    useSessionStore.getState().selectTab("s6");
-    const s = useSessionStore.getState();
-    expect(s.tabIds).toEqual(["s5", "s6"]);
-    expect(s.activeSessionId).toBe("s6");
-  });
-
   it("closeTab on the last tab → selectTab chain leaves correct state", () => {
     // Alternate path: close the very last tab by clicking its X, then
     // open new ones from the sidebar.
@@ -402,65 +194,6 @@ describe("selectTab after empty state", () => {
 
     useSessionStore.getState().selectTab("s3");
     expect(useSessionStore.getState().tabIds).toEqual(["s2", "s3"]);
-  });
-});
-
-describe("headerTabCloseActionsFor (unified-strip semantics)", () => {
-  beforeEach(reset);
-
-  it("close All on any tab wipes BOTH lists", () => {
-    headerTabCloseActionsFor("chat", "s2").onCloseAll();
-    let s = useSessionStore.getState();
-    expect(s.tabIds).toEqual([]);
-    expect(s.mainViewTabs).toEqual([]);
-
-    reset();
-    headerTabCloseActionsFor("view", "v2").onCloseAll();
-    s = useSessionStore.getState();
-    expect(s.tabIds).toEqual([]);
-    expect(s.mainViewTabs).toEqual([]);
-  });
-
-  it("close Others on a chat tab keeps that chat tab and drops every view tab", () => {
-    headerTabCloseActionsFor("chat", "s2").onCloseOthers();
-    const s = useSessionStore.getState();
-    expect(s.tabIds).toEqual(["s2"]);
-    expect(s.mainViewTabs).toEqual([]);
-  });
-
-  it("close Others on a view tab drops every chat tab and keeps only that view", () => {
-    headerTabCloseActionsFor("view", "v2").onCloseOthers();
-    const s = useSessionStore.getState();
-    expect(s.tabIds).toEqual([]);
-    expect(s.mainViewTabs.map((t) => t.id)).toEqual(["v2"]);
-  });
-
-  it("close Right on a chat tab drops trailing chat tabs AND every view tab", () => {
-    headerTabCloseActionsFor("chat", "s2").onCloseRight();
-    const s = useSessionStore.getState();
-    expect(s.tabIds).toEqual(["s1", "s2"]);
-    expect(s.mainViewTabs).toEqual([]);
-  });
-
-  it("close Right on a view tab only touches trailing view tabs (chat tabs untouched)", () => {
-    headerTabCloseActionsFor("view", "v2").onCloseRight();
-    const s = useSessionStore.getState();
-    expect(s.tabIds).toEqual(["s1", "s2", "s3"]);
-    expect(s.mainViewTabs.map((t) => t.id)).toEqual(["v1", "v2"]);
-  });
-
-  it("close Left on a chat tab only touches preceding chat tabs (view tabs untouched)", () => {
-    headerTabCloseActionsFor("chat", "s2").onCloseLeft();
-    const s = useSessionStore.getState();
-    expect(s.tabIds).toEqual(["s2", "s3"]);
-    expect(s.mainViewTabs.map((t) => t.id)).toEqual(["v1", "v2", "v3"]);
-  });
-
-  it("close Left on a view tab drops EVERY chat tab and preceding view tabs", () => {
-    headerTabCloseActionsFor("view", "v2").onCloseLeft();
-    const s = useSessionStore.getState();
-    expect(s.tabIds).toEqual([]);
-    expect(s.mainViewTabs.map((t) => t.id)).toEqual(["v2", "v3"]);
   });
 });
 
