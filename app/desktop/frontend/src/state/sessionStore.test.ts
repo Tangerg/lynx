@@ -233,12 +233,14 @@ describe("session-scoped view state resets on every session switch", () => {
     expect(s.splitViewId).toBe("diff");
   }
 
+  // oxlint-disable-next-line vitest/expect-expect — expectCleared() is a helper that contains assertions.
   it("selectTab to a different session clears all four fields", () => {
     seedInspector();
     useSessionStore.getState().selectTab("s2");
     expectCleared();
   });
 
+  // oxlint-disable-next-line vitest/expect-expect — expectPreserved() is a helper that contains assertions.
   it("re-selecting the SAME session preserves them", () => {
     seedInspector();
     useSessionStore.getState().selectTab("s1");

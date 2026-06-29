@@ -1,9 +1,9 @@
-// Built-in plugins: per-message action buttons in `message.header.end`.
+// Built-in plugins: per-message action buttons in `message.actions`.
 //
-// Three icons rendered in the message header (copy + edit + regenerate).
-// Each is its own plugin so a fork that doesn't want one can drop it
-// without touching the others. Shared chrome / helpers live in
-// _shared.ts.
+// Four icon-only buttons rendered below the message (copy + edit +
+// regenerate + feedback). Each is its own plugin so a fork that doesn't
+// want one can drop it without touching the others. Shared chrome /
+// helpers live in _shared.ts.
 
 import { useState } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
@@ -17,7 +17,11 @@ import { getContainer } from "@/main/container";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
 import { asItemId, asRunId, asSessionId } from "@/rpc";
 import { useSessionStore } from "@/state/sessionStore";
-import { ACTION_BTN_CLASSES } from "./_shared";
+import { ACTION_BTN_BASE } from "./_shared";
+
+function roleShape(role: string): string {
+  return role === "user" ? "rounded-full" : "rounded-md";
+}
 
 //
 // Default click writes Markdown (preserves headings / lists / fences
@@ -37,8 +41,11 @@ function CopyButton() {
   return (
     <DropdownMenu.Root>
       <Tooltip label={t("msgActions.copy")}>
-        <DropdownMenu.Trigger aria-label={t("msgActions.copy")} className={ACTION_BTN_CLASSES}>
-          <Icon name="copy" size={11} />
+        <DropdownMenu.Trigger
+          aria-label={t("msgActions.copy")}
+          className={cn(ACTION_BTN_BASE, roleShape(msg.role))}
+        >
+          <Icon name="copy" size={13} />
         </DropdownMenu.Trigger>
       </Tooltip>
       <DropdownMenu.Portal>
@@ -96,7 +103,7 @@ export const messageCopy = definePlugin({
   name: "lyra.builtin.message-copy",
   version: "1.0.0",
   setup({ host }) {
-    host.layout.register("message.header.end", {
+    host.layout.register("message.actions", {
       id: "copy",
       order: 0,
       component: CopyButton,
@@ -120,9 +127,9 @@ function EditButton() {
         type="button"
         onClick={() => editMessageInComposer(msg)}
         aria-label={t("msgActions.edit")}
-        className={ACTION_BTN_CLASSES}
+        className={cn(ACTION_BTN_BASE, roleShape(msg.role))}
       >
-        <Icon name="edit" size={11} />
+        <Icon name="edit" size={13} />
       </button>
     </Tooltip>
   );
@@ -132,7 +139,7 @@ export const messageEdit = definePlugin({
   name: "lyra.builtin.message-edit",
   version: "1.0.0",
   setup({ host }) {
-    host.layout.register("message.header.end", {
+    host.layout.register("message.actions", {
       id: "edit",
       order: 5,
       component: EditButton,
@@ -154,9 +161,9 @@ function RegenerateButton() {
         type="button"
         onClick={() => regenerateMessage(msg)}
         aria-label={t("msgActions.regenerate")}
-        className={ACTION_BTN_CLASSES}
+        className={cn(ACTION_BTN_BASE, roleShape(msg.role))}
       >
-        <Icon name="loop" size={11} />
+        <Icon name="loop" size={13} />
       </button>
     </Tooltip>
   );
@@ -166,7 +173,7 @@ export const messageRegenerate = definePlugin({
   name: "lyra.builtin.message-regenerate",
   version: "1.0.0",
   setup({ host }) {
-    host.layout.register("message.header.end", {
+    host.layout.register("message.actions", {
       id: "regenerate",
       order: 10,
       component: RegenerateButton,
@@ -218,9 +225,13 @@ function FeedbackButtons() {
           onClick={() => rate("positive")}
           aria-label={t("msgActions.good")}
           aria-pressed={rated === "positive"}
-          className={cn(ACTION_BTN_CLASSES, rated === "positive" && "text-success")}
+          className={cn(
+            ACTION_BTN_BASE,
+            roleShape(msg.role),
+            rated === "positive" && "text-success",
+          )}
         >
-          <Icon name="thumbs-up" size={11} />
+          <Icon name="thumbs-up" size={13} />
         </button>
       </Tooltip>
       <Tooltip label={t("msgActions.poor")}>
@@ -229,9 +240,13 @@ function FeedbackButtons() {
           onClick={() => rate("negative")}
           aria-label={t("msgActions.poor")}
           aria-pressed={rated === "negative"}
-          className={cn(ACTION_BTN_CLASSES, rated === "negative" && "text-negative")}
+          className={cn(
+            ACTION_BTN_BASE,
+            roleShape(msg.role),
+            rated === "negative" && "text-negative",
+          )}
         >
-          <Icon name="thumbs-down" size={11} />
+          <Icon name="thumbs-down" size={13} />
         </button>
       </Tooltip>
     </>
@@ -242,7 +257,7 @@ export const messageFeedback = definePlugin({
   name: "lyra.builtin.message-feedback",
   version: "1.0.0",
   setup({ host }) {
-    host.layout.register("message.header.end", {
+    host.layout.register("message.actions", {
       id: "feedback",
       order: 15,
       component: FeedbackButtons,

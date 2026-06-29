@@ -185,6 +185,7 @@ export function appendUserMessage(
     role: "user",
     who: nameForRole("user"),
     time: formatTime(item.createdAt),
+    createdAt: item.createdAt,
     runId: item.runId,
     blocks: userContentBlocks(item.content),
   };
@@ -267,6 +268,7 @@ export function foldCompaction(state: AgentViewState, item: ItemOf<"compaction">
     role: "system",
     who: nameForRole("system"),
     time: formatTime(item.createdAt),
+    createdAt: item.createdAt,
     runId: item.runId,
     blocks: [block],
   };

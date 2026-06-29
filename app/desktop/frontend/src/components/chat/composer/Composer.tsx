@@ -145,7 +145,10 @@ export function Composer({
         />
       )}
       {/* Top toolbar: attach + model pill */}
-      <div className="flex flex-nowrap items-center gap-1.5 pb-1 min-h-7" data-slot="composer-toolbar-top">
+      <div
+        className="flex flex-nowrap items-center gap-1.5 pb-1 min-h-7"
+        data-slot="composer-toolbar-top"
+      >
         <Slot name="composer.toolbar.start" />
       </div>
       <PluginAttachments sources={attachmentSources} />
@@ -230,7 +233,10 @@ export function Composer({
         data-slot="composer-input"
       />
       {/* Bottom toolbar: send / stop */}
-      <div className="flex flex-nowrap items-center gap-1.5 pt-2 min-h-7" data-slot="composer-toolbar-bottom">
+      <div
+        className="flex flex-nowrap items-center gap-1.5 pt-2 min-h-7"
+        data-slot="composer-toolbar-bottom"
+      >
         <div className="flex-1 min-w-2" />
         <Slot name="composer.toolbar.end" />
       </div>

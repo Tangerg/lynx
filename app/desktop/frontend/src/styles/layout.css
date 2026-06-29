@@ -111,13 +111,10 @@ html.theme-light .tool-card.running::before {
      stick-to-bottom div via scrollClassName), so this covers both. */
   overscroll-behavior: contain;
   /* Intentionally no `overflow-x: hidden` here — adding it broke
-     use-stick-to-bottom during streaming (rapid content-height changes
-     interacted badly with WebKit's scrollbar-recompute path, causing
-     the chat to snap back to the top). Any element that could overflow
-     horizontally (e.g. MessageOutline in the gutter) hides itself via
-     a container query before it gets the chance — see ChatPanel's
-     `@container/chat` + MessageOutline's `@[1144px]/chat:block`. The
-     enclosing `.panel` clips anything that still escapes. */
+      use-stick-to-bottom during streaming (rapid content-height changes
+      interacted badly with WebKit's scrollbar-recompute path, causing
+      the chat to snap back to the top). The enclosing `.panel` clips
+      anything that still escapes. */
   scrollbar-width: thin;
   scrollbar-color: var(--color-border-soft) transparent;
 }

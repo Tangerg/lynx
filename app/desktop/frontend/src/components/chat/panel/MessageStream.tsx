@@ -1,12 +1,14 @@
 import type { BlockCtx } from "../message";
 import type { Message } from "@/protocol/run/viewState";
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useEffect } from "react";
+import { Fragment, useCallback, useEffect } from "react";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import { enterUp } from "@/lib/motion";
+import { useT } from "@/lib/i18n";
 import { Slot } from "@/plugins/host/Slot";
 import { useAgentRunning } from "@/state/agentStore";
 import { MessageBlock } from "../message";
+import i18next from "i18next";
 
 // Chat scroll surface, backed by use-stick-to-bottom. `resetKey`
 // re-keys the subtree on session switch so a new thread lands at the
@@ -51,6 +53,46 @@ function ControlsRelay({ onChange }: { onChange?: (c: StreamControls) => void })
   return null;
 }
 
+function bcp47(): string {
+  const lng = i18next.language ?? "en";
+  if (lng === "zh") return "zh-CN";
+  if (lng === "zh-TW" || lng.toLowerCase() === "zh-tw") return "zh-TW";
+  return lng;
+}
+
+function formatTurnTime(iso: string | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+
+  const now = new Date();
+  const isThisYear = d.getFullYear() === now.getFullYear();
+
+  const opts: Intl.DateTimeFormatOptions = {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  };
+  if (!isThisYear) opts.year = "numeric";
+
+  return new Intl.DateTimeFormat(bcp47(), opts).format(d);
+}
+
+function TurnSeparator({ createdAt }: { createdAt?: string }) {
+  // useT() keeps this reactive on locale toggle even though the
+  // translation function itself isn't used for the timestamp label.
+  useT();
+  const label = formatTurnTime(createdAt);
+  if (!label) return null;
+  return (
+    <div className="my-4 text-center text-[12px] text-fg-faint" data-slot="turn-separator">
+      {label}
+    </div>
+  );
+}
+
 export function MessageStream({ messages, ctx, resetKey, onControlsChange }: Props) {
   // While a run streams, content grows continuously; the default `resize`
   // spring (stiffness 0.05 / mass 1.25) is too sluggish to track it and the
@@ -58,6 +100,9 @@ export function MessageStream({ messages, ctx, resetKey, onControlsChange }: Pro
   // and keep the smooth catch-up only when idle (re-open / history load).
   // `running` flips only at run boundaries, so this never churns per token.
   const running = useAgentRunning();
+
+  const firstUserIndex = messages.findIndex((m) => m.role === "user");
+
   if (messages.length === 0) {
     return (
       <StickToBottom key={resetKey} className="msg-scroll-frame" initial="instant" resize="smooth">
@@ -84,28 +129,32 @@ export function MessageStream({ messages, ctx, resetKey, onControlsChange }: Pro
         className="relative mx-auto flex w-full max-w-[840px] flex-col gap-7 px-5 pt-8 pb-[220px]"
       >
         <AnimatePresence initial={false}>
-          {messages.map((m) => (
-            // No `layout` prop — Motion's layout animation re-tweens
-            // the block on every text delta, making the whole bubble
-            // (avatar included) bobble while streaming. enterUp is
-            // enough: first paint slides in, then the block grows
-            // naturally with the DOM.
-            //
-            // `content-visibility:auto` lets the browser skip layout+paint for
-            // off-screen messages (the long-conversation scaling cliff) while
-            // keeping every node IN the DOM — so ⌘F's TreeWalker + CSS-highlight
-            // search, copy-all, and stick-to-bottom's height all still work
-            // (true virtualization would unmount nodes and break those). The
-            // `auto` intrinsic-size remembers each message's real height after
-            // its first render, so the scroll height stays accurate; the 220px
-            // fallback only covers never-yet-rendered messages far below.
-            <motion.div
-              key={m.id}
-              {...enterUp}
-              className="[content-visibility:auto] [contain-intrinsic-size:auto_220px]"
-            >
-              <MessageBlock msg={m} ctx={ctx} />
-            </motion.div>
+          {messages.map((m, i) => (
+            <Fragment key={m.id}>
+              {m.role === "user" && i !== firstUserIndex && (
+                <TurnSeparator createdAt={m.createdAt} />
+              )}
+              {/* No `layout` prop — Motion's layout animation re-tweens
+                  the block on every text delta, making the whole bubble
+                  (avatar included) bobble while streaming. enterUp is
+                  enough: first paint slides in, then the block grows
+                  naturally with the DOM.
+
+                  `content-visibility:auto` lets the browser skip layout+paint for
+                  off-screen messages (the long-conversation scaling cliff) while
+                  keeping every node IN the DOM — so ⌘F's TreeWalker + CSS-highlight
+                  search, copy-all, and stick-to-bottom's height all still work
+                  (true virtualization would unmount nodes and break those). The
+                  `auto` intrinsic-size remembers each message's real height after
+                  its first render, so the scroll height stays accurate; the 220px
+                  fallback only covers never-yet-rendered messages far below. */}
+              <motion.div
+                {...enterUp}
+                className="[content-visibility:auto] [contain-intrinsic-size:auto_220px]"
+              >
+                <MessageBlock msg={m} ctx={ctx} />
+              </motion.div>
+            </Fragment>
           ))}
         </AnimatePresence>
       </StickToBottom.Content>
