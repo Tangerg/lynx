@@ -172,7 +172,7 @@ DESIGN.md 随重构**就地演进**（非冻结基线）。下列决策是相对
 
 ### Phase 1 — 基础层（行为基本不变、视觉大改）
 
-#### Step 1a — 排版配方 + token 基础  `[x]`  lane: des-1  **commit: `ffd43bd1`**
+#### Step 1a — 排版配方 + token 基础  `[x]`  lane: des-1  **commit: `994a9626`**
 **做什么**：重写 token 体系（字重/tracking/行高/tabular-nums 配方 + 颜色/radius/阴影精简）+ 移除 `--color-app-divider`（侧栏靠底色差分隔）。**不打包字体**——维持系统字族，靠配方修「不好看」。
 **改文件**：
 - `src/styles/globals.css`：`@theme inline` 桥接；字重/行高/tracking token（配方见 §3.2）；`--content-max` 720；shadow 精简到 3 个；移除 `--color-app-divider`、退役 shadow/orb token
