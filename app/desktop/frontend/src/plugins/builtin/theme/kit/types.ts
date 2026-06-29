@@ -98,23 +98,15 @@ export interface ThemeCta {
   ctaText: string;
 }
 
-/** Named shadow tokens. On dark, depth comes from surface ladder +
- *  hairlines — most tiers collapse to `none` and only the overlay
- *  layer (`shadow-lg`) gets a real stacked drop. On light, every tier
- *  carries a Vercel-style stacked shadow. Override individual tiers
- *  here when a theme wants a different elevation language (e.g. an
- *  ultra-flat theme might set lg to a single 1px line). */
+/** Named shadow tokens —精简到 3 canonical tokens (REDESIGN.md §3.4).
+ *  composer: composer container only (light gets a subtle drop, dark none).
+ *  elevated: dropdowns, popovers, modals, command palette.
+ *  focus: quiet inset 1px border for input focus — no glow halo.
+ *  Override individual keys when a theme wants a different elevation language. */
 export interface ThemeShadows {
-  xs: string;
-  sm: string;
-  md: string;
-  lg: string;
-  card: string;
-  dialog: string;
-  pop: string;
-  soft: string;
-  glow: string;
-  inputFocus: string;
+  composer: string;
+  elevated: string;
+  focus: string;
 }
 
 /** Global radius scale — themes that want a sharper or rounder feel
