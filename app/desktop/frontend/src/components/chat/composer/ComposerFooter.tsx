@@ -23,23 +23,16 @@ export function ComposerFooter() {
   const items = useExtensionPoint(COMPOSER_STATUS);
   if (items.length === 0) return null;
 
-  const start = items.filter((it) => it.align !== "end");
-  const end = items.filter((it) => it.align === "end");
-
   return (
-    <div className="relative z-[3] flex items-center gap-2 px-1 pb-0.5 pt-1.5">
-      <div className="flex min-w-0 flex-wrap items-center gap-1">
-        {start.map((it) => (
-          <Chip key={it.id} it={it} />
-        ))}
-      </div>
-      {end.length > 0 && (
-        <div className="ml-auto flex shrink-0 items-center gap-2.5 text-[11px] text-fg-muted tabular-nums">
-          {end.map((it) => (
-            <Chip key={it.id} it={it} />
-          ))}
-        </div>
-      )}
+    <div className="flex flex-wrap items-center mt-2 pt-2 border-t border-line/30" data-slot="composer-chips">
+      {items.map((it, i) => (
+        <span key={it.id} className="inline-flex items-center">
+          {i > 0 && (
+            <span className="mx-1.5 text-fg-faint/30 select-none" aria-hidden>·</span>
+          )}
+          <Chip it={it} />
+        </span>
+      ))}
     </div>
   );
 }
