@@ -241,9 +241,9 @@ DESIGN.md 随重构**就地演进**（非冻结基线）。下列决策是相对
 **改文件**：`src/components/tools/ToolCard.tsx`
 **验证**：全绿 + 视觉；只读工具仍走 `ToolGroup` 折叠（`planRenderUnits` 不动）。
 
-#### Step 5c — HITL 卡精简（Approval/Question）  `[ ]`  lane: des-1
+#### Step 5c — HITL 卡精简（Approval/Question）  `[x]`  lane: des-1  **commit: `c65835b5`**
 **做什么**：`HitlCardShell` 简化（去 tone 复杂度）→ `border-line bg-surface`；approval 命令块 `bg-warning/10`；按钮 native 化。
-**改文件**：`src/components/chat/message/cards/ApprovalCard.tsx`、`QuestionCard.tsx`、`HitlCard.tsx`
+**改文件**：`src/components/chat/message/cards/ApprovalCard.tsx`、`QuestionCard.tsx`、`HitlCard.tsx`、`ApprovalArgsEditor.tsx`
 **验证**：全绿 + 视觉；`ApprovalArgsEditor` / 记忆范围 / 键盘快捷（⌘↵/⇧⌘⌫）全保留。
 
 ### Phase 6 — 收尾抛光
