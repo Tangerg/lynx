@@ -67,11 +67,11 @@ export function ReasoningBlock({ text, status }: Props) {
   const preview = streaming ? "" : truncate(text, 80);
 
   return (
-    <div className="my-1.5 rounded-md bg-surface px-2.5 py-1.5">
+    <div className="my-1">
       <button
         type="button"
         onClick={toggle}
-        className="inline-flex max-w-full items-center gap-2 rounded-sm border-0 px-2 py-1 font-mono text-[12px] font-medium text-fg-faint transition-colors duration-150 hover:bg-fg/[0.02] hover:text-fg active:bg-fg/[0.04]"
+        className="inline-flex max-w-full items-center gap-2 rounded-md border-0 px-2 py-1 font-mono text-[12px] font-medium text-fg-faint transition-colors duration-150 hover:bg-fg/[0.02] hover:text-fg active:bg-fg/[0.04]"
       >
         <Icon name="sparkle" size={11} />
         <span className="shrink-0 [font-feature-settings:'tnum']">{label}</span>
