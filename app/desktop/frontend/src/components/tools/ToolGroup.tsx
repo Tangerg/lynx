@@ -68,14 +68,14 @@ export function ToolGroup({
 
   return (
     <div className="my-0.5">
-      {/* Summary row — craft-style inline row, no card. */}
+      {/* Summary row — bare text line, no bg, no border, no surface. */}
       <button
         type="button"
         onClick={() => setPinned(!expanded)}
         aria-expanded={expanded}
         className={cn(
-          "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition-[background-color] duration-75",
-          "hover:bg-fg/[0.02] focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_var(--color-accent)]",
+          "flex w-full items-center gap-2 px-2 py-0.5 text-left",
+          "focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_var(--color-accent)]",
         )}
       >
         <Icon

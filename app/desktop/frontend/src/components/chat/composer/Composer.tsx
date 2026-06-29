@@ -46,6 +46,7 @@ interface Props {
   /** Whether the next run's model accepts images — gates paste/drop staging so
    *  it matches the toolbar attach button (which disables for text-only models). */
   acceptsImages: boolean;
+  children?: React.ReactNode;
 }
 
 export function Composer({
@@ -60,6 +61,7 @@ export function Composer({
   onRemovePaste,
   onAddPaste,
   acceptsImages,
+  children,
 }: Props) {
   const t = useT();
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -226,6 +228,7 @@ export function Composer({
         <div className="flex-1 min-w-2" />
         <Slot name="composer.toolbar.end" />
       </div>
+      {children}
     </div>
   );
 }
