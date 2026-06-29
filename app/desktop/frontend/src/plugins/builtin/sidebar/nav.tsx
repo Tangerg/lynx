@@ -83,17 +83,25 @@ function NavGroup({
   return (
     <>
       <SectionLabel>{label}</SectionLabel>
-      {destinations.map((d) => (
-        <NavRow
-          key={d.id}
-          icon={d.icon}
-          label={t(d.titleKey)}
-          active={activeMainView === d.id}
-          onClick={() =>
-            useSessionStore.getState().openMainView({ id: d.id, title: d.titleKey, icon: d.icon })
-          }
-        />
-      ))}
+      {destinations.map((d) => {
+        const active = activeMainView === d.id;
+        return (
+          <NavRow
+            key={d.id}
+            icon={d.icon}
+            label={t(d.titleKey)}
+            active={active}
+            onClick={() => {
+              const store = useSessionStore.getState();
+              if (active) {
+                store.closeMainView(d.id);
+              } else {
+                store.openMainView({ id: d.id, title: d.titleKey, icon: d.icon });
+              }
+            }}
+          />
+        );
+      })}
     </>
   );
 }

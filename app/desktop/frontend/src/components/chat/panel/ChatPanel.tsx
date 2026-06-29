@@ -12,14 +12,13 @@
 
 import type { UserInput } from "@/lib/agent/composerInput";
 import type { ViewPlacement } from "./ViewPlacement";
-import { Panel } from "@/components/common";
+import { dragClasses, Panel } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { useSessions } from "@/lib/data/queries";
 import { useWorkspaceViews } from "@/plugins/sdk";
 import { useSessionStore } from "@/state/sessionStore";
 import { useUiStore } from "@/state/uiStore";
 import { ChatStream } from "./ChatStream";
-import { PanelHeader } from "./PanelHeader";
 import { SplitResizer } from "./SplitResizer";
 import { ViewPlacementProvider } from "./ViewPlacement";
 import { WorkspaceViewBody } from "./WorkspaceViewBody";
@@ -69,7 +68,10 @@ export function ChatPanel({ onSend }: Props) {
     // snapped the chat to the top). MessageOutline's visibility keys off a
     // viewport media query instead of a container query — see MessageOutline.
     <Panel className="relative">
-      <PanelHeader />
+      {/* macOS drag region — the tab strip that used to own this is gone,
+          so a thin strip preserves the ability to drag the window from the
+          main-pane top edge. Interactive children opt out via noDragClasses. */}
+      <div className={cn("h-9 shrink-0", dragClasses)} />
       {activeMainView ? (
         <ViewPlacementProvider value={placementFor(activeMainView, "full")}>
           <WorkspaceViewBody viewId={activeMainView} />

@@ -51,6 +51,8 @@ export interface HeaderTabCloseActions {
 
 interface SessionState {
   activeSessionId: string;
+  /** @deprecated Tabs removed in Step 2a — field retained to avoid TS
+   *  breakage; no UI reads this. Will be removed in a future cleanup. */
   tabIds: string[];
 
   /**
@@ -60,6 +62,9 @@ interface SessionState {
    * pane to read at full width. When `activeMainView` is set, the chat
    * panel renders that view's component instead of the message stream.
    * Selecting a chat session tab clears `activeMainView`.
+   *
+   * @deprecated Tab strip removed in Step 2a — field retained for
+   * internal closeMainView bookkeeping; no UI renders tabs.
    */
   mainViewTabs: MainViewTab[];
   activeMainView: string | null;
@@ -409,7 +414,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
       }),
       // Persisted shape is dev-phase only; bump to discard stale payloads
       // rather than migrate (the merge below Zod-validates what survives).
-      version: 2,
+      version: 3,
       merge: (persisted, current) => {
         const parsed = sessionPersistSchema.safeParse(persisted);
         if (!parsed.success) {
