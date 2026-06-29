@@ -494,7 +494,6 @@ function SendButton() {
             type="button"
             onClick={() => submitComposer({ value, clear, sendInput: send, images })}
             className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 bg-accent text-on-accent shadow-minimal transition-transform duration-150 active:scale-95"
-            style={{ boxShadow: "var(--shadow-accent-glow), var(--shadow-minimal)" }}
           >
             <Icon name="send-arrow" size={14} strokeWidth={2.5} />
           </button>
@@ -532,7 +531,6 @@ function SendButton() {
             ? "bg-transparent text-fg-faint/30 cursor-not-allowed"
             : "bg-accent text-on-accent shadow-minimal active:scale-95",
         )}
-        style={disabled ? undefined : { boxShadow: "var(--shadow-accent-glow), var(--shadow-minimal)" }}
       >
         <Icon name="send-arrow" size={14} strokeWidth={2.5} />
       </button>
