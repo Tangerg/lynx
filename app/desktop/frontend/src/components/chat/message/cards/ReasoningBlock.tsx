@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { MarkdownMessage } from "../markdown/MarkdownMessage";
 import { Collapsible, Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 
 interface Props {
   text: string;
@@ -23,6 +24,9 @@ interface Props {
 // false. Server-authoritative duration would be cleaner, but reasoning
 // timestamps aren't in the protocol events today and a 50ms render skew on a
 // label that always reads "thought for Xs" is not worth a protocol change.
+//
+// Streaming auto-follow (ResizeObserver pin-to-bottom) + top/bottom gradient
+// fades ported from assistant-ui canonical reasoning component technique.
 export function ReasoningBlock({ text, status }: Props) {
   const t = useT();
   const streaming = status === "running";
@@ -66,11 +70,60 @@ export function ReasoningBlock({ text, status }: Props) {
       : t("reasoning.thought");
   const preview = streaming ? "" : truncate(text, 80);
 
+  // ---- Bounded scroll + auto-follow + fades ----
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [scrollHeight, setScrollHeight] = useState(0);
+  const [clientHeight, setClientHeight] = useState(0);
+
+  // ResizeObserver: pin to bottom while streaming so new tokens stay visible.
+  useEffect(() => {
+    if (!streaming) return;
+    const scrollEl = scrollRef.current;
+    const contentEl = contentRef.current;
+    if (!scrollEl || !contentEl) return;
+    const pin = () => {
+      scrollEl.scrollTop = scrollEl.scrollHeight;
+      // Eagerly update metrics so fade states stay in sync.
+      setScrollTop(scrollEl.scrollTop);
+      setScrollHeight(scrollEl.scrollHeight);
+      setClientHeight(scrollEl.clientHeight);
+    };
+    pin();
+    const ro = new ResizeObserver(pin);
+    ro.observe(contentEl);
+    return () => ro.disconnect();
+  }, [streaming]);
+
+  // Keep metrics in sync when content or open state changes.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setScrollTop(el.scrollTop);
+    setScrollHeight(el.scrollHeight);
+    setClientHeight(el.clientHeight);
+  }, [text, isOpen]);
+
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setScrollTop(el.scrollTop);
+    setScrollHeight(el.scrollHeight);
+    setClientHeight(el.clientHeight);
+  };
+
+  const hasOverflow = scrollHeight > clientHeight;
+  const atBottom = scrollHeight - scrollTop - clientHeight < 4;
+  const showTopFade = isOpen && scrollTop > 0;
+  const showBottomFade = isOpen && streaming && hasOverflow && !atBottom;
+
   return (
-    <div className="my-1">
+    <div data-slot="reasoning-root" className="my-1">
       <button
         type="button"
         onClick={toggle}
+        data-slot="reasoning-trigger"
         className="inline-flex max-w-full items-center gap-2 rounded-md border-0 px-2 py-1 font-mono text-[12px] font-medium text-fg-faint transition-colors duration-150 hover:bg-fg/[0.02] hover:text-fg active:bg-fg/[0.04]"
       >
         <Icon name="sparkle" size={11} />
@@ -88,13 +141,46 @@ export function ReasoningBlock({ text, status }: Props) {
           inside the message stream, where FM's auto-measure makes
           use-stick-to-bottom clamp the chat to the top (see Collapsible). */}
       <Collapsible open={isOpen}>
-        <div className="whitespace-pre-wrap px-0 pb-1 pt-1.5 text-[13px] italic leading-[1.6] text-fg-muted">
-          <MarkdownMessage text={text} streaming={streaming} />
-          {status === "incomplete" && (
-            <div className="mt-1 font-mono text-[11px] text-fg-faint">
-              <Icon name="x" size={10} /> {t("reasoning.interrupted")}
-            </div>
+        <div
+          data-slot="reasoning-content"
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className={cn(
+            "relative overflow-hidden",
+            streaming && isOpen && "max-h-48 overflow-y-auto",
           )}
+        >
+          {/* Top fade — visible when scrolled down */}
+          <div
+            data-slot="reasoning-fade-top"
+            className={cn(
+              "pointer-events-none absolute inset-x-0 top-0 z-10 h-6",
+              "bg-[linear-gradient(to_bottom,var(--color-bg),transparent)]",
+              "transition-opacity duration-[var(--dur-fast)]",
+              showTopFade ? "opacity-100" : "opacity-0",
+            )}
+          />
+          <div
+            ref={contentRef}
+            className="whitespace-pre-wrap px-0 pb-1 pt-1.5 text-[13px] italic leading-[1.6] text-fg-muted"
+          >
+            <MarkdownMessage text={text} streaming={streaming} />
+            {status === "incomplete" && (
+              <div className="mt-1 font-mono text-[11px] text-fg-faint">
+                <Icon name="x" size={10} /> {t("reasoning.interrupted")}
+              </div>
+            )}
+          </div>
+          {/* Bottom fade — visible while streaming and not at bottom */}
+          <div
+            data-slot="reasoning-fade-bottom"
+            className={cn(
+              "pointer-events-none absolute inset-x-0 bottom-0 z-10 h-6",
+              "bg-[linear-gradient(to_top,var(--color-bg),transparent)]",
+              "transition-opacity duration-[var(--dur-fast)]",
+              showBottomFade ? "opacity-100" : "opacity-0",
+            )}
+          />
         </div>
       </Collapsible>
     </div>
