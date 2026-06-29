@@ -2,7 +2,7 @@ import type { ApprovalDecision, RememberScope } from "@/lib/agent/useApprovalSub
 import type { BlockStatus } from "@/protocol/run/viewState";
 import type { ApprovalActions } from "@/lib/agent/approvalActions";
 import { useEffect, useRef, useState } from "react";
-import { Checkbox, Divider, Icon, PillButton, Segmented } from "@/components/common";
+import { Checkbox, Divider, Icon, Segmented } from "@/components/common";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
 import { registerApprovalActions } from "@/lib/agent/approvalActions";
@@ -48,7 +48,7 @@ interface Props {
 const RISK_BADGE_CLASS: Record<Risk, string> = {
   low: "border-fg-faint/30 bg-fg-faint/10 text-fg-muted",
   medium: "border-warning/40 bg-warning/15 text-warning",
-  high: "border-negative/50 bg-negative/15 text-negative",
+  high: "border-negative/40 bg-negative/15 text-negative",
 };
 
 const RISK_I18N_KEY: Record<Risk, string> = {
@@ -159,13 +159,15 @@ export function ApprovalCard({
   const dangers = cmd.trim() ? dangerHints(cmd) : [];
   return (
     <HitlCardShell
-      tone="warning"
+      data-slot="approval-card"
+      variant="warning"
       icon="shield"
+      iconClassName="text-warning"
       label={t("approval.required")}
       trailing={
         <span
           className={cn(
-            "rounded-sm border px-1.5 py-px font-mono text-[10px] font-semibold",
+            "rounded-sm border px-1.5 py-px text-[10px] font-medium",
             RISK_BADGE_CLASS[effectiveRisk],
           )}
         >
@@ -178,7 +180,7 @@ export function ApprovalCard({
           tools have no `cmd` (their payload is just args), so skip the box
           instead of rendering a lonely "$". */}
       {cmd.trim() && (
-        <code className="my-1.5 block whitespace-pre-wrap break-all rounded-sm bg-warning/14 px-2.5 py-1.5 font-mono text-[13px] text-fg">
+        <code className="my-1.5 block whitespace-pre-wrap break-all rounded-sm bg-warning/10 px-2.5 py-1.5 font-mono text-[13px] text-fg">
           $ {cmd}
         </code>
       )}
@@ -236,14 +238,26 @@ export function ApprovalCard({
       )}
       <div className="mb-2 text-[13px] leading-[1.55] text-fg-muted">{reason}</div>
       <div className="flex items-center gap-2">
-        <PillButton variant="accent" size="sm" disabled={disabled} onClick={onApprove}>
+        <button
+          type="button"
+          data-slot="approval-approve"
+          disabled={disabled}
+          onClick={onApprove}
+          className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-fg px-3 py-1.5 text-[13px] font-medium text-canvas transition-opacity duration-150 ease-out hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+        >
           {t("approval.action.approve")}
           {!disabled && <kbd className="ml-1.5 font-mono text-[10px] opacity-60">⌘↵</kbd>}
-        </PillButton>
-        <PillButton size="sm" disabled={disabled} onClick={onDecline}>
+        </button>
+        <button
+          type="button"
+          data-slot="approval-decline"
+          disabled={disabled}
+          onClick={onDecline}
+          className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-line bg-transparent px-3 py-1.5 text-[13px] font-medium text-fg transition-colors duration-150 ease-out hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
+        >
           {t("approval.action.decline")}
           {!disabled && <kbd className="ml-1.5 font-mono text-[10px] opacity-60">⇧⌘⌫</kbd>}
-        </PillButton>
+        </button>
         <label className="ml-auto flex cursor-pointer items-center gap-1.5 text-[11.5px] text-fg-muted select-none">
           <Checkbox
             checked={remember}
