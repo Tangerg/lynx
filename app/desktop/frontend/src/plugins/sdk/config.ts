@@ -13,12 +13,7 @@ import { create } from "zustand";
 import { safeCall } from "./errors";
 
 export type ConfigValue =
-  | string
-  | number
-  | boolean
-  | null
-  | ConfigValue[]
-  | { [key: string]: ConfigValue };
+  string | number | boolean | null | ConfigValue[] | { [key: string]: ConfigValue };
 
 interface ConfigStoreState {
   values: Map<string, ConfigValue>;

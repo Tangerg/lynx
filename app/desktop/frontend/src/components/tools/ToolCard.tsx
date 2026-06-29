@@ -49,22 +49,25 @@ function formatToolIntent(tool: ToolCall): { label: string; detail?: string } {
     else if (args.path) detail = String(args.path);
     else if (args.query) detail = String(args.query);
     else if (args.pattern) detail = String(args.pattern);
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return { label: labelMap[tool.fn] ?? tool.fn, detail };
 }
 
-export function ToolCard({ tool, selected: _selected, expanded, onToggleExpand, onOpenView: _onOpenView }: Props) {
+export function ToolCard({
+  tool,
+  selected: _selected,
+  expanded,
+  onToggleExpand,
+  onOpenView: _onOpenView,
+}: Props) {
   const running = tool.status === "running";
   const actions = useExtensionPoint(TOOL_ACTION).filter((a) => !a.predicate || a.predicate(tool));
   const intent = formatToolIntent(tool);
 
   return (
-    <div
-      className={cn(
-        "tool-card group relative my-0.5",
-        running && "running",
-      )}
-    >
+    <div className={cn("tool-card group relative my-0.5", running && "running")}>
       {/* Collapsed / expanded row — a single bare text line, no bg, no
           border, no surface. Reads like a log entry on the canvas. */}
       <button
@@ -181,19 +184,27 @@ function ToolMeta({ tool }: { tool: ToolCall }) {
 
   if (tool.added != null) {
     parts.push(
-      <span key="+" className="text-success">+{tool.added}</span>,
+      <span key="+" className="text-success">
+        +{tool.added}
+      </span>,
     );
   }
   if (tool.removed != null) {
     parts.push(
-      <span key="-" className="text-negative">−{tool.removed}</span>,
+      <span key="-" className="text-negative">
+        −{tool.removed}
+      </span>,
     );
   }
   if (tool.hits != null) {
     parts.push(<span key="h">{tool.hits} matches</span>);
   }
   if (tool.exitCode != null && tool.exitCode !== 0) {
-    parts.push(<span key="e" className="text-negative">exit {tool.exitCode}</span>);
+    parts.push(
+      <span key="e" className="text-negative">
+        exit {tool.exitCode}
+      </span>,
+    );
   }
   if (tool.status === "running") {
     parts.push(<span key="l">live</span>);

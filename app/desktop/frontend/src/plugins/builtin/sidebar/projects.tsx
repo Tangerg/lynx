@@ -6,7 +6,6 @@
 
 import type { SidebarProject, SidebarSession } from "@/lib/data/queries";
 import { useMemo, useState } from "react";
-import * as Popover from "@radix-ui/react-popover";
 import { DataView, FIELD_CLASSES, Icon, SectionLabel } from "@/components/common";
 import { ProjectRow } from "@/components/sidebar/ProjectRow";
 import { SessionRow } from "@/components/sidebar/SessionRow";
@@ -36,61 +35,37 @@ interface ProjectGroup {
 
 // "+" — create a session in a chosen directory (sessions.create cwd). The
 // runtime derives projects from session cwds, so "adding a project" IS
-// creating the first session there; the popover just asks for the path.
-function AddProjectButton() {
+// creating the first session there; the inline input just asks for the path.
+function AddProjectInline() {
   const t = useT();
   const createSession = useCreateSession();
-  const [open, setOpen] = useState(false);
   const [path, setPath] = useState("");
 
   const submit = (): void => {
     const cwd = path.trim();
     if (!cwd) return;
-    setOpen(false);
     setPath("");
     void createSession({ cwd });
   };
 
   return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
-      <Popover.Trigger asChild>
-        <button
-          type="button"
-          title={t("sidebar.action.addProject")}
-          aria-label={t("sidebar.action.addProject")}
-          className="ml-auto grid h-6.5 w-6.5 place-items-center rounded-full border-0 bg-surface-2 text-fg-muted transition-colors hover:bg-surface-3 hover:text-fg active:scale-[0.92]"
-        >
-          <Icon name="plus" size={12} />
-        </button>
-      </Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Content
-          side="bottom"
-          align="start"
-          sideOffset={6}
-          className="z-50 w-[300px] rounded-lg border border-line bg-surface p-3 shadow-lg"
-        >
-          <div className="mb-2 text-[11px] font-semibold text-fg-faint">
-            {t("sidebar.addProject.title")}
-          </div>
-          <input
-            type="text"
-            value={path}
-            onChange={(e) => setPath(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") submit();
-            }}
-            placeholder={t("sidebar.addProject.placeholder")}
-            aria-label={t("sidebar.addProject.placeholder")}
-            spellCheck={false}
-            className={cn(FIELD_CLASSES, "h-7 w-full px-2 text-fg")}
-          />
-          <div className="mt-1.5 text-[10.5px] leading-[1.4] text-fg-faint">
-            {t("sidebar.addProject.hint")}
-          </div>
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
+    <div className="px-3 pb-1.5">
+      <div className="flex items-center gap-1.5 rounded-md border border-line bg-surface-2 px-2 py-1.5">
+        <Icon name="plus" size={12} className="shrink-0 text-fg-faint" />
+        <input
+          type="text"
+          value={path}
+          onChange={(e) => setPath(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") submit();
+          }}
+          placeholder={t("sidebar.addProject.placeholder")}
+          aria-label={t("sidebar.addProject.placeholder")}
+          spellCheck={false}
+          className={cn(FIELD_CLASSES, "h-5 flex-1 bg-transparent px-0 text-[12px] text-fg")}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -227,46 +202,12 @@ function ProjectsSection() {
     void createSession({ cwd: project.id });
   };
 
-  // In-sidebar session filter: a case-insensitive match on session title (and
-  // the project name, so "lynx" surfaces every session under that project).
-  // Empty query = the full tree. There was no session search anywhere before
-  // (the ⌘K palette indexes commands, not sessions), so a busy history had no
-  // way to find an old conversation but scrolling.
-  const [query, setQuery] = useState("");
-  const filtering = query.trim() !== "";
-  const filteredGroups = useMemo<ProjectGroup[] | undefined>(() => {
-    if (!filtering || !groups) return groups;
-    const q = query.trim().toLowerCase();
-    const out: ProjectGroup[] = [];
-    for (const g of groups) {
-      if (g.project.name.toLowerCase().includes(q)) {
-        out.push(g);
-        continue;
-      }
-      const sessions = g.sessions.filter((s) => s.title.toLowerCase().includes(q));
-      if (sessions.length > 0) out.push({ ...g, sessions });
-    }
-    return out;
-  }, [filtering, groups, query]);
-
   return (
     <>
-      <SectionLabel trailing={<AddProjectButton />}>{t("sidebar.section.projects")}</SectionLabel>
-      {groups && groups.length > 0 && (
-        <div className="pb-1.5">
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t("sidebar.sessionFilter.placeholder")}
-            aria-label={t("sidebar.sessionFilter.placeholder")}
-            spellCheck={false}
-            className={cn(FIELD_CLASSES, "h-7 w-full px-2 text-[12px] text-fg")}
-          />
-        </div>
-      )}
+      <SectionLabel>{t("sidebar.section.projects")}</SectionLabel>
+      <AddProjectInline />
       <DataView
-        items={filteredGroups}
+        items={groups}
         // Mirror the data we actually have, not the worst of the two queries:
         // once EITHER resolves `groups` is defined, so a partial failure (e.g.
         // projects errors but sessions loaded) still renders the available
@@ -274,16 +215,12 @@ function ProjectsSection() {
         isLoading={(projectsLoading || sessionsLoading) && !groups}
         isError={(projectsError || sessionsError) && !groups}
         skeletonCount={3}
-        empty={
-          filtering
-            ? { icon: "search", title: t("sidebar.sessionFilter.empty"), size: "compact" }
-            : {
-                icon: "folder",
-                title: t("projects.empty.title"),
-                sub: t("projects.empty.sub"),
-                size: "compact",
-              }
-        }
+        empty={{
+          icon: "folder",
+          title: t("projects.empty.title"),
+          sub: t("projects.empty.sub"),
+          size: "compact",
+        }}
       >
         {(items) => (
           <div className={sideListClasses}>
@@ -293,7 +230,6 @@ function ProjectsSection() {
                 group={g}
                 activeCwd={activeCwd}
                 activeSessionId={activeSessionId}
-                forceExpand={filtering}
                 onNewSession={openProject}
                 onSelect={selectTab}
                 onRename={(id, title) => void renameSession(id, title)}

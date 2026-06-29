@@ -58,7 +58,7 @@ function NavRow({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-2.5 rounded-md border-0 bg-transparent px-2 py-1.5 text-left",
+        "flex w-full items-center gap-2.5 rounded-md border-0 bg-transparent px-3 py-2 text-left",
         "font-sans text-[13px] text-fg-muted transition-[background-color,transform] duration-75 active:scale-[0.99]",
         "hover:bg-fg/[0.02] hover:text-fg",
         active && "bg-fg/[0.03] text-fg",

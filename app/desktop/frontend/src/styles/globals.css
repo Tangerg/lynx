@@ -185,7 +185,7 @@
 
   /* Hairlines — alpha-based on dark so they sit softly; light themes
      override to literal hex. */
-  --color-border: rgba(255, 255, 255, 0.10);
+  --color-border: rgba(255, 255, 255, 0.1);
   --color-border-soft: rgba(255, 255, 255, 0.06);
   --color-divider: rgba(255, 255, 255, 0.08);
 
@@ -273,8 +273,7 @@
    *  focus: 输入框焦点 inset 1px，无 halo glow
    * ----------------------------------------------------------------------- */
   --shadow-composer: none;
-  --shadow-elevated:
-    0 4px 12px -4px rgba(0, 0, 0, 0.3);
+  --shadow-elevated: 0 4px 12px -4px rgba(0, 0, 0, 0.3);
   --shadow-focus: inset 0 0 0 1px var(--color-border-soft);
 
   /* Legacy shadow aliases — old names mapped to new canonical tokens so

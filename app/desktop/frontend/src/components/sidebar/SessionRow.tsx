@@ -1,7 +1,7 @@
 import type { SidebarSession } from "@/lib/data/queries";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { useState } from "react";
-import { Icon, MENU_CONTENT_CLASSES, MenuIconItem, StatusDot } from "@/components/common";
+import { Icon, MENU_CONTENT_CLASSES, MenuIconItem } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { formatRelative } from "@/lib/i18n/relativeTime";
 import { cn } from "@/lib/utils";
@@ -58,25 +58,21 @@ export function SessionRow({
 
   const inner = (
     <>
-      {active && (
-        <div className="absolute left-0 inset-y-0 w-[2px] bg-accent rounded-full" />
-      )}
+      {active && <div className="absolute left-0 inset-y-0 w-[2px] bg-accent rounded-full" />}
       <button
         type="button"
         onClick={() => onSelect(session.id)}
         aria-current={active ? "page" : undefined}
         aria-label={session.title}
         className={cn(
-          "flex w-full items-start gap-2.5 rounded-md border-0 bg-transparent px-2 py-2.5 text-left transition-[background-color] duration-75 hover:bg-fg/[0.02] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+          "flex w-full items-start gap-2.5 rounded-md border-0 bg-transparent px-3 py-2 text-left transition-[background-color] duration-75 hover:bg-fg/[0.02] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
           active && "bg-fg/[0.03]",
         )}
       >
         <div
           className={cn(
             "shrink-0 flex items-center justify-center h-4.5 w-4.5 transition-colors",
-            session.favorite
-              ? "text-accent"
-              : "text-fg-muted group-hover:text-fg",
+            session.favorite ? "text-accent" : "text-fg-muted group-hover:text-fg",
             active && !session.favorite && "text-fg",
           )}
         >
@@ -122,11 +118,10 @@ export function SessionRow({
             </div>
           )}
           <div
-            className="flex items-center gap-1.5 text-[11px] leading-[1.2] text-fg-faint"
+            className="text-[12px] leading-[1.2] text-fg-faint"
             title={session.status === "idle" ? session.time : undefined}
           >
-            <StatusDot tone={session.status} />
-            <span className="truncate">{subText}</span>
+            {subText}
           </div>
         </div>
       </button>

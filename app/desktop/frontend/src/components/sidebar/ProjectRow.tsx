@@ -28,12 +28,13 @@ export function ProjectRow({
     <div
       className={cn(
         "relative group select-none pl-2",
-        active && "before:content-[''] before:absolute before:left-0 before:inset-y-0 before:w-[2px] before:bg-accent before:rounded-full",
+        active &&
+          "before:content-[''] before:absolute before:left-0 before:inset-y-0 before:w-[2px] before:bg-accent before:rounded-full",
       )}
     >
       <div
         className={cn(
-          "flex items-center gap-1 rounded-md px-2 py-2.5 transition-[background-color] duration-75 hover:bg-fg/[0.02]",
+          "flex items-center gap-1 rounded-md px-3 py-2 transition-[background-color] duration-75 hover:bg-fg/[0.02]",
           active && "bg-fg/[0.03]",
         )}
       >
@@ -42,8 +43,16 @@ export function ProjectRow({
           onClick={() => onToggle(project.id)}
           title={project.id}
           aria-expanded={open}
-          className="flex flex-1 items-center gap-2.5 min-w-0 border-0 bg-transparent text-left"
+          className="flex flex-1 items-center gap-2 min-w-0 border-0 bg-transparent text-left"
         >
+          <Icon
+            name="chevron-down"
+            size={12}
+            className={cn(
+              "shrink-0 text-fg-faint transition-transform duration-150",
+              !open && "-rotate-90",
+            )}
+          />
           <span
             className={cn(
               "shrink-0 flex items-center justify-center h-4.5 w-4.5 text-fg-muted transition-colors group-hover:text-fg",
@@ -77,14 +86,7 @@ export function ProjectRow({
         >
           <Icon name="plus" size={11} />
         </button>
-        <span
-          className={cn(
-            "rounded-full bg-surface-2 px-1.5 py-px text-[10px] text-fg-muted",
-            count === 0 && "opacity-0",
-          )}
-        >
-          {count}
-        </span>
+        <span className="text-[12px] text-fg-faint tabular-nums">{count}</span>
       </div>
     </div>
   );

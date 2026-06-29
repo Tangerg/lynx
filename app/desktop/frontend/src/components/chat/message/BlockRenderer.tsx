@@ -24,8 +24,7 @@ import { hasToolView, openViewForTool } from "@/state/toolRouting";
  * adjacent read-only tool calls.
  */
 type RenderUnit =
-	| { kind: "block"; block: ContentBlock; index: number }
-	| { kind: "toolGroup"; tools: ToolCall[] };
+  { kind: "block"; block: ContentBlock; index: number } | { kind: "toolGroup"; tools: ToolCall[] };
 
 /**
  * Fold a message's blocks into render units, collapsing runs of 2+ adjacent

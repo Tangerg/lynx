@@ -1,7 +1,7 @@
 // Expanded sidebar — slim chrome: collapse button + search box + scroll
 // area of plugin-contributed sections + plugin-contributed footer.
 
-import { DragStrip, Icon, noDragClasses, Panel, ScrollArea } from "@/components/common";
+import { Icon, dragClasses, noDragClasses, Panel, ScrollArea } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
@@ -18,21 +18,11 @@ export function SidebarExpanded({ onToggleRail }: Props) {
 
   return (
     // `sidebar` class is kept as a DOM hook for layout.css (macOS
-    // titlebar padding + Wails drag region opt-outs). All visual styling
-    // is Tailwind here. `pt-9` reserves the titlebar / traffic-lights
-    // row so the search box doesn't ride up against the window edge.
-    <Panel className="sidebar relative gap-1.5 px-2 pb-3 pt-9">
-      {/* macOS drag-region strip — invisible 36px band over the
-          titlebar row so the window can be dragged by its top edge.
-          The collapse button below sits inside the same band but opts
-          back out of the drag region via `noDragClasses`. */}
-      <DragStrip height={36} />
-
+    // titlebar padding). The entire panel is a drag region; interactive
+    // children opt out via `noDragClasses`.
+    <Panel className={cn("sidebar relative gap-1.5 px-2 pb-3 pt-3", dragClasses)}>
       {/* Collapse button — pinned at the top-right corner of the
-          sidebar, vertically aligned with the macOS traffic-light row.
-          The previous version had a wide empty row underneath the
-          drag strip (originally meant for a logo); that row is gone
-          and the button moves up here. */}
+          sidebar, vertically aligned with the macOS traffic-light row. */}
       <button
         type="button"
         onClick={onToggleRail}
@@ -48,21 +38,25 @@ export function SidebarExpanded({ onToggleRail }: Props) {
         <Icon name="panel-l" size={14} />
       </button>
 
-      <Slot name="sidebar.search" />
+      <div className={noDragClasses}>
+        <Slot name="sidebar.search" />
+      </div>
 
       <ScrollArea hideScrollbar style={{ padding: "0 0 8px 0" }}>
-        {sections.map((section) => {
-          const Body = section.component;
-          return (
-            <PluginBoundary
-              key={section.id}
-              plugin={`sidebar:${section.id}`}
-              label={`${section.id} section`}
-            >
-              <Body />
-            </PluginBoundary>
-          );
-        })}
+        <div className={noDragClasses}>
+          {sections.map((section) => {
+            const Body = section.component;
+            return (
+              <PluginBoundary
+                key={section.id}
+                plugin={`sidebar:${section.id}`}
+                label={`${section.id} section`}
+              >
+                <Body />
+              </PluginBoundary>
+            );
+          })}
+        </div>
       </ScrollArea>
 
       <div className="mt-auto px-1 pt-4">
