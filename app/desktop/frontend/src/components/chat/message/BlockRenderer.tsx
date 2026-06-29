@@ -23,9 +23,9 @@ import { hasToolView, openViewForTool } from "@/state/toolRouting";
  * which the caller's streaming-text coercion keys off) or a folded run of
  * adjacent read-only tool calls.
  */
-export type RenderUnit =
-  | { kind: "block"; block: ContentBlock; index: number }
-  | { kind: "toolGroup"; tools: ToolCall[] };
+type RenderUnit =
+	| { kind: "block"; block: ContentBlock; index: number }
+	| { kind: "toolGroup"; tools: ToolCall[] };
 
 /**
  * Fold a message's blocks into render units, collapsing runs of 2+ adjacent
