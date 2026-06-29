@@ -10,10 +10,10 @@
 import type { IconName } from "@/components/common";
 import type { CommandSpec } from "@/plugins/sdk";
 import { SHORTCUT } from "@/plugins/sdk/kernelPoints";
-import { comboGlyph } from "../comboGlyph";
+import { comboGlyph } from "@/lib/combo";
 import { Command } from "cmdk";
 import { useMemo } from "react";
-import { create } from "zustand";
+import { usePaletteStore } from "@/state/paletteStore";
 import { Icon } from "@/components/common";
 import { t, useT } from "@/lib/i18n";
 import {
@@ -24,18 +24,6 @@ import {
   useCommands,
 } from "@/plugins/sdk";
 import { useWhenContext } from "@/state/useWhenContext";
-
-interface PaletteState {
-  open: boolean;
-  setOpen: (open: boolean) => void;
-  toggle: () => void;
-}
-
-export const usePaletteStore = create<PaletteState>((set) => ({
-  open: false,
-  setOpen: (open) => set({ open }),
-  toggle: () => set((s) => ({ open: !s.open })),
-}));
 
 function CommandPalette() {
   const t = useT();

@@ -1,10 +1,12 @@
-// Combo → platform-native display glyphs. "Mod+Shift+K" → ["⌘","⇧","K"] on Mac,
-// ["Ctrl","Shift","K"] elsewhere. Keeps the canonical combo for matching but
-// presents the keys the way the OS prints them. Detection is one-shot at module
-// load — switching OS mid-session isn't a thing.
+// Combo → platform-native display glyphs. "Mod+Shift+K" → ["⌘","⇧","K"] on
+// Mac, ["Ctrl","Shift","K"] elsewhere. Keeps the canonical combo for matching
+// but presents the keys the way the OS prints them. Detection is one-shot at
+// module load — switching OS mid-session isn't a thing.
 //
-// Shared by the command palette (compact glyph string) and the shortcuts pane
-// (one <kbd> per part), so a command's combo renders identically in both.
+// Pure formatting util shared by the command palette (compact glyph string),
+// the shortcuts pane (one <kbd> per part), and the welcome screen. Lives in
+// lib/ so any plugin can consume it without reaching into another plugin's
+// directory.
 
 const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPod|iPad/.test(navigator.platform);
 
