@@ -10,52 +10,15 @@ import type { ThemeCta, ThemePluginSpec, ThemeRadii, ThemeShadows } from "./type
 // Default shadow + radii ladders
 
 export const DARK_SHADOWS: ThemeShadows = {
-  xs: "none",
-  sm: "none",
-  md: "none",
-  lg:
-    "inset 0 1px 0 rgba(255, 255, 255, 0.04), " +
-    "0 1px 2px rgba(0, 0, 0, 0.40), " +
-    "0 8px 16px -4px rgba(0, 0, 0, 0.50), " +
-    "0 24px 32px -8px rgba(0, 0, 0, 0.60), " +
-    "inset 0 0 0 1px var(--color-border)",
-  card: "none",
-  dialog: "var(--shadow-lg)",
-  pop: "var(--shadow-lg)",
-  soft: "none",
-  glow: "0 0 12px color-mix(in oklab, var(--color-accent) 50%, transparent)",
-  inputFocus:
-    "0 0 0 2px color-mix(in oklab, var(--color-accent) 30%, transparent), " +
-    "inset 0 0 0 1px var(--color-border-soft)",
+  composer: "none",
+  elevated: "0 4px 12px -4px rgba(0, 0, 0, 0.3)",
+  focus: "inset 0 0 0 1px var(--color-border-soft)",
 };
 
-// Light-mode elevation uses the three-layer umbra / penumbra / ambient model
-// (Material 3 / Ant) instead of a single drop: a tight near-opaque contact
-// shadow, a medium fill, and a wide faint ambient layer. Three soft layers read
-// as real diffused light; one hard layer reads as a sticker. Tuned restrained
-// (neutral `#0f0f0f`, low alpha) to stay on the Vercel side of subtle.
 export const LIGHT_SHADOWS: ThemeShadows = {
-  xs: "0 1px 1px -0.5px rgba(15, 15, 15, 0.04), 0 1px 2px -1px rgba(15, 15, 15, 0.05)",
-  sm:
-    "0 1px 1px -0.5px rgba(15, 15, 15, 0.05), " +
-    "0 2px 4px -1px rgba(15, 15, 15, 0.06), " +
-    "0 4px 8px -2px rgba(15, 15, 15, 0.05)",
-  md:
-    "0 1px 2px -0.5px rgba(15, 15, 15, 0.06), " +
-    "0 4px 8px -2px rgba(15, 15, 15, 0.07), " +
-    "0 12px 20px -4px rgba(15, 15, 15, 0.08)",
-  lg:
-    "0 1px 3px -0.5px rgba(15, 15, 15, 0.07), " +
-    "0 8px 16px -4px rgba(15, 15, 15, 0.10), " +
-    "0 24px 44px -12px rgba(15, 15, 15, 0.14)",
-  card: "var(--shadow-sm)",
-  dialog: "var(--shadow-lg)",
-  pop: "var(--shadow-lg)",
-  soft: "var(--shadow-xs)",
-  glow: "0 0 12px color-mix(in oklab, var(--color-accent) 40%, transparent)",
-  inputFocus:
-    "0 0 0 3px color-mix(in oklab, var(--color-accent) 14%, transparent), " +
-    "inset 0 0 0 1px var(--color-border-soft)",
+  composer: "0 2px 6px -2px rgba(0, 0, 0, 0.05)",
+  elevated: "0 4px 12px -4px rgba(0, 0, 0, 0.08)",
+  focus: "inset 0 0 0 1px var(--color-border-soft)",
 };
 
 export const DEFAULT_RADII: ThemeRadii = {
@@ -154,17 +117,12 @@ export function buildTokenMap(spec: ThemePluginSpec): Record<string, string> {
     "color-cta-hover": cta.ctaHover,
     "color-cta-text": cta.ctaText,
 
-    // Shadows
-    "shadow-xs": shadows.xs,
-    "shadow-sm": shadows.sm,
-    "shadow-md": shadows.md,
-    "shadow-lg": shadows.lg,
-    "shadow-card": shadows.card,
-    "shadow-dialog": shadows.dialog,
-    "shadow-pop": shadows.pop,
-    "shadow-soft": shadows.soft,
-    "shadow-glow": shadows.glow,
-    "shadow-input-focus": shadows.inputFocus,
+    // Shadows — 3 canonical tokens (REDESIGN.md §3.4).
+    // Legacy names (shadow-xs/sm/md/lg/card/dialog/pop/soft/glow/input-focus)
+    // are kept as CSS aliases in globals.css :root pointing to these 3.
+    "shadow-composer": shadows.composer,
+    "shadow-elevated": shadows.elevated,
+    "shadow-focus": shadows.focus,
 
     // Radii
     "radius-xs": radii.xs,

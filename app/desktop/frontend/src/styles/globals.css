@@ -50,12 +50,49 @@
   --color-line-soft: var(--color-border-soft);
   --color-divider: var(--color-divider);
 
+  /* Fine foreground ramp — mapped into Tailwind utilities */
+  --color-text-2: var(--color-text-2);
+  --color-text-3: var(--color-text-3);
+  --color-text-5: var(--color-text-5);
+  --color-text-10: var(--color-text-10);
+  --color-text-20: var(--color-text-20);
+  --color-text-30: var(--color-text-30);
+  --color-text-40: var(--color-text-40);
+  --color-text-50: var(--color-text-50);
+  --color-text-60: var(--color-text-60);
+  --color-text-70: var(--color-text-70);
+  --color-text-80: var(--color-text-80);
+  --color-text-90: var(--color-text-90);
+  --color-text-95: var(--color-text-95);
+
+  /* Typography scale — §3.2 recipe. Tailwind generates utilities like
+     `text-body-lg`, `leading-body`, `tracking-display`, `font-weight-medium`. */
+  --text-display-xl: var(--fs-display-xl);
+  --text-display-lg: var(--fs-display-lg);
+  --text-display-md: var(--fs-display-md);
+  --text-display-sm: var(--fs-display-sm);
+  --text-body-lg: var(--fs-body-lg);
+  --text-body-md: var(--fs-body-md);
+  --text-body-sm: var(--fs-body-sm);
+  --text-body-xs: var(--fs-body-xs);
+  --text-caption: var(--fs-caption);
+
+  --leading-tight: var(--leading-tight);
+  --leading-snug: var(--leading-snug);
+  --leading-body: var(--leading-body);
+
+  --tracking-display: var(--tracking-display);
+  --tracking-display-tight: var(--tracking-display-tight);
+
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
   /* Radius — md (8px) is the default button radius. */
   --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
   --radius-pill: 9999px;
 
   /* Fonts — native system stack: SF Pro + PingFang on macOS (primary target),
@@ -110,17 +147,17 @@
 :root {
   /* Accent — restrained, near-monochrome. A calm blue used only for live /
      CTA / focus (DESIGN.md §9). Themes + the user's accent pick override it. */
-  --color-accent: #6c97ff;
-  --color-accent-border: #5b86f0;
-  --color-accent-press: #4a72d8;
+  --color-accent: #7b8efa;
+  --color-accent-border: #6a7de8;
+  --color-accent-press: #5a6cd6;
 
   /* Surface ladder — canvas + surface are manual anchors; -2/-3/-4
      derive via color-mix() so the direction flips automatically per
      scheme (deeper = lighter on dark, deeper = darker on light).
      Themes can pin surface-2/3/4 explicitly when their canonical
      palette has a non-linear ladder. */
-  --color-bg: #0c0d0f; /* canvas — the main reading surface (flush layout) */
-  --color-surface: #16181b; /* lifted chrome — sidebar, cards, bubbles */
+  --color-bg: oklch(0.12 0.012 260); /* canvas — cool slate near-black */
+  --color-surface: oklch(0.205 0.014 260); /* lifted chrome — sidebar, cards, bubbles */
   --depth-step: 5%;
   --color-surface-2: color-mix(
     in oklab,
@@ -139,19 +176,18 @@
   );
 
   /* Ink — see DESIGN.md §2 for the role hierarchy. */
-  --color-text: #f7f8f8;
+  --color-text: #ececec;
   --color-text-bright: #ffffff;
-  --color-text-soft: #d0d6e0;
+  --color-text-soft: #b8bcc4;
   --color-text-muted: #8a8f98;
-  --color-text-faint: #62666d;
-  --color-text-on-accent: #000000;
+  --color-text-faint: #5c6068;
+  --color-text-on-accent: #030408;
 
-  /* Hairlines — literal hex (DESIGN.md §2: semi-transparent borders
-     shift across surface lifts and read as "approximate"). */
-  --color-border: #23252a;
-  --color-border-soft: #34343a;
-  --color-divider: #3e3e44;
-  --color-app-divider: #23252a;
+  /* Hairlines — alpha-based on dark so they sit softly; light themes
+     override to literal hex. */
+  --color-border: rgba(255, 255, 255, 0.10);
+  --color-border-soft: rgba(255, 255, 255, 0.06);
+  --color-divider: rgba(255, 255, 255, 0.08);
 
   /* Semantic — used sparingly per DESIGN.md §9. Dark-tuned per §2: these are
      the lyra-dark first-paint defaults (the theme re-applies the same values at
@@ -162,9 +198,6 @@
   --color-warning: #f0a936;
   --color-info: #58a6ff;
   --color-success: #3fb950;
-
-  /* Fonts live in the @theme block above (the system stack); --font-sans /
-     --font-mono are the single source of truth (html base + utilities). */
 
   /* Primary CTA — decoupled from --color-accent so themes can have
      accent drive "live state" while CTA is something else (e.g. Vercel
@@ -186,8 +219,8 @@
   --fs-body-xs: 0.75rem; /* 12px */
   --fs-caption: 0.72rem; /* 11.5px */
 
-  /* 600 is the display ceiling — hierarchy via size + weight contrast,
-     not heavier weights (DESIGN.md §3). */
+  /* 500 is the display ceiling — hierarchy via size + weight contrast,
+     not heavier weights (REDESIGN.md §3.2). */
   --fw-regular: 400;
   --fw-medium: 500;
   --fw-semibold: 600;
@@ -195,8 +228,8 @@
   --tracking-display: -0.02em;
   --tracking-display-tight: -0.03em;
   --leading-tight: 1.1;
-  --leading-snug: 1.3;
-  --leading-body: 1.55;
+  --leading-snug: 1.35;
+  --leading-body: 1.6;
 
   /* Radius (DESIGN.md §6) — md (8px) is the default button radius.
      All radii multiply through `--radius-scale` so the user can pick
@@ -207,8 +240,8 @@
   --radius-xs: calc(4px * var(--radius-scale));
   --radius-sm: calc(6px * var(--radius-scale));
   --radius-md: calc(8px * var(--radius-scale));
-  --radius-lg: calc(12px * var(--radius-scale));
-  --radius-xl: calc(16px * var(--radius-scale));
+  --radius-lg: calc(16px * var(--radius-scale));
+  --radius-xl: calc(20px * var(--radius-scale));
   /* Pill / circle are conceptual ("fully round") — not scaled. */
   --radius-pill: 9999px;
   --radius-circle: 50%;
@@ -219,82 +252,84 @@
      CSS-controlled animations + the motion/react presets that read
      the scale via lib/motion.ts. */
   --motion-scale: 1;
+  --animation-duration: calc(150ms * var(--motion-scale));
   --ease-out: cubic-bezier(0.3, 0, 0, 1);
   --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
   /* Emphasized decel — bigger, slower tail. Large surface moves only. */
   --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
 
   --dur-instant: calc(80ms * var(--motion-scale));
-  --dur-fast: calc(140ms * var(--motion-scale));
-  --dur-med: calc(220ms * var(--motion-scale));
+  --dur-fast: calc(150ms * var(--motion-scale));
+  --dur-med: calc(200ms * var(--motion-scale));
   --dur-slow: calc(360ms * var(--motion-scale));
 
   --polish-fast: var(--dur-fast) var(--ease-out);
   --polish-med: var(--dur-med) var(--ease-out);
 
-  /* Shadows (DESIGN.md §5). Dark mode collapses xs/sm/md/card/soft to
-     none; only the overlay layer (-lg / -dialog / -pop) gets a real
-     stacked drop. Light themes re-enable the full ladder via
-     defineThemePlugin's `shadows` section. */
+  /* -----------------------------------------------------------------------
+   *  Shadow system —精简到 3 个 canonical token（REDESIGN.md §3.4）.
+   *  composer: 仅 composer 容器（light 唯一阴影）
+   *  elevated: dropdown / popover / modal / command-palette
+   *  focus: 输入框焦点 inset 1px，无 halo glow
+   * ----------------------------------------------------------------------- */
+  --shadow-composer: none;
+  --shadow-elevated:
+    0 4px 12px -4px rgba(0, 0, 0, 0.3);
+  --shadow-focus: inset 0 0 0 1px var(--color-border-soft);
+
+  /* Legacy shadow aliases — old names mapped to new canonical tokens so
+     existing component classNames (shadow-minimal, shadow-lg, etc.) don't
+     break. These are deprecated; new code should use the canonical names.
+
+     Alias map:
+       shadow-minimal  → shadow-composer
+       shadow-middle   → shadow-composer
+       shadow-medium   → shadow-elevated
+       shadow-hero     → shadow-elevated
+       shadow-lg       → shadow-elevated
+       shadow-md       → shadow-elevated
+       shadow-sm       → shadow-focus
+       shadow-xs       → none
+       shadow-card     → none
+       shadow-dialog   → shadow-elevated
+       shadow-pop      → shadow-elevated
+       shadow-soft     → none
+       shadow-glow     → none
+       shadow-input-focus → shadow-focus
+  */
+  --shadow-minimal: var(--shadow-composer);
+  --shadow-middle: var(--shadow-composer);
+  --shadow-medium: var(--shadow-elevated);
+  --shadow-hero: var(--shadow-elevated);
+  --shadow-lg: var(--shadow-elevated);
+  --shadow-md: var(--shadow-elevated);
+  --shadow-sm: var(--shadow-focus);
   --shadow-xs: none;
-  --shadow-sm: none;
-  --shadow-md: none;
-  --shadow-lg:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 1px 2px rgba(0, 0, 0, 0.4),
-    0 8px 16px -4px rgba(0, 0, 0, 0.5), 0 24px 32px -8px rgba(0, 0, 0, 0.6),
-    inset 0 0 0 1px var(--color-border);
-  /* Light-mode override in layout.css (~35%/10px, dimmer). */
-  --shadow-glow: 0 0 12px color-mix(in oklab, var(--color-accent) 50%, transparent);
   --shadow-card: none;
-  --shadow-dialog: var(--shadow-lg);
+  --shadow-dialog: var(--shadow-elevated);
+  --shadow-pop: var(--shadow-elevated);
   --shadow-soft: none;
-  --shadow-pop: var(--shadow-lg);
+  --shadow-glow: none;
+  --shadow-input-focus: var(--shadow-focus);
 
-  /* Input focus — a quiet stronger inset border, no accent glow halo
-     (the bright ring read as cheap, esp. flashing on click). */
-  --shadow-input-focus: inset 0 0 0 1px var(--color-border-soft);
+  /* Content max-width — the centered reading island (REDESIGN.md §3.4). */
+  --content-max: 720px;
 
-  /* -------------------------------------------------------------------------
-   *  Craft-aligned shadow system — 5-tier + tinted
-   *  ------------------------------------------------------------------------- */
-  --shadow-border-opacity: 0.15;
-  --shadow-blur-opacity: 0.12;
-
-  /* Reusable shadow values (used by utility classes below). */
-  --shadow-minimal:
-    rgba(0, 0, 0, 0) 0px 0px 0px 0px,
-    rgba(0, 0, 0, 0) 0px 0px 0px 0px,
-    color-mix(in oklab, var(--color-text) calc(var(--shadow-border-opacity) * 40%), transparent) 0px 0px 0px 1px,
-    rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 1px 1px -0.5px,
-    rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 3px 3px -1.5px;
-
-  --shadow-middle:
-    rgba(0, 0, 0, 0) 0px 0px 0px 0px,
-    rgba(0, 0, 0, 0) 0px 0px 0px 0px,
-    color-mix(in oklab, var(--color-text) calc(var(--shadow-border-opacity) * 40%), transparent) 0px 0px 0px 1px,
-    rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 1px 1px -0.5px,
-    rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 3px 3px -1.5px,
-    rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 6px 6px -3px;
-
-  --shadow-medium:
-    rgba(0, 0, 0, 0) 0px 0px 0px 0px,
-    rgba(0, 0, 0, 0) 0px 0px 0px 0px,
-    color-mix(in oklab, var(--color-text) calc(var(--shadow-border-opacity) * 40%), transparent) 0px 0px 0px 1px,
-    rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 1px 1px -0.5px,
-    rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 3px 3px -1.5px,
-    rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 6px 6px -3px,
-    rgba(0, 0, 0, calc(var(--shadow-blur-opacity) * 0.67)) 0px 12px 12px -6px;
-
-  --shadow-hero:
-    rgba(0, 0, 0, 0) 0px 0px 0px 0px,
-    rgba(0, 0, 0, 0) 0px 0px 0px 0px,
-    color-mix(in oklab, var(--color-text) calc(var(--shadow-border-opacity) * 40%), transparent) 0px 0px 0px 1px,
-    rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 1px 1px -0.5px,
-    rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 3px 3px -1.5px,
-    rgba(0, 0, 0, var(--shadow-blur-opacity)) 0px 6px 6px -3px,
-    rgba(0, 0, 0, calc(var(--shadow-blur-opacity) * 0.67)) 0px 12px 12px -6px,
-    rgba(0, 0, 0, calc(var(--shadow-blur-opacity) * 0.5)) 0px 24px 32px -12px,
-    rgba(0, 0, 0, calc(var(--shadow-blur-opacity) * 0.33)) 0px 48px 64px -24px;
+  /* Fine foreground ramp (color-mix toward bg) — 20-step for subtle
+     surface tints, hover states, and depth layering. */
+  --color-text-2: color-mix(in oklch, var(--color-text) 2%, var(--color-bg));
+  --color-text-3: color-mix(in oklch, var(--color-text) 3%, var(--color-bg));
+  --color-text-5: color-mix(in oklch, var(--color-text) 5%, var(--color-bg));
+  --color-text-10: color-mix(in oklch, var(--color-text) 10%, var(--color-bg));
+  --color-text-20: color-mix(in oklch, var(--color-text) 20%, var(--color-bg));
+  --color-text-30: color-mix(in oklch, var(--color-text) 30%, var(--color-bg));
+  --color-text-40: color-mix(in oklch, var(--color-text) 40%, var(--color-bg));
+  --color-text-50: color-mix(in oklch, var(--color-text) 50%, var(--color-bg));
+  --color-text-60: color-mix(in oklch, var(--color-text) 60%, var(--color-bg));
+  --color-text-70: color-mix(in oklch, var(--color-text) 70%, var(--color-bg));
+  --color-text-80: color-mix(in oklch, var(--color-text) 80%, var(--color-bg));
+  --color-text-90: color-mix(in oklch, var(--color-text) 90%, var(--color-bg));
+  --color-text-95: color-mix(in oklch, var(--color-text) 95%, var(--color-bg));
 }
 
 /* IMPORTANT: do not set `font-size` on <html>. It anchors `rem` for
@@ -322,6 +357,18 @@ body {
   font-size: var(--fs-body-md);
   font-weight: var(--fw-regular);
   line-height: var(--leading-body);
+  font-feature-settings: "tnum" 1;
+}
+
+/* Heading weight cap — REDESIGN.md §3.2: max 500 for display/UI.
+   The browser default 700 is too heavy for the restrained aesthetic. */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 500;
 }
 
 /* Mono is the technical / data voice (DESIGN.md §3) — bake tabular figures into
@@ -329,6 +376,7 @@ body {
    aligns by default, without each call site re-declaring `tabular-nums`. */
 .font-mono {
   font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
 }
 
 /* =========================================================================
@@ -432,17 +480,16 @@ html.theme-light .app {
   background: var(--color-bg);
 }
 
-/* Panel chrome — flush layout, no card shadow on light either. The
-    sidebar/main split is the same hairline (.panel.sidebar border-right). */
+/* Panel chrome — flush layout, no card shadow on light either. */
 html.theme-light .panel {
   border: none;
   box-shadow: none;
 }
 
-/* Light mode: subtler shadow opacity (craft's 0.08 / 0.06 vs dark 0.15 / 0.12) */
+/* Light mode: composer gets the only allowed shadow. */
 html.theme-light {
-  --shadow-border-opacity: 0.08;
-  --shadow-blur-opacity: 0.06;
+  --shadow-composer: 0 2px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-elevated: 0 4px 12px -4px rgba(0, 0, 0, 0.08);
 }
 
 /* Quieter scrollbar on light — the dark thumb tokens overshoot. */
@@ -469,44 +516,6 @@ html.theme-light .msg-content code {
   color: var(--color-text);
   border: 1px solid var(--color-border);
   padding: 1px 5px;
-}
-
-/* =========================================================================
- *  Craft-aligned shadow utilities — 5-tier + tinted
- * ========================================================================= */
-@layer utilities {
-  .shadow-minimal {
-    box-shadow: var(--shadow-minimal);
-  }
-  .shadow-middle {
-    box-shadow: var(--shadow-middle);
-  }
-  .shadow-medium {
-    box-shadow: var(--shadow-medium);
-  }
-  .shadow-hero {
-    box-shadow: var(--shadow-hero);
-  }
-  .shadow-tinted {
-    --shadow-tint-color: var(--color-text);
-    box-shadow:
-      color-mix(in oklab, var(--shadow-tint-color) 0%, transparent) 0px 0px 0px 0px,
-      color-mix(in oklab, var(--shadow-tint-color) 0%, transparent) 0px 0px 0px 0px,
-      color-mix(in oklab, var(--shadow-tint-color) calc(var(--shadow-border-opacity) * 150%), transparent) 0px 0px 0px 1px,
-      color-mix(in oklab, var(--shadow-tint-color) var(--shadow-border-opacity), transparent) 0px 1px 1px -0.5px,
-      color-mix(in oklab, var(--shadow-tint-color) var(--shadow-blur-opacity), transparent) 0px 3px 3px -1.5px,
-      color-mix(in oklab, var(--shadow-tint-color) calc(var(--shadow-blur-opacity) * 0.67), transparent) 0px 6px 6px -3px;
-  }
-  /* Light mode: outline only, no blur glow, stronger border */
-  html.theme-light .shadow-tinted {
-    box-shadow:
-      color-mix(in oklab, var(--shadow-tint-color) 0%, transparent) 0px 0px 0px 0px,
-      color-mix(in oklab, var(--shadow-tint-color) 0%, transparent) 0px 0px 0px 0px,
-      color-mix(in oklab, var(--shadow-tint-color) calc(var(--shadow-border-opacity) * 300%), transparent) 0px 0px 0px 1px,
-      color-mix(in oklab, var(--shadow-tint-color) 0%, transparent) 0px 1px 1px -0.5px,
-      color-mix(in oklab, var(--shadow-tint-color) 0%, transparent) 0px 3px 3px -1.5px,
-      color-mix(in oklab, var(--shadow-tint-color) 0%, transparent) 0px 6px 6px -3px;
-  }
 }
 
 /* =========================================================================

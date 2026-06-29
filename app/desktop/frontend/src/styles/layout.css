@@ -40,18 +40,14 @@ html.theme-light {
   color-scheme: light;
 }
 
-/* Light-mode glow tweak — slightly tighter than dark since light
-   backgrounds make halos read more loudly. */
-html.theme-light {
-  --shadow-glow: 0 0 10px color-mix(in oklab, var(--color-accent) 35%, transparent);
-}
+/* Light-mode glow tweak — removed (REDESIGN.md §2: glow is killed). */
 
 /* Kernel grid — flush, edge-to-edge. .app paints the canvas; the two
    columns run to the window edge with no gutters. */
 .app {
   display: grid;
   /* Single row: the main area. The overlay Slot's children are
-     position:fixed, so they claim no track. */
+      position:fixed, so they claim no track. */
   grid-template-rows: 1fr;
   height: 100vh;
   min-width: var(--app-min-width);
@@ -63,8 +59,8 @@ html.theme-light {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
   /* No gap / padding: the sidebar and main area are flush to the window
-     edge, separated by a single hairline (.panel.sidebar border-right).
-     Depth comes from the surface step + divider, not gutters + shadow. */
+      edge, separated by background delta only (surface vs canvas).
+      Depth comes from the surface step, not gutters + shadow. */
   min-height: 0;
 }
 
@@ -98,12 +94,10 @@ html.theme-light .tool-card.running::before {
   min-height: 0;
 }
 
-/* Sidebar — a half-step off the canvas (surface), divided from the main
-   column by a single hairline. The whole "lifted" read is this step +
-   divider, not a gutter or a drop shadow. */
+/* Sidebar — a half-step off the canvas (surface). The whole "lifted"
+   read is this bg delta alone; no divider line. */
 .panel.sidebar {
   background: var(--color-surface);
-  border-right: 1px solid var(--color-app-divider);
 }
 
 /* ---------- Scroll containers ---------- */

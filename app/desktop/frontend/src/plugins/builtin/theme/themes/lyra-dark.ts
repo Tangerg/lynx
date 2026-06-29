@@ -5,26 +5,24 @@
 import { defineThemePlugin } from "../kit/defineThemePlugin";
 
 const c = {
-  // Accent — restrained blue (near-monochrome direction). accentBorder/Press
-  // derived by defineThemePlugin via colord.darken().
-  accent: "#6c97ff",
+  // Accent — luminous indigo, used sparingly for live state only.
+  accent: "#7b8efa",
 
   // Surface anchors (flush layout: canvas = main reading area, surface = chrome)
-  canvas: "#0c0d0f", // main reading surface — soft near-black, not pure black
-  surface1: "#16181b", // sidebar / cards / message bubble — a half-step lifted
+  canvas: "oklch(0.12 0.012 260)", // cool slate near-black
+  surface1: "oklch(0.205 0.014 260)", // meaningful lift from canvas
 
   // Ink
   inkBright: "#ffffff",
-  ink: "#f7f8f8",
-  inkSoft: "#d0d6e0",
-  // Calibrated for WCAG AA at 11-12px sizes on canvas (~5.6:1 / ~4.7:1).
-  inkMuted: "#9ea3ac",
-  inkFaint: "#76787e",
+  ink: "#ececec",
+  inkSoft: "#b8bcc4",
+  inkMuted: "#8a8f98",
+  inkFaint: "#5c6068",
 
-  // Hairlines — literal hex (DESIGN.md §2: precise > alpha-blended)
-  hairline: "#23252a",
-  hairStrong: "#34343a",
-  hairTertiary: "#3e3e44",
+  // Hairlines — alpha-based so they sit softly on dark surfaces
+  hairline: "rgba(255, 255, 255, 0.10)",
+  hairStrong: "rgba(255, 255, 255, 0.06)",
+  hairTertiary: "rgba(255, 255, 255, 0.08)",
 };
 
 export default defineThemePlugin({
@@ -35,7 +33,7 @@ export default defineThemePlugin({
 
   brand: {
     accent: c.accent,
-    textOnAccent: "#ffffff", // white ink reads on the blue accent
+    textOnAccent: "#030408", // near-black ink on the indigo accent
   },
   surfaces: {
     bg: c.canvas,
@@ -55,9 +53,6 @@ export default defineThemePlugin({
     appDivider: c.hairline,
   },
   semantic: {
-    // Dark-tuned: the raw web-saturated values (#ee0000 / #0070f3) vibrate and
-    // bleed at the edges on the near-black canvas. Desaturated + lifted in
-    // luminance per Apple Dark Mode / Ant dark guidance — GitHub-dark-aligned.
     negative: "#f85149",
     warning: "#f0a936",
     info: "#58a6ff",

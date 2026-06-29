@@ -9,18 +9,18 @@ const c = {
 
   // Flush layout: canvas = clean white main area, surface = subtle gray chrome.
   canvas: "#ffffff",
-  surface1: "#f6f7f8",
+  surface1: "#f5f5f7",
 
   // Calibrated to clear WCAG AA on 11-12px text against canvas.
   inkBright: "#000000",
-  ink: "#171717",
-  inkSoft: "#4d4d4d",
-  inkMuted: "#5e5e5e",
-  inkFaint: "#707070",
+  ink: "#0d0d0d",
+  inkSoft: "#5d5d5d",
+  inkMuted: "#6e6e80",
+  inkFaint: "#9ca3af",
 
-  hairline: "#ebebeb",
-  hairStrong: "#d4d4d6",
-  hairTertiary: "#a1a1a1",
+  hairline: "#e5e5e5",
+  hairStrong: "#f0f0f0",
+  hairTertiary: "#e5e5e5",
 };
 
 export default defineThemePlugin({

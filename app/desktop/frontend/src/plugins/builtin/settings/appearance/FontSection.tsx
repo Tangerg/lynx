@@ -1,5 +1,5 @@
 // Font customization — UI + code typefaces and base size. Empty
-// string reverts to the bundled Geist defaults; numeric `null` reverts
+// string reverts to the native system stack; numeric `null` reverts
 // size to the inherited 15px baseline.
 //
 // JetBrains IDEA / VS Code-style pattern: a checkbox toggles "use a
