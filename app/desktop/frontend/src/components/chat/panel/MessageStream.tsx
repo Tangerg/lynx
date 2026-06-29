@@ -65,7 +65,7 @@ export function MessageStream({ messages, ctx, assistantName, resetKey, onContro
       <StickToBottom key={resetKey} className="msg-scroll-frame" initial="instant" resize="smooth">
         <StickToBottom.Content
           scrollClassName="panel-scroll"
-          className="relative mx-auto flex w-full max-w-[840px] flex-col gap-2.5 px-5 pt-8 pb-[220px]"
+          className="relative mx-auto flex w-full max-w-[840px] flex-col gap-7 px-5 pt-8 pb-[220px]"
         >
           <Slot name="chat.empty" />
         </StickToBottom.Content>
@@ -83,7 +83,7 @@ export function MessageStream({ messages, ctx, assistantName, resetKey, onContro
     >
       <StickToBottom.Content
         scrollClassName="panel-scroll"
-        className="relative mx-auto flex w-full max-w-[840px] flex-col gap-2.5 px-5 pt-8 pb-[220px]"
+        className="relative mx-auto flex w-full max-w-[840px] flex-col gap-7 px-5 pt-8 pb-[220px]"
       >
         <AnimatePresence initial={false}>
           {messages.map((m) => (

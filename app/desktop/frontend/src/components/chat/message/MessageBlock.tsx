@@ -1,10 +1,9 @@
 // MessageBlock — one chat turn.
 //
-// Layout: avatar + name + time on one header row, then the content
-// on a new line aligned with the avatar's left edge (Cherry Studio
-// pattern). User-bubble mode flips the header to right-aligned and
-// drops a chat bubble below; user-plain and assistant share the
-// left-aligned flat-prose layout.
+// Craft-aligned asymmetric layout:
+//   • User = right-aligned gray bubble (input), no avatar/header chrome.
+//   • Assistant = left-aligned document (output), minimal avatar+name header,
+//     prose sits unboxed directly on the canvas.
 
 import type { Citation } from "./CitationContext";
 import type { BlockCtx } from "./BlockRenderer";
@@ -14,10 +13,8 @@ import { memo, useMemo, useRef } from "react";
 import { Icon } from "@/components/common";
 import { Avatar } from "@/components/common/Avatar";
 import { ToolGroup } from "@/components/tools/ToolGroup";
-import { cn } from "@/lib/utils";
 import { MESSAGE_ROLE, useCitationSources, useExtensionByKey } from "@/plugins/sdk";
 import { Slot } from "@/plugins/host/Slot";
-import { useUiStore } from "@/state/uiStore";
 import { MessageContext } from "@/plugins/sdk/messageContext";
 import { CitationContext } from "./CitationContext";
 import { MessageContextMenu } from "./MessageContextMenu";
@@ -38,12 +35,8 @@ function MessageBlockInner({
   const role = useExtensionByKey(MESSAGE_ROLE, msg.role);
   const isUser = msg.role === "user";
   const isAgent = msg.role === "assistant";
-  // Bubble (right-aligned card) is the default for user messages.
-  // Plain mirrors the assistant layout — left-aligned flat prose, no card.
-  const bubble = useUiStore((s) => s.messageStyle) === "bubble" && isUser;
 
-  // Outline target — only mounted for assistant messages. Bubble user
-  // messages are short and don't need a TOC.
+  // Outline target — only consumed by assistant messages (MessageOutline).
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Citation registry — gathered from the MESSAGE_CITATION_SOURCE
@@ -96,6 +89,26 @@ function MessageBlockInner({
   // already saw what they typed; replaying it adds latency for no gain.
   const blockCtx: BlockCtx = isUser ? { ...ctx, instant: true } : ctx;
 
+  const content = planRenderUnits(msg.blocks, blockCtx.toolCalls).map((unit) => {
+    if (unit.kind === "toolGroup") {
+      return (
+        <ToolGroup
+          key={`group-${unit.tools[0]!.id}`}
+          tools={unit.tools}
+          selectedToolId={blockCtx.selectedToolId}
+          onSelectTool={blockCtx.onSelectTool}
+          expandedIds={blockCtx.expandedIds}
+          onToggleExpand={blockCtx.onToggleExpand}
+        />
+      );
+    }
+    const { block, index } = unit;
+    if (block.kind === "text" && block.status === "running" && index !== lastIdx) {
+      return renderBlock({ ...block, status: "complete" }, index, blockCtx);
+    }
+    return renderBlock(block, index, blockCtx);
+  });
+
   return (
     <MessageContext.Provider value={msg}>
       <CitationContext.Provider value={citations}>
@@ -104,79 +117,64 @@ function MessageBlockInner({
             a long preview line) stretches the whole row past the
             intended msg-stream column. */}
         <div className="relative grid grid-cols-[minmax(0,1fr)] gap-1.5">
-          {/* Header: avatar paired with a vertical (title / time) stack.
-              User-bubble flips the row so the avatar lands on the right
-              and the stack right-aligns its rows. */}
-          <div className={cn("flex items-center gap-2.5", bubble && "flex-row-reverse")}>
-            <Avatar variant={avatarVariant}>
-              <Icon name={iconName} size={14} />
-            </Avatar>
-            <div
-              className={cn("flex min-w-0 flex-col gap-0.5 leading-tight", bubble && "items-end")}
-            >
-              {/* Sans for the speaker name (a name, not code) — the redesign
-                  keeps mono for genuine data (the timestamp below, IDs, code). */}
-              <div className="flex items-center gap-1.5 text-fg text-[13px] font-semibold tracking-normal">
-                <span className="truncate">{displayName}</span>
-                <Slot name="message.header.end" />
+          {isUser ? (
+            <>
+              {/* User = right-aligned gray bubble; no avatar, no header. */}
+              <MessageContextMenu msg={msg}>
+                <div className="flex justify-end">
+                  <div
+                    ref={contentRef}
+                    className="msg-content min-w-0 max-w-[80%] rounded-2xl bg-surface-2 px-5 py-3.5 text-left light:bg-surface-3 text-fg text-[15px] leading-[1.68] tracking-[-0.003em] font-normal"
+                  >
+                    {content}
+                  </div>
+                </div>
+              </MessageContextMenu>
+              <div className="flex justify-end">
+                <Slot name="message.actions" />
               </div>
-              <span className="font-mono text-[11px] text-fg-faint">{msg.time}</span>
-            </div>
-          </div>
-
-          {/* Content row. Plain layouts (agent + user-plain) start at
-              the row's left edge so they line up with the avatar above.
-              User-bubble floats a max-width card to the right so its
-              right edge matches the header's right edge. The whole
-              content surface is the right-click target — the inline
-              header icons are also there for hover discovery, but the
-              context menu is the platform-native discovery path. */}
-          <MessageContextMenu msg={msg}>
-            <div className={cn(bubble && "flex justify-end")}>
-              <div
-                ref={contentRef}
-                className={cn(
-                  // 15px is the content baseline — markdown headings and
-                  // every other content surface size off this.
-                  "msg-content min-w-0 text-fg text-[15px] leading-[1.68] tracking-[-0.003em] font-normal",
-                  bubble &&
-                    "max-w-[80%] rounded-2xl bg-surface-2 px-5 py-3.5 text-left light:bg-surface-3",
-                )}
-              >
-                {planRenderUnits(msg.blocks, blockCtx.toolCalls).map((unit) => {
-                  if (unit.kind === "toolGroup") {
-                    return (
-                      <ToolGroup
-                        key={`group-${unit.tools[0]!.id}`}
-                        tools={unit.tools}
-                        selectedToolId={blockCtx.selectedToolId}
-                        onSelectTool={blockCtx.onSelectTool}
-                        expandedIds={blockCtx.expandedIds}
-                        onToggleExpand={blockCtx.onToggleExpand}
-                      />
-                    );
-                  }
-                  const { block, index } = unit;
-                  if (block.kind === "text" && block.status === "running" && index !== lastIdx) {
-                    return renderBlock({ ...block, status: "complete" }, index, blockCtx);
-                  }
-                  return renderBlock(block, index, blockCtx);
-                })}
+            </>
+          ) : (
+            <>
+              {/* Assistant = minimal header (small avatar + name), then
+                  unboxed prose that sits directly on the canvas. */}
+              <div className="flex items-center gap-2.5">
+                <Avatar variant={avatarVariant}>
+                  <Icon name={iconName} size={14} />
+                </Avatar>
+                <div className="flex min-w-0 flex-col gap-0.5 leading-tight">
+                  {/* Sans for the speaker name (a name, not code) — the redesign
+                      keeps mono for genuine data (the timestamp below, IDs, code). */}
+                  <div className="flex items-center gap-1.5 text-fg text-[13px] font-semibold tracking-normal">
+                    <span className="truncate">{displayName}</span>
+                    <Slot name="message.header.end" />
+                  </div>
+                  <span className="font-mono text-[11px] text-fg-faint">{msg.time}</span>
+                </div>
               </div>
-            </div>
-          </MessageContextMenu>
 
-          <div className={cn(bubble && "flex justify-end")}>
-            <Slot name="message.actions" />
-          </div>
+              <MessageContextMenu msg={msg}>
+                <div
+                  ref={contentRef}
+                  className="msg-content min-w-0 text-fg text-[15px] leading-[1.68] tracking-[-0.003em] font-normal"
+                >
+                  {content}
+                </div>
+              </MessageContextMenu>
 
-          {/* Right-gutter outline. Hidden on narrow viewports where no
-              gutter is available. Skipped while *any* block on the message
-              is still streaming — the outline is a "jump to a finished
-              heading" affordance, and the per-token DOM mutations from
-              streaming compete with use-stick-to-bottom, causing the
-              chat to snap back. */}
-          {isAgent && !isStreaming && <MessageOutline target={contentRef} scopeId={msg.id} />}
+              <div>
+                <Slot name="message.actions" />
+              </div>
+
+              {/* Right-gutter outline. Hidden on narrow viewports where no
+                  gutter is available. Skipped while *any* block on the message
+                  is still streaming — the outline is a "jump to a finished
+                  heading" affordance, and the per-token DOM mutations from
+                  streaming compete with use-stick-to-bottom, causing the
+                  chat to snap back. */}
+              {isAgent && !isStreaming && <MessageOutline target={contentRef} scopeId={msg.id} />}
+            </>
+          )}
         </div>
       </CitationContext.Provider>
     </MessageContext.Provider>
