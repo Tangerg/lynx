@@ -1,17 +1,14 @@
 /* Tailwind 4 entry + design-token bridge + global polish.
  *
- * This file used to be just the Tailwind entry; the small "merge into
- * globals once we stop opening new CSS files" CLAUDE.md mandate finally
- * cashed in — `tokens.css`, `reset.css`, `theme.css`, `chat.css` all
- * folded in here. The remaining standalone files (`markdown.css`,
- * `layout.css`, `overlays.css`, `tool.css`) carry rules that legitimately
- * can't live in Tailwind utilities: rehype-emitted DOM, pseudo-element
- * scrollbars, `@property` conic-gradient masks, `::highlight()` ranges.
+ * This is the Tailwind v4 entry point. The @theme inline block aliases
+ * design tokens (`--color-bg / --color-text / …`) into Tailwind utility
+ * names (`bg-canvas / text-fg / …`) so theme plugins (which write to
+ * `:root.style` at runtime) propagate to every callsite.
  *
- * The @theme inline block aliases our `--color-bg / --color-text / …`
- * tokens into Tailwind's utility names so theme plugins (which write
- * to `:root.style` at runtime) propagate to every `bg-canvas` /
- * `text-fg` callsite live.
+ * The remaining standalone files (`markdown.css`, `layout.css`,
+ * `overlays.css`, `tool.css`) carry rules that legitimately can't live
+ * in Tailwind utilities: rehype-emitted DOM, pseudo-element scrollbars,
+ * `@property` conic-gradient masks, `::highlight()` ranges.
  */
 
 /* Fonts: the native system stack (SF Pro / PingFang on macOS, the app's
@@ -52,21 +49,6 @@
   --color-line: var(--color-border);
   --color-line-soft: var(--color-border-soft);
   --color-divider: var(--color-divider);
-
-  /* Fine foreground ramp — mapped into Tailwind utilities */
-  --color-text-2: var(--color-text-2);
-  --color-text-3: var(--color-text-3);
-  --color-text-5: var(--color-text-5);
-  --color-text-10: var(--color-text-10);
-  --color-text-20: var(--color-text-20);
-  --color-text-30: var(--color-text-30);
-  --color-text-40: var(--color-text-40);
-  --color-text-50: var(--color-text-50);
-  --color-text-60: var(--color-text-60);
-  --color-text-70: var(--color-text-70);
-  --color-text-80: var(--color-text-80);
-  --color-text-90: var(--color-text-90);
-  --color-text-95: var(--color-text-95);
 
   /* Radius — md (8px) is the default button radius. */
   --radius-xs: 4px;
@@ -261,6 +243,7 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 1px 2px rgba(0, 0, 0, 0.4),
     0 8px 16px -4px rgba(0, 0, 0, 0.5), 0 24px 32px -8px rgba(0, 0, 0, 0.6),
     inset 0 0 0 1px var(--color-border);
+  /* Light-mode override in layout.css (~35%/10px, dimmer). */
   --shadow-glow: 0 0 12px color-mix(in oklab, var(--color-accent) 50%, transparent);
   --shadow-card: none;
   --shadow-dialog: var(--shadow-lg);
@@ -276,22 +259,6 @@
    *  ------------------------------------------------------------------------- */
   --shadow-border-opacity: 0.15;
   --shadow-blur-opacity: 0.12;
-
-  /* Fine foreground ramp (color-mix toward bg) — 20-step for subtle
-     surface tints, hover states, and depth layering. */
-  --color-text-2: color-mix(in oklch, var(--color-text) 2%, var(--color-bg));
-  --color-text-3: color-mix(in oklch, var(--color-text) 3%, var(--color-bg));
-  --color-text-5: color-mix(in oklch, var(--color-text) 5%, var(--color-bg));
-  --color-text-10: color-mix(in oklch, var(--color-text) 10%, var(--color-bg));
-  --color-text-20: color-mix(in oklch, var(--color-text) 20%, var(--color-bg));
-  --color-text-30: color-mix(in oklch, var(--color-text) 30%, var(--color-bg));
-  --color-text-40: color-mix(in oklch, var(--color-text) 40%, var(--color-bg));
-  --color-text-50: color-mix(in oklch, var(--color-text) 50%, var(--color-bg));
-  --color-text-60: color-mix(in oklch, var(--color-text) 60%, var(--color-bg));
-  --color-text-70: color-mix(in oklch, var(--color-text) 70%, var(--color-bg));
-  --color-text-80: color-mix(in oklch, var(--color-text) 80%, var(--color-bg));
-  --color-text-90: color-mix(in oklch, var(--color-text) 90%, var(--color-bg));
-  --color-text-95: color-mix(in oklch, var(--color-text) 95%, var(--color-bg));
 
   /* Reusable shadow values (used by utility classes below). */
   --shadow-minimal:
