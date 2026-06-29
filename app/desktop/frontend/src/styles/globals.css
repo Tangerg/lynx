@@ -121,24 +121,46 @@
   }
 }
 
+/* Atmospheric layer — a slow, heavily-blurred ambient drift that kills
+   the flat-canvas feel. Two oversized radial gradients in accent-adjacent
+   hues, barely perceptible (~5-8% opacity), drifting over 25s. */
+@keyframes lyra-atmosphere-drift {
+  0% {
+    transform: translate(-4%, -3%) scale(1);
+  }
+  33% {
+    transform: translate(3%, 2%) scale(1.05);
+  }
+  66% {
+    transform: translate(2%, -4%) scale(1.02);
+  }
+  100% {
+    transform: translate(-4%, -3%) scale(1);
+  }
+}
+
 /* =========================================================================
  *  Design tokens — first-paint defaults. Theme plugins overwrite these
  *  at runtime via :root.style. See DESIGN.md for the spec.
  * ========================================================================= */
 :root {
-  /* Accent — restrained, near-monochrome. A calm blue used only for live /
-     CTA / focus (DESIGN.md §9). Themes + the user's accent pick override it. */
-  --color-accent: #6c97ff;
-  --color-accent-border: #5b86f0;
-  --color-accent-press: #4a72d8;
+  /* Accent — a luminous, slightly desaturated indigo that glows softly
+      against the deep dark canvas. Used sparingly (restraint = premium). */
+  --color-accent: #7b8efa;
+  --color-accent-border: #6a7ee8;
+  --color-accent-press: #586dd6;
 
   /* Surface ladder — canvas + surface are manual anchors; -2/-3/-4
-     derive via color-mix() so the direction flips automatically per
-     scheme (deeper = lighter on dark, deeper = darker on light).
-     Themes can pin surface-2/3/4 explicitly when their canonical
-     palette has a non-linear ladder. */
-  --color-bg: #0c0d0f; /* canvas — the main reading surface (flush layout) */
-  --color-surface: #16181b; /* lifted chrome — sidebar, cards, bubbles */
+      derive via color-mix() so the direction flips automatically per
+      scheme (deeper = lighter on dark, deeper = darker on light).
+      Themes can pin surface-2/3/4 explicitly when their canonical
+      palette has a non-linear ladder. */
+  /* Premium dark — deep near-black with a subtle cool undertone.
+     Not pure #000; the slight chroma gives depth without reading as
+     flat gray. Surface lifts are alpha-tinted so they work with
+     backdrop-blur glass surfaces. */
+  --color-bg: oklch(0.12 0.008 265);
+  --color-surface: oklch(0.165 0.012 265);
   --depth-step: 5%;
   --color-surface-2: color-mix(
     in oklab,
@@ -156,20 +178,22 @@
     var(--color-surface)
   );
 
-  /* Ink — see DESIGN.md §2 for the role hierarchy. */
-  --color-text: #f7f8f8;
+  /* Ink — tuned for the deeper premium-dark canvas. Slightly warmer
+     and more restrained than the old flat grays so prose reads as
+     refined, not clinical. */
+  --color-text: #e8eaed;
   --color-text-bright: #ffffff;
-  --color-text-soft: #d0d6e0;
+  --color-text-soft: #b8bcc4;
   --color-text-muted: #8a8f98;
-  --color-text-faint: #62666d;
-  --color-text-on-accent: #000000;
+  --color-text-faint: #5c6068;
+  --color-text-on-accent: #030408;
 
-  /* Hairlines — literal hex (DESIGN.md §2: semi-transparent borders
-     shift across surface lifts and read as "approximate"). */
-  --color-border: #23252a;
-  --color-border-soft: #34343a;
-  --color-divider: #3e3e44;
-  --color-app-divider: #23252a;
+  /* Hairlines — alpha-based so they sit softly on glass surfaces
+      and don't fight the atmospheric depth. */
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-soft: rgba(255, 255, 255, 0.05);
+  --color-divider: rgba(255, 255, 255, 0.06);
+  --color-app-divider: rgba(255, 255, 255, 0.06);
 
   /* Semantic — used sparingly per DESIGN.md §9. Dark-tuned per §2: these are
      the lyra-dark first-paint defaults (the theme re-applies the same values at
@@ -262,6 +286,11 @@
     0 8px 16px -4px rgba(0, 0, 0, 0.5), 0 24px 32px -8px rgba(0, 0, 0, 0.6),
     inset 0 0 0 1px var(--color-border);
   --shadow-glow: 0 0 12px color-mix(in oklab, var(--color-accent) 50%, transparent);
+  /* Luminous accent glow — soft, blurred, used SPARINGLY (send button,
+     active states, focus). Restraint is what makes it feel premium. */
+  --shadow-accent-glow:
+    0 0 20px color-mix(in oklab, var(--color-accent) 35%, transparent),
+    0 0 40px color-mix(in oklab, var(--color-accent) 15%, transparent);
   --shadow-card: none;
   --shadow-dialog: var(--shadow-lg);
   --shadow-soft: none;
@@ -452,6 +481,71 @@ textarea:focus-visible {
 }
 
 /* =========================================================================
+ *  Premium-dark atmosphere + glass utilities
+ * ========================================================================= */
+
+/* Atmospheric layer — fixed behind everything, heavily blurred radial
+   gradients in accent-adjacent cool hues. Barely perceptible; its job
+   is depth, not decoration. */
+.lyra-atmosphere {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.lyra-atmosphere__orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.07;
+  animation: lyra-atmosphere-drift 25s ease-in-out infinite;
+}
+/* Two orbs: one cool-accent, one slightly warmer for chromatic depth. */
+.lyra-atmosphere__orb--a {
+  width: 70vw;
+  height: 70vw;
+  top: -20vh;
+  left: -10vw;
+  background: radial-gradient(circle, oklch(0.5 0.15 270) 0%, transparent 70%);
+  animation-delay: 0s;
+}
+.lyra-atmosphere__orb--b {
+  width: 60vw;
+  height: 60vw;
+  bottom: -15vh;
+  right: -10vw;
+  background: radial-gradient(circle, oklch(0.45 0.12 290) 0%, transparent 70%);
+  animation-delay: -12s;
+  animation-direction: reverse;
+}
+
+/* Reduced motion: freeze the atmosphere (no drift), keep the static
+   color wash so the depth isn't lost. */
+@media (prefers-reduced-motion: reduce) {
+  .lyra-atmosphere__orb {
+    animation: none;
+  }
+}
+
+/* Glass utility — frosted pane. backdrop-blur + alpha bg + hairline
+   border. Used on composer, sidebar, document-card. */
+@layer utilities {
+  .glass {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+  }
+  .glass-strong {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+  }
+}
+
+/* =========================================================================
  *  Light-theme overrides — rules that can't ride the @theme inline token
  *  bridge: panel chrome shape, scrollbar tint, colour spans emitted by
  *  HTML-string renderers (highlight.ts / FilePreview) which Tailwind
@@ -470,6 +564,22 @@ html.theme-light .app {
 html.theme-light .panel {
   border: none;
   box-shadow: none;
+}
+/* Light mode: sidebar reverts to solid surface (glass + backdrop-blur
+   reads as dirty smear on light backgrounds). */
+html.theme-light .panel.sidebar {
+  background: var(--color-surface);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-right: 1px solid var(--color-app-divider);
+}
+/* Light mode: glass utilities revert to solid surfaces. */
+html.theme-light .glass,
+html.theme-light .glass-strong {
+  background: var(--color-surface);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid var(--color-border);
 }
 
 /* Light mode: subtler shadow opacity (craft's 0.08 / 0.06 vs dark 0.15 / 0.12) */

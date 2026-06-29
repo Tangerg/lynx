@@ -59,7 +59,10 @@ export function SessionRow({
   const inner = (
     <>
       {active && (
-        <div className="absolute left-0 inset-y-0 w-[2px] bg-accent rounded-full" />
+        <div
+          className="absolute left-0 inset-y-0 w-[2px] bg-accent rounded-full"
+          style={{ boxShadow: "0 0 8px color-mix(in oklab, var(--color-accent) 50%, transparent)" }}
+        />
       )}
       <button
         type="button"

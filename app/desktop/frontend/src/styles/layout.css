@@ -46,17 +46,20 @@ html.theme-light {
   --shadow-glow: 0 0 10px color-mix(in oklab, var(--color-accent) 35%, transparent);
 }
 
-/* Kernel grid — flush, edge-to-edge. .app paints the canvas; the two
-   columns run to the window edge with no gutters. */
+/* Kernel grid — flush, edge-to-edge. .app is transparent so the fixed
+    atmospheric layer (behind at z-index 0) shows through. Glass surfaces
+    inside blur the atmospheric glow for depth. */
 .app {
   display: grid;
   /* Single row: the main area. The overlay Slot's children are
-     position:fixed, so they claim no track. */
+      position:fixed, so they claim no track. */
   grid-template-rows: 1fr;
   height: 100vh;
   min-width: var(--app-min-width);
   min-height: var(--app-min-height);
-  background: var(--color-bg);
+  background: transparent;
+  position: relative;
+  z-index: 1;
 }
 
 .app-main {
@@ -88,22 +91,25 @@ html.theme-light .tool-card.running::before {
   );
 }
 
-/* Panels — flush, flat regions (no radius, no shadow). The main column
-   paints on the canvas; the sidebar is the one lifted chrome surface. */
+/* Panels — flush, transparent regions (no radius, no shadow). The main
+    column is transparent so the atmospheric layer shows through; the
+    sidebar is the one glass surface. */
 .panel {
-  background: var(--color-bg);
+  background: transparent;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
 
-/* Sidebar — a half-step off the canvas (surface), divided from the main
-   column by a single hairline. The whole "lifted" read is this step +
-   divider, not a gutter or a drop shadow. */
+/* Sidebar — frosted glass pane floating on the atmospheric canvas.
+   The lifted read comes from backdrop-blur + alpha, not a solid surface
+   step + divider. */
 .panel.sidebar {
-  background: var(--color-surface);
-  border-right: 1px solid var(--color-app-divider);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 /* ---------- Scroll containers ---------- */
