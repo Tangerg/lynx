@@ -130,7 +130,7 @@ function MessageBlockInner({
               <MessageContextMenu msg={msg}>
                 <div
                   ref={contentRef}
-                  className="msg-content group/msg min-w-0 rounded-md bg-surface shadow-minimal px-5 py-4 text-fg text-[15px] leading-[1.68] tracking-[-0.003em] font-normal"
+                  className="msg-content group/msg min-w-0 rounded-md glass px-5 py-4 text-fg text-[15px] leading-[1.68] tracking-[-0.003em] font-normal"
                 >
                   {content}
                   {/* Hover-only action bar — appears when the user hovers the

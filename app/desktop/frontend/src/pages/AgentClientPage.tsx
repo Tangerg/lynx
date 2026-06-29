@@ -19,8 +19,15 @@ export function AgentClientPage() {
   const railed = useSidebarRail();
 
   return (
-    <div className={cn("app", railed && "rail")}>
-      <div className="app-main">
+    <>
+      {/* Atmospheric depth layer — fixed behind everything, heavily blurred
+          radial gradients that drift slowly. Kills the flat-canvas feel. */}
+      <div className="lyra-atmosphere" aria-hidden="true">
+        <div className="lyra-atmosphere__orb lyra-atmosphere__orb--a" />
+        <div className="lyra-atmosphere__orb lyra-atmosphere__orb--b" />
+      </div>
+      <div className={cn("app", railed && "rail")}>
+        <div className="app-main">
         {/* Landmark roles for SR users to skip between regions, while
             `display: contents` keeps the wrapper transparent to the
             outer grid — `.app-main` is `grid-template-columns` and
@@ -37,5 +44,6 @@ export function AgentClientPage() {
       </div>
       <Slot name="app.overlay" />
     </div>
+    </>
   );
 }
