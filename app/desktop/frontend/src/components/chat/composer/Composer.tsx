@@ -133,7 +133,8 @@ export function Composer({
         if (!acceptsImages) return; // text-only model — toolbar attach is disabled too
         onAddImages(files);
       }}
-      className="relative rounded-xl bg-surface shadow-minimal px-3 pb-2 pt-2.5 transition-[box-shadow] duration-150 focus-within:shadow-middle"
+      className="relative rounded-xl bg-surface border border-line/40 dark:border-transparent shadow-[var(--shadow-composer)] px-3 py-2.5 transition-colors duration-150 focus-within:border-line"
+      data-slot="composer-root"
     >
       {mentions.active && (
         <FileMentionPopup
@@ -143,6 +144,10 @@ export function Composer({
           onHover={mentions.setIndex}
         />
       )}
+      {/* Top toolbar: attach + model pill */}
+      <div className="flex flex-nowrap items-center gap-1.5 pb-1 min-h-7" data-slot="composer-toolbar-top">
+        <Slot name="composer.toolbar.start" />
+      </div>
       <PluginAttachments sources={attachmentSources} />
       {images.length > 0 && (
         <div className="flex flex-wrap gap-2 pb-1 pt-1">
@@ -221,10 +226,11 @@ export function Composer({
         /* The `composer-input` class is a DOM-target hook (no styles) so
            the `composer.focus` command in defaults/commands.ts can find
            this textarea without threading a ref through the tree. */
-        className="composer-input w-full resize-none border-0 bg-transparent px-0.5 py-2 font-sans text-[15px] leading-[1.55] tracking-[-0.003em] text-fg outline-none min-h-5.5 max-h-40 placeholder:text-fg-faint/60 placeholder:tracking-normal"
+        className="composer-input w-full resize-none border-0 bg-transparent px-0.5 py-2 font-sans text-[15px] leading-[1.55] text-fg outline-none min-h-9 max-h-40 placeholder:text-fg-faint placeholder:tracking-normal"
+        data-slot="composer-input"
       />
-      <div className="flex flex-nowrap items-center gap-1.5 pt-2 min-h-7">
-        <Slot name="composer.toolbar.start" />
+      {/* Bottom toolbar: send / stop */}
+      <div className="flex flex-nowrap items-center gap-1.5 pt-2 min-h-7" data-slot="composer-toolbar-bottom">
         <div className="flex-1 min-w-2" />
         <Slot name="composer.toolbar.end" />
       </div>

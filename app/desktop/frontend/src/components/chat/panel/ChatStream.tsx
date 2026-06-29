@@ -127,9 +127,7 @@ export function ChatStream({ onSend, resetKey }: Props) {
         onAddPaste={addPaste}
         acceptsImages={acceptsImages}
       >
-        <div className="-mx-3 -mb-2 mt-1 px-3 pb-1 pt-1.5">
-          <ComposerFooter />
-        </div>
+        <ComposerFooter />
       </Composer>
     </>
   );

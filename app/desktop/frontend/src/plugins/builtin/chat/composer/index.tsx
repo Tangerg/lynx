@@ -162,9 +162,9 @@ function Chip({ icon, title, children }: { icon: IconName; title: string; childr
   return (
     <span
       title={title}
-      className="group inline-flex h-6 items-center gap-1.5 rounded-sm px-2 font-mono text-[11.5px] font-normal text-fg-muted tracking-tight whitespace-nowrap"
+      className="inline-flex items-center gap-1.5 text-[11.5px] text-fg-faint whitespace-nowrap transition-colors hover:text-fg-muted"
     >
-      <Icon name={icon} size={11} className="text-fg-faint shrink-0" />
+      <Icon name={icon} size={11} className="shrink-0" />
       <span>{children}</span>
     </span>
   );
@@ -224,17 +224,17 @@ function ApprovalModeChip() {
         <button
           type="button"
           aria-label={t("approvals.mode.aria")}
-          className="inline-flex h-6 items-center gap-1.5 rounded-sm border-0 bg-transparent px-2 font-mono text-[11.5px] font-normal tracking-tight whitespace-nowrap text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg data-[state=open]:bg-surface-2 data-[state=open]:text-fg"
+          className="inline-flex items-center gap-1.5 text-[11.5px] text-fg-faint whitespace-nowrap transition-colors hover:text-fg-muted data-[state=open]:text-fg"
         >
           <Icon
             name="shield"
             size={11}
-            className={cn("shrink-0", mode === "yolo" ? "text-warning" : "text-fg-faint")}
+            className={cn("shrink-0", mode === "yolo" ? "text-warning" : "")}
           />
           {/* Warn-tint the unprompted "Auto" stance so it can't run silently
               unnoticed; the other stances stay neutral. */}
           <span className={cn(mode === "yolo" && "text-warning")}>{t(current.labelKey)}</span>
-          <Icon name="chevron-down" size={9} className="text-fg-faint opacity-70" />
+          <Icon name="chevron-down" size={9} className="opacity-70" />
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
@@ -293,12 +293,12 @@ function UsageChip() {
   return (
     <span
       title={t("composer.usage.hint")}
-      className="inline-flex h-6 items-center gap-1.5 rounded-sm px-2 font-mono text-[11.5px] font-normal text-fg-muted tracking-tight whitespace-nowrap tabular-nums"
+      className="inline-flex items-center gap-1.5 text-[11.5px] text-fg-faint whitespace-nowrap tabular-nums"
     >
       <span>↑{fmtTokens(usage.inputTokens)}</span>
       <span>↓{fmtTokens(usage.outputTokens)}</span>
       {usage.costUsd !== undefined && (
-        <span className="text-fg-faint">·&nbsp;${usage.costUsd.toFixed(2)}</span>
+        <span>·&nbsp;${usage.costUsd.toFixed(2)}</span>
       )}
       {pct !== undefined && (
         <span className={ctxTone(pct)} title={t("composer.usage.context")}>
@@ -361,7 +361,7 @@ function ModelPicker() {
     if (!isLoading) return null;
     return (
       <div
-        className="mr-1 inline-flex h-6.5 shrink-0 items-center gap-1.5 rounded-full pl-1.5 pr-2.5 opacity-60"
+        className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full pl-1.5 pr-2.5 opacity-60"
         aria-hidden
       >
         <span className="h-4 w-4 rounded-full bg-surface-2" />
@@ -377,10 +377,11 @@ function ModelPicker() {
         <button
           type="button"
           aria-label={t("composer.switchModel")}
-          className="mr-1 inline-flex h-6.5 shrink-0 items-center gap-1.5 rounded-full border border-line/40 bg-transparent pl-1.5 pr-2.5 font-sans text-[12px] font-semibold text-fg whitespace-nowrap transition-colors hover:bg-surface-2 hover:border-line data-[state=open]:bg-surface-2 data-[state=open]:border-line"
+          className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-line/40 bg-transparent pl-1.5 pr-2.5 text-[12px] font-medium text-fg whitespace-nowrap transition-colors hover:bg-surface-2 data-[state=open]:bg-surface-2"
+          data-slot="composer-model"
         >
           <ProviderIcon provider={selected.provider} size={16} />
-          <span className="font-mono text-[11.5px] font-semibold tracking-[0.01em]">
+          <span className="font-sans text-[12px] font-medium">
             {selected.label}
           </span>
           <Icon name="chevron-down" size={10} className="text-fg-faint opacity-70" />
@@ -445,7 +446,8 @@ function AttachButton() {
           aria-label={t("composer.attachImage")}
           disabled={!canAttach}
           onClick={() => inputRef.current?.click()}
-          className="inline-flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-fg-faint/70 transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-transparent"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg active:scale-95 disabled:cursor-not-allowed disabled:opacity-25"
+          data-slot="composer-attach"
         >
           <Icon name="image" size={15} />
         </button>
@@ -493,7 +495,8 @@ function SendButton() {
           <button
             type="button"
             onClick={() => submitComposer({ value, clear, sendInput: send, images })}
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 bg-accent text-on-accent shadow-minimal transition-transform duration-150 active:scale-95"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 bg-accent text-on-accent transition-transform duration-150 active:scale-95"
+            data-slot="composer-send"
           >
             <Icon name="send-arrow" size={14} strokeWidth={2.5} />
           </button>
@@ -507,6 +510,7 @@ function SendButton() {
           disabled={!stop}
           onClick={() => stop?.()}
           className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 bg-surface-3 text-fg-muted transition-colors duration-150 hover:bg-surface-4 hover:text-fg active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+          data-slot="composer-stop"
         >
           <Icon name="stop" size={13} />
         </button>
@@ -526,11 +530,12 @@ function SendButton() {
         disabled={disabled}
         onClick={onClick}
         className={cn(
-          "grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 transition-all duration-150",
+          "grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 transition-transform duration-150",
           disabled
             ? "bg-transparent text-fg-faint/30 cursor-not-allowed"
-            : "bg-accent text-on-accent shadow-minimal active:scale-95",
+            : "bg-fg text-canvas active:scale-95",
         )}
+        data-slot="composer-send"
       >
         <Icon name="send-arrow" size={14} strokeWidth={2.5} />
       </button>
