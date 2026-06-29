@@ -56,7 +56,6 @@ function deriveCustomSpec(ct: CustomTheme, accent: string, contrast: number): Th
       border: mix(fg, p(8, 22), bg),
       borderSoft: mix(fg, p(14, 32), bg),
       divider: mix(fg, p(5, 13), bg),
-      appDivider: bg,
     },
     semantic: { negative: "#e5484d", warning: "#f5a623", info: "#3b82f6", success: "#30a46c" },
   };

@@ -211,7 +211,7 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered,
           data-slot="question-submit"
           disabled={disabled}
           onClick={() => submit(toAnswers(questions, draft))}
-          className="inline-flex cursor-pointer items-center rounded-md bg-fg px-3 py-1.5 text-[13px] font-medium text-canvas transition-opacity duration-150 ease-out hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex cursor-pointer items-center rounded-md bg-fg px-3 py-1.5 text-[13px] font-medium text-on-fg transition-opacity duration-150 ease-out hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t("question.action.submit")}
         </button>

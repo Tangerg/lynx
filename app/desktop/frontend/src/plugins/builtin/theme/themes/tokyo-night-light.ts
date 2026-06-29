@@ -49,7 +49,6 @@ export default defineThemePlugin({
     border: c.hairline,
     borderSoft: c.hairStrong,
     divider: c.hairTertiary,
-    appDivider: c.hairline,
   },
   semantic: {
     // Tokyo Night Day syntax pulls — desaturated for the light surface

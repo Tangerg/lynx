@@ -46,7 +46,6 @@ export default defineThemePlugin({
     border: "#ddd6c1",
     borderSoft: "#c4bda4",
     divider: c.base1,
-    appDivider: c.base2,
   },
   semantic: {
     negative: "#dc322f",

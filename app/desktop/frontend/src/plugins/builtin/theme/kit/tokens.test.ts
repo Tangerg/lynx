@@ -26,7 +26,6 @@ function makeSpec(overrides: Partial<ThemePluginSpec> = {}): ThemePluginSpec {
       border: "#2a2a2a",
       borderSoft: "#3a3a3a",
       divider: "#1f1f1f",
-      appDivider: "#2a2a2a",
     },
     semantic: {
       negative: "#ff5555",

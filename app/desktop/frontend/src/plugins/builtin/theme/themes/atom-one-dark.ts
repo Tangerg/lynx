@@ -51,7 +51,6 @@ export default defineThemePlugin({
     border: c.hairline,
     borderSoft: c.hairStrong,
     divider: c.hairTertiary,
-    appDivider: c.hairline,
   },
   semantic: {
     negative: "#e06c75",
