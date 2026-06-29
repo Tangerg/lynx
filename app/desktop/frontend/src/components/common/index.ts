@@ -3,7 +3,7 @@ export { Chip } from "./Chip";
 export { Collapsible } from "./Collapsible";
 export { DataView } from "./DataView";
 export { Divider } from "./Divider";
-export { dragClasses, DragStrip, noDragClasses } from "./DragRegion";
+export { dragClasses, noDragClasses } from "./DragRegion";
 export { EmptyState } from "./EmptyState";
 export { FIELD_CLASSES, INPUT_FOCUS_RING } from "./fieldClasses";
 export { Icon } from "./Icon";

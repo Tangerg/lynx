@@ -12,8 +12,9 @@
 // `margin-top: auto`.
 
 import type { SidebarSession } from "@/lib/data/queries";
-import { DragStrip, Icon, IconButton, Panel } from "@/components/common";
+import { dragClasses, Icon, IconButton, Panel } from "@/components/common";
 import { useT } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
 import { SIDEBAR_RAIL_ITEM, useExtensionPoint } from "@/plugins/sdk";
 
@@ -32,12 +33,8 @@ export function SidebarRail({ onToggleRail }: Props) {
   const items = useExtensionPoint(SIDEBAR_RAIL_ITEM);
   return (
     // `sidebar` / `rail` classes are kept as DOM hooks for layout.css
-    // (macOS titlebar padding + Wails drag region). All visual styling is
-    // Tailwind here.
-    <Panel className="sidebar rail w-14 items-center gap-1 px-1.5 pb-3">
-      {/* macOS drag-region strip — 36px above the expand button. See
-          SidebarExpanded for the rationale (don't make rows draggable). */}
-      <DragStrip height={36} />
+    // (macOS titlebar padding). All visual styling is Tailwind here.
+    <Panel className={cn("sidebar rail w-14 items-center gap-1 px-1.5 pb-3", dragClasses)}>
       <IconButton variant="rail" title={t("sidebar.action.expand")} onClick={onToggleRail}>
         <Icon name="panel-l" size={16} />
       </IconButton>

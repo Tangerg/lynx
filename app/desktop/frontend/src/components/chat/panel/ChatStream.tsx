@@ -182,8 +182,7 @@ export function ChatStream({ onSend, resetKey }: Props) {
         <div
           className="pointer-events-none absolute inset-x-0 bottom-0 h-[140px]"
           style={{
-            background:
-              "linear-gradient(180deg, transparent 0%, var(--color-surface) 50%)",
+            background: "linear-gradient(180deg, transparent 0%, var(--color-surface) 50%)",
           }}
         />
         <JumpToBottomButton

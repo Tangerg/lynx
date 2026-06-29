@@ -183,18 +183,21 @@ DESIGN.md 随重构**就地演进**（非冻结基线）。下列决策是相对
 **drift-flag**：仅动 token，不改组件 JSX 结构、不加字体资产。**这步直接修好「字体不好看」（配方层面）。**
 **commit**：`feat(theme): rework token foundation toward OpenAI restraint (recipe, no font bundling)`
 
-#### Step 1b — app-shell + 侧栏重构  `[ ]`  lane: des-1
+#### Step 1b — app-shell + 侧栏重构  `[x]`  lane: des-1  **commit: `e303d3f6`**
 **做什么**：修 11 个侧栏丑因 + 去 titlebar 死区 + （如残留）去 orb。
 **改文件**：
-- `src/components/sidebar/SidebarExpanded.tsx`：去 `DragStrip`，sidebar 容器加 `-webkit-app-region: drag`（按钮/行/输入 `no-drag`），`pt-9`→`pt-3`；滚动容器 `pt-3 pb-4`
-- `src/plugins/builtin/sidebar/nav.tsx`：统一所有行 `py-2 px-3`；`SectionLabel` 升 `text-[12px] font-medium text-fg-muted tracking-wide`（sentence-case，非 SHOUT）
-- `src/plugins/builtin/sidebar/projects.tsx`：`ProjectRow` 加 `chevron-down`（collapse 时 `-rotate-90`）；计数徽章→右侧纯文本 `text-[12px] tabular-nums text-fg-faint`（始终渲染，不 opacity-0）；AddProject popover→内联极简输入
-- `src/plugins/builtin/sidebar/search.tsx`：**杀 `sidebar.search` 双重搜索**，projects filter 输入成为唯一搜索（placeholder「Search sessions…」）
-- `src/plugins/builtin/sidebar/footer.tsx`：加 `border-t border-line/50` + `bg-surface`；加 `ModelPicker`（compact）+ `ThemeToggle`；保留 `sidebar.footer.status` slot
-- `src/components/sidebar/SessionRow.tsx`：子文单行化（仅时间或「Running/Waiting」），去行内 `StatusDot`
-- `src/pages/AgentClientPage.tsx`：若有残留 `lyra-atmosphere` div 删除
-**验证**：tsc+build+vitest 全绿；`wails dev` 逐项核对 11 个丑因已修；macOS titlebar 拖拽仍工作；插件扩展点未坏（`SIDEBAR_SECTION` 等）。
+- `src/components/sidebar/SidebarExpanded.tsx`：去 `DragStrip`，sidebar 容器加 `dragClasses`（按钮/行/输入 `noDragClasses`），`pt-9`→`pt-3`
+- `src/components/sidebar/SidebarRail.tsx`：去 `DragStrip`，加 `dragClasses`
+- `src/components/common/DragRegion.tsx` + `index.ts`：删除已废弃的 `DragStrip` 组件
+- `src/plugins/builtin/sidebar/nav.tsx`：统一所有行 `py-2 px-3`；`SectionLabel` 升 `text-[12px] font-medium text-fg-muted tracking-wide`
+- `src/components/sidebar/SessionRow.tsx`：子文单行化（仅时间），去 `StatusDot`
+- `src/components/sidebar/ProjectRow.tsx`：加 `chevron-down`（collapse 时 `-rotate-90`）；计数→右侧纯文本 `text-[12px] tabular-nums text-fg-faint`（始终渲染）
+- `src/plugins/builtin/sidebar/projects.tsx`：AddProject popover→内联极简输入；**移除 projects filter 输入**（top `sidebar.search` slot 为唯一搜索）
+- `src/plugins/builtin/sidebar/footer.tsx`：加 `border-t border-line`；加 `ThemeToggle`（sun/moon）；保留 `sidebar.footer.status` slot；**不加 ModelPicker**（canonical home 在 composer，Step 3a）
+- `src/styles/layout.css`：更新 drag region 注释
+**验证**：tsc+build+vitest 全绿（62/477）；`wails dev` 待验。
 **drift-flag**：保留所有插件扩展点；不改 store；不动 router。
+**偏差记录**：projects filter 输入被整体移除（而非改成唯一搜索），因为 top `sidebar.search` slot 已是单一搜索 affordance，双重搜索不符合「激进减法」原则。
 
 ### Phase 2 — 删 tab（行为变更，用户 review 导航模型）
 

@@ -87,9 +87,7 @@ export function ToolGroup({
           )}
         />
         <Icon name="search" size={13} className="shrink-0 text-fg-muted" />
-        <span className="truncate text-[13px] font-medium text-fg-muted">
-          {summarize(tools)}
-        </span>
+        <span className="truncate text-[13px] font-medium text-fg-muted">{summarize(tools)}</span>
         <span className="ml-auto shrink-0 font-mono text-[11px] text-fg-faint">
           {tools.length} calls
         </span>

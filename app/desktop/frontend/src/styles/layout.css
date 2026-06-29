@@ -149,11 +149,9 @@ html.theme-light .tool-card.running::before {
 }
 
 /* macOS titlebar shim — push sidebar header below the traffic-light
-   controls. The drag region is a dedicated absolutely-positioned strip
-   added by SidebarExpanded / SidebarRail (see those files), not the
-   whole sidebar — making the entire column drag would catch every
-   div-based row (SessionRow, ProjectRow, footer card) and let the
-   window be moved by clicking on them. */
+   controls. The drag region is applied to the Panel container itself
+   (see SidebarExpanded / SidebarRail); interactive children opt out
+   via `noDragClasses`. */
 .sidebar {
   padding-top: 48px;
   position: relative;

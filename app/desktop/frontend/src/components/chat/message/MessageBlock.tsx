@@ -18,13 +18,7 @@ import { MessageContextMenu } from "./MessageContextMenu";
 import { MessageOutline } from "./MessageOutline";
 import { planRenderUnits, renderBlock } from "./BlockRenderer";
 
-function MessageBlockInner({
-  msg,
-  ctx,
-}: {
-  msg: Message;
-  ctx: BlockCtx;
-}) {
+function MessageBlockInner({ msg, ctx }: { msg: Message; ctx: BlockCtx }) {
   const isUser = msg.role === "user";
   const isAgent = msg.role === "assistant";
 
