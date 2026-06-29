@@ -18,8 +18,8 @@ interface Destination {
   id: string;
   icon: IconName;
   // i18n KEY for the view title. Doubles as the nav-row label and the opened
-  // tab's title — passed RAW (unresolved) to openMainView so PanelTabBar
-  // re-translates it live on a locale switch (it t()s view-tab titles).
+  // view's title — passed RAW (unresolved) to openMainView so it can be
+  // re-translated live on a locale switch.
   titleKey: string;
 }
 

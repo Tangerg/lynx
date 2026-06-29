@@ -29,7 +29,7 @@ export interface SidebarSession {
   title: string;
   status: "running" | "waiting" | "idle";
   model: string;
-  cwd?: string; // session working directory — absent on 1:1 placeholder rows (PanelHeader)
+  cwd?: string; // session working directory — absent on 1:1 placeholder rows
   cwdMissing?: boolean; // cwd lost on disk → agent degrades to plain chat (relocate to fix)
   /** Cumulative session usage (wire Session.usage). costUsd stays absent
    *  when the model isn't in the pricing table — never fabricate 0. */
