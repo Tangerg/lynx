@@ -60,7 +60,7 @@ export function isQuestionTool(name: string): boolean {
 // Tool-call display state, derived from toolCall Item status + error.
 // `denied` is a user decision (HITL decline → error.type "denied_by_user"),
 // NOT a failure — it gets a neutral treatment, not the alarming "err" red.
-export type ToolCallStatus = "running" | "ok" | "err" | "denied";
+export type ToolCallStatus = "running" | "ok" | "err" | "denied" | "requires-action";
 
 // Block lifecycle status — any block with a non-trivial lifecycle expresses
 // the same four states:

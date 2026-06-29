@@ -67,10 +67,11 @@ export function ToolCard({
   const intent = formatToolIntent(tool);
 
   return (
-    <div className={cn("tool-card group relative my-0.5", running && "running")}>
+    <div data-slot="tool-card-root" className="group relative my-0.5">
       {/* Collapsed / expanded row — a single bare text line, no bg, no
           border, no surface. Reads like a log entry on the canvas. */}
       <button
+        data-slot="tool-card-trigger"
         type="button"
         aria-expanded={expanded}
         onClick={onToggleExpand}
@@ -98,7 +99,8 @@ export function ToolCard({
           <span
             title={intent.label}
             className={cn(
-              "truncate text-[13px] font-medium text-fg-muted",
+              "truncate text-[13px] font-medium",
+              running ? "text-accent" : "text-fg-muted",
               intent.detail && "shrink-0",
             )}
           >
@@ -148,7 +150,7 @@ export function ToolCard({
       {/* Expanded inline preview — plain text/code under the row, zero
           chrome (no card, no surface, no action buttons). */}
       <Collapsible open={expanded}>
-        <div className="pl-6 pr-2 pb-1">
+        <div data-slot="tool-card-content" className="pl-6 pr-2 pb-1">
           <ToolPreview tool={tool} />
         </div>
       </Collapsible>
@@ -159,21 +161,55 @@ export function ToolCard({
 function StatusIcon({ status, tool }: { status: ToolCall["status"]; tool: ToolCall }) {
   if (status === "running") {
     return (
-      <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center">
+      <span
+        data-slot="tool-card-status"
+        className="inline-flex h-4 w-4 shrink-0 items-center justify-center"
+      >
         <span className="h-2 w-2 rounded-full bg-accent shadow-[0_0_6px_var(--color-accent)] animate-pulse-dot" />
       </span>
     );
   }
   if (status === "err") {
-    return <Icon name="x" size={13} className="shrink-0 text-negative" />;
+    return (
+      <span
+        data-slot="tool-card-status"
+        className="inline-flex h-4 w-4 shrink-0 items-center justify-center"
+      >
+        <Icon name="x" size={13} className="shrink-0 text-negative" />
+      </span>
+    );
   }
   if (status === "denied") {
-    return <Icon name="stop" size={12} className="shrink-0 text-fg-faint" />;
+    return (
+      <span
+        data-slot="tool-card-status"
+        className="inline-flex h-4 w-4 shrink-0 items-center justify-center"
+      >
+        <Icon name="stop" size={12} className="shrink-0 text-fg-faint" />
+      </span>
+    );
+  }
+  if (status === "requires-action") {
+    return (
+      <span
+        data-slot="tool-card-status"
+        className="inline-flex h-4 w-4 shrink-0 items-center justify-center"
+      >
+        <Icon name="alert" size={13} className="shrink-0 text-warning" />
+      </span>
+    );
   }
   // ok — show the tool-type icon, not a generic check, so the row reads
   // differently per tool at a glance.
   const icon = toolIconFor(toolRoutingKey(tool));
-  return <Icon name={icon} size={13} className="shrink-0 text-fg-muted" />;
+  return (
+    <span
+      data-slot="tool-card-status"
+      className="inline-flex h-4 w-4 shrink-0 items-center justify-center"
+    >
+      <Icon name={icon} size={13} className="shrink-0 text-fg-muted" />
+    </span>
+  );
 }
 
 const ACTION_BTN =

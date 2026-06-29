@@ -71,19 +71,6 @@ html.theme-light {
   grid-template-columns: 56px minmax(0, 1fr);
 }
 
-/* Running tool card border — full accent gradient is too loud on white;
-   pull saturation down + tighten the visible arc. (Paired with the
-   `.tool-card.running::before` rule in tool.css.) */
-html.theme-light .tool-card.running::before {
-  background: conic-gradient(
-    from var(--tc-angle),
-    var(--color-accent) 0deg,
-    rgba(21, 136, 62, 0) 70deg,
-    rgba(21, 136, 62, 0) 290deg,
-    var(--color-accent) 360deg
-  );
-}
-
 /* Panels — flush, flat regions (no radius, no shadow). The main column
    paints on the canvas; the sidebar is the one lifted chrome surface. */
 .panel {

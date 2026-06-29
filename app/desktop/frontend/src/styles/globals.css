@@ -405,22 +405,8 @@ body {
 }
 
 /* =========================================================================
- *  Cross-cutting polish — keyboard focus + reduced-motion opt-out + the
- *  one residual structural rule for selected tool cards.
+ *  Cross-cutting polish — keyboard focus + reduced-motion opt-out.
  * ========================================================================= */
-
-/* Lifted-surface inner highlight on selected tool cards. DESIGN.md §5
-   decorative depth: a barely-visible white top edge gives the dark
-   surface a faint "pixel rendered" feel (Linear's signature touch).
-   `.tool-card.selected` is still raw className inside ToolCard.tsx
-   because the running-border animation also keys on `.tool-card`. */
-.tool-card.selected {
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-}
-html.theme-light .tool-card.selected {
-  /* Light surfaces don't need / can't show a white top highlight. */
-  box-shadow: none;
-}
 
 /* Keyboard-only focus ring. Kept quiet on purpose: a single thin accent
    stroke, no bright box-shadow halo. The old 2px-outline + 4px-halo double
