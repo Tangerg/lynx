@@ -144,23 +144,19 @@
  *  at runtime via :root.style. See DESIGN.md for the spec.
  * ========================================================================= */
 :root {
-  /* Accent — a luminous, slightly desaturated indigo that glows softly
-      against the deep dark canvas. Used sparingly (restraint = premium). */
-  --color-accent: #7b8efa;
-  --color-accent-border: #6a7ee8;
-  --color-accent-press: #586dd6;
+  /* Accent — restrained, near-monochrome. A calm blue used only for live /
+     CTA / focus (DESIGN.md §9). Themes + the user's accent pick override it. */
+  --color-accent: #6c97ff;
+  --color-accent-border: #5b86f0;
+  --color-accent-press: #4a72d8;
 
   /* Surface ladder — canvas + surface are manual anchors; -2/-3/-4
-      derive via color-mix() so the direction flips automatically per
-      scheme (deeper = lighter on dark, deeper = darker on light).
-      Themes can pin surface-2/3/4 explicitly when their canonical
-      palette has a non-linear ladder. */
-  /* Premium dark — deep near-black with a subtle cool undertone.
-     Not pure #000; the slight chroma gives depth without reading as
-     flat gray. Surface lifts are alpha-tinted so they work with
-     backdrop-blur glass surfaces. */
-  --color-bg: oklch(0.12 0.008 265);
-  --color-surface: oklch(0.165 0.012 265);
+     derive via color-mix() so the direction flips automatically per
+     scheme (deeper = lighter on dark, deeper = darker on light).
+     Themes can pin surface-2/3/4 explicitly when their canonical
+     palette has a non-linear ladder. */
+  --color-bg: #0c0d0f; /* canvas — the main reading surface (flush layout) */
+  --color-surface: #16181b; /* lifted chrome — sidebar, cards, bubbles */
   --depth-step: 5%;
   --color-surface-2: color-mix(
     in oklab,
@@ -178,22 +174,20 @@
     var(--color-surface)
   );
 
-  /* Ink — tuned for the deeper premium-dark canvas. Slightly warmer
-     and more restrained than the old flat grays so prose reads as
-     refined, not clinical. */
-  --color-text: #e8eaed;
+  /* Ink — see DESIGN.md §2 for the role hierarchy. */
+  --color-text: #f7f8f8;
   --color-text-bright: #ffffff;
-  --color-text-soft: #b8bcc4;
+  --color-text-soft: #d0d6e0;
   --color-text-muted: #8a8f98;
-  --color-text-faint: #5c6068;
-  --color-text-on-accent: #030408;
+  --color-text-faint: #62666d;
+  --color-text-on-accent: #000000;
 
-  /* Hairlines — alpha-based so they sit softly on glass surfaces
-      and don't fight the atmospheric depth. */
-  --color-border: rgba(255, 255, 255, 0.08);
-  --color-border-soft: rgba(255, 255, 255, 0.05);
-  --color-divider: rgba(255, 255, 255, 0.06);
-  --color-app-divider: rgba(255, 255, 255, 0.06);
+  /* Hairlines — literal hex (DESIGN.md §2: semi-transparent borders
+     shift across surface lifts and read as "approximate"). */
+  --color-border: #23252a;
+  --color-border-soft: #34343a;
+  --color-divider: #3e3e44;
+  --color-app-divider: #23252a;
 
   /* Semantic — used sparingly per DESIGN.md §9. Dark-tuned per §2: these are
      the lyra-dark first-paint defaults (the theme re-applies the same values at
@@ -286,11 +280,6 @@
     0 8px 16px -4px rgba(0, 0, 0, 0.5), 0 24px 32px -8px rgba(0, 0, 0, 0.6),
     inset 0 0 0 1px var(--color-border);
   --shadow-glow: 0 0 12px color-mix(in oklab, var(--color-accent) 50%, transparent);
-  /* Luminous accent glow — soft, blurred, used SPARINGLY (send button,
-     active states, focus). Restraint is what makes it feel premium. */
-  --shadow-accent-glow:
-    0 0 20px color-mix(in oklab, var(--color-accent) 35%, transparent),
-    0 0 40px color-mix(in oklab, var(--color-accent) 15%, transparent);
   --shadow-card: none;
   --shadow-dialog: var(--shadow-lg);
   --shadow-soft: none;
@@ -580,6 +569,11 @@ html.theme-light .glass-strong {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   border: 1px solid var(--color-border);
+}
+
+/* Light mode: atmosphere orbs hidden (they're a dark-mood effect). */
+html.theme-light .lyra-atmosphere {
+  display: none;
 }
 
 /* Light mode: subtler shadow opacity (craft's 0.08 / 0.06 vs dark 0.15 / 0.12) */
