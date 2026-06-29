@@ -9,16 +9,9 @@ import { cn } from "@/lib/utils";
 // args; question has per-question selects), so this shell intentionally does
 // NOT try to abstract the bodies.
 
-type Tone = "warning" | "accent";
-
-const TONE_CARD: Record<Tone, string> = {
-  warning: "border-warning/20 bg-warning/[0.03]",
-  accent: "border-accent/20 bg-accent/[0.03]",
-};
-
-const TONE_TEXT: Record<Tone, string> = {
-  warning: "text-warning",
-  accent: "text-accent",
+const VARIANT_CLASS: Record<string, string> = {
+  neutral: "border-line bg-surface",
+  warning: "border-warning/30 bg-warning/[0.03]",
 };
 
 /** Settled "done" row — shared by approval (approved) + question (answered). */
@@ -31,25 +24,33 @@ export function HitlSettledRow({ label }: { label: string }) {
 }
 
 interface ShellProps {
-  tone: Tone;
+  variant?: "neutral" | "warning";
   icon: IconName;
+  iconClassName?: string;
   label: string;
   /** Optional trailing header content, pushed to the right (e.g. the
    *  approval card's risk badge). */
   trailing?: ReactNode;
   children: ReactNode;
+  "data-slot"?: string;
 }
 
-export function HitlCardShell({ tone, icon, label, trailing, children }: ShellProps) {
+export function HitlCardShell({
+  variant = "neutral",
+  icon,
+  iconClassName,
+  label,
+  trailing,
+  children,
+  "data-slot": slot = "hitl-shell",
+}: ShellProps) {
   return (
-    <div className={cn("my-2 rounded-md border px-3 py-2.5", TONE_CARD[tone])}>
-      <div
-        className={cn(
-          "mb-1.5 flex items-center gap-2 font-mono text-[11px] font-semibold",
-          TONE_TEXT[tone],
-        )}
-      >
-        <Icon name={icon} size={12} />
+    <div
+      data-slot={slot}
+      className={cn("my-2 rounded-md border px-4 py-3", VARIANT_CLASS[variant])}
+    >
+      <div className="mb-2 flex items-center gap-2 text-[13px] font-medium text-fg">
+        <Icon name={icon} size={13} className={iconClassName} />
         <span>{label}</span>
         {trailing != null && (
           <>

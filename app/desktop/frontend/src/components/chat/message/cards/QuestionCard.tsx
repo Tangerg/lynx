@@ -1,6 +1,6 @@
 import type { BlockStatus, QuestionItem } from "@/protocol/run/viewState";
 import { useMemo, useState } from "react";
-import { Icon, PillButton } from "@/components/common";
+import { Icon } from "@/components/common";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
 import { useQuestionAnswer, type QuestionAnswers } from "@/lib/agent/useQuestionAnswer";
@@ -90,7 +90,7 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered,
       answers ?? (allAnswered ? toAnswers(questions, draft) : undefined);
     if (!shown) return <HitlSettledRow label={t("question.settled.answered")} />;
     return (
-      <div className="my-3 flex flex-col gap-2 rounded-md border border-line/60 bg-surface px-4 py-3">
+      <div className="my-3 flex flex-col gap-2 rounded-md border border-line bg-surface px-4 py-3">
         <div className="flex items-center gap-1.5 font-mono text-[10px] font-medium text-fg-faint">
           <Icon name="check" size={11} strokeWidth={3} />
           <span>{t("question.settled.answered")}</span>
@@ -133,7 +133,13 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered,
   const disabled = !parentRunId || !itemId || !allAnswered || status !== "requires-action";
 
   return (
-    <HitlCardShell tone="accent" icon="question" label={t("question.required")}>
+    <HitlCardShell
+      data-slot="question-card"
+      variant="neutral"
+      icon="question"
+      iconClassName="text-accent"
+      label={t("question.required")}
+    >
       <div className="flex flex-col gap-4">
         {questions.map((q) => {
           const cur = draft[q.id] ?? { selected: [], text: "" };
@@ -186,11 +192,12 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered,
               {q.allowFreeText && (
                 <input
                   type="text"
+                  data-slot="question-input"
                   value={cur.text}
                   aria-label={q.question}
                   placeholder={t("question.freetext.placeholder")}
                   onChange={(e) => setText(q, e.target.value)}
-                  className="rounded-md border border-line bg-surface-2 px-3 py-2 font-sans text-[13px] text-fg placeholder:text-fg-faint focus:border-accent/60 focus:outline-none"
+                  className="w-full bg-transparent border-b border-line py-1 text-[15px] text-fg placeholder:text-fg-faint outline-none focus:border-fg"
                 />
               )}
             </div>
@@ -199,14 +206,15 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered,
       </div>
 
       <div className="mt-3.5 flex items-center gap-2">
-        <PillButton
-          variant="accent"
-          size="sm"
+        <button
+          type="button"
+          data-slot="question-submit"
           disabled={disabled}
           onClick={() => submit(toAnswers(questions, draft))}
+          className="inline-flex cursor-pointer items-center rounded-md bg-fg px-3 py-1.5 text-[13px] font-medium text-canvas transition-opacity duration-150 ease-out hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t("question.action.submit")}
-        </PillButton>
+        </button>
       </div>
     </HitlCardShell>
   );
