@@ -278,10 +278,15 @@ function applyTheme(theme: Theme, accent: string) {
     }
   }
 
-  // Accent override last so the user's accent pick beats the theme's
-  // default --color-accent token (applies to every theme, custom included —
-  // one shared accent).
-  const c = scheme === "light" ? lookupLightVariant(accent) : accent;
+  // Accent: theme-provided accent wins when the user hasn't customized
+  // (still on the factory default). Once the user picks a custom color,
+  // their choice overrides every theme so the accent stays personal.
+  const themeAccent = spec?.tokens?.["color-accent"];
+  const userHasCustomAccent = accent !== "#6c97ff";
+  const effectiveAccent = userHasCustomAccent ? accent : (themeAccent ?? accent);
+  const c = scheme === "light" && userHasCustomAccent
+    ? lookupLightVariant(effectiveAccent)
+    : effectiveAccent;
   root.style.setProperty("--color-accent", c);
   if (!appliedTokenNames.includes("--color-accent")) {
     appliedTokenNames.push("--color-accent");

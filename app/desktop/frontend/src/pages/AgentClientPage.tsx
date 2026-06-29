@@ -20,11 +20,12 @@ export function AgentClientPage() {
 
   return (
     <>
-      {/* Atmospheric depth layer — fixed behind everything, heavily blurred
-          radial gradients that drift slowly. Kills the flat-canvas feel. */}
+      {/* Atmospheric depth layer — fixed behind everything, a single
+          heavily-blurred radial gradient for ambient depth. Desaturated
+          cool gray positioned in the top corner; never behind readable
+          text or the composer. */}
       <div className="lyra-atmosphere" aria-hidden="true">
         <div className="lyra-atmosphere__orb lyra-atmosphere__orb--a" />
-        <div className="lyra-atmosphere__orb lyra-atmosphere__orb--b" />
       </div>
       <div className={cn("app", railed && "rail")}>
         <div className="app-main">

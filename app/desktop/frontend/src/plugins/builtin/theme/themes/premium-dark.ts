@@ -12,22 +12,27 @@ const c = {
   textOnAccent: "#030408",
 
   // Deep near-black with a subtle cool undertone (oklch).
-  canvas: "oklch(0.12 0.008 265)",
-  surface1: "oklch(0.165 0.012 265)",
+  // Hue 260 biases the gray ramp toward a faint blue-slate — barely
+  // perceptible, but enough to kill the "dead mud" feel of pure neutral.
+  canvas: "oklch(0.12 0.012 260)",
+  // Meaningfully lighter than canvas so cards / sidebar / composer have
+  // real separation and readable edges.
+  surface1: "oklch(0.205 0.014 260)",
 
   // Ink — slightly warmer and more restrained than the lyra-dark grays,
-  // so prose reads as refined, not clinical.
+  // so prose reads as refined, not clinical. Muted/faint lifted so
+  // timestamps / meta / placeholders don't vanish on the deep canvas.
   inkBright: "#ffffff",
   ink: "#e8eaed",
   inkSoft: "#b8bcc4",
-  inkMuted: "#8a8f98",
-  inkFaint: "#5c6068",
+  inkMuted: "#9aa0a8",
+  inkFaint: "#6e737c",
 
-  // Hairlines — alpha-based so they sit softly on glass surfaces
-  // and don't fight the atmospheric depth.
-  hairline: "rgba(255, 255, 255, 0.08)",
-  hairStrong: "rgba(255, 255, 255, 0.05)",
-  hairTertiary: "rgba(255, 255, 255, 0.06)",
+  // Hairlines — stronger than the previous 0.04/0.05 so borders read
+  // as deliberate edges, not accidental gaps.
+  hairline: "rgba(255, 255, 255, 0.10)",
+  hairStrong: "rgba(255, 255, 255, 0.06)",
+  hairTertiary: "rgba(255, 255, 255, 0.08)",
 };
 
 export default defineThemePlugin({
