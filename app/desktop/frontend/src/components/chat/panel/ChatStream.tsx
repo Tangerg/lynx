@@ -9,6 +9,7 @@ import type { StreamControls } from "./MessageStream";
 import type { UserInput } from "@/lib/agent/composerInput";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSelectedModel } from "@/lib/agent/useSelectedModel";
+import { useT } from "@/lib/i18n";
 import { Slot } from "@/plugins/host/Slot";
 import { useAgentMessages, useAgentPlan, useAgentToolCalls } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
@@ -132,6 +133,8 @@ export function ChatStream({ onSend, resetKey }: Props) {
     </>
   );
 
+  const t = useT();
+
   // Empty state (Codex / ChatGPT voice): the hero + composer are ONE
   // vertically-centered group. No MessageStream / StickToBottom here — nothing
   // is streaming yet, so the delicate sticky-scroll path only mounts once there
@@ -141,13 +144,14 @@ export function ChatStream({ onSend, resetKey }: Props) {
       <>
         <CwdMissingBanner key={resetKey} />
         <RunErrorBanner />
-        <div className="panel-scroll flex flex-1 flex-col overflow-y-auto px-6">
-          {/* Hero + composer share one centered column (same width) so they
-              read as a single focused group, not two stacked blocks. */}
-          <div className="m-auto w-full max-w-[840px] px-5 py-8">
+        <div className="panel-scroll flex flex-1 flex-col items-center justify-center overflow-y-auto px-4">
+          <h1 className="text-center text-[24px] font-medium text-fg tracking-tight">
+            {t("welcome.title")}
+          </h1>
+          <div className="mt-4 w-full max-w-[--content-max]">
             <Slot name="chat.empty" />
-            <div className="mt-7">{composer}</div>
           </div>
+          <div className="mt-4 w-full max-w-[--content-max]">{composer}</div>
         </div>
       </>
     );

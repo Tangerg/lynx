@@ -1,4 +1,4 @@
-import { Icon, Tooltip } from "@/components/common";
+import { Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -18,25 +18,23 @@ export function JumpToBottomButton({ visible, onClick }: Props) {
   const t = useT();
   const label = t("chat.jumpToBottom");
   return (
-    <Tooltip label={visible ? label : ""}>
-      <button
-        type="button"
-        aria-label={label}
-        onClick={onClick}
-        tabIndex={visible ? 0 : -1}
-        className={cn(
-          "absolute bottom-24 right-7 z-[3] grid h-9 w-9 place-items-center rounded-md",
-          "bg-surface text-fg border border-line/40",
-          "shadow-middle transition-[opacity,transform,background-color,border-color] duration-150 ease-out",
-          "hover:bg-surface-2 hover:border-line-soft",
-          "active:translate-y-0 active:scale-95",
-          visible
-            ? "opacity-100 translate-y-0 pointer-events-auto"
-            : "opacity-0 translate-y-2 pointer-events-none",
-        )}
-      >
-        <Icon name="arrow-down" size={14} />
-      </button>
-    </Tooltip>
+    <button
+      type="button"
+      aria-label={label}
+      onClick={onClick}
+      tabIndex={visible ? 0 : -1}
+      className={cn(
+        "absolute bottom-20 left-1/2 -translate-x-1/2 z-[3] grid h-8 w-8 place-items-center rounded-full",
+        "bg-surface text-fg border border-line/50",
+        "shadow-[var(--shadow-elevated)] transition-all duration-[--dur-fast]",
+        "hover:bg-surface-2",
+        "active:translate-y-0 active:scale-95",
+        visible
+          ? "opacity-100 translate-y-0 pointer-events-auto"
+          : "opacity-0 translate-y-1 pointer-events-none",
+      )}
+    >
+      <Icon name="arrow-down" size={14} />
+    </button>
   );
 }

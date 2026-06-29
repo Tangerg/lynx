@@ -102,21 +102,7 @@ function WelcomeScreen() {
   const keyless = providers !== undefined && !providers.some((p) => p.apiKeyMasked !== "");
 
   return (
-    // Centered hero (Codex / ChatGPT empty-state voice). ChatStream renders this
-    // in a vertically-centered column directly above the composer, so the
-    // positioning lives there — here it's just the centered content group.
-    // Sentence-case + period per DESIGN.md §3.
-    <div className="mx-auto flex w-full flex-col items-center gap-3.5 text-center">
-      {/* Eyebrow — terminal-style "ready" mark with an accent dot. */}
-      <div className="inline-flex items-center gap-2 font-mono text-[11px] text-fg-faint tracking-normal [font-feature-settings:'tnum'] before:content-[''] before:h-1.5 before:w-1.5 before:rounded-full before:bg-accent before:shadow-[0_0_6px_var(--color-accent)]">
-        {t("welcome.eyebrow")}
-      </div>
-      <h1 className="m-0 text-[28px] font-semibold leading-[1.2] tracking-[-0.02em] text-fg">
-        {t("welcome.title")}
-      </h1>
-      <p className="m-0 mb-1 max-w-[440px] text-[14.5px] leading-[1.6] text-fg-muted">
-        {t("welcome.sub")}
-      </p>
+    <div className="mx-auto w-full max-w-[480px]">
       {keyless ? (
         <SetupCard />
       ) : (
@@ -143,7 +129,7 @@ function WelcomeScreen() {
             ))}
           </div>
           {hints.length > 0 && (
-            <div className="mt-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 font-mono text-[11px] text-fg-faint">
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 font-mono text-[11px] text-fg-faint">
               {hints.map((c) => (
                 <span key={c.id} className="inline-flex items-center gap-1.5">
                   <kbd className="rounded border border-line bg-surface-2 px-1.5 py-0.5 text-[10.5px] not-italic text-fg-muted">
