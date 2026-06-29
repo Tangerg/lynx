@@ -29,26 +29,6 @@ interface MainViewTab {
   icon?: string;
 }
 
-/**
- * Discriminator for the two tab kinds the chat header juggles. Chat
- * tabs sit on the left of the unified strip, view tabs (workspace
- * views — including the Settings pane opened via host.openMainView)
- * sit on the right.
- */
-export type HeaderTabKind = "chat" | "view";
-
-/**
- * Close closures already bound to a specific right-clicked tab.
- * Lives next to the store because each closure composes several
- * underlying store actions (chat + view tabs together).
- */
-export interface HeaderTabCloseActions {
-  onCloseOthers: () => void;
-  onCloseLeft: () => void;
-  onCloseRight: () => void;
-  onCloseAll: () => void;
-}
-
 interface SessionState {
   activeSessionId: string;
   /** @deprecated Tabs removed in Step 2a — field retained to avoid TS
@@ -108,7 +88,6 @@ interface SessionState {
 interface SessionActions {
   selectTab: (id: string) => void;
   closeTab: (id: string) => void;
-  openTab: (id: string) => void;
 
   /** Mark a session as a hidden draft (just created, no message yet). */
   markDraft: (id: string) => void;
@@ -119,23 +98,12 @@ interface SessionActions {
   /** Read + clear the queued first message input for a session id. */
   takePendingMessage: (id: string) => ContentBlock[] | undefined;
 
-  /** Close every chat tab except `id`. */
-  closeOtherTabs: (id: string) => void;
-  /** Close every chat tab whose position precedes `id` in `tabIds`. */
-  closeTabsLeftOf: (id: string) => void;
-  /** Close every chat tab whose position follows `id` in `tabIds`. */
-  closeTabsRightOf: (id: string) => void;
-  /** Close every chat tab. */
-  closeAllTabs: () => void;
-
   /** Set the one-shot pane the Settings view opens at (null = first pane). */
   setSettingsPane: (pane: string | null) => void;
   /** Add (if absent) and focus a workspace view in the chat-area tab strip. */
   openMainView: (tab: MainViewTab) => void;
   /** Remove a workspace view tab; falls back to chat if it was active. */
   closeMainView: (id: string) => void;
-  /** Focus a workspace view tab without opening a new one. */
-  selectMainView: (id: string) => void;
   /** Clear the workspace view focus so the chat session takes over again. */
   selectChat: () => void;
   /** Open (or focus) a splittable view BESIDE the chat stream (resizable split). */
@@ -145,15 +113,6 @@ interface SessionActions {
   /** Promote the split (beside) view to a full-width main tab. Mutually
    *  exclusive with the split (clears it). No-op when no split is open. */
   promoteSplitToTab: () => void;
-
-  /** Close every workspace-view tab except `id`. */
-  closeOtherMainViews: (id: string) => void;
-  /** Close every workspace-view tab whose position precedes `id`. */
-  closeMainViewsLeftOf: (id: string) => void;
-  /** Close every workspace-view tab whose position follows `id`. */
-  closeMainViewsRightOf: (id: string) => void;
-  /** Close every workspace-view tab. */
-  closeAllMainViews: () => void;
 
   setActiveFile: (path: string) => void;
   /** Open the file viewer on `path` (optionally at a 1-based `line`) and promote
@@ -236,11 +195,6 @@ export const useSessionStore = create<SessionState & SessionActions>()(
           ...(leavingActive ? clearSessionScopedState() : {}),
         });
       },
-      openTab: (id) => {
-        const { tabIds } = get();
-        if (!tabIds.includes(id)) set({ tabIds: [...tabIds, id] });
-      },
-
       markDraft: (id) => set({ draftSessionIds: new Set(get().draftSessionIds).add(id) }),
       graduateDraft: (id) => {
         const drafts = get().draftSessionIds;
@@ -259,47 +213,6 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         delete next[id];
         set({ pendingMessages: next });
         return input;
-      },
-
-      // Multi-tab close helpers — all preserve `activeSessionId`
-      // when the active tab survives, otherwise fall back to the
-      // leftmost remaining tab (or empty string when nothing is
-      // left, mirroring the original closeTab semantics).
-      closeOtherTabs: (id) => {
-        const { tabIds, activeSessionId } = get();
-        if (!tabIds.includes(id)) return;
-        set({
-          tabIds: [id],
-          activeSessionId: id,
-          ...(id === activeSessionId ? {} : clearSessionScopedState()),
-        });
-      },
-      closeTabsLeftOf: (id) => {
-        const { tabIds, activeSessionId } = get();
-        const idx = tabIds.indexOf(id);
-        if (idx <= 0) return;
-        const next = tabIds.slice(idx);
-        const keepsActive = next.includes(activeSessionId);
-        set({
-          tabIds: next,
-          activeSessionId: keepsActive ? activeSessionId : id,
-          ...(keepsActive ? {} : clearSessionScopedState()),
-        });
-      },
-      closeTabsRightOf: (id) => {
-        const { tabIds, activeSessionId } = get();
-        const idx = tabIds.indexOf(id);
-        if (idx === -1 || idx === tabIds.length - 1) return;
-        const next = tabIds.slice(0, idx + 1);
-        const keepsActive = next.includes(activeSessionId);
-        set({
-          tabIds: next,
-          activeSessionId: keepsActive ? activeSessionId : id,
-          ...(keepsActive ? {} : clearSessionScopedState()),
-        });
-      },
-      closeAllTabs: () => {
-        set({ tabIds: [], activeSessionId: "", ...clearSessionScopedState() });
       },
 
       setSettingsPane: (pane) => set({ settingsPane: pane }),
@@ -335,59 +248,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         const splitViewId = get().splitViewId === id ? null : get().splitViewId;
         set({ mainViewTabs: next, activeMainView, splitViewId });
       },
-      selectMainView: (id) => set({ activeMainView: id, splitViewId: null }),
       selectChat: () => set({ activeMainView: null }),
-
-      // Same shape as the chat-tab close helpers, scoped to the
-      // workspace-view strip.
-      closeOtherMainViews: (id) => {
-        const cur = get().mainViewTabs;
-        const target = cur.find((t) => t.id === id);
-        if (!target) return;
-        // Only `id` survives. If it was the beside-split, keep it AS the split
-        // (chat owns the other half) — must NOT also set activeMainView, or the
-        // two violate their mutual exclusivity (a full view + a collapsed rail
-        // with no resizer). Otherwise focus it as a full view.
-        const keepSplit = get().splitViewId === id;
-        set({
-          mainViewTabs: [target],
-          splitViewId: keepSplit ? id : null,
-          activeMainView: keepSplit ? null : id,
-        });
-      },
-      closeMainViewsLeftOf: (id) => {
-        const { mainViewTabs, activeMainView, splitViewId } = get();
-        const idx = mainViewTabs.findIndex((t) => t.id === id);
-        if (idx <= 0) return;
-        const next = mainViewTabs.slice(idx);
-        // Derive the two fields JOINTLY: a surviving split keeps activeMainView
-        // null (they're mutually exclusive). Computing them independently lets a
-        // surviving split coexist with activeMainView=id — a phantom full view
-        // over a collapsed sidebar.
-        const keepSplit = splitViewId !== null && next.some((t) => t.id === splitViewId);
-        const keepActive = activeMainView !== null && next.some((t) => t.id === activeMainView);
-        set({
-          mainViewTabs: next,
-          splitViewId: keepSplit ? splitViewId : null,
-          activeMainView: keepSplit ? null : keepActive ? activeMainView : id,
-        });
-      },
-      closeMainViewsRightOf: (id) => {
-        const { mainViewTabs, activeMainView, splitViewId } = get();
-        const idx = mainViewTabs.findIndex((t) => t.id === id);
-        if (idx === -1 || idx === mainViewTabs.length - 1) return;
-        const next = mainViewTabs.slice(0, idx + 1);
-        const keepSplit = splitViewId !== null && next.some((t) => t.id === splitViewId);
-        const keepActive = activeMainView !== null && next.some((t) => t.id === activeMainView);
-        set({
-          mainViewTabs: next,
-          splitViewId: keepSplit ? splitViewId : null,
-          activeMainView: keepSplit ? null : keepActive ? activeMainView : id,
-        });
-      },
-      closeAllMainViews: () => {
-        set({ mainViewTabs: [], activeMainView: null, splitViewId: null });
-      },
 
       setActiveFile: (path) => set({ activeFile: path }),
       openFileViewer: (path, line) => {
@@ -449,51 +310,3 @@ const unsubPruneSessionRefs = useSessionStore.subscribe((state, prev) => {
   });
 });
 disposeOnHmr(unsubPruneSessionRefs);
-
-/**
- * Compose a tab kind + id into close-action closures with unified-
- * strip semantics. Chat tabs render before view tabs in the header,
- * so:
- *
- *   - Left-of a view tab includes EVERY chat tab plus preceding views.
- *   - Right-of a chat tab includes the trailing chat tabs AND every
- *     view tab.
- *   - "Close Others" / "Close All" wipe both kinds regardless of
- *     which kind was clicked.
- *
- * Lives in the store layer (not in PanelHeader) so the cross-kind
- * sequencing is unit-testable without rendering.
- */
-export function headerTabCloseActionsFor(kind: HeaderTabKind, id: string): HeaderTabCloseActions {
-  const s = () => useSessionStore.getState();
-  const closeAll = () => {
-    s().closeAllTabs();
-    s().closeAllMainViews();
-  };
-  if (kind === "chat") {
-    return {
-      onCloseOthers: () => {
-        s().closeOtherTabs(id);
-        s().closeAllMainViews();
-      },
-      onCloseLeft: () => s().closeTabsLeftOf(id),
-      onCloseRight: () => {
-        s().closeTabsRightOf(id);
-        s().closeAllMainViews();
-      },
-      onCloseAll: closeAll,
-    };
-  }
-  return {
-    onCloseOthers: () => {
-      s().closeAllTabs();
-      s().closeOtherMainViews(id);
-    },
-    onCloseLeft: () => {
-      s().closeAllTabs();
-      s().closeMainViewsLeftOf(id);
-    },
-    onCloseRight: () => s().closeMainViewsRightOf(id),
-    onCloseAll: closeAll,
-  };
-}
