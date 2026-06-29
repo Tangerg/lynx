@@ -236,7 +236,7 @@ DESIGN.md 随重构**就地演进**（非冻结基线）。下列决策是相对
 **验证**：全绿 + 流式时新 token 自动可见、不沉底。
 **drift-flag**：仅加行为 + 渐隐，不改折叠语义（`userToggled` 逻辑保留）。
 
-#### Step 5b — Tool 卡精简 + requires-action 态  `[ ]`  lane: des-1
+#### Step 5b — Tool 卡精简 + requires-action 态  `[x]`  lane: des-1  **commit: `def4f8dc`**
 **做什么**：去 `tool-card` selected/running 边框动画，改用 accent 脉冲点 + `text-accent` label；加 `requires-action` 警示图标态（区别于 err）；加 `data-slot`。
 **改文件**：`src/components/tools/ToolCard.tsx`
 **验证**：全绿 + 视觉；只读工具仍走 `ToolGroup` 折叠（`planRenderUnits` 不动）。
