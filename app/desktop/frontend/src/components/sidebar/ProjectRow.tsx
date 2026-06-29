@@ -33,8 +33,8 @@ export function ProjectRow({
     >
       <div
         className={cn(
-          "flex items-center gap-1 rounded-md px-2 py-2.5 transition-[background-color] duration-75 hover:bg-fg/[0.02]",
-          active && "bg-fg/[0.03]",
+          "flex items-center gap-1 rounded-md px-2 py-2.5 transition-[background-color] duration-75 hover:bg-white/[0.06]",
+          active && "bg-white/[0.08]",
         )}
       >
         <button
@@ -73,7 +73,7 @@ export function ProjectRow({
           type="button"
           aria-label={t("project.row.newSession", { name: project.name })}
           onClick={() => onNewSession(project)}
-          className="grid h-5 w-5 place-items-center rounded-md border-0 bg-transparent text-fg-faint opacity-0 transition-all group-hover:opacity-100 hover:bg-surface-3 hover:text-fg"
+          className="grid h-5 w-5 place-items-center rounded-md border-0 bg-transparent text-fg-faint opacity-0 transition-all group-hover:opacity-100 hover:bg-white/[0.06] hover:text-fg"
         >
           <Icon name="plus" size={11} />
         </button>

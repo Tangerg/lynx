@@ -473,9 +473,10 @@ textarea:focus-visible {
  *  Premium-dark atmosphere + glass utilities
  * ========================================================================= */
 
-/* Atmospheric layer — fixed behind everything, heavily blurred radial
-   gradients in accent-adjacent cool hues. Barely perceptible; its job
-   is depth, not decoration. */
+/* Atmospheric layer — fixed behind everything, a single heavily-blurred
+    radial gradient for ambient depth. Desaturated cool gray, positioned
+    in the top corner so it never bleeds behind readable text / composer.
+    Barely perceptible (~8% opacity); its job is atmosphere, not decoration. */
 .lyra-atmosphere {
   position: fixed;
   inset: 0;
@@ -487,26 +488,19 @@ textarea:focus-visible {
   position: absolute;
   border-radius: 50%;
   filter: blur(120px);
-  opacity: 0.07;
+  opacity: 0.08;
   animation: lyra-atmosphere-drift 25s ease-in-out infinite;
 }
-/* Two orbs: one cool-accent, one slightly warmer for chromatic depth. */
+/* Single orb: neutral cool gray, top-right framing. No bottom orb —
+   that read as a screen defect / backlight bleed behind the composer. */
 .lyra-atmosphere__orb--a {
-  width: 70vw;
-  height: 70vw;
-  top: -20vh;
-  left: -10vw;
-  background: radial-gradient(circle, oklch(0.5 0.15 270) 0%, transparent 70%);
-  animation-delay: 0s;
-}
-.lyra-atmosphere__orb--b {
-  width: 60vw;
-  height: 60vw;
-  bottom: -15vh;
+  width: 50vw;
+  height: 50vw;
+  top: -15vh;
   right: -10vw;
-  background: radial-gradient(circle, oklch(0.45 0.12 290) 0%, transparent 70%);
-  animation-delay: -12s;
-  animation-direction: reverse;
+  left: auto;
+  background: radial-gradient(circle, oklch(0.5 0.02 260) 0%, transparent 70%);
+  animation-delay: 0s;
 }
 
 /* Reduced motion: freeze the atmosphere (no drift), keep the static
@@ -532,6 +526,28 @@ textarea:focus-visible {
     -webkit-backdrop-filter: blur(40px);
     border: 1px solid rgba(255, 255, 255, 0.09);
   }
+}
+
+/* =========================================================================
+ *  Dark-theme overrides — glass is pointless over near-black (nothing to
+ *  blur, just muddies text edges + perf cost). Switch to solid opaque
+ *  surfaces with visible borders and a subtle inset top highlight (lip).
+ * ========================================================================= */
+html.theme-dark .glass,
+html.theme-dark .glass-strong {
+  background: var(--color-surface);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid var(--color-border);
+  /* Subtle "lip" — a barely-there white top edge that lifts the surface
+     above the canvas like a physical pane. */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+html.theme-dark .panel.sidebar {
+  background: var(--color-surface);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-right: 1px solid var(--color-border);
 }
 
 /* =========================================================================
