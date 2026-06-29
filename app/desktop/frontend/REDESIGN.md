@@ -201,8 +201,8 @@ DESIGN.md 随重构**就地演进**（非冻结基线）。下列决策是相对
 
 ### Phase 2 — 删 tab（行为变更，用户 review 导航模型）
 
-#### Step 2a — 删 PanelTabBar + 单活跃 session  `[ ]`  lane: des-1
-**做什么**：删 tab 条；`PanelHeader` 降级为「仅 workspace view 激活时显示的瘦标题栏」；store 退役 tab 字段。
+#### Step 2a — 删 PanelTabBar + 单活跃 session  `[x]`  lane: des-1  · commit `1b2441c7`
+**做什么**：删 tab 条；store 退役 tab 字段。**实际落地（Option A）**：`PanelHeader` 整个删除（非降级为瘦栏）——chat + workspace view 都无标题栏，靠侧栏 active 态标识；关闭靠侧栏 toggle / `Esc`（避冲突：palette 开时/input 聚焦时让位）/ split 提升；ChatPanel 用 `h-9 dragClasses` 薄条保留主区顶拖拽；`topbar-new-tab` 插件随 tab 一起删；persist v2→v3 丢旧数据。
 **改文件**：
 - 删 `src/components/chat/panel/PanelTabBar.tsx`
 - `src/components/chat/panel/PanelHeader.tsx`：仅 `activeMainView` 非空时渲染 `h-9` 瘦栏（icon+title，可选 ×）
