@@ -12,7 +12,7 @@
 
 import { definePlugin, lookupExtensionByKey } from "@/plugins/sdk";
 import { COMMAND, SHORTCUT } from "@/plugins/sdk/kernelPoints";
-import { usePaletteStore } from "@/plugins/builtin/command/command-palette";
+import { usePaletteStore } from "@/state/paletteStore";
 import { useSessionStore } from "@/state/sessionStore";
 
 // Commands that get a global key binding; their combo is read from the catalog

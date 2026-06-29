@@ -10,7 +10,7 @@ import { Icon } from "@/components/common";
 import { useProviders } from "@/lib/data/queries";
 import { useT } from "@/lib/i18n";
 import { definePlugin, useCommands } from "@/plugins/sdk";
-import { comboGlyph } from "@/plugins/builtin/command/comboGlyph";
+import { comboGlyph } from "@/lib/combo";
 import { useComposerStore } from "@/state/composerStore";
 import { useSessionStore } from "@/state/sessionStore";
 

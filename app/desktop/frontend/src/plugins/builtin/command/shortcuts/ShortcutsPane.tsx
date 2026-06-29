@@ -6,7 +6,7 @@
 import { useMemo, useState } from "react";
 import { SHORTCUT, useExtensionPoint } from "@/plugins/sdk";
 import { useT } from "@/lib/i18n";
-import { splitCombo } from "../comboGlyph";
+import { splitCombo } from "@/lib/combo";
 
 export function ShortcutsPane() {
   const t = useT();
