@@ -280,40 +280,20 @@
   --shadow-elevated: 0 4px 12px -4px rgba(0, 0, 0, 0.3);
   --shadow-focus: inset 0 0 0 1px var(--color-border-soft);
 
-  /* Legacy shadow aliases — old names mapped to new canonical tokens so
-     existing component classNames (shadow-minimal, shadow-lg, etc.) don't
-     break. These are deprecated; new code should use the canonical names.
+  /* Legacy shadow aliases — old names still consumed by a handful of
+     component classNames (the canonical tokens are shadow-composer /
+     -elevated / -focus). Deprecated; new code uses the canonical names.
 
      Alias map:
-       shadow-minimal  → shadow-composer
-       shadow-middle   → shadow-composer
-       shadow-medium   → shadow-elevated
-       shadow-hero     → shadow-elevated
-       shadow-lg       → shadow-elevated
-       shadow-md       → shadow-elevated
-       shadow-sm       → shadow-focus
-       shadow-xs       → none
-       shadow-card     → none
-       shadow-dialog   → shadow-elevated
-       shadow-pop      → shadow-elevated
-       shadow-soft     → none
-       shadow-glow     → none
-       shadow-input-focus → shadow-focus
+       shadow-lg     → shadow-elevated
+       shadow-md     → shadow-elevated
+       shadow-medium → shadow-elevated
+       shadow-sm     → shadow-focus
   */
-  --shadow-minimal: var(--shadow-composer);
-  --shadow-middle: var(--shadow-composer);
-  --shadow-medium: var(--shadow-elevated);
-  --shadow-hero: var(--shadow-elevated);
   --shadow-lg: var(--shadow-elevated);
   --shadow-md: var(--shadow-elevated);
+  --shadow-medium: var(--shadow-elevated);
   --shadow-sm: var(--shadow-focus);
-  --shadow-xs: none;
-  --shadow-card: none;
-  --shadow-dialog: var(--shadow-elevated);
-  --shadow-pop: var(--shadow-elevated);
-  --shadow-soft: none;
-  --shadow-glow: none;
-  --shadow-input-focus: var(--shadow-focus);
 
   /* Content max-width — the centered reading island (REDESIGN.md §3.4). */
   --content-max: 720px;
