@@ -1,10 +1,10 @@
 // Bits shared by the built-in tool previews (index.tsx + specialised.tsx).
 
-// Shared container shape for every inline tool preview. The wrapper sits
-// one step deeper than the .tool-card surface (canvas) so it reads as
-// nested content — DESIGN.md §5 surface-step depth rule.
+// Shared container shape for every inline tool preview. The wrapper lives
+// inside a bg-surface card (the expanded activity row), so it uses no
+// additional background — just padding and typography.
 export const PREVIEW_WRAP =
-  "max-h-60 overflow-y-auto bg-canvas px-3.5 pt-2.5 pb-2 font-mono text-[12px] leading-[1.55] text-fg-muted";
+  "max-h-60 overflow-y-auto px-0 pt-1 pb-0 font-mono text-[12px] leading-[1.55] text-fg-muted";
 
 /** Non-empty trimmed lines of a tool's text result ([] while absent). */
 export function resultLines(result: string | undefined): string[] {

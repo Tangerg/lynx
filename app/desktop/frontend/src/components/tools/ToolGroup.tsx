@@ -13,7 +13,7 @@ const READONLY_TOOLS = new Set(["read", "grep", "glob", "lsp"]);
  * the wire `ToolInvocation.name` the runtime emits (see the tool-preview
  * registry keys in chat/tools/previews). Conservative on purpose:
  * shell/edit/write/skill/task can mutate state, so each always renders as
- * its own card even when adjacent — only `read` / `grep` / `glob` / `lsp` /
+ * its own row even when adjacent — only `read` / `grep` / `glob` / `lsp` /
  * `lsp_diagnostics` group.
  */
 export function isReadOnlyTool(name: string): boolean {
@@ -47,11 +47,11 @@ function summarize(tools: ToolCall[]): string {
 }
 
 /**
- * A run of adjacent read-only tool calls, folded into one collapsible row so a
- * long agent turn (dozens of reads/greps) stays scannable instead of flooding
- * the transcript with a card each. Auto-expands while any child is still
- * running or has errored (live activity / failures stay visible), then settles
- * closed once they finish — unless the user has pinned it open or closed.
+ * A run of adjacent read-only tool calls, folded into one collapsible summary
+ * row so a long agent turn stays scannable. Auto-expands while any child is
+ * still running or has errored, then settles closed once they finish — unless
+ * the user has pinned it open or closed. The group is a quiet vertical stack:
+ * a summary row + indented child activity rows, no enclosing card.
  */
 export function ToolGroup({
   tools,
@@ -67,27 +67,36 @@ export function ToolGroup({
   const expanded = pinned ?? needsAttention;
 
   return (
-    <div className="my-1">
+    <div className="my-0.5">
+      {/* Summary row — craft-style inline row, no card. */}
       <button
         type="button"
         onClick={() => setPinned(!expanded)}
         aria-expanded={expanded}
         className={cn(
-          "flex w-full items-center gap-2 rounded-md border border-transparent px-2.5 py-1 text-left",
-          "transition-[background,border-color] hover:border-line-soft hover:bg-surface-2",
+          "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-[background-color] duration-75",
+          "hover:bg-fg/[0.02] focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_var(--color-accent)]",
         )}
       >
-        <div className="grid h-5 w-5 shrink-0 place-items-center rounded-xs text-fg-faint">
-          <Icon name="search" size={14} />
-        </div>
-        <span className="font-mono text-[12px] tracking-[-0.005em] text-fg-muted">
+        <Icon
+          name="chevron-down"
+          size={12}
+          className={cn(
+            "shrink-0 text-fg-faint transition-transform duration-150",
+            !expanded && "-rotate-90",
+          )}
+        />
+        <Icon name="search" size={13} className="shrink-0 text-fg-muted" />
+        <span className="truncate text-[13px] font-medium text-fg-muted">
           {summarize(tools)}
         </span>
-        <span className="ml-auto font-mono text-[10px] text-fg-faint">{tools.length} calls</span>
-        <Icon name={expanded ? "minimize" : "more"} size={12} className="text-fg-faint" />
+        <span className="ml-auto shrink-0 font-mono text-[11px] text-fg-faint">
+          {tools.length} calls
+        </span>
       </button>
+
       <Collapsible open={expanded}>
-        <div className="pl-3">
+        <div className="pl-4">
           {tools.map((t) => (
             <ToolCard
               key={t.id}
