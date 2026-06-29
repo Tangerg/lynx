@@ -248,7 +248,7 @@ DESIGN.md 随重构**就地演进**（非冻结基线）。下列决策是相对
 
 ### Phase 6 — 收尾抛光
 
-#### Step 6a — 空状态 / scroll-to-bottom / markdown / code / plan-todo-compaction  `[ ]`  lane: des-1
+#### Step 6a — 空状态 / scroll-to-bottom / markdown / code / plan-todo-compaction  `[x]`  lane: des-1  **commit: `7c2f3d6b`**
 **做什么**：极简空状态（静态标题 + composer，`chat.empty` slot 降权到标题下）；scroll-to-bottom 居中浮于 composer 上方（`bottom-20 left-1/2`）；markdown heading 收小、字重封顶 500；code block 去 border（底色差）；plan/todo/compaction 去卡（纯列表 + 分隔线）。
 **改文件**：`ChatStream.tsx`、`JumpToBottomButton.tsx`、`markdown.css`/markdownComponents、`PlanBlock.tsx`、`CompactionBlock.tsx` 等
 **验证**：全绿 + 全量视觉巡检。
