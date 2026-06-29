@@ -114,12 +114,12 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
     <div
       className={cn(
         "shiki-block group/code my-3 overflow-hidden rounded-md font-mono text-[13px]",
-        "border border-line bg-surface-2",
+        "bg-surface-2",
         folded && "folded",
       )}
     >
       {/* Header — craft-aligned: flex row, lang left, copy right, subtle surface step. */}
-      <div className="flex items-center justify-between gap-3 border-b border-line bg-surface-3 px-3 py-1.5">
+      <div className="flex items-center justify-between gap-3 px-3 py-1.5">
         <span className="font-mono text-[10px] font-medium text-fg-faint uppercase tracking-wider">
           {lang || "text"}
         </span>

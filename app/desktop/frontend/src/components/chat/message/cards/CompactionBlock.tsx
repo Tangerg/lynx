@@ -20,34 +20,27 @@ export function CompactionBlock({
       ? t("compaction.compactedN", { count: droppedMessages })
       : t("compaction.compacted");
 
-  const pill =
-    "flex items-center gap-1.5 rounded-md border border-line/60 bg-surface px-2.5 py-1 font-mono text-[11px] tracking-tight text-fg-faint light:bg-surface-2";
-
-  if (!summary) {
-    return (
-      <div className="my-1 flex justify-center py-1">
-        <span className={pill}>
-          <Icon name="minimize" size={12} />
-          {label}
-        </span>
-      </div>
-    );
-  }
-
   return (
-    <div className="my-1 flex flex-col items-center gap-1.5 py-1">
-      <button
-        type="button"
-        className={`${pill} hover:text-fg-muted`}
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-      >
-        <Icon name="minimize" size={12} />
-        <span>{label}</span>
-        <Icon name={open ? "chevron-up" : "chevron-down"} size={12} />
-      </button>
-      {open && (
-        <div className="max-w-[640px] rounded-md border border-line/60 bg-surface px-3 py-2 text-[13px] leading-relaxed text-fg-muted">
+    <div className="my-3 text-center" data-slot="compaction-block">
+      <div className="border-t border-line/50" />
+      {summary ? (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="relative inline-flex items-center gap-1 text-[11px] text-fg-faint bg-bg px-2 -mt-[9px] hover:text-fg-muted transition-colors"
+        >
+          <Icon name={open ? "chevron-up" : "chevron-down"} size={12} />
+          <span>{label}</span>
+        </button>
+      ) : (
+        <span className="relative inline-flex items-center gap-1 text-[11px] text-fg-faint bg-bg px-2 -mt-[9px]">
+          <Icon name="minimize" size={12} />
+          <span>{label}</span>
+        </span>
+      )}
+      {open && summary && (
+        <div className="max-w-[640px] mx-auto mt-2 text-[13px] leading-relaxed text-fg-muted text-left">
           {summary}
         </div>
       )}
