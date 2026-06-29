@@ -1,11 +1,16 @@
-// Tool card — renders one agent tool invocation inline in the message stream.
-// Each card shows the tool name, status, a collapsible preview rendered by the
-// plugin-contributed preview blocks, and header actions (copy, open view).
-// Selected + expanded state lives in sessionStore so it survives tab switches.
+// Activity row — renders one agent tool invocation as a compact inline row
+// (craft-aligned). Collapsed by default: a single ~28px line with chevron,
+// status icon, label, and meta badges. Expands inline to show the plugin-
+// contributed preview (or ToolInspector fallback). Selected state drives the
+// inspector pane via the existing sessionStore wiring.
+//
+// This replaces the previous card-based ToolCard with a flat activity-row
+// pattern: no border, no surface bg by default, the row sits directly in the
+// message flow like structured text.
+import * as React from "react";
 import type { IconName } from "@/components/common";
 import type { ToolCall } from "@/protocol/run/viewState";
 import { Collapsible, Icon } from "@/components/common";
-import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import {
   lookupToolActionOwner,
@@ -24,114 +29,67 @@ interface Props {
   onOpenView?: () => void;
 }
 
-// Status → text colour. Each state maps to a semantic token; the `run`
-// state also gets a pulsing accent dot in the status pill. `denied` (HITL
-// decline) is neutral — it's a user choice, not a failure.
-const STATUS_TONE = {
-  ok: "text-success",
-  err: "text-negative",
-  run: "text-accent",
-  denied: "text-fg-muted",
-} as const;
-// Glyph instead of word — "Running / Done / Failed / Denied" → "● / ✓ / ✗ / ⊘"
-// — gives the row an RPC-log voice (see DESIGN.md §8 "RPC log rule"). The
-// pulsing dot for `run` is set up via the `before:` pseudo-element below.
-const STATUS_GLYPH = { ok: "✓", err: "✗", run: "", denied: "⊘" } as const;
-
 export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView }: Props) {
-  const t = useT();
-  const status: keyof typeof STATUS_TONE = tool.status === "running" ? "run" : tool.status;
-  const statusGlyph = STATUS_GLYPH[status];
-  // Icon routes by the same key as the preview (kind for typed variants, tool
-  // name for the generic envelope) — see toolRoutingKey.
-  const toolIcon = toolIconFor(toolRoutingKey(tool));
-  const actions = useExtensionPoint(TOOL_ACTION).filter((a) => !a.predicate || a.predicate(tool));
   const running = tool.status === "running";
+  const actions = useExtensionPoint(TOOL_ACTION).filter((a) => !a.predicate || a.predicate(tool));
 
   return (
     <div
       className={cn(
-        // `tool-card` (raw class) is kept as a hook for the
-        // `.tool-card.running::before` rotating conic-gradient border
-        // animation defined in tool.css — it uses @property + mask, not
-        // expressible cleanly in Tailwind. Everything else here is utilities.
-        "tool-card group relative my-1 overflow-hidden rounded-md border border-transparent transition-[background,border-color,transform] duration-150",
-        !selected && "hover:bg-surface-2 hover:border-line-soft",
-        // Selected drives the inspector pane — mark it with a 2px accent left
-        // edge (inset shadow, so it doesn't fight the border) so "which tool is
-        // being inspected" reads at a glance. The one spot the accent's scarcity
-        // relaxes: the selected tool IS the live data panel's entry point.
-        selected &&
-          "bg-surface-2 border-line-soft shadow-[inset_2px_0_0_color-mix(in_srgb,var(--color-accent)_55%,transparent)]",
+        "tool-card group relative my-0.5",
         running && "running",
       )}
     >
-      {/* Header row contains nested <button> action affordances (run, view,
-          expand) — turning the row itself into a button would emit invalid
-          button-in-button HTML. Keep div + role + manual keyboard handling. */}
-      <div
-        // eslint-disable-next-line jsx-a11y/prefer-tag-over-role
-        role="button"
-        tabIndex={0}
+      {/* Collapsed / expanded row — clickable to toggle. */}
+      <button
+        type="button"
         aria-expanded={expanded}
-        className="grid grid-cols-[28px_minmax(0,1fr)_auto_auto_auto] items-center gap-2 px-2.5 py-1 focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_var(--color-accent)]"
         onClick={onToggleExpand}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onToggleExpand();
-          }
-        }}
+        className={cn(
+          "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-[background-color] duration-75",
+          "hover:bg-fg/[0.02] focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_var(--color-accent)]",
+          selected && "bg-fg/[0.03]",
+        )}
       >
-        <div
+        {/* Chevron — muted, rotates on expand. No chevron-right in the
+            icon set, so rotate chevron-down -90° for the closed state. */}
+        <Icon
+          name="chevron-down"
+          size={12}
           className={cn(
-            "grid h-5 w-5 shrink-0 place-items-center rounded-xs bg-transparent transition-colors",
-            STATUS_TONE[status],
+            "shrink-0 text-fg-faint transition-transform duration-150",
+            !expanded && "-rotate-90",
           )}
-        >
-          <Icon name={toolIcon} size={14} />
-        </div>
-        {/* One line, ellipsis on overflow — every tool card is the same
-            height regardless of how long a command / path is. The long text
-            sits in `fn` only when the key arg is baked in (command / path /
-            query, §4.4.2) and there are no separate args; let `fn` truncate
-            then. When args ARE present `fn` is just the short tool name, so
-            keep it whole (shrink-0) and truncate the args instead. */}
-        <div className="flex items-baseline gap-2 min-w-0">
+        />
+
+        {/* Status icon — spinner/dot/check/x depending on state. */}
+        <StatusIcon status={tool.status} tool={tool} />
+
+        {/* Label + args — one line, truncate overflow. */}
+        <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
           <span
             title={tool.fn}
             className={cn(
-              "font-mono text-[12px] font-semibold text-fg tracking-[-0.005em]",
-              tool.args ? "shrink-0" : "min-w-0 truncate",
+              "truncate text-[13px] font-medium text-fg",
+              tool.args && "shrink-0",
             )}
           >
             {tool.fn}
           </span>
-          {/* Args rendered as a parens-wrapped argument list, mono, so the
-              full line reads as a function signature: `read({…})`. The
-              expanded preview shows OUTPUT, not the invocation, so `title`
-              is how the full (truncated) command / args stays readable. */}
           {tool.args && (
             <span
               title={tool.args}
-              className="min-w-0 truncate font-mono text-[11.5px] text-fg-faint tracking-[-0.005em]"
+              className="min-w-0 truncate font-mono text-[12px] text-fg-faint"
             >
-              ({tool.args})
+              {tool.args}
             </span>
           )}
         </div>
+
+        {/* Meta badges — inline, muted, separated by middle dots. */}
         <ToolMeta tool={tool} />
-        <div
-          aria-label={tool.status}
-          className={cn(
-            "rounded-sm px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-normal normal-case",
-            STATUS_TONE[status],
-            status === "run" &&
-              "inline-flex items-center gap-1.5 before:content-[''] before:h-1.5 before:w-1.5 before:rounded-full before:bg-accent before:shadow-[0_0_6px_var(--color-accent)] before:animate-pulse-dot",
-          )}
-        >
-          <span aria-hidden="true">{statusGlyph}</span>
-        </div>
+
+        {/* Plugin actions — hover-reveal, quiet. */}
         {actions.map((a) => (
           <button
             key={a.id}
@@ -141,7 +99,6 @@ export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView 
               e.stopPropagation();
               void Promise.resolve(a.run(tool)).catch((err) => {
                 const owner = lookupToolActionOwner(a.id) ?? "unknown";
-
                 console.error(`[plugin] tool action ${a.id} threw:`, err);
                 reportPluginError(owner, "command", err, `tool action: ${a.id}`);
               });
@@ -151,63 +108,88 @@ export function ToolCard({ tool, selected, expanded, onToggleExpand, onOpenView 
             <Icon name={a.icon as IconName} size={12} />
           </button>
         ))}
-        <button
-          type="button"
-          title={expanded ? t("toolCard.collapse") : t("toolCard.expand")}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleExpand();
-          }}
-          className={ACTION_BTN}
-        >
-          <Icon name={expanded ? "minimize" : "more"} size={12} />
-        </button>
-      </div>
-      {/* Tool-level failure reason (toolCall.error, §8.1 channel b) — shown
-          inline so an "err" tool says *why*, not just goes red. */}
+      </button>
+
+      {/* Inline error reason — shown even when collapsed so failures are visible. */}
       {tool.status === "err" && tool.error && (
-        <div className="px-3 pb-2 pl-[40px] font-mono text-[11px] leading-snug text-negative">
+        <div className="pl-7 pr-2 pb-1 font-mono text-[11px] leading-snug text-negative">
           {tool.error}
         </div>
       )}
+
+      {/* Expanded inline preview — indented beneath the row. */}
       <Collapsible open={expanded}>
-        <ToolPreview tool={tool} onOpenView={onOpenView} />
+        <div className="pl-6 pr-2 pb-1">
+          <div
+            className={cn(
+              "rounded-md border border-line/40 bg-surface px-3 py-2",
+              selected && "border-line/60",
+            )}
+          >
+            <ToolPreview tool={tool} onOpenView={onOpenView} />
+          </div>
+        </div>
       </Collapsible>
     </div>
   );
 }
 
-// Shared button style for inline action + expand glyphs.
+function StatusIcon({ status, tool }: { status: ToolCall["status"]; tool: ToolCall }) {
+  if (status === "running") {
+    return (
+      <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center">
+        <span className="h-2 w-2 rounded-full bg-accent shadow-[0_0_6px_var(--color-accent)] animate-pulse-dot" />
+      </span>
+    );
+  }
+  if (status === "err") {
+    return <Icon name="x" size={13} className="shrink-0 text-negative" />;
+  }
+  if (status === "denied") {
+    return <Icon name="stop" size={12} className="shrink-0 text-fg-faint" />;
+  }
+  // ok — show the tool-type icon, not a generic check, so the row reads
+  // differently per tool at a glance.
+  const icon = toolIconFor(toolRoutingKey(tool));
+  return <Icon name={icon} size={13} className="shrink-0 text-fg-muted" />;
+}
+
 const ACTION_BTN =
-  "grid h-5.5 w-5.5 place-items-center rounded-xs border-0 bg-transparent text-fg-faint transition-colors hover:bg-surface-3 hover:text-fg";
+  "grid h-5 w-5 shrink-0 place-items-center rounded border-0 bg-transparent text-fg-faint opacity-0 transition-all group-hover:opacity-100 hover:text-fg hover:bg-fg/[0.05]";
 
 function ToolMeta({ tool }: { tool: ToolCall }) {
+  const parts: React.ReactNode[] = [];
+
+  if (tool.added != null) {
+    parts.push(
+      <span key="+" className="text-success">+{tool.added}</span>,
+    );
+  }
+  if (tool.removed != null) {
+    parts.push(
+      <span key="-" className="text-negative">−{tool.removed}</span>,
+    );
+  }
+  if (tool.hits != null) {
+    parts.push(<span key="h">{tool.hits} matches</span>);
+  }
+  if (tool.exitCode != null && tool.exitCode !== 0) {
+    parts.push(<span key="e" className="text-negative">exit {tool.exitCode}</span>);
+  }
+  if (tool.status === "running") {
+    parts.push(<span key="l">live</span>);
+  }
+
+  if (parts.length === 0) return null;
+
   return (
-    <div className="flex items-center gap-2 font-mono text-[10px] text-fg-faint tracking-normal normal-case">
-      {tool.added != null && (
-        <span className="px-1.5 py-0.5 rounded-[4px] bg-[color-mix(in_oklab,var(--color-success)_5%,var(--color-bg))] shadow-tinted text-success text-[10px] font-medium"
-          style={{ '--shadow-tint-color': 'var(--color-success)' } as React.CSSProperties}
-        >
-          +{tool.added}
-        </span>
-      )}
-      {tool.removed != null && (
-        <span className="px-1.5 py-0.5 rounded-[4px] bg-[color-mix(in_oklab,var(--color-negative)_5%,var(--color-bg))] shadow-tinted text-negative text-[10px] font-medium"
-          style={{ '--shadow-tint-color': 'var(--color-negative)' } as React.CSSProperties}
-        >
-          −{tool.removed}
-        </span>
-      )}
-      {tool.hits != null && <span>{tool.hits} matches</span>}
-      {tool.exitCode != null && tool.exitCode !== 0 && (
-        <span className="text-negative">exit {tool.exitCode}</span>
-      )}
-      {tool.status === "running" && (
-        <>
-          <span>·</span>
-          <span>live</span>
-        </>
-      )}
+    <div className="hidden shrink-0 items-center gap-1.5 font-mono text-[11px] text-fg-faint tracking-normal normal-case sm:flex">
+      {parts.map((p, i) => (
+        <React.Fragment key={i}>
+          {i > 0 && <span className="text-fg-faint/50">·</span>}
+          {p}
+        </React.Fragment>
+      ))}
     </div>
   );
 }

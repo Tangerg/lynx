@@ -10,12 +10,12 @@ export function PreviewFoot({ label, onClick }: { label: string; onClick?: () =>
   // than a button that does nothing on click.
   if (!onClick) return null;
   return (
-    <div className="mt-2.5 pt-2 text-right">
-      <button
-        type="button"
-        onClick={onClick}
-        className="inline-flex items-center gap-1.5 rounded-full border border-line bg-transparent px-2.5 py-1 font-sans text-[11px] font-semibold text-fg-muted transition-[background,border-color,color] hover:border-line-soft hover:bg-surface hover:text-fg"
-      >
+      <div className="mt-2 pt-1.5 text-right">
+        <button
+          type="button"
+          onClick={onClick}
+          className="inline-flex items-center gap-1.5 rounded-md border border-line/60 bg-transparent px-2.5 py-1 font-sans text-[11px] font-medium text-fg-muted transition-[background,border-color,color] hover:border-line hover:bg-surface-2 hover:text-fg"
+        >
         {t(label)} <Icon name="share" size={11} />
       </button>
     </div>
