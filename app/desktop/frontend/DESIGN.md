@@ -184,12 +184,11 @@ spacing:
 
 # ---- Lyra-specific layout constants ----
 layout:
-  chat-measure: 760px      # Max reading width for chat content — cap to keep lines ≤80 chars
+  content-max: 720px       # Max reading width for chat content (was 760; narrowed 2026-06)
   sidebar-expanded: 248px  # Expanded sidebar (default state)
   sidebar-rail: 56px       # Collapsed icon rail (on demand, ⌘B)
-  topbar-height: 36px      # Chat/view tab strip — drag region on macOS
-  app-divider: 1px         # The single hairline between flush sidebar + main (no gutter)
-  # No bottom status bar — run telemetry lives in the composer footer, global
+  # No tab strip, no sidebar/main divider (separation is a background delta),
+  # no bottom status bar — run telemetry lives in the composer footer, global
   # status/notifications in the sidebar footer.
 
 motion:
@@ -306,17 +305,8 @@ components:
     description: Clickable diagram — click opens lightbox at native scale. Diagram colors derived from theme tokens at render time.
 
   # ---- Navigation ----
-  chat-tab:
-    backgroundColor: transparent
-    activeBackgroundColor: "{colors.surface-1}"
-    activeBorderColor: "{colors.hairline}"
-    activeIndicatorColor: "{colors.primary}"
-    typography: "{typography.body-sm}"
-    rounded: "7px 7px 0 0"
-    description: Topbar tab. Active = surface lift + 2px primary underline (the ONLY accent in the tab strip).
-  view-tab:
-    backgroundColor: "color-mix(in srgb, {colors.primary} 6%, transparent)"
-    description: Same shape as chat-tab, faintly accent-washed to distinguish "this is a panel view, not a session".
+  # (2026-06) chat-tab + view-tab removed — no tab strip. One active session;
+  # workspace views open full-pane. See REDESIGN.md §5 Step 2a.
   command-palette:
     backgroundColor: "{colors.surface-2}"
     borderColor: "{colors.hairline-strong}"
@@ -349,18 +339,38 @@ components:
     description: Run-error surface. Lives above the message stream, dismissible. Cleared automatically when the next run starts.
 ---
 
+> **Redesign 2026-06 (landed on `main`).** The OpenAI-restrained redesign
+> — see [`REDESIGN.md`](./REDESIGN.md) for the full step-by-step + commit log —
+> changed the structural design intent from the original spec below:
+> - **Tabs removed** — one active session; workspace views open full-pane and
+>   close via sidebar-toggle / `Esc` (no tab strip, no in-view ×).
+> - **Sidebar/main divider removed** — separation is a background delta only
+>   (`surface` vs `bg`), no hairline.
+> - **Display weight ceiling lowered 600 → 500** (Codex-style restraint).
+> - **Assistant message de-chromed** — no glass document surface, no per-message
+>   header/avatar, no `MessageOutline` gutter (unboxed prose on the canvas).
+> - **Composer is the `rounded-xl` anchor** with `bg-fg` send (accent reserved
+>   for live/steer state); model picker + context chips moved inside.
+> - Shadow ladder精简 to 3 canonical tokens (`composer`/`elevated`/`focus`).
+>
+> **Authoritative token values now live in `src/styles/globals.css` `:root` +
+> `plugins/builtin/theme/themes/*`.** The frontmatter palette / typography /
+> rounded values below are a pre-redesign snapshot retained for historical
+> context — where they disagree with globals.css, globals.css wins.
+
 ## 0. Design language (the five pillars)
 
 The whole system reduces to five decisions. Everything below elaborates them.
 
 1. **Flush, edge-to-edge layout** — no cards-on-canvas. The sidebar + main run to
-   the window edge, separated by a single hairline. The sidebar is the one
-   half-step-lifted surface; the main area paints on the canvas. No gutters, no
-   panel drop shadows (dark _or_ light).
+   the window edge, separated by a **background delta** (`surface` vs `canvas`),
+   not a hairline. The sidebar is the one half-step-lifted surface; the main
+   area paints on the canvas. No gutters, no panel drop shadows (dark _or_ light).
 2. **Near-monochrome, one restrained accent** — overall black/white/grey; the
-   accent (a calm **blue**, `#6c97ff` dark / `#2563eb` light by default,
-   user-selectable) appears only on live / CTA / focus, and focus is a single
-   thin stroke — never a bright halo or glow on click.
+   accent (a calm **blue**, `#7b8efa` dark / `#2563eb` light by default,
+   user-selectable) appears only on live / steer / focus, and focus is a single
+   thin stroke — never a bright halo or glow on click. The primary CTA fill is
+   `bg-fg` (black/white), NOT accent — accent is reserved for "live" state.
 3. **Dual-theme parity, follows the OS** — light and dark are both first-class
    and polished; the default theme is "system" and tracks `prefers-color-scheme`
    live.
@@ -369,7 +379,8 @@ The whole system reduces to five decisions. Everything below elaborates them.
    data (code / IDs / timestamps / paths), not every eyebrow.
 5. **Airy + discoverable** — generous whitespace, calm rhythm; features are
    first-class grouped entries in the sidebar + settings (not buried in the
-   command palette). The topbar session/view tab strip (multi-tab) stays.
+   command palette). **No tab strip** — one active session; workspace views
+   open full-pane and close via sidebar-toggle / `Esc`.
 
 Constant across all of it: the `@theme` token bridge, plugin-contributed chrome,
 accent _scarcity_, tabular numerals, keyboard-focus discipline, reduced-motion.
@@ -476,7 +487,9 @@ The full scale is 11 tokens — narrower than the previous 13-step Spotify scale
 
 1. **Sans-first; mono is the _data_ voice only.** Labels, section headings, nav, speaker names, view titles + subtitles are **sans**. Mono (`caption-mono` / `code`) is reserved for genuine data — IDs, durations, timestamps, file paths, tool-call signatures. (The earlier "mono as eyebrow everywhere" read as an engineering console; pulled back.)
 
-2. **600 is the display ceiling.** Never use 700, 800, 900. Hierarchy comes from size + weight contrast (400 vs 600), not from going heavier.
+2. **500 is the display ceiling.** Never use 600+ for UI (700, 800, 900 right
+   out). Hierarchy comes from size + weight contrast (400 vs 500), not from
+   going heavier. (600 semibold is reserved for HITL action buttons only.)
 
 3. **Display gets negative tracking.** -0.96px at 32px display-xl, scaling proportionally. Body holds at -0.05 to 0.
 
@@ -490,40 +503,45 @@ The full scale is 11 tokens — narrower than the previous 13-step Spotify scale
 
 ### App shell
 
-Flush, edge-to-edge — a single hairline divides the sidebar from the main area;
-no gutters, no bottom status bar:
+Flush, edge-to-edge — a **background delta** divides the sidebar from the main
+area (`surface` vs `canvas`, no hairline); no gutters, no bottom status bar:
 
 ```
 ┌────────────┬────────────────────────────────────────────────┐
-│ Sidebar    │ Topbar — chat/view tab strip + plugin actions   │ 36px
+│ Sidebar    │ (drag region — thin strip, no tab strip)       │ 36px
 │ 248        │────────────────────────────────────────────────│
 │  · new     │                                                 │
-│  · search  │           Message stream (max-width 760)        │ 1fr
+│  · search  │           Message stream (max-width 720)        │ 1fr
 │  Workspace │                                                 │
 │  Projects  │  ┌──────────────────────────────────────────┐   │
-│  …         │  │  Composer (max-width 760)                │   │
+│  …         │  │  Composer (max-width 720, rounded-xl)    │   │
 │  ⚙ settings │  └──────────────────────────────────────────┘   │
 └────────────┴────────────────────────────────────────────────┘
    ↑ surface (chrome)        ↑ canvas (main reading area)
-   one hairline between them — no gap, no shadow
+   separated by background delta — no gap, no line, no shadow
 ```
 
 ### Sidebar
 
 - **Default state: expanded** (248px). The primary-nav group (New chat / Search + a "Workspace" group of feature destinations) and the project/session tree are the navigation, visible up front. Features that used to hide behind the palette get first-class grouped entries here.
 - **Rail** (56px, icon-only) is the on-demand collapsed mode via `⌘B`.
-- The sidebar is the one lifted `surface`; the main area is `canvas`. They're flush, divided by a single hairline (`.panel.sidebar` border-right).
+- The sidebar is the one lifted `surface`; the main area is `canvas`. They're flush, separated by a **background delta** (no `border-right`).
 
 ### Chat measure
 
-- Message stream + composer both cap at **`chat-measure: 760px`**, centered.
+- Message stream + composer both cap at **`--content-max: 720px`**, centered.
 - Reading ergonomics: 45–75 characters per line at body-md (14px) translates to ≈ 720–820px. 760 is the comfortable middle.
 - Long code blocks and tables can exceed 760 — they get horizontal scroll inside their own wrapper, the prose column stays at 760.
 
-### Tabs
+### Tabs — removed (2026-06 redesign)
 
-- **The topbar tab strip carries both chat-session tabs and view tabs.** Sessions also live in the sidebar tree; the topbar gives the open ones tab affordances (middle-click close, "close others / left / right", `+` new tab). Workspace **view tabs** (Files, Diff, Plan, Terminal) share the same strip, faintly accent-washed to read as "panel view" rather than "session".
-- When nothing is open the strip is empty (just the macOS drag region).
+- **No tab strip.** One active session at a time (ChatGPT-style); switching is
+  via the sidebar session list (`selectTab`). Workspace views (Files / Diff /
+  Plan / Tools / …) open **full-pane** (no tab affordance, no title bar) and
+  close via **Option A**: click the same sidebar nav row again (toggle), press
+  `Esc` (yields to palette/dialog/input first), or use the split-view
+  promote/close control. See REDESIGN.md §5 Step 2a for the full rationale +
+  the `sessionStore` deprecation of `tabIds` / `mainViewTabs`.
 
 ### Spacing rhythm
 

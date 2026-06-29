@@ -253,9 +253,17 @@ DESIGN.md 随重构**就地演进**（非冻结基线）。下列决策是相对
 **改文件**：`ChatStream.tsx`、`JumpToBottomButton.tsx`、`markdown.css`/markdownComponents、`PlanBlock.tsx`、`CompactionBlock.tsx` 等
 **验证**：全绿 + 全量视觉巡检。
 
-#### Step 6b — 全局巡检 + 回写 DESIGN.md  `[ ]`  lane: des-1 + ora-2 复核
-**做什么**：逐屏核对 OpenAI 克制风一致性；把 §2 推翻项回写进 DESIGN.md（字体/tab/divider/composer/send-fg）；归档本 REDESIGN.md 到「已完成」状态。
-**验证**：ora-2 做一次可维护性/简化复核（有无借机引入的 ceremony / YAGNI）。
+#### Step 6b — 全局巡检 + 回写 DESIGN.md + 清 deferred  `[x]`  lane: orchestrator（亲自执行，未用子 agent）
+**做了**（commit 见下）：
+- **清 3 个 committed deferred**：①`--color-on-fg` token 正式补（:root 派生自 `--color-bg` + @theme 别名 + ApprovalCard/QuestionCard/composer 3 处换掉 `text-canvas` fallback）；②`--color-app-divider` 死 token 全删（tokens.ts 生产者 + types.ts 类型 + tokens.test.ts + 12 个主题文件，共 15 处）；③reasoning scroll-up 暂停（`pin()` 加 `wasAtBottom` 守卫，用户上滑不再被新 token 拉回）。
+- **回写 DESIGN.md**：顶部加 redesign banner（token 值权威转交 globals.css）+ 修正结构性设计意图陈述（multi-tab→removed、hairline divider→background delta、600 ceiling→500、`chat-measure` 760→`--content-max` 720、assistant de-glass、composer `rounded-xl`/send `bg-fg`、移除 frontmatter 的 topbar-height/app-divider/chat-tab/view-tab）。
+- **简化复核（自做，原 ora-2 部分）**：发现两处更大 separable 清理（见下「后续任务」），不塞进 6b。
+**验证**：tsc + build + 473 tests + `npm run check`（含 format/knip/circular/layers/bundle）全绿。
+
+### 后续任务（6b 复核发现，separable，未做）
+1. **shadow legacy alias 迁移**：1a 留的 alias 桥（`shadow-lg/md/medium/sm/...` → canonical）仍被 14 处组件消费。多数是 popover/dropdown/lightbox 该用 `shadow-elevated`（直改即可），但 `shadow-sm` 用在 Slider/Switch thumb 语义存疑（`focus` 是 inset 1px，对 thumb 不合适），需逐处判断。迁移后可删 globals.css 的 alias 块。
+2. **`tabIds`/`mainViewTabs` store 机制全删**：2a「退役」只停了 UI 渲染，store 的 tab actions（closeTab/closeOthers/closeLeft/closeRight）+ `sessionStore.test.ts` 仍完整存在、UI 不调 = 断连死状态机。全删需动 store 接口 + 重写测试。
+3. **`requires-action` 上游接线**（5b deferred）：reducer fold 把 open HITL interrupt 关联回 toolCall status（现仅 UI 渲染就绪、`toolStatus()` 产不出该态）。
 
 ---
 
@@ -320,4 +328,4 @@ DESIGN.md 随重构**就地演进**（非冻结基线）。下列决策是相对
 
 ---
 
-> **当前状态**：方向已定调（§1），基础决策已冻结（§3，含「不打包字体、靠配方修复」），现状已摸清（§4），所有 input 齐备。等用户对 §8.3（accent 默认色）拍板 + Step 1a 绿灯，即由 des-1 开跑。
+> **当前状态：✅ 全部完成。** 9 个实施 commit（Step 1a→6a）+ 6b 收尾（3 deferred 清理 + DESIGN.md 回写 + 简化复核）已落 `main`。前端整体收敛到 OpenAI 家族式克制美学。后续清理任务见上「后续任务」（shadow alias 迁移 / tabIds store 全删 / requires-action 上游接线）——separable，可独立排期。

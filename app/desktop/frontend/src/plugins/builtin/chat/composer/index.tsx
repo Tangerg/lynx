@@ -529,7 +529,7 @@ function SendButton() {
           "grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 transition-transform duration-150",
           disabled
             ? "bg-transparent text-fg-faint/30 cursor-not-allowed"
-            : "bg-fg text-canvas active:scale-95",
+            : "bg-fg text-on-fg active:scale-95",
         )}
         data-slot="composer-send"
       >

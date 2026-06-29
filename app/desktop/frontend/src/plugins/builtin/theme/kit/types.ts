@@ -71,8 +71,6 @@ export interface ThemeBorders {
   borderSoft: string;
   /** Nested-surface borders, deeper contrast. */
   divider: string;
-  /** 1px gap between flush panels — usually = border. */
-  appDivider: string;
 }
 
 /** Four meaning-carrying colors. Used SPARINGLY per DESIGN.md §9 —

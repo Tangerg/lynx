@@ -83,8 +83,14 @@ export function ReasoningBlock({ text, status }: Props) {
     const scrollEl = scrollRef.current;
     const contentEl = contentRef.current;
     if (!scrollEl || !contentEl) return;
+    // Pin only when the user is already at the bottom — if they've scrolled
+    // up to read, new tokens must not yank them back. Re-arms automatically:
+    // the next content growth after they scroll back down pins again.
     const pin = () => {
-      scrollEl.scrollTop = scrollEl.scrollHeight;
+      const distanceFromBottom = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight;
+      if (distanceFromBottom < 4) {
+        scrollEl.scrollTop = scrollEl.scrollHeight;
+      }
       // Eagerly update metrics so fade states stay in sync.
       setScrollTop(scrollEl.scrollTop);
       setScrollHeight(scrollEl.scrollHeight);

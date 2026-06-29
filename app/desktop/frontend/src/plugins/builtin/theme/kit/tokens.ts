@@ -104,7 +104,6 @@ export function buildTokenMap(spec: ThemePluginSpec): Record<string, string> {
     "color-border": spec.borders.border,
     "color-border-soft": spec.borders.borderSoft,
     "color-divider": spec.borders.divider,
-    "color-app-divider": spec.borders.appDivider,
 
     // Semantic
     "color-negative": spec.semantic.negative,

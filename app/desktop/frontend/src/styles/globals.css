@@ -34,6 +34,7 @@
   --color-fg-muted: var(--color-text-muted);
   --color-fg-faint: var(--color-text-faint);
   --color-on-accent: var(--color-text-on-accent);
+  --color-on-fg: var(--color-text-on-fg);
 
   /* Accent — only the base is exposed as a utility; -border / -press
      stay raw CSS vars (consumed by CTA defaults via var()). */
@@ -182,6 +183,9 @@
   --color-text-muted: #8a8f98;
   --color-text-faint: #5c6068;
   --color-text-on-accent: #030408;
+  /* Ink on a `bg-fg` fill — the canvas color (inverse of fg). Tracks
+     --color-bg so a theme that overrides bg gets the right on-fg for free. */
+  --color-text-on-fg: var(--color-bg);
 
   /* Hairlines — alpha-based on dark so they sit softly; light themes
      override to literal hex. */
