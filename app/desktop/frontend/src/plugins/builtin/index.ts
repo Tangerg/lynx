@@ -88,7 +88,6 @@ import {
   taskPreview,
   webSearchPreview,
 } from "./chat/tools/previews";
-import topbarNewTab from "./shell/topbar-new-tab";
 import welcomeScreen from "./shell/welcome-screen";
 import {
   agentDocsView,
@@ -242,7 +241,6 @@ const overlays: PluginSpec[] = [
   completionNotify,
   windowTitle,
   welcomeScreen,
-  topbarNewTab,
   shortcuts,
   globalKeymap,
   iconGallery,
