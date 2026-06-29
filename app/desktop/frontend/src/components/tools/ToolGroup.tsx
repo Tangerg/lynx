@@ -74,7 +74,7 @@ export function ToolGroup({
         onClick={() => setPinned(!expanded)}
         aria-expanded={expanded}
         className={cn(
-          "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-[background-color] duration-75",
+          "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition-[background-color] duration-75",
           "hover:bg-fg/[0.02] focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_var(--color-accent)]",
         )}
       >

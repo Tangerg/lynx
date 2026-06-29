@@ -12,10 +12,8 @@ import { cn } from "@/lib/utils";
 type Tone = "warning" | "accent";
 
 const TONE_CARD: Record<Tone, string> = {
-  warning:
-    "border-warning/25 bg-[linear-gradient(180deg,rgba(255,164,43,0.06)_0%,var(--color-surface)_60%)]",
-  accent:
-    "border-accent/25 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--color-accent)_6%,transparent)_0%,var(--color-surface)_60%)]",
+  warning: "border-warning/20 bg-warning/[0.03]",
+  accent: "border-accent/20 bg-accent/[0.03]",
 };
 
 const TONE_TEXT: Record<Tone, string> = {
@@ -44,7 +42,7 @@ interface ShellProps {
 
 export function HitlCardShell({ tone, icon, label, trailing, children }: ShellProps) {
   return (
-    <div className={cn("my-2 rounded-xl border px-3.5 py-3", TONE_CARD[tone])}>
+    <div className={cn("my-2 rounded-md border px-3 py-2.5", TONE_CARD[tone])}>
       <div
         className={cn(
           "mb-1.5 flex items-center gap-2 font-mono text-[11px] font-semibold",
