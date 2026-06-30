@@ -316,7 +316,7 @@
   --shadow-sm: var(--shadow-focus);
 
   /* Content max-width — the centered reading island (REDESIGN.md §3.4). */
-  --content-max: 720px;
+  --content-max: 768px;
 
   /* Fine foreground ramp (color-mix toward bg) — 20-step for subtle
      surface tints, hover states, and depth layering. */
