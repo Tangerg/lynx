@@ -17,12 +17,16 @@ import type {
 } from "@/protocol/run/viewState";
 import { create } from "zustand";
 import { disposeOnHmr } from "@/lib/hmr";
-// Import from the specific SDK module, not the barrel — the barrel re-exports
-// useSharedState (which reads this store), so a barrel import here would close
-// a state → sdk → state module cycle.
-import { appendTimelineEntry } from "@/plugins/sdk/state";
 import { reduce } from "@/protocol/run/reducer";
 import { INITIAL_VIEW_STATE } from "@/protocol/run/viewState";
+import {
+  cancelRunningRun,
+  dropMessage,
+  relabelMessage,
+  resolveInterrupt,
+  setRunError,
+  type SettledInterrupt,
+} from "@/protocol/run/viewMutations";
 import { useSessionStore } from "./sessionStore";
 
 type StopFn = (() => void) | null;
@@ -118,15 +122,7 @@ interface AgentStore {
    * matching open interrupt. The continuation Run streams the real
    * follow-up; this just flips the card out of its requires-action state.
    */
-  resolveInterrupt: (
-    sessionId: string,
-    itemId: string,
-    settled: {
-      decision?: "approved" | "declined";
-      answered?: boolean;
-      answers?: Record<string, string[]>;
-    },
-  ) => void;
+  resolveInterrupt: (sessionId: string, itemId: string, settled: SettledInterrupt) => void;
 }
 
 const emptyEntry = (): SessionEntry => ({
@@ -151,6 +147,18 @@ function patchSession(
   const prev = sessions[sessionId];
   if (!prev) return sessions;
   return { ...sessions, [sessionId]: { ...prev, ...next } };
+}
+
+function patchView(
+  sessions: Record<string, SessionEntry>,
+  sessionId: string,
+  update: (view: AgentViewState) => AgentViewState,
+): Record<string, SessionEntry> {
+  const prev = sessions[sessionId];
+  if (!prev) return sessions;
+  const view = update(prev.view);
+  if (view === prev.view) return sessions;
+  return patchSession(sessions, sessionId, { view });
 }
 
 export const useAgentStore = create<AgentStore>((set) => ({
@@ -187,25 +195,15 @@ export const useAgentStore = create<AgentStore>((set) => ({
     })),
   relabelMessage: (sessionId, fromId, toId) =>
     set((s) => {
-      const prev = s.sessions[sessionId];
-      if (!prev || fromId === toId) return s;
-      const msgs = prev.view.messages;
-      const has = (id: string) => msgs.some((m) => m.id === id);
-      // Nothing to rename, or the streamed item already landed under `toId`.
-      if (!has(fromId) || has(toId)) return s;
-      const messages = msgs.map((m) => (m.id === fromId ? { ...m, id: toId } : m));
-      return {
-        sessions: patchSession(s.sessions, sessionId, { view: { ...prev.view, messages } }),
-      };
+      const sessions = patchView(s.sessions, sessionId, (view) =>
+        relabelMessage(view, fromId, toId),
+      );
+      return sessions === s.sessions ? s : { sessions };
     }),
   dropMessage: (sessionId, id) =>
     set((s) => {
-      const prev = s.sessions[sessionId];
-      if (!prev || !prev.view.messages.some((m) => m.id === id)) return s;
-      const messages = prev.view.messages.filter((m) => m.id !== id);
-      return {
-        sessions: patchSession(s.sessions, sessionId, { view: { ...prev.view, messages } }),
-      };
+      const sessions = patchView(s.sessions, sessionId, (view) => dropMessage(view, id));
+      return sessions === s.sessions ? s : { sessions };
     }),
   dropSession: (sessionId) =>
     set((s) => {
@@ -222,76 +220,25 @@ export const useAgentStore = create<AgentStore>((set) => ({
     set((s) => ({ sessions: patchSession(s.sessions, sessionId, { resume: fn }) })),
   clearError: (sessionId) =>
     set((s) => {
-      const prev = s.sessions[sessionId];
-      if (!prev) return s;
-      return {
-        sessions: patchSession(s.sessions, sessionId, {
-          view: { ...prev.view, error: null },
-        }),
-      };
+      const sessions = patchView(s.sessions, sessionId, (view) => setRunError(view, null));
+      return sessions === s.sessions ? s : { sessions };
     }),
   setError: (sessionId, error) =>
     set((s) => {
-      const prev = s.sessions[sessionId];
-      if (!prev) return s;
-      return { sessions: patchSession(s.sessions, sessionId, { view: { ...prev.view, error } }) };
+      const sessions = patchView(s.sessions, sessionId, (view) => setRunError(view, error));
+      return sessions === s.sessions ? s : { sessions };
     }),
   cancelRun: (sessionId) =>
     set((s) => {
-      const prev = s.sessions[sessionId];
-      if (!prev || !prev.view.run.running) return s;
-      const view = appendTimelineEntry({ kind: "run-end", status: undefined, summary: "canceled" })(
-        {
-          ...prev.view,
-          run: { ...prev.view.run, running: false },
-        },
-      );
-      return { sessions: patchSession(s.sessions, sessionId, { view }) };
+      const sessions = patchView(s.sessions, sessionId, cancelRunningRun);
+      return sessions === s.sessions ? s : { sessions };
     }),
   resolveInterrupt: (sessionId, itemId, settled) =>
     set((s) => {
-      const prev = s.sessions[sessionId];
-      if (!prev) return s;
-      const view = prev.view;
-      const messages = view.messages.map((m) => {
-        if (!m.blocks.some((b) => "itemId" in b && b.itemId === itemId)) return m;
-        return {
-          ...m,
-          blocks: m.blocks.map((b) => {
-            if (!("itemId" in b) || b.itemId !== itemId) return b;
-            if (b.kind === "approval")
-              return { ...b, status: "complete" as const, decision: settled.decision };
-            if (b.kind === "question")
-              return {
-                ...b,
-                status: "complete" as const,
-                answered: settled.answered ?? true,
-                answers: settled.answers ?? b.answers,
-              };
-            return b;
-          }),
-        };
-      });
-      // Drop only the resolved interrupt — a single run.finished{interrupt}
-      // can carry several (multiple approvals/questions at once). Removing the
-      // whole envelope would strand its sibling interrupts: their cards stay
-      // in requires-action with no backing open-interrupt to resume. Keep the
-      // envelope until its last interrupt is resolved.
-      const openInterrupts = view.openInterrupts
-        .map((oi) => ({ ...oi, interrupts: oi.interrupts.filter((i) => i.itemId !== itemId) }))
-        .filter((oi) => oi.interrupts.length > 0);
-      let next: AgentViewState = { ...view, messages, openInterrupts };
-      // Stamp the human decision on the audit timeline so the run digest +
-      // Timeline view can pair it with the originating approval-request
-      // (questions have no timeline counterpart — only approvals are paired).
-      if (settled.decision) {
-        next = appendTimelineEntry({
-          kind: "approval-result",
-          refId: itemId,
-          status: settled.decision,
-        })(next);
-      }
-      return { sessions: patchSession(s.sessions, sessionId, { view: next }) };
+      const sessions = patchView(s.sessions, sessionId, (view) =>
+        resolveInterrupt(view, itemId, settled),
+      );
+      return sessions === s.sessions ? s : { sessions };
     }),
 }));
 
