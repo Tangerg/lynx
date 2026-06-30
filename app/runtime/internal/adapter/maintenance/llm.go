@@ -22,7 +22,7 @@ type ClientFunc func(context.Context) *chat.Client
 // directCallTimeout caps a single maintenance LLM call (compaction
 // summary / fact extraction) so a hung provider connection fails the
 // call instead of blocking turn-boundary housekeeping forever.
-// Independent from the engine's turn-level timeout: this bounds a
+// Independent from the kernel's turn-level timeout: this bounds a
 // one-shot, middleware-free call, not a full streaming tool-loop, so the
 // two evolve for different reasons.
 const directCallTimeout = 2 * time.Minute
@@ -35,7 +35,7 @@ const directCallTimeout = 2 * time.Minute
 // history.
 //
 // nil client surfaces as a plain error rather than a panic — a
-// defensive guard only, since the engine rejects a nil ChatClient
+// defensive guard only, since the kernel rejects a nil ChatClient
 // before any of these workers is constructed.
 func askDirect(ctx context.Context, client *chat.Client, systemPrompt, userPrompt string) (string, error) {
 	if client == nil {

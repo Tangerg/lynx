@@ -15,12 +15,12 @@ import (
 // — see transcript.go) to map a run boundary onto a chat-memory message count,
 // since the message log itself carries no run markers.
 
-// runNodes lifts the structured timeline fields out of each persisted run's
+// runBoundaryNodes lifts the structured timeline fields out of each persisted run's
 // opaque wire blob (a marshaled [protocol.RunRef]) so the domain boundary math
 // ([transcript.BoundaryAt]) stays wire-free. It also returns a by-id index of
 // the original RunRefs, because the rollback response reports dropped runs as
 // full wire RunRefs.
-func runNodes(runs []transcript.Run) ([]transcript.RunNode, map[string]protocol.RunRef, error) {
+func runBoundaryNodes(runs []transcript.Run) ([]transcript.RunNode, map[string]protocol.RunRef, error) {
 	nodes := make([]transcript.RunNode, 0, len(runs))
 	byID := make(map[string]protocol.RunRef, len(runs))
 	for _, r := range runs {
@@ -53,10 +53,10 @@ func wireBoundaryErr(err error) error {
 	}
 }
 
-// openingUserInput maps each run id to the content of its FIRST userMessage
+// openingUserInputByRun maps each run id to the content of its FIRST userMessage
 // item — the opening turn the client re-populates the composer from. Runs with
 // no opening user turn (resume / edit continuations) are absent from the map.
-func openingUserInput(items []transcript.Item) map[string][]protocol.ContentBlock {
+func openingUserInputByRun(items []transcript.Item) map[string][]protocol.ContentBlock {
 	out := map[string][]protocol.ContentBlock{}
 	for _, it := range items {
 		if _, seen := out[it.RunID]; seen {

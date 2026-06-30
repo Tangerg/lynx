@@ -165,7 +165,7 @@ func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest
 		if err != nil {
 			return nil, wireSessionErr(err)
 		}
-		nodes, _, err := runNodes(runs)
+		nodes, _, err := runBoundaryNodes(runs)
 		if err != nil {
 			return nil, err
 		}

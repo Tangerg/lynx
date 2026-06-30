@@ -22,7 +22,7 @@ import (
 // implementer outside this module — *kernel.Engine satisfies it
 // implicitly, so nothing names it (tests pass a stub the same way).
 //
-// The shared parameter/result types live in package engine — its I/O schema
+// The shared parameter/result types live in package kernel — its I/O schema
 // (RunChatRequest, ChatOutput, ChatProcess) and the maintenance port results
 // (CompactionResult, ExtractionResult). Importing them carries no concrete-type
 // coupling; what we shed is the *kernel.Engine dependency, so turn can be

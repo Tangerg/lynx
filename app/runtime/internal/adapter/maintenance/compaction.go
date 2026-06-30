@@ -62,7 +62,7 @@ type CompactionConfig struct {
 	ContextWindow int
 }
 
-// Compactor is the auto-compaction worker. Constructed by the engine
+// Compactor is the auto-compaction worker. Constructed by the kernel
 // unless compaction is disabled (negative MaxMessages); a nil
 // Compactor makes [Compactor.MaybeCompact] a silent no-op.
 type Compactor struct {
