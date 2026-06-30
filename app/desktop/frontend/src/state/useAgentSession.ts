@@ -7,22 +7,16 @@
 // lifecycle is essentially one rAF-loop subscription + a few transition guards;
 // a formal FSM would be more ceremony than the problem warrants.
 import type { AgentDriver } from "@/plugins/sdk";
-import type {
-  ContentBlock,
-  InterruptResponse,
-  RunEvent,
-  RunId,
-  RunRef,
-  StreamingResult,
-} from "@/rpc";
+import type { ContentBlock, InterruptResponse, RunEvent, RunId, StreamingResult } from "@/rpc";
 import { useEffect, useRef } from "react";
-import { asSessionId, errorDetail, errorType, RpcError } from "@/rpc";
+import { errorDetail, errorType, RpcError } from "@/rpc";
 import { LOCAL_MESSAGE_PREFIX } from "@/protocol/run/viewState";
 import { endSpan, startRunSpan, withSpan } from "@/lib/observability/tracing";
 import { getContainer } from "@/main/container";
 import { queryClient } from "@/lib/data/queryClient";
 import { USAGE_SESSION_KEY } from "@/lib/data/useUsage";
-import { useAgentStore, type FoldEvent } from "./agentStore";
+import { useAgentStore } from "./agentStore";
+import { startAgentSessionRecovery } from "./agentSessionRecovery";
 import { createRunEventBatcher } from "./runEventBatcher";
 import { useSessionStore } from "./sessionStore";
 
@@ -94,87 +88,17 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       }
     };
 
-    // Replay the session's durable Items as `item.completed` events through
-    // the SAME fold the live stream uses, so past turns render identically.
-    // Idempotent (the fold upserts by item id) — safe to re-apply after a
-    // reattach race below.
-    const applyHistory = async (): Promise<void> => {
-      const resp = await getContainer()
-        .client()
-        .items.list({ sessionId: asSessionId(sessionId) });
-      if (cancelled || interacted || resp.data.length === 0) return;
-      store().applyEvents(
-        sessionId,
-        resp.data.map((item): FoldEvent => ({ event: { type: "item.completed", item } })),
-      );
-    };
-
-    // Reattach to a run that survived a reload (API.md §10.1): runs.subscribe
-    // streams events from now on, so the view's "running" state is seeded from
-    // the RunRef — the original run.started fired before we were listening.
-    const attach = async (run: RunRef): Promise<void> => {
-      // Register the controller BEFORE the call so a user send() supersedes
-      // the reattached stream exactly like it supersedes a started one
-      // (begin() aborts `abort`).
-      const ctrl = new AbortController();
-      abort = ctrl;
-      let stream: StreamingResult<{ runId: RunId }, RunEvent>;
-      try {
-        stream = await getContainer().client().runs.subscribe(run.id, ctrl.signal);
-      } catch (err) {
-        if (cancelled || ctrl.signal.aborted) return;
-        // Most likely the run finished between runs.list and subscribe — its
-        // tail items missed the first items.list, so re-apply history.
-        console.warn("[agent] run reattach failed:", sessionId, err);
-        void applyHistory().catch(() => undefined);
-        return;
-      }
-      if (cancelled || ctrl.signal.aborted) return;
-      store().applyEvents(sessionId, [{ event: { type: "run.started", run } }]);
-      await pump(stream, ctrl.signal);
-    };
-
-    // Hydrate + recover an existing (non-draft) session (API.md §10.2):
-    // durable history, then unresolved HITL interrupts (their cards must come
-    // back after a reload), then reattach a still-running run. Drafts have no
-    // history (just created) — their queued first message is flushed below.
-    // Each step re-checks `interacted`: once the user sends, the live run owns
-    // the slice and late backfill would interleave below it (see above).
     if (!useSessionStore.getState().draftSessionIds.has(sessionId)) {
-      void (async () => {
-        const client = getContainer().client();
-        const sid = asSessionId(sessionId);
-        await applyHistory();
-        if (cancelled || interacted) return;
-        // Durable HITL recovery: synthesize the exact wire sequence the live
-        // path produces (run.started + run.finished{interrupt}) per envelope,
-        // so the cards rebuild through the same idempotent fold.
-        const open = await client.runs.listOpenInterrupts(sid);
-        if (cancelled || interacted) return;
-        for (const oi of open.data) {
-          store().applyEvents(sessionId, [
-            {
-              event: {
-                type: "run.started",
-                run: { id: oi.parentRunId, sessionId: oi.sessionId, createdAt: oi.createdAt },
-              },
-            },
-            {
-              event: {
-                type: "run.finished",
-                outcome: { type: "interrupt", interrupts: oi.interrupts },
-              },
-            },
-          ]);
-        }
-        // At most one root run can be in flight (session_busy), so reattach
-        // the first non-subagent run if any.
-        const running = await client.runs.list(sid);
-        if (cancelled || interacted) return;
-        const root = running.data.find((r) => !r.spawnedByItemId);
-        if (root) await attach(root);
-      })().catch((err: unknown) => {
-        if (!cancelled) console.error("[agent] session recovery failed:", sessionId, err);
+      startAgentSessionRecovery({
+        client: getContainer().client(),
+        sessionId,
+        isCancelled: () => cancelled,
+        hasInteracted: () => interacted,
+        applyEvents: (events) => store().applyEvents(sessionId, events),
+        setAbortController: (ctrl) => {
+          abort = ctrl;
+        },
+        pump,
       });
     }
 
