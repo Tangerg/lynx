@@ -8,7 +8,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentDriver } from "@/plugins/sdk";
-import type { LyraClient } from "@/rpc";
+import { RpcError, type LyraClient, type RunEvent } from "@/rpc";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { resetContainer, setContainer } from "@/main/container";
 import { useAgentStore } from "./agentStore";
@@ -34,6 +34,8 @@ beforeEach(async () => {
 afterEach(() => {
   useAgentStore.getState().dropSession(SID);
   useSessionStore.setState({ draftSessionIds: new Set() });
+  resetContainer();
+  vi.restoreAllMocks();
 });
 
 describe("useAgentSession send re-entrancy", () => {
@@ -51,6 +53,107 @@ describe("useAgentSession send re-entrancy", () => {
     const msgs = useAgentStore.getState().sessions[SID]!.view.messages;
     expect(msgs).toHaveLength(1);
     expect(msgs[0]!.blocks.some((b) => "text" in b && b.text === "first")).toBe(true);
+  });
+});
+
+describe("useAgentSession run timing guards", () => {
+  it("surfaces synchronous driver failures and releases the start latch", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const start = vi
+      .fn()
+      .mockImplementationOnce(() => {
+        throw new RpcError({
+          code: -32002,
+          message: "session missing",
+          data: { type: "session_not_found", detail: "gone" },
+        });
+      })
+      .mockImplementationOnce(() => new Promise<never>(() => {}));
+    const driver = {
+      start,
+      resume: vi.fn(() => new Promise<never>(() => {})),
+    } as unknown as AgentDriver;
+    renderHook(() => useAgentSession(() => driver, SID));
+
+    act(() => {
+      useAgentStore.getState().sessions[SID]!.send!([{ type: "text", text: "first" }]);
+    });
+
+    await waitFor(() => {
+      expect(useAgentStore.getState().sessions[SID]!.view.error).toMatchObject({
+        message: "gone",
+        code: "session_not_found",
+      });
+    });
+
+    act(() => {
+      useAgentStore.getState().sessions[SID]!.send!([{ type: "text", text: "second" }]);
+    });
+
+    expect(start).toHaveBeenCalledTimes(2);
+  });
+
+  it("ignores a second resume while the first continuation is still starting", () => {
+    const resume = vi.fn(() => new Promise<never>(() => {}));
+    const driver = {
+      start: vi.fn(() => new Promise<never>(() => {})),
+      resume,
+    } as unknown as AgentDriver;
+    renderHook(() => useAgentSession(() => driver, SID));
+
+    act(() => {
+      const resumeAction = useAgentStore.getState().sessions[SID]!.resume!;
+      resumeAction("run_parent" as never, []);
+      resumeAction("run_parent" as never, []);
+    });
+
+    expect(resume).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats aborting an accepted stream as cancellation, not a start failure", async () => {
+    const cancel = vi.fn().mockResolvedValue(undefined);
+    setContainer({
+      client: () =>
+        ({
+          runs: { cancel },
+        }) as unknown as LyraClient,
+    });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const onSettled = vi.fn();
+    const onStartError = vi.fn();
+    const resume = vi.fn((_: unknown, __: unknown, signal: AbortSignal) =>
+      Promise.resolve({
+        result: { runId: "run_resume" },
+        events: abortRejectingEvents(signal),
+      }),
+    );
+    const driver = {
+      start: vi.fn(() => new Promise<never>(() => {})),
+      resume,
+    } as unknown as AgentDriver;
+    renderHook(() => useAgentSession(() => driver, SID));
+
+    act(() => {
+      useAgentStore.getState().sessions[SID]!.resume!(
+        "run_parent" as never,
+        [],
+        onSettled,
+        onStartError,
+      );
+    });
+
+    await waitFor(() => expect(onSettled).toHaveBeenCalledTimes(1));
+    errorSpy.mockClear();
+
+    act(() => {
+      useAgentStore.getState().sessions[SID]!.stop?.();
+    });
+
+    await waitFor(() => expect(cancel).toHaveBeenCalledWith("run_resume"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(onStartError).not.toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalled();
   });
 });
 
@@ -151,3 +254,22 @@ describe("useAgentSession durable recovery", () => {
     expect(useAgentStore.getState().sessions[RID]!.view.run.runId).toBe("run_live");
   });
 });
+
+function abortRejectingEvents(signal: AbortSignal): AsyncIterable<RunEvent> {
+  return {
+    [Symbol.asyncIterator]() {
+      return {
+        async next(): Promise<IteratorResult<RunEvent>> {
+          await new Promise<never>((_, reject) => {
+            if (signal.aborted) {
+              reject(new Error("aborted"));
+              return;
+            }
+            signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+          });
+          return { value: undefined as never, done: true };
+        },
+      };
+    },
+  };
+}
