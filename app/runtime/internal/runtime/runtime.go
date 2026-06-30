@@ -30,7 +30,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
-	"github.com/Tangerg/lynx/models/catalog"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
@@ -312,83 +311,19 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	providerSvc := cfg.ProviderService
 	resolver := newClientResolver(providerSvc)
 
-	// Utility-model role: the (provider, model) the in-house maintenance
-	// services run on, loaded from its persistent store into an atomic cell so
-	// models.setUtilityRole can repoint it live. resolveUtility reads the cell
-	// per call (re-read, never captured) and resolves the client, falling back
-	// to the main turn client when the role is unset or unresolvable — those
-	// services degrade to the main model rather than failing.
-	var role utilityRole
-	if cfg.UtilityRoleStore != nil {
-		p, m, lerr := cfg.UtilityRoleStore.LoadUtilityRole(ctx)
-		if lerr != nil {
-			return nil, fmt.Errorf("runtime: load utility role: %w", lerr)
-		}
-		role = utilityRole{provider: p, model: m}
+	utilityEnv, err := buildUtilityEnvironment(ctx, cfg, resolver)
+	if err != nil {
+		return nil, err
 	}
-	utilCell := &atomic.Pointer[utilityRole]{}
-	utilCell.Store(&role)
-	mainClient := cfg.Engine.ChatClient
-	resolveUtility := func(ctx context.Context) *chat.Client {
-		role := utilCell.Load()
-		if role == nil || role.model == "" {
-			return mainClient
-		}
-		c, rerr := resolver.ResolveClient(ctx, role.provider, role.model)
-		if rerr != nil || c == nil {
-			return mainClient
-		}
-		return c
-	}
-
-	// Embedding-model role + the @codebase semantic index. The role (provider,
-	// model) is loaded into an atomic cell so models.setEmbeddingRole repoints it
-	// live; resolveEmbedder reads the cell per call and builds the embedder from
-	// the provider registry, returning ErrNoEmbeddingModel when unset (the index
-	// feature is then off). The index service is built only when a store is wired.
-	embeddings := newEmbeddingResolver(providerSvc)
-	embCell := &atomic.Pointer[embeddingRole]{}
-	var erole embeddingRole
-	if cfg.EmbeddingRoleStore != nil {
-		p, m, lerr := cfg.EmbeddingRoleStore.LoadEmbeddingRole(ctx)
-		if lerr != nil {
-			return nil, fmt.Errorf("runtime: load embedding role: %w", lerr)
-		}
-		erole = embeddingRole{provider: p, model: m}
-	}
-	embCell.Store(&erole)
-	resolveEmbedder := func(ctx context.Context) (codebaseindex.Embedder, error) {
-		role := embCell.Load()
-		if role == nil || role.model == "" {
-			return nil, codebaseindex.ErrNoEmbeddingModel
-		}
-		return embeddings.resolve(ctx, role.provider, role.model)
-	}
-	var codebaseIdx codebaseindex.Service
-	if cfg.CodebaseStore != nil {
-		codebaseIdx = codebaseindex.New(cfg.CodebaseStore, resolveEmbedder)
+	embeddingEnv, err := buildEmbeddingEnvironment(ctx, cfg, providerSvc)
+	if err != nil {
+		return nil, err
 	}
 
 	if ecfg.Steering == nil {
 		ecfg.Steering = conv
 	}
-	if ecfg.Compactor == nil {
-		// Window-relative compaction trigger: resolve the default turn model's
-		// context window from the catalog so compaction fires relative to the
-		// real model (not a fixed 100k that's wrong for a 32k or a 1M window).
-		// Catalog miss → ContextWindow 0 → the compactor's fixed fallback. Uses
-		// the DEFAULT model's window; a turn that picks a smaller per-run model
-		// keeps the default's headroom (documented limitation — compaction also
-		// runs on the default utility client, so it stays self-consistent).
-		window := 0
-		if info, ok := catalog.Lookup(cfg.Provider, cfg.Model); ok {
-			window = int(info.Limits.ContextWindow)
-		}
-		ecfg.Compactor = maintenance.NewCompactor(memStore, resolveUtility, maintenance.CompactionConfig{ContextWindow: window})
-	}
-	if ecfg.Extractor == nil && cfg.Engine.Knowledge != nil {
-		ecfg.Extractor = maintenance.NewExtractor(memStore, cfg.Engine.Knowledge, resolveUtility)
-	}
+	wireMaintenancePorts(&ecfg, cfg, memStore, utilityEnv.resolve)
 	// Todo list: same nil-default contract — honor a pre-injected engine
 	// Todos (an external task store), else use the runtime-supplied one.
 	if ecfg.Todos == nil {
@@ -404,52 +339,14 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	// reads it per tool call.
 	approvalSvc := approval.New(cfg.ApprovalMode, cfg.ApprovalRuleStore)
 
-	// Per-call MCP tool gating, derived from the registry. The cell is created
-	// up front so the two reader closures below — the resolver's disabled filter
-	// and the turn gate's auto-approve skip — close over the SAME atomic the
-	// Runtime later swaps on every registry change. A read failure is fatal: the
-	// gating is part of the tool environment's contract.
-	mcpGate := &atomic.Pointer[mcpGating]{}
-	g0, err := buildMCPGating(ctx, cfg.MCPRegistry)
+	mcpEnv, err := buildMCPEnvironment(ctx, cfg.MCPRegistry)
 	if err != nil {
-		return nil, fmt.Errorf("runtime: load mcp gating: %w", err)
-	}
-	mcpGate.Store(g0)
-	mcpDisabled := func() map[string]struct{} {
-		if g := mcpGate.Load(); g != nil {
-			return g.disabled
-		}
-		return nil
-	}
-	mcpAutoApprove := func() map[string]struct{} {
-		if g := mcpGate.Load(); g != nil {
-			return g.autoApprove
-		}
-		return nil
+		return nil, err
 	}
 
-	// Boot MCP set = the registry's enabled servers (the env seed already
-	// landed there in the composition root). A registry read failure is fatal —
-	// MCP is part of the tool environment.
-	mcpConfigs, err := enabledConfigs(ctx, cfg.MCPRegistry)
+	built, err := buildToolEnvironment(ctx, cfg, ecfg, approvalSvc, mcpEnv, embeddingEnv.index)
 	if err != nil {
-		return nil, fmt.Errorf("runtime: load mcp registry: %w", err)
-	}
-
-	built, err := toolset.Build(ctx, toolset.BuildConfig{
-		Workdir:         cfg.Engine.Workdir,
-		SkillsGlobalDir: cfg.Engine.SkillsGlobalDir,
-		Online:          cfg.Online,
-		LSPServers:      cfg.LSPServers,
-		MCPServers:      mcpConfigs,
-		A2AAgents:       cfg.A2AAgents,
-		Todos:           ecfg.Todos,
-		Approval:        approvalSvc,
-		MCPDisabled:     mcpDisabled,
-		CodebaseIndex:   codebaseIdx,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("runtime: build tools: %w", err)
+		return nil, err
 	}
 	ecfg.ToolResolver = built.Resolver
 	ecfg.Tools = built.Tools
@@ -474,7 +371,7 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 	sessionSvc := cfg.SessionService
 	interruptStore := cfg.InterruptStore
 
-	chatSvc, err := turn.New(eng, approvalSvc, resolver, ecfg.Todos, mcpAutoApprove, cfg.HooksResolver)
+	chatSvc, err := turn.New(eng, approvalSvc, resolver, ecfg.Todos, mcpEnv.autoApprove, cfg.HooksResolver)
 	if err != nil {
 		_ = eng.Close()
 		return nil, fmt.Errorf("runtime: chat service: %w", err)
@@ -497,21 +394,21 @@ func New(ctx context.Context, cfg Config) (*Runtime, error) {
 		conversation:     conv,
 		providers:        providerSvc,
 		mcpRegistry:      cfg.MCPRegistry,
-		mcpGating:        mcpGate,
+		mcpGating:        mcpEnv.gate,
 		defaultProvider:  cfg.Provider,
 		defaultModel:     cfg.Model,
-		titler:           maintenance.NewTitler(resolveUtility),
-		utility:          utilCell,
+		titler:           maintenance.NewTitler(utilityEnv.resolve),
+		utility:          utilityEnv.cell,
 		resolver:         resolver,
 		utilStore:        cfg.UtilityRoleStore,
 		hookResolver:     cfg.HooksResolver,
 		hookTrust:        cfg.HookTrustStore,
 		recipesGlobalDir: cfg.RecipesGlobalDir,
 		schedules:        cfg.ScheduleStore,
-		embeddingCell:    embCell,
-		embeddings:       embeddings,
+		embeddingCell:    embeddingEnv.cell,
+		embeddings:       embeddingEnv.resolver,
 		embeddingStore:   cfg.EmbeddingRoleStore,
-		codebaseIndex:    codebaseIdx,
+		codebaseIndex:    embeddingEnv.index,
 		transactor:       cfg.Transactor,
 	}, nil
 }
