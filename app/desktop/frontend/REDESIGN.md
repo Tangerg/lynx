@@ -261,9 +261,8 @@ DESIGN.md 随重构**就地演进**（非冻结基线）。下列决策是相对
 **验证**：tsc + build + 473 tests + `npm run check`（含 format/knip/circular/layers/bundle）全绿。
 
 ### 后续任务（6b 复核发现，separable，未做）
-1. **shadow legacy alias 迁移**：1a 留的 alias 桥（`shadow-lg/md/medium/sm/...` → canonical）仍被 14 处组件消费。多数是 popover/dropdown/lightbox 该用 `shadow-elevated`（直改即可），但 `shadow-sm` 用在 Slider/Switch thumb 语义存疑（`focus` 是 inset 1px，对 thumb 不合适），需逐处判断。迁移后可删 globals.css 的 alias 块。
-2. **`tabIds`/`mainViewTabs` store 机制全删**：2a「退役」只停了 UI 渲染，store 的 tab actions（closeTab/closeOthers/closeLeft/closeRight）+ `sessionStore.test.ts` 仍完整存在、UI 不调 = 断连死状态机。全删需动 store 接口 + 重写测试。
-3. **`requires-action` 上游接线**（5b deferred）：reducer fold 把 open HITL interrupt 关联回 toolCall status（现仅 UI 渲染就绪、`toolStatus()` 产不出该态）。
+1. **`tabIds`/`mainViewTabs` store 机制全删**：2a「退役」只停了 UI 渲染，store 的 tab actions（closeTab/closeOthers/closeLeft/closeRight）+ `sessionStore.test.ts` 仍完整存在、UI 不调 = 断连死状态机。全删需动 store 接口 + 重写测试。
+2. **`requires-action` 上游接线**（5b deferred）：reducer fold 把 open HITL interrupt 关联回 toolCall status（现仅 UI 渲染就绪、`toolStatus()` 产不出该态）。
 
 ---
 
