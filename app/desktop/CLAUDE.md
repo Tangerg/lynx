@@ -1,7 +1,7 @@
 # CLAUDE.md — project context for Claude Code
 
 > **Lyra** — Wails 桌面应用（Go 壳 + React/TS 前端），由自研 **Lyra Runtime Protocol v2**（JSON-RPC，Session→Run→Item 流式）驱动的插件化 agent client。
-> 结构看 `frontend/ARCHITECTURE.md`，视觉规范看 `frontend/DESIGN.md`，协议看 `docs/protocol/`。
+> 结构看 `frontend/ARCHITECTURE.md`，视觉规范看 `frontend/DESIGN.md`，桌面质感防回归清单看 `frontend/DESKTOP_UI_POLISH.md`，协议看 `docs/protocol/`。
 >
 > 本文件只放**法则 —— 只宏观、不写具体**（具体文件名 / 符号 / 版本 / 行数 / 历史会随演化变动，活在代码 / git / ARCHITECTURE.md 里，不进本则）。读法：先「两条法则」（总透镜）→ §1 架构心智 → §2-§5 写代码的判断与硬约定 → §6 别走的方向 → §7 怎么干活。
 
@@ -59,6 +59,7 @@
 
 - **KISS / SOLID / YAGNI / DRY / 高内聚低耦合** 是总判据。不为不存在的需求做抽象；组件按职责拆（SRP）；**抽象只在 3+ 重复时引入**；模块间通过最小接口（plugin SDK / store selector）通信。
 - **用户体验细节是一等公民，不是"以后再说"**。功能正确只是底线；拉开观感的是那些不影响功能、却天天硌用户的细节。做任何 UI 都按**打磨后的终态**交付，每次至少扫：尺寸稳定（不随内容长度跳动，长文本截断 + 兜底，绝不靠换行撑高度）、行高 / 间距节奏一致、字号 / 字重 / 颜色的层级对比、对齐与数字（同列对齐、数字 `tabular-nums`）、截断 / 空态 / hover 的可达性。**判据**：改完自己当用户走一遍——"长内容会炸吗？切窄会挤吗？层级一眼分得清吗？尺寸会跳吗？" 宁可多花一轮打磨，也不交"功能对、但硌手"的 UI。`DESIGN.md` 给规范，这条给**态度**。
+- **桌面质感不是网页质感**。做视觉调整前先读 `frontend/DESKTOP_UI_POLISH.md`：surface 层级用 edge ring + contact + ambient 的阴影模型进主题 token；去网页味靠原生桌面行为约束（少 cursor-pointer、少泛 hover、少玻璃 blur、少硬 border），不是靠更大圆角或更重阴影。
 - **零 legacy 兼容代码 / 迁移路径**（开发阶段）。store schema 变了 bump version 丢旧数据；注释不写 "Legacy …"。
 - **不重复造轮子**：写工具函数前先查 npm，沿用已选定的栈（§2）。例外：极小封装、应用专属业务逻辑、对现有库的薄包装加 hook。一定要手写就在注释说明社区库为何不够用。
 - **边界校验用 Zod，内部数据流不加**：信任边界（外部 spec / wire envelope / 用户输入）必须用 Zod 拒脏数据；内部流（store / props / 类型守护的调用）不加 —— TS 已够，再加是噪音 + bundle 浪费。
@@ -78,7 +79,7 @@
 - **Tailwind first**：组件样式用 utility class；`style={{}}` 内联只在 token 值真动态时用。
 - **不写新 .css 文件**：新样式进 className，`globals.css` 是唯一例外。
 - **Radix first（硬规则）**：任何带交互 / 焦点 / 键盘 / aria 的组件一律先用 Radix，在 `common/` 下薄包一层套设计 token，**绝不手写 focus trap / roving tabindex / aria-\* / 键盘事件**。唯一豁免（须注释写明理由）：纯展示无交互、Radix 版有实测开销且无 a11y 收益、定制行为 Radix 模型套不进 —— 判据是"Radix 是否带来真实 a11y / 行为收益"，纯为统一不换。
-- **No lines**（DESIGN.md）：区域分隔用 surface ladder，不用 1px 边线（状态指示的 accent 线 / focus ring 例外）。
+- **No cheap lines**（DESIGN.md + DESKTOP_UI_POLISH.md）：区域分隔优先用 surface ladder / shadow hairline，不用灰色硬边线堆卡片；真正的结构边界、focus ring、语义状态线例外。
 - **Cards-on-canvas + Grid/Flex first**：暗 canvas 上浮 surface 卡片；超过两个元素的排版用 Grid / Flex，不用 `position: absolute` 手算坐标 / `<table>` 排版 / 连串 margin 凑对齐（absolute 只用于浮层与锚点）；隐式 / 单列 grid 显式写 `minmax(0,1fr)` 防宽 child 撑爆。
 - **Plugin 一定走 registry**：不直接 import 一个 builtin plugin，永远走 selector。
 - **运行时事件单向**：render 路径不回写 agent store；要"做事"调 store 上的 send / stop / resume。
