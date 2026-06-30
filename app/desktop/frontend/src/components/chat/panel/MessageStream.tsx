@@ -4,11 +4,11 @@ import { AnimatePresence, motion } from "motion/react";
 import { Fragment, useCallback, useEffect } from "react";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import { enterUp } from "@/lib/motion";
+import { bcp47 } from "@/lib/i18n/relativeTime";
 import { useT } from "@/lib/i18n";
 import { Slot } from "@/plugins/host/Slot";
 import { useAgentRunning } from "@/state/agentStore";
 import { MessageBlock } from "../message";
-import i18next from "i18next";
 
 // Chat scroll surface, backed by use-stick-to-bottom. `resetKey`
 // re-keys the subtree on session switch so a new thread lands at the
@@ -51,13 +51,6 @@ function ControlsRelay({ onChange }: { onChange?: (c: StreamControls) => void })
   }, [ctx.isAtBottom, scrollToBottom, onChange]);
 
   return null;
-}
-
-function bcp47(): string {
-  const lng = i18next.language ?? "en";
-  if (lng === "zh") return "zh-CN";
-  if (lng === "zh-TW" || lng.toLowerCase() === "zh-tw") return "zh-TW";
-  return lng;
 }
 
 function formatTurnTime(iso: string | undefined): string {
