@@ -75,15 +75,22 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       },
     });
 
-    const pump = async (stream: StreamingResult<{ runId: RunId }, RunEvent>): Promise<void> => {
-      currentRunId = stream.result.runId;
+    const pump = async (
+      stream: StreamingResult<{ runId: RunId }, RunEvent>,
+      signal: AbortSignal,
+    ): Promise<void> => {
+      const runId = stream.result.runId;
+      currentRunId = runId;
       try {
         for await (const ev of stream.events) {
-          if (cancelled) break;
+          if (cancelled || signal.aborted) break;
           eventBatcher.enqueue(ev.event, ev.runId);
         }
       } catch (err) {
-        if (!cancelled) console.error("[agent] run stream failed:", sessionId, err);
+        if (!cancelled && !signal.aborted)
+          console.error("[agent] run stream failed:", sessionId, err);
+      } finally {
+        if (currentRunId === runId) currentRunId = null;
       }
     };
 
@@ -124,7 +131,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       }
       if (cancelled || ctrl.signal.aborted) return;
       store().applyEvents(sessionId, [{ event: { type: "run.started", run } }]);
-      await pump(stream);
+      await pump(stream, ctrl.signal);
     };
 
     // Hydrate + recover an existing (non-draft) session (API.md §10.2):
@@ -171,18 +178,11 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       });
     }
 
-    // Send re-entrancy latch. The steady-state guard (useChatSend's run.running)
-    // only flips true once run.started is FOLDED — a frame after runs.start
-    // resolves (run.started streams in and folds via the rAF batcher). A second
-    // Enter in that window would fire a second runs.start; the backend now
-    // rejects it with session_busy (one run per session, API.md §7.3), but the
-    // latch still matters — it avoids the wasted round-trip + the
-    // optimistic-bubble-then-rollback churn for that in-flight-but-not-yet-folded
-    // window. So the latch spans the WHOLE window send()→run-settled: set in
-    // send(), cleared in begin()'s finally (run started+streamed, errored, or
-    // interrupted). Earlier
-    // (onResult) was too soon and reopened the gap. Unused by resume.
+    // Start re-entrancy latch. The steady-state guard (run.running) only flips
+    // true once run.started is folded, so send/resume also need a synchronous
+    // guard for the request→first-fold window.
     let starting = false;
+    let beginSeq = 0;
 
     const begin = (
       run: (
@@ -191,6 +191,8 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       onResult?: (result: { runId: RunId; userItemId?: string }) => void,
       onStartError?: () => void,
     ): void => {
+      starting = true;
+      const beginId = ++beginSeq;
       interacted = true; // a live run now owns this slice; gate late history
       abort?.abort(); // a new run supersedes any in-flight one
       const ctrl = new AbortController();
@@ -201,18 +203,25 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       // backend trace to this run.
       const span = startRunSpan({ "lyra.session_id": sessionId });
       let failure: unknown;
-      void withSpan(span, () => run(ctrl.signal))
+      let opening: Promise<StreamingResult<{ runId: RunId; userItemId?: string }, RunEvent>>;
+      try {
+        opening = withSpan(span, () => run(ctrl.signal));
+      } catch (err) {
+        opening = Promise.reject(err);
+      }
+      void opening
         .then((stream) => {
+          if (cancelled || ctrl.signal.aborted || beginId !== beginSeq) return;
           // Runs before pump() iterates events (the response resolves ahead of
           // the buffered stream frames), so a userItemId relabel lands before
           // the streamed userMessage Item is folded.
-          if (!cancelled) onResult?.(stream.result);
+          onResult?.(stream.result);
           span.setAttribute("lyra.run_id", stream.result.runId);
-          return pump(stream);
+          return pump(stream, ctrl.signal);
         })
         .catch((err: unknown) => {
+          if (cancelled || ctrl.signal.aborted || beginId !== beginSeq) return;
           failure = err;
-          if (cancelled) return;
           console.error("[agent] run failed to start:", sessionId, err);
           // Channel-a failure (API.md §8.1): the call rejected, so no stream
           // and no run.finished{error} will arrive — surface it on the banner
@@ -228,15 +237,15 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
         })
         .finally(() => {
           // The run has settled (started+streamed, failed to start, or
-          // interrupted) — release the send re-entrancy latch. No-op for resume.
-          starting = false;
+          // interrupted) — release the re-entrancy latch only for the latest
+          // begin; a superseded run's finally must not unlock its successor.
+          if (beginId === beginSeq) starting = false;
           endSpan(span, failure);
         });
     };
 
     const send = (input: ContentBlock[]): void => {
       if (starting) return;
-      starting = true;
       // Optimistically render the user's own bubble with a local id. The
       // runtime DOES stream the userMessage Item back (with its own server id),
       // a round-trip later — so when runs.start resolves we relabel this
@@ -281,6 +290,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       onSettled?: () => void,
       onStartError?: () => void,
     ): void => {
+      if (starting) return;
       begin(
         (signal) => driver.resume(parentRunId, responses, signal),
         onSettled ? () => onSettled() : undefined,
