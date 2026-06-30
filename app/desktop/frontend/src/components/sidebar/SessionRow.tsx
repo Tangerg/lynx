@@ -65,13 +65,13 @@ export function SessionRow({
         aria-label={session.title}
         className={cn(
           "flex w-full items-start gap-2.5 rounded-md border-0 bg-transparent px-2.5 py-1.5 text-left transition-[background-color] duration-75 hover:bg-fg/[0.04] focus-visible:bg-fg/[0.055] focus-visible:text-fg focus-visible:outline-none",
-          active && "bg-fg/[0.055] text-fg",
+          active && "bg-fg/[0.075] text-fg",
         )}
       >
         <div
           className={cn(
             "shrink-0 flex items-center justify-center h-4.5 w-4.5 transition-colors",
-            session.favorite ? "text-accent" : "text-fg-muted group-hover:text-fg",
+            session.favorite ? "text-accent" : "text-fg",
             active && !session.favorite && "text-fg",
           )}
         >
@@ -109,7 +109,7 @@ export function SessionRow({
           ) : (
             <div
               className={cn(
-                "text-[13px] font-medium leading-[1.3] truncate transition-colors text-fg-muted group-hover:text-fg",
+                "text-[13px] font-medium leading-[1.3] truncate transition-colors text-fg",
                 active && "text-fg",
               )}
             >

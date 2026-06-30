@@ -28,7 +28,7 @@ export function ProjectRow({
       <div
         className={cn(
           "flex items-center gap-1 rounded-md px-2.5 py-1.5 transition-[background-color] duration-75 hover:bg-fg/[0.04]",
-          active && "bg-fg/[0.055] text-fg",
+          active && "bg-fg/[0.075] text-fg",
         )}
       >
         <button
@@ -49,7 +49,7 @@ export function ProjectRow({
           />
           <span
             className={cn(
-              "shrink-0 flex items-center justify-center h-4.5 w-4.5 text-fg-muted transition-colors group-hover:text-fg",
+              "shrink-0 flex items-center justify-center h-4.5 w-4.5 text-fg transition-colors",
               active && "text-fg",
             )}
           >
@@ -57,7 +57,7 @@ export function ProjectRow({
           </span>
           <span
             className={cn(
-              "flex min-w-0 items-center gap-1.5 text-[13px] font-medium leading-[1.3] transition-colors text-fg-muted group-hover:text-fg",
+              "flex min-w-0 items-center gap-1.5 text-[13px] font-medium leading-[1.3] transition-colors text-fg",
               active && "text-fg",
             )}
           >

@@ -81,17 +81,14 @@ html.theme-light {
   min-height: 0;
 }
 
-/* Sidebar — a half-step off the canvas (surface). The whole "lifted"
-   read is this bg delta alone; no divider line. */
+/* Sidebar — a neutral surface separated from the canvas by a hairline. */
 .panel.sidebar {
-  background: color-mix(in oklab, var(--color-surface) 78%, var(--color-bg));
-  backdrop-filter: blur(18px) saturate(112%);
-  -webkit-backdrop-filter: blur(18px) saturate(112%);
+  background: var(--color-surface);
 }
 
 html.theme-light .panel.sidebar {
-  background: color-mix(in oklab, var(--color-surface) 70%, var(--color-bg));
-  box-shadow: inset -1px 0 0 color-mix(in oklab, var(--color-divider) 72%, transparent);
+  background: var(--color-surface);
+  box-shadow: inset -1px 0 0 var(--color-divider);
 }
 
 /* ---------- Scroll containers ---------- */
