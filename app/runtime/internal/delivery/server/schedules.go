@@ -99,7 +99,7 @@ func (s *Server) RunScheduleNow(ctx context.Context, in protocol.RunScheduleNowR
 	if err != nil {
 		return mapScheduleErr(err, in.ID)
 	}
-	if _, err := s.fireSchedule(ctx, sc); err != nil {
+	if _, err := schedule.Fire(ctx, scheduleRunner{s}, sc); err != nil {
 		return err
 	}
 	return s.rt.Schedules().RecordRun(ctx, sc.ID, time.Now().UTC())
