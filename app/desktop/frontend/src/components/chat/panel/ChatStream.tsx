@@ -34,7 +34,6 @@ export function ChatStream({ onSend, resetKey }: Props) {
   const plan = useAgentPlan();
   const toolCalls = useAgentToolCalls();
 
-  const selectedToolId = useSessionStore((s) => s.selectedToolId);
   const expandedToolIds = useSessionStore((s) => s.expandedToolIds);
   const setSelectedToolId = useSessionStore((s) => s.setSelectedToolId);
   const toggleExpandedTool = useSessionStore((s) => s.toggleExpandedTool);
@@ -90,21 +89,12 @@ export function ChatStream({ onSend, resetKey }: Props) {
     () => ({
       plan,
       toolCalls,
-      selectedToolId,
       onSelectTool: setSelectedToolId,
       expandedIds: expandedToolIds,
       onToggleExpand: toggleExpandedTool,
       typewriter,
     }),
-    [
-      plan,
-      toolCalls,
-      selectedToolId,
-      setSelectedToolId,
-      expandedToolIds,
-      toggleExpandedTool,
-      typewriter,
-    ],
+    [plan, toolCalls, setSelectedToolId, expandedToolIds, toggleExpandedTool, typewriter],
   );
 
   // The composer surface (status + slash hints + input + footer) — shared by

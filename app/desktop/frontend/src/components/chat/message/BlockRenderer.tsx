@@ -1,9 +1,7 @@
 // Message block dispatcher — maps each ContentBlock (text, tool, reasoning,
 // approval, question, plan, compaction, search, code, checkpoint) to its React
-// card. Kept as a lookup table (BLOCK_RENDERERS) so adding a new block kind is
-// one row — no if/elif ladder growing with the protocol.
+// card.
 import type { ContentBlock, PlanItem, ToolCall } from "@/protocol/run/viewState";
-import { isQuestionTool } from "@/protocol/run/viewState";
 import { MarkdownMessage } from "./markdown/MarkdownMessage";
 import {
   ApprovalCard,
@@ -14,75 +12,16 @@ import {
   ReasoningBlock,
 } from "./cards";
 import { ToolCard } from "@/components/tools/ToolCard";
-import { isReadOnlyTool } from "@/components/tools/ToolGroup";
 import { PluginContentBlock } from "@/plugins/host/PluginContentBlock";
-import { hasToolView, openViewForTool } from "@/state/toolRouting";
-
-/**
- * A unit of rendering: either a single content block (with its ORIGINAL index,
- * which the caller's streaming-text coercion keys off) or a folded run of
- * adjacent read-only tool calls.
- */
-type RenderUnit =
-  { kind: "block"; block: ContentBlock; index: number } | { kind: "toolGroup"; tools: ToolCall[] };
-
-/**
- * Fold a message's blocks into render units, collapsing runs of 2+ adjacent
- * read-only tool calls (`read` / `grep` / `glob` / `lsp` / `lsp_diagnostics`) into one
- * `toolGroup` so a long agent turn stays scannable instead of flooding the
- * transcript with a card per read. A lone read-only call, or any
- * side-effecting tool, stays its own block and renders as a normal card. Pure
- * and index-preserving — the caller still keys streaming-text coercion off the
- * original block index.
- */
-export function planRenderUnits(
-  blocks: ContentBlock[],
-  toolCalls: Record<string, ToolCall>,
-): RenderUnit[] {
-  const units: RenderUnit[] = [];
-  // A HITL-question tool's toolCall row is the redundant shadow of its question
-  // block (see isQuestionTool) — drop it, but only when that question block is
-  // actually present, so a non-parking runtime that returns ask_user as a plain
-  // tool result still renders its card.
-  const hasQuestion = blocks.some((b) => b.kind === "question");
-  let run: { block: ContentBlock; index: number; tool: ToolCall }[] = [];
-  const flush = () => {
-    if (run.length >= 2) {
-      units.push({ kind: "toolGroup", tools: run.map((r) => r.tool) });
-    } else {
-      for (const r of run) units.push({ kind: "block", block: r.block, index: r.index });
-    }
-    run = [];
-  };
-  blocks.forEach((block, index) => {
-    if (block.kind === "tool") {
-      const tool = toolCalls[block.toolCallId];
-      if (tool && isReadOnlyTool(tool.name)) {
-        run.push({ block, index, tool });
-        return;
-      }
-      if (tool && hasQuestion && isQuestionTool(tool.name)) {
-        flush(); // shadow of the question block — render nothing, break the run
-        return;
-      }
-    }
-    flush(); // a non-grouped block breaks the run
-    units.push({ kind: "block", block, index });
-  });
-  flush();
-  return units;
-}
+import { createToolViewOpener } from "@/state/toolRouting";
 
 /**
  * Per-render bag of data threaded into block renderers. Kept narrow —
- * UI-state knobs (selected tool, expanded set, plan) flow through here.
- * The "open the full view" action lives in `openViewForTool` so the
- * callback doesn't have to be threaded down.
+ * UI-state knobs (expanded set, plan) flow through here.
  */
 export interface BlockCtx {
   plan: PlanItem[];
   toolCalls: Record<string, ToolCall>;
-  selectedToolId: string;
   onSelectTool: (id: string) => void;
   expandedIds: Set<string>;
   onToggleExpand: (id: string) => void;
@@ -142,13 +81,12 @@ export function renderBlock(block: ContentBlock, key: number, ctx: BlockCtx) {
           // for a different tool should block order ever shift.
           key={block.toolCallId}
           tool={tool}
-          selected={ctx.selectedToolId === block.toolCallId}
           expanded={ctx.expandedIds.has(block.toolCallId)}
           onToggleExpand={() => {
             ctx.onSelectTool(block.toolCallId);
             ctx.onToggleExpand(block.toolCallId);
           }}
-          onOpenView={hasToolView(tool) ? () => openViewForTool(block.toolCallId) : undefined}
+          onOpenView={createToolViewOpener(tool)}
         />
       );
     }
