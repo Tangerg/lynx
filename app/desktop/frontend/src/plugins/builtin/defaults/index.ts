@@ -2,9 +2,8 @@
 // title / palette commands. Each one is its own plugin so a third-party
 // can swap any single piece without taking out the others.
 //
-// `defaultCommands` and `defaultData` live in sibling files because they
-// are substantially bigger than the rest (the reactive command rebuild,
-// and the full data-provider manifest + protocol→sidebar mappers).
+// `defaultCommands` and `defaultData` live in sibling files because they own
+// the reactive command rebuild and the data-provider adapter entry point.
 
 import { RUNTIME_BASE } from "@/main/config";
 import { definePlugin } from "@/plugins/sdk";
