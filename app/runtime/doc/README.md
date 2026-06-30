@@ -18,7 +18,7 @@
 | 文档 | 一句话 |
 |---|---|
 | [ARCHITECTURE_REVIEW.md](ARCHITECTURE_REVIEW.md) | 现状体检（B+→A-）：逐条裁决与教科书 Clean Arch/DDD 的偏差 + DDD 该做 vs 仪式 + 唯一真债（`delivery/server` 的 pump/rollback 编排）+ P0/P1 清单 |
-| [GREENFIELD_DESIGN.md](GREENFIELD_DESIGN.md) | greenfield 重审：如果从零写 lyra 的应然设计 + 跨模块接缝（lyra 定义 `AgentRuntime` 窄接口消费 agent / tool loop 归属 / 事件桥 / 持久化分工）。与 agent 侧 [`GREENFIELD_DESIGN.md`](../../../agent/docs/GREENFIELD_DESIGN.md) 配套 |
+| [GREENFIELD_DESIGN.md](GREENFIELD_DESIGN.md) | greenfield 重审：如果从零写 lyra 的应然设计 + 跨模块接缝（lyra 定义 `agentRuntime` 窄接口消费 agent / tool loop 归属 / 事件桥 / 持久化分工）。与 agent 侧 [`GREENFIELD_DESIGN.md`](../../../agent/docs/GREENFIELD_DESIGN.md) 配套 |
 
 ---
 

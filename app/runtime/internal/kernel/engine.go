@@ -35,7 +35,7 @@ import (
 // interface narrows this surface to exactly the operations it needs.
 type Engine struct {
 	// Chat execution.
-	platform *runtime.Platform
+	platform agentRuntime
 	agent    *core.Agent
 
 	// Context inputs (read at SystemPrompt + chat-memory time).

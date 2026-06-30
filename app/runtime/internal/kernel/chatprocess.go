@@ -69,13 +69,12 @@ type ChatProcess interface {
 }
 
 // chatProcess is the canonical [ChatProcess] backed by a real
-// [runtime.AgentProcess]. Platform reference is held so Cancel can
-// invoke [runtime.Platform.KillProcess] without callers reaching
-// into engine internals.
+// [runtime.AgentProcess]. processControl is held so lifecycle commands stay
+// behind the engine boundary instead of leaking the full agent platform.
 type chatProcess struct {
 	proc     *runtime.AgentProcess
 	done     <-chan error
-	platform *runtime.Platform
+	platform processControl
 }
 
 func (cp *chatProcess) ID() string                      { return cp.proc.ID() }
