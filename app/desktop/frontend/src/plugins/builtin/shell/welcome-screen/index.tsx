@@ -68,7 +68,7 @@ function SetupCard() {
     });
   };
   return (
-    <div className="w-full rounded-[18px] border border-line bg-surface/70 px-4 py-4 text-left shadow-[0_1px_2px_var(--color-divider)] backdrop-blur-xl">
+    <div className="w-full rounded-md border border-line bg-surface/70 px-4 py-4 text-left shadow-[0_1px_2px_var(--color-divider)]">
       <div className="flex items-start gap-3">
         <Icon name="spark" size={16} className="mt-0.5 shrink-0 text-accent" />
         <div className="flex flex-col items-start gap-2">
@@ -117,7 +117,7 @@ function WelcomeScreen() {
                 // the composer, so the user can preview what the suggestion
                 // will do (the visible label is intentionally short).
                 title={t(s.promptKey)}
-                className="group inline-flex items-center gap-2.5 rounded-[18px] border border-line bg-surface/70 px-4 py-4 text-left font-sans text-[14px] font-medium text-fg-soft shadow-[0_1px_2px_var(--color-divider)] backdrop-blur-xl transition-[background,border-color,color,transform] duration-150 hover:bg-surface hover:text-fg active:scale-[0.98]"
+                className="group inline-flex items-center gap-2.5 rounded-md border border-line bg-surface/70 px-4 py-4 text-left font-sans text-[14px] font-medium text-fg-soft shadow-[0_1px_2px_var(--color-divider)] transition-[background,border-color,color,transform] duration-150 hover:bg-surface hover:text-fg active:scale-[0.98]"
               >
                 <Icon
                   name={s.icon}

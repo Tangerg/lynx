@@ -464,8 +464,8 @@ html.theme-light .panel {
 /* Light mode: composer gets the only allowed shadow. */
 html.theme-light {
   --shadow-composer:
-    0 24px 64px color-mix(in oklab, var(--color-text) 11%, transparent),
-    0 3px 12px color-mix(in oklab, var(--color-text) 7%, transparent);
+    0 18px 48px color-mix(in oklab, var(--color-text) 8%, transparent),
+    0 2px 8px color-mix(in oklab, var(--color-text) 5%, transparent);
   --shadow-elevated:
     0 24px 58px color-mix(in oklab, var(--color-text) 12%, transparent),
     0 4px 14px color-mix(in oklab, var(--color-text) 8%, transparent);
