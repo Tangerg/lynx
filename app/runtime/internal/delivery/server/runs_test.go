@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
+	runstate "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 // TestSubscribeRun_StreamsLiveRunFromHub verifies the streamable-HTTP
@@ -17,7 +18,8 @@ func TestSubscribeRun_StreamsLiveRunFromHub(t *testing.T) {
 	h := newRunHub()
 	h.Append(ev(1, true))
 	h.Append(ev(2, true))
-	s := &Server{runs: map[string]*runEntry{"run_live": {runID: "run_live", hub: h}}}
+	s := &Server{}
+	s.runs.Open(runstate.Record{ID: "run_live"}, &runHandle{hub: h})
 
 	// From the start: replay the whole durable backlog.
 	out, events, err := s.SubscribeRun(context.Background(), "run_live")

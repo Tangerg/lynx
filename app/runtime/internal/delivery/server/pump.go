@@ -10,6 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
+	runstate "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/fspath"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
@@ -17,13 +18,13 @@ import (
 // The run pump: one goroutine per run segment that subscribes to the
 // turn's chat events, translates them to wire RunEvents, persists the
 // durable side, and feeds the run's hub. Lifecycle bookkeeping
-// (s.runs + runMu) starts in openSegment and ends in pumpRun's
-// teardown.
+// (s.runs) starts in openSegment and ends in pumpRun's teardown.
 
 // openSegment subscribes to the turn's event stream and starts the wire
 // pump for one run segment. parentRunID is empty for a root run
 // (runs.start) and set for a continuation (runs.resume) — it rides onto
-// the RunRef and the runEntry so the continuation links back to its parent.
+// the RunRef and the active run record so the continuation links back to its
+// parent.
 func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, handle turn.TurnHandle, sessionID string, userInput []protocol.ContentBlock, resume *resumeBinding, provider, model string) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
 	// Detach the run from the request's cancellation (it must outlive the
 	// request) WITHOUT losing the request's trace context: WithoutCancel
@@ -43,11 +44,19 @@ func (s *Server) openSegment(reqCtx context.Context, runID, parentRunID string, 
 	hub := newRunHub()
 	// The canonical working tree this run mutates — the key the cwd-aware busy
 	// guard (a file rollback) uses to find sibling sessions sharing the tree.
-	// Resolved here so the guard never does a session lookup under runMu.
+	// Resolved here so the guard never does a session lookup under the registry
+	// lock.
 	cwd := fspath.Canonical(s.sessionCwd(reqCtx, sessionID))
-	s.runMu.Lock()
-	s.runs[runID] = &runEntry{runID: runID, sessionID: sessionID, cwd: cwd, createdAt: time.Now().UTC(), turnID: handle.TurnID, parentRunID: parentRunID, provider: provider, model: model, cancel: cancel, hub: hub}
-	s.runMu.Unlock()
+	s.runs.Open(runstate.Record{
+		ID:          runID,
+		SessionID:   sessionID,
+		Cwd:         cwd,
+		CreatedAt:   time.Now().UTC(),
+		TurnID:      handle.TurnID,
+		ParentRunID: parentRunID,
+		Provider:    provider,
+		Model:       model,
+	}, &runHandle{cancel: cancel, hub: hub})
 	events, unsubscribe := hub.Subscribe("")
 	// Drop this caller's subscription when its request ends (client
 	// disconnect or stream completion) — the run keeps running on runCtx
@@ -147,16 +156,13 @@ func (s *Server) pumpRun(ctx context.Context, runID, parentRunID string, handle 
 			emit(tr.finish(outcome))
 		}
 		hub.Close()
-		s.runMu.Lock()
-		if e, ok := s.runs[runID]; ok {
+		if e, ok := s.runs.Close(runID); ok {
 			// A parked run keeps its live turn alive for resume — only
 			// cancel + forget on a true terminal.
-			if !parked {
-				e.cancel()
+			if !parked && e.Payload != nil && e.Payload.cancel != nil {
+				e.Payload.cancel()
 			}
-			delete(s.runs, runID)
 		}
-		s.runMu.Unlock()
 		// Anchor the file checkpoint for this run boundary AFTER teardown and
 		// OFF the run.finished path: async + best-effort, so a slow snapshot
 		// (or none, for a non-git dir — gated in workspace.Snapshot) never
@@ -205,13 +211,11 @@ func (s *Server) recordInterrupt(ctx context.Context, runID string, handle turn.
 	// Carry the run's per-run model selection onto the interrupt so a
 	// cross-restart rehydrate rebuilds the SAME model client (the live process
 	// holds it in memory; the persisted record is the only place it survives a
-	// restart). Read from the still-live runEntry under the runs lock.
-	s.runMu.Lock()
+	// restart).
 	var provider, model string
-	if e := s.runs[runID]; e != nil {
-		provider, model = e.provider, e.model
+	if e, ok := s.runs.Get(runID); ok {
+		provider, model = e.Record.Provider, e.Record.Model
 	}
-	s.runMu.Unlock()
 	if err := s.rt.Interrupts().Put(ctx, interrupts.Pending{
 		ParentRunID:  runID,
 		SessionID:    handle.SessionID,
@@ -228,28 +232,21 @@ func (s *Server) recordInterrupt(ctx context.Context, runID string, handle turn.
 }
 
 // cancelReasonFor returns the runs.cancel reason recorded for a run, or ""
-// when it wasn't canceled with one. Read under runMu (S6).
+// when it wasn't canceled with one.
 func (s *Server) cancelReasonFor(runID string) string {
-	s.runMu.Lock()
-	defer s.runMu.Unlock()
-	if e, ok := s.runs[runID]; ok {
-		return e.cancelReason
-	}
-	return ""
+	return s.runs.CancelReason(runID)
 }
 
 // runCreatedAt returns the run's start time (segment open). The terminal RunRef
 // carries it as CreatedAt so the persisted run keeps its authoritative timeline
 // key — the finish event has no start time of its own, and the synthesized
-// terminal RunRef replaces the whole stored blob (PutRun upsert), so omitting it
-// would zero CreatedAt for every consumer (runs.list + the rollback/fork
-// boundary math, which then over-purges). The runEntry is still live at finish:
-// emit (and this persist) run before the pump's teardown deletes s.runs.
+// terminal RunRef replaces the whole stored blob (PutRun upsert), so omitting
+// it would zero CreatedAt for every consumer (runs.list + the rollback/fork
+// boundary math, which then over-purges). The active record is still live at
+// finish: emit (and this persist) run before the pump's teardown deletes it.
 func (s *Server) runCreatedAt(runID string) time.Time {
-	s.runMu.Lock()
-	defer s.runMu.Unlock()
-	if e, ok := s.runs[runID]; ok {
-		return e.createdAt
+	if e, ok := s.runs.Get(runID); ok {
+		return e.Record.CreatedAt
 	}
 	return time.Time{}
 }
