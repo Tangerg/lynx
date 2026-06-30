@@ -52,6 +52,12 @@ export function createRpcClient(transport: Transport): RpcClient {
     pending.clear();
   }
 
+  function failConnection(failure: RpcTransportError): void {
+    closed = true;
+    failAllPending(failure);
+    subscribers.clear();
+  }
+
   // Long-running pump that drains the transport's recv() into pending
   // promises + subscribers. When the stream ends — whether it throws or
   // closes cleanly — no further Responses can arrive, so every in-flight
@@ -63,9 +69,9 @@ export function createRpcClient(transport: Transport): RpcClient {
       for await (const msg of transport.recv()) {
         dispatchInbound(msg);
       }
-      failAllPending(new RpcTransportError("transport stream ended"));
+      failConnection(new RpcTransportError("transport stream ended"));
     } catch (err) {
-      failAllPending(new RpcTransportError(`transport recv() failed: ${(err as Error).message}`));
+      failConnection(new RpcTransportError(`transport recv() failed: ${(err as Error).message}`));
     }
   })();
 
