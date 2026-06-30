@@ -3,6 +3,9 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
+
+	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 // utilityRole is the (provider, model) the in-house maintenance services
@@ -19,6 +22,37 @@ type utilityRole struct {
 type UtilityRoleStore interface {
 	LoadUtilityRole(ctx context.Context) (provider, model string, err error)
 	SaveUtilityRole(ctx context.Context, provider, model string) error
+}
+
+type utilityEnvironment struct {
+	cell    *atomic.Pointer[utilityRole]
+	resolve func(context.Context) *chat.Client
+}
+
+func buildUtilityEnvironment(ctx context.Context, cfg Config, resolver *clientResolver) (utilityEnvironment, error) {
+	var role utilityRole
+	if cfg.UtilityRoleStore != nil {
+		p, m, err := cfg.UtilityRoleStore.LoadUtilityRole(ctx)
+		if err != nil {
+			return utilityEnvironment{}, fmt.Errorf("runtime: load utility role: %w", err)
+		}
+		role = utilityRole{provider: p, model: m}
+	}
+	cell := &atomic.Pointer[utilityRole]{}
+	cell.Store(&role)
+	mainClient := cfg.Engine.ChatClient
+	resolve := func(ctx context.Context) *chat.Client {
+		role := cell.Load()
+		if role == nil || role.model == "" {
+			return mainClient
+		}
+		c, err := resolver.ResolveClient(ctx, role.provider, role.model)
+		if err != nil || c == nil {
+			return mainClient
+		}
+		return c
+	}
+	return utilityEnvironment{cell: cell, resolve: resolve}, nil
 }
 
 // UtilityRole returns the live utility-model role; both empty when unset

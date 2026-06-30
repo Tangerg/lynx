@@ -2,8 +2,10 @@ package runtime
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strings"
+	"sync/atomic"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/mcp"
@@ -176,6 +178,42 @@ func configFromServer(s mcpserver.Server) mcp.ServerConfig {
 type mcpGating struct {
 	disabled    map[string]struct{}
 	autoApprove map[string]struct{}
+}
+
+type mcpEnvironment struct {
+	gate        *atomic.Pointer[mcpGating]
+	disabled    func() map[string]struct{}
+	autoApprove func() map[string]struct{}
+	configs     []mcp.ServerConfig
+}
+
+func buildMCPEnvironment(ctx context.Context, registry mcpserver.Service) (mcpEnvironment, error) {
+	gate := &atomic.Pointer[mcpGating]{}
+	g0, err := buildMCPGating(ctx, registry)
+	if err != nil {
+		return mcpEnvironment{}, fmt.Errorf("runtime: load mcp gating: %w", err)
+	}
+	gate.Store(g0)
+	configs, err := enabledConfigs(ctx, registry)
+	if err != nil {
+		return mcpEnvironment{}, fmt.Errorf("runtime: load mcp registry: %w", err)
+	}
+	return mcpEnvironment{
+		gate: gate,
+		disabled: func() map[string]struct{} {
+			if g := gate.Load(); g != nil {
+				return g.disabled
+			}
+			return nil
+		},
+		autoApprove: func() map[string]struct{} {
+			if g := gate.Load(); g != nil {
+				return g.autoApprove
+			}
+			return nil
+		},
+		configs: configs,
+	}, nil
 }
 
 // buildMCPGating reads the registry and projects its ENABLED servers' per-tool

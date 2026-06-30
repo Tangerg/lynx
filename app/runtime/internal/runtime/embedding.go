@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/Tangerg/lynx/core/model/embedding"
 
@@ -25,6 +26,38 @@ type embeddingRole struct {
 type EmbeddingRoleStore interface {
 	LoadEmbeddingRole(ctx context.Context) (provider, model string, err error)
 	SaveEmbeddingRole(ctx context.Context, provider, model string) error
+}
+
+type embeddingEnvironment struct {
+	cell     *atomic.Pointer[embeddingRole]
+	resolver *embeddingResolver
+	index    codebaseindex.Service
+}
+
+func buildEmbeddingEnvironment(ctx context.Context, cfg Config, providers provider.Service) (embeddingEnvironment, error) {
+	resolver := newEmbeddingResolver(providers)
+	cell := &atomic.Pointer[embeddingRole]{}
+	var role embeddingRole
+	if cfg.EmbeddingRoleStore != nil {
+		p, m, err := cfg.EmbeddingRoleStore.LoadEmbeddingRole(ctx)
+		if err != nil {
+			return embeddingEnvironment{}, fmt.Errorf("runtime: load embedding role: %w", err)
+		}
+		role = embeddingRole{provider: p, model: m}
+	}
+	cell.Store(&role)
+	resolveEmbedder := func(ctx context.Context) (codebaseindex.Embedder, error) {
+		role := cell.Load()
+		if role == nil || role.model == "" {
+			return nil, codebaseindex.ErrNoEmbeddingModel
+		}
+		return resolver.resolve(ctx, role.provider, role.model)
+	}
+	var index codebaseindex.Service
+	if cfg.CodebaseStore != nil {
+		index = codebaseindex.New(cfg.CodebaseStore, resolveEmbedder)
+	}
+	return embeddingEnvironment{cell: cell, resolver: resolver, index: index}, nil
 }
 
 // EmbeddingRole returns the live embedding role; both empty when unset. Backs
