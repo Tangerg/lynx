@@ -11,13 +11,20 @@ import type { ThemeCta, ThemePluginSpec, ThemeRadii, ThemeShadows } from "./type
 
 export const DARK_SHADOWS: ThemeShadows = {
   composer: "none",
-  elevated: "0 4px 12px -4px rgba(0, 0, 0, 0.3)",
+  // Edge-as-shadow (hairline + contact + ambient): the floating surface's
+  // boundary is the first shadow layer (a faint light ring ≈ the old
+  // border-line-soft, so the migration is seamless), not a separate border.
+  elevated:
+    "0 0 0 1px rgba(255, 255, 255, 0.06), 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 20px -6px rgba(0, 0, 0, 0.45)",
   focus: "inset 0 0 0 1px var(--color-border-soft)",
 };
 
 export const LIGHT_SHADOWS: ThemeShadows = {
   composer: "0 2px 6px -2px rgba(0, 0, 0, 0.05)",
-  elevated: "0 4px 12px -4px rgba(0, 0, 0, 0.08)",
+  // Slate-900 (rgb 15 23 42) shadow channel — softer than pure black. Edge
+  // hairline @ 0.08, contact @ 0.05, ambient compacted for desktop surfaces.
+  elevated:
+    "0 0 0 1px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.05), 0 6px 20px -6px rgba(15, 23, 42, 0.12)",
   focus: "inset 0 0 0 1px var(--color-border-soft)",
 };
 

@@ -127,7 +127,7 @@ export function MermaidBlock({ code }: Props) {
               pop-in on open via the shared rise-in keyframe. */}
           <Dialog.Content
             aria-describedby={undefined}
-            className="fixed inset-0 z-[201] m-auto h-fit w-fit max-h-[90vh] max-w-[min(1400px,95vw)] overflow-auto rounded-xl border border-line-soft bg-surface p-6 shadow-lg outline-none data-[state=open]:animate-rise-in"
+            className="fixed inset-0 z-[201] m-auto h-fit w-fit max-h-[90vh] max-w-[min(1400px,95vw)] overflow-auto rounded-xl bg-surface p-6 shadow-lg outline-none data-[state=open]:animate-rise-in"
           >
             <Dialog.Title className="sr-only">Diagram</Dialog.Title>
             <div
