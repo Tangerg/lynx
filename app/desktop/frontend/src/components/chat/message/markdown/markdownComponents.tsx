@@ -41,7 +41,7 @@ function CitationBadge({ n, label }: { n: number; label: string }) {
         <Tooltip.Content
           side="top"
           sideOffset={6}
-          className="z-50 max-w-[360px] rounded-md border border-line bg-surface px-3 py-2 shadow-lg"
+          className="z-50 max-w-[360px] rounded-md border border-line bg-surface px-3 py-2 shadow-[var(--shadow-elevated)]"
         >
           <div className="text-[11px] font-mono text-fg-faint">{source.domain}</div>
           <div className="mt-0.5 text-[12.5px] font-semibold text-fg leading-snug">
