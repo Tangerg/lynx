@@ -22,7 +22,7 @@ import i18next from "i18next";
 // the right grammar variant (Simplified vs Traditional). All other
 // locales are passed through — they already are BCP-47 primary
 // subtags.
-function bcp47(): string {
+export function bcp47(): string {
   const lng = i18next.language ?? "en";
   if (lng === "zh") return "zh-CN";
   if (lng === "zh-TW" || lng.toLowerCase() === "zh-tw") return "zh-TW";
