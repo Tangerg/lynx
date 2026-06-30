@@ -4,11 +4,11 @@
   box-sizing: border-box;
 }
 
-/* Hard minimum viewport: sidebar (248) + a comfortable main column. The
+/* Hard minimum viewport: sidebar (276) + a comfortable main column. The
    flush layout drops the gutters, so the floor is lower than the old
    cards-on-canvas value. Below this the columns squash instead of scrolling. */
 :root {
-  --app-min-width: 940px;
+  --app-min-width: 980px;
   --app-min-height: 720px;
 }
 
@@ -57,7 +57,7 @@ html.theme-light {
 
 .app-main {
   display: grid;
-  grid-template-columns: 248px minmax(0, 1fr);
+  grid-template-columns: 276px minmax(0, 1fr);
   /* No gap / padding: the sidebar and main area are flush to the window
       edge, separated by background delta only (surface vs canvas).
       Depth comes from the surface step, not gutters + shadow. */
@@ -84,7 +84,20 @@ html.theme-light {
 /* Sidebar — a half-step off the canvas (surface). The whole "lifted"
    read is this bg delta alone; no divider line. */
 .panel.sidebar {
-  background: var(--color-surface);
+  background: color-mix(in oklab, var(--color-surface) 88%, transparent);
+  backdrop-filter: blur(30px) saturate(140%);
+  -webkit-backdrop-filter: blur(30px) saturate(140%);
+}
+
+html.theme-light .panel.sidebar {
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in oklab, var(--color-surface) 88%, var(--color-bg)),
+      color-mix(in oklab, var(--color-surface) 92%, var(--color-accent) 8%)
+    ),
+    var(--color-surface);
+  box-shadow: inset -1px 0 0 var(--color-divider);
 }
 
 /* ---------- Scroll containers ---------- */

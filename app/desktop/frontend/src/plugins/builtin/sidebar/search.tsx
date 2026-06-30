@@ -19,15 +19,14 @@ function openSearchView(): void {
 function SidebarSearch() {
   const t = useT();
   return (
-    <div className="mb-3">
+    <div className="mb-4">
       <button
         type="button"
         onClick={openSearchView}
+        data-chrome-focus=""
         aria-label={t("sidebar.search.label")}
         className={cn(
-          "flex w-full items-center gap-2 rounded-md border-0 bg-surface-2 py-1.5 pl-2.5 pr-2 text-left font-sans text-[13px] text-fg-faint transition-colors hover:text-fg-muted",
-          "shadow-[var(--shadow-input)]",
-          "light:border light:border-line light:shadow-none",
+          "flex w-full items-center gap-2 rounded-xl border border-line bg-surface/70 py-2 pl-3 pr-2.5 text-left font-sans text-[13px] text-fg-faint shadow-[0_1px_2px_var(--color-divider)] backdrop-blur-md transition-colors hover:bg-surface hover:text-fg-muted focus-visible:bg-surface focus-visible:text-fg-muted focus-visible:outline-none",
         )}
       >
         <Icon name="search" size={14} className="shrink-0" />

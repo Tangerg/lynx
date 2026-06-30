@@ -9,19 +9,19 @@ const c = {
 
   // Geist background scale: bg-100 white, bg-200 subtle separation.
   canvas: "#ffffff",
-  surface1: "#fafafa",
+  surface1: "#f5f5f3",
 
   // Geist gray scale (text/icons): gray-1000 / 900 / 700 / 600.
   inkBright: "#000000",
   ink: "#171717",
   inkSoft: "#4d4d4d",
   inkMuted: "#8f8f8f",
-  inkFaint: "#a8a8a8",
+  inkFaint: "#a0a0a0",
 
   // Geist gray-alpha scale (translucent borders/dividers).
-  hairline: "#00000014", // gray-alpha-400 — default border
-  hairStrong: "#00000036", // gray-alpha-500 — focus/emphasized
-  hairTertiary: "#0000001a", // gray-alpha-300 — divider
+  hairline: "rgb(17 17 17 / 0.08)",
+  hairStrong: "rgb(17 17 17 / 0.16)",
+  hairTertiary: "rgb(17 17 17 / 0.05)",
 };
 
 export default defineThemePlugin({

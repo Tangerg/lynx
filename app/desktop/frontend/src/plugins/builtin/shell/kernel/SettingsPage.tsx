@@ -69,10 +69,10 @@ export function SettingsPage() {
       orientation="vertical"
       value={activeId}
       onValueChange={setSelectedId}
-      className="grid h-full w-full grid-cols-[210px_1fr] overflow-hidden"
+      className="grid h-full w-full grid-cols-[252px_1fr] overflow-hidden"
     >
       <Tabs.List
-        className="flex flex-col gap-0.5 overflow-y-auto px-2 py-3"
+        className="flex flex-col gap-0.5 overflow-y-auto border-r border-divider bg-surface/75 px-3 py-8 backdrop-blur-2xl"
         aria-label={t("settings.title")}
       >
         {grouped.map((g) => (
@@ -82,7 +82,7 @@ export function SettingsPage() {
               <Tabs.Trigger
                 key={p.id}
                 value={p.id}
-                className="flex items-center gap-2.5 rounded-md border-0 bg-transparent px-2.5 py-1.5 text-left text-[13px] text-fg-muted transition-colors duration-150 hover:bg-surface-3 hover:text-fg data-[state=active]:bg-surface-3 data-[state=active]:text-fg"
+                className="flex items-center gap-2.5 rounded-xl border-0 bg-transparent px-3 py-2 text-left text-[13px] text-fg-muted transition-colors duration-150 hover:bg-fg/[0.045] hover:text-fg data-[state=active]:bg-fg/[0.065] data-[state=active]:text-fg data-[state=active]:shadow-[inset_0_1px_0_var(--color-divider)]"
               >
                 {p.icon && <Icon name={p.icon as IconName} size={15} className="shrink-0" />}
                 <span className="truncate">{t(p.label)}</span>
@@ -91,14 +91,16 @@ export function SettingsPage() {
           </div>
         ))}
       </Tabs.List>
-      <div className="min-h-0 min-w-0 overflow-y-auto bg-surface-2 px-5 py-4.5">
-        {panes.map((p) => (
-          <Tabs.Content key={p.id} value={p.id} className="outline-none">
-            <PluginBoundary plugin={`settings:${p.id}`}>
-              <p.component />
-            </PluginBoundary>
-          </Tabs.Content>
-        ))}
+      <div className="min-h-0 min-w-0 overflow-y-auto bg-canvas">
+        <div className="mx-auto max-w-[920px] px-8 py-10">
+          {panes.map((p) => (
+            <Tabs.Content key={p.id} value={p.id} className="outline-none">
+              <PluginBoundary plugin={`settings:${p.id}`}>
+                <p.component />
+              </PluginBoundary>
+            </Tabs.Content>
+          ))}
+        </div>
       </div>
     </Tabs.Root>
   );

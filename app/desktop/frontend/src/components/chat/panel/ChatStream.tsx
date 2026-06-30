@@ -145,13 +145,13 @@ export function ChatStream({ onSend, resetKey }: Props) {
         <CwdMissingBanner key={resetKey} />
         <RunErrorBanner />
         <div className="panel-scroll flex flex-1 flex-col items-center justify-center overflow-y-auto px-4">
-          <h1 className="text-center text-[24px] font-medium text-fg tracking-tight">
+          <h1 className="text-center text-[30px] font-medium tracking-normal text-fg">
             {t("welcome.title")}
           </h1>
-          <div className="mt-4 w-full max-w-[--content-max]">
+          <div className="mt-6 w-full max-w-[760px]">
             <Slot name="chat.empty" />
           </div>
-          <div className="mt-4 w-full max-w-[--content-max]">{composer}</div>
+          <div className="mt-5 w-full max-w-[800px]">{composer}</div>
         </div>
       </>
     );
@@ -184,7 +184,7 @@ export function ChatStream({ onSend, resetKey }: Props) {
         <div
           className="pointer-events-none absolute inset-x-0 bottom-0 h-[140px]"
           style={{
-            background: "linear-gradient(180deg, transparent 0%, var(--color-surface) 50%)",
+            background: "linear-gradient(180deg, transparent 0%, var(--color-bg) 52%)",
           }}
         />
         <JumpToBottomButton
@@ -193,7 +193,7 @@ export function ChatStream({ onSend, resetKey }: Props) {
         />
         {/* px-5 mirrors msg-stream's content padding so the composer's
             outer edge lines up with the message text column above it. */}
-        <div className="pointer-events-auto relative z-[2] mx-auto w-full max-w-[840px] px-5">
+        <div className="pointer-events-auto relative z-[2] mx-auto w-full max-w-[800px] px-5">
           {composer}
         </div>
       </div>

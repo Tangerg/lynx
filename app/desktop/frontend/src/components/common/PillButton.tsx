@@ -4,18 +4,18 @@ import { cva } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 // The project's primary CTA shape — outlined / solid / accent / danger
-// variants in two sizes. md (8px) corner per DESIGN.md §6.
+// variants in two sizes. These controls sit inside dense toolbars, so they
+// stay compact while using softer native-pill corners.
 const styles = cva(
-  "inline-flex items-center gap-1.5 rounded-md font-sans font-medium tracking-normal " +
+  "inline-flex items-center gap-1.5 rounded-full font-sans font-medium tracking-normal " +
     "transition-colors duration-150 ease-out " +
     "disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       variant: {
-        outlined:
-          "border border-line text-fg bg-transparent hover:bg-surface-2 hover:border-line-soft",
-        solid: "bg-white text-black border border-white",
-        accent: "bg-accent text-on-accent border border-accent",
+        outlined: "border border-line bg-surface/70 text-fg hover:bg-surface",
+        solid: "border border-fg bg-fg text-on-fg",
+        accent: "border border-accent bg-accent text-on-accent",
         danger: "bg-transparent text-negative border border-negative hover:bg-negative/8",
       },
       size: {

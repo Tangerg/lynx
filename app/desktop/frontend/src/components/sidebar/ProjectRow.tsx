@@ -4,9 +4,8 @@ import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 
 // Project group header — the folder node of the sidebar tree (Codex-style:
-// one 项目 tree, sessions nested under their project). Craft-aligned row
-// density: subtle fg-opacity tints, 75 ms transition, 8 px radius, 2 px
-// accent bar, hover-reveal actions via opacity (not display toggle).
+// one 项目 tree, sessions nested under their project). The row reads as a
+// soft selected pill, leaving accent colour for live state and CTAs.
 export function ProjectRow({
   project,
   active,
@@ -25,25 +24,20 @@ export function ProjectRow({
 }) {
   const t = useT();
   return (
-    <div
-      className={cn(
-        "relative group select-none pl-2",
-        active &&
-          "before:content-[''] before:absolute before:left-0 before:inset-y-0 before:w-[2px] before:bg-accent before:rounded-full",
-      )}
-    >
+    <div className={cn("relative group select-none")}>
       <div
         className={cn(
-          "flex items-center gap-1 rounded-md px-3 py-2 transition-[background-color] duration-75 hover:bg-fg/[0.02]",
-          active && "bg-fg/[0.03]",
+          "flex items-center gap-1 rounded-xl px-3 py-2 transition-[background-color] duration-75 hover:bg-fg/[0.045]",
+          active && "bg-fg/[0.065] text-fg shadow-[inset_0_1px_0_var(--color-divider)]",
         )}
       >
         <button
           type="button"
           onClick={() => onToggle(project.id)}
+          data-chrome-focus=""
           title={project.id}
           aria-expanded={open}
-          className="flex flex-1 items-center gap-2 min-w-0 border-0 bg-transparent text-left"
+          className="flex min-w-0 flex-1 items-center gap-2 border-0 bg-transparent text-left focus-visible:outline-none"
         >
           <Icon
             name="chevron-down"
@@ -80,9 +74,10 @@ export function ProjectRow({
         </button>
         <button
           type="button"
+          data-chrome-focus=""
           aria-label={t("project.row.newSession", { name: project.name })}
           onClick={() => onNewSession(project)}
-          className="grid h-5 w-5 place-items-center rounded-md border-0 bg-transparent text-fg-faint opacity-0 transition-all group-hover:opacity-100 hover:bg-surface-3 hover:text-fg"
+          className="grid h-5 w-5 place-items-center rounded-lg border-0 bg-transparent text-fg-faint opacity-0 transition-all group-hover:opacity-100 hover:bg-fg/[0.06] hover:text-fg"
         >
           <Icon name="plus" size={11} />
         </button>

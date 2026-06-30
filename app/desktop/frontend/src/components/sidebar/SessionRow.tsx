@@ -22,10 +22,9 @@ interface Props {
 
 // Session row — sidebar list item.
 //
-// Craft-aligned: subtle foreground-opacity tints for hover/active (2–3%),
-// fast 75 ms transition, 8 px radius, 2 px accent indicator bar. The
-// outer wrapper carries the selection bar so it sits flush at the left
-// edge; the button is a flex row with a leading icon + content column.
+// Craft-aligned: subtle foreground-opacity tints for hover/active, fast 75 ms
+// transition, and a soft selected pill. Accent colour is reserved for live
+// state and CTAs rather than static selection chrome.
 export function SessionRow({
   session,
   active,
@@ -58,15 +57,15 @@ export function SessionRow({
 
   const inner = (
     <>
-      {active && <div className="absolute left-0 inset-y-0 w-[2px] bg-accent rounded-full" />}
       <button
         type="button"
         onClick={() => onSelect(session.id)}
+        data-chrome-focus=""
         aria-current={active ? "page" : undefined}
         aria-label={session.title}
         className={cn(
-          "flex w-full items-start gap-2.5 rounded-md border-0 bg-transparent px-3 py-2 text-left transition-[background-color] duration-75 hover:bg-fg/[0.02] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
-          active && "bg-fg/[0.03]",
+          "flex w-full items-start gap-2.5 rounded-xl border-0 bg-transparent px-3 py-2 text-left transition-[background-color] duration-75 hover:bg-fg/[0.045] focus-visible:bg-fg/[0.065] focus-visible:text-fg focus-visible:outline-none",
+          active && "bg-fg/[0.065] text-fg shadow-[inset_0_1px_0_var(--color-divider)]",
         )}
       >
         <div
@@ -128,7 +127,7 @@ export function SessionRow({
     </>
   );
 
-  const row = <div className="relative group select-none pl-2">{inner}</div>;
+  const row = <div className="relative group select-none">{inner}</div>;
 
   if (!onDelete && !onFork && !onRename && !onToggleFavorite) return row;
   return (
