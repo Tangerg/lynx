@@ -7,7 +7,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/models/catalog"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/maintenance"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 )
 

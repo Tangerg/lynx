@@ -1,6 +1,5 @@
-// Package maintenance holds the turn-boundary domain operations the
-// engine triggers autonomously after a chat turn ends: history
-// compaction and long-term fact extraction.
+// Package maintenance implements turn-boundary LLM workers for kernel ports:
+// history compaction, long-term fact extraction, and session titling.
 //
 // Both work OUTSIDE the normal conversation flow — they call the
 // chat client directly (via askDirect), bypassing the chat-memory /
@@ -10,7 +9,8 @@
 // single-responsibility worker (Compactor / Extractor) in its
 // own file, constructible and testable without the engine.
 //
-// The engine owns construction (any worker may be nil when its feature
-// is disabled by config) and orchestration — it decides when to call
-// which; this package decides only how each operation works.
+// The engine owns construction (any worker may be nil when its feature is
+// disabled by config) and orchestration — it decides when to call which; this
+// adapter decides only how each operation is performed against chat and memory
+// dependencies.
 package maintenance

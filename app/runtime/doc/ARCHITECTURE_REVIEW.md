@@ -48,11 +48,11 @@
 
 **裁决**：**混合债（结构性，非功能性）**。功能上没问题，名实上不准。修法见 §4 差异①（移到 `internal/adapter/`，或保留在 `domain/` 但接受"复合包"定位）。**不紧急** —— 纯机械 churn，零行为变化。
 
-### 2.2 `domain/maintenance` import `kernel` 拿 DTO —— 正当（不是债）
+### 2.2 `maintenance` import `kernel` 拿 DTO —— 归属应在 adapter
 
-`domain/maintenance` import `kernel` 只用 `kernel.CompactionResult` / `kernel.ExtractionResult`。这些是 `kernel/port.go` 定义的 DTO —— `kernel` 是 port 的 owner（消费方定义接口），`maintenance` 是实现方。**实现方 import port owner 的类型是六边形架构的标准方向**：adapter 依赖于 port 所在的层。`arch_test.go` 也正确放行了这条边（documented exception）。
+`maintenance` import `kernel` 只用 `kernel.CompactionResult` / `kernel.ExtractionResult`。这些是 `kernel/port.go` 定义的 DTO —— `kernel` 是 port 的 owner（消费方定义接口），`maintenance` 是实现方。**实现方 import port owner 的类型是六边形架构的标准方向**：adapter 依赖于 port 所在的层。
 
-**裁决**：**正当**。小优化：若未来这些 DTO 被多个实现方 import，可抽到独立 types 包；目前单实现方，抽是 YAGNI。
+**裁决**：import 方向正当，但包归属应是 `internal/adapter/maintenance`，不是 domain ring。归属修正后，`arch_test.go` 不再需要 domain → kernel 的 documented exception。若未来这些 DTO 被多个实现方 import，可抽到独立 types 包；目前单实现方，抽是 YAGNI。
 
 ### 2.3 `kernel` 在 delivery 和 domain 之间作为独立环 —— 正当，命名准确
 
@@ -100,7 +100,7 @@
 
 **裁决**：**结构性债**。修法见 §5 P0 —— 不是把 pump/rollback 整体搬走（translator / hub / wire helpers 是 delivery 的），而是把其中的**多服务协调**抽到 kernel 层的编排器，delivery 只剩 decode → 调编排器 → present。
 
-### 2.6 `kernel/toolset/build.go` god 构造器 —— 正当（不是债）
+### 2.6 `adapter/toolset/build.go` god 构造器 —— 正当（不是债）
 
 `build.go` 构造 7+ 个 capability adapter（codeintel / exec / MCP / A2A / ask_user / exit_plan / todo / skills），组装 resolver，产出 `Built`。这是**单一装配点** —— 所有工具能力在一个地方初始化，依赖关系一目了然。拆成多个构造器会散落装配逻辑，增加心智负担。GREENFIELD §7 明确拒绝 DI 容器，组合根手写是最清晰的方案。`build.go` 就是 toolset 的组合根。
 
@@ -203,7 +203,6 @@ lyra/
 │   │   ├── config.go                 kernel.Config（SPI 注入点）
 │   │   ├── prompt.go                 system prompt 骨架装配
 │   │   ├── turn/                     "跑一个 turn" 用例
-│   │   ├── toolset/                  工具装配层（build.go 唯一构造点 + resolver + 各 tool 子包）
 │   │   └── stream/                   [从零新增] run segment pump 的编排部分（见差异②）
 │   │       └── pump.go               turn.Event → 持久化 + 中断登记 + snapshot 协调
 │   │
@@ -255,7 +254,7 @@ lyra/
 |---|---|---|
 | `kernel/port.go` | 同 | 窄 port 设计正确 |
 | `kernel/turn/` | 同 | use-case 接口 + 实现放在 kernel 内是正确的 |
-| `kernel/toolset/build.go` | 同 | 单一装配点 |
+| `adapter/toolset/build.go` | 同 | 单一装配点 |
 | `delivery/protocol/` | 同 | 冻结 wire 契约 |
 | `delivery/dispatch/` | 同 | 表驱动路由 |
 | `delivery/transport/` | 同 | HTTP/inprocess 双 transport |
@@ -299,7 +298,7 @@ lyra/
 
 | # | 改动 | 触发条件 |
 |---|---|---|
-| **5** | `domain/maintenance` 的 `kernel` DTO 移到独立 `kernel/types` | 有第二个 port 实现方需要这些 DTO |
+| **5** | `kernel` port DTO 移到独立 `kernel/types` | 有第二个 port 实现方需要这些 DTO |
 | **6** | `delivery/server` 拆成子包（`server/runs/` / `server/sessions/` 等） | 当 server 超过 ~6000 LOC 或出现需要单独测试的复杂 handler |
 
 ### 明确不建议做的（YAGNI 戒律）

@@ -40,7 +40,7 @@ type SteeringSink interface {
 }
 
 // Compactor folds an over-long history into a summary at a turn boundary.
-// Implemented by domain/maintenance. preCompact, when non-nil, is consulted
+// Implemented by adapter/maintenance. preCompact, when non-nil, is consulted
 // once the sweep is committed (triggers + guards passed) and just before the
 // summary — returning false vetoes the compaction (the PreCompact hook seam).
 type Compactor interface {
@@ -48,7 +48,7 @@ type Compactor interface {
 }
 
 // Extractor mines the recent conversation for facts worth keeping in the
-// project's LYRA.md. Implemented by domain/maintenance.
+// project's LYRA.md. Implemented by adapter/maintenance.
 type Extractor interface {
 	MaybeExtract(ctx context.Context, sessionID, cwd string) (ExtractionResult, error)
 }

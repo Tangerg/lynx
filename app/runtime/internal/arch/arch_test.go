@@ -33,7 +33,7 @@ import (
 // reaching across the core):
 //
 //	infra         ↛ delivery, adapter, orchestration
-//	domain        ↛ delivery, adapter
+//	domain        ↛ delivery, adapter, orchestration, infra
 //	orchestration ↛ delivery, adapter
 //	adapter       ↛ delivery
 //
@@ -42,9 +42,6 @@ import (
 //
 //	kernel            → domain/*    orchestration depends inward on domain
 //	infra             → domain/*    adapter depends inward on domain entities + repo ports
-//	domain/maintenance → kernel     maintenance is a driven adapter of the kernel's
-//	                                 Compactor/Extractor PORTS; importing the port
-//	                                 owner for its DTOs is the correct hexagonal direction
 //	adapter          → kernel/*     capability adapters implement kernel-owned
 //	                                 ports (tool resolver, MCP live control)
 //	adapter          → infra/*      capability adapters wrap driven capabilities
@@ -175,7 +172,7 @@ func forbidden(from, to string) bool {
 	case ringInfra:
 		return to == ringDelivery || to == ringAdapter || to == ringOrchestration
 	case ringDomain:
-		return to == ringDelivery || to == ringAdapter || to == ringInfra
+		return to == ringDelivery || to == ringAdapter || to == ringOrchestration || to == ringInfra
 	case ringOrchestration:
 		return to == ringDelivery || to == ringAdapter || to == ringInfra
 	case ringAdapter:
