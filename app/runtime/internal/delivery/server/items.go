@@ -122,8 +122,3 @@ func (s *Server) reconcileLostRun(r *protocol.RunRef) {
 		r.FinishedAt = time.Now().UTC()
 	}
 }
-
-// isRunLive reports whether a run is currently being pumped in this process.
-func (s *Server) isRunLive(runID string) bool {
-	return s.runs.Contains(runID)
-}

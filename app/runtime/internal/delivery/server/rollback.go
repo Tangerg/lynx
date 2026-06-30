@@ -2,93 +2,12 @@ package server
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/fspath"
 )
-
-// sessions.rollback truncates a
-// session's history at a run boundary in place; sessions.fork{fromRunId}
-// truncate-copies it into a child. Both reason over the per-run message
-// watermark (transcript.Run.Mark, recorded at run.finished — see transcript.go) to
-// map a run boundary onto a chat-memory message count, since the message log
-// itself carries no run markers.
-
-// runNodes lifts the structured timeline fields out of each persisted run's
-// opaque wire blob (a marshaled [protocol.RunRef]) so the domain boundary math
-// ([transcript.BoundaryAt]) stays wire-free. It also returns a by-id index of
-// the original RunRefs, because the rollback response reports dropped runs as
-// full wire RunRefs.
-func runNodes(runs []transcript.Run) ([]transcript.RunNode, map[string]protocol.RunRef, error) {
-	nodes := make([]transcript.RunNode, 0, len(runs))
-	byID := make(map[string]protocol.RunRef, len(runs))
-	for _, r := range runs {
-		var ref protocol.RunRef
-		if err := json.Unmarshal(r.Blob, &ref); err != nil {
-			return nil, nil, fmt.Errorf("server: decode run %q: %w", r.RunID, err)
-		}
-		nodes = append(nodes, transcript.RunNode{
-			ID:              ref.ID,
-			ParentRunID:     ref.ParentRunID,
-			SpawnedByItemID: ref.SpawnedByItemID,
-			CreatedAt:       ref.CreatedAt,
-			Mark:            r.Mark,
-		})
-		byID[ref.ID] = ref
-	}
-	return nodes, byID, nil
-}
-
-// wireBoundaryErr maps the transcript boundary sentinels onto their wire errors
-// (the domain layer is protocol-free; the adapter owns the wire mapping).
-func wireBoundaryErr(err error) error {
-	switch {
-	case errors.Is(err, transcript.ErrRunNotFound):
-		return protocol.ErrRunNotFound
-	case errors.Is(err, transcript.ErrNotRoot):
-		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
-	default:
-		return err
-	}
-}
-
-// hasActiveRun reports whether the session has a run in flight — the
-// session_busy guard: rolling back under a live run would race its history
-// append (AUX_API §4.1). Includes an in-progress admission (claimed but not yet
-// registered) so a rollback can't slip in alongside a starting run.
-func (s *Server) hasActiveRun(sessionID string) bool {
-	return s.runs.ActiveSession(sessionID)
-}
-
-// claimSession atomically reserves the session's single-writer slot for an
-// admitting run, returning false when the session already has a run in flight
-// or another admission in progress. It closes the TOCTOU gap between the busy
-// check and the run's registration in s.runs (openSegment): the registry checks
-// and reserves atomically. Pair every true return with a releaseSession
-// (deferred), which is safe to run after openSegment has registered the run.
-func (s *Server) claimSession(sessionID string) bool {
-	return s.runs.ClaimSession(sessionID)
-}
-
-// releaseSession drops a claimSession reservation.
-func (s *Server) releaseSession(sessionID string) {
-	s.runs.ReleaseSession(sessionID)
-}
-
-// hasActiveRunSharingCwd returns the id of an in-flight run's session whose
-// canonical working tree is cwd, or "" when none. The broader busy guard a file
-// restore needs: its `git reset --hard` WRITES the working tree, which a sibling
-// session sharing the cwd would race (a fork inherits its parent's cwd; two
-// sessions can open one dir) — and that sibling's tool writes never go through
-// the checkpoint lock. An empty cwd matches nothing (a session with no cwd has
-// no checkpoint tree). cwd must already be canonical.
-func (s *Server) hasActiveRunSharingCwd(cwd string) string {
-	return s.runs.ActiveSessionWithCwd(cwd)
-}
 
 // RollbackSession discards the runs after the kept boundary, truncating the
 // session in place at a run granularity (AUX_API §4.1). Destructive: it
@@ -185,25 +104,4 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	}
 	sess := s.sessionToWire(ses, s.liveStatus(ctx, ses.ID))
 	return &protocol.RollbackSessionResponse{Session: &sess, DroppedRuns: out}, nil
-}
-
-// openingUserInput maps each run id to the content of its FIRST userMessage
-// item — the opening turn the client re-populates the composer from. Runs with
-// no opening user turn (resume / edit continuations) are absent from the map.
-func openingUserInput(items []transcript.Item) map[string][]protocol.ContentBlock {
-	out := map[string][]protocol.ContentBlock{}
-	for _, it := range items {
-		if _, seen := out[it.RunID]; seen {
-			continue
-		}
-		var item protocol.Item
-		if err := json.Unmarshal(it.Blob, &item); err != nil {
-			continue
-		}
-		if item.Type != protocol.ItemTypeUserMessage {
-			continue
-		}
-		out[it.RunID] = item.Content
-	}
-	return out
 }
