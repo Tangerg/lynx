@@ -1,15 +1,14 @@
 import type { ProviderInfo } from "@/lib/data/queries";
 import type { ReactNode } from "react";
 import { useState } from "react";
-import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Icon, MENU_CONTENT_CLASSES, ProviderIcon } from "@/components/common";
+import { Icon, Menu as BaseMenu, MENU_CONTENT_CLASSES, ProviderIcon } from "@/components/common";
 import { setEmbeddingRole, setUtilityRole } from "@/lib/agent/useProviderConfig";
 import { useEmbeddingRole, useModels, useProviders, useUtilityRole } from "@/lib/data/queries";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 const triggerClass =
-  "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface pl-2 pr-2.5 text-[12px] font-semibold text-fg whitespace-nowrap transition-colors hover:bg-surface-3 data-[state=open]:bg-surface-3";
+  "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface pl-2 pr-2.5 text-[12px] font-semibold text-fg whitespace-nowrap transition-colors hover:bg-surface-3 data-[popup-open]:bg-surface-3";
 
 const itemClass =
   "grid grid-cols-[16px_minmax(0,1fr)_14px] items-center gap-2 rounded-sm px-2 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg";
@@ -67,49 +66,55 @@ export function UtilityModelSection() {
       description={t("providers.utility.desc")}
       error={error}
     >
-      <DropdownMenu.Root>
-        <DropdownMenu.Trigger asChild>
-          <button type="button" aria-label={t("providers.utility.title")} className={triggerClass}>
-            {isSet && selected ? (
-              <>
-                <ProviderIcon provider={selected.provider} size={14} />
-                <span className="max-w-[160px] truncate font-mono text-[11.5px]">
-                  {selected.label}
-                </span>
-              </>
-            ) : (
-              <span className="text-fg-muted">{t("providers.utility.main")}</span>
-            )}
-            <Icon name="chevron-down" size={10} className="text-fg-faint opacity-70" />
-          </button>
-        </DropdownMenu.Trigger>
-        <DropdownMenu.Portal>
-          <DropdownMenu.Content
-            align="end"
-            sideOffset={6}
-            className={cn(MENU_CONTENT_CLASSES, "max-h-[320px] min-w-[220px] overflow-y-auto")}
-          >
-            <DropdownMenu.Item onSelect={() => void pick(null)} className={itemClass}>
-              <span />
-              <span className="truncate">{t("providers.utility.main")}</span>
-              {!isSet && <Icon name="check" size={12} className="text-accent" />}
-            </DropdownMenu.Item>
-            {models.map((m) => (
-              <DropdownMenu.Item
-                key={`${m.provider}:${m.id}`}
-                onSelect={() => void pick({ provider: m.provider, model: m.id })}
-                className={itemClass}
-              >
-                <ProviderIcon provider={m.provider} size={16} />
-                <span className="truncate">{m.label}</span>
-                {role?.provider === m.provider && role?.model === m.id && (
-                  <Icon name="check" size={12} className="text-accent" />
-                )}
-              </DropdownMenu.Item>
-            ))}
-          </DropdownMenu.Content>
-        </DropdownMenu.Portal>
-      </DropdownMenu.Root>
+      <BaseMenu.Root>
+        <BaseMenu.Trigger
+          render={
+            <button
+              type="button"
+              aria-label={t("providers.utility.title")}
+              className={triggerClass}
+            >
+              {isSet && selected ? (
+                <>
+                  <ProviderIcon provider={selected.provider} size={14} />
+                  <span className="max-w-[160px] truncate font-mono text-[11.5px]">
+                    {selected.label}
+                  </span>
+                </>
+              ) : (
+                <span className="text-fg-muted">{t("providers.utility.main")}</span>
+              )}
+              <Icon name="chevron-down" size={10} className="text-fg-faint opacity-70" />
+            </button>
+          }
+        />
+        <BaseMenu.Portal>
+          <BaseMenu.Positioner align="end" sideOffset={6}>
+            <BaseMenu.Popup
+              className={cn(MENU_CONTENT_CLASSES, "max-h-[320px] min-w-[220px] overflow-y-auto")}
+            >
+              <BaseMenu.Item onClick={() => void pick(null)} className={itemClass}>
+                <span />
+                <span className="truncate">{t("providers.utility.main")}</span>
+                {!isSet && <Icon name="check" size={12} className="text-accent" />}
+              </BaseMenu.Item>
+              {models.map((m) => (
+                <BaseMenu.Item
+                  key={`${m.provider}:${m.id}`}
+                  onClick={() => void pick({ provider: m.provider, model: m.id })}
+                  className={itemClass}
+                >
+                  <ProviderIcon provider={m.provider} size={16} />
+                  <span className="truncate">{m.label}</span>
+                  {role?.provider === m.provider && role?.model === m.id && (
+                    <Icon name="check" size={12} className="text-accent" />
+                  )}
+                </BaseMenu.Item>
+              ))}
+            </BaseMenu.Popup>
+          </BaseMenu.Positioner>
+        </BaseMenu.Portal>
+      </BaseMenu.Root>
     </RoleSectionShell>
   );
 }
@@ -143,48 +148,54 @@ export function EmbeddingModelSection() {
         ) : null
       }
     >
-      <DropdownMenu.Root>
-        <DropdownMenu.Trigger asChild>
-          <button
-            type="button"
-            aria-label={t("providers.embedding.title")}
-            className={triggerClass}
-          >
-            {isSet && role?.provider ? (
-              <>
-                <ProviderIcon provider={role.provider} size={14} />
-                <span className="max-w-[160px] truncate font-mono text-[11.5px]">{role.model}</span>
-              </>
-            ) : (
-              <span className="text-fg-muted">{t("providers.embedding.off")}</span>
-            )}
-            <Icon name="chevron-down" size={10} className="text-fg-faint opacity-70" />
-          </button>
-        </DropdownMenu.Trigger>
-        <DropdownMenu.Portal>
-          <DropdownMenu.Content
-            align="end"
-            sideOffset={6}
-            className={cn(MENU_CONTENT_CLASSES, "max-h-[320px] min-w-[220px] overflow-y-auto")}
-          >
-            <DropdownMenu.Item onSelect={() => void pick(null)} className={itemClass}>
-              <span />
-              <span className="truncate">{t("providers.embedding.off")}</span>
-              {!isSet && <Icon name="check" size={12} className="text-accent" />}
-            </DropdownMenu.Item>
-            {capable.map((p) => (
-              <DropdownMenu.Item key={p.id} onSelect={() => void pick(p)} className={itemClass}>
-                <ProviderIcon provider={p.id} size={16} />
-                <span className="truncate">
-                  {p.id}
-                  {p.defaultEmbeddingModel ? ` · ${p.defaultEmbeddingModel}` : ""}
-                </span>
-                {role?.provider === p.id && <Icon name="check" size={12} className="text-accent" />}
-              </DropdownMenu.Item>
-            ))}
-          </DropdownMenu.Content>
-        </DropdownMenu.Portal>
-      </DropdownMenu.Root>
+      <BaseMenu.Root>
+        <BaseMenu.Trigger
+          render={
+            <button
+              type="button"
+              aria-label={t("providers.embedding.title")}
+              className={triggerClass}
+            >
+              {isSet && role?.provider ? (
+                <>
+                  <ProviderIcon provider={role.provider} size={14} />
+                  <span className="max-w-[160px] truncate font-mono text-[11.5px]">
+                    {role.model}
+                  </span>
+                </>
+              ) : (
+                <span className="text-fg-muted">{t("providers.embedding.off")}</span>
+              )}
+              <Icon name="chevron-down" size={10} className="text-fg-faint opacity-70" />
+            </button>
+          }
+        />
+        <BaseMenu.Portal>
+          <BaseMenu.Positioner align="end" sideOffset={6}>
+            <BaseMenu.Popup
+              className={cn(MENU_CONTENT_CLASSES, "max-h-[320px] min-w-[220px] overflow-y-auto")}
+            >
+              <BaseMenu.Item onClick={() => void pick(null)} className={itemClass}>
+                <span />
+                <span className="truncate">{t("providers.embedding.off")}</span>
+                {!isSet && <Icon name="check" size={12} className="text-accent" />}
+              </BaseMenu.Item>
+              {capable.map((p) => (
+                <BaseMenu.Item key={p.id} onClick={() => void pick(p)} className={itemClass}>
+                  <ProviderIcon provider={p.id} size={16} />
+                  <span className="truncate">
+                    {p.id}
+                    {p.defaultEmbeddingModel ? ` · ${p.defaultEmbeddingModel}` : ""}
+                  </span>
+                  {role?.provider === p.id && (
+                    <Icon name="check" size={12} className="text-accent" />
+                  )}
+                </BaseMenu.Item>
+              ))}
+            </BaseMenu.Popup>
+          </BaseMenu.Positioner>
+        </BaseMenu.Portal>
+      </BaseMenu.Root>
     </RoleSectionShell>
   );
 }

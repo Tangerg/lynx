@@ -25,8 +25,8 @@ export default defineConfig({
             return "vendor";
           if (id.includes("node_modules/motion")) return "vendor-motion";
           if (id.includes("node_modules/zustand")) return "vendor";
-          // Radix UI
-          if (id.includes("node_modules/@radix-ui")) return "radix";
+          // Headless interaction primitives
+          if (id.includes("node_modules/@base-ui")) return "base-ui";
           // TanStack
           if (id.includes("node_modules/@tanstack")) return "tanstack";
           // Icons

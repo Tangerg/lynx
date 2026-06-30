@@ -8,7 +8,7 @@
 // look-up) — on WKWebView that IS the native macOS edit menu, the affordance
 // users expect on an input, not a web tell.
 //
-// Radix context menus are unaffected: their trigger handles the event and
+// Base UI context menus are unaffected: their trigger handles the event and
 // opens their own menu (React listeners on the root container run before this
 // document-level bubble listener), so calling preventDefault here is a no-op
 // for them — it only kills the *default* browser menu where nothing is wired.

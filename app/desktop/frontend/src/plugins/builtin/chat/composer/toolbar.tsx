@@ -1,6 +1,11 @@
-import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useEffect, useRef } from "react";
-import { Icon, MENU_CONTENT_CLASSES, ProviderIcon, Tooltip } from "@/components/common";
+import {
+  Icon,
+  Menu as BaseMenu,
+  MENU_CONTENT_CLASSES,
+  ProviderIcon,
+  Tooltip,
+} from "@/components/common";
 import { imageFiles } from "@/lib/agent/composerInput";
 import { useSelectedModel } from "@/lib/agent/useSelectedModel";
 import { useModels } from "@/lib/data/queries";
@@ -35,41 +40,41 @@ function ModelPicker() {
   const selected = models.find((m) => m.provider === provider && m.id === model) ?? models[0]!;
 
   return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger asChild>
-        <button
-          type="button"
-          aria-label={t("composer.switchModel")}
-          className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-line/40 bg-transparent pl-1.5 pr-2.5 text-[12px] font-medium text-fg whitespace-nowrap transition-colors hover:bg-surface-2 data-[state=open]:bg-surface-2"
-          data-slot="composer-model"
-        >
-          <ProviderIcon provider={selected.provider} size={16} />
-          <span className="font-sans text-[12px] font-medium">{selected.label}</span>
-          <Icon name="chevron-down" size={10} className="text-fg-faint opacity-70" />
-        </button>
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content
-          align="start"
-          sideOffset={6}
-          className={cn(MENU_CONTENT_CLASSES, "min-w-[200px]")}
-        >
-          {models.map((m) => (
-            <DropdownMenu.Item
-              key={`${m.provider}:${m.id}`}
-              onSelect={() => setModel(m.provider, m.id)}
-              className="grid grid-cols-[16px_minmax(0,1fr)_14px] items-center gap-2 rounded-sm px-2 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
-            >
-              <ProviderIcon provider={m.provider} size={16} />
-              <span className="truncate">{m.label}</span>
-              {m.provider === selected.provider && m.id === selected.id && (
-                <Icon name="check" size={12} className="text-accent" />
-              )}
-            </DropdownMenu.Item>
-          ))}
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
+    <BaseMenu.Root>
+      <BaseMenu.Trigger
+        render={
+          <button
+            type="button"
+            aria-label={t("composer.switchModel")}
+            className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-line/40 bg-transparent pl-1.5 pr-2.5 text-[12px] font-medium text-fg whitespace-nowrap transition-colors hover:bg-surface-2 data-[popup-open]:bg-surface-2"
+            data-slot="composer-model"
+          >
+            <ProviderIcon provider={selected.provider} size={16} />
+            <span className="font-sans text-[12px] font-medium">{selected.label}</span>
+            <Icon name="chevron-down" size={10} className="text-fg-faint opacity-70" />
+          </button>
+        }
+      />
+      <BaseMenu.Portal>
+        <BaseMenu.Positioner align="start" sideOffset={6}>
+          <BaseMenu.Popup className={cn(MENU_CONTENT_CLASSES, "min-w-[200px]")}>
+            {models.map((m) => (
+              <BaseMenu.Item
+                key={`${m.provider}:${m.id}`}
+                onClick={() => setModel(m.provider, m.id)}
+                className="grid grid-cols-[16px_minmax(0,1fr)_14px] items-center gap-2 rounded-sm px-2 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
+              >
+                <ProviderIcon provider={m.provider} size={16} />
+                <span className="truncate">{m.label}</span>
+                {m.provider === selected.provider && m.id === selected.id && (
+                  <Icon name="check" size={12} className="text-accent" />
+                )}
+              </BaseMenu.Item>
+            ))}
+          </BaseMenu.Popup>
+        </BaseMenu.Positioner>
+      </BaseMenu.Portal>
+    </BaseMenu.Root>
   );
 }
 

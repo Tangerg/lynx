@@ -1,6 +1,7 @@
 # REFACTORING.md — Lyra 前端重构标尺
 
 > 重构时**改什么、怎么改、按什么节奏**。文档分工（尽量不重述）：
+>
 > - [`CLAUDE.md`](CLAUDE.md)：决策透镜 + 硬约定 + 反向不变量 —— "**能不能**这么写"。两档节奏、Fowler 清单、React effect 纪律、工作流已在那里。
 > - [`frontend/ARCHITECTURE.md`](frontend/ARCHITECTURE.md)：系统长什么样。[`frontend/DESIGN.md`](frontend/DESIGN.md)：视觉规范。
 > - **本篇**：把上面的判据落成几面可执行的**重构镜头**（命名 / 派生态 / 边界吞空 / 作用域卫生 / 卫语句 / 就近组织 / 节奏）。
@@ -80,7 +81,7 @@
 那两节已给全（两档节奏、先给候选方案 + 权衡、等确认再动、每批一 commit、`npm run check` 全绿、commit 写 why）。本篇补两条精修中反复验证、值得单列的：
 
 - **破坏性改动先算"爆炸半径"**：改 SDK 公开形状 / store schema / 协议 shape / 组件 props 之前，先 grep 出**所有消费方**（跨插件、跨层、跨 selector），列清影响面再动手；碰 Host 接口 / spec 形状按既定约定 bump 版本号，store schema 变了 bump `version` 丢旧数据（无 migration）。
-- **承认审计误报**：深入看后发现某条"坏味道"其实是**有意设计**（流式结构性嵌套、故意的非 Radix 豁免、内聚的大文件、单底座而非 per-slot map …），就 skip 并写明理由 —— 正常的 false positive，不是失败；也别为"清干净"去动正确性敏感的热路径（plugin loader / registry / reducer）。
+- **承认审计误报**：深入看后发现某条"坏味道"其实是**有意设计**（流式结构性嵌套、故意的 headless primitive 豁免、内聚的大文件、单底座而非 per-slot map …），就 skip 并写明理由 —— 正常的 false positive，不是失败；也别为"清干净"去动正确性敏感的热路径（plugin loader / registry / reducer）。
 
 ---
 

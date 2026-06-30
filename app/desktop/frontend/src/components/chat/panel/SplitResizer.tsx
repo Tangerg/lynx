@@ -1,5 +1,5 @@
 // Drag handle between the chat stream and a split workspace view. Self-written
-// because Radix has no split-pane primitive (DESIGN §4 exemption: this is
+// because Base UI has no split-pane primitive (DESIGN §4 exemption: this is
 // interactive chrome, not a decorative divider — idle shows nothing but a
 // col-resize cursor; the accent guide appears only on hover/drag). On drag it
 // computes the chat's fraction of the parent row's width and persists it

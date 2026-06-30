@@ -18,21 +18,21 @@
 
 ## 2. 技术栈
 
-| 层       | 选型                                                                  |
-| -------- | --------------------------------------------------------------------- |
-| UI       | React 19 + TypeScript                                                 |
-| 样式     | Tailwind 4 + `cva` + `clsx` + `tailwind-merge`（`cn()`）              |
-| Headless | Radix Primitives first（Dialog / Popover / Select / Tooltip / …）     |
-| 特定件   | `cmdk`（命令面板）/ `sonner`（Toast）/ `lucide-react`（图标）         |
-| 状态     | Zustand（多 store，无 context 链）                                    |
-| 路由     | TanStack Router（route tree 动态构建）                                |
-| 数据     | TanStack React Query                                                  |
-| 协议     | 自研 Lyra Runtime Protocol v2（JSON-RPC 2.0，`src/rpc/`）             |
-| 动画     | motion/react                                                          |
-| 桌面壳   | Wails v2（Go 后端 + WebView 前端）                                    |
-| 测试     | Vitest 4 + Testing Library + happy-dom                                |
-| 构建     | Vite 8（内置 Rolldown bundler）                                       |
-| Lint     | OxLint 1.x（Rust-based）；`prettier` 格式化                           |
+| 层       | 选型                                                              |
+| -------- | ----------------------------------------------------------------- |
+| UI       | React 19 + TypeScript                                             |
+| 样式     | Tailwind 4 + `cva` + `clsx` + `tailwind-merge`（`cn()`）          |
+| Headless | Base UI primitives first（Dialog / Popover / Menu / Tooltip / …） |
+| 特定件   | `cmdk`（命令面板）/ `sonner`（Toast）/ `lucide-react`（图标）     |
+| 状态     | Zustand（多 store，无 context 链）                                |
+| 路由     | TanStack Router（route tree 动态构建）                            |
+| 数据     | TanStack React Query                                              |
+| 协议     | 自研 Lyra Runtime Protocol v2（JSON-RPC 2.0，`src/rpc/`）         |
+| 动画     | motion/react                                                      |
+| 桌面壳   | Wails v2（Go 后端 + WebView 前端）                                |
+| 测试     | Vitest 4 + Testing Library + happy-dom                            |
+| 构建     | Vite 8（内置 Rolldown bundler）                                   |
+| Lint     | OxLint 1.x（Rust-based）；`prettier` 格式化                       |
 
 > 已弃用 AG-UI——协议、类型、reducer 全部自研原生模型（见 `CLAUDE.md` 第一法则）。
 
@@ -225,7 +225,7 @@ App.tsx
 4. **`markAppReady()`** — 触发所有 `host.lifecycle.onReady(...)` 回调（注册顺序）。
 5. **`setBuiltinsReady(true)`** — 解除 children 渲染门；同时 fire-and-forget `loadSideloadedPlugins()`（不阻塞首屏，附加式注册）。
 
-外层再包一个 `RadixTooltip.Provider`（`delayDuration=250`），让 kernel + 任意插件的 `<Tooltip>` 不必各自带 provider。
+外层再包一个 `TooltipProvider`（Base UI provider，250ms delay），让 kernel + 任意插件的 `<Tooltip>` 不必各自带 provider。
 
 > **为什么门控？** AppRouter 挂载时一次性构建路由树（`buildRouter()` 读 `listRoutes()`）。内置插件注册路由前就 mount 会"no routes match"白屏。门控保证 route registry 就绪。内置 setup 无 I/O，门在下一个微任务就解开——只是首帧短暂空白。
 
@@ -236,8 +236,12 @@ App.tsx
 ```tsx
 <div className={`app ${sidebarRail ? "rail" : ""}`}>
   <div className="app-main">
-    <aside aria-label="Sidebar" className="contents"><Slot name="app.sidebar" /></aside>
-    <main  aria-label="Main"    className="contents"><Slot name="app.main"    /></main>
+    <aside aria-label="Sidebar" className="contents">
+      <Slot name="app.sidebar" />
+    </aside>
+    <main aria-label="Main" className="contents">
+      <Slot name="app.main" />
+    </main>
   </div>
   <Slot name="app.overlay" />
 </div>
@@ -317,15 +321,15 @@ host.extensions.contribute(POINT, spec, opts?)
 
 **保留的薄 facade**（仍只是调 `contribute`，但各带逻辑/泛型/防错）：
 
-| 面                                          | 为什么不退化成裸 contribute              |
-| ------------------------------------------- | ---------------------------------------- |
-| `host.events.onStream(type, handler)`       | StreamEvent（run.*/item.*/state.*）订阅  |
-| `host.events.onCustom(name, handler)`       | custom StreamEvent 订阅                  |
-| `host.layout.register(slot, spec)`          | 内部算去重 id `${slot}#${spec.id}`       |
-| `host.message.registerContentBlock<K>`      | per-kind 泛型类型安全                    |
-| `host.lifecycle.onReady / onBeforeUnload`   | onReady 带"已 ready 则立即触发"逻辑      |
-| `host.rpc.beforeRequest / afterResponse`    | HTTP 拦截 hook 订阅                      |
-| `host.log.subscribe`                        | 日志订阅 hook                            |
+| 面                                        | 为什么不退化成裸 contribute             |
+| ----------------------------------------- | --------------------------------------- |
+| `host.events.onStream(type, handler)`     | StreamEvent（run._/item._/state.*）订阅 |
+| `host.events.onCustom(name, handler)`     | custom StreamEvent 订阅                 |
+| `host.layout.register(slot, spec)`        | 内部算去重 id `${slot}#${spec.id}`      |
+| `host.message.registerContentBlock<K>`    | per-kind 泛型类型安全                   |
+| `host.lifecycle.onReady / onBeforeUnload` | onReady 带"已 ready 则立即触发"逻辑     |
+| `host.rpc.beforeRequest / afterResponse`  | HTTP 拦截 hook 订阅                     |
+| `host.log.subscribe`                      | 日志订阅 hook                           |
 
 **命令式动作（非贡献，本就该是方法）**：`host.workspace.openView/closeView` · `host.config` · `host.storage` · `host.state` · `host.notify` · `host.window` · `host.plugins.{list,load,unload,reload}` · `host.i18n.addBundle` · `host.tasks` · `host.rpc.get/post` · `host.log.{debug,info,warn,error}` · `host.commands.execute`。
 
@@ -350,12 +354,12 @@ host.extensions.contribute(POINT, spec, opts?)
 
 #### 内置 vs 外置（sideload）
 
-|             | 内置                  | 外置（sideload）                                |
-| ----------- | --------------------- | ----------------------------------------------- |
-| 来源        | 同 bundle 静态 import | Go 后端 manifest + dynamic `import(url)`        |
-| 加载时机    | 启动前同步串行        | 启动后异步（不阻塞首屏）                        |
-| origin      | `builtin`             | `sideload`（默认 deny，需用户授权——`pluginOrigin.ts`）|
-| 共享 React  | 同 bundle 自然共享    | 通过 `window.__LYRA__` 桥接                     |
+|            | 内置                  | 外置（sideload）                                       |
+| ---------- | --------------------- | ------------------------------------------------------ |
+| 来源       | 同 bundle 静态 import | Go 后端 manifest + dynamic `import(url)`               |
+| 加载时机   | 启动前同步串行        | 启动后异步（不阻塞首屏）                               |
+| origin     | `builtin`             | `sideload`（默认 deny，需用户授权——`pluginOrigin.ts`） |
+| 共享 React | 同 bundle 自然共享    | 通过 `window.__LYRA__` 桥接                            |
 
 #### 内置插件 manifest（`builtin/index.ts`）
 
@@ -442,16 +446,16 @@ unmount → cancel + 解绑 send/stop/resume（该会话 view state 留在 store
 
 ### 5.3 状态分层（除 agent 外的 UI 状态）
 
-| Store               | 内容                                                          | 持久化              |
-| ------------------- | ------------------------------------------------------------- | ------------------- |
-| `agentStore`        | 每会话 AgentViewState + send/stop/resume 引用 + applyEvents   | ❌ ephemeral        |
-| `sessionStore`      | activeSessionId / tabIds / draft / 选择                       | ✅（部分字段）      |
-| `uiStore`           | theme / accent / 字体 / motion / messageStyle / sidebarRail   | ✅                  |
-| `runtimeStore`      | 握手协商的 runtime 能力                                       | ❌ 全局 ephemeral   |
-| `tasksStore`        | host.tasks 的后台任务                                         | ❌                  |
-| `composerStore`     | 撰写区文本 / 模式 / 附件 / provider+model                     | ❌ ephemeral        |
-| `usePluginStore`    | 整个插件 registry                                            | ❌                  |
-| `useConfigStore`    | 插件可读写的全局 config（如 `api.baseUrl`）                   | ✅                  |
+| Store            | 内容                                                        | 持久化            |
+| ---------------- | ----------------------------------------------------------- | ----------------- |
+| `agentStore`     | 每会话 AgentViewState + send/stop/resume 引用 + applyEvents | ❌ ephemeral      |
+| `sessionStore`   | activeSessionId / tabIds / draft / 选择                     | ✅（部分字段）    |
+| `uiStore`        | theme / accent / 字体 / motion / messageStyle / sidebarRail | ✅                |
+| `runtimeStore`   | 握手协商的 runtime 能力                                     | ❌ 全局 ephemeral |
+| `tasksStore`     | host.tasks 的后台任务                                       | ❌                |
+| `composerStore`  | 撰写区文本 / 模式 / 附件 / provider+model                   | ❌ ephemeral      |
+| `usePluginStore` | 整个插件 registry                                           | ❌                |
+| `useConfigStore` | 插件可读写的全局 config（如 `api.baseUrl`）                 | ✅                |
 
 每个 store 各自用 Zustand `persist` + 自己的 `version`；**schema 变了就 bump version 丢旧数据，不写 migration**（开发期无历史包袱）。
 
@@ -506,15 +510,15 @@ return specs.map(spec => (
 
 ### 6.2 其它"消费端"选择器（`sdk/selectors/`）
 
-| Hook / 函数                                          | 用途                                |
-| ---------------------------------------------------- | ----------------------------------- |
-| `useToolPreview(fn)` / `useToolActions()`            | 工具卡片预览 / 头部按钮             |
-| `useWorkspaceViews()` / `useSettingsPanes()`         | 主区 workspace view / 设置左栏      |
-| `useSidebarSections()` / `useSidebarRailItems()`     | 侧栏内部                            |
-| `useCommands()` / `useSlashCommands()`               | 命令面板 / composer slash 提示      |
-| `useComposerModes()` / `useComposerStatus()` / …     | composer 工具栏                     |
-| `useThemes()` / `useAccents()`                       | Appearance 面板                     |
-| `useMessageRole(id)`                                 | 消息头像 / 名字                     |
+| Hook / 函数                                                 | 用途                            |
+| ----------------------------------------------------------- | ------------------------------- |
+| `useToolPreview(fn)` / `useToolActions()`                   | 工具卡片预览 / 头部按钮         |
+| `useWorkspaceViews()` / `useSettingsPanes()`                | 主区 workspace view / 设置左栏  |
+| `useSidebarSections()` / `useSidebarRailItems()`            | 侧栏内部                        |
+| `useCommands()` / `useSlashCommands()`                      | 命令面板 / composer slash 提示  |
+| `useComposerModes()` / `useComposerStatus()` / …            | composer 工具栏                 |
+| `useThemes()` / `useAccents()`                              | Appearance 面板                 |
+| `useMessageRole(id)`                                        | 消息头像 / 名字                 |
 | `lookupStreamHandlers(type)` / `lookupCustomHandlers(name)` | reducer 内部用，非 React 选择器 |
 
 ---
@@ -570,15 +574,15 @@ ChatPanel → ChatStream → MessageBlock → PartRenderer
 
 ## 8. 错误隔离策略
 
-| 失败点                          | 行为                                                       |
-| ------------------------------- | ---------------------------------------------------------- |
-| 插件 `setup` 抛错               | dispose 已注册部分；其它插件继续；写错误到 Plugins 面板    |
-| 插件组件 render 抛错            | PluginBoundary 接住画 fallback；其余 kernel 正常           |
-| stream / custom handler 抛错    | 该 handler 跳过，state 保持入态；其余 handler 继续         |
-| 插件 tool action / command 抛错 | console.error + `reportPluginError`，UI 不挂               |
-| `runs.start` 调用 reject        | channel-a 失败：无流、无 run.finished，自行 setError 上 banner |
-| run 流中断 / `run.finished{error}` | banner 显示，下次 run 启动时清除                        |
-| sideload 模块 import / manifest 失败 | 跳过，其它继续；console.warn                          |
+| 失败点                               | 行为                                                           |
+| ------------------------------------ | -------------------------------------------------------------- |
+| 插件 `setup` 抛错                    | dispose 已注册部分；其它插件继续；写错误到 Plugins 面板        |
+| 插件组件 render 抛错                 | PluginBoundary 接住画 fallback；其余 kernel 正常               |
+| stream / custom handler 抛错         | 该 handler 跳过，state 保持入态；其余 handler 继续             |
+| 插件 tool action / command 抛错      | console.error + `reportPluginError`，UI 不挂                   |
+| `runs.start` 调用 reject             | channel-a 失败：无流、无 run.finished，自行 setError 上 banner |
+| run 流中断 / `run.finished{error}`   | banner 显示，下次 run 启动时清除                               |
+| sideload 模块 import / manifest 失败 | 跳过，其它继续；console.warn                                   |
 
 Plugins 面板（Settings → Plugins）汇总所有 `reportPluginError` 的红 badge。
 
@@ -649,17 +653,17 @@ declare module "@/protocol/run/viewState" {
 
 ## 11. 进一步的阅读路径
 
-| 想了解                          | 先看                                                              |
-| ------------------------------- | ----------------------------------------------------------------- |
-| 决策透镜 / 工程约定 / 反向不变量 | 仓库根 `CLAUDE.md`                                                |
-| 视觉规范 / 颜色 / 排版          | `frontend/DESIGN.md`                                              |
-| 协议 method 表 / envelope / 语义 | `docs/protocol/API.md` + `docs/protocol/AUX_API.md`              |
-| transport / handshake / 错误码  | `docs/protocol/TRANSPORT.md`                                     |
-| Host 全部接口                   | `src/plugins/sdk/types/host.ts`                                  |
-| 协议 fold                       | `src/protocol/run/reducer.ts` + `builtin/agent/core-reducer/`    |
-| 一个完整内置插件                | `src/plugins/builtin/agent/rpc-agent/index.ts`                   |
-| 会话生命周期                    | `src/state/useAgentSession.ts`                                   |
-| 主题如何注册                    | `src/plugins/builtin/theme/kit/` + 任意 `theme/themes/*`         |
+| 想了解                           | 先看                                                          |
+| -------------------------------- | ------------------------------------------------------------- |
+| 决策透镜 / 工程约定 / 反向不变量 | 仓库根 `CLAUDE.md`                                            |
+| 视觉规范 / 颜色 / 排版           | `frontend/DESIGN.md`                                          |
+| 协议 method 表 / envelope / 语义 | `docs/protocol/API.md` + `docs/protocol/AUX_API.md`           |
+| transport / handshake / 错误码   | `docs/protocol/TRANSPORT.md`                                  |
+| Host 全部接口                    | `src/plugins/sdk/types/host.ts`                               |
+| 协议 fold                        | `src/protocol/run/reducer.ts` + `builtin/agent/core-reducer/` |
+| 一个完整内置插件                 | `src/plugins/builtin/agent/rpc-agent/index.ts`                |
+| 会话生命周期                     | `src/state/useAgentSession.ts`                                |
+| 主题如何注册                     | `src/plugins/builtin/theme/kit/` + 任意 `theme/themes/*`      |
 
 ---
 

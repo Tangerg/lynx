@@ -8,7 +8,7 @@
 // only when: (a) a workspace view is active, (b) the command palette is closed,
 // (c) no editable input is focused (allowInInputs: false). This keeps it from
 // fighting the composer stop-run binding, the palette dismiss, chat-search
-// close, or any Radix overlay.
+// close, or any Base UI overlay.
 
 import { definePlugin, lookupExtensionByKey } from "@/plugins/sdk";
 import { COMMAND, SHORTCUT } from "@/plugins/sdk/kernelPoints";
@@ -52,7 +52,7 @@ export default definePlugin({
     //     focused (composer has its own Esc → stop-run binding).
     //   - palette state check → doesn't fire while the command palette is open
     //     (palette owns Esc for dismiss).
-    //   - Radix dialogs / dropdowns / popovers handle Esc internally and
+    //   - Base UI dialogs / menus / popovers handle Esc internally and
     //     typically stop propagation; those never reach this handler.
     host.extensions.contribute(SHORTCUT, {
       key: "Escape",

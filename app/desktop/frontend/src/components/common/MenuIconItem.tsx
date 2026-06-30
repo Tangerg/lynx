@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import * as ContextMenu from "@radix-ui/react-context-menu";
+import { Menu as BaseMenu } from "@base-ui/react/menu";
 import { cn } from "@/lib/utils";
 import { Icon, type IconName } from "./Icon";
 import { MENU_ITEM_CLASSES } from "./menuClasses";
@@ -19,8 +19,8 @@ export function MenuIconItem({
   children: ReactNode;
 }) {
   return (
-    <ContextMenu.Item
-      onSelect={onSelect}
+    <BaseMenu.Item
+      onClick={onSelect}
       className={cn(
         MENU_ITEM_CLASSES,
         "grid-cols-[14px_minmax(0,1fr)]",
@@ -30,6 +30,6 @@ export function MenuIconItem({
     >
       <Icon name={icon} size={12} />
       <span className="truncate">{children}</span>
-    </ContextMenu.Item>
+    </BaseMenu.Item>
   );
 }

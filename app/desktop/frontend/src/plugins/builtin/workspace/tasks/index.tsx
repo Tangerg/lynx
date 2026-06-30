@@ -3,9 +3,7 @@
 // listing each entry when the user clicks.
 
 import type { TaskEntry, TaskStatus } from "@/state/tasksStore";
-import * as Popover from "@radix-ui/react-popover";
-import * as Progress from "@radix-ui/react-progress";
-import { Icon } from "@/components/common";
+import { Icon, Popover as BasePopover, Progress as BaseProgress } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { useTasksStore } from "@/state/tasksStore";
@@ -41,19 +39,16 @@ function TaskRow({ task }: { task: TaskEntry }) {
       {task.error && (
         <div className="mt-0.5 pl-[18px] text-[11.5px] text-negative">{task.error}</div>
       )}
-      {/* Radix Progress → role=progressbar + aria-valuenow/max for SR.
-          Only rendered when `pct` is set, which excludes failed tasks,
-          so the fill is always the accent tone. */}
       {pct !== null && (
-        <Progress.Root
+        <BaseProgress.Root
           value={pct}
           className="mt-1.5 ml-[18px] h-1 overflow-hidden rounded-full bg-surface-3"
         >
-          <Progress.Indicator
+          <BaseProgress.Indicator
             className="h-full bg-accent transition-[width] duration-150"
             style={{ width: `${pct}%` }}
           />
-        </Progress.Root>
+        </BaseProgress.Root>
       )}
     </div>
   );
@@ -73,42 +68,41 @@ function TasksPill() {
   const label = running.length > 1 ? `${head.label} +${running.length - 1}` : head.label;
 
   return (
-    <Popover.Root>
-      <Popover.Trigger asChild>
-        <button
-          type="button"
-          aria-label={label}
-          title={running.length > 0 ? `${running.length} running task(s)` : "Recent tasks"}
-          className="relative grid h-6.5 w-6.5 place-items-center rounded-md border-0 bg-transparent text-fg-faint transition-[background,color] hover:bg-surface-2 hover:text-fg light:hover:bg-surface-3 active:scale-[0.92]"
-        >
-          <Icon
-            name={name}
-            size={14}
-            className={cn(tone, head.status === "running" && "animate-pulse-dot")}
-          />
-          {running.length > 0 && (
-            <span className="absolute -right-0.5 -top-0.5 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-accent px-0.5 font-mono text-[9px] font-semibold text-on-accent">
-              {running.length}
-            </span>
-          )}
-        </button>
-      </Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Content
-          side="top"
-          align="start"
-          sideOffset={6}
-          className="z-50 w-[320px] overflow-hidden rounded-lg border-0 bg-surface shadow-[var(--shadow-popover)]"
-        >
-          <div className="px-3 pt-2 pb-1 text-[10px] font-semibold text-fg-faint">Tasks</div>
-          <div className="max-h-[280px] overflow-y-auto">
-            {list.map((task) => (
-              <TaskRow key={task.id} task={task} />
-            ))}
-          </div>
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
+    <BasePopover.Root>
+      <BasePopover.Trigger
+        render={
+          <button
+            type="button"
+            aria-label={label}
+            title={running.length > 0 ? `${running.length} running task(s)` : "Recent tasks"}
+            className="relative grid h-6.5 w-6.5 place-items-center rounded-md border-0 bg-transparent text-fg-faint transition-[background,color] hover:bg-surface-2 hover:text-fg light:hover:bg-surface-3 active:scale-[0.92]"
+          >
+            <Icon
+              name={name}
+              size={14}
+              className={cn(tone, head.status === "running" && "animate-pulse-dot")}
+            />
+            {running.length > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-accent px-0.5 font-mono text-[9px] font-semibold text-on-accent">
+                {running.length}
+              </span>
+            )}
+          </button>
+        }
+      />
+      <BasePopover.Portal>
+        <BasePopover.Positioner side="top" align="start" sideOffset={6}>
+          <BasePopover.Popup className="z-50 w-[320px] overflow-hidden rounded-lg border-0 bg-surface shadow-[var(--shadow-popover)]">
+            <div className="px-3 pt-2 pb-1 text-[10px] font-semibold text-fg-faint">Tasks</div>
+            <div className="max-h-[280px] overflow-y-auto">
+              {list.map((task) => (
+                <TaskRow key={task.id} task={task} />
+              ))}
+            </div>
+          </BasePopover.Popup>
+        </BasePopover.Positioner>
+      </BasePopover.Portal>
+    </BasePopover.Root>
   );
 }
 

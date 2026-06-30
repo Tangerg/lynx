@@ -3,9 +3,8 @@
 // the right. Opens via Cmd+K → "View: Settings" or the sidebar-footer cog.
 
 import type { IconName } from "@/components/common";
-import * as Tabs from "@radix-ui/react-tabs";
 import { useEffect, useState } from "react";
-import { Icon, SectionLabel } from "@/components/common";
+import { Icon, SectionLabel, Tabs as BaseTabs } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
 import { useSettingsPanes } from "@/plugins/sdk";
@@ -62,46 +61,44 @@ export function SettingsPage() {
   })).filter((g) => g.panes.length > 0);
 
   return (
-    // Radix Tabs (vertical) → tablist/tab/tabpanel roles + arrow-key navigation
-    // for free. Controlled by the derived `activeId` so the first-pane fallback
-    // stays a pure derivation.
-    <Tabs.Root
+    <BaseTabs.Root
       orientation="vertical"
       value={activeId}
-      onValueChange={setSelectedId}
+      onValueChange={(value) => setSelectedId(value ? String(value) : undefined)}
       className="grid h-full w-full grid-cols-[236px_1fr] overflow-hidden"
     >
-      <Tabs.List
+      <BaseTabs.List
         className="flex flex-col gap-0.5 overflow-y-auto border-r border-divider bg-surface/45 px-3 py-8"
         aria-label={t("settings.title")}
+        activateOnFocus
       >
         {grouped.map((g) => (
           <div key={g.id} className="flex flex-col gap-0.5">
             <SectionLabel>{t(g.labelKey)}</SectionLabel>
             {g.panes.map((p) => (
-              <Tabs.Trigger
+              <BaseTabs.Tab
                 key={p.id}
                 value={p.id}
-                className="flex items-center gap-2.5 rounded-md border-0 bg-transparent px-3 py-2 text-left text-[13px] text-fg-muted transition-colors duration-150 hover:bg-fg/[0.04] hover:text-fg data-[state=active]:bg-fg/[0.055] data-[state=active]:text-fg"
+                className="flex items-center gap-2.5 rounded-md border-0 bg-transparent px-3 py-2 text-left text-[13px] text-fg-muted transition-colors duration-150 hover:bg-fg/[0.04] hover:text-fg data-[active]:bg-fg/[0.055] data-[active]:text-fg"
               >
                 {p.icon && <Icon name={p.icon as IconName} size={15} className="shrink-0" />}
                 <span className="truncate">{t(p.label)}</span>
-              </Tabs.Trigger>
+              </BaseTabs.Tab>
             ))}
           </div>
         ))}
-      </Tabs.List>
+      </BaseTabs.List>
       <div className="min-h-0 min-w-0 overflow-y-auto bg-canvas">
         <div className="mx-auto max-w-[920px] px-8 py-10">
           {panes.map((p) => (
-            <Tabs.Content key={p.id} value={p.id} className="outline-none">
+            <BaseTabs.Panel key={p.id} value={p.id} className="outline-none">
               <PluginBoundary plugin={`settings:${p.id}`}>
                 <p.component />
               </PluginBoundary>
-            </Tabs.Content>
+            </BaseTabs.Panel>
           ))}
         </div>
       </div>
-    </Tabs.Root>
+    </BaseTabs.Root>
   );
 }

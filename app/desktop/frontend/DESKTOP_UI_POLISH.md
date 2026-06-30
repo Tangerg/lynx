@@ -30,7 +30,7 @@ The key CSS shape from the article's image examples is:
 box-shadow:
   0 0 0 1px rgb(15 23 42 / 0.08),
   0 1px 2px rgb(15 23 42 / 0.06),
-  0 8px 24px rgb(15 23 42 / 0.10);
+  0 8px 24px rgb(15 23 42 / 0.1);
 ```
 
 For a stronger lifted surface:
@@ -102,7 +102,7 @@ Before merging UI polish work, inspect these points:
 - Does the UI rely on blur, opacity, or low contrast to feel "premium"?
 - Are primary labels clear enough on a neutral sidebar or panel surface?
 - Are hover states restrained and purposeful?
-- Are interactive controls keyboard/focus safe through Radix or existing common
+- Are interactive controls keyboard/focus safe through Base UI or existing common
   primitives?
 - Did the change preserve the plugin system boundary instead of reaching around
   registry/slots?
@@ -118,4 +118,3 @@ These are regressions:
 - increasing rounded corners to create perceived softness;
 - adding hover backgrounds to every button, text link, and list item;
 - styling a WebView like a marketing website instead of app chrome.
-

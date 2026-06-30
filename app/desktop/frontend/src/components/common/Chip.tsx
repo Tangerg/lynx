@@ -8,7 +8,7 @@ interface Props {
   icon?: IconName;
   children: ReactNode;
   /** Tooltip label shown on hover — useful when the chip's text is
-   *  truncated. Renders via Radix Tooltip rather than the native title
+   *  truncated. Renders via app Tooltip rather than the native title
    *  attribute (200ms snappier, works on focus). */
   title?: string;
   onClose?: () => void;
