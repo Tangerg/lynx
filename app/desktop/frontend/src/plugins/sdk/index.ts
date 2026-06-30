@@ -40,7 +40,7 @@ export type { WhenContext } from "./evalWhen";
 export { useNotificationStore } from "./notifications";
 // The registry store — imperative observation of contributions (subscribe /
 // getState). `normalizeCombo` + the toast-event contract stay internal to
-// `./registry` / `./host` (plugins don't need them — points normalize combos
+// `./registry` / `./hostToast` (plugins don't need them — points normalize combos
 // on contribute, and toasts go through `host.notify`).
 export { usePluginStore } from "./registry";
 
