@@ -105,15 +105,22 @@ describe("buildTokenMap", () => {
   it("dark scheme picks DARK_SHADOWS; light picks LIGHT_SHADOWS", () => {
     const dark = buildTokenMap(makeSpec({ scheme: "dark" }));
     const light = buildTokenMap(makeSpec({ scheme: "light" }));
+    expect(dark["shadow-surface"]).toBe(DARK_SHADOWS.surface);
     expect(dark["shadow-composer"]).toBe(DARK_SHADOWS.composer);
+    expect(dark["shadow-popover"]).toBe(DARK_SHADOWS.popover);
+    expect(light["shadow-surface"]).toBe(LIGHT_SHADOWS.surface);
     expect(light["shadow-composer"]).toBe(LIGHT_SHADOWS.composer);
+    expect(light["shadow-popover"]).toBe(LIGHT_SHADOWS.popover);
   });
 
   it("spec.shadows merges per-key over scheme defaults", () => {
-    const tokens = buildTokenMap(makeSpec({ shadows: { composer: "1px 1px red" } }));
-    expect(tokens["shadow-composer"]).toBe("1px 1px red");
+    const tokens = buildTokenMap(
+      makeSpec({ shadows: { surface: "0 0 red", popover: "2px 2px blue" } }),
+    );
+    expect(tokens["shadow-surface"]).toBe("0 0 red");
+    expect(tokens["shadow-popover"]).toBe("2px 2px blue");
     // Other shadows still come from DARK defaults.
-    expect(tokens["shadow-elevated"]).toBe(DARK_SHADOWS.elevated);
+    expect(tokens["shadow-composer"]).toBe(DARK_SHADOWS.composer);
   });
 
   it("spec.radii merges per-key over DEFAULT_RADII", () => {

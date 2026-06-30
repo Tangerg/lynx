@@ -133,7 +133,7 @@ export function Composer({
         if (!acceptsImages) return; // text-only model — toolbar attach is disabled too
         onAddImages(files);
       }}
-      className="relative rounded-xl border border-line bg-surface/[0.92] px-4 py-3 shadow-[var(--shadow-composer)] backdrop-blur-md transition-colors duration-150 focus-within:border-line-soft"
+      className="relative rounded-lg border-0 bg-surface px-4 py-3 shadow-[var(--shadow-composer)] transition-shadow duration-150 focus-within:shadow-[var(--shadow-composer),0_0_0_2px_color-mix(in_srgb,var(--color-accent)_24%,transparent)]"
       data-slot="composer-root"
     >
       {mentions.active && (

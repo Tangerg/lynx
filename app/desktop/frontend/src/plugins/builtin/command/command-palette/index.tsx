@@ -51,10 +51,10 @@ function CommandPalette() {
       open={open}
       onOpenChange={setOpen}
       label={t("commandPalette.label")}
-      className="fixed inset-0 z-50 flex items-start justify-center p-24 [&_[cmdk-overlay]]:fixed [&_[cmdk-overlay]]:inset-0 [&_[cmdk-overlay]]:bg-black/40 [&_[cmdk-overlay]]:backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-start justify-center p-24 [&_[cmdk-overlay]]:fixed [&_[cmdk-overlay]]:inset-0 [&_[cmdk-overlay]]:bg-black/35"
     >
-      <Command className="animate-rise-in relative z-[1] flex w-full max-w-[640px] flex-col overflow-hidden rounded-lg border border-line-soft bg-surface shadow-[var(--shadow-elevated)]">
-        <div className="flex items-center gap-2 border-b border-line-soft px-4 py-3 text-fg-faint">
+      <Command className="animate-rise-in relative z-[1] flex w-full max-w-[640px] flex-col overflow-hidden rounded-lg border-0 bg-surface shadow-[var(--shadow-popover)]">
+        <div className="flex items-center gap-2 px-4 py-3 text-fg-faint shadow-[inset_0_-1px_0_var(--color-divider)]">
           <Icon name="search" size={14} />
           <Command.Input
             placeholder={t("commandPalette.placeholder")}

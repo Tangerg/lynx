@@ -10,20 +10,21 @@ import type { ThemeCta, ThemePluginSpec, ThemeRadii, ThemeShadows } from "./type
 // Default shadow + radii ladders
 
 export const DARK_SHADOWS: ThemeShadows = {
-  composer: "0 2px 2px rgba(0, 0, 0, 0.4)",
-  // Geist elevation: subtle 3-layer (contact + ambient), no hairline edge —
-  // the translucent border (gray-alpha) defines the edge, shadow adds depth.
-  elevated:
-    "0 1px 1px rgba(0, 0, 0, 0.3), 0 4px 8px -4px rgba(0, 0, 0, 0.4), 0 16px 24px -8px rgba(0, 0, 0, 0.5)",
+  surface: "0 0 0 1px rgba(255, 255, 255, 0.08), 0 1px 2px rgba(0, 0, 0, 0.32)",
+  composer:
+    "0 0 0 1px rgba(255, 255, 255, 0.08), 0 1px 2px rgba(0, 0, 0, 0.36), 0 18px 48px rgba(0, 0, 0, 0.42)",
+  popover:
+    "0 0 0 1px rgba(255, 255, 255, 0.1), 0 1px 2px rgba(0, 0, 0, 0.36), 0 12px 32px rgba(0, 0, 0, 0.44)",
   // Geist two-layer focus ring: 2px gap in surface color + 2px accent.
   focus: "0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent)",
 };
 
 export const LIGHT_SHADOWS: ThemeShadows = {
-  composer: "0 2px 2px rgba(0, 0, 0, 0.04)",
-  // Geist light popover shadow (Vercel design.md): very subtle alphas.
-  elevated:
-    "0 1px 1px rgba(0, 0, 0, 0.02), 0 4px 8px -4px rgba(0, 0, 0, 0.04), 0 16px 24px -8px rgba(0, 0, 0, 0.06)",
+  surface: "0 0 0 1px rgb(15 23 42 / 0.06), 0 1px 2px rgb(15 23 42 / 0.04)",
+  composer:
+    "0 0 0 1px rgb(15 23 42 / 0.08), 0 1px 2px rgb(15 23 42 / 0.06), 0 18px 48px rgb(15 23 42 / 0.12)",
+  popover:
+    "0 0 0 1px rgb(15 23 42 / 0.08), 0 1px 2px rgb(15 23 42 / 0.06), 0 8px 24px rgb(15 23 42 / 0.1)",
   focus: "0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent)",
 };
 
@@ -122,9 +123,10 @@ export function buildTokenMap(spec: ThemePluginSpec): Record<string, string> {
     "color-cta-hover": cta.ctaHover,
     "color-cta-text": cta.ctaText,
 
-    // Shadows — 3 canonical tokens (REDESIGN.md §3.4).
+    // Shadows — semantic surface/elevation tokens.
+    "shadow-surface": shadows.surface,
     "shadow-composer": shadows.composer,
-    "shadow-elevated": shadows.elevated,
+    "shadow-popover": shadows.popover,
     "shadow-focus": shadows.focus,
 
     // Radii

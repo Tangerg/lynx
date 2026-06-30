@@ -6,7 +6,7 @@
 
 import type { IconName } from "@/components/common";
 import type { CommandSpec } from "@/plugins/sdk";
-import { Icon } from "@/components/common";
+import { Icon, Tooltip } from "@/components/common";
 import { useProviders } from "@/lib/data/queries";
 import { useT } from "@/lib/i18n";
 import { definePlugin, useCommands } from "@/plugins/sdk";
@@ -68,7 +68,7 @@ function SetupCard() {
     });
   };
   return (
-    <div className="w-full rounded-md border border-line bg-surface/70 px-4 py-4 text-left shadow-[0_1px_2px_var(--color-divider)]">
+    <div className="w-full rounded-md border-0 bg-surface px-4 py-4 text-left shadow-[var(--shadow-surface)]">
       <div className="flex items-start gap-3">
         <Icon name="spark" size={16} className="mt-0.5 shrink-0 text-accent" />
         <div className="flex flex-col items-start gap-2">
@@ -109,23 +109,16 @@ function WelcomeScreen() {
         <>
           <div className="grid w-full grid-cols-2 gap-3 lg:grid-cols-4">
             {SUGGESTIONS.map((s) => (
-              <button
-                key={s.labelKey}
-                type="button"
-                onClick={() => setValue(t(s.promptKey))}
-                // Native tooltip shows the actual prompt prefix that lands in
-                // the composer, so the user can preview what the suggestion
-                // will do (the visible label is intentionally short).
-                title={t(s.promptKey)}
-                className="group inline-flex items-center gap-2.5 rounded-md border border-line bg-surface/70 px-4 py-4 text-left font-sans text-[14px] font-medium text-fg-soft shadow-[0_1px_2px_var(--color-divider)] transition-[background,border-color,color,transform] duration-150 hover:bg-surface hover:text-fg active:scale-[0.98]"
-              >
-                <Icon
-                  name={s.icon}
-                  size={14}
-                  className="shrink-0 text-fg-faint group-hover:text-fg"
-                />
-                <span>{t(s.labelKey)}</span>
-              </button>
+              <Tooltip key={s.labelKey} label={t(s.promptKey)} side="bottom">
+                <button
+                  type="button"
+                  onClick={() => setValue(t(s.promptKey))}
+                  className="inline-flex items-center gap-2.5 rounded-md border-0 bg-surface px-4 py-4 text-left font-sans text-[14px] font-medium text-fg-soft shadow-[var(--shadow-surface)] transition-transform duration-150 active:scale-[0.98]"
+                >
+                  <Icon name={s.icon} size={14} className="shrink-0 text-fg-muted" />
+                  <span>{t(s.labelKey)}</span>
+                </button>
+              </Tooltip>
             ))}
           </div>
           {hints.length > 0 && (
