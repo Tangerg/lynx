@@ -2,11 +2,12 @@ import type { ComponentProps, ReactNode } from "react";
 import { ContextMenu as BaseContextMenu } from "@base-ui/react/context-menu";
 import { Menu as BaseMenu } from "@base-ui/react/menu";
 import { cn } from "@/lib/utils";
+import { Icon, type IconName } from "./Icon";
 
-export const MENU_CONTENT_CLASSES =
+const MENU_CONTENT_CLASSES =
   "z-50 overflow-hidden rounded-md border-0 bg-surface p-1 shadow-[var(--shadow-popover)] animate-rise-in";
 
-export const MENU_ITEM_CLASSES =
+const MENU_ITEM_CLASSES =
   "grid items-center gap-2 rounded-sm px-2.5 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg";
 
 const MENU_SEPARATOR_CLASSES = "mx-1 my-1 h-px bg-line-soft/40";
@@ -30,6 +31,18 @@ type DropdownContentProps = FloatingContentProps &
 
 type ContextContentProps = FloatingContentProps &
   Omit<ContextPopupProps, keyof FloatingContentProps | "className">;
+
+type DropdownItemProps = ComponentProps<typeof BaseMenu.Item>;
+type DropdownSubmenuTriggerProps = ComponentProps<typeof BaseMenu.SubmenuTrigger>;
+type ContextItemProps = ComponentProps<typeof BaseContextMenu.Item>;
+type ContextSubmenuTriggerProps = ComponentProps<typeof BaseContextMenu.SubmenuTrigger>;
+
+interface ContextIconItemProps extends Omit<ContextItemProps, "children" | "onClick" | "onSelect"> {
+  icon: IconName;
+  onSelect: () => void;
+  destructive?: boolean;
+  children: ReactNode;
+}
 
 function DropdownContent({
   children,
@@ -96,24 +109,64 @@ function ContextSeparator({
   return <BaseContextMenu.Separator {...props} className={cn(MENU_SEPARATOR_CLASSES, className)} />;
 }
 
-export const MenuItem = BaseMenu.Item;
+function DropdownItem({ className, ...props }: DropdownItemProps) {
+  return <BaseMenu.Item {...props} className={cn(MENU_ITEM_CLASSES, className)} />;
+}
+
+function DropdownSubmenuTrigger({ className, ...props }: DropdownSubmenuTriggerProps) {
+  return <BaseMenu.SubmenuTrigger {...props} className={cn(MENU_ITEM_CLASSES, className)} />;
+}
+
+function ContextItem({ className, ...props }: ContextItemProps) {
+  return <BaseContextMenu.Item {...props} className={cn(MENU_ITEM_CLASSES, className)} />;
+}
+
+function ContextSubmenuTrigger({ className, ...props }: ContextSubmenuTriggerProps) {
+  return <BaseContextMenu.SubmenuTrigger {...props} className={cn(MENU_ITEM_CLASSES, className)} />;
+}
+
+function ContextIconItem({
+  icon,
+  onSelect,
+  destructive,
+  children,
+  className,
+  ...props
+}: ContextIconItemProps) {
+  return (
+    <ContextItem
+      {...props}
+      onClick={onSelect}
+      className={cn(
+        "grid-cols-[14px_minmax(0,1fr)]",
+        destructive &&
+          "text-negative data-[highlighted]:bg-negative/10 data-[highlighted]:text-negative",
+        className,
+      )}
+    >
+      <Icon name={icon} size={12} />
+      <span className="truncate">{children}</span>
+    </ContextItem>
+  );
+}
 
 export const DropdownMenu = {
   Root: BaseMenu.Root,
   Trigger: BaseMenu.Trigger,
   Content: DropdownContent,
-  Item: BaseMenu.Item,
+  Item: DropdownItem,
   Separator: DropdownSeparator,
   SubmenuRoot: BaseMenu.SubmenuRoot,
-  SubmenuTrigger: BaseMenu.SubmenuTrigger,
+  SubmenuTrigger: DropdownSubmenuTrigger,
 } as const;
 
 export const ContextMenu = {
   Root: BaseContextMenu.Root,
   Trigger: BaseContextMenu.Trigger,
   Content: ContextContent,
-  Item: BaseContextMenu.Item,
+  Item: ContextItem,
+  IconItem: ContextIconItem,
   Separator: ContextSeparator,
   SubmenuRoot: BaseContextMenu.SubmenuRoot,
-  SubmenuTrigger: BaseContextMenu.SubmenuTrigger,
+  SubmenuTrigger: ContextSubmenuTrigger,
 } as const;

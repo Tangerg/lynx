@@ -12,7 +12,7 @@
 
 import type { Message } from "@/protocol/run/viewState";
 import type { ReactElement, ReactNode } from "react";
-import { ContextMenu, Icon, MENU_ITEM_CLASSES, MenuIconItem } from "@/components/common";
+import { ContextMenu, Icon } from "@/components/common";
 import {
   editAndRerunMessage,
   editMessageInComposer,
@@ -24,7 +24,6 @@ import { flattenCode, flattenMarkdown, flattenText } from "@/lib/agent/messageCo
 import { writeToClipboard } from "@/lib/clipboard";
 import { useT } from "@/lib/i18n";
 import { serverFeature } from "@/state/runtimeStore";
-import { cn } from "@/lib/utils";
 
 interface Props {
   msg: Message;
@@ -49,7 +48,7 @@ export function MessageContextMenu({ msg, children }: Props) {
       <ContextMenu.Trigger render={children as ReactElement} />
       <ContextMenu.Content className="min-w-[180px]">
         {canCopy && (
-          <MenuIconItem
+          <ContextMenu.IconItem
             icon="copy"
             onSelect={() =>
               void writeToClipboard(markdown || plain, {
@@ -58,59 +57,57 @@ export function MessageContextMenu({ msg, children }: Props) {
             }
           >
             {t("msgActions.copyMarkdown")}
-          </MenuIconItem>
+          </ContextMenu.IconItem>
         )}
         {plain && (
-          <MenuIconItem
+          <ContextMenu.IconItem
             icon="copy"
             onSelect={() =>
               void writeToClipboard(plain, { successLabel: t("msgActions.copiedPlain") })
             }
           >
             {t("msgActions.copyPlain")}
-          </MenuIconItem>
+          </ContextMenu.IconItem>
         )}
         {code && (
-          <MenuIconItem
+          <ContextMenu.IconItem
             icon="code"
             onSelect={() =>
               void writeToClipboard(code, { successLabel: t("msgActions.copiedCode") })
             }
           >
             {t("msgActions.copyCode")}
-          </MenuIconItem>
+          </ContextMenu.IconItem>
         )}
         {isUser && plain && (
           <>
             <Separator />
-            <MenuIconItem icon="edit" onSelect={() => editMessageInComposer(msg)}>
+            <ContextMenu.IconItem icon="edit" onSelect={() => editMessageInComposer(msg)}>
               {t("msgActions.editInComposer")}
-            </MenuIconItem>
+            </ContextMenu.IconItem>
             {/* Destructive variant: rewinds history to before this turn
                   (sessions.rollback), then prefills the composer. */}
             {msg.runId && (
-              <MenuIconItem icon="loop" onSelect={() => editAndRerunMessage(msg)}>
+              <ContextMenu.IconItem icon="loop" onSelect={() => editAndRerunMessage(msg)}>
                 {t("msgActions.editRerun")}
-              </MenuIconItem>
+              </ContextMenu.IconItem>
             )}
             {/* Same rewind, but also restores the working tree to the
                   pre-turn shadow-git checkpoint (restoreType:"both"). */}
             {msg.runId && canRestoreFiles && (
-              <MenuIconItem
+              <ContextMenu.IconItem
                 icon="history"
                 onSelect={() => editAndRerunMessage(msg, { restoreFiles: true })}
               >
                 {t("msgActions.editRerunRestore")}
-              </MenuIconItem>
+              </ContextMenu.IconItem>
             )}
             {/* Pure restore (no resend, unlike Edit & rerun): rewind to the
                   state BEFORE this turn and stop. Conversation-only always; the
                   file/both variants need the pre-turn shadow-git snapshot. */}
             {msg.runId && (
               <ContextMenu.SubmenuRoot>
-                <ContextMenu.SubmenuTrigger
-                  className={cn(MENU_ITEM_CLASSES, "grid-cols-[14px_minmax(0,1fr)_12px]")}
-                >
+                <ContextMenu.SubmenuTrigger className="grid-cols-[14px_minmax(0,1fr)_12px]">
                   <Icon name="history" size={12} />
                   <span className="truncate">{t("msgActions.restore")}</span>
                   <Icon name="chevron-down" size={12} className="-rotate-90 text-fg-faint" />
@@ -122,18 +119,27 @@ export function MessageContextMenu({ msg, children }: Props) {
                   alignOffset={-4}
                   className="min-w-[170px]"
                 >
-                  <MenuIconItem icon="skip-back" onSelect={() => restoreCheckpoint(msg, "history")}>
+                  <ContextMenu.IconItem
+                    icon="skip-back"
+                    onSelect={() => restoreCheckpoint(msg, "history")}
+                  >
                     {t("msgActions.restoreConversation")}
-                  </MenuIconItem>
+                  </ContextMenu.IconItem>
                   {canRestoreFiles && (
-                    <MenuIconItem icon="folder" onSelect={() => restoreCheckpoint(msg, "files")}>
+                    <ContextMenu.IconItem
+                      icon="folder"
+                      onSelect={() => restoreCheckpoint(msg, "files")}
+                    >
                       {t("msgActions.restoreFiles")}
-                    </MenuIconItem>
+                    </ContextMenu.IconItem>
                   )}
                   {canRestoreFiles && (
-                    <MenuIconItem icon="history" onSelect={() => restoreCheckpoint(msg, "both")}>
+                    <ContextMenu.IconItem
+                      icon="history"
+                      onSelect={() => restoreCheckpoint(msg, "both")}
+                    >
                       {t("msgActions.restoreBoth")}
-                    </MenuIconItem>
+                    </ContextMenu.IconItem>
                   )}
                 </ContextMenu.Content>
               </ContextMenu.SubmenuRoot>
@@ -141,25 +147,25 @@ export function MessageContextMenu({ msg, children }: Props) {
             {/* Non-destructive sibling of Edit & rerun: branch a new
                   session that keeps history through this exchange. */}
             {msg.runId && (
-              <MenuIconItem icon="branch" onSelect={() => forkFromMessage(msg)}>
+              <ContextMenu.IconItem icon="branch" onSelect={() => forkFromMessage(msg)}>
                 {t("msgActions.fork")}
-              </MenuIconItem>
+              </ContextMenu.IconItem>
             )}
           </>
         )}
         {isAssistant && (
           <>
             <Separator />
-            <MenuIconItem icon="loop" onSelect={() => regenerateMessage(msg)}>
+            <ContextMenu.IconItem icon="loop" onSelect={() => regenerateMessage(msg)}>
               {t("msgActions.regenerate")}
-            </MenuIconItem>
+            </ContextMenu.IconItem>
             {canRestoreFiles && (
-              <MenuIconItem
+              <ContextMenu.IconItem
                 icon="history"
                 onSelect={() => regenerateMessage(msg, { restoreFiles: true })}
               >
                 {t("msgActions.regenerateRestore")}
-              </MenuIconItem>
+              </ContextMenu.IconItem>
             )}
           </>
         )}

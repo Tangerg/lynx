@@ -2,9 +2,8 @@
 // segmented control). The binary preference rows (message / streaming style)
 // live with their only consumer, the Personalization pane.
 
-import { DropdownMenu, Icon, MENU_ITEM_CLASSES } from "@/components/common";
+import { DropdownMenu, Icon } from "@/components/common";
 import { setLocale, useLocale, useT } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
 import { LOCALE, useExtensionPoint } from "@/plugins/sdk";
 import { SettingRow } from "../SettingRow";
 
@@ -35,7 +34,7 @@ export function LanguageSection() {
             <DropdownMenu.Item
               key={l.id}
               onClick={() => setLocale(l.id)}
-              className={cn(MENU_ITEM_CLASSES, "grid-cols-[minmax(0,1fr)_12px]")}
+              className="grid-cols-[minmax(0,1fr)_12px]"
             >
               <span className="truncate">{l.label}</span>
               {locale === l.id ? (
