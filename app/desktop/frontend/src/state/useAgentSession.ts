@@ -23,6 +23,7 @@ import { getContainer } from "@/main/container";
 import { queryClient } from "@/lib/data/queryClient";
 import { USAGE_SESSION_KEY } from "@/lib/data/useUsage";
 import { useAgentStore, type FoldEvent } from "./agentStore";
+import { createRunEventBatcher } from "./runEventBatcher";
 import { useSessionStore } from "./sessionStore";
 
 // Owns the agent driver lifecycle for one session: build the driver, expose
@@ -66,60 +67,20 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     // in that race — it'll hydrate cleanly on the next open.
     let interacted = false;
 
-    // Per-session rAF batcher. A run streams many item.delta events per
-    // second; without batching each one triggers a store.set + React
-    // commit. Coalescing into one flush per animation frame caps that at
-    // ~1 commit per frame without changing perceived token latency.
-    let queue: FoldEvent[] = [];
-    let raf: number | null = null;
-    // The queue is stamped with the view epoch it was filled under. An
-    // external resetView (sessions.rollback re-hydration) bumps the epoch;
-    // a flush scheduled BEFORE the reset must drop its batch — otherwise
-    // the old run's tail events would append below the rebuilt history.
-    const epochOf = () => store().sessions[sessionId]?.viewEpoch ?? 0;
-    let queueEpoch = epochOf();
-    const flush = () => {
-      raf = null;
-      if (cancelled || queue.length === 0) return;
-      const batch = queue;
-      queue = [];
-      if (epochOf() !== queueEpoch) {
-        queueEpoch = epochOf();
-        return; // stale batch from before a view reset
-      }
-      store().applyEvents(sessionId, batch);
-      // A finished run changed this session's durable metering — refetch its
-      // cumulative usage chip, on the authoritative wire signal rather than an
-      // active-session running-flag transition. Fires only for a session whose
-      // stream is live here (the active one, or one re-subscribed on return); a
-      // run that finishes while its session is purely backgrounded has no live
-      // subscription, so its chip refreshes on the next visit, not instantly.
-      // Ordering note: the server
-      // persists the run blob AFTER it appends run.finished to the hub (pump
-      // reorder), but that persist is a sub-ms local DB write that completes long
-      // before this invalidate's usage.session HTTP refetch round-trips back to
-      // the server — so the refetch reads the finished run. If it ever lost that
-      // race, the next refetch (staleTime / a later run) heals it.
-      if (batch.some((e) => e.event.type === "run.finished")) {
+    const eventBatcher = createRunEventBatcher({
+      readEpoch: () => store().sessions[sessionId]?.viewEpoch ?? 0,
+      apply: (batch) => store().applyEvents(sessionId, batch),
+      onRunFinished: () => {
         void queryClient.invalidateQueries({ queryKey: [USAGE_SESSION_KEY, sessionId] });
-      }
-    };
-    const enqueue = (event: RunEvent["event"], runId?: string) => {
-      const epoch = epochOf();
-      if (epoch !== queueEpoch) {
-        queue = []; // events queued before the reset are stale too
-        queueEpoch = epoch;
-      }
-      queue.push({ event, runId });
-      if (raf === null) raf = requestAnimationFrame(flush);
-    };
+      },
+    });
 
     const pump = async (stream: StreamingResult<{ runId: RunId }, RunEvent>): Promise<void> => {
       currentRunId = stream.result.runId;
       try {
         for await (const ev of stream.events) {
           if (cancelled) break;
-          enqueue(ev.event, ev.runId);
+          eventBatcher.enqueue(ev.event, ev.runId);
         }
       } catch (err) {
         if (!cancelled) console.error("[agent] run stream failed:", sessionId, err);
@@ -353,7 +314,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
 
     return () => {
       cancelled = true;
-      if (raf !== null) cancelAnimationFrame(raf);
+      eventBatcher.dispose();
       abort?.abort();
       store().setSend(sessionId, null);
       store().setStop(sessionId, null);
