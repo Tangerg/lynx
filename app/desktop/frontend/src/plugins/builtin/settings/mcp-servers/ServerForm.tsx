@@ -1,14 +1,6 @@
-// Add / edit form for one MCP server. Transport segmented control switches the
-// dynamic field set: stdio = command + args (one per line) + env (KEY=value per
-// line) + dir; http = url + authorization (password, "leave blank to keep") +
-// headers (KEY=value per line). A shared timeout (seconds) applies to both.
-// Save → configure; Test → live probe with an inline ok/err chip; Delete on an
-// existing server. Mirrors the providers pane's save/test/probe-token flow.
-
 import type { MCPServerConfigInfo, MCPTransport } from "@/lib/data/queries";
-import type { ConfigureMCPServerRequest } from "@/rpc";
 import { useRef, useState } from "react";
-import { Icon, INPUT_FOCUS_RING, PillButton, Segmented } from "@/components/common";
+import { Icon, PillButton, Segmented } from "@/components/common";
 import {
   useConfigureMCPServer,
   useRemoveMCPServer,
@@ -16,84 +8,19 @@ import {
 } from "@/lib/agent/useMCPServerConfig";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
+import { FIELD, LinesField } from "./ServerFormFields";
+import {
+  type ServerFormDraft,
+  initialServerFormDraft,
+  isServerFormDraftValid,
+  serverFormRequest,
+} from "./serverFormWire";
 import { ToolControls } from "./ToolControls";
 
 type Probe = { state: "idle" | "busy" } | { state: "ok" } | { state: "error"; reason: string };
 
-const FIELD = cn(
-  "h-8 w-full rounded-md border border-line-soft bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint",
-  INPUT_FOCUS_RING,
-);
-const AREA = cn(
-  "w-full resize-y rounded-md border border-line-soft bg-surface px-2.5 py-1.5 font-mono text-[12px] leading-[1.5] text-fg outline-none placeholder:text-fg-faint",
-  INPUT_FOCUS_RING,
-);
-
-function linesToList(text: string): string[] | undefined {
-  const list = text
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-  return list.length ? list : undefined;
-}
-
-// linesToMap parses "KEY=value" lines (env / headers) into a map, splitting on
-// the FIRST '=' so a value may contain '='. Blank lines are skipped; a line with
-// no '=' becomes a bare key. Empty → undefined (omit from the wire).
-function linesToMap(text: string): Record<string, string> | undefined {
-  const out: Record<string, string> = {};
-  for (const raw of text.split("\n")) {
-    const line = raw.trim();
-    if (!line) continue;
-    const i = line.indexOf("=");
-    if (i === -1) out[line] = "";
-    else out[line.slice(0, i)] = line.slice(i + 1);
-  }
-  return Object.keys(out).length ? out : undefined;
-}
-
-// mapToLines renders a KEY→value map back to "KEY=value" lines for the editor.
-function mapToLines(m: Record<string, string> | undefined): string {
-  return m
-    ? Object.entries(m)
-        .map(([k, v]) => `${k}=${v}`)
-        .join("\n")
-    : "";
-}
-
-// LinesField is a labeled multi-line text field — the shared shape of the args /
-// env / headers editors (one entry per line). The label doubles as the aria
-// label since each is self-describing.
-function LinesField({
-  label,
-  value,
-  onChange,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-}) {
-  return (
-    <label className="flex flex-col gap-1 text-[11px] text-fg-muted">
-      {label}
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        rows={2}
-        aria-label={label}
-        placeholder={placeholder}
-        className={AREA}
-      />
-    </label>
-  );
-}
-
 interface Props {
-  /** Existing server to edit, or undefined for the "add server" form. */
   server?: MCPServerConfigInfo;
-  /** Called after a successful save / delete so the parent can collapse. */
   onDone: () => void;
   onCancel: () => void;
 }
@@ -105,71 +32,21 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
   const test = useTestMCPServer();
   const isEdit = server !== undefined;
 
-  const [name, setName] = useState(server?.name ?? "");
-  const [transport, setTransport] = useState<MCPTransport>(server?.type ?? "stdio");
-  const [description, setDescription] = useState(server?.description ?? "");
-  // stdio
-  const [command, setCommand] = useState(server?.command ?? "");
-  const [args, setArgs] = useState((server?.args ?? []).join("\n"));
-  const [env, setEnv] = useState(mapToLines(server?.env));
-  const [dir, setDir] = useState(server?.dir ?? "");
-  // http
-  const [url, setUrl] = useState(server?.url ?? "");
-  const [authorization, setAuthorization] = useState("");
-  const [headers, setHeaders] = useState(mapToLines(server?.headers));
-  // Connection-handshake timeout in seconds (both transports); "" = unbounded.
-  // Named *Sec to avoid shadowing the global setTimeout.
-  const [timeoutSec, setTimeoutSec] = useState(
-    server?.timeoutSeconds ? String(server.timeoutSeconds) : "",
-  );
-  // Per-tool gating (edited via ToolControls for an existing server). Sparse:
-  // an absent tool = enabled + not auto-approved.
-  const [disabledTools, setDisabledTools] = useState<string[]>(server?.disabledTools ?? []);
-  const [autoApproveTools, setAutoApproveTools] = useState<string[]>(
-    server?.autoApproveTools ?? [],
-  );
+  const [draft, setDraft] = useState<ServerFormDraft>(() => initialServerFormDraft(server));
 
   const [saving, setSaving] = useState(false);
   const [probe, setProbe] = useState<Probe>({ state: "idle" });
-  // Same monotonic guard as the providers pane: a Test against an old field set
-  // can resolve after a Save reset the form — the token discards stale results.
   const probeSeq = useRef(0);
 
   const hasAuthStored = (server?.authorizationMasked ?? "") !== "";
 
-  const buildRequest = (): ConfigureMCPServerRequest => {
-    const secs = parseInt(timeoutSec, 10);
-    const base: ConfigureMCPServerRequest = {
-      name: name.trim(),
-      type: transport,
-      enabled: server?.enabled ?? true,
-      description: description.trim() || undefined,
-      timeoutSeconds: Number.isFinite(secs) && secs > 0 ? secs : undefined,
-      // Per-tool gating, edited below via ToolControls (existing server only).
-      // Sparse — omit empty lists so the wire carries only non-default entries.
-      disabledTools: disabledTools.length ? disabledTools : undefined,
-      autoApproveTools: autoApproveTools.length ? autoApproveTools : undefined,
-    };
-    if (transport === "stdio") {
-      return {
-        ...base,
-        command: command.trim() || undefined,
-        args: linesToList(args),
-        env: linesToMap(env),
-        dir: dir.trim() || undefined,
-      };
-    }
-    return {
-      ...base,
-      url: url.trim() || undefined,
-      // Empty = keep the stored token (the runtime treats omitted as "keep").
-      authorization: authorization.trim() || undefined,
-      headers: linesToMap(headers),
-    };
+  const updateDraft = <K extends keyof ServerFormDraft>(key: K, value: ServerFormDraft[K]) => {
+    setDraft((current) => ({ ...current, [key]: value }));
   };
 
-  const valid =
-    name.trim() !== "" && (transport === "stdio" ? command.trim() !== "" : url.trim() !== "");
+  const buildRequest = () => serverFormRequest(draft, server);
+
+  const valid = isServerFormDraftValid(draft);
 
   const onSave = async () => {
     setSaving(true);
@@ -225,50 +102,50 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
         <input
           type="text"
           aria-label={t("mcp.form.name.aria")}
-          value={name}
+          value={draft.name}
           disabled={isEdit}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => updateDraft("name", e.target.value)}
           placeholder={t("mcp.form.name.placeholder")}
           className={cn(FIELD, isEdit && "cursor-not-allowed opacity-60")}
         />
         <Segmented<MCPTransport>
-          value={transport}
+          value={draft.transport}
           options={[
             { value: "stdio", label: t("mcp.transport.stdio") },
             { value: "streamableHttp", label: t("mcp.transport.http") },
           ]}
-          onChange={setTransport}
+          onChange={(value) => updateDraft("transport", value)}
           ariaLabel={t("mcp.form.transport.aria")}
         />
       </div>
 
-      {transport === "stdio" ? (
+      {draft.transport === "stdio" ? (
         <>
           <input
             type="text"
             aria-label={t("mcp.form.command.aria")}
-            value={command}
-            onChange={(e) => setCommand(e.target.value)}
+            value={draft.command}
+            onChange={(e) => updateDraft("command", e.target.value)}
             placeholder={t("mcp.form.command.placeholder")}
             className={FIELD}
           />
           <LinesField
             label={t("mcp.form.args")}
-            value={args}
-            onChange={setArgs}
+            value={draft.args}
+            onChange={(value) => updateDraft("args", value)}
             placeholder={t("mcp.form.args.placeholder")}
           />
           <LinesField
             label={t("mcp.form.env")}
-            value={env}
-            onChange={setEnv}
+            value={draft.env}
+            onChange={(value) => updateDraft("env", value)}
             placeholder={t("mcp.form.env.placeholder")}
           />
           <input
             type="text"
             aria-label={t("mcp.form.dir.aria")}
-            value={dir}
-            onChange={(e) => setDir(e.target.value)}
+            value={draft.dir}
+            onChange={(e) => updateDraft("dir", e.target.value)}
             placeholder={t("mcp.form.dir.placeholder")}
             className={FIELD}
           />
@@ -278,23 +155,23 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
           <input
             type="text"
             aria-label={t("mcp.form.url.aria")}
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
+            value={draft.url}
+            onChange={(e) => updateDraft("url", e.target.value)}
             placeholder={t("mcp.form.url.placeholder")}
             className={FIELD}
           />
           <input
             type="password"
             aria-label={t("mcp.form.auth.aria")}
-            value={authorization}
-            onChange={(e) => setAuthorization(e.target.value)}
+            value={draft.authorization}
+            onChange={(e) => updateDraft("authorization", e.target.value)}
             placeholder={hasAuthStored ? t("mcp.form.auth.keep") : t("mcp.form.auth.placeholder")}
             className={FIELD}
           />
           <LinesField
             label={t("mcp.form.headers")}
-            value={headers}
-            onChange={setHeaders}
+            value={draft.headers}
+            onChange={(value) => updateDraft("headers", value)}
             placeholder={t("mcp.form.headers.placeholder")}
           />
         </>
@@ -307,8 +184,8 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
           min={0}
           inputMode="numeric"
           aria-label={t("mcp.form.timeout")}
-          value={timeoutSec}
-          onChange={(e) => setTimeoutSec(e.target.value)}
+          value={draft.timeoutSec}
+          onChange={(e) => updateDraft("timeoutSec", e.target.value)}
           placeholder={t("mcp.form.timeout.placeholder")}
           className={cn(FIELD, "tabular-nums")}
         />
@@ -317,8 +194,8 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
       <input
         type="text"
         aria-label={t("mcp.form.description.aria")}
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
+        value={draft.description}
+        onChange={(e) => updateDraft("description", e.target.value)}
         placeholder={t("mcp.form.description.placeholder")}
         className={FIELD}
       />
@@ -328,11 +205,10 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
           <span className="text-[11px] text-fg-muted">{t("mcp.tools.manage")}</span>
           <ToolControls
             server={server.name}
-            disabledTools={disabledTools}
-            autoApproveTools={autoApproveTools}
+            disabledTools={draft.disabledTools}
+            autoApproveTools={draft.autoApproveTools}
             onChange={(next) => {
-              setDisabledTools(next.disabledTools);
-              setAutoApproveTools(next.autoApproveTools);
+              setDraft((current) => ({ ...current, ...next }));
             }}
           />
         </div>
