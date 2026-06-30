@@ -16,16 +16,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 )
 
-// firstNonEmptyStr returns the first non-empty argument, or "".
-func firstNonEmptyStr(vals ...string) string {
-	for _, v := range vals {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
-}
-
 // turnObserver bridges the engine's tool observer to the turn's event
 // channel. Each Approve / Start / End notification is translated into a
 // ToolCallStart / ToolCallEnd event so transport adapters surface them
@@ -73,76 +63,67 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	// the call (final), REWRITE its arguments (flows to the gate + the tool), or
 	// ASK — escalate a call the gate would pass into a human prompt. A rewrite
 	// rides through on the allow paths via verdict.Arguments.
-	var rewritten string
-	forcePrompt := false
+	var hookDecision approval.HookDecision
 	if !t.st.hooks.Empty() {
 		dec := t.st.hooks.Run(ctx, hooks.Input{
 			Event: hooks.PreToolUse, SessionID: t.st.handle.SessionID, Cwd: t.st.cwd,
 			Tool: &hooks.ToolInput{Name: toolName, Arguments: arguments},
 		})
-		if dec.Block {
-			return kernel.ToolApprovalVerdict{Denied: true, DenyReason: firstNonEmptyStr(dec.Reason, "denied by a PreToolUse hook")}
+		hookDecision = approval.HookDecision{
+			Block:            dec.Block,
+			Reason:           dec.Reason,
+			Ask:              dec.Ask,
+			RewriteArguments: dec.RewriteArguments,
 		}
-		if dec.RewriteArguments != "" {
-			rewritten = dec.RewriteArguments
-			arguments = rewritten
-		}
-		forcePrompt = dec.Ask
 	}
 
+	approvalConfigured := t.svc.approval != nil
+	mode := approval.ModeYolo
 	if t.svc.approval == nil {
-		return kernel.ToolApprovalVerdict{Arguments: rewritten} // run (rewritten "" → no override)
-	}
-	mode, err := t.svc.approval.GetMode(ctx)
-	if err != nil {
-		return kernel.ToolApprovalVerdict{Denied: true, DenyReason: "approval mode unavailable"}
-	}
-	cls := tool.SafetyClassFor(toolName)
-	action := approval.GateFor(cls, mode)
-	if forcePrompt && action == approval.GatePass {
-		action = approval.GatePrompt // a PreToolUse hook escalated this call to human review
-	}
-	switch action {
-	case approval.GatePass:
-		return kernel.ToolApprovalVerdict{Arguments: rewritten}
-	case approval.GateDeny:
-		// GateDeny only fires in the read-only plan stance (ModePlan); guide the
-		// model back onto the plan-then-exit path rather than just refusing.
-		return kernel.ToolApprovalVerdict{Denied: true, DenyReason: "plan mode is active (read-only): " + toolName + " is not permitted. Investigate with read-only tools, then call exit_plan_mode to present your plan for approval."}
+		approvalConfigured = false
+	} else {
+		var err error
+		mode, err = t.svc.approval.GetMode(ctx)
+		if err != nil {
+			return kernel.ToolApprovalVerdict{Denied: true, DenyReason: "approval mode unavailable"}
+		}
 	}
 
-	// GatePrompt. A matching standing rule short-circuits the prompt; else
-	// interrupt for human approval and persist a rule if "remember".
+	plan := approval.PlanToolCall(approval.ToolCallInput{
+		Tool:               toolName,
+		Arguments:          arguments,
+		Mode:               mode,
+		ApprovalConfigured: approvalConfigured,
+		Hook:               hookDecision,
+	})
 	sessionID := t.st.handle.SessionID
-	query := approval.Query{SessionID: sessionID, ProjectDir: t.st.cwd, Tool: toolName, Arguments: arguments}
-	if d, ok, _ := t.svc.approval.Decide(ctx, query); ok {
-		if d == approval.Deny {
-			return kernel.ToolApprovalVerdict{Denied: true, DenyReason: "tool call denied by a remembered rule"}
+	if plan.Action == approval.GatePrompt {
+		query := approval.Query{SessionID: sessionID, ProjectDir: t.st.cwd, Tool: toolName, Arguments: plan.Arguments}
+		d, ok, _ := t.svc.approval.Decide(ctx, query)
+		autoApproved := false
+		// A per-server auto-approve whitelist skips the prompt only after
+		// standing rules, so an explicit remembered deny is never overridden.
+		if t.svc.mcpAutoApprove != nil {
+			_, autoApproved = t.svc.mcpAutoApprove()[toolName]
 		}
-		return kernel.ToolApprovalVerdict{Arguments: rewritten} // remembered allow
+		plan = approval.ResolvePromptShortcuts(plan, approval.StandingDecision{Decision: d, Matched: ok}, autoApproved)
 	}
 
-	// No standing rule. A per-server auto-approve whitelist entry skips the
-	// prompt for this MCP tool — a coarser "trust this server's tool" than a
-	// remembered rule, so it is consulted AFTER rules (an explicit remembered
-	// deny above still wins) and only on this GatePrompt path (it never reaches
-	// the read-only plan-mode GateDeny). The set is keyed on the model-facing
-	// "<server>_<tool>" the runtime derives from the MCP registry.
-	if t.svc.mcpAutoApprove != nil {
-		if _, ok := t.svc.mcpAutoApprove()[toolName]; ok {
-			return kernel.ToolApprovalVerdict{Arguments: rewritten}
-		}
+	switch plan.Action {
+	case approval.GatePass:
+		return kernel.ToolApprovalVerdict{Arguments: plan.ArgumentOverride}
+	case approval.GateDeny:
+		return kernel.ToolApprovalVerdict{Denied: true, DenyReason: plan.DenyReason}
 	}
 
 	// interrupt for human approval (R model). First pass bubbles the
 	// InterruptError up to park; resume delivers the resolution here. The
 	// prompt carries the gated tool's risk so the approval card shows it.
-	risk, reason := approval.RiskFor(cls)
 	res, _, err := hitl.Interrupt[interrupts.Resolution](ctx,
-		approvalKey(toolName, arguments),
+		approvalKey(toolName, plan.Arguments),
 		ApprovalPrompt{
-			CallID: callID, ToolName: toolName, Arguments: arguments,
-			SafetyClass: tool.ClassName(cls), Risk: risk, Reason: reason,
+			CallID: callID, ToolName: toolName, Arguments: plan.Arguments,
+			SafetyClass: tool.ClassName(plan.SafetyClass), Risk: plan.Risk, Reason: plan.PromptReason,
 		},
 	)
 	if err != nil {
@@ -158,8 +139,8 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 			SessionID:  sessionID,
 			ProjectDir: t.st.cwd,
 			Tool:       toolName,
-			Arguments:  arguments,
-			Decision:   decisionOf(res.Approved),
+			Arguments:  plan.Arguments,
+			Decision:   approval.DecisionOf(res.Approved),
 		})
 	}
 	if !res.Approved {
@@ -167,15 +148,7 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	}
 	// The human's edited args win over a hook rewrite; fall back to the rewrite
 	// when they approved without editing.
-	return kernel.ToolApprovalVerdict{Arguments: firstNonEmptyStr(res.Arguments, rewritten)}
-}
-
-// decisionOf maps an approve/deny boolean to the approval domain's verdict.
-func decisionOf(approved bool) approval.Decision {
-	if approved {
-		return approval.Allow
-	}
-	return approval.Deny
+	return kernel.ToolApprovalVerdict{Arguments: plan.ApprovedArguments(res.Arguments)}
 }
 
 // approvalKey is the interrupt key for one gated tool call. Keyed by tool
