@@ -31,7 +31,7 @@ export function DiagnosticsView() {
     <div className="flex h-full flex-col gap-3 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-[15px] font-semibold text-fg">Diagnostics</div>
+          <div className="text-[16px] font-semibold text-fg">Diagnostics</div>
           <div className="mt-0.5 text-[12px] text-fg-muted">
             Live OpenTelemetry — traces / metrics / logs. In-memory only (bounded); the durable
             record leaves via OTLP. "Clear" resets the buffers.

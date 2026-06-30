@@ -1,6 +1,6 @@
 // Font customization — UI + code typefaces and base size. Empty
 // string reverts to the native system stack; numeric `null` reverts
-// size to the inherited 15px baseline.
+// size to the inherited 16px baseline.
 //
 // JetBrains IDEA / VS Code-style pattern: a checkbox toggles "use a
 // custom font", and a Radix DropdownMenu picks from the curated list
@@ -100,7 +100,7 @@ function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerPr
 }
 
 const SIZE_VALUES = [13, 14, 15, 16, 17, 18] as const;
-// "default" sentinel = revert to the inherited 15px baseline (null in store).
+// "default" sentinel = revert to the inherited 16px baseline (null in store).
 const SIZE_RESET = "default";
 
 function FontSizeField({

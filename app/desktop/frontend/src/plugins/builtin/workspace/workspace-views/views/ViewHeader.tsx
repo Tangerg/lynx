@@ -58,7 +58,7 @@ export function ViewHeader({ icon, title, sub, actions, titleStrong }: ViewHeade
           className={cn(
             "text-fg whitespace-nowrap overflow-hidden text-ellipsis",
             titleStrong
-              ? "font-sans text-[15px] font-semibold tracking-[-0.005em]"
+              ? "font-sans text-[16px] font-semibold tracking-[-0.005em]"
               : "font-mono text-[13px]",
           )}
         >

@@ -175,7 +175,7 @@ export function ApprovalCard({
         </span>
       }
     >
-      <div className="mb-1.5 text-[15px] font-semibold leading-[1.4] text-fg">{what}</div>
+      <div className="mb-1.5 text-[16px] font-semibold leading-[1.4] text-fg">{what}</div>
       {/* Shell-prompt command line — only for command-style approvals. Other
           tools have no `cmd` (their payload is just args), so skip the box
           instead of rendering a lonely "$". */}

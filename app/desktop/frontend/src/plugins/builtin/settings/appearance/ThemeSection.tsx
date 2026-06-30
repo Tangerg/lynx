@@ -147,7 +147,7 @@ export function ThemeSection() {
     // needs more horizontal room than the standard 140px+1fr row.
     <div className="grid items-stretch gap-3 py-3">
       <div>
-        <div className="text-[15px] font-semibold text-fg">{t("settings.theme")}</div>
+        <div className="text-[16px] font-semibold text-fg">{t("settings.theme")}</div>
         <div className="mt-0.5 text-[13px] text-fg-muted">{t("settings.theme.sub")}</div>
       </div>
       <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">

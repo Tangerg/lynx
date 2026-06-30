@@ -27,7 +27,7 @@ export function ShortcutsPane() {
   return (
     <div className="flex h-full flex-col gap-3 p-4">
       <div>
-        <div className="text-[15px] font-semibold text-fg">{t("shortcuts.title")}</div>
+        <div className="text-[16px] font-semibold text-fg">{t("shortcuts.title")}</div>
         <div className="mt-0.5 text-[13px] text-fg-muted">{t("shortcuts.sub")}</div>
       </div>
 
