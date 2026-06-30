@@ -61,52 +61,22 @@ func wireBoundaryErr(err error) error {
 // append (AUX_API §4.1). Includes an in-progress admission (claimed but not yet
 // registered) so a rollback can't slip in alongside a starting run.
 func (s *Server) hasActiveRun(sessionID string) bool {
-	s.runMu.Lock()
-	defer s.runMu.Unlock()
-	return s.activeForSessionLocked(sessionID)
-}
-
-// activeForSessionLocked reports whether the session has a run in flight OR an
-// admission in progress (a runs.start / runs.resume that claimed the session
-// but hasn't registered its run yet). Caller holds runMu.
-func (s *Server) activeForSessionLocked(sessionID string) bool {
-	if _, ok := s.claiming[sessionID]; ok {
-		return true
-	}
-	for _, e := range s.runs {
-		if e.sessionID == sessionID {
-			return true
-		}
-	}
-	return false
+	return s.runs.ActiveSession(sessionID)
 }
 
 // claimSession atomically reserves the session's single-writer slot for an
 // admitting run, returning false when the session already has a run in flight
 // or another admission in progress. It closes the TOCTOU gap between the busy
-// check and the run's registration in s.runs (openSegment): under one runMu
-// hold it both checks and reserves. Pair every true return with a
-// releaseSession (deferred), which is safe to run after openSegment has
-// registered the run — at that point s.runs marks the session active, so there
-// is never an instant where neither the claim nor s.runs holds it.
+// check and the run's registration in s.runs (openSegment): the registry checks
+// and reserves atomically. Pair every true return with a releaseSession
+// (deferred), which is safe to run after openSegment has registered the run.
 func (s *Server) claimSession(sessionID string) bool {
-	s.runMu.Lock()
-	defer s.runMu.Unlock()
-	if s.activeForSessionLocked(sessionID) {
-		return false
-	}
-	if s.claiming == nil { // a Server built as a bare literal (tests) — keep the zero value useful
-		s.claiming = map[string]struct{}{}
-	}
-	s.claiming[sessionID] = struct{}{}
-	return true
+	return s.runs.ClaimSession(sessionID)
 }
 
 // releaseSession drops a claimSession reservation.
 func (s *Server) releaseSession(sessionID string) {
-	s.runMu.Lock()
-	delete(s.claiming, sessionID)
-	s.runMu.Unlock()
+	s.runs.ReleaseSession(sessionID)
 }
 
 // hasActiveRunSharingCwd returns the id of an in-flight run's session whose
@@ -115,19 +85,9 @@ func (s *Server) releaseSession(sessionID string) {
 // session sharing the cwd would race (a fork inherits its parent's cwd; two
 // sessions can open one dir) — and that sibling's tool writes never go through
 // the checkpoint lock. An empty cwd matches nothing (a session with no cwd has
-// no checkpoint tree). cwd must already be canonical (runEntry.cwd is).
+// no checkpoint tree). cwd must already be canonical.
 func (s *Server) hasActiveRunSharingCwd(cwd string) string {
-	if cwd == "" {
-		return ""
-	}
-	s.runMu.Lock()
-	defer s.runMu.Unlock()
-	for _, e := range s.runs {
-		if e.cwd == cwd {
-			return e.sessionID
-		}
-	}
-	return ""
+	return s.runs.ActiveSessionWithCwd(cwd)
 }
 
 // RollbackSession discards the runs after the kept boundary, truncating the

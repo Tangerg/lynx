@@ -125,8 +125,5 @@ func (s *Server) reconcileLostRun(r *protocol.RunRef) {
 
 // isRunLive reports whether a run is currently being pumped in this process.
 func (s *Server) isRunLive(runID string) bool {
-	s.runMu.Lock()
-	defer s.runMu.Unlock()
-	_, ok := s.runs[runID]
-	return ok
+	return s.runs.Contains(runID)
 }

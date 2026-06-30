@@ -68,10 +68,9 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	//
 	// claimSession reserves the slot atomically with the busy check and holds it
 	// (deferred release) through the run's registration in openSegment — the busy
-	// check and that registration are otherwise separate runMu sections with I/O
-	// between, a TOCTOU two concurrent starts could both pass. A parked run left
-	// s.runs but its durable interrupt still marks the session busy: the second
-	// half of the check below.
+	// check and that registration have I/O between them, a TOCTOU two concurrent
+	// starts could both pass. A parked run left s.runs but its durable interrupt
+	// still marks the session busy: the second half of the check below.
 	if !s.claimSession(sessionID) {
 		return nil, nil, fmt.Errorf("%w: session %q has a run in flight", protocol.ErrSessionBusy, sessionID)
 	}
@@ -239,12 +238,7 @@ func (s *Server) rehydrate(ctx context.Context, pending interrupts.Pending, appr
 // A parked run is also abandoned — its live parked turn is torn down
 // and its open interrupt dropped so it stops surfacing as resumable.
 func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) error {
-	s.runMu.Lock()
-	e, ok := s.runs[in.RunID]
-	if ok {
-		e.cancelReason = in.Reason // surfaced on the synthesized canceled outcome (S6)
-	}
-	s.runMu.Unlock()
+	e, ok := s.runs.MarkCancel(in.RunID, in.Reason) // surfaced on the synthesized canceled outcome (S6)
 
 	if !ok {
 		// Not actively pumping — a parked run whose pump already returned.
@@ -268,8 +262,10 @@ func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) er
 	// first) briefly leaves the record gone while the turn is still being torn
 	// down, so a teardown failure would orphan a still-live turn with no
 	// resumable record. Delete is a no-op for an un-parked run.
-	e.cancel()
-	_ = s.rt.Chat().Cancel(ctx, turn.TurnHandle{SessionID: e.sessionID, TurnID: e.turnID})
+	if e.Payload != nil && e.Payload.cancel != nil {
+		e.Payload.cancel()
+	}
+	_ = s.rt.Chat().Cancel(ctx, turn.TurnHandle{SessionID: e.Record.SessionID, TurnID: e.Record.TurnID})
 	_ = s.rt.Interrupts().Delete(ctx, in.RunID)
 	return nil
 }
@@ -280,9 +276,7 @@ func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) er
 // is answered via runs.resume, and a finished one can't be steered — so a
 // miss in the live run registry is run_not_found.
 func (s *Server) SteerRun(ctx context.Context, in protocol.SteerRunRequest) error {
-	s.runMu.Lock()
-	e, ok := s.runs[in.RunID]
-	s.runMu.Unlock()
+	e, ok := s.runs.Get(in.RunID)
 	if !ok {
 		return protocol.ErrRunNotFound
 	}
@@ -291,7 +285,7 @@ func (s *Server) SteerRun(ctx context.Context, in protocol.SteerRunRequest) erro
 	// s.runs while the pump drains). InjectSteering reports both as
 	// ErrTurnNotFound; map it to the wire run_not_found symbol so the client
 	// retries the message as a fresh send rather than seeing it silently dropped.
-	if err := s.rt.Chat().InjectSteering(ctx, turn.TurnHandle{SessionID: e.sessionID, TurnID: e.turnID}, in.Message); err != nil {
+	if err := s.rt.Chat().InjectSteering(ctx, turn.TurnHandle{SessionID: e.Record.SessionID, TurnID: e.Record.TurnID}, in.Message); err != nil {
 		if errors.Is(err, turn.ErrTurnNotFound) {
 			return protocol.ErrRunNotFound
 		}
@@ -303,19 +297,19 @@ func (s *Server) SteerRun(ctx context.Context, in protocol.SteerRunRequest) erro
 // ListRuns returns the currently running runs as a Page (API.md §7.3).
 // The set is in-process and bounded, so the page carries no cursor.
 func (s *Server) ListRuns(_ context.Context, in protocol.ListRunsRequest) (*protocol.Page[protocol.RunRef], error) {
-	s.runMu.Lock()
-	defer s.runMu.Unlock()
-	out := make([]protocol.RunRef, 0, len(s.runs))
-	for _, e := range s.runs {
-		if in.SessionID != "" && e.sessionID != in.SessionID {
+	entries := s.runs.List()
+	out := make([]protocol.RunRef, 0, len(entries))
+	for _, e := range entries {
+		r := e.Record
+		if in.SessionID != "" && r.SessionID != in.SessionID {
 			continue
 		}
 		out = append(out, protocol.RunRef{
-			ID:          e.runID,
-			SessionID:   e.sessionID,
-			ParentRunID: e.parentRunID,
-			Provider:    e.provider,
-			Model:       e.model,
+			ID:          r.ID,
+			SessionID:   r.SessionID,
+			ParentRunID: r.ParentRunID,
+			Provider:    r.Provider,
+			Model:       r.Model,
 			Status:      protocol.RunStatusRunning,
 		})
 	}
@@ -358,13 +352,11 @@ func (s *Server) SubscribeRun(ctx context.Context, runID string) (*protocol.Star
 	if runID == "" {
 		return nil, nil, protocol.ErrRunNotFound
 	}
-	s.runMu.Lock()
-	e, live := s.runs[runID]
-	s.runMu.Unlock()
-	if !live || e.hub == nil {
+	e, live := s.runs.Get(runID)
+	if !live || e.Payload == nil || e.Payload.hub == nil {
 		return nil, nil, protocol.ErrRunNotFound
 	}
-	events, unsubscribe := e.hub.Subscribe(transport.LastEventIDFrom(ctx))
+	events, unsubscribe := e.Payload.hub.Subscribe(transport.LastEventIDFrom(ctx))
 	// Drop the subscription when this request ends; the run continues.
 	context.AfterFunc(ctx, unsubscribe)
 	return &protocol.StartRunResponse{RunID: runID}, events, nil

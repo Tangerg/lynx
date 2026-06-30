@@ -258,13 +258,7 @@ func (s *Server) liveStatus(ctx context.Context, sessionID string) protocol.Sess
 // runningSessionSet snapshots the session ids with a live run, in one lock pass
 // — the list path's batched form of hasActiveRun (rollback.go).
 func (s *Server) runningSessionSet() map[string]bool {
-	s.runMu.Lock()
-	defer s.runMu.Unlock()
-	set := make(map[string]bool, len(s.runs))
-	for _, e := range s.runs {
-		set[e.sessionID] = true
-	}
-	return set
+	return s.runs.ActiveSessions()
 }
 
 // waitingSessionSet fetches every open interrupt once and returns the set of

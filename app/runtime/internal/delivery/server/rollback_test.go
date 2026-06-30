@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	runstate "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/core/model/chat"
@@ -29,7 +30,7 @@ func rollbackHarness(t *testing.T) (*Server, *stubRuntime) {
 		hist:       sqlite.NewTranscriptStore(db),
 		interrupts: sqlite.NewInterruptStore(db),
 	}
-	return &Server{rt: rt, runs: map[string]*runEntry{}}, rt
+	return &Server{rt: rt}, rt
 }
 
 func putRun(t *testing.T, rt *stubRuntime, sessionID, runID, parentRunID string, atUnix int64, mark int) {
@@ -127,7 +128,7 @@ func TestRollbackSession_Busy(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := context.Background()
 	sess, _ := rt.sess.Create(ctx, "s", "/w")
-	s.runs["run_live"] = &runEntry{runID: "run_live", sessionID: sess.ID}
+	s.runs.Open(runstate.Record{ID: "run_live", SessionID: sess.ID}, nil)
 
 	if _, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{SessionID: sess.ID}); !errors.Is(err, protocol.ErrSessionBusy) {
 		t.Fatalf("rollback under live run = %v, want ErrSessionBusy", err)
@@ -148,7 +149,7 @@ func TestPersistRunCarriesCreatedAt(t *testing.T) {
 	sess, _ := rt.sess.Create(ctx, "s", "/w")
 
 	started := time.Now().Add(-time.Minute).UTC().Truncate(time.Second)
-	s.runs["run_1"] = &runEntry{runID: "run_1", sessionID: sess.ID, createdAt: started}
+	s.runs.Open(runstate.Record{ID: "run_1", SessionID: sess.ID, CreatedAt: started}, nil)
 
 	s.persistStreamEvent(ctx, "run_1", sess.ID, "", protocol.StreamEvent{
 		Type:    protocol.StreamRunFinished,

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	runstate "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 // TestReconcileLostRun verifies items.list heals a RunRef the durable history
@@ -12,7 +13,8 @@ import (
 // terminal error(run_lost) so the client stops rendering a perpetual spinner,
 // while genuinely live and already-terminal runs are left untouched.
 func TestReconcileLostRun(t *testing.T) {
-	s := &Server{runs: map[string]*runEntry{"run_live": {runID: "run_live"}}}
+	s := &Server{}
+	s.runs.Open(runstate.Record{ID: "run_live"}, nil)
 
 	// Dangling running run (no live pump) → terminal error(run_lost).
 	lost := &protocol.RunRef{ID: "run_dead", SessionID: "ses_1", Status: protocol.RunStatusRunning}

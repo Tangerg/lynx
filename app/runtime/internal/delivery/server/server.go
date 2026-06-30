@@ -14,11 +14,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	runstate "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
@@ -50,20 +49,10 @@ type Server struct {
 	rt         RuntimeServices
 	serverInfo protocol.ServerInfo
 
-	// runRegistry tracks live runs so CancelRun / ListRuns can find them
-	// by id. Wired through chat.Service on the in-process path.
-	//
-	// claiming holds sessions an admitting run (runs.start / runs.resume) has
-	// reserved but not yet registered in `runs`. The single-writer-per-session
-	// invariant is a check-then-act: the busy check and the run's registration
-	// (openSegment) sit in separate runMu sections with I/O between them, so a
-	// second starter could slip through the gap — and a resume's gap after the
-	// interrupt record is consumed but before the continuation registers. The
-	// claim closes both: claimed under the same lock as the check, released only
-	// once the run is in `runs` (or on early exit). Guarded by runMu.
-	runMu    sync.Mutex
-	runs     map[string]*runEntry
-	claiming map[string]struct{}
+	// runs tracks active run segments and admission claims. The domain registry
+	// owns the single-writer-per-session invariant; delivery supplies only the
+	// in-process resources needed to stream and cancel live runs.
+	runs runstate.Registry[*runHandle]
 
 	// eventSeq is the server-wide monotonic source for RunEvent ids
 	// (TRANSPORT.md §9.1). A single counter across all runs is strictly
@@ -91,20 +80,10 @@ func (s *Server) nextEventID() string {
 	return protocol.IDPrefixEvent + fmt.Sprintf("%011d", s.eventSeq.Add(1))
 }
 
-// runEntry holds bookkeeping for one in-flight run — used by CancelRun,
-// ListRuns, and the event pump in runs.go.
-type runEntry struct {
-	runID        string
-	sessionID    string
-	cwd          string    // canonical working tree (fspath.Canonical of the session cwd); "" when none. Keyed by the cwd-aware busy guard a file rollback uses.
-	createdAt    time.Time // run start (segment open); the authoritative RunRef.CreatedAt the terminal RunRef carries so the persisted timeline key isn't lost
-	turnID       string
-	parentRunID  string // set for continuation runs (runs.resume)
-	provider     string // provider this run ran against; persisted on park for cross-restart rehydrate
-	model        string // model this run ran against (RunRef.model); empty = default
-	cancelReason string // runs.cancel reason → flows to outcome.canceled.detail (S6)
-	cancel       context.CancelFunc
-	hub          *runHub // per-run event fan-out + durable replay (streamable HTTP)
+// runHandle holds delivery-owned resources for one in-flight run segment.
+type runHandle struct {
+	cancel context.CancelFunc
+	hub    *runHub
 }
 
 // New builds a Server. Returns an error when Runtime is nil. The concrete
@@ -127,8 +106,6 @@ func New(cfg Config) (*Server, error) {
 	return &Server{
 		rt:         cfg.Runtime,
 		serverInfo: cfg.ServerInfo,
-		runs:       map[string]*runEntry{},
-		claiming:   map[string]struct{}{},
 		wsHub:      newWorkspaceHub(),
 		workspace:  ws,
 	}, nil
