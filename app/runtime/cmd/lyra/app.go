@@ -191,7 +191,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 		Online:         cfg.Online,
 		MCPRegistry:    stores.MCPServers,
 		A2AAgents:      cfg.A2AAgents,
-		LSPServers:     cfg.LSPServers, // nil → toolset uses codeintel.DefaultServers()
+		LSPServers:     cfg.LSPServers, // nil means the built-in LSP server table
 		SessionService: stores.Session,
 		// InterruptStore persists the open-interrupt registry that
 		// runs.resume looks up — the other half of cross-restart resume.
@@ -303,7 +303,7 @@ type Stores struct {
 	// Tx runs fn inside one transaction across the shared sqlite *sql.DB
 	// (sessions.import / rollback atomicity). Wired into the Runtime as its
 	// Transactor.
-	Tx func(context.Context, func(context.Context) error) error
+	Tx            func(context.Context, func(context.Context) error) error
 	Session       sessionsvc.Service
 	Memory        knowledge.Service
 	Process       core.ProcessStore

@@ -103,6 +103,12 @@ type Store interface {
 	Clear(ctx context.Context, cwd string) error
 }
 
+// Source reads a cwd's indexable project files and chunks their text.
+type Source interface {
+	Files(ctx context.Context, cwd string) (files []string, truncated bool, err error)
+	Chunks(cwd, path string) (chunks []Chunk, hash string, ok bool)
+}
+
 // Service is the index surface the tool / RPC / file-change hook consume.
 type Service interface {
 	// Search returns the topK most similar chunks to query in cwd, building or

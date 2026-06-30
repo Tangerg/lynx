@@ -3,8 +3,6 @@ package codebaseindex
 import (
 	"context"
 	"maps"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -116,21 +114,53 @@ func (m *memStore) Clear(_ context.Context, cwd string) error {
 	return nil
 }
 
-func writeFile(t *testing.T, dir, name, body string) {
-	t.Helper()
-	if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
-		t.Fatal(err)
+type sourceFile struct {
+	hash   string
+	chunks []Chunk
+}
+
+type memSource struct {
+	files []string
+	chunk map[string]sourceFile
+	trunc bool
+}
+
+func newMemSource() *memSource {
+	return &memSource{chunk: map[string]sourceFile{}}
+}
+
+func (s *memSource) add(path, hash, body string) {
+	for _, f := range s.files {
+		if f == path {
+			s.chunk[path] = sourceFile{hash: hash, chunks: []Chunk{{Path: path, StartLine: 1, EndLine: 1, Text: body}}}
+			return
+		}
 	}
+	s.files = append(s.files, path)
+	s.chunk[path] = sourceFile{hash: hash, chunks: []Chunk{{Path: path, StartLine: 1, EndLine: 1, Text: body}}}
+}
+
+func (s *memSource) Files(context.Context, string) ([]string, bool, error) {
+	return append([]string(nil), s.files...), s.trunc, nil
+}
+
+func (s *memSource) Chunks(_ string, path string) ([]Chunk, string, bool) {
+	f, ok := s.chunk[path]
+	if !ok {
+		return nil, "", false
+	}
+	return append([]Chunk(nil), f.chunks...), f.hash, true
 }
 
 // TestSearchFindsRelevantFile: a semantic query surfaces the file whose content
 // overlaps it, and Status reports ready.
 func TestSearchFindsRelevantFile(t *testing.T) {
 	cwd := t.TempDir()
-	writeFile(t, cwd, "auth.go", "package auth authenticate login user password credentials session token")
-	writeFile(t, cwd, "render.go", "package render paint draw canvas pixel color shader geometry")
+	src := newMemSource()
+	src.add("auth.go", "h1", "package auth authenticate login user password credentials session token")
+	src.add("render.go", "h2", "package render paint draw canvas pixel color shader geometry")
 
-	ix := New(newMemStore(), func(context.Context) (Embedder, error) { return fakeEmbedder{}, nil })
+	ix := New(newMemStore(), func(context.Context) (Embedder, error) { return fakeEmbedder{}, nil }, src)
 
 	hits, err := ix.Search(context.Background(), cwd, "login user password", 1)
 	if err != nil {
@@ -149,7 +179,7 @@ func TestSearchFindsRelevantFile(t *testing.T) {
 // TestNoEmbeddingModel: with no embedder, search reports ErrNoEmbeddingModel and
 // Available is false.
 func TestNoEmbeddingModel(t *testing.T) {
-	ix := New(newMemStore(), func(context.Context) (Embedder, error) { return nil, ErrNoEmbeddingModel })
+	ix := New(newMemStore(), func(context.Context) (Embedder, error) { return nil, ErrNoEmbeddingModel }, newMemSource())
 	if ix.Available(context.Background()) {
 		t.Error("Available = true with no embedder")
 	}
@@ -162,14 +192,15 @@ func TestNoEmbeddingModel(t *testing.T) {
 // changed files are re-embedded (a no-op reindex keeps the corpus).
 func TestIncrementalReindex(t *testing.T) {
 	cwd := t.TempDir()
-	writeFile(t, cwd, "a.go", "alpha widget machine lever")
+	src := newMemSource()
+	src.add("a.go", "h1", "alpha widget machine lever")
 	store := newMemStore()
-	ix := New(store, func(context.Context) (Embedder, error) { return fakeEmbedder{}, nil })
+	ix := New(store, func(context.Context) (Embedder, error) { return fakeEmbedder{}, nil }, src)
 
 	if err := ix.EnsureIndexed(context.Background(), cwd); err != nil {
 		t.Fatalf("EnsureIndexed: %v", err)
 	}
-	writeFile(t, cwd, "b.go", "bravo gadget engine piston")
+	src.add("b.go", "h2", "bravo gadget engine piston")
 	if err := ix.Reindex(context.Background(), cwd); err != nil {
 		t.Fatalf("Reindex: %v", err)
 	}

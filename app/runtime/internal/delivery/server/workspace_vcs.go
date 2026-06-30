@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/workspace"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 )
 
 // workspace.* git-backed reads (AUX_API §2). Three states stay distinct

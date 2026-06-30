@@ -15,8 +15,8 @@ import (
 // @file autocomplete source. Listing is gitignore-aware: in a git repo the
 // candidate set comes from `git ls-files` (tracked + untracked-not-ignored, the
 // repo's own .gitignore as authority); outside a repo it's a filesystem walk
-// that skips a backstop set of heavy build/vcs dirs. This lives in the domain
-// (not delivery) so delivery never imports infra/git directly.
+// that skips a backstop set of heavy build/vcs dirs. This lives in the adapter
+// layer so delivery never imports infra/git directly.
 
 // EntryKind is a listed entry's type — file / dir / symlink (wire §7.5).
 type EntryKind string

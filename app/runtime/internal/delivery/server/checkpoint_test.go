@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/workspace"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 )
 
 // checkpointHarness extends the rollback harness with a real shadow-git

@@ -18,7 +18,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	runstate "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/workspace"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/lifecycle"
 )
