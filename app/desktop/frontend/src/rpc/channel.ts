@@ -1,5 +1,5 @@
 // Push-pull async channel — single-consumer AsyncIterableIterator backed
-// by an internal buffer + at-most-one waiter. The four sites that used
+// by an internal buffer + FIFO waiter queue. The four sites that used
 // to roll their own version (memory transport, http transport, run
 // event stream, terminal/background stream) all delegate to this now.
 //
@@ -23,14 +23,13 @@ export interface PushPullChannel<T> {
 
 export function createPushPullChannel<T>(): PushPullChannel<T> {
   const buffer: T[] = [];
-  let waiter: ((result: IteratorResult<T>) => void) | null = null;
+  const waiters: Array<(result: IteratorResult<T>) => void> = [];
   let isClosed = false;
 
   function push(value: T): void {
     if (isClosed) return;
-    if (waiter) {
-      const w = waiter;
-      waiter = null;
+    const w = waiters.shift();
+    if (w) {
       w({ value, done: false });
     } else {
       buffer.push(value);
@@ -40,11 +39,7 @@ export function createPushPullChannel<T>(): PushPullChannel<T> {
   function close(): void {
     if (isClosed) return;
     isClosed = true;
-    if (waiter) {
-      const w = waiter;
-      waiter = null;
-      w({ value: undefined as never, done: true });
-    }
+    for (const w of waiters.splice(0)) w({ value: undefined as never, done: true });
   }
 
   return {
@@ -62,7 +57,7 @@ export function createPushPullChannel<T>(): PushPullChannel<T> {
           if (buffer.length > 0) return { value: buffer.shift()!, done: false };
           if (isClosed) return { value: undefined as never, done: true };
           return new Promise<IteratorResult<T>>((resolve) => {
-            waiter = resolve;
+            waiters.push(resolve);
           });
         },
         async return(): Promise<IteratorResult<T>> {
