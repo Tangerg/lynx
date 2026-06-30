@@ -8,9 +8,9 @@ import (
 
 	chatmodel "github.com/Tangerg/lynx/core/model/chat"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset"
 )
 
 // TestService_List enumerates the coding tool set and verifies the
@@ -29,7 +29,7 @@ func TestService_List(t *testing.T) {
 		"grep":  tool.SafetyClassSafe,
 		"write": tool.SafetyClassWrite,
 		"edit":  tool.SafetyClassWrite,
-		"shell":  tool.SafetyClassExec,
+		"shell": tool.SafetyClassExec,
 	}
 
 	got := map[string]tool.SafetyClass{}

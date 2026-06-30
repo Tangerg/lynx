@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentdoc"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turnctx"
 )
 
 // basePrompt is the always-on identity / behavioral preamble. It

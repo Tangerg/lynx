@@ -5,14 +5,14 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 )
 
 // TestEngine_RegistersLSPTools verifies the code-intelligence tools are folded
 // into the engine's tool set (so the model can call them): the combined `lsp`
 // query tool + the separate `lsp_diagnostics`. This is a pure wiring check — no
 // language server is started. The tool-layer behavior (unsupported file,
-// post-edit diagnostics) is tested in internal/kernel/toolset.
+// post-edit diagnostics) is tested in internal/adapter/toolset.
 func TestEngine_RegistersLSPTools(t *testing.T) {
 	stub := newStubModel("nop", `{}`, "")
 	client, _ := chat.NewClient(stub)

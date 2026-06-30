@@ -11,7 +11,7 @@ import (
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codeintel"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turnctx"
 )
 
 // Build exposes the code-intelligence service as the agent's language tools: a

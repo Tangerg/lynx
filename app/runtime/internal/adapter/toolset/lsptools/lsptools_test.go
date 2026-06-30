@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codeintel"
+	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 // lspTool returns the combined `lsp` tool from a fresh Build.

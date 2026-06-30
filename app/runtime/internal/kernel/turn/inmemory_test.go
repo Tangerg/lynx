@@ -11,6 +11,7 @@ import (
 	chatmodel "github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
@@ -124,7 +125,7 @@ func TestService_SeqMonotone(t *testing.T) {
 func TestService_InjectSteering_LandsInNextTurn(t *testing.T) {
 	stub := newHistoryAwareStub()
 	client, _ := chatmodel.NewClient(stub)
-	eng, _ := kernel.New(context.Background(), kernel.Config{ChatClient: client})
+	eng := buildEngine(t, kernel.Config{ChatClient: client})
 	svc := mustChat(turn.New(eng, nil, nil, nil, nil, nil))
 
 	// Turn 1.
@@ -183,7 +184,7 @@ func TestService_InjectSteering_UnknownTurn(t *testing.T) {
 // completes normally.
 func TestService_ApprovalGate_AllowOnce(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
-	eng, _ := kernel.New(context.Background(), kernel.Config{ChatClient: client})
+	eng := buildEngine(t, kernel.Config{ChatClient: client})
 	svc := mustChat(turn.New(eng, approval.New(approval.ModeBalanced, nil), nil, nil, nil, nil)) // shell → gate
 
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
@@ -235,7 +236,7 @@ func TestService_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	model.defaults, _ = chatmodel.NewOptions("stub-counting")
 	client, _ := chatmodel.NewClient(model)
 	store := memory.NewInMemoryStore()
-	eng, _ := kernel.New(context.Background(), kernel.Config{ChatClient: client, MemoryStore: store})
+	eng := buildEngine(t, kernel.Config{ChatClient: client, MemoryStore: store})
 	svc := mustChat(turn.New(eng, approval.New(approval.ModeBalanced, nil), nil, nil, nil, nil)) // shell → gate
 
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
@@ -292,7 +293,7 @@ func TestService_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 // TurnEnd{Canceled}.
 func TestService_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
-	eng, _ := kernel.New(context.Background(), kernel.Config{ChatClient: client})
+	eng := buildEngine(t, kernel.Config{ChatClient: client})
 	svc := mustChat(turn.New(eng, approval.New(approval.ModeBalanced, nil), nil, nil, nil, nil))
 
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
@@ -335,7 +336,7 @@ func TestService_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
 // still completes.
 func TestService_ApprovalGate_Deny(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
-	eng, _ := kernel.New(context.Background(), kernel.Config{ChatClient: client})
+	eng := buildEngine(t, kernel.Config{ChatClient: client})
 	svc := mustChat(turn.New(eng, approval.New(approval.ModeBalanced, nil), nil, nil, nil, nil))
 
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
@@ -375,7 +376,7 @@ func TestService_ApprovalGate_Deny(t *testing.T) {
 // the tool runs as if no gate were wired.
 func TestService_ApprovalGate_YoloSkipsEvent(t *testing.T) {
 	client, _ := chatmodel.NewClient(newStubChatModel())
-	eng, _ := kernel.New(context.Background(), kernel.Config{ChatClient: client})
+	eng := buildEngine(t, kernel.Config{ChatClient: client})
 	svc := mustChat(turn.New(eng, approval.New(approval.ModeYolo, nil), nil, nil, nil, nil))
 
 	handle, _ := svc.StartTurn(context.Background(), turn.StartTurnRequest{
@@ -414,11 +415,30 @@ func buildService(t *testing.T) (turn.Service, *kernel.Engine) {
 	if err != nil {
 		t.Fatalf("chat client: %v", err)
 	}
-	eng, err := kernel.New(context.Background(), kernel.Config{ChatClient: client})
+	eng := buildEngine(t, kernel.Config{ChatClient: client})
+	return mustChat(turn.New(eng, nil, nil, nil, nil, nil)), eng
+}
+
+func buildEngine(t *testing.T, cfg kernel.Config) *kernel.Engine {
+	t.Helper()
+	built, err := toolset.Build(context.Background(), toolset.BuildConfig{
+		Workdir:         cfg.Workdir,
+		SkillsGlobalDir: cfg.SkillsGlobalDir,
+		Todos:           cfg.Todos,
+	})
+	if err != nil {
+		t.Fatalf("toolset.Build: %v", err)
+	}
+	cfg.ToolResolver = built.Resolver
+	cfg.Tools = built.Tools
+	cfg.MCP = built.MCP
+	cfg.Closers = built.Closers
+	eng, err := kernel.New(context.Background(), cfg)
 	if err != nil {
 		t.Fatalf("engine.New: %v", err)
 	}
-	return mustChat(turn.New(eng, nil, nil, nil, nil, nil)), eng
+	t.Cleanup(func() { _ = eng.Close() })
+	return eng
 }
 
 func drainEvents(events iter.Seq[turn.Event]) []turn.Event {

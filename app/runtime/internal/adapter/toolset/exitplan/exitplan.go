@@ -58,7 +58,7 @@ func New(appr approval.Service) chat.Tool {
 	}
 	t, _ := chat.NewTool(
 		chat.ToolDefinition{
-			Name: toolName,
+			Name:        toolName,
 			Description: "Present your plan for approval and leave plan mode. Call this ONLY in plan mode (the read-only stance) once you've investigated and drafted a plan. On approval, plan mode exits and all tools are enabled so you can execute the plan; on rejection you stay in plan mode with the user's feedback. Provide alternative approaches in options when the user should choose between them.",
 			InputSchema: schema,
 		},

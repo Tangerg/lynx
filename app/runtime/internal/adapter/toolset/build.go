@@ -5,6 +5,13 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/chat"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/askuser"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/codebasesearch"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/exitplan"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/lsptools"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/shell"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/todotool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codeintel"
@@ -13,13 +20,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/a2a"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/mcp"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset/askuser"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset/codebasesearch"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset/exitplan"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset/lsptools"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset/shell"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset/skill"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset/todotool"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
 )
 
 // This file is the tool-assembly entry point. It is the SOLE place that
@@ -29,37 +30,6 @@ import (
 // composition root (runtime). This is the "tools assembled outside the core
 // loop" shape the convergent microkernel design uses (doc/GREENFIELD_ARCHITECTURE.md §5.1).
 
-// MCP wire projections, re-exported so the engine's MCP facade and the rpc
-// layer name one type without importing infra/mcp.
-type (
-	MCPToolInfo     = mcp.ToolInfo
-	MCPServerStatus = mcp.ServerStatus
-	MCPServerConfig = mcp.ServerConfig
-)
-
-// ErrUnknownMCPServer is returned by [MCPControl.Reconnect] for an
-// unconfigured name (the wire layer maps it to invalid_params).
-var ErrUnknownMCPServer = mcp.ErrUnknownServer
-
-// MCPControl is the live-MCP-connections surface the engine exposes to
-// workspace.mcp.* — implemented by the dialed connections.
-type MCPControl interface {
-	Statuses() []MCPServerStatus
-	Tools(ctx context.Context, server string) ([]MCPToolInfo, error)
-	Reconnect(ctx context.Context, name string) error
-	// Authorize runs the interactive OAuth sign-in for an HTTP server and, on
-	// success, connects it with the obtained (session-lived) credentials.
-	Authorize(ctx context.Context, name string) error
-	// Probe tests a candidate config (dry-run dial + tools list), reusing an
-	// active OAuth sign-in for the same-named server so an authorized server
-	// doesn't spuriously read as unauthorized.
-	Probe(ctx context.Context, cfg MCPServerConfig) error
-	// Configure adds or re-dials a server at runtime; Remove drops one from the
-	// live set. Both hot-swap the refreshed model-facing tool set.
-	Configure(ctx context.Context, cfg MCPServerConfig) error
-	Remove(ctx context.Context, name string)
-}
-
 // BuildConfig is the tool-environment construction input (the working-directory
 // scope + the capability tables). Driven by the runtime config.
 type BuildConfig struct {
@@ -67,7 +37,7 @@ type BuildConfig struct {
 	SkillsGlobalDir string
 	Online          OnlineConfig
 	LSPServers      []codeintel.ServerSpec
-	MCPServers      []mcp.ServerConfig
+	MCPServers      []toolport.MCPServerConfig
 	A2AAgents       []a2a.ClientConfig
 	Todos           todo.Service     // backs todo_write; nil → the tool is omitted
 	Approval        approval.Service // backs exit_plan_mode (flips the stance on approval); nil → the tool is omitted
@@ -90,7 +60,7 @@ type BuildConfig struct {
 type Built struct {
 	Resolver *Resolver
 	Tools    []chat.Tool
-	MCP      MCPControl
+	MCP      toolport.MCPControl
 	Closers  []func() error
 }
 
@@ -189,7 +159,7 @@ func Build(ctx context.Context, cfg BuildConfig) (Built, error) {
 	return Built{
 		Resolver: resolver,
 		Tools:    tools,
-		MCP:      mcpConns,
+		MCP:      &mcpControl{inner: mcpConns},
 		Closers: []func() error{
 			codeIntel.Close,
 			func() error { bg.KillAll(); return nil },

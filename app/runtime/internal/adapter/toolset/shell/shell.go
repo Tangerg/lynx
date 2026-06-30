@@ -11,7 +11,7 @@ import (
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turnctx"
 )
 
 // Shell tools over a shared [exec.Manager]: the primary `shell` tool plus
