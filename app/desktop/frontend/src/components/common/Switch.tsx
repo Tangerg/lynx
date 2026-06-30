@@ -31,7 +31,7 @@ export function Switch({ checked, onCheckedChange, disabled, ariaLabel, classNam
     >
       <RadixSwitch.Thumb
         className={cn(
-          "block h-3 w-3 rounded-full bg-fg shadow-sm transition-transform duration-150",
+          "block h-3 w-3 rounded-full bg-fg shadow-[var(--shadow-focus)] transition-transform duration-150",
           "translate-x-0.5 data-[state=checked]:translate-x-[14px] data-[state=checked]:bg-on-accent",
         )}
       />

@@ -122,9 +122,7 @@ export function buildTokenMap(spec: ThemePluginSpec): Record<string, string> {
     "color-cta-hover": cta.ctaHover,
     "color-cta-text": cta.ctaText,
 
-    // Shadows — 3 canonical tokens (REDESIGN.md §3.4). A few legacy names
-    // still consumed by older classNames (shadow-sm/md/lg/medium) are kept
-    // as CSS aliases in globals.css :root pointing to these 3.
+    // Shadows — 3 canonical tokens (REDESIGN.md §3.4).
     "shadow-composer": shadows.composer,
     "shadow-elevated": shadows.elevated,
     "shadow-focus": shadows.focus,

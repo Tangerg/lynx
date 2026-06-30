@@ -300,21 +300,6 @@
     0 16px 24px -8px rgba(0, 0, 0, 0.5);
   --shadow-focus: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent);
 
-  /* Legacy shadow aliases — old names still consumed by a handful of
-     component classNames (the canonical tokens are shadow-composer /
-     -elevated / -focus). Deprecated; new code uses the canonical names.
-
-     Alias map:
-       shadow-lg     → shadow-elevated
-       shadow-md     → shadow-elevated
-       shadow-medium → shadow-elevated
-       shadow-sm     → shadow-focus
-  */
-  --shadow-lg: var(--shadow-elevated);
-  --shadow-md: var(--shadow-elevated);
-  --shadow-medium: var(--shadow-elevated);
-  --shadow-sm: var(--shadow-focus);
-
   /* Content max-width — the centered reading island (REDESIGN.md §3.4). */
   --content-max: 768px;
 
