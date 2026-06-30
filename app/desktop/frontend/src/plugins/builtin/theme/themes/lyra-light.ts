@@ -9,7 +9,7 @@ const c = {
 
   // Geist background scale: bg-100 white, bg-200 subtle separation.
   canvas: "#ffffff",
-  surface1: "#fbfbfa",
+  surface1: "#f4f4f3",
 
   // Geist gray scale (text/icons): gray-1000 / 900 / 700 / 600.
   inkBright: "#000000",
