@@ -1,9 +1,7 @@
 // Sidebar primary navigation — the top-of-sidebar destinations that make the
-// app's features reachable in one click (the "where do I find X?" fix). A "New
-// chat" action, a Workspace group of the reusable capability views, and a
-// Session group of the active session's working-tree + run views. Each row
-// opens its view in the main pane (openMainView) and lights up while that view
-// is active. Renders above the Projects tree (order -10).
+// app's workspace-level features reachable in one click. Session-specific
+// views live under the active session in the project tree, where their scope is
+// visible. Renders above the Projects tree (order -10).
 
 import type { IconName } from "@/components/common";
 import { Icon, SectionLabel } from "@/components/common";
@@ -32,16 +30,6 @@ const WORKSPACE_DESTINATIONS: Destination[] = [
   { id: "memory", icon: "filetext", titleKey: "memory.title" },
 ];
 
-// The active session's working tree + the agent's progress on it. Search lives
-// in the sidebar search box above, which opens the same workspace grep view, so
-// it isn't duplicated here.
-const SESSION_DESTINATIONS: Destination[] = [
-  { id: "explorer", icon: "folder", titleKey: "workspace.view.title.filetree" },
-  { id: "files", icon: "filetext", titleKey: "workspace.view.title.files" },
-  { id: "plan", icon: "list", titleKey: "workspace.view.title.plan" },
-  { id: "todos", icon: "check", titleKey: "workspace.view.title.todos" },
-];
-
 function NavRow({
   icon,
   label,
@@ -59,7 +47,7 @@ function NavRow({
       onClick={onClick}
       data-chrome-focus=""
       className={cn(
-        "flex w-full items-center gap-2.5 rounded-xl border-0 bg-transparent px-3 py-2 text-left",
+        "flex w-full items-center gap-2.5 rounded-md border-0 bg-transparent px-3 py-2 text-left",
         "font-sans text-[13px] text-fg-muted transition-[background-color,transform] duration-75 active:scale-[0.99]",
         "hover:bg-fg/[0.045] hover:text-fg focus-visible:bg-fg/[0.065] focus-visible:text-fg focus-visible:outline-none",
         active && "bg-fg/[0.065] text-fg shadow-[inset_0_1px_0_var(--color-divider)]",
@@ -118,11 +106,6 @@ function SidebarNav() {
       <NavGroup
         label={t("sidebar.section.workspace")}
         destinations={WORKSPACE_DESTINATIONS}
-        activeMainView={activeMainView}
-      />
-      <NavGroup
-        label={t("sidebar.section.session")}
-        destinations={SESSION_DESTINATIONS}
         activeMainView={activeMainView}
       />
     </div>

@@ -5,6 +5,7 @@
 // this section.
 
 import type { SidebarProject, SidebarSession } from "@/lib/data/queries";
+import type { IconName } from "@/components/common";
 import { useMemo, useState } from "react";
 import { DataView, FIELD_CLASSES, Icon, SectionLabel } from "@/components/common";
 import { ProjectRow } from "@/components/sidebar/ProjectRow";
@@ -27,6 +28,13 @@ import { sideListClasses } from "./styles";
 // Sessions shown per expanded project before the "Show more" fold —
 // keeps a busy project from burying the ones below it (Codex's 展开显示).
 const VISIBLE_CAP = 5;
+
+const SESSION_DESTINATIONS: { id: string; icon: IconName; titleKey: string }[] = [
+  { id: "explorer", icon: "folder", titleKey: "workspace.view.title.filetree" },
+  { id: "files", icon: "filetext", titleKey: "workspace.view.title.files" },
+  { id: "plan", icon: "list", titleKey: "workspace.view.title.plan" },
+  { id: "todos", icon: "check", titleKey: "workspace.view.title.todos" },
+];
 
 interface ProjectGroup {
   project: SidebarProject;
@@ -74,6 +82,7 @@ function ProjectGroupNode({
   group,
   activeCwd,
   activeSessionId,
+  activeMainView,
   forceExpand,
   onNewSession,
   onSelect,
@@ -85,6 +94,7 @@ function ProjectGroupNode({
   group: ProjectGroup;
   activeCwd: string | undefined;
   activeSessionId: string;
+  activeMainView: string | null;
   /** While a filter is active: force the group open and show every match
    *  (ignore the collapse + VISIBLE_CAP fold), so results are never hidden. */
   forceExpand?: boolean;
@@ -117,16 +127,47 @@ function ProjectGroupNode({
       {expanded && group.sessions.length > 0 && (
         <div className="flex flex-col gap-0.5 pl-4">
           {visible.map((s) => (
-            <SessionRow
-              key={s.id}
-              session={s}
-              active={s.id === activeSessionId}
-              onSelect={onSelect}
-              onRename={onRename}
-              onFork={onFork}
-              onDelete={onDelete}
-              onToggleFavorite={onToggleFavorite}
-            />
+            <div key={s.id} className="flex flex-col gap-0.5">
+              <SessionRow
+                session={s}
+                active={s.id === activeSessionId}
+                onSelect={onSelect}
+                onRename={onRename}
+                onFork={onFork}
+                onDelete={onDelete}
+                onToggleFavorite={onToggleFavorite}
+              />
+              {s.id === activeSessionId && (
+                <div className="ml-5 flex flex-col gap-0.5 border-l border-divider pl-2">
+                  {SESSION_DESTINATIONS.map((d) => {
+                    const active = activeMainView === d.id;
+                    return (
+                      <button
+                        key={d.id}
+                        type="button"
+                        data-chrome-focus=""
+                        onClick={() => {
+                          const store = useSessionStore.getState();
+                          if (active) {
+                            store.closeMainView(d.id);
+                          } else {
+                            store.openMainView({ id: d.id, title: d.titleKey, icon: d.icon });
+                          }
+                        }}
+                        className={cn(
+                          "flex items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-[12.5px] text-fg-muted transition-colors duration-75",
+                          "hover:bg-fg/[0.04] hover:text-fg focus-visible:bg-fg/[0.055] focus-visible:text-fg focus-visible:outline-none",
+                          active && "bg-fg/[0.055] text-fg",
+                        )}
+                      >
+                        <Icon name={d.icon} size={13} className="shrink-0 text-fg-faint" />
+                        <span className="truncate">{t(d.titleKey)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           ))}
           {(hidden > 0 || showAll) && (
             <button
@@ -149,6 +190,7 @@ function ProjectsSection() {
   const { data: sessions, isLoading: sessionsLoading, isError: sessionsError } = useSessions();
   const draftIds = useSessionStore((s) => s.draftSessionIds);
   const activeSessionId = useSessionStore((s) => s.activeSessionId);
+  const activeMainView = useSessionStore((s) => s.activeMainView);
   const selectTab = useSessionStore((s) => s.selectTab);
   const createSession = useCreateSession();
   const deleteSession = useDeleteSession();
@@ -230,6 +272,7 @@ function ProjectsSection() {
                 group={g}
                 activeCwd={activeCwd}
                 activeSessionId={activeSessionId}
+                activeMainView={activeMainView}
                 onNewSession={openProject}
                 onSelect={selectTab}
                 onRename={(id, title) => void renameSession(id, title)}

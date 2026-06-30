@@ -69,10 +69,10 @@ export function SettingsPage() {
       orientation="vertical"
       value={activeId}
       onValueChange={setSelectedId}
-      className="grid h-full w-full grid-cols-[252px_1fr] overflow-hidden"
+      className="grid h-full w-full grid-cols-[236px_1fr] overflow-hidden"
     >
       <Tabs.List
-        className="flex flex-col gap-0.5 overflow-y-auto border-r border-divider bg-surface/75 px-3 py-8 backdrop-blur-2xl"
+        className="flex flex-col gap-0.5 overflow-y-auto border-r border-divider bg-surface/45 px-3 py-8"
         aria-label={t("settings.title")}
       >
         {grouped.map((g) => (
@@ -82,7 +82,7 @@ export function SettingsPage() {
               <Tabs.Trigger
                 key={p.id}
                 value={p.id}
-                className="flex items-center gap-2.5 rounded-xl border-0 bg-transparent px-3 py-2 text-left text-[13px] text-fg-muted transition-colors duration-150 hover:bg-fg/[0.045] hover:text-fg data-[state=active]:bg-fg/[0.065] data-[state=active]:text-fg data-[state=active]:shadow-[inset_0_1px_0_var(--color-divider)]"
+                className="flex items-center gap-2.5 rounded-md border-0 bg-transparent px-3 py-2 text-left text-[13px] text-fg-muted transition-colors duration-150 hover:bg-fg/[0.04] hover:text-fg data-[state=active]:bg-fg/[0.055] data-[state=active]:text-fg"
               >
                 {p.icon && <Icon name={p.icon as IconName} size={15} className="shrink-0" />}
                 <span className="truncate">{t(p.label)}</span>

@@ -64,8 +64,8 @@ export function SessionRow({
         aria-current={active ? "page" : undefined}
         aria-label={session.title}
         className={cn(
-          "flex w-full items-start gap-2.5 rounded-xl border-0 bg-transparent px-3 py-2 text-left transition-[background-color] duration-75 hover:bg-fg/[0.045] focus-visible:bg-fg/[0.065] focus-visible:text-fg focus-visible:outline-none",
-          active && "bg-fg/[0.065] text-fg shadow-[inset_0_1px_0_var(--color-divider)]",
+          "flex w-full items-start gap-2.5 rounded-md border-0 bg-transparent px-2.5 py-1.5 text-left transition-[background-color] duration-75 hover:bg-fg/[0.04] focus-visible:bg-fg/[0.055] focus-visible:text-fg focus-visible:outline-none",
+          active && "bg-fg/[0.055] text-fg",
         )}
       >
         <div

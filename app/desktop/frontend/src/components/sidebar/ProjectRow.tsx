@@ -27,8 +27,8 @@ export function ProjectRow({
     <div className={cn("relative group select-none")}>
       <div
         className={cn(
-          "flex items-center gap-1 rounded-xl px-3 py-2 transition-[background-color] duration-75 hover:bg-fg/[0.045]",
-          active && "bg-fg/[0.065] text-fg shadow-[inset_0_1px_0_var(--color-divider)]",
+          "flex items-center gap-1 rounded-md px-2.5 py-1.5 transition-[background-color] duration-75 hover:bg-fg/[0.04]",
+          active && "bg-fg/[0.055] text-fg",
         )}
       >
         <button
@@ -77,7 +77,7 @@ export function ProjectRow({
           data-chrome-focus=""
           aria-label={t("project.row.newSession", { name: project.name })}
           onClick={() => onNewSession(project)}
-          className="grid h-5 w-5 place-items-center rounded-lg border-0 bg-transparent text-fg-faint opacity-0 transition-all group-hover:opacity-100 hover:bg-fg/[0.06] hover:text-fg"
+          className="grid h-5 w-5 place-items-center rounded-md border-0 bg-transparent text-fg-faint opacity-0 transition-all group-hover:opacity-100 hover:bg-fg/[0.055] hover:text-fg"
         >
           <Icon name="plus" size={11} />
         </button>

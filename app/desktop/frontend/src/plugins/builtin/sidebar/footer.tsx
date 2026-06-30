@@ -10,7 +10,7 @@ import { useSessionStore } from "@/state/sessionStore";
 import { useUiStore } from "@/state/uiStore";
 
 const userActionClasses =
-  "grid h-7 w-7 place-items-center rounded-xl border-0 bg-transparent text-fg-faint transition-[background,color,transform] hover:bg-fg/[0.05] hover:text-fg focus-visible:bg-fg/[0.06] focus-visible:text-fg focus-visible:outline-none active:scale-[0.92]";
+  "grid h-7 w-7 place-items-center rounded-md border-0 bg-transparent text-fg-faint transition-[background,color,transform] hover:bg-fg/[0.05] hover:text-fg focus-visible:bg-fg/[0.06] focus-visible:text-fg focus-visible:outline-none active:scale-[0.92]";
 
 function ThemeToggle() {
   const theme = useUiStore((s) => s.theme);
@@ -45,7 +45,7 @@ function SidebarFooter() {
   return (
     <div className={noDragClasses}>
       <div className="mx-2 my-1.5 border-t border-divider" />
-      <div className="flex items-center justify-between gap-1 rounded-xl px-2 py-1.5">
+      <div className="flex items-center justify-between gap-1 rounded-md px-2 py-1.5">
         <Slot name="sidebar.footer.status" className="flex items-center gap-0.5" />
         <div className="flex items-center gap-0.5">
           <ThemeToggle />
