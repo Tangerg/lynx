@@ -5,23 +5,23 @@
 import { defineThemePlugin } from "../kit/defineThemePlugin";
 
 const c = {
-  // Accent — luminous indigo, used sparingly for live state only.
-  accent: "#7b8efa",
+  // Geist blue-700 accent (same hue as light; reads clean on dark).
+  accent: "#006bff",
 
-  // Surface anchors (flush layout: canvas = main reading area, surface = chrome)
-  canvas: "oklch(0.12 0.012 260)", // cool slate near-black
-  surface1: "oklch(0.205 0.014 260)", // meaningful lift from canvas
+  // Geist-dark surfaces: near-black canvas, gray-1000 lifted chrome.
+  canvas: "#0a0a0a",
+  surface1: "#171717",
 
   // Ink
   inkBright: "#ffffff",
-  ink: "#ececec",
-  inkSoft: "#b8bcc4",
-  inkMuted: "#8a8f98",
-  inkFaint: "#5c6068",
+  ink: "#ededed",
+  inkSoft: "#a1a1a1",
+  inkMuted: "#8f8f8f",
+  inkFaint: "#636363",
 
   // Hairlines — alpha-based so they sit softly on dark surfaces
   hairline: "rgba(255, 255, 255, 0.10)",
-  hairStrong: "rgba(255, 255, 255, 0.06)",
+  hairStrong: "rgba(255, 255, 255, 0.21)",
   hairTertiary: "rgba(255, 255, 255, 0.08)",
 };
 
@@ -33,7 +33,7 @@ export default defineThemePlugin({
 
   brand: {
     accent: c.accent,
-    textOnAccent: "#030408", // near-black ink on the indigo accent
+    textOnAccent: "#ffffff", // white ink on the blue accent
   },
   surfaces: {
     bg: c.canvas,
@@ -52,9 +52,9 @@ export default defineThemePlugin({
     divider: c.hairTertiary,
   },
   semantic: {
-    negative: "#f85149",
-    warning: "#f0a936",
-    info: "#58a6ff",
-    success: "#3fb950",
+    negative: "#fc0035", // red-700
+    warning: "#ffc543", // amber-500
+    info: "#006bff", // blue-700
+    success: "#4ce15e", // green-600
   },
 });

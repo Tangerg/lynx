@@ -16,6 +16,23 @@
    premium, native default; it loads instantly and renders CJK best. */
 @import "tailwindcss";
 
+/* Geist — Vercel's design system face (OFL-1.1), bundled as variable woff2
+   (latin subset; CJK falls through to the system stack below). */
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("/fonts/geist.woff2") format("woff2-variations");
+}
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("/fonts/geist-mono.woff2") format("woff2-variations");
+}
+
 /* Scheme variants. `theme-light` / `theme-dark` are written to <html>
    by uiStore.applyTheme. */
 @custom-variant dark (&:where(.theme-dark, .theme-dark *));
@@ -93,16 +110,18 @@
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 16px;
-  --radius-xl: 20px;
+  --radius-xl: 16px;
   --radius-pill: 9999px;
 
-  /* Fonts — native system stack: SF Pro + PingFang on macOS (primary target),
-     graceful fallbacks elsewhere. The single source of truth for both the html
-     base and every `font-sans` / `font-mono` utility. */
+  /* Fonts — Geist (bundled) leads; system stack backs it up for CJK
+     (PingFang / Microsoft YaHei) + any glyph Geist lacks. Single source of
+     truth for the html base and every `font-sans` / `font-mono` utility. */
   --font-sans:
-    -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, "PingFang SC",
-    "Hiragino Sans", "Microsoft YaHei", sans-serif;
-  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, "Cascadia Code", Consolas, monospace;
+    "Geist", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto,
+    "PingFang SC", "Hiragino Sans", "Microsoft YaHei", sans-serif;
+  --font-mono:
+    "Geist Mono", ui-monospace, "SF Mono", SFMono-Regular, Menlo, "Cascadia Code", Consolas,
+    monospace;
 
   /* Animations — `animate-shimmer` powers Skeleton, `animate-pulse-dot`
      the running indicator, `animate-rise-in` popover entry. */
@@ -148,7 +167,7 @@
 :root {
   /* Accent — restrained, near-monochrome. A calm blue used only for live /
      CTA / focus (DESIGN.md §9). Themes + the user's accent pick override it. */
-  --color-accent: #7b8efa;
+  --color-accent: #006bff;
   --color-accent-border: #6a7de8;
   --color-accent-press: #5a6cd6;
 
@@ -223,8 +242,7 @@
   --fs-body-xs: 0.75rem; /* 12px */
   --fs-caption: 0.72rem; /* 11.5px */
 
-  /* 500 is the display ceiling — hierarchy via size + weight contrast,
-     not heavier weights (REDESIGN.md §3.2). */
+  /* 600 is the Geist heading weight — hierarchy via size + weight contrast. */
   --fw-regular: 400;
   --fw-medium: 500;
   --fw-semibold: 600;
@@ -245,7 +263,7 @@
   --radius-sm: calc(6px * var(--radius-scale));
   --radius-md: calc(8px * var(--radius-scale));
   --radius-lg: calc(16px * var(--radius-scale));
-  --radius-xl: calc(20px * var(--radius-scale));
+  --radius-xl: calc(16px * var(--radius-scale));
   /* Pill / circle are conceptual ("fully round") — not scaled. */
   --radius-pill: 9999px;
   --radius-circle: 50%;
@@ -276,11 +294,11 @@
    *  elevated: dropdown / popover / modal / command-palette
    *  focus: 输入框焦点 inset 1px，无 halo glow
    * ----------------------------------------------------------------------- */
-  --shadow-composer: none;
+  --shadow-composer: 0 2px 2px rgba(0, 0, 0, 0.4);
   --shadow-elevated:
-    0 0 0 1px rgba(255, 255, 255, 0.06), 0 1px 2px rgba(0, 0, 0, 0.3),
-    0 6px 20px -6px rgba(0, 0, 0, 0.45);
-  --shadow-focus: inset 0 0 0 1px var(--color-border-soft);
+    0 1px 1px rgba(0, 0, 0, 0.3), 0 4px 8px -4px rgba(0, 0, 0, 0.4),
+    0 16px 24px -8px rgba(0, 0, 0, 0.5);
+  --shadow-focus: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent);
 
   /* Legacy shadow aliases — old names still consumed by a handful of
      component classNames (the canonical tokens are shadow-composer /
@@ -353,7 +371,7 @@ h3,
 h4,
 h5,
 h6 {
-  font-weight: 500;
+  font-weight: 600;
 }
 
 /* Mono is the technical / data voice (DESIGN.md §3) — bake tabular figures into
@@ -459,10 +477,10 @@ html.theme-light .panel {
 
 /* Light mode: composer gets the only allowed shadow. */
 html.theme-light {
-  --shadow-composer: 0 2px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-composer: 0 2px 2px rgba(0, 0, 0, 0.04);
   --shadow-elevated:
-    0 0 0 1px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.05),
-    0 6px 20px -6px rgba(15, 23, 42, 0.12);
+    0 1px 1px rgba(0, 0, 0, 0.02), 0 4px 8px -4px rgba(0, 0, 0, 0.04),
+    0 16px 24px -8px rgba(0, 0, 0, 0.06);
 }
 
 /* Quieter scrollbar on light — the dark thumb tokens overshoot. */

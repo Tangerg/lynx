@@ -10,22 +10,21 @@ import type { ThemeCta, ThemePluginSpec, ThemeRadii, ThemeShadows } from "./type
 // Default shadow + radii ladders
 
 export const DARK_SHADOWS: ThemeShadows = {
-  composer: "none",
-  // Edge-as-shadow (hairline + contact + ambient): the floating surface's
-  // boundary is the first shadow layer (a faint light ring ≈ the old
-  // border-line-soft, so the migration is seamless), not a separate border.
+  composer: "0 2px 2px rgba(0, 0, 0, 0.4)",
+  // Geist elevation: subtle 3-layer (contact + ambient), no hairline edge —
+  // the translucent border (gray-alpha) defines the edge, shadow adds depth.
   elevated:
-    "0 0 0 1px rgba(255, 255, 255, 0.06), 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 20px -6px rgba(0, 0, 0, 0.45)",
-  focus: "inset 0 0 0 1px var(--color-border-soft)",
+    "0 1px 1px rgba(0, 0, 0, 0.3), 0 4px 8px -4px rgba(0, 0, 0, 0.4), 0 16px 24px -8px rgba(0, 0, 0, 0.5)",
+  // Geist two-layer focus ring: 2px gap in surface color + 2px accent.
+  focus: "0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent)",
 };
 
 export const LIGHT_SHADOWS: ThemeShadows = {
-  composer: "0 2px 6px -2px rgba(0, 0, 0, 0.05)",
-  // Slate-900 (rgb 15 23 42) shadow channel — softer than pure black. Edge
-  // hairline @ 0.08, contact @ 0.05, ambient compacted for desktop surfaces.
+  composer: "0 2px 2px rgba(0, 0, 0, 0.04)",
+  // Geist light popover shadow (Vercel design.md): very subtle alphas.
   elevated:
-    "0 0 0 1px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.05), 0 6px 20px -6px rgba(15, 23, 42, 0.12)",
-  focus: "inset 0 0 0 1px var(--color-border-soft)",
+    "0 1px 1px rgba(0, 0, 0, 0.02), 0 4px 8px -4px rgba(0, 0, 0, 0.04), 0 16px 24px -8px rgba(0, 0, 0, 0.06)",
+  focus: "0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent)",
 };
 
 export const DEFAULT_RADII: ThemeRadii = {
