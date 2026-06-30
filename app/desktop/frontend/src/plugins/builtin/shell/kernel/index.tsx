@@ -4,7 +4,7 @@
 // replace `kernel-chat` with their own session UI) without touching the
 // rest.
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { ChatPanel } from "@/components/chat/panel";
 import { SettingsPage } from "./SettingsPage";
 import { SidebarPanel } from "@/components/sidebar/SidebarPanel";
@@ -17,7 +17,29 @@ import { useUiStore } from "@/state/uiStore";
 import { useSidebarRail } from "@/state/useSidebarRail";
 import { useDefaultChatSession } from "@/state/useDefaultChatSession";
 
+// On boot, reconcile the persisted tabs / active session against the backend's
+// real session list. localStorage carries activeSessionId + tabIds across
+// launches; if the runtime no longer has those sessions — the db was reset
+// (`make fresh`) or a session was deleted elsewhere — a persisted ghost id
+// would strand the user on a dead session whose first runs.start is rejected
+// with session_not_found. Runs once, the first time sessions.list resolves;
+// not-yet-graduated drafts (absent from the list by design) are kept by
+// reconcileTabs, so there's no race with a session created during the run.
+function useReconcilePersistedTabs() {
+  const { data, isSuccess } = useSessions();
+  const done = useRef(false);
+  useEffect(() => {
+    if (done.current || !isSuccess) return;
+    done.current = true;
+    useSessionStore.getState().reconcileTabs((data ?? []).map((s) => s.id));
+  }, [isSuccess, data]);
+}
+
 function KernelChat() {
+  // Drop persisted refs to sessions the backend no longer has BEFORE binding
+  // the agent lifecycle, so a stale active id resolves to the welcome screen
+  // instead of a dead session.
+  useReconcilePersistedTabs();
   // Mount the active session's agent lifecycle (subscribe + register the
   // send/stop actions); the send routing itself goes through useChatSend.
   useDefaultChatSession();

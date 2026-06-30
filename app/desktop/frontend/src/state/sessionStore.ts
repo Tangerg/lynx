@@ -92,6 +92,13 @@ interface SessionActions {
   markDraft: (id: string) => void;
   /** Promote a draft to a real session (first message sent). Idempotent. */
   graduateDraft: (id: string) => void;
+  /** Reconcile persisted tabs against the backend's live session ids (boot):
+   *  drop tab / active refs to sessions the runtime no longer has — deleted
+   *  elsewhere, or the whole db reset (`make fresh`) — so a persisted ghost id
+   *  can't strand the user on a dead session that runs.start rejects with
+   *  session_not_found. Not-yet-graduated drafts (absent from sessions.list by
+   *  design) are kept. */
+  reconcileTabs: (liveIds: string[]) => void;
   /** Queue the first message input for a session id. */
   setPendingMessage: (id: string, input: ContentBlock[]) => void;
   /** Read + clear the queued first message input for a session id. */
@@ -201,6 +208,22 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         const next = new Set(drafts);
         next.delete(id);
         set({ draftSessionIds: next });
+      },
+      reconcileTabs: (liveIds) => {
+        const { tabIds, activeSessionId, draftSessionIds } = get();
+        // A persisted tab is valid only if the backend still has that session
+        // (liveIds) or it's a not-yet-graduated draft (never in sessions.list).
+        const known = new Set([...liveIds, ...draftSessionIds]);
+        const nextTabs = tabIds.filter((id) => known.has(id));
+        const activeAlive = activeSessionId === "" || known.has(activeSessionId);
+        if (nextTabs.length === tabIds.length && activeAlive) return; // nothing dangling
+        set({
+          tabIds: nextTabs,
+          // Dropped the active session → fall back to a surviving tab, else the
+          // welcome screen (""), and clear its now-orphaned session-scoped UI.
+          activeSessionId: activeAlive ? activeSessionId : (nextTabs.at(-1) ?? ""),
+          ...(activeAlive ? {} : clearSessionScopedState()),
+        });
       },
       setPendingMessage: (id, input) =>
         set({ pendingMessages: { ...get().pendingMessages, [id]: input } }),

@@ -234,3 +234,44 @@ describe("sessionStore draft lifecycle", () => {
     expect(useSessionStore.getState().takePendingMessage("x")).toBeUndefined();
   });
 });
+
+describe("reconcileTabs reconciles persisted tabs against backend truth", () => {
+  beforeEach(reset);
+
+  it("drops every tab + clears active when the backend has no sessions (db reset)", () => {
+    // s1/s2/s3 were persisted across a launch, but `make fresh` wiped the db —
+    // the runtime now has none, so a send would hit session_not_found.
+    useSessionStore.setState({ draftSessionIds: new Set() });
+    useSessionStore.getState().reconcileTabs([]);
+    const s = useSessionStore.getState();
+    expect(s.tabIds).toEqual([]);
+    expect(s.activeSessionId).toBe(""); // → welcome screen, never a dead session
+  });
+
+  it("keeps live sessions and a not-yet-graduated draft, prunes the rest", () => {
+    // s1 still live on the backend; s2 deleted; s3 is a fresh draft (created up
+    // front, absent from sessions.list until its first message graduates it).
+    useSessionStore.setState({ draftSessionIds: new Set(["s3"]) });
+    useSessionStore.getState().reconcileTabs(["s1"]);
+    const s = useSessionStore.getState();
+    expect(s.tabIds).toEqual(["s1", "s3"]); // s2 pruned, draft kept
+    expect(s.activeSessionId).toBe("s1"); // active still alive
+  });
+
+  it("re-targets the active session to a survivor when it was dropped", () => {
+    useSessionStore.setState({ draftSessionIds: new Set() });
+    useSessionStore.getState().reconcileTabs(["s2", "s3"]); // active s1 is gone
+    const s = useSessionStore.getState();
+    expect(s.tabIds).toEqual(["s2", "s3"]);
+    expect(s.activeSessionId).toBe("s3"); // falls back to the last survivor
+  });
+
+  it("is a no-op (same tabIds reference) when every persisted tab is still live", () => {
+    useSessionStore.setState({ draftSessionIds: new Set() });
+    const before = useSessionStore.getState().tabIds;
+    useSessionStore.getState().reconcileTabs(["s1", "s2", "s3"]);
+    const s = useSessionStore.getState();
+    expect(s.tabIds).toBe(before); // early return — no set(), reference unchanged
+    expect(s.activeSessionId).toBe("s1");
+  });
+});
