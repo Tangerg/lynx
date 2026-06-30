@@ -1,10 +1,16 @@
-import type { AgentViewState, RunError } from "./viewState";
+import type { AgentViewState, ContentBlock, RunError } from "./viewState";
 import { appendTimelineEntry } from "./timeline";
 
 export interface SettledInterrupt {
   decision?: "approved" | "declined";
   answered?: boolean;
   answers?: Record<string, string[]>;
+}
+
+type InterruptBlock = Extract<ContentBlock, { kind: "approval" | "question" }>;
+
+function matchesInterruptBlock(block: ContentBlock, itemId: string): block is InterruptBlock {
+  return (block.kind === "approval" || block.kind === "question") && block.itemId === itemId;
 }
 
 export function relabelMessage(view: AgentViewState, fromId: string, toId: string): AgentViewState {
@@ -40,14 +46,19 @@ export function resolveInterrupt(
   itemId: string,
   settled: SettledInterrupt,
 ): AgentViewState {
-  const messages = view.messages.map((m) => {
-    if (!m.blocks.some((b) => "itemId" in b && b.itemId === itemId)) return m;
+  let touchedBlock = false;
+  let touchedApproval = false;
+  const settledMessages = view.messages.map((m) => {
+    if (!m.blocks.some((b) => matchesInterruptBlock(b, itemId))) return m;
     return {
       ...m,
       blocks: m.blocks.map((b) => {
-        if (!("itemId" in b) || b.itemId !== itemId) return b;
-        if (b.kind === "approval")
+        if (!matchesInterruptBlock(b, itemId)) return b;
+        touchedBlock = true;
+        if (b.kind === "approval") {
+          touchedApproval = true;
           return { ...b, status: "complete" as const, decision: settled.decision };
+        }
         if (b.kind === "question")
           return {
             ...b,
@@ -59,11 +70,23 @@ export function resolveInterrupt(
       }),
     };
   });
-  const openInterrupts = view.openInterrupts
-    .map((oi) => ({ ...oi, interrupts: oi.interrupts.filter((i) => i.itemId !== itemId) }))
-    .filter((oi) => oi.interrupts.length > 0);
+  const messages = touchedBlock ? settledMessages : view.messages;
+
+  let touchedInterrupt = false;
+  const settledOpenInterrupts = view.openInterrupts.flatMap((oi) => {
+    const hasItem = oi.interrupts.some((i) => i.itemId === itemId);
+    if (!hasItem) return [oi];
+    touchedInterrupt = true;
+    touchedApproval ||= oi.interrupts.some((i) => i.itemId === itemId && i.type === "approval");
+    const interrupts = oi.interrupts.filter((i) => i.itemId !== itemId);
+    return interrupts.length > 0 ? [{ ...oi, interrupts }] : [];
+  });
+  const openInterrupts = touchedInterrupt ? settledOpenInterrupts : view.openInterrupts;
+
+  if (!touchedBlock && !touchedInterrupt) return view;
+
   let next: AgentViewState = { ...view, messages, openInterrupts };
-  if (settled.decision) {
+  if (settled.decision && touchedApproval) {
     next = appendTimelineEntry({
       kind: "approval-result",
       refId: itemId,
