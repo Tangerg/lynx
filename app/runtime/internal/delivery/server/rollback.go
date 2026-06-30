@@ -57,7 +57,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	if err != nil {
 		return nil, err
 	}
-	nodes, refByID, err := runNodes(runs)
+	nodes, refByID, err := runBoundaryNodes(runs)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +97,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 
 	// Each dropped run reports its opening user input so the client can
 	// re-populate the composer.
-	userByRun := openingUserInput(items)
+	userByRun := openingUserInputByRun(items)
 	out := make([]protocol.DroppedRun, 0, len(b.Dropped))
 	for _, rec := range b.Dropped {
 		out = append(out, protocol.DroppedRun{Run: refByID[rec.ID], UserInput: userByRun[rec.ID]})

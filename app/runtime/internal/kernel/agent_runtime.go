@@ -10,13 +10,13 @@ import (
 var _ agentRuntime = (*agentruntime.Platform)(nil)
 
 type agentRuntime interface {
-	agentStarter
+	processRunner
 	processControl
 
 	Deploy(*core.Agent) error
 }
 
-type agentStarter interface {
+type processRunner interface {
 	StartAgent(context.Context, *core.Agent, map[string]any, core.ProcessOptions) (*agentruntime.AgentProcess, <-chan error)
 	RestoreProcess(context.Context, string, core.ProcessOptions) (*agentruntime.AgentProcess, error)
 	ContinueProcess(context.Context, string) error
