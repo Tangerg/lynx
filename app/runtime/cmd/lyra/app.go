@@ -20,9 +20,9 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/agent/core"
+	adapterhooks "github.com/Tangerg/lynx/app/runtime/internal/adapter/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	mcpserversvc "github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
@@ -153,7 +153,7 @@ func (a *App) ensureRuntime(ctx context.Context) error {
 	// cloned repo's hooks must not auto-execute). Broken hooks are recorded on
 	// the turn span. userHome "" (rare) → global hooks just won't be found.
 	userHome, _ := os.UserHomeDir()
-	hookResolver := hooks.NewResolver(userHome,
+	hookResolver := adapterhooks.NewResolver(userHome,
 		func(projectRoot string) bool {
 			ok, _ := stores.Trust.IsTrusted(context.Background(), projectRoot)
 			return ok

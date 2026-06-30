@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
+	adapterhooks "github.com/Tangerg/lynx/app/runtime/internal/adapter/hooks"
 )
 
 // HooksCmd is the `lyra hooks` group — manage which projects are trusted to run
@@ -37,7 +37,7 @@ func projectRootArg(args []string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return hooks.ProjectRoot(abs), nil
+	return adapterhooks.ProjectRoot(abs), nil
 }
 
 func (a *App) hooksTrustCmd() *cobra.Command {

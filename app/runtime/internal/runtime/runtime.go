@@ -126,10 +126,9 @@ type Config struct {
 	Model    string
 
 	// HooksResolver resolves user-configured lifecycle hooks for a turn's cwd.
-	// nil (or a nil *hooks.Resolver) disables hooks — the turn no-ops every
-	// hook seam. The composition root builds it from the storage home + the
-	// project-trust store.
-	HooksResolver *hooks.Resolver
+	// nil disables hooks — the turn no-ops every hook seam. The composition root
+	// builds the adapter-backed resolver from the storage home + trust store.
+	HooksResolver HookResolver
 
 	// HookTrustStore backs the workspace.hooks.* trust toggle (a GUI granting a
 	// project's hooks). nil → trust is read-only (CLI / file only); the resolver
@@ -166,6 +165,12 @@ type Config struct {
 type HookTrustStore interface {
 	Trust(ctx context.Context, projectRoot string) error
 	Untrust(ctx context.Context, projectRoot string) error
+}
+
+// HookResolver is the runtime's consumer view of lifecycle-hook resolution.
+type HookResolver interface {
+	For(ctx context.Context, cwd string) *hooks.Bound
+	Inspect(ctx context.Context, cwd string) hooks.Inspection
 }
 
 // Runtime is the bundle. Construct once via [New]; share the
@@ -219,7 +224,7 @@ type Runtime struct {
 	// hookResolver inspects lifecycle hooks for a cwd (workspace.hooks.list);
 	// hookTrust mutates project trust (workspace.hooks.setTrust). Both nil when
 	// hooks are unconfigured.
-	hookResolver *hooks.Resolver
+	hookResolver HookResolver
 	hookTrust    HookTrustStore
 
 	// recipesGlobalDir is the global recipes directory the workspace.recipes.list

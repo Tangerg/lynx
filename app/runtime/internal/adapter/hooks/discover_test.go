@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	domainhooks "github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
 func writeHooks(t *testing.T, dir, body string) {
@@ -21,7 +23,6 @@ func writeHooks(t *testing.T, dir, body string) {
 func TestLoad_TagsGlobalAndProjectScope(t *testing.T) {
 	home := t.TempDir()
 	cwd := t.TempDir()
-	// Mark cwd as a project root so project discovery stays at cwd.
 	if err := os.MkdirAll(filepath.Join(cwd, ".git"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -35,11 +36,10 @@ func TestLoad_TagsGlobalAndProjectScope(t *testing.T) {
 	if len(hooks) != 2 {
 		t.Fatalf("len = %d, want 2: %+v", len(hooks), hooks)
 	}
-	// Global is loaded first.
-	if hooks[0].Scope != ScopeGlobal || hooks[0].Inject != "global-ctx" {
+	if hooks[0].Scope != domainhooks.ScopeGlobal || hooks[0].Inject != "global-ctx" {
 		t.Errorf("hook[0] = %+v, want global SessionStart", hooks[0])
 	}
-	if hooks[1].Scope != ScopeProject || hooks[1].Event != PreToolUse {
+	if hooks[1].Scope != domainhooks.ScopeProject || hooks[1].Event != domainhooks.PreToolUse {
 		t.Errorf("hook[1] = %+v, want project PreToolUse", hooks[1])
 	}
 	if hooks[1].Source == "" {
@@ -71,7 +71,7 @@ func TestLoad_MissingFilesAreFine(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(hooks) != 0 {
-		t.Errorf("no files → no hooks, got %+v", hooks)
+		t.Errorf("no files -> no hooks, got %+v", hooks)
 	}
 }
 

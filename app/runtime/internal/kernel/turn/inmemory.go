@@ -58,9 +58,9 @@ func newTurnID() string { return turnIDPrefix + uuid.NewString() }
 // names ("<server>_<tool>") whose calls skip the approval prompt — a per-server
 // whitelist the runtime recomputes on every MCP registry change. nil disables
 // it (no MCP tool auto-approves).
-// hookResolver resolves the lifecycle hooks bound to a working directory.
-// Implemented by [hooks.Resolver]; nil disables hooks. Narrow consumer view so
-// the turn doesn't depend on the resolver's construction.
+// hookResolver resolves the lifecycle hooks bound to a working directory. Nil
+// disables hooks. Narrow consumer view so the turn doesn't depend on resolver
+// construction.
 type hookResolver interface {
 	For(ctx context.Context, cwd string) *hooks.Bound
 }

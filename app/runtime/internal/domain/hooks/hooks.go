@@ -14,9 +14,8 @@
 // embedded interpreter (Goja/Starlark/…): that's weight + a security surface the
 // subprocess contract doesn't need.
 //
-// This file is the pure core: types + matching + decision combination. Discovery
-// (the hooks.json cascade) is in discover.go; subprocess execution is in
-// runner.go.
+// This package is the pure hook core: lifecycle types, matching, and decision
+// combination. Filesystem discovery and shell execution live in adapter/hooks.
 package hooks
 
 import (
@@ -75,11 +74,6 @@ type Hook struct {
 	// parsed from the file.
 	Scope  Scope  `json:"-"`
 	Source string `json:"-"`
-}
-
-// Config is the on-disk shape of one hooks.json.
-type Config struct {
-	Hooks []Hook `json:"hooks"`
 }
 
 // Input is the event payload handed to a hook on stdin (JSON).

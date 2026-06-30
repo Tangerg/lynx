@@ -107,6 +107,38 @@ func TestDependencyRule(t *testing.T) {
 	}
 }
 
+func TestDomainHooksStayPure(t *testing.T) {
+	root := moduleRoot(t)
+	forbidden := map[string]struct{}{
+		"os":            {},
+		"os/exec":       {},
+		"path/filepath": {},
+	}
+	walkErr := filepath.WalkDir(filepath.Join(root, "internal", "domain", "hooks"), func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		for _, imp := range f.Imports {
+			ip := strings.Trim(imp.Path.Value, `"`)
+			if _, bad := forbidden[ip]; bad {
+				rel, _ := filepath.Rel(root, path)
+				t.Errorf("domain hooks must not import %s: %s", ip, rel)
+			}
+		}
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk domain hooks: %v", walkErr)
+	}
+}
+
 const (
 	ringDelivery      = "delivery"
 	ringAdapter       = "adapter"

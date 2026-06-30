@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -9,8 +10,32 @@ import (
 
 func ctxBG() context.Context { return context.Background() }
 
+type commandStub struct {
+	mu       sync.Mutex
+	results  []CommandResult
+	requests []CommandRequest
+}
+
+func (s *commandStub) RunHookCommand(_ context.Context, req CommandRequest) CommandResult {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.requests = append(s.requests, req)
+	if len(s.results) == 0 {
+		return CommandResult{}
+	}
+	out := s.results[0]
+	s.results = s.results[1:]
+	return out
+}
+
+func (s *commandStub) calls() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.requests)
+}
+
 func TestRunner_DeclarativeInject(t *testing.T) {
-	r := NewRunner(nil)
+	r := NewRunner(nil, nil)
 	hooks := []Hook{{Event: SessionStart, Inject: "remember: use tabs"}}
 	dec := r.Run(ctxBG(), hooks, Input{Event: SessionStart})
 	if dec.InjectContext != "remember: use tabs" {
@@ -22,24 +47,26 @@ func TestRunner_DeclarativeInject(t *testing.T) {
 }
 
 func TestRunner_CommandReceivesEventOnStdin(t *testing.T) {
-	r := NewRunner(nil)
-	// The hook echoes back an injectContext built from the stdin it received,
-	// proving the event JSON reaches the command.
+	cmds := &commandStub{results: []CommandResult{{Stdout: []byte(`{"injectContext":"saw-event"}`)}}}
+	r := NewRunner(cmds, nil)
 	hooks := []Hook{{
 		Event:   UserPromptSubmit,
-		Command: `grep -q '"event":"UserPromptSubmit"' && echo '{"injectContext":"saw-event"}'`,
+		Command: "hook",
 	}}
 	dec := r.Run(ctxBG(), hooks, Input{Event: UserPromptSubmit, Prompt: "hi"})
 	if dec.InjectContext != "saw-event" {
 		t.Fatalf("InjectContext = %q — stdin event not delivered?", dec.InjectContext)
 	}
+	if len(cmds.requests) != 1 || !strings.Contains(string(cmds.requests[0].Stdin), `"event":"UserPromptSubmit"`) {
+		t.Fatalf("stdin = %q, want event JSON", cmds.requests)
+	}
 }
 
 func TestRunner_StdoutDenyBlocks(t *testing.T) {
-	r := NewRunner(nil)
+	r := NewRunner(&commandStub{results: []CommandResult{{Stdout: []byte(`{"decision":"deny","reason":"no rm allowed"}`)}}}, nil)
 	hooks := []Hook{{
 		Event:   PreToolUse,
-		Command: `echo '{"decision":"deny","reason":"no rm allowed"}'`,
+		Command: "hook",
 	}}
 	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "shell"}})
 	if !dec.Block || dec.Reason != "no rm allowed" {
@@ -48,10 +75,14 @@ func TestRunner_StdoutDenyBlocks(t *testing.T) {
 }
 
 func TestRunner_Exit2Blocks(t *testing.T) {
-	r := NewRunner(nil)
+	r := NewRunner(&commandStub{results: []CommandResult{{
+		Stderr:   "blocked by policy",
+		ExitCode: blockExitCode,
+		Err:      errors.New("exit status 2"),
+	}}}, nil)
 	hooks := []Hook{{
 		Event:   PreToolUse,
-		Command: `echo "blocked by policy" >&2; exit 2`,
+		Command: "hook",
 	}}
 	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "shell"}})
 	if !dec.Block || dec.Reason != "blocked by policy" {
@@ -60,8 +91,8 @@ func TestRunner_Exit2Blocks(t *testing.T) {
 }
 
 func TestRunner_AskEscalates(t *testing.T) {
-	r := NewRunner(nil)
-	hooks := []Hook{{Event: PreToolUse, Command: `echo '{"decision":"ask","reason":"review"}'`}}
+	r := NewRunner(&commandStub{results: []CommandResult{{Stdout: []byte(`{"decision":"ask","reason":"review"}`)}}}, nil)
+	hooks := []Hook{{Event: PreToolUse, Command: "hook"}}
 	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "shell"}})
 	if dec.Block || !dec.Ask {
 		t.Fatalf("got block=%v ask=%v, want ask", dec.Block, dec.Ask)
@@ -69,8 +100,8 @@ func TestRunner_AskEscalates(t *testing.T) {
 }
 
 func TestRunner_RewriteArguments(t *testing.T) {
-	r := NewRunner(nil)
-	hooks := []Hook{{Event: PreToolUse, Command: `echo '{"rewriteArguments":"{\"path\":\"safe\"}"}'`}}
+	r := NewRunner(&commandStub{results: []CommandResult{{Stdout: []byte(`{"rewriteArguments":"{\"path\":\"safe\"}"}`)}}}, nil)
+	hooks := []Hook{{Event: PreToolUse, Command: "hook"}}
 	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "write"}})
 	if dec.RewriteArguments != `{"path":"safe"}` {
 		t.Fatalf("RewriteArguments = %q", dec.RewriteArguments)
@@ -80,13 +111,17 @@ func TestRunner_RewriteArguments(t *testing.T) {
 func TestRunner_NonBlockingErrorProceeds(t *testing.T) {
 	var mu sync.Mutex
 	var errs []string
-	r := NewRunner(func(_ context.Context, _ string, err error) {
+	cmds := &commandStub{results: []CommandResult{{
+		Stderr:   "boom",
+		ExitCode: 3,
+		Err:      errors.New("exit status 3"),
+	}}}
+	r := NewRunner(cmds, func(_ context.Context, _ string, err error) {
 		mu.Lock()
 		errs = append(errs, err.Error())
 		mu.Unlock()
 	})
-	// exit 3 (not the block code 2) → broken hook → non-blocking, reported.
-	hooks := []Hook{{Event: PreToolUse, Command: `echo "boom" >&2; exit 3`}}
+	hooks := []Hook{{Event: PreToolUse, Command: "hook"}}
 	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "shell"}})
 	if dec.Block {
 		t.Error("a non-2 exit must NOT block (broken hook can't brick the agent)")
@@ -98,8 +133,8 @@ func TestRunner_NonBlockingErrorProceeds(t *testing.T) {
 
 func TestRunner_TimeoutIsNonBlocking(t *testing.T) {
 	var got error
-	r := NewRunner(func(_ context.Context, _ string, err error) { got = err })
-	hooks := []Hook{{Event: PreToolUse, Command: `sleep 5`, TimeoutMs: 40}}
+	r := NewRunner(&commandStub{results: []CommandResult{{TimedOut: true}}}, func(_ context.Context, _ string, err error) { got = err })
+	hooks := []Hook{{Event: PreToolUse, Command: "hook", TimeoutMs: 40}}
 	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "shell"}})
 	if dec.Block {
 		t.Error("a timed-out hook must not block")
@@ -110,9 +145,9 @@ func TestRunner_TimeoutIsNonBlocking(t *testing.T) {
 }
 
 func TestRunner_MatcherGatesByToolName(t *testing.T) {
-	r := NewRunner(nil)
-	// Only fires for shell; a read tool must not trigger it.
-	hooks := []Hook{{Event: PreToolUse, Matcher: "shell", Command: `echo '{"decision":"deny","reason":"x"}'`}}
+	cmds := &commandStub{results: []CommandResult{{Stdout: []byte(`{"decision":"deny","reason":"x"}`)}}}
+	r := NewRunner(cmds, nil)
+	hooks := []Hook{{Event: PreToolUse, Matcher: "shell", Command: "hook"}}
 
 	denied := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "shell"}})
 	if !denied.Block {
@@ -122,14 +157,20 @@ func TestRunner_MatcherGatesByToolName(t *testing.T) {
 	if passed.Block {
 		t.Error("matcher shell must NOT fire for read")
 	}
+	if cmds.calls() != 1 {
+		t.Fatalf("commands called %d times, want only the matching hook", cmds.calls())
+	}
 }
 
 func TestRunner_FirstBlockWins_ContextConcatenated(t *testing.T) {
-	r := NewRunner(nil)
+	r := NewRunner(&commandStub{results: []CommandResult{
+		{Stdout: []byte(`{"decision":"deny","reason":"first"}`)},
+		{Stdout: []byte(`{"decision":"deny","reason":"second"}`)},
+	}}, nil)
 	hooks := []Hook{
 		{Event: PostToolUse, Inject: "ctx-a"},
-		{Event: PostToolUse, Command: `echo '{"decision":"deny","reason":"first"}'`},
-		{Event: PostToolUse, Command: `echo '{"decision":"deny","reason":"second"}'`},
+		{Event: PostToolUse, Command: "hook"},
+		{Event: PostToolUse, Command: "hook"},
 		{Event: PostToolUse, Inject: "ctx-b"},
 	}
 	dec := r.Run(ctxBG(), hooks, Input{Event: PostToolUse, Tool: &ToolInput{Name: "shell"}})
@@ -142,10 +183,14 @@ func TestRunner_FirstBlockWins_ContextConcatenated(t *testing.T) {
 }
 
 func TestRunner_WrongEventDoesNotFire(t *testing.T) {
-	r := NewRunner(nil)
-	hooks := []Hook{{Event: Stop, Command: `echo '{"decision":"deny"}'`}}
+	cmds := &commandStub{results: []CommandResult{{Stdout: []byte(`{"decision":"deny"}`)}}}
+	r := NewRunner(cmds, nil)
+	hooks := []Hook{{Event: Stop, Command: "hook"}}
 	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "shell"}})
 	if dec.Block {
 		t.Error("a Stop hook must not fire on PreToolUse")
+	}
+	if cmds.calls() != 0 {
+		t.Fatalf("commands called %d times, want none", cmds.calls())
 	}
 }
