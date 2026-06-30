@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os/exec"
 	"strconv"
 	"time"
 )
@@ -23,20 +22,45 @@ const DefaultTimeout = 30 * time.Second
 // contract as Claude Code.
 const blockExitCode = 2
 
-// Runner executes a set of hooks for one event and folds their outcomes into a
-// single Decision. It's the pure execution core: it's handed the (already
-// trust-filtered) hook list — discovery + trust gating happen above it.
+// CommandRequest is the shell-command work a hook adapter executes. The domain
+// prepares stdin + timeout; the adapter owns how the command runs.
+type CommandRequest struct {
+	Command string
+	Cwd     string
+	Stdin   []byte
+	Timeout time.Duration
+}
+
+// CommandResult is the process-level outcome returned by the hook adapter.
+type CommandResult struct {
+	Stdout   []byte
+	Stderr   string
+	ExitCode int
+	Err      error
+	TimedOut bool
+}
+
+// CommandRunner executes hook commands for the domain runner.
+type CommandRunner interface {
+	RunHookCommand(ctx context.Context, req CommandRequest) CommandResult
+}
+
+// Runner executes a trust-filtered hook set for one event and folds their
+// outcomes into a single Decision.
 type Runner struct {
+	commands CommandRunner
 	// onError, when set, is called for a hook that failed to run (spawn error,
 	// timeout, or a non-blocking non-zero exit) so the caller can record it on
 	// the turn's span (ctx carries it). nil = swallow. The hooks domain never
-	// imports OTel — observability is the caller's, via this ctx-carrying hook.
+	// imports OTel; observability is the caller's, via this ctx-carrying hook.
 	onError func(ctx context.Context, source string, err error)
 }
 
-// NewRunner builds a Runner. onError may be nil.
-func NewRunner(onError func(ctx context.Context, source string, err error)) *Runner {
-	return &Runner{onError: onError}
+// NewRunner builds a Runner. commands executes imperative hooks; onError may be
+// nil. A nil commands runner means declarative inject hooks still work and
+// command hooks degrade to non-blocking errors.
+func NewRunner(commands CommandRunner, onError func(ctx context.Context, source string, err error)) *Runner {
+	return &Runner{commands: commands, onError: onError}
 }
 
 // Run fires every hook matching in's event (and, for tool events, its tool
@@ -63,6 +87,10 @@ func (r *Runner) Run(ctx context.Context, hooks []Hook, in Input) Decision {
 
 // runOne execs a single command hook and folds its outcome.
 func (r *Runner) runOne(ctx context.Context, h Hook, in Input, dec *Decision) {
+	if r.commands == nil {
+		r.fail(ctx, h.Source, errors.New("hook command runner is not configured"))
+		return
+	}
 	stdin, err := json.Marshal(in)
 	if err != nil {
 		r.fail(ctx, h.Source, err)
@@ -72,50 +100,40 @@ func (r *Runner) runOne(ctx context.Context, h Hook, in Input, dec *Decision) {
 	if h.TimeoutMs > 0 {
 		timeout = time.Duration(h.TimeoutMs) * time.Millisecond
 	}
-	cctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	// sh -c so a hook can be a one-liner or a script path with args, like the
-	// shell the user already configures the shell tool with.
-	cmd := exec.CommandContext(cctx, "sh", "-c", h.Command)
-	cmd.Stdin = bytes.NewReader(stdin)
-	if in.Cwd != "" {
-		cmd.Dir = in.Cwd
-	}
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	runErr := cmd.Run()
-	if cctx.Err() == context.DeadlineExceeded {
+	result := r.commands.RunHookCommand(ctx, CommandRequest{
+		Command: h.Command,
+		Cwd:     in.Cwd,
+		Stdin:   stdin,
+		Timeout: timeout,
+	})
+	if result.TimedOut {
 		r.fail(ctx, h.Source, errors.New("hook timed out"))
 		return
 	}
 
-	out := parseOutput(stdout.Bytes())
-	exit := exitCodeOf(runErr)
+	out := parseOutput(result.Stdout)
 
 	switch {
-	case runErr == nil:
+	case result.Err == nil:
 		// Exit 0: success. Apply any stdout-JSON decision (default allow).
 		block := out.Decision == "deny"
 		ask := out.Decision == "ask"
 		reason := out.Reason
 		if block && reason == "" {
-			reason = trimZero(stderr.String())
+			reason = trimZero(result.Stderr)
 		}
 		dec.fold(block, ask, reason, trimZero(out.InjectContext), trimZero(out.RewriteArguments))
-	case exit == blockExitCode:
+	case result.ExitCode == blockExitCode:
 		// Exit 2: block. Reason is the stdout JSON's, else stderr.
 		reason := out.Reason
 		if reason == "" {
-			reason = trimZero(stderr.String())
+			reason = trimZero(result.Stderr)
 		}
 		dec.fold(true, false, reason, trimZero(out.InjectContext), "")
 	default:
 		// Any other non-zero exit (or spawn failure): a broken hook. Non-blocking
 		// — the action proceeds — but surfaced via onError so it's observable.
-		r.fail(ctx, h.Source, hookError(exit, stderr.String(), runErr))
+		r.fail(ctx, h.Source, hookError(result.ExitCode, result.Stderr, result.Err))
 	}
 }
 
@@ -136,18 +154,6 @@ func parseOutput(b []byte) hookOutput {
 	return out
 }
 
-// exitCodeOf extracts the process exit code, or -1 when the command never ran
-// (spawn failure) or was killed without a code.
-func exitCodeOf(err error) int {
-	if err == nil {
-		return 0
-	}
-	if ee, ok := errors.AsType[*exec.ExitError](err); ok {
-		return ee.ExitCode()
-	}
-	return -1
-}
-
 // hookError builds a descriptive error for a non-blocking hook failure.
 func hookError(exit int, stderr string, runErr error) error {
 	if s := trimZero(stderr); s != "" {
@@ -157,4 +163,37 @@ func hookError(exit int, stderr string, runErr error) error {
 		return runErr
 	}
 	return errors.New("hook exited with code " + strconv.Itoa(exit))
+}
+
+// Bound is the resolved hook set for one cwd, ready to fire events.
+type Bound struct {
+	hooks  []Hook
+	runner *Runner
+}
+
+// NewBound binds a hook list to the runner that evaluates command hooks.
+func NewBound(hooks []Hook, runner *Runner) *Bound {
+	return &Bound{hooks: hooks, runner: runner}
+}
+
+// Run fires the bound hooks for in's event and returns the combined Decision.
+// Nil-safe: a nil Bound returns the zero Decision, so every seam can call
+// st.hooks.Run(...) unguarded.
+func (b *Bound) Run(ctx context.Context, in Input) Decision {
+	if b == nil || b.runner == nil || len(b.hooks) == 0 {
+		return Decision{}
+	}
+	return b.runner.Run(ctx, b.hooks, in)
+}
+
+// Empty reports whether the Bound has no hooks. Nil-safe.
+func (b *Bound) Empty() bool { return b == nil || len(b.hooks) == 0 }
+
+// Inspection is the read-only view of a cwd's hooks for a management surface
+// (workspace.hooks.list): every discovered hook (trusted or not), the project
+// root that gates the project-scope ones, and whether it's currently trusted.
+type Inspection struct {
+	ProjectRoot    string
+	ProjectTrusted bool
+	Hooks          []Hook
 }
