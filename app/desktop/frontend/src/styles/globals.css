@@ -236,7 +236,7 @@
   --fs-display-lg: 1.5rem; /* 24px */
   --fs-display-md: 1.25rem; /* 20px */
   --fs-display-sm: 1rem; /* 16px */
-  --fs-body-lg: 0.94rem; /* 15px */
+  --fs-body-lg: 1rem; /* 16px — Geist copy-16 */
   --fs-body-md: 0.88rem; /* 14px */
   --fs-body-sm: 0.81rem; /* 13px */
   --fs-body-xs: 0.75rem; /* 12px */
@@ -247,11 +247,11 @@
   --fw-medium: 500;
   --fw-semibold: 600;
 
-  --tracking-display: -0.02em;
-  --tracking-display-tight: -0.03em;
+  --tracking-display: -0.04em;
+  --tracking-display-tight: -0.06em;
   --leading-tight: 1.1;
   --leading-snug: 1.35;
-  --leading-body: 1.6;
+  --leading-body: 1.5;
 
   /* Radius (DESIGN.md §6) — md (8px) is the default button radius.
      All radii multiply through `--radius-scale` so the user can pick
@@ -372,6 +372,7 @@ h4,
 h5,
 h6 {
   font-weight: 600;
+  letter-spacing: var(--tracking-display);
 }
 
 /* Mono is the technical / data voice (DESIGN.md §3) — bake tabular figures into
