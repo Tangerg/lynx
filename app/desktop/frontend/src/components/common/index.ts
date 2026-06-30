@@ -10,14 +10,7 @@ export { Icon } from "./Icon";
 export type { IconName } from "./Icon";
 export { IconButton } from "./IconButton";
 export { LightboxDialog } from "./LightboxDialog";
-export {
-  ContextMenu,
-  DropdownMenu,
-  MENU_CONTENT_CLASSES,
-  MENU_ITEM_CLASSES,
-  MenuItem,
-} from "./Menu";
-export { MenuIconItem } from "./MenuIconItem";
+export { ContextMenu, DropdownMenu } from "./Menu";
 export { Panel } from "./Panel";
 export { PillButton } from "./PillButton";
 export { Popover } from "./Popover";
@@ -30,5 +23,6 @@ export type { SegmentedOption } from "./Segmented";
 export { Slider } from "./Slider";
 export { StatusDot } from "./StatusDot";
 export { Switch } from "./Switch";
-export { Tabs } from "./Tabs";
 export { RichTooltip, Tooltip, TooltipProvider } from "./Tooltip";
+export { VerticalTabs } from "./VerticalTabs";
+export type { VerticalTabGroup, VerticalTabItem } from "./VerticalTabs";

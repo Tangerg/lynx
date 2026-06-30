@@ -53,7 +53,7 @@ function ModelPicker() {
           <DropdownMenu.Item
             key={`${m.provider}:${m.id}`}
             onClick={() => setModel(m.provider, m.id)}
-            className="grid grid-cols-[16px_minmax(0,1fr)_14px] items-center gap-2 rounded-sm px-2 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
+            className="grid-cols-[16px_minmax(0,1fr)_14px] px-2"
           >
             <ProviderIcon provider={m.provider} size={16} />
             <span className="truncate">{m.label}</span>

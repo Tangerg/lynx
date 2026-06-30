@@ -4,7 +4,7 @@
 //
 import type { SegmentedOption } from "@/components/common";
 import { useId } from "react";
-import { Checkbox, DropdownMenu, Icon, MENU_ITEM_CLASSES, Segmented } from "@/components/common";
+import { Checkbox, DropdownMenu, Icon, Segmented } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { useSystemFonts } from "@/lib/systemFonts";
 import { cn } from "@/lib/utils";
@@ -66,7 +66,7 @@ function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerPr
               key={f}
               onClick={() => onChange(f)}
               style={{ fontFamily: `"${f}"` }}
-              className={cn(MENU_ITEM_CLASSES, "grid-cols-[minmax(0,1fr)_12px]")}
+              className="grid-cols-[minmax(0,1fr)_12px]"
             >
               <span className="truncate">{f}</span>
               {value === f ? (

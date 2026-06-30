@@ -1,10 +1,6 @@
-// SettingsPage — the workspace view for app settings. Two-pane layout:
-// a grouped rail of plugin-registered panes on the left, the active pane on
-// the right. Opens via Cmd+K → "View: Settings" or the sidebar-footer cog.
-
-import type { IconName } from "@/components/common";
 import { useEffect, useState } from "react";
-import { Icon, SectionLabel, Tabs } from "@/components/common";
+import type { IconName } from "@/components/common";
+import { VerticalTabs } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
 import { useSettingsPanes } from "@/plugins/sdk";
@@ -57,48 +53,27 @@ export function SettingsPage() {
   const known = new Set(GROUPS.map((g) => g.id));
   const grouped = GROUPS.map((g) => ({
     ...g,
-    panes: panes.filter((p) => (p.group && known.has(p.group) ? p.group : FALLBACK_GROUP) === g.id),
-  })).filter((g) => g.panes.length > 0);
+    label: t(g.labelKey),
+    items: panes
+      .filter((p) => (p.group && known.has(p.group) ? p.group : FALLBACK_GROUP) === g.id)
+      .map((p) => ({
+        id: p.id,
+        label: t(p.label),
+        icon: p.icon as IconName | undefined,
+        content: (
+          <PluginBoundary plugin={`settings:${p.id}`}>
+            <p.component />
+          </PluginBoundary>
+        ),
+      })),
+  })).filter((g) => g.items.length > 0);
 
   return (
-    <Tabs.Root
-      orientation="vertical"
+    <VerticalTabs
+      ariaLabel={t("settings.title")}
+      groups={grouped}
       value={activeId}
-      onValueChange={(value) => setSelectedId(value ? String(value) : undefined)}
-      className="grid h-full w-full grid-cols-[236px_1fr] overflow-hidden"
-    >
-      <Tabs.List
-        className="flex flex-col gap-0.5 overflow-y-auto border-r border-divider bg-surface/45 px-3 py-8"
-        aria-label={t("settings.title")}
-        activateOnFocus
-      >
-        {grouped.map((g) => (
-          <div key={g.id} className="flex flex-col gap-0.5">
-            <SectionLabel>{t(g.labelKey)}</SectionLabel>
-            {g.panes.map((p) => (
-              <Tabs.Tab
-                key={p.id}
-                value={p.id}
-                className="flex items-center gap-2.5 rounded-md border-0 bg-transparent px-3 py-2 text-left text-[13px] text-fg-muted transition-colors duration-150 hover:bg-fg/[0.04] hover:text-fg data-[active]:bg-fg/[0.055] data-[active]:text-fg"
-              >
-                {p.icon && <Icon name={p.icon as IconName} size={15} className="shrink-0" />}
-                <span className="truncate">{t(p.label)}</span>
-              </Tabs.Tab>
-            ))}
-          </div>
-        ))}
-      </Tabs.List>
-      <div className="min-h-0 min-w-0 overflow-y-auto bg-canvas">
-        <div className="mx-auto max-w-[920px] px-8 py-10">
-          {panes.map((p) => (
-            <Tabs.Panel key={p.id} value={p.id} className="outline-none">
-              <PluginBoundary plugin={`settings:${p.id}`}>
-                <p.component />
-              </PluginBoundary>
-            </Tabs.Panel>
-          ))}
-        </div>
-      </div>
-    </Tabs.Root>
+      onValueChange={setSelectedId}
+    />
   );
 }

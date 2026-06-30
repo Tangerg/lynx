@@ -1,6 +1,6 @@
 import type { SidebarSession } from "@/lib/data/queries";
 import { useState } from "react";
-import { ContextMenu, Icon, MenuIconItem } from "@/components/common";
+import { ContextMenu, Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { formatRelative } from "@/lib/i18n/relativeTime";
 import { cn } from "@/lib/utils";
@@ -134,27 +134,27 @@ export function SessionRow({
       <ContextMenu.Trigger render={row} />
       <ContextMenu.Content className="min-w-[160px]">
         {onToggleFavorite && (
-          <MenuIconItem
+          <ContextMenu.IconItem
             icon="star"
             onSelect={() => onToggleFavorite(session.id, !session.favorite)}
           >
             {session.favorite ? "Unpin" : "Pin to top"}
-          </MenuIconItem>
+          </ContextMenu.IconItem>
         )}
         {onRename && (
-          <MenuIconItem icon="edit" onSelect={() => setRenaming(true)}>
+          <ContextMenu.IconItem icon="edit" onSelect={() => setRenaming(true)}>
             Rename
-          </MenuIconItem>
+          </ContextMenu.IconItem>
         )}
         {onFork && (
-          <MenuIconItem icon="branch" onSelect={() => onFork(session.id)}>
+          <ContextMenu.IconItem icon="branch" onSelect={() => onFork(session.id)}>
             Fork
-          </MenuIconItem>
+          </ContextMenu.IconItem>
         )}
         {onDelete && (
-          <MenuIconItem icon="trash" destructive onSelect={() => onDelete(session.id)}>
+          <ContextMenu.IconItem icon="trash" destructive onSelect={() => onDelete(session.id)}>
             Delete
-          </MenuIconItem>
+          </ContextMenu.IconItem>
         )}
       </ContextMenu.Content>
     </ContextMenu.Root>
