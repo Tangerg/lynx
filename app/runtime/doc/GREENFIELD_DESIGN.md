@@ -85,14 +85,14 @@ lyra/internal/
 - 对消费方(delivery)来说 import 路径从 `domain/workspace` 变成 `adapter/workspace`,语义更诚实。
 - 这是设计取向,非紧急重构 —— 纯机械 churn,零行为变化。
 
-### 2.4 `domain/maintenance` → `kernel` DTO import
+### 2.4 `maintenance` 的归属
 
-**保持。** 这是正确的六边形方向:`maintenance` 是实现方(driven adapter),import port owner(`kernel`)的 DTO。ARCHITECTURE_REVIEW §2.2 裁决为正当。greenfield 不变。
+**greenfield:放在 `adapter/maintenance`。** 这是正确的六边形方向:`maintenance` 是 kernel-owned port 的实现方(driven adapter),import port owner(`kernel`)的 DTO 合理;但它不应挂在 `domain/` 下。归属改成 `adapter/maintenance` 后,domain 不再需要为 `kernel` DTO 留例外。
 
-### 2.5 `kernel/turn` use-case 粒度 + `kernel/toolset/build.go`
+### 2.5 `kernel/turn` use-case 粒度 + `adapter/toolset/build.go`
 
 - **`kernel/turn` 粒度正确,不变。** `turn.Service` 接口定义"跑一个 turn"的完整生命周期(start/resume/cancel/steering/events)。exact right level of abstraction —— 消费方(delivery)只依赖这一个接口。greenfield 把 rollback 用例也放 `kernel/turn/` 旁边(同为 kernel 层 use-case 编排)。
-- **`kernel/toolset/build.go` 单一装配点保持。** 这是 toolset 的组合根 —— 所有工具能力在一个地方初始化,依赖关系一目了然。拆成多个构造器散落装配逻辑。ARCHITECTURE_REVIEW §2.6 正确裁决。
+- **`adapter/toolset/build.go` 单一装配点保持。** 这是 toolset 的组合根 —— 所有工具能力在一个地方初始化,依赖关系一目了然。拆成多个构造器散落装配逻辑。ARCHITECTURE_REVIEW §2.6 正确裁决。
 
 ---
 
@@ -149,18 +149,11 @@ lyra/
 │   │   │   ├── errors.go / inmemory.go
 │   │   │   ├── segment.go       ★NEW  RunSegmentCoordinator:persist+interrupt+snapshot 协调(从 pump 搬来)
 │   │   │   └── rollback.go      ★NEW  rollback use-case(从 delivery/server/rollback.go 搬来)
-│   │   ├── toolset/                     工具装配层
-│   │   │   ├── build.go                 唯一构造点(codeintel/exec/mcp/a2a → 工具表 → resolver → closers)
-│   │   │   ├── resolver.go              per-role/per-cwd 多源聚合
-│   │   │   ├── editguard.go / pathguard_test.go
-│   │   │   ├── shell/ askuser/ skill/ todotool/ turnctx/ exitplan/ lsptools/
-│   │
 │   ├── domain/                         限界上下文(纯领域 + Store port,零 infra 依赖)
 │   │   ├── session/                    会话聚合根(Fork/NewSubtask/EffectiveModel/rollback 不变量)
 │   │   ├── transcript/                 items+runs 时间线(BoundaryAt 领域算法 + RunNode)
 │   │   ├── conversation/               喂 LLM 的消息上下文(InjectUser/TruncateMessages)
 │   │   ├── knowledge/                  LYRA.md 长期知识(Service interface,用户可编辑)
-│   │   ├── maintenance/                压缩/提取/规划(turn 边界自治操作)
 │   │   ├── approval/                   运行态审批 stance(Mode)
 │   │   ├── tool/                       工具注册 + 直接调用
 │   │   ├── editguard/                  read-before-edit + stale 不变量
@@ -170,7 +163,13 @@ lyra/
 │   │   ├── skills/                     skill 取用
 │   │   └── agentdoc/                   AGENTS.md 级联发现 + render
 │   │
-│   ├── adapter/                  ★NEW  领域化适配器(domain facade 盖在 infra 上)
+│   ├── adapter/                        能力适配器(kernel/domain ports + infra wrappers)
+│   │   ├── maintenance/                kernel maintenance port(压缩/提取/标题)
+│   │   ├── toolset/                    工具装配层
+│   │   │   ├── build.go                唯一构造点(codeintel/exec/mcp/a2a → 工具表 → resolver → closers)
+│   │   │   ├── resolver.go             per-role/per-cwd 多源聚合
+│   │   │   ├── editguard.go / pathguard_test.go
+│   │   │   ├── shell/ askuser/ skill/ todotool/ turnctx/ exitplan/ lsptools/
 │   │   ├── workspace/                  VCS 视图 + 文件 checkpoint(包 infra/git + infra/checkpoint)
 │   │   └── codeintel/                  代码智能(包 infra/lsp)
 │   │
@@ -197,7 +196,7 @@ lyra/
 | **`delivery/server/rollback.go` — KEPT but THINNER** | 结构 | 保留 decode → 调 kernel rollback → present;wire helper 留下 |
 | **`arch_test.go` 分环更新** | 结构 | 加入 `adapter/` 环规则 + 允许 delivery→adapter |
 | **`domain/workspace`/`domain/codeintel` 移走** | 结构 | 见 adapter 环 |
-| 其他全部 | 不变 | kernel/toolset/build.go、delivery/protocol/、domain/*、infra/* 全部正确 |
+| 其他全部 | 不变 | adapter/toolset/build.go、delivery/protocol/、domain/*、infra/* 全部正确 |
 
 ---
 
@@ -335,7 +334,7 @@ lyra/kernel/:
 
 | # | 改动 | 触发条件 |
 |---|---|---|
-| 5 | `domain/maintenance` 的 `kernel` DTO 移到独立 `kernel/types` | 有第二个 port 实现方需要这些 DTO |
+| 5 | `kernel` port DTO 移到独立 `kernel/types` | 有第二个 port 实现方需要这些 DTO |
 | 6 | `delivery/server` 拆成子包(`server/runs/` 等) | server 超 ~6000 LOC |
 
 ### 明确不做(YAGNI 戒律)
@@ -347,7 +346,7 @@ lyra/kernel/:
 | 给 lyra 加 Domain Events 总线 | 单进程无异步 side-effect 需求。显式编排比事件总线清晰 10 倍。ARCHITECTURE_REVIEW §3.5 正确裁决 |
 | `ProcessStore`/`SessionStore` 改名 `Repository` | 存的是快照字节不是领域对象,Store 名实相符 |
 | 拆 `delivery/server` 的 protocol 方法(sessions.go/runs.go...) | 方法数 = 协议方法数,1:1 绑定是健康的。拆散才是低内聚 |
-| 给 `kernel/toolset/build.go` 拆构造器 | 单一装配点是优点,不是缺点 |
+| 给 `adapter/toolset/build.go` 拆构造器 | 单一装配点是优点,不是缺点 |
 | 给 domain 实体加 Aggregate Root 显式标记 | 单后端不需要。`Session.Fork()` 已经是聚合根行为 |
 
 ---

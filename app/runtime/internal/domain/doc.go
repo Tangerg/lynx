@@ -10,7 +10,6 @@
 //   - knowledge/    — long-term knowledge (LYRA.md cascade)
 //   - transcript/   — items + runs timeline backing items.list
 //   - conversation/ — the LLM message context fed to a turn
-//   - maintenance/  — compaction / extraction / planning (turn-boundary ops)
 //   - approval/     — runtime tool-approval stance (Mode: pass/deny/prompt)
 //   - tool/         — tool registry inspection and (optional) direct invocation
 //   - editguard/    — read-before-edit + stale invariants

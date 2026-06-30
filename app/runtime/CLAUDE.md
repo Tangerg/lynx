@@ -26,7 +26,7 @@
 - **LLM provider**: 多 provider × 多 model。`internal/domain/provider` 是运行态可变注册表（每 provider 的 key+baseURL，file/sqlite 持久化）；`config.BuildClient(ClientSpec)` 按 provider id 建 client（anthropic/openai/moonshot/deepseek，后两者走 OpenAI 兼容端点，全部支持 baseURL 覆盖）。**per-run model**：`runs.start{provider, model}`(显式配对,缺一即 `invalid_params`、都缺用默认 —— provider **不从 model 推断**)→ `clientResolver` 取该 provider 的注册表凭证建/缓存 client → 经 agent `core.ChatClientProvider` 扩展点让该 turn 用它。model 元数据/定价/能力全来自公开的 `models/catalog`（models.list 直读，无需 key）。`config.yaml` 的 `provider`/`apiKey`/`baseURL` 是默认 provider 的种子
 - **测试**: stdlib `testing` + `httptest`
 
-## 架构分层（Clean Arch 依赖向内：delivery → kernel → domain → infra，见 doc/GREENFIELD_ARCHITECTURE.md）
+## 架构分层（Clean Arch 依赖向内：delivery → adapter/kernel → domain；infra 是最外侧 driven adapter，见 doc/GREENFIELD_ARCHITECTURE.md）
 
 1. **`internal/delivery/` —— 协议契约（delivery / 接口适配器，原 `rpc/`）**
    - `internal/delivery/protocol/` 接口（`Runtime` + 12 个子接口）+ wire 数据类型 + v2 协议错误码 / Item / RunEvent 形状
@@ -36,15 +36,18 @@
 
 2. **`internal/kernel/` —— 微内核（装配 + 驱动 agent loop，原 `engine/`）**
    - facade：装配 system prompt（`kernel/prompt.go`）+ 工具集 + model client，驱动 agent SDK 跑一个 turn
-   - 领域算法（压缩/提取/规划）已下沉到 `internal/domain/maintenance`，kernel 经 `*maintenance.{Compactor,Extractor,Planner}` 编排
+   - turn 边界维护由 `internal/adapter/maintenance` 实现 kernel-owned `Compactor` / `Extractor` port；kernel 只编排接口，不依赖具体实现
    - **`internal/kernel/turn`** —— "跑一个 turn" 用例（状态机 / lifecycle / observer / policy，原 `engine/chat`）。它是编排层（不是 domain service），经包内 `engineDep` 窄接口驱动 `*kernel.Engine`（同层 子包→父包,非反向边）
-   - 详见 [`doc/GREENFIELD_ARCHITECTURE.md`](doc/GREENFIELD_ARCHITECTURE.md)：分层为 `delivery → 微内核(kernel + kernel/turn) → 领域(domain/*) → infra(infra/*)`，依赖一律向内（`internal/arch/arch_test.go` 机器强制）
+   - 详见 [`doc/GREENFIELD_ARCHITECTURE.md`](doc/GREENFIELD_ARCHITECTURE.md)：依赖一律向内（`internal/arch/arch_test.go` 机器强制）
 
-3. **`internal/domain/*` —— 限界上下文（领域层,只向下依赖 infra，原 `service/`）**
-   - 每个 domain 一个目录：`session` / `knowledge`（LYRA.md）/ `transcript`（items+runs）/ `conversation` / `approval` / `tool` / `agentdoc` / `codeintel`（包 infra/lsp）/ `workspace`（包 infra/git+checkpoint）/ `maintenance`（压缩·提取·规划）/ `interrupts` / `provider` / `skills` / `todo` / `editguard`
+3. **`internal/domain/*` —— 限界上下文（领域层，实体 + 领域服务 + consumer-side port，原 `service/`）**
+   - 每个 domain 一个目录：`session` / `knowledge`（LYRA.md）/ `transcript`（items+runs）/ `conversation` / `approval` / `tool` / `agentdoc` / `interrupts` / `provider` / `skills` / `todo` / `editguard` / `codebaseindex` / `mcpserver` / `recipes` / `run` / `schedule`
    - 每个目录：`service.go`（interface）+ 实现（按本质命名）+ tests
 
-4. **`internal/infra/*` —— 技术设施（零领域,不依赖任何上层）**
+4. **`internal/adapter/*` —— 能力适配器（实现 kernel/domain port，包装外部能力）**
+   - `maintenance`（压缩 / 提取 / 标题）/ `toolset`（工具装配）/ `codeintel` / `workspace` / `hooks` / `codebaseindex`
+
+5. **`internal/infra/*` —— 技术设施（零领域,不依赖任何上层）**
    - `infra/storage`（sqlite + file LYRA.md）/ `infra/git` / `infra/lsp` / `infra/checkpoint` / `infra/exec` / `infra/mcp` / `infra/a2a`
 
 ## 持久化后端
@@ -102,24 +105,28 @@ lyra/
 │   │       ├── transport.go        Transport 接口 + Message 类型别名
 │   │       ├── http/               HTTP+SSE transport（cors.go / auth.go / sidecar.go / stream.go / rpc.go）
 │   │       └── inprocess/          同进程 chan transport（TUI 用）
-│   ├── kernel/                     微内核：装配 + 驱动 agent loop（原 engine/；agent / mcp / a2a / prompt / 工具集）
+│   ├── kernel/                     微内核：装配 + 驱动 agent loop（原 engine/；prompt / port / turn 编排）
 │   │   ├── port.go                 核定义的窄 port（model / 工具集 / maintenance / prompt-ctx / conversation）
 │   │   ├── turn/                    "跑一个 turn" 用例（状态机 / lifecycle / observer / policy；经 engineDep 窄接口驱动 kernel.Engine）（原 chat/）
-│   │   └── toolset/                工具装配层（builders + resolver，loop 之外组好注入）
-│   ├── domain/                     领域层：限界上下文（一域一包,只向下依赖 infra）（原 service/）
+│   │   ├── toolport/               工具调用端口与 registry 边界
+│   │   ├── turnctx/                turn-scoped 上下文值
+│   │   └── lifecycle/              run admission / lifecycle registry
+│   ├── domain/                     领域层：限界上下文（一域一包，零 adapter/kernel/infra 依赖）（原 service/）
 │   │   ├── session/                会话生命周期
 │   │   ├── knowledge/              LYRA.md 长期知识
 │   │   ├── transcript/             items+runs 时间线
 │   │   ├── conversation/           喂 LLM 的消息上下文
-│   │   ├── maintenance/            压缩 / 提取 / 规划（turn 边界自治操作）
-│   │   ├── codeintel/              代码智能（包住 infra/lsp）
-│   │   ├── workspace/              VCS 视图 + 文件 checkpoint（包住 infra/git + infra/checkpoint）
 │   │   ├── approval/               运行态审批 stance（`Mode`）—— R 模型工具审批查它
 │   │   ├── tool/                   工具注册 + 直接调用（自定义 source 窄接口,不 import kernel）
 │   │   ├── editguard/              read-before-edit + stale 不变量（纯领域；toolset 的 guard 包装是其 LLM presentation）
 │   │   ├── interrupts/ provider/   HITL 中断登记 / provider 注册表
 │   │   ├── skills/ todo/           skill 取用 / 任务清单
 │   │   └── agentdoc/               AGENTS.md 级联发现 + render
+│   ├── adapter/                    能力适配器：实现 kernel/domain port，包装外部能力
+│   │   ├── maintenance/            压缩 / 提取 / 标题（kernel maintenance port 实现）
+│   │   ├── toolset/                工具装配层（builders + resolver，loop 之外组好注入）
+│   │   ├── codeintel/ workspace/   代码智能 / VCS 视图 + checkpoint
+│   │   └── hooks/ codebaseindex/   hook 执行适配 / 代码索引适配
 │   └── infra/                      技术设施（零领域,不依赖任何上层）
 │       ├── storage/                SQLite（modernc 纯 Go）+ file LYRA.md（FileKnowledgeService）
 │       │   └── sqlite/
@@ -154,7 +161,7 @@ curl -H "Authorization: Bearer $(cat ~/.lyra/local-token)" \
 
 1. **`internal/delivery/protocol/`**：动了协议契约 —— 前后端都要同步，先在 `../desktop/docs/protocol/API.md` 对一遍
 2. **`internal/delivery/transport/http/`**：动了 transport —— 跑 `server_test.go` + `auth_cors_test.go` + `sidecar_test.go` 三个文件全套
-3. **`internal/kernel/`**：动了编排 / turn 循环 —— 跑 `internal/kernel/...`（含 `kernel/turn` 的 stub-engine 测试 + `domain/maintenance` 压缩测试）
+3. **`internal/kernel/`**：动了编排 / turn 循环 —— 跑 `internal/kernel/...`（含 `kernel/turn` 的 stub-engine 测试 + `adapter/maintenance` 压缩测试）
 4. **`internal/domain/<name>/`**：动 service interface —— 跑该包测试。如果改 interface 形状，搜下游 consumer
 5. **`internal/infra/storage/`**：动持久化 —— sqlite 改了跑 `internal/infra/storage/sqlite/...`；file knowledge / message 改了跑 `internal/infra/storage/...`
 6. **`internal/domain/agentdoc/`**：动 discovery 规则 —— 跑 `agentdoc_test.go`，烟测 `lyra agents` 在多层目录的输出
