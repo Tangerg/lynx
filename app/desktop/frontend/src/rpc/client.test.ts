@@ -99,6 +99,10 @@ describe("RpcClient", () => {
 
     await t.close();
     await expect(promise).rejects.toBeInstanceOf(RpcTransportError);
+    await expect(client.call("runtime.ping")).rejects.toBeInstanceOf(RpcTransportError);
+    await expect(client.notify("notifications.canceled", { id: "late" })).rejects.toBeInstanceOf(
+      RpcTransportError,
+    );
   });
 
   it("AbortSignal cancels in-flight call and emits notifications.canceled", async () => {
