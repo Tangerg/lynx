@@ -7,7 +7,7 @@
 > **结论先行**:
 > 1. **lyra 是应用,agent 是库 —— 二者形状不同,接缝必须干净。** lyra 用 Clean Arch 同心环(delivery→kernel→domain→adapter→infra),agent 用库层级(原语→引擎→策略)。给二者套同一套形状是 junior architect 的错误。
 > 2. **当前设计 ~90% 收敛于 greenfield。** 真正欠的债只有一处:`delivery/server` 藏了 use-case 编排(`pump.go` + `rollback.go`)。修这一处,lyra 从 B+ → A。
-> 3. **接缝处 greenfield 做得更硬**:lyra 定义 `AgentRuntime` 窄接口消费 agent(不 import `*runtime.Platform`);agent `core/` 定义 `ChatClient` interface(lyra 经 `ChatClientProvider` 提供实现);tool loop 留共享基础设施;持久化 SPI 分工(agent 定义 `ProcessStore`,lyra 实现)。
+> 3. **接缝处已经做硬**:lyra 在 `kernel` 定义 `agentRuntime` / `processControl` 窄接口消费 agent(字段不直接持有 `*runtime.Platform`);agent `core/` 定义 `ChatClientProvider` seam(lyra 经它提供 per-run client);tool loop 留共享基础设施;持久化 SPI 分工(agent 定义 `ProcessStore`,lyra 实现)。
 
 ---
 
@@ -52,8 +52,8 @@ lyra/internal/
 
 ### 1.3 接口放置规则(§2.5 的应用)
 
-- **lyra 内部**:消费方定义窄接口(`delivery/server` 的 `RuntimeServices`、`kernel/turn` 的 `engineDep`、`kernel` 的 `AgentRuntime` ★greenfield 新增)。
-- **跨模块边界**:lyra 消费 agent 走 lyra 定义的 `AgentRuntime` 窄接口,不 import `*runtime.Platform`(§4.1)。
+- **lyra 内部**:消费方定义窄接口(`delivery/server` 的 `RuntimeServices`、`kernel/turn` 的 `engineDep`、`kernel` 的 `agentRuntime` / `processControl`)。
+- **跨模块边界**:lyra 消费 agent 走 lyra 定义的窄接口,字段不直接持有 `*runtime.Platform`(§4.1)。
 - **kernel port**:`kernel/port.go` 定义窄 port(`Compactor`/`Extractor`/`SteeringSink`),由 domain/infra 实现 —— 正确的六边形方向。
 
 ---
@@ -133,8 +133,8 @@ lyra/
 │   │
 │   ├── kernel/                         微内核(定义 port + 驱动 agent loop + use-case 编排)
 │   │   ├── port.go                     核定义的窄 port + DTO(Compactor/Extractor/SteeringSink/Pricing)
-│   │   ├── engine.go                   Engine:装配 prompt/tool/agent,驱动 loop(依赖 AgentRuntime 窄接口)
-│   │   ├── agent_runtime.go     ★NEW  lyra 消费 agent 的窄接口(取代直接持 *runtime.Platform)
+│   │   ├── engine.go                   Engine:装配 prompt/tool/agent,驱动 loop(依赖 agentRuntime 窄接口)
+│   │   ├── agent_runtime.go            lyra 消费 agent 的窄接口(取代字段直接持 *runtime.Platform)
 │   │   ├── config.go                   kernel.Config(SPI 注入点)
 │   │   ├── prompt.go / prompt_test.go  system prompt 骨架装配
 │   │   ├── agent.go / chatturn.go / chatprocess.go   agent loop 驱动
@@ -191,7 +191,7 @@ lyra/
 | **`adapter/` 环 — NEW** | 结构 | `workspace`/`codeintel` 移出 `domain/`。名实相符:它们本质是领域化适配器,放 `domain/` 但依赖 infra 是矛盾的 |
 | **`kernel/turn/segment.go` — NEW** | 结构 | pump 的多服务协调(persist+interrupt+snapshot)从 delivery 搬到 kernel |
 | **`kernel/turn/rollback.go` — NEW** | 结构 | rollback use-case 从 delivery/server/rollback.go 搬到 kernel |
-| **`kernel/agent_runtime.go` — NEW** | 结构 | lyra 消费 agent 的窄接口(取代直接持 `*runtime.Platform`) |
+| **`kernel/agent_runtime.go`** | 结构 | lyra 消费 agent 的窄接口(取代字段直接持 `*runtime.Platform`) |
 | **`delivery/server/pump.go` — KEPT but THINNER** | 结构 | 保留为流式管道(translator → hub.Append),调 kernel 编排器 |
 | **`delivery/server/rollback.go` — KEPT but THINNER** | 结构 | 保留 decode → 调 kernel rollback → present;wire helper 留下 |
 | **`arch_test.go` 分环更新** | 结构 | 加入 `adapter/` 环规则 + 允许 delivery→adapter |
@@ -204,36 +204,35 @@ lyra/
 
 这是整个 greenfield 设计最重要的跨模块部分。lyra 是消费方,接缝由它定义。
 
-### 4.1 lyra 是否直接持有 `*runtime.Platform`?
+### 4.1 lyra 是否直接持有 `*runtime.Platform` 字段?
 
-**greenfield:否。lyra 定义自己的窄接口,不 import agent 具体类型。**
+**当前:否。lyra 定义自己的窄接口,构造点仍使用真实 agent runtime,但 Engine / ChatProcess 字段不直接持有完整 Platform。**
 
 这是 `DESIGN_PHILOSOPHY §2.5` + `CLAUDE.md` ISP「库 vs 应用」规则的直接应用:
 
 - lyra 是**应用层**,agent 是**库**。跨模块边界 + 多实现可能(测试 stub、未来 agent 替换)= 消费方窄接口的经典场景。
-- 现状 lyra 的 `kernel.Engine` 直接持有 `*runtime.Platform` —— 这是允许的(应用可以 import 库的具体类型),但 greenfield 会做得更好:lyra 在 `kernel/` 定义 `AgentRuntime` 窄接口。
+- `kernel.New` 仍构造真实 `runtime.Platform`,因为 `runtime.PlatformConfig` 和 `AsChatToolFromAgent` 是 agent 库的构造 API;但持久字段只依赖消费方接口。
 
 ```go
-// lyra/internal/kernel/agent_runtime.go  ★NEW
+// lyra/internal/kernel/agent_runtime.go
+type agentRuntime interface {
+    agentStarter
+    processControl
+    Deploy(*core.Agent) error
+}
 
-// AgentRuntime is the narrow interface lyra needs from the agent runtime.
-// Defined by the consumer (lyra), satisfied by agent/runtime.Platform implicitly.
-type AgentRuntime interface {
-    Deploy(agent *core.Agent) error
-    Undeploy(name string) error
-    RunAgent(ctx context.Context, agent *core.Agent, bindings map[string]any, opts core.ProcessOptions) (core.Process, error)
-    StartAgent(ctx context.Context, agent *core.Agent, bindings map[string]any, opts core.ProcessOptions) (core.Process, error)
-    ResumeProcess(id string, response any) (core.Process, error)
-    KillProcess(id string) error
-    GetProcess(id string) (core.Process, bool)
-    ActiveProcesses() iter.Seq2[string, core.Process]
+type processControl interface {
+    KillProcess(string) error
+    ResumeProcess(string, any) (core.ResponseImpact, error)
+    ContinueProcessAsync(context.Context, string) <-chan error
+    RemoveProcess(string) error
+    ProcessStore() core.ProcessStore
 }
 ```
 
-- `kernel.Engine` 依赖 `AgentRuntime` interface(不是 `*runtime.Platform`)。
-- `runtime.Platform` 隐式满足 `AgentRuntime`。
-- 测试时 lyra 可以用 stub `AgentRuntime`,不需要起完整的 agent runtime。
-- **这条改动是破坏性的**(`kernel.Engine` 字段类型从具体变接口),需咨询用户。但 greenfield 从第一天就这样写。
+- `kernel.Engine` 依赖 `agentRuntime` interface(不是 `*runtime.Platform`)。
+- `chatProcess` 只依赖 `processControl`,按取消 / resume / cleanup 的实际调用面拆小。
+- `runtime.Platform` 隐式满足这些接口。
 
 ### 4.2 ChatClientProvider 接缝
 
@@ -328,8 +327,6 @@ lyra/kernel/:
 |---|---|---|---|
 | **2** | **lyra rollback 编排 → `kernel/turn/rollback.go`** | `delivery/server/rollback.go` 解体 → 编排进 kernel + wire helper 留 delivery | **#1 lyra 债**。让 delivery 回归"协议层薄"。破坏性(kernel 新公开 API) |
 | **3** | **lyra pump 多服务协调 → `kernel/turn/segment.go`** | `delivery/server/pump.go` 变薄 → 调 kernel 编排器 | **#2 lyra 债**。pump 只剩 translator → hub.Append。破坏性(kernel 新接口) |
-| **4** | **lyra 定义 `AgentRuntime` 窄接口取代 `*runtime.Platform`** | `kernel/agent_runtime.go` 新增 + `kernel.Engine` 字段类型变 interface | 消费方窄接口(跨模块边界 + 应用层)。破坏性(`Engine` 公开字段类型变更) |
-
 ### P2 — 等触发再做
 
 | # | 改动 | 触发条件 |
@@ -353,4 +350,4 @@ lyra/kernel/:
 
 ## 一句话收尾
 
-**lyra 是应用 —— Clean Arch 同心环(delivery→kernel→domain→adapter→infra)+ 机器强制 DAG 是它的正确形状。当前设计 ~90% 收敛于 greenfield,真正欠的债只有一处:`delivery/server` 藏了 use-case 编排(pump + rollback)。把那两块搬进 kernel,lyra 就到 A。接缝处 greenfield 做得更硬:lyra 定义 `AgentRuntime` 窄接口消费 agent,与 agent 的库层级形成干净的不对称契约。**
+**lyra 是应用 —— Clean Arch 同心环(delivery→kernel→domain→adapter→infra)+ 机器强制 DAG 是它的正确形状。当前设计继续向 greenfield 收敛,真正欠的债主要剩 `delivery/server` 藏了 use-case 编排(pump + rollback)。把那两块搬进 kernel,lyra 就到 A。跨模块接缝已经用 lyra 侧 `agentRuntime` 窄接口消费 agent,与 agent 的库层级形成干净的不对称契约。**
