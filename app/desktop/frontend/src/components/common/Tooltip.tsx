@@ -49,7 +49,7 @@ export function Tooltip({ label, side = "top", sideOffset = 6, delayDuration, ch
             sideOffset={sideOffset}
             // Keep the panel narrow so long labels wrap into 2-3 lines
             // instead of stretching across the viewport.
-            className="z-50 max-w-[280px] rounded-md border border-line-soft bg-surface px-2 py-1 font-sans text-[11.5px] leading-snug text-fg-soft shadow-[var(--shadow-elevated)] animate-rise-in"
+            className="z-50 max-w-[280px] rounded-md border-0 bg-surface px-2 py-1 font-sans text-[11.5px] leading-snug text-fg-soft shadow-[var(--shadow-popover)] animate-rise-in"
           >
             {label}
           </RadixTooltip.Content>

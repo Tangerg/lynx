@@ -25,8 +25,8 @@ export function JumpToBottomButton({ visible, onClick }: Props) {
       tabIndex={visible ? 0 : -1}
       className={cn(
         "absolute bottom-20 left-1/2 -translate-x-1/2 z-[3] grid h-8 w-8 place-items-center rounded-full",
-        "bg-surface text-fg border border-line/50",
-        "shadow-[var(--shadow-elevated)] transition-all duration-[--dur-fast]",
+        "bg-surface text-fg border-0",
+        "shadow-[var(--shadow-popover)] transition-all duration-[--dur-fast]",
         "hover:bg-surface-2",
         "active:translate-y-0 active:scale-95",
         visible

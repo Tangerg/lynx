@@ -23,10 +23,10 @@ export function ImageBlock({ mime, data }: { mime: string; data: string }) {
         </button>
       </Dialog.Trigger>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-[200] cursor-zoom-out bg-black/60 backdrop-blur-[8px] light:bg-black/25" />
+        <Dialog.Overlay className="fixed inset-0 z-[200] cursor-zoom-out bg-black/60 light:bg-black/25" />
         <Dialog.Content
           onClick={() => setZoomed(false)}
-          className="fixed inset-0 z-[201] m-auto h-fit w-fit max-h-[90vh] max-w-[min(1400px,95vw)] cursor-zoom-out overflow-auto rounded-lg border border-line bg-surface p-2 shadow-[var(--shadow-elevated)] outline-none data-[state=open]:animate-rise-in"
+          className="fixed inset-0 z-[201] m-auto h-fit w-fit max-h-[90vh] max-w-[min(1400px,95vw)] cursor-zoom-out overflow-auto rounded-lg border-0 bg-surface p-2 shadow-[var(--shadow-popover)] outline-none data-[state=open]:animate-rise-in"
         >
           <Dialog.Title className="sr-only">{t("message.image.view")}</Dialog.Title>
           <img src={src} alt="" className="max-h-[86vh] max-w-full rounded-lg object-contain" />

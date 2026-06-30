@@ -289,15 +289,19 @@
   --polish-med: var(--dur-med) var(--ease-out);
 
   /* -----------------------------------------------------------------------
-   *  Shadow system —精简到 3 个 canonical token（REDESIGN.md §3.4）.
-   *  composer: 仅 composer 容器（light 唯一阴影）
-   *  elevated: dropdown / popover / modal / command-palette
-   *  focus: 输入框焦点 inset 1px，无 halo glow
+   *  Shadow system — edge ring + contact shadow + ambient shadow.
+   *  surface: quiet optical edge for cards and app chrome
+   *  composer: chat input surface
+   *  popover: dropdown / modal / command palette
+   *  focus: quiet focus ring, no glow halo
    * ----------------------------------------------------------------------- */
-  --shadow-composer: 0 2px 2px rgba(0, 0, 0, 0.4);
-  --shadow-elevated:
-    0 1px 1px rgba(0, 0, 0, 0.3), 0 4px 8px -4px rgba(0, 0, 0, 0.4),
-    0 16px 24px -8px rgba(0, 0, 0, 0.5);
+  --shadow-surface: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 1px 2px rgba(0, 0, 0, 0.32);
+  --shadow-composer:
+    0 0 0 1px rgba(255, 255, 255, 0.08), 0 1px 2px rgba(0, 0, 0, 0.36),
+    0 18px 48px rgba(0, 0, 0, 0.42);
+  --shadow-popover:
+    0 0 0 1px rgba(255, 255, 255, 0.1), 0 1px 2px rgba(0, 0, 0, 0.36),
+    0 12px 32px rgba(0, 0, 0, 0.44);
   --shadow-focus: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent);
 
   /* Content max-width — the centered reading island (REDESIGN.md §3.4). */
@@ -406,8 +410,8 @@ body {
   outline: 1.5px solid color-mix(in oklab, var(--color-accent) 50%, transparent);
   outline-offset: 1px;
 }
-/* Inputs already get an inset focus stroke from --shadow-input-focus —
-   skip the outline so the two effects don't double up. */
+/* Inputs own their focus affordance through component tokens; skip the
+   global outline so the two effects don't double up. */
 input:focus-visible,
 textarea:focus-visible {
   outline: none;
@@ -461,14 +465,12 @@ html.theme-light .panel {
   box-shadow: none;
 }
 
-/* Light mode: composer gets the only allowed shadow. */
 html.theme-light {
+  --shadow-surface: 0 0 0 1px rgb(15 23 42 / 0.06), 0 1px 2px rgb(15 23 42 / 0.04);
   --shadow-composer:
-    0 18px 48px color-mix(in oklab, var(--color-text) 8%, transparent),
-    0 2px 8px color-mix(in oklab, var(--color-text) 5%, transparent);
-  --shadow-elevated:
-    0 24px 58px color-mix(in oklab, var(--color-text) 12%, transparent),
-    0 4px 14px color-mix(in oklab, var(--color-text) 8%, transparent);
+    0 0 0 1px rgb(15 23 42 / 0.08), 0 1px 2px rgb(15 23 42 / 0.06), 0 18px 48px rgb(15 23 42 / 0.12);
+  --shadow-popover:
+    0 0 0 1px rgb(15 23 42 / 0.08), 0 1px 2px rgb(15 23 42 / 0.06), 0 8px 24px rgb(15 23 42 / 0.1);
 }
 
 /* Quieter scrollbar on light — the dark thumb tokens overshoot. */

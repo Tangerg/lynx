@@ -243,7 +243,7 @@ export function ApprovalCard({
           data-slot="approval-approve"
           disabled={disabled}
           onClick={onApprove}
-          className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-fg px-3 py-1.5 text-[13px] font-medium text-on-fg transition-opacity duration-150 ease-out hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-md bg-fg px-3 py-1.5 text-[13px] font-medium text-on-fg transition-opacity duration-150 ease-out hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t("approval.action.approve")}
           {!disabled && <kbd className="ml-1.5 font-mono text-[10px] opacity-60">⌘↵</kbd>}
@@ -253,12 +253,12 @@ export function ApprovalCard({
           data-slot="approval-decline"
           disabled={disabled}
           onClick={onDecline}
-          className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-line bg-transparent px-3 py-1.5 text-[13px] font-medium text-fg transition-colors duration-150 ease-out hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-md border border-line bg-transparent px-3 py-1.5 text-[13px] font-medium text-fg transition-colors duration-150 ease-out hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t("approval.action.decline")}
           {!disabled && <kbd className="ml-1.5 font-mono text-[10px] opacity-60">⇧⌘⌫</kbd>}
         </button>
-        <label className="ml-auto flex cursor-pointer items-center gap-1.5 text-[11.5px] text-fg-muted select-none">
+        <label className="ml-auto flex items-center gap-1.5 text-[11.5px] text-fg-muted select-none">
           <Checkbox
             checked={remember}
             onCheckedChange={setRemember}

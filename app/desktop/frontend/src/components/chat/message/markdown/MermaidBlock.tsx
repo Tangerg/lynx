@@ -121,13 +121,13 @@ export function MermaidBlock({ code }: Props) {
           {/* Backdrop — quieter on light (already-light page + a wash).
               cursor-zoom-out signals click-to-close (Radix closes on the
               outside-click + Esc + traps focus + locks scroll). */}
-          <Dialog.Overlay className="fixed inset-0 z-[200] cursor-zoom-out bg-black/60 backdrop-blur-[8px] light:bg-black/25" />
+          <Dialog.Overlay className="fixed inset-0 z-[200] cursor-zoom-out bg-black/60 light:bg-black/25" />
           {/* The framed SVG, centered via inset-0 + m-auto (no transform, so it
               doesn't fight the rise-in keyframe). Native scale = fully readable;
               pop-in on open via the shared rise-in keyframe. */}
           <Dialog.Content
             aria-describedby={undefined}
-            className="fixed inset-0 z-[201] m-auto h-fit w-fit max-h-[90vh] max-w-[min(1400px,95vw)] overflow-auto rounded-xl border border-line-soft bg-surface p-6 shadow-[var(--shadow-elevated)] outline-none data-[state=open]:animate-rise-in"
+            className="fixed inset-0 z-[201] m-auto h-fit w-fit max-h-[90vh] max-w-[min(1400px,95vw)] overflow-auto rounded-lg border-0 bg-surface p-6 shadow-[var(--shadow-popover)] outline-none data-[state=open]:animate-rise-in"
           >
             <Dialog.Title className="sr-only">Diagram</Dialog.Title>
             <div

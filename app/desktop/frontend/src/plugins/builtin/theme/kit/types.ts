@@ -96,14 +96,16 @@ export interface ThemeCta {
   ctaText: string;
 }
 
-/** Named shadow tokens —精简到 3 canonical tokens (REDESIGN.md §3.4).
- *  composer: composer container only (light gets a subtle drop, dark none).
- *  elevated: dropdowns, popovers, modals, command palette.
- *  focus: quiet inset 1px border for input focus — no glow halo.
+/** Named shadow tokens.
+ *  surface: quiet optical edge for cards and app chrome.
+ *  composer: composer container only.
+ *  popover: dropdowns, popovers, modals, command palette.
+ *  focus: quiet focus ring — no glow halo.
  *  Override individual keys when a theme wants a different elevation language. */
 export interface ThemeShadows {
+  surface: string;
   composer: string;
-  elevated: string;
+  popover: string;
   focus: string;
 }
 

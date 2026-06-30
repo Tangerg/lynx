@@ -35,8 +35,7 @@ export function PluginToaster() {
       duration={4000}
       toastOptions={{
         classNames: {
-          toast:
-            "rounded-md border border-line-soft bg-surface-2 text-fg shadow-[var(--shadow-elevated)]",
+          toast: "rounded-md border-0 bg-surface text-fg shadow-[var(--shadow-popover)]",
           title: "text-[13px] font-medium",
           description: "text-[12px] text-fg-muted",
         },
