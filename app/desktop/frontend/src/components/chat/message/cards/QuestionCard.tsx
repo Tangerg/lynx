@@ -155,7 +155,7 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered,
                   </span>
                 )}
               </div>
-              <div className="text-[15px] font-semibold leading-[1.4] text-fg">{q.question}</div>
+              <div className="text-[16px] font-semibold leading-[1.4] text-fg">{q.question}</div>
 
               <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5">
                 {q.options.map((opt) => {
@@ -197,7 +197,7 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered,
                   aria-label={q.question}
                   placeholder={t("question.freetext.placeholder")}
                   onChange={(e) => setText(q, e.target.value)}
-                  className="w-full bg-transparent border-b border-line py-1 text-[15px] text-fg placeholder:text-fg-faint outline-none focus:border-fg"
+                  className="w-full bg-transparent border-b border-line py-1 text-[16px] text-fg placeholder:text-fg-faint outline-none focus:border-fg"
                 />
               )}
             </div>

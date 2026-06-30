@@ -24,7 +24,7 @@ export function SettingRow({
       )}
     >
       <div>
-        <div className="text-[15px] font-semibold text-fg">{label}</div>
+        <div className="text-[16px] font-semibold text-fg">{label}</div>
         <div className="mt-0.5 text-[13px] text-fg-muted">{sub}</div>
       </div>
       <div>{children}</div>

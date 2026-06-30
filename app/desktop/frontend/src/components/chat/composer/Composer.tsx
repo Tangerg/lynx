@@ -229,7 +229,7 @@ export function Composer({
         /* The `composer-input` class is a DOM-target hook (no styles) so
            the `composer.focus` command in defaults/commands.ts can find
            this textarea without threading a ref through the tree. */
-        className="composer-input w-full resize-none border-0 bg-transparent px-0.5 py-2 font-sans text-[15px] leading-[1.55] text-fg outline-none min-h-9 max-h-40 placeholder:text-fg-faint placeholder:tracking-normal"
+        className="composer-input w-full resize-none border-0 bg-transparent px-0.5 py-2 font-sans text-[16px] leading-[1.5] text-fg outline-none min-h-9 max-h-40 placeholder:text-fg-faint placeholder:tracking-normal"
         data-slot="composer-input"
       />
       {/* Bottom toolbar: send / stop */}
