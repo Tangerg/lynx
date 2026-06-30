@@ -32,6 +32,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/models/catalog"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codeintel"
@@ -51,7 +52,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/a2a"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
 )
 
@@ -77,7 +77,7 @@ type Config struct {
 	// environment via toolset.Build and inject it into the engine core (which
 	// constructs no capability itself). Workdir / SkillsGlobalDir come from
 	// Engine (the engine also needs them for the prompt cascade / listSkills).
-	Online     kernel.OnlineConfig    // network-tool credentials
+	Online     toolset.OnlineConfig   // network-tool credentials
 	A2AAgents  []a2a.ClientConfig     // remote A2A agents to dial
 	LSPServers []codeintel.ServerSpec // language-server table (nil → defaults)
 

@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
-	corechat "github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turn"
+	corechat "github.com/Tangerg/lynx/core/model/chat"
 )
 
 // stubChatProcess fakes the [kernel.ChatProcess] handle without

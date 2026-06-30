@@ -9,12 +9,11 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset"
 )
 
 // Engine is the microkernel core: it drives the agent loop and depends on
@@ -31,7 +30,7 @@ import (
 //     port flushes a queued steering message into history at turn-end
 //
 // The tool environment (resolver + tools + MCP facade + closers) is assembled
-// outside the core by [toolset.Build] and injected via [Config]; the core
+// outside the core by the tool adapter and injected via [Config]; the core
 // constructs no capability. The chat service's own (unexported) engine
 // interface narrows this surface to exactly the operations it needs.
 type Engine struct {
@@ -56,11 +55,11 @@ type Engine struct {
 	extractor Extractor
 
 	// mcp is the live-MCP-connections facade port (workspace.mcp.* views +
-	// reconnect), assembled in the toolset layer and injected; nil when no MCP
+	// reconnect), assembled in the tool adapter and injected; nil when no MCP
 	// servers are wired. closers are the capability shutdown hooks (code-intel
-	// servers, background processes, MCP/A2A sessions) the toolset assembly
+	// servers, background processes, MCP/A2A sessions) the tool adapter
 	// handed over, run in [Engine.Close].
-	mcp     toolset.MCPControl
+	mcp     MCPControl
 	closers []func() error
 
 	// closeOnce guards Close so concurrent / repeated calls run the closers
@@ -79,7 +78,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	}
 
 	// The tool environment (capability adapters + per-role/per-cwd resolver +
-	// canonical tool list) is assembled OUTSIDE the core, in the toolset layer,
+	// canonical tool list) is assembled OUTSIDE the core, in the adapter layer,
 	// and injected via [Config.ToolResolver] / [Config.Tools] / [Config.MCP] /
 	// [Config.Closers] (the composition root calls [toolset.Build]). The engine
 	// core therefore constructs no capability and imports no infra/service for
@@ -89,7 +88,7 @@ func New(ctx context.Context, cfg Config) (*Engine, error) {
 	if resolver == nil {
 		// A bare engine (unit tests that drive only the loop) gets an empty
 		// resolver — no tools, but the loop still runs.
-		resolver = toolset.NewResolver(toolset.Deps{DefaultWorkdir: cfg.Workdir, SkillsGlobalDir: cfg.SkillsGlobalDir})
+		resolver = &emptyToolResolver{}
 	}
 
 	memStore := cfg.MemoryStore

@@ -13,7 +13,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 )
 
 // memoryNewInMemoryStore re-exports memory.NewInMemoryStore under a
@@ -38,10 +38,8 @@ func TestEngine_RunChat_ToolCallObserved(t *testing.T) {
 		t.Fatalf("chat client: %v", err)
 	}
 
-	eng, err := New(context.Background(), Config{ChatClient: client})
-	if err != nil {
-		t.Fatalf("engine.New: %v", err)
-	}
+	eng := mustEngineWith(t, client, toolset.BuildConfig{})
+	defer eng.Close()
 
 	rec := &recordingObserver{}
 	out, err := eng.RunChat(context.Background(), RunChatRequest{
@@ -90,10 +88,8 @@ func TestEngine_RunChat_ToolCallObserved(t *testing.T) {
 func TestEngine_RunChat_NoObserver(t *testing.T) {
 	stub := newStubModel("shell", `{"command":"echo lyra"}`, "done")
 	client, _ := chat.NewClient(stub)
-	eng, err := New(context.Background(), Config{ChatClient: client})
-	if err != nil {
-		t.Fatal(err)
-	}
+	eng := mustEngineWith(t, client, toolset.BuildConfig{})
+	defer eng.Close()
 
 	out, err := eng.RunChat(context.Background(), RunChatRequest{Message: "go"})
 	if err != nil {
@@ -114,10 +110,8 @@ func TestEngine_RunChat_NoObserver(t *testing.T) {
 func TestEngine_RunChat_RecoversFromUnknownTool(t *testing.T) {
 	stub := newStubModel("frobnicate", `{}`, "recovered: used a real approach")
 	client, _ := chat.NewClient(stub)
-	eng, err := New(context.Background(), Config{ChatClient: client})
-	if err != nil {
-		t.Fatal(err)
-	}
+	eng := mustEngineWith(t, client, toolset.BuildConfig{})
+	defer eng.Close()
 
 	out, err := eng.RunChat(context.Background(), RunChatRequest{Message: "go"})
 	if err != nil {
@@ -138,10 +132,8 @@ func TestEngine_RunChat_RecoversFromUnknownTool(t *testing.T) {
 func TestEngine_RunChat_TaskDelegation(t *testing.T) {
 	stub := newDelegatingStubModel()
 	client, _ := chat.NewClient(stub)
-	eng, err := New(context.Background(), Config{ChatClient: client})
-	if err != nil {
-		t.Fatal(err)
-	}
+	eng := mustEngineWith(t, client, toolset.BuildConfig{})
+	defer eng.Close()
 
 	out, err := eng.RunChat(context.Background(), RunChatRequest{Message: "delegate this"})
 	if err != nil {
@@ -166,10 +158,8 @@ func TestEngine_RunChat_ToolsRunInCwd(t *testing.T) {
 	}
 	stub := newStubModel("shell", `{"command":"ls"}`, "done")
 	client, _ := chat.NewClient(stub)
-	eng, err := New(context.Background(), Config{ChatClient: client})
-	if err != nil {
-		t.Fatal(err)
-	}
+	eng := mustEngineWith(t, client, toolset.BuildConfig{})
+	defer eng.Close()
 
 	rec := &recordingObserver{}
 	if _, err := eng.RunChat(context.Background(), RunChatRequest{
@@ -199,10 +189,8 @@ func TestEngine_RunChat_SubtaskInheritsCwd(t *testing.T) {
 	dir := t.TempDir()
 	stub := newCwdDelegatingStubModel()
 	client, _ := chat.NewClient(stub)
-	eng, err := New(context.Background(), Config{ChatClient: client})
-	if err != nil {
-		t.Fatal(err)
-	}
+	eng := mustEngineWith(t, client, toolset.BuildConfig{})
+	defer eng.Close()
 
 	out, err := eng.RunChat(context.Background(), RunChatRequest{
 		Message: "delegate this",
@@ -231,10 +219,8 @@ func TestEngine_RunChat_SubtaskInheritsCwd(t *testing.T) {
 func TestEngine_RunChat_SubtaskKeepsMemoryAcrossRounds(t *testing.T) {
 	stub := newSubtaskMemoryStub()
 	client, _ := chat.NewClient(stub)
-	eng, err := New(context.Background(), Config{ChatClient: client})
-	if err != nil {
-		t.Fatal(err)
-	}
+	eng := mustEngineWith(t, client, toolset.BuildConfig{})
+	defer eng.Close()
 
 	out, err := eng.RunChat(context.Background(), RunChatRequest{
 		Message: "delegate this",
@@ -613,7 +599,7 @@ func TestEngine_Tools_OnlineEnabled(t *testing.T) {
 	stub := newStubModel("shell", `{}`, "")
 	client, _ := chat.NewClient(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{
-		Online: OnlineConfig{
+		Online: toolset.OnlineConfig{
 			JinaAPIKey:       "test-jina",
 			TavilyAPIKey:     "test-tavily",
 			HTTPAllowedHosts: []string{"api.example.com"},
@@ -639,7 +625,7 @@ func TestEngine_Tools_OnlineEnabled(t *testing.T) {
 func TestEngine_Tools_PartialOnline(t *testing.T) {
 	stub := newStubModel("shell", `{}`, "")
 	client, _ := chat.NewClient(stub)
-	eng := mustEngineWith(t, client, toolset.BuildConfig{Online: OnlineConfig{JinaAPIKey: "k"}})
+	eng := mustEngineWith(t, client, toolset.BuildConfig{Online: toolset.OnlineConfig{JinaAPIKey: "k"}})
 	defer eng.Close()
 	if len(eng.Tools()) != 13 {
 		t.Fatalf("tool count = %d, want 13 (5 fs + 3 shell + 2 lsp + jina + task + ask_user)", len(eng.Tools()))

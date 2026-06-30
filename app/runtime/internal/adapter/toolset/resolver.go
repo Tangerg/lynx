@@ -6,14 +6,15 @@ import (
 	"sync/atomic"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/codebasesearch"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/shell"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/editguard"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset/codebasesearch"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset/shell"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset/skill"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolport"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turnctx"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/tools/fs"
 	"github.com/Tangerg/lynx/tools/httpreq"
@@ -21,18 +22,6 @@ import (
 	"github.com/Tangerg/lynx/tools/webfetch/jina"
 	"github.com/Tangerg/lynx/tools/websearch"
 	"github.com/Tangerg/lynx/tools/websearch/tavily"
-)
-
-// ToolRoleCoding is the role the main chat agent declares: the full
-// coding tool set PLUS the `task` delegation tool.
-//
-// ToolRoleSubtask is the role the sub-agent behind `task` declares: the
-// SAME coding tools but WITHOUT `task` itself, so a delegated subtask
-// can't recurse into another delegation. The two-role split is the
-// recursion guard.
-const (
-	ToolRoleCoding  = "coding"
-	ToolRoleSubtask = "subtask"
 )
 
 // The per-turn blackboard seam (cwd / session / chat-mode keys + readers) lives
@@ -336,7 +325,7 @@ func (*Resolver) Name() string { return "coding-tools" }
 
 func (r *Resolver) Resolve(_ context.Context, req core.ToolGroupRequirement) (core.ToolGroup, error) {
 	switch req.Role {
-	case ToolRoleCoding, ToolRoleSubtask:
+	case toolport.ToolRoleCoding, toolport.ToolRoleSubtask:
 		return &toolGroup{resolver: r, role: req.Role}, nil
 	default:
 		return nil, nil // unknown role — the runtime skips to the next resolver
@@ -387,7 +376,7 @@ func (g *toolGroup) Tools(ctx context.Context) ([]core.AgentTool, error) {
 	if svc := g.resolver.codebaseIndex; svc != nil && svc.Available(ctx) {
 		tools = append(tools, codebasesearch.New(svc))
 	}
-	if g.role == ToolRoleCoding {
+	if g.role == toolport.ToolRoleCoding {
 		// Coding role only: the `task` delegation tool (no recursion) and
 		// ask_user (HITL question). Both are injected by the engine (they need
 		// the platform / the HITL contract). Sub-agents (ToolRoleSubtask) get

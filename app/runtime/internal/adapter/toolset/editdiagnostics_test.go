@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codeintel"
+	"github.com/Tangerg/lynx/core/model/chat"
 )
 
 // TestWithEditDiagnostics_AppendsProblems verifies the highest-value LSP

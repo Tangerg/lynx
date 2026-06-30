@@ -8,8 +8,7 @@ import (
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/core/media"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turnctx"
 )
 
 // chatInput is the typed input to the M1 single-turn chat agent. It
@@ -96,7 +95,7 @@ type ChatOutput struct {
 // memory service for system-prompt composition without an extra
 // parameter passed through every turn.
 //
-// The Action declares [toolset.ToolRoleCoding] so the runtime resolves the
+// The Action declares [ToolRoleCoding] so the runtime resolves the
 // coding tool group at dispatch time; the body calls
 // [core.ProcessContext.ChatWithActionTools] which composes the
 // tool.NewMiddleware tool-loop on top of platform guardrails.
@@ -143,7 +142,7 @@ func (e *Engine) buildChatAgent() *core.Agent {
 				return out, nil
 			},
 			core.ActionConfig{
-				ToolGroups: core.ToolRolesFor(toolset.ToolRoleCoding),
+				ToolGroups: core.ToolRolesFor(ToolRoleCoding),
 				// MaxAttempts:1 — don't let the runtime retry an LLM action.
 				// Transient errors are already retried inside the model SDK;
 				// permanent ones (no-access model, bad key, invalid request)
@@ -173,7 +172,7 @@ type taskInput struct {
 
 // buildSubtaskAgent constructs the agent behind the `task` delegation
 // tool. Same chat body as the main agent, but: (1) named "task" so the
-// derived tool is `task`; (2) declares [toolset.ToolRoleSubtask] — the coding
+// derived tool is `task`; (2) declares [ToolRoleSubtask] — the coding
 // tools WITHOUT `task`, so a subtask can't recurse into another
 // delegation; (3) its goal produces just the reply string, so the tool
 // result handed to the parent model is the answer text, not a ChatOutput
@@ -205,7 +204,7 @@ func (e *Engine) buildSubtaskAgent() *core.Agent {
 				return out.Reply, nil
 			},
 			core.ActionConfig{
-				ToolGroups: core.ToolRolesFor(toolset.ToolRoleSubtask),
+				ToolGroups: core.ToolRolesFor(ToolRoleSubtask),
 				QoS:        core.ActionQoS{MaxAttempts: 1}, // same rationale as the chat action
 			},
 		)).
@@ -214,4 +213,3 @@ func (e *Engine) buildSubtaskAgent() *core.Agent {
 		})).
 		Build()
 }
-

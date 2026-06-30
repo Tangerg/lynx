@@ -20,7 +20,7 @@ import (
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turnctx"
 )
 
 const description = `Maintain a structured task list for the current session.

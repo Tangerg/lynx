@@ -2,12 +2,11 @@ package kernel
 
 import (
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/memory"
 	"github.com/Tangerg/lynx/core/model/chat/middleware/tool"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset"
 )
 
 // Config is the engine construction-time bundle. ChatClient is the
@@ -59,15 +58,15 @@ type Config struct {
 	Compactor Compactor    // turn-boundary history compaction
 	Extractor Extractor    // turn-boundary fact extraction → LYRA.md
 
-	// Tool environment — assembled outside the core by [toolset.Build] and
+	// Tool environment — assembled outside the core by the tool adapter and
 	// injected by the composition root. The engine registers ToolResolver on
 	// the platform, exposes MCP as its workspace.mcp.* facade, surfaces Tools
 	// (plus the engine-built task/ask_user) via tools.list, and runs Closers at
 	// shutdown. A nil ToolResolver yields an empty (no-tool) environment.
-	ToolResolver *toolset.Resolver
-	Tools        []chat.Tool        // canonical tool list (without task/ask_user)
-	MCP          toolset.MCPControl // live-MCP-connections facade
-	Closers      []func() error     // capability shutdown hooks
+	ToolResolver ToolResolver
+	Tools        []chat.Tool    // canonical tool list (without task)
+	MCP          MCPControl     // live-MCP-connections facade
+	Closers      []func() error // capability shutdown hooks
 
 	// Pricing optionally computes per-round USD cost from the round's
 	// provider + served model + token usage. nil leaves cost at zero (the chat
@@ -101,8 +100,3 @@ type Config struct {
 	// itself and parks the resumable tail on the process blackboard.
 	ParkStore tool.ParkStore
 }
-
-// OnlineConfig groups the credentials network-reaching tools need. Defined in
-// the toolset layer (which builds those tools); aliased here so engine.Config
-// and the config layer name one type without importing toolset everywhere.
-type OnlineConfig = toolset.OnlineConfig

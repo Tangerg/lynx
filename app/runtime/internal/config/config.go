@@ -21,9 +21,9 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/Tangerg/lynx/a2a"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/lsp"
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel"
 	"github.com/Tangerg/lynx/mcp"
 )
 
@@ -66,7 +66,7 @@ type Config struct {
 	UtilityModel string
 
 	// Online optionally enables provider-backed tools.
-	Online kernel.OnlineConfig
+	Online toolset.OnlineConfig
 
 	// MCPServers is the parsed list of external MCP servers dialed at
 	// startup. First cut: sourced from LYRA_MCP_SERVERS env (yaml
@@ -155,15 +155,15 @@ func Load() (Config, error) {
 	}
 
 	return Config{
-		Provider:         provider,
-		Model:            model,
-		APIKey:           apiKey,
-		BaseURL:          v.GetString("baseURL"),
+		Provider:     provider,
+		Model:        model,
+		APIKey:       apiKey,
+		BaseURL:      v.GetString("baseURL"),
 		UtilityModel: v.GetString("utilityModel"),
-		Online:           loadOnline(v),
-		MCPServers:       servers,
-		A2AAgents:        a2aAgents,
-		LSPServers:       lspServers,
+		Online:       loadOnline(v),
+		MCPServers:   servers,
+		A2AAgents:    a2aAgents,
+		LSPServers:   lspServers,
 		Server: ServerConfig{
 			Listen:         v.GetString("server.listen"),
 			NoLocalToken:   v.GetBool("server.noLocalToken"),
@@ -177,14 +177,14 @@ func Load() (Config, error) {
 // loadOnline reads the optional provider-tool credentials. yaml under
 // `online:`; the LYRA_* env vars take precedence over yaml, matching
 // the overall source ordering (env over file).
-func loadOnline(v *viper.Viper) kernel.OnlineConfig {
+func loadOnline(v *viper.Viper) toolset.OnlineConfig {
 	jina := cmp.Or(os.Getenv("LYRA_JINA_API_KEY"), v.GetString("online.jinaApiKey"))
 	tavily := cmp.Or(os.Getenv("LYRA_TAVILY_API_KEY"), v.GetString("online.tavilyApiKey"))
 	hosts := v.GetStringSlice("online.httpAllowedHosts")
 	if env := os.Getenv("LYRA_HTTP_ALLOWED_HOSTS"); env != "" {
 		hosts = splitHosts(env)
 	}
-	return kernel.OnlineConfig{
+	return toolset.OnlineConfig{
 		JinaAPIKey:       jina,
 		TavilyAPIKey:     tavily,
 		HTTPAllowedHosts: hosts,

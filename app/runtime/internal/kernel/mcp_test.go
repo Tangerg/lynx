@@ -14,7 +14,7 @@ import (
 	"github.com/Tangerg/lynx/core/model/chat"
 	"github.com/Tangerg/lynx/mcp"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/kernel/toolset"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 )
 
 // runAsMCPServerEnv is the env-var sentinel that flips this test

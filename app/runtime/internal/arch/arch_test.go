@@ -15,13 +15,14 @@ import (
 
 // TestDependencyRule enforces Clean Architecture's Dependency Rule for the lyra
 // module: source dependencies point INWARD, toward the domain. Outer rings
-// (delivery / infra adapters) may depend on inner rings; the reverse — or a
-// sibling adapter reaching across the core — is forbidden. See
+// (delivery / capability / infra adapters) may depend on inner rings; the
+// reverse — or a sibling adapter reaching across the core — is forbidden. See
 // doc/GREENFIELD_ARCHITECTURE.md.
 //
 // Rings (outer → inner):
 //
 //	delivery       internal/delivery/**         HTTP+SSE / inprocess transport, dispatch, protocol
+//	adapter        internal/adapter/**          capability adapters (tools, live external capabilities)
 //	orchestration  internal/kernel/**           use-case core (drives the agent loop; ACL over the agent SDK)
 //	domain         internal/domain/**          bounded contexts: entities + repository ports + domain services
 //	infra          internal/infra/**            sqlite / git / lsp / mcp / exec — driven adapters & frameworks
@@ -31,9 +32,10 @@ import (
 // Forbidden edges (an inner ring learning about an outer one, or an adapter
 // reaching across the core):
 //
-//	infra         ↛ delivery, orchestration
-//	domain        ↛ delivery
-//	orchestration ↛ delivery
+//	infra         ↛ delivery, adapter, orchestration
+//	domain        ↛ delivery, adapter
+//	orchestration ↛ delivery, adapter
+//	adapter       ↛ delivery
 //
 // Intentionally NOT forbidden (each is a correct inward / hexagonal edge —
 // documented in GREENFIELD_ARCHITECTURE.md §5):
@@ -45,6 +47,8 @@ import (
 //	domain/maintenance → kernel     maintenance is a driven adapter of the kernel's
 //	                                 Compactor/Extractor PORTS; importing the port
 //	                                 owner for its DTOs is the correct hexagonal direction
+//	adapter          → kernel/*     capability adapters implement kernel-owned
+//	                                 ports (tool resolver, MCP live control)
 //	delivery          → anything inward
 func TestDependencyRule(t *testing.T) {
 	const modulePath = "github.com/Tangerg/lynx/app/runtime"
@@ -106,6 +110,7 @@ func TestDependencyRule(t *testing.T) {
 
 const (
 	ringDelivery      = "delivery"
+	ringAdapter       = "adapter"
 	ringOrchestration = "orchestration"
 	ringDomain        = "domain"
 	ringInfra         = "infra"
@@ -120,6 +125,8 @@ func layerOf(rel string) string {
 		return ringComposition
 	case strings.HasPrefix(rel, "internal/delivery/"):
 		return ringDelivery
+	case strings.HasPrefix(rel, "internal/adapter/"):
+		return ringAdapter
 	case rel == "internal/kernel" || strings.HasPrefix(rel, "internal/kernel/"):
 		return ringOrchestration
 	case strings.HasPrefix(rel, "internal/domain/"):
@@ -135,8 +142,10 @@ func layerOf(rel string) string {
 func forbidden(from, to string) bool {
 	switch from {
 	case ringInfra:
-		return to == ringDelivery || to == ringOrchestration
+		return to == ringDelivery || to == ringAdapter || to == ringOrchestration
 	case ringDomain, ringOrchestration:
+		return to == ringDelivery || to == ringAdapter
+	case ringAdapter:
 		return to == ringDelivery
 	default:
 		return false
