@@ -6,7 +6,7 @@
 // helpers live in _shared.ts.
 
 import { useState } from "react";
-import { Icon, Menu as BaseMenu, MENU_CONTENT_CLASSES, Tooltip } from "@/components/common";
+import { DropdownMenu, Icon, Tooltip } from "@/components/common";
 import { editMessageInComposer, regenerateMessage } from "@/lib/agent/messageActions";
 import { flattenCode, flattenMarkdown, flattenText } from "@/lib/agent/messageContent";
 import { writeToClipboard } from "@/lib/clipboard";
@@ -38,45 +38,37 @@ function CopyButton() {
   if (!markdown && !plain) return null;
 
   return (
-    <BaseMenu.Root>
+    <DropdownMenu.Root>
       <Tooltip label={t("msgActions.copy")}>
-        <BaseMenu.Trigger
+        <DropdownMenu.Trigger
           aria-label={t("msgActions.copy")}
           className={cn(ACTION_BTN_BASE, roleShape(msg.role))}
         >
           <Icon name="copy" size={13} />
-        </BaseMenu.Trigger>
+        </DropdownMenu.Trigger>
       </Tooltip>
-      <BaseMenu.Portal>
-        <BaseMenu.Positioner align="end" sideOffset={4}>
-          <BaseMenu.Popup className={cn(MENU_CONTENT_CLASSES, "min-w-[160px]")}>
-            <CopyItem
-              label={t("msgActions.copyMarkdown")}
-              hint={t("msgActions.copyMarkdownHint")}
-              onSelect={() =>
-                writeToClipboard(markdown, { successLabel: t("msgActions.copiedMarkdown") })
-              }
-            />
-            <CopyItem
-              label={t("msgActions.copyPlain")}
-              hint={t("msgActions.copyPlainHint")}
-              onSelect={() =>
-                writeToClipboard(plain, { successLabel: t("msgActions.copiedPlain") })
-              }
-            />
-            {code && (
-              <CopyItem
-                label={t("msgActions.copyCode")}
-                hint={t("msgActions.copyCodeHint")}
-                onSelect={() =>
-                  writeToClipboard(code, { successLabel: t("msgActions.copiedCode") })
-                }
-              />
-            )}
-          </BaseMenu.Popup>
-        </BaseMenu.Positioner>
-      </BaseMenu.Portal>
-    </BaseMenu.Root>
+      <DropdownMenu.Content align="end" sideOffset={4} className="min-w-[160px]">
+        <CopyItem
+          label={t("msgActions.copyMarkdown")}
+          hint={t("msgActions.copyMarkdownHint")}
+          onSelect={() =>
+            writeToClipboard(markdown, { successLabel: t("msgActions.copiedMarkdown") })
+          }
+        />
+        <CopyItem
+          label={t("msgActions.copyPlain")}
+          hint={t("msgActions.copyPlainHint")}
+          onSelect={() => writeToClipboard(plain, { successLabel: t("msgActions.copiedPlain") })}
+        />
+        {code && (
+          <CopyItem
+            label={t("msgActions.copyCode")}
+            hint={t("msgActions.copyCodeHint")}
+            onSelect={() => writeToClipboard(code, { successLabel: t("msgActions.copiedCode") })}
+          />
+        )}
+      </DropdownMenu.Content>
+    </DropdownMenu.Root>
   );
 }
 
@@ -90,13 +82,13 @@ function CopyItem({
   onSelect: () => void;
 }) {
   return (
-    <BaseMenu.Item
+    <DropdownMenu.Item
       onClick={onSelect}
       className="flex flex-col gap-0.5 rounded-sm px-2.5 py-1.5 outline-none data-[highlighted]:bg-surface-2"
     >
       <span className="text-[12.5px] text-fg">{label}</span>
       <span className="text-[11px] text-fg-faint">{hint}</span>
-    </BaseMenu.Item>
+    </DropdownMenu.Item>
   );
 }
 

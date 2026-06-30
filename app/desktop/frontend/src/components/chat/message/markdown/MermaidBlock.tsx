@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDebounce } from "use-debounce";
-import { Dialog as BaseDialog } from "@/components/common";
+import { LightboxDialog } from "@/components/common";
 import { measureMermaidRender } from "@/lib/metrics";
 import { useT } from "@/lib/i18n";
 import { useUiStore } from "@/state/uiStore";
@@ -105,39 +105,30 @@ export function MermaidBlock({ code }: Props) {
 
   if (svg) {
     return (
-      <BaseDialog.Root open={zoomed} onOpenChange={setZoomed}>
-        <BaseDialog.Trigger
-          render={
-            <button
-              type="button"
-              aria-label={t("message.mermaid.enlarge")}
-              title={t("message.mermaid.enlargeHint")}
-              // Inline SVG sizes itself; the wrapper provides chrome + zoom
-              // affordance. `[&_svg]:` reaches the SVG that
-              // dangerouslySetInnerHTML drops in (we can't put utilities on it
-              // directly).
-              className="my-3.5 w-full cursor-zoom-in overflow-x-auto rounded-lg border border-[color-mix(in_srgb,var(--color-text)_10%,transparent)] bg-[color-mix(in_srgb,var(--color-text)_3%,transparent)] p-4 text-center transition-colors duration-150 hover:border-[color-mix(in_srgb,var(--color-accent)_30%,transparent)] [&_svg]:h-auto [&_svg]:max-w-full"
-              dangerouslySetInnerHTML={{ __html: svg }}
-            />
-          }
+      <LightboxDialog
+        open={zoomed}
+        onOpenChange={setZoomed}
+        title="Diagram"
+        className="p-6"
+        trigger={
+          <button
+            type="button"
+            aria-label={t("message.mermaid.enlarge")}
+            title={t("message.mermaid.enlargeHint")}
+            // Inline SVG sizes itself; the wrapper provides chrome + zoom
+            // affordance. `[&_svg]:` reaches the SVG that
+            // dangerouslySetInnerHTML drops in (we can't put utilities on it
+            // directly).
+            className="my-3.5 w-full cursor-zoom-in overflow-x-auto rounded-lg border border-[color-mix(in_srgb,var(--color-text)_10%,transparent)] bg-[color-mix(in_srgb,var(--color-text)_3%,transparent)] p-4 text-center transition-colors duration-150 hover:border-[color-mix(in_srgb,var(--color-accent)_30%,transparent)] [&_svg]:h-auto [&_svg]:max-w-full"
+            dangerouslySetInnerHTML={{ __html: svg }}
+          />
+        }
+      >
+        <div
+          className="[&_svg]:mx-auto [&_svg]:block [&_svg]:max-w-none"
+          dangerouslySetInnerHTML={{ __html: svg }}
         />
-        <BaseDialog.Portal>
-          <BaseDialog.Backdrop className="fixed inset-0 z-[200] cursor-zoom-out bg-black/60 light:bg-black/25" />
-          {/* The framed SVG, centered via inset-0 + m-auto (no transform, so it
-              doesn't fight the rise-in keyframe). Native scale = fully readable;
-              pop-in on open via the shared rise-in keyframe. */}
-          <BaseDialog.Popup
-            aria-describedby={undefined}
-            className="fixed inset-0 z-[201] m-auto h-fit w-fit max-h-[90vh] max-w-[min(1400px,95vw)] overflow-auto rounded-lg border-0 bg-surface p-6 shadow-[var(--shadow-popover)] outline-none data-[open]:animate-rise-in"
-          >
-            <BaseDialog.Title className="sr-only">Diagram</BaseDialog.Title>
-            <div
-              className="[&_svg]:mx-auto [&_svg]:block [&_svg]:max-w-none"
-              dangerouslySetInnerHTML={{ __html: svg }}
-            />
-          </BaseDialog.Popup>
-        </BaseDialog.Portal>
-      </BaseDialog.Root>
+      </LightboxDialog>
     );
   }
 

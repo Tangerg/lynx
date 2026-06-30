@@ -3,7 +3,7 @@
 // listing each entry when the user clicks.
 
 import type { TaskEntry, TaskStatus } from "@/state/tasksStore";
-import { Icon, Popover as BasePopover, Progress as BaseProgress } from "@/components/common";
+import { Icon, Popover, ProgressBar } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { useTasksStore } from "@/state/tasksStore";
@@ -39,17 +39,7 @@ function TaskRow({ task }: { task: TaskEntry }) {
       {task.error && (
         <div className="mt-0.5 pl-[18px] text-[11.5px] text-negative">{task.error}</div>
       )}
-      {pct !== null && (
-        <BaseProgress.Root
-          value={pct}
-          className="mt-1.5 ml-[18px] h-1 overflow-hidden rounded-full bg-surface-3"
-        >
-          <BaseProgress.Indicator
-            className="h-full bg-accent transition-[width] duration-150"
-            style={{ width: `${pct}%` }}
-          />
-        </BaseProgress.Root>
-      )}
+      {pct !== null && <ProgressBar value={pct} className="mt-1.5 ml-[18px]" />}
     </div>
   );
 }
@@ -68,8 +58,8 @@ function TasksPill() {
   const label = running.length > 1 ? `${head.label} +${running.length - 1}` : head.label;
 
   return (
-    <BasePopover.Root>
-      <BasePopover.Trigger
+    <Popover.Root>
+      <Popover.Trigger
         render={
           <button
             type="button"
@@ -90,19 +80,15 @@ function TasksPill() {
           </button>
         }
       />
-      <BasePopover.Portal>
-        <BasePopover.Positioner side="top" align="start" sideOffset={6}>
-          <BasePopover.Popup className="z-50 w-[320px] overflow-hidden rounded-lg border-0 bg-surface shadow-[var(--shadow-popover)]">
-            <div className="px-3 pt-2 pb-1 text-[10px] font-semibold text-fg-faint">Tasks</div>
-            <div className="max-h-[280px] overflow-y-auto">
-              {list.map((task) => (
-                <TaskRow key={task.id} task={task} />
-              ))}
-            </div>
-          </BasePopover.Popup>
-        </BasePopover.Positioner>
-      </BasePopover.Portal>
-    </BasePopover.Root>
+      <Popover.Content side="top" align="start" sideOffset={6} className="w-[320px] rounded-lg">
+        <div className="px-3 pt-2 pb-1 text-[10px] font-semibold text-fg-faint">Tasks</div>
+        <div className="max-h-[280px] overflow-y-auto">
+          {list.map((task) => (
+            <TaskRow key={task.id} task={task} />
+          ))}
+        </div>
+      </Popover.Content>
+    </Popover.Root>
   );
 }
 

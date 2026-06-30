@@ -1,16 +1,9 @@
 import { useEffect, useRef } from "react";
-import {
-  Icon,
-  Menu as BaseMenu,
-  MENU_CONTENT_CLASSES,
-  ProviderIcon,
-  Tooltip,
-} from "@/components/common";
+import { DropdownMenu, Icon, ProviderIcon, Tooltip } from "@/components/common";
 import { imageFiles } from "@/lib/agent/composerInput";
 import { useSelectedModel } from "@/lib/agent/useSelectedModel";
 import { useModels } from "@/lib/data/queries";
 import { useT } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { useComposerStore } from "@/state/composerStore";
 
@@ -40,8 +33,8 @@ function ModelPicker() {
   const selected = models.find((m) => m.provider === provider && m.id === model) ?? models[0]!;
 
   return (
-    <BaseMenu.Root>
-      <BaseMenu.Trigger
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger
         render={
           <button
             type="button"
@@ -55,26 +48,22 @@ function ModelPicker() {
           </button>
         }
       />
-      <BaseMenu.Portal>
-        <BaseMenu.Positioner align="start" sideOffset={6}>
-          <BaseMenu.Popup className={cn(MENU_CONTENT_CLASSES, "min-w-[200px]")}>
-            {models.map((m) => (
-              <BaseMenu.Item
-                key={`${m.provider}:${m.id}`}
-                onClick={() => setModel(m.provider, m.id)}
-                className="grid grid-cols-[16px_minmax(0,1fr)_14px] items-center gap-2 rounded-sm px-2 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
-              >
-                <ProviderIcon provider={m.provider} size={16} />
-                <span className="truncate">{m.label}</span>
-                {m.provider === selected.provider && m.id === selected.id && (
-                  <Icon name="check" size={12} className="text-accent" />
-                )}
-              </BaseMenu.Item>
-            ))}
-          </BaseMenu.Popup>
-        </BaseMenu.Positioner>
-      </BaseMenu.Portal>
-    </BaseMenu.Root>
+      <DropdownMenu.Content align="start" sideOffset={6} className="min-w-[200px]">
+        {models.map((m) => (
+          <DropdownMenu.Item
+            key={`${m.provider}:${m.id}`}
+            onClick={() => setModel(m.provider, m.id)}
+            className="grid grid-cols-[16px_minmax(0,1fr)_14px] items-center gap-2 rounded-sm px-2 py-1.5 text-[12.5px] text-fg-muted outline-none data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg"
+          >
+            <ProviderIcon provider={m.provider} size={16} />
+            <span className="truncate">{m.label}</span>
+            {m.provider === selected.provider && m.id === selected.id && (
+              <Icon name="check" size={12} className="text-accent" />
+            )}
+          </DropdownMenu.Item>
+        ))}
+      </DropdownMenu.Content>
+    </DropdownMenu.Root>
   );
 }
 

@@ -2,7 +2,7 @@
 // (relocate banner, add-project popover) and the memory editor textarea.
 // Canvas-sunken, mono; size, padding, and ink tone go at the call site via
 // cn(). Focus is a quiet neutral border ring — no accent glow (the redesign
-// drops the cheap bright focus edges). Same pattern as menuClasses.
+// drops the cheap bright focus edges).
 export const FIELD_CLASSES =
   "rounded-md bg-canvas font-mono text-[12px] outline-none focus:ring-1 focus:ring-line-soft";
 

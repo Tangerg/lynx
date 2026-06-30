@@ -1,6 +1,6 @@
 import type { Components } from "react-markdown";
 import { useEffect, useRef } from "react";
-import { TooltipPrimitive } from "@/components/common";
+import { RichTooltip } from "@/components/common";
 import { useCitations } from "../CitationContext";
 import { FileRefLink } from "../FileRefLink";
 import { HtmlArtifact } from "./HtmlArtifact";
@@ -24,32 +24,26 @@ function CitationBadge({ n, label }: { n: number; label: string }) {
   }
 
   return (
-    <TooltipPrimitive.Root>
-      <TooltipPrimitive.Trigger
-        delay={200}
-        render={
-          <sup
-            className="cite-marker rounded-sm bg-surface-2 px-[3px] py-px font-mono text-[10px] font-semibold text-fg-soft cursor-help hover:bg-accent hover:text-on-accent transition-colors"
-            data-citation={n}
-          >
-            {label}
-          </sup>
-        }
-      />
-      <TooltipPrimitive.Portal>
-        <TooltipPrimitive.Positioner side="top" sideOffset={6}>
-          <TooltipPrimitive.Popup className="z-50 max-w-[360px] rounded-md border-0 bg-surface px-3 py-2 shadow-[var(--shadow-popover)]">
-            <div className="text-[11px] font-mono text-fg-faint">{source.domain}</div>
-            <div className="mt-0.5 text-[12.5px] font-semibold text-fg leading-snug">
-              {source.title}
-            </div>
-            <div className="mt-1 text-[11.5px] text-fg-muted leading-snug line-clamp-3">
-              {source.snippet}
-            </div>
-          </TooltipPrimitive.Popup>
-        </TooltipPrimitive.Positioner>
-      </TooltipPrimitive.Portal>
-    </TooltipPrimitive.Root>
+    <RichTooltip
+      delay={200}
+      side="top"
+      sideOffset={6}
+      className="max-w-[360px] px-3 py-2"
+      trigger={
+        <sup
+          className="cite-marker rounded-sm bg-surface-2 px-[3px] py-px font-mono text-[10px] font-semibold text-fg-soft cursor-help hover:bg-accent hover:text-on-accent transition-colors"
+          data-citation={n}
+        >
+          {label}
+        </sup>
+      }
+    >
+      <div className="text-[11px] font-mono text-fg-faint">{source.domain}</div>
+      <div className="mt-0.5 text-[12.5px] font-semibold text-fg leading-snug">{source.title}</div>
+      <div className="mt-1 text-[11.5px] text-fg-muted leading-snug line-clamp-3">
+        {source.snippet}
+      </div>
+    </RichTooltip>
   );
 }
 
