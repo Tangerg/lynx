@@ -31,21 +31,20 @@ interface MainViewTab {
 
 interface SessionState {
   activeSessionId: string;
-  /** @deprecated Tabs removed in Step 2a — field retained to avoid TS
-   *  breakage; no UI reads this. Will be removed in a future cleanup. */
+  /** The set of sessions currently held open. selectTab opens (adds the id);
+   *  closeTab / useDeleteSession close (removes it). Load-bearing plumbing
+   *  despite the tab-strip UI being gone (Step 2a): it's the "live session"
+   *  signal that drives per-session pruning across stores — agentStore drops
+   *  view state, composerStore drops drafts, and this store's own subscription
+   *  drops draft + pending-message refs for ids no longer in the set. */
   tabIds: string[];
 
-  /**
-   * Heterogeneous chat-area tabs.
-   *
-   * Each entry is a workspace view the user "promoted" into the main
-   * pane to read at full width. When `activeMainView` is set, the chat
-   * panel renders that view's component instead of the message stream.
-   * Selecting a chat session tab clears `activeMainView`.
-   *
-   * @deprecated Tab strip removed in Step 2a — field retained for
-   * internal closeMainView bookkeeping; no UI renders tabs.
-   */
+  /** Workspace views the user has opened in the main pane (openMainView adds,
+   *  closeMainView removes). The tab-strip UI is gone (Step 2a), so nothing
+   *  renders this list directly — it survives as the bookkeeping that lets
+   *  closeMainView fall back to the last remaining view when the active one
+   *  closes, and keeps openMainView / openMainViewBeside / promoteSplitToTab
+   *  idempotent (re-opening an existing view focuses instead of duplicating). */
   mainViewTabs: MainViewTab[];
   activeMainView: string | null;
   /**
