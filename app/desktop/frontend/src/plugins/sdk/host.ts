@@ -10,13 +10,10 @@ import type {
   StreamEventHandler,
   CustomEventHandler,
   Disposable,
-  ExtensionContributionOptions,
-  ExtensionPoint,
   Host,
   HostCapability,
   LayoutSlotSpec,
   LoadedPlugin,
-  LogLevel,
   LogSubscriber,
   PluginSpec,
   ReadyHandler,
@@ -31,7 +28,10 @@ import { startTask } from "@/state/tasksStore";
 import { getConfig, hasConfig, setConfig, useConfigStore } from "./config";
 import { restrictHost } from "./capabilityGate";
 import { safeCall } from "./errors";
-import { emitLog as emitOtelLog } from "@/lib/observability/logBridge";
+import { createContribute, assertNamespaced } from "./hostContributions";
+import { emitPluginLog, logToConsole } from "./hostLog";
+import { getPluginRuntime } from "./hostRuntime";
+import { dispatchToast } from "./hostToast";
 import {
   BEFORE_UNLOAD_HANDLER,
   COMMAND,
@@ -51,54 +51,19 @@ import { useNotificationStore } from "./notifications";
 import { pluginOrigin, setPluginOrigin } from "./pluginOrigin";
 import { usePluginStore } from "./registry";
 import { executeCommand } from "./selectors/commands";
-import {
-  composeExtensionKey,
-  lookupExtensionByKey,
-  lookupExtensionPoint,
-} from "./selectors/extensions";
+import { lookupExtensionByKey } from "./selectors/extensions";
 import { getOrCreateSlice } from "./stateSlice";
 import { createStorage } from "./storage";
+
+export { setPluginRuntime } from "./hostRuntime";
+export { PLUGIN_TOAST_EVENT } from "./hostToast";
+export type { PluginToastDetail } from "./hostToast";
 
 /**
  * Build a Host bound to a specific plugin. `contribute` and the facades return
  * Disposables; `setup`'s caller (loadPlugin) collects them so it can dispose on
  * failure or on unload.
  */
-// Monotonic id minter for `multi` extension-point contributions that don't
-// pass an explicit `opts.id` (custom/core event handlers, rpc + log hooks,
-// lifecycle observers). Uniqueness only needs to hold within one point's
-// keyspace; a global counter is simpler than per-point ones and the ids
-// aren't exposed to plugin code.
-let nextCompositeKeyId = 0;
-const mintId = (prefix: string) => `${prefix}#${++nextCompositeKeyId}`;
-
-// Plugin runtime injection point — definePlugin.ts installs the real
-// implementation at module load time. The Host's `plugins.{load,unload,
-// reload}` methods dispatch through this seam so we don't introduce a
-// circular import (host.ts → definePlugin.ts → host.ts).
-//
-// We hold the runtime inside a const wrapper so the binding itself is
-// initialised at module-evaluation time. A bare `let pluginRuntime`
-// would hit a TDZ if any code path called the setter before the let was
-// reached (rare, but observable under Vitest's module loader).
-interface PluginRuntime {
-  load: (spec: PluginSpec) => Promise<void>;
-  unload: (name: string) => void;
-  reload: (name: string) => Promise<void>;
-}
-const runtimeSlot: { current: PluginRuntime | null } = { current: null };
-
-export function setPluginRuntime(rt: PluginRuntime): void {
-  runtimeSlot.current = rt;
-}
-
-function getRuntime(): PluginRuntime {
-  if (!runtimeSlot.current) {
-    throw new Error("plugin runtime not wired; call setPluginRuntime() before host is used");
-  }
-  return runtimeSlot.current;
-}
-
 export function createHost(
   pluginName: string,
   sink: Disposable[],
@@ -111,65 +76,7 @@ export function createHost(
 
   const store = () => usePluginStore.getState();
 
-  // Shared write path for the open-extension-point substrate. Both the
-  // public `host.extensions.contribute` and the few retained thin facades
-  // (`layout.register`, `events.onStream`, …) route through here, so built-in and
-  // third-party contributions hit the exact same code. Keying policy lives
-  // on the point: `single` dedupes by `keyOf(item)` (warns on cross-plugin
-  // override); `multi` mints a per-(plugin,id) key so contributions coexist.
-  const contribute = <T>(
-    point: ExtensionPoint<T>,
-    item: T,
-    opts?: ExtensionContributionOptions,
-  ): Disposable => {
-    // Per-point capability gate. Full hosts (built-ins — no declared
-    // `capabilities`) skip it; a restricted host (sideload) may only contribute
-    // to points whose capability it declared. Plugin-defined points carry no
-    // capability and are always allowed (contributing to a plugin's own point
-    // needs no kernel permission).
-    if (capabilities && point.capability && !capabilities.includes(point.capability)) {
-      throw new Error(
-        `[plugin] ${pluginName}: contributing to "${point.id}" needs capability ` +
-          `"${point.capability}" — add it to spec.capabilities`,
-      );
-    }
-    const keyOf = point.keyOf ?? ((i: T) => (i as unknown as { id: string }).id);
-    let outerKey: string;
-    let conflictKey: string;
-    if (point.keying === "single") {
-      const base = opts?.key ?? keyOf(item);
-      conflictKey = point.normalizeKey ? point.normalizeKey(base) : base;
-      outerKey = composeExtensionKey(point.id, conflictKey);
-    } else {
-      conflictKey = opts?.id ?? mintId(point.id);
-      outerKey = composeExtensionKey(point.id, `${pluginName}|${conflictKey}`);
-    }
-    store().addContribution(
-      pluginName,
-      point.id,
-      outerKey,
-      { point: point.id, key: conflictKey, order: opts?.order, item },
-      conflictKey,
-    );
-    return track({ dispose: () => store().removeContribution(pluginName, outerKey) });
-  };
-
-  // Third-party (sideloaded) plugins must namespace the enumerable
-  // identifiers they introduce — custom event names + content-block kinds —
-  // as `plugin:<name>/<symbol>` (API.md §2.5), so two third-party bundles
-  // can't collide on a bare name. First-party built-ins use bare symbols and
-  // are exempt. Warn (don't throw) — a bad name is a dev-time authoring slip,
-  // not a reason to tear down a registration.
-  const assertNamespaced = (what: string, value: string): void => {
-    if (pluginOrigin(pluginName) !== "sideload") return;
-    const prefix = `plugin:${pluginName}/`;
-    if (!value.startsWith(prefix)) {
-      console.warn(
-        `[plugin:${pluginName}] ${what} "${value}" is not namespaced; ` +
-          `third-party ${what}s must be "${prefix}<symbol>" (API.md §2.5)`,
-      );
-    }
-  };
+  const contribute = createContribute(pluginName, capabilities, track);
 
   const full = {
     message: {
@@ -177,7 +84,7 @@ export function createHost(
         kind: K,
         renderer: ContentBlockRenderer<K>,
       ): Disposable {
-        assertNamespaced("content-block kind", kind);
+        assertNamespaced(pluginName, "content-block kind", kind);
         // The substrate holds renderers as the union root type; the public
         // method is typed per-kind for plugin author ergonomics.
         return contribute(CONTENT_BLOCK, renderer as ContentBlockRenderer<ContentBlockKind>, {
@@ -191,7 +98,7 @@ export function createHost(
       // register more than once for the same name/type (each contribution
       // coexists). The reducer chains StateUpdate returns across them.
       onCustom: <T = unknown>(name: string, handler: CustomEventHandler<T>): Disposable => {
-        assertNamespaced("custom event name", name);
+        assertNamespaced(pluginName, "custom event name", name);
         return contribute(CUSTOM_EVENT_HANDLER, {
           name,
           handler: handler as CustomEventHandler<unknown>,
@@ -326,21 +233,21 @@ export function createHost(
         if (pluginOrigin(pluginName) === "sideload") {
           setPluginOrigin(spec.name, "sideload");
         }
-        return getRuntime().load(spec);
+        return getPluginRuntime().load(spec);
       },
       unload(name: string): void {
-        getRuntime().unload(name);
+        getPluginRuntime().unload(name);
       },
       reload(name: string): Promise<void> {
-        return getRuntime().reload(name);
+        return getPluginRuntime().reload(name);
       },
     },
 
     log: {
-      debug: (...args) => emitLog(pluginName, "debug", args),
-      info: (...args) => emitLog(pluginName, "info", args),
-      warn: (...args) => emitLog(pluginName, "warn", args),
-      error: (...args) => emitLog(pluginName, "error", args),
+      debug: (...args) => emitPluginLog(pluginName, "debug", args),
+      info: (...args) => emitPluginLog(pluginName, "info", args),
+      warn: (...args) => emitPluginLog(pluginName, "warn", args),
+      error: (...args) => emitPluginLog(pluginName, "error", args),
       subscribe: (fn: LogSubscriber): Disposable => contribute(LOG_SUBSCRIBER, fn),
     },
 
@@ -362,50 +269,4 @@ export function createHost(
   } satisfies Host;
 
   return capabilities ? restrictHost(full, pluginName, capabilities) : full;
-}
-
-// Method-name lookup beats the previous nested ternary — adding a
-// level is one line. Stored as the method *name* (not a reference) so
-// vitest's `vi.spyOn(console, "info")` after module load still binds.
-const CONSOLE_METHOD: Record<LogLevel, "log" | "info" | "warn" | "error"> = {
-  debug: "log",
-  info: "info",
-  warn: "warn",
-  error: "error",
-};
-
-function logToConsole(plugin: string, level: LogLevel, args: unknown[]): void {
-  console[CONSOLE_METHOD[level]](`[plugin:${plugin}]`, ...args);
-}
-
-// Module-scoped log emission: forwards to console with a `[plugin:<name>]`
-// prefix (preserving the existing log shape) and fans the event out to
-// every registered subscriber. Subscriber failures are isolated.
-function emitLog(plugin: string, level: LogLevel, args: unknown[]): void {
-  logToConsole(plugin, level, args);
-  // Third pillar: mirror the line into OTel logs (no-op until a LoggerProvider
-  // is installed). Correlated with the active span by the SDK.
-  emitOtelLog(plugin, level, args);
-  const event = { plugin, level, args, timestamp: Date.now() };
-  for (const fn of lookupExtensionPoint(LOG_SUBSCRIBER)) {
-    safeCall(() => fn(event), "[plugin] log subscriber threw:");
-  }
-}
-
-// A self-mounting listener (see PluginToaster.tsx) picks up these events and
-// renders an animated toast. Keeping the dispatcher event-based means the
-// SDK doesn't import React for its notification path.
-
-type ToastLevel = "info" | "warn" | "error";
-export const PLUGIN_TOAST_EVENT = "lyra:plugin-toast";
-export interface PluginToastDetail {
-  message: string;
-  level: ToastLevel;
-}
-
-function dispatchToast(message: string, level: ToastLevel): void {
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(
-    new CustomEvent<PluginToastDetail>(PLUGIN_TOAST_EVENT, { detail: { message, level } }),
-  );
 }
