@@ -133,7 +133,7 @@ export function Composer({
         if (!acceptsImages) return; // text-only model — toolbar attach is disabled too
         onAddImages(files);
       }}
-      className="relative rounded-xl bg-surface border border-line/40 dark:border-transparent shadow-[var(--shadow-composer)] px-3 py-2.5 transition-colors duration-150 focus-within:border-line"
+      className="relative rounded-[22px] border border-line bg-surface/[0.88] px-4 py-3 shadow-[var(--shadow-composer)] backdrop-blur-xl transition-colors duration-150 focus-within:border-line-soft"
       data-slot="composer-root"
     >
       {mentions.active && (
@@ -229,7 +229,7 @@ export function Composer({
         /* The `composer-input` class is a DOM-target hook (no styles) so
            the `composer.focus` command in defaults/commands.ts can find
            this textarea without threading a ref through the tree. */
-        className="composer-input w-full resize-none border-0 bg-transparent px-0.5 py-2 font-sans text-[16px] leading-[1.5] text-fg outline-none min-h-9 max-h-40 placeholder:text-fg-faint placeholder:tracking-normal"
+        className="composer-input max-h-40 min-h-9 w-full resize-none border-0 bg-transparent px-0.5 py-2 font-sans text-[16px] leading-[1.5] text-fg outline-none placeholder:text-fg-faint placeholder:tracking-normal"
         data-slot="composer-input"
       />
       {/* Bottom toolbar: send / stop */}
@@ -312,7 +312,7 @@ function PasteChip({ paste, onRemove }: { paste: PastedText; onRemove: () => voi
       : t("composer.paste.chars", { count: paste.text.length });
   return (
     <Tooltip label={preview}>
-      <span className="group inline-flex h-6 max-w-[220px] items-center gap-1.5 rounded-md border border-line-soft bg-surface-2 pl-2 pr-1 font-mono text-[11.5px] text-fg-muted">
+      <span className="group inline-flex h-6 max-w-[220px] items-center gap-1.5 rounded-full bg-fg/[0.05] pl-2.5 pr-1.5 font-mono text-[11.5px] text-fg-muted">
         <Icon name="filetext" size={11} className="shrink-0 text-fg-faint" />
         <span className="truncate">{label}</span>
         <button

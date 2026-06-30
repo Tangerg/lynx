@@ -402,7 +402,7 @@ body {
    stroke, no bright box-shadow halo. The old 2px-outline + 4px-halo double
    ring read as cheap — and WebView sometimes shows :focus-visible after a
    plain click, so the loud version flashed a bright edge on interaction. */
-:focus-visible {
+:focus-visible:not([data-chrome-focus]) {
   outline: 1.5px solid color-mix(in oklab, var(--color-accent) 50%, transparent);
   outline-offset: 1px;
 }
@@ -463,10 +463,12 @@ html.theme-light .panel {
 
 /* Light mode: composer gets the only allowed shadow. */
 html.theme-light {
-  --shadow-composer: 0 2px 2px rgba(0, 0, 0, 0.04);
+  --shadow-composer:
+    0 24px 64px color-mix(in oklab, var(--color-text) 11%, transparent),
+    0 3px 12px color-mix(in oklab, var(--color-text) 7%, transparent);
   --shadow-elevated:
-    0 1px 1px rgba(0, 0, 0, 0.02), 0 4px 8px -4px rgba(0, 0, 0, 0.04),
-    0 16px 24px -8px rgba(0, 0, 0, 0.06);
+    0 24px 58px color-mix(in oklab, var(--color-text) 12%, transparent),
+    0 4px 14px color-mix(in oklab, var(--color-text) 8%, transparent);
 }
 
 /* Quieter scrollbar on light — the dark thumb tokens overshoot. */
