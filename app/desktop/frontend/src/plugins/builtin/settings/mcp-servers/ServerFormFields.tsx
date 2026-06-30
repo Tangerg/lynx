@@ -6,7 +6,7 @@ export const FIELD = cn(
   INPUT_FOCUS_RING,
 );
 
-const AREA = cn(
+export const TEXT_AREA = cn(
   "w-full resize-y rounded-md border border-line-soft bg-surface px-2.5 py-1.5 font-mono text-[12px] leading-[1.5] text-fg outline-none placeholder:text-fg-faint",
   INPUT_FOCUS_RING,
 );
@@ -28,7 +28,7 @@ export function LinesField({ label, value, onChange, placeholder }: LinesFieldPr
         rows={2}
         aria-label={label}
         placeholder={placeholder}
-        className={AREA}
+        className={TEXT_AREA}
       />
     </label>
   );
