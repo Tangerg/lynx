@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	domain "github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/git"
 )
 
@@ -18,8 +19,12 @@ const (
 	maxFiles     = 4000       // cap on indexed files (Truncated when hit)
 	chunkLines   = 50         // lines per chunk window
 	chunkOverlap = 10         // lines shared between adjacent windows (keeps context across cuts)
-	embedBatch   = 96         // texts per embedding API call
 )
+
+// Source discovers and chunks indexable code files from a project directory.
+type Source struct{}
+
+var _ domain.Source = Source{}
 
 // codeExtensions is the allowlist of source extensions worth indexing — keeps
 // the index code-centric (not data / lock / binary files) and bounds cost.
@@ -39,10 +44,10 @@ var skipDirs = map[string]struct{}{
 	".vscode": {}, "out": {}, "bin": {}, "obj": {}, ".cache": {},
 }
 
-// discoverFiles lists the project's indexable source files (relative, slash
+// Files lists the project's indexable source files (relative, slash
 // paths). Gitignore-aware via `git ls-files` in a repo; a bounded filesystem
 // walk (skipDirs) outside one. truncated reports the maxFiles cap was hit.
-func discoverFiles(ctx context.Context, cwd string) (files []string, truncated bool, err error) {
+func (Source) Files(ctx context.Context, cwd string) (files []string, truncated bool, err error) {
 	listed, gerr := git.ListFiles(ctx, cwd, ".")
 	if gerr != nil {
 		// Not a repo / git unavailable → filesystem walk fallback.
@@ -91,11 +96,11 @@ func walkFiles(root string) ([]string, error) {
 	return out, err
 }
 
-// readChunks reads cwd/rel and splits it into overlapping line-window chunks
+// Chunks reads cwd/rel and splits it into overlapping line-window chunks
 // (1-based inclusive line ranges) plus the file's content hash. ok=false when
 // the file is unreadable, oversized, or binary — skipped without an error.
 // Embeddings are left empty; the caller fills them after embedding.
-func readChunks(cwd, rel string) (chunks []Chunk, hash string, ok bool) {
+func (Source) Chunks(cwd, rel string) (chunks []domain.Chunk, hash string, ok bool) {
 	full := filepath.Join(cwd, filepath.FromSlash(rel))
 	info, err := os.Stat(full)
 	if err != nil || !info.Mode().IsRegular() || info.Size() > maxFileBytes {
@@ -112,7 +117,7 @@ func readChunks(cwd, rel string) (chunks []Chunk, hash string, ok bool) {
 	for start := 0; start < len(lines); start += chunkLines - chunkOverlap {
 		end := min(start+chunkLines, len(lines))
 		if text := strings.TrimSpace(strings.Join(lines[start:end], "\n")); text != "" {
-			chunks = append(chunks, Chunk{Path: rel, StartLine: start + 1, EndLine: end, Text: text})
+			chunks = append(chunks, domain.Chunk{Path: rel, StartLine: start + 1, EndLine: end, Text: text})
 		}
 		if end == len(lines) {
 			break

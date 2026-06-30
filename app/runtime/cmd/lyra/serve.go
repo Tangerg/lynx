@@ -17,7 +17,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
 	lyrahttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentdoc"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/workspace"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage"
 )
 

@@ -1,8 +1,8 @@
-// Package domain is the bounded-context layer of the Clean Arch ring
-// (delivery → kernel → domain → infra): one sub-package per business
-// capability, each depending only inward on infra. The capabilities are
-// composed by the kernel and exposed at the wire by delivery; the domain
-// packages themselves know nothing of transports or wire formats.
+// Package domain is the bounded-context layer of the Clean Arch ring: one
+// sub-package per business capability, each holding entities, domain services,
+// and consumer-side ports. The capabilities are composed by the kernel and
+// exposed at the wire by delivery; the domain packages themselves know nothing
+// of transports, wire formats, or driven adapters.
 //
 // Each sub-package owns one bounded context:
 //
@@ -11,8 +11,6 @@
 //   - transcript/   — items + runs timeline backing items.list
 //   - conversation/ — the LLM message context fed to a turn
 //   - maintenance/  — compaction / extraction / planning (turn-boundary ops)
-//   - codeintel/    — code intelligence (wraps infra/lsp)
-//   - workspace/    — VCS view + file checkpoints (wraps infra/git + infra/checkpoint)
 //   - approval/     — runtime tool-approval stance (Mode: pass/deny/prompt)
 //   - tool/         — tool registry inspection and (optional) direct invocation
 //   - editguard/    — read-before-edit + stale invariants

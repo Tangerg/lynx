@@ -5,11 +5,10 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"path/filepath"
 	"slices"
 	"sync"
 	"time"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/fspath"
 )
 
 // rescanDebounce bounds how long a freshly-reconciled corpus is trusted before
@@ -19,6 +18,9 @@ const rescanDebounce = 5 * time.Second
 
 // defaultTopK is the result count when a caller doesn't specify one.
 const defaultTopK = 8
+
+// embedBatch bounds one embedding API call.
+const embedBatch = 96
 
 // loaded is a cwd's in-memory search corpus plus when it was last reconciled.
 type loaded struct {
@@ -32,6 +34,7 @@ type loaded struct {
 type Indexer struct {
 	store   Store
 	resolve func(context.Context) (Embedder, error) // current embedding model; ErrNoEmbeddingModel when off
+	source  Source
 
 	mu     sync.Mutex
 	locks  map[string]*sync.Mutex // per-cwd build lock (serializes concurrent builds of one cwd)
@@ -41,12 +44,14 @@ type Indexer struct {
 
 var _ Service = (*Indexer)(nil)
 
-// New builds an Indexer over the given store and embedding-model resolver. The
-// resolver returns [ErrNoEmbeddingModel] when none is configured.
-func New(store Store, resolve func(context.Context) (Embedder, error)) *Indexer {
+// New builds an Indexer over the given store, embedding-model resolver, and
+// project source. The resolver returns [ErrNoEmbeddingModel] when none is
+// configured.
+func New(store Store, resolve func(context.Context) (Embedder, error), source Source) *Indexer {
 	return &Indexer{
 		store:   store,
 		resolve: resolve,
+		source:  source,
 		locks:   map[string]*sync.Mutex{},
 		corpus:  map[string]*loaded{},
 		status:  map[string]Status{},
@@ -68,7 +73,7 @@ func (ix *Indexer) Search(ctx context.Context, cwd, query string, topK int) ([]H
 	if topK <= 0 {
 		topK = defaultTopK
 	}
-	cwd = fspath.Canonical(cwd)
+	cwd = canonicalCwd(cwd)
 	if err := ix.EnsureIndexed(ctx, cwd); err != nil {
 		return nil, err
 	}
@@ -100,7 +105,7 @@ func (ix *Indexer) EnsureIndexed(ctx context.Context, cwd string) error {
 	if err != nil {
 		return err
 	}
-	cwd = fspath.Canonical(cwd)
+	cwd = canonicalCwd(cwd)
 	modelID := emb.ID()
 	if ix.fresh(cwd, modelID) {
 		return nil
@@ -121,7 +126,7 @@ func (ix *Indexer) Reindex(ctx context.Context, cwd string) error {
 	if err != nil {
 		return err
 	}
-	cwd = fspath.Canonical(cwd)
+	cwd = canonicalCwd(cwd)
 	lock := ix.cwdLock(cwd)
 	lock.Lock()
 	defer lock.Unlock()
@@ -131,7 +136,7 @@ func (ix *Indexer) Reindex(ctx context.Context, cwd string) error {
 // Status reports cwd's current index state — the live in-memory status, falling
 // back to the persisted meta on a cold process.
 func (ix *Indexer) Status(ctx context.Context, cwd string) (Status, error) {
-	cwd = fspath.Canonical(cwd)
+	cwd = canonicalCwd(cwd)
 	ix.mu.Lock()
 	s, ok := ix.status[cwd]
 	ix.mu.Unlock()
@@ -191,7 +196,7 @@ func (ix *Indexer) reconcile(ctx context.Context, cwd string, emb Embedder, mode
 		}
 	}
 
-	files, truncated, err := discoverFiles(ctx, cwd)
+	files, truncated, err := ix.source.Files(ctx, cwd)
 	if err != nil {
 		return ix.fail(cwd, err)
 	}
@@ -206,7 +211,7 @@ func (ix *Indexer) reconcile(ctx context.Context, cwd string, emb Embedder, mode
 			return ix.fail(cwd, err)
 		}
 		current[rel] = struct{}{}
-		chunks, hash, ok := readChunks(cwd, rel)
+		chunks, hash, ok := ix.source.Chunks(cwd, rel)
 		if !ok {
 			continue
 		}
@@ -243,6 +248,20 @@ func (ix *Indexer) reconcile(ctx context.Context, cwd string, emb Embedder, mode
 	ix.status[cwd] = Status{State: StateReady, ModelID: modelID, FileCount: len(current), ChunkCount: len(all), IndexedAt: now, Truncated: truncated}
 	ix.mu.Unlock()
 	return nil
+}
+
+func canonicalCwd(path string) string {
+	if path == "" {
+		return ""
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return filepath.Clean(path)
+	}
+	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
+		return resolved
+	}
+	return abs
 }
 
 // embedChunks fills each chunk's Embedding, batching the embedding calls.

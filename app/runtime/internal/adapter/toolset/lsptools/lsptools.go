@@ -10,7 +10,7 @@ import (
 	chattool "github.com/Tangerg/lynx/core/model/chat/middleware/tool"
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/codeintel"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/kernel/turnctx"
 )
 

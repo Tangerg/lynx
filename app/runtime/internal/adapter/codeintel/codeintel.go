@@ -1,12 +1,10 @@
-// Package codeintel is the code-intelligence domain: it wraps the LSP
-// manager (infra/lsp) and turns raw language-server protocol results
-// into model-facing text — root-relative, 1-based positions — folding
-// the "no server for this file type" outcome into a plain message, and
-// computing the new-problems-after-edit diagnostics diff.
+// Package codeintel adapts the LSP manager (infra/lsp) into model-facing code
+// intelligence: root-relative, 1-based locations; plain messages for unsupported
+// file types; and new-problems-after-edit diagnostics.
 //
-// It is the single owner of the LSP protocol types: engine builds its
-// lsp_* tools and its edit-diagnostics wrap over this service and never
-// imports infra/lsp directly, so the engine→infra layering stays clean.
+// It is the single owner of the LSP protocol types at the tool adapter boundary:
+// tool assembly builds lsp_* tools and edit diagnostics over this service rather
+// than importing infra/lsp directly.
 package codeintel
 
 import (
@@ -26,15 +24,15 @@ type ServerSpec = lsp.ServerSpec
 // instead of halting the tool loop.
 const noServerMsg = "No language server is available for that file type."
 
-// Service wraps the LSP manager as the code-intelligence domain surface.
+// Service wraps the LSP manager as the code-intelligence adapter surface.
 // Servers launch lazily per (workspace root, language) inside the manager;
 // Close shuts them all down.
 type Service struct {
 	mgr *lsp.Manager
 }
 
-// New builds a Service over the given language-server table. An empty
-// table falls back to [DefaultServers].
+// New builds a Service over the given language-server table. An empty table
+// falls back to the built-in LSP server table.
 func New(servers []ServerSpec) *Service {
 	if len(servers) == 0 {
 		servers = lsp.DefaultServers()

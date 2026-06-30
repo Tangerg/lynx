@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/workspace"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 )
 
 // snapshotCheckpoint anchors the session's working tree at a finished run, so a

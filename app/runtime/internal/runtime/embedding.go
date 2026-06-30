@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/model/embedding"
 
+	codebaseindexadapter "github.com/Tangerg/lynx/app/runtime/internal/adapter/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
@@ -55,7 +56,7 @@ func buildEmbeddingEnvironment(ctx context.Context, cfg Config, providers provid
 	}
 	var index codebaseindex.Service
 	if cfg.CodebaseStore != nil {
-		index = codebaseindex.New(cfg.CodebaseStore, resolveEmbedder)
+		index = codebaseindex.New(cfg.CodebaseStore, resolveEmbedder, codebaseindexadapter.Source{})
 	}
 	return embeddingEnvironment{cell: cell, resolver: resolver, index: index}, nil
 }

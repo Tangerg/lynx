@@ -1,9 +1,9 @@
-// Package workspace is the workspace domain: the VCS view of a project's
+// Package workspace adapts git-backed workspace operations: the VCS view of a project's
 // working tree (git-backed diff / status) and per-session file checkpoints
 // (shadow-git snapshot / restore). It is the single owner of the git and
-// checkpoint infra adapters from above — delivery (rpc) drives workspace
+// checkpoint infra adapters here: delivery drives workspace
 // operations through here and never imports infra/git or infra/checkpoint
-// directly, so the delivery→infra layering stays clean.
+// directly.
 //
 // VCS reads are stateless package functions (a git working tree is addressed
 // purely by its root path); checkpoint lifecycle is stateful and lives on

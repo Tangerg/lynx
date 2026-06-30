@@ -42,13 +42,12 @@ import (
 //
 //	kernel            → domain/*    orchestration depends inward on domain
 //	infra             → domain/*    adapter depends inward on domain entities + repo ports
-//	domain            → infra/*      a domain service may wrap an infra capability
-//	                                 (codeintel↦lsp, workspace↦git+checkpoint)
 //	domain/maintenance → kernel     maintenance is a driven adapter of the kernel's
 //	                                 Compactor/Extractor PORTS; importing the port
 //	                                 owner for its DTOs is the correct hexagonal direction
 //	adapter          → kernel/*     capability adapters implement kernel-owned
 //	                                 ports (tool resolver, MCP live control)
+//	adapter          → infra/*      capability adapters wrap driven capabilities
 //	delivery          → anything inward
 func TestDependencyRule(t *testing.T) {
 	const modulePath = "github.com/Tangerg/lynx/app/runtime"
@@ -143,8 +142,10 @@ func forbidden(from, to string) bool {
 	switch from {
 	case ringInfra:
 		return to == ringDelivery || to == ringAdapter || to == ringOrchestration
-	case ringDomain, ringOrchestration:
-		return to == ringDelivery || to == ringAdapter
+	case ringDomain:
+		return to == ringDelivery || to == ringAdapter || to == ringInfra
+	case ringOrchestration:
+		return to == ringDelivery || to == ringAdapter || to == ringInfra
 	case ringAdapter:
 		return to == ringDelivery
 	default:
