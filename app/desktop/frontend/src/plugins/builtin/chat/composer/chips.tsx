@@ -1,7 +1,7 @@
 import type { IconName } from "@/components/common";
 import type { ApprovalModeValue } from "@/lib/data/queries";
 import type { ReactNode } from "react";
-import { Icon, Menu as BaseMenu, MENU_CONTENT_CLASSES } from "@/components/common";
+import { DropdownMenu, Icon } from "@/components/common";
 import { APPROVAL_MODES } from "@/lib/agent/approvalModes";
 import { setApprovalMode } from "@/lib/agent/approvalConfig";
 import { rpcErrorText } from "@/lib/agent/errorCopy";
@@ -66,8 +66,8 @@ function ApprovalModeChip() {
     }
   };
   return (
-    <BaseMenu.Root>
-      <BaseMenu.Trigger
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger
         render={
           <button
             type="button"
@@ -84,28 +84,22 @@ function ApprovalModeChip() {
           </button>
         }
       />
-      <BaseMenu.Portal>
-        <BaseMenu.Positioner align="start" sideOffset={6}>
-          <BaseMenu.Popup className={cn(MENU_CONTENT_CLASSES, "min-w-[248px]")}>
-            {APPROVAL_MODES.map((m) => (
-              <BaseMenu.Item
-                key={m.value}
-                onClick={() => void onSelect(m.value)}
-                className="grid grid-cols-[minmax(0,1fr)_14px] items-start gap-2 rounded-sm px-2 py-1.5 outline-none data-[highlighted]:bg-surface-2"
-              >
-                <span className="min-w-0">
-                  <span className="block text-[12.5px] font-semibold text-fg">{t(m.labelKey)}</span>
-                  <span className="block text-[11.5px] leading-snug text-fg-muted">
-                    {t(m.descKey)}
-                  </span>
-                </span>
-                {m.value === mode && <Icon name="check" size={12} className="mt-0.5 text-accent" />}
-              </BaseMenu.Item>
-            ))}
-          </BaseMenu.Popup>
-        </BaseMenu.Positioner>
-      </BaseMenu.Portal>
-    </BaseMenu.Root>
+      <DropdownMenu.Content align="start" sideOffset={6} className="min-w-[248px]">
+        {APPROVAL_MODES.map((m) => (
+          <DropdownMenu.Item
+            key={m.value}
+            onClick={() => void onSelect(m.value)}
+            className="grid grid-cols-[minmax(0,1fr)_14px] items-start gap-2 rounded-sm px-2 py-1.5 outline-none data-[highlighted]:bg-surface-2"
+          >
+            <span className="min-w-0">
+              <span className="block text-[12.5px] font-semibold text-fg">{t(m.labelKey)}</span>
+              <span className="block text-[11.5px] leading-snug text-fg-muted">{t(m.descKey)}</span>
+            </span>
+            {m.value === mode && <Icon name="check" size={12} className="mt-0.5 text-accent" />}
+          </DropdownMenu.Item>
+        ))}
+      </DropdownMenu.Content>
+    </DropdownMenu.Root>
   );
 }
 

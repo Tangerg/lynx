@@ -4,14 +4,7 @@
 //
 import type { SegmentedOption } from "@/components/common";
 import { useId } from "react";
-import {
-  Checkbox,
-  Icon,
-  Menu as BaseMenu,
-  MENU_CONTENT_CLASSES,
-  MENU_ITEM_CLASSES,
-  Segmented,
-} from "@/components/common";
+import { Checkbox, DropdownMenu, Icon, MENU_ITEM_CLASSES, Segmented } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { useSystemFonts } from "@/lib/systemFonts";
 import { cn } from "@/lib/utils";
@@ -50,8 +43,8 @@ function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerPr
         />
         <span>{t("font.useCustom")}</span>
       </label>
-      <BaseMenu.Root>
-        <BaseMenu.Trigger
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger
           disabled={!customEnabled}
           className={cn(
             "inline-flex w-fit min-w-[220px] max-w-[280px] items-center justify-between gap-2 rounded-md border border-line bg-surface px-2.5 py-1.5 text-[13px] text-fg transition-colors hover:bg-surface-2 data-[popup-open]:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
@@ -62,34 +55,29 @@ function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerPr
         >
           <span className="truncate">{triggerLabel}</span>
           <Icon name="more" size={11} className="shrink-0 text-fg-faint -rotate-90" />
-        </BaseMenu.Trigger>
-        <BaseMenu.Portal>
-          <BaseMenu.Positioner align="start" sideOffset={4}>
-            <BaseMenu.Popup
-              className={cn(MENU_CONTENT_CLASSES, "max-h-[280px] min-w-[220px] overflow-auto")}
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Content
+          align="start"
+          sideOffset={4}
+          className="max-h-[280px] min-w-[220px] overflow-auto"
+        >
+          {fonts.map((f) => (
+            <DropdownMenu.Item
+              key={f}
+              onClick={() => onChange(f)}
+              style={{ fontFamily: `"${f}"` }}
+              className={cn(MENU_ITEM_CLASSES, "grid-cols-[minmax(0,1fr)_12px]")}
             >
-              {fonts.map((f) => (
-                <BaseMenu.Item
-                  key={f}
-                  onClick={() => onChange(f)}
-                  // Preview each option in its own family — the user can
-                  // scan the list and pick by visual feel, not by name
-                  // recall.
-                  style={{ fontFamily: `"${f}"` }}
-                  className={cn(MENU_ITEM_CLASSES, "grid-cols-[minmax(0,1fr)_12px]")}
-                >
-                  <span className="truncate">{f}</span>
-                  {value === f ? (
-                    <Icon name="check" size={12} className="text-accent" />
-                  ) : (
-                    <span aria-hidden />
-                  )}
-                </BaseMenu.Item>
-              ))}
-            </BaseMenu.Popup>
-          </BaseMenu.Positioner>
-        </BaseMenu.Portal>
-      </BaseMenu.Root>
+              <span className="truncate">{f}</span>
+              {value === f ? (
+                <Icon name="check" size={12} className="text-accent" />
+              ) : (
+                <span aria-hidden />
+              )}
+            </DropdownMenu.Item>
+          ))}
+        </DropdownMenu.Content>
+      </DropdownMenu.Root>
     </div>
   );
 }

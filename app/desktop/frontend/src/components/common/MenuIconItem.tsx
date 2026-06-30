@@ -1,8 +1,7 @@
 import type { ReactNode } from "react";
-import { Menu as BaseMenu } from "@base-ui/react/menu";
 import { cn } from "@/lib/utils";
 import { Icon, type IconName } from "./Icon";
-import { MENU_ITEM_CLASSES } from "./menuClasses";
+import { MENU_ITEM_CLASSES, MenuItem } from "./Menu";
 
 // A context-menu row: leading 12px icon + truncating label. `destructive`
 // paints it in the negative tone for delete-style actions. Pairs with
@@ -19,7 +18,7 @@ export function MenuIconItem({
   children: ReactNode;
 }) {
   return (
-    <BaseMenu.Item
+    <MenuItem
       onClick={onSelect}
       className={cn(
         MENU_ITEM_CLASSES,
@@ -30,6 +29,6 @@ export function MenuIconItem({
     >
       <Icon name={icon} size={12} />
       <span className="truncate">{children}</span>
-    </BaseMenu.Item>
+    </MenuItem>
   );
 }

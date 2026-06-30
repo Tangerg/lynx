@@ -161,7 +161,7 @@ function FilePreview({ tool, onOpenView }: ToolPreviewProps) {
 
 // One display row per hit, whatever grep's output_mode returned — matches
 // ({path,line,text}), files (paths), or counts ({path,count}). Undefined
-// when the result isn't one of those shapes (still streaming / legacy
+// when the result isn't one of those shapes (still streaming / projection-only
 // `hits` convention) — the caller then falls back to re-querying.
 function inlineGrepRows(
   result: string | undefined,
