@@ -42,7 +42,7 @@ export function IconButton({ variant, active, className, children, title, ...res
   // `title` (the hover tooltip) but didn't override `aria-label`, mirror
   // it so screen readers get the same text the sighted user sees.
   const ariaLabel = rest["aria-label"] ?? title;
-  // The native `title` attribute is intentionally dropped — Radix
+  // The native `title` attribute is intentionally dropped — app Tooltip
   // Tooltip handles the hover affordance with a 250ms delay vs the
   // OS-default ~1s lag, and it works on focus too (the native title
   // doesn't).

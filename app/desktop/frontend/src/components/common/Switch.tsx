@@ -1,4 +1,4 @@
-import * as RadixSwitch from "@radix-ui/react-switch";
+import { Switch as BaseSwitch } from "@base-ui/react/switch";
 import { cn } from "@/lib/utils";
 
 interface SwitchProps {
@@ -9,14 +9,9 @@ interface SwitchProps {
   className?: string;
 }
 
-// On/off toggle on the Radix Switch primitive — `role="switch"` + keyboard +
-// a11y for free (the right primitive for an enablement toggle, vs Checkbox
-// which is for a selection in a set). Accent-filled track + sliding thumb when
-// on, surface-2 + hairline when off — the same on=accent treatment Checkbox
-// uses, so the two read as one toggle family.
 export function Switch({ checked, onCheckedChange, disabled, ariaLabel, className }: SwitchProps) {
   return (
-    <RadixSwitch.Root
+    <BaseSwitch.Root
       checked={checked}
       onCheckedChange={onCheckedChange}
       disabled={disabled}
@@ -29,12 +24,12 @@ export function Switch({ checked, onCheckedChange, disabled, ariaLabel, classNam
         className,
       )}
     >
-      <RadixSwitch.Thumb
+      <BaseSwitch.Thumb
         className={cn(
           "block h-4 w-4 rounded-full bg-canvas shadow-[0_1px_2px_var(--color-divider)] transition-transform duration-150",
-          "translate-x-0.5 data-[state=checked]:translate-x-[18px] data-[state=checked]:bg-on-accent",
+          "translate-x-0.5 data-[checked]:translate-x-[18px] data-[checked]:bg-on-accent",
         )}
       />
-    </RadixSwitch.Root>
+    </BaseSwitch.Root>
   );
 }

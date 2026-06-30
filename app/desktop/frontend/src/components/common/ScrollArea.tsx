@@ -18,7 +18,7 @@ interface Props {
 }
 
 // Vertical scroll container with our project-wide scrollbar styling.
-// Native scrollbar — Radix ScrollArea would add virtual track overhead
+// Native scrollbar — a headless scroll-area primitive would add virtual track overhead
 // for no real benefit on the surfaces we use this on (Settings rail,
 // workspace view bodies, etc.).
 //

@@ -1,8 +1,7 @@
 import type { IconName } from "@/components/common";
 import type { ApprovalModeValue } from "@/lib/data/queries";
 import type { ReactNode } from "react";
-import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Icon, MENU_CONTENT_CLASSES } from "@/components/common";
+import { Icon, Menu as BaseMenu, MENU_CONTENT_CLASSES } from "@/components/common";
 import { APPROVAL_MODES } from "@/lib/agent/approvalModes";
 import { setApprovalMode } from "@/lib/agent/approvalConfig";
 import { rpcErrorText } from "@/lib/agent/errorCopy";
@@ -67,46 +66,46 @@ function ApprovalModeChip() {
     }
   };
   return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger asChild>
-        <button
-          type="button"
-          aria-label={t("approvals.mode.aria")}
-          className="inline-flex items-center gap-1.5 text-[11.5px] text-fg-faint whitespace-nowrap transition-colors hover:text-fg-muted data-[state=open]:text-fg"
-        >
-          <Icon
-            name="shield"
-            size={11}
-            className={cn("shrink-0", mode === "yolo" ? "text-warning" : "")}
-          />
-          <span className={cn(mode === "yolo" && "text-warning")}>{t(current.labelKey)}</span>
-          <Icon name="chevron-down" size={9} className="opacity-70" />
-        </button>
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content
-          align="start"
-          sideOffset={6}
-          className={cn(MENU_CONTENT_CLASSES, "min-w-[248px]")}
-        >
-          {APPROVAL_MODES.map((m) => (
-            <DropdownMenu.Item
-              key={m.value}
-              onSelect={() => void onSelect(m.value)}
-              className="grid grid-cols-[minmax(0,1fr)_14px] items-start gap-2 rounded-sm px-2 py-1.5 outline-none data-[highlighted]:bg-surface-2"
-            >
-              <span className="min-w-0">
-                <span className="block text-[12.5px] font-semibold text-fg">{t(m.labelKey)}</span>
-                <span className="block text-[11.5px] leading-snug text-fg-muted">
-                  {t(m.descKey)}
+    <BaseMenu.Root>
+      <BaseMenu.Trigger
+        render={
+          <button
+            type="button"
+            aria-label={t("approvals.mode.aria")}
+            className="inline-flex items-center gap-1.5 text-[11.5px] text-fg-faint whitespace-nowrap transition-colors hover:text-fg-muted data-[popup-open]:text-fg"
+          >
+            <Icon
+              name="shield"
+              size={11}
+              className={cn("shrink-0", mode === "yolo" ? "text-warning" : "")}
+            />
+            <span className={cn(mode === "yolo" && "text-warning")}>{t(current.labelKey)}</span>
+            <Icon name="chevron-down" size={9} className="opacity-70" />
+          </button>
+        }
+      />
+      <BaseMenu.Portal>
+        <BaseMenu.Positioner align="start" sideOffset={6}>
+          <BaseMenu.Popup className={cn(MENU_CONTENT_CLASSES, "min-w-[248px]")}>
+            {APPROVAL_MODES.map((m) => (
+              <BaseMenu.Item
+                key={m.value}
+                onClick={() => void onSelect(m.value)}
+                className="grid grid-cols-[minmax(0,1fr)_14px] items-start gap-2 rounded-sm px-2 py-1.5 outline-none data-[highlighted]:bg-surface-2"
+              >
+                <span className="min-w-0">
+                  <span className="block text-[12.5px] font-semibold text-fg">{t(m.labelKey)}</span>
+                  <span className="block text-[11.5px] leading-snug text-fg-muted">
+                    {t(m.descKey)}
+                  </span>
                 </span>
-              </span>
-              {m.value === mode && <Icon name="check" size={12} className="mt-0.5 text-accent" />}
-            </DropdownMenu.Item>
-          ))}
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
+                {m.value === mode && <Icon name="check" size={12} className="mt-0.5 text-accent" />}
+              </BaseMenu.Item>
+            ))}
+          </BaseMenu.Popup>
+        </BaseMenu.Positioner>
+      </BaseMenu.Portal>
+    </BaseMenu.Root>
   );
 }
 

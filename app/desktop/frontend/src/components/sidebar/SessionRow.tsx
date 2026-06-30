@@ -1,7 +1,11 @@
 import type { SidebarSession } from "@/lib/data/queries";
-import * as ContextMenu from "@radix-ui/react-context-menu";
 import { useState } from "react";
-import { Icon, MENU_CONTENT_CLASSES, MenuIconItem } from "@/components/common";
+import {
+  ContextMenu as BaseContextMenu,
+  Icon,
+  MENU_CONTENT_CLASSES,
+  MenuIconItem,
+} from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { formatRelative } from "@/lib/i18n/relativeTime";
 import { cn } from "@/lib/utils";
@@ -131,35 +135,37 @@ export function SessionRow({
 
   if (!onDelete && !onFork && !onRename && !onToggleFavorite) return row;
   return (
-    <ContextMenu.Root>
-      <ContextMenu.Trigger asChild>{row}</ContextMenu.Trigger>
-      <ContextMenu.Portal>
-        <ContextMenu.Content className={cn(MENU_CONTENT_CLASSES, "min-w-[160px]")}>
-          {onToggleFavorite && (
-            <MenuIconItem
-              icon="star"
-              onSelect={() => onToggleFavorite(session.id, !session.favorite)}
-            >
-              {session.favorite ? "Unpin" : "Pin to top"}
-            </MenuIconItem>
-          )}
-          {onRename && (
-            <MenuIconItem icon="edit" onSelect={() => setRenaming(true)}>
-              Rename
-            </MenuIconItem>
-          )}
-          {onFork && (
-            <MenuIconItem icon="branch" onSelect={() => onFork(session.id)}>
-              Fork
-            </MenuIconItem>
-          )}
-          {onDelete && (
-            <MenuIconItem icon="trash" destructive onSelect={() => onDelete(session.id)}>
-              Delete
-            </MenuIconItem>
-          )}
-        </ContextMenu.Content>
-      </ContextMenu.Portal>
-    </ContextMenu.Root>
+    <BaseContextMenu.Root>
+      <BaseContextMenu.Trigger render={row} />
+      <BaseContextMenu.Portal>
+        <BaseContextMenu.Positioner>
+          <BaseContextMenu.Popup className={cn(MENU_CONTENT_CLASSES, "min-w-[160px]")}>
+            {onToggleFavorite && (
+              <MenuIconItem
+                icon="star"
+                onSelect={() => onToggleFavorite(session.id, !session.favorite)}
+              >
+                {session.favorite ? "Unpin" : "Pin to top"}
+              </MenuIconItem>
+            )}
+            {onRename && (
+              <MenuIconItem icon="edit" onSelect={() => setRenaming(true)}>
+                Rename
+              </MenuIconItem>
+            )}
+            {onFork && (
+              <MenuIconItem icon="branch" onSelect={() => onFork(session.id)}>
+                Fork
+              </MenuIconItem>
+            )}
+            {onDelete && (
+              <MenuIconItem icon="trash" destructive onSelect={() => onDelete(session.id)}>
+                Delete
+              </MenuIconItem>
+            )}
+          </BaseContextMenu.Popup>
+        </BaseContextMenu.Positioner>
+      </BaseContextMenu.Portal>
+    </BaseContextMenu.Root>
   );
 }

@@ -30,7 +30,7 @@ function buildMessage(overrides: Partial<Message> = {}): Message {
   };
 }
 
-// Radix's ContextMenu.Trigger opens on the native `contextmenu` event
+// Base UI ContextMenu.Trigger opens on the native `contextmenu` event
 // (right-click). fireEvent.contextMenu mimics that. The menu mounts
 // into a Portal — getByText still finds it because Testing Library
 // queries against `document.body`.
