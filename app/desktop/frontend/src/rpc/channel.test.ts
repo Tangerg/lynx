@@ -27,12 +27,37 @@ describe("createPushPullChannel", () => {
     expect(await pending).toEqual({ value: "delayed", done: false });
   });
 
+  it("resolves concurrent next() calls in FIFO order", async () => {
+    const ch = createPushPullChannel<string>();
+    const it = ch.iterator();
+    const first = it.next();
+    const second = it.next();
+
+    ch.push("first");
+    ch.push("second");
+
+    expect(await first).toEqual({ value: "first", done: false });
+    expect(await second).toEqual({ value: "second", done: false });
+  });
+
   it("close() resolves waiting next() with done=true", async () => {
     const ch = createPushPullChannel<number>();
     const it = ch.iterator();
     const pending = it.next();
     ch.close();
     expect(await pending).toEqual({ value: undefined, done: true });
+  });
+
+  it("close() resolves all waiting next() calls", async () => {
+    const ch = createPushPullChannel<number>();
+    const it = ch.iterator();
+    const first = it.next();
+    const second = it.next();
+
+    ch.close();
+
+    expect(await first).toEqual({ value: undefined, done: true });
+    expect(await second).toEqual({ value: undefined, done: true });
   });
 
   it("buffered values drain before close-driven done", async () => {
