@@ -4,23 +4,24 @@
 import { defineThemePlugin } from "../kit/defineThemePlugin";
 
 const c = {
-  // Restrained blue accent (near-monochrome direction); the CTA stays black.
-  accent: "#2563eb",
+  // Geist blue-700 accent (Vercel design.md).
+  accent: "#006bff",
 
-  // Flush layout: canvas = clean white main area, surface = subtle gray chrome.
+  // Geist background scale: bg-100 white, bg-200 subtle separation.
   canvas: "#ffffff",
-  surface1: "#f5f5f7",
+  surface1: "#fafafa",
 
-  // Calibrated to clear WCAG AA on 11-12px text against canvas.
+  // Geist gray scale (text/icons): gray-1000 / 900 / 700 / 600.
   inkBright: "#000000",
-  ink: "#0d0d0d",
-  inkSoft: "#5d5d5d",
-  inkMuted: "#6e6e80",
-  inkFaint: "#9ca3af",
+  ink: "#171717",
+  inkSoft: "#4d4d4d",
+  inkMuted: "#8f8f8f",
+  inkFaint: "#a8a8a8",
 
-  hairline: "#e5e5e5",
-  hairStrong: "#f0f0f0",
-  hairTertiary: "#e5e5e5",
+  // Geist gray-alpha scale (translucent borders/dividers).
+  hairline: "#00000014", // gray-alpha-400 — default border
+  hairStrong: "#00000036", // gray-alpha-500 — focus/emphasized
+  hairTertiary: "#0000001a", // gray-alpha-300 — divider
 };
 
 export default defineThemePlugin({
@@ -50,14 +51,14 @@ export default defineThemePlugin({
     divider: c.hairTertiary,
   },
   semantic: {
-    negative: "#ee0000",
-    warning: "#f5a623",
-    info: "#0070f3",
-    success: "#15883e",
+    negative: "#ea001d", // red-800
+    warning: "#ffa600", // amber-600
+    info: "#006bff", // blue-700
+    success: "#28a948", // green-700
   },
   cta: {
-    cta: "#000000",
-    ctaHover: "#222222",
-    ctaText: "#ffffff",
+    cta: "#171717", // gray-1000 solid fill
+    ctaHover: "#4d4d4d", // gray-900
+    ctaText: "#ffffff", // background-100
   },
 });
