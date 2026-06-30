@@ -26,10 +26,14 @@ const MULTI_FILE_LABEL = /^\d+ files$/;
 // (a foot that promoted an unrelated view, or no-op'd, read as a dead button).
 const VIEWED_CATEGORIES = new Set(["command", "fileEdit", "read"]);
 
-/** Whether the tool has a workspace view to open — the gate for showing the
- *  preview's "view details" foot. Pure (no side effects), unlike routeForTool. */
-export function hasToolView(tool: ToolCall): boolean {
+/** Whether the tool has a workspace view to open. */
+function hasToolView(tool: ToolCall): boolean {
   return VIEWED_CATEGORIES.has(toolCategory(tool.name));
+}
+
+export function createToolViewOpener(tool: ToolCall): (() => void) | undefined {
+  if (!hasToolView(tool)) return undefined;
+  return () => openViewForTool(tool.id);
 }
 
 // Choose which workspace view to surface for the clicked tool. Routing keys

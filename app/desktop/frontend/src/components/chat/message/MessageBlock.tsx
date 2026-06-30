@@ -12,9 +12,10 @@ import { ToolGroup } from "@/components/tools/ToolGroup";
 import { useCitationSources } from "@/plugins/sdk";
 import { Slot } from "@/plugins/host/Slot";
 import { MessageContext } from "@/plugins/sdk/messageContext";
+import { planRenderUnits } from "@/lib/agent/messageRenderUnits";
 import { CitationContext } from "./CitationContext";
 import { MessageContextMenu } from "./MessageContextMenu";
-import { planRenderUnits, renderBlock } from "./BlockRenderer";
+import { renderBlock } from "./BlockRenderer";
 
 function MessageBlockInner({ msg, ctx }: { msg: Message; ctx: BlockCtx }) {
   const isUser = msg.role === "user";
@@ -62,7 +63,6 @@ function MessageBlockInner({ msg, ctx }: { msg: Message; ctx: BlockCtx }) {
         <ToolGroup
           key={`group-${unit.tools[0]!.id}`}
           tools={unit.tools}
-          selectedToolId={blockCtx.selectedToolId}
           onSelectTool={blockCtx.onSelectTool}
           expandedIds={blockCtx.expandedIds}
           onToggleExpand={blockCtx.onToggleExpand}

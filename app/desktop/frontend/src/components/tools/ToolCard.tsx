@@ -11,6 +11,7 @@ import * as React from "react";
 import type { IconName } from "@/components/common";
 import type { ToolCall } from "@/protocol/run/viewState";
 import { Collapsible, Icon } from "@/components/common";
+import { toolIntent, toolMetaItems, type ToolMetaItem } from "@/lib/agent/toolPresentation";
 import { cn } from "@/lib/utils";
 import {
   lookupToolActionOwner,
@@ -23,48 +24,16 @@ import { ToolPreview } from "./ToolPreview";
 
 interface Props {
   tool: ToolCall;
-  selected: boolean;
   expanded: boolean;
   onToggleExpand: () => void;
   onOpenView?: () => void;
 }
 
-function formatToolIntent(tool: ToolCall): { label: string; detail?: string } {
-  const labelMap: Record<string, string> = {
-    _: "Shell",
-    shell: "Shell",
-    bash: "Shell",
-    read: "Read",
-    edit: "Edit",
-    write: "Write",
-    grep: "Grep",
-    glob: "Glob",
-    lsp: "LSP",
-  };
-  let detail: string | undefined;
-  try {
-    const args = JSON.parse(tool.args ?? "{}") as Record<string, unknown>;
-    if (args.command) detail = String(args.command);
-    else if (args.file_path) detail = String(args.file_path);
-    else if (args.path) detail = String(args.path);
-    else if (args.query) detail = String(args.query);
-    else if (args.pattern) detail = String(args.pattern);
-  } catch {
-    /* ignore */
-  }
-  return { label: labelMap[tool.fn] ?? tool.fn, detail };
-}
-
-export function ToolCard({
-  tool,
-  selected: _selected,
-  expanded,
-  onToggleExpand,
-  onOpenView: _onOpenView,
-}: Props) {
+export function ToolCard({ tool, expanded, onToggleExpand, onOpenView }: Props) {
   const running = tool.status === "running";
   const actions = useExtensionPoint(TOOL_ACTION).filter((a) => !a.predicate || a.predicate(tool));
-  const intent = formatToolIntent(tool);
+  const intent = toolIntent(tool);
+  const metaItems = toolMetaItems(tool);
 
   return (
     <div data-slot="tool-card-root" className="group relative my-0.5">
@@ -117,7 +86,7 @@ export function ToolCard({
         </div>
 
         {/* Meta badges — inline, muted, separated by middle dots. */}
-        <ToolMeta tool={tool} />
+        <ToolMeta items={metaItems} />
 
         {/* Plugin actions — hover-reveal, quiet. */}
         {actions.map((a) => (
@@ -151,7 +120,7 @@ export function ToolCard({
           chrome (no card, no surface, no action buttons). */}
       <Collapsible open={expanded}>
         <div data-slot="tool-card-content" className="pl-6 pr-2 pb-1">
-          <ToolPreview tool={tool} />
+          <ToolPreview tool={tool} onOpenView={onOpenView} />
         </div>
       </Collapsible>
     </div>
@@ -215,47 +184,23 @@ function StatusIcon({ status, tool }: { status: ToolCall["status"]; tool: ToolCa
 const ACTION_BTN =
   "grid h-5 w-5 shrink-0 place-items-center rounded border-0 bg-transparent text-fg-faint opacity-0 transition-all group-hover:opacity-100 hover:text-fg hover:bg-fg/[0.05]";
 
-function ToolMeta({ tool }: { tool: ToolCall }) {
-  const parts: React.ReactNode[] = [];
-
-  if (tool.added != null) {
-    parts.push(
-      <span key="+" className="text-success">
-        +{tool.added}
-      </span>,
-    );
-  }
-  if (tool.removed != null) {
-    parts.push(
-      <span key="-" className="text-negative">
-        −{tool.removed}
-      </span>,
-    );
-  }
-  if (tool.hits != null) {
-    parts.push(<span key="h">{tool.hits} matches</span>);
-  }
-  if (tool.exitCode != null && tool.exitCode !== 0) {
-    parts.push(
-      <span key="e" className="text-negative">
-        exit {tool.exitCode}
-      </span>,
-    );
-  }
-  if (tool.status === "running") {
-    parts.push(<span key="l">live</span>);
-  }
-
-  if (parts.length === 0) return null;
+function ToolMeta({ items }: { items: ToolMetaItem[] }) {
+  if (items.length === 0) return null;
 
   return (
     <div className="hidden shrink-0 items-center gap-1.5 font-mono text-[11px] text-fg-faint tracking-normal normal-case sm:flex">
-      {parts.map((p, i) => (
-        <React.Fragment key={i}>
+      {items.map((item, i) => (
+        <React.Fragment key={item.id}>
           {i > 0 && <span className="text-fg-faint/50">·</span>}
-          {p}
+          <span className={toolMetaToneClass(item.tone)}>{item.label}</span>
         </React.Fragment>
       ))}
     </div>
   );
+}
+
+function toolMetaToneClass(tone: ToolMetaItem["tone"]): string {
+  if (tone === "success") return "text-success";
+  if (tone === "negative") return "text-negative";
+  return "";
 }

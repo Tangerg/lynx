@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { ContentBlock, ToolCall } from "@/protocol/run/viewState";
-import { planRenderUnits } from "./BlockRenderer";
+import { planRenderUnits } from "@/lib/agent/messageRenderUnits";
 
 const tb = (toolCallId: string): ContentBlock => ({ kind: "tool", toolCallId });
 const tool = (id: string, name: string, status: ToolCall["status"] = "ok"): ToolCall => ({
