@@ -1,5 +1,5 @@
 // Parser for the Claude Desktop `mcpServers` config block (the de-facto MCP
-// interchange shape) → our ConfigureMCPServerRequest. Pasted JSON is an
+// interchange shape) → our settings MCP config input. Pasted JSON is an
 // EXTERNAL trust boundary (§3), so it's validated with Zod before any field is
 // trusted; everything downstream (the configure call) gets a well-typed value.
 //
@@ -11,10 +11,10 @@
 // header is preserved (no silent drop).
 
 import { z } from "zod";
-import type { ConfigureMCPServerRequest } from "@/rpc";
+import type { MCPServerConfigInput } from "./application/mcpServerInput";
 
 // env may be a map ({KEY:"val"}) or a "KEY=value" array; both normalize to the
-// KEY→value map our wire now carries (split on the FIRST '=' so a value may
+// KEY→value map our config input carries (split on the FIRST '=' so a value may
 // itself contain '=').
 const envSchema = z
   .union([z.record(z.string(), z.string()), z.array(z.string())])
@@ -72,7 +72,7 @@ function headersExceptAuth(s: ParsedServer): Record<string, string> | undefined 
 }
 
 export interface McpImportResult {
-  configs: ConfigureMCPServerRequest[];
+  configs: MCPServerConfigInput[];
 }
 
 /**
@@ -91,7 +91,7 @@ export function parseMcpImport(text: string): McpImportResult {
   if (!parsed.success) {
     throw new Error('Expected {"mcpServers": { "<name>": { … } }}');
   }
-  const configs: ConfigureMCPServerRequest[] = [];
+  const configs: MCPServerConfigInput[] = [];
   for (const [name, s] of Object.entries(parsed.data.mcpServers)) {
     // stdio stays stdio; any other (http / streamableHttp / sse / …) or a bare
     // url collapses onto streamableHttp — our one remote transport.
@@ -110,7 +110,7 @@ export function parseMcpImport(text: string): McpImportResult {
     if (type === "stdio") {
       configs.push({
         name,
-        type,
+        transport: type,
         enabled: true,
         command: s.command,
         args: s.args,
@@ -121,7 +121,7 @@ export function parseMcpImport(text: string): McpImportResult {
     } else {
       configs.push({
         name,
-        type,
+        transport: type,
         enabled: true,
         url: s.url,
         authorization: bearerFrom(s),

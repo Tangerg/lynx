@@ -1,7 +1,7 @@
 import type { MCPServerConfigInfo, MCPTransport } from "@/lib/data/queries";
-import type { ConfigureMCPServerRequest } from "@/rpc";
+import type { MCPServerConfigInput } from "./mcpServerInput";
 
-export interface ServerFormDraft {
+export interface MCPServerDraft {
   name: string;
   transport: MCPTransport;
   description: string;
@@ -45,7 +45,7 @@ function mapToLines(map: Record<string, string> | undefined): string {
     : "";
 }
 
-export function initialServerFormDraft(server?: MCPServerConfigInfo): ServerFormDraft {
+export function initialMCPServerDraft(server?: MCPServerConfigInfo): MCPServerDraft {
   return {
     name: server?.name ?? "",
     transport: server?.type ?? "stdio",
@@ -63,21 +63,21 @@ export function initialServerFormDraft(server?: MCPServerConfigInfo): ServerForm
   };
 }
 
-export function isServerFormDraftValid(draft: ServerFormDraft): boolean {
+export function isMCPServerDraftValid(draft: MCPServerDraft): boolean {
   return (
     draft.name.trim() !== "" &&
     (draft.transport === "stdio" ? draft.command.trim() !== "" : draft.url.trim() !== "")
   );
 }
 
-export function serverFormRequest(
-  draft: ServerFormDraft,
+export function mcpServerInputFromDraft(
+  draft: MCPServerDraft,
   server?: MCPServerConfigInfo,
-): ConfigureMCPServerRequest {
+): MCPServerConfigInput {
   const secs = parseInt(draft.timeoutSec, 10);
-  const base: ConfigureMCPServerRequest = {
+  const base: MCPServerConfigInput = {
     name: draft.name.trim(),
-    type: draft.transport,
+    transport: draft.transport,
     enabled: server?.enabled ?? true,
     description: draft.description.trim() || undefined,
     timeoutSeconds: Number.isFinite(secs) && secs > 0 ? secs : undefined,

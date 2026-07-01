@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { MCPServerConfigInfo } from "@/lib/data/queries";
 import {
-  initialServerFormDraft,
-  isServerFormDraftValid,
-  serverFormRequest,
-} from "./serverFormWire";
+  initialMCPServerDraft,
+  isMCPServerDraftValid,
+  mcpServerInputFromDraft,
+} from "./mcpServerDraft";
 
-describe("serverFormWire", () => {
-  it("builds stdio requests from the form draft", () => {
-    const request = serverFormRequest({
+describe("mcpServerDraft", () => {
+  it("builds stdio config input from the form draft", () => {
+    const input = mcpServerInputFromDraft({
       name: " git ",
       transport: "stdio",
       description: " repository tools ",
@@ -24,9 +24,9 @@ describe("serverFormWire", () => {
       autoApproveTools: ["status"],
     });
 
-    expect(request).toMatchObject({
+    expect(input).toMatchObject({
       name: "git",
-      type: "stdio",
+      transport: "stdio",
       enabled: true,
       description: "repository tools",
       command: "npx",
@@ -46,7 +46,7 @@ describe("serverFormWire", () => {
       enabled: false,
       authorizationMasked: "********",
     };
-    const request = serverFormRequest(
+    const input = mcpServerInputFromDraft(
       {
         name: " cloud ",
         transport: "streamableHttp",
@@ -65,21 +65,21 @@ describe("serverFormWire", () => {
       server,
     );
 
-    expect(request).toMatchObject({
+    expect(input).toMatchObject({
       name: "cloud",
-      type: "streamableHttp",
+      transport: "streamableHttp",
       enabled: false,
       url: "https://example.com/mcp",
       headers: { "X-Trace": "abc=123", Bare: "" },
     });
-    expect(request.authorization).toBeUndefined();
-    expect(request.timeoutSeconds).toBeUndefined();
-    expect(request.disabledTools).toBeUndefined();
-    expect(request.autoApproveTools).toBeUndefined();
+    expect(input.authorization).toBeUndefined();
+    expect(input.timeoutSeconds).toBeUndefined();
+    expect(input.disabledTools).toBeUndefined();
+    expect(input.autoApproveTools).toBeUndefined();
   });
 
   it("initializes editable text fields from an existing server", () => {
-    const draft = initialServerFormDraft({
+    const draft = initialMCPServerDraft({
       name: "fs",
       type: "stdio",
       enabled: true,
@@ -107,12 +107,12 @@ describe("serverFormWire", () => {
   });
 
   it("validates the active transport's required field", () => {
-    const base = initialServerFormDraft();
+    const base = initialMCPServerDraft();
 
-    expect(isServerFormDraftValid({ ...base, name: "git", command: "npx" })).toBe(true);
-    expect(isServerFormDraftValid({ ...base, name: "git", command: "" })).toBe(false);
+    expect(isMCPServerDraftValid({ ...base, name: "git", command: "npx" })).toBe(true);
+    expect(isMCPServerDraftValid({ ...base, name: "git", command: "" })).toBe(false);
     expect(
-      isServerFormDraftValid({
+      isMCPServerDraftValid({
         ...base,
         name: "cloud",
         transport: "streamableHttp",
