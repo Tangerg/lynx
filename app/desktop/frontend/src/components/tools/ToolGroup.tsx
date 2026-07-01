@@ -4,7 +4,7 @@ import { Collapsible, Icon } from "@/components/common";
 import {
   summarizeToolGroup,
   toolGroupNeedsAttention,
-} from "@/plugins/builtin/agent/presentation/toolPresentation";
+} from "@/plugins/builtin/agent/public/messagePresentation";
 import { cn } from "@/lib/utils";
 import { ToolCard } from "./ToolCard";
 

@@ -15,7 +15,7 @@ import {
   toolIntent,
   toolMetaItems,
   type ToolMetaItem,
-} from "@/plugins/builtin/agent/presentation/toolPresentation";
+} from "@/plugins/builtin/agent/public/messagePresentation";
 import { cn } from "@/lib/utils";
 import {
   lookupToolActionOwner,

@@ -1,6 +1,6 @@
 import { definePlugin, TOOL_VIEW_OPENER } from "@/plugins/sdk";
-import { hasWorkspaceToolView } from "./toolRouteDecision";
-import { openWorkspaceViewForTool } from "./toolRouting";
+import { hasWorkspaceToolView } from "../application/toolRouteDecision";
+import { openWorkspaceViewForTool } from "../application/toolRouting";
 
 export default definePlugin({
   name: "lyra.builtin.workspace.tool-view-opener",

@@ -114,6 +114,23 @@ const FORBIDDEN = {
 // that are knowingly allowed despite the rule. Empty today.
 const ALLOWED_EDGES = new Set([]);
 
+const CONTEXT_INTERNAL_RE =
+  /^plugins\/builtin\/([^/]+)\/(?:application|presentation|domain|adapters)\//;
+
+function builtinContext(path) {
+  const match = /^plugins\/builtin\/([^/]+)\//.exec(path);
+  return match?.[1];
+}
+
+function contextInternalViolation(file, dep) {
+  const match = CONTEXT_INTERNAL_RE.exec(dep);
+  if (!match) return null;
+  const depContext = match[1];
+  const fromContext = builtinContext(file);
+  if (fromContext === depContext) return null;
+  return { file, dep, from: fromContext ?? "outside-builtin", to: depContext };
+}
+
 // Redirect madge's JSON to a temp FILE rather than capturing its stdout pipe.
 // madge calls process.exit() before an async stdout *pipe* finishes draining
 // (Node's classic exit-truncates-piped-stdout bug), so a captured pipe is
@@ -164,6 +181,15 @@ for (const [file, deps] of Object.entries(graph)) {
     if (forbidden.includes(to) && !ALLOWED_EDGES.has(`${file}↦${dep}`)) {
       violations.push({ file, dep, from, to });
     }
+    const contextViolation = contextInternalViolation(file, dep);
+    if (contextViolation && !ALLOWED_EDGES.has(`${file}↦${dep}`)) {
+      violations.push({
+        file,
+        dep,
+        from: `context:${contextViolation.from}`,
+        to: `context-internal:${contextViolation.to}`,
+      });
+    }
   }
 }
 
@@ -173,9 +199,10 @@ if (violations.length > 0) {
     console.error(`  ${v.from} → ${v.to}:  ${v.file}  →  ${v.dep}`);
   }
   console.error("");
-  console.error("An inner layer is importing an outer one. Either invert the");
-  console.error("dependency, or — if genuinely intentional — add the edge to");
-  console.error("ALLOWED_EDGES in scripts/check-layers.mjs with a comment.");
+  console.error("An inner layer is importing an outer one, or a plugin context");
+  console.error("is reaching into another context's internals. Either invert");
+  console.error("the dependency / use a public surface, or — if genuinely");
+  console.error("intentional — add the edge to ALLOWED_EDGES with a comment.");
   process.exit(1);
 }
 
