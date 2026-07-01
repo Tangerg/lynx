@@ -13,7 +13,7 @@ import {
   toggleQuestionOption,
   type QuestionDraft,
   type QuestionAnswers,
-} from "@/plugins/builtin/agent/presentation/questionPresentation";
+} from "@/plugins/builtin/agent/public/messagePresentation";
 import { cn } from "@/lib/utils";
 
 interface Props {

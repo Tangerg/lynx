@@ -76,7 +76,7 @@ import { tasksPill } from "./workspace/tasks";
 import { themesPack } from "./theme";
 import toaster from "./shell/toaster";
 import { toolActions, toolIcons } from "./chat/tools/meta";
-import toolViewOpener from "./workspace/application/toolViewOpener";
+import toolViewOpener from "./workspace/tool-view-opener";
 import {
   askUserPreview,
   shellPreview,

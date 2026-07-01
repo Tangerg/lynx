@@ -26,7 +26,7 @@ import {
 } from "@/plugins/sdk";
 import { normalizeCombo } from "@/plugins/sdk/registry";
 import { Slot } from "@/plugins/host/Slot";
-import { submitComposer } from "@/plugins/builtin/chat/composer/application/submitComposer";
+import { submitComposer } from "@/plugins/builtin/chat/composer/public/submit";
 
 interface Props {
   onSend: (input: UserInput) => void;

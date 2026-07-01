@@ -19,7 +19,7 @@ import {
   dangerHints,
   type ApprovalRisk,
   type ApprovalTone,
-} from "@/plugins/builtin/agent/presentation/approvalPresentation";
+} from "@/plugins/builtin/agent/public/messagePresentation";
 import { cn } from "@/lib/utils";
 import { ApprovalArgsEditor, useApprovalArgsEditor } from "./ApprovalArgsEditor";
 
