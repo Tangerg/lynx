@@ -1,14 +1,14 @@
-import type { ContentBlock } from "@/rpc";
 import type { AgentRunStartOptions } from "@/plugins/sdk";
+import type { AgentInput } from "../../domain/input";
 import { useCallback } from "react";
 import { getContainer } from "@/main/container";
 import { invalidateSessions } from "@/lib/data/queries";
-import { useAgentSessionStore } from "@/state/agentSessionStore";
+import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
 import { reportSessionError } from "./reportSessionError";
 
 export interface CreateSessionOptions {
   /** Queue this as the session's first message input (welcome composer). */
-  firstInput?: ContentBlock[];
+  firstInput?: AgentInput;
   /** Run options bound to firstInput. */
   firstRunOptions?: AgentRunStartOptions;
   /** Create the session in this working directory (sessions.create cwd,
@@ -48,7 +48,7 @@ async function createAndOpen({
     // Mark draft + queue the message BEFORE selecting, so the remount
     // useAgentSession triggers sees both already in place.
     store.markDraft(session.id);
-    if (firstInput?.length)
+    if (firstInput?.parts.length)
       store.setPendingMessage(session.id, { input: firstInput, runOptions: firstRunOptions ?? {} });
     store.selectTab(session.id); // opens tab + sets active → remounts chat
     // Draft is filtered out of the sidebar; refetch so its graduation

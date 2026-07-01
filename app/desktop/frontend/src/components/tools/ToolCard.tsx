@@ -9,7 +9,7 @@
 // message flow like structured text.
 import * as React from "react";
 import type { IconName } from "@/components/common";
-import type { ToolCall } from "@/protocol/run/viewState";
+import type { ToolCall } from "@/plugins/sdk/types/agentView";
 import { Collapsible, Icon } from "@/components/common";
 import {
   toolIntent,

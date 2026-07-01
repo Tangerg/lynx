@@ -1,4 +1,4 @@
-import type { QuestionItem } from "@/protocol/run/viewState";
+import type { QuestionItem } from "@/plugins/sdk/types/agentView";
 
 export type QuestionAnswers = Record<string, string | string[]>;
 

@@ -1,6 +1,4 @@
 import { create } from "zustand";
-import { disposeOnHmr } from "@/lib/hmr";
-import { useAgentSessionStore } from "./agentSessionStore";
 
 interface MainViewTab {
   id: string;
@@ -109,10 +107,3 @@ export const useWorkspaceNavigationStore = create<
   },
   clearSessionScopedState: () => set(sessionScopedWorkspacePatch()),
 }));
-
-const unsubAgentSessionSelection = useAgentSessionStore.subscribe((state, prev) => {
-  const workspace = useWorkspaceNavigationStore.getState();
-  if (state.selectionEpoch !== prev.selectionEpoch) workspace.selectChat();
-  if (state.activeSessionId !== prev.activeSessionId) workspace.clearSessionScopedState();
-});
-disposeOnHmr(unsubAgentSessionSelection);

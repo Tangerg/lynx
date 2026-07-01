@@ -1,4 +1,4 @@
-import type { ToolCall } from "@/protocol/run/viewState";
+import type { ToolCall } from "@/plugins/sdk/types/agentView";
 
 // Muted empty-state line for a tool preview: the `pending` text while the call
 // is still running, the `idle` text once it settled with nothing to show.

@@ -4,7 +4,7 @@
 // renderer and wrap it in a PluginBoundary so a buggy plugin renderer can't
 // break the whole message.
 
-import type { ContentBlock } from "@/protocol/run/viewState";
+import type { ContentBlock } from "@/plugins/sdk/types/agentView";
 import { PluginBoundary } from "./PluginBoundary";
 import { CONTENT_BLOCK, useExtensionByKey } from "../sdk";
 

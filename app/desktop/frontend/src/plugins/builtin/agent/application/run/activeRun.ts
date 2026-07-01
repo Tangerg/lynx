@@ -4,7 +4,7 @@ import type {
   RunUsage,
   TimelineEntry,
   ToolCall,
-} from "@/protocol/run/viewState";
+} from "@/plugins/sdk/types/agentView";
 import {
   useAgentAction,
   useAgentPlan,
@@ -16,8 +16,8 @@ import {
   useAgentStore,
   useAgentTimeline,
   useAgentToolCalls,
-} from "@/state/agentStore";
-import { useAgentSessionStore } from "@/state/agentSessionStore";
+} from "@/plugins/builtin/agent/adapters/agentStore";
+import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
 
 interface AgentSessionEntry {
   view: {

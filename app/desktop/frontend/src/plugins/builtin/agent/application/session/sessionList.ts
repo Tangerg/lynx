@@ -1,7 +1,7 @@
 import type { SidebarSession } from "@/lib/data/queries";
 import { useEffect, useMemo, useRef } from "react";
 import { useSessions } from "@/lib/data/queries";
-import { useAgentSessionStore } from "@/state/agentSessionStore";
+import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
 
 const EMPTY_SESSIONS: SidebarSession[] = [];
 

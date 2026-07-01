@@ -1,12 +1,12 @@
-// Run-event handler types. The reducer (`@/protocol/run/reducer`) is a pure
+// Run-event handler types. The reducer is a pure
 // dispatcher: it routes each v2 `StreamEvent` to the plugin handlers
 // registered via `host.events.onStream(type, …)` (first-class events:
 // run.* / item.* / state.*) and `host.events.onCustom(name, …)` (the
 // `custom` StreamEvent, third-party extension only). The built-in protocol
-// semantics live in `lyra.builtin.core-reducer`.
+// semantics live in `lyra.builtin.agent-fold`.
 
 import type { StreamEvent } from "@/rpc";
-import type { AgentViewState } from "@/protocol/run/viewState";
+import type { AgentViewState } from "@/plugins/sdk/types/agentView";
 
 /**
  * Pure state update — takes the current view state, returns the next.

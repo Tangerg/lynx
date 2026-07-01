@@ -1,15 +1,23 @@
-import type { ContentBlock, RunEvent } from "@/rpc";
+import type { RunEvent } from "@/rpc";
 import type { AgentRunStartOptions } from "@/plugins/sdk";
 import { useCallback } from "react";
 import { getContainer } from "@/main/container";
 import { asRunId, isErrorType } from "@/rpc";
 import { resolveAgentRunStartOptions } from "@/plugins/sdk";
-import { useAgentAction, useAgentRunId, useAgentRunning, useAgentStore } from "@/state/agentStore";
-import { LOCAL_STEER_PREFIX } from "@/protocol/run/viewState";
+import {
+  useAgentAction,
+  useAgentRunId,
+  useAgentRunning,
+  useAgentStore,
+} from "@/plugins/builtin/agent/adapters/agentStore";
+import type { AgentInput } from "../../domain/input";
+import { agentInputText } from "../../domain/input";
+import { agentInputToContentBlocks } from "../../adapters/wireInput";
+import { LOCAL_STEER_PREFIX } from "@/plugins/sdk/types/agentView";
 import { getActiveSessionId } from "../session/activeSession";
 import { type CreateSessionOptions, useCreateSession } from "../session/createSession";
 
-type SendToAgent = (input: ContentBlock[], options?: AgentRunStartOptions) => void;
+type SendToAgent = (input: AgentInput, options?: AgentRunStartOptions) => void;
 type CreateSession = (opts?: CreateSessionOptions) => Promise<string | null>;
 
 /**
@@ -31,13 +39,13 @@ type CreateSession = (opts?: CreateSessionOptions) => Promise<string | null>;
  *     no longer deliverable — roll the optimistic bubble back and fall back to a
  *     fresh turn so the message is never lost (and never duplicated).
  */
-export function useChatSend(): (input: ContentBlock[]) => void {
+export function useChatSend(): (input: AgentInput) => void {
   const createSession = useCreateSession();
   const send = useAgentAction("send");
   const running = useAgentRunning();
   const runId = useAgentRunId();
   return useCallback(
-    (input: ContentBlock[]) => {
+    (input: AgentInput) => {
       const sessionId = getActiveSessionId();
       const runOptions = resolveAgentRunStartOptions();
       if (running && sessionId && runId) {
@@ -65,7 +73,7 @@ let steerSeq = 0;
 interface SteerRunningTurnInput {
   sessionId: string;
   runId: string;
-  input: ContentBlock[];
+  input: AgentInput;
   send: SendToAgent | null;
   runOptions: AgentRunStartOptions;
 }
@@ -96,7 +104,7 @@ interface SendFreshTurnInput {
   sessionId: string;
   send: SendToAgent | null;
   createSession: CreateSession;
-  input: ContentBlock[];
+  input: AgentInput;
   runOptions: AgentRunStartOptions;
 }
 
@@ -114,8 +122,9 @@ function sendFreshTurn({
   void createSession({ firstInput: input, firstRunOptions: runOptions });
 }
 
-function mintSteerBubble(sessionId: string, input: ContentBlock[]): string {
+function mintSteerBubble(sessionId: string, input: AgentInput): string {
   const id = `${LOCAL_STEER_PREFIX}${++steerSeq}`;
+  const wireInput = agentInputToContentBlocks(input);
   useAgentStore.getState().applyEvents(sessionId, [
     {
       event: {
@@ -126,7 +135,7 @@ function mintSteerBubble(sessionId: string, input: ContentBlock[]): string {
           status: "completed",
           createdAt: new Date().toISOString(),
           type: "userMessage",
-          content: input,
+          content: wireInput,
         },
       } as RunEvent["event"],
     },
@@ -136,10 +145,6 @@ function mintSteerBubble(sessionId: string, input: ContentBlock[]): string {
 
 // steerText flattens the composer's text blocks into one message — steering
 // carries text only (images can't ride a steer; see useChatSend).
-function steerText(input: ContentBlock[]): string {
-  return input
-    .filter((b) => b.type === "text")
-    .map((b) => ("text" in b ? b.text : ""))
-    .join("\n")
-    .trim();
+function steerText(input: AgentInput): string {
+  return agentInputText(input);
 }

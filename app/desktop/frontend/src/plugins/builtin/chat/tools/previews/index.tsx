@@ -135,7 +135,7 @@ function DiffPreview({ tool, onOpenView }: ToolPreviewProps) {
 
 // Both parameterized previews read their query off `tool.fn` — the §4.4.2
 // projection bakes the key argument into the display name (read → path,
-// search → query; see core-reducer toolLabel). A started shell without args
+// search → query; see agent fold toolLabel). A started shell without args
 // still shows the projection fallback (the tool name / "search"), so treat
 // that as "nothing to ask yet" and let the hook stay disabled.
 function FilePreview({ tool, onOpenView }: ToolPreviewProps) {

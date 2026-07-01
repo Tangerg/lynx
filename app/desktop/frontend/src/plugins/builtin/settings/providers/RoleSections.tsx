@@ -1,9 +1,12 @@
-import type { ProviderInfo } from "@/lib/data/queries";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { DropdownMenu, Icon, ProviderIcon } from "@/components/common";
-import { setEmbeddingRole, setUtilityRole } from "./application/providerConfig";
-import { useEmbeddingRole, useModels, useProviders, useUtilityRole } from "@/lib/data/queries";
+import {
+  type ProviderConfig,
+  setEmbeddingRole,
+  setUtilityRole,
+  useProviderRoleConfig,
+} from "./application/providerConfig";
 import { useT } from "@/lib/i18n";
 
 const triggerClass =
@@ -43,13 +46,14 @@ function RoleSectionShell({
 // empty means "use the main turn model".
 export function UtilityModelSection() {
   const t = useT();
-  const { data: role } = useUtilityRole();
-  const { data: models = [] } = useModels();
+  const { utilityRole, models } = useProviderRoleConfig();
+  const { data: role } = utilityRole;
+  const { data: modelOptions = [] } = models;
   const [error, setError] = useState<string | null>(null);
 
   const isSet = Boolean(role?.model);
   const selected = isSet
-    ? (models.find((m) => m.provider === role?.provider && m.id === role?.model) ?? null)
+    ? (modelOptions.find((m) => m.provider === role?.provider && m.id === role?.model) ?? null)
     : null;
 
   const pick = async (next: { provider: string; model: string } | null): Promise<void> => {
@@ -96,7 +100,7 @@ export function UtilityModelSection() {
             <span className="truncate">{t("providers.utility.main")}</span>
             {!isSet && <Icon name="check" size={12} className="text-accent" />}
           </DropdownMenu.Item>
-          {models.map((m) => (
+          {modelOptions.map((m) => (
             <DropdownMenu.Item
               key={`${m.provider}:${m.id}`}
               onClick={() => void pick({ provider: m.provider, model: m.id })}
@@ -118,14 +122,15 @@ export function UtilityModelSection() {
 // Global embedding model for @codebase indexing; empty disables semantic search.
 export function EmbeddingModelSection() {
   const t = useT();
-  const { data: role } = useEmbeddingRole();
-  const { data: providers = [] } = useProviders();
+  const { embeddingRole, providers } = useProviderRoleConfig();
+  const { data: role } = embeddingRole;
+  const { data: providerConfigs = [] } = providers;
   const [error, setError] = useState<string | null>(null);
 
-  const capable = providers.filter((p) => p.embeddingCapable);
+  const capable = providerConfigs.filter((p) => p.embeddingCapable);
   const isSet = Boolean(role?.model);
 
-  const pick = async (p: ProviderInfo | null): Promise<void> => {
+  const pick = async (p: ProviderConfig | null): Promise<void> => {
     setError(null);
     const res = await setEmbeddingRole(
       p ? { provider: p.id, model: p.defaultEmbeddingModel || "" } : {},

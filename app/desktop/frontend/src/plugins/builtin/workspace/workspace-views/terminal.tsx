@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { EmptyState } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { useActiveRunToolCalls } from "@/plugins/builtin/agent/public/run";
-import { toolCategory } from "@/protocol/run/viewState";
+import { workspaceToolActivityFromAgentTool } from "../application/toolActivity";
 import { CommandLog } from "./views/CommandLog";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
@@ -17,7 +17,10 @@ function TerminalTab() {
   const t = useT();
   const toolCalls = useActiveRunToolCalls();
   const commands = useMemo(
-    () => Object.values(toolCalls).filter((t) => toolCategory(t.name) === "command"),
+    () =>
+      Object.values(toolCalls).filter(
+        (tool) => workspaceToolActivityFromAgentTool(tool).category === "command",
+      ),
     [toolCalls],
   );
 

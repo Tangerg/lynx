@@ -28,7 +28,7 @@ import connectionSettings from "./settings/connection-settings";
 import previewBlocks from "./chat/preview-blocks";
 import bootstrap from "./agent/bootstrap";
 import conversationExport from "./workspace/conversation-export";
-import coreReducer from "./agent/core-reducer";
+import agentFold from "./agent/public/foldPlugin";
 import {
   defaultAccents,
   defaultCommands,
@@ -39,6 +39,7 @@ import {
 } from "./defaults";
 import diagnostics from "./workspace/diagnostics";
 import workspaceEvents from "./workspace/events";
+import workspaceSessionNavigation from "./workspace/session-navigation";
 import globalKeymap from "./command/global-keymap";
 import hooksPane from "./settings/hooks";
 import schedulesPane from "./settings/schedules";
@@ -111,11 +112,11 @@ import {
   toolsView,
 } from "./workspace/workspace-views";
 
-// Protocol — fold v2 RunEvents (run.* / item.* / state.*) into view state.
+// Agent fold — fold v2 RunEvents (run.* / item.* / state.*) into view state.
 // All semantics (messages, reasoning, tools, plan, questions, HITL) are
-// first-class Items now, so the single core-reducer owns the whole fold;
+// first-class Items now, so the built-in agent fold owns the whole fold;
 // `custom` StreamEvents are reserved for third-party plugins.
-const protocol: PluginSpec[] = [coreReducer];
+const protocol: PluginSpec[] = [agentFold];
 
 // Configuration & infrastructure.
 
@@ -129,6 +130,7 @@ const infrastructure: PluginSpec[] = [
   // After bootstrap: watches the handshake result and opens the app's one
   // workspace.subscribe stream (AUX_API §3).
   workspaceEvents,
+  workspaceSessionNavigation,
   rpcAgent,
   defaultTitle,
   defaultAccents,

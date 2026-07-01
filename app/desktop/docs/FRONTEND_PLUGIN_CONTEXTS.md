@@ -93,7 +93,7 @@ plugins/builtin/agent/
   presentation/
 ```
 
-当前 `protocol/run/viewState.ts` 里的内容需要重新定性：wire schema 不属于它；agent view model、tool display convention、message projection 应逐步进入 agent context。
+当前 `plugins/sdk/types/agentView.ts` 里的内容需要重新定性：wire schema 不属于它；agent view model、tool display convention、message projection 应逐步进入 agent context。
 
 ### Composer
 
@@ -279,7 +279,7 @@ Zustand store 不是业务层。它可以承担：
 优先动作：
 
 1. 把 agent view model 与 protocol wire 命名切开。
-2. 将 `core-reducer` 继续收敛为 agent application/fold。
+2. 将 `agent fold` 继续收敛为 agent application/fold。
 3. 将 `messageRenderUnits`、`toolPresentation`、HITL presentation 靠近 agent context。
 4. 将 `agentStore` 定位为 adapter/read model bridge，而不是业务规则中心。
 5. 为 agent public input/conversation ports 建立最小契约。
@@ -383,4 +383,4 @@ Zustand store 不是业务层。它可以承担：
 2. **Composer Draft / SendIntent**：为 composer 与 agent 的 public port 协作打基础。
 3. **Workspace tool routing / view model**：把 tool -> terminal/diff/timeline 的规则从 UI/store 里收口。
 4. **Settings configuration drafts**：逐步把 MCP/schedule/hooks/provider form 从 RPC shape 中解耦。
-5. **Agent view model 命名边界**：最后处理影响面较大的 `protocol/run/viewState` 定性和迁移。
+5. **Agent view model 命名边界**：最后处理影响面较大的 `plugins/sdk/types/agentView` 定性和迁移。

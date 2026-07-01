@@ -63,7 +63,7 @@ describe("composer", () => {
     const onChange = vi.fn();
     wrap(<Composer {...baseProps} value="hello world" onChange={onChange} onSend={onSend} />);
     fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
-    expect(onSend).toHaveBeenCalledWith([{ type: "text", text: "hello world" }]);
+    expect(onSend).toHaveBeenCalledWith({ parts: [{ kind: "text", text: "hello world" }] });
   });
 
   it("does not submit when the textarea is empty / whitespace only", async () => {

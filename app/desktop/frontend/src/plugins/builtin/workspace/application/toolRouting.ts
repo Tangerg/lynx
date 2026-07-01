@@ -1,12 +1,14 @@
-import type { ToolCall } from "@/protocol/run/viewState";
+import type { ToolCall } from "@/plugins/sdk/types/agentView";
 import { focusWorkspaceFile, openWorkspaceViewBeside, selectWorkspaceTool } from "./navigation";
 import { decideWorkspaceToolRoute } from "./toolRouteDecision";
+import { workspaceToolActivityFromAgentTool } from "./toolActivity";
 
 export function openWorkspaceViewForTool(tool: ToolCall): void {
-  const route = decideWorkspaceToolRoute(tool);
+  const activity = workspaceToolActivityFromAgentTool(tool);
+  const route = decideWorkspaceToolRoute(activity);
   if (!route) return;
 
-  selectWorkspaceTool(tool.id);
+  selectWorkspaceTool(activity.id);
   if (route.activeFile) focusWorkspaceFile(route.activeFile);
   openWorkspaceViewBeside(route.view);
 }

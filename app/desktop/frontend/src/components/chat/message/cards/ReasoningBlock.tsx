@@ -1,4 +1,4 @@
-import type { BlockStatus } from "@/protocol/run/viewState";
+import type { BlockStatus } from "@/plugins/sdk/types/agentView";
 import { useEffect, useRef, useState } from "react";
 import { MarkdownMessage } from "../markdown/MarkdownMessage";
 import { Collapsible, Icon } from "@/components/common";

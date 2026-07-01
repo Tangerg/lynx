@@ -1,5 +1,5 @@
-import type { ContentBlock, ToolCall } from "@/protocol/run/viewState";
-import { isQuestionTool } from "@/protocol/run/viewState";
+import type { ContentBlock, ToolCall } from "@/plugins/sdk/types/agentView";
+import { isQuestionTool } from "@/plugins/sdk/types/agentView";
 import { isReadOnlyTool } from "./toolPresentation";
 
 export type MessageRenderUnit =

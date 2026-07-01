@@ -1,12 +1,12 @@
 import { DataView } from "@/components/common";
-import { useProviders } from "@/lib/data/queries";
 import { useT } from "@/lib/i18n";
+import { useProviderConfigs } from "./application/providerConfig";
 import { ProviderRow } from "./ProviderRow";
 import { EmbeddingModelSection, UtilityModelSection } from "./RoleSections";
 
 export function ProvidersPane() {
   const t = useT();
-  const { data, isLoading, isError } = useProviders();
+  const { data, isLoading, isError } = useProviderConfigs();
 
   return (
     <div className="flex flex-col gap-3">

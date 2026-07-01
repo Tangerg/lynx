@@ -1,17 +1,17 @@
 import { useState } from "react";
 import { DataView, Icon, PillButton } from "@/components/common";
-import { useMCPConfigs } from "@/lib/data/queries";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
+import { useMCPServerConfigs } from "./application/mcpServerConfig";
 import { JsonImport } from "./JsonImport";
 import { ServerForm } from "./ServerForm";
 import { ServerRow } from "./ServerRow";
 
 function McpServersPane() {
   const t = useT();
-  const { data, isLoading, isError } = useMCPConfigs();
+  const { data, isLoading, isError } = useMCPServerConfigs();
   const [adding, setAdding] = useState(false);
 
   return (

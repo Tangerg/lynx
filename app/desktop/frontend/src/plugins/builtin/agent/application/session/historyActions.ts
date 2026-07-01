@@ -1,10 +1,10 @@
-import type { ContentBlock } from "@/rpc";
-import type { Message } from "@/protocol/run/viewState";
+import type { Message } from "@/plugins/sdk/types/agentView";
+import type { AgentInput } from "../../domain/input";
 import { getContainer } from "@/main/container";
 import { notifyInfo } from "@/lib/notify";
 import { asRunId, asSessionId } from "@/rpc";
-import { getCurrentSessionView, useAgentStore } from "@/state/agentStore";
-import { useAgentSessionStore } from "@/state/agentSessionStore";
+import { getCurrentSessionView, useAgentStore } from "@/plugins/builtin/agent/adapters/agentStore";
+import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
 import { forkSessionAt } from "./forkSession";
 import { rehydrateSessionView } from "./rehydrateSession";
 
@@ -21,7 +21,7 @@ export function activeAgentConversation(): ActiveAgentConversation | null {
   return { sessionId, messages: getCurrentSessionView().messages };
 }
 
-export function sendToAgentSession(sessionId: string, input: ContentBlock[]): boolean {
+export function sendToAgentSession(sessionId: string, input: AgentInput): boolean {
   const send = useAgentStore.getState().sessions[sessionId]?.send;
   if (!send) return false;
   send(input);

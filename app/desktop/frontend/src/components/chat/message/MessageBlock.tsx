@@ -6,7 +6,7 @@
 
 import type { Citation } from "./CitationContext";
 import type { BlockCtx } from "./BlockRenderer";
-import type { Message } from "@/protocol/run/viewState";
+import type { Message } from "@/plugins/sdk/types/agentView";
 import { memo, useMemo } from "react";
 import { ToolGroup } from "@/components/tools/ToolGroup";
 import { useCitationSources } from "@/plugins/sdk";

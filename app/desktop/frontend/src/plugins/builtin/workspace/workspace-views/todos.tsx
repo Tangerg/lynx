@@ -2,7 +2,7 @@ import type { TodoItem } from "@/rpc";
 import { EmptyState } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { useServerFeature } from "@/state/runtimeStore";
-import { useSharedState } from "@/plugins/sdk";
+import { useSharedState } from "@/plugins/builtin/agent/public/sharedState";
 import { TodoList } from "./views/TodoList";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";

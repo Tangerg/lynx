@@ -10,7 +10,7 @@
 // re-evaluating on every streaming token delta — a real perf cliff
 // once history grows past a handful of turns.
 
-import type { Message } from "@/protocol/run/viewState";
+import type { Message } from "@/plugins/sdk/types/agentView";
 import type { ReactElement, ReactNode } from "react";
 import { ContextMenu, Icon } from "@/components/common";
 import {

@@ -2,12 +2,12 @@
 // surface for the most recent run (UX review §2.4 P0.3).
 //
 // Pure renderer. The "what did the agent just do" derivation lives in
-// `protocol/run/runDigest.ts` (testable in isolation); this file only
+// agent run-digest public surface (testable in isolation); this file only
 // owns the React surface that displays the buckets + the "Copy
 // summary" affordance.
 
 import type { ReactNode } from "react";
-import type { RunDigest } from "@/protocol/run/runDigest";
+import type { RunDigest } from "@/plugins/builtin/agent/public/runDigest";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState, Icon, IconButton } from "@/components/common";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
@@ -19,8 +19,12 @@ import {
   useActiveRunToolCalls,
   useIsAgentRunning,
 } from "@/plugins/builtin/agent/public/run";
-import { buildPlaintext, deriveLatestRun, durationText } from "@/protocol/run/runDigest";
-import { INITIAL_VIEW_STATE } from "@/protocol/run/viewState";
+import {
+  buildPlaintext,
+  deriveLatestRun,
+  durationText,
+} from "@/plugins/builtin/agent/public/runDigest";
+import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
 
 function useStatusLabel(): Record<RunDigest["status"], { label: string; cls: string }> {
   const t = useT();

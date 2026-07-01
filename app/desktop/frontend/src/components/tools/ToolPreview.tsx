@@ -7,7 +7,7 @@
 // tools (or MCP tools we've never seen) still expand to something
 // useful instead of an empty card.
 
-import type { ToolCall } from "@/protocol/run/viewState";
+import type { ToolCall } from "@/plugins/sdk/types/agentView";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
 import { TOOL_PREVIEW, useExtensionByKey } from "@/plugins/sdk";
 import { ToolInspector } from "./ToolInspector";

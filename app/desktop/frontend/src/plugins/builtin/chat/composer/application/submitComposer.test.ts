@@ -17,11 +17,11 @@ describe("submitComposer", () => {
     expect(clear).not.toHaveBeenCalled();
   });
 
-  it("forwards plain text as a text ContentBlock to sendInput then clears", () => {
+  it("forwards plain text as user input then clears", () => {
     const send = vi.fn();
     const clear = vi.fn();
     submitComposer({ value: "hello", clear, sendInput: send, images: [] });
-    expect(send).toHaveBeenCalledWith([{ type: "text", text: "hello" }]);
+    expect(send).toHaveBeenCalledWith({ parts: [{ kind: "text", text: "hello" }] });
     expect(clear).toHaveBeenCalledOnce();
   });
 
@@ -48,7 +48,7 @@ describe("submitComposer", () => {
   it("falls back to sendInput for an unknown slash command", () => {
     const send = vi.fn();
     submitComposer({ value: "/unknown args", clear: () => {}, sendInput: send, images: [] });
-    expect(send).toHaveBeenCalledWith([{ type: "text", text: "/unknown args" }]);
+    expect(send).toHaveBeenCalledWith({ parts: [{ kind: "text", text: "/unknown args" }] });
   });
 
   it("folds pasted-text attachments into the message below the typed text", () => {
@@ -56,7 +56,9 @@ describe("submitComposer", () => {
     const send = vi.fn();
     const clear = vi.fn();
     submitComposer({ value: "look at this", clear, sendInput: send, images: [] });
-    expect(send).toHaveBeenCalledWith([{ type: "text", text: "look at this\n\nPASTED BLOB" }]);
+    expect(send).toHaveBeenCalledWith({
+      parts: [{ kind: "text", text: "look at this\n\nPASTED BLOB" }],
+    });
     expect(clear).toHaveBeenCalledOnce();
   });
 
@@ -64,6 +66,6 @@ describe("submitComposer", () => {
     useComposerStore.setState({ pastes: [{ id: "p1", text: "ONLY PASTE", lines: 1 }] });
     const send = vi.fn();
     submitComposer({ value: "   ", clear: () => {}, sendInput: send, images: [] });
-    expect(send).toHaveBeenCalledWith([{ type: "text", text: "ONLY PASTE" }]);
+    expect(send).toHaveBeenCalledWith({ parts: [{ kind: "text", text: "ONLY PASTE" }] });
   });
 });

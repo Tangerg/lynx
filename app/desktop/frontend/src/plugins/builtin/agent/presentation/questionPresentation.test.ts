@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { QuestionItem } from "@/protocol/run/viewState";
+import type { QuestionItem } from "@/plugins/sdk/types/agentView";
 import {
   createQuestionDraft,
   questionAnswerText,

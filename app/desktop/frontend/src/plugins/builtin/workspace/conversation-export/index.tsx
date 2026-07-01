@@ -17,7 +17,7 @@
 // this somewhere else" workflows: human-readable Markdown for paste-
 // into-docs, and structured JSON for replay / re-import / archive.
 
-import type { Message } from "@/protocol/run/viewState";
+import type { Message } from "@/plugins/sdk/types/agentView";
 import type { SessionArtifact } from "@/rpc";
 import { toast } from "sonner";
 import { z } from "zod";

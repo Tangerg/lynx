@@ -1,4 +1,4 @@
-import type { BlockStatus, QuestionItem } from "@/protocol/run/viewState";
+import type { BlockStatus, QuestionItem } from "@/plugins/sdk/types/agentView";
 import { useMemo, useState } from "react";
 import { Icon } from "@/components/common";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";

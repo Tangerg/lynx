@@ -1,5 +1,4 @@
-import type { ToolCall } from "@/protocol/run/viewState";
-import { toolCategory } from "@/protocol/run/viewState";
+import type { WorkspaceToolActivity } from "./toolActivity";
 
 interface WorkspaceToolView {
   id: string;
@@ -14,24 +13,21 @@ export interface WorkspaceToolRoute {
 
 const MULTI_FILE_LABEL = /^\d+ files$/;
 
-export function hasWorkspaceToolView(tool: ToolCall): boolean {
-  const category = toolCategory(tool.name);
-  return category === "command" || category === "fileEdit" || category === "read";
+export function hasWorkspaceToolView(tool: WorkspaceToolActivity): boolean {
+  return tool.category === "command" || tool.category === "fileEdit" || tool.category === "read";
 }
 
-export function decideWorkspaceToolRoute(tool: ToolCall): WorkspaceToolRoute | null {
-  const category = toolCategory(tool.name);
-
-  if (category === "command") {
+export function decideWorkspaceToolRoute(tool: WorkspaceToolActivity): WorkspaceToolRoute | null {
+  if (tool.category === "command") {
     return {
       view: { id: "terminal", title: "workspace.view.title.terminal", icon: "terminal" },
     };
   }
 
-  if (category === "fileEdit" || category === "read") {
+  if (tool.category === "fileEdit" || tool.category === "read") {
     return {
       view: { id: "diff", title: "workspace.view.title.diff", icon: "diff" },
-      activeFile: tool.fn && !MULTI_FILE_LABEL.test(tool.fn) ? tool.fn : undefined,
+      activeFile: tool.label && !MULTI_FILE_LABEL.test(tool.label) ? tool.label : undefined,
     };
   }
 

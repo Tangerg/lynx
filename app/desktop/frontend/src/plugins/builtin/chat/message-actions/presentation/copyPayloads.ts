@@ -1,4 +1,4 @@
-import type { Message } from "@/protocol/run/viewState";
+import type { Message } from "@/plugins/sdk/types/agentView";
 import {
   flattenCode,
   flattenMarkdown,

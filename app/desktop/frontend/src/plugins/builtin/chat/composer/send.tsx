@@ -1,5 +1,5 @@
 import { Icon, Tooltip } from "@/components/common";
-import { useChatSend } from "@/plugins/builtin/agent/public/input";
+import { useSendComposerInput } from "@/plugins/builtin/chat/workbench/send";
 import { useIsAgentRunning, useStopActiveAgentRun } from "@/plugins/builtin/agent/public/run";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -13,7 +13,7 @@ function SendButton() {
   const value = useComposerText();
   const images = useComposerImages();
   const clear = useClearComposerDraft();
-  const send = useChatSend();
+  const send = useSendComposerInput();
   const stop = useStopActiveAgentRun();
   const running = useIsAgentRunning();
 

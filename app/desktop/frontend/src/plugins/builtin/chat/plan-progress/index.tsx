@@ -20,7 +20,7 @@
 //   - X dismisses for the current run id; reappears when a fresh
 //     plan ref lands (reducer's immutable update) or a new run starts.
 
-import type { PlanItem } from "@/protocol/run/viewState";
+import type { PlanItem } from "@/plugins/sdk/types/agentView";
 import type { MouseEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
