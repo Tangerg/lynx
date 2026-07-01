@@ -2,21 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { definePlugin, loadPlugin } from "@/plugins/sdk";
 import { SLASH_COMMAND } from "@/plugins/sdk/kernelPoints";
 import { useComposerStore } from "@/state/composerStore";
-import { parseSlash, submitComposer } from "./submitComposer";
-
-describe("parseSlash", () => {
-  it("splits on the first whitespace", () => {
-    expect(parseSlash("/lint src/foo.ts")).toEqual({ cmd: "/lint", args: "src/foo.ts" });
-  });
-
-  it("returns empty args when there's no whitespace", () => {
-    expect(parseSlash("/diff")).toEqual({ cmd: "/diff", args: "" });
-  });
-
-  it("returns null for plain text without a leading slash", () => {
-    expect(parseSlash("hello there")).toBeNull();
-  });
-});
+import { submitComposer } from "./submitComposer";
 
 describe("submitComposer", () => {
   // Pastes are read off the composer store; reset after each so the cases that

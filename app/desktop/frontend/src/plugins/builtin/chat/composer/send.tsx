@@ -1,4 +1,3 @@
-import { submitComposer } from "@/components/chat/composer";
 import { Icon, Tooltip } from "@/components/common";
 import { useChatSend } from "@/lib/agent/useChatSend";
 import { useT } from "@/lib/i18n";
@@ -6,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { useAgentAction, useAgentRunning } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
+import { submitComposer } from "./application/submitComposer";
 
 function SendButton() {
   const t = useT();

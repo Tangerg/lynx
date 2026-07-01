@@ -5,4 +5,3 @@
 export { Composer } from "./Composer";
 export { ComposerFooter } from "./ComposerFooter";
 export { SlashSuggestions } from "./SlashSuggestions";
-export { submitComposer } from "./submitComposer";
