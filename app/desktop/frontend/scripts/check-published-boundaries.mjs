@@ -188,6 +188,17 @@ for (const file of files(SRC)) {
 
   if (
     !isTest &&
+    /plugins\/builtin\/defaults\/(?!adapters\/).+\.(ts|tsx)$/.test(rel) &&
+    /from\s+["']@\/main\/container["']/.test(text)
+  ) {
+    violations.push({
+      file: rel,
+      reason: "defaults root must stay an assembly entry point; runtime wiring belongs in adapters",
+    });
+  }
+
+  if (
+    !isTest &&
     /plugins\/builtin\/.+\/public\/.+\.(ts|tsx)$/.test(rel) &&
     !/plugins\/builtin\/.+\/public\/statePorts\.ts$/.test(rel) &&
     /from\s+["'](?:@\/plugins\/builtin\/.+\/adapters(?:\/[^"']*)?|(?:\.\.\/)+adapters(?:\/[^"']*)?)["']/.test(

@@ -1,5 +1,5 @@
 import { definePlugin } from "@/plugins/sdk";
-import { registerDefaultDataProviders } from "./dataProviders";
+import { registerDefaultDataProviders } from "./adapters/runtimeDataProviders";
 
 export const defaultData = definePlugin({
   name: "lyra.builtin.default-data",
