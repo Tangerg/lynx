@@ -16,10 +16,10 @@ import {
   useAgentRunId,
   useAgentRunning,
   useAgentRunUsage,
-  useAgentStore,
   useAgentTimeline,
   useAgentToolCalls,
-} from "./agentStore";
+} from "./agentViewSelectors";
+import { useAgentStore } from "./agentStore";
 
 function getLifecycleSnapshot(): AgentSessionLifecycleSnapshot {
   const state = useAgentSessionStore.getState();

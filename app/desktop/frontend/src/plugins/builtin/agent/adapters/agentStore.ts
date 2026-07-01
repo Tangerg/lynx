@@ -1,23 +1,8 @@
-// Per-session agent view state — each session keeps its own
-// AgentViewState slice + imperative stop/send fns, so switching
-// sessions feels like switching browser tabs (no event leakage when
-// multiple agents stream concurrently). Read via the selector hooks
-// below; they do the active-session lookup + INITIAL_VIEW_STATE
-// fallback that every callsite needs.
-
 import type { AgentRunStartOptions } from "@/plugins/sdk/types";
 import type { StreamEvent } from "@/rpc";
 import type { AgentInput } from "@/plugins/builtin/agent/domain/input";
 import type { ResumeFn } from "@/plugins/builtin/agent/application/ports/viewState";
-import type {
-  AgentViewState,
-  Message,
-  PlanItem,
-  RunError,
-  RunUsage,
-  TimelineEntry,
-  ToolCall,
-} from "@/plugins/builtin/agent/public/viewState";
+import type { AgentViewState, RunError } from "@/plugins/builtin/agent/public/viewState";
 import { create } from "zustand";
 import { disposeOnHmr } from "@/lib/hmr";
 import { reduce } from "@/plugins/builtin/agent/application/fold/reducer";
@@ -32,8 +17,8 @@ import {
 } from "@/plugins/builtin/agent/presentation/viewMutations";
 import { useAgentSessionStore } from "./agentSessionStore";
 
-type StopFn = (() => void) | null;
-type SendFn = ((input: AgentInput, options?: AgentRunStartOptions) => void) | null;
+export type AgentStopAction = (() => void) | null;
+export type AgentSendAction = ((input: AgentInput, options?: AgentRunStartOptions) => void) | null;
 
 interface SessionEntry {
   view: AgentViewState;
@@ -42,8 +27,8 @@ interface SessionEntry {
    *  drops the batch if it changed — a flush scheduled before the reset
    *  must not append the old run's tail events into the rebuilt view. */
   viewEpoch: number;
-  stop: StopFn;
-  send: SendFn;
+  stop: AgentStopAction;
+  send: AgentSendAction;
   resume: ResumeFn;
 }
 
@@ -87,9 +72,9 @@ interface AgentStore {
   /** Remove a session entry entirely (closing the tab — frees view state). */
   dropSession: (sessionId: string) => void;
   /** Bind / unbind the imperative stop action for a session. */
-  setStop: (sessionId: string, fn: StopFn) => void;
+  setStop: (sessionId: string, fn: AgentStopAction) => void;
   /** Bind / unbind the imperative send action for a session. */
-  setSend: (sessionId: string, fn: SendFn) => void;
+  setSend: (sessionId: string, fn: AgentSendAction) => void;
   /** Bind / unbind the imperative HITL resume action for a session. */
   setResume: (sessionId: string, fn: ResumeFn) => void;
   /** Dismiss the error banner for a session without resetting the rest. */
@@ -253,85 +238,3 @@ const unsubPruneSessions = useAgentSessionStore.subscribe((state, prev) => {
 });
 
 disposeOnHmr(unsubPruneSessions);
-
-// Selector hooks
-
-/** Read the current session's `stop` or `send` action. */
-export function useAgentAction(kind: "stop"): StopFn;
-export function useAgentAction(kind: "send"): SendFn;
-export function useAgentAction(kind: "stop" | "send"): StopFn | SendFn {
-  const sid = useAgentSessionStore((s) => s.activeSessionId);
-  return useAgentStore((s) => s.sessions[sid]?.[kind] ?? null);
-}
-
-/**
- * Granular hooks — subscribe to individual run/view fields so token-stream
- * deltas don't re-render every consumer of the `run` object. Each hook reads
- * only the field it needs; Zustand's default reference equality prevents
- * re-renders when unrelated siblings change.
- *
- * The missing-session fallback resolves `view` to the shared INITIAL_VIEW_STATE
- * (same pattern as getCurrentSessionView) BEFORE field access — never an inline
- * `?? []` / `?? {}` literal. An inline literal mints a fresh reference on every
- * render, so getSnapshot is never Object.is-equal → infinite re-render loop
- * ("Maximum update depth exceeded"). INITIAL_VIEW_STATE.xxx is a stable
- * module-level reference, so the fallback path is loop-free.
- */
-
-/** Whether the active session has a run in progress. */
-export function useAgentRunning(): boolean {
-  const sid = useAgentSessionStore((s) => s.activeSessionId);
-  return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).run.running);
-}
-
-/** The active session's run id (null when idle). */
-export function useAgentRunId(): string | null {
-  const sid = useAgentSessionStore((s) => s.activeSessionId);
-  return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).run.runId);
-}
-
-/** The active session's current/last-run token + cost readout. */
-export function useAgentRunUsage(): RunUsage {
-  const sid = useAgentSessionStore((s) => s.activeSessionId);
-  return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).run.usage);
-}
-
-/** Live context-window occupancy (latest round's prompt tokens), or undefined
- *  until a round reports it. Persists across runs in the session. */
-export function useAgentRunContextTokens(): number | undefined {
-  const sid = useAgentSessionStore((s) => s.activeSessionId);
-  return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).run.contextTokens);
-}
-
-/** The active session's plan items. */
-export function useAgentPlan(): PlanItem[] {
-  const sid = useAgentSessionStore((s) => s.activeSessionId);
-  return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).plan);
-}
-
-/** The active session's tool calls map. */
-export function useAgentToolCalls(): Record<string, ToolCall> {
-  const sid = useAgentSessionStore((s) => s.activeSessionId);
-  return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).toolCalls);
-}
-
-/** The active session's messages array. */
-export function useAgentMessages(): Message[] {
-  const sid = useAgentSessionStore((s) => s.activeSessionId);
-  return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).messages);
-}
-
-/** The active session's timeline entries. */
-export function useAgentTimeline(): TimelineEntry[] {
-  const sid = useAgentSessionStore((s) => s.activeSessionId);
-  return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).timeline);
-}
-
-/**
- * Imperative helper — read the current session's view from outside React.
- * Used by non-component plugin application services and command handlers.
- */
-export function getCurrentSessionView(): AgentViewState {
-  const sid = useAgentSessionStore.getState().activeSessionId;
-  return useAgentStore.getState().sessions[sid]?.view ?? INITIAL_VIEW_STATE;
-}
