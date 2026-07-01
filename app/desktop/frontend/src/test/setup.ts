@@ -11,8 +11,12 @@ import { usePluginErrorStore } from "@/plugins/sdk/errors";
 import { useNotificationStore } from "@/plugins/sdk/notifications";
 import { usePluginStore } from "@/plugins/sdk/registry";
 import { _resetAllSlices } from "@/plugins/sdk/stateSlice";
+import { installAgentStatePorts } from "@/plugins/builtin/agent/public/statePorts";
+
+installAgentStatePorts();
 
 beforeEach(() => {
+  installAgentStatePorts();
   usePluginStore.getState().resetForTest();
   usePluginErrorStore.setState({ log: [], nextId: 1 });
   useNotificationStore.setState({ log: [], nextId: 1 });

@@ -11,8 +11,8 @@
 // a double press (the second press finds the same open interrupt before it
 // settles); cleared on settle/error so a torn-down session stays retryable.
 
-import { useAgentStore } from "@/plugins/builtin/agent/adapters/agentStore";
-import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
+import { agentSessionState } from "../ports/sessionState";
+import { agentViewState } from "../ports/viewState";
 import { getApprovalActions } from "./approvalActions";
 import type { ApprovalDecision } from "../../domain/hitl";
 import { WIRE_DECISION } from "./wireDecision";
@@ -21,8 +21,8 @@ import { resumeInterrupt } from "./useInterruptResume";
 const inFlight = new Set<string>();
 
 export function submitPendingApproval(decision: ApprovalDecision): boolean {
-  const sid = useAgentSessionStore.getState().activeSessionId;
-  const entry = useAgentStore.getState().sessions[sid];
+  const sid = agentSessionState().getActiveSessionId();
+  const entry = agentViewState().getSession(sid);
   if (!entry) return false;
 
   // Questions need answers (not approve/deny), so only act on approval interrupts.
