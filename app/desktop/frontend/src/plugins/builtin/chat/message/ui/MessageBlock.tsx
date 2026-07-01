@@ -8,6 +8,7 @@ import type { Citation } from "./CitationContext";
 import type { BlockCtx } from "./BlockRenderer";
 import type { Message } from "@/plugins/builtin/agent/public/viewState";
 import { memo, useMemo } from "react";
+import { Icon } from "@/components/common";
 import { ToolGroup } from "@/plugins/builtin/chat/tools/public/rendering";
 import { useCitationSources } from "@/plugins/sdk";
 import { Slot } from "@/plugins/host/Slot";
@@ -101,19 +102,27 @@ function MessageBlockInner({ msg, ctx }: { msg: Message; ctx: BlockCtx }) {
               </div>
             </div>
           ) : (
-            <div className="group" data-slot="message-assistant">
-              <MessageContextMenu msg={msg}>
-                <div className="msg-content min-w-0 max-w-[--content-max] text-fg-soft text-[16px] leading-relaxed">
-                  {content}
+            <div className="group flex gap-3" data-slot="message-assistant">
+              {/* Assistant identity marker — a small sparkle avatar peeking
+                  left of the prose (DESIGN.md message-body-assistant spec +
+                  the Codex reference). Content + actions offset to its right. */}
+              <div className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full border border-line-soft bg-surface">
+                <Icon name="spark" size={14} className="text-fg-muted" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <MessageContextMenu msg={msg}>
+                  <div className="msg-content max-w-[--content-max] text-fg-soft text-[16px] leading-relaxed">
+                    {content}
+                  </div>
+                </MessageContextMenu>
+                {/* Hover-reveal action bar — icon-only, rounded-md for quieter
+                    assistant chrome. */}
+                <div
+                  className="mt-1 flex opacity-0 transition-opacity duration-[--dur-fast] group-hover:opacity-100 focus-within:opacity-100"
+                  data-slot="message-actions"
+                >
+                  <Slot name="message.actions" />
                 </div>
-              </MessageContextMenu>
-              {/* Hover-reveal action bar — icon-only, rounded-md for quieter
-                  assistant chrome. */}
-              <div
-                className="mt-1 flex opacity-0 transition-opacity duration-[--dur-fast] group-hover:opacity-100 focus-within:opacity-100"
-                data-slot="message-actions"
-              >
-                <Slot name="message.actions" />
               </div>
             </div>
           )}
