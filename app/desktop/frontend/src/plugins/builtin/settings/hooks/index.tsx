@@ -20,6 +20,7 @@ import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
+import { installHookTrustGateway } from "./adapters/runtimeHookTrustGateway";
 
 function HookRow({ h }: { h: HookConfig }) {
   const t = useT();
@@ -141,6 +142,7 @@ export default definePlugin({
   name: "lyra.builtin.hooks-pane",
   version: "1.0.0",
   setup({ host }) {
+    installHookTrustGateway();
     host.extensions.contribute(SETTINGS_PANE, {
       id: "hooks",
       label: "settings.pane.hooks",
