@@ -23,11 +23,19 @@ export function ImageBlock({ mime, data }: { mime: string; data: string }) {
           aria-label={t("message.image.view")}
           className="my-1.5 block cursor-zoom-in overflow-hidden rounded-md border-0 bg-transparent p-0 outline-none focus-visible:shadow-[0_0_0_2px_var(--color-accent)]"
         >
-          <img src={src} alt="" className="max-h-64 max-w-full rounded-md object-contain" />
+          <img
+            src={src}
+            alt=""
+            className="max-h-64 max-w-full rounded-md object-contain ring-1 ring-inset ring-white/10 light:ring-black/10"
+          />
         </button>
       }
     >
-      <img src={src} alt="" className="max-h-[86vh] max-w-full rounded-lg object-contain" />
+      <img
+        src={src}
+        alt=""
+        className="max-h-[86vh] max-w-full rounded-lg object-contain ring-1 ring-inset ring-white/10 light:ring-black/10"
+      />
     </LightboxDialog>
   );
 }

@@ -77,7 +77,7 @@ export function ProjectRow({
           data-chrome-focus=""
           aria-label={t("project.row.newSession", { name: project.name })}
           onClick={() => onNewSession(project)}
-          className="grid h-5 w-5 place-items-center rounded-md border-0 bg-transparent text-fg-faint opacity-0 transition-all group-hover:opacity-100 hover:bg-fg/[0.055] hover:text-fg"
+          className="grid h-5 w-5 place-items-center rounded-md border-0 bg-transparent text-fg-faint opacity-0 transition-[opacity,background,color] group-hover:opacity-100 hover:bg-fg/[0.055] hover:text-fg"
         >
           <Icon name="plus" size={11} />
         </button>

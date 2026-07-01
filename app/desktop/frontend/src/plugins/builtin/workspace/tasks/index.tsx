@@ -65,7 +65,7 @@ function TasksPill() {
             type="button"
             aria-label={label}
             title={running.length > 0 ? `${running.length} running task(s)` : "Recent tasks"}
-            className="relative grid h-6.5 w-6.5 place-items-center rounded-md border-0 bg-transparent text-fg-faint transition-[background,color] hover:bg-surface-2 hover:text-fg light:hover:bg-surface-3 active:scale-[0.92]"
+            className="relative grid h-6.5 w-6.5 place-items-center rounded-md border-0 bg-transparent text-fg-faint transition-[background,color] hover:bg-surface-2 hover:text-fg light:hover:bg-surface-3 active:scale-[0.96]"
           >
             <Icon
               name={name}
