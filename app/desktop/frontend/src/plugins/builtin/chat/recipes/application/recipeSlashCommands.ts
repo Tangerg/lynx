@@ -1,5 +1,4 @@
 import type { Disposable, Host } from "@/plugins/sdk";
-import type { Recipe } from "@/rpc";
 import type { RecipesQuery, SidebarSession } from "@/lib/data/queries";
 import { RECIPES_KEY, SESSIONS_KEY } from "@/lib/data/queries";
 import { queryClient } from "@/lib/data/queryClient";
@@ -12,6 +11,13 @@ import {
 
 const RECIPE_SIGNATURE_FIELD_SEPARATOR = "\u0000";
 const RECIPE_SIGNATURE_ROW_SEPARATOR = "\u0001";
+
+interface Recipe {
+  name: string;
+  description?: string;
+  argumentHint?: string;
+  body: string;
+}
 
 function expandRecipe(body: string, argStr: string): string {
   const trimmed = argStr.trim();
