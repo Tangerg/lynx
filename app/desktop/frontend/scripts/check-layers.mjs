@@ -114,6 +114,10 @@ const FORBIDDEN = {
 // that are knowingly allowed despite the rule. Empty today.
 const ALLOWED_EDGES = new Set([]);
 
+// A directory named any of these under plugins/builtin/<ctx>/ marks <ctx> as a
+// bounded context (it has opted into the layout). `public/` is the only surface
+// a foreign context may import; the rest are context-private. Contexts with no
+// boundary dir (flat plugin folders like theme/ or defaults/) aren't policed.
 const CONTEXT_BOUNDARY = new Set([
   "application",
   "presentation",
@@ -122,7 +126,6 @@ const CONTEXT_BOUNDARY = new Set([
   "public",
   "ui",
 ]);
-const CONTEXT_INTERNAL = new Set(["application", "presentation", "domain", "adapters", "ui"]);
 
 function contextRootFromBoundary(path) {
   const parts = path.split("/");
@@ -151,20 +154,26 @@ function builtinContext(path, contextRoots) {
   return contextRoots.find((root) => path === root || path.startsWith(`${root}/`)) ?? null;
 }
 
-function internalContext(path) {
-  const parts = path.split("/");
-  if (parts[0] !== "plugins" || parts[1] !== "builtin") return null;
-  for (let i = 2; i < parts.length; i++) {
-    if (CONTEXT_INTERNAL.has(parts[i])) return i > 2 ? parts.slice(0, i).join("/") : null;
-  }
-  return null;
-}
+// The builtin manifest is the plugin composition root: it imports every
+// plugin's registration entry wherever it lives in the tree (a context holds
+// several plugins, each with its own index/bootstrap), exactly as
+// main/container may reach anything. It's exempt as an importer; peer contexts
+// get no such license.
+const BUILTIN_MANIFEST = "plugins/builtin/index.ts";
 
-function contextInternalViolation(file, dep, contextRoots) {
-  const depContext = internalContext(dep);
-  if (!depContext) return null;
+// A peer context may import only another context's `public/` facade. Any other
+// cross-context import — including into a loose file sitting at the context
+// root, not just the named-internal dirs — reaches a private part of the
+// context and is a violation. This is strictly stronger than the old "must not
+// reach application/domain/adapters/presentation/ui" rule: it also closes the
+// loophole of importing a root-level file that lives in no boundary dir at all.
+function crossContextViolation(file, dep, contextRoots) {
+  if (file === BUILTIN_MANIFEST) return null; // plugin composition root
+  const depContext = builtinContext(dep, contextRoots);
+  if (!depContext) return null; // dep isn't inside any recognized context
   const fromContext = builtinContext(file, contextRoots);
-  if (fromContext === depContext) return null;
+  if (fromContext === depContext) return null; // same context — its own business
+  if (dep.startsWith(`${depContext}/public/`)) return null; // the published facade
   return {
     file,
     dep,
@@ -223,13 +232,13 @@ for (const [file, deps] of Object.entries(graph)) {
     if (forbidden.includes(to) && !ALLOWED_EDGES.has(`${file}↦${dep}`)) {
       violations.push({ file, dep, from, to });
     }
-    const contextViolation = contextInternalViolation(file, dep, contextRoots);
+    const contextViolation = crossContextViolation(file, dep, contextRoots);
     if (contextViolation && !ALLOWED_EDGES.has(`${file}↦${dep}`)) {
       violations.push({
         file,
         dep,
         from: `context:${contextViolation.from}`,
-        to: `context-internal:${contextViolation.to}`,
+        to: `context-private:${contextViolation.to}`,
       });
     }
   }
@@ -242,8 +251,9 @@ if (violations.length > 0) {
   }
   console.error("");
   console.error("An inner layer is importing an outer one, or a plugin context");
-  console.error("is reaching into another context's internals. Either invert");
-  console.error("the dependency / use a public surface, or — if genuinely");
+  console.error("is reaching past another context's public/ facade (that facade is");
+  console.error("the only surface importable across contexts). Either invert the");
+  console.error("dependency / route through the public surface, or — if genuinely");
   console.error("intentional — add the edge to ALLOWED_EDGES with a comment.");
   process.exit(1);
 }
