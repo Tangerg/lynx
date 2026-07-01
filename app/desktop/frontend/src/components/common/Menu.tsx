@@ -61,7 +61,12 @@ function DropdownContent({
         align={align}
         sideOffset={sideOffset}
         alignOffset={alignOffset}
-        className={positionerClassName}
+        /* Explicit z-index on the portaled positioner itself — the popup's own
+           z-50 sits inside this fixed-positioned node, so without a z-index here
+           the whole menu stacks by DOM order and loses to a page element that
+           owns a stacking context (e.g. the composer's `relative z-[2]` when the
+           model picker opens upward). z-50 keeps every menu above app chrome. */
+        className={cn("z-50", positionerClassName)}
       >
         <BaseMenu.Popup {...popupProps} className={cn(MENU_CONTENT_CLASSES, className)}>
           {children}
@@ -88,7 +93,7 @@ function ContextContent({
         align={align}
         sideOffset={sideOffset}
         alignOffset={alignOffset}
-        className={positionerClassName}
+        className={cn("z-50", positionerClassName)}
       >
         <BaseContextMenu.Popup {...popupProps} className={cn(MENU_CONTENT_CLASSES, className)}>
           {children}
