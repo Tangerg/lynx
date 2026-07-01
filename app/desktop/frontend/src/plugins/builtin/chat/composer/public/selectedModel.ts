@@ -1,5 +1,5 @@
 import { useModels } from "@/lib/data/queries";
-import { useComposerStore } from "./store";
+import { useComposerModelPreference } from "./modelPreference";
 
 /** The model the next run will use: composerStore's provider+model pair
  *  resolved against the live model list, falling back to the first model while
@@ -11,7 +11,6 @@ import { useComposerStore } from "./store";
  *  paste/drop image staging — can't disagree. */
 export function useSelectedModel() {
   const { data: models = [] } = useModels();
-  const provider = useComposerStore((s) => s.provider);
-  const model = useComposerStore((s) => s.model);
+  const { provider, model } = useComposerModelPreference();
   return models.find((m) => m.provider === provider && m.id === model) ?? models[0];
 }

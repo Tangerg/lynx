@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { definePlugin, loadPlugin } from "@/plugins/sdk";
 import { SLASH_COMMAND } from "@/plugins/sdk/kernelPoints";
-import { useComposerStore } from "@/plugins/builtin/chat/composer/public/store";
+import { useComposerStore } from "../adapters/composerStore";
 import { submitComposer } from "./submitComposer";
 
 describe("submitComposer", () => {

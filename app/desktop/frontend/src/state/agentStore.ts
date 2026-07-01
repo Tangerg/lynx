@@ -161,6 +161,15 @@ function patchView(
   return patchSession(sessions, sessionId, { view });
 }
 
+function patchSessionState(
+  state: AgentStore,
+  sessionId: string,
+  next: Partial<SessionEntry>,
+): AgentStore | { sessions: Record<string, SessionEntry> } {
+  const sessions = patchSession(state.sessions, sessionId, next);
+  return sessions === state.sessions ? state : { sessions };
+}
+
 export const useAgentStore = create<AgentStore>((set) => ({
   sessions: {},
   applyEvent: (sessionId, event, runId) =>
@@ -187,12 +196,12 @@ export const useAgentStore = create<AgentStore>((set) => ({
   // history shrank; the view rebuilds from items.list while the composer
   // must keep working without a remount).
   resetView: (sessionId) =>
-    set((s) => ({
-      sessions: patchSession(s.sessions, sessionId, {
+    set((s) =>
+      patchSessionState(s, sessionId, {
         view: emptyEntry().view,
         viewEpoch: (s.sessions[sessionId]?.viewEpoch ?? 0) + 1,
       }),
-    })),
+    ),
   relabelMessage: (sessionId, fromId, toId) =>
     set((s) => {
       const sessions = patchView(s.sessions, sessionId, (view) =>
@@ -212,12 +221,9 @@ export const useAgentStore = create<AgentStore>((set) => ({
       delete next[sessionId];
       return { sessions: next };
     }),
-  setStop: (sessionId, fn) =>
-    set((s) => ({ sessions: patchSession(s.sessions, sessionId, { stop: fn }) })),
-  setSend: (sessionId, fn) =>
-    set((s) => ({ sessions: patchSession(s.sessions, sessionId, { send: fn }) })),
-  setResume: (sessionId, fn) =>
-    set((s) => ({ sessions: patchSession(s.sessions, sessionId, { resume: fn }) })),
+  setStop: (sessionId, fn) => set((s) => patchSessionState(s, sessionId, { stop: fn })),
+  setSend: (sessionId, fn) => set((s) => patchSessionState(s, sessionId, { send: fn })),
+  setResume: (sessionId, fn) => set((s) => patchSessionState(s, sessionId, { resume: fn })),
   clearError: (sessionId) =>
     set((s) => {
       const sessions = patchView(s.sessions, sessionId, (view) => setRunError(view, null));

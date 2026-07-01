@@ -7,32 +7,9 @@ import { countLines } from "@/plugins/builtin/chat/composer/public/largePaste";
 import { disposeOnHmr } from "@/lib/hmr";
 import { notifyError } from "@/lib/notify";
 import { useSessionStore } from "@/state/sessionStore";
+import type { ComposerImage, PastedText } from "../domain/draft";
 
-// Composer data shapes. Declared here (the data owner) instead of in
-// `components/chat/composer/Composer.tsx` so the store doesn't import upward
-// into the presentation layer.
-
-/** One image staged in the composer, ready to inline on send. `data` is raw
- *  base64 (NO "data:" prefix) — the wire form of an image ContentBlock
- *  (MULTIMODAL_IMAGE_INPUT, API.md §4.3). */
-export interface ComposerImage {
-  /** Stable React-key id, auto-assigned in `addImages`. */
-  id: string;
-  mime: string;
-  data: string;
-  /** Original file name — thumbnail tooltip / alt text. */
-  name?: string;
-}
-
-/** A large pasted text blob, collapsed into a removable composer attachment
- *  chip instead of flooding the textarea (T2.3). The full `text` is re-inlined
- *  into the outgoing message on send; `lines` drives the chip's label. */
-export interface PastedText {
-  /** Stable React-key id, auto-assigned in `addPaste`. */
-  id: string;
-  text: string;
-  lines: number;
-}
+// Store adapter for the composer draft read model.
 
 /** One conversation's unsent composer content, kept PER SESSION so switching
  *  tabs never shows — or clobbers — another conversation's half-written
