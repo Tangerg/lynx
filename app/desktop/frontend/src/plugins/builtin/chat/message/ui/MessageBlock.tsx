@@ -111,7 +111,7 @@ function MessageBlockInner({ msg, ctx }: { msg: Message; ctx: BlockCtx }) {
               </div>
               <div className="min-w-0 flex-1">
                 <MessageContextMenu msg={msg}>
-                  <div className="msg-content max-w-[--content-max] text-fg-soft text-[16px] leading-relaxed">
+                  <div className="msg-content max-w-[--content-max] text-pretty text-fg-soft text-[16px] leading-relaxed">
                     {content}
                   </div>
                 </MessageContextMenu>

@@ -67,8 +67,12 @@ function SetupCard() {
       <div className="flex items-start gap-3">
         <Icon name="spark" size={16} className="mt-0.5 shrink-0 text-accent" />
         <div className="flex flex-col items-start gap-2">
-          <div className="text-[14px] font-semibold text-fg">{t("welcome.setup.title")}</div>
-          <p className="m-0 text-[13.5px] leading-[1.6] text-fg-soft">{t("welcome.setup.sub")}</p>
+          <div className="text-balance text-[14px] font-semibold text-fg">
+            {t("welcome.setup.title")}
+          </div>
+          <p className="m-0 text-pretty text-[13.5px] leading-[1.6] text-fg-soft">
+            {t("welcome.setup.sub")}
+          </p>
           <button
             type="button"
             onClick={onConfigure}
