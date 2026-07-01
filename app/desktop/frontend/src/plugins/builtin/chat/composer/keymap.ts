@@ -1,5 +1,5 @@
 import { t } from "@/lib/i18n";
-import { submitPendingApproval } from "@/lib/agent/submitPendingApproval";
+import { submitPendingApproval } from "@/plugins/builtin/agent/public/hitl";
 import { definePlugin } from "@/plugins/sdk";
 import { COMPOSER_KEY_BINDING } from "@/plugins/sdk/kernelPoints";
 import { useAgentStore } from "@/state/agentStore";

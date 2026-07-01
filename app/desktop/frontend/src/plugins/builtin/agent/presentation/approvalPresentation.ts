@@ -1,5 +1,5 @@
-import type { ApprovalDecision } from "@/lib/agent/useApprovalSubmit";
 import type { BlockStatus } from "@/protocol/run/viewState";
+import type { ApprovalDecision } from "../domain/hitl";
 export { dangerHints } from "./dangerPatterns";
 
 export type ApprovalRisk = "low" | "medium" | "high";

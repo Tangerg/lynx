@@ -1,9 +1,8 @@
 import { useCallback } from "react";
 import type { ApprovalScope } from "@/rpc";
-import { WIRE_DECISION, type ApprovalDecision } from "./hitlDecision";
+import type { ApprovalDecision } from "../../domain/hitl";
+import { WIRE_DECISION } from "./wireDecision";
 import { useInterruptResume } from "./useInterruptResume";
-
-export type { ApprovalDecision };
 
 // Submits the user's HITL approval decision (API.md §6, R-model) over the shared
 // useInterruptResume scaffold (which owns session pinning, the pending latch,

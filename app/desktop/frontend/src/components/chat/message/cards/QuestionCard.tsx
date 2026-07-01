@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { Icon } from "@/components/common";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
-import { useQuestionAnswer } from "@/lib/agent/useQuestionAnswer";
+import { useQuestionAnswer } from "@/plugins/builtin/agent/public/hitl";
 import {
   createQuestionDraft,
   questionAnswerText,
