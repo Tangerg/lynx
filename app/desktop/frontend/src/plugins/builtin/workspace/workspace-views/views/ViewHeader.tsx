@@ -5,7 +5,7 @@ import type { IconName } from "@/components/common";
 import { Icon, IconButton } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
-import { useViewPlacement } from "@/components/chat/panel/ViewPlacement";
+import { useViewPlacement } from "@/plugins/builtin/workspace/public/viewPlacement";
 
 export interface ViewHeaderProps {
   icon: IconName;

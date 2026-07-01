@@ -11,7 +11,7 @@
 //            has no opinion about *how* messages get to the agent.
 
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
-import type { ViewPlacement } from "./ViewPlacement";
+import type { ViewPlacement } from "@/plugins/builtin/workspace/public/viewPlacement";
 import { dragClasses, Panel } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { useSessions } from "@/lib/data/queries";
@@ -27,7 +27,7 @@ import { useWorkspaceViews } from "@/plugins/sdk";
 import { useUiStore } from "@/state/uiStore";
 import { ChatStream } from "./ChatStream";
 import { SplitResizer } from "./SplitResizer";
-import { ViewPlacementProvider } from "./ViewPlacement";
+import { ViewPlacementProvider } from "@/plugins/builtin/workspace/public/viewPlacement";
 import { WorkspaceViewBody } from "./WorkspaceViewBody";
 
 interface Props {
