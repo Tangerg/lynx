@@ -55,10 +55,7 @@ export function ShortcutsPane() {
             </thead>
             <tbody>
               {filtered.map((s) => (
-                <tr
-                  key={s.key}
-                  className="border-t border-line-soft/50 transition-colors hover:bg-surface-2"
-                >
+                <tr key={s.key} className="transition-colors hover:bg-surface-2">
                   <td className="px-3 py-1.5 text-fg">{s.description}</td>
                   <td className="px-3 py-1.5 text-right">
                     <span className="inline-flex items-center gap-1">

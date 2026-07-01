@@ -33,7 +33,7 @@ export function VerticalTabs({ ariaLabel, groups, value, onValueChange }: Vertic
       className="grid h-full w-full grid-cols-[236px_1fr] overflow-hidden"
     >
       <BaseTabs.List
-        className="flex flex-col gap-0.5 overflow-y-auto border-r border-divider bg-surface/45 px-3 py-8"
+        className="flex flex-col gap-0.5 overflow-y-auto bg-surface/45 px-3 py-8"
         aria-label={ariaLabel}
         activateOnFocus
       >

@@ -147,7 +147,7 @@ function ProjectGroupNode({
                 onToggleFavorite={onToggleFavorite}
               />
               {s.id === activeSessionId && (
-                <div className="ml-5 flex flex-col gap-0.5 border-l border-divider pl-2">
+                <div className="ml-5 flex flex-col gap-0.5 pl-2">
                   {SESSION_DESTINATIONS.map((d) => {
                     const active = activeMainView === d.id;
                     return (
