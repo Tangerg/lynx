@@ -1,11 +1,11 @@
 import { getContainer } from "@/main/container";
+import { getActiveSessionId } from "@/plugins/builtin/agent/public/session";
 import { asItemId, asRunId, asSessionId } from "@/rpc";
-import { useSessionStore } from "@/state/sessionStore";
 import type { SubmitMessageFeedbackPort } from "../application/feedback";
 
 export const runtimeFeedbackPort: SubmitMessageFeedbackPort = {
   async createMessageFeedback({ target, rating }) {
-    const sessionId = useSessionStore.getState().activeSessionId;
+    const sessionId = getActiveSessionId();
     await getContainer()
       .client()
       .feedback.create({
