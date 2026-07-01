@@ -1,6 +1,6 @@
 import type { SidebarSession } from "@/lib/data/queries";
 import { useSessions } from "@/lib/data/queries";
-import { useSessionStore } from "@/state/sessionStore";
+import { useAgentSessionStore } from "@/state/agentSessionStore";
 
 export interface AgentSessionLifecycleSnapshot {
   activeSessionId: string;
@@ -8,21 +8,21 @@ export interface AgentSessionLifecycleSnapshot {
 }
 
 export function useActiveSessionId(): string {
-  return useSessionStore((s) => s.activeSessionId);
+  return useAgentSessionStore((s) => s.activeSessionId);
 }
 
 export function getActiveSessionId(): string {
-  return useSessionStore.getState().activeSessionId;
+  return useAgentSessionStore.getState().activeSessionId;
 }
 
 export function getAgentSessionLifecycleSnapshot(): AgentSessionLifecycleSnapshot {
-  const state = useSessionStore.getState();
+  const state = useAgentSessionStore.getState();
   return { activeSessionId: state.activeSessionId, openSessionIds: state.tabIds };
 }
 
 export function subscribeActiveSessionId(onChange: (sessionId: string) => void): () => void {
   let lastSessionId = getActiveSessionId();
-  return useSessionStore.subscribe((state) => {
+  return useAgentSessionStore.subscribe((state) => {
     if (state.activeSessionId === lastSessionId) return;
     lastSessionId = state.activeSessionId;
     onChange(lastSessionId);
@@ -33,7 +33,7 @@ export function subscribeAgentSessionLifecycle(
   onChange: (snapshot: AgentSessionLifecycleSnapshot) => void,
 ): () => void {
   let lastSnapshot = getAgentSessionLifecycleSnapshot();
-  return useSessionStore.subscribe((state) => {
+  return useAgentSessionStore.subscribe((state) => {
     if (
       state.activeSessionId === lastSnapshot.activeSessionId &&
       state.tabIds === lastSnapshot.openSessionIds
@@ -46,13 +46,13 @@ export function subscribeAgentSessionLifecycle(
 }
 
 export function selectAgentSession(id: string): void {
-  useSessionStore.getState().selectTab(id);
+  useAgentSessionStore.getState().selectTab(id);
 }
 
 export function closeActiveAgentSession(): boolean {
   const id = getActiveSessionId();
   if (!id) return false;
-  useSessionStore.getState().closeTab(id);
+  useAgentSessionStore.getState().closeTab(id);
   return true;
 }
 

@@ -1,11 +1,16 @@
 import type { ContentBlock, RunEvent } from "@/rpc";
+import type { AgentRunStartOptions } from "@/plugins/sdk";
 import { useCallback } from "react";
 import { getContainer } from "@/main/container";
 import { asRunId, isErrorType } from "@/rpc";
+import { resolveAgentRunStartOptions } from "@/plugins/sdk";
 import { useAgentAction, useAgentRunId, useAgentRunning, useAgentStore } from "@/state/agentStore";
 import { LOCAL_STEER_PREFIX } from "@/protocol/run/viewState";
-import { useSessionStore } from "@/state/sessionStore";
-import { useCreateSession } from "../session/createSession";
+import { getActiveSessionId } from "../session/activeSession";
+import { type CreateSessionOptions, useCreateSession } from "../session/createSession";
+
+type SendToAgent = (input: ContentBlock[], options?: AgentRunStartOptions) => void;
+type CreateSession = (opts?: CreateSessionOptions) => Promise<string | null>;
 
 /**
  * The single send entry point for the composer — both the textarea Enter
@@ -33,30 +38,14 @@ export function useChatSend(): (input: ContentBlock[]) => void {
   const runId = useAgentRunId();
   return useCallback(
     (input: ContentBlock[]) => {
-      const sid = useSessionStore.getState().activeSessionId;
-      if (running && sid && runId) {
-        const text = steerText(input);
-        // Steering is text-only; an image-only compose mid-run falls through to
-        // the normal path (which a busy session rejects — a rare edge).
-        if (text) {
-          const localId = mintSteerBubble(sid, input);
-          void getContainer()
-            .client()
-            .runs.steer(asRunId(runId), text)
-            .catch((err) => {
-              if (isErrorType(err, "run_not_found")) {
-                // Run ended → the steer can't land. Drop the optimistic bubble
-                // (else the fallback send would mint a second one and leave this
-                // orphaned) and restart as a fresh turn.
-                useAgentStore.getState().dropMessage(sid, localId);
-                if (send) send(input);
-              }
-            });
+      const sessionId = getActiveSessionId();
+      const runOptions = resolveAgentRunStartOptions();
+      if (running && sessionId && runId) {
+        if (steerRunningTurn({ sessionId, runId, input, send, runOptions })) {
           return;
         }
       }
-      if (sid && send) send(input);
-      else void createSession({ firstInput: input });
+      sendFreshTurn({ sessionId, send, createSession, input, runOptions });
     },
     [send, running, runId, createSession],
   );
@@ -72,6 +61,59 @@ export function useCanSendToAgent(): boolean {
 // by content match (appendUserMessage) once the runtime drains the steer — no
 // explicit relabel, since runs.steer returns no item id.
 let steerSeq = 0;
+
+interface SteerRunningTurnInput {
+  sessionId: string;
+  runId: string;
+  input: ContentBlock[];
+  send: SendToAgent | null;
+  runOptions: AgentRunStartOptions;
+}
+
+function steerRunningTurn({
+  sessionId,
+  runId,
+  input,
+  send,
+  runOptions,
+}: SteerRunningTurnInput): boolean {
+  const text = steerText(input);
+  if (!text) return false;
+  const localId = mintSteerBubble(sessionId, input);
+  void getContainer()
+    .client()
+    .runs.steer(asRunId(runId), text)
+    .catch((err) => {
+      if (isErrorType(err, "run_not_found")) {
+        useAgentStore.getState().dropMessage(sessionId, localId);
+        send?.(input, runOptions);
+      }
+    });
+  return true;
+}
+
+interface SendFreshTurnInput {
+  sessionId: string;
+  send: SendToAgent | null;
+  createSession: CreateSession;
+  input: ContentBlock[];
+  runOptions: AgentRunStartOptions;
+}
+
+function sendFreshTurn({
+  sessionId,
+  send,
+  createSession,
+  input,
+  runOptions,
+}: SendFreshTurnInput): void {
+  if (sessionId && send) {
+    send(input, runOptions);
+    return;
+  }
+  void createSession({ firstInput: input, firstRunOptions: runOptions });
+}
+
 function mintSteerBubble(sessionId: string, input: ContentBlock[]): string {
   const id = `${LOCAL_STEER_PREFIX}${++steerSeq}`;
   useAgentStore.getState().applyEvents(sessionId, [

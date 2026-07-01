@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
 import type { LyraClient, Methods } from "@/rpc";
 import { asSessionId } from "@/rpc";
-import { useSessionStore } from "@/state/sessionStore";
+import { useAgentSessionStore } from "@/state/agentSessionStore";
 import { useCreateSession } from "./createSession";
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -23,7 +23,7 @@ function stubCreate(create: Methods["sessions"]["create"]) {
 
 afterEach(() => {
   resetContainer();
-  useSessionStore.setState({
+  useAgentSessionStore.setState({
     activeSessionId: "",
     tabIds: [],
     draftSessionIds: new Set<string>(),
@@ -47,14 +47,20 @@ describe("useCreateSession", () => {
     stubCreate(create);
     const { result } = renderHook(() => useCreateSession(), { wrapper });
 
-    const id = await result.current({ firstInput: [{ type: "text", text: "first message" }] });
+    const id = await result.current({
+      firstInput: [{ type: "text", text: "first message" }],
+      firstRunOptions: { provider: "openai", model: "gpt-5" },
+    });
 
     expect(id).toBe("new-1");
-    const s = useSessionStore.getState();
+    const s = useAgentSessionStore.getState();
     expect(s.activeSessionId).toBe("new-1");
     expect(s.tabIds).toContain("new-1");
     expect(s.draftSessionIds.has("new-1")).toBe(true);
-    expect(s.takePendingMessage("new-1")).toEqual([{ type: "text", text: "first message" }]);
+    expect(s.takePendingMessage("new-1")).toEqual({
+      input: [{ type: "text", text: "first message" }],
+      runOptions: { provider: "openai", model: "gpt-5" },
+    });
   });
 
   it("forwards cwd so the session lands in the chosen project directory", async () => {
@@ -75,7 +81,7 @@ describe("useCreateSession", () => {
 
     await result.current();
 
-    const s = useSessionStore.getState();
+    const s = useAgentSessionStore.getState();
     expect(s.draftSessionIds.has("new-2")).toBe(true);
     expect(s.takePendingMessage("new-2")).toBeUndefined();
   });
@@ -86,7 +92,7 @@ describe("useCreateSession", () => {
     const { result } = renderHook(() => useCreateSession(), { wrapper });
 
     await expect(result.current({ firstInput: [{ type: "text", text: "x" }] })).resolves.toBeNull();
-    expect(useSessionStore.getState().activeSessionId).toBe("");
+    expect(useAgentSessionStore.getState().activeSessionId).toBe("");
   });
 
   it("re-entrant calls join the in-flight create (double-click ≠ two sessions)", async () => {
@@ -104,6 +110,6 @@ describe("useCreateSession", () => {
     expect(await first).toBe("new-3");
     expect(await second).toBe("new-3");
     expect(create).toHaveBeenCalledTimes(1);
-    expect(useSessionStore.getState().tabIds).toEqual(["new-3"]);
+    expect(useAgentSessionStore.getState().tabIds).toEqual(["new-3"]);
   });
 });

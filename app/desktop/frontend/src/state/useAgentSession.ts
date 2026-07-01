@@ -6,7 +6,7 @@
 // Kept as a plain hook (not a class / state machine library) because the run
 // lifecycle is essentially one rAF-loop subscription + a few transition guards;
 // a formal FSM would be more ceremony than the problem warrants.
-import type { AgentDriver } from "@/plugins/sdk";
+import type { AgentDriver, AgentRunStartOptions } from "@/plugins/sdk/types";
 import type { ContentBlock, InterruptResponse, RunEvent, RunId, StreamingResult } from "@/rpc";
 import { useEffect, useRef } from "react";
 import { errorDetail, errorType, RpcError } from "@/rpc";
@@ -18,7 +18,7 @@ import { USAGE_SESSION_KEY } from "@/lib/data/useUsage";
 import { useAgentStore } from "./agentStore";
 import { startAgentSessionRecovery } from "./agentSessionRecovery";
 import { createRunEventBatcher } from "./runEventBatcher";
-import { useSessionStore } from "./sessionStore";
+import { useAgentSessionStore } from "./agentSessionStore";
 
 // Owns the agent driver lifecycle for one session: build the driver, expose
 // imperative send / stop / resume, and pump each run's RunEvent stream into
@@ -26,7 +26,7 @@ import { useSessionStore } from "./sessionStore";
 // previous session's view state stays in the store (so switching back shows
 // what was there).
 export interface AgentSession {
-  send: (input: ContentBlock[]) => void;
+  send: (input: ContentBlock[], options?: AgentRunStartOptions) => void;
   stop: () => void;
 }
 
@@ -88,7 +88,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       }
     };
 
-    if (!useSessionStore.getState().draftSessionIds.has(sessionId)) {
+    if (!useAgentSessionStore.getState().draftSessionIds.has(sessionId)) {
       startAgentSessionRecovery({
         client: getContainer().client(),
         sessionId,
@@ -168,7 +168,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
         });
     };
 
-    const send = (input: ContentBlock[]): void => {
+    const send = (input: ContentBlock[], options: AgentRunStartOptions = {}): void => {
       if (starting) return;
       // Optimistically render the user's own bubble with a local id. The
       // runtime DOES stream the userMessage Item back (with its own server id),
@@ -194,7 +194,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
         },
       ]);
       begin(
-        (signal) => driver.start(input, signal),
+        (signal) => driver.start(input, options, signal),
         (result) => {
           if (result.userItemId) store().relabelMessage(sessionId, localId, result.userItemId);
         },
@@ -205,7 +205,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
         () => store().dropMessage(sessionId, localId),
       );
       // First message graduates a draft session into the sidebar.
-      useSessionStore.getState().graduateDraft(sessionId);
+      useAgentSessionStore.getState().graduateDraft(sessionId);
     };
 
     const resume = (
@@ -243,8 +243,8 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     // by useCreateSession against this freshly-created draft — flush it now
     // that the driver for this id is live. Opening a session otherwise does
     // NOT auto-run; replaying history is a separate concern (items.list).
-    const pending = useSessionStore.getState().takePendingMessage(sessionId);
-    if (pending && pending.length > 0) send(pending);
+    const pending = useAgentSessionStore.getState().takePendingMessage(sessionId);
+    if (pending && pending.input.length > 0) send(pending.input, pending.runOptions);
 
     return () => {
       cancelled = true;
@@ -257,7 +257,8 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
   }, [sessionId]);
 
   return {
-    send: (input: ContentBlock[]) => useAgentStore.getState().sessions[sessionId]?.send?.(input),
+    send: (input: ContentBlock[], options?: AgentRunStartOptions) =>
+      useAgentStore.getState().sessions[sessionId]?.send?.(input, options),
     stop: () => useAgentStore.getState().sessions[sessionId]?.stop?.(),
   };
 }

@@ -7,10 +7,10 @@
 // restores the preference automatically — it was never mutated.
 
 import { useUiStore } from "./uiStore";
-import { useSessionStore } from "./sessionStore";
+import { useWorkspaceNavigationStore } from "./workspaceNavigationStore";
 
 export function useSidebarRail(): boolean {
   const preferRail = useUiStore((s) => s.sidebarRail);
-  const splitOpen = useSessionStore((s) => s.splitViewId !== null);
+  const splitOpen = useWorkspaceNavigationStore((s) => s.splitViewId !== null);
   return preferRail || splitOpen;
 }

@@ -1,4 +1,4 @@
-import { useSessionStore } from "@/state/sessionStore";
+import { useWorkspaceNavigationStore } from "@/state/workspaceNavigationStore";
 
 interface WorkspaceViewTab {
   id: string;
@@ -12,101 +12,101 @@ interface WorkspaceFileViewer {
 }
 
 export function useActiveWorkspaceViewId(): string | null {
-  return useSessionStore((state) => state.activeMainView);
+  return useWorkspaceNavigationStore((state) => state.activeMainView);
 }
 
 export function useSplitWorkspaceViewId(): string | null {
-  return useSessionStore((state) => state.splitViewId);
+  return useWorkspaceNavigationStore((state) => state.splitViewId);
 }
 
 export function useActiveWorkspaceFile(): string {
-  return useSessionStore((state) => state.activeFile);
+  return useWorkspaceNavigationStore((state) => state.activeFile);
 }
 
 export function useWorkspaceFileViewer(): WorkspaceFileViewer | null {
-  return useSessionStore((state) => state.fileViewer);
+  return useWorkspaceNavigationStore((state) => state.fileViewer);
 }
 
 export function useWorkspaceSettingsPaneTarget(): string | null {
-  return useSessionStore((state) => state.settingsPane);
+  return useWorkspaceNavigationStore((state) => state.settingsPane);
 }
 
 export function useExpandedWorkspaceToolIds(): Set<string> {
-  return useSessionStore((state) => state.expandedToolIds);
+  return useWorkspaceNavigationStore((state) => state.expandedToolIds);
 }
 
 export function useSelectWorkspaceTool(): (id: string) => void {
-  return useSessionStore((state) => state.setSelectedToolId);
+  return useWorkspaceNavigationStore((state) => state.setSelectedToolId);
 }
 
 export function useToggleWorkspaceTool(): (id: string) => void {
-  return useSessionStore((state) => state.toggleExpandedTool);
+  return useWorkspaceNavigationStore((state) => state.toggleExpandedTool);
 }
 
 export function selectWorkspaceChat(): void {
-  useSessionStore.getState().selectChat();
+  useWorkspaceNavigationStore.getState().selectChat();
 }
 
 export function openWorkspaceView(tab: WorkspaceViewTab): void {
-  useSessionStore.getState().openMainView(tab);
+  useWorkspaceNavigationStore.getState().openMainView(tab);
 }
 
 export function openWorkspaceViewBeside(tab: WorkspaceViewTab): void {
-  useSessionStore.getState().openMainViewBeside(tab);
+  useWorkspaceNavigationStore.getState().openMainViewBeside(tab);
 }
 
 export function closeWorkspaceView(id: string): void {
-  useSessionStore.getState().closeMainView(id);
+  useWorkspaceNavigationStore.getState().closeMainView(id);
 }
 
 export function closeActiveWorkspaceView(): boolean {
-  const workspace = useSessionStore.getState();
+  const workspace = useWorkspaceNavigationStore.getState();
   if (!workspace.activeMainView) return false;
   workspace.closeMainView(workspace.activeMainView);
   return true;
 }
 
 export function closeWorkspaceSplit(): void {
-  useSessionStore.getState().closeSplit();
+  useWorkspaceNavigationStore.getState().closeSplit();
 }
 
 export function promoteWorkspaceSplitToView(): void {
-  useSessionStore.getState().promoteSplitToTab();
+  useWorkspaceNavigationStore.getState().promoteSplitToTab();
 }
 
 export function openWorkspaceSettingsPane(pane: string, title: string): void {
-  const workspace = useSessionStore.getState();
+  const workspace = useWorkspaceNavigationStore.getState();
   workspace.setSettingsPane(pane);
   workspace.openMainView({ id: "settings", title, icon: "settings" });
 }
 
 export function getWorkspaceSettingsPaneTarget(): string | null {
-  return useSessionStore.getState().settingsPane;
+  return useWorkspaceNavigationStore.getState().settingsPane;
 }
 
 export function clearWorkspaceSettingsPaneTarget(): void {
-  useSessionStore.getState().setSettingsPane(null);
+  useWorkspaceNavigationStore.getState().setSettingsPane(null);
 }
 
 export function openWorkspaceDiffForFile(path: string): void {
-  const workspace = useSessionStore.getState();
+  const workspace = useWorkspaceNavigationStore.getState();
   workspace.setActiveFile(path);
   workspace.openMainView({ id: "diff", title: "workspace.view.title.diff", icon: "diff" });
 }
 
 export function focusWorkspaceFile(path: string): void {
-  useSessionStore.getState().setActiveFile(path);
+  useWorkspaceNavigationStore.getState().setActiveFile(path);
 }
 
 export function openWorkspaceFile(path: string, line?: number): void {
-  useSessionStore.getState().openFileViewer(path, line);
+  useWorkspaceNavigationStore.getState().openFileViewer(path, line);
 }
 
 export function selectWorkspaceTool(id: string): void {
-  useSessionStore.getState().setSelectedToolId(id);
+  useWorkspaceNavigationStore.getState().setSelectedToolId(id);
 }
 
 export function selectInitialWorkspaceTool(id: string): void {
-  const workspace = useSessionStore.getState();
+  const workspace = useWorkspaceNavigationStore.getState();
   if (!workspace.selectedToolId) workspace.setSelectedToolId(id);
 }

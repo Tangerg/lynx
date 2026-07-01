@@ -7,12 +7,12 @@
 
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AgentDriver } from "@/plugins/sdk";
+import type { AgentDriver } from "@/plugins/sdk/types";
 import { RpcError, type LyraClient, type RunEvent } from "@/rpc";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { resetContainer, setContainer } from "@/main/container";
 import { useAgentStore } from "./agentStore";
-import { useSessionStore } from "./sessionStore";
+import { useAgentSessionStore } from "./agentSessionStore";
 import { useAgentSession } from "./useAgentSession";
 
 const SID = "ses_dbl";
@@ -29,11 +29,11 @@ beforeEach(async () => {
   const { default: spec } = await import("@/plugins/builtin/agent/core-reducer");
   await loadPlugin(spec);
   // Mark draft so the effect skips history hydration (items.list → container).
-  useSessionStore.setState({ draftSessionIds: new Set([SID]), activeSessionId: SID });
+  useAgentSessionStore.setState({ draftSessionIds: new Set([SID]), activeSessionId: SID });
 });
 afterEach(() => {
   useAgentStore.getState().dropSession(SID);
-  useSessionStore.setState({ draftSessionIds: new Set() });
+  useAgentSessionStore.setState({ draftSessionIds: new Set() });
   resetContainer();
   vi.restoreAllMocks();
 });
@@ -199,7 +199,7 @@ describe("useAgentSession durable recovery", () => {
 
   beforeEach(() => {
     // NOT a draft — recovery only runs for existing sessions.
-    useSessionStore.setState({ draftSessionIds: new Set(), activeSessionId: RID });
+    useAgentSessionStore.setState({ draftSessionIds: new Set(), activeSessionId: RID });
   });
   afterEach(() => {
     useAgentStore.getState().dropSession(RID);

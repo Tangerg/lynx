@@ -2,7 +2,7 @@
 // (craft-aligned). Collapsed by default: a single ~28px line with chevron,
 // status icon, label, and meta badges. Expands inline to show the plugin-
 // contributed preview (or ToolInspector fallback). Selected state drives the
-// inspector pane via the existing sessionStore wiring.
+// inspector pane via the workspace navigation wiring.
 //
 // This replaces the previous card-based ToolCard with a flat activity-row
 // pattern: no border, no surface bg by default, the row sits directly in the

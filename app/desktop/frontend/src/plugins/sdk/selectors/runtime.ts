@@ -3,12 +3,15 @@
 // register that don't belong to a specific UI surface".
 
 import type {
+  AgentRunStartOptions,
+  AgentRunOptionsProviderSpec,
   AgentSourceSpec,
   PluginErrorFallbackSpec,
   RpcAfterResponseHook,
   RpcBeforeRequestHook,
 } from "../types";
 import {
+  AGENT_RUN_OPTIONS,
   AGENT_SOURCE,
   DATA_PROVIDER,
   ERROR_FALLBACK,
@@ -25,6 +28,18 @@ export function pickAgentSource(): AgentSourceSpec | undefined {
   const sources = lookupExtensionPoint(AGENT_SOURCE);
   if (sources.length === 0) return undefined;
   return sources.reduce((best, cur) => ((cur.priority ?? 0) > (best.priority ?? 0) ? cur : best));
+}
+
+function pickAgentRunOptionsProvider(): AgentRunOptionsProviderSpec | undefined {
+  const providers = lookupExtensionPoint(AGENT_RUN_OPTIONS);
+  if (providers.length === 0) return undefined;
+  return providers.reduce((best, cur) =>
+    (cur.priority ?? 0) >= (best.priority ?? 0) ? cur : best,
+  );
+}
+
+export function resolveAgentRunStartOptions(): AgentRunStartOptions {
+  return pickAgentRunOptionsProvider()?.resolve() ?? {};
 }
 
 /**

@@ -62,6 +62,7 @@ export {
   pickAgentSource,
   pickComposerPlaceholder,
   pickPluginErrorFallback,
+  resolveAgentRunStartOptions,
   resolveScheme,
   useCitationSources,
   useCommands,
@@ -93,6 +94,8 @@ export type { KeyValueStore } from "./storage";
 
 export type {
   AgentDriver,
+  AgentRunOptionsProviderSpec,
+  AgentRunStartOptions,
   AgentSourceSpec,
   BeforeUnloadHandler,
   CommandSpec,

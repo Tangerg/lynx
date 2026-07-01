@@ -5,6 +5,7 @@
 // below; they do the active-session lookup + INITIAL_VIEW_STATE
 // fallback that every callsite needs.
 
+import type { AgentRunStartOptions } from "@/plugins/sdk/types";
 import type { ContentBlock, InterruptResponse, RunId, StreamEvent } from "@/rpc";
 import type {
   AgentViewState,
@@ -27,10 +28,10 @@ import {
   setRunError,
   type SettledInterrupt,
 } from "@/protocol/run/viewMutations";
-import { useSessionStore } from "./sessionStore";
+import { useAgentSessionStore } from "./agentSessionStore";
 
 type StopFn = (() => void) | null;
-type SendFn = ((input: ContentBlock[]) => void) | null;
+type SendFn = ((input: ContentBlock[], options?: AgentRunStartOptions) => void) | null;
 // onSettled fires once the continuation run has actually started (channel-a
 // accepted); onStartError fires if runs.resume rejects before any stream
 // opened (API.md §8.1), so the caller can roll back its optimistic UI.
@@ -251,7 +252,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
 // Prune sessions whose tab is closed. The view slice (messages, toolCalls,
 // shared, plan) can be megabytes of streamed markdown per session — without
 // this it accumulates forever.
-const unsubPruneSessions = useSessionStore.subscribe((state, prev) => {
+const unsubPruneSessions = useAgentSessionStore.subscribe((state, prev) => {
   if (state.tabIds === prev.tabIds) return;
   const live = new Set(state.tabIds);
   const sessions = useAgentStore.getState().sessions;
@@ -279,7 +280,7 @@ disposeOnHmr(unsubPruneSessions);
  * seeded yet (no events received).
  */
 export function useAgentSlice<T>(selector: (view: AgentViewState) => T): T {
-  const sid = useSessionStore((s) => s.activeSessionId);
+  const sid = useAgentSessionStore((s) => s.activeSessionId);
   return useAgentStore((s) => {
     const view = s.sessions[sid]?.view ?? INITIAL_VIEW_STATE;
     return selector(view);
@@ -290,7 +291,7 @@ export function useAgentSlice<T>(selector: (view: AgentViewState) => T): T {
 export function useAgentAction(kind: "stop"): StopFn;
 export function useAgentAction(kind: "send"): SendFn;
 export function useAgentAction(kind: "stop" | "send"): StopFn | SendFn {
-  const sid = useSessionStore((s) => s.activeSessionId);
+  const sid = useAgentSessionStore((s) => s.activeSessionId);
   return useAgentStore((s) => s.sessions[sid]?.[kind] ?? null);
 }
 
@@ -310,50 +311,50 @@ export function useAgentAction(kind: "stop" | "send"): StopFn | SendFn {
 
 /** Whether the active session has a run in progress. */
 export function useAgentRunning(): boolean {
-  const sid = useSessionStore((s) => s.activeSessionId);
+  const sid = useAgentSessionStore((s) => s.activeSessionId);
   return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).run.running);
 }
 
 /** The active session's run id (null when idle). */
 export function useAgentRunId(): string | null {
-  const sid = useSessionStore((s) => s.activeSessionId);
+  const sid = useAgentSessionStore((s) => s.activeSessionId);
   return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).run.runId);
 }
 
 /** The active session's current/last-run token + cost readout. */
 export function useAgentRunUsage(): RunUsage {
-  const sid = useSessionStore((s) => s.activeSessionId);
+  const sid = useAgentSessionStore((s) => s.activeSessionId);
   return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).run.usage);
 }
 
 /** Live context-window occupancy (latest round's prompt tokens), or undefined
  *  until a round reports it. Persists across runs in the session. */
 export function useAgentRunContextTokens(): number | undefined {
-  const sid = useSessionStore((s) => s.activeSessionId);
+  const sid = useAgentSessionStore((s) => s.activeSessionId);
   return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).run.contextTokens);
 }
 
 /** The active session's plan items. */
 export function useAgentPlan(): PlanItem[] {
-  const sid = useSessionStore((s) => s.activeSessionId);
+  const sid = useAgentSessionStore((s) => s.activeSessionId);
   return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).plan);
 }
 
 /** The active session's tool calls map. */
 export function useAgentToolCalls(): Record<string, ToolCall> {
-  const sid = useSessionStore((s) => s.activeSessionId);
+  const sid = useAgentSessionStore((s) => s.activeSessionId);
   return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).toolCalls);
 }
 
 /** The active session's messages array. */
 export function useAgentMessages(): Message[] {
-  const sid = useSessionStore((s) => s.activeSessionId);
+  const sid = useAgentSessionStore((s) => s.activeSessionId);
   return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).messages);
 }
 
 /** The active session's timeline entries. */
 export function useAgentTimeline(): TimelineEntry[] {
-  const sid = useSessionStore((s) => s.activeSessionId);
+  const sid = useAgentSessionStore((s) => s.activeSessionId);
   return useAgentStore((s) => (s.sessions[sid]?.view ?? INITIAL_VIEW_STATE).timeline);
 }
 
@@ -362,6 +363,6 @@ export function useAgentTimeline(): TimelineEntry[] {
  * Used by non-component plugin application services and command handlers.
  */
 export function getCurrentSessionView(): AgentViewState {
-  const sid = useSessionStore.getState().activeSessionId;
+  const sid = useAgentSessionStore.getState().activeSessionId;
   return useAgentStore.getState().sessions[sid]?.view ?? INITIAL_VIEW_STATE;
 }

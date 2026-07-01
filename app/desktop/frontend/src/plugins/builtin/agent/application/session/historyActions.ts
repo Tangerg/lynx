@@ -4,7 +4,7 @@ import { getContainer } from "@/main/container";
 import { notifyInfo } from "@/lib/notify";
 import { asRunId, asSessionId } from "@/rpc";
 import { getCurrentSessionView, useAgentStore } from "@/state/agentStore";
-import { useSessionStore } from "@/state/sessionStore";
+import { useAgentSessionStore } from "@/state/agentSessionStore";
 import { forkSessionAt } from "./forkSession";
 import { rehydrateSessionView } from "./rehydrateSession";
 
@@ -16,7 +16,7 @@ export interface ActiveAgentConversation {
 }
 
 export function activeAgentConversation(): ActiveAgentConversation | null {
-  const sessionId = useSessionStore.getState().activeSessionId;
+  const sessionId = useAgentSessionStore.getState().activeSessionId;
   if (!sessionId) return null;
   return { sessionId, messages: getCurrentSessionView().messages };
 }

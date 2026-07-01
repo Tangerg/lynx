@@ -11,18 +11,17 @@ import { AGENT_SOURCE } from "@/plugins/sdk/kernelPoints";
 import { getContainer } from "@/main/container";
 import { getActiveSessionId } from "@/plugins/builtin/agent/public/session";
 import { asSessionId } from "@/rpc";
-import { selectedComposerModelPreference } from "@/plugins/builtin/chat/composer/public/modelPreference";
 
 function makeDriver(sessionId: string): AgentDriver {
   const client = () => getContainer().client();
   return {
-    start: (input, signal) => {
+    start: (input, options, signal) => {
       // provider + model are a pair (API §7.3): send BOTH or NEITHER. Only one
       // → invalid_params. Both null (no enabled provider picked) = runtime
       // default provider+model. There is no run `mode` — the run is always the
       // agent loop; "plan" is a global approval stance (approval.setMode), not a
       // per-run mode.
-      const { provider, model } = selectedComposerModelPreference();
+      const { provider, model } = options;
       return client().runs.start(
         {
           sessionId: asSessionId(sessionId),

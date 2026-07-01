@@ -17,7 +17,7 @@ import {
   useAgentTimeline,
   useAgentToolCalls,
 } from "@/state/agentStore";
-import { useSessionStore } from "@/state/sessionStore";
+import { useAgentSessionStore } from "@/state/agentSessionStore";
 
 interface AgentSessionEntry {
   view: {
@@ -74,7 +74,7 @@ export function useStopActiveAgentRun(): (() => void) | null {
 }
 
 export function stopActiveAgentRun(): boolean {
-  const sessionId = useSessionStore.getState().activeSessionId;
+  const sessionId = useAgentSessionStore.getState().activeSessionId;
   const entry = useAgentStore.getState().sessions[sessionId];
   if (!entry?.view.run.running) return false;
   entry.stop?.();
@@ -82,7 +82,7 @@ export function stopActiveAgentRun(): boolean {
 }
 
 export function clearActiveRunError(): void {
-  const sessionId = useSessionStore.getState().activeSessionId;
+  const sessionId = useAgentSessionStore.getState().activeSessionId;
   if (!sessionId) return;
   useAgentStore.getState().clearError(sessionId);
 }

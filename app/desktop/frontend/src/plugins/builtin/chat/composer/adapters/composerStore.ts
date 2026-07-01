@@ -1,5 +1,4 @@
 import { nanoid } from "nanoid";
-import { z } from "zod";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { fileToInputImage } from "@/plugins/builtin/chat/composer/public/input";
@@ -11,6 +10,19 @@ import {
   subscribeAgentSessionLifecycle,
 } from "@/plugins/builtin/agent/public/session";
 import type { ComposerImage, PastedText } from "../domain/draft";
+import {
+  emptyComposerDraft,
+  loadComposerDraft,
+  mirrorComposerDraft,
+  nextComposerHistory,
+  parsePersistedComposerDrafts,
+  persistedComposerDrafts,
+  previousComposerHistory,
+  pruneComposerArchives,
+  pushComposerHistory,
+  type ComposerDraftArchive,
+  type ComposerHistoryArchive,
+} from "../domain/draftArchive";
 
 // Store adapter for the composer draft read model.
 
@@ -19,12 +31,6 @@ import type { ComposerImage, PastedText } from "../domain/draft";
  *  message. Only `value` (text) is durable; staged images + pastes are
  *  transient (meant to be sent immediately, and heavy), so they're dropped on
  *  reload. */
-interface Draft {
-  value: string;
-  images: ComposerImage[];
-  pastes: PastedText[];
-}
-const emptyDraft = (): Draft => ({ value: "", images: [], pastes: [] });
 
 interface ComposerState {
   // value/images/pastes MIRROR the active session's draft so existing selectors
@@ -41,13 +47,13 @@ interface ComposerState {
   model: string | null;
   /** Per-session draft archive, keyed by sessionId ("" = the no-session scratch
    *  draft on the welcome screen). */
-  drafts: Record<string, Draft>;
+  drafts: ComposerDraftArchive;
   /** The session id `value`/`images` currently mirror. */
   activeSid: string;
   /** Per-session sent-message history (newest last, capped) for ↑/↓ recall.
    *  In-memory only — the transcript already survives reload; this is just the
    *  shell-style input ring for the current app session. */
-  history: Record<string, string[]>;
+  history: ComposerHistoryArchive;
   /** Recall cursor into the active session's history: -1 = not navigating, 0 =
    *  most recent, 1 = next older … Reset whenever the user types or switches. */
   histIndex: number;
@@ -96,29 +102,6 @@ interface ComposerActions {
 // session, bounded so it can't grow without limit.
 const HISTORY_CAP = 50;
 
-// Persisted shape (trust boundary, validated on rehydrate): text-only drafts.
-const persistSchema = z.object({
-  drafts: z.record(z.string(), z.object({ value: z.string() })),
-});
-
-// Patch the active session's draft in one shot: apply `patch` over the current
-// mirror, then write the result to BOTH the live mirror (value/images/pastes,
-// which existing `s.value` selectors read) and its archive entry
-// `drafts[activeSid]`. The "mirror === drafts[activeSid]" invariant lives HERE,
-// so every mutation routes through it — passing only the fields it changes —
-// instead of re-spelling the spread (and risking a desync).
-function mirror(
-  s: Pick<ComposerState, "activeSid" | "drafts" | "value" | "images" | "pastes">,
-  patch: Partial<Draft>,
-): Pick<ComposerState, "value" | "images" | "pastes" | "drafts"> {
-  const draft: Draft = {
-    value: patch.value ?? s.value,
-    images: patch.images ?? s.images,
-    pastes: patch.pastes ?? s.pastes,
-  };
-  return { ...draft, drafts: { ...s.drafts, [s.activeSid]: draft } };
-}
-
 export const useComposerStore = create<ComposerState & ComposerActions>()(
   persist(
     (set, get) => {
@@ -139,15 +122,17 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
         histIndex: -1,
         histDraft: "",
         // Editing (and clearing) exits history-recall mode (histIndex: -1).
-        setValue: (value) => set((s) => ({ ...mirror(s, { value }), histIndex: -1 })),
+        setValue: (value) => set((s) => ({ ...mirrorComposerDraft(s, { value }), histIndex: -1 })),
         setModel: (provider, model) => set({ provider, model }),
         clear: () => {
           stagingGen++;
-          set((s) => ({ ...mirror(s, emptyDraft()), histIndex: -1 }));
+          set((s) => ({ ...mirrorComposerDraft(s, emptyComposerDraft()), histIndex: -1 }));
         },
         addImages: (imgs) =>
           set((s) =>
-            mirror(s, { images: [...s.images, ...imgs.map((i) => ({ id: nanoid(), ...i }))] }),
+            mirrorComposerDraft(s, {
+              images: [...s.images, ...imgs.map((i) => ({ id: nanoid(), ...i }))],
+            }),
           ),
         addImageFiles: (files) => {
           const gen = stagingGen;
@@ -169,63 +154,47 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
               });
           });
         },
-        removeImage: (id) => set((s) => mirror(s, { images: s.images.filter((i) => i.id !== id) })),
+        removeImage: (id) =>
+          set((s) => mirrorComposerDraft(s, { images: s.images.filter((i) => i.id !== id) })),
         addPaste: (text) =>
           set((s) =>
-            mirror(s, { pastes: [...s.pastes, { id: nanoid(), text, lines: countLines(text) }] }),
+            mirrorComposerDraft(s, {
+              pastes: [...s.pastes, { id: nanoid(), text, lines: countLines(text) }],
+            }),
           ),
-        removePaste: (id) => set((s) => mirror(s, { pastes: s.pastes.filter((p) => p.id !== id) })),
+        removePaste: (id) =>
+          set((s) => mirrorComposerDraft(s, { pastes: s.pastes.filter((p) => p.id !== id) })),
         loadSession: (sid) =>
           set((s) => {
-            if (sid === s.activeSid) return s;
-            const next = s.drafts[sid] ?? emptyDraft();
-            return {
-              activeSid: sid,
-              value: next.value,
-              images: next.images,
-              pastes: next.pastes,
-              histIndex: -1,
-              histDraft: "",
-            };
+            return loadComposerDraft(s, sid) ?? s;
           }),
         pruneDrafts: (liveSids) =>
           set((s) => {
-            const drafts: Record<string, Draft> = {};
-            const history: Record<string, string[]> = {};
-            const keep = (k: string) => k === "" || k === s.activeSid || liveSids.has(k);
-            for (const k in s.drafts) if (keep(k)) drafts[k] = s.drafts[k]!;
-            for (const k in s.history) if (keep(k)) history[k] = s.history[k]!;
-            return { drafts, history };
+            return pruneComposerArchives(s, liveSids);
           }),
         pushHistory: (text) =>
           set((s) => {
-            const t = text.trim();
-            if (!t) return s;
-            const list = s.history[s.activeSid] ?? [];
-            if (list[list.length - 1] === t) return { histIndex: -1 }; // dedupe consecutive
-            return {
-              history: { ...s.history, [s.activeSid]: [...list, t].slice(-HISTORY_CAP) },
-              histIndex: -1,
-            };
+            return pushComposerHistory(s, text, HISTORY_CAP) ?? s;
           }),
         historyPrev: () => {
           const s = get();
-          const list = s.history[s.activeSid] ?? [];
-          if (list.length === 0) return false;
-          const idx = s.histIndex === -1 ? 0 : Math.min(s.histIndex + 1, list.length - 1);
-          const value = list[list.length - 1 - idx]!;
-          const histDraft = s.histIndex === -1 ? s.value : s.histDraft;
-          set((st) => ({ ...mirror(st, { value }), histIndex: idx, histDraft }));
+          const next = previousComposerHistory(s);
+          if (!next) return false;
+          set((st) => ({
+            ...mirrorComposerDraft(st, { value: next.value }),
+            histIndex: next.histIndex,
+            histDraft: next.histDraft,
+          }));
           return true;
         },
         historyNext: () => {
           const s = get();
-          if (s.histIndex === -1) return false; // not navigating
-          const list = s.history[s.activeSid] ?? [];
-          const idx = s.histIndex - 1;
-          // Past the newest entry → restore the draft that recall began from.
-          const value = idx < 0 ? s.histDraft : list[list.length - 1 - idx]!;
-          set((st) => ({ ...mirror(st, { value }), histIndex: idx < 0 ? -1 : idx }));
+          const next = nextComposerHistory(s);
+          if (!next) return false;
+          set((st) => ({
+            ...mirrorComposerDraft(st, { value: next.value }),
+            histIndex: next.histIndex,
+          }));
           return true;
         },
       };
@@ -237,17 +206,10 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
       // Persist text-only drafts. value/images/provider/model are NOT persisted:
       // value/images rehydrate from drafts via the cold-start loadSession below,
       // images are transient, and model re-defaults to the first available.
-      partialize: (s) => ({
-        drafts: Object.fromEntries(
-          Object.entries(s.drafts).map(([k, d]) => [k, { value: d.value }]),
-        ),
-      }),
+      partialize: (s) => ({ drafts: persistedComposerDrafts(s.drafts) }),
       merge: (persisted, current) => {
-        const parsed = persistSchema.safeParse(persisted);
-        if (!parsed.success) return current; // corrupt blob → empty drafts
-        const drafts: Record<string, Draft> = {};
-        for (const [k, d] of Object.entries(parsed.data.drafts))
-          drafts[k] = { value: d.value, images: [], pastes: [] };
+        const drafts = parsePersistedComposerDrafts(persisted);
+        if (!drafts) return current;
         return { ...current, drafts };
       },
     },

@@ -86,6 +86,18 @@ export interface DataProviderSpec<T = unknown, P = unknown> {
   fetcher: (params?: P) => Promise<T>;
 }
 
+export interface AgentRunStartOptions {
+  provider?: string;
+  model?: string;
+}
+
+export interface AgentRunOptionsProviderSpec {
+  id: string;
+  /** Higher wins. Built-in defaults use 0. */
+  priority?: number;
+  resolve: () => AgentRunStartOptions;
+}
+
 /**
  * Drives one chat session over the Lyra Runtime Protocol: starts runs and
  * resumes interrupted ones, returning the RunEvent stream for each. The
@@ -99,6 +111,7 @@ export interface AgentDriver {
    *  (see useAgentSession). */
   start: (
     input: ContentBlock[],
+    options: AgentRunStartOptions,
     signal?: AbortSignal,
   ) => Promise<StreamingResult<{ runId: RunId; userItemId?: ItemId }, RunEvent>>;
   /**

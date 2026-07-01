@@ -1,13 +1,16 @@
 import type { ContentBlock } from "@/rpc";
+import type { AgentRunStartOptions } from "@/plugins/sdk";
 import { useCallback } from "react";
 import { getContainer } from "@/main/container";
 import { invalidateSessions } from "@/lib/data/queries";
-import { useSessionStore } from "@/state/sessionStore";
+import { useAgentSessionStore } from "@/state/agentSessionStore";
 import { reportSessionError } from "./reportSessionError";
 
 export interface CreateSessionOptions {
   /** Queue this as the session's first message input (welcome composer). */
   firstInput?: ContentBlock[];
+  /** Run options bound to firstInput. */
+  firstRunOptions?: AgentRunStartOptions;
   /** Create the session in this working directory (sessions.create cwd,
    *  API.md §7.2) — the Projects "+" / project-row entry. Omitted = the
    *  runtime's serve dir. */
@@ -32,16 +35,21 @@ export interface CreateSessionOptions {
 // call → the catch reports it and the finally clears the latch, so New recovers.
 const CREATE_TIMEOUT_MS = 30_000;
 
-async function createAndOpen({ firstInput, cwd }: CreateSessionOptions): Promise<string | null> {
+async function createAndOpen({
+  firstInput,
+  firstRunOptions,
+  cwd,
+}: CreateSessionOptions): Promise<string | null> {
   try {
     const session = await getContainer()
       .client()
       .sessions.create(cwd ? { cwd } : {}, AbortSignal.timeout(CREATE_TIMEOUT_MS));
-    const store = useSessionStore.getState();
+    const store = useAgentSessionStore.getState();
     // Mark draft + queue the message BEFORE selecting, so the remount
     // useAgentSession triggers sees both already in place.
     store.markDraft(session.id);
-    if (firstInput?.length) store.setPendingMessage(session.id, firstInput);
+    if (firstInput?.length)
+      store.setPendingMessage(session.id, { input: firstInput, runOptions: firstRunOptions ?? {} });
     store.selectTab(session.id); // opens tab + sets active → remounts chat
     // Draft is filtered out of the sidebar; refetch so its graduation
     // (and any backend-assigned title) lands promptly. A cwd create may

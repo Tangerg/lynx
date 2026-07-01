@@ -8,7 +8,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAgentStore } from "@/state/agentStore";
-import { useSessionStore } from "@/state/sessionStore";
+import { useAgentSessionStore } from "@/state/agentSessionStore";
 import { useApprovalSubmit } from "./useApprovalSubmit";
 
 const SID = "ses_1";
@@ -18,7 +18,7 @@ const SID = "ses_1";
 // the store refuses to resurrect a dropped/absent session (see agentStore).
 function bindResume(impl?: (...args: unknown[]) => void) {
   const resume = impl ? vi.fn(impl) : vi.fn();
-  useSessionStore.setState({ activeSessionId: SID });
+  useAgentSessionStore.setState({ activeSessionId: SID });
   useAgentStore.getState().resetSession(SID);
   useAgentStore.getState().setResume(SID, resume);
   return resume;
