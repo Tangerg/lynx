@@ -643,7 +643,7 @@ declare module "@/plugins/sdk/types/contentBlock" {
 }
 ```
 
-> 内置块（text/reasoning/plan/tool/approval/question）在 `components/chat/message/` 内部直渲（`PartRenderer` switch）；扩展块（第三方 / `preview-blocks`）才走 `registerContentBlock` registry。
+> 内置块（text/reasoning/plan/tool/approval/question）在 `plugins/builtin/chat/message/ui/` 内部直渲（`renderBlock` switch）；扩展块（第三方 / `preview-blocks`）才走 `registerContentBlock` registry。
 
 ---
 

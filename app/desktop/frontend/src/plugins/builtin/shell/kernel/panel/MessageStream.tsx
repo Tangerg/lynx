@@ -1,4 +1,4 @@
-import type { BlockCtx } from "@/components/chat/message";
+import type { BlockCtx } from "@/plugins/builtin/chat/message/public/rendering";
 import type { Message } from "@/plugins/builtin/agent/public/viewState";
 import { AnimatePresence, motion } from "motion/react";
 import { Fragment, useCallback, useEffect } from "react";
@@ -8,7 +8,7 @@ import { bcp47 } from "@/lib/i18n/relativeTime";
 import { useT } from "@/lib/i18n";
 import { Slot } from "@/plugins/host/Slot";
 import { useIsAgentRunning } from "@/plugins/builtin/agent/public/run";
-import { MessageBlock } from "@/components/chat/message";
+import { MessageBlock } from "@/plugins/builtin/chat/message/public/rendering";
 
 // Chat scroll surface, backed by use-stick-to-bottom. `resetKey`
 // re-keys the subtree on session switch so a new thread lands at the
