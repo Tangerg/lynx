@@ -1,7 +1,7 @@
 import type { Schedule } from "@/rpc";
 import { useState } from "react";
 import { Icon, type IconName, Switch } from "@/components/common";
-import { rpcErrorText } from "@/lib/agent/errorCopy";
+import { rpcErrorText } from "@/lib/rpcErrors";
 import { deleteSchedule, runScheduleNow, setScheduleEnabled } from "@/lib/agent/scheduleConfig";
 import { notifyError } from "@/lib/notify";
 import { useT } from "@/lib/i18n";

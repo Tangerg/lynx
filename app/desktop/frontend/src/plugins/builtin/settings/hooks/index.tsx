@@ -11,7 +11,7 @@
 
 import type { HookInfo } from "@/rpc";
 import { DataView, EmptyState, Icon, Switch } from "@/components/common";
-import { isUnsupportedMethod, rpcErrorText } from "@/lib/agent/errorCopy";
+import { isUnsupportedMethod, rpcErrorText } from "@/lib/rpcErrors";
 import { setHookTrust } from "@/lib/agent/hooksConfig";
 import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
 import { useHooks } from "@/lib/data/queries";

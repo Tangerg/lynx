@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { getContainer } from "@/main/container";
 import { asSessionId } from "@/rpc";
 import { invalidateSessions } from "@/lib/data/queries";
-import { rpcErrorText } from "./errorCopy";
+import { rpcErrorText } from "../rpcErrors";
 import { reportSessionError } from "./reportSessionError";
 
 /** Relocate a session (sessions.update cwd — features.relocate gated,
