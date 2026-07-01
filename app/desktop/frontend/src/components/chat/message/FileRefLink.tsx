@@ -5,14 +5,13 @@
 // sameness is the point of sharing one component: divergent styling would read
 // as two different kinds of link.
 
-import { useSessionStore } from "@/state/sessionStore";
+import { openWorkspaceFile } from "@/plugins/builtin/workspace/public/navigation";
 
 export function FileRefLink({ path, line }: { path: string; line: number }) {
-  const openFileViewer = useSessionStore((s) => s.openFileViewer);
   return (
     <button
       type="button"
-      onClick={() => openFileViewer(path, line)}
+      onClick={() => openWorkspaceFile(path, line)}
       className="border-0 bg-transparent p-0 font-[inherit] text-accent underline decoration-transparent transition-colors hover:decoration-current"
     >
       {line > 0 ? `${path}:${line}` : path}

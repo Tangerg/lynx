@@ -8,7 +8,7 @@ import { McpRow } from "./views/McpRow";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useBuiltinTools, useMCPServers } from "@/lib/data/queries";
-import { useSessionStore } from "@/state/sessionStore";
+import { openWorkspaceSettingsPane } from "@/plugins/builtin/workspace/public/navigation";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 
 // Safety class → pill tint. Unknown classes fall back to the neutral pill
@@ -61,8 +61,7 @@ function BuiltinToolsSection() {
 }
 
 function openMcpSettings(title: string): void {
-  useSessionStore.getState().setSettingsPane("mcp-servers");
-  useSessionStore.getState().openMainView({ id: "settings", title, icon: "settings" });
+  openWorkspaceSettingsPane("mcp-servers", title);
 }
 
 function ToolsTab() {

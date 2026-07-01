@@ -27,11 +27,14 @@ import { asSessionId } from "@/rpc";
 import { definePlugin } from "@/plugins/sdk";
 import { getContainer } from "@/main/container";
 import { serverFeature } from "@/state/runtimeStore";
-import { useSessionStore } from "@/state/sessionStore";
 import { invalidateSessions } from "@/lib/data/queries";
 import { getActiveConversationSnapshot } from "@/plugins/builtin/agent/public/conversation";
 import { flattenMarkdown } from "@/plugins/builtin/agent/public/messageContent";
-import { rehydrateSessionView } from "@/plugins/builtin/agent/public/session";
+import {
+  getActiveSessionId,
+  rehydrateSessionView,
+  selectAgentSession,
+} from "@/plugins/builtin/agent/public/session";
 
 function timestampForFilename(): string {
   // Filesystem-safe ISO slice (no `:` or `.`).
@@ -66,7 +69,7 @@ function renderMessageMarkdown(msg: Message): string {
  *  runtime doesn't advertise the feature or the call fails — callers fall
  *  back to the local render so the command never dead-ends. */
 async function exportServer(format: "md" | "json"): Promise<boolean> {
-  const sid = useSessionStore.getState().activeSessionId;
+  const sid = getActiveSessionId();
   if (!sid) return false;
   if (!serverFeature("sessionExport")) return false;
   try {
@@ -93,7 +96,7 @@ async function exportServer(format: "md" | "json"): Promise<boolean> {
 
 function exportMarkdown(): void {
   const view = getActiveConversationSnapshot();
-  const sid = useSessionStore.getState().activeSessionId;
+  const sid = getActiveSessionId();
   const sections: string[] = [
     `# Conversation \`${sid}\``,
     `*Exported ${new Date().toISOString()}*`,
@@ -112,7 +115,7 @@ function exportMarkdown(): void {
 
 function exportJson(): void {
   const view = getActiveConversationSnapshot();
-  const sid = useSessionStore.getState().activeSessionId;
+  const sid = getActiveSessionId();
   // Lossy view dump, NOT a SessionArtifact — "Import conversation" rejects
   // it by design (only the server's round-trippable export restores).
   const payload = {
@@ -190,7 +193,7 @@ async function importConversation(): Promise<void> {
     // Imported over a session that's currently mounted → its view is stale;
     // rebuild it from the restored server history.
     await rehydrateSessionView(session.id);
-    useSessionStore.getState().selectTab(session.id);
+    selectAgentSession(session.id);
     // projects too: the restored session's cwd may mint a project node.
     void invalidateSessions({ projects: true });
     toast.success(t("convExport.importSuccess", { title: session.title ?? session.id }));

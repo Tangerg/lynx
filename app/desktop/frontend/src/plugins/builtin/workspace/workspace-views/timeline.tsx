@@ -16,7 +16,7 @@ import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { cn } from "@/lib/utils";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { useActiveRunTimeline } from "@/plugins/builtin/agent/public/run";
-import { useSessionStore } from "@/state/sessionStore";
+import { selectWorkspaceChat } from "@/plugins/builtin/workspace/public/navigation";
 
 // i18n key → icon. Labels are resolved at render via t().
 const KIND_ICON: Record<TimelineEntryKind, IconName> = {
@@ -117,10 +117,7 @@ function TimelineTab() {
       sub={`${timeline.length} events · ${runCount} run${runCount === 1 ? "" : "s"}`}
       scrollClassName="py-1"
       actions={
-        <IconButton
-          title={t("timeline.jumpToChat")}
-          onClick={() => useSessionStore.getState().selectChat()}
-        >
+        <IconButton title={t("timeline.jumpToChat")} onClick={selectWorkspaceChat}>
           <Icon name="chat" size={14} />
         </IconButton>
       }

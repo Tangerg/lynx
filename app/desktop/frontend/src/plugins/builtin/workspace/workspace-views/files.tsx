@@ -8,18 +8,19 @@ import { FilesChanged } from "./views/FilesChanged";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useFilesChanged } from "@/lib/data/queries";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import {
+  openWorkspaceDiffForFile,
+  useActiveWorkspaceFile,
+} from "@/plugins/builtin/workspace/public/navigation";
 import { gitOffEmpty, isVcsUnavailable, notARepoEmpty } from "./views/vcsGate";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { useServerFeature } from "@/state/runtimeStore";
-import { useSessionStore } from "@/state/sessionStore";
 
 function FilesView() {
   const t = useT();
   const gitEnabled = useServerFeature("git");
   const cwd = useActiveSessionCwd();
-  const activeFile = useSessionStore((s) => s.activeFile);
-  const setActiveFile = useSessionStore((s) => s.setActiveFile);
-  const openMainView = useSessionStore((s) => s.openMainView);
+  const activeFile = useActiveWorkspaceFile();
   // Scoped to the ACTIVE session's cwd (undefined = serve dir fallback);
   // disabled entirely while the git capability is off.
   const {
@@ -57,14 +58,7 @@ function FilesView() {
         }
       >
         {(rows) => (
-          <FilesChanged
-            files={rows}
-            activePath={activeFile}
-            onSelect={(p) => {
-              setActiveFile(p);
-              openMainView({ id: "diff", title: "workspace.view.title.diff", icon: "diff" });
-            }}
-          />
+          <FilesChanged files={rows} activePath={activeFile} onSelect={openWorkspaceDiffForFile} />
         )}
       </DataView>
     </WorkspaceViewLayout>

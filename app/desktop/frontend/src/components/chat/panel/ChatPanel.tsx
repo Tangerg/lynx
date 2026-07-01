@@ -15,8 +15,15 @@ import type { ViewPlacement } from "./ViewPlacement";
 import { dragClasses, Panel } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { useSessions } from "@/lib/data/queries";
+import {
+  closeWorkspaceSplit,
+  closeWorkspaceView,
+  openWorkspaceViewBeside,
+  promoteWorkspaceSplitToView,
+  useActiveWorkspaceViewId,
+  useSplitWorkspaceViewId,
+} from "@/plugins/builtin/workspace/public/navigation";
 import { useWorkspaceViews } from "@/plugins/sdk";
-import { useSessionStore } from "@/state/sessionStore";
 import { useUiStore } from "@/state/uiStore";
 import { ChatStream } from "./ChatStream";
 import { SplitResizer } from "./SplitResizer";
@@ -30,9 +37,8 @@ interface Props {
 }
 
 export function ChatPanel({ onSend }: Props) {
-  const activeMainView = useSessionStore((s) => s.activeMainView);
-  const splitViewId = useSessionStore((s) => s.splitViewId);
-  const activeSessionId = useSessionStore((s) => s.activeSessionId);
+  const activeMainView = useActiveWorkspaceViewId();
+  const splitViewId = useSplitWorkspaceViewId();
   const splitRatio = useUiStore((s) => s.splitRatio);
   const views = useWorkspaceViews();
   const { isLoading } = useSessions();
@@ -51,13 +57,12 @@ export function ChatPanel({ onSend }: Props) {
   const placementFor = (id: string, placement: "full" | "split"): ViewPlacement => {
     const spec = views.find((v) => v.id === id);
     const tab = { id, title: spec?.title ?? id, icon: spec?.icon };
-    const store = () => useSessionStore.getState();
     return {
       placement,
       splittable: spec?.splittable ?? false,
-      onSplit: () => store().openMainViewBeside(tab),
-      onPromote: () => store().promoteSplitToTab(),
-      onClose: () => (placement === "split" ? store().closeSplit() : store().closeMainView(id)),
+      onSplit: () => openWorkspaceViewBeside(tab),
+      onPromote: promoteWorkspaceSplitToView,
+      onClose: () => (placement === "split" ? closeWorkspaceSplit() : closeWorkspaceView(id)),
     };
   };
 
@@ -91,7 +96,7 @@ export function ChatPanel({ onSend }: Props) {
             // dynamic — the one sanctioned inline style); omitted when full-width.
             style={splitViewId ? { flexBasis: `${splitRatio * 100}%` } : undefined}
           >
-            <ChatStream onSend={onSend} resetKey={activeSessionId} />
+            <ChatStream onSend={onSend} />
           </div>
           {splitViewId && (
             <>

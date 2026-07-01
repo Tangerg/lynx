@@ -1,7 +1,6 @@
 // Built-in plugin: "File" workspace view — renders a file's full contents
 // (workspace.readFile) at a target line, opened by a clickable file:line
-// reference in the conversation. The file + line
-// live in sessionStore.fileViewer.
+// reference in the conversation.
 
 import { DataView } from "@/components/common";
 import { useT } from "@/lib/i18n";
@@ -9,13 +8,13 @@ import { FileView } from "./views/FileView";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useReadFile } from "@/lib/data/queries";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useWorkspaceFileViewer } from "@/plugins/builtin/workspace/public/navigation";
 import { defineWorkspaceView } from "./defineWorkspaceView";
-import { useSessionStore } from "@/state/sessionStore";
 
 function FileViewTab() {
   const t = useT();
   const cwd = useActiveSessionCwd();
-  const viewer = useSessionStore((s) => s.fileViewer);
+  const viewer = useWorkspaceFileViewer();
   const { data, isLoading, isError } = useReadFile(
     viewer && cwd !== undefined ? { cwd, path: viewer.path } : undefined,
   );
