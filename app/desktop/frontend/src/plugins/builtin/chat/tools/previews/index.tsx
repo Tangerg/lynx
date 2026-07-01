@@ -5,7 +5,7 @@
 // adding a new tool fn means writing a similar plugin — no special-casing.
 
 import type { ToolPreviewProps } from "@/plugins/sdk";
-import { LinkedText } from "@/components/chat/message/LinkedText";
+import { LinkedText } from "@/plugins/builtin/chat/file-references/public/LinkedText";
 import { PreviewFoot } from "@/components/tools/previews/PreviewFoot";
 import { PreviewPlaceholder } from "@/components/tools/previews/PreviewPlaceholder";
 import { cn } from "@/lib/utils";
