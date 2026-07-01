@@ -1,4 +1,7 @@
 import { definePlugin } from "@/plugins/sdk";
+import { installCodebaseGateway } from "./adapters/runtimeCodebaseGateway";
+import { installWorkspaceMemoryGateway } from "./adapters/runtimeMemoryGateway";
+import { installToolCatalogGateway } from "./adapters/runtimeToolCatalogGateway";
 import { installWorkspaceNavigationPort } from "./adapters/navigationStatePort";
 
 export default definePlugin({
@@ -6,6 +9,9 @@ export default definePlugin({
   version: "1.0.0",
   requires: ["lyra.builtin.bootstrap"],
   setup() {
+    installCodebaseGateway();
+    installWorkspaceMemoryGateway();
+    installToolCatalogGateway();
     installWorkspaceNavigationPort();
   },
 });

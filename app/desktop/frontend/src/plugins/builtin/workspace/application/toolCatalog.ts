@@ -1,6 +1,6 @@
 import type { MCPServer } from "@/lib/data/queries";
 import { useBuiltinTools, useMCPServers, useMCPTools } from "@/lib/data/queries";
-import { getContainer } from "@/main/container";
+import { toolCatalogGateway } from "./ports/toolCatalogGateway";
 
 export type MCPServerConfig = MCPServer;
 
@@ -17,8 +17,7 @@ export function useMCPServerToolConfigs(server: string) {
 }
 
 export function reconnectMCPServer(server: string): void {
-  getContainer()
-    .client()
-    .workspace.mcp.reconnect(server)
+  toolCatalogGateway()
+    .reconnectMCPServer(server)
     .catch((err: unknown) => console.warn("[mcp] reconnect failed:", err));
 }
