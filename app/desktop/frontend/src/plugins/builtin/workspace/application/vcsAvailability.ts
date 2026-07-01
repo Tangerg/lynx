@@ -1,5 +1,5 @@
-import { isErrorType } from "@/rpc";
+import { workspaceErrorClassifier } from "./ports/workspaceErrorClassifier";
 
 export function isVcsUnavailable(error: unknown): boolean {
-  return isErrorType(error, "vcs_unavailable");
+  return workspaceErrorClassifier().isVcsUnavailable(error);
 }
