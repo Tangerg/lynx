@@ -186,12 +186,12 @@ DESIGN.md 随重构**就地演进**（非冻结基线）。下列决策是相对
 #### Step 1b — app-shell + 侧栏重构  `[x]`  lane: des-1  **commit: `e303d3f6`**
 **做什么**：修 11 个侧栏丑因 + 去 titlebar 死区 + （如残留）去 orb。
 **改文件**：
-- `src/components/sidebar/SidebarExpanded.tsx`：去 `DragStrip`，sidebar 容器加 `dragClasses`（按钮/行/输入 `noDragClasses`），`pt-9`→`pt-3`
-- `src/components/sidebar/SidebarRail.tsx`：去 `DragStrip`，加 `dragClasses`
+- `src/plugins/builtin/sidebar/ui/SidebarExpanded.tsx`：去 `DragStrip`，sidebar 容器加 `dragClasses`（按钮/行/输入 `noDragClasses`），`pt-9`→`pt-3`
+- `src/plugins/builtin/sidebar/ui/SidebarRail.tsx`：去 `DragStrip`，加 `dragClasses`
 - `src/components/common/DragRegion.tsx` + `index.ts`：删除已废弃的 `DragStrip` 组件
 - `src/plugins/builtin/sidebar/nav.tsx`：统一所有行 `py-2 px-3`；`SectionLabel` 升 `text-[12px] font-medium text-fg-muted tracking-wide`
-- `src/components/sidebar/SessionRow.tsx`：子文单行化（仅时间），去 `StatusDot`
-- `src/components/sidebar/ProjectRow.tsx`：加 `chevron-down`（collapse 时 `-rotate-90`）；计数→右侧纯文本 `text-[12px] tabular-nums text-fg-faint`（始终渲染）
+- `src/plugins/builtin/sidebar/ui/SessionRow.tsx`：子文单行化（仅时间），去 `StatusDot`
+- `src/plugins/builtin/sidebar/ui/ProjectRow.tsx`：加 `chevron-down`（collapse 时 `-rotate-90`）；计数→右侧纯文本 `text-[12px] tabular-nums text-fg-faint`（始终渲染）
 - `src/plugins/builtin/sidebar/projects.tsx`：AddProject popover→内联极简输入；**移除 projects filter 输入**（top `sidebar.search` slot 为唯一搜索）
 - `src/plugins/builtin/sidebar/footer.tsx`：加 `border-t border-line`；加 `ThemeToggle`（sun/moon）；保留 `sidebar.footer.status` slot；**不加 ModelPicker**（canonical home 在 composer，Step 3a）
 - `src/styles/layout.css`：更新 drag region 注释
@@ -204,9 +204,9 @@ DESIGN.md 随重构**就地演进**（非冻结基线）。下列决策是相对
 #### Step 2a — 删 PanelTabBar + 单活跃 session  `[x]`  lane: des-1  · commit `1b2441c7`
 **做什么**：删 tab 条；store 退役 tab 字段。**实际落地（Option A）**：`PanelHeader` 整个删除（非降级为瘦栏）——chat + workspace view 都无标题栏，靠侧栏 active 态标识；关闭靠侧栏 toggle / `Esc`（避冲突：palette 开时/input 聚焦时让位）/ split 提升；ChatPanel 用 `h-9 dragClasses` 薄条保留主区顶拖拽；`topbar-new-tab` 插件随 tab 一起删；persist v2→v3 丢旧数据。
 **改文件**：
-- 删 `src/components/chat/panel/PanelTabBar.tsx`
-- `src/components/chat/panel/PanelHeader.tsx`：仅 `activeMainView` 非空时渲染 `h-9` 瘦栏（icon+title，可选 ×）
-- `src/components/chat/panel/ChatPanel.tsx`：移除 tab strip 挂载
+- 删 `src/plugins/builtin/shell/kernel/panel/PanelTabBar.tsx`
+- `src/plugins/builtin/shell/kernel/panel/PanelHeader.tsx`：仅 `activeMainView` 非空时渲染 `h-9` 瘦栏（icon+title，可选 ×）
+- `src/plugins/builtin/shell/kernel/panel/ChatPanel.tsx`：移除 tab strip 挂载
 - `src/state/sessionStore.ts`：`tabIds`/`mainViewTabs` 标退役（保留字段不读，bump persist version）；`activeSessionId`/`activeMainView` 保留
 **验证**：tsc+build+vitest 全绿；session 切换（侧栏）正常；workspace view 打开正常；split 不受影响；`lyra.session` 旧持久化优雅忽略。
 **依赖**：§8.1 决策（workspace view 关闭机制）。
@@ -216,7 +216,7 @@ DESIGN.md 随重构**就地演进**（非冻结基线）。下列决策是相对
 
 #### Step 3a — Composer 重做  `[x]`  lane: des-1  **commit: `a3e0b4b4`**
 **做什么**：composer 变 OpenAI 式锚——大圆角、subtle border（light）/透明（dark）、唯一阴影（light）；圆形 ghost attach；model pill + tools dropdown 入 composer；send 实心圆 `bg-fg`；context chips 入 composer 内。
-**改文件**：`src/components/chat/composer/Composer.tsx` + `src/plugins/builtin/chat/composer/index.tsx`（send/attach/model/tools 各 plugin）+ `globals.css`（`--shadow-composer`）
+**改文件**：`src/plugins/builtin/chat/composer/ui/Composer.tsx` + `src/plugins/builtin/chat/composer/index.ts`（send/attach/model/tools 各 plugin）+ `globals.css`（`--shadow-composer`）
 **验证**：全绿 + `wails dev` composer 视觉对标 Codex 截图；send 在 streaming+steer 时仍可显 accent（唯一例外）。
 **drift-flag**：composer 插件 Slot 结构（`composer.toolbar.start/end` 等）若调整须保留扩展点；`@file` 自动补全 / 粘贴拖放图片 / `composerKeymap` 等 lynx 专有功能全保留。
 
@@ -238,7 +238,7 @@ DESIGN.md 随重构**就地演进**（非冻结基线）。下列决策是相对
 
 #### Step 5b — Tool 卡精简 + requires-action 态  `[x]`  lane: des-1  **commit: `358b93c6`**
 **做什么**：去 `tool-card` selected/running 边框动画，改用 accent 脉冲点 + `text-accent` label；加 `requires-action` 警示图标态（区别于 err）；加 `data-slot`。
-**改文件**：`src/components/tools/ToolCard.tsx`
+**改文件**：`src/plugins/builtin/chat/tools/ui/ToolCard.tsx`
 **验证**：全绿 + 视觉；只读工具仍走 `ToolGroup` 折叠（`planRenderUnits` 不动）。
 
 #### Step 5c — HITL 卡精简（Approval/Question）  `[x]`  lane: des-1  **commit: `c65835b5`**
