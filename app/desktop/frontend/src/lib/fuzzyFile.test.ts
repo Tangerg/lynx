@@ -3,7 +3,7 @@ import { fuzzyFile } from "./fuzzyFile";
 
 const FILES = [
   "src/components/chat/composer/Composer.tsx",
-  "src/state/composerStore.ts",
+  "src/c/o/m/p/o/s/e/r.ts",
   "src/lib/utils.ts",
   "README.md",
   "src/components/common/Icon.tsx",
@@ -16,9 +16,7 @@ describe("fuzzyFile", () => {
 
   it("ranks a basename match above a path-spanning one", () => {
     const [top] = fuzzyFile("composer", FILES, 10);
-    expect(
-      top === "src/components/chat/composer/Composer.tsx" || top === "src/state/composerStore.ts",
-    ).toBe(true);
+    expect(top).toBe("src/components/chat/composer/Composer.tsx");
   });
 
   it("matches a basename subsequence", () => {

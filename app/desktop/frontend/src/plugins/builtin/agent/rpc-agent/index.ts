@@ -10,7 +10,7 @@ import { t } from "@/lib/i18n";
 import { AGENT_SOURCE } from "@/plugins/sdk/kernelPoints";
 import { getContainer } from "@/main/container";
 import { asSessionId } from "@/rpc";
-import { useComposerStore } from "@/state/composerStore";
+import { useComposerStore } from "@/plugins/builtin/chat/composer/public/store";
 import { useSessionStore } from "@/state/sessionStore";
 
 function makeDriver(sessionId: string): AgentDriver {

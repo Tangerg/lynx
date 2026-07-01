@@ -10,7 +10,7 @@
 //            live agent). Kept as a prop so ChatPanel itself
 //            has no opinion about *how* messages get to the agent.
 
-import type { UserInput } from "@/lib/agent/composerInput";
+import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import type { ViewPlacement } from "./ViewPlacement";
 import { dragClasses, Panel } from "@/components/common";
 import { cn } from "@/lib/utils";

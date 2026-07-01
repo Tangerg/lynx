@@ -16,7 +16,7 @@
 import type { Message } from "@/protocol/run/viewState";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { useComposerStore } from "@/state/composerStore";
+import { useComposerStore } from "@/plugins/builtin/chat/composer/public/store";
 import { MessageContextMenu } from "./MessageContextMenu";
 
 function buildMessage(overrides: Partial<Message> = {}): Message {

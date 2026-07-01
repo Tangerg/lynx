@@ -4,7 +4,7 @@ import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { useAgentAction, useAgentRunning } from "@/state/agentStore";
-import { useComposerStore } from "@/state/composerStore";
+import { useComposerStore } from "./adapters/composerStore";
 import { submitComposer } from "./application/submitComposer";
 
 function SendButton() {

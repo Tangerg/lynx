@@ -6,13 +6,13 @@
 // when the user has scrolled away from the tail.
 
 import type { StreamControls } from "./MessageStream";
-import type { UserInput } from "@/lib/agent/composerInput";
+import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSelectedModel } from "@/lib/agent/useSelectedModel";
+import { useSelectedModel } from "@/plugins/builtin/chat/composer/public/selectedModel";
 import { useT } from "@/lib/i18n";
 import { Slot } from "@/plugins/host/Slot";
 import { useAgentMessages, useAgentPlan, useAgentToolCalls } from "@/state/agentStore";
-import { useComposerStore } from "@/state/composerStore";
+import { useComposerStore } from "@/plugins/builtin/chat/composer/public/store";
 import { useSessionStore } from "@/state/sessionStore";
 import { useUiStore } from "@/state/uiStore";
 import { Composer, ComposerFooter, SlashSuggestions } from "../composer";

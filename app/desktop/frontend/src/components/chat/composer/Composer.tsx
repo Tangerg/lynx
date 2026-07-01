@@ -5,10 +5,10 @@
 // placeholders and keybindings are resolved through the extension-point
 // registry so a third-party plugin can extend the composer without touching
 // this file.
-import type { ComposerImage, PastedText } from "@/state/composerStore";
+import type { ComposerImage, PastedText } from "@/plugins/builtin/chat/composer/public/store";
 import { useAgentRunning } from "@/state/agentStore";
-import { imageFiles, type UserInput } from "@/lib/agent/composerInput";
-import { isLargePaste } from "@/lib/agent/largePaste";
+import { imageFiles, type UserInput } from "@/plugins/builtin/chat/composer/public/input";
+import { isLargePaste } from "@/plugins/builtin/chat/composer/public/largePaste";
 import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
 import { useFileMentions } from "@/lib/agent/useFileMentions";
 import type { IconName } from "@/components/common";

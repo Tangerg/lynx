@@ -3,7 +3,7 @@ import { submitPendingApproval } from "@/lib/agent/submitPendingApproval";
 import { definePlugin } from "@/plugins/sdk";
 import { COMPOSER_KEY_BINDING } from "@/plugins/sdk/kernelPoints";
 import { useAgentStore } from "@/state/agentStore";
-import { useComposerStore } from "@/state/composerStore";
+import { useComposerStore } from "./adapters/composerStore";
 import { useSessionStore } from "@/state/sessionStore";
 
 // After a history recall swaps the textarea value, park the caret at the end on

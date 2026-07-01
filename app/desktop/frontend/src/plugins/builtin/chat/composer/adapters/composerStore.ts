@@ -2,11 +2,11 @@ import { nanoid } from "nanoid";
 import { z } from "zod";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { fileToInputImage } from "@/lib/agent/composerInput";
-import { countLines } from "@/lib/agent/largePaste";
+import { fileToInputImage } from "@/plugins/builtin/chat/composer/public/input";
+import { countLines } from "@/plugins/builtin/chat/composer/public/largePaste";
 import { disposeOnHmr } from "@/lib/hmr";
 import { notifyError } from "@/lib/notify";
-import { useSessionStore } from "./sessionStore";
+import { useSessionStore } from "@/state/sessionStore";
 
 // Composer data shapes. Declared here (the data owner) instead of in
 // `components/chat/composer/Composer.tsx` so the store doesn't import upward
