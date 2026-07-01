@@ -115,7 +115,12 @@ func MergeOptions(base *Options, overrides ...*Options) (*Options, error) {
 		return nil, errors.New("chat.MergeOptions: base options must not be nil")
 	}
 
-	merged := ptr.Clone(base)
+	// Deep-clone (not ptr.Clone, which is shallow): a subsequent
+	// applyOverride does maps.Copy into merged.Extra, so a shallow clone
+	// would write through into the caller's base.Extra. Clone matches every
+	// other modality's MergeOptions and honours this function's "clones base"
+	// contract.
+	merged := base.Clone()
 	if len(overrides) == 0 {
 		return merged, nil
 	}
