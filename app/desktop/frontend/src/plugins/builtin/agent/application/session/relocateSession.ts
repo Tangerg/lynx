@@ -1,8 +1,7 @@
 import { useCallback } from "react";
-import { getContainer } from "@/main/container";
-import { asSessionId } from "@/rpc";
 import { invalidateSessions } from "@/lib/data/queries";
 import { rpcErrorText } from "@/lib/rpcErrors";
+import { agentRuntime } from "../ports/runtimeGateway";
 import { reportSessionError } from "./reportSessionError";
 
 /** Relocate a session (sessions.update cwd — features.relocate gated,
@@ -13,9 +12,7 @@ import { reportSessionError } from "./reportSessionError";
 export function useRelocateSession(): (id: string, cwd: string) => Promise<boolean> {
   return useCallback(async (id, cwd) => {
     try {
-      await getContainer()
-        .client()
-        .sessions.update({ sessionId: asSessionId(id), cwd });
+      await agentRuntime().updateSession({ sessionId: id, cwd });
       // projects too: the list is derived from session cwds, and this
       // session just moved — its old project may retire, the new one mint.
       await invalidateSessions({ projects: true });

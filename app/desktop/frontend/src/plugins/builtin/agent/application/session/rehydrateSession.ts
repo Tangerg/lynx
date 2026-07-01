@@ -7,8 +7,7 @@
 // authoritative history as completed-item events. Sessions that aren't
 // mounted need nothing — they hydrate fresh on open.
 
-import { getContainer } from "@/main/container";
-import { asSessionId } from "@/rpc";
+import { agentRuntime } from "../ports/runtimeGateway";
 import { agentViewState } from "../ports/viewState";
 
 export async function rehydrateSessionView(sessionId: string): Promise<void> {
@@ -17,9 +16,7 @@ export async function rehydrateSessionView(sessionId: string): Promise<void> {
   store.resetView(sessionId);
   // Snapshot the epoch resetView just bumped, to detect mid-flight invalidation.
   const epoch = store.getSession(sessionId)?.viewEpoch;
-  const { data } = await getContainer()
-    .client()
-    .items.list({ sessionId: asSessionId(sessionId) });
+  const { items } = await agentRuntime().loadSessionHistory(sessionId);
   // Abort the backfill if the await window invalidated it: the session was torn
   // down, a newer resetView superseded this one, or the user started a run (its
   // turn now owns the reset view — appending the rolled-back history below it,
@@ -27,5 +24,5 @@ export async function rehydrateSessionView(sessionId: string): Promise<void> {
   // otherwise skip the interacted/epoch guards useAgentSession's loader applies.
   const live = store.getSession(sessionId);
   if (!live || live.viewEpoch !== epoch || live.view.messages.length > 0) return;
-  if (data.length > 0) store.applyCompletedItems(sessionId, data);
+  if (items.length > 0) store.applyCompletedItems(sessionId, items);
 }

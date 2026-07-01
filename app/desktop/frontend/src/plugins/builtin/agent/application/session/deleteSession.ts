@@ -1,9 +1,8 @@
 import { useCallback } from "react";
 import type { SidebarSession } from "@/lib/data/queries";
-import { getContainer } from "@/main/container";
-import { asSessionId } from "@/rpc";
 import { queryClient } from "@/lib/data/queryClient";
 import { invalidateSessions, SESSIONS_KEY } from "@/lib/data/queries";
+import { agentRuntime } from "../ports/runtimeGateway";
 import { agentSessionState } from "../ports/sessionState";
 import { reportSessionError } from "./reportSessionError";
 
@@ -24,7 +23,7 @@ export function useDeleteSession(): (id: string) => Promise<void> {
       old?.filter((s) => s.id !== id),
     );
     try {
-      await getContainer().client().sessions.delete(asSessionId(id));
+      await agentRuntime().deleteSession(id);
       agentSessionState().closeSession(id);
       void invalidateSessions();
     } catch (err) {

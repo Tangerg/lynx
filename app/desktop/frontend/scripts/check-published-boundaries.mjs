@@ -109,6 +109,17 @@ for (const file of files(SRC)) {
 
   if (
     !isTest &&
+    /plugins\/builtin\/agent\/application\/.+\.(ts|tsx)$/.test(rel) &&
+    /from\s+["']@\/main\/container["']/.test(text)
+  ) {
+    violations.push({
+      file: rel,
+      reason: "agent application must depend on runtime gateway ports, not the composition root",
+    });
+  }
+
+  if (
+    !isTest &&
     /plugins\/builtin\/.+\/public\/.+\.(ts|tsx)$/.test(rel) &&
     !/plugins\/builtin\/.+\/public\/statePorts\.ts$/.test(rel) &&
     /from\s+["'](?:@\/plugins\/builtin\/.+\/adapters(?:\/[^"']*)?|(?:\.\.\/)+adapters(?:\/[^"']*)?)["']/.test(

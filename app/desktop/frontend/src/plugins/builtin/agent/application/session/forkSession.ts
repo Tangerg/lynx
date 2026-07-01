@@ -1,8 +1,6 @@
-import type { RunId } from "@/rpc";
 import { useCallback } from "react";
-import { getContainer } from "@/main/container";
-import { asSessionId } from "@/rpc";
 import { invalidateSessions } from "@/lib/data/queries";
+import { agentRuntime } from "../ports/runtimeGateway";
 import { agentSessionState } from "../ports/sessionState";
 import { reportSessionError } from "./reportSessionError";
 
@@ -18,7 +16,7 @@ const inflight = new Map<string, Promise<void>>();
  *  omitted = whole-session copy. The fork inherits the source's chat history,
  *  so unlike a fresh create it is no draft — it shows in the sidebar
  *  immediately, and we open its tab. */
-export function forkSessionAt(id: string, fromRunId?: RunId): Promise<void> {
+export function forkSessionAt(id: string, fromRunId?: string): Promise<void> {
   const key = fromRunId ? `${id}:${fromRunId}` : id;
   const pending = inflight.get(key);
   if (pending) return pending;
@@ -27,11 +25,9 @@ export function forkSessionAt(id: string, fromRunId?: RunId): Promise<void> {
   return run;
 }
 
-async function doFork(id: string, fromRunId?: RunId): Promise<void> {
+async function doFork(id: string, fromRunId?: string): Promise<void> {
   try {
-    const fork = await getContainer()
-      .client()
-      .sessions.fork({ sessionId: asSessionId(id), ...(fromRunId ? { fromRunId } : {}) });
+    const fork = await agentRuntime().forkSession({ sessionId: id, fromRunId });
     agentSessionState().selectSession(fork.id);
     void invalidateSessions();
   } catch (err) {

@@ -1,11 +1,10 @@
 import type { AgentRunStartOptions } from "@/plugins/sdk";
 import { useCallback } from "react";
-import { getContainer } from "@/main/container";
-import { asRunId, isErrorType } from "@/rpc";
 import { resolveAgentRunStartOptions } from "@/plugins/sdk";
 import type { AgentInput } from "../../domain/input";
 import { agentInputText } from "../../domain/input";
 import { LOCAL_STEER_PREFIX } from "@/plugins/builtin/agent/public/viewState";
+import { agentRuntime } from "../ports/runtimeGateway";
 import { agentViewState } from "../ports/viewState";
 import { getActiveSessionId } from "../session/activeSession";
 import { type CreateSessionOptions, useCreateSession } from "../session/createSession";
@@ -81,15 +80,13 @@ function steerRunningTurn({
   const text = steerText(input);
   if (!text) return false;
   const localId = mintSteerBubble(sessionId, input);
-  void getContainer()
-    .client()
-    .runs.steer(asRunId(runId), text)
-    .catch((err) => {
-      if (isErrorType(err, "run_not_found")) {
-        agentViewState().dropMessage(sessionId, localId);
-        send?.(input, runOptions);
-      }
-    });
+  const runtime = agentRuntime();
+  void runtime.steerRun(runId, text).catch((err) => {
+    if (runtime.isRunNotFound(err)) {
+      agentViewState().dropMessage(sessionId, localId);
+      send?.(input, runOptions);
+    }
+  });
   return true;
 }
 
