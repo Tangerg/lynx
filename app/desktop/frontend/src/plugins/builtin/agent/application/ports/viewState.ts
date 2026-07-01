@@ -1,6 +1,7 @@
 import type { AgentRunStartOptions } from "@/plugins/sdk";
-import type { InterruptResponse, Item, RunId } from "@/rpc";
+import type { Item } from "@/rpc";
 import type { AgentInput } from "../../domain/input";
+import type { RememberScope } from "../../domain/hitl";
 import type {
   AgentViewState,
   Message,
@@ -19,10 +20,25 @@ export type ResolvePatch = {
 
 export type StopFn = (() => void) | null;
 export type SendFn = ((input: AgentInput, options?: AgentRunStartOptions) => void) | null;
+export type InterruptResumePayload =
+  | {
+      type: "approval";
+      decision: "approve" | "deny";
+      editedArgs?: Record<string, unknown>;
+      remember?: { scope: RememberScope };
+    }
+  | {
+      type: "answer";
+      answers: Record<string, string[]>;
+    };
+export interface InterruptResumeInput {
+  itemId: string;
+  response: InterruptResumePayload;
+}
 export type ResumeFn =
   | ((
-      parentRunId: RunId,
-      responses: InterruptResponse[],
+      parentRunId: string,
+      responses: InterruptResumeInput[],
       onSettled?: () => void,
       onStartError?: () => void,
     ) => void)

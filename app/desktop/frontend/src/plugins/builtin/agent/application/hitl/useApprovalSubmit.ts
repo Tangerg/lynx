@@ -1,18 +1,14 @@
 import { useCallback } from "react";
-import type { ApprovalScope } from "@/rpc";
-import type { ApprovalDecision } from "../../domain/hitl";
+import type { ApprovalDecision, RememberScope } from "../../domain/hitl";
 import { WIRE_DECISION } from "./wireDecision";
 import { useInterruptResume } from "./useInterruptResume";
+
+export type { RememberScope } from "../../domain/hitl";
 
 // Submits the user's HITL approval decision (API.md §6, R-model) over the shared
 // useInterruptResume scaffold (which owns session pinning, the pending latch,
 // the guard, and the deferred settle). This hook only builds the approval-
 // specific wire payload (editedArgs / remember) and decision patch.
-
-// The scope at which to persist an approve/deny decision — the wire
-// ApprovalScope, re-exposed under the agent-layer name the ApprovalCard uses
-// (so the component stays off @/rpc).
-export type RememberScope = ApprovalScope;
 
 export interface ApprovalSubmitOptions {
   /** Forwarded only when the user tweaked the tool's arguments before
