@@ -11,6 +11,12 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { disposeOnHmr } from "@/lib/hmr";
 import type { AgentRunStartOptions } from "@/plugins/sdk/types";
 import type { AgentInput } from "@/plugins/builtin/agent/domain/input";
+import {
+  closeSessionTab,
+  pruneSessionHandoffs,
+  reconcileSessionTabs,
+  selectSessionTab,
+} from "../application/session/sessionSelectionModel";
 
 // localStorage payload schema. Mirrors `partialize` below — only the
 // two continuity fields. Anything else in storage is dropped on
@@ -88,27 +94,12 @@ export const useAgentSessionStore = create<AgentSessionState & AgentSessionActio
       pendingMessages: {},
 
       selectTab: (id) => {
-        const { tabIds, selectionEpoch } = get();
-        set({
-          activeSessionId: id,
-          selectionEpoch: selectionEpoch + 1,
-          tabIds: tabIds.includes(id) ? tabIds : [...tabIds, id],
-        });
+        const { activeSessionId, tabIds, selectionEpoch } = get();
+        set(selectSessionTab({ activeSessionId, tabIds, selectionEpoch }, id));
       },
       closeTab: (id) => {
         const { tabIds, activeSessionId } = get();
-        const idx = tabIds.indexOf(id);
-        const next = tabIds.filter((x) => x !== id);
-        const leavingActive = id === activeSessionId;
-        set({
-          tabIds: next,
-          // Closing the active tab reselects the ADJACENT tab — the one that
-          // shifts into this slot (`next[idx]`), or the new last tab when the
-          // rightmost closed (`next.at(-1)`) — falling back to "" (welcome
-          // screen) when nothing remains. Never the always-leftmost `next[0]`
-          // (that yanks focus across the strip), and never a closed/deleted id.
-          activeSessionId: leavingActive ? (next[idx] ?? next.at(-1) ?? "") : activeSessionId,
-        });
+        set(closeSessionTab({ activeSessionId, tabIds }, id));
       },
       markDraft: (id) => set({ draftSessionIds: new Set(get().draftSessionIds).add(id) }),
       graduateDraft: (id) => {
@@ -120,18 +111,8 @@ export const useAgentSessionStore = create<AgentSessionState & AgentSessionActio
       },
       reconcileTabs: (liveIds) => {
         const { tabIds, activeSessionId, draftSessionIds } = get();
-        // A persisted tab is valid only if the backend still has that session
-        // (liveIds) or it's a not-yet-graduated draft (never in sessions.list).
-        const known = new Set([...liveIds, ...draftSessionIds]);
-        const nextTabs = tabIds.filter((id) => known.has(id));
-        const activeAlive = activeSessionId === "" || known.has(activeSessionId);
-        if (nextTabs.length === tabIds.length && activeAlive) return; // nothing dangling
-        set({
-          tabIds: nextTabs,
-          // Dropped the active session → fall back to a surviving tab, else the
-          // welcome screen ("").
-          activeSessionId: activeAlive ? activeSessionId : (nextTabs.at(-1) ?? ""),
-        });
+        const next = reconcileSessionTabs({ activeSessionId, tabIds, draftSessionIds }, liveIds);
+        if (next) set(next);
       },
       setPendingMessage: (id, message) =>
         set({ pendingMessages: { ...get().pendingMessages, [id]: message } }),
@@ -182,15 +163,7 @@ export const useAgentSessionStore = create<AgentSessionState & AgentSessionActio
 // useDeleteSession → closeTab).
 const unsubPruneSessionRefs = useAgentSessionStore.subscribe((state, prev) => {
   if (state.tabIds === prev.tabIds) return;
-  const live = new Set(state.tabIds);
-  const draftStale = [...state.draftSessionIds].some((id) => !live.has(id));
-  const pendingStale = Object.keys(state.pendingMessages).some((id) => !live.has(id));
-  if (!draftStale && !pendingStale) return;
-  useAgentSessionStore.setState({
-    draftSessionIds: new Set([...state.draftSessionIds].filter((id) => live.has(id))),
-    pendingMessages: Object.fromEntries(
-      Object.entries(state.pendingMessages).filter(([id]) => live.has(id)),
-    ),
-  });
+  const next = pruneSessionHandoffs(state);
+  if (next) useAgentSessionStore.setState(next);
 });
 disposeOnHmr(unsubPruneSessionRefs);
