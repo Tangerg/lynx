@@ -1,4 +1,4 @@
-import type { QuestionItem } from "@/plugins/sdk/types/agentView";
+import type { BlockStatus, QuestionItem } from "@/plugins/sdk/types/agentView";
 
 export type QuestionAnswers = Record<string, string | string[]>;
 
@@ -28,6 +28,35 @@ export function questionAnswerText(answers: QuestionAnswers, id: string): string
   const value = answers[id];
   if (value == null) return "";
   return (Array.isArray(value) ? value : [value]).filter(Boolean).join(", ");
+}
+
+export function questionSettled(status: BlockStatus, answered: boolean | undefined): boolean {
+  return status === "complete" || Boolean(answered);
+}
+
+export function questionSettledAnswers(
+  questions: readonly QuestionItem[],
+  draft: QuestionDraft,
+  answers: QuestionAnswers | undefined,
+): QuestionAnswers | undefined {
+  return (
+    answers ??
+    (questionDraftComplete(questions, draft) ? questionDraftAnswers(questions, draft) : undefined)
+  );
+}
+
+export function canSubmitQuestion({
+  parentRunId,
+  itemId,
+  complete,
+  status,
+}: {
+  parentRunId?: string;
+  itemId?: string;
+  complete: boolean;
+  status: BlockStatus;
+}): boolean {
+  return Boolean(parentRunId && itemId && complete && status === "requires-action");
 }
 
 export function questionDraftAnswers(

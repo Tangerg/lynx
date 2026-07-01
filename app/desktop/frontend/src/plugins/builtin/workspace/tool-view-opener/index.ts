@@ -1,7 +1,5 @@
 import { definePlugin, TOOL_VIEW_OPENER } from "@/plugins/sdk";
-import { workspaceToolActivityFromAgentTool } from "../application/toolActivity";
-import { hasWorkspaceToolView } from "../application/toolRouteDecision";
-import { openWorkspaceViewForTool } from "../application/toolRouting";
+import { hasWorkspaceViewForTool, openWorkspaceViewForTool } from "../application/toolRouting";
 
 export default definePlugin({
   name: "lyra.builtin.workspace.tool-view-opener",
@@ -10,7 +8,7 @@ export default definePlugin({
     host.extensions.contribute(TOOL_VIEW_OPENER, {
       id: "workspace-tool-view",
       order: 0,
-      predicate: (tool) => hasWorkspaceToolView(workspaceToolActivityFromAgentTool(tool)),
+      predicate: hasWorkspaceViewForTool,
       open: openWorkspaceViewForTool,
     });
   },

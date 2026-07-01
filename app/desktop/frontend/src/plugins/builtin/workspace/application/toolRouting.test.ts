@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { ToolCall } from "@/plugins/sdk/types/agentView";
 import { useWorkspaceNavigationStore } from "@/state/workspaceNavigationStore";
-import { openWorkspaceViewForTool } from "./toolRouting";
+import { hasWorkspaceViewForTool, openWorkspaceViewForTool } from "./toolRouting";
 
 const toolCall = (over: Partial<ToolCall> & Pick<ToolCall, "id" | "name">): ToolCall => ({
   fn: "",
@@ -19,6 +19,12 @@ describe("openWorkspaceViewForTool", () => {
       selectedToolId: "",
       activeFile: "",
     });
+  });
+
+  it("reports whether a tool has a workspace view", () => {
+    expect(hasWorkspaceViewForTool(toolCall({ id: "t1", name: "shell" }))).toBe(true);
+    expect(hasWorkspaceViewForTool(toolCall({ id: "t2", name: "read" }))).toBe(true);
+    expect(hasWorkspaceViewForTool(toolCall({ id: "t3", name: "grep" }))).toBe(false);
   });
 
   it("opens a command tool beside chat as the terminal split, leaving activeMainView null", () => {

@@ -9,8 +9,11 @@ import {
   questionAnswerText,
   questionDraftAnswers,
   questionDraftComplete,
+  questionSettled,
+  questionSettledAnswers,
   setQuestionText,
   toggleQuestionOption,
+  canSubmitQuestion,
   type QuestionDraft,
   type QuestionAnswers,
 } from "@/plugins/builtin/agent/public/messagePresentation";
@@ -45,15 +48,14 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered,
   const { submit, pending } = useQuestionAnswer(parentRunId, itemId);
   const [draft, setDraft] = useState<QuestionDraft>(() => createQuestionDraft(questions));
 
-  const settled = status === "complete" || answered;
+  const settled = questionSettled(status, answered);
   const allAnswered = useMemo(() => questionDraftComplete(questions, draft), [questions, draft]);
 
   if (settled || pending) {
     // Echo what was answered: the stamped block answers (survive remount) or,
     // in the brief pre-settle window, the local draft. Replayed-from-history
     // questions carry neither → a bare "answered" row.
-    const shown: QuestionAnswers | undefined =
-      answers ?? (allAnswered ? questionDraftAnswers(questions, draft) : undefined);
+    const shown: QuestionAnswers | undefined = questionSettledAnswers(questions, draft, answers);
     if (!shown) return <HitlSettledRow label={t("question.settled.answered")} />;
     return (
       <div className="my-3 flex flex-col gap-2 rounded-md border border-line bg-surface px-4 py-3">
@@ -76,7 +78,12 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered,
   // Also disable once the interrupt is no longer open: settleOpenInterrupts
   // downgrades an unacted question to `incomplete` on run-end so its Submit
   // can't resume a dead run.
-  const disabled = !parentRunId || !itemId || !allAnswered || status !== "requires-action";
+  const disabled = !canSubmitQuestion({
+    parentRunId,
+    itemId,
+    complete: allAnswered,
+    status,
+  });
 
   return (
     <HitlCardShell

@@ -1,4 +1,4 @@
-/* App shell — cards-on-canvas grid + macOS titlebar shim. */
+/* App shell — cards-on-canvas grid + macOS titlebar offset. */
 
 * {
   box-sizing: border-box;
@@ -39,8 +39,6 @@ html {
 html.theme-light {
   color-scheme: light;
 }
-
-/* Light-mode glow tweak — removed (REDESIGN.md §2: glow is killed). */
 
 /* Kernel grid — flush, edge-to-edge. .app paints the canvas; the two
    columns run to the window edge with no gutters. */
@@ -136,7 +134,7 @@ html.theme-light .panel.sidebar {
   flex-direction: column;
 }
 
-/* macOS titlebar shim — push sidebar header below the traffic-light
+/* macOS titlebar offset — push sidebar header below the traffic-light
    controls. The drag region is applied to the Panel container itself
    (see SidebarExpanded / SidebarRail); interactive children opt out
    via `noDragClasses`. */

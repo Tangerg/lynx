@@ -23,10 +23,13 @@ export type {
   ApprovalTone,
 } from "../presentation/approvalPresentation";
 export {
+  canSubmitQuestion,
   createQuestionDraft,
   questionAnswerText,
   questionDraftAnswers,
   questionDraftComplete,
+  questionSettled,
+  questionSettledAnswers,
   setQuestionText,
   toggleQuestionOption,
 } from "../presentation/questionPresentation";

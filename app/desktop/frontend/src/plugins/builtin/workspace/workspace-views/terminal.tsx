@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { EmptyState } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { useActiveRunToolCalls } from "@/plugins/builtin/agent/public/run";
-import { workspaceToolActivityFromAgentTool } from "../application/toolActivity";
+import { workspaceCommandToolsFromAgentTools } from "../application/toolActivity";
 import { CommandLog } from "./views/CommandLog";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
@@ -16,13 +16,7 @@ import { defineWorkspaceView } from "./defineWorkspaceView";
 function TerminalTab() {
   const t = useT();
   const toolCalls = useActiveRunToolCalls();
-  const commands = useMemo(
-    () =>
-      Object.values(toolCalls).filter(
-        (tool) => workspaceToolActivityFromAgentTool(tool).category === "command",
-      ),
-    [toolCalls],
-  );
+  const commands = useMemo(() => workspaceCommandToolsFromAgentTools(toolCalls), [toolCalls]);
 
   // Terminal semantics: open at the bottom (latest command) and tail live
   // output — but only while the user is pinned to the bottom, so scrolling up
