@@ -19,8 +19,10 @@ import {
 import { cn } from "@/lib/utils";
 import {
   lookupToolActionOwner,
+  lookupToolViewOpenerOwner,
   reportPluginError,
   TOOL_ACTION,
+  TOOL_VIEW_OPENER,
   useExtensionPoint,
 } from "@/plugins/sdk";
 import { toolIconFor, toolRoutingKey } from "./toolIcon";
@@ -30,12 +32,21 @@ interface Props {
   tool: ToolCall;
   expanded: boolean;
   onToggleExpand: () => void;
-  onOpenView?: () => void;
 }
 
-export function ToolCard({ tool, expanded, onToggleExpand, onOpenView }: Props) {
+export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
   const running = tool.status === "running";
   const actions = useExtensionPoint(TOOL_ACTION).filter((a) => !a.predicate || a.predicate(tool));
+  const viewOpener = useExtensionPoint(TOOL_VIEW_OPENER).find((o) => o.predicate(tool));
+  const onOpenView = viewOpener
+    ? () => {
+        void Promise.resolve(viewOpener.open(tool)).catch((err) => {
+          const owner = lookupToolViewOpenerOwner(viewOpener.id) ?? "unknown";
+          console.error(`[plugin] tool view opener ${viewOpener.id} threw:`, err);
+          reportPluginError(owner, "command", err, `tool view opener: ${viewOpener.id}`);
+        });
+      }
+    : undefined;
   const intent = toolIntent(tool);
   const metaItems = toolMetaItems(tool);
 

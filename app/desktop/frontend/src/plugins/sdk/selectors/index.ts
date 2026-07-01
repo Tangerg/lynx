@@ -33,8 +33,8 @@ export { lookupStreamHandlers, lookupCustomHandlers } from "./events";
 // (registered + declared merge).
 export { useLayoutSlot, useSettingsPanes, useWorkspaceViews } from "./layout";
 
-// Tool-action owner attribution + per-message citation sources.
-export { lookupToolActionOwner, useCitationSources } from "./messages";
+// Tool owner attribution + per-message citation sources.
+export { lookupToolActionOwner, lookupToolViewOpenerOwner, useCitationSources } from "./messages";
 
 // Runtime / data-layer: priority picks + data-provider fetcher + RPC hook lists.
 export {

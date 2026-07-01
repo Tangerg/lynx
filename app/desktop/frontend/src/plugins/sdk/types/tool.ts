@@ -6,7 +6,7 @@ import type { ToolCall } from "@/protocol/run/viewState";
 
 export interface ToolPreviewProps {
   tool: ToolCall;
-  /** Promote this tool's workspace view (terminal / diff) into a main-area tab.
+  /** Open this tool's workspace view (terminal / diff).
    *  Absent when the tool has no such view (search / glob / lsp / skill / …) —
    *  the preview then hides its "view details" foot instead of offering a dead
    *  button (PreviewFoot self-hides when given no onClick). */
@@ -33,4 +33,11 @@ export interface ToolActionSpec {
   predicate?: (tool: ToolCall) => boolean;
   /** Click handler. */
   run: (tool: ToolCall) => void | Promise<void>;
+}
+
+export interface ToolViewOpenerSpec {
+  id: string;
+  order?: number;
+  predicate: (tool: ToolCall) => boolean;
+  open: (tool: ToolCall) => void | Promise<void>;
 }
