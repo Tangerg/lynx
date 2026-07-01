@@ -2,17 +2,17 @@ import { useState } from "react";
 import { DataView, EmptyState, Icon, PillButton } from "@/components/common";
 import { isUnsupportedMethod } from "@/lib/rpcErrors";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
-import { useSchedules } from "@/lib/data/queries";
 import { useT } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
+import { useScheduleConfigs } from "./application/scheduleCommands";
 import { ScheduleForm } from "./ScheduleForm";
 import { ScheduleRow } from "./ScheduleRow";
 
 function SchedulesPane() {
   const t = useT();
   const cwd = useActiveSessionCwd();
-  const { data, isLoading, isError, error } = useSchedules();
+  const { data, isLoading, isError, error } = useScheduleConfigs();
   const [adding, setAdding] = useState(false);
 
   if (isError && isUnsupportedMethod(error)) {

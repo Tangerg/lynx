@@ -1,8 +1,12 @@
-import type { Schedule } from "@/rpc";
 import { useState } from "react";
 import { Icon, type IconName, Switch } from "@/components/common";
 import { rpcErrorText } from "@/lib/rpcErrors";
-import { deleteSchedule, runScheduleNow, setScheduleEnabled } from "./application/scheduleCommands";
+import {
+  deleteSchedule,
+  runScheduleNow,
+  setScheduleEnabled,
+  type ScheduleConfig,
+} from "./application/scheduleCommands";
 import { notifyError } from "@/lib/notify";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -48,7 +52,13 @@ function ScheduleActionButton({
   );
 }
 
-export function ScheduleRow({ schedule, defaultCwd }: { schedule: Schedule; defaultCwd?: string }) {
+export function ScheduleRow({
+  schedule,
+  defaultCwd,
+}: {
+  schedule: ScheduleConfig;
+  defaultCwd?: string;
+}) {
   const t = useT();
   const [editing, setEditing] = useState(false);
 

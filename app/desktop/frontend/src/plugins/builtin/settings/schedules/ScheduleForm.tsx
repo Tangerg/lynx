@@ -1,8 +1,11 @@
-import type { Schedule } from "@/rpc";
 import { useState } from "react";
 import { PillButton } from "@/components/common";
 import { rpcErrorText } from "@/lib/rpcErrors";
-import { createSchedule, updateSchedule } from "./application/scheduleCommands";
+import {
+  createSchedule,
+  updateSchedule,
+  type ScheduleConfig,
+} from "./application/scheduleCommands";
 import { notifyError } from "@/lib/notify";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -12,13 +15,13 @@ import {
   canSaveScheduleDraft,
   initialScheduleDraft,
   scheduleInputFromDraft,
-} from "./scheduleDraft";
+} from "./application/scheduleDraft";
 
 const INPUT_CLASS =
   "w-full rounded-md border border-line-soft bg-surface px-2.5 py-1.5 text-[12px] text-fg outline-none placeholder:text-fg-faint focus:border-accent";
 
 interface ScheduleFormProps {
-  schedule?: Schedule;
+  schedule?: ScheduleConfig;
   defaultCwd?: string;
   onDone: () => void;
   onCancel: () => void;
