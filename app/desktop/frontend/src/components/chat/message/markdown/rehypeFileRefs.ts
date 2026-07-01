@@ -11,7 +11,7 @@
 
 import type { Element, Root, Text } from "hast";
 import { visit } from "unist-util-visit";
-import { parseFileRefs } from "@/lib/agent/fileRefs";
+import { parseFileRefs } from "@/plugins/builtin/agent/public/fileRefs";
 
 const SKIP_TAGS = new Set(["pre", "code", "a", "sup", "script", "style"]);
 

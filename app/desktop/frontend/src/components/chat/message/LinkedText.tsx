@@ -4,7 +4,7 @@
 // traces). A ref-free string renders as bare text (no wrapper spans).
 
 import { useMemo } from "react";
-import { parseFileRefs } from "@/lib/agent/fileRefs";
+import { parseFileRefs } from "@/plugins/builtin/agent/public/fileRefs";
 import { FileRefLink } from "./FileRefLink";
 
 export function LinkedText({ text }: { text: string }) {
