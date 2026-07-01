@@ -13,6 +13,7 @@ import { useT } from "@/lib/i18n";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
 import { editMessageInComposer, regenerateMessage } from "./public/messageActions";
 import { messageFeedbackRating, submitMessageFeedback } from "./public/feedback";
+import { installRuntimeFeedbackPort } from "./adapters/runtimeFeedback";
 import { messageCopyPayloads } from "./presentation/copyPayloads";
 import { ACTION_BTN_BASE } from "./_shared";
 
@@ -237,6 +238,7 @@ export const messageFeedback = definePlugin({
   name: "lyra.builtin.message-feedback",
   version: "1.0.0",
   setup({ host }) {
+    installRuntimeFeedbackPort();
     host.layout.register("message.actions", {
       id: "feedback",
       order: 15,

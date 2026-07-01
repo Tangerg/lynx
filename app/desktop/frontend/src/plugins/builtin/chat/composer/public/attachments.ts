@@ -1,28 +1,28 @@
-import { useComposerStore } from "../adapters/composerStore";
 import type { ComposerImage, PastedText } from "../domain/draft";
+import { composerState } from "../application/ports/state";
 
 export type { ComposerImage, PastedText } from "../domain/draft";
 
 export function useComposerImages(): ComposerImage[] {
-  return useComposerStore((state) => state.images);
+  return composerState().useImages();
 }
 
 export function useComposerPastes(): PastedText[] {
-  return useComposerStore((state) => state.pastes);
+  return composerState().usePastes();
 }
 
 export function useAddComposerImageFiles(): (files: File[]) => void {
-  return useComposerStore((state) => state.addImageFiles);
+  return composerState().useAddImageFiles();
 }
 
 export function useRemoveComposerImage(): (id: string) => void {
-  return useComposerStore((state) => state.removeImage);
+  return composerState().useRemoveImage();
 }
 
 export function useAddComposerPaste(): (text: string) => void {
-  return useComposerStore((state) => state.addPaste);
+  return composerState().useAddPaste();
 }
 
 export function useRemoveComposerPaste(): (id: string) => void {
-  return useComposerStore((state) => state.removePaste);
+  return composerState().useRemovePaste();
 }

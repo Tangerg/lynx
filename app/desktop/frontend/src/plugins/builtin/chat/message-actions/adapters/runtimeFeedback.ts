@@ -1,7 +1,10 @@
 import { getContainer } from "@/main/container";
 import { getActiveSessionId } from "@/plugins/builtin/agent/public/session";
 import { asItemId, asRunId, asSessionId } from "@/rpc";
-import type { SubmitMessageFeedbackPort } from "../application/feedback";
+import {
+  configureMessageFeedbackPort,
+  type SubmitMessageFeedbackPort,
+} from "../application/feedback";
 
 export const runtimeFeedbackPort: SubmitMessageFeedbackPort = {
   async createMessageFeedback({ target, rating }) {
@@ -16,3 +19,7 @@ export const runtimeFeedbackPort: SubmitMessageFeedbackPort = {
       });
   },
 };
+
+export function installRuntimeFeedbackPort(): void {
+  configureMessageFeedbackPort(runtimeFeedbackPort);
+}

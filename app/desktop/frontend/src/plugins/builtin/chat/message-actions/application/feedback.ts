@@ -12,6 +12,17 @@ export interface SubmitMessageFeedbackPort {
   }): Promise<void>;
 }
 
+let port: SubmitMessageFeedbackPort | null = null;
+
+export function configureMessageFeedbackPort(next: SubmitMessageFeedbackPort): void {
+  port = next;
+}
+
+function messageFeedbackPort(): SubmitMessageFeedbackPort {
+  if (!port) throw new Error("Message feedback port is not configured");
+  return port;
+}
+
 const ratedMessages = new Map<string, MessageFeedbackRating>();
 
 export function messageFeedbackRating(messageId: string): MessageFeedbackRating | undefined {
@@ -21,13 +32,12 @@ export function messageFeedbackRating(messageId: string): MessageFeedbackRating 
 export async function submitMessageFeedback(
   target: MessageFeedbackTarget,
   rating: MessageFeedbackRating,
-  port: SubmitMessageFeedbackPort,
 ): Promise<MessageFeedbackRating> {
   const previous = ratedMessages.get(target.messageId);
   if (previous === rating) return rating;
   ratedMessages.set(target.messageId, rating);
   try {
-    await port.createMessageFeedback({ target, rating });
+    await messageFeedbackPort().createMessageFeedback({ target, rating });
     return rating;
   } catch (error) {
     if (previous) ratedMessages.set(target.messageId, previous);

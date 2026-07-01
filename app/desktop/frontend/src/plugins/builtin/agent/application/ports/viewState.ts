@@ -44,6 +44,7 @@ export interface AgentViewStatePort {
   useTimeline(): TimelineEntry[];
   useMessages(): Message[];
   useError(): RunError | null;
+  useSharedState<T = unknown>(path?: string): T | undefined;
   useUsage(): RunUsage;
   useContextTokens(): number | undefined;
   useAction(kind: "stop"): StopFn;
