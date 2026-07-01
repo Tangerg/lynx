@@ -14,7 +14,8 @@
 import { useAgentStore } from "@/state/agentStore";
 import { useSessionStore } from "@/state/sessionStore";
 import { getApprovalActions } from "./approvalActions";
-import { type ApprovalDecision, WIRE_DECISION } from "./hitlDecision";
+import type { ApprovalDecision } from "../../domain/hitl";
+import { WIRE_DECISION } from "./wireDecision";
 import { resumeInterrupt } from "./useInterruptResume";
 
 const inFlight = new Set<string>();

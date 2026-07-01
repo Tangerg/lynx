@@ -1,10 +1,15 @@
-import type { ApprovalDecision, RememberScope } from "@/lib/agent/useApprovalSubmit";
 import type { BlockStatus } from "@/protocol/run/viewState";
-import type { ApprovalActions } from "@/lib/agent/approvalActions";
 import { useEffect, useRef, useState } from "react";
 import { Checkbox, Divider, Icon, Segmented } from "@/components/common";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
+import {
+  registerApprovalActions,
+  useApprovalSubmit,
+  type ApprovalActions,
+  type ApprovalDecision,
+  type RememberScope,
+} from "@/plugins/builtin/agent/public/hitl";
 import {
   approvalReversibilityView,
   approvalRiskView,
@@ -15,8 +20,6 @@ import {
   type ApprovalRisk,
   type ApprovalTone,
 } from "@/plugins/builtin/agent/presentation/approvalPresentation";
-import { registerApprovalActions } from "@/lib/agent/approvalActions";
-import { useApprovalSubmit } from "@/lib/agent/useApprovalSubmit";
 import { cn } from "@/lib/utils";
 import { ApprovalArgsEditor, useApprovalArgsEditor } from "./ApprovalArgsEditor";
 
