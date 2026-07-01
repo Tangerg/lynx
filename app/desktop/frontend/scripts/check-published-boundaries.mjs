@@ -120,6 +120,18 @@ for (const file of files(SRC)) {
 
   if (
     !isTest &&
+    /plugins\/builtin\/settings\/providers\/application\/.+\.(ts|tsx)$/.test(rel) &&
+    /from\s+["']@\/main\/container["']/.test(text)
+  ) {
+    violations.push({
+      file: rel,
+      reason:
+        "provider settings application must depend on provider gateway ports, not the composition root",
+    });
+  }
+
+  if (
+    !isTest &&
     /plugins\/builtin\/.+\/public\/.+\.(ts|tsx)$/.test(rel) &&
     !/plugins\/builtin\/.+\/public\/statePorts\.ts$/.test(rel) &&
     /from\s+["'](?:@\/plugins\/builtin\/.+\/adapters(?:\/[^"']*)?|(?:\.\.\/)+adapters(?:\/[^"']*)?)["']/.test(
