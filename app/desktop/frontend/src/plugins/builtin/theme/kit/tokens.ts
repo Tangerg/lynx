@@ -1,5 +1,5 @@
 // Theme token computation — defaults ladder + spec → flat CSS-variable
-// map. Split out of defineThemePlugin.ts so the entry shim there reads
+// map. Split out of defineThemePlugin.ts so the entry module reads
 // as a small registration wrapper, and so this pure-function workhorse
 // (buildTokenMap) can be unit-tested independently of the plugin
 // machinery.

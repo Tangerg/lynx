@@ -20,3 +20,11 @@ export function workspaceToolActivityFromAgentTool(tool: ToolCall): WorkspaceToo
     label: tool.fn,
   };
 }
+
+export function workspaceCommandToolsFromAgentTools(
+  toolCalls: Record<string, ToolCall>,
+): ToolCall[] {
+  return Object.values(toolCalls).filter(
+    (tool) => workspaceToolActivityFromAgentTool(tool).category === "command",
+  );
+}

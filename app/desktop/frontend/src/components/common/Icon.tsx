@@ -62,7 +62,7 @@ import {
   Zap,
 } from "lucide-react";
 
-// Project-wide icon shim — name → lucide-react component.
+// Project-wide icon adapter — app icon name → lucide-react component.
 //
 // lucide-react gives us:
 //   - 1500+ icons available out-of-the-box (Feather-derived, consistent)
@@ -71,9 +71,8 @@ import {
 //   - sane defaults (24x24 viewBox, currentColor stroke, rounded ends)
 //   - consistent stroke width without hand-tuning each path
 //
-// The component API stays the same (<Icon name="search" size={14} />)
-// so we don't have to touch the 100+ callsites scattered across plugins
-// and components.
+// Plugins consume the app icon vocabulary (<Icon name="search" size={14} />)
+// instead of depending on lucide component names directly.
 
 export type IconName =
   | "search"
