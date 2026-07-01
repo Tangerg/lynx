@@ -32,7 +32,7 @@ function SendButton() {
             className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 bg-accent text-on-accent transition-transform duration-150 active:scale-95"
             data-slot="composer-send"
           >
-            <Icon name="send-arrow" size={14} strokeWidth={2.5} />
+            <Icon name="arrow-up" size={16} strokeWidth={2.5} />
           </button>
         </Tooltip>
       );
