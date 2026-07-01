@@ -72,4 +72,11 @@ describe("reducer — run.progress (mid-run live readout)", () => {
     expect(s.run.step).toBe(4); // unchanged by the activity-only event
     expect(s.run.activity).toBe("thinking");
   });
+
+  it("surfaces contextTokens (the live context-window footprint driving compaction)", () => {
+    let s: AgentViewState = INITIAL_VIEW_STATE;
+    s = reduce(s, runStarted("run_1"));
+    s = reduce(s, progress({ contextTokens: 45_000 }));
+    expect(s.run.contextTokens).toBe(45_000);
+  });
 });

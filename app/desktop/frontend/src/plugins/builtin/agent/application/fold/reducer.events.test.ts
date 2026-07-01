@@ -95,6 +95,25 @@ describe("reducer — item fold", () => {
     expect(s.messages[0]!.blocks[0]).toMatchObject({ text: "streamed", status: "running" });
   });
 
+  it("reasoning start + reasoning deltas + completed build one streaming reasoning block", () => {
+    // Reasoning streams exactly like agentMessage content, but its block keys on
+    // `reasoningId` (not `itemId`) — the delta must find it by that key or the
+    // thinking text accumulates onto nothing.
+    let s: AgentViewState = INITIAL_VIEW_STATE;
+    s = reduce(s, started(item({ id: "r1", type: "reasoning" }))); // no `text` — streams via delta
+    expect(s.messages[0]!.blocks).toEqual([
+      { kind: "reasoning", reasoningId: "r1", text: "", status: "running" },
+    ]);
+    s = reduce(s, delta("r1", { type: "reasoning", text: "let me " }));
+    s = reduce(s, delta("r1", { type: "reasoning", text: "think" }));
+    expect(s.messages[0]!.blocks[0]).toMatchObject({ text: "let me think", status: "running" });
+    s = reduce(
+      s,
+      completed(item({ id: "r1", type: "reasoning", status: "completed", text: "let me think" })),
+    );
+    expect(s.messages[0]!.blocks[0]).toMatchObject({ status: "complete", text: "let me think" });
+  });
+
   it("toolCall folds into a tool block + toolCalls entry; args + stdout accumulate", () => {
     let s: AgentViewState = INITIAL_VIEW_STATE;
     s = reduce(
@@ -415,6 +434,48 @@ describe("reducer — HITL interrupt", () => {
       args: { path: "/etc/hosts" },
       risk: "high",
     });
+  });
+
+  it("run.finished{interrupt,question} materializes a question card bound to the run", () => {
+    // The question interrupt path is distinct from approval: the card can
+    // materialize straight from the interrupt payload (item.started may have
+    // been missed while the process was down), projecting answerable fields.
+    let s = reduce(INITIAL_VIEW_STATE, runStarted("run_1", "ses_1"));
+    s = reduce(
+      s,
+      runFinished({
+        type: "interrupt",
+        interrupts: [
+          {
+            itemId: "q1" as never,
+            type: "question",
+            payload: {
+              question: {
+                prompt: "Which database?",
+                fields: [
+                  {
+                    type: "choice",
+                    name: "db",
+                    label: "Pick a database",
+                    options: [{ label: "Postgres" }, { label: "SQLite" }],
+                  },
+                ],
+              },
+            },
+          },
+        ],
+      }),
+    );
+    const block = s.messages.flatMap((m) => m.blocks).find((b) => b.kind === "question");
+    expect(block).toMatchObject({
+      kind: "question",
+      status: "requires-action",
+      itemId: "q1",
+      parentRunId: "run_1",
+      questions: [{ id: "db", question: "Pick a database" }],
+    });
+    expect(s.openInterrupts).toHaveLength(1);
+    expect(s.openInterrupts[0]!.parentRunId).toBe("run_1");
   });
 
   it("a second run.started (resume) never splits the open turn — live grouping matches replay", () => {
