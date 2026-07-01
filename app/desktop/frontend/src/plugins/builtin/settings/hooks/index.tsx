@@ -12,7 +12,7 @@
 import type { HookInfo } from "@/rpc";
 import { DataView, EmptyState, Icon, Switch } from "@/components/common";
 import { isUnsupportedMethod, rpcErrorText } from "@/lib/rpcErrors";
-import { setHookTrust } from "@/lib/agent/hooksConfig";
+import { setHookTrust } from "./application/hookTrust";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { useHooks } from "@/lib/data/queries";
 import { notifyError } from "@/lib/notify";

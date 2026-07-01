@@ -2,7 +2,7 @@ import type { Schedule } from "@/rpc";
 import { useState } from "react";
 import { PillButton } from "@/components/common";
 import { rpcErrorText } from "@/lib/rpcErrors";
-import { createSchedule, updateSchedule } from "@/lib/agent/scheduleConfig";
+import { createSchedule, updateSchedule } from "./application/scheduleCommands";
 import { notifyError } from "@/lib/notify";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";

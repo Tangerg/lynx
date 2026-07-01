@@ -1,7 +1,7 @@
 import type { ProviderInfo } from "@/lib/data/queries";
 import { useRef, useState } from "react";
 import { Icon, INPUT_FOCUS_RING, ProviderIcon } from "@/components/common";
-import { useConfigureProvider, useTestProvider } from "@/lib/agent/useProviderConfig";
+import { useConfigureProvider, useTestProvider } from "./application/providerConfig";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 

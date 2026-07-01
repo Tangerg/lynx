@@ -6,7 +6,7 @@
 import type { CodebaseHit } from "@/rpc";
 import { useState } from "react";
 import { EmptyState, Icon, PillButton } from "@/components/common";
-import { reindexCodebase, searchCodebase } from "@/lib/agent/codebaseConfig";
+import { reindexCodebase, searchCodebase } from "../application/codebaseCommands";
 import { rpcErrorText } from "@/lib/rpcErrors";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { useCodebaseStatus, useEmbeddingRole } from "@/lib/data/queries";

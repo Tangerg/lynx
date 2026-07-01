@@ -1,8 +1,6 @@
-// Scheduled-run mutations (schedules.create / update / delete / runNow). Lives
-// in lib/ so the settings pane (a component) reaches the runtime through these
-// helpers rather than importing @/rpc / @/main directly (layer rule). The
+// Scheduled-run mutations (schedules.create / update / delete / runNow). The
 // counterpart read is useSchedules(); every mutator invalidates it so the pane
-// re-reads the new set (and the recomputed nextRunAt).
+// re-reads the new set and recomputed nextRunAt.
 
 import type { Schedule, ScheduleInput } from "@/rpc";
 import { SCHEDULES_KEY } from "@/lib/data/queries";
