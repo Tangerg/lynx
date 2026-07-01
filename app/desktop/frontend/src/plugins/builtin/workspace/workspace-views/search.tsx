@@ -9,14 +9,17 @@ import { useDebounce } from "use-debounce";
 import { DataView, Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
-import { useGrep, type GrepMatch } from "@/lib/data/queries";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import {
+  type WorkspaceGrepMatch,
+  useWorkspaceGrep,
+} from "@/plugins/builtin/workspace/application/workspaceData";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 
 const MAX_MATCHES = 200;
 
-function groupByFile(matches: GrepMatch[]): [string, GrepMatch[]][] {
-  const groups = new Map<string, GrepMatch[]>();
+function groupByFile(matches: WorkspaceGrepMatch[]): [string, WorkspaceGrepMatch[]][] {
+  const groups = new Map<string, WorkspaceGrepMatch[]>();
   for (const m of matches) {
     const list = groups.get(m.path);
     if (list) list.push(m);
@@ -32,7 +35,7 @@ function SearchTab() {
   // Debounce keystrokes so each distinct query hits the backend once — every
   // params object is its own react-query cache entry.
   const [query] = useDebounce(input.trim(), 300);
-  const { data, isLoading, isError } = useGrep(
+  const { data, isLoading, isError } = useWorkspaceGrep(
     query ? { query, cwd, limit: MAX_MATCHES } : undefined,
   );
   const matches = data?.matches ?? [];

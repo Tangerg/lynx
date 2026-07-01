@@ -92,23 +92,32 @@ src/
 │       ├── theme/            kit（defineThemePlugin helper）+ themes（10+ 主题）
 │       └── workspace/        workspace-views · tasks · diagnostics · conversation-export
 │
-├── plugins/builtin/agent/application/fold/         协议 fold 边界
-│   ├── reducer.ts        纯派发器：StreamEvent → host.events.onStream/onCustom 注册的 handler
-│   ├── viewState.ts      AgentViewState 形状（Item→message/block 投影）+ INITIAL_VIEW_STATE
-│   └── runDigest.ts      从 timeline + toolCalls 派生的 run 摘要
+├── plugins/builtin/agent/                          Agent 限界上下文
+│   ├── domain/             AgentInput 等业务输入语言
+│   ├── application/        fold / input / session / run / HITL 用例
+│   ├── adapters/           driver lifecycle / Zustand read model / wire input bridge
+│   ├── presentation/       message/tool/HITL/run digest view model
+│   └── public/             对其他上下文发布 input / session / run / conversation ports
 │
-├── state/                跨切面 Zustand store（kernel 自身的，非插件）
-│   ├── agentStore.ts     每会话 AgentViewState + applyEvents + send/stop/resume binding（ephemeral）
-│   ├── sessionStore.ts   tab / draft / 选择（部分持久化）
+├── plugins/builtin/chat/composer/                  Composer 限界上下文
+│   ├── domain/             Draft / Attachment / SendIntent / history archive
+│   ├── application/        submit / draft mutation / file mention use case
+│   ├── adapters/           composer Zustand adapter + draft port implementation
+│   └── public/             draft / submit / history / attachment public facade
+│
+├── plugins/builtin/workspace/                      Workspace 限界上下文
+│   ├── application/        navigation / tool routing / activity projection
+│   ├── adapters/           persisted workspace navigation store
+│   ├── events/             runtime workspace event loop + invalidation rules
+│   └── public/             navigation / deeplink / sidebar rail facade
+│
+├── state/                Kernel 共享 store（不承载业务规则）
 │   ├── uiStore.ts        主题 / accent / 字体 / motion / sidebarRail（持久化）
 │   ├── runtimeStore.ts   握手能力（全局 ephemeral）
 │   ├── tasksStore.ts     后台任务
-│   ├── composerStore.ts  撰写区文本 / 模式 / provider+model（ephemeral）
-│   ├── useAgentSession.ts  一个会话的 driver 生命周期编排（send/stop/resume + rAF 批处理）
-│   ├── useDefaultChatSession.ts  从 AGENT_SOURCE registry 挑 driver（priority 最高）
-│   ├── useWhenContext.ts  build context for `when` clauses
-│   ├── toolRouting.ts    openViewForTool(toolId) — tool card 点击的路由
-│   └── deeplinks.ts      deeplink 解析
+│   ├── paletteStore.ts   命令面板 UI 状态
+│   ├── workspaceNavigationStore.ts  Workspace 导航 read model adapter
+│   └── useWhenContext.ts  build context for `when` clauses
 │
 ├── components/           纯展示 + 薄 store 接线（经 selector/hook 触业务，不直连 rpc/main）
 │   ├── chat/             message/(消息渲染 + markdown/ + cards/) · panel/(ChatPanel 编排) · composer/

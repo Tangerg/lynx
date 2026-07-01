@@ -13,7 +13,7 @@ import {
 import type { AgentInput } from "../../domain/input";
 import { agentInputText } from "../../domain/input";
 import { agentInputToContentBlocks } from "../../adapters/wireInput";
-import { LOCAL_STEER_PREFIX } from "@/plugins/sdk/types/agentView";
+import { LOCAL_STEER_PREFIX } from "@/plugins/builtin/agent/public/viewState";
 import { getActiveSessionId } from "../session/activeSession";
 import { type CreateSessionOptions, useCreateSession } from "../session/createSession";
 

@@ -4,14 +4,17 @@ import { useIsAgentRunning, useStopActiveAgentRun } from "@/plugins/builtin/agen
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
-import { useComposerImages } from "./public/attachments";
+import { useComposerImages, useComposerPastes } from "./public/attachments";
 import { useClearComposerDraft, useComposerText } from "./public/draft";
+import { useRecordComposerHistory } from "./public/history";
 import { submitComposer } from "./application/submitComposer";
 
 function SendButton() {
   const t = useT();
   const value = useComposerText();
   const images = useComposerImages();
+  const pastes = useComposerPastes();
+  const recordHistory = useRecordComposerHistory();
   const clear = useClearComposerDraft();
   const send = useSendComposerInput();
   const stop = useStopActiveAgentRun();
@@ -23,7 +26,9 @@ function SendButton() {
         <Tooltip label={t("composer.action.steer")}>
           <button
             type="button"
-            onClick={() => submitComposer({ value, clear, sendInput: send, images })}
+            onClick={() =>
+              submitComposer({ value, clear, sendInput: send, images, pastes, recordHistory })
+            }
             className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 bg-accent text-on-accent transition-transform duration-150 active:scale-95"
             data-slot="composer-send"
           >
@@ -47,8 +52,9 @@ function SendButton() {
     );
   }
 
-  const disabled = !value.trim() && images.length === 0;
-  const onClick = () => submitComposer({ value, clear, sendInput: send, images });
+  const disabled = !value.trim() && images.length === 0 && pastes.length === 0;
+  const onClick = () =>
+    submitComposer({ value, clear, sendInput: send, images, pastes, recordHistory });
 
   return (
     <Tooltip label={t("composer.action.send")}>

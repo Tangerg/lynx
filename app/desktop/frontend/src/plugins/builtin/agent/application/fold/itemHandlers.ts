@@ -1,5 +1,5 @@
 import type { Item, ItemDelta } from "@/rpc";
-import type { AgentViewState } from "@/plugins/sdk/types/agentView";
+import type { AgentViewState } from "@/plugins/builtin/agent/public/viewState";
 import { appendTimelineEntry, setPlan } from "@/plugins/sdk";
 import { blockStatus, mapPlan } from "./projections";
 import {

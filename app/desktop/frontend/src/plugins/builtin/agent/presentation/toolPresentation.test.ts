@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ToolCall } from "@/plugins/sdk/types/agentView";
+import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import {
   isReadOnlyTool,
   summarizeToolGroup,

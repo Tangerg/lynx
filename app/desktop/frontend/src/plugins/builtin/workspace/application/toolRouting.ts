@@ -1,4 +1,4 @@
-import type { ToolCall } from "@/plugins/sdk/types/agentView";
+import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import { focusWorkspaceFile, openWorkspaceViewBeside, selectWorkspaceTool } from "./navigation";
 import { decideWorkspaceToolRoute, hasWorkspaceToolView } from "./toolRouteDecision";
 import { workspaceToolActivityFromAgentTool } from "./toolActivity";

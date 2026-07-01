@@ -4,7 +4,7 @@ import type {
   PlanItem,
   TimelineEntry,
   ToolCall,
-} from "@/plugins/sdk/types/agentView";
+} from "@/plugins/builtin/agent/public/viewState";
 import {
   getCurrentSessionView,
   useAgentMessages,

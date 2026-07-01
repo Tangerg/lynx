@@ -1,5 +1,5 @@
-import type { ToolCall } from "@/plugins/sdk/types/agentView";
-import { toolCategory } from "@/plugins/sdk/types/agentView";
+import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
+import { toolCategory } from "@/plugins/builtin/agent/public/viewState";
 
 export type WorkspaceToolActivityCategory = "command" | "fileEdit" | "read" | "inline";
 

@@ -4,7 +4,7 @@
 // backend Go `lyra/rpc/protocol` interface as the mechanical SSOT; this
 // file is the zero-mapping TS projection.
 //
-// Frontend view-state types live in `@/plugins/sdk/types/agentView` — those
+// Frontend view-state types live in `@/plugins/builtin/agent/public/viewState` — those
 // are a *presentation projection* the reducer folds these wire shapes
 // into; this file is the upstream contract.
 

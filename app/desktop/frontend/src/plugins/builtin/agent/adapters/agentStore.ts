@@ -16,11 +16,11 @@ import type {
   RunUsage,
   TimelineEntry,
   ToolCall,
-} from "@/plugins/sdk/types/agentView";
+} from "@/plugins/builtin/agent/public/viewState";
 import { create } from "zustand";
 import { disposeOnHmr } from "@/lib/hmr";
 import { reduce } from "@/plugins/builtin/agent/application/fold/reducer";
-import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
+import { INITIAL_VIEW_STATE } from "@/plugins/builtin/agent/public/viewState";
 import {
   cancelRunningRun,
   dropMessage,

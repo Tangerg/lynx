@@ -1,7 +1,8 @@
-import type { MCPServerConfigInfo, MCPTransport } from "@/lib/data/queries";
 import { useRef, useState } from "react";
 import { Icon, PillButton, Segmented } from "@/components/common";
 import {
+  type MCPServerConfig,
+  type MCPServerTransport,
   useConfigureMCPServer,
   useRemoveMCPServer,
   useTestMCPServer,
@@ -20,7 +21,7 @@ import { ToolControls } from "./ToolControls";
 type Probe = { state: "idle" | "busy" } | { state: "ok" } | { state: "error"; reason: string };
 
 interface Props {
-  server?: MCPServerConfigInfo;
+  server?: MCPServerConfig;
   onDone: () => void;
   onCancel: () => void;
 }
@@ -108,7 +109,7 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
           placeholder={t("mcp.form.name.placeholder")}
           className={cn(FIELD, isEdit && "cursor-not-allowed opacity-60")}
         />
-        <Segmented<MCPTransport>
+        <Segmented<MCPServerTransport>
           value={draft.transport}
           options={[
             { value: "stdio", label: t("mcp.transport.stdio") },

@@ -1,8 +1,6 @@
-import type { TodoItem } from "@/rpc";
 import { EmptyState } from "@/components/common";
 import { useT } from "@/lib/i18n";
-import { useServerFeature } from "@/state/runtimeStore";
-import { useSharedState } from "@/plugins/builtin/agent/public/sharedState";
+import { useWorkspaceTodos } from "@/plugins/builtin/workspace/application/todoViewModel";
 import { TodoList } from "./views/TodoList";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
@@ -14,9 +12,7 @@ import { defineWorkspaceView } from "./defineWorkspaceView";
 // rather than a perpetually-empty tab.
 function TodosTab() {
   const t = useT();
-  const enabled = useServerFeature("todos");
-  const todos = useSharedState<TodoItem[]>("todos") ?? [];
-  const done = todos.filter((t) => t.status === "completed").length;
+  const { done, enabled, todos } = useWorkspaceTodos();
 
   return (
     <WorkspaceViewLayout

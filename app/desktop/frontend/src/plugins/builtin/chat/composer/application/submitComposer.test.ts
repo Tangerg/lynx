@@ -1,18 +1,25 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { definePlugin, loadPlugin } from "@/plugins/sdk";
 import { SLASH_COMMAND } from "@/plugins/sdk/kernelPoints";
-import { useComposerStore } from "../adapters/composerStore";
-import { submitComposer } from "./submitComposer";
+import { submitComposer, type SubmitDeps } from "./submitComposer";
 
 describe("submitComposer", () => {
-  // Pastes are read off the composer store; reset after each so the cases that
-  // assume no attachments aren't polluted by a prior test.
-  afterEach(() => useComposerStore.setState({ pastes: [] }));
+  function deps(input: Partial<SubmitDeps>): SubmitDeps {
+    return {
+      value: "",
+      clear: () => {},
+      sendInput: () => {},
+      images: [],
+      pastes: [],
+      recordHistory: () => {},
+      ...input,
+    };
+  }
 
   it("is a no-op on empty / whitespace-only input", () => {
     const send = vi.fn();
     const clear = vi.fn();
-    submitComposer({ value: "   ", clear, sendInput: send, images: [] });
+    submitComposer(deps({ value: "   ", clear, sendInput: send }));
     expect(send).not.toHaveBeenCalled();
     expect(clear).not.toHaveBeenCalled();
   });
@@ -20,7 +27,7 @@ describe("submitComposer", () => {
   it("forwards plain text as user input then clears", () => {
     const send = vi.fn();
     const clear = vi.fn();
-    submitComposer({ value: "hello", clear, sendInput: send, images: [] });
+    submitComposer(deps({ value: "hello", clear, sendInput: send }));
     expect(send).toHaveBeenCalledWith({ parts: [{ kind: "text", text: "hello" }] });
     expect(clear).toHaveBeenCalledOnce();
   });
@@ -38,7 +45,7 @@ describe("submitComposer", () => {
     );
     const send = vi.fn();
     const clear = vi.fn();
-    submitComposer({ value: "/echo hi there", clear, sendInput: send, images: [] });
+    submitComposer(deps({ value: "/echo hi there", clear, sendInput: send }));
     // The slash handler gets a text→input adapter, not sendInput itself.
     expect(run).toHaveBeenCalledWith({ args: "hi there", send: expect.any(Function) });
     expect(send).not.toHaveBeenCalled();
@@ -47,15 +54,21 @@ describe("submitComposer", () => {
 
   it("falls back to sendInput for an unknown slash command", () => {
     const send = vi.fn();
-    submitComposer({ value: "/unknown args", clear: () => {}, sendInput: send, images: [] });
+    submitComposer(deps({ value: "/unknown args", sendInput: send }));
     expect(send).toHaveBeenCalledWith({ parts: [{ kind: "text", text: "/unknown args" }] });
   });
 
   it("folds pasted-text attachments into the message below the typed text", () => {
-    useComposerStore.setState({ pastes: [{ id: "p1", text: "PASTED BLOB", lines: 1 }] });
     const send = vi.fn();
     const clear = vi.fn();
-    submitComposer({ value: "look at this", clear, sendInput: send, images: [] });
+    submitComposer(
+      deps({
+        value: "look at this",
+        clear,
+        sendInput: send,
+        pastes: [{ id: "p1", text: "PASTED BLOB", lines: 1 }],
+      }),
+    );
     expect(send).toHaveBeenCalledWith({
       parts: [{ kind: "text", text: "look at this\n\nPASTED BLOB" }],
     });
@@ -63,9 +76,14 @@ describe("submitComposer", () => {
   });
 
   it("allows a paste-only send (no typed text)", () => {
-    useComposerStore.setState({ pastes: [{ id: "p1", text: "ONLY PASTE", lines: 1 }] });
     const send = vi.fn();
-    submitComposer({ value: "   ", clear: () => {}, sendInput: send, images: [] });
+    submitComposer(
+      deps({
+        value: "   ",
+        sendInput: send,
+        pastes: [{ id: "p1", text: "ONLY PASTE", lines: 1 }],
+      }),
+    );
     expect(send).toHaveBeenCalledWith({ parts: [{ kind: "text", text: "ONLY PASTE" }] });
   });
 });

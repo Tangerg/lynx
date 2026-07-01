@@ -1,4 +1,4 @@
-import type { BlockStatus, QuestionItem } from "@/plugins/sdk/types/agentView";
+import type { BlockStatus, QuestionItem } from "@/plugins/builtin/agent/public/viewState";
 
 export type QuestionAnswers = Record<string, string | string[]>;
 

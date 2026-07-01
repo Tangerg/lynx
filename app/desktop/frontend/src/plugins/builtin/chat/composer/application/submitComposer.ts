@@ -9,6 +9,7 @@ import {
   type InputImage,
   type UserInput,
 } from "@/plugins/builtin/chat/composer/public/input";
+import type { PastedText } from "../domain/draft";
 import { createComposerSendIntent } from "../domain/sendIntent";
 import {
   lookupExtensionByKey,
@@ -16,7 +17,6 @@ import {
   reportPluginError,
   SLASH_COMMAND,
 } from "@/plugins/sdk";
-import { useComposerStore } from "../adapters/composerStore";
 
 export interface SubmitDeps {
   /** Current textarea contents. */
@@ -27,15 +27,21 @@ export interface SubmitDeps {
   sendInput: (input: UserInput) => void;
   /** Image attachments to inline alongside the text (empty = text-only). */
   images: InputImage[];
+  /** Large pasted text attachments staged on the active draft. */
+  pastes: PastedText[];
+  /** Record a submitted typed message for shell-style history recall. */
+  recordHistory: (text: string) => void;
 }
 
 /** Run the composer submit pipeline. Safe to call on empty text + no images. */
-export function submitComposer({ value, clear, sendInput, images }: SubmitDeps): void {
-  // Large pasted blobs ride alongside the typed text as attachment chips (T2.3)
-  // — read them off the active draft and fold them into the outgoing message
-  // below the typed text. They're not part of slash parsing or ↑/↓ recall
-  // (those see the typed text only).
-  const pastes = useComposerStore.getState().pastes;
+export function submitComposer({
+  value,
+  clear,
+  sendInput,
+  images,
+  pastes,
+  recordHistory,
+}: SubmitDeps): void {
   const intent = createComposerSendIntent({ value, images, pastes });
   // An image-only / paste-only send (a screenshot or a dropped blob with no
   // caption) is valid.
@@ -43,7 +49,7 @@ export function submitComposer({ value, clear, sendInput, images }: SubmitDeps):
 
   // Record the submitted text for ↑/↓ recall (slash commands included — they're
   // worth re-running too). Image-/paste-only sends have no typed text to recall.
-  if (intent.historyText) useComposerStore.getState().pushHistory(intent.historyText);
+  if (intent.historyText) recordHistory(intent.historyText);
 
   // Slash routing applies only to a text command — an attached image / paste
   // isn't a command argument. A "/cmd" still routes as the command (attachments

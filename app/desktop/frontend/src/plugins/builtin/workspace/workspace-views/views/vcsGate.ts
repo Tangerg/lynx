@@ -4,12 +4,8 @@
 // branch); clean repo → the view's own empty state.
 
 import type { IconName } from "@/components/common";
-import { isErrorType } from "@/rpc";
 import { t } from "@/lib/i18n";
-
-export function isVcsUnavailable(error: unknown): boolean {
-  return isErrorType(error, "vcs_unavailable");
-}
+export { isVcsUnavailable } from "@/plugins/builtin/workspace/application/vcsAvailability";
 
 export const gitOffEmpty = (icon: IconName) => ({
   icon,

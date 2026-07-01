@@ -3,7 +3,10 @@ import { DataView, Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { isUnsupportedMethod } from "@/lib/rpcErrors";
-import { useListFiles, useReadFile } from "@/lib/data/queries";
+import {
+  useWorkspaceListFiles,
+  useWorkspaceReadFile,
+} from "@/plugins/builtin/workspace/application/workspaceData";
 import { FileTree } from "./views/FileTree";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
@@ -15,7 +18,7 @@ import { defineWorkspaceView } from "./defineWorkspaceView";
 
 function FileViewer({ path, cwd, onBack }: { path: string; cwd?: string; onBack: () => void }) {
   const t = useT();
-  const { data, isLoading, isError } = useReadFile({ path, cwd });
+  const { data, isLoading, isError } = useWorkspaceReadFile({ path, cwd });
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <button
@@ -44,7 +47,7 @@ function ExplorerView() {
   const t = useT();
   const cwd = useActiveSessionCwd();
   const [selected, setSelected] = useState<string | null>(null);
-  const { data: roots, isLoading, isError, error } = useListFiles({ cwd });
+  const { data: roots, isLoading, isError, error } = useWorkspaceListFiles({ cwd });
 
   return (
     <WorkspaceViewLayout icon="folder" titleStrong title="filetree.title">

@@ -1,6 +1,6 @@
 import { t } from "@/lib/i18n";
 import type { Interrupt, OpenInterrupt, ToolInvocation } from "@/rpc";
-import type { AgentViewState, ContentBlock } from "@/plugins/sdk/types/agentView";
+import type { AgentViewState, ContentBlock } from "@/plugins/builtin/agent/public/viewState";
 import { appendTimelineEntry } from "@/plugins/sdk";
 import { approvalText, commandString, editableArgs, mapQuestion, toolLabel } from "./projections";
 import { appendToTurn, patchBlock } from "./fold";

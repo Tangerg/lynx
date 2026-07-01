@@ -9,8 +9,8 @@ import type {
   ContentBlock,
   Message,
   ToolCall,
-} from "@/plugins/sdk/types/agentView";
-import { isLocalMessageId, isLocalSteerMessageId } from "@/plugins/sdk/types/agentView";
+} from "@/plugins/builtin/agent/public/viewState";
+import { isLocalMessageId, isLocalSteerMessageId } from "@/plugins/builtin/agent/public/viewState";
 import {
   argsText,
   contentText,

@@ -93,7 +93,7 @@ plugins/builtin/agent/
   presentation/
 ```
 
-当前 `plugins/sdk/types/agentView.ts` 里的内容需要重新定性：wire schema 不属于它；agent view model、tool display convention、message projection 应逐步进入 agent context。
+业务侧通过 `plugins/builtin/agent/public/viewState.ts` 消费 agent 视图语言；`plugins/sdk/types/agentView.ts` 仅保留 SDK 内部和内容块声明合并所需的扩展契约。后续若继续拆，应把 SDK 的泛内容块扩展契约与 agent 会话视图模型彻底分文件。
 
 ### Composer
 
@@ -383,4 +383,4 @@ Zustand store 不是业务层。它可以承担：
 2. **Composer Draft / SendIntent**：为 composer 与 agent 的 public port 协作打基础。
 3. **Workspace tool routing / view model**：把 tool -> terminal/diff/timeline 的规则从 UI/store 里收口。
 4. **Settings configuration drafts**：逐步把 MCP/schedule/hooks/provider form 从 RPC shape 中解耦。
-5. **Agent view model 命名边界**：最后处理影响面较大的 `plugins/sdk/types/agentView` 定性和迁移。
+5. **Agent view model 深拆**：业务消费入口已收敛到 `agent/public/viewState`；下一步是把 SDK 的内容块扩展契约与 agent 会话视图模型彻底分文件。

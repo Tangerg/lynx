@@ -3,7 +3,7 @@
 // original block indices for the caller's streaming-text coercion.
 
 import { describe, expect, it } from "vitest";
-import type { ContentBlock, ToolCall } from "@/plugins/sdk/types/agentView";
+import type { ContentBlock, ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import { planRenderUnits } from "@/plugins/builtin/agent/public/messagePresentation";
 
 const tb = (toolCallId: string): ContentBlock => ({ kind: "tool", toolCallId });

@@ -1,6 +1,6 @@
-import type { TodoItem } from "@/rpc";
 import { PlanCheck, planItemRow } from "@/components/chat/message";
 import { useT } from "@/lib/i18n";
+import type { WorkspaceTodo } from "@/plugins/builtin/workspace/application/todoViewModel";
 
 // TodoItem.status → the plan-row visual vocabulary. PlanCheck / planItemRow are
 // shared with the Plan view + inline PlanBlock, so the agent's working checklist
@@ -11,7 +11,7 @@ const TODO_STATUS = {
   pending: "todo",
 } as const;
 
-export function TodoList({ todos }: { todos: TodoItem[] }) {
+export function TodoList({ todos }: { todos: WorkspaceTodo[] }) {
   const t = useT();
   return (
     <div className="px-4.5 py-3.5">

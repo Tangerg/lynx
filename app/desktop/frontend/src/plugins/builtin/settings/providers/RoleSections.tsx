@@ -5,7 +5,8 @@ import {
   type ProviderConfig,
   setEmbeddingRole,
   setUtilityRole,
-  useProviderRoleConfig,
+  useEmbeddingModelConfig,
+  useUtilityModelConfig,
 } from "./application/providerConfig";
 import { useT } from "@/lib/i18n";
 
@@ -46,15 +47,8 @@ function RoleSectionShell({
 // empty means "use the main turn model".
 export function UtilityModelSection() {
   const t = useT();
-  const { utilityRole, models } = useProviderRoleConfig();
-  const { data: role } = utilityRole;
-  const { data: modelOptions = [] } = models;
+  const { role, modelOptions, selected, isSet } = useUtilityModelConfig();
   const [error, setError] = useState<string | null>(null);
-
-  const isSet = Boolean(role?.model);
-  const selected = isSet
-    ? (modelOptions.find((m) => m.provider === role?.provider && m.id === role?.model) ?? null)
-    : null;
 
   const pick = async (next: { provider: string; model: string } | null): Promise<void> => {
     setError(null);
@@ -122,13 +116,8 @@ export function UtilityModelSection() {
 // Global embedding model for @codebase indexing; empty disables semantic search.
 export function EmbeddingModelSection() {
   const t = useT();
-  const { embeddingRole, providers } = useProviderRoleConfig();
-  const { data: role } = embeddingRole;
-  const { data: providerConfigs = [] } = providers;
+  const { role, capableProviders, isSet } = useEmbeddingModelConfig();
   const [error, setError] = useState<string | null>(null);
-
-  const capable = providerConfigs.filter((p) => p.embeddingCapable);
-  const isSet = Boolean(role?.model);
 
   const pick = async (p: ProviderConfig | null): Promise<void> => {
     setError(null);
@@ -144,7 +133,7 @@ export function EmbeddingModelSection() {
       description={t("providers.embedding.desc")}
       error={error}
       note={
-        capable.length === 0 ? (
+        capableProviders.length === 0 ? (
           <p className="text-[11px] leading-snug text-fg-faint">{t("providers.embedding.none")}</p>
         ) : null
       }
@@ -181,7 +170,7 @@ export function EmbeddingModelSection() {
             <span className="truncate">{t("providers.embedding.off")}</span>
             {!isSet && <Icon name="check" size={12} className="text-accent" />}
           </DropdownMenu.Item>
-          {capable.map((p) => (
+          {capableProviders.map((p) => (
             <DropdownMenu.Item key={p.id} onClick={() => void pick(p)} className={itemClass}>
               <ProviderIcon provider={p.id} size={16} />
               <span className="truncate">

@@ -45,6 +45,19 @@ for (const file of files(SRC)) {
       reason: "builtin public surfaces must not import runtime wire directly",
     });
   }
+
+  if (
+    !rel.startsWith("plugins/sdk/") &&
+    !rel.startsWith("plugins/host/") &&
+    rel !== "plugins/builtin/agent/public/viewState.ts" &&
+    rel !== "plugins/builtin/chat/preview-blocks/viewBlocks.ts" &&
+    /from\s+["']@\/plugins\/sdk\/types\/agent(View|Timeline)["']/.test(text)
+  ) {
+    violations.push({
+      file: rel,
+      reason: "agent view language must be consumed through agent public/viewState",
+    });
+  }
 }
 
 if (violations.length > 0) {

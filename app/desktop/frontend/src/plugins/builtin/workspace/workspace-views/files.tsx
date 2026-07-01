@@ -6,8 +6,8 @@ import { DataView } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { FilesChanged } from "./views/FilesChanged";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
-import { useFilesChanged } from "@/lib/data/queries";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useWorkspaceFileChanges } from "@/plugins/builtin/workspace/application/workspaceData";
 import {
   openWorkspaceDiffForFile,
   useActiveWorkspaceFile,
@@ -28,7 +28,7 @@ function FilesView() {
     isLoading,
     isError,
     error,
-  } = useFilesChanged(gitEnabled ? { cwd } : undefined);
+  } = useWorkspaceFileChanges(gitEnabled ? { cwd } : undefined);
   const items = files ?? [];
   const notARepo = isVcsUnavailable(error);
 

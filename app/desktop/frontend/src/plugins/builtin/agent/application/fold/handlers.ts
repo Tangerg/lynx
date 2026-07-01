@@ -1,7 +1,7 @@
 import type { Operation } from "fast-json-patch";
 import type { StreamEvent } from "@/rpc";
 import type { StreamEventHandler } from "@/plugins/sdk";
-import type { AgentViewState } from "@/plugins/sdk/types/agentView";
+import type { AgentViewState } from "@/plugins/builtin/agent/public/viewState";
 import { onItemCompleted, onItemDelta, onItemStarted } from "./itemHandlers";
 import { onRunFinished, onRunProgress, onRunStarted } from "./runHandlers";
 import { onStateDelta, onStateSnapshot } from "./stateHandlers";

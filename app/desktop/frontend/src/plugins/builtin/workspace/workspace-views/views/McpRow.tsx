@@ -1,19 +1,21 @@
-import type { MCPServer } from "@/lib/data/queries";
 import type { IconName } from "@/components/common";
 import { useState } from "react";
 import { Icon, IconButton } from "@/components/common";
 import { useT } from "@/lib/i18n";
-import { useMCPTools } from "@/lib/data/queries";
-import { getContainer } from "@/main/container";
 import { openWorkspaceSettingsPane } from "@/plugins/builtin/workspace/public/navigation";
 import { cn } from "@/lib/utils";
+import {
+  reconnectMCPServer,
+  type MCPServerConfig,
+  useMCPServerToolConfigs,
+} from "@/plugins/builtin/workspace/application/toolCatalog";
 
 // MCP server row — appears in the Tools workspace view. Status pill mirrors
 // the wire lifecycle (AUX_API §5.1); the reconnect button's loading state is
 // `status === "connecting"` — pushed via mcp.serverChanged, never invented
 // locally (reconnect guarantees connecting → terminal ordering, §5.2).
 // i18n key → pill classes. Labels are resolved at render via t().
-const STATUS_CLASSES: Record<MCPServer["status"], { key: string; classes: string }> = {
+const STATUS_CLASSES: Record<MCPServerConfig["status"], { key: string; classes: string }> = {
   connecting: {
     key: "tools.status.connecting",
     classes: "bg-surface-2 text-fg-muted animate-pulse",
@@ -24,21 +26,11 @@ const STATUS_CLASSES: Record<MCPServer["status"], { key: string; classes: string
   needsAuth: { key: "tools.status.login", classes: "bg-warning/12 text-warning" },
 };
 
-function reconnect(server: string): void {
-  // Fire-and-forget: progress arrives as mcp.serverChanged events → the
-  // workspace-events plugin invalidates `mcp-servers` → this row re-renders
-  // through the whole lifecycle without local state.
-  getContainer()
-    .client()
-    .workspace.mcp.reconnect(server)
-    .catch((err: unknown) => console.warn("[mcp] reconnect failed:", err));
-}
-
 // Expanded detail: the server's tool list (workspace.mcp.listTools), fetched
 // lazily on first expand and kept fresh by mcp.serverChanged invalidation.
 function McpToolList({ server }: { server: string }) {
   const t = useT();
-  const { data: tools, isLoading } = useMCPTools({ server });
+  const { data: tools, isLoading } = useMCPServerToolConfigs(server);
   if (isLoading)
     return (
       <p className="m-0 px-4 pb-3 pl-[68px] text-[11.5px] text-fg-faint">
@@ -88,7 +80,7 @@ function McpAuthGuide({ server }: { server: string }) {
   );
 }
 
-export function McpRow({ server }: { server: MCPServer }) {
+export function McpRow({ server }: { server: MCPServerConfig }) {
   const t = useT();
   const pill = STATUS_CLASSES[server.status];
   const connecting = server.status === "connecting";
@@ -133,7 +125,7 @@ export function McpRow({ server }: { server: MCPServer }) {
         <IconButton
           title={t("tools.reconnect")}
           disabled={connecting}
-          onClick={() => reconnect(server.id)}
+          onClick={() => reconnectMCPServer(server.id)}
           className={cn(connecting && "animate-spin")}
         >
           <Icon name="loop" size={13} />

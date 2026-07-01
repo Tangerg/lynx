@@ -1,4 +1,4 @@
-import type { PlanItem } from "@/plugins/sdk/types/agentView";
+import type { PlanItem } from "@/plugins/builtin/agent/public/viewState";
 import { memo } from "react";
 import { PlanCheck, planItemRow } from "./PlanCheck";
 

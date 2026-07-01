@@ -7,9 +7,12 @@ import { DataView, Icon } from "@/components/common";
 import { McpRow } from "./views/McpRow";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
-import { useBuiltinTools, useMCPServers } from "@/lib/data/queries";
 import { openWorkspaceSettingsPane } from "@/plugins/builtin/workspace/public/navigation";
 import { defineWorkspaceView } from "./defineWorkspaceView";
+import {
+  useBuiltinToolConfigs,
+  useMCPServerConfigs,
+} from "@/plugins/builtin/workspace/application/toolCatalog";
 
 // Safety class → pill tint. Unknown classes fall back to the neutral pill
 // (forward-compat: the enum is open on the wire).
@@ -26,7 +29,7 @@ function SectionHead({ children }: { children: React.ReactNode }) {
 
 function BuiltinToolsSection() {
   const t = useT();
-  const { data, isLoading } = useBuiltinTools();
+  const { data, isLoading } = useBuiltinToolConfigs();
   // No skeleton/error chrome here — the MCP DataView below owns the tab's
   // loading story; this section just appears once the catalog resolves.
   if (isLoading || !data?.length) return null;
@@ -66,7 +69,7 @@ function openMcpSettings(title: string): void {
 
 function ToolsTab() {
   const t = useT();
-  const { data, isLoading, isError } = useMCPServers();
+  const { data, isLoading, isError } = useMCPServerConfigs();
   const servers = data ?? [];
   const active = servers.filter((s) => s.status === "connected").length;
 

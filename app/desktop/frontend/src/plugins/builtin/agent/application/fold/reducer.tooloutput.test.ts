@@ -5,10 +5,10 @@
 // non-streaming runtimes must all still render output. See API.md §4.4.1 + §5.2.
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Item, StreamEvent } from "@/rpc";
-import type { AgentViewState } from "@/plugins/sdk/types/agentView";
+import type { AgentViewState } from "@/plugins/builtin/agent/public/viewState";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { reduce } from "./reducer";
-import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
+import { INITIAL_VIEW_STATE } from "@/plugins/builtin/agent/public/viewState";
 
 function item(partial: Record<string, unknown>): Item {
   return {
