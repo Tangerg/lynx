@@ -1,14 +1,13 @@
 import type { Message } from "@/plugins/builtin/agent/public/viewState";
 import type { AgentInput } from "../../domain/input";
-import { getContainer } from "@/main/container";
 import { notifyInfo } from "@/lib/notify";
-import { asRunId, asSessionId } from "@/rpc";
+import { agentRuntime, type AgentRestoreType } from "../ports/runtimeGateway";
 import { agentSessionState } from "../ports/sessionState";
 import { agentViewState } from "../ports/viewState";
 import { forkSessionAt } from "./forkSession";
 import { rehydrateSessionView } from "./rehydrateSession";
 
-export type RestoreType = "history" | "files" | "both";
+export type RestoreType = AgentRestoreType;
 
 export interface ActiveAgentConversation {
   sessionId: string;
@@ -30,9 +29,7 @@ export async function rollbackSessionToBeforeRun(
   runId: string,
   restoreType: RestoreType = "history",
 ): Promise<boolean> {
-  const client = getContainer().client();
-  const sid = asSessionId(sessionId);
-  const { runs } = await client.items.list({ sessionId: sid });
+  const { runs } = await agentRuntime().loadSessionHistory(sessionId);
   const roots = runs.filter((run) => !run.parentRunId && !run.spawnedByItemId);
   const index = roots.findIndex((run) => run.id === runId);
   if (index < 0) return false;
@@ -43,9 +40,9 @@ export async function rollbackSessionToBeforeRun(
       source: "session",
     });
   }
-  await client.sessions.rollback({
-    sessionId: sid,
-    ...(keep ? { toRunId: asRunId(keep) } : {}),
+  await agentRuntime().rollbackSession({
+    sessionId,
+    ...(keep ? { toRunId: keep } : {}),
     ...(wantsFiles && keep ? { restoreType } : {}),
   });
   await rehydrateSessionView(sessionId);
@@ -53,5 +50,5 @@ export async function rollbackSessionToBeforeRun(
 }
 
 export function forkAgentSessionAtRun(sessionId: string, runId: string): Promise<void> {
-  return forkSessionAt(sessionId, asRunId(runId));
+  return forkSessionAt(sessionId, runId);
 }

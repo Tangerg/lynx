@@ -13,6 +13,7 @@ import { usePluginStore } from "@/plugins/sdk/registry";
 import { _resetAllSlices } from "@/plugins/sdk/stateSlice";
 import {
   installAgentDefaultSessionPort,
+  installAgentRuntimeGateway,
   installAgentStatePorts,
 } from "@/plugins/builtin/agent/public/statePorts";
 import { installComposerStatePorts } from "@/plugins/builtin/chat/composer/public/statePorts";
@@ -20,12 +21,14 @@ import { installWorkspaceNavigationPort } from "@/plugins/builtin/workspace/publ
 
 installAgentStatePorts();
 installAgentDefaultSessionPort();
+installAgentRuntimeGateway();
 installComposerStatePorts();
 installWorkspaceNavigationPort();
 
 beforeEach(() => {
   installAgentStatePorts();
   installAgentDefaultSessionPort();
+  installAgentRuntimeGateway();
   installComposerStatePorts();
   installWorkspaceNavigationPort();
   usePluginStore.getState().resetForTest();

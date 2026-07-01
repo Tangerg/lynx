@@ -1,8 +1,8 @@
 import type { AgentRunStartOptions } from "@/plugins/sdk";
 import type { AgentInput } from "../../domain/input";
 import { useCallback } from "react";
-import { getContainer } from "@/main/container";
 import { invalidateSessions } from "@/lib/data/queries";
+import { agentRuntime } from "../ports/runtimeGateway";
 import { agentSessionState } from "../ports/sessionState";
 import { reportSessionError } from "./reportSessionError";
 
@@ -41,9 +41,10 @@ async function createAndOpen({
   cwd,
 }: CreateSessionOptions): Promise<string | null> {
   try {
-    const session = await getContainer()
-      .client()
-      .sessions.create(cwd ? { cwd } : {}, AbortSignal.timeout(CREATE_TIMEOUT_MS));
+    const session = await agentRuntime().createSession(
+      cwd ? { cwd } : {},
+      AbortSignal.timeout(CREATE_TIMEOUT_MS),
+    );
     const store = agentSessionState();
     // Mark draft + queue the message BEFORE selecting, so the remount
     // useAgentSession triggers sees both already in place.

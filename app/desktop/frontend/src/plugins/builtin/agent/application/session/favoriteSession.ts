@@ -1,9 +1,8 @@
 import { useCallback } from "react";
 import type { SidebarSession } from "@/lib/data/queries";
-import { getContainer } from "@/main/container";
-import { asSessionId } from "@/rpc";
 import { queryClient } from "@/lib/data/queryClient";
 import { invalidateSessions, SESSIONS_KEY } from "@/lib/data/queries";
+import { agentRuntime } from "../ports/runtimeGateway";
 import { reportSessionError } from "./reportSessionError";
 
 /** Pin / unpin a session (sessions.update favorite) and refresh the sidebar.
@@ -20,9 +19,7 @@ export function useToggleFavorite(): (id: string, favorite: boolean) => Promise<
       old?.map((s) => (s.id === id ? { ...s, favorite } : s)),
     );
     try {
-      await getContainer()
-        .client()
-        .sessions.update({ sessionId: asSessionId(id), favorite });
+      await agentRuntime().updateSession({ sessionId: id, favorite });
       void invalidateSessions();
     } catch (err) {
       if (prev) queryClient.setQueryData([SESSIONS_KEY], prev);

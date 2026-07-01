@@ -1,9 +1,8 @@
 import { useCallback } from "react";
 import type { SidebarSession } from "@/lib/data/queries";
-import { getContainer } from "@/main/container";
-import { asSessionId } from "@/rpc";
 import { queryClient } from "@/lib/data/queryClient";
 import { invalidateSessions, SESSIONS_KEY } from "@/lib/data/queries";
+import { agentRuntime } from "../ports/runtimeGateway";
 import { reportSessionError } from "./reportSessionError";
 
 /** Rename a session (sessions.update title) and refresh the sidebar list.
@@ -23,9 +22,7 @@ export function useRenameSession(): (id: string, title: string) => Promise<void>
       old?.map((s) => (s.id === id ? { ...s, title } : s)),
     );
     try {
-      await getContainer()
-        .client()
-        .sessions.update({ sessionId: asSessionId(id), title });
+      await agentRuntime().updateSession({ sessionId: id, title });
       void invalidateSessions();
     } catch (err) {
       if (prev) queryClient.setQueryData([SESSIONS_KEY], prev);

@@ -14,6 +14,7 @@ import { performHandshake } from "@/main/handshake";
 import { definePlugin } from "@/plugins/sdk";
 import { getConfig } from "@/plugins/sdk/config";
 import { installAgentDefaultSessionPort } from "../adapters/agentDefaultSessionPort";
+import { installAgentRuntimeGateway } from "../adapters/agentRuntimeGateway";
 import { installAgentStatePorts } from "../adapters/agentStatePorts";
 
 async function handshake(): Promise<void> {
@@ -46,6 +47,7 @@ export default definePlugin({
   setup() {
     installAgentStatePorts();
     installAgentDefaultSessionPort();
+    installAgentRuntimeGateway();
     let teardown: (() => Promise<void>) | null = null;
     void initObservability()
       .then((fn) => {

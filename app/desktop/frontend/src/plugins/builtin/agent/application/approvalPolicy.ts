@@ -3,15 +3,15 @@
 
 import { APPROVAL_MODE_KEY, APPROVAL_RULES_KEY, type ApprovalModeValue } from "@/lib/data/queries";
 import { queryClient } from "@/lib/data/queryClient";
-import { getContainer } from "@/main/container";
+import { agentRuntime } from "./ports/runtimeGateway";
 
 export async function setApprovalMode(mode: ApprovalModeValue): Promise<void> {
-  await getContainer().client().approval.setMode(mode);
+  await agentRuntime().setApprovalMode(mode);
   await queryClient.invalidateQueries({ queryKey: [APPROVAL_MODE_KEY] });
 }
 
 /** Forget one persisted approval rule by id (clear-all = loop the visible ids). */
 export async function forgetRule(id: string): Promise<void> {
-  await getContainer().client().approval.forgetRule(id);
+  await agentRuntime().forgetApprovalRule(id);
   await queryClient.invalidateQueries({ queryKey: [APPROVAL_RULES_KEY] });
 }
