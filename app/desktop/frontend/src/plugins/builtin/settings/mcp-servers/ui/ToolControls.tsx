@@ -15,7 +15,7 @@
 
 import { DataView, Switch } from "@/components/common";
 import { useT } from "@/lib/i18n";
-import { useMCPServerTools } from "./application/mcpServerTools";
+import { useMCPServerTools } from "../application/mcpServerTools";
 
 interface Props {
   server: string;

@@ -11,7 +11,7 @@
 // header is preserved (no silent drop).
 
 import { z } from "zod";
-import type { MCPServerConfigInput } from "./application/mcpServerInput";
+import type { MCPServerConfigInput } from "./mcpServerInput";
 
 // env may be a map ({KEY:"val"}) or a "KEY=value" array; both normalize to the
 // KEY→value map our config input carries (split on the FIRST '=' so a value may

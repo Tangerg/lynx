@@ -11,8 +11,8 @@ import {
   useCompletionSoundPreference,
   useMessageStylePreference,
   useStreamRevealPreference,
-} from "./application/personalizationPreferences";
-import { SettingRow } from "../SettingRow";
+} from "../application/personalizationPreferences";
+import { SettingRow } from "../../SettingRow";
 
 export function MessageStyleSection() {
   const t = useT();

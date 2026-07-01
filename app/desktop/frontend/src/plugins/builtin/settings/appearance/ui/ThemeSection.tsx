@@ -8,7 +8,7 @@ import { Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { THEME, useExtensionPoint } from "@/plugins/sdk";
-import { useThemePreference } from "./application/appearancePreferences";
+import { useThemePreference } from "../application/appearancePreferences";
 
 // Fallback hexes for previewing themes that didn't ship a `tokens` map.
 // Match the built-in dark palette so the preview never goes blank.

@@ -6,7 +6,7 @@ import {
   useConfigureMCPServer,
   useRemoveMCPServer,
   useTestMCPServer,
-} from "./application/mcpServerConfig";
+} from "../application/mcpServerConfig";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { FIELD, LinesField } from "./ServerFormFields";
@@ -15,7 +15,7 @@ import {
   initialMCPServerDraft,
   isMCPServerDraftValid,
   mcpServerInputFromDraft,
-} from "./application/mcpServerDraft";
+} from "../application/mcpServerDraft";
 import { ToolControls } from "./ToolControls";
 
 type Probe = { state: "idle" | "busy" } | { state: "ok" } | { state: "error"; reason: string };

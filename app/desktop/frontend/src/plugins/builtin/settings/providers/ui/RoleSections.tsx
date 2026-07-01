@@ -7,7 +7,7 @@ import {
   setUtilityRole,
   useEmbeddingModelConfig,
   useUtilityModelConfig,
-} from "./application/providerConfig";
+} from "../application/providerConfig";
 import { useT } from "@/lib/i18n";
 
 const triggerClass =
