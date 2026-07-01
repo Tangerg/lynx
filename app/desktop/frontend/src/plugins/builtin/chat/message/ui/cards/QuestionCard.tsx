@@ -58,7 +58,7 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered,
     const shown: QuestionAnswers | undefined = questionSettledAnswers(questions, draft, answers);
     if (!shown) return <HitlSettledRow label={t("question.settled.answered")} />;
     return (
-      <div className="my-3 flex flex-col gap-2 rounded-md border border-line bg-surface px-4 py-3">
+      <div className="my-3 flex flex-col gap-2 rounded-md bg-surface px-4 py-3 shadow-[var(--shadow-surface)]">
         <div className="flex items-center gap-1.5 font-mono text-[10px] font-medium text-fg-faint">
           <Icon name="check" size={11} strokeWidth={3} />
           <span>{t("question.settled.answered")}</span>

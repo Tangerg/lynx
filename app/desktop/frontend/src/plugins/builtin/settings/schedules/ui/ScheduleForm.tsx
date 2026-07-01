@@ -56,7 +56,7 @@ export function ScheduleForm({ schedule, defaultCwd, onDone, onCancel }: Schedul
   };
 
   return (
-    <div className="flex flex-col gap-2.5 rounded-lg border border-line-soft bg-surface-2 p-3">
+    <div className="flex flex-col gap-2.5 rounded-lg bg-surface-2 p-3 shadow-[var(--shadow-surface)]">
       <input
         value={draft.title}
         onChange={(event) => updateDraft("title", event.target.value)}
