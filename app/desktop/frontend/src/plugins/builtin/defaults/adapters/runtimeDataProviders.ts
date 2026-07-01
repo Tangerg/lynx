@@ -45,7 +45,7 @@ import {
   toSidebarMCPServer,
   toSidebarProject,
   toSidebarSession,
-} from "./dataAdapters";
+} from "./runtimeDataAdapters";
 
 export function registerDefaultDataProviders(host: Host): void {
   const client = () => getContainer().client();
