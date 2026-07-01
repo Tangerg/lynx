@@ -8,7 +8,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Icon } from "@/components/common";
 import { BannerAction } from "./BannerAction";
 import { textInput } from "@/lib/agent/composerInput";
-import { flattenText } from "@/lib/agent/messageContent";
+import { flattenText } from "@/plugins/builtin/agent/public/messageContent";
 import { useT } from "@/lib/i18n";
 import { swift } from "@/lib/motion";
 import {

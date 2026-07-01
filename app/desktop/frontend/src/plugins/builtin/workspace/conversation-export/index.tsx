@@ -30,7 +30,7 @@ import { getCurrentSessionView } from "@/state/agentStore";
 import { serverFeature } from "@/state/runtimeStore";
 import { useSessionStore } from "@/state/sessionStore";
 import { invalidateSessions } from "@/lib/data/queries";
-import { flattenMarkdown } from "@/lib/agent/messageContent";
+import { flattenMarkdown } from "@/plugins/builtin/agent/public/messageContent";
 import { rehydrateSessionView } from "@/lib/agent/rehydrateSession";
 
 function timestampForFilename(): string {

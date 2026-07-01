@@ -19,8 +19,12 @@ import {
   forkFromMessage,
   regenerateMessage,
   restoreCheckpoint,
-} from "@/lib/agent/messageActions";
-import { flattenCode, flattenMarkdown, flattenText } from "@/lib/agent/messageContent";
+} from "@/plugins/builtin/chat/message-actions/public/messageActions";
+import {
+  flattenCode,
+  flattenMarkdown,
+  flattenText,
+} from "@/plugins/builtin/agent/public/messageContent";
 import { writeToClipboard } from "@/lib/clipboard";
 import { useT } from "@/lib/i18n";
 import { serverFeature } from "@/state/runtimeStore";

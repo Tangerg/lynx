@@ -7,8 +7,11 @@
 
 import { useState } from "react";
 import { DropdownMenu, Icon, Tooltip } from "@/components/common";
-import { editMessageInComposer, regenerateMessage } from "@/lib/agent/messageActions";
-import { flattenCode, flattenMarkdown, flattenText } from "@/lib/agent/messageContent";
+import {
+  flattenCode,
+  flattenMarkdown,
+  flattenText,
+} from "@/plugins/builtin/agent/public/messageContent";
 import { writeToClipboard } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
@@ -16,6 +19,7 @@ import { getContainer } from "@/main/container";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
 import { asItemId, asRunId, asSessionId } from "@/rpc";
 import { useSessionStore } from "@/state/sessionStore";
+import { editMessageInComposer, regenerateMessage } from "./application/messageActions";
 import { ACTION_BTN_BASE } from "./_shared";
 
 function roleShape(role: string): string {

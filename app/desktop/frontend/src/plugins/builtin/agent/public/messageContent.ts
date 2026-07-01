@@ -1,7 +1,5 @@
-// Message → text helpers, shared by every surface that needs to project a
-// `Message.blocks` array onto a flat string: the message-action copy menu, the
-// conversation-export plugin, and the right-click context menu on the chat row.
-// Lives in `lib/` because it's cross-plugin shared, not owned by any one plugin.
+// Public message-text projection for surfaces that need to flatten an agent
+// message: message actions, conversation export, and error recovery prompts.
 
 import type { Message } from "@/protocol/run/viewState";
 
