@@ -63,10 +63,20 @@
   --color-info: var(--color-info);
   --color-success: var(--color-success);
 
-  /* Borders — default hairline / emphasized stroke / deepest contrast. */
-  --color-line: var(--color-border);
-  --color-line-soft: var(--color-border-soft);
-  --color-divider: var(--color-divider);
+  /* Borders — DELIBERATELY TRANSPARENT across every theme. Grey hairlines read
+     cheap and, worse, are asymmetric per scheme (a faint white line on dark,
+     an obvious grey rule on light), so a dozen themes meant a dozen different
+     "border personalities". Rather than tune each, the border utilities
+     (`border-line` / `border-line-soft` / `border-divider`) resolve to
+     transparent HERE — decoupled from each theme's `--color-border*` values, so
+     no theme can paint a visible rule. Region separation is carried by the
+     surface ladder + shadow tokens (--shadow-surface for cards) + spacing.
+     Layout is unaffected (the 1px border box still reserves its space; it's
+     just invisible). Re-point one of these at its `--color-border*` source if a
+     specific hairline ever needs to come back. */
+  --color-line: transparent;
+  --color-line-soft: transparent;
+  --color-divider: transparent;
 
   /* Fine foreground ramp — mapped into Tailwind utilities */
   --color-text-2: var(--color-text-2);
@@ -505,7 +515,6 @@ html.theme-light .msg-content {
 html.theme-light .msg-content code {
   background: var(--color-surface-2);
   color: var(--color-text);
-  border: 1px solid var(--color-border);
   padding: 1px 5px;
 }
 
