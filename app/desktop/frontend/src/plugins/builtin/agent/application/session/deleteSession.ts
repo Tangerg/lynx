@@ -4,7 +4,7 @@ import { getContainer } from "@/main/container";
 import { asSessionId } from "@/rpc";
 import { queryClient } from "@/lib/data/queryClient";
 import { invalidateSessions, SESSIONS_KEY } from "@/lib/data/queries";
-import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
+import { agentSessionState } from "../ports/sessionState";
 import { reportSessionError } from "./reportSessionError";
 
 /**
@@ -25,7 +25,7 @@ export function useDeleteSession(): (id: string) => Promise<void> {
     );
     try {
       await getContainer().client().sessions.delete(asSessionId(id));
-      useAgentSessionStore.getState().closeTab(id);
+      agentSessionState().closeSession(id);
       void invalidateSessions();
     } catch (err) {
       if (prev) queryClient.setQueryData([SESSIONS_KEY], prev);

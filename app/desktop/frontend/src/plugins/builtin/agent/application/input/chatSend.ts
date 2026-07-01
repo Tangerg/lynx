@@ -1,19 +1,12 @@
-import type { RunEvent } from "@/rpc";
 import type { AgentRunStartOptions } from "@/plugins/sdk";
 import { useCallback } from "react";
 import { getContainer } from "@/main/container";
 import { asRunId, isErrorType } from "@/rpc";
 import { resolveAgentRunStartOptions } from "@/plugins/sdk";
-import {
-  useAgentAction,
-  useAgentRunId,
-  useAgentRunning,
-  useAgentStore,
-} from "@/plugins/builtin/agent/adapters/agentStore";
 import type { AgentInput } from "../../domain/input";
 import { agentInputText } from "../../domain/input";
-import { agentInputToContentBlocks } from "../../adapters/wireInput";
 import { LOCAL_STEER_PREFIX } from "@/plugins/builtin/agent/public/viewState";
+import { agentViewState } from "../ports/viewState";
 import { getActiveSessionId } from "../session/activeSession";
 import { type CreateSessionOptions, useCreateSession } from "../session/createSession";
 
@@ -41,9 +34,9 @@ type CreateSession = (opts?: CreateSessionOptions) => Promise<string | null>;
  */
 export function useChatSend(): (input: AgentInput) => void {
   const createSession = useCreateSession();
-  const send = useAgentAction("send");
-  const running = useAgentRunning();
-  const runId = useAgentRunId();
+  const send = agentViewState().useAction("send");
+  const running = agentViewState().useRunning();
+  const runId = agentViewState().useRunId();
   return useCallback(
     (input: AgentInput) => {
       const sessionId = getActiveSessionId();
@@ -60,7 +53,7 @@ export function useChatSend(): (input: AgentInput) => void {
 }
 
 export function useCanSendToAgent(): boolean {
-  return Boolean(useAgentAction("send"));
+  return Boolean(agentViewState().useAction("send"));
 }
 
 // Optimistic steer bubble: render the user's steered message immediately under a
@@ -93,7 +86,7 @@ function steerRunningTurn({
     .runs.steer(asRunId(runId), text)
     .catch((err) => {
       if (isErrorType(err, "run_not_found")) {
-        useAgentStore.getState().dropMessage(sessionId, localId);
+        agentViewState().dropMessage(sessionId, localId);
         send?.(input, runOptions);
       }
     });
@@ -124,22 +117,7 @@ function sendFreshTurn({
 
 function mintSteerBubble(sessionId: string, input: AgentInput): string {
   const id = `${LOCAL_STEER_PREFIX}${++steerSeq}`;
-  const wireInput = agentInputToContentBlocks(input);
-  useAgentStore.getState().applyEvents(sessionId, [
-    {
-      event: {
-        type: "item.completed",
-        item: {
-          id,
-          runId: "",
-          status: "completed",
-          createdAt: new Date().toISOString(),
-          type: "userMessage",
-          content: wireInput,
-        },
-      } as RunEvent["event"],
-    },
-  ]);
+  agentViewState().appendLocalUserMessage(sessionId, id, input);
   return id;
 }
 

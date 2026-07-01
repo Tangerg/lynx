@@ -1,14 +1,10 @@
 import type {
-  AgentViewState,
   Message,
   PlanItem,
   TimelineEntry,
   ToolCall,
 } from "@/plugins/builtin/agent/public/viewState";
-import {
-  getCurrentSessionView,
-  useAgentMessages,
-} from "@/plugins/builtin/agent/adapters/agentStore";
+import { agentViewState } from "../ports/viewState";
 
 interface ActiveConversationSnapshot {
   messages: Message[];
@@ -18,11 +14,11 @@ interface ActiveConversationSnapshot {
 }
 
 export function useActiveConversationMessages(): Message[] {
-  return useAgentMessages();
+  return agentViewState().useMessages();
 }
 
 export function getActiveConversationSnapshot(): ActiveConversationSnapshot {
-  const view: AgentViewState = getCurrentSessionView();
+  const view = agentViewState().getCurrentView();
   return {
     messages: view.messages,
     plan: view.plan,

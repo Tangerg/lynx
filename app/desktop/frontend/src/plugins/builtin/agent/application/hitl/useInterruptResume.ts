@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState } from "react";
 import { asItemId, asRunId, type InterruptResponse } from "@/rpc";
-import { useAgentStore } from "@/plugins/builtin/agent/adapters/agentStore";
-import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
+import type { ResolvePatch } from "../ports/viewState";
+import { agentSessionState } from "../ports/sessionState";
+import { agentViewState } from "../ports/viewState";
 
 // Shared HITL resume scaffold (API.md §6, R-model) behind useApprovalSubmit and
 // useQuestionAnswer — the parts that must behave identically for every interrupt
@@ -17,13 +18,6 @@ import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSess
 //    the run-started callback — see resumeInterrupt below.
 // Each caller supplies, per submit, the pending marker (so the card knows which
 // action is settling), the wire response payload, and the resolveInterrupt patch.
-
-export type ResolvePatch = {
-  decision?: "approved" | "declined";
-  answered?: boolean;
-  /** Question answers to echo on the settled card, keyed by QuestionItem.id. */
-  answers?: Record<string, string[]>;
-};
 
 /**
  * Fire a HITL resume for one open interrupt and DEFER the optimistic settle to
@@ -46,13 +40,13 @@ export function resumeInterrupt(
   settled: ResolvePatch,
   hooks?: { onSettled?: () => void; onError?: () => void },
 ): boolean {
-  const sessionResume = useAgentStore.getState().sessions[sessionId]?.resume;
+  const sessionResume = agentViewState().getSession(sessionId)?.resume;
   if (!sessionResume) return false;
   sessionResume(
     asRunId(parentRunId),
     [{ itemId: asItemId(itemId), response }],
     () => {
-      useAgentStore.getState().resolveInterrupt(sessionId, itemId, settled);
+      agentViewState().resolveInterrupt(sessionId, itemId, settled);
       hooks?.onSettled?.();
     },
     () => hooks?.onError?.(),
@@ -62,7 +56,7 @@ export function resumeInterrupt(
 
 export function useInterruptResume<P>(parentRunId?: string, itemId?: string) {
   const [pending, setPending] = useState<P | null>(null);
-  const [sessionId] = useState(() => useAgentSessionStore.getState().activeSessionId);
+  const [sessionId] = useState(() => agentSessionState().getActiveSessionId());
   // Synchronous one-shot latch. `pending` state only updates on the next render,
   // so two submits in the same tick (a fast double-click landing before the card
   // disables its buttons) would both pass a `pending`-based guard and fire two

@@ -82,6 +82,19 @@ for (const file of files(SRC)) {
       reason: "builtin context application must not import UI components or pages",
     });
   }
+
+  if (
+    !isTest &&
+    /plugins\/builtin\/.+\/application\/.+\.(ts|tsx)$/.test(rel) &&
+    /from\s+["'](?:@\/plugins\/builtin\/.+\/adapters(?:\/[^"']*)?|(?:\.\.\/)+adapters(?:\/[^"']*)?)["']/.test(
+      text,
+    )
+  ) {
+    violations.push({
+      file: rel,
+      reason: "builtin context application must depend on ports, not adapter implementations",
+    });
+  }
 }
 
 if (violations.length > 0) {

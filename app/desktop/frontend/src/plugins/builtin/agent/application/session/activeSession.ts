@@ -1,58 +1,36 @@
 import type { SidebarSession } from "@/lib/data/queries";
 import { useSessions } from "@/lib/data/queries";
-import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
+import {
+  agentSessionState,
+  type AgentSessionLifecycleSnapshot,
+  type AgentSessionSelectionSnapshot,
+} from "../ports/sessionState";
 
-export interface AgentSessionLifecycleSnapshot {
-  activeSessionId: string;
-  openSessionIds: string[];
-}
-
-export interface AgentSessionSelectionSnapshot {
-  activeSessionId: string;
-  selectionEpoch: number;
-}
+export type {
+  AgentSessionLifecycleSnapshot,
+  AgentSessionSelectionSnapshot,
+} from "../ports/sessionState";
 
 export function useActiveSessionId(): string {
-  return useAgentSessionStore((s) => s.activeSessionId);
+  return agentSessionState().useActiveSessionId();
 }
 
 export function getActiveSessionId(): string {
-  return useAgentSessionStore.getState().activeSessionId;
+  return agentSessionState().getActiveSessionId();
 }
 
 export function getAgentSessionLifecycleSnapshot(): AgentSessionLifecycleSnapshot {
-  const state = useAgentSessionStore.getState();
-  return { activeSessionId: state.activeSessionId, openSessionIds: state.tabIds };
-}
-
-function getAgentSessionSelectionSnapshot(): AgentSessionSelectionSnapshot {
-  const state = useAgentSessionStore.getState();
-  return { activeSessionId: state.activeSessionId, selectionEpoch: state.selectionEpoch };
+  return agentSessionState().getLifecycleSnapshot();
 }
 
 export function subscribeActiveSessionId(onChange: (sessionId: string) => void): () => void {
-  let lastSessionId = getActiveSessionId();
-  return useAgentSessionStore.subscribe((state) => {
-    if (state.activeSessionId === lastSessionId) return;
-    lastSessionId = state.activeSessionId;
-    onChange(lastSessionId);
-  });
+  return agentSessionState().subscribeActiveSessionId(onChange);
 }
 
 export function subscribeAgentSessionLifecycle(
   onChange: (snapshot: AgentSessionLifecycleSnapshot) => void,
 ): () => void {
-  let lastSnapshot = getAgentSessionLifecycleSnapshot();
-  return useAgentSessionStore.subscribe((state) => {
-    if (
-      state.activeSessionId === lastSnapshot.activeSessionId &&
-      state.tabIds === lastSnapshot.openSessionIds
-    ) {
-      return;
-    }
-    lastSnapshot = { activeSessionId: state.activeSessionId, openSessionIds: state.tabIds };
-    onChange(lastSnapshot);
-  });
+  return agentSessionState().subscribeLifecycle(onChange);
 }
 
 export function subscribeAgentSessionSelection(
@@ -61,31 +39,17 @@ export function subscribeAgentSessionSelection(
     previous: AgentSessionSelectionSnapshot,
   ) => void,
 ): () => void {
-  let lastSnapshot = getAgentSessionSelectionSnapshot();
-  return useAgentSessionStore.subscribe((state) => {
-    if (
-      state.activeSessionId === lastSnapshot.activeSessionId &&
-      state.selectionEpoch === lastSnapshot.selectionEpoch
-    ) {
-      return;
-    }
-    const previous = lastSnapshot;
-    lastSnapshot = {
-      activeSessionId: state.activeSessionId,
-      selectionEpoch: state.selectionEpoch,
-    };
-    onChange(lastSnapshot, previous);
-  });
+  return agentSessionState().subscribeSelection(onChange);
 }
 
 export function selectAgentSession(id: string): void {
-  useAgentSessionStore.getState().selectTab(id);
+  agentSessionState().selectSession(id);
 }
 
 export function closeActiveAgentSession(): boolean {
   const id = getActiveSessionId();
   if (!id) return false;
-  useAgentSessionStore.getState().closeTab(id);
+  agentSessionState().closeSession(id);
   return true;
 }
 

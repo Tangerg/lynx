@@ -13,6 +13,7 @@ import { getContainer } from "@/main/container";
 import { performHandshake } from "@/main/handshake";
 import { definePlugin } from "@/plugins/sdk";
 import { getConfig } from "@/plugins/sdk/config";
+import { installAgentStatePorts } from "../adapters/agentStatePorts";
 
 async function handshake(): Promise<void> {
   const { sidecar, client } = getContainer();
@@ -42,6 +43,7 @@ export default definePlugin({
   name: "lyra.builtin.bootstrap",
   version: "1.0.0",
   setup() {
+    installAgentStatePorts();
     let teardown: (() => Promise<void>) | null = null;
     void initObservability()
       .then((fn) => {

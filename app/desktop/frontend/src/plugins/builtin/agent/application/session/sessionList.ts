@@ -1,13 +1,13 @@
 import type { SidebarSession } from "@/lib/data/queries";
 import { useEffect, useMemo, useRef } from "react";
 import { useSessions } from "@/lib/data/queries";
-import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
+import { agentSessionState } from "../ports/sessionState";
 
 const EMPTY_SESSIONS: SidebarSession[] = [];
 
 export function useVisibleAgentSessions(): SidebarSession[] {
   const { data } = useSessions();
-  const draftIds = useAgentSessionStore((state) => state.draftSessionIds);
+  const draftIds = agentSessionState().useDraftSessionIds();
   const sessions = data ?? EMPTY_SESSIONS;
   return useMemo(
     () => sessions.filter((session) => !draftIds.has(session.id)),
@@ -16,7 +16,7 @@ export function useVisibleAgentSessions(): SidebarSession[] {
 }
 
 export function useSelectAgentSession(): (id: string) => void {
-  return useAgentSessionStore((state) => state.selectTab);
+  return agentSessionState().useSelectSession();
 }
 
 export function useReconcilePersistedAgentSessions(): void {
@@ -25,6 +25,6 @@ export function useReconcilePersistedAgentSessions(): void {
   useEffect(() => {
     if (done.current || !isSuccess) return;
     done.current = true;
-    useAgentSessionStore.getState().reconcileTabs((data ?? []).map((session) => session.id));
+    agentSessionState().reconcileSessions((data ?? []).map((session) => session.id));
   }, [isSuccess, data]);
 }

@@ -3,7 +3,7 @@ import type { AgentInput } from "../../domain/input";
 import { useCallback } from "react";
 import { getContainer } from "@/main/container";
 import { invalidateSessions } from "@/lib/data/queries";
-import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
+import { agentSessionState } from "../ports/sessionState";
 import { reportSessionError } from "./reportSessionError";
 
 export interface CreateSessionOptions {
@@ -44,13 +44,13 @@ async function createAndOpen({
     const session = await getContainer()
       .client()
       .sessions.create(cwd ? { cwd } : {}, AbortSignal.timeout(CREATE_TIMEOUT_MS));
-    const store = useAgentSessionStore.getState();
+    const store = agentSessionState();
     // Mark draft + queue the message BEFORE selecting, so the remount
     // useAgentSession triggers sees both already in place.
-    store.markDraft(session.id);
+    store.markDraftSession(session.id);
     if (firstInput?.parts.length)
       store.setPendingMessage(session.id, { input: firstInput, runOptions: firstRunOptions ?? {} });
-    store.selectTab(session.id); // opens tab + sets active → remounts chat
+    store.selectSession(session.id); // opens tab + sets active → remounts chat
     // Draft is filtered out of the sidebar; refetch so its graduation
     // (and any backend-assigned title) lands promptly. A cwd create may
     // also have minted a brand-new project.

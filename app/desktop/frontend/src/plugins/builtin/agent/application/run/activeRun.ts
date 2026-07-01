@@ -5,19 +5,8 @@ import type {
   TimelineEntry,
   ToolCall,
 } from "@/plugins/builtin/agent/public/viewState";
-import {
-  useAgentAction,
-  useAgentPlan,
-  useAgentRunContextTokens,
-  useAgentRunId,
-  useAgentRunning,
-  useAgentRunUsage,
-  useAgentSlice,
-  useAgentStore,
-  useAgentTimeline,
-  useAgentToolCalls,
-} from "@/plugins/builtin/agent/adapters/agentStore";
-import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
+import { agentSessionState } from "../ports/sessionState";
+import { agentViewState } from "../ports/viewState";
 
 interface AgentSessionEntry {
   view: {
@@ -39,52 +28,52 @@ interface ActiveRunTokenUsage {
 }
 
 export function useIsAgentRunning(): boolean {
-  return useAgentRunning();
+  return agentViewState().useRunning();
 }
 
 export function useActiveRunId(): string | null {
-  return useAgentRunId();
+  return agentViewState().useRunId();
 }
 
 export function useActiveRunPlan(): PlanItem[] {
-  return useAgentPlan();
+  return agentViewState().usePlan();
 }
 
 export function useActiveRunToolCalls(): Record<string, ToolCall> {
-  return useAgentToolCalls();
+  return agentViewState().useToolCalls();
 }
 
 export function useActiveRunTimeline(): TimelineEntry[] {
-  return useAgentTimeline();
+  return agentViewState().useTimeline();
 }
 
 export function useActiveRunError(): RunError | null {
-  return useAgentSlice((view) => view.error);
+  return agentViewState().useError();
 }
 
 export function useActiveRunTokenUsage(): ActiveRunTokenUsage {
   return {
-    usage: useAgentRunUsage(),
-    contextTokens: useAgentRunContextTokens(),
+    usage: agentViewState().useUsage(),
+    contextTokens: agentViewState().useContextTokens(),
   };
 }
 
 export function useStopActiveAgentRun(): (() => void) | null {
-  return useAgentAction("stop");
+  return agentViewState().useAction("stop");
 }
 
 export function stopActiveAgentRun(): boolean {
-  const sessionId = useAgentSessionStore.getState().activeSessionId;
-  const entry = useAgentStore.getState().sessions[sessionId];
+  const sessionId = agentSessionState().getActiveSessionId();
+  const entry = agentViewState().getSession(sessionId);
   if (!entry?.view.run.running) return false;
   entry.stop?.();
   return true;
 }
 
 export function clearActiveRunError(): void {
-  const sessionId = useAgentSessionStore.getState().activeSessionId;
+  const sessionId = agentSessionState().getActiveSessionId();
   if (!sessionId) return;
-  useAgentStore.getState().clearError(sessionId);
+  agentViewState().clearError(sessionId);
 }
 
 function anyAgentRunning(sessions: Record<string, AgentSessionEntry>): boolean {
@@ -95,9 +84,9 @@ function anyAgentRunning(sessions: Record<string, AgentSessionEntry>): boolean {
 }
 
 export function subscribeAnyAgentRunning(onChange: (running: boolean) => void): () => void {
-  let lastRunning = anyAgentRunning(useAgentStore.getState().sessions);
-  return useAgentStore.subscribe((state) => {
-    const running = anyAgentRunning(state.sessions);
+  let lastRunning = anyAgentRunning(agentViewState().getSessions());
+  return agentViewState().subscribeSessions((sessions) => {
+    const running = anyAgentRunning(sessions);
     if (running === lastRunning) return;
     lastRunning = running;
     onChange(running);
@@ -108,8 +97,7 @@ export function subscribeAgentRunSettlements(
   onSettled: (settlement: AgentRunSettlement) => void,
 ): () => void {
   const lastRunning = new Map<string, boolean>();
-  return useAgentStore.subscribe((state) => {
-    const { sessions } = state;
+  return agentViewState().subscribeSessions((sessions) => {
     let count = 0;
     for (const sessionId in sessions) {
       count++;

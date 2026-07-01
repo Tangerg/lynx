@@ -3,8 +3,8 @@ import type { AgentInput } from "../../domain/input";
 import { getContainer } from "@/main/container";
 import { notifyInfo } from "@/lib/notify";
 import { asRunId, asSessionId } from "@/rpc";
-import { getCurrentSessionView, useAgentStore } from "@/plugins/builtin/agent/adapters/agentStore";
-import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
+import { agentSessionState } from "../ports/sessionState";
+import { agentViewState } from "../ports/viewState";
 import { forkSessionAt } from "./forkSession";
 import { rehydrateSessionView } from "./rehydrateSession";
 
@@ -16,16 +16,13 @@ export interface ActiveAgentConversation {
 }
 
 export function activeAgentConversation(): ActiveAgentConversation | null {
-  const sessionId = useAgentSessionStore.getState().activeSessionId;
+  const sessionId = agentSessionState().getActiveSessionId();
   if (!sessionId) return null;
-  return { sessionId, messages: getCurrentSessionView().messages };
+  return { sessionId, messages: agentViewState().getCurrentView().messages };
 }
 
 export function sendToAgentSession(sessionId: string, input: AgentInput): boolean {
-  const send = useAgentStore.getState().sessions[sessionId]?.send;
-  if (!send) return false;
-  send(input);
-  return true;
+  return agentViewState().sendToSession(sessionId, input);
 }
 
 export async function rollbackSessionToBeforeRun(
