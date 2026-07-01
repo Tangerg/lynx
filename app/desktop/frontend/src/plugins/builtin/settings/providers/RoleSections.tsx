@@ -2,7 +2,7 @@ import type { ProviderInfo } from "@/lib/data/queries";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { DropdownMenu, Icon, ProviderIcon } from "@/components/common";
-import { setEmbeddingRole, setUtilityRole } from "@/lib/agent/useProviderConfig";
+import { setEmbeddingRole, setUtilityRole } from "./application/providerConfig";
 import { useEmbeddingRole, useModels, useProviders, useUtilityRole } from "@/lib/data/queries";
 import { useT } from "@/lib/i18n";
 

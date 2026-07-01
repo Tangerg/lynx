@@ -311,8 +311,8 @@ function makeParamDataQuery<P, T>(key: string): (params: P | undefined) => UseQu
     });
 }
 
-// Keys that are also INVALIDATED outside this file (lib/agent mutation
-// hooks, the workspace-events plugin). Named so the literal exists in
+// Keys that are also invalidated outside this file (settings commands,
+// workspace-events plugin). Named so the literal exists in
 // exactly one place — the same no-drift argument as passing the key once
 // into makeDataQuery. Keys only ever read stay inline below.
 export const SESSIONS_KEY = "sessions";

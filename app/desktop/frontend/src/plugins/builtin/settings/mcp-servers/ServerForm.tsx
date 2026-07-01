@@ -5,7 +5,7 @@ import {
   useConfigureMCPServer,
   useRemoveMCPServer,
   useTestMCPServer,
-} from "@/lib/agent/useMCPServerConfig";
+} from "./application/mcpServerConfig";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { FIELD, LinesField } from "./ServerFormFields";

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Icon, PillButton } from "@/components/common";
-import { useConfigureMCPServer } from "@/lib/agent/useMCPServerConfig";
+import { useConfigureMCPServer } from "./application/mcpServerConfig";
 import { notifyInfo } from "@/lib/notify";
 import { useT } from "@/lib/i18n";
 import { TEXT_AREA } from "./ServerFormFields";

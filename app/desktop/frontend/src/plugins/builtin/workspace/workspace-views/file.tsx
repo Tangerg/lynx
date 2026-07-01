@@ -1,6 +1,6 @@
 // Built-in plugin: "File" workspace view — renders a file's full contents
 // (workspace.readFile) at a target line, opened by a clickable file:line
-// reference in the conversation (see lib/agent/linkedText). The file + line
+// reference in the conversation. The file + line
 // live in sessionStore.fileViewer.
 
 import { DataView } from "@/components/common";

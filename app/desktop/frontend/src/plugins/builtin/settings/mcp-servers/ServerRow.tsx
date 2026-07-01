@@ -1,7 +1,7 @@
 import type { MCPServerConfigInfo, MCPTransport } from "@/lib/data/queries";
 import { useState } from "react";
 import { Icon, PillButton, StatusDot, Switch } from "@/components/common";
-import { useAuthorizeMCPServer, useSetMCPServerEnabled } from "@/lib/agent/useMCPServerConfig";
+import { useAuthorizeMCPServer, useSetMCPServerEnabled } from "./application/mcpServerConfig";
 import { notifyError } from "@/lib/notify";
 import { useT } from "@/lib/i18n";
 import { ServerForm } from "./ServerForm";

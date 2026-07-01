@@ -145,7 +145,7 @@ export const messageEdit = definePlugin({
 });
 
 // ---- Regenerate (assistant messages only): replay the preceding user
-// prompt via the shared regenerateMessage action (lib/agent). ----
+// prompt via the shared regenerate message action.
 
 function RegenerateButton() {
   const t = useT();

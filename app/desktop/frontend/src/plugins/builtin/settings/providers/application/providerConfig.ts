@@ -18,9 +18,7 @@ import {
 import { queryClient } from "@/lib/data/queryClient";
 
 // Provider configuration mutations (providers.configure / providers.test).
-// Lives in lib/ so the settings pane (a component) reaches the runtime through
-// a hook rather than importing @/rpc / @/main directly (layer rule). Counterpart
-// to the read-side useProviders() query.
+// Counterpart to the read-side useProviders() query.
 
 export interface SaveProviderInput {
   provider: string;

@@ -6,9 +6,7 @@ import { MCP_CONFIGS_KEY, MCP_SERVERS_KEY, MCP_TOOLS_KEY } from "@/lib/data/quer
 import { queryClient } from "@/lib/data/queryClient";
 
 // MCP server-configuration mutations (workspace.mcp.configure / remove /
-// setEnabled / test). Lives in lib/ so the settings pane (a component) reaches
-// the runtime through a hook rather than importing @/rpc / @/main directly
-// (layer rule). Counterpart to the read-side useMCPConfigs() query — the
+// setEnabled / test). Counterpart to the read-side useMCPConfigs() query — the
 // mutators invalidate the configs + status views so the pane and the Tools
 // workspace view both re-read the new registry state.
 
