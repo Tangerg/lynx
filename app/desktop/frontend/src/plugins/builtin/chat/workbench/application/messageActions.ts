@@ -4,7 +4,6 @@
 
 import type { Message } from "@/plugins/builtin/agent/public/viewState";
 import { notifyError, notifyInfo } from "@/lib/notify";
-import { flattenText } from "@/plugins/builtin/agent/public/messageContent";
 import { buildInput } from "@/plugins/builtin/chat/composer/public/input";
 import { composerInputToAgentInput } from "./inputBridge";
 import { describeRpcError } from "@/lib/rpcErrors";
@@ -15,28 +14,17 @@ import {
   sendToAgentSession,
   type RestoreType,
 } from "@/plugins/builtin/agent/public/session";
+import { replaceComposerDraft } from "@/plugins/builtin/chat/composer/public/draft";
 import {
-  replaceComposerDraft,
-  type ComposerDraftImage,
-  type ComposerDraftInput,
-} from "@/plugins/builtin/chat/composer/public/draft";
+  messageDraftContent,
+  messageHasDraftContent,
+  regenerationPromptBefore,
+} from "./messageActionContent";
 
 export type { RestoreType };
 
-// Inlined images from a view message's blocks → composer-image shape (mime +
-// base64), so resend / regenerate / edit-and-rerun keep the images intact.
-function blockImages(msg: Message): ComposerDraftImage[] {
-  return msg.blocks
-    .filter((b): b is Extract<Message["blocks"][number], { kind: "image" }> => b.kind === "image")
-    .map((b) => ({ mime: b.mime, data: b.data }));
-}
-
-function draftFromMessage(msg: Message): ComposerDraftInput {
-  return { text: flattenText(msg.blocks), images: blockImages(msg) };
-}
-
 function prefillComposer(msg: Message): void {
-  replaceComposerDraft(draftFromMessage(msg));
+  replaceComposerDraft(messageDraftContent(msg));
 }
 
 // Mapped types (session_busy; checkpoint_unavailable — restoreType:"both"
@@ -63,47 +51,39 @@ export function regenerateMessage(msg: Message, opts?: RollbackActionOptions): v
   const conversation = activeAgentConversation();
   if (!conversation) return;
   const { sessionId, messages } = conversation;
-  const idx = messages.findIndex((m) => m.id === msg.id);
-  if (idx < 0) return;
-  for (let i = idx - 1; i >= 0; i--) {
-    const m = messages[i]!;
-    if (m.role !== "user") continue;
-    const text = flattenText(m.blocks).trim();
-    const imgs = blockImages(m);
-    // A user message with only inlined images and no text is still a valid
-    // turn to regenerate — the early `return` here would silently skip it.
-    if (!text && imgs.length === 0) return;
-    if (!m.runId) {
-      sendToAgentSession(sessionId, composerInputToAgentInput(buildInput(text, imgs)));
-      return;
-    }
-    void rollbackSessionToBeforeRun(sessionId, m.runId, opts?.restoreFiles ? "both" : "history")
-      .then(() => {
-        // resetView kept the binding, but the tab could have been torn down —
-        // or merely switched away, which nulls send via useAgentSession's
-        // cleanup — while the rollback was in flight. No live binding ⇒ we
-        // can't resend; surface it instead of dropping the regenerate silently.
-        if (
-          !sendToAgentSession(
-            sessionId,
-            composerInputToAgentInput(buildInput(text, blockImages(m))),
-          )
-        ) {
-          notifyInfo("Switched away before regenerate finished — nothing was resent.", {
-            source: "session",
-          });
-        }
-      })
-      .catch(reportRollbackError);
+  const prompt = regenerationPromptBefore(messages, msg.id);
+  if (!prompt) return;
+  if (!prompt.runId) {
+    sendToAgentSession(
+      sessionId,
+      composerInputToAgentInput(buildInput(prompt.text, prompt.images)),
+    );
     return;
   }
+  void rollbackSessionToBeforeRun(sessionId, prompt.runId, opts?.restoreFiles ? "both" : "history")
+    .then(() => {
+      // resetView kept the binding, but the tab could have been torn down —
+      // or merely switched away, which nulls send via useAgentSession's
+      // cleanup — while the rollback was in flight. No live binding ⇒ we
+      // can't resend; surface it instead of dropping the regenerate silently.
+      if (
+        !sendToAgentSession(
+          sessionId,
+          composerInputToAgentInput(buildInput(prompt.text, prompt.images)),
+        )
+      ) {
+        notifyInfo("Switched away before regenerate finished — nothing was resent.", {
+          source: "session",
+        });
+      }
+    })
+    .catch(reportRollbackError);
 }
 
 // Load the message text back into the composer so the user can tweak and
 // re-send. Doesn't mutate history — sending creates a new user turn.
 export function editMessageInComposer(msg: Message): void {
-  // Nothing to load if the message has neither text nor images.
-  if (!msg.blocks.some((b) => (b.kind === "text" && b.text) || b.kind === "image")) return;
+  if (!messageHasDraftContent(msg)) return;
   prefillComposer(msg);
 }
 
@@ -114,8 +94,7 @@ export function editMessageInComposer(msg: Message): void {
 // composer prefill when the message never reconciled to a run.
 export function editAndRerunMessage(msg: Message, opts?: RollbackActionOptions): void {
   const conversation = activeAgentConversation();
-  const hasContent = msg.blocks.some((b) => (b.kind === "text" && b.text) || b.kind === "image");
-  if (!conversation || !hasContent) return;
+  if (!conversation || !messageHasDraftContent(msg)) return;
   if (msg.role !== "user" || !msg.runId) {
     prefillComposer(msg);
     return;
