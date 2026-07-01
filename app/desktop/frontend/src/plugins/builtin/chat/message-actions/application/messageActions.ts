@@ -7,33 +7,31 @@ import { getContainer } from "@/main/container";
 import { notifyError, notifyInfo } from "@/lib/notify";
 import { asRunId, asSessionId } from "@/rpc";
 import { getCurrentSessionView, useAgentStore } from "@/state/agentStore";
-import { useComposerStore } from "@/plugins/builtin/chat/composer/public/store";
 import { useSessionStore } from "@/state/sessionStore";
 import { flattenText } from "@/plugins/builtin/agent/public/messageContent";
 import { buildInput } from "@/plugins/builtin/chat/composer/public/input";
 import { describeRpcError } from "@/lib/rpcErrors";
 import { forkSessionAt, rehydrateSessionView } from "@/plugins/builtin/agent/public/session";
+import {
+  replaceComposerDraft,
+  type ComposerDraftImage,
+  type ComposerDraftInput,
+} from "@/plugins/builtin/chat/composer/public/draft";
 
 // Inlined images from a view message's blocks → composer-image shape (mime +
 // base64), so resend / regenerate / edit-and-rerun keep the images intact.
-function blockImages(msg: Message): { mime: string; data: string }[] {
+function blockImages(msg: Message): ComposerDraftImage[] {
   return msg.blocks
     .filter((b): b is Extract<Message["blocks"][number], { kind: "image" }> => b.kind === "image")
     .map((b) => ({ mime: b.mime, data: b.data }));
 }
 
-// Load a message's content back into the composer for tweak + resend: its text
-// into the textarea, its inlined images re-staged. Replaces whatever's there.
+function draftFromMessage(msg: Message): ComposerDraftInput {
+  return { text: flattenText(msg.blocks), images: blockImages(msg) };
+}
+
 function prefillComposer(msg: Message): void {
-  const store = useComposerStore.getState();
-  const text = flattenText(msg.blocks);
-  store.clear(); // wipe current text + staged images first
-  store.setValue(text);
-  const imgs = blockImages(msg);
-  if (imgs.length > 0) store.addImages(imgs);
-  const ta = document.querySelector<HTMLTextAreaElement>(".composer-input");
-  ta?.focus();
-  ta?.setSelectionRange(text.length, text.length);
+  replaceComposerDraft(draftFromMessage(msg));
 }
 
 // What a checkpoint restore rewinds (mirrors the wire RestoreType, AUX_API §4.3).
