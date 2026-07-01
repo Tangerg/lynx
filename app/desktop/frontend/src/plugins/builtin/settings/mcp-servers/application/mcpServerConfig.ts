@@ -1,7 +1,4 @@
 import { useCallback } from "react";
-import { getContainer } from "@/main/container";
-import { t } from "@/lib/i18n";
-import { errorDetail, type ConfigureMCPServerRequest } from "@/rpc";
 import {
   MCP_CONFIGS_KEY,
   MCP_SERVERS_KEY,
@@ -11,12 +8,13 @@ import {
 } from "@/lib/data/queries";
 import { queryClient } from "@/lib/data/queryClient";
 import type { MCPServerConfigInput } from "./mcpServerInput";
+import { mcpServerGateway, type MCPServerTestOutcome } from "./ports/mcpServerGateway";
 export type { MCPServerConfigInput, MCPServerTransport } from "./mcpServerInput";
+export type { MCPServerTestOutcome } from "./ports/mcpServerGateway";
 
-// MCP server-configuration mutations (workspace.mcp.configure / remove /
-// setEnabled / test). Counterpart to the read-side useMCPConfigs() query — the
-// mutators invalidate the configs + status views so the pane and the Tools
-// workspace view both re-read the new registry state.
+// MCP server-configuration mutations. Counterpart to the read-side
+// useMCPConfigs() query: mutators invalidate the configs + status views so the
+// pane and the Tools workspace view both re-read the new registry state.
 
 export type MCPServerConfig = MCPServerConfigInfo;
 
@@ -35,51 +33,22 @@ function invalidateMcp(): Promise<void> {
   ]).then(() => undefined);
 }
 
-function configureRequest(input: MCPServerConfigInput): ConfigureMCPServerRequest {
-  const base = {
-    name: input.name,
-    type: input.transport,
-    enabled: input.enabled,
-    description: input.description,
-    timeoutSeconds: input.timeoutSeconds,
-    disabledTools: input.disabledTools,
-    autoApproveTools: input.autoApproveTools,
-  } satisfies ConfigureMCPServerRequest;
-
-  if (input.transport === "stdio") {
-    return {
-      ...base,
-      command: input.command,
-      args: input.args,
-      env: input.env,
-      dir: input.dir,
-    };
-  }
-
-  return {
-    ...base,
-    url: input.url,
-    authorization: input.authorization,
-    headers: input.headers,
-  };
-}
-
 /**
- * Upsert an MCP server config (workspace.mcp.configure) and refetch the MCP
- * views. `authorization` is the raw token; omitting it keeps the stored one,
- * so editing a non-secret field never re-prompts for the token.
+ * Upsert an MCP server config and refetch the MCP views. `authorization` is the
+ * raw token; omitting it keeps the stored one, so editing a non-secret field
+ * never re-prompts for the token.
  */
 export function useConfigureMCPServer(): (input: MCPServerConfigInput) => Promise<void> {
   return useCallback(async (input) => {
-    await getContainer().client().workspace.mcp.configure(configureRequest(input));
+    await mcpServerGateway().configure(input);
     await invalidateMcp();
   }, []);
 }
 
-/** Remove a server from the registry (workspace.mcp.remove). */
+/** Remove a server from the registry. */
 export function useRemoveMCPServer(): (name: string) => Promise<void> {
   return useCallback(async (name) => {
-    await getContainer().client().workspace.mcp.remove(name);
+    await mcpServerGateway().remove(name);
     await invalidateMcp();
   }, []);
 }
@@ -87,41 +56,27 @@ export function useRemoveMCPServer(): (name: string) => Promise<void> {
 /** Flip a server's enablement without re-sending its whole config. */
 export function useSetMCPServerEnabled(): (name: string, enabled: boolean) => Promise<void> {
   return useCallback(async (name, enabled) => {
-    await getContainer().client().workspace.mcp.setEnabled(name, enabled);
+    await mcpServerGateway().setEnabled(name, enabled);
     await invalidateMcp();
   }, []);
 }
 
 /**
- * Start the interactive OAuth sign-in for a server (workspace.mcp.authorize) —
- * opens the system browser; the connection outcome arrives via mcp.serverChanged
- * (the events plugin re-invalidates the MCP views), so this just kicks it off.
+ * Start the interactive OAuth sign-in for a server. The connection outcome
+ * arrives via mcp.serverChanged (the events plugin re-invalidates the MCP
+ * views), so this just kicks it off.
  */
 export function useAuthorizeMCPServer(): (name: string) => Promise<void> {
   return useCallback(async (name) => {
-    await getContainer().client().workspace.mcp.authorize(name);
+    await mcpServerGateway().authorize(name);
     await invalidateMcp();
   }, []);
 }
 
-export interface MCPTestOutcome {
-  ok: boolean;
-  /** Human-readable failure reason (already flattened from ProblemData). */
-  error?: string;
-}
-
 /**
- * Live-probe a server config (workspace.mcp.test) WITHOUT persisting it — the
- * runtime dials it once and reports back. A failed probe comes back as
- * `{ ok:false, error }` (NOT an RPC error), so callers render the reason inline
- * (mirrors useTestProvider).
+ * Live-probe a server config without persisting it. A failed probe comes back
+ * as `{ ok:false, error }`, so callers render the reason inline.
  */
-export function useTestMCPServer(): (input: MCPServerConfigInput) => Promise<MCPTestOutcome> {
-  return useCallback(async (input) => {
-    const res = await getContainer().client().workspace.mcp.test(configureRequest(input));
-    return {
-      ok: res.ok,
-      error: res.ok ? undefined : (errorDetail(res.error) ?? t("mcp.error.test")),
-    };
-  }, []);
+export function useTestMCPServer(): (input: MCPServerConfigInput) => Promise<MCPServerTestOutcome> {
+  return useCallback((input) => mcpServerGateway().test(input), []);
 }

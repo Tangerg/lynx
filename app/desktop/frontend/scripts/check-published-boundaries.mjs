@@ -132,6 +132,29 @@ for (const file of files(SRC)) {
 
   if (
     !isTest &&
+    /plugins\/builtin\/settings\/mcp-servers\/application\/.+\.(ts|tsx)$/.test(rel) &&
+    /from\s+["']@\/main\/container["']/.test(text)
+  ) {
+    violations.push({
+      file: rel,
+      reason:
+        "MCP server settings application must depend on MCP gateway ports, not the composition root",
+    });
+  }
+
+  if (
+    !isTest &&
+    /plugins\/builtin\/settings\/(?:schedules|hooks)\/application\/.+\.(ts|tsx)$/.test(rel) &&
+    /from\s+["']@\/main\/container["']/.test(text)
+  ) {
+    violations.push({
+      file: rel,
+      reason: "settings application must depend on context gateway ports, not the composition root",
+    });
+  }
+
+  if (
+    !isTest &&
     /plugins\/builtin\/.+\/public\/.+\.(ts|tsx)$/.test(rel) &&
     !/plugins\/builtin\/.+\/public\/statePorts\.ts$/.test(rel) &&
     /from\s+["'](?:@\/plugins\/builtin\/.+\/adapters(?:\/[^"']*)?|(?:\.\.\/)+adapters(?:\/[^"']*)?)["']/.test(

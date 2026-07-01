@@ -5,6 +5,7 @@ import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { useT } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
+import { installScheduleGateway } from "./adapters/runtimeScheduleGateway";
 import { useScheduleConfigs } from "./application/scheduleCommands";
 import { ScheduleForm } from "./ScheduleForm";
 import { ScheduleRow } from "./ScheduleRow";
@@ -67,6 +68,7 @@ export default definePlugin({
   name: "lyra.builtin.schedules-pane",
   version: "1.0.0",
   setup({ host }) {
+    installScheduleGateway();
     host.extensions.contribute(SETTINGS_PANE, {
       id: "schedules",
       label: "settings.pane.schedules",

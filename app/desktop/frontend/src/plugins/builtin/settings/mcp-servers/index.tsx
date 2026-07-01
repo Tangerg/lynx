@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
+import { installMCPServerGateway } from "./adapters/runtimeMcpServerGateway";
 import { useMCPServerConfigs } from "./application/mcpServerConfig";
 import { JsonImport } from "./JsonImport";
 import { ServerForm } from "./ServerForm";
@@ -59,6 +60,7 @@ export default definePlugin({
   name: "lyra.builtin.mcp-servers-pane",
   version: "1.0.0",
   setup({ host }) {
+    installMCPServerGateway();
     host.extensions.contribute(SETTINGS_PANE, {
       id: "mcp-servers",
       label: "settings.pane.mcpServers",
