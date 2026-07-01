@@ -4,42 +4,27 @@
 // replace `kernel-chat` with their own session UI) without touching the
 // rest.
 
-import { useEffect, useMemo, useRef } from "react";
 import { ChatPanel } from "@/components/chat/panel";
 import { SettingsPage } from "./SettingsPage";
 import { SidebarPanel } from "@/components/sidebar/SidebarPanel";
 import { useChatSend } from "@/plugins/builtin/agent/public/input";
-import { useSessions } from "@/lib/data/queries";
+import {
+  useActiveSessionId,
+  useReconcilePersistedAgentSessions,
+  useSelectAgentSession,
+  useVisibleAgentSessions,
+} from "@/plugins/builtin/agent/public/session";
 import { definePlugin } from "@/plugins/sdk";
 import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
-import { useSessionStore } from "@/state/sessionStore";
 import { useUiStore } from "@/state/uiStore";
 import { useSidebarRail } from "@/state/useSidebarRail";
 import { useDefaultChatSession } from "@/state/useDefaultChatSession";
-
-// On boot, reconcile the persisted tabs / active session against the backend's
-// real session list. localStorage carries activeSessionId + tabIds across
-// launches; if the runtime no longer has those sessions — the db was reset
-// (`make fresh`) or a session was deleted elsewhere — a persisted ghost id
-// would strand the user on a dead session whose first runs.start is rejected
-// with session_not_found. Runs once, the first time sessions.list resolves;
-// not-yet-graduated drafts (absent from the list by design) are kept by
-// reconcileTabs, so there's no race with a session created during the run.
-function useReconcilePersistedTabs() {
-  const { data, isSuccess } = useSessions();
-  const done = useRef(false);
-  useEffect(() => {
-    if (done.current || !isSuccess) return;
-    done.current = true;
-    useSessionStore.getState().reconcileTabs((data ?? []).map((s) => s.id));
-  }, [isSuccess, data]);
-}
 
 function KernelChat() {
   // Drop persisted refs to sessions the backend no longer has BEFORE binding
   // the agent lifecycle, so a stale active id resolves to the welcome screen
   // instead of a dead session.
-  useReconcilePersistedTabs();
+  useReconcilePersistedAgentSessions();
   // Mount the active session's agent lifecycle (subscribe + register the
   // send/stop actions); the send routing itself goes through useChatSend.
   useDefaultChatSession();
@@ -49,16 +34,10 @@ function KernelChat() {
 
 function KernelSidebar() {
   const railed = useSidebarRail();
-  const activeSession = useSessionStore((s) => s.activeSessionId);
-  const selectTab = useSessionStore((s) => s.selectTab);
+  const activeSession = useActiveSessionId();
+  const selectTab = useSelectAgentSession();
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
-
-  // Only the rail view still needs the sessions list (the expanded view
-  // gets it via the plugin-contributed sidebar sections). Drafts are hidden
-  // until their first message graduates them.
-  const { data = [] } = useSessions();
-  const draftIds = useSessionStore((s) => s.draftSessionIds);
-  const sessions = useMemo(() => data.filter((s) => !draftIds.has(s.id)), [data, draftIds]);
+  const sessions = useVisibleAgentSessions();
 
   return (
     <SidebarPanel

@@ -1,8 +1,8 @@
 import { Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { openWorkspaceView } from "@/plugins/builtin/workspace/public/navigation";
 import { definePlugin } from "@/plugins/sdk";
-import { useSessionStore } from "@/state/sessionStore";
 
 // The sidebar search affordance — opens the workspace full-text (grep) search
 // view. It is NOT a live inline input: the cross-session / message search index
@@ -11,9 +11,7 @@ import { useSessionStore } from "@/state/sessionStore";
 // command palette, which doesn't search content at all).
 
 function openSearchView(): void {
-  useSessionStore
-    .getState()
-    .openMainView({ id: "search", title: "workspace.view.title.search", icon: "search" });
+  openWorkspaceView({ id: "search", title: "workspace.view.title.search", icon: "search" });
 }
 
 function SidebarSearch() {

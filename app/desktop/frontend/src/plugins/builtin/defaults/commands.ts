@@ -10,10 +10,13 @@
 // subscription catches up either way.
 
 import type { Disposable, ThemeAccentSpec, WorkspaceViewSpec } from "@/plugins/sdk";
-import { createSession } from "@/plugins/builtin/agent/public/session";
+import { closeActiveAgentSession, createSession } from "@/plugins/builtin/agent/public/session";
+import {
+  closeActiveWorkspaceView,
+  openWorkspaceView,
+} from "@/plugins/builtin/workspace/public/navigation";
 import { definePlugin, lookupExtensionPoint, usePluginStore } from "@/plugins/sdk";
 import { ACCENT, WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
-import { useSessionStore } from "@/state/sessionStore";
 import { useUiStore } from "@/state/uiStore";
 import { t } from "@/lib/i18n";
 
@@ -21,12 +24,8 @@ import { t } from "@/lib/i18n";
 // view in the main area, close that; otherwise close the active chat
 // session.
 function closeFocusedTab(): void {
-  const ui = useSessionStore.getState();
-  if (ui.activeMainView) {
-    ui.closeMainView(ui.activeMainView);
-  } else if (ui.activeSessionId) {
-    ui.closeTab(ui.activeSessionId);
-  }
+  if (closeActiveWorkspaceView()) return;
+  closeActiveAgentSession();
 }
 
 // "Open a new chat tab" — create a fresh draft session and open it.
@@ -120,12 +119,7 @@ export const defaultCommands = definePlugin({
             keywords: ["open", "show", view.id],
             // Hide when this view is already the focused main-area tab.
             when: `mainView != "${view.id}"`,
-            run: () =>
-              useSessionStore.getState().openMainView({
-                id: view.id,
-                title: view.title,
-                icon: view.icon,
-              }),
+            run: () => openWorkspaceView({ id: view.id, title: view.title, icon: view.icon }),
           }),
         );
       }

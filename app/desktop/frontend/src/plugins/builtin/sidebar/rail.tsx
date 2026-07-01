@@ -4,18 +4,22 @@
 // the expanded sidebar and only with each other.
 
 import { Icon, IconButton } from "@/components/common";
-import { useCreateSession } from "@/plugins/builtin/agent/public/session";
+import {
+  selectAgentSession,
+  useActiveSessionId,
+  useCreateSession,
+  useVisibleAgentSessions,
+} from "@/plugins/builtin/agent/public/session";
+import { openWorkspaceView } from "@/plugins/builtin/workspace/public/navigation";
 import { useT } from "@/lib/i18n";
-import { useSessions } from "@/lib/data/queries";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { SIDEBAR_RAIL_ITEM } from "@/plugins/sdk/kernelPoints";
-import { useSessionStore } from "@/state/sessionStore";
 
 // Open a workspace view in the main pane (mirrors the expanded sidebar's
 // footer gear / Tools entry). getState() in the handler — no subscription.
 const openView = (id: string, title: string, icon: string) =>
-  useSessionStore.getState().openMainView({ id, title, icon });
+  openWorkspaceView({ id, title, icon });
 
 function NewSessionBtn() {
   const t = useT();
@@ -62,17 +66,12 @@ export const sidebarRailActions = definePlugin({
 });
 
 function RailSessions() {
-  const { data: sessions = [] } = useSessions();
-  const activeSessionId = useSessionStore((s) => s.activeSessionId);
-  const draftIds = useSessionStore((s) => s.draftSessionIds);
-  const selectTab = useSessionStore((s) => s.selectTab);
+  const sessions = useVisibleAgentSessions();
+  const activeSessionId = useActiveSessionId();
   // Sort newest-first before taking 5 — the sessions provider returns server
   // order (unsorted), so without this the rail's "recent" set/order diverges
   // from the time-sorted expanded sidebar (the active session could be absent).
-  const recent = sessions
-    .filter((s) => !draftIds.has(s.id))
-    .sort((a, b) => (a.time < b.time ? 1 : -1))
-    .slice(0, 5);
+  const recent = sessions.sort((a, b) => (a.time < b.time ? 1 : -1)).slice(0, 5);
 
   return (
     <>
@@ -85,7 +84,7 @@ function RailSessions() {
             key={s.id}
             type="button"
             title={s.title}
-            onClick={() => selectTab(s.id)}
+            onClick={() => selectAgentSession(s.id)}
             className={cn(
               "relative grid h-10 w-10 place-items-center rounded-md border-0 font-sans text-[13px] font-medium transition-[background-color,color,transform] duration-75",
               "text-fg-muted hover:bg-fg/[0.02] hover:text-fg",

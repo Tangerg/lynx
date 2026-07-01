@@ -12,7 +12,7 @@ import { useT } from "@/lib/i18n";
 import { definePlugin, useCommands } from "@/plugins/sdk";
 import { comboGlyph } from "@/lib/combo";
 import { useSetComposerText } from "@/plugins/builtin/chat/composer/public/draft";
-import { useSessionStore } from "@/state/sessionStore";
+import { openWorkspaceSettingsPane } from "@/plugins/builtin/workspace/public/navigation";
 
 interface Suggestion {
   icon: IconName;
@@ -60,12 +60,7 @@ const SUGGESTIONS: Suggestion[] = [
 function SetupCard() {
   const t = useT();
   const onConfigure = () => {
-    useSessionStore.getState().setSettingsPane("providers");
-    useSessionStore.getState().openMainView({
-      id: "settings",
-      title: t("settings.title"),
-      icon: "settings",
-    });
+    openWorkspaceSettingsPane("providers", t("settings.title"));
   };
   return (
     <div className="w-full rounded-md border-0 bg-surface px-4 py-4 text-left shadow-[var(--shadow-surface)]">

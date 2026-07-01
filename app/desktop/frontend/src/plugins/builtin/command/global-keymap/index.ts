@@ -12,8 +12,8 @@
 
 import { definePlugin, lookupExtensionByKey } from "@/plugins/sdk";
 import { COMMAND, SHORTCUT } from "@/plugins/sdk/kernelPoints";
+import { closeActiveWorkspaceView } from "@/plugins/builtin/workspace/public/navigation";
 import { usePaletteStore } from "@/state/paletteStore";
-import { useSessionStore } from "@/state/sessionStore";
 
 // Commands that get a global key binding; their combo is read from the catalog
 // (default-commands registers it), so this is just the membership list.
@@ -60,10 +60,7 @@ export default definePlugin({
       allowInInputs: false,
       handler: () => {
         if (usePaletteStore.getState().open) return false;
-        const { activeMainView, closeMainView } = useSessionStore.getState();
-        if (!activeMainView) return false;
-        closeMainView(activeMainView);
-        return true;
+        return closeActiveWorkspaceView();
       },
     });
   },
