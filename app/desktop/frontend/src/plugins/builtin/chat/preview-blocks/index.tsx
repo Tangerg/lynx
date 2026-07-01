@@ -8,7 +8,7 @@
 // ignorant of them; deleting the folder cleanly removes the kinds + citations.
 
 import type { CitationSource, ContentBlockRendererProps } from "@/plugins/sdk";
-import { ShikiCodeBlock } from "@/components/chat/message";
+import { ShikiCodeBlock } from "@/components/common";
 import { SearchResults } from "@/components/tools/previews/SearchResults";
 import { definePlugin, MESSAGE_CITATION_SOURCE } from "@/plugins/sdk";
 import { Checkpoint } from "./Checkpoint";

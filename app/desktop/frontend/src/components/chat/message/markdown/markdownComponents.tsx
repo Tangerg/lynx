@@ -1,11 +1,10 @@
 import type { Components } from "react-markdown";
 import { useEffect, useRef } from "react";
-import { RichTooltip } from "@/components/common";
+import { RichTooltip, ShikiCodeBlock } from "@/components/common";
 import { useCitations } from "../CitationContext";
 import { FileRefLink } from "../FileRefLink";
 import { HtmlArtifact } from "./HtmlArtifact";
 import { MermaidBlock } from "./MermaidBlock";
-import { ShikiCodeBlock } from "./ShikiCodeBlock";
 
 // Per-message citation lookup. CitationContext is scoped to the
 // owning message so two messages with [1] markers don't collide.
