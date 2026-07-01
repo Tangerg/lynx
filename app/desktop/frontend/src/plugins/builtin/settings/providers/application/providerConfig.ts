@@ -1,13 +1,5 @@
 import { useCallback } from "react";
-import { getContainer } from "@/main/container";
 import { t } from "@/lib/i18n";
-import {
-  errorDetail,
-  RpcError,
-  type ConfigureProviderRequest,
-  type EmbeddingRole,
-  type UtilityRole,
-} from "@/rpc";
 import {
   CODEBASE_STATUS_KEY,
   EMBEDDING_ROLE_KEY,
@@ -21,6 +13,11 @@ import {
   useUtilityRole,
 } from "@/lib/data/queries";
 import { queryClient } from "@/lib/data/queryClient";
+import {
+  providerGateway,
+  type ProviderCredentials,
+  type ProviderRole,
+} from "./ports/providerGateway";
 
 // Provider configuration mutations (providers.configure / providers.test).
 // Counterpart to the read-side useProviders() query.
@@ -82,10 +79,10 @@ export interface SaveProviderInput {
  */
 export function useConfigureProvider(): (input: SaveProviderInput) => Promise<void> {
   return useCallback(async (input) => {
-    const params: ConfigureProviderRequest = { provider: input.provider };
+    const params: ProviderCredentials = { provider: input.provider };
     if (input.apiKey) params.apiKey = input.apiKey;
     if (input.baseUrl) params.baseUrl = input.baseUrl;
-    await getContainer().client().providers.configure(params);
+    await providerGateway().configureProvider(params);
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: [PROVIDERS_KEY] }),
       queryClient.invalidateQueries({ queryKey: [MODELS_KEY] }),
@@ -102,13 +99,13 @@ export function useConfigureProvider(): (input: SaveProviderInput) => Promise<vo
  * which must not import @/rpc — renders the reason inline. On success the
  * utility-role query is refetched so the pane reflects the stored value.
  */
-export async function setUtilityRole(role: UtilityRole): Promise<TestOutcome> {
+export async function setUtilityRole(role: ProviderRole): Promise<TestOutcome> {
   try {
-    await getContainer().client().models.setUtilityRole(role);
+    await providerGateway().setUtilityRole(role);
     await queryClient.invalidateQueries({ queryKey: [UTILITY_ROLE_KEY] });
     return { ok: true };
   } catch (e) {
-    const detail = e instanceof RpcError ? errorDetail(e.data) : undefined;
+    const detail = providerGateway().errorMessage(e);
     return {
       ok: false,
       error: detail ?? (e instanceof Error ? e.message : t("providers.utility.error")),
@@ -123,16 +120,16 @@ export async function setUtilityRole(role: UtilityRole): Promise<TestOutcome> {
  * flattened to `{ ok, error }` so the pane renders the reason inline. Refetches
  * the embedding-role + codebase-status queries on success.
  */
-export async function setEmbeddingRole(role: EmbeddingRole): Promise<TestOutcome> {
+export async function setEmbeddingRole(role: ProviderRole): Promise<TestOutcome> {
   try {
-    await getContainer().client().models.setEmbeddingRole(role);
+    await providerGateway().setEmbeddingRole(role);
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: [EMBEDDING_ROLE_KEY] }),
       queryClient.invalidateQueries({ queryKey: [CODEBASE_STATUS_KEY] }),
     ]);
     return { ok: true };
   } catch (e) {
-    const detail = e instanceof RpcError ? errorDetail(e.data) : undefined;
+    const detail = providerGateway().errorMessage(e);
     return {
       ok: false,
       error: detail ?? (e instanceof Error ? e.message : t("providers.embedding.error")),
@@ -153,10 +150,10 @@ export interface TestOutcome {
  */
 export function useTestProvider(): (provider: string) => Promise<TestOutcome> {
   return useCallback(async (provider) => {
-    const res = await getContainer().client().providers.test(provider);
+    const res = await providerGateway().testProvider(provider);
     return {
       ok: res.ok,
-      error: res.ok ? undefined : (errorDetail(res.error) ?? t("providers.error.test")),
+      error: res.ok ? undefined : (res.error ?? t("providers.error.test")),
     };
   }, []);
 }
