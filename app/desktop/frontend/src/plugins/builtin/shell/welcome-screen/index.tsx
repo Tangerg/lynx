@@ -63,7 +63,7 @@ function SetupCard() {
     openWorkspaceSettingsPane("providers", t("settings.title"));
   };
   return (
-    <div className="w-full rounded-lg border border-line-soft bg-surface px-4 py-4 text-left">
+    <div className="w-full rounded-lg bg-surface px-4 py-4 shadow-[var(--shadow-surface)] text-left">
       <div className="flex items-start gap-3">
         <Icon name="spark" size={16} className="mt-0.5 shrink-0 text-accent" />
         <div className="flex flex-col items-start gap-2">
@@ -112,7 +112,7 @@ function WelcomeScreen() {
                 <button
                   type="button"
                   onClick={() => setValue(t(s.promptKey))}
-                  className="group flex w-full items-center gap-3 rounded-lg border border-line-soft bg-surface px-4 py-3.5 text-left font-sans text-[14px] font-medium text-fg-soft transition-[background-color,border-color] duration-150 hover:border-line hover:bg-surface-2 active:scale-[0.99]"
+                  className="group flex w-full items-center gap-3 rounded-lg bg-surface px-4 py-3.5 shadow-[var(--shadow-surface)] text-left font-sans text-[14px] font-medium text-fg-soft transition-[background-color,box-shadow] duration-150 hover:bg-surface-2 active:scale-[0.99]"
                 >
                   <Icon name={s.icon} size={16} className="shrink-0 text-fg-muted" />
                   <span className="min-w-0 flex-1 truncate">{t(s.labelKey)}</span>
