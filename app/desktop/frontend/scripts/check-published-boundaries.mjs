@@ -98,6 +98,17 @@ for (const file of files(SRC)) {
 
   if (
     !isTest &&
+    /plugins\/builtin\/.+\/application\/.+\.(ts|tsx)$/.test(rel) &&
+    /from\s+["']@\/state(?:\/[^"']*)?["']/.test(text)
+  ) {
+    violations.push({
+      file: rel,
+      reason: "builtin context application must depend on context ports, not global stores",
+    });
+  }
+
+  if (
+    !isTest &&
     /plugins\/builtin\/.+\/public\/.+\.(ts|tsx)$/.test(rel) &&
     !/plugins\/builtin\/.+\/public\/statePorts\.ts$/.test(rel) &&
     /from\s+["'](?:@\/plugins\/builtin\/.+\/adapters(?:\/[^"']*)?|(?:\.\.\/)+adapters(?:\/[^"']*)?)["']/.test(

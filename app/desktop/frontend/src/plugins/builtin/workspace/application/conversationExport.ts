@@ -6,7 +6,7 @@ import { getContainer } from "@/main/container";
 import { notifyError } from "@/lib/notify";
 import { t } from "@/lib/i18n";
 import { asSessionId } from "@/rpc";
-import { serverFeature } from "@/state/runtimeStore";
+import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import { invalidateSessions } from "@/lib/data/queries";
 import { getActiveConversationSnapshot } from "@/plugins/builtin/agent/public/conversation";
 import { flattenMarkdown } from "@/plugins/builtin/agent/public/messageContent";
@@ -41,7 +41,7 @@ function renderMessageMarkdown(msg: Message): string {
 
 async function exportServer(format: "md" | "json"): Promise<boolean> {
   const sid = getActiveSessionId();
-  if (!sid || !serverFeature("sessionExport")) return false;
+  if (!sid || !runtimeCapability("sessionExport")) return false;
   try {
     const resp = await getContainer().client().sessions.export(asSessionId(sid), format);
     const stamp = timestampForFilename();
@@ -133,7 +133,7 @@ export async function exportConversationJson(): Promise<void> {
 }
 
 export async function importConversationJson(): Promise<void> {
-  if (!serverFeature("sessionExport")) {
+  if (!runtimeCapability("sessionExport")) {
     notifyError(t("convExport.importUnsupported"), { source: "import" });
     return;
   }

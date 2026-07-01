@@ -6,6 +6,7 @@
 import { CompletionSoundSection, MessageStyleSection, StreamRevealSection } from "./PrefSections";
 import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
+import { installPersonalizationPreferencesPort } from "./adapters/uiPersonalizationPreferences";
 
 function PersonalizationPane() {
   return (
@@ -21,6 +22,7 @@ export default definePlugin({
   name: "lyra.builtin.personalization",
   version: "1.0.0",
   setup({ host }) {
+    installPersonalizationPreferencesPort();
     host.extensions.contribute(SETTINGS_PANE, {
       id: "personalization",
       label: "settings.pane.personalization",

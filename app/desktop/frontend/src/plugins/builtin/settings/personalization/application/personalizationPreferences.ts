@@ -1,22 +1,22 @@
-import { useUiStore } from "@/state/uiStore";
+import { personalizationPreferences } from "./ports/preferences";
 
 export function useMessageStylePreference() {
   return {
-    messageStyle: useUiStore((state) => state.messageStyle),
-    setMessageStyle: useUiStore((state) => state.setMessageStyle),
+    messageStyle: personalizationPreferences().useMessageStyle(),
+    setMessageStyle: personalizationPreferences().useSetMessageStyle(),
   };
 }
 
 export function useCompletionSoundPreference() {
   return {
-    completionSound: useUiStore((state) => state.completionSound),
-    setCompletionSound: useUiStore((state) => state.setCompletionSound),
+    completionSound: personalizationPreferences().useCompletionSound(),
+    setCompletionSound: personalizationPreferences().useSetCompletionSound(),
   };
 }
 
 export function useStreamRevealPreference() {
   return {
-    streamReveal: useUiStore((state) => state.streamReveal),
-    setStreamReveal: useUiStore((state) => state.setStreamReveal),
+    streamReveal: personalizationPreferences().useStreamReveal(),
+    setStreamReveal: personalizationPreferences().useSetStreamReveal(),
   };
 }
