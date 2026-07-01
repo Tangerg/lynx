@@ -197,7 +197,7 @@ function StatusIcon({ status, tool }: { status: ToolCall["status"]; tool: ToolCa
 }
 
 const ACTION_BTN =
-  "grid h-5 w-5 shrink-0 place-items-center rounded border-0 bg-transparent text-fg-faint opacity-0 transition-all group-hover:opacity-100 hover:text-fg hover:bg-fg/[0.05]";
+  "grid h-5 w-5 shrink-0 place-items-center rounded border-0 bg-transparent text-fg-faint opacity-0 transition-[opacity,color,background] group-hover:opacity-100 hover:text-fg hover:bg-fg/[0.05]";
 
 function ToolMeta({ items }: { items: ToolMetaItem[] }) {
   if (items.length === 0) return null;

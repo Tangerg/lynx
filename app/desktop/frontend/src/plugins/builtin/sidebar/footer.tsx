@@ -10,7 +10,7 @@ import { definePlugin } from "@/plugins/sdk";
 import { useUiStore } from "@/state/uiStore";
 
 const userActionClasses =
-  "grid h-7 w-7 place-items-center rounded-md border-0 bg-transparent text-fg-faint transition-[background,color,transform] hover:bg-fg/[0.05] hover:text-fg focus-visible:bg-fg/[0.06] focus-visible:text-fg focus-visible:outline-none active:scale-[0.92]";
+  "grid h-7 w-7 place-items-center rounded-md border-0 bg-transparent text-fg-faint transition-[background,color,transform] hover:bg-fg/[0.05] hover:text-fg focus-visible:bg-fg/[0.06] focus-visible:text-fg focus-visible:outline-none active:scale-[0.96]";
 
 function ThemeToggle() {
   const theme = useUiStore((s) => s.theme);
