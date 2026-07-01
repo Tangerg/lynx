@@ -1,5 +1,6 @@
 import type { ApprovalDecision } from "@/lib/agent/useApprovalSubmit";
 import type { BlockStatus } from "@/protocol/run/viewState";
+export { dangerHints } from "./dangerPatterns";
 
 export type ApprovalRisk = "low" | "medium" | "high";
 export type ApprovalTone = "neutral" | "warning" | "danger";
