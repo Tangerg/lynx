@@ -10,7 +10,7 @@ import { t } from "@/lib/i18n";
 import { AGENT_SOURCE } from "@/plugins/sdk/kernelPoints";
 import { getContainer } from "@/main/container";
 import { asSessionId } from "@/rpc";
-import { useComposerStore } from "@/plugins/builtin/chat/composer/public/store";
+import { selectedComposerModelPreference } from "@/plugins/builtin/chat/composer/public/modelPreference";
 import { useSessionStore } from "@/state/sessionStore";
 
 function makeDriver(sessionId: string): AgentDriver {
@@ -22,7 +22,7 @@ function makeDriver(sessionId: string): AgentDriver {
       // default provider+model. There is no run `mode` — the run is always the
       // agent loop; "plan" is a global approval stance (approval.setMode), not a
       // per-run mode.
-      const { provider, model } = useComposerStore.getState();
+      const { provider, model } = selectedComposerModelPreference();
       return client().runs.start(
         {
           sessionId: asSessionId(sessionId),

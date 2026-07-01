@@ -3,20 +3,24 @@
 // stay inside handlers via getState() so per-message UI does not subscribe.
 
 import type { Message } from "@/protocol/run/viewState";
-import { getContainer } from "@/main/container";
 import { notifyError, notifyInfo } from "@/lib/notify";
-import { asRunId, asSessionId } from "@/rpc";
-import { getCurrentSessionView, useAgentStore } from "@/state/agentStore";
-import { useSessionStore } from "@/state/sessionStore";
 import { flattenText } from "@/plugins/builtin/agent/public/messageContent";
 import { buildInput } from "@/plugins/builtin/chat/composer/public/input";
 import { describeRpcError } from "@/lib/rpcErrors";
-import { forkSessionAt, rehydrateSessionView } from "@/plugins/builtin/agent/public/session";
+import {
+  activeAgentConversation,
+  forkAgentSessionAtRun,
+  rollbackSessionToBeforeRun,
+  sendToAgentSession,
+  type RestoreType,
+} from "@/plugins/builtin/agent/public/session";
 import {
   replaceComposerDraft,
   type ComposerDraftImage,
   type ComposerDraftInput,
 } from "@/plugins/builtin/chat/composer/public/draft";
+
+export type { RestoreType };
 
 // Inlined images from a view message's blocks → composer-image shape (mime +
 // base64), so resend / regenerate / edit-and-rerun keep the images intact.
@@ -32,46 +36,6 @@ function draftFromMessage(msg: Message): ComposerDraftInput {
 
 function prefillComposer(msg: Message): void {
   replaceComposerDraft(draftFromMessage(msg));
-}
-
-// What a checkpoint restore rewinds (mirrors the wire RestoreType, AUX_API §4.3).
-//   - "history": truncate chat to before the turn; working tree untouched.
-//   - "files":   restore the working tree to the pre-turn snapshot; chat kept.
-//   - "both":    both, atomically.
-// "files"/"both" need the pre-turn shadow-git snapshot (toRunId) + features.
-// checkpoints; rolling back before the FIRST run has no snapshot to restore from.
-export type RestoreType = "history" | "files" | "both";
-
-// Roll the session back to just BEFORE the given root run (sessions.rollback,
-// inclusive-keep — we pass the preceding root run's id as the kept boundary, or
-// nothing when it was the first), then rebuild the view from the (possibly
-// truncated) server history. `restoreType` selects what's rewound; "files"/
-// "both" degrade to history-only (loudly) when there's no pre-turn snapshot.
-async function rollbackToBefore(
-  sessionId: string,
-  runId: string,
-  restoreType: RestoreType = "history",
-): Promise<boolean> {
-  const client = getContainer().client();
-  const sid = asSessionId(sessionId);
-  const { runs } = await client.items.list({ sessionId: sid });
-  const roots = runs.filter((r) => !r.parentRunId && !r.spawnedByItemId);
-  const idx = roots.findIndex((r) => r.id === runId);
-  if (idx < 0) return false;
-  const keep = idx > 0 ? roots[idx - 1]!.id : undefined;
-  const wantsFiles = restoreType !== "history";
-  if (wantsFiles && !keep) {
-    notifyInfo("No checkpoint before the first turn — files left as they are.", {
-      source: "session",
-    });
-  }
-  await client.sessions.rollback({
-    sessionId: sid,
-    ...(keep ? { toRunId: asRunId(keep) } : {}),
-    ...(wantsFiles && keep ? { restoreType } : {}),
-  });
-  await rehydrateSessionView(sessionId);
-  return true;
 }
 
 // Mapped types (session_busy; checkpoint_unavailable — restoreType:"both"
@@ -95,10 +59,9 @@ export interface RollbackActionOptions {
 // to. Messages that never reconciled to a server run (no runId) fall back
 // to plain resend (a fresh turn below the old one).
 export function regenerateMessage(msg: Message, opts?: RollbackActionOptions): void {
-  const sid = useSessionStore.getState().activeSessionId;
-  const send = useAgentStore.getState().sessions[sid]?.send;
-  if (!send) return;
-  const { messages } = getCurrentSessionView();
+  const conversation = activeAgentConversation();
+  if (!conversation) return;
+  const { sessionId, messages } = conversation;
   const idx = messages.findIndex((m) => m.id === msg.id);
   if (idx < 0) return;
   for (let i = idx - 1; i >= 0; i--) {
@@ -110,25 +73,20 @@ export function regenerateMessage(msg: Message, opts?: RollbackActionOptions): v
     // turn to regenerate — the early `return` here would silently skip it.
     if (!text && imgs.length === 0) return;
     if (!m.runId) {
-      send(buildInput(text, imgs));
+      sendToAgentSession(sessionId, buildInput(text, imgs));
       return;
     }
-    void rollbackToBefore(sid, m.runId, opts?.restoreFiles ? "both" : "history")
+    void rollbackSessionToBeforeRun(sessionId, m.runId, opts?.restoreFiles ? "both" : "history")
       .then(() => {
         // resetView kept the binding, but the tab could have been torn down —
         // or merely switched away, which nulls send via useAgentSession's
         // cleanup — while the rollback was in flight. No live binding ⇒ we
         // can't resend; surface it instead of dropping the regenerate silently.
-        const liveSend = useAgentStore.getState().sessions[sid]?.send;
-        if (!liveSend) {
+        if (!sendToAgentSession(sessionId, buildInput(text, blockImages(m)))) {
           notifyInfo("Switched away before regenerate finished — nothing was resent.", {
             source: "session",
           });
-          return;
         }
-        // ok: history rewound to before the prompt. !ok: run unknown to the
-        // server, so this is a plain resend appended below the old turn.
-        liveSend(buildInput(text, blockImages(m)));
       })
       .catch(reportRollbackError);
     return;
@@ -149,14 +107,18 @@ export function editMessageInComposer(msg: Message): void {
 // the corrected turn in its place. Falls back to the non-destructive
 // composer prefill when the message never reconciled to a run.
 export function editAndRerunMessage(msg: Message, opts?: RollbackActionOptions): void {
-  const sid = useSessionStore.getState().activeSessionId;
+  const conversation = activeAgentConversation();
   const hasContent = msg.blocks.some((b) => (b.kind === "text" && b.text) || b.kind === "image");
-  if (!sid || !hasContent) return;
+  if (!conversation || !hasContent) return;
   if (msg.role !== "user" || !msg.runId) {
     prefillComposer(msg);
     return;
   }
-  void rollbackToBefore(sid, msg.runId, opts?.restoreFiles ? "both" : "history")
+  void rollbackSessionToBeforeRun(
+    conversation.sessionId,
+    msg.runId,
+    opts?.restoreFiles ? "both" : "history",
+  )
     // Run unknown to the server (ok=false) still prefills — the user can at
     // least resend; only a hard failure (busy / transport) aborts with a toast.
     .then(() => prefillComposer(msg))
@@ -170,9 +132,9 @@ export function editAndRerunMessage(msg: Message, opts?: RollbackActionOptions):
 // chooses what's rewound (conversation / working-tree files / both). No-op for a
 // message that never reconciled to a server run.
 export function restoreCheckpoint(msg: Message, restoreType: RestoreType): void {
-  const sid = useSessionStore.getState().activeSessionId;
-  if (!sid || msg.role !== "user" || !msg.runId) return;
-  void rollbackToBefore(sid, msg.runId, restoreType)
+  const conversation = activeAgentConversation();
+  if (!conversation || msg.role !== "user" || !msg.runId) return;
+  void rollbackSessionToBeforeRun(conversation.sessionId, msg.runId, restoreType)
     .then((ok) => {
       if (ok) notifyInfo(restoreCopy(restoreType), { source: "session" });
     })
@@ -195,7 +157,7 @@ function restoreCopy(restoreType: RestoreType): string {
 // through this exchange and opens as the active tab; the original is
 // untouched. No-ops for messages that never reconciled to a run.
 export function forkFromMessage(msg: Message): void {
-  const sid = useSessionStore.getState().activeSessionId;
-  if (!sid || !msg.runId) return;
-  void forkSessionAt(sid, asRunId(msg.runId));
+  const conversation = activeAgentConversation();
+  if (!conversation || !msg.runId) return;
+  void forkAgentSessionAtRun(conversation.sessionId, msg.runId);
 }

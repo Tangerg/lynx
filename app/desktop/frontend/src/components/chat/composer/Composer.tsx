@@ -1,32 +1,16 @@
-// Composer — the chat input surface. Owns the textarea, model selector,
-// attachment staging (image paste/drop), and the send/stop button. Composer
-// state lives in composerStore so the footer chips (cwd, branch) and the
-// composer itself share a single source of truth. Plugin-contributed
-// placeholders and keybindings are resolved through the extension-point
-// registry so a third-party plugin can extend the composer without touching
-// this file.
-import type { ComposerImage, PastedText } from "@/plugins/builtin/chat/composer/public/store";
-import { useAgentRunning } from "@/state/agentStore";
+// Composer — the chat input surface layout. Input behavior (mentions,
+// placeholder, paste/drop, key bindings, autosize) lives in
+// useComposerInputController so this component stays focused on composition.
+import type { ComposerImage, PastedText } from "@/plugins/builtin/chat/composer/public/attachments";
 import { imageFiles, type UserInput } from "@/plugins/builtin/chat/composer/public/input";
-import { isLargePaste } from "@/plugins/builtin/chat/composer/public/largePaste";
-import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
-import { useFileMentions } from "@/plugins/builtin/chat/composer/public/fileMentions";
 import type { IconName } from "@/components/common";
 import type { ComposerAttachmentSourceSpec } from "@/plugins/sdk";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Chip, Icon, Tooltip } from "@/components/common";
 import { FileMentionPopup } from "./FileMentionPopup";
 import { useT } from "@/lib/i18n";
-import {
-  COMPOSER_ATTACHMENT_SOURCE,
-  COMPOSER_KEY_BINDING,
-  lookupExtensionByKey,
-  pickComposerPlaceholder,
-  useExtensionPoint,
-} from "@/plugins/sdk";
-import { normalizeCombo } from "@/plugins/sdk/registry";
+import { COMPOSER_ATTACHMENT_SOURCE, useExtensionPoint } from "@/plugins/sdk";
 import { Slot } from "@/plugins/host/Slot";
-import { submitComposer } from "@/plugins/builtin/chat/composer/public/submit";
+import { useComposerInputController } from "./useComposerInputController";
 
 interface Props {
   onSend: (input: UserInput) => void;
@@ -64,64 +48,17 @@ export function Composer({
   children,
 }: Props) {
   const t = useT();
-  const inputRef = useRef<HTMLTextAreaElement>(null);
   const attachmentSources = useExtensionPoint(COMPOSER_ATTACHMENT_SOURCE);
-
-  // @file autocomplete — caret-aware mention detection + a fuzzy file picker
-  // that splices a path into the text. `caret` mirrors the textarea selection
-  // so the hook knows which `@token` (if any) is being typed.
-  const cwd = useActiveSessionCwd();
-  const [caret, setCaret] = useState(0);
-  const applyMention = useCallback(
-    (text: string, next: number) => {
-      onChange(text);
-      requestAnimationFrame(() => {
-        const ta = inputRef.current;
-        if (ta) {
-          ta.focus();
-          ta.setSelectionRange(next, next);
-        }
-        setCaret(next);
-      });
-    },
-    [onChange],
-  );
-  const mentions = useFileMentions({ value, caret, cwd, apply: applyMention });
-  // Pick a placeholder once at mount — `pickComposerPlaceholder` is
-  // random, so re-running on every render would make the text flicker.
-  // Falls back to the localized "ask…" string if no placeholder plugin
-  // is registered (or the random pick rolls a 0-weight pool). Locale
-  // switch after mount won't relocalize the fallback — acceptable for
-  // a random hint string.
-  const basePlaceholder = useMemo(
-    () => {
-      // Placeholder specs now carry an i18n key in `text`; resolve it here.
-      const picked = pickComposerPlaceholder()?.text;
-      return picked ? t(picked) : t("composer.placeholder.fallback");
-    },
-    // eslint-disable-next-line react/exhaustive-deps
-    [],
-  );
-  // While a run streams, a sent message steers it (SendButton + useChatSend)
-  // rather than opening a new turn — invite that from an empty composer so the
-  // capability is discoverable, not keyboard-only.
-  const running = useAgentRunning();
-  const placeholder = running ? t("composer.placeholder.steer") : basePlaceholder;
-
-  const submit = () =>
-    submitComposer({
-      value,
-      clear: onClear,
-      sendInput: onSend,
-      images,
-    });
-
-  useEffect(() => {
-    const el = inputRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-  }, [value]);
+  const input = useComposerInputController({
+    value,
+    onChange,
+    onClear,
+    onSend,
+    images,
+    onAddImages,
+    onAddPaste,
+    acceptsImages,
+  });
 
   return (
     <div
@@ -130,18 +67,17 @@ export function Composer({
         const files = imageFiles(e.dataTransfer?.files);
         if (files.length === 0) return;
         e.preventDefault(); // swallow the drop even if the model can't take it
-        if (!acceptsImages) return; // text-only model — toolbar attach is disabled too
-        onAddImages(files);
+        input.handleDrop(files);
       }}
       className="relative rounded-lg border-0 bg-surface px-4 py-3 shadow-[var(--shadow-composer)] transition-shadow duration-150 focus-within:shadow-[var(--shadow-composer),0_0_0_2px_color-mix(in_srgb,var(--color-accent)_24%,transparent)]"
       data-slot="composer-root"
     >
-      {mentions.active && (
+      {input.mentions.active && (
         <FileMentionPopup
-          items={mentions.items}
-          index={mentions.index}
-          onPick={mentions.accept}
-          onHover={mentions.setIndex}
+          items={input.mentions.items}
+          index={input.mentions.index}
+          onPick={input.mentions.accept}
+          onHover={input.mentions.setIndex}
         />
       )}
       {/* Top toolbar: attach + model pill */}
@@ -167,64 +103,14 @@ export function Composer({
         </div>
       )}
       <textarea
-        ref={inputRef}
+        ref={input.inputRef}
         aria-label={t("composer.input.label")}
-        placeholder={placeholder}
+        placeholder={input.placeholder}
         value={value}
-        onChange={(e) => {
-          onChange(e.target.value);
-          setCaret(e.target.selectionStart ?? e.target.value.length);
-        }}
-        onSelect={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
-        onPaste={(e) => {
-          const files = imageFiles(e.clipboardData?.files);
-          if (files.length > 0) {
-            e.preventDefault();
-            if (acceptsImages) onAddImages(files); // text-only model — don't stage
-            return;
-          }
-          // A large text paste collapses into a removable chip instead of
-          // flooding the textarea; a small one falls through to the native
-          // textarea so it stays inline + editable.
-          const text = e.clipboardData?.getData("text") ?? "";
-          if (isLargePaste(text)) {
-            e.preventDefault();
-            onAddPaste(text);
-          }
-        }}
-        onKeyDown={(e) => {
-          // Ignore keystrokes while an IME composition is active — pressing
-          // Enter to commit a CJK candidate must confirm the candidate, not
-          // trigger Enter→submit (which double-committed / sent mid-compose).
-          if (e.nativeEvent.isComposing) return;
-          // The @file picker owns ↑/↓/Enter/Tab/Esc while it's open — let it
-          // claim the key before the normal composer keymap (submit / history).
-          if (mentions.handleKeyDown(e)) {
-            e.preventDefault();
-            return;
-          }
-          // Resolve the pressed combo to its canonical form and ask the
-          // plugin registry for a binding. The built-in "composer-keymap"
-          // plugin registers Enter→submit; user plugins can add more
-          // (e.g. Mod+K to open a snippet drawer).
-          const parts: string[] = [];
-          if (e.metaKey || e.ctrlKey) parts.push("mod");
-          if (e.altKey) parts.push("alt");
-          if (e.shiftKey) parts.push("shift");
-          parts.push(e.key);
-          const binding = lookupExtensionByKey(
-            COMPOSER_KEY_BINDING,
-            normalizeCombo(parts.join("+")),
-          );
-          if (!binding) return;
-          const handled = binding.handler({
-            value,
-            onChange,
-            submit,
-            event: e.nativeEvent,
-          });
-          if (handled) e.preventDefault();
-        }}
+        onChange={input.handleChange}
+        onSelect={input.handleSelect}
+        onPaste={input.handlePaste}
+        onKeyDown={input.handleKeyDown}
         rows={1}
         /* The `composer-input` class is a DOM-target hook (no styles) so
            the `composer.focus` command in defaults/commands.ts can find

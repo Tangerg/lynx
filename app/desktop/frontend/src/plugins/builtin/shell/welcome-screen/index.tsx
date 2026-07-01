@@ -11,7 +11,7 @@ import { useProviders } from "@/lib/data/queries";
 import { useT } from "@/lib/i18n";
 import { definePlugin, useCommands } from "@/plugins/sdk";
 import { comboGlyph } from "@/lib/combo";
-import { useComposerStore } from "@/plugins/builtin/chat/composer/public/store";
+import { useSetComposerText } from "@/plugins/builtin/chat/composer/public/draft";
 import { useSessionStore } from "@/state/sessionStore";
 
 interface Suggestion {
@@ -90,7 +90,7 @@ function SetupCard() {
 
 function WelcomeScreen() {
   const t = useT();
-  const setValue = useComposerStore((s) => s.setValue);
+  const setValue = useSetComposerText();
   const commands = useCommands();
   const hints = HINT_COMMAND_IDS.map((id) => commands.find((c) => c.id === id)).filter(
     (c): c is CommandSpec => !!c?.combo,

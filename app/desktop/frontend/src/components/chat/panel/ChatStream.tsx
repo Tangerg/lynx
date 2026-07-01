@@ -12,7 +12,19 @@ import { useSelectedModel } from "@/plugins/builtin/chat/composer/public/selecte
 import { useT } from "@/lib/i18n";
 import { Slot } from "@/plugins/host/Slot";
 import { useAgentMessages, useAgentPlan, useAgentToolCalls } from "@/state/agentStore";
-import { useComposerStore } from "@/plugins/builtin/chat/composer/public/store";
+import {
+  useAddComposerImageFiles,
+  useAddComposerPaste,
+  useComposerImages,
+  useComposerPastes,
+  useRemoveComposerImage,
+  useRemoveComposerPaste,
+} from "@/plugins/builtin/chat/composer/public/attachments";
+import {
+  useClearComposerDraft,
+  useComposerText,
+  useSetComposerText,
+} from "@/plugins/builtin/chat/composer/public/draft";
 import { useSessionStore } from "@/state/sessionStore";
 import { useUiStore } from "@/state/uiStore";
 import { Composer, ComposerFooter, SlashSuggestions } from "../composer";
@@ -38,15 +50,15 @@ export function ChatStream({ onSend, resetKey }: Props) {
   const setSelectedToolId = useSessionStore((s) => s.setSelectedToolId);
   const toggleExpandedTool = useSessionStore((s) => s.toggleExpandedTool);
 
-  const composerValue = useComposerStore((s) => s.value);
-  const images = useComposerStore((s) => s.images);
-  const setComposerValue = useComposerStore((s) => s.setValue);
-  const removeImage = useComposerStore((s) => s.removeImage);
-  const clearComposer = useComposerStore((s) => s.clear);
-  const addImageFiles = useComposerStore((s) => s.addImageFiles);
-  const pastes = useComposerStore((s) => s.pastes);
-  const removePaste = useComposerStore((s) => s.removePaste);
-  const addPaste = useComposerStore((s) => s.addPaste);
+  const composerValue = useComposerText();
+  const images = useComposerImages();
+  const setComposerValue = useSetComposerText();
+  const removeImage = useRemoveComposerImage();
+  const clearComposer = useClearComposerDraft();
+  const addImageFiles = useAddComposerImageFiles();
+  const pastes = useComposerPastes();
+  const removePaste = useRemoveComposerPaste();
+  const addPaste = useAddComposerPaste();
   // Gate image staging on the next run's model accepting images — keeps the
   // paste/drop path consistent with the (disabled) toolbar attach button.
   const acceptsImages = useSelectedModel()?.multimodal ?? false;

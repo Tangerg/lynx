@@ -16,7 +16,10 @@
 import type { Message } from "@/protocol/run/viewState";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { useComposerStore } from "@/plugins/builtin/chat/composer/public/store";
+import {
+  getComposerText,
+  replaceComposerDraft,
+} from "@/plugins/builtin/chat/composer/public/draft";
 import { MessageContextMenu } from "./MessageContextMenu";
 
 function buildMessage(overrides: Partial<Message> = {}): Message {
@@ -84,7 +87,7 @@ describe("messageContextMenu", () => {
   });
 
   it("Edit in composer loads the message text into composerStore", () => {
-    useComposerStore.setState({ value: "", images: [] });
+    replaceComposerDraft({ text: "", images: [] });
     render(
       <MessageContextMenu
         msg={buildMessage({
@@ -97,6 +100,6 @@ describe("messageContextMenu", () => {
     );
     openMenu("user msg");
     fireEvent.click(screen.getByText("Edit in composer"));
-    expect(useComposerStore.getState().value).toBe("draft me again");
+    expect(getComposerText()).toBe("draft me again");
   });
 });
