@@ -14,7 +14,7 @@ import {
   resolveInterrupt,
   setRunError,
   type SettledInterrupt,
-} from "@/plugins/builtin/agent/presentation/viewMutations";
+} from "@/plugins/builtin/agent/application/view/viewMutations";
 import { useAgentSessionStore } from "./agentSessionStore";
 
 export type AgentStopAction = (() => void) | null;
