@@ -1,10 +1,14 @@
 export {
   closeActiveAgentSession,
+  getAgentSessionLifecycleSnapshot,
   getActiveSessionId,
   selectAgentSession,
+  subscribeAgentSessionLifecycle,
+  subscribeActiveSessionId,
   useActiveSession,
   useActiveSessionCwd,
   useActiveSessionId,
+  type AgentSessionLifecycleSnapshot,
 } from "../application/session/activeSession";
 export {
   useReconcilePersistedAgentSessions,

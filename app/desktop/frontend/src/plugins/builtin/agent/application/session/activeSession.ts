@@ -2,12 +2,47 @@ import type { SidebarSession } from "@/lib/data/queries";
 import { useSessions } from "@/lib/data/queries";
 import { useSessionStore } from "@/state/sessionStore";
 
+export interface AgentSessionLifecycleSnapshot {
+  activeSessionId: string;
+  openSessionIds: string[];
+}
+
 export function useActiveSessionId(): string {
   return useSessionStore((s) => s.activeSessionId);
 }
 
 export function getActiveSessionId(): string {
   return useSessionStore.getState().activeSessionId;
+}
+
+export function getAgentSessionLifecycleSnapshot(): AgentSessionLifecycleSnapshot {
+  const state = useSessionStore.getState();
+  return { activeSessionId: state.activeSessionId, openSessionIds: state.tabIds };
+}
+
+export function subscribeActiveSessionId(onChange: (sessionId: string) => void): () => void {
+  let lastSessionId = getActiveSessionId();
+  return useSessionStore.subscribe((state) => {
+    if (state.activeSessionId === lastSessionId) return;
+    lastSessionId = state.activeSessionId;
+    onChange(lastSessionId);
+  });
+}
+
+export function subscribeAgentSessionLifecycle(
+  onChange: (snapshot: AgentSessionLifecycleSnapshot) => void,
+): () => void {
+  let lastSnapshot = getAgentSessionLifecycleSnapshot();
+  return useSessionStore.subscribe((state) => {
+    if (
+      state.activeSessionId === lastSnapshot.activeSessionId &&
+      state.tabIds === lastSnapshot.openSessionIds
+    ) {
+      return;
+    }
+    lastSnapshot = { activeSessionId: state.activeSessionId, openSessionIds: state.tabIds };
+    onChange(lastSnapshot);
+  });
 }
 
 export function selectAgentSession(id: string): void {

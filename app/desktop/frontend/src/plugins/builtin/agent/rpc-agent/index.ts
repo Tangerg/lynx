@@ -9,9 +9,9 @@ import { definePlugin } from "@/plugins/sdk";
 import { t } from "@/lib/i18n";
 import { AGENT_SOURCE } from "@/plugins/sdk/kernelPoints";
 import { getContainer } from "@/main/container";
+import { getActiveSessionId } from "@/plugins/builtin/agent/public/session";
 import { asSessionId } from "@/rpc";
 import { selectedComposerModelPreference } from "@/plugins/builtin/chat/composer/public/modelPreference";
-import { useSessionStore } from "@/state/sessionStore";
 
 function makeDriver(sessionId: string): AgentDriver {
   const client = () => getContainer().client();
@@ -45,7 +45,7 @@ export default definePlugin({
       id: "rpc",
       label: t("agentSource.rpc"),
       priority: 1,
-      factory: () => makeDriver(useSessionStore.getState().activeSessionId || "ses_default"),
+      factory: () => makeDriver(getActiveSessionId() || "ses_default"),
     });
   },
 });
