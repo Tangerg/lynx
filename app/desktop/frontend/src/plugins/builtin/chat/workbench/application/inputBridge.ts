@@ -1,5 +1,5 @@
 import type { AgentInput } from "@/plugins/builtin/agent/public/input";
-import type { UserInput } from "../composer/public/input";
+import type { UserInput } from "../../composer/public/input";
 
 export function composerInputToAgentInput(input: UserInput): AgentInput {
   return {

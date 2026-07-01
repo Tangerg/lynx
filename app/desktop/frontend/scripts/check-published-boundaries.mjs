@@ -199,6 +199,17 @@ for (const file of files(SRC)) {
 
   if (
     !isTest &&
+    /plugins\/builtin\/chat\/composer\/.+\.(ts|tsx)$/.test(rel) &&
+    /from\s+["']@\/plugins\/builtin\/chat\/workbench(?:\/[^"']*)?["']/.test(text)
+  ) {
+    violations.push({
+      file: rel,
+      reason: "composer must not depend on chat workbench orchestration",
+    });
+  }
+
+  if (
+    !isTest &&
     /plugins\/builtin\/.+\/public\/.+\.(ts|tsx)$/.test(rel) &&
     !/plugins\/builtin\/.+\/public\/statePorts\.ts$/.test(rel) &&
     /from\s+["'](?:@\/plugins\/builtin\/.+\/adapters(?:\/[^"']*)?|(?:\.\.\/)+adapters(?:\/[^"']*)?)["']/.test(
