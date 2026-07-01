@@ -11,7 +11,11 @@ import * as React from "react";
 import type { IconName } from "@/components/common";
 import type { ToolCall } from "@/protocol/run/viewState";
 import { Collapsible, Icon } from "@/components/common";
-import { toolIntent, toolMetaItems, type ToolMetaItem } from "@/lib/agent/toolPresentation";
+import {
+  toolIntent,
+  toolMetaItems,
+  type ToolMetaItem,
+} from "@/plugins/builtin/agent/presentation/toolPresentation";
 import { cn } from "@/lib/utils";
 import {
   lookupToolActionOwner,

@@ -12,7 +12,7 @@ import { ToolGroup } from "@/components/tools/ToolGroup";
 import { useCitationSources } from "@/plugins/sdk";
 import { Slot } from "@/plugins/host/Slot";
 import { MessageContext } from "@/plugins/sdk/messageContext";
-import { planRenderUnits } from "@/lib/agent/messageRenderUnits";
+import { planRenderUnits } from "@/plugins/builtin/agent/presentation/messageRenderUnits";
 import { CitationContext } from "./CitationContext";
 import { MessageContextMenu } from "./MessageContextMenu";
 import { renderBlock } from "./BlockRenderer";

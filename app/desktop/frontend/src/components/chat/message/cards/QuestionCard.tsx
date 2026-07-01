@@ -3,7 +3,17 @@ import { useMemo, useState } from "react";
 import { Icon } from "@/components/common";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
-import { useQuestionAnswer, type QuestionAnswers } from "@/lib/agent/useQuestionAnswer";
+import { useQuestionAnswer } from "@/lib/agent/useQuestionAnswer";
+import {
+  createQuestionDraft,
+  questionAnswerText,
+  questionDraftAnswers,
+  questionDraftComplete,
+  setQuestionText,
+  toggleQuestionOption,
+  type QuestionDraft,
+  type QuestionAnswers,
+} from "@/plugins/builtin/agent/presentation/questionPresentation";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -22,47 +32,6 @@ interface Props {
   answers?: Record<string, string[]>;
 }
 
-// Per-question working state: chosen option labels + an optional free-text
-// value. For single-select the two are mutually exclusive (picking an
-// option clears the text and vice versa) so the submitted answer is never
-// ambiguous; multi-select unions them.
-type Draft = Record<string, { selected: string[]; text: string }>;
-
-function emptyDraft(questions: QuestionItem[]): Draft {
-  const d: Draft = {};
-  for (const q of questions) d[q.id] = { selected: [], text: "" };
-  return d;
-}
-
-function isAnswered(entry: { selected: string[]; text: string }): boolean {
-  return entry.selected.length > 0 || entry.text.trim().length > 0;
-}
-
-// Flatten one question's answer (string | string[], from either the block or a
-// freshly-projected draft) into a single display line.
-function answerText(answers: QuestionAnswers, id: string): string {
-  const v = answers[id];
-  if (v == null) return "";
-  return (Array.isArray(v) ? v : [v]).filter(Boolean).join(", ");
-}
-
-// Project the working draft into the wire shape: question.id → label(s).
-// Free text (when present) is the answer itself, not an "Other" marker
-// (API.md §4.4); multi-select appends it to the chosen labels.
-function toAnswers(questions: QuestionItem[], draft: Draft): QuestionAnswers {
-  const answers: QuestionAnswers = {};
-  for (const q of questions) {
-    const { selected, text } = draft[q.id] ?? { selected: [], text: "" };
-    const trimmed = text.trim();
-    if (q.multiSelect) {
-      answers[q.id] = trimmed ? [...selected, trimmed] : selected;
-    } else {
-      answers[q.id] = trimmed || (selected[0] ?? "");
-    }
-  }
-  return answers;
-}
-
 // Clarifying-question card — pure presentation. Submitting state lives in
 // useQuestionAnswer; this component owns the local selection draft.
 //
@@ -74,20 +43,17 @@ function toAnswers(questions: QuestionItem[], draft: Draft): QuestionAnswers {
 export function QuestionCard({ status, parentRunId, itemId, questions, answered, answers }: Props) {
   const t = useT();
   const { submit, pending } = useQuestionAnswer(parentRunId, itemId);
-  const [draft, setDraft] = useState<Draft>(() => emptyDraft(questions));
+  const [draft, setDraft] = useState<QuestionDraft>(() => createQuestionDraft(questions));
 
   const settled = status === "complete" || answered;
-  const allAnswered = useMemo(
-    () => questions.every((q) => isAnswered(draft[q.id] ?? { selected: [], text: "" })),
-    [questions, draft],
-  );
+  const allAnswered = useMemo(() => questionDraftComplete(questions, draft), [questions, draft]);
 
   if (settled || pending) {
     // Echo what was answered: the stamped block answers (survive remount) or,
     // in the brief pre-settle window, the local draft. Replayed-from-history
     // questions carry neither → a bare "answered" row.
     const shown: QuestionAnswers | undefined =
-      answers ?? (allAnswered ? toAnswers(questions, draft) : undefined);
+      answers ?? (allAnswered ? questionDraftAnswers(questions, draft) : undefined);
     if (!shown) return <HitlSettledRow label={t("question.settled.answered")} />;
     return (
       <div className="my-3 flex flex-col gap-2 rounded-md border border-line bg-surface px-4 py-3">
@@ -98,34 +64,14 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered,
         {questions.map((q) => (
           <div key={q.id} className="flex flex-col gap-0.5">
             <div className="text-[12.5px] leading-snug text-fg-muted">{q.question}</div>
-            <div className="text-[13px] font-medium text-fg">{answerText(shown, q.id) || "—"}</div>
+            <div className="text-[13px] font-medium text-fg">
+              {questionAnswerText(shown, q.id) || "—"}
+            </div>
           </div>
         ))}
       </div>
     );
   }
-
-  const toggleOption = (q: QuestionItem, label: string) => {
-    setDraft((prev) => {
-      const cur = prev[q.id] ?? { selected: [], text: "" };
-      if (q.multiSelect) {
-        const selected = cur.selected.includes(label)
-          ? cur.selected.filter((l) => l !== label)
-          : [...cur.selected, label];
-        return { ...prev, [q.id]: { ...cur, selected } };
-      }
-      // Single-select: replace selection, clear any free text.
-      return { ...prev, [q.id]: { selected: [label], text: "" } };
-    });
-  };
-
-  const setText = (q: QuestionItem, text: string) => {
-    setDraft((prev) => {
-      const cur = prev[q.id] ?? { selected: [], text: "" };
-      // Typing free text in a single-select clears the option choice.
-      return { ...prev, [q.id]: { selected: q.multiSelect ? cur.selected : [], text } };
-    });
-  };
 
   // Also disable once the interrupt is no longer open: settleOpenInterrupts
   // downgrades an unacted question to `incomplete` on run-end so its Submit
@@ -165,7 +111,7 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered,
                       key={opt.label}
                       type="button"
                       aria-pressed={active}
-                      onClick={() => toggleOption(q, opt.label)}
+                      onClick={() => setDraft((prev) => toggleQuestionOption(prev, q, opt.label))}
                       className={cn(
                         "flex flex-col gap-0.5 rounded-md border px-3 py-2 text-left transition-colors duration-150",
                         active
@@ -196,7 +142,9 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered,
                   value={cur.text}
                   aria-label={q.question}
                   placeholder={t("question.freetext.placeholder")}
-                  onChange={(e) => setText(q, e.target.value)}
+                  onChange={(e) => {
+                    setDraft((prev) => setQuestionText(prev, q, e.target.value));
+                  }}
                   className="w-full bg-transparent border-b border-line py-1 text-[16px] text-fg placeholder:text-fg-faint outline-none focus:border-fg"
                 />
               )}
@@ -210,7 +158,7 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered,
           type="button"
           data-slot="question-submit"
           disabled={disabled}
-          onClick={() => submit(toAnswers(questions, draft))}
+          onClick={() => submit(questionDraftAnswers(questions, draft))}
           className="inline-flex items-center rounded-md bg-fg px-3 py-1.5 text-[13px] font-medium text-on-fg transition-opacity duration-150 ease-out hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t("question.action.submit")}
