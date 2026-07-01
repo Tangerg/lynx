@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { fuzzyFile } from "./fuzzyFile";
 
 const FILES = [
-  "src/components/chat/composer/Composer.tsx",
+  "src/plugins/builtin/chat/composer/ui/Composer.tsx",
   "src/c/o/m/p/o/s/e/r.ts",
   "src/lib/utils.ts",
   "README.md",
@@ -16,11 +16,13 @@ describe("fuzzyFile", () => {
 
   it("ranks a basename match above a path-spanning one", () => {
     const [top] = fuzzyFile("composer", FILES, 10);
-    expect(top).toBe("src/components/chat/composer/Composer.tsx");
+    expect(top).toBe("src/plugins/builtin/chat/composer/ui/Composer.tsx");
   });
 
   it("matches a basename subsequence", () => {
-    expect(fuzzyFile("cmp", FILES, 10)).toContain("src/components/chat/composer/Composer.tsx");
+    expect(fuzzyFile("cmp", FILES, 10)).toContain(
+      "src/plugins/builtin/chat/composer/ui/Composer.tsx",
+    );
   });
 
   it("excludes non-subsequence candidates", () => {
