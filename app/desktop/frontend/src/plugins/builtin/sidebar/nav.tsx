@@ -105,7 +105,21 @@ function SidebarNav() {
 
   return (
     <div className="flex flex-col gap-0.5">
-      <NavRow icon="edit" label={t("sidebar.nav.newChat")} onClick={() => void createSession()} />
+      {/* Primary action — a prominent outlined button, set apart from the
+          plain nav rows below it (Codex-reference "new" affordance). */}
+      <button
+        type="button"
+        onClick={() => void createSession()}
+        data-chrome-focus=""
+        className={cn(
+          "mb-1.5 flex w-full items-center justify-center gap-2 rounded-lg border border-line bg-transparent px-3 py-2.5",
+          "font-sans text-[13px] font-medium text-fg transition-[background-color,border-color,transform] duration-100 active:scale-[0.99]",
+          "hover:bg-fg/[0.045] focus-visible:bg-fg/[0.06] focus-visible:outline-none",
+        )}
+      >
+        <Icon name="plus" size={15} className="shrink-0" />
+        <span>{t("sidebar.nav.newChat")}</span>
+      </button>
       <NavGroup
         label={t("sidebar.section.workspace")}
         destinations={WORKSPACE_DESTINATIONS}
