@@ -7,7 +7,7 @@ import { enterUp } from "@/lib/motion";
 import { bcp47 } from "@/lib/i18n/relativeTime";
 import { useT } from "@/lib/i18n";
 import { Slot } from "@/plugins/host/Slot";
-import { useAgentRunning } from "@/state/agentStore";
+import { useIsAgentRunning } from "@/plugins/builtin/agent/public/run";
 import { MessageBlock } from "../message";
 
 // Chat scroll surface, backed by use-stick-to-bottom. `resetKey`
@@ -92,7 +92,7 @@ export function MessageStream({ messages, ctx, resetKey, onControlsChange }: Pro
   // tail scrolls out of view (D2). Hard-pin to the bottom during generation,
   // and keep the smooth catch-up only when idle (re-open / history load).
   // `running` flips only at run boundaries, so this never churns per token.
-  const running = useAgentRunning();
+  const running = useIsAgentRunning();
 
   const firstUserIndex = messages.findIndex((m) => m.role === "user");
 

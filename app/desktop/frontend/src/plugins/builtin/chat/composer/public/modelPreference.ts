@@ -15,3 +15,10 @@ export function useComposerModelPreference(): ComposerModelPreference {
   const model = useComposerStore((state) => state.model);
   return { provider, model };
 }
+
+export function useSetComposerModelPreference(): (
+  provider: string | null,
+  model: string | null,
+) => void {
+  return useComposerStore((state) => state.setModel);
+}

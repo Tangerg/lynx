@@ -5,14 +5,17 @@ import { useSelectedModel } from "./public/selectedModel";
 import { useModels } from "@/lib/data/queries";
 import { useT } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";
-import { useComposerStore } from "./adapters/composerStore";
+import { useAddComposerImageFiles } from "./public/attachments";
+import {
+  useComposerModelPreference,
+  useSetComposerModelPreference,
+} from "./public/modelPreference";
 
 function ModelPicker() {
   const t = useT();
   const { data: models = [], isLoading } = useModels();
-  const provider = useComposerStore((s) => s.provider);
-  const model = useComposerStore((s) => s.model);
-  const setModel = useComposerStore((s) => s.setModel);
+  const { provider, model } = useComposerModelPreference();
+  const setModel = useSetComposerModelPreference();
 
   useEffect(() => {
     if (!model && models.length > 0) setModel(models[0]!.provider, models[0]!.id);
@@ -69,7 +72,7 @@ function ModelPicker() {
 
 function AttachButton() {
   const t = useT();
-  const addImageFiles = useComposerStore((s) => s.addImageFiles);
+  const addImageFiles = useAddComposerImageFiles();
   const inputRef = useRef<HTMLInputElement>(null);
   const canAttach = useSelectedModel()?.multimodal ?? false;
 

@@ -8,10 +8,11 @@
 import type { StreamControls } from "./MessageStream";
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useActiveConversationMessages } from "@/plugins/builtin/agent/public/conversation";
+import { useActiveRunPlan, useActiveRunToolCalls } from "@/plugins/builtin/agent/public/run";
 import { useSelectedModel } from "@/plugins/builtin/chat/composer/public/selectedModel";
 import { useT } from "@/lib/i18n";
 import { Slot } from "@/plugins/host/Slot";
-import { useAgentMessages, useAgentPlan, useAgentToolCalls } from "@/state/agentStore";
 import {
   useAddComposerImageFiles,
   useAddComposerPaste,
@@ -42,9 +43,9 @@ interface Props {
 }
 
 export function ChatStream({ onSend, resetKey }: Props) {
-  const messages = useAgentMessages();
-  const plan = useAgentPlan();
-  const toolCalls = useAgentToolCalls();
+  const messages = useActiveConversationMessages();
+  const plan = useActiveRunPlan();
+  const toolCalls = useActiveRunToolCalls();
 
   const expandedToolIds = useSessionStore((s) => s.expandedToolIds);
   const setSelectedToolId = useSessionStore((s) => s.setSelectedToolId);

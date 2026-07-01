@@ -62,6 +62,10 @@ export function useChatSend(): (input: ContentBlock[]) => void {
   );
 }
 
+export function useCanSendToAgent(): boolean {
+  return Boolean(useAgentAction("send"));
+}
+
 // Optimistic steer bubble: render the user's steered message immediately under a
 // local-* id (a distinct "steer-" suffix so it can't collide with send()'s own
 // local-N counter). The fold reconciles it against the streamed userMessage Item

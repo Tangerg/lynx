@@ -2,6 +2,10 @@ import type { SidebarSession } from "@/lib/data/queries";
 import { useSessions } from "@/lib/data/queries";
 import { useSessionStore } from "@/state/sessionStore";
 
+export function useActiveSessionId(): string {
+  return useSessionStore((s) => s.activeSessionId);
+}
+
 /**
  * The active session's sidebar row, or undefined while unknown (no active
  * session / sessions list not loaded yet). The one place the
@@ -9,7 +13,7 @@ import { useSessionStore } from "@/state/sessionStore";
  * workspace reads all derive from this instead of re-writing the find.
  */
 export function useActiveSession(): SidebarSession | undefined {
-  const activeSessionId = useSessionStore((s) => s.activeSessionId);
+  const activeSessionId = useActiveSessionId();
   const { data } = useSessions();
   if (!activeSessionId) return undefined;
   return data?.find((s) => s.id === activeSessionId);

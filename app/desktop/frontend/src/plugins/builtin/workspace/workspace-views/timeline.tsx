@@ -6,9 +6,7 @@
 // the message stream; this view aggregates them with run/step/approval/
 // error boundaries so the answer reads chronologically.
 //
-// Pure renderer — the data lives on agentStore (`view.timeline`) and is
-// populated by the core-reducer handlers. See viewState.TimelineEntry
-// for the entry shape.
+// Pure renderer — data comes from the agent public run read model.
 
 import type { IconName } from "@/components/common";
 import type { TimelineEntry, TimelineEntryKind } from "@/protocol/run/viewState";
@@ -17,7 +15,7 @@ import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { cn } from "@/lib/utils";
 import { defineWorkspaceView } from "./defineWorkspaceView";
-import { useAgentSlice } from "@/state/agentStore";
+import { useActiveRunTimeline } from "@/plugins/builtin/agent/public/run";
 import { useSessionStore } from "@/state/sessionStore";
 
 // i18n key → icon. Labels are resolved at render via t().
@@ -107,7 +105,7 @@ function TimelineRow({ entry }: { entry: TimelineEntry }) {
 
 function TimelineTab() {
   const t = useT();
-  const timeline = useAgentSlice((v) => v.timeline);
+  const timeline = useActiveRunTimeline();
   const groups = groupByRun(timeline);
   const runCount = groups.filter((g) => g.runId !== null).length;
 

@@ -1,13 +1,13 @@
 import { EmptyState } from "@/components/common";
 import { useT } from "@/lib/i18n";
+import { useActiveRunPlan } from "@/plugins/builtin/agent/public/run";
 import { PlanList } from "./views/PlanList";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
-import { useAgentSlice } from "@/state/agentStore";
 
 function PlanTab() {
   const t = useT();
-  const plan = useAgentSlice((v) => v.plan);
+  const plan = useActiveRunPlan();
   const done = plan.filter((p) => p.status === "done").length;
 
   return (

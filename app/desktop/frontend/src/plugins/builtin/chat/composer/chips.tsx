@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { DropdownMenu, Icon } from "@/components/common";
 import { APPROVAL_MODES, setApprovalMode } from "@/plugins/builtin/agent/public/approvalPolicy";
 import { rpcErrorText } from "@/lib/rpcErrors";
+import { useActiveRunTokenUsage } from "@/plugins/builtin/agent/public/run";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { useSelectedModel } from "./public/selectedModel";
 import { useApprovalMode, useProjects } from "@/lib/data/queries";
@@ -14,7 +15,6 @@ import { basename } from "@/lib/path";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { COMPOSER_STATUS } from "@/plugins/sdk/kernelPoints";
-import { useAgentRunContextTokens, useAgentRunUsage } from "@/state/agentStore";
 
 function Chip({ icon, title, children }: { icon: IconName; title: string; children: ReactNode }) {
   return (
@@ -109,8 +109,7 @@ function ctxTone(pct: number): string {
 }
 
 function UsageChip() {
-  const usage = useAgentRunUsage();
-  const contextTokens = useAgentRunContextTokens();
+  const { usage, contextTokens } = useActiveRunTokenUsage();
   const model = useSelectedModel();
   if (usage.inputTokens + usage.outputTokens === 0) return null;
   const window = model?.contextWindow;
