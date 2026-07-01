@@ -63,7 +63,7 @@ function SetupCard() {
     openWorkspaceSettingsPane("providers", t("settings.title"));
   };
   return (
-    <div className="w-full rounded-md border-0 bg-surface px-4 py-4 text-left shadow-[var(--shadow-surface)]">
+    <div className="w-full rounded-lg border border-line-soft bg-surface px-4 py-4 text-left">
       <div className="flex items-start gap-3">
         <Icon name="spark" size={16} className="mt-0.5 shrink-0 text-accent" />
         <div className="flex flex-col items-start gap-2">
@@ -102,16 +102,21 @@ function WelcomeScreen() {
         <SetupCard />
       ) : (
         <>
-          <div className="grid w-full grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="flex w-full flex-col gap-2.5">
             {SUGGESTIONS.map((s) => (
               <Tooltip key={s.labelKey} label={t(s.promptKey)} side="bottom">
                 <button
                   type="button"
                   onClick={() => setValue(t(s.promptKey))}
-                  className="inline-flex items-center gap-2.5 rounded-md border-0 bg-surface px-4 py-4 text-left font-sans text-[14px] font-medium text-fg-soft shadow-[var(--shadow-surface)] transition-transform duration-150 active:scale-[0.98]"
+                  className="group flex w-full items-center gap-3 rounded-lg border border-line-soft bg-surface px-4 py-3.5 text-left font-sans text-[14px] font-medium text-fg-soft transition-[background-color,border-color] duration-150 hover:border-line hover:bg-surface-2 active:scale-[0.99]"
                 >
-                  <Icon name={s.icon} size={14} className="shrink-0 text-fg-muted" />
-                  <span>{t(s.labelKey)}</span>
+                  <Icon name={s.icon} size={16} className="shrink-0 text-fg-muted" />
+                  <span className="min-w-0 flex-1 truncate">{t(s.labelKey)}</span>
+                  <Icon
+                    name="chevron-right"
+                    size={16}
+                    className="shrink-0 text-fg-faint transition-colors group-hover:text-fg-muted"
+                  />
                 </button>
               </Tooltip>
             ))}
