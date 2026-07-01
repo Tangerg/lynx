@@ -8,8 +8,11 @@
 
 import type { ApprovalModeValue, ApprovalRuleInfo } from "@/lib/data/queries";
 import { DataView, EmptyState, Icon, Segmented } from "@/components/common";
-import { APPROVAL_MODES } from "@/lib/agent/approvalModes";
-import { forgetRule, setApprovalMode } from "@/lib/agent/approvalConfig";
+import {
+  APPROVAL_MODES,
+  forgetRule,
+  setApprovalMode,
+} from "@/plugins/builtin/agent/public/approvalPolicy";
 import { isUnsupportedMethod, rpcErrorText } from "@/lib/agent/errorCopy";
 import { useActiveSession } from "@/lib/agent/useActiveSession";
 import { useApprovalMode, useApprovalRules } from "@/lib/data/queries";
