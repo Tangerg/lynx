@@ -8,7 +8,7 @@
 // (e.g. hide a button instead of crashing).
 //
 // This is a separate concern from agentStore (per-session view state),
-// uiStore (theme / layout / motion prefs), and sessionStore (tab state).
+// uiStore (theme / layout / motion prefs), and agentSessionStore (tab state).
 // The handshake result is global, runtime-lifetime, and reset only on
 // reconnect.
 

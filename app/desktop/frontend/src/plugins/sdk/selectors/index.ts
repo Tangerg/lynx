@@ -43,6 +43,7 @@ export {
   lookupDataProvider,
   pickAgentSource,
   pickPluginErrorFallback,
+  resolveAgentRunStartOptions,
 } from "./runtime";
 
 // Theme scheme resolution.

@@ -8,6 +8,7 @@
 // Adding a kernel point = one `defineExtensionPoint` block here + one selector.
 
 import type {
+  AgentRunOptionsProviderSpec,
   AgentSourceSpec,
   BeforeUnloadHandler,
   CommandSpec,
@@ -72,6 +73,12 @@ export const AGENT_SOURCE = defineExtensionPoint<AgentSourceSpec>({
   id: "lyra.agent.source",
   capability: "agent",
   keying: "single",
+});
+export const AGENT_RUN_OPTIONS = defineExtensionPoint<AgentRunOptionsProviderSpec>({
+  id: "lyra.agent.runOptions",
+  capability: "agent",
+  keying: "single",
+  keyOf: (s) => s.id,
 });
 export const DATA_PROVIDER = defineExtensionPoint<DataProviderSpec>({
   id: "lyra.data.provider",

@@ -20,6 +20,7 @@ import {
   composerChips,
   composerKeymap,
   composerPlaceholders,
+  composerRunOptions,
   composerSend,
   composerToolbar,
 } from "./chat/composer";
@@ -178,6 +179,7 @@ const composer: PluginSpec[] = [
   composerChips,
   composerToolbar,
   composerPlaceholders,
+  composerRunOptions,
   composerKeymap,
   composerSend,
 ];

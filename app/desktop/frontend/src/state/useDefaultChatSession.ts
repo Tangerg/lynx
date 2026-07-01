@@ -5,11 +5,11 @@
 import type { AgentSession } from "./useAgentSession";
 import { useCallback } from "react";
 import { pickAgentSource } from "@/plugins/sdk";
-import { useSessionStore } from "@/state/sessionStore";
+import { useAgentSessionStore } from "@/state/agentSessionStore";
 import { useAgentSession } from "./useAgentSession";
 
 export function useDefaultChatSession(): AgentSession {
-  const activeSessionId = useSessionStore((s) => s.activeSessionId);
+  const activeSessionId = useAgentSessionStore((s) => s.activeSessionId);
   return useAgentSession(
     useCallback(() => {
       const source = pickAgentSource();

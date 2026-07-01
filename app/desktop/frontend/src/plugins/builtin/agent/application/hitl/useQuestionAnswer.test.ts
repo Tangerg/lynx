@@ -7,7 +7,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAgentStore } from "@/state/agentStore";
-import { useSessionStore } from "@/state/sessionStore";
+import { useAgentSessionStore } from "@/state/agentSessionStore";
 import { useQuestionAnswer } from "./useQuestionAnswer";
 
 const SID = "ses_1";
@@ -17,7 +17,7 @@ const SID = "ses_1";
 // useAgentSession does at mount).
 function bindResume(impl?: (...args: unknown[]) => void) {
   const resume = impl ? vi.fn(impl) : vi.fn();
-  useSessionStore.setState({ activeSessionId: SID });
+  useAgentSessionStore.setState({ activeSessionId: SID });
   useAgentStore.getState().resetSession(SID);
   useAgentStore.getState().setResume(SID, resume);
   return resume;

@@ -7,10 +7,10 @@
 // store mutation"; importers shouldn't need to know about the plugin
 // registry to navigate the UI.
 
-import { useSessionStore } from "./sessionStore";
+import { useWorkspaceNavigationStore } from "./workspaceNavigationStore";
 
 export function openTimelineView(): void {
-  useSessionStore.getState().openMainView({
+  useWorkspaceNavigationStore.getState().openMainView({
     id: "timeline",
     title: "workspace.view.title.timeline",
     icon: "history",
@@ -18,7 +18,7 @@ export function openTimelineView(): void {
 }
 
 export function openDiagnosticsView(): void {
-  useSessionStore.getState().openMainView({
+  useWorkspaceNavigationStore.getState().openMainView({
     id: "diagnostics",
     title: "workspace.view.title.diagnostics",
     icon: "spark",

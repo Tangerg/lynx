@@ -23,7 +23,7 @@ import type {
 import type { ContentBlockKind } from "@/protocol/run/viewState";
 import { api } from "@/lib/data/http";
 import { addLocaleBundle } from "@/lib/i18n";
-import { useSessionStore } from "@/state/sessionStore";
+import { useWorkspaceNavigationStore } from "@/state/workspaceNavigationStore";
 import { startTask } from "@/state/tasksStore";
 import { getConfig, hasConfig, setConfig, useConfigStore } from "./config";
 import { restrictHost } from "./capabilityGate";
@@ -123,10 +123,12 @@ export function createHost(
           console.warn(`[plugin] workspace.openView("${id}"): no view registered`);
           return;
         }
-        useSessionStore.getState().openMainView({ id, title: view.title, icon: view.icon });
+        useWorkspaceNavigationStore
+          .getState()
+          .openMainView({ id, title: view.title, icon: view.icon });
       },
       closeView(id: string): void {
-        useSessionStore.getState().closeMainView(id);
+        useWorkspaceNavigationStore.getState().closeMainView(id);
       },
     },
 

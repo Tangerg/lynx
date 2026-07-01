@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { asItemId, asRunId, type InterruptResponse } from "@/rpc";
 import { useAgentStore } from "@/state/agentStore";
-import { useSessionStore } from "@/state/sessionStore";
+import { useAgentSessionStore } from "@/state/agentSessionStore";
 
 // Shared HITL resume scaffold (API.md §6, R-model) behind useApprovalSubmit and
 // useQuestionAnswer — the parts that must behave identically for every interrupt
@@ -62,7 +62,7 @@ export function resumeInterrupt(
 
 export function useInterruptResume<P>(parentRunId?: string, itemId?: string) {
   const [pending, setPending] = useState<P | null>(null);
-  const [sessionId] = useState(() => useSessionStore.getState().activeSessionId);
+  const [sessionId] = useState(() => useAgentSessionStore.getState().activeSessionId);
   // Synchronous one-shot latch. `pending` state only updates on the next render,
   // so two submits in the same tick (a fast double-click landing before the card
   // disables its buttons) would both pass a `pending`-based guard and fire two

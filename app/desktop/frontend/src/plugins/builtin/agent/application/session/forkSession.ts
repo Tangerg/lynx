@@ -3,7 +3,7 @@ import { useCallback } from "react";
 import { getContainer } from "@/main/container";
 import { asSessionId } from "@/rpc";
 import { invalidateSessions } from "@/lib/data/queries";
-import { useSessionStore } from "@/state/sessionStore";
+import { useAgentSessionStore } from "@/state/agentSessionStore";
 import { reportSessionError } from "./reportSessionError";
 
 // In-flight forks keyed by target (session id + optional root run). A fork is a
@@ -32,7 +32,7 @@ async function doFork(id: string, fromRunId?: RunId): Promise<void> {
     const fork = await getContainer()
       .client()
       .sessions.fork({ sessionId: asSessionId(id), ...(fromRunId ? { fromRunId } : {}) });
-    useSessionStore.getState().selectTab(fork.id);
+    useAgentSessionStore.getState().selectTab(fork.id);
     void invalidateSessions();
   } catch (err) {
     reportSessionError("fork", err);
