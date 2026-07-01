@@ -4,7 +4,7 @@
 // replace `kernel-chat` with their own session UI) without touching the
 // rest.
 
-import { ChatPanel } from "@/components/chat/panel";
+import { ChatPanel } from "./panel";
 import { SettingsPage } from "./SettingsPage";
 import { SidebarPanel } from "@/components/sidebar/SidebarPanel";
 import { useSendComposerInput } from "@/plugins/builtin/chat/composer/public/sendToAgent";
