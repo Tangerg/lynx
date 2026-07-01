@@ -9,11 +9,8 @@
 import type { AgentDriver, AgentRunStartOptions } from "@/plugins/sdk/types";
 import type { InterruptResponse, RunEvent, RunId, StreamingResult } from "@/rpc";
 import { useEffect, useRef } from "react";
-import { errorDetail, errorType, RpcError } from "@/rpc";
 import type { AgentInput } from "@/plugins/builtin/agent/domain/input";
 import { agentInputToContentBlocks } from "@/plugins/builtin/agent/adapters/wireInput";
-import { LOCAL_MESSAGE_PREFIX } from "@/plugins/sdk/types/agentView";
-import { endSpan, startRunSpan, withSpan } from "@/lib/observability/tracing";
 import { getContainer } from "@/main/container";
 import { queryClient } from "@/lib/data/queryClient";
 import { USAGE_SESSION_KEY } from "@/lib/data/useUsage";
@@ -21,6 +18,8 @@ import { useAgentStore } from "./agentStore";
 import { startAgentSessionRecovery } from "./agentSessionRecovery";
 import { createRunEventBatcher } from "./runEventBatcher";
 import { useAgentSessionStore } from "./agentSessionStore";
+import { createOptimisticUserMessage } from "./optimisticUserMessage";
+import { createRunOpeningController } from "./runOpeningController";
 
 // Owns the agent driver lifecycle for one session: build the driver, expose
 // imperative send / stop / resume, and pump each run's RunEvent stream into
@@ -31,10 +30,6 @@ export interface AgentSession {
   send: (input: AgentInput, options?: AgentRunStartOptions) => void;
   stop: () => void;
 }
-
-// Monotonic suffix for optimistic (client-only) user-message item ids, so each
-// keeps a unique React key + dodges the fold's dedupe-by-id.
-let localSeq = 0;
 
 export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string): AgentSession {
   const factoryRef = useRef(makeDriver);
@@ -104,74 +99,22 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       });
     }
 
-    // Start re-entrancy latch. The steady-state guard (run.running) only flips
-    // true once run.started is folded, so send/resume also need a synchronous
-    // guard for the request→first-fold window.
-    let starting = false;
-    let beginSeq = 0;
-
-    const begin = (
-      run: (
-        signal: AbortSignal,
-      ) => Promise<StreamingResult<{ runId: RunId; userItemId?: string }, RunEvent>>,
-      onResult?: (result: { runId: RunId; userItemId?: string }) => void,
-      onStartError?: () => void,
-    ): void => {
-      starting = true;
-      const beginId = ++beginSeq;
-      interacted = true; // a live run now owns this slice; gate late history
-      abort?.abort(); // a new run supersedes any in-flight one
-      const ctrl = new AbortController();
-      abort = ctrl;
-      // One coarse span for the whole run. `withSpan` makes it the active
-      // context for the SYNCHRONOUS dispatch into transport.send, so the rpc
-      // CLIENT span nests under it and the injected traceparent links the
-      // backend trace to this run.
-      const span = startRunSpan({ "lyra.session_id": sessionId });
-      let failure: unknown;
-      let opening: Promise<StreamingResult<{ runId: RunId; userItemId?: string }, RunEvent>>;
-      try {
-        opening = withSpan(span, () => run(ctrl.signal));
-      } catch (err) {
-        opening = Promise.reject(err);
-      }
-      void opening
-        .then((stream) => {
-          if (cancelled || ctrl.signal.aborted || beginId !== beginSeq) return;
-          // Runs before pump() iterates events (the response resolves ahead of
-          // the buffered stream frames), so a userItemId relabel lands before
-          // the streamed userMessage Item is folded.
-          onResult?.(stream.result);
-          span.setAttribute("lyra.run_id", stream.result.runId);
-          return pump(stream, ctrl.signal);
-        })
-        .catch((err: unknown) => {
-          if (cancelled || ctrl.signal.aborted || beginId !== beginSeq) return;
-          failure = err;
-          console.error("[agent] run failed to start:", sessionId, err);
-          // Channel-a failure (API.md §8.1): the call rejected, so no stream
-          // and no run.finished{error} will arrive — surface it on the banner
-          // ourselves instead of failing silently.
-          if (err instanceof RpcError)
-            store().setError(sessionId, {
-              message: errorDetail(err.data) ?? err.message,
-              code: errorType(err.data),
-            });
-          // Let the caller roll back optimistic UI (send re-entrancy latch,
-          // HITL card pending state) now that we know the run never opened.
-          onStartError?.();
-        })
-        .finally(() => {
-          // The run has settled (started+streamed, failed to start, or
-          // interrupted) — release the re-entrancy latch only for the latest
-          // begin; a superseded run's finally must not unlock its successor.
-          if (beginId === beginSeq) starting = false;
-          endSpan(span, failure);
-        });
-    };
+    const runOpening = createRunOpeningController({
+      sessionId,
+      isCancelled: () => cancelled,
+      markInteracted: () => {
+        interacted = true;
+      },
+      abortCurrent: () => abort?.abort(),
+      setAbortController: (ctrl) => {
+        abort = ctrl;
+      },
+      pump,
+      setStartError: (error) => store().setError(sessionId, error),
+    });
 
     const send = (input: AgentInput, options: AgentRunStartOptions = {}): void => {
-      if (starting) return;
+      if (runOpening.isStarting()) return;
       const wireInput = agentInputToContentBlocks(input);
       // Optimistically render the user's own bubble with a local id. The
       // runtime DOES stream the userMessage Item back (with its own server id),
@@ -180,32 +123,19 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       // dedupes by exact id (no duplicate, no content-text heuristic). The
       // bubble carries the SAME input the run does, so inlined images show
       // immediately and survive the relabel (which only swaps the id).
-      const localId = `${LOCAL_MESSAGE_PREFIX}${++localSeq}`;
-      store().applyEvents(sessionId, [
-        {
-          event: {
-            type: "item.completed",
-            item: {
-              id: localId,
-              runId: "",
-              status: "completed",
-              createdAt: new Date().toISOString(),
-              type: "userMessage",
-              content: wireInput,
-            },
-          } as RunEvent["event"],
-        },
-      ]);
-      begin(
+      const optimistic = createOptimisticUserMessage(wireInput);
+      store().applyEvents(sessionId, [{ event: optimistic.event }]);
+      runOpening.begin(
         (signal) => driver.start(wireInput, options, signal),
         (result) => {
-          if (result.userItemId) store().relabelMessage(sessionId, localId, result.userItemId);
+          if (result.userItemId)
+            store().relabelMessage(sessionId, optimistic.localId, result.userItemId);
         },
         // The run never opened (channel-a error, e.g. session_busy because the
         // session has a run in flight / an open interrupt) — drop the optimistic
         // bubble so it doesn't strand below an error banner for a message that
         // wasn't accepted. The banner (set in begin's catch) carries the reason.
-        () => store().dropMessage(sessionId, localId),
+        () => store().dropMessage(sessionId, optimistic.localId),
       );
       // First message graduates a draft session into the sidebar.
       useAgentSessionStore.getState().graduateDraft(sessionId);
@@ -217,8 +147,8 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       onSettled?: () => void,
       onStartError?: () => void,
     ): void => {
-      if (starting) return;
-      begin(
+      if (runOpening.isStarting()) return;
+      runOpening.begin(
         (signal) => driver.resume(parentRunId, responses, signal),
         onSettled ? () => onSettled() : undefined,
         onStartError,

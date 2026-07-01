@@ -3,26 +3,20 @@
 // summed server-side from the durable run history. Read-only; the range selector
 // limits the window. Mirrors opencode's `/stats` surface.
 
-import type { UsageBucket } from "@/rpc";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { Icon, ProviderIcon } from "@/components/common";
 import { fmtCost, fmtTokens } from "@/lib/format";
-import { useUsageSummary } from "@/lib/data/useUsage";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
-
-const RANGES = [
-  { days: 0, label: "usage.range.all" },
-  { days: 30, label: "usage.range.30d" },
-  { days: 7, label: "usage.range.7d" },
-] as const;
-
-function tokensOf(b: { inputTokens?: number; outputTokens?: number }): number {
-  return (b.inputTokens ?? 0) + (b.outputTokens ?? 0);
-}
+import {
+  USAGE_RANGES,
+  type UsageBreakdownBucket,
+  usageTokens,
+  useUsageReport,
+} from "./application/usageConfig";
 
 // One breakdown section (provider / model / day): a titled list of buckets,
 // each a label + its cost + token count, right-aligned and tabular.
@@ -32,7 +26,7 @@ function BreakdownSection({
   icon,
 }: {
   title: string;
-  buckets: UsageBucket[];
+  buckets: UsageBreakdownBucket[];
   icon?: (key: string) => ReactNode;
 }) {
   if (buckets.length === 0) return null;
@@ -50,7 +44,7 @@ function BreakdownSection({
               <span className="truncate text-[13px] text-fg">{b.key}</span>
             </div>
             <div className="flex items-center gap-3 font-mono text-[12px] tabular-nums">
-              <span className="text-fg-muted">{fmtTokens(tokensOf(b))}</span>
+              <span className="text-fg-muted">{fmtTokens(usageTokens(b))}</span>
               {b.costUsd !== undefined && (
                 <span className="w-16 text-right text-fg">{fmtCost(b.costUsd)}</span>
               )}
@@ -65,17 +59,17 @@ function BreakdownSection({
 function UsagePane() {
   const t = useT();
   const [sinceDays, setSinceDays] = useState(0);
-  const { data, isLoading, isError } = useUsageSummary(sinceDays);
+  const { data, isLoading, isError } = useUsageReport(sinceDays);
 
   const total = data?.total;
-  const totalTokens = total ? tokensOf(total) : 0;
+  const totalTokens = total ? usageTokens(total) : 0;
   const hasSpend = totalTokens > 0 || (total?.costUsd ?? 0) > 0;
 
   return (
     <div className="flex flex-col gap-4">
       {/* Range selector */}
       <div className="flex items-center gap-1 self-end rounded-full bg-surface-2 p-0.5">
-        {RANGES.map((r) => (
+        {USAGE_RANGES.map((r) => (
           <button
             key={r.days}
             type="button"

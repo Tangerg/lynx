@@ -1,5 +1,5 @@
 import type { BlockCtx } from "../message";
-import type { Message } from "@/plugins/sdk/types/agentView";
+import type { Message } from "@/plugins/builtin/agent/public/viewState";
 import { AnimatePresence, motion } from "motion/react";
 import { Fragment, useCallback, useEffect } from "react";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ToolCall } from "@/plugins/sdk/types/agentView";
+import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import { Collapsible, Icon } from "@/components/common";
 import {
   summarizeToolGroup,

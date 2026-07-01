@@ -2,14 +2,14 @@
 // Each row shows a file path, its change type (A/D/M), and ± line counts.
 // Binary files show a "bin" badge instead of fake ±0 (AUX_API §2.2).
 // Selecting a row sets the shared activeFile state and opens the Diff view.
-import type { FileChange } from "@/lib/data/queries";
+import type { WorkspaceFileChange } from "@/plugins/builtin/workspace/application/workspaceData";
 import { memo } from "react";
 import { Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 interface Props {
-  files: FileChange[];
+  files: WorkspaceFileChange[];
   activePath: string;
   onSelect: (path: string) => void;
 }
@@ -33,7 +33,7 @@ export const FilesChanged = memo(function FilesChanged({ files, activePath, onSe
   );
 });
 
-const CHANGE_TAG: Record<FileChange["change"], { color: string; letter: string }> = {
+const CHANGE_TAG: Record<WorkspaceFileChange["change"], { color: string; letter: string }> = {
   add: { color: "text-success", letter: "A" },
   del: { color: "text-negative", letter: "D" },
   mod: { color: "text-warning", letter: "M" },
@@ -44,7 +44,7 @@ const FileRow = memo(function FileRow({
   active,
   onSelect,
 }: {
-  file: FileChange;
+  file: WorkspaceFileChange;
   active: boolean;
   onSelect: (p: string) => void;
 }) {

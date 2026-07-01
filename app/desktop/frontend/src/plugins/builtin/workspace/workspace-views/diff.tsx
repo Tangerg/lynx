@@ -2,27 +2,27 @@
 // workspace.getDiff (AUX_API §2.3). With a file selected (Files tab) it
 // scopes to that path; otherwise it shows the whole working tree.
 
-import type { DiffQuery, FileDiff } from "@/lib/data/queries";
 import { useEffect, useRef, useState } from "react";
 import { DataView, Segmented } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import type { DiffLayout } from "./views/DiffView";
 import { DiffView } from "./views/DiffView";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
-import { useDiff } from "@/lib/data/queries";
-import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
-import { useActiveWorkspaceFile } from "@/plugins/builtin/workspace/public/navigation";
 import { cn } from "@/lib/utils";
-import { gitOffEmpty, isVcsUnavailable, notARepoEmpty } from "./views/vcsGate";
+import { gitOffEmpty, notARepoEmpty } from "./views/vcsGate";
 import { defineWorkspaceView } from "./defineWorkspaceView";
-import { useServerFeature } from "@/state/runtimeStore";
+import {
+  type WorkspaceDiffMode,
+  type WorkspaceFileDiff,
+  useWorkspaceDiffView,
+} from "@/plugins/builtin/workspace/application/diffViewModel";
 
 function FileSection({
   file,
   showHeader,
   layout,
 }: {
-  file: FileDiff;
+  file: WorkspaceFileDiff;
   showHeader: boolean;
   layout: DiffLayout;
 }) {
@@ -49,21 +49,10 @@ function FileSection({
 
 function DiffViewTab() {
   const t = useT();
-  const gitEnabled = useServerFeature("git");
-  const cwd = useActiveSessionCwd();
-  const activeFile = useActiveWorkspaceFile();
-  // worktree = uncommitted changes (incl. untracked); base = vs the default
-  // branch's merge-base (AUX_API §2.3) — the "what does this branch change"
-  // review view.
-  const [mode, setMode] = useState<NonNullable<DiffQuery["mode"]>>("worktree");
+  const [mode, setMode] = useState<WorkspaceDiffMode>("worktree");
   const [layout, setLayout] = useState<DiffLayout>("unified");
-  const { data, isLoading, isError, error } = useDiff(
-    gitEnabled ? { cwd, mode, path: activeFile || undefined } : undefined,
-  );
-  const files = data?.files;
-  const added = files?.reduce((s, f) => s + (f.added ?? 0), 0) ?? 0;
-  const removed = files?.reduce((s, f) => s + (f.removed ?? 0), 0) ?? 0;
-  const notARepo = isVcsUnavailable(error);
+  const { activeFile, added, data, files, gitEnabled, isError, isLoading, notARepo, removed } =
+    useWorkspaceDiffView(mode);
 
   // Open the diff at the BOTTOM (latest hunks), not the top. Once per mount,
   // right after the diff content first renders — a later mode/file switch must

@@ -1,4 +1,4 @@
-import type { BlockStatus } from "@/plugins/sdk/types/agentView";
+import type { BlockStatus } from "@/plugins/builtin/agent/public/viewState";
 import { useEffect, useRef, useState } from "react";
 import { Checkbox, Divider, Icon, Segmented } from "@/components/common";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";

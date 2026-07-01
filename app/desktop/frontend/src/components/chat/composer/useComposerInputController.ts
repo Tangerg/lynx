@@ -1,6 +1,6 @@
 import type { ChangeEvent, ClipboardEvent, KeyboardEvent, SyntheticEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ComposerImage } from "@/plugins/builtin/chat/composer/public/attachments";
+import type { ComposerImage, PastedText } from "@/plugins/builtin/chat/composer/public/attachments";
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import { imageFiles } from "@/plugins/builtin/chat/composer/public/input";
 import { isLargePaste } from "@/plugins/builtin/chat/composer/public/largePaste";
@@ -18,6 +18,8 @@ interface Args {
   onClear: () => void;
   onSend: (input: UserInput) => void;
   images: ComposerImage[];
+  pastes: PastedText[];
+  recordHistory: (text: string) => void;
   onAddImages: (files: File[]) => void;
   onAddPaste: (text: string) => void;
   acceptsImages: boolean;
@@ -29,6 +31,8 @@ export function useComposerInputController({
   onClear,
   onSend,
   images,
+  pastes,
+  recordHistory,
   onAddImages,
   onAddPaste,
   acceptsImages,
@@ -63,8 +67,9 @@ export function useComposerInputController({
   const running = useIsAgentRunning();
   const placeholder = running ? t("composer.placeholder.steer") : basePlaceholder;
   const submit = useCallback(
-    () => submitComposer({ value, clear: onClear, sendInput: onSend, images }),
-    [images, onClear, onSend, value],
+    () =>
+      submitComposer({ value, clear: onClear, sendInput: onSend, images, pastes, recordHistory }),
+    [images, onClear, onSend, pastes, recordHistory, value],
   );
 
   useEffect(() => {

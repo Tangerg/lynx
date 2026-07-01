@@ -1,5 +1,5 @@
 import type { Highlighter } from "shiki";
-import type { DiffRow } from "@/lib/data/queries";
+import type { WorkspaceDiffRow } from "@/plugins/builtin/workspace/application/workspaceData";
 import { useMemo } from "react";
 import { intraLineDiff } from "@/lib/diff/intraLineDiff";
 import { stripCodeWrapper, useCodeHighlighter } from "@/lib/markdown/useCodeHighlight";
@@ -11,7 +11,7 @@ export type DiffLayout = "unified" | "split";
 
 // A diff row's line numbers plus a small ordinal are enough to produce a
 // stable key without relying on row content collisions.
-function keyFor(row: DiffRow, i: number): string {
+function keyFor(row: WorkspaceDiffRow, i: number): string {
   if (row.type === "hunk") return `h:${i}:${row.text}`;
   if (row.type === "added") return `+:${row.rightLine}`;
   if (row.type === "deleted") return `-:${row.leftLine}`;
@@ -53,10 +53,10 @@ function highlightInline(
 // Map each replaced line to its changed sub-range (word-level diff). Walks the
 // flat rows pairing a run of deletes with the following run of adds
 // row-for-row (the common edit shape); unpaired overflow lines get no mark.
-function computeWordRanges(rows: DiffRow[]): Map<DiffRow, [number, number]> {
-  const ranges = new Map<DiffRow, [number, number]>();
-  let dels: Extract<DiffRow, { type: "deleted" }>[] = [];
-  let adds: Extract<DiffRow, { type: "added" }>[] = [];
+function computeWordRanges(rows: WorkspaceDiffRow[]): Map<WorkspaceDiffRow, [number, number]> {
+  const ranges = new Map<WorkspaceDiffRow, [number, number]>();
+  let dels: Extract<WorkspaceDiffRow, { type: "deleted" }>[] = [];
+  let adds: Extract<WorkspaceDiffRow, { type: "added" }>[] = [];
   const flush = () => {
     const n = Math.min(dels.length, adds.length);
     for (let i = 0; i < n; i++) {
@@ -93,7 +93,7 @@ export function DiffView({
   layout = "unified",
   path,
 }: {
-  rows: DiffRow[];
+  rows: WorkspaceDiffRow[];
   layout?: DiffLayout;
   /** The diffed file's path — highlights each file in its OWN language
    *  (langFromPath) instead of assuming TypeScript. Omitted → "text". */
@@ -105,7 +105,7 @@ export function DiffView({
   const highlighted = useMemo(() => {
     if (!highlighter) return null;
     const lang = resolveLang(highlighter, path ? langFromPath(path) : "text");
-    const out = new Map<DiffRow, string>();
+    const out = new Map<WorkspaceDiffRow, string>();
     for (const row of rows) {
       if (row.type === "hunk") continue;
       const range = wordRanges.get(row);
@@ -156,7 +156,7 @@ function HunkRow({ text }: { text: string }) {
 // One side of a split row: a context/deleted cell on the left, a
 // context/added cell on the right, or absent (the other side changed and this
 // side has no counterpart).
-type Half = Extract<DiffRow, { type: "context" | "deleted" | "added" }> | null;
+type Half = Extract<WorkspaceDiffRow, { type: "context" | "deleted" | "added" }> | null;
 interface SplitRow {
   left: Half;
   right: Half;
@@ -167,10 +167,10 @@ interface SplitRow {
 // run of adds (the common edit shape), and the longer run leaves blank cells
 // opposite its overflow. Hunk separators flush the pending runs and are
 // rendered full-width by the caller.
-function toSplitRows(rows: DiffRow[]): ({ hunk: string } | SplitRow)[] {
+function toSplitRows(rows: WorkspaceDiffRow[]): ({ hunk: string } | SplitRow)[] {
   const out: ({ hunk: string } | SplitRow)[] = [];
-  let dels: Extract<DiffRow, { type: "deleted" }>[] = [];
-  let adds: Extract<DiffRow, { type: "added" }>[] = [];
+  let dels: Extract<WorkspaceDiffRow, { type: "deleted" }>[] = [];
+  let adds: Extract<WorkspaceDiffRow, { type: "added" }>[] = [];
   const flush = () => {
     const n = Math.max(dels.length, adds.length);
     for (let i = 0; i < n; i++) out.push({ left: dels[i] ?? null, right: adds[i] ?? null });
@@ -198,8 +198,8 @@ function SplitDiff({
   rows,
   highlighted,
 }: {
-  rows: DiffRow[];
-  highlighted: Map<DiffRow, string> | null;
+  rows: WorkspaceDiffRow[];
+  highlighted: Map<WorkspaceDiffRow, string> | null;
 }) {
   const split = useMemo(() => toSplitRows(rows), [rows]);
   return (
@@ -224,7 +224,7 @@ function DiffSide({
 }: {
   row: Half;
   side: "left" | "right";
-  highlighted: Map<DiffRow, string> | null;
+  highlighted: Map<WorkspaceDiffRow, string> | null;
 }) {
   // Absent counterpart — a faint "no line here" fill so the eye reads the row
   // as one-sided rather than as an edit to a blank line.

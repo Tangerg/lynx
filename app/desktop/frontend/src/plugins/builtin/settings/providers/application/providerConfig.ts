@@ -39,6 +39,36 @@ export function useProviderRoleConfig() {
   return { utilityRole, embeddingRole, models, providers };
 }
 
+export function useUtilityModelConfig() {
+  const { utilityRole, models } = useProviderRoleConfig();
+  const role = utilityRole.data;
+  const modelOptions = models.data ?? [];
+  const selected =
+    role?.provider && role.model
+      ? (modelOptions.find(
+          (model) => model.provider === role.provider && model.id === role.model,
+        ) ?? null)
+      : null;
+  return {
+    role,
+    modelOptions,
+    selected,
+    isSet: Boolean(role?.model),
+  };
+}
+
+export function useEmbeddingModelConfig() {
+  const { embeddingRole, providers } = useProviderRoleConfig();
+  const role = embeddingRole.data;
+  const providerConfigs = providers.data ?? [];
+  return {
+    role,
+    providers: providerConfigs,
+    capableProviders: providerConfigs.filter((provider) => provider.embeddingCapable),
+    isSet: Boolean(role?.model),
+  };
+}
+
 export interface SaveProviderInput {
   provider: string;
   apiKey?: string;

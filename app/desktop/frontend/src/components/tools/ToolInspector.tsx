@@ -7,7 +7,7 @@
 // the two halves: the inline preview is for "I want a quick visual",
 // this is for "I want the truth".
 
-import type { ToolCall } from "@/plugins/sdk/types/agentView";
+import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";

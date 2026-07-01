@@ -3,22 +3,23 @@
 // features.memory). One entry per scope; each row expands into an inline
 // whole-file editor — memory.update writes the full content back.
 
-import type { MemoryEntryInfo } from "@/lib/data/queries";
 import { useRef, useState } from "react";
 import { DataView, FIELD_CLASSES, Icon, PillButton } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
-import { MEMORY_KEY, useMemory } from "@/lib/data/queries";
-import { queryClient } from "@/lib/data/queryClient";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { notifyError } from "@/lib/notify";
 import { cn } from "@/lib/utils";
-import { getContainer } from "@/main/container";
 import { useServerFeature } from "@/state/runtimeStore";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { scopeLabel } from "./views/scopeLabel";
+import {
+  saveWorkspaceMemory,
+  type WorkspaceMemoryEntry,
+  useWorkspaceMemory,
+} from "@/plugins/builtin/workspace/application/memoryConfig";
 
-function MemoryRow({ entry, cwd }: { entry: MemoryEntryInfo; cwd?: string }) {
+function MemoryRow({ entry, cwd }: { entry: WorkspaceMemoryEntry; cwd?: string }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   // null = pristine (textarea shows entry.content); a string = user edits.
@@ -33,13 +34,9 @@ function MemoryRow({ entry, cwd }: { entry: MemoryEntryInfo; cwd?: string }) {
     if (!dirty || savingRef.current) return;
     savingRef.current = true;
     setSaving(true);
-    getContainer()
-      .client()
-      .memory.update({ scope: entry.scope, cwd, content: draft })
+    saveWorkspaceMemory({ scope: entry.scope, cwd, content: draft })
       .then(() => {
         setDraft(null);
-        // Refetch so updatedAt + any server-side normalization come back.
-        void queryClient.invalidateQueries({ queryKey: [MEMORY_KEY] });
       })
       .catch((err: unknown) => {
         notifyError(t("memory.saveError"), {
@@ -104,7 +101,7 @@ function MemoryTab() {
   const t = useT();
   const memoryEnabled = useServerFeature("memory");
   const cwd = useActiveSessionCwd();
-  const { data, isLoading, isError } = useMemory(memoryEnabled ? { cwd } : undefined);
+  const { data, isLoading, isError } = useWorkspaceMemory(memoryEnabled, cwd);
   const entries = data ?? [];
 
   return (

@@ -14,8 +14,8 @@
 // are stored (every tool enabled, none auto-approved unless listed).
 
 import { DataView, Switch } from "@/components/common";
-import { useMCPTools } from "@/lib/data/queries";
 import { useT } from "@/lib/i18n";
+import { useMCPServerTools } from "./application/mcpServerTools";
 
 interface Props {
   server: string;
@@ -26,7 +26,7 @@ interface Props {
 
 export function ToolControls({ server, disabledTools, autoApproveTools, onChange }: Props) {
   const t = useT();
-  const { data, isLoading, isError } = useMCPTools({ server });
+  const { data, isLoading, isError } = useMCPServerTools(server);
 
   const disabled = new Set(disabledTools);
   const autoApprove = new Set(autoApproveTools);

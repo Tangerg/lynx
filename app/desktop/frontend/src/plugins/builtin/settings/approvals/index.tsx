@@ -6,16 +6,19 @@
 // approval.* methods only exist on a B9 runtime — a pre-B9 one rejects getMode,
 // so the whole pane degrades to an inert "unavailable" state.
 
-import type { ApprovalModeValue, ApprovalRuleInfo } from "@/lib/data/queries";
 import { DataView, EmptyState, Icon, Segmented } from "@/components/common";
 import {
   APPROVAL_MODES,
-  forgetRule,
-  setApprovalMode,
-} from "@/plugins/builtin/agent/public/approvalPolicy";
+  forgetApprovalRule,
+  forgetApprovalRules,
+  saveApprovalMode,
+  type ApprovalMode,
+  type ApprovalRuleConfig,
+  useApprovalModeConfig,
+  useApprovalRuleConfigs,
+} from "./application/approvalConfig";
 import { isUnsupportedMethod, rpcErrorText } from "@/lib/rpcErrors";
 import { useActiveSession } from "@/plugins/builtin/agent/public/session";
-import { useApprovalMode, useApprovalRules } from "@/lib/data/queries";
 import { notifyError } from "@/lib/notify";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -23,17 +26,17 @@ import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
 import { SettingRow } from "../SettingRow";
 
-const SCOPE_CHIP: Record<ApprovalRuleInfo["scope"], string> = {
+const SCOPE_CHIP: Record<ApprovalRuleConfig["scope"], string> = {
   session: "border-line bg-surface-2 text-fg-muted",
   project: "border-accent/30 bg-accent/10 text-accent",
   global: "border-warning/30 bg-warning/12 text-warning",
 };
 
-function ModeRow({ mode }: { mode: ApprovalModeValue | undefined }) {
+function ModeRow({ mode }: { mode: ApprovalMode | undefined }) {
   const t = useT();
-  const onChange = async (next: ApprovalModeValue) => {
+  const onChange = async (next: ApprovalMode) => {
     try {
-      await setApprovalMode(next);
+      await saveApprovalMode(next);
     } catch (err) {
       notifyError(rpcErrorText(err) ?? t("approvals.error.mode"));
     }
@@ -60,19 +63,20 @@ function ModeRow({ mode }: { mode: ApprovalModeValue | undefined }) {
 function RulesRow() {
   const t = useT();
   const sessionId = useActiveSession()?.id;
-  const { data, isLoading, isError, error } = useApprovalRules(
-    sessionId ? { sessionId } : undefined,
-  );
+  const { data, isLoading, isError, error } = useApprovalRuleConfigs(sessionId);
   const forget = async (id: string) => {
     try {
-      await forgetRule(id);
+      await forgetApprovalRule(id);
     } catch (err) {
       notifyError(rpcErrorText(err) ?? t("approvals.error.forget"));
     }
   };
-  // Clear-all loops the visible ids — the wire forgets one rule at a time.
-  const forgetAll = async (rows: ApprovalRuleInfo[]) => {
-    for (const r of rows) await forget(r.id);
+  const forgetAll = async (rows: ApprovalRuleConfig[]) => {
+    try {
+      await forgetApprovalRules(rows);
+    } catch (err) {
+      notifyError(rpcErrorText(err) ?? t("approvals.error.forget"));
+    }
   };
 
   return (
@@ -152,7 +156,7 @@ function RulesRow() {
 
 function ApprovalsPane() {
   const t = useT();
-  const { data: mode, isError } = useApprovalMode();
+  const { data: mode, isError } = useApprovalModeConfig();
   if (isError) {
     return (
       <EmptyState

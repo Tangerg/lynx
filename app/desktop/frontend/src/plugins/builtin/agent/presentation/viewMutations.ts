@@ -1,5 +1,9 @@
-import type { AgentViewState, ContentBlock, RunError } from "@/plugins/sdk/types/agentView";
-import { appendTimelineEntry } from "@/plugins/sdk/types/agentTimeline";
+import type {
+  AgentViewState,
+  ContentBlock,
+  RunError,
+} from "@/plugins/builtin/agent/public/viewState";
+import { appendTimelineEntry } from "@/plugins/builtin/agent/public/viewState";
 
 export interface SettledInterrupt {
   decision?: "approved" | "declined";

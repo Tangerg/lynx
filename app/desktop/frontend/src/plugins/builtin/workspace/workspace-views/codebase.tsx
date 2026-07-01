@@ -3,13 +3,15 @@
 // the index state + a reindex button. Backed by codebase.* — needs an embedding
 // model configured in Settings → Providers (else it points the user there).
 
-import type { CodebaseHit } from "@/rpc";
 import { useState } from "react";
 import { EmptyState, Icon, PillButton } from "@/components/common";
-import { reindexCodebase, searchCodebase } from "../application/codebaseCommands";
+import {
+  type CodebaseSearchHit,
+  reindexCodebase,
+  searchCodebase,
+  useCodebaseSearchConfig,
+} from "../application/codebaseCommands";
 import { rpcErrorText } from "@/lib/rpcErrors";
-import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
-import { useCodebaseStatus, useEmbeddingRole } from "@/lib/data/queries";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
@@ -29,15 +31,11 @@ function statusLabel(state: string | undefined, t: ReturnType<typeof useT>): str
 
 function CodebaseTab() {
   const t = useT();
-  const cwd = useActiveSessionCwd();
-  const { data: role } = useEmbeddingRole();
-  const { data: status } = useCodebaseStatus({ cwd });
+  const { cwd, enabled, status } = useCodebaseSearchConfig();
   const [query, setQuery] = useState("");
-  const [hits, setHits] = useState<CodebaseHit[] | null>(null);
+  const [hits, setHits] = useState<CodebaseSearchHit[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const enabled = Boolean(role?.model);
 
   const run = async () => {
     if (!query.trim()) return;

@@ -1,8 +1,10 @@
-import type { FileEntryInfo } from "@/lib/data/queries";
 import { useState } from "react";
 import { Icon } from "@/components/common";
-import { useListFiles } from "@/lib/data/queries";
 import { cn } from "@/lib/utils";
+import {
+  type WorkspaceFileEntry,
+  useWorkspaceListFiles,
+} from "@/plugins/builtin/workspace/application/workspaceData";
 
 // Lazy file-tree (B8). Each directory fetches its own children only once
 // expanded (useListFiles is disabled while collapsed), so opening the root
@@ -10,7 +12,7 @@ import { cn } from "@/lib/utils";
 // files call onSelectFile.
 
 interface NodeProps {
-  entry: FileEntryInfo;
+  entry: WorkspaceFileEntry;
   cwd?: string;
   depth: number;
   selectedPath?: string;
@@ -20,7 +22,7 @@ interface NodeProps {
 function TreeNode({ entry, cwd, depth, selectedPath, onSelectFile }: NodeProps) {
   const [expanded, setExpanded] = useState(false);
   const isDir = entry.type === "dir";
-  const { data: children, isLoading } = useListFiles(
+  const { data: children, isLoading } = useWorkspaceListFiles(
     isDir && expanded ? { cwd, path: entry.path } : undefined,
   );
   const indent = { paddingLeft: `${depth * 12 + 6}px` };
@@ -80,7 +82,7 @@ export function FileTree({
   selectedPath,
   onSelectFile,
 }: {
-  entries: FileEntryInfo[];
+  entries: WorkspaceFileEntry[];
   cwd?: string;
   selectedPath?: string;
   onSelectFile: (path: string) => void;

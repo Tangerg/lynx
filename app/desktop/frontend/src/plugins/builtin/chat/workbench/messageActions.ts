@@ -2,7 +2,7 @@
 // right-click context menu. External callers use the public facade; store reads
 // stay inside handlers via getState() so per-message UI does not subscribe.
 
-import type { Message } from "@/plugins/sdk/types/agentView";
+import type { Message } from "@/plugins/builtin/agent/public/viewState";
 import { notifyError, notifyInfo } from "@/lib/notify";
 import { flattenText } from "@/plugins/builtin/agent/public/messageContent";
 import { buildInput } from "@/plugins/builtin/chat/composer/public/input";

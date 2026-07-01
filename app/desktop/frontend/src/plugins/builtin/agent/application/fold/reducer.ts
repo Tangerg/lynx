@@ -14,7 +14,7 @@
 // logged to the error store and its input state is preserved.
 
 import type { StreamEvent } from "@/rpc";
-import type { AgentViewState } from "@/plugins/sdk/types/agentView";
+import type { AgentViewState } from "@/plugins/builtin/agent/public/viewState";
 import { measureReduce } from "@/lib/metrics";
 import { lookupCustomHandlers, lookupStreamHandlers, reportPluginError } from "@/plugins/sdk";
 

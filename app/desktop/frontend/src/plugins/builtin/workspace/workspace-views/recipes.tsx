@@ -5,15 +5,15 @@
 
 import { DataView } from "@/components/common";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
-import { useRecipes } from "@/lib/data/queries";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
+import { useWorkspaceRecipes } from "@/plugins/builtin/workspace/application/workspaceData";
 
 function RecipesTab() {
   const t = useT();
   const cwd = useActiveSessionCwd();
-  const { data, isLoading, isError } = useRecipes({ cwd });
+  const { data, isLoading, isError } = useWorkspaceRecipes({ cwd });
   const recipes = data ?? [];
 
   return (

@@ -12,8 +12,8 @@ import type {
   QuestionItem,
   ToolCall,
   ToolCallStatus,
-} from "@/plugins/sdk/types/agentView";
-import { toolCategory } from "@/plugins/sdk/types/agentView";
+} from "@/plugins/builtin/agent/public/viewState";
+import { toolCategory } from "@/plugins/builtin/agent/public/viewState";
 
 // Formatting / naming
 

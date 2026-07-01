@@ -1,6 +1,4 @@
-import type { MCPTransport } from "@/lib/data/queries";
-
-export type MCPServerTransport = MCPTransport;
+export type MCPServerTransport = "stdio" | "streamableHttp";
 
 export interface MCPServerConfigInput {
   name: string;

@@ -6,10 +6,10 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Item, RunOutcome, StreamEvent } from "@/rpc";
-import type { AgentViewState } from "@/plugins/sdk/types/agentView";
+import type { AgentViewState } from "@/plugins/builtin/agent/public/viewState";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { reduce } from "./reducer";
-import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
+import { INITIAL_VIEW_STATE } from "@/plugins/builtin/agent/public/viewState";
 
 // Builders. Items are partial — only the fields the fold reads matter; the
 // cast keeps the test terse without re-stating the full wire shape.

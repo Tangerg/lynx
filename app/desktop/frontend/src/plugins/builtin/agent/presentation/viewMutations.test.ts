@@ -5,8 +5,8 @@ import type {
   ContentBlock,
   Message,
   RunError,
-} from "@/plugins/sdk/types/agentView";
-import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
+} from "@/plugins/builtin/agent/public/viewState";
+import { INITIAL_VIEW_STATE } from "@/plugins/builtin/agent/public/viewState";
 import {
   cancelRunningRun,
   dropMessage,

@@ -1,4 +1,4 @@
-import type { Message } from "@/plugins/sdk/types/agentView";
+import type { Message } from "@/plugins/builtin/agent/public/viewState";
 import type { AgentInput } from "../../domain/input";
 import { getContainer } from "@/main/container";
 import { notifyInfo } from "@/lib/notify";

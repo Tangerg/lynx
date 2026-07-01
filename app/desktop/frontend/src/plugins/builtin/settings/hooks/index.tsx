@@ -9,19 +9,19 @@
 // hook definitions themselves — those live in hooks.json files the user edits
 // directly; the GUI only audits them and grants/revokes project trust.
 
-import type { HookInfo } from "@/rpc";
 import { DataView, EmptyState, Icon, Switch } from "@/components/common";
 import { isUnsupportedMethod, rpcErrorText } from "@/lib/rpcErrors";
+import type { HookConfig } from "./application/hookConfig";
+import { useHookConfigs } from "./application/hookConfig";
 import { setHookTrust } from "./application/hookTrust";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
-import { useHooks } from "@/lib/data/queries";
 import { notifyError } from "@/lib/notify";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
 
-function HookRow({ h }: { h: HookInfo }) {
+function HookRow({ h }: { h: HookConfig }) {
   const t = useT();
   return (
     <div
@@ -72,7 +72,7 @@ function HookRow({ h }: { h: HookInfo }) {
 function HooksPane() {
   const t = useT();
   const cwd = useActiveSessionCwd();
-  const { data, isLoading, isError, error } = useHooks({ cwd });
+  const { data, isLoading, isError, error } = useHookConfigs(cwd);
 
   if (isError && isUnsupportedMethod(error)) {
     return (
@@ -84,9 +84,6 @@ function HooksPane() {
     );
   }
 
-  // Trust is only meaningful when the project actually ships hooks — otherwise
-  // there's nothing for the toggle to gate.
-  const hasProjectHooks = (data?.hooks ?? []).some((h) => h.scope === "project");
   const projectRoot = data?.projectRoot;
 
   const onTrust = async (trusted: boolean) => {
@@ -102,7 +99,7 @@ function HooksPane() {
     <div className="flex flex-col gap-3">
       <p className="text-[13px] leading-[1.5] text-fg-muted">{t("hooks.intro")}</p>
 
-      {projectRoot && hasProjectHooks && (
+      {projectRoot && data?.hasProjectHooks && (
         <div className="flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-canvas px-3 py-2.5">
           <div className="min-w-0">
             <div className="text-[14px] font-semibold text-fg">{t("hooks.trust")}</div>

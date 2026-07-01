@@ -1,4 +1,4 @@
-import type { ToolCall } from "@/plugins/sdk/types/agentView";
+import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import { memo } from "react";
 import { useT } from "@/lib/i18n";
 

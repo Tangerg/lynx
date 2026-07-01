@@ -2,9 +2,23 @@
 // status query so the view's status header reflects the new index state.
 
 import type { CodebaseHit } from "@/rpc";
-import { CODEBASE_STATUS_KEY } from "@/lib/data/queries";
+import { CODEBASE_STATUS_KEY, useCodebaseStatus, useEmbeddingRole } from "@/lib/data/queries";
 import { queryClient } from "@/lib/data/queryClient";
 import { getContainer } from "@/main/container";
+import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+
+export type CodebaseSearchHit = CodebaseHit;
+
+export function useCodebaseSearchConfig() {
+  const cwd = useActiveSessionCwd();
+  const { data: role } = useEmbeddingRole();
+  const { data: status } = useCodebaseStatus({ cwd });
+  return {
+    cwd,
+    status,
+    enabled: Boolean(role?.model),
+  };
+}
 
 export async function searchCodebase(
   cwd: string | undefined,

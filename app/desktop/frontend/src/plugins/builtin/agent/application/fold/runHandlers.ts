@@ -1,5 +1,5 @@
 import type { OpenInterrupt, RunOutcome, RunProgress, RunRef, Usage } from "@/rpc";
-import type { AgentViewState, RunUsage } from "@/plugins/sdk/types/agentView";
+import type { AgentViewState, RunUsage } from "@/plugins/builtin/agent/public/viewState";
 import { appendTimelineEntry, patchRun } from "@/plugins/sdk";
 import { settleOpenInterrupts } from "./fold";
 import { materializeInterrupt } from "./interruptMaterialization";

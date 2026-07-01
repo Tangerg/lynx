@@ -4,13 +4,13 @@
 import { DataView } from "@/components/common";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useT } from "@/lib/i18n";
-import { useAgentDocs } from "@/lib/data/queries";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { scopeLabel } from "./views/scopeLabel";
+import { useWorkspaceAgentDocs } from "@/plugins/builtin/workspace/application/workspaceData";
 
 function AgentDocsTab() {
   const t = useT();
-  const { data, isLoading, isError } = useAgentDocs();
+  const { data, isLoading, isError } = useWorkspaceAgentDocs();
   const docs = data ?? [];
 
   return (

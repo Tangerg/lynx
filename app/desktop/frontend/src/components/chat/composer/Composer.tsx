@@ -3,6 +3,7 @@
 // useComposerInputController so this component stays focused on composition.
 import type { ComposerImage, PastedText } from "@/plugins/builtin/chat/composer/public/attachments";
 import { imageFiles, type UserInput } from "@/plugins/builtin/chat/composer/public/input";
+import { useRecordComposerHistory } from "@/plugins/builtin/chat/composer/public/history";
 import type { IconName } from "@/components/common";
 import type { ComposerAttachmentSourceSpec } from "@/plugins/sdk";
 import { Chip, Icon, Tooltip } from "@/components/common";
@@ -48,6 +49,7 @@ export function Composer({
   children,
 }: Props) {
   const t = useT();
+  const recordHistory = useRecordComposerHistory();
   const attachmentSources = useExtensionPoint(COMPOSER_ATTACHMENT_SOURCE);
   const input = useComposerInputController({
     value,
@@ -55,6 +57,8 @@ export function Composer({
     onClear,
     onSend,
     images,
+    pastes,
+    recordHistory,
     onAddImages,
     onAddPaste,
     acceptsImages,

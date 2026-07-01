@@ -6,8 +6,8 @@ import { DataView } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { FileView } from "./views/FileView";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
-import { useReadFile } from "@/lib/data/queries";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useWorkspaceReadFile } from "@/plugins/builtin/workspace/application/workspaceData";
 import { useWorkspaceFileViewer } from "@/plugins/builtin/workspace/public/navigation";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 
@@ -15,7 +15,7 @@ function FileViewTab() {
   const t = useT();
   const cwd = useActiveSessionCwd();
   const viewer = useWorkspaceFileViewer();
-  const { data, isLoading, isError } = useReadFile(
+  const { data, isLoading, isError } = useWorkspaceReadFile(
     viewer && cwd !== undefined ? { cwd, path: viewer.path } : undefined,
   );
 
