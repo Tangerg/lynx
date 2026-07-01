@@ -11,11 +11,11 @@ import {
   approvalScopeViews,
   approvalSettledDecision,
   canSubmitApproval,
+  dangerHints,
   type ApprovalRisk,
   type ApprovalTone,
 } from "@/plugins/builtin/agent/presentation/approvalPresentation";
 import { registerApprovalActions } from "@/lib/agent/approvalActions";
-import { dangerHints } from "@/lib/agent/dangerPatterns";
 import { useApprovalSubmit } from "@/lib/agent/useApprovalSubmit";
 import { cn } from "@/lib/utils";
 import { ApprovalArgsEditor, useApprovalArgsEditor } from "./ApprovalArgsEditor";

@@ -1,9 +1,6 @@
-// Client-side danger heuristics for a shell command awaiting approval — a
-// last-line "are you sure?" banner INDEPENDENT of the backend's risk field, so
-// a destructive command is flagged even when the runtime reports no risk.
-// Borrowed from Kimi code's DANGER_PATTERNS. Intentionally conservative: a
-// miss just means no banner (the approval prompt still shows), a false hit only
-// adds a banner — neither blocks anything.
+// Client-side danger heuristics for a shell command awaiting approval. This is
+// an extra presentation warning independent of the backend's risk field: a miss
+// just means no banner, while a false hit only adds a banner.
 
 interface DangerRule {
   re: RegExp;
