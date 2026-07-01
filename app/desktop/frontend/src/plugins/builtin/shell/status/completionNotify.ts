@@ -48,16 +48,23 @@ function onSettled({
   if (useUiStore.getState().completionSound) playCompletionChime();
 }
 
-const unsubscribe = subscribeAgentRunSettlements(onSettled);
-disposeOnHmr(unsubscribe);
-
 export const completionNotify = definePlugin({
   name: "lyra.builtin.completion-notify",
   version: "1.0.0",
-  setup() {
-    // The run-completion → OS-notification bridge is the module-level
-    // subscription above; here we only prime permission at load (window
-    // focused, so the prompt is allowed).
+  setup({ host }) {
+    // Prime notification permission at load (window focused → prompt allowed).
     ensureOsNotifyPermission();
+    // Subscribe to run settlements only once the app is READY. The agent
+    // view-state port is bound by the agent bootstrap plugin's setup, so doing
+    // this at module-eval (as this file used to) ran before any setup and threw
+    // "Agent view state port is not configured" — which, thrown from module
+    // code in the manifest import chain, crashed the whole load and blanked the
+    // window. onReady fires after markAppReady, when every setup has run.
+    let unsubscribe: (() => void) | undefined;
+    host.lifecycle.onReady(() => {
+      unsubscribe = subscribeAgentRunSettlements(onSettled);
+      disposeOnHmr(unsubscribe);
+    });
+    return () => unsubscribe?.();
   },
 });

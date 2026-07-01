@@ -18,16 +18,22 @@ import { subscribeAnyAgentRunning } from "@/plugins/builtin/agent/public/run";
 import { definePlugin } from "@/plugins/sdk";
 import { usePluginStore } from "@/plugins/sdk/registry";
 
-const unsubscribe = subscribeAnyAgentRunning((working) =>
-  usePluginStore.getState().setWindowWorking(working),
-);
-disposeOnHmr(unsubscribe);
-
 export const windowTitle = definePlugin({
   name: "lyra.builtin.window-title",
   version: "1.0.0",
-  setup() {
-    // The working-indicator bridge is the module-level subscription above;
-    // the plugin entry exists only to join the builtin manifest.
+  setup({ host }) {
+    // Subscribe to the "any run working" signal only once the app is READY.
+    // subscribeAnyAgentRunning reads the agent view-state port, which another
+    // plugin's setup binds — a module-eval subscription (as this file used to
+    // do) ran before that setup and threw "Agent view state port is not
+    // configured", crashing the manifest import chain and blanking the window.
+    let unsubscribe: (() => void) | undefined;
+    host.lifecycle.onReady(() => {
+      unsubscribe = subscribeAnyAgentRunning((working) =>
+        usePluginStore.getState().setWindowWorking(working),
+      );
+      disposeOnHmr(unsubscribe);
+    });
+    return () => unsubscribe?.();
   },
 });
