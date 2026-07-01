@@ -1,6 +1,7 @@
 package cassandra
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -46,7 +47,7 @@ func (v *Visitor) Visit(expr ast.Expr) error {
 
 func (v *Visitor) visit(expr ast.Expr) error {
 	if expr == nil {
-		return fmt.Errorf("cassandra: cannot process nil expression")
+		return errors.New("cassandra: cannot process nil expression")
 	}
 	if v.err != nil {
 		return v.err
@@ -56,7 +57,7 @@ func (v *Visitor) visit(expr ast.Expr) error {
 	case *ast.BinaryExpr:
 		return v.visitBinaryExpr(node)
 	case *ast.UnaryExpr:
-		return fmt.Errorf("cassandra: NOT is not supported by CQL on metadata columns")
+		return errors.New("cassandra: NOT is not supported by CQL on metadata columns")
 	default:
 		return fmt.Errorf("cassandra: unsupported root expression %T", node)
 	}
@@ -69,7 +70,7 @@ func (v *Visitor) visitBinaryExpr(expr *ast.BinaryExpr) error {
 			// CQL doesn't support OR on regular columns; SAI indexes
 			// can do it via composite predicates but it's a special
 			// case best handled by the caller.
-			return fmt.Errorf("cassandra: OR is not supported in CQL WHERE clauses")
+			return errors.New("cassandra: OR is not supported in CQL WHERE clauses")
 		}
 		return v.visitAnd(expr)
 	case expr.Op.Kind.Is(token.IN):
@@ -147,7 +148,7 @@ func columnName(expr ast.Expr) (string, error) {
 	case *ast.Ident:
 		return node.Value, nil
 	case *ast.IndexExpr:
-		return "", fmt.Errorf("indexed expressions are not supported — declare the metadata key as a column")
+		return "", errors.New("indexed expressions are not supported — declare the metadata key as a column")
 	default:
 		return "", fmt.Errorf("unsupported left operand %T", node)
 	}

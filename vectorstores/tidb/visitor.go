@@ -1,6 +1,7 @@
 package tidb
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -49,7 +50,7 @@ func (v *Visitor) Visit(expr ast.Expr) error {
 
 func (v *Visitor) visit(expr ast.Expr) error {
 	if expr == nil {
-		return fmt.Errorf("tidb: cannot process nil expression")
+		return errors.New("tidb: cannot process nil expression")
 	}
 	if v.err != nil {
 		return v.err
@@ -139,10 +140,10 @@ func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 	}
 	listLit, ok := expr.Right.(*ast.ListLiteral)
 	if !ok {
-		return fmt.Errorf("tidb: 'IN' requires a list on the right")
+		return errors.New("tidb: 'IN' requires a list on the right")
 	}
 	if len(listLit.Values) == 0 {
-		return fmt.Errorf("tidb: 'IN' requires a non-empty list")
+		return errors.New("tidb: 'IN' requires a non-empty list")
 	}
 	values := make([]any, 0, len(listLit.Values))
 	for _, lit := range listLit.Values {
@@ -246,7 +247,7 @@ func buildJSONPath(expr ast.Expr) (string, error) {
 		return "", err
 	}
 	if len(keys) == 0 {
-		return "", fmt.Errorf("empty key path")
+		return "", errors.New("empty key path")
 	}
 	return "$." + strings.Join(keys, "."), nil
 }

@@ -1,6 +1,7 @@
 package couchbase
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -52,7 +53,7 @@ func (v *Visitor) Visit(expr ast.Expr) error {
 
 func (v *Visitor) visit(expr ast.Expr) error {
 	if expr == nil {
-		return fmt.Errorf("couchbase: cannot process nil expression")
+		return errors.New("couchbase: cannot process nil expression")
 	}
 	if v.err != nil {
 		return v.err
@@ -218,7 +219,7 @@ func (v *Visitor) fieldPath(expr ast.Expr) (string, error) {
 		return "", err
 	}
 	if len(keys) == 0 {
-		return "", fmt.Errorf("empty key path on left operand")
+		return "", errors.New("empty key path on left operand")
 	}
 	parts := make([]string, 0, len(keys))
 	for _, k := range keys {

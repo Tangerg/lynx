@@ -1,6 +1,7 @@
 package mongodb
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -58,7 +59,7 @@ func (v *Visitor) Visit(expr ast.Expr) error {
 // visitors need.
 func (v *Visitor) translate(expr ast.Expr) (map[string]any, error) {
 	if expr == nil {
-		return nil, fmt.Errorf("mongodb: cannot process nil expression")
+		return nil, errors.New("mongodb: cannot process nil expression")
 	}
 
 	switch node := expr.(type) {
@@ -233,7 +234,7 @@ func (v *Visitor) fieldPath(expr ast.Expr) (string, error) {
 		return "", err
 	}
 	if len(keys) == 0 {
-		return "", fmt.Errorf("empty key path on left operand")
+		return "", errors.New("empty key path on left operand")
 	}
 	if v.metadataPrefix == "" {
 		return strings.Join(keys, "."), nil

@@ -1,6 +1,7 @@
 package bedrockkb
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -57,7 +58,7 @@ func convertUnary(expr *ast.UnaryExpr) (types.RetrievalFilter, error) {
 	}
 	bin, ok := expr.Right.(*ast.BinaryExpr)
 	if !ok {
-		return nil, fmt.Errorf("bedrockkb: NOT may only wrap a binary comparison")
+		return nil, errors.New("bedrockkb: NOT may only wrap a binary comparison")
 	}
 	inverted, err := invertBinary(bin)
 	if err != nil {
@@ -142,10 +143,10 @@ func convertIn(expr *ast.BinaryExpr) (types.RetrievalFilter, error) {
 	}
 	listLit, ok := expr.Right.(*ast.ListLiteral)
 	if !ok {
-		return nil, fmt.Errorf("bedrockkb: 'IN' requires a list on the right")
+		return nil, errors.New("bedrockkb: 'IN' requires a list on the right")
 	}
 	if len(listLit.Values) == 0 {
-		return nil, fmt.Errorf("bedrockkb: 'IN' requires a non-empty list")
+		return nil, errors.New("bedrockkb: 'IN' requires a non-empty list")
 	}
 	values := make([]any, 0, len(listLit.Values))
 	for _, lit := range listLit.Values {
@@ -213,7 +214,7 @@ func keyName(expr ast.Expr) (string, error) {
 		// nested attribute paths in filters.
 		idx := node.Index
 		if idx == nil {
-			return "", fmt.Errorf("missing index literal")
+			return "", errors.New("missing index literal")
 		}
 		switch {
 		case idx.IsString():
@@ -228,7 +229,7 @@ func keyName(expr ast.Expr) (string, error) {
 			}
 			return strconv.FormatFloat(n, 'f', -1, 64), nil
 		default:
-			return "", fmt.Errorf("index must be a string or number literal")
+			return "", errors.New("index must be a string or number literal")
 		}
 	default:
 		return "", fmt.Errorf("unsupported left operand %T", node)
