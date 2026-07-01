@@ -266,28 +266,6 @@ disposeOnHmr(unsubPruneSessions);
 
 // Selector hooks
 
-//
-// Components don't see the sessions map directly. They pick a slice of the
-// current session's view via `useAgentSlice(v => v.messages)` etc., which
-// (a) auto-tracks activeSessionId and (b) falls back to INITIAL_VIEW_STATE
-// when the entry doesn't exist yet (first paint of a fresh session).
-//
-// useAgentAction is the equivalent for `stop` and `send`, returned as a
-// function reference so callers can invoke them imperatively.
-
-/**
- * Pick a slice of the *currently active* session's view state.
- * Returns INITIAL_VIEW_STATE-derived value when the session hasn't been
- * seeded yet (no events received).
- */
-export function useAgentSlice<T>(selector: (view: AgentViewState) => T): T {
-  const sid = useAgentSessionStore((s) => s.activeSessionId);
-  return useAgentStore((s) => {
-    const view = s.sessions[sid]?.view ?? INITIAL_VIEW_STATE;
-    return selector(view);
-  });
-}
-
 /** Read the current session's `stop` or `send` action. */
 export function useAgentAction(kind: "stop"): StopFn;
 export function useAgentAction(kind: "send"): SendFn;

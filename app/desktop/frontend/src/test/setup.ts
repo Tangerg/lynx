@@ -11,12 +11,23 @@ import { usePluginErrorStore } from "@/plugins/sdk/errors";
 import { useNotificationStore } from "@/plugins/sdk/notifications";
 import { usePluginStore } from "@/plugins/sdk/registry";
 import { _resetAllSlices } from "@/plugins/sdk/stateSlice";
-import { installAgentStatePorts } from "@/plugins/builtin/agent/public/statePorts";
+import {
+  installAgentDefaultSessionPort,
+  installAgentStatePorts,
+} from "@/plugins/builtin/agent/public/statePorts";
+import { installComposerStatePorts } from "@/plugins/builtin/chat/composer/public/statePorts";
+import { installWorkspaceNavigationPort } from "@/plugins/builtin/workspace/public/statePorts";
 
 installAgentStatePorts();
+installAgentDefaultSessionPort();
+installComposerStatePorts();
+installWorkspaceNavigationPort();
 
 beforeEach(() => {
   installAgentStatePorts();
+  installAgentDefaultSessionPort();
+  installComposerStatePorts();
+  installWorkspaceNavigationPort();
   usePluginStore.getState().resetForTest();
   usePluginErrorStore.setState({ log: [], nextId: 1 });
   useNotificationStore.setState({ log: [], nextId: 1 });

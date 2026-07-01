@@ -10,6 +10,7 @@ import type { AgentDriver, AgentRunStartOptions } from "@/plugins/sdk/types";
 import type { InterruptResponse, RunEvent, RunId, StreamingResult } from "@/rpc";
 import { useEffect, useRef } from "react";
 import type { AgentInput } from "@/plugins/builtin/agent/domain/input";
+import type { AgentSession } from "../application/ports/defaultSession";
 import { agentInputToContentBlocks } from "@/plugins/builtin/agent/adapters/wireInput";
 import { getContainer } from "@/main/container";
 import { queryClient } from "@/lib/data/queryClient";
@@ -20,16 +21,6 @@ import { createRunEventBatcher } from "./runEventBatcher";
 import { useAgentSessionStore } from "./agentSessionStore";
 import { createOptimisticUserMessage } from "./optimisticUserMessage";
 import { createRunOpeningController } from "./runOpeningController";
-
-// Owns the agent driver lifecycle for one session: build the driver, expose
-// imperative send / stop / resume, and pump each run's RunEvent stream into
-// useAgentStore (batched per frame). Changing sessionId rebuilds; the
-// previous session's view state stays in the store (so switching back shows
-// what was there).
-export interface AgentSession {
-  send: (input: AgentInput, options?: AgentRunStartOptions) => void;
-  stop: () => void;
-}
 
 export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string): AgentSession {
   const factoryRef = useRef(makeDriver);

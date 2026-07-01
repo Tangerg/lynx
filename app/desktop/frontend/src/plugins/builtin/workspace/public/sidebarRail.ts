@@ -6,11 +6,8 @@
 // width and the content layout can't drift out of agreement. Closing the split
 // restores the preference automatically — it was never mutated.
 
-import { useUiStore } from "@/state/uiStore";
-import { useWorkspaceNavigationStore } from "@/state/workspaceNavigationStore";
+import { workspaceNavigation } from "../application/ports/navigationState";
 
 export function useSidebarRail(): boolean {
-  const preferRail = useUiStore((s) => s.sidebarRail);
-  const splitOpen = useWorkspaceNavigationStore((s) => s.splitViewId !== null);
-  return preferRail || splitOpen;
+  return workspaceNavigation().useSidebarRail();
 }

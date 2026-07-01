@@ -95,6 +95,20 @@ for (const file of files(SRC)) {
       reason: "builtin context application must depend on ports, not adapter implementations",
     });
   }
+
+  if (
+    !isTest &&
+    /plugins\/builtin\/.+\/public\/.+\.(ts|tsx)$/.test(rel) &&
+    !/plugins\/builtin\/.+\/public\/statePorts\.ts$/.test(rel) &&
+    /from\s+["'](?:@\/plugins\/builtin\/.+\/adapters(?:\/[^"']*)?|(?:\.\.\/)+adapters(?:\/[^"']*)?)["']/.test(
+      text,
+    )
+  ) {
+    violations.push({
+      file: rel,
+      reason: "builtin public surfaces must expose published ports, not adapter implementations",
+    });
+  }
 }
 
 if (violations.length > 0) {

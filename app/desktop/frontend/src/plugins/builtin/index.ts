@@ -17,6 +17,7 @@ import personalization from "./settings/personalization";
 import chatSearch from "./chat/chat-search";
 import commandPalette from "./command/command-palette";
 import {
+  composerBootstrap,
   composerChips,
   composerKeymap,
   composerPlaceholders,
@@ -38,6 +39,7 @@ import {
   defaultTitle,
 } from "./defaults";
 import diagnostics from "./workspace/diagnostics";
+import workspaceBootstrap from "./workspace/bootstrap";
 import workspaceEvents from "./workspace/events";
 import workspaceSessionNavigation from "./workspace/session-navigation";
 import globalKeymap from "./command/global-keymap";
@@ -126,6 +128,7 @@ const infrastructure: PluginSpec[] = [
   // bootstrap after defaultConfig so api.localToken is set before the
   // handshake builds the RpcClient (API.md §2 Lifecycle).
   bootstrap,
+  workspaceBootstrap,
   defaultData,
   // After bootstrap: watches the handshake result and opens the app's one
   // workspace.subscribe stream (AUX_API §3).
@@ -174,6 +177,7 @@ const toolRendering: PluginSpec[] = [
 // Composer — slash commands, modes, toolbar, status chips, send & hint.
 
 const composer: PluginSpec[] = [
+  composerBootstrap,
   slashHints,
   // After slashHints so a user recipe named like a built-in hint wins the
   // shared slash key (it carries a real run handler; the hint is display-only).

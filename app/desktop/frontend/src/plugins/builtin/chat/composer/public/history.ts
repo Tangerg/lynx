@@ -1,13 +1,13 @@
-import { useComposerStore } from "../adapters/composerStore";
+import { composerState } from "../application/ports/state";
 
 export function useRecordComposerHistory(): (text: string) => void {
-  return useComposerStore((state) => state.pushHistory);
+  return composerState().useRecordHistory();
 }
 
 export function recallPreviousComposerHistory(): boolean {
-  return useComposerStore.getState().historyPrev();
+  return composerState().recallPreviousHistory();
 }
 
 export function recallNextComposerHistory(): boolean {
-  return useComposerStore.getState().historyNext();
+  return composerState().recallNextHistory();
 }

@@ -1,24 +1,18 @@
-import { useComposerStore } from "../adapters/composerStore";
+import { composerState, type ComposerModelPreference } from "../application/ports/state";
 
-export interface ComposerModelPreference {
-  provider: string | null;
-  model: string | null;
-}
+export type { ComposerModelPreference } from "../application/ports/state";
 
 export function selectedComposerModelPreference(): ComposerModelPreference {
-  const { provider, model } = useComposerStore.getState();
-  return { provider, model };
+  return composerState().getModelPreference();
 }
 
 export function useComposerModelPreference(): ComposerModelPreference {
-  const provider = useComposerStore((state) => state.provider);
-  const model = useComposerStore((state) => state.model);
-  return { provider, model };
+  return composerState().useModelPreference();
 }
 
 export function useSetComposerModelPreference(): (
   provider: string | null,
   model: string | null,
 ) => void {
-  return useComposerStore((state) => state.setModel);
+  return composerState().useSetModelPreference();
 }

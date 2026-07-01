@@ -94,6 +94,7 @@ export function installAgentStatePorts(): void {
     useTimeline: useAgentTimeline,
     useMessages: useAgentMessages,
     useError: () => useAgentStore((state) => getCurrentSessionViewFrom(state).error),
+    useSharedState: (path) => useAgentStore((state) => selectSharedState(state, path)),
     useUsage: useAgentRunUsage,
     useContextTokens: useAgentRunContextTokens,
     useAction: useAgentAction,
@@ -141,4 +142,17 @@ export function installAgentStatePorts(): void {
 function getCurrentSessionViewFrom(state: ReturnType<typeof useAgentStore.getState>) {
   const sessionId = useAgentSessionStore.getState().activeSessionId;
   return state.sessions[sessionId]?.view ?? getCurrentSessionView();
+}
+
+function selectSharedState<T>(
+  state: ReturnType<typeof useAgentStore.getState>,
+  path: string | undefined,
+): T | undefined {
+  let current: unknown = getCurrentSessionViewFrom(state).shared;
+  if (!path) return current as T;
+  for (const segment of path.split(".")) {
+    if (current == null || typeof current !== "object") return undefined;
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current as T;
 }

@@ -1,26 +1,24 @@
-import { replaceDraft } from "../application/draft";
-import { composerDraftPort } from "../adapters/composerDraftPort";
-import { useComposerStore } from "../adapters/composerStore";
+import { composerState } from "../application/ports/state";
 import type { ComposerDraftInput } from "../domain/draft";
 
 export type { ComposerDraftImage, ComposerDraftInput } from "../domain/draft";
 
 export function useComposerText(): string {
-  return useComposerStore((state) => state.value);
+  return composerState().useText();
 }
 
 export function useSetComposerText(): (value: string) => void {
-  return useComposerStore((state) => state.setValue);
+  return composerState().useSetText();
 }
 
 export function useClearComposerDraft(): () => void {
-  return useComposerStore((state) => state.clear);
+  return composerState().useClearDraft();
 }
 
 export function getComposerText(): string {
-  return useComposerStore.getState().value;
+  return composerState().getText();
 }
 
 export function replaceComposerDraft(input: ComposerDraftInput): void {
-  replaceDraft(input, composerDraftPort);
+  composerState().replaceDraft(input);
 }

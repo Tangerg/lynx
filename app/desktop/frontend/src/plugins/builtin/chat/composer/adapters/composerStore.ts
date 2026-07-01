@@ -3,12 +3,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { fileToInputImage } from "@/plugins/builtin/chat/composer/public/input";
 import { countLines } from "@/plugins/builtin/chat/composer/public/largePaste";
-import { disposeOnHmr } from "@/lib/hmr";
 import { notifyError } from "@/lib/notify";
-import {
-  getAgentSessionLifecycleSnapshot,
-  subscribeAgentSessionLifecycle,
-} from "@/plugins/builtin/agent/public/session";
 import type { ComposerImage, PastedText } from "../domain/draft";
 import {
   emptyComposerDraft,
@@ -215,19 +210,3 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
     },
   ),
 );
-
-// Follow the active session: swap the mirrored draft on an activeSessionId
-// change, and prune dead sessions' drafts on a tabIds change — the same
-// lifecycle agentStore's view slices follow. Module-level subscription
-// (app-lifetime), disposeOnHmr-guarded against dev hot-reload stacking.
-const unsubDraftSync = subscribeAgentSessionLifecycle(({ activeSessionId, openSessionIds }) => {
-  const composer = useComposerStore.getState();
-  composer.loadSession(activeSessionId);
-  composer.pruneDrafts(new Set(openSessionIds));
-});
-disposeOnHmr(unsubDraftSync);
-// Seed the mirror from the restored active session on cold start — both stores
-// rehydrate synchronously from localStorage, so activeSessionId is set here.
-const initialSessionLifecycle = getAgentSessionLifecycleSnapshot();
-useComposerStore.getState().loadSession(initialSessionLifecycle.activeSessionId);
-useComposerStore.getState().pruneDrafts(new Set(initialSessionLifecycle.openSessionIds));

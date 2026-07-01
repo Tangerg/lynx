@@ -3,10 +3,10 @@
 // place; callers (status pill RunId, RunErrorBanner actions, …) just
 // call the function.
 //
-import { useWorkspaceNavigationStore } from "@/state/workspaceNavigationStore";
+import { openWorkspaceView } from "../application/navigation";
 
 export function openTimelineView(): void {
-  useWorkspaceNavigationStore.getState().openMainView({
+  openWorkspaceView({
     id: "timeline",
     title: "workspace.view.title.timeline",
     icon: "history",
@@ -14,7 +14,7 @@ export function openTimelineView(): void {
 }
 
 export function openDiagnosticsView(): void {
-  useWorkspaceNavigationStore.getState().openMainView({
+  openWorkspaceView({
     id: "diagnostics",
     title: "workspace.view.title.diagnostics",
     icon: "spark",
