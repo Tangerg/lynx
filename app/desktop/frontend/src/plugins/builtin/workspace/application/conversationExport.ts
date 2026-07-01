@@ -1,11 +1,8 @@
 import type { Message } from "@/plugins/builtin/agent/public/viewState";
-import type { SessionArtifact } from "@/rpc";
 import { toast } from "sonner";
 import { z } from "zod";
-import { getContainer } from "@/main/container";
 import { notifyError } from "@/lib/notify";
 import { t } from "@/lib/i18n";
-import { asSessionId } from "@/rpc";
 import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import { invalidateSessions } from "@/lib/data/queries";
 import { getActiveConversationSnapshot } from "@/plugins/builtin/agent/public/conversation";
@@ -15,6 +12,10 @@ import {
   rehydrateSessionView,
   selectAgentSession,
 } from "@/plugins/builtin/agent/public/session";
+import {
+  conversationArchiveGateway,
+  type ConversationExportFormat,
+} from "./ports/conversationArchiveGateway";
 
 function timestampForFilename(): string {
   return new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
@@ -39,11 +40,11 @@ function renderMessageMarkdown(msg: Message): string {
   return `## ${headerName} · ${msg.time}\n\n${body}\n`;
 }
 
-async function exportServer(format: "md" | "json"): Promise<boolean> {
+async function exportServer(format: ConversationExportFormat): Promise<boolean> {
   const sid = getActiveSessionId();
   if (!sid || !runtimeCapability("sessionExport")) return false;
   try {
-    const resp = await getContainer().client().sessions.export(asSessionId(sid), format);
+    const resp = await conversationArchiveGateway().exportConversation(sid, format);
     const stamp = timestampForFilename();
     if (resp.format === "md" && resp.markdown !== undefined) {
       downloadBlob(`lyra-${sid}-${stamp}.md`, resp.markdown, "text/markdown;charset=utf-8");
@@ -151,9 +152,7 @@ export async function importConversationJson(): Promise<void> {
     return;
   }
   try {
-    const { session } = await getContainer()
-      .client()
-      .sessions.import(raw as SessionArtifact);
+    const session = await conversationArchiveGateway().importConversation(raw);
     await rehydrateSessionView(session.id);
     selectAgentSession(session.id);
     void invalidateSessions({ projects: true });

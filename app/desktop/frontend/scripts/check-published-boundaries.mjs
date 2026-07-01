@@ -155,14 +155,23 @@ for (const file of files(SRC)) {
 
   if (
     !isTest &&
-    /plugins\/builtin\/workspace\/application\/(?:toolCatalog|memoryConfig|codebaseCommands)\.(ts|tsx)$/.test(
-      rel,
-    ) &&
+    /plugins\/builtin\/workspace\/application\/.+\.(ts|tsx)$/.test(rel) &&
     /from\s+["']@\/main\/container["']/.test(text)
   ) {
     violations.push({
       file: rel,
-      reason: "workspace application commands must depend on context gateway ports",
+      reason: "workspace application must depend on context gateway ports",
+    });
+  }
+
+  if (
+    !isTest &&
+    /plugins\/builtin\/workspace\/application\/.+\.(ts|tsx)$/.test(rel) &&
+    /from\s+["']@\/rpc["']/.test(text)
+  ) {
+    violations.push({
+      file: rel,
+      reason: "workspace application must expose workspace language, not runtime wire types",
     });
   }
 

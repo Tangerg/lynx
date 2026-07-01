@@ -1,4 +1,3 @@
-import type { TodoItem } from "@/rpc";
 import { useSharedState } from "@/plugins/builtin/agent/public/sharedState";
 import { useWorkspaceCapability } from "./workspaceCapabilities";
 
@@ -10,7 +9,7 @@ export interface WorkspaceTodo {
 
 export function useWorkspaceTodos() {
   const enabled = useWorkspaceCapability("todos");
-  const todos = useSharedState<TodoItem[]>("todos") ?? [];
+  const todos = useSharedState<WorkspaceTodo[]>("todos") ?? [];
   return {
     enabled,
     todos,

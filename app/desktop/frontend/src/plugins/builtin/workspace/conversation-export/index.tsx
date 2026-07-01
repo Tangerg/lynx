@@ -5,11 +5,13 @@ import {
   exportConversationMarkdown,
   importConversationJson,
 } from "@/plugins/builtin/workspace/application/conversationExport";
+import { installConversationArchiveGateway } from "@/plugins/builtin/workspace/adapters/runtimeConversationArchiveGateway";
 
 export default definePlugin({
   name: "lyra.builtin.conversation-export",
   version: "1.0.0",
   setup({ host }) {
+    installConversationArchiveGateway();
     host.commands.register({
       id: "chat.export.markdown",
       label: t("convExport.markdown"),
