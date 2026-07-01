@@ -6,10 +6,9 @@
 // This is the module's only public API. Everything else (BlockRenderer
 // internals, MessageContextMenu, CitationContext, the markdown renderer +
 // components, HitlCard) is private to the folder. The
-// stream/panel chrome consumes MessageBlock + renderBlock; the content-block
-// plugins consume the card renderers + ShikiCodeBlock.
+// stream/panel chrome consumes MessageBlock + renderBlock; content-block
+// plugins consume only the card renderers.
 
 export { MessageBlock } from "./MessageBlock";
 export { renderBlock, type BlockCtx } from "./BlockRenderer";
-export { ShikiCodeBlock } from "./markdown";
 export { ApprovalCard, QuestionCard, ReasoningBlock, PlanBlock } from "./cards";

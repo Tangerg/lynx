@@ -20,6 +20,7 @@ export { ScrollArea } from "./ScrollArea";
 export { SectionLabel } from "./SectionLabel";
 export { Segmented } from "./Segmented";
 export type { SegmentedOption } from "./Segmented";
+export { ShikiCodeBlock } from "./ShikiCodeBlock";
 export { Slider } from "./Slider";
 export { StatusDot } from "./StatusDot";
 export { Switch } from "./Switch";

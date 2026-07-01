@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDebounce } from "use-debounce";
-import { Icon } from "@/components/common";
+import { Icon } from "./Icon";
 import { copyText } from "@/lib/clipboard";
 import { measureShikiHighlight } from "@/lib/metrics";
 import { getHighlighter, resolveLang } from "@/lib/markdown/shiki";
