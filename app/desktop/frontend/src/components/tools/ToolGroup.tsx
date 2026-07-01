@@ -1,7 +1,10 @@
 import { useState } from "react";
 import type { ToolCall } from "@/protocol/run/viewState";
 import { Collapsible, Icon } from "@/components/common";
-import { summarizeToolGroup, toolGroupNeedsAttention } from "@/lib/agent/toolPresentation";
+import {
+  summarizeToolGroup,
+  toolGroupNeedsAttention,
+} from "@/plugins/builtin/agent/presentation/toolPresentation";
 import { cn } from "@/lib/utils";
 import { createToolViewOpener } from "@/state/toolRouting";
 import { ToolCard } from "./ToolCard";

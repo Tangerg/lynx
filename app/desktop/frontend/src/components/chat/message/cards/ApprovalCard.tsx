@@ -5,13 +5,20 @@ import { useEffect, useRef, useState } from "react";
 import { Checkbox, Divider, Icon, Segmented } from "@/components/common";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
+import {
+  approvalReversibilityView,
+  approvalRiskView,
+  approvalScopeViews,
+  approvalSettledDecision,
+  canSubmitApproval,
+  type ApprovalRisk,
+  type ApprovalTone,
+} from "@/plugins/builtin/agent/presentation/approvalPresentation";
 import { registerApprovalActions } from "@/lib/agent/approvalActions";
 import { dangerHints } from "@/lib/agent/dangerPatterns";
 import { useApprovalSubmit } from "@/lib/agent/useApprovalSubmit";
 import { cn } from "@/lib/utils";
 import { ApprovalArgsEditor, useApprovalArgsEditor } from "./ApprovalArgsEditor";
-
-type Risk = "low" | "medium" | "high";
 
 interface Props {
   /** Block lifecycle. `"requires-action"` shows the action card with the
@@ -33,7 +40,7 @@ interface Props {
   args?: Record<string, unknown>;
   /** Risk level — drives the badge colour + dot. Defaults to "medium"
    *  when omitted (older backends): "we don't know, be cautious". */
-  risk?: Risk;
+  risk?: ApprovalRisk;
   /** Free-form action categories (read / write / network / shell /
    *  delete / …) — rendered as chips so the user can see at a glance
    *  what kinds of side effects an approval would unlock. */
@@ -44,29 +51,6 @@ interface Props {
    *  hint; undefined = unknown, no hint. */
   reversible?: boolean;
 }
-
-const RISK_BADGE_CLASS: Record<Risk, string> = {
-  low: "border-fg-faint/30 bg-fg-faint/10 text-fg-muted",
-  medium: "border-warning/40 bg-warning/15 text-warning",
-  high: "border-negative/40 bg-negative/15 text-negative",
-};
-
-const RISK_I18N_KEY: Record<Risk, string> = {
-  low: "approval.risk.low",
-  medium: "approval.risk.medium",
-  high: "approval.risk.high",
-};
-
-// Known scopes get a coloured chip so "delete" reads differently from
-// "read" at a glance. Unknown scopes fall back to the neutral chip.
-const SCOPE_CHIP_CLASS: Record<string, string> = {
-  read: "border-line bg-surface-2 text-fg-muted",
-  write: "border-warning/30 bg-warning/10 text-warning",
-  network: "border-line bg-surface-2 text-fg-muted",
-  shell: "border-warning/30 bg-warning/10 text-warning",
-  delete: "border-negative/40 bg-negative/12 text-negative",
-};
-const SCOPE_CHIP_DEFAULT = "border-line bg-surface-2 text-fg-muted";
 
 // Approval card — pure presentation. HTTP / submitting state lives in
 // useApprovalSubmit; this component renders against `status`:
@@ -138,7 +122,7 @@ export function ApprovalCard({
     });
   }, [resumable, itemId]);
 
-  const finalised = status === "complete" ? decision : pending;
+  const finalised = approvalSettledDecision(status, decision, pending);
   if (finalised === "approved") {
     return <HitlSettledRow label={t("approval.settled.approved")} />;
   }
@@ -150,8 +134,10 @@ export function ApprovalCard({
   // while a request is in flight, OR once the interrupt is no longer open:
   // settleOpenInterrupts downgrades an unacted interrupt to `incomplete` on
   // run-end precisely so its buttons can't resume a dead run.
-  const disabled = !parentRunId || !itemId || pending !== null || status !== "requires-action";
-  const effectiveRisk: Risk = risk ?? "medium";
+  const disabled = !canSubmitApproval({ parentRunId, itemId, pending, status });
+  const riskView = approvalRiskView(risk);
+  const scopeViews = approvalScopeViews(scope);
+  const reversibilityView = approvalReversibilityView(reversible);
   // Client-side destructive-command heuristic (§T2.5) — flags rm -rf / sudo /
   // curl|sh / dd / mkfs / chmod 777 / fork bomb / force-push regardless of the
   // backend's risk field, so a dangerous command always carries a visible "are
@@ -168,10 +154,10 @@ export function ApprovalCard({
         <span
           className={cn(
             "rounded-sm border px-1.5 py-px text-[10px] font-medium",
-            RISK_BADGE_CLASS[effectiveRisk],
+            approvalRiskToneClass(riskView.tone),
           )}
         >
-          {t(RISK_I18N_KEY[effectiveRisk])}
+          {t(riskView.labelKey)}
         </span>
       }
     >
@@ -203,17 +189,17 @@ export function ApprovalCard({
           }}
         />
       )}
-      {(scope?.length || target || reversible !== undefined) && (
+      {(scopeViews.length > 0 || target || reversibilityView) && (
         <div className="mb-2 flex flex-wrap items-center gap-1.5">
-          {scope?.map((s) => (
+          {scopeViews.map((view) => (
             <span
-              key={s}
+              key={view.scope}
               className={cn(
                 "inline-flex items-center rounded-xs border px-1.5 py-px font-mono text-[10.5px] font-semibold",
-                SCOPE_CHIP_CLASS[s] ?? SCOPE_CHIP_DEFAULT,
+                approvalScopeToneClass(view.tone),
               )}
             >
-              {s}
+              {view.scope}
             </span>
           ))}
           {target && (
@@ -222,16 +208,14 @@ export function ApprovalCard({
               {target}
             </span>
           )}
-          {reversible !== undefined && (
+          {reversibilityView && (
             <span
               className={cn(
                 "inline-flex items-center gap-1 rounded-xs border px-1.5 py-px font-mono text-[10.5px] font-semibold",
-                reversible
-                  ? "border-fg-faint/30 bg-fg-faint/10 text-fg-muted"
-                  : "border-negative/40 bg-negative/12 text-negative",
+                approvalReversibilityToneClass(reversibilityView.tone),
               )}
             >
-              {t(reversible ? "approval.reversible" : "approval.permanent")}
+              {t(reversibilityView.labelKey)}
             </span>
           )}
         </div>
@@ -285,4 +269,21 @@ export function ApprovalCard({
       )}
     </HitlCardShell>
   );
+}
+
+function approvalRiskToneClass(tone: ApprovalTone): string {
+  if (tone === "danger") return "border-negative/40 bg-negative/15 text-negative";
+  if (tone === "warning") return "border-warning/40 bg-warning/15 text-warning";
+  return "border-fg-faint/30 bg-fg-faint/10 text-fg-muted";
+}
+
+function approvalScopeToneClass(tone: ApprovalTone): string {
+  if (tone === "danger") return "border-negative/40 bg-negative/12 text-negative";
+  if (tone === "warning") return "border-warning/30 bg-warning/10 text-warning";
+  return "border-line bg-surface-2 text-fg-muted";
+}
+
+function approvalReversibilityToneClass(tone: ApprovalTone): string {
+  if (tone === "danger") return "border-negative/40 bg-negative/12 text-negative";
+  return "border-fg-faint/30 bg-fg-faint/10 text-fg-muted";
 }
