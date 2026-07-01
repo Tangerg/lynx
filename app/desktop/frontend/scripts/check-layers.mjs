@@ -114,21 +114,56 @@ const FORBIDDEN = {
 // that are knowingly allowed despite the rule. Empty today.
 const ALLOWED_EDGES = new Set([]);
 
-const CONTEXT_INTERNAL_RE =
-  /^plugins\/builtin\/([^/]+)\/(?:application|presentation|domain|adapters)\//;
+const CONTEXT_BOUNDARY = new Set(["application", "presentation", "domain", "adapters", "public"]);
+const CONTEXT_INTERNAL = new Set(["application", "presentation", "domain", "adapters"]);
 
-function builtinContext(path) {
-  const match = /^plugins\/builtin\/([^/]+)\//.exec(path);
-  return match?.[1];
+function contextRootFromBoundary(path) {
+  const parts = path.split("/");
+  if (parts[0] !== "plugins" || parts[1] !== "builtin") return null;
+  for (let i = 2; i < parts.length; i++) {
+    if (CONTEXT_BOUNDARY.has(parts[i])) return i > 2 ? parts.slice(0, i).join("/") : null;
+  }
+  return null;
 }
 
-function contextInternalViolation(file, dep) {
-  const match = CONTEXT_INTERNAL_RE.exec(dep);
-  if (!match) return null;
-  const depContext = match[1];
-  const fromContext = builtinContext(file);
+function contextRootsOf(graph) {
+  const roots = new Set();
+  for (const [file, deps] of Object.entries(graph)) {
+    const fileRoot = contextRootFromBoundary(file);
+    if (fileRoot) roots.add(fileRoot);
+    for (const dep of deps) {
+      const depRoot = contextRootFromBoundary(dep);
+      if (depRoot) roots.add(depRoot);
+    }
+  }
+  return [...roots].sort((a, b) => b.length - a.length);
+}
+
+function builtinContext(path, contextRoots) {
+  if (!path.startsWith("plugins/builtin/")) return null;
+  return contextRoots.find((root) => path === root || path.startsWith(`${root}/`)) ?? null;
+}
+
+function internalContext(path) {
+  const parts = path.split("/");
+  if (parts[0] !== "plugins" || parts[1] !== "builtin") return null;
+  for (let i = 2; i < parts.length; i++) {
+    if (CONTEXT_INTERNAL.has(parts[i])) return i > 2 ? parts.slice(0, i).join("/") : null;
+  }
+  return null;
+}
+
+function contextInternalViolation(file, dep, contextRoots) {
+  const depContext = internalContext(dep);
+  if (!depContext) return null;
+  const fromContext = builtinContext(file, contextRoots);
   if (fromContext === depContext) return null;
-  return { file, dep, from: fromContext ?? "outside-builtin", to: depContext };
+  return {
+    file,
+    dep,
+    from: fromContext ? fromContext.replace("plugins/builtin/", "") : "outside-context",
+    to: depContext.replace("plugins/builtin/", ""),
+  };
 }
 
 // Redirect madge's JSON to a temp FILE rather than capturing its stdout pipe.
@@ -168,20 +203,20 @@ try {
 }
 
 const violations = [];
+const contextRoots = contextRootsOf(graph);
 for (const [file, deps] of Object.entries(graph)) {
   // Tests may import across layers to wire fixtures (e.g. loading a plugin to
   // exercise the reducer). The layering invariant is about production
   // dependency direction, so skip test files as importers.
   if (/\.(test|spec)\.[tj]sx?$/.test(file)) continue;
   const from = layerOf(file);
-  const forbidden = FORBIDDEN[from];
-  if (!forbidden) continue;
+  const forbidden = FORBIDDEN[from] ?? [];
   for (const dep of deps) {
     const to = layerOf(dep);
     if (forbidden.includes(to) && !ALLOWED_EDGES.has(`${file}↦${dep}`)) {
       violations.push({ file, dep, from, to });
     }
-    const contextViolation = contextInternalViolation(file, dep);
+    const contextViolation = contextInternalViolation(file, dep, contextRoots);
     if (contextViolation && !ALLOWED_EDGES.has(`${file}↦${dep}`)) {
       violations.push({
         file,
