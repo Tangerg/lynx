@@ -65,7 +65,7 @@ function SendButton() {
         className={cn(
           "grid h-8 w-8 shrink-0 place-items-center rounded-full border-0 transition-transform duration-150",
           disabled
-            ? "bg-transparent text-fg-faint/30 cursor-not-allowed"
+            ? "bg-surface-3 text-fg-faint cursor-not-allowed"
             : "bg-fg text-on-fg active:scale-95",
         )}
         data-slot="composer-send"
