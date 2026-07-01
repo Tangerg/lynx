@@ -1,10 +1,10 @@
 import type { PlanItem } from "@/plugins/builtin/agent/public/viewState";
 import { memo } from "react";
-import { PlanCheck, planItemRow } from "./PlanCheck";
+import { PlanCheck, planItemRow } from "@/plugins/builtin/agent/public/planPresentation";
 
 // Plan block — shown when an assistant message describes a multi-step
 // plan. Inline variant; the promoted workspace view uses PlanList. Both
-// share the per-item check + row styling via ./PlanCheck.
+// share the per-item check + row styling from the agent presentation contract.
 export const PlanBlock = memo(function PlanBlock({ plan }: { plan: PlanItem[] }) {
   return (
     <div className="my-3" data-slot="plan-block">

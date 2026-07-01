@@ -24,7 +24,7 @@ import type { PlanItem } from "@/plugins/builtin/agent/public/viewState";
 import type { MouseEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
-import { PlanCheck } from "@/components/chat/message";
+import { PlanCheck } from "@/plugins/builtin/agent/public/planPresentation";
 import { Icon, Tooltip } from "@/components/common";
 import { swift } from "@/lib/motion";
 import { cn } from "@/lib/utils";

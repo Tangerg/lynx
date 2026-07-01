@@ -1,9 +1,9 @@
 import type { PlanItem } from "@/plugins/builtin/agent/public/viewState";
-import { PlanCheck, planItemRow } from "@/components/chat/message";
+import { PlanCheck, planItemRow } from "@/plugins/builtin/agent/public/planPresentation";
 import { useT } from "@/lib/i18n";
 
 // Plan view workspace tab. Same per-item visual as the inline PlanBlock
-// — both share ./PlanCheck for the check icon + row styling.
+// — both share the agent plan presentation contract.
 export function PlanList({ plan }: { plan: PlanItem[] }) {
   const t = useT();
   return (
