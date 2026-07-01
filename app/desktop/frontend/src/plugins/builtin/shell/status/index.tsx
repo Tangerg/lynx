@@ -5,8 +5,8 @@
 
 import { Icon, Tooltip } from "@/components/common";
 import { useT } from "@/lib/i18n";
+import { openWorkspaceView } from "@/plugins/builtin/workspace/public/navigation";
 import { definePlugin, useNotificationStore } from "@/plugins/sdk";
-import { useSessionStore } from "@/state/sessionStore";
 
 export { completionNotify } from "./completionNotify";
 export { windowTitle } from "./windowTitle";
@@ -16,7 +16,7 @@ function NotificationsBadge() {
   const unread = useNotificationStore((s) => s.log.reduce((n, e) => (e.dismissed ? n : n + 1), 0));
 
   const onClick = () => {
-    useSessionStore.getState().openMainView({
+    openWorkspaceView({
       id: "notifications",
       title: "workspace.view.title.notifications",
       icon: "chat",

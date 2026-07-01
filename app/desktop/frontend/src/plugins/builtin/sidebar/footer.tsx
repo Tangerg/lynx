@@ -3,10 +3,10 @@
 // reachable regardless of how many sessions/projects are in the scroll area.
 import { Icon, noDragClasses } from "@/components/common";
 import { useT } from "@/lib/i18n";
+import { openWorkspaceView } from "@/plugins/builtin/workspace/public/navigation";
 import { resolveScheme } from "@/plugins/sdk";
 import { Slot } from "@/plugins/host/Slot";
 import { definePlugin } from "@/plugins/sdk";
-import { useSessionStore } from "@/state/sessionStore";
 import { useUiStore } from "@/state/uiStore";
 
 const userActionClasses =
@@ -32,7 +32,7 @@ function ThemeToggle() {
 function SidebarFooter() {
   const t = useT();
   const openSettings = () =>
-    useSessionStore.getState().openMainView({
+    openWorkspaceView({
       id: "settings",
       title: t("settings.title"),
       icon: "settings",

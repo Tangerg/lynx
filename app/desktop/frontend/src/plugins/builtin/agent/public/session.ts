@@ -1,10 +1,16 @@
 export {
+  closeActiveAgentSession,
   getActiveSessionId,
   selectAgentSession,
   useActiveSession,
   useActiveSessionCwd,
   useActiveSessionId,
 } from "../application/session/activeSession";
+export {
+  useReconcilePersistedAgentSessions,
+  useSelectAgentSession,
+  useVisibleAgentSessions,
+} from "../application/session/sessionList";
 export { createSession, useCreateSession } from "../application/session/createSession";
 export type { CreateSessionOptions } from "../application/session/createSession";
 export { useDeleteSession } from "../application/session/deleteSession";

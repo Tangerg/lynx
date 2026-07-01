@@ -12,19 +12,26 @@ import { ProjectRow } from "@/components/sidebar/ProjectRow";
 import { SessionRow } from "@/components/sidebar/SessionRow";
 import { useT } from "@/lib/i18n";
 import { basename } from "@/lib/path";
-import { useProjects, useSessions } from "@/lib/data/queries";
+import { useProjects } from "@/lib/data/queries";
 import {
+  selectAgentSession,
+  useActiveSessionId,
   useActiveSessionCwd,
   useCreateSession,
   useDeleteSession,
   useForkSession,
   useRenameSession,
   useToggleFavorite,
+  useVisibleAgentSessions,
 } from "@/plugins/builtin/agent/public/session";
+import {
+  closeWorkspaceView,
+  openWorkspaceView,
+  useActiveWorkspaceViewId,
+} from "@/plugins/builtin/workspace/public/navigation";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { SIDEBAR_SECTION } from "@/plugins/sdk/kernelPoints";
-import { useSessionStore } from "@/state/sessionStore";
 import { sideListClasses } from "./styles";
 
 // Sessions shown per expanded project before the "Show more" fold —
@@ -149,11 +156,10 @@ function ProjectGroupNode({
                         type="button"
                         data-chrome-focus=""
                         onClick={() => {
-                          const store = useSessionStore.getState();
                           if (active) {
-                            store.closeMainView(d.id);
+                            closeWorkspaceView(d.id);
                           } else {
-                            store.openMainView({ id: d.id, title: d.titleKey, icon: d.icon });
+                            openWorkspaceView({ id: d.id, title: d.titleKey, icon: d.icon });
                           }
                         }}
                         className={cn(
@@ -189,11 +195,9 @@ function ProjectGroupNode({
 function ProjectsSection() {
   const t = useT();
   const { data: projects, isLoading: projectsLoading, isError: projectsError } = useProjects();
-  const { data: sessions, isLoading: sessionsLoading, isError: sessionsError } = useSessions();
-  const draftIds = useSessionStore((s) => s.draftSessionIds);
-  const activeSessionId = useSessionStore((s) => s.activeSessionId);
-  const activeMainView = useSessionStore((s) => s.activeMainView);
-  const selectTab = useSessionStore((s) => s.selectTab);
+  const sessions = useVisibleAgentSessions();
+  const activeSessionId = useActiveSessionId();
+  const activeMainView = useActiveWorkspaceViewId();
   const createSession = useCreateSession();
   const deleteSession = useDeleteSession();
   const forkSession = useForkSession();
@@ -206,10 +210,9 @@ function ProjectsSection() {
   // serve-dir sessions) get a synthetic node from the cwd, so every
   // session stays reachable — the tree never silently drops one.
   const groups = useMemo<ProjectGroup[] | undefined>(() => {
-    if (!projects && !sessions) return undefined;
+    if (!projects && sessions.length === 0) return undefined;
     const byCwd = new Map<string, SidebarSession[]>();
-    for (const s of sessions ?? []) {
-      if (draftIds.has(s.id)) continue;
+    for (const s of sessions) {
       const key = s.cwd ?? "";
       const list = byCwd.get(key);
       if (list) list.push(s);
@@ -240,7 +243,7 @@ function ProjectsSection() {
       });
     }
     return result;
-  }, [projects, sessions, draftIds, t]);
+  }, [projects, sessions, t]);
 
   const openProject = (project: SidebarProject): void => {
     void createSession({ cwd: project.id });
@@ -256,8 +259,8 @@ function ProjectsSection() {
         // once EITHER resolves `groups` is defined, so a partial failure (e.g.
         // projects errors but sessions loaded) still renders the available
         // sessions instead of blanking the list to a skeleton / error state.
-        isLoading={(projectsLoading || sessionsLoading) && !groups}
-        isError={(projectsError || sessionsError) && !groups}
+        isLoading={projectsLoading && !groups}
+        isError={projectsError && !groups}
         skeletonCount={3}
         empty={{
           icon: "folder",
@@ -276,7 +279,7 @@ function ProjectsSection() {
                 activeSessionId={activeSessionId}
                 activeMainView={activeMainView}
                 onNewSession={openProject}
-                onSelect={selectTab}
+                onSelect={selectAgentSession}
                 onRename={(id, title) => void renameSession(id, title)}
                 onFork={forkSession}
                 onDelete={deleteSession}

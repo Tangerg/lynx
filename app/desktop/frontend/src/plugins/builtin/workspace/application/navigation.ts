@@ -27,6 +27,10 @@ export function useWorkspaceFileViewer(): WorkspaceFileViewer | null {
   return useSessionStore((state) => state.fileViewer);
 }
 
+export function useWorkspaceSettingsPaneTarget(): string | null {
+  return useSessionStore((state) => state.settingsPane);
+}
+
 export function useExpandedWorkspaceToolIds(): Set<string> {
   return useSessionStore((state) => state.expandedToolIds);
 }
@@ -43,12 +47,23 @@ export function selectWorkspaceChat(): void {
   useSessionStore.getState().selectChat();
 }
 
+export function openWorkspaceView(tab: WorkspaceViewTab): void {
+  useSessionStore.getState().openMainView(tab);
+}
+
 export function openWorkspaceViewBeside(tab: WorkspaceViewTab): void {
   useSessionStore.getState().openMainViewBeside(tab);
 }
 
 export function closeWorkspaceView(id: string): void {
   useSessionStore.getState().closeMainView(id);
+}
+
+export function closeActiveWorkspaceView(): boolean {
+  const workspace = useSessionStore.getState();
+  if (!workspace.activeMainView) return false;
+  workspace.closeMainView(workspace.activeMainView);
+  return true;
 }
 
 export function closeWorkspaceSplit(): void {
@@ -63,6 +78,14 @@ export function openWorkspaceSettingsPane(pane: string, title: string): void {
   const workspace = useSessionStore.getState();
   workspace.setSettingsPane(pane);
   workspace.openMainView({ id: "settings", title, icon: "settings" });
+}
+
+export function getWorkspaceSettingsPaneTarget(): string | null {
+  return useSessionStore.getState().settingsPane;
+}
+
+export function clearWorkspaceSettingsPaneTarget(): void {
+  useSessionStore.getState().setSettingsPane(null);
 }
 
 export function openWorkspaceDiffForFile(path: string): void {

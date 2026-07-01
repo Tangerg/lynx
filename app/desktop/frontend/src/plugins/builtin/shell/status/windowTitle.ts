@@ -14,26 +14,13 @@
 // the dot and the count badge compose instead of clobbering each other.
 
 import { disposeOnHmr } from "@/lib/hmr";
+import { subscribeAnyAgentRunning } from "@/plugins/builtin/agent/public/run";
 import { definePlugin } from "@/plugins/sdk";
 import { usePluginStore } from "@/plugins/sdk/registry";
-import { useAgentStore } from "@/state/agentStore";
 
-// Last value pushed to the title, so we only touch document.title on the
-// transition edges — not on every per-token store mutation.
-let lastWorking = false;
-
-const unsubscribe = useAgentStore.subscribe((state) => {
-  let working = false;
-  for (const id in state.sessions) {
-    if (state.sessions[id]!.view.run.running) {
-      working = true;
-      break;
-    }
-  }
-  if (working === lastWorking) return;
-  lastWorking = working;
-  usePluginStore.getState().setWindowWorking(working);
-});
+const unsubscribe = subscribeAnyAgentRunning((working) =>
+  usePluginStore.getState().setWindowWorking(working),
+);
 disposeOnHmr(unsubscribe);
 
 export const windowTitle = definePlugin({

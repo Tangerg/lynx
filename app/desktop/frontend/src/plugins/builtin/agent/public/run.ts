@@ -1,5 +1,7 @@
 export {
   clearActiveRunError,
+  subscribeAgentRunSettlements,
+  subscribeAnyAgentRunning,
   stopActiveAgentRun,
   useActiveRunId,
   useActiveRunError,

@@ -3,8 +3,12 @@ import type { IconName } from "@/components/common";
 import { VerticalTabs } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
+import {
+  clearWorkspaceSettingsPaneTarget,
+  getWorkspaceSettingsPaneTarget,
+  useWorkspaceSettingsPaneTarget,
+} from "@/plugins/builtin/workspace/public/navigation";
 import { useSettingsPanes } from "@/plugins/sdk";
-import { useSessionStore } from "@/state/sessionStore";
 
 // Settings rail groups, in display order. A pane's `group` field places it
 // here; anything with an unknown / missing group falls into the trailing
@@ -21,31 +25,24 @@ const FALLBACK_GROUP = "advanced";
 export function SettingsPage() {
   const t = useT();
   const panes = useSettingsPanes();
+  const targetPane = useWorkspaceSettingsPaneTarget();
   // `selectedId` is the user's explicit choice. If they haven't picked one (or
   // their pick has since been unregistered), fall back to the first pane via a
   // derived value — no useEffect/setState loop. The initial value honors a
   // one-shot deep-link target (settingsPane, e.g. "providers" from the keyless
   // first-run onboarding), consumed + cleared on mount.
-  const setSettingsPane = useSessionStore((s) => s.setSettingsPane);
   const [selectedId, setSelectedId] = useState<string | undefined>(
-    () => useSessionStore.getState().settingsPane ?? undefined,
+    () => getWorkspaceSettingsPaneTarget() ?? undefined,
   );
   useEffect(() => {
     // Consume the INITIAL deep-link (read into selectedId above), then keep
     // following LATER ones while this singleton view stays mounted. Settings is
-    // a singleton workspace tab: a re-target (e.g. "configure MCP" from the
-    // Tools view does setSettingsPane("mcp-servers") + openMainView) only
-    // REFOCUSES Settings, never remounts it — so a mount-only consume would drop
-    // the new target and leave settingsPane stale (a phantom jump on the next
-    // fresh open). Subscribe so a deep-link applies while open.
-    if (useSessionStore.getState().settingsPane) setSettingsPane(null);
-    return useSessionStore.subscribe((s, prev) => {
-      if (s.settingsPane && s.settingsPane !== prev.settingsPane) {
-        setSelectedId(s.settingsPane);
-        setSettingsPane(null);
-      }
-    });
-  }, [setSettingsPane]);
+    // a singleton workspace tab: a re-target only REFOCUSES Settings, never
+    // remounts it, so a mount-only consume would drop the new target.
+    if (!targetPane) return;
+    setSelectedId(targetPane);
+    clearWorkspaceSettingsPaneTarget();
+  }, [targetPane]);
   const activeId = selectedId && panes.some((p) => p.id === selectedId) ? selectedId : panes[0]?.id;
 
   // Bucket panes by group (they arrive order-sorted from the selector, so the

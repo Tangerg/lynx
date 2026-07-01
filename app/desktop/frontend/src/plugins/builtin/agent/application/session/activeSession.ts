@@ -14,6 +14,13 @@ export function selectAgentSession(id: string): void {
   useSessionStore.getState().selectTab(id);
 }
 
+export function closeActiveAgentSession(): boolean {
+  const id = getActiveSessionId();
+  if (!id) return false;
+  useSessionStore.getState().closeTab(id);
+  return true;
+}
+
 /**
  * The active session's sidebar row, or undefined while unknown (no active
  * session / sessions list not loaded yet). The one place the

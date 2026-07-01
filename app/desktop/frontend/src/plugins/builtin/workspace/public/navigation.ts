@@ -1,9 +1,13 @@
 export {
+  closeActiveWorkspaceView,
   closeWorkspaceSplit,
   closeWorkspaceView,
+  clearWorkspaceSettingsPaneTarget,
+  getWorkspaceSettingsPaneTarget,
   openWorkspaceDiffForFile,
   openWorkspaceFile,
   openWorkspaceSettingsPane,
+  openWorkspaceView,
   openWorkspaceViewBeside,
   promoteWorkspaceSplitToView,
   selectInitialWorkspaceTool,
@@ -15,4 +19,5 @@ export {
   useSplitWorkspaceViewId,
   useToggleWorkspaceTool,
   useWorkspaceFileViewer,
+  useWorkspaceSettingsPaneTarget,
 } from "../application/navigation";

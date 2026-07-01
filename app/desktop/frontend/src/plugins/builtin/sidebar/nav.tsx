@@ -6,11 +6,15 @@
 import type { IconName } from "@/components/common";
 import { Icon, SectionLabel } from "@/components/common";
 import { useCreateSession } from "@/plugins/builtin/agent/public/session";
+import {
+  closeWorkspaceView,
+  openWorkspaceView,
+  useActiveWorkspaceViewId,
+} from "@/plugins/builtin/workspace/public/navigation";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { SIDEBAR_SECTION } from "@/plugins/sdk/kernelPoints";
-import { useSessionStore } from "@/state/sessionStore";
 
 interface Destination {
   id: string;
@@ -81,11 +85,10 @@ function NavGroup({
             label={t(d.titleKey)}
             active={active}
             onClick={() => {
-              const store = useSessionStore.getState();
               if (active) {
-                store.closeMainView(d.id);
+                closeWorkspaceView(d.id);
               } else {
-                store.openMainView({ id: d.id, title: d.titleKey, icon: d.icon });
+                openWorkspaceView({ id: d.id, title: d.titleKey, icon: d.icon });
               }
             }}
           />
@@ -98,7 +101,7 @@ function NavGroup({
 function SidebarNav() {
   const t = useT();
   const createSession = useCreateSession();
-  const activeMainView = useSessionStore((s) => s.activeMainView);
+  const activeMainView = useActiveWorkspaceViewId();
 
   return (
     <div className="flex flex-col gap-0.5">
