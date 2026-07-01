@@ -117,6 +117,26 @@ func TestMergeOptions_StopIsIdempotent(t *testing.T) {
 	}
 }
 
+// TestMergeOptions_DoesNotMutateBase pins that base is treated as read-only.
+// A shallow clone of base would alias base.Extra, and applyOverride's
+// maps.Copy would then write the override's keys through into the caller's
+// options — corrupting a shared defaults object across requests.
+func TestMergeOptions_DoesNotMutateBase(t *testing.T) {
+	base := &chat.Options{Model: "base", Extra: map[string]any{"a": 1}}
+	override := &chat.Options{Extra: map[string]any{"b": 2}}
+
+	merged, err := chat.MergeOptions(base, override)
+	if err != nil {
+		t.Fatalf("MergeOptions err: %v", err)
+	}
+	if merged.Extra["b"] != 2 {
+		t.Fatalf("override did not merge into result: %v", merged.Extra)
+	}
+	if _, leaked := base.Extra["b"]; leaked {
+		t.Fatalf("MergeOptions mutated the caller's base.Extra: %v", base.Extra)
+	}
+}
+
 func TestMergeOptions_KeepsZeroOverrides(t *testing.T) {
 	base := &chat.Options{Model: "base"}
 	merged, err := chat.MergeOptions(base, &chat.Options{Model: ""})
