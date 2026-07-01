@@ -9,6 +9,7 @@ import {
   ChartColumn,
   Check,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   Code,
   Command,
@@ -125,6 +126,7 @@ export type IconName =
   | "copy"
   | "chevron-up"
   | "chevron-down"
+  | "chevron-right"
   | "panel-r"
   | "arrow-down"
   | "trash"
@@ -195,6 +197,7 @@ const ICON_MAP: Record<IconName, LucideIcon> = {
   copy: Copy,
   "chevron-up": ChevronUp,
   "chevron-down": ChevronDown,
+  "chevron-right": ChevronRight,
   "arrow-down": ArrowDown,
   trash: Trash2,
   alert: AlertTriangle,
