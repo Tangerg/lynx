@@ -4,7 +4,7 @@
 // Skills view shape (recipes are skills' user-facing sibling).
 
 import { DataView } from "@/components/common";
-import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
+import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { useRecipes } from "@/lib/data/queries";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";

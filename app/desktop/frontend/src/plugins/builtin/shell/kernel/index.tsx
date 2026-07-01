@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { ChatPanel } from "@/components/chat/panel";
 import { SettingsPage } from "./SettingsPage";
 import { SidebarPanel } from "@/components/sidebar/SidebarPanel";
-import { useChatSend } from "@/lib/agent/useChatSend";
+import { useChatSend } from "@/plugins/builtin/agent/public/input";
 import { useSessions } from "@/lib/data/queries";
 import { definePlugin } from "@/plugins/sdk";
 import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";

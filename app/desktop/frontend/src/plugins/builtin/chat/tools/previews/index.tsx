@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
 import { useServerFeature } from "@/state/runtimeStore";
-import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
+import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { parseJsonResult, PREVIEW_WRAP } from "./shared";
 
 export {

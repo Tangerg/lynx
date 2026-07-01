@@ -10,7 +10,7 @@ import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { MEMORY_KEY, useMemory } from "@/lib/data/queries";
 import { queryClient } from "@/lib/data/queryClient";
-import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
+import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { notifyError } from "@/lib/notify";
 import { cn } from "@/lib/utils";
 import { getContainer } from "@/main/container";

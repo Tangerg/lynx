@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { DataView, Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
-import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
+import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { isUnsupportedMethod } from "@/lib/rpcErrors";
 import { useListFiles, useReadFile } from "@/lib/data/queries";
 import { FileTree } from "./views/FileTree";

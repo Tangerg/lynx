@@ -10,7 +10,7 @@ import { DataView, Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useGrep, type GrepMatch } from "@/lib/data/queries";
-import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
+import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 
 const MAX_MATCHES = 200;

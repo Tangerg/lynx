@@ -8,7 +8,7 @@ import { useState } from "react";
 import { EmptyState, Icon, PillButton } from "@/components/common";
 import { reindexCodebase, searchCodebase } from "@/lib/agent/codebaseConfig";
 import { rpcErrorText } from "@/lib/rpcErrors";
-import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
+import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { useCodebaseStatus, useEmbeddingRole } from "@/lib/data/queries";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";

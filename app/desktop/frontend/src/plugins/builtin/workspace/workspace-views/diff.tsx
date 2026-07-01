@@ -10,7 +10,7 @@ import type { DiffLayout } from "./views/DiffView";
 import { DiffView } from "./views/DiffView";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useDiff } from "@/lib/data/queries";
-import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
+import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { cn } from "@/lib/utils";
 import { gitOffEmpty, isVcsUnavailable, notARepoEmpty } from "./views/vcsGate";
 import { defineWorkspaceView } from "./defineWorkspaceView";

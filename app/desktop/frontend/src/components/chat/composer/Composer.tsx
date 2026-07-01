@@ -9,7 +9,7 @@ import type { ComposerImage, PastedText } from "@/plugins/builtin/chat/composer/
 import { useAgentRunning } from "@/state/agentStore";
 import { imageFiles, type UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import { isLargePaste } from "@/plugins/builtin/chat/composer/public/largePaste";
-import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
+import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { useFileMentions } from "@/plugins/builtin/chat/composer/public/fileMentions";
 import type { IconName } from "@/components/common";
 import type { ComposerAttachmentSourceSpec } from "@/plugins/sdk";

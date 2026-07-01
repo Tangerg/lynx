@@ -14,7 +14,7 @@ import {
   setApprovalMode,
 } from "@/plugins/builtin/agent/public/approvalPolicy";
 import { isUnsupportedMethod, rpcErrorText } from "@/lib/rpcErrors";
-import { useActiveSession } from "@/lib/agent/useActiveSession";
+import { useActiveSession } from "@/plugins/builtin/agent/public/session";
 import { useApprovalMode, useApprovalRules } from "@/lib/data/queries";
 import { notifyError } from "@/lib/notify";
 import { useT } from "@/lib/i18n";

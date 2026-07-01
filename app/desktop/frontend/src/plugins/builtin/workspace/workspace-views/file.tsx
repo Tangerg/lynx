@@ -8,7 +8,7 @@ import { useT } from "@/lib/i18n";
 import { FileView } from "./views/FileView";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useReadFile } from "@/lib/data/queries";
-import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
+import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { useSessionStore } from "@/state/sessionStore";
 

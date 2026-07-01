@@ -5,7 +5,7 @@
 
 import type { IconName } from "@/components/common";
 import { Icon, SectionLabel } from "@/components/common";
-import { useCreateSession } from "@/lib/agent/useCreateSession";
+import { useCreateSession } from "@/plugins/builtin/agent/public/session";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";

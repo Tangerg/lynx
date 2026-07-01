@@ -31,7 +31,7 @@ import { serverFeature } from "@/state/runtimeStore";
 import { useSessionStore } from "@/state/sessionStore";
 import { invalidateSessions } from "@/lib/data/queries";
 import { flattenMarkdown } from "@/plugins/builtin/agent/public/messageContent";
-import { rehydrateSessionView } from "@/lib/agent/rehydrateSession";
+import { rehydrateSessionView } from "@/plugins/builtin/agent/public/session";
 
 function timestampForFilename(): string {
   // Filesystem-safe ISO slice (no `:` or `.`).

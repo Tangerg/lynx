@@ -10,8 +10,7 @@
 import { useRef, useState } from "react";
 import { FIELD_CLASSES, Icon } from "@/components/common";
 import { cn } from "@/lib/utils";
-import { useActiveSession } from "@/lib/agent/useActiveSession";
-import { useRelocateSession } from "@/lib/agent/useRelocateSession";
+import { useActiveSession, useRelocateSession } from "@/plugins/builtin/agent/public/session";
 import { BannerAction } from "./BannerAction";
 import { useT } from "@/lib/i18n";
 import { useServerFeature } from "@/state/runtimeStore";

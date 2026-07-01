@@ -13,12 +13,14 @@ import { SessionRow } from "@/components/sidebar/SessionRow";
 import { useT } from "@/lib/i18n";
 import { basename } from "@/lib/path";
 import { useProjects, useSessions } from "@/lib/data/queries";
-import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
-import { useCreateSession } from "@/lib/agent/useCreateSession";
-import { useDeleteSession } from "@/lib/agent/useDeleteSession";
-import { useForkSession } from "@/lib/agent/useForkSession";
-import { useRenameSession } from "@/lib/agent/useRenameSession";
-import { useToggleFavorite } from "@/lib/agent/useToggleFavorite";
+import {
+  useActiveSessionCwd,
+  useCreateSession,
+  useDeleteSession,
+  useForkSession,
+  useRenameSession,
+  useToggleFavorite,
+} from "@/plugins/builtin/agent/public/session";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { SIDEBAR_SECTION } from "@/plugins/sdk/kernelPoints";
