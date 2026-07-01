@@ -58,6 +58,7 @@ export {
   lookupExtensionPoint,
   lookupSlashCommandOwner,
   lookupToolActionOwner,
+  lookupToolViewOpenerOwner,
   pickAgentSource,
   pickComposerPlaceholder,
   pickPluginErrorFallback,
@@ -142,6 +143,7 @@ export type {
   ToolActionSpec,
   ToolPreviewComponent,
   ToolPreviewProps,
+  ToolViewOpenerSpec,
   WorkspaceViewSpec,
 } from "./types";
 export type { NotificationEntry, NotificationLevel } from "./types";

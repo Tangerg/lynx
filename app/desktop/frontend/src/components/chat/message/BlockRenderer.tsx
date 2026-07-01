@@ -13,7 +13,6 @@ import {
 } from "./cards";
 import { ToolCard } from "@/components/tools/ToolCard";
 import { PluginContentBlock } from "@/plugins/host/PluginContentBlock";
-import { createToolViewOpener } from "@/state/toolRouting";
 
 /**
  * Per-render bag of data threaded into block renderers. Kept narrow —
@@ -86,7 +85,6 @@ export function renderBlock(block: ContentBlock, key: number, ctx: BlockCtx) {
             ctx.onSelectTool(block.toolCallId);
             ctx.onToggleExpand(block.toolCallId);
           }}
-          onOpenView={createToolViewOpener(tool)}
         />
       );
     }

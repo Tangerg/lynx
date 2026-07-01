@@ -76,6 +76,7 @@ import { tasksPill } from "./workspace/tasks";
 import { themesPack } from "./theme";
 import toaster from "./shell/toaster";
 import { toolActions, toolIcons } from "./chat/tools/meta";
+import toolViewOpener from "./workspace/application/toolViewOpener";
 import {
   askUserPreview,
   shellPreview,
@@ -163,6 +164,7 @@ const toolRendering: PluginSpec[] = [
   askUserPreview,
   webSearchPreview,
   toolActions,
+  toolViewOpener,
   toolIcons,
 ];
 

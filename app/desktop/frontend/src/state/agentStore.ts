@@ -353,7 +353,7 @@ export function useAgentTimeline(): TimelineEntry[] {
 
 /**
  * Imperative helper — read the current session's view from outside React.
- * Used by non-component code (toolRouting, plugin command handlers).
+ * Used by non-component plugin application services and command handlers.
  */
 export function getCurrentSessionView(): AgentViewState {
   const sid = useSessionStore.getState().activeSessionId;

@@ -6,7 +6,6 @@ import {
   toolGroupNeedsAttention,
 } from "@/plugins/builtin/agent/presentation/toolPresentation";
 import { cn } from "@/lib/utils";
-import { createToolViewOpener } from "@/state/toolRouting";
 import { ToolCard } from "./ToolCard";
 
 interface Props {
@@ -70,7 +69,6 @@ export function ToolGroup({ tools, onSelectTool, expandedIds, onToggleExpand }: 
                 onSelectTool(t.id);
                 onToggleExpand(t.id);
               }}
-              onOpenView={createToolViewOpener(t)}
             />
           ))}
         </div>

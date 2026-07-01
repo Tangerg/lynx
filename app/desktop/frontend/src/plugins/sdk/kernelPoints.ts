@@ -39,6 +39,7 @@ import type {
   ThemeSpec,
   ToolActionSpec,
   ToolPreviewComponent,
+  ToolViewOpenerSpec,
   WorkspaceViewSpec,
 } from "./types";
 import type { ContentBlockKind } from "@/protocol/run/viewState";
@@ -221,6 +222,11 @@ export const MESSAGE_ROLE = defineExtensionPoint<MessageRoleSpec>({
 });
 export const TOOL_ACTION = defineExtensionPoint<ToolActionSpec>({
   id: "lyra.tool.action",
+  capability: "tool",
+  keying: "single",
+});
+export const TOOL_VIEW_OPENER = defineExtensionPoint<ToolViewOpenerSpec>({
+  id: "lyra.tool.viewOpener",
   capability: "tool",
   keying: "single",
 });
