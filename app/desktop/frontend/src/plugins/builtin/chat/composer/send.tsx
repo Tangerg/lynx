@@ -70,7 +70,7 @@ function SendButton() {
         )}
         data-slot="composer-send"
       >
-        <Icon name="send-arrow" size={14} strokeWidth={2.5} />
+        <Icon name="arrow-up" size={16} strokeWidth={2.5} />
       </button>
     </Tooltip>
   );
