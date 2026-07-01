@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import { useWorkspaceNavigationStore } from "@/state/workspaceNavigationStore";
 import { hasWorkspaceViewForTool, openWorkspaceViewForTool } from "./toolRouting";
+import { workspaceCommandActivitiesFromAgentTools } from "./toolActivity";
 
 const toolCall = (over: Partial<ToolCall> & Pick<ToolCall, "id" | "name">): ToolCall => ({
   fn: "",
@@ -56,5 +57,31 @@ describe("openWorkspaceViewForTool", () => {
     expect(s.splitViewId).toBeNull();
     expect(s.activeMainView).toBeNull();
     expect(s.selectedToolId).toBe("");
+  });
+
+  it("projects command tools into a workspace command view model", () => {
+    expect(
+      workspaceCommandActivitiesFromAgentTools({
+        t1: toolCall({
+          id: "t1",
+          name: "shell",
+          fn: "npm test",
+          status: "err",
+          result: "failed",
+          outputTruncated: true,
+          exitCode: 1,
+        }),
+        t2: toolCall({ id: "t2", name: "read", fn: "src/app.ts" }),
+      }),
+    ).toEqual([
+      {
+        id: "t1",
+        command: "npm test",
+        status: "failed",
+        output: "failed",
+        outputTruncated: true,
+        exitCode: 1,
+      },
+    ]);
   });
 });

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { EmptyState } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { useActiveRunToolCalls } from "@/plugins/builtin/agent/public/run";
-import { workspaceCommandToolsFromAgentTools } from "../application/toolActivity";
+import { workspaceCommandActivitiesFromAgentTools } from "../application/toolActivity";
 import { CommandLog } from "./views/CommandLog";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
@@ -16,7 +16,7 @@ import { defineWorkspaceView } from "./defineWorkspaceView";
 function TerminalTab() {
   const t = useT();
   const toolCalls = useActiveRunToolCalls();
-  const commands = useMemo(() => workspaceCommandToolsFromAgentTools(toolCalls), [toolCalls]);
+  const commands = useMemo(() => workspaceCommandActivitiesFromAgentTools(toolCalls), [toolCalls]);
 
   // Terminal semantics: open at the bottom (latest command) and tail live
   // output — but only while the user is pinned to the bottom, so scrolling up
@@ -35,7 +35,7 @@ function TerminalTab() {
   }, []);
   // Cheap content signature — grows as commands are added or their output
   // streams; re-pins to the bottom on each change while the user is pinned.
-  const tail = commands.reduce((n, c) => n + (c.result?.length ?? 0), commands.length);
+  const tail = commands.reduce((n, c) => n + c.output.length, commands.length);
   useEffect(() => {
     if (!pinnedRef.current) return;
     const el = scrollRef.current;

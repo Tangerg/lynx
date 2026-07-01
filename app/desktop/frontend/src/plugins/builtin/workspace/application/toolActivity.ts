@@ -9,6 +9,15 @@ export interface WorkspaceToolActivity {
   label: string;
 }
 
+export interface WorkspaceCommandActivity {
+  id: string;
+  command: string;
+  status: "running" | "succeeded" | "failed" | "blocked";
+  output: string;
+  outputTruncated: boolean;
+  exitCode?: number;
+}
+
 export function workspaceToolActivityFromAgentTool(tool: ToolCall): WorkspaceToolActivity {
   const category = toolCategory(tool.name);
   return {
@@ -21,10 +30,35 @@ export function workspaceToolActivityFromAgentTool(tool: ToolCall): WorkspaceToo
   };
 }
 
-export function workspaceCommandToolsFromAgentTools(
+function workspaceCommandActivityFromAgentTool(tool: ToolCall): WorkspaceCommandActivity {
+  return {
+    id: tool.id,
+    command: tool.fn,
+    status: workspaceCommandStatus(tool.status),
+    output: tool.result ?? "",
+    outputTruncated: tool.outputTruncated ?? false,
+    exitCode: tool.exitCode,
+  };
+}
+
+function workspaceCommandStatus(status: ToolCall["status"]): WorkspaceCommandActivity["status"] {
+  switch (status) {
+    case "running":
+      return "running";
+    case "ok":
+      return "succeeded";
+    case "err":
+      return "failed";
+    case "denied":
+    case "requires-action":
+      return "blocked";
+  }
+}
+
+export function workspaceCommandActivitiesFromAgentTools(
   toolCalls: Record<string, ToolCall>,
-): ToolCall[] {
-  return Object.values(toolCalls).filter(
-    (tool) => workspaceToolActivityFromAgentTool(tool).category === "command",
-  );
+): WorkspaceCommandActivity[] {
+  return Object.values(toolCalls)
+    .filter((tool) => workspaceToolActivityFromAgentTool(tool).category === "command")
+    .map(workspaceCommandActivityFromAgentTool);
 }
