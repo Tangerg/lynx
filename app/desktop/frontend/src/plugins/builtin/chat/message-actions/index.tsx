@@ -5,21 +5,15 @@
 // want one can drop it without touching the others. Shared chrome /
 // helpers live in _shared.ts.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DropdownMenu, Icon, Tooltip } from "@/components/common";
-import {
-  flattenCode,
-  flattenMarkdown,
-  flattenText,
-} from "@/plugins/builtin/agent/public/messageContent";
 import { writeToClipboard } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
-import { getContainer } from "@/main/container";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
-import { asItemId, asRunId, asSessionId } from "@/rpc";
-import { useSessionStore } from "@/state/sessionStore";
 import { editMessageInComposer, regenerateMessage } from "./application/messageActions";
+import { messageFeedbackRating, submitMessageFeedback } from "./public/feedback";
+import { messageCopyPayloads } from "./presentation/copyPayloads";
 import { ACTION_BTN_BASE } from "./_shared";
 
 function roleShape(role: string): string {
@@ -36,10 +30,8 @@ function roleShape(role: string): string {
 function CopyButton() {
   const t = useT();
   const msg = useCurrentMessage();
-  const markdown = flattenMarkdown(msg.blocks);
-  const plain = flattenText(msg.blocks);
-  const code = flattenCode(msg.blocks);
-  if (!markdown && !plain) return null;
+  const copy = messageCopyPayloads(msg);
+  if (!copy.canCopy) return null;
 
   return (
     <DropdownMenu.Root>
@@ -56,19 +48,25 @@ function CopyButton() {
           label={t("msgActions.copyMarkdown")}
           hint={t("msgActions.copyMarkdownHint")}
           onSelect={() =>
-            writeToClipboard(markdown, { successLabel: t("msgActions.copiedMarkdown") })
+            writeToClipboard(copy.markdown || copy.plain, {
+              successLabel: t("msgActions.copiedMarkdown"),
+            })
           }
         />
         <CopyItem
           label={t("msgActions.copyPlain")}
           hint={t("msgActions.copyPlainHint")}
-          onSelect={() => writeToClipboard(plain, { successLabel: t("msgActions.copiedPlain") })}
+          onSelect={() =>
+            writeToClipboard(copy.plain, { successLabel: t("msgActions.copiedPlain") })
+          }
         />
-        {code && (
+        {copy.code && (
           <CopyItem
             label={t("msgActions.copyCode")}
             hint={t("msgActions.copyCodeHint")}
-            onSelect={() => writeToClipboard(code, { successLabel: t("msgActions.copiedCode") })}
+            onSelect={() =>
+              writeToClipboard(copy.code, { successLabel: t("msgActions.copiedCode") })
+            }
           />
         )}
       </DropdownMenu.Content>
@@ -116,7 +114,7 @@ function EditButton() {
   const t = useT();
   const msg = useCurrentMessage();
   if (msg.role !== "user") return null;
-  if (!flattenText(msg.blocks)) return null;
+  if (!messageCopyPayloads(msg).plain) return null;
 
   return (
     <Tooltip label={t("msgActions.edit")}>
@@ -184,34 +182,19 @@ export const messageRegenerate = definePlugin({
 // approval "remember" decisions. Re-rating re-submits; the runtime
 // treats each as a new event. ----
 
-const ratedMessages = new Map<string, "positive" | "negative">();
-
 function FeedbackButtons() {
   const t = useT();
   const msg = useCurrentMessage();
-  const [rated, setRated] = useState(() => ratedMessages.get(msg.id));
+  const [rated, setRated] = useState(() => messageFeedbackRating(msg.id));
+  useEffect(() => {
+    setRated(messageFeedbackRating(msg.id));
+  }, [msg.id]);
   if (msg.role !== "assistant") return null;
 
   const rate = (rating: "positive" | "negative"): void => {
     if (rated === rating) return;
-    ratedMessages.set(msg.id, rating);
     setRated(rating);
-    const sessionId = useSessionStore.getState().activeSessionId;
-    // Fire-and-forget: a lost feedback event isn't worth an error banner,
-    // but roll the latch back so the user can retry.
-    getContainer()
-      .client()
-      .feedback.create({
-        sessionId: sessionId ? asSessionId(sessionId) : undefined,
-        runId: msg.runId ? asRunId(msg.runId) : undefined,
-        itemId: asItemId(msg.id),
-        rating,
-      })
-      .catch((err: unknown) => {
-        console.warn("[feedback] create failed:", err);
-        ratedMessages.delete(msg.id);
-        setRated(undefined);
-      });
+    void submitMessageFeedback(msg, rating).catch(() => setRated(messageFeedbackRating(msg.id)));
   };
 
   return (

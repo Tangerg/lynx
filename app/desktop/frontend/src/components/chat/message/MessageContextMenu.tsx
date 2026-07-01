@@ -20,11 +20,7 @@ import {
   regenerateMessage,
   restoreCheckpoint,
 } from "@/plugins/builtin/chat/message-actions/public/messageActions";
-import {
-  flattenCode,
-  flattenMarkdown,
-  flattenText,
-} from "@/plugins/builtin/agent/public/messageContent";
+import { messageCopyPayloads } from "@/plugins/builtin/chat/message-actions/public/copyPayloads";
 import { writeToClipboard } from "@/lib/clipboard";
 import { useT } from "@/lib/i18n";
 import { serverFeature } from "@/state/runtimeStore";
@@ -36,13 +32,10 @@ interface Props {
 
 export function MessageContextMenu({ msg, children }: Props) {
   const t = useT();
-  const markdown = flattenMarkdown(msg.blocks);
-  const plain = flattenText(msg.blocks);
-  const code = flattenCode(msg.blocks);
+  const copy = messageCopyPayloads(msg);
 
   const isUser = msg.role === "user";
   const isAssistant = msg.role === "assistant";
-  const canCopy = Boolean(markdown || plain);
   // Imperative read, not a subscription (see header comment) — capabilities
   // are handshake-time stable and messages can't exist before the handshake.
   const canRestoreFiles = serverFeature("checkpoints");
@@ -51,11 +44,11 @@ export function MessageContextMenu({ msg, children }: Props) {
     <ContextMenu.Root>
       <ContextMenu.Trigger render={children as ReactElement} />
       <ContextMenu.Content className="min-w-[180px]">
-        {canCopy && (
+        {copy.canCopy && (
           <ContextMenu.IconItem
             icon="copy"
             onSelect={() =>
-              void writeToClipboard(markdown || plain, {
+              void writeToClipboard(copy.markdown || copy.plain, {
                 successLabel: t("msgActions.copiedMarkdown"),
               })
             }
@@ -63,27 +56,27 @@ export function MessageContextMenu({ msg, children }: Props) {
             {t("msgActions.copyMarkdown")}
           </ContextMenu.IconItem>
         )}
-        {plain && (
+        {copy.plain && (
           <ContextMenu.IconItem
             icon="copy"
             onSelect={() =>
-              void writeToClipboard(plain, { successLabel: t("msgActions.copiedPlain") })
+              void writeToClipboard(copy.plain, { successLabel: t("msgActions.copiedPlain") })
             }
           >
             {t("msgActions.copyPlain")}
           </ContextMenu.IconItem>
         )}
-        {code && (
+        {copy.code && (
           <ContextMenu.IconItem
             icon="code"
             onSelect={() =>
-              void writeToClipboard(code, { successLabel: t("msgActions.copiedCode") })
+              void writeToClipboard(copy.code, { successLabel: t("msgActions.copiedCode") })
             }
           >
             {t("msgActions.copyCode")}
           </ContextMenu.IconItem>
         )}
-        {isUser && plain && (
+        {isUser && copy.plain && (
           <>
             <Separator />
             <ContextMenu.IconItem icon="edit" onSelect={() => editMessageInComposer(msg)}>
