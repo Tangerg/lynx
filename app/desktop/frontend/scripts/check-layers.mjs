@@ -114,8 +114,15 @@ const FORBIDDEN = {
 // that are knowingly allowed despite the rule. Empty today.
 const ALLOWED_EDGES = new Set([]);
 
-const CONTEXT_BOUNDARY = new Set(["application", "presentation", "domain", "adapters", "public"]);
-const CONTEXT_INTERNAL = new Set(["application", "presentation", "domain", "adapters"]);
+const CONTEXT_BOUNDARY = new Set([
+  "application",
+  "presentation",
+  "domain",
+  "adapters",
+  "public",
+  "ui",
+]);
+const CONTEXT_INTERNAL = new Set(["application", "presentation", "domain", "adapters", "ui"]);
 
 function contextRootFromBoundary(path) {
   const parts = path.split("/");
