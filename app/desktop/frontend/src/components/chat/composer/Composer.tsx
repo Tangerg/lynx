@@ -10,7 +10,7 @@ import { useAgentRunning } from "@/state/agentStore";
 import { imageFiles, type UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import { isLargePaste } from "@/plugins/builtin/chat/composer/public/largePaste";
 import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
-import { useFileMentions } from "@/lib/agent/useFileMentions";
+import { useFileMentions } from "@/plugins/builtin/chat/composer/public/fileMentions";
 import type { IconName } from "@/components/common";
 import type { ComposerAttachmentSourceSpec } from "@/plugins/sdk";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";

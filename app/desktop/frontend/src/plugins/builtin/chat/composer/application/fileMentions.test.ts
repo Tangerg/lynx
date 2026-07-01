@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeMention } from "./useFileMentions";
+import { activeMention } from "./fileMentions";
 
 describe("activeMention", () => {
   it("detects a bare @ at the start", () => {
