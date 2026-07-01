@@ -1,10 +1,3 @@
-// Built-in plugins: inline previews for the runtime's specialised tools —
-// lsp / lsp_diagnostics (code intelligence), skill, task (sub-agent), ask_user,
-// glob, web_search. Each renders the tool call's OWN result (these tools return
-// their data inline, no aux-API re-query needed). Same registration surface as
-// the previews in index.tsx.
-
-import type { SearchResult } from "@/components/tools/previews/SearchResults";
 import type { ToolPreviewProps } from "@/plugins/sdk";
 import { PreviewFoot } from "@/components/tools/previews/PreviewFoot";
 import { PreviewPlaceholder } from "@/components/tools/previews/PreviewPlaceholder";
@@ -12,7 +5,15 @@ import { SearchResults } from "@/components/tools/previews/SearchResults";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
-import { parseJsonResult, PREVIEW_WRAP, resultLines } from "./shared";
+import {
+  askUserPreviewAnswer,
+  globPreviewData,
+  lspPreviewOperation,
+  skillPreviewEntries,
+  webSearchPreviewResults,
+} from "@/plugins/builtin/chat/tools/application/specialisedPreviewData";
+import { resultLines } from "@/plugins/builtin/chat/tools/application/toolResultParsing";
+import { PREVIEW_WRAP } from "./shared";
 
 const MAX_ROWS = 9;
 const MAX_WEB_RESULTS = 8;
@@ -103,18 +104,8 @@ function LspDiagnosticsPreview({ tool, onOpenView }: ToolPreviewProps) {
   );
 }
 
-//
-// op="list" returns an <available_skills> XML catalog — parse it into
-// name + description rows. op="load" / "load_resource" return the skill's
-// markdown / resource text: show the head.
-const SKILL_ENTRY = /<skill>\s*<name>([\s\S]*?)<\/name>\s*<description>([\s\S]*?)<\/description>/g;
-
 function SkillPreview({ tool, onOpenView }: ToolPreviewProps) {
-  const text = tool.result ?? "";
-  const entries = [...text.matchAll(SKILL_ENTRY)].map((m) => ({
-    name: m[1]!.trim(),
-    description: m[2]!.trim(),
-  }));
+  const entries = skillPreviewEntries(tool.result);
   if (entries.length === 0) {
     const lines = resultLines(tool.result);
     return (
@@ -162,32 +153,8 @@ function TaskPreview({ tool, onOpenView }: ToolPreviewProps) {
   );
 }
 
-// The answer may arrive as plain text, `{ answer }`, or the wire answers map
-// (QuestionField.name → string[]) — flatten any of them to one readable line.
-// (ask_user usually renders as the interactive QuestionCard, not here; this is
-// the fallback for a runtime that returns it as a plain tool result instead.)
-function askUserAnswer(result: string | undefined): string {
-  const text = result?.trim();
-  if (!text) return "";
-  const parsed = parseJsonResult(result);
-  if (!parsed) return text; // plain-text answer
-  const direct = parsed.answer ?? parsed.response;
-  if (typeof direct === "string") return direct;
-  const parts = Object.values(parsed).map((v) =>
-    typeof v === "string"
-      ? v
-      : Array.isArray(v)
-        ? v.filter((x) => typeof x === "string").join(", ")
-        : "",
-  );
-  return parts.filter(Boolean).join(" · ") || text;
-}
-
-//
-// The question rides the card title (fn); the result is the human's answer
-// once the HITL interrupt resolves.
 function AskUserPreview({ tool }: ToolPreviewProps) {
-  const answer = askUserAnswer(tool.result);
+  const answer = askUserPreviewAnswer(tool.result);
   return (
     <div className={cn(PREVIEW_WRAP, "whitespace-pre-wrap break-words")}>
       {answer ? (
@@ -202,28 +169,8 @@ function AskUserPreview({ tool }: ToolPreviewProps) {
   );
 }
 
-//
-// glob's result is the §4.4.2 search shape `{ hits: SearchHit[] }` (each hit's
-// `.path`), but tolerate a raw `paths` / `files` string list and `matches` too
-// — the SAME key priority the projection counts for the header badge, so the
-// body list can never disagree with the "N matches" count (the bug where 20
-// matches rendered "(no matches)" was reading only `paths`).
-function globPaths(parsed: Record<string, unknown> | undefined): string[] {
-  const arr = [parsed?.hits, parsed?.matches, parsed?.files, parsed?.paths].find(Array.isArray);
-  if (!arr) return [];
-  return (arr as unknown[]).map(hitPath).filter((p) => p.length > 0);
-}
-
-function hitPath(hit: unknown): string {
-  if (typeof hit === "string") return hit;
-  if (typeof hit === "object" && hit !== null)
-    return String((hit as Record<string, unknown>).path ?? "");
-  return "";
-}
-
 function GlobPreview({ tool, onOpenView }: ToolPreviewProps) {
-  const parsed = parseJsonResult(tool.result);
-  const paths = globPaths(parsed);
+  const { paths, truncated } = globPreviewData(tool.result);
   return (
     <div className={PREVIEW_WRAP}>
       {paths.length === 0 && (
@@ -235,7 +182,7 @@ function GlobPreview({ tool, onOpenView }: ToolPreviewProps) {
         </div>
       ))}
       <Overflow count={paths.length - MAX_ROWS} />
-      {parsed?.truncated === true && <div className="text-fg-faint">… truncated by runtime</div>}
+      {truncated && <div className="text-fg-faint">… truncated by runtime</div>}
       <PreviewFoot label="tools.preview.viewDetails" onClick={onOpenView} />
     </div>
   );
@@ -246,13 +193,11 @@ function GlobPreview({ tool, onOpenView }: ToolPreviewProps) {
 // other operation; default to locations when the operation isn't visible (args
 // are suppressed once the call has a label — see projections.argsText).
 function LspPreview(props: ToolPreviewProps) {
-  let op = "";
-  try {
-    op = String((JSON.parse(props.tool.args || "{}") as Record<string, unknown>).operation ?? "");
-  } catch {
-    /* partial / empty args — fall through to the locations renderer */
-  }
-  return op === "hover" ? <LspHoverPreview {...props} /> : <LspLocationsPreview {...props} />;
+  return lspPreviewOperation(props.tool.args) === "hover" ? (
+    <LspHoverPreview {...props} />
+  ) : (
+    <LspLocationsPreview {...props} />
+  );
 }
 
 export const lspPreviews = definePlugin({
@@ -297,38 +242,8 @@ export const globPreview = definePlugin({
   },
 });
 
-// web_search returns the §4.4.2 shape `{ results: WebSearchResult[] }`
-// ({ title, url, snippet, faviconUrl }); we project each to a SearchResult card
-// (domain derived from the url) and render the shared grid. The favicon-letter
-// badge keeps it offline-friendly — no external favicon fetch.
-function domainOf(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return url;
-  }
-}
-
-function webSearchResults(result: string | undefined): SearchResult[] {
-  const arr = parseJsonResult(result)?.results;
-  if (!Array.isArray(arr)) return [];
-  return arr.flatMap((r) => {
-    const o = typeof r === "object" && r !== null ? (r as Record<string, unknown>) : undefined;
-    const url = typeof o?.url === "string" ? o.url : "";
-    if (!url) return [];
-    return [
-      {
-        url,
-        domain: domainOf(url),
-        title: typeof o?.title === "string" && o.title ? o.title : url,
-        snippet: typeof o?.snippet === "string" ? o.snippet : "",
-      },
-    ];
-  });
-}
-
 function WebSearchPreview({ tool, onOpenView }: ToolPreviewProps) {
-  const results = webSearchResults(tool.result);
+  const results = webSearchPreviewResults(tool.result);
   if (results.length === 0) {
     return (
       <div className={PREVIEW_WRAP}>
