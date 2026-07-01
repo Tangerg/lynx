@@ -72,10 +72,14 @@ export function ChatPanel({ onSend }: Props) {
     // ResizeObserver + scroll-anchor path lost position during streaming and
     // snapped the chat to the top).
     <Panel className="relative">
-      {/* macOS drag region — the tab strip that used to own this is gone,
-          so a thin strip preserves the ability to drag the window from the
-          main-pane top edge. Interactive children opt out via noDragClasses. */}
-      <div className={cn("h-9 shrink-0", dragClasses)} />
+      {/* macOS drag region — a TRANSPARENT OVERLAY, not a layout band. The
+          removed tab strip left an empty strip above the main area; overlaying
+          the drag strip lets each view fill to the top edge (workspace views
+          paint their surface right up to it instead of sitting below a canvas
+          gap) while the window stays draggable from the top. The chat branch
+          re-adds the top gap via pt-9 so its stream keeps its breathing room.
+          Interactive children opt out via noDragClasses. */}
+      <div className={cn("absolute inset-x-0 top-0 z-10 h-9", dragClasses)} />
       {activeMainView ? (
         <ViewPlacementProvider value={placementFor(activeMainView, "full")}>
           <WorkspaceViewBody viewId={activeMainView} />
@@ -89,7 +93,7 @@ export function ChatPanel({ onSend }: Props) {
         // back down) and threw away any scroll-up position they held. The
         // split layout (chat | resizer | view, G3) is inlined here so the
         // ChatStream element never changes position.
-        <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1 pt-9">
           <div
             className={cn("relative flex min-h-0 min-w-0 flex-col", !splitViewId && "flex-1")}
             // flexBasis is the persisted, drag-continuous split ratio (truly
