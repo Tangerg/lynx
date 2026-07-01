@@ -1,6 +1,7 @@
 package s3vectors
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -44,7 +45,7 @@ func (v *Visitor) Visit(expr ast.Expr) error {
 
 func (v *Visitor) translate(expr ast.Expr) (map[string]any, error) {
 	if expr == nil {
-		return nil, fmt.Errorf("s3vectors: cannot process nil expression")
+		return nil, errors.New("s3vectors: cannot process nil expression")
 	}
 	switch node := expr.(type) {
 	case *ast.BinaryExpr:
@@ -119,10 +120,10 @@ func (v *Visitor) translateIn(expr *ast.BinaryExpr) (map[string]any, error) {
 	}
 	listLit, ok := expr.Right.(*ast.ListLiteral)
 	if !ok {
-		return nil, fmt.Errorf("s3vectors: 'IN' requires a list on the right")
+		return nil, errors.New("s3vectors: 'IN' requires a list on the right")
 	}
 	if len(listLit.Values) == 0 {
-		return nil, fmt.Errorf("s3vectors: 'IN' requires a non-empty list")
+		return nil, errors.New("s3vectors: 'IN' requires a non-empty list")
 	}
 	values := make([]any, 0, len(listLit.Values))
 	for _, lit := range listLit.Values {

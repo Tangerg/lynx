@@ -1,6 +1,7 @@
 package vectara
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -50,7 +51,7 @@ func (v *Visitor) Visit(expr ast.Expr) error {
 
 func (v *Visitor) visit(expr ast.Expr) error {
 	if expr == nil {
-		return fmt.Errorf("vectara: cannot process nil expression")
+		return errors.New("vectara: cannot process nil expression")
 	}
 	if v.err != nil {
 		return v.err
@@ -137,10 +138,10 @@ func (v *Visitor) visitInExpr(expr *ast.BinaryExpr) error {
 	}
 	listLit, ok := expr.Right.(*ast.ListLiteral)
 	if !ok {
-		return fmt.Errorf("vectara: 'IN' requires a list on the right")
+		return errors.New("vectara: 'IN' requires a list on the right")
 	}
 	if len(listLit.Values) == 0 {
-		return fmt.Errorf("vectara: 'IN' requires a non-empty list")
+		return errors.New("vectara: 'IN' requires a non-empty list")
 	}
 	parts := make([]string, 0, len(listLit.Values))
 	for _, lit := range listLit.Values {
@@ -182,7 +183,7 @@ func (v *Visitor) fieldPath(expr ast.Expr) (string, error) {
 		return "", err
 	}
 	if len(keys) == 0 {
-		return "", fmt.Errorf("empty key path")
+		return "", errors.New("empty key path")
 	}
 	return v.metadataPrefix + "." + strings.Join(keys, "."), nil
 }

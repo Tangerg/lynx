@@ -1,6 +1,7 @@
 package elasticsearch
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -54,7 +55,7 @@ func (v *Visitor) Visit(expr ast.Expr) error {
 
 func (v *Visitor) visit(expr ast.Expr) error {
 	if expr == nil {
-		return fmt.Errorf("elasticsearch: cannot process nil expression")
+		return errors.New("elasticsearch: cannot process nil expression")
 	}
 	if v.err != nil {
 		return v.err
@@ -224,7 +225,7 @@ func (v *Visitor) fieldPath(expr ast.Expr) (string, error) {
 		return "", err
 	}
 	if len(keys) == 0 {
-		return "", fmt.Errorf("empty key path on left operand")
+		return "", errors.New("empty key path on left operand")
 	}
 	if v.metadataPrefix == "" {
 		return strings.Join(keys, "."), nil

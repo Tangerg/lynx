@@ -1,6 +1,7 @@
 package qdrant
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/qdrant/go-client/qdrant"
@@ -80,7 +81,7 @@ func (v *Visitor) Visit(expr ast.Expr) error {
 //   - ListLiteral: Array of constant values
 func (v *Visitor) visit(expr ast.Expr) error {
 	if expr == nil {
-		return fmt.Errorf("cannot process nil expression")
+		return errors.New("cannot process nil expression")
 	}
 	if v.err != nil {
 		return v.err

@@ -1,6 +1,7 @@
 package pinecone
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -74,7 +75,7 @@ func (v *Visitor) Visit(expr ast.Expr) error {
 // visit dispatches conversion to specialized methods based on expression type.
 func (v *Visitor) visit(expr ast.Expr) error {
 	if expr == nil {
-		return fmt.Errorf("pinecone: cannot process nil expression")
+		return errors.New("pinecone: cannot process nil expression")
 	}
 	if v.err != nil {
 		return v.err
