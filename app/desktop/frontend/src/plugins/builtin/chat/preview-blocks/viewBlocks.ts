@@ -11,7 +11,7 @@
 
 import type { SearchResult } from "@/components/tools/previews/SearchResults";
 
-declare module "@/plugins/sdk/types/agentView" {
+declare module "@/plugins/sdk/types/contentBlock" {
   interface CustomContentBlockMap {
     /** Web-search result cards + the [n] citation source (search tool). */
     search: { kind: "search"; results: SearchResult[] };

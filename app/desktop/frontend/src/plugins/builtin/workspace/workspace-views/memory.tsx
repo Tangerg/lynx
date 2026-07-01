@@ -10,7 +10,6 @@ import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { notifyError } from "@/lib/notify";
 import { cn } from "@/lib/utils";
-import { useServerFeature } from "@/state/runtimeStore";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { scopeLabel } from "./views/scopeLabel";
 import {
@@ -18,6 +17,7 @@ import {
   type WorkspaceMemoryEntry,
   useWorkspaceMemory,
 } from "@/plugins/builtin/workspace/application/memoryConfig";
+import { useWorkspaceCapability } from "@/plugins/builtin/workspace/application/workspaceCapabilities";
 
 function MemoryRow({ entry, cwd }: { entry: WorkspaceMemoryEntry; cwd?: string }) {
   const t = useT();
@@ -99,7 +99,7 @@ function MemoryRow({ entry, cwd }: { entry: WorkspaceMemoryEntry; cwd?: string }
 
 function MemoryTab() {
   const t = useT();
-  const memoryEnabled = useServerFeature("memory");
+  const memoryEnabled = useWorkspaceCapability("memory");
   const cwd = useActiveSessionCwd();
   const { data, isLoading, isError } = useWorkspaceMemory(memoryEnabled, cwd);
   const entries = data ?? [];

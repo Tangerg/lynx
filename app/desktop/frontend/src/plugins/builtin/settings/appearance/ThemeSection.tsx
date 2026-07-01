@@ -8,7 +8,7 @@ import { Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { THEME, useExtensionPoint } from "@/plugins/sdk";
-import { useUiStore } from "@/state/uiStore";
+import { useThemePreference } from "./application/appearancePreferences";
 
 // Fallback hexes for previewing themes that didn't ship a `tokens` map.
 // Match the built-in dark palette so the preview never goes blank.
@@ -139,8 +139,7 @@ function SystemRow({ active, onSelect }: { active: boolean; onSelect: () => void
 export function ThemeSection() {
   const t = useT();
   const themes = useExtensionPoint(THEME);
-  const theme = useUiStore((s) => s.theme);
-  const setTheme = useUiStore((s) => s.setTheme);
+  const { theme, setTheme } = useThemePreference();
 
   return (
     // Full-width block (label on top, grid below) — the theme grid

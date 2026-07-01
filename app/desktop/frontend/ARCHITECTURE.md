@@ -61,7 +61,7 @@ src/
 │   │   └── sideload.ts           从 Go 后端拉取并 dynamic-import 用户插件
 │   │
 │   ├── sdk/                  插件平台
-│   │   ├── types/                12 个 domain 文件 + barrel（按贡献面拆）
+│   │   ├── types/                17 个 domain 文件 + barrel（按贡献面拆）
 │   │   ├── kernelPoints.ts       ~35 个内置 ExtensionPoint（THEME / COMMAND / LAYOUT_SLOT / …）
 │   │   ├── defineExtensionPoint.ts  defineExtensionPoint<T>(def) — typed point handle
 │   │   ├── host.ts               createHost(pluginName) — extensions.contribute 写路径
@@ -636,7 +636,7 @@ export default definePlugin({
 **自定义内容块的类型注册**（让 TS 满意）：
 
 ```ts
-declare module "@/plugins/sdk/types/agentView" {
+declare module "@/plugins/sdk/types/contentBlock" {
   interface CustomContentBlockMap {
     exampleBanner: { kind: "exampleBanner"; text: string };
   }

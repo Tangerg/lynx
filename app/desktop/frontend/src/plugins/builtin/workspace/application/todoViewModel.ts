@@ -1,6 +1,6 @@
 import type { TodoItem } from "@/rpc";
-import { useServerFeature } from "@/state/runtimeStore";
 import { useSharedState } from "@/plugins/builtin/agent/public/sharedState";
+import { useWorkspaceCapability } from "./workspaceCapabilities";
 
 export interface WorkspaceTodo {
   id: string;
@@ -9,7 +9,7 @@ export interface WorkspaceTodo {
 }
 
 export function useWorkspaceTodos() {
-  const enabled = useServerFeature("todos");
+  const enabled = useWorkspaceCapability("todos");
   const todos = useSharedState<TodoItem[]>("todos") ?? [];
   return {
     enabled,

@@ -11,6 +11,7 @@ export * from "./events";
 export * from "./commands";
 export * from "./common";
 export * from "./composer";
+export * from "./contentBlock";
 export * from "./extensions";
 export * from "./host";
 export * from "./i18n";

@@ -14,11 +14,11 @@ import {
 } from "@/plugins/builtin/workspace/public/navigation";
 import { gitOffEmpty, isVcsUnavailable, notARepoEmpty } from "./views/vcsGate";
 import { defineWorkspaceView } from "./defineWorkspaceView";
-import { useServerFeature } from "@/state/runtimeStore";
+import { useWorkspaceCapability } from "@/plugins/builtin/workspace/application/workspaceCapabilities";
 
 function FilesView() {
   const t = useT();
-  const gitEnabled = useServerFeature("git");
+  const gitEnabled = useWorkspaceCapability("git");
   const cwd = useActiveSessionCwd();
   const activeFile = useActiveWorkspaceFile();
   // Scoped to the ACTIVE session's cwd (undefined = serve dir fallback);

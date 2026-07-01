@@ -93,7 +93,7 @@ plugins/builtin/agent/
   presentation/
 ```
 
-业务侧通过 `plugins/builtin/agent/public/viewState.ts` 消费 agent 视图语言；`plugins/sdk/types/agentView.ts` 仅保留 SDK 内部和内容块声明合并所需的扩展契约。后续若继续拆，应把 SDK 的泛内容块扩展契约与 agent 会话视图模型彻底分文件。
+业务侧通过 `plugins/builtin/agent/public/viewState.ts` 消费 agent 视图语言；SDK 的泛内容块扩展契约独立在 `plugins/sdk/types/contentBlock.ts`，不再与 agent 会话视图模型混放。
 
 ### Composer
 

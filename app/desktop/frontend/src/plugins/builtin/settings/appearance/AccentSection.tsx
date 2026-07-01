@@ -3,8 +3,8 @@
 
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { ACCENT, resolveScheme, useExtensionPoint } from "@/plugins/sdk";
-import { useUiStore } from "@/state/uiStore";
+import { ACCENT, useExtensionPoint } from "@/plugins/sdk";
+import { useAccentPreference } from "./application/appearancePreferences";
 import { SettingRow } from "../SettingRow";
 
 // Conic gradient used when no custom color is active — communicates
@@ -49,13 +49,12 @@ function CustomAccentPicker({
 export function AccentSection() {
   const t = useT();
   const accents = useExtensionPoint(ACCENT);
-  const accent = useUiStore((s) => s.accent);
-  const setAccent = useUiStore((s) => s.setAccent);
+  const { accent, setAccent, scheme } = useAccentPreference();
   // Swatch must paint the color that ACTUALLY applies in the current scheme:
   // presets carry a hand-tuned `light` variant applyTheme uses in light themes,
   // so painting the dark hex would show a color different from the one the app
   // renders. (The stored key stays the dark hex — the active check is unchanged.)
-  const light = resolveScheme(useUiStore((s) => s.theme)) === "light";
+  const light = scheme === "light";
 
   const isCustom = !accents.some((a) => a.dark === accent);
 

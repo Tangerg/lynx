@@ -11,13 +11,15 @@
 import type { StateUpdate } from "./types";
 import type {
   AgentViewState,
-  ContentBlock,
-  ContentBlockKind,
-  ContentBlockMap,
   Message,
   PlanItem,
   TimelineEntry,
 } from "@/plugins/sdk/types/agentView";
+import type {
+  ContentBlock,
+  ContentBlockKind,
+  ContentBlockMap,
+} from "@/plugins/sdk/types/contentBlock";
 import { appendTimelineEntry as appendProtocolTimelineEntry } from "@/plugins/sdk/types/agentTimeline";
 
 /** Append a content block to a specific message by id. No-op if not found. */

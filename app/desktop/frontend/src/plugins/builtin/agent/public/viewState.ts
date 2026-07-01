@@ -1,13 +1,15 @@
 export type {
-  AgentViewState,
   BlockStatus,
   ContentBlock,
   ContentBlockKind,
   ContentBlockMap,
+  QuestionItem,
+} from "@/plugins/sdk/types/contentBlock";
+export type {
+  AgentViewState,
   Message,
   MessageRole,
   PlanItem,
-  QuestionItem,
   RunError,
   RunUsage,
   TimelineEntry,

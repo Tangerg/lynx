@@ -8,7 +8,7 @@ import { Checkbox, DropdownMenu, Icon, Segmented } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { useSystemFonts } from "@/lib/systemFonts";
 import { cn } from "@/lib/utils";
-import { useUiStore } from "@/state/uiStore";
+import { useFontPreferences } from "./application/appearancePreferences";
 import { SettingRow } from "../SettingRow";
 
 interface FontPickerProps {
@@ -117,14 +117,16 @@ function FontSizeField({
 
 export function FontSection() {
   const t = useT();
-  const uiFont = useUiStore((s) => s.uiFont);
-  const codeFont = useUiStore((s) => s.codeFont);
-  const fontSize = useUiStore((s) => s.fontSize);
-  const fontSmoothing = useUiStore((s) => s.fontSmoothing);
-  const setUiFont = useUiStore((s) => s.setUiFont);
-  const setCodeFont = useUiStore((s) => s.setCodeFont);
-  const setFontSize = useUiStore((s) => s.setFontSize);
-  const setFontSmoothing = useUiStore((s) => s.setFontSmoothing);
+  const {
+    uiFont,
+    codeFont,
+    fontSize,
+    fontSmoothing,
+    setUiFont,
+    setCodeFont,
+    setFontSize,
+    setFontSmoothing,
+  } = useFontPreferences();
   const smoothingId = useId();
 
   return (

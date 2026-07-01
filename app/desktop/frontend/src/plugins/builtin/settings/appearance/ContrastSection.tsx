@@ -5,13 +5,12 @@
 
 import { Slider } from "@/components/common";
 import { useT } from "@/lib/i18n";
-import { useUiStore } from "@/state/uiStore";
+import { useContrastPreference } from "./application/appearancePreferences";
 import { SettingRow } from "../SettingRow";
 
 export function ContrastSection() {
   const t = useT();
-  const contrast = useUiStore((s) => s.contrast);
-  const setContrast = useUiStore((s) => s.setContrast);
+  const { contrast, setContrast } = useContrastPreference();
 
   return (
     <SettingRow label={t("settings.contrast")} sub={t("settings.contrast.sub")} align="start">
