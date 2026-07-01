@@ -685,8 +685,8 @@ declare module "@/plugins/sdk/types/contentBlock" {
 
 #### A. 补全 agent fold 各 handler 的语义测试
 
-**现状**：`builtin/agent/application/fold/` 已拆成 `handlers`（派发）/ `projections`（纯映射）/ `fold`（有状态折叠），`reducer.*.test.ts` 覆盖 dispatcher + 聚合 + custom + 主要事件路径。缺口是**逐 handler 的语义快照**（每个 item.* / state.* 的 input→state delta）。
-**触发条件**：加新的内置事件类型 / Item 类型时一并补上对应 handler 的语义测试。
+**现状**：`builtin/agent/application/fold/` 已拆成 `handlers`（派发）/ `projections`（纯映射）/ `fold`（有状态折叠），`reducer.*.test.ts` 覆盖 dispatcher + 聚合 + custom + 主要事件路径。此前只被大 fixture 间接覆盖、没有独立语义断言的几条已补齐：subagent run 隔离（`reducer.subagent.test.ts`：`spawnedByItemId` / 错配 envelope runId 的 progress·finished 都不污染根 run）、`run.progress.contextTokens`、reasoning delta 累积（按 `reasoningId` keying）、question interrupt 物化。
+**触发条件**：加新的内置事件类型 / Item 类型时一并补上对应 handler 的语义测试（input→state delta）。
 
 #### B. search / webSearch 富结果渲染
 
