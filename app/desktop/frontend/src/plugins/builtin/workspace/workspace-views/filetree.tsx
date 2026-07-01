@@ -2,7 +2,7 @@ import { useState } from "react";
 import { DataView, Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
-import { isUnsupportedMethod } from "@/lib/agent/errorCopy";
+import { isUnsupportedMethod } from "@/lib/rpcErrors";
 import { useListFiles, useReadFile } from "@/lib/data/queries";
 import { FileTree } from "./views/FileTree";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";

@@ -11,7 +11,7 @@ import { useComposerStore } from "@/plugins/builtin/chat/composer/public/store";
 import { useSessionStore } from "@/state/sessionStore";
 import { flattenText } from "@/plugins/builtin/agent/public/messageContent";
 import { buildInput } from "@/plugins/builtin/chat/composer/public/input";
-import { describeRpcError } from "@/lib/agent/errorCopy";
+import { describeRpcError } from "@/lib/rpcErrors";
 import { forkSessionAt } from "@/lib/agent/useForkSession";
 import { rehydrateSessionView } from "@/lib/agent/rehydrateSession";
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { DataView, EmptyState, Icon, PillButton } from "@/components/common";
-import { isUnsupportedMethod } from "@/lib/agent/errorCopy";
+import { isUnsupportedMethod } from "@/lib/rpcErrors";
 import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
 import { useSchedules } from "@/lib/data/queries";
 import { useT } from "@/lib/i18n";

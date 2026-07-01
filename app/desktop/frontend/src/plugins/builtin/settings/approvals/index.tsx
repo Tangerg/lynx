@@ -13,7 +13,7 @@ import {
   forgetRule,
   setApprovalMode,
 } from "@/plugins/builtin/agent/public/approvalPolicy";
-import { isUnsupportedMethod, rpcErrorText } from "@/lib/agent/errorCopy";
+import { isUnsupportedMethod, rpcErrorText } from "@/lib/rpcErrors";
 import { useActiveSession } from "@/lib/agent/useActiveSession";
 import { useApprovalMode, useApprovalRules } from "@/lib/data/queries";
 import { notifyError } from "@/lib/notify";
