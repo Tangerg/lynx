@@ -1,11 +1,11 @@
 import { useEffect, useRef } from "react";
 import { DropdownMenu, Icon, ProviderIcon, Tooltip } from "@/components/common";
-import { imageFiles } from "@/lib/agent/composerInput";
-import { useSelectedModel } from "@/lib/agent/useSelectedModel";
+import { imageFiles } from "@/plugins/builtin/chat/composer/public/input";
+import { useSelectedModel } from "./public/selectedModel";
 import { useModels } from "@/lib/data/queries";
 import { useT } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";
-import { useComposerStore } from "@/state/composerStore";
+import { useComposerStore } from "./adapters/composerStore";
 
 function ModelPicker() {
   const t = useT();

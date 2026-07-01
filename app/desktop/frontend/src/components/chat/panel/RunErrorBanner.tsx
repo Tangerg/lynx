@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Icon } from "@/components/common";
 import { BannerAction } from "./BannerAction";
-import { textInput } from "@/lib/agent/composerInput";
+import { textInput } from "@/plugins/builtin/chat/composer/public/input";
 import { flattenText } from "@/plugins/builtin/agent/public/messageContent";
 import { useT } from "@/lib/i18n";
 import { swift } from "@/lib/motion";

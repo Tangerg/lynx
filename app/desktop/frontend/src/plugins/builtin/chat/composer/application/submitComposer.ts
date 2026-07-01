@@ -3,7 +3,12 @@
 // always-clear-after-submit invariant; draft interpretation stays in the
 // composer domain layer.
 
-import { buildInput, textInput, type InputImage, type UserInput } from "@/lib/agent/composerInput";
+import {
+  buildInput,
+  textInput,
+  type InputImage,
+  type UserInput,
+} from "@/plugins/builtin/chat/composer/public/input";
 import { createComposerSendIntent } from "../domain/sendIntent";
 import {
   lookupExtensionByKey,
@@ -11,7 +16,7 @@ import {
   reportPluginError,
   SLASH_COMMAND,
 } from "@/plugins/sdk";
-import { useComposerStore } from "@/state/composerStore";
+import { useComposerStore } from "../adapters/composerStore";
 
 export interface SubmitDeps {
   /** Current textarea contents. */

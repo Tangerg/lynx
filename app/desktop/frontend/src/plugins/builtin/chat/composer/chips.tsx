@@ -6,7 +6,7 @@ import { APPROVAL_MODES } from "@/lib/agent/approvalModes";
 import { setApprovalMode } from "@/lib/agent/approvalConfig";
 import { rpcErrorText } from "@/lib/agent/errorCopy";
 import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
-import { useSelectedModel } from "@/lib/agent/useSelectedModel";
+import { useSelectedModel } from "./public/selectedModel";
 import { useApprovalMode, useProjects } from "@/lib/data/queries";
 import { fmtTokens } from "@/lib/format";
 import { t, useT } from "@/lib/i18n";

@@ -1,12 +1,7 @@
-// User input → wire ContentBlock[] builders. The composer's send unit is the
-// full user-message input (text + inlined images), NOT a bare string: image
-// blocks carry mime + base64 inline (MULTIMODAL_IMAGE_INPUT, API.md §4.3).
-// `textInput` is the plain-text shortcut every programmatic sender (slash
-// command / regenerate / resend) uses; `buildInput` composes the composer's
-// text with its image attachments.
-//
-// Lives in lib/ (not components/) so UI surfaces import the `UserInput` type
-// here without reaching into @/rpc directly (the components↛rpc layer rule).
+// Composer public input facade. Today it adapts composer text/images to the
+// runtime user-message wire shape; keeping that adapter here prevents UI
+// surfaces from importing rpc directly while the composer domain is being
+// separated from agent transport.
 
 import type { ContentBlock } from "@/rpc";
 

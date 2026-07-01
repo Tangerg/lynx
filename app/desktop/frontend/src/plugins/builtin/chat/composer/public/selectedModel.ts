@@ -1,5 +1,5 @@
 import { useModels } from "@/lib/data/queries";
-import { useComposerStore } from "@/state/composerStore";
+import { useComposerStore } from "./store";
 
 /** The model the next run will use: composerStore's provider+model pair
  *  resolved against the live model list, falling back to the first model while

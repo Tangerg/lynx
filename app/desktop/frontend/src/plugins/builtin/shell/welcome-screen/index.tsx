@@ -11,7 +11,7 @@ import { useProviders } from "@/lib/data/queries";
 import { useT } from "@/lib/i18n";
 import { definePlugin, useCommands } from "@/plugins/sdk";
 import { comboGlyph } from "@/lib/combo";
-import { useComposerStore } from "@/state/composerStore";
+import { useComposerStore } from "@/plugins/builtin/chat/composer/public/store";
 import { useSessionStore } from "@/state/sessionStore";
 
 interface Suggestion {
