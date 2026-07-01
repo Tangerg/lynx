@@ -10,11 +10,11 @@ import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { FIELD, LinesField } from "./ServerFormFields";
 import {
-  type ServerFormDraft,
-  initialServerFormDraft,
-  isServerFormDraftValid,
-  serverFormRequest,
-} from "./serverFormWire";
+  type MCPServerDraft,
+  initialMCPServerDraft,
+  isMCPServerDraftValid,
+  mcpServerInputFromDraft,
+} from "./application/mcpServerDraft";
 import { ToolControls } from "./ToolControls";
 
 type Probe = { state: "idle" | "busy" } | { state: "ok" } | { state: "error"; reason: string };
@@ -32,7 +32,7 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
   const test = useTestMCPServer();
   const isEdit = server !== undefined;
 
-  const [draft, setDraft] = useState<ServerFormDraft>(() => initialServerFormDraft(server));
+  const [draft, setDraft] = useState<MCPServerDraft>(() => initialMCPServerDraft(server));
 
   const [saving, setSaving] = useState(false);
   const [probe, setProbe] = useState<Probe>({ state: "idle" });
@@ -40,20 +40,20 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
 
   const hasAuthStored = (server?.authorizationMasked ?? "") !== "";
 
-  const updateDraft = <K extends keyof ServerFormDraft>(key: K, value: ServerFormDraft[K]) => {
+  const updateDraft = <K extends keyof MCPServerDraft>(key: K, value: MCPServerDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
   };
 
-  const buildRequest = () => serverFormRequest(draft, server);
+  const buildInput = () => mcpServerInputFromDraft(draft, server);
 
-  const valid = isServerFormDraftValid(draft);
+  const valid = isMCPServerDraftValid(draft);
 
   const onSave = async () => {
     setSaving(true);
     probeSeq.current++;
     setProbe({ state: "idle" });
     try {
-      await configure(buildRequest());
+      await configure(buildInput());
       onDone();
     } catch (err) {
       setProbe({
@@ -69,7 +69,7 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
     const token = ++probeSeq.current;
     setProbe({ state: "busy" });
     try {
-      const r = await test(buildRequest());
+      const r = await test(buildInput());
       if (probeSeq.current !== token) return;
       setProbe(r.ok ? { state: "ok" } : { state: "error", reason: r.error ?? t("mcp.error.test") });
     } catch (err) {
