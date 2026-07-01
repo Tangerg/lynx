@@ -1,8 +1,5 @@
-// The runtime's four approval stances, mirrored for the UI in backend order
-// (approval.Mode). Single source of truth so the Approvals settings pane and
-// the composer-side selector can't drift from each other or from the backend —
-// adding a stance is a one-line change here. Labels/descriptions are i18n keys
-// resolved by the consumer (module scope can't call the t() hook).
+// The runtime's approval stances in backend order. Labels/descriptions are i18n
+// keys resolved by consumers.
 
 import type { ApprovalModeValue } from "@/lib/data/queries";
 

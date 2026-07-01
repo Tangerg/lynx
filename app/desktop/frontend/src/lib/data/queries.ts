@@ -226,8 +226,8 @@ export interface FileLine {
 }
 
 // approval.* (B9) — the runtime's global approval stance + the persistent
-// fine-grained "remember this decision" rules. Mode is mutated in the Approvals
-// pane (lib/agent/approvalConfig); both keys invalidate on mutation.
+// fine-grained "remember this decision" rules. Both keys invalidate on
+// mutation.
 export type ApprovalModeValue = "plan" | "safe" | "balanced" | "yolo";
 export interface ApprovalRulesQuery {
   sessionId: string;
