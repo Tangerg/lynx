@@ -1,6 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { asItemId, asRunId, type InterruptResponse } from "@/rpc";
-import type { ResolvePatch } from "../ports/viewState";
+import type { InterruptResumePayload, ResolvePatch } from "../ports/viewState";
 import { agentSessionState } from "../ports/sessionState";
 import { agentViewState } from "../ports/viewState";
 
@@ -36,15 +35,15 @@ export function resumeInterrupt(
   sessionId: string,
   parentRunId: string,
   itemId: string,
-  response: InterruptResponse["response"],
+  response: InterruptResumePayload,
   settled: ResolvePatch,
   hooks?: { onSettled?: () => void; onError?: () => void },
 ): boolean {
   const sessionResume = agentViewState().getSession(sessionId)?.resume;
   if (!sessionResume) return false;
   sessionResume(
-    asRunId(parentRunId),
-    [{ itemId: asItemId(itemId), response }],
+    parentRunId,
+    [{ itemId, response }],
     () => {
       agentViewState().resolveInterrupt(sessionId, itemId, settled);
       hooks?.onSettled?.();
@@ -66,7 +65,7 @@ export function useInterruptResume<P>(parentRunId?: string, itemId?: string) {
   const submitted = useRef(false);
 
   const resume = useCallback(
-    (marker: P, response: InterruptResponse["response"], settled: ResolvePatch) => {
+    (marker: P, response: InterruptResumePayload, settled: ResolvePatch) => {
       if (!parentRunId || !itemId || submitted.current) return;
       submitted.current = true;
       setPending(marker);

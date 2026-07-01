@@ -7,10 +7,18 @@
 // lifecycle is essentially one rAF-loop subscription + a few transition guards;
 // a formal FSM would be more ceremony than the problem warrants.
 import type { AgentDriver, AgentRunStartOptions } from "@/plugins/sdk/types";
-import type { InterruptResponse, RunEvent, RunId, StreamingResult } from "@/rpc";
+import {
+  asItemId,
+  asRunId,
+  type InterruptResponse,
+  type RunEvent,
+  type RunId,
+  type StreamingResult,
+} from "@/rpc";
 import { useEffect, useRef } from "react";
 import type { AgentInput } from "@/plugins/builtin/agent/domain/input";
 import type { AgentSession } from "../application/ports/defaultSession";
+import type { InterruptResumeInput } from "../application/ports/viewState";
 import { agentInputToContentBlocks } from "@/plugins/builtin/agent/adapters/wireInput";
 import { getContainer } from "@/main/container";
 import { queryClient } from "@/lib/data/queryClient";
@@ -133,14 +141,18 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     };
 
     const resume = (
-      parentRunId: RunId,
-      responses: InterruptResponse[],
+      parentRunId: string,
+      responses: InterruptResumeInput[],
       onSettled?: () => void,
       onStartError?: () => void,
     ): void => {
       if (runOpening.isStarting()) return;
+      const wireResponses: InterruptResponse[] = responses.map((response) => ({
+        itemId: asItemId(response.itemId),
+        response: response.response,
+      }));
       runOpening.begin(
-        (signal) => driver.resume(parentRunId, responses, signal),
+        (signal) => driver.resume(asRunId(parentRunId), wireResponses, signal),
         onSettled ? () => onSettled() : undefined,
         onStartError,
       );

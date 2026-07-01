@@ -6,8 +6,9 @@
 // fallback that every callsite needs.
 
 import type { AgentRunStartOptions } from "@/plugins/sdk/types";
-import type { InterruptResponse, RunId, StreamEvent } from "@/rpc";
+import type { StreamEvent } from "@/rpc";
 import type { AgentInput } from "@/plugins/builtin/agent/domain/input";
+import type { ResumeFn } from "@/plugins/builtin/agent/application/ports/viewState";
 import type {
   AgentViewState,
   Message,
@@ -33,17 +34,6 @@ import { useAgentSessionStore } from "./agentSessionStore";
 
 type StopFn = (() => void) | null;
 type SendFn = ((input: AgentInput, options?: AgentRunStartOptions) => void) | null;
-// onSettled fires once the continuation run has actually started (channel-a
-// accepted); onStartError fires if runs.resume rejects before any stream
-// opened (API.md §8.1), so the caller can roll back its optimistic UI.
-type ResumeFn =
-  | ((
-      parentRunId: RunId,
-      responses: InterruptResponse[],
-      onSettled?: () => void,
-      onStartError?: () => void,
-    ) => void)
-  | null;
 
 interface SessionEntry {
   view: AgentViewState;
