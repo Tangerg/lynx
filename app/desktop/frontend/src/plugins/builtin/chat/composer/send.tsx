@@ -1,5 +1,5 @@
 import { Icon, Tooltip } from "@/components/common";
-import { useSendComposerInput } from "@/plugins/builtin/chat/workbench/send";
+import { useSendComposerInput } from "./public/sendToAgent";
 import { useIsAgentRunning, useStopActiveAgentRun } from "@/plugins/builtin/agent/public/run";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";

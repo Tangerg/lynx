@@ -6,7 +6,7 @@ import type { Message } from "@/plugins/builtin/agent/public/viewState";
 import { notifyError, notifyInfo } from "@/lib/notify";
 import { flattenText } from "@/plugins/builtin/agent/public/messageContent";
 import { buildInput } from "@/plugins/builtin/chat/composer/public/input";
-import { composerInputToAgentInput } from "@/plugins/builtin/chat/workbench/inputBridge";
+import { composerInputToAgentInput } from "./inputBridge";
 import { describeRpcError } from "@/lib/rpcErrors";
 import {
   activeAgentConversation,

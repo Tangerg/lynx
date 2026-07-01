@@ -7,7 +7,7 @@
 import { ChatPanel } from "@/components/chat/panel";
 import { SettingsPage } from "./SettingsPage";
 import { SidebarPanel } from "@/components/sidebar/SidebarPanel";
-import { useSendComposerInput } from "@/plugins/builtin/chat/workbench/send";
+import { useSendComposerInput } from "@/plugins/builtin/chat/composer/public/sendToAgent";
 import {
   useActiveSessionId,
   useReconcilePersistedAgentSessions,
