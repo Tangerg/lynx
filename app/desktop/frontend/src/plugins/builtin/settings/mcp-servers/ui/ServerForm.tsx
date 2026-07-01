@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Icon, PillButton, Segmented } from "@/components/common";
 import {
   type MCPServerConfig,
@@ -17,8 +17,7 @@ import {
   mcpServerInputFromDraft,
 } from "../application/mcpServerDraft";
 import { ToolControls } from "./ToolControls";
-
-type Probe = { state: "idle" | "busy" } | { state: "ok" } | { state: "error"; reason: string };
+import { useProbe } from "@/lib/useProbe";
 
 interface Props {
   server?: MCPServerConfig;
@@ -36,8 +35,7 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
   const [draft, setDraft] = useState<MCPServerDraft>(() => initialMCPServerDraft(server));
 
   const [saving, setSaving] = useState(false);
-  const [probe, setProbe] = useState<Probe>({ state: "idle" });
-  const probeSeq = useRef(0);
+  const { probe, reset, fail, run } = useProbe();
 
   const hasAuthStored = (server?.authorizationMasked ?? "") !== "";
 
@@ -51,36 +49,18 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
 
   const onSave = async () => {
     setSaving(true);
-    probeSeq.current++;
-    setProbe({ state: "idle" });
+    reset(); // invalidate any in-flight test so its result can't overwrite this save
     try {
       await configure(buildInput());
       onDone();
     } catch (err) {
-      setProbe({
-        state: "error",
-        reason: err instanceof Error ? err.message : t("mcp.error.save"),
-      });
+      fail(err instanceof Error ? err.message : t("mcp.error.save"));
     } finally {
       setSaving(false);
     }
   };
 
-  const onTest = async () => {
-    const token = ++probeSeq.current;
-    setProbe({ state: "busy" });
-    try {
-      const r = await test(buildInput());
-      if (probeSeq.current !== token) return;
-      setProbe(r.ok ? { state: "ok" } : { state: "error", reason: r.error ?? t("mcp.error.test") });
-    } catch (err) {
-      if (probeSeq.current !== token) return;
-      setProbe({
-        state: "error",
-        reason: err instanceof Error ? err.message : t("mcp.error.test"),
-      });
-    }
-  };
+  const onTest = () => run(() => test(buildInput()), t("mcp.error.test"));
 
   const onDelete = async () => {
     if (!server) return;
@@ -89,10 +69,7 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
       await remove(server.name);
       onDone();
     } catch (err) {
-      setProbe({
-        state: "error",
-        reason: err instanceof Error ? err.message : t("mcp.error.remove"),
-      });
+      fail(err instanceof Error ? err.message : t("mcp.error.remove"));
       setSaving(false);
     }
   };

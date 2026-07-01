@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Icon, INPUT_FOCUS_RING, ProviderIcon } from "@/components/common";
 import {
   type ProviderConfig,
@@ -11,9 +11,8 @@ import {
   providerCredentialsInput,
 } from "../application/providerDraft";
 import { useT } from "@/lib/i18n";
+import { useProbe } from "@/lib/useProbe";
 import { cn } from "@/lib/utils";
-
-type Probe = { state: "idle" | "busy" } | { state: "ok" } | { state: "error"; reason: string };
 
 export function ProviderRow({ p }: { p: ProviderConfig }) {
   const t = useT();
@@ -21,9 +20,7 @@ export function ProviderRow({ p }: { p: ProviderConfig }) {
   const test = useTestProvider();
   const [draft, setDraft] = useState(() => initialProviderCredentialsDraft(p));
   const [saving, setSaving] = useState(false);
-  const [probe, setProbe] = useState<Probe>({ state: "idle" });
-  // Save bumps this so stale test results cannot overwrite the new key state.
-  const probeSeq = useRef(0);
+  const { probe, reset, fail, run } = useProbe();
 
   const enabled = p.apiKeyMasked !== "";
   // Env keys are read-only at the source, but a typed key still overrides them.
@@ -32,38 +29,18 @@ export function ProviderRow({ p }: { p: ProviderConfig }) {
 
   const onSave = async () => {
     setSaving(true);
-    probeSeq.current++;
-    setProbe({ state: "idle" });
+    reset(); // invalidate any in-flight test so its result can't overwrite the new key state
     try {
       await configure(providerCredentialsInput(p, draft));
       setDraft((value) => ({ ...value, apiKey: "" }));
     } catch (err) {
-      setProbe({
-        state: "error",
-        reason: err instanceof Error ? err.message : t("providers.error.save"),
-      });
+      fail(err instanceof Error ? err.message : t("providers.error.save"));
     } finally {
       setSaving(false);
     }
   };
 
-  const onTest = async () => {
-    const token = ++probeSeq.current;
-    setProbe({ state: "busy" });
-    try {
-      const r = await test(p.id);
-      if (probeSeq.current !== token) return;
-      setProbe(
-        r.ok ? { state: "ok" } : { state: "error", reason: r.error ?? t("providers.error.test") },
-      );
-    } catch (err) {
-      if (probeSeq.current !== token) return;
-      setProbe({
-        state: "error",
-        reason: err instanceof Error ? err.message : t("providers.error.test"),
-      });
-    }
-  };
+  const onTest = () => run(() => test(p.id), t("providers.error.test"));
 
   return (
     <div className="rounded-lg border border-line-soft bg-canvas px-3 py-2.5">
