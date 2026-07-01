@@ -11,11 +11,11 @@ import { DiffView } from "./views/DiffView";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useDiff } from "@/lib/data/queries";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useActiveWorkspaceFile } from "@/plugins/builtin/workspace/public/navigation";
 import { cn } from "@/lib/utils";
 import { gitOffEmpty, isVcsUnavailable, notARepoEmpty } from "./views/vcsGate";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { useServerFeature } from "@/state/runtimeStore";
-import { useSessionStore } from "@/state/sessionStore";
 
 function FileSection({
   file,
@@ -51,7 +51,7 @@ function DiffViewTab() {
   const t = useT();
   const gitEnabled = useServerFeature("git");
   const cwd = useActiveSessionCwd();
-  const activeFile = useSessionStore((s) => s.activeFile);
+  const activeFile = useActiveWorkspaceFile();
   // worktree = uncommitted changes (incl. untracked); base = vs the default
   // branch's merge-base (AUX_API §2.3) — the "what does this branch change"
   // review view.

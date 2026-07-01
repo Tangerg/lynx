@@ -1,0 +1,18 @@
+export {
+  closeWorkspaceSplit,
+  closeWorkspaceView,
+  openWorkspaceDiffForFile,
+  openWorkspaceFile,
+  openWorkspaceSettingsPane,
+  openWorkspaceViewBeside,
+  promoteWorkspaceSplitToView,
+  selectInitialWorkspaceTool,
+  selectWorkspaceChat,
+  useActiveWorkspaceFile,
+  useActiveWorkspaceViewId,
+  useExpandedWorkspaceToolIds,
+  useSelectWorkspaceTool,
+  useSplitWorkspaceViewId,
+  useToggleWorkspaceTool,
+  useWorkspaceFileViewer,
+} from "../application/navigation";

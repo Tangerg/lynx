@@ -1,4 +1,6 @@
 export {
+  getActiveSessionId,
+  selectAgentSession,
   useActiveSession,
   useActiveSessionCwd,
   useActiveSessionId,

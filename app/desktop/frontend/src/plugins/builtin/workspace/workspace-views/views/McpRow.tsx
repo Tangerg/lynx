@@ -5,7 +5,7 @@ import { Icon, IconButton } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { useMCPTools } from "@/lib/data/queries";
 import { getContainer } from "@/main/container";
-import { useSessionStore } from "@/state/sessionStore";
+import { openWorkspaceSettingsPane } from "@/plugins/builtin/workspace/public/navigation";
 import { cn } from "@/lib/utils";
 
 // MCP server row — appears in the Tools workspace view. Status pill mirrors
@@ -72,12 +72,7 @@ function McpToolList({ server }: { server: string }) {
 function McpAuthGuide({ server }: { server: string }) {
   const t = useT();
   const openConfig = () => {
-    useSessionStore.getState().setSettingsPane("mcp-servers");
-    useSessionStore.getState().openMainView({
-      id: "settings",
-      title: t("settings.title"),
-      icon: "settings",
-    });
+    openWorkspaceSettingsPane("mcp-servers", t("settings.title"));
   };
   return (
     <div className="flex items-center gap-2 px-4 pb-3 pl-[68px]">

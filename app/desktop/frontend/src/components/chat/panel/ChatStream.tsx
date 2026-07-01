@@ -10,6 +10,7 @@ import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useActiveConversationMessages } from "@/plugins/builtin/agent/public/conversation";
 import { useActiveRunPlan, useActiveRunToolCalls } from "@/plugins/builtin/agent/public/run";
+import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
 import { useSelectedModel } from "@/plugins/builtin/chat/composer/public/selectedModel";
 import { useT } from "@/lib/i18n";
 import { Slot } from "@/plugins/host/Slot";
@@ -26,7 +27,12 @@ import {
   useComposerText,
   useSetComposerText,
 } from "@/plugins/builtin/chat/composer/public/draft";
-import { useSessionStore } from "@/state/sessionStore";
+import {
+  selectInitialWorkspaceTool,
+  useExpandedWorkspaceToolIds,
+  useSelectWorkspaceTool,
+  useToggleWorkspaceTool,
+} from "@/plugins/builtin/workspace/public/navigation";
 import { useUiStore } from "@/state/uiStore";
 import { Composer, ComposerFooter, SlashSuggestions } from "../composer";
 import { ChatErrorBoundary } from "./ChatErrorBoundary";
@@ -38,18 +44,17 @@ import { RunErrorBanner } from "./RunErrorBanner";
 interface Props {
   /** Send the user's message input (text + inlined images) through the live agent. */
   onSend: (input: UserInput) => void;
-  /** Active session id — used to reset the error boundary + stream. */
-  resetKey: string;
 }
 
-export function ChatStream({ onSend, resetKey }: Props) {
+export function ChatStream({ onSend }: Props) {
+  const resetKey = useActiveSessionId();
   const messages = useActiveConversationMessages();
   const plan = useActiveRunPlan();
   const toolCalls = useActiveRunToolCalls();
 
-  const expandedToolIds = useSessionStore((s) => s.expandedToolIds);
-  const setSelectedToolId = useSessionStore((s) => s.setSelectedToolId);
-  const toggleExpandedTool = useSessionStore((s) => s.toggleExpandedTool);
+  const expandedToolIds = useExpandedWorkspaceToolIds();
+  const selectTool = useSelectWorkspaceTool();
+  const toggleExpandedTool = useToggleWorkspaceTool();
 
   const composerValue = useComposerText();
   const images = useComposerImages();
@@ -87,8 +92,7 @@ export function ChatStream({ onSend, resetKey }: Props) {
   const latestToolId = useMemo(() => Object.keys(toolCalls).at(-1) ?? "", [toolCalls]);
   useEffect(() => {
     if (!latestToolId) return;
-    const ui = useSessionStore.getState();
-    if (!ui.selectedToolId) ui.setSelectedToolId(latestToolId);
+    selectInitialWorkspaceTool(latestToolId);
   }, [latestToolId]);
 
   // Stable ctx identity — without useMemo, this object literal is
@@ -102,12 +106,12 @@ export function ChatStream({ onSend, resetKey }: Props) {
     () => ({
       plan,
       toolCalls,
-      onSelectTool: setSelectedToolId,
+      onSelectTool: selectTool,
       expandedIds: expandedToolIds,
       onToggleExpand: toggleExpandedTool,
       typewriter,
     }),
-    [plan, toolCalls, setSelectedToolId, expandedToolIds, toggleExpandedTool, typewriter],
+    [plan, toolCalls, selectTool, expandedToolIds, toggleExpandedTool, typewriter],
   );
 
   // The composer surface (status + slash hints + input + footer) — shared by
