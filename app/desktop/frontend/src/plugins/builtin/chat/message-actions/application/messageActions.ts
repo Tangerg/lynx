@@ -1,9 +1,6 @@
-// Message-level actions shared by the inline header buttons
-// (plugins/builtin/chat/message-actions) and the right-click context
-// menu (components/chat/message/MessageContextMenu) — the second
-// consumer is why these live in lib/ rather than inside either one.
-// Every store read happens through getState() at call time (CLAUDE.md
-// §5): both callers mount once per message, so they must not subscribe.
+// Message-level use cases shared by inline message action buttons and the
+// right-click context menu. External callers use the public facade; store reads
+// stay inside handlers via getState() so per-message UI does not subscribe.
 
 import type { Message } from "@/protocol/run/viewState";
 import { getContainer } from "@/main/container";
@@ -12,11 +9,11 @@ import { asRunId, asSessionId } from "@/rpc";
 import { getCurrentSessionView, useAgentStore } from "@/state/agentStore";
 import { useComposerStore } from "@/state/composerStore";
 import { useSessionStore } from "@/state/sessionStore";
-import { buildInput } from "./composerInput";
-import { describeRpcError } from "./errorCopy";
-import { forkSessionAt } from "./useForkSession";
-import { flattenText } from "./messageContent";
-import { rehydrateSessionView } from "./rehydrateSession";
+import { flattenText } from "@/plugins/builtin/agent/public/messageContent";
+import { buildInput } from "@/lib/agent/composerInput";
+import { describeRpcError } from "@/lib/agent/errorCopy";
+import { forkSessionAt } from "@/lib/agent/useForkSession";
+import { rehydrateSessionView } from "@/lib/agent/rehydrateSession";
 
 // Inlined images from a view message's blocks → composer-image shape (mime +
 // base64), so resend / regenerate / edit-and-rerun keep the images intact.

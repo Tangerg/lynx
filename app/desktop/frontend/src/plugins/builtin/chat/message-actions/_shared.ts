@@ -1,6 +1,5 @@
 // Shared Tailwind chrome for the per-message action button plugins
-// (copy / edit / regenerate / feedback). Domain logic lives in
-// `@/lib/agent/messageContent`.
+// (copy / edit / regenerate / feedback).
 
 /** Base Tailwind class string for the hover-revealed icon buttons in
  *  the message action bar. Rounding is applied per-role by each
