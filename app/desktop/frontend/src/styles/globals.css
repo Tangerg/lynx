@@ -403,15 +403,25 @@ body {
  * ========================================================================= */
 
 /* Keyboard-only focus ring. Kept quiet on purpose: a single thin accent
-   stroke, no bright box-shadow halo. The old 2px-outline + 4px-halo double
-   ring read as cheap — and WebView sometimes shows :focus-visible after a
-   plain click, so the loud version flashed a bright edge on interaction. */
-:focus-visible:not([data-chrome-focus]) {
+   stroke, no bright box-shadow halo.
+   TWO guards make it genuinely keyboard-only:
+   1. `html:not([data-pointer])` — the WebView fires :focus-visible on a plain
+      mouse click too, which flashed the ring on every click; the modality
+      script in index.html clears `data-pointer` only on a nav key, so the ring
+      shows for real keyboard focus, not clicks.
+   2. `:not(input):not(textarea):not([contenteditable])` — form fields own a
+      quiet border affordance (DESIGN.md §9: no accent ring on input focus).
+      This exclusion is what actually keeps them ring-free: the bare
+      `input:focus-visible { outline: none }` below LOSES on specificity to
+      `:focus-visible:not([data-chrome-focus])`, so the field must be excluded
+      from the rule itself, not merely overridden. */
+html:not([data-pointer])
+  :focus-visible:not([data-chrome-focus]):not(input):not(textarea):not([contenteditable]) {
   outline: 1.5px solid color-mix(in oklab, var(--color-accent) 50%, transparent);
   outline-offset: 1px;
 }
-/* Inputs own their focus affordance through component tokens; skip the
-   global outline so the two effects don't double up. */
+/* Belt-and-suspenders for form fields — they never take the accent ring in
+   either modality; their component tokens carry the quiet focus affordance. */
 input:focus-visible,
 textarea:focus-visible {
   outline: none;

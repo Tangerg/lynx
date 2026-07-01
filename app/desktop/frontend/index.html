@@ -34,6 +34,35 @@
         root.style.backgroundColor = scheme === "light" ? "#ffffff" : "#121212";
       })();
     </script>
+    <!-- Focus-ring modality.
+         The Wails WebView reports :focus-visible on a plain mouse click too, not
+         just keyboard nav — so the accent focus ring flashed on every click.
+         Track the last input device on `<html data-pointer>` (pointer by
+         default) and flip to keyboard only on a nav key (Tab / arrows); the
+         accent ring in globals.css is gated on `html:not([data-pointer])`, so it
+         shows only for genuine keyboard focus. Typing a character never
+         resurrects it — only nav keys count. -->
+    <script>
+      (function () {
+        var root = document.documentElement;
+        root.setAttribute("data-pointer", "");
+        addEventListener(
+          "pointerdown",
+          function () {
+            root.setAttribute("data-pointer", "");
+          },
+          true,
+        );
+        addEventListener(
+          "keydown",
+          function (e) {
+            if (e.key === "Tab" || e.key.indexOf("Arrow") === 0)
+              root.removeAttribute("data-pointer");
+          },
+          true,
+        );
+      })();
+    </script>
     <!-- Fonts: the native OS stack (SF Pro / PingFang on macOS) — see
          globals.css --font-sans. No bundled webfont, no CDN <link>. -->
   </head>
