@@ -6,7 +6,7 @@ import {
   runScheduleNow,
   setScheduleEnabled,
   type ScheduleConfig,
-} from "./application/scheduleCommands";
+} from "../application/scheduleCommands";
 import { notifyError } from "@/lib/notify";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";

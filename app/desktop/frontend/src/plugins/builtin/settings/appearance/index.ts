@@ -6,7 +6,7 @@
 import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
 import { installAppearancePreferencesPort } from "./adapters/uiAppearancePreferences";
-import { AppearancePane } from "./AppearancePane";
+import { AppearancePane } from "./ui/AppearancePane";
 
 export default definePlugin({
   name: "lyra.builtin.appearance",

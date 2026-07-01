@@ -5,8 +5,8 @@
 
 import { Slider } from "@/components/common";
 import { useT } from "@/lib/i18n";
-import { useContrastPreference } from "./application/appearancePreferences";
-import { SettingRow } from "../SettingRow";
+import { useContrastPreference } from "../application/appearancePreferences";
+import { SettingRow } from "../../SettingRow";
 
 export function ContrastSection() {
   const t = useT();

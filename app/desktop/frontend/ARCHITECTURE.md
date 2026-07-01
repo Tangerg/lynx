@@ -186,6 +186,7 @@ Lyra 大部分 UI ↔ 数据流已经通过插件系统解耦，真正需要"内
 - `plugins/sdk` / `state` / `lib` **禁** import UI（`components` / `pages` / `builtin`）——锁住"平台/工具层不依赖它被消费的 UI"。
 - `components/` / `pages/` **禁** import `@/main`（composition root）或 `@/rpc`（协议客户端）——只经 store selector / `lib/data` query / SDK selector 触业务。
 - **跨限界上下文只能走 `public/`**：`plugins/builtin/<ctx>/` 一旦有 `application/domain/adapters/presentation/ui/public` 任一目录即视为限界上下文；别的上下文只准 import 它的 `public/` facade，连它根目录下的松散文件也不行（`builtin/index.ts` manifest 作为插件组合根豁免）。`check-builtin-contexts.mjs` 再在这些合法的 public→public 边上查环。
+- **`settings/` 各面板的上下文形态**：统一 `ui/`（React 组件）+ `application/`（用例 hook + `ports/`）+ `adapters/`（gateway 实现），plugin 入口 `index.{ts,tsx}` 注册面板。**刻意不设 `public/`** —— 面板是叶子，不被其他上下文消费（唯一跨界引用是 manifest 引 `index`），加 facade 是无消费方的仪式（YAGNI）。加新面板照此摆放，UI 别散在上下文根。
 - 业务调用一律走 `getContainer().client().xxx(...)`；测试用 `setContainer({ client })` / `resetContainer()` 注入假实现。
 
 **增加新协议方法的步骤**：

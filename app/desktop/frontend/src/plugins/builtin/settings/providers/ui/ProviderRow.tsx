@@ -4,12 +4,12 @@ import {
   type ProviderConfig,
   useConfigureProvider,
   useTestProvider,
-} from "./application/providerConfig";
+} from "../application/providerConfig";
 import {
   initialProviderCredentialsDraft,
   providerCredentialsDirty,
   providerCredentialsInput,
-} from "./application/providerDraft";
+} from "../application/providerDraft";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 

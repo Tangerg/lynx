@@ -1,7 +1,7 @@
 import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
 import { installProviderGateway } from "./adapters/runtimeProviderGateway";
-import { ProvidersPane } from "./ProvidersPane";
+import { ProvidersPane } from "./ui/ProvidersPane";
 
 export default definePlugin({
   name: "lyra.builtin.providers-pane",

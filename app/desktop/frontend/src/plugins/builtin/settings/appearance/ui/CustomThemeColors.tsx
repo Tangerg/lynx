@@ -4,8 +4,8 @@
 // re-derives + re-registers, uiStore re-applies).
 
 import { useT } from "@/lib/i18n";
-import { useCustomThemePreference } from "./application/appearancePreferences";
-import { SettingRow } from "../SettingRow";
+import { useCustomThemePreference } from "../application/appearancePreferences";
+import { SettingRow } from "../../SettingRow";
 
 function ColorRow({
   label,

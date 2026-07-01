@@ -1,6 +1,6 @@
 import { DataView } from "@/components/common";
 import { useT } from "@/lib/i18n";
-import { useProviderConfigs } from "./application/providerConfig";
+import { useProviderConfigs } from "../application/providerConfig";
 import { ProviderRow } from "./ProviderRow";
 import { EmbeddingModelSection, UtilityModelSection } from "./RoleSections";
 

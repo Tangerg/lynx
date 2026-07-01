@@ -7,8 +7,8 @@ import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
 import { installScheduleGateway } from "./adapters/runtimeScheduleGateway";
 import { useScheduleConfigs } from "./application/scheduleCommands";
-import { ScheduleForm } from "./ScheduleForm";
-import { ScheduleRow } from "./ScheduleRow";
+import { ScheduleForm } from "./ui/ScheduleForm";
+import { ScheduleRow } from "./ui/ScheduleRow";
 
 function SchedulesPane() {
   const t = useT();

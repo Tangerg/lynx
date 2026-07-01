@@ -3,7 +3,11 @@
 // with the message bubble style (moved out of Appearance). Future
 // personalization knobs land here too.
 
-import { CompletionSoundSection, MessageStyleSection, StreamRevealSection } from "./PrefSections";
+import {
+  CompletionSoundSection,
+  MessageStyleSection,
+  StreamRevealSection,
+} from "./ui/PrefSections";
 import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
 import { installPersonalizationPreferencesPort } from "./adapters/uiPersonalizationPreferences";

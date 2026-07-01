@@ -6,9 +6,9 @@ import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
 import { installMCPServerGateway } from "./adapters/runtimeMcpServerGateway";
 import { useMCPServerConfigs } from "./application/mcpServerConfig";
-import { JsonImport } from "./JsonImport";
-import { ServerForm } from "./ServerForm";
-import { ServerRow } from "./ServerRow";
+import { JsonImport } from "./ui/JsonImport";
+import { ServerForm } from "./ui/ServerForm";
+import { ServerRow } from "./ui/ServerRow";
 
 function McpServersPane() {
   const t = useT();

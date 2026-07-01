@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Icon, PillButton } from "@/components/common";
-import { useConfigureMCPServer } from "./application/mcpServerConfig";
+import { useConfigureMCPServer } from "../application/mcpServerConfig";
 import { notifyInfo } from "@/lib/notify";
 import { useT } from "@/lib/i18n";
 import { TEXT_AREA } from "./ServerFormFields";
-import { parseMcpImport } from "./mcpImport";
+import { parseMcpImport } from "../application/mcpImport";
 
 export function JsonImport() {
   const t = useT();

@@ -5,7 +5,7 @@ import {
   type MCPServerTransport,
   useAuthorizeMCPServer,
   useSetMCPServerEnabled,
-} from "./application/mcpServerConfig";
+} from "../application/mcpServerConfig";
 import { notifyError } from "@/lib/notify";
 import { useT } from "@/lib/i18n";
 import { ServerForm } from "./ServerForm";

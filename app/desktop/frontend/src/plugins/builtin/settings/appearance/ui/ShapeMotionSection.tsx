@@ -13,8 +13,8 @@
 
 import { Segmented, type SegmentedOption } from "@/components/common";
 import { useT } from "@/lib/i18n";
-import { useShapeMotionPreferences } from "./application/appearancePreferences";
-import { SettingRow } from "../SettingRow";
+import { useShapeMotionPreferences } from "../application/appearancePreferences";
+import { SettingRow } from "../../SettingRow";
 
 // `label` holds an i18n key; ShapeMotionSection resolves it via t() at render
 // (module scope can't call the hook). "Default" reuses settings.font.default.
