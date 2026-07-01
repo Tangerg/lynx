@@ -224,7 +224,7 @@ DESIGN.md 随重构**就地演进**（非冻结基线）。下列决策是相对
 
 #### Step 4a — assistant 无框化 + user 气泡 + action bar hover  `[x]`  lane: des-1  **commit: `0e59dfa8`**
 **做什么**：移除 assistant 的 glass document 表面 + per-message header（avatar/model/ts）+ `MessageOutline` 右栏；assistant 纯文 `max-w-720`；user 气泡 `rounded-xl`(20px) `bg-surface-2 max-w-80%` 右对齐；action bar `opacity-0 group-hover:opacity-100`。
-**改文件**：`src/components/chat/message/MessageBlock.tsx`、`MessageStream.tsx`、`MessageContextMenu.tsx`、`MessageOutline.tsx`（可能删）、action bar slot 贡献者
+**改文件**：`src/plugins/builtin/chat/message/ui/MessageBlock.tsx`、`MessageStream.tsx`、`MessageContextMenu.tsx`、`MessageOutline.tsx`（可能删）、action bar slot 贡献者
 **验证**：全绿 + 视觉；轮次间居中时间戳分隔（Codex 细节补进）。
 **drift-flag**：`message.actions` slot 保留；`PluginContentBlock` 插件块渲染路径不动。
 
@@ -232,7 +232,7 @@ DESIGN.md 随重构**就地演进**（非冻结基线）。下列决策是相对
 
 #### Step 5a — Reasoning 流式自动跟随 + 渐隐（真 UX bug）  `[x]`  lane: des-1  **commit: `f64b26c0`**
 **做什么**：移植 assistant-ui canonical `reasoning.tsx` 的**技术**（非组件）：`ResizeObserver` 钉底滚 + 顶/底渐隐遮罩，适配我们 token。
-**改文件**：`src/components/chat/message/cards/ReasoningBlock.tsx`
+**改文件**：`src/plugins/builtin/chat/message/ui/cards/ReasoningBlock.tsx`
 **验证**：全绿 + 流式时新 token 自动可见、不沉底。
 **drift-flag**：仅加行为 + 渐隐，不改折叠语义（`userToggled` 逻辑保留）。
 
@@ -243,7 +243,7 @@ DESIGN.md 随重构**就地演进**（非冻结基线）。下列决策是相对
 
 #### Step 5c — HITL 卡精简（Approval/Question）  `[x]`  lane: des-1  **commit: `c65835b5`**
 **做什么**：`HitlCardShell` 简化（去 tone 复杂度）→ `border-line bg-surface`；approval 命令块 `bg-warning/10`；按钮 native 化。
-**改文件**：`src/components/chat/message/cards/ApprovalCard.tsx`、`QuestionCard.tsx`、`HitlCard.tsx`、`ApprovalArgsEditor.tsx`
+**改文件**：`src/plugins/builtin/chat/message/ui/cards/ApprovalCard.tsx`、`QuestionCard.tsx`、`HitlCard.tsx`、`ApprovalArgsEditor.tsx`
 **验证**：全绿 + 视觉；`ApprovalArgsEditor` / 记忆范围 / 键盘快捷（⌘↵/⇧⌘⌫）全保留。
 
 ### Phase 6 — 收尾抛光
