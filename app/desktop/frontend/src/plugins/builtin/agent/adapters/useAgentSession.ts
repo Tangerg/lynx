@@ -1,31 +1,14 @@
-// Agent lifecycle hook — bridges the plugin-registered AgentDriver (rpc-agent)
-// to the Zustand agentStore. Owns the run state machine (idle → running → waiting
-// → running → idle), pipes streaming RunEvents into the protocol fold, and
-// provides the imperative send/stop/resume actions the UI binds to buttons.
-//
-// Kept as a plain hook (not a class / state machine library) because the run
-// lifecycle is essentially one rAF-loop subscription + a few transition guards;
-// a formal FSM would be more ceremony than the problem warrants.
 import type { AgentDriver, AgentRunStartOptions } from "@/plugins/sdk/types";
-import {
-  asItemId,
-  asRunId,
-  type InterruptResponse,
-  type RunEvent,
-  type RunId,
-  type StreamingResult,
-} from "@/rpc";
+import { asItemId, asRunId, type InterruptResponse } from "@/rpc";
 import { useEffect, useRef } from "react";
 import type { AgentInput } from "@/plugins/builtin/agent/domain/input";
 import type { AgentSession } from "../application/ports/defaultSession";
 import type { InterruptResumeInput } from "../application/ports/viewState";
 import { agentInputToContentBlocks } from "@/plugins/builtin/agent/adapters/wireInput";
 import { getContainer } from "@/main/container";
-import { queryClient } from "@/lib/data/queryClient";
-import { USAGE_SESSION_KEY } from "@/lib/data/useUsage";
 import { useAgentStore } from "./agentStore";
+import { createAgentRunPump } from "./agentRunPump";
 import { startAgentSessionRecovery } from "./agentSessionRecovery";
-import { createRunEventBatcher } from "./runEventBatcher";
 import { useAgentSessionStore } from "./agentSessionStore";
 import { createOptimisticUserMessage } from "./optimisticUserMessage";
 import { createRunOpeningController } from "./runOpeningController";
@@ -40,6 +23,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     // would just be a guaranteed-failing RPC on every mount.
     if (!sessionId) return;
     const driver = factoryRef.current();
+    const client = () => getContainer().client();
     const store = () => useAgentStore.getState();
 
     // Reset this session's slice before streaming so we don't carry state
@@ -47,7 +31,6 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     store().resetSession(sessionId);
 
     let abort: AbortController | null = null;
-    let currentRunId: RunId | null = null;
     let cancelled = false;
     // Set once a live send/resume writes to this slice. History hydration
     // (items.list) is async; if the user sends before it resolves, applying
@@ -57,36 +40,16 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
     // in that race — it'll hydrate cleanly on the next open.
     let interacted = false;
 
-    const eventBatcher = createRunEventBatcher({
+    const runPump = createAgentRunPump({
+      sessionId,
+      isCancelled: () => cancelled,
       readEpoch: () => store().sessions[sessionId]?.viewEpoch ?? 0,
-      apply: (batch) => store().applyEvents(sessionId, batch),
-      onRunFinished: () => {
-        void queryClient.invalidateQueries({ queryKey: [USAGE_SESSION_KEY, sessionId] });
-      },
+      applyEvents: (events) => store().applyEvents(sessionId, events),
     });
-
-    const pump = async (
-      stream: StreamingResult<{ runId: RunId }, RunEvent>,
-      signal: AbortSignal,
-    ): Promise<void> => {
-      const runId = stream.result.runId;
-      currentRunId = runId;
-      try {
-        for await (const ev of stream.events) {
-          if (cancelled || signal.aborted) break;
-          eventBatcher.enqueue(ev.event, ev.runId);
-        }
-      } catch (err) {
-        if (!cancelled && !signal.aborted)
-          console.error("[agent] run stream failed:", sessionId, err);
-      } finally {
-        if (currentRunId === runId) currentRunId = null;
-      }
-    };
 
     if (!useAgentSessionStore.getState().draftSessionIds.has(sessionId)) {
       startAgentSessionRecovery({
-        client: getContainer().client(),
+        client: client(),
         sessionId,
         isCancelled: () => cancelled,
         hasInteracted: () => interacted,
@@ -94,7 +57,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
         setAbortController: (ctrl) => {
           abort = ctrl;
         },
-        pump,
+        pump: runPump.pump,
       });
     }
 
@@ -108,7 +71,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       setAbortController: (ctrl) => {
         abort = ctrl;
       },
-      pump,
+      pump: runPump.pump,
       setStartError: (error) => store().setError(sessionId, error),
     });
 
@@ -164,11 +127,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
       // {canceled} never reaches the fold — settle the run locally or the view
       // stays stuck "running" (Stop button latched, next send blocked).
       store().cancelRun(sessionId);
-      if (currentRunId)
-        void getContainer()
-          .client()
-          .runs.cancel(currentRunId)
-          .catch(() => undefined);
+      runPump.cancelCurrentRun((runId) => client().runs.cancel(runId));
     };
 
     store().setSend(sessionId, send);
@@ -184,7 +143,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
 
     return () => {
       cancelled = true;
-      eventBatcher.dispose();
+      runPump.dispose();
       abort?.abort();
       store().setSend(sessionId, null);
       store().setStop(sessionId, null);
