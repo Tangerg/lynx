@@ -1,4 +1,8 @@
-export { useActiveSession, useActiveSessionCwd } from "../application/session/activeSession";
+export {
+  useActiveSession,
+  useActiveSessionCwd,
+  useActiveSessionId,
+} from "../application/session/activeSession";
 export { createSession, useCreateSession } from "../application/session/createSession";
 export type { CreateSessionOptions } from "../application/session/createSession";
 export { useDeleteSession } from "../application/session/deleteSession";

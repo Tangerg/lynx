@@ -9,22 +9,18 @@ import { Icon } from "@/components/common";
 import { BannerAction } from "./BannerAction";
 import { textInput } from "@/plugins/builtin/chat/composer/public/input";
 import { flattenText } from "@/plugins/builtin/agent/public/messageContent";
+import { getActiveConversationSnapshot } from "@/plugins/builtin/agent/public/conversation";
+import { useCanSendToAgent, useChatSend } from "@/plugins/builtin/agent/public/input";
+import { clearActiveRunError, useActiveRunError } from "@/plugins/builtin/agent/public/run";
 import { useT } from "@/lib/i18n";
 import { swift } from "@/lib/motion";
-import {
-  getCurrentSessionView,
-  useAgentAction,
-  useAgentSlice,
-  useAgentStore,
-} from "@/state/agentStore";
 import { openDiagnosticsView, openTimelineView } from "@/state/deeplinks";
-import { useSessionStore } from "@/state/sessionStore";
 
 // Best-effort: find the most recent user-message plaintext so Retry can
 // replay it. Returns "" if no usable text exists — Retry hides in that
 // case (there's nothing to resend).
 function findLastUserText(): string {
-  const { messages } = getCurrentSessionView();
+  const { messages } = getActiveConversationSnapshot();
   const last = messages.findLast((m) => m.role === "user" && flattenText(m.blocks).trim() !== "");
   return last ? flattenText(last.blocks).trim() : "";
 }
@@ -42,10 +38,9 @@ function findLastUserText(): string {
 // of forcing them to scroll up and figure out the recovery themselves.
 export function RunErrorBanner() {
   const t = useT();
-  const error = useAgentSlice((v) => v.error);
-  const sid = useSessionStore((s) => s.activeSessionId);
-  const clearError = useAgentStore((s) => s.clearError);
-  const send = useAgentAction("send");
+  const error = useActiveRunError();
+  const send = useChatSend();
+  const canSend = useCanSendToAgent();
 
   // Provider-requested backoff countdown (rate-limit / overload). Ticks down
   // from error.retryAfterSeconds; re-armed whenever the error changes. While
@@ -69,17 +64,17 @@ export function RunErrorBanner() {
     return () => clearInterval(id);
   }, [retryAfter, errKey]);
 
+  const retryText = error ? findLastUserText() : "";
+
   const onRetry = () => {
-    if (retryIn > 0 || !send) return;
-    const text = findLastUserText();
-    if (!text) return;
-    clearError(sid);
-    send(textInput(text));
+    if (retryIn > 0 || !canSend || !retryText) return;
+    clearActiveRunError();
+    send(textInput(retryText));
   };
 
   // Offer Retry only when there's text to resend AND the error isn't a
   // permanent one (bad credentials / invalid params): resending won't fix those.
-  const canRetry = Boolean(send) && Boolean(findLastUserText()) && error?.retryable !== false;
+  const canRetry = canSend && Boolean(retryText) && error?.retryable !== false;
 
   return (
     <AnimatePresence initial={false}>
@@ -129,7 +124,7 @@ export function RunErrorBanner() {
           </div>
           <button
             type="button"
-            onClick={() => clearError(sid)}
+            onClick={clearActiveRunError}
             title={t("runError.action.dismiss")}
             aria-label={t("runError.action.dismiss")}
             className="grid h-5.5 w-5.5 place-items-center rounded text-fg-faint bg-transparent border-0 transition-[background-color,color,transform] duration-150 hover:bg-fg/[0.05] hover:text-fg active:scale-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"

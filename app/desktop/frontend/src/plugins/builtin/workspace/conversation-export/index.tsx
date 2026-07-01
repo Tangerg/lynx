@@ -26,10 +26,10 @@ import { t } from "@/lib/i18n";
 import { asSessionId } from "@/rpc";
 import { definePlugin } from "@/plugins/sdk";
 import { getContainer } from "@/main/container";
-import { getCurrentSessionView } from "@/state/agentStore";
 import { serverFeature } from "@/state/runtimeStore";
 import { useSessionStore } from "@/state/sessionStore";
 import { invalidateSessions } from "@/lib/data/queries";
+import { getActiveConversationSnapshot } from "@/plugins/builtin/agent/public/conversation";
 import { flattenMarkdown } from "@/plugins/builtin/agent/public/messageContent";
 import { rehydrateSessionView } from "@/plugins/builtin/agent/public/session";
 
@@ -92,7 +92,7 @@ async function exportServer(format: "md" | "json"): Promise<boolean> {
 }
 
 function exportMarkdown(): void {
-  const view = getCurrentSessionView();
+  const view = getActiveConversationSnapshot();
   const sid = useSessionStore.getState().activeSessionId;
   const sections: string[] = [
     `# Conversation \`${sid}\``,
@@ -111,7 +111,7 @@ function exportMarkdown(): void {
 }
 
 function exportJson(): void {
-  const view = getCurrentSessionView();
+  const view = getActiveConversationSnapshot();
   const sid = useSessionStore.getState().activeSessionId;
   // Lossy view dump, NOT a SessionArtifact — "Import conversation" rejects
   // it by design (only the server's round-trippable export restores).

@@ -6,7 +6,7 @@ import { imageFiles } from "@/plugins/builtin/chat/composer/public/input";
 import { isLargePaste } from "@/plugins/builtin/chat/composer/public/largePaste";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { useFileMentions } from "@/plugins/builtin/chat/composer/public/fileMentions";
-import { useAgentRunning } from "@/state/agentStore";
+import { useIsAgentRunning } from "@/plugins/builtin/agent/public/run";
 import { COMPOSER_KEY_BINDING, lookupExtensionByKey, pickComposerPlaceholder } from "@/plugins/sdk";
 import { normalizeCombo } from "@/plugins/sdk/registry";
 import { submitComposer } from "@/plugins/builtin/chat/composer/public/submit";
@@ -60,7 +60,7 @@ export function useComposerInputController({
     // eslint-disable-next-line react/exhaustive-deps
     [],
   );
-  const running = useAgentRunning();
+  const running = useIsAgentRunning();
   const placeholder = running ? t("composer.placeholder.steer") : basePlaceholder;
   const submit = useCallback(
     () => submitComposer({ value, clear: onClear, sendInput: onSend, images }),

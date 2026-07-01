@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef } from "react";
 import { EmptyState } from "@/components/common";
 import { useT } from "@/lib/i18n";
+import { useActiveRunToolCalls } from "@/plugins/builtin/agent/public/run";
 import { toolCategory } from "@/protocol/run/viewState";
-import { useAgentSlice } from "@/state/agentStore";
 import { CommandLog } from "./views/CommandLog";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
@@ -15,7 +15,7 @@ import { defineWorkspaceView } from "./defineWorkspaceView";
 // a read-only log of what the agent ran, not an input terminal.)
 function TerminalTab() {
   const t = useT();
-  const toolCalls = useAgentSlice((v) => v.toolCalls);
+  const toolCalls = useActiveRunToolCalls();
   const commands = useMemo(
     () => Object.values(toolCalls).filter((t) => toolCategory(t.name) === "command"),
     [toolCalls],

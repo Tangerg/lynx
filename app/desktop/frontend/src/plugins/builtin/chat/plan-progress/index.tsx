@@ -29,8 +29,8 @@ import { Icon, Tooltip } from "@/components/common";
 import { swift } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
+import { useActiveRunId, useActiveRunPlan } from "@/plugins/builtin/agent/public/run";
 import { definePlugin } from "@/plugins/sdk";
-import { useAgentPlan, useAgentRunId } from "@/state/agentStore";
 
 function pickCurrent(plan: PlanItem[]): PlanItem | null {
   // Prefer the in-flight task; fall back to the next not-yet-done so
@@ -40,8 +40,8 @@ function pickCurrent(plan: PlanItem[]): PlanItem | null {
 
 function PlanProgressBanner() {
   const t = useT();
-  const plan = useAgentPlan();
-  const runId = useAgentRunId();
+  const plan = useActiveRunPlan();
+  const runId = useActiveRunId();
   const [dismissedRunId, setDismissedRunId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
 

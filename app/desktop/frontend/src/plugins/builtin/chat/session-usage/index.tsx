@@ -7,12 +7,12 @@
 import { fmtCost, fmtTokens } from "@/lib/format";
 import { useSessionUsage } from "@/lib/data/useUsage";
 import { useT } from "@/lib/i18n";
+import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
 import { definePlugin } from "@/plugins/sdk";
-import { useSessionStore } from "@/state/sessionStore";
 
 function SessionUsageChip() {
   const t = useT();
-  const sessionId = useSessionStore((s) => s.activeSessionId);
+  const sessionId = useActiveSessionId();
   const { data } = useSessionUsage(sessionId || undefined);
   if (!data) return null;
   const input = data.inputTokens ?? 0;

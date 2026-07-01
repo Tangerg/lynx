@@ -1,20 +1,21 @@
 import { Icon, Tooltip } from "@/components/common";
 import { useChatSend } from "@/plugins/builtin/agent/public/input";
+import { useIsAgentRunning, useStopActiveAgentRun } from "@/plugins/builtin/agent/public/run";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
-import { useAgentAction, useAgentRunning } from "@/state/agentStore";
-import { useComposerStore } from "./adapters/composerStore";
+import { useComposerImages } from "./public/attachments";
+import { useClearComposerDraft, useComposerText } from "./public/draft";
 import { submitComposer } from "./application/submitComposer";
 
 function SendButton() {
   const t = useT();
-  const value = useComposerStore((s) => s.value);
-  const images = useComposerStore((s) => s.images);
-  const clear = useComposerStore((s) => s.clear);
+  const value = useComposerText();
+  const images = useComposerImages();
+  const clear = useClearComposerDraft();
   const send = useChatSend();
-  const stop = useAgentAction("stop");
-  const running = useAgentRunning();
+  const stop = useStopActiveAgentRun();
+  const running = useIsAgentRunning();
 
   if (running) {
     if (value.trim()) {

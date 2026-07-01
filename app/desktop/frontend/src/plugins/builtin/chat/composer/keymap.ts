@@ -1,10 +1,9 @@
 import { t } from "@/lib/i18n";
 import { submitPendingApproval } from "@/plugins/builtin/agent/public/hitl";
+import { stopActiveAgentRun } from "@/plugins/builtin/agent/public/run";
 import { definePlugin } from "@/plugins/sdk";
 import { COMPOSER_KEY_BINDING } from "@/plugins/sdk/kernelPoints";
-import { useAgentStore } from "@/state/agentStore";
-import { useComposerStore } from "./adapters/composerStore";
-import { useSessionStore } from "@/state/sessionStore";
+import { recallNextComposerHistory, recallPreviousComposerHistory } from "./public/history";
 
 // After a history recall swaps the textarea value, park the caret at the end on
 // the next frame so repeated arrows keep walking through shell-style history.
@@ -49,13 +48,7 @@ export const composerKeymap = definePlugin({
     host.extensions.contribute(COMPOSER_KEY_BINDING, {
       key: "Escape",
       description: t("composer.key.stopDesc"),
-      handler: () => {
-        const sid = useSessionStore.getState().activeSessionId;
-        const entry = useAgentStore.getState().sessions[sid];
-        if (!entry?.view.run.running) return false;
-        entry.stop?.();
-        return true;
-      },
+      handler: () => stopActiveAgentRun(),
     });
     host.extensions.contribute(COMPOSER_KEY_BINDING, {
       key: "ArrowUp",
@@ -64,7 +57,7 @@ export const composerKeymap = definePlugin({
         const ta = targetTextarea(event);
         if (!ta || ta.selectionStart !== ta.selectionEnd) return false;
         if (ta.value.slice(0, ta.selectionStart).includes("\n")) return false;
-        if (!useComposerStore.getState().historyPrev()) return false;
+        if (!recallPreviousComposerHistory()) return false;
         caretToEnd(ta);
         return true;
       },
@@ -76,7 +69,7 @@ export const composerKeymap = definePlugin({
         const ta = targetTextarea(event);
         if (!ta || ta.selectionStart !== ta.selectionEnd) return false;
         if (ta.value.slice(ta.selectionEnd).includes("\n")) return false;
-        if (!useComposerStore.getState().historyNext()) return false;
+        if (!recallNextComposerHistory()) return false;
         caretToEnd(ta);
         return true;
       },

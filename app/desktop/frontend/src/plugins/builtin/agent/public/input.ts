@@ -1,1 +1,1 @@
-export { useChatSend } from "../application/input/chatSend";
+export { useCanSendToAgent, useChatSend } from "../application/input/chatSend";
