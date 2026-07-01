@@ -5,7 +5,7 @@
 // the same surface; first paint before this plugin loads falls back to the same
 // table directly (see toolIconFor).
 
-import { DEFAULT_TOOL_ICONS } from "@/components/tools/toolIcon";
+import { DEFAULT_TOOL_ICONS } from "@/plugins/builtin/chat/tools/public/toolIcon";
 import { copyText } from "@/lib/clipboard";
 import { t } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";

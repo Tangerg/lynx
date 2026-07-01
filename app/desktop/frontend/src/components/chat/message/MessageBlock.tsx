@@ -8,7 +8,7 @@ import type { Citation } from "./CitationContext";
 import type { BlockCtx } from "./BlockRenderer";
 import type { Message } from "@/plugins/builtin/agent/public/viewState";
 import { memo, useMemo } from "react";
-import { ToolGroup } from "@/components/tools/ToolGroup";
+import { ToolGroup } from "@/plugins/builtin/chat/tools/public/rendering";
 import { useCitationSources } from "@/plugins/sdk";
 import { Slot } from "@/plugins/host/Slot";
 import { MessageContext } from "@/plugins/sdk/messageContext";

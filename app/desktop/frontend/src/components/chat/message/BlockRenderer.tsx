@@ -11,7 +11,7 @@ import {
   QuestionCard,
   ReasoningBlock,
 } from "./cards";
-import { ToolCard } from "@/components/tools/ToolCard";
+import { ToolCard } from "@/plugins/builtin/chat/tools/public/rendering";
 import { PluginContentBlock } from "@/plugins/host/PluginContentBlock";
 
 /**

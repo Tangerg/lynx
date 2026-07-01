@@ -1,7 +1,7 @@
 import type { ToolPreviewProps } from "@/plugins/sdk";
-import { PreviewFoot } from "@/components/tools/previews/PreviewFoot";
-import { PreviewPlaceholder } from "@/components/tools/previews/PreviewPlaceholder";
-import { SearchResults } from "@/components/tools/previews/SearchResults";
+import { PreviewFoot } from "@/plugins/builtin/chat/tools/public/previews/PreviewFoot";
+import { PreviewPlaceholder } from "@/plugins/builtin/chat/tools/public/previews/PreviewPlaceholder";
+import { SearchResults } from "@/plugins/builtin/chat/tools/public/previews/SearchResults";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
