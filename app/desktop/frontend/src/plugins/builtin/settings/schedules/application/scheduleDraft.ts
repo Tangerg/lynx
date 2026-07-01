@@ -1,4 +1,4 @@
-import type { Schedule, ScheduleInput } from "@/rpc";
+import type { ScheduleConfig, ScheduleConfigInput } from "./scheduleConfig";
 
 export const CRON_PRESETS: Array<{ key: string; cron: string }> = [
   { key: "schedules.preset.hourly", cron: "0 * * * *" },
@@ -14,7 +14,10 @@ export interface ScheduleDraft {
   cwd: string;
 }
 
-export function initialScheduleDraft(schedule?: Schedule, defaultCwd?: string): ScheduleDraft {
+export function initialScheduleDraft(
+  schedule?: ScheduleConfig,
+  defaultCwd?: string,
+): ScheduleDraft {
   return {
     title: schedule?.title ?? "",
     prompt: schedule?.prompt ?? "",
@@ -27,7 +30,7 @@ export function canSaveScheduleDraft(draft: ScheduleDraft, busy: boolean): boole
   return draft.prompt.trim() !== "" && draft.cron.trim() !== "" && !busy;
 }
 
-export function scheduleInputFromDraft(draft: ScheduleDraft): ScheduleInput {
+export function scheduleInputFromDraft(draft: ScheduleDraft): ScheduleConfigInput {
   return {
     title: draft.title.trim(),
     prompt: draft.prompt.trim(),
