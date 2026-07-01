@@ -1,12 +1,16 @@
-import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import { memo } from "react";
 import { useT } from "@/lib/i18n";
+import type { WorkspaceCommandActivity } from "@/plugins/builtin/workspace/application/toolActivity";
 
 // Consolidated command log (G5): the agent's command executions for the active
 // session. Output streams in via item.delta{toolOutput} → item.completed and is
 // landed in the run fold's toolCalls — a running command tails live, a finished
 // one keeps its full output + exit code.
-export const CommandLog = memo(function CommandLog({ commands }: { commands: ToolCall[] }) {
+export const CommandLog = memo(function CommandLog({
+  commands,
+}: {
+  commands: WorkspaceCommandActivity[];
+}) {
   const t = useT();
   return (
     <div className="flex flex-col gap-3 px-3 py-3 font-mono text-[12px] leading-relaxed">
@@ -14,13 +18,13 @@ export const CommandLog = memo(function CommandLog({ commands }: { commands: Too
         <div key={c.id}>
           <div className="flex items-baseline gap-2">
             <span className="shrink-0 text-fg-faint">$</span>
-            <span className="min-w-0 truncate text-fg" title={c.fn}>
-              {c.fn}
+            <span className="min-w-0 truncate text-fg" title={c.command}>
+              {c.command}
             </span>
             {c.status === "running" && (
               <span className="shrink-0 text-accent">{t("commandLog.running")}</span>
             )}
-            {c.status === "err" && (
+            {c.status === "failed" && (
               <span className="shrink-0 text-negative">{t("commandLog.failed")}</span>
             )}
             {c.exitCode !== undefined && c.exitCode !== 0 && (
@@ -29,9 +33,9 @@ export const CommandLog = memo(function CommandLog({ commands }: { commands: Too
               </span>
             )}
           </div>
-          {c.result ? (
+          {c.output ? (
             <pre className="mt-1 whitespace-pre-wrap break-words text-fg-muted">
-              {c.result}
+              {c.output}
               {c.outputTruncated ? `\n${t("commandLog.truncated")}` : ""}
             </pre>
           ) : null}
