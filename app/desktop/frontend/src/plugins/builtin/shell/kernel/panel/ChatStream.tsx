@@ -34,7 +34,11 @@ import {
   useToggleWorkspaceTool,
 } from "@/plugins/builtin/workspace/public/navigation";
 import { useUiStore } from "@/state/uiStore";
-import { Composer, ComposerFooter, SlashSuggestions } from "@/plugins/builtin/chat/composer/ui";
+import {
+  Composer,
+  ComposerFooter,
+  SlashSuggestions,
+} from "@/plugins/builtin/chat/composer/public/ui";
 import { ChatErrorBoundary } from "./ChatErrorBoundary";
 import { CwdMissingBanner } from "./CwdMissingBanner";
 import { JumpToBottomButton } from "./JumpToBottomButton";
