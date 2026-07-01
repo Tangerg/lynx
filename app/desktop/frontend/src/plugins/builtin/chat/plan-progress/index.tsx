@@ -161,7 +161,7 @@ function PlanProgressBanner() {
             )}
           >
             <div className="overflow-hidden">
-              <ul className="flex flex-col gap-1 border-t border-line-soft/40 px-3 py-2">
+              <ul className="flex flex-col gap-1 px-3 py-2">
                 {plan.map((p) => (
                   <li key={p.id} className="flex items-center gap-2.5 py-0.5">
                     <PlanCheck status={p.status} />

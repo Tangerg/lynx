@@ -130,10 +130,7 @@ function TimelineTab() {
         />
       ) : (
         groups.map((g, gi) => (
-          <div
-            key={`${g.runId ?? "pre"}:${gi}`}
-            className={cn(gi > 0 && "mt-2 border-t border-line-soft pt-2")}
-          >
+          <div key={`${g.runId ?? "pre"}:${gi}`} className={cn(gi > 0 && "mt-3 pt-1")}>
             {g.runId && (
               <div className="px-3.5 pb-1 font-mono text-[10px] text-fg-faint">run {g.runId}</div>
             )}
