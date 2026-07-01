@@ -12,11 +12,4 @@
 export { MessageBlock } from "./MessageBlock";
 export { renderBlock, type BlockCtx } from "./BlockRenderer";
 export { ShikiCodeBlock } from "./markdown";
-export {
-  ApprovalCard,
-  QuestionCard,
-  ReasoningBlock,
-  PlanBlock,
-  PlanCheck,
-  planItemRow,
-} from "./cards";
+export { ApprovalCard, QuestionCard, ReasoningBlock, PlanBlock } from "./cards";

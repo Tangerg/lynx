@@ -2,11 +2,6 @@ import type { PlanItem } from "@/plugins/builtin/agent/public/viewState";
 import { Icon } from "@/components/common";
 import { cn } from "@/lib/utils";
 
-// Plan-item check icon — shared between the inline PlanBlock and the
-// promoted PlanList workspace view. Encodes the three states:
-//   done  → accent check glyph
-//   doing → accent spinner (pulse dot)
-//   todo  → open circle outline
 export function PlanCheck({ status }: { status: PlanItem["status"] }) {
   return (
     <div className="grid h-4 w-4 shrink-0 place-items-center">
@@ -23,8 +18,6 @@ export function PlanCheck({ status }: { status: PlanItem["status"] }) {
   );
 }
 
-// Class names for the surrounding plan-item text row, parameterised by
-// status. Used by both PlanBlock and PlanList.
 export const planItemRow = (status: PlanItem["status"]) =>
   cn(
     "flex items-center gap-2 text-[13px] py-0.5",

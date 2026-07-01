@@ -1,4 +1,4 @@
-import { PlanCheck, planItemRow } from "@/components/chat/message";
+import { PlanCheck, planItemRow } from "@/plugins/builtin/agent/public/planPresentation";
 import { useT } from "@/lib/i18n";
 import type { WorkspaceTodo } from "@/plugins/builtin/workspace/application/todoViewModel";
 
