@@ -2,7 +2,6 @@ package llm
 
 import (
 	"fmt"
-	"slices"
 
 	openaiopt "github.com/openai/openai-go/v3/option"
 
@@ -71,17 +70,6 @@ func EmbeddingCapable(p Provider) bool {
 // id is always user-supplied (Azure deployment names).
 func DefaultEmbeddingModel(p Provider) string {
 	return embeddingProviderInfo[p].defaultModel
-}
-
-// EmbeddingProviders lists the providers with an embeddings adapter, sorted —
-// the set a client offers when picking an embedding role.
-func EmbeddingProviders() []Provider {
-	out := make([]Provider, 0, len(embeddingProviderInfo))
-	for p := range embeddingProviderInfo {
-		out = append(out, p)
-	}
-	slices.Sort(out)
-	return out
 }
 
 // BuildEmbeddingModel wires an embedding.Model for one provider+model from
