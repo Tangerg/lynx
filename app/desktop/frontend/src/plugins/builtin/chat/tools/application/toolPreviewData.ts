@@ -2,6 +2,7 @@ import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import { useDiff, useFileHead, useGrep } from "@/lib/data/queries";
 import { useRuntimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { parseJsonResult } from "./toolResultParsing";
 
 export function useDiffToolPreview(tool: ToolCall, maxRows: number) {
   const gitEnabled = useRuntimeCapability("git");
@@ -29,18 +30,6 @@ export function useFileToolPreview(tool: ToolCall, maxLines: number) {
 interface GrepPreviewRow {
   loc: string;
   text: string;
-}
-
-function parseJsonResult(result: string | undefined): Record<string, unknown> | undefined {
-  if (!result) return undefined;
-  try {
-    const value: unknown = JSON.parse(result);
-    return typeof value === "object" && value !== null && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 function inlineGrepRows(
