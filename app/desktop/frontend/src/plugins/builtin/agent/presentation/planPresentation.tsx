@@ -5,7 +5,9 @@ import { cn } from "@/lib/utils";
 export function PlanCheck({ status }: { status: PlanItem["status"] }) {
   return (
     <div className="grid h-4 w-4 shrink-0 place-items-center">
-      {status === "done" && <Icon name="check" size={14} className="text-accent" strokeWidth={3} />}
+      {status === "done" && (
+        <Icon name="check" size={14} className="text-success" strokeWidth={3} />
+      )}
       {status === "doing" && (
         <div className="relative h-3 w-3 rounded-full border-[1.5px] border-accent">
           <div className="absolute inset-0.5 rounded-full bg-accent animate-pulse-dot" />
