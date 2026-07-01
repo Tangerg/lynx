@@ -34,8 +34,8 @@ const DRAIN_RATE_PER_CHAR = 8;
 
 const SENTENCE_END_RE = /[。！？…!?.]$/;
 
-// Exported so tests can pin the rate selection. Not part of the public
-// API otherwise — keep imports through `useStreamReveal` from app code.
+// Exported so tests can pin the rate selection. Not part of the markdown
+// package surface otherwise.
 export function pickRate(backlog: number, streaming: boolean): number {
   if (!streaming) {
     // Drain mode — proportional to remaining backlog, clamped.
