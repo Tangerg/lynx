@@ -5,6 +5,11 @@ import {
   useConfigureProvider,
   useTestProvider,
 } from "./application/providerConfig";
+import {
+  initialProviderCredentialsDraft,
+  providerCredentialsDirty,
+  providerCredentialsInput,
+} from "./application/providerDraft";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -14,8 +19,7 @@ export function ProviderRow({ p }: { p: ProviderConfig }) {
   const t = useT();
   const configure = useConfigureProvider();
   const test = useTestProvider();
-  const [apiKey, setApiKey] = useState("");
-  const [baseUrl, setBaseUrl] = useState(p.baseUrl);
+  const [draft, setDraft] = useState(() => initialProviderCredentialsDraft(p));
   const [saving, setSaving] = useState(false);
   const [probe, setProbe] = useState<Probe>({ state: "idle" });
   // Save bumps this so stale test results cannot overwrite the new key state.
@@ -24,15 +28,15 @@ export function ProviderRow({ p }: { p: ProviderConfig }) {
   const enabled = p.apiKeyMasked !== "";
   // Env keys are read-only at the source, but a typed key still overrides them.
   const fromEnv = p.keySource === "env";
-  const dirty = apiKey.trim() !== "" || baseUrl !== p.baseUrl;
+  const dirty = providerCredentialsDirty(p, draft);
 
   const onSave = async () => {
     setSaving(true);
     probeSeq.current++;
     setProbe({ state: "idle" });
     try {
-      await configure({ provider: p.id, apiKey: apiKey.trim() || undefined, baseUrl });
-      setApiKey("");
+      await configure(providerCredentialsInput(p, draft));
+      setDraft((value) => ({ ...value, apiKey: "" }));
     } catch (err) {
       setProbe({
         state: "error",
@@ -91,8 +95,8 @@ export function ProviderRow({ p }: { p: ProviderConfig }) {
         <input
           type="password"
           aria-label={t("providers.apiKey.aria", { provider: p.id })}
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
+          value={draft.apiKey}
+          onChange={(e) => setDraft((value) => ({ ...value, apiKey: e.target.value }))}
           placeholder={
             fromEnv
               ? t("providers.apiKey.envPlaceholder")
@@ -108,8 +112,8 @@ export function ProviderRow({ p }: { p: ProviderConfig }) {
         <input
           type="text"
           aria-label={t("providers.baseUrl.aria", { provider: p.id })}
-          value={baseUrl}
-          onChange={(e) => setBaseUrl(e.target.value)}
+          value={draft.baseUrl}
+          onChange={(e) => setDraft((value) => ({ ...value, baseUrl: e.target.value }))}
           placeholder={t("providers.baseUrl.placeholder")}
           className={cn(
             "h-8 rounded-md border border-line-soft bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint",
