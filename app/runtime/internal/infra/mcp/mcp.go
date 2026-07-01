@@ -288,39 +288,7 @@ func (c *Connections) Reconnect(ctx context.Context, name string) error {
 		_ = old.Close()
 	}
 
-	session, err := lynxmcp.Dial(ctx, c.client, cfg)
-	if err == nil {
-		// Prove the session is usable before publishing it as connected.
-		if _, terr := sourceTools(ctx, lynxmcp.Source{Name: name, Session: session}); terr != nil {
-			_ = session.Close()
-			err = terr
-			session = nil
-		}
-	}
-
-	c.mu.Lock()
-	if c.closed {
-		// Close ran while we were dialing outside the lock: it niled c.servers
-		// (so this ms is detached) and closed every session. Storing the fresh
-		// session here would strand it past Close's sweep — a connection leak.
-		// Drop it instead. Mirrors lsp.Manager.clientFor's closed re-check.
-		c.mu.Unlock()
-		if session != nil {
-			_ = session.Close()
-		}
-		return err
-	}
-	if err != nil {
-		ms.session, ms.status, ms.lastErr = nil, dialStatus(err), err
-	} else {
-		ms.session, ms.status, ms.lastErr = session, statusConnected, nil
-	}
-	c.mu.Unlock()
-
-	// Rebuild the live tool set from whatever is connected now and hand it to
-	// the sink. Outside the lock — it runs tools/list RPCs.
-	c.refreshTools(ctx)
-	return err
+	return c.dialAndSwap(ctx, ms, cfg, false)
 }
 
 // Configure adds a new server or re-dials an existing one with the given
@@ -355,31 +323,7 @@ func (c *Connections) Configure(ctx context.Context, cfg ServerConfig) error {
 		_ = old.Close()
 	}
 
-	session, err := lynxmcp.Dial(ctx, c.client, cfg)
-	if err == nil {
-		if _, terr := sourceTools(ctx, lynxmcp.Source{Name: cfg.Name, Session: session}); terr != nil {
-			_ = session.Close()
-			err, session = terr, nil
-		}
-	}
-
-	c.mu.Lock()
-	if c.closed {
-		c.mu.Unlock()
-		if session != nil {
-			_ = session.Close()
-		}
-		return err
-	}
-	if err != nil {
-		ms.session, ms.status, ms.lastErr = nil, dialStatus(err), err
-	} else {
-		ms.session, ms.status, ms.lastErr = session, statusConnected, nil
-	}
-	c.mu.Unlock()
-
-	c.refreshTools(ctx)
-	return err
+	return c.dialAndSwap(ctx, ms, cfg, false)
 }
 
 // Authorize runs the interactive OAuth sign-in for an HTTP server: it opens the
@@ -434,9 +378,21 @@ func (c *Connections) Authorize(ctx context.Context, name string) error {
 	}
 	cfg.OAuthHandler = handler
 
+	return c.dialAndSwap(ctx, ms, cfg, true)
+}
+
+// dialAndSwap dials cfg, proves the session with a tools/list, then publishes it
+// on ms under the lock — the shared tail of [Connections.Reconnect] /
+// [Connections.Configure] / [Connections.Authorize]. Call with reconnectMu held
+// and c.mu NOT held (Dial blocks on I/O outside the lock). keepHandler stores
+// cfg.OAuthHandler on ms after a successful connect (Authorize keeps the
+// just-authorized handler for this session's later reconnects; the plain dials
+// reuse an existing one and pass false).
+func (c *Connections) dialAndSwap(ctx context.Context, ms *server, cfg ServerConfig, keepHandler bool) error {
 	session, err := lynxmcp.Dial(ctx, c.client, cfg)
 	if err == nil {
-		if _, terr := sourceTools(ctx, lynxmcp.Source{Name: name, Session: session}); terr != nil {
+		// Prove the session is usable before publishing it as connected.
+		if _, terr := sourceTools(ctx, lynxmcp.Source{Name: cfg.Name, Session: session}); terr != nil {
 			_ = session.Close()
 			err, session = terr, nil
 		}
@@ -444,6 +400,10 @@ func (c *Connections) Authorize(ctx context.Context, name string) error {
 
 	c.mu.Lock()
 	if c.closed {
+		// Close ran while we were dialing outside the lock: it niled c.servers
+		// (so this ms is detached) and closed every session. Storing the fresh
+		// session here would strand it past Close's sweep — a connection leak.
+		// Drop it instead. Mirrors lsp.Manager.clientFor's closed re-check.
 		c.mu.Unlock()
 		if session != nil {
 			_ = session.Close()
@@ -454,10 +414,14 @@ func (c *Connections) Authorize(ctx context.Context, name string) error {
 		ms.session, ms.status, ms.lastErr = nil, dialStatus(err), err
 	} else {
 		ms.session, ms.status, ms.lastErr = session, statusConnected, nil
-		ms.oauth = handler // keep the authorized handler for this session's reconnects
+		if keepHandler {
+			ms.oauth = cfg.OAuthHandler // keep the authorized handler for this session's reconnects
+		}
 	}
 	c.mu.Unlock()
 
+	// Rebuild the live tool set from whatever is connected now and hand it to the
+	// sink. Outside the lock — it runs tools/list RPCs.
 	c.refreshTools(ctx)
 	return err
 }
