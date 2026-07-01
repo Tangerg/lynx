@@ -9,7 +9,7 @@
 // content block reuses the same shape for the [n] citation source + a future
 // cards-in-prose surface (no emitter yet — see README).
 
-import type { SearchResult } from "@/components/tools/previews/SearchResults";
+import type { SearchResult } from "@/plugins/builtin/chat/tools/public/previews/SearchResults";
 
 declare module "@/plugins/sdk/types/contentBlock" {
   interface CustomContentBlockMap {

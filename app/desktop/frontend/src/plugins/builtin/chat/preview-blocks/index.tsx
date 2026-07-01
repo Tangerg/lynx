@@ -9,7 +9,7 @@
 
 import type { CitationSource, ContentBlockRendererProps } from "@/plugins/sdk";
 import { ShikiCodeBlock } from "@/components/common";
-import { SearchResults } from "@/components/tools/previews/SearchResults";
+import { SearchResults } from "@/plugins/builtin/chat/tools/public/previews/SearchResults";
 import { definePlugin, MESSAGE_CITATION_SOURCE } from "@/plugins/sdk";
 import { Checkpoint } from "./Checkpoint";
 import "./viewBlocks"; // side-effect: CustomContentBlockMap augmentation for the kinds below

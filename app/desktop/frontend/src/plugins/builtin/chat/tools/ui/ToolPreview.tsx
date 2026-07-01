@@ -11,7 +11,7 @@ import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
 import { TOOL_PREVIEW, useExtensionByKey } from "@/plugins/sdk";
 import { ToolInspector } from "./ToolInspector";
-import { toolRoutingKey } from "./toolIcon";
+import { toolRoutingKey } from "../public/toolIcon";
 
 interface Props {
   tool: ToolCall;

@@ -25,7 +25,7 @@ import {
   TOOL_VIEW_OPENER,
   useExtensionPoint,
 } from "@/plugins/sdk";
-import { toolIconFor, toolRoutingKey } from "./toolIcon";
+import { toolIconFor, toolRoutingKey } from "../public/toolIcon";
 import { ToolPreview } from "./ToolPreview";
 
 interface Props {
