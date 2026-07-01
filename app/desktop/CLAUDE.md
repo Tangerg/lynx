@@ -33,6 +33,7 @@
 ## 1 · 架构心智模型
 
 - **一句话定位**：**Kernel 不长肉，所有功能都是插件。** 路由 / 布局 / 内容渲染 / 命令 / 快捷键 / 主题 / 运行时事件处理 / 设置面板，全部由内置插件贡献；Kernel 自己只是一组命名 Slot + 几个共享 store。
+- **业务架构演进方向**：保持插件式架构，同时把业务插件演进成限界上下文容器。具体原则、跨上下文协作方式与迁移路线见 `docs/FRONTEND_PLUGIN_CONTEXTS.md`。
 - **三大支柱**：
   1. **插件系统**：一个开放扩展点底座 —— 每个贡献面是一个 typed ExtensionPoint，所有贡献（内置与第三方）走同一条 `contribute` 写路径、selector 读路径。Host 上只留少量薄 facade + 命令式动作。
   2. **协议 fold 层**：reducer 是**纯派发器**，把 wire 的 StreamEvent 路由到注册的 handler chain；所有协议语义（Item→message/block 投影、HITL）都在 agent 插件里（handlers 派发 / projections 纯映射 / fold 有状态折叠）。wire 层独立于 fold 层。
