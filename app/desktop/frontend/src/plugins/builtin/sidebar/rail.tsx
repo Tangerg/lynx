@@ -4,7 +4,7 @@
 // the expanded sidebar and only with each other.
 
 import { Icon, IconButton } from "@/components/common";
-import { useCreateSession } from "@/lib/agent/useCreateSession";
+import { useCreateSession } from "@/plugins/builtin/agent/public/session";
 import { useT } from "@/lib/i18n";
 import { useSessions } from "@/lib/data/queries";
 import { cn } from "@/lib/utils";

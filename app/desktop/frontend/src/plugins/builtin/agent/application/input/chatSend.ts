@@ -5,7 +5,7 @@ import { asRunId, isErrorType } from "@/rpc";
 import { useAgentAction, useAgentRunId, useAgentRunning, useAgentStore } from "@/state/agentStore";
 import { LOCAL_STEER_PREFIX } from "@/protocol/run/viewState";
 import { useSessionStore } from "@/state/sessionStore";
-import { useCreateSession } from "./useCreateSession";
+import { useCreateSession } from "../session/createSession";
 
 /**
  * The single send entry point for the composer — both the textarea Enter

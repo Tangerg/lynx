@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { DropdownMenu, Icon } from "@/components/common";
 import { APPROVAL_MODES, setApprovalMode } from "@/plugins/builtin/agent/public/approvalPolicy";
 import { rpcErrorText } from "@/lib/rpcErrors";
-import { useActiveSessionCwd } from "@/lib/agent/useActiveSession";
+import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { useSelectedModel } from "./public/selectedModel";
 import { useApprovalMode, useProjects } from "@/lib/data/queries";
 import { fmtTokens } from "@/lib/format";

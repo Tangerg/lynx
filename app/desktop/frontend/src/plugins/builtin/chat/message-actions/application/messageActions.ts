@@ -12,8 +12,7 @@ import { useSessionStore } from "@/state/sessionStore";
 import { flattenText } from "@/plugins/builtin/agent/public/messageContent";
 import { buildInput } from "@/plugins/builtin/chat/composer/public/input";
 import { describeRpcError } from "@/lib/rpcErrors";
-import { forkSessionAt } from "@/lib/agent/useForkSession";
-import { rehydrateSessionView } from "@/lib/agent/rehydrateSession";
+import { forkSessionAt, rehydrateSessionView } from "@/plugins/builtin/agent/public/session";
 
 // Inlined images from a view message's blocks → composer-image shape (mime +
 // base64), so resend / regenerate / edit-and-rerun keep the images intact.

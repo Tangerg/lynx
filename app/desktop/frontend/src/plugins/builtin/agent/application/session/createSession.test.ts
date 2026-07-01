@@ -10,7 +10,7 @@ import { resetContainer, setContainer } from "@/main/container";
 import type { LyraClient, Methods } from "@/rpc";
 import { asSessionId } from "@/rpc";
 import { useSessionStore } from "@/state/sessionStore";
-import { useCreateSession } from "./useCreateSession";
+import { useCreateSession } from "./createSession";
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

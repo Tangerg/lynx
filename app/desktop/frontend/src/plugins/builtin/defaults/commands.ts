@@ -10,7 +10,7 @@
 // subscription catches up either way.
 
 import type { Disposable, ThemeAccentSpec, WorkspaceViewSpec } from "@/plugins/sdk";
-import { createSession } from "@/lib/agent/useCreateSession";
+import { createSession } from "@/plugins/builtin/agent/public/session";
 import { definePlugin, lookupExtensionPoint, usePluginStore } from "@/plugins/sdk";
 import { ACCENT, WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { useSessionStore } from "@/state/sessionStore";

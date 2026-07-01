@@ -1,5 +1,5 @@
 import { Icon, Tooltip } from "@/components/common";
-import { useChatSend } from "@/lib/agent/useChatSend";
+import { useChatSend } from "@/plugins/builtin/agent/public/input";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
