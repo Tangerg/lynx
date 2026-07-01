@@ -1,19 +1,18 @@
-import type { CustomTheme, Theme } from "@/state/uiStore";
 import { resolveScheme } from "@/plugins/sdk";
-import { useUiStore } from "@/state/uiStore";
+import { appearancePreferences, type CustomTheme, type Theme } from "./ports/preferences";
 
 export function useThemePreference() {
   return {
-    theme: useUiStore((state) => state.theme),
-    setTheme: useUiStore((state) => state.setTheme),
+    theme: appearancePreferences().useTheme(),
+    setTheme: appearancePreferences().useSetTheme(),
   };
 }
 
 export function useAccentPreference() {
-  const theme = useUiStore((state) => state.theme);
+  const theme = appearancePreferences().useTheme();
   return {
-    accent: useUiStore((state) => state.accent),
-    setAccent: useUiStore((state) => state.setAccent),
+    accent: appearancePreferences().useAccent(),
+    setAccent: appearancePreferences().useSetAccent(),
     scheme: resolveScheme(theme),
   };
 }
@@ -24,37 +23,37 @@ export function useCustomThemePreference(): {
   setCustomTheme: (patch: Partial<CustomTheme>) => void;
 } {
   return {
-    theme: useUiStore((state) => state.theme),
-    customTheme: useUiStore((state) => state.customTheme),
-    setCustomTheme: useUiStore((state) => state.setCustomTheme),
+    theme: appearancePreferences().useTheme(),
+    customTheme: appearancePreferences().useCustomTheme(),
+    setCustomTheme: appearancePreferences().useSetCustomTheme(),
   };
 }
 
 export function useContrastPreference() {
   return {
-    contrast: useUiStore((state) => state.contrast),
-    setContrast: useUiStore((state) => state.setContrast),
+    contrast: appearancePreferences().useContrast(),
+    setContrast: appearancePreferences().useSetContrast(),
   };
 }
 
 export function useFontPreferences() {
   return {
-    uiFont: useUiStore((state) => state.uiFont),
-    codeFont: useUiStore((state) => state.codeFont),
-    fontSize: useUiStore((state) => state.fontSize),
-    fontSmoothing: useUiStore((state) => state.fontSmoothing),
-    setUiFont: useUiStore((state) => state.setUiFont),
-    setCodeFont: useUiStore((state) => state.setCodeFont),
-    setFontSize: useUiStore((state) => state.setFontSize),
-    setFontSmoothing: useUiStore((state) => state.setFontSmoothing),
+    uiFont: appearancePreferences().useUiFont(),
+    codeFont: appearancePreferences().useCodeFont(),
+    fontSize: appearancePreferences().useFontSize(),
+    fontSmoothing: appearancePreferences().useFontSmoothing(),
+    setUiFont: appearancePreferences().useSetUiFont(),
+    setCodeFont: appearancePreferences().useSetCodeFont(),
+    setFontSize: appearancePreferences().useSetFontSize(),
+    setFontSmoothing: appearancePreferences().useSetFontSmoothing(),
   };
 }
 
 export function useShapeMotionPreferences() {
   return {
-    radiusScale: useUiStore((state) => state.radiusScale),
-    motionScale: useUiStore((state) => state.motionScale),
-    setRadiusScale: useUiStore((state) => state.setRadiusScale),
-    setMotionScale: useUiStore((state) => state.setMotionScale),
+    radiusScale: appearancePreferences().useRadiusScale(),
+    motionScale: appearancePreferences().useMotionScale(),
+    setRadiusScale: appearancePreferences().useSetRadiusScale(),
+    setMotionScale: appearancePreferences().useSetMotionScale(),
   };
 }

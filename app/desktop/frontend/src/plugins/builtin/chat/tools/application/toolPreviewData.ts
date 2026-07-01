@@ -1,10 +1,10 @@
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import { useDiff, useFileHead, useGrep } from "@/lib/data/queries";
-import { useServerFeature } from "@/state/runtimeStore";
+import { useRuntimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 
 export function useDiffToolPreview(tool: ToolCall, maxRows: number) {
-  const gitEnabled = useServerFeature("git");
+  const gitEnabled = useRuntimeCapability("git");
   const cwd = useActiveSessionCwd();
   const { data } = useDiff(gitEnabled ? { cwd } : undefined);
   const rows = tool.diff

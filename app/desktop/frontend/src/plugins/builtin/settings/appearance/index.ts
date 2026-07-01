@@ -5,12 +5,14 @@
 
 import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
+import { installAppearancePreferencesPort } from "./adapters/uiAppearancePreferences";
 import { AppearancePane } from "./AppearancePane";
 
 export default definePlugin({
   name: "lyra.builtin.appearance",
   version: "1.0.0",
   setup({ host }) {
+    installAppearancePreferencesPort();
     host.extensions.contribute(SETTINGS_PANE, {
       id: "appearance",
       label: "settings.pane.appearance",
