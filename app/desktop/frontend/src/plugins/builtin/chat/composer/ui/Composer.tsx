@@ -84,13 +84,6 @@ export function Composer({
           onHover={input.mentions.setIndex}
         />
       )}
-      {/* Top toolbar: attach + model pill */}
-      <div
-        className="flex flex-nowrap items-center gap-1.5 pb-1 min-h-7"
-        data-slot="composer-toolbar-top"
-      >
-        <Slot name="composer.toolbar.start" />
-      </div>
       <PluginAttachments sources={attachmentSources} />
       {images.length > 0 && (
         <div className="flex flex-wrap gap-2 pb-1 pt-1">
@@ -122,11 +115,13 @@ export function Composer({
         className="composer-input max-h-40 min-h-9 w-full resize-none border-0 bg-transparent px-0.5 py-2 font-sans text-[16px] leading-[1.5] text-fg outline-none placeholder:text-fg-faint placeholder:tracking-normal"
         data-slot="composer-input"
       />
-      {/* Bottom toolbar: send / stop */}
+      {/* Bottom toolbar — ALL controls live below the input so the text area
+          above stays pure: attach + model on the left, send on the right. */}
       <div
-        className="flex flex-nowrap items-center gap-1.5 pt-2 min-h-7"
+        className="flex flex-nowrap items-center gap-1.5 pt-2 min-h-8"
         data-slot="composer-toolbar-bottom"
       >
+        <Slot name="composer.toolbar.start" />
         <div className="flex-1 min-w-2" />
         <Slot name="composer.toolbar.end" />
       </div>
