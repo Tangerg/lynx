@@ -15,7 +15,7 @@ import { ensureKatexCss } from "@/lib/markdown/katexCss";
 import { measureMarkdownRepair } from "@/lib/metrics";
 import { rehypeCitations } from "@/lib/markdown/rehypeCitations";
 import { rehypeFadeIn } from "@/lib/markdown/rehypeFadeIn";
-import { rehypeFileRefs } from "@/lib/markdown/rehypeFileRefs";
+import { rehypeFileRefs } from "./rehypeFileRefs";
 import { rehypeStreamCaret } from "@/lib/markdown/rehypeStreamCaret";
 import { useStreamReveal } from "@/lib/agent/streamReveal";
 import "remark-github-blockquote-alert/alert.css";
