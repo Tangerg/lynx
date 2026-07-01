@@ -43,7 +43,7 @@ import type {
   ToolViewOpenerSpec,
   WorkspaceViewSpec,
 } from "./types";
-import type { ContentBlockKind } from "@/plugins/sdk/types/agentView";
+import type { ContentBlockKind } from "@/plugins/sdk/types/contentBlock";
 import { defineExtensionPoint } from "./defineExtensionPoint";
 import { LIFECYCLE_POINT_IDS } from "./pointIds";
 import { normalizeCombo } from "./registry";

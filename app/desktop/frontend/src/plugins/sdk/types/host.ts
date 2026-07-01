@@ -24,7 +24,7 @@ import type {
 import type { ContentBlockRenderer } from "./message";
 import type { LoadedPlugin, PluginSpec } from "./plugin";
 import type { LayoutSlotSpec } from "./workspace";
-import type { ContentBlockKind } from "@/plugins/sdk/types/agentView";
+import type { ContentBlockKind } from "@/plugins/sdk/types/contentBlock";
 
 export interface Host {
   message: {

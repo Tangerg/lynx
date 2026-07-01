@@ -5,7 +5,7 @@ import type {
   ContentBlock,
   ContentBlockKind,
   ContentBlockMap,
-} from "@/plugins/sdk/types/agentView";
+} from "@/plugins/sdk/types/contentBlock";
 
 /**
  * One source citation surfaced as a `[n]` marker in assistant prose. The

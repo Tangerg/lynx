@@ -21,6 +21,7 @@ const violations = [];
 for (const file of files(SRC)) {
   const rel = relative(SRC, file);
   const text = readFileSync(file, "utf8");
+  const isTest = /\.(test|spec)\.[tj]sx?$/.test(rel);
 
   if (/@\/protocol\/run|protocol\/run|agent\/core-reducer|core-reducer/.test(text)) {
     violations.push({
@@ -50,12 +51,35 @@ for (const file of files(SRC)) {
     !rel.startsWith("plugins/sdk/") &&
     !rel.startsWith("plugins/host/") &&
     rel !== "plugins/builtin/agent/public/viewState.ts" &&
-    rel !== "plugins/builtin/chat/preview-blocks/viewBlocks.ts" &&
     /from\s+["']@\/plugins\/sdk\/types\/agent(View|Timeline)["']/.test(text)
   ) {
     violations.push({
       file: rel,
       reason: "agent view language must be consumed through agent public/viewState",
+    });
+  }
+
+  if (
+    !isTest &&
+    /plugins\/builtin\/.+\/domain\/.+\.(ts|tsx)$/.test(rel) &&
+    /from\s+["'](?:react|zustand(?:\/[^"']*)?|@\/(?:rpc|state|main|components|pages)(?:\/[^"']*)?)["']/.test(
+      text,
+    )
+  ) {
+    violations.push({
+      file: rel,
+      reason: "builtin context domain must stay framework-, store-, wire-, and UI-free",
+    });
+  }
+
+  if (
+    !isTest &&
+    /plugins\/builtin\/.+\/application\/.+\.(ts|tsx)$/.test(rel) &&
+    /from\s+["']@\/(?:components|pages)(?:\/[^"']*)?["']/.test(text)
+  ) {
+    violations.push({
+      file: rel,
+      reason: "builtin context application must not import UI components or pages",
     });
   }
 }

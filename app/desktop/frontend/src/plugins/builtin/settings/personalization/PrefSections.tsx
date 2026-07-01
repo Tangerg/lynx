@@ -7,13 +7,16 @@
 import { useId } from "react";
 import { Checkbox, Segmented } from "@/components/common";
 import { useT } from "@/lib/i18n";
-import { useUiStore } from "@/state/uiStore";
+import {
+  useCompletionSoundPreference,
+  useMessageStylePreference,
+  useStreamRevealPreference,
+} from "./application/personalizationPreferences";
 import { SettingRow } from "../SettingRow";
 
 export function MessageStyleSection() {
   const t = useT();
-  const messageStyle = useUiStore((s) => s.messageStyle);
-  const setMessageStyle = useUiStore((s) => s.setMessageStyle);
+  const { messageStyle, setMessageStyle } = useMessageStylePreference();
 
   return (
     <SettingRow label={t("settings.messageStyle")} sub={t("settings.messageStyle.sub")}>
@@ -32,8 +35,7 @@ export function MessageStyleSection() {
 
 export function CompletionSoundSection() {
   const t = useT();
-  const completionSound = useUiStore((s) => s.completionSound);
-  const setCompletionSound = useUiStore((s) => s.setCompletionSound);
+  const { completionSound, setCompletionSound } = useCompletionSoundPreference();
   const id = useId();
 
   return (
@@ -53,8 +55,7 @@ export function CompletionSoundSection() {
 
 export function StreamRevealSection() {
   const t = useT();
-  const streamReveal = useUiStore((s) => s.streamReveal);
-  const setStreamReveal = useUiStore((s) => s.setStreamReveal);
+  const { streamReveal, setStreamReveal } = useStreamRevealPreference();
 
   return (
     <SettingRow label={t("settings.streamReveal")} sub={t("settings.streamReveal.sub")}>

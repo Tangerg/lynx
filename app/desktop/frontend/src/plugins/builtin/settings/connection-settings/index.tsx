@@ -6,56 +6,38 @@
 // rewrites on every change so the URL survives across launches.
 
 import { useState } from "react";
-import { z } from "zod";
-import { RUNTIME_BASE } from "@/main/config";
-import { t, useT } from "@/lib/i18n";
+import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { definePlugin, getConfig, setConfig } from "@/plugins/sdk";
+import { definePlugin } from "@/plugins/sdk";
 import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
+import {
+  applyRuntimeBaseUrl,
+  currentRuntimeBaseUrl,
+  resetRuntimeBaseUrl,
+  RUNTIME_BASE_CONFIG_KEY,
+  RUNTIME_BASE_STORAGE_KEY,
+  RUNTIME_BASE_URL,
+} from "./application/runtimeConnection";
 import { SettingRow } from "../SettingRow";
-
-const CONFIG_KEY = "api.baseUrl";
-const STORAGE_KEY = "api.baseUrl";
-
-// Backend URL must be a real http(s) origin. Anything else (file://,
-// trailing path, plain text) would silently break ky's baseUrl handling
-// at the next request — reject on input instead.
-const UrlSchema = z.url().refine((v) => v.startsWith("http://") || v.startsWith("https://"), {
-  message: t("connection.error.urlScheme"),
-});
 
 function ConnectionPane() {
   const t = useT();
-  const initial = (getConfig<string>(CONFIG_KEY) ?? RUNTIME_BASE) || RUNTIME_BASE;
+  const initial = currentRuntimeBaseUrl();
   const [url, setUrl] = useState(initial);
   const [error, setError] = useState<string | null>(null);
 
   const trimmed = url.trim();
   const dirty = trimmed !== initial.trim();
-  const isDefault = trimmed === RUNTIME_BASE;
+  const isDefault = trimmed === RUNTIME_BASE_URL;
 
   const apply = () => {
-    // Empty input → silently fall back to the default. Anything else
-    // must parse as a real http(s) URL.
-    if (!trimmed) {
-      setConfig(CONFIG_KEY, RUNTIME_BASE);
-      setUrl(RUNTIME_BASE);
-      setError(null);
-      return;
-    }
-    const result = UrlSchema.safeParse(trimmed);
-    if (!result.success) {
-      setError(result.error.issues[0]?.message ?? t("connection.error.invalidUrl"));
-      return;
-    }
-    setConfig(CONFIG_KEY, result.data);
-    setUrl(result.data);
-    setError(null);
+    const result = applyRuntimeBaseUrl(url);
+    setUrl(result.url);
+    setError(result.error);
   };
 
   const reset = () => {
-    setUrl(RUNTIME_BASE);
-    setConfig(CONFIG_KEY, RUNTIME_BASE);
+    setUrl(resetRuntimeBaseUrl());
     setError(null);
   };
 
@@ -85,7 +67,7 @@ function ConnectionPane() {
                   (e.target as HTMLInputElement).blur();
                 }
               }}
-              placeholder={RUNTIME_BASE}
+              placeholder={RUNTIME_BASE_URL}
               className={cn(
                 "flex-1 h-9 rounded-md border bg-surface px-3 font-mono text-[13px] text-fg outline-none",
                 error
@@ -123,15 +105,15 @@ export default definePlugin({
   setup({ host }) {
     // Hydrate persisted URL into host.config so the first ky request
     // (made before any UI mounts) already sees the user's choice.
-    const stored = host.storage.get<string>(STORAGE_KEY);
+    const stored = host.storage.get<string>(RUNTIME_BASE_STORAGE_KEY);
     if (typeof stored === "string" && stored) {
-      host.config.set(CONFIG_KEY, stored);
+      host.config.set(RUNTIME_BASE_CONFIG_KEY, stored);
     }
 
     // Persist any future change. host.config dedupes by Object.is so
     // setting the same value twice is a no-op.
-    host.config.onChange(CONFIG_KEY, (value) => {
-      if (typeof value === "string") host.storage.set(STORAGE_KEY, value);
+    host.config.onChange(RUNTIME_BASE_CONFIG_KEY, (value) => {
+      if (typeof value === "string") host.storage.set(RUNTIME_BASE_STORAGE_KEY, value);
     });
 
     host.extensions.contribute(SETTINGS_PANE, {

@@ -13,7 +13,7 @@
 
 import { Segmented, type SegmentedOption } from "@/components/common";
 import { useT } from "@/lib/i18n";
-import { useUiStore } from "@/state/uiStore";
+import { useShapeMotionPreferences } from "./application/appearancePreferences";
 import { SettingRow } from "../SettingRow";
 
 // `label` holds an i18n key; ShapeMotionSection resolves it via t() at render
@@ -33,10 +33,7 @@ const MOTION_OPTIONS: SegmentedOption<number>[] = [
 
 export function ShapeMotionSection() {
   const t = useT();
-  const radiusScale = useUiStore((s) => s.radiusScale);
-  const motionScale = useUiStore((s) => s.motionScale);
-  const setRadiusScale = useUiStore((s) => s.setRadiusScale);
-  const setMotionScale = useUiStore((s) => s.setMotionScale);
+  const { radiusScale, motionScale, setRadiusScale, setMotionScale } = useShapeMotionPreferences();
 
   return (
     <>

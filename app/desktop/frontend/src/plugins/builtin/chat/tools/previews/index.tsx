@@ -8,13 +8,15 @@ import type { ToolPreviewProps } from "@/plugins/sdk";
 import { LinkedText } from "@/components/chat/message/LinkedText";
 import { PreviewFoot } from "@/components/tools/previews/PreviewFoot";
 import { PreviewPlaceholder } from "@/components/tools/previews/PreviewPlaceholder";
-import { useDiff, useFileHead, useGrep } from "@/lib/data/queries";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
-import { useServerFeature } from "@/state/runtimeStore";
-import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
-import { parseJsonResult, PREVIEW_WRAP } from "./shared";
+import {
+  useDiffToolPreview,
+  useFileToolPreview,
+  useGrepToolPreview,
+} from "@/plugins/builtin/chat/tools/application/toolPreviewData";
+import { PREVIEW_WRAP } from "./shared";
 
 export {
   askUserPreview,
@@ -84,22 +86,11 @@ function ShellPreview({ tool, onOpenView }: ToolPreviewProps) {
 }
 
 function DiffPreview({ tool, onOpenView }: ToolPreviewProps) {
-  // Whole-worktree diff of the active session's cwd (the tool ran there);
-  // never called without git. Hooks run unconditionally; the source is chosen
-  // below.
-  const gitEnabled = useServerFeature("git");
-  const cwd = useActiveSessionCwd();
-  const { data } = useDiff(gitEnabled ? { cwd } : undefined);
   // Prefer THIS edit's call-scoped patch (FileEdit.diff, §12.1 C) — exactly
   // what the edit changed. Fall back to the whole-worktree diff for a `write`
   // (no call-scoped diff) or until the completed item carries one; each file's
   // path becomes a hunk-style separator row so MAX_DIFF_ROWS stays one slice.
-  const callScoped = tool.diff;
-  const rows = callScoped
-    ? callScoped
-    : (data?.files ?? []).flatMap((f) => [{ type: "hunk" as const, text: f.path }, ...f.rows]);
-  const truncated = callScoped ? false : Boolean(data?.truncated);
-  const hiddenRows = rows.length - MAX_DIFF_ROWS;
+  const { rows, truncated, hiddenRows } = useDiffToolPreview(tool, MAX_DIFF_ROWS);
   return (
     <div className={PREVIEW_WRAP}>
       <div className="font-mono text-[11.5px] leading-[1.55]">
@@ -141,9 +132,7 @@ function DiffPreview({ tool, onOpenView }: ToolPreviewProps) {
 function FilePreview({ tool, onOpenView }: ToolPreviewProps) {
   // cwd = the active session's workspace — the tool ran there, so the
   // preview must read the same tree (the serve dir may be elsewhere).
-  const cwd = useActiveSessionCwd();
-  const path = tool.fn && tool.fn !== tool.name ? tool.fn : undefined;
-  const { data: lines } = useFileHead(path ? { path, cwd, lines: MAX_FILE_LINES } : undefined);
+  const { data: lines } = useFileToolPreview(tool, MAX_FILE_LINES);
   return (
     <div className={PREVIEW_WRAP}>
       <div className="font-mono text-[11.5px] leading-[1.55]">
@@ -159,58 +148,13 @@ function FilePreview({ tool, onOpenView }: ToolPreviewProps) {
   );
 }
 
-// One display row per hit, whatever grep's output_mode returned — matches
-// ({path,line,text}), files (paths), or counts ({path,count}). Undefined
-// when the result isn't one of those shapes (still streaming / projection-only
-// `hits` convention) — the caller then falls back to re-querying.
-function inlineGrepRows(
-  result: string | undefined,
-): { rows: { loc: string; text: string }[]; truncated: boolean } | undefined {
-  const parsed = parseJsonResult(result);
-  if (!parsed) return undefined;
-  const rec = (v: unknown): Record<string, unknown> =>
-    typeof v === "object" && v !== null ? (v as Record<string, unknown>) : {};
-  const truncated = parsed.truncated === true;
-  if (Array.isArray(parsed.matches)) {
-    return {
-      rows: parsed.matches.map((m) => ({
-        loc: `${String(rec(m).path ?? "")}:${String(rec(m).line ?? "")}`,
-        text: String(rec(m).text ?? ""),
-      })),
-      truncated,
-    };
-  }
-  if (Array.isArray(parsed.files)) {
-    return { rows: parsed.files.map((f) => ({ loc: String(f), text: "" })), truncated };
-  }
-  if (Array.isArray(parsed.counts)) {
-    return {
-      rows: parsed.counts.map((c) => ({
-        loc: String(rec(c).path ?? ""),
-        text: `${String(rec(c).count ?? 0)} matches`,
-      })),
-      truncated,
-    };
-  }
-  return undefined;
-}
-
 function GrepPreview({ tool, onOpenView }: ToolPreviewProps) {
   // Prefer the call's OWN result — grep returns matches/files/counts inline
   // (output_mode), which also honors filters (glob/type/context) a re-query
   // can't reproduce. The workspace.grep re-query stays as the fallback for
   // runtimes whose result carries only the §4.4.2 `hits` convention.
-  const inline = inlineGrepRows(tool.result);
-  const cwd = useActiveSessionCwd();
-  const query =
-    !inline && tool.name === "grep" && tool.fn && tool.fn !== "search" ? tool.fn : undefined;
-  const { data } = useGrep(query ? { query, cwd, limit: MAX_GREP_MATCHES } : undefined);
-  const rows =
-    inline?.rows ??
-    (data?.matches ?? []).map((m) => ({ loc: `${m.path}:${m.lineNumber}`, text: m.text }));
-  const shown = rows.slice(0, MAX_GREP_MATCHES);
+  const { shown, overflow, truncated } = useGrepToolPreview(tool, MAX_GREP_MATCHES);
   // §7.5 no-silent-caps: surface both our preview cap and server truncation.
-  const overflow = inline ? rows.length - shown.length : (data?.total ?? 0) - shown.length;
   return (
     <div className={PREVIEW_WRAP}>
       <div className="font-mono text-[11.5px] leading-[1.55]">
@@ -226,7 +170,7 @@ function GrepPreview({ tool, onOpenView }: ToolPreviewProps) {
           </div>
         ))}
         {overflow > 0 && <div className="pt-1 text-fg-faint">… {overflow} more matches</div>}
-        {inline?.truncated && <div className="pt-1 text-fg-faint">… truncated by runtime</div>}
+        {truncated && <div className="pt-1 text-fg-faint">… truncated by runtime</div>}
       </div>
       <PreviewFoot label="tools.preview.viewMatches" onClick={onOpenView} />
     </div>

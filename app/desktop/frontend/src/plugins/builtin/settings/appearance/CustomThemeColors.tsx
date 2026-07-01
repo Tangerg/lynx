@@ -4,7 +4,7 @@
 // re-derives + re-registers, uiStore re-applies).
 
 import { useT } from "@/lib/i18n";
-import { useUiStore } from "@/state/uiStore";
+import { useCustomThemePreference } from "./application/appearancePreferences";
 import { SettingRow } from "../SettingRow";
 
 function ColorRow({
@@ -40,9 +40,7 @@ function ColorRow({
 
 export function CustomThemeColors() {
   const t = useT();
-  const theme = useUiStore((s) => s.theme);
-  const custom = useUiStore((s) => s.customTheme);
-  const setCustomTheme = useUiStore((s) => s.setCustomTheme);
+  const { theme, customTheme, setCustomTheme } = useCustomThemePreference();
 
   // Only relevant while the Custom theme is the active one.
   if (theme !== "custom") return null;
@@ -56,12 +54,12 @@ export function CustomThemeColors() {
       <div className="grid max-w-[300px] gap-2">
         <ColorRow
           label={t("settings.color.bg")}
-          value={custom.bg}
+          value={customTheme.bg}
           onChange={(bg) => setCustomTheme({ bg })}
         />
         <ColorRow
           label={t("settings.color.fg")}
-          value={custom.fg}
+          value={customTheme.fg}
           onChange={(fg) => setCustomTheme({ fg })}
         />
       </div>

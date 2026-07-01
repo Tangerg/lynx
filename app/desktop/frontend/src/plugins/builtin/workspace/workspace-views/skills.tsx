@@ -5,13 +5,13 @@
 import { DataView } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
-import { useServerFeature } from "@/state/runtimeStore";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { useWorkspaceSkills } from "@/plugins/builtin/workspace/application/workspaceData";
+import { useWorkspaceCapability } from "@/plugins/builtin/workspace/application/workspaceCapabilities";
 
 function SkillsTab() {
   const t = useT();
-  const skillsEnabled = useServerFeature("skills");
+  const skillsEnabled = useWorkspaceCapability("skills");
   const { data, isLoading, isError } = useWorkspaceSkills();
   const skills = data ?? [];
 

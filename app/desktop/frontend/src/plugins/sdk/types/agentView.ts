@@ -5,6 +5,7 @@
 // bubble with many blocks) is purely a UI concern.
 
 import type { DiffRow, OpenInterrupt } from "@/rpc";
+import type { ContentBlock } from "@/plugins/sdk/types/contentBlock";
 
 // Narrow view-side roles. userMessage → "user", everything the agent
 // produces → "assistant", protocol notes → "system".
@@ -62,16 +63,6 @@ export function isQuestionTool(name: string): boolean {
 // NOT a failure — it gets a neutral treatment, not the alarming "err" red.
 export type ToolCallStatus = "running" | "ok" | "err" | "denied" | "requires-action";
 
-// Block lifecycle status — any block with a non-trivial lifecycle expresses
-// the same four states:
-//   - "running"          → streaming / still being produced (Item inProgress)
-//   - "complete"         → settled successfully (Item completed)
-//   - "incomplete"       → settled but interrupted / errored (Item incomplete)
-//   - "requires-action"  → awaiting human decision (open interrupt)
-// Blocks without a lifecycle (plan / code / search / checkpoint / tool
-// pointer) don't carry this field.
-export type BlockStatus = "running" | "complete" | "incomplete" | "requires-action";
-
 export interface ToolCall {
   id: string;
   name: string; // wire tool identity (ToolInvocation.name) — drives icon/preview routing (display label is `fn`)
@@ -105,95 +96,6 @@ export interface PlanItem {
   status: "done" | "doing" | "todo";
   text: string;
 }
-
-export interface QuestionOption {
-  label: string;
-  description: string;
-  preview?: string;
-}
-
-// One clarifying field projected from a v2 Question (API.md §4.3). The card
-// renders these as single/multi-select cards with an optional free-text
-// fallback. `id` = the QuestionField.name (answers keyed by it).
-export interface QuestionItem {
-  id: string;
-  question: string;
-  header: string;
-  options: QuestionOption[];
-  multiSelect: boolean;
-  allowFreeText?: boolean;
-}
-
-// ContentBlock — discriminated union extended via TypeScript declaration
-// merging on `CustomContentBlockMap`. A plugin adds:
-//   declare module "@/plugins/sdk/types/agentView" {
-//     interface CustomContentBlockMap {
-//       cpuChart: { kind: "cpuChart"; series: ChartPoint[] };
-//     }
-//   }
-// and its registered renderer is then type-checked against the union.
-
-export interface BuiltinContentBlockMap {
-  // `itemId` ties a streaming text block back to its agentMessage Item so
-  // `item.delta{content}` events route to the right block.
-  text: { kind: "text"; text: string; status: BlockStatus; itemId?: string };
-  // An inlined image carried by a userMessage's content (MULTIMODAL_IMAGE_INPUT,
-  // API.md §4.3): `mime` + raw base64 `data`, rendered as a thumbnail. No
-  // lifecycle status — a user image is atomic (present in full on arrival).
-  image: { kind: "image"; mime: string; data: string };
-  reasoning: { kind: "reasoning"; reasoningId: string; text: string; status: BlockStatus };
-  plan: { kind: "plan" };
-  tool: { kind: "tool"; toolCallId: string };
-  approval: {
-    kind: "approval";
-    status: BlockStatus;
-    text: string;
-    command: string;
-    reason: string;
-    /** The interrupt's Item id + the Run to resume — the HITL response is
-     *  `runs.resume{ parentRunId, responses:[{ itemId, … }] }` (API.md §6).
-     *  Absent ⇒ decorative preview with no buttons. */
-    itemId?: string;
-    parentRunId?: string;
-    decision?: "approved" | "declined";
-    /** Tool args about to run — the editable baseline for approve-with-
-     *  modified-args (§6.1 ApprovalResponse.editedArgs). */
-    args?: Record<string, unknown>;
-    /** Risk metadata. All optional. */
-    risk?: "low" | "medium" | "high";
-    scope?: string[];
-    target?: string;
-    reversible?: boolean;
-  };
-  question: {
-    kind: "question";
-    status: BlockStatus;
-    /** The question Item id + the Run to resume (see approval). */
-    itemId?: string;
-    parentRunId?: string;
-    questions: QuestionItem[];
-    /** Stamped true once the answer is submitted — flips to settled state. */
-    answered?: boolean;
-    /** The submitted answer, keyed by QuestionItem.id (each a string[] — the
-     *  wire AnswerResponse shape). Stamped optimistically on submit so the
-     *  settled card can echo what was chosen instead of a bare "answered".
-     *  Absent on history replay (the runtime doesn't send it back). */
-    answers?: Record<string, string[]>;
-  };
-  /** A context-compaction boundary (B10) — renders as a collapsed
-   *  "⊟ compacted N messages" divider. The containing message carries the
-   *  Item id; summary / droppedMessages are optional (absent until the backend
-   *  fills them). */
-  compaction: { kind: "compaction"; summary?: string; droppedMessages?: number };
-}
-
-// Empty by design — plugins augment this via `declare module`.
-
-export interface CustomContentBlockMap {}
-
-export type ContentBlockMap = BuiltinContentBlockMap & CustomContentBlockMap;
-export type ContentBlockKind = keyof ContentBlockMap;
-export type ContentBlock = ContentBlockMap[ContentBlockKind];
 
 export interface Message {
   id: string;

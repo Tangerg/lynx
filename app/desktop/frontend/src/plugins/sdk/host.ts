@@ -20,7 +20,7 @@ import type {
   RpcAfterResponseHook,
   RpcBeforeRequestHook,
 } from "./types";
-import type { ContentBlockKind } from "@/plugins/sdk/types/agentView";
+import type { ContentBlockKind } from "@/plugins/sdk/types/contentBlock";
 import { api } from "@/lib/data/http";
 import { addLocaleBundle } from "@/lib/i18n";
 import { useWorkspaceNavigationStore } from "@/state/workspaceNavigationStore";
