@@ -1,7 +1,15 @@
-import type { UsageBucket } from "@/rpc";
 import { useUsageSummary } from "@/lib/data/useUsage";
 
-export type UsageBreakdownBucket = UsageBucket;
+export interface UsageBreakdownBucket {
+  key: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  reasoningTokens?: number;
+  costUsd?: number;
+  runs?: number;
+}
 
 export const USAGE_RANGES = [
   { days: 0, label: "usage.range.all" },

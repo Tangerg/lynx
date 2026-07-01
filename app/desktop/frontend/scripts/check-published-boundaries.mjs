@@ -177,6 +177,17 @@ for (const file of files(SRC)) {
 
   if (
     !isTest &&
+    /plugins\/builtin\/(?:chat\/recipes|settings\/usage)\/application\/.+\.(ts|tsx)$/.test(rel) &&
+    /from\s+["']@\/rpc["']/.test(text)
+  ) {
+    violations.push({
+      file: rel,
+      reason: "context application must expose context language, not runtime wire types",
+    });
+  }
+
+  if (
+    !isTest &&
     /plugins\/builtin\/.+\/public\/.+\.(ts|tsx)$/.test(rel) &&
     !/plugins\/builtin\/.+\/public\/statePorts\.ts$/.test(rel) &&
     /from\s+["'](?:@\/plugins\/builtin\/.+\/adapters(?:\/[^"']*)?|(?:\.\.\/)+adapters(?:\/[^"']*)?)["']/.test(
