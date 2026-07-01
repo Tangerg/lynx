@@ -74,7 +74,6 @@ export {
   useWorkspaceViews,
 } from "./selectors";
 // Backend-driven shared state — agent state.snapshot / state.delta.
-export { useSharedState } from "./sharedState";
 
 export {
   appendBlockToLatestAssistant,

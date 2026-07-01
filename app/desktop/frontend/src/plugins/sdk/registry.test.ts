@@ -1,7 +1,7 @@
 import type { StreamEvent } from "@/rpc";
 import type { Disposable, ToolPreviewComponent } from "./types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { INITIAL_VIEW_STATE } from "@/protocol/run/viewState";
+import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
 import { useConfigStore } from "./config";
 import { createHost } from "./host";
 import { useNotificationStore } from "./notifications";

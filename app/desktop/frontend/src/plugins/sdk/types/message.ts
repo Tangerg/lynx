@@ -1,7 +1,11 @@
 // Message + content-block plugin surface.
 
 import type { ComponentType } from "react";
-import type { ContentBlock, ContentBlockKind, ContentBlockMap } from "@/protocol/run/viewState";
+import type {
+  ContentBlock,
+  ContentBlockKind,
+  ContentBlockMap,
+} from "@/plugins/sdk/types/agentView";
 
 /**
  * One source citation surfaced as a `[n]` marker in assistant prose. The

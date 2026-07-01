@@ -9,7 +9,7 @@
 
 import { getContainer } from "@/main/container";
 import { asSessionId } from "@/rpc";
-import { useAgentStore } from "@/state/agentStore";
+import { useAgentStore } from "@/plugins/builtin/agent/adapters/agentStore";
 
 export async function rehydrateSessionView(sessionId: string): Promise<void> {
   const store = useAgentStore.getState();

@@ -18,7 +18,10 @@ import { RECIPES_KEY, SESSIONS_KEY } from "@/lib/data/queries";
 import { queryClient } from "@/lib/data/queryClient";
 import { definePlugin, lookupDataProvider } from "@/plugins/sdk";
 import { SLASH_COMMAND } from "@/plugins/sdk/kernelPoints";
-import { useAgentSessionStore } from "@/state/agentSessionStore";
+import {
+  getActiveSessionId,
+  subscribeActiveSessionId,
+} from "@/plugins/builtin/agent/public/session";
 
 const RECIPE_SIGNATURE_FIELD_SEPARATOR = "\u0000";
 const RECIPE_SIGNATURE_ROW_SEPARATOR = "\u0001";
@@ -38,7 +41,7 @@ function expandRecipe(body: string, argStr: string): string {
 // activeCwd resolves the active session's working directory from the sessions
 // cache — the same cwd the browse view passes, so project recipes resolve.
 function activeCwd(): string | undefined {
-  const id = useAgentSessionStore.getState().activeSessionId;
+  const id = getActiveSessionId();
   if (!id) return undefined;
   const sessions = queryClient.getQueryData<SidebarSession[]>([SESSIONS_KEY]);
   return sessions?.find((s) => s.id === id)?.cwd;
@@ -107,9 +110,7 @@ export default definePlugin({
     };
 
     refresh();
-    const unsubSession = useAgentSessionStore.subscribe((s, p) => {
-      if (s.activeSessionId !== p.activeSessionId) refresh();
-    });
+    const unsubSession = subscribeActiveSessionId(refresh);
     // The sessions list may load (or a cwd change) after the active id is set —
     // re-resolve when the SESSIONS cache updates (own RECIPES writes are filtered
     // out by the key check, so this doesn't recurse).

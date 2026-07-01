@@ -1,4 +1,4 @@
-import type { PlanItem } from "@/protocol/run/viewState";
+import type { PlanItem } from "@/plugins/sdk/types/agentView";
 import { PlanCheck, planItemRow } from "@/components/chat/message";
 import { useT } from "@/lib/i18n";
 

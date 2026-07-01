@@ -12,13 +12,32 @@ import {
   CODEBASE_STATUS_KEY,
   EMBEDDING_ROLE_KEY,
   MODELS_KEY,
+  type ProviderInfo,
   PROVIDERS_KEY,
   UTILITY_ROLE_KEY,
+  useEmbeddingRole,
+  useModels,
+  useProviders,
+  useUtilityRole,
 } from "@/lib/data/queries";
 import { queryClient } from "@/lib/data/queryClient";
 
 // Provider configuration mutations (providers.configure / providers.test).
 // Counterpart to the read-side useProviders() query.
+
+export type ProviderConfig = ProviderInfo;
+
+export function useProviderConfigs() {
+  return useProviders();
+}
+
+export function useProviderRoleConfig() {
+  const utilityRole = useUtilityRole();
+  const embeddingRole = useEmbeddingRole();
+  const models = useModels();
+  const providers = useProviders();
+  return { utilityRole, embeddingRole, models, providers };
+}
 
 export interface SaveProviderInput {
   provider: string;

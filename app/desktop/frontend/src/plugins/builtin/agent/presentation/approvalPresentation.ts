@@ -1,4 +1,4 @@
-import type { BlockStatus } from "@/protocol/run/viewState";
+import type { BlockStatus } from "@/plugins/sdk/types/agentView";
 import type { ApprovalDecision } from "../domain/hitl";
 export { dangerHints } from "./dangerPatterns";
 

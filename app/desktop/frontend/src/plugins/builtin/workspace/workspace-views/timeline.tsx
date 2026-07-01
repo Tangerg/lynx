@@ -9,7 +9,7 @@
 // Pure renderer — data comes from the agent public run read model.
 
 import type { IconName } from "@/components/common";
-import type { TimelineEntry, TimelineEntryKind } from "@/protocol/run/viewState";
+import type { TimelineEntry, TimelineEntryKind } from "@/plugins/sdk/types/agentView";
 import { EmptyState, Icon, IconButton } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";

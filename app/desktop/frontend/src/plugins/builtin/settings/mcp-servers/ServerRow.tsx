@@ -1,13 +1,17 @@
-import type { MCPServerConfigInfo, MCPTransport } from "@/lib/data/queries";
 import { useState } from "react";
 import { Icon, PillButton, StatusDot, Switch } from "@/components/common";
-import { useAuthorizeMCPServer, useSetMCPServerEnabled } from "./application/mcpServerConfig";
+import {
+  type MCPServerConfig,
+  type MCPServerTransport,
+  useAuthorizeMCPServer,
+  useSetMCPServerEnabled,
+} from "./application/mcpServerConfig";
 import { notifyError } from "@/lib/notify";
 import { useT } from "@/lib/i18n";
 import { ServerForm } from "./ServerForm";
 
 const STATUS_TONE: Record<
-  NonNullable<MCPServerConfigInfo["status"]>,
+  NonNullable<MCPServerConfig["status"]>,
   "ok" | "running" | "waiting" | "err" | "idle"
 > = {
   connected: "ok",
@@ -17,7 +21,7 @@ const STATUS_TONE: Record<
   disconnected: "idle",
 };
 
-function TransportBadge({ transport }: { transport: MCPTransport }) {
+function TransportBadge({ transport }: { transport: MCPServerTransport }) {
   return (
     <span className="rounded-xs bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-fg-muted">
       {transport}
@@ -25,7 +29,7 @@ function TransportBadge({ transport }: { transport: MCPTransport }) {
   );
 }
 
-export function ServerRow({ server }: { server: MCPServerConfigInfo }) {
+export function ServerRow({ server }: { server: MCPServerConfig }) {
   const t = useT();
   const setEnabled = useSetMCPServerEnabled();
   const authorize = useAuthorizeMCPServer();

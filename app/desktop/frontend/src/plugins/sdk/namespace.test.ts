@@ -3,7 +3,7 @@
 // content-block kinds) with `plugin:<name>/`; first-party built-ins are
 // exempt. The host warns (doesn't throw) on a violation.
 
-import type { ContentBlockKind } from "@/protocol/run/viewState";
+import type { ContentBlockKind } from "@/plugins/sdk/types/agentView";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHost } from "./host";
 import { setPluginOrigin } from "./pluginOrigin";

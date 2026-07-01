@@ -1,15 +1,15 @@
 # preview-blocks — content blocks awaiting backend wiring
 
 These three content-block kinds have finished UI but the v2 Runtime fold
-(`plugins/builtin/agent/core-reducer`) **does not emit them yet**. They live
+(`plugins/builtin/agent/application/fold`) **does not emit them yet**. They live
 here, isolated, so the kernel never grows around features that aren't wired —
 and so this whole folder can be kept or deleted as one unit.
 
-| Block        | UI                          | Future feature        |
-| ------------ | --------------------------- | --------------------- |
-| `search`     | `SearchResults.tsx`         | web-search tool       |
-| `code`       | core `ShikiCodeBlock`       | standalone edit tool  |
-| `checkpoint` | `Checkpoint.tsx`            | run checkpoints       |
+| Block        | UI                    | Future feature       |
+| ------------ | --------------------- | -------------------- |
+| `search`     | `SearchResults.tsx`   | web-search tool      |
+| `code`       | core `ShikiCodeBlock` | standalone edit tool |
+| `checkpoint` | `Checkpoint.tsx`      | run checkpoints      |
 
 ## How it stays removable
 
@@ -26,7 +26,7 @@ and so this whole folder can be kept or deleted as one unit.
 
 ## To wire one up
 
-Make the core-reducer emit the block (a `toolCall` → `search`/`code`
+Make the agent fold emit the block (a `toolCall` → `search`/`code`
 projection, or a dedicated item type) and add it to the bootstrap
 `CLIENT_CAPABILITIES.events` if it rides a new event.
 

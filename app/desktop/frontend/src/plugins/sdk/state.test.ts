@@ -1,6 +1,6 @@
-import type { AgentViewState, Message } from "@/protocol/run/viewState";
+import type { AgentViewState, Message } from "@/plugins/sdk/types/agentView";
 import { describe, expect, it } from "vitest";
-import { INITIAL_VIEW_STATE } from "@/protocol/run/viewState";
+import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
 import {
   appendBlockToLatestAssistant,
   appendBlockToMessage,

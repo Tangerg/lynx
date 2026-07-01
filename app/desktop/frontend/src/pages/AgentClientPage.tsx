@@ -8,7 +8,7 @@
 
 import { cn } from "@/lib/utils";
 import { Slot } from "@/plugins/host/Slot";
-import { useSidebarRail } from "@/state/useSidebarRail";
+import { useSidebarRail } from "@/plugins/builtin/workspace/public/sidebarRail";
 
 export function AgentClientPage() {
   // Collapses to a 56px rail by the user's preference OR while a split view is

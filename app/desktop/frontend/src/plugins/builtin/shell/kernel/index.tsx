@@ -7,7 +7,7 @@
 import { ChatPanel } from "@/components/chat/panel";
 import { SettingsPage } from "./SettingsPage";
 import { SidebarPanel } from "@/components/sidebar/SidebarPanel";
-import { useChatSend } from "@/plugins/builtin/agent/public/input";
+import { useSendComposerInput } from "@/plugins/builtin/chat/workbench/send";
 import {
   useActiveSessionId,
   useReconcilePersistedAgentSessions,
@@ -17,8 +17,8 @@ import {
 import { definePlugin } from "@/plugins/sdk";
 import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { useUiStore } from "@/state/uiStore";
-import { useSidebarRail } from "@/state/useSidebarRail";
-import { useDefaultChatSession } from "@/state/useDefaultChatSession";
+import { useSidebarRail } from "@/plugins/builtin/workspace/public/sidebarRail";
+import { useDefaultChatSession } from "@/plugins/builtin/agent/public/defaultSession";
 
 function KernelChat() {
   // Drop persisted refs to sessions the backend no longer has BEFORE binding
@@ -26,9 +26,9 @@ function KernelChat() {
   // instead of a dead session.
   useReconcilePersistedAgentSessions();
   // Mount the active session's agent lifecycle (subscribe + register the
-  // send/stop actions); the send routing itself goes through useChatSend.
+  // send/stop actions); composer → agent routing goes through the chat workbench.
   useDefaultChatSession();
-  const send = useChatSend();
+  const send = useSendComposerInput();
   return <ChatPanel onSend={send} />;
 }
 

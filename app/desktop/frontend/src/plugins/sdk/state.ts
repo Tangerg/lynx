@@ -17,8 +17,8 @@ import type {
   Message,
   PlanItem,
   TimelineEntry,
-} from "@/protocol/run/viewState";
-import { appendTimelineEntry as appendProtocolTimelineEntry } from "@/protocol/run/timeline";
+} from "@/plugins/sdk/types/agentView";
+import { appendTimelineEntry as appendProtocolTimelineEntry } from "@/plugins/sdk/types/agentTimeline";
 
 /** Append a content block to a specific message by id. No-op if not found. */
 export function appendBlockToMessage<K extends ContentBlockKind>(

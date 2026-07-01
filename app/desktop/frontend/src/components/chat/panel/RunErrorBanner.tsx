@@ -7,14 +7,20 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Icon } from "@/components/common";
 import { BannerAction } from "./BannerAction";
-import { textInput } from "@/plugins/builtin/chat/composer/public/input";
 import { flattenText } from "@/plugins/builtin/agent/public/messageContent";
 import { getActiveConversationSnapshot } from "@/plugins/builtin/agent/public/conversation";
-import { useCanSendToAgent, useChatSend } from "@/plugins/builtin/agent/public/input";
+import {
+  agentTextInput,
+  useCanSendToAgent,
+  useChatSend,
+} from "@/plugins/builtin/agent/public/input";
 import { clearActiveRunError, useActiveRunError } from "@/plugins/builtin/agent/public/run";
 import { useT } from "@/lib/i18n";
 import { swift } from "@/lib/motion";
-import { openDiagnosticsView, openTimelineView } from "@/state/deeplinks";
+import {
+  openDiagnosticsView,
+  openTimelineView,
+} from "@/plugins/builtin/workspace/public/deeplinks";
 
 // Best-effort: find the most recent user-message plaintext so Retry can
 // replay it. Returns "" if no usable text exists — Retry hides in that
@@ -69,7 +75,7 @@ export function RunErrorBanner() {
   const onRetry = () => {
     if (retryIn > 0 || !canSend || !retryText) return;
     clearActiveRunError();
-    send(textInput(retryText));
+    send(agentTextInput(retryText));
   };
 
   // Offer Retry only when there's text to resend AND the error isn't a

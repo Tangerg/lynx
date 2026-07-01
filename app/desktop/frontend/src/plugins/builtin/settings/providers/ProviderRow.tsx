@@ -1,13 +1,16 @@
-import type { ProviderInfo } from "@/lib/data/queries";
 import { useRef, useState } from "react";
 import { Icon, INPUT_FOCUS_RING, ProviderIcon } from "@/components/common";
-import { useConfigureProvider, useTestProvider } from "./application/providerConfig";
+import {
+  type ProviderConfig,
+  useConfigureProvider,
+  useTestProvider,
+} from "./application/providerConfig";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 type Probe = { state: "idle" | "busy" } | { state: "ok" } | { state: "error"; reason: string };
 
-export function ProviderRow({ p }: { p: ProviderInfo }) {
+export function ProviderRow({ p }: { p: ProviderConfig }) {
   const t = useT();
   const configure = useConfigureProvider();
   const test = useTestProvider();

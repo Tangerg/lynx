@@ -1,7 +1,7 @@
 // Message block dispatcher — maps each ContentBlock (text, tool, reasoning,
 // approval, question, plan, compaction, search, code, checkpoint) to its React
 // card.
-import type { ContentBlock, PlanItem, ToolCall } from "@/protocol/run/viewState";
+import type { ContentBlock, PlanItem, ToolCall } from "@/plugins/sdk/types/agentView";
 import { MarkdownMessage } from "./markdown/MarkdownMessage";
 import {
   ApprovalCard,

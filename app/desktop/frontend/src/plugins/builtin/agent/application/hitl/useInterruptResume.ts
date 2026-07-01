@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { asItemId, asRunId, type InterruptResponse } from "@/rpc";
-import { useAgentStore } from "@/state/agentStore";
-import { useAgentSessionStore } from "@/state/agentSessionStore";
+import { useAgentStore } from "@/plugins/builtin/agent/adapters/agentStore";
+import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
 
 // Shared HITL resume scaffold (API.md §6, R-model) behind useApprovalSubmit and
 // useQuestionAnswer — the parts that must behave identically for every interrupt

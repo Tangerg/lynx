@@ -1,4 +1,4 @@
-import type { PlanItem } from "@/protocol/run/viewState";
+import type { PlanItem } from "@/plugins/sdk/types/agentView";
 import { Icon } from "@/components/common";
 import { cn } from "@/lib/utils";
 

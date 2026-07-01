@@ -18,9 +18,10 @@
     "knip": "knip",
     "check:circular": "node scripts/check-circular.mjs",
     "check:contexts": "node scripts/check-builtin-contexts.mjs",
+    "check:published-boundaries": "node scripts/check-published-boundaries.mjs",
     "check:layers": "node scripts/check-layers.mjs",
     "check:bundle": "vite build && node scripts/check-bundle-size.mjs",
-    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run knip && npm run check:circular && npm run check:contexts && npm run check:layers && npm run check:bundle",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run knip && npm run check:circular && npm run check:contexts && npm run check:published-boundaries && npm run check:layers && npm run check:bundle",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "cd .. && frontend/node_modules/.bin/husky .husky"

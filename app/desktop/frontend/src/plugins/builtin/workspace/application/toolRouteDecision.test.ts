@@ -1,38 +1,37 @@
 import { describe, expect, it } from "vitest";
-import type { ToolCall } from "@/protocol/run/viewState";
+import type { WorkspaceToolActivity } from "./toolActivity";
 import { decideWorkspaceToolRoute, hasWorkspaceToolView } from "./toolRouteDecision";
 
-const tool = (over: Partial<ToolCall> & Pick<ToolCall, "name">): ToolCall => ({
+const tool = (over: Partial<WorkspaceToolActivity>): WorkspaceToolActivity => ({
   id: "t1",
-  fn: "",
-  args: "",
-  status: "ok",
+  category: "inline",
+  label: "",
   ...over,
 });
 
 describe("decideWorkspaceToolRoute", () => {
   it("routes command tools to the terminal view", () => {
-    expect(decideWorkspaceToolRoute(tool({ name: "shell", fn: "ls -la" }))).toEqual({
+    expect(decideWorkspaceToolRoute(tool({ category: "command", label: "ls -la" }))).toEqual({
       view: { id: "terminal", title: "workspace.view.title.terminal", icon: "terminal" },
     });
   });
 
   it("routes edit tools to the diff view and exposes the focused file", () => {
-    expect(decideWorkspaceToolRoute(tool({ name: "edit", fn: "src/app.ts" }))).toEqual({
+    expect(decideWorkspaceToolRoute(tool({ category: "fileEdit", label: "src/app.ts" }))).toEqual({
       view: { id: "diff", title: "workspace.view.title.diff", icon: "diff" },
       activeFile: "src/app.ts",
     });
   });
 
   it("does not treat multi-file labels as file paths", () => {
-    expect(decideWorkspaceToolRoute(tool({ name: "write", fn: "3 files" }))).toEqual({
+    expect(decideWorkspaceToolRoute(tool({ category: "fileEdit", label: "3 files" }))).toEqual({
       view: { id: "diff", title: "workspace.view.title.diff", icon: "diff" },
       activeFile: undefined,
     });
   });
 
   it("does not route inline-only tool categories", () => {
-    const search = tool({ name: "grep", fn: "needle" });
+    const search = tool({ category: "inline", label: "needle" });
 
     expect(hasWorkspaceToolView(search)).toBe(false);
     expect(decideWorkspaceToolRoute(search)).toBeNull();

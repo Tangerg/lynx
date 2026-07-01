@@ -11,7 +11,7 @@ import { writeToClipboard } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
-import { editMessageInComposer, regenerateMessage } from "./application/messageActions";
+import { editMessageInComposer, regenerateMessage } from "./public/messageActions";
 import { messageFeedbackRating, submitMessageFeedback } from "./public/feedback";
 import { messageCopyPayloads } from "./presentation/copyPayloads";
 import { ACTION_BTN_BASE } from "./_shared";

@@ -2,7 +2,7 @@
 // icon glyphs for tool function names.
 
 import type { ComponentType } from "react";
-import type { ToolCall } from "@/protocol/run/viewState";
+import type { ToolCall } from "@/plugins/sdk/types/agentView";
 
 export interface ToolPreviewProps {
   tool: ToolCall;

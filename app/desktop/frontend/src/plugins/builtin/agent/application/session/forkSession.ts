@@ -3,7 +3,7 @@ import { useCallback } from "react";
 import { getContainer } from "@/main/container";
 import { asSessionId } from "@/rpc";
 import { invalidateSessions } from "@/lib/data/queries";
-import { useAgentSessionStore } from "@/state/agentSessionStore";
+import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
 import { reportSessionError } from "./reportSessionError";
 
 // In-flight forks keyed by target (session id + optional root run). A fork is a

@@ -4,8 +4,11 @@ import type {
   PlanItem,
   TimelineEntry,
   ToolCall,
-} from "@/protocol/run/viewState";
-import { getCurrentSessionView, useAgentMessages } from "@/state/agentStore";
+} from "@/plugins/sdk/types/agentView";
+import {
+  getCurrentSessionView,
+  useAgentMessages,
+} from "@/plugins/builtin/agent/adapters/agentStore";
 
 interface ActiveConversationSnapshot {
   messages: Message[];

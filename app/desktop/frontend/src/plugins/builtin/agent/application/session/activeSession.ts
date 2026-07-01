@@ -1,10 +1,15 @@
 import type { SidebarSession } from "@/lib/data/queries";
 import { useSessions } from "@/lib/data/queries";
-import { useAgentSessionStore } from "@/state/agentSessionStore";
+import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
 
 export interface AgentSessionLifecycleSnapshot {
   activeSessionId: string;
   openSessionIds: string[];
+}
+
+export interface AgentSessionSelectionSnapshot {
+  activeSessionId: string;
+  selectionEpoch: number;
 }
 
 export function useActiveSessionId(): string {
@@ -18,6 +23,11 @@ export function getActiveSessionId(): string {
 export function getAgentSessionLifecycleSnapshot(): AgentSessionLifecycleSnapshot {
   const state = useAgentSessionStore.getState();
   return { activeSessionId: state.activeSessionId, openSessionIds: state.tabIds };
+}
+
+function getAgentSessionSelectionSnapshot(): AgentSessionSelectionSnapshot {
+  const state = useAgentSessionStore.getState();
+  return { activeSessionId: state.activeSessionId, selectionEpoch: state.selectionEpoch };
 }
 
 export function subscribeActiveSessionId(onChange: (sessionId: string) => void): () => void {
@@ -42,6 +52,29 @@ export function subscribeAgentSessionLifecycle(
     }
     lastSnapshot = { activeSessionId: state.activeSessionId, openSessionIds: state.tabIds };
     onChange(lastSnapshot);
+  });
+}
+
+export function subscribeAgentSessionSelection(
+  onChange: (
+    snapshot: AgentSessionSelectionSnapshot,
+    previous: AgentSessionSelectionSnapshot,
+  ) => void,
+): () => void {
+  let lastSnapshot = getAgentSessionSelectionSnapshot();
+  return useAgentSessionStore.subscribe((state) => {
+    if (
+      state.activeSessionId === lastSnapshot.activeSessionId &&
+      state.selectionEpoch === lastSnapshot.selectionEpoch
+    ) {
+      return;
+    }
+    const previous = lastSnapshot;
+    lastSnapshot = {
+      activeSessionId: state.activeSessionId,
+      selectionEpoch: state.selectionEpoch,
+    };
+    onChange(lastSnapshot, previous);
   });
 }
 

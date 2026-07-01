@@ -9,7 +9,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
 import type { LyraClient, Methods } from "@/rpc";
 import { asSessionId } from "@/rpc";
-import { useAgentSessionStore } from "@/state/agentSessionStore";
+import { agentTextInput } from "../../domain/input";
+import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
 import { useCreateSession } from "./createSession";
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -48,7 +49,7 @@ describe("useCreateSession", () => {
     const { result } = renderHook(() => useCreateSession(), { wrapper });
 
     const id = await result.current({
-      firstInput: [{ type: "text", text: "first message" }],
+      firstInput: agentTextInput("first message"),
       firstRunOptions: { provider: "openai", model: "gpt-5" },
     });
 
@@ -58,7 +59,7 @@ describe("useCreateSession", () => {
     expect(s.tabIds).toContain("new-1");
     expect(s.draftSessionIds.has("new-1")).toBe(true);
     expect(s.takePendingMessage("new-1")).toEqual({
-      input: [{ type: "text", text: "first message" }],
+      input: agentTextInput("first message"),
       runOptions: { provider: "openai", model: "gpt-5" },
     });
   });
@@ -91,7 +92,7 @@ describe("useCreateSession", () => {
     stubCreate(vi.fn().mockRejectedValue(new Error("boom")));
     const { result } = renderHook(() => useCreateSession(), { wrapper });
 
-    await expect(result.current({ firstInput: [{ type: "text", text: "x" }] })).resolves.toBeNull();
+    await expect(result.current({ firstInput: agentTextInput("x") })).resolves.toBeNull();
     expect(useAgentSessionStore.getState().activeSessionId).toBe("");
   });
 

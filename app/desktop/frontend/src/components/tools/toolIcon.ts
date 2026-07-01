@@ -12,7 +12,7 @@
 // sensibly with zero plugins loaded. One table, two readers — they can't drift.
 
 import type { IconName } from "@/components/common/Icon";
-import type { ToolCall } from "@/protocol/run/viewState";
+import type { ToolCall } from "@/plugins/sdk/types/agentView";
 import { lookupExtensionByKey, TOOL_ICON } from "@/plugins/sdk";
 
 /** The icon/preview registry key for a tool = its wire `name` (§4.4). */

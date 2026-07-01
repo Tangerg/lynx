@@ -4,7 +4,7 @@ import { getContainer } from "@/main/container";
 import { asSessionId } from "@/rpc";
 import { queryClient } from "@/lib/data/queryClient";
 import { invalidateSessions, SESSIONS_KEY } from "@/lib/data/queries";
-import { useAgentSessionStore } from "@/state/agentSessionStore";
+import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
 import { reportSessionError } from "./reportSessionError";
 
 /**

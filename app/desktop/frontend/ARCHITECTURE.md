@@ -78,7 +78,7 @@ src/
 │   │
 │   └── builtin/              内置插件，按领域（限界上下文）分组
 │       ├── index.ts          manifest（topo sort 由 spec.requires 驱动）
-│       ├── agent/            bootstrap · core-reducer（StreamEvent→view state）· rpc-agent（默认 driver）
+│       ├── agent/            bootstrap · agent fold（StreamEvent→view state）· rpc-agent（默认 driver）
 │       ├── chat/             composer · message-actions · plan-progress · slash-hints ·
 │       │                     chat-search · preview-blocks · tools/(meta + previews)
 │       ├── command/          command-palette · global-keymap · shortcuts
@@ -92,7 +92,7 @@ src/
 │       ├── theme/            kit（defineThemePlugin helper）+ themes（10+ 主题）
 │       └── workspace/        workspace-views · tasks · diagnostics · conversation-export
 │
-├── protocol/run/         协议 fold 边界
+├── plugins/builtin/agent/application/fold/         协议 fold 边界
 │   ├── reducer.ts        纯派发器：StreamEvent → host.events.onStream/onCustom 注册的 handler
 │   ├── viewState.ts      AgentViewState 形状（Item→message/block 投影）+ INITIAL_VIEW_STATE
 │   └── runDigest.ts      从 timeline + toolCalls 派生的 run 摘要
@@ -173,7 +173,7 @@ Lyra 大部分 UI ↔ 数据流已经通过插件系统解耦，真正需要"内
 **层依赖规则**（`scripts/check-layers.mjs` + `check-circular.mjs` 强制，alias-aware，`npm run check` 跑）：
 
 - `rpc/` 是独立层：只依赖外部库 + 自己，**禁** import `state` / `sdk` / `components` / `protocol` / `main` 任何 app 层。
-- `protocol/run/`（fold/viewState）可达 `rpc`（wire 类型）+ `sdk`（dispatcher seam）+ `lib`，**禁** UI / state / main。
+- `plugins/builtin/agent/application/fold/`（fold/viewState）可达 `rpc`（wire 类型）+ `sdk`（dispatcher seam）+ `lib`，**禁** UI / state / main。
 - `plugins/sdk` / `state` / `lib` **禁** import UI（`components` / `pages` / `builtin`）——锁住"平台/工具层不依赖它被消费的 UI"。
 - `components/` / `pages/` **禁** import `@/main`（composition root）或 `@/rpc`（协议客户端）——只经 store selector / `lib/data` query / SDK selector 触业务。
 - 业务调用一律走 `getContainer().client().xxx(...)`；测试用 `setContainer({ client })` / `resetContainer()` 注入假实现。
@@ -366,7 +366,7 @@ host.extensions.contribute(POINT, spec, opts?)
 按"先依赖、后消费"分组（仅人类可读；真实约束在各 `spec.requires`）：
 
 ```
-protocol        → core-reducer
+protocol        → agent fold
 infrastructure  → defaultConfig / bootstrap / defaultData / rpcAgent / defaultTitle /
                   defaultAccents / themesPack / localesPack / mainRoute
 messageRendering→ defaultRoles / messageCopy+Edit+Regenerate / previewBlocks
@@ -394,7 +394,7 @@ LyraClient（rpc/）—— runs.start / runs.resume 流式返回 RunEvent
 useAgentStore.applyEvents(sessionId, batch)   ◄── rAF 批处理，~1 commit/帧
    │   reduce(state, event)
    ▼
-src/protocol/run/reducer.ts —— 纯派发器
+src/plugins/builtin/agent/application/fold/reducer.ts —— 纯派发器
    │
    ├─ type === "custom"   → lookupCustomHandlers(ev.name) 链式 → StateUpdate → next
    └─ 其它 StreamEvent     → lookupStreamHandlers(type) 链式 fold
@@ -408,10 +408,10 @@ React 组件按 selector 重渲染
 
 #### 为什么 reducer 是"纯派发器"
 
-reducer 自己不处理任何事件语义——全部搬到 `lyra.builtin.core-reducer` 插件（`handlers` 派发 / `projections` 纯 wire→view 映射 / `fold` 有状态 upsert）。这样：
+reducer 自己不处理任何事件语义——全部搬到 `lyra.builtin.agent fold` 插件（`handlers` 派发 / `projections` 纯 wire→view 映射 / `fold` 有状态 upsert）。这样：
 
 1. **统一扩展点**：第三方插件想拦截某个 StreamEvent？`host.events.onStream(type, …)` 即可，跟内置一视同仁。
-2. **可测**：测试只加载需要的 core-reducer 子集。
+2. **可测**：测试只加载需要的 agent fold 子集。
 3. **错误隔离**：一个 handler 抛错，其余继续——dispatcher 包了 try/catch。
 
 `AgentViewState`（`viewState.ts`）把 v2 wire 模型（Session→Run→Item）投影成 UI 形状：`messages: Message[]`（每条含 `blocks: ContentBlock[]`）+ `toolCalls: Record<id, ToolCall>` + `plan` + `run`（含 `sessionId` / `runId` / step / tokens）+ `timeline` + `openInterrupts` + `shared`。其中"连续助手 Item 折进一个气泡"叫一个 **turn**（`turnMessageId`），是纯 UI 概念，与协议 Run 干净分离。
@@ -532,7 +532,7 @@ Composer onKeyDown (Enter) → submitComposer → useChatSend(text)
    → 有 active session → agentStore.send；无 → useCreateSession 起草稿 + 排队首条
    → useAgentSession.send → 乐观渲染 local 气泡 + driver.start
    → client.runs.start → 流出 run.started / item.* / state.* …
-   → pump（rAF 批）→ agentStore.applyEvents → reduce → core-reducer handlers → 新 state
+   → pump（rAF 批）→ agentStore.applyEvents → reduce → agent fold handlers → 新 state
    → React 订阅者重渲染（ChatStream 等）
 ```
 
@@ -553,7 +553,7 @@ ChatPanel → ChatStream → MessageBlock → PartRenderer
 
 ```
 后端的 run 以 outcome.type="interrupt" 结束（释放资源），落一条 durable OpenInterrupt
-   → core-reducer 物化一个 approval / question 块（status="requires-action"）
+   → agent fold 物化一个 approval / question 块（status="requires-action"）
    → 绑定 { parentRunId, itemId }
 用户点 Approve / Decline（或回答 question）
    → useApprovalSubmit / useQuestionAnswer → useAgentSession.resume(parentRunId, responses)
@@ -627,7 +627,7 @@ export default definePlugin({
 **自定义内容块的类型注册**（让 TS 满意）：
 
 ```ts
-declare module "@/protocol/run/viewState" {
+declare module "@/plugins/sdk/types/agentView" {
   interface CustomContentBlockMap {
     exampleBanner: { kind: "exampleBanner"; text: string };
   }
@@ -653,17 +653,17 @@ declare module "@/protocol/run/viewState" {
 
 ## 11. 进一步的阅读路径
 
-| 想了解                           | 先看                                                          |
-| -------------------------------- | ------------------------------------------------------------- |
-| 决策透镜 / 工程约定 / 反向不变量 | 仓库根 `CLAUDE.md`                                            |
-| 视觉规范 / 颜色 / 排版           | `frontend/DESIGN.md`                                          |
-| 协议 method 表 / envelope / 语义 | `docs/protocol/API.md` + `docs/protocol/AUX_API.md`           |
-| transport / handshake / 错误码   | `docs/protocol/TRANSPORT.md`                                  |
-| Host 全部接口                    | `src/plugins/sdk/types/host.ts`                               |
-| 协议 fold                        | `src/protocol/run/reducer.ts` + `builtin/agent/core-reducer/` |
-| 一个完整内置插件                 | `src/plugins/builtin/agent/rpc-agent/index.ts`                |
-| 会话生命周期                     | `src/state/useAgentSession.ts`                                |
-| 主题如何注册                     | `src/plugins/builtin/theme/kit/` + 任意 `theme/themes/*`      |
+| 想了解                           | 先看                                                                                        |
+| -------------------------------- | ------------------------------------------------------------------------------------------- |
+| 决策透镜 / 工程约定 / 反向不变量 | 仓库根 `CLAUDE.md`                                                                          |
+| 视觉规范 / 颜色 / 排版           | `frontend/DESIGN.md`                                                                        |
+| 协议 method 表 / envelope / 语义 | `docs/protocol/API.md` + `docs/protocol/AUX_API.md`                                         |
+| transport / handshake / 错误码   | `docs/protocol/TRANSPORT.md`                                                                |
+| Host 全部接口                    | `src/plugins/sdk/types/host.ts`                                                             |
+| 协议 fold                        | `src/plugins/builtin/agent/application/fold/reducer.ts` + `builtin/agent/application/fold/` |
+| 一个完整内置插件                 | `src/plugins/builtin/agent/rpc-agent/index.ts`                                              |
+| 会话生命周期                     | `src/state/useAgentSession.ts`                                                              |
+| 主题如何注册                     | `src/plugins/builtin/theme/kit/` + 任意 `theme/themes/*`                                    |
 
 ---
 
@@ -673,9 +673,9 @@ declare module "@/protocol/run/viewState" {
 
 ### 12.1 值得做（收益明确、风险可控）
 
-#### A. 补全 core-reducer 各 handler 的语义测试
+#### A. 补全 agent fold 各 handler 的语义测试
 
-**现状**：`builtin/agent/core-reducer/` 已拆成 `handlers`（派发）/ `projections`（纯映射）/ `fold`（有状态折叠），`reducer.*.test.ts` 覆盖 dispatcher + 聚合 + custom + 主要事件路径。缺口是**逐 handler 的语义快照**（每个 item.* / state.* 的 input→state delta）。
+**现状**：`builtin/agent/application/fold/` 已拆成 `handlers`（派发）/ `projections`（纯映射）/ `fold`（有状态折叠），`reducer.*.test.ts` 覆盖 dispatcher + 聚合 + custom + 主要事件路径。缺口是**逐 handler 的语义快照**（每个 item.* / state.* 的 input→state delta）。
 **触发条件**：加新的内置事件类型 / Item 类型时一并补上对应 handler 的语义测试。
 
 #### B. search / webSearch 富结果渲染

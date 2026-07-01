@@ -4,7 +4,7 @@
 // Defined as its own module so plugin SDK consumers can import the hook
 // without dragging in the React component tree of `MessageBlock`.
 
-import type { Message } from "@/protocol/run/viewState";
+import type { Message } from "@/plugins/sdk/types/agentView";
 import { createContext, useContext } from "react";
 
 export const MessageContext = createContext<Message | null>(null);

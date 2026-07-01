@@ -11,8 +11,8 @@
 // a double press (the second press finds the same open interrupt before it
 // settles); cleared on settle/error so a torn-down session stays retryable.
 
-import { useAgentStore } from "@/state/agentStore";
-import { useAgentSessionStore } from "@/state/agentSessionStore";
+import { useAgentStore } from "@/plugins/builtin/agent/adapters/agentStore";
+import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
 import { getApprovalActions } from "./approvalActions";
 import type { ApprovalDecision } from "../../domain/hitl";
 import { WIRE_DECISION } from "./wireDecision";

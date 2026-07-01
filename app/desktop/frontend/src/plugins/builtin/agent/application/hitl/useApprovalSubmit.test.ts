@@ -7,8 +7,8 @@
 
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useAgentStore } from "@/state/agentStore";
-import { useAgentSessionStore } from "@/state/agentSessionStore";
+import { useAgentStore } from "@/plugins/builtin/agent/adapters/agentStore";
+import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
 import { useApprovalSubmit } from "./useApprovalSubmit";
 
 const SID = "ses_1";

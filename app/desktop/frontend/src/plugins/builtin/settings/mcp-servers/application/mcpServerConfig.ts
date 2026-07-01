@@ -2,13 +2,27 @@ import { useCallback } from "react";
 import { getContainer } from "@/main/container";
 import { t } from "@/lib/i18n";
 import { errorDetail, type ConfigureMCPServerRequest } from "@/rpc";
-import { MCP_CONFIGS_KEY, MCP_SERVERS_KEY, MCP_TOOLS_KEY } from "@/lib/data/queries";
+import {
+  MCP_CONFIGS_KEY,
+  MCP_SERVERS_KEY,
+  MCP_TOOLS_KEY,
+  type MCPServerConfigInfo,
+  type MCPTransport,
+  useMCPConfigs,
+} from "@/lib/data/queries";
 import { queryClient } from "@/lib/data/queryClient";
 
 // MCP server-configuration mutations (workspace.mcp.configure / remove /
 // setEnabled / test). Counterpart to the read-side useMCPConfigs() query — the
 // mutators invalidate the configs + status views so the pane and the Tools
 // workspace view both re-read the new registry state.
+
+export type MCPServerConfig = MCPServerConfigInfo;
+export type MCPServerTransport = MCPTransport;
+
+export function useMCPServerConfigs() {
+  return useMCPConfigs();
+}
 
 // Every mutator refetches: the editable registry (the pane), the status-only
 // sidebar/Tools view, and the per-server tool detail (tool gating + reconnect
