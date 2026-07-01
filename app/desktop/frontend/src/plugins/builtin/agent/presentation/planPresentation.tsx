@@ -14,7 +14,7 @@ export function PlanCheck({ status }: { status: PlanItem["status"] }) {
         </div>
       )}
       {status === "todo" && (
-        <div className="h-3 w-3 rounded-full border-[1.5px] border-line-soft" />
+        <div className="h-3 w-3 rounded-full border-[1.5px] border-fg-faint/40" />
       )}
     </div>
   );

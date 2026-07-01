@@ -19,7 +19,7 @@ export function Checkbox({ checked, onCheckedChange, id, ariaLabel, className }:
       onCheckedChange={onCheckedChange}
       aria-label={ariaLabel}
       className={cn(
-        "grid h-3.5 w-3.5 shrink-0 place-items-center rounded-xs border border-line bg-surface-2 transition-colors duration-150",
+        "grid h-3.5 w-3.5 shrink-0 place-items-center rounded-xs border border-fg-faint/25 bg-surface-2 transition-colors duration-150",
         "data-[checked]:border-accent data-[checked]:bg-accent",
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
         className,
