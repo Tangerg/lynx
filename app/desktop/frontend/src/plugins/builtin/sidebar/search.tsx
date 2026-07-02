@@ -24,7 +24,7 @@ function SidebarSearch() {
         data-chrome-focus=""
         aria-label={t("sidebar.search.label")}
         className={cn(
-          "flex w-full items-center gap-2 rounded-md border border-line bg-canvas/70 py-1.5 pl-2.5 pr-2 text-left font-sans text-[13px] text-fg-faint transition-colors hover:bg-canvas hover:text-fg-muted focus-visible:bg-canvas focus-visible:text-fg-muted focus-visible:outline-none",
+          "flex w-full items-center gap-2 rounded-md border border-field bg-canvas/70 py-1.5 pl-2.5 pr-2 text-left font-sans text-[13px] text-fg-faint transition-colors hover:bg-canvas hover:text-fg-muted focus-visible:bg-canvas focus-visible:text-fg-muted focus-visible:outline-none",
         )}
       >
         <Icon name="search" size={14} className="shrink-0" />

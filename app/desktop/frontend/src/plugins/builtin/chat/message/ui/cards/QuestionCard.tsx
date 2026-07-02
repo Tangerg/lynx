@@ -152,7 +152,7 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered,
                   onChange={(e) => {
                     setDraft((prev) => setQuestionText(prev, q, e.target.value));
                   }}
-                  className="w-full bg-transparent border-b border-line py-1 text-[16px] text-fg placeholder:text-fg-faint outline-none focus:border-fg"
+                  className="w-full bg-transparent border-b border-field py-1 text-[16px] text-fg placeholder:text-fg-faint outline-none focus:border-fg"
                 />
               )}
             </div>

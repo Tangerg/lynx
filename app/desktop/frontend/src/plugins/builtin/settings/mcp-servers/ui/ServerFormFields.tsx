@@ -2,12 +2,12 @@ import { INPUT_FOCUS_RING } from "@/components/common";
 import { cn } from "@/lib/utils";
 
 export const FIELD = cn(
-  "h-8 w-full rounded-md border border-line-soft bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint",
+  "h-8 w-full rounded-md border border-field bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint",
   INPUT_FOCUS_RING,
 );
 
 export const TEXT_AREA = cn(
-  "w-full resize-y rounded-md border border-line-soft bg-surface px-2.5 py-1.5 font-mono text-[12px] leading-[1.5] text-fg outline-none placeholder:text-fg-faint",
+  "w-full resize-y rounded-md border border-field bg-surface px-2.5 py-1.5 font-mono text-[12px] leading-[1.5] text-fg outline-none placeholder:text-fg-faint",
   INPUT_FOCUS_RING,
 );
 

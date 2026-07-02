@@ -78,6 +78,16 @@
   --color-line-soft: transparent;
   --color-divider: transparent;
 
+  /* Control edge — the ONE border kind the skill keeps: form-field / select
+     affordances (surfaces.md "Form input outlines (for accessibility)"). Kept
+     visible on purpose (unlike the decorative `--color-line*` above), so text
+     inputs, selects, and search fields read as real, editable surfaces instead
+     of ink floating on a panel. Maps to each theme's `--color-border` (every
+     theme populates it via the kit), so it stays theme-correct with no per-theme
+     work; `-strong` is the focus/hover step. */
+  --color-field: var(--color-border);
+  --color-field-strong: var(--color-border-soft);
+
   /* Fine foreground ramp — mapped into Tailwind utilities */
   --color-text-2: var(--color-text-2);
   --color-text-3: var(--color-text-3);
@@ -305,7 +315,9 @@
    *  popover: dropdown / modal / command palette
    *  focus: quiet focus ring, no glow halo
    * ----------------------------------------------------------------------- */
-  --shadow-surface: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 1px 2px rgba(0, 0, 0, 0.32);
+  --shadow-surface:
+    0 0 0 1px rgba(255, 255, 255, 0.1), 0 1px 2px rgba(0, 0, 0, 0.4),
+    0 6px 16px -6px rgba(0, 0, 0, 0.5);
   --shadow-composer:
     0 0 0 1px rgba(255, 255, 255, 0.08), 0 1px 2px rgba(0, 0, 0, 0.36),
     0 18px 48px rgba(0, 0, 0, 0.42);
@@ -355,6 +367,19 @@ img,
 svg {
   -webkit-user-drag: none;
 }
+/* §11 — content images (screenshots, diagrams in a reply) get a neutral 1px
+   inset edge so they read as deliberate surfaces, not raw bitmaps bleeding
+   into the canvas. Pure white on dark / pure black on light — never a tinted
+   neutral, which would pick up the surface hue and read as dirt on the edge.
+   Inset offset adds no layout size. Scoped to `.msg-content` so rounded
+   avatars / UI glyphs (rendered as SVG or `rounded-full`) aren't boxed. */
+.msg-content img {
+  outline: 1px solid rgba(255, 255, 255, 0.1);
+  outline-offset: -1px;
+}
+html.theme-light .msg-content img {
+  outline-color: rgba(0, 0, 0, 0.1);
+}
 body {
   font-size: var(--fs-body-md);
   font-weight: var(--fw-regular);
@@ -372,6 +397,22 @@ h5,
 h6 {
   font-weight: 600;
   letter-spacing: var(--tracking-display);
+  /* §10 — even line lengths on short headings, no orphaned last word.
+     Chromium only balances ≤6 lines, which every UI heading clears. */
+  text-wrap: balance;
+}
+
+/* §10 — `pretty` keeps short-to-medium copy (paragraphs, list items,
+   captions) from stranding a single word on the last line. Cheaper than
+   `balance` and length-unbounded, so it's the safe default for body text;
+   long prose / code is left to the browser's default wrap. */
+p,
+li,
+dd,
+figcaption,
+blockquote,
+summary {
+  text-wrap: pretty;
 }
 
 /* Mono is the technical / data voice (DESIGN.md §3) — bake tabular figures into
@@ -486,7 +527,9 @@ html.theme-light .panel {
 }
 
 html.theme-light {
-  --shadow-surface: 0 0 0 1px rgb(15 23 42 / 0.06), 0 1px 2px rgb(15 23 42 / 0.04);
+  --shadow-surface:
+    0 0 0 1px rgb(15 23 42 / 0.08), 0 1px 2px -1px rgb(15 23 42 / 0.1),
+    0 4px 10px -3px rgb(15 23 42 / 0.08);
   --shadow-composer:
     0 0 0 1px rgb(15 23 42 / 0.08), 0 1px 2px rgb(15 23 42 / 0.06), 0 18px 48px rgb(15 23 42 / 0.12);
   --shadow-popover:
