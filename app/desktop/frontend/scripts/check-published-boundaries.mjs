@@ -200,11 +200,11 @@ for (const file of files(SRC)) {
   if (
     !isTest &&
     /plugins\/builtin\/chat\/composer\/.+\.(ts|tsx)$/.test(rel) &&
-    /from\s+["']@\/plugins\/builtin\/chat\/workbench(?:\/[^"']*)?["']/.test(text)
+    /from\s+["']@\/plugins\/builtin\/chat\/message-actions(?:\/[^"']*)?["']/.test(text)
   ) {
     violations.push({
       file: rel,
-      reason: "composer must not depend on chat workbench orchestration",
+      reason: "composer must not depend on chat message-actions orchestration",
     });
   }
 

@@ -153,10 +153,10 @@ const RpcEnvelopeSchema = z.looseObject({
 
 // Parse + envelope-validate one raw inbound wire message (the trust boundary
 // where untrusted bytes become an RpcMessage). Returns the message on success,
-// or null when the text isn't valid JSON or isn't a well-formed JSON-RPC
-// envelope — the caller decides whether that means "skip this stream frame" or
-// "fail this call". Rejecting garbage here means correlation and notification
-// dispatch downstream never see a non-envelope.
+// or null when the text isn't valid JSON or doesn't match the accepted
+// JSON-RPC top-level envelope shape — the caller decides whether that means
+// "skip this stream frame" or "fail this call". Rejecting garbage here means
+// correlation and notification dispatch downstream never see a non-envelope.
 export function parseRpcMessage(text: string): RpcMessage | null {
   let json: unknown;
   try {
