@@ -79,8 +79,9 @@ src/
 │   └── builtin/              内置插件，按领域（限界上下文）分组
 │       ├── index.ts          manifest（topo sort 由 spec.requires 驱动）
 │       ├── agent/            bootstrap · agent fold（StreamEvent→view state）· rpc-agent（默认 driver）
-│       ├── chat/             composer · message-actions · plan-progress · slash-hints ·
-│       │                     chat-search · preview-blocks · tools/(meta + previews)
+│       ├── chat/             composer · message/(渲染 ui/ + public) · message-actions · plan-progress ·
+│       │                     slash-hints · chat-search · preview-blocks · file-references ·
+│       │                     tools/(meta + previews + ui/)
 │       ├── command/          command-palette · global-keymap · shortcuts
 │       ├── defaults/         默认 commands / config / data / accents / roles / title
 │       ├── i18n/             locales pack（8 语言）
@@ -120,10 +121,9 @@ src/
 │   └── useWhenContext.ts  build context for `when` clauses
 │
 ├── components/           纯展示 + 薄 store 接线（经 selector/hook 触业务，不直连 rpc/main）
-│   ├── chat/             message/(消息渲染 + markdown/ + cards/) · panel/(ChatPanel 编排) · composer/
-│   ├── common/           设计系统原子（Icon · Panel · DataView 三态 render-prop · …）
-│   ├── tools/            ToolCard · ToolInspector · ToolPreview · previews/
-│   └── sidebar/          导航组件
+│   └── common/           设计系统原子（Icon · Panel · DataView 三态 render-prop · Menu · Tooltip · …）
+│                         业务 UI（消息渲染 / 工具卡 / 侧栏导航）不放这里——已迁入各自限界上下文的
+│                         plugins/builtin/{chat/message,chat/tools,sidebar}/ui/
 │
 ├── lib/                  共享 hook + 纯函数（跨插件共享，不属于上述任一层）
 │   ├── agent/            会话用例 hook（useChatSend / useApprovalSubmit / useQuestionAnswer /
