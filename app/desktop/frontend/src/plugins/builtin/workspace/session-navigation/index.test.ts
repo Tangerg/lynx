@@ -4,7 +4,8 @@ import type {
   AgentSessionSelectionSnapshot,
 } from "@/plugins/builtin/agent/public/session";
 import { loadPlugin, unloadPlugin } from "@/plugins/sdk";
-import { useWorkspaceNavigationStore } from "@/state/workspaceNavigationStore";
+import { useContextDockStore } from "@/state/contextDockStore";
+import { useWorkspaceSurfaceStore } from "@/state/workspaceSurfaceStore";
 import sessionNavigation from ".";
 
 type SelectionListener = (
@@ -73,10 +74,12 @@ function selection(activeSessionId: string, selectionEpoch: number): AgentSessio
 }
 
 function resetWorkspace() {
-  useWorkspaceNavigationStore.setState({
+  useWorkspaceSurfaceStore.setState({
     mainViewTabs: views.map((view) => ({ ...view })),
     activeMainView: "v2",
     settingsPane: null,
+  });
+  useContextDockStore.setState({
     activeSessionScopeId: "",
     sessionScopes: new Map(),
     splitViewId: null,
@@ -88,7 +91,7 @@ function resetWorkspace() {
 }
 
 function seedInspector() {
-  useWorkspaceNavigationStore.setState({
+  useContextDockStore.setState({
     activeFile: "src/a.ts",
     selectedToolId: "tool-1",
     expandedToolIds: new Set(["tool-1"]),
@@ -97,7 +100,7 @@ function seedInspector() {
 }
 
 function expectSessionScopedStateBlank() {
-  const state = useWorkspaceNavigationStore.getState();
+  const state = useContextDockStore.getState();
   expect(state.activeFile).toBe("");
   expect(state.selectedToolId).toBe("");
   expect(state.expandedToolIds.size).toBe(0);
@@ -105,7 +108,7 @@ function expectSessionScopedStateBlank() {
 }
 
 function expectSessionScopedStatePreserved() {
-  const state = useWorkspaceNavigationStore.getState();
+  const state = useContextDockStore.getState();
   expect(state.activeFile).toBe("src/a.ts");
   expect(state.selectedToolId).toBe("tool-1");
   expect(state.expandedToolIds.has("tool-1")).toBe(true);
@@ -124,11 +127,11 @@ describe("workspace session navigation", () => {
   });
 
   it("selecting a different session returns the main pane to chat", () => {
-    expect(useWorkspaceNavigationStore.getState().activeMainView).toBe("v2");
+    expect(useWorkspaceSurfaceStore.getState().activeMainView).toBe("v2");
 
     agentSessionSelection.emit(selection("s2", 1), selection("s1", 0));
 
-    expect(useWorkspaceNavigationStore.getState().activeMainView).toBeNull();
+    expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
   });
 
   // oxlint-disable-next-line vitest/expect-expect -- helper functions contain the assertions.
@@ -139,7 +142,7 @@ describe("workspace session navigation", () => {
 
     expectSessionScopedStateBlank();
 
-    useWorkspaceNavigationStore.setState({
+    useContextDockStore.setState({
       activeFile: "src/b.ts",
       selectedToolId: "tool-2",
       expandedToolIds: new Set(["tool-2"]),
@@ -150,7 +153,7 @@ describe("workspace session navigation", () => {
     expectSessionScopedStatePreserved();
 
     agentSessionSelection.emit(selection("s2", 3), selection("s1", 2));
-    const state = useWorkspaceNavigationStore.getState();
+    const state = useContextDockStore.getState();
     expect(state.activeFile).toBe("src/b.ts");
     expect(state.selectedToolId).toBe("tool-2");
     expect(state.expandedToolIds.has("tool-2")).toBe(true);

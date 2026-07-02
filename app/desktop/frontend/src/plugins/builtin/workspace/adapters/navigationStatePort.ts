@@ -1,38 +1,63 @@
 import { useUiStore } from "@/state/uiStore";
-import { useWorkspaceNavigationStore } from "@/state/workspaceNavigationStore";
+import { useContextDockStore } from "@/state/contextDockStore";
+import { useWorkspaceSurfaceStore } from "@/state/workspaceSurfaceStore";
 import { configureWorkspaceNavigationPort } from "../application/ports/navigationState";
 
 export function installWorkspaceNavigationPort(): void {
   configureWorkspaceNavigationPort({
-    useActiveViewId: () => useWorkspaceNavigationStore((state) => state.activeMainView),
-    useSplitViewId: () => useWorkspaceNavigationStore((state) => state.splitViewId),
-    useActiveFile: () => useWorkspaceNavigationStore((state) => state.activeFile),
-    useFileViewer: () => useWorkspaceNavigationStore((state) => state.fileViewer),
-    useSettingsPaneTarget: () => useWorkspaceNavigationStore((state) => state.settingsPane),
-    useExpandedToolIds: () => useWorkspaceNavigationStore((state) => state.expandedToolIds),
-    useSelectTool: () => useWorkspaceNavigationStore((state) => state.setSelectedToolId),
-    useToggleTool: () => useWorkspaceNavigationStore((state) => state.toggleExpandedTool),
+    useActiveViewId: () => useWorkspaceSurfaceStore((state) => state.activeMainView),
+    useSplitViewId: () => useContextDockStore((state) => state.splitViewId),
+    useActiveFile: () => useContextDockStore((state) => state.activeFile),
+    useFileViewer: () => useContextDockStore((state) => state.fileViewer),
+    useSettingsPaneTarget: () => useWorkspaceSurfaceStore((state) => state.settingsPane),
+    useExpandedToolIds: () => useContextDockStore((state) => state.expandedToolIds),
+    useSelectTool: () => useContextDockStore((state) => state.setSelectedToolId),
+    useToggleTool: () => useContextDockStore((state) => state.toggleExpandedTool),
     useSidebarRail: () => {
       const preferRail = useUiStore((state) => state.sidebarRail);
-      const splitOpen = useWorkspaceNavigationStore((state) => state.splitViewId !== null);
+      const splitOpen = useContextDockStore((state) => state.splitViewId !== null);
       return preferRail || splitOpen;
     },
-    selectChat: () => useWorkspaceNavigationStore.getState().selectChat(),
-    openView: (tab) => useWorkspaceNavigationStore.getState().openMainView(tab),
-    openViewBeside: (tab) => useWorkspaceNavigationStore.getState().openMainViewBeside(tab),
-    closeView: (id) => useWorkspaceNavigationStore.getState().closeMainView(id),
-    activeViewId: () => useWorkspaceNavigationStore.getState().activeMainView,
-    closeSplit: () => useWorkspaceNavigationStore.getState().closeSplit(),
-    promoteSplitToView: () => useWorkspaceNavigationStore.getState().promoteSplitToTab(),
-    setSettingsPane: (pane) => useWorkspaceNavigationStore.getState().setSettingsPane(pane),
-    settingsPaneTarget: () => useWorkspaceNavigationStore.getState().settingsPane,
-    setActiveFile: (path) => useWorkspaceNavigationStore.getState().setActiveFile(path),
-    openFile: (path, line) => useWorkspaceNavigationStore.getState().openFileViewer(path, line),
-    selectedToolId: () => useWorkspaceNavigationStore.getState().selectedToolId,
-    setSelectedTool: (id) => useWorkspaceNavigationStore.getState().setSelectedToolId(id),
+    selectChat: () => useWorkspaceSurfaceStore.getState().selectChat(),
+    openView: (tab) => {
+      useWorkspaceSurfaceStore.getState().openMainView(tab);
+      useContextDockStore.getState().closeSplit();
+    },
+    openViewBeside: (tab) => {
+      useWorkspaceSurfaceStore.getState().ensureMainViewTab(tab);
+      useWorkspaceSurfaceStore.getState().selectChat();
+      useContextDockStore.getState().openSplit(tab.id);
+    },
+    closeView: (id) => {
+      useWorkspaceSurfaceStore.getState().closeMainView(id);
+      useContextDockStore.getState().closeSplitIf(id);
+    },
+    activeViewId: () => useWorkspaceSurfaceStore.getState().activeMainView,
+    closeSplit: () => useContextDockStore.getState().closeSplit(),
+    promoteSplitToView: () => {
+      const splitViewId = useContextDockStore.getState().splitViewId;
+      const tab = splitViewId
+        ? useWorkspaceSurfaceStore.getState().mainViewTabs.find((view) => view.id === splitViewId)
+        : undefined;
+      if (!tab) return;
+      useWorkspaceSurfaceStore.getState().openMainView(tab);
+      useContextDockStore.getState().closeSplit();
+    },
+    setSettingsPane: (pane) => useWorkspaceSurfaceStore.getState().setSettingsPane(pane),
+    settingsPaneTarget: () => useWorkspaceSurfaceStore.getState().settingsPane,
+    setActiveFile: (path) => useContextDockStore.getState().setActiveFile(path),
+    openFile: (path, line) => {
+      useWorkspaceSurfaceStore
+        .getState()
+        .openMainView({ id: "file", title: "workspace.view.title.file", icon: "filetext" });
+      useContextDockStore.getState().closeSplit();
+      useContextDockStore.getState().setFileViewer(path, line);
+    },
+    selectedToolId: () => useContextDockStore.getState().selectedToolId,
+    setSelectedTool: (id) => useContextDockStore.getState().setSelectedToolId(id),
     activateSessionScope: (sessionId) =>
-      useWorkspaceNavigationStore.getState().activateSessionScope(sessionId),
+      useContextDockStore.getState().activateSessionScope(sessionId),
     forgetSessionScopes: (openSessionIds) =>
-      useWorkspaceNavigationStore.getState().forgetSessionScopes(openSessionIds),
+      useContextDockStore.getState().forgetSessionScopes(openSessionIds),
   });
 }

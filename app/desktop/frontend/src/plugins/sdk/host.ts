@@ -23,7 +23,8 @@ import type {
 import type { ContentBlockKind } from "@/plugins/sdk/types/contentBlock";
 import { api } from "@/lib/data/http";
 import { addLocaleBundle } from "@/lib/i18n";
-import { useWorkspaceNavigationStore } from "@/state/workspaceNavigationStore";
+import { useContextDockStore } from "@/state/contextDockStore";
+import { useWorkspaceSurfaceStore } from "@/state/workspaceSurfaceStore";
 import { startTask } from "@/state/tasksStore";
 import { getConfig, hasConfig, setConfig, useConfigStore } from "./config";
 import { restrictHost } from "./capabilityGate";
@@ -123,12 +124,14 @@ export function createHost(
           console.warn(`[plugin] workspace.openView("${id}"): no view registered`);
           return;
         }
-        useWorkspaceNavigationStore
+        useWorkspaceSurfaceStore
           .getState()
           .openMainView({ id, title: view.title, icon: view.icon });
+        useContextDockStore.getState().closeSplit();
       },
       closeView(id: string): void {
-        useWorkspaceNavigationStore.getState().closeMainView(id);
+        useWorkspaceSurfaceStore.getState().closeMainView(id);
+        useContextDockStore.getState().closeSplitIf(id);
       },
     },
 

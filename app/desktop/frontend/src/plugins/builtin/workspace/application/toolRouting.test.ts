@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
-import { useWorkspaceNavigationStore } from "@/state/workspaceNavigationStore";
+import { useContextDockStore } from "@/state/contextDockStore";
+import { useWorkspaceSurfaceStore } from "@/state/workspaceSurfaceStore";
 import { hasWorkspaceViewForTool, openWorkspaceViewForTool } from "./toolRouting";
 import { workspaceCommandActivitiesFromAgentTools } from "./toolActivity";
 
@@ -13,10 +14,12 @@ const toolCall = (over: Partial<ToolCall> & Pick<ToolCall, "id" | "name">): Tool
 
 describe("openWorkspaceViewForTool", () => {
   beforeEach(() => {
-    useWorkspaceNavigationStore.setState({
-      splitViewId: null,
+    useWorkspaceSurfaceStore.setState({
       activeMainView: null,
       mainViewTabs: [],
+    });
+    useContextDockStore.setState({
+      splitViewId: null,
       selectedToolId: "",
       activeFile: "",
     });
@@ -30,33 +33,29 @@ describe("openWorkspaceViewForTool", () => {
 
   it("opens a command tool beside chat as the terminal split, leaving activeMainView null", () => {
     openWorkspaceViewForTool(toolCall({ id: "t1", name: "shell", fn: "ls -la" }));
-    const s = useWorkspaceNavigationStore.getState();
-    expect(s.splitViewId).toBe("terminal");
-    expect(s.activeMainView).toBeNull();
-    expect(s.selectedToolId).toBe("t1");
+    expect(useContextDockStore.getState().splitViewId).toBe("terminal");
+    expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
+    expect(useContextDockStore.getState().selectedToolId).toBe("t1");
   });
 
   it("opens a fileEdit tool as the diff split and focuses its file", () => {
     openWorkspaceViewForTool(toolCall({ id: "t2", name: "edit", fn: "src/app.ts" }));
-    const s = useWorkspaceNavigationStore.getState();
-    expect(s.splitViewId).toBe("diff");
-    expect(s.activeMainView).toBeNull();
-    expect(s.activeFile).toBe("src/app.ts");
+    expect(useContextDockStore.getState().splitViewId).toBe("diff");
+    expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
+    expect(useContextDockStore.getState().activeFile).toBe("src/app.ts");
   });
 
   it("does not feed a multi-file edit label to the diff's active-file focus", () => {
     openWorkspaceViewForTool(toolCall({ id: "t3", name: "edit", fn: "3 files" }));
-    const s = useWorkspaceNavigationStore.getState();
-    expect(s.splitViewId).toBe("diff");
-    expect(s.activeFile).toBe("");
+    expect(useContextDockStore.getState().splitViewId).toBe("diff");
+    expect(useContextDockStore.getState().activeFile).toBe("");
   });
 
   it("promotes no view for inline-only categories", () => {
     openWorkspaceViewForTool(toolCall({ id: "t4", name: "grep", fn: "foo" }));
-    const s = useWorkspaceNavigationStore.getState();
-    expect(s.splitViewId).toBeNull();
-    expect(s.activeMainView).toBeNull();
-    expect(s.selectedToolId).toBe("");
+    expect(useContextDockStore.getState().splitViewId).toBeNull();
+    expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
+    expect(useContextDockStore.getState().selectedToolId).toBe("");
   });
 
   it("projects command tools into a workspace command view model", () => {

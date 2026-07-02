@@ -11,6 +11,8 @@ import { usePluginErrorStore } from "@/plugins/sdk/errors";
 import { useNotificationStore } from "@/plugins/sdk/notifications";
 import { usePluginStore } from "@/plugins/sdk/registry";
 import { _resetAllSlices } from "@/plugins/sdk/stateSlice";
+import { useContextDockStore } from "@/state/contextDockStore";
+import { useWorkspaceSurfaceStore } from "@/state/workspaceSurfaceStore";
 import {
   installAgentDefaultSessionPort,
   installAgentRuntimeGateway,
@@ -35,6 +37,20 @@ beforeEach(() => {
   usePluginErrorStore.setState({ log: [], nextId: 1 });
   useNotificationStore.setState({ log: [], nextId: 1 });
   useConfigStore.setState({ values: new Map(), subscribers: new Map() });
+  useWorkspaceSurfaceStore.setState({
+    mainViewTabs: [],
+    activeMainView: null,
+    settingsPane: null,
+  });
+  useContextDockStore.setState({
+    activeSessionScopeId: "",
+    sessionScopes: new Map(),
+    splitViewId: null,
+    activeFile: "",
+    fileViewer: null,
+    selectedToolId: "",
+    expandedToolIds: new Set<string>(),
+  });
   _resetAllSlices();
 });
 
