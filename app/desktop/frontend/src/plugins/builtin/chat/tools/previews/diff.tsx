@@ -20,15 +20,15 @@ const ROW_STYLE: Record<
   { tone: string; meta: string; codeTone: string; sign: string }
 > = {
   added: {
-    tone: "bg-[rgba(30,215,96,0.07)]",
-    meta: "text-[rgba(95,227,154,0.7)]",
-    codeTone: "text-[#c8f5d8]",
+    tone: "bg-[var(--color-diff-added-tint)]",
+    meta: "text-[var(--color-diff-added-meta)]",
+    codeTone: "text-[var(--color-diff-added-code)]",
     sign: "+",
   },
   deleted: {
-    tone: "bg-[rgba(243,114,127,0.07)]",
-    meta: "text-[rgba(243,114,127,0.7)]",
-    codeTone: "text-[#f5cdd2]",
+    tone: "bg-[var(--color-diff-deleted-tint)]",
+    meta: "text-[var(--color-diff-deleted-meta)]",
+    codeTone: "text-[var(--color-diff-deleted-code)]",
     sign: "−",
   },
   context: { tone: "", meta: "text-fg-faint", codeTone: "text-fg-soft", sign: " " },

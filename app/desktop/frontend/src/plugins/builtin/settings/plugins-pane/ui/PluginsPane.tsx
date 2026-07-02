@@ -75,7 +75,7 @@ export function PluginsPane() {
               key={spec.name}
               className={cn(
                 "rounded-lg bg-canvas",
-                errCount > 0 && "border-[0.5px] border-[rgba(243,114,127,0.36)]",
+                errCount > 0 && "border-[0.5px] border-negative/35",
               )}
             >
               <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2.5 px-3 py-2.5">
@@ -156,7 +156,7 @@ function ErrorEntry({ err }: { err: PluginError }) {
   return (
     <div className="rounded-md bg-surface-2 px-2.5 py-2">
       <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
-        <span className="rounded-full bg-[rgba(243,114,127,0.16)] px-1.5 py-px font-mono text-[10px] font-semibold text-negative">
+        <span className="rounded-full bg-negative/15 px-1.5 py-px font-mono text-[10px] font-semibold text-negative">
           {SOURCE_LABEL[err.source]}
         </span>
         <span className="truncate font-medium text-[12px] text-fg" title={err.message}>
