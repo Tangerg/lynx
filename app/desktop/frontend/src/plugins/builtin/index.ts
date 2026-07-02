@@ -67,7 +67,7 @@ import shortcuts from "./command/shortcuts";
 import usagePane from "./settings/usage";
 import {
   sidebarFooter,
-  sidebarNav,
+  sidebarNewSession,
   sidebarProjects,
   sidebarRailActions,
   sidebarRailBottom,
@@ -96,6 +96,7 @@ import {
 import welcomeScreen from "./shell/welcome-screen";
 import {
   agentDocsView,
+  contextView,
   diffView,
   fileView,
   filesView,
@@ -203,6 +204,7 @@ const panes: PluginSpec[] = [
   mcpServersPane,
   hooksPane,
   schedulesPane,
+  contextView,
   diffView,
   fileView,
   terminalView,
@@ -231,7 +233,7 @@ const kernel: PluginSpec[] = [kernelSidebar, kernelChat, kernelSettings];
 
 const sidebar: PluginSpec[] = [
   sidebarSearch,
-  sidebarNav,
+  sidebarNewSession,
   sidebarProjects,
   sidebarFooter,
   sidebarRailActions,

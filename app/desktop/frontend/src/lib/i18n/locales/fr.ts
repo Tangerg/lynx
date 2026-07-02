@@ -18,7 +18,6 @@ export const fr: Record<string, string> = {
   "sidebar.action.expand": "Développer la barre",
   "sidebar.action.newSession": "Nouvelle session",
   "sidebar.action.searchHint": "Rechercher (⌘K)",
-  "sidebar.action.tools": "Outils / MCP",
   "sidebar.action.settings": "Paramètres",
 
   "composer.input.label": "Compositeur de message",
@@ -211,6 +210,7 @@ export const fr: Record<string, string> = {
   "workspace.view.title.files": "Fichiers",
   "workspace.view.title.diff": "Diff",
   "workspace.view.title.changes": "Modifications",
+  "workspace.view.title.context": "Contexte",
   "workspace.view.title.filetree": "Explorateur",
   "workspace.view.title.plan": "Plan",
   "workspace.view.title.agentDocs": "Docs de l'agent",

@@ -121,15 +121,15 @@ function RailSpacer() {
   return <div className="flex-1" />;
 }
 
-function RailTools() {
+function RailContext() {
   const t = useT();
   return (
     <IconButton
       variant="rail"
-      title={t("sidebar.action.tools")}
-      onClick={() => openDockView("tools", t("sidebar.action.tools"), "tool")}
+      title={t("workspace.view.title.context")}
+      onClick={() => openDockView("context", "workspace.view.title.context", "panel-r")}
     >
-      <Icon name="tool" size={16} />
+      <Icon name="panel-r" size={16} />
     </IconButton>
   );
 }
@@ -157,9 +157,9 @@ export const sidebarRailBottom = definePlugin({
       component: RailSpacer,
     });
     host.extensions.contribute(SIDEBAR_RAIL_ITEM, {
-      id: "rail-tools",
+      id: "rail-context",
       order: 900,
-      component: RailTools,
+      component: RailContext,
     });
     host.extensions.contribute(SIDEBAR_RAIL_ITEM, {
       id: "rail-settings",
