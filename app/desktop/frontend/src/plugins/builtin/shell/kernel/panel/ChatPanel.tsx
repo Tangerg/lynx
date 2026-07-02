@@ -18,7 +18,7 @@ import { useSessions } from "@/lib/data/queries";
 import {
   closeWorkspaceSplit,
   closeWorkspaceView,
-  openContextDockView,
+  openContextDockLauncher,
   openWorkspaceViewBeside,
   promoteWorkspaceSplitToView,
   useActiveWorkspaceViewId,
@@ -88,13 +88,7 @@ export function ChatPanel({ onSend }: Props) {
           variant="ghost"
           title={t("workspace.view.title.context")}
           data-chrome-focus=""
-          onClick={() =>
-            openContextDockView({
-              id: "context",
-              title: "workspace.view.title.context",
-              icon: "panel-r",
-            })
-          }
+          onClick={openContextDockLauncher}
           className={cn(
             "absolute right-3 top-3 z-20 h-8 w-8 rounded-md bg-surface-2 text-fg-muted",
             "shadow-[inset_0_0_0_0.5px_var(--color-field),var(--shadow-popover)]",

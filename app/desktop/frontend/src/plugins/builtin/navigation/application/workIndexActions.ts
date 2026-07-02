@@ -8,7 +8,7 @@ import {
   useToggleFavorite,
 } from "@/plugins/builtin/agent/public/session";
 import {
-  openContextDockView,
+  openContextDockLauncher,
   openWorkspaceView,
 } from "@/plugins/builtin/workspace/public/navigation";
 
@@ -52,13 +52,7 @@ export function useWorkIndexActions(): WorkIndexActions {
       toggleFavorite: (id, favorite) => {
         void toggleFavorite(id, favorite);
       },
-      openContextDock: () => {
-        openContextDockView({
-          id: "context",
-          title: "workspace.view.title.context",
-          icon: "panel-r",
-        });
-      },
+      openContextDock: openContextDockLauncher,
       openSettings: (title) => {
         openWorkspaceView({ id: "settings", title, icon: "settings" });
       },
