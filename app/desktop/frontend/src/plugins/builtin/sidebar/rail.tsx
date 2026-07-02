@@ -4,12 +4,8 @@
 // the expanded sidebar and only with each other.
 
 import { Icon, IconButton } from "@/components/common";
-import {
-  selectAgentSession,
-  useActiveSessionId,
-  useCreateSession,
-  useVisibleAgentSessions,
-} from "@/plugins/builtin/agent/public/session";
+import { selectAgentSession, useCreateSession } from "@/plugins/builtin/agent/public/session";
+import { useRecentWorkSessions } from "@/plugins/builtin/navigation/public/workIndex";
 import { openWorkspaceView } from "@/plugins/builtin/workspace/public/navigation";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -66,12 +62,7 @@ export const sidebarRailActions = definePlugin({
 });
 
 function RailSessions() {
-  const sessions = useVisibleAgentSessions();
-  const activeSessionId = useActiveSessionId();
-  // Sort newest-first before taking 5 — the sessions provider returns server
-  // order (unsorted), so without this the rail's "recent" set/order diverges
-  // from the time-sorted expanded sidebar (the active session could be absent).
-  const recent = sessions.sort((a, b) => (a.time < b.time ? 1 : -1)).slice(0, 5);
+  const { activeSessionId, recentSessions } = useRecentWorkSessions(5);
 
   return (
     <>
@@ -79,7 +70,7 @@ function RailSessions() {
           ladder doesn't carry separation at this 28px width. */}
       <div className="my-1.5 h-px w-7 bg-line" />
       <div className="flex w-full flex-col items-center gap-1">
-        {recent.map((s) => (
+        {recentSessions.map((s) => (
           <button
             key={s.id}
             type="button"

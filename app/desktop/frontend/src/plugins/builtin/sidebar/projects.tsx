@@ -1,33 +1,22 @@
-// The sidebar's ONE workspace tree (Codex-style): projects are folder
-// nodes, sessions nest under their project by cwd (project identity IS
-// the cwd, AUX_API §1). Replaces the old flat Projects + Sessions pair —
-// two lists describing one hierarchy was the un-converged version of
-// this section.
-
-import type { SidebarProject, SidebarSession } from "@/lib/data/queries";
 import type { IconName } from "@/components/common";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { DataView, FIELD_CLASSES, Icon, SectionLabel } from "@/components/common";
 import { ProjectRow } from "./ui/ProjectRow";
 import { SessionRow } from "./ui/SessionRow";
 import { useT } from "@/lib/i18n";
-import { basename } from "@/lib/path";
-import { useProjects } from "@/lib/data/queries";
 import {
   selectAgentSession,
-  useActiveSessionId,
-  useActiveSessionCwd,
   useCreateSession,
   useDeleteSession,
   useForkSession,
   useRenameSession,
   useToggleFavorite,
-  useVisibleAgentSessions,
 } from "@/plugins/builtin/agent/public/session";
+import type { WorkGroup, WorkProject } from "@/plugins/builtin/navigation/public/workIndex";
+import { useWorkIndex } from "@/plugins/builtin/navigation/public/workIndex";
 import {
   closeWorkspaceView,
   openWorkspaceView,
-  useActiveWorkspaceViewId,
 } from "@/plugins/builtin/workspace/public/navigation";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
@@ -44,11 +33,6 @@ const SESSION_DESTINATIONS: { id: string; icon: IconName; titleKey: string }[] =
   { id: "plan", icon: "list", titleKey: "workspace.view.title.plan" },
   { id: "todos", icon: "check", titleKey: "workspace.view.title.todos" },
 ];
-
-interface ProjectGroup {
-  project: SidebarProject;
-  sessions: SidebarSession[];
-}
 
 // "+" — create a session in a chosen directory (sessions.create cwd). The
 // runtime derives projects from session cwds, so "adding a project" IS
@@ -103,14 +87,14 @@ function ProjectGroupNode({
   onDelete,
   onToggleFavorite,
 }: {
-  group: ProjectGroup;
+  group: WorkGroup;
   activeCwd: string | undefined;
   activeSessionId: string;
   activeMainView: string | null;
   /** While a filter is active: force the group open and show every match
    *  (ignore the collapse + VISIBLE_CAP fold), so results are never hidden. */
   forceExpand?: boolean;
-  onNewSession: (project: SidebarProject) => void;
+  onNewSession: (project: WorkProject) => void;
   onSelect: (id: string) => void;
   onRename: (id: string, title: string) => void;
   onFork: (id: string) => void;
@@ -197,58 +181,14 @@ function ProjectGroupNode({
 
 function ProjectsSection() {
   const t = useT();
-  const { data: projects, isLoading: projectsLoading, isError: projectsError } = useProjects();
-  const sessions = useVisibleAgentSessions();
-  const activeSessionId = useActiveSessionId();
-  const activeMainView = useActiveWorkspaceViewId();
+  const workIndex = useWorkIndex({ fallbackProjectName: t("projects.fallbackName") });
   const createSession = useCreateSession();
   const deleteSession = useDeleteSession();
   const forkSession = useForkSession();
   const renameSession = useRenameSession();
   const toggleFavorite = useToggleFavorite();
-  const activeCwd = useActiveSessionCwd();
 
-  // Project nodes + their sessions (drafts hidden until first message, as
-  // before). Sessions whose cwd has no project entry yet (cache timing /
-  // serve-dir sessions) get a synthetic node from the cwd, so every
-  // session stays reachable — the tree never silently drops one.
-  const groups = useMemo<ProjectGroup[] | undefined>(() => {
-    if (!projects && sessions.length === 0) return undefined;
-    const byCwd = new Map<string, SidebarSession[]>();
-    for (const s of sessions) {
-      const key = s.cwd ?? "";
-      const list = byCwd.get(key);
-      if (list) list.push(s);
-      else byCwd.set(key, [s]);
-    }
-    // Favorited sessions pin to the top of their project group; the rest stay
-    // newest-updated first.
-    for (const list of byCwd.values()) {
-      list.sort((a, b) => {
-        if (Boolean(a.favorite) !== Boolean(b.favorite)) return a.favorite ? -1 : 1;
-        return a.time < b.time ? 1 : -1;
-      });
-    }
-    const result: ProjectGroup[] = (projects ?? []).map((p) => {
-      const own = byCwd.get(p.id) ?? [];
-      byCwd.delete(p.id);
-      return { project: p, sessions: own };
-    });
-    for (const [cwd, list] of byCwd) {
-      result.push({
-        project: {
-          id: cwd,
-          name: cwd ? basename(cwd) : t("projects.fallbackName"),
-          branch: "",
-          sessionCount: list.length,
-        },
-        sessions: list,
-      });
-    }
-    return result;
-  }, [projects, sessions, t]);
-
-  const openProject = (project: SidebarProject): void => {
+  const openProject = (project: WorkProject): void => {
     void createSession({ cwd: project.id });
   };
 
@@ -257,13 +197,9 @@ function ProjectsSection() {
       <SectionLabel>{t("sidebar.section.projects")}</SectionLabel>
       <AddProjectInline />
       <DataView
-        items={groups}
-        // Mirror the data we actually have, not the worst of the two queries:
-        // once EITHER resolves `groups` is defined, so a partial failure (e.g.
-        // projects errors but sessions loaded) still renders the available
-        // sessions instead of blanking the list to a skeleton / error state.
-        isLoading={projectsLoading && !groups}
-        isError={projectsError && !groups}
+        items={workIndex.groups}
+        isLoading={workIndex.isLoading}
+        isError={workIndex.isError}
         skeletonCount={3}
         empty={{
           icon: "folder",
@@ -278,9 +214,9 @@ function ProjectsSection() {
               <ProjectGroupNode
                 key={g.project.id}
                 group={g}
-                activeCwd={activeCwd}
-                activeSessionId={activeSessionId}
-                activeMainView={activeMainView}
+                activeCwd={workIndex.activeCwd}
+                activeSessionId={workIndex.activeSessionId}
+                activeMainView={workIndex.activeWorkspaceViewId}
                 onNewSession={openProject}
                 onSelect={selectAgentSession}
                 onRename={(id, title) => void renameSession(id, title)}

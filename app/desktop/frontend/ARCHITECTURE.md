@@ -86,11 +86,12 @@ src/
 │       ├── command/          command-palette · global-keymap · shortcuts
 │       ├── defaults/         默认 commands / config / data / accents / roles / title
 │       ├── i18n/             locales pack（8 语言）
+│       ├── navigation/       Work Index read model（projects/sessions/attention）
 │       ├── settings/         appearance · personalization · connection-settings ·
 │       │                     plugins-pane · providers · icon-gallery
 │       ├── shell/            纯框架：kernel · main-route · status · toaster ·
 │       │                     topbar-new-tab · welcome-screen
-│       ├── sidebar/          brand / search / projects / sessions / footer / 三个 rail-*
+│       ├── sidebar/          Work Index renderer / search / footer / 三个 rail-*
 │       ├── theme/            kit（defineThemePlugin helper）+ themes（10+ 主题）
 │       └── workspace/        workspace-views · tasks · diagnostics · conversation-export
 │
@@ -106,6 +107,11 @@ src/
 │   ├── application/        submit / draft mutation / file mention use case
 │   ├── adapters/           composer Zustand adapter + draft port implementation
 │   └── public/             draft / submit / history / attachment public facade
+│
+├── plugins/builtin/navigation/                     Navigation 限界上下文
+│   ├── domain/             Work Index / Work Group / Work Session read model
+│   ├── application/        projects + sessions + active context projection
+│   └── public/             sidebar renderer consumption facade
 │
 ├── plugins/builtin/workspace/                      Workspace 限界上下文
 │   ├── application/        navigation / tool routing / activity projection
@@ -685,7 +691,7 @@ declare module "@/plugins/sdk/types/contentBlock" {
 
 ### 12.1 已落地的改进（现在只随 wire 新形态维护）
 
-> 这三条曾是 backlog；截至当前 HEAD 都已落地。保留在此是记录「完成态 + 维护触发点」，不是待办 —— 下一轮别再当新活做。
+> 这些曾是 backlog；截至当前 HEAD 都已落地。保留在此是记录「完成态 + 维护触发点」，不是待办 —— 下一轮别再当新活做。
 
 #### A. agent fold 各 handler 的语义测试（已落地）
 
@@ -702,13 +708,17 @@ declare module "@/plugins/sdk/types/contentBlock" {
 **现状**：`DiffPreview` 优先用 call-scoped `tool.diff`（`useDiffToolPreview`：`tool.diff ? tool.diff : 整树 diff`），仅在没有 call-scoped diff 时回退 worktree query。
 **维护触发**：后端下发更细的 diff（多文件 `changes[].diff` / 更大 diff 行）时按需扩展投影。
 
+#### D. Work Index read model（首批落地）
+
+**现状**：`plugins/builtin/navigation/` 已承接左侧工作索引投影，`sidebar/` 不再现场 join `projects + sessions + active session`，expanded sidebar 与 rail 都从 `navigation/public/workIndex` 消费分组 / 最近会话 read model。
+**维护触发**：继续推进 `FRONTEND_AGENT_WORKSPACE_MODEL.md` 的后续阶段时，把 workspace-scoped destinations 迁往 Context Dock；不要把新的 workspace/cwd 面板再塞回 `sidebar/`。
+
 ### 12.2 想做但当前 KISS / YAGNI 不允许
 
 - **`<ToolPrimitive>` headless 组件**：目前只有 `approval` 一个真正 actionable 的块（tool 是只读指针，code/search 是被动展示）。给单一消费者抽 primitive 违反"3+ 重复才抽象"。**触发条件**：第二个 actionable block 出现（如 code-proposal 升级为 accept/reject）。
 - **把 `lib/agent` 提成独立 `application/` 层**：`lib/` 已是"跨插件共享"的明确语义（`messageContent` 就是被刻意从 plugin 内部移来的），6 个用例 hook 不足以撑起一个独立层 + 一条新 layer-guard。**触发条件**：用例 hook 显著增多、或 UI 开始绕过它们直接编排 rpc。
 - **MessageStream 虚拟化**：长会话（1000+ 消息）目前无人抱怨。**触发条件**：实测 > 500 消息卡顿时引入 `@tanstack/react-virtual`。
 - **monorepo packages**：见 §3.2 的 4 个触发条件，目前一个都没命中。
-- **sidebar 导航深建模**：当前 project/session tree 是旧导航模型。**暂停**——不基于它做 domain 深抽象（不抽 `sidebar/projectTree.ts`、不把 project/session tree 提成 domain）。**触发条件**：新导航模型定案后单独开一轮（方向：新建 `navigation` bounded context 产出 `NavigationTree` read model，`sidebar/` 退成纯 UI 消费者——见 `docs/FRONTEND_PLUGIN_CONTEXTS.md §10.6`），那是"重建模型"而非"整理旧树"。
 
 ### 12.3 反向不变量（已知错的方向，别再提）
 
