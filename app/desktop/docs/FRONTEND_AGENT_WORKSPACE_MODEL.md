@@ -336,6 +336,16 @@ Context Dock state 必须能回答：
 - 建立 context-dock destination contribution。
 - Files / Diff / Search / Skills / Recipes / Memory 进入右侧 dock。
 
+首批已落地：
+
+- 左侧顶级 workspace destinations 已移除。
+- 右侧提供 `context` launcher / handle。
+- Search、active-session destinations、rail context 入口都打开到 Context Dock。
+
+仍待推进：
+
+- 把 context-dock destinations 从静态内置列表演进成 contribution registry。
+
 验收：
 
 - 左侧只剩 global actions + cwd groups + sessions + global footer。

@@ -12,12 +12,13 @@
 
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import type { ViewPlacement } from "@/plugins/builtin/workspace/public/viewPlacement";
-import { dragClasses, Panel } from "@/components/common";
+import { dragClasses, Icon, IconButton, noDragClasses, Panel } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { useSessions } from "@/lib/data/queries";
 import {
   closeWorkspaceSplit,
   closeWorkspaceView,
+  openContextDockView,
   openWorkspaceViewBeside,
   promoteWorkspaceSplitToView,
   useActiveWorkspaceViewId,
@@ -29,6 +30,7 @@ import { ChatStream } from "./ChatStream";
 import { SplitResizer } from "./SplitResizer";
 import { ViewPlacementProvider } from "@/plugins/builtin/workspace/public/viewPlacement";
 import { WorkspaceViewBody } from "./WorkspaceViewBody";
+import { useT } from "@/lib/i18n";
 
 interface Props {
   /** Send the user's message input (text + inlined images) through the live
@@ -42,6 +44,7 @@ export function ChatPanel({ onSend }: Props) {
   const splitRatio = useUiStore((s) => s.splitRatio);
   const views = useWorkspaceViews();
   const { isLoading } = useSessions();
+  const t = useT();
 
   // Suppress the panel only while the FIRST sessions fetch is in flight (and
   // no workspace view is promoted) — avoids a blank-but-bordered flash. Once
@@ -80,6 +83,26 @@ export function ChatPanel({ onSend }: Props) {
           re-adds the top gap via pt-9 so its stream keeps its breathing room.
           Interactive children opt out via noDragClasses. */}
       <div className={cn("absolute inset-x-0 top-0 z-10 h-9", dragClasses)} />
+      {!activeMainView && !splitViewId && (
+        <IconButton
+          variant="ghost"
+          title={t("workspace.view.title.context")}
+          data-chrome-focus=""
+          onClick={() =>
+            openContextDockView({
+              id: "context",
+              title: "workspace.view.title.context",
+              icon: "panel-r",
+            })
+          }
+          className={cn(
+            "absolute right-3 top-3 z-20 h-8 w-8 rounded-md border-[0.5px] border-field bg-surface/80 text-fg-muted shadow-[var(--shadow-popover)] backdrop-blur",
+            noDragClasses,
+          )}
+        >
+          <Icon name="panel-r" size={14} />
+        </IconButton>
+      )}
       {activeMainView ? (
         <ViewPlacementProvider value={placementFor(activeMainView, "full")}>
           <WorkspaceViewBody viewId={activeMainView} />

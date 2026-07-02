@@ -5,6 +5,7 @@
 // the per-view files.
 
 export { agentDocsView } from "./agent-docs";
+export { contextView } from "./context";
 export { diffView } from "./diff";
 export { fileView } from "./file";
 export { filesView } from "./files";

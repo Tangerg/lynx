@@ -18,7 +18,6 @@ export const ko: Record<string, string> = {
   "sidebar.action.expand": "사이드바 펼치기",
   "sidebar.action.newSession": "새 세션",
   "sidebar.action.searchHint": "검색 (⌘K)",
-  "sidebar.action.tools": "도구 / MCP",
   "sidebar.action.settings": "설정",
 
   "composer.input.label": "메시지 입력란",
@@ -206,6 +205,7 @@ export const ko: Record<string, string> = {
   "workspace.view.title.files": "파일",
   "workspace.view.title.diff": "차이",
   "workspace.view.title.changes": "변경",
+  "workspace.view.title.context": "컨텍스트",
   "workspace.view.title.filetree": "탐색기",
   "workspace.view.title.plan": "플랜",
   "workspace.view.title.agentDocs": "Agent 문서",

@@ -18,7 +18,6 @@ export const de: Record<string, string> = {
   "sidebar.action.expand": "Seitenleiste ausklappen",
   "sidebar.action.newSession": "Neue Sitzung",
   "sidebar.action.searchHint": "Suchen (⌘K)",
-  "sidebar.action.tools": "Werkzeuge / MCP",
   "sidebar.action.settings": "Einstellungen",
 
   "composer.input.label": "Nachrichteneditor",
@@ -211,6 +210,7 @@ export const de: Record<string, string> = {
   "workspace.view.title.files": "Dateien",
   "workspace.view.title.diff": "Diff",
   "workspace.view.title.changes": "Änderungen",
+  "workspace.view.title.context": "Kontext",
   "workspace.view.title.filetree": "Explorer",
   "workspace.view.title.plan": "Plan",
   "workspace.view.title.agentDocs": "Agent-Doku",

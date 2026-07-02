@@ -18,7 +18,6 @@ export const ja: Record<string, string> = {
   "sidebar.action.expand": "サイドバーを展開",
   "sidebar.action.newSession": "新規セッション",
   "sidebar.action.searchHint": "検索 (⌘K)",
-  "sidebar.action.tools": "ツール / MCP",
   "sidebar.action.settings": "設定",
 
   "composer.input.label": "メッセージ入力欄",
@@ -209,6 +208,7 @@ export const ja: Record<string, string> = {
   "workspace.view.title.files": "ファイル",
   "workspace.view.title.diff": "差分",
   "workspace.view.title.changes": "変更",
+  "workspace.view.title.context": "コンテキスト",
   "workspace.view.title.filetree": "エクスプローラー",
   "workspace.view.title.plan": "プラン",
   "workspace.view.title.agentDocs": "Agent ドキュメント",

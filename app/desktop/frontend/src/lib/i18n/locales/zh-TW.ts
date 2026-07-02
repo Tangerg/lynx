@@ -18,7 +18,6 @@ export const zhTW: Record<string, string> = {
   "sidebar.action.expand": "展開側欄",
   "sidebar.action.newSession": "新會話",
   "sidebar.action.searchHint": "搜尋 (⌘K)",
-  "sidebar.action.tools": "工具 / MCP",
   "sidebar.action.settings": "設定",
 
   "composer.input.label": "訊息輸入框",
@@ -209,6 +208,7 @@ export const zhTW: Record<string, string> = {
   "workspace.view.title.diff": "差異",
   "workspace.view.title.file": "檔案",
   "workspace.view.title.changes": "變更",
+  "workspace.view.title.context": "上下文",
   "workspace.view.title.filetree": "檔案總管",
   "workspace.view.title.plan": "計畫",
   "workspace.view.title.agentDocs": "Agent 文件",
