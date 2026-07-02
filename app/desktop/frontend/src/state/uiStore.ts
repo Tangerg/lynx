@@ -189,7 +189,6 @@ export const useUiStore = create<UiState & UiActions>()(
     {
       name: "lyra.ui",
       storage: createJSONStorage(() => localStorage),
-      // v3: added customTheme (3-color custom theme) + fontSmoothing.
       version: 4,
       merge: (persisted, current) => {
         const parsed = uiPersistSchema.safeParse(persisted);

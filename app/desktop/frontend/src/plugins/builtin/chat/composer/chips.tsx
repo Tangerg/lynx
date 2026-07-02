@@ -2,7 +2,11 @@ import type { IconName } from "@/components/common";
 import type { ApprovalModeValue } from "@/lib/data/queries";
 import type { ReactNode } from "react";
 import { DropdownMenu, Icon } from "@/components/common";
-import { APPROVAL_MODES, setApprovalMode } from "@/plugins/builtin/agent/public/approvalPolicy";
+import {
+  APPROVAL_MODES,
+  DEFAULT_APPROVAL_MODE,
+  setApprovalMode,
+} from "@/plugins/builtin/agent/public/approvalPolicy";
 import { rpcErrorText } from "@/lib/rpcErrors";
 import { useActiveRunTokenUsage } from "@/plugins/builtin/agent/public/run";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
@@ -55,7 +59,7 @@ function ApprovalModeChip() {
   const t = useT();
   const { data: mode, isError } = useApprovalMode();
   if (isError || mode === undefined) return null;
-  const current = APPROVAL_MODES.find((m) => m.value === mode) ?? APPROVAL_MODES[2]!;
+  const current = APPROVAL_MODES.find((m) => m.value === mode) ?? DEFAULT_APPROVAL_MODE;
   const onSelect = async (next: ApprovalModeValue) => {
     if (next === mode) return;
     try {
