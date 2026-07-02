@@ -73,7 +73,7 @@ export function Composer({
         e.preventDefault(); // swallow the drop even if the model can't take it
         input.handleDrop(files);
       }}
-      className="relative rounded-lg border-0 bg-surface px-4 py-3 shadow-[var(--shadow-composer)] transition-shadow duration-150 focus-within:shadow-[var(--shadow-composer),0_0_0_1px_color-mix(in_srgb,var(--color-fg)_20%,transparent)]"
+      className="relative rounded-lg border-0 bg-surface px-4 py-3 shadow-[var(--shadow-composer)]"
       data-slot="composer-root"
     >
       {input.mentions.active && (
