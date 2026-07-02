@@ -24,15 +24,23 @@ const ROW_STYLE: Record<
   "added" | "deleted" | "context",
   { tone: string; meta: string; sign: string }
 > = {
-  added: { tone: "bg-[rgba(30,215,96,0.07)]", meta: "text-[rgba(95,227,154,0.7)]", sign: "+" },
-  deleted: { tone: "bg-[rgba(243,114,127,0.07)]", meta: "text-[rgba(243,114,127,0.7)]", sign: "−" },
+  added: {
+    tone: "bg-[var(--color-diff-added-tint)]",
+    meta: "text-[var(--color-diff-added-meta)]",
+    sign: "+",
+  },
+  deleted: {
+    tone: "bg-[var(--color-diff-deleted-tint)]",
+    meta: "text-[var(--color-diff-deleted-meta)]",
+    sign: "−",
+  },
   context: { tone: "", meta: "text-fg-faint", sign: " " },
 };
 
 // Word-level change tint — semi-transparent so the syntax foreground shows
 // through. Applied to the exact changed sub-range of a replaced line (T2.2).
-const WD_DEL_STYLE = "background-color:rgba(243,114,127,0.3);border-radius:2px";
-const WD_ADD_STYLE = "background-color:rgba(30,215,96,0.3);border-radius:2px";
+const WD_DEL_STYLE = "background-color:var(--color-diff-deleted-word);border-radius:2px";
+const WD_ADD_STYLE = "background-color:var(--color-diff-added-word);border-radius:2px";
 
 type WordDecoration = { start: number; end: number; properties: { style: string } };
 

@@ -243,6 +243,25 @@
   --color-info: #58a6ff;
   --color-success: #3fb950;
 
+  /* Diff add/delete palette — semantic but theme-INDEPENDENT by design: the
+     same vivid green/red reads on both dark and light, so unlike the status
+     colors above these are NOT re-emitted per theme (no kit entry) — they live
+     here as constants. Distinct from --color-negative/-success on purpose: the
+     tints are softer, tuned for large-area 7% row fills rather than punchy
+     status marks. Alphas are pre-baked per role (row tint / sign+meta /
+     word-level intra-line tint) mirroring the --color-text-N step tokens; -code
+     is the near-solid code foreground. Raw vars consumed via var() (not Tailwind
+     utilities) because the intra-line tint is injected as inline CSS into
+     Shiki-highlighted HTML. */
+  --color-diff-added-tint: rgba(30, 215, 96, 0.07);
+  --color-diff-added-meta: rgba(95, 227, 154, 0.7);
+  --color-diff-added-word: rgba(30, 215, 96, 0.3);
+  --color-diff-added-code: #c8f5d8;
+  --color-diff-deleted-tint: rgba(243, 114, 127, 0.07);
+  --color-diff-deleted-meta: rgba(243, 114, 127, 0.7);
+  --color-diff-deleted-word: rgba(243, 114, 127, 0.3);
+  --color-diff-deleted-code: #f5cdd2;
+
   /* Primary CTA — decoupled from --color-accent so themes can have
      accent drive "live state" while CTA is something else (e.g. Vercel
      Light's black-on-white). */
