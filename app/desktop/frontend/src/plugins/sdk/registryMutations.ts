@@ -1,4 +1,4 @@
-// Map mutation helpers shared by the registry's remaining bookkeeping maps.
+// Map mutations shared by the registry's remaining bookkeeping maps.
 // Pulled out of `registryState.ts` so that file is purely shape (types +
 // `freshState`) and this file is purely behaviour. The Zustand store in
 // `registry.ts` imports both.

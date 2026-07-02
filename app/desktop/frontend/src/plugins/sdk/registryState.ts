@@ -1,6 +1,6 @@
 // The registry's state shape + action signatures + the `freshState` factory.
 // Pulled out of registry.ts so adding a new slot is a two-file edit (this
-// file + registry.ts). Map mutation helpers live in `registryHelpers.ts`.
+// file + registry.ts). Map mutations live in `registryMutations.ts`.
 
 import type {
   ContributedCommand,

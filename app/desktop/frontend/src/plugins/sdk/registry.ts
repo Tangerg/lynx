@@ -1,6 +1,6 @@
 // Central Zustand store. React components subscribe so registrations
-// propagate live. The state shape + map helpers live in registryState.ts /
-// registryHelpers.ts; this file is the action implementations only.
+// propagate live. The state shape + map mutations live in registryState.ts /
+// registryMutations.ts; this file is the action implementations only.
 //
 // Every user-facing register* surface lives on the shared `extensions`
 // substrate now (see kernelPoints.ts + host.contribute). What remains here:
@@ -26,7 +26,7 @@ import {
   mapSet,
   ownedContributionsTo,
   removeOwned,
-} from "./registryHelpers";
+} from "./registryMutations";
 import { freshState } from "./registryState";
 
 type OwnedMapKey = {
