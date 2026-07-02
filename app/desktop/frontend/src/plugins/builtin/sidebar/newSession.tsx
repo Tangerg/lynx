@@ -1,15 +1,15 @@
 // Sidebar primary action — global new-session affordance above the Work Index.
 
 import { Icon } from "@/components/common";
-import { useCreateSession } from "@/plugins/builtin/agent/public/session";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { useWorkIndexActions } from "@/plugins/builtin/navigation/public/workIndex";
 import { definePlugin } from "@/plugins/sdk";
 import { WORK_INDEX_ITEM } from "@/plugins/sdk/kernelPoints";
 
 function SidebarNewSession() {
   const t = useT();
-  const createSession = useCreateSession();
+  const actions = useWorkIndexActions();
 
   return (
     <div className="flex flex-col">
@@ -17,7 +17,7 @@ function SidebarNewSession() {
           plain nav rows below it (Codex-reference "new" affordance). */}
       <button
         type="button"
-        onClick={() => void createSession()}
+        onClick={actions.createSession}
         data-chrome-focus=""
         className={cn(
           "mb-1.5 flex w-full items-center justify-center gap-2 rounded-lg border-[0.5px] border-field bg-transparent px-3 py-2.5",

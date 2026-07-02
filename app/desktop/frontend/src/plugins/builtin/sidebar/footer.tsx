@@ -1,11 +1,10 @@
-// Sidebar footer — pinned at the bottom of the expanded sidebar. Renders the
-// Tools/MCP and Settings buttons as plugin-contributed rail items so they stay
-// reachable regardless of how many sessions/projects are in the scroll area.
+// Sidebar footer — pinned at the bottom of the expanded Work Index so global
+// status and settings stay reachable regardless of list length.
 import { AnimatePresence, motion } from "motion/react";
 import { Icon, noDragClasses } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
-import { openWorkspaceView } from "@/plugins/builtin/workspace/public/navigation";
+import { useWorkIndexActions } from "@/plugins/builtin/navigation/public/workIndex";
 import { resolveScheme } from "@/plugins/sdk";
 import { Slot } from "@/plugins/host/Slot";
 import { definePlugin } from "@/plugins/sdk";
@@ -47,12 +46,7 @@ function ThemeToggle() {
 
 function SidebarFooter() {
   const t = useT();
-  const openSettings = () =>
-    openWorkspaceView({
-      id: "settings",
-      title: t("settings.title"),
-      icon: "settings",
-    });
+  const actions = useWorkIndexActions();
 
   // No user identity here: the Lyra Runtime is stateless and has zero account
   // concept (API.md §0), so there's no real person to show. The footer is a
@@ -70,7 +64,7 @@ function SidebarFooter() {
           <ThemeToggle />
           <button
             type="button"
-            onClick={openSettings}
+            onClick={() => actions.openSettings(t("settings.title"))}
             data-chrome-focus=""
             title={t("sidebar.action.settings")}
             aria-label={t("sidebar.action.settings")}
