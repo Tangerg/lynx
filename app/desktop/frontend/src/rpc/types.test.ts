@@ -5,6 +5,7 @@ import {
   isRequest,
   isResponse,
   JSONRPC_VERSION,
+  parseRpcMessage,
   RPC_METHOD_NOT_FOUND,
   RPC_SESSION_NOT_FOUND,
 } from "./types";
@@ -52,5 +53,41 @@ describe("rpc/types discriminators", () => {
         error: { code: RPC_SESSION_NOT_FOUND, message: "no" },
       }),
     ).toBe(true);
+  });
+});
+
+describe("parseRpcMessage envelope gate", () => {
+  it("accepts each well-formed envelope kind and passes the payload through opaque", () => {
+    const resp = parseRpcMessage(`{"jsonrpc":"2.0","id":"1","result":{"ok":true,"n":3}}`);
+    expect(resp).toEqual({ jsonrpc: "2.0", id: "1", result: { ok: true, n: 3 } });
+    expect(parseRpcMessage(`{"jsonrpc":"2.0","id":"2","method":"x","params":{"a":1}}`)).toEqual({
+      jsonrpc: "2.0",
+      id: "2",
+      method: "x",
+      params: { a: 1 },
+    });
+    expect(
+      parseRpcMessage(
+        `{"jsonrpc":"2.0","method":"notifications.run.event","params":{"runId":"r"}}`,
+      ),
+    ).toMatchObject({ method: "notifications.run.event" });
+    expect(
+      parseRpcMessage(`{"jsonrpc":"2.0","id":"3","error":{"code":-32002,"message":"gone"}}`),
+    ).toMatchObject({ error: { code: -32002, message: "gone" } });
+  });
+
+  it("rejects invalid JSON", () => {
+    expect(parseRpcMessage("not json")).toBeNull();
+    expect(parseRpcMessage("{unterminated")).toBeNull();
+  });
+
+  it("rejects non-envelopes (wrong/missing jsonrpc, non-objects)", () => {
+    expect(parseRpcMessage(`{"id":"1","result":1}`)).toBeNull(); // no jsonrpc
+    expect(parseRpcMessage(`{"jsonrpc":"1.0","id":"1","result":1}`)).toBeNull(); // wrong version
+    expect(parseRpcMessage(`{"jsonrpc":"2.0","error":{"message":"no code"}}`)).toBeNull(); // malformed error
+    expect(parseRpcMessage(`[1,2,3]`)).toBeNull();
+    expect(parseRpcMessage(`"a string"`)).toBeNull();
+    expect(parseRpcMessage(`42`)).toBeNull();
+    expect(parseRpcMessage(`null`)).toBeNull();
   });
 });

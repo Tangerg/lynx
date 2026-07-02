@@ -35,7 +35,7 @@ import { createPushPullChannel } from "../channel";
 import { RpcTransportError } from "../errors";
 import { STREAM_DOWN_METHOD, WORKSPACE_SUBSCRIBE_METHOD, type Transport } from "../transport";
 import type { RpcId, RpcMessage } from "../types";
-import { JSONRPC_VERSION } from "../types";
+import { JSONRPC_VERSION, parseRpcMessage } from "../types";
 
 // Delegating tracer — resolves to the global provider once observability is
 // installed (no-op spans before then). One CLIENT span per RPC call; the
@@ -115,28 +115,27 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
     const parser = createParser({
       onEvent(event) {
         if (!event.data) return;
-        try {
-          const msg = JSON.parse(event.data) as RpcMessage;
-          const m = msg as {
-            id?: RpcId;
-            method?: string;
-            params?: { runId?: string };
-            result?: { runId?: string };
-          };
-          if (requestId !== undefined && m.id === requestId) {
-            responseSeen = true;
-            // runs.start/resume/subscribe responses carry the stream's root
-            // runId — record it so a death BEFORE the first run event still
-            // names the run in the STREAM_DOWN synthetic.
-            if (typeof m.result?.runId === "string") runIds.add(m.result.runId);
-          }
-          if (m.method === "notifications.run.event" && typeof m.params?.runId === "string") {
-            runIds.add(m.params.runId);
-          }
-          channel.push(msg);
-        } catch {
-          // Malformed frame — skip rather than tearing down the stream.
+        // Not valid JSON / not a JSON-RPC envelope — skip this frame rather
+        // than tearing down the stream (trust boundary; see parseRpcMessage).
+        const msg = parseRpcMessage(event.data);
+        if (!msg) return;
+        const m = msg as {
+          id?: RpcId;
+          method?: string;
+          params?: { runId?: string };
+          result?: { runId?: string };
+        };
+        if (requestId !== undefined && m.id === requestId) {
+          responseSeen = true;
+          // runs.start/resume/subscribe responses carry the stream's root
+          // runId — record it so a death BEFORE the first run event still
+          // names the run in the STREAM_DOWN synthetic.
+          if (typeof m.result?.runId === "string") runIds.add(m.result.runId);
         }
+        if (m.method === "notifications.run.event" && typeof m.params?.runId === "string") {
+          runIds.add(m.params.runId);
+        }
+        channel.push(msg);
       },
     });
     const reader = body.getReader();
@@ -241,14 +240,18 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
       return;
     }
 
-    // Non-streaming: a single JSON-RPC message in the body.
+    // Non-streaming: a single JSON-RPC message in the body. A malformed
+    // envelope fails THIS call (rejected via send()'s caller) rather than
+    // pushing garbage that never correlates and hangs the pending promise.
     const text = await res.text();
     if (!text) return; // empty body is acceptable for some acks
-    try {
-      channel.push(JSON.parse(text) as RpcMessage);
-    } catch (err) {
-      throw new RpcTransportError(`invalid JSON in response body: ${(err as Error).message}`);
+    const inbound = parseRpcMessage(text);
+    if (!inbound) {
+      throw new RpcTransportError(
+        `invalid JSON-RPC envelope in response body: ${text.slice(0, 200)}`,
+      );
     }
+    channel.push(inbound);
   }
 
   function recv(): AsyncIterable<RpcMessage> {

@@ -10,6 +10,8 @@
 // Notifications carry both client→runtime (notifications/canceled,
 // runtime.shutdown) and runtime→client (notifications/run/event, …) traffic.
 
+import { z } from "zod";
+
 export const JSONRPC_VERSION = "2.0" as const;
 
 // JSON-RPC 2.0 spec allows string | number for id; we lock to string
@@ -127,4 +129,40 @@ export function isNotification(msg: RpcMessage): msg is RpcNotification {
 
 export function isErrorResponse(msg: RpcResponse): msg is RpcResponseError {
   return "error" in msg;
+}
+
+// ---------------------------------------------------------------------------
+// Inbound envelope gate (trust boundary — CLAUDE.md §3).
+// ---------------------------------------------------------------------------
+
+// Validates JSON-RPC 2.0 envelope STRUCTURE only. `result` / `params` stay
+// `unknown`: per-method payload schemas are deliberately not maintained (kept
+// in sync by review — see API.md / the no-codegen note), and leaving them
+// opaque keeps the check O(top-level keys), cheap enough for the per-event
+// streaming path. `looseObject` so a forward-compatible envelope extension
+// isn't rejected. Which kind a message is (request / response / notification)
+// is still routed by the discriminators above, not by this schema.
+const RpcEnvelopeSchema = z.looseObject({
+  jsonrpc: z.literal(JSONRPC_VERSION),
+  id: z.string().optional(),
+  method: z.string().optional(),
+  params: z.unknown().optional(),
+  result: z.unknown().optional(),
+  error: z.looseObject({ code: z.number(), message: z.string() }).optional(),
+});
+
+// Parse + envelope-validate one raw inbound wire message (the trust boundary
+// where untrusted bytes become an RpcMessage). Returns the message on success,
+// or null when the text isn't valid JSON or isn't a well-formed JSON-RPC
+// envelope — the caller decides whether that means "skip this stream frame" or
+// "fail this call". Rejecting garbage here means correlation and notification
+// dispatch downstream never see a non-envelope.
+export function parseRpcMessage(text: string): RpcMessage | null {
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  return RpcEnvelopeSchema.safeParse(json).success ? (json as RpcMessage) : null;
 }
