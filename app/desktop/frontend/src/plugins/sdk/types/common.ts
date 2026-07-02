@@ -43,7 +43,7 @@ export type HostCapability =
   | "theme"
   | "router"
   | "composer"
-  | "sidebar"
+  | "navigation"
   | "shortcuts"
   | "agent"
   | "data"

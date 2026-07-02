@@ -70,6 +70,7 @@ export {
   useExtensionPoint,
   useContextDockDestinations,
   useLayoutSlot,
+  useWorkIndexItems,
   useSettingsPanes,
   useSlashCommands,
   useWorkspaceViews,
@@ -143,8 +144,6 @@ export type {
   SettingsPaneSpec,
   ShortcutHandler,
   ShortcutSpec,
-  SidebarRailItemSpec,
-  SidebarSectionSpec,
   SlashCommandRunCtx,
   SlashCommandSpec,
   StateUpdate,
@@ -154,6 +153,9 @@ export type {
   ToolPreviewComponent,
   ToolPreviewProps,
   ToolViewOpenerSpec,
+  WorkIndexItemPlacement,
+  WorkIndexItemScope,
+  WorkIndexItemSpec,
   WorkspaceViewSpec,
 } from "./types";
 export type { NotificationEntry, NotificationLevel } from "./types";

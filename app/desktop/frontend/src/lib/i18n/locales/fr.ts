@@ -7,7 +7,7 @@ export const fr: Record<string, string> = {
   "common.retry": "Réessayer",
   "common.search": "Rechercher",
 
-  "sidebar.section.projects": "Projets",
+  "workIndex.section.projects": "Projets",
   "sidebar.newSessionInFolder.placeholder": "Chemin absolu",
   "sidebar.action.collapse": "Réduire en barre",
   "sidebar.action.expand": "Développer la barre",

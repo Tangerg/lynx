@@ -9,7 +9,7 @@ export const en: Record<string, string> = {
   "common.retry": "Retry",
   "common.search": "Search",
 
-  "sidebar.section.projects": "Projects",
+  "workIndex.section.projects": "Projects",
   "sidebar.newSessionInFolder.placeholder": "Absolute path",
   "sidebar.action.collapse": "Collapse to rail",
   "sidebar.action.expand": "Expand sidebar",

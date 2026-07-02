@@ -13,7 +13,7 @@ import {
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
-import { SIDEBAR_RAIL_ITEM } from "@/plugins/sdk/kernelPoints";
+import { WORK_INDEX_ITEM } from "@/plugins/sdk/kernelPoints";
 
 // Open a workspace view in the main pane (mirrors the expanded sidebar's
 // footer gear / Tools entry). getState() in the handler — no subscription.
@@ -41,8 +41,10 @@ export const sidebarRailNewSession = definePlugin({
   name: "lyra.builtin.sidebar-rail-new-session",
   version: "1.0.0",
   setup({ host }) {
-    host.extensions.contribute(SIDEBAR_RAIL_ITEM, {
+    host.extensions.contribute(WORK_INDEX_ITEM, {
       id: "new-session",
+      scope: "global",
+      placement: "rail",
       order: 10,
       component: NewSessionBtn,
     });
@@ -91,8 +93,10 @@ export const sidebarRailSessions = definePlugin({
   name: "lyra.builtin.sidebar-rail-sessions",
   version: "1.0.0",
   setup({ host }) {
-    host.extensions.contribute(SIDEBAR_RAIL_ITEM, {
+    host.extensions.contribute(WORK_INDEX_ITEM, {
       id: "rail-sessions",
+      scope: "session",
+      placement: "rail",
       order: 100,
       component: RailSessions,
     });
@@ -133,18 +137,24 @@ export const sidebarRailBottom = definePlugin({
   name: "lyra.builtin.sidebar-rail-bottom",
   version: "1.0.0",
   setup({ host }) {
-    host.extensions.contribute(SIDEBAR_RAIL_ITEM, {
+    host.extensions.contribute(WORK_INDEX_ITEM, {
       id: "rail-spacer",
+      scope: "global",
+      placement: "rail",
       order: 800,
       component: RailSpacer,
     });
-    host.extensions.contribute(SIDEBAR_RAIL_ITEM, {
+    host.extensions.contribute(WORK_INDEX_ITEM, {
       id: "rail-context",
+      scope: "session",
+      placement: "rail",
       order: 900,
       component: RailContext,
     });
-    host.extensions.contribute(SIDEBAR_RAIL_ITEM, {
+    host.extensions.contribute(WORK_INDEX_ITEM, {
       id: "rail-settings",
+      scope: "global",
+      placement: "rail",
       order: 910,
       component: RailSettings,
     });

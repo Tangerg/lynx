@@ -1,4 +1,4 @@
-// UI-surface selectors — layout slots, sidebar (sections + rail), and
+// UI-surface selectors — layout slots, Work Index items, and
 // the "registered + declared placeholder" merged surfaces (workspace
 // views + settings panes).
 
@@ -9,12 +9,15 @@ import type {
   ContextDockDestinationSpec,
   LayoutSlotSpec,
   SettingsPaneSpec,
+  WorkIndexItemPlacement,
+  WorkIndexItemSpec,
   WorkspaceViewSpec,
 } from "../types";
 import {
   CONTEXT_DOCK_DESTINATION,
   LAYOUT_SLOT,
   SETTINGS_PANE,
+  WORK_INDEX_ITEM,
   WORKSPACE_VIEW,
 } from "../kernelPoints";
 import { makeLazyActivator } from "../lazyActivator";
@@ -46,6 +49,10 @@ export function useWorkspaceViews(): WorkspaceViewSpec[] {
 
 export function useContextDockDestinations(): ContextDockDestinationSpec[] {
   return useExtensionPoint(CONTEXT_DOCK_DESTINATION);
+}
+
+export function useWorkIndexItems(placement: WorkIndexItemPlacement): WorkIndexItemSpec[] {
+  return useExtensionPoint(WORK_INDEX_ITEM).filter((item) => item.placement === placement);
 }
 
 function declaredToWorkspaceView(d: ContributedView, pluginName: string): WorkspaceViewSpec {

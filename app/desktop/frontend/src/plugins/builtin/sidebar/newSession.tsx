@@ -5,7 +5,7 @@ import { useCreateSession } from "@/plugins/builtin/agent/public/session";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
-import { SIDEBAR_SECTION } from "@/plugins/sdk/kernelPoints";
+import { WORK_INDEX_ITEM } from "@/plugins/sdk/kernelPoints";
 
 function SidebarNewSession() {
   const t = useT();
@@ -36,8 +36,10 @@ export const sidebarNewSession = definePlugin({
   name: "lyra.builtin.sidebar-new-session",
   version: "1.0.0",
   setup({ host }) {
-    host.extensions.contribute(SIDEBAR_SECTION, {
+    host.extensions.contribute(WORK_INDEX_ITEM, {
       id: "new-session",
+      scope: "global",
+      placement: "expanded",
       order: -10,
       component: SidebarNewSession,
     });

@@ -25,7 +25,7 @@ export const CAPABILITY_RISK: Record<HostCapability, CapabilityRisk> = {
   workspace: "moderate",
   router: "moderate",
   composer: "moderate",
-  sidebar: "moderate",
+  navigation: "moderate",
   shortcuts: "moderate",
   agent: "moderate",
   data: "moderate",
