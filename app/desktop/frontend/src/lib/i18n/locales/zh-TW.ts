@@ -7,14 +7,11 @@ export const zhTW: Record<string, string> = {
   "common.retry": "重試",
   "common.search": "搜尋",
 
-  "sidebar.search.placeholder": "搜尋 · 檔案 · 命令",
-  "sidebar.search.label": "搜尋檔案和命令",
   "sidebar.section.projects": "專案",
   "sidebar.newSessionInFolder.placeholder": "絕對路徑",
   "sidebar.action.collapse": "收合至側欄",
   "sidebar.action.expand": "展開側欄",
   "sidebar.action.newSession": "新會話",
-  "sidebar.action.searchHint": "搜尋 (⌘K)",
   "sidebar.action.settings": "設定",
 
   "composer.input.label": "訊息輸入框",

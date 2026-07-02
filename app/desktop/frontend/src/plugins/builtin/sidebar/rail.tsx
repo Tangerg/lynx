@@ -1,4 +1,4 @@
-// Collapsed-sidebar rail: top actions, sessions stack, bottom utilities.
+// Collapsed-sidebar rail: new session, sessions stack, bottom utilities.
 // Three plugins because each maps to a different ordering bucket in the
 // rail slot — keeping them in one file because they share no code with
 // the expanded sidebar and only with each other.
@@ -37,32 +37,14 @@ function NewSessionBtn() {
   );
 }
 
-function SearchBtn() {
-  const t = useT();
-  return (
-    <IconButton
-      variant="rail"
-      title={t("sidebar.action.searchHint")}
-      onClick={() => openDockView("search", "workspace.view.title.search", "search")}
-    >
-      <Icon name="search" size={16} />
-    </IconButton>
-  );
-}
-
-export const sidebarRailActions = definePlugin({
-  name: "lyra.builtin.sidebar-rail-actions",
+export const sidebarRailNewSession = definePlugin({
+  name: "lyra.builtin.sidebar-rail-new-session",
   version: "1.0.0",
   setup({ host }) {
     host.extensions.contribute(SIDEBAR_RAIL_ITEM, {
       id: "new-session",
       order: 10,
       component: NewSessionBtn,
-    });
-    host.extensions.contribute(SIDEBAR_RAIL_ITEM, {
-      id: "search",
-      order: 20,
-      component: SearchBtn,
     });
   },
 });

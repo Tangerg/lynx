@@ -7,14 +7,11 @@ export const fr: Record<string, string> = {
   "common.retry": "Réessayer",
   "common.search": "Rechercher",
 
-  "sidebar.search.placeholder": "Recherche · fichiers · commandes",
-  "sidebar.search.label": "Rechercher fichiers et commandes",
   "sidebar.section.projects": "Projets",
   "sidebar.newSessionInFolder.placeholder": "Chemin absolu",
   "sidebar.action.collapse": "Réduire en barre",
   "sidebar.action.expand": "Développer la barre",
   "sidebar.action.newSession": "Nouvelle session",
-  "sidebar.action.searchHint": "Rechercher (⌘K)",
   "sidebar.action.settings": "Paramètres",
 
   "composer.input.label": "Compositeur de message",

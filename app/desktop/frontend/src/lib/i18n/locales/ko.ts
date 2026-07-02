@@ -7,14 +7,11 @@ export const ko: Record<string, string> = {
   "common.retry": "재시도",
   "common.search": "검색",
 
-  "sidebar.search.placeholder": "검색 · 파일 · 명령",
-  "sidebar.search.label": "파일과 명령 검색",
   "sidebar.section.projects": "프로젝트",
   "sidebar.newSessionInFolder.placeholder": "절대 경로",
   "sidebar.action.collapse": "레일로 접기",
   "sidebar.action.expand": "사이드바 펼치기",
   "sidebar.action.newSession": "새 세션",
-  "sidebar.action.searchHint": "검색 (⌘K)",
   "sidebar.action.settings": "설정",
 
   "composer.input.label": "메시지 입력란",

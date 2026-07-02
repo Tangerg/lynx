@@ -7,8 +7,6 @@ export const zh: Record<string, string> = {
   "common.retry": "重试",
   "common.search": "搜索",
 
-  "sidebar.search.placeholder": "搜索文件内容",
-  "sidebar.search.label": "搜索文件内容",
   "sidebar.section.projects": "项目",
   "sidebar.section.session": "会话",
   "sidebar.sessionFilter.placeholder": "筛选会话…",
@@ -17,7 +15,6 @@ export const zh: Record<string, string> = {
   "sidebar.action.collapse": "收起到边栏",
   "sidebar.action.expand": "展开边栏",
   "sidebar.action.newSession": "新建会话",
-  "sidebar.action.searchHint": "搜索文件内容",
   "sidebar.action.settings": "设置",
 
   "composer.input.label": "消息输入框",

@@ -9,8 +9,6 @@ export const en: Record<string, string> = {
   "common.retry": "Retry",
   "common.search": "Search",
 
-  "sidebar.search.placeholder": "Search in files",
-  "sidebar.search.label": "Search in files",
   "sidebar.section.projects": "Projects",
   "sidebar.section.session": "Session",
   "sidebar.sessionFilter.placeholder": "Filter sessions…",
@@ -19,7 +17,6 @@ export const en: Record<string, string> = {
   "sidebar.action.collapse": "Collapse to rail",
   "sidebar.action.expand": "Expand sidebar",
   "sidebar.action.newSession": "New session",
-  "sidebar.action.searchHint": "Search in files",
   "sidebar.action.settings": "Settings",
 
   "composer.input.label": "Message composer",
