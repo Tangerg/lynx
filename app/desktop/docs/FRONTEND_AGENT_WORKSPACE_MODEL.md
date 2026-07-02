@@ -282,7 +282,7 @@ plugins/builtin/workspace/context-dock/
 - Work Index UI 只消费 navigation read model，不直接 join `useSessions()` / `useProjects()` / active view state。
 - Context Dock 只围绕 active session/cwd 组织 workspace destinations。
 - Agent Narrative 只关心 active session 的 transcript/run/HITL/composer。
-- `workspaceNavigationStore` 不应继续混合 app-global tab、settings pane、session-scoped file/tool state。
+- app-global surface state 与 session/cwd-scoped dock state 不应混在同一个 store shape。
 
 ## 7. State Ownership
 
@@ -350,16 +350,14 @@ Context Dock state 必须能回答：
 - 拆出 session/cwd-scoped context dock state。
 - 去掉靠切 session 清空全局 workspace patch 的长期依赖。
 
-首批已落地：
+已落地：
 
 - Context Dock 的 `splitViewId`、`activeFile`、`fileViewer`、`selectedToolId`、`expandedToolIds` 已按 active session scope 保存/恢复。
 - 切换 session 会保存离开的 dock scope，恢复进入的 dock scope；没有保存过的 session 使用空 scope。
 - 关闭 session 后会清理不再打开的 dock scope。
+- app-global surface state 已进入 `workspaceSurfaceStore`，session-scoped dock state 已进入 `contextDockStore`。
 
-仍待推进：
-
-- 将 app-global surface state 与 session-scoped dock state 从同一个 store 物理拆开。
-- 后续如需 cwd 级共享，再在 workspace application 层显式引入 `sessionId -> cwd` 的归属规则。
+后续如需 cwd 级共享，再在 workspace application 层显式引入 `sessionId -> cwd` 的归属规则。
 
 验收：
 

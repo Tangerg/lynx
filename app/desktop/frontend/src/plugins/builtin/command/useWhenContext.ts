@@ -7,10 +7,10 @@ import type { WhenContext } from "@/plugins/sdk";
 import { useMemo } from "react";
 import { resolveScheme } from "@/plugins/sdk";
 import { useUiStore } from "@/state/uiStore";
-import { useWorkspaceNavigationStore } from "@/state/workspaceNavigationStore";
+import { useWorkspaceSurfaceStore } from "@/state/workspaceSurfaceStore";
 
 export function useWhenContext(): WhenContext {
-  const activeMainView = useWorkspaceNavigationStore((s) => s.activeMainView);
+  const activeMainView = useWorkspaceSurfaceStore((s) => s.activeMainView);
   const theme = useUiStore((s) => s.theme);
   const sidebarRail = useUiStore((s) => s.sidebarRail);
 

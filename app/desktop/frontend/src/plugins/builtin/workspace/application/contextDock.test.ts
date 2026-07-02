@@ -1,30 +1,31 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { useWorkspaceNavigationStore } from "@/state/workspaceNavigationStore";
+import { useContextDockStore } from "@/state/contextDockStore";
+import { useWorkspaceSurfaceStore } from "@/state/workspaceSurfaceStore";
 import { closeContextDockView, openContextDockView } from "./contextDock";
 
 describe("context dock navigation", () => {
   beforeEach(() => {
-    useWorkspaceNavigationStore.setState({
-      splitViewId: null,
+    useWorkspaceSurfaceStore.setState({
       activeMainView: null,
       mainViewTabs: [],
+    });
+    useContextDockStore.setState({
+      splitViewId: null,
     });
   });
 
   it("opens workspace material beside the agent narrative", () => {
     openContextDockView({ id: "search", title: "workspace.view.title.search", icon: "search" });
 
-    const state = useWorkspaceNavigationStore.getState();
-    expect(state.splitViewId).toBe("search");
-    expect(state.activeMainView).toBeNull();
+    expect(useContextDockStore.getState().splitViewId).toBe("search");
+    expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
   });
 
   it("closes only the dock view", () => {
     openContextDockView({ id: "tools", title: "workspace.view.title.tools", icon: "tool" });
     closeContextDockView();
 
-    const state = useWorkspaceNavigationStore.getState();
-    expect(state.splitViewId).toBeNull();
-    expect(state.activeMainView).toBeNull();
+    expect(useContextDockStore.getState().splitViewId).toBeNull();
+    expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
   });
 });
