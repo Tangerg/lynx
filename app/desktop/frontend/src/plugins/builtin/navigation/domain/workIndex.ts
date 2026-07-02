@@ -30,7 +30,7 @@ export interface WorkIndex {
   recentSessions: WorkSession[];
   activeSessionId: string;
   activeCwd: string | undefined;
-  activeWorkspaceViewId: string | null;
+  activeContextDockViewId: string | null;
   isLoading: boolean;
   isError: boolean;
 }

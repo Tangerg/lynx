@@ -15,8 +15,8 @@ import {
 import type { WorkGroup, WorkProject } from "@/plugins/builtin/navigation/public/workIndex";
 import { useWorkIndex } from "@/plugins/builtin/navigation/public/workIndex";
 import {
-  closeWorkspaceView,
-  openWorkspaceView,
+  closeContextDockView,
+  openContextDockView,
 } from "@/plugins/builtin/workspace/public/navigation";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
@@ -144,9 +144,9 @@ function ProjectGroupNode({
                         data-chrome-focus=""
                         onClick={() => {
                           if (active) {
-                            closeWorkspaceView(d.id);
+                            closeContextDockView();
                           } else {
-                            openWorkspaceView({ id: d.id, title: d.titleKey, icon: d.icon });
+                            openContextDockView({ id: d.id, title: d.titleKey, icon: d.icon });
                           }
                         }}
                         className={cn(
@@ -216,7 +216,7 @@ function ProjectsSection() {
                 group={g}
                 activeCwd={workIndex.activeCwd}
                 activeSessionId={workIndex.activeSessionId}
-                activeMainView={workIndex.activeWorkspaceViewId}
+                activeMainView={workIndex.activeContextDockViewId}
                 onNewSession={openProject}
                 onSelect={selectAgentSession}
                 onRename={(id, title) => void renameSession(id, title)}

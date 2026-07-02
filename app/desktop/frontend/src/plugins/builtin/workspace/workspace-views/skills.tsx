@@ -77,5 +77,6 @@ export const skillsView = defineWorkspaceView({
   icon: "sparkle",
   openByDefault: false,
   order: 45,
+  splittable: true,
   component: SkillsTab,
 });

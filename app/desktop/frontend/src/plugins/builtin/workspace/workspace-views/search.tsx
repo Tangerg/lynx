@@ -120,5 +120,6 @@ export const searchView = defineWorkspaceView({
   icon: "search",
   openByDefault: false,
   order: 48,
+  splittable: true,
   component: SearchTab,
 });

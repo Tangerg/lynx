@@ -713,6 +713,11 @@ declare module "@/plugins/sdk/types/contentBlock" {
 **现状**：`plugins/builtin/navigation/` 已承接左侧工作索引投影，`sidebar/` 不再现场 join `projects + sessions + active session`，expanded sidebar 与 rail 都从 `navigation/public/workIndex` 消费分组 / 最近会话 read model。
 **维护触发**：继续推进 `FRONTEND_AGENT_WORKSPACE_MODEL.md` 的后续阶段时，把 workspace-scoped destinations 迁往 Context Dock；不要把新的 workspace/cwd 面板再塞回 `sidebar/`。
 
+#### E. Context Dock open intent（首批落地）
+
+**现状**：`workspace/application/contextDock.ts` 已把“打开当前工作材料”建模成 Context Dock intent，内部复用现有 split view；sidebar 的 search / workspace destinations / active-session destinations 都通过 `openContextDockView` 打开到右侧，不再抢占 Agent Narrative 的 full view。
+**维护触发**：新 workspace/cwd-scoped 入口默认走 `openContextDockView`；只有 settings / notifications 这类 global surface 才用 full workspace view。
+
 ### 12.2 想做但当前 KISS / YAGNI 不允许
 
 - **`<ToolPrimitive>` headless 组件**：目前只有 `approval` 一个真正 actionable 的块（tool 是只读指针，code/search 是被动展示）。给单一消费者抽 primitive 违反"3+ 重复才抽象"。**触发条件**：第二个 actionable block 出现（如 code-proposal 升级为 accept/reject）。

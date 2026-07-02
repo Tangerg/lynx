@@ -148,5 +148,6 @@ export const codebaseView = defineWorkspaceView({
   icon: "command",
   openByDefault: false,
   order: 47,
+  splittable: true,
   component: CodebaseTab,
 });

@@ -70,5 +70,6 @@ export const recipesView = defineWorkspaceView({
   icon: "command",
   openByDefault: false,
   order: 46,
+  splittable: true,
   component: RecipesTab,
 });

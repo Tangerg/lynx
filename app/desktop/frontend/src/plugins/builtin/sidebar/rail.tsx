@@ -6,7 +6,10 @@
 import { Icon, IconButton } from "@/components/common";
 import { selectAgentSession, useCreateSession } from "@/plugins/builtin/agent/public/session";
 import { useRecentWorkSessions } from "@/plugins/builtin/navigation/public/workIndex";
-import { openWorkspaceView } from "@/plugins/builtin/workspace/public/navigation";
+import {
+  openContextDockView,
+  openWorkspaceView,
+} from "@/plugins/builtin/workspace/public/navigation";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
@@ -16,6 +19,9 @@ import { SIDEBAR_RAIL_ITEM } from "@/plugins/sdk/kernelPoints";
 // footer gear / Tools entry). getState() in the handler — no subscription.
 const openView = (id: string, title: string, icon: string) =>
   openWorkspaceView({ id, title, icon });
+
+const openDockView = (id: string, title: string, icon: string) =>
+  openContextDockView({ id, title, icon });
 
 function NewSessionBtn() {
   const t = useT();
@@ -37,7 +43,7 @@ function SearchBtn() {
     <IconButton
       variant="rail"
       title={t("sidebar.action.searchHint")}
-      onClick={() => openView("search", "workspace.view.title.search", "search")}
+      onClick={() => openDockView("search", "workspace.view.title.search", "search")}
     >
       <Icon name="search" size={16} />
     </IconButton>
@@ -121,7 +127,7 @@ function RailTools() {
     <IconButton
       variant="rail"
       title={t("sidebar.action.tools")}
-      onClick={() => openView("tools", t("sidebar.action.tools"), "tool")}
+      onClick={() => openDockView("tools", t("sidebar.action.tools"), "tool")}
     >
       <Icon name="tool" size={16} />
     </IconButton>

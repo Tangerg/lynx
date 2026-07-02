@@ -149,5 +149,6 @@ export const memoryView = defineWorkspaceView({
   icon: "filetext",
   openByDefault: false,
   order: 47,
+  splittable: true,
   component: MemoryTab,
 });
