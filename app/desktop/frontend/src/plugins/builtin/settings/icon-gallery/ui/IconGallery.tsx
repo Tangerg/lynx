@@ -55,7 +55,7 @@ export function IconGallery() {
             {rawToc.length} icons · brands across LLM models, providers, and apps
           </div>
         </div>
-        <div className="relative flex w-60 items-center gap-1.5 rounded-md border border-transparent bg-surface-2 px-2.5 py-1 transition-colors duration-150 focus-within:border-[color-mix(in_srgb,var(--color-accent)_35%,var(--color-line))]">
+        <div className="relative flex w-60 items-center gap-1.5 rounded-md border-[0.5px] border-transparent bg-surface-2 px-2.5 py-1 transition-colors duration-150 focus-within:border-[color-mix(in_srgb,var(--color-accent)_35%,var(--color-line))]">
           <Icon name="search" size={13} className="shrink-0 text-fg-faint" />
           <input
             type="search"
@@ -122,7 +122,7 @@ function IconCard({ entry }: { entry: (typeof rawToc)[number] }) {
       <div className="flex items-center gap-1.5 text-[10px]">
         <span
           title={entry.color}
-          className="h-2 w-2 rounded-full border border-[color-mix(in_srgb,var(--color-text)_10%,transparent)]"
+          className="h-2 w-2 rounded-full border-[0.5px] border-[color-mix(in_srgb,var(--color-text)_10%,transparent)]"
           style={{ background: entry.color }}
         />
         <code className="font-mono text-[10px] text-fg-faint tracking-[-0.005em]">{entry.id}</code>

@@ -18,7 +18,7 @@ import {
 } from "../application/scheduleDraft";
 
 const INPUT_CLASS =
-  "w-full rounded-md border border-field bg-surface px-2.5 py-1.5 text-[12px] text-fg outline-none placeholder:text-fg-faint focus:border-accent";
+  "w-full rounded-md border-[0.5px] border-field bg-surface px-2.5 py-1.5 text-[12px] text-fg outline-none placeholder:text-fg-faint focus:border-accent";
 
 interface ScheduleFormProps {
   schedule?: ScheduleConfig;
@@ -79,7 +79,7 @@ export function ScheduleForm({ schedule, defaultCwd, onDone, onCancel }: Schedul
             type="button"
             onClick={() => updateDraft("cron", preset.cron)}
             className={cn(
-              "rounded-full border px-2 py-0.5 text-[11px] transition-colors",
+              "rounded-full border-[0.5px] px-2 py-0.5 text-[11px] transition-colors",
               draft.cron === preset.cron
                 ? "border-accent/40 bg-accent/12 text-accent"
                 : "border-field text-fg-muted hover:text-fg",

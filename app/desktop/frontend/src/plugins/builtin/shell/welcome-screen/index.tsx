@@ -129,7 +129,7 @@ function WelcomeScreen() {
             <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 font-mono text-[11px] text-fg-faint">
               {hints.map((c) => (
                 <span key={c.id} className="inline-flex items-center gap-1.5">
-                  <kbd className="rounded border border-field bg-surface-2 px-1.5 py-0.5 text-[10.5px] not-italic text-fg-muted">
+                  <kbd className="rounded border-[0.5px] border-field bg-surface-2 px-1.5 py-0.5 text-[10.5px] not-italic text-fg-muted">
                     {comboGlyph(c.combo!)}
                   </kbd>
                   <span>{c.label}</span>

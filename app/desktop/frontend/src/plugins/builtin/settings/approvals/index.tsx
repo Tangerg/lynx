@@ -118,7 +118,7 @@ function RulesRow() {
               >
                 <span
                   className={cn(
-                    "shrink-0 rounded-xs border px-1.5 py-px font-mono text-[10px] font-semibold",
+                    "shrink-0 rounded-xs border-[0.5px] px-1.5 py-px font-mono text-[10px] font-semibold",
                     SCOPE_CHIP[r.scope],
                   )}
                 >

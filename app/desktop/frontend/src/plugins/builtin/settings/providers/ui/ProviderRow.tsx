@@ -82,7 +82,7 @@ export function ProviderRow({ p }: { p: ProviderConfig }) {
                 : t("providers.apiKey.placeholder")
           }
           className={cn(
-            "h-8 rounded-md border border-field bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint",
+            "h-8 rounded-md border-[0.5px] border-field bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint",
             INPUT_FOCUS_RING,
           )}
         />
@@ -93,7 +93,7 @@ export function ProviderRow({ p }: { p: ProviderConfig }) {
           onChange={(e) => setDraft((value) => ({ ...value, baseUrl: e.target.value }))}
           placeholder={t("providers.baseUrl.placeholder")}
           className={cn(
-            "h-8 rounded-md border border-field bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint",
+            "h-8 rounded-md border-[0.5px] border-field bg-surface px-2.5 font-mono text-[12px] text-fg outline-none placeholder:text-fg-faint",
             INPUT_FOCUS_RING,
           )}
         />
@@ -118,7 +118,7 @@ export function ProviderRow({ p }: { p: ProviderConfig }) {
           disabled={!enabled || probe.state === "busy"}
           onClick={onTest}
           className={cn(
-            "h-7 rounded-md border px-3 text-[12px] font-semibold transition-colors",
+            "h-7 rounded-md border-[0.5px] px-3 text-[12px] font-semibold transition-colors",
             !enabled || probe.state === "busy"
               ? "cursor-not-allowed border-field text-fg-faint"
               : "border-field text-fg-muted hover:bg-surface-2 hover:text-fg",

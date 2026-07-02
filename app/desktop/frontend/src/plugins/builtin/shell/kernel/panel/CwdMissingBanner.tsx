@@ -46,7 +46,7 @@ export function CwdMissingBanner() {
   return (
     <div
       role="alert"
-      className="mx-4 mt-2.5 mb-1 grid grid-cols-[auto_1fr] items-start gap-2.5 rounded-md border border-warning/35 bg-warning/12 px-3 py-2 font-sans text-fg"
+      className="mx-4 mt-2.5 mb-1 grid grid-cols-[auto_1fr] items-start gap-2.5 rounded-md border-[0.5px] border-warning/35 bg-warning/12 px-3 py-2 font-sans text-fg"
     >
       <Icon name="alert" size={14} className="mt-0.5 text-warning" />
       <div className="min-w-0">

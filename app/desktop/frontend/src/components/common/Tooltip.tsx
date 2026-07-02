@@ -61,7 +61,7 @@ export function RichTooltip({
         <BaseTooltip.Positioner side={side} sideOffset={sideOffset}>
           <BaseTooltip.Popup
             className={cn(
-              "z-50 rounded-md border-0 bg-surface shadow-[var(--shadow-popover)] animate-rise-in",
+              "z-50 rounded-md border-[0.5px] border-field bg-surface shadow-[var(--shadow-popover)] animate-rise-in",
               className,
             )}
           >

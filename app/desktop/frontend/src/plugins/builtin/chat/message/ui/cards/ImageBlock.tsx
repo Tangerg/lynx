@@ -26,7 +26,7 @@ export function ImageBlock({ mime, data }: { mime: string; data: string }) {
           <img
             src={src}
             alt=""
-            className="max-h-64 max-w-full rounded-md object-contain ring-1 ring-inset ring-white/10 light:ring-black/10"
+            className="max-h-64 max-w-full rounded-md object-contain border-[0.5px] border-white/10 light:border-black/10"
           />
         </button>
       }
@@ -34,7 +34,7 @@ export function ImageBlock({ mime, data }: { mime: string; data: string }) {
       <img
         src={src}
         alt=""
-        className="max-h-[86vh] max-w-full rounded-lg object-contain ring-1 ring-inset ring-white/10 light:ring-black/10"
+        className="max-h-[86vh] max-w-full rounded-lg object-contain border-[0.5px] border-white/10 light:border-black/10"
       />
     </LightboxDialog>
   );

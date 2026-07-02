@@ -13,10 +13,10 @@ const styles = cva(
   {
     variants: {
       variant: {
-        outlined: "border border-field bg-surface/70 text-fg hover:bg-surface",
-        solid: "border border-fg bg-fg text-on-fg",
-        accent: "border border-accent bg-accent text-on-accent",
-        danger: "bg-transparent text-negative border border-negative hover:bg-negative/8",
+        outlined: "border-[0.5px] border-field bg-surface/70 text-fg hover:bg-surface",
+        solid: "border-[0.5px] border-fg bg-fg text-on-fg",
+        accent: "border-[0.5px] border-accent bg-accent text-on-accent",
+        danger: "bg-transparent text-negative border-[0.5px] border-negative hover:bg-negative/8",
       },
       size: {
         sm: "h-6.5 px-3 text-[11px]",

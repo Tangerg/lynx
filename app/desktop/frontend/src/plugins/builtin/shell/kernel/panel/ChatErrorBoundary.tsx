@@ -26,7 +26,7 @@ function ChatErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
   return (
     <div
       role="alert"
-      className="m-8 max-w-[720px] rounded-lg border border-negative/45 bg-negative/10 px-5 py-4 text-fg"
+      className="m-8 max-w-[720px] rounded-lg border-[0.5px] border-negative/45 bg-negative/10 px-5 py-4 text-fg"
     >
       <div className="mb-2 font-semibold text-[16px] tracking-tight text-negative">
         {t("chat.error.title")}
@@ -38,7 +38,7 @@ function ChatErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
         <button
           type="button"
           onClick={resetErrorBoundary}
-          className="rounded-md border border-[color-mix(in_srgb,var(--color-text)_12%,transparent)] bg-surface-2 px-3 py-1 text-[13px] text-fg font-sans transition-colors hover:bg-surface-3"
+          className="rounded-md border-[0.5px] border-[color-mix(in_srgb,var(--color-text)_12%,transparent)] bg-surface-2 px-3 py-1 text-[13px] text-fg font-sans transition-colors hover:bg-surface-3"
         >
           {t("chat.error.retry")}
         </button>

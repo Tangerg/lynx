@@ -148,7 +148,7 @@ function ChatSearchOverlay() {
   return (
     <search
       className={cn(
-        "fixed top-3 right-4 z-50 inline-flex items-center gap-1 rounded-lg border-0 bg-surface px-2 py-1.5 shadow-[var(--shadow-popover)]",
+        "fixed top-3 right-4 z-50 inline-flex items-center gap-1 rounded-lg border-[0.5px] border-field bg-surface px-2 py-1.5 shadow-[var(--shadow-popover)]",
         "[-webkit-app-region:no-drag] [--wails-draggable:no-drag]",
       )}
     >

@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 
 const VARIANT_CLASS: Record<string, string> = {
   neutral: "bg-surface",
-  warning: "border border-warning/30 bg-warning/[0.03]",
+  warning: "border-[0.5px] border-warning/30 bg-warning/[0.03]",
 };
 
 /** Settled "done" row — shared by approval (approved) + question (answered). */

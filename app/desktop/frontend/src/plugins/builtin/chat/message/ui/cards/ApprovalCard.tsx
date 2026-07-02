@@ -156,7 +156,7 @@ export function ApprovalCard({
       trailing={
         <span
           className={cn(
-            "rounded-sm border px-1.5 py-px text-[10px] font-medium",
+            "rounded-sm border-[0.5px] px-1.5 py-px text-[10px] font-medium",
             approvalRiskToneClass(riskView.tone),
           )}
         >
@@ -174,7 +174,7 @@ export function ApprovalCard({
         </code>
       )}
       {dangers.length > 0 && (
-        <div className="my-1.5 flex items-start gap-2 rounded-sm border border-negative/50 bg-negative/12 px-2.5 py-1.5 text-[12px] leading-[1.5] text-negative">
+        <div className="my-1.5 flex items-start gap-2 rounded-sm border-[0.5px] border-negative/50 bg-negative/12 px-2.5 py-1.5 text-[12px] leading-[1.5] text-negative">
           <Icon name="alert" size={13} className="mt-px shrink-0" />
           <span>
             <span className="font-semibold">{t("approval.danger")}</span> {dangers.join(" · ")}
@@ -198,7 +198,7 @@ export function ApprovalCard({
             <span
               key={view.scope}
               className={cn(
-                "inline-flex items-center rounded-xs border px-1.5 py-px font-mono text-[10.5px] font-semibold",
+                "inline-flex items-center rounded-xs border-[0.5px] px-1.5 py-px font-mono text-[10.5px] font-semibold",
                 approvalScopeToneClass(view.tone),
               )}
             >
@@ -214,7 +214,7 @@ export function ApprovalCard({
           {reversibilityView && (
             <span
               className={cn(
-                "inline-flex items-center gap-1 rounded-xs border px-1.5 py-px font-mono text-[10.5px] font-semibold",
+                "inline-flex items-center gap-1 rounded-xs border-[0.5px] px-1.5 py-px font-mono text-[10.5px] font-semibold",
                 approvalReversibilityToneClass(reversibilityView.tone),
               )}
             >

@@ -69,7 +69,7 @@ function ConnectionPane() {
               }}
               placeholder={RUNTIME_BASE_URL}
               className={cn(
-                "flex-1 h-9 rounded-md border bg-surface px-3 font-mono text-[13px] text-fg outline-none",
+                "flex-1 h-9 rounded-md border-[0.5px] bg-surface px-3 font-mono text-[13px] text-fg outline-none",
                 error
                   ? "border-negative focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-negative)_18%,transparent)]"
                   : "border-field focus:border-accent focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)]",

@@ -112,7 +112,7 @@ function SidebarNav() {
         onClick={() => void createSession()}
         data-chrome-focus=""
         className={cn(
-          "mb-1.5 flex w-full items-center justify-center gap-2 rounded-lg border border-field bg-transparent px-3 py-2.5",
+          "mb-1.5 flex w-full items-center justify-center gap-2 rounded-lg border-[0.5px] border-field bg-transparent px-3 py-2.5",
           "font-sans text-[13px] font-medium text-fg transition-[background-color,border-color,transform] duration-100 active:scale-[0.99]",
           "hover:bg-fg/[0.045] focus-visible:bg-fg/[0.06] focus-visible:outline-none",
         )}

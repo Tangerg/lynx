@@ -120,7 +120,7 @@ function RunSummaryTab() {
       <div className="px-4 pb-2 pt-1">
         <span
           className={cn(
-            "inline-flex items-center rounded-sm border px-1.5 py-px font-mono text-[10.5px] font-semibold",
+            "inline-flex items-center rounded-sm border-[0.5px] px-1.5 py-px font-mono text-[10.5px] font-semibold",
             status.cls,
           )}
         >
