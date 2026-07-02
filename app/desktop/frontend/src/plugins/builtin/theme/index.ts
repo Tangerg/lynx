@@ -12,7 +12,6 @@ import customTheme from "./themes/custom-theme";
 import atomOneDark from "./themes/atom-one-dark";
 import atomOneLight from "./themes/atom-one-light";
 import catppuccinLatte from "./themes/catppuccin-latte";
-import catppuccinMacchiato from "./themes/catppuccin-macchiato";
 import catppuccinMocha from "./themes/catppuccin-mocha";
 import lyraDark from "./themes/lyra-dark";
 import lyraLight from "./themes/lyra-light";
@@ -31,7 +30,6 @@ const builtinThemes: PluginSpec[] = [
   solarizedDark,
   solarizedLight,
   catppuccinMocha,
-  catppuccinMacchiato,
   catppuccinLatte,
 ];
 
