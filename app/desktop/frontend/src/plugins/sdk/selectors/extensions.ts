@@ -23,7 +23,7 @@ import type { ContributionEntry, Owned } from "../registryState";
 import type { ExtensionPoint } from "../types/extensions";
 import { useMemo } from "react";
 import { usePluginStore } from "../registry";
-import { ownedContributionsTo } from "../registryHelpers";
+import { ownedContributionsTo } from "../registryMutations";
 
 // The one structural invariant shared by the write path (host.contribute) and
 // every read: a contribution lives under `${point.id}#${dedupe}` in the flat
