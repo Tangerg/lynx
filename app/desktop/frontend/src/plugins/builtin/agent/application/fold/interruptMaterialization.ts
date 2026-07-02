@@ -1,5 +1,5 @@
 import { t } from "@/lib/i18n";
-import type { Interrupt, OpenInterrupt, ToolInvocation } from "@/rpc";
+import type { Interrupt, OpenInterrupt } from "@/rpc";
 import type { AgentViewState, ContentBlock } from "@/plugins/builtin/agent/public/viewState";
 import { appendTimelineEntry } from "@/plugins/sdk";
 import { approvalText, commandString, editableArgs, mapQuestion, toolLabel } from "./projections";
@@ -13,7 +13,7 @@ export function materializeInterrupt(
   if (it.type === "approval") {
     // Approval payloads are self-contained ToolInvocation envelopes. Upsert on
     // reconnect/replay so a re-seen interrupt re-affirms the same card.
-    const tool = it.payload?.tool as ToolInvocation | undefined;
+    const tool = it.payload?.tool;
     if (
       state.messages.some((m) =>
         m.blocks.some((b) => b.kind === "approval" && b.itemId === it.itemId),

@@ -21,3 +21,11 @@ export const APPROVAL_MODES: ApprovalModeOption[] = [
   },
   { value: "yolo", labelKey: "approvals.mode.auto", descKey: "approvals.mode.auto.desc" },
 ];
+
+// Fallback stance when a persisted / fetched mode doesn't resolve to a known
+// option (union ↔ array drift). Referenced by value so it never couples to
+// array position; if "balanced" is ever removed this throws at load rather than
+// silently pointing at whatever now sits at that index.
+export const DEFAULT_APPROVAL_MODE: ApprovalModeOption = APPROVAL_MODES.find(
+  (m) => m.value === "balanced",
+)!;

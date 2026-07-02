@@ -255,9 +255,11 @@ export function toolFields(tool: ToolInvocation | undefined): Partial<ToolCall> 
         (stdout !== undefined || stderr !== undefined
           ? [stdout, stderr].filter(Boolean).join("\n")
           : asString(tool.result));
-      const exitCode = [result?.exitCode, result?.exit_code].find((v) => typeof v === "number");
+      const exitCode = [result?.exitCode, result?.exit_code].find(
+        (v): v is number => typeof v === "number",
+      );
       return {
-        exitCode: exitCode as number | undefined,
+        exitCode,
         ...(merged !== undefined
           ? { result: merged, outputTruncated: result?.outputTruncated === true }
           : {}),
