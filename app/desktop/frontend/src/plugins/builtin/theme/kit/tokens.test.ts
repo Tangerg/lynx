@@ -105,22 +105,23 @@ describe("buildTokenMap", () => {
   it("dark scheme picks DARK_SHADOWS; light picks LIGHT_SHADOWS", () => {
     const dark = buildTokenMap(makeSpec({ scheme: "dark" }));
     const light = buildTokenMap(makeSpec({ scheme: "light" }));
-    expect(dark["shadow-surface"]).toBe(DARK_SHADOWS.surface);
     expect(dark["shadow-composer"]).toBe(DARK_SHADOWS.composer);
     expect(dark["shadow-popover"]).toBe(DARK_SHADOWS.popover);
-    expect(light["shadow-surface"]).toBe(LIGHT_SHADOWS.surface);
     expect(light["shadow-composer"]).toBe(LIGHT_SHADOWS.composer);
     expect(light["shadow-popover"]).toBe(LIGHT_SHADOWS.popover);
+    // No card `surface` shadow — cards separate by background delta.
+    expect(dark).not.toHaveProperty("shadow-surface");
+    expect(light).not.toHaveProperty("shadow-surface");
   });
 
   it("spec.shadows merges per-key over scheme defaults", () => {
     const tokens = buildTokenMap(
-      makeSpec({ shadows: { surface: "0 0 red", popover: "2px 2px blue" } }),
+      makeSpec({ shadows: { composer: "0 0 red", popover: "2px 2px blue" } }),
     );
-    expect(tokens["shadow-surface"]).toBe("0 0 red");
+    expect(tokens["shadow-composer"]).toBe("0 0 red");
     expect(tokens["shadow-popover"]).toBe("2px 2px blue");
-    // Other shadows still come from DARK defaults.
-    expect(tokens["shadow-composer"]).toBe(DARK_SHADOWS.composer);
+    // Untouched shadow keys still come from DARK defaults.
+    expect(tokens["shadow-focus"]).toBe(DARK_SHADOWS.focus);
   });
 
   it("spec.radii merges per-key over DEFAULT_RADII", () => {

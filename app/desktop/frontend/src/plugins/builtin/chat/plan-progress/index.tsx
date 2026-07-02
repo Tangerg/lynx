@@ -88,7 +88,7 @@ function PlanProgressBanner() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -4 }}
           transition={swift}
-          className="mt-2 mb-1 rounded-lg bg-surface overflow-hidden shadow-[var(--shadow-surface)]"
+          className="mt-2 mb-1 rounded-lg bg-surface overflow-hidden"
         >
           {/* Header row — single line, fixed height. Clickable area
               spans icon+text+percent+chevron; X sits outside it so the

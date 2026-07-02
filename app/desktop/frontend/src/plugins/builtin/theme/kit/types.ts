@@ -96,14 +96,14 @@ export interface ThemeCta {
   ctaText: string;
 }
 
-/** Named shadow tokens.
- *  surface: quiet optical edge for cards and app chrome.
- *  composer: composer container only.
+/** Named shadow tokens — reserved for genuinely-floating elements only
+ *  (tiled regions + in-flow cards separate by surface-ladder background
+ *  delta, never shadow; JetBrains New UI model).
+ *  composer: the composer, which floats over the scrolling stream.
  *  popover: dropdowns, popovers, modals, command palette.
  *  focus: quiet focus ring — no glow halo.
  *  Override individual keys when a theme wants a different elevation language. */
 export interface ThemeShadows {
-  surface: string;
   composer: string;
   popover: string;
   focus: string;
