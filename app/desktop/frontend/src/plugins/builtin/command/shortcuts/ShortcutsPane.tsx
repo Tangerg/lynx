@@ -37,10 +37,10 @@ export function ShortcutsPane() {
         onChange={(e) => setQuery(e.target.value)}
         placeholder={t("shortcuts.filter")}
         aria-label={t("shortcuts.filterAria")}
-        className="w-full rounded-md border border-line bg-surface-2 px-3 py-2 text-[13px] text-fg placeholder:text-fg-faint outline-none focus-visible:border-line-soft focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)]"
+        className="w-full rounded-md border border-field bg-surface-2 px-3 py-2 text-[13px] text-fg placeholder:text-fg-faint outline-none focus-visible:border-field-strong focus-visible:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_14%,transparent)]"
       />
 
-      <div className="min-h-0 flex-1 overflow-auto rounded-md border border-line bg-surface">
+      <div className="min-h-0 flex-1 overflow-auto rounded-md border border-field bg-surface">
         {filtered.length === 0 ? (
           <div className="px-3 py-6 text-center text-[13px] text-fg-faint">
             {t("shortcuts.empty")}

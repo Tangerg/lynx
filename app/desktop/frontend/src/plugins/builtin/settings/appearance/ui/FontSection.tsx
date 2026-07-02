@@ -47,7 +47,7 @@ function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerPr
         <DropdownMenu.Trigger
           disabled={!customEnabled}
           className={cn(
-            "inline-flex w-fit min-w-[220px] max-w-[280px] items-center justify-between gap-2 rounded-md border border-line bg-surface px-2.5 py-1.5 text-[13px] text-fg transition-colors hover:bg-surface-2 data-[popup-open]:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+            "inline-flex w-fit min-w-[220px] max-w-[280px] items-center justify-between gap-2 rounded-md border border-field bg-surface px-2.5 py-1.5 text-[13px] text-fg transition-colors hover:bg-surface-2 data-[popup-open]:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
             "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-surface",
             mono && customEnabled && "font-mono text-[12.5px]",
           )}

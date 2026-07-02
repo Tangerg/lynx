@@ -67,7 +67,7 @@ function AddProjectInline() {
 
   return (
     <div className="px-3 pb-1.5">
-      <div className="flex items-center gap-1.5 rounded-md border border-line bg-surface-2 px-2 py-1.5">
+      <div className="flex items-center gap-1.5 rounded-md border border-field bg-surface-2 px-2 py-1.5">
         <Icon name="plus" size={12} className="shrink-0 text-fg-faint" />
         <input
           type="text"
@@ -79,7 +79,10 @@ function AddProjectInline() {
           placeholder={t("sidebar.addProject.placeholder")}
           aria-label={t("sidebar.addProject.placeholder")}
           spellCheck={false}
-          className={cn(FIELD_CLASSES, "h-5 flex-1 bg-transparent px-0 text-[12px] text-fg")}
+          className={cn(
+            FIELD_CLASSES,
+            "h-5 flex-1 border-0 bg-transparent px-0 text-[12px] text-fg",
+          )}
         />
       </div>
     </div>
