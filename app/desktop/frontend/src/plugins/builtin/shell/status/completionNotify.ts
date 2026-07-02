@@ -12,9 +12,9 @@
 // joins the builtin manifest and primes notification permission at load (while
 // the window is focused, so the prompt is allowed).
 
-import { playCompletionChime } from "@/lib/chime";
+import { playCompletionChime } from "./chime";
 import { disposeOnHmr } from "@/lib/hmr";
-import { ensureOsNotifyPermission, osNotify } from "@/lib/osNotify";
+import { ensureOsNotifyPermission, osNotify } from "./osNotify";
 import { subscribeAgentRunSettlements } from "@/plugins/builtin/agent/public/run";
 import { definePlugin } from "@/plugins/sdk";
 import { useUiStore } from "@/state/uiStore";

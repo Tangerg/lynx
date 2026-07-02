@@ -6,8 +6,8 @@
 import type { WhenContext } from "@/plugins/sdk";
 import { useMemo } from "react";
 import { resolveScheme } from "@/plugins/sdk";
-import { useUiStore } from "./uiStore";
-import { useWorkspaceNavigationStore } from "./workspaceNavigationStore";
+import { useUiStore } from "@/state/uiStore";
+import { useWorkspaceNavigationStore } from "@/state/workspaceNavigationStore";
 
 export function useWhenContext(): WhenContext {
   const activeMainView = useWorkspaceNavigationStore((s) => s.activeMainView);

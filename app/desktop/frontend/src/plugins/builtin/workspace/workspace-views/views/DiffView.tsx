@@ -1,7 +1,7 @@
 import type { Highlighter } from "shiki";
 import type { WorkspaceDiffRow } from "@/plugins/builtin/workspace/application/workspaceData";
 import { useMemo } from "react";
-import { intraLineDiff } from "@/lib/diff/intraLineDiff";
+import { intraLineDiff } from "../intraLineDiff";
 import { stripCodeWrapper, useCodeHighlighter } from "@/lib/markdown/useCodeHighlight";
 import { langFromPath, resolveLang } from "@/lib/markdown/shiki";
 import { cn } from "@/lib/utils";
