@@ -117,7 +117,7 @@ export function SessionRow({
             </span>
             {session.status === "idle" ? (
               <span
-                className="shrink-0 text-[11.5px] leading-none text-fg-faint"
+                className="shrink-0 text-[11.5px] leading-none text-fg-faint tabular-nums"
                 title={session.time}
               >
                 {subText}
