@@ -15,10 +15,6 @@ export function useVisibleAgentSessions(): SidebarSession[] {
   );
 }
 
-export function useSelectAgentSession(): (id: string) => void {
-  return agentSessionState().useSelectSession();
-}
-
 export function useReconcilePersistedAgentSessions(): void {
   const { data, isSuccess } = useSessions();
   const done = useRef(false);

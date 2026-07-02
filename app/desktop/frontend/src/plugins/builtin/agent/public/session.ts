@@ -14,7 +14,6 @@ export {
 } from "../application/session/activeSession";
 export {
   useReconcilePersistedAgentSessions,
-  useSelectAgentSession,
   useVisibleAgentSessions,
 } from "../application/session/sessionList";
 export { createSession, useCreateSession } from "../application/session/createSession";
