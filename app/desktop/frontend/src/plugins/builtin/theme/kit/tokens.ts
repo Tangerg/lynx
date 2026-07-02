@@ -20,10 +20,12 @@ import type { ThemeCta, ThemePluginSpec, ThemeRadii, ThemeShadows } from "./type
 // floats over the scrolling stream) + popover (dropdowns / palette / dialogs).
 // On dark the edge ring is white and the depth layers near-black (a light
 // ambient can't show on a dark canvas); on light, the doc's slate values.
+// EXCEPTION — the composer is deliberately RINGLESS (no edge ring, ever, incl.
+// on focus): it's separated from the canvas by its bg-surface fill (colour
+// delta) + a soft diffuse shadow (the ChatGPT/Codex composer reference). Every
+// ring on it read as a cheap border. Only `popover` carries the doc's ring.
 export const DARK_SHADOWS: ThemeShadows = {
-  // Stronger lift (doc §1 "stronger lifted surface").
-  composer:
-    "0 0 0 1px rgb(255 255 255 / 0.08), 0 1px 2px rgb(0 0 0 / 0.4), 0 18px 48px rgb(0 0 0 / 0.55)",
+  composer: "0 2px 8px rgb(0 0 0 / 0.35), 0 16px 40px -10px rgb(0 0 0 / 0.55)",
   popover:
     "0 0 0 1px rgb(255 255 255 / 0.08), 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.5)",
   // Geist two-layer focus ring: 2px gap in surface color + 2px accent.
@@ -31,9 +33,7 @@ export const DARK_SHADOWS: ThemeShadows = {
 };
 
 export const LIGHT_SHADOWS: ThemeShadows = {
-  // Doc §1 verbatim: ring + contact + wide ambient (stronger for the composer).
-  composer:
-    "0 0 0 1px rgb(15 23 42 / 0.08), 0 1px 2px rgb(15 23 42 / 0.06), 0 18px 48px rgb(15 23 42 / 0.14)",
+  composer: "0 2px 8px rgb(15 23 42 / 0.05), 0 12px 32px -8px rgb(15 23 42 / 0.14)",
   popover:
     "0 0 0 1px rgb(15 23 42 / 0.08), 0 1px 2px rgb(15 23 42 / 0.06), 0 8px 24px rgb(15 23 42 / 0.1)",
   focus: "0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent)",

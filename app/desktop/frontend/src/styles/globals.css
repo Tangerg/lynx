@@ -321,8 +321,9 @@
    *  focus: quiet focus ring, no glow halo
    *  (first-paint defaults; the theme kit re-emits these at runtime.)
    * ----------------------------------------------------------------------- */
-  --shadow-composer:
-    0 0 0 1px rgb(255 255 255 / 0.08), 0 1px 2px rgb(0 0 0 / 0.4), 0 18px 48px rgb(0 0 0 / 0.55);
+  /* Composer is deliberately ringless (fill + soft shadow, no edge ring even
+     on focus); only popover carries the doc's edge ring. */
+  --shadow-composer: 0 2px 8px rgb(0 0 0 / 0.35), 0 16px 40px -10px rgb(0 0 0 / 0.55);
   --shadow-popover:
     0 0 0 1px rgb(255 255 255 / 0.08), 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.5);
   --shadow-focus: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent);
@@ -529,8 +530,7 @@ html.theme-light .panel {
 }
 
 html.theme-light {
-  --shadow-composer:
-    0 0 0 1px rgb(15 23 42 / 0.08), 0 1px 2px rgb(15 23 42 / 0.06), 0 18px 48px rgb(15 23 42 / 0.14);
+  --shadow-composer: 0 2px 8px rgb(15 23 42 / 0.05), 0 12px 32px -8px rgb(15 23 42 / 0.14);
   --shadow-popover:
     0 0 0 1px rgb(15 23 42 / 0.08), 0 1px 2px rgb(15 23 42 / 0.06), 0 8px 24px rgb(15 23 42 / 0.1);
 }
