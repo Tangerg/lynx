@@ -27,9 +27,8 @@ function prefillComposer(msg: Message): void {
   replaceComposerDraft(messageDraftContent(msg));
 }
 
-// Mapped types (session_busy; checkpoint_unavailable — restoreType:"both"
-// is atomic, so a missing snapshot is a clean no-op) toast their standard
-// copy; anything else is unexpected and also logs the raw error.
+// Known rollback business errors get user copy; unexpected failures keep the
+// raw error visible for debugging.
 function reportRollbackError(err: unknown): void {
   const copy = describeRpcError(err);
   if (!copy) console.error("[message] rollback failed:", err);
@@ -42,11 +41,8 @@ export interface RollbackActionOptions {
   restoreFiles?: boolean;
 }
 
-// Regenerate the answer to the most recent user prompt before the given
-// assistant message: rewind history to just before that prompt's run
-// (sessions.rollback) and resend it — the old answer is gone, not appended
-// to. Messages that never reconciled to a server run (no runId) fall back
-// to plain resend (a fresh turn below the old one).
+// Regeneration rewinds to the prompt's run and sends it again; unreconciled
+// prompts fall back to a fresh turn.
 export function regenerateMessage(msg: Message, opts?: RollbackActionOptions): void {
   const conversation = activeAgentConversation();
   if (!conversation) return;
@@ -80,18 +76,14 @@ export function regenerateMessage(msg: Message, opts?: RollbackActionOptions): v
     .catch(reportRollbackError);
 }
 
-// Load the message text back into the composer so the user can tweak and
-// re-send. Doesn't mutate history — sending creates a new user turn.
+// Non-destructive composer prefill; sending creates a new user turn.
 export function editMessageInComposer(msg: Message): void {
   if (!messageHasDraftContent(msg)) return;
   prefillComposer(msg);
 }
 
-// Edit-and-rerun for a USER message: rewind history to just before this
-// message's run, then prefill the composer with its text for tweaking. The
-// message (and everything after it) is gone from history — sending writes
-// the corrected turn in its place. Falls back to the non-destructive
-// composer prefill when the message never reconciled to a run.
+// Edit-and-rerun rewinds a reconciled user turn before prefill; unreconciled
+// messages fall back to the non-destructive edit path.
 export function editAndRerunMessage(msg: Message, opts?: RollbackActionOptions): void {
   const conversation = activeAgentConversation();
   if (!conversation || !messageHasDraftContent(msg)) return;
@@ -110,12 +102,8 @@ export function editAndRerunMessage(msg: Message, opts?: RollbackActionOptions):
     .catch(reportRollbackError);
 }
 
-// Pure restore to a checkpoint: rewind to just BEFORE this user message's turn
-// and STOP — no resend, no composer prefill (unlike edit-and-rerun / regenerate,
-// which always re-drive the turn). This is cline's "Restore checkpoint": go back
-// to a known-good state and decide what to do next yourself. `restoreType`
-// chooses what's rewound (conversation / working-tree files / both). No-op for a
-// message that never reconciled to a server run.
+// Restore stops after rollback. It does not prefill or resend because the user
+// is choosing a checkpoint to continue from.
 export function restoreCheckpoint(msg: Message, restoreType: RestoreType): void {
   const conversation = activeAgentConversation();
   if (!conversation || msg.role !== "user" || !msg.runId) return;
@@ -137,10 +125,8 @@ function restoreCopy(restoreType: RestoreType): string {
   }
 }
 
-// Branch the conversation up to AND INCLUDING this message's run
-// (sessions.fork{fromRunId}, AUX_API §4.2): the new session keeps history
-// through this exchange and opens as the active tab; the original is
-// untouched. No-ops for messages that never reconciled to a run.
+// Fork keeps history through this run in a new active session; the original
+// session is untouched.
 export function forkFromMessage(msg: Message): void {
   const conversation = activeAgentConversation();
   if (!conversation || !msg.runId) return;

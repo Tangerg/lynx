@@ -177,7 +177,7 @@ agent public surface <- orchestration/use case -> composer public surface
 例如“选择 agent 某段文字插入 composer”：
 
 ```text
-chat-workbench.quoteSelectionToDraft(selection)
+chat/message-actions.quoteSelectionToDraft(selection)
   -> AgentConversationPort.readSelection(selection)
   -> ComposerDraftPort.insertQuote(quote)
   -> ComposerDraftPort.focus()
@@ -186,7 +186,7 @@ chat-workbench.quoteSelectionToDraft(selection)
 例如“编辑上一条用户消息并回填输入框”：
 
 ```text
-chat-workbench.editMessageInComposer(messageId)
+chat/message-actions.editMessageInComposer(messageId)
   -> AgentConversationPort.getMessage(messageId)
   -> ComposerDraftPort.replaceDraft(draft)
   -> ComposerDraftPort.focus()
@@ -200,7 +200,7 @@ composer.submitDraft()
   -> AgentInputPort.send(input)
 ```
 
-这里的 `chat-workbench` 是跨上下文应用编排层，不是新的超级聚合根。它只编排多个 public port，不拥有 agent/composer 的内部状态。
+这里的 `chat/message-actions` application 层是跨上下文用例编排层，不是新的超级聚合根。它只编排多个 public port，不拥有 agent/composer 的内部状态。
 
 ### Commands, Events, Selectors, Extension Points
 
@@ -299,7 +299,7 @@ Zustand store 不是业务层。它可以承担：
 1. 建模 Draft / Attachment / SendIntent。
 2. 将 draft -> agent input 的转换从 UI 中抽出。
 3. 通过 `AgentInputPort` 发送，不直接依赖 agent internals。
-4. 暴露 `ComposerDraftPort` 给 message actions / workbench orchestration 使用。
+4. 暴露 `ComposerDraftPort` 给 message actions / orchestration use cases 使用。
 
 验收标准：
 
