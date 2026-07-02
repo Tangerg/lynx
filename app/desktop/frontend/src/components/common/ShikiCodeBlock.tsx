@@ -166,7 +166,7 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
               type="button"
               onClick={() => setExpanded(false)}
               title={t("message.code.collapse")}
-              className={cn(FOLD_TOGGLE, "border-t border-line")}
+              className={FOLD_TOGGLE}
             >
               <Icon name="minimize" size={12} />
               <span>{t("message.code.collapseLabel")}</span>

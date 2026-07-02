@@ -13,7 +13,7 @@ const styles = cva(
   {
     variants: {
       variant: {
-        outlined: "border border-line bg-surface/70 text-fg hover:bg-surface",
+        outlined: "border border-field bg-surface/70 text-fg hover:bg-surface",
         solid: "border border-fg bg-fg text-on-fg",
         accent: "border border-accent bg-accent text-on-accent",
         danger: "bg-transparent text-negative border border-negative hover:bg-negative/8",

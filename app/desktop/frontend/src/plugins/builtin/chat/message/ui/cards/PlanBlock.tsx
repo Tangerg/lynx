@@ -13,7 +13,7 @@ export const PlanBlock = memo(function PlanBlock({ plan }: { plan: PlanItem[] })
   const done = plan.filter((p) => p.status === "done").length;
   return (
     <div className="my-3 overflow-hidden rounded-lg bg-surface" data-slot="plan-block">
-      <div className="flex items-center justify-between gap-2 border-b border-line-soft px-3.5 py-2.5">
+      <div className="flex items-center justify-between gap-2 bg-surface-2 px-3.5 py-2.5">
         <span className="text-[13px] font-medium text-fg">{t("plan.title")}</span>
         <span className="font-mono text-[11.5px] tabular-nums text-fg-faint">
           {done}/{plan.length}

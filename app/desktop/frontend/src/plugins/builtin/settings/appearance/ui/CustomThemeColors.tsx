@@ -17,12 +17,12 @@ function ColorRow({
   onChange: (hex: string) => void;
 }) {
   return (
-    <label className="flex items-center justify-between gap-3 rounded-md border border-line bg-surface-2 px-3 py-1.5 transition-colors hover:bg-surface-3">
+    <label className="flex items-center justify-between gap-3 rounded-md bg-surface-2 px-3 py-1.5 transition-colors hover:bg-surface-3">
       <span className="text-[13px] text-fg-muted">{label}</span>
       <span className="relative inline-flex items-center gap-2">
         <span className="font-mono text-[12px] uppercase text-fg">{value}</span>
         <span
-          className="h-4.5 w-4.5 rounded-full border border-line bg-clip-padding"
+          className="h-4.5 w-4.5 rounded-full border border-field bg-clip-padding"
           style={{ background: value }}
         />
         {/* Hidden native picker — clicking the row opens the OS color wheel. */}

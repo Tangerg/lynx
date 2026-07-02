@@ -18,7 +18,7 @@ export function SearchResults({ results }: { results: SearchResult[] }) {
         // an index would swap DOM nodes by position and clobber hover/focus.
         <div
           key={r.url}
-          className="group flex flex-col gap-1.5 rounded-lg border border-transparent bg-surface px-3.5 py-3 transition-colors duration-150 ease-out hover:bg-surface-2 hover:border-line-soft"
+          className="group flex flex-col gap-1.5 rounded-lg bg-surface px-3.5 py-3 transition-colors duration-150 ease-out hover:bg-surface-2"
         >
           <div className="flex items-center gap-1.5 font-mono text-[11px] text-fg-faint">
             <span className="grid h-3.5 w-3.5 shrink-0 place-items-center rounded-xs bg-surface-2 font-sans text-[8px] font-semibold text-fg-muted transition-colors group-hover:bg-surface-3 group-hover:text-fg">

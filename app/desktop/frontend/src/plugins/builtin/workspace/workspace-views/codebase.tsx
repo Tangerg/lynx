@@ -122,10 +122,7 @@ function CodebaseTab() {
 
         <div className="flex flex-col gap-2">
           {(hits ?? []).map((h, i) => (
-            <div
-              key={`${h.path}:${h.startLine}:${i}`}
-              className="rounded-lg border border-line-soft bg-canvas px-3 py-2"
-            >
+            <div key={`${h.path}:${h.startLine}:${i}`} className="rounded-lg bg-canvas px-3 py-2">
               <div className="flex items-center gap-2">
                 <span className="truncate font-mono text-[12px] text-accent">
                   {h.path}:{h.startLine}-{h.endLine}

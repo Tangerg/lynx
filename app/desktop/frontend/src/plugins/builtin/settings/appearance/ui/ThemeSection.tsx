@@ -55,7 +55,7 @@ function ThemeOption({
         active && "bg-surface-2 border-accent",
       )}
     >
-      <div className="relative h-8 w-12 shrink-0 overflow-hidden rounded-sm border border-line">
+      <div className="relative h-8 w-12 shrink-0 overflow-hidden rounded-sm border border-field">
         {preview}
       </div>
       <div className="grid min-w-0 gap-0.5">

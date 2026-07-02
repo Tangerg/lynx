@@ -62,7 +62,7 @@ export function ShortcutsPane() {
                       {splitCombo(s.key).map((part, i) => (
                         <kbd
                           key={i}
-                          className="inline-flex min-w-[20px] items-center justify-center rounded-xs border border-line bg-surface-2 px-1.5 py-px font-mono text-[11px] font-semibold text-fg-muted"
+                          className="inline-flex min-w-[20px] items-center justify-center rounded-xs border border-field bg-surface-2 px-1.5 py-px font-mono text-[11px] font-semibold text-fg-muted"
                         >
                           {part}
                         </kbd>

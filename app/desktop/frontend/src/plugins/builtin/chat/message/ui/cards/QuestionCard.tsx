@@ -99,7 +99,7 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered,
           return (
             <div key={q.id} className="flex flex-col gap-2">
               <div className="flex items-center gap-2">
-                <span className="rounded-sm border border-line bg-surface-2 px-1.5 py-px font-mono text-[10px] font-semibold text-fg-muted">
+                <span className="rounded-sm bg-surface-2 px-1.5 py-px font-mono text-[10px] font-semibold text-fg-muted">
                   {q.header}
                 </span>
                 {q.multiSelect && (
@@ -120,10 +120,10 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered,
                       aria-pressed={active}
                       onClick={() => setDraft((prev) => toggleQuestionOption(prev, q, opt.label))}
                       className={cn(
-                        "flex flex-col gap-0.5 rounded-md border px-3 py-2 text-left transition-colors duration-150",
+                        "flex flex-col gap-0.5 rounded-md border border-transparent px-3 py-2 text-left transition-colors duration-150",
                         active
                           ? "border-accent/60 bg-accent/10"
-                          : "border-line bg-surface-2 hover:border-line-soft hover:bg-surface-3",
+                          : "bg-surface-2 hover:bg-surface-3",
                       )}
                     >
                       <span className="text-[13px] font-medium text-fg">{opt.label}</span>
