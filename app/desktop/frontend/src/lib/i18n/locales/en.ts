@@ -10,9 +10,6 @@ export const en: Record<string, string> = {
   "common.search": "Search",
 
   "sidebar.section.projects": "Projects",
-  "sidebar.section.session": "Session",
-  "sidebar.sessionFilter.placeholder": "Filter sessions…",
-  "sidebar.sessionFilter.empty": "No matching sessions",
   "sidebar.newSessionInFolder.placeholder": "Absolute path",
   "sidebar.action.collapse": "Collapse to rail",
   "sidebar.action.expand": "Expand sidebar",
@@ -712,7 +709,7 @@ export const en: Record<string, string> = {
   "projects.showMore": "Show {{count}} more",
   "projects.showLess": "Show less",
   "projects.empty.title": "No projects",
-  "projects.empty.sub": "Add one to scope sessions to a codebase.",
+  "projects.empty.sub": "Start a session in a folder to create a workspace group.",
   "projects.fallbackName": "Other",
 
   // ── Status bar ──

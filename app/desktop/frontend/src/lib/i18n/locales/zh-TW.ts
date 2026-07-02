@@ -507,7 +507,7 @@ export const zhTW: Record<string, string> = {
   "projects.showMore": "顯示另外 {{count}} 條",
   "projects.showLess": "收合",
   "projects.empty.title": "無專案",
-  "projects.empty.sub": "新增一個專案以將工作階段限定到某個程式碼庫。",
+  "projects.empty.sub": "在資料夾中開始一個會話，即可建立工作區分組。",
   "projects.fallbackName": "其他",
   "convExport.markdown": "匯出對話為 Markdown",
   "convExport.json": "匯出對話為 JSON",
