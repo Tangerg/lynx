@@ -197,8 +197,8 @@
      scheme (deeper = lighter on dark, deeper = darker on light).
      Themes can pin surface-2/3/4 explicitly when their canonical
      palette has a non-linear ladder. */
-  --color-bg: oklch(0.12 0.012 260); /* canvas — cool slate near-black */
-  --color-surface: oklch(0.205 0.014 260); /* lifted chrome — sidebar, cards, bubbles */
+  --color-bg: oklch(0.145 0.02 262); /* canvas — cool slate near-black */
+  --color-surface: oklch(0.205 0.02 262); /* lifted chrome — sidebar, cards, bubbles */
   --depth-step: 5%;
   --color-surface-2: color-mix(
     in oklab,

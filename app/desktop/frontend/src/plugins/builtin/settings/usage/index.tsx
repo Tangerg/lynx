@@ -76,9 +76,7 @@ function UsagePane() {
             onClick={() => setSinceDays(r.days)}
             className={cn(
               "h-6 rounded-full px-2.5 text-[11.5px] font-medium transition-colors",
-              sinceDays === r.days
-                ? "bg-surface text-fg shadow-[var(--shadow-focus)]"
-                : "text-fg-faint hover:text-fg",
+              sinceDays === r.days ? "bg-surface text-fg" : "text-fg-faint hover:text-fg",
             )}
           >
             {t(r.label)}

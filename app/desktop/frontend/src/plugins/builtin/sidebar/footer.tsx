@@ -44,10 +44,11 @@ function SidebarFooter() {
   // thin action row — plugin status badges (notifications / background tasks)
   // on the left, settings + theme on the right.
   return (
-    // Separation from the scroll area above is a soft shadow, not a hairline —
-    // "no cheap lines" (DESIGN.md): a Codex-style shadow reads more premium than
-    // a grey rule. Subtle on dark (dark-on-dark), visible on light.
-    <div className={cn("pt-1 shadow-[0_-10px_18px_-16px_rgb(0_0_0_/_0.3)]", noDragClasses)}>
+    // Flush with the scroll area above — no line, no shadow. The footer is a
+    // coplanar sibling of the list (content doesn't scroll under it), so per the
+    // JetBrains separation model it separates by its distinct action-row content
+    // + spacing, not a shadow (which would falsely imply it floats above).
+    <div className={cn("pt-1", noDragClasses)}>
       <div className="flex items-center justify-between gap-1 rounded-md px-2 py-1.5">
         <Slot name="sidebar.footer.status" className="flex items-center gap-0.5" />
         <div className="flex items-center gap-0.5">
