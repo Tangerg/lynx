@@ -15,7 +15,7 @@ import type { WorkGroup, WorkProject } from "@/plugins/builtin/navigation/public
 import { useWorkIndex } from "@/plugins/builtin/navigation/public/workIndex";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
-import { SIDEBAR_SECTION } from "@/plugins/sdk/kernelPoints";
+import { WORK_INDEX_ITEM } from "@/plugins/sdk/kernelPoints";
 import { sideListClasses } from "./styles";
 
 // Sessions shown per expanded project before the "Show more" fold —
@@ -149,7 +149,7 @@ function ProjectsSection() {
 
   return (
     <>
-      <SectionLabel>{t("sidebar.section.projects")}</SectionLabel>
+      <SectionLabel>{t("workIndex.section.projects")}</SectionLabel>
       <NewSessionInFolderInline />
       <DataView
         items={workIndex.groups}
@@ -190,8 +190,10 @@ export const sidebarProjects = definePlugin({
   name: "lyra.builtin.sidebar-projects",
   version: "1.0.0",
   setup({ host }) {
-    host.extensions.contribute(SIDEBAR_SECTION, {
+    host.extensions.contribute(WORK_INDEX_ITEM, {
       id: "projects",
+      scope: "session",
+      placement: "expanded",
       order: 0,
       component: ProjectsSection,
     });

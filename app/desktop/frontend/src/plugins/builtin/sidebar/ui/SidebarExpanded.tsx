@@ -5,7 +5,7 @@ import { Icon, dragClasses, noDragClasses, Panel, ScrollArea } from "@/component
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
-import { SIDEBAR_SECTION, useExtensionPoint } from "@/plugins/sdk";
+import { useWorkIndexItems } from "@/plugins/sdk";
 import { Slot } from "@/plugins/host/Slot";
 
 interface Props {
@@ -14,7 +14,7 @@ interface Props {
 
 export function SidebarExpanded({ onToggleRail }: Props) {
   const t = useT();
-  const sections = useExtensionPoint(SIDEBAR_SECTION);
+  const items = useWorkIndexItems("expanded");
 
   return (
     // `sidebar` class is kept as a DOM hook for layout.css (macOS
@@ -41,13 +41,13 @@ export function SidebarExpanded({ onToggleRail }: Props) {
 
       <ScrollArea hideScrollbar style={{ padding: "0 0 8px 0" }}>
         <div className={noDragClasses}>
-          {sections.map((section) => {
-            const Body = section.component;
+          {items.map((item) => {
+            const Body = item.component;
             return (
               <PluginBoundary
-                key={section.id}
-                plugin={`sidebar:${section.id}`}
-                label={`${section.id} section`}
+                key={item.id}
+                plugin={`work-index:${item.id}`}
+                label={`${item.id} work index item`}
               >
                 <Body />
               </PluginBoundary>

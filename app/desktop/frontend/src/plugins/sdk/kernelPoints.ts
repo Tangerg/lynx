@@ -34,14 +34,13 @@ import type {
   RpcBeforeRequestHook,
   SettingsPaneSpec,
   ShortcutSpec,
-  SidebarRailItemSpec,
-  SidebarSectionSpec,
   SlashCommandSpec,
   ThemeAccentSpec,
   ThemeSpec,
   ToolActionSpec,
   ToolPreviewComponent,
   ToolViewOpenerSpec,
+  WorkIndexItemSpec,
   WorkspaceViewSpec,
 } from "./types";
 import type { ContentBlockKind } from "@/plugins/sdk/types/contentBlock";
@@ -217,14 +216,9 @@ export const LAYOUT_SLOT = defineExtensionPoint<{ slot: string; spec: LayoutSlot
   keying: "multi",
 });
 
-export const SIDEBAR_SECTION = defineExtensionPoint<SidebarSectionSpec>({
-  id: "lyra.sidebar.section",
-  capability: "sidebar",
-  keying: "single",
-});
-export const SIDEBAR_RAIL_ITEM = defineExtensionPoint<SidebarRailItemSpec>({
-  id: "lyra.sidebar.railItem",
-  capability: "sidebar",
+export const WORK_INDEX_ITEM = defineExtensionPoint<WorkIndexItemSpec>({
+  id: "lyra.workIndex.item",
+  capability: "navigation",
   keying: "single",
 });
 

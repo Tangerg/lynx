@@ -7,7 +7,7 @@ export const zh: Record<string, string> = {
   "common.retry": "重试",
   "common.search": "搜索",
 
-  "sidebar.section.projects": "项目",
+  "workIndex.section.projects": "项目",
   "sidebar.newSessionInFolder.placeholder": "绝对路径",
   "sidebar.action.collapse": "收起到边栏",
   "sidebar.action.expand": "展开边栏",

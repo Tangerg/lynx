@@ -21,13 +21,12 @@ import {
   ROUTE,
   SETTINGS_PANE,
   SHORTCUT,
-  SIDEBAR_RAIL_ITEM,
-  SIDEBAR_SECTION,
   SLASH_COMMAND,
   THEME,
   TOOL_ACTION,
   TOOL_ICON,
   TOOL_PREVIEW,
+  WORK_INDEX_ITEM,
 } from "./kernelPoints";
 import { normalizeCombo, usePluginStore } from "./registry";
 import {
@@ -313,17 +312,19 @@ describe("plugin registry", () => {
     expect(lookupExtensionByKey(COMPOSER_STATUS, "branch")?.order).toBe(5);
   });
 
-  it("sidebar.registerSection stores a section", () => {
+  it("workIndex.registerItem stores an expanded item", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
-    host.extensions.contribute(SIDEBAR_SECTION, {
+    host.extensions.contribute(WORK_INDEX_ITEM, {
       id: "bookmarks",
+      scope: "session",
+      placement: "expanded",
       order: 20,
       component: () => null,
     });
 
-    expect(lookupExtensionPoint(SIDEBAR_SECTION).length).toBe(1);
-    expect(lookupExtensionOwner(SIDEBAR_SECTION, "bookmarks")).toBe("alpha");
+    expect(lookupExtensionPoint(WORK_INDEX_ITEM).length).toBe(1);
+    expect(lookupExtensionOwner(WORK_INDEX_ITEM, "bookmarks")).toBe("alpha");
   });
 
   it("tool.registerIcon + lookupToolIcon round-trip", () => {
@@ -577,17 +578,19 @@ describe("plugin registry", () => {
     expect(lookupDataProvider("rows")).toBeUndefined();
   });
 
-  it("sidebar.registerRailItem stores an item", () => {
+  it("workIndex.registerItem stores a rail item", () => {
     const sink: Disposable[] = [];
     const host = createHost("alpha", sink);
-    host.extensions.contribute(SIDEBAR_RAIL_ITEM, {
+    host.extensions.contribute(WORK_INDEX_ITEM, {
       id: "tools",
+      scope: "global",
+      placement: "rail",
       order: 900,
       component: () => null,
     });
 
-    expect(lookupExtensionPoint(SIDEBAR_RAIL_ITEM).length).toBe(1);
-    expect(lookupExtensionByKey(SIDEBAR_RAIL_ITEM, "tools")?.order).toBe(900);
+    expect(lookupExtensionPoint(WORK_INDEX_ITEM).length).toBe(1);
+    expect(lookupExtensionByKey(WORK_INDEX_ITEM, "tools")?.order).toBe(900);
   });
 
   it("message.registerRole stores a role identity", () => {

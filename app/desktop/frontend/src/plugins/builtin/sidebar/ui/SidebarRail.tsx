@@ -16,7 +16,7 @@ import { dragClasses, Icon, IconButton, Panel } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
-import { SIDEBAR_RAIL_ITEM, useExtensionPoint } from "@/plugins/sdk";
+import { useWorkIndexItems } from "@/plugins/sdk";
 
 interface Props {
   // Forwarded purely so the rail-sessions plugin doesn't have to refetch
@@ -30,7 +30,7 @@ interface Props {
 
 export function SidebarRail({ onToggleRail }: Props) {
   const t = useT();
-  const items = useExtensionPoint(SIDEBAR_RAIL_ITEM);
+  const items = useWorkIndexItems("rail");
   return (
     // `sidebar` / `rail` classes are kept as DOM hooks for layout.css
     // (macOS titlebar padding). All visual styling is Tailwind here.
@@ -43,8 +43,8 @@ export function SidebarRail({ onToggleRail }: Props) {
         return (
           <PluginBoundary
             key={item.id}
-            plugin={`sidebar-rail:${item.id}`}
-            label={`${item.id} rail item`}
+            plugin={`work-index-rail:${item.id}`}
+            label={`${item.id} work index rail item`}
           >
             <Body />
           </PluginBoundary>

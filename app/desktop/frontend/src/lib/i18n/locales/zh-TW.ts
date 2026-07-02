@@ -7,7 +7,7 @@ export const zhTW: Record<string, string> = {
   "common.retry": "重試",
   "common.search": "搜尋",
 
-  "sidebar.section.projects": "專案",
+  "workIndex.section.projects": "專案",
   "sidebar.newSessionInFolder.placeholder": "絕對路徑",
   "sidebar.action.collapse": "收合至側欄",
   "sidebar.action.expand": "展開側欄",

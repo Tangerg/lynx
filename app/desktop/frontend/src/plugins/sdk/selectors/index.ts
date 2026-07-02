@@ -35,6 +35,7 @@ export {
   useContextDockDestinations,
   useLayoutSlot,
   useSettingsPanes,
+  useWorkIndexItems,
   useWorkspaceViews,
 } from "./layout";
 
