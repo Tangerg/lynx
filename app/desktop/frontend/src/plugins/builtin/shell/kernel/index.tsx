@@ -8,12 +8,7 @@ import { ChatPanel } from "./panel";
 import { SettingsPage } from "./SettingsPage";
 import { SidebarPanel } from "@/plugins/builtin/sidebar/public/SidebarPanel";
 import { useSendComposerInput } from "@/plugins/builtin/chat/composer/public/sendToAgent";
-import {
-  useActiveSessionId,
-  useReconcilePersistedAgentSessions,
-  useSelectAgentSession,
-  useVisibleAgentSessions,
-} from "@/plugins/builtin/agent/public/session";
+import { useReconcilePersistedAgentSessions } from "@/plugins/builtin/agent/public/session";
 import { definePlugin } from "@/plugins/sdk";
 import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { useUiStore } from "@/state/uiStore";
@@ -35,20 +30,9 @@ function KernelChat() {
 
 function KernelSidebar() {
   const railed = useSidebarRail();
-  const activeSession = useActiveSessionId();
-  const selectTab = useSelectAgentSession();
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
-  const sessions = useVisibleAgentSessions();
 
-  return (
-    <SidebarPanel
-      sessions={sessions}
-      activeSessionId={activeSession}
-      onSelect={selectTab}
-      rail={railed}
-      onToggleRail={toggleSidebar}
-    />
-  );
+  return <SidebarPanel rail={railed} onToggleRail={toggleSidebar} />;
 }
 
 export const kernelChat = definePlugin({
