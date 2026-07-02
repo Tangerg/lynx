@@ -22,10 +22,9 @@ import { sideListClasses } from "./styles";
 // keeps a busy project from burying the ones below it (Codex's 展开显示).
 const VISIBLE_CAP = 5;
 
-// "+" — create a session in a chosen directory (sessions.create cwd). The
-// runtime derives projects from session cwds, so "adding a project" IS
-// creating the first session there; the inline input just asks for the path.
-function AddProjectInline() {
+// Create a session in a chosen directory. Projects are derived from session
+// cwds, so the input asks for the real aggregate identity: the folder path.
+function NewSessionInFolderInline() {
   const t = useT();
   const createSession = useCreateSession();
   const [path, setPath] = useState("");
@@ -48,8 +47,8 @@ function AddProjectInline() {
           onKeyDown={(e) => {
             if (e.key === "Enter") submit();
           }}
-          placeholder={t("sidebar.addProject.placeholder")}
-          aria-label={t("sidebar.addProject.placeholder")}
+          placeholder={t("sidebar.newSessionInFolder.placeholder")}
+          aria-label={t("sidebar.newSessionInFolder.placeholder")}
           spellCheck={false}
           className={cn(
             FIELD_CLASSES,
@@ -144,14 +143,14 @@ function ProjectsSection() {
   const renameSession = useRenameSession();
   const toggleFavorite = useToggleFavorite();
 
-  const openProject = (project: WorkProject): void => {
+  const startSessionInFolder = (project: WorkProject): void => {
     void createSession({ cwd: project.id });
   };
 
   return (
     <>
       <SectionLabel>{t("sidebar.section.projects")}</SectionLabel>
-      <AddProjectInline />
+      <NewSessionInFolderInline />
       <DataView
         items={workIndex.groups}
         isLoading={workIndex.isLoading}
@@ -172,7 +171,7 @@ function ProjectsSection() {
                 group={g}
                 activeCwd={workIndex.activeCwd}
                 activeSessionId={workIndex.activeSessionId}
-                onNewSession={openProject}
+                onNewSession={startSessionInFolder}
                 onSelect={selectAgentSession}
                 onRename={(id, title) => void renameSession(id, title)}
                 onFork={forkSession}
