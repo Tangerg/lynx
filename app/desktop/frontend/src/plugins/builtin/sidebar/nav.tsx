@@ -7,9 +7,9 @@ import type { IconName } from "@/components/common";
 import { Icon, SectionLabel } from "@/components/common";
 import { useCreateSession } from "@/plugins/builtin/agent/public/session";
 import {
-  closeWorkspaceView,
-  openWorkspaceView,
-  useActiveWorkspaceViewId,
+  closeContextDockView,
+  openContextDockView,
+  useActiveContextDockViewId,
 } from "@/plugins/builtin/workspace/public/navigation";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -66,18 +66,18 @@ function NavRow({
 function NavGroup({
   label,
   destinations,
-  activeMainView,
+  activeDockView,
 }: {
   label: string;
   destinations: Destination[];
-  activeMainView: string | null;
+  activeDockView: string | null;
 }) {
   const t = useT();
   return (
     <>
       <SectionLabel>{label}</SectionLabel>
       {destinations.map((d) => {
-        const active = activeMainView === d.id;
+        const active = activeDockView === d.id;
         return (
           <NavRow
             key={d.id}
@@ -86,9 +86,9 @@ function NavGroup({
             active={active}
             onClick={() => {
               if (active) {
-                closeWorkspaceView(d.id);
+                closeContextDockView();
               } else {
-                openWorkspaceView({ id: d.id, title: d.titleKey, icon: d.icon });
+                openContextDockView({ id: d.id, title: d.titleKey, icon: d.icon });
               }
             }}
           />
@@ -101,7 +101,7 @@ function NavGroup({
 function SidebarNav() {
   const t = useT();
   const createSession = useCreateSession();
-  const activeMainView = useActiveWorkspaceViewId();
+  const activeDockView = useActiveContextDockViewId();
 
   return (
     <div className="flex flex-col gap-0.5">
@@ -123,7 +123,7 @@ function SidebarNav() {
       <NavGroup
         label={t("sidebar.section.workspace")}
         destinations={WORKSPACE_DESTINATIONS}
-        activeMainView={activeMainView}
+        activeDockView={activeDockView}
       />
     </div>
   );

@@ -1,7 +1,7 @@
 import { Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { openWorkspaceView } from "@/plugins/builtin/workspace/public/navigation";
+import { openContextDockView } from "@/plugins/builtin/workspace/public/navigation";
 import { definePlugin } from "@/plugins/sdk";
 
 // The sidebar search affordance — opens the workspace full-text (grep) search
@@ -11,7 +11,7 @@ import { definePlugin } from "@/plugins/sdk";
 // command palette, which doesn't search content at all).
 
 function openSearchView(): void {
-  openWorkspaceView({ id: "search", title: "workspace.view.title.search", icon: "search" });
+  openContextDockView({ id: "search", title: "workspace.view.title.search", icon: "search" });
 }
 
 function SidebarSearch() {
