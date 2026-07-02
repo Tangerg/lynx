@@ -17,6 +17,7 @@ import type {
   ComposerPlaceholderSpec,
   ComposerStatusSpec,
   ContentBlockRenderer,
+  ContextDockDestinationSpec,
   StreamEventHandler,
   CustomEventHandler,
   DataProviderSpec,
@@ -149,6 +150,11 @@ export const SETTINGS_PANE = defineExtensionPoint<SettingsPaneSpec>({
 });
 export const WORKSPACE_VIEW = defineExtensionPoint<WorkspaceViewSpec>({
   id: "lyra.workspaceView",
+  capability: "workspace",
+  keying: "single",
+});
+export const CONTEXT_DOCK_DESTINATION = defineExtensionPoint<ContextDockDestinationSpec>({
+  id: "lyra.contextDock.destination",
   capability: "workspace",
   keying: "single",
 });

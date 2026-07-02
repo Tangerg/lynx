@@ -31,7 +31,12 @@ export { lookupStreamHandlers, lookupCustomHandlers } from "./events";
 
 // Layout slot (sub-keyed by slot) + workspace views / settings panes
 // (registered + declared merge).
-export { useLayoutSlot, useSettingsPanes, useWorkspaceViews } from "./layout";
+export {
+  useContextDockDestinations,
+  useLayoutSlot,
+  useSettingsPanes,
+  useWorkspaceViews,
+} from "./layout";
 
 // Tool owner attribution + per-message citation sources.
 export { lookupToolActionOwner, lookupToolViewOpenerOwner, useCitationSources } from "./messages";
