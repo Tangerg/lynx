@@ -69,8 +69,9 @@
      "border personalities". Rather than tune each, the border utilities
      (`border-line` / `border-line-soft` / `border-divider`) resolve to
      transparent HERE — decoupled from each theme's `--color-border*` values, so
-     no theme can paint a visible rule. Region separation is carried by the
-     surface ladder + shadow tokens (--shadow-surface for cards) + spacing.
+     no theme can paint a visible rule. Region + card separation is carried
+     entirely by the surface-ladder background delta + spacing (JetBrains New
+     UI model); shadows are reserved for genuinely-floating elements only.
      Layout is unaffected (the 1px border box still reserves its space; it's
      just invisible). Re-point one of these at its `--color-border*` source if a
      specific hairline ever needs to come back. */
@@ -309,15 +310,14 @@
   --polish-med: var(--dur-med) var(--ease-out);
 
   /* -----------------------------------------------------------------------
-   *  Shadow system — edge ring + contact shadow + ambient shadow.
-   *  surface: quiet optical edge for cards and app chrome
-   *  composer: chat input surface
+   *  Shadow system — reserved for genuinely-floating elements (JetBrains
+   *  New UI model): tiled/docked regions + in-flow cards separate by the
+   *  surface-ladder background delta, never by shadow. So there is no card
+   *  `surface` shadow — only:
+   *  composer: the input, which floats over the scrolling stream
    *  popover: dropdown / modal / command palette
    *  focus: quiet focus ring, no glow halo
    * ----------------------------------------------------------------------- */
-  --shadow-surface:
-    0 0 0 1px rgba(255, 255, 255, 0.1), 0 1px 2px rgba(0, 0, 0, 0.4),
-    0 6px 16px -6px rgba(0, 0, 0, 0.5);
   --shadow-composer:
     0 0 0 1px rgba(255, 255, 255, 0.08), 0 1px 2px rgba(0, 0, 0, 0.36),
     0 18px 48px rgba(0, 0, 0, 0.42);
@@ -528,9 +528,6 @@ html.theme-light .panel {
 }
 
 html.theme-light {
-  --shadow-surface:
-    0 0 0 1px rgb(15 23 42 / 0.08), 0 1px 2px -1px rgb(15 23 42 / 0.1),
-    0 4px 10px -3px rgb(15 23 42 / 0.08);
   --shadow-composer:
     0 0 0 1px rgb(15 23 42 / 0.08), 0 1px 2px rgb(15 23 42 / 0.06), 0 18px 48px rgb(15 23 42 / 0.12);
   --shadow-popover:

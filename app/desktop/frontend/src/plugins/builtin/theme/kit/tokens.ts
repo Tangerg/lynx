@@ -9,8 +9,12 @@ import type { ThemeCta, ThemePluginSpec, ThemeRadii, ThemeShadows } from "./type
 
 // Default shadow + radii ladders
 
+// Shadows are reserved for genuinely-floating elements (JetBrains New UI
+// model): tiled/docked regions and in-flow cards separate by surface-ladder
+// background delta, never by shadow. So the ladder is composer (the one
+// input that floats over the scrolling stream) + popover (dropdowns / command
+// palette / dialogs) + focus. There is deliberately no `surface` card shadow.
 export const DARK_SHADOWS: ThemeShadows = {
-  surface: "0 0 0 1px rgba(255, 255, 255, 0.08), 0 1px 2px rgba(0, 0, 0, 0.32)",
   composer:
     "0 0 0 1px rgba(255, 255, 255, 0.08), 0 1px 2px rgba(0, 0, 0, 0.36), 0 18px 48px rgba(0, 0, 0, 0.42)",
   popover:
@@ -20,7 +24,6 @@ export const DARK_SHADOWS: ThemeShadows = {
 };
 
 export const LIGHT_SHADOWS: ThemeShadows = {
-  surface: "0 0 0 1px rgb(15 23 42 / 0.06), 0 1px 2px rgb(15 23 42 / 0.04)",
   composer:
     "0 0 0 1px rgb(15 23 42 / 0.08), 0 1px 2px rgb(15 23 42 / 0.06), 0 18px 48px rgb(15 23 42 / 0.12)",
   popover:
@@ -123,8 +126,7 @@ export function buildTokenMap(spec: ThemePluginSpec): Record<string, string> {
     "color-cta-hover": cta.ctaHover,
     "color-cta-text": cta.ctaText,
 
-    // Shadows — semantic surface/elevation tokens.
-    "shadow-surface": shadows.surface,
+    // Shadows — floating-elevation tokens only (no card `surface` shadow).
     "shadow-composer": shadows.composer,
     "shadow-popover": shadows.popover,
     "shadow-focus": shadows.focus,

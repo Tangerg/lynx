@@ -51,7 +51,7 @@ function ThemeOption({
       onClick={onSelect}
       aria-pressed={active}
       className={cn(
-        "grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 rounded-md bg-surface px-3 py-2.5 shadow-[var(--shadow-surface)] text-left transition-[background,border-color] duration-150 hover:bg-surface-2",
+        "grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 rounded-md bg-surface px-3 py-2.5 text-left transition-[background,border-color] duration-150 hover:bg-surface-2",
         active && "bg-surface-2 border-accent",
       )}
     >
