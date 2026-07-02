@@ -18,14 +18,14 @@ import {
 } from "@/plugins/builtin/chat/tools/application/toolPreviewData";
 import { PREVIEW_WRAP } from "./shared";
 
-export {
-  askUserPreview,
-  globPreview,
-  lspPreviews,
-  skillPreview,
-  taskPreview,
-  webSearchPreview,
-} from "./specialised";
+// Specialised previews — one file per tool family. Re-exported here so the
+// manifest imports the whole preview set from a single module.
+export { askUserPreview } from "./askUser";
+export { globPreview } from "./glob";
+export { lspPreviews } from "./lsp";
+export { skillPreview } from "./skill";
+export { taskPreview } from "./task";
+export { webSearchPreview } from "./webSearch";
 
 const MAX_TERM_LINES = 9;
 const MAX_DIFF_ROWS = 8;
