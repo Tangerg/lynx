@@ -50,7 +50,7 @@ void i18next.use(initReactI18next).init({
   resources: { en: { translation: en } },
   lng: initial,
   fallbackLng: "en",
-  // Keys are dotted strings ("sidebar.search.label") — treat them as
+  // Keys are dotted strings ("sidebar.action.newSession") — treat them as
   // literal, not as nested paths.
   keySeparator: false,
   nsSeparator: false,

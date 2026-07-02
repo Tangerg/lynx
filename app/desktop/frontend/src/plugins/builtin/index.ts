@@ -70,10 +70,9 @@ import {
   sidebarFooter,
   sidebarNewSession,
   sidebarProjects,
-  sidebarRailActions,
   sidebarRailBottom,
+  sidebarRailNewSession,
   sidebarRailSessions,
-  sidebarSearch,
 } from "./sidebar";
 import slashHints from "./chat/slash-hints";
 import { completionNotify, statusNotifications, windowTitle } from "./shell/status";
@@ -234,11 +233,10 @@ const kernel: PluginSpec[] = [kernelSidebar, kernelChat, kernelSettings];
 // Sidebar internals — sections in the expanded view, items in the rail.
 
 const sidebar: PluginSpec[] = [
-  sidebarSearch,
   sidebarNewSession,
   sidebarProjects,
   sidebarFooter,
-  sidebarRailActions,
+  sidebarRailNewSession,
   sidebarRailSessions,
   sidebarRailBottom,
 ];

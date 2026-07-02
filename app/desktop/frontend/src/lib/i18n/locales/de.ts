@@ -7,14 +7,11 @@ export const de: Record<string, string> = {
   "common.retry": "Erneut versuchen",
   "common.search": "Suchen",
 
-  "sidebar.search.placeholder": "Suchen · Dateien · Befehle",
-  "sidebar.search.label": "Dateien und Befehle suchen",
   "sidebar.section.projects": "Projekte",
   "sidebar.newSessionInFolder.placeholder": "Absoluter Pfad",
   "sidebar.action.collapse": "Auf Schiene einklappen",
   "sidebar.action.expand": "Seitenleiste ausklappen",
   "sidebar.action.newSession": "Neue Sitzung",
-  "sidebar.action.searchHint": "Suchen (⌘K)",
   "sidebar.action.settings": "Einstellungen",
 
   "composer.input.label": "Nachrichteneditor",

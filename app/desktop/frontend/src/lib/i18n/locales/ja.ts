@@ -7,14 +7,11 @@ export const ja: Record<string, string> = {
   "common.retry": "再試行",
   "common.search": "検索",
 
-  "sidebar.search.placeholder": "検索 · ファイル · コマンド",
-  "sidebar.search.label": "ファイルとコマンドを検索",
   "sidebar.section.projects": "プロジェクト",
   "sidebar.newSessionInFolder.placeholder": "絶対パス",
   "sidebar.action.collapse": "レールに折りたたむ",
   "sidebar.action.expand": "サイドバーを展開",
   "sidebar.action.newSession": "新規セッション",
-  "sidebar.action.searchHint": "検索 (⌘K)",
   "sidebar.action.settings": "設定",
 
   "composer.input.label": "メッセージ入力欄",

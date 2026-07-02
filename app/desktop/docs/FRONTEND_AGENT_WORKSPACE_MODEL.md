@@ -339,6 +339,7 @@ Context Dock state 必须能回答：
 - Search、active-session destinations、rail context 入口都打开到 Context Dock。
 - Context Dock destinations 已进入 `lyra.contextDock.destination` contribution registry，首批内置入口由 workspace 插件贡献，launcher 按 `workspace / run / session` scope 渲染 read model。
 - 左侧 active session 下不再嵌 workspace/run 快捷入口；Work Index 只表达 session 选择与状态。
+- 左侧顶部不再暴露 workspace grep 假装全局 Search；文件搜索从 Context Dock 的 workspace scope 进入。
 
 验收：
 

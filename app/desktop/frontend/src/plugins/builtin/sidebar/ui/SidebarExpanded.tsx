@@ -1,5 +1,5 @@
-// Expanded sidebar — slim chrome: collapse button + search box + scroll
-// area of plugin-contributed sections + plugin-contributed footer.
+// Expanded sidebar — slim chrome: collapse button, scroll area of
+// plugin-contributed sections, and plugin-contributed footer.
 
 import { Icon, dragClasses, noDragClasses, Panel, ScrollArea } from "@/components/common";
 import { useT } from "@/lib/i18n";
@@ -38,10 +38,6 @@ export function SidebarExpanded({ onToggleRail }: Props) {
       >
         <Icon name="panel-l" size={14} />
       </button>
-
-      <div className={noDragClasses}>
-        <Slot name="sidebar.search" />
-      </div>
 
       <ScrollArea hideScrollbar style={{ padding: "0 0 8px 0" }}>
         <div className={noDragClasses}>
