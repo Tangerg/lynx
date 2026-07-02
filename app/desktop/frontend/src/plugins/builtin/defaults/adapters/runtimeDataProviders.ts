@@ -41,10 +41,10 @@ import { asSessionId } from "@/rpc";
 import {
   emptyPageIfUngated,
   toMcpConfigInfo,
-  toSidebarFileChange,
-  toSidebarMCPServer,
-  toSidebarProject,
-  toSidebarSession,
+  toWorkspaceFileChangeSummary,
+  toMcpServerStatusSummary,
+  toWorkspaceProjectSummary,
+  toAgentSessionSummary,
 } from "./runtimeDataAdapters";
 
 export function registerDefaultDataProviders(host: Host): void {
@@ -55,18 +55,19 @@ export function registerDefaultDataProviders(host: Host): void {
 
   contribute({
     key: SESSIONS_KEY,
-    fetcher: async () => (await client().sessions.list()).data.map(toSidebarSession),
+    fetcher: async () => (await client().sessions.list()).data.map(toAgentSessionSummary),
   });
   contribute({
     key: PROJECTS_KEY,
-    fetcher: async () => (await client().workspace.listProjects()).data.map(toSidebarProject),
+    fetcher: async () =>
+      (await client().workspace.listProjects()).data.map(toWorkspaceProjectSummary),
   });
   contribute({
     key: FILES_CHANGED_KEY,
     fetcher: async (params) =>
       (
         await client().workspace.listFileChanges((params as FileChangesQuery | undefined)?.cwd)
-      ).data.map(toSidebarFileChange),
+      ).data.map(toWorkspaceFileChangeSummary),
   });
   contribute({
     key: MCP_SERVERS_KEY,
@@ -74,7 +75,7 @@ export function registerDefaultDataProviders(host: Host): void {
     // reserved for the detail pane's paginated inputSchema view.
     fetcher: async () =>
       (await client().workspace.mcp.listServers().catch(emptyPageIfUngated)).data.map(
-        toSidebarMCPServer,
+        toMcpServerStatusSummary,
       ),
   });
   contribute({

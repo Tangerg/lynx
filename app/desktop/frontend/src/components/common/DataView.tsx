@@ -1,6 +1,6 @@
 // Render-prop wrapper for the "loading skeleton | empty state | content"
 // tri-state branch every query-driven surface needs. Owns the branching
-// once; the success-state render is the consumer's call (sidebar row,
+// once; the success-state render is the consumer's call (list row,
 // scrollable tree, terminal lines — different layouts per surface).
 
 import type { ReactNode } from "react";

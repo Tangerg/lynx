@@ -1,10 +1,10 @@
-import type { SidebarProject, SidebarSession } from "@/lib/data/queries";
+import type { WorkspaceProjectSummary, AgentSessionSummary } from "@/lib/data/queries";
 import { basename } from "@/lib/path";
 import type { WorkGroup, WorkProject, WorkSession } from "../domain/workIndex";
 
 interface BuildWorkIndexGroupsInput {
-  projects: readonly SidebarProject[] | undefined;
-  sessions: readonly SidebarSession[];
+  projects: readonly WorkspaceProjectSummary[] | undefined;
+  sessions: readonly AgentSessionSummary[];
   fallbackProjectName: string;
 }
 
@@ -13,18 +13,18 @@ function compareTimeDesc(a: { time: string }, b: { time: string }): number {
   return a.time < b.time ? 1 : -1;
 }
 
-function compareProjectSession(a: SidebarSession, b: SidebarSession): number {
+function compareProjectSession(a: AgentSessionSummary, b: AgentSessionSummary): number {
   if (Boolean(a.favorite) !== Boolean(b.favorite)) return a.favorite ? -1 : 1;
   return compareTimeDesc(a, b);
 }
 
-function toWorkSessionAttention(session: SidebarSession): WorkSession["attention"] {
+function toWorkSessionAttention(session: AgentSessionSummary): WorkSession["attention"] {
   if (session.status === "running") return "running";
   if (session.status === "waiting") return "waiting";
   return "none";
 }
 
-function toWorkSession(session: SidebarSession): WorkSession {
+function toWorkSession(session: AgentSessionSummary): WorkSession {
   return {
     id: session.id,
     title: session.title,
@@ -38,7 +38,7 @@ function toWorkSession(session: SidebarSession): WorkSession {
   };
 }
 
-function toWorkProject(project: SidebarProject): WorkProject {
+function toWorkProject(project: WorkspaceProjectSummary): WorkProject {
   return {
     id: project.id,
     name: project.name,
@@ -55,7 +55,7 @@ export function buildWorkIndexGroups({
 }: BuildWorkIndexGroupsInput): WorkGroup[] | undefined {
   if (!projects && sessions.length === 0) return undefined;
 
-  const sessionsByCwd = new Map<string, SidebarSession[]>();
+  const sessionsByCwd = new Map<string, AgentSessionSummary[]>();
   for (const session of sessions) {
     const key = session.cwd ?? "";
     const group = sessionsByCwd.get(key);
@@ -90,7 +90,7 @@ export function buildWorkIndexGroups({
 }
 
 export function buildRecentWorkSessions(
-  sessions: readonly SidebarSession[],
+  sessions: readonly AgentSessionSummary[],
   limit: number,
 ): WorkSession[] {
   return [...sessions].sort(compareTimeDesc).slice(0, limit).map(toWorkSession);

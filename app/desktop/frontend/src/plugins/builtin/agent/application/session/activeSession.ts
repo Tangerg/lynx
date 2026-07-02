@@ -1,4 +1,4 @@
-import type { SidebarSession } from "@/lib/data/queries";
+import type { AgentSessionSummary } from "@/lib/data/queries";
 import { useSessions } from "@/lib/data/queries";
 import {
   agentSessionState,
@@ -54,12 +54,12 @@ export function closeActiveAgentSession(): boolean {
 }
 
 /**
- * The active session's sidebar row, or undefined while unknown (no active
- * session / sessions list not loaded yet). The one place the
- * activeSessionId ⨝ sessions-cache join lives — chips, banners, and
- * workspace reads all derive from this instead of re-writing the find.
+ * The active session summary, or undefined while unknown (no active session /
+ * sessions list not loaded yet). The one place the activeSessionId ⨝
+ * sessions-cache join lives — chips, banners, and workspace reads all derive
+ * from this instead of re-writing the find.
  */
-export function useActiveSession(): SidebarSession | undefined {
+export function useActiveSession(): AgentSessionSummary | undefined {
   const activeSessionId = useActiveSessionId();
   const { data } = useSessions();
   if (!activeSessionId) return undefined;

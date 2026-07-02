@@ -10,6 +10,7 @@ import type {
   LayoutSlotSpec,
   SettingsPaneSpec,
   WorkIndexItemPlacement,
+  WorkIndexItemScope,
   WorkIndexItemSpec,
   WorkspaceViewSpec,
 } from "../types";
@@ -51,8 +52,15 @@ export function useContextDockDestinations(): ContextDockDestinationSpec[] {
   return useExtensionPoint(CONTEXT_DOCK_DESTINATION);
 }
 
-export function useWorkIndexItems(placement: WorkIndexItemPlacement): WorkIndexItemSpec[] {
-  return useExtensionPoint(WORK_INDEX_ITEM).filter((item) => item.placement === placement);
+export function useWorkIndexItems(
+  placement: WorkIndexItemPlacement,
+  scope?: WorkIndexItemScope,
+): WorkIndexItemSpec[] {
+  const items = useExtensionPoint(WORK_INDEX_ITEM);
+  return useMemo(
+    () => items.filter((item) => item.placement === placement && (!scope || item.scope === scope)),
+    [items, placement, scope],
+  );
 }
 
 function declaredToWorkspaceView(d: ContributedView, pluginName: string): WorkspaceViewSpec {

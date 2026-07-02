@@ -23,7 +23,7 @@ export interface CreateSessionOptions {
  * (or null if the create failed).
  *
  * A draft is a real session (so runs.start works immediately) that stays
- * out of the sidebar list until its first message graduates it — the
+ * out of the session summary list until its first message graduates it — the
  * ChatGPT/Claude/Proma pattern. The "New" button calls this with no text
  * (an empty draft ready to type into); the welcome composer calls it with
  * the typed text, which the chat flushes on remount (useAgentSession).
@@ -52,7 +52,7 @@ async function createAndOpen({
     if (firstInput?.parts.length)
       store.setPendingMessage(session.id, { input: firstInput, runOptions: firstRunOptions ?? {} });
     store.selectSession(session.id); // opens tab + sets active → remounts chat
-    // Draft is filtered out of the sidebar; refetch so its graduation
+    // Draft is filtered out of the Work Index; refetch so its graduation
     // (and any backend-assigned title) lands promptly. A cwd create may
     // also have minted a brand-new project.
     void invalidateSessions(cwd ? { projects: true } : undefined);

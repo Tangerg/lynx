@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { SidebarProject, SidebarSession } from "@/lib/data/queries";
+import type { WorkspaceProjectSummary, AgentSessionSummary } from "@/lib/data/queries";
 import { buildRecentWorkSessions, buildWorkIndexGroups } from "./buildWorkIndex";
 
-function session(overrides: Partial<SidebarSession> & Pick<SidebarSession, "id">): SidebarSession {
+function session(
+  overrides: Partial<AgentSessionSummary> & Pick<AgentSessionSummary, "id">,
+): AgentSessionSummary {
   return {
     title: overrides.id,
     status: "idle",
@@ -12,7 +14,9 @@ function session(overrides: Partial<SidebarSession> & Pick<SidebarSession, "id">
   };
 }
 
-function project(overrides: Partial<SidebarProject> & Pick<SidebarProject, "id">): SidebarProject {
+function project(
+  overrides: Partial<WorkspaceProjectSummary> & Pick<WorkspaceProjectSummary, "id">,
+): WorkspaceProjectSummary {
   return {
     name: overrides.id,
     branch: "",

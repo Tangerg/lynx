@@ -15,11 +15,13 @@ const groupOrder: Array<{ id: ContextDockDestinationScope; title: string }> = [
 export function groupContextDockDestinations(
   destinations: ContextDockDestinationSpec[],
 ): ContextDockDestinationGroup[] {
+  const contextDockDestinations = destinations.filter(
+    (destination) => destination.placement === "context-dock",
+  );
   return groupOrder
     .map((group) => ({
       ...group,
-      destinations: destinations
-        .filter((destination) => destination.placement === "context-dock")
+      destinations: contextDockDestinations
         .filter((destination) => destination.scope === group.id)
         .sort((a, b) => (a.order ?? 100) - (b.order ?? 100)),
     }))

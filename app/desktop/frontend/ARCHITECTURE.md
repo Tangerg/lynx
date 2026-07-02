@@ -711,7 +711,7 @@ declare module "@/plugins/sdk/types/contentBlock" {
 
 #### D. Work Index read model（首批落地）
 
-**现状**：`plugins/builtin/navigation/` 已承接左侧工作索引投影，`sidebar/` 不再现场 join `projects + sessions + active session`，expanded sidebar 与 rail 都从 `navigation/public/workIndex` 消费分组 / 最近会话 read model。会话运行状态在 navigation application 投影为 `WorkSession.attention`，sidebar 只显示 Work Index attention，不泄漏底层 `SidebarSession.status`。
+**现状**：`plugins/builtin/navigation/` 已承接左侧工作索引投影，`sidebar/` 不再现场 join `projects + sessions + active session`，expanded sidebar 与 rail 都从 `navigation/public/workIndex` 消费分组 / 最近会话 read model。会话运行状态在 navigation application 投影为 `WorkSession.attention`，sidebar 只显示 Work Index attention，不泄漏底层 `AgentSessionSummary.status`。
 **维护触发**：继续推进 `FRONTEND_AGENT_WORKSPACE_MODEL.md` 的后续阶段时，新的 workspace/cwd 面板不要塞回 `sidebar/`。
 
 #### E. Context Dock open intent（首批落地）

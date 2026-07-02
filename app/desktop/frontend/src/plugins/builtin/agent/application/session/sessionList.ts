@@ -1,11 +1,11 @@
-import type { SidebarSession } from "@/lib/data/queries";
+import type { AgentSessionSummary } from "@/lib/data/queries";
 import { useEffect, useMemo, useRef } from "react";
 import { useSessions } from "@/lib/data/queries";
 import { agentSessionState } from "../ports/sessionState";
 
-const EMPTY_SESSIONS: SidebarSession[] = [];
+const EMPTY_SESSIONS: AgentSessionSummary[] = [];
 
-export function useVisibleAgentSessions(): SidebarSession[] {
+export function useVisibleAgentSessions(): AgentSessionSummary[] {
   const { data } = useSessions();
   const draftIds = agentSessionState().useDraftSessionIds();
   const sessions = data ?? EMPTY_SESSIONS;

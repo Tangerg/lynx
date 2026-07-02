@@ -116,11 +116,7 @@ function RailSettings() {
   const t = useT();
   const actions = useWorkIndexActions();
   return (
-    <IconButton
-      variant="rail"
-      title={t("sidebar.action.settings")}
-      onClick={() => actions.openSettings(t("settings.title"))}
-    >
+    <IconButton variant="rail" title={t("sidebar.action.settings")} onClick={actions.openSettings}>
       <Icon name="settings" size={16} />
     </IconButton>
   );

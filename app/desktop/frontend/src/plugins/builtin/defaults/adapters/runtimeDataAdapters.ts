@@ -1,9 +1,9 @@
 import type {
-  FileChange as SidebarFileChange,
-  MCPServer as SidebarMCPServer,
+  FileChange as WorkspaceFileChangeSummary,
+  MCPServer as McpServerStatusSummary,
   MCPServerConfigInfo,
-  SidebarProject,
-  SidebarSession,
+  WorkspaceProjectSummary,
+  AgentSessionSummary,
 } from "@/lib/data/queries";
 import type {
   McpServer as RpcMCPServer,
@@ -14,7 +14,7 @@ import type {
 } from "@/rpc";
 import { isErrorType } from "@/rpc";
 
-export function toSidebarSession(s: Session): SidebarSession {
+export function toAgentSessionSummary(s: Session): AgentSessionSummary {
   return {
     id: s.id,
     title: s.title,
@@ -45,7 +45,7 @@ const MCP_ICON: Record<string, string> = {
   Slack: "chat",
 };
 
-export function toSidebarMCPServer(s: RpcMCPServer): SidebarMCPServer {
+export function toMcpServerStatusSummary(s: RpcMCPServer): McpServerStatusSummary {
   return {
     id: s.name,
     name: s.name,
@@ -77,7 +77,7 @@ export function toMcpConfigInfo(c: RpcMCPServerConfig, live?: RpcMCPServer): MCP
   };
 }
 
-export function toSidebarProject(p: RpcProject): SidebarProject {
+export function toWorkspaceProjectSummary(p: RpcProject): WorkspaceProjectSummary {
   return {
     id: p.cwd,
     name: p.name,
@@ -87,7 +87,7 @@ export function toSidebarProject(p: RpcProject): SidebarProject {
   };
 }
 
-const FILE_CHANGE: Record<RpcFileChange["status"], SidebarFileChange["change"]> = {
+const FILE_CHANGE: Record<RpcFileChange["status"], WorkspaceFileChangeSummary["change"]> = {
   added: "add",
   untracked: "add",
   modified: "mod",
@@ -95,7 +95,7 @@ const FILE_CHANGE: Record<RpcFileChange["status"], SidebarFileChange["change"]> 
   deleted: "del",
 };
 
-export function toSidebarFileChange(f: RpcFileChange): SidebarFileChange {
+export function toWorkspaceFileChangeSummary(f: RpcFileChange): WorkspaceFileChangeSummary {
   return {
     path: f.path,
     change: FILE_CHANGE[f.status],

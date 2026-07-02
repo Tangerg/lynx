@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import type { SidebarSession } from "@/lib/data/queries";
+import type { AgentSessionSummary } from "@/lib/data/queries";
 import { queryClient } from "@/lib/data/queryClient";
 import { invalidateSessions, SESSIONS_KEY } from "@/lib/data/queries";
 import { agentRuntime } from "../ports/runtimeGateway";
@@ -8,7 +8,7 @@ import { reportSessionError } from "./reportSessionError";
 
 /**
  * Delete a backend session, close its tab (reselecting a neighbour if it was
- * active), and refetch the sidebar list so the row drops. Counterpart to
+ * active), and refetch the session summaries so the row drops. Counterpart to
  * {@link useCreateSession}.
  */
 export function useDeleteSession(): (id: string) => Promise<void> {
@@ -18,8 +18,8 @@ export function useDeleteSession(): (id: string) => Promise<void> {
     // refetch first so it can't resolve with the (still-present) row and undo
     // the optimistic removal; snapshot after cancelling for rollback.
     await queryClient.cancelQueries({ queryKey: [SESSIONS_KEY] });
-    const prev = queryClient.getQueryData<SidebarSession[]>([SESSIONS_KEY]);
-    queryClient.setQueryData<SidebarSession[]>([SESSIONS_KEY], (old) =>
+    const prev = queryClient.getQueryData<AgentSessionSummary[]>([SESSIONS_KEY]);
+    queryClient.setQueryData<AgentSessionSummary[]>([SESSIONS_KEY], (old) =>
       old?.filter((s) => s.id !== id),
     );
     try {
