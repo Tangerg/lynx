@@ -377,10 +377,13 @@ Zustand store 不是业务层。它可以承担：
 
 ## 10. 下一步推荐切口
 
+> 状态（2026-07-02）：切口 1–4 已大体落地——agent 的 HITL/approval/question presentation 已分层（`agent/presentation/*Presentation.ts`）、composer public ports 就位、workspace tool routing 收口、settings 面板目录化（含 `settings/approvals` 收敛进 `ui/`）。剩下的仍值得做的是 5；sidebar 导航暂停等新模型（见第 6 条）。
+
 按收益和风险排序：
 
-1. **HITL / Approval / Question**：业务规则清楚，UI 当前较厚，适合作为 agent context 的第二个 presentation/domain 试点。
-2. **Composer Draft / SendIntent**：为 composer 与 agent 的 public port 协作打基础。
-3. **Workspace tool routing / view model**：把 tool -> terminal/diff/timeline 的规则从 UI/store 里收口。
-4. **Settings configuration drafts**：逐步把 MCP/schedule/hooks/provider form 从 RPC shape 中解耦。
-5. **Agent view model 深拆**：业务消费入口已收敛到 `agent/public/viewState`；下一步是把 SDK 的内容块扩展契约与 agent 会话视图模型彻底分文件。
+1. ✅ **HITL / Approval / Question**（已落地）：agent context 的 presentation 分层完成；settings 侧的 approvals 面板也已收敛为 `index.tsx` 注册 + `ui/`。
+2. ✅ **Composer Draft / SendIntent**（已落地）：composer 与 agent 的 public port 协作已建立。
+3. ✅ **Workspace tool routing / view model**（已落地）：tool → terminal/diff/timeline 的规则已从 UI/store 收口。
+4. ✅ **Settings configuration drafts**（大体落地）：MCP/schedule/hooks/provider/approvals form 已从 RPC shape 解耦、面板目录化。
+5. **Agent view model 深拆**（仍推荐）：业务消费入口已收敛到 `agent/public/viewState`；下一步是把 SDK 的内容块扩展契约与 agent 会话视图模型彻底分文件。
+6. **Sidebar 导航（暂停，等新导航模型）**：当前 project/session tree 是旧导航模型；等新导航模型定案后单独开一轮**重建**，不基于旧树做 domain 深抽象。

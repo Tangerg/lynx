@@ -686,7 +686,7 @@ declare module "@/plugins/sdk/types/contentBlock" {
 
 #### A. 补全 agent fold 各 handler 的语义测试
 
-**现状**：`builtin/agent/application/fold/` 已拆成 `handlers`（派发）/ `projections`（纯映射）/ `fold`（有状态折叠），`reducer.*.test.ts` 覆盖 dispatcher + 聚合 + custom + 主要事件路径。此前只被大 fixture 间接覆盖、没有独立语义断言的几条已补齐：subagent run 隔离（`reducer.subagent.test.ts`：`spawnedByItemId` / 错配 envelope runId 的 progress·finished 都不污染根 run）、`run.progress.contextTokens`、reasoning delta 累积（按 `reasoningId` keying）、question interrupt 物化。
+**现状**：`builtin/agent/application/fold/` 已拆成 `handlers`（派发）/ `projections`（纯映射）/ `fold`（有状态折叠），`reducer.*.test.ts` 覆盖 dispatcher + 聚合 + custom + 主要事件路径。此前只被大 fixture 间接覆盖、没有独立语义断言的几条已补齐：subagent run 隔离（`reducer.subagent.test.ts`：`spawnedByItemId` / 错配 envelope runId 的 progress·finished 都不污染根 run）、`run.progress.contextTokens`、reasoning delta 累积（按 `reasoningId` keying）、question interrupt 物化。进一步地，`reducer.handlers.test.ts` 为每个 handler 补了「单事件 → 隔离 delta + isolation」契约，覆盖场景测试没触达的分支：`plan` item 的三个阶段（started/delta/completed）、`item.delta{plan}` 中途整体替换、未知 itemId 的 content/toolOutput delta no-op、`run.started` 的 usage 归零、state.snapshot/delta 只动 `shared`。
 **触发条件**：加新的内置事件类型 / Item 类型时一并补上对应 handler 的语义测试（input→state delta）。
 
 #### B. search / webSearch 富结果渲染
@@ -706,6 +706,7 @@ declare module "@/plugins/sdk/types/contentBlock" {
 - **把 `lib/agent` 提成独立 `application/` 层**：`lib/` 已是"跨插件共享"的明确语义（`messageContent` 就是被刻意从 plugin 内部移来的），6 个用例 hook 不足以撑起一个独立层 + 一条新 layer-guard。**触发条件**：用例 hook 显著增多、或 UI 开始绕过它们直接编排 rpc。
 - **MessageStream 虚拟化**：长会话（1000+ 消息）目前无人抱怨。**触发条件**：实测 > 500 消息卡顿时引入 `@tanstack/react-virtual`。
 - **monorepo packages**：见 §3.2 的 4 个触发条件，目前一个都没命中。
+- **sidebar 导航深建模**：当前 project/session tree 是旧导航模型。**暂停**——不基于它做 domain 深抽象（不抽 `sidebar/projectTree.ts`、不把 project/session tree 提成 domain）。**触发条件**：新导航模型定案后单独开一轮，那是"重建模型"而非"整理旧树"。
 
 ### 12.3 反向不变量（已知错的方向，别再提）
 
