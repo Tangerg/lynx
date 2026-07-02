@@ -6,7 +6,8 @@ import { imageFiles, type UserInput } from "@/plugins/builtin/chat/composer/publ
 import { useRecordComposerHistory } from "@/plugins/builtin/chat/composer/public/history";
 import type { IconName } from "@/components/common";
 import type { ComposerAttachmentSourceSpec } from "@/plugins/sdk";
-import { Chip, Icon, Tooltip } from "@/components/common";
+import { Chip, Icon, MEDIA_OUTLINE, Tooltip } from "@/components/common";
+import { cn } from "@/lib/utils";
 import { FileMentionPopup } from "./FileMentionPopup";
 import { useT } from "@/lib/i18n";
 import { COMPOSER_ATTACHMENT_SOURCE, useExtensionPoint } from "@/plugins/sdk";
@@ -166,7 +167,7 @@ function SourceChips({ source }: { source: AttachmentSource }) {
 function ImageThumb({ image, onRemove }: { image: ComposerImage; onRemove: () => void }) {
   const t = useT();
   return (
-    <div className="group relative h-14 w-14 overflow-hidden rounded-md border-[0.5px] border-white/10 light:border-black/10">
+    <div className={cn("group relative h-14 w-14 overflow-hidden rounded-md", MEDIA_OUTLINE)}>
       <img
         src={`data:${image.mime};base64,${image.data}`}
         alt={image.name ?? ""}

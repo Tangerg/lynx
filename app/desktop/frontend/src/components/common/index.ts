@@ -10,6 +10,7 @@ export { Icon } from "./Icon";
 export type { IconName } from "./Icon";
 export { IconButton } from "./IconButton";
 export { LightboxDialog } from "./LightboxDialog";
+export { MEDIA_OUTLINE } from "./mediaOutline";
 export { ContextMenu, DropdownMenu } from "./Menu";
 export { Panel } from "./Panel";
 export { PillButton } from "./PillButton";

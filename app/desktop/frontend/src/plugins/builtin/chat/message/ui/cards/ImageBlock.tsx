@@ -3,7 +3,8 @@
 // (MULTIMODAL_IMAGE_INPUT, API.md §4.3); the data URL is rebuilt here for <img>.
 
 import { useState } from "react";
-import { LightboxDialog } from "@/components/common";
+import { LightboxDialog, MEDIA_OUTLINE } from "@/components/common";
+import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 
 export function ImageBlock({ mime, data }: { mime: string; data: string }) {
@@ -26,7 +27,7 @@ export function ImageBlock({ mime, data }: { mime: string; data: string }) {
           <img
             src={src}
             alt=""
-            className="max-h-64 max-w-full rounded-md object-contain border-[0.5px] border-white/10 light:border-black/10"
+            className={cn("max-h-64 max-w-full rounded-md object-contain", MEDIA_OUTLINE)}
           />
         </button>
       }
@@ -34,7 +35,7 @@ export function ImageBlock({ mime, data }: { mime: string; data: string }) {
       <img
         src={src}
         alt=""
-        className="max-h-[86vh] max-w-full rounded-lg object-contain border-[0.5px] border-white/10 light:border-black/10"
+        className={cn("max-h-[86vh] max-w-full rounded-lg object-contain", MEDIA_OUTLINE)}
       />
     </LightboxDialog>
   );
