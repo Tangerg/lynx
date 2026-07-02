@@ -711,13 +711,13 @@ declare module "@/plugins/sdk/types/contentBlock" {
 
 #### D. Work Index read model（首批落地）
 
-**现状**：`plugins/builtin/navigation/` 已承接左侧工作索引投影，`sidebar/` 不再现场 join `projects + sessions + active session`，expanded sidebar 与 rail 都从 `navigation/public/workIndex` 消费分组 / 最近会话 read model。
+**现状**：`plugins/builtin/navigation/` 已承接左侧工作索引投影，`sidebar/` 不再现场 join `projects + sessions + active session`，expanded sidebar 与 rail 都从 `navigation/public/workIndex` 消费分组 / 最近会话 read model。会话运行状态在 navigation application 投影为 `WorkSession.attention`，sidebar 只显示 Work Index attention，不泄漏底层 `SidebarSession.status`。
 **维护触发**：继续推进 `FRONTEND_AGENT_WORKSPACE_MODEL.md` 的后续阶段时，新的 workspace/cwd 面板不要塞回 `sidebar/`。
 
 #### E. Context Dock open intent（首批落地）
 
-**现状**：`workspace/application/contextDock.ts` 已把“打开当前工作材料”建模成 Context Dock intent，内部复用现有 split view；右侧 handle 打开 `context` launcher，左侧顶级 workspace menu 与 workspace grep 入口已移除，workspace/run/session destination 都从右侧进入，不再抢占 Agent Narrative 的 full view。Context Dock 的可达入口由 `CONTEXT_DOCK_DESTINATION` extension point 贡献，内置 workspace 插件贡献首批 files / diff / search / codebase / skills / recipes / memory / plan / timeline 等 destination，launcher 消费 `useContextDockDestinations()` 并按 `workspace / run / session` scope 分组。
-**维护触发**：新 workspace/cwd-scoped 入口贡献 `CONTEXT_DOCK_DESTINATION` 并默认走 `openContextDockView`；只有 settings / notifications 这类 global surface 才用 full workspace view。
+**现状**：`workspace/application/contextDock.ts` 已把“打开当前工作材料”建模成 Context Dock intent，内部复用现有 split view；右侧 handle 打开 `context` launcher，左侧顶级 workspace menu 与 workspace grep 入口已移除，workspace/run/session destination 都从右侧进入，不再抢占 Agent Narrative 的 full view。Context Dock 的可达入口由 `CONTEXT_DOCK_DESTINATION` extension point 贡献，内置 workspace 插件在 application 层维护首批 files / diff / search / codebase / skills / recipes / memory / plan / timeline 等 destination，launcher 通过 workspace application read model 按 `workspace / run / session` scope 分组。
+**维护触发**：新 workspace/cwd-scoped 入口贡献 `CONTEXT_DOCK_DESTINATION` 并默认走 `openContextDockDestination`；打开 launcher 走 `openContextDockLauncher`。只有 settings / notifications 这类 global surface 才用 full workspace view。
 
 #### F. Context Dock session scope（已落地）
 

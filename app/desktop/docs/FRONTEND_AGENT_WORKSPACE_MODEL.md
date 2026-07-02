@@ -241,40 +241,32 @@ type DestinationPlacement =
 
 ## 6. Frontend Architecture Target
 
-下一阶段推荐新增一个 `navigation` / `agent-navigation` 限界上下文，用 read model 收拢当前 sidebar 拼装逻辑。
+`navigation` 限界上下文已经成为左侧 Work Index 的功能边界：它拥有 project/session grouping、recent-session read model、attention 投影、action wiring 与 Work Index contribution surface；`sidebar` 只负责渲染。
 
-目标目录：
+当前目标目录：
 
 ```text
 plugins/builtin/navigation/
   domain/
-    navigationTree.ts
-    destination.ts
+    workIndex.ts
   application/
-    buildNavigationTree.ts
-    destinationRegistry.ts
-  adapters/
-    agentSessionsSource.ts
-    workspaceProjectsSource.ts
-    runtimeAttentionSource.ts
+    buildWorkIndex.ts
+    useWorkIndex.ts
+    workIndexActions.ts
   public/
-    navigation.ts
-    destinations.ts
-  ui/
-    WorkIndex.tsx
-    WorkGroup.tsx
-    WorkSessionRow.tsx
+    workIndex.ts
 ```
 
 Context Dock 可作为 workspace 上下文的子域演进：
 
 ```text
 plugins/builtin/workspace/context-dock/
-  domain/
-  application/
-  adapters/
-  public/
-  ui/
+  index.ts
+plugins/builtin/workspace/application/
+  contextDock.ts
+  contextDockDestinations.ts
+  contextDockDestinationGroups.ts
+  useContextDockLauncher.ts
 ```
 
 关键边界：
