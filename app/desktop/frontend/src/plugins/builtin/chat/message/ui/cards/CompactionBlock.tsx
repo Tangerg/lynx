@@ -22,7 +22,6 @@ export function CompactionBlock({
 
   return (
     <div className="my-3 text-center" data-slot="compaction-block">
-      <div className="border-t border-line/50" />
       {summary ? (
         <button
           type="button"

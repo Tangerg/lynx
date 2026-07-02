@@ -34,7 +34,7 @@ function useStatusLabel(): Record<RunDigest["status"], { label: string; cls: str
     },
     unknown: {
       label: t("runSummary.status.unknown"),
-      cls: "border-line bg-surface-2 text-fg-muted",
+      cls: "border-transparent bg-surface-2 text-fg-muted",
     },
   };
 }

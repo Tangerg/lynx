@@ -43,7 +43,7 @@ export function ProviderRow({ p }: { p: ProviderConfig }) {
   const onTest = () => run(() => test(p.id), t("providers.error.test"));
 
   return (
-    <div className="rounded-lg border border-line-soft bg-canvas px-3 py-2.5">
+    <div className="rounded-lg bg-canvas px-3 py-2.5">
       <div className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-3">
         <ProviderIcon provider={p.id} size={20} />
         <div className="min-w-0">
@@ -120,8 +120,8 @@ export function ProviderRow({ p }: { p: ProviderConfig }) {
           className={cn(
             "h-7 rounded-md border px-3 text-[12px] font-semibold transition-colors",
             !enabled || probe.state === "busy"
-              ? "cursor-not-allowed border-line-soft text-fg-faint"
-              : "border-line text-fg-muted hover:bg-surface-2 hover:text-fg",
+              ? "cursor-not-allowed border-field text-fg-faint"
+              : "border-field text-fg-muted hover:bg-surface-2 hover:text-fg",
           )}
         >
           {probe.state === "busy" ? t("providers.testing") : t("providers.test")}

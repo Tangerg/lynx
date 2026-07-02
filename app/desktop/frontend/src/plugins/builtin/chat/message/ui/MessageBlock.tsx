@@ -106,7 +106,7 @@ function MessageBlockInner({ msg, ctx }: { msg: Message; ctx: BlockCtx }) {
               {/* Assistant identity marker — a small sparkle avatar peeking
                   left of the prose (DESIGN.md message-body-assistant spec +
                   the Codex reference). Content + actions offset to its right. */}
-              <div className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full border border-line-soft bg-surface">
+              <div className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-surface">
                 <Icon name="spark" size={14} className="text-fg-muted" />
               </div>
               <div className="min-w-0 flex-1">

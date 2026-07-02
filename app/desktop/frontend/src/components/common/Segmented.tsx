@@ -31,10 +31,7 @@ export function Segmented<T extends string | number>({
         const opt = options.find((o) => String(o.value) === v);
         if (opt) onChange(opt.value);
       }}
-      className={cn(
-        "inline-flex w-fit items-center gap-1 rounded-md border border-line bg-surface-2 p-1",
-        className,
-      )}
+      className={cn("inline-flex w-fit items-center gap-1 rounded-md bg-surface-2 p-1", className)}
     >
       <BaseTabs.List aria-label={ariaLabel} className="contents" activateOnFocus>
         {options.map((opt) => (

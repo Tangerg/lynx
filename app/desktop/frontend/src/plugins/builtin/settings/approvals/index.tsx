@@ -27,7 +27,7 @@ import { SETTINGS_PANE } from "@/plugins/sdk/kernelPoints";
 import { SettingRow } from "../SettingRow";
 
 const SCOPE_CHIP: Record<ApprovalRuleConfig["scope"], string> = {
-  session: "border-line bg-surface-2 text-fg-muted",
+  session: "border-transparent bg-surface-2 text-fg-muted",
   project: "border-accent/30 bg-accent/10 text-accent",
   global: "border-warning/30 bg-warning/12 text-warning",
 };

@@ -10,8 +10,8 @@ import { cn } from "@/lib/utils";
 // NOT try to abstract the bodies.
 
 const VARIANT_CLASS: Record<string, string> = {
-  neutral: "border-line bg-surface",
-  warning: "border-warning/30 bg-warning/[0.03]",
+  neutral: "bg-surface",
+  warning: "border border-warning/30 bg-warning/[0.03]",
 };
 
 /** Settled "done" row — shared by approval (approved) + question (answered). */
@@ -45,10 +45,7 @@ export function HitlCardShell({
   "data-slot": slot = "hitl-shell",
 }: ShellProps) {
   return (
-    <div
-      data-slot={slot}
-      className={cn("my-2 rounded-md border px-4 py-3", VARIANT_CLASS[variant])}
-    >
+    <div data-slot={slot} className={cn("my-2 rounded-md px-4 py-3", VARIANT_CLASS[variant])}>
       <div className="mb-2 flex items-center gap-2 text-[13px] font-medium text-fg">
         <Icon name={icon} size={13} className={iconClassName} />
         <span>{label}</span>

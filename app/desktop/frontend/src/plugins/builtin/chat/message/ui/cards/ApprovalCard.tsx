@@ -206,7 +206,7 @@ export function ApprovalCard({
             </span>
           ))}
           {target && (
-            <span className="inline-flex items-center gap-1 rounded-xs border border-line bg-surface-2 px-1.5 py-px font-mono text-[11px] text-fg-muted">
+            <span className="inline-flex items-center gap-1 rounded-xs bg-surface-2 px-1.5 py-px font-mono text-[11px] text-fg-muted">
               <Icon name="folder" size={10} className="text-fg-faint" />
               {target}
             </span>
@@ -240,7 +240,7 @@ export function ApprovalCard({
           data-slot="approval-decline"
           disabled={disabled}
           onClick={onDecline}
-          className="inline-flex items-center gap-1.5 rounded-md border border-line bg-transparent px-3 py-1.5 text-[13px] font-medium text-fg transition-colors duration-150 ease-out hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-md bg-transparent px-3 py-1.5 text-[13px] font-medium text-fg transition-colors duration-150 ease-out hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t("approval.action.decline")}
           {!disabled && <kbd className="ml-1.5 font-mono text-[10px] opacity-60">⇧⌘⌫</kbd>}
@@ -283,7 +283,7 @@ function approvalRiskToneClass(tone: ApprovalTone): string {
 function approvalScopeToneClass(tone: ApprovalTone): string {
   if (tone === "danger") return "border-negative/40 bg-negative/12 text-negative";
   if (tone === "warning") return "border-warning/30 bg-warning/10 text-warning";
-  return "border-line bg-surface-2 text-fg-muted";
+  return "border-transparent bg-surface-2 text-fg-muted";
 }
 
 function approvalReversibilityToneClass(tone: ApprovalTone): string {

@@ -71,12 +71,7 @@ export function ScheduleRow({
   };
 
   return (
-    <div
-      className={cn(
-        "rounded-lg border border-line-soft bg-canvas px-3 py-2.5",
-        !schedule.enabled && "opacity-60",
-      )}
-    >
+    <div className={cn("rounded-lg bg-canvas px-3 py-2.5", !schedule.enabled && "opacity-60")}>
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">

@@ -47,7 +47,7 @@ export function DiagnosticsView() {
           <button
             type="button"
             onClick={clear}
-            className="rounded-md border border-line bg-surface px-2.5 py-1 text-[12px] text-fg-muted hover:bg-surface-2 hover:text-fg"
+            className="rounded-md border border-field bg-surface px-2.5 py-1 text-[12px] text-fg-muted hover:bg-surface-2 hover:text-fg"
           >
             Clear
           </button>

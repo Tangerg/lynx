@@ -20,7 +20,7 @@ export function Switch({ checked, onCheckedChange, disabled, ariaLabel, classNam
         "relative inline-flex h-5 w-9 shrink-0 items-center rounded-pill border transition-colors duration-150",
         "disabled:cursor-not-allowed disabled:opacity-50",
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
-        checked ? "border-accent bg-accent" : "border-line bg-surface-2",
+        checked ? "border-accent bg-accent" : "border-field bg-surface-2",
         className,
       )}
     >

@@ -41,7 +41,7 @@ export function BannerAction({
         "inline-flex h-6 items-center gap-1 rounded-md border px-2 font-sans text-[11.5px] transition-colors",
         primary
           ? cn("font-semibold", PRIMARY_TONE[tone])
-          : "border-line-soft bg-transparent text-fg-muted hover:bg-surface-2 hover:text-fg",
+          : "border-field bg-transparent text-fg-muted hover:bg-surface-2 hover:text-fg",
         "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent",
         FOCUS_RING,
       )}

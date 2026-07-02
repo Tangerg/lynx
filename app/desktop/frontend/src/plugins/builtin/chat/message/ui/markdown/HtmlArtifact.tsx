@@ -38,7 +38,7 @@ export function HtmlArtifact({ code }: Props) {
 
   return (
     <div className="my-3.5 overflow-hidden rounded-lg bg-surface">
-      <div className="flex items-center justify-between border-b border-line px-3 py-1.5">
+      <div className="flex items-center justify-between px-3 py-1.5">
         <div className="inline-flex items-center gap-2">
           <Icon name="globe" size={12} className="text-fg-faint" />
           <span className="font-mono text-[11px] font-semibold text-fg-faint">HTML artifact</span>

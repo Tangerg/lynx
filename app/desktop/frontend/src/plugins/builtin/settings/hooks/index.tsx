@@ -25,12 +25,7 @@ import { installHookTrustGateway } from "./adapters/runtimeHookTrustGateway";
 function HookRow({ h }: { h: HookConfig }) {
   const t = useT();
   return (
-    <div
-      className={cn(
-        "rounded-lg border border-line-soft bg-canvas px-3 py-2.5",
-        !h.active && "opacity-55",
-      )}
-    >
+    <div className={cn("rounded-lg bg-canvas px-3 py-2.5", !h.active && "opacity-55")}>
       <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
         <Icon
           name={h.scope === "global" ? "globe" : "folder"}
@@ -101,7 +96,7 @@ function HooksPane() {
       <p className="text-[13px] leading-[1.5] text-fg-muted">{t("hooks.intro")}</p>
 
       {projectRoot && data?.hasProjectHooks && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-canvas px-3 py-2.5">
+        <div className="flex items-center justify-between gap-3 rounded-lg bg-canvas px-3 py-2.5">
           <div className="min-w-0">
             <div className="text-[14px] font-semibold text-fg">{t("hooks.trust")}</div>
             <div className="mt-0.5 text-[12px] leading-[1.45] text-fg-muted">
