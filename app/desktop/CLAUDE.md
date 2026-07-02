@@ -1,7 +1,7 @@
 # CLAUDE.md — project context for Claude Code
 
 > **Lyra** — Wails 桌面应用（Go 壳 + React/TS 前端），由自研 **Lyra Runtime Protocol v2**（JSON-RPC，Session→Run→Item 流式）驱动的插件化 agent client。
-> 结构看 `frontend/ARCHITECTURE.md`，视觉规范看 `frontend/DESIGN.md`，桌面质感防回归清单看 `frontend/DESKTOP_UI_POLISH.md`，协议看 `docs/protocol/`。
+> 结构看 `frontend/ARCHITECTURE.md`，主 UI 心智模型看 `docs/FRONTEND_AGENT_WORKSPACE_MODEL.md`，视觉规范看 `frontend/DESIGN.md`，桌面质感防回归清单看 `frontend/DESKTOP_UI_POLISH.md`，协议看 `docs/protocol/`。
 >
 > 本文件只放**法则 —— 只宏观、不写具体**（具体文件名 / 符号 / 版本 / 行数 / 历史会随演化变动，活在代码 / git / ARCHITECTURE.md 里，不进本则）。读法：先「两条法则」（总透镜）→ §1 架构心智 → §2-§5 写代码的判断与硬约定 → §6 别走的方向 → §7 怎么干活。
 
@@ -33,7 +33,7 @@
 ## 1 · 架构心智模型
 
 - **一句话定位**：**Kernel 不长肉，所有功能都是插件。** 路由 / 布局 / 内容渲染 / 命令 / 快捷键 / 主题 / 运行时事件处理 / 设置面板，全部由内置插件贡献；Kernel 自己只是一组命名 Slot + 几个共享 store。
-- **业务架构演进方向**：保持插件式架构，同时把业务插件演进成限界上下文容器。具体原则、跨上下文协作方式与迁移路线见 `docs/FRONTEND_PLUGIN_CONTEXTS.md`。
+- **业务架构演进方向**：保持插件式架构，同时把业务插件演进成限界上下文容器。具体原则、跨上下文协作方式与迁移路线见 `docs/FRONTEND_PLUGIN_CONTEXTS.md`。主界面心智模型是 `Work Index / Agent Narrative / Context Dock`，见 `docs/FRONTEND_AGENT_WORKSPACE_MODEL.md`。
 - **三大支柱**：
   1. **插件系统**：一个开放扩展点底座 —— 每个贡献面是一个 typed ExtensionPoint，所有贡献（内置与第三方）走同一条 `contribute` 写路径、selector 读路径。Host 上只留少量薄 facade + 命令式动作。
   2. **协议 fold 层**：reducer 是**纯派发器**，把 wire 的 StreamEvent 路由到注册的 handler chain；所有协议语义（Item→message/block 投影、HITL）都在 agent 插件里（handlers 派发 / projections 纯映射 / fold 有状态折叠）。wire 层独立于 fold 层。

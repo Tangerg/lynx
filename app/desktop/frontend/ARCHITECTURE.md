@@ -1,6 +1,7 @@
 # Lyra 前端架构
 
 > 本文档描述 `frontend/` 这个 React + TypeScript 应用是怎么组织、怎么运行的。
+> 主 UI 心智模型看 [`../docs/FRONTEND_AGENT_WORKSPACE_MODEL.md`](../docs/FRONTEND_AGENT_WORKSPACE_MODEL.md)；
 > 设计系统 / 视觉规范看 `DESIGN.md`；决策透镜 / 工程约定看仓库根的 `CLAUDE.md`；
 > 协议权威定义看 `docs/protocol/API.md` + `docs/protocol/AUX_API.md` + `docs/protocol/TRANSPORT.md`。
 >
