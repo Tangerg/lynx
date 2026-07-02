@@ -13,7 +13,7 @@ import { SHORTCUT } from "@/plugins/sdk/kernelPoints";
 import { comboGlyph } from "@/lib/combo";
 import { Command } from "cmdk";
 import { useMemo } from "react";
-import { usePaletteStore } from "@/state/paletteStore";
+import { usePaletteStore } from "../paletteStore";
 import { Icon } from "@/components/common";
 import { t, useT } from "@/lib/i18n";
 import {
@@ -23,7 +23,7 @@ import {
   reportPluginError,
   useCommands,
 } from "@/plugins/sdk";
-import { useWhenContext } from "@/state/useWhenContext";
+import { useWhenContext } from "../useWhenContext";
 
 function CommandPalette() {
   const t = useT();

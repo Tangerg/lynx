@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useListFiles } from "@/lib/data/queries";
-import { fuzzyFile } from "@/lib/fuzzyFile";
+import { fuzzyFile } from "./fuzzyFile";
 
 const MENTION_ROWS = 8; // visible suggestions
 const FETCH_LIMIT = 2000; // recursive file-list cap fed to the fuzzy matcher

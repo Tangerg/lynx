@@ -17,7 +17,7 @@ import {
   mcpServerInputFromDraft,
 } from "../application/mcpServerDraft";
 import { ToolControls } from "./ToolControls";
-import { useProbe } from "@/lib/useProbe";
+import { useProbe } from "../../useProbe";
 
 interface Props {
   server?: MCPServerConfig;
