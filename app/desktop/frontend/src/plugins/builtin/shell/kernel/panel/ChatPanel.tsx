@@ -96,7 +96,9 @@ export function ChatPanel({ onSend }: Props) {
             })
           }
           className={cn(
-            "absolute right-3 top-3 z-20 h-8 w-8 rounded-md border-[0.5px] border-field bg-surface/80 text-fg-muted shadow-[var(--shadow-popover)] backdrop-blur",
+            "absolute right-3 top-3 z-20 h-8 w-8 rounded-md bg-surface-2 text-fg-muted",
+            "shadow-[inset_0_0_0_0.5px_var(--color-field),var(--shadow-popover)]",
+            "transition-[background-color,color,box-shadow,scale] duration-150 ease-out hover:bg-surface-3 hover:text-fg active:scale-[0.96]",
             noDragClasses,
           )}
         >
