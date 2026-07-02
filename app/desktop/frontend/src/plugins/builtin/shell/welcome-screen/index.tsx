@@ -76,7 +76,7 @@ function SetupCard() {
           <button
             type="button"
             onClick={onConfigure}
-            className="mt-0.5 inline-flex items-center gap-2 rounded-full border-0 bg-fg px-3.5 py-2 font-sans text-[13px] font-semibold text-on-fg transition-[filter,transform] duration-150 hover:brightness-110 active:scale-[0.98]"
+            className="mt-0.5 inline-flex items-center gap-2 rounded-full border-0 bg-fg px-3.5 py-2 font-sans text-[13px] font-semibold text-on-fg transition-[filter,transform] duration-150 hover:brightness-110 active:scale-[0.96]"
           >
             <Icon name="settings" size={13} />
             {t("welcome.setup.action")}
