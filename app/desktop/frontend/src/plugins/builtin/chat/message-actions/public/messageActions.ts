@@ -6,4 +6,4 @@ export {
   restoreCheckpoint,
   type RestoreType,
   type RollbackActionOptions,
-} from "../../workbench/public/messageActions";
+} from "../application/messageActions";

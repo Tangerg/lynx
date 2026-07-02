@@ -26,7 +26,8 @@ function KernelChat() {
   // instead of a dead session.
   useReconcilePersistedAgentSessions();
   // Mount the active session's agent lifecycle (subscribe + register the
-  // send/stop actions); composer → agent routing goes through the chat workbench.
+  // send/stop actions); composer → agent routing goes through the
+  // message-actions input bridge.
   useDefaultChatSession();
   const send = useSendComposerInput();
   return <ChatPanel onSend={send} />;
