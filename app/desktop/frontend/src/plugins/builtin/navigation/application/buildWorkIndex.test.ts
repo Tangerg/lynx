@@ -81,7 +81,7 @@ describe("buildWorkIndexGroups", () => {
           {
             id: "chat-only",
             title: "chat-only",
-            status: "idle",
+            attention: "none",
             model: "gpt-test",
             cwd: undefined,
             cwdMissing: undefined,
@@ -91,6 +91,24 @@ describe("buildWorkIndexGroups", () => {
           },
         ],
       },
+    ]);
+  });
+
+  it("projects source status into work attention", () => {
+    const groups = buildWorkIndexGroups({
+      projects: [],
+      sessions: [
+        session({ id: "running", status: "running" }),
+        session({ id: "waiting", status: "waiting" }),
+        session({ id: "idle", status: "idle" }),
+      ],
+      fallbackProjectName: "Other",
+    });
+
+    expect(groups?.[0]?.sessions.map((item) => [item.id, item.attention])).toEqual([
+      ["running", "running"],
+      ["waiting", "waiting"],
+      ["idle", "none"],
     ]);
   });
 });

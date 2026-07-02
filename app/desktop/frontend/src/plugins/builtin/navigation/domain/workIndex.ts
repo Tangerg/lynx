@@ -1,9 +1,9 @@
-export type WorkSessionStatus = "running" | "waiting" | "idle";
+export type WorkSessionAttention = "running" | "waiting" | "none";
 
 export interface WorkSession {
   id: string;
   title: string;
-  status: WorkSessionStatus;
+  attention: WorkSessionAttention;
   model: string;
   cwd?: string;
   cwdMissing?: boolean;

@@ -50,9 +50,9 @@ export function SessionRow({
   // the title into ellipsis early. Killing the right column gives
   // the title the full row width.
   const subText =
-    session.status === "running"
+    session.attention === "running"
       ? t("session.status.running")
-      : session.status === "waiting"
+      : session.attention === "waiting"
         ? t("session.status.waiting")
         : formatRelative(session.time);
 
@@ -115,7 +115,7 @@ export function SessionRow({
             >
               {session.title}
             </span>
-            {session.status === "idle" ? (
+            {session.attention === "none" ? (
               <span
                 className="shrink-0 text-[11.5px] leading-none text-fg-faint tabular-nums"
                 title={session.time}
@@ -129,7 +129,7 @@ export function SessionRow({
               <span
                 className={cn(
                   "h-1.5 w-1.5 shrink-0 rounded-full",
-                  session.status === "running" ? "bg-accent animate-pulse-dot" : "bg-warning",
+                  session.attention === "running" ? "bg-accent animate-pulse-dot" : "bg-warning",
                 )}
                 title={subText}
               />
