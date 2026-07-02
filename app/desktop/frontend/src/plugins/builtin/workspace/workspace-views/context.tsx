@@ -1,10 +1,8 @@
-import { useMemo } from "react";
 import { Icon, type IconName } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { groupContextDockDestinations } from "@/plugins/builtin/workspace/application/contextDockDestinationGroups";
-import { openContextDockView } from "@/plugins/builtin/workspace/public/navigation";
-import { useContextDockDestinations } from "@/plugins/sdk";
+import { useContextDockLauncher } from "@/plugins/builtin/workspace/application/useContextDockLauncher";
+import { openContextDockDestination } from "@/plugins/builtin/workspace/public/navigation";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 
@@ -14,8 +12,7 @@ function destinationIcon(name: string | undefined): IconName {
 
 function ContextDockView() {
   const t = useT();
-  const destinations = useContextDockDestinations();
-  const groups = useMemo(() => groupContextDockDestinations(destinations), [destinations]);
+  const groups = useContextDockLauncher();
 
   return (
     <WorkspaceViewLayout
@@ -37,13 +34,7 @@ function ContextDockView() {
                   key={destination.id}
                   type="button"
                   data-chrome-focus=""
-                  onClick={() =>
-                    openContextDockView({
-                      id: destination.id,
-                      title: destination.title,
-                      icon,
-                    })
-                  }
+                  onClick={() => openContextDockDestination(destination)}
                   className={cn(
                     "flex min-h-10 w-full items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-2 text-left",
                     "text-[13px] text-fg-soft transition-[background-color,color,box-shadow] duration-100 ease-out",
