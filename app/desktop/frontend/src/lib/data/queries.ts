@@ -1,5 +1,5 @@
-// React Query hooks for the cached side panels (sessions, files, diff,
-// etc.). Each hook owns one query key + return type. The
+// React Query hooks for cached runtime/workspace resources (sessions, files,
+// diff, etc.). Each hook owns one query key + return type. The
 // actual fetcher comes from the plugin data-provider registry
 // (`lookupDataProvider(key)`); built-in defaults are registered by
 // `lyra.builtin.default-data`, but a user plugin can replace any of
@@ -21,10 +21,10 @@ import { queryClient } from "./queryClient";
 //
 // Declared here (the data fetcher) rather than in the rendering
 // components so neither state/ nor lib/ has to import upward into
-// components/ for type-only metadata. Components import these types
-// from `@/lib/data/queries` when they need to type a row prop.
+// components/ for type-only metadata. Consumers import these types
+// from `@/lib/data/queries` when they need to type a cached query shape.
 
-export interface SidebarSession {
+export interface AgentSessionSummary {
   id: string;
   title: string;
   status: "running" | "waiting" | "idle";
@@ -38,7 +38,7 @@ export interface SidebarSession {
   time: string;
 }
 
-export interface SidebarProject {
+export interface WorkspaceProjectSummary {
   id: string; // = Project.cwd (the wire identity)
   name: string;
   branch: string;
@@ -80,10 +80,10 @@ export interface McpToolsQuery {
 
 // One entry in the EDITABLE MCP registry (workspace.mcp.listConfigs) — the
 // full persisted config the MCP-servers settings pane reads, edits, and writes
-// back. Distinct from the read-only `MCPServer` sidebar row above (status-only,
-// no editable fields). Mirrors the wire McpServerConfig 1:1 so the pane never
-// imports @/rpc; `authorizationMasked` is the never-reversible token echo
-// ("" = none), the raw token only travels on the write hooks.
+// back. Distinct from the read-only `MCPServer` status summary above
+// (status-only, no editable fields). Mirrors the wire McpServerConfig 1:1 so
+// the pane never imports @/rpc; `authorizationMasked` is the never-reversible
+// token echo ("" = none), the raw token only travels on the write hooks.
 export type MCPTransport = "stdio" | "streamableHttp";
 export interface MCPServerConfigInfo {
   name: string;
@@ -283,7 +283,7 @@ function resolve<T, P = void>(key: string, params?: P): () => Promise<T> {
   };
 }
 
-// One hook per cached side-panel resource. The query key and the
+// One hook per cached app resource. The query key and the
 // data-provider key are the same string, passed once — no chance of the
 // two drifting apart (a real bug class with the old per-hook literals).
 function makeDataQuery<T>(key: string): () => UseQueryResult<T> {
@@ -335,11 +335,11 @@ export const HOOKS_KEY = "hooks";
 export const RECIPES_KEY = "recipes";
 export const SCHEDULES_KEY = "schedules";
 
-export const useSessions = makeDataQuery<SidebarSession[]>(SESSIONS_KEY);
-export const useProjects = makeDataQuery<SidebarProject[]>(PROJECTS_KEY);
+export const useSessions = makeDataQuery<AgentSessionSummary[]>(SESSIONS_KEY);
+export const useProjects = makeDataQuery<WorkspaceProjectSummary[]>(PROJECTS_KEY);
 
 /** The server's session set changed (create / delete / rename / fork /
- *  relocate / import) — refetch the sidebar list. cwd-affecting mutations
+ *  relocate / import) — refetch the session summary list. cwd-affecting mutations
  *  pass `projects: true`: a new cwd can mint (or retire) a project node. */
 export function invalidateSessions(opts?: { projects?: boolean }): Promise<void> {
   const sessions = queryClient.invalidateQueries({ queryKey: [SESSIONS_KEY] });

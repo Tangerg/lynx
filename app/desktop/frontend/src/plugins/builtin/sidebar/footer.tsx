@@ -64,7 +64,7 @@ function SidebarFooter() {
           <ThemeToggle />
           <button
             type="button"
-            onClick={() => actions.openSettings(t("settings.title"))}
+            onClick={actions.openSettings}
             data-chrome-focus=""
             title={t("sidebar.action.settings")}
             aria-label={t("sidebar.action.settings")}

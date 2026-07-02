@@ -1,5 +1,5 @@
 import type { Disposable, Host } from "@/plugins/sdk";
-import type { RecipesQuery, SidebarSession } from "@/lib/data/queries";
+import type { RecipesQuery, AgentSessionSummary } from "@/lib/data/queries";
 import { RECIPES_KEY, SESSIONS_KEY } from "@/lib/data/queries";
 import { queryClient } from "@/lib/data/queryClient";
 import { lookupDataProvider } from "@/plugins/sdk";
@@ -30,7 +30,7 @@ function expandRecipe(body: string, argStr: string): string {
 function activeCwd(): string | undefined {
   const id = getActiveSessionId();
   if (!id) return undefined;
-  const sessions = queryClient.getQueryData<SidebarSession[]>([SESSIONS_KEY]);
+  const sessions = queryClient.getQueryData<AgentSessionSummary[]>([SESSIONS_KEY]);
   return sessions?.find((session) => session.id === id)?.cwd;
 }
 

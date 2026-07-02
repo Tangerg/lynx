@@ -46,7 +46,7 @@ interface AgentSessionState {
   /**
    * Draft sessions — real backend sessions (created up front so they can
    * receive a run) that haven't had their first message yet. Hidden from
-   * the sidebar list until they "graduate" (first send), so a fresh
+   * the Work Index until they "graduate" (first send), so a fresh
    * "New" doesn't litter the list with empties. Ephemeral (not persisted).
    */
   draftSessionIds: Set<string>;

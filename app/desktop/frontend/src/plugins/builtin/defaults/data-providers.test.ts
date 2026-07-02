@@ -1,19 +1,19 @@
-// Cutover slices — the side-panel data providers that ride the JSON-RPC
+// Cutover slices — the cached app data providers that ride the JSON-RPC
 // stack. Locks the full wiring (provider → container.methods() → client →
 // transport) plus each v2 shape mapping:
-//   - sessions:    Page<Session>.data → SidebarSession (updatedAt → time)
-//   - projects:    Page<Project>.data (cwd identity) → SidebarProject (cwd → id)
-//   - mcp-servers: enriched B3 entry → sidebar row (id + icon + inline toolCount)
+//   - sessions:    Page<Session>.data → AgentSessionSummary (updatedAt → time)
+//   - projects:    Page<Project>.data (cwd identity) → WorkspaceProjectSummary (cwd → id)
+//   - mcp-servers: enriched B3 entry → status summary (id + icon + inline toolCount)
 //   - grep:        params pass-through, result verbatim (matches + total)
 //   - file-head:   params pass-through, FileHead unwrapped to its lines
 
 import type {
-  FileChange as SidebarFileChange,
+  FileChange as WorkspaceFileChangeSummary,
   FileLine,
   GrepResult,
-  MCPServer as SidebarMCPServer,
-  SidebarProject,
-  SidebarSession,
+  MCPServer as McpServerStatusSummary,
+  WorkspaceProjectSummary,
+  AgentSessionSummary,
   WorkspaceDiff,
 } from "@/lib/data/queries";
 import { afterEach, describe, expect, it } from "vitest";
@@ -53,8 +53,8 @@ async function runProvider<T>(
 }
 
 describe("defaultData — providers over JSON-RPC", () => {
-  it("sessions: maps Page<Session>.data into SidebarSession rows (updatedAt → time)", async () => {
-    const { value: rows } = await runProvider<SidebarSession[]>("sessions", [
+  it("sessions: maps Page<Session>.data into AgentSessionSummary rows (updatedAt → time)", async () => {
+    const { value: rows } = await runProvider<AgentSessionSummary[]>("sessions", [
       [
         "sessions.list",
         {
@@ -85,8 +85,8 @@ describe("defaultData — providers over JSON-RPC", () => {
     ]);
   });
 
-  it("projects: maps v2 Project (cwd identity) into SidebarProject rows", async () => {
-    const { value: rows } = await runProvider<SidebarProject[]>("projects", [
+  it("projects: maps v2 Project (cwd identity) into WorkspaceProjectSummary rows", async () => {
+    const { value: rows } = await runProvider<WorkspaceProjectSummary[]>("projects", [
       [
         "workspace.listProjects",
         {
@@ -108,7 +108,7 @@ describe("defaultData — providers over JSON-RPC", () => {
   });
 
   it("mcp-servers: maps the enriched B3 entry (inline toolCount, 5-state, error detail)", async () => {
-    const { value: rows } = await runProvider<SidebarMCPServer[]>("mcp-servers", [
+    const { value: rows } = await runProvider<McpServerStatusSummary[]>("mcp-servers", [
       [
         "workspace.mcp.listServers",
         {
@@ -156,7 +156,7 @@ describe("defaultData — providers over JSON-RPC", () => {
   });
 
   it("files-changed: forwards cwd, maps statuses, keeps ± counts / binary honest", async () => {
-    const { value: rows, requests } = await runProvider<SidebarFileChange[]>(
+    const { value: rows, requests } = await runProvider<WorkspaceFileChangeSummary[]>(
       "files-changed",
       [
         [

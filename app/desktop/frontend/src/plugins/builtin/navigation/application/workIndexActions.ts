@@ -21,7 +21,7 @@ export interface WorkIndexActions {
   deleteSession: (id: string) => void;
   toggleFavorite: (id: string, favorite: boolean) => void;
   openContextDock: () => void;
-  openSettings: (title: string) => void;
+  openSettings: () => void;
 }
 
 export function useWorkIndexActions(): WorkIndexActions {
@@ -53,8 +53,8 @@ export function useWorkIndexActions(): WorkIndexActions {
         void toggleFavorite(id, favorite);
       },
       openContextDock: openContextDockLauncher,
-      openSettings: (title) => {
-        openWorkspaceView({ id: "settings", title, icon: "settings" });
+      openSettings: () => {
+        openWorkspaceView({ id: "settings", title: "settings.title", icon: "settings" });
       },
     }),
     [create, fork, remove, rename, toggleFavorite],
