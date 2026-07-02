@@ -501,7 +501,7 @@ export const ja: Record<string, string> = {
   "projects.showMore": "さらに {{count}} 件表示",
   "projects.showLess": "折りたたむ",
   "projects.empty.title": "プロジェクトなし",
-  "projects.empty.sub": "追加するとセッションをコードベースにスコープできます。",
+  "projects.empty.sub": "フォルダでセッションを始めるとワークスペースグループが作成されます。",
   "projects.fallbackName": "その他",
   "convExport.markdown": "会話を Markdown でエクスポート",
   "convExport.json": "会話を JSON でエクスポート",

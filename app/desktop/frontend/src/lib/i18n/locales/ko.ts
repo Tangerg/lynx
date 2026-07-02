@@ -493,7 +493,7 @@ export const ko: Record<string, string> = {
   "projects.showMore": "{{count}}개 더 보기",
   "projects.showLess": "간략히 보기",
   "projects.empty.title": "프로젝트 없음",
-  "projects.empty.sub": "추가하여 세션을 코드베이스로 범위를 지정하세요.",
+  "projects.empty.sub": "폴더에서 세션을 시작하면 작업 영역 그룹이 만들어집니다.",
   "projects.fallbackName": "기타",
   "convExport.markdown": "대화를 Markdown으로 내보내기",
   "convExport.json": "대화를 JSON으로 내보내기",

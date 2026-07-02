@@ -505,7 +505,8 @@ export const fr: Record<string, string> = {
   "projects.showMore": "Afficher {{count}} de plus",
   "projects.showLess": "Afficher moins",
   "projects.empty.title": "Aucun projet",
-  "projects.empty.sub": "Ajoutez-en un pour limiter les sessions à une base de code.",
+  "projects.empty.sub":
+    "Démarrez une session dans un dossier pour créer un groupe d’espace de travail.",
   "projects.fallbackName": "Autre",
   "convExport.markdown": "Exporter la conversation en Markdown",
   "convExport.json": "Exporter la conversation en JSON",

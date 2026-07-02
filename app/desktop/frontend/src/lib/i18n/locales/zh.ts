@@ -8,9 +8,6 @@ export const zh: Record<string, string> = {
   "common.search": "搜索",
 
   "sidebar.section.projects": "项目",
-  "sidebar.section.session": "会话",
-  "sidebar.sessionFilter.placeholder": "筛选会话…",
-  "sidebar.sessionFilter.empty": "无匹配会话",
   "sidebar.newSessionInFolder.placeholder": "绝对路径",
   "sidebar.action.collapse": "收起到边栏",
   "sidebar.action.expand": "展开边栏",
@@ -681,7 +678,7 @@ export const zh: Record<string, string> = {
   "projects.showMore": "显示另外 {{count}} 条",
   "projects.showLess": "收起",
   "projects.empty.title": "无项目",
-  "projects.empty.sub": "添加一个项目以将会话限定到某个代码库。",
+  "projects.empty.sub": "在文件夹里开始一个会话，即可创建工作区分组。",
   "projects.fallbackName": "其他",
   "convExport.markdown": "导出对话为 Markdown",
   "convExport.json": "导出对话为 JSON",
