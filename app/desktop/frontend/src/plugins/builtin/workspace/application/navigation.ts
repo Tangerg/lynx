@@ -101,6 +101,10 @@ export function selectInitialWorkspaceTool(id: string): void {
   if (!workspaceNavigation().selectedToolId()) workspaceNavigation().setSelectedTool(id);
 }
 
-export function clearWorkspaceSessionState(): void {
-  workspaceNavigation().clearSessionState();
+export function activateWorkspaceSessionScope(sessionId: string): void {
+  workspaceNavigation().activateSessionScope(sessionId);
+}
+
+export function forgetWorkspaceSessionScopes(openSessionIds: string[]): void {
+  workspaceNavigation().forgetSessionScopes(openSessionIds);
 }

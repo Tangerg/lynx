@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AgentSessionSelectionSnapshot } from "@/plugins/builtin/agent/public/session";
+import type {
+  AgentSessionLifecycleSnapshot,
+  AgentSessionSelectionSnapshot,
+} from "@/plugins/builtin/agent/public/session";
 import { loadPlugin, unloadPlugin } from "@/plugins/sdk";
 import { useWorkspaceNavigationStore } from "@/state/workspaceNavigationStore";
 import sessionNavigation from ".";
@@ -8,15 +11,34 @@ type SelectionListener = (
   state: AgentSessionSelectionSnapshot,
   previous: AgentSessionSelectionSnapshot,
 ) => void;
+type LifecycleListener = (state: AgentSessionLifecycleSnapshot) => void;
 
 const agentSessionSelection = vi.hoisted(() => {
   let listener: SelectionListener | undefined;
+  let lifecycleListener: LifecycleListener | undefined;
+  let activeSessionId = "s1";
+  let openSessionIds = ["s1", "s2"];
   return {
     emit(state: AgentSessionSelectionSnapshot, previous: AgentSessionSelectionSnapshot) {
+      activeSessionId = state.activeSessionId;
       listener?.(state, previous);
+    },
+    emitLifecycle(state: AgentSessionLifecycleSnapshot) {
+      activeSessionId = state.activeSessionId;
+      openSessionIds = state.openSessionIds;
+      lifecycleListener?.(state);
+    },
+    getActiveSessionId() {
+      return activeSessionId;
+    },
+    getLifecycleSnapshot() {
+      return { activeSessionId, openSessionIds };
     },
     reset() {
       listener = undefined;
+      lifecycleListener = undefined;
+      activeSessionId = "s1";
+      openSessionIds = ["s1", "s2"];
     },
     subscribe(onChange: SelectionListener) {
       listener = onChange;
@@ -24,10 +46,19 @@ const agentSessionSelection = vi.hoisted(() => {
         if (listener === onChange) listener = undefined;
       };
     },
+    subscribeLifecycle(onChange: LifecycleListener) {
+      lifecycleListener = onChange;
+      return () => {
+        if (lifecycleListener === onChange) lifecycleListener = undefined;
+      };
+    },
   };
 });
 
 vi.mock("@/plugins/builtin/agent/public/session", () => ({
+  getActiveSessionId: agentSessionSelection.getActiveSessionId,
+  getAgentSessionLifecycleSnapshot: agentSessionSelection.getLifecycleSnapshot,
+  subscribeAgentSessionLifecycle: agentSessionSelection.subscribeLifecycle,
   subscribeAgentSessionSelection: agentSessionSelection.subscribe,
 }));
 
@@ -46,6 +77,8 @@ function resetWorkspace() {
     mainViewTabs: views.map((view) => ({ ...view })),
     activeMainView: "v2",
     settingsPane: null,
+    activeSessionScopeId: "",
+    sessionScopes: new Map(),
     splitViewId: null,
     activeFile: "",
     fileViewer: null,
@@ -63,7 +96,7 @@ function seedInspector() {
   });
 }
 
-function expectSessionScopedStateCleared() {
+function expectSessionScopedStateBlank() {
   const state = useWorkspaceNavigationStore.getState();
   expect(state.activeFile).toBe("");
   expect(state.selectedToolId).toBe("");
@@ -98,13 +131,30 @@ describe("workspace session navigation", () => {
     expect(useWorkspaceNavigationStore.getState().activeMainView).toBeNull();
   });
 
-  // oxlint-disable-next-line vitest/expect-expect -- expectSessionScopedStateCleared contains the assertions.
-  it("selecting a different session clears session-scoped workspace state", () => {
+  // oxlint-disable-next-line vitest/expect-expect -- helper functions contain the assertions.
+  it("selecting a different session restores that session's workspace scope", () => {
     seedInspector();
 
     agentSessionSelection.emit(selection("s2", 1), selection("s1", 0));
 
-    expectSessionScopedStateCleared();
+    expectSessionScopedStateBlank();
+
+    useWorkspaceNavigationStore.setState({
+      activeFile: "src/b.ts",
+      selectedToolId: "tool-2",
+      expandedToolIds: new Set(["tool-2"]),
+      splitViewId: "terminal",
+    });
+
+    agentSessionSelection.emit(selection("s1", 2), selection("s2", 1));
+    expectSessionScopedStatePreserved();
+
+    agentSessionSelection.emit(selection("s2", 3), selection("s1", 2));
+    const state = useWorkspaceNavigationStore.getState();
+    expect(state.activeFile).toBe("src/b.ts");
+    expect(state.selectedToolId).toBe("tool-2");
+    expect(state.expandedToolIds.has("tool-2")).toBe(true);
+    expect(state.splitViewId).toBe("terminal");
   });
 
   // oxlint-disable-next-line vitest/expect-expect -- expectSessionScopedStatePreserved contains the assertions.
@@ -116,13 +166,13 @@ describe("workspace session navigation", () => {
     expectSessionScopedStatePreserved();
   });
 
-  // oxlint-disable-next-line vitest/expect-expect -- expectSessionScopedStateCleared contains the assertions.
-  it("closing the active session clears the workspace state of the session left", () => {
+  // oxlint-disable-next-line vitest/expect-expect -- expectSessionScopedStateBlank contains the assertions.
+  it("moving to a session without saved dock state starts blank", () => {
     seedInspector();
 
     agentSessionSelection.emit(selection("s2", 0), selection("s1", 0));
 
-    expectSessionScopedStateCleared();
+    expectSessionScopedStateBlank();
   });
 
   // oxlint-disable-next-line vitest/expect-expect -- expectSessionScopedStatePreserved contains the assertions.
@@ -132,5 +182,16 @@ describe("workspace session navigation", () => {
     agentSessionSelection.emit(selection("s1", 0), selection("s1", 0));
 
     expectSessionScopedStatePreserved();
+  });
+
+  // oxlint-disable-next-line vitest/expect-expect -- expectSessionScopedStateBlank contains the assertions.
+  it("forgets workspace scopes for closed sessions", () => {
+    seedInspector();
+
+    agentSessionSelection.emit(selection("s2", 1), selection("s1", 0));
+    agentSessionSelection.emitLifecycle({ activeSessionId: "s2", openSessionIds: ["s2"] });
+    agentSessionSelection.emit(selection("s1", 2), selection("s2", 1));
+
+    expectSessionScopedStateBlank();
   });
 });

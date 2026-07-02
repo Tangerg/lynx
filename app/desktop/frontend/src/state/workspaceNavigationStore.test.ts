@@ -12,6 +12,8 @@ function reset() {
     mainViewTabs: views.map((view) => ({ ...view })),
     activeMainView: "v2",
     settingsPane: null,
+    activeSessionScopeId: "",
+    sessionScopes: new Map(),
     splitViewId: null,
     activeFile: "",
     fileViewer: null,
@@ -62,7 +64,7 @@ describe("session-scoped workspace state", () => {
     });
   }
 
-  function expectCleared() {
+  function expectBlankScope() {
     const s = useWorkspaceNavigationStore.getState();
     expect(s.activeFile).toBe("");
     expect(s.selectedToolId).toBe("");
@@ -70,10 +72,49 @@ describe("session-scoped workspace state", () => {
     expect(s.splitViewId).toBeNull();
   }
 
-  // oxlint-disable-next-line vitest/expect-expect -- expectCleared contains the assertions.
-  it("clearSessionScopedState clears inspector and split state", () => {
+  function expectSeededScope() {
+    const s = useWorkspaceNavigationStore.getState();
+    expect(s.activeFile).toBe("src/a.ts");
+    expect(s.selectedToolId).toBe("tool-1");
+    expect(s.expandedToolIds.has("tool-1")).toBe(true);
+    expect(s.splitViewId).toBe("diff");
+  }
+
+  // oxlint-disable-next-line vitest/expect-expect -- helper functions contain the assertions.
+  it("activateSessionScope saves and restores each session's dock state", () => {
+    useWorkspaceNavigationStore.getState().activateSessionScope("s1");
     seedInspector();
-    useWorkspaceNavigationStore.getState().clearSessionScopedState();
-    expectCleared();
+
+    useWorkspaceNavigationStore.getState().activateSessionScope("s2");
+    expectBlankScope();
+
+    useWorkspaceNavigationStore.setState({
+      activeFile: "src/b.ts",
+      selectedToolId: "tool-2",
+      expandedToolIds: new Set(["tool-2"]),
+      splitViewId: "terminal",
+    });
+
+    useWorkspaceNavigationStore.getState().activateSessionScope("s1");
+    expectSeededScope();
+
+    useWorkspaceNavigationStore.getState().activateSessionScope("s2");
+    const s = useWorkspaceNavigationStore.getState();
+    expect(s.activeFile).toBe("src/b.ts");
+    expect(s.selectedToolId).toBe("tool-2");
+    expect(s.expandedToolIds.has("tool-2")).toBe(true);
+    expect(s.splitViewId).toBe("terminal");
+  });
+
+  // oxlint-disable-next-line vitest/expect-expect -- helper functions contain the assertions.
+  it("forgetSessionScopes drops dock state for sessions no longer open", () => {
+    useWorkspaceNavigationStore.getState().activateSessionScope("s1");
+    seedInspector();
+    useWorkspaceNavigationStore.getState().activateSessionScope("s2");
+    useWorkspaceNavigationStore.getState().forgetSessionScopes(["s2"]);
+
+    useWorkspaceNavigationStore.getState().activateSessionScope("s1");
+
+    expectBlankScope();
   });
 });

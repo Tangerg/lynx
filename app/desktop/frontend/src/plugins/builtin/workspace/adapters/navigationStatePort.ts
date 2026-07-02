@@ -30,6 +30,9 @@ export function installWorkspaceNavigationPort(): void {
     openFile: (path, line) => useWorkspaceNavigationStore.getState().openFileViewer(path, line),
     selectedToolId: () => useWorkspaceNavigationStore.getState().selectedToolId,
     setSelectedTool: (id) => useWorkspaceNavigationStore.getState().setSelectedToolId(id),
-    clearSessionState: () => useWorkspaceNavigationStore.getState().clearSessionScopedState(),
+    activateSessionScope: (sessionId) =>
+      useWorkspaceNavigationStore.getState().activateSessionScope(sessionId),
+    forgetSessionScopes: (openSessionIds) =>
+      useWorkspaceNavigationStore.getState().forgetSessionScopes(openSessionIds),
   });
 }
