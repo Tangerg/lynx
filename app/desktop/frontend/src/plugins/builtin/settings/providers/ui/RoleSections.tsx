@@ -11,7 +11,7 @@ import {
 import { useT } from "@/lib/i18n";
 
 const triggerClass =
-  "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-field bg-surface pl-2 pr-2.5 text-[12px] font-semibold text-fg whitespace-nowrap transition-colors hover:bg-surface-3 data-[popup-open]:bg-surface-3";
+  "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border-[0.5px] border-field bg-surface pl-2 pr-2.5 text-[12px] font-semibold text-fg whitespace-nowrap transition-colors hover:bg-surface-3 data-[popup-open]:bg-surface-3";
 
 const itemClass = "grid-cols-[16px_minmax(0,1fr)_14px] px-2";
 

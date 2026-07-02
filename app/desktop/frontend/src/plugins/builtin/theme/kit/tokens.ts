@@ -9,33 +9,24 @@ import type { ThemeCta, ThemePluginSpec, ThemeRadii, ThemeShadows } from "./type
 
 // Default shadow + radii ladders
 
-// Elevation shadows follow DESKTOP_UI_POLISH.md §1's three-layer model:
-//   1. edge ring — a 1px optical boundary as the FIRST layer (the floating
-//      surface's edge; a shadow-ring, NOT a cheap CSS border);
-//   2. contact — a tiny near shadow (surface touches the background);
-//   3. ambient — a wide low-alpha falloff (elevation without a muddy border).
-// Reserved for genuinely-floating elements only (JetBrains model): tiled/docked
-// regions + in-flow cards separate by surface-ladder background delta, never by
-// shadow — so there is no `surface` card shadow, only composer (the input that
-// floats over the scrolling stream) + popover (dropdowns / palette / dialogs).
-// On dark the edge ring is white and the depth layers near-black (a light
-// ambient can't show on a dark canvas); on light, the doc's slate values.
-// EXCEPTION — the composer is deliberately RINGLESS (no edge ring, ever, incl.
-// on focus): it's separated from the canvas by its bg-surface fill (colour
-// delta) + a soft diffuse shadow (the ChatGPT/Codex composer reference). Every
-// ring on it read as a cheap border. Only `popover` carries the doc's ring.
+// Elevation shadows are RINGLESS — no `0 0 0 1px` box-shadow ring anywhere (a
+// 1px ring reads as a cheap border). Separation is by shadow + background delta;
+// where a floating menu genuinely needs a crisp edge, it uses a 0.5px CSS border
+// on the element (Menu.tsx), not a shadow-ring. So these tokens are just contact
+// + ambient. Reserved for genuinely-floating elements only (JetBrains model):
+// composer (the input floating over the stream) + popover (dropdowns / palette /
+// dialogs). Tiled/docked regions + in-flow cards separate by background delta.
+// On dark the ambient is near-black (a light ambient can't show on dark).
 export const DARK_SHADOWS: ThemeShadows = {
   composer: "0 2px 8px rgb(0 0 0 / 0.35), 0 16px 40px -10px rgb(0 0 0 / 0.55)",
-  popover:
-    "0 0 0 1px rgb(255 255 255 / 0.08), 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.5)",
+  popover: "0 2px 8px rgb(0 0 0 / 0.4), 0 12px 32px -6px rgb(0 0 0 / 0.55)",
   // Geist two-layer focus ring: 2px gap in surface color + 2px accent.
   focus: "0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent)",
 };
 
 export const LIGHT_SHADOWS: ThemeShadows = {
   composer: "0 2px 8px rgb(15 23 42 / 0.05), 0 12px 32px -8px rgb(15 23 42 / 0.14)",
-  popover:
-    "0 0 0 1px rgb(15 23 42 / 0.08), 0 1px 2px rgb(15 23 42 / 0.06), 0 8px 24px rgb(15 23 42 / 0.1)",
+  popover: "0 2px 8px rgb(15 23 42 / 0.08), 0 12px 32px -6px rgb(15 23 42 / 0.14)",
   focus: "0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent)",
 };
 

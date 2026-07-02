@@ -120,7 +120,7 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered,
                       aria-pressed={active}
                       onClick={() => setDraft((prev) => toggleQuestionOption(prev, q, opt.label))}
                       className={cn(
-                        "flex flex-col gap-0.5 rounded-md border border-transparent px-3 py-2 text-left transition-colors duration-150",
+                        "flex flex-col gap-0.5 rounded-md border-[0.5px] border-transparent px-3 py-2 text-left transition-colors duration-150",
                         active
                           ? "border-accent/60 bg-accent/10"
                           : "bg-surface-2 hover:bg-surface-3",
@@ -152,7 +152,7 @@ export function QuestionCard({ status, parentRunId, itemId, questions, answered,
                   onChange={(e) => {
                     setDraft((prev) => setQuestionText(prev, q, e.target.value));
                   }}
-                  className="w-full bg-transparent border-b border-field py-1 text-[16px] text-fg placeholder:text-fg-faint outline-none focus:border-fg"
+                  className="w-full bg-transparent border-b-[0.5px] border-field py-1 text-[16px] text-fg placeholder:text-fg-faint outline-none focus:border-fg"
                 />
               )}
             </div>

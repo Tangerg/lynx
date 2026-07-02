@@ -22,7 +22,7 @@ function ColorRow({
       <span className="relative inline-flex items-center gap-2">
         <span className="font-mono text-[12px] uppercase text-fg">{value}</span>
         <span
-          className="h-4.5 w-4.5 rounded-full border border-field bg-clip-padding"
+          className="h-4.5 w-4.5 rounded-full border-[0.5px] border-field bg-clip-padding"
           style={{ background: value }}
         />
         {/* Hidden native picker — clicking the row opens the OS color wheel. */}

@@ -91,7 +91,7 @@ export function ApprovalArgsEditor({
             }}
             className={cn(
               "w-full resize-y rounded-sm bg-surface px-3 py-2 font-mono text-[12px] text-fg focus:outline-none",
-              invalid ? "border border-negative/60" : "border border-field",
+              invalid ? "border border-negative/60" : "border-[0.5px] border-field",
             )}
           />
           {invalid && (

@@ -35,7 +35,7 @@ function previewTokens(spec: ThemeSpec): { bg: string; surface: string; accent: 
 function ThemeSwatch({ bg, surface, accent }: { bg: string; surface: string; accent: string }) {
   return (
     <span
-      className="relative block h-4 w-6 shrink-0 overflow-hidden rounded-[3px] ring-1 ring-inset ring-white/10 light:ring-black/10"
+      className="relative block h-4 w-6 shrink-0 overflow-hidden rounded-[3px] border-[0.5px] border-white/10 light:border-black/10"
       style={{ background: bg }}
     >
       <span
@@ -53,7 +53,7 @@ function ThemeSwatch({ bg, surface, accent }: { bg: string; surface: string; acc
 // "System" follows the OS appearance (the default) — a split dark/light chip.
 function SystemSwatch() {
   return (
-    <span className="relative block h-4 w-6 shrink-0 overflow-hidden rounded-[3px] ring-1 ring-inset ring-white/10 light:ring-black/10">
+    <span className="relative block h-4 w-6 shrink-0 overflow-hidden rounded-[3px] border-[0.5px] border-white/10 light:border-black/10">
       <span
         className="absolute inset-y-0 left-0 w-1/2"
         style={{ background: FALLBACK_TOKENS.dark.bg }}
@@ -103,7 +103,7 @@ export function ThemeSection() {
     <SettingRow label={t("settings.theme")} sub={t("settings.theme.sub")}>
       <DropdownMenu.Root>
         <DropdownMenu.Trigger
-          className="inline-flex w-fit min-w-[220px] items-center gap-2.5 rounded-md border border-field bg-surface-2 px-3 py-1.5 text-fg transition-colors hover:bg-surface-3 data-[popup-open]:bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+          className="inline-flex w-fit min-w-[220px] items-center gap-2.5 rounded-md border-[0.5px] border-field bg-surface-2 px-3 py-1.5 text-fg transition-colors hover:bg-surface-3 data-[popup-open]:bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
           aria-label={t("settings.theme")}
         >
           {triggerSwatch}

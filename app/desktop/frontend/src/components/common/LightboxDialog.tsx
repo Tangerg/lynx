@@ -30,7 +30,7 @@ export function LightboxDialog({
           aria-describedby={undefined}
           onClick={closeOnContentClick ? () => onOpenChange(false) : undefined}
           className={cn(
-            "fixed inset-0 z-[201] m-auto h-fit w-fit max-h-[90vh] max-w-[min(1400px,95vw)] overflow-auto rounded-lg border-0 bg-surface shadow-[var(--shadow-popover)] outline-none data-[open]:animate-rise-in",
+            "fixed inset-0 z-[201] m-auto h-fit w-fit max-h-[90vh] max-w-[min(1400px,95vw)] overflow-auto rounded-lg border-[0.5px] border-field bg-surface shadow-[var(--shadow-popover)] outline-none data-[open]:animate-rise-in",
             closeOnContentClick && "cursor-zoom-out",
             className,
           )}

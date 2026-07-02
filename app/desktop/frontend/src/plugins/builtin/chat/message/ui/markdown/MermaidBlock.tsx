@@ -119,7 +119,7 @@ export function MermaidBlock({ code }: Props) {
             // affordance. `[&_svg]:` reaches the SVG that
             // dangerouslySetInnerHTML drops in (we can't put utilities on it
             // directly).
-            className="my-3.5 w-full cursor-zoom-in overflow-x-auto rounded-lg border border-[color-mix(in_srgb,var(--color-text)_10%,transparent)] bg-[color-mix(in_srgb,var(--color-text)_3%,transparent)] p-4 text-center transition-colors duration-150 hover:border-[color-mix(in_srgb,var(--color-accent)_30%,transparent)] [&_svg]:h-auto [&_svg]:max-w-full"
+            className="my-3.5 w-full cursor-zoom-in overflow-x-auto rounded-lg border-[0.5px] border-[color-mix(in_srgb,var(--color-text)_10%,transparent)] bg-[color-mix(in_srgb,var(--color-text)_3%,transparent)] p-4 text-center transition-colors duration-150 hover:border-[color-mix(in_srgb,var(--color-accent)_30%,transparent)] [&_svg]:h-auto [&_svg]:max-w-full"
             dangerouslySetInnerHTML={{ __html: svg }}
           />
         }
@@ -138,7 +138,7 @@ export function MermaidBlock({ code }: Props) {
   // the visual transition reads as progressive disclosure rather than a
   // flicker between error / success states.
   return (
-    <pre className="my-3.5 overflow-x-auto whitespace-pre rounded-lg border border-dashed border-[color-mix(in_srgb,var(--color-text)_14%,transparent)] bg-[color-mix(in_srgb,var(--color-text)_2%,transparent)] px-3.5 py-3 font-mono text-[12px] leading-[1.55] text-fg-faint">
+    <pre className="my-3.5 overflow-x-auto whitespace-pre rounded-lg border-[0.5px] border-dashed border-[color-mix(in_srgb,var(--color-text)_14%,transparent)] bg-[color-mix(in_srgb,var(--color-text)_2%,transparent)] px-3.5 py-3 font-mono text-[12px] leading-[1.55] text-fg-faint">
       <code>{code}</code>
     </pre>
   );

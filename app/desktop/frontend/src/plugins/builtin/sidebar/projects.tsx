@@ -67,7 +67,7 @@ function AddProjectInline() {
 
   return (
     <div className="px-3 pb-1.5">
-      <div className="flex items-center gap-1.5 rounded-md border border-field bg-surface-2 px-2 py-1.5">
+      <div className="flex items-center gap-1.5 rounded-md border-[0.5px] border-field bg-surface-2 px-2 py-1.5">
         <Icon name="plus" size={12} className="shrink-0 text-fg-faint" />
         <input
           type="text"

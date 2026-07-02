@@ -76,7 +76,7 @@ function PluginsPane() {
               key={spec.name}
               className={cn(
                 "rounded-lg bg-canvas",
-                errCount > 0 && "border border-[rgba(243,114,127,0.36)]",
+                errCount > 0 && "border-[0.5px] border-[rgba(243,114,127,0.36)]",
               )}
             >
               <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2.5 px-3 py-2.5">

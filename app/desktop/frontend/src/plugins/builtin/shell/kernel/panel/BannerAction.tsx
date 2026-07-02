@@ -38,7 +38,7 @@ export function BannerAction({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "inline-flex h-6 items-center gap-1 rounded-md border px-2 font-sans text-[11.5px] transition-colors",
+        "inline-flex h-6 items-center gap-1 rounded-md border-[0.5px] px-2 font-sans text-[11.5px] transition-colors",
         primary
           ? cn("font-semibold", PRIMARY_TONE[tone])
           : "border-field bg-transparent text-fg-muted hover:bg-surface-2 hover:text-fg",

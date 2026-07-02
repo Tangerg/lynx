@@ -42,7 +42,7 @@ function ModelPicker() {
           <button
             type="button"
             aria-label={t("composer.switchModel")}
-            className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-field bg-transparent pl-1.5 pr-2.5 text-[12px] font-medium text-fg whitespace-nowrap transition-colors hover:bg-surface-2 data-[popup-open]:bg-surface-2"
+            className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border-[0.5px] border-field bg-transparent pl-1.5 pr-2.5 text-[12px] font-medium text-fg whitespace-nowrap transition-colors hover:bg-surface-2 data-[popup-open]:bg-surface-2"
             data-slot="composer-model"
           >
             <ProviderIcon provider={selected.provider} size={16} />

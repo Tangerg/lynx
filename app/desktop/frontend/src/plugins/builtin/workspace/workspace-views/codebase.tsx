@@ -93,7 +93,7 @@ function CodebaseTab() {
             }}
             placeholder={t("codebase.search.placeholder")}
             aria-label={t("codebase.search.placeholder")}
-            className="w-full rounded-md border border-field bg-surface px-2.5 py-1.5 text-[12px] text-fg outline-none placeholder:text-fg-faint focus:border-accent"
+            className="w-full rounded-md border-[0.5px] border-field bg-surface px-2.5 py-1.5 text-[12px] text-fg outline-none placeholder:text-fg-faint focus:border-accent"
           />
           <PillButton
             variant="accent"
