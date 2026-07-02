@@ -1,12 +1,12 @@
-import type { SidebarSession } from "@/lib/data/queries";
 import { useState } from "react";
 import { ContextMenu, Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
 import { formatRelative } from "@/lib/i18n/relativeTime";
 import { cn } from "@/lib/utils";
+import type { WorkSession } from "@/plugins/builtin/navigation/public/workIndex";
 
 interface Props {
-  session: SidebarSession;
+  session: WorkSession;
   active: boolean;
   onSelect: (id: string) => void;
   /** When set, right-click reveals a Rename action (inline title edit). */

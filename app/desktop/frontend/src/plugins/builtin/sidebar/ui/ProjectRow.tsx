@@ -1,7 +1,7 @@
-import type { SidebarProject } from "@/lib/data/queries";
 import { Icon } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
+import type { WorkProject } from "@/plugins/builtin/navigation/public/workIndex";
 
 // Project group header — the folder node of the sidebar tree (Codex-style:
 // one 项目 tree, sessions nested under their project). The row reads as a
@@ -14,13 +14,13 @@ export function ProjectRow({
   onToggle,
   onNewSession,
 }: {
-  project: SidebarProject;
+  project: WorkProject;
   active: boolean;
   open: boolean;
   /** Sessions inside the group — mirrors what expanding will show. */
   count: number;
   onToggle: (id: string) => void;
-  onNewSession: (project: SidebarProject) => void;
+  onNewSession: (project: WorkProject) => void;
 }) {
   const t = useT();
   return (
