@@ -21,8 +21,4 @@ export {
   useWorkspaceFileViewer,
   useWorkspaceSettingsPaneTarget,
 } from "../application/navigation";
-export {
-  closeContextDockView,
-  openContextDockView,
-  useActiveContextDockViewId,
-} from "../application/contextDock";
+export { closeContextDockView, openContextDockView } from "../application/contextDock";

@@ -5,7 +5,6 @@ import {
   useActiveSessionId,
   useVisibleAgentSessions,
 } from "@/plugins/builtin/agent/public/session";
-import { useActiveContextDockViewId } from "@/plugins/builtin/workspace/public/navigation";
 import type { WorkIndex } from "../domain/workIndex";
 import { buildRecentWorkSessions, buildWorkIndexGroups } from "./buildWorkIndex";
 
@@ -22,7 +21,6 @@ export function useWorkIndex({
   const sessions = useVisibleAgentSessions();
   const activeSessionId = useActiveSessionId();
   const activeCwd = useActiveSessionCwd();
-  const activeContextDockViewId = useActiveContextDockViewId();
 
   const groups = useMemo(
     () =>
@@ -43,7 +41,6 @@ export function useWorkIndex({
     recentSessions,
     activeSessionId,
     activeCwd,
-    activeContextDockViewId,
     isLoading: projects.isLoading && !groups,
     isError: projects.isError && !groups,
   };
