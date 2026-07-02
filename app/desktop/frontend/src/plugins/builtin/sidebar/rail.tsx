@@ -4,33 +4,23 @@
 // the expanded sidebar and only with each other.
 
 import { Icon, IconButton } from "@/components/common";
-import { selectAgentSession, useCreateSession } from "@/plugins/builtin/agent/public/session";
-import { useRecentWorkSessions } from "@/plugins/builtin/navigation/public/workIndex";
 import {
-  openContextDockView,
-  openWorkspaceView,
-} from "@/plugins/builtin/workspace/public/navigation";
+  useRecentWorkSessions,
+  useWorkIndexActions,
+} from "@/plugins/builtin/navigation/public/workIndex";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { WORK_INDEX_ITEM } from "@/plugins/sdk/kernelPoints";
 
-// Open a workspace view in the main pane (mirrors the expanded sidebar's
-// footer gear / Tools entry). getState() in the handler — no subscription.
-const openView = (id: string, title: string, icon: string) =>
-  openWorkspaceView({ id, title, icon });
-
-const openDockView = (id: string, title: string, icon: string) =>
-  openContextDockView({ id, title, icon });
-
 function NewSessionBtn() {
   const t = useT();
-  const createSession = useCreateSession();
+  const actions = useWorkIndexActions();
   return (
     <IconButton
       variant="rail-primary"
       title={t("sidebar.action.newSession")}
-      onClick={() => void createSession()}
+      onClick={actions.createSession}
     >
       <Icon name="plus" size={16} />
     </IconButton>
@@ -53,6 +43,7 @@ export const sidebarRailNewSession = definePlugin({
 
 function RailSessions() {
   const { activeSessionId, recentSessions } = useRecentWorkSessions(5);
+  const actions = useWorkIndexActions();
 
   return (
     <>
@@ -65,7 +56,7 @@ function RailSessions() {
             key={s.id}
             type="button"
             title={s.title}
-            onClick={() => selectAgentSession(s.id)}
+            onClick={() => actions.selectSession(s.id)}
             className={cn(
               "relative grid h-10 w-10 place-items-center rounded-md border-0 font-sans text-[13px] font-medium transition-[background-color,color,transform] duration-75",
               "text-fg-muted hover:bg-fg/[0.02] hover:text-fg",
@@ -109,11 +100,12 @@ function RailSpacer() {
 
 function RailContext() {
   const t = useT();
+  const actions = useWorkIndexActions();
   return (
     <IconButton
       variant="rail"
       title={t("workspace.view.title.context")}
-      onClick={() => openDockView("context", "workspace.view.title.context", "panel-r")}
+      onClick={actions.openContextDock}
     >
       <Icon name="panel-r" size={16} />
     </IconButton>
@@ -122,11 +114,12 @@ function RailContext() {
 
 function RailSettings() {
   const t = useT();
+  const actions = useWorkIndexActions();
   return (
     <IconButton
       variant="rail"
       title={t("sidebar.action.settings")}
-      onClick={() => openView("settings", t("settings.title"), "settings")}
+      onClick={() => actions.openSettings(t("settings.title"))}
     >
       <Icon name="settings" size={16} />
     </IconButton>

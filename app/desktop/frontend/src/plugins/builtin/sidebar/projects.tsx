@@ -3,16 +3,8 @@ import { DataView, FIELD_CLASSES, Icon, SectionLabel } from "@/components/common
 import { ProjectRow } from "./ui/ProjectRow";
 import { SessionRow } from "./ui/SessionRow";
 import { useT } from "@/lib/i18n";
-import {
-  selectAgentSession,
-  useCreateSession,
-  useDeleteSession,
-  useForkSession,
-  useRenameSession,
-  useToggleFavorite,
-} from "@/plugins/builtin/agent/public/session";
 import type { WorkGroup, WorkProject } from "@/plugins/builtin/navigation/public/workIndex";
-import { useWorkIndex } from "@/plugins/builtin/navigation/public/workIndex";
+import { useWorkIndex, useWorkIndexActions } from "@/plugins/builtin/navigation/public/workIndex";
 import { cn } from "@/lib/utils";
 import { definePlugin } from "@/plugins/sdk";
 import { WORK_INDEX_ITEM } from "@/plugins/sdk/kernelPoints";
@@ -24,16 +16,15 @@ const VISIBLE_CAP = 5;
 
 // Create a session in a chosen directory. Projects are derived from session
 // cwds, so the input asks for the real aggregate identity: the folder path.
-function NewSessionInFolderInline() {
+function NewSessionInFolderInline({ onSubmit }: { onSubmit: (cwd: string) => void }) {
   const t = useT();
-  const createSession = useCreateSession();
   const [path, setPath] = useState("");
 
   const submit = (): void => {
     const cwd = path.trim();
     if (!cwd) return;
     setPath("");
-    void createSession({ cwd });
+    onSubmit(cwd);
   };
 
   return (
@@ -137,20 +128,16 @@ function ProjectGroupNode({
 function ProjectsSection() {
   const t = useT();
   const workIndex = useWorkIndex({ fallbackProjectName: t("projects.fallbackName") });
-  const createSession = useCreateSession();
-  const deleteSession = useDeleteSession();
-  const forkSession = useForkSession();
-  const renameSession = useRenameSession();
-  const toggleFavorite = useToggleFavorite();
+  const actions = useWorkIndexActions();
 
   const startSessionInFolder = (project: WorkProject): void => {
-    void createSession({ cwd: project.id });
+    actions.startSessionInFolder(project.id);
   };
 
   return (
     <>
       <SectionLabel>{t("workIndex.section.projects")}</SectionLabel>
-      <NewSessionInFolderInline />
+      <NewSessionInFolderInline onSubmit={actions.startSessionInFolder} />
       <DataView
         items={workIndex.groups}
         isLoading={workIndex.isLoading}
@@ -172,11 +159,11 @@ function ProjectsSection() {
                 activeCwd={workIndex.activeCwd}
                 activeSessionId={workIndex.activeSessionId}
                 onNewSession={startSessionInFolder}
-                onSelect={selectAgentSession}
-                onRename={(id, title) => void renameSession(id, title)}
-                onFork={forkSession}
-                onDelete={deleteSession}
-                onToggleFavorite={(id, fav) => void toggleFavorite(id, fav)}
+                onSelect={actions.selectSession}
+                onRename={actions.renameSession}
+                onFork={actions.forkSession}
+                onDelete={actions.deleteSession}
+                onToggleFavorite={actions.toggleFavorite}
               />
             ))}
           </div>
