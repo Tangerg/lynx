@@ -310,20 +310,21 @@
   --polish-med: var(--dur-med) var(--ease-out);
 
   /* -----------------------------------------------------------------------
-   *  Shadow system — reserved for genuinely-floating elements (JetBrains
-   *  New UI model): tiled/docked regions + in-flow cards separate by the
-   *  surface-ladder background delta, never by shadow. So there is no card
-   *  `surface` shadow — only:
-   *  composer: the input, which floats over the scrolling stream
-   *  popover: dropdown / modal / command palette
+   *  Shadow system — DESKTOP_UI_POLISH.md §1 three-layer model: edge ring
+   *  (1px optical boundary, layer 1 — a shadow-ring, not a CSS border) +
+   *  contact + ambient. Reserved for genuinely-floating elements only
+   *  (JetBrains model): tiled/docked regions + in-flow cards separate by the
+   *  surface-ladder background delta, never by shadow — so there is no card
+   *  `surface` shadow, only:
+   *  composer: the input, which floats over the scrolling stream (strong lift)
+   *  popover: dropdown / modal / command palette (standard lift)
    *  focus: quiet focus ring, no glow halo
+   *  (first-paint defaults; the theme kit re-emits these at runtime.)
    * ----------------------------------------------------------------------- */
   --shadow-composer:
-    0 1px 3px rgba(0, 0, 0, 0.3), 0 8px 24px -6px rgba(0, 0, 0, 0.45),
-    0 24px 56px -12px rgba(0, 0, 0, 0.55);
+    0 0 0 1px rgb(255 255 255 / 0.08), 0 1px 2px rgb(0 0 0 / 0.4), 0 18px 48px rgb(0 0 0 / 0.55);
   --shadow-popover:
-    0 0 0 1px rgba(255, 255, 255, 0.1), 0 1px 2px rgba(0, 0, 0, 0.36),
-    0 12px 32px rgba(0, 0, 0, 0.44);
+    0 0 0 1px rgb(255 255 255 / 0.08), 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.5);
   --shadow-focus: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent);
 
   /* Content max-width — the centered reading island (REDESIGN.md §3.4). */
@@ -529,8 +530,7 @@ html.theme-light .panel {
 
 html.theme-light {
   --shadow-composer:
-    0 1px 3px rgb(15 23 42 / 0.05), 0 8px 24px -6px rgb(15 23 42 / 0.1),
-    0 24px 56px -16px rgb(15 23 42 / 0.12);
+    0 0 0 1px rgb(15 23 42 / 0.08), 0 1px 2px rgb(15 23 42 / 0.06), 0 18px 48px rgb(15 23 42 / 0.14);
   --shadow-popover:
     0 0 0 1px rgb(15 23 42 / 0.08), 0 1px 2px rgb(15 23 42 / 0.06), 0 8px 24px rgb(15 23 42 / 0.1);
 }

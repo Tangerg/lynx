@@ -9,26 +9,31 @@ import type { ThemeCta, ThemePluginSpec, ThemeRadii, ThemeShadows } from "./type
 
 // Default shadow + radii ladders
 
-// Shadows are reserved for genuinely-floating elements (JetBrains New UI
-// model): tiled/docked regions and in-flow cards separate by surface-ladder
-// background delta, never by shadow. So the ladder is composer (the one
-// input that floats over the scrolling stream) + popover (dropdowns / command
-// palette / dialogs) + focus. There is deliberately no `surface` card shadow.
+// Elevation shadows follow DESKTOP_UI_POLISH.md §1's three-layer model:
+//   1. edge ring — a 1px optical boundary as the FIRST layer (the floating
+//      surface's edge; a shadow-ring, NOT a cheap CSS border);
+//   2. contact — a tiny near shadow (surface touches the background);
+//   3. ambient — a wide low-alpha falloff (elevation without a muddy border).
+// Reserved for genuinely-floating elements only (JetBrains model): tiled/docked
+// regions + in-flow cards separate by surface-ladder background delta, never by
+// shadow — so there is no `surface` card shadow, only composer (the input that
+// floats over the scrolling stream) + popover (dropdowns / palette / dialogs).
+// On dark the edge ring is white and the depth layers near-black (a light
+// ambient can't show on a dark canvas); on light, the doc's slate values.
 export const DARK_SHADOWS: ThemeShadows = {
-  // Ringless premium lift — no hard 1px hairline (that read as a border). The
-  // composer separates from the canvas by its bg-surface fill; the shadow only
-  // adds depth. Its focus-within ring is applied at the callsite, not here.
+  // Stronger lift (doc §1 "stronger lifted surface").
   composer:
-    "0 1px 3px rgba(0, 0, 0, 0.3), 0 8px 24px -6px rgba(0, 0, 0, 0.45), 0 24px 56px -12px rgba(0, 0, 0, 0.55)",
+    "0 0 0 1px rgb(255 255 255 / 0.08), 0 1px 2px rgb(0 0 0 / 0.4), 0 18px 48px rgb(0 0 0 / 0.55)",
   popover:
-    "0 0 0 1px rgba(255, 255, 255, 0.1), 0 1px 2px rgba(0, 0, 0, 0.36), 0 12px 32px rgba(0, 0, 0, 0.44)",
+    "0 0 0 1px rgb(255 255 255 / 0.08), 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.5)",
   // Geist two-layer focus ring: 2px gap in surface color + 2px accent.
   focus: "0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent)",
 };
 
 export const LIGHT_SHADOWS: ThemeShadows = {
+  // Doc §1 verbatim: ring + contact + wide ambient (stronger for the composer).
   composer:
-    "0 1px 3px rgb(15 23 42 / 0.05), 0 8px 24px -6px rgb(15 23 42 / 0.1), 0 24px 56px -16px rgb(15 23 42 / 0.12)",
+    "0 0 0 1px rgb(15 23 42 / 0.08), 0 1px 2px rgb(15 23 42 / 0.06), 0 18px 48px rgb(15 23 42 / 0.14)",
   popover:
     "0 0 0 1px rgb(15 23 42 / 0.08), 0 1px 2px rgb(15 23 42 / 0.06), 0 8px 24px rgb(15 23 42 / 0.1)",
   focus: "0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent)",
