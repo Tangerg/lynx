@@ -1,6 +1,7 @@
 // Sidebar footer — pinned at the bottom of the expanded sidebar. Renders the
 // Tools/MCP and Settings buttons as plugin-contributed rail items so they stay
 // reachable regardless of how many sessions/projects are in the scroll area.
+import { AnimatePresence, motion } from "motion/react";
 import { Icon, noDragClasses } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
@@ -25,7 +26,21 @@ function ThemeToggle() {
       aria-label={isLight ? "Switch to dark" : "Switch to light"}
       className={userActionClasses}
     >
-      <Icon name={isLight ? "moon" : "sun"} size={14} />
+      {/* §7 contextual icon swap — cross-fade the sun/moon instead of a hard
+          cut (scale/opacity/blur, spring bounce:0); initial={false} so it
+          doesn't animate on first paint, only on toggle. */}
+      <AnimatePresence initial={false} mode="popLayout">
+        <motion.span
+          key={isLight ? "moon" : "sun"}
+          className="grid place-items-center"
+          initial={{ opacity: 0, scale: 0.25, filter: "blur(4px)" }}
+          animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+          exit={{ opacity: 0, scale: 0.25, filter: "blur(4px)" }}
+          transition={{ type: "spring", duration: 0.3, bounce: 0 }}
+        >
+          <Icon name={isLight ? "moon" : "sun"} size={14} />
+        </motion.span>
+      </AnimatePresence>
     </button>
   );
 }

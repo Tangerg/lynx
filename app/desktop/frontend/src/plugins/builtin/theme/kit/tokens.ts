@@ -15,8 +15,11 @@ import type { ThemeCta, ThemePluginSpec, ThemeRadii, ThemeShadows } from "./type
 // input that floats over the scrolling stream) + popover (dropdowns / command
 // palette / dialogs) + focus. There is deliberately no `surface` card shadow.
 export const DARK_SHADOWS: ThemeShadows = {
+  // Ringless premium lift — no hard 1px hairline (that read as a border). The
+  // composer separates from the canvas by its bg-surface fill; the shadow only
+  // adds depth. Its focus-within ring is applied at the callsite, not here.
   composer:
-    "0 0 0 1px rgba(255, 255, 255, 0.08), 0 1px 2px rgba(0, 0, 0, 0.36), 0 18px 48px rgba(0, 0, 0, 0.42)",
+    "0 1px 3px rgba(0, 0, 0, 0.3), 0 8px 24px -6px rgba(0, 0, 0, 0.45), 0 24px 56px -12px rgba(0, 0, 0, 0.55)",
   popover:
     "0 0 0 1px rgba(255, 255, 255, 0.1), 0 1px 2px rgba(0, 0, 0, 0.36), 0 12px 32px rgba(0, 0, 0, 0.44)",
   // Geist two-layer focus ring: 2px gap in surface color + 2px accent.
@@ -25,7 +28,7 @@ export const DARK_SHADOWS: ThemeShadows = {
 
 export const LIGHT_SHADOWS: ThemeShadows = {
   composer:
-    "0 0 0 1px rgb(15 23 42 / 0.08), 0 1px 2px rgb(15 23 42 / 0.06), 0 18px 48px rgb(15 23 42 / 0.12)",
+    "0 1px 3px rgb(15 23 42 / 0.05), 0 8px 24px -6px rgb(15 23 42 / 0.1), 0 24px 56px -16px rgb(15 23 42 / 0.12)",
   popover:
     "0 0 0 1px rgb(15 23 42 / 0.08), 0 1px 2px rgb(15 23 42 / 0.06), 0 8px 24px rgb(15 23 42 / 0.1)",
   focus: "0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent)",

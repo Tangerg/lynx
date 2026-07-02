@@ -1,20 +1,20 @@
-// Theme picker. Rows come from the live theme registry — adding a
-// theme plugin makes it show up here with no further wiring.
+// Theme picker. Options come from the live theme registry — adding a theme
+// plugin makes it show up here with no further wiring. Rendered as a compact
+// dropdown (mirrors Language / Font) rather than a card grid: a dozen-plus
+// themes stacked as big cards ate the whole pane, and a select with a mini
+// preview swatch per row scales without the clutter.
 
 import type { ReactNode } from "react";
-import type { IconName } from "@/components/common";
 import type { ThemeSpec } from "@/plugins/sdk";
-import { Icon } from "@/components/common";
+import { DropdownMenu, Icon } from "@/components/common";
 import { useT } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
 import { THEME, useExtensionPoint } from "@/plugins/sdk";
+import { SettingRow } from "../../SettingRow";
 import { useThemePreference } from "../application/appearancePreferences";
 
-// Fallback hexes for previewing themes that didn't ship a `tokens` map.
-// Match the built-in dark palette so the preview never goes blank.
-// Typed as a concrete `Record<"dark" | "light", ...>` so indexed access
-// returns the inner object as a typed struct (not Record<string,string>,
-// which under noUncheckedIndexedAccess returns string | undefined).
+// Fallback hexes for previewing themes that didn't ship a `tokens` map, and
+// for the split "System" swatch. Match the built-in palette so a preview never
+// goes blank.
 const FALLBACK_TOKENS: Record<"dark" | "light", { bg: string; surface: string; accent: string }> = {
   dark: { bg: "#0c0d0f", surface: "#16181b", accent: "#6c97ff" },
   light: { bg: "#ffffff", surface: "#f6f7f8", accent: "#2563eb" },
@@ -29,110 +29,60 @@ function previewTokens(spec: ThemeSpec): { bg: string; surface: string; accent: 
   };
 }
 
-// Shared shell for a theme-option row — both the registered presets and the
-// "System" option are the same control (preview swatch · label · scheme tag ·
-// check), so the shell lives here once; only `preview` + `sub` vary.
-function ThemeOption({
+// A ~24×16 chip that reads as a miniature window: canvas + a lifted surface
+// pane + an accent dot. Edge is a neutral inset ring (follows the radius,
+// unlike a border) so it reads on any swatch colour, light or dark.
+function ThemeSwatch({ bg, surface, accent }: { bg: string; surface: string; accent: string }) {
+  return (
+    <span
+      className="relative block h-4 w-6 shrink-0 overflow-hidden rounded-[3px] ring-1 ring-inset ring-white/10 light:ring-black/10"
+      style={{ background: bg }}
+    >
+      <span
+        className="absolute inset-x-[3px] top-[3px] bottom-[2px] rounded-[1.5px]"
+        style={{ background: surface }}
+      />
+      <span
+        className="absolute bottom-[2px] right-[2px] h-1 w-1 rounded-full"
+        style={{ background: accent }}
+      />
+    </span>
+  );
+}
+
+// "System" follows the OS appearance (the default) — a split dark/light chip.
+function SystemSwatch() {
+  return (
+    <span className="relative block h-4 w-6 shrink-0 overflow-hidden rounded-[3px] ring-1 ring-inset ring-white/10 light:ring-black/10">
+      <span
+        className="absolute inset-y-0 left-0 w-1/2"
+        style={{ background: FALLBACK_TOKENS.dark.bg }}
+      />
+      <span
+        className="absolute inset-y-0 right-0 w-1/2"
+        style={{ background: FALLBACK_TOKENS.light.bg }}
+      />
+    </span>
+  );
+}
+
+function ThemeItem({
+  swatch,
+  label,
   active,
   onSelect,
-  preview,
-  label,
-  sub,
 }: {
+  swatch: ReactNode;
+  label: string;
   active: boolean;
   onSelect: () => void;
-  preview: ReactNode;
-  label: string;
-  sub: ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={active}
-      className={cn(
-        "grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 rounded-md bg-surface px-3 py-2.5 text-left transition-[background,border-color] duration-150 hover:bg-surface-2",
-        active && "bg-surface-2 border-accent",
-      )}
-    >
-      <div className="relative h-8 w-12 shrink-0 overflow-hidden rounded-sm border border-field">
-        {preview}
-      </div>
-      <div className="grid min-w-0 gap-0.5">
-        <div className="truncate text-[14px] font-semibold leading-[1.2] text-fg">{label}</div>
-        {sub}
-      </div>
-      {active && <Icon name="check" size={14} className="shrink-0 text-accent" />}
-    </button>
-  );
-}
-
-// The scheme tag under a theme option — mono (a technical scheme label).
-function OptionSub({ icon, children }: { icon: IconName; children: ReactNode }) {
-  return (
-    <div className="inline-flex items-center gap-1 font-mono text-[11px] tracking-normal text-fg-faint">
-      <Icon name={icon} size={10} className="shrink-0" />
-      {children}
-    </div>
-  );
-}
-
-function ThemeRow({
-  spec,
-  active,
-  onSelect,
-}: {
-  spec: ThemeSpec;
-  active: boolean;
-  onSelect: (id: string) => void;
-}) {
-  const preview = previewTokens(spec);
-  return (
-    <ThemeOption
-      active={active}
-      onSelect={() => onSelect(spec.id)}
-      label={spec.label}
-      sub={<OptionSub icon={spec.scheme === "dark" ? "moon" : "sun"}>{spec.scheme}</OptionSub>}
-      preview={
-        <>
-          <div className="absolute inset-0" style={{ background: preview.bg }} />
-          <div
-            className="absolute inset-x-2 top-2 bottom-1 rounded-[2px]"
-            style={{ background: preview.surface }}
-          />
-          <div
-            className="absolute right-1 bottom-1 h-1.5 w-1.5 rounded-full"
-            style={{ background: preview.accent }}
-          />
-        </>
-      }
-    />
-  );
-}
-
-// "System" follows the OS appearance (the default). Not a registered THEME
-// spec, so it renders here with a split dark/light preview.
-function SystemRow({ active, onSelect }: { active: boolean; onSelect: () => void }) {
-  const t = useT();
-  return (
-    <ThemeOption
-      active={active}
-      onSelect={onSelect}
-      label={t("settings.theme.system")}
-      sub={<OptionSub icon="settings">{t("settings.theme.systemSub")}</OptionSub>}
-      preview={
-        <>
-          <div
-            className="absolute inset-y-0 left-0 w-1/2"
-            style={{ background: FALLBACK_TOKENS.dark.bg }}
-          />
-          <div
-            className="absolute inset-y-0 right-0 w-1/2"
-            style={{ background: FALLBACK_TOKENS.light.bg }}
-          />
-        </>
-      }
-    />
+    <DropdownMenu.Item className="grid-cols-[24px_minmax(0,1fr)_14px]" onClick={onSelect}>
+      {swatch}
+      <span className="truncate text-[13px] text-fg">{label}</span>
+      {active ? <Icon name="check" size={13} className="text-accent" /> : <span aria-hidden />}
+    </DropdownMenu.Item>
   );
 }
 
@@ -141,20 +91,47 @@ export function ThemeSection() {
   const themes = useExtensionPoint(THEME);
   const { theme, setTheme } = useThemePreference();
 
+  const isSystem = theme === "system";
+  const activeSpec = themes.find((s) => s.id === theme);
+  // A persisted id that no longer resolves (e.g. a removed theme) falls back
+  // to System rather than showing a blank trigger.
+  const triggerLabel = isSystem || !activeSpec ? t("settings.theme.system") : activeSpec.label;
+  const triggerSwatch =
+    isSystem || !activeSpec ? <SystemSwatch /> : <ThemeSwatch {...previewTokens(activeSpec)} />;
+
   return (
-    // Full-width block (label on top, grid below) — the theme grid
-    // needs more horizontal room than the standard 140px+1fr row.
-    <div className="grid items-stretch gap-3 py-3">
-      <div>
-        <div className="text-[16px] font-semibold text-fg">{t("settings.theme")}</div>
-        <div className="mt-0.5 text-[13px] text-fg-muted">{t("settings.theme.sub")}</div>
-      </div>
-      <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
-        <SystemRow active={theme === "system"} onSelect={() => setTheme("system")} />
-        {themes.map((spec) => (
-          <ThemeRow key={spec.id} spec={spec} active={theme === spec.id} onSelect={setTheme} />
-        ))}
-      </div>
-    </div>
+    <SettingRow label={t("settings.theme")} sub={t("settings.theme.sub")}>
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger
+          className="inline-flex w-fit min-w-[220px] items-center gap-2.5 rounded-md border border-field bg-surface-2 px-3 py-1.5 text-fg transition-colors hover:bg-surface-3 data-[popup-open]:bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+          aria-label={t("settings.theme")}
+        >
+          {triggerSwatch}
+          <span className="flex-1 truncate text-left text-[13px] font-medium">{triggerLabel}</span>
+          <Icon name="more" size={11} className="-rotate-90 text-fg-faint" />
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Content
+          align="start"
+          sideOffset={4}
+          className="max-h-[min(60vh,380px)] min-w-[240px] overflow-y-auto"
+        >
+          <ThemeItem
+            swatch={<SystemSwatch />}
+            label={t("settings.theme.system")}
+            active={isSystem}
+            onSelect={() => setTheme("system")}
+          />
+          {themes.map((spec) => (
+            <ThemeItem
+              key={spec.id}
+              swatch={<ThemeSwatch {...previewTokens(spec)} />}
+              label={spec.label}
+              active={theme === spec.id}
+              onSelect={() => setTheme(spec.id)}
+            />
+          ))}
+        </DropdownMenu.Content>
+      </DropdownMenu.Root>
+    </SettingRow>
   );
 }
