@@ -67,10 +67,10 @@ function RailSessions() {
             <span className="font-sans text-[14px] font-medium">
               {s.title.slice(0, 1).toUpperCase()}
             </span>
-            {s.status === "running" && (
+            {s.attention === "running" && (
               <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-accent shadow-[0_0_6px_var(--color-accent)] animate-pulse-dot" />
             )}
-            {s.status === "waiting" && (
+            {s.attention === "waiting" && (
               <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-warning shadow-[0_0_6px_var(--color-warning)]" />
             )}
           </button>

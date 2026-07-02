@@ -18,11 +18,17 @@ function compareProjectSession(a: SidebarSession, b: SidebarSession): number {
   return compareTimeDesc(a, b);
 }
 
+function toWorkSessionAttention(session: SidebarSession): WorkSession["attention"] {
+  if (session.status === "running") return "running";
+  if (session.status === "waiting") return "waiting";
+  return "none";
+}
+
 function toWorkSession(session: SidebarSession): WorkSession {
   return {
     id: session.id,
     title: session.title,
-    status: session.status,
+    attention: toWorkSessionAttention(session),
     model: session.model,
     cwd: session.cwd,
     cwdMissing: session.cwdMissing,
