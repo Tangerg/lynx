@@ -371,13 +371,14 @@ svg {
    inset edge so they read as deliberate surfaces, not raw bitmaps bleeding
    into the canvas. Pure white on dark / pure black on light — never a tinted
    neutral, which would pick up the surface hue and read as dirt on the edge.
-   Inset offset adds no layout size. Scoped to `.msg-content` so rounded
-   avatars / UI glyphs (rendered as SVG or `rounded-full`) aren't boxed. */
-.msg-content img {
+   Inset offset adds no layout size. Scoped to bare markdown `<img>` (no class):
+   image *cards* (ImageBlock) carry their own inset `ring`, which — unlike
+   `outline` — follows their rounded corners, so we must not double-edge them. */
+.msg-content img:not([class]) {
   outline: 1px solid rgba(255, 255, 255, 0.1);
   outline-offset: -1px;
 }
-html.theme-light .msg-content img {
+html.theme-light .msg-content img:not([class]) {
   outline-color: rgba(0, 0, 0, 0.1);
 }
 body {

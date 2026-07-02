@@ -166,7 +166,7 @@ function SourceChips({ source }: { source: AttachmentSource }) {
 function ImageThumb({ image, onRemove }: { image: ComposerImage; onRemove: () => void }) {
   const t = useT();
   return (
-    <div className="group relative h-14 w-14 overflow-hidden rounded-md border border-line-soft">
+    <div className="group relative h-14 w-14 overflow-hidden rounded-md ring-1 ring-inset ring-white/10 light:ring-black/10">
       <img
         src={`data:${image.mime};base64,${image.data}`}
         alt={image.name ?? ""}
