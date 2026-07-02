@@ -377,13 +377,13 @@ Zustand store 不是业务层。它可以承担：
 
 ## 10. 下一步推荐切口
 
-> 状态（2026-07-02）：切口 1–4 已大体落地——agent 的 HITL/approval/question presentation 已分层（`agent/presentation/*Presentation.ts`）、composer public ports 就位、workspace tool routing 收口、settings 面板目录化（含 `settings/approvals` 收敛进 `ui/`）。剩下的仍值得做的是 5；sidebar 导航暂停等新模型（见第 6 条）。
+> 状态（2026-07-02）：切口 1–5 已落地——agent 的 HITL/approval/question presentation 已分层（`agent/presentation/*Presentation.ts`）、composer public ports 就位、workspace tool routing 收口、settings 面板全部目录化（`index + ui/ + application`）、agent view model 拆成 facade + SDK 类型。下一阶段的主线是**导航模型重建**（第 6 条），不再做泛重构。
 
 按收益和风险排序：
 
 1. ✅ **HITL / Approval / Question**（已落地）：agent context 的 presentation 分层完成；settings 侧的 approvals 面板也已收敛为 `index.tsx` 注册 + `ui/`。
 2. ✅ **Composer Draft / SendIntent**（已落地）：composer 与 agent 的 public port 协作已建立。
 3. ✅ **Workspace tool routing / view model**（已落地）：tool → terminal/diff/timeline 的规则已从 UI/store 收口。
-4. ✅ **Settings configuration drafts**（大体落地）：MCP/schedule/hooks/provider/approvals form 已从 RPC shape 解耦、面板目录化。
-5. **Agent view model 深拆**（仍推荐）：业务消费入口已收敛到 `agent/public/viewState`；下一步是把 SDK 的内容块扩展契约与 agent 会话视图模型彻底分文件。
-6. **Sidebar 导航（暂停，等新导航模型）**：当前 project/session tree 是旧导航模型；等新导航模型定案后单独开一轮**重建**，不基于旧树做 domain 深抽象。
+4. ✅ **Settings configuration drafts**（已落地）：MCP/schedule/hooks/provider/approvals/connection/usage/plugins form 已从 RPC shape 解耦、每个面板 `index + ui/ + application`。
+5. ✅ **Agent view model 深拆**（已落地）：`agent/public/viewState.ts` 已是 ~30 行 facade，SDK 的内容块扩展契约与会话视图模型已分文件（`plugins/sdk/types/contentBlock.ts` + `plugins/sdk/types/agentView.ts`）。
+6. **导航模型重建（下一阶段主线，设计待确认后再动）**：当前 `sidebar/projects.tsx` 的 project/session tree 是**旧导航模型**——虽然厚，但不要在它上面做 domain 深抽象（否则把旧模型固化成新债）。方向：新建 `plugins/builtin/navigation` bounded context（domain/application/presentation/public），消费 `agent/public/session` + `workspace/public/navigation` + settings route/command 等 public surface，产出 `NavigationTree` read model；`sidebar/` 退成纯 UI 消费者（读 `navigation/public/tree`、触发 `navigation/public/actions`）。这是「重建模型」不是「整理旧树」，先出接口草案、经确认后再开工。
