@@ -350,6 +350,17 @@ Context Dock state 必须能回答：
 - 拆出 session/cwd-scoped context dock state。
 - 去掉靠切 session 清空全局 workspace patch 的长期依赖。
 
+首批已落地：
+
+- Context Dock 的 `splitViewId`、`activeFile`、`fileViewer`、`selectedToolId`、`expandedToolIds` 已按 active session scope 保存/恢复。
+- 切换 session 会保存离开的 dock scope，恢复进入的 dock scope；没有保存过的 session 使用空 scope。
+- 关闭 session 后会清理不再打开的 dock scope。
+
+仍待推进：
+
+- 将 app-global surface state 与 session-scoped dock state 从同一个 store 物理拆开。
+- 后续如需 cwd 级共享，再在 workspace application 层显式引入 `sessionId -> cwd` 的归属规则。
+
 验收：
 
 - 每个 session 能恢复自己的 dock 状态。

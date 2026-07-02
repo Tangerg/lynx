@@ -11,15 +11,20 @@ interface WorkspaceFileViewer {
   line: number;
 }
 
-interface WorkspaceNavigationState {
-  mainViewTabs: MainViewTab[];
-  activeMainView: string | null;
-  settingsPane: string | null;
+interface WorkspaceSessionScope {
   splitViewId: string | null;
   activeFile: string;
   fileViewer: WorkspaceFileViewer | null;
   selectedToolId: string;
   expandedToolIds: Set<string>;
+}
+
+interface WorkspaceNavigationState extends WorkspaceSessionScope {
+  mainViewTabs: MainViewTab[];
+  activeMainView: string | null;
+  settingsPane: string | null;
+  activeSessionScopeId: string;
+  sessionScopes: Map<string, WorkspaceSessionScope>;
 }
 
 interface WorkspaceNavigationActions {
@@ -34,10 +39,11 @@ interface WorkspaceNavigationActions {
   openFileViewer: (path: string, line?: number) => void;
   setSelectedToolId: (id: string) => void;
   toggleExpandedTool: (id: string) => void;
-  clearSessionScopedState: () => void;
+  activateSessionScope: (sessionId: string) => void;
+  forgetSessionScopes: (openSessionIds: string[]) => void;
 }
 
-function sessionScopedWorkspacePatch() {
+function emptySessionScope(): WorkspaceSessionScope {
   return {
     activeFile: "",
     fileViewer: null,
@@ -47,12 +53,35 @@ function sessionScopedWorkspacePatch() {
   };
 }
 
+function cloneSessionScope(scope: WorkspaceSessionScope): WorkspaceSessionScope {
+  return {
+    activeFile: scope.activeFile,
+    fileViewer: scope.fileViewer ? { ...scope.fileViewer } : null,
+    selectedToolId: scope.selectedToolId,
+    expandedToolIds: new Set(scope.expandedToolIds),
+    splitViewId: scope.splitViewId,
+  };
+}
+
+function currentSessionScope(state: WorkspaceNavigationState): WorkspaceSessionScope {
+  return cloneSessionScope(state);
+}
+
+function saveCurrentSessionScope(state: WorkspaceNavigationState) {
+  const scopes = new Map(state.sessionScopes);
+  if (state.activeSessionScopeId)
+    scopes.set(state.activeSessionScopeId, currentSessionScope(state));
+  return scopes;
+}
+
 export const useWorkspaceNavigationStore = create<
   WorkspaceNavigationState & WorkspaceNavigationActions
 >((set, get) => ({
   mainViewTabs: [],
   activeMainView: null,
   settingsPane: null,
+  activeSessionScopeId: "",
+  sessionScopes: new Map<string, WorkspaceSessionScope>(),
   splitViewId: null,
   activeFile: "",
   fileViewer: null,
@@ -105,5 +134,24 @@ export const useWorkspaceNavigationStore = create<
     else next.add(id);
     set({ expandedToolIds: next });
   },
-  clearSessionScopedState: () => set(sessionScopedWorkspacePatch()),
+  activateSessionScope: (sessionId) =>
+    set((state) => {
+      if (state.activeSessionScopeId === sessionId) return {};
+      const sessionScopes = saveCurrentSessionScope(state);
+      const nextScope = sessionId ? sessionScopes.get(sessionId) : undefined;
+      return {
+        activeSessionScopeId: sessionId,
+        sessionScopes,
+        ...cloneSessionScope(nextScope ?? emptySessionScope()),
+      };
+    }),
+  forgetSessionScopes: (openSessionIds) =>
+    set((state) => {
+      const open = new Set(openSessionIds);
+      const sessionScopes = new Map<string, WorkspaceSessionScope>();
+      for (const [sessionId, scope] of state.sessionScopes) {
+        if (open.has(sessionId)) sessionScopes.set(sessionId, scope);
+      }
+      return { sessionScopes };
+    }),
 }));

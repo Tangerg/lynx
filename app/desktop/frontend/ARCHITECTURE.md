@@ -718,6 +718,11 @@ declare module "@/plugins/sdk/types/contentBlock" {
 **现状**：`workspace/application/contextDock.ts` 已把“打开当前工作材料”建模成 Context Dock intent，内部复用现有 split view；右侧 handle 打开 `context` launcher，左侧顶级 workspace menu 已移除，search / active-session destinations 都通过 `openContextDockView` 打开到右侧，不再抢占 Agent Narrative 的 full view。Context Dock 的可达入口由 `CONTEXT_DOCK_DESTINATION` extension point 贡献，内置 workspace 插件贡献首批 files / diff / search / codebase / skills / recipes / memory / plan / timeline 等 destination，launcher 只消费 `useContextDockDestinations()`。
 **维护触发**：新 workspace/cwd-scoped 入口贡献 `CONTEXT_DOCK_DESTINATION` 并默认走 `openContextDockView`；只有 settings / notifications 这类 global surface 才用 full workspace view。
 
+#### F. Context Dock session scope（首批落地）
+
+**现状**：`workspaceNavigationStore` 已把 dock material state 按 active session scope 保存/恢复；`workspace.session-navigation` 监听 agent session selection/lifecycle，切换 session 时保存离开的 dock scope、恢复进入的 dock scope，关闭 session 后清理不再打开的 scope。
+**维护触发**：继续拆 `workspaceNavigationStore` 时，app-global surface state（main tabs / settings target）与 session-scoped dock state（split view / active file / tool selection）应分成独立 store 或独立 application port；不要退回“切 session 清空 patch”的模型。
+
 ### 12.2 想做但当前 KISS / YAGNI 不允许
 
 - **`<ToolPrimitive>` headless 组件**：目前只有 `approval` 一个真正 actionable 的块（tool 是只读指针，code/search 是被动展示）。给单一消费者抽 primitive 违反"3+ 重复才抽象"。**触发条件**：第二个 actionable block 出现（如 code-proposal 升级为 accept/reject）。
