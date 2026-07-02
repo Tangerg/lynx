@@ -377,7 +377,7 @@ Zustand store 不是业务层。它可以承担：
 
 ## 10. 下一步推荐切口
 
-> 状态（2026-07-03）：切口 1–5 已落地——agent 的 HITL/approval/question presentation 已分层（`agent/presentation/*Presentation.ts`）、composer public ports 就位、workspace tool routing 收口、settings 面板全部目录化（`index + ui/ + application`）、agent view model 拆成 facade + SDK 类型。导航模型重建已进入落地期：`plugins/builtin/navigation` 已提供 Work Index read model，左侧 workspace/run destination 已迁入 Context Dock。下一阶段不再做泛重构，主线是把 Work Index contribution 与 action wiring 继续收进 navigation bounded context。
+> 状态（2026-07-03）：切口 1–5 已落地——agent 的 HITL/approval/question presentation 已分层（`agent/presentation/*Presentation.ts`）、composer public ports 就位、workspace tool routing 收口、settings 面板全部目录化（`index + ui/ + application`）、agent view model 拆成 facade + SDK 类型。导航模型重建首批已收口：`plugins/builtin/navigation` 已提供 Work Index read model、attention 投影、Work Index contribution surface 与 action wiring；`sidebar/` 退成 renderer；左侧 workspace/run destination 已迁入 Context Dock，Context Dock launcher/destination 打开意图也已收进 workspace application。
 
 按收益和风险排序：
 
@@ -386,4 +386,4 @@ Zustand store 不是业务层。它可以承担：
 3. ✅ **Workspace tool routing / view model**（已落地）：tool → terminal/diff/timeline 的规则已从 UI/store 收口。
 4. ✅ **Settings configuration drafts**（已落地）：MCP/schedule/hooks/provider/approvals/connection/usage/plugins form 已从 RPC shape 解耦、每个面板 `index + ui/ + application`。
 5. ✅ **Agent view model 深拆**（已落地）：`agent/public/viewState.ts` 已是 ~30 行 facade，SDK 的内容块扩展契约与会话视图模型已分文件（`plugins/sdk/types/contentBlock.ts` + `plugins/sdk/types/agentView.ts`）。
-6. **导航模型重建（进行中）**：`plugins/builtin/navigation` bounded context 已承接 project/session grouping 与 recent-session read model；`sidebar/` 正在退成 Work Index renderer。剩余工作不是继续整理旧树，而是把 action wiring（create/select/rename/fork/delete/favorite）与 contribution surface 收进 navigation public/application，使左侧只消费 `navigation/public` 发布语言。
+6. ✅ **导航模型重建（首批已落地）**：`plugins/builtin/navigation` bounded context 已承接 project/session grouping、recent-session read model、attention 投影、action wiring（create/select/rename/fork/delete/favorite）与 Work Index contribution surface；`sidebar/` 只消费 `navigation/public` 发布语言并渲染 Work Index。
