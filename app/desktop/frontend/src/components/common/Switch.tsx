@@ -26,7 +26,7 @@ export function Switch({ checked, onCheckedChange, disabled, ariaLabel, classNam
     >
       <BaseSwitch.Thumb
         className={cn(
-          "block h-4 w-4 rounded-full bg-canvas shadow-[0_1px_2px_var(--color-divider)] transition-transform duration-150",
+          "block h-4 w-4 rounded-full bg-canvas shadow-[0_1px_2px_rgb(0_0_0_/_0.25)] transition-transform duration-150",
           "translate-x-0.5 data-[checked]:translate-x-[18px] data-[checked]:bg-on-accent",
         )}
       />
