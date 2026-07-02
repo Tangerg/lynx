@@ -86,7 +86,6 @@ html.theme-light {
 
 html.theme-light .panel.sidebar {
   background: var(--color-surface);
-  box-shadow: inset -1px 0 0 var(--color-divider);
 }
 
 /* ---------- Scroll containers ---------- */
