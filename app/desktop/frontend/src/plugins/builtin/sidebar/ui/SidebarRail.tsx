@@ -1,9 +1,9 @@
 // Collapsed sidebar — slim vertical strip. The kernel owns the expand
-// button + the rail container; every other item is contributed via
-// `host.extensions.contribute(SIDEBAR_RAIL_ITEM, …)`.
+// button + the rail container; every other item is contributed by Work Index
+// plugins.
 //
 // Order convention (loosely enforced by `order` numbers, see types.ts):
-//   - 0..99    : top (new-session, search)
+//   - 0..99    : top (new-session)
 //   - 100..899 : middle (sessions stack)
 //   - 900..999 : bottom (tools, settings, user)
 //

@@ -91,7 +91,7 @@ src/
 │       │                     plugins-pane · providers · icon-gallery
 │       ├── shell/            纯框架：kernel · main-route · status · toaster ·
 │       │                     topbar-new-tab · welcome-screen
-│       ├── sidebar/          Work Index renderer / search / footer / 三个 rail-*
+│       ├── sidebar/          Work Index renderer / footer / rail surfaces
 │       ├── theme/            kit（defineThemePlugin helper）+ themes（10+ 主题）
 │       └── workspace/        workspace-views · tasks · diagnostics · conversation-export
 │
@@ -111,7 +111,7 @@ src/
 ├── plugins/builtin/navigation/                     Navigation 限界上下文
 │   ├── domain/             Work Index / Work Group / Work Session read model
 │   ├── application/        projects + sessions + active context projection
-│   └── public/             sidebar renderer consumption facade
+│   └── public/             Work Index renderer consumption facade
 │
 ├── plugins/builtin/workspace/                      Workspace 限界上下文
 │   ├── application/        navigation / tool routing / activity projection
@@ -716,7 +716,7 @@ declare module "@/plugins/sdk/types/contentBlock" {
 
 #### E. Context Dock open intent（首批落地）
 
-**现状**：`workspace/application/contextDock.ts` 已把“打开当前工作材料”建模成 Context Dock intent，内部复用现有 split view；右侧 handle 打开 `context` launcher，左侧顶级 workspace menu 已移除，search / active-session destinations 都通过 `openContextDockView` 打开到右侧，不再抢占 Agent Narrative 的 full view。Context Dock 的可达入口由 `CONTEXT_DOCK_DESTINATION` extension point 贡献，内置 workspace 插件贡献首批 files / diff / search / codebase / skills / recipes / memory / plan / timeline 等 destination，launcher 消费 `useContextDockDestinations()` 并按 `workspace / run / session` scope 分组。
+**现状**：`workspace/application/contextDock.ts` 已把“打开当前工作材料”建模成 Context Dock intent，内部复用现有 split view；右侧 handle 打开 `context` launcher，左侧顶级 workspace menu 与 workspace grep 入口已移除，workspace/run/session destination 都从右侧进入，不再抢占 Agent Narrative 的 full view。Context Dock 的可达入口由 `CONTEXT_DOCK_DESTINATION` extension point 贡献，内置 workspace 插件贡献首批 files / diff / search / codebase / skills / recipes / memory / plan / timeline 等 destination，launcher 消费 `useContextDockDestinations()` 并按 `workspace / run / session` scope 分组。
 **维护触发**：新 workspace/cwd-scoped 入口贡献 `CONTEXT_DOCK_DESTINATION` 并默认走 `openContextDockView`；只有 settings / notifications 这类 global surface 才用 full workspace view。
 
 #### F. Context Dock session scope（已落地）
